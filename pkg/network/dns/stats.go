@@ -27,16 +27,19 @@ const (
 	// query means the packet contains a DNS query
 	query
 	// Subsystem name for telemetry purposes
-	dnsStatKeeperModuleName = "dnsStatKeeper"
+	dnsStatKeeperModuleName = "network_tracer_dns_stat_keeper"
 	// This const limits the maximum size of the state map. Benchmark results show that allocated space is less than 3MB
 	// for 10000 entries.
 	maxStateMapSize = 10000
 )
 
-var (
-	lastNumStats     = telemetry.NewGauge(dnsStatKeeperModuleName, "last_num_stats", []string{}, "Gauge measuring the number of processed DNS stats")
-	lastDroppedStats = telemetry.NewGauge(dnsStatKeeperModuleName, "last_dropped_stats", []string{}, "Gauge measuring the number of dropped DNS stats")
-)
+var statsTelemetry = struct {
+	lastNumStats     telemetry.Gauge
+	lastDroppedStats telemetry.Gauge
+}{
+	telemetry.NewGauge(dnsStatKeeperModuleName, "last_num_stats", []string{}, "Gauge measuring the number of processed DNS stats"),
+	telemetry.NewGauge(dnsStatKeeperModuleName, "last_dropped_stats", []string{}, "Gauge measuring the number of dropped DNS stats"),
+}
 
 type dnsPacketInfo struct {
 	transactionID uint16
@@ -173,8 +176,8 @@ func (d *dnsStatKeeper) GetAndResetAllStats() StatsByKeyByNameByType {
 	ret := d.stats // No deep copy needed since `d.stats` gets reset
 	d.stats = make(StatsByKeyByNameByType)
 	log.Debugf("[DNS Stats] Number of processed stats: %d, Number of dropped stats: %d", d.numStats, d.droppedStats)
-	lastNumStats.Set(float64(d.numStats))
-	lastDroppedStats.Set(float64(d.droppedStats))
+	statsTelemetry.lastNumStats.Set(float64(d.numStats))
+	statsTelemetry.lastDroppedStats.Set(float64(d.droppedStats))
 	d.numStats = 0
 	d.droppedStats = 0
 	return ret

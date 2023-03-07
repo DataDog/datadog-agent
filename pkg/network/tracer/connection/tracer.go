@@ -74,19 +74,31 @@ const (
 	connTracerModuleName     = "network_tracer_ebpf"
 )
 
-var (
-	tcpConns4         = telemetry.NewGauge(connTracerModuleName, "tcp_conns4", []string{}, "desc")
-	udpConns4         = telemetry.NewGauge(connTracerModuleName, "udp_conns4", []string{}, "desc")
-	tcpConns6         = telemetry.NewGauge(connTracerModuleName, "tcp_conns6", []string{}, "desc")
-	udpConns6         = telemetry.NewGauge(connTracerModuleName, "udp_conns6", []string{}, "desc")
-	tcpFailedConnects = telemetry.NewGauge(connTracerModuleName, "tcp_failed_connects", []string{}, "desc")
-	tcpSentMiscounts  = telemetry.NewGauge(connTracerModuleName, "tcp_sent_miscounts", []string{}, "desc")
-	missedTcpClose    = telemetry.NewGauge(connTracerModuleName, "missed_tcp_close", []string{}, "desc")
-	missedUdpClose    = telemetry.NewGauge(connTracerModuleName, "missed_udp_close", []string{}, "desc")
-	UdpSendsProcessed = nettelemetry.NewStatGaugeWrapper(connTracerModuleName, "udp_sends_processed", []string{}, "desc")
-	UdpSendsMissed    = nettelemetry.NewStatGaugeWrapper(connTracerModuleName, "udp_sends_missed", []string{}, "desc")
-	UdpDroppedConns   = telemetry.NewGauge(connTracerModuleName, "udp_dropped_conns", []string{}, "desc")
-)
+var connTracerTelemetry = struct {
+	tcpConns4         telemetry.Gauge
+	udpConns4         telemetry.Gauge
+	tcpConns6         telemetry.Gauge
+	udpConns6         telemetry.Gauge
+	tcpFailedConnects telemetry.Gauge
+	tcpSentMiscounts  telemetry.Gauge
+	missedTcpClose    telemetry.Gauge
+	missedUdpClose    telemetry.Gauge
+	UdpSendsProcessed nettelemetry.StatGaugeWrapper
+	UdpSendsMissed    nettelemetry.StatGaugeWrapper
+	UdpDroppedConns   telemetry.Gauge
+}{
+	telemetry.NewGauge(connTracerModuleName, "tcp_conns4", []string{}, "Gauge measuring the number of active TCP4 connections in the EBPF map"),
+	telemetry.NewGauge(connTracerModuleName, "udp_conns4", []string{}, "Gauge measuring the number of active UDP4 connections in the EBPF map"),
+	telemetry.NewGauge(connTracerModuleName, "tcp_conns6", []string{}, "Gauge measuring the number of active TCP6 connections in the EBPF map"),
+	telemetry.NewGauge(connTracerModuleName, "udp_conns6", []string{}, "Gauge measuring the number of active UDP6 connections in the EBPF map"),
+	telemetry.NewGauge(connTracerModuleName, "tcp_failed_connects", []string{}, "Gauge measuring the number of failed TCP connections in the EBPF map"),
+	telemetry.NewGauge(connTracerModuleName, "tcp_sent_miscounts", []string{}, "Gauge measuring the number of active UDP6 connections in the EBPF map"),
+	telemetry.NewGauge(connTracerModuleName, "missed_tcp_close", []string{}, "Gauge measuring the number of missed TCP close events in the EBPF map"),
+	telemetry.NewGauge(connTracerModuleName, "missed_udp_close", []string{}, "Gauge measuring the number of missed UDP close events in the EBPF map"),
+	nettelemetry.NewStatGaugeWrapper(connTracerModuleName, "udp_sends_processed", []string{}, "Gauge measuring the number of processed UDP sends in EBPF"),
+	nettelemetry.NewStatGaugeWrapper(connTracerModuleName, "udp_sends_missed", []string{}, "Gauge measuring failures to process UDP sends in EBPF"),
+	telemetry.NewGauge(connTracerModuleName, "udp_dropped_conns", []string{}, "Gauge measuring the number of dropped UDP connections in the EBPF map"),
+}
 
 type tracer struct {
 	m *manager.Manager
@@ -300,10 +312,10 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 }
 
 func updateTelemtry(tcp4 float64, tcp6 float64, udp4 float64, udp6 float64) {
-	tcpConns4.Set(tcp4)
-	tcpConns6.Set(tcp6)
-	udpConns4.Set(udp4)
-	udpConns6.Set(udp6)
+	connTracerTelemetry.tcpConns4.Set(tcp4)
+	connTracerTelemetry.tcpConns6.Set(tcp6)
+	connTracerTelemetry.udpConns4.Set(udp4)
+	connTracerTelemetry.udpConns6.Set(udp6)
 }
 
 func removeConnection(conn *network.ConnectionStats) {
@@ -311,15 +323,15 @@ func removeConnection(conn *network.ConnectionStats) {
 	switch conn.Family {
 	case network.AFINET6:
 		if isTCP {
-			tcpConns6.Dec()
+			connTracerTelemetry.tcpConns6.Dec()
 		} else {
-			udpConns6.Dec()
+			connTracerTelemetry.udpConns6.Dec()
 		}
 	case network.AFINET:
 		if isTCP {
-			tcpConns4.Dec()
+			connTracerTelemetry.tcpConns4.Dec()
 		} else {
-			udpConns4.Dec()
+			connTracerTelemetry.udpConns4.Dec()
 		}
 	}
 }
@@ -367,7 +379,7 @@ func (t *tracer) getEBPFTelemetry() *netebpf.Telemetry {
 	var zero uint64
 	mp, _, err := t.m.GetMap(string(probes.TelemetryMap))
 	if err != nil {
-		// log.Warnf("error retrieving telemetry map: %s", err)
+		log.Warnf("error retrieving telemetry map: %s", err)
 		return nil
 	}
 
@@ -383,7 +395,7 @@ func (t *tracer) getEBPFTelemetry() *netebpf.Telemetry {
 
 func (t *tracer) RefreshProbeTelemetry() {
 	for {
-		time.Sleep(time.Duration(5) * time.Second)
+		time.Sleep(10 * time.Second)
 		t.refreshProbeTelemetry()
 	}
 }
@@ -394,13 +406,13 @@ func (t *tracer) refreshProbeTelemetry() {
 		return
 	}
 
-	tcpFailedConnects.Set(float64(telemetry.Tcp_failed_connect))
-	tcpSentMiscounts.Set(float64(telemetry.Tcp_sent_miscounts))
-	missedTcpClose.Set(float64(telemetry.Missed_tcp_close))
-	missedUdpClose.Set(float64(telemetry.Missed_udp_close))
-	UdpSendsProcessed.Set(int64(telemetry.Udp_sends_processed))
-	UdpSendsMissed.Set(int64(telemetry.Udp_sends_missed))
-	UdpDroppedConns.Set(float64(telemetry.Udp_dropped_conns))
+	connTracerTelemetry.tcpFailedConnects.Set(float64(telemetry.Tcp_failed_connect))
+	connTracerTelemetry.tcpSentMiscounts.Set(float64(telemetry.Tcp_sent_miscounts))
+	connTracerTelemetry.missedTcpClose.Set(float64(telemetry.Missed_tcp_close))
+	connTracerTelemetry.missedUdpClose.Set(float64(telemetry.Missed_udp_close))
+	connTracerTelemetry.UdpSendsProcessed.Set(int64(telemetry.Udp_sends_processed))
+	connTracerTelemetry.UdpSendsMissed.Set(int64(telemetry.Udp_sends_missed))
+	connTracerTelemetry.UdpDroppedConns.Set(float64(telemetry.Udp_dropped_conns))
 }
 
 // DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.

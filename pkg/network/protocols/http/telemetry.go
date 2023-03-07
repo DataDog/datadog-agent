@@ -16,9 +16,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
-	lastCheck = nettelemetry.NewStatGaugeWrapper("usm", "last_check", []string{}, "Gauge tracking the timestamp of when gauges were last updated")
-)
+var httpTelemetry = struct {
+	lastCheck nettelemetry.StatGaugeWrapper
+}{
+	nettelemetry.NewStatGaugeWrapper("usm", "last_check", []string{}, "Gauge tracking the timestamp of when gauges were last updated"),
+}
 
 type telemetry struct {
 	hits1XX, hits2XX, hits3XX, hits4XX, hits5XX *libtelemetry.Metric
@@ -52,7 +54,7 @@ func newTelemetry() (*telemetry, error) {
 		malformed: metricGroup.NewMetric("malformed", libtelemetry.OptStatsd),
 	}
 
-	lastCheck.Set(time.Now().Unix())
+	httpTelemetry.lastCheck.Set(time.Now().Unix())
 
 	return t, nil
 }
@@ -77,8 +79,8 @@ func (t *telemetry) count(tx httpTX) {
 func (t *telemetry) log() {
 	now := time.Now().Unix()
 
-	if lastCheck.Load() == 0 {
-		lastCheck.Set(now)
+	if httpTelemetry.lastCheck.Load() == 0 {
+		httpTelemetry.lastCheck.Set(now)
 		return
 	}
 	totalRequests := t.totalHits.Delta()
@@ -86,8 +88,8 @@ func (t *telemetry) log() {
 	rejected := t.rejected.Delta()
 	malformed := t.malformed.Delta()
 	aggregations := t.aggregations.Delta()
-	elapsed := now - lastCheck.Load()
-	lastCheck.Set(now)
+	elapsed := now - httpTelemetry.lastCheck.Load()
+	httpTelemetry.lastCheck.Set(now)
 
 	log.Debugf(
 		"http stats summary: requests_processed=%d(%.2f/s) requests_dropped=%d(%.2f/s) requests_rejected=%d(%.2f/s) requests_malformed=%d(%.2f/s) aggregations=%d",

@@ -18,14 +18,21 @@ import (
 )
 
 // Telemetry
-var (
-	length        = telemetry.NewGauge(dnsModuleName, "length", []string{}, "Gauge measuring the current size of the DNS cache")
-	lookups       = telemetry.NewGauge(dnsModuleName, "lookups", []string{}, "Gauge measuring the number of lookups to the DNS cache")
-	resolved_tel  = telemetry.NewGauge(dnsModuleName, "resolved", []string{}, "Gauge measuring the number of successful lookups to the DNS cache")
-	added         = telemetry.NewGauge(dnsModuleName, "added", []string{}, "Gauge measuring the number of additions to the DNS cache")
-	expired_tel   = telemetry.NewGauge(dnsModuleName, "expired", []string{}, "Gauge measuring the number of failed lookups to the DNS cache")
-	oversized_tel = telemetry.NewGauge(dnsModuleName, "oversized", []string{}, "Gauge measuring the number of lookups to the DNS cache that reached the max domains per IP limit")
-)
+var cacheTelemetry = struct {
+	length    telemetry.Gauge
+	lookups   telemetry.Gauge
+	resolved  telemetry.Gauge
+	added     telemetry.Gauge
+	expired   telemetry.Gauge
+	oversized telemetry.Gauge
+}{
+	telemetry.NewGauge(dnsModuleName, "length", []string{}, "Gauge measuring the current size of the DNS cache"),
+	telemetry.NewGauge(dnsModuleName, "lookups", []string{}, "Gauge measuring the number of lookups to the DNS cache"),
+	telemetry.NewGauge(dnsModuleName, "resolved", []string{}, "Gauge measuring the number of successful lookups to the DNS cache"),
+	telemetry.NewGauge(dnsModuleName, "added", []string{}, "Gauge measuring the number of additions to the DNS cache"),
+	telemetry.NewGauge(dnsModuleName, "expired", []string{}, "Gauge measuring the number of failed lookups to the DNS cache"),
+	telemetry.NewGauge(dnsModuleName, "oversized", []string{}, "Gauge measuring the number of lookups to the DNS cache that reached the max domains per IP limit"),
+}
 
 type reverseDNSCache struct {
 	mux  sync.Mutex
@@ -80,14 +87,14 @@ func (c *reverseDNSCache) Add(translation *translation) bool {
 				log.Warnf("%s mapped to too many domains, DNS information will be dropped (this will be logged the first 10 times, and then at most every 10 minutes)", addr)
 			}
 		} else {
-			added.Inc()
+			cacheTelemetry.added.Inc()
 			// flag as in use, so mapping survives until next time connections are queried, in case TTL is shorter
 			c.data[addr] = &dnsCacheVal{names: map[Hostname]time.Time{translation.dns: deadline}, inUse: true}
 		}
 	}
 
 	// Update cache length for telemetry purposes
-	length.Set(float64((len(c.data))))
+	cacheTelemetry.length.Set(float64((len(c.data))))
 
 	return true
 }
@@ -138,9 +145,9 @@ func (c *reverseDNSCache) Get(ips []util.Address) map[util.Address][]Hostname {
 	}
 
 	// Update stats for telemetry
-	lookups.Add(float64((len(resolved) + len(unresolved))))
-	resolved_tel.Add(float64(len(resolved)))
-	oversized_tel.Add(float64(len(oversized)))
+	cacheTelemetry.lookups.Add(float64((len(resolved) + len(unresolved))))
+	cacheTelemetry.resolved.Add(float64(len(resolved)))
+	cacheTelemetry.oversized.Add(float64(len(oversized)))
 
 	return resolved
 }
@@ -176,8 +183,8 @@ func (c *reverseDNSCache) Expire(now time.Time) {
 	total := len(c.data)
 	c.mux.Unlock()
 
-	expired_tel.Set(float64(expired))
-	length.Set(float64(total))
+	cacheTelemetry.expired.Set(float64(expired))
+	cacheTelemetry.length.Set(float64(total))
 	log.Debugf(
 		"dns entries expired. took=%s total=%d expired=%d\n",
 		time.Now().Sub(now), total, expired,

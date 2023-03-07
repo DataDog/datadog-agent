@@ -27,12 +27,17 @@ import (
 const telemetryModuleName = "network_tracer_dns"
 
 // Telemetry
-var (
-	polls     = telemetry.NewStatGaugeWrapper(telemetryModuleName, "polls", []string{}, "desc")
-	processed = telemetry.NewStatGaugeWrapper(telemetryModuleName, "processed", []string{}, "desc")
-	captured  = telemetry.NewStatGaugeWrapper(telemetryModuleName, "captured", []string{}, "desc")
-	dropped   = telemetry.NewStatGaugeWrapper(telemetryModuleName, "dropped", []string{}, "desc")
-)
+var packetSourceTelemetry = struct {
+	polls     telemetry.StatGaugeWrapper
+	processed telemetry.StatGaugeWrapper
+	captured  telemetry.StatGaugeWrapper
+	dropped   telemetry.StatGaugeWrapper
+}{
+	telemetry.NewStatGaugeWrapper(telemetryModuleName, "polls", []string{}, "Gauge measuring the number of polled packets"),
+	telemetry.NewStatGaugeWrapper(telemetryModuleName, "processed", []string{}, "Gauge measuring the number of processed packets"),
+	telemetry.NewStatGaugeWrapper(telemetryModuleName, "captured", []string{}, "Gauge measuring the number of captured packets"),
+	telemetry.NewStatGaugeWrapper(telemetryModuleName, "dropped", []string{}, "Gauge measuring the number of dropped packets"),
+}
 
 // AFPacketSource provides a RAW_SOCKET attached to an eBPF SOCKET_FILTER
 type AFPacketSource struct {
@@ -141,10 +146,10 @@ func (p *AFPacketSource) pollStats() {
 				continue
 			}
 
-			polls.Add(sourceStats.Polls - prevPolls)
-			processed.Add(sourceStats.Packets - prevProcessed)
-			captured.Add(int64(socketStats.Packets()) - prevCaptured)
-			dropped.Add(int64(socketStats.Drops()) - prevDropped)
+			packetSourceTelemetry.polls.Add(sourceStats.Polls - prevPolls)
+			packetSourceTelemetry.processed.Add(sourceStats.Packets - prevProcessed)
+			packetSourceTelemetry.captured.Add(int64(socketStats.Packets()) - prevCaptured)
+			packetSourceTelemetry.dropped.Add(int64(socketStats.Drops()) - prevDropped)
 
 			prevPolls = sourceStats.Polls
 			prevProcessed = sourceStats.Packets

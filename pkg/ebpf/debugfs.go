@@ -17,7 +17,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -25,17 +24,19 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 )
 
-const kProbeTelemetryName = "network_tracer_kprobes"
+const kProbeTelemetryName = "ebpf_kprobes"
 
 var (
 	myPid  int
-	gauges map[string]telemetry.Gauge
-	mu     sync.Mutex
+	gauges struct {
+		sync.Mutex
+		g map[string]telemetry.Gauge
+	}
 )
 
 func init() {
 	myPid = manager.Getpid()
-	gauges = make(map[string]telemetry.Gauge)
+	gauges.g = make(map[string]telemetry.Gauge)
 }
 
 // KprobeStats is the count of hits and misses for a kprobe/kretprobe
@@ -46,13 +47,6 @@ type KprobeStats struct {
 
 // event name format is p|r_<funcname>_<uid>_<pid>
 var eventRegexp = regexp.MustCompile(`^((?:p|r)_.+?)_([^_]*)_([^_]*)$`)
-
-func RefreshProbeStats() {
-	for {
-		GetProbeStats()
-		time.Sleep(time.Duration(5) * time.Second)
-	}
-}
 
 // GetProbeStats gathers stats about the # of kprobes triggered /missed by reading the kprobe_profile file
 func GetProbeStats() map[string]int64 {
@@ -87,10 +81,10 @@ func getProbeStats(pid int, profile string) map[string]int64 {
 		event = strings.ToLower(event)
 		hitsKey := fmt.Sprintf("%s_hits", event)
 		missesKey := fmt.Sprintf("%s_misses", event)
-		mu.Lock()
+		gauges.Lock()
 		setOrCreateGauge(hitsKey, float64(st.Hits))
 		setOrCreateGauge(missesKey, float64(st.Misses))
-		mu.Unlock()
+		gauges.Unlock()
 		res[hitsKey] = st.Hits
 		res[missesKey] = st.Misses
 	}
@@ -100,10 +94,10 @@ func getProbeStats(pid int, profile string) map[string]int64 {
 
 // setOrCreateGauge checks the gauges map from the KprobeStats object for a Gauge. It creates the Gauge if it doesn't exist and sets it using val.
 func setOrCreateGauge(key string, val float64) {
-	if _, ok := gauges[key]; !ok {
-		gauges[key] = telemetry.NewGauge(kProbeTelemetryName, key, []string{}, fmt.Sprintf("Gauge tracking value of %s", key))
+	if _, ok := gauges.g[key]; !ok {
+		gauges.g[key] = telemetry.NewGauge(kProbeTelemetryName, key, []string{}, fmt.Sprintf("Gauge tracking value of %s", key))
 	}
-	gauges[key].Set(val)
+	gauges.g[key].Set(val)
 }
 
 // GetProbeTotals returns the total number of kprobes triggered or missed by reading the kprobe_profile file

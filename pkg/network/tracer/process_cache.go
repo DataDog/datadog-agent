@@ -17,6 +17,7 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -33,12 +34,17 @@ const (
 	processCacheModuleName = "network_tracer_process_cache"
 )
 
-var (
-	cacheEvicts   = newGauge(processCacheModuleName, "cache_evicts", "description")
-	cacheLength   = newGauge(processCacheModuleName, "cache_length", "description")
-	eventsDropped = newGauge(processCacheModuleName, "events_dropped", "description")
-	eventsSkipped = newGauge(processCacheModuleName, "events_skipped", "description")
-)
+var processCacheTelemetry = struct {
+	cacheEvicts   telemetry.Gauge
+	cacheLength   telemetry.Gauge
+	eventsDropped telemetry.Gauge
+	eventsSkipped telemetry.Gauge
+}{
+	newGauge(processCacheModuleName, "cache_evicts", "Gauge measuring the number of evictions in the process cache"),
+	newGauge(processCacheModuleName, "cache_length", "Gauge measuring the current size of the process cache"),
+	newGauge(processCacheModuleName, "events_dropped", "Gauge measuring the number of dropped process events"),
+	newGauge(processCacheModuleName, "events_skipped", "Gauge measuring the number of skipped process events"),
+}
 
 type process struct {
 	Pid         uint32
@@ -55,7 +61,7 @@ type processCache struct {
 	// cache of pid -> list of processes holds a list of processes
 	// with the same pid but differing start times up to a max of
 	// maxProcessListSize. this is used to determine the closest
-	// match to a connection's tiimestamp
+	// match to a connection's timestamp
 	cacheByPid map[uint32]processList
 	// lru cache; keyed by (pid, start time)
 	cache *lru.Cache
@@ -113,7 +119,12 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 		}
 	}()
 
-	go pc.RefreshTelemetry()
+	go func() {
+		for {
+			processCacheTelemetry.cacheLength.Set(float64(pc.cache.Len()))
+			time.Sleep(10 * time.Second)
+		}
+	}()
 
 	return pc, nil
 }
@@ -128,7 +139,7 @@ func (pc *processCache) handleProcessEvent(entry *smodel.ProcessCacheEntry) {
 
 	p := pc.processEvent(entry)
 	if p == nil {
-		eventsSkipped.Inc()
+		processCacheTelemetry.eventsSkipped.Inc()
 		return
 	}
 
@@ -136,7 +147,7 @@ func (pc *processCache) handleProcessEvent(entry *smodel.ProcessCacheEntry) {
 	case pc.in <- p:
 	default:
 		// dropped
-		eventsDropped.Inc()
+		processCacheTelemetry.eventsDropped.Inc()
 	}
 }
 
@@ -199,14 +210,7 @@ func (pc *processCache) add(p *process) {
 	pc.cacheByPid[p.Pid] = pl.update(p)
 
 	if evicted {
-		cacheEvicts.Inc()
-	}
-}
-
-func (pc *processCache) RefreshTelemetry() map[string]interface{} {
-	for {
-		cacheLength.Set(float64(pc.cache.Len()))
-		time.Sleep(time.Duration(5) * time.Second)
+		processCacheTelemetry.cacheEvicts.Inc()
 	}
 }
 

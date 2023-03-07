@@ -19,7 +19,7 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,13 +29,19 @@ const maxRouteCacheSize = int(^uint(0) >> 1) // max int
 const maxSubnetCacheSize = 1024
 
 // Telemetry
-var (
-	subnetCacheSize    = telemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_cache_size", []string{}, "Gauge measuring the size of the subnet cache")
-	subnetCacheMisses  = telemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_cache_misses", []string{}, "Gauge measuring the number of subnet cache misses")
-	subnetCacheLookups = telemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_cache_lookups", []string{}, "Gauge measuring the number of subnet cache lookups")
-	subnetLookups      = telemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_lookups", []string{}, "Gauge measuring the number of subnet lookups")
-	subnetLookupErrors = telemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_lookup_errors", []string{}, "Gauge measuring the number of subnet lookup errors")
-)
+var gatewayLookupTelemetry = struct {
+	subnetCacheSize    nettelemetry.StatGaugeWrapper
+	subnetCacheMisses  nettelemetry.StatGaugeWrapper
+	subnetCacheLookups nettelemetry.StatGaugeWrapper
+	subnetLookups      nettelemetry.StatGaugeWrapper
+	subnetLookupErrors nettelemetry.StatGaugeWrapper
+}{
+	nettelemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_cache_size", []string{}, "Gauge measuring the size of the subnet cache"),
+	nettelemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_cache_misses", []string{}, "Gauge measuring the number of subnet cache misses"),
+	nettelemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_cache_lookups", []string{}, "Gauge measuring the number of subnet cache lookups"),
+	nettelemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_lookups", []string{}, "Gauge measuring the number of subnet lookups"),
+	nettelemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_lookup_errors", []string{}, "Gauge measuring the number of subnet lookup errors"),
+}
 
 type gatewayLookup struct {
 	procRoot            string
@@ -112,10 +118,10 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 		return nil
 	}
 
-	subnetCacheLookups.Inc()
+	gatewayLookupTelemetry.subnetCacheLookups.Inc()
 	v, ok := g.subnetCache.Get(r.IfIndex)
 	if !ok {
-		subnetCacheMisses.Inc()
+		gatewayLookupTelemetry.subnetCacheMisses.Inc()
 
 		var s network.Subnet
 		var err error
@@ -126,26 +132,26 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 				log.Errorf("error getting interface for interface index %d: %s", r.IfIndex, err)
 				// negative cache for 1 minute
 				g.subnetCache.Add(r.IfIndex, time.Now().Add(1*time.Minute))
-				subnetCacheSize.Inc()
+				gatewayLookupTelemetry.subnetCacheSize.Inc()
 				return err
 			}
 
 			if ifi.Flags&net.FlagLoopback != 0 {
 				// negative cache loopback interfaces
 				g.subnetCache.Add(r.IfIndex, nil)
-				subnetCacheSize.Inc()
+				gatewayLookupTelemetry.subnetCacheSize.Inc()
 				return err
 			}
 
-			subnetLookups.Inc()
+			gatewayLookupTelemetry.subnetLookups.Inc()
 			if s, err = g.subnetForHwAddrFunc(ifi.HardwareAddr); err != nil {
-				subnetLookupErrors.Inc()
+				gatewayLookupTelemetry.subnetLookupErrors.Inc()
 				log.Errorf("error getting subnet info for interface index %d: %s", r.IfIndex, err)
 
 				// cache an empty result so that we don't keep hitting the
 				// ec2 metadata endpoint for this interface
 				g.subnetCache.Add(r.IfIndex, nil)
-				subnetCacheSize.Inc()
+				gatewayLookupTelemetry.subnetCacheSize.Inc()
 				return err
 			}
 
@@ -158,7 +164,7 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 
 		via := &network.Via{Subnet: s}
 		g.subnetCache.Add(r.IfIndex, via)
-		subnetCacheSize.Inc()
+		gatewayLookupTelemetry.subnetCacheSize.Inc()
 		v = via
 	} else if v == nil {
 		return nil
@@ -168,7 +174,7 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 	case time.Time:
 		if time.Now().After(cv) {
 			g.subnetCache.Remove(r.IfIndex)
-			subnetCacheSize.Dec()
+			gatewayLookupTelemetry.subnetCacheSize.Dec()
 		}
 		return nil
 	case *network.Via:
@@ -186,7 +192,7 @@ func (g *gatewayLookup) Close() {
 
 func (g *gatewayLookup) purge() {
 	g.subnetCache.Purge()
-	subnetCacheSize.Set(0)
+	gatewayLookupTelemetry.subnetCacheSize.Set(0)
 }
 
 func ec2SubnetForHardwareAddr(hwAddr net.HardwareAddr) (network.Subnet, error) {

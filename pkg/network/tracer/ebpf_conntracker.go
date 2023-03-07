@@ -44,7 +44,7 @@ var tuplePool = sync.Pool{
 	},
 }
 
-const ebpfConntrackerModuleName = "ebpf_conntracker"
+const ebpfConntrackerModuleName = "network_tracer_ebpf_conntracker"
 
 func newGauge(subsystem string, name string, help string, tags ...string) telemetry.Gauge {
 	return telemetry.NewGauge(ebpfConntrackerModuleName, name,
@@ -56,12 +56,17 @@ func newGaugeWrapper(subsystem string, name string, help string, tags ...string)
 		append([]string{}, tags...), help)
 }
 
-var (
-	gets                     = newGaugeWrapper(ebpfConntrackerModuleName, "gets_total", "Gauge measuring the total number of attempts to get connection tuples from the EBPF map")
-	nanoSecondsPerGet        = newGauge(ebpfConntrackerModuleName, "nanoseconds_per_get", "Gauge measuring the time spent getting a single connection tuple from the EBPF map")
-	nanoSecondsPerUnregister = newGauge(ebpfConntrackerModuleName, "nanoseconds_per_unregister", "Gauge measuring the time spent deleting a single connection tuple from the EBPF map")
-	registersTotal           = newGauge(ebpfConntrackerModuleName, "registers_total", "Gauge measuring the total number of attempts to delete connection tuples from the EBPF map")
-)
+var conntrackerTelemetry = struct {
+	gets                     nettelemetry.StatGaugeWrapper
+	nanoSecondsPerGet        telemetry.Gauge
+	nanoSecondsPerUnregister telemetry.Gauge
+	registersTotal           telemetry.Gauge
+}{
+	newGaugeWrapper(ebpfConntrackerModuleName, "gets_total", "Gauge measuring the total number of attempts to get connection tuples from the EBPF map"),
+	newGauge(ebpfConntrackerModuleName, "nanoseconds_per_get", "Gauge measuring the time spent getting a single connection tuple from the EBPF map"),
+	newGauge(ebpfConntrackerModuleName, "nanoseconds_per_unregister", "Gauge measuring the time spent deleting a single connection tuple from the EBPF map"),
+	newGauge(ebpfConntrackerModuleName, "registers_total", "Gauge measuring the total number of attempts to update/create connection tuples in the EBPF map"),
+}
 
 type ebpfConntrackerStats struct {
 	getTotalTime         *atomic.Int64
@@ -253,10 +258,10 @@ func (e *ebpfConntracker) GetTranslationForConn(stats network.ConnectionStats) *
 	}
 	defer tuplePool.Put(dst)
 
-	gets.Inc()
+	conntrackerTelemetry.gets.Inc()
 	e.stats.getTotalTime.Add(time.Now().Sub(start).Nanoseconds())
-	if gets := gets.Load(); gets > 0 {
-		nanoSecondsPerGet.Set(float64(e.stats.getTotalTime.Load() / gets))
+	if gets := conntrackerTelemetry.gets.Load(); gets > 0 {
+		conntrackerTelemetry.nanoSecondsPerGet.Set(float64(e.stats.getTotalTime.Load() / gets))
 	}
 	return &network.IPTranslation{
 		ReplSrcIP:   dst.SourceAddress(),
@@ -308,7 +313,7 @@ func (e *ebpfConntracker) DeleteTranslation(stats network.ConnectionStats) {
 	e.stats.unregisters.Inc()
 	e.stats.unregistersTotalTime.Add(time.Now().Sub(start).Nanoseconds())
 	if unregisters := e.stats.unregisters.Load(); unregisters > 0 {
-		nanoSecondsPerUnregister.Set(float64(e.stats.unregistersTotalTime.Load() / unregisters))
+		conntrackerTelemetry.nanoSecondsPerUnregister.Set(float64(e.stats.unregistersTotalTime.Load() / unregisters))
 	}
 }
 
@@ -318,7 +323,7 @@ func (e *ebpfConntracker) RefreshTelemetry() {
 		if err := e.telemetryMap.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(telemetry)); err != nil {
 			log.Tracef("error retrieving the telemetry struct: %s", err)
 		} else {
-			registersTotal.Set(float64(telemetry.Registers))
+			conntrackerTelemetry.registersTotal.Set(float64(telemetry.Registers))
 		}
 		time.Sleep(time.Duration(5) * time.Second)
 	}

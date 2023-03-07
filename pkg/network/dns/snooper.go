@@ -27,14 +27,20 @@ const (
 )
 
 // Telemetry
-var (
-	decodingErrors = telemetry.NewStatGaugeWrapper(dnsModuleName, "decoding_errors", []string{}, "Gauge measuring the number of decoding errors while processing packets")
-	truncatedPkts  = telemetry.NewStatGaugeWrapper(dnsModuleName, "truncated_pkts", []string{}, "Gauge measuring the number of truncated packets while processing")
+var snooperTelemetry = struct {
+	decodingErrors telemetry.StatGaugeWrapper
+	truncatedPkts  telemetry.StatGaugeWrapper
+	queries        telemetry.StatGaugeWrapper
+	successes      telemetry.StatGaugeWrapper
+	errors         telemetry.StatGaugeWrapper
+}{
+	telemetry.NewStatGaugeWrapper(dnsModuleName, "decoding_errors", []string{}, "Gauge measuring the number of decoding errors while processing packets"),
+	telemetry.NewStatGaugeWrapper(dnsModuleName, "truncated_pkts", []string{}, "Gauge measuring the number of truncated packets while processing"),
 	// DNS telemetry, values calculated *till* the last tick in pollStats
-	queries_tel   = telemetry.NewStatGaugeWrapper(dnsModuleName, "queries", []string{}, "Gauge measuring the number of packets that are DNS queries in processed packets")
-	successes_tel = telemetry.NewStatGaugeWrapper(dnsModuleName, "successes", []string{}, "Gauge measuring the number of successful DNS responses in processed packets")
-	errors_tel    = telemetry.NewStatGaugeWrapper(dnsModuleName, "errors", []string{}, "Gauge measuring the number of failed DNS responses in processed packets")
-)
+	telemetry.NewStatGaugeWrapper(dnsModuleName, "queries", []string{}, "Gauge measuring the number of packets that are DNS queries in processed packets"),
+	telemetry.NewStatGaugeWrapper(dnsModuleName, "successes", []string{}, "Gauge measuring the number of successful DNS responses in processed packets"),
+	telemetry.NewStatGaugeWrapper(dnsModuleName, "errors", []string{}, "Gauge measuring the number of failed DNS responses in processed packets"),
+}
 
 var _ ReverseDNS = &socketFilterSnooper{}
 
@@ -150,9 +156,9 @@ func (s *socketFilterSnooper) processPacket(data []byte, ts time.Time) error {
 		switch err {
 		case errSkippedPayload: // no need to count or log cases where the packet is valid but has no relevant content
 		case errTruncated:
-			truncatedPkts.Inc()
+			snooperTelemetry.truncatedPkts.Inc()
 		default:
-			decodingErrors.Inc()
+			snooperTelemetry.decodingErrors.Inc()
 		}
 		return nil
 	}
@@ -163,11 +169,11 @@ func (s *socketFilterSnooper) processPacket(data []byte, ts time.Time) error {
 
 	if pktInfo.pktType == successfulResponse {
 		s.cache.Add(t)
-		successes_tel.Inc()
+		snooperTelemetry.successes.Inc()
 	} else if pktInfo.pktType == failedResponse {
-		errors_tel.Inc()
+		snooperTelemetry.errors.Inc()
 	} else {
-		queries_tel.Inc()
+		snooperTelemetry.queries.Inc()
 	}
 
 	return nil
@@ -205,9 +211,9 @@ func (s *socketFilterSnooper) logDNSStats() {
 	for {
 		select {
 		case <-ticker.C:
-			queries = queries_tel.Load()
-			successes = successes_tel.Load()
-			errors = errors_tel.Load()
+			queries = snooperTelemetry.queries.Load()
+			successes = snooperTelemetry.successes.Load()
+			errors = snooperTelemetry.errors.Load()
 			log.Infof("DNS Stats. Queries :%d, Successes :%d, Errors: %d", queries-lastQueries, successes-lastSuccesses, errors-lastErrors)
 			lastQueries = queries
 			lastSuccesses = successes

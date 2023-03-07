@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -112,13 +113,19 @@ func (e *Event) Done() {
 }
 
 // Telemetry
-var (
-	enobufs     = newGauge("enobufs", "description")
-	throttles   = newGauge("throttles", "description")
-	samplingPct = newGauge("sampling_pct", "description")
-	readErrors  = newGauge("read_errors", "description")
-	msgErrors   = newGauge("msg_errors", "description")
-)
+var consumerTelemetry = struct {
+	enobufs     telemetry.Gauge
+	throttles   telemetry.Gauge
+	samplingPct telemetry.Gauge
+	readErrors  telemetry.Gauge
+	msgErrors   telemetry.Gauge
+}{
+	newGauge("enobufs", "Gauge measuring the number of consumer enobufs"),
+	newGauge("throttles", "Gauge measuring the number of consumer throttles"),
+	newGauge("sampling_pct", "Gauge measuring the percent of events sampled by the consumer"),
+	newGauge("read_errors", "Gauge measuring the number of consumer read errors"),
+	newGauge("msg_errors", "Gauge measuring the number of consumer message errors"),
+}
 
 // NewConsumer creates a new Conntrack event consumer.
 // targetRateLimit represents the maximum number of netlink messages per second that can be read off the socket
@@ -464,7 +471,7 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 
 	// Attach BPF sampling filter if necessary
 	c.samplingRate = samplingRate
-	samplingPct.Set(float64((samplingRate * 100.0)))
+	consumerTelemetry.samplingPct.Set(float64((samplingRate * 100.0)))
 	if c.samplingRate >= 1.0 {
 		return nil
 	}
@@ -473,7 +480,7 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 	sampler, _ := GenerateBPFSampler(c.samplingRate)
 	err = c.socket.SetBPF(sampler)
 	if err != nil {
-		samplingPct.Set(0)
+		consumerTelemetry.samplingPct.Set(0)
 		return fmt.Errorf("failed to attach BPF filter: %w", err)
 	}
 
@@ -512,9 +519,9 @@ ReadLoop:
 				// EOFs are usually indicative of normal program termination, so we simply exit
 				return
 			case errENOBUF:
-				enobufs.Inc()
+				consumerTelemetry.enobufs.Inc()
 			default:
-				readErrors.Inc()
+				consumerTelemetry.readErrors.Inc()
 			}
 		}
 
@@ -526,7 +533,7 @@ ReadLoop:
 		// Messages with error codes are simply skipped
 		for _, m := range msgs {
 			if err := checkMessage(m); err != nil {
-				msgErrors.Inc()
+				consumerTelemetry.msgErrors.Inc()
 				continue ReadLoop
 			}
 		}
@@ -557,9 +564,9 @@ func (c *Consumer) receiveAndDiscard() {
 				// EOFs are usually indicative of normal program termination, so we simply exit
 				return
 			case errENOBUF:
-				enobufs.Inc()
+				consumerTelemetry.enobufs.Inc()
 			default:
-				readErrors.Inc()
+				consumerTelemetry.readErrors.Inc()
 			}
 		}
 		if done {
@@ -590,7 +597,7 @@ func (c *Consumer) throttle(numMessages int) error {
 	if !c.breaker.IsOpen() {
 		return nil
 	}
-	throttles.Inc()
+	consumerTelemetry.throttles.Inc()
 
 	// Close current socket
 	c.conn.Close()

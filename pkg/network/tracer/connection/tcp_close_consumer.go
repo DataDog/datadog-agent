@@ -27,10 +27,13 @@ const (
 )
 
 // Telemetry
-var (
-	perfReceived = telemetry.NewGauge(closeConsumerModuleName, perfReceivedStat, []string{}, "description")
-	perfLost     = telemetry.NewGauge(closeConsumerModuleName, perfLostStat, []string{}, "description")
-)
+var closerConsumerTelemetry = struct {
+	perfReceived telemetry.Gauge
+	perfLost     telemetry.Gauge
+}{
+	telemetry.NewGauge(closeConsumerModuleName, perfReceivedStat, []string{}, "placeholder"),
+	telemetry.NewGauge(closeConsumerModuleName, perfLostStat, []string{}, "placeholder"),
+}
 
 type tcpCloseConsumer struct {
 	perfHandler  *ddebpf.PerfHandler
@@ -88,7 +91,7 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 					return
 				}
 
-				perfReceived.Inc()
+				closerConsumerTelemetry.perfReceived.Inc()
 				batch := netebpf.ToBatch(batchData.Data)
 				c.batchManager.ExtractBatchInto(c.buffer, batch, batchData.CPU)
 				closedCount += c.buffer.Len()
@@ -99,7 +102,7 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 				if !ok {
 					return
 				}
-				perfLost.Add(float64(lc))
+				closerConsumerTelemetry.perfLost.Add(float64(lc))
 				lostCount += netebpf.BatchSize
 			case request, ok := <-c.requests:
 				if !ok {
