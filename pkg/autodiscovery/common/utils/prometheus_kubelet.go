@@ -29,30 +29,32 @@ func ConfigsForPod(pc *types.PrometheusCheck, pod *kubelet.Pod) []integration.Co
 
 	instances, found := buildInstances(pc, pod.Metadata.Annotations, namespacedName)
 	if found {
+		// If `prometheus.io/port` annotation has been provided, let’s keep only the container that declares this port.
+		var portFromAnnotation int
+		var containerPorts map[string]map[int]struct{}
+		if portFromAnnotationString, portFromAnnotationFound := pod.Metadata.Annotations[types.PrometheusPortAnnotation]; portFromAnnotationFound {
+			var err error
+			if portFromAnnotation, err = strconv.Atoi(portFromAnnotationString); err != nil {
+				portFromAnnotationFound = false
+				portFromAnnotation = 0
+			} else {
+				containerPorts = make(map[string]map[int]struct{})
+				for _, containerSpec := range pod.Spec.Containers {
+					containerPorts[containerSpec.Name] = make(map[int]struct{})
+					for _, port := range containerSpec.Ports {
+						containerPorts[containerSpec.Name][port.ContainerPort] = struct{}{}
+					}
+				}
+			}
+		}
 		for _, containerStatus := range pod.Status.GetAllContainers() {
 			if !pc.AD.MatchContainer(containerStatus.Name) {
 				log.Debugf("Container '%s' doesn't match the AD configuration 'kubernetes_container_names', ignoring it", containerStatus.Name)
 				continue
 			}
-			// If `prometheus.io/port` annotation has been provided, let’s keep only the container that declares this port.
-			if portFromAnnotationString, found := pod.Metadata.Annotations[types.PrometheusPortAnnotation]; found {
-				portFromAnnotation, _ := strconv.Atoi(portFromAnnotationString)
-				var containerSpec *kubelet.ContainerSpec
-				for _, ctr := range pod.Spec.Containers {
-					if ctr.Name == containerStatus.Name {
-						containerSpec = &ctr
-						break
-					}
-				}
-				if containerSpec != nil {
-					found := false
-					for _, port := range containerSpec.Ports {
-						if port.ContainerPort == portFromAnnotation {
-							found = true
-							break
-						}
-					}
-					if !found {
+			if portFromAnnotation != 0 {
+				if ctr, found := containerPorts[containerStatus.Name]; found {
+					if _, found := ctr[portFromAnnotation]; !found {
 						continue
 					}
 				}
