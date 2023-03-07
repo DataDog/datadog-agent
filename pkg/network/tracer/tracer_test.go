@@ -14,6 +14,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"io"
 	"math/rand"
 	"net"
@@ -37,6 +38,7 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -1380,7 +1382,6 @@ func TestConnectionClobber(t *testing.T) {
 }
 
 func TestTCPDirection(t *testing.T) {
-
 	cfg := testConfig()
 	tr := setupTracer(t, cfg)
 
@@ -1429,6 +1430,66 @@ func TestTCPDirection(t *testing.T) {
 
 		return len(outgoingConns) == 1 && len(incomingConns) == 1
 	}, 3*time.Second, 10*time.Millisecond, "couldn't find incoming and outgoing http connections matching: %s", serverAddr)
+
+	// Verify connection directions
+	conn := outgoingConns[0]
+	assert.Equal(t, conn.Direction, network.OUTGOING, "connection direction must be outgoing: %s", conn)
+	conn = incomingConns[0]
+	assert.Equal(t, conn.Direction, network.INCOMING, "connection direction must be incoming: %s", conn)
+}
+
+func TestHTTP2TCPDirection(t *testing.T) {
+	cfg := testConfig()
+	tr := setupTracer(t, cfg)
+
+	serverAddr := "127.0.0.1:5050"
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableHTTP2Monitoring = true
+
+	currKernelVersion, err := kernel.HostVersion()
+	require.NoError(t, err)
+	if currKernelVersion < http.MinimumKernelVersion {
+		t.Skipf("USM can not run on kernel before %v", http.MinimumKernelVersion)
+	}
+
+	if currKernelVersion < http.HTTP2MinimumKernelVersion {
+		t.Skipf("HTTP2 monitoring can not run on kernel before %v", http.HTTP2MinimumKernelVersion)
+	}
+
+	// Start an gRPC server on localhost:8080
+	s, err := grpc.NewServer(serverAddr)
+	require.NoError(t, err)
+	s.Run()
+	t.Cleanup(s.Stop)
+
+	// Allow the gRPC server time to get set up
+	time.Sleep(time.Millisecond * 500)
+
+	var client grpc.Client
+	client, err = grpc.NewClient(serverAddr, grpc.Options{})
+	require.NoError(t, err)
+	ctx := context.Background()
+	// Send a HTTP2 request to the test server
+	require.NoError(t, client.HandleUnary(ctx, "first"))
+
+	// Iterate through active connections until we find connection created above
+	var outgoingConns []network.ConnectionStats
+	var incomingConns []network.ConnectionStats
+	require.Eventuallyf(t, func() bool {
+		conns := getConnections(t, tr)
+		if len(outgoingConns) == 0 {
+			outgoingConns = searchConnections(conns, func(cs network.ConnectionStats) bool {
+				return fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == serverAddr
+			})
+		}
+		if len(incomingConns) == 0 {
+			incomingConns = searchConnections(conns, func(cs network.ConnectionStats) bool {
+				return fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == serverAddr
+			})
+		}
+
+		return len(outgoingConns) == 1 && len(incomingConns) == 1
+	}, 3*time.Second, 10*time.Millisecond, "couldn't find incoming and outgoing http2 connections matching: %s", serverAddr)
 
 	// Verify connection directions
 	conn := outgoingConns[0]
