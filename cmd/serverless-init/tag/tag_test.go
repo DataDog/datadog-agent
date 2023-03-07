@@ -91,7 +91,7 @@ func TestDdTags(t *testing.T) {
 	originalTags := map[string]string{
 		"originalKey": "originalValue",
 	}
-	mergedTags := MergeTags(originalTags, config.GetGlobalConfiguredTags(false))
+	mergedTags := MergeWithOverwrite(originalTags, ArrayTagToMap(config.GetGlobalConfiguredTags(false)))
 	assert.Equal(t, "originalValue", mergedTags["originalKey"])
 	assert.Equal(t, "value2", mergedTags["key2"])
 	assert.Equal(t, "value3", mergedTags["key3"])

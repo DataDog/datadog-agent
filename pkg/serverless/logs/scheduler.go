@@ -37,3 +37,10 @@ func SetLogsTags(tags []string) {
 		logsScheduler.SetLogsTags(tags)
 	}
 }
+
+func GetLogsTags() []string {
+	if logsScheduler != nil {
+		return logsScheduler.GetLogsTags()
+	}
+	return nil
+}

@@ -69,13 +69,21 @@ func GetBaseTagsArrayWithMetadataTags(metadata map[string]string) []string {
 	return tagsArray
 }
 
-func MergeTags(tags map[string]string, configuredTags []string) map[string]string {
-	merged := make(map[string]string)
-	for _, v := range configuredTags {
+func ArrayTagToMap(tagArray []string) map[string]string {
+	toMap := make(map[string]string)
+	for _, v := range tagArray {
 		keyVal := strings.Split(v, ":")
-		merged[keyVal[0]] = keyVal[1]
+		toMap[keyVal[0]] = keyVal[1]
 	}
+	return toMap
+}
+
+func MergeWithOverwrite(tags map[string]string, overwritingTags map[string]string) map[string]string {
+	merged := make(map[string]string)
 	for k, v := range tags {
+		merged[k] = v
+	}
+	for k, v := range overwritingTags {
 		merged[k] = v
 	}
 	return merged

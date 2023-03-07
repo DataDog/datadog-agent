@@ -42,7 +42,7 @@ func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgen
 	setupProxy()
 
 	cloudService := cloudservice.GetCloudServiceType()
-	tags := tag.MergeTags(cloudService.GetTags(), config.GetGlobalConfiguredTags(false))
+	tags := tag.MergeWithOverwrite(tag.ArrayTagToMap(config.GetGlobalConfiguredTags(false)), cloudService.GetTags())
 	origin := cloudService.GetOrigin()
 	prefix := cloudService.GetPrefix()
 

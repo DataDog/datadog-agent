@@ -11,7 +11,9 @@ package main
 import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/stretchr/testify/assert"
+
 	"testing"
 )
 
@@ -46,12 +48,14 @@ func TestTagsSetup(t *testing.T) {
 		"key3": "value3",
 	}
 	_, _, _, metricAgent := setup()
-	assert.True(t, mapContains(tag.MergeTags(map[string]string{}, metricAgent.GetExtraTags()), tags))
+	assert.True(t, tagArrayContainsTags(metricAgent.GetExtraTags(), tags))
+	assert.True(t, tagArrayContainsTags(logs.GetLogsTags(), tags))
 }
 
-func mapContains(subject map[string]string, valuesToContain map[string]string) bool {
+func tagArrayContainsTags(subject []string, valuesToContain map[string]string) bool {
+	sub := tag.ArrayTagToMap(subject)
 	for k, v := range valuesToContain {
-		if subject[k] != v {
+		if sub[k] != v {
 			return false
 		}
 	}

@@ -87,3 +87,12 @@ func (s *Scheduler) SetLogsTags(tags []string) {
 	defer s.logSource.Config.ChannelTagsMutex.Unlock()
 	s.logSource.Config.ChannelTags = tags
 }
+
+// GetLogsTags returns a defensive copy of the used tags
+func (s *Scheduler) GetLogsTags() []string {
+	s.logSource.Config.ChannelTagsMutex.Lock()
+	defer s.logSource.Config.ChannelTagsMutex.Unlock()
+	defensiveCopy := make([]string, len(s.logSource.Config.ChannelTags))
+	copy(defensiveCopy, s.logSource.Config.ChannelTags)
+	return defensiveCopy
+}
