@@ -114,7 +114,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 func (c *Check) Teardown() {
 	if c.db != nil {
 		if err := c.db.Close(); err != nil {
-			log.Warnf("Failed to close Oracle connection | server=[%s] err=[%s]", c.config.Server, err)
+			log.Warnf("failed to close oracle connection | server=[%s]: %s", c.config.Server, err.Error())
 		}
 	}
 }
