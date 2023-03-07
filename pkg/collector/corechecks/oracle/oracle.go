@@ -69,7 +69,7 @@ func (c *Check) Run() error {
 	if c.dbmEnabled {
 		err := c.SampleSession()
 		if err != nil {
-			return log.Errorf("Sampling session: %v", err)
+			return err
 		}
 	}
 
