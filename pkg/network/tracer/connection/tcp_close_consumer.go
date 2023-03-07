@@ -31,8 +31,8 @@ var closerConsumerTelemetry = struct {
 	perfReceived telemetry.Gauge
 	perfLost     telemetry.Gauge
 }{
-	telemetry.NewGauge(closeConsumerModuleName, perfReceivedStat, []string{}, "placeholder"),
-	telemetry.NewGauge(closeConsumerModuleName, perfLostStat, []string{}, "placeholder"),
+	telemetry.NewGauge(closeConsumerModuleName, perfReceivedStat, []string{}, "Gauge measuring the number of closed connection batches received"),
+	telemetry.NewGauge(closeConsumerModuleName, perfLostStat, []string{}, "Gauge measuring the number of batches lost (were transmitted from ebpf but never received)"),
 }
 
 type tcpCloseConsumer struct {

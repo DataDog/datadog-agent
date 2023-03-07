@@ -10,6 +10,8 @@ import (
 	"go.uber.org/atomic"
 )
 
+// StatGaugeWrapper is a convenience type that allows for migrating telemetry to
+// prometheus Gauges while continuing to return the underlying values as expvars
 type StatGaugeWrapper struct {
 	stat  *atomic.Int64
 	gauge telemetry.Gauge
