@@ -377,7 +377,7 @@ static __always_inline void process_headers(http2_ctx_t *http2_ctx, http2_header
     }
 }
 
-static __always_inline void handle_end_of_stream(frame_type_t type, http2_stream_key_t *http2_stream_key_template) {
+static __always_inline void handle_end_of_stream(http2_stream_key_t *http2_stream_key_template) {
     http2_stream_t *current_stream = http2_fetch_stream(http2_stream_key_template);
     if (current_stream == NULL) {
         return;
@@ -471,7 +471,7 @@ static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, http2_itera
     // If the payload is end of stream, call handle_end_of_stream.
     if ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
         http2_ctx->http2_stream_key.stream_id = current_frame.stream_id;
-        handle_end_of_stream(current_frame.type, &http2_ctx->http2_stream_key);
+        handle_end_of_stream(&http2_ctx->http2_stream_key);
     }
 
 end:
