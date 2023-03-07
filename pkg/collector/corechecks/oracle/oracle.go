@@ -9,9 +9,6 @@ import (
 	"context"
 	"fmt"
 
-	_ "github.com/godror/godror"
-	"github.com/jmoiron/sqlx"
-
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -20,6 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	_ "github.com/godror/godror"
+	"github.com/jmoiron/sqlx"
 	go_ora "github.com/sijms/go-ora/v2"
 )
 
@@ -61,7 +60,7 @@ func (c *Check) Run() error {
 		} else {
 			hostname, err := hostname.Get(context.TODO())
 			if err != nil {
-				return log.Errorf("getting hostname: %v", err)
+				return fmt.Errorf("failed to get hostname: %w", err)
 			}
 			c.hostname = hostname
 		}
@@ -125,7 +124,7 @@ func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integratio
 	var err error
 	c.config, err = config.NewCheckConfig(rawInstance, rawInitConfig)
 	if err != nil {
-		return fmt.Errorf("failed to build check config: %s", err)
+		return fmt.Errorf("failed to build check config: %w", err)
 	}
 
 	// Must be called before c.CommonConfigure because this integration supports multiple instances

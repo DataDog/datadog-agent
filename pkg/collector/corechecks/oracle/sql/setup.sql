@@ -7,6 +7,7 @@ SELECT
     s.ksuseunm as osuser,
     s.ksusepid as process,
     s.ksusemnm as machine,
+    s.ksusemnp as PORT,
     s.ksusepnm as program,
     DECODE(BITAND(s.ksuseflg, 19), 17, 'BACKGROUND', 1, 'USER', 2, 'RECURSIVE', '?') as type,
     s.ksusesqi as sql_id,

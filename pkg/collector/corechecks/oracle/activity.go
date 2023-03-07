@@ -6,6 +6,7 @@
 package oracle
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
@@ -99,37 +100,69 @@ type RowMetadata struct {
 }
 
 type OracleActivityRow struct {
-	Now                    string  `db:"NOW" json:"now"`
-	SessionID              uint64  `db:"SID" json:"sid,omitempty"`
-	SessionSerial          uint64  `db:"SERIAL#" json:"serial,omitempty"`
-	User                   *string `db:"USERNAME" json:"user,omitempty"`
-	Status                 string  `db:"STATUS" json:"status"`
-	OsUser                 *string `db:"OSUSER" json:"os_user,omitempty"`
-	Process                *string `db:"PROCESS" json:"process,omitempty"`
-	Client                 *string `db:"MACHINE" json:"client,omitempty"`
-	Port                   *string `db:"PORT" json:"port,omitempty"`
-	Program                *string `db:"PROGRAM" json:"program,omitempty"`
-	Type                   *string `db:"TYPE" json:"type,omitempty"`
-	SqlID                  *string `db:"SQL_ID" json:"sql_id,omitempty"`
-	ForceMatchingSignature *uint64 `db:"FORCE_MATCHING_SIGNATURE" json:"force_matching_signature,omitempty"`
-	SqlPlanHashValue       *uint64 `db:"SQL_PLAN_HASH_VALUE" json:"sql_plan_hash_value,omitempty"`
-	SqlExecStart           *string `db:"SQL_EXEC_START" json:"sql_exec_start,omitempty"`
-	Module                 *string `db:"MODULE" json:"module,omitempty"`
-	Action                 *string `db:"ACTION" json:"action,omitempty"`
-	ClientInfo             *string `db:"CLIENT_INFO" json:"client_info,omitempty"`
-	LogonTime              *string `db:"LOGON_TIME" json:"logon_time,omitempty"`
-	ClientIdentifier       *string `db:"CLIENT_IDENTIFIER" json:"client_identifier,omitempty"`
-	BlockingInstance       *uint64 `db:"BLOCKING_INSTANCE" json:"blocking_instance,omitempty"`
-	BlockingSession        *uint64 `db:"BLOCKING_SESSION" json:"blocking_session,omitempty"`
-	FinalBlockingInstance  *uint64 `db:"FINAL_BLOCKING_INSTANCE" json:"final_blocking_instance,omitempty"`
-	FinalBlockingSession   *uint64 `db:"FINAL_BLOCKING_SESSION" json:"final_blocking_session,omitempty"`
-	WaitEvent              *string `db:"EVENT" json:"wait_event,omitempty"`
-	WaitEventGroup         *string `db:"WAIT_CLASS" json:"wait_event_group,omitempty"`
-	WaitTimeMicro          *string `db:"WAIT_TIME_MICRO" json:"wait_time_micro,omitempty"`
-	Statement              *string `db:"SQL_TEXT" json:"statement,omitempty"`
-	PdbName                *string `db:"PDB_NAME" json:"pdb_name,omitempty"`
-	QuerySignature         string  `json:"query_signature,omitempty"`
+	Now                    string `json:"now"`
+	SessionID              uint64 `json:"sid,omitempty"`
+	SessionSerial          uint64 `json:"serial,omitempty"`
+	User                   string `json:"user,omitempty"`
+	Status                 string `json:"status"`
+	OsUser                 string `json:"os_user,omitempty"`
+	Process                string `json:"process,omitempty"`
+	Client                 string `json:"client,omitempty"`
+	Port                   uint64 `json:"port,omitempty"`
+	Program                string `json:"program,omitempty"`
+	Type                   string `json:"type,omitempty"`
+	SQLID                  string `json:"sql_id,omitempty"`
+	ForceMatchingSignature uint64 `json:"force_matching_signature,omitempty"`
+	SQLPlanHashValue       uint64 `json:"sql_plan_hash_value,omitempty"`
+	SQLExecStart           string `json:"sql_exec_start,omitempty"`
+	Module                 string `json:"module,omitempty"`
+	Action                 string `json:"action,omitempty"`
+	ClientInfo             string `json:"client_info,omitempty"`
+	LogonTime              string `json:"logon_time,omitempty"`
+	ClientIdentifier       string `json:"client_identifier,omitempty"`
+	BlockingInstance       uint64 `json:"blocking_instance,omitempty"`
+	BlockingSession        uint64 `json:"blocking_session,omitempty"`
+	FinalBlockingInstance  uint64 `json:"final_blocking_instance,omitempty"`
+	FinalBlockingSession   uint64 `json:"final_blocking_session,omitempty"`
+	WaitEvent              string `json:"wait_event,omitempty"`
+	WaitEventGroup         string `json:"wait_event_group,omitempty"`
+	WaitTimeMicro          uint64 `json:"wait_time_micro,omitempty"`
+	Statement              string `json:"statement,omitempty"`
+	PdbName                string `json:"pdb_name,omitempty"`
+	QuerySignature         string `json:"query_signature,omitempty"`
 	RowMetadata
+}
+
+type OracleActivityRowDB struct {
+	Now                    string         `db:"NOW"`
+	SessionID              uint64         `db:"SID"`
+	SessionSerial          uint64         `db:"SERIAL#"`
+	User                   sql.NullString `db:"USERNAME"`
+	Status                 string         `db:"STATUS"`
+	OsUser                 sql.NullString `db:"OSUSER"`
+	Process                sql.NullString `db:"PROCESS"`
+	Client                 sql.NullString `db:"MACHINE"`
+	Port                   sql.NullInt64  `db:"PORT"`
+	Program                sql.NullString `db:"PROGRAM"`
+	Type                   sql.NullString `db:"TYPE"`
+	SQLID                  sql.NullString `db:"SQL_ID"`
+	ForceMatchingSignature *uint64        `db:"FORCE_MATCHING_SIGNATURE"`
+	SQLPlanHashValue       *uint64        `db:"SQL_PLAN_HASH_VALUE"`
+	SQLExecStart           sql.NullString `db:"SQL_EXEC_START"`
+	Module                 sql.NullString `db:"MODULE"`
+	Action                 sql.NullString `db:"ACTION"`
+	ClientInfo             sql.NullString `db:"CLIENT_INFO"`
+	LogonTime              sql.NullString `db:"LOGON_TIME"`
+	ClientIdentifier       sql.NullString `db:"CLIENT_IDENTIFIER"`
+	BlockingInstance       *uint64        `db:"BLOCKING_INSTANCE"`
+	BlockingSession        *uint64        `db:"BLOCKING_SESSION"`
+	FinalBlockingInstance  *uint64        `db:"FINAL_BLOCKING_INSTANCE"`
+	FinalBlockingSession   *uint64        `db:"FINAL_BLOCKING_SESSION"`
+	WaitEvent              sql.NullString `db:"EVENT"`
+	WaitEventGroup         sql.NullString `db:"WAIT_CLASS"`
+	WaitTimeMicro          *uint64        `db:"WAIT_TIME_MICRO"`
+	Statement              sql.NullString `db:"SQL_TEXT"`
+	PdbName                sql.NullString `db:"PDB_NAME"`
 }
 
 // Metadata contains the metadata fields common to all events processed
@@ -152,35 +185,116 @@ type MetricSender struct {
 func (c *Check) SampleSession() error {
 	start := time.Now()
 
-	sessionSamples := []OracleActivityRow{}
+	var sessionRows []OracleActivityRow
+	sessionSamples := []OracleActivityRowDB{}
 	err := c.db.Select(&sessionSamples, ACTIVITY_QUERY)
 
 	if err != nil {
-		log.Errorf("Session sampling %s", err)
-		return err
+		return fmt.Errorf("failed to collect session sampling activity: %w", err)
 	}
+
 	o := obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})
-	if c.config.ObfuscatorOn {
-		for i, sample := range sessionSamples {
-			if sample.Statement != nil && *sample.Statement != "" {
-				obfuscatedQuery, err := o.ObfuscateSQLString(*sample.Statement)
+	for _, sample := range sessionSamples {
+		var sessionRow OracleActivityRow
+		sessionRow.Now = sample.Now
+		sessionRow.SessionID = sample.SessionID
+		sessionRow.SessionSerial = sample.SessionSerial
+		if sample.User.Valid {
+			sessionRow.User = sample.User.String
+		}
+		sessionRow.Status = sample.Status
+		if sample.OsUser.Valid {
+			sessionRow.OsUser = sample.OsUser.String
+		}
+		if sample.Process.Valid {
+			sessionRow.Process = sample.Process.String
+		}
+		if sample.Client.Valid {
+			sessionRow.Client = sample.Client.String
+		}
+		if sample.Port.Valid {
+			sessionRow.Port = uint64(sample.Port.Int64)
+		}
+		if sample.Program.Valid {
+			sessionRow.Program = sample.Program.String
+		}
+		if sample.Type.Valid {
+			sessionRow.Type = sample.Type.String
+		}
+		if sample.SQLID.Valid {
+			sessionRow.SQLID = sample.SQLID.String
+		}
+		if sample.ForceMatchingSignature != nil {
+			sessionRow.ForceMatchingSignature = *sample.ForceMatchingSignature
+		}
+		if sample.SQLPlanHashValue != nil {
+			sessionRow.SQLPlanHashValue = *sample.SQLPlanHashValue
+		}
+		if sample.SQLExecStart.Valid {
+			sessionRow.SQLExecStart = sample.SQLExecStart.String
+		}
+		if sample.Module.Valid {
+			sessionRow.Module = sample.Module.String
+		}
+		if sample.Action.Valid {
+			sessionRow.Action = sample.Action.String
+		}
+		if sample.ClientInfo.Valid {
+			sessionRow.ClientInfo = sample.ClientInfo.String
+		}
+		if sample.LogonTime.Valid {
+			sessionRow.LogonTime = sample.LogonTime.String
+		}
+		if sample.ClientIdentifier.Valid {
+			sessionRow.ClientIdentifier = sample.ClientIdentifier.String
+		}
+		if sample.BlockingInstance != nil {
+			sessionRow.BlockingInstance = *sample.BlockingInstance
+		}
+		if sample.BlockingSession != nil {
+			sessionRow.BlockingSession = *sample.BlockingSession
+		}
+		if sample.FinalBlockingInstance != nil {
+			sessionRow.FinalBlockingInstance = *sample.FinalBlockingInstance
+		}
+		if sample.FinalBlockingSession != nil {
+			sessionRow.FinalBlockingSession = *sample.FinalBlockingSession
+		}
+		if sample.WaitEvent.Valid {
+			sessionRow.WaitEvent = sample.WaitEvent.String
+		}
+		if sample.WaitEventGroup.Valid {
+			sessionRow.WaitEventGroup = sample.WaitEventGroup.String
+		}
+		if sample.WaitTimeMicro != nil {
+			sessionRow.WaitTimeMicro = *sample.WaitTimeMicro
+		}
+		if sample.Statement.Valid {
+			if c.config.AllowUnobfuscatedStatements {
+				obfuscatedQuery, err := o.ObfuscateSQLString(sample.Statement.String)
 				if err != nil {
-					error_text := fmt.Sprintf("query obfuscation failed for SQL_ID: %s", *sample.SqlID)
+					error_text := fmt.Sprintf("query obfuscation failed for SQL_ID: %s", sample.SQLID.String)
 					if c.config.InstanceConfig.LogUnobfuscatedQueries {
-						error_text = error_text + fmt.Sprintf(" SQL: %s", *sample.Statement)
+						error_text = error_text + fmt.Sprintf(" SQL: %s", sample.Statement.String)
 					}
 					log.Error(error_text)
 				} else {
-					*sample.Statement = obfuscatedQuery.Query
-					sessionSamples[i].Commands = obfuscatedQuery.Metadata.Commands
-					sessionSamples[i].Tables = strings.Split(obfuscatedQuery.Metadata.TablesCSV, ",")
-					sessionSamples[i].Comments = obfuscatedQuery.Metadata.Comments
+					sessionRow.Statement = obfuscatedQuery.Query
+					sessionRow.Commands = obfuscatedQuery.Metadata.Commands
+					sessionRow.Tables = strings.Split(obfuscatedQuery.Metadata.TablesCSV, ",")
+					sessionRow.Comments = obfuscatedQuery.Metadata.Comments
 					h := fnv.New64a()
-					h.Write([]byte(*sample.Statement))
-					sessionSamples[i].QuerySignature = strconv.FormatUint(h.Sum64(), 10)
+					h.Write([]byte(sample.Statement.String))
+					sessionRow.QuerySignature = strconv.FormatUint(h.Sum64(), 10)
 				}
+			} else {
+				sessionRow.Statement = sample.Statement.String
 			}
 		}
+		if sample.PdbName.Valid {
+			sessionRow.PdbName = sample.PdbName.String
+		}
+		sessionRows = append(sessionRows, sessionRow)
 	}
 	o.Stop()
 
@@ -194,7 +308,7 @@ func (c *Check) SampleSession() error {
 		},
 		CollectionInterval: c.checkInterval,
 		Tags:               c.tags,
-		OracleActivityRows: sessionSamples,
+		OracleActivityRows: sessionRows,
 	}
 
 	payloadBytes, err := json.Marshal(payload)
