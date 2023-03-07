@@ -47,6 +47,7 @@ SELECT
     ) as STATE,
     e.kslednam as event,
     e.ksledclass as wait_class,
+    w.kslwtstime as wait_time_micro,
     sq.sql_text as sql_text,
     c.name as pdb_name
   FROM
@@ -63,7 +64,6 @@ SELECT
     AND w.kslwtevt = e.indx
     AND s.ksusesqi = sq.sql_id(+)
     AND s.con_id = c.con_id(+)
---    AND BITAND(s.ksuseidl, 9) = 1 --ACTIVE
 ;
 
 GRANT SELECT ON dd_session TO c##datadog ;

@@ -78,6 +78,7 @@ const ACTIVITY_QUERY = `SELECT /* DD_ACTIVITY_SAMPLING */
 	ELSE
 		'CPU'
 	END wait_class,
+	wait_time_micro,
 	sql_text,
 	pdb_name
 FROM sys.dd_session
@@ -122,6 +123,7 @@ type OracleActivityRow struct {
 	FinalBlockingSession   *uint64 `db:"FINAL_BLOCKING_SESSION" json:"final_blocking_session,omitempty"`
 	WaitEvent              *string `db:"EVENT" json:"wait_event,omitempty"`
 	WaitEventGroup         *string `db:"WAIT_CLASS" json:"wait_event_group,omitempty"`
+	WaitTimeMicro          *string `db:"WAIT_TIME_MICRO" json:"wait_time_micro,omitempty"`
 	Statement              *string `db:"SQL_TEXT" json:"statement,omitempty"`
 	PdbName                *string `db:"PDB_NAME" json:"pdb_name,omitempty"`
 	QuerySignature         string  `json:"query_signature,omitempty"`
