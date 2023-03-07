@@ -61,18 +61,6 @@ namespace WixSetup.Datadog
         public Project ConfigureProject()
         {
             var project = new ManagedProject("Datadog Agent",
-                new User
-                {
-                    // CreateUser fails with ERROR_BAD_USERNAME if Name is a fully qualified user name
-                    Name = "[DDAGENTUSER_PROCESSED_NAME]",
-                    Domain = "[DDAGENTUSER_PROCESSED_DOMAIN]",
-                    Password = "[DDAGENTUSER_PROCESSED_PASSWORD]",
-                    PasswordNeverExpires = true,
-                    RemoveOnUninstall = false,
-                    FailIfExists = false,
-                    UpdateIfExists = true,
-                    CreateUser = true
-                },
                 new Property("MsiLogging", "iwearucmop!"),
                 new Property("APIKEY")
                 {
@@ -120,6 +108,7 @@ namespace WixSetup.Datadog
                 new RemoveRegistryKey(_agentFeatures.MainApplication, @"Software\Datadog\Datadog Agent")
             );
             project
+            .AddAgentUser()
             .SetCustomActions(_agentCustomActions)
             .SetProjectInfo(
                 upgradeCode: ProductUpgradeCode,
@@ -185,7 +174,7 @@ namespace WixSetup.Datadog
             project.MajorUpgrade.DowngradeErrorMessage =
                 "Automatic downgrades are not supported.  Uninstall the current version, and then reinstall the desired version.";
             project.ReinstallMode = "amus";
-            
+
             project.Platform = Platform.x64;
             // MSI 5.0 was shipped in Windows Server 2012 R2.
             // https://learn.microsoft.com/en-us/windows/win32/msi/released-versions-of-windows-installer

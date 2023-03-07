@@ -212,11 +212,18 @@ namespace Datadog.CustomActions
 
                 if (!isServiceAccount && string.IsNullOrEmpty(ddAgentUserPassword))
                 {
+                    session.Log($"Generating a random password");
                     ddAgentUserPassword = GetRandomPassword(128);
+                    session.Components["InstallerManagedAgentUser"].RequestState = InstallState.Local;
+                    session.Components["UserManagedAgentUser"].RequestState = InstallState.Absent;
+                } else {
+                    session.Components["InstallerManagedAgentUser"].RequestState = InstallState.Absent;
+                    session.Components["UserManagedAgentUser"].RequestState = InstallState.Local;
                 }
 
                 if (!string.IsNullOrEmpty(ddAgentUserPassword) && isServiceAccount)
                 {
+                    session.Log($"Ignoring provided password because account is a service account");
                     ddAgentUserPassword = null;
                 }
 
