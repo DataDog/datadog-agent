@@ -109,11 +109,6 @@ typedef struct {
     http2_header_type_t type;
 } http2_header_t;
 
-// TODO: Do we need the struct? we can set the value directly to the map
-typedef struct {
-    http2_header_t array[HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING];
-} http2_headers_t;
-
 typedef struct {
     __u32 offset;
     __u8 iteration;

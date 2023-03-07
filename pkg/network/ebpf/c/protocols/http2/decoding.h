@@ -329,8 +329,8 @@ static __always_inline void process_headers(http2_ctx_t *http2_ctx, http2_header
             }
 
             if (static_value->key == kMethod){
-                // TODO: mark request
                 current_stream->request_started = bpf_ktime_get_ns();
+                // TODO: Can be done in the user mode.
                 switch(static_value->value) {
                 case kGET:
                     current_stream->request_method = HTTP_GET;
@@ -342,6 +342,7 @@ static __always_inline void process_headers(http2_ctx_t *http2_ctx, http2_header
                     break;
                 }
             } else if (static_value->key == kStatus) {
+                // TODO: Can be done in the user mode.
                 switch(static_value->value) {
                 case k200:
                     current_stream->response_status_code = 200;
@@ -407,11 +408,11 @@ static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_i
     bpf_memset(frame_payload, 0, sizeof(heap_buffer_t));
 
     // Allocating an array of headers, to hold all interesting headers from the frame.
-    http2_headers_t *headers_to_process = bpf_map_lookup_elem(&http2_headers_to_process, &zero);
+    http2_header_t *headers_to_process = bpf_map_lookup_elem(&http2_headers_to_process, &zero);
     if (headers_to_process == NULL) {
         return;
     }
-    bpf_memset(headers_to_process->array, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
+    bpf_memset(headers_to_process, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
 
     // Search for relevant headers.
 
@@ -422,9 +423,9 @@ static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_i
     // read headers payload
     read_into_buffer_skb_http2((char*)frame_payload->fragment, skb, iterations_key->skb_info.data_off + HTTP2_FRAME_HEADER_SIZE);
 
-    __u8 interesting_headers = filter_relevant_headers(iterations_key, http2_ctx, headers_to_process->array, current_frame_header->stream_id, frame_payload);
+    __u8 interesting_headers = filter_relevant_headers(iterations_key, http2_ctx, headers_to_process, current_frame_header->stream_id, frame_payload);
     if (interesting_headers > 0) {
-        process_headers(http2_ctx, headers_to_process->array, interesting_headers);
+        process_headers(http2_ctx, headers_to_process, interesting_headers);
     }
 }
 
@@ -432,6 +433,7 @@ static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, http2_itera
     __u32 offset = iterations_key->skb_info.data_off;
     // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb.
     if (offset + HTTP2_FRAME_HEADER_SIZE > skb->len) {
+        // TODO: fix return code
         return -1;
     }
 
@@ -445,6 +447,7 @@ static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, http2_itera
     struct http2_frame current_frame = {};
     if (!read_http2_frame_header(frame_buf, HTTP2_FRAME_HEADER_SIZE, &current_frame)){
         log_debug("[http2] unable to read_http2_frame_header offset %lu\n", offset);
+        // TODO: fix return code
         return -1;
     }
 
