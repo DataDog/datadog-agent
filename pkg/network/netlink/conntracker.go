@@ -94,8 +94,8 @@ func newGaugeWrapper(name string, help string, tags ...string) nettelemetry.Stat
 }
 
 var (
-	gets                     = newGaugeWrapper("gets_total", "description")
-	registers                = newGaugeWrapper("registers_total", "description")
+	gets                     = newGaugeWrapper("gets_total", "Gauge measuring the total number of attempts to get connection tuples from the EBPF map")
+	registers                = newGaugeWrapper("registers_total", "Gauge measuring the total number of attempts to register connection tuples from the EBPF map")
 	evictsTotal              = newGaugeWrapper("evicts_total", "description")
 	nanoSecondsPerGet        = newGauge("nanoseconds_per_get", "description")
 	nanoSecondsPerRegister   = newGauge("nanoseconds_per_register", "description")
