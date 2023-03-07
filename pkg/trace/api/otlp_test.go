@@ -1504,6 +1504,25 @@ func TestMarshalSpanLinks(t *testing.T) {
 					"attributes":               {"k1": "v1", "k2": "v2"},
 					"dropped_attributes_count": 57
 				}]`,
+		}, {
+
+			in: (func() ptrace.SpanLinkSlice {
+				s1 := makeSpanLinkSlice("fedcba98765432100123456789abcdef", "0123456789abcdef", "dd=asdf256,ee=jkl;128", map[string]string{"k1": "v1"}, 611187)
+				s2 := makeSpanLinkSlice("abcdef01234567899876543210fedcba", "fedcba9876543210", "", map[string]string{"k1": "v10", "k2": "v20"}, 0)
+				s2.MoveAndAppendTo(s1)
+				return s1
+			})(),
+			out: `[{
+					"trace_id":                 "fedcba98765432100123456789abcdef",
+					"span_id":                  "0123456789abcdef",
+					"trace_state":              "dd=asdf256,ee=jkl;128",
+					"attributes":               {"k1": "v1"},
+					"dropped_attributes_count": 611187
+			       }, {
+					"trace_id":                 "abcdef01234567899876543210fedcba",
+					"span_id":                  "fedcba9876543210",
+					"attributes":               {"k1": "v10", "k2": "v20"}
+			       }]`,
 		},
 	} {
 		assert.Equal(t, trimSpaces(tt.out), marshalLinks(tt.in))
