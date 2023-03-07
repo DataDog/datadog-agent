@@ -27,12 +27,13 @@ type Aggregation struct {
 
 // BucketsAggregationKey specifies the key by which a bucket is aggregated.
 type BucketsAggregationKey struct {
-	Service    string
-	Name       string
-	Resource   string
-	Type       string
-	StatusCode uint32
-	Synthetics bool
+	Service     string
+	Name        string
+	PeerService string
+	Resource    string
+	Type        string
+	StatusCode  uint32
+	Synthetics  bool
 }
 
 // PayloadAggregationKey specifies the key by which a payload is aggregated.
@@ -64,15 +65,20 @@ func getStatusCode(s *pb.Span) uint32 {
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
 func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey) Aggregation {
 	synthetics := strings.HasPrefix(origin, tagSynthetics)
+	peerService, ok := s.Meta["peer.service"]
+	if !ok {
+		peerService = ""
+	}
 	return Aggregation{
 		PayloadAggregationKey: aggKey,
 		BucketsAggregationKey: BucketsAggregationKey{
-			Resource:   s.Resource,
-			Service:    s.Service,
-			Name:       s.Name,
-			Type:       s.Type,
-			StatusCode: getStatusCode(s),
-			Synthetics: synthetics,
+			Resource:    s.Resource,
+			Service:     s.Service,
+			PeerService: peerService,
+			Name:        s.Name,
+			Type:        s.Type,
+			StatusCode:  getStatusCode(s),
+			Synthetics:  synthetics,
 		},
 	}
 }
@@ -81,11 +87,12 @@ func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregation
 func NewAggregationFromGroup(g pb.ClientGroupedStats) Aggregation {
 	return Aggregation{
 		BucketsAggregationKey: BucketsAggregationKey{
-			Resource:   g.Resource,
-			Service:    g.Service,
-			Name:       g.Name,
-			StatusCode: g.HTTPStatusCode,
-			Synthetics: g.Synthetics,
+			Resource:    g.Resource,
+			Service:     g.Service,
+			PeerService: g.PeerService,
+			Name:        g.Name,
+			StatusCode:  g.HTTPStatusCode,
+			Synthetics:  g.Synthetics,
 		},
 	}
 }

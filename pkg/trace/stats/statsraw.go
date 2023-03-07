@@ -72,6 +72,7 @@ func (s *groupedStats) export(a Aggregation) (pb.ClientGroupedStats, error) {
 		OkSummary:      okSummary,
 		ErrorSummary:   errSummary,
 		Synthetics:     a.Synthetics,
+		PeerService:    a.PeerService,
 	}, nil
 }
 
