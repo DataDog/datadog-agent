@@ -128,7 +128,7 @@ def test_core(
     modules: List[GoModule],
     flavor: AgentFlavor,
     module_class: GoModule,
-    flavor_print_string: str,
+    operation_name: str,
     command,
     skip_module_class=False,
 ):
@@ -136,7 +136,7 @@ def test_core(
     Run the command function on each module of the modules list.
     """
     modules_results = []
-    print(f"--- Flavor {flavor.name}: {flavor_print_string}")
+    print(f"--- Flavor {flavor.name}: {operation_name}")
     for module in modules:
         module_result = None
         if not skip_module_class:
