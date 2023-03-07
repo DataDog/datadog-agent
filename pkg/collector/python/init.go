@@ -359,6 +359,10 @@ func Initialize(paths ...string) error {
 	pythonVersion := config.Datadog.GetString("python_version")
 	allowPathHeuristicsFailure := config.Datadog.GetBool("allow_python_path_heuristics_failure")
 
+	// Force the use of stdlib's distutils, to prevent loading the setuptools-vendored distutils
+	// in integrations, which causes a 10MB memory increase.
+	os.Setenv("SETUPTOOLS_USE_DISTUTILS", "stdlib")
+
 	// Memory related RTLoader-global initialization
 	if config.Datadog.GetBool("memtrack_enabled") {
 		C.initMemoryTracker()
