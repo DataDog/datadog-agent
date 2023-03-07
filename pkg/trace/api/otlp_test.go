@@ -7,6 +7,7 @@ package api
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -1394,6 +1395,119 @@ func trimSpaces(str string) string {
 		}
 	}
 	return out.String()
+}
+
+func makeSpanLinkSlice(traceId, spanId, traceState string, attrs map[string]string, dropped uint32) ptrace.SpanLinkSlice {
+	s := ptrace.NewSpanLinkSlice()
+	l := s.AppendEmpty()
+	buf, err := hex.DecodeString(traceId)
+	if err != nil {
+		panic(err)
+	}
+	l.SetTraceID(*(*pcommon.TraceID)(buf))
+	buf, err = hex.DecodeString(spanId)
+	if err != nil {
+		panic(err)
+	}
+	l.SetSpanID(*(*pcommon.SpanID)(buf))
+	l.TraceState().FromRaw(traceState)
+	keys := make([]string, 0, len(attrs))
+	for k := range attrs {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		_, ok := l.Attributes().Get(k)
+		if !ok {
+			l.Attributes().PutStr(k, attrs[k])
+		}
+	}
+	l.SetDroppedAttributesCount(dropped)
+	return s
+}
+
+func TestMarshalSpanLinks(t *testing.T) {
+	for _, tt := range []struct {
+		in  ptrace.SpanLinkSlice
+		out string
+	}{
+
+		{
+			in: makeSpanLinkSlice("fedcba98765432100123456789abcdef", "abcdef0123456789", "", map[string]string{}, 0),
+			out: `[{
+					"trace_id": "fedcba98765432100123456789abcdef",
+					"span_id":  "abcdef0123456789"
+				}]`,
+		}, {
+			in: makeSpanLinkSlice("fedcba98765432100123456789abcdef", "abcdef0123456789", "dd=asdf256", map[string]string{}, 0),
+			out: `[{
+					"trace_id":    "fedcba98765432100123456789abcdef",
+					"span_id":     "abcdef0123456789",
+					"trace_state": "dd=asdf256"
+				}]`,
+		}, {
+			in: makeSpanLinkSlice("fedcba98765432100123456789abcdef", "abcdef0123456789", "dd=asdf256", map[string]string{"k1": "v1"}, 0),
+			out: `[{
+					"trace_id":    "fedcba98765432100123456789abcdef",
+					"span_id":     "abcdef0123456789",
+					"trace_state": "dd=asdf256",
+					"attributes":  {"k1": "v1"}
+				}]`,
+		}, {
+			in: makeSpanLinkSlice("fedcba98765432100123456789abcdef", "abcdef0123456789", "dd=asdf256", map[string]string{}, 42),
+			out: `[{
+					"trace_id":                 "fedcba98765432100123456789abcdef",
+					"span_id":                  "abcdef0123456789",
+					"trace_state":              "dd=asdf256",
+					"dropped_attributes_count": 42
+				}]`,
+		}, {
+			in: makeSpanLinkSlice("fedcba98765432100123456789abcdef", "abcdef0123456789", "dd=asdf256", map[string]string{"k1": "v1"}, 42),
+			out: `[{
+					"trace_id":                 "fedcba98765432100123456789abcdef",
+					"span_id":                  "abcdef0123456789",
+					"trace_state":              "dd=asdf256",
+					"attributes":               {"k1": "v1"},
+					"dropped_attributes_count": 42
+				}]`,
+		}, {
+			in: makeSpanLinkSlice("fedcba98765432100123456789abcdef", "abcdef0123456789", "", map[string]string{"k1": "v1"}, 0),
+			out: `[{
+					"trace_id":   "fedcba98765432100123456789abcdef",
+					"span_id":    "abcdef0123456789",
+					"attributes": {"k1": "v1"}
+				}]`,
+		}, {
+			in: makeSpanLinkSlice("fedcba98765432100123456789abcdef", "abcdef0123456789", "", map[string]string{"k1": "v1"}, 42),
+			out: `[{
+					"trace_id":                 "fedcba98765432100123456789abcdef",
+					"span_id":                  "abcdef0123456789",
+					"attributes":               {"k1": "v1"},
+					"dropped_attributes_count": 42
+				}]`,
+		}, {
+			in: makeSpanLinkSlice("fedcba98765432100123456789abcdef", "abcdef0123456789", "", map[string]string{}, 42),
+			out: `[{
+					"trace_id":                 "fedcba98765432100123456789abcdef",
+					"span_id":                  "abcdef0123456789",
+					"dropped_attributes_count": 42
+				}]`,
+		}, {
+			in: makeSpanLinkSlice("fedcba98765432100123456789abcdef", "abcdef0123456789", "dd=asdf256,ee=jkl;128", map[string]string{
+				"k1": "v1",
+				"k2": "v2",
+			}, 57),
+			out: `[{
+					"trace_id":                 "fedcba98765432100123456789abcdef",
+					"span_id":                  "abcdef0123456789",
+					"trace_state":              "dd=asdf256,ee=jkl;128",
+					"attributes":               {"k1": "v1", "k2": "v2"},
+					"dropped_attributes_count": 57
+				}]`,
+		},
+	} {
+		assert.Equal(t, trimSpaces(tt.out), marshalLinks(tt.in))
+	}
 }
 
 func BenchmarkProcessRequest(b *testing.B) {
