@@ -34,8 +34,8 @@ message Metadata {
 }
 
 message SecurityProfile {
-    string status = 1;
-    string content_version = 2;
+    uint32 status = 1;
+    string version = 2;
     Metadata metadata = 3;
     repeated string tags = 4;
     repeated uint32 syscalls = 5;

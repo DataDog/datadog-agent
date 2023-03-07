@@ -6,17 +6,18 @@
 //go:build linux
 // +build linux
 
-package activitydump
+package dump
 
 import (
 	"bytes"
 	"fmt"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // ActivityDumpStorage defines the interface implemented by all activity dump storages

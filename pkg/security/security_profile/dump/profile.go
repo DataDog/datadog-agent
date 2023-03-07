@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package activitydump
+package dump
 
 import (
 	"bytes"
@@ -193,8 +193,8 @@ func (ad *ActivityDump) GenerateProfileData() Profile {
 	}
 
 	// generate selector
-	if len(ad.DumpMetadata.Comm) > 0 {
-		p.Selector = fmt.Sprintf("process.comm = \"%s\"", ad.DumpMetadata.Comm)
+	if len(ad.Metadata.Comm) > 0 {
+		p.Selector = fmt.Sprintf("process.comm = \"%s\"", ad.Metadata.Comm)
 	}
 
 	// Add rules

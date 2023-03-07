@@ -313,19 +313,17 @@ func (m *SecurityProfile) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x1a
 	}
-	if len(m.ContentVersion) > 0 {
-		i -= len(m.ContentVersion)
-		copy(dAtA[i:], m.ContentVersion)
-		i = encodeVarint(dAtA, i, uint64(len(m.ContentVersion)))
+	if len(m.Version) > 0 {
+		i -= len(m.Version)
+		copy(dAtA[i:], m.Version)
+		i = encodeVarint(dAtA, i, uint64(len(m.Version)))
 		i--
 		dAtA[i] = 0x12
 	}
-	if len(m.Status) > 0 {
-		i -= len(m.Status)
-		copy(dAtA[i:], m.Status)
-		i = encodeVarint(dAtA, i, uint64(len(m.Status)))
+	if m.Status != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.Status))
 		i--
-		dAtA[i] = 0xa
+		dAtA[i] = 0x8
 	}
 	return len(dAtA) - i, nil
 }
@@ -1586,11 +1584,10 @@ func (m *SecurityProfile) SizeVT() (n int) {
 	}
 	var l int
 	_ = l
-	l = len(m.Status)
-	if l > 0 {
-		n += 1 + l + sov(uint64(l))
+	if m.Status != 0 {
+		n += 1 + sov(uint64(m.Status))
 	}
-	l = len(m.ContentVersion)
+	l = len(m.Version)
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
@@ -2808,10 +2805,10 @@ func (m *SecurityProfile) UnmarshalVT(dAtA []byte) error {
 		}
 		switch fieldNum {
 		case 1:
-			if wireType != 2 {
+			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Status", wireType)
 			}
-			var stringLen uint64
+			m.Status = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflow
@@ -2821,27 +2818,14 @@ func (m *SecurityProfile) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
+				m.Status |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Status = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ContentVersion", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Version", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -2869,7 +2853,7 @@ func (m *SecurityProfile) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.ContentVersion = string(dAtA[iNdEx:postIndex])
+			m.Version = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 3:
 			if wireType != 2 {

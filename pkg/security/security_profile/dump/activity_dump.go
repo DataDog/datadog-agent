@@ -8,7 +8,7 @@
 
 //go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux $GOFILE
 
-package activitydump
+package dump
 
 import (
 	"bytes"
@@ -72,8 +72,8 @@ const (
 	Running
 )
 
-// DumpMetadata is used to provide context about the activity dump
-type DumpMetadata struct {
+// Metadata is used to provide context about the activity dump
+type Metadata struct {
 	AgentVersion      string `json:"agent_version"`
 	AgentCommit       string `json:"agent_commit"`
 	KernelVersion     string `json:"kernel_version"`
@@ -125,7 +125,7 @@ type ActivityDump struct {
 	StorageRequests     map[config.StorageFormat][]config.StorageRequest `json:"-"`
 
 	// Dump metadata
-	DumpMetadata
+	Metadata
 
 	// Load config
 	LoadConfig       *model.ActivityDumpLoadConfig `json:"-"`
@@ -179,7 +179,7 @@ type WithDumpOption func(ad *ActivityDump)
 func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *ActivityDump {
 	ad := NewEmptyActivityDump()
 	now := time.Now()
-	ad.DumpMetadata = DumpMetadata{
+	ad.Metadata = Metadata{
 		AgentVersion:      version.AgentVersion,
 		AgentCommit:       version.Commit,
 		KernelVersion:     adm.kernelVersion.Code.String(),
@@ -233,7 +233,7 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 	ad.Service = msg.GetService()
 	ad.Source = msg.GetSource()
 	ad.Tags = msg.GetTags()
-	ad.DumpMetadata = DumpMetadata{
+	ad.Metadata = Metadata{
 		AgentVersion:      metadata.GetAgentVersion(),
 		AgentCommit:       metadata.GetAgentCommit(),
 		KernelVersion:     metadata.GetKernelVersion(),
@@ -327,8 +327,8 @@ func (ad *ActivityDump) SetLoadConfig(cookie uint32, config model.ActivityDumpLo
 	ad.LoadConfigCookie = cookie
 
 	// Update metadata
-	ad.DumpMetadata.Start = ad.adm.timeResolver.ResolveMonotonicTimestamp(ad.LoadConfig.StartTimestampRaw)
-	ad.DumpMetadata.End = ad.adm.timeResolver.ResolveMonotonicTimestamp(ad.LoadConfig.EndTimestampRaw)
+	ad.Metadata.Start = ad.adm.timeResolver.ResolveMonotonicTimestamp(ad.LoadConfig.StartTimestampRaw)
+	ad.Metadata.End = ad.adm.timeResolver.ResolveMonotonicTimestamp(ad.LoadConfig.EndTimestampRaw)
 }
 
 // SetTimeout updates the activity dump timeout
@@ -336,7 +336,7 @@ func (ad *ActivityDump) SetTimeout(timeout time.Duration) {
 	ad.LoadConfig.SetTimeout(timeout)
 
 	// Update metadata
-	ad.DumpMetadata.End = ad.adm.timeResolver.ResolveMonotonicTimestamp(ad.LoadConfig.EndTimestampRaw)
+	ad.Metadata.End = ad.adm.timeResolver.ResolveMonotonicTimestamp(ad.LoadConfig.EndTimestampRaw)
 }
 
 // updateTracedPid traces a pid in kernel space
@@ -351,17 +351,17 @@ func (ad *ActivityDump) updateTracedPid(pid uint32) {
 
 // commMatches returns true if the ActivityDump comm matches the provided comm
 func (ad *ActivityDump) commMatches(comm string) bool {
-	return ad.DumpMetadata.Comm == comm
+	return ad.Metadata.Comm == comm
 }
 
 // nameMatches returns true if the ActivityDump name matches the provided name
 func (ad *ActivityDump) nameMatches(name string) bool {
-	return ad.DumpMetadata.Name == name
+	return ad.Metadata.Name == name
 }
 
 // containerIDMatches returns true if the ActivityDump container ID matches the provided container ID
 func (ad *ActivityDump) containerIDMatches(containerID string) bool {
-	return ad.DumpMetadata.ContainerID == containerID
+	return ad.Metadata.ContainerID == containerID
 }
 
 // Matches returns true if the provided list of tags and / or the provided comm match the current ActivityDump
@@ -370,13 +370,13 @@ func (ad *ActivityDump) Matches(entry *model.ProcessCacheEntry) bool {
 		return false
 	}
 
-	if len(ad.DumpMetadata.ContainerID) > 0 {
+	if len(ad.Metadata.ContainerID) > 0 {
 		if !ad.containerIDMatches(entry.ContainerID) {
 			return false
 		}
 	}
 
-	if len(ad.DumpMetadata.Comm) > 0 {
+	if len(ad.Metadata.Comm) > 0 {
 		if !ad.commMatches(entry.Comm) {
 			return false
 		}
@@ -393,12 +393,12 @@ func (ad *ActivityDump) enable() error {
 		return fmt.Errorf("couldn't push activity dump load config: %w", err)
 	}
 
-	if len(ad.DumpMetadata.Comm) > 0 {
+	if len(ad.Metadata.Comm) > 0 {
 		commB := make([]byte, 16)
-		copy(commB, ad.DumpMetadata.Comm)
+		copy(commB, ad.Metadata.Comm)
 		err := ad.adm.tracedCommsMap.Put(commB, ad.LoadConfigCookie)
 		if err != nil {
-			return fmt.Errorf("couldn't push activity dump comm %s: %v", ad.DumpMetadata.Comm, err)
+			return fmt.Errorf("couldn't push activity dump comm %s: %v", ad.Metadata.Comm, err)
 		}
 	}
 	return nil
@@ -444,22 +444,22 @@ func (ad *ActivityDump) disable() error {
 	}
 
 	// remove comm from kernel space
-	if len(ad.DumpMetadata.Comm) > 0 {
+	if len(ad.Metadata.Comm) > 0 {
 		commB := make([]byte, 16)
-		copy(commB, ad.DumpMetadata.Comm)
+		copy(commB, ad.Metadata.Comm)
 		err := ad.adm.tracedCommsMap.Delete(commB)
 		if err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
-			return fmt.Errorf("couldn't delete activity dump filter comm(%s): %v", ad.DumpMetadata.Comm, err)
+			return fmt.Errorf("couldn't delete activity dump filter comm(%s): %v", ad.Metadata.Comm, err)
 		}
 	}
 
 	// remove container ID from kernel space
-	if len(ad.DumpMetadata.ContainerID) > 0 {
+	if len(ad.Metadata.ContainerID) > 0 {
 		containerIDB := make([]byte, model.ContainerIDLen)
-		copy(containerIDB, ad.DumpMetadata.ContainerID)
+		copy(containerIDB, ad.Metadata.ContainerID)
 		err := ad.adm.tracedCgroupsMap.Delete(containerIDB)
 		if err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
-			return fmt.Errorf("couldn't delete activity dump filter containerID(%s): %v", ad.DumpMetadata.ContainerID, err)
+			return fmt.Errorf("couldn't delete activity dump filter containerID(%s): %v", ad.Metadata.ContainerID, err)
 		}
 	}
 	return nil
@@ -476,9 +476,9 @@ func (ad *ActivityDump) Finalize(releaseTracedCgroupSpot bool) {
 // finalize (thread unsafe) finalizes an active dump: envs and args are scrubbed, tags, service and container ID are set. If a cgroup
 // spot can be released, the dump will be fully stopped.
 func (ad *ActivityDump) finalize(releaseTracedCgroupSpot bool) {
-	ad.DumpMetadata.End = time.Now()
+	ad.Metadata.End = time.Now()
 
-	if releaseTracedCgroupSpot || len(ad.DumpMetadata.Comm) > 0 {
+	if releaseTracedCgroupSpot || len(ad.Metadata.Comm) > 0 {
 		if err := ad.disable(); err != nil {
 			seclog.Errorf("couldn't disable activity dump: %v", err)
 		}
@@ -650,7 +650,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 
 		// go through the root nodes and check if one of them matches the input ProcessCacheEntry:
 		for _, root := range ad.ProcessActivityTree {
-			if root.Matches(entry, ad.DumpMetadata.DifferentiateArgs, ad.adm.processResolver) {
+			if root.Matches(entry, ad.Metadata.DifferentiateArgs, ad.adm.processResolver) {
 				return root
 			}
 		}
@@ -672,7 +672,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 		// to add the current entry no matter if it matches the selector or not. Go through the root children of the
 		// parent node and check if one of them matches the input ProcessCacheEntry.
 		for _, child := range parentNode.Children {
-			if child.Matches(entry, ad.DumpMetadata.DifferentiateArgs, ad.adm.processResolver) {
+			if child.Matches(entry, ad.Metadata.DifferentiateArgs, ad.adm.processResolver) {
 				return child
 			}
 		}
@@ -745,11 +745,11 @@ func (ad *ActivityDump) GetSelectorStr() string {
 // getSelectorStr internal, thread-unsafe version of GetSelectorStr
 func (ad *ActivityDump) getSelectorStr() string {
 	tags := make([]string, 0, len(ad.Tags)+2)
-	if len(ad.DumpMetadata.ContainerID) > 0 {
-		tags = append(tags, fmt.Sprintf("container_id:%s", ad.DumpMetadata.ContainerID))
+	if len(ad.Metadata.ContainerID) > 0 {
+		tags = append(tags, fmt.Sprintf("container_id:%s", ad.Metadata.ContainerID))
 	}
-	if len(ad.DumpMetadata.Comm) > 0 {
-		tags = append(tags, fmt.Sprintf("comm:%s", ad.DumpMetadata.Comm))
+	if len(ad.Metadata.Comm) > 0 {
+		tags = append(tags, fmt.Sprintf("comm:%s", ad.Metadata.Comm))
 	}
 	if len(ad.Tags) > 0 {
 		for _, tag := range ad.Tags {
@@ -856,14 +856,14 @@ func (ad *ActivityDump) ResolveTags() error {
 
 // resolveTags thread unsafe version ot ResolveTags
 func (ad *ActivityDump) resolveTags() error {
-	if len(ad.Tags) >= 10 || len(ad.DumpMetadata.ContainerID) == 0 {
+	if len(ad.Tags) >= 10 || len(ad.Metadata.ContainerID) == 0 {
 		return nil
 	}
 
 	var err error
-	ad.Tags, err = ad.adm.tagsResolvers.ResolveWithErr(ad.DumpMetadata.ContainerID)
+	ad.Tags, err = ad.adm.tagsResolvers.ResolveWithErr(ad.Metadata.ContainerID)
 	if err != nil {
-		return fmt.Errorf("failed to resolve %s: %w", ad.DumpMetadata.ContainerID, err)
+		return fmt.Errorf("failed to resolve %s: %w", ad.Metadata.ContainerID, err)
 	}
 
 	return nil
@@ -876,7 +876,7 @@ func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage
 	var storage []*api.StorageRequestMessage
 	for _, requests := range ad.StorageRequests {
 		for _, request := range requests {
-			storage = append(storage, request.ToStorageRequestMessage(ad.DumpMetadata.Name))
+			storage = append(storage, request.ToStorageRequestMessage(ad.Metadata.Name))
 		}
 	}
 
@@ -887,19 +887,19 @@ func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage
 		Tags:    ad.Tags,
 		Storage: storage,
 		Metadata: &api.ActivityDumpMetadataMessage{
-			AgentVersion:      ad.DumpMetadata.AgentVersion,
-			AgentCommit:       ad.DumpMetadata.AgentCommit,
-			KernelVersion:     ad.DumpMetadata.KernelVersion,
-			LinuxDistribution: ad.DumpMetadata.LinuxDistribution,
-			Name:              ad.DumpMetadata.Name,
-			ProtobufVersion:   ad.DumpMetadata.ProtobufVersion,
-			DifferentiateArgs: ad.DumpMetadata.DifferentiateArgs,
-			Comm:              ad.DumpMetadata.Comm,
-			ContainerID:       ad.DumpMetadata.ContainerID,
-			Start:             ad.DumpMetadata.Start.Format(time.RFC822),
+			AgentVersion:      ad.Metadata.AgentVersion,
+			AgentCommit:       ad.Metadata.AgentCommit,
+			KernelVersion:     ad.Metadata.KernelVersion,
+			LinuxDistribution: ad.Metadata.LinuxDistribution,
+			Name:              ad.Metadata.Name,
+			ProtobufVersion:   ad.Metadata.ProtobufVersion,
+			DifferentiateArgs: ad.Metadata.DifferentiateArgs,
+			Comm:              ad.Metadata.Comm,
+			ContainerID:       ad.Metadata.ContainerID,
+			Start:             ad.Metadata.Start.Format(time.RFC822),
 			Timeout:           ad.LoadConfig.Timeout.String(),
-			Size:              ad.DumpMetadata.Size,
-			Arch:              ad.DumpMetadata.Arch,
+			Size:              ad.Metadata.Size,
+			Arch:              ad.Metadata.Arch,
 		},
 	}
 }
@@ -909,7 +909,7 @@ func (ad *ActivityDump) ToTranscodingRequestMessage() *api.TranscodingRequestMes
 	var storage []*api.StorageRequestMessage
 	for _, requests := range ad.StorageRequests {
 		for _, request := range requests {
-			storage = append(storage, request.ToStorageRequestMessage(ad.DumpMetadata.Name))
+			storage = append(storage, request.ToStorageRequestMessage(ad.Metadata.Name))
 		}
 	}
 
@@ -1255,7 +1255,7 @@ func (ad *ActivityDump) snapshotProcess(pan *ProcessActivityNode) error {
 	return nil
 }
 
-func (ad *ActivityDump) insertSnapshotedSocket(pan *ProcessActivityNode, p *process.Process, family uint16, ip net.IP, port uint16) {
+func (ad *ActivityDump) insertSnapshottedSocket(pan *ProcessActivityNode, p *process.Process, family uint16, ip net.IP, port uint16) {
 	evt := ad.adm.newEvent()
 	evt.Type = uint32(model.BindEventType)
 
@@ -1328,25 +1328,25 @@ func (pan *ProcessActivityNode) snapshotBoundSockets(p *process.Process, ad *Act
 	for _, s := range sockets {
 		for _, sock := range TCP {
 			if sock.Inode == s {
-				ad.insertSnapshotedSocket(pan, p, unix.AF_INET, sock.LocalAddr, uint16(sock.LocalPort))
+				ad.insertSnapshottedSocket(pan, p, unix.AF_INET, sock.LocalAddr, uint16(sock.LocalPort))
 				break
 			}
 		}
 		for _, sock := range UDP {
 			if sock.Inode == s {
-				ad.insertSnapshotedSocket(pan, p, unix.AF_INET, sock.LocalAddr, uint16(sock.LocalPort))
+				ad.insertSnapshottedSocket(pan, p, unix.AF_INET, sock.LocalAddr, uint16(sock.LocalPort))
 				break
 			}
 		}
 		for _, sock := range TCP6 {
 			if sock.Inode == s {
-				ad.insertSnapshotedSocket(pan, p, unix.AF_INET6, sock.LocalAddr, uint16(sock.LocalPort))
+				ad.insertSnapshottedSocket(pan, p, unix.AF_INET6, sock.LocalAddr, uint16(sock.LocalPort))
 				break
 			}
 		}
 		for _, sock := range UDP6 {
 			if sock.Inode == s {
-				ad.insertSnapshotedSocket(pan, p, unix.AF_INET6, sock.LocalAddr, uint16(sock.LocalPort))
+				ad.insertSnapshottedSocket(pan, p, unix.AF_INET6, sock.LocalAddr, uint16(sock.LocalPort))
 				break
 			}
 		}
