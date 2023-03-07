@@ -227,24 +227,6 @@ func (s *checkSender) SendRawMetricSample(sample *metrics.MetricSample) {
 	s.itemsOut <- &senderMetricSample{s.id, sample, false}
 }
 
-func idToMetricSource(id check.ID) metrics.MetricSource {
-	checkName := check.IDToCheckName(id)
-	switch checkName {
-	case "active_directory":
-		return metrics.MetricSourceActiveDirectory
-	case "system", "io", "load", "cpu", "memory", "uptime":
-		return metrics.MetricSourceSystemCore
-	case "openmetrics":
-		return metrics.MetricSourceOpenMetrics
-	case "docker":
-		return metrics.MetricSourceDocker
-	case "ntp":
-		return metrics.MetricSourceNtp
-	}
-
-	return metrics.MetricSourceUnknown
-}
-
 func (s *checkSender) sendMetricSample(
 	metric string,
 	value float64,
