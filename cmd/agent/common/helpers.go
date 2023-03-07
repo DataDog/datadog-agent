@@ -28,16 +28,16 @@ func SetupConfig(confFilePath string) error {
 
 // SetupConfigWithWarnings fires up the configuration system and returns warnings if any.
 func SetupConfigWithWarnings(confFilePath, configName string) (*config.Warnings, error) {
-	return setupConfig(config.Datadog, "datadog.yaml", confFilePath, configName, false, true)
+	return setupConfig(config.Datadog, "datadog.yaml", confFilePath, configName, false, true, config.SystemProbe.GetEnvVars())
 }
 
 // SetupConfigWithoutSecrets fires up the configuration system without secrets support
 func SetupConfigWithoutSecrets(confFilePath string, configName string) error {
-	_, err := setupConfig(config.Datadog, "datadog.yaml", confFilePath, configName, true, true)
+	_, err := setupConfig(config.Datadog, "datadog.yaml", confFilePath, configName, true, true, config.SystemProbe.GetEnvVars())
 	return err
 }
 
-func setupConfig(cfg config.Config, origin string, confFilePath string, configName string, withoutSecrets bool, failOnMissingFile bool) (*config.Warnings, error) {
+func setupConfig(cfg config.Config, origin string, confFilePath string, configName string, withoutSecrets bool, failOnMissingFile bool, additionalKnownEnvVars []string) (*config.Warnings, error) {
 	if configName != "" {
 		cfg.SetConfigName(configName)
 	}
