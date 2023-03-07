@@ -81,6 +81,10 @@ type ebpfConntracker struct {
 
 // NewEBPFConntracker creates a netlink.Conntracker that monitor conntrack NAT entries via eBPF
 func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry, constants []manager.ConstantEditor) (netlink.Conntracker, error) {
+	if !cfg.EnableEbpfConntracker {
+		return nil, fmt.Errorf("ebpf conntracker is disabled")
+	}
+
 	// dial the netlink layer aim to load nf_conntrack_netlink and nf_conntrack kernel modules
 	// eBPF conntrack require nf_conntrack symbols
 	conn, err := libnetlink.Dial(unix.NETLINK_NETFILTER, nil)
