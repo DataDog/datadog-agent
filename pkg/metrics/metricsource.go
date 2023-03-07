@@ -9,6 +9,7 @@ const (
 	// TODO this conflates source and service
 	// and also gives no 'string' field for metric name
 	MetricSourceDogstatsd
+	MetricSourceJmx
 	MetricSourceActiveDirectory
 	MetricSourceSystemCore
 	MetricSourceActiveMqXml
@@ -21,7 +22,7 @@ func CheckNameToMetricSource(checkName string) MetricSource {
 	switch checkName {
 	case "active_directory":
 		return MetricSourceActiveDirectory
-	case "system", "io", "load", "cpu", "memory", "uptime", "file_handle":
+	case "system", "io", "load", "cpu", "memory", "uptime", "file_handle", "disk":
 		return MetricSourceSystemCore
 	case "openmetrics":
 		return MetricSourceOpenMetrics
@@ -70,6 +71,8 @@ func (ms MetricSource) OriginService() int32 {
 		return 11
 	case MetricSourceSystemCore:
 		return 155
+	case MetricSourceJmx:
+		return 9
 	default:
 		return -1
 	}
