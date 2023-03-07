@@ -40,16 +40,16 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.7.0
-	github.com/DataDog/agent-payload/v5 v5.0.75
+	github.com/DataDog/agent-payload/v5 v5.0.76
 	github.com/DataDog/appsec-internal-go v0.0.0-20230215162203-5149228be86a
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.43.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.43.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.43.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/trace v0.43.0-rc.3.0.20230206114529-17c7dfde736c
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.43.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/log v0.43.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.43.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.43.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.44.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.44.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.44.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/trace v0.44.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.44.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.44.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.44.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.44.0-rc.2
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v0.7.1-0.20230215125730-2ba58ce29d56
 	github.com/DataDog/ebpf-manager v0.2.3
