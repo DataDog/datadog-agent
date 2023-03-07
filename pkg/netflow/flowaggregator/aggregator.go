@@ -171,6 +171,10 @@ func (agg *FlowAggregator) rollupTrackersRefresh() {
 	agg.flowAcc.portRollup.UseNewStoreAsCurrentStore()
 }
 
+func (agg *FlowAggregator) GetFlushedFlowCount() uint64 {
+	return agg.flushedFlowCount.Load()
+}
+
 func (agg *FlowAggregator) submitCollectorMetrics() error {
 	promMetrics, err := agg.goflowPrometheusGatherer.Gather()
 	if err != nil {

@@ -8,8 +8,10 @@ package netflow
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/netflow/flowaggregator"
 	"github.com/netsampler/goflow2/utils"
 	"github.com/sirupsen/logrus"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
@@ -54,4 +56,29 @@ func findEventBySourceDest(events []*message.Message, sourceIP string, destIP st
 		}
 	}
 	return payload.FlowPayload{}, fmt.Errorf("no event found that matches `source=%s`, `destination=%s", sourceIP, destIP)
+}
+
+// WaitEventPlatformEvents waits for timeout and eventually returns the event platform events samples received by the demultiplexer.
+func waitEventPlatformEvents(agg *flowaggregator.FlowAggregator, eventType string, minEvents int, timeout time.Duration) (int, error) {
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	timeoutOn := time.Now().Add(timeout)
+	var eventsCount int
+	for {
+		select {
+		case <-ticker.C:
+			eventsCount = int(agg.GetFlushedFlowCount())
+			// this case could always take priority on the timeout case, we have to make sure
+			// we've not timeout
+			if time.Now().After(timeoutOn) {
+				return 0, fmt.Errorf("timeout waitig for events (expected at least %d events but only received %d)", minEvents, eventsCount)
+			}
+
+			if eventsCount >= minEvents {
+				return eventsCount, nil
+			}
+		case <-time.After(timeout):
+			return 0, fmt.Errorf("timeout waitig for events (expected at least %d events but only received %d)", minEvents, eventsCount)
+		}
+	}
 }
