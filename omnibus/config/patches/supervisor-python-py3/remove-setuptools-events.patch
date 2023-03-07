@@ -1,0 +1,31 @@
+diff --git a/docs/events.rst b/docs/events.rst
+index 508ddb9..77fd22b 100644
+--- a/docs/events.rst
++++ b/docs/events.rst
+@@ -1,3 +1,8 @@
++..
++  Modified for datadog-agent build with changes from PR
++  https://github.com/Supervisor/supervisor/pull/1578
++  submitted on 2023-03-02
++
+ .. _events:
+ 
+ Events
+@@ -93,9 +98,9 @@ follows.
+ 
+    An advanced feature, specifying an alternate "result handler" for a
+    pool, can be specified via the ``result_handler`` parameter of an
+-   ``[eventlistener:x]`` section in the form of a `pkg_resources
+-   <http://peak.telecommunity.com/DevCenter/PkgResources>`_ "entry
+-   point" string.  The default result handler is
++   ``[eventlistener:x]`` section in the form of an `entry point object reference
++   <https://packaging.python.org/en/latest/specifications/entry-points/#data-model>`_
++   string.  The default result handler is
+    ``supervisord.dispatchers:default_handler``.  Creating an alternate
+    result handler is not currently documented.
+ 
+@@ -897,4 +902,3 @@ Indicates that a process group has been removed from Supervisor's configuration.
+ .. code-block:: text
+ 
+    groupname:cat
+-

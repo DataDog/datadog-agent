@@ -419,6 +419,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	rctm := t.getRuntimeCompilationTelemetry()
 	khfr := int32(kernel.HeaderProvider.GetResult())
 	coretm := ddebpf.GetCORETelemetryByAsset()
+	pbassets := netebpf.GetModulesInUse()
 	t.lastCheck.Store(time.Now().Unix())
 
 	return &network.Connections{
@@ -432,6 +433,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		KernelHeaderFetchResult:     khfr,
 		CompilationTelemetryByAsset: rctm,
 		CORETelemetryByAsset:        coretm,
+		PrebuiltAssets:              pbassets,
 	}, nil
 }
 

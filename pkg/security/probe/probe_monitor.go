@@ -120,8 +120,10 @@ func (m *Monitor) SendStats() error {
 		if err := resolvers.MountResolver.SendStats(); err != nil {
 			return fmt.Errorf("failed to send mount_resolver stats: %w", err)
 		}
-		if err := resolvers.SBOMResolver.SendStats(); err != nil {
-			return fmt.Errorf("failed to send sbom_resolver stats: %w", err)
+		if resolvers.SBOMResolver != nil {
+			if err := resolvers.SBOMResolver.SendStats(); err != nil {
+				return fmt.Errorf("failed to send sbom_resolver stats: %w", err)
+			}
 		}
 	}
 

@@ -23,6 +23,7 @@ var (
 type batchStrategy struct {
 	inputChan  chan *message.Message
 	outputChan chan *message.Payload
+	flushChan  chan struct{}
 	buffer     *MessageBuffer
 	// pipelineName provides a name for the strategy to differentiate it from other instances in other internal pipelines
 	pipelineName    string
@@ -36,17 +37,19 @@ type batchStrategy struct {
 // NewBatchStrategy returns a new batch concurrent strategy with the specified batch & content size limits
 func NewBatchStrategy(inputChan chan *message.Message,
 	outputChan chan *message.Payload,
+	flushChan chan struct{},
 	serializer Serializer,
 	batchWait time.Duration,
 	maxBatchSize int,
 	maxContentSize int,
 	pipelineName string,
 	contentEncoding ContentEncoding) Strategy {
-	return newBatchStrategyWithClock(inputChan, outputChan, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), contentEncoding)
+	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), contentEncoding)
 }
 
 func newBatchStrategyWithClock(inputChan chan *message.Message,
 	outputChan chan *message.Payload,
+	flushChan chan struct{},
 	serializer Serializer,
 	batchWait time.Duration,
 	maxBatchSize int,
@@ -58,6 +61,7 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 	return &batchStrategy{
 		inputChan:       inputChan,
 		outputChan:      outputChan,
+		flushChan:       flushChan,
 		buffer:          NewMessageBuffer(maxBatchSize, maxContentSize),
 		serializer:      serializer,
 		batchWait:       batchWait,
@@ -97,6 +101,9 @@ func (s *batchStrategy) Start() {
 				s.processMessage(m, s.outputChan)
 			case <-flushTicker.C:
 				// flush the payloads at a regular interval so pending messages don't wait here for too long.
+				s.flushBuffer(s.outputChan)
+			case <-s.flushChan:
+				// flush payloads on demand, used for infrequently running serverless functions
 				s.flushBuffer(s.outputChan)
 			}
 		}
