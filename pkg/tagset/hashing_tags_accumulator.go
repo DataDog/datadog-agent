@@ -123,7 +123,7 @@ func (h *HashingTagsAccumulator) Hash() uint64 {
 	return hash
 }
 
-// tagsDifferenceSorted removes tags contained in l from r. Both accumulators must be SortUniq first.
+// removeSorted removes tags contained in l from r. Both accumulators must be SortUniq first.
 //
 // h is not sorted after this function. Does not modify o.
 func (h *HashingTagsAccumulator) removeSorted(o *HashingTagsAccumulator) {
