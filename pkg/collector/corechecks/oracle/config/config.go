@@ -8,11 +8,10 @@ package config
 import (
 	"fmt"
 
-	"gopkg.in/yaml.v3"
-
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	"gopkg.in/yaml.v3"
 )
 
 // InitConfig is used to deserialize integration init config.
@@ -24,21 +23,21 @@ type InitConfig struct {
 
 // InstanceConfig is used to deserialize integration instance config.
 type InstanceConfig struct {
-	Server                 string              `yaml:"server"`
-	Port                   int                 `yaml:"port"`
-	ServiceName            string              `yaml:"service_name"`
-	Protocol               string              `yaml:"protocol"`
-	Username               string              `yaml:"username"`
-	Password               string              `yaml:"password"`
-	TnsAlias               string              `yaml:"tns_alias"`
-	TnsAdmin               string              `yaml:"tns_admin"`
-	DBM                    bool                `yaml:"dbm"`
-	Tags                   []string            `yaml:"tags"`
-	ObfuscatorOn           bool                `yaml:"obfuscator_on"`
-	LogUnobfuscatedQueries bool                `yaml:"log_unobfuscated_queries"`
-	ObfuscatorOptions      obfuscate.SQLConfig `yaml:"obfuscator_options"`
-	UseGodrorWithEZConnect bool                `yaml:"use_godror_with_ezconnect"`
-	ReportedHostname       string              `yaml:"reported_hostname"`
+	Server                      string              `yaml:"server"`
+	Port                        int                 `yaml:"port"`
+	ServiceName                 string              `yaml:"service_name"`
+	Protocol                    string              `yaml:"protocol"`
+	Username                    string              `yaml:"username"`
+	Password                    string              `yaml:"password"`
+	TnsAlias                    string              `yaml:"tns_alias"`
+	TnsAdmin                    string              `yaml:"tns_admin"`
+	DBM                         bool                `yaml:"dbm"`
+	Tags                        []string            `yaml:"tags"`
+	AllowUnobfuscatedStatements bool                `yaml:"allow_unobfuscated_statements"`
+	LogUnobfuscatedQueries      bool                `yaml:"log_unobfuscated_queries"`
+	ObfuscatorOptions           obfuscate.SQLConfig `yaml:"obfuscator_options"`
+	UseGodrorWithEZConnect      bool                `yaml:"use_godror_with_ezconnect"`
+	ReportedHostname            string              `yaml:"reported_hostname"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
@@ -48,7 +47,7 @@ type CheckConfig struct {
 }
 
 // ToString returns a string representation of the CheckConfig without sensitive information.
-func (c *CheckConfig) ToString() string {
+func (c *CheckConfig) String() string {
 	return fmt.Sprintf(`CheckConfig:
 GlobalCustomQueries: '%+v'
 Service: '%s'
@@ -63,7 +62,6 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance := InstanceConfig{}
 	initCfg := InitConfig{}
 
-	instance.ObfuscatorOn = true
 	instance.ObfuscatorOptions.DBMS = common.IntegrationName
 	instance.ObfuscatorOptions.TableNames = true
 	instance.ObfuscatorOptions.CollectCommands = true

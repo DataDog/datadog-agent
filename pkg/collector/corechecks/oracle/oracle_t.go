@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config"
 	go_ora "github.com/sijms/go-ora/v2"
 
 	_ "github.com/godror/godror"
@@ -49,6 +50,8 @@ tns_admin: %s
 	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "oracle_test")
 	require.NoError(t, err)
 
+	assert.Equal(t, chk.config.InstanceConfig,
+		config.InstanceConfig{Server: HOST, Port: PORT, Username: USER, Password: PASSWORD, ServiceName: SERVICE_NAME, TnsAlias: TNS_ALIAS, TnsAdmin: TNS_ADMIN})
 	assert.Equal(t, chk.config.InstanceConfig.Server, HOST)
 	assert.Equal(t, chk.config.InstanceConfig.Port, PORT)
 	assert.Equal(t, chk.config.InstanceConfig.Username, USER)
@@ -90,7 +93,7 @@ func demuxOpts() aggregator.AgentDemultiplexerOptions {
 	return opts
 }
 
-func TestChkRun(t *testing.T) {
+func TestCheckRun(t *testing.T) {
 
 	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
 	//time.Sleep(time.Second * 5)
