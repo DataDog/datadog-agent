@@ -39,7 +39,7 @@ static __always_inline http2_stream_t *http2_fetch_stream(http2_stream_key_t *ht
 // n must always be between 1 and 8.
 //
 // The returned remain buffer is either a smaller suffix of p, or err != nil.
-static __always_inline bool read_var_int(heap_buffer_t *heap_buffer, __u64 factor, __u8 *out, u32 stream_id){
+static __always_inline bool read_var_int(heap_buffer_t *heap_buffer, __u64 factor, __u8 *out){
     __u16 offset = heap_buffer->offset % HTTP2_BUFFER_SIZE;
 
     if (heap_buffer->size <= offset) {
@@ -91,7 +91,7 @@ static __always_inline void set_dynamic_counter(conn_tuple_t *tup, __u64 counter
 // parse_field_indexed is handling the case which the header frame is part of the static table.
 static __always_inline parse_result_t parse_field_indexed(http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __u32 stream_id, heap_buffer_t *heap_buffer){
     __u8 index = 0;
-    if (!read_var_int(heap_buffer, 7, &index, stream_id)) {
+    if (!read_var_int(heap_buffer, 7, &index)) {
         return HEADER_ERROR;
     }
 
@@ -132,7 +132,7 @@ static __always_inline parse_result_t parse_field_literal(http2_iterations_key_t
     set_dynamic_counter(&iterations_key->tup, counter);
 
     __u8 index = 0;
-    if (!read_var_int(heap_buffer, 6, &index, stream_id)) {
+    if (!read_var_int(heap_buffer, 6, &index)) {
         return HEADER_ERROR;
     }
 
@@ -143,14 +143,14 @@ static __always_inline parse_result_t parse_field_literal(http2_iterations_key_t
         // TODO, if index != 0, that's weird.
         if (bpf_map_lookup_elem(&http2_static_table, &index) == NULL) {
             str_len = 0;
-            if (!read_var_int(heap_buffer, 6, &str_len, stream_id)) {
+            if (!read_var_int(heap_buffer, 6, &str_len)) {
                 return HEADER_ERROR;
             }
             heap_buffer->offset += str_len;
 
             if (index == 0) {
                 str_len = 0;
-                if (!read_var_int(heap_buffer, 6, &str_len, stream_id)) {
+                if (!read_var_int(heap_buffer, 6, &str_len)) {
                     return HEADER_ERROR;
                 }
                 heap_buffer->offset += str_len;
@@ -161,7 +161,7 @@ static __always_inline parse_result_t parse_field_literal(http2_iterations_key_t
 
 
     str_len = 0;
-    if (!read_var_int(heap_buffer, 6, &str_len, stream_id)) {
+    if (!read_var_int(heap_buffer, 6, &str_len)) {
         return HEADER_ERROR;
     }
 
