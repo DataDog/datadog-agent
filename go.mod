@@ -75,7 +75,6 @@ require (
 	github.com/alecthomas/participle v0.7.1
 	github.com/alecthomas/repr v0.2.0
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137
-	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/aquasecurity/trivy-db v0.0.0-20230105123735-5ce110fc82e1
 	github.com/avast/retry-go/v4 v4.3.3
 	github.com/aws/aws-lambda-go v1.37.0
@@ -216,7 +215,7 @@ require (
 	golang.org/x/net v0.7.0
 	golang.org/x/sync v0.1.0
 	golang.org/x/sys v0.5.0
-	golang.org/x/text v0.7.0
+	golang.org/x/text v0.8.0
 	golang.org/x/time v0.3.0
 	golang.org/x/tools v0.6.0
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
@@ -475,7 +474,6 @@ require (
 	github.com/sergi/go-diff v1.1.0 // indirect
 	github.com/shibumi/go-pathspec v1.3.0 // indirect
 	github.com/shopspring/decimal v1.2.0 // indirect
-	github.com/sigstore/rekor v1.0.1 // indirect
 	github.com/smira/go-ftp-protocol v0.0.0-20140829150050-066b75c2b70d // indirect
 	github.com/spdx/tools-golang v0.3.1-0.20230104082527-d6f58551be3f // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
@@ -568,6 +566,10 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
+
+require github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
+
+require github.com/sigstore/rekor v1.0.1 // indirect
 
 replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be => github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe
 
