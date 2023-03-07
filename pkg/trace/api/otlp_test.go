@@ -7,6 +7,7 @@ package api
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -1397,17 +1398,17 @@ func trimSpaces(str string) string {
 	return out.String()
 }
 
-func makeSpanLinkSlice(traceId, spanId, traceState string, attrs map[string]string, dropped uint32) ptrace.SpanLinkSlice {
+func makeSpanLinkSlice(t *testing.T, traceId, spanId, traceState string, attrs map[string]string, dropped uint32) ptrace.SpanLinkSlice {
 	s := ptrace.NewSpanLinkSlice()
 	l := s.AppendEmpty()
 	buf, err := hex.DecodeString(traceId)
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 	l.SetTraceID(*(*pcommon.TraceID)(buf))
 	buf, err = hex.DecodeString(spanId)
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 	l.SetSpanID(*(*pcommon.SpanID)(buf))
 	l.TraceState().FromRaw(traceState)
@@ -1426,6 +1427,26 @@ func makeSpanLinkSlice(traceId, spanId, traceState string, attrs map[string]stri
 	return s
 }
 
+func TestMakeSpanLinkSlice(t *testing.T) {
+	in := makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef1234567890", "dd=asdf256", map[string]string{"k1": "v1", "k2": "v2"}, 42)
+
+	out := ptrace.NewSpanLinkSlice()
+	l := out.AppendEmpty()
+	bh := make([]byte, 8)
+	bl := make([]byte, 8)
+	binary.BigEndian.PutUint64(bh, 0xfedcba9876543210)
+	binary.BigEndian.PutUint64(bl, 0x0123456789abcdef)
+	l.SetTraceID(*(*pcommon.TraceID)(append(bh, bl...)))
+	binary.BigEndian.PutUint64(bl, 0xabcdef1234567890)
+	l.SetSpanID(*(*pcommon.SpanID)(bl))
+	l.TraceState().FromRaw("dd=asdf256")
+	l.Attributes().PutStr("k1", "v1")
+	l.Attributes().PutStr("k2", "v2")
+	l.SetDroppedAttributesCount(42)
+
+	assert.Equal(t, out, in)
+}
+
 func TestMarshalSpanLinks(t *testing.T) {
 	for _, tt := range []struct {
 		in  ptrace.SpanLinkSlice
@@ -1433,20 +1454,20 @@ func TestMarshalSpanLinks(t *testing.T) {
 	}{
 
 		{
-			in: makeSpanLinkSlice("fedcba98765432100123456789abcdef", "abcdef0123456789", "", map[string]string{}, 0),
+			in: makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef0123456789", "", map[string]string{}, 0),
 			out: `[{
 					"trace_id": "fedcba98765432100123456789abcdef",
 					"span_id":  "abcdef0123456789"
 				}]`,
 		}, {
-			in: makeSpanLinkSlice("fedcba98765432100123456789abcdef", "abcdef0123456789", "dd=asdf256", map[string]string{}, 0),
+			in: makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef0123456789", "dd=asdf256", map[string]string{}, 0),
 			out: `[{
 					"trace_id":    "fedcba98765432100123456789abcdef",
 					"span_id":     "abcdef0123456789",
 					"trace_state": "dd=asdf256"
 				}]`,
 		}, {
-			in: makeSpanLinkSlice("fedcba98765432100123456789abcdef", "abcdef0123456789", "dd=asdf256", map[string]string{"k1": "v1"}, 0),
+			in: makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef0123456789", "dd=asdf256", map[string]string{"k1": "v1"}, 0),
 			out: `[{
 					"trace_id":    "fedcba98765432100123456789abcdef",
 					"span_id":     "abcdef0123456789",
@@ -1454,7 +1475,7 @@ func TestMarshalSpanLinks(t *testing.T) {
 					"attributes":  {"k1": "v1"}
 				}]`,
 		}, {
-			in: makeSpanLinkSlice("fedcba98765432100123456789abcdef", "abcdef0123456789", "dd=asdf256", map[string]string{}, 42),
+			in: makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef0123456789", "dd=asdf256", map[string]string{}, 42),
 			out: `[{
 					"trace_id":                 "fedcba98765432100123456789abcdef",
 					"span_id":                  "abcdef0123456789",
@@ -1462,7 +1483,7 @@ func TestMarshalSpanLinks(t *testing.T) {
 					"dropped_attributes_count": 42
 				}]`,
 		}, {
-			in: makeSpanLinkSlice("fedcba98765432100123456789abcdef", "abcdef0123456789", "dd=asdf256", map[string]string{"k1": "v1"}, 42),
+			in: makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef0123456789", "dd=asdf256", map[string]string{"k1": "v1"}, 42),
 			out: `[{
 					"trace_id":                 "fedcba98765432100123456789abcdef",
 					"span_id":                  "abcdef0123456789",
@@ -1471,14 +1492,14 @@ func TestMarshalSpanLinks(t *testing.T) {
 					"dropped_attributes_count": 42
 				}]`,
 		}, {
-			in: makeSpanLinkSlice("fedcba98765432100123456789abcdef", "abcdef0123456789", "", map[string]string{"k1": "v1"}, 0),
+			in: makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef0123456789", "", map[string]string{"k1": "v1"}, 0),
 			out: `[{
 					"trace_id":   "fedcba98765432100123456789abcdef",
 					"span_id":    "abcdef0123456789",
 					"attributes": {"k1": "v1"}
 				}]`,
 		}, {
-			in: makeSpanLinkSlice("fedcba98765432100123456789abcdef", "abcdef0123456789", "", map[string]string{"k1": "v1"}, 42),
+			in: makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef0123456789", "", map[string]string{"k1": "v1"}, 42),
 			out: `[{
 					"trace_id":                 "fedcba98765432100123456789abcdef",
 					"span_id":                  "abcdef0123456789",
@@ -1486,14 +1507,14 @@ func TestMarshalSpanLinks(t *testing.T) {
 					"dropped_attributes_count": 42
 				}]`,
 		}, {
-			in: makeSpanLinkSlice("fedcba98765432100123456789abcdef", "abcdef0123456789", "", map[string]string{}, 42),
+			in: makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef0123456789", "", map[string]string{}, 42),
 			out: `[{
 					"trace_id":                 "fedcba98765432100123456789abcdef",
 					"span_id":                  "abcdef0123456789",
 					"dropped_attributes_count": 42
 				}]`,
 		}, {
-			in: makeSpanLinkSlice("fedcba98765432100123456789abcdef", "abcdef0123456789", "dd=asdf256,ee=jkl;128", map[string]string{
+			in: makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef0123456789", "dd=asdf256,ee=jkl;128", map[string]string{
 				"k1": "v1",
 				"k2": "v2",
 			}, 57),
@@ -1507,8 +1528,8 @@ func TestMarshalSpanLinks(t *testing.T) {
 		}, {
 
 			in: (func() ptrace.SpanLinkSlice {
-				s1 := makeSpanLinkSlice("fedcba98765432100123456789abcdef", "0123456789abcdef", "dd=asdf256,ee=jkl;128", map[string]string{"k1": "v1"}, 611187)
-				s2 := makeSpanLinkSlice("abcdef01234567899876543210fedcba", "fedcba9876543210", "", map[string]string{"k1": "v10", "k2": "v20"}, 0)
+				s1 := makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "0123456789abcdef", "dd=asdf256,ee=jkl;128", map[string]string{"k1": "v1"}, 611187)
+				s2 := makeSpanLinkSlice(t, "abcdef01234567899876543210fedcba", "fedcba9876543210", "", map[string]string{"k1": "v10", "k2": "v20"}, 0)
 				s2.MoveAndAppendTo(s1)
 				return s1
 			})(),
