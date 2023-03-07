@@ -8,6 +8,7 @@ package file
 import (
 	"regexp"
 	"time"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -342,10 +343,12 @@ func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, patt
 }
 
 func CheckProcessTelemetry(stats *util.ProcessFileStats) {
+	AgentOpenFilesStr := strconv.FormatFloat(stats.AgentOpenFiles,'f',0,64)
+	OsFileLimitStr := strconv.FormatFloat(stats.OsFileLimit,'f',0,64)
 	if stats.AgentOpenFiles/stats.OsFileLimit > 0.9 {
-		log.Warnf("Agent process is close to OS file limit of %v. Agent process currently has %v files open.", stats.OsFileLimit, stats.AgentOpenFiles)
+		log.Warnf("Agent process is close to OS file limit of %v. Agent process currently has %v files open.", OsFileLimitStr, AgentOpenFilesStr)
 	} else if stats.AgentOpenFiles/stats.OsFileLimit >= 1 {
-		log.Errorf("Agent process has reached the OS open file limit: %v. This may be preventing log files from being tailed by the Agent and could interfere with the basic functionality of the Agent. OS file limit must be increased.", stats.OsFileLimit)
+		log.Errorf("Agent process has reached the OS open file limit: %v. This may be preventing log files from being tailed by the Agent and could interfere with the basic functionality of the Agent. OS file limit must be increased.", OsFileLimitStr)
 	}
-	log.Debugf("Agent process currently has %v files open. OS file limit is currently set to %v.", stats.AgentOpenFiles, stats.OsFileLimit)
+	log.Debugf("Agent process currently has %v files open. OS file limit is currently set to %v.", AgentOpenFilesStr, OsFileLimitStr)
 }

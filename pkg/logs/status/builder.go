@@ -8,6 +8,7 @@ package status
 import (
 	"expvar"
 	"strings"
+	"strconv"
 
 	"go.uber.org/atomic"
 
@@ -177,14 +178,14 @@ func (b *Builder) getMetricsStatus() map[string]int64 {
 	return metrics
 }
 
-func (b *Builder) getProcessFileStats() map[string]float64 {
-	stats := make(map[string]float64)
+func (b *Builder) getProcessFileStats() map[string]string {
+	stats := make(map[string]string)
 	fs, err := util.GetProcessFileStats()
 	if err != nil {
 		return stats
 	}
 
-	stats["CoreAgentProcessOpenFiles"] = fs.AgentOpenFiles
-	stats["OSFileLimit"] = fs.OsFileLimit
+	stats["CoreAgentProcessOpenFiles"] = strconv.FormatFloat(fs.AgentOpenFiles,'f',0,64)
+	stats["OSFileLimit"] = strconv.FormatFloat(fs.OsFileLimit,'f',0,64)
 	return stats
 }
