@@ -47,7 +47,7 @@ static __always_inline void update_conn_state(conn_tuple_t *t, conn_stats_ts_t *
     }
 }
 
-static __always_inline bool is_tls_helper(conn_tuple_t *t) {
+static __always_inline bool is_tls_connection_cached(conn_tuple_t *t) {
     if (bpf_map_lookup_elem(&tls_connection, t) != NULL) {
         return true;
     }
@@ -61,27 +61,27 @@ static __always_inline bool is_tls_connection(conn_tuple_t *t) {
     // The key is based of the source & dest addresses and ports, and the metadata.
     conn_tuple_copy.netns = 0;
     conn_tuple_copy.pid = 0;
-    if (is_tls_helper(&conn_tuple_copy)) {
+    if (is_tls_connection_cached(&conn_tuple_copy)) {
         return true;
     }
 
     conn_tuple_t *cached_skb_conn_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple_copy);
     if (cached_skb_conn_tup_ptr != NULL) {
         conn_tuple_t skb_tup = *cached_skb_conn_tup_ptr;
-        if (is_tls_helper(&skb_tup)) {
+        if (is_tls_connection_cached(&skb_tup)) {
             return true;
         }
     }
 
     flip_tuple(&conn_tuple_copy);
-    if (is_tls_helper(&conn_tuple_copy)) {
+    if (is_tls_connection_cached(&conn_tuple_copy)) {
         return true;
     }
 
     cached_skb_conn_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple_copy);
     if (cached_skb_conn_tup_ptr != NULL) {
         conn_tuple_t skb_tup = *cached_skb_conn_tup_ptr;
-        if (is_tls_helper(&skb_tup)) {
+        if (is_tls_connection_cached(&skb_tup)) {
             return true;
         }
     }

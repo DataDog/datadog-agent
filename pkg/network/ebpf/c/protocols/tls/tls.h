@@ -11,7 +11,7 @@ typedef struct __attribute__((packed)) {
     __u16 length;
 } tls_record_t;
 
-#define TLS_HEADER_SIZE 5
+#define TLS_HEADER_SIZE sizeof(tls_record_t)
 
 #define SSL_VERSION20 0x0200
 #define SSL_VERSION30 0x0300

@@ -87,8 +87,12 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
-    // connection is TLS encrypted
-    if (bpf_map_lookup_elem(&tls_connection, &skb_tup) != NULL) {
+    // Currently TLS is marked by a connection tag rather than the protocol stack,
+    // but as we add support for multiple protocols in the stack, we should revisit this implementation,
+    // and unify it with the following if clause.
+    //
+    // The connection is TLS encrypted, thus we cannot classify the protocol using socket filter.
+    if (is_tls_connection_cached(&skb_tup)) {
         return;
     }
 
@@ -112,6 +116,8 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     const size_t payload_length = skb->len - skb_info.data_off;
     const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
 
+    // In the context of socket filter, we can classify the protocol if it is plain text,
+    // so if the protocol is encrypted, then we have to rely on our uprobes to classify correctly the protocol.
     if (is_tls(request_fragment, final_fragment_size)) {
         const bool t = true;
         bpf_map_update_with_telemetry(tls_connection, &skb_tup, &t, BPF_ANY);

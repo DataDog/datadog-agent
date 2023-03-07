@@ -24,13 +24,13 @@ func RunServerOpenssl(t *testing.T, serverPort string, args ...string) bool {
 
 	t.Helper()
 	dir, _ := testutil.CurDir()
-	return protocolsUtils.RunDockerServer(t, "openssl-server", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile("exited with code"), 10*time.Second)
+	return protocolsUtils.RunDockerServer(t, "openssl-server", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile("exited with code"), 30*time.Second)
 }
 
 func RunClientOpenssl(t *testing.T, addr string, port string, args string) {
 	command := []string{
 		"docker", "run", "--network=host", "menci/archlinuxarm:base",
-		"openssl", "s_client", "-connect", addr + ":" + port,
+		"openssl", "s_client", "-connect", addr + ":" + port, args,
 	}
 	protocolsUtils.RunHostServer(t, command, []string{}, regexp.MustCompile("Extended master secret"))
 }
