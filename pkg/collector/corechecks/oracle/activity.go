@@ -30,6 +30,7 @@ type ActivitySnapshot struct {
 }
 
 const ACTIVITY_QUERY = `SELECT /* DD_ACTIVITY_SAMPLING */
+	SYSDATE as now,
 	sid,
 	serial#,
 	username,
@@ -98,6 +99,7 @@ type RowMetadata struct {
 }
 
 type OracleActivityRow struct {
+	Now                    string  `db:"NOW" json:"now"`
 	SessionID              uint64  `db:"SID" json:"sid,omitempty"`
 	SessionSerial          uint64  `db:"SERIAL#" json:"serial,omitempty"`
 	User                   *string `db:"USERNAME" json:"user,omitempty"`
