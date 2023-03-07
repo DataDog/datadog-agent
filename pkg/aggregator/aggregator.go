@@ -404,6 +404,14 @@ func (agg *BufferedAggregator) GetBufferedChannels() (chan []*metrics.Event, cha
 	return agg.bufferedEventIn, agg.bufferedServiceCheckIn
 }
 
+// GetEventPlatformForwarder returns a event platform forwarder
+func (agg *BufferedAggregator) GetEventPlatformForwarder() (epforwarder.EventPlatformForwarder, error) {
+	if agg.eventPlatformForwarder == nil {
+		return nil, errors.New("event platform forwarder not initialized")
+	}
+	return agg.eventPlatformForwarder, nil
+}
+
 func (agg *BufferedAggregator) registerSender(id check.ID) error {
 	agg.checkItems <- &registerSampler{id}
 	return nil

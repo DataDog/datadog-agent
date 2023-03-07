@@ -91,7 +91,7 @@ func TestAggregator(t *testing.T) {
 		EtherType:      uint32(0x0800),
 	}
 
-	aggregator := NewFlowAggregator(sender, &conf, "my-hostname")
+	aggregator := NewFlowAggregator(sender, nil, &conf, "my-hostname")
 	aggregator.flushFlowsToSendInterval = 1 * time.Second
 	inChan := aggregator.GetFlowInChan()
 
@@ -216,7 +216,7 @@ func TestAggregator_withMockPayload(t *testing.T) {
 		},
 	}
 
-	aggregator := NewFlowAggregator(sender, &conf, "my-hostname")
+	aggregator := NewFlowAggregator(sender, nil, &conf, "my-hostname")
 	aggregator.flushFlowsToSendInterval = 1 * time.Second
 
 	stoppedFlushLoop := make(chan struct{})
@@ -345,7 +345,7 @@ func TestFlowAggregator_flush_submitCollectorMetrics_error(t *testing.T) {
 			},
 		},
 	}
-	aggregator := NewFlowAggregator(sender, &conf, "my-hostname")
+	aggregator := NewFlowAggregator(sender, nil, &conf, "my-hostname")
 	aggregator.goflowPrometheusGatherer = prometheus.GathererFunc(func() ([]*promClient.MetricFamily, error) {
 		return nil, fmt.Errorf("some prometheus gatherer error")
 	})
@@ -380,7 +380,7 @@ func TestFlowAggregator_submitCollectorMetrics(t *testing.T) {
 			},
 		},
 	}
-	aggregator := NewFlowAggregator(sender, &conf, "my-hostname")
+	aggregator := NewFlowAggregator(sender, nil, &conf, "my-hostname")
 	aggregator.goflowPrometheusGatherer = prometheus.GathererFunc(func() ([]*promClient.MetricFamily, error) {
 		return []*promClient.MetricFamily{
 			{
@@ -451,7 +451,7 @@ func TestFlowAggregator_submitCollectorMetrics_error(t *testing.T) {
 			},
 		},
 	}
-	aggregator := NewFlowAggregator(sender, &conf, "my-hostname")
+	aggregator := NewFlowAggregator(sender, nil, &conf, "my-hostname")
 	aggregator.goflowPrometheusGatherer = prometheus.GathererFunc(func() ([]*promClient.MetricFamily, error) {
 		return nil, fmt.Errorf("some prometheus gatherer error")
 	})

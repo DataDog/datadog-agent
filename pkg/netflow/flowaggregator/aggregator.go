@@ -7,12 +7,13 @@ package flowaggregator
 
 import (
 	"encoding/json"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
@@ -32,6 +33,7 @@ type FlowAggregator struct {
 	rollupTrackerRefreshInterval time.Duration
 	flowAcc                      *flowAccumulator
 	sender                       aggregator.Sender
+	epForwarder                  epforwarder.EventPlatformForwarder
 	stopChan                     chan struct{}
 	receivedFlowCount            *atomic.Uint64
 	flushedFlowCount             *atomic.Uint64
@@ -40,7 +42,7 @@ type FlowAggregator struct {
 }
 
 // NewFlowAggregator returns a new FlowAggregator
-func NewFlowAggregator(sender aggregator.Sender, config *config.NetflowConfig, hostname string) *FlowAggregator {
+func NewFlowAggregator(sender aggregator.Sender, epForwarder epforwarder.EventPlatformForwarder, config *config.NetflowConfig, hostname string) *FlowAggregator {
 	flushInterval := time.Duration(config.AggregatorFlushInterval) * time.Second
 	flowContextTTL := time.Duration(config.AggregatorFlowContextTTL) * time.Second
 	rollupTrackerRefreshInterval := time.Duration(config.AggregatorRollupTrackerRefreshInterval) * time.Second
@@ -50,6 +52,7 @@ func NewFlowAggregator(sender aggregator.Sender, config *config.NetflowConfig, h
 		flushFlowsToSendInterval:     flushFlowsToSendInterval,
 		rollupTrackerRefreshInterval: rollupTrackerRefreshInterval,
 		sender:                       sender,
+		epForwarder:                  epForwarder,
 		stopChan:                     make(chan struct{}),
 		receivedFlowCount:            atomic.NewUint64(0),
 		flushedFlowCount:             atomic.NewUint64(0),
@@ -97,9 +100,9 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
 			continue
 		}
 
-		payloadStr := string(payloadBytes)
-		log.Tracef("flushed flow: %s", payloadStr)
-		agg.sender.EventPlatformEvent(payloadStr, epforwarder.EventTypeNetworkDevicesNetFlow)
+		log.Tracef("flushed flow: %s", string(payloadBytes))
+		m := &message.Message{Content: payloadBytes}
+		agg.epForwarder.SendEventPlatformEvent(m, epforwarder.EventTypeNetworkDevicesNetFlow)
 	}
 }
 

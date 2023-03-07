@@ -591,6 +591,11 @@ func (d *AgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*metric
 	return d.aggregator.GetBufferedChannels()
 }
 
+// GetEventPlatformForwarder returns underlying events and service checks channels.
+func (d *AgentDemultiplexer) GetEventPlatformForwarder() (epforwarder.EventPlatformForwarder, error) {
+	return d.aggregator.GetEventPlatformForwarder()
+}
+
 // SendSamplesWithoutAggregation buffers a bunch of metrics with timestamp. This data will be directly
 // transmitted "as-is" (i.e. no aggregation, no sampling) to the serializer.
 func (d *AgentDemultiplexer) SendSamplesWithoutAggregation(samples metrics.MetricSampleBatch) {

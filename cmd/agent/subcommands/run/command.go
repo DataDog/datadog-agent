@@ -467,13 +467,18 @@ func startAgent(cliParams *cliParams, flare flare.Component, sysprobeconfig sysp
 	// This must happen after LoadComponents is set up (via common.LoadComponents).
 	// netflow.StartServer uses AgentDemultiplexer, that uses ContextResolver, that uses the tagger (initialized by LoadComponents)
 	if netflow.IsEnabled() {
-		sender, err := demux.GetDefaultSender()
+		epForwarder, err := demux.GetEventPlatformForwarder()
 		if err != nil {
-			pkglog.Errorf("Failed to get default sender for NetFlow server: %s", err)
+			pkglog.Errorf("Failed to get event platform forwarder for NetFlow server: %s", err)
 		} else {
-			err = netflow.StartServer(sender)
+			sender, err := demux.GetDefaultSender()
 			if err != nil {
-				pkglog.Errorf("Failed to start NetFlow server: %s", err)
+				pkglog.Errorf("Failed to get default sender for NetFlow server: %s", err)
+			} else {
+				err = netflow.StartServer(sender, epForwarder)
+				if err != nil {
+					pkglog.Errorf("Failed to start NetFlow server: %s", err)
+				}
 			}
 		}
 	}

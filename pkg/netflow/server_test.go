@@ -46,7 +46,7 @@ network_devices:
 	sender, err := demux.GetDefaultSender()
 	require.NoError(t, err, "cannot get default sender")
 
-	server, err := NewNetflowServer(sender)
+	server, err := NewNetflowServer(sender, epforwarder.NewNoopEventPlatformForwarder())
 	require.NoError(t, err, "cannot start Netflow Server")
 	assert.NotNil(t, server)
 
@@ -97,7 +97,7 @@ func TestStartServerAndStopServer(t *testing.T) {
 	sender, err := demux.GetDefaultSender()
 	require.NoError(t, err, "cannot get default sender")
 
-	err = StartServer(sender)
+	err = StartServer(sender, nil)
 	require.NoError(t, err)
 	require.NotNil(t, serverInstance)
 
@@ -140,7 +140,7 @@ network_devices:
 	sender, err := demux.GetDefaultSender()
 	require.NoError(t, err, "cannot get default sender")
 
-	server, err := NewNetflowServer(sender)
+	server, err := NewNetflowServer(sender, nil)
 	require.NoError(t, err, "cannot start Netflow Server")
 	assert.NotNil(t, server)
 

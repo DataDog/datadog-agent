@@ -7,12 +7,13 @@ package netflow
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"net/http"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,7 +33,7 @@ type Server struct {
 }
 
 // NewNetflowServer configures and returns a running SNMP traps server.
-func NewNetflowServer(sender aggregator.Sender) (*Server, error) {
+func NewNetflowServer(sender aggregator.Sender, epForwarder epforwarder.EventPlatformForwarder) (*Server, error) {
 	var listeners []*netflowListener
 
 	mainConfig, err := config.ReadConfig()
@@ -46,7 +47,7 @@ func NewNetflowServer(sender aggregator.Sender) (*Server, error) {
 		hostnameDetected = ""
 	}
 
-	flowAgg := flowaggregator.NewFlowAggregator(sender, mainConfig, hostnameDetected)
+	flowAgg := flowaggregator.NewFlowAggregator(sender, epForwarder, mainConfig, hostnameDetected)
 	go flowAgg.Start()
 
 	if mainConfig.PrometheusListenerEnabled {
@@ -103,8 +104,8 @@ func (s *Server) stop() {
 }
 
 // StartServer starts the global NetFlow collector.
-func StartServer(sender aggregator.Sender) error {
-	server, err := NewNetflowServer(sender)
+func StartServer(sender aggregator.Sender, epForwarder epforwarder.EventPlatformForwarder) error {
+	server, err := NewNetflowServer(sender, epForwarder)
 	serverInstance = server
 	return err
 }
