@@ -447,20 +447,16 @@ static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, http2_itera
         return -1;
     }
 
-    // TODO: move to a later location
-    http2_ctx->http2_stream_key.stream_id = current_frame.stream_id;
+    bool is_end_of_stream = (current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM;
 
-    // Check if we should process the frame.
     switch (current_frame.type) {
     case kHeadersFrame:
         // We always want to process headers frame.
-        // TODO: we don't need the frame, but its length.
-        process_headers_frame(skb, iterations_key, http2_ctx, &current_frame);
         break;
     case kDataFrame:
-        if ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
+        if (is_end_of_stream) {
             // We want to process data frame if and only if, it is an end of stream.
-            break;
+            goto end_of_stream;
         }
         // fallthrough
     default:
@@ -468,6 +464,10 @@ static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, http2_itera
         goto end;
     }
 
+    http2_ctx->http2_stream_key.stream_id = current_frame.stream_id;
+    process_headers_frame(skb, iterations_key, http2_ctx, &current_frame);
+
+end_of_stream:
     // If the payload is end of stream, call handle_end_of_stream.
     if ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
         handle_end_of_stream(&http2_ctx->http2_stream_key);
