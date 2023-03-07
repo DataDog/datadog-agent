@@ -7,6 +7,7 @@ package probe
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -61,8 +62,6 @@ type Probe struct {
 
 	scrubber *procutil.DataScrubber
 
-
-
 	// ActivityDumps section
 	activityDumpHandler ActivityDumpHandler
 
@@ -80,4 +79,26 @@ type Probe struct {
 // GetResolvers returns the resolvers of Probe
 func (p *Probe) GetResolvers() *Resolvers {
 	return p.resolvers
+}
+
+// AddEventHandler set the probe event handler
+func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler) error {
+	if eventType >= model.MaxAllEventType {
+		return errors.New("unsupported event type")
+	}
+
+	p.eventHandlers[eventType] = append(p.eventHandlers[eventType], handler)
+
+	return nil
+}
+
+// AddCustomEventHandler set the probe event handler
+func (p *Probe) AddCustomEventHandler(eventType model.EventType, handler CustomEventHandler) error {
+	if eventType >= model.MaxAllEventType {
+		return errors.New("unsupported event type")
+	}
+
+	p.customEventHandlers[eventType] = append(p.customEventHandlers[eventType], handler)
+
+	return nil
 }

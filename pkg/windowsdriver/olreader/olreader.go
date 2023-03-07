@@ -106,7 +106,7 @@ func (olr *OverlappedReader) Read() error {
 			var key uintptr
 			var ol *windows.Overlapped
 
-			err := windows.GetQueuedCompletionStatus(olr.iocp, &bytesRead, &key, &ol, 0)
+			err := windows.GetQueuedCompletionStatus(olr.iocp, &bytesRead, &key, &ol, windows.INFINITE)
 			if err != nil {
 				if err == syscall.Errno(syscall.WAIT_TIMEOUT) {
 					// this indicates that there was no queued completion status, this is fine

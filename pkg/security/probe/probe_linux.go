@@ -265,48 +265,7 @@ func (p *Probe) AddActivityDumpHandler(handler ActivityDumpHandler) {
 	p.activityDumpHandler = handler
 }
 
-// AddEventHandler set the probe event handler
-func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler) error {
-	if eventType >= model.MaxAllEventType {
-		return errors.New("unsupported event type")
-	}
 
-	p.eventHandlers[eventType] = append(p.eventHandlers[eventType], handler)
-
-	return nil
-}
-
-// AddCustomEventHandler set the probe event handler
-func (p *Probe) AddCustomEventHandler(eventType model.EventType, handler CustomEventHandler) error {
-	if eventType >= model.MaxAllEventType {
-		return errors.New("unsupported event type")
-	}
-
-	p.customEventHandlers[eventType] = append(p.customEventHandlers[eventType], handler)
-
-	return nil
-}
-
-// DispatchEvent sends an event to the probe event handler
-func (p *Probe) DispatchEvent(event *model.Event) {
-	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
-		eventJSON, err := MarshalEvent(event, p)
-		return eventJSON, event.GetEventType(), err
-	})
-
-	// send wildcard first
-	for _, handler := range p.eventHandlers[model.UnknownEventType] {
-		handler.HandleEvent(event)
-	}
-
-	// send specific event
-	for _, handler := range p.eventHandlers[event.GetEventType()] {
-		handler.HandleEvent(event)
-	}
-
-	// Process after evaluation because some monitors need the DentryResolver to have been called first.
-	p.monitor.ProcessEvent(event)
-}
 
 // DispatchActivityDump sends an activity dump to the probe activity dump handler
 func (p *Probe) DispatchActivityDump(dump *api.ActivityDumpStreamMessage) {

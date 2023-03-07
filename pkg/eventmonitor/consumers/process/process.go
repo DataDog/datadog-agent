@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ProcessConsumer describes a process monitoring object
@@ -23,6 +24,7 @@ func (p *ProcessConsumer) Stop() {
 
 // HandleEvent implement the EventHandler interface
 func (p *ProcessConsumer) HandleEvent(event *smodel.Event) {
+	log.Infof("Got an Event!!!!")
 	// Force resolution of all event fields before exposing it through the API server
 	event.ResolveFields()
 	event.ResolveEventTimestamp()
