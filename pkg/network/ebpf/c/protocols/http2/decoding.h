@@ -89,7 +89,7 @@ static __always_inline void set_dynamic_counter(conn_tuple_t *tup, __u64 counter
 }
 
 // parse_field_indexed is handling the case which the header frame is part of the static table.
-static __always_inline parse_result_t parse_field_indexed(http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __u32 stream_id, heap_buffer_t *heap_buffer){
+static __always_inline parse_result_t parse_field_indexed(http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, heap_buffer_t *heap_buffer){
     __u8 index = 0;
     if (!read_var_int(heap_buffer, 7, &index)) {
         return HEADER_ERROR;
@@ -102,7 +102,6 @@ static __always_inline parse_result_t parse_field_indexed(http2_iterations_key_t
         }
         if (headers_to_process != NULL) {
             headers_to_process->index = index;
-            headers_to_process->stream_id = stream_id;
             headers_to_process->type = kStaticHeader;
         }
         return HEADER_INTERESTING;
@@ -118,7 +117,6 @@ static __always_inline parse_result_t parse_field_indexed(http2_iterations_key_t
     }
     if (headers_to_process != NULL) {
         headers_to_process->index = http2_ctx->dynamic_index.index;
-        headers_to_process->stream_id = stream_id;
         headers_to_process->type = kDynamicHeader;
     }
     return HEADER_INTERESTING;
@@ -126,7 +124,7 @@ static __always_inline parse_result_t parse_field_indexed(http2_iterations_key_t
 
 // parse_field_literal handling the case when the key is part of the static table and the value is a dynamic string
 // which will be stored in the dynamic table.
-static __always_inline parse_result_t parse_field_literal(http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __u32 stream_id, heap_buffer_t *heap_buffer){
+static __always_inline parse_result_t parse_field_literal(http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, heap_buffer_t *heap_buffer){
     __u64 counter = get_dynamic_counter(&iterations_key->tup);
     counter++;
     set_dynamic_counter(&iterations_key->tup, counter);
@@ -188,14 +186,13 @@ static __always_inline parse_result_t parse_field_literal(http2_iterations_key_t
 
     if (headers_to_process != NULL) {
         headers_to_process->index = counter - 1;
-        headers_to_process->stream_id = stream_id;
         headers_to_process->type = kDynamicHeader;
     }
     return HEADER_INTERESTING;
 }
 
 // This function reads the http2 headers frame.
-static __always_inline __u8 filter_relevant_headers(http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __u32 stream_id, heap_buffer_t *heap_buffer) {
+static __always_inline __u8 filter_relevant_headers(http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, heap_buffer_t *heap_buffer) {
     char current_ch;
     __u16 offset = 0;
     __u8 interesting_headers = 0;
@@ -225,7 +222,7 @@ static __always_inline __u8 filter_relevant_headers(http2_iterations_key_t *iter
             // Indexed representation.
             // MSB bit set.
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.1
-            res = parse_field_indexed(iterations_key, http2_ctx, current_header, stream_id, heap_buffer);
+            res = parse_field_indexed(iterations_key, http2_ctx, current_header, heap_buffer);
             if (res == HEADER_ERROR) {
                 break;
             }
@@ -234,7 +231,7 @@ static __always_inline __u8 filter_relevant_headers(http2_iterations_key_t *iter
             // 6.2.1 Literal Header Field with Incremental Indexing
             // top two bits are 11
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
-            res = parse_field_literal(iterations_key, http2_ctx, current_header, stream_id, heap_buffer);
+            res = parse_field_literal(iterations_key, http2_ctx, current_header, heap_buffer);
             if (res == HEADER_ERROR) {
                 break;
             }
@@ -314,7 +311,6 @@ static __always_inline void process_headers(http2_ctx_t *http2_ctx, http2_header
 
         current_header = &headers_to_process[iteration];
 
-        http2_stream_key_template->stream_id = current_header->stream_id;
         current_stream = http2_fetch_stream(http2_stream_key_template);
         if (current_stream == NULL) {
             break;
@@ -423,7 +419,7 @@ static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_i
     // read headers payload
     read_into_buffer_skb_http2((char*)frame_payload->fragment, skb, iterations_key->skb_info.data_off + HTTP2_FRAME_HEADER_SIZE);
 
-    __u8 interesting_headers = filter_relevant_headers(iterations_key, http2_ctx, headers_to_process, current_frame_header->stream_id, frame_payload);
+    __u8 interesting_headers = filter_relevant_headers(iterations_key, http2_ctx, headers_to_process, frame_payload);
     if (interesting_headers > 0) {
         process_headers(http2_ctx, headers_to_process, interesting_headers);
     }
@@ -451,10 +447,14 @@ static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, http2_itera
         return -1;
     }
 
+    // TODO: move to a later location
+    http2_ctx->http2_stream_key.stream_id = current_frame.stream_id;
+
     // Check if we should process the frame.
     switch (current_frame.type) {
     case kHeadersFrame:
         // We always want to process headers frame.
+        // TODO: we don't need the frame, but its length.
         process_headers_frame(skb, iterations_key, http2_ctx, &current_frame);
         break;
     case kDataFrame:
@@ -470,7 +470,6 @@ static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, http2_itera
 
     // If the payload is end of stream, call handle_end_of_stream.
     if ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
-        http2_ctx->http2_stream_key.stream_id = current_frame.stream_id;
         handle_end_of_stream(&http2_ctx->http2_stream_key);
     }
 

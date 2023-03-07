@@ -104,7 +104,6 @@ typedef enum {
 } __attribute__ ((packed)) http2_header_type_t;
 
 typedef struct {
-    __u32 stream_id;
     __u32 index;
     http2_header_type_t type;
 } http2_header_t;
