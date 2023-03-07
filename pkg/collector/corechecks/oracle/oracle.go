@@ -104,8 +104,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	}
 	err = db.Ping()
 	if err != nil {
-		log.Errorf("Failed to ping to Oracle instance | err=[%s]", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to ping oracle instance: %w", err)
 	}
 	return db, nil
 }
