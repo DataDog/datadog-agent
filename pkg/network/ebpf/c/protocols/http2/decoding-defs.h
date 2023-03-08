@@ -11,7 +11,7 @@
 
 // A limit of max headers which we process in the request/response.
 // NOTE: we may need to change the max size.
-#define HTTP2_MAX_HEADERS_COUNT 15
+#define HTTP2_MAX_HEADERS_COUNT 10
 
 // A limit of max headers which we process in the request/response.
 // NOTE: we may need to change the max size.
@@ -23,9 +23,6 @@
 
 // The maximum index which may be in the static table.
 #define MAX_STATIC_TABLE_INDEX 61
-
-// This determines the size of the payload fragment that is captured for each headers frame.
-#define HTTP2_BUFFER_SIZE (8 * 20)
 
 // The flag which will be sent in the data/header frame that indicates end of stream.
 #define HTTP2_END_OF_STREAM 0x1
@@ -83,7 +80,7 @@ typedef struct {
     __u8 path_size;
     bool request_end_of_stream;
 
-    __u8 request_path[HTTP2_MAX_PATH_LEN] __attribute__ ((aligned (8)));
+    __u8 request_path[HTTP2_MAX_PATH_LEN];
 } http2_stream_t;
 
 typedef struct {
@@ -92,16 +89,11 @@ typedef struct {
     http2_stream_t http2_stream;
 } http2_ctx_t;
 
-typedef enum {
-    kStaticHeader  = 0,
-    kDynamicHeader = 1,
-} __attribute__ ((packed)) http2_header_type_t;
-
 typedef struct {
     __u64 skb_offset; // in case of dynamic value.
     __u32 str_len; // in case we have dynamic value.
     __u32 index;
-    http2_header_type_t type;
+    bool is_dynamic;
 } http2_header_t;
 
 typedef struct {
@@ -113,11 +105,5 @@ typedef struct {
     conn_tuple_t tup;
     skb_info_t skb_info;
 } http2_iterations_key_t;
-
-typedef enum {
-    HEADER_ERROR = 0,
-    HEADER_NOT_INTERESTING,
-    HEADER_INTERESTING,
-} parse_result_t;
 
 #endif

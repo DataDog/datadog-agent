@@ -22,9 +22,8 @@ type ebpfHttp2Tx struct {
 	Request_method        uint8
 	Path_size             uint8
 	Request_end_of_stream bool
-	Pad_cgo_0             [3]byte
 	Request_path          [60]uint8
-	Pad_cgo_1             [4]byte
+	Pad_cgo_0             [7]byte
 }
 
 type StaticTableEnumKey = uint8

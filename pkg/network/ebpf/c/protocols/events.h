@@ -60,7 +60,7 @@
                                                                                         \
     static __always_inline void name##_batch_enqueue(value *event) {                    \
         u32 zero = 0;                                                                   \
-        batch_state_t *batch_state =  bpf_map_lookup_elem(&name##_batch_state, &zero);  \
+        batch_state_t *batch_state = bpf_map_lookup_elem(&name##_batch_state, &zero);   \
         if (batch_state == NULL) {                                                      \
             return;                                                                     \
         }                                                                               \
