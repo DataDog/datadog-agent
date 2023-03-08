@@ -135,24 +135,20 @@ static __always_inline parse_result_t parse_field_literal(__u64 counter, http2_c
         return HEADER_ERROR;
     }
 
-    if (index < MAX_STATIC_TABLE_INDEX) {
-        // if the index does not appear in our static table, then it is not relevant for us
-        if (bpf_map_lookup_elem(&http2_static_table, &index) == NULL) {
-            heap_buffer->offset += str_len;
-
-            if (index == 0) {
-                str_len = 0;
-                if (!read_var_int(heap_buffer, 6, &str_len)) {
-                    return HEADER_ERROR;
-                }
-                heap_buffer->offset += str_len;
-            }
-            return HEADER_NOT_INTERESTING;
+    if (index == 0) {
+        heap_buffer->offset += str_len;
+        str_len = 0;
+        if (!read_var_int(heap_buffer, 6, &str_len)) {
+            return HEADER_ERROR;
         }
-    }
-
-    // if the index is not path or the len of string is bigger then we support, we continue.
-    if (str_len >= HTTP2_MAX_PATH_LEN || index != kIndexPath){
+        heap_buffer->offset += str_len;
+        return HEADER_NOT_INTERESTING;
+    } else if (index < MAX_STATIC_TABLE_INDEX && bpf_map_lookup_elem(&http2_static_table, &index) == NULL) {
+        // if the index does not appear in our static table, then it is not relevant for us
+        heap_buffer->offset += str_len;
+        return HEADER_NOT_INTERESTING;
+    } else if (str_len >= HTTP2_MAX_PATH_LEN || index != kIndexPath){
+        // if the index is not path or the len of string is bigger then we support, we continue.
         heap_buffer->offset += str_len;
         return HEADER_NOT_INTERESTING;
     }
@@ -202,9 +198,8 @@ static __always_inline __u8 filter_relevant_headers(http2_iterations_key_t *iter
         offset %= HTTP2_BUFFER_SIZE;
         current_ch = heap_buffer->fragment[offset];
 
-        if (interesting_headers >= HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING) {
-            current_header = NULL;
-        } else {
+        current_header = NULL;
+        if (interesting_headers < HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING) {
             current_header = &headers_to_process[interesting_headers];
         }
 
@@ -213,20 +208,20 @@ static __always_inline __u8 filter_relevant_headers(http2_iterations_key_t *iter
             // MSB bit set.
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.1
             res = parse_field_indexed(counter, http2_ctx, current_header, heap_buffer);
-            if (res == HEADER_ERROR) {
-                break;
-            }
-            interesting_headers += res == HEADER_INTERESTING;
         } else if ((current_ch&192) == 64) {
             counter++;
             // 6.2.1 Literal Header Field with Incremental Indexing
             // top two bits are 11
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
             res = parse_field_literal(counter, http2_ctx, current_header, heap_buffer);
-            if (res == HEADER_ERROR) {
-                break;
-            }
-            interesting_headers += res == HEADER_INTERESTING;
+        } else {
+            continue;
+        }
+
+        if (res == HEADER_ERROR) {
+            break;
+        } else if (res == HEADER_INTERESTING) {
+            interesting_headers++;
         }
     }
 
