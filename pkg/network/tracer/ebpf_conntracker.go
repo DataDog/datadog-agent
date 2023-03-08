@@ -106,7 +106,7 @@ func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelem
 				return nil, fmt.Errorf("unable to compile ebpf conntracker: %w", err)
 			}
 
-			log.Warnf("unable to compile ebpf conntracker, falling back to prebuilt ebpf conntracker: %w", err)
+			log.Warnf("unable to compile ebpf conntracker, falling back to prebuilt ebpf conntracker: %s", err)
 		}
 	}
 
