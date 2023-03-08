@@ -89,7 +89,7 @@ static __always_inline void set_dynamic_counter(conn_tuple_t *tup, __u64 counter
 }
 
 // parse_field_indexed is handling the case which the header frame is part of the static table.
-static __always_inline parse_result_t parse_field_indexed(http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, heap_buffer_t *heap_buffer){
+static __always_inline parse_result_t parse_field_indexed(__u64 global_counter, http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, heap_buffer_t *heap_buffer){
     __u8 index = 0;
     if (!read_var_int(heap_buffer, 7, &index)) {
         return HEADER_ERROR;
@@ -107,7 +107,6 @@ static __always_inline parse_result_t parse_field_indexed(http2_iterations_key_t
         return HEADER_INTERESTING;
     }
 
-    __u64 global_counter = get_dynamic_counter(&iterations_key->tup);
     // we change the index to fit our internal dynamic table implementation index.
     // the index is starting from 1 so we decrease 62 in order to be equal to the given index.
     http2_ctx->dynamic_index.index = global_counter - (index - MAX_STATIC_TABLE_INDEX);
@@ -124,11 +123,7 @@ static __always_inline parse_result_t parse_field_indexed(http2_iterations_key_t
 
 // parse_field_literal handling the case when the key is part of the static table and the value is a dynamic string
 // which will be stored in the dynamic table.
-static __always_inline parse_result_t parse_field_literal(http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, heap_buffer_t *heap_buffer){
-    __u64 counter = get_dynamic_counter(&iterations_key->tup);
-    counter++;
-    set_dynamic_counter(&iterations_key->tup, counter);
-
+static __always_inline parse_result_t parse_field_literal(__u64 counter, http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, heap_buffer_t *heap_buffer){
     __u8 index = 0;
     if (!read_var_int(heap_buffer, 6, &index)) {
         return HEADER_ERROR;
@@ -200,6 +195,8 @@ static __always_inline __u8 filter_relevant_headers(http2_iterations_key_t *iter
     parse_result_t res;
     http2_header_t *current_header;
 
+    __u64 counter = get_dynamic_counter(&iterations_key->tup);
+
 #pragma unroll (HTTP2_MAX_HEADERS_COUNT)
     for (__u8 headers_index = 0; headers_index < HTTP2_MAX_HEADERS_COUNT; ++headers_index) {
         offset = heap_buffer->offset;
@@ -222,16 +219,17 @@ static __always_inline __u8 filter_relevant_headers(http2_iterations_key_t *iter
             // Indexed representation.
             // MSB bit set.
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.1
-            res = parse_field_indexed(iterations_key, http2_ctx, current_header, heap_buffer);
+            res = parse_field_indexed(counter, http2_ctx, current_header, heap_buffer);
             if (res == HEADER_ERROR) {
                 break;
             }
             interesting_headers += res == HEADER_INTERESTING;
         } else if ((current_ch&192) == 64) {
+            counter++;
             // 6.2.1 Literal Header Field with Incremental Indexing
             // top two bits are 11
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
-            res = parse_field_literal(iterations_key, http2_ctx, current_header, heap_buffer);
+            res = parse_field_literal(counter, http2_ctx, current_header, heap_buffer);
             if (res == HEADER_ERROR) {
                 break;
             }
@@ -239,6 +237,7 @@ static __always_inline __u8 filter_relevant_headers(http2_iterations_key_t *iter
         }
     }
 
+    set_dynamic_counter(&iterations_key->tup, counter);
     return interesting_headers;
 }
 
