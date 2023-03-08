@@ -141,7 +141,7 @@ func TestAggregator(t *testing.T) {
 	compactEvent := new(bytes.Buffer)
 	err := json.Compact(compactEvent, event)
 	assert.NoError(t, err)
-	epForwarder.EXPECT().SendEventPlatformEvent(&message.Message{Content: compactEvent.Bytes()}, "network-devices-netflow").Return(nil).Times(1)
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(&message.Message{Content: compactEvent.Bytes()}, "network-devices-netflow").Return(nil).Times(1)
 
 	eventCount, err := WaitForFlowsToBeFlushed(aggregator, 10*time.Second, 1)
 	assert.Equal(t, uint64(1), eventCount)

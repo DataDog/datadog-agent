@@ -120,6 +120,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 // An EventPlatformForwarder forwards Messages to a destination based on their event type
 type EventPlatformForwarder interface {
 	SendEventPlatformEvent(e *message.Message, eventType string) error
+	SendEventPlatformEventBlocking(e *message.Message, eventType string) error
 	Purge() map[string][]*message.Message
 	Start()
 	Stop()
@@ -142,6 +143,15 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 	default:
 		return fmt.Errorf("event platform forwarder pipeline channel is full for eventType=%s. Channel capacity is %d. consider increasing batch_max_concurrent_send", eventType, cap(p.in))
 	}
+}
+
+func (s *defaultEventPlatformForwarder) SendEventPlatformEventBlocking(e *message.Message, eventType string) error {
+	p, ok := s.pipelines[eventType]
+	if !ok {
+		return fmt.Errorf("unknown eventType=%s", eventType)
+	}
+	p.in <- e
+	return nil
 }
 
 func purgeChan(in chan *message.Message) (result []*message.Message) {

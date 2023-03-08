@@ -60,7 +60,7 @@ network_devices:
 	//waitEventPlatformEvents(nil, server.flowAgg)
 	server.flowAgg.GetFlushedFlowCount()
 
-	epForwarder.EXPECT().SendEventPlatformEvent(gomock.Any(), gomock.Any()).Return(nil).Times(6)
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), gomock.Any()).Return(nil).Times(6)
 
 	netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(server.flowAgg, 15*time.Second, 6)
 	assert.Equal(t, uint64(6), netflowEvents)

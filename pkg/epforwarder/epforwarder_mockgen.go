@@ -62,6 +62,20 @@ func (mr *MockEventPlatformForwarderMockRecorder) SendEventPlatformEvent(e, even
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendEventPlatformEvent", reflect.TypeOf((*MockEventPlatformForwarder)(nil).SendEventPlatformEvent), e, eventType)
 }
 
+// SendEventPlatformEventBlocking mocks base method.
+func (m *MockEventPlatformForwarder) SendEventPlatformEventBlocking(e *message.Message, eventType string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SendEventPlatformEventBlocking", e, eventType)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SendEventPlatformEventBlocking indicates an expected call of SendEventPlatformEventBlocking.
+func (mr *MockEventPlatformForwarderMockRecorder) SendEventPlatformEventBlocking(e, eventType interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendEventPlatformEventBlocking", reflect.TypeOf((*MockEventPlatformForwarder)(nil).SendEventPlatformEventBlocking), e, eventType)
+}
+
 // Start mocks base method.
 func (m *MockEventPlatformForwarder) Start() {
 	m.ctrl.T.Helper()
