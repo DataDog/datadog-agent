@@ -129,6 +129,7 @@ func (agg *FlowAggregator) flushLoop() {
 	}
 
 	rollupTrackersRefresh := time.NewTicker(agg.rollupTrackerRefreshInterval).C
+	// TODO: move rollup tracker refresh to a separate loop
 
 	for {
 		select {
