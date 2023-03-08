@@ -1,16 +1,16 @@
 benchmark:
   stage: benchmarks
   # This base image is created here: https://gitlab.ddbuild.io/DataDog/apm-reliability/relenv-microbenchmarking-platform
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/relenv-microbenchmarking-platform:trace-agent
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/relenv-microbenchmarking-platform:trace-agent-v2
   timeout: 1h
   rules:
-    !reference [.on_trace_agent_changes_or_manual] 
+    !reference [.on_trace_agent_changes_or_manual]
   interruptible: true
   tags: ["runner:apm-k8s-tweaked-metal"]
   script:
     - ./test/benchmarks/apm_scripts/capture-hardware-software-info.sh
     - ./test/benchmarks/apm_scripts/run-benchmarks.sh
-    # - ./test/benchmarks/apm_scripts/upload-results-to-s3.sh #commented out until we have merged our permissions changes
+    - ./test/benchmarks/apm_scripts/upload-results-to-s3.sh #commented out until we have merged our permissions changes
     - ./test/benchmarks/apm_scripts/analyze-results.sh
     - ./test/benchmarks/apm_scripts/post-pr-comment.sh
   artifacts:
