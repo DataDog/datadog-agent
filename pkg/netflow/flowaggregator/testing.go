@@ -12,7 +12,8 @@ import (
 
 func WaitForFlowsToBeFlushed(aggregator *FlowAggregator, timeoutDuration time.Duration, minEvents uint64) (uint64, error) {
 	timeout := time.After(timeoutDuration)
-	tick := time.Tick(500 * time.Millisecond)
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
 	// Keep trying until we're timed out or got a result or got an error
 	for {
 		select {
@@ -20,7 +21,7 @@ func WaitForFlowsToBeFlushed(aggregator *FlowAggregator, timeoutDuration time.Du
 		case <-timeout:
 			return 0, fmt.Errorf("timeout error waiting for events")
 		// Got a tick, we should check on doSomething()
-		case <-tick:
+		case <-ticker.C:
 			events := aggregator.flushedFlowCount.Load()
 			if events >= minEvents {
 				return events, nil
