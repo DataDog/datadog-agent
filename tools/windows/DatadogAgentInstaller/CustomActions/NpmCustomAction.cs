@@ -16,7 +16,7 @@ public class NpmCustomAction
             using var systemProbeDef = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\datadog-system-probe", true);
             if (systemProbeDef != null)
             {
-                if (string.IsNullOrEmpty(addLocal) )
+                if (string.IsNullOrEmpty(addLocal))
                 {
                     systemProbeDef.SetValue("DependOnService", new[]
                     {
