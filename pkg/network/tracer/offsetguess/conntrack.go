@@ -18,6 +18,7 @@ import (
 	"unsafe"
 
 	"github.com/cilium/ebpf"
+	"github.com/vishvananda/netns"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -183,10 +184,6 @@ func (c *conntrackOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEd
 		return nil, fmt.Errorf("unable to find map %s: %s", probes.ConntrackStatusMap, err)
 	}
 
-	// When reading kernel structs at different offsets, don't go over the set threshold
-	// Defaults to 400, with a max of 3000. This is an arbitrary choice to avoid infinite loops.
-	threshold := cfg.OffsetGuessThreshold
-
 	// pid & tid must not change during the guessing work: the communication
 	// between ebpf and userspace relies on it
 	runtime.LockOSThread()
@@ -202,9 +199,7 @@ func (c *conntrackOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEd
 		cProcName[i] = int8(ch)
 	}
 
-	c.status.State = uint64(netebpf.StateChecking)
 	c.status.Proc = netebpf.Proc{Comm: cProcName}
-	c.status.What = uint64(netebpf.GuessCtTupleOrigin)
 
 	// if we already have the offsets, just return
 	err = mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(c.status))
@@ -212,19 +207,59 @@ func (c *conntrackOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEd
 		return c.getConstantEditors(), nil
 	}
 
-	eventGenerator, err := newConntrackEventGenerator()
+	// we may have to run the offset guessing twice, once
+	// in the current network namespace and another in the
+	// root network namespace if we are not running in the
+	// root network namespace already. This is necessary
+	// since conntrack may not be active in the current
+	// namespace, and so the offset guessing will fail since
+	// no conntrack events will be generated in eBPF
+	var nss []netns.NsHandle
+	currentNs, err := netns.Get()
+	if err != nil {
+		return nil, err
+	}
+	defer currentNs.Close()
+	nss = append(nss, currentNs)
+
+	rootNs, err := util.GetRootNetNamespace(util.GetProcRoot())
+	if err != nil {
+		return nil, err
+	}
+	defer rootNs.Close()
+	if !currentNs.Equal(rootNs) {
+		nss = append(nss, rootNs)
+	}
+
+	for _, ns := range nss {
+		var consts []manager.ConstantEditor
+		if consts, err = c.runOffsetGuessing(cfg, ns, mp); err == nil {
+			return consts, nil
+		}
+	}
+
+	return nil, err
+}
+
+func (c *conntrackOffsetGuesser) runOffsetGuessing(cfg *config.Config, ns netns.NsHandle, mp *ebpf.Map) ([]manager.ConstantEditor, error) {
+	eventGenerator, err := newConntrackEventGenerator(ns)
 	if err != nil {
 		return nil, err
 	}
 	defer eventGenerator.Close()
+
+	c.status.State = uint64(netebpf.StateChecking)
+	c.status.What = uint64(netebpf.GuessCtTupleOrigin)
 
 	// initialize map
 	if err := mp.Put(unsafe.Pointer(&zero), unsafe.Pointer(c.status)); err != nil {
 		return nil, fmt.Errorf("error initializing conntrack_c.status map: %v", err)
 	}
 
-	// If the kretprobe for tcp_v4_connect() is configured with a too-low maxactive, some kretprobe might be missing.
-	// In this case, we detect it and try again. See: https://github.com/weaveworks/tcptracer-bpf/issues/24
+	// When reading kernel structs at different offsets, don't go over the set threshold
+	// Defaults to 400, with a max of 3000. This is an arbitrary choice to avoid infinite loops.
+	threshold := cfg.OffsetGuessThreshold
+
 	maxRetries := 100
 
 	log.Debugf("Checking for offsets with threshold of %d", threshold)
@@ -248,22 +283,26 @@ func (c *conntrackOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEd
 	}
 
 	return c.getConstantEditors(), nil
+
 }
 
 type conntrackEventGenerator struct {
 	udpAddr string
 	udpDone func()
 	udpConn net.Conn
+	ns      netns.NsHandle
 }
 
-func newConntrackEventGenerator() (*conntrackEventGenerator, error) {
-	eg := &conntrackEventGenerator{}
+func newConntrackEventGenerator(ns netns.NsHandle) (*conntrackEventGenerator, error) {
+	eg := &conntrackEventGenerator{ns: ns}
 
 	// port 0 means we let the kernel choose a free port
 	var err error
 	addr := fmt.Sprintf("%s:0", listenIPv4)
-	// Spin up UDP server
-	eg.udpAddr, eg.udpDone, err = newUDPServer(addr)
+	err = util.WithNS(eg.ns, func() error {
+		eg.udpAddr, eg.udpDone, err = newUDPServer(addr)
+		return err
+	})
 	if err != nil {
 		eg.Close()
 		return nil, err
@@ -280,14 +319,14 @@ func (e *conntrackEventGenerator) Generate(status netebpf.GuessWhat, expected *f
 			e.udpConn.Close()
 		}
 		var err error
-		e.udpConn, err = net.DialTimeout("udp4", e.udpAddr, 500*time.Millisecond)
-		if err != nil {
-			return err
-		}
+		err = util.WithNS(e.ns, func() error {
+			e.udpConn, err = net.DialTimeout("udp4", e.udpAddr, 500*time.Millisecond)
+			if err != nil {
+				return err
+			}
 
-		if err = e.populateUDPExpectedValues(expected); err != nil {
-			return err
-		}
+			return e.populateUDPExpectedValues(expected)
+		})
 
 		_, err = e.udpConn.Write([]byte("foo"))
 		return err
