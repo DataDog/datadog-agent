@@ -206,8 +206,8 @@ func (ad *ActivityDump) GenerateProfileData() Profile {
 	return p
 }
 
-// EncodeProfile encodes an activity dump in the Profile format
-func (ad *ActivityDump) EncodeProfile() (*bytes.Buffer, error) {
+// EncodeSecL encodes an activity dump in the Profile format
+func (ad *ActivityDump) EncodeSecL() (*bytes.Buffer, error) {
 	t := template.Must(template.New("tmpl").Parse(ProfileTemplate))
 	raw := bytes.NewBuffer(nil)
 	if err := t.Execute(raw, ad.GenerateProfileData()); err != nil {

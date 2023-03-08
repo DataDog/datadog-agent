@@ -11,9 +11,10 @@ package dump
 import (
 	"time"
 
+	"golang.org/x/text/runes"
+
 	adproto "github.com/DataDog/datadog-agent/pkg/security/proto/security_profile/v1"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"golang.org/x/text/runes"
 )
 
 func activityDumpToProto(ad *ActivityDump) *adproto.ActivityDump {

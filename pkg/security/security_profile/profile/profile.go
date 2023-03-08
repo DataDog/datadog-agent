@@ -25,7 +25,7 @@ type SecurityProfile struct {
 	Instances []*cgroupModel.CacheEntry
 
 	// Status is the status of the profile
-	Status string
+	Status uint32
 
 	// Version is the version of a Security Profile
 	Version string

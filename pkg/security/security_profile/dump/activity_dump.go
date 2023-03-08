@@ -279,6 +279,37 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 	return ad, nil
 }
 
+// computeSyscallsList returns the aggregated list of all syscalls
+func (ad *ActivityDump) computeSyscallsList() []uint32 {
+	mask := make(map[int]uint32)
+	nodes := ad.ProcessActivityTree
+	var node *ProcessActivityNode
+	if len(nodes) > 0 {
+		node = nodes[0]
+	}
+
+	for node != nil {
+		for _, nr := range node.Syscalls {
+			mask[nr] = 1
+		}
+		for _, child := range node.Children {
+			nodes = append(nodes, child)
+		}
+		nodes = append(nodes[1:])
+		if len(nodes) > 0 {
+			node = nodes[0]
+		} else {
+			node = nil
+		}
+	}
+
+	var output []uint32
+	for key := range mask {
+		output = append(output, uint32(key))
+	}
+	return output
+}
+
 // SetState sets the status of the activity dump
 func (ad *ActivityDump) SetState(state ActivityDumpStatus) {
 	ad.Lock()
@@ -927,6 +958,8 @@ func (ad *ActivityDump) Encode(format config.StorageFormat) (*bytes.Buffer, erro
 		return ad.EncodeProtobuf()
 	case config.DOT:
 		return ad.EncodeDOT()
+	case config.SecL:
+		return ad.EncodeSecL()
 	case config.Profile:
 		return ad.EncodeProfile()
 	default:
@@ -945,6 +978,19 @@ func (ad *ActivityDump) EncodeProtobuf() (*bytes.Buffer, error) {
 	raw, err := pad.MarshalVT()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't encode in %s: %v", config.PROTOBUF, err)
+	}
+	return bytes.NewBuffer(raw), nil
+}
+
+// EncodeProfile encodes an activity dump in the Security Profile protobuf format
+func (ad *ActivityDump) EncodeProfile() (*bytes.Buffer, error) {
+	ad.Lock()
+	defer ad.Unlock()
+
+	profileProto := ActivityDumpToSecurityProfileProto(ad)
+	raw, err := profileProto.MarshalVT()
+	if err != nil {
+		return nil, fmt.Errorf("couldn't encode dump to `%s` format: %v", config.Profile, err)
 	}
 	return bytes.NewBuffer(raw), nil
 }
