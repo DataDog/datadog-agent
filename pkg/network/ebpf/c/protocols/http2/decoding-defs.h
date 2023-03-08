@@ -70,7 +70,7 @@ typedef struct {
 
 typedef struct {
     conn_tuple_t tup;
-    __u32  stream_id;
+    __u32 stream_id;
 } http2_stream_key_t;
 
 typedef struct {
