@@ -23,7 +23,7 @@ func (m *mockPayloadItem) name() string {
 	return m.Name
 }
 
-func (m *mockPayloadItem) tags() []string {
+func (m *mockPayloadItem) GetTags() []string {
 	return m.Tags
 }
 

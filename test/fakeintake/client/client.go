@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
@@ -102,12 +103,107 @@ func (c *Client) GetMetric(name string) ([]*aggregator.MetricSeries, error) {
 	return c.metricAggregator.GetPayloadsByName(name), nil
 }
 
+type MatchOpt[P aggregator.PayloadItem] func(payloads []P) []P
+
+func WithTags[P aggregator.PayloadItem](tags []string) MatchOpt[P] {
+	return func(payloads []P) []P {
+		var ret []P
+		for _, payload := range payloads {
+			if aggregator.AreTagsSubsetOfOtherTags(tags, payload.GetTags()) {
+				ret = append(ret, payload)
+			}
+		}
+		return ret
+	}
+}
+
+func WithMetricValueLowerThan(minValue float64) MatchOpt[*aggregator.MetricSeries] {
+	return func(metrics []*aggregator.MetricSeries) []*aggregator.MetricSeries {
+		var ret []*aggregator.MetricSeries
+		for _, metric := range metrics {
+			for _, point := range metric.Points {
+				if point.Value < minValue {
+					ret = append(ret, metric)
+				}
+			}
+		}
+		return ret
+	}
+}
+
+func WithMetricValueHigherThan(maxValue float64) MatchOpt[*aggregator.MetricSeries] {
+	return func(metrics []*aggregator.MetricSeries) []*aggregator.MetricSeries {
+		var ret []*aggregator.MetricSeries
+		for _, metric := range metrics {
+			for _, point := range metric.Points {
+				if point.Value > maxValue {
+					ret = append(ret, metric)
+				}
+			}
+		}
+		return ret
+	}
+}
+
+func (c *Client) FilterMetrics(name string, options ...MatchOpt[*aggregator.MetricSeries]) ([]*aggregator.MetricSeries, error) {
+	metrics, err := c.GetMetric(name)
+	if err != nil {
+		return nil, err
+	}
+	// apply filters one after the other
+	for _, matchOpt := range options {
+		metrics = matchOpt(metrics)
+	}
+	return metrics, nil
+}
+
 func (c *Client) GetLog(name string) ([]*aggregator.Log, error) {
 	err := c.getLogs()
 	if err != nil {
 		return nil, err
 	}
 	return c.logAggregator.GetPayloadsByName(name), nil
+}
+
+func WithMessageContaining(content string) MatchOpt[*aggregator.Log] {
+	return func(logs []*aggregator.Log) []*aggregator.Log {
+		var ret []*aggregator.Log
+		for _, log := range logs {
+			if strings.Contains(log.Message, content) {
+				ret = append(ret, log)
+			}
+		}
+		return ret
+	}
+}
+
+func WithMessageMatching(pattern string) MatchOpt[*aggregator.Log] {
+	return func(logs []*aggregator.Log) []*aggregator.Log {
+		var ret []*aggregator.Log
+		for _, log := range logs {
+			matched, err := regexp.MatchString(pattern, log.Message)
+			if err != nil {
+				fmt.Printf("error matching log message %s with pattern %s: %v", log.Message, pattern, err)
+				continue
+			}
+			if matched {
+				ret = append(ret, log)
+			}
+		}
+		return ret
+	}
+}
+
+func (c *Client) FilterLogs(name string, options ...MatchOpt[*aggregator.Log]) ([]*aggregator.Log, error) {
+	logs, err := c.GetLog(name)
+	if err != nil {
+		return nil, err
+	}
+	// apply filters one after the other
+	for _, matchOpt := range options {
+		logs = matchOpt(logs)
+	}
+	return logs, nil
 }
 
 func (c *Client) GetCheckRun(name string) ([]*aggregator.CheckRun, error) {

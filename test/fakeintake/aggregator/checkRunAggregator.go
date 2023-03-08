@@ -24,7 +24,7 @@ func (cr *CheckRun) name() string {
 	return cr.Check
 }
 
-func (cr *CheckRun) tags() []string {
+func (cr *CheckRun) GetTags() []string {
 	return cr.Tags
 }
 

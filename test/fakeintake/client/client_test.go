@@ -104,6 +104,21 @@ func TestClient(t *testing.T) {
 		assert.Empty(t, aggregator.FilterByTags(metrics, []string{"totoro"}))
 	})
 
+	t.Run("FilterMetrics", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write(apiV2SeriesResponse)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		metrics, err := client.FilterMetrics("snmp.sysUpTimeInstance",
+			WithTags[*aggregator.MetricSeries]([]string{"snmp_device:172.25.0.3", "snmp_profile:generic-router"}),
+			WithMetricValueHigherThan(4226040),
+			WithMetricValueLowerThan(4226042))
+		assert.NoError(t, err)
+		assert.NotEmpty(t, metrics)
+	})
+
 	t.Run("getChekRun", func(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV1CheckRunResponse)
@@ -158,6 +173,18 @@ func TestClient(t *testing.T) {
 		assert.Equal(t, "hello there, can you hear me", logs[0].Message)
 		assert.Equal(t, "info", logs[0].Status)
 		assert.Equal(t, "a new line of logs", logs[1].Message)
+	})
+
+	t.Run("FilterLogs", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write(apiV2LogsResponse)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		logs, err := client.FilterLogs("testapp", WithMessageMatching(`^hello.*`), WithMessageContaining("hello there, can you hear"))
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(logs))
 	})
 
 	t.Run("GetServerHealth", func(t *testing.T) {

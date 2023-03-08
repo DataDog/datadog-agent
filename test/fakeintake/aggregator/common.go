@@ -16,7 +16,7 @@ import (
 
 type PayloadItem interface {
 	name() string
-	tags() []string
+	GetTags() []string
 }
 
 type parseFunc[P PayloadItem] func(payload api.Payload) (items []P, err error)
@@ -70,7 +70,7 @@ func (agg *Aggregator[P]) ContainsPayloadNameAndTags(name string, tags []string)
 	}
 
 	for _, payloadItem := range payloads {
-		if AreTagsSubsetOfOtherTags(tags, payloadItem.tags()) {
+		if AreTagsSubsetOfOtherTags(tags, payloadItem.GetTags()) {
 			return true
 		}
 	}
@@ -110,7 +110,7 @@ func (agg *Aggregator[P]) GetPayloadsByName(name string) []P {
 func FilterByTags[P PayloadItem](payloads []P, tags []string) []P {
 	ret := []P{}
 	for _, p := range payloads {
-		if AreTagsSubsetOfOtherTags(tags, p.tags()) {
+		if AreTagsSubsetOfOtherTags(tags, p.GetTags()) {
 			ret = append(ret, p)
 		}
 	}
