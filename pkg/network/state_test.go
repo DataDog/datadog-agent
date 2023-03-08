@@ -1224,7 +1224,7 @@ func TestDoubleCloseOnTwoClients(t *testing.T) {
 }
 
 func TestUnorderedCloseEvent(t *testing.T) {
-	statsUnderflows.Set(0)
+	stateTelemetry.statsUnderflows.Set(0)
 	conn := ConnectionStats{
 		Pid:       123,
 		Type:      TCP,
@@ -1271,7 +1271,7 @@ func TestUnorderedCloseEvent(t *testing.T) {
 	assert.EqualValues(t, 0, conns[0].Last.RecvBytes)
 
 	// Ensure we don't have underflows / unordered conns
-	assert.Zero(t, statsUnderflows.Load())
+	assert.Zero(t, stateTelemetry.statsUnderflows.Load())
 
 	assert.Len(t, state.GetDelta(client, latestEpochTime(), nil, nil, nil, nil, nil).Conns, 0)
 }
