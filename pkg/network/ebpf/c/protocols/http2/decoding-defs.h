@@ -98,6 +98,8 @@ typedef enum {
 } __attribute__ ((packed)) http2_header_type_t;
 
 typedef struct {
+    __u64 skb_offset; // in case of dynamic value.
+    __u32 str_len; // in case we have dynamic value.
     __u32 index;
     http2_header_type_t type;
 } http2_header_t;

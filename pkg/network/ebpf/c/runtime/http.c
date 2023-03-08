@@ -108,7 +108,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
 
     // perform the http2 decoding part.
     __u32 read_size = http2_entrypoint(skb, &iterations_key, http2_ctx);
-    if (read_size <= 0 || read_size == -1) {
+    if (read_size == 0) {
         goto delete_iteration;
     }
     if (iterations_key.skb_info.data_off + read_size >= skb->len) {
@@ -116,7 +116,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
     }
 
     // update the tail calls state when the http2 decoding part was completed successfully.
-    tail_call_state->iteration += 1;
+    tail_call_state->iteration++;
     tail_call_state->offset += read_size;
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS) {
         bpf_tail_call_compat(skb, &protocols_progs, PROTOCOL_HTTP2);

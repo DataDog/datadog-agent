@@ -105,41 +105,40 @@ static __always_inline void set_dynamic_counter(conn_tuple_t *tup, __u64 counter
 }
 
 // parse_field_indexed is handling the case which the header frame is part of the static table.
-static __always_inline parse_result_t parse_field_indexed(struct __sk_buff *skb, skb_info_t *skb_info, __u64 global_counter, http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __u8 first){
+static __always_inline parse_result_t parse_field_indexed(struct __sk_buff *skb, skb_info_t *skb_info, __u64 global_counter, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u8 first){
     __u8 index = 0;
     if (!read_var_int_2(skb, skb_info, first, 7, &index)) {
         return HEADER_ERROR;
     }
 
-    // TODO: can improve by declaring MAX_INTERESTING_STATIC_TABLE_INDEX
+    if (headers_to_process == NULL) {
+        return HEADER_NOT_INTERESTING;
+    }
+
     if (is_static_table_entry(index)) {
         if (!is_interesting_static_entry(index)) {
             return HEADER_NOT_INTERESTING;
         }
-        if (headers_to_process != NULL) {
-            headers_to_process->index = index;
-            headers_to_process->type = kStaticHeader;
-        }
+        headers_to_process->index = index;
+        headers_to_process->type = kStaticHeader;
         return HEADER_INTERESTING;
     }
 
     // we change the index to fit our internal dynamic table implementation index.
     // the index is starting from 1 so we decrease 62 in order to be equal to the given index.
-    http2_ctx->dynamic_index.index = global_counter - (index - MAX_STATIC_TABLE_INDEX);
+    dynamic_index->index = global_counter - (index - MAX_STATIC_TABLE_INDEX);
 
-    if (bpf_map_lookup_elem(&http2_dynamic_table, &http2_ctx->dynamic_index) == NULL) {
+    if (bpf_map_lookup_elem(&http2_dynamic_table, dynamic_index) == NULL) {
         return HEADER_NOT_INTERESTING;
     }
-    if (headers_to_process != NULL) {
-        headers_to_process->index = http2_ctx->dynamic_index.index;
-        headers_to_process->type = kDynamicHeader;
-    }
+    headers_to_process->index = dynamic_index->index;
+    headers_to_process->type = kDynamicHeader;
     return HEADER_INTERESTING;
 }
 
 // parse_field_literal handling the case when the key is part of the static table and the value is a dynamic string
 // which will be stored in the dynamic table.
-static __always_inline parse_result_t parse_field_literal(struct __sk_buff *skb, skb_info_t *skb_info, __u64 counter, http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __u8 first){
+static __always_inline parse_result_t parse_field_literal(struct __sk_buff *skb, skb_info_t *skb_info, __u64 counter, http2_header_t *headers_to_process, __u8 first){
     __u8 index = 0;
     if (!read_var_int_2(skb, skb_info, first, 6, &index)) {
         return HEADER_ERROR;
@@ -151,21 +150,17 @@ static __always_inline parse_result_t parse_field_literal(struct __sk_buff *skb,
         return HEADER_ERROR;
     }
 
+    skb_info->data_off += str_len;
+
     if (index == 0) {
-        skb_info->data_off += str_len;
         str_len = 0;
         if (!read_var_int(skb, skb_info, 6, &str_len)) {
             return HEADER_ERROR;
         }
         skb_info->data_off += str_len;
         return HEADER_NOT_INTERESTING;
-    } else if (is_static_table_entry(index) && is_interesting_static_entry(index)) {
-        // if the index does not appear in our static table, then it is not relevant for us
-        skb_info->data_off += str_len;
-        return HEADER_NOT_INTERESTING;
-    } else if (str_len >= HTTP2_MAX_PATH_LEN || index != kIndexPath){
+    } else if (str_len >= HTTP2_MAX_PATH_LEN || index != kIndexPath || headers_to_process == NULL){
         // if the index is not path or the len of string is bigger then we support, we continue.
-        skb_info->data_off += str_len;
         return HEADER_NOT_INTERESTING;
     }
 
@@ -184,10 +179,10 @@ static __always_inline parse_result_t parse_field_literal(struct __sk_buff *skb,
 //    http2_ctx->dynamic_index.index = counter - 1;
 //    bpf_map_update_elem(&http2_dynamic_table, &http2_ctx->dynamic_index, &dynamic_value, BPF_ANY);
 
-    if (headers_to_process != NULL) {
-        headers_to_process->index = counter - 1;
-        headers_to_process->type = kDynamicHeader;
-    }
+    headers_to_process->index = counter - 1;
+    headers_to_process->skb_offset = skb_info->data_off;
+    headers_to_process->str_len = str_len;
+    headers_to_process->type = kDynamicHeader;
     return HEADER_INTERESTING;
 }
 
@@ -209,6 +204,10 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
         bpf_skb_load_bytes(skb, skb_info->data_off, &current_ch, sizeof(current_ch));
         skb_info->data_off++;
 
+        if ((current_ch&128) == 0 && (current_ch&192) != 64) {
+            continue;
+        }
+
         current_header = NULL;
         if (interesting_headers < HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING) {
             current_header = &headers_to_process[interesting_headers];
@@ -218,15 +217,13 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
             // Indexed representation.
             // MSB bit set.
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.1
-            res = parse_field_indexed(skb, skb_info, counter, http2_ctx, current_header, current_ch);
-        } else if ((current_ch&192) == 64) {
+            res = parse_field_indexed(skb, skb_info, counter, &http2_ctx->dynamic_index, current_header, current_ch);
+        } else {
             counter++;
             // 6.2.1 Literal Header Field with Incremental Indexing
             // top two bits are 11
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
-            res = parse_field_literal(skb, skb_info, counter, http2_ctx, current_header, current_ch);
-        } else {
-            continue;
+            res = parse_field_literal(skb, skb_info, counter, current_header, current_ch);
         }
 
         if (res == HEADER_ERROR) {
@@ -342,7 +339,7 @@ static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, http2_itera
     // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb.
     if (offset + HTTP2_FRAME_HEADER_SIZE > skb->len) {
         // TODO: fix return code
-        return -1;
+        return 0;
     }
 
     char frame_buf[HTTP2_FRAME_HEADER_SIZE];
@@ -355,8 +352,7 @@ static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, http2_itera
     struct http2_frame current_frame = {};
     if (!read_http2_frame_header(frame_buf, HTTP2_FRAME_HEADER_SIZE, &current_frame)){
         log_debug("[http2] unable to read_http2_frame_header offset %lu\n", offset);
-        // TODO: fix return code
-        return -1;
+        return 0;
     }
 
     bool is_end_of_stream = (current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM;
@@ -368,16 +364,14 @@ static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, http2_itera
 
     http2_ctx->http2_stream_key.stream_id = current_frame.stream_id;
     http2_stream_t *current_stream = http2_fetch_stream(&http2_ctx->http2_stream_key);
-    if (current_stream == NULL) {
-        return HTTP2_FRAME_HEADER_SIZE + current_frame.length;
-    }
+    if (current_stream != NULL) {
+        if (current_frame.type == kHeadersFrame) {
+            process_headers_frame(skb, current_stream, iterations_key, http2_ctx, &current_frame);
+        }
 
-    if (current_frame.type == kHeadersFrame) {
-        process_headers_frame(skb, current_stream, iterations_key, http2_ctx, &current_frame);
-    }
-
-    if (is_end_of_stream) {
-        handle_end_of_stream(&http2_ctx->http2_stream_key, current_stream);
+        if (is_end_of_stream) {
+            handle_end_of_stream(&http2_ctx->http2_stream_key, current_stream);
+        }
     }
 
     return HTTP2_FRAME_HEADER_SIZE + current_frame.length;
