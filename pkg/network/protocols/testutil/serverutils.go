@@ -64,7 +64,7 @@ func RunDockerServer(t *testing.T, serverName, dockerPath string, env []string, 
 	}
 }
 
-func RunHostServer(t *testing.T, command []string, env []string, serverStartRegex *regexp.Regexp) {
+func RunHostServer(t *testing.T, command []string, env []string, serverStartRegex *regexp.Regexp) bool {
 	if len(command) < 1 {
 		t.Fatalf("command not set %v host server", command)
 	}
@@ -95,11 +95,12 @@ func RunHostServer(t *testing.T, command []string, env []string, serverStartRege
 		case <-patternScanner.DoneChan:
 			t.Logf("%s host server is ready", serverName)
 			patternScanner.PrintLogs(t)
-			return
+			return true
 		case <-time.After(time.Second * 60):
 			patternScanner.PrintLogs(t)
-			t.Fatalf("failed to start %s host server", serverName)
-			return
+			// please don't use t.Fatalf() here as we could test if it failed later
+			t.Errorf("failed to start %s host server", serverName)
+			return false
 		}
 	}
 }

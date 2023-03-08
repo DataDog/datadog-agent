@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -1080,11 +1081,19 @@ func TestTLSClassification(t *testing.T) {
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
+				clientSuccess := false
+				var wg sync.WaitGroup
+				wg.Add(1)
 				go func() {
 					time.Sleep(5 * time.Second)
-					prototls.RunClientOpenssl(t, "localhost", "44330", tlsVersion)
+					clientSuccess = prototls.RunClientOpenssl(t, "localhost", "44330", tlsVersion)
+					wg.Done()
 				}()
 				prototls.RunServerOpenssl(t, "44330", "-www")
+				wg.Wait()
+				if !clientSuccess {
+					t.Fatalf("openssl client failed")
+				}
 			},
 			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
 				// Iterate through active connections until we find connection created above
