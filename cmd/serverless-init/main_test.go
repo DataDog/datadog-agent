@@ -42,10 +42,13 @@ func TestProxyLoaded(t *testing.T) {
 
 func TestTagsSetup(t *testing.T) {
 	t.Setenv("DD_TAGS", "key1:value1 key2:value2 key3:value3")
+	t.Setenv("DD_EXTRA_TAGS", "key22:value22 key23:value23")
 	tags := map[string]string{
-		"key1": "value1",
-		"key2": "value2",
-		"key3": "value3",
+		"key1":  "value1",
+		"key2":  "value2",
+		"key3":  "value3",
+		"key22": "value22",
+		"key23": "value23",
 	}
 	_, _, _, metricAgent := setup()
 	assert.True(t, tagArrayContainsTags(metricAgent.GetExtraTags(), tags))
