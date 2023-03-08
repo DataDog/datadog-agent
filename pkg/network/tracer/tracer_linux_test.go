@@ -1731,6 +1731,11 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 	cfg := testConfig()
 	constants, err := getTracerOffsets(t, cfg)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		ebpfConntrackerPrebuiltCreator = getPrebuiltConntracker
+		ebpfConntrackerRCCreator = getRuntimeCompiledConntracker
+	})
+
 	for _, te := range tests {
 		t.Logf("%+v", te)
 		cfg.EnableRuntimeCompiler = te.enableRuntimeCompiler
