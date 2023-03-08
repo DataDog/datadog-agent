@@ -242,6 +242,7 @@ func (c *conntrackOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEd
 }
 
 func (c *conntrackOffsetGuesser) runOffsetGuessing(cfg *config.Config, ns netns.NsHandle, mp *ebpf.Map) ([]manager.ConstantEditor, error) {
+	log.Debugf("running conntrack offset guessing with ns %s", ns)
 	eventGenerator, err := newConntrackEventGenerator(ns)
 	if err != nil {
 		return nil, err
@@ -327,6 +328,9 @@ func (e *conntrackEventGenerator) Generate(status netebpf.GuessWhat, expected *f
 
 			return e.populateUDPExpectedValues(expected)
 		})
+		if err != nil {
+			return err
+		}
 
 		_, err = e.udpConn.Write([]byte("foo"))
 		return err
