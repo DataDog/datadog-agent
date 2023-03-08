@@ -1,5 +1,5 @@
 {
-	"commit": "db2c874284db20cd78ae35775cc1d124c71918af",
+	"commit": "4dd30f33e005f95a86771cc4542a2cba9c24ed01",
 	"constants": [
 		{
 			"binprm_file_offset": 168,
@@ -24042,6 +24042,13 @@
 			"version": "18.04",
 			"arch": "x86_64",
 			"uname_release": "4.15.0-1161-azure",
+			"cindex": 89
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-1162-azure",
 			"cindex": 89
 		},
 		{
