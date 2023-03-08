@@ -15,6 +15,17 @@
 
 USM_EVENTS_INIT(http2, http2_stream_t, HTTP2_BATCH_SIZE);
 
+// returns true if the given index is one of the relevant headers we care for in the static table.
+// The full table can be found in the user mode code `createStaticTable`.
+static __always_inline bool is_interesting_static_entry(__u64 index) {
+    return (1 < index && index < 6) || (7 < index && index < 15);
+}
+
+// returns true if the given index is below MAX_STATIC_TABLE_INDEX.
+static __always_inline bool is_static_table_entry(__u64 index) {
+    return index <= MAX_STATIC_TABLE_INDEX;
+}
+
 // http2_fetch_stream returns the current http2 in flight stream.
 static __always_inline http2_stream_t *http2_fetch_stream(http2_stream_key_t *http2_stream_key) {
     http2_stream_t *http2_stream_ptr = bpf_map_lookup_elem(&http2_in_flight, http2_stream_key);
@@ -96,8 +107,8 @@ static __always_inline parse_result_t parse_field_indexed(__u64 global_counter, 
     }
 
     // TODO: can improve by declaring MAX_INTERESTING_STATIC_TABLE_INDEX
-    if (index < MAX_STATIC_TABLE_INDEX) {
-        if (bpf_map_lookup_elem(&http2_static_table, &index) == NULL) {
+    if (is_static_table_entry(index)) {
+        if (!is_interesting_static_entry(index)) {
             return HEADER_NOT_INTERESTING;
         }
         if (headers_to_process != NULL) {
@@ -143,7 +154,7 @@ static __always_inline parse_result_t parse_field_literal(__u64 counter, http2_c
         }
         heap_buffer->offset += str_len;
         return HEADER_NOT_INTERESTING;
-    } else if (index < MAX_STATIC_TABLE_INDEX && bpf_map_lookup_elem(&http2_static_table, &index) == NULL) {
+    } else if (is_static_table_entry(index) && is_interesting_static_entry(index)) {
         // if the index does not appear in our static table, then it is not relevant for us
         heap_buffer->offset += str_len;
         return HEADER_NOT_INTERESTING;
@@ -159,14 +170,14 @@ static __always_inline parse_result_t parse_field_literal(__u64 counter, http2_c
     if (offset >= HTTP2_BUFFER_SIZE - HTTP2_MAX_PATH_LEN) {
         return HEADER_NOT_INTERESTING;
     }
-    dynamic_table_entry_t dynamic_value = {};
-    dynamic_value.string_len = str_len;
+//    dynamic_table_entry_t dynamic_value = {};
+//    dynamic_value.string_len = str_len;
 
     // create the new dynamic value which will be added to the internal table.
-    bpf_memcpy(dynamic_value.buffer, &heap_buffer->fragment[offset % HTTP2_BUFFER_SIZE], HTTP2_MAX_PATH_LEN);
+//    bpf_memcpy(dynamic_value.buffer, &heap_buffer->fragment[offset % HTTP2_BUFFER_SIZE], HTTP2_MAX_PATH_LEN);
 
-    http2_ctx->dynamic_index.index = counter - 1;
-    bpf_map_update_elem(&http2_dynamic_table, &http2_ctx->dynamic_index, &dynamic_value, BPF_ANY);
+//    http2_ctx->dynamic_index.index = counter - 1;
+//    bpf_map_update_elem(&http2_dynamic_table, &http2_ctx->dynamic_index, &dynamic_value, BPF_ANY);
 
     if (headers_to_process != NULL) {
         headers_to_process->index = counter - 1;

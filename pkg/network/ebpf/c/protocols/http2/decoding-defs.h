@@ -11,7 +11,7 @@
 
 // A limit of max headers which we process in the request/response.
 // NOTE: we may need to change the max size.
-#define HTTP2_MAX_HEADERS_COUNT 20
+#define HTTP2_MAX_HEADERS_COUNT 15
 
 // A limit of max headers which we process in the request/response.
 // NOTE: we may need to change the max size.
@@ -19,7 +19,7 @@
 
 // Maximum size for the path buffer.
 // NOTE: we may need to change the max size.
-#define HTTP2_MAX_PATH_LEN 30
+#define HTTP2_MAX_PATH_LEN 60
 
 // The maximum index which may be in the static table.
 #define MAX_STATIC_TABLE_INDEX 61
