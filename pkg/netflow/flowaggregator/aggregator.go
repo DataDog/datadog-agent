@@ -103,7 +103,11 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
 		log.Tracef("flushed flow: %s", string(payloadBytes))
 		log.Infof("compactEvent: %s", string(payloadBytes))
 		m := &message.Message{Content: payloadBytes}
-		agg.epForwarder.SendEventPlatformEvent(m, epforwarder.EventTypeNetworkDevicesNetFlow)
+		err = agg.epForwarder.SendEventPlatformEvent(m, epforwarder.EventTypeNetworkDevicesNetFlow)
+		if err != nil {
+			log.Errorf("Error sending to event platform forwarder: %s", err)
+			continue
+		}
 	}
 }
 

@@ -63,6 +63,7 @@ network_devices:
 
 	netflowEvents, err := waitEventPlatformEvents(server.flowAgg, epforwarder.EventTypeNetworkDevicesNetFlow, 6, 15*time.Second)
 	assert.Equal(t, 6, netflowEvents)
+	assert.NoError(t, err)
 
 	// Get Event Platform Events
 	//netflowEvents, err := waitEventPlatformEvents(server.flowAgg, epforwarder.EventTypeNetworkDevicesNetFlow, 6, 15*time.Second)

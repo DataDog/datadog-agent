@@ -6,16 +6,13 @@
 package netflow
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/netflow/flowaggregator"
 	"github.com/netsampler/goflow2/utils"
 	"github.com/sirupsen/logrus"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
-	"github.com/DataDog/datadog-agent/pkg/netflow/payload"
 )
 
 type dummyFlowProcessor struct {
@@ -47,16 +44,16 @@ func replaceWithDummyFlowProcessor(server *Server, port uint16) *dummyFlowProces
 	return flowProcessor
 }
 
-func findEventBySourceDest(events []*message.Message, sourceIP string, destIP string) (payload.FlowPayload, error) {
-	for _, event := range events {
-		actualFlow := payload.FlowPayload{}
-		_ = json.Unmarshal(event.Content, &actualFlow)
-		if actualFlow.Source.IP == sourceIP && actualFlow.Destination.IP == destIP {
-			return actualFlow, nil
-		}
-	}
-	return payload.FlowPayload{}, fmt.Errorf("no event found that matches `source=%s`, `destination=%s", sourceIP, destIP)
-}
+//func findEventBySourceDest(events []*message.Message, sourceIP string, destIP string) (payload.FlowPayload, error) {
+//	for _, event := range events {
+//		actualFlow := payload.FlowPayload{}
+//		_ = json.Unmarshal(event.Content, &actualFlow)
+//		if actualFlow.Source.IP == sourceIP && actualFlow.Destination.IP == destIP {
+//			return actualFlow, nil
+//		}
+//	}
+//	return payload.FlowPayload{}, fmt.Errorf("no event found that matches `source=%s`, `destination=%s", sourceIP, destIP)
+//}
 
 // WaitEventPlatformEvents waits for timeout and eventually returns the event platform events samples received by the demultiplexer.
 func waitEventPlatformEvents(agg *flowaggregator.FlowAggregator, eventType string, minEvents int, timeout time.Duration) (int, error) {
