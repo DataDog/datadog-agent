@@ -32,24 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/netflow/config"
 )
 
-func waitForFlowsToBeFlushed(aggregator *FlowAggregator, timeoutDuration time.Duration, minEvents uint64) error {
-	timeout := time.After(timeoutDuration)
-	tick := time.Tick(500 * time.Millisecond)
-	// Keep trying until we're timed out or got a result or got an error
-	for {
-		select {
-		// Got a timeout! fail with a timeout error
-		case <-timeout:
-			return fmt.Errorf("timeout error waiting for events")
-		// Got a tick, we should check on doSomething()
-		case <-tick:
-			if aggregator.flushedFlowCount.Load() >= minEvents {
-				return nil
-			}
-		}
-	}
-}
-
 func TestAggregator(t *testing.T) {
 	stoppedMu := sync.RWMutex{} // Mutex needed to avoid race condition in test
 
@@ -161,7 +143,8 @@ func TestAggregator(t *testing.T) {
 	assert.NoError(t, err)
 	epForwarder.EXPECT().SendEventPlatformEvent(&message.Message{Content: compactEvent.Bytes()}, "network-devices-netflow").Return(nil).Times(1)
 
-	err = waitForFlowsToBeFlushed(aggregator, 10*time.Second, 1)
+	eventCount, err := WaitForFlowsToBeFlushed(aggregator, 10*time.Second, 1)
+	assert.Equal(t, uint64(1), eventCount)
 	assert.NoError(t, err)
 
 	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.flows_flushed", 1, "", nil)
@@ -300,7 +283,7 @@ stopLoop:
 //	log.Infof("compactEvent: %s", compactEvent.String())
 //	epForwarder.EXPECT().SendEventPlatformEvent(&message.Message{Content: compactEvent.Bytes()}, "network-devices-netflow").Return(nil).Times(1)
 //
-//	err = waitForFlowsToBeFlushed(aggregator, 5*time.Second, 1)
+//	err = WaitForFlowsToBeFlushed(aggregator, 5*time.Second, 1)
 //	assert.NoError(t, err)
 //
 //	////sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-netflow")

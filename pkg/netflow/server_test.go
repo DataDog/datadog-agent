@@ -7,6 +7,7 @@ package netflow
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/netflow/flowaggregator"
 	"github.com/golang/mock/gomock"
 	"strings"
 	"testing"
@@ -61,7 +62,7 @@ network_devices:
 
 	epForwarder.EXPECT().SendEventPlatformEvent(gomock.Any(), gomock.Any()).Return(nil).Times(6)
 
-	netflowEvents, err := waitEventPlatformEvents(server.flowAgg, epforwarder.EventTypeNetworkDevicesNetFlow, 6, 15*time.Second)
+	netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(server.flowAgg, 15*time.Second, 6)
 	assert.Equal(t, 6, netflowEvents)
 	assert.NoError(t, err)
 
