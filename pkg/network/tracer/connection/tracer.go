@@ -64,6 +64,9 @@ type Tracer interface {
 	DumpMaps(maps ...string) (string, error)
 	// Type returns the type of the underlying ebpf tracer that is currently loaded
 	Type() TracerType
+
+	Pause() error
+	Resume() error
 }
 
 const (
@@ -222,6 +225,14 @@ func (t *tracer) Start(callback func([]network.ConnectionStats)) (err error) {
 
 	t.closeConsumer.Start(callback)
 	return nil
+}
+
+func (t *tracer) Pause() error {
+	return t.m.Pause()
+}
+
+func (t *tracer) Resume() error {
+	return t.m.Resume()
 }
 
 func (t *tracer) FlushPending() {
