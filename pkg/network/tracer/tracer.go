@@ -252,30 +252,23 @@ func newConntracker(cfg *config.Config, bpfTelemetry *telemetry.EBPFTelemetry, c
 
 	var c netlink.Conntracker
 	var err error
-	c, err = NewEBPFConntracker(cfg, bpfTelemetry, constants)
-	if err == nil {
+	if c, err = NewEBPFConntracker(cfg, bpfTelemetry, constants); err == nil {
 		return c, nil
 	}
 
-	if !cfg.AllowPrecompiledFallback {
-		if cfg.IgnoreConntrackInitFailure {
-			log.Warnf("could not initialize ebpf conntrack, tracer will continue without NAT tracking: %s", err)
-			return netlink.NewNoOpConntracker(), nil
+	if !cfg.EnableRuntimeCompiler || cfg.AllowPrecompiledFallback {
+		log.Warnf("error initializing ebpf conntracker, falling back to netlink version: %s", err)
+		if c, err = netlink.NewConntracker(cfg); err == nil {
+			return c, nil
 		}
-		return nil, fmt.Errorf("error initializing ebpf conntracker: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
 	}
 
-	log.Warnf("error initializing ebpf conntracker, falling back to netlink version: %s", err)
-
-	c, err = netlink.NewConntracker(cfg)
-	if err != nil {
-		if cfg.IgnoreConntrackInitFailure {
-			log.Warnf("could not initialize netlink conntrack, tracer will continue without NAT tracking: %s", err)
-			return netlink.NewNoOpConntracker(), nil
-		}
-		return nil, fmt.Errorf("could not initialize conntrack: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
+	if cfg.IgnoreConntrackInitFailure {
+		log.Warnf("could not initialize conntrack, tracer will continue without NAT tracking: %s", err)
+		return netlink.NewNoOpConntracker(), nil
 	}
-	return c, nil
+
+	return nil, fmt.Errorf("error initializing conntracker: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
 }
 
 func newReverseDNS(c *config.Config) dns.ReverseDNS {

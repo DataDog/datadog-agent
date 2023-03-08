@@ -29,6 +29,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -77,7 +78,12 @@ type ebpfConntracker struct {
 	stop chan struct{}
 
 	stats ebpfConntrackerStats
+
+	isPrebuilt bool
 }
+
+var ebpfConntrackerRCCreator func(cfg *config.Config) (runtime.CompiledOutput, error) = getRuntimeCompiledConntracker
+var ebpfConntrackerPrebuiltCreator func(*config.Config, []manager.ConstantEditor) (bytecode.AssetReader, []manager.ConstantEditor, error) = getPrebuiltConntracker
 
 // NewEBPFConntracker creates a netlink.Conntracker that monitor conntrack NAT entries via eBPF
 func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry, constants []manager.ConstantEditor) (netlink.Conntracker, error) {
@@ -94,32 +100,26 @@ func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelem
 
 	var buf bytecode.AssetReader
 	if cfg.EnableRuntimeCompiler {
-		buf, err = getRuntimeCompiledConntracker(cfg)
+		buf, err = ebpfConntrackerRCCreator(cfg)
 		if err != nil {
-			return nil, fmt.Errorf("unable to compile ebpf conntracker: %w", err)
-		}
-	} else {
-		buf, err = netebpf.ReadConntrackBPFModule(cfg.BPFDir, cfg.BPFDebug)
-		if err != nil {
-			return nil, fmt.Errorf("could not read bpf module: %s", err)
-		}
+			if !cfg.AllowPrecompiledFallback {
+				return nil, fmt.Errorf("unable to compile ebpf conntracker: %w", err)
+			}
 
-		guesser, err := offsetguess.NewConntrackOffsetGuesser(constants)
-		if err != nil {
-			return nil, fmt.Errorf("error creating offset guesser for ebpf conntracker: %w", err)
-		}
-
-		offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir, cfg.BPFDebug)
-		if err != nil {
-			return nil, fmt.Errorf("could not load offset guessing module: %w", err)
-		}
-		defer offsetBuf.Close()
-
-		constants, err = runOffsetGuessing(cfg, offsetBuf, guesser)
-		if err != nil {
-			return nil, fmt.Errorf("could not guess offsets for ebpf conntracker: %w", err)
+			log.Warnf("unable to compile ebpf conntracker, falling back to prebuilt ebpf conntracker: %w", err)
 		}
 	}
+
+	var isPrebuilt bool
+	if buf == nil {
+		buf, constants, err = ebpfConntrackerPrebuiltCreator(cfg, constants)
+		if err != nil {
+			return nil, fmt.Errorf("could not load prebuilt ebpf conntracker: %w", err)
+		}
+
+		isPrebuilt = true
+	}
+
 	defer buf.Close()
 
 	var mapErr *ebpf.Map
@@ -169,6 +169,7 @@ func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelem
 		rootNS:       rootNS,
 		stats:        newEbpfConntrackerStats(),
 		stop:         make(chan struct{}),
+		isPrebuilt:   isPrebuilt,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.ConntrackInitTimeout)
@@ -506,4 +507,29 @@ func getpid() int32 {
 		}
 	}
 	return int32(os.Getpid())
+}
+
+func getPrebuiltConntracker(cfg *config.Config, constants []manager.ConstantEditor) (bytecode.AssetReader, []manager.ConstantEditor, error) {
+	buf, err := netebpf.ReadConntrackBPFModule(cfg.BPFDir, cfg.BPFDebug)
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not read bpf module: %s", err)
+	}
+
+	guesser, err := offsetguess.NewConntrackOffsetGuesser(constants)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error creating offset guesser for ebpf conntracker: %w", err)
+	}
+
+	offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir, cfg.BPFDebug)
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not load offset guessing module: %w", err)
+	}
+	defer offsetBuf.Close()
+
+	constants, err = runOffsetGuessing(cfg, offsetBuf, guesser)
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not guess offsets for ebpf conntracker: %w", err)
+	}
+
+	return buf, constants, nil
 }
