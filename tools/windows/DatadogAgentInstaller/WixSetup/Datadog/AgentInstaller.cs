@@ -233,7 +233,6 @@ namespace WixSetup.Datadog
                     .FindAll("Feature")
                     .First(x => x.HasAttribute("Id", value => value == "NPM"))
                     .AddElement("MergeRef", "Id=ddnpminstall");
-
             };
             project.WixSourceFormated += (ref string content) => WixSourceFormated?.Invoke(content);
             project.WixSourceSaved += name => WixSourceSaved?.Invoke(name);
@@ -335,7 +334,14 @@ namespace WixSetup.Datadog
             };
         }
 
-        private static ServiceInstaller GenerateDependentServiceInstaller(Id id, string name, string displayName, string description, string account, string password = null)
+        private static ServiceInstaller GenerateDependentServiceInstaller(
+            Id id,
+            string name,
+            string displayName,
+            string description,
+            string account,
+            string password = null,
+            string arguments = null)
         {
             return new ServiceInstaller
             {
@@ -359,6 +365,7 @@ namespace WixSetup.Datadog
                 // Account must be a fully qualified name.
                 Account = account,
                 Password = password,
+                Arguments = arguments,
                 DependsOn = new[]
                 {
                     new ServiceDependency("datadogagent")
@@ -369,10 +376,28 @@ namespace WixSetup.Datadog
         private Dir CreateBinFolder()
         {
             var agentService = GenerateServiceInstaller("datadogagent", "Datadog Agent", "Send metrics to Datadog");
-            var processAgentService = GenerateDependentServiceInstaller(new Id("ddagentprocessservice"), "datadog-process-agent", "Datadog Process Agent", "Send process metrics to Datadog", "LocalSystem");
-            var traceAgentService = GenerateDependentServiceInstaller(new Id("ddagenttraceservice"), "datadog-trace-agent", "Datadog Trace Agent", "Send tracing metrics to Datadog", "[DDAGENTUSER_PROCESSED_FQ_NAME]", "[DDAGENTUSER_PROCESSED_PASSWORD]");
-            var systemProbeService = GenerateDependentServiceInstaller(new Id("ddagentsysprobeservice"), "datadog-system-probe", "Datadog System Probe", "Send network metrics to Datadog", "LocalSystem");
-            systemProbeService.DependsOn = systemProbeService.DependsOn.Combine(new ServiceDependency("ddnpm"));
+            var processAgentService = GenerateDependentServiceInstaller(
+                new Id("ddagentprocessservice"),
+                "datadog-process-agent",
+                "Datadog Process Agent",
+                "Send process metrics to Datadog",
+                "LocalSystem",
+                "--cfgpath=\"[APPLICATIONDATADIRECTORY]\\datadog.yaml\"");
+            var traceAgentService = GenerateDependentServiceInstaller(
+                new Id("ddagenttraceservice"),
+                "datadog-trace-agent",
+                "Datadog Trace Agent",
+                "Send tracing metrics to Datadog",
+                "[DDAGENTUSER_PROCESSED_FQ_NAME]",
+                "[DDAGENTUSER_PROCESSED_PASSWORD]",
+                "--config=\"[APPLICATIONDATADIRECTORY]\\datadog.yaml\"");
+            var systemProbeService = GenerateDependentServiceInstaller(
+                new Id("ddagentsysprobeservice"),
+                "datadog-system-probe",
+                "Datadog System Probe",
+                "Send network metrics to Datadog",
+                "LocalSystem");
+
             var targetBinFolder = new Dir(new Id("BIN"), "bin",
                 new WixSharp.File(_agentBinaries.Agent, agentService),
                 new EventSource
