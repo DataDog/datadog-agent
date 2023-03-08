@@ -129,16 +129,15 @@ static __always_inline parse_result_t parse_field_literal(__u64 counter, http2_c
         return HEADER_ERROR;
     }
 
+    // Read the value
     __u8 str_len = 0;
-    // The key is new and inserted into the dynamic table. So we are skipping the new value.
+    if (!read_var_int(heap_buffer, 6, &str_len)) {
+        return HEADER_ERROR;
+    }
 
     if (index < MAX_STATIC_TABLE_INDEX) {
-        // TODO, if index != 0, that's weird.
+        // if the index does not appear in our static table, then it is not relevant for us
         if (bpf_map_lookup_elem(&http2_static_table, &index) == NULL) {
-            str_len = 0;
-            if (!read_var_int(heap_buffer, 6, &str_len)) {
-                return HEADER_ERROR;
-            }
             heap_buffer->offset += str_len;
 
             if (index == 0) {
@@ -150,12 +149,6 @@ static __always_inline parse_result_t parse_field_literal(__u64 counter, http2_c
             }
             return HEADER_NOT_INTERESTING;
         }
-    }
-
-
-    str_len = 0;
-    if (!read_var_int(heap_buffer, 6, &str_len)) {
-        return HEADER_ERROR;
     }
 
     // if the index is not path or the len of string is bigger then we support, we continue.
