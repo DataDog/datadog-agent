@@ -9,8 +9,9 @@ benchmark:
   tags: ["runner:apm-k8s-tweaked-metal"]
   script:
     - ./test/benchmarks/apm_scripts/capture-hardware-software-info.sh
-    - ./test/benchmarks/apm_scripts/run-benchmarks.sh
-    - ./test/benchmarks/apm_scripts/upload-results-to-s3.sh #commented out until we have merged our permissions changes
+    - ./test/benchmarks/apm_scripts/fetch_payloads.sh
+    - ./test/benchmarks/apm_scripts/run-k6-benchmarks.sh
+    # - ./test/benchmarks/apm_scripts/upload-results-to-s3.sh #commented out until we have merged our permissions changes
     - ./test/benchmarks/apm_scripts/analyze-results.sh
     - ./test/benchmarks/apm_scripts/post-pr-comment.sh
   artifacts:

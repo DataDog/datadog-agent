@@ -39,6 +39,7 @@ include:
   - /.gitlab/kitchen_common/testing.yml
   - /.gitlab/docker_common/publish_job_templates.yml
   - /.gitlab/benchmarks/benchmarks.yml
+  - /.gitlab/benchmarks/latency_benchmarks.yml
 
 default:
   retry:
