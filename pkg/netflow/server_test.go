@@ -66,7 +66,7 @@ network_devices:
 	require.NoError(t, err, "error waiting event platform events")
 	assert.Equal(t, 6, len(netflowEvents))
 
-	actualFlow, err := findEventBySourceDest(netflowEvents, "10.129.2.1", "10.128.2.119")
+	actualFlow, err := findEventBySourceDest(netflowEvents, "1.1.1.1", "1.1.1.2")
 	assert.NoError(t, err)
 
 	assert.Equal(t, "netflow5", actualFlow.FlowType)
