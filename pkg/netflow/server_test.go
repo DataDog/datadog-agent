@@ -53,7 +53,12 @@ network_devices:
 	// Send netflowV5Data twice to test aggregator
 	// Flows will have 2x bytes/packets after aggregation
 	time.Sleep(100 * time.Millisecond) // wait to make sure goflow listener is started before sending
-	err = goflowlib.SendUDPPacket(port, goflowlib.MockNetflowV5Data)
+
+	now := time.Now()
+	mockNetflowPayload := GenerateNetflow5Packet(now, 6)
+	payload := BuildNFlowPayload(mockNetflowPayload)
+	bytes := payload.Bytes()
+	err = goflowlib.SendUDPPacket(port, bytes)
 	require.NoError(t, err, "error sending udp packet")
 
 	// Get Event Platform Events
