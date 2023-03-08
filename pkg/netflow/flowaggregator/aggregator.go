@@ -89,11 +89,11 @@ func (agg *FlowAggregator) run() {
 		select {
 		case <-agg.stopChan:
 			log.Info("Stopping aggregator")
+			agg.runDone <- struct{}{}
 			return
 		case flow := <-agg.flowIn:
 			agg.receivedFlowCount.Inc()
 			agg.flowAcc.add(flow)
-			agg.runDone <- struct{}{}
 		}
 	}
 }
