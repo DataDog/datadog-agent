@@ -13,7 +13,7 @@ namespace WixSetup.Datadog
     public class AgentInstaller : IWixProjectEvents
     {
         // Company
-        private const string CompanyFullName = "Datadog, inc.";
+        private const string CompanyFullName = "Datadog, Inc.";
 
         // Product
         private const string ProductFullName = "Datadog Agent";
