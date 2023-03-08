@@ -35,6 +35,8 @@ type FlowAggregator struct {
 	sender                       aggregator.Sender
 	epForwarder                  epforwarder.EventPlatformForwarder
 	stopChan                     chan struct{}
+	flushLoopDone                chan struct{}
+	runDone                      chan struct{}
 	receivedFlowCount            *atomic.Uint64
 	flushedFlowCount             *atomic.Uint64
 	hostname                     string
@@ -54,6 +56,8 @@ func NewFlowAggregator(sender aggregator.Sender, epForwarder epforwarder.EventPl
 		sender:                       sender,
 		epForwarder:                  epForwarder,
 		stopChan:                     make(chan struct{}),
+		runDone:                      make(chan struct{}),
+		flushLoopDone:                make(chan struct{}),
 		receivedFlowCount:            atomic.NewUint64(0),
 		flushedFlowCount:             atomic.NewUint64(0),
 		hostname:                     hostname,
@@ -71,6 +75,8 @@ func (agg *FlowAggregator) Start() {
 // Stop will stop running FlowAggregator
 func (agg *FlowAggregator) Stop() {
 	close(agg.stopChan)
+	<-agg.flushLoopDone
+	<-agg.runDone
 }
 
 // GetFlowInChan returns flow input chan
@@ -87,6 +93,7 @@ func (agg *FlowAggregator) run() {
 		case flow := <-agg.flowIn:
 			agg.receivedFlowCount.Inc()
 			agg.flowAcc.add(flow)
+			agg.runDone <- struct{}{}
 		}
 	}
 }
@@ -101,8 +108,9 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
 		}
 
 		log.Tracef("flushed flow: %s", string(payloadBytes))
-		log.Infof("compactEvent: %s", string(payloadBytes))
+		//log.Infof("compactEvent: %s", string(payloadBytes))
 		m := &message.Message{Content: payloadBytes}
+
 		err = agg.epForwarder.SendEventPlatformEventBlocking(m, epforwarder.EventTypeNetworkDevicesNetFlow)
 		if err != nil {
 			log.Errorf("Error sending to event platform forwarder: %s", err)
@@ -126,6 +134,7 @@ func (agg *FlowAggregator) flushLoop() {
 		select {
 		// stop sequence
 		case <-agg.stopChan:
+			agg.flushLoopDone <- struct{}{}
 			return
 		// automatic flush sequence
 		case <-flushFlowsToSendTicker:
