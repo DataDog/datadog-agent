@@ -28,6 +28,7 @@ const (
 	spNS      = Namespace
 	smNS      = "service_monitoring_config"
 	dsmNS     = "data_streams_config"
+	diNS      = "dynamic_instrumentation"
 
 	defaultConnsMessageBatchSize = 600
 	maxConnsMessageBatchSize     = 1000
@@ -35,12 +36,13 @@ const (
 
 // system-probe module names
 const (
-	NetworkTracerModule        ModuleName = "network_tracer"
-	OOMKillProbeModule         ModuleName = "oom_kill_probe"
-	TCPQueueLengthTracerModule ModuleName = "tcp_queue_length_tracer"
-	SecurityRuntimeModule      ModuleName = "security_runtime"
-	ProcessModule              ModuleName = "process"
-	EventMonitorModule         ModuleName = "event_monitor"
+	NetworkTracerModule          ModuleName = "network_tracer"
+	OOMKillProbeModule           ModuleName = "oom_kill_probe"
+	TCPQueueLengthTracerModule   ModuleName = "tcp_queue_length_tracer"
+	SecurityRuntimeModule        ModuleName = "security_runtime"
+	ProcessModule                ModuleName = "process"
+	EventMonitorModule           ModuleName = "event_monitor"
+	DynamicInstrumentationModule ModuleName = "dynamic_instrumentation"
 )
 
 func key(pieces ...string) string {
@@ -181,6 +183,10 @@ func load() (*Config, error) {
 	}
 	if cfg.GetBool(key(spNS, "process_config.enabled")) {
 		c.EnabledModules[ProcessModule] = struct{}{}
+	}
+
+	if cfg.GetBool(key(diNS, "enabled")) {
+		c.EnabledModules[DynamicInstrumentationModule] = struct{}{}
 	}
 
 	if len(c.EnabledModules) > 0 {
