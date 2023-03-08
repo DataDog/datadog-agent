@@ -334,31 +334,29 @@ static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_s
     }
 }
 
-static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup, http2_ctx_t *http2_ctx) {
+static __always_inline bool http2_entrypoint(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup, http2_ctx_t *http2_ctx) {
     // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb.
     if (skb_info->data_off + HTTP2_FRAME_HEADER_SIZE > skb->len) {
-        // TODO: fix return code
-        return 0;
+        return false;
     }
 
-    char frame_buf[HTTP2_FRAME_HEADER_SIZE];
-    bpf_memset((char*)frame_buf, 0, sizeof(frame_buf));
-
     // read frame.
+    char frame_buf[HTTP2_FRAME_HEADER_SIZE];
+    bpf_memset((char*)frame_buf, 0, HTTP2_FRAME_HEADER_SIZE);
+
     bpf_skb_load_bytes(skb, skb_info->data_off, frame_buf, HTTP2_FRAME_HEADER_SIZE);
     skb_info->data_off += HTTP2_FRAME_HEADER_SIZE;
 
     struct http2_frame current_frame = {};
     if (!read_http2_frame_header(frame_buf, HTTP2_FRAME_HEADER_SIZE, &current_frame)){
         log_debug("[http2] unable to read_http2_frame_header offset %lu\n", skb_info->data_off);
-        return 0;
+        return false;
     }
 
     bool is_end_of_stream = (current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM;
     bool is_data_end_of_stream = current_frame.type == kDataFrame && is_end_of_stream;
     if (current_frame.type != kHeadersFrame && !is_data_end_of_stream) {
-        // Should not process the frame.
-        return HTTP2_FRAME_HEADER_SIZE + current_frame.length;
+        goto end;
     }
 
     http2_ctx->http2_stream_key.stream_id = current_frame.stream_id;
@@ -373,7 +371,9 @@ static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, skb_info_t 
         }
     }
 
-    return HTTP2_FRAME_HEADER_SIZE + current_frame.length;
+end:
+    skb_info->data_off += current_frame.length;
+    return true;
 }
 
 #endif

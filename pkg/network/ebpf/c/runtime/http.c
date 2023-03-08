@@ -104,20 +104,19 @@ int socket__http2_filter(struct __sk_buff *skb) {
     http2_ctx->http2_stream_key.tup = iterations_key.tup;
     normalize_tuple(&http2_ctx->http2_stream_key.tup);
     http2_ctx->dynamic_index.tup = iterations_key.tup;
-    iterations_key.skb_info.data_off += tail_call_state->offset;
+    iterations_key.skb_info.data_off = tail_call_state->offset;
 
     // perform the http2 decoding part.
-    __u32 read_size = http2_entrypoint(skb, &iterations_key.skb_info, &iterations_key.tup, http2_ctx);
-    if (read_size == 0) {
+    if (!http2_entrypoint(skb, &iterations_key.skb_info, &iterations_key.tup, http2_ctx)) {
         goto delete_iteration;
     }
-    if (iterations_key.skb_info.data_off + read_size >= skb->len) {
+    if (iterations_key.skb_info.data_off >= skb->len) {
         goto delete_iteration;
     }
 
     // update the tail calls state when the http2 decoding part was completed successfully.
     tail_call_state->iteration++;
-    tail_call_state->offset += read_size;
+    tail_call_state->offset = iterations_key.skb_info.data_off;
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS) {
         bpf_tail_call_compat(skb, &protocols_progs, PROTOCOL_HTTP2);
     }
