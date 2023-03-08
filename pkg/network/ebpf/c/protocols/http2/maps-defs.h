@@ -22,7 +22,7 @@ BPF_LRU_MAP(http2_in_flight, http2_stream_key_t, http2_stream_t, 0)
 BPF_LRU_MAP(http2_iterations, http2_iterations_key_t, http2_tail_call_state_t, 1024)
 
 /* Allocating a buffer on the heap, the buffer represents the frame payload. */
-BPF_PERCPU_ARRAY_MAP(http2_heap_buffer, __u32, heap_buffer_t, 1)
+//BPF_PERCPU_ARRAY_MAP(http2_heap_buffer, __u32, heap_buffer_t, 1)
 
 /* Allocating an array of headers, to hold all interesting headers from the frame. */
 BPF_PERCPU_ARRAY_MAP(http2_headers_to_process, __u32, http2_header_t[HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING], 1)

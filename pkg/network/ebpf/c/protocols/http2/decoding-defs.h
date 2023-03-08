@@ -92,12 +92,6 @@ typedef struct {
     http2_stream_t http2_stream;
 } http2_ctx_t;
 
-typedef struct {
-    char fragment[HTTP2_BUFFER_SIZE];
-    __u16 offset;
-    __u16 size;
-} heap_buffer_t;
-
 typedef enum {
     kStaticHeader  = 0,
     kDynamicHeader = 1,
