@@ -14,10 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
-type GetPayloadResponse struct {
-	Payloads [][]byte `json:"payloads"`
-}
-
 type PayloadItem interface {
 	name() string
 	tags() []string
@@ -74,30 +70,12 @@ func (agg *Aggregator[P]) ContainsPayloadNameAndTags(name string, tags []string)
 	}
 
 	for _, payloadItem := range payloads {
-		if areTagsSubsetOfOtherTags(tags, payloadItem.tags()) {
+		if AreTagsSubsetOfOtherTags(tags, payloadItem.tags()) {
 			return true
 		}
 	}
 
 	return false
-}
-
-func areTagsSubsetOfOtherTags(tags, otherTags []string) bool {
-	otherTagsSet := tagsToSet(otherTags)
-	for _, tag := range tags {
-		if _, found := otherTagsSet[tag]; !found {
-			return false
-		}
-	}
-	return true
-}
-
-func tagsToSet(tags []string) map[string]struct{} {
-	tagsSet := map[string]struct{}{}
-	for _, tag := range tags {
-		tagsSet[tag] = struct{}{}
-	}
-	return tagsSet
 }
 
 func enflate(payload []byte, encoding string) (enflated []byte, err error) {
@@ -123,4 +101,36 @@ func getReaderCloseForEncoding(payload []byte, encoding string) (rc io.ReadClose
 		rc = io.NopCloser(bytes.NewReader(payload))
 	}
 	return rc, err
+}
+
+func (agg *Aggregator[P]) GetPayloadsByName(name string) []P {
+	return agg.payloadsByName[name]
+}
+
+func FilterByTags[P PayloadItem](payloads []P, tags []string) []P {
+	ret := []P{}
+	for _, p := range payloads {
+		if AreTagsSubsetOfOtherTags(tags, p.tags()) {
+			ret = append(ret, p)
+		}
+	}
+	return ret
+}
+
+func AreTagsSubsetOfOtherTags(tags, otherTags []string) bool {
+	otherTagsSet := tagsToSet(otherTags)
+	for _, tag := range tags {
+		if _, found := otherTagsSet[tag]; !found {
+			return false
+		}
+	}
+	return true
+}
+
+func tagsToSet(tags []string) map[string]struct{} {
+	tagsSet := map[string]struct{}{}
+	for _, tag := range tags {
+		tagsSet[tag] = struct{}{}
+	}
+	return tagsSet
 }

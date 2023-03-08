@@ -78,4 +78,28 @@ func TestCommonAggregator(t *testing.T) {
 		assert.False(t, agg.ContainsPayloadNameAndTags("porco rosso", []string{"country:it", "role:king"}))
 		assert.True(t, agg.ContainsPayloadNameAndTags("porco rosso", []string{"country:it", "role:pilot"}))
 	})
+
+	t.Run("AreTagsSubsetOfOtherTags", func(t *testing.T) {
+		assert.True(t, AreTagsSubsetOfOtherTags([]string{"interface:lo"}, []string{"interface:lo", "snmp_profile:generic-router"}))
+		assert.False(t, AreTagsSubsetOfOtherTags([]string{"totoro"}, []string{"interface:lo", "snmp_profile:generic-router"}))
+		assert.False(t, AreTagsSubsetOfOtherTags([]string{"totoro", "interface:lo"}, []string{"interface:lo", "snmp_profile:generic-router"}))
+	})
+
+	t.Run("FilterByTags", func(t *testing.T) {
+		items := []*mockPayloadItem{
+			{
+				Name: "totoro",
+				Tags: []string{"age:123", "country:jp"},
+			},
+			{
+				Name: "totoro",
+				Tags: []string{"age:43", "country:jp"},
+			},
+		}
+
+		assert.NotEmpty(t, FilterByTags(items, []string{"age:123"}))
+		assert.NotEmpty(t, FilterByTags(items, []string{"age:123", "country:jp"}))
+		assert.Empty(t, FilterByTags(items, []string{"age:123", "country:it"}))
+		assert.NotEmpty(t, FilterByTags(items, []string{"age:43"}))
+	})
 }

@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -90,6 +91,19 @@ func TestClient(t *testing.T) {
 		assert.False(t, client.metricAggregator.ContainsPayloadNameAndTags("snmp.ifAdminStatus", []string{"totoro"}))
 	})
 
+	t.Run("GetMetric", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write(apiV2SeriesResponse)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		metrics, err := client.GetMetric("snmp.ifAdminStatus")
+		assert.NoError(t, err)
+		assert.NotEmpty(t, aggregator.FilterByTags(metrics, []string{"interface:lo", "snmp_profile:generic-router"}))
+		assert.Empty(t, aggregator.FilterByTags(metrics, []string{"totoro"}))
+	})
+
 	t.Run("getChekRun", func(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV1CheckRunResponse)
@@ -105,6 +119,19 @@ func TestClient(t *testing.T) {
 		assert.False(t, client.checkRunAggregator.ContainsPayloadNameAndTags("datadog.agent.check_status", []string{"totoro"}))
 	})
 
+	t.Run("GetCheckRun", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write(apiV1CheckRunResponse)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		checks, err := client.GetCheckRun("datadog.agent.check_status")
+		assert.NoError(t, err)
+		assert.NotEmpty(t, aggregator.FilterByTags(checks, []string{"check:snmp"}))
+		assert.Empty(t, aggregator.FilterByTags(checks, []string{"totoro"}))
+	})
+
 	t.Run("getLogs", func(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV2LogsResponse)
@@ -116,6 +143,21 @@ func TestClient(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, client.logAggregator.ContainsPayloadName("testapp"))
 		assert.False(t, client.logAggregator.ContainsPayloadName("totoro"))
+	})
+
+	t.Run("GetLog", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write(apiV2LogsResponse)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		logs, err := client.GetLog("testapp")
+		assert.NoError(t, err)
+		assert.Equal(t, 2, len(logs))
+		assert.Equal(t, "hello there, can you hear me", logs[0].Message)
+		assert.Equal(t, "info", logs[0].Status)
+		assert.Equal(t, "a new line of logs", logs[1].Message)
 	})
 
 	t.Run("GetServerHealth", func(t *testing.T) {

@@ -93,3 +93,27 @@ func (c *Client) GetServerHealth() error {
 	}
 	return nil
 }
+
+func (c *Client) GetMetric(name string) ([]*aggregator.MetricSeries, error) {
+	err := c.getMetrics()
+	if err != nil {
+		return nil, err
+	}
+	return c.metricAggregator.GetPayloadsByName(name), nil
+}
+
+func (c *Client) GetLog(name string) ([]*aggregator.Log, error) {
+	err := c.getLogs()
+	if err != nil {
+		return nil, err
+	}
+	return c.logAggregator.GetPayloadsByName(name), nil
+}
+
+func (c *Client) GetCheckRun(name string) ([]*aggregator.CheckRun, error) {
+	err := c.getCheckRuns()
+	if err != nil {
+		return nil, err
+	}
+	return c.checkRunAggregator.GetPayloadsByName(name), nil
+}
