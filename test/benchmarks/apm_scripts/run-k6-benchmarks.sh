@@ -7,13 +7,14 @@ export DD_LOG_LEVEL=error
 export DD_APM_MAX_MEMORY=5GB
 export DD_APM_MAX_CPU_PERCENT=200
 export DD_APM_REMOTE_TAGGER=false
+export K6_STATSD_ENABLE_TAGS=true
 
-go run ./cmd/trace-agent
+go run ./cmd/trace-agent &
 k6 run ./test/benchmarks/apm_scripts/k6_basic.js
 killall -9 trace-agent
 
 git checkout main
-go run ./cmd/trace-agent
+go run ./cmd/trace-agent &
 k6 run ./test/benchmarks/apm_scripts/k6_basic.js
 killall -9 trace-agent
 

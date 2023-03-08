@@ -1,4 +1,4 @@
-benchmark:
+basic_k6_benchmark:
   stage: benchmarks
   # This base image is created here: https://gitlab.ddbuild.io/DataDog/apm-reliability/relenv-microbenchmarking-platform
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/relenv-microbenchmarking-platform:trace-agent-v2
@@ -6,7 +6,8 @@ benchmark:
   rules:
     !reference [.on_trace_agent_changes_or_manual]
   interruptible: true
-  tags: ["runner:apm-k8s-tweaked-metal"]
+  # tags: ["team:apm-k8s-tweaked-metal-datadog-agent,specific:true"]
+  tags: ["arch:amd64"]
   script:
     - ./test/benchmarks/apm_scripts/capture-hardware-software-info.sh
     - ./test/benchmarks/apm_scripts/fetch_payloads.sh

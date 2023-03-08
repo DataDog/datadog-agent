@@ -6,7 +6,8 @@ benchmark:
   rules:
     !reference [.on_trace_agent_changes_or_manual] 
   interruptible: true
-  tags: ["runner:apm-k8s-tweaked-metal"]
+  # tags: ["team:apm-k8s-tweaked-metal-datadog-agent,specific:true"]
+  tags: ["arch:amd64"]
   script:
     - ./test/benchmarks/apm_scripts/capture-hardware-software-info.sh
     - ./test/benchmarks/apm_scripts/run-benchmarks.sh
