@@ -271,6 +271,8 @@ func (c *Check) SampleSession() error {
 		}
 		if sample.Statement.Valid {
 			if c.config.AllowUnobfuscatedStatements {
+				sessionRow.Statement = sample.Statement.String
+			} else {
 				obfuscatedQuery, err := o.ObfuscateSQLString(sample.Statement.String)
 				if err != nil {
 					error_text := fmt.Sprintf("query obfuscation failed for SQL_ID: %s", sample.SQLID.String)
@@ -287,8 +289,6 @@ func (c *Check) SampleSession() error {
 					h.Write([]byte(sample.Statement.String))
 					sessionRow.QuerySignature = strconv.FormatUint(h.Sum64(), 10)
 				}
-			} else {
-				sessionRow.Statement = sample.Statement.String
 			}
 		}
 		if sample.PdbName.Valid {
