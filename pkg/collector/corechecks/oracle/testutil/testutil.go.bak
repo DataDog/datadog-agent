@@ -9,11 +9,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	_ "github.com/godror/godror"
 	"github.com/jmoiron/sqlx"
 	"github.com/ory/dockertest/docker"
 	_ "github.com/sijms/go-ora/v2"
-	"github.com/sirupsen/logrus"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/testutil/dockerpool"
 )

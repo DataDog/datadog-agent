@@ -137,6 +137,10 @@ github.com/DataDog/agent-payload/v5 v5.0.74 h1:QtoZKQjUQXXWV+mUnFBHyllB4a4Qd2YcN
 github.com/DataDog/agent-payload/v5 v5.0.74/go.mod h1:oQZi1VZp1e3QvlSUX4iphZCpJaFepUxWq0hNXxihKBM=
 github.com/DataDog/appsec-internal-go v0.0.0-20230216105641-1d0c059e50fa h1:oQlM1noIhIDp694OHA+W8ZOVGWnYZIy8I2V5gjWZlhI=
 github.com/DataDog/appsec-internal-go v0.0.0-20230216105641-1d0c059e50fa/go.mod h1:ILSJBuOg3E0Jg8qgSnm7+g8DXa0KrfahnS7jhS1DoWs=
+github.com/DataDog/agent-payload/v5 v5.0.76 h1:ulvh3tU2qCAMydnZWWXDdUJKtuByQlBTbw7yJxgMoic=
+github.com/DataDog/agent-payload/v5 v5.0.76/go.mod h1:oQZi1VZp1e3QvlSUX4iphZCpJaFepUxWq0hNXxihKBM=
+github.com/DataDog/appsec-internal-go v0.0.0-20230216105641-1d0c059e50fa h1:oQlM1noIhIDp694OHA+W8ZOVGWnYZIy8I2V5gjWZlhI=
+github.com/DataDog/appsec-internal-go v0.0.0-20230216105641-1d0c059e50fa/go.mod h1:ILSJBuOg3E0Jg8qgSnm7+g8DXa0KrfahnS7jhS1DoWs=
 github.com/DataDog/aptly v1.5.0 h1:Oy6JVRC9iDgnmpeVYa4diXwP/exU7wJ/U1kuI4Zacxg=
 github.com/DataDog/aptly v1.5.0/go.mod h1:KVyvkYXGcFugxadGFZ+u5Fc3M6q/EfzFZyeTD9HVbkY=
 github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3 h1:SobA9WYm4K/MUtWlbKaomWTmnuYp1KhIm8Wlx3vmpsg=

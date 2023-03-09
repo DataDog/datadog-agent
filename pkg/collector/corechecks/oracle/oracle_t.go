@@ -17,7 +17,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config"
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	go_ora "github.com/sijms/go-ora/v2"
 
 	_ "github.com/godror/godror"
@@ -51,14 +53,15 @@ tns_admin: %s
 	require.NoError(t, err)
 
 	assert.Equal(t, chk.config.InstanceConfig,
-		config.InstanceConfig{Server: HOST, Port: PORT, Username: USER, Password: PASSWORD, ServiceName: SERVICE_NAME, TnsAlias: TNS_ALIAS, TnsAdmin: TNS_ADMIN})
-	assert.Equal(t, chk.config.InstanceConfig.Server, HOST)
-	assert.Equal(t, chk.config.InstanceConfig.Port, PORT)
-	assert.Equal(t, chk.config.InstanceConfig.Username, USER)
-	assert.Equal(t, chk.config.InstanceConfig.Password, PASSWORD)
-	assert.Equal(t, chk.config.InstanceConfig.ServiceName, SERVICE_NAME)
-	assert.Equal(t, chk.config.InstanceConfig.TnsAlias, TNS_ALIAS)
-	assert.Equal(t, chk.config.InstanceConfig.TnsAdmin, TNS_ADMIN)
+		config.InstanceConfig{
+			Server: HOST, Port: PORT, Username: USER, Password: PASSWORD, ServiceName: SERVICE_NAME, TnsAlias: TNS_ALIAS, TnsAdmin: TNS_ADMIN,
+			ObfuscatorOptions: obfuscate.SQLConfig{
+				DBMS:            common.IntegrationName,
+				TableNames:      true,
+				CollectCommands: true,
+				CollectComments: true,
+			},
+		})
 }
 
 func TestConnectionGoOra(t *testing.T) {
