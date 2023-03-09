@@ -220,6 +220,10 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 	cfg.ProtocolClassificationEnabled = true
 	cfg.CollectTCPConns = true
 	tr := setupTracer(t, cfg)
+	fentryTracerEnabled := false
+	if tr.ebpfTracer.Type() == connection.EBPFFentry {
+		fentryTracerEnabled = true
+	}
 
 	// not ideal but, short process are hard to catch
 	for _, lib := range prefetchLibs {
@@ -255,7 +259,12 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 				foundPathAndHTTPTag = true
 				t.Logf("found tag 0x%x %s", statsTags, network.GetStaticTags(statsTags))
 			}
-			if foundPathAndHTTPTag {
+			// socket filter is not supported on fentry tracer
+			if fentryTracerEnabled && foundPathAndHTTPTag {
+				// so we return early if the test was successful until now
+				return true
+			}
+			if !fentryTracerEnabled && foundPathAndHTTPTag {
 				for _, c := range payload.Conns {
 					if c.SPort == key.SrcPort && c.DPort == key.DstPort && isTLSTag(c.StaticTags) {
 						return true
@@ -788,6 +797,9 @@ func TestJavaInjection(t *testing.T) {
 				javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://httpbin.org/anything/java-tls-request", regexp.MustCompile("Response code = .*"))
 			},
 			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+				if tr.ebpfTracer.Type() == connection.EBPFFentry {
+					t.Skip("protocol classification not supported for fentry tracer")
+				}
 				// Iterate through active connections until we find connection created above
 				require.Eventuallyf(t, func() bool {
 					payload := getConnections(t, tr)
