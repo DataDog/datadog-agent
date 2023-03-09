@@ -56,7 +56,7 @@ type Status struct {
 	IsRunning        bool              `json:"is_running"`
 	Endpoints        []string          `json:"endpoints"`
 	StatusMetrics    map[string]int64  `json:"metrics"`
-	ProcessFileStats map[string]string `json:"process_file_stats"`
+	ProcessFileStats map[string]uint64 `json:"process_file_stats"`
 	Integrations     []Integration     `json:"integrations"`
 	Errors           []string          `json:"errors"`
 	Warnings         []string          `json:"warnings"`
