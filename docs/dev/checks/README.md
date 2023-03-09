@@ -158,7 +158,7 @@ The list of checks currently shipping with the Agent lives in the
 [integrations-core repo
 here](https://github.com/DataDog/integrations-core/blob/master/requirements-agent-release.txt)
 
-Scenario: You want to test the `openmetrics` check:
+Scenario: You want to test the `redisdb` check:
 
 1. Clone `integrations-core` locally. (Optionally, check out the git tag
    corresponding to the version you want to test.)
@@ -166,14 +166,22 @@ Scenario: You want to test the `openmetrics` check:
     ```
     python3 -m pip install --user './datadog_checks_base[deps]'
     ```
-3. Install the `openmetrics` check. From inside the `integrations-core`
+3. Install the `redisdb` check. From inside the `integrations-core`
    checkout:
     ```
-    python3 -m pip install --user ./openmetrics
+    python3 -m pip install --user ./redisdb
     ```
+    
+4. (Optional for some checks). Some checks have dependencies on other python modules 
+   that must be installed alongside the python check. `redisdb` is one check that _does_ have
+   dependencies, specifically on the open source `redisdb` package. In this case, we need to
+   install the `deps` explicitly.
+   ```
+   python3 -m pip install --user './redisdb[deps]'
+   ```
 
 That's it! Your local build should now have the correct packages to be able to
-run the `openmetrics` check.
+run the `redisdb` check.
 
 #### "What is this `[deps]` thing?"
 The `[deps]` at the end of the package name instructs pip to install the
