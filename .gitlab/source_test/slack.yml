@@ -4,6 +4,7 @@ slack_teams_channels:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   script:
+    - python3 -m pip install codeowners
     - inv -e pipeline.check-notify-teams
 
 
