@@ -1,0 +1,54 @@
+setup:
+  steps:
+  - unpack_oci_artifact: registry.ddbuild.io/apm-reliability-environment/trace-agent-payloads:latest
+    dest: payloads
+    workdir: /tmp/benchmarks/
+  - workdir: /tmp/benchmarks/
+    run: |
+      cp $R_ROOT_DIR/k6/*.js ./
+      echo "K6_ROOT=$(pwd)" >> $R_PASS_ENV
+  - workdir: /tmp/benchmarks/results/
+    run: echo "ARTIFACTS_DIR=$(pwd)" >> $R_PASS_ENV
+  - run: echo "REPOSITORY_ROOT=$R_ROOT_DIR/../../.." >> $R_PASS_ENV
+  - run: echo "K6_STATSD_ADDR=$STATSD_URL" >> $R_PASS_ENV
+  
+env: 
+  LENGHT_OF_RUN: 2s
+  CI_JOB_ID: remove_before_commiting
+  REPOSITORY_ROOT: ../../..
+  DD_API_KEY: deadbeeffacefeeddeadbeeffacefeed
+  DD_LOG_LEVEL: error
+  DD_APM_MAX_MEMORY: 5GB
+  DD_APM_MAX_CPU_PERCENT: "200"
+  DD_APM_REMOTE_TAGGER: "false"
+  K6_STATSD_ENABLE_TAGS: "true"
+configurations: 
+  - name: k6_basic
+    experiments:
+      - name: current agent load test
+        setup: 
+          steps:
+            - run: |
+                cd $REPOSITORY_ROOT
+                go build ./cmd/trace-agent
+        services:
+          - name: "trace-agent-current"
+            assign_cpus: 8
+            run: |
+              cd $REPOSITORY_ROOT
+              go run ./cmd/trace-agent -config ./cfg.yaml
+            
+        execute:
+          assign_cpus: 2
+          script: |
+            k6 run \
+            --duration $LENGHT_OF_RUN \
+            --no-usage-report \
+            --tag test_run_id=k6-benchmark-dd-trace-agent-current \
+            --tag ci_job_id=$CI_JOB_ID \
+            --out statsd \
+            --out json="$ARTIFACTS_DIR/$RUN_ID.json" \
+            $K6_ROOT/basic.js
+        
+
+

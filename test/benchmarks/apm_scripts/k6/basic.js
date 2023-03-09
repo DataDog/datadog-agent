@@ -43,7 +43,7 @@ export const options = {
       },
       rate: 1000,
       timeUnit: '1s',
-      duration: '600s',
+      duration: '60s',
       preAllocatedVUs: 5,
     },
     "3885traces3891spans": {
@@ -54,7 +54,7 @@ export const options = {
       },
       rate: 10,
       timeUnit: '1s',
-      duration: '600s',
+      duration: '60s',
       preAllocatedVUs: 5,
     },
   },
