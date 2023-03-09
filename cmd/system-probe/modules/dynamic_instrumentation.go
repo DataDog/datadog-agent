@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	dynamicinstrumentation "github.com/DataDog/datadog-agent/pkg/dynamic-instrumentation"
+	dynamicinstrumentation "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
