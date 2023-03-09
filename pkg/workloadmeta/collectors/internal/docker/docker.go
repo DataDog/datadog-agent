@@ -11,8 +11,10 @@ package docker
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/docker/docker/api/types"
@@ -44,6 +46,16 @@ type collector struct {
 	dockerUtil        *docker.DockerUtil
 	containerEventsCh <-chan *docker.ContainerEvent
 	imageEventsCh     <-chan *docker.ImageEvent
+
+	// Images are updated from 2 goroutines: the one that handles docker
+	// events, and the one that extracts SBOMS.
+	// This mutex is used to handle images one at a time to avoid
+	// inconsistencies like trying to set an SBOM for an image that is being
+	// deleted.
+	handleImagesMut sync.Mutex
+
+	// SBOM Scanning
+	trivyClient trivy.Collector // nolint: unused
 }
 
 func init() {
@@ -62,6 +74,10 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	var err error
 	c.dockerUtil, err = docker.GetDockerUtil()
 	if err != nil {
+		return err
+	}
+
+	if err = c.startSBOMCollection(ctx); err != nil {
 		return err
 	}
 
@@ -109,7 +125,7 @@ func (c *collector) stream(ctx context.Context) {
 			}
 
 		case ev := <-c.imageEventsCh:
-			err := c.handleImageEvent(ctx, ev)
+			err := c.handleImageEvent(ctx, ev, nil)
 			if err != nil {
 				log.Warnf(err.Error())
 			}
@@ -170,7 +186,7 @@ func (c *collector) generateEventsFromImageList(ctx context.Context) error {
 	events := make([]workloadmeta.CollectorEvent, 0, len(images))
 
 	for _, img := range images {
-		imgMetadata, err := c.getImageMetadata(ctx, img.ID)
+		imgMetadata, err := c.getImageMetadata(ctx, img.ID, nil)
 		if err != nil {
 			log.Warnf(err.Error())
 			continue
@@ -480,10 +496,13 @@ func extractHealth(containerHealth *types.Health) workloadmeta.ContainerHealth {
 	return workloadmeta.ContainerHealthUnknown
 }
 
-func (c *collector) handleImageEvent(ctx context.Context, event *docker.ImageEvent) error {
+func (c *collector) handleImageEvent(ctx context.Context, event *docker.ImageEvent, bom *workloadmeta.SBOM) error {
+	c.handleImagesMut.Lock()
+	defer c.handleImagesMut.Unlock()
+
 	switch event.Action {
-	case docker.ImageEventActionPull, docker.ImageEventActionTag, docker.ImageEventActionUntag:
-		imgMetadata, err := c.getImageMetadata(ctx, event.ImageID)
+	case docker.ImageEventActionPull, docker.ImageEventActionTag, docker.ImageEventActionUntag, docker.ImageEventActionSbom:
+		imgMetadata, err := c.getImageMetadata(ctx, event.ImageID, bom)
 		if err != nil {
 			return fmt.Errorf("could not get image metadata for image %q: %w", event.ImageID, err)
 		}
@@ -513,7 +532,7 @@ func (c *collector) handleImageEvent(ctx context.Context, event *docker.ImageEve
 	return nil
 }
 
-func (c *collector) getImageMetadata(ctx context.Context, imageID string) (*workloadmeta.ContainerImageMetadata, error) {
+func (c *collector) getImageMetadata(ctx context.Context, imageID string, bom *workloadmeta.SBOM) (*workloadmeta.ContainerImageMetadata, error) {
 	imgInspect, err := c.dockerUtil.ImageInspect(ctx, imageID)
 	if err != nil {
 		return nil, err
@@ -530,6 +549,30 @@ func (c *collector) getImageMetadata(ctx context.Context, imageID string) (*work
 	labels := make(map[string]string)
 	if imgInspect.Config != nil {
 		labels = imgInspect.Config.Labels
+	}
+
+	existingBOM := bom
+	// We can get "create" events for images that already exist. That happens
+	// when the same image is referenced with different names. For example,
+	// datadog/agent:latest and datadog/agent:7 might refer to the same image.
+	// Also, in some environments (at least with Kind), pulling an image like
+	// datadog/agent:latest creates several events: in one of them the image
+	// name is a digest, in other is something with the same format as
+	// datadog/agent:7, and sometimes there's a temporary name prefixed with
+	// "import-".
+	// When that happens, give precedence to the name with repo and tag instead
+	// of the name that includes a digest. This is just to show names that are
+	// more user-friendly (the digests are already present in other attributes
+	// like ID, and repo digest).
+	existingImg, err := c.store.GetImage(imageID)
+	if err == nil {
+		//if strings.Contains(imageName, "sha256:") && !strings.Contains(existingImg.Name, "sha256:") {
+		//	imageName = existingImg.Name
+		//}
+
+		if existingBOM == nil && existingImg.SBOM != nil {
+			existingBOM = existingImg.SBOM
+		}
 	}
 
 	return &workloadmeta.ContainerImageMetadata{
@@ -553,6 +596,7 @@ func (c *collector) getImageMetadata(ctx context.Context, imageID string) (*work
 		Architecture: imgInspect.Architecture,
 		Variant:      imgInspect.Variant,
 		Layers:       layersFromDockerHistory(imageHistory),
+		SBOM:         existingBOM,
 	}, nil
 }
 

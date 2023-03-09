@@ -35,6 +35,7 @@ import (
 	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/vulnerability"
 	"github.com/containerd/containerd"
+	"github.com/docker/docker/client"
 )
 
 const (
@@ -52,6 +53,7 @@ type CollectorConfig struct {
 	CacheProvider      CacheProvider
 	ClearCacheOnClose  bool
 	ContainerdAccessor func() (containerdUtil.ContainerdItf, error)
+	DockerAccessor     func() (client.ImageAPIClient, error)
 }
 
 // Collector uses trivy to generate a SBOM
@@ -164,6 +166,33 @@ func (c *collector) Close() error {
 	}
 
 	return c.cache.Close()
+}
+
+func (c *collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata) (Report, error) {
+	cli, err := c.config.DockerAccessor()
+	if err != nil {
+		return nil, fmt.Errorf("unable to access docker client, err: %w", err)
+	}
+
+	fanalImage, cleanup, err := convertDockerImage(ctx, cli, imgMeta)
+	if cleanup != nil {
+		defer cleanup()
+	}
+	if err != nil {
+		return nil, fmt.Errorf("unable to convert docker image, err: %w", err)
+	}
+
+	imageArtifact, err := image2.NewArtifact(fanalImage, c.cache, c.config.ArtifactOption)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create artifact from image, err: %w", err)
+	}
+
+	bom, err := c.scan(ctx, imageArtifact)
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
+	}
+
+	return bom, nil
 }
 
 func (c *collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (Report, error) {

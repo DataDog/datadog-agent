@@ -130,6 +130,11 @@ func (d *DockerUtil) CountVolumes(ctx context.Context) (int, int, error) {
 	return len(attachedVolumes.Volumes), len(danglingVolumes.Volumes), nil
 }
 
+// RawClient returns the underlying docker client being used by this object.
+func (d *DockerUtil) RawClient() *client.Client {
+	return d.cli
+}
+
 // RawContainerList wraps around the docker client's ContainerList method.
 // Value validation and error handling are the caller's responsibility.
 func (d *DockerUtil) RawContainerList(ctx context.Context, options types.ContainerListOptions) ([]types.Container, error) {

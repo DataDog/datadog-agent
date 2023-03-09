@@ -23,6 +23,7 @@ type Report interface {
 type Collector interface {
 	ScanContainerdImage(ctx context.Context, imageMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (Report, error)
 	ScanContainerdImageFromFilesystem(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (Report, error)
+	ScanDockerImage(ctx context.Context, imageMeta *workloadmeta.ContainerImageMetadata) (Report, error)
 	ScanFilesystem(ctx context.Context, path string) (Report, error)
 	Close() error
 }

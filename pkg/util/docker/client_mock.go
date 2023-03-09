@@ -10,6 +10,7 @@ package docker
 
 import (
 	"context"
+	"github.com/docker/docker/client"
 	"time"
 
 	"github.com/docker/docker/api/types"
@@ -20,6 +21,7 @@ import (
 // MockClient is a mock implementation of docker.Client interface
 // Should probably be generated at some point
 type MockClient struct {
+	FakeRawClient                   *client.Client
 	FakeContainerList               []types.Container
 	FakeImageNameMapping            map[string]string
 	FakeImages                      []types.ImageSummary
@@ -29,6 +31,11 @@ type MockClient struct {
 	FakeContainerEvents             []*ContainerEvent
 	FakeLastContainerEventTimestamp time.Time
 	FakeError                       error
+}
+
+// RawClient is a mock method
+func (d *MockClient) RawClient() *client.Client {
+	return d.FakeRawClient
 }
 
 // RawContainerList is a mock method
