@@ -1,0 +1,50 @@
+<!--
+    mvn clean dependency:copy-dependencies package
+
+Caused by: java.lang.IllegalArgumentException: Failed to load any of the given libraries: [netty_tcnative_linux_x86_64, netty_tcnative_linux_x86_64_fedora, netty_tcnative_x86_64, netty_tcnative]
+
+    /!-->
+
+<project xmlns="http://maven.apache.org/POM/4.0.0"   
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"  
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0   
+                             http://maven.apache.org/xsd/maven-4.0.0.xsd">  
+  
+  <modelVersion>4.0.0</modelVersion>  
+  <groupId>com.datadoghq</groupId>  
+  <artifactId>NettyClient</artifactId>  
+  <version>1</version>  
+  <packaging>jar</packaging>  
+
+  <properties>
+    <maven.compiler.source>1.7</maven.compiler.source>
+    <maven.compiler.target>1.7</maven.compiler.target>
+  </properties>
+  
+  <dependencies>
+    <dependency>
+      <groupId>io.netty</groupId>
+      <artifactId>netty-all</artifactId>
+      <version>4.1.89.Final</version>
+    </dependency>
+    <dependency>
+      <groupId>io.netty</groupId>
+      <artifactId>netty-tcnative-boringssl-static</artifactId>
+      <version>2.0.56.Final</version>
+      <classifier>${os.detected.classifier}</classifier>
+    </dependency>
+  </dependencies>
+
+
+
+  <build>
+    <extensions>
+      <extension>
+        <groupId>kr.motd.maven</groupId>
+        <artifactId>os-maven-plugin</artifactId>
+        <version>1.7.1</version>
+      </extension>
+    </extensions>
+  </build>
+  
+</project>
