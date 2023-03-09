@@ -574,7 +574,9 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 		State:        uint64(netebpf.StateChecking),
 		Proc:         netebpf.Proc{Comm: cProcName},
 		Ipv6_enabled: enabled,
+		What:         uint64(netebpf.GuessSAddr),
 	}
+
 	if !cfg.CollectIPv6Conns {
 		t.status.Ipv6_enabled = disabled
 	}
