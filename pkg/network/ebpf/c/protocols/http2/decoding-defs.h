@@ -15,11 +15,11 @@
 
 // A limit of max headers which we process in the request/response.
 // NOTE: we may need to change the max size.
-#define HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING 2
+#define HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING 3
 
 // Maximum size for the path buffer.
 // NOTE: we may need to change the max size.
-#define HTTP2_MAX_PATH_LEN 60
+#define HTTP2_MAX_PATH_LEN 160
 
 // The maximum index which may be in the static table.
 #define MAX_STATIC_TABLE_INDEX 61
@@ -56,7 +56,7 @@ typedef struct {
 } static_table_entry_t;
 
 typedef struct {
-    char buffer[HTTP2_MAX_PATH_LEN] __attribute__ ((aligned (8)));
+    char buffer[HTTP2_MAX_PATH_LEN];
     __u8 string_len;
 } dynamic_table_entry_t;
 
@@ -86,7 +86,6 @@ typedef struct {
 typedef struct {
     dynamic_table_index_t dynamic_index;
     http2_stream_key_t http2_stream_key;
-    http2_stream_t http2_stream;
 } http2_ctx_t;
 
 typedef struct {
