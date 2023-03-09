@@ -12,11 +12,21 @@ type Stack struct {
 }
 
 func NewStack(api, application, encryption uint8) Stack {
-	return Stack{
-		Api:         uint16(api) | layerAPIBit,
-		Application: uint16(application) | layerApplicationBit,
-		Encryption:  uint16(encryption) | layerEncryptionBit,
+	stack := Stack{}
+
+	if api > 0 {
+		stack.Api = uint16(api) | layerAPIBit
 	}
+
+	if application > 0 {
+		stack.Application = uint16(application) | layerApplicationBit
+	}
+
+	if encryption > 0 {
+		stack.Encryption = uint16(encryption) | layerEncryptionBit
+	}
+
+	return stack
 }
 
 func (s *Stack) MergeWith(other Stack) {
