@@ -46,46 +46,6 @@ static __always_inline void protocol_set(protocol_stack_t *stack, protocol_t pro
     }
 }
 
-static __always_inline protocol_t protocol_get(protocol_stack_t *stack, protocol_layer_t layer) {
-    if (!stack) {
-        return PROTOCOL_UNKNOWN;
-    }
-
-    __u16 proto_num = 0;
-    __u16 layer_bit = 0;
-    switch(layer) {
-    case LAYER_API:
-        proto_num = stack->layer_api;
-        layer_bit = LAYER_API_BIT;
-        break;
-    case LAYER_APPLICATION:
-        proto_num = stack->layer_application;
-        layer_bit = LAYER_APPLICATION_BIT;
-        break;
-    case LAYER_ENCRYPTION:
-        proto_num = stack->layer_encryption;
-        layer_bit = LAYER_ENCRYPTION_BIT;
-        break;
-    default:
-        break;
-    }
-
-    if (!proto_num) {
-        return PROTOCOL_UNKNOWN;
-    }
-
-    return proto_num | layer_bit;
-}
-
-static __always_inline bool protocol_layer_known(protocol_stack_t *stack, protocol_layer_t layer) {
-    if (!stack) {
-        return false;
-    }
-
-    protocol_t proto = protocol_get(stack, layer);
-    return proto != PROTOCOL_UNKNOWN;
-}
-
 static __always_inline bool is_fully_classified(protocol_stack_t *stack) {
     if (!stack) {
         return false;
@@ -132,6 +92,46 @@ static __always_inline protocol_layer_t protocol_next_layer(protocol_stack_t *st
     }
 
     return LAYER_UNKNOWN;
+}
+
+__maybe_unused static __always_inline protocol_t protocol_get(protocol_stack_t *stack, protocol_layer_t layer) {
+    if (!stack) {
+        return PROTOCOL_UNKNOWN;
+    }
+
+    __u16 proto_num = 0;
+    __u16 layer_bit = 0;
+    switch(layer) {
+    case LAYER_API:
+        proto_num = stack->layer_api;
+        layer_bit = LAYER_API_BIT;
+        break;
+    case LAYER_APPLICATION:
+        proto_num = stack->layer_application;
+        layer_bit = LAYER_APPLICATION_BIT;
+        break;
+    case LAYER_ENCRYPTION:
+        proto_num = stack->layer_encryption;
+        layer_bit = LAYER_ENCRYPTION_BIT;
+        break;
+    default:
+        break;
+    }
+
+    if (!proto_num) {
+        return PROTOCOL_UNKNOWN;
+    }
+
+    return proto_num | layer_bit;
+}
+
+__maybe_unused static __always_inline bool protocol_layer_known(protocol_stack_t *stack, protocol_layer_t layer) {
+    if (!stack) {
+        return false;
+    }
+
+    protocol_t proto = protocol_get(stack, layer);
+    return proto != PROTOCOL_UNKNOWN;
 }
 
 #endif

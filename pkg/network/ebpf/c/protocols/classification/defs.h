@@ -2,6 +2,7 @@
 #define __PROTOCOL_CLASSIFICATION_DEFS_H
 
 #include "ktypes.h"
+#include "compiler.h"
 
 #include "protocols/amqp/defs.h"
 #include "protocols/http/classification-defs.h"
@@ -98,7 +99,7 @@ typedef enum {
     PROG_MAX,
 } protocol_prog_t;
 
-static __always_inline protocol_prog_t protocol_to_program(protocol_t proto) {
+__maybe_unused static __always_inline protocol_prog_t protocol_to_program(protocol_t proto) {
     switch(proto) {
     case PROTOCOL_HTTP:
         return PROG_HTTP;
