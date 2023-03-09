@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	dynamicinstrumentation "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var DynamicInstrumentation = module.Factory{
@@ -24,12 +23,11 @@ var DynamicInstrumentation = module.Factory{
 	Fn: func(agentConfiguration *config.Config) (module.Module, error) {
 		config, err := dynamicinstrumentation.NewConfig(agentConfiguration)
 		if err != nil {
-			return nil, fmt.Errorf("invalid user tracer module configuration: %w", err)
+			return nil, fmt.Errorf("invalid dynamic instrumentation module configuration: %w", err)
 		}
 
 		m, err := dynamicinstrumentation.NewModule(config)
 		if err == ebpf.ErrNotImplemented {
-			log.Info("Datadog user tracer module is only supported on Linux")
 			return nil, module.ErrNotEnabled
 		}
 

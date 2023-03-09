@@ -2,7 +2,6 @@ package dynamicinstrumentation
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	ddagentconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
@@ -13,8 +12,9 @@ type Config struct {
 }
 
 func NewConfig(sysprobeConfig *config.Config) (*Config, error) {
+	_, diEnabled := sysprobeConfig.EnabledModules[config.DynamicInstrumentationModule]
 	return &Config{
 		Config:                        *ebpf.NewConfig(),
-		DynamicInstrumentationEnabled: ddagentconfig.SystemProbe.GetBool("dynamic_instrumentation.enabled"),
+		DynamicInstrumentationEnabled: diEnabled,
 	}, nil
 }
