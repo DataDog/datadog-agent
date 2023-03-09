@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -175,11 +174,13 @@ type Metadata struct {
 	DDAgentVersion string  `json:"ddagentversion,omitempty"`
 }
 
+/*
 type MetricSender struct {
 	sender           aggregator.Sender
 	hostname         string
 	submittedMetrics int
 }
+*/
 
 func (c *Check) SampleSession() error {
 	start := time.Now()
