@@ -42,18 +42,11 @@ const (
 	downloaderModule    = "datadog_checks.downloader"
 	disclaimer          = "For your security, only use this to install wheels containing an Agent integration " +
 		"and coming from a known source. The Agent cannot perform any verification on local wheels."
-	integrationVersionScriptPy2 = `
+	integrationVersionScript = `
 import pkg_resources
 try:
 	print(pkg_resources.get_distribution('%s').version)
 except pkg_resources.DistributionNotFound:
-	pass
-`
-	integrationVersionScriptPy3 = `
-from importlib.metadata import version, PackageNotFoundError
-try:
-	print(version('%s'))
-except PackageNotFoundError:
 	pass
 `
 )
@@ -728,11 +721,6 @@ func installedVersion(cliParams *cliParams, integration string) (*semver.Version
 	}
 	if !validName {
 		return nil, false, fmt.Errorf("Cannot get installed version of %s: invalid integration name", integration)
-	}
-
-	integrationVersionScript := integrationVersionScriptPy3
-	if cliParams.pythonMajorVersion == "2" {
-		integrationVersionScript = integrationVersionScriptPy2
 	}
 
 	pythonCmd := exec.Command(pythonPath, "-c", fmt.Sprintf(integrationVersionScript, integration))
