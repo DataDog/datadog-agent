@@ -39,7 +39,7 @@ def read_owners(owners_file):
         return CodeOwners(f.read())
 
 
-def check_owners_slack(print_missing_teams=False, owners_file=".github/CODEOWNERS"):
+def check_owners_slack(print_missing_teams=True, owners_file=".github/CODEOWNERS"):
     owners = read_owners(owners_file)
     slack_teams = list(GITHUB_SLACK_MAP.keys())
     error = False
