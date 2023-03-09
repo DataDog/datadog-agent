@@ -32,3 +32,7 @@ func (s *Stack) MergeWith(other Stack) {
 		s.Encryption = other.Encryption
 	}
 }
+
+func (s *Stack) Contains(proto ProtocolType) bool {
+	return s.Api == proto || s.Application == proto || s.Encryption == proto
+}

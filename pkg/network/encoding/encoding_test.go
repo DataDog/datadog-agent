@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -196,18 +197,18 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 							Alias: "subnet-foo",
 						},
 					},
-					Protocol: network.ProtocolHTTP,
+					ProtocolStack: protocols.Stack{Application: protocols.HTTP},
 				},
 				{
-					Source:     util.AddressFromString("10.1.1.1"),
-					Dest:       util.AddressFromString("8.8.8.8"),
-					SPort:      1000,
-					DPort:      53,
-					Type:       network.UDP,
-					Family:     network.AFINET6,
-					Direction:  network.LOCAL,
-					StaticTags: uint64(1),
-					Protocol:   network.ProtocolHTTP2,
+					Source:        util.AddressFromString("10.1.1.1"),
+					Dest:          util.AddressFromString("8.8.8.8"),
+					SPort:         1000,
+					DPort:         53,
+					Type:          network.UDP,
+					Family:        network.AFINET6,
+					Direction:     network.LOCAL,
+					StaticTags:    uint64(1),
+					ProtocolStack: protocols.Stack{Application: protocols.HTTP2},
 				},
 			},
 		},
@@ -493,14 +494,14 @@ func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCo
 				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				HttpAggregations: httpOutBlob,
 				RouteIdx:         -1,
-				Protocol:         formatProtocol(network.ProtocolUnknown, 0),
+				Protocol:         formatProtocolStack(protocols.Stack{}, 0),
 			},
 			{
 				Laddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
 				HttpAggregations: httpOutBlob,
 				RouteIdx:         -1,
-				Protocol:         formatProtocol(network.ProtocolUnknown, 0),
+				Protocol:         formatProtocolStack(protocols.Stack{}, 0),
 			},
 		},
 		AgentConfiguration: &model.AgentConfiguration{

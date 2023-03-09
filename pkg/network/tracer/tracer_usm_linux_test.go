@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	javatestutil "github.com/DataDog/datadog-agent/pkg/network/java/testutil"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/gotls"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
@@ -553,7 +554,7 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 		}
 
 		client.CloseIdleConnections()
-		waitForConnectionsWithProtocol(t, tr, targetAddr, HTTPServer.address, network.ProtocolHTTP)
+		waitForConnectionsWithProtocol(t, tr, targetAddr, HTTPServer.address, protocols.HTTP)
 		HTTPServer.Shutdown()
 
 		time.Sleep(2 * time.Second)
@@ -569,7 +570,7 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 		defer grpcClient.Close()
 		_ = grpcClient.HandleUnary(context.Background(), "test")
 		gRPCServer.Stop()
-		waitForConnectionsWithProtocol(t, tr, targetAddr, gRPCServer.Address, network.ProtocolHTTP2)
+		waitForConnectionsWithProtocol(t, tr, targetAddr, gRPCServer.Address, protocols.HTTP2)
 	})
 }
 

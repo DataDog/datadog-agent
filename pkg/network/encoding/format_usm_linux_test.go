@@ -14,20 +14,20 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 )
 
 func TestFormatTLSProtocols(t *testing.T) {
 	tests := []struct {
 		name       string
-		protocol   network.ProtocolType
+		protocol   protocols.Stack
 		staticTags uint64
 		want       *model.ProtocolStack
 	}{
 		{
 			name:       "GnuTLS - unknown protocol",
-			protocol:   network.ProtocolUnknown,
+			protocol:   protocols.Stack{Application: protocols.Unknown},
 			staticTags: http.GnuTLS,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
@@ -38,7 +38,7 @@ func TestFormatTLSProtocols(t *testing.T) {
 		},
 		{
 			name:       "OpenSSL - HTTP protocol",
-			protocol:   network.ProtocolHTTP,
+			protocol:   protocols.Stack{Application: protocols.HTTP},
 			staticTags: http.OpenSSL,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
@@ -49,7 +49,7 @@ func TestFormatTLSProtocols(t *testing.T) {
 		},
 		{
 			name:       "GoTLS - MySQL protocol",
-			protocol:   network.ProtocolMySQL,
+			protocol:   protocols.Stack{Application: protocols.MySQL},
 			staticTags: http.Go,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
@@ -60,7 +60,7 @@ func TestFormatTLSProtocols(t *testing.T) {
 		},
 		{
 			name:       "Unknown static tags - MySQL protocol",
-			protocol:   network.ProtocolMySQL,
+			protocol:   protocols.Stack{Application: protocols.MySQL},
 			staticTags: 1 << 10,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
@@ -71,7 +71,7 @@ func TestFormatTLSProtocols(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.want, formatProtocol(tt.protocol, tt.staticTags), "formatProtocol(%v)", tt.protocol)
+			assert.Equalf(t, tt.want, formatProtocolStack(tt.protocol, tt.staticTags), "formatProtocol(%v)", tt.protocol)
 		})
 	}
 }

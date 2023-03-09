@@ -30,6 +30,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/amqp"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	protocolsmongo "github.com/DataDog/datadog-agent/pkg/network/protocols/mongo"
@@ -75,7 +76,7 @@ type protocolClassificationAttributes struct {
 	teardown func(t *testing.T, ctx testContext)
 }
 
-func validateProtocolConnection(expectedProtocol network.ProtocolType) func(t *testing.T, ctx testContext, tr *Tracer) {
+func validateProtocolConnection(expectedProtocol protocols.ProtocolType) func(t *testing.T, ctx testContext, tr *Tracer) {
 	return func(t *testing.T, ctx testContext, tr *Tracer) {
 		waitForConnectionsWithProtocol(t, tr, ctx.targetAddress, ctx.serverAddress, expectedProtocol)
 	}
@@ -236,7 +237,7 @@ func testKafkaProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				require.NoError(t, err)
 				ctx.extras["client"] = client
 			},
-			validation: validateProtocolConnection(network.ProtocolUnknown),
+			validation: validateProtocolConnection(protocols.Unknown),
 			teardown:   kafkaTeardown,
 		},
 		{
@@ -262,7 +263,7 @@ func testKafkaProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				client := ctx.extras["client"].(*kafka.Client)
 				require.NoError(t, client.CreateTopic(ctx.extras["topic_name"].(string)))
 			},
-			validation: validateProtocolConnection(network.ProtocolUnknown),
+			validation: validateProtocolConnection(protocols.Unknown),
 			teardown:   kafkaTeardown,
 		},
 		{
@@ -292,7 +293,7 @@ func testKafkaProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				defer cancel()
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
 			},
-			validation: validateProtocolConnection(network.ProtocolKafka),
+			validation: validateProtocolConnection(protocols.Kafka),
 			teardown:   kafkaTeardown,
 		},
 		{
@@ -325,7 +326,7 @@ func testKafkaProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				defer cancel()
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1, record2).FirstErr(), "record had a produce error while synchronously producing")
 			},
-			validation: validateProtocolConnection(network.ProtocolKafka),
+			validation: validateProtocolConnection(protocols.Kafka),
 			teardown:   kafkaTeardown,
 		},
 	}
@@ -333,9 +334,9 @@ func testKafkaProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 	// Adding produce tests in different versions
 	for i := int16(produceMinVersion); i <= produceMaxVersion; i++ {
 		version := kversion.V3_4_0()
-		expectedProtocol := network.ProtocolKafka
+		expectedProtocol := protocols.Kafka
 		if i < produceMinSupportedVersion || i > produceMaxSupportedVersion {
-			expectedProtocol = network.ProtocolUnknown
+			expectedProtocol = protocols.Unknown
 		}
 		version.SetMaxKeyVersion(produceAPIKey, i)
 		tests = append(tests, protocolClassificationAttributes{
@@ -371,9 +372,9 @@ func testKafkaProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 	}
 	// Adding fetch tests in different versions
 	for i := int16(fetchMinVersion); i < fetchMaxVersion; i++ {
-		expectedProtocol := network.ProtocolKafka
+		expectedProtocol := protocols.Kafka
 		if i < fetchMinSupportedVersion || i > fetchMaxSupportedVersion {
-			expectedProtocol = network.ProtocolUnknown
+			expectedProtocol = protocols.Unknown
 		}
 		version := kversion.V3_4_0()
 		version.SetMaxKeyVersion(fetchAPIKey, i)
@@ -462,7 +463,7 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				require.NoError(t, err)
 				ctx.extras["conn"] = c
 			},
-			validation: validateProtocolConnection(network.ProtocolMySQL),
+			validation: validateProtocolConnection(protocols.MySQL),
 			teardown:   mysqlTeardown,
 		},
 		{
@@ -485,7 +486,7 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				c := ctx.extras["conn"].(*mysql.Client)
 				require.NoError(t, c.CreateDB())
 			},
-			validation: validateProtocolConnection(network.ProtocolMySQL),
+			validation: validateProtocolConnection(protocols.MySQL),
 			teardown:   mysqlTeardown,
 		},
 		{
@@ -509,7 +510,7 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				c := ctx.extras["conn"].(*mysql.Client)
 				require.NoError(t, c.CreateTable())
 			},
-			validation: validateProtocolConnection(network.ProtocolMySQL),
+			validation: validateProtocolConnection(protocols.MySQL),
 			teardown:   mysqlTeardown,
 		},
 		{
@@ -534,7 +535,7 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				c := ctx.extras["conn"].(*mysql.Client)
 				require.NoError(t, c.InsertIntoTable("Bratislava", 432000))
 			},
-			validation: validateProtocolConnection(network.ProtocolMySQL),
+			validation: validateProtocolConnection(protocols.MySQL),
 			teardown:   mysqlTeardown,
 		},
 		{
@@ -560,7 +561,7 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				c := ctx.extras["conn"].(*mysql.Client)
 				require.NoError(t, c.DeleteFromTable("Bratislava"))
 			},
-			validation: validateProtocolConnection(network.ProtocolMySQL),
+			validation: validateProtocolConnection(protocols.MySQL),
 			teardown:   mysqlTeardown,
 		},
 		{
@@ -588,7 +589,7 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				require.NoError(t, err)
 				require.Equal(t, 432000, population)
 			},
-			validation: validateProtocolConnection(network.ProtocolMySQL),
+			validation: validateProtocolConnection(protocols.MySQL),
 			teardown:   mysqlTeardown,
 		},
 		{
@@ -614,7 +615,7 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				c := ctx.extras["conn"].(*mysql.Client)
 				require.NoError(t, c.UpdateTable("Bratislava", "Bratislava2", 10))
 			},
-			validation: validateProtocolConnection(network.ProtocolMySQL),
+			validation: validateProtocolConnection(protocols.MySQL),
 			teardown:   mysqlTeardown,
 		},
 		{
@@ -639,7 +640,7 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				c := ctx.extras["conn"].(*mysql.Client)
 				require.NoError(t, c.DropTable())
 			},
-			validation: validateProtocolConnection(network.ProtocolMySQL),
+			validation: validateProtocolConnection(protocols.MySQL),
 			teardown:   mysqlTeardown,
 		},
 		{
@@ -664,7 +665,7 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				c := ctx.extras["conn"].(*mysql.Client)
 				require.NoError(t, c.AlterTable())
 			},
-			validation: validateProtocolConnection(network.ProtocolMySQL),
+			validation: validateProtocolConnection(protocols.MySQL),
 			teardown:   mysqlTeardown,
 		},
 		{
@@ -691,7 +692,7 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				c := ctx.extras["conn"].(*mysql.Client)
 				require.NoError(t, c.InsertIntoTable(strings.Repeat("#", 16384), 10))
 			},
-			validation: validateProtocolConnection(network.ProtocolMySQL),
+			validation: validateProtocolConnection(protocols.MySQL),
 			teardown:   mysqlTeardown,
 		},
 		{
@@ -722,7 +723,7 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				c := ctx.extras["conn"].(*mysql.Client)
 				require.NoError(t, c.SelectAllFromTable())
 			},
-			validation: validateProtocolConnection(network.ProtocolMySQL),
+			validation: validateProtocolConnection(protocols.MySQL),
 			teardown:   mysqlTeardown,
 		},
 	}
@@ -772,7 +773,7 @@ func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, client
 				require.NoError(t, err)
 				defer conn.Close()
 			},
-			validation: validateProtocolConnection(network.ProtocolPostgres),
+			validation: validateProtocolConnection(protocols.Postgres),
 			teardown:   postgresTeardown,
 		},
 		{
@@ -790,7 +791,7 @@ func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, client
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				pgutils.RunInsertQuery(t, 1, ctx.extras)
 			},
-			validation: validateProtocolConnection(network.ProtocolPostgres),
+			validation: validateProtocolConnection(protocols.Postgres),
 			teardown:   postgresTeardown,
 		},
 		{
@@ -809,7 +810,7 @@ func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, client
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				pgutils.RunDeleteQuery(t, ctx.extras)
 			},
-			validation: validateProtocolConnection(network.ProtocolPostgres),
+			validation: validateProtocolConnection(protocols.Postgres),
 			teardown:   postgresTeardown,
 		},
 		{
@@ -827,7 +828,7 @@ func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, client
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				pgutils.RunSelectQuery(t, ctx.extras)
 			},
-			validation: validateProtocolConnection(network.ProtocolPostgres),
+			validation: validateProtocolConnection(protocols.Postgres),
 			teardown:   postgresTeardown,
 		},
 		{
@@ -846,7 +847,7 @@ func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, client
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				pgutils.RunUpdateQuery(t, ctx.extras)
 			},
-			validation: validateProtocolConnection(network.ProtocolPostgres),
+			validation: validateProtocolConnection(protocols.Postgres),
 			teardown:   postgresTeardown,
 		},
 		{
@@ -865,7 +866,7 @@ func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, client
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				pgutils.RunDropQuery(t, ctx.extras)
 			},
-			validation: validateProtocolConnection(network.ProtocolPostgres),
+			validation: validateProtocolConnection(protocols.Postgres),
 			teardown:   postgresTeardown,
 		},
 		{
@@ -883,7 +884,7 @@ func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, client
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				pgutils.RunAlterQuery(t, ctx.extras)
 			},
-			validation: validateProtocolConnection(network.ProtocolPostgres),
+			validation: validateProtocolConnection(protocols.Postgres),
 			teardown:   postgresTeardown,
 		},
 		{
@@ -907,7 +908,7 @@ func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, client
 				// This will fail but it should make a query and be classified
 				_, _ = db.NewInsert().Model(&pgutils.DummyTable{Foo: strings.Repeat("#", 16384)}).Exec(taskCtx)
 			},
-			validation: validateProtocolConnection(network.ProtocolPostgres),
+			validation: validateProtocolConnection(protocols.Postgres),
 			teardown:   postgresTeardown,
 		},
 		{
@@ -930,7 +931,7 @@ func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, client
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				pgutils.RunSelectQuery(t, ctx.extras)
 			},
-			validation: validateProtocolConnection(network.ProtocolPostgres),
+			validation: validateProtocolConnection(protocols.Postgres),
 			teardown:   postgresTeardown,
 		},
 	}
@@ -982,7 +983,7 @@ func testMongoProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				require.NoError(t, err)
 				client.Stop()
 			},
-			validation: validateProtocolConnection(network.ProtocolMongo),
+			validation: validateProtocolConnection(protocols.Mongo),
 		},
 		{
 			name: "classify by collection creation",
@@ -1007,7 +1008,7 @@ func testMongoProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				defer cancel()
 				require.NoError(t, db.CreateCollection(timedContext, "collection"))
 			},
-			validation: validateProtocolConnection(network.ProtocolMongo),
+			validation: validateProtocolConnection(protocols.Mongo),
 			teardown:   mongoTeardown,
 		},
 		{
@@ -1039,7 +1040,7 @@ func testMongoProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				_, err := collection.InsertOne(timedContext, input)
 				require.NoError(t, err)
 			},
-			validation: validateProtocolConnection(network.ProtocolMongo),
+			validation: validateProtocolConnection(protocols.Mongo),
 			teardown:   mongoTeardown,
 		},
 		{
@@ -1081,7 +1082,7 @@ func testMongoProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				delete(output, "_id")
 				require.EqualValues(t, output, ctx.extras["input"])
 			},
-			validation: validateProtocolConnection(network.ProtocolMongo),
+			validation: validateProtocolConnection(protocols.Mongo),
 			teardown:   mongoTeardown,
 		},
 	}
@@ -1142,7 +1143,7 @@ func testRedisProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				client.Set(timedContext, "key", "value", time.Minute)
 			},
 			teardown:   redisTeardown,
-			validation: validateProtocolConnection(network.ProtocolRedis),
+			validation: validateProtocolConnection(protocols.Redis),
 		},
 		{
 			name: "get",
@@ -1169,7 +1170,7 @@ func testRedisProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				require.Equal(t, "value", val)
 			},
 			teardown:   redisTeardown,
-			validation: validateProtocolConnection(network.ProtocolRedis),
+			validation: validateProtocolConnection(protocols.Redis),
 		},
 		{
 			name: "get unknown key",
@@ -1194,7 +1195,7 @@ func testRedisProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				require.Error(t, res.Err())
 			},
 			teardown:   redisTeardown,
-			validation: validateProtocolConnection(network.ProtocolRedis),
+			validation: validateProtocolConnection(protocols.Redis),
 		},
 		{
 			name: "err response",
@@ -1212,7 +1213,7 @@ func testRedisProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				_, err = conn.Write([]byte("+dummy\r\n"))
 				require.NoError(t, err)
 			},
-			validation: validateProtocolConnection(network.ProtocolRedis),
+			validation: validateProtocolConnection(protocols.Redis),
 		},
 		{
 			name: "client id",
@@ -1237,7 +1238,7 @@ func testRedisProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				require.NoError(t, res.Err())
 			},
 			teardown:   redisTeardown,
-			validation: validateProtocolConnection(network.ProtocolRedis),
+			validation: validateProtocolConnection(protocols.Redis),
 		},
 	}
 	for _, tt := range tests {
@@ -1291,7 +1292,7 @@ func testAMQPProtocolClassification(t *testing.T, cfg *config.Config, clientHost
 				ctx.extras["client"] = client
 			},
 			teardown:   amqpTeardown,
-			validation: validateProtocolConnection(network.ProtocolAMQP),
+			validation: validateProtocolConnection(protocols.AMQP),
 		},
 		{
 			name: "declare channel",
@@ -1314,7 +1315,7 @@ func testAMQPProtocolClassification(t *testing.T, cfg *config.Config, clientHost
 				require.NoError(t, client.DeclareQueue("test", client.PublishChannel))
 			},
 			teardown:   amqpTeardown,
-			validation: validateProtocolConnection(network.ProtocolUnknown),
+			validation: validateProtocolConnection(protocols.Unknown),
 		},
 		{
 			name: "publish",
@@ -1338,7 +1339,7 @@ func testAMQPProtocolClassification(t *testing.T, cfg *config.Config, clientHost
 				require.NoError(t, client.Publish("test", "my msg"))
 			},
 			teardown:   amqpTeardown,
-			validation: validateProtocolConnection(network.ProtocolAMQP),
+			validation: validateProtocolConnection(protocols.AMQP),
 		},
 		{
 			name: "consume",
@@ -1366,7 +1367,7 @@ func testAMQPProtocolClassification(t *testing.T, cfg *config.Config, clientHost
 				require.Equal(t, []string{"my msg"}, res)
 			},
 			teardown:   amqpTeardown,
-			validation: validateProtocolConnection(network.ProtocolAMQP),
+			validation: validateProtocolConnection(protocols.AMQP),
 		},
 	}
 	for _, tt := range tests {
@@ -1431,7 +1432,7 @@ func testHTTPProtocolClassification(t *testing.T, cfg *config.Config, clientHost
 				defer cancel()
 				_ = srv.Shutdown(timedContext)
 			},
-			validation: validateProtocolConnection(network.ProtocolHTTP),
+			validation: validateProtocolConnection(protocols.HTTP),
 		},
 	}
 	for _, tt := range tests {
@@ -1475,7 +1476,7 @@ func testHTTP2ProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				defer cancel()
 				require.NoError(t, c.HandleUnary(timedContext, "test"))
 			},
-			validation: validateProtocolConnection(network.ProtocolHTTP2),
+			validation: validateProtocolConnection(protocols.HTTP2),
 		},
 		{
 			name: "http2 traffic using gRPC - stream call",
@@ -1494,7 +1495,7 @@ func testHTTP2ProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				defer cancel()
 				require.NoError(t, c.HandleStream(timedContext, 5))
 			},
-			validation: validateProtocolConnection(network.ProtocolHTTP2),
+			validation: validateProtocolConnection(protocols.HTTP2),
 		},
 	}
 	for _, tt := range tests {
@@ -1544,7 +1545,7 @@ func testEdgeCasesProtocolClassification(t *testing.T, cfg *config.Config, clien
 				defer c.Close()
 			},
 			teardown:   teardown,
-			validation: validateProtocolConnection(network.ProtocolUnknown),
+			validation: validateProtocolConnection(protocols.Unknown),
 		},
 		{
 			name: "tcp client with sending random data",
@@ -1576,7 +1577,7 @@ func testEdgeCasesProtocolClassification(t *testing.T, cfg *config.Config, clien
 				io.ReadAll(c)
 			},
 			teardown:   teardown,
-			validation: validateProtocolConnection(network.ProtocolUnknown),
+			validation: validateProtocolConnection(protocols.Unknown),
 		},
 		{
 			// A case where we see multiple protocols on the same socket. In that case, we expect to classify the connection
@@ -1614,7 +1615,7 @@ func testEdgeCasesProtocolClassification(t *testing.T, cfg *config.Config, clien
 				io.ReadAll(c)
 			},
 			teardown:   teardown,
-			validation: validateProtocolConnection(network.ProtocolHTTP),
+			validation: validateProtocolConnection(protocols.HTTP),
 		},
 	}
 	for _, tt := range tests {
@@ -1642,7 +1643,7 @@ func testProtocolClassificationInner(t *testing.T, params protocolClassification
 	params.validation(t, params.context, tr)
 }
 
-func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, serverAddr string, expectedProtocol network.ProtocolType) {
+func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, serverAddr string, expectedProtocol protocols.ProtocolType) {
 	var incomingConns, outgoingConns []network.ConnectionStats
 
 	foundIncomingWithProtocol := false
@@ -1662,14 +1663,14 @@ func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, server
 
 		for _, conn := range newOutgoingConns {
 			t.Logf("Found outgoing connection %v", conn)
-			if conn.Protocol == expectedProtocol {
+			if conn.ProtocolStack.Contains(expectedProtocol) {
 				foundOutgoingWithProtocol = true
 				break
 			}
 		}
 		for _, conn := range newIncomingConns {
 			t.Logf("Found incoming connection %v", conn)
-			if conn.Protocol == expectedProtocol {
+			if conn.ProtocolStack.Contains(expectedProtocol) {
 				foundIncomingWithProtocol = true
 				break
 			}
