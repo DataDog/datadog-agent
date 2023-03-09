@@ -3,9 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build serverless
-// +build serverless
-
 package httpsec_test
 
 import (
@@ -19,12 +16,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestLifecycleSubProcessor(t *testing.T) {
 	t.Setenv("DD_SERVERLESS_APPSEC_ENABLED", "true")
-	asm, err := appsec.New()
+	asm, _, err := appsec.New()
 	if err != nil {
 		t.Skipf("appsec disabled: %v", err)
 	}
@@ -35,7 +33,7 @@ func TestLifecycleSubProcessor(t *testing.T) {
 		ProcessTrace: func(payload *api.Payload) {
 			tracedPayload = payload
 		},
-		SubProcessor: httpsec.NewInvocationSubProcessor(asm),
+		SubProcessor: asm,
 	}
 
 	t.Run("api-gateway", func(t *testing.T) {
@@ -85,4 +83,20 @@ func getEventFromFile(filename string) []byte {
 	buf.Write(event)
 	buf.WriteString("0")
 	return buf.Bytes()
+}
+
+func TestInvocationSubProcessorNilInterface(t *testing.T) {
+	lp := &invocationlifecycle.LifecycleProcessor{
+		DetectLambdaLibrary: func() bool { return true },
+		SubProcessor:        (*httpsec.InvocationSubProcessor)(nil),
+	}
+
+	assert.True(t, lp.SubProcessor != nil)
+
+	lp.OnInvokeStart(&invocationlifecycle.InvocationStartDetails{
+		InvokeEventRawPayload: []byte(
+			`{"requestcontext":{"stage":"purple"},"httpmethod":"purple","resource":"purple"}`),
+	})
+
+	lp.OnInvokeEnd(&invocationlifecycle.InvocationEndDetails{})
 }
