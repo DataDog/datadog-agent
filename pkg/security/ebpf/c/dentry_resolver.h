@@ -115,8 +115,6 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
     struct qstr qstr;
     struct dentry *dentry = input->dentry;
     struct dentry *d_parent = NULL;
-    struct inode *d_inode = NULL;
-    int segment_len = 0;
 
     u32 zero = 0;
     struct is_discarded_by_inode_t *params = bpf_map_lookup_elem(&is_discarded_by_inode_gen, &zero);
@@ -139,8 +137,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
 
         key = next_key;
         if (dentry != d_parent) {
-            write_dentry_inode(d_parent, &d_inode);
-            write_inode_ino(d_inode, &next_key.ino);
+            next_key.ino = get_dentry_ino(d_parent);
         } else {
             next_key.ino = 0;
             next_key.mount_id = 0;
@@ -161,12 +158,12 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
         }
 
         bpf_probe_read(&qstr, sizeof(qstr), &dentry->d_name);
-        segment_len = bpf_probe_read_str(&map_value.name, sizeof(map_value.name), (void *)qstr.name);
-        if (segment_len > 0) {
-            map_value.len = (u16) segment_len;
-        } else {
-            map_value.len = 0;
+
+        long len = bpf_probe_read_str(&map_value.name, sizeof(map_value.name), (void *)qstr.name);
+        if (len < 0) {
+            len = 0;
         }
+        map_value.len = len;
 
         if (map_value.name[0] == '/' || map_value.name[0] == 0) {
             map_value.name[0] = '/';
