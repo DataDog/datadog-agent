@@ -34,10 +34,12 @@ GITHUB_SLACK_MAP = {
 
 def read_owners(owners_file):
     from codeowners import CodeOwners
+
     with open(owners_file, 'r') as f:
         return CodeOwners(f.read())
 
-def check_owners_slack(print_missing_teams=False,owners_file=".github/CODEOWNERS"):
+
+def check_owners_slack(print_missing_teams=False, owners_file=".github/CODEOWNERS"):
     owners = read_owners(owners_file)
     slack_teams = list(GITHUB_SLACK_MAP.keys())
     error = False
