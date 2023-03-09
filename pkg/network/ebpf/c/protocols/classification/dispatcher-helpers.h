@@ -112,6 +112,16 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
 
     if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
         // dispatch if possible
+        const u32 zero = 0;
+        dispatcher_arguments_t *args = bpf_map_lookup_elem(&dispatcher_arguments, &zero);
+        if (args == NULL) {
+            log_debug("dispatcher failed to save arguments for tail call\n");
+            return;
+        }
+        bpf_memset(args, 0, sizeof(dispatcher_arguments_t));
+        bpf_memcpy(&args->tup, &skb_tup, sizeof(conn_tuple_t));
+        bpf_memcpy(&args->skb_info, &skb_info, sizeof(skb_info_t));
+
         log_debug("dispatching to protocol number: %d\n", cur_fragment_protocol);
         bpf_tail_call_compat(skb, &protocols_progs, cur_fragment_protocol);
     }
@@ -143,6 +153,18 @@ static __always_inline void dispatch_kafka(struct __sk_buff *skb) {
         bpf_tail_call_compat(skb, &protocols_progs, cur_fragment_protocol);
     }
     return;
+}
+
+static __always_inline bool fetch_dispatching_arguments(conn_tuple_t *tup, skb_info_t *skb_info) {
+    const __u32 zero = 0;
+    dispatcher_arguments_t *args = bpf_map_lookup_elem(&dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return false;
+    }
+    bpf_memcpy(tup, &args->tup, sizeof(conn_tuple_t));
+    bpf_memcpy(skb_info, &args->skb_info, sizeof(skb_info_t));
+
+    return true;
 }
 
 #endif

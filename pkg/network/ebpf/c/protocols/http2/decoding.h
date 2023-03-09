@@ -89,7 +89,7 @@ static __always_inline void set_dynamic_counter(conn_tuple_t *tup, __u64 counter
 }
 
 // parse_field_indexed is handling the case which the header frame is part of the static table.
-static __always_inline parse_result_t parse_field_indexed(http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __u32 stream_id, heap_buffer_t *heap_buffer){
+static __always_inline parse_result_t parse_field_indexed(dispatcher_arguments_t *iterations_key, http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __u32 stream_id, heap_buffer_t *heap_buffer){
     __u8 index = 0;
     if (!read_var_int(heap_buffer, 7, &index, stream_id)) {
         return HEADER_ERROR;
@@ -123,7 +123,7 @@ static __always_inline parse_result_t parse_field_indexed(http2_iterations_key_t
 
 // parse_field_literal handling the case when the key is part of the static table and the value is a dynamic string
 // which will be stored in the dynamic table.
-static __always_inline parse_result_t parse_field_literal(http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __u32 stream_id, heap_buffer_t *heap_buffer){
+static __always_inline parse_result_t parse_field_literal(dispatcher_arguments_t *iterations_key, http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __u32 stream_id, heap_buffer_t *heap_buffer){
     __u64 counter = get_dynamic_counter(&iterations_key->tup);
     counter++;
     set_dynamic_counter(&iterations_key->tup, counter);
@@ -190,7 +190,7 @@ static __always_inline parse_result_t parse_field_literal(http2_iterations_key_t
 }
 
 // This function reads the http2 headers frame.
-static __always_inline __u8 filter_relevant_headers(http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __u32 stream_id, heap_buffer_t *heap_buffer) {
+static __always_inline __u8 filter_relevant_headers(dispatcher_arguments_t *iterations_key, http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __u32 stream_id, heap_buffer_t *heap_buffer) {
     char current_ch;
     __u16 offset = 0;
     __u8 interesting_headers = 0;
@@ -385,7 +385,7 @@ static __always_inline void handle_end_of_stream(frame_type_t type, http2_stream
     bpf_map_delete_elem(&http2_in_flight, http2_stream_key_template);
 }
 
-static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx, struct http2_frame *current_frame_header) {
+static __always_inline void process_headers_frame(struct __sk_buff *skb, dispatcher_arguments_t *iterations_key, http2_ctx_t *http2_ctx, struct http2_frame *current_frame_header) {
     const __u32 zero = 0;
 
     // Allocating a buffer on the heap (percpu array), the buffer represents the frame payload.
@@ -419,7 +419,7 @@ static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_i
     }
 }
 
-static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, http2_iterations_key_t *iterations_key, http2_ctx_t *http2_ctx) {
+static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, dispatcher_arguments_t *iterations_key, http2_ctx_t *http2_ctx) {
     __u32 offset = iterations_key->skb_info.data_off;
     // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb.
     if (offset + HTTP2_FRAME_HEADER_SIZE > skb->len) {
@@ -464,6 +464,72 @@ static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, http2_itera
 
 end:
     return HTTP2_FRAME_HEADER_SIZE + current_frame.length;
+}
+
+SEC("socket/http2_filter")
+int socket__http2_filter(struct __sk_buff *skb) {
+    const __u32 zero = 0;
+    dispatcher_arguments_t *args = bpf_map_lookup_elem(&dispatcher_arguments, &zero);
+    if (args == NULL) {
+        log_debug("http2_filter failed to fetch arguments for tail call\n");
+        return 0;
+    }
+    dispatcher_arguments_t iterations_key;
+    bpf_memcpy(&iterations_key, args, sizeof(dispatcher_arguments_t));
+
+    // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
+    // processing into multiple tail calls, where each tail call process a single frame. We must have context when
+    // we are processing the frames, for example, to know how many bytes have we read in the packet, or it we reached
+    // to the maximum number of frames we can process. For that we are checking if the iteration context already exists.
+    // If not, creating a new one to be used for further processing
+    http2_tail_call_state_t *tail_call_state = bpf_map_lookup_elem(&http2_iterations, &iterations_key);
+    if (tail_call_state == NULL) {
+        http2_tail_call_state_t iteration_value = {};
+        bpf_map_update_with_telemetry(http2_iterations, &iterations_key, &iteration_value, BPF_NOEXIST);
+        tail_call_state = bpf_map_lookup_elem(&http2_iterations, &iterations_key);
+        if (tail_call_state == NULL) {
+            return 0;
+        }
+    }
+
+    // If we detected a tcp termination we should stop processing the packet, and clear its dynamic table by deleting the counter.
+    if (is_tcp_termination(&iterations_key.skb_info)) {
+        bpf_map_delete_elem(&http2_dynamic_counter_table, &iterations_key.tup);
+        goto delete_iteration;
+    }
+
+    http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_ctx_heap, &zero);
+    if (http2_ctx == NULL) {
+        goto delete_iteration;
+    }
+
+    // create the http2 ctx for the current http2 frame.
+    bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
+    http2_ctx->http2_stream_key.tup = iterations_key.tup;
+    normalize_tuple(&http2_ctx->http2_stream_key.tup);
+    http2_ctx->dynamic_index.tup = iterations_key.tup;
+    iterations_key.skb_info.data_off += tail_call_state->offset;
+
+    // perform the http2 decoding part.
+    __u32 read_size = http2_entrypoint(skb, &iterations_key, http2_ctx);
+    if (read_size <= 0 || read_size == -1) {
+        goto delete_iteration;
+    }
+    if (iterations_key.skb_info.data_off + read_size >= skb->len) {
+        goto delete_iteration;
+    }
+
+    // update the tail calls state when the http2 decoding part was completed successfully.
+    tail_call_state->iteration += 1;
+    tail_call_state->offset += read_size;
+    if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS) {
+        bpf_tail_call_compat(skb, &protocols_progs, PROTOCOL_HTTP2);
+    }
+
+delete_iteration:
+    bpf_map_delete_elem(&http2_iterations, &iterations_key);
+
+    return 0;
 }
 
 #endif

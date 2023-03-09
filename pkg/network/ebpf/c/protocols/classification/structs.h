@@ -17,4 +17,9 @@ typedef struct {
     __s32 req_id;
 } mongo_key;
 
+typedef struct {
+    conn_tuple_t tup;
+    skb_info_t skb_info;
+} dispatcher_arguments_t;
+
 #endif
