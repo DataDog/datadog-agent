@@ -64,11 +64,18 @@ int socket__http_filter(struct __sk_buff* skb) {
 
 SEC("socket/http2_filter")
 int socket__http2_filter(struct __sk_buff *skb) {
-    http2_iterations_key_t iterations_key;
-    bpf_memset(&iterations_key, 0, sizeof(http2_iterations_key_t));
-    if (!read_conn_tuple_skb(skb, &iterations_key.skb_info, &iterations_key.tup)) {
+    const u32 zero = 0;
+    dispatcher_arguments_t *args = bpf_map_lookup_elem(&dispatcher_arguments, &zero);
+    if (args == NULL) {
         return 0;
     }
+    // Copying as old kernels rejects bpf_map_* calls with `map value`.
+    dispatcher_arguments_t iterations_key = *args;
+//    http2_iterations_key_t iterations_key;
+//    bpf_memset(&iterations_key, 0, sizeof(http2_iterations_key_t));
+//    if (!read_conn_tuple_skb(skb, &iterations_key.skb_info, &iterations_key.tup)) {
+//        return 0;
+//    }
 
     // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
     // processing into multiple tail calls, where each tail call process a single frame. We must have context when
@@ -91,26 +98,22 @@ int socket__http2_filter(struct __sk_buff *skb) {
         goto delete_iteration;
     }
 
-    const __u32 zero = 0;
-    http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_ctx_heap, &zero);
-    if (http2_ctx == NULL) {
-        goto delete_iteration;
-    }
-
+//    http2_ctx_t http2_ctx = {};
+//
     // create the http2 ctx for the current http2 frame.
-    bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
-    http2_ctx->http2_stream_key.tup = iterations_key.tup;
-    normalize_tuple(&http2_ctx->http2_stream_key.tup);
-    http2_ctx->dynamic_index.tup = iterations_key.tup;
-    iterations_key.skb_info.data_off = tail_call_state->offset;
+//    bpf_memset(&http2_ctx, 0, sizeof(http2_ctx_t));
+//    http2_ctx.http2_stream_key.tup = iterations_key.tup;
+//    normalize_tuple(&http2_ctx.http2_stream_key.tup);
+//    http2_ctx.dynamic_index.tup = iterations_key.tup;
+//    iterations_key.skb_info.data_off = tail_call_state->offset;
 
     // perform the http2 decoding part.
-    if (!http2_entrypoint(skb, &iterations_key.skb_info, &iterations_key.tup, http2_ctx)) {
-        goto delete_iteration;
-    }
-    if (iterations_key.skb_info.data_off >= skb->len) {
-        goto delete_iteration;
-    }
+//    if (!http2_entrypoint(skb, &iterations_key.skb_info, &iterations_key.tup, &http2_ctx)) {
+//        goto delete_iteration;
+//    }
+//    if (iterations_key.skb_info.data_off >= skb->len) {
+//        goto delete_iteration;
+//    }
 
     // update the tail calls state when the http2 decoding part was completed successfully.
     tail_call_state->iteration++;

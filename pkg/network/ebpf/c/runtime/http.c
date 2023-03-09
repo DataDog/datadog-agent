@@ -93,21 +93,17 @@ int socket__http2_filter(struct __sk_buff *skb) {
         goto delete_iteration;
     }
 
-    const __u32 zero = 0;
-    http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_ctx_heap, &zero);
-    if (http2_ctx == NULL) {
-        goto delete_iteration;
-    }
+    http2_ctx_t http2_ctx = {};
 
     // create the http2 ctx for the current http2 frame.
-    bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
-    http2_ctx->http2_stream_key.tup = iterations_key.tup;
-    normalize_tuple(&http2_ctx->http2_stream_key.tup);
-    http2_ctx->dynamic_index.tup = iterations_key.tup;
+    bpf_memset(&http2_ctx, 0, sizeof(http2_ctx_t));
+    http2_ctx.http2_stream_key.tup = iterations_key.tup;
+    normalize_tuple(&http2_ctx.http2_stream_key.tup);
+    http2_ctx.dynamic_index.tup = iterations_key.tup;
     iterations_key.skb_info.data_off = tail_call_state->offset;
 
     // perform the http2 decoding part.
-    if (!http2_entrypoint(skb, &iterations_key.skb_info, &iterations_key.tup, http2_ctx)) {
+    if (!http2_entrypoint(skb, &iterations_key.skb_info, &iterations_key.tup, &http2_ctx)) {
         goto delete_iteration;
     }
     if (iterations_key.skb_info.data_off >= skb->len) {

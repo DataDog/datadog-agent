@@ -25,4 +25,12 @@ BPF_PROG_ARRAY(protocols_progs, MAX_PROTOCOLS)
 // by using tail call.
 BPF_PROG_ARRAY(dispatcher_classification_progs, DISPATCHER_PROG_MAX)
 
+
+typedef struct {
+    conn_tuple_t tup;
+    skb_info_t skb_info;
+} dispatcher_arguments_t;
+
+BPF_PERCPU_ARRAY_MAP(dispatcher_arguments, __u32, dispatcher_arguments_t, 1)
+
 #endif

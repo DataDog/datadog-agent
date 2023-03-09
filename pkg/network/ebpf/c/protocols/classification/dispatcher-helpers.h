@@ -113,6 +113,12 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
     if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
         // dispatch if possible
         log_debug("dispatching to protocol number: %d\n", cur_fragment_protocol);
+        const u32 zero = 0;
+        dispatcher_arguments_t *args = bpf_map_lookup_elem(&dispatcher_arguments, &zero);
+        if (args != NULL) {
+            bpf_memcpy(&args->tup, &skb_tup, sizeof(conn_tuple_t));
+            bpf_memcpy(&args->skb_info, &skb_info, sizeof(skb_info_t));
+        }
         bpf_tail_call_compat(skb, &protocols_progs, cur_fragment_protocol);
     }
 }
