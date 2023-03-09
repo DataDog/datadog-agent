@@ -6,15 +6,14 @@
 package oracle
 
 import (
-	"context"
 	"fmt"
+	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	_ "github.com/godror/godror"
@@ -45,6 +44,7 @@ func (c *Check) Run() error {
 		sender.Gauge("oracle.helloworld", 10, "", nil)
 		sender.Commit()
 	*/
+
 	if c.db == nil {
 		db, err := c.Connect()
 		if err != nil {
@@ -58,8 +58,9 @@ func (c *Check) Run() error {
 		if c.config.InstanceConfig.ReportedHostname != "" {
 			c.hostname = c.config.InstanceConfig.ReportedHostname
 		} else {
-			hostname, err := hostname.Get(context.TODO())
+			hostname, err := os.Hostname()
 			if err != nil {
+				fmt.Printf("FAILED: %s", err)
 				return fmt.Errorf("failed to get hostname: %w", err)
 			}
 			c.hostname = hostname
