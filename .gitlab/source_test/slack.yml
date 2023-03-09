@@ -1,0 +1,7 @@
+---
+.slack_teams_channels:
+  stage: source_test
+  script:
+    - inv -e pipeline.check-notify-teams
+
+

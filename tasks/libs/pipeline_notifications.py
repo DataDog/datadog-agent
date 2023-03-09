@@ -34,9 +34,21 @@ GITHUB_SLACK_MAP = {
 
 def read_owners(owners_file):
     from codeowners import CodeOwners
-
     with open(owners_file, 'r') as f:
         return CodeOwners(f.read())
+
+def check_owners_slack(print_missing_teams=False,owners_file=".github/CODEOWNERS"):
+    owners = read_owners(owners_file)
+    slack_teams = list(GITHUB_SLACK_MAP.keys())
+    error = False
+    for path in owners.paths:
+        if not path[2] or path[2][0][0] != "TEAM":
+            continue
+        if path[2][0][1] not in slack_teams:
+            if print_missing_teams:
+                print(f"The team {path[2][0][1]} doesn't have a slack team assigned !!")
+            error = True
+    return error
 
 
 def get_failed_tests(project_name, job, owners_file=".github/CODEOWNERS"):

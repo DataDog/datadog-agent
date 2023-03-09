@@ -20,6 +20,7 @@ from .libs.pipeline_notifications import (
     find_job_owners,
     get_failed_tests,
     send_slack_message,
+    check_owners_slack,
 )
 from .libs.pipeline_stats import get_failed_jobs_stats
 from .libs.pipeline_tools import (
@@ -419,6 +420,11 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
 
         print("Child pipeline finished successfully")
 
+@task
+def check_notify_teams(_, print_to_stdout=False):
+    if check_owners_slack(print_missing_teams=print_to_stdout):
+        Exit(f"Error: Some teams in CODEOWNERS don't have their slack notification channel specified !!", code=1)
+    print("All CODEOWNERS teams have their slack notification channel specified !")
 
 @task
 def notify(_, notification_type="merge", print_to_stdout=False):
