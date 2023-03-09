@@ -251,8 +251,11 @@ func (s *checkSender) sendMetricSample(
 		NoIndex:         noIndex,
 		Source:          metrics.CheckNameToMetricSource(check.IDToCheckName(s.id)),
 	}
-	if metricSample.Source == metrics.MetricSourceUnknown {
-		log.Warnf("Did not find MetricSource for metric %q emitted from check name: %q", metric, check.IDToCheckName(s.id))
+
+	var agentTelemetryCheckName check.ID
+	// The metricSource is only set for checks from `integrations-internal`, all others will be "Unknown"
+	if metricSample.Source == metrics.MetricSourceUnknown && s.id != agentTelemetryCheckName {
+		log.Tracef("Did not find MetricSource for metric %q emitted from check name: %q", metric, check.IDToCheckName(s.id))
 	}
 
 	if hostname == "" && !s.defaultHostnameDisabled {
