@@ -114,7 +114,8 @@ func TestClient(t *testing.T) {
 		metrics, err := client.FilterMetrics("snmp.sysUpTimeInstance",
 			WithTags[*aggregator.MetricSeries]([]string{"snmp_device:172.25.0.3", "snmp_profile:generic-router"}),
 			WithMetricValueHigherThan(4226040),
-			WithMetricValueLowerThan(4226042))
+			WithMetricValueLowerThan(4226042),
+			WithMetricValueInRange(4226000, 4226050))
 		assert.NoError(t, err)
 		assert.NotEmpty(t, metrics)
 	})

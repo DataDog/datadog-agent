@@ -116,10 +116,20 @@ func WithTags[P aggregator.PayloadItem](tags []string) MatchOpt[P] {
 	}
 }
 
-func WithMetricValueLowerThan(minValue float64) MatchOpt[*aggregator.MetricSeries] {
+func WithMetricValueInRange(minValue float64, maxValue float64) MatchOpt[*aggregator.MetricSeries] {
+	return func(metric *aggregator.MetricSeries) error {
+		err := WithMetricValueHigherThan(minValue)(metric)
+		if err != nil {
+			return err
+		}
+		return WithMetricValueLowerThan(maxValue)(metric)
+	}
+}
+
+func WithMetricValueLowerThan(maxValue float64) MatchOpt[*aggregator.MetricSeries] {
 	return func(metric *aggregator.MetricSeries) error {
 		for _, point := range metric.Points {
-			if point.Value < minValue {
+			if point.Value < maxValue {
 				return nil
 			}
 		}
@@ -128,10 +138,10 @@ func WithMetricValueLowerThan(minValue float64) MatchOpt[*aggregator.MetricSerie
 	}
 }
 
-func WithMetricValueHigherThan(maxValue float64) MatchOpt[*aggregator.MetricSeries] {
+func WithMetricValueHigherThan(minValue float64) MatchOpt[*aggregator.MetricSeries] {
 	return func(metric *aggregator.MetricSeries) error {
 		for _, point := range metric.Points {
-			if point.Value > maxValue {
+			if point.Value > minValue {
 				return nil
 			}
 		}
