@@ -124,6 +124,18 @@ func (fh *FieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerC
 	return e.ID
 }
 
+// ResolveContainerCreatedAt resolves the container creation time of the event
+func (fh *FieldHandlers) ResolveContainerCreatedAt(ev *model.Event, e *model.ContainerContext) int {
+	if e.CreatedAt == 0 {
+		if entry, _ := fh.ResolveProcessCacheEntry(ev); entry != nil && entry.ContainerID != "" {
+			if cgroup, _ := fh.resolvers.CGroupResolver.GetWorkload(entry.ContainerID); cgroup != nil {
+				e.CreatedAt = cgroup.CreationTime
+			}
+		}
+	}
+	return int(e.CreatedAt)
+}
+
 // ResolveContainerTags resolves the container tags of the event
 func (fh *FieldHandlers) ResolveContainerTags(ev *model.Event, e *model.ContainerContext) []string {
 	if len(e.Tags) == 0 && e.ID != "" {
@@ -411,9 +423,12 @@ func (fh *FieldHandlers) ResolvePackageName(ev *model.Event, f *model.FileEvent)
 			return ""
 		}
 
+		if fh.resolvers.SBOMResolver == nil {
+			return ""
+		}
+
 		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessCacheEntry.ContainerID, f); pkg != nil {
 			f.PkgName = pkg.Name
-			f.PkgVersion = pkg.Version
 		}
 	}
 	return f.PkgName
@@ -427,10 +442,32 @@ func (fh *FieldHandlers) ResolvePackageVersion(ev *model.Event, f *model.FileEve
 			return ""
 		}
 
+		if fh.resolvers.SBOMResolver == nil {
+			return ""
+		}
+
 		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessCacheEntry.ContainerID, f); pkg != nil {
-			f.PkgName = pkg.Name
 			f.PkgVersion = pkg.Version
 		}
 	}
 	return f.PkgVersion
+}
+
+// ResolvePackageSourceVersion resolves the version of the source package of the package providing this file
+func (fh *FieldHandlers) ResolvePackageSourceVersion(ev *model.Event, f *model.FileEvent) string {
+	if f.PkgSrcVersion == "" {
+		// Force the resolution of file path to be able to map to a package provided file
+		if fh.ResolveFilePath(ev, f) == "" {
+			return ""
+		}
+
+		if fh.resolvers.SBOMResolver == nil {
+			return ""
+		}
+
+		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessCacheEntry.ContainerID, f); pkg != nil {
+			f.PkgSrcVersion = pkg.SrcVersion
+		}
+	}
+	return f.PkgSrcVersion
 }

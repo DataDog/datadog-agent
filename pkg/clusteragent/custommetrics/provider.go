@@ -29,8 +29,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const externalMetricsMaxBackoff = 32 * time.Second
-const externalMetricsBaseBackoff = 1 * time.Second
+const (
+	externalMetricsMaxBackoff  = 32 * time.Second
+	externalMetricsBaseBackoff = 1 * time.Second
+)
+
+var fakeExternalMetric = provider.ExternalMetricInfo{
+	Metric: "noexternalmetric",
+}
 
 type externalMetric struct {
 	info  provider.ExternalMetricInfo
@@ -151,12 +157,16 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 	for _, metric := range p.externalMetrics {
 		externalMetricsInfoList = append(externalMetricsInfoList, metric.info)
 	}
+	// Workaround for https://github.com/kubernetes-sigs/custom-metrics-apiserver/issues/146
+	// In any, HPA does not use `List` endpoint
+	if len(externalMetricsInfoList) == 0 {
+		externalMetricsInfoList = append(externalMetricsInfoList, fakeExternalMetric)
+	}
 	return externalMetricsInfoList
 }
 
 // GetExternalMetric is called by the Autoscaler Controller to get the value of the external metric it is currently evaluating.
 func (p *datadogProvider) GetExternalMetric(_ context.Context, namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
-
 	if !p.isServing || time.Now().Unix()-p.timestamp > 2*p.maxAge {
 		return nil, fmt.Errorf("external metrics invalid")
 	}

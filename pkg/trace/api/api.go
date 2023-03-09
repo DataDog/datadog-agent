@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -88,7 +87,7 @@ type HTTPReceiver struct {
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
 func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan *Payload, statsProcessor StatsProcessor, telemetryCollector telemetry.TelemetryCollector) *HTTPReceiver {
 	rateLimiterResponse := http.StatusOK
-	if features.Has("429") {
+	if conf.HasFeature("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
 	}
 	return &HTTPReceiver{
@@ -338,7 +337,7 @@ func (r *HTTPReceiver) tagStats(v Version, httpHeader http.Header) *info.TagStat
 func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats, cIDProvider IDProvider) (tp *pb.TracerPayload, ranHook bool, err error) {
 	switch v {
 	case v01:
-		var spans []*pb.Span
+		var spans []pb.Span
 		if err = json.NewDecoder(req.Body).Decode(&spans); err != nil {
 			return nil, false, err
 		}
@@ -734,11 +733,11 @@ func decodeRequest(req *http.Request, dest *pb.Traces) (ranHook bool, err error)
 	}
 }
 
-func traceChunksFromSpans(spans []*pb.Span) []*pb.TraceChunk {
+func traceChunksFromSpans(spans []pb.Span) []*pb.TraceChunk {
 	traceChunks := []*pb.TraceChunk{}
 	byID := make(map[uint64][]*pb.Span)
 	for _, s := range spans {
-		byID[s.TraceID] = append(byID[s.TraceID], s)
+		byID[s.TraceID] = append(byID[s.TraceID], &s)
 	}
 	for _, t := range byID {
 		traceChunks = append(traceChunks, &pb.TraceChunk{

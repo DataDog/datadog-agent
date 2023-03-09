@@ -15,7 +15,6 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/aquasecurity/trivy/pkg/fanal/cache"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 	"k8s.io/utils/temp"
@@ -94,7 +93,6 @@ type Resolver struct {
 	sbomsCacheLock sync.RWMutex
 	sbomsCache     *simplelru.LRU[string, *SBOM]
 	scannerChan    chan *SBOM
-	config         *config.Config
 	statsdClient   statsd.ClientInterface
 	trivyScanner   trivy.Collector
 
@@ -111,14 +109,11 @@ type Resolver struct {
 
 // NewSBOMResolver returns a new instance of Resolver
 func NewSBOMResolver(c *config.Config, tagsResolver *tags.Resolver, statsdClient statsd.ClientInterface) (*Resolver, error) {
-	trivyConfiguration := trivy.DefaultCollectorConfig([]string{trivy.OSAnalyzers}, "")
-	trivyConfiguration.CacheProvider = func() (cache.Cache, error) {
-		tmpDir, err := temp.CreateTempDir("sbom-resolver")
-		if err != nil {
-			return nil, err
-		}
-		return cache.NewFSCache(tmpDir.Name)
+	tmpDir, err := temp.CreateTempDir("sbom-resolver")
+	if err != nil {
+		return nil, err
 	}
+	trivyConfiguration := trivy.DefaultCollectorConfig([]string{trivy.OSAnalyzers}, tmpDir.Name)
 	trivyConfiguration.ClearCacheOnClose = true
 	trivyConfiguration.ArtifactOption.Slow = false
 
@@ -133,7 +128,6 @@ func NewSBOMResolver(c *config.Config, tagsResolver *tags.Resolver, statsdClient
 	}
 
 	resolver := &Resolver{
-		config:                c,
 		statsdClient:          statsdClient,
 		sboms:                 make(map[string]*SBOM),
 		sbomsCache:            sbomsCache,
@@ -180,10 +174,6 @@ func (r *Resolver) prepareContextTags() {
 
 // Start starts the goroutine of the SBOM resolver
 func (r *Resolver) Start(ctx context.Context) {
-	if !r.config.SBOMResolverEnabled {
-		return
-	}
-
 	go func() {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
@@ -272,8 +262,9 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 	for _, result := range sbom.report.Results {
 		for _, resultPkg := range result.Packages {
 			pkg := &Package{
-				Name:    resultPkg.Name,
-				Version: resultPkg.Version,
+				Name:       resultPkg.Name,
+				Version:    resultPkg.Version,
+				SrcVersion: resultPkg.SrcVersion,
 			}
 			for _, file := range resultPkg.SystemInstalledFiles {
 				seclog.Tracef("indexing %s as %+v", file, pkg)
@@ -292,38 +283,9 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 	return nil
 }
 
-// RefreshSBOM analyzes the file system of a sbom to refresh its SBOM.
-func (r *Resolver) RefreshSBOM(id string, cgroup *cgroupModel.CacheEntry) error {
-	if !r.config.SBOMResolverEnabled {
-		return nil
-	}
-
-	r.sbomsLock.Lock()
-	defer r.sbomsLock.Unlock()
-	sbom, ok := r.sboms[id]
-	if !ok {
-		var err error
-		sbom, err = r.newWorkloadEntry(id, cgroup)
-		if err != nil {
-			return err
-		}
-	}
-
-	// push sbom to the scanner chan
-	select {
-	case r.scannerChan <- sbom:
-	default:
-	}
-	return nil
-}
-
 // ResolvePackage returns the Package that owns the provided file. Make sure the internal fields of "file" are properly
 // resolved.
 func (r *Resolver) ResolvePackage(containerID string, file *model.FileEvent) *Package {
-	if !r.config.SBOMResolverEnabled {
-		return nil
-	}
-
 	r.sbomsLock.RLock()
 	defer r.sbomsLock.RUnlock()
 	sbom, ok := r.sboms[containerID]
@@ -394,10 +356,6 @@ func (r *Resolver) OnWorkloadSelectorResolvedEvent(sbom *cgroupModel.CacheEntry)
 
 // Retain increments the reference counter of the SBOM of a sbom
 func (r *Resolver) Retain(id string, cgroup *cgroupModel.CacheEntry) {
-	if !r.config.SBOMResolverEnabled {
-		return
-	}
-
 	r.sbomsLock.Lock()
 	defer r.sbomsLock.Unlock()
 
@@ -432,10 +390,6 @@ func (r *Resolver) OnCGroupDeletedEvent(sbom *cgroupModel.CacheEntry) {
 
 // Delete removes the SBOM of the provided cgroup
 func (r *Resolver) Delete(id string) {
-	if !r.config.SBOMResolverEnabled {
-		return
-	}
-
 	sbom := r.GetWorkload(id)
 	if sbom == nil {
 		return
