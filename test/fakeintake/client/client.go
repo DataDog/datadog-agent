@@ -7,6 +7,7 @@ package client
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -103,45 +104,39 @@ func (c *Client) GetMetric(name string) ([]*aggregator.MetricSeries, error) {
 	return c.metricAggregator.GetPayloadsByName(name), nil
 }
 
-type MatchOpt[P aggregator.PayloadItem] func(payloads []P) []P
+type MatchOpt[P aggregator.PayloadItem] func(payload P) error
 
 func WithTags[P aggregator.PayloadItem](tags []string) MatchOpt[P] {
-	return func(payloads []P) []P {
-		var ret []P
-		for _, payload := range payloads {
-			if aggregator.AreTagsSubsetOfOtherTags(tags, payload.GetTags()) {
-				ret = append(ret, payload)
-			}
+	return func(payload P) error {
+		if aggregator.AreTagsSubsetOfOtherTags(tags, payload.GetTags()) {
+			return nil
 		}
-		return ret
+		// TODO return similarity error score
+		return errors.New("tags not found")
 	}
 }
 
 func WithMetricValueLowerThan(minValue float64) MatchOpt[*aggregator.MetricSeries] {
-	return func(metrics []*aggregator.MetricSeries) []*aggregator.MetricSeries {
-		var ret []*aggregator.MetricSeries
-		for _, metric := range metrics {
-			for _, point := range metric.Points {
-				if point.Value < minValue {
-					ret = append(ret, metric)
-				}
+	return func(metric *aggregator.MetricSeries) error {
+		for _, point := range metric.Points {
+			if point.Value < minValue {
+				return nil
 			}
 		}
-		return ret
+		// TODO return similarity error score
+		return errors.New("value higher than expected")
 	}
 }
 
 func WithMetricValueHigherThan(maxValue float64) MatchOpt[*aggregator.MetricSeries] {
-	return func(metrics []*aggregator.MetricSeries) []*aggregator.MetricSeries {
-		var ret []*aggregator.MetricSeries
-		for _, metric := range metrics {
-			for _, point := range metric.Points {
-				if point.Value > maxValue {
-					ret = append(ret, metric)
-				}
+	return func(metric *aggregator.MetricSeries) error {
+		for _, point := range metric.Points {
+			if point.Value > maxValue {
+				return nil
 			}
 		}
-		return ret
+		// TODO return similarity error score
+		return errors.New("value lower than expected")
 	}
 }
 
@@ -151,10 +146,21 @@ func (c *Client) FilterMetrics(name string, options ...MatchOpt[*aggregator.Metr
 		return nil, err
 	}
 	// apply filters one after the other
-	for _, matchOpt := range options {
-		metrics = matchOpt(metrics)
+	filteredMetrics := []*aggregator.MetricSeries{}
+	for _, metric := range metrics {
+		matchCount := 0
+		for _, matchOpt := range options {
+			err = matchOpt(metric)
+			if err != nil {
+				break
+			}
+			matchCount++
+		}
+		if matchCount == len(options) {
+			filteredMetrics = append(filteredMetrics, metric)
+		}
 	}
-	return metrics, nil
+	return filteredMetrics, nil
 }
 
 func (c *Client) GetLog(name string) ([]*aggregator.Log, error) {
@@ -166,31 +172,26 @@ func (c *Client) GetLog(name string) ([]*aggregator.Log, error) {
 }
 
 func WithMessageContaining(content string) MatchOpt[*aggregator.Log] {
-	return func(logs []*aggregator.Log) []*aggregator.Log {
-		var ret []*aggregator.Log
-		for _, log := range logs {
-			if strings.Contains(log.Message, content) {
-				ret = append(ret, log)
-			}
+	return func(log *aggregator.Log) error {
+		if strings.Contains(log.Message, content) {
+			return nil
 		}
-		return ret
+		// TODO return similarity score in error
+		return errors.New("log does not contain expcted content")
 	}
 }
 
 func WithMessageMatching(pattern string) MatchOpt[*aggregator.Log] {
-	return func(logs []*aggregator.Log) []*aggregator.Log {
-		var ret []*aggregator.Log
-		for _, log := range logs {
-			matched, err := regexp.MatchString(pattern, log.Message)
-			if err != nil {
-				fmt.Printf("error matching log message %s with pattern %s: %v", log.Message, pattern, err)
-				continue
-			}
-			if matched {
-				ret = append(ret, log)
-			}
+	return func(log *aggregator.Log) error {
+		matched, err := regexp.MatchString(pattern, log.Message)
+		if err != nil {
+			return err
 		}
-		return ret
+		if matched {
+			return nil
+		}
+		// TODO return similarity score in error
+		return errors.New("log does not match expected pattern")
 	}
 }
 
@@ -200,10 +201,21 @@ func (c *Client) FilterLogs(name string, options ...MatchOpt[*aggregator.Log]) (
 		return nil, err
 	}
 	// apply filters one after the other
-	for _, matchOpt := range options {
-		logs = matchOpt(logs)
+	filteredLogs := []*aggregator.Log{}
+	for _, log := range logs {
+		matchCount := 0
+		for _, matchOpt := range options {
+			err = matchOpt(log)
+			if err != nil {
+				break
+			}
+			matchCount++
+		}
+		if matchCount == len(options) {
+			filteredLogs = append(filteredLogs, log)
+		}
 	}
-	return logs, nil
+	return filteredLogs, nil
 }
 
 func (c *Client) GetCheckRun(name string) ([]*aggregator.CheckRun, error) {
