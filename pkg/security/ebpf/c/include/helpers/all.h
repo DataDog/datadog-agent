@@ -17,6 +17,7 @@
 #include "network.h"
 #include "process.h"
 #include "raw_syscalls.h"
+#include "security_profile.h"
 #include "selinux.h"
 #include "span.h"
 #include "syscall_macro.h"
