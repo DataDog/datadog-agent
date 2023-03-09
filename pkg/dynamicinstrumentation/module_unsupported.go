@@ -11,7 +11,6 @@ package dynamicinstrumentation
 import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/security/config"
 )
 
 // NewModule instantiates a dynamic instrumentation system-probe module
