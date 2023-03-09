@@ -12,6 +12,7 @@
 #include "protocols/classification/maps.h"
 #include "protocols/classification/structs.h"
 #include "protocols/classification/stack-helpers.h"
+#include "protocols/classification/usm-context.h"
 #include "protocols/http/classification-helpers.h"
 #include "protocols/http2/helpers.h"
 #include "protocols/kafka/kafka-classification.h"
@@ -83,21 +84,6 @@ static __always_inline protocol_stack_t* get_protocol_stack(conn_tuple_t *tup) {
     return bpf_map_lookup_elem(&connection_protocol, &normalized_tup);
 }
 
-static __always_inline classification_buffer_t* get_buffer() {
-    // Get the buffer the fragment will be read into from a per-cpu array map.
-    // This will avoid doing unaligned stack access while parsing the protocols,
-    // which is forbidden and will make the verifier fail.
-    const u32 key = 0;
-    return bpf_map_lookup_elem(&classification_buf, &key);
-}
-
-static __always_inline void init_buffer(struct __sk_buff *skb, skb_info_t *skb_info, classification_buffer_t* buffer) {
-    bpf_memset(buffer->data, 0, sizeof(buffer->data));
-    read_into_buffer_for_classification((char *)buffer->data, skb, skb_info);
-    const size_t payload_length = skb->len - skb_info->data_off;
-    buffer->size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
-}
-
 // A shared implementation for the runtime & prebuilt socket filter that classifies the protocols of the connections.
 __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct __sk_buff *skb) {
     skb_info_t skb_info = {0};
@@ -113,16 +99,15 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
+    usm_context_t *usm_ctx = usm_context_init(skb, &skb_tup, &skb_info);
+    if (!usm_ctx) {
+        return;
+    }
+
     protocol_stack_t *protocol_stack = get_protocol_stack(&skb_tup);
     if (!protocol_stack) {
         return;
     }
-
-    classification_buffer_t *buffer = get_buffer();
-    if (!buffer) {
-        return;
-    }
-    init_buffer(skb, &skb_info, buffer);
 
     protocol_layer_t next_layer = protocol_next_layer(protocol_stack, LAYER_UNKNOWN);
     if (next_layer != LAYER_APPLICATION) {
@@ -131,7 +116,8 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
-    protocol_t cur_fragment_protocol = classify_http_protocols(buffer->data, buffer->size);
+    const char *buffer = &(usm_ctx->buffer.data[0]);
+    protocol_t cur_fragment_protocol = classify_http_protocols(buffer, usm_ctx->buffer.size);
     if (!cur_fragment_protocol) {
         bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_QUEUES_PROG);
     }
@@ -152,25 +138,18 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
 }
 
 __maybe_unused static __always_inline void protocol_classifier_entrypoint_queues(struct __sk_buff *skb) {
-    skb_info_t skb_info = {0};
-    conn_tuple_t skb_tup = {0};
-
-    // Exporting the conn tuple from the skb, alongside couple of relevant fields from the skb.
-    if (!read_conn_tuple_skb(skb, &skb_info, &skb_tup)) {
+    usm_context_t *usm_ctx = usm_context(skb);
+    if (!usm_ctx) {
         return;
     }
 
-    classification_buffer_t *buffer = get_buffer();
-    if (!buffer) {
-        return;
-    }
-
-    protocol_t cur_fragment_protocol = classify_queue_protocols(skb, &skb_info, buffer->data, buffer->size);
+    const char *buffer = &(usm_ctx->buffer.data[0]);
+    protocol_t cur_fragment_protocol = classify_queue_protocols(skb, &usm_ctx->skb_info, buffer, usm_ctx->buffer.size);
     if (!cur_fragment_protocol) {
         bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_DBS_PROG);
     }
 
-    protocol_stack_t *protocol_stack = get_protocol_stack(&skb_tup);
+    protocol_stack_t *protocol_stack = get_protocol_stack(&usm_ctx->tuple);
     if (!protocol_stack) {
         return;
     }
@@ -179,25 +158,18 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_queues
 }
 
 __maybe_unused static __always_inline void protocol_classifier_entrypoint_dbs(struct __sk_buff *skb) {
-    skb_info_t skb_info = {0};
-    conn_tuple_t skb_tup = {0};
-
-    // Exporting the conn tuple from the skb, alongside couple of relevant fields from the skb.
-    if (!read_conn_tuple_skb(skb, &skb_info, &skb_tup)) {
+    usm_context_t *usm_ctx = usm_context(skb);
+    if (!usm_ctx) {
         return;
     }
 
-    classification_buffer_t *buffer = get_buffer();
-    if (!buffer) {
-        return;
-    }
-
-    protocol_t cur_fragment_protocol = classify_db_protocols(&skb_tup, buffer->data, buffer->size);
+    const char *buffer = &usm_ctx->buffer.data[0];
+    protocol_t cur_fragment_protocol = classify_db_protocols(&usm_ctx->tuple, buffer, usm_ctx->buffer.size);
     if (!cur_fragment_protocol) {
         return;
     }
 
-    protocol_stack_t *protocol_stack = get_protocol_stack(&skb_tup);
+    protocol_stack_t *protocol_stack = get_protocol_stack(&usm_ctx->tuple);
     if (!protocol_stack) {
         return;
     }

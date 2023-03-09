@@ -112,9 +112,4 @@ static __always_inline protocol_prog_t protocol_to_program(protocol_t proto) {
     }
 }
 
-typedef struct {
-    char data[CLASSIFICATION_MAX_BUFFER];
-    size_t size;
-} classification_buffer_t;
-
 #endif
