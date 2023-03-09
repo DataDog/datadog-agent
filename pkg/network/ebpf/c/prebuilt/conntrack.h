@@ -18,8 +18,8 @@
 #define offset_ct(f) \
     static __always_inline u64 offset_ct_##f() { \
         __u64 val = 0;                           \
-       LOAD_CONSTANT("offset_ct_" #f, val);    \
-       return val;                               \
+        LOAD_CONSTANT("offset_ct_" #f, val);     \
+        return val;                              \
     }
 
 offset_ct(origin)

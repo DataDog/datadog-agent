@@ -8,10 +8,6 @@
 
 /* This map is used for tracking conntrack entries
  */
-#ifdef BPF_F_NO_COMMON_LRU
-BPF_LRU_MAP(conntrack, conntrack_tuple_t, conntrack_tuple_t, 1024)
-#else
-BPF_HASH_MAP(conntrack, conntrack_tuple_t, conntrack_tuple_t, 1024)
-#endif
+BPF_HASH_MAP(conntrack, conntrack_tuple_t, conntrack_tuple_t, 1)
 
 #endif
