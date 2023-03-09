@@ -182,13 +182,15 @@ namespace Datadog.CustomActions
                     out var securityIdentifier,
                     out var nameUse);
                 var isServiceAccount = false;
+                var isDomainAccount = false;
                 if (userFound)
                 {
                     session["DDAGENTUSER_FOUND"] = "true";
                     session["DDAGENTUSER_SID"] = securityIdentifier.ToString();
                     session.Log($"Found {userName} in {domain} as {nameUse}");
                     NetIsServiceAccount(null, ddAgentUserName, out isServiceAccount);
-                    session.Log($"Is {userName} in {domain} a service account: {isServiceAccount}");
+                    isDomainAccount = IsDomainAccount(securityIdentifier);
+                    session.Log($"{userName} is a {(isDomainAccount ? "domain" : "local")} {(isServiceAccount ? "service" : string.Empty)} account");
                 }
                 else
                 {
@@ -210,20 +212,25 @@ namespace Datadog.CustomActions
 
                 var ddAgentUserPassword = session["DDAGENTUSER_PASSWORD"];
 
-                if (!isServiceAccount && string.IsNullOrEmpty(ddAgentUserPassword))
+                
+                if (!isServiceAccount &&
+                    !isDomainAccount  &&
+                    string.IsNullOrEmpty(ddAgentUserPassword))
                 {
-                    session.Log($"Generating a random password");
+                    session.Log("Generating a random password");
                     ddAgentUserPassword = GetRandomPassword(128);
                     session.Components["InstallerManagedAgentUser"].RequestState = InstallState.Local;
                     session.Components["UserManagedAgentUser"].RequestState = InstallState.Absent;
-                } else {
+                }
+                else
+                {
                     session.Components["InstallerManagedAgentUser"].RequestState = InstallState.Absent;
                     session.Components["UserManagedAgentUser"].RequestState = InstallState.Local;
                 }
 
                 if (!string.IsNullOrEmpty(ddAgentUserPassword) && isServiceAccount)
                 {
-                    session.Log($"Ignoring provided password because account is a service account");
+                    session.Log("Ignoring provided password because account is a service account");
                     ddAgentUserPassword = null;
                 }
 
