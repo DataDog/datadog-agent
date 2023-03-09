@@ -162,8 +162,8 @@ namespace Datadog.CustomActions
             {
                 if (!string.IsNullOrEmpty(session["DDAGENTUSER_PROCESSED_FQ_NAME"]))
                 {
-                  // This function has already executed successfully
-                  return ActionResult.Success;
+                    // This function has already executed successfully
+                    return ActionResult.Success;
                 }
 
                 var ddAgentUserName = session["DDAGENTUSER_NAME"];
