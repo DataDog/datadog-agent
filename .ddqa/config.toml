@@ -1,7 +1,7 @@
 global_config_source = "aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL0RhdGFEb2cvZ2l0aHViLW1ldGFkYXRhL21hc3Rlci9qaXJhLnRvbWw="
 jira_statuses = [
-  "TODO",
-  "Testing",
+  "To Do",
+  "In Progress",
   "Done",
 ]
 ignored_labels = [
@@ -12,60 +12,110 @@ ignored_labels = [
 [teams."Agent Metrics Logs"]
 jira_project = "AML"
 jira_issue_type = "Task"
+jira_statuses = [
+  "To Do",
+  "In Progress",
+  "Done",
+]
 github_team = "agent-metrics-logs"
 github_labels = ["team/agent-metrics-logs"]
 
 [teams."Agent Shared Components"]
 jira_project = "ASC"
 jira_issue_type = "QA"
+jira_statuses = [
+  "To Do",
+  "In Progress",
+  "Done",
+]
 github_team = "agent-shared-components"
 github_labels = ["team/agent-shared-components"]
 
 [teams."Agent Platform"]
 jira_project = "AP"
 jira_issue_type = "QA"
+jira_statuses = [
+  "To Do",
+  "In Progress",
+  "Done",
+]
 github_team = "agent-platform"
 github_labels = ["team/agent-platform"]
 
 [teams."Universal Service Monitoring"]
 jira_project = "USMO"
 jira_issue_type = "Task"
+jira_statuses = [
+  "To Do",
+  "In Progress",
+  "Done",
+]
 github_team = "universal-service-monitoring"
 github_labels = ["team/usm"]
 
 [teams."Network Device Monitoring"]
 jira_project = "NDM"
 jira_issue_type = "Task"
+jira_statuses = [
+  "To Do",
+  "In Progress",
+  "Done",
+]
 github_team = "network-device-monitoring"
 github_labels = ["team/network-device-monitoring"]
 
 [teams."Network Performance Monitoring"]
 jira_project = "NET"
 jira_issue_type = "Task"
+jira_statuses = [
+  "Backlog",
+  "In Progress",
+  "Done",
+]
 github_team = "networks"
 github_labels = ["team/networks"]
 
 [teams."OpenTelemetry"]
 jira_project = "OTEL"
 jira_issue_type = "Task"
+jira_statuses = [
+  "To Do",
+  "In Progress",
+  "Done",
+]
 github_team = "opentelemetry"
 github_labels = ["team/opentelemetry"]
 
 [teams."eBPF Platform"]
 jira_project = "EBPF"
 jira_issue_type = "Task"
+jira_statuses = [
+  "To Do",
+  "In Progress",
+  "Done",
+]
 github_team = "ebpf-platform"
 github_labels = ["team/ebpf-platform"]
 
 [teams."Agent Integrations"]
 jira_project = "AI"
 jira_issue_type = "Task"
+jira_statuses = [
+  "Backlog",
+  "In Progress",
+  "Done",
+]
 github_team = "agent-integrations"
 github_labels = ["team/integrations"]
 
 [teams."Platform Integrations"]
 jira_project = "PINT"
 jira_issue_type = "Task"
+jira_statuses = [
+  "To Do",
+  "In Progress",
+  "Done",
+]
 github_team = "platform-integrations"
 github_labels = ["team/platform-integrations"]
 
@@ -73,24 +123,44 @@ github_labels = ["team/platform-integrations"]
 jira_project = "AIT"
 jira_component = "Trace Agent"
 jira_issue_type = "Task"
+jira_statuses = [
+  "Backlog",
+  "In Progress",
+  "Done",
+]
 github_team = "apm-go"
 github_labels = ["team/agent-apm"]
 
 [teams."Remote Config"]
 jira_project = "RCM"
 jira_issue_type = "QA"
+jira_statuses = [
+  "To Do",
+  "In Progress",
+  "Done",
+]
 github_team = "remote-config"
 github_labels = ["team/remote-config"]
 
 [teams."Container Integrations"]
 jira_project = "CONT"
 jira_issue_type = "Task"
+jira_statuses = [
+  "To Do",
+  "In Progress",
+  "Done",
+]
 github_team = "container-integrations"
 github_labels = ["team/containers"]
 
 [teams."Container Ecosystems"]
 jira_project = "CONTECO"
 jira_issue_type = "Task"
+jira_statuses = [
+  "To Do",
+  "In Progress",
+  "Done",
+]
 github_team = "container-ecosystems"
 github_labels = ["team/container-ecosystems"]
 
@@ -98,35 +168,65 @@ github_labels = ["team/container-ecosystems"]
 jira_project = "SEC"
 jira_component = "CWS Agent"
 jira_issue_type = "Task"
+jira_statuses = [
+  "To Do",
+  "In Progress",
+  "Done",
+]
 github_team = "agent-security"
 github_labels = ["team/agent-security"]
 
 [teams."Processes"]
 jira_project = "PROC"
 jira_issue_type = "Task"
+jira_statuses = [
+  "TRIAGE",
+  "In Progress",
+  "Done",
+]
 github_team = "processes"
 github_labels = ["team/processes"]
 
 [teams."Windows Agent"]
 jira_project = "WA"
 jira_issue_type = "QA Task"
+jira_statuses = [
+  "To Do",
+  "In Progress",
+  "Done",
+]
 github_team = "windows-agent"
 github_labels = ["team/windows-agent"]
 
 [teams."Windows Kernel Integrations"]
 jira_project = "WKIT"
 jira_issue_type = "Task"
+jira_statuses = [
+  "To Do",
+  "In Progress",
+  "Done",
+]
 github_team = "windows-kernel-integrations"
 github_labels = ["team/windows-kernel-integrations"]
 
 [teams."Database Monitoring"]
 jira_project = "DBM"
 jira_issue_type = "Task"
+jira_statuses = [
+  "Eventually",
+  "In Progress",
+  "Done",
+]
 github_team = "database-monitoring"
 github_labels = ["team/database-monitoring"]
 
 [teams."Container App"]
 jira_project = "CAP"
 jira_issue_type = "Task"
+jira_statuses = [
+  "💼 To Do",
+  "💡 In Progress",
+  "✅ Done",
+]
 github_team = "container-app"
 github_labels = ["team/container-app"]
