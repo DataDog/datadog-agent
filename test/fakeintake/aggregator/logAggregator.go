@@ -11,11 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
-// type LogItem struct {
-// 	// embed proto Log struct
-// 	logspb.Log
-// }
-
 type Log struct {
 	Message   string   `json:"message"`
 	Status    string   `json:"status"`

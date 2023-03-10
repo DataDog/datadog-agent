@@ -277,7 +277,9 @@ func (fi *Server) safeAppendPayload(route string, data []byte, encoding string) 
 func (fi *Server) safeGetPayloads(route string) []api.Payload {
 	fi.mu.Lock()
 	defer fi.mu.Unlock()
-	return fi.payloadStore[route]
+	payloads := make([]api.Payload, len(fi.payloadStore[route]))
+	payloads = append(payloads, fi.payloadStore[route]...)
+	return payloads
 }
 
 func (fi *Server) getRouteStats(w http.ResponseWriter, req *http.Request) {
