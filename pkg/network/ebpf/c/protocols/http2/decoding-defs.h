@@ -89,7 +89,6 @@ typedef struct {
 typedef struct {
     dynamic_table_index_t dynamic_index;
     http2_stream_key_t http2_stream_key;
-    http2_stream_t http2_stream;
 } http2_ctx_t;
 
 typedef struct {
@@ -104,7 +103,6 @@ typedef enum {
 } __attribute__ ((packed)) http2_header_type_t;
 
 typedef struct {
-    __u32 stream_id;
     __u32 index;
     http2_header_type_t type;
 } http2_header_t;
