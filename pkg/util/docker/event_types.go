@@ -50,7 +50,7 @@ var containerEventActions = []string{
 var imageEventActions = []string{
 	ImageEventActionPull,
 	ImageEventActionDelete,
-	ImageEventActionDelete,
+	ImageEventActionTag,
 	ImageEventActionUntag,
 }
 
