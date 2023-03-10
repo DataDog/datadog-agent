@@ -7,10 +7,15 @@
 
 #include "tracer.h"
 #include "tracer-maps.h"
+#include "tracer-stats.h"
 #include "tracer-telemetry.h"
 #include "cookie.h"
 #include "protocols/classification/tracer-maps.h"
 #include "ip.h"
+
+#ifdef COMPILE_CORE
+#define MSG_PEEK 2
+#endif
 
 static __always_inline int get_proto(conn_tuple_t *t) {
     return (t->metadata & CONN_TYPE_TCP) ? CONN_TYPE_TCP : CONN_TYPE_UDP;
@@ -134,6 +139,21 @@ static __always_inline void flush_conn_close_if_full(void *ctx) {
         // we cannot use the telemetry macro here because of stack size constraints
         bpf_perf_event_output(ctx, &conn_close_event, cpu, &batch_copy, sizeof(batch_copy));
     }
+}
+
+int __always_inline handle_tcp_recv(u64 pid_tgid, struct sock *skp, int recv) {
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
+        return 0;
+    }
+
+    handle_tcp_stats(&t, skp, 0);
+
+    __u32 packets_in = 0;
+    __u32 packets_out = 0;
+    get_tcp_segment_counts(skp, &packets_in, &packets_out);
+
+    return handle_message(&t, 0, recv, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, skp);
 }
 
 #endif // __TRACER_EVENTS_H

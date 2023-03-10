@@ -9,6 +9,8 @@
 #include "tracer-telemetry.h"
 #include "cookie.h"
 #include "sock.h"
+#include "protocols/classification/tracer-maps.h"
+#include "ip.h"
 
 #ifdef COMPILE_PREBUILT
 static __always_inline __u64 offset_rtt();

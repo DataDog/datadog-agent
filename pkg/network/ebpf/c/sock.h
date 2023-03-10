@@ -48,6 +48,20 @@ static __always_inline struct inet_sock *inet_sk(const struct sock *sk)
 
 #endif // COMPILE_CORE
 
+static __always_inline u64 offset_socket_sk();
+
+static __always_inline struct sock * socket_sk(struct socket *sock) {
+    struct sock * sk = NULL;
+#ifdef COMPILE_PREBUILT
+    if (bpf_probe_read_kernel_with_telemetry(&sk, sizeof(sk), ((char*)sock) + offset_socket_sk()) < 0) {
+        return NULL;
+    }
+#elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
+    sk = BPF_CORE_READ(sock, sk);
+#endif
+    return sk;
+}
+
 static __always_inline void get_tcp_segment_counts(struct sock* skp, __u32* packets_in, __u32* packets_out) {
 #ifdef COMPILE_PREBUILT
     // counting segments/packets not currently supported on prebuilt

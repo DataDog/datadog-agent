@@ -63,6 +63,9 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.SockFDLookupRet,
 	probes.DoSendfile,
 	probes.DoSendfileRet,
+	probes.SKBFreeDatagramLocked,
+	probes.UnderscoredSKBFreeDatagramLocked,
+	probes.SKBConsumeUDP,
 }
 
 func initManager(mgr *manager.Manager, config *config.Config, closedHandler *ebpf.PerfHandler, runtimeTracer bool) {
@@ -113,13 +116,7 @@ func initManager(mgr *manager.Manager, config *config.Config, closedHandler *ebp
 		mgr.Probes = append(mgr.Probes, p)
 	}
 
-	if runtimeTracer {
-		mgr.Probes = append(mgr.Probes,
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.SKBFreeDatagramLocked, UID: probeUID}},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UnderscoredSKBFreeDatagramLocked, UID: probeUID}},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.SKBConsumeUDP, UID: probeUID}},
-		)
-	} else {
+	if !runtimeTracer {
 		// the runtime compiled tracer has no need for separate probes targeting specific kernel versions, since it can
 		// do that with #ifdefs inline. Thus, the following probes should only be declared as existing in the prebuilt
 		// tracer.

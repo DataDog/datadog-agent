@@ -82,27 +82,17 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeFuncNa
 			enableProbe(enabled, probes.Inet6BindRet)
 		}
 
-		if runtimeTracer {
-			missing, err := ebpf.VerifyKernelFuncs(ksymPath, []string{"skb_consume_udp", "__skb_free_datagram_locked", "skb_free_datagram_locked"})
-			if err != nil {
-				return nil, fmt.Errorf("error verifying kernel function presence: %s", err)
-			}
+		missing, err := ebpf.VerifyKernelFuncs(ksymPath, []string{"skb_consume_udp", "__skb_free_datagram_locked", "skb_free_datagram_locked"})
+		if err != nil {
+			return nil, fmt.Errorf("error verifying kernel function presence: %s", err)
+		}
 
+		if runtimeTracer {
 			enableProbe(enabled, probes.UDPRecvMsg)
 			enableProbe(enabled, probes.UDPRecvMsgReturn)
 			if c.CollectIPv6Conns {
 				enableProbe(enabled, probes.UDPv6RecvMsg)
 				enableProbe(enabled, probes.UDPv6RecvMsgReturn)
-			}
-
-			if _, miss := missing["skb_consume_udp"]; !miss {
-				enableProbe(enabled, probes.SKBConsumeUDP)
-			} else if _, miss := missing["__skb_free_datagram_locked"]; !miss {
-				enableProbe(enabled, probes.UnderscoredSKBFreeDatagramLocked)
-			} else if _, miss := missing["skb_free_datagram_locked"]; !miss {
-				enableProbe(enabled, probes.SKBFreeDatagramLocked)
-			} else {
-				return nil, fmt.Errorf("missing desired UDP receive kernel functions")
 			}
 		} else {
 			enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.UDPRecvMsg, probes.UDPRecvMsgPre410, kv410))
@@ -111,6 +101,16 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeFuncNa
 				enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.UDPv6RecvMsg, probes.UDPv6RecvMsgPre410, kv410))
 				enableProbe(enabled, probes.UDPv6RecvMsgReturn)
 			}
+		}
+
+		if _, miss := missing["skb_consume_udp"]; !miss {
+			enableProbe(enabled, probes.SKBConsumeUDP)
+		} else if _, miss := missing["__skb_free_datagram_locked"]; !miss {
+			enableProbe(enabled, probes.UnderscoredSKBFreeDatagramLocked)
+		} else if _, miss := missing["skb_free_datagram_locked"]; !miss {
+			enableProbe(enabled, probes.SKBFreeDatagramLocked)
+		} else {
+			return nil, fmt.Errorf("missing desired UDP receive kernel functions")
 		}
 	}
 

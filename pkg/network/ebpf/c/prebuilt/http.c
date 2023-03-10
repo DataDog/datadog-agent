@@ -9,6 +9,7 @@
 #include <uapi/linux/ipv6.h>
 #include <uapi/linux/udp.h>
 
+#include "offsets.h"
 #include "tracer.h"
 #include "ip.h"
 #include "ipv6.h"

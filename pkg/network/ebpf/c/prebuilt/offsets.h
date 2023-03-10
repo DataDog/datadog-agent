@@ -138,4 +138,10 @@ static __always_inline __u64 offset_socket_sk() {
      return val;
 }
 
+static __always_inline __u64 offset_sk_buff_sock() {
+    __u64 val = 0;
+    LOAD_CONSTANT("offset_sk_buff_sock", val);
+    return val;
+}
+
 #endif // __OFFSETS_H
