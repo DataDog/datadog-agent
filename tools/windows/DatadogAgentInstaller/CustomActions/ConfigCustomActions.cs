@@ -243,7 +243,7 @@ namespace Datadog.CustomActions
 
         static string FormatTags(string value)
         {
-            const string newTagLine = "\n  - ";
+            const string newTagLine = "\r\n  - ";
             var tagsConfiguration = new StringBuilder();
             tagsConfiguration.Append("tags: ");
             tagsConfiguration.Append(newTagLine);
