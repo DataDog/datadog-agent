@@ -294,6 +294,13 @@ namespace Datadog.CustomActions
 
                 var ddAgentUserName = session["DDAGENTUSER_NAME"];
 
+                // LocalSystem is not supported by LookupAccountName as it is a pseudo account,
+                // do the conversion here for user's convenience.
+                if (ddAgentUserName == "LocalSystem")
+                {
+                    ddAgentUserName = "NT AUTHORITY\\SYSTEM";
+                }
+
                 if (string.IsNullOrEmpty(ddAgentUserName))
                 {
                     // Creds are not in registry and user did not pass a value, use default account name
@@ -309,13 +316,18 @@ namespace Datadog.CustomActions
                     out var securityIdentifier,
                     out var nameUse);
                 var isServiceAccount = false;
+                var isDomainAccount = false;
                 if (userFound)
                 {
                     session["DDAGENTUSER_FOUND"] = "true";
                     session["DDAGENTUSER_SID"] = securityIdentifier.ToString();
                     session.Log($"Found {userName} in {domain} as {nameUse}");
                     NetIsServiceAccount(null, ddAgentUserName, out isServiceAccount);
-                    session.Log($"Is {userName} in {domain} a service account: {isServiceAccount}");
+                    isServiceAccount |= securityIdentifier.IsWellKnown(WellKnownSidType.LocalSystemSid) ||
+                                        securityIdentifier.IsWellKnown(WellKnownSidType.LocalServiceSid) ||
+                                        securityIdentifier.IsWellKnown(WellKnownSidType.NetworkServiceSid);
+                    isDomainAccount = IsDomainAccount(securityIdentifier);
+                    session.Log($"\"{domain}\\{userName}\" ({securityIdentifier.Value}, {nameUse}) is a {(isDomainAccount ? "domain" : "local")} {(isServiceAccount ? "service " : string.Empty)}account");
                 }
                 else
                 {
@@ -345,13 +357,24 @@ namespace Datadog.CustomActions
 
                 var ddAgentUserPassword = session["DDAGENTUSER_PASSWORD"];
 
-                if (!isServiceAccount && string.IsNullOrEmpty(ddAgentUserPassword))
+                if (!isServiceAccount &&
+                    !isDomainAccount  &&
+                    string.IsNullOrEmpty(ddAgentUserPassword))
                 {
+                    session.Log("Generating a random password");
                     ddAgentUserPassword = GetRandomPassword(128);
+                    session.Components["InstallerManagedAgentUser"].RequestState = InstallState.Local;
+                    session.Components["UserManagedAgentUser"].RequestState = InstallState.Absent;
+                }
+                else
+                {
+                    session.Components["InstallerManagedAgentUser"].RequestState = InstallState.Absent;
+                    session.Components["UserManagedAgentUser"].RequestState = InstallState.Local;
                 }
 
                 if (!string.IsNullOrEmpty(ddAgentUserPassword) && isServiceAccount)
                 {
+                    session.Log("Ignoring provided password because account is a service account");
                     ddAgentUserPassword = null;
                 }
 
