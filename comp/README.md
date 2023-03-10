@@ -71,6 +71,10 @@ Package processdiscoverycheck implements a component to handle Process Discovery
 
 Package processeventscheck implements a component to handle Process Events data collection in the Process Agent.
 
+### [comp/process/profiler](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process/profiler)
+
+Package profiler implements a component to handle starting and stopping the internal profiler.
+
 ### [comp/process/rtcontainercheck](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process/rtcontainercheck)
 
 Package rtcontainercheck implements a component to handle realtime Container data collection in the Process Agent.
