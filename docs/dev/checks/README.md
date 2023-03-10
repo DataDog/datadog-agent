@@ -172,8 +172,8 @@ Scenario: You want to test the `redisdb` check:
     python3 -m pip install --user ./redisdb
     ```
     
-4. (Optional for some checks). Some checks have dependencies on other python modules 
-   that must be installed alongside the python check. `redisdb` is one check that _does_ have
+4. (Optional for some checks). Some checks have dependencies on other Python modules 
+   that must be installed alongside the Python check. `redisdb` is one check that _does_ have
    dependencies, specifically on the open source `redisdb` package. In this case, we need to
    install the `deps` explicitly.
    ```
