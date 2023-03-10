@@ -24,9 +24,9 @@ func assertNotContainsCheck(t *testing.T, checks []string, name string) {
 	assert.NotContains(t, checks, name)
 }
 
-func getEnabledChecks(scfg *sysconfig.Config) []string {
+func getEnabledChecks(config config.ConfigReaderWriter, scfg *sysconfig.Config) []string {
 	var enabledChecks []string
-	for _, check := range All(scfg) {
+	for _, check := range All(config, scfg) {
 		if check.IsEnabled() {
 			enabledChecks = append(enabledChecks, check.Name())
 		}
@@ -41,7 +41,7 @@ func TestProcessDiscovery(t *testing.T) {
 	t.Run("enabled", func(t *testing.T) {
 		cfg := config.Mock(t)
 		cfg.Set("process_config.process_discovery.enabled", true)
-		enabledChecks := getEnabledChecks(scfg)
+		enabledChecks := getEnabledChecks(cfg, scfg)
 		assertContainsCheck(t, enabledChecks, DiscoveryCheckName)
 	})
 
@@ -49,7 +49,7 @@ func TestProcessDiscovery(t *testing.T) {
 	t.Run("disabled", func(t *testing.T) {
 		cfg := config.Mock(t)
 		cfg.Set("process_config.process_discovery.enabled", false)
-		enabledChecks := getEnabledChecks(scfg)
+		enabledChecks := getEnabledChecks(cfg, scfg)
 		assertNotContainsCheck(t, enabledChecks, DiscoveryCheckName)
 	})
 
@@ -58,7 +58,7 @@ func TestProcessDiscovery(t *testing.T) {
 		cfg := config.Mock(t)
 		cfg.Set("process_config.process_discovery.enabled", true)
 		cfg.Set("process_config.process_collection.enabled", true)
-		enabledChecks := getEnabledChecks(scfg)
+		enabledChecks := getEnabledChecks(cfg, scfg)
 		assertNotContainsCheck(t, enabledChecks, DiscoveryCheckName)
 	})
 }
@@ -71,19 +71,21 @@ func TestProcessCheck(t *testing.T) {
 
 	t.Run("disabled", func(t *testing.T) {
 		cfg.Set("process_config.process_collection.enabled", false)
-		enabledChecks := getEnabledChecks(scfg)
+		enabledChecks := getEnabledChecks(cfg, scfg)
 		assertNotContainsCheck(t, enabledChecks, ProcessCheckName)
 	})
 
 	// Make sure the process check can be enabled
 	t.Run("enabled", func(t *testing.T) {
 		cfg.Set("process_config.process_collection.enabled", true)
-		enabledChecks := getEnabledChecks(scfg)
+		enabledChecks := getEnabledChecks(cfg, scfg)
 		assertContainsCheck(t, enabledChecks, ProcessCheckName)
 	})
 }
 
 func TestConnectionsCheck(t *testing.T) {
+	cfg := config.Mock(t)
+
 	syscfg := config.MockSystemProbe(t)
 	syscfg.Set("system_probe_config.enabled", true)
 
@@ -92,7 +94,7 @@ func TestConnectionsCheck(t *testing.T) {
 		scfg, err := sysconfig.New("")
 		assert.NoError(t, err)
 
-		enabledChecks := getEnabledChecks(scfg)
+		enabledChecks := getEnabledChecks(cfg, scfg)
 		assertContainsCheck(t, enabledChecks, ConnectionsCheckName)
 	})
 
@@ -101,7 +103,7 @@ func TestConnectionsCheck(t *testing.T) {
 		scfg, err := sysconfig.New("")
 		assert.NoError(t, err)
 
-		enabledChecks := getEnabledChecks(scfg)
+		enabledChecks := getEnabledChecks(cfg, scfg)
 		assertNotContainsCheck(t, enabledChecks, ConnectionsCheckName)
 	})
 }

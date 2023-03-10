@@ -30,7 +30,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.Set("process_config.disable_realtime_checks", false)
 		config.SetFeatures(t, config.Docker)
 
-		enabledChecks := getEnabledChecks(scfg)
+		enabledChecks := getEnabledChecks(ddconfig.Datadog, scfg)
 		assertContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertContainsCheck(t, enabledChecks, RTContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, ProcessCheckName)
@@ -44,7 +44,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.Set("process_config.disable_realtime_checks", true)
 		config.SetFeatures(t, config.Docker)
 
-		enabledChecks := getEnabledChecks(scfg)
+		enabledChecks := getEnabledChecks(ddconfig.Datadog, scfg)
 		assertContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, RTContainerCheckName)
 	})
@@ -55,7 +55,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.Set("process_config.process_collection.enabled", false)
 		cfg.Set("process_config.container_collection.enabled", true)
 
-		enabledChecks := getEnabledChecks(scfg)
+		enabledChecks := getEnabledChecks(ddconfig.Datadog, scfg)
 
 		assertNotContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, RTContainerCheckName)
@@ -68,7 +68,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.Set("process_config.container_collection.enabled", true)
 		config.SetFeatures(t, config.Docker)
 
-		enabledChecks := getEnabledChecks(scfg)
+		enabledChecks := getEnabledChecks(ddconfig.Datadog, scfg)
 		assertContainsCheck(t, enabledChecks, ProcessCheckName)
 		assertNotContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, RTContainerCheckName)
@@ -102,7 +102,7 @@ func TestDisableRealTime(t *testing.T) {
 			mockConfig.Set("process_config.process_discovery.enabled", false) // Not an RT check so we don't care
 			config.SetFeatures(t, config.Docker)
 
-			enabledChecks := getEnabledChecks(&sysconfig.Config{})
+			enabledChecks := getEnabledChecks(ddconfig.Datadog, &sysconfig.Config{})
 			assert.EqualValues(tc.expectedChecks, enabledChecks)
 		})
 	}

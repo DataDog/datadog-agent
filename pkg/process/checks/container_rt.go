@@ -21,8 +21,10 @@ const (
 )
 
 // NewRTContainerCheck returns an instance of the RTContainerCheck.
-func NewRTContainerCheck() *RTContainerCheck {
-	return &RTContainerCheck{}
+func NewRTContainerCheck(config ddconfig.ConfigReader) *RTContainerCheck {
+	return &RTContainerCheck{
+		config: config,
+	}
 }
 
 // RTContainerCheck collects numeric statistics about live ctrList.
@@ -31,11 +33,12 @@ type RTContainerCheck struct {
 	hostInfo          *HostInfo
 	containerProvider util.ContainerProvider
 	lastRates         map[string]*util.ContainerRateMetrics
+	config            ddconfig.ConfigReader
 }
 
 // Init initializes a RTContainerCheck instance.
 func (r *RTContainerCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo) error {
-	r.maxBatchSize = getMaxBatchSize()
+	r.maxBatchSize = getMaxBatchSize(r.config)
 	r.hostInfo = hostInfo
 	r.containerProvider = util.GetSharedContainerProvider()
 	return nil
@@ -43,7 +46,7 @@ func (r *RTContainerCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo) error {
 
 // IsEnabled returns true if the check is enabled by configuration
 func (r *RTContainerCheck) IsEnabled() bool {
-	rtChecksEnabled := !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
+	rtChecksEnabled := !r.config.GetBool("process_config.disable_realtime_checks")
 	return canEnableContainerChecks(ddconfig.Datadog, false) && rtChecksEnabled
 }
 

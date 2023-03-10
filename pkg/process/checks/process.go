@@ -36,8 +36,9 @@ const (
 )
 
 // NewProcessCehck returns an instance of the ProcessCheck.
-func NewProcessCheck() *ProcessCheck {
+func NewProcessCheck(config ddconfig.ConfigReader) *ProcessCheck {
 	return &ProcessCheck{
+		config:   config,
 		scrubber: procutil.NewDefaultDataScrubber(),
 	}
 }
@@ -52,6 +53,8 @@ const (
 // for live and running processes. The instance will store some state between
 // checks that will be used for rates, cpu calculations, etc.
 type ProcessCheck struct {
+	config ddconfig.ConfigReader
+
 	probe procutil.Probe
 	// scrubber is a DataScrubber to hide command line sensitive words
 	scrubber *procutil.DataScrubber
@@ -106,20 +109,19 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
 	}
 	p.networkID = networkID
 
-	p.maxBatchSize = getMaxBatchSize()
-	p.maxBatchBytes = getMaxBatchBytes()
+	p.maxBatchSize = getMaxBatchSize(p.config)
+	p.maxBatchBytes = getMaxBatchBytes(p.config)
 
-	p.skipAmount = uint32(ddconfig.Datadog.GetInt32("process_config.process_discovery.hint_frequency"))
+	p.skipAmount = uint32(p.config.GetInt32("process_config.process_discovery.hint_frequency"))
 	if p.skipAmount == 0 {
 		log.Warnf("process_config.process_discovery.hint_frequency must be greater than 0. using default value %d",
 			ddconfig.DefaultProcessDiscoveryHintFrequency)
-		ddconfig.Datadog.Set("process_config.process_discovery.hint_frequency", ddconfig.DefaultProcessDiscoveryHintFrequency)
 		p.skipAmount = ddconfig.DefaultProcessDiscoveryHintFrequency
 	}
 
-	initScrubber(p.scrubber)
+	initScrubber(p.config, p.scrubber)
 
-	p.disallowList = initDisallowList()
+	p.disallowList = initDisallowList(p.config)
 
 	p.initConnRates()
 	return nil
@@ -154,7 +156,7 @@ func (p *ProcessCheck) getLastConnRates() ProcessConnRates {
 
 // IsEnabled returns true if the check is enabled by configuration
 func (p *ProcessCheck) IsEnabled() bool {
-	return ddconfig.Datadog.GetBool("process_config.process_collection.enabled")
+	return p.config.GetBool("process_config.process_collection.enabled")
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions
@@ -587,10 +589,10 @@ func mergeProcWithSysprobeStats(pids []int32, procs map[int32]*procutil.Process,
 	}
 }
 
-func initScrubber(scrubber *procutil.DataScrubber) {
+func initScrubber(config ddconfig.ConfigReader, scrubber *procutil.DataScrubber) {
 	// Enable/Disable the DataScrubber to obfuscate process args
-	if ddconfig.Datadog.IsSet(configScrubArgs) {
-		scrubber.Enabled = ddconfig.Datadog.GetBool(configScrubArgs)
+	if config.IsSet(configScrubArgs) {
+		scrubber.Enabled = config.GetBool(configScrubArgs)
 	}
 
 	if scrubber.Enabled { // Scrubber is enabled by default when it's created
@@ -598,24 +600,24 @@ func initScrubber(scrubber *procutil.DataScrubber) {
 	}
 
 	// A custom word list to enhance the default one used by the DataScrubber
-	if ddconfig.Datadog.IsSet(configCustomSensitiveWords) {
-		words := ddconfig.Datadog.GetStringSlice(configCustomSensitiveWords)
+	if config.IsSet(configCustomSensitiveWords) {
+		words := config.GetStringSlice(configCustomSensitiveWords)
 		scrubber.AddCustomSensitiveWords(words)
 		log.Debug("Adding custom sensitives words to Scrubber:", words)
 	}
 
 	// Strips all process arguments
-	if ddconfig.Datadog.GetBool(configStripProcArgs) {
+	if config.GetBool(configStripProcArgs) {
 		log.Debug("Strip all process arguments enabled")
 		scrubber.StripAllArguments = true
 	}
 }
 
-func initDisallowList() []*regexp.Regexp {
+func initDisallowList(config ddconfig.ConfigReader) []*regexp.Regexp {
 	var disallowList []*regexp.Regexp
 	// A list of regex patterns that will exclude a process if matched.
-	if ddconfig.Datadog.IsSet(configDisallowList) {
-		for _, b := range ddconfig.Datadog.GetStringSlice(configDisallowList) {
+	if config.IsSet(configDisallowList) {
+		for _, b := range config.GetStringSlice(configDisallowList) {
 			r, err := regexp.Compile(b)
 			if err != nil {
 				log.Warnf("Ignoring invalid disallow list pattern: %s", b)

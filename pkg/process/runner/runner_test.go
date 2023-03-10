@@ -23,8 +23,10 @@ import (
 )
 
 func TestUpdateRTStatus(t *testing.T) {
+	cfg := ddconfig.Mock(t)
+
 	assert := assert.New(t)
-	c, err := NewRunner(nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck()}, nil)
+	c, err := NewRunner(cfg, nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck(cfg)}, nil)
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
 	c.rtIntervalCh = make(chan time.Duration, 1000)
@@ -59,7 +61,7 @@ func TestUpdateRTStatus(t *testing.T) {
 
 func TestUpdateRTInterval(t *testing.T) {
 	assert := assert.New(t)
-	c, err := NewRunner(nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck()}, nil)
+	c, err := NewRunner(ddconfig.Datadog, nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck()}, nil)
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
 	c.rtIntervalCh = make(chan time.Duration, 1000)
@@ -127,7 +129,7 @@ func TestDisableRealTimeProcessCheck(t *testing.T) {
 			assert := assert.New(t)
 			expectedChecks := []checks.Check{checks.NewProcessCheck()}
 
-			c, err := NewRunner(nil, &checks.HostInfo{}, expectedChecks, nil)
+			c, err := NewRunner(ddconfig.Datadog, nil, &checks.HostInfo{}, expectedChecks, nil)
 			assert.NoError(err)
 			assert.Equal(!tc.disableRealtime, c.runRealTime)
 			assert.EqualValues(expectedChecks, c.enabledChecks)
@@ -159,7 +161,7 @@ func TestIgnoreResponseBody(t *testing.T) {
 func TestCollectorRunCheckWithRealTime(t *testing.T) {
 	check := checkmocks.NewCheck(t)
 
-	c, err := NewRunner(nil, &checks.HostInfo{}, []checks.Check{}, nil)
+	c, err := NewRunner(ddconfig.Datadog, nil, &checks.HostInfo{}, []checks.Check{}, nil)
 	assert.NoError(t, err)
 	submitter := processmocks.NewSubmitter(t)
 	c.Submitter = submitter
@@ -202,7 +204,7 @@ func TestCollectorRunCheck(t *testing.T) {
 
 	hostInfo := &checks.HostInfo{HostName: testHostName}
 
-	c, err := NewRunner(nil, hostInfo, []checks.Check{}, nil)
+	c, err := NewRunner(ddconfig.Datadog, nil, hostInfo, []checks.Check{}, nil)
 	require.NoError(t, err)
 	submitter := processmocks.NewSubmitter(t)
 	require.NoError(t, err)

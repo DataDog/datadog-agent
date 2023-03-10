@@ -11,8 +11,8 @@ import (
 )
 
 // getMaxBatchSize returns the maximum number of items (processes, containers, process_discoveries) in a check payload
-var getMaxBatchSize = func() int {
-	return ensureValidMaxBatchSize(ddconfig.Datadog.GetInt("process_config.max_per_message"))
+var getMaxBatchSize = func(config ddconfig.ConfigReader) int {
+	return ensureValidMaxBatchSize(config.GetInt("process_config.max_per_message"))
 }
 
 func ensureValidMaxBatchSize(batchSize int) int {
@@ -24,8 +24,8 @@ func ensureValidMaxBatchSize(batchSize int) int {
 }
 
 // getMaxBatchSize returns the maximum number of bytes in a check payload
-var getMaxBatchBytes = func() int {
-	return ensureValidMaxBatchBytes(ddconfig.Datadog.GetInt("process_config.max_message_bytes"))
+var getMaxBatchBytes = func(config ddconfig.ConfigReader) int {
+	return ensureValidMaxBatchBytes(config.GetInt("process_config.max_message_bytes"))
 }
 
 func ensureValidMaxBatchBytes(batchBytes int) int {

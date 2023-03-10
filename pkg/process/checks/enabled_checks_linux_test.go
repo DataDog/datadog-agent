@@ -18,9 +18,9 @@ func TestProcessEventsCheckEnabled(t *testing.T) {
 	scfg := &sysconfig.Config{}
 
 	t.Run("default", func(t *testing.T) {
-		config.Mock(t)
+		cfg := config.Mock(t)
 
-		enabledChecks := getEnabledChecks(scfg)
+		enabledChecks := getEnabledChecks(cfg, scfg)
 		assertNotContainsCheck(t, enabledChecks, ProcessEventsCheckName)
 	})
 
@@ -28,7 +28,7 @@ func TestProcessEventsCheckEnabled(t *testing.T) {
 		cfg := config.Mock(t)
 		cfg.Set("process_config.event_collection.enabled", true)
 
-		enabledChecks := getEnabledChecks(scfg)
+		enabledChecks := getEnabledChecks(cfg, scfg)
 		assertContainsCheck(t, enabledChecks, ProcessEventsCheckName)
 	})
 
@@ -36,7 +36,7 @@ func TestProcessEventsCheckEnabled(t *testing.T) {
 		cfg := config.Mock(t)
 		cfg.Set("process_config.event_collection.enabled", false)
 
-		enabledChecks := getEnabledChecks(scfg)
+		enabledChecks := getEnabledChecks(cfg, scfg)
 		assertNotContainsCheck(t, enabledChecks, ProcessEventsCheckName)
 	})
 }

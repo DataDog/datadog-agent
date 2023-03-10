@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/process"
+
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
@@ -561,11 +562,11 @@ func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *end
 	hostInfo := &checks.HostInfo{
 		HostName: testHostName,
 	}
-	c, err := NewRunnerWithChecks([]checks.Check{check}, true, nil)
+	c, err := NewRunnerWithChecks(ddconfig.Datadog, []checks.Check{check}, true, nil)
 	check.Init(nil, hostInfo)
 	assert.NoError(t, err)
 
-	c.Submitter, err = NewSubmitter(hostInfo.HostName)
+	c.Submitter, err = NewSubmitter(ddconfig.Datadog, hostInfo.HostName)
 	require.NoError(t, err)
 
 	err = c.Submitter.Start()
