@@ -41,15 +41,19 @@ import (
 	"golang.org/x/sys/unix"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	pmodel "github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-agent/pkg/security/activitydump"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -75,9 +79,14 @@ system_probe_config:
   enable_kernel_header_download: true
   enable_runtime_compiler: true
 
+event_monitoring_config:
+  process:
+    enabled: {{ .EventMonitoringProcessEnabled }}
+  network_process:
+    enabled: {{ .EventMonitoringNetworkEnabled }}
+
 runtime_security_config:
-  enabled: true
-  fim_enabled: true
+  enabled: {{ .RuntimeSecurityEnabled }}
   runtime_compilation:
     enabled: true
   remote_tagger: false
@@ -87,10 +96,13 @@ runtime_security_config:
   flush_discarder_window: 0
   network:
     enabled: true
-{{if .EnableActivityDump}}
+  sbom:
+    enabled: {{ .SBOMEnabled }}
   activity_dump:
-    enabled: true
+    enabled: {{ .EnableActivityDump }}
     rate_limiter: {{ .ActivityDumpRateLimiter }}
+    tag_rules:
+      enabled: {{ .ActivityDumpTagRules }}
     cgroup_dump_timeout: {{ .ActivityDumpCgroupDumpTimeout }}
     traced_cgroups_count: {{ .ActivityDumpTracedCgroupsCount }}
     traced_event_types:   {{range .ActivityDumpTracedEventTypes}}
@@ -102,7 +114,6 @@ runtime_security_config:
       formats: {{range .ActivityDumpLocalStorageFormats}}
       - {{.}}
       {{end}}
-{{end}}
   load_controller:
     events_count_threshold: {{ .EventsCountThreshold }}
 {{if .DisableFilters}}
@@ -133,6 +144,8 @@ runtime_security_config:
 `
 
 const testPolicy = `---
+version: 1.2.3
+
 macros:
 {{range $Macro := .Macros}}
   - id: {{$Macro.ID}}
@@ -143,8 +156,13 @@ macros:
 rules:
 {{range $Rule := .Rules}}
   - id: {{$Rule.ID}}
+    version: {{$Rule.Version}}
     expression: >-
       {{$Rule.Expression}}
+    tags:
+{{- range $Tag, $Val := .Tags}}
+      {{$Tag}}: {{$Val}}
+{{- end}}
     actions:
 {{- range $Action := .Actions}}
 {{- if $Action.Set}}
@@ -184,6 +202,7 @@ type testOpts struct {
 	disableApprovers                    bool
 	enableActivityDump                  bool
 	activityDumpRateLimiter             int
+	activityDumpTagRules                bool
 	activityDumpCgroupDumpTimeout       int
 	activityDumpTracedCgroupsCount      int
 	activityDumpTracedEventTypes        []string
@@ -196,6 +215,10 @@ type testOpts struct {
 	disableMapDentryResolution          bool
 	envsWithValue                       []string
 	disableAbnormalPathCheck            bool
+	disableRuntimeSecurity              bool
+	enableEventMonitoringProcess        bool
+	enableEventMonitoringNetwork        bool
+	enableSBOM                          bool
 }
 
 func (s *stringSlice) String() string {
@@ -212,6 +235,7 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.disableApprovers == opts.disableApprovers &&
 		to.enableActivityDump == opts.enableActivityDump &&
 		to.activityDumpRateLimiter == opts.activityDumpRateLimiter &&
+		to.activityDumpTagRules == opts.activityDumpTagRules &&
 		to.activityDumpCgroupDumpTimeout == opts.activityDumpCgroupDumpTimeout &&
 		to.activityDumpTracedCgroupsCount == opts.activityDumpTracedCgroupsCount &&
 		reflect.DeepEqual(to.activityDumpTracedEventTypes, opts.activityDumpTracedEventTypes) &&
@@ -223,7 +247,12 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.eventsCountThreshold == opts.eventsCountThreshold &&
 		to.disableERPCDentryResolution == opts.disableERPCDentryResolution &&
 		to.disableMapDentryResolution == opts.disableMapDentryResolution &&
-		reflect.DeepEqual(to.envsWithValue, opts.envsWithValue)
+		reflect.DeepEqual(to.envsWithValue, opts.envsWithValue) &&
+		to.disableAbnormalPathCheck == opts.disableAbnormalPathCheck &&
+		to.disableRuntimeSecurity == opts.disableRuntimeSecurity &&
+		to.enableEventMonitoringProcess == opts.enableEventMonitoringProcess &&
+		to.enableEventMonitoringNetwork == opts.enableEventMonitoringNetwork &&
+		to.enableSBOM == opts.enableSBOM
 }
 
 type testModule struct {
@@ -242,17 +271,19 @@ type testModule struct {
 
 var testMod *testModule
 
-type onRuleHandler func(*sprobe.Event, *rules.Rule)
-type onProbeEventHandler func(*sprobe.Event)
-type onCustomSendEventHandler func(*rules.Rule, *sprobe.CustomEvent)
+type onRuleHandler func(*model.Event, *rules.Rule)
+type onProbeEventHandler func(*model.Event)
+type onCustomSendEventHandler func(*rules.Rule, *events.CustomEvent)
 type onDiscarderPushedHandler func(event eval.Event, field eval.Field, eventType eval.EventType) bool
+type onProcessEventSendDataHandler func([]byte)
 
 type eventHandlers struct {
 	sync.RWMutex
-	onRuleMatch       onRuleHandler
-	onProbeEvent      onProbeEventHandler
-	onCustomSendEvent onCustomSendEventHandler
-	onDiscarderPushed onDiscarderPushedHandler
+	onRuleMatch            onRuleHandler
+	onProbeEvent           onProbeEventHandler
+	onCustomSendEvent      onCustomSendEventHandler
+	onDiscarderPushed      onDiscarderPushedHandler
+	onProcessEventSendData onProcessEventSendDataHandler
 }
 
 //nolint:deadcode,unused
@@ -323,14 +354,20 @@ func assertRights(tb testing.TB, actualMode, expectedMode uint16, msgAndArgs ...
 }
 
 //nolint:deadcode,unused
-func assertNearTime(tb testing.TB, ns uint64) bool {
+func assertNearTimeObject(tb testing.TB, eventTime time.Time) bool {
 	tb.Helper()
-	now, event := time.Now(), time.Unix(0, int64(ns))
-	if event.After(now) || event.Before(now.Add(-1*time.Hour)) {
-		tb.Errorf("expected time close to %s, got %s", now, event)
+	now := time.Now()
+	if eventTime.After(now) || eventTime.Before(now.Add(-1*time.Hour)) {
+		tb.Errorf("expected time close to %s, got %s", now, eventTime)
 		return false
 	}
 	return true
+}
+
+//nolint:deadcode,unused
+func assertNearTime(tb testing.TB, ns uint64) bool {
+	tb.Helper()
+	return assertNearTimeObject(tb, time.Unix(0, int64(ns)))
 }
 
 //nolint:deadcode,unused
@@ -346,7 +383,7 @@ func assertReturnValue(tb testing.TB, retval, expected int64) bool {
 }
 
 //nolint:deadcode,unused
-func assertFieldEqual(tb testing.TB, e *sprobe.Event, field string, value interface{}, msgAndArgs ...interface{}) bool {
+func assertFieldEqual(tb testing.TB, e *model.Event, field string, value interface{}, msgAndArgs ...interface{}) bool {
 	tb.Helper()
 	fieldValue, err := e.GetFieldValue(field)
 	if err != nil {
@@ -357,7 +394,18 @@ func assertFieldEqual(tb testing.TB, e *sprobe.Event, field string, value interf
 }
 
 //nolint:deadcode,unused
-func assertFieldNotEmpty(tb testing.TB, e *sprobe.Event, field string, msgAndArgs ...interface{}) bool {
+func assertFieldNotEqual(tb testing.TB, e *model.Event, field string, value interface{}, msgAndArgs ...interface{}) bool {
+	tb.Helper()
+	fieldValue, err := e.GetFieldValue(field)
+	if err != nil {
+		tb.Errorf("failed to get field '%s': %s", field, err)
+		return false
+	}
+	return assert.NotEqual(tb, value, fieldValue, msgAndArgs...)
+}
+
+//nolint:deadcode,unused
+func assertFieldNotEmpty(tb testing.TB, e *model.Event, field string, msgAndArgs ...interface{}) bool {
 	tb.Helper()
 	fieldValue, err := e.GetFieldValue(field)
 	if err != nil {
@@ -368,7 +416,7 @@ func assertFieldNotEmpty(tb testing.TB, e *sprobe.Event, field string, msgAndArg
 }
 
 //nolint:deadcode,unused
-func assertFieldContains(tb testing.TB, e *sprobe.Event, field string, value interface{}, msgAndArgs ...interface{}) bool {
+func assertFieldContains(tb testing.TB, e *model.Event, field string, value interface{}, msgAndArgs ...interface{}) bool {
 	tb.Helper()
 	fieldValue, err := e.GetFieldValue(field)
 	if err != nil {
@@ -379,7 +427,7 @@ func assertFieldContains(tb testing.TB, e *sprobe.Event, field string, value int
 }
 
 //nolint:deadcode,unused
-func assertFieldIsOneOf(tb testing.TB, e *sprobe.Event, field string, possibleValues interface{}, msgAndArgs ...interface{}) bool {
+func assertFieldIsOneOf(tb testing.TB, e *model.Event, field string, possibleValues interface{}, msgAndArgs ...interface{}) bool {
 	tb.Helper()
 	fieldValue, err := e.GetFieldValue(field)
 	if err != nil {
@@ -390,7 +438,7 @@ func assertFieldIsOneOf(tb testing.TB, e *sprobe.Event, field string, possibleVa
 }
 
 //nolint:deadcode,unused
-func assertFieldStringArrayIndexedOneOf(tb *testing.T, e *sprobe.Event, field string, index int, values []string, msgAndArgs ...interface{}) bool {
+func assertFieldStringArrayIndexedOneOf(tb *testing.T, e *model.Event, field string, index int, values []string, msgAndArgs ...interface{}) bool {
 	tb.Helper()
 	fieldValue, err := e.GetFieldValue(field)
 	if err != nil {
@@ -407,16 +455,25 @@ func assertFieldStringArrayIndexedOneOf(tb *testing.T, e *sprobe.Event, field st
 }
 
 //nolint:deadcode,unused
-func validateProcessContextLineage(tb testing.TB, event *sprobe.Event) bool {
+func validateProcessContextLineage(tb testing.TB, event *model.Event, probe *sprobe.Probe) {
+	eventJSON, err := serializers.MarshalEvent(event, probe.GetResolvers())
+	if err != nil {
+		tb.Errorf("failed to marshal event: %v", err)
+		return
+	}
+
 	var data interface{}
-	if err := json.Unmarshal([]byte(event.String()), &data); err != nil {
+	if err := json.Unmarshal(eventJSON, &data); err != nil {
 		tb.Error(err)
+		tb.Error(string(eventJSON))
+		return
 	}
 
 	json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors")
 	if err != nil {
 		tb.Errorf("should have a process context with ancestors, got %+v (%s)", json, spew.Sdump(data))
-		return false
+		tb.Error(string(eventJSON))
+		return
 	}
 
 	var prevPID, prevPPID float64
@@ -425,19 +482,22 @@ func validateProcessContextLineage(tb testing.TB, event *sprobe.Event) bool {
 		pce, ok := entry.(map[string]interface{})
 		if !ok {
 			tb.Errorf("invalid process cache entry, %+v", entry)
-			return false
+			tb.Error(string(eventJSON))
+			return
 		}
 
 		pid, ok := pce["pid"].(float64)
 		if !ok || pid == 0 {
 			tb.Errorf("invalid pid, %+v", pce)
-			return false
+			tb.Error(string(eventJSON))
+			return
 		}
 
 		// check lineage, exec should have the exact same pid, fork pid/ppid relationship
 		if prevPID != 0 && pid != prevPID && pid != prevPPID {
 			tb.Errorf("invalid process tree, parent/child broken (%f -> %f/%f), %+v", pid, prevPID, prevPPID, json)
-			return false
+			tb.Error(string(eventJSON))
+			return
 		}
 		prevPID = pid
 
@@ -445,7 +505,8 @@ func validateProcessContextLineage(tb testing.TB, event *sprobe.Event) bool {
 			ppid, ok := pce["ppid"].(float64)
 			if !ok {
 				tb.Errorf("invalid pid, %+v", pce)
-				return false
+				tb.Error(string(eventJSON))
+				return
 			}
 
 			prevPPID = ppid
@@ -454,13 +515,12 @@ func validateProcessContextLineage(tb testing.TB, event *sprobe.Event) bool {
 
 	if prevPID != 1 {
 		tb.Errorf("invalid process tree, last ancestor should be pid 1, %+v", json)
+		tb.Error(string(eventJSON))
 	}
-
-	return true
 }
 
 //nolint:deadcode,unused
-func validateProcessContextSECL(tb testing.TB, event *sprobe.Event) bool {
+func validateProcessContextSECL(tb testing.TB, event *model.Event, probe *sprobe.Probe) {
 	// Process file name values cannot be blank
 	nameFields := []string{
 		"process.file.name",
@@ -482,10 +542,19 @@ func validateProcessContextSECL(tb testing.TB, event *sprobe.Event) bool {
 		pathFieldValid, _ = checkProcessContextFieldsForBlankValues(tb, event, pathFields)
 	}
 
-	return nameFieldValid && pathFieldValid
+	valid := nameFieldValid && pathFieldValid
+
+	if !valid {
+		eventJSON, err := serializers.MarshalEvent(event, probe.GetResolvers())
+		if err != nil {
+			tb.Errorf("failed to marshal event: %v", err)
+			return
+		}
+		tb.Error(string(eventJSON))
+	}
 }
 
-func checkProcessContextFieldsForBlankValues(tb testing.TB, event *sprobe.Event, fieldNamesToCheck []string) (bool, bool) {
+func checkProcessContextFieldsForBlankValues(tb testing.TB, event *model.Event, fieldNamesToCheck []string) (bool, bool) {
 	validField := true
 	hasPath := true
 
@@ -526,31 +595,26 @@ func checkProcessContextFieldsForBlankValues(tb testing.TB, event *sprobe.Event,
 }
 
 //nolint:deadcode,unused
-func validateProcessContext(tb testing.TB, event *sprobe.Event) {
+func validateProcessContext(tb testing.TB, event *model.Event, probe *sprobe.Probe) {
 	if event.ProcessContext.IsKworker {
 		return
 	}
 
-	if !validateProcessContextLineage(tb, event) {
-		tb.Error(event.String())
-	}
-
-	if !validateProcessContextSECL(tb, event) {
-		tb.Error(event.String())
-	}
+	validateProcessContextLineage(tb, event, probe)
+	validateProcessContextSECL(tb, event, probe)
 }
 
 //nolint:deadcode,unused
-func validateEvent(tb testing.TB, validate func(event *sprobe.Event, rule *rules.Rule)) func(event *sprobe.Event, rule *rules.Rule) {
-	return func(event *sprobe.Event, rule *rules.Rule) {
-		validateProcessContext(tb, event)
+func validateEvent(tb testing.TB, validate func(event *model.Event, rule *rules.Rule), probe *sprobe.Probe) func(event *model.Event, rule *rules.Rule) {
+	return func(event *model.Event, rule *rules.Rule) {
+		validateProcessContext(tb, event, probe)
 		validate(event, rule)
 	}
 }
 
 //nolint:deadcode,unused
-func validateExecEvent(tb *testing.T, kind wrapperType, validate func(event *sprobe.Event, rule *rules.Rule)) func(event *sprobe.Event, rule *rules.Rule) {
-	return func(event *sprobe.Event, rule *rules.Rule) {
+func (tm *testModule) validateExecEvent(tb *testing.T, kind wrapperType, validate func(event *model.Event, rule *rules.Rule)) func(event *model.Event, rule *rules.Rule) {
+	return func(event *model.Event, rule *rules.Rule) {
 		validate(event, rule)
 
 		if kind == dockerWrapperType {
@@ -558,9 +622,7 @@ func validateExecEvent(tb *testing.T, kind wrapperType, validate func(event *spr
 			assertFieldNotEmpty(tb, event, "process.container.id", "process container id not found")
 		}
 
-		if !validateExecSchema(tb, event) {
-			tb.Error(event.String())
-		}
+		tm.validateExecSchema(tb, event)
 	}
 }
 
@@ -600,7 +662,7 @@ func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.R
 	return testPolicyFile.Name(), nil
 }
 
-func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
+func genTestConfig(dir string, opts testOpts, testDir string) (*config.Config, error) {
 	tmpl, err := template.New("test-config").Parse(testConfig)
 	if err != nil {
 		return nil, err
@@ -640,12 +702,18 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 		mapDentryResolutionEnabled = false
 	}
 
+	runtimeSecurityEnabled := true
+	if opts.disableRuntimeSecurity {
+		runtimeSecurityEnabled = false
+	}
+
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
 		"TestPoliciesDir":                     dir,
 		"DisableApprovers":                    opts.disableApprovers,
 		"EnableActivityDump":                  opts.enableActivityDump,
 		"ActivityDumpRateLimiter":             opts.activityDumpRateLimiter,
+		"ActivityDumpTagRules":                opts.activityDumpTagRules,
 		"ActivityDumpCgroupDumpTimeout":       opts.activityDumpCgroupDumpTimeout,
 		"ActivityDumpTracedCgroupsCount":      opts.activityDumpTracedCgroupsCount,
 		"ActivityDumpTracedEventTypes":        opts.activityDumpTracedEventTypes,
@@ -658,22 +726,43 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 		"LogPatterns":                         logPatterns,
 		"LogTags":                             logTags,
 		"EnvsWithValue":                       opts.envsWithValue,
+		"RuntimeSecurityEnabled":              runtimeSecurityEnabled,
+		"EventMonitoringProcessEnabled":       opts.enableEventMonitoringProcess,
+		"EventMonitoringNetworkEnabled":       opts.enableEventMonitoringNetwork,
+		"SBOMEnabled":                         opts.enableSBOM,
 	}); err != nil {
 		return nil, err
 	}
 
-	sysprobeConfig, err := os.Create(path.Join(opts.testDir, "system-probe.yaml"))
+	ddConfigName, sysprobeConfigName, err := func() (string, string, error) {
+		ddConfig, err := os.OpenFile(path.Join(testDir, "datadog.yaml"), os.O_CREATE|os.O_RDWR, 0o644)
+		if err != nil {
+			return "", "", err
+		}
+		defer ddConfig.Close()
+
+		sysprobeConfig, err := os.Create(path.Join(testDir, "system-probe.yaml"))
+		if err != nil {
+			return "", "", err
+		}
+		defer sysprobeConfig.Close()
+
+		_, err = io.Copy(sysprobeConfig, buffer)
+		if err != nil {
+			return "", "", err
+		}
+		return ddConfig.Name(), sysprobeConfig.Name(), nil
+	}()
 	if err != nil {
 		return nil, err
 	}
-	defer sysprobeConfig.Close()
 
-	_, err = io.Copy(sysprobeConfig, buffer)
+	err = sysconfig.SetupOptionalDatadogConfigWithDir(testDir, ddConfigName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to set up datadog.yaml configuration: %s", err)
 	}
 
-	agentConfig, err := sysconfig.New(sysprobeConfig.Name())
+	agentConfig, err := sysconfig.New(sysprobeConfigName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
@@ -717,7 +806,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
-	config, err := genTestConfig(st.root, opts)
+	config, err := genTestConfig(st.root, opts, st.root)
 	if err != nil {
 		return nil, err
 	}
@@ -730,7 +819,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	if testEnvironment == DockerEnvironment {
 		cmdWrapper = newStdCmdWrapper()
 	} else {
-		wrapper, err := newDockerCmdWrapper(st.Root(), "ubuntu")
+		wrapper, err := newDockerCmdWrapper(st.Root(), st.Root(), "ubuntu")
 		if err == nil {
 			cmdWrapper = newMultiCmdWrapper(wrapper, newStdCmdWrapper())
 		} else {
@@ -775,7 +864,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		eventHandlers: eventHandlers{},
 	}
 
-	mod, err := module.NewModule(config, module.Opts{StatsdClient: statsdClient, EventSender: testMod})
+	mod, err := module.NewModule(config, module.Opts{StatsdClient: statsdClient, EventSender: testMod, DontDiscardRuntime: true})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create module: %w", err)
 	}
@@ -819,7 +908,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	return testMod, nil
 }
 
-func (tm *testModule) HandleEvent(event *sprobe.Event) {
+func (tm *testModule) HandleEvent(event *model.Event) {
 	tm.eventHandlers.RLock()
 	defer tm.eventHandlers.RUnlock()
 
@@ -828,18 +917,27 @@ func (tm *testModule) HandleEvent(event *sprobe.Event) {
 	}
 }
 
-func (tm *testModule) HandleCustomEvent(rule *rules.Rule, event *sprobe.CustomEvent) {}
+func (tm *testModule) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {}
 
 func (tm *testModule) SendEvent(rule *rules.Rule, event module.Event, extTagsCb func() []string, service string) {
 	tm.eventHandlers.RLock()
 	defer tm.eventHandlers.RUnlock()
 
 	switch ev := event.(type) {
-	case *sprobe.Event:
-	case *sprobe.CustomEvent:
+	case *model.Event:
+	case *events.CustomEvent:
 		if tm.eventHandlers.onCustomSendEvent != nil {
 			tm.eventHandlers.onCustomSendEvent(rule, ev)
 		}
+	}
+}
+
+func (tm *testModule) SendProcessEventData(data []byte) {
+	tm.eventHandlers.RLock()
+	defer tm.eventHandlers.RUnlock()
+
+	if tm.eventHandlers.onProcessEventSendData != nil {
+		tm.eventHandlers.onProcessEventSendData(data)
 	}
 }
 
@@ -873,7 +971,7 @@ func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) {
 	tm.eventHandlers.RUnlock()
 
 	if callback != nil {
-		callback(event.(*sprobe.Event), rule)
+		callback(event.(*model.Event), rule)
 	}
 }
 
@@ -886,7 +984,7 @@ func (tm *testModule) RegisterDiscarderPushedHandler(cb onDiscarderPushedHandler
 	tm.eventHandlers.Unlock()
 }
 
-func (tm *testModule) NotifyDiscarderPushedCallback(eventType string, event *sprobe.Event, field string) {
+func (tm *testModule) NotifyDiscarderPushedCallback(eventType string, event *model.Event, field string) {
 	tm.eventHandlers.RLock()
 	callback := tm.eventHandlers.onDiscarderPushed
 	tm.eventHandlers.RUnlock()
@@ -941,6 +1039,21 @@ func (tm *testModule) GetEventDiscarder(tb testing.TB, action func() error, cb o
 	case <-ctx.Done():
 		return nil
 	}
+}
+
+//nolint:deadcode,unused
+func (tm *testModule) marshalEvent(ev *model.Event) (string, error) {
+	b, err := serializers.MarshalEvent(ev, tm.probe.GetResolvers())
+	return string(b), err
+}
+
+//nolint:deadcode,unused
+func (tm *testModule) debugEvent(ev *model.Event) string {
+	b, err := tm.marshalEvent(ev)
+	if err != nil {
+		return err.Error()
+	}
+	return string(b)
 }
 
 // GetStatusMetrics returns a string representation of the perf buffer monitor metrics
@@ -1012,7 +1125,7 @@ func (err ErrSkipTest) Error() string {
 func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb onRuleHandler) {
 	tb.Helper()
 
-	if err := tm.GetSignal(tb, action, validateEvent(tb, cb)); err != nil {
+	if err := tm.GetSignal(tb, action, validateEvent(tb, cb, tm.probe)); err != nil {
 		if _, ok := err.(ErrSkipTest); ok {
 			tb.Skip(err)
 		} else {
@@ -1030,7 +1143,7 @@ func (tm *testModule) GetSignal(tb testing.TB, action func() error, cb onRuleHan
 	message := make(chan ActionMessage, 1)
 	failNow := make(chan bool, 1)
 
-	tm.RegisterRuleEventHandler(func(e *sprobe.Event, r *rules.Rule) {
+	tm.RegisterRuleEventHandler(func(e *model.Event, r *rules.Rule) {
 		tb.Helper()
 		select {
 		case <-ctx.Done():
@@ -1075,18 +1188,16 @@ func (tm *testModule) RegisterRuleEventHandler(cb onRuleHandler) {
 	tm.eventHandlers.Unlock()
 }
 
-func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb func(rule *rules.Rule, event *sprobe.CustomEvent) bool, timeout time.Duration, eventType ...model.EventType) error {
+func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb func(rule *rules.Rule, event *events.CustomEvent) bool, timeout time.Duration, eventType model.EventType) error {
 	tb.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	message := make(chan ActionMessage, 1)
 
-	tm.RegisterCustomSendEventHandler(func(rule *rules.Rule, event *sprobe.CustomEvent) {
-		if len(eventType) > 0 {
-			if event.GetEventType() != eventType[0] {
-				return
-			}
+	tm.RegisterCustomSendEventHandler(func(rule *rules.Rule, event *events.CustomEvent) {
+		if event.GetEventType() != eventType {
+			return
 		}
 
 		select {
@@ -1133,13 +1244,19 @@ func (tm *testModule) RegisterCustomSendEventHandler(cb onCustomSendEventHandler
 	tm.eventHandlers.Unlock()
 }
 
-func (tm *testModule) GetProbeEvent(action func() error, cb func(event *sprobe.Event) bool, timeout time.Duration, eventTypes ...model.EventType) error {
+func (tm *testModule) RegisterProcessEventSendDataHandler(cb onProcessEventSendDataHandler) {
+	tm.eventHandlers.Lock()
+	tm.eventHandlers.onProcessEventSendData = cb
+	tm.eventHandlers.Unlock()
+}
+
+func (tm *testModule) GetProbeEvent(action func() error, cb func(event *model.Event) bool, timeout time.Duration, eventTypes ...model.EventType) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	message := make(chan ActionMessage, 1)
 
-	tm.RegisterProbeEventHandler(func(event *sprobe.Event) {
+	tm.RegisterProbeEventHandler(func(event *model.Event) {
 		if len(eventTypes) > 0 {
 			match := false
 			for _, eventType := range eventTypes {
@@ -1170,6 +1287,72 @@ func (tm *testModule) GetProbeEvent(action func() error, cb func(event *sprobe.E
 		}
 	})
 	defer tm.RegisterProbeEventHandler(nil)
+
+	if action == nil {
+		message <- Continue
+	} else {
+		if err := action(); err != nil {
+			message <- Skip
+			return err
+		}
+		message <- Continue
+	}
+
+	select {
+	case <-time.After(timeout):
+		return NewTimeoutError(tm.probe)
+	case <-ctx.Done():
+		return nil
+	}
+}
+
+func (tm *testModule) GetProcessEvent(action func() error, cb func(event *pmodel.ProcessEvent) bool, timeout time.Duration, executablePath string, eventTypes ...pmodel.EventType) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	message := make(chan ActionMessage, 1)
+	var event pmodel.ProcessEvent
+
+	tm.RegisterProcessEventSendDataHandler(func(data []byte) {
+		if _, err := event.UnmarshalMsg(data); err != nil {
+			tm.t.Logf("failed to unmarshall process event: %v\n", err)
+			return
+		}
+
+		if len(eventTypes) > 0 {
+			match := false
+			for _, eventType := range eventTypes {
+				if event.EventType == eventType {
+					match = true
+					break
+				}
+			}
+			if !match {
+				return
+			}
+		}
+
+		if executablePath != "" && event.Exe != executablePath {
+			return
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case msg := <-message:
+			switch msg {
+			case Continue:
+				if cb(&event) {
+					cancel()
+				} else {
+					message <- Continue
+				}
+			case Skip:
+				cancel()
+			}
+		}
+	})
+	defer tm.RegisterProcessEventSendDataHandler(nil)
 
 	if action == nil {
 		message <- Continue
@@ -1310,7 +1493,9 @@ func (tm *testModule) validateAbnormalPaths() {
 }
 
 func (tm *testModule) Close() {
-	tm.module.SendStats()
+	if tm.config.RuntimeEnabled {
+		tm.module.SendStats()
+	}
 
 	if !tm.opts.disableAbnormalPathCheck {
 		tm.validateAbnormalPaths()
@@ -1473,7 +1658,7 @@ func ifSyscallSupported(syscall string, test func(t *testing.T, syscallNB uintpt
 //
 //nolint:deadcode,unused
 func waitForProbeEvent(test *testModule, action func() error, key string, value interface{}, eventType model.EventType) error {
-	return test.GetProbeEvent(action, func(event *sprobe.Event) bool {
+	return test.GetProbeEvent(action, func(event *model.Event) bool {
 		if v, _ := event.GetFieldValue(key); v == value {
 			return true
 		}
@@ -1497,7 +1682,6 @@ func TestMain(m *testing.M) {
 }
 
 func init() {
-	os.Setenv("RUNTIME_SECURITY_TESTSUITE", "true")
 	flag.StringVar(&testEnvironment, "env", HostEnvironment, "environment used to run the test suite: ex: host, docker")
 	flag.StringVar(&logLevelStr, "loglevel", seelog.WarnStr, "log level")
 	flag.Var(&logPatterns, "logpattern", "List of log pattern")
@@ -1610,7 +1794,7 @@ func (tm *testModule) ListActivityDumps() ([]*activityDumpIdentifier, error) {
 	return dumps, nil
 }
 
-func (tm *testModule) DecodeActivityDump(path string) (*sprobe.ActivityDump, error) {
+func (tm *testModule) DecodeActivityDump(path string) (*activitydump.ActivityDump, error) {
 	monitor := tm.probe.GetMonitor()
 	if monitor == nil {
 		return nil, errors.New("No monitor")
@@ -1621,7 +1805,7 @@ func (tm *testModule) DecodeActivityDump(path string) (*sprobe.ActivityDump, err
 		return nil, errors.New("No activity dump manager")
 	}
 
-	ad := sprobe.NewActivityDump(adm)
+	ad := activitydump.NewActivityDump(adm)
 	if ad == nil {
 		return nil, errors.New("Creation of new activity dump fails")
 	}
@@ -1634,7 +1818,7 @@ func (tm *testModule) DecodeActivityDump(path string) (*sprobe.ActivityDump, err
 }
 
 func (tm *testModule) StartADocker() (*dockerCmdWrapper, error) {
-	docker, err := newDockerCmdWrapper(tm.st.Root(), "alpine")
+	docker, err := newDockerCmdWrapper(tm.st.Root(), tm.st.Root(), "alpine")
 	if err != nil {
 		return nil, err
 	}
@@ -1781,7 +1965,7 @@ func (tm *testModule) findNextPartialDump(dockerInstance *dockerCmdWrapper, id *
 }
 
 //nolint:deadcode,unused
-func searchForOpen(ad *sprobe.ActivityDump) bool {
+func searchForOpen(ad *activitydump.ActivityDump) bool {
 	for _, node := range ad.ProcessActivityTree {
 		if len(node.Files) > 0 {
 			return true
@@ -1791,7 +1975,7 @@ func searchForOpen(ad *sprobe.ActivityDump) bool {
 }
 
 //nolint:deadcode,unused
-func searchForDns(ad *sprobe.ActivityDump) bool {
+func searchForDns(ad *activitydump.ActivityDump) bool {
 	for _, node := range ad.ProcessActivityTree {
 		if len(node.DNSNames) > 0 {
 			return true
@@ -1801,7 +1985,7 @@ func searchForDns(ad *sprobe.ActivityDump) bool {
 }
 
 //nolint:deadcode,unused
-func searchForBind(ad *sprobe.ActivityDump) bool {
+func searchForBind(ad *activitydump.ActivityDump) bool {
 	for _, node := range ad.ProcessActivityTree {
 		if len(node.Sockets) > 0 {
 			return true
@@ -1811,7 +1995,7 @@ func searchForBind(ad *sprobe.ActivityDump) bool {
 }
 
 //nolint:deadcode,unused
-func searchForSyscalls(ad *sprobe.ActivityDump) bool {
+func searchForSyscalls(ad *activitydump.ActivityDump) bool {
 	for _, node := range ad.ProcessActivityTree {
 		if len(node.Syscalls) > 0 {
 			return true
@@ -1821,7 +2005,7 @@ func searchForSyscalls(ad *sprobe.ActivityDump) bool {
 }
 
 //nolint:deadcode,unused
-func (tm *testModule) getADFromDumpId(id *activityDumpIdentifier) (*sprobe.ActivityDump, error) {
+func (tm *testModule) getADFromDumpId(id *activityDumpIdentifier) (*activitydump.ActivityDump, error) {
 	var fileProtobuf string
 	// decode the dump
 	for _, file := range id.OutputFiles {

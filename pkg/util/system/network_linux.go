@@ -94,6 +94,7 @@ func GetDefaultGateway(procPath string) (net.IP, error) {
 // addresses found. The result does not contain duplicate IPs.
 //
 // Here's an example of /proc/<pid>/net/fib_trie that shows its format:
+//
 //	Main:
 //	  +-- 0.0.0.0/1 2 0 2
 //	     +-- 0.0.0.0/4 2 0 2

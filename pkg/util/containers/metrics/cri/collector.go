@@ -67,10 +67,10 @@ func (collector *criCollector) GetContainerStats(containerNS, containerID string
 	return &provider.ContainerStats{
 		Timestamp: time.Now(),
 		CPU: &provider.ContainerCPUStats{
-			Total: pointer.UIntToFloatPtr(stats.GetCpu().GetUsageCoreNanoSeconds().GetValue()),
+			Total: pointer.Ptr(float64(stats.GetCpu().GetUsageCoreNanoSeconds().GetValue())),
 		},
 		Memory: &provider.ContainerMemStats{
-			UsageTotal: pointer.UIntToFloatPtr(stats.GetMemory().GetWorkingSetBytes().GetValue()),
+			UsageTotal: pointer.Ptr(float64(stats.GetMemory().GetWorkingSetBytes().GetValue())),
 		},
 	}, nil
 }

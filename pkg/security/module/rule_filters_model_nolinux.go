@@ -20,8 +20,8 @@ type RuleFilterEvent struct {
 type RuleFilterModel struct {
 }
 
-func NewRuleFilterModel() (*RuleFilterModel, error) {
-	return &RuleFilterModel{}, nil
+func NewRuleFilterModel() *RuleFilterModel {
+	return &RuleFilterModel{}
 }
 
 func (m *RuleFilterModel) NewEvent() eval.Event {

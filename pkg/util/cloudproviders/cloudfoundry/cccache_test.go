@@ -24,7 +24,6 @@ import (
 func (ccc *CCCache) reset() {
 	ccc.Lock()
 	defer ccc.Unlock()
-	ccc.activeResources = make(map[string]chan interface{})
 	ccc.segmentBySpaceGUID = make(map[string]*cfclient.IsolationSegment)
 	ccc.segmentByOrgGUID = make(map[string]*cfclient.IsolationSegment)
 	ccc.sidecarsByAppGUID = make(map[string][]*CFSidecar)
@@ -35,6 +34,7 @@ func (ccc *CCCache) reset() {
 	ccc.processesByAppGUID = make(map[string][]*cfclient.Process)
 	ccc.cfApplicationsByGUID = make(map[string]*CFApplication)
 	ccc.lastUpdated = time.Time{}
+	ccc.updatedOnce = make(chan struct{})
 }
 
 type testCCClientCounter struct {
@@ -168,11 +168,13 @@ func TestCCCachePolling(t *testing.T) {
 }
 
 func TestCCCache_GetApp(t *testing.T) {
-	app1, _ := cc.GetApp("random_app_guid")
+	app1, err := cc.GetApp("random_app_guid")
+	assert.Nil(t, err)
 	assert.EqualValues(t, v3App1, *app1)
-	app2, _ := cc.GetApp("guid2")
+	app2, err := cc.GetApp("guid2")
+	assert.Nil(t, err)
 	assert.EqualValues(t, v3App2, *app2)
-	_, err := cc.GetApp("not-existing-guid")
+	_, err = cc.GetApp("not-existing-guid")
 	assert.NotNil(t, err)
 }
 
@@ -265,7 +267,6 @@ func TestCCCache_GetProcesses(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
-// TODO: unrelax constraints, change all assertions of type GreaterOrEqual 2 to EqualValues 1
 func TestCCCache_RefreshCacheOnMiss_GetProcesses(t *testing.T) {
 	cc.refreshCacheOnMiss = true
 	cc.reset()
@@ -284,7 +285,7 @@ func TestCCCache_RefreshCacheOnMiss_GetProcesses(t *testing.T) {
 	}
 	wg.Wait()
 
-	assert.GreaterOrEqual(t, 2, globalCCClientCounter.GetHits("ListProcessByAppGUID"))
+	assert.EqualValues(t, 1, globalCCClientCounter.GetHits("ListProcessByAppGUID"))
 
 	cc.refreshCacheOnMiss = false
 	cc.readData()
@@ -308,7 +309,7 @@ func TestCCCache_RefreshCacheOnMiss_GetApp(t *testing.T) {
 	}
 	wg.Wait()
 
-	assert.GreaterOrEqual(t, 2, globalCCClientCounter.GetHits("GetV3AppByGUID"))
+	assert.EqualValues(t, 1, globalCCClientCounter.GetHits("GetV3AppByGUID"))
 
 	cc.refreshCacheOnMiss = false
 	cc.readData()
@@ -332,7 +333,7 @@ func TestCCCache_RefreshCacheOnMiss_GetSpace(t *testing.T) {
 	}
 	wg.Wait()
 
-	assert.GreaterOrEqual(t, 2, globalCCClientCounter.GetHits("GetV3SpaceByGUID"))
+	assert.EqualValues(t, 1, globalCCClientCounter.GetHits("GetV3SpaceByGUID"))
 
 	cc.refreshCacheOnMiss = false
 	cc.readData()
@@ -356,7 +357,7 @@ func TestCCCache_RefreshCacheOnMiss_GetOrg(t *testing.T) {
 	}
 	wg.Wait()
 
-	assert.GreaterOrEqual(t, 2, globalCCClientCounter.GetHits("GetV3OrganizationByGUID"))
+	assert.EqualValues(t, 1, globalCCClientCounter.GetHits("GetV3OrganizationByGUID"))
 
 	cc.refreshCacheOnMiss = false
 	cc.readData()
@@ -384,10 +385,10 @@ func TestCCCache_RefreshCacheOnMiss_GetCFApplication(t *testing.T) {
 	assert.EqualValues(t, 0, globalCCClientCounter.GetHits("ListV3SpacesByQuery"))
 	assert.EqualValues(t, 0, globalCCClientCounter.GetHits("ListV3AppsByQuery"))
 	assert.EqualValues(t, 0, globalCCClientCounter.GetHits("ListAllProcessesByQuery"))
-	assert.GreaterOrEqual(t, 2, globalCCClientCounter.GetHits("GetV3AppByGUID"))
-	assert.GreaterOrEqual(t, 2, globalCCClientCounter.GetHits("GetV3OrganizationByGUID"))
-	assert.GreaterOrEqual(t, 2, globalCCClientCounter.GetHits("GetV3SpaceByGUID"))
-	assert.GreaterOrEqual(t, 2, globalCCClientCounter.GetHits("ListProcessByAppGUID"))
+	assert.EqualValues(t, 1, globalCCClientCounter.GetHits("GetV3AppByGUID"))
+	assert.EqualValues(t, 1, globalCCClientCounter.GetHits("GetV3OrganizationByGUID"))
+	assert.EqualValues(t, 1, globalCCClientCounter.GetHits("GetV3SpaceByGUID"))
+	assert.EqualValues(t, 1, globalCCClientCounter.GetHits("ListProcessByAppGUID"))
 
 	cc.refreshCacheOnMiss = false
 	cc.readData()

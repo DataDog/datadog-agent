@@ -162,11 +162,11 @@ func (ps *rateLimiter) Permits(n int64) bool {
 //
 // For example:
 //
-//   • If [max]=500 and [current]=700, the new rate will be 0.71 (500/700) to slow down the intake. Considering
-//     we are not rate limiting already ([rate]=1).
+//	• If [max]=500 and [current]=700, the new rate will be 0.71 (500/700) to slow down the intake. Considering
+//	  we are not rate limiting already ([rate]=1).
 //
-//   • If [max]=500 and [current]=700, and we are already rate-limiting at 50% ([rate]=0.5), then the new rate
-//     will be 0.71 * 0.5 = 0.35 to further reduce the intake.
+//	• If [max]=500 and [current]=700, and we are already rate-limiting at 50% ([rate]=0.5), then the new rate
+//	  will be 0.71 * 0.5 = 0.35 to further reduce the intake.
 //
 // The formula also works backwards to gradually increase the intake once the [current] value is again <= [max].
 func computeRateLimitingRate(max, current, rate float64) float64 {

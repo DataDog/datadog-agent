@@ -182,7 +182,7 @@ func TestPrometheusServicesCollect(t *testing.T) {
 			},
 		},
 		{
-			name:   "collect services and endpoints",
+			name:   "collect only endpoints",
 			checks: []*types.PrometheusCheck{types.DefaultPrometheusCheck},
 			services: []*v1.Service{
 				{
@@ -230,17 +230,6 @@ func TestPrometheusServicesCollect(t *testing.T) {
 			},
 			collectEndpoints: true,
 			expectConfigs: []integration.Config{
-				{
-					Name:       "openmetrics",
-					InitConfig: integration.Data("{}"),
-					Instances: []integration.Data{
-						integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:1234/mewtrix"}`),
-					},
-					ADIdentifiers: []string{"kube_service://ns/svc"},
-					Provider:      "prometheus-services",
-					ClusterCheck:  true,
-					Source:        "prometheus_services:kube_service://ns/svc",
-				},
 				{
 					Name:       "openmetrics",
 					ServiceID:  "kube_endpoint_uid://ns/svc/10.0.0.1",

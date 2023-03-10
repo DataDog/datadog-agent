@@ -16,6 +16,8 @@ import (
 	_ "expvar"         // Blank import used because this isn't directly used in this file
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/helm"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/kubernetesapiserver"
@@ -29,14 +31,15 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/cmd/cluster-agent/app"
 )
 
 func main() {
 	// set the Agent flavor
 	flavor.SetFlavor(flavor.ClusterAgent)
-	if err := app.ClusterAgentCmd.Execute(); err != nil {
+
+	ClusterAgentCmd := command.MakeCommand(subcommands.ClusterAgentSubcommands())
+
+	if err := ClusterAgentCmd.Execute(); err != nil {
 		log.Error(err)
 		os.Exit(-1)
 	}

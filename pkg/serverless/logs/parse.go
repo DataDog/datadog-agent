@@ -196,7 +196,8 @@ func (l *LambdaLogAPIMessage) handlePlatformRuntimeDone(objectRecord map[string]
 func (l *LambdaLogAPIMessage) handlePlatformRuntimeDoneSpans(objectRecord map[string]interface{}) {
 	spans, ok := objectRecord["spans"].([]interface{})
 	if !ok {
-		log.Error("LogMessage.UnmarshalJSON: can't read the spans object")
+		// no spans if the function errored and did not return a response
+		log.Debug("LogMessage.UnmarshalJSON: no spans object received")
 		return
 	}
 	for _, span := range spans {

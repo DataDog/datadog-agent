@@ -41,14 +41,14 @@ func getCPUStatsCgroupV1(cpuStat *v1.CPUStat) *provider.ContainerCPUStats {
 	res := provider.ContainerCPUStats{}
 
 	if cpuStat.Usage != nil {
-		res.Total = pointer.UIntToFloatPtr(cpuStat.Usage.Total)
-		res.System = pointer.UIntToFloatPtr(cpuStat.Usage.Kernel)
-		res.User = pointer.UIntToFloatPtr(cpuStat.Usage.User)
+		res.Total = pointer.Ptr(float64(cpuStat.Usage.Total))
+		res.System = pointer.Ptr(float64(cpuStat.Usage.Kernel))
+		res.User = pointer.Ptr(float64(cpuStat.Usage.User))
 	}
 
 	if cpuStat.Throttling != nil {
-		res.ThrottledPeriods = pointer.UIntToFloatPtr(cpuStat.Throttling.ThrottledPeriods)
-		res.ThrottledTime = pointer.UIntToFloatPtr(cpuStat.Throttling.ThrottledTime)
+		res.ThrottledPeriods = pointer.Ptr(float64(cpuStat.Throttling.ThrottledPeriods))
+		res.ThrottledTime = pointer.Ptr(float64(cpuStat.Throttling.ThrottledTime))
 	}
 
 	return &res
@@ -60,21 +60,21 @@ func getMemoryStatsCgroupV1(memStat *v1.MemoryStat) *provider.ContainerMemStats 
 	}
 
 	res := provider.ContainerMemStats{
-		RSS:   pointer.UIntToFloatPtr(memStat.RSS),
-		Cache: pointer.UIntToFloatPtr(memStat.Cache),
+		RSS:   pointer.Ptr(float64(memStat.RSS)),
+		Cache: pointer.Ptr(float64(memStat.Cache)),
 	}
 
 	if memStat.Usage != nil {
-		res.UsageTotal = pointer.UIntToFloatPtr(memStat.Usage.Usage)
-		res.Limit = pointer.UIntToFloatPtr(memStat.Usage.Limit)
+		res.UsageTotal = pointer.Ptr(float64(memStat.Usage.Usage))
+		res.Limit = pointer.Ptr(float64(memStat.Usage.Limit))
 	}
 
 	if memStat.Kernel != nil {
-		res.KernelMemory = pointer.UIntToFloatPtr(memStat.Kernel.Usage)
+		res.KernelMemory = pointer.Ptr(float64(memStat.Kernel.Usage))
 	}
 
 	if memStat.Swap != nil {
-		res.Swap = pointer.UIntToFloatPtr(memStat.Swap.Usage)
+		res.Swap = pointer.Ptr(float64(memStat.Swap.Usage))
 	}
 
 	return &res
@@ -86,10 +86,10 @@ func getIOStatsCgroupV1(blkioStat *v1.BlkIOStat) *provider.ContainerIOStats {
 	}
 
 	result := provider.ContainerIOStats{
-		ReadBytes:       pointer.Float64Ptr(0),
-		WriteBytes:      pointer.Float64Ptr(0),
-		ReadOperations:  pointer.Float64Ptr(0),
-		WriteOperations: pointer.Float64Ptr(0),
+		ReadBytes:       pointer.Ptr(0.0),
+		WriteBytes:      pointer.Ptr(0.0),
+		ReadOperations:  pointer.Ptr(0.0),
+		WriteOperations: pointer.Ptr(0.0),
 		Devices:         make(map[string]provider.DeviceIOStats),
 	}
 
@@ -98,9 +98,9 @@ func getIOStatsCgroupV1(blkioStat *v1.BlkIOStat) *provider.ContainerIOStats {
 		device := result.Devices[deviceName]
 		switch blkioStatEntry.Op {
 		case "Read":
-			device.ReadBytes = pointer.Float64Ptr(float64(blkioStatEntry.Value))
+			device.ReadBytes = pointer.Ptr(float64(blkioStatEntry.Value))
 		case "Write":
-			device.WriteBytes = pointer.Float64Ptr(float64(blkioStatEntry.Value))
+			device.WriteBytes = pointer.Ptr(float64(blkioStatEntry.Value))
 		}
 		result.Devices[deviceName] = device
 	}
@@ -110,9 +110,9 @@ func getIOStatsCgroupV1(blkioStat *v1.BlkIOStat) *provider.ContainerIOStats {
 		device := result.Devices[deviceName]
 		switch blkioStatEntry.Op {
 		case "Read":
-			device.ReadOperations = pointer.Float64Ptr(float64(blkioStatEntry.Value))
+			device.ReadOperations = pointer.Ptr(float64(blkioStatEntry.Value))
 		case "Write":
-			device.WriteOperations = pointer.Float64Ptr(float64(blkioStatEntry.Value))
+			device.WriteOperations = pointer.Ptr(float64(blkioStatEntry.Value))
 		}
 		result.Devices[deviceName] = device
 	}
@@ -138,10 +138,10 @@ func getIOStatsCgroupV1(blkioStat *v1.BlkIOStat) *provider.ContainerIOStats {
 func getNetworkStatsCgroupV1(networkStats []*v1.NetworkStat) *provider.ContainerNetworkStats {
 	containerNetworkStats := provider.ContainerNetworkStats{
 		Timestamp:   time.Now(),
-		BytesSent:   pointer.Float64Ptr(0),
-		BytesRcvd:   pointer.Float64Ptr(0),
-		PacketsSent: pointer.Float64Ptr(0),
-		PacketsRcvd: pointer.Float64Ptr(0),
+		BytesSent:   pointer.Ptr(0.0),
+		BytesRcvd:   pointer.Ptr(0.0),
+		PacketsSent: pointer.Ptr(0.0),
+		PacketsRcvd: pointer.Ptr(0.0),
 		Interfaces:  make(map[string]provider.InterfaceNetStats),
 	}
 
@@ -152,10 +152,10 @@ func getNetworkStatsCgroupV1(networkStats []*v1.NetworkStat) *provider.Container
 		*containerNetworkStats.PacketsRcvd += float64(stats.RxPackets)
 
 		containerNetworkStats.Interfaces[stats.Name] = provider.InterfaceNetStats{
-			BytesSent:   pointer.UIntToFloatPtr(stats.TxBytes),
-			BytesRcvd:   pointer.UIntToFloatPtr(stats.RxBytes),
-			PacketsSent: pointer.UIntToFloatPtr(stats.TxPackets),
-			PacketsRcvd: pointer.UIntToFloatPtr(stats.RxPackets),
+			BytesSent:   pointer.Ptr(float64(stats.TxBytes)),
+			BytesRcvd:   pointer.Ptr(float64(stats.RxBytes)),
+			PacketsSent: pointer.Ptr(float64(stats.TxPackets)),
+			PacketsRcvd: pointer.Ptr(float64(stats.RxPackets)),
 		}
 	}
 

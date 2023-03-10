@@ -26,6 +26,7 @@ include:
   - /.gitlab/internal_image_deploy.yml
   - /.gitlab/trigger_release.yml
   - /.gitlab/e2e.yml
+  - /.gitlab/fakeintake.yml
   - /.gitlab/kitchen_cleanup.yml
   - /.gitlab/functional_test.yml
   - /.gitlab/functional_test_cleanup.yml
@@ -38,6 +39,7 @@ include:
   - /.gitlab/kitchen_common/cleanup.yml
   - /.gitlab/kitchen_common/testing.yml
   - /.gitlab/docker_common/publish_job_templates.yml
+  - /.gitlab/benchmarks/benchmarks.yml
 
 default:
   retry:
@@ -48,10 +50,6 @@ default:
       - unknown_failure
       - api_failure
 
-workflow:
-  rules:
-    - if: $CI_COMMIT_TAG == null || $DEPLOY_AGENT == "true"
-
 stages:
   - maintenance_jobs
   - deps_build
@@ -61,6 +59,7 @@ stages:
   - binary_build
   - package_deps_build
   - integration_test
+  - benchmarks
   - package_build
   - internal_deploy
   - kitchen_deploy
@@ -135,17 +134,29 @@ variables:
   ## comment out the line below to disable integration wheels cache
   INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
   S3_DD_AGENT_OMNIBUS_LLVM_URI: s3://dd-agent-omnibus/llvm
+  S3_DD_AGENT_OMNIBUS_BTFS_URI: s3://dd-agent-omnibus/btfs
   GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
-  DATADOG_AGENT_BUILDIMAGES: v11651098-faf0544
+
+  # Build images versions
+  # To use images from datadog-agent-buildimages dev branches, set the corresponding
+  # SUFFIX variable to _test_only
+  DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_BUILDIMAGES: v13655766-14ec95c
+  DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_WINBUILDIMAGES: v13655766-14ec95c
+  DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_ARMBUILDIMAGES: v13655766-14ec95c
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v13733416-48c12a1
+  DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v13655766-14ec95c
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v13655766-14ec95c
   DATADOG_AGENT_BUILDERS: v9930706-ef9d493
-  DATADOG_AGENT_WINBUILDIMAGES: v11651098-faf0544
-  DATADOG_AGENT_ARMBUILDIMAGES: v11651098-faf0544
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v11651098-faf0544
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v11651098-faf0544
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v10582792-c2b9fb7
+
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   NIKOS_INSTALL_DIR: /opt/datadog-agent/embedded/nikos
   NIKOS_EMBEDDED_PATH: /opt/datadog-agent/embedded/nikos/embedded
@@ -166,7 +177,8 @@ variables:
   ARTIFACTORY_TOKEN_SSM_NAME: ci.datadog-agent.artifactory_token
   ARTIFACTORY_URL: datadog.jfrog.io
   ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
-  USE_CACHING_PROXY_RUBY: "true"
+  ARTIFACTORY_PYPI_PATH: artifactory/api/pypi/agent-pypi/simple
+  USE_CACHING_PROXY_RUBY: "false"
   CLANG_LLVM_VER: 12.0.1
 
 #
@@ -255,6 +267,26 @@ variables:
 # to explicitly add it.
 .if_deploy_on_rc_tag_on_beta_repo_branch: &if_rc_tag_on_beta_repo_branch
   if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+
+#
+# Workflow rules
+# Rules used to define whether a pipeline should run, and with which variables
+#
+
+workflow:
+  rules:
+    - <<: *if_main_branch
+      variables:
+        USE_CACHING_PROXY_PYTHON: "false"
+    - <<: *if_release_branch
+      variables:
+        USE_CACHING_PROXY_PYTHON: "false"
+    - <<: *if_deploy
+      variables:
+        USE_CACHING_PROXY_PYTHON: "false"
+    - if: $CI_COMMIT_TAG == null
+      variables:
+        USE_CACHING_PROXY_PYTHON: "false"
 
 #
 # List of rule blocks used in the pipeline
@@ -731,6 +763,7 @@ variables:
   - <<: *if_testing_cleanup
 
 .on_security_agent_changes_or_manual:
+  - <<: *if_main_branch
   - changes:
       - pkg/ebpf/**/*
       - pkg/security/**/*
@@ -765,4 +798,12 @@ variables:
     when: never
   - <<: *if_kitchen
     when: manual
+    allow_failure: true
+
+.on_trace_agent_changes_or_manual:
+  - changes:
+      - pkg/trace/**/*
+      - .gitlab/benchmarks/*
+    when: on_success
+  - when: manual
     allow_failure: true

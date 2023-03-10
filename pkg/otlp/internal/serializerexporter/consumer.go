@@ -17,18 +17,18 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/otlp/model/translator"
-	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
 	"github.com/tinylib/msgp/msgp"
 )
 
-var _ translator.Consumer = (*serializerConsumer)(nil)
+var _ otlpmetrics.Consumer = (*serializerConsumer)(nil)
 
 type serializerConsumer struct {
 	cardinality collectors.TagCardinality
@@ -40,7 +40,7 @@ type serializerConsumer struct {
 
 // enrichedTags of a given dimension.
 // In the OTLP pipeline, 'contexts' are kept within the translator and function differently than DogStatsD/check metrics.
-func (c *serializerConsumer) enrichedTags(dimensions *translator.Dimensions) []string {
+func (c *serializerConsumer) enrichedTags(dimensions *otlpmetrics.Dimensions) []string {
 	enrichedTags := make([]string, 0, len(c.extraTags)+len(dimensions.Tags()))
 	enrichedTags = append(enrichedTags, c.extraTags...)
 	enrichedTags = append(enrichedTags, dimensions.Tags()...)
@@ -73,7 +73,7 @@ func (c *serializerConsumer) ConsumeAPMStats(ss pb.ClientStatsPayload) {
 	c.apmstats = append(c.apmstats, body)
 }
 
-func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *translator.Dimensions, ts uint64, qsketch *quantile.Sketch) {
+func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *otlpmetrics.Dimensions, ts uint64, qsketch *quantile.Sketch) {
 	c.sketches = append(c.sketches, &metrics.SketchSeries{
 		Name:     dimensions.Name(),
 		Tags:     tagset.CompositeTagsFromSlice(c.enrichedTags(dimensions)),
@@ -86,17 +86,17 @@ func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *transl
 	})
 }
 
-func apiTypeFromTranslatorType(typ translator.MetricDataType) metrics.APIMetricType {
+func apiTypeFromTranslatorType(typ otlpmetrics.DataType) metrics.APIMetricType {
 	switch typ {
-	case translator.Count:
+	case otlpmetrics.Count:
 		return metrics.APICountType
-	case translator.Gauge:
+	case otlpmetrics.Gauge:
 		return metrics.APIGaugeType
 	}
 	panic(fmt.Sprintf("unreachable: received non-count non-gauge type: %d", typ))
 }
 
-func (c *serializerConsumer) ConsumeTimeSeries(ctx context.Context, dimensions *translator.Dimensions, typ translator.MetricDataType, ts uint64, value float64) {
+func (c *serializerConsumer) ConsumeTimeSeries(ctx context.Context, dimensions *otlpmetrics.Dimensions, typ otlpmetrics.DataType, ts uint64, value float64) {
 	c.series = append(c.series,
 		&metrics.Serie{
 			Name:     dimensions.Name(),

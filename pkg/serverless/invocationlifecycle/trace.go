@@ -137,10 +137,10 @@ func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[stri
 	})
 }
 
-// parseLambdaFunction removes extra data sent by the proxy that surrounds
+// ParseLambdaPayload removes extra data sent by the proxy that surrounds
 // a JSON payload. For example, for `a5a{"event":"aws_lambda"...}0` it would remove
 // a5a at the front and 0 at the end, and just leave a correct JSON payload.
-func parseLambdaPayload(rawPayload []byte) []byte {
+func ParseLambdaPayload(rawPayload []byte) []byte {
 	leftIndex := bytes.Index(rawPayload, []byte("{"))
 	rightIndex := bytes.LastIndex(rawPayload, []byte("}"))
 	if leftIndex == -1 || rightIndex == -1 {

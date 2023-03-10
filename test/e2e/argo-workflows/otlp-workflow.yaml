@@ -83,6 +83,8 @@ spec:
                   value: "{{inputs.parameters.ci_pipeline_id}}"
                 - name: ci_job_id
                   value: "{{inputs.parameters.ci_job_id}}"
+                - name: remote_configuration_enabled
+                  value: "false"
 
         - - name: wait-datadog-agent
             templateRef:

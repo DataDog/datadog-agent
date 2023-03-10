@@ -105,14 +105,7 @@ func (oc *OrchestratorConfig) Load() error {
 	}
 
 	// Orchestrator Explorer
-	if config.Datadog.GetBool(key(orchestratorNS, "enabled")) {
-		oc.OrchestrationCollectionEnabled = true
-		// Set clustername
-		hname, _ := hostname.Get(context.TODO())
-		if clusterName := clustername.GetClusterName(context.TODO(), hname); clusterName != "" {
-			oc.KubeClusterName = clusterName
-		}
-	}
+	oc.OrchestrationCollectionEnabled, oc.KubeClusterName = IsOrchestratorEnabled()
 
 	oc.CollectorDiscoveryEnabled = config.Datadog.GetBool(key(orchestratorNS, "collector_discovery.enabled"))
 	oc.IsScrubbingEnabled = config.Datadog.GetBool(key(orchestratorNS, "container_scrubbing.enabled"))
@@ -201,4 +194,16 @@ func setBoundedConfigIntValue(configKey string, upperBound int, setter func(v in
 	}
 
 	setter(val)
+}
+
+// IsOrchestratorEnabled checks if orchestrator explorer features are enabled, it returns the boolean and the cluster name
+func IsOrchestratorEnabled() (bool, string) {
+	enabled := config.Datadog.GetBool(key(orchestratorNS, "enabled"))
+	var clusterName string
+	if enabled {
+		// Set clustername
+		hname, _ := hostname.Get(context.TODO())
+		clusterName = clustername.GetClusterName(context.TODO(), hname)
+	}
+	return enabled, clusterName
 }

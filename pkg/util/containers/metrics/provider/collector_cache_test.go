@@ -20,21 +20,21 @@ func TestCollectorCache(t *testing.T) {
 		cStats: map[string]*ContainerStats{
 			"cID1": {
 				CPU: &ContainerCPUStats{
-					Total: pointer.Float64Ptr(100),
+					Total: pointer.Ptr(100.0),
 				},
 			},
 			"cID2": {
 				CPU: &ContainerCPUStats{
-					Total: pointer.Float64Ptr(200),
+					Total: pointer.Ptr(200.0),
 				},
 			},
 		},
 		cNetStats: map[string]*ContainerNetworkStats{
 			"cID1": {
-				BytesSent: pointer.Float64Ptr(110),
+				BytesSent: pointer.Ptr(110.0),
 			},
 			"cID2": {
-				BytesSent: pointer.Float64Ptr(210),
+				BytesSent: pointer.Ptr(210.0),
 			},
 		},
 		cIDForPID: map[int]string{
@@ -73,16 +73,16 @@ func TestCollectorCache(t *testing.T) {
 	// Changing underlying source
 	actualCollector.cStats["cID1"] = &ContainerStats{
 		CPU: &ContainerCPUStats{
-			Total: pointer.Float64Ptr(150),
+			Total: pointer.Ptr(150.0),
 		},
 	}
 	actualCollector.cStats["cID2"] = &ContainerStats{
 		CPU: &ContainerCPUStats{
-			Total: pointer.Float64Ptr(250),
+			Total: pointer.Ptr(250.0),
 		},
 	}
 	actualCollector.cNetStats["cID2"] = &ContainerNetworkStats{
-		BytesSent: pointer.Float64Ptr(260),
+		BytesSent: pointer.Ptr(260.0),
 	}
 	actualCollector.cIDForPID[2] = "cID22"
 

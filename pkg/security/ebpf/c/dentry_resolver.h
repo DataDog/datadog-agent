@@ -48,6 +48,8 @@ enum dr_kprobe_progs
     DR_LINK_DST_CALLBACK_KPROBE_KEY,
     DR_RENAME_CALLBACK_KPROBE_KEY,
     DR_SELINUX_CALLBACK_KPROBE_KEY,
+    DR_UNSHARE_MNTNS_STAGE_ONE_CALLBACK_KPROBE_KEY,
+    DR_UNSHARE_MNTNS_STAGE_TWO_CALLBACK_KPROBE_KEY,
 };
 
 struct bpf_map_def SEC("maps/dentry_resolver_kprobe_callbacks") dentry_resolver_kprobe_callbacks = {
@@ -123,6 +125,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
     }
     *params = (struct is_discarded_by_inode_t){
         .discarder_type = input->discarder_type,
+        // TODO(safchain) do we need the pid ?????
         .tgid = bpf_get_current_pid_tgid() >> 32,
         .now = bpf_ktime_get_ns(),
         .ad_state = input->ad_state,

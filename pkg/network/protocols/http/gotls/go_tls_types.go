@@ -9,7 +9,7 @@
 package gotls
 
 /*
-#include "../../ebpf/c/protocols/go-tls-types.h"
+#include "../../ebpf/c/protocols/tls/go-tls-types.h"
 */
 import "C"
 

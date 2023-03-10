@@ -9,25 +9,37 @@
 package kubeapiserver
 
 import (
+	"fmt"
+	"regexp"
 	"sync"
 
 	corev1 "k8s.io/api/core/v1"
+	utilserror "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 type reflectorStore struct {
 	wlmetaStore workloadmeta.Store
 
-	mu   sync.Mutex
-	seen map[string]workloadmeta.EntityID
+	mu      sync.Mutex
+	seen    map[string]workloadmeta.EntityID
+	options *parseOptions
 }
 
 func newReflectorStore(wlmetaStore workloadmeta.Store) cache.Store {
+	annotationsExclude := config.Datadog.GetStringSlice("cluster_agent.kubernetes_resources_collection.pod_annotations_exclude")
+	parseOptions, err := newParseOptions(annotationsExclude)
+	if err != nil {
+		_ = log.Errorf("unable to parse all pod_annotations_exclude: %v, err:", err)
+	}
 	return &reflectorStore{
 		wlmetaStore: wlmetaStore,
 		seen:        make(map[string]workloadmeta.EntityID),
+		options:     parseOptions,
 	}
 }
 
@@ -38,7 +50,7 @@ func (r *reflectorStore) Add(obj interface{}) error {
 	defer r.mu.Unlock()
 
 	pod := obj.(*corev1.Pod)
-	entity := parsePod(pod)
+	entity := parsePod(pod, r.options)
 
 	r.seen[string(pod.UID)] = entity.EntityID
 
@@ -99,7 +111,7 @@ func (r *reflectorStore) Replace(list []interface{}, _ string) error {
 	for _, obj := range list {
 		pod := obj.(*corev1.Pod)
 		podUID := string(pod.UID)
-		entity := parsePod(pod)
+		entity := parsePod(pod, r.options)
 
 		events = append(events, workloadmeta.CollectorEvent{
 			Type:   workloadmeta.EventTypeSet,
@@ -156,7 +168,26 @@ func (r *reflectorStore) Resync() error {
 	panic("not implemented")
 }
 
-func parsePod(pod *corev1.Pod) *workloadmeta.KubernetesPod {
+type parseOptions struct {
+	annotationsFilter []*regexp.Regexp
+}
+
+func newParseOptions(annotationsExclude []string) (*parseOptions, error) {
+	options := parseOptions{}
+	var errors []error
+	for _, exclude := range annotationsExclude {
+		filter, err := filterToRegex(exclude)
+		if err != nil {
+			errors = append(errors, err)
+			continue
+		}
+		options.annotationsFilter = append(options.annotationsFilter, filter)
+	}
+
+	return &options, utilserror.NewAggregate(errors)
+}
+
+func parsePod(pod *corev1.Pod, options *parseOptions) *workloadmeta.KubernetesPod {
 	owners := make([]workloadmeta.KubernetesPodOwner, 0, len(pod.OwnerReferences))
 	for _, o := range pod.OwnerReferences {
 		owners = append(owners, workloadmeta.KubernetesPodOwner{
@@ -191,7 +222,7 @@ func parsePod(pod *corev1.Pod) *workloadmeta.KubernetesPod {
 		EntityMeta: workloadmeta.EntityMeta{
 			Name:        pod.Name,
 			Namespace:   pod.Namespace,
-			Annotations: pod.Annotations,
+			Annotations: filterMapStringKey(pod.Annotations, options.annotationsFilter),
 			Labels:      pod.Labels,
 		},
 		Phase:                      string(pod.Status.Phase),
@@ -208,4 +239,28 @@ func parsePod(pod *corev1.Pod) *workloadmeta.KubernetesPod {
 		// containers can be quite significant
 		// Containers:                 []workloadmeta.OrchestratorContainer{},
 	}
+}
+
+func filterMapStringKey(mapInput map[string]string, keyFilters []*regexp.Regexp) map[string]string {
+	for key := range mapInput {
+		for _, filter := range keyFilters {
+			if filter.MatchString(key) {
+				delete(mapInput, key)
+				// we can break now since the key is already excluded.
+				break
+			}
+		}
+	}
+
+	return mapInput
+}
+
+// filterToRegex checks a filter's regex
+func filterToRegex(filter string) (*regexp.Regexp, error) {
+	r, err := regexp.Compile(filter)
+	if err != nil {
+		errormsg := fmt.Errorf("invalid regex '%s': %s", filter, err)
+		return nil, errormsg
+	}
+	return r, nil
 }

@@ -49,8 +49,8 @@ func TestGetContainerStats(t *testing.T) {
 	stats, err := collector.GetContainerStats("", containerID, 10*time.Second)
 	assert.NoError(t, err)
 
-	assert.Equal(t, pointer.UIntToFloatPtr(1000), stats.CPU.Total)
-	assert.Equal(t, pointer.UIntToFloatPtr(1024), stats.Memory.UsageTotal)
+	assert.Equal(t, pointer.Ptr(1000.0), stats.CPU.Total)
+	assert.Equal(t, pointer.Ptr(1024.0), stats.Memory.UsageTotal)
 }
 
 func TestGetContainerNetworkStats(t *testing.T) {

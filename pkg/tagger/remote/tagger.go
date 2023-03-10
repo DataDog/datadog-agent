@@ -63,6 +63,7 @@ type Tagger struct {
 type Options struct {
 	Target       string
 	TokenFetcher func() (string, error)
+	Disabled     bool
 }
 
 func NodeAgentOptions() (Options, error) {
@@ -73,19 +74,22 @@ func NodeAgentOptions() (Options, error) {
 }
 
 func CLCRunnerOptions() (Options, error) {
-	target, err := clusteragent.GetClusterAgentEndpoint()
-	if err != nil {
-		return Options{}, fmt.Errorf("unable to get cluster agent endpoint: %w", err)
+	opts := Options{
+		Disabled: !config.Datadog.GetBool("clc_runner_remote_tagger_enabled"),
 	}
 
-	// gRPC targets do not have a protocol. the DCA endpoint is always HTTPS,
-	// so a simple `TrimPrefix` is enough.
-	target = strings.TrimPrefix(target, "https://")
+	if !opts.Disabled {
+		target, err := clusteragent.GetClusterAgentEndpoint()
+		if err != nil {
+			return opts, fmt.Errorf("unable to get cluster agent endpoint: %w", err)
+		}
+		// gRPC targets do not have a protocol. the DCA endpoint is always HTTPS,
+		// so a simple `TrimPrefix` is enough.
+		opts.Target = strings.TrimPrefix(target, "https://")
+		opts.TokenFetcher = security.GetClusterAgentAuthToken
 
-	return Options{
-		Target:       target,
-		TokenFetcher: security.GetClusterAgentAuthToken,
-	}, nil
+	}
+	return opts, nil
 }
 
 // NewTagger returns an allocated tagger. You still have to run Init()

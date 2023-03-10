@@ -10,6 +10,7 @@
   script:
     - echo "About to build for $RELEASE_VERSION"
     - !reference [.setup_ruby_mirror_linux]
+    - !reference [.setup_python_mirror_linux]
     - !reference [.retrieve_linux_go_deps]
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -30,6 +31,7 @@
     - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security-syscall-wrapper.o.${PACKAGE_ARCH} /tmp/system-probe/runtime-security-syscall-wrapper.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security-offset-guesser.o.${PACKAGE_ARCH} /tmp/system-probe/runtime-security-offset-guesser.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/oom-kill-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/oom-kill-co-re.o
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/tcp-queue-length-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/tcp-queue-length-co-re.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer.c.${PACKAGE_ARCH} /tmp/system-probe/tracer.c
     - $S3_CP_CMD $S3_ARTIFACTS_URI/http.c.${PACKAGE_ARCH} /tmp/system-probe/http.c
     - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security.c.${PACKAGE_ARCH} /tmp/system-probe/runtime-security.c
@@ -59,7 +61,7 @@ agent_deb-x64-a6:
   rules:
     !reference [.on_a6]
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   needs: ["go_mod_tidy_check", "build_system-probe-x64", "go_deps", "generate_minimized_btfs_x64"]
   variables:
@@ -78,7 +80,7 @@ agent_deb-x64-a7:
   rules:
     !reference [.on_a7]
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   needs: ["go_mod_tidy_check", "build_system-probe-x64", "go_deps", "generate_minimized_btfs_x64"]
   variables:
@@ -97,7 +99,7 @@ agent_deb-arm64-a6:
   rules:
     !reference [.on_all_builds_a6]
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   needs: ["go_mod_tidy_check", "build_system-probe-arm64", "go_deps", "generate_minimized_btfs_arm64"]
   variables:
@@ -115,7 +117,7 @@ agent_deb-arm64-a7:
   rules:
     !reference [.on_a7]
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   needs: ["go_mod_tidy_check", "build_system-probe-arm64", "go_deps", "generate_minimized_btfs_arm64"]
   variables:
@@ -131,6 +133,7 @@ agent_deb-arm64-a7:
 .iot_agent_build_common_deb:
   script:
     - !reference [.setup_ruby_mirror_linux]
+    - !reference [.setup_python_mirror_linux]
     - !reference [.retrieve_linux_go_deps]
     - echo "About to build for $RELEASE_VERSION_7"
     - echo "Detected host architecture $(uname -m)"
@@ -156,7 +159,7 @@ iot_agent_deb-x64:
   rules:
     !reference [.on_a7]
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
@@ -168,7 +171,7 @@ iot_agent_deb-arm64:
   rules:
     !reference [.on_all_builds_a7]
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
@@ -180,7 +183,7 @@ iot_agent_deb-armhf:
   rules:
     !reference [.on_all_builds_a7]
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_armhf:$DATADOG_AGENT_ARMBUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_armhf$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   # Run with platform:arm64 since no platform:armhf exists and arm64 should be backwards compatible
   tags: ["runner:docker-arm", "platform:arm64"]
   needs: ["go_mod_tidy_check", "go_deps"]
@@ -192,7 +195,7 @@ dogstatsd_deb-x64:
   rules:
     !reference [.on_a7]
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   needs: ["go_mod_tidy_check", "build_dogstatsd-binary_x64", "go_deps"]
   variables:
@@ -221,7 +224,7 @@ dogstatsd_deb-arm64:
   rules:
     !reference [.on_all_builds_a7]
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   needs: ["go_mod_tidy_check", "build_dogstatsd-binary_arm64", "go_deps"]
   before_script:

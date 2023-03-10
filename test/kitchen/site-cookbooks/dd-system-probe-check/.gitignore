@@ -4,3 +4,4 @@ files/default/clang-bpf
 files/default/llc-bpf
 files/default/gotestsum
 files/default/test2json
+files/default/minimized-btfs.tar.xz

@@ -18,8 +18,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/pkg/process/config"
-
 	"github.com/dustin/go-humanize"
 )
 
@@ -70,17 +68,17 @@ var (
 // HumanFormat takes the messages produced by a check run and outputs them in a human-readable format
 func HumanFormat(check string, msgs []model.MessageBody, w io.Writer) error {
 	switch check {
-	case config.ProcessCheckName:
+	case ProcessCheckName:
 		return humanFormatProcess(msgs, w)
-	case config.RTProcessCheckName:
+	case RTProcessCheckName:
 		return humanFormatRealTimeProcess(msgs, w)
-	case config.ContainerCheckName:
+	case ContainerCheckName:
 		return humanFormatContainer(msgs, w)
-	case config.RTContainerCheckName:
+	case RTContainerCheckName:
 		return humanFormatRealTimeContainer(msgs, w)
-	case config.DiscoveryCheckName:
+	case DiscoveryCheckName:
 		return humanFormatProcessDiscovery(msgs, w)
-	case config.ProcessEventsCheckName:
+	case ProcessEventsCheckName:
 		return HumanFormatProcessEvents(msgs, w, true)
 	}
 	return ErrNoHumanFormat

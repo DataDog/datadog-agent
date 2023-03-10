@@ -274,20 +274,20 @@ func (t *Tailer) toMessage(entry *sdjournal.JournalEntry) *message.Message {
 // getContent returns all the fields of the entry as a json-string,
 // remapping "MESSAGE" into "message" and bundling all the other keys in a "journald" attribute.
 // ex:
-// * journal-entry:
-//  {
-//    "MESSAGE": "foo",
-//    "_SYSTEMD_UNIT": "foo",
-//    ...
-//  }
-// * message-content:
-//  {
-//    "message": "foo",
-//    "journald": {
-//      "_SYSTEMD_UNIT": "foo",
-//      ...
-//    }
-//  }
+//   - journal-entry:
+//     {
+//     "MESSAGE": "foo",
+//     "_SYSTEMD_UNIT": "foo",
+//     ...
+//     }
+//   - message-content:
+//     {
+//     "message": "foo",
+//     "journald": {
+//     "_SYSTEMD_UNIT": "foo",
+//     ...
+//     }
+//     }
 func (t *Tailer) getContent(entry *sdjournal.JournalEntry) []byte {
 	payload := make(map[string]interface{})
 	fields := entry.Fields

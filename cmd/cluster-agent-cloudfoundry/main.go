@@ -13,22 +13,21 @@ package main
 import (
 	"os"
 
-	_ "expvar"         // Blank import used because this isn't directly used in this file
-	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
-
-	"github.com/DataDog/datadog-agent/cmd/cluster-agent-cloudfoundry/app"
+	_ "expvar" // Blank import used because this isn't directly used in this file
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent-cloudfoundry/command"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent-cloudfoundry/subcommands"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 )
 
 func main() {
 	flavor.SetFlavor(flavor.ClusterAgent)
 
-	var returnCode int
-	if err := app.ClusterAgentCmd.Execute(); err != nil {
+	ClusterAgentCmd := command.MakeCommand(subcommands.ClusterAgentSubcommands())
+
+	if err := ClusterAgentCmd.Execute(); err != nil {
 		log.Error(err)
-		returnCode = -1
+		os.Exit(-1)
 	}
-	log.Flush()
-	os.Exit(returnCode)
 }

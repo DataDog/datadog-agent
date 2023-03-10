@@ -3,46 +3,55 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
+// +build !windows
+
 package trace
 
 import (
 	"context"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 )
 
 func TestColdStartSpanCreatorCreateValid(t *testing.T) {
+	setupTraceAgentTest(t)
+
 	cfg := config.New()
 	cfg.GlobalTags = map[string]string{}
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	agnt := agent.NewAgent(ctx, cfg)
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector())
 	traceAgent := &ServerlessTraceAgent{
 		ta: agnt,
 	}
-	testArn := "arn:aws:lambda:us-east-1:123456789012:function:MY-SUPER-function"
-	testColdStartID := "8286a188-ba32-4475-8077-530cd35c09a9"
-	coldStartDuration := 50.0 // Given in millis
-	ec := &executioncontext.ExecutionContext{}
-	ec.SetColdStartDuration(coldStartDuration)
-	ec.SetFromInvocation(testArn, testColdStartID)
 
+	coldStartDuration := 50.0 // Given in millis
+
+	lambdaSpanChan := make(chan *pb.Span)
+	initDurationChan := make(chan float64)
+	stopChan := make(chan struct{})
+	coldStartSpanId := random.Random.Uint64()
 	coldStartSpanCreator := &ColdStartSpanCreator{
-		executionContext: ec,
-		traceAgent:       traceAgent,
-		createSpan:       &sync.Once{},
+		TraceAgent:       traceAgent,
+		LambdaSpanChan:   lambdaSpanChan,
+		InitDurationChan: initDurationChan,
+		ColdStartSpanId:  coldStartSpanId,
+		StopChan:         stopChan,
 	}
+
+	coldStartSpanCreator.Run()
+	defer coldStartSpanCreator.Stop()
 
 	now := time.Now().UnixNano()
 	lambdaSpan := &pb.Span{
@@ -54,7 +63,9 @@ func TestColdStartSpanCreatorCreateValid(t *testing.T) {
 		ParentID: random.Random.Uint64(),
 		Duration: 500000000,
 	}
-	coldStartSpanCreator.create(lambdaSpan)
+	lambdaSpanChan <- lambdaSpan
+	initDurationChan <- coldStartDuration
+
 	timeout := time.After(2 * time.Second)
 	var span *pb.Span
 	select {
@@ -71,26 +82,32 @@ func TestColdStartSpanCreatorCreateValid(t *testing.T) {
 }
 
 func TestColdStartSpanCreatorCreateDuplicate(t *testing.T) {
+	setupTraceAgentTest(t)
+
 	cfg := config.New()
 	cfg.GlobalTags = map[string]string{}
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	agnt := agent.NewAgent(ctx, cfg)
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector())
 	traceAgent := &ServerlessTraceAgent{
 		ta: agnt,
 	}
-	testArn := "arn:aws:lambda:us-east-1:123456789012:function:MY-SUPER-function"
-	testColdStartID := "8286a188-ba32-4475-8077-530cd35c09a9"
-	ec := &executioncontext.ExecutionContext{}
-	ec.SetColdStartDuration(50)
-	ec.SetFromInvocation(testArn, testColdStartID)
-
+	coldStartDuration := 50.0 // Given in millis
+	lambdaSpanChan := make(chan *pb.Span)
+	initDurationChan := make(chan float64)
+	stopChan := make(chan struct{})
+	coldStartSpanId := random.Random.Uint64()
 	coldStartSpanCreator := &ColdStartSpanCreator{
-		executionContext: ec,
-		traceAgent:       traceAgent,
-		createSpan:       &sync.Once{},
+		TraceAgent:       traceAgent,
+		LambdaSpanChan:   lambdaSpanChan,
+		InitDurationChan: initDurationChan,
+		ColdStartSpanId:  coldStartSpanId,
+		StopChan:         stopChan,
 	}
+
+	coldStartSpanCreator.Run()
+	defer coldStartSpanCreator.Stop()
 
 	lambdaSpan := &pb.Span{
 		Service:  "aws.lambda",
@@ -101,8 +118,9 @@ func TestColdStartSpanCreatorCreateDuplicate(t *testing.T) {
 		ParentID: random.Random.Uint64(),
 		Duration: 500,
 	}
-	coldStartSpanCreator.create(lambdaSpan)
-	timeout := time.After(time.Second)
+	lambdaSpanChan <- lambdaSpan
+	initDurationChan <- coldStartDuration
+	timeout := time.After(time.Millisecond)
 	timedOut := false
 	select {
 	case ss := <-traceAgent.ta.TraceWriter.In:
@@ -114,34 +132,45 @@ func TestColdStartSpanCreatorCreateDuplicate(t *testing.T) {
 }
 
 func TestColdStartSpanCreatorNotColdStart(t *testing.T) {
+	setupTraceAgentTest(t)
+
 	cfg := config.New()
 	cfg.GlobalTags = map[string]string{}
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	agnt := agent.NewAgent(ctx, cfg)
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector())
 	traceAgent := &ServerlessTraceAgent{
 		ta: agnt,
 	}
-	ec := &executioncontext.ExecutionContext{}
-
+	lambdaSpanChan := make(chan *pb.Span)
+	initDurationChan := make(chan float64)
+	stopChan := make(chan struct{})
+	coldStartSpanId := random.Random.Uint64()
 	coldStartSpanCreator := &ColdStartSpanCreator{
-		executionContext: ec,
-		traceAgent:       traceAgent,
-		createSpan:       &sync.Once{},
+		TraceAgent:       traceAgent,
+		LambdaSpanChan:   lambdaSpanChan,
+		InitDurationChan: initDurationChan,
+		ColdStartSpanId:  coldStartSpanId,
+		StopChan:         stopChan,
 	}
+
+	coldStartSpanCreator.Run()
+	defer coldStartSpanCreator.Stop()
 
 	lambdaSpan := &pb.Span{
 		Service:  "aws.lambda",
-		Name:     "aws.lambda.cold_start",
+		Name:     "aws.lambda.my-function",
 		Start:    time.Now().Unix(),
 		TraceID:  random.Random.Uint64(),
 		SpanID:   random.Random.Uint64(),
 		ParentID: random.Random.Uint64(),
 		Duration: 500,
 	}
-	coldStartSpanCreator.create(lambdaSpan)
-	timeout := time.After(time.Second)
+	lambdaSpanChan <- lambdaSpan
+	// Don't write to initDurationChan, as this is not a cold start
+
+	timeout := time.After(time.Millisecond)
 	timedOut := false
 	select {
 	case ss := <-traceAgent.ta.TraceWriter.In:

@@ -85,6 +85,9 @@
 `kubernetes_state.node.ephemeral_storage_allocatable`
 : The allocatable ephemeral-storage of a node that is available for scheduling. Tags:`node` `resource` `unit`.
 
+`kubernetes_state.node.network_bandwidth_allocatable`
+: The allocatable network bandwidth of a node that is available for scheduling. Tags:`node` `resource` `unit`.
+
 `kubernetes_state.node.cpu_capacity`
 : The CPU capacity of a node. Tags:`node` `resource` `unit`.
 
@@ -96,6 +99,9 @@
 
 `kubernetes_state.node.ephemeral_storage_capacity`
 : The ephemeral-storage capacity of a node. Tags:`node` `resource` `unit`.
+
+`kubernetes_state.node.network_bandwidth_capacity`
+: The network bandwidth capacity of a node. Tags:`node` `resource` `unit`.
 
 `kubernetes_state.node.by_condition`
 : The condition of a cluster node. Tags:`condition` `node` `status`.
@@ -115,11 +121,17 @@
 `kubernetes_state.container.memory_limit`
 : The value of memory limit by a container. Tags:`kube_namespace` `pod_name` `kube_container_name` `node` `resource` `unit` (`env` `service` `version` from standard labels).
 
+`kubernetes_state.container.network_bandwidth_limit`
+: The value of network bandwidth limit by a container. Tags:`kube_namespace` `pod_name` `kube_container_name` `node` `resource` `unit` (`env` `service` `version` from standard labels).
+
 `kubernetes_state.container.cpu_requested`
 : The value of CPU requested by a container. Tags:`kube_namespace` `pod_name` `kube_container_name` `node` `resource` `unit` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.container.memory_requested`
 : The value of memory requested by a container. Tags:`kube_namespace` `pod_name` `kube_container_name` `node` `resource` `unit` (`env` `service` `version` from standard labels).
+
+`kubernetes_state.container.network_bandwidth_requested`
+: The value of network bandwidth requested by a container. Tags:`kube_namespace` `pod_name` `kube_container_name` `node` `resource` `unit` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.container.ready`
 : Describes whether the containers readiness check succeeded. Tags:`kube_namespace` `pod_name` `kube_container_name` (`env` `service` `version` from standard labels).

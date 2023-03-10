@@ -15,14 +15,12 @@ var spliceProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kretprobe/get_pipe_info",
 			EBPFFuncName: "kretprobe_get_pipe_info",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/get_pipe_info",
 			EBPFFuncName: "kprobe_get_pipe_info",
 		},
 	},

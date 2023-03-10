@@ -16,8 +16,8 @@ import (
 )
 
 func TestDisableRootNetNamespace(t *testing.T) {
-	newConfig()
-	config.Datadog.Set("network_config.enable_root_netns", false)
+	newConfig(t)
+	config.SystemProbe.Set("network_config.enable_root_netns", false)
 
 	cfg := New()
 	require.False(t, cfg.EnableConntrackAllNamespaces)

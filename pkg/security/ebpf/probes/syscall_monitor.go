@@ -20,7 +20,6 @@ var syscallMonitorProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "tracepoint/raw_syscalls/sys_enter",
 			EBPFFuncName: "sys_enter",
 		},
 	},

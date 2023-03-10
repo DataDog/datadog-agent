@@ -37,5 +37,4 @@ type InvocationEndDetails struct {
 	IsError            bool
 	RequestID          string
 	ResponseRawPayload []byte
-	ColdStartDuration  float64
 }

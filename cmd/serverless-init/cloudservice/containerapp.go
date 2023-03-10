@@ -30,10 +30,11 @@ func (c *ContainerApp) GetTags() map[string]string {
 	revision := os.Getenv(ContainerAppRevision)
 
 	return map[string]string{
-		"app_name": appName,
-		"region":   region,
-		"revision": revision,
-		"origin":   c.GetOrigin(),
+		"app_name":   appName,
+		"region":     region,
+		"revision":   revision,
+		"origin":     c.GetOrigin(),
+		"_dd.origin": c.GetOrigin(),
 	}
 }
 

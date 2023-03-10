@@ -28,7 +28,7 @@ type CompilationResult int
 const (
 	notAttempted CompilationResult = iota
 	compilationSuccess
-	kernelVersionErr // nolint:deadcode,unused
+	kernelVersionErr
 	verificationError
 	outputDirErr
 	outputFileErr

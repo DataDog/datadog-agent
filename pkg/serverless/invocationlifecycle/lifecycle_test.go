@@ -41,7 +41,7 @@ func TestGenerateEnhancedErrorMetricOnInvocationEnd(t *testing.T) {
 	}
 	go testProcessor.OnInvokeEnd(&endDetails)
 
-	generatedMetrics, timedMetrics := demux.WaitForSamples(time.Millisecond * 250)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 250*time.Millisecond)
 
 	assert.Len(t, timedMetrics, 0)
 	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
@@ -379,7 +379,7 @@ func TestTriggerTypesLifecycleEventForAPIGateway5xxResponse(t *testing.T) {
 	}, testProcessor.GetTags())
 
 	// assert error metrics equal
-	generatedMetrics, lateMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, lateMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
 	assert.Equal(t, generatedMetrics[:1], []metrics.MetricSample{{
 		Name:       "aws.lambda.enhanced.errors",
 		Value:      1.0,
@@ -469,7 +469,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy5xxResponse(t *testing.T
 	}, testProcessor.GetTags())
 
 	// assert error metrics equal
-	generatedMetrics, lateMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, lateMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
 	assert.Equal(t, generatedMetrics[:1], []metrics.MetricSample{{
 		Name:       "aws.lambda.enhanced.errors",
 		Value:      1.0,
@@ -551,7 +551,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayWebsocket5xxResponse(t *testing.
 	}, testProcessor.GetTags())
 
 	// assert error metrics equal
-	generatedMetrics, lateMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, lateMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
 	assert.Equal(t, generatedMetrics[:1], []metrics.MetricSample{{
 		Name:       "aws.lambda.enhanced.errors",
 		Value:      1.0,
@@ -637,7 +637,7 @@ func TestTriggerTypesLifecycleEventForALB5xxResponse(t *testing.T) {
 	}, testProcessor.GetTags())
 
 	// assert error metrics equal
-	generatedMetrics, lateMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, lateMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
 	assert.Equal(t, generatedMetrics[:1], []metrics.MetricSample{{
 		Name:       "aws.lambda.enhanced.errors",
 		Value:      1.0,
@@ -735,7 +735,7 @@ func TestTriggerTypesLifecycleEventForKinesis(t *testing.T) {
 		RequestID: "test-request-id",
 	})
 	assert.Equal(t, map[string]string{
-		"function_trigger.event_source_arn": "arn:aws:kinesis:sa-east-1:601427279990:stream/kinesisStream",
+		"function_trigger.event_source_arn": "arn:aws:kinesis:sa-east-1:425362996713:stream/kinesisStream",
 		"request_id":                        "test-request-id",
 		"function_trigger.event_source":     "kinesis",
 	}, testProcessor.GetTags())
@@ -779,7 +779,7 @@ func TestTriggerTypesLifecycleEventForSNS(t *testing.T) {
 		RequestID: "test-request-id",
 	})
 	assert.Equal(t, map[string]string{
-		"function_trigger.event_source_arn": "arn:aws:sns:sa-east-1:601427279990:serverlessTracingTopicPy",
+		"function_trigger.event_source_arn": "arn:aws:sns:sa-east-1:425362996713:serverlessTracingTopicPy",
 		"request_id":                        "test-request-id",
 		"function_trigger.event_source":     "sns",
 	}, testProcessor.GetTags())
@@ -801,7 +801,7 @@ func TestTriggerTypesLifecycleEventForSQS(t *testing.T) {
 		RequestID: "test-request-id",
 	})
 	assert.Equal(t, map[string]string{
-		"function_trigger.event_source_arn": "arn:aws:sqs:sa-east-1:601427279990:InferredSpansQueueNode",
+		"function_trigger.event_source_arn": "arn:aws:sqs:sa-east-1:425362996713:InferredSpansQueueNode",
 		"request_id":                        "test-request-id",
 		"function_trigger.event_source":     "sqs",
 	}, testProcessor.GetTags())

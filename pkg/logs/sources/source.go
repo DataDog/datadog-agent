@@ -66,6 +66,7 @@ func NewLogSource(name string, cfg *config.LogsConfig) *LogSource {
 		hiddenFromStatus: false,
 	}
 	source.RegisterInfo(source.BytesRead)
+	source.RegisterInfo(source.LatencyStats)
 	return source
 }
 

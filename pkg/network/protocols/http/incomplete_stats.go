@@ -70,10 +70,11 @@ func newIncompleteBuffer(c *config.Config, telemetry *telemetry) *incompleteBuff
 }
 
 func (b *incompleteBuffer) Add(tx httpTX) {
+	connTuple := tx.ConnTuple()
 	key := KeyTuple{
-		SrcIPHigh: uint64(tx.SrcIPHigh()),
-		SrcIPLow:  uint64(tx.SrcIPLow()),
-		SrcPort:   uint16(tx.SrcPort()),
+		SrcIPHigh: connTuple.SrcIPHigh,
+		SrcIPLow:  connTuple.SrcIPLow,
+		SrcPort:   connTuple.SrcPort,
 	}
 
 	parts, ok := b.data[key]
@@ -99,7 +100,7 @@ func (b *incompleteBuffer) Add(tx httpTX) {
 	*ebpfTxCopy = *ebpfTX
 	tx = ebpfTxCopy
 
-	if tx.StatusClass() == 0 {
+	if tx.StatusCode() == 0 {
 		parts.requests = append(parts.requests, tx)
 	} else {
 		parts.responses = append(parts.responses, tx)

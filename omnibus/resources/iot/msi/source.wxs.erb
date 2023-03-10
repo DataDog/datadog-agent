@@ -109,7 +109,7 @@
         Directory="AGENT"
         Execute="immediate"
         Return="asyncNoWait"
-        ExeCommand="&quot;[AGENT]ddtray.exe&quot; &quot;-launch-gui&quot;" />
+        ExeCommand="&quot;[AGENT]ddtray.exe&quot; &quot;--launch-gui&quot;" />
 
 
     <!-- Delete application when uninstalling -->
@@ -291,7 +291,7 @@
                   Name="Datadog Agent Manager"
                   Description="Manage your Datadog Agent"
                   Target="[AGENT]ddtray.exe"
-                  Arguments= "&quot;-launch-gui&quot;"
+                  Arguments= "&quot;--launch-gui&quot;"
                   WorkingDirectory="AGENT"/>
 
         <RemoveFolder Id="ApplicationProgramsFolder" On="uninstall"/>

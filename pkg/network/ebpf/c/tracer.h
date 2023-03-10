@@ -1,9 +1,9 @@
 #ifndef __TRACER_BPF_H
 #define __TRACER_BPF_H
 
-#include <linux/types.h>
+#include "ktypes.h"
 
-#include "protocols/protocol-classification-defs.h"
+#include "protocols/classification/defs.h"
 
 #define bool _Bool
 #define true 1
@@ -103,6 +103,7 @@ typedef struct {
 #define TCP_FLAGS_OFFSET 13
 #define TCPHDR_FIN 0x01
 #define TCPHDR_RST 0x04
+#define TCPHDR_ACK 0x10
 
 // skb_info_t embeds a conn_tuple_t extracted from the skb object as well as
 // some ancillary data such as the data offset (the byte offset pointing to
@@ -144,8 +145,15 @@ typedef struct {
 } telemetry_t;
 
 typedef struct {
-    __u16 port;
+    struct sockaddr *addr;
+    struct sock *sk;
 } bind_syscall_args_t;
+
+typedef struct {
+    struct sock *sk;
+    int segs;
+    __u32 retrans_out_pre;
+} tcp_retransmit_skb_args_t;
 
 typedef struct {
     __u32 netns;

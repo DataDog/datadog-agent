@@ -105,6 +105,11 @@ void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mo
     }
 }
 
+// unit tests
+#ifdef __BALOUM__
+#include "tests.h"
+#endif
+
 __u32 _version SEC("version") = 0xFFFFFFFE;
 
 char LICENSE[] SEC("license") = "GPL";

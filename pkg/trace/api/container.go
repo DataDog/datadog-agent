@@ -12,6 +12,8 @@ import (
 	"context"
 	"net"
 	"net/http"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 )
 
 // connContext is unimplemented for non-linux builds.
@@ -32,5 +34,5 @@ func NewIDProvider(_ string) IDProvider {
 }
 
 func (_ *idProvider) GetContainerID(_ context.Context, h http.Header) string {
-	return h.Get(headerContainerID)
+	return h.Get(header.ContainerID)
 }

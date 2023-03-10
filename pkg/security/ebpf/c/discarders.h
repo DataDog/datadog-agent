@@ -1,13 +1,12 @@
 #ifndef _DISCARDERS_H
 #define _DISCARDERS_H
 
+#include "utils.h"
+
 #define REVISION_ARRAY_SIZE 4096
 
 #define INODE_DISCARDER_TYPE 0
 #define PID_DISCARDER_TYPE   1
-
-#define NS_TO_SEC(x) x / 1000000000
-#define SEC_TO_NS(x) x * 1000000000
 
 struct discarder_stats_t {
     u64 discarders_added;
@@ -43,9 +42,9 @@ struct bpf_map_def SEC("maps/discarders_revision") discarders_revision = {
 };
 
 u64 __attribute__((always_inline)) get_discarder_retention() {
-    u64 retention;
+    u64 retention = 0;
     LOAD_CONSTANT("discarder_retention", retention);
-    return retention;
+    return retention ? retention : SEC_TO_NS(5);
 }
 
 int __attribute__((always_inline)) monitor_discarder_added(u64 event_type) {
@@ -162,7 +161,7 @@ u64* __attribute__((always_inline)) get_discarder_timestamp(struct discarder_par
 // This function is doing the same thing as the one before, but can only work if `params` is a pointer to a map value
 // and not a pointer to the stack since kernels < 4.15 does not allow this. On the other hand it is faster and needs less
 // instructions.
-u64* __attribute__((always_inline)) get_discarder_timestamp_from_map(struct discarder_params_t *params, u64 event_type) {
+u64 * __attribute__((always_inline)) get_discarder_timestamp_from_map(struct discarder_params_t *params, u64 event_type) {
     if (EVENT_FIRST_DISCARDER <= event_type && event_type < EVENT_LAST_DISCARDER) {
         return &params->timestamps[event_type-EVENT_FIRST_DISCARDER];
     }
@@ -212,6 +211,18 @@ struct bpf_map_def SEC("maps/inode_discarders") inode_discarders = {
 
 
 int __attribute__((always_inline)) expire_inode_discarders(u32 mount_id, u64 inode);
+
+struct inode_discarder_params_t * __attribute__((always_inline)) get_inode_discarder_params(u32 mount_id, u64 inode, u32 is_leaf) {
+    struct inode_discarder_t key = {
+        .path_key = {
+            .ino = inode,
+            .mount_id = mount_id,
+        },
+        .is_leaf = is_leaf,
+    };
+
+    return bpf_map_lookup_elem(&inode_discarders, &key);
+}
 
 int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u64 inode, u64 timeout, u32 is_leaf) {
     if (!mount_id || !inode) {

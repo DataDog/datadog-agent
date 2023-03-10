@@ -86,6 +86,10 @@ typedef enum {
     DATADOG_AGENT_CRITICAL = 50
 } log_level_t;
 
+typedef struct pymem_stats_s {
+    size_t inuse, alloc;
+} pymem_stats_t;
+
 /*
  * custom builtins
  */

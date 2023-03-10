@@ -32,6 +32,9 @@ var (
 	// ClusterAgentCatalog is a catalog of collectors that runs in the
 	// cluster agent, and the cluster checks runner agents
 	ClusterAgentCatalog = make(CollectorCatalog)
+
+	// RemoteCatalog collectors to run when workloadmeta is configured as remote
+	RemoteCatalog = make(CollectorCatalog)
 )
 
 // RegisterCollector registers a new collector in the NodeAgentCatalog,
@@ -46,4 +49,11 @@ func RegisterCollector(id string, c collectorFactory) {
 // to be used by the store.
 func RegisterClusterCollector(id string, c collectorFactory) {
 	ClusterAgentCatalog[id] = c
+}
+
+// RegisterRemoteCollector registers a new collector in the RemoteCatalog,
+// identified by an id for logging and telemetry purposes, to be used by the
+// store.
+func RegisterRemoteCollector(id string, c collectorFactory) {
+	RemoteCatalog[id] = c
 }

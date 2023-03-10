@@ -37,16 +37,12 @@ var (
 
 // Source provides some information about a logs source.
 type Source struct {
-	AllTimeAvgLatency  int64                  `json:"all_time_avg_latency"`
-	AllTimePeakLatency int64                  `json:"all_time_peak_latency"`
-	RecentAvgLatency   int64                  `json:"recent_avg_latency"`
-	RecentPeakLatency  int64                  `json:"recent_peak_latency"`
-	Type               string                 `json:"type"`
-	Configuration      map[string]interface{} `json:"configuration"`
-	Status             string                 `json:"status"`
-	Inputs             []string               `json:"inputs"`
-	Messages           []string               `json:"messages"`
-	Info               map[string][]string    `json:"info"`
+	Type          string                 `json:"type"`
+	Configuration map[string]interface{} `json:"configuration"`
+	Status        string                 `json:"status"`
+	Inputs        []string               `json:"inputs"`
+	Messages      []string               `json:"messages"`
+	Info          map[string][]string    `json:"info"`
 }
 
 // Integration provides some information about a logs integration.
@@ -57,13 +53,14 @@ type Integration struct {
 
 // Status provides some information about logs-agent.
 type Status struct {
-	IsRunning     bool             `json:"is_running"`
-	Endpoints     []string         `json:"endpoints"`
-	StatusMetrics map[string]int64 `json:"metrics"`
-	Integrations  []Integration    `json:"integrations"`
-	Errors        []string         `json:"errors"`
-	Warnings      []string         `json:"warnings"`
-	UseHTTP       bool             `json:"use_http"`
+	IsRunning        bool               `json:"is_running"`
+	Endpoints        []string           `json:"endpoints"`
+	StatusMetrics    map[string]int64   `json:"metrics"`
+	ProcessFileStats map[string]float64 `json:"process_file_stats"`
+	Integrations     []Integration      `json:"integrations"`
+	Errors           []string           `json:"errors"`
+	Warnings         []string           `json:"warnings"`
+	UseHTTP          bool               `json:"use_http"`
 }
 
 // Init instantiates the builder that builds the status on the fly.

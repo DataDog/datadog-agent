@@ -14,13 +14,13 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -28,8 +28,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/debugging"
-	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	httpdebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/http/debugging"
+	kafkadebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/kafka/debugging"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -43,7 +44,7 @@ const inactivityRestartDuration = 20 * time.Minute
 // NetworkTracer is a factory for NPM's tracer
 var NetworkTracer = module.Factory{
 	Name:             config.NetworkTracerModule,
-	ConfigNamespaces: []string{"network_config", "service_monitoring_config"},
+	ConfigNamespaces: []string{"network_config", "service_monitoring_config", "data_streams_config"},
 	Fn: func(cfg *config.Config) (module.Module, error) {
 		ncfg := networkconfig.New()
 
@@ -52,7 +53,15 @@ var NetworkTracer = module.Factory{
 			return nil, fmt.Errorf("%w: %s", ErrSysprobeUnsupported, msg)
 		}
 
-		log.Infof("Creating tracer for: %s", filepath.Base(os.Args[0]))
+		if ncfg.NPMEnabled {
+			log.Info("enabling network performance monitoring (NPM)")
+		}
+		if ncfg.ServiceMonitoringEnabled {
+			log.Info("enabling universal service monitoring (USM)")
+		}
+		if ncfg.DataStreamsEnabled {
+			log.Info("enabling data streams monitoring (DSM)")
+		}
 
 		t, err := tracer.NewTracer(ncfg)
 
@@ -147,7 +156,31 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		utils.WriteAsJSON(w, debugging.HTTP(cs.HTTP, cs.DNS))
+		utils.WriteAsJSON(w, httpdebugging.HTTP(cs.HTTP, cs.DNS))
+	})
+
+	httpMux.HandleFunc("/debug/kafka_monitoring", func(w http.ResponseWriter, req *http.Request) {
+		id := getClientID(req)
+		cs, err := nt.tracer.GetActiveConnections(id)
+		if err != nil {
+			log.Errorf("unable to retrieve connections: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		utils.WriteAsJSON(w, kafkadebugging.Kafka(cs.Kafka))
+	})
+
+	httpMux.HandleFunc("/debug/http2_monitoring", func(w http.ResponseWriter, req *http.Request) {
+		id := getClientID(req)
+		cs, err := nt.tracer.GetActiveConnections(id)
+		if err != nil {
+			log.Errorf("unable to retrieve connections: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		utils.WriteAsJSON(w, httpdebugging.HTTP(cs.HTTP2, cs.DNS))
 	})
 
 	// /debug/ebpf_maps as default will dump all registered maps/perfmaps
@@ -192,6 +225,19 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 
 		utils.WriteAsJSON(w, table)
+	})
+
+	httpMux.HandleFunc("/debug/process_cache", func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancelFunc := context.WithTimeout(r.Context(), 30*time.Second)
+		defer cancelFunc()
+		cache, err := nt.tracer.DebugDumpProcessCache(ctx)
+		if err != nil {
+			log.Errorf("unable to dump tracer process cache: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		utils.WriteAsJSON(w, cache)
 	})
 
 	httpMux.HandleFunc("/debug/telemetry", func(w http.ResponseWriter, req *http.Request) {

@@ -7,6 +7,7 @@ package parser
 
 import (
 	"path/filepath"
+	"runtime"
 	"strings"
 	"unicode"
 
@@ -18,6 +19,12 @@ import (
 
 type serviceExtractorFn func(args []string) string
 
+const (
+	javaJarFlag      = "-jar"
+	javaJarExtension = ".jar"
+	javaApachePrefix = "org.apache."
+)
+
 // List of binaries that usually have additional process context of whats running
 var binsWithContext = map[string]serviceExtractorFn{
 	"python":    parseCommandContextPython,
@@ -26,7 +33,8 @@ var binsWithContext = map[string]serviceExtractorFn{
 	"python3.7": parseCommandContextPython,
 	"ruby2.3":   parseCommandContext,
 	"ruby":      parseCommandContext,
-	"java":      parseCommandContext,
+	"java":      parseCommandContextJava,
+	"java.exe":  parseCommandContextJava,
 	"sudo":      parseCommandContext,
 }
 
@@ -34,21 +42,35 @@ var _ metadata.Extractor = &ServiceExtractor{}
 
 // ServiceExtractor infers a service tag by extracting it from a process
 type ServiceExtractor struct {
-	enabled      bool
-	serviceByPID map[int32]*serviceMetadata
+	enabled               bool
+	useWindowsServiceName bool
+	serviceByPID          map[int32]*serviceMetadata
+	scmReader             *scmReader
 }
 
 type serviceMetadata struct {
-	cmdline    []string
-	serviceTag string
+	cmdline        []string
+	serviceContext string
+}
+
+// WindowsServiceInfo represents service data that is parsed from the SCM. On non-Windows platforms these fields should always be empty.
+// On Windows, multiple services can be binpacked into a single `svchost.exe`, which is why `ServiceName` and `DisplayName` are slices.
+type WindowsServiceInfo struct {
+	ServiceName []string
+	DisplayName []string
 }
 
 // NewServiceExtractor instantiates a new service discovery extractor
 func NewServiceExtractor() *ServiceExtractor {
-	enabled := ddconfig.Datadog.GetBool("service_monitoring_config.process_service_inference.enabled")
+	var (
+		enabled               = ddconfig.Datadog.GetBool("service_monitoring_config.process_service_inference.enabled")
+		useWindowsServiceName = ddconfig.Datadog.GetBool("service_monitoring_config.process_service_inference.use_windows_service_name")
+	)
 	return &ServiceExtractor{
-		enabled:      enabled,
-		serviceByPID: make(map[int32]*serviceMetadata),
+		enabled:               enabled,
+		useWindowsServiceName: useWindowsServiceName,
+		serviceByPID:          make(map[int32]*serviceMetadata),
+		scmReader:             newSCMReader(),
 	}
 }
 
@@ -79,14 +101,28 @@ func (d *ServiceExtractor) Extract(processes map[int32]*procutil.Process) {
 	d.serviceByPID = serviceByPID
 }
 
-func (d *ServiceExtractor) GetServiceTag(pid int32) string {
+func (d *ServiceExtractor) GetServiceContext(pid int32) []string {
 	if !d.enabled {
-		return ""
+		return nil
 	}
+
+	if runtime.GOOS == "windows" && d.useWindowsServiceName {
+		tags, err := d.getWindowsServiceTags(pid)
+		if err != nil {
+			log.Warnf("Failed to get service data from SCM for pid %v:%v", pid, err.Error())
+		}
+
+		// Service tag was found from the SCM, return it.
+		if len(tags) > 0 {
+			log.Tracef("Found process_context from SCM for pid:%v service tags:%v", pid, tags)
+			return tags
+		}
+	}
+
 	if meta, ok := d.serviceByPID[pid]; ok {
-		return meta.serviceTag
+		return []string{meta.serviceContext}
 	}
-	return ""
+	return nil
 }
 
 func extractServiceMetadata(cmd []string) *serviceMetadata {
@@ -98,10 +134,15 @@ func extractServiceMetadata(cmd []string) *serviceMetadata {
 
 	exe := cmd[0]
 	// check if all args are packed into the first argument
-	if idx := strings.IndexRune(exe, ' '); idx != -1 {
-		exe = exe[0:idx]
-		cmd = strings.Split(cmd[0], " ")
+	if len(cmd) == 1 {
+		if idx := strings.IndexRune(exe, ' '); idx != -1 {
+			exe = exe[0:idx]
+			cmd = strings.Split(cmd[0], " ")
+		}
 	}
+
+	// trim any quotes from the executable
+	exe = strings.Trim(exe, "\"")
 
 	// Extract executable from commandline args
 	exe = trimColonRight(removeFilePath(exe))
@@ -112,8 +153,8 @@ func extractServiceMetadata(cmd []string) *serviceMetadata {
 	if contextFn, ok := binsWithContext[exe]; ok {
 		tag := contextFn(cmd[1:])
 		return &serviceMetadata{
-			cmdline:    cmd,
-			serviceTag: "service:" + tag,
+			cmdline:        cmd,
+			serviceContext: "process_context:" + tag,
 		}
 	}
 
@@ -123,9 +164,27 @@ func extractServiceMetadata(cmd []string) *serviceMetadata {
 	}
 
 	return &serviceMetadata{
-		cmdline:    cmd,
-		serviceTag: "service:" + exe,
+		cmdline:        cmd,
+		serviceContext: "process_context:" + exe,
 	}
+}
+
+// GetWindowsServiceTags returns the process_context associated with a process by scraping the SCM.
+// If the service name is not found in the scm, a nil slice is returned.
+func (d *ServiceExtractor) getWindowsServiceTags(pid int32) ([]string, error) {
+	entry, err := d.scmReader.getServiceInfo(uint64(pid))
+	if err != nil {
+		return nil, err
+	}
+	if entry == nil {
+		return nil, nil
+	}
+
+	serviceTags := make([]string, 0, len(entry.ServiceName))
+	for _, serviceName := range entry.ServiceName {
+		serviceTags = append(serviceTags, "process_context:"+serviceName)
+	}
+	return serviceTags, nil
 }
 
 func removeFilePath(s string) string {
@@ -204,6 +263,47 @@ func parseCommandContextPython(args []string) string {
 		}
 
 		prevArgIsFlag = hasFlagPrefix
+	}
+
+	return ""
+}
+
+func parseCommandContextJava(args []string) string {
+	prevArgIsFlag := false
+
+	for _, a := range args {
+		hasFlagPrefix := strings.HasPrefix(a, "-")
+		includesAssignment := strings.ContainsRune(a, '=') ||
+			strings.HasPrefix(a, "-X") ||
+			strings.HasPrefix(a, "-javaagent:") ||
+			strings.HasPrefix(a, "-verbose:")
+		shouldSkipArg := prevArgIsFlag || hasFlagPrefix || includesAssignment
+		if !shouldSkipArg {
+			arg := removeFilePath(a)
+
+			if arg = trimColonRight(arg); isRuneLetterAt(arg, 0) {
+				if strings.HasSuffix(arg, javaJarExtension) {
+					return arg[:len(arg)-len(javaJarExtension)]
+				}
+
+				if strings.HasPrefix(arg, javaApachePrefix) {
+					// take the project name after the package 'org.apache.' while stripping off the remaining package
+					// and class name
+					arg = arg[len(javaApachePrefix):]
+					if idx := strings.Index(arg, "."); idx != -1 {
+						return arg[:idx]
+					}
+				}
+				if idx := strings.LastIndex(arg, "."); idx != -1 && idx+1 < len(arg) {
+					// take just the class name without the package
+					return arg[idx+1:]
+				}
+
+				return arg
+			}
+		}
+
+		prevArgIsFlag = hasFlagPrefix && !includesAssignment && a != javaJarFlag
 	}
 
 	return ""

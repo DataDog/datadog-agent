@@ -364,7 +364,9 @@ enum rate_limiter_algo_ids {
 __attribute__((always_inline)) u8 activity_dump_rate_limiter_reset_period(u64 now, struct activity_dump_rate_limiter_ctx* rate_ctx_p) {
     rate_ctx_p->current_period = now;
     rate_ctx_p->counter = 0;
+#ifndef __BALOUM__ // do not change algo during unit tests
     rate_ctx_p->algo_id = now % RL_ALGO_TOTAL_NUMBER;
+#endif /* __BALOUM__ */
     return 1;
 }
 

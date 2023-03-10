@@ -22,6 +22,6 @@ func TestCommand(t *testing.T) {
 		requestDogstatsdStats,
 		func(cliParams *cliParams, coreParams core.BundleParams) {
 			require.True(t, cliParams.jsonStatus)
-			require.Equal(t, false, coreParams.ConfigLoadSecrets)
+			require.Equal(t, false, coreParams.ConfigLoadSecrets())
 		})
 }

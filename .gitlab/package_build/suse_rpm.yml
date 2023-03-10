@@ -3,6 +3,7 @@
   script:
     - echo "About to build for $RELEASE_VERSION"
     - !reference [.setup_ruby_mirror_linux]
+    - !reference [.setup_python_mirror_linux]
     - !reference [.retrieve_linux_go_deps]
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR_SUSE/*
@@ -27,6 +28,7 @@
     - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security-syscall-wrapper.o.${PACKAGE_ARCH} /tmp/system-probe/runtime-security-syscall-wrapper.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security-offset-guesser.o.${PACKAGE_ARCH} /tmp/system-probe/runtime-security-offset-guesser.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/oom-kill-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/oom-kill-co-re.o
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/tcp-queue-length-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/tcp-queue-length-co-re.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer.c.${PACKAGE_ARCH} /tmp/system-probe/tracer.c
     - $S3_CP_CMD $S3_ARTIFACTS_URI/http.c.${PACKAGE_ARCH} /tmp/system-probe/http.c
     - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security.c.${PACKAGE_ARCH} /tmp/system-probe/runtime-security.c
@@ -58,7 +60,7 @@ agent_suse-x64-a6:
   rules:
     !reference [.on_a6]
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   needs: ["go_mod_tidy_check", "build_system-probe-x64", "go_deps", "generate_minimized_btfs_x64"]
   variables:
@@ -76,7 +78,7 @@ agent_suse-x64-a7:
   rules:
     !reference [.on_a7]
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   needs: ["go_mod_tidy_check", "build_system-probe-x64", "go_deps", "generate_minimized_btfs_x64"]
   variables:
@@ -92,7 +94,7 @@ iot_agent_suse-x64:
   rules:
     !reference [.on_a7]
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   needs: ["go_mod_tidy_check", "go_deps"]
   before_script:
@@ -100,6 +102,7 @@ iot_agent_suse-x64:
   script:
     - echo "About to build iot agent for $RELEASE_VERSION_7"
     - !reference [.setup_ruby_mirror_linux]
+    - !reference [.setup_python_mirror_linux]
     - !reference [.retrieve_linux_go_deps]
     - echo "Detected host architecture $(uname -m)"
     # $DD_TARGET_ARCH is only set by Arm build images, so assume amd64 if not present
@@ -128,7 +131,7 @@ dogstatsd_suse-x64:
   rules:
     !reference [.on_a7]
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   needs: ["go_mod_tidy_check", "build_dogstatsd-binary_x64", "go_deps"]
   variables:

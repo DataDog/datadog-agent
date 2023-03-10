@@ -42,11 +42,11 @@ func TestConvertEcsNetworkStats(t *testing.T) {
 			},
 			want: &provider.ContainerNetworkStats{
 				Timestamp:   testTime,
-				Interfaces:  map[string]provider.InterfaceNetStats{"eth1": {BytesRcvd: pointer.UIntToFloatPtr(2398415937), PacketsRcvd: pointer.UIntToFloatPtr(1898631), BytesSent: pointer.UIntToFloatPtr(1259037719), PacketsSent: pointer.UIntToFloatPtr(428002)}},
-				BytesRcvd:   pointer.UIntToFloatPtr(2398415937),
-				PacketsRcvd: pointer.UIntToFloatPtr(1898631),
-				BytesSent:   pointer.UIntToFloatPtr(1259037719),
-				PacketsSent: pointer.UIntToFloatPtr(428002),
+				Interfaces:  map[string]provider.InterfaceNetStats{"eth1": {BytesRcvd: pointer.Ptr(2398415937.0), PacketsRcvd: pointer.Ptr(1898631.0), BytesSent: pointer.Ptr(1259037719.0), PacketsSent: pointer.Ptr(428002.0)}},
+				BytesRcvd:   pointer.Ptr(2398415937.0),
+				PacketsRcvd: pointer.Ptr(1898631.0),
+				BytesSent:   pointer.Ptr(1259037719.0),
+				PacketsSent: pointer.Ptr(428002.0),
 			},
 		},
 		{
@@ -63,13 +63,13 @@ func TestConvertEcsNetworkStats(t *testing.T) {
 			want: &provider.ContainerNetworkStats{
 				Timestamp: testTime,
 				Interfaces: map[string]provider.InterfaceNetStats{
-					"eth0": {BytesRcvd: pointer.UIntToFloatPtr(2398415937), PacketsRcvd: pointer.UIntToFloatPtr(1898631), BytesSent: pointer.UIntToFloatPtr(1259037719), PacketsSent: pointer.UIntToFloatPtr(428002)},
-					"eth1": {BytesSent: pointer.UIntToFloatPtr(2398415936), PacketsSent: pointer.UIntToFloatPtr(1898630), BytesRcvd: pointer.UIntToFloatPtr(1259037718), PacketsRcvd: pointer.UIntToFloatPtr(428001)},
+					"eth0": {BytesRcvd: pointer.Ptr(2398415937.0), PacketsRcvd: pointer.Ptr(1898631.0), BytesSent: pointer.Ptr(1259037719.0), PacketsSent: pointer.Ptr(428002.0)},
+					"eth1": {BytesSent: pointer.Ptr(2398415936.0), PacketsSent: pointer.Ptr(1898630.0), BytesRcvd: pointer.Ptr(1259037718.0), PacketsRcvd: pointer.Ptr(428001.0)},
 				},
-				BytesRcvd:   pointer.UIntToFloatPtr(3657453655),
-				PacketsRcvd: pointer.UIntToFloatPtr(2326632),
-				BytesSent:   pointer.UIntToFloatPtr(3657453655),
-				PacketsSent: pointer.UIntToFloatPtr(2326632),
+				BytesRcvd:   pointer.Ptr(3657453655.0),
+				PacketsRcvd: pointer.Ptr(2326632.0),
+				BytesSent:   pointer.Ptr(3657453655.0),
+				PacketsSent: pointer.Ptr(2326632.0),
 			},
 		},
 	}
@@ -171,20 +171,20 @@ func TestConvertEcsStats(t *testing.T) {
 			want: &provider.ContainerStats{
 				Timestamp: testTime,
 				CPU: &provider.ContainerCPUStats{
-					Total:  pointer.UIntToFloatPtr(1137691504),
-					System: pointer.UIntToFloatPtr(80000000),
-					User:   pointer.UIntToFloatPtr(810000000),
+					Total:  pointer.Ptr(1137691504.0),
+					System: pointer.Ptr(80000000.0),
+					User:   pointer.Ptr(810000000.0),
 				},
 				Memory: &provider.ContainerMemStats{
-					UsageTotal: pointer.UIntToFloatPtr(6504448),
-					RSS:        pointer.UIntToFloatPtr(4669440),
-					Cache:      pointer.UIntToFloatPtr(651264),
+					UsageTotal: pointer.Ptr(6504448.0),
+					RSS:        pointer.Ptr(4669440.0),
+					Cache:      pointer.Ptr(651264.0),
 				},
 				IO: &provider.ContainerIOStats{
-					ReadBytes:       pointer.UIntToFloatPtr(638976),
-					WriteBytes:      pointer.UIntToFloatPtr(0),
-					ReadOperations:  pointer.UIntToFloatPtr(12),
-					WriteOperations: pointer.UIntToFloatPtr(0),
+					ReadBytes:       pointer.Ptr(638976.0),
+					WriteBytes:      pointer.Ptr(0.0),
+					ReadOperations:  pointer.Ptr(12.0),
+					WriteOperations: pointer.Ptr(0.0),
 				},
 			},
 		},
@@ -213,10 +213,10 @@ func TestFillFromSpec(t *testing.T) {
 	fillFromSpec(containerStats, testSpec)
 	assert.EqualValues(t, &provider.ContainerStats{
 		CPU: &provider.ContainerCPUStats{
-			Limit: pointer.Float64Ptr(50),
+			Limit: pointer.Ptr(50.0),
 		},
 		Memory: &provider.ContainerMemStats{
-			Limit: pointer.Float64Ptr(4294967296),
+			Limit: pointer.Ptr(4294967296.0),
 		},
 	}, containerStats)
 
@@ -224,16 +224,16 @@ func TestFillFromSpec(t *testing.T) {
 	containerStats = &provider.ContainerStats{
 		CPU: &provider.ContainerCPUStats{},
 		Memory: &provider.ContainerMemStats{
-			Limit: pointer.Float64Ptr(1024),
+			Limit: pointer.Ptr(1024.0),
 		},
 	}
 	fillFromSpec(containerStats, testSpec)
 	assert.EqualValues(t, &provider.ContainerStats{
 		CPU: &provider.ContainerCPUStats{
-			Limit: pointer.Float64Ptr(50),
+			Limit: pointer.Ptr(50.0),
 		},
 		Memory: &provider.ContainerMemStats{
-			Limit: pointer.Float64Ptr(1024),
+			Limit: pointer.Ptr(1024.0),
 		},
 	}, containerStats)
 }

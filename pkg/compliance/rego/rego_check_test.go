@@ -7,12 +7,12 @@ package rego
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	processutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/process"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 
 	"github.com/stretchr/testify/mock"
 	assert "github.com/stretchr/testify/require"
@@ -25,7 +25,7 @@ type regoFixture struct {
 	findings string
 
 	processes     processutils.Processes
-	expectReports []*compliance.Report
+	expectReports compliance.Reports
 }
 
 func (f *regoFixture) newRegoCheck() (*regoCheck, error) {
@@ -48,7 +48,7 @@ func (f *regoFixture) newRegoCheck() (*regoCheck, error) {
 		inputs: inputs,
 	}
 
-	if err := regoCheck.CompileRule(rule, "", &compliance.SuiteMeta{}, nil); err != nil {
+	if err := regoCheck.CompileRule(rule, "", &compliance.SuiteMeta{}); err != nil {
 		return nil, err
 	}
 
@@ -59,9 +59,15 @@ func (f *regoFixture) run(t *testing.T) {
 	t.Helper()
 	assert := assert.New(t)
 
-	cache.Cache.Delete(processutils.ProcessCacheKey)
-	processutils.Fetcher = func() (processutils.Processes, error) {
-		return f.processes, nil
+	processutils.PurgeCache()
+	processutils.FetchProcessesWithName = func(searchedName string) (processutils.Processes, error) {
+		var processes processutils.Processes
+		for _, p := range f.processes {
+			if p.Name == searchedName {
+				processes = append(processes, p)
+			}
+		}
+		return processes, nil
 	}
 
 	env := &mocks.Env{}
@@ -70,6 +76,7 @@ func (f *regoFixture) run(t *testing.T) {
 	env.On("Hostname").Return("hostname_test").Once()
 	env.On("DumpInputPath").Return("").Once()
 	env.On("ShouldSkipRegoEval").Return(false).Once()
+	env.On("StatsdClient").Return(nil).Maybe()
 
 	defer env.AssertExpectations(t)
 
@@ -116,7 +123,7 @@ func TestRegoCheck(t *testing.T) {
 				}
 			`,
 			findings: "data.test.findings",
-			expectReports: []*compliance.Report{
+			expectReports: compliance.Reports{
 				{
 					Passed: true,
 					Data: event.Data{
@@ -132,7 +139,7 @@ func TestRegoCheck(t *testing.T) {
 				},
 			},
 			processes: processutils.Processes{
-				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
+				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--path=foo"}, nil),
 			},
 		},
 		{
@@ -176,9 +183,9 @@ func TestRegoCheck(t *testing.T) {
 			`,
 			findings: "data.test.findings",
 			processes: processutils.Processes{
-				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
+				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--path=foo"}, nil),
 			},
-			expectReports: []*compliance.Report{
+			expectReports: compliance.Reports{
 				{
 					Passed: true,
 					Data: event.Data{
@@ -230,9 +237,9 @@ func TestRegoCheck(t *testing.T) {
 			`,
 			findings: "data.test.findings",
 			processes: processutils.Processes{
-				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
+				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--path=foo"}, nil),
 			},
-			expectReports: []*compliance.Report{
+			expectReports: compliance.Reports{
 				{
 					Passed: false,
 					Data: event.Data{
@@ -275,9 +282,9 @@ func TestRegoCheck(t *testing.T) {
 			`,
 			findings: "data.test.findings",
 			processes: processutils.Processes{
-				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
+				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--path=foo"}, nil),
 			},
-			expectReports: []*compliance.Report{
+			expectReports: compliance.Reports{
 				{
 					Passed: false,
 					Data:   nil,
@@ -318,7 +325,7 @@ func TestRegoCheck(t *testing.T) {
 			`,
 			findings: "data.test.findings",
 			processes: processutils.Processes{
-				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
+				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--path=foo"}, nil),
 			},
 			expectReports: nil,
 		},

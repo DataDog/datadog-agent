@@ -16,14 +16,14 @@ import (
 // This differs from fx.App#Run in that it returns errors instead of exiting
 // the process.
 func Run(opts ...fx.Option) error {
-	opts = append(opts, fxLoggingOption())
+	opts = append(opts, FxLoggingOption())
 	app := fx.New(opts...)
 
 	startCtx, cancel := context.WithTimeout(context.Background(), app.StartTimeout())
 	defer cancel()
 
 	if err := app.Start(startCtx); err != nil {
-		return err
+		return unwrapIfErrArgumentsFailed(err)
 	}
 
 	_ = <-app.Done()

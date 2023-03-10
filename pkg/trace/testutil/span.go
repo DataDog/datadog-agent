@@ -225,7 +225,13 @@ func int32RandomChoice(s []int32) int32 {
 }
 
 func stringRandomChoice(s []string) string {
-	return randomChoice(stringSlice(s)).(string)
+	got := randomChoice(stringSlice(s)).(string)
+	runes := []rune(got)
+	rand.Shuffle(len(runes), func(x, y int) {
+		// Add more randomization by shuffling the characters
+		runes[x], runes[y] = runes[y], runes[x]
+	})
+	return string(runes)
 }
 
 // RandomSpanDuration generates a random span duration

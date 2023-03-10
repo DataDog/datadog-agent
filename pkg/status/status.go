@@ -74,8 +74,8 @@ func GetStatus() (map[string]interface{}, error) {
 		stats["clusterAgentStatus"] = getDCAStatus()
 	}
 
-	if config.Datadog.GetBool("system_probe_config.enabled") {
-		stats["systemProbeStats"] = GetSystemProbeStats(config.Datadog.GetString("system_probe_config.sysprobe_socket"))
+	if config.SystemProbe.GetBool("system_probe_config.enabled") {
+		stats["systemProbeStats"] = GetSystemProbeStats(config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
 	}
 
 	stats["processAgentStatus"] = GetProcessAgentStatus()
@@ -361,22 +361,25 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	} else {
 		stats["aggregatorStats"] = s
 	}
-	dogstatsdStatsJSON := []byte(expvar.Get("dogstatsd").String())
-	dogstatsdUdsStatsJSON := []byte(expvar.Get("dogstatsd-uds").String())
-	dogstatsdUDPStatsJSON := []byte(expvar.Get("dogstatsd-udp").String())
-	dogstatsdStats := make(map[string]interface{})
-	json.Unmarshal(dogstatsdStatsJSON, &dogstatsdStats) //nolint:errcheck
-	dogstatsdUdsStats := make(map[string]interface{})
-	json.Unmarshal(dogstatsdUdsStatsJSON, &dogstatsdUdsStats) //nolint:errcheck
-	for name, value := range dogstatsdUdsStats {
-		dogstatsdStats["Uds"+name] = value
+
+	if expvar.Get("dogstatsd") != nil {
+		dogstatsdStatsJSON := []byte(expvar.Get("dogstatsd").String())
+		dogstatsdUdsStatsJSON := []byte(expvar.Get("dogstatsd-uds").String())
+		dogstatsdUDPStatsJSON := []byte(expvar.Get("dogstatsd-udp").String())
+		dogstatsdStats := make(map[string]interface{})
+		json.Unmarshal(dogstatsdStatsJSON, &dogstatsdStats) //nolint:errcheck
+		dogstatsdUdsStats := make(map[string]interface{})
+		json.Unmarshal(dogstatsdUdsStatsJSON, &dogstatsdUdsStats) //nolint:errcheck
+		for name, value := range dogstatsdUdsStats {
+			dogstatsdStats["Uds"+name] = value
+		}
+		dogstatsdUDPStats := make(map[string]interface{})
+		json.Unmarshal(dogstatsdUDPStatsJSON, &dogstatsdUDPStats) //nolint:errcheck
+		for name, value := range dogstatsdUDPStats {
+			dogstatsdStats["Udp"+name] = value
+		}
+		stats["dogstatsdStats"] = dogstatsdStats
 	}
-	dogstatsdUDPStats := make(map[string]interface{})
-	json.Unmarshal(dogstatsdUDPStatsJSON, &dogstatsdUDPStats) //nolint:errcheck
-	for name, value := range dogstatsdUDPStats {
-		dogstatsdStats["Udp"+name] = value
-	}
-	stats["dogstatsdStats"] = dogstatsdStats
 
 	pyLoaderData := expvar.Get("pyLoader")
 	if pyLoaderData != nil {

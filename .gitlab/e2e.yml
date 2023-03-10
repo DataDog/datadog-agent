@@ -68,6 +68,7 @@ k8s-e2e-tags-7:
   - export DATADOG_AGENT_SITE=datadoghq.com
   - export DATADOG_AGENT_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.e2e_tests_api_key --with-decryption --query "Parameter.Value" --out text)
   - export DATADOG_AGENT_APP_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.e2e_tests_app_key --with-decryption --query "Parameter.Value" --out text)
+  - export DATADOG_AGENT_RC_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.e2e_tests_rc_key --with-decryption --query "Parameter.Value" --out text)
 
 k8s-e2e-cws-dev:
   extends: .k8s_e2e_template

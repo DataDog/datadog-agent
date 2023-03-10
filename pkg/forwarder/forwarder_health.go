@@ -36,6 +36,10 @@ var (
 
 	apiKeyStatus  = expvar.Map{}
 	apiKeyFailure = expvar.Map{}
+
+	// domainURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed
+	// with 'api.' (see computeDomainsURL).
+	domainURLRegexp = regexp.MustCompile(`([a-z]{2}\d\.)?(datadoghq\.[a-z]+|ddog-gov\.com)$`)
 )
 
 func init() {
@@ -138,14 +142,10 @@ func (fh *forwarderHealth) healthCheckLoop() {
 // computeDomainsURL populates a map containing API Endpoints per API keys that belongs to the forwarderHealth struct
 func (fh *forwarderHealth) computeDomainsURL() {
 	for domain, dr := range fh.domainResolvers {
-		apiDomain := ""
-		re := regexp.MustCompile(`((us|eu)\d\.)?(datadoghq\.[a-z]+|ddog-gov\.com)$`)
-		if re.MatchString(domain) {
-			apiDomain = "https://api." + re.FindString(domain)
-		} else {
-			apiDomain = domain
+		if domainURLRegexp.MatchString(domain) {
+			domain = "https://api." + domainURLRegexp.FindString(domain)
 		}
-		fh.keysPerAPIEndpoint[apiDomain] = append(fh.keysPerAPIEndpoint[apiDomain], dr.GetAPIKeys()...)
+		fh.keysPerAPIEndpoint[domain] = append(fh.keysPerAPIEndpoint[domain], dr.GetAPIKeys()...)
 	}
 }
 

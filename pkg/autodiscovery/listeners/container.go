@@ -189,7 +189,7 @@ func computeContainerServiceIDs(entity string, image string, labels map[string]s
 	ids := []string{entity}
 
 	// Add Image names (long then short if different)
-	long, short, _, err := containers.SplitImageName(image)
+	long, _, short, _, err := containers.SplitImageName(image)
 	if err != nil {
 		log.Warnf("error while spliting image name: %s", err)
 	}

@@ -11,6 +11,8 @@ package cgroups
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 )
@@ -52,8 +54,8 @@ func TestCgroupV1PIDStats(t *testing.T) {
 	err = cgFoo1.GetPIDStats(stats)
 	assert.NoError(t, err)
 	assert.Equal(t, "", cmp.Diff(PIDStats{
-		HierarchicalThreadCount: uint64Ptr(12),
-		HierarchicalThreadLimit: uint64Ptr(42),
+		HierarchicalThreadCount: pointer.Ptr(uint64(12)),
+		HierarchicalThreadLimit: pointer.Ptr(uint64(42)),
 	}, *stats))
 
 	// Test reading pids.max string value (max)
@@ -63,7 +65,7 @@ func TestCgroupV1PIDStats(t *testing.T) {
 	err = cgFoo1.GetPIDStats(stats)
 	assert.NoError(t, err)
 	assert.Equal(t, "", cmp.Diff(PIDStats{
-		HierarchicalThreadCount: uint64Ptr(12),
+		HierarchicalThreadCount: pointer.Ptr(uint64(12)),
 		HierarchicalThreadLimit: nil,
 	}, *stats))
 }

@@ -58,19 +58,19 @@ func fillStatsFromSpec(outContainerStats *provider.ContainerStats, spec *oci.Spe
 	// If no limit is available, setting the limit to number of CPUs.
 	// Always reporting a limit allows to compute CPU % accurately.
 	if outContainerStats.CPU.Limit == nil {
-		outContainerStats.CPU.Limit = pointer.Float64Ptr(100 * float64(system.HostCPUCount()))
+		outContainerStats.CPU.Limit = pointer.Ptr(100 * float64(system.HostCPUCount()))
 	}
 }
 
 func computeCPULimit(containerStats *provider.ContainerStats, spec *specs.LinuxCPU) {
 	switch {
 	case spec.Cpus != "":
-		containerStats.CPU.Limit = pointer.Float64Ptr(100 * float64(cgroups.ParseCPUSetFormat(spec.Cpus)))
+		containerStats.CPU.Limit = pointer.Ptr(100 * float64(cgroups.ParseCPUSetFormat(spec.Cpus)))
 	case spec.Quota != nil && *spec.Quota > 0:
 		period := 100000 // Default CFS Period
 		if spec.Period != nil && *spec.Period > 0 {
 			period = int(*spec.Period)
 		}
-		containerStats.CPU.Limit = pointer.Float64Ptr(100 * float64(*spec.Quota) / float64(period))
+		containerStats.CPU.Limit = pointer.Ptr(100 * float64(*spec.Quota) / float64(period))
 	}
 }

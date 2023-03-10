@@ -68,10 +68,9 @@ func TestProcessQueues(t *testing.T) {
 			p.sender = sender
 
 			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			cancel() // To force the flush in p.processQueues
 
-			go p.processQueues(ctx, 500*time.Millisecond)
-			time.Sleep(1 * time.Second)
+			p.processQueues(ctx, 500*time.Millisecond)
 
 			tt.wantFunc(t, sender)
 		})

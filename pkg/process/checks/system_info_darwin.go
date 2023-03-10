@@ -16,8 +16,6 @@ import (
 	"github.com/DataDog/gopsutil/host"
 	"github.com/DataDog/gopsutil/mem"
 	"golang.org/x/sys/unix"
-
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 )
 
 type statsProvider interface {
@@ -60,7 +58,7 @@ func patchCPUInfo(gopsutilCPUInfo []cpu.InfoStat) ([]cpu.InfoStat, error) {
 // CollectSystemInfo collects a set of system-level information that will not
 // change until a restart. This bit of information should be passed along with
 // the process messages.
-func CollectSystemInfo(_ *config.AgentConfig) (*model.SystemInfo, error) {
+func CollectSystemInfo() (*model.SystemInfo, error) {
 	hi, err := host.Info()
 	if err != nil {
 		return nil, err

@@ -84,6 +84,22 @@ var LegacyMetadataConfig = MetadataConfig{
 			},
 		},
 	},
+	"ip_addresses": {
+		Fields: map[string]MetadataField{
+			"if_index": {
+				Symbol: SymbolConfig{
+					OID:  "1.3.6.1.2.1.4.20.1.2",
+					Name: "ipAdEntIfIndex",
+				},
+			},
+			"netmask": {
+				Symbol: SymbolConfig{
+					OID:  "1.3.6.1.2.1.4.20.1.3",
+					Name: "ipAdEntNetMask",
+				},
+			},
+		},
+	},
 }
 
 var TopologyMetadataConfig = MetadataConfig{
@@ -134,6 +150,16 @@ var TopologyMetadataConfig = MetadataConfig{
 			// TODO: Implement later lldpRemSysCapSupported and lldpRemSysCapEnabled
 			//   - 1.0.8802.1.1.2.1.4.1.1.11 lldpRemSysCapSupported
 			//   - 1.0.8802.1.1.2.1.4.1.1.12  lldpRemSysCapEnabled
+		},
+	},
+	"lldp_remote_management": {
+		Fields: map[string]MetadataField{
+			"interface_id_type": {
+				Symbol: SymbolConfig{
+					OID:  "1.0.8802.1.1.2.1.4.2.1.3",
+					Name: "lldpRemManAddrIfSubtype",
+				},
+			},
 		},
 	},
 	"lldp_local": {

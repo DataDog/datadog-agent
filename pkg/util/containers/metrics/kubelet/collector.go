@@ -209,7 +209,7 @@ func (kc *kubeletCollector) processStatsSummary(currentTime time.Time, statsSumm
 		// underlying host, it should not be an issue.
 		podNetworkStats := &provider.ContainerNetworkStats{}
 		convertNetworkStats(pod.Network, podNetworkStats)
-		podNetworkStats.NetworkIsolationGroupID = pointer.UInt64Ptr(networkIDFromPODUID(pod.PodRef.UID))
+		podNetworkStats.NetworkIsolationGroupID = pointer.Ptr(networkIDFromPODUID(pod.PodRef.UID))
 
 		// As Metadata collector is running through polling, it can happen that we have newer PODs, containers
 		metaPod, err := kc.metadataStore.GetKubernetesPod(pod.PodRef.UID)

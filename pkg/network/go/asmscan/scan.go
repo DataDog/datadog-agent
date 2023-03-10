@@ -8,6 +8,7 @@ package asmscan
 import (
 	"debug/elf"
 	"fmt"
+
 	"golang.org/x/arch/arm64/arm64asm"
 	"golang.org/x/arch/x86/x86asm"
 )
@@ -31,10 +32,10 @@ import (
 // for the purpose of then attaching eBPF uprobes to these locations.
 // This is needed because uretprobes don't work well with Go.
 // See the following links for more info:
-// - https://github.com/iovisor/bcc/issues/1320
-// - https://github.com/iovisor/bcc/issues/1320#issuecomment-407927542
-//   (which describes how this approach works as a workaround)
-// - https://github.com/golang/go/issues/22008
+//   - https://github.com/iovisor/bcc/issues/1320
+//   - https://github.com/iovisor/bcc/issues/1320#issuecomment-407927542
+//     (which describes how this approach works as a workaround)
+//   - https://github.com/golang/go/issues/22008
 func ScanFunction(textSection *elf.Section, sym elf.Symbol, functionOffset uint64, scanInstructions func(data []byte) ([]uint64, error)) ([]uint64, error) {
 	// Determine the offset in the section that the function starts at
 	lowPC := sym.Value
@@ -115,7 +116,10 @@ func FindARM64ReturnInstructions(data []byte) ([]uint64, error) {
 	for cursor < len(data) {
 		instruction, err := arm64asm.Decode(data[cursor:])
 		if err != nil {
-			return nil, fmt.Errorf("failed to decode ARM 64 instruction at offset %d within function machine code: %w", cursor, err)
+			// ARM64 instructions are 4 bytes long so we just advance
+			// the cursor accordingly in case we run into a decoding error
+			cursor += 4
+			continue
 		}
 
 		if instruction.Op == arm64asm.RET {

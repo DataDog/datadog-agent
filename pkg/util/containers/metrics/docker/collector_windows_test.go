@@ -36,9 +36,9 @@ func Test_convertCPUStats(t *testing.T) {
 				},
 			},
 			expectedOutput: provider.ContainerCPUStats{
-				Total:  pointer.Float64Ptr(4200),
-				System: pointer.Float64Ptr(4300),
-				User:   pointer.Float64Ptr(4400),
+				Total:  pointer.Ptr(4200.0),
+				System: pointer.Ptr(4300.0),
+				User:   pointer.Ptr(4400.0),
 			},
 		},
 	}
@@ -64,10 +64,10 @@ func Test_convertMemoryStats(t *testing.T) {
 				PrivateWorkingSet: 46,
 			},
 			expectedOutput: provider.ContainerMemStats{
-				UsageTotal:        pointer.Float64Ptr(44),
-				PrivateWorkingSet: pointer.Float64Ptr(46),
-				CommitBytes:       pointer.Float64Ptr(44),
-				CommitPeakBytes:   pointer.Float64Ptr(45),
+				UsageTotal:        pointer.Ptr(44.0),
+				PrivateWorkingSet: pointer.Ptr(46.0),
+				CommitBytes:       pointer.Ptr(44.0),
+				CommitPeakBytes:   pointer.Ptr(45.0),
 			},
 		},
 	}
@@ -94,10 +94,10 @@ func Test_convertIOStats(t *testing.T) {
 				WriteSizeBytes:       45,
 			},
 			expectedOutput: provider.ContainerIOStats{
-				ReadBytes:       pointer.Float64Ptr(43),
-				WriteBytes:      pointer.Float64Ptr(45),
-				ReadOperations:  pointer.Float64Ptr(42),
-				WriteOperations: pointer.Float64Ptr(44),
+				ReadBytes:       pointer.Ptr(43.0),
+				WriteBytes:      pointer.Ptr(45.0),
+				ReadOperations:  pointer.Ptr(42.0),
+				WriteOperations: pointer.Ptr(44.0),
 			},
 		},
 	}
@@ -119,7 +119,7 @@ func Test_convetrPIDStats(t *testing.T) {
 			name:  "basic",
 			input: 42,
 			expectedOutput: provider.ContainerPIDStats{
-				ThreadCount: pointer.Float64Ptr(42),
+				ThreadCount: pointer.Ptr(42.0),
 			},
 		},
 	}

@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
@@ -137,8 +138,8 @@ func Test_getOwnerInfo(t *testing.T) {
 			name: "replicaset",
 			owner: metav1.OwnerReference{
 				APIVersion:         "apps/v1",
-				BlockOwnerDeletion: boolPointer(true),
-				Controller:         boolPointer(true),
+				BlockOwnerDeletion: pointer.Ptr(true),
+				Controller:         pointer.Ptr(true),
 				Kind:               "ReplicaSet",
 				Name:               "my-app-547c56f566",
 				UID:                "2dfa7d22-245f-4769-8854-bc3b056cd224",
@@ -157,8 +158,8 @@ func Test_getOwnerInfo(t *testing.T) {
 			name: "job",
 			owner: metav1.OwnerReference{
 				APIVersion:         "batch/v1",
-				BlockOwnerDeletion: boolPointer(true),
-				Controller:         boolPointer(true),
+				BlockOwnerDeletion: pointer.Ptr(true),
+				Controller:         pointer.Ptr(true),
 				Kind:               "Job",
 				Name:               "my-job",
 				UID:                "89e8148c-8601-4c69-b8a6-3fbb176547d0",
@@ -177,8 +178,8 @@ func Test_getOwnerInfo(t *testing.T) {
 			name: "invalid APIVersion",
 			owner: metav1.OwnerReference{
 				APIVersion:         "batch/v1/",
-				BlockOwnerDeletion: boolPointer(true),
-				Controller:         boolPointer(true),
+				BlockOwnerDeletion: pointer.Ptr(true),
+				Controller:         pointer.Ptr(true),
 				Kind:               "Job",
 				Name:               "my-job",
 				UID:                "89e8148c-8601-4c69-b8a6-3fbb176547d0",

@@ -77,6 +77,12 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 				n.SetIntValue(777)
 				return newMetrics(histogramMetricName, h, numberMetricName, n)
 			},
+			setConfig: func(t *testing.T) {
+				config.SetDetectedFeatures(config.FeatureMap{})
+				t.Cleanup(func() {
+					defer config.SetDetectedFeatures(nil)
+				})
+			},
 			wantSketchTags: tagset.NewCompositeTags([]string{}, nil),
 			wantSerieTags:  tagset.NewCompositeTags([]string{}, nil),
 		},
@@ -101,10 +107,10 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 				return newMetrics(histogramMetricName, h, numberMetricName, n)
 			},
 			setConfig: func(t *testing.T) {
-				config.Datadog.SetDefault("eks_fargate", true)
+				config.SetDetectedFeatures(config.FeatureMap{config.EKSFargate: struct{}{}})
 				config.Datadog.SetDefault("tags", []string{"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3"})
 				t.Cleanup(func() {
-					config.Datadog.SetDefault("eks_fargate", false)
+					defer config.SetDetectedFeatures(nil)
 					config.Datadog.SetDefault("tags", []string{})
 				})
 			},

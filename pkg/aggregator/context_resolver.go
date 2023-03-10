@@ -111,6 +111,36 @@ func (cr *contextResolver) release() {
 	}
 }
 
+func (c *contextResolver) sendOriginTelemetry(timestamp float64, series metrics.SerieSink, hostname string, constTags []string) {
+	// Within the contextResolver, each set of tags is represented by a unique pointer.
+	perOrigin := map[*tags.Entry]uint64{}
+	for _, cx := range c.contextsByKey {
+		perOrigin[cx.taggerTags]++
+	}
+
+	// We send metrics directly to the sink, instead of using
+	// pkg/telemetry for a few reasons:
+	//
+	// 1. We can send full set of tagger tags for higher level
+	//    aggregations (pod, namespace, etc). pkg/telemetry only
+	//    allows a fixed set of tags.
+	// 2. Avoid the need to manually create and delete tag values
+	//    inside a telemetry Gauge.
+	// 3. Cardinality is automatically limited to origins verified by
+	//    the tagger (although broken applications sending invalid
+	//    origin id would coalesce to no origin, making this less
+	//    useful for troubleshooting).
+	for entry, count := range perOrigin {
+		series.Append(&metrics.Serie{
+			Name:   "datadog.agent.aggregator.dogstatsd_contexts_by_origin",
+			Host:   hostname,
+			Tags:   tagset.NewCompositeTags(constTags, entry.Tags()),
+			MType:  metrics.APIGaugeType,
+			Points: []metrics.Point{{Ts: timestamp, Value: float64(count)}},
+		})
+	}
+}
+
 // timestampContextResolver allows tracking and expiring contexts based on time.
 type timestampContextResolver struct {
 	resolver      *contextResolver
@@ -175,6 +205,10 @@ func (cr *timestampContextResolver) expireContexts(expireTimestamp float64, keep
 	}
 
 	return expiredContextKeys
+}
+
+func (cr *timestampContextResolver) sendOriginTelemetry(timestamp float64, series metrics.SerieSink, hostname string, tags []string) {
+	cr.resolver.sendOriginTelemetry(timestamp, series, hostname, tags)
 }
 
 // countBasedContextResolver allows tracking and expiring contexts based on the number

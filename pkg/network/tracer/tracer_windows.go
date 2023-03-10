@@ -12,9 +12,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"sync"
 	"syscall"
 	"time"
+
+	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -50,6 +53,9 @@ type Tracer struct {
 	// Connections for the tracer to exclude
 	sourceExcludes []*network.ConnectionFilter
 	destExcludes   []*network.ConnectionFilter
+
+	// polling loop for connection event
+	closedEventLoop sync.WaitGroup
 }
 
 // NewTracer returns an initialized tracer struct
@@ -69,6 +75,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config.MaxConnectionsStateBuffered,
 		config.MaxDNSStatsBuffered,
 		config.MaxHTTPStatsBuffered,
+		config.MaxKafkaStatsBuffered,
 	)
 
 	reverseDNS := dns.NewNullReverseDNS()
@@ -92,7 +99,33 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		sourceExcludes:  network.ParseConnectionFilters(config.ExcludedSourceConnections),
 		destExcludes:    network.ParseConnectionFilters(config.ExcludedDestinationConnections),
 	}
+	tr.closedEventLoop.Add(1)
+	go func() {
+		defer tr.closedEventLoop.Done()
 
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
+	waitloop:
+		for {
+			evt, _ := windows.WaitForSingleObject(di.GetClosedFlowsEvent(), windows.INFINITE)
+			switch evt {
+			case windows.WAIT_OBJECT_0:
+				_, err = tr.driverInterface.GetClosedConnectionStats(tr.closedBuffer, func(c *network.ConnectionStats) bool {
+					return !tr.shouldSkipConnection(c)
+				})
+				closedConnStats := tr.closedBuffer.Connections()
+
+				tr.state.StoreClosedConnections(closedConnStats)
+
+			case windows.WAIT_FAILED:
+				break waitloop
+
+			default:
+				log.Infof("got other wait value %v", evt)
+			}
+		}
+
+	}()
 	return tr, nil
 }
 
@@ -107,6 +140,7 @@ func (t *Tracer) Stop() {
 	if err != nil {
 		log.Errorf("error closing driver interface: %s", err)
 	}
+	t.closedEventLoop.Wait()
 }
 
 // GetActiveConnections returns all active connections
@@ -114,11 +148,17 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.connLock.Lock()
 	defer t.connLock.Unlock()
 
-	_, _, err := t.driverInterface.GetConnectionStats(t.activeBuffer, t.closedBuffer, func(c *network.ConnectionStats) bool {
+	_, err := t.driverInterface.GetOpenConnectionStats(t.activeBuffer, func(c *network.ConnectionStats) bool {
 		return !t.shouldSkipConnection(c)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error retrieving connections from driver: %w", err)
+		return nil, fmt.Errorf("error retrieving open connections from driver: %w", err)
+	}
+	_, err = t.driverInterface.GetClosedConnectionStats(t.closedBuffer, func(c *network.ConnectionStats) bool {
+		return !t.shouldSkipConnection(c)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error retrieving closed connections from driver: %w", err)
 	}
 	activeConnStats := t.activeBuffer.Connections()
 	closedConnStats := t.closedBuffer.Connections()
@@ -130,9 +170,9 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 
 	var delta network.Delta
 	if t.httpMonitor != nil { //nolint
-		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
+		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats(), nil, nil)
 	} else {
-		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil)
+		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil, nil, nil)
 	}
 
 	t.activeBuffer.Reset()
@@ -225,6 +265,11 @@ func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) 
 
 // DebugHostConntrack is not implemented on this OS for Tracer
 func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
+	return nil, ebpf.ErrNotImplemented
+}
+
+// DebugDumpProcessCache is not implemented on this OS for Tracer
+func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!-- Would like to include Configuration in BaseIntermediateOutputPath path, but it's undefined when nuget writes project.assets.json, but is
+       defined when it goes to read it, so it can't find it.
+  -->
+  <!-- Used for out-of-repo builds (e.g. with 'inv msi.build') -->
+  <PropertyGroup Condition="'$(AGENT_INSTALLER_OUTPUT_DIR)' != ''">
+    <BaseOutputPath>$(AGENT_INSTALLER_OUTPUT_DIR)\bin\</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(AGENT_INSTALLER_OUTPUT_DIR)\obj\$(Platform)\$(MSBuildProjectName)\</BaseIntermediateOutputPath>
+    <NuGetPackagesDir>$(NUGET_PACKAGES_DIR)</NuGetPackagesDir>
+  </PropertyGroup>
+
+  <!-- If building in repo (e.g. with visual studio) keep the output in this dir -->
+  <PropertyGroup Condition="'$(AGENT_INSTALLER_OUTPUT_DIR)' == ''">
+    <BaseOutputPath>$(SolutionDir)\bin\</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(SolutionDir)\obj\$(Platform)\$(MSBuildProjectName)</BaseIntermediateOutputPath>
+    <NuGetPackagesDir>$(SolutionDir)\packages\</NuGetPackagesDir>
+  </PropertyGroup>
+</Project>

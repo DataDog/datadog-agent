@@ -5,20 +5,11 @@
 
 package eval
 
-import (
-	"unsafe"
-)
-
 // RegisterID identify a register ID
 type RegisterID = string
 
-// Register describes a register that can be used by a set
-type Register struct {
-	Value unsafe.Pointer
-}
-
 // Registers defines all available registers
-type Registers map[RegisterID]*Register
+type Registers map[RegisterID]struct{}
 
 // Clone returns a copy of the registers
 func (r Registers) Clone() Registers {

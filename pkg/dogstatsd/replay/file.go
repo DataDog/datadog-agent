@@ -6,8 +6,8 @@
 package replay
 
 import (
-	"bufio"
 	"fmt"
+	"io"
 
 	"github.com/h2non/filetype"
 	"github.com/h2non/filetype/matchers"
@@ -17,7 +17,8 @@ var (
 	datadogType = filetype.NewType("dog", "datadog/capture")
 	// DATADOG0F1FF0000 in HEX (D474D060F1FF0000); (F0 | datadogFileVersion) for different file versions support
 	// 00 to terminate header
-	datadogHeader = []byte{0xD4, 0x74, 0xD0, 0x60, 0xF0, 0xFF, 0x00, 0x00}
+	datadogHeader  = []byte{0xD4, 0x74, 0xD0, 0x60, 0xF0, 0xFF, 0x00, 0x00}
+	ErrHeaderWrite = fmt.Errorf("capture file header could not be fully written to buffer")
 )
 
 const (
@@ -68,17 +69,20 @@ func fileVersion(buf []byte) (int, error) {
 }
 
 // WriteHeader writes the datadog header to the Writer argument to conform to the .dog file format.
-func WriteHeader(w *bufio.Writer) error {
+func WriteHeader(w io.Writer) error {
 	hdr := make([]byte, len(datadogHeader))
 	copy(hdr, datadogHeader)
 	hdr[versionIndex] |= datadogFileVersion
 
 	//Write header
-	if n, err := w.Write(hdr); err != nil || n < len(datadogHeader) {
-		if err != nil {
-			return fmt.Errorf("Capture file header could not be fully written to buffer")
-		}
+	n, err := w.Write(hdr)
+
+	if err != nil {
 		return err
+	}
+
+	if n < len(datadogHeader) {
+		return ErrHeaderWrite
 	}
 
 	return nil

@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -62,7 +62,7 @@ func TestSetXAttr(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "setxattr", event.GetType(), "wrong event type")
 			assert.Equal(t, "user.test_xattr", event.SetXAttr.Name)
 			assert.Equal(t, "user", event.SetXAttr.Namespace)
@@ -70,7 +70,9 @@ func TestSetXAttr(t *testing.T) {
 			assertRights(t, event.SetXAttr.File.Mode, expectedMode)
 			assertNearTime(t, event.SetXAttr.File.MTime)
 			assertNearTime(t, event.SetXAttr.File.CTime)
-			assert.Equal(t, event.Async, false)
+
+			value, _ := event.GetFieldValue("async")
+			assert.Equal(t, value.(bool), false)
 		})
 	})
 
@@ -100,7 +102,7 @@ func TestSetXAttr(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "setxattr", event.GetType(), "wrong event type")
 			assert.Equal(t, "user.test_xattr", event.SetXAttr.Name)
 			assert.Equal(t, "user", event.SetXAttr.Namespace)
@@ -108,7 +110,9 @@ func TestSetXAttr(t *testing.T) {
 			assertRights(t, event.SetXAttr.File.Mode, 0777)
 			assertNearTime(t, event.SetXAttr.File.MTime)
 			assertNearTime(t, event.SetXAttr.File.CTime)
-			assert.Equal(t, event.Async, false)
+
+			value, _ := event.GetFieldValue("async")
+			assert.Equal(t, value.(bool), false)
 		})
 	})
 
@@ -131,7 +135,7 @@ func TestSetXAttr(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "setxattr", event.GetType(), "wrong event type")
 			assert.Equal(t, "user.test_xattr", event.SetXAttr.Name)
 			assert.Equal(t, "user", event.SetXAttr.Namespace)
@@ -139,7 +143,9 @@ func TestSetXAttr(t *testing.T) {
 			assertRights(t, event.SetXAttr.File.Mode, expectedMode)
 			assertNearTime(t, event.SetXAttr.File.MTime)
 			assertNearTime(t, event.SetXAttr.File.CTime)
-			assert.Equal(t, event.Async, false)
+
+			value, _ := event.GetFieldValue("async")
+			assert.Equal(t, value.(bool), false)
 		})
 	})
 }
@@ -198,14 +204,16 @@ func TestRemoveXAttr(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "removexattr", event.GetType(), "wrong event type")
 			assert.Equal(t, "user.test_xattr", event.RemoveXAttr.Name)
 			assert.Equal(t, getInode(t, testFile), event.RemoveXAttr.File.Inode, "wrong inode")
 			assertRights(t, event.RemoveXAttr.File.Mode, uint16(expectedMode))
 			assertNearTime(t, event.RemoveXAttr.File.MTime)
 			assertNearTime(t, event.RemoveXAttr.File.CTime)
-			assert.Equal(t, event.Async, false)
+
+			value, _ := event.GetFieldValue("async")
+			assert.Equal(t, value.(bool), false)
 		})
 	})
 
@@ -242,14 +250,16 @@ func TestRemoveXAttr(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "removexattr", event.GetType(), "wrong event type")
 			assert.Equal(t, "user.test_xattr", event.RemoveXAttr.Name)
 			assert.Equal(t, getInode(t, testFile), event.RemoveXAttr.File.Inode, "wrong inode")
 			assertRights(t, event.RemoveXAttr.File.Mode, 0777)
 			assertNearTime(t, event.RemoveXAttr.File.MTime)
 			assertNearTime(t, event.RemoveXAttr.File.CTime)
-			assert.Equal(t, event.Async, false)
+
+			value, _ := event.GetFieldValue("async")
+			assert.Equal(t, value.(bool), false)
 		})
 	})
 
@@ -278,7 +288,7 @@ func TestRemoveXAttr(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			if event.GetType() != "removexattr" {
 				t.Errorf("expected removexattr event, got %s", event.GetType())
 			}

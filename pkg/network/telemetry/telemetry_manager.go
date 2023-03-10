@@ -56,10 +56,10 @@ func initializeMaps(bpfTelemetry *EBPFTelemetry, opts *manager.Options) {
 		}
 	}
 	if bpfTelemetry.MapErrMap != nil {
-		opts.MapEditors[string(probes.MapErrTelemetryMap)] = bpfTelemetry.MapErrMap
+		opts.MapEditors[probes.MapErrTelemetryMap] = bpfTelemetry.MapErrMap
 	}
 	if bpfTelemetry.HelperErrMap != nil {
-		opts.MapEditors[string(probes.HelperErrTelemetryMap)] = bpfTelemetry.HelperErrMap
+		opts.MapEditors[probes.HelperErrTelemetryMap] = bpfTelemetry.HelperErrMap
 	}
 
 }

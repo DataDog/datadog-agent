@@ -34,8 +34,8 @@ func TestCollectCommand(t *testing.T) {
 				require.Equal(t, "debug", coreParams.LogLevelFn(nil))
 				require.Equal(t, "", cliParams.logFile)
 				require.Equal(t, "", coreParams.LogFileFn(nil))
-				require.Equal(t, "CORE", coreParams.LoggerName)
-				require.Equal(t, true, coreParams.ConfigLoadSecrets)
+				require.Equal(t, "CORE", coreParams.LoggerName())
+				require.Equal(t, true, coreParams.ConfigLoadSecrets())
 			})
 	})
 
@@ -50,8 +50,8 @@ func TestCollectCommand(t *testing.T) {
 				require.Equal(t, "info", coreParams.LogLevelFn(nil))
 				require.Equal(t, "", cliParams.logFile)
 				require.Equal(t, "", coreParams.LogFileFn(nil))
-				require.Equal(t, "CORE", coreParams.LoggerName)
-				require.Equal(t, true, coreParams.ConfigLoadSecrets)
+				require.Equal(t, "CORE", coreParams.LoggerName())
+				require.Equal(t, true, coreParams.ConfigLoadSecrets())
 			})
 	})
 
@@ -66,8 +66,8 @@ func TestCollectCommand(t *testing.T) {
 				require.Equal(t, "debug", coreParams.LogLevelFn(nil)) // overrides --log-level
 				require.True(t, strings.HasPrefix(cliParams.logFile, common.DefaultJMXFlareDirectory))
 				require.Equal(t, cliParams.logFile, coreParams.LogFileFn(nil))
-				require.Equal(t, "CORE", coreParams.LoggerName)
-				require.Equal(t, true, coreParams.ConfigLoadSecrets)
+				require.Equal(t, "CORE", coreParams.LoggerName())
+				require.Equal(t, true, coreParams.ConfigLoadSecrets())
 			})
 	})
 }

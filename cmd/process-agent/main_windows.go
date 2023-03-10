@@ -11,14 +11,10 @@ package main
 import (
 	"fmt"
 	_ "net/http/pprof"
-	"os"
-	"path/filepath"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"
 	"golang.org/x/sys/windows/svc/eventlog"
@@ -27,28 +23,15 @@ import (
 
 var elog debug.Log
 
-// ServiceName is the service name used for the process-agent
-const ServiceName = "datadog-process-agent"
+const (
+	// ServiceName is the service name used for the process-agent
+	ServiceName  = "datadog-process-agent"
+	useWinParams = true
+)
 
-// opts are the command-line options
-var defaultConfigPath = flags.DefaultConfPath
-var defaultSysProbeConfigPath = flags.DefaultSysProbeConfPath
-
-var winopts struct {
-	startService bool
-	stopService  bool
-	foreground   bool
+type myservice struct {
+	globalParams *command.GlobalParams
 }
-
-func init() {
-	pd, err := winutil.GetProgramDataDir()
-	if err == nil {
-		defaultConfigPath = filepath.Join(pd, "datadog.yaml")
-		defaultSysProbeConfigPath = filepath.Join(pd, "system-probe.yaml")
-	}
-}
-
-type myservice struct{}
 
 func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (ssec bool, errno uint32) {
 	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
@@ -81,13 +64,13 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 		}
 	}()
 	elog.Info(0x40000003, ServiceName)
-	runAgent(exit)
+	runAgent(m.globalParams, exit)
 
 	changes <- svc.Status{State: svc.Stopped}
 	return
 }
 
-func runService(isDebug bool) {
+func runService(globalParams *command.GlobalParams, isDebug bool) {
 	var err error
 	if isDebug {
 		elog = debug.New(ServiceName)
@@ -104,7 +87,12 @@ func runService(isDebug bool) {
 		run = debug.Run
 	}
 	elog.Info(0x40000007, ServiceName)
-	err = run(ServiceName, &myservice{})
+
+	service := &myservice{
+		globalParams: globalParams,
+	}
+
+	err = run(ServiceName, service)
 	if err != nil {
 		elog.Error(0xc0000008, err.Error())
 		return
@@ -112,57 +100,37 @@ func runService(isDebug bool) {
 	elog.Info(0x40000004, ServiceName)
 }
 
-// main is the main application entry point
-func main() {
-	rootCmd.PersistentFlags().StringVar(&opts.configPath, flags.CfgPath, defaultConfigPath, "Path to datadog.yaml config")
-	rootCmd.PersistentFlags().StringVar(&opts.sysProbeConfigPath, flags.SysProbeConfig, defaultSysProbeConfigPath, "Path to system-probe.yaml config")
-	rootCmd.PersistentFlags().BoolVarP(&opts.info, "info", "i", false, "Show info about running process agent and exit")
-	rootCmd.PersistentFlags().BoolP("version", "v", false, "[deprecated] Print the version and exit")
-	rootCmd.PersistentFlags().String("check", "", "[deprecated] Run a specific check and print the results. Choose from: process, rtprocess, container, rtcontainer, connections, process_discovery")
-
-	// windows-specific options for controlling the service
-	rootCmd.PersistentFlags().BoolVar(&winopts.startService, "start-service", false, "Starts the process agent service")
-	rootCmd.PersistentFlags().BoolVar(&winopts.stopService, "stop-service", false, "Stops the process agent service")
-	rootCmd.PersistentFlags().BoolVar(&winopts.foreground, "foreground", false, "Always run foreground instead whether session is interactive or not")
-
-	// Invoke the Agent
-	os.Args = fixDeprecatedFlags(os.Args, os.Stdout)
-	if err := rootCmd.Execute(); err != nil {
-		os.Exit(-1)
-	}
-}
-
-func rootCmdRun(cmd *cobra.Command, args []string) {
-	if !winopts.foreground {
+func rootCmdRun(globalParams *command.GlobalParams) {
+	if !globalParams.WinParams.Foreground {
 		isIntSess, err := svc.IsAnInteractiveSession()
 		if err != nil {
 			fmt.Printf("failed to determine if we are running in an interactive session: %v\n", err)
 		}
 
 		if !isIntSess {
-			runService(false)
+			runService(globalParams, false)
 			return
 		}
 		// sigh.  Go doesn't have boolean xor operator.  The options are mutually exclusive,
 		// make sure more than one wasn't specified
 		optcount := 0
-		if winopts.startService {
+		if globalParams.WinParams.StartService {
 			optcount++
 		}
-		if winopts.stopService {
+		if globalParams.WinParams.StopService {
 			optcount++
 		}
 		if optcount > 1 {
 			fmt.Println("Incompatible options chosen")
 			return
 		}
-		if winopts.startService {
+		if globalParams.WinParams.StartService {
 			if err = startService(); err != nil {
 				fmt.Printf("Error starting service %v\n", err)
 			}
 			return
 		}
-		if winopts.stopService {
+		if globalParams.WinParams.StopService {
 			if err = stopService(); err != nil {
 				fmt.Printf("Error stopping service %v\n", err)
 			}
@@ -172,7 +140,7 @@ func rootCmdRun(cmd *cobra.Command, args []string) {
 
 	exit := make(chan struct{})
 	// Invoke the Agent
-	runAgent(exit)
+	runAgent(globalParams, exit)
 }
 
 func startService() error {

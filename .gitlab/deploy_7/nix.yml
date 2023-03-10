@@ -60,7 +60,6 @@ deploy_packages_suse_rpm-7:
     - $S3_CP_CMD --recursive --exclude "*" --include "*-7.*x86_64.rpm" $OMNIBUS_PACKAGE_DIR_SUSE $S3_RELEASE_ARTIFACTS_URI/suse_rpm/x86_64/ || true
 
 deploy_packages_dmg-a7:
-  allow_failure: true
   rules:
     !reference [.on_deploy_a7]
   stage: deploy7

@@ -32,9 +32,11 @@ import (
 )
 
 const (
-	snmpLoaderTag        = "loader:core"
-	serviceCheckName     = "snmp.can_check"
-	deviceHostnamePrefix = "device:"
+	snmpLoaderTag           = "loader:core"
+	serviceCheckName        = "snmp.can_check"
+	deviceReachableMetric   = "snmp.device.reachable"
+	deviceUnreachableMetric = "snmp.device.unreachable"
+	deviceHostnamePrefix    = "device:"
 )
 
 // define timeNow as variable to make it possible to mock it during test
@@ -114,6 +116,9 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		tags = append(tags, dynamicTags...)
 		d.sender.ServiceCheck(serviceCheckName, metrics.ServiceCheckOK, tags, "")
 	}
+	d.sender.Gauge(deviceReachableMetric, common.BoolToFloat64(deviceReachable), tags)
+	d.sender.Gauge(deviceUnreachableMetric, common.BoolToFloat64(!deviceReachable), tags)
+
 	if values != nil {
 		d.sender.ReportMetrics(d.config.Metrics, values, tags)
 	}
@@ -144,7 +149,7 @@ func (d *DeviceCheck) setDeviceHostExternalTags() {
 	if deviceHostname == "" || err != nil {
 		return
 	}
-	agentTags := config.GetConfiguredTags(false)
+	agentTags := config.GetGlobalConfiguredTags(false)
 	log.Debugf("Set external tags for device host, host=`%s`, agentTags=`%v`", deviceHostname, agentTags)
 	externalhost.SetExternalTags(deviceHostname, common.SnmpExternalTagsSourceType, agentTags)
 }
@@ -249,17 +254,27 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, []c
 	var metricConfigs []checkconfig.MetricsConfig
 	var metricTagConfigs []checkconfig.MetricTagConfig
 
+	// If a metric name has already been encountered, we won't try to add it again.
+	alreadySeenMetrics := make(map[string]bool)
+	// If a global tag has already been encountered, we won't try to add it again.
+	alreadyGlobalTags := make(map[string]bool)
 	for _, profileDef := range d.config.Profiles {
 		for _, metricConfig := range profileDef.Metrics {
 			newMetricConfig := metricConfig
 			if metricConfig.IsScalar() {
-				if root.LeafExist(metricConfig.Symbol.OID) {
+				metricName := metricConfig.Symbol.Name
+				if metricConfig.Options.MetricSuffix != "" {
+					metricName = metricName + "." + metricConfig.Options.MetricSuffix
+				}
+				if !alreadySeenMetrics[metricName] && root.LeafExist(metricConfig.Symbol.OID) {
+					alreadySeenMetrics[metricName] = true
 					metricConfigs = append(metricConfigs, newMetricConfig)
 				}
 			} else if metricConfig.IsColumn() {
 				newMetricConfig.Symbols = []checkconfig.SymbolConfig{}
 				for _, symbol := range metricConfig.Symbols {
-					if root.NonLeafNodeExist(symbol.OID) {
+					if !alreadySeenMetrics[symbol.Name] && root.NonLeafNodeExist(symbol.OID) {
+						alreadySeenMetrics[symbol.Name] = true
 						newMetricConfig.Symbols = append(newMetricConfig.Symbols, symbol)
 					}
 				}
@@ -270,6 +285,27 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, []c
 		}
 		for _, metricTag := range profileDef.MetricTags {
 			if root.LeafExist(metricTag.OID) || root.LeafExist(metricTag.Column.OID) {
+				if metricTag.Tag != "" {
+					if alreadyGlobalTags[metricTag.Tag] {
+						continue
+					}
+					alreadyGlobalTags[metricTag.Tag] = true
+				} else {
+					// We don't add `metricTag` if any of the `metricTag.Tags` has already been encountered.
+					alreadyPresent := false
+					for tagKey := range metricTag.Tags {
+						if alreadyGlobalTags[tagKey] {
+							alreadyPresent = true
+							break
+						}
+					}
+					if alreadyPresent {
+						continue
+					}
+					for tagKey := range metricTag.Tags {
+						alreadyGlobalTags[tagKey] = true
+					}
+				}
 				metricTagConfigs = append(metricTagConfigs, metricTag)
 			}
 		}

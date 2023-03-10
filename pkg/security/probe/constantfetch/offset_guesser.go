@@ -32,7 +32,6 @@ var (
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          offsetGuesserUID,
-				EBPFSection:  "kprobe/get_pid_task",
 				EBPFFuncName: "kprobe_get_pid_task",
 			},
 		},

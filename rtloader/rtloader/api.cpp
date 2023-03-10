@@ -600,3 +600,19 @@ void set_is_excluded_cb(rtloader_t *rtloader, cb_is_excluded_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setIsExcludedCb(cb);
 }
+
+/*
+ * python allocator stats API
+ */
+void init_pymem_stats(rtloader_t *rtloader)
+{
+    AS_TYPE(RtLoader, rtloader)->initPymemStats();
+}
+
+void get_pymem_stats(rtloader_t *rtloader, pymem_stats_t *stats)
+{
+    if (stats == NULL) {
+        return;
+    }
+    AS_TYPE(RtLoader, rtloader)->getPymemStats(*stats);
+}

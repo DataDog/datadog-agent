@@ -16,12 +16,14 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -357,6 +359,17 @@ func Initialize(paths ...string) error {
 	pythonVersion := config.Datadog.GetString("python_version")
 	allowPathHeuristicsFailure := config.Datadog.GetBool("allow_python_path_heuristics_failure")
 
+	// Force the use of stdlib's distutils, to prevent loading the setuptools-vendored distutils
+	// in integrations, which causes a 10MB memory increase.
+	// Note: a future version of setuptools (TBD) will remove the ability to use this variable
+	// (https://github.com/pypa/setuptools/issues/3625),
+	// and Python 3.12 removes distutils from the standard library.
+	// Once we upgrade one of those, we won't have any choice but to use setuptools' distutils,
+	// which means we will get the memory increase again if integrations still use distutils.
+	if v := os.Getenv("SETUPTOOLS_USE_DISTUTILS"); v == "" {
+		os.Setenv("SETUPTOOLS_USE_DISTUTILS", "stdlib")
+	}
+
 	// Memory related RTLoader-global initialization
 	if config.Datadog.GetBool("memtrack_enabled") {
 		C.initMemoryTracker()
@@ -401,6 +414,10 @@ func Initialize(paths ...string) error {
 			C._free(unsafe.Pointer(pyErr))
 		}
 		return err
+	}
+
+	if config.Datadog.GetBool("telemetry.enabled") && config.Datadog.GetBool("telemetry.python_memory") {
+		initPymemTelemetry()
 	}
 
 	// Set the PYTHONPATH if needed.
@@ -457,4 +474,25 @@ func Initialize(paths ...string) error {
 // tooling, use the rtloader_t struct at your own risk
 func GetRtLoader() *C.rtloader_t {
 	return rtloader
+}
+
+func initPymemTelemetry() {
+	C.init_pymem_stats(rtloader)
+
+	// "alloc" for consistency with go memstats and mallochook metrics.
+	alloc := telemetry.NewSimpleCounter("pymem", "alloc", "Total number of bytes allocated by the python interpreter since the start of the agent.")
+	inuse := telemetry.NewSimpleGauge("pymem", "inuse", "Number of bytes currently allocated by the python interpreter.")
+
+	go func() {
+		t := time.NewTicker(1 * time.Second)
+		var prevAlloc C.size_t
+
+		for range t.C {
+			var s C.pymem_stats_t
+			C.get_pymem_stats(rtloader, &s)
+			inuse.Set(float64(s.inuse))
+			alloc.Add(float64(s.alloc - prevAlloc))
+			prevAlloc = s.alloc
+		}
+	}()
 }

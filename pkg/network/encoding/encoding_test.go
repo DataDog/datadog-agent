@@ -34,16 +34,15 @@ const (
 	tagOpenSSL connTag = 2 // netebpf.OpenSSL
 )
 
-var originalConfig = config.Datadog
-
-func restoreGlobalConfig() {
-	config.Datadog = originalConfig
+func newConfig(t *testing.T) {
+	originalConfig := config.SystemProbe
+	t.Cleanup(func() {
+		config.SystemProbe = originalConfig
+	})
+	config.SystemProbe = config.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
+	config.InitSystemProbeConfig(config.SystemProbe)
 }
 
-func newConfig() {
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	config.InitConfig(config.Datadog)
-}
 func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *model.Connections {
 	var dnsByDomain map[int32]*model.DNSStats
 	var dnsByDomainByQuerytype map[int32]*model.DNSStatsByQueryType
@@ -116,7 +115,9 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 
 				RouteIdx: -1,
 				Protocol: &model.ProtocolStack{
-					Stack: []model.ProtocolType{model.ProtocolType_protocolHTTP2},
+					Stack: []model.ProtocolType{
+						model.ProtocolType_protocolHTTP2,
+					},
 				},
 			},
 		},
@@ -133,33 +134,40 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 		},
 		AgentConfiguration: &model.AgentConfiguration{
 			NpmEnabled: false,
-			TsmEnabled: false,
+			UsmEnabled: false,
 		},
 		Tags: network.GetStaticTags(1),
 	}
 	if runtime.GOOS == "linux" {
 		out.Conns[1].Tags = []uint32{0}
 		out.Conns[1].TagsChecksum = uint32(3241915907)
+		out.Conns[1].Protocol.Stack = append([]model.ProtocolType{model.ProtocolType_protocolTLS}, out.Conns[1].Protocol.Stack...)
+
 	}
 	return out
 }
 
 func TestSerialization(t *testing.T) {
-	var httpReqStats http.RequestStats
+	t.Run("status code", func(t *testing.T) {
+		testSerialization(t, true)
+	})
+	t.Run("status class", func(t *testing.T) {
+		testSerialization(t, false)
+	})
+}
+
+func testSerialization(t *testing.T, aggregateByStatusCode bool) {
+	httpReqStats := http.NewRequestStats(aggregateByStatusCode)
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
 				{
 					Source: util.AddressFromString("10.1.1.1"),
 					Dest:   util.AddressFromString("10.2.2.2"),
-					Monotonic: network.StatCountersByCookie{
-						{
-							StatCounters: network.StatCounters{
-								SentBytes:   1,
-								RecvBytes:   100,
-								Retransmits: 201,
-							},
-						},
+					Monotonic: network.StatCounters{
+						SentBytes:   1,
+						RecvBytes:   100,
+						Retransmits: 201,
 					},
 					Last: network.StatCounters{
 						SentBytes:      2,
@@ -191,15 +199,15 @@ func TestSerialization(t *testing.T) {
 					Protocol: network.ProtocolHTTP,
 				},
 				{
-					Source:    util.AddressFromString("10.1.1.1"),
-					Dest:      util.AddressFromString("8.8.8.8"),
-					SPort:     1000,
-					DPort:     53,
-					Type:      network.UDP,
-					Family:    network.AFINET6,
-					Direction: network.LOCAL,
-					Tags:      uint64(1),
-					Protocol:  network.ProtocolHTTP2,
+					Source:     util.AddressFromString("10.1.1.1"),
+					Dest:       util.AddressFromString("8.8.8.8"),
+					SPort:      1000,
+					DPort:      53,
+					Type:       network.UDP,
+					Family:     network.AFINET6,
+					Direction:  network.LOCAL,
+					StaticTags: uint64(1),
+					Protocol:   network.ProtocolHTTP2,
 				},
 			},
 		},
@@ -232,40 +240,17 @@ func TestSerialization(t *testing.T) {
 				"/testpath",
 				true,
 				http.MethodGet,
-			): &httpReqStats,
+			): httpReqStats,
 		},
 	}
-	// ignore "declared but not used"
-	_ = httpReqStats
 
 	httpOut := &model.HTTPAggregations{
 		EndpointAggregations: []*model.HTTPStats{
 			{
-				Path:     "/testpath",
-				Method:   model.HTTPMethod_Get,
-				FullPath: true,
-				StatsByResponseStatus: []*model.HTTPStats_Data{
-					{
-						Count:     0,
-						Latencies: nil,
-					},
-					{
-						Count:     0,
-						Latencies: nil,
-					},
-					{
-						Count:     0,
-						Latencies: nil,
-					},
-					{
-						Count:     0,
-						Latencies: nil,
-					},
-					{
-						Count:     0,
-						Latencies: nil,
-					},
-				},
+				Path:              "/testpath",
+				Method:            model.HTTPMethod_Get,
+				FullPath:          true,
+				StatsByStatusCode: make(map[int32]*model.HTTPStats_Data),
 			},
 		},
 	}
@@ -274,9 +259,8 @@ func TestSerialization(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("requesting application/json serialization (no query types)", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-		config.Datadog.Set("system_probe_config.collect_dns_domains", false)
+		newConfig(t)
+		config.SystemProbe.Set("system_probe_config.collect_dns_domains", false)
 		out := getExpectedConnections(false, httpOutBlob)
 		assert := assert.New(t)
 		marshaler := GetMarshaler("application/json")
@@ -295,13 +279,13 @@ func TestSerialization(t *testing.T) {
 			result.Conns[1].Tags = nil
 			result.Tags = nil
 		}
+		result.PrebuiltEBPFAssets = nil
 		assert.Equal(out, result)
 	})
 	t.Run("requesting application/json serialization (with query types)", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-		config.Datadog.Set("system_probe_config.collect_dns_domains", false)
-		config.Datadog.Set("network_config.enable_dns_by_querytype", true)
+		newConfig(t)
+		config.SystemProbe.Set("system_probe_config.collect_dns_domains", false)
+		config.SystemProbe.Set("network_config.enable_dns_by_querytype", true)
 		out := getExpectedConnections(true, httpOutBlob)
 		assert := assert.New(t)
 		marshaler := GetMarshaler("application/json")
@@ -320,13 +304,13 @@ func TestSerialization(t *testing.T) {
 			result.Conns[1].Tags = nil
 			result.Tags = nil
 		}
+		result.PrebuiltEBPFAssets = nil
 		assert.Equal(out, result)
 	})
 
 	t.Run("requesting empty serialization", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-		config.Datadog.Set("system_probe_config.collect_dns_domains", false)
+		newConfig(t)
+		config.SystemProbe.Set("system_probe_config.collect_dns_domains", false)
 		out := getExpectedConnections(false, httpOutBlob)
 		assert := assert.New(t)
 		marshaler := GetMarshaler("")
@@ -346,13 +330,13 @@ func TestSerialization(t *testing.T) {
 			result.Conns[1].Tags = nil
 			result.Tags = nil
 		}
+		result.PrebuiltEBPFAssets = nil
 		assert.Equal(out, result)
 	})
 
 	t.Run("requesting unsupported serialization format", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-		config.Datadog.Set("system_probe_config.collect_dns_domains", false)
+		newConfig(t)
+		config.SystemProbe.Set("system_probe_config.collect_dns_domains", false)
 		out := getExpectedConnections(false, httpOutBlob)
 
 		assert := assert.New(t)
@@ -374,6 +358,7 @@ func TestSerialization(t *testing.T) {
 			result.Conns[1].Tags = nil
 			result.Tags = nil
 		}
+		result.PrebuiltEBPFAssets = nil
 		assert.Equal(out, result)
 	})
 
@@ -406,9 +391,8 @@ func TestSerialization(t *testing.T) {
 	})
 
 	t.Run("requesting application/protobuf serialization (no query types)", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-		config.Datadog.Set("system_probe_config.collect_dns_domains", false)
+		newConfig(t)
+		config.SystemProbe.Set("system_probe_config.collect_dns_domains", false)
 		out := getExpectedConnections(false, httpOutBlob)
 
 		assert := assert.New(t)
@@ -425,10 +409,9 @@ func TestSerialization(t *testing.T) {
 		assert.Equal(out, result)
 	})
 	t.Run("requesting application/protobuf serialization (with query types)", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-		config.Datadog.Set("system_probe_config.collect_dns_domains", false)
-		config.Datadog.Set("network_config.enable_dns_by_querytype", true)
+		newConfig(t)
+		config.SystemProbe.Set("system_probe_config.collect_dns_domains", false)
+		config.SystemProbe.Set("network_config.enable_dns_by_querytype", true)
 		out := getExpectedConnections(true, httpOutBlob)
 
 		assert := assert.New(t)
@@ -447,13 +430,22 @@ func TestSerialization(t *testing.T) {
 }
 
 func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
+	t.Run("status code", func(t *testing.T) {
+		testHTTPSerializationWithLocalhostTraffic(t, true)
+	})
+	t.Run("status class", func(t *testing.T) {
+		testHTTPSerializationWithLocalhostTraffic(t, false)
+	})
+}
+
+func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCode bool) {
 	var (
 		clientPort = uint16(52800)
 		serverPort = uint16(8080)
 		localhost  = util.AddressFromString("127.0.0.1")
 	)
 
-	var httpReqStats http.RequestStats
+	httpReqStats := http.NewRequestStats(aggregateByStatusCode)
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
@@ -480,25 +472,17 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 				"/testpath",
 				true,
 				http.MethodGet,
-			): &httpReqStats,
+			): httpReqStats,
 		},
 	}
-	// ignore "declared but not used"
-	_ = httpReqStats
 
 	httpOut := &model.HTTPAggregations{
 		EndpointAggregations: []*model.HTTPStats{
 			{
-				Path:     "/testpath",
-				Method:   model.HTTPMethod_Get,
-				FullPath: true,
-				StatsByResponseStatus: []*model.HTTPStats_Data{
-					{Count: 0, Latencies: nil},
-					{Count: 0, Latencies: nil},
-					{Count: 0, Latencies: nil},
-					{Count: 0, Latencies: nil},
-					{Count: 0, Latencies: nil},
-				},
+				Path:              "/testpath",
+				Method:            model.HTTPMethod_Get,
+				FullPath:          true,
+				StatsByStatusCode: make(map[int32]*model.HTTPStats_Data),
 			},
 		},
 	}
@@ -513,19 +497,19 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				HttpAggregations: httpOutBlob,
 				RouteIdx:         -1,
-				Protocol:         formatProtocol(network.ProtocolUnknown),
+				Protocol:         formatProtocol(network.ProtocolUnknown, 0),
 			},
 			{
 				Laddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
 				HttpAggregations: httpOutBlob,
 				RouteIdx:         -1,
-				Protocol:         formatProtocol(network.ProtocolUnknown),
+				Protocol:         formatProtocol(network.ProtocolUnknown, 0),
 			},
 		},
 		AgentConfiguration: &model.AgentConfiguration{
 			NpmEnabled: false,
-			TsmEnabled: false,
+			UsmEnabled: false,
 		},
 	}
 

@@ -11,9 +11,6 @@ package http
 import (
 	"bytes"
 	"encoding/binary"
-
-	//"encoding/hex"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -22,15 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 )
-
-// errLostBatch isn't a valid error in windows
-var errLostBatch = errors.New("invalid error")
-
-// StatusClass returns an integer representing the status code class
-// Example: a 404 would return 400
-func statusClass(statusCode uint16) int {
-	return (int(statusCode) / 100) * 100
-}
 
 func requestLatency(responseLastSeen uint64, requestStarted uint64) float64 {
 	return nsTimestampToFloat(uint64(responseLastSeen - requestStarted))
@@ -77,45 +65,19 @@ func dstIPHigh(tup *driver.ConnTupleType) uint64 {
 // driverHttpTX interface
 //
 
-// ReqFragment returns a byte slice containing the first HTTPBufferSize bytes of the request
-func (tx *WinHttpTransaction) ReqFragment() []byte {
-	return tx.RequestFragment[:]
-}
-
-func (tx *WinHttpTransaction) StatusClass() int {
-	return statusClass(tx.Txn.ResponseStatusCode)
-}
-
 func (tx *WinHttpTransaction) RequestLatency() float64 {
 	return requestLatency(tx.Txn.ResponseLastSeen, tx.Txn.RequestStarted)
 }
 
-func (tx *WinHttpTransaction) isIPV4() bool {
-	return isIPV4(&tx.Txn.Tup)
-}
-
-func (tx *WinHttpTransaction) SrcIPLow() uint64 {
-	return srcIPLow(&tx.Txn.Tup)
-}
-
-func (tx *WinHttpTransaction) SrcIPHigh() uint64 {
-	return srcIPHigh(&tx.Txn.Tup)
-}
-
-func (tx *WinHttpTransaction) SrcPort() uint16 {
-	return tx.Txn.Tup.CliPort
-}
-
-func (tx *WinHttpTransaction) DstIPLow() uint64 {
-	return dstIPLow(&tx.Txn.Tup)
-}
-
-func (tx *WinHttpTransaction) DstIPHigh() uint64 {
-	return dstIPHigh(&tx.Txn.Tup)
-}
-
-func (tx *WinHttpTransaction) DstPort() uint16 {
-	return tx.Txn.Tup.SrvPort
+func (tx *WinHttpTransaction) ConnTuple() KeyTuple {
+	return KeyTuple{
+		SrcIPHigh: srcIPHigh(&tx.Txn.Tup),
+		SrcIPLow:  srcIPLow(&tx.Txn.Tup),
+		DstIPHigh: dstIPHigh(&tx.Txn.Tup),
+		DstIPLow:  dstIPLow(&tx.Txn.Tup),
+		SrcPort:   tx.Txn.Tup.CliPort,
+		DstPort:   tx.Txn.Tup.SrvPort,
+	}
 }
 
 func (tx *WinHttpTransaction) Method() Method {
@@ -183,7 +145,7 @@ func (tx *WinHttpTransaction) Path(buffer []byte) ([]byte, bool) {
 	}
 	n := copy(buffer, b[:j])
 	// indicate if we knowingly captured the entire path
-	fullPath := n < len(b)
+	fullPath := n <= len(b)
 	return buffer[:n], fullPath
 
 }
@@ -203,12 +165,8 @@ func (tx *WinHttpTransaction) RequestStarted() uint64 {
 	return tx.Txn.RequestStarted
 }
 
-func (tx *WinHttpTransaction) RequestMethod() uint32 {
-	return tx.Txn.RequestMethod
-}
-
-func (tx *WinHttpTransaction) SetRequestMethod(m uint32) {
-	tx.Txn.RequestMethod = m
+func (tx *WinHttpTransaction) SetRequestMethod(m Method) {
+	tx.Txn.RequestMethod = uint32(m)
 }
 
 // below is copied from pkg/trace/stats/statsraw.go

@@ -8,6 +8,7 @@ package uptane
 import (
 	"bytes"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -213,7 +214,8 @@ func (c *Client) updateRepos(response *pbgo.LatestConfigsResponse) error {
 	}
 	_, err = c.configTUFClient.Update()
 	if err != nil {
-		return errors.Wrap(err, "could not update config repository")
+		e := fmt.Sprintf("could not update config repository [%s]", configMetasUpdateSummary(response.ConfigMetas))
+		return errors.Wrap(err, e)
 	}
 	return nil
 }
@@ -247,7 +249,8 @@ func (c *Client) verify() error {
 	return nil
 }
 
-func (c *Client) storedOrgUUID() (string, error) {
+// StoredOrgUUID returns the org UUID given by the backend
+func (c *Client) StoredOrgUUID() (string, error) {
 	// This is an important block of code : to avoid being locked out
 	// of the agent in case of a wrong uuid being stored, we link an
 	// org UUID storage to a root version. What this means in practice
@@ -287,7 +290,7 @@ func (c *Client) verifyOrg() error {
 	// we can remove the orgUUID from the snapshot and they'll work
 	// again. This being said, this is last resort.
 	if custom.OrgUUID != nil {
-		orgUUID, err := c.storedOrgUUID()
+		orgUUID, err := c.StoredOrgUUID()
 		if err != nil {
 			return fmt.Errorf("could not obtain stored/remote orgUUID: %v", err)
 		}
@@ -359,4 +362,34 @@ func (c *Client) verifyUptane() error {
 		}
 	}
 	return nil
+}
+
+func configMetasUpdateSummary(metas *pbgo.ConfigMetas) string {
+	if metas == nil {
+		return "no metas in update"
+	}
+
+	var b strings.Builder
+
+	if len(metas.Roots) != 0 {
+		b.WriteString("roots=")
+		for i := 0; i < len(metas.Roots)-2; i++ {
+			b.WriteString(fmt.Sprintf("%d,", metas.Roots[i].Version))
+		}
+		b.WriteString(fmt.Sprintf("%d ", metas.Roots[len(metas.Roots)-1].Version))
+	}
+
+	if metas.TopTargets != nil {
+		b.WriteString(fmt.Sprintf("targets=%d ", metas.TopTargets.Version))
+	}
+
+	if metas.Snapshot != nil {
+		b.WriteString(fmt.Sprintf("snapshot=%d ", metas.Snapshot.Version))
+	}
+
+	if metas.Timestamp != nil {
+		b.WriteString(fmt.Sprintf("timestamp=%d", metas.Timestamp.Version))
+	}
+
+	return b.String()
 }

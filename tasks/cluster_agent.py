@@ -4,6 +4,7 @@ Cluster Agent tasks
 
 import glob
 import os
+import platform
 import shutil
 
 from invoke import task
@@ -18,6 +19,7 @@ from .utils import load_release_versions
 BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")
 AGENT_TAG = "datadog/cluster_agent:master"
 POLICIES_REPO = "https://github.com/DataDog/security-agent-policies.git"
+CONTAINER_PLATFORM_MAPPING = {"aarch64": "arm64", "amd64": "amd64"}
 
 
 @task
@@ -116,10 +118,16 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
 
 
 @task
-def image_build(ctx, arch='amd64', tag=AGENT_TAG, push=False):
+def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
     """
     Build the docker image
     """
+    if arch is None:
+        arch = CONTAINER_PLATFORM_MAPPING.get(platform.machine().lower())
+
+    if arch is None:
+        print("Unable to determine architecture to build, please set `arch` parameter")
+        raise Exit(code=1)
 
     dca_binary = glob.glob(os.path.join(BIN_PATH, "datadog-cluster-agent"))
     # get the last debian package built
@@ -132,11 +140,11 @@ def image_build(ctx, arch='amd64', tag=AGENT_TAG, push=False):
 
     build_context = "Dockerfiles/cluster-agent"
     exec_path = f"{build_context}/datadog-cluster-agent.{arch}"
-    dockerfile_path = f"{build_context}/{arch}/Dockerfile"
+    dockerfile_path = f"{build_context}/Dockerfile"
 
     shutil.copy2(latest_file, exec_path)
     shutil.copytree("Dockerfiles/agent/nosys-seccomp", f"{build_context}/nosys-seccomp", dirs_exist_ok=True)
-    ctx.run(f"docker build -t {tag} {build_context} -f {dockerfile_path}")
+    ctx.run(f"docker build -t {tag} --platform linux/{arch} {build_context} -f {dockerfile_path}")
     ctx.run(f"rm {exec_path}")
 
     if push:

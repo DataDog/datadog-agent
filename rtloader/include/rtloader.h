@@ -6,7 +6,6 @@
 #ifndef DATADOG_AGENT_RTLOADER_RTLOADER_H
 #define DATADOG_AGENT_RTLOADER_RTLOADER_H
 
-#include "rtloader_mem.h"
 #include "rtloader_types.h"
 
 #include <map>
@@ -33,12 +32,7 @@ class RtLoader
 {
 public:
     //! Constructor.
-    RtLoader(cb_memory_tracker_t memtrack_cb)
-        : _error()
-        , _errorFlag(false)
-    {
-        _set_memory_tracker_cb(memtrack_cb);
-    };
+    RtLoader(cb_memory_tracker_t memtrack_cb);
 
     //! Destructor.
     virtual ~RtLoader(){};
@@ -449,6 +443,24 @@ public:
       specific check instances.
     */
     virtual void setGetProcessStartTimeCb(cb_get_process_start_time_t) = 0;
+
+    //! initPymemStats member.
+    /*!
+      Install python allocator hooks.
+    */
+    virtual void initPymemStats()
+    {
+    }
+
+    //! getPymemStats member.
+    /*!
+      \param stats Stats snapshot output.
+
+      Retrieve a snapshot python allocator statistics.
+    */
+    virtual void getPymemStats(pymem_stats_t &stats)
+    {
+    }
 
 private:
     mutable std::string _error; /*!< string containing a RtLoader error */

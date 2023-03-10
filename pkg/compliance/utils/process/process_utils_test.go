@@ -33,7 +33,7 @@ func TestParseCmdLine(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			parsed := ParseProcessCmdLine(tt.args)
+			parsed := parseCmdLineFlags(tt.args)
 			assert.Equal(t, tt.expected, parsed)
 		})
 	}

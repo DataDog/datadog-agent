@@ -49,22 +49,22 @@ func TestConvertNetworkStats(t *testing.T) {
 				},
 			},
 			expectedOutput: provider.ContainerNetworkStats{
-				BytesSent:   pointer.Float64Ptr(92),
-				BytesRcvd:   pointer.Float64Ptr(88),
-				PacketsSent: pointer.Float64Ptr(94),
-				PacketsRcvd: pointer.Float64Ptr(90),
+				BytesSent:   pointer.Ptr(92.0),
+				BytesRcvd:   pointer.Ptr(88.0),
+				PacketsSent: pointer.Ptr(94.0),
+				PacketsRcvd: pointer.Ptr(90.0),
 				Interfaces: map[string]provider.InterfaceNetStats{
 					"eth0": {
-						BytesSent:   pointer.Float64Ptr(44),
-						BytesRcvd:   pointer.Float64Ptr(42),
-						PacketsSent: pointer.Float64Ptr(45),
-						PacketsRcvd: pointer.Float64Ptr(43),
+						BytesSent:   pointer.Ptr(44.0),
+						BytesRcvd:   pointer.Ptr(42.0),
+						PacketsSent: pointer.Ptr(45.0),
+						PacketsRcvd: pointer.Ptr(43.0),
 					},
 					"eth1": {
-						BytesSent:   pointer.Float64Ptr(48),
-						BytesRcvd:   pointer.Float64Ptr(46),
-						PacketsSent: pointer.Float64Ptr(49),
-						PacketsRcvd: pointer.Float64Ptr(47),
+						BytesSent:   pointer.Ptr(48.0),
+						BytesRcvd:   pointer.Ptr(46.0),
+						PacketsSent: pointer.Ptr(49.0),
+						PacketsRcvd: pointer.Ptr(47.0),
 					},
 				},
 			},
@@ -148,7 +148,7 @@ func Test_fillStatsFromSpec(t *testing.T) {
 			},
 			expectedStats: &provider.ContainerStats{
 				Memory: &provider.ContainerMemStats{
-					Limit: pointer.Float64Ptr(500),
+					Limit: pointer.Ptr(500.0),
 				},
 			},
 		},

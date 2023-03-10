@@ -21,6 +21,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	global "github.com/DataDog/datadog-agent/cmd/agent/dogstatsd"
 	api "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -108,7 +109,7 @@ type checkInitCfg struct {
 	JavaOptions    string   `yaml:"java_options,omitempty"`
 }
 
-// Monitor TODO <agent-core> : IML-199
+// Monitor monitors this JMXFetch instance, waiting for JMX to stop. Gracefully handles restarting the JMXFetch process.
 func (j *JMXFetch) Monitor() {
 	limiter := newRestartLimiter(config.Datadog.GetInt("jmx_max_restarts"), float64(config.Datadog.GetInt("jmx_restart_interval")))
 	ticker := time.NewTicker(500 * time.Millisecond)
@@ -192,7 +193,7 @@ func (j *JMXFetch) Start(manage bool) error {
 	case ReporterJSON:
 		reporter = "json"
 	default:
-		if common.DSD != nil && common.DSD.UdsListenerRunning {
+		if global.DSD != nil && global.DSD.UdsListenerRunning() {
 			reporter = fmt.Sprintf("statsd:unix://%s", config.Datadog.GetString("dogstatsd_socket"))
 		} else {
 			bindHost := config.GetBindHost()

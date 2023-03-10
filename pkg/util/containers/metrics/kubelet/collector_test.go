@@ -69,11 +69,11 @@ func TestKubeletCollectorLinux(t *testing.T) {
 	assert.Equal(t, &provider.ContainerStats{
 		Timestamp: expectedTime,
 		CPU: &provider.ContainerCPUStats{
-			Total: pointer.Float64Ptr(194414788585),
+			Total: pointer.Ptr(194414788585.0),
 		},
 		Memory: &provider.ContainerMemStats{
-			UsageTotal: pointer.Float64Ptr(12713984),
-			RSS:        pointer.Float64Ptr(12238848),
+			UsageTotal: pointer.Ptr(12713984.0),
+			RSS:        pointer.Ptr(12238848.0),
 		},
 	}, cID1Stats)
 
@@ -84,11 +84,11 @@ func TestKubeletCollectorLinux(t *testing.T) {
 	assert.Equal(t, &provider.ContainerStats{
 		Timestamp: expectedTime,
 		CPU: &provider.ContainerCPUStats{
-			Total: pointer.Float64Ptr(12460233103),
+			Total: pointer.Ptr(12460233103.0),
 		},
 		Memory: &provider.ContainerMemStats{
-			UsageTotal: pointer.Float64Ptr(6705152),
-			RSS:        pointer.Float64Ptr(6119424),
+			UsageTotal: pointer.Ptr(6705152.0),
+			RSS:        pointer.Ptr(6119424.0),
 		},
 	}, cID2Stats)
 
@@ -99,26 +99,26 @@ func TestKubeletCollectorLinux(t *testing.T) {
 	assert.Equal(t, &provider.ContainerStats{
 		Timestamp: expectedTime,
 		CPU: &provider.ContainerCPUStats{
-			Total: pointer.Float64Ptr(139979939975),
+			Total: pointer.Ptr(139979939975.0),
 		},
 		Memory: &provider.ContainerMemStats{
-			UsageTotal: pointer.Float64Ptr(11325440),
-			RSS:        pointer.Float64Ptr(10797056),
+			UsageTotal: pointer.Ptr(11325440.0),
+			RSS:        pointer.Ptr(10797056.0),
 		},
 	}, cID3Stats)
 
 	// Test network stats
 	expectedPodNetworkStats := &provider.ContainerNetworkStats{
 		Timestamp: expectedTime,
-		BytesRcvd: pointer.Float64Ptr(254942755),
-		BytesSent: pointer.Float64Ptr(137422821),
+		BytesRcvd: pointer.Ptr(254942755.0),
+		BytesSent: pointer.Ptr(137422821.0),
 		Interfaces: map[string]provider.InterfaceNetStats{
 			"eth0": {
-				BytesRcvd: pointer.Float64Ptr(254942755),
-				BytesSent: pointer.Float64Ptr(137422821),
+				BytesRcvd: pointer.Ptr(254942755.0),
+				BytesSent: pointer.Ptr(137422821.0),
 			},
 		},
-		NetworkIsolationGroupID: pointer.UInt64Ptr(17659160645723176180),
+		NetworkIsolationGroupID: pointer.Ptr(uint64(17659160645723176180)),
 	}
 
 	cID3NetworkStats, err := kubeletCollector.GetContainerNetworkStats("", "cID3", time.Minute)
@@ -177,11 +177,11 @@ func TestKubeletCollectorWindows(t *testing.T) {
 	assert.Equal(t, &provider.ContainerStats{
 		Timestamp: expectedTime,
 		CPU: &provider.ContainerCPUStats{
-			Total: pointer.Float64Ptr(9359375000),
+			Total: pointer.Ptr(9359375000.0),
 		},
 		Memory: &provider.ContainerMemStats{
-			UsageTotal:        pointer.Float64Ptr(65474560),
-			PrivateWorkingSet: pointer.Float64Ptr(65474560),
+			UsageTotal:        pointer.Ptr(65474560.0),
+			PrivateWorkingSet: pointer.Ptr(65474560.0),
 		},
 	}, cID1Stats)
 }

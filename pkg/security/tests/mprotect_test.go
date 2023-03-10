@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -47,11 +46,13 @@ func TestMProtectEvent(t *testing.T) {
 				return fmt.Errorf("couldn't mprotect segment: %w", err)
 			}
 			return nil
-		}, func(event *sprobe.Event, r *rules.Rule) {
+		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "mprotect", event.GetType(), "wrong event type")
 			assert.Equal(t, unix.PROT_READ|unix.PROT_WRITE, event.MProtect.VMProtection&(unix.PROT_READ|unix.PROT_WRITE), fmt.Sprintf("wrong initial protection: %s", model.Protection(event.MProtect.VMProtection)))
 			assert.Equal(t, unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC, event.MProtect.ReqProtection&(unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC), fmt.Sprintf("wrong requested protection: %s", model.Protection(event.MProtect.ReqProtection)))
-			assert.Equal(t, event.Async, false)
+
+			value, _ := event.GetFieldValue("async")
+			assert.Equal(t, value.(bool), false)
 
 			executable, err := os.Executable()
 			if err != nil {
@@ -59,9 +60,7 @@ func TestMProtectEvent(t *testing.T) {
 			}
 			assertFieldEqual(t, event, "process.file.path", executable)
 
-			if !validateMProtectSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateMProtectSchema(t, event)
 		})
 	})
 }

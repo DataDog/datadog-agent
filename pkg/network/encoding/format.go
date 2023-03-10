@@ -11,10 +11,10 @@ import (
 	"sync"
 	"unsafe"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/gogo/protobuf/proto"
 	"github.com/twmb/murmur3"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -50,14 +50,20 @@ func FormatConnection(
 	conn network.ConnectionStats,
 	routes map[string]RouteIdx,
 	httpEncoder *httpEncoder,
+	http2Encoder *http2Encoder,
+	kafkaEncoder *kafkaEncoder,
 	dnsFormatter *dnsFormatter,
 	ipc ipCache,
 	tagsSet *network.TagsSet,
 ) *model.Connection {
 	c := connPool.Get().(*model.Connection)
 	c.Pid = int32(conn.Pid)
-	c.Laddr = formatAddr(conn.Source, conn.SPort, ipc)
-	c.Raddr = formatAddr(conn.Dest, conn.DPort, ipc)
+	var containerID string
+	if conn.ContainerID != nil {
+		containerID = *conn.ContainerID
+	}
+	c.Laddr = formatAddr(conn.Source, conn.SPort, containerID, ipc)
+	c.Raddr = formatAddr(conn.Dest, conn.DPort, "", ipc)
 	c.Family = formatFamily(conn.Family)
 	c.Type = formatType(conn.Type)
 	c.IsLocalPortEphemeral = formatEphemeralType(conn.SPortIsEphemeral)
@@ -75,7 +81,7 @@ func FormatConnection(
 	c.IntraHost = conn.IntraHost
 	c.LastTcpEstablished = conn.Last.TCPEstablished
 	c.LastTcpClosed = conn.Last.TCPClosed
-	c.Protocol = formatProtocol(conn.Protocol)
+	c.Protocol = formatProtocol(conn.Protocol, conn.StaticTags)
 
 	c.RouteIdx = formatRouteIdx(conn.Via, routes)
 	dnsFormatter.FormatConnectionDNS(conn, c)
@@ -84,7 +90,17 @@ func FormatConnection(
 		c.HttpAggregations, _ = proto.Marshal(httpStats)
 	}
 
-	conn.Tags |= staticTags
+	httpStats2, _, _ := http2Encoder.GetHTTP2AggregationsAndTags(conn)
+	if httpStats2 != nil {
+		c.Http2Aggregations, _ = proto.Marshal(httpStats2)
+	}
+
+	kafkaStats := kafkaEncoder.GetKafkaAggregations(conn)
+	if kafkaStats != nil {
+		c.DataStreamsAggregations, _ = proto.Marshal(kafkaStats)
+	}
+
+	conn.StaticTags |= staticTags
 	c.Tags, c.TagsChecksum = formatTags(tagsSet, conn, dynamicTags)
 
 	return c
@@ -147,12 +163,12 @@ func returnToPool(c *model.Connections) {
 	}
 }
 
-func formatAddr(addr util.Address, port uint16, ipc ipCache) *model.Addr {
+func formatAddr(addr util.Address, port uint16, containerID string, ipc ipCache) *model.Addr {
 	if addr.IsZero() {
 		return nil
 	}
 
-	return &model.Addr{Ip: ipc.Get(addr), Port: int32(port)}
+	return &model.Addr{Ip: ipc.Get(addr), Port: int32(port), ContainerId: containerID}
 }
 
 func formatFamily(f network.ConnectionFamily) model.ConnectionFamily {
@@ -248,7 +264,7 @@ func routeKey(v *network.Via) string {
 
 func formatTags(tagsSet *network.TagsSet, c network.ConnectionStats, connDynamicTags map[string]struct{}) (tagsIdx []uint32, checksum uint32) {
 	mm := murmur3.New32()
-	for _, tag := range network.GetStaticTags(c.Tags) {
+	for _, tag := range network.GetStaticTags(c.StaticTags) {
 		mm.Reset()
 		_, _ = mm.Write(unsafeStringSlice(tag))
 		checksum ^= mm.Sum32()
@@ -257,6 +273,14 @@ func formatTags(tagsSet *network.TagsSet, c network.ConnectionStats, connDynamic
 
 	// Dynamic tags
 	for tag := range connDynamicTags {
+		mm.Reset()
+		_, _ = mm.Write(unsafeStringSlice(tag))
+		checksum ^= mm.Sum32()
+		tagsIdx = append(tagsIdx, tagsSet.Add(tag))
+	}
+
+	// other tags, e.g., from process env vars like DD_ENV, etc.
+	for tag := range c.Tags {
 		mm.Reset()
 		_, _ = mm.Write(unsafeStringSlice(tag))
 		checksum ^= mm.Sum32()
@@ -283,14 +307,28 @@ func unsafeStringSlice(key string) []byte {
 //				model.ProtocolType_protocolHTTP2,
 //			},
 //		}
-func formatProtocol(protocol network.ProtocolType) *model.ProtocolStack {
+//
+// Additionnally, if the staticTags contains TLS tags, the TLS protocol is added
+// to the protocol stack, giving an output like this:
+//
+//	&model.ProtocolStack{
+//			Stack: []model.ProtocolType{
+//				model.ProtocolType_protocolTLS,
+//				model.ProtocolType_protocolHTTP2,
+//			},
+//		}
+func formatProtocol(protocol network.ProtocolType, staticTags uint64) *model.ProtocolStack {
+	stack := make([]model.ProtocolType, 0, 1)
+	if network.IsTLSTag(staticTags) {
+		stack = append(stack, model.ProtocolType(network.ProtocolTLS))
+	}
+
 	if protocol == network.ProtocolUnclassified {
 		protocol = network.ProtocolUnknown
 	}
+	stack = append(stack, model.ProtocolType(protocol))
 
 	return &model.ProtocolStack{
-		Stack: []model.ProtocolType{
-			model.ProtocolType(protocol),
-		},
+		Stack: stack,
 	}
 }

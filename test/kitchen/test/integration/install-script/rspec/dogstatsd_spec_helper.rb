@@ -1,1 +1,0 @@
-../../common/rspec/dogstatsd_spec_helper.rb

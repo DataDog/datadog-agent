@@ -9,19 +9,20 @@ import (
 	"encoding"
 	"fmt"
 
-	"go.opentelemetry.io/collector/config"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 )
 
 // exporterConfig defines configuration for the serializer exporter.
 type exporterConfig struct {
 	// squash ensures fields are correctly decoded in embedded struct
-	config.ExporterSettings        `mapstructure:",squash"`
 	exporterhelper.TimeoutSettings `mapstructure:",squash"`
 	exporterhelper.QueueSettings   `mapstructure:",squash"`
 
 	Metrics metricsConfig `mapstructure:"metrics"`
 }
+
+var _ component.Config = (*exporterConfig)(nil)
 
 // metricsConfig defines the metrics exporter specific configuration options
 type metricsConfig struct {

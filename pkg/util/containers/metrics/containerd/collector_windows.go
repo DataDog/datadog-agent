@@ -57,9 +57,9 @@ func getContainerdCPUStatsWindows(procStats *wstats.WindowsContainerProcessorSta
 	}
 
 	return &provider.ContainerCPUStats{
-		Total:  pointer.UIntToFloatPtr(procStats.TotalRuntimeNS),
-		System: pointer.UIntToFloatPtr(procStats.RuntimeKernelNS),
-		User:   pointer.UIntToFloatPtr(procStats.RuntimeUserNS),
+		Total:  pointer.Ptr(float64(procStats.TotalRuntimeNS)),
+		System: pointer.Ptr(float64(procStats.RuntimeKernelNS)),
+		User:   pointer.Ptr(float64(procStats.RuntimeUserNS)),
 	}
 }
 
@@ -69,10 +69,10 @@ func getContainerdMemoryStatsWindows(memStats *wstats.WindowsContainerMemoryStat
 	}
 
 	return &provider.ContainerMemStats{
-		UsageTotal:        pointer.UIntToFloatPtr(memStats.MemoryUsageCommitBytes),
-		PrivateWorkingSet: pointer.UIntToFloatPtr(memStats.MemoryUsagePrivateWorkingSetBytes),
-		CommitBytes:       pointer.UIntToFloatPtr(memStats.MemoryUsageCommitBytes),
-		CommitPeakBytes:   pointer.UIntToFloatPtr(memStats.MemoryUsageCommitPeakBytes),
+		UsageTotal:        pointer.Ptr(float64(memStats.MemoryUsageCommitBytes)),
+		PrivateWorkingSet: pointer.Ptr(float64(memStats.MemoryUsagePrivateWorkingSetBytes)),
+		CommitBytes:       pointer.Ptr(float64(memStats.MemoryUsageCommitBytes)),
+		CommitPeakBytes:   pointer.Ptr(float64(memStats.MemoryUsageCommitPeakBytes)),
 	}
 }
 
@@ -82,10 +82,10 @@ func getContainerdIOStatsWindows(ioStats *wstats.WindowsContainerStorageStatisti
 	}
 
 	return &provider.ContainerIOStats{
-		ReadBytes:       pointer.UIntToFloatPtr(ioStats.ReadSizeBytes),
-		WriteBytes:      pointer.UIntToFloatPtr(ioStats.WriteSizeBytes),
-		ReadOperations:  pointer.UIntToFloatPtr(ioStats.ReadCountNormalized),
-		WriteOperations: pointer.UIntToFloatPtr(ioStats.WriteCountNormalized),
+		ReadBytes:       pointer.Ptr(float64(ioStats.ReadSizeBytes)),
+		WriteBytes:      pointer.Ptr(float64(ioStats.WriteSizeBytes)),
+		ReadOperations:  pointer.Ptr(float64(ioStats.ReadCountNormalized)),
+		WriteOperations: pointer.Ptr(float64(ioStats.WriteCountNormalized)),
 	}
 }
 
@@ -101,10 +101,10 @@ func fillStatsFromSpec(outContainerStats *provider.ContainerStats, spec *oci.Spe
 		// Setting CPU Limit from Spec
 		if spec.Windows.Resources.CPU != nil && outContainerStats.CPU != nil {
 			if spec.Windows.Resources.CPU.Count != nil && *spec.Windows.Resources.CPU.Count > 0 {
-				outContainerStats.CPU.Limit = pointer.Float64Ptr(float64(*spec.Windows.Resources.CPU.Count) * 100)
+				outContainerStats.CPU.Limit = pointer.Ptr(float64(*spec.Windows.Resources.CPU.Count) * 100)
 			} else if spec.Windows.Resources.CPU.Maximum != nil && *spec.Windows.Resources.CPU.Maximum > 0 {
 				// CPU Maximum is a 0-10000 value that gets computed as 10000 * (cpuLimit.MilliValue() / 1000) / runtime.NumCPU()
-				outContainerStats.CPU.Limit = pointer.Float64Ptr(float64(*spec.Windows.Resources.CPU.Maximum) / 100 * float64(system.HostCPUCount()))
+				outContainerStats.CPU.Limit = pointer.Ptr(float64(*spec.Windows.Resources.CPU.Maximum) / 100 * float64(system.HostCPUCount()))
 			}
 		}
 
@@ -119,6 +119,6 @@ func fillStatsFromSpec(outContainerStats *provider.ContainerStats, spec *oci.Spe
 	// If no limit is available, setting the limit to number of CPUs.
 	// Always reporting a limit allows to compute CPU % accurately.
 	if outContainerStats.CPU != nil && outContainerStats.CPU.Limit == nil {
-		outContainerStats.CPU.Limit = pointer.Float64Ptr(100 * float64(system.HostCPUCount()))
+		outContainerStats.CPU.Limit = pointer.Ptr(100 * float64(system.HostCPUCount()))
 	}
 }

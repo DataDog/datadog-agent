@@ -44,7 +44,7 @@ type DatadogClient interface {
 // ProcessorInterface is used to easily mock the interface for testing
 type ProcessorInterface interface {
 	UpdateExternalMetrics(emList map[string]custommetrics.ExternalMetricValue) map[string]custommetrics.ExternalMetricValue
-	QueryExternalMetric(queries []string) (map[string]Point, error)
+	QueryExternalMetric(queries []string, timeWindow time.Duration) (map[string]Point, error)
 	ProcessEMList(emList []custommetrics.ExternalMetricValue) map[string]custommetrics.ExternalMetricValue
 }
 
@@ -113,6 +113,21 @@ func (p *Processor) ProcessWPAs(wpa *v1alpha1.WatermarkPodAutoscaler) map[string
 	return externalMetrics
 }
 
+// GetDefaultMaxAge returns the configured default max age.
+func GetDefaultMaxAge() time.Duration {
+	return time.Duration(config.Datadog.GetInt64("external_metrics_provider.max_age")) * time.Second
+}
+
+// GetDefaultTimeWindow returns the configured default time window
+func GetDefaultTimeWindow() time.Duration {
+	return time.Duration(config.Datadog.GetInt64("external_metrics_provider.bucket_size")) * time.Second
+}
+
+// GetDefaultMaxTimeWindow returns the configured max time window
+func GetDefaultMaxTimeWindow() time.Duration {
+	return time.Duration(config.Datadog.GetInt64("external_metrics_provider.max_time_window")) * time.Second
+}
+
 // UpdateExternalMetrics does the validation and processing of the ExternalMetrics
 // TODO if a metric's ts in emList is too recent, no need to add it to the batchUpdate.
 func (p *Processor) UpdateExternalMetrics(emList map[string]custommetrics.ExternalMetricValue) (updated map[string]custommetrics.ExternalMetricValue) {
@@ -132,7 +147,8 @@ func (p *Processor) UpdateExternalMetrics(emList map[string]custommetrics.Extern
 		}
 	}
 
-	metrics, err := p.QueryExternalMetric(batch)
+	// In non-DatadogMetric path, we don't have any custom maxAge possible, passing 0 as custom time window to QueryExternalMetric
+	metrics, err := p.QueryExternalMetric(batch, 0)
 	if len(metrics) == 0 && err != nil {
 		log.Errorf("Error getting metrics from Datadog: %v", err.Error())
 		// If no metrics can be retrieved from Datadog in a given list, we need to invalidate them
@@ -164,13 +180,12 @@ func (p *Processor) UpdateExternalMetrics(emList map[string]custommetrics.Extern
 
 // QueryExternalMetric queries Datadog to validate the availability and value of one or more external metrics
 // Also updates the rate limits statistics as a result of the query.
-func (p *Processor) QueryExternalMetric(queries []string) (processed map[string]Point, err error) {
+func (p *Processor) QueryExternalMetric(queries []string, timeWindow time.Duration) (processed map[string]Point, err error) {
 	processed = make(map[string]Point)
 	if len(queries) == 0 {
 		return processed, nil
 	}
 
-	bucketSize := config.Datadog.GetInt64("external_metrics_provider.bucket_size")
 	chunks := makeChunks(queries)
 	log.Tracef("List of batches %v", chunks)
 
@@ -182,7 +197,7 @@ func (p *Processor) QueryExternalMetric(queries []string) (processed map[string]
 	for _, c := range chunks {
 		go func(chunk []string) {
 			defer waitResp.Done()
-			resp, err := p.queryDatadogExternal(chunk, bucketSize)
+			resp, err := p.queryDatadogExternal(chunk, timeWindow)
 			responses <- queryResponse{resp, err}
 		}(c)
 	}

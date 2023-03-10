@@ -78,7 +78,7 @@ func TestGetContainerIDForPID(t *testing.T) {
 // Returns a fake containerd client for testing.
 // For these tests we need 2 things:
 //   - 1) Being able to control the metrics returned by the TaskMetrics
-//   function.
+//     function.
 //   - 2) Define functions like Info, Spec, etc. so they don't return errors.
 func containerdClient(metrics *types.Metric) *fake.MockedContainerdClient {
 	return &fake.MockedContainerdClient{
@@ -91,7 +91,7 @@ func containerdClient(metrics *types.Metric) *fake.MockedContainerdClient {
 		MockInfo: func(namespace string, ctn containerd.Container) (containers.Container, error) {
 			return containers.Container{}, nil
 		},
-		MockSpec: func(namespace string, ctn containerd.Container) (*oci.Spec, error) {
+		MockSpec: func(namespace string, ctn containers.Container) (*oci.Spec, error) {
 			return nil, nil
 		},
 		MockTaskPids: func(namespace string, ctn containerd.Container) ([]containerd.ProcessInfo, error) {

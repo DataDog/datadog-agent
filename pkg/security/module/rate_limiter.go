@@ -17,8 +17,8 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/time/rate"
 
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -31,8 +31,8 @@ var (
 	defaultBurst int = 40
 
 	defaultPerRuleLimiters = map[eval.RuleID]*Limiter{
-		probe.AbnormalPathRuleID:  NewLimiter(rate.Every(time.Second), 1),
-		probe.RulesetLoadedRuleID: NewLimiter(rate.Inf, 1), // No limit on ruleset loaded
+		events.RulesetLoadedRuleID: NewLimiter(rate.Inf, 1), // No limit on ruleset loaded
+		events.AbnormalPathRuleID:  NewLimiter(rate.Every(30*time.Second), 1),
 	}
 )
 
@@ -65,27 +65,33 @@ type RateLimiter struct {
 // NewRateLimiter initializes an empty rate limiter
 func NewRateLimiter(client statsd.ClientInterface) *RateLimiter {
 	rl := &RateLimiter{
-		limiters:     baseLimitersFromDefault(),
+		limiters:     make(map[string]*Limiter),
 		statsdClient: client,
 	}
 
 	return rl
 }
 
-func baseLimitersFromDefault() map[string]*Limiter {
-	limiters := make(map[string]*Limiter)
+func applyBaseLimitersFromDefault(limiters map[string]*Limiter) {
 	for id, limiter := range defaultPerRuleLimiters {
 		limiters[id] = limiter
 	}
-	return limiters
 }
 
 // Apply a set of rules
-func (rl *RateLimiter) Apply(ruleSet *rules.RuleSet) {
+func (rl *RateLimiter) Apply(ruleSet *rules.RuleSet, customRuleIDs []eval.RuleID) {
 	rl.Lock()
 	defer rl.Unlock()
 
-	newLimiters := baseLimitersFromDefault()
+	newLimiters := make(map[string]*Limiter)
+
+	for _, id := range customRuleIDs {
+		newLimiters[id] = NewLimiter(defaultLimit, defaultBurst)
+	}
+
+	// override if there is more specific defs
+	applyBaseLimitersFromDefault(newLimiters)
+
 	for id, rule := range ruleSet.GetRules() {
 		if rule.Definition.Every != 0 {
 			newLimiters[id] = NewLimiter(rate.Every(rule.Definition.Every), 1)
@@ -93,6 +99,7 @@ func (rl *RateLimiter) Apply(ruleSet *rules.RuleSet) {
 			newLimiters[id] = NewLimiter(defaultLimit, defaultBurst)
 		}
 	}
+
 	rl.limiters = newLimiters
 }
 

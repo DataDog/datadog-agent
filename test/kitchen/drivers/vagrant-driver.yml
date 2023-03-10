@@ -25,10 +25,14 @@ provisioner:
 platforms:
 <%
     ENV['TEST_PLATFORMS'] ||= "centos7,roboxes/centos7|centos8,roboxes/centos8"
+    cws_supported_platforms = (ENV['KITCHEN_CWS_SUPPORTED_OSVERS'] || "").split(',')
     test_platforms = ENV['TEST_PLATFORMS'].split('|').map { |p| p.split(',') }
     test_platforms.each do |platform|
 %>
   - name: <%= platform[0] %>
+    attributes:
+      dd-agent-rspec:
+        enable_cws: <%= ENV['KITCHEN_CWS'] && cws_supported_platforms.include?(platform[0]) %>
     driver:
       box: <%= platform[1] %>
       # Always use linked_clone when possible, it's so much faster

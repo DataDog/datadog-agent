@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 /*
-
 Package externalhost implements the External Host Tags metadata provider.
 
 In older versions of the Agent, it was the general metadata collector to invoke

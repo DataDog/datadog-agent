@@ -7,10 +7,13 @@ package utils
 
 import (
 	"fmt"
+	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
+
+var emptyTimestampUnix = new(time.Time).Unix()
 
 // Conversions from Workloadmeta types to protobuf
 
@@ -416,6 +419,53 @@ func WorkloadmetaFilterFromProtoFilter(protoFilter *pb.WorkloadmetaFilter) (*wor
 	return workloadmeta.NewFilter(kinds, source, eventType), nil
 }
 
+// WorkloadmetaEventFromProtoEvent converts the given protobuf workloadmeta event into a workloadmeta.Event
+func WorkloadmetaEventFromProtoEvent(protoEvent *pb.WorkloadmetaEvent) (workloadmeta.Event, error) {
+	if protoEvent == nil {
+		return workloadmeta.Event{}, nil
+	}
+
+	eventType, err := toWorkloadmetaEventType(protoEvent.Type)
+	if err != nil {
+		return workloadmeta.Event{}, err
+	}
+
+	if protoEvent.Container != nil {
+		container, err := toWorkloadmetaContainer(protoEvent.Container)
+		if err != nil {
+			return workloadmeta.Event{}, err
+		}
+
+		return workloadmeta.Event{
+			Type:   eventType,
+			Entity: container,
+		}, nil
+
+	} else if protoEvent.KubernetesPod != nil {
+		kubernetesPod, err := toWorkloadmetaKubernetesPod(protoEvent.KubernetesPod)
+		if err != nil {
+			return workloadmeta.Event{}, err
+		}
+
+		return workloadmeta.Event{
+			Type:   eventType,
+			Entity: kubernetesPod,
+		}, nil
+	} else if protoEvent.EcsTask != nil {
+		ecsTask, err := toWorkloadmetaECSTask(protoEvent.EcsTask)
+		if err != nil {
+			return workloadmeta.Event{}, err
+		}
+
+		return workloadmeta.Event{
+			Type:   eventType,
+			Entity: ecsTask,
+		}, nil
+	}
+
+	return workloadmeta.Event{}, fmt.Errorf("unknown entity")
+}
+
 func toWorkloadmetaKind(protoKind pb.WorkloadmetaKind) (workloadmeta.Kind, error) {
 	switch protoKind {
 	case pb.WorkloadmetaKind_CONTAINER:
@@ -455,4 +505,256 @@ func toWorkloadmetaEventType(protoEventType pb.WorkloadmetaEventType) (workloadm
 	}
 
 	return workloadmeta.EventTypeAll, fmt.Errorf("unknown event type: %s", protoEventType)
+}
+
+func toWorkloadmetaContainer(protoContainer *pb.Container) (*workloadmeta.Container, error) {
+	entityId, err := toWorkloadmetaEntityID(protoContainer.EntityId)
+	if err != nil {
+		return nil, err
+	}
+
+	runtime, err := toWorkloadmetaContainerRuntime(protoContainer.Runtime)
+	if err != nil {
+		return nil, err
+	}
+
+	var ports []workloadmeta.ContainerPort
+	for _, port := range protoContainer.Ports {
+		ports = append(ports, toWorkloadmetaContainerPort(port))
+	}
+
+	state, err := toWorkloadmetaContainerState(protoContainer.State)
+	if err != nil {
+		return nil, err
+	}
+
+	return &workloadmeta.Container{
+		EntityID:      entityId,
+		EntityMeta:    toWorkloadmetaEntityMeta(protoContainer.EntityMeta),
+		EnvVars:       protoContainer.EnvVars,
+		Hostname:      protoContainer.Hostname,
+		Image:         toWorkloadmetaImage(protoContainer.Image),
+		NetworkIPs:    protoContainer.NetworkIps,
+		PID:           int(protoContainer.Pid),
+		Ports:         ports,
+		Runtime:       runtime,
+		State:         state,
+		CollectorTags: protoContainer.CollectorTags,
+	}, nil
+}
+
+func toWorkloadmetaContainerPort(protoPort *pb.ContainerPort) workloadmeta.ContainerPort {
+	return workloadmeta.ContainerPort{
+		Name:     protoPort.Name,
+		Port:     int(protoPort.Port),
+		Protocol: protoPort.Protocol,
+	}
+}
+
+func toWorkloadmetaEntityID(protoEntityID *pb.WorkloadmetaEntityId) (workloadmeta.EntityID, error) {
+	kind, err := toWorkloadmetaKind(protoEntityID.Kind)
+	if err != nil {
+		return workloadmeta.EntityID{}, err
+	}
+
+	return workloadmeta.EntityID{
+		Kind: kind,
+		ID:   protoEntityID.Id,
+	}, nil
+}
+
+func toWorkloadmetaEntityMeta(protoEntityMeta *pb.EntityMeta) workloadmeta.EntityMeta {
+	return workloadmeta.EntityMeta{
+		Name:        protoEntityMeta.Name,
+		Namespace:   protoEntityMeta.Namespace,
+		Annotations: protoEntityMeta.Annotations,
+		Labels:      protoEntityMeta.Labels,
+	}
+}
+
+func toWorkloadmetaImage(protoImage *pb.ContainerImage) workloadmeta.ContainerImage {
+	return workloadmeta.ContainerImage{
+		ID:        protoImage.Id,
+		RawName:   protoImage.RawName,
+		Name:      protoImage.Name,
+		ShortName: protoImage.ShortName,
+		Tag:       protoImage.Tag,
+	}
+}
+
+func toWorkloadmetaContainerRuntime(protoRuntime pb.Runtime) (workloadmeta.ContainerRuntime, error) {
+	switch protoRuntime {
+	case pb.Runtime_DOCKER:
+		return workloadmeta.ContainerRuntimeDocker, nil
+	case pb.Runtime_CONTAINERD:
+		return workloadmeta.ContainerRuntimeContainerd, nil
+	case pb.Runtime_PODMAN:
+		return workloadmeta.ContainerRuntimePodman, nil
+	case pb.Runtime_CRIO:
+		return workloadmeta.ContainerRuntimeCRIO, nil
+	case pb.Runtime_GARDEN:
+		return workloadmeta.ContainerRuntimeGarden, nil
+	case pb.Runtime_ECS_FARGATE:
+		return workloadmeta.ContainerRuntimeECSFargate, nil
+	}
+
+	return workloadmeta.ContainerRuntimeDocker, fmt.Errorf("unknown runtime: %s", protoRuntime)
+}
+
+func toWorkloadmetaContainerState(protoContainerState *pb.ContainerState) (workloadmeta.ContainerState, error) {
+	status, err := toWorkloadmetaContainerStatus(protoContainerState.Status)
+	if err != nil {
+		return workloadmeta.ContainerState{}, err
+	}
+
+	health, err := toWorkloadmetaContainerHealth(protoContainerState.Health)
+	if err != nil {
+		return workloadmeta.ContainerState{}, err
+	}
+
+	containerState := workloadmeta.ContainerState{
+		Running: protoContainerState.Running,
+		Status:  status,
+		Health:  health,
+	}
+
+	if protoContainerState.CreatedAt != emptyTimestampUnix {
+		containerState.CreatedAt = time.Unix(protoContainerState.CreatedAt, 0)
+	}
+
+	if protoContainerState.StartedAt != emptyTimestampUnix {
+		containerState.StartedAt = time.Unix(protoContainerState.StartedAt, 0)
+	}
+
+	if protoContainerState.FinishedAt != emptyTimestampUnix {
+		containerState.FinishedAt = time.Unix(protoContainerState.FinishedAt, 0)
+	}
+
+	if protoContainerState.ExitCode != 0 {
+		containerState.ExitCode = &protoContainerState.ExitCode
+	}
+
+	return containerState, nil
+}
+
+func toWorkloadmetaContainerStatus(protoContainerStatus pb.ContainerStatus) (workloadmeta.ContainerStatus, error) {
+	switch protoContainerStatus {
+	case pb.ContainerStatus_CONTAINER_STATUS_UNKNOWN:
+		return workloadmeta.ContainerStatusUnknown, nil
+	case pb.ContainerStatus_CONTAINER_STATUS_CREATED:
+		return workloadmeta.ContainerStatusCreated, nil
+	case pb.ContainerStatus_CONTAINER_STATUS_RUNNING:
+		return workloadmeta.ContainerStatusRunning, nil
+	case pb.ContainerStatus_CONTAINER_STATUS_RESTARTING:
+		return workloadmeta.ContainerStatusRestarting, nil
+	case pb.ContainerStatus_CONTAINER_STATUS_PAUSED:
+		return workloadmeta.ContainerStatusPaused, nil
+	case pb.ContainerStatus_CONTAINER_STATUS_STOPPED:
+		return workloadmeta.ContainerStatusStopped, nil
+	}
+
+	return workloadmeta.ContainerStatusUnknown, fmt.Errorf("unknown container status: %s", protoContainerStatus)
+}
+
+func toWorkloadmetaContainerHealth(protoContainerHealth pb.ContainerHealth) (workloadmeta.ContainerHealth, error) {
+	switch protoContainerHealth {
+	case pb.ContainerHealth_CONTAINER_HEALTH_UNKNOWN:
+		return workloadmeta.ContainerHealthUnknown, nil
+	case pb.ContainerHealth_CONTAINER_HEALTH_HEALTHY:
+		return workloadmeta.ContainerHealthHealthy, nil
+	case pb.ContainerHealth_CONTAINER_HEALTH_UNHEALTHY:
+		return workloadmeta.ContainerHealthUnhealthy, nil
+	}
+
+	return workloadmeta.ContainerHealthUnknown, fmt.Errorf("unknown container health: %s", protoContainerHealth)
+}
+
+func toWorkloadmetaKubernetesPod(protoKubernetesPod *pb.KubernetesPod) (*workloadmeta.KubernetesPod, error) {
+	entityId, err := toWorkloadmetaEntityID(protoKubernetesPod.EntityId)
+	if err != nil {
+		return nil, err
+	}
+
+	var owners []workloadmeta.KubernetesPodOwner
+	for _, protoPodOwner := range protoKubernetesPod.Owners {
+		owners = append(owners, toWorkloadmetaPodOwner(protoPodOwner))
+	}
+
+	var containers []workloadmeta.OrchestratorContainer
+	for _, protoContainer := range protoKubernetesPod.Containers {
+		containers = append(containers, toWorkloadmetaOrchestratorContainer(protoContainer))
+	}
+
+	return &workloadmeta.KubernetesPod{
+		EntityID:                   entityId,
+		EntityMeta:                 toWorkloadmetaEntityMeta(protoKubernetesPod.EntityMeta),
+		Owners:                     owners,
+		PersistentVolumeClaimNames: protoKubernetesPod.PersistentVolumeClaimNames,
+		Containers:                 containers,
+		Ready:                      protoKubernetesPod.Ready,
+		Phase:                      protoKubernetesPod.Phase,
+		IP:                         protoKubernetesPod.Ip,
+		PriorityClass:              protoKubernetesPod.PriorityClass,
+		QOSClass:                   protoKubernetesPod.QosClass,
+		KubeServices:               protoKubernetesPod.KubeServices,
+		NamespaceLabels:            protoKubernetesPod.NamespaceLabels,
+	}, nil
+}
+
+func toWorkloadmetaPodOwner(protoPodOwner *pb.KubernetesPodOwner) workloadmeta.KubernetesPodOwner {
+	return workloadmeta.KubernetesPodOwner{
+		Kind: protoPodOwner.Kind,
+		Name: protoPodOwner.Name,
+		ID:   protoPodOwner.Id,
+	}
+}
+
+func toWorkloadmetaOrchestratorContainer(protoOrchestratorContainer *pb.OrchestratorContainer) workloadmeta.OrchestratorContainer {
+	return workloadmeta.OrchestratorContainer{
+		ID:    protoOrchestratorContainer.Id,
+		Name:  protoOrchestratorContainer.Name,
+		Image: toWorkloadmetaImage(protoOrchestratorContainer.Image),
+	}
+}
+
+func toWorkloadmetaECSTask(protoECSTask *pb.ECSTask) (*workloadmeta.ECSTask, error) {
+	entityId, err := toWorkloadmetaEntityID(protoECSTask.EntityId)
+	if err != nil {
+		return nil, err
+	}
+
+	launchType, err := toECSLaunchType(protoECSTask.LaunchType)
+	if err != nil {
+		return nil, err
+	}
+
+	var containers []workloadmeta.OrchestratorContainer
+	for _, protoContainer := range protoECSTask.Containers {
+		containers = append(containers, toWorkloadmetaOrchestratorContainer(protoContainer))
+	}
+
+	return &workloadmeta.ECSTask{
+		EntityID:              entityId,
+		EntityMeta:            toWorkloadmetaEntityMeta(protoECSTask.EntityMeta),
+		Tags:                  protoECSTask.Tags,
+		ContainerInstanceTags: protoECSTask.ContainerInstanceTags,
+		ClusterName:           protoECSTask.ClusterName,
+		Region:                protoECSTask.Region,
+		AvailabilityZone:      protoECSTask.AvailabilityZone,
+		Family:                protoECSTask.Family,
+		Version:               protoECSTask.Version,
+		LaunchType:            launchType,
+		Containers:            containers,
+	}, nil
+}
+
+func toECSLaunchType(protoLaunchType pb.ECSLaunchType) (workloadmeta.ECSLaunchType, error) {
+	switch protoLaunchType {
+	case pb.ECSLaunchType_EC2:
+		return workloadmeta.ECSLaunchTypeEC2, nil
+	case pb.ECSLaunchType_FARGATE:
+		return workloadmeta.ECSLaunchTypeFargate, nil
+	}
+
+	return workloadmeta.ECSLaunchTypeEC2, fmt.Errorf("unknown launch type: %s", protoLaunchType)
 }

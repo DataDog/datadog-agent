@@ -45,6 +45,37 @@ func TestCustomWriterBuffered(t *testing.T) {
 	assert.Equal(t, 2, numMessages)
 }
 
+func TestCustomWriterBufferedConsecutiveNewlines(t *testing.T) {
+	testContent := []byte("\nlog line\n\n\n\nlog line2\n\n\n")
+	config := &Config{
+		channel:   make(chan *config.ChannelMessage, 2),
+		isEnabled: true,
+	}
+	cw := &CustomWriter{
+		LogConfig:  config,
+		LineBuffer: bytes.Buffer{},
+	}
+	go cw.Write(testContent)
+	numMessages := 0
+	select {
+	case message := <-config.channel:
+		assert.Equal(t, []byte("log line"), message.Content)
+		numMessages++
+	case <-time.After(100 * time.Millisecond):
+		t.FailNow()
+	}
+
+	select {
+	case message := <-config.channel:
+		assert.Equal(t, []byte("log line2"), message.Content)
+		numMessages++
+	case <-time.After(100 * time.Millisecond):
+		t.FailNow()
+	}
+
+	assert.Equal(t, 2, numMessages)
+}
+
 func TestWriteEnabled(t *testing.T) {
 	testContent := []byte("hello this is a log")
 	logChannel := make(chan *config.ChannelMessage)

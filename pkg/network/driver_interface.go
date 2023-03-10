@@ -46,25 +46,43 @@ const (
 // DriverExpvarNames is a list of all the DriverExpvar names returned from GetStats
 var DriverExpvarNames = []DriverExpvar{totalFlowStats, flowHandleStats, flowStats, driverStats}
 
+type driverReadBuffer []uint8
+
+type driverResizeResult int
+
+const (
+	ResizedDecreased driverResizeResult = -1
+	ResizedUnchanged driverResizeResult = 0
+	ResizedIncreased driverResizeResult = 1
+)
+
 // DriverInterface holds all necessary information for interacting with the windows driver
 type DriverInterface struct {
-	totalFlows       *atomic.Int64
-	closedFlows      *atomic.Int64
-	openFlows        *atomic.Int64
-	moreDataErrors   *atomic.Int64
-	bufferSize       *atomic.Int64
-	nBufferIncreases *atomic.Int64
-	nBufferDecreases *atomic.Int64
+	totalFlows     *atomic.Int64
+	closedFlows    *atomic.Int64
+	openFlows      *atomic.Int64
+	moreDataErrors *atomic.Int64
 
-	maxOpenFlows   uint64
-	maxClosedFlows uint64
+	nOpenBufferIncreases *atomic.Int64
+	nOpenBufferDecreases *atomic.Int64
+
+	nClosedBufferIncreases *atomic.Int64
+	nClosedBufferDecreases *atomic.Int64
+
+	maxOpenFlows           uint64
+	maxClosedFlows         uint64
+	closedFlowsSignalLimit uint64
 
 	driverFlowHandle driver.Handle
+	closeFlowEvent   windows.Handle
 
 	enableMonotonicCounts bool
 
-	bufferLock sync.Mutex
-	readBuffer []uint8
+	openBufferLock sync.Mutex
+	openBuffer     driverReadBuffer
+
+	closedBufferLock sync.Mutex
+	closedBuffer     driverReadBuffer
 
 	cfg *config.Config
 }
@@ -77,19 +95,22 @@ type HandleCreateFn func(flags uint32, handleType driver.HandleType) (driver.Han
 // NewDriverInterface returns a DriverInterface struct for interacting with the driver
 func NewDriverInterface(cfg *config.Config, handleFunc HandleCreateFn) (*DriverInterface, error) {
 	dc := &DriverInterface{
-		totalFlows:       atomic.NewInt64(0),
-		closedFlows:      atomic.NewInt64(0),
-		openFlows:        atomic.NewInt64(0),
-		moreDataErrors:   atomic.NewInt64(0),
-		bufferSize:       atomic.NewInt64(defaultDriverBufferSize),
-		nBufferIncreases: atomic.NewInt64(0),
-		nBufferDecreases: atomic.NewInt64(0),
+		totalFlows:             atomic.NewInt64(0),
+		closedFlows:            atomic.NewInt64(0),
+		openFlows:              atomic.NewInt64(0),
+		moreDataErrors:         atomic.NewInt64(0),
+		nOpenBufferIncreases:   atomic.NewInt64(0),
+		nOpenBufferDecreases:   atomic.NewInt64(0),
+		nClosedBufferIncreases: atomic.NewInt64(0),
+		nClosedBufferDecreases: atomic.NewInt64(0),
 
-		cfg:                   cfg,
-		enableMonotonicCounts: cfg.EnableMonotonicCount,
-		readBuffer:            make([]byte, defaultDriverBufferSize),
-		maxOpenFlows:          uint64(cfg.MaxTrackedConnections),
-		maxClosedFlows:        uint64(cfg.MaxClosedConnectionsBuffered),
+		cfg:                    cfg,
+		enableMonotonicCounts:  cfg.EnableMonotonicCount,
+		openBuffer:             make([]byte, defaultDriverBufferSize),
+		closedBuffer:           make([]byte, defaultDriverBufferSize),
+		maxOpenFlows:           uint64(cfg.MaxTrackedConnections),
+		maxClosedFlows:         uint64(cfg.MaxClosedConnectionsBuffered),
+		closedFlowsSignalLimit: uint64(cfg.ClosedConnectionFlushThreshold),
 	}
 
 	h, err := handleFunc(0, driver.FlowHandle)
@@ -112,8 +133,13 @@ func NewDriverInterface(cfg *config.Config, handleFunc HandleCreateFn) (*DriverI
 // Close shuts down the driver interface
 func (di *DriverInterface) Close() error {
 	if err := di.driverFlowHandle.Close(); err != nil {
-		return fmt.Errorf("error closing flow file handle: %w", err)
+		log.Warnf("error closing flow file handle: %v", err)
 	}
+	windows.SetEvent(di.closeFlowEvent)
+	if err := windows.CloseHandle(di.closeFlowEvent); err != nil {
+		log.Warnf("Error closing closed flow wait handle")
+	}
+	di.closeFlowEvent = windows.Handle(0)
 	return nil
 }
 
@@ -136,6 +162,25 @@ func (di *DriverInterface) setupFlowHandle() error {
 		return err
 	}
 
+	// open the event handle for getting notifications that it's time
+	// to go get the closed flows
+	u16eventname, err := windows.UTF16PtrFromString("Global\\DDNPMClosedFlowsReadyEvent")
+	if err != nil {
+		return err
+	}
+	h, err := windows.CreateEvent(nil, 1, 0, u16eventname)
+	if err != nil {
+		if err == windows.ERROR_ALREADY_EXISTS && h != windows.Handle(0) {
+			// ERROR_ALREADY_EXISTS is expected, because the driver will open
+			// the event on fh creation; we're just opening a different handle
+			// to the same event
+			di.closeFlowEvent = h
+		} else {
+			return fmt.Errorf("Failed to create closed flow event %v", err)
+		}
+	} else {
+		di.closeFlowEvent = h
+	}
 	// Set up the maximum amount of connections
 	err = di.setFlowParams()
 	if err != nil {
@@ -193,9 +238,19 @@ func (di *DriverInterface) GetStats() (map[DriverExpvar]interface{}, error) {
 	openFlows := di.openFlows.Swap(0)
 	closedFlows := di.closedFlows.Swap(0)
 	moreDataErrors := di.moreDataErrors.Swap(0)
-	bufferSize := di.bufferSize.Load()
-	nBufferIncreases := di.nBufferIncreases.Load()
-	nBufferDecreases := di.nBufferDecreases.Load()
+	di.closedBufferLock.Lock()
+	closedBufferSize := int64(cap(di.closedBuffer))
+	di.closedBufferLock.Unlock()
+
+	nClosedBufferIncreases := di.nClosedBufferIncreases.Load()
+	nClosedBufferDecreases := di.nClosedBufferDecreases.Load()
+
+	di.openBufferLock.Lock()
+	openBufferSize := int64(cap(di.openBuffer))
+	di.openBufferLock.Unlock()
+
+	nOpenBufferIncreases := di.nOpenBufferIncreases.Load()
+	nOpenBufferDecreases := di.nOpenBufferDecreases.Load()
 
 	return map[DriverExpvar]interface{}{
 		flowHandleStats: stats["handle"],
@@ -205,10 +260,13 @@ func (di *DriverInterface) GetStats() (map[DriverExpvar]interface{}, error) {
 			"closed": closedFlows,
 		},
 		driverStats: map[string]int64{
-			"more_data_errors": moreDataErrors,
-			"buffer_size":      bufferSize,
-			"buffer_increases": nBufferIncreases,
-			"buffer_decreases": nBufferDecreases,
+			"more_data_errors":        moreDataErrors,
+			"closed_buffer_size":      closedBufferSize,
+			"closed_buffer_increases": nClosedBufferIncreases,
+			"closed_buffer_decreases": nClosedBufferDecreases,
+			"open_buffer_size":        openBufferSize,
+			"open_buffer_increases":   nOpenBufferIncreases,
+			"open_buffer_decreases":   nOpenBufferDecreases,
 		},
 	}, nil
 }
@@ -228,84 +286,119 @@ func printClassification(fd *driver.PerFlowData) {
 	}
 }
 
-// GetConnectionStats will read all flows from the driver and convert them into ConnectionStats.
-// It returns the count of connections added to the active and closed buffers, respectively.
-func (di *DriverInterface) GetConnectionStats(activeBuf *ConnectionBuffer, closedBuf *ConnectionBuffer, filter func(*ConnectionStats) bool) (int, int, error) {
-	di.bufferLock.Lock()
-	defer di.bufferLock.Unlock()
+func (di *DriverInterface) getFlowConnectionStats(ioctl uint32, connbuffer *driverReadBuffer, outbuffer *ConnectionBuffer, filter func(*ConnectionStats) bool) (int, error, int, int) {
 
-	startActive, startClosed := activeBuf.Len(), closedBuf.Len()
+	start := outbuffer.Len()
 
+	increases := int(0)
+	decreases := int(0)
 	var bytesRead uint32
 	var totalBytesRead uint32
+
 	// keep reading while driver says there is more data available
 	for err := error(windows.ERROR_MORE_DATA); err == windows.ERROR_MORE_DATA; {
-		err = di.driverFlowHandle.ReadFile(di.readBuffer, &bytesRead, nil)
+		err = di.driverFlowHandle.DeviceIoControl(ioctl, nil, 0,
+			(*byte)(unsafe.Pointer(&((*connbuffer)[0]))),
+			uint32(len(*connbuffer)),
+			&bytesRead, nil)
 		if err != nil {
 			if err == windows.ERROR_NO_MORE_ITEMS {
 				break
 			}
 			if err != windows.ERROR_MORE_DATA {
-				return 0, 0, fmt.Errorf("ReadFile: %w", err)
+				return 0, fmt.Errorf("ReadFile: %w", err), 0, 0
 			}
-			di.moreDataErrors.Inc()
 		}
-
 		// Windows driver hashmap implementation could return this if the
 		// provided buffer is too small to contain all entries in one of
 		// the hashmap's linkedlists
 		if bytesRead == 0 && err == windows.ERROR_MORE_DATA {
-			di.resizeDriverBuffer(cap(di.readBuffer) * 2)
+			//log.Warnf("Buffer not large enough for hash bucket")
+			//return 0, fmt.Errorf("Buffer not large enough for hash bucket"), 0, 0
+			connbuffer.resizeDriverBuffer(len(*connbuffer) * 2)
+			increases++
 			continue
 		}
 		totalBytesRead += bytesRead
 
 		var buf []byte
 		for bytesUsed := uint32(0); bytesUsed < bytesRead; bytesUsed += driver.PerFlowDataSize {
-			buf = di.readBuffer[bytesUsed:]
+			buf = (*connbuffer)[bytesUsed:]
 			pfd := (*driver.PerFlowData)(unsafe.Pointer(&(buf[0])))
-
-			//printClassification(pfd)
-			if isFlowClosed(pfd.Flags) {
-				c := closedBuf.Next()
-				FlowToConnStat(c, pfd, di.enableMonotonicCounts)
-				if !filter(c) {
-					closedBuf.Reclaim(1)
-					continue
-				}
-			} else {
-				c := activeBuf.Next()
-				FlowToConnStat(c, pfd, di.enableMonotonicCounts)
-				if !filter(c) {
-					activeBuf.Reclaim(1)
-					continue
-				}
+			c := outbuffer.Next()
+			FlowToConnStat(c, pfd, di.enableMonotonicCounts)
+			if !filter(c) {
+				outbuffer.Reclaim(1)
+				continue
 			}
 		}
-		di.resizeDriverBuffer(int(totalBytesRead))
+		resized := connbuffer.resizeDriverBuffer(int(totalBytesRead))
+		switch resized {
+		case ResizedIncreased:
+			increases++
+		case ResizedDecreased:
+			decreases++
+		case ResizedUnchanged:
+			fallthrough
+		default:
+			// do nothing
+			break
+		}
 	}
-
-	activeCount := activeBuf.Len() - startActive
-	closedCount := closedBuf.Len() - startClosed
-	di.openFlows.Add(int64(activeCount))
-	di.closedFlows.Add(int64(closedCount))
-	di.totalFlows.Add(int64(activeCount + closedCount))
-
-	return activeCount, closedCount, nil
+	count := outbuffer.Len() - start
+	return count, nil, increases, decreases
 }
 
-func (di *DriverInterface) resizeDriverBuffer(compareSize int) {
-	// Explicitly setting len to 0 causes the ReadFile syscall to break, so allocate buffer with cap = len
-	if compareSize >= cap(di.readBuffer)*2 {
-		di.readBuffer = make([]uint8, cap(di.readBuffer)*2)
-		di.nBufferIncreases.Inc()
-		di.bufferSize.Store(int64(len(di.readBuffer)))
-	} else if compareSize <= cap(di.readBuffer)/2 {
-		// Take the max of di.readBuffer/2 and compareSize to limit future array resizes
-		di.readBuffer = make([]uint8, int(math.Max(float64(cap(di.readBuffer)/2), float64(compareSize))))
-		di.nBufferDecreases.Inc()
-		di.bufferSize.Store(int64(len(di.readBuffer)))
+// GetConnectionStats will read all open flows from the driver and convert them into ConnectionStats.
+// It returns the count of connections added to the active and closed buffers, respectively.
+func (di *DriverInterface) GetOpenConnectionStats(openBuf *ConnectionBuffer, filter func(*ConnectionStats) bool) (int, error) {
+	di.openBufferLock.Lock()
+	defer di.openBufferLock.Unlock()
+
+	count, err, increases, decreases := di.getFlowConnectionStats(driver.GetOpenFlowsIOCTL, &(di.openBuffer), openBuf, filter)
+	if err != nil {
+		return 0, err
 	}
+	di.openFlows.Add(int64(count))
+	di.totalFlows.Add(int64(count))
+
+	di.nOpenBufferIncreases.Add(int64(increases))
+	di.nOpenBufferDecreases.Add(int64(decreases))
+	return count, err
+
+}
+
+// GetConnectionStats will read all closed from the driver and convert them into ConnectionStats.
+// It returns the count of connections added to the active and closed buffers, respectively.
+func (di *DriverInterface) GetClosedConnectionStats(closedBuf *ConnectionBuffer, filter func(*ConnectionStats) bool) (int, error) {
+	di.closedBufferLock.Lock()
+	defer di.closedBufferLock.Unlock()
+
+	count, err, increases, decreases := di.getFlowConnectionStats(driver.GetClosedFlowsIOCTL, &(di.closedBuffer), closedBuf, filter)
+	if err != nil {
+		return 0, err
+	}
+	di.closedFlows.Add(int64(count))
+	di.totalFlows.Add(int64(count))
+	di.nClosedBufferIncreases.Add(int64(increases))
+	di.nClosedBufferDecreases.Add(int64(decreases))
+
+	return count, err
+}
+
+func (db *driverReadBuffer) resizeDriverBuffer(compareSize int) driverResizeResult {
+	// Explicitly setting len to 0 causes the ReadFile syscall to break, so allocate buffer with cap = len
+	origcap := cap(*db)
+	if compareSize >= origcap*2 {
+		*db = make([]uint8, origcap*2)
+		return ResizedIncreased
+	} else if compareSize <= origcap/2 {
+		// Take the max of driverReadBuffer/2 and compareSize to limit future array resizes
+		*db = make([]uint8, int(math.Max(float64(origcap/2), float64(compareSize))))
+		return ResizedDecreased
+	}
+	// else
+	return ResizedUnchanged
 }
 
 func minUint64(a, b uint64) uint64 {
@@ -345,6 +438,20 @@ func (di *DriverInterface) setFlowParams() error {
 		uint32(0), nil, nil)
 	if err != nil {
 		log.Warnf("Failed to set max number of closed flows to %v %v", maxClosedFlows, err)
+	}
+
+	threshold := di.closedFlowsSignalLimit
+	if 0 == threshold {
+		threshold = maxClosedFlows / 2
+	}
+	err = di.driverFlowHandle.DeviceIoControl(
+		driver.SetClosedFlowsLimitIOCTL,
+		(*byte)(unsafe.Pointer(&threshold)),
+		uint32(unsafe.Sizeof(threshold)),
+		nil,
+		uint32(0), nil, nil)
+	if err != nil {
+		log.Warnf("Failed to set closed flows threshold to %v %v", maxClosedFlows, err)
 	}
 	return err
 }
@@ -431,4 +538,11 @@ func (di *DriverInterface) createFlowHandleFilters() ([]driver.FilterDefinition,
 	}
 
 	return filters, nil
+}
+
+// GetClosedFlowsEvent returns the base Windows handle for the event
+// that gets signalled whenever the number of closed flows exceeds
+// the configured amount.
+func (di *DriverInterface) GetClosedFlowsEvent() windows.Handle {
+	return di.closeFlowEvent
 }

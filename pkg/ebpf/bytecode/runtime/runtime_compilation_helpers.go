@@ -17,10 +17,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/gopsutil/host"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/compiler"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -53,11 +55,7 @@ var defaultFlags = []string{
 }
 
 // compileToObjectFile compiles the input ebpf program & returns the compiled output
-func compileToObjectFile(in io.Reader, outputDir, filename, inHash string, additionalFlags, kernelHeaders []string) (CompiledOutput, CompilationResult, error) {
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		return nil, outputDirErr, fmt.Errorf("unable to create compiler output directory %s: %w", outputDir, err)
-	}
-
+func compileToObjectFile(inFile, outputDir, filename, inHash string, additionalFlags, kernelHeaders []string) (CompiledOutput, CompilationResult, error) {
 	flags, flagHash := computeFlagsAndHash(additionalFlags)
 
 	outputFile, err := getOutputFilePath(outputDir, filename, inHash, flagHash)
@@ -71,7 +69,27 @@ func compileToObjectFile(in io.Reader, outputDir, filename, inHash string, addit
 			return nil, outputFileErr, fmt.Errorf("error stat-ing output file %s: %w", outputFile, err)
 		}
 
-		if err := compiler.CompileToObjectFile(in, outputFile, flags, kernelHeaders); err != nil {
+		kv, err := kernel.HostVersion()
+		if err != nil {
+			return nil, kernelVersionErr, fmt.Errorf("unable to get kernel version: %w", err)
+		}
+		_, family, _, err := host.PlatformInformation()
+		if err != nil {
+			return nil, kernelVersionErr, fmt.Errorf("unable to get kernel family: %w", err)
+		}
+
+		// RHEL platforms back-ported the __BPF_FUNC_MAPPER macro, so we can always use the dynamic method there
+		if kv >= kernel.VersionCode(4, 10, 0) || family == "rhel" {
+			var helperPath string
+			helperPath, err = includeHelperAvailability(kernelHeaders)
+			if err != nil {
+				return nil, compilationErr, fmt.Errorf("error getting helper availability: %w", err)
+			}
+			defer os.Remove(helperPath)
+			flags = append(flags, fmt.Sprintf("-include%s", helperPath))
+		}
+
+		if err := compiler.CompileToObjectFile(inFile, outputFile, flags, kernelHeaders); err != nil {
 			return nil, compilationErr, fmt.Errorf("failed to compile runtime version of %s: %s", filename, err)
 		}
 
@@ -95,9 +113,10 @@ func compileToObjectFile(in io.Reader, outputDir, filename, inHash string, addit
 }
 
 func computeFlagsAndHash(additionalFlags []string) ([]string, string) {
-	flags := make([]string, len(defaultFlags)+len(additionalFlags))
-	copy(flags, defaultFlags)
-	copy(flags[len(defaultFlags):], additionalFlags)
+	flags := make([]string, 0, len(defaultFlags)+len(additionalFlags)+1)
+	flags = append(flags, fmt.Sprintf("-D__TARGET_ARCH_%s", kernel.Arch()))
+	flags = append(flags, defaultFlags...)
+	flags = append(flags, additionalFlags...)
 
 	hasher := sha256.New()
 	for _, f := range flags {

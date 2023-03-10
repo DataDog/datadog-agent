@@ -117,6 +117,16 @@ func (s *Store) ListImages() []*workloadmeta.ContainerImageMetadata {
 	return images
 }
 
+// GetImage implements Store#GetImage
+func (s *Store) GetImage(id string) (*workloadmeta.ContainerImageMetadata, error) {
+	entity, err := s.getEntityByKind(workloadmeta.KindContainerImageMetadata, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*workloadmeta.ContainerImageMetadata), nil
+}
+
 // Set sets an entity in the store.
 func (s *Store) Set(entity workloadmeta.Entity) {
 	s.mu.Lock()
@@ -166,6 +176,11 @@ func (s *Store) Notify(events []workloadmeta.CollectorEvent) {
 
 // Dump is not implemented in the testing store.
 func (s *Store) Dump(verbose bool) workloadmeta.WorkloadDumpResponse {
+	panic("not implemented")
+}
+
+// Reset is not implemented in the testing store.
+func (s *Store) Reset(newEntities []workloadmeta.Entity, source workloadmeta.Source) {
 	panic("not implemented")
 }
 

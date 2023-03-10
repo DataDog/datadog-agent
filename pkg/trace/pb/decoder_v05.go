@@ -42,6 +42,9 @@ func (t *Traces) UnmarshalMsgDictionary(bts []byte) error {
 	if sz, bts, err = msgp.ReadArrayHeaderBytes(bts); err != nil {
 		return err
 	}
+	if sz > 25*1e6 { // Dictionary can't be larger than 25 MB
+		return errors.New("too long payload")
+	}
 	dict := make([]string, sz)
 	for i := range dict {
 		var str string
@@ -151,6 +154,9 @@ func (z *Span) UnmarshalMsgDictionary(bts []byte, dict []string) ([]byte, error)
 	sz, bts, err = msgp.ReadMapHeaderBytes(bts)
 	if err != nil {
 		return bts, err
+	}
+	if sz > 25*1e6 { // Dictionary can't be larger than 25 MB
+		return bts, errors.New("too long payload")
 	}
 	if z.Meta == nil && sz > 0 {
 		z.Meta = make(map[string]string, sz)

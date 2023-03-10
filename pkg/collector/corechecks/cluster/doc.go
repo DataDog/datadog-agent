@@ -5,6 +5,5 @@
 
 /*
 Package cluster provides core checks for cluster level checks, used by the Datadog Cluster Agent.
-
 */
 package cluster

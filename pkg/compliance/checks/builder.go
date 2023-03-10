@@ -15,8 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/open-policy-agent/opa/metrics"
-
 	cache "github.com/patrickmn/go-cache"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -29,13 +27,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/rego"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/audit"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/file"
-	"github.com/DataDog/datadog-agent/pkg/compliance/resources/process"
 	commandutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/command"
 	dockerutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/docker"
 	fileutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/file"
 	processutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/process"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -83,7 +79,7 @@ func WithMaxEvents(max int) BuilderOption {
 	}
 }
 
-// WithStatsd configures the statsd client
+// WithStatsd configures the statsd client for compliance metrics
 func WithStatsd(client statsd.ClientInterface) BuilderOption {
 	return func(b *builder) error {
 		b.statsdClient = client
@@ -229,18 +225,6 @@ func MayFail(o BuilderOption) BuilderOption {
 	}
 }
 
-// WithNodeLabels configures a builder to use specified Kubernetes node labels
-func WithNodeLabels(nodeLabels map[string]string) BuilderOption {
-	return func(b *builder) error {
-		b.nodeLabels = map[string]string{}
-		for k, v := range nodeLabels {
-			k, v := hostinfo.LabelPreprocessor(k, v)
-			b.nodeLabels[k] = v
-		}
-		return nil
-	}
-}
-
 // WithRegoInput configures a builder to provide rego input based on the content
 // of a file instead of the current environment
 func WithRegoInput(regoInputPath string) BuilderOption {
@@ -318,7 +302,6 @@ type builder struct {
 	hostname     string
 	pathMapper   *fileutils.PathMapper
 	etcGroupPath string
-	nodeLabels   map[string]string
 
 	suiteMatcher SuiteMatcher
 	ruleMatcher  RuleMatcher
@@ -442,26 +425,68 @@ func (b *builder) GetCheckStatus() compliance.CheckStatusList {
 	return compliance.CheckStatusList{}
 }
 
+func (b *builder) StatsdClient() statsd.ClientInterface {
+	return b.statsdClient
+}
+
 func (b *builder) checkFromRegoRule(meta *compliance.SuiteMeta, rule *compliance.RegoRule) (compliance.Check, error) {
 	ruleScope, err := getRuleScope(meta, rule.Scope)
 	if err != nil {
 		return nil, err
 	}
 
-	// skip host match check if rego input is overridden
+	// skip the scope checks if rego inputs were provided via CLI
 	if b.regoInputOverride == nil {
-		eligible, err := b.hostMatcher(ruleScope, rule.ID, rule.HostSelector, rule.SkipOnK8s)
-		if err != nil {
-			return nil, err
-		}
+		switch ruleScope {
+		case compliance.DockerScope:
+			if rule.SkipOnK8s && config.IsKubernetes() {
+				log.Infof("rule %s skipped - running on a Kubernetes environment", rule.ID)
+				return nil, ErrRuleDoesNotApply
+			}
 
-		if !eligible {
-			log.Debugf("rule %s/%s discarded by hostMatcher", meta.Framework, rule.ID)
-			return nil, ErrRuleDoesNotApply
+			if b.dockerClient == nil {
+				log.Infof("rule %s skipped - not running in a docker environment", rule.ID)
+				return nil, ErrRuleDoesNotApply
+			}
+		case compliance.KubernetesClusterScope:
+			if b.kubeClient == nil {
+				log.Infof("rule %s skipped - not running as Cluster Agent", rule.ID)
+				return nil, ErrRuleDoesNotApply
+			}
+		case compliance.KubernetesNodeScope:
+			if !config.IsKubernetes() {
+				log.Infof("rule %s skipped - not running on a Kubernetes node", rule.ID)
+				return nil, ErrRuleDoesNotApply
+			}
 		}
 	}
 
-	return b.newRegoCheck(meta, ruleScope, rule, fallthroughReporter)
+	regoCheck := rego.NewCheck(rule)
+	if err := regoCheck.CompileRule(rule, ruleScope, meta); err != nil {
+		return nil, err
+	}
+
+	var notify eventNotify
+	if b.status != nil {
+		notify = b.status.updateCheck
+	}
+
+	// We capture err as configuration error but do not prevent check creation
+	return &complianceCheck{
+		Env: b,
+
+		ruleID:      rule.ID,
+		description: rule.Description,
+		interval:    b.checkInterval,
+
+		suiteMeta: meta,
+
+		resourceHandler: fallthroughReporter,
+		scope:           ruleScope,
+		checkable:       regoCheck,
+
+		eventNotify: notify,
+	}, nil
 }
 
 func fallthroughReporter(report *compliance.Report) compliance.ReportResource {
@@ -481,145 +506,6 @@ func getRuleScope(meta *compliance.SuiteMeta, scopeList compliance.RuleScopeList
 	default:
 		return "", ErrRuleScopeNotSupported
 	}
-}
-
-func (b *builder) hostMatcher(scope compliance.RuleScope, ruleID string, hostSelector string, skipOnK8s bool) (bool, error) {
-	switch scope {
-	case compliance.DockerScope:
-		if skipOnK8s && config.IsKubernetes() {
-			log.Infof("rule %s skipped - running on a Kubernetes environment", ruleID)
-			return false, nil
-		}
-
-		if b.dockerClient == nil {
-			log.Infof("rule %s skipped - not running in a docker environment", ruleID)
-			return false, nil
-		}
-	case compliance.KubernetesClusterScope:
-		if b.kubeClient == nil {
-			log.Infof("rule %s skipped - not running as Cluster Agent", ruleID)
-			return false, nil
-		}
-	case compliance.KubernetesNodeScope:
-		if config.IsKubernetes() {
-			ignoreHostSelectors := config.Datadog.GetBool("compliance_config.ignore_host_selectors")
-			if ignoreHostSelectors {
-				return true, nil
-			}
-			return b.isKubernetesNodeEligible(hostSelector)
-		}
-		log.Infof("rule %s skipped - not running on a Kubernetes node", ruleID)
-		return false, nil
-	}
-
-	return true, nil
-}
-
-func (b *builder) isKubernetesNodeEligible(hostSelector string) (bool, error) {
-	if hostSelector == "" {
-		return true, nil
-	}
-
-	expr, err := eval.ParseExpression(hostSelector)
-	if err != nil {
-		return false, err
-	}
-
-	labelKeys := b.nodeLabelKeys()
-	nodeInstance := eval.NewInstance(
-		eval.VarMap{
-			"node.labels": labelKeys,
-		},
-		eval.FunctionMap{
-			"node.hasLabel": b.nodeHasLabel,
-			"node.label":    b.nodeLabel,
-		},
-		eval.RegoInputMap{
-			"labels": labelKeys,
-		},
-	)
-
-	result, err := expr.Evaluate(nodeInstance)
-	if err != nil {
-		return false, err
-	}
-
-	eligible, ok := result.(bool)
-	if !ok {
-		return false, fmt.Errorf("hostSelector %q does not evaluate to a boolean value", hostSelector)
-	}
-
-	return eligible, nil
-}
-
-func (b *builder) getNodeLabel(args ...interface{}) (string, bool, error) {
-	if len(args) == 0 {
-		return "", false, errors.New(`expecting one argument for label`)
-	}
-	label, ok := args[0].(string)
-	if !ok {
-		return "", false, fmt.Errorf(`expecting string value for label argument`)
-	}
-	if b.nodeLabels == nil {
-		return "", false, nil
-	}
-	v, ok := b.nodeLabels[label]
-	return v, ok, nil
-}
-
-func (b *builder) nodeHasLabel(_ eval.Instance, args ...interface{}) (interface{}, error) {
-	_, ok, err := b.getNodeLabel(args...)
-	return ok, err
-}
-
-func (b *builder) nodeLabel(_ eval.Instance, args ...interface{}) (interface{}, error) {
-	v, _, err := b.getNodeLabel(args...)
-	return v, err
-}
-
-func (b *builder) nodeLabelKeys() []string {
-	var keys []string
-	for k := range b.nodeLabels {
-		keys = append(keys, k)
-	}
-	return keys
-}
-
-func (b *builder) newRegoCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.RegoRule, handler resourceReporter) (compliance.Check, error) {
-	var m metrics.Metrics
-
-	m = newRegoTelemetry()
-	if config.Datadog.GetBool("compliance_config.opa.metrics.enabled") {
-		m = newRegoMetrics(m, b.statsdClient)
-	}
-
-	regoCheck := rego.NewCheck(rule)
-
-	if err := regoCheck.CompileRule(rule, ruleScope, meta, m); err != nil {
-		return nil, err
-	}
-
-	var notify eventNotify
-	if b.status != nil {
-		notify = b.status.updateCheck
-	}
-
-	// We capture err as configuration error but do not prevent check creation
-	return &complianceCheck{
-		Env: b,
-
-		ruleID:      rule.ID,
-		description: rule.Description,
-		interval:    b.checkInterval,
-
-		suiteMeta: meta,
-
-		resourceHandler: handler,
-		scope:           ruleScope,
-		checkable:       regoCheck,
-
-		eventNotify: notify,
-	}, nil
 }
 
 func (b *builder) Reporter() event.Reporter {
@@ -681,10 +567,6 @@ func (b *builder) IsLeader() bool {
 		return b.isLeaderFunc()
 	}
 	return true
-}
-
-func (b *builder) NodeLabels() map[string]string {
-	return b.nodeLabels
 }
 
 func (b *builder) EvaluateFromCache(ev eval.Evaluatable) (interface{}, error) {
@@ -808,7 +690,7 @@ func evalProcessFlag(_ eval.Instance, args ...interface{}) (interface{}, error) 
 	if !ok {
 		return nil, fmt.Errorf(`expecting string value for process flag argument`)
 	}
-	return processutils.ValueFromProcessFlag(name, flag, process.CacheValidity)
+	return processutils.ValueFromProcessFlag(name, flag)
 }
 
 func (b *builder) evalValueFromFile(get fileutils.Getter) eval.Function {

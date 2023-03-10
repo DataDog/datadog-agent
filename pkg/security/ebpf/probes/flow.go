@@ -15,35 +15,30 @@ var flowProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/security_sk_classify_flow",
 			EBPFFuncName: "kprobe_security_sk_classify_flow",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/nf_nat_manip_pkt",
 			EBPFFuncName: "kprobe_nf_nat_manip_pkt",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/nf_nat_packet",
 			EBPFFuncName: "kprobe_nf_nat_packet",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/path_get",
 			EBPFFuncName: "kprobe_path_get",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/proc_fd_link",
 			EBPFFuncName: "kprobe_proc_fd_link",
 		},
 	},

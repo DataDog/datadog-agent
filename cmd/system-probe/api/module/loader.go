@@ -27,7 +27,7 @@ func init() {
 	}
 }
 
-// loader is responsible for managing the lifecyle of each api.Module, which includes:
+// loader is responsible for managing the lifecycle of each api.Module, which includes:
 // * Module initialization;
 // * Module termination;
 // * Module telemetry consolidation;
@@ -47,7 +47,7 @@ type loader struct {
 func Register(cfg *config.Config, httpMux *mux.Router, factories []Factory) error {
 	for _, factory := range factories {
 		if !cfg.ModuleIsEnabled(factory.Name) {
-			log.Infof("%s module disabled", factory.Name)
+			log.Infof("module %s disabled", factory.Name)
 			continue
 		}
 
@@ -57,27 +57,27 @@ func Register(cfg *config.Config, httpMux *mux.Router, factories []Factory) erro
 		// Let `system-probe` run the other modules.
 		if err != nil {
 			l.errors[factory.Name] = err
-			log.Errorf("new module `%s` error: %s", factory.Name, err)
+			log.Errorf("error creating module %s: %s", factory.Name, err)
 			continue
 		}
 
 		subRouter, err := makeSubrouter(httpMux, string(factory.Name))
 		if err != nil {
 			l.errors[factory.Name] = err
-			log.Errorf("error making router for module %s error: %s", factory.Name, err)
+			log.Errorf("error making router for module %s: %s", factory.Name, err)
 			continue
 		}
 
 		if err = module.Register(subRouter); err != nil {
 			l.errors[factory.Name] = err
-			log.Errorf("error registering HTTP endpoints for module `%s` error: %s", factory.Name, err)
+			log.Errorf("error registering HTTP endpoints for module %s: %s", factory.Name, err)
 			continue
 		}
 
 		l.routers[factory.Name] = subRouter
 		l.modules[factory.Name] = module
 
-		log.Infof("module: %s started", factory.Name)
+		log.Infof("module %s started", factory.Name)
 	}
 
 	l.cfg = cfg
@@ -158,8 +158,10 @@ func Close() {
 func updateStats() {
 	start := time.Now()
 	then := time.Now()
+	now := time.Now()
 	ticker := time.NewTicker(15 * time.Second)
-	for now := range ticker.C {
+
+	for {
 		l.Lock()
 		if l.closed {
 			l.Unlock()
@@ -177,7 +179,9 @@ func updateStats() {
 		l.stats["updated_at"] = now.Unix()
 		l.stats["delta_seconds"] = now.Sub(then).Seconds()
 		l.stats["uptime"] = now.Sub(start).String()
-		then = now
 		l.Unlock()
+
+		then = now
+		now = <-ticker.C
 	}
 }

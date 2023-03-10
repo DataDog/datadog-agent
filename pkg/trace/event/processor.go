@@ -22,11 +22,11 @@ type Processor struct {
 // will be tried in the provided order, with the first one returning an event stopping the chain.
 //
 // All extracted APM events are then submitted to sampling. This sampling is 2-fold:
-// * A first sampling step is done based on the extraction sampling rate returned by an Extractor. If an Extractor
-//   returns an event accompanied with a 0.1 extraction rate, then there's a 90% chance that this event will get
-//   discarded.
-// * A max events per second maxEPSSampler is applied to all non-PriorityUserKeep events that survived the first step
-//   and will ensure that, in average, the total rate of events returned by the processor is not bigger than maxEPS.
+//   - A first sampling step is done based on the extraction sampling rate returned by an Extractor. If an Extractor
+//     returns an event accompanied with a 0.1 extraction rate, then there's a 90% chance that this event will get
+//     discarded.
+//   - A max events per second maxEPSSampler is applied to all non-PriorityUserKeep events that survived the first step
+//     and will ensure that, in average, the total rate of events returned by the processor is not bigger than maxEPS.
 func NewProcessor(extractors []Extractor, maxEPS float64) *Processor {
 	return newProcessor(extractors, newMaxEPSSampler(maxEPS))
 }

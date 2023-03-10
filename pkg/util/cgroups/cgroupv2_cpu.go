@@ -11,6 +11,8 @@ package cgroups
 import (
 	"strconv"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func (c *cgroupV2) GetCPUStats(stats *CPUStats) error {
@@ -101,7 +103,7 @@ func parseV2CPUMax(stats *CPUStats) func(key, value string) error {
 	return func(limit, period string) error {
 		periodVal, err := strconv.ParseUint(period, 10, 64)
 		if err == nil {
-			stats.SchedulerPeriod = uint64Ptr(periodVal * uint64(time.Microsecond))
+			stats.SchedulerPeriod = pointer.Ptr(periodVal * uint64(time.Microsecond))
 		} else {
 			return newValueError(period, err)
 		}
@@ -109,7 +111,7 @@ func parseV2CPUMax(stats *CPUStats) func(key, value string) error {
 		if limit != "max" {
 			limitVal, err := strconv.ParseUint(limit, 10, 64)
 			if err == nil {
-				stats.SchedulerQuota = uint64Ptr(limitVal * uint64(time.Microsecond))
+				stats.SchedulerQuota = pointer.Ptr(limitVal * uint64(time.Microsecond))
 			} else {
 				return newValueError(limit, err)
 			}

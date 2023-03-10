@@ -22,11 +22,31 @@ type CloudService interface {
 	GetPrefix() string
 }
 
+type LocalService struct{}
+
+// GetTags is a default implementation that returns a local empty tag set
+func (l *LocalService) GetTags() map[string]string {
+	return map[string]string{}
+}
+
+// GetOrigin is a default implementation that returns a local empty origin
+func (l *LocalService) GetOrigin() string {
+	return "local"
+}
+
+// GetPrefix is a default implementation that returns a local prefix
+func (l *LocalService) GetPrefix() string {
+	return "local"
+}
+
 func GetCloudServiceType() CloudService {
+	if isCloudRunService() {
+		return &CloudRun{}
+	}
+
 	if isContainerAppService() {
 		return &ContainerApp{}
 	}
 
-	// By default, we're in CloudRun
-	return &CloudRun{}
+	return &LocalService{}
 }

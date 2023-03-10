@@ -32,6 +32,5 @@ func TestFullYamlConfigWithOTLP(t *testing.T) {
 	assert.NoError(applyDatadogConfig(c))
 
 	assert.Equal("0.0.0.0", c.OTLPReceiver.BindHost)
-	assert.Equal(0, c.OTLPReceiver.HTTPPort)
 	assert.Equal(50053, c.OTLPReceiver.GRPCPort)
 }

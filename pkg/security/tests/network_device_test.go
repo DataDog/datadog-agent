@@ -20,7 +20,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -78,7 +77,7 @@ func TestNetDevice(t *testing.T) {
 			testNetns = uint32(stat.Ino)
 
 			return nil
-		}, func(event *sprobe.Event) bool {
+		}, func(event *model.Event) bool {
 			if !assert.Equal(t, "net_device", event.GetType(), "wrong event type") {
 				return true
 			}
@@ -95,7 +94,7 @@ func TestNetDevice(t *testing.T) {
 		err = test.GetProbeEvent(func() error {
 			cmd := exec.Command(executable, "link", "add", "host-eth0", "type", "veth", "peer", "name", "ns-eth0", "netns", "test_netns")
 			return cmd.Run()
-		}, func(event *sprobe.Event) bool {
+		}, func(event *model.Event) bool {
 			if !assert.Equal(t, "veth_pair", event.GetType(), "wrong event type") {
 				return true
 			}
@@ -119,7 +118,7 @@ func TestNetDevice(t *testing.T) {
 
 			cmd = exec.Command(executable, "link", "set", "ns-eth1", "netns", "test_netns")
 			return cmd.Run()
-		}, func(event *sprobe.Event) bool {
+		}, func(event *model.Event) bool {
 			if !assert.Equal(t, "veth_pair", event.GetType(), "wrong event type") {
 				return true
 			}

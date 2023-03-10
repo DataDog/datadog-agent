@@ -21,7 +21,7 @@ func TestCommand(t *testing.T) {
 		[]string{"run"},
 		run,
 		func(cliParams *cliParams, coreParams core.BundleParams) {
-			require.Equal(t, true, coreParams.ConfigLoadSecrets)
+			require.Equal(t, true, coreParams.ConfigLoadSecrets())
 		})
 }
 
@@ -32,6 +32,6 @@ func TestCommandPidfile(t *testing.T) {
 		run,
 		func(cliParams *cliParams, coreParams core.BundleParams) {
 			require.Equal(t, "/pid/file", cliParams.pidfilePath)
-			require.Equal(t, true, coreParams.ConfigLoadSecrets)
+			require.Equal(t, true, coreParams.ConfigLoadSecrets())
 		})
 }

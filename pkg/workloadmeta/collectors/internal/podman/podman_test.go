@@ -173,6 +173,7 @@ func TestPull(t *testing.T) {
 				Image: workloadmeta.ContainerImage{
 					RawName:   "docker.io/datadog/agent:latest",
 					Name:      "docker.io/datadog/agent",
+					Registry:  "docker.io",
 					ShortName: "agent",
 					Tag:       "latest",
 				},
@@ -215,13 +216,12 @@ func TestPull(t *testing.T) {
 						"label-b-dev": "value-b-dev",
 					},
 				},
-				EnvVars: map[string]string{
-					"SOME_ENV": "SOME_VAL",
-				},
+				EnvVars:  map[string]string{},
 				Hostname: "agent-dev",
 				Image: workloadmeta.ContainerImage{
 					RawName:   "docker.io/datadog/agent-dev:latest",
 					Name:      "docker.io/datadog/agent-dev",
+					Registry:  "docker.io",
 					ShortName: "agent-dev",
 					Tag:       "latest",
 				},

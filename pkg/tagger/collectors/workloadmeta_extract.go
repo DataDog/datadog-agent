@@ -56,6 +56,8 @@ const (
 )
 
 var (
+	// When adding new environment variables, they need to be added to
+	// pkg/util/containers/env_vars_filter.go
 	standardEnvKeys = map[string]string{
 		envVarEnv:     tagKeyEnv,
 		envVarVersion: tagKeyVersion,
@@ -134,7 +136,7 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 			case workloadmeta.KindECSTask:
 				tagInfos = append(tagInfos, c.handleECSTask(ev)...)
 			case workloadmeta.KindContainerImageMetadata:
-				// No tags for now
+				tagInfos = append(tagInfos, c.handleContainerImage(ev)...)
 			default:
 				log.Errorf("cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
 			}
@@ -192,25 +194,7 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*TagInf
 		}
 	}
 
-	// standard tags from labels
-	c.extractFromMapWithFn(container.Labels, standardDockerLabels, tags.AddStandard)
-
-	// container labels as tags
-	for labelName, labelValue := range container.Labels {
-		utils.AddMetadataAsTags(labelName, labelValue, c.containerLabelsAsTags, c.globContainerLabels, tags)
-	}
-
-	// orchestrator tags from labels
-	c.extractFromMapWithFn(container.Labels, lowCardOrchestratorLabels, tags.AddLow)
-	c.extractFromMapWithFn(container.Labels, highCardOrchestratorLabels, tags.AddHigh)
-
-	// extract labels as tags
-	c.extractFromMapNormalizedWithFn(container.Labels, c.containerLabelsAsTags, tags.AddAuto)
-
-	// custom tags from label
-	if lbl, ok := container.Labels[autodiscoveryLabelTagsKey]; ok {
-		parseContainerADTagsLabels(tags, lbl)
-	}
+	c.labelsToTags(container.Labels, tags)
 
 	// standard tags from environment
 	c.extractFromMapWithFn(container.EnvVars, standardEnvKeys, tags.AddStandard)
@@ -239,6 +223,78 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*TagInf
 			LowCardTags:          low,
 			StandardTags:         standard,
 		},
+	}
+}
+
+func (c *WorkloadMetaCollector) handleContainerImage(ev workloadmeta.Event) []*TagInfo {
+	image := ev.Entity.(*workloadmeta.ContainerImageMetadata)
+
+	tags := utils.NewTagList()
+	tags.AddLow("image_name", image.Name)
+
+	// In containerd some images are created without a repo digest, and it's
+	// also possible to remove repo digests manually.
+	// This means that the set of repos that we need to handle is the union of
+	// the repos present in the repo digests and the ones present in the repo
+	// tags.
+	repos := make(map[string]struct{})
+	for _, repoDigest := range image.RepoDigests {
+		repos[strings.SplitN(repoDigest, "@sha256:", 2)[0]] = struct{}{}
+	}
+	for _, repoTag := range image.RepoTags {
+		repos[strings.SplitN(repoTag, ":", 2)[0]] = struct{}{}
+	}
+	for repo := range repos {
+		repoSplitted := strings.Split(repo, "/")
+		shortName := repoSplitted[len(repoSplitted)-1]
+		tags.AddLow("short_image", shortName)
+	}
+
+	for _, repoTag := range image.RepoTags {
+		repoTagSplitted := strings.SplitN(repoTag, ":", 2)
+		if len(repoTagSplitted) == 2 {
+			tags.AddLow("image_tag", repoTagSplitted[1])
+		}
+	}
+
+	tags.AddLow("os_name", image.OS)
+	tags.AddLow("os_version", image.OSVersion)
+	tags.AddLow("architecture", image.Architecture)
+
+	c.labelsToTags(image.Labels, tags)
+
+	low, orch, high, standard := tags.Compute()
+	return []*TagInfo{
+		{
+			Source:               containerImageSource,
+			Entity:               buildTaggerEntityID(image.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+		},
+	}
+}
+
+func (c *WorkloadMetaCollector) labelsToTags(labels map[string]string, tags *utils.TagList) {
+	// standard tags from labels
+	c.extractFromMapWithFn(labels, standardDockerLabels, tags.AddStandard)
+
+	// container labels as tags
+	for labelName, labelValue := range labels {
+		utils.AddMetadataAsTags(labelName, labelValue, c.containerLabelsAsTags, c.globContainerLabels, tags)
+	}
+
+	// orchestrator tags from labels
+	c.extractFromMapWithFn(labels, lowCardOrchestratorLabels, tags.AddLow)
+	c.extractFromMapWithFn(labels, highCardOrchestratorLabels, tags.AddHigh)
+
+	// extract labels as tags
+	c.extractFromMapNormalizedWithFn(labels, c.containerLabelsAsTags, tags.AddAuto)
+
+	// custom tags from label
+	if lbl, ok := labels[autodiscoveryLabelTagsKey]; ok {
+		parseContainerADTagsLabels(tags, lbl)
 	}
 }
 
@@ -274,6 +330,14 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo 
 	}
 	if deployName, found := pod.Annotations["openshift.io/deployment.name"]; found {
 		tags.AddOrchestrator("oshift_deployment", deployName)
+	}
+
+	// Admission + Remote Config correlation tags
+	if rcID, found := pod.Annotations[kubernetes.RcIDAnnotKey]; found {
+		tags.AddLow(kubernetes.RcIDTagName, rcID)
+	}
+	if rcRev, found := pod.Annotations[kubernetes.RcRevisionAnnotKey]; found {
+		tags.AddLow(kubernetes.RcRevisionTagName, rcRev)
 	}
 
 	for _, owner := range pod.Owners {
@@ -335,7 +399,8 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*TagInfo 
 
 	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate {
 		taskTags.AddLow("region", task.Region)
-		taskTags.AddLow("availability_zone", task.AvailabilityZone)
+		taskTags.AddLow("availability_zone", task.AvailabilityZone) // Deprecated
+		taskTags.AddLow("availability-zone", task.AvailabilityZone)
 	} else if c.collectEC2ResourceTags {
 		addResourceTags(taskTags, task.ContainerInstanceTags)
 		addResourceTags(taskTags, task.Tags)

@@ -174,7 +174,7 @@ void getOsStrings()
 
     agent_exe = L"\"" + installdir + L"bin\\agent.exe\"";
     process_exe =
-        L"\"" + installdir + L"bin\\agent\\process-agent.exe\" --config=\"" + programdataroot + L"datadog.yaml\"";
+        L"\"" + installdir + L"bin\\agent\\process-agent.exe\" --cfgpath=\"" + programdataroot + L"datadog.yaml\"";
     trace_exe = L"\"" + installdir + L"bin\\agent\\trace-agent.exe\" --config=\"" + programdataroot + L"datadog.yaml\"";
     sysprobe_exe = L"\"" + installdir + L"bin\\agent\\system-probe.exe\"";
     embedded2Dir = installdir + L"embedded2";

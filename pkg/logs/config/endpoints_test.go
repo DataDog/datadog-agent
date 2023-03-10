@@ -237,7 +237,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldFallbackOnDefaultWithIn
 	}
 }
 
-//When migrating the agent v5 to v6, logs_dd_url is set to empty. Default to the dd_url/site already set instead.
+// When migrating the agent v5 to v6, logs_dd_url is set to empty. Default to the dd_url/site already set instead.
 func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWhenMigratingToAgentV6() {
 	suite.config.Set("logs_config.logs_dd_url", "")
 	endpoints, err := BuildEndpoints(HTTPConnectivityFailure, "test-track", "test-proto", "test-source")

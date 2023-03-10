@@ -44,9 +44,23 @@ func IsKubernetes() bool {
 	return false
 }
 
+func IsECS() bool {
+	if os.Getenv("AWS_EXECUTION_ENV") == "AWS_ECS_EC2" {
+		return true
+	}
+
+	if IsECSFargate() {
+		return false
+	}
+
+	return os.Getenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI") != "" ||
+		os.Getenv("ECS_CONTAINER_METADATA_URI") != "" ||
+		os.Getenv("ECS_CONTAINER_METADATA_URI_V4") != ""
+}
+
 // IsECSFargate returns whether the Agent is running in ECS Fargate
 func IsECSFargate() bool {
-	return os.Getenv("ECS_FARGATE") != ""
+	return os.Getenv("ECS_FARGATE") != "" || os.Getenv("AWS_EXECUTION_ENV") == "AWS_ECS_FARGATE"
 }
 
 // IsHostProcAvailable returns whether host proc is available or not

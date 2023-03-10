@@ -37,6 +37,7 @@ type LambdaLogsCollector struct {
 	In                     chan []LambdaLogAPIMessage
 	lastRequestID          string
 	coldstartRequestID     string
+	outOfMemory            bool
 	out                    chan<- *logConfig.ChannelMessage
 	demux                  aggregator.Demultiplexer
 	extraTags              *Tags
@@ -46,6 +47,7 @@ type LambdaLogsCollector struct {
 	invocationEndTime      time.Time
 	process_once           *sync.Once
 	executionContext       *executioncontext.ExecutionContext
+	initDurationChan       chan<- float64
 
 	arn string
 
@@ -53,7 +55,7 @@ type LambdaLogsCollector struct {
 	handleRuntimeDone func()
 }
 
-func NewLambdaLogCollector(out chan<- *logConfig.ChannelMessage, demux aggregator.Demultiplexer, extraTags *Tags, logsEnabled bool, enhancedMetricsEnabled bool, executionContext *executioncontext.ExecutionContext, handleRuntimeDone func()) *LambdaLogsCollector {
+func NewLambdaLogCollector(out chan<- *logConfig.ChannelMessage, demux aggregator.Demultiplexer, extraTags *Tags, logsEnabled bool, enhancedMetricsEnabled bool, executionContext *executioncontext.ExecutionContext, handleRuntimeDone func(), initDurationChan chan<- float64) *LambdaLogsCollector {
 
 	return &LambdaLogsCollector{
 		In:                     make(chan []LambdaLogAPIMessage, maxBufferedLogs), // Buffered, so we can hold start-up logs before first invocation without blocking
@@ -65,6 +67,7 @@ func NewLambdaLogCollector(out chan<- *logConfig.ChannelMessage, demux aggregato
 		executionContext:       executionContext,
 		handleRuntimeDone:      handleRuntimeDone,
 		process_once:           &sync.Once{},
+		initDurationChan:       initDurationChan,
 	}
 }
 
@@ -90,6 +93,13 @@ func (lc *LambdaLogsCollector) Start() {
 		go func() {
 			for messages := range lc.In {
 				lc.processLogMessages(messages)
+			}
+			// Store the execution context if an out of memory is detected
+			if lc.outOfMemory {
+				err := lc.executionContext.SaveCurrentExecutionContext()
+				if err != nil {
+					log.Warnf("Unable to save the current state. Failed with: %s", err)
+				}
 			}
 		}()
 	})
@@ -170,7 +180,7 @@ func (lc *LambdaLogsCollector) processMessage(
 		return
 	}
 	if message.logType == logTypePlatformInitReport {
-		lc.executionContext.SetColdStartDuration(message.objectRecord.reportLogItem.initDurationTelemetry)
+		lc.initDurationChan <- message.objectRecord.reportLogItem.initDurationTelemetry
 	}
 
 	if message.logType == logTypePlatformStart {
@@ -185,8 +195,10 @@ func (lc *LambdaLogsCollector) processMessage(
 
 	if lc.enhancedMetricsEnabled {
 		tags := tags.AddColdStartTag(lc.extraTags.Tags, lc.lastRequestID == lc.coldstartRequestID)
-		if message.logType == logTypeFunction {
-			serverlessMetrics.GenerateEnhancedMetricsFromFunctionLog(message.stringRecord, message.time, tags, lc.demux)
+		if message.logType == logTypeFunction && !lc.outOfMemory {
+			if lc.outOfMemory = serverlessMetrics.ContainsOutOfMemoryLog(message.stringRecord); lc.outOfMemory {
+				serverlessMetrics.GenerateEnhancedMetricsFromFunctionLog(message.time, tags, lc.demux)
+			}
 		}
 		if message.logType == logTypePlatformReport {
 			args := serverlessMetrics.GenerateEnhancedMetricsFromReportLogArgs{

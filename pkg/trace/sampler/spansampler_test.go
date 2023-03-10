@@ -50,10 +50,10 @@ func TestNoTagNoTouch(t *testing.T) {
 // TestTagCausesInPlaceFilterAndKeep verifies that the presence of a span
 // sampling tag in any of the spans passed to ApplySpanSampling causes the
 // argument of ApplySpanSampling to be modified in the following ways:
-//  - The chunk is filtered to contain only those spans that have the span
-//    sampling tag.
-//  - The chunk's sampling priority is PriorityUserKeep.
-//  - The chunk is not marked as dropped.
+//   - The chunk is filtered to contain only those spans that have the span
+//     sampling tag.
+//   - The chunk's sampling priority is PriorityUserKeep.
+//   - The chunk is not marked as dropped.
 func TestTagCausesInPlaceFilterAndKeep(t *testing.T) {
 	// spanSamplingMetrics returns a map of numeric tags that contains the span
 	// sampling metric (numeric tag) that tracers use to indicate that the span

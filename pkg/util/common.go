@@ -25,7 +25,7 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-// CopyFile atomically copies file path `src`` to file path `dst`.
+// CopyFile atomically copies file path `src“ to file path `dst`.
 func CopyFile(src, dst string) error {
 	fi, err := os.Stat(src)
 	if err != nil {

@@ -23,7 +23,6 @@ import (
 	"time"
 	"unsafe"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
@@ -35,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/native"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
@@ -124,21 +124,9 @@ type fieldValues struct {
 	dportFl6 uint16
 }
 
-var offsetProbes = map[probes.ProbeName]string{
-	probes.TCPGetSockOpt:      "kprobe__tcp_getsockopt",
-	probes.SockGetSockOpt:     "kprobe__sock_common_getsockopt",
-	probes.TCPv6Connect:       "kprobe__tcp_v6_connect",
-	probes.IPMakeSkb:          "kprobe__ip_make_skb",
-	probes.IP6MakeSkb:         "kprobe__ip6_make_skb",
-	probes.IP6MakeSkbPre470:   "kprobe__ip6_make_skb__pre_4_7_0",
-	probes.TCPv6ConnectReturn: "kretprobe__tcp_v6_connect",
-	probes.NetDevQueue:        "tracepoint__net__net_dev_queue",
-}
-
-func idPair(name probes.ProbeName) manager.ProbeIdentificationPair {
+func idPair(name probes.ProbeFuncName) manager.ProbeIdentificationPair {
 	return manager.ProbeIdentificationPair{
-		EBPFSection:  string(name),
-		EBPFFuncName: offsetProbes[name],
+		EBPFFuncName: name,
 		UID:          "offset",
 	}
 }
@@ -147,7 +135,7 @@ func newOffsetManager() *manager.Manager {
 	return &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: "connectsock_ipv6"},
-			{Name: string(probes.TracerStatusMap)},
+			{Name: probes.TracerStatusMap},
 		},
 		PerfMaps: []*manager.PerfMap{},
 		Probes: []*manager.Probe{
@@ -259,14 +247,12 @@ func waitUntilStable(conn net.Conn, window time.Duration, attempts int) (*fieldV
 	return nil, errors.New("unstable TCP socket params")
 }
 
-func enableProbe(enabled map[probes.ProbeName]string, name probes.ProbeName) {
-	if fn, ok := offsetProbes[name]; ok {
-		enabled[name] = fn
-	}
+func enableProbe(enabled map[probes.ProbeFuncName]struct{}, name probes.ProbeFuncName) {
+	enabled[name] = struct{}{}
 }
 
-func offsetGuessProbes(c *config.Config) (map[probes.ProbeName]string, error) {
-	p := map[probes.ProbeName]string{}
+func offsetGuessProbes(c *config.Config) (map[probes.ProbeFuncName]struct{}, error) {
+	p := map[probes.ProbeFuncName]struct{}{}
 	enableProbe(p, probes.TCPGetSockOpt)
 	enableProbe(p, probes.SockGetSockOpt)
 	enableProbe(p, probes.IPMakeSkb)
@@ -435,7 +421,7 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 			break
 		}
 		status.Offset_saddr_fl4++
-		if status.Offset_saddr_fl4 == threshold {
+		if status.Offset_saddr_fl4 >= threshold {
 			// Let's skip all other flowi4 fields
 			logAndAdvance(status, notApplicable, flowi6EntryState(status))
 			status.Fl4_offsets = disabled
@@ -447,7 +433,7 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 			break
 		}
 		status.Offset_daddr_fl4++
-		if status.Offset_daddr_fl4 == threshold {
+		if status.Offset_daddr_fl4 >= threshold {
 			logAndAdvance(status, notApplicable, flowi6EntryState(status))
 			status.Fl4_offsets = disabled
 			break
@@ -458,7 +444,7 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 			break
 		}
 		status.Offset_sport_fl4++
-		if status.Offset_sport_fl4 == threshold {
+		if status.Offset_sport_fl4 >= threshold {
 			logAndAdvance(status, notApplicable, flowi6EntryState(status))
 			status.Fl4_offsets = disabled
 			break
@@ -470,7 +456,7 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 			break
 		}
 		status.Offset_dport_fl4++
-		if status.Offset_dport_fl4 == threshold {
+		if status.Offset_dport_fl4 >= threshold {
 			logAndAdvance(status, notApplicable, flowi6EntryState(status))
 			status.Fl4_offsets = disabled
 			break
@@ -481,7 +467,7 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 			break
 		}
 		status.Offset_saddr_fl6++
-		if status.Offset_saddr_fl6 == threshold {
+		if status.Offset_saddr_fl6 >= threshold {
 			// Let's skip all other flowi6 fields
 			logAndAdvance(status, notApplicable, netebpf.GuessNetNS)
 			status.Fl6_offsets = disabled
@@ -493,7 +479,7 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 			break
 		}
 		status.Offset_daddr_fl6++
-		if status.Offset_daddr_fl6 == threshold {
+		if status.Offset_daddr_fl6 >= threshold {
 			logAndAdvance(status, notApplicable, netebpf.GuessNetNS)
 			status.Fl6_offsets = disabled
 			break
@@ -504,7 +490,7 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 			break
 		}
 		status.Offset_sport_fl6++
-		if status.Offset_sport_fl6 == threshold {
+		if status.Offset_sport_fl6 >= threshold {
 			logAndAdvance(status, notApplicable, netebpf.GuessNetNS)
 			status.Fl6_offsets = disabled
 			break
@@ -516,7 +502,7 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 			break
 		}
 		status.Offset_dport_fl6++
-		if status.Offset_dport_fl6 == threshold {
+		if status.Offset_dport_fl6 >= threshold {
 			logAndAdvance(status, notApplicable, netebpf.GuessNetNS)
 			status.Fl6_offsets = disabled
 			break
@@ -629,15 +615,17 @@ func flowi6EntryState(status *netebpf.TracerStatus) netebpf.GuessWhat {
 // possible offset and expected value of each field in a eBPF map. In kernel-space
 // we rely on two different kprobes: `tcp_getsockopt` and `tcp_connect_v6`. When they're
 // are triggered, we store the value of
-//     (struct sock *)skp + possible_offset
+//
+//	(struct sock *)skp + possible_offset
+//
 // in the eBPF map. Then, back in userspace (checkAndUpdateCurrentOffset()), we
 // check that value against the expected value of the field, advancing the
 // offset and repeating the process until we find the value we expect. Then, we
 // guess the next field.
 func guessOffsets(m *manager.Manager, cfg *config.Config) ([]manager.ConstantEditor, error) {
-	mp, _, err := m.GetMap(string(probes.TracerStatusMap))
+	mp, _, err := m.GetMap(probes.TracerStatusMap)
 	if err != nil {
-		return nil, fmt.Errorf("unable to find map %s: %s", string(probes.TracerStatusMap), err)
+		return nil, fmt.Errorf("unable to find map %s: %s", probes.TracerStatusMap, err)
 	}
 
 	// When reading kernel structs at different offsets, don't go over the set threshold

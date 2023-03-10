@@ -13,6 +13,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	"github.com/stretchr/testify/assert"
 	batchv1 "k8s.io/api/batch/v1"
@@ -47,11 +48,11 @@ func TestExtractCronJobV1Beta1(t *testing.T) {
 				},
 				Spec: batchv1beta1.CronJobSpec{
 					ConcurrencyPolicy:          batchv1beta1.ForbidConcurrent,
-					FailedJobsHistoryLimit:     int32Ptr(4),
+					FailedJobsHistoryLimit:     pointer.Ptr(int32(4)),
 					Schedule:                   "*/5 * * * *",
-					StartingDeadlineSeconds:    int64Ptr(120),
-					SuccessfulJobsHistoryLimit: int32Ptr(2),
-					Suspend:                    boolPtr(false),
+					StartingDeadlineSeconds:    pointer.Ptr(int64(120)),
+					SuccessfulJobsHistoryLimit: pointer.Ptr(int32(2)),
+					Suspend:                    pointer.Ptr(false),
 				},
 				Status: batchv1beta1.CronJobStatus{
 					Active: []corev1.ObjectReference{

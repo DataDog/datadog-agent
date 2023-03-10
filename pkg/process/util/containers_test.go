@@ -402,17 +402,17 @@ func TestGetContainers(t *testing.T) {
 	// Step 2: Test proper rate computation
 	//
 	cID1Metrics.ContainerStats.Timestamp = testTime.Add(10 * time.Second)
-	cID1Metrics.ContainerStats.CPU.User = pointer.Float64Ptr(6000000000)
-	cID1Metrics.ContainerStats.CPU.System = pointer.Float64Ptr(4000000000)
-	cID1Metrics.ContainerStats.CPU.Total = pointer.Float64Ptr(2000000000)
-	cID1Metrics.ContainerStats.IO.ReadBytes = pointer.Float64Ptr(400)
-	cID1Metrics.ContainerStats.IO.WriteBytes = pointer.Float64Ptr(800)
-	cID1Metrics.ContainerStats.Memory.UsageTotal = pointer.Float64Ptr(43000)
+	cID1Metrics.ContainerStats.CPU.User = pointer.Ptr(6000000000.0)
+	cID1Metrics.ContainerStats.CPU.System = pointer.Ptr(4000000000.0)
+	cID1Metrics.ContainerStats.CPU.Total = pointer.Ptr(2000000000.0)
+	cID1Metrics.ContainerStats.IO.ReadBytes = pointer.Ptr(400.0)
+	cID1Metrics.ContainerStats.IO.WriteBytes = pointer.Ptr(800.0)
+	cID1Metrics.ContainerStats.Memory.UsageTotal = pointer.Ptr(43000.0)
 	cID1Metrics.NetworkStats.Timestamp = testTime.Add(10 * time.Second)
-	cID1Metrics.NetworkStats.BytesRcvd = pointer.Float64Ptr(83)
-	cID1Metrics.NetworkStats.BytesSent = pointer.Float64Ptr(82)
-	cID1Metrics.NetworkStats.PacketsRcvd = pointer.Float64Ptr(821)
-	cID1Metrics.NetworkStats.PacketsSent = pointer.Float64Ptr(820)
+	cID1Metrics.NetworkStats.BytesRcvd = pointer.Ptr(83.0)
+	cID1Metrics.NetworkStats.BytesSent = pointer.Ptr(82.0)
+	cID1Metrics.NetworkStats.PacketsRcvd = pointer.Ptr(821.0)
+	cID1Metrics.NetworkStats.PacketsSent = pointer.Ptr(820.0)
 	metricsCollector.SetContainerEntry("cID1", cID1Metrics)
 
 	// Remove one container from previous rates

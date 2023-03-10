@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/DataDog/datadog-agent/pkg/security/probe/event",
+  "$id": "https://github.com/DataDog/datadog-agent/pkg/security/serializers/event",
   "$defs": {
     "BPFEvent": {
       "properties": {
@@ -88,6 +88,11 @@
         "id": {
           "type": "string",
           "description": "Container ID"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation time of the container"
         }
       },
       "additionalProperties": false,
@@ -282,6 +287,14 @@
           "type": "string",
           "format": "date-time",
           "description": "File change time"
+        },
+        "package_name": {
+          "type": "string",
+          "description": "System package name"
+        },
+        "package_version": {
+          "type": "string",
+          "description": "System package version"
         }
       },
       "additionalProperties": false,
@@ -371,6 +384,14 @@
           "type": "string",
           "format": "date-time",
           "description": "File change time"
+        },
+        "package_name": {
+          "type": "string",
+          "description": "System package name"
+        },
+        "package_version": {
+          "type": "string",
+          "description": "System package version"
         },
         "destination": {
           "$ref": "#/$defs/File",
@@ -524,6 +545,56 @@
         "name"
       ],
       "description": "ModuleEventSerializer serializes a module event to JSON"
+    },
+    "MountEvent": {
+      "properties": {
+        "mp": {
+          "$ref": "#/$defs/File"
+        },
+        "root": {
+          "$ref": "#/$defs/File"
+        },
+        "mount_id": {
+          "type": "integer"
+        },
+        "group_id": {
+          "type": "integer"
+        },
+        "parent_mount_id": {
+          "type": "integer"
+        },
+        "bind_src_mount_id": {
+          "type": "integer"
+        },
+        "device": {
+          "type": "integer"
+        },
+        "fs_type": {
+          "type": "string"
+        },
+        "mountpoint.path": {
+          "type": "string"
+        },
+        "source.path": {
+          "type": "string"
+        },
+        "mountpoint.path_error": {
+          "type": "string"
+        },
+        "source.path_error": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "mount_id",
+        "group_id",
+        "parent_mount_id",
+        "bind_src_mount_id",
+        "device"
+      ],
+      "description": "MountEventSerializer serializes a mount event to JSON"
     },
     "NetworkContext": {
       "properties": {
@@ -1091,6 +1162,9 @@
     },
     "exit": {
       "$ref": "#/$defs/ExitEvent"
+    },
+    "mount": {
+      "$ref": "#/$defs/MountEvent"
     },
     "usr": {
       "$ref": "#/$defs/UserContext"

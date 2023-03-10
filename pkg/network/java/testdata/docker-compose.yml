@@ -1,0 +1,7 @@
+version: '3'
+services:
+  java:
+    image: ${IMAGE_VERSION}
+    entrypoint: java -cp /v ${ENTRYCLASS}
+    volumes:
+      - ./:/v:z

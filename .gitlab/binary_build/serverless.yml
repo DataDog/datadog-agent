@@ -21,7 +21,7 @@ build_serverless-deb_x64:
   extends: .build_serverless_common
   variables:
     BINARY_NAME: datadog-agent-x64
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   needs: ["go_deps"]
   artifacts:
@@ -33,7 +33,7 @@ build_serverless-deb_arm64:
   extends: .build_serverless_common
   variables:
     BINARY_NAME: datadog-agent-arm64
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   needs: ["go_deps"]
 
@@ -45,7 +45,7 @@ check_serverless_size_x64:
     BINARY_NAME: datadog-agent-x64
     # this baseline is the current binary size + 3%
     BASELINE_SIZE_IN_BYTES: 30562465
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   needs: ["go_deps"]
 
@@ -57,6 +57,6 @@ check_serverless_size_arm64:
     BINARY_NAME: datadog-agent-arm64
     # this baseline is the current binary size + 3%
     BASELINE_SIZE_IN_BYTES: 30562465
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   needs: ["go_deps"]

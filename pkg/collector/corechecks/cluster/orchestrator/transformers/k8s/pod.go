@@ -13,6 +13,7 @@ import (
 	"hash/fnv"
 	"sort"
 	"strconv"
+	"strings"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
@@ -56,6 +57,12 @@ func ExtractPod(p *corev1.Pod) *model.Pod {
 	podModel.ConditionMessage = getConditionMessage(p)
 
 	podModel.ResourceRequirements = extractPodResourceRequirements(p.Spec.Containers, p.Spec.InitContainers)
+
+	if len(p.Status.Conditions) > 0 {
+		podConditions, conditionTags := extractPodConditions(p)
+		podModel.Conditions = podConditions
+		podModel.Tags = append(podModel.Tags, conditionTags...)
+	}
 
 	if p.Status.StartTime != nil {
 		podModel.StartTime = p.Status.StartTime.Unix()
@@ -261,6 +268,36 @@ func convertResourceRequirements(rq corev1.ResourceRequirements, containerName s
 		Name:     containerName,
 		Type:     resourceType,
 	}
+}
+
+// extractPodConditions iterates over pod conditions and returns:
+// - the payload representation of those conditions
+// - the list of tags that will enable pod filtering by condition
+func extractPodConditions(p *corev1.Pod) (conditions []*model.PodCondition, conditionTags []string) {
+	conditions = make([]*model.PodCondition, 0, len(p.Status.Conditions))
+	conditionTags = make([]string, 0, len(p.Status.Conditions))
+
+	for _, condition := range p.Status.Conditions {
+		c := &model.PodCondition{
+			Message: condition.Message,
+			Reason:  condition.Reason,
+			Status:  string(condition.Status),
+			Type:    string(condition.Type),
+		}
+		if !condition.LastProbeTime.IsZero() {
+			c.LastProbeTime = condition.LastProbeTime.Unix()
+		}
+		if !condition.LastTransitionTime.IsZero() {
+			c.LastTransitionTime = condition.LastTransitionTime.Unix()
+		}
+
+		conditions = append(conditions, c)
+
+		conditionTag := fmt.Sprintf("pod_condition_%s:%s", strings.ToLower(string(condition.Type)), strings.ToLower(string(condition.Status)))
+		conditionTags = append(conditionTags, conditionTag)
+	}
+
+	return
 }
 
 // getConditionMessage loops through the pod conditions, and reports the message of the first one

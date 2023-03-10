@@ -11,10 +11,8 @@ package http
 import (
 	"fmt"
 	"math"
-	"os"
 
 	"github.com/cilium/ebpf"
-	"github.com/iovisor/gobpf/pkg/cpupossible"
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -23,52 +21,45 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	httpInFlightMap   = "http_in_flight"
-	httpBatchesMap    = "http_batches"
-	httpBatchStateMap = "http_batch_state"
-	httpBatchEvents   = "http_batch_events"
+	httpInFlightMap  = "http_in_flight"
+	http2InFlightMap = "http2_in_flight"
 
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
 	// to classify protocols and dispatch the correct handlers.
-	protocolDispatcherSocketFilterSection  = "socket/protocol_dispatcher"
-	protocolDispatcherSocketFilterFunction = "socket__protocol_dispatcher"
-	protocolDispatcherProgramsMap          = "protocols_progs"
-
-	httpSocketFilter = "socket/http_filter"
+	protocolDispatcherSocketFilterFunction   = "socket__protocol_dispatcher"
+	protocolDispatcherProgramsMap            = "protocols_progs"
+	protocolDispatcherClassificationPrograms = "dispatcher_classification_progs"
+	dispatcherConnectionProtocolMap          = "dispatcher_connection_protocol"
+	connectionStatesMap                      = "connection_states"
 
 	// maxActive configures the maximum number of instances of the
 	// kretprobe-probed functions handled simultaneously.  This value should be
 	// enough for typical workloads (e.g. some amount of processes blocked on
 	// the accept syscall).
 	maxActive = 128
+	probeUID  = "http"
 
-	// size of the channel containing completed http_notification_objects
-	batchNotificationsChanSize = 100
-
-	probeUID = "http"
+	kafkaLastTCPSeqPerConnectionMap = "kafka_last_tcp_seq_per_connection"
 )
 
 type ebpfProgram struct {
 	*errtelemetry.Manager
-	cfg         *config.Config
-	bytecode    bytecode.AssetReader
-	offsets     []manager.ConstantEditor
-	subprograms []subprogram
-	mapCleaner  *ddebpf.MapCleaner
-
-	batchCompletionHandler *ddebpf.PerfHandler
+	cfg             *config.Config
+	offsets         []manager.ConstantEditor
+	subprograms     []subprogram
+	probesResolvers []probeResolver
+	mapCleaner      *ddebpf.MapCleaner
+	tailCallRouter  []manager.TailCallRoute
 }
 
-type subprogram interface {
-	ConfigureManager(*errtelemetry.Manager)
-	ConfigureOptions(*manager.Options)
-
+type probeResolver interface {
+	// GetAllUndefinedProbes returns all undefined probes.
 	// Subprogram probes maybe defined in the same ELF file as the probes
 	// of the main program. The cilium loader loads all programs defined
 	// in an ELF file in to the kernel. Therefore, these programs may be
@@ -91,56 +82,39 @@ type subprogram interface {
 	// To reiterate, this is necessary due to the fact that the cilium loader loads
 	// all programs defined in an ELF file regardless if they are later attached or not.
 	GetAllUndefinedProbes() []manager.ProbeIdentificationPair
+}
+
+type subprogram interface {
+	ConfigureManager(*errtelemetry.Manager)
+	ConfigureOptions(*manager.Options)
 	Start()
 	Stop()
 }
 
-var tailCalls = []manager.TailCallRoute{
-	{
-		ProgArrayName: protocolDispatcherProgramsMap,
-		Key:           uint32(ProtocolHTTP),
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			EBPFSection:  httpSocketFilter,
-			EBPFFuncName: "socket__http_filter",
-		},
+var http2TailCall = manager.TailCallRoute{
+	ProgArrayName: protocolDispatcherProgramsMap,
+	Key:           uint32(ProtocolHTTP2),
+	ProbeIdentificationPair: manager.ProbeIdentificationPair{
+		EBPFFuncName: "socket__http2_filter",
 	},
 }
 
 func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
-	bc, err := getBytecode(c)
-	if err != nil {
-		return nil, err
-	}
-
-	batchCompletionHandler := ddebpf.NewPerfHandler(batchNotificationsChanSize)
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: httpInFlightMap},
-			{Name: httpBatchesMap},
-			{Name: httpBatchStateMap},
 			{Name: sslSockByCtxMap},
 			{Name: protocolDispatcherProgramsMap},
 			{Name: "ssl_read_args"},
 			{Name: "bio_new_socket_args"},
 			{Name: "fd_by_ssl_bio"},
 			{Name: "ssl_ctx_by_pid_tgid"},
-		},
-		PerfMaps: []*manager.PerfMap{
-			{
-				Map: manager.Map{Name: httpBatchEvents},
-				PerfMapOptions: manager.PerfMapOptions{
-					PerfRingBufferSize: 256 * os.Getpagesize(),
-					Watermark:          1,
-					RecordHandler:      batchCompletionHandler.RecordHandler,
-					LostHandler:        batchCompletionHandler.LostHandler,
-					RecordGetter:       batchCompletionHandler.RecordGetter,
-				},
-			},
+			{Name: connectionStatesMap},
+			{Name: protocolDispatcherClassificationPrograms},
 		},
 		Probes: []*manager.Probe{
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  string(probes.TCPSendMsg),
 					EBPFFuncName: "kprobe__tcp_sendmsg",
 					UID:          probeUID,
 				},
@@ -148,14 +122,12 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "tracepoint/net/netif_receive_skb",
 					EBPFFuncName: "tracepoint__net__netif_receive_skb",
 					UID:          probeUID,
 				},
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  protocolDispatcherSocketFilterSection,
 					EBPFFuncName: protocolDispatcherSocketFilterFunction,
 					UID:          probeUID,
 				},
@@ -163,21 +135,69 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		},
 	}
 
-	// Add the subprograms even if nil, so that the manager can get the
-	// undefined probes from them when they are not enabled. Subprograms
-	// functions do checks for nil before doing anything.
-	ebpfSubprograms := []subprogram{
-		newGoTLSProgram(c),
-		newSSLProgram(c, sockFD),
+	if c.EnableHTTP2Monitoring {
+		mgr.Maps = append(mgr.Maps, &manager.Map{Name: "http2_dynamic_table"}, &manager.Map{Name: "http2_static_table"})
+	}
+
+	subprogramProbesResolvers := make([]probeResolver, 0, 3)
+	subprograms := make([]subprogram, 0, 3)
+
+	goTLSProg := newGoTLSProgram(c)
+	subprogramProbesResolvers = append(subprogramProbesResolvers, goTLSProg)
+	if goTLSProg != nil {
+		subprograms = append(subprograms, goTLSProg)
+	}
+	javaTLSProg := newJavaTLSProgram(c)
+	subprogramProbesResolvers = append(subprogramProbesResolvers, javaTLSProg)
+	if javaTLSProg != nil {
+		subprograms = append(subprograms, javaTLSProg)
+	}
+	openSSLProg := newSSLProgram(c, sockFD)
+	subprogramProbesResolvers = append(subprogramProbesResolvers, openSSLProg)
+	if openSSLProg != nil {
+		subprograms = append(subprograms, openSSLProg)
+	}
+
+	tailCalls := []manager.TailCallRoute{
+		{
+			ProgArrayName: protocolDispatcherProgramsMap,
+			Key:           uint32(ProtocolHTTP),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "socket__http_filter",
+			},
+		},
+	}
+
+	if c.EnableHTTP2Monitoring {
+		tailCalls = append(tailCalls, http2TailCall)
+	}
+
+	// If Kafka monitoring is enabled, the kafka parsing function and the Kafka dispatching function are added to the dispatcher mechanism.
+	if c.EnableKafkaMonitoring {
+		tailCalls = append(tailCalls,
+			manager.TailCallRoute{
+				ProgArrayName: protocolDispatcherProgramsMap,
+				Key:           uint32(ProtocolKafka),
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "socket__kafka_filter",
+				},
+			},
+			manager.TailCallRoute{
+				ProgArrayName: protocolDispatcherClassificationPrograms,
+				Key:           uint32(DispatcherKafkaProg),
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "socket__protocol_dispatcher_kafka",
+				},
+			})
 	}
 
 	program := &ebpfProgram{
-		Manager:                errtelemetry.NewManager(mgr, bpfTelemetry),
-		bytecode:               bc,
-		cfg:                    c,
-		offsets:                offsets,
-		batchCompletionHandler: batchCompletionHandler,
-		subprograms:            ebpfSubprograms,
+		Manager:         errtelemetry.NewManager(mgr, bpfTelemetry),
+		cfg:             c,
+		offsets:         offsets,
+		subprograms:     subprograms,
+		probesResolvers: subprogramProbesResolvers,
+		tailCallRouter:  tailCalls,
 	}
 
 	return program, nil
@@ -185,13 +205,11 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 
 func (e *ebpfProgram) Init() error {
 	var undefinedProbes []manager.ProbeIdentificationPair
-
-	defer e.bytecode.Close()
-
-	for _, tc := range tailCalls {
+	for _, tc := range e.tailCallRouter {
 		undefinedProbes = append(undefinedProbes, tc.ProbeIdentificationPair)
 	}
-	for _, s := range e.subprograms {
+
+	for _, s := range e.probesResolvers {
 		undefinedProbes = append(undefinedProbes, s.GetAllUndefinedProbes()...)
 	}
 
@@ -203,71 +221,32 @@ func (e *ebpfProgram) Init() error {
 		s.ConfigureManager(e.Manager)
 	}
 
-	onlineCPUs, err := cpupossible.Get()
-	if err != nil {
-		return fmt.Errorf("couldn't determine number of CPUs: %w", err)
+	var err error
+	if e.cfg.EnableCORE {
+		err = e.initCORE()
+		if err == nil {
+			return nil
+		}
+
+		if !e.cfg.AllowRuntimeCompiledFallback && !e.cfg.AllowPrecompiledFallback {
+			return fmt.Errorf("co-re load failed: %w", err)
+		}
+		log.Warnf("co-re load failed. attempting fallback: %s", err)
 	}
 
-	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
-	if e.cfg.AttachKprobesWithKprobeEventsABI {
-		kprobeAttachMethod = manager.AttachKprobeWithPerfEventOpen
+	if e.cfg.EnableRuntimeCompiler || (err != nil && e.cfg.AllowRuntimeCompiledFallback) {
+		err = e.initRuntimeCompiler()
+		if err == nil {
+			return nil
+		}
+
+		if !e.cfg.AllowPrecompiledFallback {
+			return fmt.Errorf("runtime compilation failed: %w", err)
+		}
+		log.Warnf("runtime compilation failed: attempting fallback: %s", err)
 	}
 
-	options := manager.Options{
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
-		},
-		MapSpecEditors: map[string]manager.MapSpecEditor{
-			httpInFlightMap: {
-				Type:       ebpf.Hash,
-				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
-				EditorFlag: manager.EditMaxEntries,
-			},
-			httpBatchesMap: {
-				Type:       ebpf.Hash,
-				MaxEntries: uint32(len(onlineCPUs) * HTTPBatchPages),
-				EditorFlag: manager.EditMaxEntries,
-			},
-		},
-		TailCallRouter: tailCalls,
-		ActivatedProbes: []manager.ProbesSelector{
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  protocolDispatcherSocketFilterSection,
-					EBPFFuncName: protocolDispatcherSocketFilterFunction,
-					UID:          probeUID,
-				},
-			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  string(probes.TCPSendMsg),
-					EBPFFuncName: "kprobe__tcp_sendmsg",
-					UID:          probeUID,
-				},
-			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "tracepoint/net/netif_receive_skb",
-					EBPFFuncName: "tracepoint__net__netif_receive_skb",
-					UID:          probeUID,
-				},
-			},
-		},
-		ConstantEditors:           e.offsets,
-		DefaultKprobeAttachMethod: kprobeAttachMethod,
-	}
-
-	for _, s := range e.subprograms {
-		s.ConfigureOptions(&options)
-	}
-
-	err = e.InitWithOptions(e.bytecode, options)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return e.initPrebuilt()
 }
 
 func (e *ebpfProgram) Start() error {
@@ -288,11 +267,33 @@ func (e *ebpfProgram) Start() error {
 func (e *ebpfProgram) Close() error {
 	e.mapCleaner.Stop()
 	err := e.Stop(manager.CleanAll)
-	e.batchCompletionHandler.Stop()
 	for _, s := range e.subprograms {
 		s.Stop()
 	}
 	return err
+}
+
+func (e *ebpfProgram) initCORE() error {
+	assetName := getAssetName("http", e.cfg.BPFDebug)
+	return ddebpf.LoadCOREAsset(&e.cfg.Config, assetName, e.init)
+}
+
+func (e *ebpfProgram) initRuntimeCompiler() error {
+	bc, err := getRuntimeCompiledHTTP(e.cfg)
+	if err != nil {
+		return err
+	}
+	defer bc.Close()
+	return e.init(bc, manager.Options{})
+}
+
+func (e *ebpfProgram) initPrebuilt() error {
+	bc, err := netebpf.ReadHTTPModule(e.cfg.BPFDir, e.cfg.BPFDebug)
+	if err != nil {
+		return err
+	}
+	defer bc.Close()
+	return e.init(bc, manager.Options{})
 }
 
 func (e *ebpfProgram) setupMapCleaner() {
@@ -321,23 +322,97 @@ func (e *ebpfProgram) setupMapCleaner() {
 	e.mapCleaner = httpMapCleaner
 }
 
-func getBytecode(c *config.Config) (bc bytecode.AssetReader, err error) {
-	if c.EnableRuntimeCompiler {
-		bc, err = getRuntimeCompiledHTTP(c)
-		if err != nil {
-			if !c.AllowPrecompiledFallback {
-				return nil, fmt.Errorf("error compiling network http tracer: %w", err)
-			}
-			log.Warnf("error compiling network http tracer, falling back to pre-compiled: %s", err)
-		}
+func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) error {
+	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
+	if e.cfg.AttachKprobesWithKprobeEventsABI {
+		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
 	}
 
-	if bc == nil {
-		bc, err = netebpf.ReadHTTPModule(c.BPFDir, c.BPFDebug)
-		if err != nil {
-			return nil, fmt.Errorf("could not read bpf module: %s", err)
-		}
+	options.RLimit = &unix.Rlimit{
+		Cur: math.MaxUint64,
+		Max: math.MaxUint64,
 	}
 
-	return
+	options.MapSpecEditors = map[string]manager.MapSpecEditor{
+		httpInFlightMap: {
+			Type:       ebpf.Hash,
+			MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+			EditorFlag: manager.EditMaxEntries,
+		},
+		http2InFlightMap: {
+			Type:       ebpf.Hash,
+			MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+			EditorFlag: manager.EditMaxEntries,
+		},
+		connectionStatesMap: {
+			Type:       ebpf.Hash,
+			MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+			EditorFlag: manager.EditMaxEntries,
+		},
+		dispatcherConnectionProtocolMap: {
+			Type:       ebpf.Hash,
+			MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+			EditorFlag: manager.EditMaxEntries,
+		},
+		kafkaLastTCPSeqPerConnectionMap: {
+			Type:       ebpf.Hash,
+			MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+			EditorFlag: manager.EditMaxEntries,
+		},
+	}
+
+	options.TailCallRouter = e.tailCallRouter
+	options.ActivatedProbes = []manager.ProbesSelector{
+		&manager.ProbeSelector{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: protocolDispatcherSocketFilterFunction,
+				UID:          probeUID,
+			},
+		},
+		&manager.ProbeSelector{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "kprobe__tcp_sendmsg",
+				UID:          probeUID,
+			},
+		},
+		&manager.ProbeSelector{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "tracepoint__net__netif_receive_skb",
+				UID:          probeUID,
+			},
+		},
+	}
+	options.ConstantEditors = e.offsets
+	options.DefaultKprobeAttachMethod = kprobeAttachMethod
+	options.VerifierOptions.Programs.LogSize = 2 * 1024 * 1024
+
+	for _, s := range e.subprograms {
+		s.ConfigureOptions(&options)
+	}
+
+	// Configure event streams
+	events.Configure("http", e.Manager.Manager, &options)
+
+	if e.cfg.EnableHTTP2Monitoring {
+		events.Configure("http2", e.Manager.Manager, &options)
+	} else {
+		options.ExcludedFunctions = append(options.ExcludedFunctions, "socket__http2_filter")
+	}
+
+	if e.cfg.EnableKafkaMonitoring {
+		events.Configure("kafka", e.Manager.Manager, &options)
+	} else {
+		// If Kafka monitoring is not enabled, loading the program will cause a verifier issue and should be avoided.
+		options.ExcludedFunctions = append(options.ExcludedFunctions, "socket__kafka_filter", "socket__protocol_dispatcher_kafka")
+	}
+
+	return e.InitWithOptions(buf, options)
+}
+
+func getAssetName(module string, debug bool) string {
+	if debug {
+		return fmt.Sprintf("%s-debug.o", module)
+	}
+
+	return fmt.Sprintf("%s.o", module)
 }

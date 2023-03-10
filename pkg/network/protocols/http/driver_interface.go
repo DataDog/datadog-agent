@@ -146,7 +146,7 @@ func (di *httpDriverInterface) startReadingBuffers() {
 	}()
 }
 
-//func (di *httpDriverInterface) flushPendingTransactions() ([]driver.HttpTransactionType, error) {
+// func (di *httpDriverInterface) flushPendingTransactions() ([]driver.HttpTransactionType, error) {
 func (di *httpDriverInterface) readPendingTransactions() ([]WinHttpTransaction, error) {
 	var (
 		bytesRead uint32

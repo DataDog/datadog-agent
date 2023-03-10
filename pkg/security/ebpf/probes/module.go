@@ -15,35 +15,30 @@ var moduleProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/security_kernel_read_file",
 			EBPFFuncName: "kprobe_security_kernel_read_file",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/security_kernel_module_from_file",
 			EBPFFuncName: "kprobe_security_kernel_module_from_file",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/do_init_module",
 			EBPFFuncName: "kprobe_do_init_module",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/module_put",
 			EBPFFuncName: "kprobe_module_put",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "tracepoint/module/module_load",
 			EBPFFuncName: "module_load",
 		},
 	},

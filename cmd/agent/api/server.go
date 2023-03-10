@@ -30,6 +30,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/internal/agent"
 	"github.com/DataDog/datadog-agent/cmd/agent/api/internal/check"
+	"github.com/DataDog/datadog-agent/comp/core/flare"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
@@ -42,7 +44,7 @@ import (
 var listener net.Listener
 
 // StartServer creates the router and starts the HTTP server
-func StartServer(configService *remoteconfig.Service) error {
+func StartServer(configService *remoteconfig.Service, flare flare.Component, dogstatsdServer dogstatsdServer.Component) error {
 	initializeTLS()
 
 	// get the transport we're going to use under HTTP
@@ -73,6 +75,7 @@ func StartServer(configService *remoteconfig.Service) error {
 		configService:      configService,
 		taggerServer:       taggerserver.NewServer(tagger.GetDefaultTagger()),
 		workloadmetaServer: workloadmetaServer.NewServer(workloadmeta.GetGlobalStore()),
+		dogstatsdServer:    dogstatsdServer,
 	})
 
 	dcreds := credentials.NewTLS(&tls.Config{
@@ -105,7 +108,7 @@ func StartServer(configService *remoteconfig.Service) error {
 	checkMux.Use(validateToken)
 
 	mux := http.NewServeMux()
-	mux.Handle("/agent/", http.StripPrefix("/agent", agent.SetupHandlers(agentMux)))
+	mux.Handle("/agent/", http.StripPrefix("/agent", agent.SetupHandlers(agentMux, flare, dogstatsdServer)))
 	mux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
 	mux.Handle("/", gwmux)
 

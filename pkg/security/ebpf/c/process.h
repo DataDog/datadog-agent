@@ -138,7 +138,12 @@ static struct proc_cache_t * __attribute__((always_inline)) fill_process_context
         data->is_kworker = 1;
     }
 
-    return get_proc_cache(tgid);
+    struct proc_cache_t *pc = get_proc_cache(tgid);
+    if (pc) {
+        data->inode = pc->entry.executable.path_key.ino;
+    }
+
+    return pc;
 }
 
 static struct proc_cache_t * __attribute__((always_inline)) fill_process_context(struct process_context_t *data) {
@@ -212,14 +217,19 @@ u64 __attribute__((always_inline)) get_sizeof_upid() {
     return sizeof_upid;
 }
 
+u32 __attribute__((always_inline)) get_pid_from_root_pidns(struct pid *pid) {
+    // read the root pid namespace nr from &pid->numbers[0].nr
+    u32 root_nr = 0;
+    bpf_probe_read(&root_nr, sizeof(root_nr), (void *)pid + get_pid_numbers_offset());
+    return root_nr;
+}
+
 void __attribute__((always_inline)) cache_nr_translations(struct pid *pid) {
     if (pid == NULL) {
         return;
     }
 
-    // read the root namespace nr from &pid->numbers[0].nr
-    u32 root_nr = 0;
-    bpf_probe_read(&root_nr, sizeof(root_nr), (void *)pid + get_pid_numbers_offset());
+    u32 root_nr = get_pid_from_root_pidns(pid);
 
     // TODO(will): iterate over the list to insert the nr of each namespace, for now get only the deepest one
     u32 pid_level = 0;

@@ -56,5 +56,5 @@ CWS logs have the following JSON schema:
 
 {% endfor %}
 
-[1]: /security_platform/cloud_workload_security/
-[2]: /security_platform/cloud_workload_security/agent_expressions
+[1]: /security/cloud_workload_security/
+[2]: /security/cloud_workload_security/agent_expressions

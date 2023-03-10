@@ -89,7 +89,7 @@ func NewSECLRuleFilter(model eval.Model) *SECLRuleFilter {
 	return &SECLRuleFilter{
 		model: model,
 		context: &eval.Context{
-			Object: model.NewEvent().GetPointer(),
+			Event: model.NewEvent(),
 		},
 		parsingContext: ast.NewParsingContext(),
 	}
@@ -121,10 +121,7 @@ func (r *SECLRuleFilter) IsRuleAccepted(rule *RuleDefinition) (bool, error) {
 	evalOpts.
 		WithConstants(model.SECLConstants)
 
-	evaluator, err := eval.NewRuleEvaluator(astRule, r.model, eval.ReplacementContext{
-		Opts:       evalOpts,
-		MacroStore: &eval.MacroStore{},
-	})
+	evaluator, err := eval.NewRuleEvaluator(astRule, r.model, evalOpts)
 	if err != nil {
 		return false, err
 	}
@@ -144,7 +141,7 @@ func (r *SECLRuleFilter) IsMacroAccepted(macro *MacroDefinition) (bool, error) {
 		return false, err
 	}
 
-	evaluator, err := eval.NewRuleEvaluator(astRule, r.model, eval.ReplacementContext{})
+	evaluator, err := eval.NewRuleEvaluator(astRule, r.model, &eval.Opts{})
 	if err != nil {
 		return false, err
 	}

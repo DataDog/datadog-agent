@@ -1,0 +1,13 @@
+---
+upgrade:
+  - |
+    The command line arguments to the Datadog Agent Manager for Windows ``ddtray.exe``
+    have changed from single-dash arguments to double-dash arguments.
+    For example, ``-launch-gui`` must now be provided as ``--launch-gui``.
+    The start menu shortcut created by the installer will be automatically updated.
+    Any custom scripts or shortcuts that launch ``ddtray.exe`` with arguments must be updated manually.
+deprecations:
+  - |
+    The command line arguments to the Datadog Agent Manager for Windows ``ddtray.exe``
+    have changed from single-dash arguments to double-dash arguments.
+    For example, ``-launch-gui`` must now be provided as ``--launch-gui``.

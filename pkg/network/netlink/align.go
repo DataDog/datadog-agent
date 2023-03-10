@@ -28,12 +28,14 @@ func nlmsgAlign(len int) int {
 }
 
 // #define NLMSG_LENGTH(len) ((len) + NLMSG_HDRLEN)
+//
 //nolint:unused,deadcode
 func nlmsgLength(len int) int {
 	return len + nlmsgHeaderLen
 }
 
 // #define NLMSG_HDRLEN ((int) NLMSG_ALIGN(sizeof(struct nlmsghdr)))
+//
 //nolint:unused
 var nlmsgHeaderLen = nlmsgAlign(int(unsafe.Sizeof(netlink.Header{})))
 

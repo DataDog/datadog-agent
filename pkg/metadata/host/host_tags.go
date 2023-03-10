@@ -82,7 +82,7 @@ func GetHostTags(ctx context.Context, cached bool) *Tags {
 		return appendAndSplitTags(old, new, splits)
 	}
 
-	rawHostTags := config.GetConfiguredTags(false)
+	rawHostTags := config.GetGlobalConfiguredTags(false)
 	hostTags := make([]string, 0, len(rawHostTags))
 	gceTags := []string{}
 	hostTags = appendToHostTags(hostTags, rawHostTags)
@@ -93,7 +93,7 @@ func GetHostTags(ctx context.Context, cached bool) *Tags {
 	}
 
 	hname, _ := hostname.Get(ctx)
-	clusterName := clustername.GetClusterName(ctx, hname)
+	clusterName := clustername.GetClusterNameTagValue(ctx, hname)
 	if len(clusterName) != 0 {
 		clusterNameTags := []string{"kube_cluster_name:" + clusterName}
 		if !config.Datadog.GetBool("disable_cluster_name_tag_key") {
