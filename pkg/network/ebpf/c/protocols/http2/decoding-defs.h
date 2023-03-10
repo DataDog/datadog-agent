@@ -10,8 +10,12 @@
 #define HTTP2_MAX_FRAMES_ITERATIONS 10
 
 // A limit of max headers which we process in the request/response.
-// NOTE: we may need to change the max size.
-#define HTTP2_MAX_HEADERS_COUNT 20
+#define HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING 20
+
+// Per request or response we have fewer headers than HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING that are interesting us.
+// For request - those are method, path, and soon to be content type. For response - status code.
+// Thus differentiating between the limits can allow reducing code size.
+#define HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING 3
 
 // Maximum size for the path buffer.
 // NOTE: we may need to change the max size.
@@ -104,10 +108,6 @@ typedef struct {
     __u32 index;
     http2_header_type_t type;
 } http2_header_t;
-
-typedef struct {
-    http2_header_t array[HTTP2_MAX_HEADERS_COUNT];
-} http2_headers_t;
 
 typedef struct {
     __u32 offset;
