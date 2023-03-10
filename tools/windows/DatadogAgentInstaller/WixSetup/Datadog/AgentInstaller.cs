@@ -17,7 +17,7 @@ namespace WixSetup.Datadog
 
         // Product
         private const string ProductFullName = "Datadog Agent";
-        private const string ProductDescription = "Datadog helps you monitor your infrastructure and application";
+        private const string ProductDescription = "Datadog Agent {0}";
         private const string ProductHelpUrl = @"https://help.datadoghq.com/hc/en-us";
         private const string ProductAboutUrl = @"https://www.datadoghq.com/about/";
         private const string ProductComment = @"Copyright 2015 - Present Datadog";
@@ -124,11 +124,14 @@ namespace WixSetup.Datadog
             .SetProjectInfo(
                 upgradeCode: ProductUpgradeCode,
                 name: ProductFullName,
-                description: ProductDescription,
+                description: string.Format(ProductDescription, _agentVersion),
                 // SetProjectInfo throws an Exception is Revision is != 0
-                // we use Revision = 2 for the next gen installer while it's still a prototype
-                version: new Version(_agentVersion.Version.Major, _agentVersion.Version.Minor,
-                    _agentVersion.Version.Build, 0)
+                // The Revision is ignored by Wix anyway. 
+                version: new Version(
+                    _agentVersion.Version.Major,
+                    _agentVersion.Version.Minor,
+                    _agentVersion.Version.Build,
+                    0)
             )
             .SetControlPanelInfo(
                 name: ProductFullName,
@@ -169,18 +172,8 @@ namespace WixSetup.Datadog
             //project.EnableResilientPackage();
 
             project.MajorUpgrade = MajorUpgrade.Default;
-            // When set to yes, WiX sets the msidbUpgradeAttributesVersionMaxInclusive attribute,
-            // which tells MSI to treat a product with the same version as a major upgrade.
-            // This is useful when two product versions differ only in the fourth version field.
-            // MSI specifically ignores that field when comparing product versions,
-            // so two products that differ only in the fourth version field are the same product and
-            // need this attribute set to "true" to be detected.
-            // Note that because MSI ignores the fourth product version field,
-            // setting this attribute to yes also allows downgrades when the first three product version fields are identical.
-            // For example, product version 1.0.0.1 will "upgrade" 1.0.0.2998 because they're seen as the same version (1.0.0).
-            // That could reintroduce serious bugs so the safest choice is to change the first three version fields and
-            // omit this attribute to get the default of no.
-            project.MajorUpgrade.AllowSameVersionUpgrades = false;
+            // Set to true otherwise RC versions can't upgrade each other.
+            project.MajorUpgrade.AllowSameVersionUpgrades = true;
             project.MajorUpgrade.Schedule = UpgradeSchedule.afterInstallInitialize;
             project.MajorUpgrade.DowngradeErrorMessage =
                 "Automatic downgrades are not supported.  Uninstall the current version, and then reinstall the desired version.";
