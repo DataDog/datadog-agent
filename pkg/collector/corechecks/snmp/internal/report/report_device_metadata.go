@@ -381,6 +381,10 @@ func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]ma
 			matchedIfIndexes = append(matchedIfIndexes, key)
 		}
 		return deviceID + ":" + strconv.Itoa(int(matchedIfIndexes[0]))
+	} else if len(matchedIfIndexesMap) > 1 {
+		log.Tracef("expected 1 matching interface but found %d (idType=%s, id=%s): %+v", len(matchedIfIndexesMap), localInterfaceIDType, localInterfaceID, matchedIfIndexesMap)
+	} else {
+		log.Tracef("expected 1 matching interface but found 0 (idType=%s, id=%s)", localInterfaceIDType, localInterfaceID)
 	}
 	return ""
 }
