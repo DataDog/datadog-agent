@@ -31,9 +31,9 @@ GITHUB_SLACK_MAP = {
     "@datadog/windows-kernel-integrations": "#windows-kernel-integrations",
     "@datadog/opentelemetry": "#opentelemetry-ops",
     "@datadog/agent-e2e-testing": "#agent-testing-and-qa",
-    "@datadog/software-integrity-and-trust":"#sit",
-    "@datadog/single-machine-performance":"#single-machine-performance",
-    "@datadog/agent-integrations": "#agent-integrations"
+    "@datadog/software-integrity-and-trust": "#sit",
+    "@datadog/single-machine-performance": "#single-machine-performance",
+    "@datadog/agent-integrations": "#agent-integrations",
 }
 
 
