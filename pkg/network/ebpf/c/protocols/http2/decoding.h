@@ -248,10 +248,8 @@ static __always_inline __u8 filter_relevant_headers(dispatcher_arguments_t *iter
 
 READ_INTO_BUFFER(skb_http2, HTTP2_BUFFER_SIZE, BLK_SIZE)
 
-static __always_inline void process_headers(http2_ctx_t *http2_ctx, http2_header_t *headers_to_process, __u8 interesting_headers) {
-    http2_stream_t *current_stream;
+static __always_inline void process_headers(http2_ctx_t *http2_ctx, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers) {
     http2_header_t *current_header;
-    http2_stream_key_t *http2_stream_key_template = &http2_ctx->http2_stream_key;
 
 #pragma unroll (HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING)
     for (__u8 iteration = 0; iteration < HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING; ++iteration) {
@@ -261,17 +259,10 @@ static __always_inline void process_headers(http2_ctx_t *http2_ctx, http2_header
 
         current_header = &headers_to_process[iteration];
 
-        http2_stream_key_template->stream_id = current_header->stream_id;
-        current_stream = http2_fetch_stream(http2_stream_key_template);
-        if (current_stream == NULL) {
-            break;
-        }
-
         if (current_header->type == kStaticHeader) {
             // fetch static value
             static_table_entry_t* static_value = bpf_map_lookup_elem(&http2_static_table, &current_header->index);
             if (static_value == NULL) {
-                log_debug("http2 error static header was not found for stream %lu; index %d", http2_stream_key_template->stream_id, current_header->index);
                 break;
             }
 
@@ -313,7 +304,6 @@ static __always_inline void process_headers(http2_ctx_t *http2_ctx, http2_header
             http2_ctx->dynamic_index.index = current_header->index;
             dynamic_table_entry_t* dynamic_value = bpf_map_lookup_elem(&http2_dynamic_table, &http2_ctx->dynamic_index);
             if (dynamic_value == NULL) {
-                log_debug("http2 error dynamic header was not found for stream %lu; index %d", http2_stream_key_template->stream_id, current_header->index);
                 break;
             }
             // TODO: reuse same struct
@@ -323,12 +313,7 @@ static __always_inline void process_headers(http2_ctx_t *http2_ctx, http2_header
     }
 }
 
-static __always_inline void handle_end_of_stream(frame_type_t type, http2_stream_key_t *http2_stream_key_template) {
-    http2_stream_t *current_stream = http2_fetch_stream(http2_stream_key_template);
-    if (current_stream == NULL) {
-        return;
-    }
-
+static __always_inline void handle_end_of_stream(http2_stream_t *current_stream, http2_stream_key_t *http2_stream_key_template) {
     if (!current_stream->request_end_of_stream) {
         current_stream->request_end_of_stream = true;
         return;
@@ -343,7 +328,7 @@ static __always_inline void handle_end_of_stream(frame_type_t type, http2_stream
     bpf_map_delete_elem(&http2_in_flight, http2_stream_key_template);
 }
 
-static __always_inline void process_headers_frame(struct __sk_buff *skb, dispatcher_arguments_t *iterations_key, http2_ctx_t *http2_ctx, struct http2_frame *current_frame_header) {
+static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_stream_t *current_stream, dispatcher_arguments_t *iterations_key, http2_ctx_t *http2_ctx, struct http2_frame *current_frame_header) {
     const __u32 zero = 0;
 
     // Allocating a buffer on the heap (percpu array), the buffer represents the frame payload.
@@ -371,7 +356,7 @@ static __always_inline void process_headers_frame(struct __sk_buff *skb, dispatc
 
     __u8 interesting_headers = filter_relevant_headers(iterations_key, http2_ctx, headers_to_process, current_frame_header->stream_id, frame_payload);
     if (interesting_headers > 0) {
-        process_headers(http2_ctx, headers_to_process, interesting_headers);
+        process_headers(http2_ctx, current_stream, headers_to_process, interesting_headers);
     }
 }
 
@@ -395,30 +380,27 @@ static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, dispatcher_
         return -1;
     }
 
-    // Check if we should process the frame.
-    switch (current_frame.type) {
-    case kHeadersFrame:
-        // We always want to process headers frame.
-        process_headers_frame(skb, iterations_key, http2_ctx, &current_frame);
-        break;
-    case kDataFrame:
-        if ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
-            // We want to process data frame if and only if, it is an end of stream.
-            break;
-        }
-        // fallthrough
-    default:
+    bool is_end_of_stream = (current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM;
+    bool is_data_end_of_stream = current_frame.type == kDataFrame && is_end_of_stream;
+    if (current_frame.type != kHeadersFrame && !is_data_end_of_stream) {
         // Should not process the frame.
-        goto end;
+        return HTTP2_FRAME_HEADER_SIZE + current_frame.length;
     }
 
-    // If the payload is end of stream, call handle_end_of_stream.
-    if ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
-        http2_ctx->http2_stream_key.stream_id = current_frame.stream_id;
-        handle_end_of_stream(current_frame.type, &http2_ctx->http2_stream_key);
+    http2_ctx->http2_stream_key.stream_id = current_frame.stream_id;
+    http2_stream_t *current_stream = http2_fetch_stream(&http2_ctx->http2_stream_key);
+    if (current_stream == NULL) {
+        return HTTP2_FRAME_HEADER_SIZE + current_frame.length;
     }
 
-end:
+    if (current_frame.type == kHeadersFrame) {
+        process_headers_frame(skb, current_stream, iterations_key, http2_ctx, &current_frame);
+    }
+
+    if (is_end_of_stream) {
+        handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key);
+    }
+
     return HTTP2_FRAME_HEADER_SIZE + current_frame.length;
 }
 
