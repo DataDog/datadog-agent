@@ -124,7 +124,7 @@ namespace WixSetup.Datadog
             .SetProjectInfo(
                 upgradeCode: ProductUpgradeCode,
                 name: ProductFullName,
-                description: string.Format(ProductDescription, _agentVersion),
+                description: string.Format(ProductDescription, _agentVersion.Version),
                 // SetProjectInfo throws an Exception is Revision is != 0
                 // The Revision is ignored by Wix anyway. 
                 version: new Version(

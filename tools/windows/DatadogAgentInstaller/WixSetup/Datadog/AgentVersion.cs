@@ -22,7 +22,7 @@ namespace WixSetup.Datadog
             Version = new Version(7, 99, 0, 1);
             if (PackageVersion != null)
             {
-                var versionRegex = new Regex(@"(?<major>\d+)[.](?<minor>\d+)[.](?<build>\d+)[-~]rc.((?<rc>\d+))?");
+                var versionRegex = new Regex(@"(?<major>\d+)[.](?<minor>\d+)[.](?<build>\d+)([-~]rc.(?<rc>\d+))?");
                 var versionMatch = versionRegex.Match(PackageVersion);
                 if (versionMatch.Groups["rc"].Success)
                 {
