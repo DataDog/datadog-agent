@@ -35,6 +35,9 @@ type Component interface {
 	// SetHandler sets http handler for config
 	SetHandler() http.Handler
 
+	// SetMaxMemCPU
+	SetMaxMemCPU(isContainerized bool)
+
 	// Object returns wrapped config
 	Object() *traceconfig.AgentConfig
 }

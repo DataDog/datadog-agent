@@ -8,10 +8,11 @@ package config
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/viper"
 	"io/fs"
 	"runtime"
 	"strings"
+
+	"github.com/DataDog/viper"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )

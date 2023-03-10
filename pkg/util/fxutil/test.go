@@ -37,6 +37,33 @@ func Test(t testing.TB, opts fx.Option, fn interface{}) {
 	}
 }
 
+type appAssertFn func(testing.TB, *fx.App)
+
+// TestStart runs an app fx.App.
+//
+// This function does *not* leverage fxtest.App because we want to be
+// able to test for App initialization errors and expected failures.
+//
+// The given function is called after the app's startup has completed, with its
+// arguments filled via Fx's dependency injection.  The provided testing.TB
+// argument will be used for the appAssertFn hook, but the test will not automatically
+// fail if the application fails to start.
+//
+// The supplied `fn` function will never be called, but is required to setup
+// that arg appropriately
+//
+// Use `fx.Options(..)` to bundle multiple fx.Option values into one.
+func TestStart(t testing.TB, opts fx.Option, appAssert appAssertFn, fn interface{}) {
+	delayed := newDelayedFxInvocation(fn)
+	app := fx.New(
+		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
+		delayed.option(),
+		opts,
+	)
+
+	appAssert(t, app)
+}
+
 // TestOneShotSubcommand is a helper for testing commands implemented with fxutil.OneShot.
 //
 // It takes an array of commands, and attaches all to a temporary top-level

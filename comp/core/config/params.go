@@ -38,6 +38,10 @@ type Params struct {
 	// defaultConfPath determines the default configuration path.
 	// if defaultConfPath is empty, then no default configuration path is used.
 	defaultConfPath string
+
+	// overrides is a parameter used for testing only, so that certain configuration
+	// keys may be easily overridden
+	overrides map[string]interface{}
 }
 
 // NewParams creates a new instance of Params
@@ -100,6 +104,13 @@ func WithConfigName(name string) func(*Params) {
 func WithConfigMissingOK(v bool) func(*Params) {
 	return func(b *Params) {
 		b.configMissingOK = v
+	}
+}
+
+// NewAgentParamsWithSecrets creates a new instance of Params using secrets for the Agent.
+func WithOverrides(overrides map[string]interface{}) func(*Params) {
+	return func(b *Params) {
+		b.overrides = overrides
 	}
 }
 

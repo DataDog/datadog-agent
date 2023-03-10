@@ -46,10 +46,13 @@ func newConfig(deps dependencies) (Component, error) {
 		return nil, err
 	}
 
-	return &cfg{
+	c := cfg{
 		AgentConfig: tracecfg,
 		coreConfig:  deps.Config,
-	}, nil
+	}
+	c.SetMaxMemCPU(pkgconfig.IsContainerized())
+
+	return &c, nil
 }
 
 func (c *cfg) Warnings() *pkgconfig.Warnings {
@@ -94,7 +97,7 @@ func (c *cfg) SetHandler() http.Handler {
 // setMaxMemCPU sets watchdog's max_memory and max_cpu_percent parameters.
 // If the agent is containerized, max_memory and max_cpu_percent are disabled by default.
 // Resource limits are better handled by container runtimes and orchestrators.
-func (c *cfg) setMaxMemCPU(isContainerized bool) {
+func (c *cfg) SetMaxMemCPU(isContainerized bool) {
 	if c.coreConfig.Object().IsSet("apm_config.max_cpu_percent") {
 	}
 
@@ -117,18 +120,22 @@ func httpError(w http.ResponseWriter, status int, err error) {
 	http.Error(w, fmt.Sprintf(`{"error": %q}`, err.Error()), status)
 }
 
-func newMock(deps dependencies, t testing.TB) Component {
+func newMock(deps dependencies, t testing.TB) (Component, error) {
 	// injected Agentconfig should be a mock
 
-	tracecfg, err := setupConfig(deps, "foo")
+	tracecfg, err := setupConfig(deps, "apikey")
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
-	return &cfg{
+	c := cfg{
 		warnings:    &pkgconfig.Warnings{},
 		coreConfig:  deps.Config,
 		AgentConfig: tracecfg,
 	}
+
+	c.SetMaxMemCPU(pkgconfig.IsContainerized())
+
+	return &c, nil
 
 }

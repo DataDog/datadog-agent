@@ -52,10 +52,11 @@ const (
 func setupConfig(deps dependencies, apikey string) (*config.AgentConfig, error) {
 	confFilePath := deps.Params.traceConfFilePath
 	if apikey != "" {
-		if mock, ok := deps.Config.(corecompcfg.Mock); ok {
+		if mock, ok := deps.Config.(corecompcfg.Mock); ok && !mock.IsSet("api_key") {
 			mock.Set("api_key", apikey)
 		}
 	}
+
 	return LoadConfigFile(confFilePath, deps.Config)
 }
 
@@ -63,21 +64,25 @@ func setupConfig(deps dependencies, apikey string) (*config.AgentConfig, error) 
 // and a valid configuration can be returned based on defaults and environment variables. If a
 // valid configuration can not be obtained, an error is returned.
 func LoadConfigFile(path string, c corecompcfg.Component) (*config.AgentConfig, error) {
-	cfg, err := prepareConfig(path, c)
+
+	cfg, err := prepareConfig(c)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return nil, err
 		}
 	} else {
+		cfg.ConfigPath = path
 		log.Infof("Loaded configuration: %s", cfg.ConfigPath)
 	}
-	if err := applyDatadogConfig(cfg); err != nil {
+
+	if err := applyDatadogConfig(cfg, c); err != nil {
 		log.Error(err)
 	}
-	return cfg, validate(cfg)
+
+	return cfg, validate(cfg, c)
 }
 
-func prepareConfig(path string, c corecompcfg.Component) (*config.AgentConfig, error) {
+func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 	cfg := config.New()
 	cfg.LogFilePath = DefaultLogFilePath
 	cfg.DDAgentBin = defaultDDAgentBin
@@ -92,7 +97,6 @@ func prepareConfig(path string, c corecompcfg.Component) (*config.AgentConfig, e
 	if p := coreconfig.GetProxies(); p != nil {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p)
 	}
-	cfg.ConfigPath = path
 	coreConfigObject := c.Object()
 	if coreConfigObject == nil {
 		return nil, fmt.Errorf("No core config found! Bailing out.")
@@ -134,7 +138,7 @@ func appendEndpoints(endpoints []*config.Endpoint, cfgKey string) []*config.Endp
 	return endpoints
 }
 
-func applyDatadogConfig(c *config.AgentConfig) error {
+func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error {
 	if len(c.Endpoints) == 0 {
 		c.Endpoints = []*config.Endpoint{{}}
 	}
@@ -142,14 +146,14 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		c.Endpoints[0].APIKey = coreconfig.SanitizeAPIKey(coreconfig.Datadog.GetString("api_key"))
 	}
 	if coreconfig.Datadog.IsSet("hostname") {
-		c.Hostname = coreconfig.Datadog.GetString("hostname")
+		c.Hostname = core.GetString("hostname")
 	}
 	if coreconfig.Datadog.IsSet("dogstatsd_port") {
-		c.StatsdPort = coreconfig.Datadog.GetInt("dogstatsd_port")
+		c.StatsdPort = core.GetInt("dogstatsd_port")
 	}
 
-	if coreconfig.Datadog.GetBool("vector.traces.enabled") {
-		if host := coreconfig.Datadog.GetString("vector.traces.url"); host == "" {
+	if core.GetBool("vector.traces.enabled") {
+		if host := core.GetString("vector.traces.url"); host == "" {
 			log.Error("vector.traces.enabled but vector.traces.url is empty.")
 		} else {
 			c.Endpoints[0].Host = host
@@ -159,8 +163,8 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	}
 	c.Endpoints = appendEndpoints(c.Endpoints, "apm_config.additional_endpoints")
 
-	if coreconfig.Datadog.IsSet("proxy.no_proxy") {
-		proxyList := coreconfig.Datadog.GetStringSlice("proxy.no_proxy")
+	if core.IsSet("proxy.no_proxy") {
+		proxyList := core.GetStringSlice("proxy.no_proxy")
 		noProxy := make(map[string]bool, len(proxyList))
 		for _, host := range proxyList {
 			// map of hosts that need to be skipped by proxy
@@ -170,7 +174,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 			e.NoProxy = noProxy[e.Host]
 		}
 	}
-	if addr := coreconfig.Datadog.GetString("proxy.https"); addr != "" {
+	if addr := core.GetString("proxy.https"); addr != "" {
 		url, err := url.Parse(addr)
 		if err == nil {
 			c.ProxyURL = url
@@ -179,14 +183,14 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		}
 	}
 
-	if coreconfig.Datadog.IsSet("skip_ssl_validation") {
-		c.SkipSSLValidation = coreconfig.Datadog.GetBool("skip_ssl_validation")
+	if core.IsSet("skip_ssl_validation") {
+		c.SkipSSLValidation = core.GetBool("skip_ssl_validation")
 	}
-	if coreconfig.Datadog.IsSet("apm_config.enabled") {
-		c.Enabled = coreconfig.Datadog.GetBool("apm_config.enabled")
+	if core.IsSet("apm_config.enabled") {
+		c.Enabled = core.GetBool("apm_config.enabled")
 	}
-	if coreconfig.Datadog.IsSet("apm_config.log_file") {
-		c.LogFilePath = coreconfig.Datadog.GetString("apm_config.log_file")
+	if core.IsSet("apm_config.log_file") {
+		c.LogFilePath = core.GetString("apm_config.log_file")
 	}
 
 	if env := coreconfig.GetTraceAgentDefaultEnv(); env != "" {
@@ -198,51 +202,51 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	if c.DefaultEnv != prevEnv {
 		log.Debugf("Normalized DefaultEnv from %q to %q", prevEnv, c.DefaultEnv)
 	}
-	if coreconfig.Datadog.IsSet("apm_config.receiver_port") {
-		c.ReceiverPort = coreconfig.Datadog.GetInt("apm_config.receiver_port")
+	if core.IsSet("apm_config.receiver_port") {
+		c.ReceiverPort = core.GetInt("apm_config.receiver_port")
 	}
-	if coreconfig.Datadog.IsSet("apm_config.receiver_socket") {
-		c.ReceiverSocket = coreconfig.Datadog.GetString("apm_config.receiver_socket")
+	if core.IsSet("apm_config.receiver_socket") {
+		c.ReceiverSocket = core.GetString("apm_config.receiver_socket")
 	}
-	if coreconfig.Datadog.IsSet("apm_config.connection_limit") {
-		c.ConnectionLimit = coreconfig.Datadog.GetInt("apm_config.connection_limit")
+	if core.IsSet("apm_config.connection_limit") {
+		c.ConnectionLimit = core.GetInt("apm_config.connection_limit")
 	}
-	if coreconfig.Datadog.IsSet("apm_config.extra_sample_rate") {
-		c.ExtraSampleRate = coreconfig.Datadog.GetFloat64("apm_config.extra_sample_rate")
+	if core.IsSet("apm_config.extra_sample_rate") {
+		c.ExtraSampleRate = core.GetFloat64("apm_config.extra_sample_rate")
 	}
-	if coreconfig.Datadog.IsSet("apm_config.max_events_per_second") {
-		c.MaxEPS = coreconfig.Datadog.GetFloat64("apm_config.max_events_per_second")
+	if core.IsSet("apm_config.max_events_per_second") {
+		c.MaxEPS = core.GetFloat64("apm_config.max_events_per_second")
 	}
-	if coreconfig.Datadog.IsSet("apm_config.max_traces_per_second") {
-		c.TargetTPS = coreconfig.Datadog.GetFloat64("apm_config.max_traces_per_second")
+	if core.IsSet("apm_config.max_traces_per_second") {
+		c.TargetTPS = core.GetFloat64("apm_config.max_traces_per_second")
 	}
-	if coreconfig.Datadog.IsSet("apm_config.errors_per_second") {
-		c.ErrorTPS = coreconfig.Datadog.GetFloat64("apm_config.errors_per_second")
+	if core.IsSet("apm_config.errors_per_second") {
+		c.ErrorTPS = core.GetFloat64("apm_config.errors_per_second")
 	}
-	if coreconfig.Datadog.IsSet("apm_config.enable_rare_sampler") {
-		c.RareSamplerEnabled = coreconfig.Datadog.GetBool("apm_config.enable_rare_sampler")
+	if core.IsSet("apm_config.enable_rare_sampler") {
+		c.RareSamplerEnabled = core.GetBool("apm_config.enable_rare_sampler")
 	}
-	if coreconfig.Datadog.IsSet("apm_config.rare_sampler.tps") {
-		c.RareSamplerTPS = coreconfig.Datadog.GetInt("apm_config.rare_sampler.tps")
+	if core.IsSet("apm_config.rare_sampler.tps") {
+		c.RareSamplerTPS = core.GetInt("apm_config.rare_sampler.tps")
 	}
-	if coreconfig.Datadog.IsSet("apm_config.rare_sampler.cooldown") {
-		c.RareSamplerCooldownPeriod = coreconfig.Datadog.GetDuration("apm_config.rare_sampler.cooldown")
+	if core.IsSet("apm_config.rare_sampler.cooldown") {
+		c.RareSamplerCooldownPeriod = core.GetDuration("apm_config.rare_sampler.cooldown")
 	}
-	if coreconfig.Datadog.IsSet("apm_config.rare_sampler.cardinality") {
-		c.RareSamplerCardinality = coreconfig.Datadog.GetInt("apm_config.rare_sampler.cardinality")
-	}
-
-	if coreconfig.Datadog.IsSet("apm_config.max_remote_traces_per_second") {
-		c.MaxRemoteTPS = coreconfig.Datadog.GetFloat64("apm_config.max_remote_traces_per_second")
+	if core.IsSet("apm_config.rare_sampler.cardinality") {
+		c.RareSamplerCardinality = core.GetInt("apm_config.rare_sampler.cardinality")
 	}
 
-	if k := "apm_config.ignore_resources"; coreconfig.Datadog.IsSet(k) {
-		c.Ignore["resource"] = coreconfig.Datadog.GetStringSlice(k)
+	if core.IsSet("apm_config.max_remote_traces_per_second") {
+		c.MaxRemoteTPS = core.GetFloat64("apm_config.max_remote_traces_per_second")
 	}
-	if k := "apm_config.max_payload_size"; coreconfig.Datadog.IsSet(k) {
-		c.MaxRequestBytes = coreconfig.Datadog.GetInt64(k)
+
+	if k := "apm_config.ignore_resources"; core.IsSet(k) {
+		c.Ignore["resource"] = core.GetStringSlice(k)
 	}
-	if k := "apm_config.replace_tags"; coreconfig.Datadog.IsSet(k) {
+	if k := "apm_config.max_payload_size"; core.IsSet(k) {
+		c.MaxRequestBytes = core.GetInt64(k)
+	}
+	if k := "apm_config.replace_tags"; core.IsSet(k) {
 		rt := make([]*config.ReplaceRule, 0)
 		if err := coreconfig.Datadog.UnmarshalKey(k, &rt); err != nil {
 			log.Errorf("Bad format for %q it should be of the form '[{\"name\": \"tag_name\",\"pattern\":\"pattern\",\"repl\":\"replace_str\"}]', error: %v", "apm_config.replace_tags", err)
@@ -256,14 +260,14 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		}
 	}
 
-	if coreconfig.Datadog.IsSet("bind_host") || coreconfig.Datadog.IsSet("apm_config.apm_non_local_traffic") {
-		if coreconfig.Datadog.IsSet("bind_host") {
-			host := coreconfig.Datadog.GetString("bind_host")
+	if core.IsSet("bind_host") || core.IsSet("apm_config.apm_non_local_traffic") {
+		if core.IsSet("bind_host") {
+			host := core.GetString("bind_host")
 			c.StatsdHost = host
 			c.ReceiverHost = host
 		}
 
-		if coreconfig.Datadog.IsSet("apm_config.apm_non_local_traffic") && coreconfig.Datadog.GetBool("apm_config.apm_non_local_traffic") {
+		if core.IsSet("apm_config.apm_non_local_traffic") && core.GetBool("apm_config.apm_non_local_traffic") {
 			c.ReceiverHost = "0.0.0.0"
 		}
 	} else if coreconfig.IsContainerized() {
@@ -271,27 +275,27 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		log.Info("Activating non-local traffic automatically in containerized environment, trace-agent will listen on 0.0.0.0")
 		c.ReceiverHost = "0.0.0.0"
 	}
-	c.StatsdPipeName = coreconfig.Datadog.GetString("dogstatsd_pipe_name")
-	c.StatsdSocket = coreconfig.Datadog.GetString("dogstatsd_socket")
-	c.WindowsPipeName = coreconfig.Datadog.GetString("apm_config.windows_pipe_name")
-	c.PipeBufferSize = coreconfig.Datadog.GetInt("apm_config.windows_pipe_buffer_size")
-	c.PipeSecurityDescriptor = coreconfig.Datadog.GetString("apm_config.windows_pipe_security_descriptor")
-	c.GUIPort = coreconfig.Datadog.GetString("GUI_port")
+	c.StatsdPipeName = core.GetString("dogstatsd_pipe_name")
+	c.StatsdSocket = core.GetString("dogstatsd_socket")
+	c.WindowsPipeName = core.GetString("apm_config.windows_pipe_name")
+	c.PipeBufferSize = core.GetInt("apm_config.windows_pipe_buffer_size")
+	c.PipeSecurityDescriptor = core.GetString("apm_config.windows_pipe_security_descriptor")
+	c.GUIPort = core.GetString("GUI_port")
 
 	var grpcPort int
 	if otlp.IsEnabled(coreconfig.Datadog) {
-		grpcPort = coreconfig.Datadog.GetInt(coreconfig.OTLPTracePort)
+		grpcPort = core.GetInt(coreconfig.OTLPTracePort)
 	}
 	c.OTLPReceiver = &config.OTLP{
 		BindHost:                c.ReceiverHost,
 		GRPCPort:                grpcPort,
 		UsePreviewHostnameLogic: true,
 		MaxRequestBytes:         c.MaxRequestBytes,
-		SpanNameRemappings:      coreconfig.Datadog.GetStringMapString("otlp_config.traces.span_name_remappings"),
-		SpanNameAsResourceName:  coreconfig.Datadog.GetBool("otlp_config.traces.span_name_as_resource_name"),
+		SpanNameRemappings:      core.GetStringMapString("otlp_config.traces.span_name_remappings"),
+		SpanNameAsResourceName:  core.GetBool("otlp_config.traces.span_name_as_resource_name"),
 	}
 
-	if coreconfig.Datadog.GetBool("apm_config.telemetry.enabled") {
+	if core.GetBool("apm_config.telemetry.enabled") {
 		c.TelemetryConfig.Enabled = true
 		c.TelemetryConfig.Endpoints = []*config.Endpoint{{
 			Host:   coreconfig.GetMainEndpoint(config.TelemetryEndpointPrefix, "apm_config.telemetry.dd_url"),
@@ -300,7 +304,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		c.TelemetryConfig.Endpoints = appendEndpoints(c.TelemetryConfig.Endpoints, "apm_config.telemetry.additional_endpoints")
 	}
 	c.Obfuscation = new(config.ObfuscationConfig)
-	if coreconfig.Datadog.IsSet("apm_config.obfuscation") {
+	if core.IsSet("apm_config.obfuscation") {
 		var o config.ObfuscationConfig
 		err := coreconfig.Datadog.UnmarshalKey("apm_config.obfuscation", &o)
 		if err == nil {
@@ -316,30 +320,26 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		// TODO(x): There is an issue with coreconfig.Datadog.IsSet("apm_config.obfuscation"), probably coming from Viper,
 		// where it returns false even is "apm_config.obfuscation.credit_cards.enabled" is set via an environment
 		// variable, so we need a temporary workaround by specifically setting env. var. accessible fields.
-		if coreconfig.Datadog.IsSet("apm_config.obfuscation.credit_cards.enabled") {
-			c.Obfuscation.CreditCards.Enabled = coreconfig.Datadog.GetBool("apm_config.obfuscation.credit_cards.enabled")
+		if core.IsSet("apm_config.obfuscation.credit_cards.enabled") {
+			c.Obfuscation.CreditCards.Enabled = core.GetBool("apm_config.obfuscation.credit_cards.enabled")
 		}
-		if coreconfig.Datadog.IsSet("apm_config.obfuscation.credit_cards.luhn") {
-			c.Obfuscation.CreditCards.Luhn = coreconfig.Datadog.GetBool("apm_config.obfuscation.credit_cards.luhn")
+		if core.IsSet("apm_config.obfuscation.credit_cards.luhn") {
+			c.Obfuscation.CreditCards.Luhn = core.GetBool("apm_config.obfuscation.credit_cards.luhn")
 		}
 	}
 
-	if coreconfig.Datadog.IsSet("apm_config.filter_tags.require") {
-		tags := coreconfig.Datadog.GetStringSlice("apm_config.filter_tags.require")
+	if core.IsSet("apm_config.filter_tags.require") {
+		tags := core.GetStringSlice("apm_config.filter_tags.require")
 		for _, tag := range tags {
 			c.RequireTags = append(c.RequireTags, splitTag(tag))
 		}
 	}
-	if coreconfig.Datadog.IsSet("apm_config.filter_tags.reject") {
-		tags := coreconfig.Datadog.GetStringSlice("apm_config.filter_tags.reject")
+	if core.IsSet("apm_config.filter_tags.reject") {
+		tags := core.GetStringSlice("apm_config.filter_tags.reject")
 		for _, tag := range tags {
 			c.RejectTags = append(c.RejectTags, splitTag(tag))
 		}
 	}
-
-	//TODO(jaime.fullaondo): remember to setMaxMemCPU in a place where it makes
-	//                       semantic sense; not here.
-	// setMaxMemCPU(c, coreconfig.IsContainerized())
 
 	// undocumented writers
 	for key, cfg := range map[string]*config.WriterConfig{
@@ -350,15 +350,15 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 			log.Errorf("Error reading writer config %q: %v", key, err)
 		}
 	}
-	if coreconfig.Datadog.IsSet("apm_config.connection_reset_interval") {
-		c.ConnectionResetInterval = getDuration(coreconfig.Datadog.GetInt("apm_config.connection_reset_interval"))
+	if core.IsSet("apm_config.connection_reset_interval") {
+		c.ConnectionResetInterval = getDuration(core.GetInt("apm_config.connection_reset_interval"))
 	}
-	if coreconfig.Datadog.IsSet("apm_config.sync_flushing") {
-		c.SynchronousFlushing = coreconfig.Datadog.GetBool("apm_config.sync_flushing")
+	if core.IsSet("apm_config.sync_flushing") {
+		c.SynchronousFlushing = core.GetBool("apm_config.sync_flushing")
 	}
 
 	// undocumented deprecated
-	if coreconfig.Datadog.IsSet("apm_config.analyzed_rate_by_service") {
+	if core.IsSet("apm_config.analyzed_rate_by_service") {
 		rateByService := make(map[string]float64)
 		if err := coreconfig.Datadog.UnmarshalKey("apm_config.analyzed_rate_by_service", &rateByService); err != nil {
 			return err
@@ -369,8 +369,8 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		}
 	}
 	// undocumented
-	if k := "apm_config.analyzed_spans"; coreconfig.Datadog.IsSet(k) {
-		for key, rate := range coreconfig.Datadog.GetStringMap("apm_config.analyzed_spans") {
+	if k := "apm_config.analyzed_spans"; core.IsSet(k) {
+		for key, rate := range core.GetStringMap("apm_config.analyzed_spans") {
 			serviceName, operationName, err := parseServiceAndOp(key)
 			if err != nil {
 				log.Errorf("Error parsing names: %v", err)
@@ -388,61 +388,61 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	}
 
 	// undocumented
-	if coreconfig.Datadog.IsSet("apm_config.dd_agent_bin") {
-		c.DDAgentBin = coreconfig.Datadog.GetString("apm_config.dd_agent_bin")
+	if core.IsSet("apm_config.dd_agent_bin") {
+		c.DDAgentBin = core.GetString("apm_config.dd_agent_bin")
 	}
 
 	if err := loadDeprecatedValues(c); err != nil {
 		return err
 	}
 
-	if strings.ToLower(coreconfig.Datadog.GetString("log_level")) == "debug" && !coreconfig.Datadog.IsSet("apm_config.log_throttling") {
+	if strings.ToLower(core.GetString("log_level")) == "debug" && !core.IsSet("apm_config.log_throttling") {
 		// if we are in "debug mode" and log throttling behavior was not
 		// set by the user, disable it
 		c.LogThrottling = false
 	}
-	c.Site = coreconfig.Datadog.GetString("site")
+	c.Site = core.GetString("site")
 	if c.Site == "" {
 		c.Site = coreconfig.DefaultSite
 	}
-	if k := "use_dogstatsd"; coreconfig.Datadog.IsSet(k) {
-		c.StatsdEnabled = coreconfig.Datadog.GetBool(k)
+	if k := "use_dogstatsd"; core.IsSet(k) {
+		c.StatsdEnabled = core.GetBool(k)
 	}
-	if v := coreconfig.Datadog.GetInt("apm_config.max_catalog_entries"); v > 0 {
+	if v := core.GetInt("apm_config.max_catalog_entries"); v > 0 {
 		c.MaxCatalogEntries = v
 	}
-	if k := "apm_config.profiling_dd_url"; coreconfig.Datadog.IsSet(k) {
-		c.ProfilingProxy.DDURL = coreconfig.Datadog.GetString(k)
+	if k := "apm_config.profiling_dd_url"; core.IsSet(k) {
+		c.ProfilingProxy.DDURL = core.GetString(k)
 	}
-	if k := "apm_config.profiling_additional_endpoints"; coreconfig.Datadog.IsSet(k) {
-		c.ProfilingProxy.AdditionalEndpoints = coreconfig.Datadog.GetStringMapStringSlice(k)
+	if k := "apm_config.profiling_additional_endpoints"; core.IsSet(k) {
+		c.ProfilingProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
 	}
-	if k := "apm_config.debugger_dd_url"; coreconfig.Datadog.IsSet(k) {
-		c.DebuggerProxy.DDURL = coreconfig.Datadog.GetString(k)
+	if k := "apm_config.debugger_dd_url"; core.IsSet(k) {
+		c.DebuggerProxy.DDURL = core.GetString(k)
 	}
-	if k := "apm_config.debugger_api_key"; coreconfig.Datadog.IsSet(k) {
-		c.DebuggerProxy.APIKey = coreconfig.Datadog.GetString(k)
+	if k := "apm_config.debugger_api_key"; core.IsSet(k) {
+		c.DebuggerProxy.APIKey = core.GetString(k)
 	}
-	if k := "evp_proxy_config.enabled"; coreconfig.Datadog.IsSet(k) {
-		c.EVPProxy.Enabled = coreconfig.Datadog.GetBool(k)
+	if k := "evp_proxy_config.enabled"; core.IsSet(k) {
+		c.EVPProxy.Enabled = core.GetBool(k)
 	}
-	if k := "evp_proxy_config.dd_url"; coreconfig.Datadog.IsSet(k) {
-		c.EVPProxy.DDURL = coreconfig.Datadog.GetString(k)
+	if k := "evp_proxy_config.dd_url"; core.IsSet(k) {
+		c.EVPProxy.DDURL = core.GetString(k)
 	}
-	if k := "evp_proxy_config.api_key"; coreconfig.Datadog.IsSet(k) {
-		c.EVPProxy.APIKey = coreconfig.Datadog.GetString(k)
+	if k := "evp_proxy_config.api_key"; core.IsSet(k) {
+		c.EVPProxy.APIKey = core.GetString(k)
 	}
-	if k := "evp_proxy_config.app_key"; coreconfig.Datadog.IsSet(k) {
-		c.EVPProxy.ApplicationKey = coreconfig.Datadog.GetString(k)
+	if k := "evp_proxy_config.app_key"; core.IsSet(k) {
+		c.EVPProxy.ApplicationKey = core.GetString(k)
 	} else {
 		// Default to the agent-wide app_key if set
-		c.EVPProxy.ApplicationKey = coreconfig.Datadog.GetString("app_key")
+		c.EVPProxy.ApplicationKey = core.GetString("app_key")
 	}
-	if k := "evp_proxy_config.additional_endpoints"; coreconfig.Datadog.IsSet(k) {
-		c.EVPProxy.AdditionalEndpoints = coreconfig.Datadog.GetStringMapStringSlice(k)
+	if k := "evp_proxy_config.additional_endpoints"; core.IsSet(k) {
+		c.EVPProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
 	}
-	if k := "evp_proxy_config.max_payload_size"; coreconfig.Datadog.IsSet(k) {
-		c.EVPProxy.MaxPayloadSize = coreconfig.Datadog.GetInt64(k)
+	if k := "evp_proxy_config.max_payload_size"; core.IsSet(k) {
+		c.EVPProxy.MaxPayloadSize = core.GetInt64(k)
 	}
 	return nil
 }
@@ -569,14 +569,15 @@ func splitTag(tag string) *config.Tag {
 }
 
 // validate validates if the current configuration is good for the agent to start with.
-func validate(c *config.AgentConfig) error {
+func validate(c *config.AgentConfig, core corecompcfg.Component) error {
 	if len(c.Endpoints) == 0 || c.Endpoints[0].APIKey == "" {
 		return config.ErrMissingAPIKey
 	}
 	if c.DDAgentBin == "" {
 		return errors.New("agent binary path not set")
 	}
-	if c.Hostname == "" && !coreconfig.Datadog.GetBool("serverless.enabled") {
+
+	if c.Hostname == "" && !core.GetBool("serverless.enabled") {
 		// no user-set hostname, try to acquire
 		if err := acquireHostname(c); err != nil {
 			log.Debugf("Could not get hostname via gRPC: %v. Falling back to other methods.", err)
