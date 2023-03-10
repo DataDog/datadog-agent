@@ -13,7 +13,7 @@ namespace WixSetup.Datadog
     public class AgentInstaller : IWixProjectEvents
     {
         // Company
-        private const string CompanyFullName = "Datadog, inc.";
+        private const string CompanyFullName = "Datadog, Inc.";
 
         // Product
         private const string ProductFullName = "Datadog Agent";
@@ -223,6 +223,17 @@ namespace WixSetup.Datadog
                 document
                     .Select("Wix/Product/InstallExecuteSequence")
                     .AddElement("DeleteServices", value: "(Installed AND (REMOVE=\"ALL\") AND NOT (WIX_UPGRADE_DETECTED OR UPGRADINGPRODUCTCODE))");
+                document
+                    .FindAll("Directory")
+                    .First(x => x.HasAttribute("Id", value => value == "AGENT"))
+                    .AddElement("Directory", "Id=DRIVER; Name=driver")
+                    .AddElement("Merge",
+                        $"Id=ddnpminstall; SourceFile={BinSource}\\agent\\DDNPM.msm; DiskId=1; Language=1033");
+                // We don't use the Wix "Merge" MSM feature because it seems to be a no-op...
+                document
+                    .FindAll("Feature")
+                    .First(x => x.HasAttribute("Id", value => value == "NPM"))
+                    .AddElement("MergeRef", "Id=ddnpminstall");
             };
             project.WixSourceFormated += (ref string content) => WixSourceFormated?.Invoke(content);
             project.WixSourceSaved += name => WixSourceSaved?.Invoke(name);
@@ -324,7 +335,14 @@ namespace WixSetup.Datadog
             };
         }
 
-        private static ServiceInstaller GenerateDependentServiceInstaller(Id id, string name, string displayName, string description, string account, string password = null)
+        private static ServiceInstaller GenerateDependentServiceInstaller(
+            Id id,
+            string name,
+            string displayName,
+            string description,
+            string account,
+            string password = null,
+            string arguments = null)
         {
             return new ServiceInstaller
             {
@@ -348,6 +366,7 @@ namespace WixSetup.Datadog
                 // Account must be a fully qualified name.
                 Account = account,
                 Password = password,
+                Arguments = arguments,
                 DependsOn = new[]
                 {
                     new ServiceDependency("datadogagent")
@@ -358,9 +377,27 @@ namespace WixSetup.Datadog
         private Dir CreateBinFolder()
         {
             var agentService = GenerateServiceInstaller("datadogagent", "Datadog Agent", "Send metrics to Datadog");
-            var processAgentService = GenerateDependentServiceInstaller(new Id("ddagentprocessservice"), "datadog-process-agent", "Datadog Process Agent", "Send process metrics to Datadog", "LocalSystem");
-            var traceAgentService = GenerateDependentServiceInstaller(new Id("ddagenttraceservice"), "datadog-trace-agent", "Datadog Trace Agent", "Send tracing metrics to Datadog", "[DDAGENTUSER_PROCESSED_FQ_NAME]", "[DDAGENTUSER_PROCESSED_PASSWORD]");
-            var systemProbeService = GenerateDependentServiceInstaller(new Id("ddagentsysprobeservice"), "datadog-system-probe", "Datadog System Probe", "Send network metrics to Datadog", "LocalSystem");
+            var processAgentService = GenerateDependentServiceInstaller(
+                new Id("ddagentprocessservice"),
+                "datadog-process-agent",
+                "Datadog Process Agent",
+                "Send process metrics to Datadog",
+                "LocalSystem",
+                "--cfgpath=\"[APPLICATIONDATADIRECTORY]\\datadog.yaml\"");
+            var traceAgentService = GenerateDependentServiceInstaller(
+                new Id("ddagenttraceservice"),
+                "datadog-trace-agent",
+                "Datadog Trace Agent",
+                "Send tracing metrics to Datadog",
+                "[DDAGENTUSER_PROCESSED_FQ_NAME]",
+                "[DDAGENTUSER_PROCESSED_PASSWORD]",
+                "--config=\"[APPLICATIONDATADIRECTORY]\\datadog.yaml\"");
+            var systemProbeService = GenerateDependentServiceInstaller(
+                new Id("ddagentsysprobeservice"),
+                "datadog-system-probe",
+                "Datadog System Probe",
+                "Send network metrics to Datadog",
+                "LocalSystem");
 
             var targetBinFolder = new Dir(new Id("BIN"), "bin",
                 new WixSharp.File(_agentBinaries.Agent, agentService),
@@ -375,12 +412,6 @@ namespace WixSetup.Datadog
                 new Dir(new Id("AGENT"), "agent",
                     new Dir("dist",
                         new Files($@"{InstallerSource}\bin\agent\dist\*")
-                    ),
-                    new Dir("driver",
-                        new Merge(_agentFeatures.Npm, $@"{BinSource}\agent\DDNPM.msm")
-                        {
-                            Feature = _agentFeatures.Npm
-                        }
                     ),
                     new WixSharp.File(_agentBinaries.Tray),
                     new WixSharp.File(_agentBinaries.ProcessAgent, processAgentService),
