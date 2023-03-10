@@ -70,6 +70,8 @@ func getActionCallback(action string) (func(), string, error) {
 				return
 			}
 
+			defer memProfile.Close()
+
 			if err := pprof.WriteHeapProfile(memProfile); err != nil {
 				log.Errorf("Failed to generate memory profile: %s", err)
 				return
