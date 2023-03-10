@@ -429,7 +429,7 @@ namespace Datadog.CustomActions.Native
 
         public static bool GetComputerNameEx(COMPUTER_NAME_FORMAT NameType, out string name)
         {
-            StringBuilder nameBuilder = new StringBuilder();
+            var nameBuilder = new StringBuilder();
             uint nSize = 260;
             nameBuilder.EnsureCapacity((int)nSize);
             var result = GetComputerNameEx(NameType, nameBuilder, ref nSize);
