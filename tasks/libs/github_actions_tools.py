@@ -134,14 +134,9 @@ def follow_workflow_run(run_id):
         if status == "completed":
             if conclusion == "success":
                 print(color_message("Workflow run succeeded", "green"))
-                return
             else:
                 print(color_message(f"Workflow run ended with state: {conclusion}", "red"))
-                # TODO: Upload the artifacts to Gitlab here
-                # This line is kinda the one that does not make sense
-                # The goal of this function is to
-                # raise Exit(code=1)
-                return
+            return
         else:
             print(f"Workflow still running... ({minutes}m)")
             # For some unknown reason, in Gitlab these lines do not get flushed, leading to not being
