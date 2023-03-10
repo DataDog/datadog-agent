@@ -272,7 +272,7 @@ func initMisc(deps miscDeps) error {
 	expvarPort := getExpvarPort(deps.Config)
 	expvarServer := &http.Server{Addr: fmt.Sprintf("localhost:%d", expvarPort), Handler: http.DefaultServeMux}
 
-	// Initalize status
+	// Initialize status
 	err := initStatus(deps.HostInfo, deps.Syscfg)
 	if err != nil {
 		log.Critical("Failed to initialize status:", err)
@@ -309,7 +309,7 @@ func initMisc(deps miscDeps) error {
 			}
 
 			if err := expvarServer.Shutdown(ctx); err != nil {
-				log.Errorf("Error shutting down expvar server on port %v: %v", getExpvarPort, err)
+				log.Errorf("Error shutting down expvar server on port %v: %v", getExpvarPort(deps.Config), err)
 			}
 
 			return nil
