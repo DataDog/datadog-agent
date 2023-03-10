@@ -125,8 +125,7 @@ namespace WixSetup.Datadog
                 upgradeCode: ProductUpgradeCode,
                 name: ProductFullName,
                 description: string.Format(ProductDescription, _agentVersion.Version),
-                // SetProjectInfo throws an Exception is Revision is != 0
-                // The Revision is ignored by Wix anyway. 
+                // This version is overridden below because SetProjectInfo throws an Exception if Revision is != 0
                 version: new Version(
                     _agentVersion.Version.Major,
                     _agentVersion.Version.Minor,
@@ -163,6 +162,9 @@ namespace WixSetup.Datadog
                 ),
                 new Dir("logs")
             );
+            // NineDigit.WixSharpExtensions SetProductInfo prohibits setting the revision, so we must do it here instead.
+            // The revision is ignored by WiX during upgrades, so it is only useful for documentation purposes.
+            project.Version = _agentVersion.Version;
 
             // Enable the ability to repair the installation even when the original MSI is no longer available.
             // This adds a symlink in %PROGRAMFILES%\Datadog\Datadog Agent which remains even when uninstalled
@@ -178,7 +180,7 @@ namespace WixSetup.Datadog
             project.MajorUpgrade.DowngradeErrorMessage =
                 "Automatic downgrades are not supported.  Uninstall the current version, and then reinstall the desired version.";
             project.ReinstallMode = "amus";
-            
+
             project.Platform = Platform.x64;
             // MSI 5.0 was shipped in Windows Server 2012 R2.
             // https://learn.microsoft.com/en-us/windows/win32/msi/released-versions-of-windows-installer
