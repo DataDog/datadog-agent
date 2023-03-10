@@ -172,7 +172,7 @@ namespace Datadog.CustomActions
                 // do the conversion here for user's convenience.
                 if (ddAgentUserName == "LocalSystem")
                 {
-                    ddAgentUserName = "NT AUTHORIY\\SYSTEM";
+                    ddAgentUserName = "NT AUTHORITY\\SYSTEM";
                 }
 
                 if (string.IsNullOrEmpty(ddAgentUserName))
