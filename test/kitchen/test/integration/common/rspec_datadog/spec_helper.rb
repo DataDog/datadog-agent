@@ -386,23 +386,31 @@ def read_conf_file(conf_path = "")
   if conf_path == ""
     conf_path = get_conf_file("datadog.yaml")
   end
-  f = `sudo cat #{conf_path}`
+  if os == :windows
+    f = File.read(conf_path)
+  else
+    f = `sudo cat #{conf_path}`
+  end
   confYaml = YAML.load(f)
   confYaml || {}
 end
 
 def write_conf_file(conf_path, data)
-  file = Tempfile.new(File.basename(conf_path))
-  begin
-    file.write(data)
-    file.close
-    system "sudo cp #{file.path} #{conf_path}"
-    system "sudo chown :dd-agent #{conf_path}"
-    system "sudo chmod 640 #{conf_path}"
-    system "sudo chmod +x #{File.dirname(conf_path)}"
-  ensure
-    file.close
-    file.unlink
+  if os == :windows
+    File.write(conf_path, data)
+  else
+    file = Tempfile.new(File.basename(conf_path))
+    begin
+      file.write(data)
+      file.close
+      system "sudo cp #{file.path} #{conf_path}"
+      system "sudo chown :dd-agent #{conf_path}"
+      system "sudo chmod 640 #{conf_path}"
+      system "sudo chmod +x #{File.dirname(conf_path)}"
+    ensure
+      file.close
+      file.unlink
+    end
   end
 end
 
