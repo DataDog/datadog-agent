@@ -1,5 +1,5 @@
 {
-	"commit": "db2c874284db20cd78ae35775cc1d124c71918af",
+	"commit": "e579716df9a170ce0fc254c5d2c23f0ba97d8848",
 	"constants": [
 		{
 			"binprm_file_offset": 168,
@@ -5736,6 +5736,20 @@
 			"distrib": "centos",
 			"version": "7",
 			"arch": "x86_64",
+			"uname_release": "3.10.0-1160.83.1.el7.x86_64",
+			"cindex": 25
+		},
+		{
+			"distrib": "centos",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "3.10.0-1160.88.1.el7.x86_64",
+			"cindex": 25
+		},
+		{
+			"distrib": "centos",
+			"version": "7",
+			"arch": "x86_64",
 			"uname_release": "3.10.0-1160.el7.x86_64",
 			"cindex": 25
 		},
@@ -6106,6 +6120,27 @@
 		{
 			"distrib": "debian",
 			"version": "10",
+			"arch": "arm64",
+			"uname_release": "5.10.0-0.deb10.21-arm64",
+			"cindex": 34
+		},
+		{
+			"distrib": "debian",
+			"version": "10",
+			"arch": "arm64",
+			"uname_release": "5.10.0-0.deb10.21-cloud-arm64",
+			"cindex": 34
+		},
+		{
+			"distrib": "debian",
+			"version": "10",
+			"arch": "arm64",
+			"uname_release": "5.10.0-0.deb10.21-rt-arm64",
+			"cindex": 35
+		},
+		{
+			"distrib": "debian",
+			"version": "10",
 			"arch": "x86_64",
 			"uname_release": "4.19.0-17-amd64",
 			"cindex": 32
@@ -6311,6 +6346,27 @@
 			"version": "10",
 			"arch": "x86_64",
 			"uname_release": "5.10.0-0.deb10.20-rt-amd64",
+			"cindex": 35
+		},
+		{
+			"distrib": "debian",
+			"version": "10",
+			"arch": "x86_64",
+			"uname_release": "5.10.0-0.deb10.21-amd64",
+			"cindex": 34
+		},
+		{
+			"distrib": "debian",
+			"version": "10",
+			"arch": "x86_64",
+			"uname_release": "5.10.0-0.deb10.21-cloud-amd64",
+			"cindex": 34
+		},
+		{
+			"distrib": "debian",
+			"version": "10",
+			"arch": "x86_64",
+			"uname_release": "5.10.0-0.deb10.21-rt-amd64",
 			"cindex": 35
 		},
 		{
@@ -24042,6 +24098,13 @@
 			"version": "18.04",
 			"arch": "x86_64",
 			"uname_release": "4.15.0-1161-azure",
+			"cindex": 89
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-1162-azure",
 			"cindex": 89
 		},
 		{
