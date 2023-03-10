@@ -3,51 +3,53 @@ using Datadog.CustomActions.Extensions;
 using Microsoft.Deployment.WindowsInstaller;
 using Microsoft.Win32;
 
-namespace Datadog.CustomActions;
-
-public class NpmCustomAction
+namespace Datadog.CustomActions
 {
-    private static ActionResult EnsureNpmServiceDepdendency(ISession session)
+    public class NpmCustomAction
     {
-        try
+        private static ActionResult EnsureNpmServiceDepdendency(ISession session)
         {
-            var addLocal = session.Property("ADDLOCAL");
-            session.Log($"ADDLOCAL={addLocal}");
-            using var systemProbeDef = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\datadog-system-probe", true);
-            if (systemProbeDef != null)
+            try
             {
-                if (string.IsNullOrEmpty(addLocal))
+                var addLocal = session.Property("ADDLOCAL");
+                session.Log($"ADDLOCAL={addLocal}");
+                using var systemProbeDef = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\datadog-system-probe", true);
+                if (systemProbeDef != null)
                 {
-                    systemProbeDef.SetValue("DependOnService", new[]
+                    if (string.IsNullOrEmpty(addLocal))
                     {
-                        "datadogagent"
-                    }, RegistryValueKind.MultiString);
+                        systemProbeDef.SetValue("DependOnService", new[]
+                        {
+                            "datadogagent"
+                        }, RegistryValueKind.MultiString);
 
-                }
-                else if (addLocal.Contains("NPM"))
-                {
-                    systemProbeDef.SetValue("DependOnService", new[]
+                    }
+                    else if (addLocal.Contains("NPM") ||
+                             addLocal.Contains("ALL"))
                     {
-                        "datadogagent",
-                        "ddnpm"
-                    }, RegistryValueKind.MultiString);
+                        systemProbeDef.SetValue("DependOnService", new[]
+                        {
+                            "datadogagent",
+                            "ddnpm"
+                        }, RegistryValueKind.MultiString);
+                    }
+                }
+                else
+                {
+                    session.Log("Registry key does not exist");
                 }
             }
-            else
+            catch (Exception e)
             {
-                session.Log("Registry key does not exist");
+                session.Log($"Could not update system probe dependent service: {e.Message}");
             }
+            return ActionResult.Success;
         }
-        catch (Exception e)
-        {
-            session.Log($"Could not update system probe dependent service: {e.Message}");
-        }
-        return ActionResult.Success;
-    }
 
-    [CustomAction]
-    public static ActionResult EnsureNpmServiceDependency(Session session)
-    {
-        return EnsureNpmServiceDepdendency(new SessionWrapper(session));
+        [CustomAction]
+        public static ActionResult EnsureNpmServiceDependency(Session session)
+        {
+            return EnsureNpmServiceDepdendency(new SessionWrapper(session));
+        }
     }
 }
