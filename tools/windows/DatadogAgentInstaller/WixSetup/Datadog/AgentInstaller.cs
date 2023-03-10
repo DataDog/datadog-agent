@@ -189,6 +189,7 @@ namespace WixSetup.Datadog
             project.LocalizationFile = "localization-en-us.wxl";
             project.OutFileName = $"datadog-agent-ng-{_agentVersion.PackageVersion}-1-x86_64";
             project.DigitalSignature = _agentSignature.Signature;
+            project.Package.AttributesDefinition = $"Comments={ProductComment}";
 
             // clear default media as we will add it via MediaTemplate
             project.Media.Clear();
