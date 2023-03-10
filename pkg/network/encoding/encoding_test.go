@@ -279,6 +279,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 			result.Conns[1].Tags = nil
 			result.Tags = nil
 		}
+		result.PrebuiltEBPFAssets = nil
 		assert.Equal(out, result)
 	})
 	t.Run("requesting application/json serialization (with query types)", func(t *testing.T) {
@@ -303,6 +304,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 			result.Conns[1].Tags = nil
 			result.Tags = nil
 		}
+		result.PrebuiltEBPFAssets = nil
 		assert.Equal(out, result)
 	})
 
@@ -328,6 +330,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 			result.Conns[1].Tags = nil
 			result.Tags = nil
 		}
+		result.PrebuiltEBPFAssets = nil
 		assert.Equal(out, result)
 	})
 
@@ -355,6 +358,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 			result.Conns[1].Tags = nil
 			result.Tags = nil
 		}
+		result.PrebuiltEBPFAssets = nil
 		assert.Equal(out, result)
 	})
 

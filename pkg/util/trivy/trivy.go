@@ -15,6 +15,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	containerdUtil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -79,15 +80,31 @@ func DefaultCollectorConfig(enabledAnalyzers []string, cacheLocation string) Col
 		ClearCacheOnClose: true,
 	}
 
-	collectorConfig.CacheProvider = func() (cache.Cache, error) {
-		return NewLocalCache(cacheLocation)
-	}
+	collectorConfig.CacheProvider = cacheProvider(cacheLocation, true)
 
 	if len(enabledAnalyzers) == 1 && enabledAnalyzers[0] == OSAnalyzers {
 		collectorConfig.ArtifactOption.OnlyDirs = []string{"etc", "var/lib/dpkg", "var/lib/rpm", "lib/apk"}
 	}
 
 	return collectorConfig
+}
+
+func cacheProvider(cacheLocation string, useBadgerDB bool) func() (cache.Cache, error) {
+	if useBadgerDB {
+		return func() (cache.Cache, error) {
+			return NewBadgerCache(cacheLocation, cacheTTL())
+		}
+	}
+
+	// Leaving this here for now, just in case Badger does not work well for us
+	// and we need to switch back to Bolt DB.
+	return func() (cache.Cache, error) {
+		return NewBoltCache(cacheLocation)
+	}
+}
+
+func cacheTTL() time.Duration {
+	return time.Duration(config.Datadog.GetInt("container_image_collection.sbom.cache_ttl")) * time.Second
 }
 
 func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
@@ -141,7 +158,9 @@ func NewCollector(collectorConfig CollectorConfig) (Collector, error) {
 
 func (c *collector) Close() error {
 	if c.config.ClearCacheOnClose {
-		return c.cache.Clear()
+		if err := c.cache.Clear(); err != nil {
+			return fmt.Errorf("error when clearing trivy cache: %w", err)
+		}
 	}
 
 	return c.cache.Close()

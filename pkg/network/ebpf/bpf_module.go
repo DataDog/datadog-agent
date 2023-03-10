@@ -10,9 +10,15 @@ package ebpf
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 )
+
+// prebuiltModulesInUse is a global object which is responsible for keeping a list of all the prebuilt ebpf assets in use.
+// This is used to report ebpf asset telemetry
+var prebuiltModulesInUse = []string{}
+var telemetrymu sync.Mutex
 
 func readModule(bpfDir, moduleName string, debug bool) (bytecode.AssetReader, error) {
 	var file string
@@ -26,6 +32,10 @@ func readModule(bpfDir, moduleName string, debug bool) (bytecode.AssetReader, er
 	if err != nil {
 		return nil, fmt.Errorf("couldn't find asset: %s", err)
 	}
+
+	telemetrymu.Lock()
+	defer telemetrymu.Unlock()
+	prebuiltModulesInUse = append(prebuiltModulesInUse, moduleName)
 
 	return ebpfReader, nil
 }
@@ -52,4 +62,13 @@ func ReadOffsetBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error
 
 func ReadFentryTracerModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
 	return readModule(bpfDir, "tracer-fentry", debug)
+}
+
+func GetModulesInUse() []string {
+	telemetrymu.Lock()
+	defer telemetrymu.Unlock()
+
+	result := make([]string, len(prebuiltModulesInUse))
+	copy(result, prebuiltModulesInUse)
+	return result
 }

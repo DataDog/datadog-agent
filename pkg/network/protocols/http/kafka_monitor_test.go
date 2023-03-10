@@ -112,7 +112,7 @@ func TestKafkaProtocolParsing(t *testing.T) {
 
 	serverAddress := net.JoinHostPort(serverHost, kafkaPort)
 	targetAddress := net.JoinHostPort(targetHost, kafkaPort)
-	kafka.RunServer(t, serverHost, kafkaPort)
+	require.True(t, kafka.RunServer(t, serverHost, kafkaPort))
 
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{

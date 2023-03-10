@@ -20,7 +20,7 @@ namespace CustomActions.Tests
         [InlineAutoData("PYVER", "python_version")]
         [InlineAutoData("HOSTNAME_FQDN_ENABLED", "hostname_fqdn")]
         [InlineAutoData("EC2_USE_WINDOWS_PREFIX_DETECTION", "ec2_use_windows_prefix_detection")]
-        public void ScalarProperties_Should_Be_Replaced_Given_They_Match(Mock<ISession> sessionMock, string property, string key, string value)
+        public void ScalarProperties_Should_Be_Replaced_Given_They_Match(string property, string key, string value, Mock<ISession> sessionMock)
         {
             var datadogYaml = $@"
 # Some comments
@@ -50,7 +50,7 @@ namespace CustomActions.Tests
         [InlineAutoData("DD_URL", "dd_url")]
         [InlineAutoData("PYVER", "python_version")]
         [InlineAutoData("HOSTNAME_FQDN_ENABLED", "hostname_fqdn")]
-        public void Properties_Should_Not_Be_Replaced_Given_A_Property_Does_Not_Match(Mock<ISession> sessionMock, string property, string key, string value)
+        public void Properties_Should_Not_Be_Replaced_Given_A_Property_Does_Not_Match(string property, string key, string value, Mock<ISession> sessionMock)
         {
             var datadogYaml = $@"
 # This is a random yaml document.
@@ -68,7 +68,7 @@ random_property: test
 
         [Theory]
         [InlineAutoData("EC2_USE_WINDOWS_PREFIX_DETECTION", "ec2_use_windows_prefix_detection")]
-        public void Missing_Properties_Should_Be_Appended(Mock<ISession> sessionMock, string property, string key, string value)
+        public void Missing_Properties_Should_Be_Appended(string property, string key, string value, Mock<ISession> sessionMock)
         {
             var datadogYaml = "";
             sessionMock.Setup(session => session[property]).Returns(value);

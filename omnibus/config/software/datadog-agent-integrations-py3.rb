@@ -10,9 +10,11 @@ name 'datadog-agent-integrations-py3'
 
 dependency 'datadog-agent'
 dependency 'pip3'
-dependency 'setuptools3'
 
+# Python packages built manually
+dependency 'kubernetes-client-python-py3'
 dependency 'snowflake-connector-python-py3'
+dependency 'supervisor-python-py3'
 
 if arm?
   # psycopg2 doesn't come with pre-built wheel on the arm architecture.
@@ -66,7 +68,9 @@ blacklist_folders = [
 blacklist_packages = Array.new
 
 # We build these manually
+blacklist_packages.push(/^kubernetes==/)
 blacklist_packages.push(/^snowflake-connector-python==/)
+blacklist_packages.push(/^supervisor==/)
 
 if suse?
   # Temporarily blacklist Aerospike until builder supports new dependency
@@ -144,10 +148,10 @@ build do
     # install the core integrations.
     #
     command "#{python} -m pip download --dest #{build_deps_dir} hatchling==0.25.1", :env => pre_build_env
-    command "#{python} -m pip download --dest #{build_deps_dir} setuptools==66.1.1", :env => pre_build_env # Version from ./setuptools3.rb
+    command "#{python} -m pip download --dest #{build_deps_dir} setuptools==66.1.1", :env => pre_build_env
     command "#{python} -m pip install wheel==0.38.4", :env => pre_build_env
     command "#{python} -m pip install pip-tools==6.12.1", :env => pre_build_env
-    uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
+    uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools', 'setuptools']
     nix_build_env = {
       "PIP_FIND_LINKS" => "#{build_deps_dir}",
       "PIP_CONFIG_FILE" => "#{pip_config_file}",

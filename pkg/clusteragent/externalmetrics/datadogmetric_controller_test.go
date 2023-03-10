@@ -422,8 +422,8 @@ func TestCreateDatadogMetric(t *testing.T) {
 	ddm = model.DatadogMetricInternal{
 		ID:         "default/dd-metric-1",
 		Valid:      true,
-		Deleted:    false,
-		Autogen:    false,
+		Deleted:    true,
+		Autogen:    true,
 		Value:      20.0,
 		UpdateTime: updateTime,
 		Error:      nil,
@@ -477,12 +477,16 @@ func TestCreateDatadogMetric(t *testing.T) {
 	f.expectCreateDatadogMetricAction(expectedDatadogMetric)
 	f.runControllerSync(true, "default/dd-metric-0", nil)
 
-	// Test creating non autogen DatadogMetric
+	// Test that autogen missing in Kubernetes with `Deleted` flag is not created
 	f.actions = nil
-	f.runControllerSync(true, "default/dd-metric-1", fmt.Errorf("Attempt to create DatadogMetric that was not auto-generated - not creating, DatadogMetric: %v", f.store.Get("default/dd-metric-1")))
+	f.runControllerSync(true, "default/dd-metric-1", nil)
+	assert.Empty(t, f.actions)
+	assert.Nil(t, f.store.Get("default/dd-metric-1"))
 
 	// Test create autogen without ExternalMetricName
+	f.actions = nil
 	f.runControllerSync(true, "default/dd-metric-2", fmt.Errorf("Unable to create autogen DatadogMetric default/dd-metric-2 without ExternalMetricName"))
+	assert.Empty(t, f.actions)
 }
 
 // Scenario: Test DatadogMetric is deleted if something from store is flagged as deleted and object exists in K8S
@@ -593,9 +597,10 @@ func TestLeaderDeleteExisting(t *testing.T) {
 	ddm.SetQueries("metric query0")
 	assert.Equal(t, &ddm, f.store.Get("default/dd-metric-0"))
 
-	// Test that we get an error trying to delete a not Autogen DatadogMetric
+	// Test that `Deleted` attribute is not considered on non-Autogen DDM
 	f.actions = nil
-	f.runControllerSync(true, "default/dd-metric-1", fmt.Errorf("Attempt to delete DatadogMetric that was not auto-generated - not deleting, DatadogMetric: %v", f.store.Get("default/dd-metric-1")))
+	f.runControllerSync(true, "default/dd-metric-1", nil)
+	assert.Empty(t, f.actions)
 }
 
 // Scenario: Object has already been deleted, controller should clean up internal store

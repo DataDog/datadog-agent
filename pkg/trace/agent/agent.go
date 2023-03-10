@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -89,8 +88,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 	dynConf := sampler.NewDynamicConfig()
 	in := make(chan *api.Payload, 1000)
 	statsChan := make(chan pb.StatsPayload, 100)
-
-	oconf := conf.Obfuscation.Export()
+	oconf := conf.Obfuscation.Export(conf)
 	if oconf.Statsd == nil {
 		oconf.Statsd = metrics.Client
 	}
@@ -254,7 +252,7 @@ func (a *Agent) Process(p *api.Payload) {
 
 		tracen := int64(len(chunk.Spans))
 		ts.SpansReceived.Add(tracen)
-		err := normalizeTrace(p.Source, chunk.Spans)
+		err := a.normalizeTrace(p.Source, chunk.Spans)
 		if err != nil {
 			log.Debugf("Dropping invalid trace: %s", err)
 			ts.SpansDropped.Add(tracen)
@@ -294,7 +292,7 @@ func (a *Agent) Process(p *api.Payload) {
 				a.ModifySpan(chunk, span)
 			}
 			a.obfuscateSpan(span)
-			Truncate(span)
+			a.Truncate(span)
 			if p.ClientComputedTopLevel {
 				traceutil.UpdateTracerTopLevel(span)
 			}
@@ -409,8 +407,8 @@ func (a *Agent) discardSpans(p *api.Payload) {
 }
 
 func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion string) pb.ClientStatsPayload {
-	enableContainers := features.Has("enable_cid_stats") || (a.conf.FargateOrchestrator != config.OrchestratorUnknown)
-	if !enableContainers || features.Has("disable_cid_stats") {
+	enableContainers := a.conf.HasFeature("enable_cid_stats") || (a.conf.FargateOrchestrator != config.OrchestratorUnknown)
+	if !enableContainers || a.conf.HasFeature("disable_cid_stats") {
 		// only allow the ContainerID stats dimension if we're in a Fargate instance or it's
 		// been explicitly enabled and it's not prohibited by the disable_cid_stats feature flag.
 		in.ContainerID = ""
@@ -429,7 +427,7 @@ func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 	for i, group := range in.Stats {
 		n := 0
 		for _, b := range group.Stats {
-			normalizeStatsGroup(&b, lang)
+			a.normalizeStatsGroup(&b, lang)
 			if !a.Blacklister.AllowsStat(&b) {
 				continue
 			}
@@ -486,8 +484,7 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt traceutil.ProcessedT
 	} else {
 		ts.TracesPriorityNone.Inc()
 	}
-
-	if features.Has("error_rare_sample_tracer_drop") {
+	if a.conf.HasFeature("error_rare_sample_tracer_drop") {
 		if isManualUserDrop(priority, pt) {
 			return 0, false, nil
 		}
@@ -502,10 +499,7 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt traceutil.ProcessedT
 	filteredChunk = pt.TraceChunk
 	if !sampled {
 		filteredChunk = new(pb.TraceChunk)
-		filteredChunk.Priority = pt.TraceChunk.GetPriority()
-		filteredChunk.Origin = pt.TraceChunk.GetOrigin()
-		filteredChunk.Spans = pt.TraceChunk.GetSpans()
-		filteredChunk.Tags = pt.TraceChunk.GetTags()
+		*filteredChunk = *pt.TraceChunk
 		filteredChunk.DroppedTrace = true
 	}
 	numEvents, numExtracted := a.EventProcessor.Process(pt.Root, filteredChunk)

@@ -250,6 +250,7 @@ def ninja_runtime_compilation_files(nw):
         "pkg/network/protocols/http/compile.go": "http",
         "pkg/network/tracer/compile.go": "conntrack",
         "pkg/network/tracer/connection/kprobe/compile.go": "tracer",
+        "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
         "pkg/security/ebpf/compile.go": "runtime-security",
     }
 
@@ -1052,6 +1053,8 @@ def run_ninja(
     if task:
         ctx.run(f"ninja {explain_opt} -f {nf_path} -t {task}")
     else:
+        with open("compile_commands.json", "w") as compiledb:
+            ctx.run(f"ninja -f {nf_path} -t compdb {target}", out_stream=compiledb)
         ctx.run(f"ninja {explain_opt} -f {nf_path} {target}")
 
 
