@@ -10,11 +10,40 @@ const (
 	MetricSourceDogstatsd
 	MetricSourceJmx
 
-	MetricSourceContainer // TODO add this to protobuf
-	MetricSourceDocker    // TODO add this to protobuf
-	MetricSourceNtp       // TODO add this to protobuf
+	// Corechecks
+	// TODO add all these to protobuf
+	MetricSourceContainer
+	MetricSourceContainerd
+	MetricSourceCri
+	MetricSourceDocker
+	MetricSourceNtp
+	MetricSourceSystemd
+	MetricSourceHelm
+	MetricSourceKubernetesAPIServer
+	MetricSourceKubeStateMetrics
+	MetricSourceOrchestrator
+	MetricSourceWinProc
+	MetricSourceFileHandle
+	MetricSourceWinkmem
+	MetricSourceIoStats
+	MetricSourceUptime
+	MetricSourceSbom
+	MetricSourceMemory
+	MetricSourceTcpQueueLength
+	MetricSourceOomKill
+	MetricSourceContainerLifecycle
+	MetricSourceJetson
+	MetricSourceContainerImage
+	MetricSourceCpu
+	MetricSourceLoad
+	// The following are both core checks and python checks.
+	// I think this is OK as long as the check IDs are the same
+	// TODO - double check that the check names are the same
+	// MetricSourceNetwork // 'network'
+	// MetricSourceSnmp // 'snmp'
+	// MetricSourceDisk // 'disk'
 
-	// All python integrations
+	// Python integrations
 	MetricSourceActiveDirectory
 	MetricSourceActivemqXml
 	MetricSourceAerospike
@@ -474,6 +503,57 @@ func (ms MetricSource) String() string {
 	switch ms {
 	case MetricSourceDogstatsd:
 		return "dogstatsd"
+	// Corechecks
+	case MetricSourceContainer:
+		return "container"
+	case MetricSourceContainerd:
+		return "containerd"
+	case MetricSourceCri:
+		return "cri"
+	case MetricSourceDocker:
+		return "docker"
+	case MetricSourceNtp:
+		return "ntp"
+	case MetricSourceSystemd:
+		return "systemd"
+	case MetricSourceHelm:
+		return "helm"
+	case MetricSourceKubernetesAPIServer:
+		return "kubernetes_apiserver"
+	case MetricSourceKubeStateMetrics:
+		return "kubernetes_state_core"
+	case MetricSourceOrchestrator:
+		return "orchestrator"
+	case MetricSourceWinProc:
+		return "winproc"
+	case MetricSourceFileHandle:
+		return "file_handle"
+	case MetricSourceWinkmem:
+		return "winkmem"
+	case MetricSourceIoStats:
+		return "io"
+	case MetricSourceUptime:
+		return "uptime"
+	case MetricSourceSbom:
+		return "sbom"
+	case MetricSourceMemory:
+		return "memory"
+	case MetricSourceTcpQueueLength:
+		return "tcp_queue_length"
+	case MetricSourceOomKill:
+		return "oom_kill"
+	case MetricSourceContainerLifecycle:
+		return "container_lifecycle"
+	case MetricSourceJetson:
+		return "jetson"
+	case MetricSourceContainerImage:
+		return "container_image"
+	case MetricSourceCpu:
+		return "cpu"
+	case MetricSourceLoad:
+		return "load"
+
+	// Python checks
 	case MetricSourceActiveDirectory:
 		return "active_directory"
 	case MetricSourceActivemqXml:
@@ -1075,6 +1155,54 @@ func (ms MetricSource) OriginService() int32 {
 		return 177
 	case MetricSourceZk:
 		return 178
+	case MetricSourceContainer:
+		return -1 // TODO fill in appropriate protobuf value
+	case MetricSourceContainerd:
+		return -1 // TODO fill in appropriate protobuf value
+	case MetricSourceCri:
+		return -1 // TODO fill in appropriate protobuf value
+	case MetricSourceDocker:
+		return -1 // TODO fill in appropriate protobuf value
+	case MetricSourceNtp:
+		return -1 // TODO fill in appropriate protobuf value
+	case MetricSourceSystemd:
+		return -1 // TODO fill in appropriate protobuf value
+	case MetricSourceHelm:
+		return -1 // TODO fill in appropriate protobuf value
+	case MetricSourceKubernetesAPIServer:
+		return -1 // TODO fill in appropriate protobuf value
+	case MetricSourceKubeStateMetrics:
+		return -1 // TODO fill in appropriate protobuf value
+	case MetricSourceOrchestrator:
+		return -1 // TODO fill in appropriate protobuf value
+	case MetricSourceWinProc:
+		return -1 // TODO fill in appropriate protobuf value
+	case MetricSourceFileHandle:
+		return -1 // TODO fill in appropriate protobuf value
+	case MetricSourceWinkmem:
+		return -1 // TODO fill in appropriate protobuf value
+	case MetricSourceIoStats:
+		return -1 // TODO fill in appropriate protobuf value
+	case MetricSourceUptime:
+		return -1 // TODO fill in appropriate protobuf value
+	case MetricSourceSbom:
+		return -1 // TODO fill in appropriate protobuf value
+	case MetricSourceMemory:
+		return -1 // TODO fill in appropriate protobuf value
+	case MetricSourceTcpQueueLength:
+		return -1 // TODO fill in appropriate protobuf value
+	case MetricSourceOomKill:
+		return -1 // TODO fill in appropriate protobuf value
+	case MetricSourceContainerLifecycle:
+		return -1 // TODO fill in appropriate protobuf value
+	case MetricSourceJetson:
+		return -1 // TODO fill in appropriate protobuf value
+	case MetricSourceContainerImage:
+		return -1 // TODO fill in appropriate protobuf value
+	case MetricSourceCpu:
+		return -1 // TODO fill in appropriate protobuf value
+	case MetricSourceLoad:
+		return -1 // TODO fill in appropriate protobuf value
 	default:
 		return -1
 	}
