@@ -229,6 +229,7 @@ namespace WixSetup.Datadog
                     .AddElement("Directory", "Id=DRIVER; Name=driver")
                     .AddElement("Merge",
                         $"Id=ddnpminstall; SourceFile={BinSource}\\agent\\DDNPM.msm; DiskId=1; Language=1033");
+                // We don't use the Wix "Merge" MSM feature because it seems to be a no-op...
                 document
                     .FindAll("Feature")
                     .First(x => x.HasAttribute("Id", value => value == "NPM"))
