@@ -47,60 +47,6 @@ namespace Datadog.CustomActions.Native
             NERR_GROUP_NOT_FOUND = 2220,
         }
 
-        [DllImport("credui.dll", EntryPoint = "CredUIParseUserNameW", CharSet = CharSet.Unicode)]
-        private static extern ReturnCodes CredUIParseUserName(
-            string userName,
-            StringBuilder user,
-            int userMaxChars,
-            StringBuilder domain,
-            int domainMaxChars);
-
-        /// <summary>
-        /// Extracts the domain and user account name from a fully qualified user name.
-        /// </summary>
-        /// <param name="userName">A <see cref="string"/> that contains the user name to be parsed. The name must be in UPN or down-level format, or a certificate.</param>
-        /// <param name="user">A <see cref="string"/> that receives the user account name.</param>
-        /// <param name="domain">A <see cref="string"/> that receives the domain name. If <paramref name="userName"/> specifies a certificate, pszDomain will be <see langword="null"/>.</param>
-        /// <returns>
-        ///     <see langword="true"/> if the <paramref name="userName"/> contains a domain and a user-name; otherwise, <see langword="false"/>.
-        /// </returns>
-        public static bool ParseUserName(string userName, out string user, out string domain)
-        {
-            if (string.IsNullOrEmpty(userName))
-            {
-                throw new ArgumentNullException(nameof(userName));
-            }
-
-            StringBuilder userBuilder = new StringBuilder();
-            StringBuilder domainBuilder = new StringBuilder();
-
-            ReturnCodes returnCode = CredUIParseUserName(userName, userBuilder, int.MaxValue, domainBuilder, int.MaxValue);
-            switch (returnCode)
-            {
-                case ReturnCodes.NO_ERROR: // The username is valid.
-                    user = userBuilder.ToString();
-                    domain = domainBuilder.ToString();
-                    return true;
-
-                case ReturnCodes.ERROR_INVALID_ACCOUNT_NAME: // The username is not valid.
-                    user = userName;
-                    domain = null;
-                    return false;
-
-                // Impossible to reach this state
-                //case ReturnCodes.ERROR_INSUFFICIENT_BUFFER: // One of the buffers is too small.
-                //    throw new OutOfMemoryException();
-
-                case ReturnCodes.ERROR_INVALID_PARAMETER: // ulUserMaxChars or ulDomainMaxChars is zero OR userName, user, or domain is NULL.
-                    throw new ArgumentNullException("userName");
-
-                default:
-                    user = null;
-                    domain = null;
-                    return false;
-            }
-        }
-
         public enum NtStatus : uint
         {
             Success = 0x00000000
@@ -464,5 +410,31 @@ namespace Datadog.CustomActions.Native
             }
         }
         #endregion
+
+        public enum COMPUTER_NAME_FORMAT
+        {
+            ComputerNameNetBIOS,
+            ComputerNameDnsHostname,
+            ComputerNameDnsDomain,
+            ComputerNameDnsFullyQualified,
+            ComputerNamePhysicalNetBIOS,
+            ComputerNamePhysicalDnsHostname,
+            ComputerNamePhysicalDnsDomain,
+            ComputerNamePhysicalDnsFullyQualified
+        }
+
+        [DllImport("kernel32.dll", SetLastError=true, CharSet=CharSet.Auto)]
+        private static extern bool GetComputerNameEx(COMPUTER_NAME_FORMAT NameType,
+                           [Out] StringBuilder lpBuffer, ref uint lpnSize);
+
+        public static bool GetComputerNameEx(COMPUTER_NAME_FORMAT NameType, out string name)
+        {
+            var nameBuilder = new StringBuilder();
+            uint nSize = 260;
+            nameBuilder.EnsureCapacity((int)nSize);
+            var result = GetComputerNameEx(NameType, nameBuilder, ref nSize);
+            name = nameBuilder.ToString();
+            return result;
+        }
     }
 }
