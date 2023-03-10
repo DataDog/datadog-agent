@@ -11,7 +11,7 @@ namespace Datadog.CustomActions
         {
             try
             {
-                var addLocal = session.Property("ADDLOCAL");
+                var addLocal = session.Property("ADDLOCAL").ToUpper();
                 session.Log($"ADDLOCAL={addLocal}");
                 using var systemProbeDef = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\datadog-system-probe", true);
                 if (systemProbeDef != null)
