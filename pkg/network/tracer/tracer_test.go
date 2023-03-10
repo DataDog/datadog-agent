@@ -33,7 +33,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -48,12 +47,6 @@ var (
 	payloadSizesTCP   = []int{2 << 5, 2 << 8, 2 << 10, 2 << 12, 2 << 14, 2 << 15}
 	payloadSizesUDP   = []int{2 << 5, 2 << 8, 2 << 12, 2 << 14}
 )
-
-// Some tests try to detect if they're running on Fargate. We'll get a panic
-// when checking that if the auto-detected features have not been initialized.
-func init() {
-	coreConfig.DetectFeatures()
-}
 
 func TestMain(m *testing.M) {
 	logLevel := os.Getenv("DD_LOG_LEVEL")
@@ -386,7 +379,6 @@ func TestTCPOverIPv6(t *testing.T) {
 	assert.True(t, conn.IntraHost)
 
 	doneChan <- struct{}{}
-
 }
 
 func TestTCPCollectionDisabled(t *testing.T) {
@@ -760,7 +752,6 @@ func TestSkipConnectionDNS(t *testing.T) {
 			Dest:   util.AddressFromString("::1"),
 			SPort:  53, DPort: 1000,
 		}))
-
 	})
 }
 
@@ -1373,7 +1364,6 @@ func TestConnectionClobber(t *testing.T) {
 }
 
 func TestTCPDirection(t *testing.T) {
-
 	cfg := testConfig()
 	tr := setupTracer(t, cfg)
 
