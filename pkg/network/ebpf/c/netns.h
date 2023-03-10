@@ -38,7 +38,7 @@ static __maybe_unused __always_inline u32 get_netns_from_sock(struct sock *sk) {
 }
 
 // depending on the kernel version p_net may be a struct net** or possible_net_t*
-static __always_inline u32 get_netns(void *p_net) {
+__maybe_unused static __always_inline u32 get_netns(void *p_net) {
     struct net *ns = NULL;
 #ifdef CONFIG_NET_NS
     bpf_probe_read_kernel_with_telemetry(&ns, sizeof(ns), p_net);
