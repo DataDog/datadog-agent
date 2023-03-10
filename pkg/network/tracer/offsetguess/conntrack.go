@@ -21,7 +21,6 @@ import (
 	"github.com/vishvananda/netns"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -33,7 +32,7 @@ const sizeofNfConntrackTuple = 40
 
 type conntrackOffsetGuesser struct {
 	m           *manager.Manager
-	status      *netebpf.ConntrackStatus
+	status      *ConntrackStatus
 	ipv6Enabled uint64
 }
 
@@ -66,7 +65,7 @@ func NewConntrackOffsetGuesser(consts []manager.ConstantEditor) (OffsetGuesser, 
 				{ProbeIdentificationPair: idPair(probes.ConntrackHashInsert)},
 			},
 		},
-		status:      &netebpf.ConntrackStatus{Offset_ino: offsetIno},
+		status:      &ConntrackStatus{Offset_ino: offsetIno},
 		ipv6Enabled: ipv6Enabled,
 	}, nil
 }
@@ -102,52 +101,52 @@ func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expec
 		return fmt.Errorf("error reading conntrack_status: %v", err)
 	}
 
-	if netebpf.State(c.status.State) != netebpf.StateChecked {
+	if State(c.status.State) != StateChecked {
 		if *maxRetries == 0 {
 			return fmt.Errorf("invalid guessing state while guessing %v, got %v expected %v",
-				whatString[netebpf.GuessWhat(c.status.What)], stateString[netebpf.State(c.status.State)], stateString[netebpf.StateChecked])
+				whatString[GuessWhat(c.status.What)], stateString[State(c.status.State)], stateString[StateChecked])
 		}
 		*maxRetries--
 		time.Sleep(10 * time.Millisecond)
 		return nil
 	}
-	switch netebpf.GuessWhat(c.status.What) {
-	case netebpf.GuessCtTupleOrigin:
+	switch GuessWhat(c.status.What) {
+	case GuessCtTupleOrigin:
 		if c.status.Saddr == expected.saddr {
 			// the reply tuple comes always after the origin tuple
 			c.status.Offset_reply = c.status.Offset_origin + sizeofNfConntrackTuple
-			c.logAndAdvance(c.status.Offset_origin, netebpf.GuessCtTupleReply)
+			c.logAndAdvance(c.status.Offset_origin, GuessCtTupleReply)
 			break
 		}
 		c.status.Offset_origin++
 		c.status.Saddr = expected.saddr
-	case netebpf.GuessCtTupleReply:
+	case GuessCtTupleReply:
 		if c.status.Saddr == expected.daddr {
-			c.logAndAdvance(c.status.Offset_reply, netebpf.GuessCtStatus)
+			c.logAndAdvance(c.status.Offset_reply, GuessCtStatus)
 			break
 		}
 		c.status.Offset_reply++
 		c.status.Saddr = expected.saddr
-	case netebpf.GuessCtStatus:
+	case GuessCtStatus:
 		if c.status.Status == expected.ctStatus {
 			c.status.Offset_netns = c.status.Offset_status + 1
-			c.logAndAdvance(c.status.Offset_status, netebpf.GuessCtNet)
+			c.logAndAdvance(c.status.Offset_status, GuessCtNet)
 			break
 		}
 		c.status.Offset_status++
 		c.status.Status = expected.ctStatus
-	case netebpf.GuessCtNet:
+	case GuessCtNet:
 		if c.status.Netns == expected.netns {
-			c.logAndAdvance(c.status.Offset_netns, netebpf.GuessNotApplicable)
+			c.logAndAdvance(c.status.Offset_netns, GuessNotApplicable)
 			return c.setReadyState(mp)
 		}
 		c.status.Offset_netns++
 		c.status.Netns = expected.netns
 	default:
-		return fmt.Errorf("unexpected field to guess: %v", whatString[netebpf.GuessWhat(c.status.What)])
+		return fmt.Errorf("unexpected field to guess: %v", whatString[GuessWhat(c.status.What)])
 	}
 
-	c.status.State = uint64(netebpf.StateChecking)
+	c.status.State = uint64(StateChecking)
 	// update the map with the new offset/field to check
 	if err := mp.Put(unsafe.Pointer(&zero), unsafe.Pointer(c.status)); err != nil {
 		return fmt.Errorf("error updating tracer_t.status: %v", err)
@@ -158,21 +157,21 @@ func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expec
 }
 
 func (c *conntrackOffsetGuesser) setReadyState(mp *ebpf.Map) error {
-	c.status.State = uint64(netebpf.StateReady)
+	c.status.State = uint64(StateReady)
 	if err := mp.Put(unsafe.Pointer(&zero), unsafe.Pointer(c.status)); err != nil {
 		return fmt.Errorf("error updating tracer_status: %v", err)
 	}
 	return nil
 }
 
-func (c *conntrackOffsetGuesser) logAndAdvance(offset uint64, next netebpf.GuessWhat) {
-	guess := netebpf.GuessWhat(c.status.What)
+func (c *conntrackOffsetGuesser) logAndAdvance(offset uint64, next GuessWhat) {
+	guess := GuessWhat(c.status.What)
 	if offset != notApplicable {
 		log.Debugf("Successfully guessed %v with offset of %d bytes", whatString[guess], offset)
 	} else {
 		log.Debugf("Could not guess offset for %v", whatString[guess])
 	}
-	if next != netebpf.GuessNotApplicable {
+	if next != GuessNotApplicable {
 		log.Debugf("Started offset guessing for %v", whatString[next])
 		c.status.What = uint64(next)
 	}
@@ -190,20 +189,20 @@ func (c *conntrackOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEd
 	defer runtime.UnlockOSThread()
 
 	processName := filepath.Base(os.Args[0])
-	if len(processName) > netebpf.ProcCommMaxLen { // Truncate process name if needed
-		processName = processName[:netebpf.ProcCommMaxLen]
+	if len(processName) > ProcCommMaxLen { // Truncate process name if needed
+		processName = processName[:ProcCommMaxLen]
 	}
 
-	cProcName := [netebpf.ProcCommMaxLen + 1]int8{} // Last char has to be null character, so add one
+	cProcName := [ProcCommMaxLen + 1]int8{} // Last char has to be null character, so add one
 	for i, ch := range processName {
 		cProcName[i] = int8(ch)
 	}
 
-	c.status.Proc = netebpf.Proc{Comm: cProcName}
+	c.status.Proc = Proc{Comm: cProcName}
 
 	// if we already have the offsets, just return
 	err = mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(c.status))
-	if err == nil && netebpf.State(c.status.State) == netebpf.StateReady {
+	if err == nil && State(c.status.State) == StateReady {
 		return c.getConstantEditors(), nil
 	}
 
@@ -249,8 +248,8 @@ func (c *conntrackOffsetGuesser) runOffsetGuessing(cfg *config.Config, ns netns.
 	}
 	defer eventGenerator.Close()
 
-	c.status.State = uint64(netebpf.StateChecking)
-	c.status.What = uint64(netebpf.GuessCtTupleOrigin)
+	c.status.State = uint64(StateChecking)
+	c.status.What = uint64(GuessCtTupleOrigin)
 
 	// initialize map
 	if err := mp.Put(unsafe.Pointer(&zero), unsafe.Pointer(c.status)); err != nil {
@@ -265,8 +264,8 @@ func (c *conntrackOffsetGuesser) runOffsetGuessing(cfg *config.Config, ns netns.
 
 	log.Debugf("Checking for offsets with threshold of %d", threshold)
 	expected := &fieldValues{}
-	for netebpf.State(c.status.State) != netebpf.StateReady {
-		if err := eventGenerator.Generate(netebpf.GuessWhat(c.status.What), expected); err != nil {
+	for State(c.status.State) != StateReady {
+		if err := eventGenerator.Generate(GuessWhat(c.status.What), expected); err != nil {
 			return nil, err
 		}
 
@@ -279,7 +278,7 @@ func (c *conntrackOffsetGuesser) runOffsetGuessing(cfg *config.Config, ns netns.
 		// probe_kernel_read() handles faults gracefully.
 		if c.status.Offset_netns >= threshold || c.status.Offset_status >= threshold ||
 			c.status.Offset_origin >= threshold || c.status.Offset_reply >= threshold {
-			return nil, fmt.Errorf("overflow while guessing %v, bailing out", whatString[netebpf.GuessWhat(c.status.What)])
+			return nil, fmt.Errorf("overflow while guessing %v, bailing out", whatString[GuessWhat(c.status.What)])
 		}
 	}
 
@@ -313,9 +312,9 @@ func newConntrackEventGenerator(ns netns.NsHandle) (*conntrackEventGenerator, er
 }
 
 // Generate an event for offset guessing
-func (e *conntrackEventGenerator) Generate(status netebpf.GuessWhat, expected *fieldValues) error {
-	if status >= netebpf.GuessCtTupleOrigin &&
-		status <= netebpf.GuessCtNet {
+func (e *conntrackEventGenerator) Generate(status GuessWhat, expected *fieldValues) error {
+	if status >= GuessCtTupleOrigin &&
+		status <= GuessCtNet {
 		if e.udpConn != nil {
 			e.udpConn.Close()
 		}

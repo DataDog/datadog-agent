@@ -190,7 +190,7 @@ __maybe_unused static __always_inline void flip_tuple(conn_tuple_t *t) {
 // header files, even if they are later used in source files. __maybe_unused prevents that issue
 __maybe_unused static __always_inline void print_ip(u64 ip_h, u64 ip_l, u16 port, u32 metadata) {
 // support for %pI4 and %pI6 added in https://github.com/torvalds/linux/commit/d9c9e4db186ab4d81f84e6f22b225d333b9424e3
-#if defined(LINUX_VERSION_CODE) && LINUX_VERSION_CODE >= KERNEL_VERSION(5, 13, 0)
+#if defined(COMPILE_RUNTIME) && defined(LINUX_VERSION_CODE) && LINUX_VERSION_CODE >= KERNEL_VERSION(5, 13, 0)
     if (metadata & CONN_V6) {
         struct in6_addr addr;
         addr.in6_u.u6_addr32[0] = ip_h & 0xFFFFFFFF;

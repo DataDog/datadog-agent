@@ -1701,7 +1701,7 @@ func TestPreexistingConnectionDirection(t *testing.T) {
 }
 
 func TestEbpfConntrackerFallback(t *testing.T) {
-	var tests = []struct {
+	type testCase struct {
 		enableRuntimeCompiler    bool
 		allowPrecompiledFallback bool
 		rcError                  bool
@@ -1709,7 +1709,9 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 
 		err        error
 		isPrebuilt bool
-	}{
+	}
+
+	var tests = []testCase{
 		{false, false, false, false, nil, true},
 		{false, false, false, true, assert.AnError, false},
 		{false, false, true, false, nil, true},
@@ -1737,32 +1739,35 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 	})
 
 	for _, te := range tests {
-		t.Logf("%+v", te)
-		cfg.EnableRuntimeCompiler = te.enableRuntimeCompiler
-		cfg.AllowPrecompiledFallback = te.allowPrecompiledFallback
+		t.Run("", func(t *testing.T) {
+			t.Logf("%+v", te)
 
-		ebpfConntrackerPrebuiltCreator = getPrebuiltConntracker
-		ebpfConntrackerRCCreator = getRuntimeCompiledConntracker
-		if te.prebuiltError {
-			ebpfConntrackerPrebuiltCreator = func(c *config.Config, ce []manager.ConstantEditor) (bytecode.AssetReader, []manager.ConstantEditor, error) {
-				return nil, nil, assert.AnError
+			cfg.EnableRuntimeCompiler = te.enableRuntimeCompiler
+			cfg.AllowPrecompiledFallback = te.allowPrecompiledFallback
+
+			ebpfConntrackerPrebuiltCreator = getPrebuiltConntracker
+			ebpfConntrackerRCCreator = getRuntimeCompiledConntracker
+			if te.prebuiltError {
+				ebpfConntrackerPrebuiltCreator = func(c *config.Config, ce []manager.ConstantEditor) (bytecode.AssetReader, []manager.ConstantEditor, error) {
+					return nil, nil, assert.AnError
+				}
 			}
-		}
-		if te.rcError {
-			ebpfConntrackerRCCreator = func(cfg *config.Config) (rc.CompiledOutput, error) { return nil, assert.AnError }
-		}
+			if te.rcError {
+				ebpfConntrackerRCCreator = func(cfg *config.Config) (rc.CompiledOutput, error) { return nil, assert.AnError }
+			}
 
-		conntracker, err := NewEBPFConntracker(cfg, nil, constants)
-		if te.err != nil {
-			assert.Error(t, err)
-			assert.Nil(t, conntracker)
-			continue
-		}
+			conntracker, err := NewEBPFConntracker(cfg, nil, constants)
+			if te.err != nil {
+				assert.Error(t, err)
+				assert.Nil(t, conntracker)
+				return
+			}
 
-		assert.NoError(t, err)
-		require.NotNil(t, conntracker)
-		assert.Equal(t, te.isPrebuilt, conntracker.(*ebpfConntracker).isPrebuilt)
-		conntracker.Close()
+			assert.NoError(t, err)
+			require.NotNil(t, conntracker)
+			assert.Equal(t, te.isPrebuilt, conntracker.(*ebpfConntracker).isPrebuilt)
+			conntracker.Close()
+		})
 	}
 }
 

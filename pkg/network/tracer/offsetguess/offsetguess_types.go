@@ -6,10 +6,10 @@
 //go:build ignore
 // +build ignore
 
-package ebpf
+package offsetguess
 
 /*
-#include "./c/prebuilt/offset-guess.h"
+#include "prebuilt/offset-guess.h"
 */
 import "C"
 

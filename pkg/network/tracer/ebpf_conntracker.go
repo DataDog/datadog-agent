@@ -14,9 +14,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"os"
-	"path/filepath"
-	"strconv"
 	"sync"
 	"time"
 	"unsafe"
@@ -454,9 +451,14 @@ func getManager(cfg *config.Config, buf io.ReaderAt, mapErrTelemetryMap, helperE
 		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
 	}
 
+	pid, err := util.GetRootNSPID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get system-probe pid in root pid namespace")
+	}
+
 	constants = append(constants, manager.ConstantEditor{
 		Name:  "systemprobe_pid",
-		Value: uint64(getpid()),
+		Value: uint64(pid),
 	})
 
 	opts := manager.Options{
@@ -496,17 +498,6 @@ func getManager(cfg *config.Config, buf io.ReaderAt, mapErrTelemetryMap, helperE
 		return nil, err
 	}
 	return mgr, nil
-}
-
-// getpid returns the current process ID in the host namespace
-func getpid() int32 {
-	p, err := os.Readlink(filepath.Join(util.HostProc(), "/self"))
-	if err == nil {
-		if pid, err := strconv.ParseInt(p, 10, 32); err == nil {
-			return int32(pid)
-		}
-	}
-	return int32(os.Getpid())
 }
 
 func getPrebuiltConntracker(cfg *config.Config, constants []manager.ConstantEditor) (bytecode.AssetReader, []manager.ConstantEditor, error) {
