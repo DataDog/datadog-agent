@@ -168,6 +168,13 @@ namespace Datadog.CustomActions
 
                 var ddAgentUserName = session["DDAGENTUSER_NAME"];
 
+                // LocalSystem is not supported by LookupAccountName as it is a pseudo account,
+                // do the conversion here for user's convenience.
+                if (ddAgentUserName == "LocalSystem")
+                {
+                    ddAgentUserName = "NT AUTHORIY\\SYSTEM";
+                }
+
                 if (string.IsNullOrEmpty(ddAgentUserName))
                 {
                     // Creds are not in registry and user did not pass a value, use default account name
@@ -189,8 +196,11 @@ namespace Datadog.CustomActions
                     session["DDAGENTUSER_SID"] = securityIdentifier.ToString();
                     session.Log($"Found {userName} in {domain} as {nameUse}");
                     NetIsServiceAccount(null, ddAgentUserName, out isServiceAccount);
+                    isServiceAccount |= securityIdentifier.IsWellKnown(WellKnownSidType.LocalSystemSid) ||
+                                        securityIdentifier.IsWellKnown(WellKnownSidType.LocalServiceSid) ||
+                                        securityIdentifier.IsWellKnown(WellKnownSidType.NetworkServiceSid);
                     isDomainAccount = IsDomainAccount(securityIdentifier);
-                    session.Log($"{userName} is a {(isDomainAccount ? "domain" : "local")} {(isServiceAccount ? "service" : string.Empty)} account");
+                    session.Log($"\"{domain}\\{userName}\" ({securityIdentifier.Value}, {nameUse}) is a {(isDomainAccount ? "domain" : "local")} {(isServiceAccount ? "service " : string.Empty)}account");
                 }
                 else
                 {
@@ -212,7 +222,6 @@ namespace Datadog.CustomActions
 
                 var ddAgentUserPassword = session["DDAGENTUSER_PASSWORD"];
 
-                
                 if (!isServiceAccount &&
                     !isDomainAccount  &&
                     string.IsNullOrEmpty(ddAgentUserPassword))
