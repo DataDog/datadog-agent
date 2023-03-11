@@ -3,7 +3,6 @@
 
 #include "bpf_builtins.h"
 #include "bpf_helpers.h"
-#include "bpf_telemetry.h"
 #include "map-defs.h"
 #include "ip.h"
 
@@ -28,7 +27,7 @@ static __always_inline http2_stream_t *http2_fetch_stream(http2_stream_key_t *ht
         return NULL;
     }
     bpf_memset(http2_stream_ptr, 0, sizeof(http2_stream_t));
-    bpf_map_update_with_telemetry(http2_in_flight, http2_stream_key, http2_stream_ptr, BPF_NOEXIST);
+    bpf_map_update_elem(&http2_in_flight, http2_stream_key, http2_stream_ptr, BPF_NOEXIST);
     return bpf_map_lookup_elem(&http2_in_flight, http2_stream_key);
 }
 
@@ -368,7 +367,7 @@ static __always_inline __u32 http2_entrypoint(struct __sk_buff *skb, dispatcher_
     bpf_memset((char*)frame_buf, 0, sizeof(frame_buf));
 
     // read frame.
-    bpf_skb_load_bytes_with_telemetry(skb, offset, frame_buf, HTTP2_FRAME_HEADER_SIZE);
+    bpf_skb_load_bytes(skb, offset, frame_buf, HTTP2_FRAME_HEADER_SIZE);
     offset += HTTP2_FRAME_HEADER_SIZE;
 
     struct http2_frame current_frame = {};
@@ -420,7 +419,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
     http2_tail_call_state_t *tail_call_state = bpf_map_lookup_elem(&http2_iterations, &iterations_key);
     if (tail_call_state == NULL) {
         http2_tail_call_state_t iteration_value = {};
-        bpf_map_update_with_telemetry(http2_iterations, &iterations_key, &iteration_value, BPF_NOEXIST);
+        bpf_map_update_elem(&http2_iterations, &iterations_key, &iteration_value, BPF_NOEXIST);
         tail_call_state = bpf_map_lookup_elem(&http2_iterations, &iterations_key);
         if (tail_call_state == NULL) {
             return 0;
