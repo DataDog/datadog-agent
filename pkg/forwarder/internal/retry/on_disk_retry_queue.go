@@ -95,15 +95,15 @@ func (s *onDiskRetryQueue) Store(transactions []transaction.Transaction) error {
 		_ = os.Remove(file.Name())
 		return err
 	}
+	err = file.Close()
+	if err != nil {
+		return err
+	}
 	s.currentSizeInBytes += bufferSize
 	s.filenames = append(s.filenames, file.Name())
 	s.telemetry.setFileSize(bufferSize)
 	s.telemetry.setCurrentSizeInBytes(s.GetDiskSpaceUsed())
 	s.telemetry.setFilesCount(s.getFilesCount())
-	err = file.Close()
-	if err != nil {
-		return fmt.Errorf("could not close file [%s]: %w", file.Name(), err)
-	}
 	return nil
 }
 
