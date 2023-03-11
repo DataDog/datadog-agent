@@ -437,14 +437,13 @@ func (nr *Resolver) flushNetworkNamespace(netns *NetworkNamespace) {
 	handle, err := netns.getNamespaceHandleDup()
 	if err == nil {
 		_, _ = nr.manager.GetNetlinkSocket(uint64(handle.Fd()), netns.nsID)
-		err = handle.Close()
-		if err != nil {
-			seclog.Warnf("could not close close file [%s]: %s", handle.Name(), err)
-		}
 	}
 
 	// close network namespace handle to release the namespace
-	netns.close()
+	err = netns.close()
+	if err != nil {
+		seclog.Warnf("could not close close file [%s]: %s", handle.Name(), err)
+	}
 
 	// remove all references to this network namespace from the manager
 	_ = nr.manager.CleanupNetworkNamespace(netns.nsID)
