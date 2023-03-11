@@ -994,7 +994,7 @@ func (ad *ActivityDump) Unzip(inputFile string, ext string) (string, error) {
 
 	_, err = io.Copy(outputFile, gzipReader)
 	if err != nil {
-		kerrors.NewAggregate([]error{
+		err = kerrors.NewAggregate([]error{
 			err,
 			outputFile.Close(),
 		})
