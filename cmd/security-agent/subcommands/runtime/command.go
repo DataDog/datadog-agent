@@ -51,6 +51,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+
+	kerrors "k8s.io/apimachinery/pkg/util/errors"
 )
 
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -735,7 +737,7 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 }
 
 func downloadPolicy(log log.Component, config config.Component, downloadPolicyArgs *downloadPolicyCliParams) error {
-	var err error
+	var outputFile *os.File
 
 	apiKey := config.GetString("api_key")
 	appKey := config.GetString("app_key")
@@ -761,12 +763,8 @@ func downloadPolicy(log log.Component, config config.Component, downloadPolicyAr
 		if err != nil {
 			return err
 		}
-		defer func() {
-			cerr := f.Close()
-			if err == nil {
-				err = cerr
-			}
-		}()
+		defer f.Close()
+		outputFile = f
 		outputWriter = f
 	}
 
@@ -808,6 +806,12 @@ func downloadPolicy(log log.Component, config config.Component, downloadPolicyAr
 	}
 
 	_, err = outputWriter.Write(resBytes)
+	if outputFile != nil {
+		err = kerrors.NewAggregate([]error{
+			err,
+			outputFile.Close(),
+		})
+	}
 	return err
 }
 
