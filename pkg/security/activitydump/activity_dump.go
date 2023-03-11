@@ -47,6 +47,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
+	kerrors "k8s.io/apimachinery/pkg/util/errors"
 )
 
 const (
@@ -989,10 +991,13 @@ func (ad *ActivityDump) Unzip(inputFile string, ext string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("couldn't create gzip output file: %w", err)
 	}
-	defer outputFile.Close()
 
 	_, err = io.Copy(outputFile, gzipReader)
 	if err != nil {
+		kerrors.NewAggregate([]error{
+			err,
+			outputFile.Close(),
+		})
 		return "", fmt.Errorf("couldn't unzip %s: %w", inputFile, err)
 	}
 	err = outputFile.Close()
