@@ -15,6 +15,17 @@
 
 USM_EVENTS_INIT(http2, http2_stream_t, HTTP2_BATCH_SIZE);
 
+// returns true if the given index is one of the relevant headers we care for in the static table.
+// The full table can be found in the user mode code `createStaticTable`.
+static __always_inline bool is_interesting_static_entry(__u64 index) {
+    return (1 < index && index < 6) || (7 < index && index < 15);
+}
+
+// returns true if the given index is below MAX_STATIC_TABLE_INDEX.
+static __always_inline bool is_static_table_entry(__u64 index) {
+    return index <= MAX_STATIC_TABLE_INDEX;
+}
+
 // http2_fetch_stream returns the current http2 in flight stream.
 static __always_inline http2_stream_t *http2_fetch_stream(http2_stream_key_t *http2_stream_key) {
     http2_stream_t *http2_stream_ptr = bpf_map_lookup_elem(&http2_in_flight, http2_stream_key);
@@ -98,8 +109,8 @@ static __always_inline parse_result_t parse_field_indexed(struct __sk_buff *skb,
     }
 
     // TODO: can improve by declaring MAX_INTERESTING_STATIC_TABLE_INDEX
-    if (index < MAX_STATIC_TABLE_INDEX) {
-        if (bpf_map_lookup_elem(&http2_static_table, &index) == NULL) {
+    if (is_static_table_entry(index)) {
+        if (!is_interesting_static_entry(index)) {
             return HEADER_NOT_INTERESTING;
         }
         if (headers_to_process != NULL) {
@@ -137,9 +148,9 @@ static __always_inline parse_result_t parse_field_literal(struct __sk_buff *skb,
     __u8 str_len = 0;
     // The key is new and inserted into the dynamic table. So we are skipping the new value.
 
-    if (index < MAX_STATIC_TABLE_INDEX) {
+    if (is_static_table_entry(index)) {
         // TODO, if index != 0, that's weird.
-        if (bpf_map_lookup_elem(&http2_static_table, &index) == NULL) {
+        if (!is_interesting_static_entry(index)) {
             str_len = 0;
             if (!read_var_int(skb, skb_info, 6, &str_len)) {
                 return HEADER_ERROR;
