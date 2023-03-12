@@ -24,9 +24,6 @@
 // The maximum index which may be in the static table.
 #define MAX_STATIC_TABLE_INDEX 61
 
-// This determines the size of the payload fragment that is captured for each headers frame.
-#define HTTP2_BUFFER_SIZE (8 * 20)
-
 // The flag which will be sent in the data/header frame that indicates end of stream.
 #define HTTP2_END_OF_STREAM 0x1
 
@@ -90,12 +87,6 @@ typedef struct {
     dynamic_table_index_t dynamic_index;
     http2_stream_key_t http2_stream_key;
 } http2_ctx_t;
-
-typedef struct {
-    char fragment[HTTP2_BUFFER_SIZE];
-    __u16 offset;
-    __u16 size;
-} heap_buffer_t;
 
 typedef enum {
     kStaticHeader  = 0,
