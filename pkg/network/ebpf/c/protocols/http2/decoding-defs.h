@@ -90,11 +90,14 @@ typedef struct {
 
 typedef enum {
     kStaticHeader  = 0,
-    kDynamicHeader = 1,
+    kExistingDynamicHeader = 1,
+    kNewDynamicHeader = 2,
 } __attribute__ ((packed)) http2_header_type_t;
 
 typedef struct {
     __u32 index;
+    __u32 new_dynamic_value_offset;
+    __u32 new_dynamic_value_size;
     http2_header_type_t type;
 } http2_header_t;
 

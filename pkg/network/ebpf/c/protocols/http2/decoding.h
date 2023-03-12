@@ -8,6 +8,7 @@
 
 #include "protocols/http2/decoding-defs.h"
 #include "protocols/http2/maps-defs.h"
+#include "protocols/http2/read_into_buffer.h"
 #include "protocols/http/types.h"
 #include "protocols/classification/defs.h"
 #include "protocols/events.h"
@@ -118,10 +119,12 @@ static __always_inline parse_result_t parse_field_indexed(struct __sk_buff *skb,
 
     if (headers_to_process != NULL) {
         headers_to_process->index = http2_ctx->dynamic_index.index;
-        headers_to_process->type = kDynamicHeader;
+        headers_to_process->type = kExistingDynamicHeader;
     }
     return HEADER_INTERESTING;
 }
+
+READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
 
 // parse_field_literal handling the case when the key is part of the static table and the value is a dynamic string
 // which will be stored in the dynamic table.
@@ -165,24 +168,19 @@ static __always_inline parse_result_t parse_field_literal(struct __sk_buff *skb,
         return HEADER_NOT_INTERESTING;
     }
 
-    if (skb_info->data_off + HTTP2_MAX_PATH_LEN > skb->len) {
+    __u32 final_size = str_len < HTTP2_MAX_PATH_LEN ? str_len : HTTP2_MAX_PATH_LEN;
+    if (skb_info->data_off + final_size > skb->len) {
         skb_info->data_off += str_len;
         return HEADER_NOT_INTERESTING;
     }
-    dynamic_table_entry_t dynamic_value = {};
-    dynamic_value.string_len = str_len;
-
-    // create the new dynamic value which will be added to the internal table.
-    bpf_skb_load_bytes(skb, skb_info->data_off, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
-    skb_info->data_off += str_len;
-
-    http2_ctx->dynamic_index.index = global_dynamic_counter - 1;
-    bpf_map_update_elem(&http2_dynamic_table, &http2_ctx->dynamic_index, &dynamic_value, BPF_ANY);
 
     if (headers_to_process != NULL) {
         headers_to_process->index = global_dynamic_counter - 1;
-        headers_to_process->type = kDynamicHeader;
+        headers_to_process->type = kNewDynamicHeader;
+        headers_to_process->new_dynamic_value_offset = skb_info->data_off;
+        headers_to_process->new_dynamic_value_size = str_len;
     }
+    skb_info->data_off += str_len;
     return HEADER_INTERESTING;
 }
 
@@ -241,7 +239,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
     return interesting_headers;
 }
 
-static __always_inline void process_headers(http2_ctx_t *http2_ctx, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers) {
+static __always_inline void process_headers(struct __sk_buff *skb, http2_ctx_t *http2_ctx, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers) {
     http2_header_t *current_header;
 
 #pragma unroll (HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING)
@@ -293,7 +291,7 @@ static __always_inline void process_headers(http2_ctx_t *http2_ctx, http2_stream
                     break;
                 }
             }
-        } else if (current_header->type == kDynamicHeader) {
+        } else if (current_header->type == kExistingDynamicHeader) {
             http2_ctx->dynamic_index.index = current_header->index;
             dynamic_table_entry_t* dynamic_value = bpf_map_lookup_elem(&http2_dynamic_table, &http2_ctx->dynamic_index);
             if (dynamic_value == NULL) {
@@ -301,6 +299,16 @@ static __always_inline void process_headers(http2_ctx_t *http2_ctx, http2_stream
             }
             current_stream->path_size = dynamic_value->string_len;
             bpf_memcpy(current_stream->request_path, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
+        } else if (current_header->type == kNewDynamicHeader) {
+            dynamic_table_entry_t dynamic_value = {};
+            dynamic_value.string_len = current_header->new_dynamic_value_size;
+
+            // create the new dynamic value which will be added to the internal table.
+            read_into_buffer_path(dynamic_value.buffer, skb, current_header->new_dynamic_value_offset);
+            http2_ctx->dynamic_index.index = current_header->index;
+            bpf_map_update_elem(&http2_dynamic_table, &http2_ctx->dynamic_index, &dynamic_value, BPF_ANY);
+            current_stream->path_size = current_header->new_dynamic_value_size;
+            bpf_memcpy(current_stream->request_path, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
         }
     }
 }
@@ -332,7 +340,7 @@ static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_s
 
     __u8 interesting_headers = filter_relevant_headers(skb, skb_info, tup, http2_ctx, headers_to_process, current_frame_header->length);
     if (interesting_headers > 0) {
-        process_headers(http2_ctx, current_stream, headers_to_process, interesting_headers);
+        process_headers(skb, http2_ctx, current_stream, headers_to_process, interesting_headers);
     }
 }
 
