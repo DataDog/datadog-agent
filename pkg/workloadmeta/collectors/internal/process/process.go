@@ -68,7 +68,7 @@ func (c *collector) Pull(ctx context.Context) error {
 			Language:   "",
 		}
 		res = append(res, workloadmeta.CollectorEvent{
-			Type:   0,
+			Type:   workloadmeta.EventTypeSet,
 			Source: componentName,
 			Entity: &p,
 		})
