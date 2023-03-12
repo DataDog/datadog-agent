@@ -146,15 +146,14 @@ static __always_inline parse_result_t parse_field_literal(struct __sk_buff *skb,
     }
 
     __u8 str_len = 0;
+    if (!read_var_int(skb, skb_info, 6, &str_len)) {
+        return HEADER_ERROR;
+    }
     // The key is new and inserted into the dynamic table. So we are skipping the new value.
 
     if (is_static_table_entry(index)) {
         // TODO, if index != 0, that's weird.
         if (!is_interesting_static_entry(index)) {
-            str_len = 0;
-            if (!read_var_int(skb, skb_info, 6, &str_len)) {
-                return HEADER_ERROR;
-            }
             skb_info->data_off += str_len;
 
             if (index == 0) {
@@ -166,11 +165,6 @@ static __always_inline parse_result_t parse_field_literal(struct __sk_buff *skb,
             }
             return HEADER_NOT_INTERESTING;
         }
-    }
-
-    str_len = 0;
-    if (!read_var_int(skb, skb_info, 6, &str_len)) {
-        return HEADER_ERROR;
     }
 
     // if the index is not path or the len of string is bigger then we support, we continue.
