@@ -774,17 +774,17 @@ func (p ProcessMetadata) String(verbose bool) string {
 	var sb strings.Builder
 
 	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
-	_, _ = fmt.Fprint(&sb, p.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, p.EntityID.String(verbose))
 
 	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
-	_, _ = fmt.Fprint(&sb, p.EntityMeta.String(verbose))
+	_, _ = fmt.Fprintln(&sb, p.EntityMeta.String(verbose))
 
 	_, _ = fmt.Fprintln(&sb, "----------- Process ID -----------")
-	_, _ = fmt.Fprint(&sb, p.PID)
+	_, _ = fmt.Fprintln(&sb, p.PID)
 	_, _ = fmt.Fprintln(&sb, "----------- Command -----------")
-	_, _ = fmt.Fprint(&sb, p.Command)
+	_, _ = fmt.Fprintln(&sb, p.Command)
 	_, _ = fmt.Fprintln(&sb, "----------- Language -----------")
-	_, _ = fmt.Fprint(&sb, p.Language)
+	_, _ = fmt.Fprintln(&sb, p.Language)
 	return sb.String()
 }
 
