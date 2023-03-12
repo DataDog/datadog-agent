@@ -6,9 +6,6 @@
 package config
 
 import (
-	// "errors"
-	// "html/template"
-	// "net/http"
 	"context"
 	"errors"
 	"html/template"
@@ -18,19 +15,12 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
-	// "os/exec"
-	// "path/filepath"
-	// "reflect"
-	// "regexp"
-	// "runtime"
-	// "strings"
 	"testing"
-	// "time"
 
-	// "github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -739,71 +729,93 @@ func TestUndocumentedYamlConfig(t *testing.T) {
 
 }
 
-//
-// func TestAcquireHostnameFallback(t *testing.T) {
-// 	c := config.New()
-// 	err := acquireHostnameFallback(c)
-// 	assert.Nil(t, err)
-// 	host, _ := os.Hostname()
-// 	assert.Equal(t, host, c.Hostname)
-// }
-//
-// func TestNormalizeEnvFromDDEnv(t *testing.T) {
-// 	assert := assert.New(t)
-//
-// 	for in, out := range map[string]string{
-// 		"staging":   "staging",
-// 		"stAging":   "staging",
-// 		"staging 1": "staging_1",
-// 	} {
-// 		t.Run("", func(t *testing.T) {
-// 			defer cleanConfig()()
-// 			t.Setenv("DD_ENV", in)
-// 			cfg, err := LoadConfigFile("./testdata/no_apm_config.yaml")
-// 			assert.NoError(err)
-// 			assert.Equal(out, cfg.DefaultEnv)
-// 		})
-// 	}
-// }
+func TestAcquireHostnameFallback(t *testing.T) {
+	c := config.New()
+	err := acquireHostnameFallback(c)
+	assert.Nil(t, err)
+	host, _ := os.Hostname()
+	assert.Equal(t, host, c.Hostname)
+}
 
-// func TestNormalizeEnvFromDDTags(t *testing.T) {
-// 	assert := assert.New(t)
-//
-// 	for in, out := range map[string]string{
-// 		"env:staging": "staging",
-// 		"env:stAging": "staging",
-// 		// The value of DD_TAGS is parsed with a space delimiter.
-// 		"tag:value env:STAGING tag2:value2": "staging",
-// 	} {
-// 		t.Run("", func(t *testing.T) {
-// 			defer cleanConfig()()
-// 			t.Setenv("DD_TAGS", in)
-// 			cfg, err := LoadConfigFile("./testdata/no_apm_config.yaml")
-// 			assert.NoError(err)
-// 			assert.Equal(out, cfg.DefaultEnv)
-// 		})
-// 	}
-// }
-//
-// func TestNormalizeEnvFromConfig(t *testing.T) {
-// 	assert := assert.New(t)
-//
-// 	for _, cfgFile := range []string{
-// 		"./testdata/ok_env_apm_config.yaml",
-// 		"./testdata/ok_env_top_level.yaml",
-// 		"./testdata/ok_env_host_tag.yaml",
-// 		"./testdata/non-normalized_env_apm_config.yaml",
-// 		"./testdata/non-normalized_env_top_level.yaml",
-// 		"./testdata/non-normalized_env_host_tag.yaml",
-// 	} {
-// 		t.Run("", func(t *testing.T) {
-// 			defer cleanConfig()()
-// 			cfg, err := LoadConfigFile(cfgFile)
-// 			assert.NoError(err)
-// 			assert.Equal("staging", cfg.DefaultEnv)
-// 		})
-// 	}
-// }
+func TestNormalizeEnvFromDDEnv(t *testing.T) {
+
+	for in, out := range map[string]string{
+		"staging":   "staging",
+		"stAging":   "staging",
+		"staging 1": "staging_1",
+	} {
+		t.Run("", func(t *testing.T) {
+			t.Setenv("XXXX_ENV", in)
+
+			fxutil.Test(t, fx.Options(
+				fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/no_apm_config.yaml")),
+				corecomp.MockModule,
+				fx.Supply(Params{}),
+				MockModule,
+			), func(config Component) {
+				cfg := config.Object()
+
+				assert.NotNil(t, cfg)
+
+				assert.Equal(t, out, cfg.DefaultEnv)
+			})
+		})
+	}
+}
+
+func TestNormalizeEnvFromDDTags(t *testing.T) {
+
+	for in, out := range map[string]string{
+		"env:staging": "staging",
+		"env:stAging": "staging",
+		// The value of DD_TAGS is parsed with a space delimiter.
+		"tag:value env:STAGING tag2:value2": "staging",
+	} {
+		t.Run("", func(t *testing.T) {
+			t.Setenv("XXXX_TAGS", in)
+
+			fxutil.Test(t, fx.Options(
+				fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/no_apm_config.yaml")),
+				corecomp.MockModule,
+				fx.Supply(Params{}),
+				MockModule,
+			), func(config Component) {
+				cfg := config.Object()
+
+				assert.NotNil(t, cfg)
+
+				assert.Equal(t, out, cfg.DefaultEnv)
+			})
+		})
+	}
+}
+
+func TestNormalizeEnvFromConfig(t *testing.T) {
+
+	for _, cfgFile := range []string{
+		"./testdata/ok_env_apm_config.yaml",
+		"./testdata/ok_env_top_level.yaml",
+		"./testdata/ok_env_host_tag.yaml",
+		"./testdata/non-normalized_env_apm_config.yaml",
+		"./testdata/non-normalized_env_top_level.yaml",
+		"./testdata/non-normalized_env_host_tag.yaml",
+	} {
+		t.Run("", func(t *testing.T) {
+
+			fxutil.Test(t, fx.Options(
+				fx.Supply(corecomp.NewAgentParamsWithSecrets(cfgFile)),
+				corecomp.MockModule,
+				fx.Supply(Params{}),
+				MockModule,
+			), func(config Component) {
+				cfg := config.Object()
+
+				assert.NotNil(t, cfg)
+				assert.Equal(t, "staging", cfg.DefaultEnv)
+			})
+		})
+	}
+}
 
 func TestLoadEnv(t *testing.T) {
 	t.Run("overrides", func(t *testing.T) {
@@ -1442,48 +1454,57 @@ func TestLoadEnv(t *testing.T) {
 	})
 }
 
-//	func TestFargateConfig(t *testing.T) {
-//		assert := assert.New(t)
-//		type testData struct {
-//			name         string
-//			envKey       string
-//			envValue     string
-//			orchestrator config.FargateOrchestratorName
-//		}
-//		for _, data := range []testData{
-//			{
-//				name:         "ecs_fargate",
-//				envKey:       "ECS_FARGATE",
-//				envValue:     "true",
-//				orchestrator: config.OrchestratorECS,
-//			},
-//			{
-//				name:         "eks_fargate",
-//				envKey:       "DD_EKS_FARGATE",
-//				envValue:     "true",
-//				orchestrator: config.OrchestratorEKS,
-//			},
-//			{
-//				name:         "unknown",
-//				envKey:       "ECS_FARGATE",
-//				envValue:     "",
-//				orchestrator: config.OrchestratorUnknown,
-//			},
-//		} {
-//			t.Run("", func(t *testing.T) {
-//				defer cleanConfig()()
-//				t.Setenv(data.envKey, data.envValue)
-//				cfg, err := LoadConfigFile("./testdata/no_apm_config.yaml")
-//				assert.NoError(err)
-//
-//				if runtime.GOOS == "darwin" {
-//					assert.Equal(config.OrchestratorUnknown, cfg.FargateOrchestrator)
-//				} else {
-//					assert.Equal(data.orchestrator, cfg.FargateOrchestrator)
-//				}
-//			})
-//		}
-//	}
+func TestFargateConfig(t *testing.T) {
+	type testData struct {
+		name         string
+		envKey       string
+		envValue     string
+		orchestrator config.FargateOrchestratorName
+	}
+	for _, data := range []testData{
+		{
+			name:         "ecs_fargate",
+			envKey:       "ECS_FARGATE",
+			envValue:     "true",
+			orchestrator: config.OrchestratorECS,
+		},
+		{
+			name:         "eks_fargate",
+			envKey:       "XXXX_EKS_FARGATE",
+			envValue:     "true",
+			orchestrator: config.OrchestratorEKS,
+		},
+		{
+			name:         "unknown",
+			envKey:       "ECS_FARGATE",
+			envValue:     "",
+			orchestrator: config.OrchestratorUnknown,
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			t.Setenv(data.envKey, data.envValue)
+
+			fxutil.Test(t, fx.Options(
+				fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/no_apm_config.yaml")),
+				corecomp.MockModule,
+				fx.Supply(Params{}),
+				MockModule,
+			), func(c Component) {
+				cfg := c.Object()
+
+				assert.NotNil(t, cfg)
+
+				if runtime.GOOS == "darwin" {
+					assert.Equal(t, config.OrchestratorUnknown, cfg.FargateOrchestrator)
+				} else {
+					assert.Equal(t, data.orchestrator, cfg.FargateOrchestrator)
+				}
+
+			})
+		})
+	}
+}
+
 func TestSetMaxMemCPU(t *testing.T) {
 	t.Run("default, non-containerized", func(t *testing.T) {
 
@@ -1567,27 +1588,6 @@ func TestSetMaxMemCPU(t *testing.T) {
 		})
 	})
 }
-
-// func TestRealConfig(t *testing.T) {
-// 	// point the ConfFilePath to a valid, but empty config file so that it does
-// 	// not use the config file on the developer's system
-// 	dir := t.TempDir()
-// 	_ = os.WriteFile(filepath.Join(dir, "datadog.yaml"), []byte("{}"), 0666)
-//
-// 	os.Setenv("DD_DD_URL", "https://example.com")
-// 	defer func() { os.Unsetenv("DD_DD_URL") }()
-//
-// 	fxutil.Test(t, fx.Options(
-// 		fx.Supply(corecomp.NewParams(
-// 			"",
-// 			corecomp.WithConfigMissingOK(true),
-// 			corecomp.WithConfFilePath(dir),
-// 		)),
-// 		Module,
-// 	), func(config corecomp.Component) {
-// 		require.Equal(t, "https://example.com", config.GetString("dd_url"))
-// 	})
-// }
 
 func TestMockConfig(t *testing.T) {
 	os.Setenv("DD_HOSTNAME", "foo")
