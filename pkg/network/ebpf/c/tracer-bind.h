@@ -4,11 +4,14 @@
 #ifndef COMPILE_CORE
 #include <linux/net.h>
 #include <linux/socket.h>
+#include <uapi/linux/in.h>
 #endif
 
+#include "bpf_endian.h"
 #include "bpf_telemetry.h"
 #include "bpf_helpers_custom.h"
 
+#include "tracer.h"
 #include "port.h"
 #include "sock.h"
 #include "tracer.h"

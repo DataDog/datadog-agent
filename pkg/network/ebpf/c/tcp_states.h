@@ -3,6 +3,8 @@
 #ifndef _LINUX_TCP_STATES_H
 #define _LINUX_TCP_STATES_H
 
+#ifndef COMPILE_CORE
+
 enum
 {
     TCP_ESTABLISHED = 1,
@@ -20,5 +22,7 @@ enum
 
     TCP_MAX_STATES
 };
+
+#endif
 
 #endif /* _LINUX_TCP_STATES_H */
