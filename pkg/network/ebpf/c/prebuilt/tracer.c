@@ -18,7 +18,6 @@
 #include <uapi/linux/udp.h>
 
 #include "offsets.h"
-#include "conn-tuple.h"
 #include "sock.h"
 #include "tracer.h"
 #include "tracer-events.h"

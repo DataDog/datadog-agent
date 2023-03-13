@@ -4,7 +4,6 @@
 #include "ktypes.h"
 
 #include "defs.h"
-#include "sock.h"
 
 static __always_inline bool dns_stats_enabled() {
     __u64 val = 0;

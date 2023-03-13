@@ -100,7 +100,7 @@ int kprobe__udpv6_recvmsg(struct pt_regs *ctx) {
 #if defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
     int flags = (int)PT_REGS_PARM6(ctx);
 #else
-    int flags = (int)PT_REGS_PARM4(ctx);
+    int flags = (int)PT_REGS_PARM5(ctx);
 #endif
     return handle_udp_recvmsg(flags);
 }

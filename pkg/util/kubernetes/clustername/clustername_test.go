@@ -17,27 +17,29 @@ import (
 func TestGetClusterName(t *testing.T) {
 	ctx := context.Background()
 	mockConfig := config.Mock(t)
+	config.SetFeature(config.Kubernetes)
+	defer config.ClearFeatures()
 	data := newClusterNameData()
 
-	var testClusterName = "laika"
+	testClusterName := "laika"
 	mockConfig.Set("cluster_name", testClusterName)
 	defer mockConfig.Set("cluster_name", nil)
 
 	assert.Equal(t, testClusterName, getClusterName(ctx, data, "hostname"))
 
 	// Test caching and reset
-	var newClusterName = "youri"
+	newClusterName := "youri"
 	mockConfig.Set("cluster_name", newClusterName)
 	assert.Equal(t, testClusterName, getClusterName(ctx, data, "hostname"))
 	freshData := newClusterNameData()
 	assert.Equal(t, newClusterName, getClusterName(ctx, freshData, "hostname"))
 
-	var dotClusterName = "aclusternamewitha.dot"
+	dotClusterName := "aclusternamewitha.dot"
 	mockConfig.Set("cluster_name", dotClusterName)
 	data = newClusterNameData()
 	assert.Equal(t, dotClusterName, getClusterName(ctx, data, "hostname"))
 
-	var dotsClusterName = "a.cluster.name.with.dots"
+	dotsClusterName := "a.cluster.name.with.dots"
 	mockConfig.Set("cluster_name", dotsClusterName)
 	data = newClusterNameData()
 	assert.Equal(t, dotsClusterName, getClusterName(ctx, data, "hostname"))
