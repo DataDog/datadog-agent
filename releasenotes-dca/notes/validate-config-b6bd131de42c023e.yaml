@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    validate the orchestration config provided by user
