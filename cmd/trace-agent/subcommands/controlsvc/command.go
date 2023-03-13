@@ -39,7 +39,8 @@ func Commands(globalParamsGetter func() *subcommands.GlobalParams) []*cobra.Comm
 			return fxutil.OneShot(controlsvc.StartService)
 		},
 	}
-	startCmd.PersistentFlags().BoolVar(&cliParams.Interactive, "interactive", "i", false, "set interactive mode")
+	startCmd.PersistentFlags().BoolVar(&cliParams.Interactive, "foreground", "f", false,
+		"Always run foreground instead whether session is interactive or not")
 
 	stopCmd := &cobra.Command{
 

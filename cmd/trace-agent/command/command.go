@@ -8,8 +8,8 @@ package command
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/controlsvc"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
+	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands/controlsvc"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands/info"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands/run"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/version"
@@ -53,5 +53,7 @@ func makeCommands(globalParams *subcommands.GlobalParams) []*cobra.Command {
 		version.MakeCommand("trace-agent"),
 	}
 
-	cmds = append(cmds, controlsvc.Commands()...)
+	cmds = append(cmds, controlsvc.Commands(globalConfGetter)...)
+
+	return cmds
 }

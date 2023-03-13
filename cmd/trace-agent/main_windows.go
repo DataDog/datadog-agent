@@ -16,18 +16,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/internal/flags"
 	"github.com/DataDog/datadog-agent/pkg/runtime"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"
 	"golang.org/x/sys/windows/svc/eventlog"
-	"golang.org/x/sys/windows/svc/mgr"
 )
 
 var elog debug.Log
-
-// ServiceName specifies the service name used in the operating system.
-const ServiceName = "datadog-trace-agent"
 
 type myservice struct{}
 
@@ -49,7 +46,7 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 					time.Sleep(100 * time.Millisecond)
 					changes <- c.CurrentStatus
 				case svc.Stop, svc.PreShutdown, svc.Shutdown:
-					elog.Info(0x40000006, ServiceName)
+					elog.Info(0x40000006, config.ServiceName)
 					changes <- svc.Status{State: svc.StopPending}
 					cancelFunc()
 					return
@@ -59,7 +56,7 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 			}
 		}
 	}()
-	elog.Info(0x40000003, ServiceName)
+	elog.Info(0x40000003, config.ServiceName)
 	Run(ctx)
 
 	changes <- svc.Status{State: svc.Stopped}
@@ -69,9 +66,9 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 func runService(isDebug bool) {
 	var err error
 	if isDebug {
-		elog = debug.New(ServiceName)
+		elog = debug.New(config.ServiceName)
 	} else {
-		elog, err = eventlog.Open(ServiceName)
+		elog, err = eventlog.Open(config.ServiceName)
 		if err != nil {
 			return
 		}
@@ -82,13 +79,13 @@ func runService(isDebug bool) {
 	if isDebug {
 		run = debug.Run
 	}
-	elog.Info(0x40000007, ServiceName)
-	err = run(ServiceName, &myservice{})
+	elog.Info(0x40000007, config.ServiceName)
+	err = run(config.ServiceName, &myservice{})
 	if err != nil {
 		elog.Error(0xc0000008, err.Error())
 		return
 	}
-	elog.Info(0x40000004, ServiceName)
+	elog.Info(0x40000004, config.ServiceName)
 }
 
 // main is the main application entry point
@@ -147,52 +144,7 @@ func main() {
 }
 
 func startService() error {
-	m, err := mgr.Connect()
-	if err != nil {
-		return err
-	}
-	defer m.Disconnect()
-	s, err := m.OpenService(ServiceName)
-	if err != nil {
-		return fmt.Errorf("could not access service: %v", err)
-	}
-	defer s.Close()
-	err = s.Start("is", "manual-started")
-	if err != nil {
-		return fmt.Errorf("could not start service: %v", err)
-	}
-	return nil
 }
 
 func stopService() error {
-	return controlService(svc.Stop, svc.Stopped)
-}
-
-func controlService(c svc.Cmd, to svc.State) error {
-	m, err := mgr.Connect()
-	if err != nil {
-		return err
-	}
-	defer m.Disconnect()
-	s, err := m.OpenService(ServiceName)
-	if err != nil {
-		return fmt.Errorf("could not access service: %v", err)
-	}
-	defer s.Close()
-	status, err := s.Control(c)
-	if err != nil {
-		return fmt.Errorf("could not send control=%d: %v", c, err)
-	}
-	timeout := time.Now().Add(10 * time.Second)
-	for status.State != to {
-		if timeout.Before(time.Now()) {
-			return fmt.Errorf("timeout waiting for service to go to state=%d", to)
-		}
-		time.Sleep(300 * time.Millisecond)
-		status, err = s.Query()
-		if err != nil {
-			return fmt.Errorf("could not retrieve service status: %v", err)
-		}
-	}
-	return nil
 }
