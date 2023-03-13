@@ -207,12 +207,12 @@ func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
 
 		if config.Datadog.Get("kubernetes_kubelet_nodename") != "" {
 			kubeletPathPrefix = fmt.Sprintf("/api/v1/nodes/%s/proxy", kubeletNodeName)
-			apiServerHost := os.Getenv("KUBERNETES_SERVICE_HOST")
+			apiServerIP := os.Getenv("KUBERNETES_SERVICE_HOST")
 
 			potentialHosts = &connectionInfo{
-				hostnames: []string{apiServerHost},
+				ips: []string{apiServerIP},
 			}
-			log.Infof("EKS on Fargate mode detected, will proxy calls to the Kubelet through the APIServer at %s:%d%s", apiServerHost, kubeletHTTPSPort, kubeletPathPrefix)
+			log.Infof("EKS on Fargate mode detected, will proxy calls to the Kubelet through the APIServer at %s:%d%s", apiServerIP, kubeletHTTPSPort, kubeletPathPrefix)
 		} else {
 			return nil, errors.New("kubelet proxy mode enabled but nodename is empty - unable to query")
 		}
@@ -264,9 +264,9 @@ func checkKubeletConnection(ctx context.Context, scheme string, port int, prefix
 	for _, ip := range hosts.ips {
 		// If `ip` is an IPv6, it must be enclosed in square brackets
 		if ipv6Re.MatchString(ip) {
-			clientConfig.baseURL = fmt.Sprintf("[%s]:%d", ip, port)
+			clientConfig.baseURL = fmt.Sprintf("[%s]:%d%s", ip, port, prefix)
 		} else {
-			clientConfig.baseURL = fmt.Sprintf("%s:%d", ip, port)
+			clientConfig.baseURL = fmt.Sprintf("%s:%d%s", ip, port, prefix)
 		}
 
 		log.Debugf("Trying to reach Kubelet at: %s", clientConfig.baseURL)

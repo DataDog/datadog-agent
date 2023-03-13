@@ -7,7 +7,9 @@ package testutil
 
 import (
 	"regexp"
+	"strings"
 	"sync"
+	"testing"
 )
 
 type PatternScanner struct {
@@ -19,6 +21,9 @@ type PatternScanner struct {
 	stopOnce sync.Once
 	// A helper to spare redundant calls to the analyzer once we've found the relevant log.
 	stopped bool
+
+	// keep the stdout/err in case of failure
+	buffers []string
 }
 
 func NewScanner(pattern *regexp.Regexp, doneChan chan struct{}) *PatternScanner {
@@ -33,6 +38,7 @@ func NewScanner(pattern *regexp.Regexp, doneChan chan struct{}) *PatternScanner 
 // Write implemented io.Writer to be used as a callback for log/string writing.
 // Once we find a match in for the given pattern, we notify the caller.
 func (ps *PatternScanner) Write(p []byte) (n int, err error) {
+	ps.buffers = append(ps.buffers, string(p))
 	n = len(p)
 	err = nil
 
@@ -44,4 +50,8 @@ func (ps *PatternScanner) Write(p []byte) (n int, err error) {
 	}
 
 	return
+}
+
+func (ps *PatternScanner) PrintLogs(t *testing.T) {
+	t.Log(strings.Join(ps.buffers, ""))
 }

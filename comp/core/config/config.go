@@ -11,7 +11,6 @@ import (
 
 	"go.uber.org/fx"
 
-	secconfig "github.com/DataDog/datadog-agent/cmd/security-agent/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -33,12 +32,25 @@ type dependencies struct {
 
 func newConfig(deps dependencies) (Component, error) {
 	warnings, err := setupConfig(deps)
+	returnErrFct := func(e error) (Component, error) {
+		if e != nil && deps.Params.ignoreErrors {
+			if warnings == nil {
+				warnings = &config.Warnings{}
+			}
+			warnings.Err = e
+			e = nil
+		}
+		return &cfg{Config: config.Datadog, warnings: warnings}, e
+	}
+
 	if err != nil {
-		return nil, err
+		return returnErrFct(err)
 	}
 
 	if deps.Params.configLoadSecurityAgent {
-		err = secconfig.Merge(deps.Params.securityAgentConfigFilePaths)
+		if err := config.Merge(deps.Params.securityAgentConfigFilePaths); err != nil {
+			return returnErrFct(err)
+		}
 	}
 
 	// Overrides are explicit and will take precedence over any other
@@ -47,7 +59,7 @@ func newConfig(deps dependencies) (Component, error) {
 		config.Datadog.Set(k, v)
 	}
 
-	return &cfg{Config: config.Datadog, warnings: warnings}, err
+	return &cfg{Config: config.Datadog, warnings: warnings}, nil
 }
 
 func (c *cfg) Warnings() *config.Warnings {
@@ -64,6 +76,7 @@ func newMock(deps dependencies, t testing.TB) Component {
 	old := config.Datadog
 	config.Datadog = config.NewConfig("mock", "XXXX", strings.NewReplacer())
 	c := &cfg{
+		Config:   config.Datadog,
 		warnings: &config.Warnings{},
 		Config:   config.Datadog,
 	}

@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -59,6 +58,7 @@ type Agent struct {
 	StatsWriter           *writer.StatsWriter
 	RemoteConfigHandler   *remoteconfighandler.RemoteConfigHandler
 	TelemetryCollector    telemetry.TelemetryCollector
+	DebugServer           *api.DebugServer
 
 	// obfuscator is used to obfuscate sensitive data from various span
 	// tags based on their type.
@@ -68,8 +68,9 @@ type Agent struct {
 	// DiscardSpan will be called on all spans, if non-nil. If it returns true, the span will be deleted before processing.
 	DiscardSpan func(*pb.Span) bool
 
-	// ModifySpan will be called on all spans, if non-nil.
-	ModifySpan func(*pb.Span)
+	// ModifySpan will be called on all non-nil spans of received trace chunks.
+	// Note that any modification of the trace chunk could be overwritten by subsequent ModifySpan calls.
+	ModifySpan func(*pb.TraceChunk, *pb.Span)
 
 	// In takes incoming payloads to be processed by the agent.
 	In chan *api.Payload
@@ -87,8 +88,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 	dynConf := sampler.NewDynamicConfig()
 	in := make(chan *api.Payload, 1000)
 	statsChan := make(chan pb.StatsPayload, 100)
-
-	oconf := conf.Obfuscation.Export()
+	oconf := conf.Obfuscation.Export(conf)
 	if oconf.Statsd == nil {
 		oconf.Statsd = metrics.Client
 	}
@@ -108,6 +108,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 		In:                    in,
 		conf:                  conf,
 		ctx:                   ctx,
+		DebugServer:           api.NewDebugServer(conf),
 	}
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt, telemetryCollector)
 	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf)
@@ -128,6 +129,7 @@ func (a *Agent) Run() {
 		a.EventProcessor,
 		a.OTLPReceiver,
 		a.RemoteConfigHandler,
+		a.DebugServer,
 	} {
 		starter.Start()
 	}
@@ -195,6 +197,7 @@ func (a *Agent) loop() {
 				a.obfuscator,
 				a.obfuscator,
 				a.cardObfuscator,
+				a.DebugServer,
 			} {
 				stopper.Stop()
 			}
@@ -249,7 +252,7 @@ func (a *Agent) Process(p *api.Payload) {
 
 		tracen := int64(len(chunk.Spans))
 		ts.SpansReceived.Add(tracen)
-		err := normalizeTrace(p.Source, chunk.Spans)
+		err := a.normalizeTrace(p.Source, chunk.Spans)
 		if err != nil {
 			log.Debugf("Dropping invalid trace: %s", err)
 			ts.SpansDropped.Add(tracen)
@@ -286,10 +289,10 @@ func (a *Agent) Process(p *api.Payload) {
 				}
 			}
 			if a.ModifySpan != nil {
-				a.ModifySpan(span)
+				a.ModifySpan(chunk, span)
 			}
 			a.obfuscateSpan(span)
-			Truncate(span)
+			a.Truncate(span)
 			if p.ClientComputedTopLevel {
 				traceutil.UpdateTracerTopLevel(span)
 			}
@@ -404,8 +407,8 @@ func (a *Agent) discardSpans(p *api.Payload) {
 }
 
 func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion string) pb.ClientStatsPayload {
-	enableContainers := features.Has("enable_cid_stats") || (a.conf.FargateOrchestrator != config.OrchestratorUnknown)
-	if !enableContainers || features.Has("disable_cid_stats") {
+	enableContainers := a.conf.HasFeature("enable_cid_stats") || (a.conf.FargateOrchestrator != config.OrchestratorUnknown)
+	if !enableContainers || a.conf.HasFeature("disable_cid_stats") {
 		// only allow the ContainerID stats dimension if we're in a Fargate instance or it's
 		// been explicitly enabled and it's not prohibited by the disable_cid_stats feature flag.
 		in.ContainerID = ""
@@ -424,7 +427,7 @@ func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 	for i, group := range in.Stats {
 		n := 0
 		for _, b := range group.Stats {
-			normalizeStatsGroup(&b, lang)
+			a.normalizeStatsGroup(&b, lang)
 			if !a.Blacklister.AllowsStat(&b) {
 				continue
 			}
@@ -481,8 +484,7 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt traceutil.ProcessedT
 	} else {
 		ts.TracesPriorityNone.Inc()
 	}
-
-	if features.Has("error_rare_sample_tracer_drop") {
+	if a.conf.HasFeature("error_rare_sample_tracer_drop") {
 		if isManualUserDrop(priority, pt) {
 			return 0, false, nil
 		}

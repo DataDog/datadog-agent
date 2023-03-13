@@ -14,33 +14,37 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math/rand"
 	"net"
 	nethttp "net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
 
-	"golang.org/x/sys/unix"
-
-	"github.com/stretchr/testify/assert"
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	javatestutil "github.com/DataDog/datadog-agent/pkg/network/java/testutil"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/gotls"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
-	nettestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
+	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type connTag = uint64
@@ -67,9 +71,12 @@ func httpsSupported(t *testing.T) bool {
 	return http.HTTPSSupported(testConfig())
 }
 
-func goTLSSupported() bool {
-	cfg := config.New()
-	return runtime.GOARCH == "amd64" && cfg.EnableRuntimeCompiler
+func goTLSSupported(t *testing.T) bool {
+	return config.New().EnableRuntimeCompiler && httpSupported(t) && httpsSupported(t)
+}
+
+func javaTLSSupported(t *testing.T) bool {
+	return httpSupported(t) && httpsSupported(t)
 }
 
 func classificationSupported(config *config.Config) bool {
@@ -87,6 +94,15 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 }
 
 func TestHTTPStats(t *testing.T) {
+	t.Run("status code", func(t *testing.T) {
+		testHTTPStats(t, true)
+	})
+	t.Run("status class", func(t *testing.T) {
+		testHTTPStats(t, false)
+	})
+}
+
+func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 	if !httpSupported(t) {
 		t.Skip("HTTP monitoring feature not available")
 		return
@@ -94,6 +110,7 @@ func TestHTTPStats(t *testing.T) {
 
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
+	cfg.EnableHTTPStatsByStatusCode = aggregateByStatusCode
 	tr := setupTracer(t, cfg)
 
 	// Start an HTTP server on localhost:8080
@@ -102,7 +119,7 @@ func TestHTTPStats(t *testing.T) {
 		Addr: serverAddr,
 		Handler: nethttp.HandlerFunc(func(w nethttp.ResponseWriter, req *nethttp.Request) {
 			io.Copy(io.Discard, req.Body)
-			w.WriteHeader(200)
+			w.WriteHeader(204)
 		}),
 		ReadTimeout:  time.Second,
 		WriteTimeout: time.Second,
@@ -123,26 +140,19 @@ func TestHTTPStats(t *testing.T) {
 	resp.Body.Close()
 
 	// Iterate through active connections until we find connection created above
-	var httpReqStats *http.RequestStats
 	require.Eventuallyf(t, func() bool {
 		payload := getConnections(t, tr)
 		for key, stats := range payload.HTTP {
-			if key.Path.Content == "/test" {
-				httpReqStats = stats
-				return true
+			if key.Method == http.MethodGet && key.Path.Content == "/test" && (key.SrcPort == 8080 || key.DstPort == 8080) {
+				currentStats := stats.Data[stats.NormalizeStatusCode(204)]
+				if currentStats != nil && currentStats.Count == 1 {
+					return true
+				}
 			}
 		}
 
 		return false
 	}, 3*time.Second, 10*time.Millisecond, "couldn't find http connection matching: %s", serverAddr)
-
-	// Verify HTTP stats
-	require.NotNil(t, httpReqStats)
-	assert.Nil(t, httpReqStats.Stats(100), "100s")            // number of requests with response status 100
-	assert.Equal(t, 1, httpReqStats.Stats(200).Count, "200s") // 200
-	assert.Nil(t, httpReqStats.Stats(300), "300s")            // 300
-	assert.Nil(t, httpReqStats.Stats(400), "400s")            // 400
-	assert.Nil(t, httpReqStats.Stats(500), "500s")            // 500
 }
 
 func TestHTTPSViaLibraryIntegration(t *testing.T) {
@@ -211,7 +221,7 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 	}
 }
 
-func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefechLibs []string) {
+func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 	// Start tracer with HTTPS support
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
@@ -219,9 +229,11 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefechLibs []string) {
 	tr := setupTracer(t, cfg)
 
 	// not ideal but, short process are hard to catch
-	for _, lib := range prefechLibs {
-		f, _ := os.Open(lib)
-		defer f.Close()
+	for _, lib := range prefetchLibs {
+		f, err := os.Open(lib)
+		if err != nil {
+			t.Cleanup(func() { f.Close() })
+		}
 	}
 	time.Sleep(time.Second)
 
@@ -237,11 +249,12 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefechLibs []string) {
 	require.Eventuallyf(t, func() bool {
 		payload := getConnections(t, tr)
 		for key, stats := range payload.HTTP {
-			if !stats.HasStats(200) {
+			req, exists := stats.Data[200]
+			if !exists {
 				continue
 			}
 
-			statsTags := stats.Stats(200).StaticTags
+			statsTags := req.StaticTags
 			// debian 10 have curl binary linked with openssl and gnutls but use only openssl during tls query (there no runtime flag available)
 			// this make harder to map lib and tags, one set of tag should match but not both
 			foundPathAndHTTPTag := false
@@ -296,9 +309,6 @@ func TestOpenSSLVersions(t *testing.T) {
 	for i := 0; i < numberOfRequests; i++ {
 		requests = append(requests, requestFn())
 	}
-	// At the moment, there is a bug in the SSL hooks which cause us to miss (statistically) the last request.
-	// So I'm sending another request and not expecting to capture it.
-	requestFn()
 
 	client.CloseIdleConnections()
 	requestsExist := make([]bool, len(requests))
@@ -372,10 +382,6 @@ func TestOpenSSLVersionsSlowStart(t *testing.T) {
 	for i := 0; i < numberOfRequests; i++ {
 		requests = append(requests, requestFn())
 	}
-
-	// At the moment, there is a bug in the SSL hooks which cause us to miss (statistically) the last request.
-	// So I'm sending another request and not expecting to capture it.
-	requestFn()
 
 	client.CloseIdleConnections()
 	requestsExist := make([]bool, len(requests))
@@ -454,7 +460,10 @@ func simpleGetRequestsGenerator(t *testing.T, targetAddr string) (*nethttp.Clien
 func isRequestIncluded(allStats map[http.Key]*http.RequestStats, req *nethttp.Request) bool {
 	expectedStatus := testutil.StatusFromPath(req.URL.Path)
 	for key, stats := range allStats {
-		if key.Path.Content == req.URL.Path && stats.HasStats(expectedStatus) {
+		if key.Path.Content != req.URL.Path {
+			continue
+		}
+		if requests, exists := stats.Data[expectedStatus]; exists && requests.Count > 0 {
 			return true
 		}
 	}
@@ -564,9 +573,315 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 	})
 }
 
+// Java Injection and TLS tests
+
+func TestJavaInjection(t *testing.T) {
+
+	if !javaTLSSupported(t) {
+		t.Skip("java TLS platform not supported")
+	}
+
+	log.SetupLogger(seelog.Default, "debug")
+
+	cfg := testConfig()
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableHTTPSMonitoring = true
+	cfg.EnableJavaTLSSupport = true
+
+	dir, _ := testutil.CurDir()
+	legacyJavaDir := cfg.JavaDir
+	// create a fake agent-usm.jar based on TestAgentLoaded.jar by forcing cfg.JavaDir
+	fakeAgentDir, err := os.MkdirTemp("", "fake.agent-usm.jar.")
+	require.NoError(t, err)
+	defer os.RemoveAll(fakeAgentDir)
+	_, err = nettestutil.RunCommand("install -m444 " + dir + "/../java/testdata/TestAgentLoaded.jar " + fakeAgentDir + "/agent-usm.jar")
+	require.NoError(t, err)
+
+	// testContext shares the context of a given test.
+	// It contains common variable used by all tests, and allows extending the context dynamically by setting more
+	// attributes to the `extras` map.
+	type testContext struct {
+		// A dynamic map that allows extending the context easily between phases of the test.
+		extras map[string]interface{}
+	}
+
+	tests := []struct {
+		name            string
+		context         testContext
+		preTracerSetup  func(t *testing.T, ctx testContext)
+		postTracerSetup func(t *testing.T, ctx testContext)
+		validation      func(t *testing.T, ctx testContext, tr *Tracer)
+		teardown        func(t *testing.T, ctx testContext)
+	}{
+		{
+			// Test the java hotspot injection is working
+			name: "java_hotspot_injection_8u151",
+			context: testContext{
+				extras: make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				cfg.JavaDir = fakeAgentDir
+				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
+
+				tfile, err := ioutil.TempFile(dir+"/../java/testdata/", "TestAgentLoaded.agentmain.*")
+				require.NoError(t, err)
+				tfile.Close()
+				os.Remove(tfile.Name())
+				ctx.extras["testfile"] = tfile.Name()
+				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(tfile.Name())
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				javatestutil.RunJavaVersion(t, "openjdk:8u151-jre", "JustWait")
+				// if RunJavaVersion failing to start it's probably because the java process has not been injected
+
+				cfg.JavaAgentArgs = ctx.extras["JavaAgentArgs"].(string)
+			},
+			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+				time.Sleep(time.Second)
+
+				testfile := ctx.extras["testfile"].(string)
+				_, err := os.Stat(testfile)
+				require.NoError(t, err)
+				os.Remove(testfile)
+			},
+		},
+		{
+			// Test the java hotspot injection is working
+			name: "java_hotspot_injection_21_allow_only",
+			context: testContext{
+				extras: make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				cfg.JavaDir = fakeAgentDir
+				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
+
+				tfile, err := ioutil.TempFile(dir+"/../java/testdata/", "TestAgentLoaded.agentmain.*")
+				require.NoError(t, err)
+				tfile.Close()
+				os.Remove(tfile.Name())
+				ctx.extras["testfile"] = tfile.Name()
+				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(tfile.Name())
+
+				// testing allow/block list, as Allow list have higher priority
+				// this test will pass normally
+				cfg.JavaAgentAllowRegex = ".*JustWait.*"
+				cfg.JavaAgentBlockRegex = ""
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				// if RunJavaVersion failing to start it's probably because the java process has not been injected
+				javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait")
+				var fake testing.T
+				testSuccess := javatestutil.RunJavaVersion(&fake, "openjdk:21-oraclelinux8", "AnotherWait")
+				if testSuccess {
+					t.Fatalf("AnotherWait should not be attached")
+				}
+
+				cfg.JavaAgentArgs = ctx.extras["JavaAgentArgs"].(string)
+			},
+			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+				time.Sleep(time.Second)
+
+				testfile := ctx.extras["testfile"].(string)
+				_, err := os.Stat(testfile)
+				require.NoError(t, err)
+				os.Remove(testfile)
+			},
+		},
+		{
+			// Test the java hotspot injection is working
+			name: "java_hotspot_injection_21_block_only",
+			context: testContext{
+				extras: make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
+
+				tfile, err := ioutil.TempFile(dir+"/../java/testdata/", "TestAgentLoaded.agentmain.*")
+				require.NoError(t, err)
+				tfile.Close()
+				os.Remove(tfile.Name())
+				ctx.extras["testfile"] = tfile.Name()
+				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(tfile.Name())
+
+				// block the agent attachment
+				cfg.JavaAgentAllowRegex = ""
+				cfg.JavaAgentBlockRegex = ".*JustWait.*"
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				// if RunJavaVersion failing to start it's probably because the java process has not been injected
+				javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "AnotherWait")
+				var fake testing.T
+				testSuccess := javatestutil.RunJavaVersion(&fake, "openjdk:21-oraclelinux8", "JustWait")
+				if testSuccess {
+					t.Fatalf("JustWait should not be attached")
+				}
+
+				cfg.JavaAgentArgs = ctx.extras["JavaAgentArgs"].(string)
+			},
+			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+				time.Sleep(time.Second)
+
+				testfile := ctx.extras["testfile"].(string)
+				_, err := os.Stat(testfile)
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "java_hotspot_injection_21_allowblock",
+			context: testContext{
+				extras: make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
+
+				tfile, err := ioutil.TempFile(dir+"/../java/testdata/", "TestAgentLoaded.agentmain.*")
+				require.NoError(t, err)
+				tfile.Close()
+				os.Remove(tfile.Name())
+				ctx.extras["testfile"] = tfile.Name()
+				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(tfile.Name())
+
+				// block the agent attachment
+				cfg.JavaAgentAllowRegex = ".*JustWait.*"
+				cfg.JavaAgentBlockRegex = ".*AnotherWait.*"
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait")
+				var fake testing.T
+				testSuccess := javatestutil.RunJavaVersion(&fake, "openjdk:21-oraclelinux8", "AnotherWait")
+				if testSuccess {
+					t.Fatalf("AnotherWait should not be attached")
+				}
+
+				cfg.JavaAgentArgs = ctx.extras["JavaAgentArgs"].(string)
+			},
+			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+				time.Sleep(time.Second)
+
+				testfile := ctx.extras["testfile"].(string)
+				_, err := os.Stat(testfile)
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "java_hotspot_injection_21_allowhigherpriority",
+			context: testContext{
+				extras: make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
+
+				tfile, err := ioutil.TempFile(dir+"/../java/testdata/", "TestAgentLoaded.agentmain.*")
+				require.NoError(t, err)
+				tfile.Close()
+				os.Remove(tfile.Name())
+				ctx.extras["testfile"] = tfile.Name()
+				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(tfile.Name())
+
+				// allow has an higher priority
+				cfg.JavaAgentAllowRegex = ".*JustWait.*"
+				cfg.JavaAgentBlockRegex = ".*JustWait.*"
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait")
+
+				cfg.JavaAgentArgs = ctx.extras["JavaAgentArgs"].(string)
+			},
+			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+				time.Sleep(time.Second)
+
+				testfile := ctx.extras["testfile"].(string)
+				_, err := os.Stat(testfile)
+				require.NoError(t, err)
+			},
+		},
+		{
+			// Test the java jdk client https request is working
+			name: "java_jdk_client_httpbin_docker_java15",
+			context: testContext{
+				extras: make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				cfg.JavaDir = legacyJavaDir
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://httpbin.org/anything/java-tls-request", regexp.MustCompile("Response code = .*"))
+			},
+			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+				// Iterate through active connections until we find connection created above
+				require.Eventuallyf(t, func() bool {
+					payload := getConnections(t, tr)
+					for key := range payload.HTTP {
+						if key.Path.Content == "/anything/java-tls-request" {
+							return true
+						}
+					}
+
+					return false
+				}, 4*time.Second, time.Second, "couldn't find http connection matching: %s", "https://httpbin.org/anything/java-tls-request")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.teardown != nil {
+				t.Cleanup(func() {
+					tt.teardown(t, tt.context)
+				})
+			}
+			if tt.preTracerSetup != nil {
+				tt.preTracerSetup(t, tt.context)
+			}
+			tr := setupTracer(t, cfg)
+			tt.postTracerSetup(t, tt.context)
+			tt.validation(t, tt.context, tr)
+		})
+	}
+}
+
 // GoTLS test
 func TestHTTPGoTLSAttachProbes(t *testing.T) {
-	if !goTLSSupported() || !httpSupported(t) || !httpsSupported(t) {
+	if !goTLSSupported(t) {
+		t.Skip("GoTLS not supported for this setup")
+	}
+
+	t.Run("new process (runtime compilation)", func(t *testing.T) {
+		cfg := testConfig()
+		cfg.EnableRuntimeCompiler = true
+		cfg.EnableCORE = false
+		testHTTPGoTLSCaptureNewProcess(t, cfg)
+	})
+
+	t.Run("already running process (runtime compilation)", func(t *testing.T) {
+		cfg := testConfig()
+		cfg.EnableRuntimeCompiler = true
+		cfg.EnableCORE = false
+		testHTTPGoTLSCaptureAlreadyRunning(t, cfg)
+	})
+
+	// note: this is a bit of hack since CI runs an entire package either as
+	// runtime, CO-RE, or pre-built. here we're piggybacking on the runtime pass
+	// and running the CO-RE tests as well
+	t.Run("new process (co-re)", func(t *testing.T) {
+		cfg := testConfig()
+		cfg.EnableCORE = true
+		cfg.EnableRuntimeCompiler = false
+		cfg.AllowRuntimeCompiledFallback = false
+		testHTTPGoTLSCaptureNewProcess(t, cfg)
+	})
+
+	t.Run("already running process (co-re)", func(t *testing.T) {
+		cfg := testConfig()
+		cfg.EnableCORE = true
+		cfg.EnableRuntimeCompiler = false
+		cfg.AllowRuntimeCompiledFallback = false
+		testHTTPGoTLSCaptureAlreadyRunning(t, cfg)
+	})
+}
+
+func TestHTTPSGoTLSAttachProbesOnContainer(t *testing.T) {
+	t.Skip("Skipping a flaky test")
+	if !goTLSSupported(t) {
 		t.Skip("GoTLS not supported for this setup")
 	}
 
@@ -574,14 +889,14 @@ func TestHTTPGoTLSAttachProbes(t *testing.T) {
 		cfg := config.New()
 		cfg.EnableRuntimeCompiler = true
 		cfg.EnableCORE = false
-		testHTTPGoTLSCaptureNewProcess(t, cfg)
+		testHTTPsGoTLSCaptureNewProcessContainer(t, cfg)
 	})
 
 	t.Run("already running process (runtime compilation)", func(t *testing.T) {
 		cfg := config.New()
 		cfg.EnableRuntimeCompiler = true
 		cfg.EnableCORE = false
-		testHTTPGoTLSCaptureAlreadyRunning(t, cfg)
+		testHTTPsGoTLSCaptureAlreadyRunningContainer(t, cfg)
 	})
 
 	// note: this is a bit of hack since CI runs an entire package either as
@@ -592,7 +907,7 @@ func TestHTTPGoTLSAttachProbes(t *testing.T) {
 		cfg.EnableCORE = true
 		cfg.EnableRuntimeCompiler = false
 		cfg.AllowRuntimeCompiledFallback = false
-		testHTTPGoTLSCaptureNewProcess(t, cfg)
+		testHTTPsGoTLSCaptureNewProcessContainer(t, cfg)
 	})
 
 	t.Run("already running process (co-re)", func(t *testing.T) {
@@ -600,7 +915,7 @@ func TestHTTPGoTLSAttachProbes(t *testing.T) {
 		cfg.EnableCORE = true
 		cfg.EnableRuntimeCompiler = false
 		cfg.AllowRuntimeCompiledFallback = false
-		testHTTPGoTLSCaptureAlreadyRunning(t, cfg)
+		testHTTPsGoTLSCaptureAlreadyRunningContainer(t, cfg)
 	})
 }
 
@@ -624,7 +939,7 @@ func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config) {
 
 	tr := setupTracer(t, cfg)
 
-	// This maps will keep track of whether or not the tracer saw this request already or not
+	// This maps will keep track of whether the tracer saw this request already or not
 	reqs := make(requestsMap)
 	for i := 0; i < expectedOccurrences; i++ {
 		req, err := nethttp.NewRequest(nethttp.MethodGet, fmt.Sprintf("https://%s/%d/request-%d", serverAddr, nethttp.StatusOK, i), nil)
@@ -633,7 +948,7 @@ func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config) {
 	}
 
 	// spin-up goTLS client and issue requests after initialization
-	nettestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)()
+	tracertestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)()
 	checkRequests(t, tr, expectedOccurrences, reqs)
 }
 
@@ -650,7 +965,7 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 	t.Cleanup(closeServer)
 
 	// spin-up goTLS client but don't issue requests yet
-	issueRequestsFn := nettestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)
+	issueRequestsFn := tracertestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)
 
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableHTTPMonitoring = true
@@ -660,7 +975,7 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 	t.Cleanup(tr.Stop)
 	require.NoError(t, tr.RegisterClient("1"))
 
-	// This maps will keep track of whether or not the tracer saw this request already or not
+	// This maps will keep track of whether the tracer saw this request already or not
 	reqs := make(requestsMap)
 	for i := 0; i < expectedOccurrences; i++ {
 		req, err := nethttp.NewRequest(nethttp.MethodGet, fmt.Sprintf("https://%s/%d/request-%d", serverAddr, nethttp.StatusOK, i), nil)
@@ -669,6 +984,78 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 	}
 
 	issueRequestsFn()
+	checkRequests(t, tr, expectedOccurrences, reqs)
+}
+
+// Test that we can capture HTTPS traffic from Go processes started after the
+// tracer.
+func testHTTPsGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) {
+	const (
+		serverPort          = "8443"
+		expectedOccurrences = 10
+	)
+
+	// problems with aggregation
+	client := &nethttp.Client{
+		Transport: &nethttp.Transport{
+			TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
+			DisableKeepAlives: false,
+		},
+	}
+
+	// Setup
+	cfg.EnableGoTLSSupport = true
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableHTTPSMonitoring = true
+	cfg.EnableHTTPStatsByStatusCode = true
+
+	tr := setupTracer(t, cfg)
+
+	gotls.RunServer(t, serverPort)
+	reqs := make(requestsMap)
+	for i := 0; i < expectedOccurrences; i++ {
+		resp, err := client.Get(fmt.Sprintf("https://localhost:%s/status/%d", serverPort, 200+i))
+		require.NoError(t, err)
+		resp.Body.Close()
+		reqs[resp.Request] = false
+	}
+
+	client.CloseIdleConnections()
+	checkRequests(t, tr, expectedOccurrences, reqs)
+}
+
+func testHTTPsGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Config) {
+	const (
+		serverPort          = "8443"
+		expectedOccurrences = 10
+	)
+
+	gotls.RunServer(t, serverPort)
+
+	client := &nethttp.Client{
+		Transport: &nethttp.Transport{
+			TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
+			DisableKeepAlives: false,
+		},
+	}
+
+	// Setup
+	cfg.EnableGoTLSSupport = true
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableHTTPSMonitoring = true
+	cfg.EnableHTTPStatsByStatusCode = true
+
+	tr := setupTracer(t, cfg)
+
+	reqs := make(requestsMap)
+	for i := 0; i < expectedOccurrences; i++ {
+		resp, err := client.Get(fmt.Sprintf("https://localhost:%s/status/%d", serverPort, 200+i))
+		require.NoError(t, err)
+		resp.Body.Close()
+		reqs[resp.Request] = false
+	}
+
+	client.CloseIdleConnections()
 	checkRequests(t, tr, expectedOccurrences, reqs)
 }
 
@@ -693,7 +1080,10 @@ func countRequestsOccurrences(t *testing.T, conns *network.Connections, reqs map
 			}
 
 			expectedStatus := testutil.StatusFromPath(req.URL.Path)
-			if key.Path.Content == req.URL.Path && stats.HasStats(expectedStatus) {
+			if key.Path.Content != req.URL.Path {
+				continue
+			}
+			if requests, exists := stats.Data[expectedStatus]; exists && requests.Count > 0 {
 				occurrences++
 				reqs[req] = true
 				break

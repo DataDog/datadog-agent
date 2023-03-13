@@ -7,56 +7,85 @@ package runner
 
 import (
 	"context"
-	"testing"
-	"time"
 
 	"go.uber.org/fx"
 
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/comp/process/types"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	processRunner "github.com/DataDog/datadog-agent/pkg/process/runner"
 )
 
 // runner implements the Component.
 type runner struct {
-	checks    []types.Check
-	submitter submitter.Component
+	checkRunner    *processRunner.CheckRunner
+	providedChecks []types.CheckComponent
 }
 
 type dependencies struct {
 	fx.In
+	Lc fx.Lifecycle
 
-	Checks    []types.Check `group:"check"`
-	Submitter submitter.Component
+	Submitter  submitter.Component
+	RTNotifier <-chan types.RTResponse `optional:"true"`
+
+	Checks   []types.CheckComponent `group:"check"`
+	HostInfo *checks.HostInfo
+	SysCfg   *sysconfig.Config
 }
 
 func newRunner(deps dependencies) (Component, error) {
-	return &runner{
-		checks:    deps.Checks,
-		submitter: deps.Submitter,
-	}, nil
-}
-
-func (r *runner) Run(ctx context.Context) error {
-
-	for _, c := range r.checks {
-		if !c.IsEnabled() {
-			continue
-		}
-
-		payload, err := c.Run()
-		if err != nil {
-			return err
-		}
-		r.submitter.Submit(time.Now(), c.Name(), payload)
+	c, err := processRunner.NewRunner(deps.SysCfg, deps.HostInfo, filterEnabledChecks(deps.Checks), deps.RTNotifier)
+	if err != nil {
+		return nil, err
 	}
+	c.Submitter = deps.Submitter
+
+	runner := &runner{
+		checkRunner:    c,
+		providedChecks: deps.Checks,
+	}
+
+	deps.Lc.Append(fx.Hook{
+		OnStart: runner.Run,
+		OnStop:  runner.Stop,
+	})
+
+	return runner, nil
+}
+
+func (r *runner) Run(context.Context) error {
+	return r.checkRunner.Run()
+}
+
+func (r *runner) Stop(context.Context) error {
+	r.checkRunner.Stop()
 	return nil
 }
 
-func (r *runner) GetChecks() []types.Check {
-	return r.checks
+func filterEnabledChecks(providedChecks []types.CheckComponent) []checks.Check {
+	enabledChecks := make([]checks.Check, 0, len(providedChecks))
+	for _, check := range providedChecks {
+		if check.Object().IsEnabled() {
+			enabledChecks = append(enabledChecks, check.Object())
+		}
+	}
+	return enabledChecks
 }
 
-func newMock(deps dependencies, t testing.TB) Component {
-	// TODO
-	return nil
+// IsRealtimeEnabled checks the runner to see if it is running the process check in realtime mode.
+// This is primarily used in tests.
+func (r *runner) IsRealtimeEnabled() bool {
+	return r.checkRunner.IsRealTimeEnabled()
+}
+
+// GetChecks returns the checks that are currently enabled and provided to the runner
+func (r *runner) GetChecks() []checks.Check {
+	return r.checkRunner.GetChecks()
+}
+
+// GetProvidedChecks returns all provided checks, enabled or not.
+func (r *runner) GetProvidedChecks() []types.CheckComponent {
+	return r.providedChecks
 }

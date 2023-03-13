@@ -49,7 +49,7 @@ func newIterator(b *batch, i, j int) *iterator {
 func (it *iterator) Next() []byte {
 	it.i++
 
-	chunkSize := int(it.b.Size)
+	chunkSize := int(it.b.Event_size)
 	if it.i >= it.j || it.i > int(it.b.Cap) || (it.i+1)*chunkSize > len(it.b.Data) {
 		return nil
 	}

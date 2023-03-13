@@ -17,10 +17,12 @@ import (
 )
 
 const (
-	spNS  = "system_probe_config"
-	netNS = "network_config"
-	smNS  = "service_monitoring_config"
-	evNS  = "event_monitoring_config"
+	spNS   = "system_probe_config"
+	netNS  = "network_config"
+	smNS   = "service_monitoring_config"
+	dsNS   = "data_streams_config"
+	evNS   = "event_monitoring_config"
+	smjtNS = smNS + ".java_tls"
 
 	defaultUDPTimeoutSeconds       = 30
 	defaultUDPStreamTimeoutSeconds = 120
@@ -40,6 +42,9 @@ type Config struct {
 
 	// ServiceMonitoringEnabled is whether the service monitoring feature is enabled or not
 	ServiceMonitoringEnabled bool
+
+	// DataStreamsEnabled is whether the data streams feature is enabled or not
+	DataStreamsEnabled bool
 
 	// CollectTCPConns specifies whether the tracer should collect traffic statistics for TCP connections
 	CollectTCPConns bool
@@ -75,7 +80,13 @@ type Config struct {
 	// EnableHTTPMonitoring specifies whether the tracer should monitor HTTP traffic
 	EnableHTTPMonitoring bool
 
-	// EnableHTTPMonitoring specifies whether the tracer should monitor HTTPS traffic
+	// EnableHTTP2Monitoring specifies whether the tracer should monitor HTTP2 traffic
+	EnableHTTP2Monitoring bool
+
+	// EnableKafkaMonitoring specifies whether the tracer should monitor Kafka traffic
+	EnableKafkaMonitoring bool
+
+	// EnableHTTPSMonitoring specifies whether the tracer should monitor HTTPS traffic
 	// Supported libraries: OpenSSL
 	EnableHTTPSMonitoring bool
 
@@ -99,8 +110,17 @@ type Config struct {
 	// Currently Windows only
 	HTTPMaxRequestFragment int64
 
+	// JavaAgentDebug will enable debug output of the injected USM agent
+	JavaAgentDebug bool
+
 	// JavaAgentArgs arguments pass through injected USM agent
 	JavaAgentArgs string
+
+	// JavaAgentAllowRegex (Higher priority) define a regex, if matching /proc/pid/cmdline the java agent will be injected
+	JavaAgentAllowRegex string
+
+	// JavaAgentBlockRegex define a regex, if matching /proc/pid/cmdline the java agent will not be injected
+	JavaAgentBlockRegex string
 
 	// UDPConnTimeout determines the length of traffic inactivity between two
 	// (IP, port)-pairs before declaring a UDP connection as inactive. This is
@@ -140,6 +160,10 @@ type Config struct {
 	// MaxHTTPStatsBuffered represents the maximum number of HTTP stats we'll buffer in memory. These stats
 	// get flushed on every client request (default 30s check interval)
 	MaxHTTPStatsBuffered int
+
+	// MaxKafkaStatsBuffered represents the maximum number of Kafka stats we'll buffer in memory. These stats
+	// get flushed on every client request (default 30s check interval)
+	MaxKafkaStatsBuffered int
 
 	// MaxConnectionsStateBuffered represents the maximum number of state objects that we'll store in memory. These state objects store
 	// the stats for a connection so we can accurately determine traffic change between client requests.
@@ -215,6 +239,10 @@ type Config struct {
 	// ProtocolClassificationEnabled specifies whether the tracer should enhance connection data with protocols names by
 	// classifying the L7 protocols being used.
 	ProtocolClassificationEnabled bool
+
+	// EnableHTTPStatsByStatusCode specifies if the HTTP stats should be aggregated by the actual status code
+	// instead of the status code family.
+	EnableHTTPStatsByStatusCode bool
 }
 
 func join(pieces ...string) string {
@@ -230,6 +258,7 @@ func New() *Config {
 
 		NPMEnabled:               cfg.GetBool(join(netNS, "enabled")),
 		ServiceMonitoringEnabled: cfg.GetBool(join(smNS, "enabled")),
+		DataStreamsEnabled:       cfg.GetBool(join(dsNS, "enabled")),
 
 		CollectTCPConns:  !cfg.GetBool(join(spNS, "disable_tcp")),
 		TCPConnTimeout:   2 * time.Minute,
@@ -262,8 +291,10 @@ func New() *Config {
 		ProtocolClassificationEnabled: cfg.GetBool(join(netNS, "enable_protocol_classification")),
 
 		EnableHTTPMonitoring:  cfg.GetBool(join(netNS, "enable_http_monitoring")),
+		EnableHTTP2Monitoring: cfg.GetBool(join(smNS, "enable_http2_monitoring")),
 		EnableHTTPSMonitoring: cfg.GetBool(join(netNS, "enable_https_monitoring")),
 		MaxHTTPStatsBuffered:  cfg.GetInt(join(netNS, "max_http_stats_buffered")),
+		MaxKafkaStatsBuffered: cfg.GetInt(join(smNS, "max_kafka_stats_buffered")),
 
 		MaxTrackedHTTPConnections: cfg.GetInt64(join(netNS, "max_tracked_http_connections")),
 		HTTPNotificationThreshold: cfg.GetInt64(join(netNS, "http_notification_threshold")),
@@ -292,9 +323,13 @@ func New() *Config {
 		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(join(spNS, "http_idle_connection_ttl_in_s"))) * time.Second,
 
 		// Service Monitoring
-		EnableJavaTLSSupport: cfg.GetBool(join(smNS, "enable_java_tls_support")),
-		JavaAgentArgs:        cfg.GetString(join(smNS, "java_agent_args")),
-		EnableGoTLSSupport:   cfg.GetBool(join(smNS, "enable_go_tls_support")),
+		EnableJavaTLSSupport:        cfg.GetBool(join(smjtNS, "enabled")),
+		JavaAgentDebug:              cfg.GetBool(join(smjtNS, "debug")),
+		JavaAgentArgs:               cfg.GetString(join(smjtNS, "args")),
+		JavaAgentAllowRegex:         cfg.GetString(join(smjtNS, "allow_regex")),
+		JavaAgentBlockRegex:         cfg.GetString(join(smjtNS, "block_regex")),
+		EnableGoTLSSupport:          cfg.GetBool(join(smNS, "enable_go_tls_support")),
+		EnableHTTPStatsByStatusCode: cfg.GetBool(join(smNS, "enable_http_stats_by_status_code")),
 	}
 
 	if runtime.GOOS == "windows" {
@@ -354,6 +389,8 @@ func New() *Config {
 		log.Info("network tracer DNS inspection disabled by configuration")
 	}
 
+	c.ServiceMonitoringEnabled = c.ServiceMonitoringEnabled || c.DataStreamsEnabled
+
 	if c.ServiceMonitoringEnabled {
 		cfg.Set(join(netNS, "enable_http_monitoring"), true)
 		c.EnableHTTPMonitoring = true
@@ -372,6 +409,8 @@ func New() *Config {
 			c.EnableKernelHeaderDownload = true
 		}
 	}
+
+	c.EnableKafkaMonitoring = c.DataStreamsEnabled
 
 	if c.EnableProcessEventMonitoring {
 		log.Info("network process event monitoring enabled")

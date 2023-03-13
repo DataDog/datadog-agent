@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -239,6 +238,16 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if core.IsSet("apm_config.max_remote_traces_per_second") {
 		c.MaxRemoteTPS = core.GetFloat64("apm_config.max_remote_traces_per_second")
 	}
+	if k := "apm_config.features"; coreconfig.Datadog.IsSet(k) {
+		feats := coreconfig.Datadog.GetStringSlice(k)
+		for _, f := range feats {
+			c.Features[f] = struct{}{}
+		}
+		if c.HasFeature("big_resource") {
+			c.MaxResourceLen = 15_000
+		}
+		log.Debug("Found APM feature flags: %v", c.Features)
+	}
 
 	if k := "apm_config.ignore_resources"; core.IsSet(k) {
 		c.Ignore["resource"] = core.GetStringSlice(k)
@@ -293,6 +302,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		MaxRequestBytes:         c.MaxRequestBytes,
 		SpanNameRemappings:      core.GetStringMapString("otlp_config.traces.span_name_remappings"),
 		SpanNameAsResourceName:  core.GetBool("otlp_config.traces.span_name_as_resource_name"),
+		ProbabilisticSampling:   core.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
 	}
 
 	if core.GetBool("apm_config.telemetry.enabled") {
@@ -444,6 +454,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if k := "evp_proxy_config.max_payload_size"; core.IsSet(k) {
 		c.EVPProxy.MaxPayloadSize = core.GetInt64(k)
 	}
+	c.DebugServerPort = coreconfig.Datadog.GetInt("apm_config.debug.port")
 	return nil
 }
 
@@ -606,7 +617,7 @@ func acquireHostname(c *config.AgentConfig) error {
 	if err != nil {
 		return err
 	}
-	if features.Has("disable_empty_hostname") && reply.Hostname == "" {
+	if c.HasFeature("disable_empty_hostname") && reply.Hostname == "" {
 		log.Debugf("Acquired empty hostname from gRPC but it's disallowed.")
 		return errors.New("empty hostname disallowed")
 	}
@@ -625,7 +636,7 @@ func acquireHostnameFallback(c *config.AgentConfig) error {
 	cmd.Stdout = &out
 	err := cmd.Run()
 	c.Hostname = strings.TrimSpace(out.String())
-	if emptyDisallowed := features.Has("disable_empty_hostname") && c.Hostname == ""; err != nil || emptyDisallowed {
+	if emptyDisallowed := c.HasFeature("disable_empty_hostname") && c.Hostname == ""; err != nil || emptyDisallowed {
 		if emptyDisallowed {
 			log.Debugf("Core agent returned empty hostname but is disallowed by disable_empty_hostname feature flag. Falling back to os.Hostname.")
 		}

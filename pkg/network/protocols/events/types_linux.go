@@ -4,12 +4,12 @@
 package events
 
 type batch struct {
-	Idx       uint64
-	Len       uint16
-	Cap       uint16
-	Size      uint16
-	Data      [4096]int8
-	Pad_cgo_0 [2]byte
+	Idx            uint64
+	Len            uint16
+	Cap            uint16
+	Event_size     uint16
+	Dropped_events uint16
+	Data           [4096]int8
 }
 type batchKey struct {
 	Cpu uint32

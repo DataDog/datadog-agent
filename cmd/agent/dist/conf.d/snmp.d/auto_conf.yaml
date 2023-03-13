@@ -132,3 +132,10 @@ instances:
     ## This option is needed for custom tags.
     #
     use_device_id_as_hostname: "%%extra_use_device_id_as_hostname%%"
+
+    ## @param interface_config - string - optional
+    ## Interface configs is used to override interface speed.
+    ## From snmp_listener, the value is string of json content.
+    ## Example: `[{"match_field":"name","match_value":"eth0","in_speed":25,"out_speed":10}]`
+    #
+    interface_configs: "%%extra_interface_configs%%"

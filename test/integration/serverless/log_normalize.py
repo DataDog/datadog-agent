@@ -72,6 +72,11 @@ def normalize_logs(stage):
 
 
 def normalize_traces(stage):
+    def trace_sort_key(log):
+        name = log['chunks'][0]['spans'][0]['name']
+        cold_start = log['chunks'][0]['spans'][0]['meta'].get('cold_start')
+        return name, cold_start
+
     return [
         require(r'BEGINTRACE.*ENDTRACE'),
         exclude(r'BEGINTRACE'),
@@ -87,8 +92,10 @@ def normalize_traces(stage):
         replace(r'("_dd.no_p_sr":)[0-9\.]+', r'\1null'),
         replace(r'("architecture":)"(x86_64|arm64)"', r'\1"XXX"'),
         replace(r'("process_id":)[0-9]+', r'\1null'),
+        replace(r'("otel.trace_id":")[a-zA-Z0-9]+"', r'\1null"'),
         replace(stage, 'XXXXXX'),
         exclude(r'[ ]$'),
+        sort_by(trace_sort_key),
     ]
 
 

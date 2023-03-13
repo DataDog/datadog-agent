@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -251,6 +252,32 @@ func (d *DockerUtil) GetPreferredImageName(imageID string, repoTags []string, re
 
 	d.imageNameBySha[imageID] = preferredName
 	return preferredName
+}
+
+// ImageInspect returns an image inspect object for a given image ID
+func (d *DockerUtil) ImageInspect(ctx context.Context, imageID string) (types.ImageInspect, error) {
+	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
+	defer cancel()
+
+	imageInspect, _, err := d.cli.ImageInspectWithRaw(ctx, imageID)
+	if err != nil {
+		return imageInspect, fmt.Errorf("error inspecting image: %w", err)
+	}
+
+	return imageInspect, nil
+}
+
+// ImageHistory returns the history for a given image ID
+func (d *DockerUtil) ImageHistory(ctx context.Context, imageID string) ([]image.HistoryResponseItem, error) {
+	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
+	defer cancel()
+
+	history, err := d.cli.ImageHistory(ctx, imageID)
+	if err != nil {
+		return history, fmt.Errorf("error getting image history: %w", err)
+	}
+
+	return history, nil
 }
 
 // ResolveImageNameFromContainer will resolve the container sha image name to their user-friendly name.

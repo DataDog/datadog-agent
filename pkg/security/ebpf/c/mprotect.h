@@ -99,7 +99,6 @@ int __attribute__((always_inline)) sys_mprotect_ret(void *ctx, int retval) {
     }
 
     struct mprotect_event_t event = {
-        .event.async = 0,
         .vm_protection = syscall->mprotect.vm_protection,
         .req_protection = syscall->mprotect.req_protection,
         .vm_start = syscall->mprotect.vm_start,

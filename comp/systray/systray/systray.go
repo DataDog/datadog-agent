@@ -374,7 +374,7 @@ func stopSystray(s *systray) {
 func triggerShutdown(s *systray) {
 	if s != nil {
 		// Tell fx to begin shutdown process
-		s.shutdowner.Shutdown()
+		_ = s.shutdowner.Shutdown()
 	}
 }
 

@@ -30,6 +30,7 @@ typedef struct {
     __u16 len;
     __u16 cap;
     __u16 event_size;
+    __u16 dropped_events;
     char data[BATCH_BUFFER_SIZE];
 } batch_data_t;
 

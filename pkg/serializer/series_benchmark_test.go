@@ -74,7 +74,7 @@ func BenchmarkSeries(b *testing.B) {
 			b.ReportMetric(float64(payloadCompressedSize)/float64(b.N), "compressed-payload-bytes")
 		}
 	}
-	bufferContext := marshaler.DefaultBufferContext()
+	bufferContext := marshaler.NewBufferContext()
 	pb := func(series metrics.Series) (transaction.BytesPayloads, error) {
 		iterableSeries := metricsserializer.CreateIterableSeries(metricsserializer.CreateSerieSource(series))
 		return iterableSeries.MarshalSplitCompress(bufferContext)

@@ -38,7 +38,8 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeFuncNa
 	if c.CollectTCPConns {
 		if ClassificationSupported(c) {
 			enableProbe(enabled, probes.ProtocolClassifierEntrySocketFilter)
-			enableProbe(enabled, probes.ProtocolClassifierSocketFilter)
+			enableProbe(enabled, probes.ProtocolClassifierQueuesSocketFilter)
+			enableProbe(enabled, probes.ProtocolClassifierDBsSocketFilter)
 			enableProbe(enabled, probes.NetDevQueue)
 		}
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPSendMsg, probes.TCPSendMsgPre410, kv410))
@@ -55,6 +56,7 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeFuncNa
 		enableProbe(enabled, probes.InetCskListenStop)
 		enableProbe(enabled, probes.TCPSetState)
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPRetransmit, probes.TCPRetransmitPre470, kv470))
+		enableProbe(enabled, probes.TCPRetransmitRet)
 
 		missing, err := ebpf.VerifyKernelFuncs(ksymPath, []string{"sockfd_lookup_light"})
 		if err == nil && len(missing) == 0 {

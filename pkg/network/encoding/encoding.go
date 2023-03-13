@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -65,18 +65,21 @@ func modelConnections(conns *network.Connections) *model.Connections {
 		agentCfg = &model.AgentConfiguration{
 			NpmEnabled: config.SystemProbe.GetBool("network_config.enabled"),
 			UsmEnabled: config.SystemProbe.GetBool("service_monitoring_config.enabled"),
+			DsmEnabled: config.SystemProbe.GetBool("data_streams_config.enabled"),
 		}
 	})
 
 	agentConns := make([]*model.Connection, len(conns.Conns))
 	routeIndex := make(map[string]RouteIdx)
 	httpEncoder := newHTTPEncoder(conns)
+	kafkaEncoder := newKafkaEncoder(conns)
+	http2Encoder := newHTTP2Encoder(conns)
 	ipc := make(ipCache, len(conns.Conns)/2)
 	dnsFormatter := newDNSFormatter(conns, ipc)
 	tagsSet := network.NewTagsSet()
 
 	for i, conn := range conns.Conns {
-		agentConns[i] = FormatConnection(conn, routeIndex, httpEncoder, dnsFormatter, ipc, tagsSet)
+		agentConns[i] = FormatConnection(conn, routeIndex, httpEncoder, http2Encoder, kafkaEncoder, dnsFormatter, ipc, tagsSet)
 	}
 
 	if httpEncoder != nil && httpEncoder.orphanEntries > 0 {
@@ -107,6 +110,7 @@ func modelConnections(conns *network.Connections) *model.Connections {
 	payload.CompilationTelemetryByAsset = FormatCompilationTelemetry(conns.CompilationTelemetryByAsset)
 	payload.KernelHeaderFetchResult = model.KernelHeaderFetchResult(conns.KernelHeaderFetchResult)
 	payload.CORETelemetryByAsset = FormatCORETelemetry(conns.CORETelemetryByAsset)
+	payload.PrebuiltEBPFAssets = conns.PrebuiltAssets
 	payload.Routes = routes
 	payload.Tags = tagsSet.GetStrings()
 

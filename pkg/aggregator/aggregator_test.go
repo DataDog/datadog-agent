@@ -253,6 +253,7 @@ func TestDefaultData(t *testing.T) {
 		Tags:           tagset.CompositeTagsFromSlice([]string{}),
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
+		NoIndex:        true,
 	}}
 
 	s.On("SendSeries", series).Return(nil).Times(1)
@@ -448,6 +449,7 @@ func TestRecurrentSeries(t *testing.T) {
 		Tags:           tagset.CompositeTagsFromSlice([]string{}),
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
+		NoIndex:        true,
 	}}
 
 	// Check only the name for `datadog.agent.up` as the timestamp may not be the same.

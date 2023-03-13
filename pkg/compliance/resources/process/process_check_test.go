@@ -98,13 +98,14 @@ func (f *processFixture) run(t *testing.T) {
 	env.On("DumpInputPath").Return("").Maybe()
 	env.On("ShouldSkipRegoEval").Return(false).Maybe()
 	env.On("Hostname").Return("test-host").Maybe()
+	env.On("StatsdClient").Return(nil).Maybe()
 
 	defer env.AssertExpectations(t)
 
 	regoRule := resource_test.NewTestRule(f.resource, "group", f.module)
 
 	processCheck := rego.NewCheck(regoRule)
-	err := processCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{}, nil)
+	err := processCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{})
 	assert.NoError(err)
 
 	reports := processCheck.Check(env)
@@ -128,7 +129,7 @@ func TestProcessCheck(t *testing.T) {
 			},
 			module: fmt.Sprintf(processModule, `process.flags["--path"] == "foo"`),
 			processes: processutils.Processes{
-				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--path=foo"}, []string{}, ""),
+				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--path=foo"}, []string{}),
 			},
 			expectReport: &compliance.Report{
 				Passed: true,
@@ -158,8 +159,8 @@ func TestProcessCheck(t *testing.T) {
 			},
 			module: fmt.Sprintf(processModule, `process.flags["--path"] == "foo"`),
 			processes: processutils.Processes{
-				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc2", []string{"arg1", "--path=foo"}, []string{}, ""),
-				processutils.NewProcessMetadata(43, time.Now().UnixMilli(), "proc3", []string{"arg1", "--path=foo"}, []string{}, ""),
+				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc2", []string{"arg1", "--path=foo"}, []string{}),
+				processutils.NewProcessMetadata(43, time.Now().UnixMilli(), "proc3", []string{"arg1", "--path=foo"}, []string{}),
 			},
 			expectReport: &compliance.Report{
 				Passed:    false,
@@ -183,7 +184,7 @@ func TestProcessCheck(t *testing.T) {
 			},
 			module: fmt.Sprintf(processModule, `process.flags["--path"] == "foo"`),
 			processes: processutils.Processes{
-				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--paths=foo"}, []string{}, ""),
+				processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--paths=foo"}, []string{}),
 			},
 			expectReport: &compliance.Report{
 				Passed: false,
@@ -223,7 +224,7 @@ func TestProcessCheckCache(t *testing.T) {
 		},
 		module: fmt.Sprintf(processModule, `process.flags["--path"] == "foo"`),
 		processes: processutils.Processes{
-			processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--path=foo"}, []string{}, ""),
+			processutils.NewProcessMetadata(42, time.Now().UnixMilli(), "proc1", []string{"arg1", "--path=foo"}, []string{}),
 		},
 		expectReport: &compliance.Report{
 			Passed: true,

@@ -10,201 +10,308 @@ package providers
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"sync"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
-const (
-	delayDuration = 5 * time.Second
-)
-
-// ContainerConfigProvider implements the ConfigProvider interface for container labels.
+// ContainerConfigProvider implements the ConfigProvider interface for both pods and containers
 type ContainerConfigProvider struct {
-	sync.RWMutex
 	workloadmetaStore workloadmeta.Store
-	upToDate          bool
-	streaming         bool
-	containerCache    map[string]*workloadmeta.Container
-	containerFilter   *containers.Filter
-	once              sync.Once
+	configErrors      map[string]ErrorMsgSet                   // map[entity name]ErrorMsgSet
+	configCache       map[string]map[string]integration.Config // map[entity name]map[config digest]integration.Config
+	mu                sync.RWMutex
 }
 
-// NewContainerConfigProvider creates a new ContainerConfigProvider
+// NewContainerConfigProvider returns a new ConfigProvider subscribed to both container
+// and pods
 func NewContainerConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
-	containerFilter, err := containers.NewAutodiscoveryFilter(containers.GlobalFilter)
-	if err != nil {
-		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %v", err)
-	}
-
 	return &ContainerConfigProvider{
 		workloadmetaStore: workloadmeta.GetGlobalStore(),
-		containerCache:    make(map[string]*workloadmeta.Container),
-		containerFilter:   containerFilter,
+		configCache:       make(map[string]map[string]integration.Config),
+		configErrors:      make(map[string]ErrorMsgSet),
 	}, nil
 }
 
 // String returns a string representation of the ContainerConfigProvider
-func (d *ContainerConfigProvider) String() string {
-	return names.Container
+func (k *ContainerConfigProvider) String() string {
+	return names.KubeContainer
 }
 
-// Collect retrieves all running containers and extract AD templates from their labels.
-func (d *ContainerConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
-	d.once.Do(func() {
-		ch := make(chan struct{})
-		go d.listen(ch)
-		<-ch
-	})
+// Stream starts listening to workloadmeta to generate configs as they come
+// instead of relying on a periodic call to Collect.
+func (k *ContainerConfigProvider) Stream(ctx context.Context) <-chan integration.ConfigChanges {
+	const name = "ad-kubecontainerprovider"
 
-	d.Lock()
-	d.upToDate = true
-	d.Unlock()
+	// outCh must be unbuffered. processing of workloadmeta events must not
+	// proceed until the config is processed by autodiscovery, as configs
+	// need to be generated before any associated services.
+	outCh := make(chan integration.ConfigChanges)
 
-	d.RLock()
-	defer d.RUnlock()
-	return d.generateConfigs()
-}
-
-// listen, closing the given channel after the initial set of events are received
-func (d *ContainerConfigProvider) listen(ch chan struct{}) {
-	d.Lock()
-	d.streaming = true
-	health := health.RegisterLiveness("ad-containerprovider")
-	defer func() {
-		err := health.Deregister()
-		if err != nil {
-			log.Warnf("error de-registering health check: %s", err)
-		}
-	}()
-	d.Unlock()
-
-	var ranOnce bool
-
-	workloadmetaEventsChannel := d.workloadmetaStore.Subscribe("ad-containerprovider", workloadmeta.NormalPriority, workloadmeta.NewFilter(
-		[]workloadmeta.Kind{workloadmeta.KindContainer},
-		workloadmeta.SourceRuntime,
+	inCh := k.workloadmetaStore.Subscribe(name, workloadmeta.ConfigProviderPriority, workloadmeta.NewFilter(
+		[]workloadmeta.Kind{workloadmeta.KindKubernetesPod, workloadmeta.KindContainer},
+		workloadmeta.SourceAll,
 		workloadmeta.EventTypeAll,
 	))
 
-	for {
-		select {
-		case evBundle, ok := <-workloadmetaEventsChannel:
-			if !ok {
-				return
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				k.workloadmetaStore.Unsubscribe(inCh)
+
+			case evBundle, ok := <-inCh:
+				if !ok {
+					return
+				}
+
+				// send changes even when they're empty, as we
+				// need to signal that an event has been
+				// received, for flow control reasons
+				outCh <- k.processEvents(evBundle)
+
+				close(evBundle.Ch)
 			}
-
-			d.processEvents(evBundle)
-
-			if !ranOnce {
-				close(ch)
-				ranOnce = true
-			}
-
-		case <-health.C:
-
 		}
-	}
+	}()
+
+	return outCh
 }
 
-func (d *ContainerConfigProvider) processEvents(eventBundle workloadmeta.EventBundle) {
-	close(eventBundle.Ch)
+func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundle) integration.ConfigChanges {
+	k.mu.Lock()
+	defer k.mu.Unlock()
 
-	for _, event := range eventBundle.Events {
-		containerID := event.Entity.GetID().ID
+	changes := integration.ConfigChanges{}
+
+	for _, event := range evBundle.Events {
+		entityName := buildEntityName(event.Entity)
 
 		switch event.Type {
 		case workloadmeta.EventTypeSet:
-			container := event.Entity.(*workloadmeta.Container)
+			configs, err := k.generateConfig(event.Entity)
 
-			d.RLock()
-			_, containerSeen := d.containerCache[container.ID]
-			d.RUnlock()
-			if containerSeen {
-				// Container restarted with the same ID within 5 seconds.
-				// This delay is needed because of the delay introduced in the
-				// EventTypeUnset case.
-				time.AfterFunc(delayDuration, func() {
-					d.addContainer(containerID, container)
-				})
+			if err != nil {
+				k.configErrors[entityName] = err
 			} else {
-				d.addContainer(containerID, container)
+				delete(k.configErrors, entityName)
+			}
+
+			configCache, ok := k.configCache[entityName]
+			if !ok {
+				configCache = make(map[string]integration.Config)
+				k.configCache[entityName] = configCache
+			}
+
+			configsToUnschedule := make(map[string]integration.Config)
+			for digest, config := range configCache {
+				configsToUnschedule[digest] = config
+			}
+
+			for _, config := range configs {
+				digest := config.Digest()
+				if _, ok := configCache[digest]; ok {
+					delete(configsToUnschedule, digest)
+				} else {
+					configCache[digest] = config
+					changes.ScheduleConfig(config)
+				}
+			}
+
+			for oldDigest, oldConfig := range configsToUnschedule {
+				delete(configCache, oldDigest)
+				changes.UnscheduleConfig(oldConfig)
 			}
 
 		case workloadmeta.EventTypeUnset:
-			// delay for short-lived detection
-			time.AfterFunc(delayDuration, func() {
-				d.deleteContainer(containerID)
-			})
+			oldConfigs, found := k.configCache[entityName]
+			if !found {
+				log.Debugf("entity %q removed from workloadmeta store but not found in cache. skipping", entityName)
+				continue
+			}
+
+			for _, oldConfig := range oldConfigs {
+				changes.UnscheduleConfig(oldConfig)
+			}
+
+			delete(k.configCache, entityName)
+			delete(k.configErrors, entityName)
 
 		default:
 			log.Errorf("cannot handle event of type %d", event.Type)
 		}
 	}
 
+	return changes
 }
 
-// IsUpToDate checks whether we have new containers to parse, based on events
-// received by the listen goroutine. If listening fails, we fallback to
-// collecting everytime.
-func (d *ContainerConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
-	d.RLock()
-	defer d.RUnlock()
-	return d.streaming && d.upToDate, nil
-}
+func (k *ContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]integration.Config, ErrorMsgSet) {
+	var (
+		errMsgSet ErrorMsgSet
+		errs      []error
+		configs   []integration.Config
+	)
 
-// addLabels updates the cache for a given container
-func (d *ContainerConfigProvider) addContainer(containerID string, container *workloadmeta.Container) {
-	d.Lock()
-	defer d.Unlock()
-	d.containerCache[containerID] = container
-	d.upToDate = false
-}
+	switch entity := e.(type) {
+	case *workloadmeta.Container:
+		// kubernetes containers need to be handled together with their
+		// pod, so they generate a single []integration.Config.
+		// otherwise, it's possible for a container that belongs to an
+		// AD-annotated pod to briefly be scheduled without its
+		// annotations.
+		if !findKubernetesInLabels(entity.Labels) {
+			configs, errs = k.generateContainerConfig(entity)
 
-func (d *ContainerConfigProvider) deleteContainer(containerID string) {
-	d.Lock()
-	defer d.Unlock()
-	delete(d.containerCache, containerID)
-	d.upToDate = false
-}
+			containerID := entity.ID
+			containerEntityName := containers.BuildEntityName(string(entity.Runtime), containerID)
+			configs = utils.AddContainerCollectAllConfigs(configs, containerEntityName)
 
-func (d *ContainerConfigProvider) generateConfigs() ([]integration.Config, error) {
-	var configs []integration.Config
-	for containerID, container := range d.containerCache {
-		containerEntityName := containers.BuildEntityName(string(container.Runtime), containerID)
-		c, errors := utils.ExtractTemplatesFromContainerLabels(containerEntityName, container.Labels)
-
-		for _, err := range errors {
-			log.Errorf("Can't parse template for container %s: %s", containerID, err)
+			for idx := range configs {
+				configs[idx].Source = names.Container + ":" + containerEntityName
+			}
 		}
 
-		if util.CcaInAD() {
-			c = utils.AddContainerCollectAllConfigs(c, containerEntityName)
+	case *workloadmeta.KubernetesPod:
+		containerIdentifiers := map[string]struct{}{}
+		containerNames := map[string]struct{}{}
+		for _, podContainer := range entity.Containers {
+			container, err := k.workloadmetaStore.GetContainer(podContainer.ID)
+			if err != nil {
+				log.Debugf("Pod %q has reference to non-existing container %q", entity.Name, podContainer.ID)
+				continue
+			}
+
+			var (
+				c      []integration.Config
+				errors []error
+			)
+
+			c, errors = k.generateContainerConfig(container)
+			configs = append(configs, c...)
+			errs = append(errs, errors...)
+
+			adIdentifier := podContainer.Name
+			if customADID, found := utils.ExtractCheckIDFromPodAnnotations(entity.Annotations, podContainer.Name); found {
+				adIdentifier = customADID
+			}
+
+			containerEntity := containers.BuildEntityName(string(container.Runtime), container.ID)
+			c, errors = utils.ExtractTemplatesFromPodAnnotations(
+				containerEntity,
+				entity.Annotations,
+				adIdentifier,
+			)
+
+			// container_collect_all configs must be added after
+			// configs generated from annotations, since services
+			// are reconciled against configs one-by-one instead of
+			// as a set, so if a container_collect_all config
+			// appears before an annotation one, it'll cause a logs
+			// config to be scheduled as container_collect_all,
+			// unscheduled, and then re-scheduled correctly.
+			c = utils.AddContainerCollectAllConfigs(c, containerEntity)
+
+			if len(errors) > 0 {
+				errs = append(errs, errors...)
+				if len(c) == 0 {
+					// Only got errors, no valid configs so
+					// let's move on to the next container.
+					continue
+				}
+			}
+
+			containerIdentifiers[adIdentifier] = struct{}{}
+			containerNames[podContainer.Name] = struct{}{}
+
+			for idx := range c {
+				c[idx].Source = names.Container + ":" + containerEntity
+			}
+
+			configs = append(configs, c...)
 		}
 
-		for idx := range c {
-			c[idx].Source = names.Container + ":" + containerEntityName
-		}
+		errs = append(errs, utils.ValidateAnnotationsMatching(
+			entity.Annotations,
+			containerIdentifiers,
+			containerNames)...)
 
-		configs = append(configs, c...)
+	default:
+		log.Errorf("cannot handle entity of kind %s", e.GetID().Kind)
 	}
-	return configs, nil
+
+	if len(errs) > 0 {
+		errMsgSet = make(ErrorMsgSet)
+		for _, err := range errs {
+			errMsgSet[err.Error()] = struct{}{}
+		}
+	}
+
+	return configs, errMsgSet
+}
+
+func (k *ContainerConfigProvider) generateContainerConfig(container *workloadmeta.Container) ([]integration.Config, []error) {
+	var (
+		errs    []error
+		configs []integration.Config
+	)
+
+	containerID := container.ID
+	containerEntityName := containers.BuildEntityName(string(container.Runtime), containerID)
+	configs, errs = utils.ExtractTemplatesFromContainerLabels(containerEntityName, container.Labels)
+
+	return configs, errs
+}
+
+// GetConfigErrors returns a map of configuration errors for each namespace/pod
+func (k *ContainerConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+	k.mu.RLock()
+	defer k.mu.RUnlock()
+
+	errors := make(map[string]ErrorMsgSet, len(k.configErrors))
+
+	for entity, errset := range k.configErrors {
+		errors[entity] = errset
+	}
+
+	return errors
+}
+
+// buildEntityName is also used as display key in `agent status` "Configuration Errors" display.
+// (for instance, incorrect annotation syntax or unknown container name).
+// That's why it does not simply use Kind + ID.
+// It needs to be unique over time.
+// (for instance, namespace+name is not unique for a POD as it can be deleted/created with a different UID, see STS rollout)
+func buildEntityName(e workloadmeta.Entity) string {
+	entityID := e.GetID()
+	switch entity := e.(type) {
+	case *workloadmeta.KubernetesPod:
+		return fmt.Sprintf("%s/%s (%s)", entity.Namespace, entity.Name, entity.ID)
+	case *workloadmeta.Container:
+		return containers.BuildEntityName(string(entity.Runtime), entityID.ID)
+	default:
+		return fmt.Sprintf("%s://%s", entityID.Kind, entityID.ID)
+	}
+}
+
+// findKubernetesInLabels traverses a map of container labels and
+// returns true if a kubernetes label is detected
+func findKubernetesInLabels(labels map[string]string) bool {
+	for name := range labels {
+		if strings.HasPrefix(name, "io.kubernetes.") {
+			return true
+		}
+	}
+	return false
 }
 
 func init() {
-	RegisterProvider(names.Container, NewContainerConfigProvider)
-}
-
-// GetConfigErrors is not implemented for the ContainerConfigProvider
-func (d *ContainerConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
-	return make(map[string]ErrorMsgSet)
+	RegisterProvider(names.KubeContainer, NewContainerConfigProvider)
 }

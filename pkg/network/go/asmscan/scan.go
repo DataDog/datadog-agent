@@ -8,6 +8,7 @@ package asmscan
 import (
 	"debug/elf"
 	"fmt"
+
 	"golang.org/x/arch/arm64/arm64asm"
 	"golang.org/x/arch/x86/x86asm"
 )
@@ -115,7 +116,10 @@ func FindARM64ReturnInstructions(data []byte) ([]uint64, error) {
 	for cursor < len(data) {
 		instruction, err := arm64asm.Decode(data[cursor:])
 		if err != nil {
-			return nil, fmt.Errorf("failed to decode ARM 64 instruction at offset %d within function machine code: %w", cursor, err)
+			// ARM64 instructions are 4 bytes long so we just advance
+			// the cursor accordingly in case we run into a decoding error
+			cursor += 4
+			continue
 		}
 
 		if instruction.Op == arm64asm.RET {

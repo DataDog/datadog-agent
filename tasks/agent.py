@@ -295,7 +295,7 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_
     base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
     pkg_dir = os.path.join(base_dir, 'pkg')
     deb_glob = f'datadog-agent*_{arch}.deb'
-    dockerfile_path = f"{build_context}/{arch}/Dockerfile"
+    dockerfile_path = f"{build_context}/Dockerfile"
     list_of_files = glob.glob(os.path.join(pkg_dir, deb_glob))
     # get the last debian package built
     if not list_of_files:
@@ -312,10 +312,10 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_
 
     # Build with the testing target
     if not skip_tests:
-        ctx.run(f"docker build {common_build_opts} --target testing {build_context}")
+        ctx.run(f"docker build {common_build_opts} --platform linux/{arch} --target testing {build_context}")
 
     # Build with the release target
-    ctx.run(f"docker build {common_build_opts} --target release {build_context}")
+    ctx.run(f"docker build {common_build_opts} --platform linux/{arch} --target release {build_context}")
     ctx.run(f"rm {build_context}/{deb_glob}")
 
 

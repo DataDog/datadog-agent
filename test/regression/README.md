@@ -25,6 +25,20 @@ The structure of each case is as follows:
 * `datadog-agent/` -- __Required__ This is the configuration directory of your
   program. Will be mounted read-only in the container build from `Dockerfile`
   above at `/etc/datadog-agent`.
+* `experiment.yaml` -- __Optional__ This file can be used to set a
+  single optimization goal for each experiment.
+
+  In this file, the optimization goal is set via a snippet like
+
+  ```yaml
+  optimization_goal: ingress_throughput
+  ```
+
+  Supported values of `optimization_goal` are `ingress_throughput` and
+  `egress_throughput`.
+
+  If an experiment omits this file, the optimization goal defaults to
+  `ingress_throughput`.
 
 [Vector]: https://github.com/vectordotdev/vector/tree/master/regression
 [lading]: https://github.com/DataDog/lading

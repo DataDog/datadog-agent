@@ -601,6 +601,7 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
+		NoIndex:        true,
 	})
 }
 

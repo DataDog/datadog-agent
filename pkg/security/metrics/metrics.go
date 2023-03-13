@@ -101,6 +101,9 @@ var (
 	// MetricPerfBufferBytesRead is the name of the metric used to count the number of bytes read from a perf buffer
 	// Tags: map
 	MetricPerfBufferBytesRead = newRuntimeMetric(".perf_buffer.bytes.read")
+	// MetricPerfBufferBytesInUse is the name of the metric used to count the percentage of space left in the ring buffer
+	// Tags: map
+	MetricPerfBufferBytesInUse = newRuntimeMetric(".perf_buffer.bytes.in_use")
 	// MetricPerfBufferSortingError is the name of the metric used to report events reordering issues.
 	// Tags: map, event_type
 	MetricPerfBufferSortingError = newRuntimeMetric(".perf_buffer.sorting_error")
@@ -148,6 +151,9 @@ var (
 	// MetricProcessResolverEnvsSize is the name of the metric used to report the number of envs size
 	// Tags: -
 	MetricProcessResolverEnvsSize = newRuntimeMetric(".process_resolver.envs.size")
+	// MetricProcessEventBrokenLineage is the name of the metric used to report a broken lineage
+	// Tags: -
+	MetricProcessEventBrokenLineage = newRuntimeMetric(".process_resolver.event_broken_lineage")
 
 	// Mount resolver metrics
 
@@ -195,9 +201,45 @@ var (
 	// MetricActivityDumpBrokenLineageDrop is the name of the metric used to report the number of events dropped due to broken ancestors lineage
 	// Tags: -
 	MetricActivityDumpBrokenLineageDrop = newRuntimeMetric(".activity_dump.broken_lineage_drop")
+	// MetricActivityDumpEventTypeDrop is the name of the metric used to report the number of event dropped because their event types is not traced
+	// Tags: -
+	MetricActivityDumpEventTypeDrop = newRuntimeMetric(".activity_dump.event_type_drop")
+	// MetricActivityDumpValidRootNodeDrop is the name of the metric used to report the number of dropped root not valide node
+	// Tags: -
+	MetricActivityDumpValidRootNodeDrop = newRuntimeMetric(".activity_dump.valid_root_node_drop")
+	// MetricActivityDumpBindFamilyDrop is the name of the metric used to report the number of event dropped because the address family is not handled
+	// Tags: -
+	MetricActivityDumpBindFamilyDrop = newRuntimeMetric(".activity_dump.bind_family_drop")
 	// MetricActivityDumpEmptyDropped is the name of the metric used to report the number of activity dumps dropped because they were empty
 	// Tags: -
 	MetricActivityDumpEmptyDropped = newRuntimeMetric(".activity_dump.empty_dump_dropped")
+	// MetricActivityDumpDropMaxDumpReached is the name of the metric used to report that an activity dump was dropped because the maximum amount of dumps for a workload was reached
+	// Tags: -
+	MetricActivityDumpDropMaxDumpReached = newRuntimeMetric(".activity_dump.drop_max_dump_reached")
+	// MetricActivityDumpNotYetProfiledWorkload is the name of the metric used to report the count of workload not yet profiled
+	// Tags: -
+	MetricActivityDumpNotYetProfiledWorkload = newAgentMetric(".activity_dump.not_yet_profiled_workload")
+
+	// SBOM resolver metrics
+
+	// MetricSBOMResolverActiveSBOMs is the name of the metric used to report the count of SBOMs kept in memory
+	// Tags: -
+	MetricSBOMResolverActiveSBOMs = newRuntimeMetric(".sbom_resolver.active_sboms")
+	// MetricSBOMResolverSBOMGenerations is the name of the metric used to report when a SBOM is being generated at runtime
+	// Tags: -
+	MetricSBOMResolverSBOMGenerations = newRuntimeMetric(".sbom_resolver.sbom_generations")
+	// MetricSBOMResolverFailedSBOMGenerations is the name of the metric used to report when a SBOM generation failed
+	// Tags: -
+	MetricSBOMResolverFailedSBOMGenerations = newRuntimeMetric(".sbom_resolver.failed_sbom_generations")
+	// MetricSBOMResolverSBOMCacheLen is the name of the metric used to report the count of SBOMs kept in cache
+	// Tags: -
+	MetricSBOMResolverSBOMCacheLen = newRuntimeMetric(".sbom_resolver.sbom_cache.len")
+	// MetricSBOMResolverSBOMCacheHit is the name of the metric used to report the number of SBOMs that were generated from cache
+	// Tags: -
+	MetricSBOMResolverSBOMCacheHit = newRuntimeMetric(".sbom_resolver.sbom_cache.hit")
+	// MetricSBOMResolverSBOMCacheMiss is the name of the metric used to report the number of SBOMs that weren't in cache
+	// Tags: -
+	MetricSBOMResolverSBOMCacheMiss = newRuntimeMetric(".sbom_resolver.sbom_cache.miss")
 
 	// Namespace resolver metrics
 
@@ -419,6 +461,13 @@ var (
 	PathResolutionTag = "resolution:path"
 	// AllResolutionsTags is the list of resolution tags
 	AllResolutionsTags = []string{SegmentResolutionTag, ParentResolutionTag, PathResolutionTag}
+
+	// ProcessSourceEventTags is assigned to metrics for process cache entries created from events
+	ProcessSourceEventTags = []string{"type:event"}
+	// ProcessSourceKernelMapsTags is assigned to metrics for process cache entries populated from kernel maps
+	ProcessSourceKernelMapsTags = []string{KernelMapsTag}
+	// ProcessSourceProcTags is assigned to metrics for process cache entries populated from /proc data
+	ProcessSourceProcTags = []string{ProcFSTag}
 )
 
 func newRuntimeMetric(name string) string {

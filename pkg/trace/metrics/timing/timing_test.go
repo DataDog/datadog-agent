@@ -53,7 +53,7 @@ func TestTiming(t *testing.T) {
 		if runtime.GOOS == "windows" {
 			time.Sleep(5 * time.Second)
 		}
-		time.Sleep(5 * time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 		stop()
 		assert.True(len(stats.CountCalls) > 1)
 	})

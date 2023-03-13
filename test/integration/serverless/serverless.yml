@@ -51,6 +51,14 @@ custom:
   altArchitectureNames:
     amd64: "x86_64"
     arm64: "arm64"
+  pythonRequirements:
+    fileName: src/requirements.txt
+    layer:
+      compatibleRuntimes:
+        - python3.8
+
+plugins:
+  - serverless-python-requirements
 
 layers:
   recorderExtension:
@@ -122,7 +130,7 @@ functions:
 
   metric-proxy:
     runtime: nodejs14.x
-    handler: src/proxyTestFunctions.noop 
+    handler: src/proxyTestFunctions.noop
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
@@ -180,7 +188,7 @@ functions:
 
   error-proxy:
     runtime: nodejs14.x
-    handler: src/proxyTestFunctions.error 
+    handler: src/proxyTestFunctions.error
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
@@ -254,7 +262,7 @@ functions:
 
   timeout-proxy:
     runtime: nodejs14.x
-    handler: src/proxyTestFunctions.timeout 
+    handler: src/proxyTestFunctions.timeout
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
@@ -320,10 +328,10 @@ functions:
     environment:
       JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar" -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       DD_JMXFETCH_ENABLED: false
-  
+
   log-proxy:
     runtime: nodejs14.x
-    handler: src/proxyTestFunctions.log 
+    handler: src/proxyTestFunctions.log
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
@@ -401,3 +409,16 @@ functions:
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
+
+  otlp-python:
+    runtime: python3.8
+    handler: datadog_lambda.handler.handler
+    layers:
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Python38${self:custom.ddLambdaPythonLayerFlag.${env:ARCHITECTURE}}:${env:PYTHON_LAYER_VERSION}
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+      - { Ref: PythonRequirementsLambdaLayer }
+    environment:
+      DD_LAMBDA_HANDLER: src/otlpPython.simple_test
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://localhost:4318
+      DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT: localhost:4318

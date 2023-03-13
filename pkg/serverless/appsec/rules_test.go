@@ -3,15 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build serverless
-// +build serverless
-
 package appsec
 
 import (
 	"testing"
 
+	"github.com/DataDog/appsec-internal-go/appsec"
 	"github.com/DataDog/go-libddwaf"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,7 +19,7 @@ func TestStaticRule(t *testing.T) {
 		t.Skip("waf disabled")
 		return
 	}
-	waf, err := waf.NewHandle([]byte(staticRecommendedRule), "", "")
+	waf, err := waf.NewHandle([]byte(appsec.StaticRecommendedRules), "", "")
 	require.NoError(t, err)
 	waf.Close()
 }

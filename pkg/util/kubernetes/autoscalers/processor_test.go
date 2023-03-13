@@ -386,7 +386,7 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 			}
 			p := &Processor{datadogClient: datadogClient}
 
-			_, err := p.QueryExternalMetric(tt.in, 0)
+			_, err := p.QueryExternalMetric(tt.in, GetDefaultTimeWindow())
 			if err != nil || tt.err != nil {
 				assert.Contains(t, err.Error(), tt.err.Error())
 			}

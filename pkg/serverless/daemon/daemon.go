@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/otlp"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -41,6 +42,8 @@ type Daemon struct {
 	TraceAgent *trace.ServerlessTraceAgent
 
 	ColdStartCreator *trace.ColdStartSpanCreator
+
+	OTLPAgent *otlp.ServerlessOTLPAgent
 
 	// lastInvocations stores last invocation times to be able to compute the
 	// interval of invocation of the function.
@@ -186,6 +189,10 @@ func (d *Daemon) SetTraceAgent(traceAgent *trace.ServerlessTraceAgent) {
 	d.TraceAgent = traceAgent
 }
 
+func (d *Daemon) SetOTLPAgent(otlpAgent *otlp.ServerlessOTLPAgent) {
+	d.OTLPAgent = otlpAgent
+}
+
 func (d *Daemon) SetColdStartSpanCreator(creator *trace.ColdStartSpanCreator) {
 	d.ColdStartCreator = creator
 }
@@ -315,6 +322,11 @@ func (d *Daemon) Stop() {
 	if d.ColdStartCreator != nil {
 		d.ColdStartCreator.Stop()
 	}
+
+	if d.OTLPAgent != nil {
+		d.OTLPAgent.Stop()
+	}
+
 	logs.Stop()
 	log.Debug("Serverless agent shutdown complete")
 }

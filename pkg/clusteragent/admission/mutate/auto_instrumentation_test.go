@@ -148,6 +148,80 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "nominal case: dotnet",
+			pod:  fakePod("dotnet-pod"),
+			libsToInject: []libInfo{
+				{
+					lang:  "dotnet",
+					image: "gcr.io/datadoghq/dd-lib-dotnet-init:v1",
+				},
+			},
+			expectedEnvKey: "CORECLR_PROFILER",
+			expectedEnvVal: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}",
+			wantErr:        false,
+		},
+		{
+			name: "CORECLR_ENABLE_PROFILING not empty",
+			pod:  fakePodWithEnvValue("dotnet-pod", "CORECLR_PROFILER", "predefined"),
+			libsToInject: []libInfo{
+				{
+					lang:  "dotnet",
+					image: "gcr.io/datadoghq/dd-lib-dotnet-init:v1",
+				},
+			},
+			expectedEnvKey: "CORECLR_PROFILER",
+			expectedEnvVal: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}",
+			wantErr:        false,
+		},
+		{
+			name: "CORECLR_ENABLE_PROFILING set via ValueFrom",
+			pod:  fakePodWithEnvFieldRefValue("dotnet-pod", "CORECLR_PROFILER", "path"),
+			libsToInject: []libInfo{
+				{
+					lang:  "dotnet",
+					image: "gcr.io/datadoghq/dd-lib-dotnet-init:v1",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "nominal case: ruby",
+			pod:  fakePod("ruby-pod"),
+			libsToInject: []libInfo{
+				{
+					lang:  "ruby",
+					image: "gcr.io/datadoghq/dd-lib-ruby-init:v1",
+				},
+			},
+			expectedEnvKey: "RUBYOPT",
+			expectedEnvVal: " -r/datadog-lib/auto_inject",
+			wantErr:        false,
+		},
+		{
+			name: "RUBYOPT not empty",
+			pod:  fakePodWithEnvValue("ruby-pod", "RUBYOPT", "predefined"),
+			libsToInject: []libInfo{
+				{
+					lang:  "ruby",
+					image: "gcr.io/datadoghq/dd-lib-ruby-init:v1",
+				},
+			},
+			expectedEnvKey: "RUBYOPT",
+			expectedEnvVal: "predefined -r/datadog-lib/auto_inject",
+			wantErr:        false,
+		},
+		{
+			name: "RUBYOPT set via ValueFrom",
+			pod:  fakePodWithEnvFieldRefValue("ruby-pod", "RUBYOPT", "path"),
+			libsToInject: []libInfo{
+				{
+					lang:  "ruby",
+					image: "gcr.io/datadoghq/dd-lib-ruby-init:v1",
+				},
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -312,6 +386,17 @@ func TestExtractLibInfo(t *testing.T) {
 					ctrName: "node-app",
 					lang:    "js",
 					image:   "registry/dd-lib-js-init:v1",
+				},
+			},
+		},
+		{
+			name:              "ruby",
+			pod:               fakePodWithAnnotation("admission.datadoghq.com/ruby-lib.version", "v1"),
+			containerRegistry: "registry",
+			expectedLibsToInject: []libInfo{
+				{
+					lang:  "ruby",
+					image: "registry/dd-lib-ruby-init:v1",
 				},
 			},
 		},

@@ -13,14 +13,14 @@ import (
 	"fmt"
 	clustercheckscmd "github.com/DataDog/datadog-agent/pkg/cli/subcommands/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/dcaconfigcheck"
+	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/dcaflare"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"os"
 )
 
 const (
-	LoggerName      = "CLUSTER"
-	DefaultLogLevel = "off"
+	LoggerName = "CLUSTER"
 )
 
 // GlobalParams contains the values of agent-global Cobra flags.
@@ -60,6 +60,12 @@ once per cluster.`,
 
 	agentCmd.AddCommand(dcaconfigcheck.MakeCommand(func() dcaconfigcheck.GlobalParams {
 		return dcaconfigcheck.GlobalParams{
+			ConfFilePath: globalParams.ConfFilePath,
+		}
+	}))
+
+	agentCmd.AddCommand(dcaflare.MakeCommand(func() dcaflare.GlobalParams {
+		return dcaflare.GlobalParams{
 			ConfFilePath: globalParams.ConfFilePath,
 		}
 	}))

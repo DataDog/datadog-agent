@@ -13,6 +13,7 @@ deploy_packages_windows-7:
       --recursive
       --exclude "*"
       --include "datadog-agent-7*.msi"
+      --include "datadog-agent-ng-7*.msi"
       --include "datadog-agent-7*.debug.zip"
       --include "datadog-agent-7*.wixpdb"
       --include "customaction-7*.pdb"

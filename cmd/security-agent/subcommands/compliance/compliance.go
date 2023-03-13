@@ -50,6 +50,7 @@ func StartCompliance(log log.Component, config config.Component, hostname string
 	checkInterval := config.GetDuration("compliance_config.check_interval")
 	checkMaxEvents := config.GetInt("compliance_config.check_max_events_per_run")
 	configDir := config.GetString("compliance_config.dir")
+	metricsEnabled := config.GetBool("compliance_config.metrics.enabled")
 
 	options := []checks.BuilderOption{
 		checks.WithInterval(checkInterval),
@@ -58,7 +59,9 @@ func StartCompliance(log log.Component, config config.Component, hostname string
 		checks.WithHostRootMount(os.Getenv("HOST_ROOT")),
 		checks.MayFail(checks.WithDocker()),
 		checks.MayFail(checks.WithAudit()),
-		checks.WithStatsd(statsdClient),
+	}
+	if metricsEnabled {
+		options = append(options, checks.WithStatsd(statsdClient))
 	}
 
 	agent, err := agent.New(

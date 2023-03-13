@@ -62,12 +62,12 @@ func (c *collector) Pull(ctx context.Context) error {
 		return err
 	}
 
-	c.store.Notify(c.parseTask(ctx, task))
+	c.store.Notify(c.parseTask(task))
 
 	return nil
 }
 
-func (c *collector) parseTask(ctx context.Context, task *v2.Task) []workloadmeta.CollectorEvent {
+func (c *collector) parseTask(task *v2.Task) []workloadmeta.CollectorEvent {
 	events := []workloadmeta.CollectorEvent{}
 	seen := make(map[workloadmeta.EntityID]struct{})
 

@@ -21,8 +21,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/process/events"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
-	"github.com/DataDog/datadog-agent/pkg/security/api"
-	"github.com/DataDog/datadog-agent/pkg/security/api/mocks"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api/mocks"
 )
 
 type eventTestData struct {

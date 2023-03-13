@@ -21,7 +21,7 @@ BPF_HASH_MAP(tcp_ongoing_connect_pid, struct sock *, __u64, 1024)
 /* Will hold the tcp/udp close events
  * The keys are the cpu number and the values a perf file descriptor for a perf event
  */
-BPF_PERF_EVENT_ARRAY_MAP(conn_close_event, __u32, 0)
+BPF_PERF_EVENT_ARRAY_MAP(conn_close_event, __u32)
 
 /* We use this map as a container for batching closed tcp/udp connections
  * The key represents the CPU core. Ideally we should use a BPF_MAP_TYPE_PERCPU_HASH map
@@ -81,6 +81,13 @@ BPF_HASH_MAP(pending_bind, __u64, bind_syscall_args_t, 8192)
  */
 BPF_ARRAY_MAP(telemetry, telemetry_t, 1)
 
+/* Similar to pending_sockets this is used for capturing state between the call and return of the tcp_retransmit_skb() system call.
+ *
+ * Keys: the PID returned by bpf_get_current_pid_tgid()
+ * Values: the args of the tcp_retransmit_skb call being instrumented.
+ */
+BPF_HASH_MAP(pending_tcp_retransmit_skb, __u64, tcp_retransmit_skb_args_t, 8192)
+
 // This map is used to to temporarily store function arguments (the struct sock*
 // mapped to the given fd_out) for do_sendfile function calls, so they can be
 // accessed by the corresponding kretprobe.
@@ -91,12 +98,5 @@ BPF_HASH_MAP(do_sendfile_args, __u64, struct sock *, 1024)
 // Used to store ip(6)_make_skb args to be used in the
 // corresponding kretprobes
 BPF_HASH_MAP(ip_make_skb_args, __u64, ip_make_skb_args_t, 1024)
-
-// This entry point is needed to bypass a memory limit on socket filters.
-// There is a limitation on number of instructions can be attached to a socket filter,
-// as we classify more protocols, we reached that limit, thus we workaround it
-// by using tail call.
-#define CLASSIFICATION_PROG 0
-BPF_PROG_ARRAY(classification_progs, 1)
 
 #endif

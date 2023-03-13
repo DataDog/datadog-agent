@@ -9,11 +9,11 @@ import (
 	"sort"
 	"testing"
 
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGetBaseTagsArrayNoEnvNoMetadata(t *testing.T) {
-	assert.Equal(t, 0, len(GetBaseTagsArrayWithMetadataTags(make(map[string]string, 0))))
+	assert.Equal(t, 1, len(GetBaseTagsArrayWithMetadataTags(make(map[string]string, 0))))
 }
 
 func TestGetBaseTagsArrayWithMetadataTagsNoMetadata(t *testing.T) {
@@ -24,10 +24,11 @@ func TestGetBaseTagsArrayWithMetadataTagsNoMetadata(t *testing.T) {
 	t.Setenv("DD_VERSION", "123.4")
 	tags := GetBaseTagsArrayWithMetadataTags(make(map[string]string, 0))
 	sort.Strings(tags)
-	assert.Equal(t, 3, len(tags))
-	assert.Equal(t, "env:myenv", tags[0])
-	assert.Equal(t, "service:superservice", tags[1])
-	assert.Equal(t, "version:123.4", tags[2])
+	assert.Equal(t, 4, len(tags))
+	assert.Contains(t, tags[0], "datadog_init_version")
+	assert.Equal(t, "env:myenv", tags[1])
+	assert.Equal(t, "service:superservice", tags[2])
+	assert.Equal(t, "version:123.4", tags[3])
 }
 
 func TestGetTagFound(t *testing.T) {
@@ -44,7 +45,7 @@ func TestGetTagNotFound(t *testing.T) {
 }
 
 func TestGetBaseTagsMapNoEnvNoMetadata(t *testing.T) {
-	assert.Equal(t, 0, len(GetBaseTagsMapWithMetadata(make(map[string]string, 0))))
+	assert.Equal(t, 1, len(GetBaseTagsMapWithMetadata(make(map[string]string, 0))))
 }
 
 func TestGetBaseTagsMapNoMetadata(t *testing.T) {
@@ -54,7 +55,7 @@ func TestGetBaseTagsMapNoMetadata(t *testing.T) {
 	t.Setenv("DD_SERVICE", "superService")
 	t.Setenv("DD_VERSION", "123.4")
 	tags := GetBaseTagsMapWithMetadata(make(map[string]string, 0))
-	assert.Equal(t, 3, len(tags))
+	assert.Equal(t, 4, len(tags))
 	assert.Equal(t, "myenv", tags["env"])
 	assert.Equal(t, "superservice", tags["service"])
 	assert.Equal(t, "123.4", tags["version"])
@@ -66,7 +67,7 @@ func TestGetBaseTagsMapWithMetadata(t *testing.T) {
 		"location":      "mysuperlocation",
 		"othermetadata": "mysuperothermetadatavalue",
 	})
-	assert.Equal(t, 2, len(tags))
+	assert.Equal(t, 3, len(tags))
 	assert.Equal(t, "mysuperlocation", tags["location"])
 	assert.Equal(t, "mysuperothermetadatavalue", tags["othermetadata"])
 }
@@ -78,7 +79,8 @@ func TestGetBaseTagsArrayWithMetadataTags(t *testing.T) {
 		"othermetadata": "mysuperothermetadatavalue",
 	})
 	sort.Strings(tags)
-	assert.Equal(t, 2, len(tags))
-	assert.Equal(t, "location:mysuperlocation", tags[0])
-	assert.Equal(t, "othermetadata:mysuperothermetadatavalue", tags[1])
+	assert.Equal(t, 3, len(tags))
+	assert.Contains(t, tags[0], "datadog_init_version")
+	assert.Equal(t, "location:mysuperlocation", tags[1])
+	assert.Equal(t, "othermetadata:mysuperothermetadatavalue", tags[2])
 }

@@ -23,7 +23,7 @@ import (
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
-	"github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

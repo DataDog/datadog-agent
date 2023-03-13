@@ -55,12 +55,18 @@ import (
    That node contains the list of labels to add.
 */
 
+type joinsConfig struct {
+	labelsToMatch []string
+	labelsToGet   map[string]string
+	getAllLabels  bool
+}
+
 type labelJoiner struct {
 	metricsToJoin map[string]metricToJoin
 }
 
 type metricToJoin struct {
-	config *JoinsConfig
+	config *joinsConfig
 	tree   *node
 }
 
@@ -74,11 +80,11 @@ type node struct {
 	labelsToAdd []label
 }
 
-func newLabelJoiner(config map[string]*JoinsConfig) *labelJoiner {
+func newLabelJoiner(config map[string]*joinsConfig) *labelJoiner {
 	metricsToJoin := make(map[string]metricToJoin)
 
 	for key, joinsConfig := range config {
-		if len(joinsConfig.LabelsToMatch) > 0 {
+		if len(joinsConfig.labelsToMatch) > 0 {
 			metricsToJoin[key] = metricToJoin{
 				config: joinsConfig,
 				tree:   newInnerNode(),
@@ -116,12 +122,12 @@ func newLeafNode() *node {
 	}
 }
 
-func (lj *labelJoiner) insertMetric(metric ksmstore.DDMetric, config *JoinsConfig, tree *node) {
+func (lj *labelJoiner) insertMetric(metric ksmstore.DDMetric, config *joinsConfig, tree *node) {
 	current := tree
 
 	// Parse the tree from the root to the leaf and add missing nodes on the way.
-	nbLabelsToMatch := len(config.LabelsToMatch)
-	for i, labelToMatch := range config.LabelsToMatch {
+	nbLabelsToMatch := len(config.labelsToMatch)
+	for i, labelToMatch := range config.labelsToMatch {
 		labelValue, found := metric.Labels[labelToMatch]
 		if !found {
 			return
@@ -143,14 +149,14 @@ func (lj *labelJoiner) insertMetric(metric ksmstore.DDMetric, config *JoinsConfi
 	}
 
 	// Fill the `labelsToAdd` on the leaf node.
-	if config.GetAllLabels {
+	if config.getAllLabels {
 		if current.labelsToAdd == nil {
-			current.labelsToAdd = make([]label, 0, len(metric.Labels)-len(config.LabelsToMatch))
+			current.labelsToAdd = make([]label, 0, len(metric.Labels)-len(config.labelsToMatch))
 		}
 
 		for labelName, labelValue := range metric.Labels {
 			isALabelToMatch := false
-			for _, labelToMatch := range config.LabelsToMatch {
+			for _, labelToMatch := range config.labelsToMatch {
 				if labelName == labelToMatch {
 					isALabelToMatch = true
 					break
@@ -162,13 +168,13 @@ func (lj *labelJoiner) insertMetric(metric ksmstore.DDMetric, config *JoinsConfi
 		}
 	} else {
 		if current.labelsToAdd == nil {
-			current.labelsToAdd = make([]label, 0, len(config.LabelsToGet))
+			current.labelsToAdd = make([]label, 0, len(config.labelsToGet))
 		}
 
-		for _, labelToGet := range config.LabelsToGet {
+		for labelToGet, ddTagKey := range config.labelsToGet {
 			labelValue, found := metric.Labels[labelToGet]
 			if found && labelValue != "" {
-				current.labelsToAdd = append(current.labelsToAdd, label{labelToGet, labelValue})
+				current.labelsToAdd = append(current.labelsToAdd, label{ddTagKey, labelValue})
 			}
 		}
 	}
@@ -199,9 +205,9 @@ func (lj *labelJoiner) insertFamilies(metrics map[string][]ksmstore.DDMetricsFam
 	}
 }
 
-func (lj *labelJoiner) getLabelsToAddOne(inputLabels map[string]string, config *JoinsConfig, tree *node, labelsToAdd *[]label) {
+func (lj *labelJoiner) getLabelsToAddOne(inputLabels map[string]string, config *joinsConfig, tree *node, labelsToAdd *[]label) {
 	node := tree
-	for _, labelToMatch := range config.LabelsToMatch {
+	for _, labelToMatch := range config.labelsToMatch {
 		labelValue, found := inputLabels[labelToMatch]
 		if !found {
 			return

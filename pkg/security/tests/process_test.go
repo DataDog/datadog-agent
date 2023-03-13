@@ -35,9 +35,9 @@ import (
 	"github.com/syndtr/gocapability/capability"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 func TestProcess(t *testing.T) {
@@ -408,7 +408,7 @@ func TestProcessContext(t *testing.T) {
 		// number of args overflow
 		nArgs, args := 1024, []string{"-al"}
 		for i := 0; i != nArgs; i++ {
-			args = append(args, eval.RandString(50))
+			args = append(args, utils.RandString(50))
 		}
 
 		test.GetSignal(t, func() error {
@@ -449,7 +449,7 @@ func TestProcessContext(t *testing.T) {
 		// number of args overflow
 		nArgs, args := 1024, []string{"-al"}
 		for i := 0; i != nArgs; i++ {
-			args = append(args, eval.RandString(500))
+			args = append(args, utils.RandString(500))
 		}
 
 		test.GetSignal(t, func() error {
@@ -544,7 +544,7 @@ func TestProcessContext(t *testing.T) {
 		buf.Grow(50)
 		for i := 0; i != nEnvs; i++ {
 			buf.Reset()
-			fmt.Fprintf(&buf, "%s=%s", eval.RandString(19), eval.RandString(30))
+			fmt.Fprintf(&buf, "%s=%s", utils.RandString(19), utils.RandString(30))
 			envs = append(envs, buf.String())
 		}
 
@@ -595,7 +595,7 @@ func TestProcessContext(t *testing.T) {
 		buf.Grow(500)
 		for i := 0; i != nEnvs; i++ {
 			buf.Reset()
-			fmt.Fprintf(&buf, "%s=%s", eval.RandString(199), eval.RandString(300))
+			fmt.Fprintf(&buf, "%s=%s", utils.RandString(199), utils.RandString(300))
 			envs = append(envs, buf.String())
 		}
 
@@ -2094,8 +2094,13 @@ func TestProcessFilelessExecution(t *testing.T) {
 			syscallTesterToRun:               "fileless",
 			syscallTesterScriptFilenameToRun: "",
 			check: func(event *model.Event, rule *rules.Rule) {
-				assertFieldEqual(t, event, "process.file.name", filelessExecutionFilenamePrefix, "process.file.name not matching")
-				assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"syscall_tester"}, "process.ancestors.file.name not matching")
+				assertFieldEqual(
+					t, event, "process.file.name", filelessExecutionFilenamePrefix, "process.file.name not matching",
+				)
+				assertFieldStringArrayIndexedOneOf(
+					t, event, "process.ancestors.file.name", 0, []string{"syscall_tester"},
+					"process.ancestors.file.name not matching",
+				)
 			},
 		},
 		{

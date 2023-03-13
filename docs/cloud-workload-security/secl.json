@@ -13,6 +13,11 @@
           "property_doc_link": "async-doc"
         },
         {
+          "name": "container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "container-created_at-doc"
+        },
+        {
           "name": "container.id",
           "definition": "ID of the container",
           "property_doc_link": "container-id-doc"
@@ -190,7 +195,7 @@
         {
           "name": "process.ancestors.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "process.ancestors.file.mode",
@@ -205,7 +210,7 @@
         {
           "name": "process.ancestors.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "process.ancestors.file.name",
@@ -216,6 +221,21 @@
           "name": "process.ancestors.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "process.ancestors.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "process.ancestors.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "process.ancestors.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "process.ancestors.file.path",
@@ -300,7 +320,7 @@
         {
           "name": "process.ancestors.interpreter.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "process.ancestors.interpreter.file.mode",
@@ -315,7 +335,7 @@
         {
           "name": "process.ancestors.interpreter.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "process.ancestors.interpreter.file.name",
@@ -326,6 +346,21 @@
           "name": "process.ancestors.interpreter.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "process.ancestors.interpreter.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "process.ancestors.interpreter.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "process.ancestors.interpreter.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "process.ancestors.interpreter.file.path",
@@ -515,7 +550,7 @@
         {
           "name": "process.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "process.file.mode",
@@ -530,7 +565,7 @@
         {
           "name": "process.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "process.file.name",
@@ -541,6 +576,21 @@
           "name": "process.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "process.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "process.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "process.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "process.file.path",
@@ -625,7 +675,7 @@
         {
           "name": "process.interpreter.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "process.interpreter.file.mode",
@@ -640,7 +690,7 @@
         {
           "name": "process.interpreter.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "process.interpreter.file.name",
@@ -651,6 +701,21 @@
           "name": "process.interpreter.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "process.interpreter.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "process.interpreter.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "process.interpreter.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "process.interpreter.file.path",
@@ -810,7 +875,7 @@
         {
           "name": "process.parent.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "process.parent.file.mode",
@@ -825,7 +890,7 @@
         {
           "name": "process.parent.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "process.parent.file.name",
@@ -836,6 +901,21 @@
           "name": "process.parent.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "process.parent.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "process.parent.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "process.parent.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "process.parent.file.path",
@@ -920,7 +1000,7 @@
         {
           "name": "process.parent.interpreter.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "process.parent.interpreter.file.mode",
@@ -935,7 +1015,7 @@
         {
           "name": "process.parent.interpreter.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "process.parent.interpreter.file.name",
@@ -946,6 +1026,21 @@
           "name": "process.parent.interpreter.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "process.parent.interpreter.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "process.parent.interpreter.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "process.parent.interpreter.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "process.parent.interpreter.file.path",
@@ -1191,7 +1286,7 @@
         {
           "name": "chmod.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "chmod.file.mode",
@@ -1206,7 +1301,7 @@
         {
           "name": "chmod.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "chmod.file.name",
@@ -1217,6 +1312,21 @@
           "name": "chmod.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "chmod.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "chmod.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "chmod.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "chmod.file.path",
@@ -1305,7 +1415,7 @@
         {
           "name": "chown.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "chown.file.mode",
@@ -1320,7 +1430,7 @@
         {
           "name": "chown.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "chown.file.name",
@@ -1331,6 +1441,21 @@
           "name": "chown.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "chown.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "chown.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "chown.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "chown.file.path",
@@ -1538,7 +1663,7 @@
         {
           "name": "exec.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "exec.file.mode",
@@ -1553,7 +1678,7 @@
         {
           "name": "exec.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "exec.file.name",
@@ -1564,6 +1689,21 @@
           "name": "exec.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "exec.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "exec.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "exec.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "exec.file.path",
@@ -1648,7 +1788,7 @@
         {
           "name": "exec.interpreter.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "exec.interpreter.file.mode",
@@ -1663,7 +1803,7 @@
         {
           "name": "exec.interpreter.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "exec.interpreter.file.name",
@@ -1674,6 +1814,21 @@
           "name": "exec.interpreter.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "exec.interpreter.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "exec.interpreter.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "exec.interpreter.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "exec.interpreter.file.path",
@@ -1882,7 +2037,7 @@
         {
           "name": "exit.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "exit.file.mode",
@@ -1897,7 +2052,7 @@
         {
           "name": "exit.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "exit.file.name",
@@ -1908,6 +2063,21 @@
           "name": "exit.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "exit.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "exit.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "exit.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "exit.file.path",
@@ -1992,7 +2162,7 @@
         {
           "name": "exit.interpreter.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "exit.interpreter.file.mode",
@@ -2007,7 +2177,7 @@
         {
           "name": "exit.interpreter.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "exit.interpreter.file.name",
@@ -2018,6 +2188,21 @@
           "name": "exit.interpreter.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "exit.interpreter.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "exit.interpreter.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "exit.interpreter.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "exit.interpreter.file.path",
@@ -2126,7 +2311,7 @@
         {
           "name": "link.file.destination.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "link.file.destination.mode",
@@ -2141,7 +2326,7 @@
         {
           "name": "link.file.destination.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "link.file.destination.name",
@@ -2152,6 +2337,21 @@
           "name": "link.file.destination.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "link.file.destination.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "link.file.destination.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "link.file.destination.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "link.file.destination.path",
@@ -2201,7 +2401,7 @@
         {
           "name": "link.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "link.file.mode",
@@ -2216,7 +2416,7 @@
         {
           "name": "link.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "link.file.name",
@@ -2227,6 +2427,21 @@
           "name": "link.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "link.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "link.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "link.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "link.file.path",
@@ -2295,7 +2510,7 @@
         {
           "name": "load_module.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "load_module.file.mode",
@@ -2310,7 +2525,7 @@
         {
           "name": "load_module.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "load_module.file.name",
@@ -2321,6 +2536,21 @@
           "name": "load_module.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "load_module.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "load_module.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "load_module.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "load_module.file.path",
@@ -2409,7 +2639,7 @@
         {
           "name": "mkdir.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "mkdir.file.mode",
@@ -2424,7 +2654,7 @@
         {
           "name": "mkdir.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "mkdir.file.name",
@@ -2435,6 +2665,21 @@
           "name": "mkdir.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "mkdir.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "mkdir.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "mkdir.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "mkdir.file.path",
@@ -2503,7 +2748,7 @@
         {
           "name": "mmap.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "mmap.file.mode",
@@ -2518,7 +2763,7 @@
         {
           "name": "mmap.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "mmap.file.name",
@@ -2529,6 +2774,21 @@
           "name": "mmap.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "mmap.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "mmap.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "mmap.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "mmap.file.path",
@@ -2665,7 +2925,7 @@
         {
           "name": "open.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "open.file.mode",
@@ -2680,7 +2940,7 @@
         {
           "name": "open.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "open.file.name",
@@ -2691,6 +2951,21 @@
           "name": "open.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "open.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "open.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "open.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "open.file.path",
@@ -2869,7 +3144,7 @@
         {
           "name": "ptrace.tracee.ancestors.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.file.mode",
@@ -2884,7 +3159,7 @@
         {
           "name": "ptrace.tracee.ancestors.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.file.name",
@@ -2895,6 +3170,21 @@
           "name": "ptrace.tracee.ancestors.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.file.path",
@@ -2979,7 +3269,7 @@
         {
           "name": "ptrace.tracee.ancestors.interpreter.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.interpreter.file.mode",
@@ -2994,7 +3284,7 @@
         {
           "name": "ptrace.tracee.ancestors.interpreter.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.interpreter.file.name",
@@ -3005,6 +3295,21 @@
           "name": "ptrace.tracee.ancestors.interpreter.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.interpreter.file.path",
@@ -3194,7 +3499,7 @@
         {
           "name": "ptrace.tracee.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "ptrace.tracee.file.mode",
@@ -3209,7 +3514,7 @@
         {
           "name": "ptrace.tracee.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "ptrace.tracee.file.name",
@@ -3220,6 +3525,21 @@
           "name": "ptrace.tracee.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "ptrace.tracee.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "ptrace.tracee.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "ptrace.tracee.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "ptrace.tracee.file.path",
@@ -3304,7 +3624,7 @@
         {
           "name": "ptrace.tracee.interpreter.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "ptrace.tracee.interpreter.file.mode",
@@ -3319,7 +3639,7 @@
         {
           "name": "ptrace.tracee.interpreter.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "ptrace.tracee.interpreter.file.name",
@@ -3330,6 +3650,21 @@
           "name": "ptrace.tracee.interpreter.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "ptrace.tracee.interpreter.file.path",
@@ -3489,7 +3824,7 @@
         {
           "name": "ptrace.tracee.parent.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "ptrace.tracee.parent.file.mode",
@@ -3504,7 +3839,7 @@
         {
           "name": "ptrace.tracee.parent.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "ptrace.tracee.parent.file.name",
@@ -3515,6 +3850,21 @@
           "name": "ptrace.tracee.parent.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "ptrace.tracee.parent.file.path",
@@ -3599,7 +3949,7 @@
         {
           "name": "ptrace.tracee.parent.interpreter.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "ptrace.tracee.parent.interpreter.file.mode",
@@ -3614,7 +3964,7 @@
         {
           "name": "ptrace.tracee.parent.interpreter.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "ptrace.tracee.parent.interpreter.file.name",
@@ -3625,6 +3975,21 @@
           "name": "ptrace.tracee.parent.interpreter.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.interpreter.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.interpreter.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.interpreter.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "ptrace.tracee.parent.interpreter.file.path",
@@ -3768,7 +4133,7 @@
         {
           "name": "removexattr.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "removexattr.file.mode",
@@ -3783,7 +4148,7 @@
         {
           "name": "removexattr.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "removexattr.file.name",
@@ -3794,6 +4159,21 @@
           "name": "removexattr.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "removexattr.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "removexattr.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "removexattr.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "removexattr.file.path",
@@ -3867,7 +4247,7 @@
         {
           "name": "rename.file.destination.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "rename.file.destination.mode",
@@ -3882,7 +4262,7 @@
         {
           "name": "rename.file.destination.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "rename.file.destination.name",
@@ -3893,6 +4273,21 @@
           "name": "rename.file.destination.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "rename.file.destination.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "rename.file.destination.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "rename.file.destination.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "rename.file.destination.path",
@@ -3942,7 +4337,7 @@
         {
           "name": "rename.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "rename.file.mode",
@@ -3957,7 +4352,7 @@
         {
           "name": "rename.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "rename.file.name",
@@ -3968,6 +4363,21 @@
           "name": "rename.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "rename.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "rename.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "rename.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "rename.file.path",
@@ -4036,7 +4446,7 @@
         {
           "name": "rmdir.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "rmdir.file.mode",
@@ -4051,7 +4461,7 @@
         {
           "name": "rmdir.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "rmdir.file.name",
@@ -4062,6 +4472,21 @@
           "name": "rmdir.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "rmdir.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "rmdir.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "rmdir.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "rmdir.file.path",
@@ -4247,7 +4672,7 @@
         {
           "name": "setxattr.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "setxattr.file.mode",
@@ -4262,7 +4687,7 @@
         {
           "name": "setxattr.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "setxattr.file.name",
@@ -4273,6 +4698,21 @@
           "name": "setxattr.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "setxattr.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "setxattr.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "setxattr.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "setxattr.file.path",
@@ -4446,7 +4886,7 @@
         {
           "name": "signal.target.ancestors.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "signal.target.ancestors.file.mode",
@@ -4461,7 +4901,7 @@
         {
           "name": "signal.target.ancestors.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "signal.target.ancestors.file.name",
@@ -4472,6 +4912,21 @@
           "name": "signal.target.ancestors.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "signal.target.ancestors.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "signal.target.ancestors.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "signal.target.ancestors.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "signal.target.ancestors.file.path",
@@ -4556,7 +5011,7 @@
         {
           "name": "signal.target.ancestors.interpreter.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "signal.target.ancestors.interpreter.file.mode",
@@ -4571,7 +5026,7 @@
         {
           "name": "signal.target.ancestors.interpreter.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "signal.target.ancestors.interpreter.file.name",
@@ -4582,6 +5037,21 @@
           "name": "signal.target.ancestors.interpreter.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "signal.target.ancestors.interpreter.file.path",
@@ -4771,7 +5241,7 @@
         {
           "name": "signal.target.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "signal.target.file.mode",
@@ -4786,7 +5256,7 @@
         {
           "name": "signal.target.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "signal.target.file.name",
@@ -4797,6 +5267,21 @@
           "name": "signal.target.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "signal.target.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "signal.target.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "signal.target.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "signal.target.file.path",
@@ -4881,7 +5366,7 @@
         {
           "name": "signal.target.interpreter.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "signal.target.interpreter.file.mode",
@@ -4896,7 +5381,7 @@
         {
           "name": "signal.target.interpreter.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "signal.target.interpreter.file.name",
@@ -4907,6 +5392,21 @@
           "name": "signal.target.interpreter.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "signal.target.interpreter.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "signal.target.interpreter.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "signal.target.interpreter.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "signal.target.interpreter.file.path",
@@ -5066,7 +5566,7 @@
         {
           "name": "signal.target.parent.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "signal.target.parent.file.mode",
@@ -5081,7 +5581,7 @@
         {
           "name": "signal.target.parent.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "signal.target.parent.file.name",
@@ -5092,6 +5592,21 @@
           "name": "signal.target.parent.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "signal.target.parent.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "signal.target.parent.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "signal.target.parent.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "signal.target.parent.file.path",
@@ -5176,7 +5691,7 @@
         {
           "name": "signal.target.parent.interpreter.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "signal.target.parent.interpreter.file.mode",
@@ -5191,7 +5706,7 @@
         {
           "name": "signal.target.parent.interpreter.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "signal.target.parent.interpreter.file.name",
@@ -5202,6 +5717,21 @@
           "name": "signal.target.parent.interpreter.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "signal.target.parent.interpreter.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "signal.target.parent.interpreter.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "signal.target.parent.interpreter.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "signal.target.parent.interpreter.file.path",
@@ -5340,7 +5870,7 @@
         {
           "name": "splice.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "splice.file.mode",
@@ -5355,7 +5885,7 @@
         {
           "name": "splice.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "splice.file.name",
@@ -5366,6 +5896,21 @@
           "name": "splice.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "splice.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "splice.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "splice.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "splice.file.path",
@@ -5444,7 +5989,7 @@
         {
           "name": "unlink.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "unlink.file.mode",
@@ -5459,7 +6004,7 @@
         {
           "name": "unlink.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "unlink.file.name",
@@ -5470,6 +6015,21 @@
           "name": "unlink.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "unlink.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "unlink.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "unlink.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "unlink.file.path",
@@ -5562,7 +6122,7 @@
         {
           "name": "utimes.file.inode",
           "definition": "Inode of the file",
-          "property_doc_link": "common-filefields-inode-doc"
+          "property_doc_link": "common-pathkey-inode-doc"
         },
         {
           "name": "utimes.file.mode",
@@ -5577,7 +6137,7 @@
         {
           "name": "utimes.file.mount_id",
           "definition": "Mount ID of the file",
-          "property_doc_link": "common-filefields-mount_id-doc"
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "utimes.file.name",
@@ -5588,6 +6148,21 @@
           "name": "utimes.file.name.length",
           "definition": "Length of the corresponding string",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "utimes.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "utimes.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "utimes.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
         },
         {
           "name": "utimes.file.path",
@@ -6470,7 +7045,7 @@
     },
     {
       "name": "*.inode",
-      "link": "common-filefields-inode-doc",
+      "link": "common-pathkey-inode-doc",
       "type": "int",
       "definition": "Inode of the file",
       "prefixes": [
@@ -6763,7 +7338,7 @@
     },
     {
       "name": "*.mount_id",
-      "link": "common-filefields-mount_id-doc",
+      "link": "common-pathkey-mount_id-doc",
       "type": "int",
       "definition": "Mount ID of the file",
       "prefixes": [
@@ -6863,6 +7438,153 @@
           "description": "Matches the execution of any file named apt."
         }
       ]
+    },
+    {
+      "name": "*.package.name",
+      "link": "common-fileevent-package-name-doc",
+      "type": "string",
+      "definition": "[Experimental] Name of the package that provided this file",
+      "prefixes": [
+        "chmod.file",
+        "chown.file",
+        "exec.file",
+        "exec.interpreter.file",
+        "exit.file",
+        "exit.interpreter.file",
+        "link.file",
+        "link.file.destination",
+        "load_module.file",
+        "mkdir.file",
+        "mmap.file",
+        "open.file",
+        "process.ancestors.file",
+        "process.ancestors.interpreter.file",
+        "process.file",
+        "process.interpreter.file",
+        "process.parent.file",
+        "process.parent.interpreter.file",
+        "ptrace.tracee.ancestors.file",
+        "ptrace.tracee.ancestors.interpreter.file",
+        "ptrace.tracee.file",
+        "ptrace.tracee.interpreter.file",
+        "ptrace.tracee.parent.file",
+        "ptrace.tracee.parent.interpreter.file",
+        "removexattr.file",
+        "rename.file",
+        "rename.file.destination",
+        "rmdir.file",
+        "setxattr.file",
+        "signal.target.ancestors.file",
+        "signal.target.ancestors.interpreter.file",
+        "signal.target.file",
+        "signal.target.interpreter.file",
+        "signal.target.parent.file",
+        "signal.target.parent.interpreter.file",
+        "splice.file",
+        "unlink.file",
+        "utimes.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.package.source_version",
+      "link": "common-fileevent-package-source_version-doc",
+      "type": "string",
+      "definition": "[Experimental] Full version of the source package of the package that provided this file",
+      "prefixes": [
+        "chmod.file",
+        "chown.file",
+        "exec.file",
+        "exec.interpreter.file",
+        "exit.file",
+        "exit.interpreter.file",
+        "link.file",
+        "link.file.destination",
+        "load_module.file",
+        "mkdir.file",
+        "mmap.file",
+        "open.file",
+        "process.ancestors.file",
+        "process.ancestors.interpreter.file",
+        "process.file",
+        "process.interpreter.file",
+        "process.parent.file",
+        "process.parent.interpreter.file",
+        "ptrace.tracee.ancestors.file",
+        "ptrace.tracee.ancestors.interpreter.file",
+        "ptrace.tracee.file",
+        "ptrace.tracee.interpreter.file",
+        "ptrace.tracee.parent.file",
+        "ptrace.tracee.parent.interpreter.file",
+        "removexattr.file",
+        "rename.file",
+        "rename.file.destination",
+        "rmdir.file",
+        "setxattr.file",
+        "signal.target.ancestors.file",
+        "signal.target.ancestors.interpreter.file",
+        "signal.target.file",
+        "signal.target.interpreter.file",
+        "signal.target.parent.file",
+        "signal.target.parent.interpreter.file",
+        "splice.file",
+        "unlink.file",
+        "utimes.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.package.version",
+      "link": "common-fileevent-package-version-doc",
+      "type": "string",
+      "definition": "[Experimental] Full version of the package that provided this file",
+      "prefixes": [
+        "chmod.file",
+        "chown.file",
+        "exec.file",
+        "exec.interpreter.file",
+        "exit.file",
+        "exit.interpreter.file",
+        "link.file",
+        "link.file.destination",
+        "load_module.file",
+        "mkdir.file",
+        "mmap.file",
+        "open.file",
+        "process.ancestors.file",
+        "process.ancestors.interpreter.file",
+        "process.file",
+        "process.interpreter.file",
+        "process.parent.file",
+        "process.parent.interpreter.file",
+        "ptrace.tracee.ancestors.file",
+        "ptrace.tracee.ancestors.interpreter.file",
+        "ptrace.tracee.file",
+        "ptrace.tracee.interpreter.file",
+        "ptrace.tracee.parent.file",
+        "ptrace.tracee.parent.interpreter.file",
+        "removexattr.file",
+        "rename.file",
+        "rename.file.destination",
+        "rmdir.file",
+        "setxattr.file",
+        "signal.target.ancestors.file",
+        "signal.target.ancestors.interpreter.file",
+        "signal.target.file",
+        "signal.target.interpreter.file",
+        "signal.target.parent.file",
+        "signal.target.parent.interpreter.file",
+        "splice.file",
+        "unlink.file",
+        "utimes.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
     },
     {
       "name": "*.path",
@@ -7463,6 +8185,18 @@
       "definition": "New user of the chown-ed file's owner",
       "prefixes": [
         "chown"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "container.created_at",
+      "link": "container-created_at-doc",
+      "type": "int",
+      "definition": "Timestamp of the creation of the container",
+      "prefixes": [
+        "container"
       ],
       "constants": "",
       "constants_link": "",

@@ -13,6 +13,8 @@ import (
 	"os"
 	"time"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/cmd/manager"
@@ -20,18 +22,24 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/subcommands"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/process"
+	runnerComp "github.com/DataDog/datadog-agent/comp/process/runner"
+	"github.com/DataDog/datadog-agent/comp/process/types"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	"github.com/DataDog/datadog-agent/pkg/process/runner"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/process/status"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	ddutil "github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -149,19 +157,6 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		cleanupAndExit(1)
 	}
 
-	enabledChecks := getChecks(syscfg, ddconfig.IsAnyContainerFeaturePresent())
-
-	// Exit if agent is not enabled.
-	if len(enabledChecks) == 0 {
-		log.Infof(agent6DisabledMessage)
-
-		// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
-		// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
-		// http://supervisord.org/subprocess.html#process-states
-		time.Sleep(5 * time.Second)
-		return
-	}
-
 	// update docker socket path in info
 	dockerSock, err := util.GetDockerSocketPath()
 	if err != nil {
@@ -169,7 +164,7 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 	}
 	// we shouldn't quit because docker is not required. If no docker docket is available,
 	// we just pass down empty string
-	updateDockerSocket(dockerSock)
+	status.UpdateDockerSocket(dockerSock)
 
 	// use `internal_profiling.enabled` field in `process_config` section to enable/disable profiling for process-agent,
 	// but use the configuration from main agent to fill the settings
@@ -220,7 +215,11 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		return
 	}
 
-	err = initInfo(hostInfo.HostName, processModuleEnabled)
+	eps, err := runner.GetAPIEndpoints()
+	if err != nil {
+		log.Criticalf("Failed to initialize Api Endpoints: %s", err.Error())
+	}
+	err = status.InitInfo(hostInfo.HostName, processModuleEnabled, eps)
 	if err != nil {
 		log.Criticalf("Error initializing info: %s", err)
 		cleanupAndExit(1)
@@ -229,7 +228,7 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 	if globalParams.Info {
 		// using the debug port to get info to work
 		url := fmt.Sprintf("http://localhost:%d/debug/vars", expVarPort)
-		if err := Info(os.Stdout, url); err != nil {
+		if err := status.Info(os.Stdout, url); err != nil {
 			cleanupAndExit(1)
 		}
 		return
@@ -252,31 +251,70 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		_ = log.Error(err)
 	}
 
-	cl, err := NewCollector(syscfg, hostInfo, enabledChecks)
-	if err != nil {
-		log.Criticalf("Error creating collector: %s", err)
-		cleanupAndExit(1)
-		return
-	}
-	cl.submitter, err = NewSubmitter(hostInfo.HostName, cl.UpdateRTStatus)
-	if err != nil {
-		log.Criticalf("Error creating checkSubmitter: %s", err)
-		cleanupAndExit(1)
-		return
-	}
-
-	if err := cl.run(exit); err != nil {
-		log.Criticalf("Error starting collector: %s", err)
-		os.Exit(1)
-		return
-	}
-
-	for range exit {
-	}
+	runApp(exit, syscfg, hostInfo)
 
 	if err := srv.Shutdown(context.Background()); err != nil {
 		log.Errorf("Error shutting down expvar server on port %v: %v", expVarPort, err)
 	}
+}
+
+func runApp(exit chan struct{}, syscfg *sysconfig.Config, hostInfo *checks.HostInfo) {
+	go util.HandleSignals(exit)
+
+	var allChecks struct {
+		fx.In
+		Checks []types.CheckComponent `group:"check"`
+	}
+	app := fx.New(
+		fx.Supply(
+			syscfg,
+			hostInfo,
+		),
+		fx.Populate(&allChecks),
+
+		process.Bundle,
+
+		// Allows for debug logging of fx components if the `TRACE_FX` environment variable is set
+		fxutil.FxLoggingOption(),
+
+		// Invoke the runner to call its start hook
+		fx.Invoke(func(runnerComp.Component) {}),
+	)
+
+	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
+	if !anyChecksEnabled(allChecks.Checks) {
+		log.Infof(agent6DisabledMessage)
+
+		// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
+		// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
+		// http://supervisord.org/subprocess.html#process-states
+		time.Sleep(5 * time.Second)
+		return
+	}
+
+	err := app.Start(context.Background())
+	if err != nil {
+		log.Criticalf("Failed to start process agent: %v", err)
+		return
+	}
+
+	// Set up an exit channel
+	<-exit
+	err = app.Stop(context.Background())
+	if err != nil {
+		log.Criticalf("Failed to properly stop the process agent: %v", err)
+	} else {
+		log.Info("The process-agent has successfully been shut down")
+	}
+}
+
+func anyChecksEnabled(checks []types.CheckComponent) bool {
+	for _, check := range checks {
+		if check.Object().IsEnabled() {
+			return true
+		}
+	}
+	return false
 }
 
 // cleanupAndExitHandler cleans all resources allocated by the agent before calling os.Exit
@@ -298,9 +336,9 @@ func initRuntimeSettings() {
 	// NOTE: Any settings you want to register should simply be added here
 	processRuntimeSettings := []settings.RuntimeSetting{
 		settings.LogLevelRuntimeSetting{},
-		settings.RuntimeMutexProfileFraction("runtime_mutex_profile_fraction"),
-		settings.RuntimeBlockProfileRate("runtime_block_profile_rate"),
-		settings.ProfilingGoroutines("internal_profiling_goroutines"),
+		settings.RuntimeMutexProfileFraction{},
+		settings.RuntimeBlockProfileRate{},
+		settings.ProfilingGoroutines{},
 		settings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "process-agent"},
 	}
 

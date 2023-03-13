@@ -15,17 +15,19 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/args"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 type FieldHandlers struct {
-	resolvers *Resolvers
+	resolvers *resolvers.Resolvers
 }
 
 // ResolveFilePath resolves the inode to a full path
 func (fh *FieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent) string {
 	if !f.IsPathnameStrResolved && len(f.PathnameStr) == 0 {
-		path, err := fh.resolvers.resolveFileFieldsPath(&f.FileFields, &ev.PIDContext, &ev.ContainerContext)
+		path, err := fh.resolvers.PathResolver.ResolveFileFieldsPath(&f.FileFields, &ev.PIDContext, &ev.ContainerContext)
 		if err != nil {
 			ev.SetPathResolutionError(f, err)
 		}
@@ -41,7 +43,7 @@ func (fh *FieldHandlers) ResolveFileBasename(ev *model.Event, f *model.FileEvent
 		if f.PathnameStr != "" {
 			f.SetBasenameStr(path.Base(f.PathnameStr))
 		} else {
-			f.SetBasenameStr(fh.resolvers.resolveBasename(&f.FileFields))
+			f.SetBasenameStr(fh.resolvers.PathResolver.ResolveBasename(&f.FileFields))
 		}
 	}
 	return f.BasenameStr
@@ -83,40 +85,6 @@ func (fh *FieldHandlers) ResolveXAttrNamespace(ev *model.Event, e *model.SetXAtt
 	return e.Namespace
 }
 
-// SetMountPoint set the mount point information
-func (fh *FieldHandlers) SetMountPoint(ev *model.Event, e *model.Mount) error {
-	var err error
-	e.MountPointStr, err = fh.resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode, 0, true)
-	return err
-}
-
-// ResolveMountPoint resolves the mountpoint to a full path
-func (fh *FieldHandlers) ResolveMountPoint(ev *model.Event, e *model.Mount) (string, error) {
-	if len(e.MountPointStr) == 0 {
-		if err := fh.SetMountPoint(ev, e); err != nil {
-			return "", err
-		}
-	}
-	return e.MountPointStr, nil
-}
-
-// SetMountRoot set the mount point information
-func (fh *FieldHandlers) SetMountRoot(ev *model.Event, e *model.Mount) error {
-	var err error
-	e.RootStr, err = fh.resolvers.DentryResolver.Resolve(e.RootMountID, e.RootInode, 0, true)
-	return err
-}
-
-// ResolveMountRoot resolves the mountpoint to a full path
-func (fh *FieldHandlers) ResolveMountRoot(ev *model.Event, e *model.Mount) (string, error) {
-	if len(e.RootStr) == 0 {
-		if err := fh.SetMountRoot(ev, e); err != nil {
-			return "", err
-		}
-	}
-	return e.RootStr, nil
-}
-
 func (fh *FieldHandlers) ResolveMountPointPath(ev *model.Event, e *model.MountEvent) string {
 	if len(e.MountPointPath) == 0 {
 		mountPointPath, err := fh.resolvers.MountResolver.ResolveMountPath(e.MountID, ev.PIDContext.Pid, ev.ContainerContext.ID)
@@ -136,7 +104,7 @@ func (fh *FieldHandlers) ResolveMountSourcePath(ev *model.Event, e *model.MountE
 			e.MountSourcePathResolutionError = err
 			return ""
 		}
-		rootStr, err := fh.ResolveMountRoot(ev, &e.Mount)
+		rootStr, err := fh.resolvers.PathResolver.ResolveMountRoot(ev, &e.Mount)
 		if err != nil {
 			e.MountSourcePathResolutionError = err
 			return ""
@@ -154,6 +122,18 @@ func (fh *FieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerC
 		}
 	}
 	return e.ID
+}
+
+// ResolveContainerCreatedAt resolves the container creation time of the event
+func (fh *FieldHandlers) ResolveContainerCreatedAt(ev *model.Event, e *model.ContainerContext) int {
+	if e.CreatedAt == 0 {
+		if entry, _ := fh.ResolveProcessCacheEntry(ev); entry != nil && entry.ContainerID != "" {
+			if cgroup, _ := fh.resolvers.CGroupResolver.GetWorkload(entry.ContainerID); cgroup != nil {
+				e.CreatedAt = cgroup.CreationTime
+			}
+		}
+	}
+	return int(e.CreatedAt)
 }
 
 // ResolveContainerTags resolves the container tags of the event
@@ -221,59 +201,12 @@ func (fh *FieldHandlers) ResolveProcessArgsTruncated(ev *model.Event, process *m
 
 // ResolveProcessArgsFlags resolves the arguments flags of the event
 func (fh *FieldHandlers) ResolveProcessArgsFlags(ev *model.Event, process *model.Process) (flags []string) {
-	for _, arg := range fh.ResolveProcessArgv(ev, process) {
-		if len(arg) > 1 && arg[0] == '-' {
-			isFlag := true
-			name := arg[1:]
-			if len(name) >= 1 && name[0] == '-' {
-				name = name[1:]
-				isFlag = false
-			}
-
-			isOption := false
-			for _, r := range name {
-				isFlag = isFlag && model.IsAlphaNumeric(r)
-				isOption = isOption || r == '='
-			}
-
-			if len(name) > 0 {
-				if isFlag {
-					for _, r := range name {
-						flags = append(flags, string(r))
-					}
-				}
-				if !isOption && len(name) > 1 {
-					flags = append(flags, name)
-				}
-			}
-		}
-	}
-	return
+	return args.ParseProcessFlags(fh.ResolveProcessArgv(ev, process))
 }
 
 // ResolveProcessArgsOptions resolves the arguments options of the event
 func (fh *FieldHandlers) ResolveProcessArgsOptions(ev *model.Event, process *model.Process) (options []string) {
-	args := fh.ResolveProcessArgv(ev, process)
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
-		if len(arg) > 1 && arg[0] == '-' {
-			name := arg[1:]
-			if len(name) >= 1 && name[0] == '-' {
-				name = name[1:]
-			}
-			if len(name) > 0 && model.IsAlphaNumeric(rune(name[0])) {
-				if index := strings.IndexRune(name, '='); index == -1 {
-					if i < len(args)-1 && (len(args[i+1]) == 0 || args[i+1][0] != '-') {
-						options = append(options, name+"="+args[i+1])
-						i++
-					}
-				} else {
-					options = append(options, name)
-				}
-			}
-		}
-	}
-	return
+	return args.ParseProcessOptions(fh.ResolveProcessArgv(ev, process))
 }
 
 // ResolveProcessEnvsTruncated returns whether the envs are truncated
@@ -343,7 +276,7 @@ func (fh *FieldHandlers) ResolveSELinuxBoolName(ev *model.Event, e *model.SELinu
 	}
 
 	if len(e.BoolName) == 0 {
-		e.BoolName = fh.resolvers.resolveBasename(&e.File.FileFields)
+		e.BoolName = fh.resolvers.PathResolver.ResolveBasename(&e.File.FileFields)
 	}
 	return e.BoolName
 }
@@ -474,4 +407,67 @@ func (fh *FieldHandlers) ResolveEventTimestamp(ev *model.Event) time.Time {
 		}
 	}
 	return ev.Timestamp
+}
+
+// ResolveAsync resolves the async flag
+func (fh *FieldHandlers) ResolveAsync(ev *model.Event) bool {
+	ev.Async = ev.Flags&model.EventFlagsAsync > 0
+	return ev.Async
+}
+
+// ResolvePackageName resolves the name of the package providing this file
+func (fh *FieldHandlers) ResolvePackageName(ev *model.Event, f *model.FileEvent) string {
+	if f.PkgName == "" {
+		// Force the resolution of file path to be able to map to a package provided file
+		if fh.ResolveFilePath(ev, f) == "" {
+			return ""
+		}
+
+		if fh.resolvers.SBOMResolver == nil {
+			return ""
+		}
+
+		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessCacheEntry.ContainerID, f); pkg != nil {
+			f.PkgName = pkg.Name
+		}
+	}
+	return f.PkgName
+}
+
+// ResolvePackageVersion resolves the version of the package providing this file
+func (fh *FieldHandlers) ResolvePackageVersion(ev *model.Event, f *model.FileEvent) string {
+	if f.PkgVersion == "" {
+		// Force the resolution of file path to be able to map to a package provided file
+		if fh.ResolveFilePath(ev, f) == "" {
+			return ""
+		}
+
+		if fh.resolvers.SBOMResolver == nil {
+			return ""
+		}
+
+		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessCacheEntry.ContainerID, f); pkg != nil {
+			f.PkgVersion = pkg.Version
+		}
+	}
+	return f.PkgVersion
+}
+
+// ResolvePackageSourceVersion resolves the version of the source package of the package providing this file
+func (fh *FieldHandlers) ResolvePackageSourceVersion(ev *model.Event, f *model.FileEvent) string {
+	if f.PkgSrcVersion == "" {
+		// Force the resolution of file path to be able to map to a package provided file
+		if fh.ResolveFilePath(ev, f) == "" {
+			return ""
+		}
+
+		if fh.resolvers.SBOMResolver == nil {
+			return ""
+		}
+
+		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessCacheEntry.ContainerID, f); pkg != nil {
+			f.PkgSrcVersion = pkg.SrcVersion
+		}
+	}
+	return f.PkgSrcVersion
 }

@@ -27,7 +27,6 @@ const (
 
 var reportedFields = []string{
 	compliance.ProcessFieldName,
-	compliance.ProcessFieldExe,
 	compliance.ProcessFieldCmdLine,
 }
 
@@ -44,7 +43,6 @@ func resolve(_ context.Context, e env.Env, id string, res compliance.ResourceCom
 	var instances []resources.ResolvedInstance
 	for _, mp := range matchedProcesses {
 		name := mp.Name
-		exe := mp.Exe
 		cmdLine := mp.Cmdline
 		flagValues := mp.CmdlineFlags()
 		envs := mp.EnvsMap(res.Process.Envs)
@@ -52,7 +50,6 @@ func resolve(_ context.Context, e env.Env, id string, res compliance.ResourceCom
 		instance := eval.NewInstance(
 			eval.VarMap{
 				compliance.ProcessFieldName:    name,
-				compliance.ProcessFieldExe:     exe,
 				compliance.ProcessFieldCmdLine: cmdLine,
 				compliance.ProcessFieldFlags:   flagValues,
 			},
@@ -62,7 +59,7 @@ func resolve(_ context.Context, e env.Env, id string, res compliance.ResourceCom
 			},
 			eval.RegoInputMap{
 				"name":    name,
-				"exe":     exe,
+				"exe":     "", // NOTE(pierre): this field will be removed in next release. Only kept for compat reasons.
 				"cmdLine": cmdLine,
 				"flags":   flagValues,
 				"pid":     mp.Pid,

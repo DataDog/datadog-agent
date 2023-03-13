@@ -60,7 +60,7 @@ func TestResolveValueFrom(t *testing.T) {
 			setup: func(t *testing.T) {
 				processutils.FetchProcessesWithName = func(searchedName string) (processutils.Processes, error) {
 					return processutils.Processes{
-						processutils.NewProcessMetadata(42, 0, searchedName, []string{"--path=/home/root/hiya-buddy.txt"}, nil, ""),
+						processutils.NewProcessMetadata(42, 0, searchedName, []string{"--path=/home/root/hiya-buddy.txt"}, nil),
 					}, nil
 				}
 			},
@@ -82,7 +82,7 @@ func TestResolveValueFrom(t *testing.T) {
 			setup: func(t *testing.T) {
 				processutils.FetchProcessesWithName = func(searchedName string) (processutils.Processes, error) {
 					return processutils.Processes{
-						processutils.NewProcessMetadata(42, 0, searchedName, nil, nil, ""),
+						processutils.NewProcessMetadata(42, 0, searchedName, nil, nil),
 					}, nil
 				}
 			},

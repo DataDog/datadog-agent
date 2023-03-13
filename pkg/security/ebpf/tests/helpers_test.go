@@ -62,7 +62,7 @@ func newVM(t *testing.T) *baloum.VM {
 		t.Fatal(err)
 	}
 
-	loader := secebpf.NewProbeLoader(&config.Config{}, useSyscallWrapper, &statsd.NoOpClient{})
+	loader := secebpf.NewProbeLoader(&config.Config{}, useSyscallWrapper, false, &statsd.NoOpClient{})
 	reader, _, err := loader.Load()
 	if err != nil {
 		t.Fatal(err)

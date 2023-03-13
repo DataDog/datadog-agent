@@ -207,6 +207,18 @@ func TestExtractPod(t *testing.T) {
 						ContainerID:  "docker://bazID",
 					},
 				},
+				Conditions: []*model.PodCondition{
+					{
+						Type:   "Ready",
+						Status: "True",
+					},
+					{
+						Type:               "PodScheduled",
+						Status:             "True",
+						LastTransitionTime: timestamp.Unix(),
+					},
+				},
+				Tags: []string{"pod_condition_ready:true", "pod_condition_podscheduled:true"},
 			},
 		},
 		"empty pod": {input: v1.Pod{}, expected: model.Pod{Metadata: &model.Metadata{}}},
@@ -281,6 +293,13 @@ func TestExtractPod(t *testing.T) {
 						Name: "bazName",
 					},
 				},
+				Conditions: []*model.PodCondition{
+					{
+						Type:   "Ready",
+						Status: "True",
+					},
+				},
+				Tags: []string{"pod_condition_ready:true"},
 			},
 		},
 		"partial pod with init container": {
@@ -372,6 +391,13 @@ func TestExtractPod(t *testing.T) {
 						Name: "bazName",
 					},
 				},
+				Conditions: []*model.PodCondition{
+					{
+						Type:   "Ready",
+						Status: "True",
+					},
+				},
+				Tags:     []string{"pod_condition_ready:true"},
 				QOSClass: "BestEffort",
 			},
 		},
@@ -448,6 +474,13 @@ func TestExtractPod(t *testing.T) {
 						Type:     model.ResourceRequirementsType_container,
 					},
 				},
+				Conditions: []*model.PodCondition{
+					{
+						Type:   "Ready",
+						Status: "True",
+					},
+				},
+				Tags: []string{"pod_condition_ready:true"},
 			},
 		},
 	}
@@ -634,6 +667,78 @@ func TestComputeStatus(t *testing.T) {
 			assert.EqualValues(t, tc.status, computeStatus(tc.pod))
 		})
 	}
+}
+
+func TestExtractPodConditions(t *testing.T) {
+	p := &v1.Pod{
+		Status: v1.PodStatus{
+			Conditions: []v1.PodCondition{
+				{
+					Type:               v1.PodInitialized,
+					Status:             v1.ConditionTrue,
+					LastTransitionTime: metav1.NewTime(time.Date(2023, 01, 06, 11, 24, 46, 0, time.UTC)),
+				},
+				{
+					Type:               v1.PodScheduled,
+					Status:             v1.ConditionTrue,
+					LastTransitionTime: metav1.NewTime(time.Date(2023, 01, 06, 11, 24, 44, 0, time.UTC)),
+				},
+				{
+					Type:               v1.ContainersReady,
+					Status:             v1.ConditionFalse,
+					Message:            "containers with unready status: [trace-query]",
+					Reason:             "ContainersNotReady",
+					LastTransitionTime: metav1.NewTime(time.Date(2023, 02, 07, 13, 06, 38, 0, time.UTC)),
+				},
+				{
+					Type:               v1.PodReady,
+					Status:             v1.ConditionUnknown,
+					Message:            "Unknown",
+					Reason:             "Unknown",
+					LastProbeTime:      metav1.NewTime(time.Date(2023, 02, 07, 13, 06, 52, 0, time.UTC)),
+					LastTransitionTime: metav1.NewTime(time.Date(2023, 02, 07, 13, 06, 40, 0, time.UTC)),
+				},
+			},
+		},
+	}
+
+	expectedConditions := []*model.PodCondition{
+		{
+			Type:               "Initialized",
+			Status:             "True",
+			LastTransitionTime: time.Date(2023, 01, 06, 11, 24, 46, 0, time.UTC).Unix(),
+		},
+		{
+			Type:               "PodScheduled",
+			Status:             "True",
+			LastTransitionTime: time.Date(2023, 01, 06, 11, 24, 44, 0, time.UTC).Unix(),
+		},
+		{
+			Type:               "ContainersReady",
+			Status:             "False",
+			Message:            "containers with unready status: [trace-query]",
+			Reason:             "ContainersNotReady",
+			LastTransitionTime: time.Date(2023, 02, 07, 13, 06, 38, 0, time.UTC).Unix(),
+		},
+		{
+			Type:               "Ready",
+			Status:             "Unknown",
+			Reason:             "Unknown",
+			Message:            "Unknown",
+			LastProbeTime:      time.Date(2023, 02, 07, 13, 06, 52, 0, time.UTC).Unix(),
+			LastTransitionTime: time.Date(2023, 02, 07, 13, 06, 40, 0, time.UTC).Unix(),
+		},
+	}
+	expectedTags := []string{
+		"pod_condition_initialized:true",
+		"pod_condition_podscheduled:true",
+		"pod_condition_containersready:false",
+		"pod_condition_ready:unknown",
+	}
+
+	conditions, conditionTags := extractPodConditions(p)
+	assert.Equal(t, expectedConditions, conditions)
+	assert.Equal(t, expectedTags, conditionTags)
 }
 
 func TestFillPodResourceVersion(t *testing.T) {

@@ -73,7 +73,7 @@ __attribute__((always_inline)) struct exec_event_t *new_exec_event() {
 
     if (evt) {
         __builtin_memset(evt, 0, sizeof(*evt));
-        evt->event.is_activity_dump_sample = 1;
+        evt->event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
     }
 
     return evt;

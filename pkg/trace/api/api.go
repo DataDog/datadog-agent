@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"expvar"
 	"fmt"
 	"io"
 	stdlog "log"
@@ -17,9 +16,7 @@ import (
 	"mime"
 	"net"
 	"net/http"
-	"net/http/pprof"
 	"os"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -32,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -91,7 +87,7 @@ type HTTPReceiver struct {
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
 func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan *Payload, statsProcessor StatsProcessor, telemetryCollector telemetry.TelemetryCollector) *HTTPReceiver {
 	rateLimiterResponse := http.StatusOK
-	if features.Has("429") {
+	if conf.HasFeature("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
 	}
 	return &HTTPReceiver{
@@ -118,7 +114,6 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 	mux := http.NewServeMux()
 
 	hash, infoHandler := r.makeInfoHandler()
-	r.attachDebugHandlers(mux)
 	for _, e := range endpoints {
 		if e.IsEnabled != nil && !e.IsEnabled(r.conf) {
 			continue
@@ -160,7 +155,7 @@ func (r *HTTPReceiver) Start() {
 		ConnContext:  connContext,
 	}
 
-	addr := fmt.Sprintf("%s:%d", r.conf.ReceiverHost, r.conf.ReceiverPort)
+	addr := net.JoinHostPort(r.conf.ReceiverHost, strconv.Itoa(r.conf.ReceiverPort))
 	ln, err := r.listenTCP(addr)
 	if err != nil {
 		r.telemetryCollector.SendStartupError(telemetry.CantStartHttpServer, err)
@@ -216,43 +211,6 @@ func (r *HTTPReceiver) Start() {
 		defer watchdog.LogOnPanic()
 		r.loop()
 	}()
-}
-
-func (r *HTTPReceiver) attachDebugHandlers(mux *http.ServeMux) {
-	mux.HandleFunc("/debug/pprof/", pprof.Index)
-	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-
-	mux.HandleFunc("/debug/blockrate", func(w http.ResponseWriter, r *http.Request) {
-		// this endpoint calls runtime.SetBlockProfileRate(v), where v is an optional
-		// query string parameter defaulting to 10000 (1 sample per 10μs blocked).
-		rate := 10000
-		v := r.URL.Query().Get("v")
-		if v != "" {
-			n, err := strconv.Atoi(v)
-			if err != nil {
-				http.Error(w, "v must be an integer", http.StatusBadRequest)
-				return
-			}
-			rate = n
-		}
-		runtime.SetBlockProfileRate(rate)
-		fmt.Fprintf(w, "Block profile rate set to %d. It will automatically be disabled again after calling /debug/pprof/block\n", rate)
-	})
-
-	mux.HandleFunc("/debug/pprof/block", func(w http.ResponseWriter, r *http.Request) {
-		// serve the block profile and reset the rate to 0.
-		pprof.Handler("block").ServeHTTP(w, r)
-		runtime.SetBlockProfileRate(0)
-	})
-
-	mux.Handle("/debug/vars", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		// allow the GUI to call this endpoint so that the status can be reported
-		w.Header().Set("Access-Control-Allow-Origin", "http://127.0.0.1:"+r.conf.GUIPort)
-		expvar.Handler().ServeHTTP(w, req)
-	}))
 }
 
 // listenUnix returns a net.Listener listening on the given "unix" socket path.

@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"sync"
 	"syscall"
@@ -30,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/go/binversion"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls/lookup"
+	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -152,23 +152,19 @@ type GoTLSProgram struct {
 
 	// binAnalysisMetric handles telemetry on the time spent doing binary
 	// analysis
-	binAnalysisMetric *errtelemetry.Metric
+	binAnalysisMetric *libtelemetry.Metric
 }
 
 // Static evaluation to make sure we are not breaking the interface.
 var _ subprogram = &GoTLSProgram{}
-
-func supportedArch(arch string) bool {
-	return arch == string(bininspect.GoArchX86_64)
-}
 
 func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 	if !c.EnableHTTPSMonitoring || !c.EnableGoTLSSupport {
 		return nil
 	}
 
-	if !supportedArch(runtime.GOARCH) {
-		log.Errorf("System arch %q is not supported for goTLS", runtime.GOARCH)
+	if !HTTPSSupported(c) {
+		log.Errorf("goTLS not supported by this platform")
 		return nil
 	}
 
@@ -184,7 +180,7 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 		processes: make(map[pid]binaryID),
 	}
 
-	p.binAnalysisMetric = errtelemetry.NewMetric("gotls.analysis_time", errtelemetry.OptStatsd)
+	p.binAnalysisMetric = libtelemetry.NewMetric("gotls.analysis_time", libtelemetry.OptStatsd)
 
 	return p
 }
@@ -281,9 +277,11 @@ func (p *GoTLSProgram) handleProcessStart(pid pid) {
 	}
 	if err != nil {
 		// we can't access to the binary path here (pid probably ended already)
-		// there are not much we can do and we don't want to flood the logs
+		// there are not much we can do, and we don't want to flood the logs
 		return
 	}
+	// Getting the full path in the process' namespace.
+	binPath = filepath.Join(p.procRoot, strconv.FormatUint(uint64(pid), 10), "root", binPath)
 
 	var stat syscall.Stat_t
 	if err = syscall.Stat(binPath, &stat); err != nil {

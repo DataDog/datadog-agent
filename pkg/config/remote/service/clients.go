@@ -19,19 +19,34 @@ type client struct {
 	pbClient *pbgo.Client
 }
 
-type newActiveClients struct {
+type cacheBypassClients struct {
 	clock    clock.Clock
 	requests chan chan struct{}
-	until    time.Time
+
+	// Fixed window rate limiting
+	// It allows client requests spikes while limiting the global amount of request
+	currentWindow  time.Time
+	windowDuration time.Duration
+	capacity       int
+	allowance      int
 }
 
-// setRateLimit updates the next date when a new tracer is allow to bypass cache
-func (c *newActiveClients) setRateLimit(refreshInterval time.Duration) {
-	ttl := defaultClientsTTL
-	if refreshInterval < ttl && refreshInterval >= minimalRefreshInterval {
-		ttl = refreshInterval
+func (c *cacheBypassClients) Limit() bool {
+	now := c.clock.Now()
+	window := now.Truncate(c.windowDuration)
+
+	// If we're in a new window, reset the allowance
+	if c.currentWindow != window {
+		c.currentWindow = window
+		c.allowance = c.capacity
 	}
-	c.until = c.clock.Now().UTC().Add(ttl)
+
+	if c.allowance <= 0 {
+		// If the window is already overflowed limit the request
+		return true
+	}
+	c.allowance--
+	return false
 }
 
 func (c *client) expired(clock clock.Clock, ttl time.Duration) bool {
