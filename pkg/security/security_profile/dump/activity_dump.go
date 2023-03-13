@@ -282,10 +282,11 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 // computeSyscallsList returns the aggregated list of all syscalls
 func (ad *ActivityDump) computeSyscallsList() []uint32 {
 	mask := make(map[int]uint32)
-	nodes := ad.ProcessActivityTree
+	var nodes []*ProcessActivityNode
 	var node *ProcessActivityNode
-	if len(nodes) > 0 {
-		node = nodes[0]
+	if len(ad.ProcessActivityTree) > 0 {
+		node = ad.ProcessActivityTree[0]
+		nodes = ad.ProcessActivityTree[1:]
 	}
 
 	for node != nil {
@@ -295,15 +296,15 @@ func (ad *ActivityDump) computeSyscallsList() []uint32 {
 		for _, child := range node.Children {
 			nodes = append(nodes, child)
 		}
-		nodes = append(nodes[1:])
 		if len(nodes) > 0 {
 			node = nodes[0]
+			nodes = nodes[1:]
 		} else {
 			node = nil
 		}
 	}
 
-	var output []uint32
+	output := make([]uint32, 0, len(mask))
 	for key := range mask {
 		output = append(output, uint32(key))
 	}
@@ -952,11 +953,11 @@ func (ad *ActivityDump) ToTranscodingRequestMessage() *api.TranscodingRequestMes
 // Encode encodes an activity dump in the provided format
 func (ad *ActivityDump) Encode(format config.StorageFormat) (*bytes.Buffer, error) {
 	switch format {
-	case config.JSON:
+	case config.Json:
 		return ad.EncodeJSON()
-	case config.PROTOBUF:
+	case config.Protobuf:
 		return ad.EncodeProtobuf()
-	case config.DOT:
+	case config.Dot:
 		return ad.EncodeDOT()
 	case config.SecL:
 		return ad.EncodeSecL()
@@ -977,7 +978,7 @@ func (ad *ActivityDump) EncodeProtobuf() (*bytes.Buffer, error) {
 
 	raw, err := pad.MarshalVT()
 	if err != nil {
-		return nil, fmt.Errorf("couldn't encode in %s: %v", config.PROTOBUF, err)
+		return nil, fmt.Errorf("couldn't encode in %s: %v", config.Protobuf, err)
 	}
 	return bytes.NewBuffer(raw), nil
 }
@@ -1010,7 +1011,7 @@ func (ad *ActivityDump) EncodeJSON() (*bytes.Buffer, error) {
 
 	raw, err := opts.Marshal(pad)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't encode in %s: %v", config.JSON, err)
+		return nil, fmt.Errorf("couldn't encode in %s: %v", config.Json, err)
 	}
 	return bytes.NewBuffer(raw), nil
 }
@@ -1074,14 +1075,14 @@ func (ad *ActivityDump) Decode(inputFile string) error {
 // DecodeFromReader decodes an activity dump from a reader with the provided format
 func (ad *ActivityDump) DecodeFromReader(reader io.Reader, format config.StorageFormat) error {
 	switch format {
-	case config.PROTOBUF:
+	case config.Protobuf:
 		return ad.DecodeProtobuf(reader)
 	default:
 		return fmt.Errorf("unsupported input format: %s", format)
 	}
 }
 
-// DecodeProtobuf decodes an activity dump as PROTOBUF
+// DecodeProtobuf decodes an activity dump as Protobuf
 func (ad *ActivityDump) DecodeProtobuf(reader io.Reader) error {
 	ad.Lock()
 	defer ad.Unlock()

@@ -29,8 +29,8 @@ import (
 )
 
 var (
-	debounceDelay        = 5 * time.Second
-	newFileDebounceDelay = 2 * time.Second
+	workloadSelectorDebounceDelay = 5 * time.Second
+	newFileDebounceDelay          = 2 * time.Second
 )
 
 const profileExtension = ".profile"
@@ -85,7 +85,7 @@ func NewDirectoryProvider(directory string, watch bool) (*DirectoryProvider, err
 		profileMapping: make(map[cgroupModel.WorkloadSelector]profileFSEntry),
 		newFiles:       make(map[string]int),
 	}
-	dp.workloadSelectorDebouncer = debouncer.New(debounceDelay, dp.onNewProfileDebouncerCallback)
+	dp.workloadSelectorDebouncer = debouncer.New(workloadSelectorDebounceDelay, dp.onNewProfileDebouncerCallback)
 	dp.newFilesDebouncer = debouncer.New(newFileDebounceDelay, dp.onHandleFilesFromWatcher)
 
 	return dp, nil
@@ -95,11 +95,6 @@ func NewDirectoryProvider(directory string, watch bool) (*DirectoryProvider, err
 func (dp *DirectoryProvider) Start(ctx context.Context) error {
 	dp.workloadSelectorDebouncer.Start()
 	dp.newFilesDebouncer.Start()
-
-	// start by loading the profiles in the configured directory
-	if err := dp.loadProfiles(); err != nil {
-		return fmt.Errorf("couldn't scan the security profiles directory: %w", err)
-	}
 
 	// add watches
 	if dp.watcherEnabled {
@@ -116,6 +111,11 @@ func (dp *DirectoryProvider) Start(ctx context.Context) error {
 		var childContext context.Context
 		childContext, dp.cancelFnc = context.WithCancel(ctx)
 		go dp.watch(childContext)
+	}
+
+	// start by loading the profiles in the configured directory
+	if err := dp.loadProfiles(); err != nil {
+		return fmt.Errorf("couldn't scan the security profiles directory: %w", err)
 	}
 	return nil
 }
@@ -157,7 +157,7 @@ func (dp *DirectoryProvider) onNewProfileDebouncerCallback() {
 				// read and parse profile
 				profile, err := dp.parseProfile(profilePath.path)
 				if err != nil {
-					seclog.Warnf("couldn't load profile %s: %w", profilePath, err)
+					seclog.Warnf("couldn't load profile %s: %v", profilePath, err)
 					continue
 				}
 

@@ -18,8 +18,8 @@ import (
 // SecurityProfile defines a security profile
 type SecurityProfile struct {
 	sync.Mutex
-	loaded   bool
-	selector cgroupModel.WorkloadSelector
+	loadedInKernel bool
+	selector       cgroupModel.WorkloadSelector
 
 	// Instances is the list of workload instances to witch the profile should apply
 	Instances []*cgroupModel.CacheEntry
@@ -45,7 +45,7 @@ type SecurityProfile struct {
 
 // reset empties all internal fields so that this profile can be used again in the future
 func (p *SecurityProfile) reset() {
-	p.loaded = false
+	p.loadedInKernel = false
 	p.Instances = nil
 }
 

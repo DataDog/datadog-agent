@@ -29,7 +29,7 @@ func compareListOfDumps(t *testing.T, out, expectedOut []*ActivityDump) {
 			}
 		}
 
-		assert.Equalf(t, true, found, "output didn't match: dump %s should not be in the output", elem.Name)
+		assert.Truef(t, found, "output didn't match: dump %s should not be in the output", elem.Name)
 	}
 	for _, elem := range expectedOut {
 		var found bool
@@ -39,7 +39,7 @@ func compareListOfDumps(t *testing.T, out, expectedOut []*ActivityDump) {
 			}
 		}
 
-		assert.Equalf(t, true, found, "output didn't match: dump %s is missing from the output", elem.Name)
+		assert.Truef(t, found, "output didn't match: dump %s is missing from the output", elem.Name)
 	}
 }
 

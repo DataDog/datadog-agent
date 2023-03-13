@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -134,4 +135,64 @@ func TestInsertFileEvent(t *testing.T) {
 	debugOutput := strings.TrimSpace(builder.String())
 
 	assert.Equal(t, expectedDebugOuput, debugOutput)
+}
+
+func TestActivityDump_computeSyscallsList(t *testing.T) {
+	tests := []struct {
+		name string
+		dump ActivityDump
+		want []uint32
+	}{
+		{
+			name: "empty",
+			dump: ActivityDump{},
+			want: []uint32{},
+		},
+		{
+			name: "one_node",
+			dump: ActivityDump{
+				ProcessActivityTree: []*ProcessActivityNode{
+					{Syscalls: []int{2, 4, 7}},
+				},
+			},
+			want: []uint32{2, 4, 7},
+		},
+		{
+			name: "two_nodes",
+			dump: ActivityDump{
+				ProcessActivityTree: []*ProcessActivityNode{
+					{Syscalls: []int{2, 4, 7}},
+					{Syscalls: []int{350, 7, 70}},
+				},
+			},
+			want: []uint32{2, 4, 7, 70, 350},
+		},
+		{
+			name: "two_nodes",
+			dump: ActivityDump{
+				ProcessActivityTree: []*ProcessActivityNode{
+					{Syscalls: []int{2, 4, 7}},
+					{Syscalls: []int{350, 7, 70}},
+				},
+			},
+			want: []uint32{2, 4, 7, 70, 350},
+		},
+		{
+			name: "children_nodes",
+			dump: ActivityDump{
+				ProcessActivityTree: []*ProcessActivityNode{
+					{Syscalls: []int{2, 4, 7}, Children: []*ProcessActivityNode{{Syscalls: []int{123, 44, 64, 65}}, {Syscalls: []int{123, 44, 64, 65, 22}}, {}}},
+					{Syscalls: []int{350, 7, 70}},
+				},
+			},
+			want: []uint32{2, 4, 7, 22, 44, 64, 65, 70, 123, 350},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output := tt.dump.computeSyscallsList()
+			slices.Sort(output)
+			assert.Equalf(t, tt.want, output, "computeSyscallsList()")
+		})
+	}
 }

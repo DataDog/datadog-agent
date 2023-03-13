@@ -24,7 +24,7 @@ var v1testdata []byte
 
 func getTestDataActivityDump(tb testing.TB) *dump.ActivityDump {
 	ad := dump.NewEmptyActivityDump()
-	if err := ad.DecodeFromReader(bytes.NewReader(v1testdata), config.PROTOBUF); err != nil {
+	if err := ad.DecodeFromReader(bytes.NewReader(v1testdata), config.Protobuf); err != nil {
 		tb.Fatal(err)
 	}
 	return ad

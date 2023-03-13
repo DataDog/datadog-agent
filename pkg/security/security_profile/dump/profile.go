@@ -206,7 +206,7 @@ func (ad *ActivityDump) GenerateProfileData() Profile {
 	return p
 }
 
-// EncodeSecL encodes an activity dump in the Profile format
+// EncodeSecL encodes an activity dump in the SecL format
 func (ad *ActivityDump) EncodeSecL() (*bytes.Buffer, error) {
 	t := template.Must(template.New("tmpl").Parse(ProfileTemplate))
 	raw := bytes.NewBuffer(nil)

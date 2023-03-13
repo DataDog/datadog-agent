@@ -35,10 +35,10 @@ type SecurityProfileManager struct {
 	profilesLock sync.Mutex
 	profiles     map[cgroupModel.WorkloadSelector]*SecurityProfile
 
-	cacheLock sync.Mutex
-	cache     *simplelru.LRU[cgroupModel.WorkloadSelector, *SecurityProfile]
-	cacheHit  *atomic.Uint64
-	cacheMiss *atomic.Uint64
+	pendingCacheLock sync.Mutex
+	pendingCache     *simplelru.LRU[cgroupModel.WorkloadSelector, *SecurityProfile]
+	cacheHit         *atomic.Uint64
+	cacheMiss        *atomic.Uint64
 }
 
 // NewSecurityProfileManager returns a new instance of SecurityProfileManager
@@ -54,7 +54,7 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 		providers = append(providers, dirProvider)
 	}
 
-	profileCache, err := simplelru.NewLRU[cgroupModel.WorkloadSelector, *SecurityProfile](config.SBOMResolverWorkloadsCacheSize, nil)
+	profileCache, err := simplelru.NewLRU[cgroupModel.WorkloadSelector, *SecurityProfile](config.SecurityProfileCacheSize, nil)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create security profile cache: %w", err)
 	}
@@ -65,7 +65,7 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 		providers:      providers,
 		cgroupResolver: cgroupResolver,
 		profiles:       make(map[cgroupModel.WorkloadSelector]*SecurityProfile),
-		cache:          profileCache,
+		pendingCache:   profileCache,
 		cacheHit:       atomic.NewUint64(0),
 		cacheMiss:      atomic.NewUint64(0),
 	}
@@ -93,13 +93,8 @@ func (m *SecurityProfileManager) Start(ctx context.Context) {
 
 	seclog.Infof("security profile manager started")
 
-	for {
-		select {
-		case <-ctx.Done():
-			m.stop()
-			return
-		}
-	}
+	<-ctx.Done()
+	m.stop()
 }
 
 // propagateWorkloadSelectorsToProviders (thread unsafe) propagates the list of workload selectors to the Security
@@ -131,12 +126,12 @@ func (m *SecurityProfileManager) OnWorkloadSelectorResolvedEvent(workload *cgrou
 	profile, ok := m.profiles[workload.WorkloadSelector]
 	if !ok {
 		// check the cache
-		m.cacheLock.Lock()
-		defer m.cacheLock.Unlock()
-		profile, ok = m.cache.Get(workload.WorkloadSelector)
+		m.pendingCacheLock.Lock()
+		defer m.pendingCacheLock.Unlock()
+		profile, ok = m.pendingCache.Get(workload.WorkloadSelector)
 		if ok {
 			// remove profile from cache
-			_ = m.cache.Remove(workload.WorkloadSelector)
+			_ = m.pendingCache.Remove(workload.WorkloadSelector)
 
 			// since the profile was in cache, it was removed from kernel space, load it now
 			// (locking isn't necessary here, but added as a safeguard)
@@ -166,22 +161,18 @@ func (m *SecurityProfileManager) LinkProfile(profile *SecurityProfile, workload 
 	defer profile.Unlock()
 
 	// check if this instance of this workload is already tracked
-	found := false
 	for _, w := range profile.Instances {
 		if w.ID == workload.ID {
-			found = true
+			// nothing to do, leave
+			return
 		}
-	}
-	if found {
-		// nothing to do, leave
-		return
 	}
 
 	// update the list of tracked instances
 	profile.Instances = append(profile.Instances, workload)
 
 	// can we apply the profile or is it not ready yet ?
-	if profile.loaded {
+	if profile.loadedInKernel {
 		m.linkProfile(profile, workload)
 	}
 }
@@ -216,6 +207,10 @@ func (m *SecurityProfileManager) GetProfile(selector cgroupModel.WorkloadSelecto
 func (m *SecurityProfileManager) OnCGroupDeletedEvent(workload *cgroupModel.CacheEntry) {
 	// lookup the profile
 	profile := m.GetProfile(workload.WorkloadSelector)
+	if profile == nil {
+		// nothing to do, leave
+		return
+	}
 
 	// removes the link between the profile and this workload
 	m.UnlinkProfile(profile, workload)
@@ -247,9 +242,9 @@ func (m *SecurityProfileManager) ShouldDeleteProfile(profile *SecurityProfile) {
 	profile.reset()
 
 	// add profile in cache
-	m.cacheLock.Lock()
-	defer m.cacheLock.Unlock()
-	m.cache.Add(profile.selector, profile)
+	m.pendingCacheLock.Lock()
+	defer m.pendingCacheLock.Unlock()
+	m.pendingCache.Add(profile.selector, profile)
 
 	// remove profile from kernel space
 	m.unloadProfile(profile)
@@ -274,7 +269,7 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 
 	profile.Lock()
 	defer profile.Unlock()
-	profile.loaded = false
+	profile.loadedInKernel = false
 
 	// decode the content of the profile
 	protoToSecurityProfile(profile, newProfile)
@@ -284,9 +279,9 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 
 	if !ok {
 		// insert in cache and leave
-		m.cacheLock.Lock()
-		defer m.cacheLock.Unlock()
-		m.cache.Add(selector, profile)
+		m.pendingCacheLock.Lock()
+		defer m.pendingCacheLock.Unlock()
+		m.pendingCache.Add(selector, profile)
 		return
 	}
 
@@ -318,9 +313,9 @@ func (m *SecurityProfileManager) SendStats() error {
 		}
 	}
 
-	m.cacheLock.Lock()
-	defer m.cacheLock.Unlock()
-	if val := float64(m.cache.Len()); val > 0 {
+	m.pendingCacheLock.Lock()
+	defer m.pendingCacheLock.Unlock()
+	if val := float64(m.pendingCache.Len()); val > 0 {
 		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileCacheLen, val, []string{}, 1.0); err != nil {
 			return fmt.Errorf("couldn't send MetricSecurityProfileCacheLen: %w", err)
 		}
@@ -349,7 +344,7 @@ func (m *SecurityProfileManager) prepareProfile(profile *SecurityProfile) {
 // loadProfile (thread unsafe) loads a Security Profile in kernel space
 func (m *SecurityProfileManager) loadProfile(profile *SecurityProfile) {
 	// TODO: load generated programs and push kernel space filters
-	profile.loaded = true
+	profile.loadedInKernel = true
 }
 
 // unloadProfile (thread unsafe) unloads a Security Profile from kernel space
