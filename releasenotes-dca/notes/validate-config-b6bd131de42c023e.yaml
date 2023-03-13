@@ -1,4 +1,4 @@
 ---
 enhancements:
   - |
-    validate the orchestration config provided by user
+    Validate the orchestration config provided by the user.

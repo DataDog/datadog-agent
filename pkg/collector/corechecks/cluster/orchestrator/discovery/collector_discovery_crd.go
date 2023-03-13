@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
 	k8sCollectors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -37,7 +38,10 @@ func NewDiscoveryCollectorForInventory() *DiscoveryCollector {
 	dc := &DiscoveryCollector{
 		cache: discoveryCache{collectorForVersion: map[collectorVersion]struct{}{}},
 	}
-	dc.fillCache()
+	err := dc.fillCache()
+	if err != nil {
+		log.Error("Fail to init discovery collector", err)
+	}
 	return dc
 }
 func (d *DiscoveryCollector) fillCache() error {
