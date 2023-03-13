@@ -19,6 +19,12 @@ int __attribute__((always_inline)) chown_approvers(struct syscall_cache_t *sysca
 }
 
 int __attribute__((always_inline)) trace__sys_chown(uid_t user, gid_t group) {
+    // if we are already working on this syscall, we simply skip it
+    struct syscall_cache_t *syscall = peek_syscall_with(EVENT_CHOWN);
+    if (syscall) {
+        return 0;
+    }
+
     struct policy_t policy = fetch_policy(EVENT_CHOWN);
     if (is_discarded_by_process(policy.mode, EVENT_CHOWN)) {
         return 0;
@@ -54,6 +60,13 @@ int kprobe_vfs_fchown(struct pt_regs *ctx) {
 
 SEC("kprobe/ksys_fchown")
 int kprobe_ksys_fchown(struct pt_regs *ctx) {
+    uid_t user = PT_REGS_PARM2(ctx);
+    uid_t group = PT_REGS_PARM3(ctx);
+    return trace__sys_chown(user, group);
+}
+
+SEC("kprobe/chown_common")
+int kprobe_chown_common(struct pt_regs *ctx) {
     uid_t user = PT_REGS_PARM2(ctx);
     uid_t group = PT_REGS_PARM3(ctx);
     return trace__sys_chown(user, group);
@@ -108,6 +121,11 @@ int kretprobe_vfs_fchown(struct pt_regs *ctx) {
 
 SEC("kretprobe/ksys_fchown")
 int kretprobe_ksys_fchown(struct pt_regs *ctx) {
+    return kprobe_sys_chown_ret(ctx);
+}
+
+SEC("kretprobe/chown_common")
+int kretprobe_chown_common(struct pt_regs *ctx) {
     return kprobe_sys_chown_ret(ctx);
 }
 

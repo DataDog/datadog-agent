@@ -74,6 +74,18 @@ func getAttrProbes() []*manager.Probe {
 				EBPFFuncName: "kretprobe_ksys_fchown",
 			},
 		},
+		&manager.Probe{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "kprobe_chown_common",
+			},
+		},
+		&manager.Probe{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "kretprobe_chown_common",
+			},
+		},
 	)
 
 	// utime
