@@ -20,8 +20,8 @@ int __attribute__((always_inline)) chown_approvers(struct syscall_cache_t *sysca
 
 int __attribute__((always_inline)) trace__sys_chown(uid_t user, gid_t group) {
     // if we are already working on this syscall, we simply skip it
-    struct syscall_cache_t *syscall = peek_syscall_with(EVENT_CHOWN);
-    if (syscall) {
+    struct syscall_cache_t *syscall_check = peek_syscall(EVENT_CHOWN);
+    if (syscall_check) {
         return 0;
     }
 
