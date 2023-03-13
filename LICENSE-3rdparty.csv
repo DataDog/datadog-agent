@@ -1840,6 +1840,7 @@ core,google.golang.org/protobuf/internal/filetype,BSD-3-Clause,Copyright (c) 201
 core,google.golang.org/protobuf/internal/flags,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/internal/genid,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/internal/impl,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
+core,google.golang.org/protobuf/internal/msgfmt,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/internal/order,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/internal/pragma,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/internal/set,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
@@ -1847,11 +1848,14 @@ core,google.golang.org/protobuf/internal/strs,BSD-3-Clause,Copyright (c) 2018 Th
 core,google.golang.org/protobuf/internal/version,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/proto,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/reflect/protodesc,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
+core,google.golang.org/protobuf/reflect/protopath,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
+core,google.golang.org/protobuf/reflect/protorange,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/reflect/protoreflect,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/reflect/protoregistry,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/runtime/protoiface,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/runtime/protoimpl,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/types/descriptorpb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
+core,google.golang.org/protobuf/types/dynamicpb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/types/known/anypb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/types/known/durationpb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/types/known/emptypb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
