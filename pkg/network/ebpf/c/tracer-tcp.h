@@ -7,6 +7,7 @@
 #include "tracer-stats.h"
 #include "tracer-maps.h"
 #include "sock.h"
+#include "sockfd.h"
 #include "port.h"
 #include "skb.h"
 

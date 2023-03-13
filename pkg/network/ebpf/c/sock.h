@@ -169,6 +169,16 @@ static __always_inline void read_daddr_v6(struct sock *skp, u64 *addr_h, u64 *ad
 #endif
 }
 
+static __always_inline unsigned short _sk_family(struct sock *skp) {
+    unsigned short family = 0;
+#ifdef COMPILE_PREBUILT
+    bpf_probe_read_kernel_with_telemetry(&family, sizeof(family), ((char*)skp) + offset_family());
+#elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
+    family = BPF_PROBE_READ_INTO(&family, skp, sk_family);
+#endif
+    return family;
+}
+
 /**
  * Reads values into a `conn_tuple_t` from a `sock`. Any values that are already set in conn_tuple_t
  * are not overwritten. Returns 1 success, 0 otherwise.
@@ -181,8 +191,7 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
     // Retrieve network namespace id first since addresses and ports may not be available for unconnected UDP
     // sends
     t->netns = get_netns_from_sock(skp);
-    unsigned short family = 0;
-    BPF_PROBE_READ_INTO(&family, skp, sk_family);
+    unsigned short family = _sk_family(skp);
     // Retrieve addresses
     if (family == __AF_INET) {
         t->metadata |= CONN_V4;
