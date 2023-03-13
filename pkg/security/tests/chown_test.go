@@ -9,9 +9,11 @@
 package tests
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 	"testing"
 
@@ -59,6 +61,19 @@ func TestChown(t *testing.T) {
 	testFile, testFilePtr, err := test.CreateWithOptions("test-chown", prevUID, prevGID, fileMode)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	kallsyms, err := os.Open("/proc/kallsyms")
+	if err != nil {
+		t.Fatal(err)
+	}
+	scanner := bufio.NewScanner(kallsyms)
+	// optionally, resize scanner's capacity for lines over 64K, see next example
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.Contains(line, "chown") {
+			t.Log(line)
+		}
 	}
 
 	t.Run("fchown", func(t *testing.T) {

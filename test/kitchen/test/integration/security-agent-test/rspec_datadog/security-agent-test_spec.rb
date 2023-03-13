@@ -75,6 +75,8 @@ shared_examples "passes" do |bundle, env|
         cmd = gotestsum_test2json_cmd.concat([testsuite_file_path, "-status-metrics", "-test.v", "-test.count=1"])
         output_line_tag = "h"
 
+        cmd.concat(["-test.run", "TestChown"])
+
         if bundle == "ad"
           cmd.concat(["-test.run", "TestActivityDump"])
           output_line_tag = "ad"
