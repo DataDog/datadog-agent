@@ -109,7 +109,6 @@ func WithConfigMissingOK(v bool) func(*Params) {
 	}
 }
 
-// NewAgentParamsWithSecrets creates a new instance of Params using secrets for the Agent.
 func WithOverrides(overrides map[string]interface{}) func(*Params) {
 	return func(b *Params) {
 		b.overrides = overrides
