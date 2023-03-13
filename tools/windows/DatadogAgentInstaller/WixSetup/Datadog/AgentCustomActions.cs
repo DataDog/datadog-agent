@@ -42,6 +42,8 @@ namespace WixSetup.Datadog
 
         public ManagedAction ReportInstallSuccess { get; }
 
+        public ManagedAction EnsureNpmServiceDepdendency { get; }
+
         public AgentCustomActions()
         {
             ReadRegistryProperties = new CustomAction<UserCustomActions>(
@@ -94,12 +96,13 @@ namespace WixSetup.Datadog
             {
                 Execute = Execute.deferred
             };
+
             ReportInstallFailure = new CustomAction<Telemetry>(
-                    new Id(nameof(ReportInstallFailure)),
-                    Telemetry.ReportFailure,
-                    Return.ignore,
-                    When.Before,
-                    Step.StartServices
+                new Id(nameof(ReportInstallFailure)),
+                Telemetry.ReportFailure,
+                Return.ignore,
+                When.Before,
+                Step.StartServices
             )
             {
                 Execute = Execute.rollback
@@ -107,12 +110,25 @@ namespace WixSetup.Datadog
             .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
             .HideTarget(true); ;
 
+            EnsureNpmServiceDepdendency = new CustomAction<NpmCustomAction>(
+                new Id(nameof(EnsureNpmServiceDepdendency)),
+                NpmCustomAction.EnsureNpmServiceDependency,
+                Return.check,
+                When.After,
+                new Step(ReportInstallFailure.Id),
+                Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
+            )
+                {
+                Execute = Execute.deferred
+            }
+            .SetProperties("ADDLOCAL=[ADDLOCAL]");
+
             WriteConfig = new CustomAction<ConfigCustomActions>(
                 new Id(nameof(WriteConfig)),
                 ConfigCustomActions.WriteConfig,
                 Return.check,
                 When.After,
-                new Step(ReportInstallFailure.Id),
+                new Step(EnsureNpmServiceDepdendency.Id),
                 Conditions.FirstInstall
             )
             {
@@ -224,8 +240,9 @@ namespace WixSetup.Datadog
                 UserCustomActions.ProcessDdAgentUserCredentials,
                 Return.check,
                 // Run at end of "config phase", right before the "make changes" phase.
+                // Must run before InstallValidate because it changes the User components
                 When.Before,
-                Step.InstallInitialize,
+                Step.InstallValidate,
                 // Run unless we are being uninstalled.
                 // This CA produces properties used for services, accounts, and permissions.
                 Condition.NOT(Conditions.Uninstalling)
