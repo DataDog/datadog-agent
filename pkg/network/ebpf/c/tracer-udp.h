@@ -71,12 +71,7 @@ int kprobe__skb_consume_udp(struct pt_regs *ctx) {
     return 0;
 }
 
-static __always_inline int handle_udp_recvmsg(struct pt_regs *ctx) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
-    int flags = (int)PT_REGS_PARM6(ctx);
-#else
-    int flags = (int)PT_REGS_PARM5(ctx);
-#endif
+static __always_inline int handle_udp_recvmsg(int flags) {
     log_debug("kprobe/udp_recvmsg: flags: %x\n", flags);
     if (flags & MSG_PEEK) {
         return 0;
@@ -91,17 +86,27 @@ static __always_inline int handle_udp_recvmsg(struct pt_regs *ctx) {
 
 SEC("kprobe/udp_recvmsg")
 int kprobe__udp_recvmsg(struct pt_regs *ctx) {
-    return handle_udp_recvmsg(ctx);
+#if defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+    int flags = (int)PT_REGS_PARM6(ctx);
+#else
+    int flags = (int)PT_REGS_PARM5(ctx);
+#endif
+    return handle_udp_recvmsg(flags);
 }
 
 #if !defined(COMPILE_RUNTIME) || defined(FEATURE_IPV6_ENABLED)
 SEC("kprobe/udpv6_recvmsg")
 int kprobe__udpv6_recvmsg(struct pt_regs *ctx) {
-    return handle_udp_recvmsg(ctx);
+#if defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+    int flags = (int)PT_REGS_PARM6(ctx);
+#else
+    int flags = (int)PT_REGS_PARM4(ctx);
+#endif
+    return handle_udp_recvmsg(flags);
 }
 #endif // !COMPILE_RUNTIME || FEATURE_IPV6_ENABLED
 
-static __always_inline int handle_udp_recvmsg_ret(struct pt_regs *ctx) {
+static __always_inline int handle_udp_recvmsg_ret() {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     bpf_map_delete_elem(&udp_recv_sock, &pid_tgid);
     return 0;
@@ -109,13 +114,13 @@ static __always_inline int handle_udp_recvmsg_ret(struct pt_regs *ctx) {
 
 SEC("kretprobe/udp_recvmsg")
 int kretprobe__udp_recvmsg(struct pt_regs *ctx) {
-    return handle_udp_recvmsg_ret(ctx);
+    return handle_udp_recvmsg_ret();
 }
 
 #if !defined(COMPILE_RUNTIME) || defined(FEATURE_IPV6_ENABLED)
 SEC("kretprobe/udpv6_recvmsg")
 int kretprobe__udpv6_recvmsg(struct pt_regs *ctx) {
-    return handle_udp_recvmsg_ret(ctx);
+    return handle_udp_recvmsg_ret();
 }
 #endif // !COMPILE_RUNTIME || FEATURE_IPV6_ENABLED
 

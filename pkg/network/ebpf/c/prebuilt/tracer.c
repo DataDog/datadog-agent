@@ -72,6 +72,18 @@ int kprobe__ip6_make_skb__pre_4_7_0(struct pt_regs *ctx) {
     return 0;
 }
 
+SEC("kprobe/udp_recvmsg/pre_4_1_0")
+int kprobe__udp_recvmsg_pre_4_1_0(struct pt_regs *ctx) {
+    int flags = (int)PT_REGS_PARM6(ctx);
+    return handle_udp_recvmsg(flags);
+}
+
+SEC("kprobe/udpv6_recvmsg/pre_4_1_0")
+int kprobe__udpv6_recvmsg_pre_4_1_0(struct pt_regs *ctx) {
+    int flags = (int)PT_REGS_PARM6(ctx);
+    return handle_udp_recvmsg(flags);
+}
+
 SEC("kprobe/tcp_retransmit_skb")
 int kprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
