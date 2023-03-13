@@ -103,7 +103,7 @@ func All(config ddconfig.ConfigReaderWriter, syscfg *sysconfig.Config) []Check {
 		NewProcessCheck(config),
 		NewContainerCheck(config),
 		NewRTContainerCheck(config),
-		NewConnectionsCheck(syscfg),
+		NewConnectionsCheck(config, syscfg),
 		NewPodCheck(),
 		NewProcessDiscoveryCheck(config),
 		NewProcessEventsCheck(config),

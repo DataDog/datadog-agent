@@ -59,7 +59,7 @@ func TestNewCollectorQueueSize(t *testing.T) {
 				mockConfig.Set("process_config.queue_size", tc.queueSize)
 			}
 
-			c, err := NewSubmitter(ddconfig.Datadog, testHostName)
+			c, err := NewSubmitter(mockConfig, testHostName)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expectedQueueSize, c.processResults.MaxSize())
 			assert.Equal(t, tc.expectedQueueSize, c.podResults.MaxSize())
@@ -107,7 +107,7 @@ func TestNewCollectorRTQueueSize(t *testing.T) {
 				mockConfig.Set("process_config.rt_queue_size", tc.queueSize)
 			}
 
-			c, err := NewSubmitter(ddconfig.Datadog, testHostName)
+			c, err := NewSubmitter(mockConfig, testHostName)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expectedQueueSize, c.rtProcessResults.MaxSize())
 		})
@@ -154,7 +154,7 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 				mockConfig.Set("process_config.process_queue_bytes", tc.queueBytes)
 			}
 
-			s, err := NewSubmitter(ddconfig.Datadog, testHostName)
+			s, err := NewSubmitter(mockConfig, testHostName)
 			assert.NoError(t, err)
 			assert.Equal(t, int64(tc.expectedQueueSize), s.processResults.MaxWeight())
 			assert.Equal(t, int64(tc.expectedQueueSize), s.rtProcessResults.MaxWeight())
@@ -164,7 +164,7 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 }
 
 func TestCollectorMessagesToCheckResult(t *testing.T) {
-	submitter, err := NewSubmitter(ddconfig.Datadog, testHostName)
+	submitter, err := NewSubmitter(ddconfig.Mock(t), testHostName)
 	assert.NoError(t, err)
 
 	now := time.Now()

@@ -19,8 +19,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/events"
@@ -154,7 +154,7 @@ func runEventListener(deps dependencies) error {
 }
 
 func runEventStore(deps dependencies) error {
-	store, err := events.NewRingStore(&statsd.NoOpClient{})
+	store, err := events.NewRingStore(deps.Config, &statsd.NoOpClient{})
 	if err != nil {
 		return err
 	}

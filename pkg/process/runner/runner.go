@@ -109,7 +109,7 @@ func NewRunner(config ddconfig.ConfigReader, sysCfg *sysconfig.Config, hostInfo 
 		}
 	}
 
-	return NewRunnerWithChecks(ddconfig.Datadog, enabledChecks, runRealTime, rtNotifierChan)
+	return NewRunnerWithChecks(config, enabledChecks, runRealTime, rtNotifierChan)
 }
 
 // NewRunnerWithChecks creates a new CheckRunner

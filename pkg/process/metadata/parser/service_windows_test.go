@@ -66,7 +66,7 @@ func TestWindowsExtractServiceMetadata(t *testing.T) {
 			}
 			procsByPid := map[int32]*procutil.Process{proc.Pid: &proc}
 
-			se := NewServiceExtractor()
+			se := NewServiceExtractor(mockConfig)
 			se.Extract(procsByPid)
 			assert.Equal(t, []string{tt.expectedServiceTag}, se.GetServiceContext(proc.Pid))
 		})

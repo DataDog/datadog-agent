@@ -10,6 +10,8 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func testGroupId(groupID int32) func() int32 {
@@ -25,7 +27,7 @@ func TestProcessDiscoveryCheck(t *testing.T) {
 	}()
 
 	maxBatchSize := 10
-	getMaxBatchSize = func() int { return maxBatchSize }
+	getMaxBatchSize = func(config.ConfigReader) int { return maxBatchSize }
 
 	check := &ProcessDiscoveryCheck{}
 	check.Init(

@@ -47,7 +47,7 @@ func (r *RTContainerCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo) error {
 // IsEnabled returns true if the check is enabled by configuration
 func (r *RTContainerCheck) IsEnabled() bool {
 	rtChecksEnabled := !r.config.GetBool("process_config.disable_realtime_checks")
-	return canEnableContainerChecks(ddconfig.Datadog, false) && rtChecksEnabled
+	return canEnableContainerChecks(r.config, false) && rtChecksEnabled
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions

@@ -98,7 +98,7 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo) erro
 	c.networkID = networkID
 	c.processData = NewProcessData(c.config)
 	c.dockerFilter = parser.NewDockerProxy()
-	c.serviceExtractor = parser.NewServiceExtractor()
+	c.serviceExtractor = parser.NewServiceExtractor(c.config)
 	c.processData.Register(c.dockerFilter)
 	c.processData.Register(c.serviceExtractor)
 
@@ -152,7 +152,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	// Resolve the Raddr side of connections for local containers
 	LocalResolver.Resolve(conns)
 
-	c.notifyProcessConnRates(conns)
+	c.notifyProcessConnRates(c.config, conns)
 
 	log.Debugf("collected connections in %s", time.Since(start))
 
@@ -175,12 +175,12 @@ func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 	return tu.GetConnections(c.tracerClientID)
 }
 
-func (c *ConnectionsCheck) notifyProcessConnRates(conns *model.Connections) {
+func (c *ConnectionsCheck) notifyProcessConnRates(config config.ConfigReader, conns *model.Connections) {
 	if len(c.processConnRatesTransmitter.Chs) == 0 {
 		return
 	}
 
-	connCheckIntervalS := int(GetInterval(ConnectionsCheckName) / time.Second)
+	connCheckIntervalS := int(GetInterval(config, ConnectionsCheckName) / time.Second)
 
 	connRates := make(ProcessConnRates)
 	for _, c := range conns.Conns {

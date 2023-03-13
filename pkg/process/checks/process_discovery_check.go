@@ -41,7 +41,7 @@ type ProcessDiscoveryCheck struct {
 func (d *ProcessDiscoveryCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
 	d.info = info
 	d.initCalled = true
-	d.probe = newProcessProbe(procutil.WithPermission(syscfg.ProcessModuleEnabled))
+	d.probe = newProcessProbe(d.config, procutil.WithPermission(syscfg.ProcessModuleEnabled))
 
 	d.maxBatchSize = getMaxBatchSize(d.config)
 	return nil
