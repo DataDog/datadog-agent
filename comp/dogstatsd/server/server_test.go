@@ -53,29 +53,29 @@ func getAvailableUDPPort() (int, error) {
 func runWithComponent(t testing.TB, test func(Component)) {
 	fxutil.Test(t, fx.Options(
 		core.MockBundle,
+		fx.Supply(core.BundleParams{}),
 		fx.Supply(Params{Serverless: false}),
 		Module,
 	), test)
 }
 
-func runWithComponentAndConfig(t testing.TB, cfg config.Config, test func(Component)) {
+func runWithComponentAndConfig(t testing.TB, overrides map[string]interface{}, test func(Component, configComponent.Component)) {
 	fxutil.Test(t, fx.Options(
-		core.MockBundleNeedsOverrideConfig,
-		fx.Supply(configComponent.OverrideConfig{Config: cfg}),
+		core.MockBundle,
+		fx.Supply(core.BundleParams{ConfigParams: configComponent.NewParams("", configComponent.WithOverrides(overrides))}),
 		fx.Supply(Params{Serverless: false}),
 		Module,
 	), test)
 }
 
 func TestNewServer(t *testing.T) {
-	cfg := config.NewConfig("mock", "XXXX", strings.NewReplacer())
-	config.InitConfig(cfg)
+	cfg := make(map[string]interface{})
 
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
-	cfg.SetDefault("dogstatsd_port", port)
+	cfg["dogstatsd_port"] = port
 
-	runWithComponentAndConfig(t, cfg, func(s Component) {
+	runWithComponentAndConfig(t, cfg, func(s Component, _ configComponent.Component) {
 
 		demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
 		defer demux.Stop(false)
@@ -86,14 +86,13 @@ func TestNewServer(t *testing.T) {
 }
 
 func TestStopServer(t *testing.T) {
-	cfg := config.NewConfig("mock", "XXXX", strings.NewReplacer())
-	config.InitConfig(cfg)
+	cfg := make(map[string]interface{})
 
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
-	cfg.SetDefault("dogstatsd_port", port)
+	cfg["dogstatsd_port"] = port
 
-	runWithComponentAndConfig(t, cfg, func(s Component) {
+	runWithComponentAndConfig(t, cfg, func(s Component, _ configComponent.Component) {
 
 		demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
 		defer demux.Stop(false)
@@ -141,15 +140,14 @@ func TestNoRaceOriginTagMaps(t *testing.T) {
 }
 
 func TestUDPReceive(t *testing.T) {
-	cfg := config.NewConfig("mock", "XXXX", strings.NewReplacer())
-	config.InitConfig(cfg)
+	cfg := make(map[string]interface{})
 
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
-	cfg.SetDefault("dogstatsd_port", port)
-	cfg.Set("dogstatsd_no_aggregation_pipeline", true) // another test may have turned it off
+	cfg["dogstatsd_port"] = port
+	cfg["dogstatsd_no_aggregation_pipeline"] = true // another test may have turned it off
 
-	runWithComponentAndConfig(t, cfg, func(s Component) {
+	runWithComponentAndConfig(t, cfg, func(s Component, _ configComponent.Component) {
 
 		opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
 		opts.FlushInterval = 10 * time.Millisecond
@@ -423,17 +421,16 @@ func TestUDPReceive(t *testing.T) {
 }
 
 func TestUDPForward(t *testing.T) {
-	cfg := config.NewConfig("mock", "XXXX", strings.NewReplacer())
-	config.InitConfig(cfg)
+	cfg := make(map[string]interface{})
 
 	fport, err := getAvailableUDPPort()
 	require.NoError(t, err)
 
 	// Setup UDP server to forward to
-	cfg.SetDefault("statsd_forward_port", fport)
-	cfg.SetDefault("statsd_forward_host", "127.0.0.1")
+	cfg["statsd_forward_port"] = fport
+	cfg["statsd_forward_host"] = "127.0.0.1"
 
-	runWithComponentAndConfig(t, cfg, func(s Component) {
+	runWithComponentAndConfig(t, cfg, func(s Component, _ configComponent.Component) {
 
 		addr := fmt.Sprintf("127.0.0.1:%d", fport)
 		pc, err := net.ListenPacket("udp", addr)
@@ -472,16 +469,15 @@ func TestUDPForward(t *testing.T) {
 }
 
 func TestHistToDist(t *testing.T) {
-	cfg := config.NewConfig("mock", "XXXX", strings.NewReplacer())
-	config.InitConfig(cfg)
+	cfg := make(map[string]interface{})
 
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
-	cfg.SetDefault("dogstatsd_port", port)
-	cfg.SetDefault("histogram_copy_to_distribution", true)
-	cfg.SetDefault("histogram_copy_to_distribution_prefix", "dist.")
+	cfg["dogstatsd_port"] = port
+	cfg["histogram_copy_to_distribution"] = true
+	cfg["histogram_copy_to_distribution_prefix"] = "dist."
 
-	runWithComponentAndConfig(t, cfg, func(s Component) {
+	runWithComponentAndConfig(t, cfg, func(s Component, _ configComponent.Component) {
 		config.SetDetectedFeatures(config.FeatureMap{})
 		defer config.SetDetectedFeatures(nil)
 
@@ -575,19 +571,17 @@ func TestEOLParsing(t *testing.T) {
 func TestE2EParsing(t *testing.T) {
 	config.SetDetectedFeatures(config.FeatureMap{})
 	defer config.SetDetectedFeatures(nil)
-
-	cfg := config.NewConfig("mock", "XXXX", strings.NewReplacer())
-	config.InitConfig(cfg)
+	cfg := make(map[string]interface{})
 
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
-	config.Datadog.SetDefault("dogstatsd_port", port)
+	cfg["dogstatsd_port"] = port
 
-	runWithComponentAndConfig(t, cfg, func(s Component) {
+	runWithComponentAndConfig(t, cfg, func(s Component, c configComponent.Component) {
 		demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
 		requireStart(t, s, demux)
 
-		url := fmt.Sprintf("127.0.0.1:%d", cfg.GetInt("dogstatsd_port"))
+		url := fmt.Sprintf("127.0.0.1:%d", c.GetInt("dogstatsd_port"))
 		conn, err := net.Dial("udp", url)
 		require.NoError(t, err, "cannot connect to DSD socket")
 		defer conn.Close()
@@ -603,13 +597,13 @@ func TestE2EParsing(t *testing.T) {
 	})
 
 	// EOL enabled
-	cfg.SetDefault("dogstatsd_eol_required", []string{"udp"})
+	cfg["dogstatsd_eol_required"] = []string{"udp"}
 
-	runWithComponentAndConfig(t, cfg, func(s Component) {
+	runWithComponentAndConfig(t, cfg, func(s Component, c configComponent.Component) {
 		demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
 		requireStart(t, s, demux)
 
-		url := fmt.Sprintf("127.0.0.1:%d", cfg.GetInt("dogstatsd_port"))
+		url := fmt.Sprintf("127.0.0.1:%d", c.GetInt("dogstatsd_port"))
 		conn, err := net.Dial("udp", url)
 		require.NoError(t, err, "cannot connect to DSD socket")
 		defer conn.Close()
@@ -628,16 +622,14 @@ func TestE2EParsing(t *testing.T) {
 func TestExtraTags(t *testing.T) {
 	config.SetDetectedFeatures(config.FeatureMap{config.EKSFargate: struct{}{}})
 	defer config.SetDetectedFeatures(nil)
-
-	cfg := config.NewConfig("mock", "XXXX", strings.NewReplacer())
-	config.InitConfig(cfg)
+	cfg := make(map[string]interface{})
 
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
-	cfg.SetDefault("dogstatsd_port", port)
-	cfg.SetDefault("dogstatsd_tags", []string{"sometag3:somevalue3"})
+	cfg["dogstatsd_port"] = port
+	cfg["dogstatsd_tags"] = []string{"sometag3:somevalue3"}
 
-	runWithComponentAndConfig(t, cfg, func(s Component) {
+	runWithComponentAndConfig(t, cfg, func(s Component, _ configComponent.Component) {
 
 		demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
 		requireStart(t, s, demux)
@@ -663,18 +655,17 @@ func TestExtraTags(t *testing.T) {
 }
 
 func TestStaticTags(t *testing.T) {
-	cfg := config.NewConfig("mock", "XXXX", strings.NewReplacer())
-	config.InitConfig(cfg)
+	cfg := make(map[string]interface{})
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
-	cfg.SetDefault("dogstatsd_port", port)
-	cfg.SetDefault("dogstatsd_tags", []string{"sometag3:somevalue3"})
-	cfg.SetDefault("tags", []string{"from:dd_tags"})
+	cfg["dogstatsd_port"] = port
+	cfg["dogstatsd_tags"] = []string{"sometag3:somevalue3"}
+	cfg["tags"] = []string{"from:dd_tags"}
 
 	config.SetDetectedFeatures(config.FeatureMap{config.EKSFargate: struct{}{}})
 	defer config.SetDetectedFeatures(nil)
 
-	runWithComponentAndConfig(t, cfg, func(s Component) {
+	runWithComponentAndConfig(t, cfg, func(s Component, _ configComponent.Component) {
 
 		demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
 		requireStart(t, s, demux)
@@ -981,19 +972,20 @@ dogstatsd_mapper_profiles:
 			config.SetDetectedFeatures(config.FeatureMap{})
 			defer config.SetDetectedFeatures(nil)
 
-			cfg := config.NewConfig("mock", "XXXX", strings.NewReplacer())
-			config.InitConfig(cfg)
-
-			cfg.SetConfigType("yaml")
-			err := cfg.ReadConfig(strings.NewReader(scenario.config))
-			assert.NoError(t, err, "Case `%s` failed. ReadConfig should not return error %v", scenario.name, err)
+			cfg := make(map[string]interface{})
 
 			port, err := getAvailableUDPPort()
 			require.NoError(t, err, "Case `%s` failed. getAvailableUDPPort should not return error %v", scenario.name, err)
-			cfg.SetDefault("dogstatsd_port", port)
+			cfg["dogstatsd_port"] = port
 
-			runWithComponentAndConfig(t, cfg, func(c Component) {
-				s := c.(*server)
+			runWithComponentAndConfig(t, cfg, func(serv Component, conf configComponent.Component) {
+				c := conf.(config.Config)
+
+				c.SetConfigType("yaml")
+				err := c.ReadConfig(strings.NewReader(scenario.config))
+				assert.NoError(t, err, "Case `%s` failed. ReadConfig should not return error %v", scenario.name, err)
+
+				s := serv.(*server)
 
 				demux := mockDemultiplexer()
 				defer demux.Stop(false)
@@ -1027,16 +1019,14 @@ dogstatsd_mapper_profiles:
 func TestNewServerExtraTags(t *testing.T) {
 	config.SetDetectedFeatures(config.FeatureMap{})
 	defer config.SetDetectedFeatures(nil)
-
-	cfg := config.NewConfig("mock", "DD", strings.NewReplacer())
-	config.InitConfig(cfg)
+	cfg := make(map[string]interface{})
 
 	require := require.New(t)
 	port, err := getAvailableUDPPort()
 	require.NoError(err)
-	cfg.SetDefault("dogstatsd_port", port)
+	cfg["dogstatsd_port"] = port
 
-	runWithComponentAndConfig(t, cfg, func(c Component) {
+	runWithComponentAndConfig(t, cfg, func(c Component, _ configComponent.Component) {
 		s := c.(*server)
 		demux := mockDemultiplexer()
 		requireStart(t, s, demux)
@@ -1046,8 +1036,8 @@ func TestNewServerExtraTags(t *testing.T) {
 	})
 
 	// when the extraTags parameter isn't used, the DogStatsD server is not reading this env var
-	t.Setenv("DD_TAGS", "hello:world")
-	runWithComponentAndConfig(t, cfg, func(c Component) {
+	cfg["tags"] = "hello:world"
+	runWithComponentAndConfig(t, cfg, func(c Component, _ configComponent.Component) {
 		s := c.(*server)
 		demux := mockDemultiplexer()
 		requireStart(t, s, demux)
@@ -1057,8 +1047,8 @@ func TestNewServerExtraTags(t *testing.T) {
 	})
 
 	// when the extraTags parameter isn't used, the DogStatsD server is automatically reading this env var for extra tags
-	t.Setenv("DD_DOGSTATSD_TAGS", "hello:world extra:tags")
-	runWithComponentAndConfig(t, cfg, func(c Component) {
+	cfg["dogstatsd_tags"] = "hello:world extra:tags"
+	runWithComponentAndConfig(t, cfg, func(c Component, _ configComponent.Component) {
 		s := c.(*server)
 		demux := mockDemultiplexer()
 		requireStart(t, s, demux)
@@ -1070,100 +1060,96 @@ func TestNewServerExtraTags(t *testing.T) {
 	})
 }
 
-func testProcessedMetricsOrigin(t *testing.T) {
-	runWithComponent(t, func(c Component) {
-		s := c.(*server)
-		assert := assert.New(t)
-
-		demux := mockDemultiplexer()
-		defer demux.Stop(false)
-		requireStart(t, s, demux)
-
-		s.Stop()
-
-		assert.Len(s.cachedOriginCounters, 0, "this cache must be empty")
-		assert.Len(s.cachedOrder, 0, "this cache list must be empty")
-
-		parser := newParser(newFloat64ListPool())
-		samples := []metrics.MetricSample{}
-		samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "container_id://test_container", false)
-		assert.NoError(err)
-		assert.Len(samples, 1)
-
-		// one thing should have been stored when we parse a metric
-		samples, err = s.parseMetricMessage(samples, parser, []byte("test.metric:555|g"), "container_id://test_container", true)
-		assert.NoError(err)
-		assert.Len(samples, 2)
-		assert.Len(s.cachedOriginCounters, 1, "one entry should have been cached")
-		assert.Len(s.cachedOrder, 1, "one entry should have been cached")
-		assert.Equal(s.cachedOrder[0].origin, "container_id://test_container")
-
-		// when we parse another metric (different value) with same origin, cache should contain only one entry
-		samples, err = s.parseMetricMessage(samples, parser, []byte("test.second_metric:525|g"), "container_id://test_container", true)
-		assert.NoError(err)
-		assert.Len(samples, 3)
-		assert.Len(s.cachedOriginCounters, 1, "one entry should have been cached")
-		assert.Len(s.cachedOrder, 1, "one entry should have been cached")
-		assert.Equal(s.cachedOrder[0].origin, "container_id://test_container")
-		assert.Equal(s.cachedOrder[0].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "container_id://test_container"})
-		assert.Equal(s.cachedOrder[0].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "container_id://test_container"})
-
-		// when we parse another metric (different value) but with a different origin, we should store a new entry
-		samples, err = s.parseMetricMessage(samples, parser, []byte("test.second_metric:525|g"), "container_id://another_container", true)
-		assert.NoError(err)
-		assert.Len(samples, 4)
-		assert.Len(s.cachedOriginCounters, 2, "two entries should have been cached")
-		assert.Len(s.cachedOrder, 2, "two entries should have been cached")
-		assert.Equal(s.cachedOrder[0].origin, "container_id://test_container")
-		assert.Equal(s.cachedOrder[0].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "container_id://test_container"})
-		assert.Equal(s.cachedOrder[0].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "container_id://test_container"})
-		assert.Equal(s.cachedOrder[1].origin, "container_id://another_container")
-		assert.Equal(s.cachedOrder[1].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "container_id://another_container"})
-		assert.Equal(s.cachedOrder[1].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "container_id://another_container"})
-
-		// oldest one should be removed once we reach the limit of the cache
-		maxOriginCounters = 2
-		samples, err = s.parseMetricMessage(samples, parser, []byte("yetanothermetric:525|g"), "third_origin", true)
-		assert.NoError(err)
-		assert.Len(samples, 5)
-		assert.Len(s.cachedOriginCounters, 2, "two entries should have been cached, one has been evicted already")
-		assert.Len(s.cachedOrder, 2, "two entries should have been cached, one has been evicted already")
-		assert.Equal(s.cachedOrder[0].origin, "container_id://another_container")
-		assert.Equal(s.cachedOrder[0].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "container_id://another_container"})
-		assert.Equal(s.cachedOrder[0].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "container_id://another_container"})
-		assert.Equal(s.cachedOrder[1].origin, "third_origin")
-		assert.Equal(s.cachedOrder[1].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "third_origin"})
-		assert.Equal(s.cachedOrder[1].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "third_origin"})
-
-		// oldest one should be removed once we reach the limit of the cache
-		maxOriginCounters = 2
-		samples, err = s.parseMetricMessage(samples, parser, []byte("blablabla:555|g"), "fourth_origin", true)
-		assert.NoError(err)
-		assert.Len(samples, 6)
-		assert.Len(s.cachedOriginCounters, 2, "two entries should have been cached, two have been evicted already")
-		assert.Len(s.cachedOrder, 2, "two entries should have been cached, two have been evicted already")
-		assert.Equal(s.cachedOrder[0].origin, "third_origin")
-		assert.Equal(s.cachedOrder[0].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "third_origin"})
-		assert.Equal(s.cachedOrder[0].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "third_origin"})
-		assert.Equal(s.cachedOrder[1].origin, "fourth_origin")
-		assert.Equal(s.cachedOrder[1].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "fourth_origin"})
-		assert.Equal(s.cachedOrder[1].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "fourth_origin"})
-	})
-}
-
 func TestProcessedMetricsOrigin(t *testing.T) {
 	config.SetDetectedFeatures(config.FeatureMap{})
 	defer config.SetDetectedFeatures(nil)
+	cfg := make(map[string]interface{})
 
-	v := config.Datadog.GetBool("dogstatsd_origin_optout_enabled")
-	defer config.Datadog.Set("dogstatsd_origin_optout_enabled", v)
 	for _, enabled := range []bool{true, false} {
-		config.Datadog.Set("dogstatsd_origin_optout_enabled", enabled)
-		t.Run(fmt.Sprintf("optout_enabled=%v", enabled), testProcessedMetricsOrigin)
+		cfg["dogstatsd_origin_optout_enabled"] = enabled
+
+		runWithComponentAndConfig(t, cfg, func(c Component, _ configComponent.Component) {
+			s := c.(*server)
+			assert := assert.New(t)
+
+			demux := mockDemultiplexer()
+			defer demux.Stop(false)
+			requireStart(t, s, demux)
+
+			s.Stop()
+
+			assert.Len(s.cachedOriginCounters, 0, "this cache must be empty")
+			assert.Len(s.cachedOrder, 0, "this cache list must be empty")
+
+			parser := newParser(newFloat64ListPool())
+			samples := []metrics.MetricSample{}
+			samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "container_id://test_container", false)
+			assert.NoError(err)
+			assert.Len(samples, 1)
+
+			// one thing should have been stored when we parse a metric
+			samples, err = s.parseMetricMessage(samples, parser, []byte("test.metric:555|g"), "container_id://test_container", true)
+			assert.NoError(err)
+			assert.Len(samples, 2)
+			assert.Len(s.cachedOriginCounters, 1, "one entry should have been cached")
+			assert.Len(s.cachedOrder, 1, "one entry should have been cached")
+			assert.Equal(s.cachedOrder[0].origin, "container_id://test_container")
+
+			// when we parse another metric (different value) with same origin, cache should contain only one entry
+			samples, err = s.parseMetricMessage(samples, parser, []byte("test.second_metric:525|g"), "container_id://test_container", true)
+			assert.NoError(err)
+			assert.Len(samples, 3)
+			assert.Len(s.cachedOriginCounters, 1, "one entry should have been cached")
+			assert.Len(s.cachedOrder, 1, "one entry should have been cached")
+			assert.Equal(s.cachedOrder[0].origin, "container_id://test_container")
+			assert.Equal(s.cachedOrder[0].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "container_id://test_container"})
+			assert.Equal(s.cachedOrder[0].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "container_id://test_container"})
+
+			// when we parse another metric (different value) but with a different origin, we should store a new entry
+			samples, err = s.parseMetricMessage(samples, parser, []byte("test.second_metric:525|g"), "container_id://another_container", true)
+			assert.NoError(err)
+			assert.Len(samples, 4)
+			assert.Len(s.cachedOriginCounters, 2, "two entries should have been cached")
+			assert.Len(s.cachedOrder, 2, "two entries should have been cached")
+			assert.Equal(s.cachedOrder[0].origin, "container_id://test_container")
+			assert.Equal(s.cachedOrder[0].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "container_id://test_container"})
+			assert.Equal(s.cachedOrder[0].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "container_id://test_container"})
+			assert.Equal(s.cachedOrder[1].origin, "container_id://another_container")
+			assert.Equal(s.cachedOrder[1].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "container_id://another_container"})
+			assert.Equal(s.cachedOrder[1].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "container_id://another_container"})
+
+			// oldest one should be removed once we reach the limit of the cache
+			maxOriginCounters = 2
+			samples, err = s.parseMetricMessage(samples, parser, []byte("yetanothermetric:525|g"), "third_origin", true)
+			assert.NoError(err)
+			assert.Len(samples, 5)
+			assert.Len(s.cachedOriginCounters, 2, "two entries should have been cached, one has been evicted already")
+			assert.Len(s.cachedOrder, 2, "two entries should have been cached, one has been evicted already")
+			assert.Equal(s.cachedOrder[0].origin, "container_id://another_container")
+			assert.Equal(s.cachedOrder[0].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "container_id://another_container"})
+			assert.Equal(s.cachedOrder[0].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "container_id://another_container"})
+			assert.Equal(s.cachedOrder[1].origin, "third_origin")
+			assert.Equal(s.cachedOrder[1].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "third_origin"})
+			assert.Equal(s.cachedOrder[1].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "third_origin"})
+
+			// oldest one should be removed once we reach the limit of the cache
+			maxOriginCounters = 2
+			samples, err = s.parseMetricMessage(samples, parser, []byte("blablabla:555|g"), "fourth_origin", true)
+			assert.NoError(err)
+			assert.Len(samples, 6)
+			assert.Len(s.cachedOriginCounters, 2, "two entries should have been cached, two have been evicted already")
+			assert.Len(s.cachedOrder, 2, "two entries should have been cached, two have been evicted already")
+			assert.Equal(s.cachedOrder[0].origin, "third_origin")
+			assert.Equal(s.cachedOrder[0].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "third_origin"})
+			assert.Equal(s.cachedOrder[0].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "third_origin"})
+			assert.Equal(s.cachedOrder[1].origin, "fourth_origin")
+			assert.Equal(s.cachedOrder[1].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "fourth_origin"})
+			assert.Equal(s.cachedOrder[1].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "fourth_origin"})
+		})
 	}
 }
 
-func testContainerIDParsing(t *testing.T) {
+func testContainerIDParsing(t *testing.T, cfg map[string]interface{}) {
 	runWithComponent(t, func(c Component) {
 		s := c.(*server)
 		assert := assert.New(t)
@@ -1197,17 +1183,19 @@ func testContainerIDParsing(t *testing.T) {
 func TestContainerIDParsing(t *testing.T) {
 	config.SetDetectedFeatures(config.FeatureMap{})
 	defer config.SetDetectedFeatures(nil)
+	cfg := make(map[string]interface{})
 
-	v := config.Datadog.GetBool("dogstatsd_origin_optout_enabled")
-	defer config.Datadog.Set("dogstatsd_origin_optout_enabled", v)
 	for _, enabled := range []bool{true, false} {
-		config.Datadog.Set("dogstatsd_origin_optout_enabled", enabled)
-		t.Run(fmt.Sprintf("optout_enabled=%v", enabled), testContainerIDParsing)
+
+		cfg["dogstatsd_origin_optout_enabled"] = enabled
+		t.Run(fmt.Sprintf("optout_enabled=%v", enabled), func(t *testing.T) {
+			testContainerIDParsing(t, cfg)
+		})
 	}
 }
 
-func testOriginOptout(t *testing.T, cfg config.Config, enabled bool) {
-	runWithComponentAndConfig(t, cfg, func(c Component) {
+func testOriginOptout(t *testing.T, cfg map[string]interface{}, enabled bool) {
+	runWithComponentAndConfig(t, cfg, func(c Component, _ configComponent.Component) {
 		s := c.(*server)
 		assert := assert.New(t)
 
@@ -1252,14 +1240,12 @@ func testOriginOptout(t *testing.T, cfg config.Config, enabled bool) {
 func TestOriginOptout(t *testing.T) {
 	config.SetDetectedFeatures(config.FeatureMap{})
 	defer config.SetDetectedFeatures(nil)
+	cfg := make(map[string]interface{})
 
 	for _, enabled := range []bool{true, false} {
-		cfg := config.NewConfig("mock", "XXXX", strings.NewReplacer())
-		config.InitConfig(cfg)
 
-		cfg.Set("dogstatsd_origin_optout_enabled", enabled)
+		cfg["dogstatsd_origin_optout_enabled"] = enabled
 		t.Run(fmt.Sprintf("optout_enabled=%v", enabled), func(t *testing.T) {
-
 			testOriginOptout(t, cfg, enabled)
 		})
 	}

@@ -30,6 +30,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 	fxutil.Test(t, fx.Options(
 		core.MockBundle,
+		fx.Supply(core.BundleParams{}),
 		fx.Supply(server.Params{
 			Serverless: false,
 		}),

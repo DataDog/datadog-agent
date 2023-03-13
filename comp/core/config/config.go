@@ -6,7 +6,6 @@
 package config
 
 import (
-	"os"
 	"strings"
 	"testing"
 
@@ -31,19 +30,10 @@ type dependencies struct {
 	Params Params
 }
 
-// OverrideConfig is used to provide an initial configuration before dependencies are fulfilled.
-// This is useful in tests if your component reads the config in the constructor. Provide an
-// initial config implementation at app startup: `fx.Supply(configComponent.InitConfig{Cfg: cfg})`
-// with the desired default values.
-type OverrideConfig struct {
-	Config config.Config
-}
-
 type mockDependencies struct {
 	fx.In
 
-	Params         Params
-	OverrideConfig OverrideConfig
+	Params Params
 }
 
 func newConfig(deps dependencies) (Component, error) {
@@ -79,32 +69,16 @@ func (c *cfg) Warnings() *config.Warnings {
 func newMock(deps mockDependencies, t testing.TB) Component {
 	backupConfig := config.NewConfig("", "", strings.NewReplacer())
 	backupConfig.CopyConfig(config.Datadog)
-	if deps.OverrideConfig.Config == nil {
 
-		config.Datadog.CopyConfig(config.NewConfig("mock", "XXXX", strings.NewReplacer()))
+	config.Datadog.CopyConfig(config.NewConfig("mock", "XXXX", strings.NewReplacer()))
 
-		// call InitConfig to set defaults.
-		config.InitConfig(config.Datadog)
+	// call InitConfig to set defaults.
+	config.InitConfig(config.Datadog)
 
-		// Viper's `GetXxx` methods read environment variables at the time they are
-		// called, if those names were passed explicitly to BindEnv*(), so we must
-		// also strip all `DD_` environment variables for the duration of the test.
-		oldEnv := os.Environ()
-		for _, kv := range oldEnv {
-			if strings.HasPrefix(kv, "DD_") {
-				kvslice := strings.SplitN(kv, "=", 2)
-				os.Unsetenv(kvslice[0])
-			}
-		}
-		t.Cleanup(func() {
-			for _, kv := range oldEnv {
-				kvslice := strings.SplitN(kv, "=", 2)
-				os.Setenv(kvslice[0], kvslice[1])
-			}
-		})
-
-	} else {
-		config.Datadog.CopyConfig(deps.OverrideConfig.Config)
+	// Overrides are explicit and will take precedence over any other
+	// setting
+	for k, v := range deps.Params.overrides {
+		config.Datadog.Set(k, v)
 	}
 
 	c := &cfg{
