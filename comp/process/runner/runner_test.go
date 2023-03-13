@@ -15,6 +15,7 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck"
+	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck"
 	"github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/comp/process/types"
@@ -25,14 +26,11 @@ import (
 
 func TestRunnerLifecycle(t *testing.T) {
 	fxutil.Test(t, fx.Options(
-		fx.Supply(
-			&checks.HostInfo{},
-			&sysconfig.Config{},
-		),
-
 		Module,
 		submitter.MockModule,
 		processcheck.Module,
+		hostinfo.Module,
+		core.MockBundle,
 	), func(runner Component) {
 		// Start and stop the component
 	})
@@ -46,11 +44,6 @@ func TestRunnerRealtime(t *testing.T) {
 		mockConfig.Set("process_config.disable_realtime_checks", false)
 
 		fxutil.Test(t, fx.Options(
-			fx.Supply(
-				&checks.HostInfo{},
-				&sysconfig.Config{},
-			),
-
 			fx.Provide(
 				// Cast `chan types.RTResponse` to `<-chan types.RTResponse`.
 				// We can't use `fx.As` because `<-chan types.RTResponse` is not an interface.
@@ -60,7 +53,8 @@ func TestRunnerRealtime(t *testing.T) {
 			Module,
 			submitter.MockModule,
 			processcheck.Module,
-			core.Bundle,
+			hostinfo.Module,
+			core.MockBundle,
 		), func(r Component) {
 			rtChan <- types.RTResponse{
 				{

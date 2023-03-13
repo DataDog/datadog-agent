@@ -11,35 +11,40 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	model "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/DataDog/datadog-agent/comp/core"
+	configComp "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-var testHostInfo = &checks.HostInfo{SystemInfo: &model.SystemInfo{}}
+var mockCoreBundleParams = core.BundleParams{
+	ConfigParams: configComp.NewParams("", configComp.WithConfigMissingOK(true)),
+	LogParams:    log.LogForOneShot("PROCESS", "trace", false),
+}
 
-func TestBundleDependencies(t *testing.T) {
-	// Don't enable any features, as the container check won't work in all environments
+// Don't enable any features, we haven't set up a container provider so the container check will crash
+var disableContainerFeatures = fx.Invoke(func(t testing.TB, _ configComp.Component) {
 	config.SetDetectedFeatures(config.FeatureMap{})
 	t.Cleanup(func() { config.SetDetectedFeatures(nil) })
+})
 
+func TestBundleDependencies(t *testing.T) {
 	require.NoError(t, fx.ValidateApp(
 		fx.Supply(
 			fx.Annotate(t, fx.As(new(testing.TB))),
 
-			testHostInfo,
-			core.BundleParams{},
+			mockCoreBundleParams,
 		),
 
-		// instantiate all the process components, since this is not done
-		// automatically.
+		disableContainerFeatures,
+
+		// Start the runner
 		fx.Invoke(func(r runner.Component) {}),
 
-		Bundle))
+		Bundle,
+	))
 }
 
 func TestBundleOneShot(t *testing.T) {
@@ -71,9 +76,10 @@ func TestBundleOneShot(t *testing.T) {
 		fx.Supply(
 			fx.Annotate(t, fx.As(new(testing.TB))),
 
-			testHostInfo,
-			core.BundleParams{},
+			mockCoreBundleParams,
 		),
+
+		disableContainerFeatures,
 
 		Bundle,
 	)
