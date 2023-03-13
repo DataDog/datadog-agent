@@ -11,10 +11,14 @@ import (
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/contlcycle"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	types "github.com/DataDog/datadog-agent/pkg/containerlifecycle"
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+
+	"github.com/gogo/protobuf/proto"
 )
 
 type processor struct {
@@ -130,7 +134,7 @@ func (p *processor) flush() {
 func (p *processor) flushContainers() {
 	msgs := p.containersQueue.flush()
 	if len(msgs) > 0 {
-		p.sender.ContainerLifecycleEvent(msgs)
+		p.containerLifecycleEvent(msgs)
 
 		for eventType, eventCount := range eventCountByType(msgs) {
 			emittedEvents.Add(float64(eventCount), eventType, types.ObjectKindContainer)
@@ -142,11 +146,23 @@ func (p *processor) flushContainers() {
 func (p *processor) flushPods() {
 	msgs := p.podsQueue.flush()
 	if len(msgs) > 0 {
-		p.sender.ContainerLifecycleEvent(msgs)
+		p.containerLifecycleEvent(msgs)
 
 		for eventType, eventCount := range eventCountByType(msgs) {
 			emittedEvents.Add(float64(eventCount), eventType, types.ObjectKindPod)
 		}
+	}
+}
+
+func (p *processor) containerLifecycleEvent(msgs []contlcycle.EventsPayload) {
+	for _, msg := range msgs {
+		encoded, err := proto.Marshal(&msg)
+		if err != nil {
+			log.Errorf("Unable to encode message: %+v", err)
+			continue
+		}
+
+		p.sender.EventPlatformEvent(encoded, epforwarder.EventTypeContainerLifecycle)
 	}
 }
 

@@ -230,5 +230,5 @@ func testSubmitEventPlatformEvent(t *testing.T) {
 		C.CString("dbm-sample"),
 	)
 
-	sender.AssertEventPlatformEvent(t, "raw-event", "dbm-sample")
+	sender.AssertEventPlatformEvent(t, []byte("raw-event"), "dbm-sample")
 }

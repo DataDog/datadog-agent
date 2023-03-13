@@ -149,5 +149,5 @@ func SubmitEventPlatformEvent(checkID *C.char, rawEvent *C.char, eventType *C.ch
 		log.Errorf("Error submitting event platform event to the Sender: %v", err)
 		return
 	}
-	sender.EventPlatformEvent(C.GoString(rawEvent), C.GoString(eventType))
+	sender.EventPlatformEvent([]byte(C.GoString(rawEvent)), C.GoString(eventType))
 }

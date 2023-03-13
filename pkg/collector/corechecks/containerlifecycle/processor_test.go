@@ -38,7 +38,7 @@ func TestProcessQueues(t *testing.T) {
 			}},
 			podsQueue: &queue{},
 			wantFunc: func(t *testing.T, s *mocksender.MockSender) {
-				s.AssertNumberOfCalls(t, "ContainerLifecycleEvent", 1)
+				s.AssertNumberOfCalls(t, "EventPlatformEvent", 1)
 			},
 		},
 		{
@@ -52,7 +52,7 @@ func TestProcessQueues(t *testing.T) {
 				{Version: "v1", Events: modelEvents("pod3")},
 			}},
 			wantFunc: func(t *testing.T, s *mocksender.MockSender) {
-				s.AssertNumberOfCalls(t, "ContainerLifecycleEvent", 2)
+				s.AssertNumberOfCalls(t, "EventPlatformEvent", 4)
 			},
 		},
 	}
@@ -64,7 +64,7 @@ func TestProcessQueues(t *testing.T) {
 			}
 
 			sender := mocksender.NewMockSender(check.ID(tt.name))
-			sender.On("ContainerLifecycleEvent", mock.Anything, mock.Anything).Return()
+			sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 			p.sender = sender
 
 			ctx, cancel := context.WithCancel(context.Background())

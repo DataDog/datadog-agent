@@ -49,7 +49,7 @@ var (
 	scLevel         int
 	scName          string
 	scMessage       string
-	rawEvent        string
+	rawEvent        []byte
 	eventType       string
 	_event          *event
 	intValue        int
@@ -238,6 +238,6 @@ func submitHistogramBucket(id *C.char, cMetricName *C.char, cVal C.longlong, cLo
 //export submitEventPlatformEvent
 func submitEventPlatformEvent(id *C.char, _rawEvent *C.char, _eventType *C.char) {
 	checkID = C.GoString(id)
-	rawEvent = C.GoString(_rawEvent)
+	rawEvent = []byte(C.GoString(_rawEvent))
 	eventType = C.GoString(_eventType)
 }

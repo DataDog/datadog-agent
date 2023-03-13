@@ -31,8 +31,9 @@ import (
 
 // ContentType options,
 const (
-	TextContentType = "text/plain"
-	JSONContentType = "application/json"
+	TextContentType     = "text/plain"
+	JSONContentType     = "application/json"
+	ProtobufContentType = "application/x-protobuf"
 )
 
 // HTTP errors.
