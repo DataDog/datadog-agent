@@ -22,6 +22,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
+// ServiceName specifies the service name used in the operating system.
+const ServiceName = "datadog-trace-agent"
+
 // ErrMissingAPIKey is returned when the config could not be validated due to missing API key.
 var ErrMissingAPIKey = errors.New("you must specify an API Key, either via a configuration file or the DD_API_KEY env var")
 
