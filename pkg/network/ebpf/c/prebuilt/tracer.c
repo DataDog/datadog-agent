@@ -4,34 +4,11 @@
 #include "bpf_tracing.h"
 #include "bpf_endian.h"
 
-#include <linux/err.h>
-#include <linux/socket.h>
-#include <net/inet_sock.h>
-#include <net/net_namespace.h>
-#include <net/sock.h>
-#include <net/tcp_states.h>
-#include <uapi/linux/if_ether.h>
-#include <uapi/linux/ip.h>
-#include <uapi/linux/ipv6.h>
-#include <uapi/linux/ptrace.h>
-#include <uapi/linux/tcp.h>
-#include <uapi/linux/udp.h>
 
 #include "offsets.h"
-#include "sock.h"
-#include "tracer.h"
-#include "tracer-events.h"
-#include "tracer-maps.h"
-#include "tracer-stats.h"
-#include "tracer-telemetry.h"
-#include "sockfd.h"
 #include "tracer-bind.h"
 #include "tracer-tcp.h"
 #include "tracer-udp.h"
-#include "ip.h"
-#include "ipv6.h"
-#include "port.h"
-#include "skb.h"
 
 #include "protocols/classification/tracer-maps.h"
 #include "protocols/classification/protocol-classification.h"

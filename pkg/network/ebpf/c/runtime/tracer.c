@@ -3,29 +3,6 @@
 #include "bpf_builtins.h"
 #include "bpf_tracing.h"
 
-#include <linux/tcp.h>
-#include <linux/version.h>
-#include <net/inet_sock.h>
-#include <net/net_namespace.h>
-#include <net/route.h>
-#include <net/tcp_states.h>
-#include <uapi/linux/if_ether.h>
-#include <uapi/linux/ip.h>
-#include <uapi/linux/ipv6.h>
-#include <uapi/linux/ptrace.h>
-#include <uapi/linux/udp.h>
-
-#include "tracer.h"
-#include "tracer-events.h"
-#include "tracer-maps.h"
-#include "tracer-stats.h"
-#include "tracer-telemetry.h"
-#include "bpf_endian.h"
-#include "ip.h"
-#include "netns.h"
-#include "sockfd.h"
-#include "skb.h"
-#include "port.h"
 #include "tracer-bind.h"
 #include "tracer-tcp.h"
 #include "tracer-udp.h"
@@ -33,15 +10,9 @@
 #include "protocols/classification/tracer-maps.h"
 #include "protocols/classification/protocol-classification.h"
 
-#ifdef FEATURE_IPV6_ENABLED
-#include "ipv6.h"
-#endif
-
 #ifndef LINUX_VERSION_CODE
 #error "kernel version not included?"
 #endif
-
-#include "sock.h"
 
 SEC("socket/classifier_entry")
 int socket__classifier_entry(struct __sk_buff *skb) {

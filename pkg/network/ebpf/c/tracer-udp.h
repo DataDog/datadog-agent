@@ -5,6 +5,18 @@
 #include "tracer-stats.h"
 #include "tracer-maps.h"
 
+#ifdef COMPILE_CORE
+#define MAX_ERRNO 4095
+#define IS_ERR_VALUE(x) ((unsigned long)(void *)(x) >= (unsigned long)-MAX_ERRNO)
+
+static __always_inline bool IS_ERR_OR_NULL(const void *ptr)
+{
+    return !ptr || IS_ERR_VALUE((unsigned long)ptr);
+}
+#else
+#include <linux/err.h>
+#endif // COMPILE_CORE
+
 static __always_inline void handle_skb_consume_udp(struct sock *sk, struct sk_buff *skb, int len) {
     if (len < 0) {
         // peeking or an error happened
@@ -269,8 +281,8 @@ static __always_inline int handle_ip6_skb(struct sock *sk, size_t size, struct f
             return 0;
         }
 
-        t.sport = ntohs(t.sport);
-        t.dport = ntohs(t.dport);
+        t.sport = bpf_ntohs(t.sport);
+        t.dport = bpf_ntohs(t.dport);
     }
 
     log_debug("kprobe/ip6_make_skb: pid_tgid: %d, size: %d\n", pid_tgid, size);
@@ -420,8 +432,8 @@ static __always_inline int handle_ip_skb(struct sock *sk, size_t size, struct fl
             return 0;
         }
 
-        t.sport = ntohs(t.sport);
-        t.dport = ntohs(t.dport);
+        t.sport = bpf_ntohs(t.sport);
+        t.dport = bpf_ntohs(t.dport);
     }
 
     log_debug("kprobe/ip_make_skb: pid_tgid: %d, size: %d\n", pid_tgid, size);

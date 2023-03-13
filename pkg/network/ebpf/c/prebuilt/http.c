@@ -3,21 +3,8 @@
 #include "bpf_telemetry.h"
 #include "bpf_builtins.h"
 
-#include <net/sock.h>
-#include <uapi/linux/if_ether.h>
-#include <uapi/linux/ip.h>
-#include <uapi/linux/ipv6.h>
-#include <uapi/linux/udp.h>
-
 #include "offsets.h"
-#include "tracer.h"
-#include "ip.h"
-#include "ipv6.h"
-#include "sock.h"
-#include "sockfd.h"
-#include "port_range.h"
 
-#include "protocols/classification/dispatcher-helpers.h"
 #include "protocols/http/http.h"
 #include "protocols/http/buffer.h"
 #include "protocols/http2/decoding.h"

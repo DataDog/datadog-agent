@@ -1,6 +1,12 @@
 #ifndef __SKB_H
 #define __SKB_H
 
+#include "bpf_telemetry.h"
+#include "bpf_helpers.h"
+#include "bpf_helpers_custom.h"
+#include "bpf_endian.h"
+#include "bpf_builtins.h"
+
 #ifndef COMPILE_CORE
 #include <linux/skbuff.h>
 #include <uapi/linux/in.h>
@@ -11,11 +17,7 @@
 #endif
 
 #include "tracer.h"
-#include "bpf_telemetry.h"
-#include "bpf_helpers.h"
-#include "bpf_helpers_custom.h"
-#include "bpf_endian.h"
-#include "bpf_builtins.h"
+#include "sock.h"
 #include "ipv6.h"
 
 #ifdef COMPILE_PREBUILT
