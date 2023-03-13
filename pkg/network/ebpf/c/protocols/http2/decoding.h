@@ -219,21 +219,20 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
             // MSB bit set.
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.1
             res = parse_field_indexed(skb, skb_info, tup, http2_ctx, current_header, current_ch, *global_dynamic_counter);
-            if (res == HEADER_ERROR) {
-                break;
-            }
-            interesting_headers += res == HEADER_INTERESTING;
         } else if ((current_ch&192) == 64) {
             (*global_dynamic_counter)++;
             // 6.2.1 Literal Header Field with Incremental Indexing
             // top two bits are 11
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
             res = parse_field_literal(skb, skb_info, tup, http2_ctx, current_header, current_ch, *global_dynamic_counter);
-            if (res == HEADER_ERROR) {
-                break;
-            }
-            interesting_headers += res == HEADER_INTERESTING;
+        } else {
+            continue;
         }
+
+        if (res == HEADER_ERROR) {
+            break;
+        }
+        interesting_headers += res == HEADER_INTERESTING;
     }
 
     return interesting_headers;
