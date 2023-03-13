@@ -31,3 +31,7 @@ func newHostInfo(deps dependencies) (Component, error) {
 func (h *hostinfo) Object() *checks.HostInfo {
 	return h.hostinfo
 }
+
+func newMockHostInfo() Component {
+	return &hostinfo{hostinfo: &checks.HostInfo{}}
+}

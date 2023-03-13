@@ -15,3 +15,7 @@ type Component interface {
 var Module = fxutil.Component(
 	fx.Provide(newHostInfo),
 )
+
+var MockModule = fxutil.Component(
+	fx.Provide(newMockHostInfo),
+)

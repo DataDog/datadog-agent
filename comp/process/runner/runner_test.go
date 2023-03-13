@@ -14,6 +14,7 @@ import (
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core"
+	configComp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck"
@@ -24,12 +25,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+// Don't enable any features, we haven't set up a container provider so the container check will crash
+var disableContainerFeatures = fx.Invoke(func(t testing.TB, _ configComp.Component) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	t.Cleanup(func() { config.SetDetectedFeatures(nil) })
+})
+
 func TestRunnerLifecycle(t *testing.T) {
 	fxutil.Test(t, fx.Options(
+		disableContainerFeatures,
+
+		fx.Supply(core.BundleParams{}),
+
 		Module,
 		submitter.MockModule,
 		processcheck.Module,
-		hostinfo.Module,
+		hostinfo.MockModule,
 		core.MockBundle,
 	), func(runner Component) {
 		// Start and stop the component
@@ -50,10 +61,14 @@ func TestRunnerRealtime(t *testing.T) {
 				func() <-chan types.RTResponse { return rtChan },
 			),
 
+			disableContainerFeatures,
+
+			fx.Supply(core.BundleParams{}),
+
 			Module,
 			submitter.MockModule,
 			processcheck.Module,
-			hostinfo.Module,
+			hostinfo.MockModule,
 			core.MockBundle,
 		), func(r Component) {
 			rtChan <- types.RTResponse{
@@ -87,9 +102,15 @@ func TestRunnerRealtime(t *testing.T) {
 				func() <-chan types.RTResponse { return rtChan },
 			),
 
+			disableContainerFeatures,
+
+			fx.Supply(core.BundleParams{}),
+
 			Module,
 			submitter.MockModule,
 			processcheck.Module,
+			hostinfo.MockModule,
+			core.MockBundle,
 		), func(r Component) {
 			rtChan <- types.RTResponse{
 				{
@@ -110,16 +131,18 @@ func TestProvidedChecks(t *testing.T) {
 
 	fxutil.Test(t, fx.Options(
 		fx.Supply(
-			&checks.HostInfo{},
-			&sysconfig.Config{},
+			core.BundleParams{},
 		),
 
 		Module,
 		submitter.MockModule,
+		hostinfo.MockModule,
 
 		// Checks
 		processcheck.MockModule,
 		containercheck.MockModule,
+
+		core.MockBundle,
 	), func(r Component) {
 		providedChecks := r.GetProvidedChecks()
 
