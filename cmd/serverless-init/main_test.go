@@ -9,10 +9,11 @@
 package main
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
+	"github.com/spf13/cast"
 	"github.com/stretchr/testify/assert"
+	"strings"
 
 	"testing"
 )
@@ -41,26 +42,21 @@ func TestProxyLoaded(t *testing.T) {
 }
 
 func TestTagsSetup(t *testing.T) {
-	t.Setenv("DD_TAGS", "key1:value1 key2:value2 key3:value3")
-	t.Setenv("DD_EXTRA_TAGS", "key22:value22 key23:value23")
-	tags := map[string]string{
-		"key1":  "value1",
-		"key2":  "value2",
-		"key3":  "value3",
-		"key22": "value22",
-		"key23": "value23",
-	}
-	_, _, _, metricAgent := setup()
-	assert.True(t, tagArrayContainsTags(metricAgent.GetExtraTags(), tags))
-	assert.True(t, tagArrayContainsTags(logs.GetLogsTags(), tags))
-}
+	ddTagsEnv := "key1:value1 key2:value2 key3:value3:4"
+	ddExtraTagsEnv := "key22:value22 key23:value23"
+	tags := cast.ToStringSlice(ddTagsEnv)
+	t.Setenv("DD_TAGS", ddTagsEnv)
+	t.Setenv("DD_EXTRA_TAGS", ddExtraTagsEnv)
+	var allEnvTags []string
 
-func tagArrayContainsTags(subject []string, valuesToContain map[string]string) bool {
-	sub := tag.ArrayTagToMap(subject)
-	for k, v := range valuesToContain {
-		if sub[k] != v {
-			return false
-		}
+	for _, tag := range strings.Split(ddTagsEnv, " ") {
+		allEnvTags = append(allEnvTags, tag)
 	}
-	return true
+	for _, tag := range strings.Split(ddExtraTagsEnv, " ") {
+		allEnvTags = append(allEnvTags, tag)
+	}
+
+	_, _, _, metricAgent := setup()
+	assert.Subset(t, metricAgent.GetExtraTags(), tags)
+	assert.Subset(t, logs.GetLogsTags(), tags)
 }

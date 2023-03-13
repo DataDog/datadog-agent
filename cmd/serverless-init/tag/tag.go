@@ -72,7 +72,7 @@ func GetBaseTagsArrayWithMetadataTags(metadata map[string]string) []string {
 func ArrayTagToMap(tagArray []string) map[string]string {
 	toMap := make(map[string]string)
 	for _, v := range tagArray {
-		keyVal := strings.Split(v, ":")
+		keyVal := strings.SplitN(v, ":", 2)
 		toMap[keyVal[0]] = keyVal[1]
 	}
 	return toMap
