@@ -191,6 +191,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
     parse_result_t res;
     http2_header_t *current_header;
     const __u32 frame_end = skb_info->data_off + frame_length;
+    const __u32 end = frame_end < skb->len + 1 ? frame_end : skb->len + 1;
 
     __u64 *global_dynamic_counter = get_dynamic_counter(tup);
     if (global_dynamic_counter == NULL) {
@@ -199,10 +200,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
 
 #pragma unroll (HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING)
     for (__u8 headers_index = 0; headers_index < HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING; ++headers_index) {
-        if (skb_info->data_off > skb->len) {
-            break;
-        }
-        if (skb_info->data_off >= frame_end) {
+        if (skb_info->data_off >= end) {
             break;
         }
         bpf_skb_load_bytes(skb, skb_info->data_off, &current_ch, sizeof(current_ch));
