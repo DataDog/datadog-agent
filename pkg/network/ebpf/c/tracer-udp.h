@@ -124,6 +124,22 @@ int kretprobe__udpv6_recvmsg(struct pt_regs *ctx) {
 }
 #endif // !COMPILE_RUNTIME || FEATURE_IPV6_ENABLED
 
+#if defined(COMPILE_CORE) || defined(COMPILE_PREBUILT)
+
+SEC("kprobe/udp_recvmsg/pre_4_1_0")
+int kprobe__udp_recvmsg_pre_4_1_0(struct pt_regs *ctx) {
+    int flags = (int)PT_REGS_PARM6(ctx);
+    return handle_udp_recvmsg(flags);
+}
+
+SEC("kprobe/udpv6_recvmsg/pre_4_1_0")
+int kprobe__udpv6_recvmsg_pre_4_1_0(struct pt_regs *ctx) {
+    int flags = (int)PT_REGS_PARM6(ctx);
+    return handle_udp_recvmsg(flags);
+}
+
+#endif // COMPILE_CORE || COMPILE_PREBUILT
+
 SEC("kprobe/udp_destroy_sock")
 int kprobe__udp_destroy_sock(struct pt_regs *ctx) {
     struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
@@ -160,7 +176,7 @@ int kretprobe__udp_destroy_sock(struct pt_regs *ctx) {
     return 0;
 }
 
-#if !defined(COMPILE_CORE) || defined(FEATURE_IPV6_ENABLED)
+#if !defined(COMPILE_RUNTIME) || defined(FEATURE_IPV6_ENABLED)
 
 static __always_inline struct in6_addr* fl6_saddr(struct flowi6 *fl6) {
     struct in6_addr * addr = NULL;
@@ -307,7 +323,27 @@ int kretprobe__ip6_make_skb(struct pt_regs *ctx) {
     return handle_ip6_skb(sk, size, fl6);
 }
 
-#endif // !COMPILE_CORE || FEATURE_IVP6_ENABLED
+#endif // !COMPILE_RUNTIME || FEATURE_IVP6_ENABLED
+
+#if defined(COMPILE_CORE) || defined(COMPILE_PREBUILT)
+// commit: https://github.com/torvalds/linux/commit/26879da58711aa604a1b866cbeedd7e0f78f90ad
+// changed the arguments to ip6_make_skb and introduced the struct ipcm6_cookie
+SEC("kprobe/ip6_make_skb/pre_4_7_0")
+int kprobe__ip6_make_skb__pre_4_7_0(struct pt_regs *ctx) {
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    size_t len = (size_t)PT_REGS_PARM4(ctx);
+    struct flowi6 *fl6 = (struct flowi6 *)PT_REGS_PARM9(ctx);
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    ip_make_skb_args_t args = {};
+    bpf_probe_read_kernel_with_telemetry(&args.sk, sizeof(args.sk), &sk);
+    bpf_probe_read_kernel_with_telemetry(&args.len, sizeof(args.len), &len);
+    bpf_probe_read_kernel_with_telemetry(&args.fl6, sizeof(args.fl6), &fl6);
+    bpf_map_update_with_telemetry(ip_make_skb_args, &pid_tgid, &args, BPF_ANY);
+    return 0;
+}
+
+#endif // COMPILE_CORE || COMPILE_PREBUILT
 
 static __always_inline u32 fl4_saddr(struct flowi4 *fl4) {
     u32 addr = 0;
