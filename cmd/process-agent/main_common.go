@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/process"
+	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/profiler"
 	runnerComp "github.com/DataDog/datadog-agent/comp/process/runner"
 	"github.com/DataDog/datadog-agent/comp/process/types"
@@ -224,7 +225,7 @@ type miscDeps struct {
 
 	Config   config.Component
 	Syscfg   sysprobeconfig.Component
-	HostInfo *checks.HostInfo
+	HostInfo hostinfo.Component
 }
 
 // initMisc initializes modules that cannot, or have not yet been componetized.
@@ -243,7 +244,7 @@ func initMisc(deps miscDeps) error {
 	// Setup workloadmeta
 	var workloadmetaCollectors workloadmeta.CollectorCatalog
 	// TODO: move these deps.Configs to after dddeps.Config.Datadog is called
-	if deps.Config.GetBool("process_deps.Config.remote_workloadmeta") {
+	if deps.Config.GetBool("process_config.remote_workloadmeta") {
 		workloadmetaCollectors = workloadmeta.RemoteCatalog
 	} else {
 		workloadmetaCollectors = workloadmeta.NodeAgentCatalog
@@ -252,7 +253,7 @@ func initMisc(deps miscDeps) error {
 
 	// Setup remote tagger
 	var t tagger.Tagger
-	if deps.Config.GetBool("process_deps.Config.remote_tagger") {
+	if deps.Config.GetBool("process_config.remote_tagger") {
 		options, err := remote.NodeAgentOptions()
 		if err != nil {
 			_ = log.Errorf("unable to deps.Configure the remote tagger: %s", err)
@@ -273,7 +274,7 @@ func initMisc(deps miscDeps) error {
 	expvarServer := &http.Server{Addr: fmt.Sprintf("localhost:%d", expvarPort), Handler: http.DefaultServeMux}
 
 	// Initialize status
-	err := initStatus(deps.HostInfo, deps.Syscfg)
+	err := initStatus(deps.HostInfo.Object(), deps.Syscfg)
 	if err != nil {
 		log.Critical("Failed to initialize status:", err)
 	}
@@ -341,9 +342,9 @@ func initStatus(hostInfo *checks.HostInfo, syscfg sysprobeconfig.Component) erro
 }
 
 func getExpvarPort(config ddconfig.ConfigReader) int {
-	expVarPort := config.GetInt("process_deps.Config.expvar_port")
+	expVarPort := config.GetInt("process_config.expvar_port")
 	if expVarPort <= 0 {
-		log.Warnf("Invalid process_deps.Config.expvar_port -- %d, using default port %d", expVarPort, ddconfig.DefaultProcessExpVarPort)
+		log.Warnf("Invalid process_config.expvar_port -- %d, using default port %d", expVarPort, ddconfig.DefaultProcessExpVarPort)
 		expVarPort = ddconfig.DefaultProcessExpVarPort
 	}
 	return expVarPort
