@@ -98,7 +98,7 @@ type ProcessCheck struct {
 func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
 	p.hostInfo = info
 	p.SysprobeProcessModuleEnabled = syscfg.ProcessModuleEnabled
-	p.probe = newProcessProbe(procutil.WithPermission(syscfg.ProcessModuleEnabled))
+	p.probe = newProcessProbe(p.config, procutil.WithPermission(syscfg.ProcessModuleEnabled))
 	p.containerProvider = util.GetSharedContainerProvider()
 
 	p.notInitializedLogLimit = util.NewLogLimit(1, time.Minute*10)

@@ -14,6 +14,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -38,8 +39,9 @@ var (
 )
 
 // NewConnectionsCheck returns an instance of the ConnectionsCheck.
-func NewConnectionsCheck(syscfg *sysconfig.Config) *ConnectionsCheck {
+func NewConnectionsCheck(config config.ConfigReader, syscfg *sysconfig.Config) *ConnectionsCheck {
 	return &ConnectionsCheck{
+		config: config,
 		syscfg: syscfg,
 	}
 }
@@ -59,6 +61,7 @@ type ConnectionsCheck struct {
 	processData      *ProcessData
 
 	processConnRatesTransmitter subscriptions.Transmitter[ProcessConnRates]
+	config                      config.ConfigReader
 }
 
 // ProcessConnRates describes connection rates for processes
@@ -93,7 +96,7 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo) erro
 		log.Infof("no network ID detected: %s", err)
 	}
 	c.networkID = networkID
-	c.processData = NewProcessData()
+	c.processData = NewProcessData(c.config)
 	c.dockerFilter = parser.NewDockerProxy()
 	c.serviceExtractor = parser.NewServiceExtractor()
 	c.processData.Register(c.dockerFilter)
