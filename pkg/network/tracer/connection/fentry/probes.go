@@ -64,6 +64,8 @@ const (
 
 	// doSendfileRet is the kretprobe used to trace traffic via SENDFILE(2) syscall
 	doSendfileRet = "do_sendfile_exit"
+
+	ip6Make = "ip6_make_skb"
 )
 
 var programs = map[string]struct{}{
@@ -72,6 +74,7 @@ var programs = map[string]struct{}{
 	inetBindRet:          {},
 	inetCskAcceptReturn:  {},
 	inetCskListenStop:    {},
+	ip6Make:              {},
 	sockFDLookupRet:      {}, // TODO: not available on certain kernels, will have to one or more hooks to get equivalent functionality; affects do_sendfile and HTTPS monitoring (OpenSSL/GnuTLS/GoTLS)
 	tcpRecvMsgReturn:     {},
 	tcpClose:             {},
@@ -132,6 +135,7 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 
 		if c.CollectIPv6Conns {
 			enableProgram(enabled, inet6BindRet)
+			enableProgram(enabled, ip6Make)
 			enableProgram(enabled, udpv6RecvMsgReturn)
 			enableProgram(enabled, udpv6SendMsgReturn)
 			enableProgram(enabled, udpv6SendSkb)

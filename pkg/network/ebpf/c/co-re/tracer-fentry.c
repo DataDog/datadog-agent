@@ -13,6 +13,7 @@
 #include "ipv6.h"
 #include "port.h"
 #include "sock.h"
+#include "flow.h"
 #include "tcp-recv.h"
 
 #define MSG_PEEK 2
@@ -544,50 +545,42 @@ int BPF_PROG(do_sendfile_exit, int out_fd, int in_fd, loff_t *ppos,
     return 0;
 }
 
-SEC("kprobe/ip6_make_skb")
-int kprobe__ip6_make_skb(struct pt_regs *ctx) {
-    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
-    size_t len = (size_t)PT_REGS_PARM4(ctx);
-    // commit: https://github.com/torvalds/linux/commit/26879da58711aa604a1b866cbeedd7e0f78f90ad
-    // changed the arguments to ip6_make_skb and introduced the struct ipcm6_cookie
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
-    struct flowi6 *fl6 = (struct flowi6 *)PT_REGS_PARM7(ctx);
-#else
-    struct flowi6 *fl6 = (struct flowi6 *)PT_REGS_PARM9(ctx);
-#endif
+// SEC("kprobe/ip6_make_skb")
+// int kprobe__ip6_make_skb(struct pt_regs *ctx) {
+//     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+//     size_t len = (size_t)PT_REGS_PARM4(ctx);
+//     // commit: https://github.com/torvalds/linux/commit/26879da58711aa604a1b866cbeedd7e0f78f90ad
+//     // changed the arguments to ip6_make_skb and introduced the struct ipcm6_cookie
+// #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
+//     struct flowi6 *fl6 = (struct flowi6 *)PT_REGS_PARM7(ctx);
+// #else
+//     struct flowi6 *fl6 = (struct flowi6 *)PT_REGS_PARM9(ctx);
+// #endif
 
+//     u64 pid_tgid = bpf_get_current_pid_tgid();
+//     ip_make_skb_args_t args = {};
+//     bpf_probe_read_kernel_with_telemetry(&args.sk, sizeof(args.sk), &sk);
+//     bpf_probe_read_kernel_with_telemetry(&args.len, sizeof(args.len), &len);
+//     bpf_probe_read_kernel_with_telemetry(&args.fl6, sizeof(args.fl6), &fl6);
+//     bpf_map_update_with_telemetry(ip_make_skb_args, &pid_tgid, &args, BPF_ANY);
+
+//     return 0;
+// }
+
+static __always_inline struct sk_buff* process_ip6_make_skb_ret(struct sock *sk, int length, struct flowi6 *fl6, struct sk_buff *rc) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    ip_make_skb_args_t args = {};
-    bpf_probe_read_kernel_with_telemetry(&args.sk, sizeof(args.sk), &sk);
-    bpf_probe_read_kernel_with_telemetry(&args.len, sizeof(args.len), &len);
-    bpf_probe_read_kernel_with_telemetry(&args.fl6, sizeof(args.fl6), &fl6);
-    bpf_map_update_with_telemetry(ip_make_skb_args, &pid_tgid, &args, BPF_ANY);
+    
+    // if (IS_ERR_OR_NULL(rc)) {
+    //     return 0;
+    // }
 
-    return 0;
-}
-
-SEC("kretprobe/ip6_make_skb")
-int kretprobe__ip6_make_skb(struct pt_regs *ctx) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    ip_make_skb_args_t *args = bpf_map_lookup_elem(&ip_make_skb_args, &pid_tgid);
-    if (!args) {
-        return 0;
-    }
-
-    struct sock *sk = args->sk;
-    struct flowi6 *fl6 = args->fl6;
-    size_t size = args->len;
-    bpf_map_delete_elem(&ip_make_skb_args, &pid_tgid);
-
-    void *rc = (void *)PT_REGS_RC(ctx);
-    if (IS_ERR_OR_NULL(rc)) {
-        return 0;
-    }
-
+    size_t size = (size_t)length;
     size = size - sizeof(struct udphdr);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
+        // read_in6_addr(&t.saddr_h, &t.saddr_l, BPF_CORE_READ(fl6, saddr));
+        // read_in6_addr(&t.daddr_h, &t.daddr_l, BPF_CORE_READ(fl6, daddr));
         read_in6_addr(&t.saddr_h, &t.saddr_l, &fl6->saddr);
         read_in6_addr(&t.daddr_h, &t.daddr_l, &fl6->daddr);
 
@@ -613,8 +606,8 @@ int kretprobe__ip6_make_skb(struct pt_regs *ctx) {
             t.metadata |= CONN_V6;
         }
 
-        bpf_probe_read_kernel_with_telemetry(&t.sport, sizeof(t.sport), &fl6->fl6_sport);
-        bpf_probe_read_kernel_with_telemetry(&t.dport, sizeof(t.dport), &fl6->fl6_dport);
+        t.sport = BPF_CORE_READ(fl6, fl6_sport);
+        t.dport = BPF_CORE_READ(fl6, fl6_dport);
 
         if (t.sport == 0 || t.dport == 0) {
             log_debug("ERR(fl6): src/dst port not set: src:%d, dst:%d\n", t.sport, t.dport);
@@ -632,6 +625,33 @@ int kretprobe__ip6_make_skb(struct pt_regs *ctx) {
 
     return 0;
 }
+
+SEC("fexit/ip6_make_skb")
+struct sk_buff* BPF_PROG(ip6_make_skb_exit, struct sock *sock,
+			     int getfrag(void *from, char *to, int offset,
+				 int length, int odd, struct sk_buff *skb),
+			     void *from, int length, int transhdrlen,
+			     struct ipcm6_cookie *ipc6, struct rt6_info *rt,
+			     unsigned int flags, struct inet_cork_full *cork, 
+                 struct sk_buff *rc) {
+    struct flowi flow = BPF_CORE_READ(cork, fl);
+    // union u = BPF_CORE_READ(fl, u);
+    // struct flowi6 *fl6 = BPF_CORE_READ(BPF_CORE_READ(fl, u), ip6);
+    struct flowi6 fl6 = flow.ip6;
+    
+    return process_ip6_make_skb_ret(sock, length, fl6, rc);
+}
+
+SEC("fexit/ip6_make_skb_PRE_5_18_0")
+struct sk_buff* BPF_PROG(ip6_make_skb_exit_PRE_5_18_0, struct sock *sock, int getfrag(void *from, char *to, 
+                 int offset, int length, int odd, struct sk_buff *skb),
+			     void *from, int length, int transhdrlen,
+			     struct ipcm6_cookie *ipc6, struct flowi6 *fl6,
+			     struct rt6_info *rt, unsigned int flags,
+			     struct inet_cork_full *cork, struct sk_buff *rc) {
+    return process_ip6_make_skb_ret(sock, length, fl6, rc); 
+                 }
+
 
 //endregion
 
