@@ -55,35 +55,6 @@ int socket__classifier_dbs(struct __sk_buff *skb) {
     return 0;
 }
 
-// commit: https://github.com/torvalds/linux/commit/26879da58711aa604a1b866cbeedd7e0f78f90ad
-// changed the arguments to ip6_make_skb and introduced the struct ipcm6_cookie
-SEC("kprobe/ip6_make_skb/pre_4_7_0")
-int kprobe__ip6_make_skb__pre_4_7_0(struct pt_regs *ctx) {
-    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
-    size_t len = (size_t)PT_REGS_PARM4(ctx);
-    struct flowi6 *fl6 = (struct flowi6 *)PT_REGS_PARM9(ctx);
-
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    ip_make_skb_args_t args = {};
-    bpf_probe_read_kernel_with_telemetry(&args.sk, sizeof(args.sk), &sk);
-    bpf_probe_read_kernel_with_telemetry(&args.len, sizeof(args.len), &len);
-    bpf_probe_read_kernel_with_telemetry(&args.fl6, sizeof(args.fl6), &fl6);
-    bpf_map_update_with_telemetry(ip_make_skb_args, &pid_tgid, &args, BPF_ANY);
-    return 0;
-}
-
-SEC("kprobe/udp_recvmsg/pre_4_1_0")
-int kprobe__udp_recvmsg_pre_4_1_0(struct pt_regs *ctx) {
-    int flags = (int)PT_REGS_PARM6(ctx);
-    return handle_udp_recvmsg(flags);
-}
-
-SEC("kprobe/udpv6_recvmsg/pre_4_1_0")
-int kprobe__udpv6_recvmsg_pre_4_1_0(struct pt_regs *ctx) {
-    int flags = (int)PT_REGS_PARM6(ctx);
-    return handle_udp_recvmsg(flags);
-}
-
 SEC("kprobe/tcp_retransmit_skb")
 int kprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
