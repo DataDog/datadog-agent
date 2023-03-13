@@ -18,10 +18,6 @@
 #define MSG_PEEK 2
 #endif
 
-static __always_inline int get_proto(conn_tuple_t *t) {
-    return (t->metadata & CONN_TYPE_TCP) ? CONN_TYPE_TCP : CONN_TYPE_UDP;
-}
-
 static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
     conn_tuple_t conn_tuple = *tup;
     conn_tuple.pid = 0;

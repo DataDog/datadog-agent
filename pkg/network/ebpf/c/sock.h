@@ -7,11 +7,10 @@
 #include "ipv6.h"
 #include "netns.h"
 
-// source include/linux/socket.h
-#define __AF_INET   2
-#define __AF_INET6 10
-
 #ifdef COMPILE_CORE
+
+#include "ip.h" // for AF_INET and AF_INET6
+
 static __always_inline struct tcp_sock *tcp_sk(const struct sock *sk)
 {
     return (struct tcp_sock *)sk;
@@ -41,8 +40,9 @@ static __always_inline struct inet_sock *inet_sk(const struct sock *sk)
 #define fl6_sport uli.ports.sport
 #define fl6_dport uli.ports.dport
 
-#elif defined(COMPILE_RUNTIME)
+#elif defined(COMPILE_RUNTIME) || defined(COMPILE_PREBUILT)
 
+#include <linux/socket.h>
 #include <linux/tcp.h>
 #include <net/inet_sock.h>
 
@@ -193,7 +193,7 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
     t->netns = get_netns_from_sock(skp);
     unsigned short family = _sk_family(skp);
     // Retrieve addresses
-    if (family == __AF_INET) {
+    if (family == AF_INET) {
         t->metadata |= CONN_V4;
         if (t->saddr_l == 0) {
             t->saddr_l = read_saddr_v4(skp);
@@ -206,7 +206,7 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
             log_debug("ERR(read_conn_tuple.v4): src or dst addr not set src=%d, dst=%d\n", t->saddr_l, t->daddr_l);
             err = 1;
         }
-    } else if (family == __AF_INET6) {
+    } else if (family == AF_INET6) {
         if (!is_ipv6_enabled()) {
             return 0;
         }
@@ -281,5 +281,8 @@ static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u6
     return read_conn_tuple_partial(t, skp, pid_tgid, type);
 }
 
+static __always_inline int get_proto(conn_tuple_t *t) {
+    return (t->metadata & CONN_TYPE_TCP) ? CONN_TYPE_TCP : CONN_TYPE_UDP;
+}
 
 #endif // __SOCK_H
