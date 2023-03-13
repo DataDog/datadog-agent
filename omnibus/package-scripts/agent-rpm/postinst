@@ -21,7 +21,7 @@ find ${CONFIG_DIR} -type f -not -path ${CONFIG_DIR}/conf.d -exec chmod 640 {} \;
 # Allow write access to dd-agent for integration installation
 find ${CONFIG_DIR}/conf.d -type d -exec chmod 3770 {} \;
 find ${CONFIG_DIR}/conf.d -type f -exec chmod 660 {} \;
-chown -R dd-agent:dd-agent ${SITE_PACKAGES_DIR} || true
+chown -R dd-agent:dd-agent "${SITE_PACKAGES_DIR}" || true
 
 # This is done to allow integrations to install their binaries
 chown -R root:dd-agent ${INSTALL_DIR}/embedded/bin
