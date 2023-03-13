@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	containerdUtil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
@@ -52,7 +51,7 @@ type CollectorConfig struct {
 	ArtifactOption     artifact.Option
 	CacheProvider      CacheProvider
 	ClearCacheOnClose  bool
-	ContainerdAccessor func() (containerdUtil.ContainerdItf, error)
+	ContainerdAccessor func() (ContainerdClient, error)
 	DockerAccessor     func() (client.ImageAPIClient, error)
 }
 
@@ -182,17 +181,7 @@ func (c *collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.C
 		return nil, fmt.Errorf("unable to convert docker image, err: %w", err)
 	}
 
-	imageArtifact, err := image2.NewArtifact(fanalImage, c.cache, c.config.ArtifactOption)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create artifact from image, err: %w", err)
-	}
-
-	bom, err := c.scan(ctx, imageArtifact)
-	if err != nil {
-		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
-	}
-
-	return bom, nil
+	return c.scanImage(ctx, fanalImage)
 }
 
 func (c *collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (Report, error) {
@@ -209,17 +198,7 @@ func (c *collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadme
 		return nil, fmt.Errorf("unable to convert containerd image, err: %w", err)
 	}
 
-	imageArtifact, err := image2.NewArtifact(fanalImage, c.cache, c.config.ArtifactOption)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create artifact from image, err: %w", err)
-	}
-
-	bom, err := c.scan(ctx, imageArtifact)
-	if err != nil {
-		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
-	}
-
-	return bom, nil
+	return c.scanImage(ctx, fanalImage)
 }
 
 func (c *collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (Report, error) {
@@ -290,4 +269,18 @@ func (c *collector) scan(ctx context.Context, artifact artifact.Artifact) (Repor
 		Report:    trivyReport,
 		marshaler: c.marshaler,
 	}, nil
+}
+
+func (c *collector) scanImage(ctx context.Context, fanalImage ftypes.Image) (Report, error) {
+	imageArtifact, err := image2.NewArtifact(fanalImage, c.cache, c.config.ArtifactOption)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create artifact from image, err: %w", err)
+	}
+
+	bom, err := c.scan(ctx, imageArtifact)
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
+	}
+
+	return bom, nil
 }

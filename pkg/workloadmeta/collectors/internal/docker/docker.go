@@ -551,6 +551,12 @@ func (c *collector) getImageMetadata(ctx context.Context, imageID string, bom *w
 		labels = imgInspect.Config.Labels
 	}
 
+	imageName := c.dockerUtil.GetPreferredImageName(
+		imgInspect.ID,
+		imgInspect.RepoTags,
+		imgInspect.RepoDigests,
+	)
+
 	existingBOM := bom
 	// We can get "create" events for images that already exist. That happens
 	// when the same image is referenced with different names. For example,
@@ -566,9 +572,9 @@ func (c *collector) getImageMetadata(ctx context.Context, imageID string, bom *w
 	// like ID, and repo digest).
 	existingImg, err := c.store.GetImage(imageID)
 	if err == nil {
-		//if strings.Contains(imageName, "sha256:") && !strings.Contains(existingImg.Name, "sha256:") {
-		//	imageName = existingImg.Name
-		//}
+		if strings.Contains(imageName, "sha256:") && !strings.Contains(existingImg.Name, "sha256:") {
+			imageName = existingImg.Name
+		}
 
 		if existingBOM == nil && existingImg.SBOM != nil {
 			existingBOM = existingImg.SBOM
@@ -581,11 +587,7 @@ func (c *collector) getImageMetadata(ctx context.Context, imageID string, bom *w
 			ID:   imgInspect.ID,
 		},
 		EntityMeta: workloadmeta.EntityMeta{
-			Name: c.dockerUtil.GetPreferredImageName(
-				imgInspect.ID,
-				imgInspect.RepoTags,
-				imgInspect.RepoDigests,
-			),
+			Name:   imageName,
 			Labels: labels,
 		},
 		RepoTags:     imgInspect.RepoTags,

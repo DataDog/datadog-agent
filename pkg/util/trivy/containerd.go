@@ -34,6 +34,13 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// ContainerdClient is a trimmed down redefinition of pkg/util/containerd.ContainerdItf, containing the functions
+// necessary for use in this package.
+type ContainerdClient interface {
+	MountImage(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image, targetDir string) (func(context.Context) error, error)
+	RawClient() *containerd.Client
+}
+
 // Code ported from https://github.com/aquasecurity/trivy/blob/2206e008ea6e5f4e5c1aa7bc8fc77dae7041de6a/pkg/fanal/image/daemon/containerd.go
 type familiarNamed string
 

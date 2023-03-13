@@ -11,14 +11,16 @@ package docker
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta/telemetry"
+
 	"github.com/docker/docker/client"
-	"time"
 )
 
 // scan buffer needs to be very large as we cannot block containerd collector

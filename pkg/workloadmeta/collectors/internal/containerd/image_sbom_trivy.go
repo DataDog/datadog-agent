@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -39,7 +38,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 	enabledAnalyzers := config.Datadog.GetStringSlice("container_image_collection.sbom.analyzers")
 	trivyConfiguration := trivy.DefaultCollectorConfig(enabledAnalyzers, config.Datadog.GetString("container_image_collection.sbom.cache_directory"))
 	trivyConfiguration.ClearCacheOnClose = config.Datadog.GetBool("container_image_collection.sbom.clear_cache_on_exit")
-	trivyConfiguration.ContainerdAccessor = func() (cutil.ContainerdItf, error) {
+	trivyConfiguration.ContainerdAccessor = func() (trivy.ContainerdClient, error) {
 		return c.containerdClient, nil
 	}
 

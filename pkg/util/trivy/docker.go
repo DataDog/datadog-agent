@@ -10,11 +10,13 @@ package trivy
 
 import (
 	"context"
+	"os"
+
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+
 	"github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/docker/docker/client"
 	"golang.org/x/xerrors"
-	"os"
 )
 
 // Custom code based on https://github.com/aquasecurity/trivy/blob/2206e008ea6e5f4e5c1aa7bc8fc77dae7041de6a/pkg/fanal/image/daemon/docker.go `DockerImage`
