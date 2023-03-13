@@ -26,13 +26,11 @@ func getAttrProbes() []*manager.Probe {
 		&manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFSection:  "kprobe/chmod_common",
 				EBPFFuncName: "kprobe_chmod_common",
 			},
 		}, &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFSection:  "kretprobe/chmod_common",
 				EBPFFuncName: "kretprobe_chmod_common",
 			},
 		},
