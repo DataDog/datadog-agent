@@ -48,7 +48,9 @@ static __always_inline struct inet_sock *inet_sk(const struct sock *sk)
 
 #endif // COMPILE_CORE
 
+#ifdef COMPILE_PREBUILT
 static __always_inline u64 offset_socket_sk();
+#endif
 
 static __always_inline struct sock * socket_sk(struct socket *sock) {
     struct sock * sk = NULL;
