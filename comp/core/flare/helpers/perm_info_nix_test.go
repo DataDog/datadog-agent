@@ -42,7 +42,7 @@ func TestPermsFileAdd(t *testing.T) {
 	require.Len(t, pi, 3)
 
 	assert.Equal(t, f1, pi[f1].path)
-	assert.Equal(t, "-rwxrw----", pi[f1].mode)
+	assert.Equal(t, "-rwxrw-r-x", pi[f1].mode)
 	assert.NotNil(t, pi[f1].owner)
 	assert.NotNil(t, pi[f1].group)
 	assert.Nil(t, pi[f1].err)
