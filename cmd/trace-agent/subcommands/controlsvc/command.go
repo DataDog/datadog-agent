@@ -13,7 +13,6 @@ package controlsvc
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/trace-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/windows/controlsvc"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -39,7 +38,7 @@ func Commands(globalParamsGetter func() *subcommands.GlobalParams) []*cobra.Comm
 			return fxutil.OneShot(controlsvc.StartService)
 		},
 	}
-	startCmd.PersistentFlags().BoolVar(&cliParams.Interactive, "foreground", "f", false,
+	startCmd.PersistentFlags().BoolVarP(&cliParams.Interactive, "foreground", "f", false,
 		"Always run foreground instead whether session is interactive or not")
 
 	stopCmd := &cobra.Command{

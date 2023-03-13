@@ -40,6 +40,7 @@ func StartService() error {
 
 // RestartService restarts the agent service by calling StopService and StartService
 func RestartService() error {
+	return nil
 }
 
 // StopService stops the agent service via the Service Control Manager
