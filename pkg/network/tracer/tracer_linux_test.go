@@ -851,8 +851,7 @@ func TestConnectionAssured(t *testing.T) {
 		conns := getConnections(t, tr)
 		var ok bool
 		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		m := conn.Monotonic
-		return ok && m.SentBytes > 0 && m.RecvBytes > 0
+		return ok && conn.Monotonic.SentBytes > 0 && conn.Monotonic.RecvBytes > 0
 	}, 3*time.Second, 500*time.Millisecond, "could not find udp connection")
 
 	// verify the connection is marked as assured
@@ -886,8 +885,7 @@ func TestConnectionNotAssured(t *testing.T) {
 		conns := getConnections(t, tr)
 		var ok bool
 		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		m := conn.Monotonic
-		return ok && m.SentBytes > 0 && m.RecvBytes == 0
+		return ok && conn.Monotonic.SentBytes > 0 && conn.Monotonic.RecvBytes == 0
 	}, 3*time.Second, 500*time.Millisecond, "could not find udp connection")
 
 	// verify the connection is marked as not assured
