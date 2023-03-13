@@ -50,31 +50,19 @@ func getAttrProbes() []*manager.Probe {
 				EBPFFuncName: "kretprobe_do_fchownat",
 			},
 		},
+		&manager.Probe{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "kprobe_vfs_fchown",
+			},
+		},
+		&manager.Probe{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "kretprobe_vfs_fchown",
+			},
+		},
 	)
-	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "chown16",
-	}, EntryAndExit)...)
-	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "fchown",
-	}, EntryAndExit)...)
-	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "fchown16",
-	}, EntryAndExit)...)
-	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "lchown16",
-	}, EntryAndExit)...)
 
 	// utime
 	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{

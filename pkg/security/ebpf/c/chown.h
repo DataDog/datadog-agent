@@ -45,19 +45,10 @@ int kprobe_do_fchownat(struct pt_regs *ctx) {
     return trace__sys_chown(user, group);
 }
 
-SYSCALL_KPROBE3(fchown, int, fd, uid_t, user, gid_t, group) {
-    return trace__sys_chown(user, group);
-}
-
-SYSCALL_KPROBE3(lchown16, const char*, filename, uid_t, user, gid_t, group) {
-    return trace__sys_chown(user, group);
-}
-
-SYSCALL_KPROBE3(fchown16, int, fd, uid_t, user, gid_t, group) {
-    return trace__sys_chown(user, group);
-}
-
-SYSCALL_KPROBE3(chown16, const char*, filename, uid_t, user, gid_t, group) {
+SEC("kprobe/vfs_fchown")
+int kprobe_vfs_fchown(struct pt_regs *ctx) {
+    uid_t user = PT_REGS_PARM2(ctx);
+    uid_t group = PT_REGS_PARM3(ctx);
     return trace__sys_chown(user, group);
 }
 
@@ -103,19 +94,8 @@ int kretprobe_do_fchownat(struct pt_regs *ctx) {
     return kprobe_sys_chown_ret(ctx);
 }
 
-SYSCALL_KRETPROBE(fchown) {
-    return kprobe_sys_chown_ret(ctx);
-}
-
-SYSCALL_KRETPROBE(lchown16) {
-    return kprobe_sys_chown_ret(ctx);
-}
-
-SYSCALL_KRETPROBE(fchown16) {
-    return kprobe_sys_chown_ret(ctx);
-}
-
-SYSCALL_KRETPROBE(chown16) {
+SEC("kretprobe/vfs_fchown")
+int kretprobe_vfs_fchown(struct pt_regs *ctx) {
     return kprobe_sys_chown_ret(ctx);
 }
 
