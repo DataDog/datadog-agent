@@ -8,6 +8,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+// team: processes
+
 type Component interface {
 	Object() *checks.HostInfo
 }
