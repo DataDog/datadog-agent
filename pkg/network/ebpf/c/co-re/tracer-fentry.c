@@ -13,7 +13,7 @@
 #include "ipv6.h"
 #include "port.h"
 #include "sock.h"
-#include "flow.h"
+// #include "flow.h"
 #include "tcp-recv.h"
 
 #define MSG_PEEK 2
@@ -545,28 +545,6 @@ int BPF_PROG(do_sendfile_exit, int out_fd, int in_fd, loff_t *ppos,
     return 0;
 }
 
-// SEC("kprobe/ip6_make_skb")
-// int kprobe__ip6_make_skb(struct pt_regs *ctx) {
-//     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
-//     size_t len = (size_t)PT_REGS_PARM4(ctx);
-//     // commit: https://github.com/torvalds/linux/commit/26879da58711aa604a1b866cbeedd7e0f78f90ad
-//     // changed the arguments to ip6_make_skb and introduced the struct ipcm6_cookie
-// #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
-//     struct flowi6 *fl6 = (struct flowi6 *)PT_REGS_PARM7(ctx);
-// #else
-//     struct flowi6 *fl6 = (struct flowi6 *)PT_REGS_PARM9(ctx);
-// #endif
-
-//     u64 pid_tgid = bpf_get_current_pid_tgid();
-//     ip_make_skb_args_t args = {};
-//     bpf_probe_read_kernel_with_telemetry(&args.sk, sizeof(args.sk), &sk);
-//     bpf_probe_read_kernel_with_telemetry(&args.len, sizeof(args.len), &len);
-//     bpf_probe_read_kernel_with_telemetry(&args.fl6, sizeof(args.fl6), &fl6);
-//     bpf_map_update_with_telemetry(ip_make_skb_args, &pid_tgid, &args, BPF_ANY);
-
-//     return 0;
-// }
-
 static __always_inline struct sk_buff* process_ip6_make_skb_ret(struct sock *sk, int length, struct flowi6 *fl6, struct sk_buff *rc) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     
@@ -579,10 +557,10 @@ static __always_inline struct sk_buff* process_ip6_make_skb_ret(struct sock *sk,
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
-        // read_in6_addr(&t.saddr_h, &t.saddr_l, BPF_CORE_READ(fl6, saddr));
-        // read_in6_addr(&t.daddr_h, &t.daddr_l, BPF_CORE_READ(fl6, daddr));
-        read_in6_addr(&t.saddr_h, &t.saddr_l, &fl6->saddr);
-        read_in6_addr(&t.daddr_h, &t.daddr_l, &fl6->daddr);
+        const struct in6_addr source_addr = BPF_CORE_READ(fl6, saddr);
+        const struct in6_addr dest_addr = BPF_CORE_READ(fl6, daddr);
+        read_in6_addr(&t.saddr_h, &t.saddr_l, &source_addr);
+        read_in6_addr(&t.daddr_h, &t.daddr_l, &dest_addr);
 
         if (!(t.saddr_h || t.saddr_l)) {
             log_debug("ERR(fl6): src addr not set src_l:%d,src_h:%d\n", t.saddr_l, t.saddr_h);
@@ -634,12 +612,9 @@ struct sk_buff* BPF_PROG(ip6_make_skb_exit, struct sock *sock,
 			     struct ipcm6_cookie *ipc6, struct rt6_info *rt,
 			     unsigned int flags, struct inet_cork_full *cork, 
                  struct sk_buff *rc) {
-    struct flowi flow = BPF_CORE_READ(cork, fl);
-    // union u = BPF_CORE_READ(fl, u);
-    // struct flowi6 *fl6 = BPF_CORE_READ(BPF_CORE_READ(fl, u), ip6);
-    struct flowi6 fl6 = flow.ip6;
+    struct flowi6 fl6 = BPF_CORE_READ(cork, fl.u.ip6);
     
-    return process_ip6_make_skb_ret(sock, length, fl6, rc);
+    return process_ip6_make_skb_ret(sock, length, &fl6, rc);
 }
 
 SEC("fexit/ip6_make_skb_PRE_5_18_0")
@@ -649,8 +624,9 @@ struct sk_buff* BPF_PROG(ip6_make_skb_exit_PRE_5_18_0, struct sock *sock, int ge
 			     struct ipcm6_cookie *ipc6, struct flowi6 *fl6,
 			     struct rt6_info *rt, unsigned int flags,
 			     struct inet_cork_full *cork, struct sk_buff *rc) {
-    return process_ip6_make_skb_ret(sock, length, fl6, rc); 
-                 }
+    return process_ip6_make_skb_ret(sock, length, fl6, rc);                  
+}
+
 
 
 //endregion
