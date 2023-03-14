@@ -40,9 +40,22 @@ func checkSnooping(t *testing.T, destIP string, destName string, reverseDNS *dns
 	names := reverseDNS.Resolve(payload)
 	require.Len(t, names, 1)
 	assert.Contains(t, names[destAddr], ToHostname(destName))
+
+	// Verify telemetry
+	assert.True(t, cacheTelemetry.length.Load() >= 1)
+	lookups := cacheTelemetry.lookups.Load()
+	if srcIP != destIP {
+		assert.Equal(t, int64(2), lookups)
+	} else {
+		assert.Equal(t, int64(1), lookups)
+	}
+	assert.Equal(t, int64(1), cacheTelemetry.resolved.Load())
 }
 
 func TestDNSOverUDPSnooping(t *testing.T) {
+	cacheTelemetry.length.Set(0)
+	cacheTelemetry.lookups.Set(0)
+	cacheTelemetry.resolved.Set(0)
 	reverseDNS := initDNSTestsWithDomainCollection(t, false)
 	defer reverseDNS.Close()
 
@@ -62,6 +75,9 @@ func TestDNSOverUDPSnooping(t *testing.T) {
 }
 
 func TestDNSOverTCPSnooping(t *testing.T) {
+	cacheTelemetry.length.Set(0)
+	cacheTelemetry.lookups.Set(0)
+	cacheTelemetry.resolved.Set(0)
 	reverseDNS := initDNSTestsWithDomainCollection(t, false)
 	defer reverseDNS.Close()
 
@@ -394,6 +410,8 @@ func TestDNSOverUDPTimeoutCountWithoutDomain(t *testing.T) {
 }
 
 func TestParsingError(t *testing.T) {
+	cacheTelemetry.length.Set(0)
+	snooperTelemetry.decodingErrors.Set(0)
 	cfg := testConfig()
 	cfg.CollectDNSStats = false
 	cfg.CollectLocalDNS = false
@@ -407,6 +425,8 @@ func TestParsingError(t *testing.T) {
 	// Pass a byte array of size 1 which should result in parsing error
 	err = reverseDNS.processPacket(make([]byte, 1), time.Now())
 	require.NoError(t, err)
+	assert.True(t, cacheTelemetry.length.Load() == 0)
+	assert.True(t, snooperTelemetry.decodingErrors.Load() == 1)
 }
 
 func TestDNSOverIPv6(t *testing.T) {
@@ -435,6 +455,9 @@ func TestDNSOverIPv6(t *testing.T) {
 }
 
 func TestDNSNestedCNAME(t *testing.T) {
+	cacheTelemetry.length.Set(0)
+	cacheTelemetry.lookups.Set(0)
+	cacheTelemetry.resolved.Set(0)
 	reverseDNS := initDNSTestsWithDomainCollection(t, true)
 	defer reverseDNS.Close()
 	statKeeper := reverseDNS.statKeeper
