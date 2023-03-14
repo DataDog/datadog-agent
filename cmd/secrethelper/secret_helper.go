@@ -48,6 +48,7 @@ import (
 )
 
 const (
+	removeTrailingLineBreak = "remove-trailing-linebreaks"
 	providerPrefixesFlag    = "with-provider-prefixes"
 	providerPrefixSeparator = "@"
 	filePrefix              = "file"
@@ -59,7 +60,8 @@ type NewKubeClient func(timeout time.Duration) (kubernetes.Interface, error)
 
 // cliParams are the command-line arguments for this subcommand
 type cliParams struct {
-	usePrefixes bool
+	usePrefixes             bool
+	removeTrailingLineBreak bool
 
 	// args are the positional command-line arguments
 	args []string
@@ -81,6 +83,7 @@ func Commands() []*cobra.Command {
 		},
 	}
 	cmd.PersistentFlags().BoolVarP(&cliParams.usePrefixes, providerPrefixesFlag, "", false, "Use prefixes to select the secrets provider (file, k8s_secret)")
+	cmd.PersistentFlags().BoolVarP(&cliParams.removeTrailingLineBreak, removeTrailingLineBreak, "", false, "Remove the last trailing linebreaks from the file if any")
 
 	secretHelperCmd := &cobra.Command{
 		Use:   "secret-helper",
@@ -103,20 +106,26 @@ func readCmd(cliParams *cliParams) error {
 		dir = cliParams.args[0]
 	}
 
-	return readSecrets(os.Stdin, os.Stdout, dir, cliParams.usePrefixes, apiserver.GetKubeClient)
+	return readSecrets(os.Stdin,
+		os.Stdout,
+		dir,
+		cliParams.usePrefixes,
+		cliParams.removeTrailingLineBreak,
+		apiserver.GetKubeClient,
+	)
 }
 
-func readSecrets(r io.Reader, w io.Writer, dir string, usePrefixes bool, newKubeClientFunc NewKubeClient) error {
+func readSecrets(r io.Reader, w io.Writer, dir string, usePrefixes bool, removeTrailingLineBreak bool, newKubeClientFunc NewKubeClient) error {
 	inputSecrets, err := parseInputSecrets(r)
 	if err != nil {
 		return err
 	}
 
 	if usePrefixes {
-		return writeFetchedSecrets(w, readSecretsUsingPrefixes(inputSecrets, dir, newKubeClientFunc))
+		return writeFetchedSecrets(w, readSecretsUsingPrefixes(inputSecrets, dir, newKubeClientFunc, removeTrailingLineBreak))
 	}
 
-	return writeFetchedSecrets(w, readSecretsFromFile(inputSecrets, dir))
+	return writeFetchedSecrets(w, readSecretsFromFile(inputSecrets, dir, removeTrailingLineBreak))
 }
 
 func parseInputSecrets(r io.Reader) ([]string, error) {
@@ -154,17 +163,21 @@ func writeFetchedSecrets(w io.Writer, fetchedSecrets map[string]s.Secret) error 
 	return err
 }
 
-func readSecretsFromFile(secrets []string, dir string) map[string]s.Secret {
+func readSecretsFromFile(secrets []string, dir string, removeTrailingLineBreak bool) map[string]s.Secret {
 	res := make(map[string]s.Secret)
 
 	for _, secretID := range secrets {
-		res[secretID] = providers.ReadSecretFile(filepath.Join(dir, secretID))
+		sec := providers.ReadSecretFile(filepath.Join(dir, secretID))
+		if removeTrailingLineBreak {
+			sec.Value = strings.TrimRight(sec.Value, "\r\n")
+		}
+		res[secretID] = sec
 	}
 
 	return res
 }
 
-func readSecretsUsingPrefixes(secrets []string, rootPath string, newKubeClientFunc NewKubeClient) map[string]s.Secret {
+func readSecretsUsingPrefixes(secrets []string, rootPath string, newKubeClientFunc NewKubeClient, removeTrailingLineBreak bool) map[string]s.Secret {
 	res := make(map[string]s.Secret)
 
 	for _, secretID := range secrets {
@@ -186,6 +199,10 @@ func readSecretsUsingPrefixes(secrets []string, rootPath string, newKubeClientFu
 			}
 		default:
 			res[secretID] = s.Secret{Value: "", ErrorMsg: fmt.Sprintf("provider not supported: %s", prefix)}
+		}
+		if removeTrailingLineBreak {
+			sec := res[secretID]
+			sec.Value = strings.TrimRight(sec.Value, "\r\n")
 		}
 	}
 

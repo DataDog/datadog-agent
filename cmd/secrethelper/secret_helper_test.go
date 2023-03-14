@@ -35,11 +35,12 @@ func TestReadSecrets(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		in          string
-		out         string
-		usePrefixes bool
-		err         string
+		name                    string
+		in                      string
+		out                     string
+		usePrefixes             bool
+		removeTrailingLineBreak bool
+		err                     string
 	}{
 		{
 			name: "invalid input",
@@ -155,13 +156,51 @@ func TestReadSecrets(t *testing.T) {
 			`,
 			usePrefixes: true,
 		},
+		{
+			name: "keeping trailing line break",
+			in: `
+			{
+				"version": "1.0",
+				"secrets": [
+					"secret7"
+				]
+			}
+			`,
+			out: `
+			{
+				"secret7": {
+					"value": "some secret data\n"
+				}
+			}
+			`,
+			removeTrailingLineBreak: false,
+		},
+		{
+			name: "removing trailing line break",
+			in: `
+			{
+				"version": "1.0",
+				"secrets": [
+					"secret7"
+				]
+			}
+			`,
+			out: `
+			{
+				"secret7": {
+					"value": "some secret data"
+				}
+			}
+			`,
+			removeTrailingLineBreak: true,
+		},
 	}
 
 	path := filepath.Join("testdata", "read-secrets")
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var w bytes.Buffer
-			err := readSecrets(strings.NewReader(test.in), &w, path, test.usePrefixes, newKubeClientFunc)
+			err := readSecrets(strings.NewReader(test.in), &w, path, test.usePrefixes, test.removeTrailingLineBreak, newKubeClientFunc)
 			out := string(w.Bytes())
 
 			if test.out != "" {
