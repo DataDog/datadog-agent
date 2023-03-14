@@ -479,6 +479,12 @@ func encodeSerie(serie *metrics.Serie, stream *jsoniter.Stream) {
 		stream.WriteMore()
 	}
 
+	if len(serie.Resources) > 0 {
+		stream.WriteObjectField("resources")
+		encodeResources(stream, serie.Resources)
+		stream.WriteMore()
+	}
+
 	stream.WriteObjectField("type")
 	stream.WriteString(serie.MType.String())
 	stream.WriteMore()
@@ -493,6 +499,21 @@ func encodeSerie(serie *metrics.Serie, stream *jsoniter.Stream) {
 	}
 
 	stream.WriteObjectEnd()
+}
+
+func encodeResources(stream *jsoniter.Stream, resources []metrics.Resource) {
+	stream.WriteArrayStart()
+	for i, r := range resources {
+		stream.WriteArrayStart()
+		stream.WriteObjectField("type")
+		stream.WriteString(r.Type)
+		stream.WriteObjectField("name")
+		stream.WriteString(r.Name)
+		if i < len(resources)-1 {
+			stream.WriteMore()
+		}
+	}
+	stream.WriteArrayEnd()
 }
 
 func encodePoints(points []metrics.Point, stream *jsoniter.Stream) {

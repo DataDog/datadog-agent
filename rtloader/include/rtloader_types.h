@@ -72,6 +72,11 @@ typedef struct event_s {
     char *event_type;
 } event_t;
 
+typedef struct resource_s {
+    char *name;
+    char *type;
+} resource_t;
+
 typedef struct py_info_s {
     const char *version; // returned by Py_GetInfo(); is static string owned by python
     char *path; // allocated within getPyInfo()
@@ -98,6 +103,8 @@ typedef struct pymem_stats_s {
 //
 // (id, metric_type, metric_name, value, tags, hostname, flush_first_value)
 typedef void (*cb_submit_metric_t)(char *, metric_type_t, char *, double, char **, char *, bool);
+// (id, metric_type, metric_name, value, tags, hostname, resources, flush_first_value)
+typedef void (*cb_submit_metric_t_with_resources)(char *, metric_type_t, char *, double, char **, char *, *resource_t, bool);
 // (id, sc_name, status, tags, hostname, message)
 typedef void (*cb_submit_service_check_t)(char *, char *, int, char **, char *, char *);
 // (id, event)

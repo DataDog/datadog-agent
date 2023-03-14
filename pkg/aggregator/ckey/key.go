@@ -47,6 +47,8 @@ type KeyGenerator struct {
 	hg *tagset.HashGenerator
 }
 
+// TODO : update the ContextKeys to consider resources
+
 // Generate returns the ContextKey hash for the given parameters.
 // tagsBuf is re-arranged in place and truncated to only contain unique tags.
 func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *tagset.HashingTagsAccumulator) ContextKey {

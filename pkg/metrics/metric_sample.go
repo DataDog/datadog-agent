@@ -63,6 +63,7 @@ func (m MetricType) String() string {
 }
 
 // MetricSampleContext allows to access a sample context data
+// TODO: add accessor method for resources
 type MetricSampleContext interface {
 	GetName() string
 	GetHost() string
@@ -89,6 +90,7 @@ type MetricSample struct {
 	Mtype            MetricType
 	Tags             []string
 	Host             string
+	Resources        []Resource
 	SampleRate       float64
 	Timestamp        float64
 	FlushFirstValue  bool

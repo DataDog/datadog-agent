@@ -29,11 +29,18 @@ func (p *Point) MarshalJSON() ([]byte, error) {
 	return []byte(fmt.Sprintf("[%v, %v]", int64(p.Ts), p.Value)), nil
 }
 
+// Resource holds a resource name and type
+type Resource struct {
+	Name string `json:"name,omitempty"`
+	Type string `json:"type,omitempty"`
+}
+
 // Serie holds a timeseries (w/ json serialization to DD API format)
 type Serie struct {
 	Name           string               `json:"metric"`
 	Points         []Point              `json:"points"`
 	Tags           tagset.CompositeTags `json:"tags"`
+	Resources      []Resource           `json:"resources,omitempty"`
 	Host           string               `json:"host"`
 	Device         string               `json:"device,omitempty"`
 	MType          APIMetricType        `json:"type"`
