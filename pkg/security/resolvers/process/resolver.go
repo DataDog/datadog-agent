@@ -1205,7 +1205,7 @@ func (p *Resolver) Dump(withArgs bool) (string, error) {
 	fmt.Fprintf(dump, `}`)
 
 	if err = dump.Close(); err != nil {
-		return "", fmt.Errorf("could not close close file [%s]: %w", dump.Name(), err)
+		return "", fmt.Errorf("could not close file [%s]: %w", dump.Name(), err)
 	}
 	return dump.Name(), nil
 }

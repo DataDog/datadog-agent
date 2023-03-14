@@ -1067,7 +1067,7 @@ func (p *Probe) DumpDiscarders() (string, error) {
 	}
 	err = fp.Close()
 	if err != nil {
-		return "", fmt.Errorf("could not close close file [%s]: %w", fp.Name(), err)
+		return "", fmt.Errorf("could not close file [%s]: %w", fp.Name(), err)
 	}
 	return fp.Name(), err
 }
@@ -1158,7 +1158,7 @@ func (p *Probe) setupNewTCClassifier(device model.NetDevice) error {
 	}
 	if handle != nil {
 		if err := handle.Close(); err != nil {
-			return fmt.Errorf("could not close close file [%s]: %w", handle.Name(), err)
+			return fmt.Errorf("could not close file [%s]: %w", handle.Name(), err)
 		}
 	}
 	return err
