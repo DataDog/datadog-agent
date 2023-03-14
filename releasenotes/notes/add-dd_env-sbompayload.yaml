@@ -1,0 +1,5 @@
+---
+upgrade:
+enhancements:
+  - |
+    add `DD_ENV` to the SBOMPayload in the SBOM check
