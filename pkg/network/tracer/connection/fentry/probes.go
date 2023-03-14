@@ -67,7 +67,7 @@ const (
 	doSendfileRet = "do_sendfile_exit"
 
 	// IP6MakeSkbReturn traces the return value for the ip6_make_skb() system call
-	IP6MakeSkbReturn = "ip6_make_skb_exit"
+	IP6MakeSkbReturn        = "ip6_make_skb_exit"
 	IP6MakeSkbReturnPre5180 = "ip6_make_skb_exit_PRE_5_18_0"
 )
 
