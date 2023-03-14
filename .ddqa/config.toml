@@ -1,5 +1,5 @@
 global_config_source = "aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL0RhdGFEb2cvZ2l0aHViLW1ldGFkYXRhL21hc3Rlci9qaXJhLnRvbWw="
-jira_statuses = [
+qa_statuses = [
   "To Do",
   "In Progress",
   "Done",
