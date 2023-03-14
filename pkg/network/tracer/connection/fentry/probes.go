@@ -10,6 +10,7 @@ package fentry
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const (
@@ -35,11 +36,12 @@ const (
 	// tcpCloseReturn traces the return of tcp_close() system call
 	tcpCloseReturn = "tcp_close_exit"
 
-	// We use the following two probes for UDP
+	// We use the following seven probes for UDP
 	udpRecvMsgReturn   = "udp_recvmsg_exit"
 	udpSendMsgReturn   = "udp_sendmsg_exit"
 	udpSendSkb         = "kprobe__udp_send_skb"
 	udpv6RecvMsgReturn = "udpv6_recvmsg_exit"
+	udpv6RecvMsgReturnPRE5190 = "udpv6_recvmsg_exit_PRE_5_19_0"
 	udpv6SendMsgReturn = "udpv6_sendmsg_exit"
 	udpv6SendSkb       = "kprobe__udp_v6_send_skb"
 
@@ -102,6 +104,11 @@ func enableProgram(enabled map[string]struct{}, name string) {
 
 // enabledPrograms returns a map of probes that are enabled per config settings.
 func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
+	kv5190 := kernel.VersionCode(5, 19, 0)
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return nil, err
+	}
 	enabled := make(map[string]struct{}, 0)
 	if c.CollectTCPConns {
 		enableProgram(enabled, tcpSendMsgReturn)
@@ -130,7 +137,7 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, inetBindRet)
 		enableProgram(enabled, udpDestroySock)
 		enableProgram(enabled, udpDestroySockReturn)
-		enableProgram(enabled, udpRecvMsgReturn)
+		enableProgram(enabled, selectVersionBasedProbe(kv, udpv6SendMsgReturn, udpv6RecvMsgReturnPRE5190, kv5190))
 		enableProgram(enabled, udpSendMsgReturn)
 		enableProgram(enabled, udpSendSkb)
 
@@ -143,4 +150,11 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 	}
 
 	return enabled, nil
+}
+
+func selectVersionBasedProbe(kv kernel.Version, dfault string, versioned string, reqVer kernel.Version) string {
+	if kv < reqVer {
+		return versioned
+	}
+	return dfault
 }

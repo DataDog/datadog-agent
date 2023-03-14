@@ -325,8 +325,10 @@ static __always_inline void handle_skb_consume_udp(struct sock *sk, struct sk_bu
 static __always_inline int handle_udp_recvmsg(struct pt_regs *ctx) {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
     int flags = (int)PT_REGS_PARM6(ctx);
-#else
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0) && LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0)
     int flags = (int)PT_REGS_PARM5(ctx);
+#else
+    int flags = (int)PT_REGS_PARM4(ctx);
 #endif
     log_debug("kprobe/udp_recvmsg: flags: %x\n", flags);
     if (flags & MSG_PEEK) {

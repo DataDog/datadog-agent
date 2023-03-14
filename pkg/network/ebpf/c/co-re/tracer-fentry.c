@@ -271,8 +271,14 @@ int BPF_PROG(udp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, 
 }
 
 SEC("fexit/udpv6_recvmsg")
-int BPF_PROG(udpv6_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, int noblock,
+int BPF_PROG(udpv6_recvmsg_exit_PRE_5_19_0, struct sock *sk, struct msghdr *msg, size_t len, int noblock,
              int flags, int *addr_len,
+             int copied) {
+    return handle_ret_udp_recvmsg(sk, msg, copied, flags);
+}
+
+SEC("fexit/udpv6_recvmsg")
+int BPF_PROG(udpv6_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, int flags, int *addr_len,
              int copied) {
     return handle_ret_udp_recvmsg(sk, msg, copied, flags);
 }
