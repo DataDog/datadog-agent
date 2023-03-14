@@ -1647,6 +1647,8 @@ func testProtocolClassificationInner(t *testing.T, params protocolClassification
 
 	initTracerState(t, tr)
 	require.NoError(t, tr.ebpfTracer.Resume(), "enable probes - before post tracer")
+	// give a small amount of time for socket filter to re-engage
+	time.Sleep(1 * time.Millisecond)
 	params.postTracerSetup(t, params.context)
 	require.NoError(t, tr.ebpfTracer.Pause(), "disable probes - after post tracer")
 
