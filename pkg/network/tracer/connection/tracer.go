@@ -17,7 +17,6 @@ import (
 	"unsafe"
 
 	"github.com/cilium/ebpf"
-	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -74,30 +73,32 @@ const (
 	connTracerModuleName     = "network_tracer_ebpf"
 )
 
-var connTracerTelemetry = struct {
+var ConnTracerTelemetry = struct {
 	tcpConns4         telemetry.Gauge
 	udpConns4         telemetry.Gauge
 	tcpConns6         telemetry.Gauge
 	udpConns6         telemetry.Gauge
 	tcpFailedConnects telemetry.Gauge
-	tcpSentMiscounts  telemetry.Gauge
+	TcpSentMiscounts  nettelemetry.StatGaugeWrapper
 	missedTcpClose    telemetry.Gauge
 	missedUdpClose    telemetry.Gauge
 	UdpSendsProcessed nettelemetry.StatGaugeWrapper
 	UdpSendsMissed    nettelemetry.StatGaugeWrapper
 	UdpDroppedConns   telemetry.Gauge
+	PidCollisions     nettelemetry.StatGaugeWrapper
 }{
 	telemetry.NewGauge(connTracerModuleName, "tcp_conns4", []string{}, "Gauge measuring the number of active TCP4 connections in the EBPF map"),
 	telemetry.NewGauge(connTracerModuleName, "udp_conns4", []string{}, "Gauge measuring the number of active UDP4 connections in the EBPF map"),
 	telemetry.NewGauge(connTracerModuleName, "tcp_conns6", []string{}, "Gauge measuring the number of active TCP6 connections in the EBPF map"),
 	telemetry.NewGauge(connTracerModuleName, "udp_conns6", []string{}, "Gauge measuring the number of active UDP6 connections in the EBPF map"),
 	telemetry.NewGauge(connTracerModuleName, "tcp_failed_connects", []string{}, "Gauge measuring the number of failed TCP connections in the EBPF map"),
-	telemetry.NewGauge(connTracerModuleName, "tcp_sent_miscounts", []string{}, "Gauge measuring the number of active UDP6 connections in the EBPF map"),
+	nettelemetry.NewStatGaugeWrapper(connTracerModuleName, "tcp_sent_miscounts", []string{}, "Gauge measuring the number of active UDP6 connections in the EBPF map"),
 	telemetry.NewGauge(connTracerModuleName, "missed_tcp_close", []string{}, "Gauge measuring the number of missed TCP close events in the EBPF map"),
 	telemetry.NewGauge(connTracerModuleName, "missed_udp_close", []string{}, "Gauge measuring the number of missed UDP close events in the EBPF map"),
 	nettelemetry.NewStatGaugeWrapper(connTracerModuleName, "udp_sends_processed", []string{}, "Gauge measuring the number of processed UDP sends in EBPF"),
 	nettelemetry.NewStatGaugeWrapper(connTracerModuleName, "udp_sends_missed", []string{}, "Gauge measuring failures to process UDP sends in EBPF"),
 	telemetry.NewGauge(connTracerModuleName, "udp_dropped_conns", []string{}, "Gauge measuring the number of dropped UDP connections in the EBPF map"),
+	nettelemetry.NewStatGaugeWrapper(connTracerModuleName, "pid_collisions", []string{}, "Gauge measuring number of process collisions"),
 }
 
 type tracer struct {
@@ -110,8 +111,7 @@ type tracer struct {
 	// tcp_close events
 	closeConsumer *tcpCloseConsumer
 
-	pidCollisions *atomic.Int64
-	removeTuple   *netebpf.ConnTuple
+	removeTuple *netebpf.ConnTuple
 
 	closeTracer func()
 	stopOnce    sync.Once
@@ -185,7 +185,6 @@ func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTel
 		m:              m,
 		config:         config,
 		closeConsumer:  closeConsumer,
-		pidCollisions:  atomic.NewInt64(0),
 		removeTuple:    &netebpf.ConnTuple{},
 		closeTracer:    closeTracerFn,
 		ebpfTracerType: tracerType,
@@ -312,10 +311,10 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 }
 
 func updateTelemtry(tcp4 float64, tcp6 float64, udp4 float64, udp6 float64) {
-	connTracerTelemetry.tcpConns4.Set(tcp4)
-	connTracerTelemetry.tcpConns6.Set(tcp6)
-	connTracerTelemetry.udpConns4.Set(udp4)
-	connTracerTelemetry.udpConns6.Set(udp6)
+	ConnTracerTelemetry.tcpConns4.Set(tcp4)
+	ConnTracerTelemetry.tcpConns6.Set(tcp6)
+	ConnTracerTelemetry.udpConns4.Set(udp4)
+	ConnTracerTelemetry.udpConns6.Set(udp6)
 }
 
 func removeConnection(conn *network.ConnectionStats) {
@@ -323,15 +322,15 @@ func removeConnection(conn *network.ConnectionStats) {
 	switch conn.Family {
 	case network.AFINET6:
 		if isTCP {
-			connTracerTelemetry.tcpConns6.Dec()
+			ConnTracerTelemetry.tcpConns6.Dec()
 		} else {
-			connTracerTelemetry.udpConns6.Dec()
+			ConnTracerTelemetry.udpConns6.Dec()
 		}
 	case network.AFINET:
 		if isTCP {
-			connTracerTelemetry.tcpConns4.Dec()
+			ConnTracerTelemetry.tcpConns4.Dec()
 		} else {
-			connTracerTelemetry.udpConns4.Dec()
+			ConnTracerTelemetry.udpConns4.Dec()
 		}
 	}
 }
@@ -406,13 +405,13 @@ func (t *tracer) refreshProbeTelemetry() {
 		return
 	}
 
-	connTracerTelemetry.tcpFailedConnects.Set(float64(telemetry.Tcp_failed_connect))
-	connTracerTelemetry.tcpSentMiscounts.Set(float64(telemetry.Tcp_sent_miscounts))
-	connTracerTelemetry.missedTcpClose.Set(float64(telemetry.Missed_tcp_close))
-	connTracerTelemetry.missedUdpClose.Set(float64(telemetry.Missed_udp_close))
-	connTracerTelemetry.UdpSendsProcessed.Set(int64(telemetry.Udp_sends_processed))
-	connTracerTelemetry.UdpSendsMissed.Set(int64(telemetry.Udp_sends_missed))
-	connTracerTelemetry.UdpDroppedConns.Set(float64(telemetry.Udp_dropped_conns))
+	ConnTracerTelemetry.tcpFailedConnects.Set(float64(telemetry.Tcp_failed_connect))
+	ConnTracerTelemetry.TcpSentMiscounts.Set(int64(telemetry.Tcp_sent_miscounts))
+	ConnTracerTelemetry.missedTcpClose.Set(float64(telemetry.Missed_tcp_close))
+	ConnTracerTelemetry.missedUdpClose.Set(float64(telemetry.Missed_udp_close))
+	ConnTracerTelemetry.UdpSendsProcessed.Set(int64(telemetry.Udp_sends_processed))
+	ConnTracerTelemetry.UdpSendsMissed.Set(int64(telemetry.Udp_sends_missed))
+	ConnTracerTelemetry.UdpDroppedConns.Set(float64(telemetry.Udp_dropped_conns))
 }
 
 // DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
@@ -480,7 +479,7 @@ func (t *tracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnTuple, 
 	if err == nil {
 		// This is required to avoid (over)reporting retransmits for connections sharing the same socket.
 		if _, reported := seen[*tuple]; reported {
-			t.pidCollisions.Inc()
+			ConnTracerTelemetry.PidCollisions.Inc()
 			stats.Retransmits = 0
 			stats.State_transitions = 0
 		} else {
