@@ -13,7 +13,6 @@
 #include "ipv6.h"
 #include "port.h"
 #include "sock.h"
-// #include "flow.h"
 #include "tcp-recv.h"
 
 #define MSG_PEEK 2
@@ -547,10 +546,7 @@ int BPF_PROG(do_sendfile_exit, int out_fd, int in_fd, loff_t *ppos,
 
 static __always_inline struct sk_buff* process_ip6_make_skb_ret(struct sock *sk, int length, struct flowi6 *fl6, struct sk_buff *rc) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    
-    // if (IS_ERR_OR_NULL(rc)) {
-    //     return 0;
-    // }
+
 
     size_t size = (size_t)length;
     size = size - sizeof(struct udphdr);
@@ -613,7 +609,7 @@ struct sk_buff* BPF_PROG(ip6_make_skb_exit, struct sock *sock,
 			     unsigned int flags, struct inet_cork_full *cork, 
                  struct sk_buff *rc) {
     struct flowi6 fl6 = BPF_CORE_READ(cork, fl.u.ip6);
-    
+
     return process_ip6_make_skb_ret(sock, length, &fl6, rc);
 }
 
@@ -626,7 +622,6 @@ struct sk_buff* BPF_PROG(ip6_make_skb_exit_PRE_5_18_0, struct sock *sock, int ge
 			     struct inet_cork_full *cork, struct sk_buff *rc) {
     return process_ip6_make_skb_ret(sock, length, fl6, rc);                  
 }
-
 
 
 //endregion

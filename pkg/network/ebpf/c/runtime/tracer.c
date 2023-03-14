@@ -149,19 +149,23 @@ SEC("kprobe/ip6_make_skb")
 int kprobe__ip6_make_skb(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     size_t len = (size_t)PT_REGS_PARM4(ctx);
+    ip_make_skb_args_t args = {};
     // commit: https://github.com/torvalds/linux/commit/26879da58711aa604a1b866cbeedd7e0f78f90ad
     // changed the arguments to ip6_make_skb and introduced the struct ipcm6_cookie
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0) && LINUX_VERSION_CODE < KERNEL_VERSION(5, 18, 0)
     struct flowi6 *fl6 = (struct flowi6 *)PT_REGS_PARM7(ctx);
+    bpf_probe_read_kernel_with_telemetry(&args.fl6, sizeof(args.fl6), &fl6);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+    struct inet_cork_full cork = (struct sock *)PT_REGS_PARM9(ctx);
+    bpf_probe_read_kernel_with_telemetry(&args.fl6, sizeof(args.fl6), cork.fl.u.ip6);
 #else
     struct flowi6 *fl6 = (struct flowi6 *)PT_REGS_PARM9(ctx);
+    bpf_probe_read_kernel_with_telemetry(&args.fl6, sizeof(args.fl6), &fl6);
 #endif
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    ip_make_skb_args_t args = {};
     bpf_probe_read_kernel_with_telemetry(&args.sk, sizeof(args.sk), &sk);
     bpf_probe_read_kernel_with_telemetry(&args.len, sizeof(args.len), &len);
-    bpf_probe_read_kernel_with_telemetry(&args.fl6, sizeof(args.fl6), &fl6);
     bpf_map_update_with_telemetry(ip_make_skb_args, &pid_tgid, &args, BPF_ANY);
 
     return 0;

@@ -10,6 +10,7 @@ package fentry
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const (
@@ -65,7 +66,9 @@ const (
 	// doSendfileRet is the kretprobe used to trace traffic via SENDFILE(2) syscall
 	doSendfileRet = "do_sendfile_exit"
 
-	ip6Make = "ip6_make_skb"
+	// IP6MakeSkbReturn traces the return value for the ip6_make_skb() system call
+	IP6MakeSkbReturn = "ip6_make_skb_exit"
+	IP6MakeSkbReturnPre5180 = "ip6_make_skb_exit_PRE_5_18_0"
 )
 
 var programs = map[string]struct{}{
@@ -74,7 +77,7 @@ var programs = map[string]struct{}{
 	inetBindRet:          {},
 	inetCskAcceptReturn:  {},
 	inetCskListenStop:    {},
-	ip6Make:              {},
+	IP6MakeSkbReturn:     {},
 	sockFDLookupRet:      {}, // TODO: not available on certain kernels, will have to one or more hooks to get equivalent functionality; affects do_sendfile and HTTPS monitoring (OpenSSL/GnuTLS/GoTLS)
 	tcpRecvMsgReturn:     {},
 	tcpClose:             {},
@@ -102,6 +105,11 @@ func enableProgram(enabled map[string]struct{}, name string) {
 
 // enabledPrograms returns a map of probes that are enabled per config settings.
 func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
+	kv5180 := kernel.VersionCode(5, 18, 0)
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return nil, err
+	}
 	enabled := make(map[string]struct{}, 0)
 	if c.CollectTCPConns {
 		enableProgram(enabled, tcpSendMsgReturn)
@@ -135,7 +143,7 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 
 		if c.CollectIPv6Conns {
 			enableProgram(enabled, inet6BindRet)
-			enableProgram(enabled, ip6Make)
+			enableProgram(enabled, selectVersionBasedProbe(kv, IP6MakeSkbReturn, IP6MakeSkbReturnPre5180, kv5180))
 			enableProgram(enabled, udpv6RecvMsgReturn)
 			enableProgram(enabled, udpv6SendMsgReturn)
 			enableProgram(enabled, udpv6SendSkb)
@@ -143,4 +151,11 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 	}
 
 	return enabled, nil
+}
+
+func selectVersionBasedProbe(kv kernel.Version, dfault string, versioned string, reqVer kernel.Version) string {
+	if kv < reqVer {
+		return versioned
+	}
+	return dfault
 }
