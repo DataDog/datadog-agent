@@ -263,9 +263,10 @@ func TestFilter(t *testing.T) {
 	}
 
 	for i, tc := range []struct {
-		includeList []string
-		excludeList []string
-		expectedIDs []string
+		includeList  []string
+		excludeList  []string
+		celCondition string
+		expectedIDs  []string
 	}{
 		{
 			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
@@ -307,6 +308,23 @@ func TestFilter(t *testing.T) {
 			includeList: []string{"image:docker-dd-agent"},
 			expectedIDs: []string{"1", "30"},
 		},
+		{
+			celCondition: "name == 'eu_gcr'",
+			expectedIDs:  []string{"25"},
+		},
+		{
+			celCondition: "name == 'eu_gcr' || name == 'private_jfrog'",
+			expectedIDs:  []string{"25", "26"},
+		},
+		{
+			celCondition: "name == 'eu_gcr' || name == 'private_jfrog'",
+			excludeList:  []string{"image:eu.gcr.*"},
+			expectedIDs:  []string{"26"},
+		},
+		{
+			celCondition: "name.matches('^private_')",
+			expectedIDs:  []string{"26", "27"},
+		},
 		// Test kubernetes defaults
 		{
 			excludeList: []string{
@@ -330,7 +348,7 @@ func TestFilter(t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			f, err := NewFilter(tc.includeList, tc.excludeList)
+			f, err := NewFilter(tc.includeList, tc.excludeList, tc.celCondition)
 			require.Nil(t, err, "case %d", i)
 
 			var allowed []string
@@ -464,14 +482,16 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	ResetSharedFilter()
 	resetConfig()
 
-	// Filter errors - invalid regex
+	// Filter errors - undeclared reference
+	config.Datadog.SetDefault("container_include_condition", "name2")
 	config.Datadog.SetDefault("container_include", []string{"image:apache.*", "kube_namespace:?"})
 	config.Datadog.SetDefault("container_exclude", []string{"name:dd-.*", "invalid"})
 
 	f, err = NewAutodiscoveryFilter(GlobalFilter)
-	assert.Error(t, err, errors.New("invalid regex '?': error parsing regexp: missing argument to repetition operator: `?`"))
+	assert.Error(t, err, errors.New("undeclared reference to 'name2' (in container '')"))
 	assert.NotNil(t, f)
 	fe = map[string]struct{}{
+		"undeclared reference to 'name2' (in container '')":                                                                    {},
 		"invalid regex '?': error parsing regexp: missing argument to repetition operator: `?`":                                {},
 		"Container filter \"invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'": {},
 	}
@@ -598,8 +618,48 @@ func TestParseFilters(t *testing.T) {
 	}
 }
 
+func TestParseCelCondition(t *testing.T) {
+	for filters, tc := range []struct {
+		desc           string
+		condition      string
+		success        bool
+		containedInErr string
+	}{
+		{
+			desc:      "valid condition",
+			condition: "name == 'a'",
+			success:   true,
+		},
+		{
+			desc:           "bad env var",
+			condition:      "bad == 'a'",
+			success:        false,
+			containedInErr: "undeclared reference",
+		},
+		{
+			desc:           "not bool result",
+			condition:      "name",
+			success:        false,
+			containedInErr: "condition must return a boolean result",
+		},
+	} {
+		t.Run(fmt.Sprintf("case %d: %s", filters, tc.desc), func(t *testing.T) {
+			prog, filterErrors, err := parseCelCondition(tc.condition)
+			if tc.success {
+				assert.NotNil(t, prog)
+				assert.Equal(t, 0, len(filterErrors))
+			}
+			if tc.containedInErr != "" {
+				assert.Contains(t, err.Error(), tc.containedInErr)
+				assert.NotEqual(t, 0, len(filterErrors))
+			}
+		})
+	}
+}
+
 func resetConfig() {
 	config.Datadog.SetDefault("exclude_pause_container", true)
+	config.Datadog.SetDefault("container_include_condition", "")
 	config.Datadog.SetDefault("container_include", []string{})
 	config.Datadog.SetDefault("container_exclude", []string{})
 	config.Datadog.SetDefault("container_include_metrics", []string{})

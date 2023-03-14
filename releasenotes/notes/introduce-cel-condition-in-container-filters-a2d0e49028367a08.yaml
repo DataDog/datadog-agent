@@ -1,0 +1,28 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+
+    Adds `container_include_condition`, which lets you use conditional expressions to better specify which containers to monitor.
+
+    More information about CEL, the conditional expression language used:
+
+    https://github.com/google/cel-spec
+    https://github.com/google/cel-go
+
+    For example, you can use the following condition expressions in the configuration:
+
+      ```
+      name == 'eu_gcr' || name == 'private_jfrog'
+      name == 'secret-container-dd' && image == 'docker-dd-agent'
+      name.matches('secret-container-.*') && image == 'docker-dd-agent'
+      ```
+
+    The `container_include_condition` option is compatible with the `exclude_pause_container` option.
+

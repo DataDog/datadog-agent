@@ -28,7 +28,7 @@ func TestProcessContainerEvent(t *testing.T) {
 
 	// Container filter
 	filter, err := containers.NewFilter([]string{},
-		[]string{"name:excluded_name", "image:excluded_image"})
+		[]string{"name:excluded_name", "image:excluded_image"}, "")
 
 	assert.Nil(err)
 

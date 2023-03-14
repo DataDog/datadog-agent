@@ -8,11 +8,15 @@ package containers
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strings"
 
+	"github.com/google/cel-go/common/types"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/google/cel-go/cel"
 )
 
 const (
@@ -84,6 +88,7 @@ const (
 // Filter holds the state for the container filtering logic
 type Filter struct {
 	Enabled              bool
+	CelProgram           *cel.Program
 	ImageIncludeList     []*regexp.Regexp
 	NameIncludeList      []*regexp.Regexp
 	NamespaceIncludeList []*regexp.Regexp
@@ -94,6 +99,31 @@ type Filter struct {
 }
 
 var sharedFilter *Filter
+var celEnv *cel.Env
+
+func parseCelCondition(celCondition string) (prog *cel.Program, filterErrs []string, err error) {
+	if celCondition == "" {
+		return nil, nil, nil
+	}
+	ast, issues := celEnv.Compile(celCondition)
+	if issues.Err() != nil {
+		for _, e := range issues.Errors() {
+			filterErrs = append(filterErrs, e.Message)
+		}
+		return nil, filterErrs, issues.Err()
+	}
+	if !reflect.DeepEqual(ast.OutputType(), cel.BoolType) {
+		err = fmt.Errorf("condition must return a boolean result: %s", celCondition)
+		filterErrs = append(filterErrs, err.Error())
+		return nil, filterErrs, err
+	}
+	program, err := celEnv.Program(ast)
+	if err != nil {
+		filterErrs = append(filterErrs, err.Error())
+		return nil, filterErrs, err
+	}
+	return &program, nil, nil
+}
 
 func parseFilters(filters []string) (imageFilters, nameFilters, namespaceFilters []*regexp.Regexp, filterErrs []string, err error) {
 	var filterWarnings []string
@@ -182,7 +212,7 @@ func GetPauseContainerFilter() (*Filter, error) {
 		)
 	}
 
-	return NewFilter(nil, excludeList)
+	return NewFilter(nil, excludeList, "")
 }
 
 // ResetSharedFilter is only to be used in unit tests: it resets the global
@@ -201,15 +231,29 @@ func GetFilterErrors() map[string]struct{} {
 	return filter.Errors
 }
 
+func init() {
+	var err error
+	celEnv, err = cel.NewEnv(
+		cel.Variable("image", cel.StringType),
+		cel.Variable("name", cel.StringType),
+		cel.Variable("kube_namespace", cel.StringType),
+	)
+	if err != nil {
+		panic(fmt.Sprintf("unable to create new cel env for container filter: %s", err))
+	}
+}
+
 // NewFilter creates a new container filter from a two slices of
 // regexp patterns for a include list and exclude list. Each pattern should have
 // the following format: "field:pattern" where field can be: [image, name, kube_namespace].
 // An error is returned if any of the expression don't compile.
-func NewFilter(includeList, excludeList []string) (*Filter, error) {
+func NewFilter(includeList, excludeList []string, celCondition string) (*Filter, error) {
+	celProgram, celErrs, errCel := parseCelCondition(celCondition)
 	imgIncl, nameIncl, nsIncl, filterErrsIncl, errIncl := parseFilters(includeList)
 	imgExcl, nameExcl, nsExcl, filterErrsExcl, errExcl := parseFilters(excludeList)
 
-	errors := append(filterErrsIncl, filterErrsExcl...)
+	errors := append(celErrs, filterErrsIncl...)
+	errors = append(errors, filterErrsExcl...)
 	errorsMap := make(map[string]struct{})
 	if len(errors) > 0 {
 		for _, err := range errors {
@@ -217,6 +261,9 @@ func NewFilter(includeList, excludeList []string) (*Filter, error) {
 		}
 	}
 
+	if errCel != nil {
+		return &Filter{Errors: errorsMap}, errCel
+	}
 	if errIncl != nil {
 		return &Filter{Errors: errorsMap}, errIncl
 	}
@@ -225,7 +272,8 @@ func NewFilter(includeList, excludeList []string) (*Filter, error) {
 	}
 
 	return &Filter{
-		Enabled:              len(includeList) > 0 || len(excludeList) > 0,
+		Enabled:              celProgram != nil || len(includeList) > 0 || len(excludeList) > 0,
+		CelProgram:           celProgram,
 		ImageIncludeList:     imgIncl,
 		NameIncludeList:      nameIncl,
 		NamespaceIncludeList: nsIncl,
@@ -239,6 +287,7 @@ func NewFilter(includeList, excludeList []string) (*Filter, error) {
 // newMetricFilterFromConfig creates a new container filter, sourcing patterns
 // from the pkg/config options, to be used only for metrics
 func newMetricFilterFromConfig() (*Filter, error) {
+	celCondition := config.Datadog.GetString("container_include_condition")
 	// We merge `container_include` and `container_include_metrics` as this filter
 	// is used by all core and python checks (so components sending metrics).
 	includeList := config.Datadog.GetStringSlice("container_include")
@@ -275,7 +324,7 @@ func newMetricFilterFromConfig() (*Filter, error) {
 			pauseContainerGiantSwarm,
 		)
 	}
-	return NewFilter(includeList, excludeList)
+	return NewFilter(includeList, excludeList, celCondition)
 }
 
 // NewAutodiscoveryFilter creates a new container filter for Autodiscovery
@@ -285,8 +334,10 @@ func newMetricFilterFromConfig() (*Filter, error) {
 func NewAutodiscoveryFilter(filter FilterType) (*Filter, error) {
 	includeList := []string{}
 	excludeList := []string{}
+	celCondition := ""
 	switch filter {
 	case GlobalFilter:
+		celCondition = config.Datadog.GetString("container_include_condition")
 		includeList = config.Datadog.GetStringSlice("container_include")
 		excludeList = config.Datadog.GetStringSlice("container_exclude")
 		if len(includeList) == 0 {
@@ -304,7 +355,7 @@ func NewAutodiscoveryFilter(filter FilterType) (*Filter, error) {
 		includeList = config.Datadog.GetStringSlice("container_include_logs")
 		excludeList = config.Datadog.GetStringSlice("container_exclude_logs")
 	}
-	return NewFilter(includeList, excludeList)
+	return NewFilter(includeList, excludeList, celCondition)
 }
 
 // IsExcluded returns a bool indicating if the container should be excluded
@@ -314,6 +365,27 @@ func NewAutodiscoveryFilter(filter FilterType) (*Filter, error) {
 func (cf Filter) IsExcluded(containerName, containerImage, podNamespace string) bool {
 	if !cf.Enabled {
 		return false
+	}
+
+	// Any excludeListed take precedence on container_include_condition
+	// This way we are also able to support "exclude_pause_container" being provided as an additional exclude filter
+	if cf.CelProgram != nil {
+		input := map[string]interface{}{
+			"name":           containerName,
+			"image":          containerImage,
+			"kube_namespace": podNamespace,
+		}
+		result, _, err := (*cf.CelProgram).Eval(input)
+		if err != nil {
+			log.Warnf(fmt.Sprintf(
+				"Failed evaluating condition filter on the following input: %s: %s - treating as excluded", input, err.Error(),
+			))
+			return true
+		}
+
+		if !result.(types.Bool) {
+			return true
+		}
 	}
 
 	// Any includeListed take precedence on excluded
