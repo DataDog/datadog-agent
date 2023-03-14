@@ -38,7 +38,7 @@ func TestRulesetLoaded(t *testing.T) {
 	}
 	defer test.Close()
 
-	test.module.SendStats()
+	test.cws.SendStats()
 
 	key := metrics.MetricRuleSetLoaded
 	assert.NotEmpty(t, test.statsdClient.Get(key))
@@ -56,7 +56,7 @@ func TestRulesetLoaded(t *testing.T) {
 		}, func(rule *rules.Rule, customEvent *events.CustomEvent) bool {
 			assert.Equal(t, events.RulesetLoadedRuleID, rule.ID, "wrong rule")
 
-			test.module.SendStats()
+			test.cws.SendStats()
 
 			assert.Equal(t, count+1, test.statsdClient.Get(key))
 
@@ -156,7 +156,7 @@ func TestTruncatedParentsERPC(t *testing.T) {
 func TestNoisyProcess(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID: "path_test",
-		// using a wilcard to avoid approvers on basename. events will not match thus will be noisy
+		// use the basename as an approver. The rule won't match as the parent folder differs but we will get the event because of the approver.
 		Expression: `open.file.path == "{{.Root}}/do_not_match/test-open"`,
 	}
 

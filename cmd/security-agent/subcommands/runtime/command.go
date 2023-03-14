@@ -436,11 +436,15 @@ func newAgentVersionFilter() (*rules.AgentVersionFilter, error) {
 
 func checkPoliciesInner(dir string) error {
 	cfg := &secconfig.Config{
-		PoliciesDir:         dir,
-		EnableKernelFilters: true,
-		EnableApprovers:     true,
-		EnableDiscarders:    true,
-		PIDCacheSize:        1,
+		CWSConfig: secconfig.CWSConfig{
+			PoliciesDir: dir,
+		},
+		EventMonitorConfig: secconfig.EventMonitorConfig{
+			EnableKernelFilters: true,
+			EnableApprovers:     true,
+			EnableDiscarders:    true,
+			PIDCacheSize:        1,
+		},
 	}
 
 	// enabled all the rules
@@ -552,11 +556,15 @@ func eventDataFromJSON(file string) (eval.Event, error) {
 
 func evalRule(log log.Component, config config.Component, evalArgs *evalCliParams) error {
 	cfg := &secconfig.Config{
-		PoliciesDir:         evalArgs.dir,
-		EnableKernelFilters: true,
-		EnableApprovers:     true,
-		EnableDiscarders:    true,
-		PIDCacheSize:        1,
+		CWSConfig: secconfig.CWSConfig{
+			PoliciesDir: evalArgs.dir,
+		},
+		EventMonitorConfig: secconfig.EventMonitorConfig{
+			EnableKernelFilters: true,
+			EnableApprovers:     true,
+			EnableDiscarders:    true,
+			PIDCacheSize:        1,
+		},
 	}
 
 	// enabled all the rules

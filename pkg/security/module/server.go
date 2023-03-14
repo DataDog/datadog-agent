@@ -63,7 +63,7 @@ type APIServer struct {
 	queue                []*pendingMsg
 	retention            time.Duration
 	cfg                  *config.Config
-	module               *Module
+	cwsConsumer          *CWSConsumer
 }
 
 // GetActivityDumpStream waits for activity dumps and forwards them to the stream
@@ -266,7 +266,7 @@ func (a *APIServer) GetStatus(ctx context.Context, params *api.GetStatusParams) 
 				Values:   constants,
 			},
 		},
-		SelfTests: a.module.selfTester.GetStatus(),
+		SelfTests: a.cwsConsumer.selfTester.GetStatus(),
 	}
 
 	envErrors := a.probe.VerifyEnvironment()
@@ -400,18 +400,18 @@ func (a *APIServer) GetConfig(ctx context.Context, params *api.GetConfigParams) 
 
 // RunSelfTest runs self test and then reload the current policies
 func (a *APIServer) RunSelfTest(ctx context.Context, params *api.RunSelfTestParams) (*api.SecuritySelfTestResultMessage, error) {
-	if a.module == nil {
+	if a.cwsConsumer == nil {
 		return nil, errors.New("failed to found module in APIServer")
 	}
 
-	if a.module.selfTester == nil {
+	if a.cwsConsumer.selfTester == nil {
 		return &api.SecuritySelfTestResultMessage{
 			Ok:    false,
 			Error: "self-tests are disabled",
 		}, nil
 	}
 
-	if _, err := a.module.RunSelfTest(false); err != nil {
+	if _, err := a.cwsConsumer.RunSelfTest(false); err != nil {
 		return &api.SecuritySelfTestResultMessage{
 			Ok:    false,
 			Error: err.Error(),
@@ -553,7 +553,7 @@ func (a *APIServer) SendStats() error {
 
 // ReloadPolicies reloads the policies
 func (a *APIServer) ReloadPolicies(ctx context.Context, params *api.ReloadPoliciesParams) (*api.ReloadPoliciesResultMessage, error) {
-	if err := a.module.ReloadPolicies(); err != nil {
+	if err := a.cwsConsumer.ReloadPolicies(); err != nil {
 		return nil, err
 	}
 	return &api.ReloadPoliciesResultMessage{}, nil

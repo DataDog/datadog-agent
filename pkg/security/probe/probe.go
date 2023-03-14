@@ -60,6 +60,10 @@ import (
 // EventHandler represents an handler for the events sent by the probe
 type EventHandler interface {
 	HandleEvent(event *model.Event)
+}
+
+// CustomEventHandler represents an handler for the custom events sent by the probe
+type CustomEventHandler interface {
 	HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 }
 
@@ -74,6 +78,15 @@ type EventStream interface {
 
 // NotifyDiscarderPushedCallback describe the callback used to retrieve pushed discarders information
 type NotifyDiscarderPushedCallback func(eventType string, event *model.Event, field string)
+
+var (
+	// defaultEventTypes event types used whatever the event handlers or the rules
+	defaultEventTypes = []eval.EventType{
+		model.ForkEventType.String(),
+		model.ExecEventType.String(),
+		model.ExecEventType.String(),
+	}
+)
 
 // Probe represents the runtime security eBPF probe in charge of
 // setting up the required kProbes and decoding events sent from the kernel
@@ -90,8 +103,12 @@ type Probe struct {
 	ctx            context.Context
 	cancelFnc      context.CancelFunc
 	wg             sync.WaitGroup
+
 	// Events section
-	handlers      [model.MaxAllEventType][]EventHandler
+	eventHandlers       [model.MaxAllEventType][]EventHandler
+	customEventHandlers [model.MaxAllEventType][]CustomEventHandler
+
+	// internals
 	monitor       *Monitor
 	resolvers     *resolvers.Resolvers
 	event         *model.Event
@@ -299,7 +316,15 @@ func (p *Probe) Setup() error {
 
 // Start processing events
 func (p *Probe) Start() error {
-	return p.eventStream.Start(&p.wg)
+	if err := p.eventStream.Start(&p.wg); err != nil {
+		return err
+	}
+
+	return p.updateProbes([]eval.EventType{
+		model.ForkEventType.String(),
+		model.ExecEventType.String(),
+		model.ExecEventType.String(),
+	})
 }
 
 // AddActivityDumpHandler set the probe activity dump handler
@@ -308,8 +333,25 @@ func (p *Probe) AddActivityDumpHandler(handler activitydump.ActivityDumpHandler)
 }
 
 // AddEventHandler set the probe event handler
-func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler) {
-	p.handlers[eventType] = append(p.handlers[eventType], handler)
+func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler) error {
+	if eventType >= model.MaxAllEventType {
+		return errors.New("unsupported event type")
+	}
+
+	p.eventHandlers[eventType] = append(p.eventHandlers[eventType], handler)
+
+	return nil
+}
+
+// AddCustomEventHandler set the probe event handler
+func (p *Probe) AddCustomEventHandler(eventType model.EventType, handler CustomEventHandler) error {
+	if eventType >= model.MaxAllEventType {
+		return errors.New("unsupported event type")
+	}
+
+	p.customEventHandlers[eventType] = append(p.customEventHandlers[eventType], handler)
+
+	return nil
 }
 
 // DispatchEvent sends an event to the probe event handler
@@ -320,12 +362,12 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 	})
 
 	// send wildcard first
-	for _, handler := range p.handlers[model.UnknownEventType] {
+	for _, handler := range p.eventHandlers[model.UnknownEventType] {
 		handler.HandleEvent(event)
 	}
 
 	// send specific event
-	for _, handler := range p.handlers[event.GetEventType()] {
+	for _, handler := range p.eventHandlers[event.GetEventType()] {
 		handler.HandleEvent(event)
 	}
 
@@ -343,12 +385,12 @@ func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 	// send specific event
 	if p.Config.AgentMonitoringEvents {
 		// send wildcard first
-		for _, handler := range p.handlers[model.UnknownEventType] {
+		for _, handler := range p.customEventHandlers[model.UnknownEventType] {
 			handler.HandleCustomEvent(rule, event)
 		}
 
 		// send specific event
-		for _, handler := range p.handlers[event.GetEventType()] {
+		for _, handler := range p.customEventHandlers[event.GetEventType()] {
 			handler.HandleCustomEvent(rule, event)
 		}
 	}
@@ -937,11 +979,27 @@ func (p *Probe) validEventTypeForConfig(eventType string) bool {
 	return true
 }
 
-// SelectProbes applies the loaded set of rules and returns a report
+// updateProbes applies the loaded set of rules and returns a report
 // of the applied approvers for it.
-func (p *Probe) SelectProbes(eventTypes []eval.EventType) error {
+func (p *Probe) updateProbes(ruleEventTypes []eval.EventType) error {
+	// event types enabled either by event handlers or by rules
+	eventTypes := append([]eval.EventType{}, defaultEventTypes...)
+	eventTypes = append(eventTypes, ruleEventTypes...)
+	for eventType, handlers := range p.eventHandlers {
+		if len(handlers) == 0 {
+			continue
+		}
+		if slices.Contains(eventTypes, model.EventType(eventType).String()) {
+			continue
+		}
+		if eventType != int(model.UnknownEventType) && eventType != int(model.MaxAllEventType) {
+			eventTypes = append(eventTypes, model.EventType(eventType).String())
+		}
+	}
+
 	var activatedProbes []manager.ProbesSelector
 
+	// extract probe to activate per the event types
 	for eventType, selectors := range probes.GetSelectorsPerEventType() {
 		if (eventType == "*" || slices.Contains(eventTypes, eventType) || p.isNeededForActivityDump(eventType)) && p.validEventTypeForConfig(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
@@ -950,7 +1008,7 @@ func (p *Probe) SelectProbes(eventTypes []eval.EventType) error {
 
 	activatedProbes = append(activatedProbes, p.resolvers.TCResolver.SelectTCProbes())
 
-	// Add syscall monitor probes
+	// ActivityDumps
 	if p.Config.ActivityDumpEnabled {
 		for _, e := range p.Config.ActivityDumpTracedEventTypes {
 			if e == model.SyscallsEventType {
@@ -1109,8 +1167,8 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 }
 
 // NewRuleSet returns a new rule set
-func (p *Probe) NewRuleSet() *rules.RuleSet {
-	ruleOpts, evalOpts := rules.NewEvalOpts(p.Opts.EventTypeEnabled)
+func (p *Probe) NewRuleSet(eventTypeEnabled map[eval.EventType]bool) *rules.RuleSet {
+	ruleOpts, evalOpts := rules.NewEvalOpts(eventTypeEnabled)
 
 	ruleOpts.WithLogger(seclog.DefaultLogger)
 	ruleOpts.WithSupportedDiscarders(SupportedDiscarders)
@@ -1210,7 +1268,7 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, e
 		return nil, fmt.Errorf("failed to flush discarders: %w", err)
 	}
 
-	if err := p.SelectProbes(rs.GetEventTypes()); err != nil {
+	if err := p.updateProbes(rs.GetEventTypes()); err != nil {
 		return nil, fmt.Errorf("failed to select probes: %w", err)
 	}
 

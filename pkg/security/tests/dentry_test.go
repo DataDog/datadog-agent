@@ -105,7 +105,7 @@ func TestDentryResolutionERPC(t *testing.T) {
 	}, func(event *model.Event, rule *rules.Rule) {
 		assertTriggeredRule(t, rule, "test_erpc_rule")
 
-		test.module.SendStats()
+		test.eventMonitor.SendStats()
 
 		key := metrics.MetricDentryResolverHits + ":" + metrics.ERPCTag
 		assert.NotEmpty(t, test.statsdClient.Get(key))
@@ -159,7 +159,7 @@ func TestDentryResolutionMap(t *testing.T) {
 	}, func(event *model.Event, rule *rules.Rule) {
 		assertTriggeredRule(t, rule, "test_map_rule")
 
-		test.module.SendStats()
+		test.eventMonitor.SendStats()
 
 		key := metrics.MetricDentryResolverHits + ":" + metrics.KernelMapsTag
 		assert.NotEmpty(t, test.statsdClient.Get(key))

@@ -41,7 +41,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	pmodel "github.com/DataDog/datadog-agent/pkg/process/events/model"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/activitydump"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -79,12 +79,6 @@ system_probe_config:
   enable_kernel_header_download: true
   enable_runtime_compiler: true
 
-event_monitoring_config:
-  process:
-    enabled: {{ .EventMonitoringProcessEnabled }}
-  network_process:
-    enabled: {{ .EventMonitoringNetworkEnabled }}
-
 runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
   runtime_compilation:
@@ -121,6 +115,9 @@ runtime_security_config:
 {{end}}
 {{if .DisableApprovers}}
   enable_approvers: false
+{{end}}
+{{if .DisableDiscarders}}
+  enable_discarders: false
 {{end}}
   erpc_dentry_resolution_enabled: {{ .ErpcDentryResolutionEnabled }}
   map_dentry_resolution_enabled: {{ .MapDentryResolutionEnabled }}
@@ -216,9 +213,8 @@ type testOpts struct {
 	envsWithValue                       []string
 	disableAbnormalPathCheck            bool
 	disableRuntimeSecurity              bool
-	enableEventMonitoringProcess        bool
-	enableEventMonitoringNetwork        bool
 	enableSBOM                          bool
+	preStartCallback                    func(test *testModule)
 }
 
 func (s *stringSlice) String() string {
@@ -250,8 +246,6 @@ func (to testOpts) Equal(opts testOpts) bool {
 		reflect.DeepEqual(to.envsWithValue, opts.envsWithValue) &&
 		to.disableAbnormalPathCheck == opts.disableAbnormalPathCheck &&
 		to.disableRuntimeSecurity == opts.disableRuntimeSecurity &&
-		to.enableEventMonitoringProcess == opts.enableEventMonitoringProcess &&
-		to.enableEventMonitoringNetwork == opts.enableEventMonitoringNetwork &&
 		to.enableSBOM == opts.enableSBOM
 }
 
@@ -261,7 +255,8 @@ type testModule struct {
 	opts          testOpts
 	st            *simpleTest
 	t             testing.TB
-	module        *module.Module
+	eventMonitor  *eventmonitor.EventMonitor
+	cws           *module.CWSConsumer
 	probe         *sprobe.Probe
 	eventHandlers eventHandlers
 	cmdWrapper    cmdWrapper
@@ -275,15 +270,13 @@ type onRuleHandler func(*model.Event, *rules.Rule)
 type onProbeEventHandler func(*model.Event)
 type onCustomSendEventHandler func(*rules.Rule, *events.CustomEvent)
 type onDiscarderPushedHandler func(event eval.Event, field eval.Field, eventType eval.EventType) bool
-type onProcessEventSendDataHandler func([]byte)
 
 type eventHandlers struct {
 	sync.RWMutex
-	onRuleMatch            onRuleHandler
-	onProbeEvent           onProbeEventHandler
-	onCustomSendEvent      onCustomSendEventHandler
-	onDiscarderPushed      onDiscarderPushedHandler
-	onProcessEventSendData onProcessEventSendDataHandler
+	onRuleMatch       onRuleHandler
+	onProbeEvent      onProbeEventHandler
+	onCustomSendEvent onCustomSendEventHandler
+	onDiscarderPushed onDiscarderPushedHandler
 }
 
 //nolint:deadcode,unused
@@ -662,10 +655,10 @@ func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.R
 	return testPolicyFile.Name(), nil
 }
 
-func genTestConfig(dir string, opts testOpts, testDir string) (*config.Config, error) {
+func genTestConfig(dir string, opts testOpts, testDir string) (*sysconfig.Config, *config.Config, error) {
 	tmpl, err := template.New("test-config").Parse(testConfig)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if opts.eventsCountThreshold == 0 {
@@ -711,6 +704,7 @@ func genTestConfig(dir string, opts testOpts, testDir string) (*config.Config, e
 	if err := tmpl.Execute(buffer, map[string]interface{}{
 		"TestPoliciesDir":                     dir,
 		"DisableApprovers":                    opts.disableApprovers,
+		"DisableDiscarders":                   opts.disableDiscarders,
 		"EnableActivityDump":                  opts.enableActivityDump,
 		"ActivityDumpRateLimiter":             opts.activityDumpRateLimiter,
 		"ActivityDumpTagRules":                opts.activityDumpTagRules,
@@ -727,11 +721,9 @@ func genTestConfig(dir string, opts testOpts, testDir string) (*config.Config, e
 		"LogTags":                             logTags,
 		"EnvsWithValue":                       opts.envsWithValue,
 		"RuntimeSecurityEnabled":              runtimeSecurityEnabled,
-		"EventMonitoringProcessEnabled":       opts.enableEventMonitoringProcess,
-		"EventMonitoringNetworkEnabled":       opts.enableEventMonitoringNetwork,
 		"SBOMEnabled":                         opts.enableSBOM,
 	}); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	ddConfigName, sysprobeConfigName, err := func() (string, string, error) {
@@ -754,27 +746,27 @@ func genTestConfig(dir string, opts testOpts, testDir string) (*config.Config, e
 		return ddConfig.Name(), sysprobeConfig.Name(), nil
 	}()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	err = sysconfig.SetupOptionalDatadogConfigWithDir(testDir, ddConfigName)
 	if err != nil {
-		return nil, fmt.Errorf("unable to set up datadog.yaml configuration: %s", err)
+		return nil, nil, fmt.Errorf("unable to set up datadog.yaml configuration: %s", err)
 	}
 
-	agentConfig, err := sysconfig.New(sysprobeConfigName)
+	sysProbeConfig, err := sysconfig.New(sysprobeConfigName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load config: %w", err)
+		return nil, nil, fmt.Errorf("failed to load config: %w", err)
 	}
-	config, err := config.NewConfig(agentConfig)
+	config, err := config.NewConfig(sysProbeConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load config: %w", err)
+		return nil, nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
 	config.ERPCDentryResolutionEnabled = !opts.disableERPCDentryResolution
 	config.MapDentryResolutionEnabled = !opts.disableMapDentryResolution
 
-	return config, nil
+	return sysProbeConfig, config, nil
 }
 
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, opts testOpts) (*testModule, error) {
@@ -806,7 +798,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
-	config, err := genTestConfig(st.root, opts, st.root)
+	sysProbeConfig, config, err := genTestConfig(st.root, opts, st.root)
 	if err != nil {
 		return nil, err
 	}
@@ -849,10 +841,6 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	statsdClient := NewStatsdClient()
 
-	if opts.disableApprovers {
-		config.EnableApprovers = false
-	}
-
 	testMod = &testModule{
 		config:        config,
 		opts:          opts,
@@ -864,41 +852,57 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		eventHandlers: eventHandlers{},
 	}
 
-	mod, err := module.NewModule(config, module.Opts{StatsdClient: statsdClient, EventSender: testMod, DontDiscardRuntime: true})
+	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(sysProbeConfig, statsdClient, sprobe.Opts{StatsdClient: statsdClient, DontDiscardRuntime: true})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create module: %w", err)
+		return nil, err
+	}
+	testMod.probe = testMod.eventMonitor.Probe
+
+	var ruleSetloadedErr *multierror.Error
+	if !opts.disableRuntimeSecurity {
+		cws, err := module.NewCWSConsumer(testMod.eventMonitor, module.Opts{EventSender: testMod})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create module: %w", err)
+		}
+		testMod.cws = cws
+
+		testMod.eventMonitor.RegisterEventConsumer(cws)
+
+		testMod.cws.SetRulesetLoadedCallback(func(rs *rules.RuleSet, err *multierror.Error) {
+			ruleSetloadedErr = err
+			log.Infof("Adding test module as listener")
+			rs.AddListener(testMod)
+		})
 	}
 
-	testMod.module = mod.(*module.Module)
-	testMod.probe = testMod.module.GetProbe()
+	// listen to probe event
+	if err := testMod.probe.AddEventHandler(model.UnknownEventType, testMod); err != nil {
+		return nil, err
+	}
 
-	var loadErr *multierror.Error
-	testMod.module.SetRulesetLoadedCallback(func(rs *rules.RuleSet, err *multierror.Error) {
-		loadErr = err
-		log.Infof("Adding test module as listener")
-		rs.AddListener(testMod)
-	})
-
-	testMod.probe.AddEventHandler(model.UnknownEventType, testMod)
 	testMod.probe.AddNewNotifyDiscarderPushedCallback(testMod.NotifyDiscarderPushedCallback)
 
-	if err := testMod.module.Init(); err != nil {
+	if err := testMod.eventMonitor.Init(); err != nil {
 		return nil, fmt.Errorf("failed to init module: %w", err)
 	}
 
 	kv, _ := kernel.NewKernelVersion()
 
-	if os.Getenv("DD_TESTS_RUNTIME_COMPILED") == "1" && config.RuntimeCompilationEnabled && !testMod.module.GetProbe().IsRuntimeCompiled() && !kv.IsSuseKernel() {
+	if os.Getenv("DD_TESTS_RUNTIME_COMPILED") == "1" && config.RuntimeCompilationEnabled && !testMod.eventMonitor.Probe.IsRuntimeCompiled() && !kv.IsSuseKernel() {
 		return nil, errors.New("failed to runtime compile module")
 	}
 
-	if err := testMod.module.Start(); err != nil {
+	if opts.preStartCallback != nil {
+		opts.preStartCallback(testMod)
+	}
+
+	if err := testMod.eventMonitor.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start module: %w", err)
 	}
 
-	if loadErr.ErrorOrNil() != nil {
+	if ruleSetloadedErr.ErrorOrNil() != nil {
 		defer testMod.Close()
-		return nil, loadErr.ErrorOrNil()
+		return nil, ruleSetloadedErr.ErrorOrNil()
 	}
 
 	if logStatusMetrics {
@@ -924,20 +928,10 @@ func (tm *testModule) SendEvent(rule *rules.Rule, event module.Event, extTagsCb 
 	defer tm.eventHandlers.RUnlock()
 
 	switch ev := event.(type) {
-	case *model.Event:
 	case *events.CustomEvent:
 		if tm.eventHandlers.onCustomSendEvent != nil {
 			tm.eventHandlers.onCustomSendEvent(rule, ev)
 		}
-	}
-}
-
-func (tm *testModule) SendProcessEventData(data []byte) {
-	tm.eventHandlers.RLock()
-	defer tm.eventHandlers.RUnlock()
-
-	if tm.eventHandlers.onProcessEventSendData != nil {
-		tm.eventHandlers.onProcessEventSendData(data)
 	}
 }
 
@@ -954,7 +948,7 @@ func (tm *testModule) reloadConfiguration() error {
 		return err
 	}
 
-	if err := tm.module.LoadPolicies([]rules.PolicyProvider{provider}, true); err != nil {
+	if err := tm.cws.LoadPolicies([]rules.PolicyProvider{provider}, true); err != nil {
 		return fmt.Errorf("failed to reload test module: %w", err)
 	}
 
@@ -1244,12 +1238,6 @@ func (tm *testModule) RegisterCustomSendEventHandler(cb onCustomSendEventHandler
 	tm.eventHandlers.Unlock()
 }
 
-func (tm *testModule) RegisterProcessEventSendDataHandler(cb onProcessEventSendDataHandler) {
-	tm.eventHandlers.Lock()
-	tm.eventHandlers.onProcessEventSendData = cb
-	tm.eventHandlers.Unlock()
-}
-
 func (tm *testModule) GetProbeEvent(action func() error, cb func(event *model.Event) bool, timeout time.Duration, eventTypes ...model.EventType) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1287,72 +1275,6 @@ func (tm *testModule) GetProbeEvent(action func() error, cb func(event *model.Ev
 		}
 	})
 	defer tm.RegisterProbeEventHandler(nil)
-
-	if action == nil {
-		message <- Continue
-	} else {
-		if err := action(); err != nil {
-			message <- Skip
-			return err
-		}
-		message <- Continue
-	}
-
-	select {
-	case <-time.After(timeout):
-		return NewTimeoutError(tm.probe)
-	case <-ctx.Done():
-		return nil
-	}
-}
-
-func (tm *testModule) GetProcessEvent(action func() error, cb func(event *pmodel.ProcessEvent) bool, timeout time.Duration, executablePath string, eventTypes ...pmodel.EventType) error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	message := make(chan ActionMessage, 1)
-	var event pmodel.ProcessEvent
-
-	tm.RegisterProcessEventSendDataHandler(func(data []byte) {
-		if _, err := event.UnmarshalMsg(data); err != nil {
-			tm.t.Logf("failed to unmarshall process event: %v\n", err)
-			return
-		}
-
-		if len(eventTypes) > 0 {
-			match := false
-			for _, eventType := range eventTypes {
-				if event.EventType == eventType {
-					match = true
-					break
-				}
-			}
-			if !match {
-				return
-			}
-		}
-
-		if executablePath != "" && event.Exe != executablePath {
-			return
-		}
-
-		select {
-		case <-ctx.Done():
-			return
-		case msg := <-message:
-			switch msg {
-			case Continue:
-				if cb(&event) {
-					cancel()
-				} else {
-					message <- Continue
-				}
-			case Skip:
-				cancel()
-			}
-		}
-	})
-	defer tm.RegisterProcessEventSendDataHandler(nil)
 
 	if action == nil {
 		message <- Continue
@@ -1485,7 +1407,7 @@ func (tm *testModule) startTracing() (*tracePipeLogger, error) {
 }
 
 func (tm *testModule) cleanup() {
-	tm.module.Close()
+	tm.eventMonitor.Close()
 }
 
 func (tm *testModule) validateAbnormalPaths() {
@@ -1494,7 +1416,7 @@ func (tm *testModule) validateAbnormalPaths() {
 
 func (tm *testModule) Close() {
 	if tm.config.RuntimeEnabled {
-		tm.module.SendStats()
+		tm.eventMonitor.SendStats()
 	}
 
 	if !tm.opts.disableAbnormalPathCheck {

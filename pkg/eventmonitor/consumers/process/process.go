@@ -6,23 +6,26 @@
 //go:build linux
 // +build linux
 
-package module
+package process
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
-	"github.com/DataDog/datadog-agent/pkg/security/events"
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ProcessMonitoring describes a process monitoring object
-type ProcessMonitoring struct {
-	module *Module
+// ProcessConsumer describes a process monitoring object
+type ProcessConsumer struct{}
+
+func (p *ProcessConsumer) Start() error {
+	return nil
+}
+
+func (p *ProcessConsumer) Stop() {
 }
 
 // HandleEvent implement the EventHandler interface
-func (p *ProcessMonitoring) HandleEvent(event *smodel.Event) {
+func (p *ProcessConsumer) HandleEvent(event *smodel.Event) {
 	// Force resolution of all event fields before exposing it through the API server
 	event.ResolveFields()
 	event.ResolveEventTimestamp()
@@ -56,22 +59,39 @@ func (p *ProcessMonitoring) HandleEvent(event *smodel.Event) {
 		ExitCode:       event.Exit.Code,
 	}
 
-	data, err := e.MarshalMsg(nil)
-	if err != nil {
-		log.Error("Failed to marshal Process Lifecycle Event: ", err)
-		return
-	}
+	_ = e
 
-	p.module.SendProcessEvent(data)
+	// TODO
+
+	/*
+		data, err := e.MarshalMsg(nil)
+		if err != nil {
+			log.Error("Failed to marshal Process Lifecycle Event: ", err)
+			return
+		}
+
+
+		p.module.SendProcessEvent(data)*/
 }
 
-// HandleCustomEvent implement the EventHandler interface
-func (p *ProcessMonitoring) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
+// ID returns id for process monitor
+func (p *ProcessConsumer) ID() string {
+	return "PROCESS"
 }
 
-// NewProcessMonitoring returns a new ProcessMonitoring instance
-func NewProcessMonitoring(module *Module) *ProcessMonitoring {
-	return &ProcessMonitoring{
-		module: module,
+// NewProcessConsumer returns a new ProcessConsumer instance
+func NewProcessConsumer(evm *eventmonitor.EventMonitor) (*ProcessConsumer, error) {
+	p := &ProcessConsumer{}
+
+	if err := evm.AddEventTypeHandler(smodel.ForkEventType, p); err != nil {
+		return nil, err
 	}
+	if err := evm.AddEventTypeHandler(smodel.ExecEventType, p); err != nil {
+		return nil, err
+	}
+	if err := evm.AddEventTypeHandler(smodel.ExitEventType, p); err != nil {
+		return nil, err
+	}
+
+	return p, nil
 }
