@@ -299,35 +299,21 @@ func injectLibInitContainer(pod *corev1.Pod, image string, lang language) error 
 func initResources() (corev1.ResourceRequirements, bool, error) {
 	hasResources := false
 	var resources = corev1.ResourceRequirements{Limits: corev1.ResourceList{}, Requests: corev1.ResourceList{}}
-	if config.Datadog.IsSet("admission_controller.auto_instrumentation.init_resources.cpu.request") {
-		quantity, err := resource.ParseQuantity(config.Datadog.GetString("admission_controller.auto_instrumentation.init_resources.cpu.request"))
+	if config.Datadog.IsSet("admission_controller.auto_instrumentation.init_resources.cpu") {
+		quantity, err := resource.ParseQuantity(config.Datadog.GetString("admission_controller.auto_instrumentation.init_resources.cpu"))
 		if err != nil {
 			return resources, hasResources, err
 		}
 		resources.Requests[corev1.ResourceCPU] = quantity
-		hasResources = true
-	}
-	if config.Datadog.IsSet("admission_controller.auto_instrumentation.init_resources.cpu.limit") {
-		quantity, err := resource.ParseQuantity(config.Datadog.GetString("admission_controller.auto_instrumentation.init_resources.cpu.limit"))
-		if err != nil {
-			return resources, hasResources, err
-		}
 		resources.Limits[corev1.ResourceCPU] = quantity
 		hasResources = true
 	}
-	if config.Datadog.IsSet("admission_controller.auto_instrumentation.init_resources.memory.request") {
-		quantity, err := resource.ParseQuantity(config.Datadog.GetString("admission_controller.auto_instrumentation.init_resources.memory.request"))
+	if config.Datadog.IsSet("admission_controller.auto_instrumentation.init_resources.memory") {
+		quantity, err := resource.ParseQuantity(config.Datadog.GetString("admission_controller.auto_instrumentation.init_resources.memory"))
 		if err != nil {
 			return resources, hasResources, err
 		}
 		resources.Requests[corev1.ResourceMemory] = quantity
-		hasResources = true
-	}
-	if config.Datadog.IsSet("admission_controller.auto_instrumentation.init_resources.memory.limit") {
-		quantity, err := resource.ParseQuantity(config.Datadog.GetString("admission_controller.auto_instrumentation.init_resources.memory.limit"))
-		if err != nil {
-			return resources, hasResources, err
-		}
 		resources.Limits[corev1.ResourceMemory] = quantity
 		hasResources = true
 	}
