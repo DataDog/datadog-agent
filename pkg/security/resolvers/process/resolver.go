@@ -1186,8 +1186,9 @@ func (p *Resolver) Dump(withArgs bool) (string, error) {
 		return "", err
 	}
 
+	defer dump.Close()
+
 	if err := os.Chmod(dump.Name(), 0400); err != nil {
-		dump.Close()
 		return "", err
 	}
 
@@ -1202,8 +1203,8 @@ func (p *Resolver) Dump(withArgs bool) (string, error) {
 	}
 
 	fmt.Fprintf(dump, `}`)
-	err = dump.Close()
-	if err != nil {
+
+	if err = dump.Close(); err != nil {
 		return "", fmt.Errorf("could not close close file [%s]: %w", dump.Name(), err)
 	}
 	return dump.Name(), nil
