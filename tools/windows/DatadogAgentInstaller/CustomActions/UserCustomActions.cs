@@ -359,17 +359,18 @@ namespace Datadog.CustomActions
 
                 if (!isServiceAccount &&
                     !isDomainAccount  &&
+                    session.InstallState.FirstInstall &&
                     string.IsNullOrEmpty(ddAgentUserPassword))
                 {
                     session.Log("Generating a random password");
                     ddAgentUserPassword = GetRandomPassword(128);
-                    session.Components["InstallerManagedAgentUser"].RequestState = InstallState.Local;
-                    session.Components["UserManagedAgentUser"].RequestState = InstallState.Absent;
+                    session.Components["InstallerManagedAgentUser"].RequestState = Microsoft.Deployment.WindowsInstaller.InstallState.Local;
+                    session.Components["UserManagedAgentUser"].RequestState = Microsoft.Deployment.WindowsInstaller.InstallState.Absent;
                 }
                 else
                 {
-                    session.Components["InstallerManagedAgentUser"].RequestState = InstallState.Absent;
-                    session.Components["UserManagedAgentUser"].RequestState = InstallState.Local;
+                    session.Components["InstallerManagedAgentUser"].RequestState = Microsoft.Deployment.WindowsInstaller.InstallState.Absent;
+                    session.Components["UserManagedAgentUser"].RequestState = Microsoft.Deployment.WindowsInstaller.InstallState.Local;
                 }
 
                 if (!string.IsNullOrEmpty(ddAgentUserPassword) && isServiceAccount)

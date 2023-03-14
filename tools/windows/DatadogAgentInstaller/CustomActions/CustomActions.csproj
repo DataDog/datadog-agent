@@ -60,8 +60,10 @@
     <Compile Include="ConfigCustomActions.cs" />
     <Compile Include="Flare.cs" />
     <Compile Include="IInstallerHttpClient.cs" />
+    <Compile Include="IInstallState.cs" />
     <Compile Include="InstallerWebClient.cs" />
     <Compile Include="InstallInfoCustomActions.cs" />
+    <Compile Include="InstallState.cs" />
     <Compile Include="NpmCustomAction.cs" />
     <Compile Include="PatchInstallerCustomAction.cs" />
     <Compile Include="PythonDistributionCustomAction.cs" />

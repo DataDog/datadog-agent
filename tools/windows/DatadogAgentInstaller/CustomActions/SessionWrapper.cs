@@ -12,10 +12,12 @@ namespace Datadog.CustomActions
     public class SessionWrapper : ISession
     {
         private readonly Session _session;
+        private readonly InstallState _state;
 
         public SessionWrapper(Session session)
         {
             _session = session;
+            _state = new InstallState(this);
         }
 
         public string this[string property]
@@ -39,5 +41,6 @@ namespace Datadog.CustomActions
         public FeatureInfoCollection Features => _session.Features;
 
         public CustomActionData CustomActionData => _session.CustomActionData;
+        public IInstallState InstallState => _state;
     }
 }
