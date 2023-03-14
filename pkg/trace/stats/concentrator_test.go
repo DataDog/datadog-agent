@@ -526,3 +526,19 @@ func TestIgnoresPartialSpans(t *testing.T) {
 	stats := c.flushNow(now.UnixNano() + int64(c.bufferLen)*testBucketInterval)
 	assert.Empty(stats.GetStats())
 }
+
+// TestPeerServiceStats tests that if peer.service is present in the span's meta, we will generate stats with it as an additional field.
+func TestPeerServiceStats(t *testing.T) {
+	assert := assert.New(t)
+	now := time.Now()
+	sp := testSpan(1, 0, 50, 5, "myservice", "rsrc-a", 0)
+	sp.Meta = map[string]string{"peer.service": "remote-service"}
+	spans := []*pb.Span{sp}
+	traceutil.ComputeTopLevel(spans)
+	testTrace := toProcessedTrace(spans, "none", "")
+	c := NewTestConcentrator(now)
+	c.addNow(testTrace, "")
+	stats := c.flushNow(now.UnixNano() + int64(c.bufferLen)*testBucketInterval)
+	assert.EqualValues(1, stats.Stats[0].Stats[0].Stats[0].Hits)
+	assert.Equal("remote-service", stats.Stats[0].Stats[0].Stats[0].PeerService)
+}
