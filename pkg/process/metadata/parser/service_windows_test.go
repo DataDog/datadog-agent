@@ -57,7 +57,7 @@ func TestWindowsExtractServiceMetadata(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockConfig := ddconfig.Mock(t)
+			mockConfig := ddconfig.MockSystemProbe(t)
 			mockConfig.Set("service_monitoring_config.process_service_inference.enabled", true)
 
 			proc := procutil.Process{
@@ -87,7 +87,7 @@ func TestWindowsExtractServiceWithSCMReader(t *testing.T) {
 	}
 
 	t.Run("disabled", func(t *testing.T) {
-		cfg := ddconfig.Mock(t)
+		cfg := ddconfig.MockSystemProbe(t)
 		cfg.Set("service_monitoring_config.process_service_inference.enabled", true)
 		cfg.Set("service_monitoring_config.process_service_inference.use_windows_service_name", false)
 
@@ -99,7 +99,7 @@ func TestWindowsExtractServiceWithSCMReader(t *testing.T) {
 	})
 
 	t.Run("enabled", func(t *testing.T) {
-		cfg := ddconfig.Mock(t)
+		cfg := ddconfig.MockSystemProbe(t)
 		cfg.Set("service_monitoring_config.process_service_inference.use_windows_service_name", true)
 		cfg.Set("service_monitoring_config.process_service_inference.enabled", true)
 
@@ -113,7 +113,7 @@ func TestWindowsExtractServiceWithSCMReader(t *testing.T) {
 	})
 
 	t.Run("enabled, multiple results", func(t *testing.T) {
-		cfg := ddconfig.Mock(t)
+		cfg := ddconfig.MockSystemProbe(t)
 		cfg.Set("service_monitoring_config.process_service_inference.use_windows_service_name", true)
 		cfg.Set("service_monitoring_config.process_service_inference.enabled", true)
 
@@ -127,7 +127,7 @@ func TestWindowsExtractServiceWithSCMReader(t *testing.T) {
 	})
 
 	t.Run("fallback_to_parsing", func(t *testing.T) {
-		cfg := ddconfig.Mock(t)
+		cfg := ddconfig.MockSystemProbe(t)
 		cfg.Set("service_monitoring_config.process_service_inference.use_windows_service_name", true)
 		cfg.Set("service_monitoring_config.process_service_inference.enabled", true)
 
