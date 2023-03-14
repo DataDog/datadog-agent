@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -460,6 +461,97 @@ func TestInjectLibConfig(t *testing.T) {
 				}
 			}
 			require.Equal(t, len(tt.expectedEnvs), envCount)
+		})
+	}
+}
+
+func TestInjectLibInitContainer(t *testing.T) {
+	tests := []struct {
+		name     string
+		cpuLimit string
+		cpuReq   string
+		memLimit string
+		memReq   string
+		pod      *corev1.Pod
+		image    string
+		lang     language
+		wantErr  bool
+	}{
+		{
+			name:    "no resources",
+			pod:     fakePod("java-pod"),
+			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:    java,
+			wantErr: false,
+		},
+		{
+			name:     "with resources",
+			pod:      fakePod("java-pod"),
+			cpuLimit: "100m",
+			cpuReq:   "50",
+			memLimit: "1Gi",
+			memReq:   "500",
+			image:    "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:     java,
+			wantErr:  false,
+		},
+		{
+			name:     "with partial resources",
+			pod:      fakePod("java-pod"),
+			cpuLimit: "200m",
+			memLimit: "512Mi",
+			image:    "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:     java,
+			wantErr:  false,
+		},
+		{
+			name:     "with invalid resources",
+			pod:      fakePod("java-pod"),
+			cpuLimit: "foo",
+			image:    "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:     java,
+			wantErr:  true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf := config.Mock(t)
+			if tt.cpuLimit != "" {
+				conf.Set("admission_controller.auto_instrumentation.init_resources.cpu.limit", tt.cpuLimit)
+			}
+			if tt.cpuReq != "" {
+				conf.Set("admission_controller.auto_instrumentation.init_resources.cpu.request", tt.cpuReq)
+			}
+			if tt.memLimit != "" {
+				conf.Set("admission_controller.auto_instrumentation.init_resources.memory.limit", tt.memLimit)
+			}
+			if tt.memReq != "" {
+				conf.Set("admission_controller.auto_instrumentation.init_resources.memory.request", tt.memReq)
+			}
+			err := injectLibInitContainer(tt.pod, tt.image, tt.lang)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("injectLibInitContainer() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if err != nil {
+				return
+			}
+			require.Len(t, tt.pod.Spec.InitContainers, 1)
+			if tt.cpuLimit != "" {
+				quantity := tt.pod.Spec.InitContainers[0].Resources.Limits[corev1.ResourceCPU]
+				require.Equal(t, tt.cpuLimit, quantity.String())
+			}
+			if tt.cpuReq != "" {
+				quantity := tt.pod.Spec.InitContainers[0].Resources.Requests[corev1.ResourceCPU]
+				require.Equal(t, tt.cpuReq, quantity.String())
+			}
+			if tt.memLimit != "" {
+				quantity := tt.pod.Spec.InitContainers[0].Resources.Limits[corev1.ResourceMemory]
+				require.Equal(t, tt.memLimit, quantity.String())
+			}
+			if tt.memReq != "" {
+				quantity := tt.pod.Spec.InitContainers[0].Resources.Requests[corev1.ResourceMemory]
+				require.Equal(t, tt.memReq, quantity.String())
+			}
 		})
 	}
 }
