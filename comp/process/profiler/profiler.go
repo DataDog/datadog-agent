@@ -35,7 +35,7 @@ func newProfiler(deps dependencies) Component {
 	settings := getProfilingSettings(deps.Config)
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
-			if deps.Config.GetBool("process_config.internal_profiling") {
+			if deps.Config.GetBool("process_config.internal_profiling.enabled") {
 				err := p.Start(settings)
 				if err != nil {
 					_ = log.Warn("Failed to enable profiling:", err.Error())

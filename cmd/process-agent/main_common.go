@@ -243,7 +243,6 @@ func initMisc(deps miscDeps) error {
 
 	// Setup workloadmeta
 	var workloadmetaCollectors workloadmeta.CollectorCatalog
-	// TODO: move these deps.Configs to after dddeps.Config.Datadog is called
 	if deps.Config.GetBool("process_config.remote_workloadmeta") {
 		workloadmetaCollectors = workloadmeta.RemoteCatalog
 	} else {
@@ -287,6 +286,10 @@ func initMisc(deps miscDeps) error {
 			if err != nil {
 				_ = log.Errorf("failed to start the tagger: %s", err)
 			}
+
+			go func() {
+				_ = expvarServer.ListenAndServe()
+			}()
 
 			// Run API server
 			err = api.StartServer()
