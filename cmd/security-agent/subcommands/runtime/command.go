@@ -51,8 +51,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-
-	kerrors "k8s.io/apimachinery/pkg/util/errors"
 )
 
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -806,12 +804,14 @@ func downloadPolicy(log log.Component, config config.Component, downloadPolicyAr
 	}
 
 	_, err = outputWriter.Write(resBytes)
-	if outputFile != nil {
-		err = kerrors.NewAggregate([]error{
-			err,
-			outputFile.Close(),
-		})
+	if err != nil {
+		return err
 	}
+
+	if outputFile != nil {
+		return outputFile.Close()
+	}
+
 	return err
 }
 
