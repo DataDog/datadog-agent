@@ -42,7 +42,7 @@ func newProcessor(workloadmetaStore workloadmeta.Store, sender aggregator.Sender
 					Version:  1,
 					Source:   &sourceAgent,
 					Entities: entities,
-					DdEnv:    envVarEnv,
+					DdEnv:    &envVarEnv,
 				},
 			})
 		}),
