@@ -30,6 +30,10 @@
 // Http2 max batch size.
 #define HTTP2_BATCH_SIZE 10
 
+#define MAX_6_BITS 63
+
+#define MAX_7_BITS 127
+
 typedef enum {
     kMethod = 2,
     kPath = 4,
