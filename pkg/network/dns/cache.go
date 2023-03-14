@@ -12,26 +12,26 @@ import (
 	"sync"
 	"time"
 
+	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Telemetry
 var cacheTelemetry = struct {
-	length    telemetry.Gauge
-	lookups   telemetry.Gauge
-	resolved  telemetry.Gauge
-	added     telemetry.Gauge
-	expired   telemetry.Gauge
-	oversized telemetry.Gauge
+	length    nettelemetry.StatGaugeWrapper
+	lookups   nettelemetry.StatGaugeWrapper
+	resolved  nettelemetry.StatGaugeWrapper
+	added     nettelemetry.StatGaugeWrapper
+	expired   nettelemetry.StatGaugeWrapper
+	oversized nettelemetry.StatGaugeWrapper
 }{
-	telemetry.NewGauge(dnsModuleName, "length", []string{}, "Gauge measuring the current size of the DNS cache"),
-	telemetry.NewGauge(dnsModuleName, "lookups", []string{}, "Gauge measuring the number of lookups to the DNS cache"),
-	telemetry.NewGauge(dnsModuleName, "resolved", []string{}, "Gauge measuring the number of successful lookups to the DNS cache"),
-	telemetry.NewGauge(dnsModuleName, "added", []string{}, "Gauge measuring the number of additions to the DNS cache"),
-	telemetry.NewGauge(dnsModuleName, "expired", []string{}, "Gauge measuring the number of failed lookups to the DNS cache"),
-	telemetry.NewGauge(dnsModuleName, "oversized", []string{}, "Gauge measuring the number of lookups to the DNS cache that reached the max domains per IP limit"),
+	nettelemetry.NewStatGaugeWrapper(dnsModuleName, "length", []string{}, "Gauge measuring the current size of the DNS cache"),
+	nettelemetry.NewStatGaugeWrapper(dnsModuleName, "lookups", []string{}, "Gauge measuring the number of lookups to the DNS cache"),
+	nettelemetry.NewStatGaugeWrapper(dnsModuleName, "resolved", []string{}, "Gauge measuring the number of successful lookups to the DNS cache"),
+	nettelemetry.NewStatGaugeWrapper(dnsModuleName, "added", []string{}, "Gauge measuring the number of additions to the DNS cache"),
+	nettelemetry.NewStatGaugeWrapper(dnsModuleName, "expired", []string{}, "Gauge measuring the number of failed lookups to the DNS cache"),
+	nettelemetry.NewStatGaugeWrapper(dnsModuleName, "oversized", []string{}, "Gauge measuring the number of lookups to the DNS cache that reached the max domains per IP limit"),
 }
 
 type reverseDNSCache struct {
@@ -94,7 +94,7 @@ func (c *reverseDNSCache) Add(translation *translation) bool {
 	}
 
 	// Update cache length for telemetry purposes
-	cacheTelemetry.length.Set(float64((len(c.data))))
+	cacheTelemetry.length.Set(int64((len(c.data))))
 
 	return true
 }
@@ -145,9 +145,9 @@ func (c *reverseDNSCache) Get(ips []util.Address) map[util.Address][]Hostname {
 	}
 
 	// Update stats for telemetry
-	cacheTelemetry.lookups.Add(float64((len(resolved) + len(unresolved))))
-	cacheTelemetry.resolved.Add(float64(len(resolved)))
-	cacheTelemetry.oversized.Add(float64(len(oversized)))
+	cacheTelemetry.lookups.Add(int64((len(resolved) + len(unresolved))))
+	cacheTelemetry.resolved.Add(int64(len(resolved)))
+	cacheTelemetry.oversized.Add(int64(len(oversized)))
 
 	return resolved
 }
@@ -183,8 +183,8 @@ func (c *reverseDNSCache) Expire(now time.Time) {
 	total := len(c.data)
 	c.mux.Unlock()
 
-	cacheTelemetry.expired.Set(float64(expired))
-	cacheTelemetry.length.Set(float64(total))
+	cacheTelemetry.expired.Set(int64(expired))
+	cacheTelemetry.length.Set(int64(total))
 	log.Debugf(
 		"dns entries expired. took=%s total=%d expired=%d\n",
 		time.Now().Sub(now), total, expired,
