@@ -231,8 +231,11 @@ func containerResourceLimitsTransformer(s aggregator.Sender, name string, metric
 func submitContainerResourceMetric(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, metricSuffix string) {
 
 	var allowedResources = map[string]string{
-		"cpu":                             "cpu",
-		"memory":                          "memory",
+		"cpu":    "cpu",
+		"memory": "memory",
+		// Note: the following does not work out of the box, because it is filtered out of KSM metrics by default.
+		//       and needs to be grabbed some other way. At time of commit, this is via customresources/pod.go.
+		//       More info: https://github.com/kubernetes/kube-state-metrics/issues/2027
 		"kubernetes_io_network_bandwidth": "network_bandwidth",
 	}
 
@@ -264,10 +267,13 @@ func nodeCapacityTransformer(s aggregator.Sender, name string, metric ksmstore.D
 func submitNodeResourceMetric(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, metricSuffix string) {
 
 	var allowedResources = map[string]string{
-		"cpu":                             "cpu",
-		"memory":                          "memory",
-		"pods":                            "pods",
-		"ephemeral_storage":               "ephemeral_storage",
+		"cpu":               "cpu",
+		"memory":            "memory",
+		"pods":              "pods",
+		"ephemeral_storage": "ephemeral_storage",
+		// Note: the following does not work out of the box, because it is filtered out of KSM metrics by default.
+		//       and needs to be grabbed some other way. At time of commit, this is via customresources/node.go.
+		//       More info: https://github.com/kubernetes/kube-state-metrics/issues/2027
 		"kubernetes_io_network_bandwidth": "network_bandwidth",
 	}
 

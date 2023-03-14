@@ -49,6 +49,9 @@ func (f *extendedPodFactory) CreateClient(cfg *rest.Config) (interface{}, error)
 
 // MetricFamilyGenerators returns the extended pod metric family generators
 func (f *extendedPodFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
+	// At the time of writing this, this is necessary in order for us to have access to the "kubernetes.io/network-bandwidth" resource
+	// type, as the default KSM offering explicitly filters out anything that is prefixed with "kubernetes.io/"
+	// More information can be found here: https://github.com/kubernetes/kube-state-metrics/issues/2027
 	return []generator.FamilyGenerator{
 		*generator.NewFamilyGenerator(
 			"kube_pod_container_extended_resource_requests",
