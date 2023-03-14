@@ -368,6 +368,7 @@ namespace WixSetup.Datadog
                 "Datadog Process Agent",
                 "Send process metrics to Datadog",
                 "LocalSystem",
+                null,
                 "--cfgpath=\"[APPLICATIONDATADIRECTORY]\\datadog.yaml\"");
             var traceAgentService = GenerateDependentServiceInstaller(
                 new Id("ddagenttraceservice"),
