@@ -165,27 +165,6 @@ func badgerCachePut[T cachedObject](cache *BadgerCache, id string, info T) error
 	return nil
 }
 
-func (cache *BadgerCache) refreshTTL(id string) error {
-	err := cache.db.Update(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte(id))
-		if err != nil {
-			return err
-		}
-		if item.IsDeletedOrExpired() {
-			return nil
-		}
-		var value []byte
-		item.Value(func(val []byte) error {
-			value = val
-			return nil
-		})
-		entry := badger.NewEntry(item.Key(), value).WithTTL(cache.ttl)
-		return txn.SetEntry(entry)
-	})
-
-	return err
-}
-
 func (cache *BadgerCache) PutArtifact(artifactID string, artifactInfo types.ArtifactInfo) error {
 	return badgerCachePut(cache, artifactID, artifactInfo)
 }

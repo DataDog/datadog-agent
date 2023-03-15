@@ -147,32 +147,6 @@ func TestBadgerCache_Clear(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestBadgerCache_RefreshTTL(t *testing.T) {
-	shortTTL := 5 * time.Second
-	timeBeforeRefresh := 3 * time.Second
-	timeAfterRefresh := shortTTL - timeBeforeRefresh
-	cache, err := NewBadgerCache(t.TempDir(), shortTTL)
-	require.NoError(t, err)
-
-	defer func() {
-		require.NoError(t, cache.Close())
-	}()
-
-	artifactID := "some_ID"
-	artifact := newTestArtifactInfo()
-	err = cache.PutArtifact(artifactID, artifact)
-	require.NoError(t, err)
-
-	time.Sleep(timeBeforeRefresh)
-
-	cache.refreshTTL(artifactID)
-
-	time.Sleep(timeAfterRefresh)
-	cachedArtifact, err := cache.GetArtifact(artifactID)
-	require.NoError(t, err)
-	require.Equal(t, artifact, cachedArtifact)
-}
-
 func newTestArtifactInfo() types.ArtifactInfo {
 	return types.ArtifactInfo{
 		SchemaVersion: 1,
