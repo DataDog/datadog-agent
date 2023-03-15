@@ -293,7 +293,7 @@ func extractPodConditions(p *corev1.Pod) (conditions []*model.PodCondition, cond
 
 		conditions = append(conditions, c)
 
-		conditionTag := fmt.Sprintf("pod_condition_%s:%s", strings.ToLower(string(condition.Type)), strings.ToLower(string(condition.Status)))
+		conditionTag := fmt.Sprintf("kube_condition_%s:%s", strings.ToLower(string(condition.Type)), strings.ToLower(string(condition.Status)))
 		conditionTags = append(conditionTags, conditionTag)
 	}
 
