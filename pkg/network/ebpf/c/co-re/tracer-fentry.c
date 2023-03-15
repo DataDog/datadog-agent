@@ -547,7 +547,6 @@ int BPF_PROG(do_sendfile_exit, int out_fd, int in_fd, loff_t *ppos,
 static __always_inline struct sk_buff* process_ip6_make_skb_ret(struct sock *sk, int length, struct flowi6 *fl6, struct sk_buff *rc) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
-
     size_t size = (size_t)length;
     size = size - sizeof(struct udphdr);
 
@@ -593,7 +592,7 @@ static __always_inline struct sk_buff* process_ip6_make_skb_ret(struct sock *sk,
         t.dport = bpf_ntohs(t.dport);
     }
 
-    log_debug("kprobe/ip6_make_skb: pid_tgid: %d, size: %d\n", pid_tgid, size);
+    log_debug("fexit/ip6_make_skb: pid_tgid: %d, size: %d\n", pid_tgid, size);
     handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_INCREMENT, sk);
     increment_telemetry_count(udp_send_processed);
 
