@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package debugging
+package serverDebugging
 
 import (
 	"github.com/DataDog/sketches-go/ddsketch"

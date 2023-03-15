@@ -8,7 +8,6 @@ package server
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"expvar"
 	"fmt"
 	"net"
@@ -18,6 +17,7 @@ import (
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
@@ -64,6 +64,7 @@ type dependencies struct {
 
 	Log    logComponent.Component
 	Config configComponent.Component
+	Debug  serverDebug.Component
 	Params Params
 }
 
@@ -106,7 +107,7 @@ type server struct {
 	histToDist              bool
 	histToDistPrefix        string
 	extraTags               []string
-	Debug                   *DsdServerDebug
+	Debug                   serverDebug.Component
 
 	TCapture                *replay.TrafficCapture
 	mapper                  *mapper.MetricMapper
@@ -180,15 +181,15 @@ func initTelemetry(cfg config.ConfigReader, logger logComponent.Component) {
 
 // TODO: (components) - remove once serverless is an FX app
 func NewServerlessServer() Component {
-	return newServerCompat(config.Datadog, logComponent.NewTemporaryLoggerWithoutInit(), true)
+	return newServerCompat(config.Datadog, logComponent.NewTemporaryLoggerWithoutInit(), serverDebug.NewServerlessServerDebug(), true)
 }
 
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
 func newServer(deps dependencies) Component {
-	return newServerCompat(deps.Config, deps.Log, deps.Params.Serverless)
+	return newServerCompat(deps.Config, deps.Log, deps.Debug, deps.Params.Serverless)
 }
 
-func newServerCompat(cfg config.ConfigReader, log logComponent.Component, serverless bool) Component {
+func newServerCompat(cfg config.ConfigReader, log logComponent.Component, debug serverDebug.Component, serverless bool) Component {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry(cfg, log) })
 
@@ -270,7 +271,7 @@ func newServerCompat(cfg config.ConfigReader, log logComponent.Component, server
 		eolTerminationUDS:       eolTerminationUDS,
 		eolTerminationNamedPipe: eolTerminationNamedPipe,
 		disableVerboseLogs:      cfg.GetBool("dogstatsd_disable_verbose_logs"),
-		Debug:                   newDSDServerDebug(),
+		Debug:                   debug,
 		originTelemetry: cfg.GetBool("telemetry.enabled") &&
 			cfg.GetBool("telemetry.dogstatsd_origin"),
 		TCapture:             nil,
@@ -379,7 +380,7 @@ func (s *server) Start(demultiplexer aggregator.Demultiplexer) error {
 
 	if s.config.GetBool("dogstatsd_metrics_stats_enable") {
 		s.log.Info("Dogstatsd: metrics statistics will be stored.")
-		s.EnableMetricsStats()
+		s.Debug.EnableMetricsStats()
 	}
 
 	// map some metric name
@@ -424,81 +425,6 @@ func (s *server) IsRunning() bool {
 // an empty path will default to the default location. Returns an error if any.
 func (s *server) Capture(p string, d time.Duration, compressed bool) (string, error) {
 	return s.TCapture.Start(p, d, compressed)
-}
-
-// GetJSONDebugStats returns jsonified debug statistics.
-func (s *server) GetJSONDebugStats() ([]byte, error) {
-	s.Debug.Lock()
-	defer s.Debug.Unlock()
-	return json.Marshal(s.Debug.Stats)
-}
-
-func (s *server) IsDebugEnabled() bool {
-	return s.Debug.Enabled.Load()
-}
-
-// EnableMetricsStats enables the debug mode of the DogStatsD server and start
-// the debug mainloop collecting the amount of metrics received.
-func (s *server) EnableMetricsStats() {
-	s.Debug.Lock()
-	defer s.Debug.Unlock()
-
-	// already enabled?
-	if s.Debug.Enabled.Load() {
-		return
-	}
-
-	s.Debug.Enabled.Store(true)
-	go func() {
-		ticker := s.Debug.clock.Ticker(time.Millisecond * 100)
-		var closed bool
-		s.log.Debug("Starting the DogStatsD debug loop.")
-		for {
-			select {
-			case <-ticker.C:
-				sec := s.Debug.clock.Now().Truncate(time.Second)
-				if sec.After(s.Debug.metricsCounts.currentSec) {
-					s.Debug.metricsCounts.currentSec = sec
-					if s.hasSpike() {
-						s.log.Warnf("A burst of metrics has been detected by DogStatSd: here is the last 5 seconds count of metrics: %v", s.Debug.metricsCounts.counts)
-					}
-
-					s.Debug.metricsCounts.bucketIdx++
-
-					if s.Debug.metricsCounts.bucketIdx >= len(s.Debug.metricsCounts.counts) {
-						s.Debug.metricsCounts.bucketIdx = 0
-					}
-
-					s.Debug.metricsCounts.counts[s.Debug.metricsCounts.bucketIdx] = 0
-				}
-			case <-s.Debug.metricsCounts.metricChan:
-				s.Debug.metricsCounts.counts[s.Debug.metricsCounts.bucketIdx]++
-			case <-s.Debug.metricsCounts.closeChan:
-				closed = true
-				break
-			}
-
-			if closed {
-				break
-			}
-		}
-		s.log.Debug("Stopping the DogStatsD debug loop.")
-		ticker.Stop()
-	}()
-}
-
-// DisableMetricsStats disables the debug mode of the DogStatsD server and
-// stops the debug mainloop.
-func (s *server) DisableMetricsStats() {
-	s.Debug.Lock()
-	defer s.Debug.Unlock()
-
-	if s.Debug.Enabled.Load() {
-		s.Debug.Enabled.Store(false)
-		s.Debug.metricsCounts.closeChan <- struct{}{}
-	}
-
-	s.log.Info("Disabling DogStatsD debug metrics stats.")
 }
 
 func (s *server) UdsListenerRunning() bool {
@@ -614,19 +540,6 @@ func nextMessage(packet *[]byte, eolTermination bool) (message []byte) {
 	return message
 }
 
-func (s *server) hasSpike() bool {
-	// compare this one to the sum of all others
-	// if the difference is higher than all others sum, consider this
-	// as an anomaly.
-	var sum uint64
-	for _, v := range s.Debug.metricsCounts.counts {
-		sum += v
-	}
-	sum -= s.Debug.metricsCounts.counts[s.Debug.metricsCounts.bucketIdx]
-
-	return s.Debug.metricsCounts.counts[s.Debug.metricsCounts.bucketIdx] > sum
-}
-
 func (s *server) eolEnabled(sourceType packets.SourceType) bool {
 	switch sourceType {
 	case packets.UDS:
@@ -690,10 +603,10 @@ func (s *server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 					continue
 				}
 
-				debugEnabled := s.Debug.Enabled.Load()
+				debugEnabled := s.Debug.IsDebugEnabled()
 				for idx := range samples {
 					if debugEnabled {
-						s.Debug.storeMetricStats(samples[idx])
+						s.Debug.StoreMetricStats(samples[idx])
 					}
 
 					if samples[idx].Timestamp > 0.0 {

@@ -31,18 +31,6 @@ type Component interface {
 	// Capture starts a new dogstatsd traffic capture, returns the capture path if successful
 	Capture(p string, d time.Duration, compressed bool) (string, error)
 
-	// GetJSONDebugStats returns a json representation of debug stats
-	GetJSONDebugStats() ([]byte, error)
-
-	// IsDebugEnabled gets the DsdServerDebug instance which provides metric stats
-	IsDebugEnabled() bool
-
-	// EnableMetricsStats enables metric stats tracking
-	EnableMetricsStats()
-
-	// DisableMetricsStats disables metric stats tracking
-	DisableMetricsStats()
-
 	// UdsListenerRunning returns true if the uds listener is running
 	UdsListenerRunning() bool
 
