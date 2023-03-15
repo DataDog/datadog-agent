@@ -10,7 +10,7 @@ package listeners
 import (
 	"errors"
 
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 )
 

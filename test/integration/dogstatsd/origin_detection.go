@@ -19,9 +19,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 

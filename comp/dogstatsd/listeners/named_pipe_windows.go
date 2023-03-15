@@ -15,8 +15,8 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 

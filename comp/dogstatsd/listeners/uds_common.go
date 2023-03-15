@@ -14,9 +14,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners/ratelimit"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners/ratelimit"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )

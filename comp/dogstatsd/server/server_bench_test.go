@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 )
 
 func mockDemultiplexer() aggregator.Demultiplexer {
