@@ -80,6 +80,7 @@ system_probe_config:
   enable_runtime_compiler: true
 
 event_monitoring_config:
+  socket: /tmp/test-event-monitor.sock
   runtime_compilation:
     enabled: true
   remote_tagger: false
@@ -108,7 +109,7 @@ event_monitoring_config:
 
 runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
-  socket: /tmp/test-security-probe.sock
+  socket: /tmp/test-runtime-security.sock
   sbom:
     enabled: {{ .SBOMEnabled }}
   activity_dump:

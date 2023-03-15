@@ -46,12 +46,6 @@ type Config struct {
 	// EventServerBurst defines the maximum burst of events that can be sent over the grpc server
 	EventServerBurst int
 
-	// EventServerRate defines the grpc server rate at which events can be sent
-	EventServerRate int
-
-	// EventServerRetention defines an event retention period so that some fields can be resolved
-	EventServerRetention int
-
 	// PIDCacheSize is the size of the user space PID caches
 	PIDCacheSize int
 
@@ -166,10 +160,8 @@ func NewConfig(spConfig *config.Config) (*Config, error) {
 		StatsPollingInterval:               time.Duration(getInt("events_stats.polling_interval")) * time.Second,
 
 		// event server
-		SocketPath:           getString("socket"),
-		EventServerBurst:     getInt("event_server.burst"),
-		EventServerRate:      getInt("event_server.rate"),
-		EventServerRetention: getInt("event_server.retention"),
+		SocketPath:       coreconfig.SystemProbe.GetString(join(evNS, "socket")),
+		EventServerBurst: coreconfig.SystemProbe.GetInt(join(evNS, "event_server.burst")),
 
 		// runtime compilation
 		RuntimeCompilationEnabled:       getBool("runtime_compilation.enabled"),
@@ -236,6 +228,10 @@ func (c *Config) sanitizeConfigNetwork() {
 			c.NetworkLazyInterfacePrefixes = append(c.NetworkLazyInterfacePrefixes, name)
 		}
 	}
+}
+
+func join(pieces ...string) string {
+	return strings.Join(pieces, ".")
 }
 
 func getAllKeys(key string) (string, string) {

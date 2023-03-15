@@ -66,6 +66,7 @@ type CWSConsumer struct {
 	policyMonitor    *PolicyMonitor
 	sendStatsChan    chan chan bool
 	eventSender      EventSender
+	grpcServer       *GRPCServer
 }
 
 // Init initializes the module with options
@@ -94,6 +95,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, opts ...Opts) (*CWSConsumer,
 		selfTester:     selfTester,
 		policyMonitor:  NewPolicyMonitor(evm.StatsdClient),
 		sendStatsChan:  make(chan chan bool, 1),
+		grpcServer:     NewGRPCServer(config.SocketPath),
 	}
 	c.apiServer.cwsConsumer = c
 
@@ -107,7 +109,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, opts ...Opts) (*CWSConsumer,
 	seclog.SetPatterns(config.LogPatterns...)
 	seclog.SetTags(config.LogTags...)
 
-	api.RegisterSecurityModuleServer(evm.GRPCServer, c.apiServer)
+	api.RegisterSecurityModuleServer(c.grpcServer.server, c.apiServer)
 
 	// register as event handler
 	if err := evm.Probe.AddEventHandler(model.UnknownEventType, c); err != nil {
@@ -133,6 +135,11 @@ func (c *CWSConsumer) ID() string {
 
 // Start the module
 func (c *CWSConsumer) Start() error {
+	err := c.grpcServer.Start()
+	if err != nil {
+		return err
+	}
+
 	// start api server
 	api.RegisterVTCodec()
 	c.apiServer.Start(c.ctx)
@@ -386,6 +393,8 @@ func (c *CWSConsumer) Stop() {
 
 	c.cancelFnc()
 	c.wg.Wait()
+
+	c.grpcServer.Stop()
 }
 
 // EventDiscarderFound is called by the ruleset when a new discarder discovered
