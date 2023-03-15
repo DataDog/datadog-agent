@@ -5,7 +5,6 @@ qa_statuses = [
   "Done",
 ]
 ignored_labels = [
-  "changelog/no-changelog",
   "qa/skip-qa",
 ]
 
