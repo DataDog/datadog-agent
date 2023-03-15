@@ -18,6 +18,7 @@ import (
 
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
+	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 
 	crdClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
 )
@@ -37,6 +38,47 @@ func NewCustomResourceDefinitionFactory() customresource.RegistryFactory {
 }
 
 type crdFactory struct{}
+
+func (f *crdFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
+	return []generator.FamilyGenerator{
+		*generator.NewFamilyGenerator(
+			descCustomResourceDefinitionAnnotationsName,
+			descCustomResourceDefinitionAnnotationsHelp,
+			metric.Gauge,
+			"",
+			wrapCustomResourceDefinition(func(p *crd.CustomResourceDefinition) *metric.Family {
+				annotationKeys, annotationValues := createPrometheusLabelKeysValues("annotation", p.Annotations, allowAnnotationsList)
+				return &metric.Family{
+					Metrics: []*metric.Metric{
+						{
+							LabelKeys:   annotationKeys,
+							LabelValues: annotationValues,
+							Value:       1,
+						},
+					},
+				}
+			}),
+		),
+		*generator.NewFamilyGenerator(
+			descCustomResourceDefinitionLabelsName,
+			descCustomResourceDefinitionLabelsHelp,
+			metric.Gauge,
+			"",
+			wrapCustomResourceDefinition(func(p *crd.CustomResourceDefinition) *metric.Family {
+				labelKeys, labelValues := createPrometheusLabelKeysValues("label", p.Labels, allowLabelsList)
+				return &metric.Family{
+					Metrics: []*metric.Metric{
+						{
+							LabelKeys:   labelKeys,
+							LabelValues: labelValues,
+							Value:       1,
+						},
+					},
+				}
+			}),
+		),
+	}
+}
 
 func (f *crdFactory) Name() string {
 	return "customresourcedefinition"
