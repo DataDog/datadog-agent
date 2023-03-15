@@ -10,7 +10,7 @@ require (
 	github.com/fatih/structtag v1.2.0
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/hashicorp/golang-lru/v2 v2.0.1
+	github.com/hashicorp/golang-lru/v2 v2.0.2
 	github.com/skydive-project/go-debouncer v1.0.0
 	github.com/spf13/cast v1.5.0
 	github.com/stretchr/testify v1.8.2
