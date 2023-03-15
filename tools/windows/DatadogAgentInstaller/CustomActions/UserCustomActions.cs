@@ -405,8 +405,10 @@ namespace Datadog.CustomActions
                 
                 var resetPassword = session.Property("DDAGENTUSER_RESET_PASSWORD");
                 var ddagentuserPassword = session.Property("DDAGENTUSER_PROCESSED_PASSWORD");
+                var ddagentuser = session.Property("DDAGENTUSER_PROCESSED_NAME");
                 if (!string.IsNullOrEmpty(resetPassword))
                 {
+                    session.Log($"Resetting {ddagentuser} password.");
                     if (string.IsNullOrEmpty(ddagentuserPassword))
                     {
                         throw new InvalidOperationException("Asked to reset password, but password was not provided");
@@ -416,7 +418,7 @@ namespace Datadog.CustomActions
                         sPassword = ddagentuserPassword
                     };
                     // A zero return indicates success. 
-                    var result = NetUserSetInfo(null, ddAgentUserName, 1003, ref userInfo, out _);
+                    var result = NetUserSetInfo(null, ddagentuser, 1003, ref userInfo, out _);
                     if (result != 0)
                     {
                         throw new System.ComponentModel.Win32Exception(result, $"Error while setting the password for {ddAgentUserName}");

@@ -232,8 +232,12 @@ namespace WixSetup.Datadog
             }
             .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
                            "PROJECTLOCATION=[PROJECTLOCATION], " +
+                           "DDAGENTUSER_PROCESSED_NAME=[DDAGENTUSER_PROCESSED_NAME], " +
                            "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME], " +
-                           "DDAGENTUSER_SID=[DDAGENTUSER_SID]");
+                           "DDAGENTUSER_PROCESSED_PASSWORD=[DDAGENTUSER_PROCESSED_PASSWORD], " +
+                           "DDAGENTUSER_SID=[DDAGENTUSER_SID], " +
+                           "DDAGENTUSER_RESET_PASSWORD=[DDAGENTUSER_RESET_PASSWORD]")
+            .HideTarget(true);
 
             ProcessDdAgentUserCredentials = new CustomAction<UserCustomActions>(
                 new Id(nameof(ProcessDdAgentUserCredentials)),
@@ -246,7 +250,9 @@ namespace WixSetup.Datadog
                 // This CA produces properties used for services, accounts, and permissions.
                 Condition.NOT(Conditions.Uninstalling)
             )
-            .SetProperties("DDAGENTUSER_NAME=[DDAGENTUSER_NAME], DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD]")
+            .SetProperties("DDAGENTUSER_NAME=[DDAGENTUSER_NAME], " +
+                           "DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD], " +
+                           "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME]")
             .HideTarget(true);
 
             OpenMsiLog = new CustomAction<UserCustomActions>(
