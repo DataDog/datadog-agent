@@ -56,7 +56,9 @@ namespace WixSetup.Datadog
                 // It is executed on the Welcome screen of the installer.
                 When.After,
                 Step.AppSearch,
-                Condition.NOT_BeingRemoved,
+                // Not needed during uninstall, but since it runs before InstallValidate the recommended
+                // REMOVE=ALL condition does not work, so always run it.
+                Condition.Always,
                 // Run in either sequence so our CA is also run in non-UI installs
                 Sequence.InstallExecuteSequence | Sequence.InstallUISequence
             )
@@ -75,7 +77,9 @@ namespace WixSetup.Datadog
                 // Must execute after CostFinalize since we depend
                 // on APPLICATIONDATADIRECTORY being set.
                 Step.CostFinalize,
-                Condition.NOT_BeingRemoved,
+                // Not needed during uninstall, but since it runs before InstallValidate the recommended
+                // REMOVE=ALL condition does not work, so always run it.
+                Condition.Always,
                 // Run in either sequence so our CA is also run in non-UI installs
                 Sequence.InstallExecuteSequence | Sequence.InstallUISequence
             )
