@@ -195,38 +195,40 @@ def lint_components(ctx, fix=False):
 
 
 @task
-def new_bundle(_, bundle_path, overwrite=False):
+def new_bundle(_, bundle_path, overwrite=False, team="/* TODO: add team name */"):
     """
     Create a new bundle package with bundle.go and bundle_test.go files.
 
     Notes: 
         - This task must be called from the datadog-agent repository root folder.
         - 'bundle-path' is not modified by the task. You should explicitly set this to 'comp/...' if you want to create it in the right folder.
+        - You can use the --team flag to set the team name for the new bundle.
 
     Examples:
         inv components.new-bundle comp/foo/bar             # Create the 'bar' bundle in the 'comp/foo' folder
         inv components.new-bundle comp/foo/bar --overwrite # Create the 'bar' bundle in the 'comp/foo' folder and overwrite 'comp/foo/bar/bundle{_test}.go' even if they already exist.
         inv components.new-bundle /tmp/baz                 # Create the 'baz' bundle in the '/tmp/' folder. './comp' prefix is not enforced by the task. 
     """
-    template_var_mapping = {"BUNDLE_NAME": os.path.basename(bundle_path)} 
+    template_var_mapping = {"BUNDLE_NAME": os.path.basename(bundle_path), "TEAM_NAME": team}
     create_components_framework_files(bundle_path, ["bundle.go", "bundle_test.go"], template_var_mapping, overwrite)
 
 
 @task
-def new_component(_, comp_path, overwrite=False):
+def new_component(_, comp_path, overwrite=False, team="/* TODO: add team name */"):
     """
     Create a new component package with the component.go file.
 
     Notes: 
         - This task must be called from the datadog-agent repository root folder.
         - 'comp-path' is not modified by the task. You should explicitly set this to 'comp/...' if you want to create it in the right folder.
+        - You can use the --team flag to set the team name for the new component/
 
     Examples:
         inv components.new-component comp/foo/bar             # Create the 'bar' component in the 'comp/foo' folder
         inv components.new-component comp/foo/bar --overwrite # Create the 'bar' component in the 'comp/foo' folder and overwrite 'comp/foo/bar/component.go' even if it already exists
         inv components.new-component /tmp/baz                 # Create the 'baz' component in the '/tmp/' folder. './comp' prefix is not enforced by the task. 
     """
-    template_var_mapping = {"COMPONENT_NAME": os.path.basename(comp_path)} 
+    template_var_mapping = {"COMPONENT_NAME": os.path.basename(comp_path), "TEAM_NAME": team}
     create_components_framework_files(comp_path, ["component.go"], template_var_mapping, overwrite)
     
 
