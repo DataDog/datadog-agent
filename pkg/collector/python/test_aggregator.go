@@ -227,6 +227,7 @@ func testSubmitEventPlatformEvent(t *testing.T) {
 	SubmitEventPlatformEvent(
 		C.CString("testID"),
 		C.CString("raw-event"),
+		C.int(len("raw-event")),
 		C.CString("dbm-sample"),
 	)
 
