@@ -26,6 +26,10 @@ build do
                         "--with-gdbm=#{install_dir}/embedded",
                         "--with-dblib=gdbm"]
 
+  if osx?
+    configure_command = configure_command.append("--disable-macos-framework")
+  end
+
   command configure_command.join(" "), env: env
   command "make", :env => env
   command "make install", :env => env
