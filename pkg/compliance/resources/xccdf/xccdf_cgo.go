@@ -35,6 +35,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+var sessionCache = map[string]*xccdfSession{}
+
 const (
 	XCCDF_RESULT_PASS           = 1
 	XCCDF_RESULT_FAIL           = 2
@@ -85,11 +87,14 @@ func (w *oscapWrapper) do(hostname, xccdf, profile string, rules []string) ([]re
 		return nil, fmt.Errorf("no rule to evaluate")
 	}
 
-	xccdfSession, err := newXCCDFSession(xccdf)
-	if err != nil {
-		return nil, err
+	var err error
+	xccdfSession := sessionCache[xccdf]
+	if xccdfSession == nil {
+		if xccdfSession, err = newXCCDFSession(xccdf); err != nil {
+			return nil, err
+		}
+		sessionCache[xccdf] = xccdfSession
 	}
-	defer xccdfSession.Close()
 
 	if err := xccdfSession.SetProfile(profile); err != nil {
 		return nil, err
@@ -181,6 +186,8 @@ func (s *xccdfSession) EvaluateRules(hostname string, rules []string) ([]resourc
 	} else {
 		log.Debugf("Successfully evaluated OVAL rules %v", rules)
 	}
+
+	C.xccdf_session_result_free(s.session)
 
 	return instances, nil
 }

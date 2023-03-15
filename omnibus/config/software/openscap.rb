@@ -48,6 +48,7 @@ build do
   patch source: "0016-Fix-leak-of-dpkginfo_reply_t-fields.patch", env: env
 
   patch source: "get_results_from_session.patch", env: env # add a function to retrieve results from session
+  patch source: "session_result_free.patch", env: env # add a function to free results from session
   patch source: "source_free_xml.patch", env: env # free XML DOM after loading session
   patch source: "010_perlpm_install_fix.patch", env: env # fix build of perl bindings
   patch source: "dpkginfo-cacheconfig.patch", env: env # work around incomplete pkgcache path
