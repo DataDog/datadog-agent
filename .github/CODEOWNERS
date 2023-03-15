@@ -247,6 +247,7 @@
 /pkg/config/remote/service/meta/        @DataDog/remote-config @DataDog/software-integrity-and-trust
 /pkg/diagnose/                          @Datadog/container-integrations
 /pkg/diagnose/connectivity/             @DataDog/agent-shared-components
+/pkg/eventmonitor/                      @DataDog/ebpf-platform @DataDog/agent-security
 /pkg/epforwarder/                       @DataDog/agent-shared-components @DataDog/agent-metrics-logs
 /pkg/flare/                             @DataDog/agent-shared-components
 /pkg/otlp/                              @DataDog/opentelemetry
