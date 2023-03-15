@@ -252,10 +252,12 @@ def create_components_framework_files(comp_path, new_files, template_var_mapping
     if os.path.isdir(comp_path) and not overwrite:
         raise Exit(f"Error: Cannot create {component_name} {comp_type}: '{comp_path}' package already exists. Use `--overwrite` if you want to overwrite files in this package.", code=1)
 
-    # Create the root folder. We temporary set the umask to 0 to prevent 'os.makedirs' from given wrong permissions to subfolders
+    # Create the root folder. We temporary set the umask to 0 to prevent 'os.makedirs' from giving wrong permissions to subfolders
     try:
         print(f"Creating {comp_path} folder")
-        original_umask = os.umask(0)
+        # os.makedirs creates all parents directory with 0o777 permissions, 'mode' is only used for the leaf folder.
+        # We set the umask to create folder with 0o755 permissions instead of 0o777
+        original_umask = os.umask(0o022)
         os.makedirs(comp_path, mode=0o755, exist_ok=True)
     finally:
         os.umask(original_umask)
