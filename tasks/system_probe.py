@@ -18,8 +18,8 @@ from invoke.exceptions import Exit
 from .build_tags import get_default_build_tags
 from .libs.common.color import color_message
 from .libs.ninja_syntax import NinjaWriter
-from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
 from .test import environ
+from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
