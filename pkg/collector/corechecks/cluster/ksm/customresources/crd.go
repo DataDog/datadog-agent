@@ -46,8 +46,8 @@ func (f *crdFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsLis
 			descCustomResourceDefinitionAnnotationsHelp,
 			metric.Gauge,
 			"",
-			wrapCustomResourceDefinition(func(p *crd.CustomResourceDefinition) *metric.Family {
-				annotationKeys, annotationValues := createPrometheusLabelKeysValues("annotation", p.Annotations, allowAnnotationsList)
+			wrapCustomResourceDefinition(func(c *crd.CustomResourceDefinition) *metric.Family {
+				annotationKeys, annotationValues := createPrometheusLabelKeysValues("annotation", c.Annotations, allowAnnotationsList)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{
@@ -64,8 +64,8 @@ func (f *crdFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsLis
 			descCustomResourceDefinitionLabelsHelp,
 			metric.Gauge,
 			"",
-			wrapCustomResourceDefinition(func(p *crd.CustomResourceDefinition) *metric.Family {
-				labelKeys, labelValues := createPrometheusLabelKeysValues("label", p.Labels, allowLabelsList)
+			wrapCustomResourceDefinition(func(c *crd.CustomResourceDefinition) *metric.Family {
+				labelKeys, labelValues := createPrometheusLabelKeysValues("label", c.Labels, allowLabelsList)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{
@@ -74,6 +74,30 @@ func (f *crdFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsLis
 							Value:       1,
 						},
 					},
+				}
+			}),
+		),
+		*generator.NewFamilyGenerator(
+			"kube_customresourcedefinition_condition",
+			"The condition of this custom resource definition.",
+			metric.Gauge,
+			"",
+			wrapCustomResourceDefinition(func(c *crd.CustomResourceDefinition) *metric.Family {
+				ms := make([]*metric.Metric, 0, len(c.Status.Conditions)*len(conditionStatusesExtensionV1))
+
+				for _, c := range c.Status.Conditions {
+					metrics := addConditionMetricsExtensionV1(c.Status)
+
+					for _, m := range metrics {
+						metric := m
+						metric.LabelKeys = []string{"condition", "status"}
+						metric.LabelValues = append([]string{string(c.Type)}, metric.LabelValues...)
+						ms = append(ms, metric)
+					}
+				}
+
+				return &metric.Family{
+					Metrics: ms,
 				}
 			}),
 		),
