@@ -278,7 +278,7 @@
 /pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/container-app
 /pkg/util/orchestrator/                 @DataDog/container-app
 /pkg/util/podman/                       @DataDog/container-integrations
-/pkg/util/trivy/                        @DataDog/container-integrations
+/pkg/util/trivy/                        @DataDog/container-integrations @DataDog/agent-security
 /pkg/util/cgroups/                      @DataDog/container-integrations
 /pkg/util/retry/                        @DataDog/container-integrations
 /pkg/util/intern/                       @DataDog/ebpf-platform
@@ -332,6 +332,7 @@
 /pkg/snmp/                              @DataDog/network-device-monitoring
 /pkg/workloadmeta/                      @DataDog/container-integrations
 /pkg/workloadmeta/collectors/internal/cloudfoundry @DataDog/platform-integrations
+/pkg/sbom/                              @DataDog/container-integrations @DataDog/agent-security
 
 /pkg-config/                            @DataDog/agent-platform
 
