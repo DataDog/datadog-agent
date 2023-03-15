@@ -55,7 +55,9 @@ const (
 )
 
 var extendedCollectors = map[string]string{
-	"jobs": "jobs_extended",
+	"jobs":  "jobs_extended",
+	"nodes": "nodes_extended",
+	"pods":  "pods_extended",
 }
 
 // KSMConfig contains the check config parameters
@@ -345,6 +347,8 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 	// extended resource collectors always have a factory registered
 	factories := []customresource.RegistryFactory{
 		customresources.NewExtendedJobFactory(),
+		customresources.NewExtendedNodeFactory(),
+		customresources.NewExtendedPodFactory(),
 	}
 
 	factories = manageResourcesReplacement(c, factories)
