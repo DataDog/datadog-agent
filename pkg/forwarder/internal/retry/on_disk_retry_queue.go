@@ -97,6 +97,7 @@ func (s *onDiskRetryQueue) Store(transactions []transaction.Transaction) error {
 	}
 	err = file.Close()
 	if err != nil {
+		_ = os.Remove(file.Name())
 		return err
 	}
 	s.currentSizeInBytes += bufferSize
