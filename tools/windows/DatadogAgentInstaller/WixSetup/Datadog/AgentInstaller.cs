@@ -62,7 +62,7 @@ namespace WixSetup.Datadog
         public Project ConfigureProject()
         {
             var project = new ManagedProject("Datadog Agent",
-                new CustomActionRef("WixCloseApplications", When.Before, Step.RemoveFiles),
+                SupportedWindowsVersion.WindowsServer2012R2,
                 new Property("MsiLogging", "iwearucmop!"),
                 new Property("MSIRESTARTMANAGERCONTROL", "Disable"),
                 new Property("APIKEY")
