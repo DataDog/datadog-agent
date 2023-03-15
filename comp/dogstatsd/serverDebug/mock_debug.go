@@ -28,10 +28,6 @@ func (d *mockServerDebug) EnableMetricsStats() {
 	d.enabled.Store(true)
 }
 
-func (d *mockServerDebug) hasSpike() bool {
-	return false
-}
-
 func (d *mockServerDebug) GetJSONDebugStats() ([]byte, error) {
 	return []byte{}, nil
 }
