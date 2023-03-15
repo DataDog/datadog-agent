@@ -327,10 +327,10 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 			metric.Gauge,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
-				ms := make([]*metric.Metric, 0, len(a.Status.Conditions)*len(conditionStatuses))
+				ms := make([]*metric.Metric, 0, len(a.Status.Conditions)*len(conditionStatusesV1))
 
 				for _, c := range a.Status.Conditions {
-					metrics := addConditionMetrics(c.Status)
+					metrics := addConditionMetricsV1(c.Status)
 
 					for _, m := range metrics {
 						metric := m
