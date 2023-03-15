@@ -41,6 +41,7 @@ func newProcessor(sender aggregator.Sender, maxNbItem int, maxRetentionTime time
 			})
 			if err != nil {
 				log.Errorf("Unable to encode message: %+v", err)
+				return
 			}
 
 			sender.EventPlatformEvent(encoded, epforwarder.EventTypeContainerImages)

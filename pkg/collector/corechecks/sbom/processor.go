@@ -44,6 +44,7 @@ func newProcessor(workloadmetaStore workloadmeta.Store, sender aggregator.Sender
 			})
 			if err != nil {
 				log.Errorf("Unable to encode message: %+v", err)
+				return
 			}
 
 			sender.EventPlatformEvent(encoded, epforwarder.EventTypeContainerSBOM)
