@@ -316,8 +316,8 @@ func (l *CheckRunner) runnerForCheck(c checks.Check) (func(), error) {
 	}
 
 	rtName := checks.RTName(c.Name())
-	interval := checks.GetInterval(c.Name())
-	rtInterval := checks.GetInterval(rtName)
+	interval := checks.GetInterval(l.config, c.Name())
+	rtInterval := checks.GetInterval(l.config, rtName)
 
 	if interval < rtInterval || interval%rtInterval != 0 {
 		// Check interval must be greater or equal to realtime check interval and the intervals must be divisible
@@ -359,7 +359,7 @@ func (l *CheckRunner) basicRunner(c checks.Check) func() {
 			l.runCheck(c)
 		}
 
-		ticker := time.NewTicker(checks.GetInterval(c.Name()))
+		ticker := time.NewTicker(checks.GetInterval(l.config, c.Name()))
 		for {
 			select {
 			case <-ticker.C:

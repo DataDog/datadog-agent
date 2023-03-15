@@ -57,7 +57,7 @@ func (e *ProcessEventsCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
 	e.hostInfo = info
 	e.maxBatchSize = getMaxBatchSize(e.config)
 
-	store, err := events.NewRingStore(statsd.Client)
+	store, err := events.NewRingStore(e.config, statsd.Client)
 	if err != nil {
 		log.Errorf("RingStore can't be created: %v", err)
 		return err

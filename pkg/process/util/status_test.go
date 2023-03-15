@@ -68,7 +68,7 @@ func TestGetStatus(t *testing.T) {
 
 	// Feature detection needs to run before host methods are called. During runtime, feature detection happens
 	// when the datadog.yaml file is loaded
-	ddconfig.Mock(t)
+	cfg := ddconfig.Mock(t)
 
 	hostnameData, err := hostname.GetWithProvider(context.Background())
 	var metadata *host.Payload
@@ -85,7 +85,7 @@ func TestGetStatus(t *testing.T) {
 			GoVersion:    runtime.Version(),
 			Arch:         runtime.GOARCH,
 			Config: ConfigStatus{
-				LogLevel: ddconfig.Datadog.GetString("log_level"),
+				LogLevel: cfg.GetString("log_level"),
 			},
 			Metadata: *metadata,
 		},

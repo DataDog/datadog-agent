@@ -16,10 +16,6 @@ import (
 	"sync"
 	"time"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
-
 	"go.uber.org/atomic"
 
 	model "github.com/DataDog/agent-payload/v5/process"

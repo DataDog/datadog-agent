@@ -282,7 +282,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 }
 
 func Test_getRequestID(t *testing.T) {
-	s, err := NewSubmitter(ddconfig.Datadog, testHostName)
+	s, err := NewSubmitter(ddconfig.Mock(t), testHostName)
 	assert.NoError(t, err)
 
 	fixedDate1 := time.Date(2022, 9, 1, 0, 0, 1, 0, time.Local)

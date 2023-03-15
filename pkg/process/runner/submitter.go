@@ -75,14 +75,14 @@ type CheckSubmitter struct {
 	rtNotifierChan chan types.RTResponse
 }
 
-func NewSubmitter(config ddconfig.ConfigReader, hostname string) (*CheckSubmitter, error) {
-	queueBytes := config.GetInt("process_config.process_queue_bytes")
+func NewSubmitter(cfg ddconfig.ConfigReader, hostname string) (*CheckSubmitter, error) {
+	queueBytes := cfg.GetInt("process_config.process_queue_bytes")
 	if queueBytes <= 0 {
 		log.Warnf("Invalid queue bytes size: %d. Using default value: %d", queueBytes, ddconfig.DefaultProcessQueueBytes)
 		queueBytes = ddconfig.DefaultProcessQueueBytes
 	}
 
-	queueSize := config.GetInt("process_config.queue_size")
+	queueSize := cfg.GetInt("process_config.queue_size")
 	if queueSize <= 0 {
 		log.Warnf("Invalid check queue size: %d. Using default value: %d", queueSize, ddconfig.DefaultProcessQueueSize)
 		queueSize = ddconfig.DefaultProcessQueueSize
@@ -90,7 +90,7 @@ func NewSubmitter(config ddconfig.ConfigReader, hostname string) (*CheckSubmitte
 	processResults := api.NewWeightedQueue(queueSize, int64(queueBytes))
 	log.Debugf("Creating process check queue with max_size=%d and max_weight=%d", processResults.MaxSize(), processResults.MaxWeight())
 
-	rtQueueSize := config.GetInt("process_config.rt_queue_size")
+	rtQueueSize := cfg.GetInt("process_config.rt_queue_size")
 	if rtQueueSize <= 0 {
 		log.Warnf("Invalid rt check queue size: %d. Using default value: %d", rtQueueSize, ddconfig.DefaultProcessRTQueueSize)
 		rtQueueSize = ddconfig.DefaultProcessRTQueueSize
@@ -112,14 +112,14 @@ func NewSubmitter(config ddconfig.ConfigReader, hostname string) (*CheckSubmitte
 	eventResults := api.NewWeightedQueue(queueSize, int64(queueBytes))
 	log.Debugf("Creating event check queue with max_size=%d and max_weight=%d", eventResults.MaxSize(), eventResults.MaxWeight())
 
-	dropCheckPayloads := config.GetStringSlice("process_config.drop_check_payloads")
+	dropCheckPayloads := cfg.GetStringSlice("process_config.drop_check_payloads")
 	if len(dropCheckPayloads) > 0 {
 		log.Debugf("Dropping payloads from checks: %v", dropCheckPayloads)
 	}
 	status.UpdateDropCheckPayloads(dropCheckPayloads)
 
 	// Forwarder initialization
-	processAPIEndpoints, err := GetAPIEndpoints()
+	processAPIEndpoints, err := GetAPIEndpoints(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +139,7 @@ func NewSubmitter(config ddconfig.ConfigReader, hostname string) (*CheckSubmitte
 	podForwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
 	podForwarder := forwarder.NewDefaultForwarder(podForwarderOpts)
 
-	processEventsAPIEndpoints, err := getEventsAPIEndpoints()
+	processEventsAPIEndpoints, err := getEventsAPIEndpoints(cfg)
 	if err != nil {
 		return nil, err
 	}
