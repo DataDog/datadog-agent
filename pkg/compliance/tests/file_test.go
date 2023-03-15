@@ -124,6 +124,11 @@ findings[f] {
 		WithInput(`
 - file:
 		path: /
+- file:
+		path: /foo
+	tag: plop
+- constants:
+		foo: bar
 `).
 		WithRego(`
 package datadog
@@ -132,6 +137,8 @@ import data.datadog as dd
 findings[f] {
 	input.context.hostname == "{{.Hostname}}"
 	input.context.input.file.file.path == "/"
+	input.context.input.plop.file.path == "/foo"
+	input.context.input.constants.constants.foo == "bar"
 	input.context.ruleID == "{{.RuleID}}"
 	f := dd.passed_finding(
 		"plop_type",

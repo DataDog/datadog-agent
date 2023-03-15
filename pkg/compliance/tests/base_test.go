@@ -8,6 +8,7 @@ package tests
 import (
 	"testing"
 
+	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/constants"
 	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/file"
 )
 
@@ -79,6 +80,24 @@ findings[f] {
 		"bar",
 		{},
 	)
+}
+`).
+		AssertPassedEvent(nil)
+
+	b.AddRule("Constants2").
+		WithInput(`
+- constants:
+		foo: bar
+		quz: 1
+`).
+		WithRego(`
+package datadog
+import data.datadog as dd
+
+findings[f] {
+	input.constants.foo == "bar"
+	input.constants.quz == 1
+	f := dd.passed_finding("foo", "bar", {})
 }
 `).
 		AssertPassedEvent(nil)

@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/stretchr/testify/assert"
+	"k8s.io/client-go/dynamic"
 )
 
 type suite struct {
@@ -31,7 +32,7 @@ type suite struct {
 
 	dockerClient env.DockerClient
 	auditClient  env.AuditClient
-	kubeClient   env.KubeClient
+	kubeClient   dynamic.Interface
 
 	rules []*assertedRule
 }
@@ -75,7 +76,7 @@ func (s *suite) WithAuditClient(cl env.AuditClient) *suite {
 	return s
 }
 
-func (s *suite) WithKubeClient(cl env.KubeClient) *suite {
+func (s *suite) WithKubeClient(cl dynamic.Interface) *suite {
 	s.kubeClient = cl
 	return s
 }
@@ -103,6 +104,7 @@ func (s *suite) Run() {
 	for _, c := range s.rules {
 		s.t.Run(c.name, func(t *testing.T) {
 			var options []checks.BuilderOption
+			options = append(options, checks.WithHostname(s.hostname))
 			if s.auditClient != nil {
 				options = append(options, checks.WithAuditClient(s.auditClient))
 			}
