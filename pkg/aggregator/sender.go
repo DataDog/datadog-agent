@@ -20,17 +20,17 @@ import (
 // Sender allows sending metrics from checks/a check
 type Sender interface {
 	Commit()
-	Gauge(metric string, value float64, hostname string, tags []string, resources ...metrics.Resource)
-	GaugeNoIndex(metric string, value float64, hostname string, tags []string, resources ...metrics.Resource)
-	Rate(metric string, value float64, hostname string, tags []string, resources ...metrics.Resource)
-	Count(metric string, value float64, hostname string, tags []string, resources ...metrics.Resource)
-	MonotonicCount(metric string, value float64, hostname string, tags []string, resources ...metrics.Resource)
-	MonotonicCountWithFlushFirstValue(metric string, value float64, hostname string, tags []string, flushFirstValue bool, resources ...metrics.Resource)
-	Counter(metric string, value float64, hostname string, tags []string, resources ...metrics.Resource)
-	Histogram(metric string, value float64, hostname string, tags []string, resources ...metrics.Resource)
-	Historate(metric string, value float64, hostname string, tags []string, resources ...metrics.Resource)
+	Gauge(metric string, value float64, hostname string, tags []string)
+	GaugeNoIndex(metric string, value float64, hostname string, tags []string)
+	Rate(metric string, value float64, hostname string, tags []string)
+	Count(metric string, value float64, hostname string, tags []string)
+	MonotonicCount(metric string, value float64, hostname string, tags []string)
+	MonotonicCountWithFlushFirstValue(metric string, value float64, hostname string, tags []string, flushFirstValue bool)
+	Counter(metric string, value float64, hostname string, tags []string)
+	Histogram(metric string, value float64, hostname string, tags []string)
+	Historate(metric string, value float64, hostname string, tags []string)
 	ServiceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string)
-	HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool, resources ...metrics.Resource)
+	HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool)
 	Event(e metrics.Event)
 	EventPlatformEvent(rawEvent string, eventType string)
 	GetSenderStats() check.SenderStats
@@ -258,8 +258,7 @@ func (s *checkSender) sendMetricSample(
 	tags []string,
 	mType metrics.MetricType,
 	flushFirstValue bool,
-	noIndex bool,
-	resources ...metrics.Resource) {
+	noIndex bool) {
 	tags = append(tags, s.checkTags...)
 
 	log.Trace(mType.String(), " sample: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
@@ -270,7 +269,6 @@ func (s *checkSender) sendMetricSample(
 		Mtype:           mType,
 		Tags:            tags,
 		Host:            hostname,
-		Resources:       resources,
 		SampleRate:      1,
 		Timestamp:       timeNowNano(),
 		FlushFirstValue: flushFirstValue,
@@ -289,52 +287,52 @@ func (s *checkSender) sendMetricSample(
 }
 
 // Gauge should be used to send a simple gauge value to the aggregator. Only the last value sampled is kept at commit time.
-func (s *checkSender) Gauge(metric string, value float64, hostname string, tags []string, resources ...metrics.Resource) {
-	s.sendMetricSample(metric, value, hostname, tags, metrics.GaugeType, false, false, resources...)
+func (s *checkSender) Gauge(metric string, value float64, hostname string, tags []string) {
+	s.sendMetricSample(metric, value, hostname, tags, metrics.GaugeType, false, false)
 }
 
 // GaugeNoIndex should be used to send a simple gauge value to the aggregator. Only the last value sampled is kept at commit time.
 // This value is not indexed by the backend.
-func (s *checkSender) GaugeNoIndex(metric string, value float64, hostname string, tags []string, resources ...metrics.Resource) {
-	s.sendMetricSample(metric, value, hostname, tags, metrics.GaugeType, false, true, resources...)
+func (s *checkSender) GaugeNoIndex(metric string, value float64, hostname string, tags []string) {
+	s.sendMetricSample(metric, value, hostname, tags, metrics.GaugeType, false, true)
 }
 
 // Rate should be used to track the rate of a metric over each check run
-func (s *checkSender) Rate(metric string, value float64, hostname string, tags []string, resources ...metrics.Resource) {
-	s.sendMetricSample(metric, value, hostname, tags, metrics.RateType, false, false, resources...)
+func (s *checkSender) Rate(metric string, value float64, hostname string, tags []string) {
+	s.sendMetricSample(metric, value, hostname, tags, metrics.RateType, false, false)
 }
 
 // Count should be used to count a number of events that occurred during the check run
-func (s *checkSender) Count(metric string, value float64, hostname string, tags []string, resources ...metrics.Resource) {
-	s.sendMetricSample(metric, value, hostname, tags, metrics.CountType, false, false, resources...)
+func (s *checkSender) Count(metric string, value float64, hostname string, tags []string) {
+	s.sendMetricSample(metric, value, hostname, tags, metrics.CountType, false, false)
 }
 
 // MonotonicCount should be used to track the increase of a monotonic raw counter
-func (s *checkSender) MonotonicCount(metric string, value float64, hostname string, tags []string, resources ...metrics.Resource) {
-	s.sendMetricSample(metric, value, hostname, tags, metrics.MonotonicCountType, false, false, resources...)
+func (s *checkSender) MonotonicCount(metric string, value float64, hostname string, tags []string) {
+	s.sendMetricSample(metric, value, hostname, tags, metrics.MonotonicCountType, false, false)
 }
 
 // MonotonicCountWithFlushFirstValue should be used to track the increase of a monotonic raw counter,
 // and allows specifying whether the aggregator should flush the first sampled value as-is.
-func (s *checkSender) MonotonicCountWithFlushFirstValue(metric string, value float64, hostname string, tags []string, flushFirstValue bool, resources ...metrics.Resource) {
-	s.sendMetricSample(metric, value, hostname, tags, metrics.MonotonicCountType, flushFirstValue, false, resources...)
+func (s *checkSender) MonotonicCountWithFlushFirstValue(metric string, value float64, hostname string, tags []string, flushFirstValue bool) {
+	s.sendMetricSample(metric, value, hostname, tags, metrics.MonotonicCountType, flushFirstValue, false)
 }
 
 // Counter is DEPRECATED and only implemented to preserve backward compatibility with python checks. Prefer using either:
 // * `Gauge` if you're counting states
 // * `Count` if you're counting events
-func (s *checkSender) Counter(metric string, value float64, hostname string, tags []string, resources ...metrics.Resource) {
-	s.sendMetricSample(metric, value, hostname, tags, metrics.CounterType, false, false, resources...)
+func (s *checkSender) Counter(metric string, value float64, hostname string, tags []string) {
+	s.sendMetricSample(metric, value, hostname, tags, metrics.CounterType, false, false)
 }
 
 // Histogram should be used to track the statistical distribution of a set of values during a check run
 // Should be called multiple times on the same (metric, hostname, tags) so that a distribution can be computed
-func (s *checkSender) Histogram(metric string, value float64, hostname string, tags []string, resources ...metrics.Resource) {
-	s.sendMetricSample(metric, value, hostname, tags, metrics.HistogramType, false, false, resources...)
+func (s *checkSender) Histogram(metric string, value float64, hostname string, tags []string) {
+	s.sendMetricSample(metric, value, hostname, tags, metrics.HistogramType, false, false)
 }
 
 // HistogramBucket should be called to directly send raw buckets to be submitted as distribution metrics
-func (s *checkSender) HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool, resources ...metrics.Resource) {
+func (s *checkSender) HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) {
 	tags = append(tags, s.checkTags...)
 
 	log.Tracef(
@@ -373,7 +371,7 @@ func (s *checkSender) HistogramBucket(metric string, value int64, lowerBound, up
 
 // Historate should be used to create a histogram metric for "rate" like metrics.
 // Warning this doesn't use the harmonic mean, beware of what it means when using it.
-func (s *checkSender) Historate(metric string, value float64, hostname string, tags []string, resources ...metrics.Resource) {
+func (s *checkSender) Historate(metric string, value float64, hostname string, tags []string) {
 	s.sendMetricSample(metric, value, hostname, tags, metrics.HistorateType, false, false)
 }
 
