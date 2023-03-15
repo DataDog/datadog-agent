@@ -93,6 +93,9 @@ type Config struct {
 	// # Dynamic configuration fields:
 	// ActivityDumpMaxDumpSize defines the maximum size of a dump
 	ActivityDumpMaxDumpSize func() int
+
+	// ActivityDumpTagRulesEnabled enable the tagging of nodes with matched rules (only for rules having the tag ruleset:thread_score)
+	ActivityDumpTagRulesEnabled bool
 }
 
 func join(pieces ...string) string {
@@ -118,6 +121,7 @@ func NewConfig() (*Config, error) {
 		ActivityDumpLocalStorageCompression:   cfg.GetBool(join(adNS, "local_storage", "compression")),
 		ActivityDumpSyscallMonitorPeriod:      time.Duration(cfg.GetInt(join(adNS, "syscall_monitor", "period"))) * time.Second,
 		ActivityDumpMaxDumpCountPerWorkload:   cfg.GetInt(join(adNS, "max_dump_count_per_workload")),
+		ActivityDumpTagRulesEnabled:           cfg.GetBool(join(adNS, "tag_rules", "enabled")),
 
 		// dynamic fields
 		ActivityDumpMaxDumpSize: func() int {

@@ -53,8 +53,6 @@ type Config struct {
 	LogTags []string
 	// HostServiceName string
 	HostServiceName string
-	// ActivityDumpTagRulesEnabled enable the tagging of nodes with matched rules (only for rules having the tag ruleset:thread_score)
-	ActivityDumpTagRulesEnabled bool
 }
 
 func setEnv() {
@@ -90,8 +88,6 @@ func NewConfig() *Config {
 
 		LogPatterns: coreconfig.SystemProbe.GetStringSlice("runtime_security_config.log_patterns"),
 		LogTags:     coreconfig.SystemProbe.GetStringSlice("runtime_security_config.log_tags"),
-
-		ActivityDumpTagRulesEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.tag_rules.enabled"),
 	}
 
 	c.sanitize()

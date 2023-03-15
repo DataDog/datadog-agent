@@ -1650,6 +1650,10 @@ func (p *Probe) IsActivityDumpEnabled() bool {
 	return p.adcfg.ActivityDumpEnabled
 }
 
+func (p *Probe) IsActivityDumpTagRulesEnabled() bool {
+	return p.adcfg.ActivityDumpTagRulesEnabled
+}
+
 func (p *Probe) StatsPollingInterval() time.Duration {
 	return p.Config.StatsPollingInterval
 }
