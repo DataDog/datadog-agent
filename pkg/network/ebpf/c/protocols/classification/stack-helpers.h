@@ -134,4 +134,30 @@ __maybe_unused static __always_inline bool protocol_layer_known(protocol_stack_t
     return proto != PROTOCOL_UNKNOWN;
 }
 
+static __always_inline bool protocol_has_any(protocol_stack_t *stack) {
+    if (!stack) {
+        return false;
+    }
+
+    return (stack->layer_api || stack->layer_application || stack->layer_encryption);
+}
+
+static __always_inline void protocol_merge_with(protocol_stack_t *this, protocol_stack_t *that) {
+    if (!this || !that) {
+        return;
+    }
+
+    if (!this->layer_api) {
+        this->layer_api = that->layer_api;
+    }
+    if (!this->layer_application) {
+        this->layer_application = that->layer_application;
+    }
+    if (!this->layer_encryption) {
+        this->layer_encryption = that->layer_encryption;
+    }
+
+    this->flags |= that->flags;
+}
+
 #endif

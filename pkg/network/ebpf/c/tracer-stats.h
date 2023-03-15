@@ -60,8 +60,8 @@ static __always_inline void update_protocol_stack(conn_tuple_t *t, conn_stats_ts
     normalize_tuple(&conn_tuple_copy);
 
     protocol_stack_t *protocol_stack = bpf_map_lookup_elem(&connection_protocol, &conn_tuple_copy);
-    if (protocol_stack) {
-        stats->protocol_stack = *protocol_stack;
+    if (protocol_stack && protocol_has_any(protocol_stack)) {
+        protocol_merge_with(&stats->protocol_stack, protocol_stack);
         return;
     }
 
@@ -76,7 +76,7 @@ static __always_inline void update_protocol_stack(conn_tuple_t *t, conn_stats_ts
         return;
     }
 
-    stats->protocol_stack = *protocol_stack;
+    protocol_merge_with(&stats->protocol_stack, protocol_stack);
 }
 
 static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes, size_t recv_bytes, u64 ts, conn_direction_t dir,
