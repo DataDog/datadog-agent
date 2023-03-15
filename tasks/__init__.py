@@ -10,6 +10,7 @@ from . import (
     bench,
     cluster_agent,
     cluster_agent_cloudfoundry,
+    components,
     customaction,
     docker,
     dogstatsd,
@@ -29,7 +30,7 @@ from . import (
     vscode,
 )
 from .build_tags import audit_tag_impact, print_default_build_tags
-from .components import lint_components, new_bundle, new_component
+from .components import lint_components
 from .fuzz import fuzz
 from .go import (
     check_go_version,
@@ -75,8 +76,6 @@ ns.add_task(deps_vendored)
 ns.add_task(lint_licenses)
 ns.add_task(generate_licenses)
 ns.add_task(lint_components)
-ns.add_task(new_bundle)
-ns.add_task(new_component)
 ns.add_task(generate_protobuf)
 ns.add_task(reset)
 ns.add_task(lint_copyrights),
@@ -103,6 +102,7 @@ ns.add_task(fuzz)
 ns.add_collection(agent)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
+ns.add_collection(components)
 ns.add_collection(customaction)
 ns.add_collection(bench)
 ns.add_collection(trace_agent)

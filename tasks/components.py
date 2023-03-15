@@ -204,9 +204,9 @@ def new_bundle(ctx, bundle_path, overwrite=False):
         - 'bundle-path' is not modified by the task. You should explicitly set this to 'comp/...' if you want to create it in the right folder.
 
     Examples:
-        inv new-bundle comp/foo/bar             # Create the 'bar' bundle in the 'comp/foo' folder
-        inv new-bundle comp/foo/bar --overwrite # Create the 'bar' bundle in the 'comp/foo' folder and overwrite 'comp/foo/bar/bundle{_test}.go' even if they already exist.
-        inv new-bundle /tmp/baz                 # Create the 'baz' bundle in the '/tmp/' folder. './comp' prefix is not enforced by the task. 
+        inv components.new-bundle comp/foo/bar             # Create the 'bar' bundle in the 'comp/foo' folder
+        inv components.new-bundle comp/foo/bar --overwrite # Create the 'bar' bundle in the 'comp/foo' folder and overwrite 'comp/foo/bar/bundle{_test}.go' even if they already exist.
+        inv components.new-bundle /tmp/baz                 # Create the 'baz' bundle in the '/tmp/' folder. './comp' prefix is not enforced by the task. 
     """
     template_var_mapping = {"BUNDLE_NAME": os.path.basename(bundle_path)} 
     create_components_framework_files(bundle_path, ["bundle.go", "bundle_test.go"], template_var_mapping, overwrite)
@@ -222,9 +222,9 @@ def new_component(ctx, comp_path, overwrite=False):
         - 'comp-path' is not modified by the task. You should explicitly set this to 'comp/...' if you want to create it in the right folder.
 
     Examples:
-        inv new-component comp/foo/bar             # Create the 'bar' component in the 'comp/foo' folder
-        inv new-component comp/foo/bar --overwrite # Create the 'bar' component in the 'comp/foo' folder and overwrite 'comp/foo/bar/component.go' even if it already exists
-        inv new-component /tmp/baz                 # Create the 'baz' component in the '/tmp/' folder. './comp' prefix is not enforced by the task. 
+        inv components.new-component comp/foo/bar             # Create the 'bar' component in the 'comp/foo' folder
+        inv components.new-component comp/foo/bar --overwrite # Create the 'bar' component in the 'comp/foo' folder and overwrite 'comp/foo/bar/component.go' even if it already exists
+        inv components.new-component /tmp/baz                 # Create the 'baz' component in the '/tmp/' folder. './comp' prefix is not enforced by the task. 
     """
     template_var_mapping = {"COMPONENT_NAME": os.path.basename(comp_path)} 
     create_components_framework_files(comp_path, ["component.go"], template_var_mapping, overwrite)
@@ -305,6 +305,4 @@ def read_file_content(template_path):
     Read all lines in files and return them as a single string.
     """
     with open(template_path, "r") as file:
-        content = file.readlines()
-
-    return "".join(content)
+        return file.read()
