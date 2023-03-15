@@ -13,10 +13,10 @@ package controlsvc
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 )
 
 // Commands returns nil on Unix.
-func Commands(_ *command.GlobalParams) []*cobra.Command {
+func Commands(_ func() *subcommands.GlobalParams) []*cobra.Command {
 	return nil
 }

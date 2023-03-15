@@ -6,7 +6,6 @@
 package run
 
 import (
-	"context"
 	"os"
 	"os/signal"
 	"syscall"
@@ -17,9 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/runtime"
-	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -36,17 +32,23 @@ The Datadog trace-agent aggregates, samples, and forwards traces to datadog
 submitted by tracers loaded into your application.`,
 		RunE: func(*cobra.Command, []string) error {
 			cliParams.GlobalParams = globalParamsGetter()
-			return RunTraceAgentFct(cliParams, "./bin/agent/dist/datadog.yaml", Start)
+			return RunTraceAgentFct(cliParams, cliParams.ConfPath, Start)
 		},
 	}
 
-	runCmd.PersistentFlags().StringVarP(&cliParams.PIDFilePath, "pidfile", "p", "", "path for the PID file to be created")
-	runCmd.PersistentFlags().StringVarP(&cliParams.CPUProfile, "cpu-profile", "f", "",
-		"enables CPU profiling and specifies profile path.")
-	runCmd.PersistentFlags().StringVarP(&cliParams.MemProfile, "mem-profile", "m", "",
-		"enables memory profiling and specifies profilh.")
+	setParamFlags(runCmd, cliParams)
 
 	return runCmd
+}
+
+func setParamFlags(cmd *cobra.Command, cliParams *RunParams) {
+	cmd.PersistentFlags().StringVarP(&cliParams.PIDFilePath, "pidfile", "p", "", "path for the PID file to be created")
+	cmd.PersistentFlags().StringVarP(&cliParams.CPUProfile, "cpu-profile", "l", "",
+		"enables CPU profiling and specifies profile path.")
+	cmd.PersistentFlags().StringVarP(&cliParams.MemProfile, "mem-profile", "m", "",
+		"enables memory profiling and specifies profilh.")
+
+	setOSSpecificParamFlags(cmd, cliParams)
 }
 
 type Params struct {
@@ -64,27 +66,6 @@ func RunTraceAgentFct(cliParams *RunParams, defaultConfPath string, fct interfac
 		fx.Supply(coreconfig.NewAgentParamsWithSecrets(cliParams.ConfPath)),
 		coreconfig.Module,
 	)
-}
-
-func Start(cliParams *RunParams, config config.Component) error {
-	// Entrypoint here
-
-	ctx, cancelFunc := context.WithCancel(context.Background())
-
-	// prepare go runtime
-	runtime.SetMaxProcs()
-	if err := runtime.SetGoMemLimit(pkgconfig.IsContainerized()); err != nil {
-		log.Debugf("Couldn't set Go memory limit: %s", err)
-	}
-
-	// Handle stops properly
-	go func() {
-		defer watchdog.LogOnPanic()
-		handleSignal(cancelFunc)
-	}()
-
-	return runAgent(ctx, cliParams, config)
-
 }
 
 // handleSignal closes a channel to exit cleanly from routines

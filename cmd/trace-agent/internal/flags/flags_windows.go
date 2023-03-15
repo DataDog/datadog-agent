@@ -9,7 +9,6 @@
 package flags
 
 import (
-	"flag"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"

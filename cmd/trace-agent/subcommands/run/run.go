@@ -17,7 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
-	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote"
@@ -47,17 +46,6 @@ import (
 const messageAgentDisabled = `trace-agent not enabled. Set the environment variable
 DD_APM_ENABLED=true or add "apm_config.enabled: true" entry
 to your datadog.yaml. Exiting...`
-
-type RunParams struct {
-	*subcommands.GlobalParams
-
-	// PIDFilePath contains the value of the --pidfile flag.
-	PIDFilePath string
-	// CPUProfile contains the value for the --cpu-profile flag.
-	CPUProfile string
-	// MemProfile contains the value for the --mem-profile flag.
-	MemProfile string
-}
 
 // Run is the entrypoint of our code, which starts the agent.
 func runAgent(ctx context.Context, cliParams *RunParams, cfg config.Component) error {

@@ -30,7 +30,7 @@ func MakeRootCommand(defaultLogFile string) *cobra.Command {
 	traceAgentCmd.Use = "trace-agent [command]"
 	traceAgentCmd.Short = "Datadog trace-agent at your service."
 
-	traceAgentCmd.PersistentFlags().StringVarP(&globalParams.ConfPath, "config", "c", "", "path to directory containing datadog.yaml")
+	traceAgentCmd.PersistentFlags().StringVarP(&globalParams.ConfPath, "config", "c", defaultConfigPath, "path to directory containing datadog.yaml")
 
 	for _, cmd := range commands {
 		traceAgentCmd.AddCommand(cmd)

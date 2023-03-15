@@ -30,9 +30,7 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 
-	// "github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -450,9 +448,6 @@ func TestConfigHostname(t *testing.T) {
 		})
 
 		t.Run("empty+disallowed", func(t *testing.T) {
-			features.Set("disable_empty_hostname")
-			defer func() { features.Set(os.Getenv("DD_APM_FEATURES")) }()
-
 			bin := makeProgram("", 0)
 			defer os.Remove(bin)
 
@@ -467,6 +462,7 @@ func TestConfigHostname(t *testing.T) {
 				require.NotNil(t, cfg)
 
 				cfg.DDAgentBin = bin
+				cfg.Features = map[string]struct{}{"disable_empty_hostname": {}}
 				assert.NoError(t, acquireHostnameFallback(cfg))
 				assert.Equal(t, "fallback.host", cfg.Hostname)
 			})

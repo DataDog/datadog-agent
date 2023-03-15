@@ -72,7 +72,7 @@ func (c *cfg) Object() config.ConfigReader {
 
 // NewMock exported mock builder to allow modifying mocks that might be
 // supplied in tests and used for dep injection.
-func newMock(deps dependencies, t testing.TB) Component {
+func newMock(deps dependencies, t testing.TB) (Component, error) {
 	old := config.Datadog
 	config.Datadog = config.NewConfig("mock", "XXXX", strings.NewReplacer())
 	c := &cfg{
@@ -83,24 +83,8 @@ func newMock(deps dependencies, t testing.TB) Component {
 	// call InitConfig to set defaults.
 	config.InitConfig(config.Datadog)
 
-	// Viper's `GetXxx` methods read environment variables at the time they are
-	// called, if those names were passed explicitly to BindEnv*(), so we must
-	// also strip all `DD_` environment variables for the duration of the test.
-	// oldEnv := os.Environ()
-	// for _, kv := range oldEnv {
-	// 	if strings.HasPrefix(kv, "DD_") {
-	// 		kvslice := strings.SplitN(kv, "=", 2)
-	// 		os.Unsetenv(kvslice[0])
-	// 	}
-	// }
-	// t.Cleanup(func() {
-	// 	for _, kv := range oldEnv {
-	// 		kvslice := strings.SplitN(kv, "=", 2)
-	// 		os.Setenv(kvslice[0], kvslice[1])
-	// 	}
-	// })
-
-	setupConfig(deps)
+	warnings, _ := setupConfig(deps)
+	c.warnings = warnings
 
 	// Overrides are explicit and will take precedence over any other
 	// setting
@@ -111,5 +95,5 @@ func newMock(deps dependencies, t testing.TB) Component {
 	// swap the existing config back at the end of the test.
 	t.Cleanup(func() { config.Datadog = old })
 
-	return c
+	return c, nil
 }
