@@ -240,9 +240,8 @@ namespace WixSetup.Datadog
                 UserCustomActions.ProcessDdAgentUserCredentials,
                 Return.check,
                 // Run at end of "config phase", right before the "make changes" phase.
-                // Must run before InstallValidate because it changes the User components
                 When.Before,
-                Step.InstallValidate,
+                Step.InstallInitialize,
                 // Run unless we are being uninstalled.
                 // This CA produces properties used for services, accounts, and permissions.
                 Condition.NOT(Conditions.Uninstalling)

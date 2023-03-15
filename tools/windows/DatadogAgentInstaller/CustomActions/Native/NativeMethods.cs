@@ -238,6 +238,21 @@ namespace Datadog.CustomActions.Native
             throw new Exception($"Could not add user to group {groupName}: {err}");
         }
 
+        [DllImport("netapi32.dll", CharSet = CharSet.Unicode)]
+        public static extern int NetUserSetInfo(
+            [MarshalAs(UnmanagedType.LPWStr)] string servername,
+            string username,
+            int level,
+            ref USER_INFO_1003 buf,
+            out uint parm_err
+        );
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        public struct USER_INFO_1003
+        {
+            public string sPassword;
+        }
+
         [Flags]
         public enum ServerTypes : uint
         {

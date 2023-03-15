@@ -345,7 +345,7 @@ namespace Datadog.CustomActions
                 if (string.IsNullOrEmpty(domain))
                 {
                     // This case is hit if user specifies a username without a domain part and it does not exist
-                    session.Log($"domain part is empty, using default");
+                    session.Log("domain part is empty, using default");
                     domain = GetDefaultDomainPart();
                 }
                 session.Log($"Installing with DDAGENTUSER_PROCESSED_NAME={userName} and DDAGENTUSER_PROCESSED_DOMAIN={domain}");
@@ -362,14 +362,8 @@ namespace Datadog.CustomActions
                     string.IsNullOrEmpty(ddAgentUserPassword))
                 {
                     session.Log("Generating a random password");
+                    session["DDAGENTUSER_RESET_PASSWORD"] = "yes";
                     ddAgentUserPassword = GetRandomPassword(128);
-                    session.Components["InstallerManagedAgentUser"].RequestState = InstallState.Local;
-                    session.Components["UserManagedAgentUser"].RequestState = InstallState.Absent;
-                }
-                else
-                {
-                    session.Components["InstallerManagedAgentUser"].RequestState = InstallState.Absent;
-                    session.Components["UserManagedAgentUser"].RequestState = InstallState.Local;
                 }
 
                 if (!string.IsNullOrEmpty(ddAgentUserPassword) && isServiceAccount)
@@ -398,24 +392,35 @@ namespace Datadog.CustomActions
         {
             try
             {
-                SecurityIdentifier securityIdentifier;
-                if (string.IsNullOrEmpty(session.Property("DDAGENTUSER_SID")))
+                var ddAgentUserName = $"{session.Property("DDAGENTUSER_PROCESSED_FQ_NAME")}";
+                var userFound = LookupAccountName(ddAgentUserName,
+                    out _,
+                    out _,
+                    out var securityIdentifier,
+                    out _);
+                if (!userFound)
                 {
-                    var ddAgentUserName = $"{session.Property("DDAGENTUSER_PROCESSED_FQ_NAME")}";
-                    var userFound = LookupAccountName(ddAgentUserName,
-                        out _,
-                        out _,
-                        out securityIdentifier,
-                        out _);
-                    if (!userFound)
-                    {
-                        session.Log($"Could not find user {ddAgentUserName}.");
-                        return ActionResult.Failure;
-                    }
+                    throw new Exception($"Could not find user {ddAgentUserName}.");
                 }
-                else
+                
+                var resetPassword = session.Property("DDAGENTUSER_RESET_PASSWORD");
+                var ddagentuserPassword = session.Property("DDAGENTUSER_PROCESSED_PASSWORD");
+                if (!string.IsNullOrEmpty(resetPassword))
                 {
-                    securityIdentifier = new SecurityIdentifier(session.Property("DDAGENTUSER_SID"));
+                    if (string.IsNullOrEmpty(ddagentuserPassword))
+                    {
+                        throw new InvalidOperationException("Asked to reset password, but password was not provided");
+                    }
+                    var userInfo = new USER_INFO_1003
+                    {
+                        sPassword = ddagentuserPassword
+                    };
+                    // A zero return indicates success. 
+                    var result = NetUserSetInfo(null, ddAgentUserName, 1003, ref userInfo, out _);
+                    if (result != 0)
+                    {
+                        throw new System.ComponentModel.Win32Exception(result, $"Error while setting the password for {ddAgentUserName}");
+                    }
                 }
 
                 securityIdentifier.AddToGroup(WellKnownSidType.BuiltinPerformanceMonitoringUsersSid);
@@ -448,8 +453,7 @@ namespace Datadog.CustomActions
                 }
                 else
                 {
-                    session.Log($"{nameof(ConfigureUser)}: Could not set registry ACLs.");
-                    return ActionResult.Failure;
+                    throw new Exception("Could not set registry ACLs.");
                 }
 
                 var files = new List<string>
