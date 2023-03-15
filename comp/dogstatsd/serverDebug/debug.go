@@ -169,7 +169,6 @@ func (d *serverDebug) EnableMetricsStats() {
 	d.enabled.Store(true)
 	go func() {
 		ticker := d.clock.Ticker(time.Millisecond * 100)
-		var closed bool
 		d.log.Debug("Starting the DogStatsD debug loop.")
 		defer func() {
 			d.log.Debug("Stopping the DogStatsD debug loop.")
@@ -196,12 +195,7 @@ func (d *serverDebug) EnableMetricsStats() {
 			case <-d.metricsCounts.metricChan:
 				d.metricsCounts.counts[d.metricsCounts.bucketIdx]++
 			case <-d.metricsCounts.closeChan:
-				closed = true
 				return
-			}
-
-			if closed {
-				break
 			}
 		}
 	}()
