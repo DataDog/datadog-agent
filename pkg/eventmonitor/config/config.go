@@ -128,25 +128,15 @@ type Config struct {
 	// NetworkConsumerEnabled defines if the network tracer system-probe module wants to receive kernel events
 	NetworkConsumerEnabled bool
 
-	// ActivityDumpEnabled defines if the activity dump manager should be enabled
-	ActivityDumpEnabled bool
-
 	// NetworkEnabled defines if the network probes should be activated
 	NetworkEnabled bool
 
 	// StatsPollingInterval determines how often metrics should be polled
 	StatsPollingInterval time.Duration
-
-	// SBOMResolverEnabled defines if the SBOM resolver should be enabled
-	SBOMResolverEnabled bool
-
-	// SBOMResolverWorkloadsCacheSize defines the count of SBOMs to keep in memory in order to prevent re-computing
-	// the SBOMs of short-lived and periodical workloads
-	SBOMResolverWorkloadsCacheSize int
 }
 
 // NewConfig creates a config for the event monitoring module
-func NewConfig(spConfig *config.Config, isRuntimeEnabled bool) (*Config, error) {
+func NewConfig(spConfig *config.Config) (*Config, error) {
 	c := &Config{
 		Config:                             *ebpf.NewConfig(),
 		EnableKernelFilters:                getBool("enable_kernel_filters"),
@@ -172,13 +162,8 @@ func NewConfig(spConfig *config.Config, isRuntimeEnabled bool) (*Config, error) 
 		EventStreamUseRingBuffer:           getBool("event_stream.use_ring_buffer"),
 		EventStreamBufferSize:              getInt("event_stream.buffer_size"),
 		EnvsWithValue:                      getStringSlice("envs_with_value"),
-		ActivityDumpEnabled:                getBool("activity_dump.enabled"),
 		NetworkEnabled:                     getBool("network.enabled"),
 		StatsPollingInterval:               time.Duration(getInt("events_stats.polling_interval")) * time.Second,
-
-		// SBOM resolver
-		SBOMResolverEnabled:            coreconfig.SystemProbe.GetBool("runtime_security_config.sbom.enabled"),
-		SBOMResolverWorkloadsCacheSize: coreconfig.SystemProbe.GetInt("runtime_security_config.sbom.workloads_cache_size"),
 
 		// event server
 		SocketPath:           getString("socket"),
@@ -196,18 +181,14 @@ func NewConfig(spConfig *config.Config, isRuntimeEnabled bool) (*Config, error) 
 		NetworkConsumerEnabled: getBool("network_process.enabled") && spConfig.ModuleIsEnabled(config.NetworkTracerModule),
 	}
 
-	if err := c.sanitize(isRuntimeEnabled); err != nil {
+	if err := c.sanitize(); err != nil {
 		return nil, err
 	}
 	return c, nil
 }
 
 // sanitize config parameters
-func (c *Config) sanitize(isRuntimeEnabled bool) error {
-	if !isRuntimeEnabled {
-		c.ActivityDumpEnabled = false
-	}
-
+func (c *Config) sanitize() error {
 	if !c.ERPCDentryResolutionEnabled && !c.MapDentryResolutionEnabled {
 		c.MapDentryResolutionEnabled = true
 	}
@@ -237,18 +218,18 @@ func (c *Config) sanitize(isRuntimeEnabled bool) error {
 		c.EnableKernelFilters = false
 	}
 
-	c.sanitizeRuntimeSecurityConfigNetwork()
+	c.sanitizeConfigNetwork()
 
 	return nil
 }
 
 // sanitizeNetworkConfiguration ensures that event_monitoring_config.network is properly configured
-func (c *Config) sanitizeRuntimeSecurityConfigNetwork() {
+func (c *Config) sanitizeConfigNetwork() {
 	lazyInterfaces := make(map[string]bool)
 	for _, name := range c.NetworkLazyInterfacePrefixes {
 		lazyInterfaces[name] = true
 	}
-	// make sure to append both `lo` and `dummy` in the list of `runtime_security_config.network.lazy_interface_prefixes`
+	// make sure to append both `lo` and `dummy` in the list of `event_monitoring_config.network.lazy_interface_prefixes`
 	lazyDefaults := []string{"lo", "dummy"}
 	for _, name := range lazyDefaults {
 		if !lazyInterfaces[name] {

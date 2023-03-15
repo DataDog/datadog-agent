@@ -365,7 +365,7 @@ func (a *APIServer) GetConfig(ctx context.Context, params *api.GetConfigParams) 
 		return &api.SecurityConfigMessage{
 			FIMEnabled:          a.cfg.FIMEnabled,
 			RuntimeEnabled:      a.cfg.RuntimeEnabled,
-			ActivityDumpEnabled: a.probe.Config.ActivityDumpEnabled,
+			ActivityDumpEnabled: a.probe.IsActivityDumpEnabled(),
 		}, nil
 	}
 	return &api.SecurityConfigMessage{}, nil

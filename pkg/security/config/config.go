@@ -7,10 +7,11 @@ package config
 
 import (
 	"fmt"
+	"os"
+
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"os"
 )
 
 // Policy represents a policy file in the configuration file
@@ -87,8 +88,8 @@ func NewConfig() *Config {
 }
 
 // IsRuntimeEnabled returns true if any feature is enabled
-func (c *Config) IsRuntimeEnabled() bool {
-	return c.RuntimeEnabled || c.FIMEnabled
+func IsRuntimeEnabled() bool {
+	return coreconfig.SystemProbe.GetBool("runtime_security_config.enabled") || coreconfig.SystemProbe.GetBool("runtime_security_config.fim_enabled")
 }
 
 // sanitize ensures that the configuration is properly setup

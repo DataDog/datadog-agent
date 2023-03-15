@@ -17,6 +17,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
+	adconfig "github.com/DataDog/datadog-agent/pkg/security/activitydump/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
@@ -57,10 +58,11 @@ func (s *PerfMapStats) UnmarshalBinary(data []byte) error {
 //nolint:structcheck,unused
 type PerfBufferMonitor struct {
 	// probe is a pointer to the Probe
-	probe        *Probe
-	config       *config.Config
-	statsdClient statsd.ClientInterface
-	eRPC         *erpc.ERPC
+	probe              *Probe
+	config             *config.Config
+	statsdClient       statsd.ClientInterface
+	eRPC               *erpc.ERPC
+	activityDumpConfig *adconfig.Config
 
 	// numCPU holds the current count of CPU
 	numCPU int
@@ -571,7 +573,7 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInte
 			)
 
 			// snapshot traced cgroups if a CgroupTracing event was lost
-			if pbm.config.ActivityDumpEnabled && perEvent[model.CgroupTracingEventType.String()] > 0 {
+			if pbm.probe.IsActivityDumpEnabled() && perEvent[model.CgroupTracingEventType.String()] > 0 {
 				pbm.probe.monitor.activityDumpManager.SnapshotTracedCgroups()
 			}
 		}

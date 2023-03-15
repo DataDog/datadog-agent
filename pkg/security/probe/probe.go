@@ -12,12 +12,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	adconfig "github.com/DataDog/datadog-agent/pkg/security/activitydump/config"
 	"os"
 	"path/filepath"
 	"runtime"
 	"sync"
 	"time"
+
+	adconfig "github.com/DataDog/datadog-agent/pkg/security/activitydump/config"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
@@ -104,6 +105,7 @@ type Probe struct {
 	ctx            context.Context
 	cancelFnc      context.CancelFunc
 	wg             sync.WaitGroup
+	adcfg          *adconfig.Config
 
 	// Events section
 	eventHandlers       [model.MaxAllEventType][]EventHandler
@@ -514,7 +516,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 		return
 	case model.CgroupTracingEventType:
-		if !p.Config.ActivityDumpEnabled {
+		if !p.adcfg.ActivityDumpEnabled {
 			seclog.Errorf("shouldn't receive Cgroup event if activity dumps are disabled")
 			return
 		}
@@ -963,7 +965,7 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 }
 
 func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {
-	if p.Config.ActivityDumpEnabled {
+	if p.adcfg.ActivityDumpEnabled {
 		for _, e := range p.monitor.GetActivityDumpTracedEventTypes() {
 			if e.String() == eventType {
 				return true
@@ -1010,7 +1012,7 @@ func (p *Probe) updateProbes(ruleEventTypes []eval.EventType) error {
 	activatedProbes = append(activatedProbes, p.resolvers.TCResolver.SelectTCProbes())
 
 	// ActivityDumps
-	if p.Config.ActivityDumpEnabled {
+	if p.adcfg.ActivityDumpEnabled {
 		for _, e := range p.monitor.GetActivityDumpTracedEventTypes() {
 			if e == model.SyscallsEventType {
 				activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
@@ -1285,11 +1287,17 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		return nil, err
 	}
 
+	adcfg, err := adconfig.NewConfig()
+	if err != nil {
+		return nil, fmt.Errorf("invalid activity dump configuration: %w", err)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	p := &Probe{
 		Opts:                 opts,
 		Config:               config,
+		adcfg:                adcfg,
 		approvers:            make(map[eval.EventType]kfilters.ActiveApprovers),
 		managerOptions:       ebpf.NewDefaultOptions(),
 		ctx:                  ctx,
@@ -1326,12 +1334,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 
 	p.ensureConfigDefaults()
 
-	adcfg, err := adconfig.NewConfig()
-	if err != nil {
-		return nil, fmt.Errorf("invalid activity dump configuration: %w", err)
-	}
-
-	p.monitor = NewMonitor(p, adcfg)
+	p.monitor = NewMonitor(p)
 
 	numCPU, err := utils.NumCPU()
 	if err != nil {
@@ -1349,7 +1352,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		seclog.Warnf("Forcing in-kernel filter policy to `pass`: filtering not enabled")
 	}
 
-	if p.Config.ActivityDumpEnabled {
+	if adcfg.ActivityDumpEnabled {
 		for _, e := range adcfg.ActivityDumpTracedEventTypes {
 			if e == model.SyscallsEventType {
 				// Add syscall monitor probes
@@ -1421,7 +1424,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		},
 		manager.ConstantEditor{
 			Name:  "cgroup_activity_dumps_enabled",
-			Value: utils.BoolTouint64(config.ActivityDumpEnabled && areCGroupADsEnabled),
+			Value: utils.BoolTouint64(adcfg.ActivityDumpEnabled && areCGroupADsEnabled),
 		},
 		manager.ConstantEditor{
 			Name:  "net_struct_type",
@@ -1641,6 +1644,10 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 
 func (p *Probe) IsNetworkEnabled() bool {
 	return p.Config.NetworkEnabled
+}
+
+func (p *Probe) IsActivityDumpEnabled() bool {
+	return p.adcfg.ActivityDumpEnabled
 }
 
 func (p *Probe) StatsPollingInterval() time.Duration {

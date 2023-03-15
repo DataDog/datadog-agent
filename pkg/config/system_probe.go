@@ -271,7 +271,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.remote_configuration.enabled", false)
 
 	// Activity Dump
-	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "activity_dump.enabled"), true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cleanup_period", 30)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.tags_resolution_period", 60)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.load_controller_period", 1)

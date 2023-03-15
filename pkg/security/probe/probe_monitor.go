@@ -36,10 +36,9 @@ type Monitor struct {
 }
 
 // NewMonitor returns a new instance of a ProbeMonitor
-func NewMonitor(p *Probe, cfg *adconfig.Config) *Monitor {
+func NewMonitor(p *Probe) *Monitor {
 	return &Monitor{
-		probe:              p,
-		activityDumpConfig: cfg,
+		probe: p,
 	}
 }
 
@@ -60,8 +59,8 @@ func (m *Monitor) Init() error {
 		return fmt.Errorf("couldn't create the events statistics monitor: %w", err)
 	}
 
-	if p.Config.ActivityDumpEnabled {
-		m.activityDumpManager, err = activitydump.NewActivityDumpManager(m.activityDumpConfig, p.StatsdClient, func() *model.Event { return NewEvent(p.fieldHandlers) }, p.resolvers.ProcessResolver, p.resolvers.TimeResolver, p.resolvers.TagsResolver, p.kernelVersion, p.scrubber, p.Manager)
+	if p.IsActivityDumpEnabled() {
+		m.activityDumpManager, err = activitydump.NewActivityDumpManager(p.adcfg, p.StatsdClient, func() *model.Event { return NewEvent(p.fieldHandlers) }, p.resolvers.ProcessResolver, p.resolvers.TimeResolver, p.resolvers.TagsResolver, p.kernelVersion, p.scrubber, p.Manager)
 		if err != nil {
 			return fmt.Errorf("couldn't create the activity dump manager: %w", err)
 		}
@@ -191,7 +190,7 @@ var ErrActivityDumpManagerDisabled = errors.New("ActivityDumpManager is disabled
 
 // DumpActivity handles an activity dump request
 func (m *Monitor) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
-	if !m.probe.Config.ActivityDumpEnabled {
+	if !m.probe.IsActivityDumpEnabled() {
 		return &api.ActivityDumpMessage{
 			Error: ErrActivityDumpManagerDisabled.Error(),
 		}, ErrActivityDumpManagerDisabled
@@ -201,7 +200,7 @@ func (m *Monitor) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDum
 
 // ListActivityDumps returns the list of active dumps
 func (m *Monitor) ListActivityDumps(params *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
-	if !m.probe.Config.ActivityDumpEnabled {
+	if !m.probe.IsActivityDumpEnabled() {
 		return &api.ActivityDumpListMessage{
 			Error: ErrActivityDumpManagerDisabled.Error(),
 		}, ErrActivityDumpManagerDisabled
@@ -211,7 +210,7 @@ func (m *Monitor) ListActivityDumps(params *api.ActivityDumpListParams) (*api.Ac
 
 // StopActivityDump stops an active activity dump
 func (m *Monitor) StopActivityDump(params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
-	if !m.probe.Config.ActivityDumpEnabled {
+	if !m.probe.IsActivityDumpEnabled() {
 		return &api.ActivityDumpStopMessage{
 			Error: ErrActivityDumpManagerDisabled.Error(),
 		}, ErrActivityDumpManagerDisabled
@@ -221,7 +220,7 @@ func (m *Monitor) StopActivityDump(params *api.ActivityDumpStopParams) (*api.Act
 
 // GenerateTranscoding encodes an activity dump following the input parameters
 func (m *Monitor) GenerateTranscoding(params *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
-	if !m.probe.Config.ActivityDumpEnabled {
+	if !m.probe.IsActivityDumpEnabled() {
 		return &api.TranscodingRequestMessage{
 			Error: ErrActivityDumpManagerDisabled.Error(),
 		}, ErrActivityDumpManagerDisabled
@@ -230,5 +229,5 @@ func (m *Monitor) GenerateTranscoding(params *api.TranscodingRequestParams) (*ap
 }
 
 func (m *Monitor) GetActivityDumpTracedEventTypes() []model.EventType {
-	return m.activityDumpConfig.ActivityDumpTracedEventTypes
+	return m.probe.adcfg.ActivityDumpTracedEventTypes
 }

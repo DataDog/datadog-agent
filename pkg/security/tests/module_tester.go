@@ -45,7 +45,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/activitydump"
-	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
@@ -89,10 +88,6 @@ event_monitoring_config:
   network:
     enabled: true
   flush_discarder_window: 0
-  sbom:
-    enabled: {{ .SBOMEnabled }}
-  activity_dump:
-    enabled: {{ .EnableActivityDump }}
   load_controller:
     events_count_threshold: {{ .EventsCountThreshold }}
 {{if .DisableFilters}}
@@ -114,8 +109,11 @@ event_monitoring_config:
 runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
   socket: /tmp/test-security-probe.sock
-{{if .EnableActivityDump}}
+  sbom:
+    enabled: {{ .SBOMEnabled }}
   activity_dump:
+    enabled: {{ .EnableActivityDump }}
+{{if .EnableActivityDump}}
     rate_limiter: {{ .ActivityDumpRateLimiter }}
     tag_rules:
       enabled: {{ .ActivityDumpTagRules }}
@@ -766,9 +764,7 @@ func genTestConfig(dir string, opts testOpts, testDir string) (*config.Config, e
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
-	seccfg := secconfig.NewConfig()
-
-	config, err := config.NewConfig(sysProbeConfig, seccfg.IsRuntimeEnabled())
+	config, err := config.NewConfig(sysProbeConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}

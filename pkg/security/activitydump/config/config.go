@@ -2,12 +2,14 @@ package config
 
 import (
 	"fmt"
+	"strings"
+	"time"
+
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	logsconfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"strings"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -20,6 +22,9 @@ const (
 )
 
 type Config struct {
+	// ActivityDumpEnabled defines if the activity dump manager should be enabled
+	ActivityDumpEnabled bool
+
 	// ActivityDumpCleanupPeriod defines the period at which the activity dump manager should perform its cleanup
 	// operation.
 	ActivityDumpCleanupPeriod time.Duration
@@ -92,6 +97,7 @@ func join(pieces ...string) string {
 func NewConfig() (*Config, error) {
 	cfg := coreconfig.SystemProbe
 	c := &Config{
+		ActivityDumpEnabled:                   cfg.GetBool(join(adNS, "enabled")),
 		ActivityDumpCleanupPeriod:             time.Duration(cfg.GetInt(join(adNS, "cleanup_period"))) * time.Second,
 		ActivityDumpTagsResolutionPeriod:      time.Duration(cfg.GetInt(join(adNS, "tags_resolution_period"))) * time.Second,
 		ActivityDumpLoadControlPeriod:         time.Duration(cfg.GetInt(join(adNS, "load_controller_period"))) * time.Minute,
@@ -126,6 +132,10 @@ func NewConfig() (*Config, error) {
 
 // sanitize ensures that runtime_security_config.activity_dump is properly configured
 func (c *Config) sanitize() error {
+	if !secconfig.IsRuntimeEnabled() {
+		c.ActivityDumpEnabled = false
+	}
+
 	var execFound bool
 	for _, evtType := range c.ActivityDumpTracedEventTypes {
 		if evtType == model.ExecEventType {
