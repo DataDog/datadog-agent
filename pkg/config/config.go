@@ -7,6 +7,7 @@ package config
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -2058,8 +2059,8 @@ func getBindHost(cfg Config) string {
 
 // GetValidHostAliases validates host aliases set in `host_aliases` variable and returns
 // only valid ones.
-func GetValidHostAliases() []string {
-	return getValidHostAliasesWithConfig(Datadog)
+func GetValidHostAliases(_ context.Context) ([]string, error) {
+	return getValidHostAliasesWithConfig(Datadog), nil
 }
 
 func getValidHostAliasesWithConfig(config Config) []string {
