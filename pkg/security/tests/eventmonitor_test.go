@@ -81,7 +81,7 @@ func (fc *FakeEventConsumer) HandleEvent(event *model.Event) {
 	}
 }
 
-func TestProcessMonitoring(t *testing.T) {
+func TestEventMonitor(t *testing.T) {
 	var fc *FakeEventConsumer
 	test, err := newTestModule(t, nil, nil, testOpts{
 		disableRuntimeSecurity: true,
