@@ -36,6 +36,10 @@ const (
 
 	// TCPSendMsg traces the tcp_sendmsg() system call
 	TCPSendMsg ProbeFuncName = "kprobe__tcp_sendmsg"
+	// TCPSendPage traces the tcp_sendpage() kernel function
+	TCPSendPage ProbeFuncName = "kprobe__tcp_sendpage"
+	// UDPSendPage traces the udp_sendpage() kernel function
+	UDPSendPage ProbeFuncName = "kprobe__udp_sendpage"
 
 	// TCPSendMsgPre410 traces the tcp_sendmsg() system call on kernels prior to 4.1.0. This is created because
 	// we need to load a different kprobe implementation
@@ -45,6 +49,10 @@ const (
 	// XXX: This is only used for telemetry for now to count the number of errors returned
 	// by the tcp_sendmsg func (so we can have a # of tcp sent bytes we miscounted)
 	TCPSendMsgReturn ProbeFuncName = "kretprobe__tcp_sendmsg"
+	// TCPSendPageReturn traces the return value of tcp_sendpage()
+	TCPSendPageReturn ProbeFuncName = "kretprobe__tcp_sendpage"
+	// UDPSendPageReturn traces the return value of udp_sendpage()
+	UDPSendPageReturn ProbeFuncName = "kretprobe__udp_sendpage"
 
 	// TCPGetSockOpt traces the tcp_getsockopt() kernel function
 	// This probe is used for offset guessing only
@@ -117,7 +125,7 @@ const (
 	TCPRetransmit ProbeFuncName = "kprobe__tcp_retransmit_skb"
 	// TCPRetransmitPre470 traces the params for the tcp_retransmit_skb() system call on kernel version < 4.7
 	TCPRetransmitPre470 ProbeFuncName = "kprobe__tcp_retransmit_skb_pre_4_7_0"
-	// TCPRetransmit traces the return value for the tcp_retransmit_skb() system call
+	// TCPRetransmitRet traces the return value for the tcp_retransmit_skb() system call
 	TCPRetransmitRet ProbeFuncName = "kretprobe__tcp_retransmit_skb"
 
 	// InetCskAcceptReturn traces the return value for the inet_csk_accept syscall
@@ -147,12 +155,6 @@ const (
 
 	// SockFDLookupRet is the kretprobe used for mapping socket FDs to kernel sock structs
 	SockFDLookupRet ProbeFuncName = "kretprobe__sockfd_lookup_light"
-
-	// DoSendfile is the kprobe used to trace traffic via SENDFILE(2) syscall
-	DoSendfile ProbeFuncName = "kprobe__do_sendfile"
-
-	// DoSendfileRet is the kretprobe used to trace traffic via SENDFILE(2) syscall
-	DoSendfileRet ProbeFuncName = "kretprobe__do_sendfile"
 )
 
 // BPFMapName stores the name of the BPF maps storing statistics and other info
@@ -172,10 +174,11 @@ const (
 	ConntrackMap                      BPFMapName = "conntrack"
 	ConntrackTelemetryMap             BPFMapName = "conntrack_telemetry"
 	SockFDLookupArgsMap               BPFMapName = "sockfd_lookup_args"
-	DoSendfileArgsMap                 BPFMapName = "do_sendfile_args"
 	SockByPidFDMap                    BPFMapName = "sock_by_pid_fd"
 	PidFDBySockMap                    BPFMapName = "pid_fd_by_sock"
 	TcpSendMsgArgsMap                 BPFMapName = "tcp_sendmsg_args"
+	TcpSendPageArgsMap                BPFMapName = "tcp_sendpage_args"
+	UdpSendPageArgsMap                BPFMapName = "udp_sendpage_args"
 	IpMakeSkbArgsMap                  BPFMapName = "ip_make_skb_args"
 	MapErrTelemetryMap                BPFMapName = "map_err_telemetry_map"
 	HelperErrTelemetryMap             BPFMapName = "helper_err_telemetry_map"
