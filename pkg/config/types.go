@@ -59,6 +59,7 @@ type ConfigReader interface {
 
 type ConfigWriter interface {
 	Set(key string, value interface{})
+	CopyConfig(cfg Config)
 }
 
 type ConfigReaderWriter interface {

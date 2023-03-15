@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package dogstatsd
+package server
 
 import (
 	"bytes"
@@ -256,4 +256,8 @@ func parseFloat64(rawFloat []byte) (float64, error) {
 // see https://github.com/golang/go/issues/2632
 func parseInt64(rawInt []byte) (int64, error) {
 	return strconv.ParseInt(*(*string)(unsafe.Pointer(&rawInt)), 10, 64)
+}
+
+func parseInt(rawInt []byte) (int, error) {
+	return strconv.Atoi(*(*string)(unsafe.Pointer(&rawInt)))
 }
