@@ -70,7 +70,7 @@ func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregation
 		BucketsAggregationKey: BucketsAggregationKey{
 			Resource:    s.Resource,
 			Service:     s.Service,
-			PeerService: peerService,
+			PeerService: s.Meta["peer.service"],
 			Name:        s.Name,
 			Type:        s.Type,
 			StatusCode:  getStatusCode(s),
