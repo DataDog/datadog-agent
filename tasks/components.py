@@ -195,7 +195,7 @@ def lint_components(ctx, fix=False):
 
 
 @task
-def new_bundle(ctx, bundle_path, overwrite=False):
+def new_bundle(_, bundle_path, overwrite=False):
     """
     Create a new bundle package with bundle.go and bundle_test.go files.
 
@@ -213,7 +213,7 @@ def new_bundle(ctx, bundle_path, overwrite=False):
 
 
 @task
-def new_component(ctx, comp_path, overwrite=False):
+def new_component(_, comp_path, overwrite=False):
     """
     Create a new component package with the component.go file.
 
@@ -259,6 +259,8 @@ def create_components_framework_files(comp_path, new_files, template_var_mapping
         # We set the umask to create folder with 0o755 permissions instead of 0o777
         original_umask = os.umask(0o022)
         os.makedirs(comp_path, mode=0o755, exist_ok=True)
+    except Exception as err:
+        print(err)
     finally:
         os.umask(original_umask)
 
