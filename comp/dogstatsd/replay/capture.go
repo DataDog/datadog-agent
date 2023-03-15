@@ -30,18 +30,23 @@ type TrafficCapture struct {
 	sync.RWMutex
 }
 
+func NewServerlessTrafficCapture() Component {
+	return newTrafficCapture()
+}
+
 // NewTrafficCapture creates a TrafficCapture instance.
-func NewTrafficCapture() (*TrafficCapture, error) {
+func newTrafficCapture() Component {
+	return &TrafficCapture{}
+}
+
+func (tc *TrafficCapture) Configure() error {
 	writer := NewTrafficCaptureWriter(config.Datadog.GetInt("dogstatsd_capture_depth"))
 	if writer == nil {
-		return nil, fmt.Errorf("unable to instantiate capture writer")
+		return fmt.Errorf("unable to instantiate capture writer")
 	}
+	tc.writer = writer
 
-	tc := &TrafficCapture{
-		writer: writer,
-	}
-
-	return tc, nil
+	return nil
 }
 
 // IsOngoing returns whether a capture is ongoing for this TrafficCapture instance.

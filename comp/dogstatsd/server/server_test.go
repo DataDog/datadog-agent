@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -55,6 +56,7 @@ func runWithComponent(t testing.TB, test func(Component)) {
 		core.MockBundle,
 		fx.Supply(core.BundleParams{}),
 		fx.Supply(Params{Serverless: false}),
+		replay.MockModule,
 		Module,
 	), test)
 }
@@ -64,6 +66,7 @@ func runWithComponentAndConfig(t testing.TB, overrides map[string]interface{}, t
 		core.MockBundle,
 		fx.Supply(core.BundleParams{ConfigParams: configComponent.NewParams("", configComponent.WithOverrides(overrides))}),
 		fx.Supply(Params{Serverless: false}),
+		replay.MockModule,
 		Module,
 	), test)
 }
