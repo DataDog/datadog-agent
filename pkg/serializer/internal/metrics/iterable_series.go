@@ -82,6 +82,7 @@ func (series *IterableSeries) WriteCurrentItem(stream *jsoniter.Stream) error {
 
 func writeItem(stream *jsoniter.Stream, serie *metrics.Serie) error {
 	serie.PopulateDeviceField()
+	serie.PopulateResources()
 	encodeSerie(serie, stream)
 	return stream.Flush()
 }
@@ -374,6 +375,7 @@ func (series *IterableSeries) MarshalJSON() ([]byte, error) {
 	for series.MoveNext() {
 		serie := series.source.Current()
 		serie.PopulateDeviceField()
+		serie.PopulateResources()
 		seriesAlias = append(seriesAlias, serie)
 	}
 

@@ -29,10 +29,17 @@ func (p *Point) MarshalJSON() ([]byte, error) {
 	return []byte(fmt.Sprintf("[%v, %v]", int64(p.Ts), p.Value)), nil
 }
 
+// Resource holds a resource name and type
+type Resource struct {
+	Name string `json:"name,omitempty"`
+	Type string `json:"type,omitempty"`
+}
+
 // Serie holds a timeseries (w/ json serialization to DD API format)
 type Serie struct {
 	Name           string               `json:"metric"`
 	Points         []Point              `json:"points"`
+	Resources      []Resource           `json:"resources,omitempty"`
 	Tags           tagset.CompositeTags `json:"tags"`
 	Host           string               `json:"host"`
 	Device         string               `json:"device,omitempty"`
@@ -108,6 +115,46 @@ func (serie *Serie) PopulateDeviceField() {
 func (serie *Serie) hasDeviceTag() bool {
 	return serie.Tags.Find(func(tag string) bool {
 		return strings.HasPrefix(tag, "device:")
+	})
+}
+
+// PopulateResources removes any `resource:` tags in the series tags and uses the values to
+// populate the Serie.Resources field. The format for the resource tag values is <resource_type>,<resource_name>.
+// Any resource tag not matching that format will be preserved as a tag
+func (serie *Serie) PopulateResources() {
+	if !serie.hasResourceTag() {
+		return
+	}
+	// make a copy of the tags array. Otherwise the underlying array won't have
+	// the resource tag for the Nth iteration (N>1), and the resources field will
+	// be lost
+	filteredTags := make([]string, 0, serie.Tags.Len())
+
+	serie.Tags.ForEach(func(tag string) {
+		if strings.HasPrefix(tag, "resource:") {
+			tagVal := tag[9:]
+			commaIdx := strings.Index(tagVal, ",")
+			if commaIdx > 0 && commaIdx < len(tagVal)-1 {
+				resource := Resource{
+					Name: tagVal[:commaIdx],
+					Type: tagVal[commaIdx+1:],
+				}
+				serie.Resources = append(serie.Resources, resource)
+			} else {
+				filteredTags = append(filteredTags, tag)
+			}
+		} else {
+			filteredTags = append(filteredTags, tag)
+		}
+	})
+
+	serie.Tags = tagset.CompositeTagsFromSlice(filteredTags)
+}
+
+// hasResourceTag checks whether a series contains a resource tag
+func (serie *Serie) hasResourceTag() bool {
+	return serie.Tags.Find(func(tag string) bool {
+		return strings.HasPrefix(tag, "resource:")
 	})
 }
 

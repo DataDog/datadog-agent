@@ -64,6 +64,63 @@ func TestPopulateDeviceField(t *testing.T) {
 	}
 }
 
+func TestPopulateResources(t *testing.T) {
+	for _, tc := range []struct {
+		Tags              []string
+		ExpectedTags      []string
+		ExpectedResources []metrics.Resource
+	}{
+		{
+			[]string{"some:tag", "resource:aws_rds_instance,some_instance_endpoint"},
+			[]string{"some:tag"},
+			[]metrics.Resource{metrics.Resource{
+				Name: "aws_rds_instance",
+				Type: "some_instance_endpoint",
+			}},
+		},
+		{
+			[]string{"some:tag", "resource:database_instance,some_db_host", "resource:aws_rds_instance,some_instance_endpoint", "some_other:tag"},
+			[]string{"some:tag", "some_other:tag"},
+			[]metrics.Resource{
+				metrics.Resource{
+					Name: "database_instance",
+					Type: "some_db_host",
+				},
+				metrics.Resource{
+					Name: "aws_rds_instance",
+					Type: "some_instance_endpoint",
+				}},
+		},
+		{
+			[]string{"some:tag", "resource:wrong_resource_format", "some_other:tag"},
+			[]string{"some:tag", "resource:wrong_resource_format", "some_other:tag"},
+			nil,
+		},
+		{
+			[]string{"some:tag", "resource:type_without_value,", "some_other:tag"},
+			[]string{"some:tag", "resource:type_without_value,", "some_other:tag"},
+			nil,
+		},
+		{
+			[]string{"yet_another:value", "one_last:tag_value", "long:array", "very_long:array", "many:tags", "such:wow"},
+			[]string{"yet_another:value", "one_last:tag_value", "long:array", "very_long:array", "many:tags", "such:wow"},
+			nil,
+		},
+	} {
+		t.Run(fmt.Sprintf(""), func(t *testing.T) {
+			s := &metrics.Serie{Tags: tagset.CompositeTagsFromSlice(tc.Tags)}
+
+			// Run a few times to ensure stability
+			for i := 0; i < 4; i++ {
+				s.PopulateResources()
+				assert.Equal(t, strings.Join(tc.ExpectedTags, ","), s.Tags.Join(","))
+				assert.Equal(t, tc.ExpectedResources, s.Resources)
+			}
+
+		})
+	}
+}
+
 func TestMarshalJSONSeries(t *testing.T) {
 	series := Series{{
 		Points: []metrics.Point{
