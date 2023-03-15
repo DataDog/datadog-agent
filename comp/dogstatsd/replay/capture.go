@@ -24,7 +24,7 @@ const (
 )
 
 // TrafficCapture allows capturing traffic from our listeners and writing it to file
-type TrafficCapture struct {
+type trafficCapture struct {
 	writer *TrafficCaptureWriter
 
 	sync.RWMutex
@@ -36,10 +36,10 @@ func NewServerlessTrafficCapture() Component {
 
 // NewTrafficCapture creates a TrafficCapture instance.
 func newTrafficCapture() Component {
-	return &TrafficCapture{}
+	return &trafficCapture{}
 }
 
-func (tc *TrafficCapture) Configure() error {
+func (tc *trafficCapture) Configure() error {
 	writer := NewTrafficCaptureWriter(config.Datadog.GetInt("dogstatsd_capture_depth"))
 	if writer == nil {
 		return fmt.Errorf("unable to instantiate capture writer")
@@ -50,7 +50,7 @@ func (tc *TrafficCapture) Configure() error {
 }
 
 // IsOngoing returns whether a capture is ongoing for this TrafficCapture instance.
-func (tc *TrafficCapture) IsOngoing() bool {
+func (tc *trafficCapture) IsOngoing() bool {
 	tc.RLock()
 	defer tc.RUnlock()
 
@@ -62,7 +62,7 @@ func (tc *TrafficCapture) IsOngoing() bool {
 }
 
 // Start starts a TrafficCapture and returns an error in the event of an issue.
-func (tc *TrafficCapture) Start(p string, d time.Duration, compressed bool) (string, error) {
+func (tc *trafficCapture) Start(p string, d time.Duration, compressed bool) (string, error) {
 	if tc.IsOngoing() {
 		return "", fmt.Errorf("Ongoing capture in progress")
 	}
@@ -79,7 +79,7 @@ func (tc *TrafficCapture) Start(p string, d time.Duration, compressed bool) (str
 }
 
 // Stop stops an ongoing TrafficCapture.
-func (tc *TrafficCapture) Stop() {
+func (tc *trafficCapture) Stop() {
 	tc.Lock()
 	defer tc.Unlock()
 
@@ -87,21 +87,21 @@ func (tc *TrafficCapture) Stop() {
 }
 
 // RegisterSharedPoolManager registers the shared pool manager with the TrafficCapture.
-func (tc *TrafficCapture) RegisterSharedPoolManager(p *packets.PoolManager) error {
+func (tc *trafficCapture) RegisterSharedPoolManager(p *packets.PoolManager) error {
 	tc.Lock()
 	defer tc.Unlock()
 	return tc.writer.RegisterSharedPoolManager(p)
 }
 
 // RegisterOOBPoolManager registers the OOB shared pool manager with the TrafficCapture.
-func (tc *TrafficCapture) RegisterOOBPoolManager(p *packets.PoolManager) error {
+func (tc *trafficCapture) RegisterOOBPoolManager(p *packets.PoolManager) error {
 	tc.Lock()
 	defer tc.Unlock()
 	return tc.writer.RegisterOOBPoolManager(p)
 }
 
 // Enqueue enqueues a capture buffer so it's written to file.
-func (tc *TrafficCapture) Enqueue(msg *CaptureBuffer) bool {
+func (tc *trafficCapture) Enqueue(msg *CaptureBuffer) bool {
 	tc.RLock()
 	defer tc.RUnlock()
 	return tc.writer.Enqueue(msg)
