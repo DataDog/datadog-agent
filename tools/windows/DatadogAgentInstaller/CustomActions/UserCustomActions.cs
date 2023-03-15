@@ -2,10 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.DirectoryServices.ActiveDirectory;
 using System.IO;
+using System.Linq;
 using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Security.Principal;
-using System.Windows.Forms;
+using System.ServiceProcess;
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Native;
 using Microsoft.Deployment.WindowsInstaller;
@@ -14,9 +15,6 @@ using static Datadog.CustomActions.Native.NativeMethods;
 
 namespace Datadog.CustomActions
 {
-    // Fetch and process registry value(s) and return a string to be assigned to a WIX property.
-    using GetRegistryPropertyHandler = Func<ISession, string>;
-
     public class UserCustomActions
     {
         public static string GetRandomPassword(int length)
@@ -29,19 +27,12 @@ namespace Datadog.CustomActions
 
         private static bool HostIsDomainController()
         {
-            try
+            var serverInfo = NetServerGetInfo<SERVER_INFO_101>();
+            if ((serverInfo.Type & ServerTypes.DomainCtrl) == ServerTypes.DomainCtrl
+                || (serverInfo.Type & ServerTypes.BackupDomainCtrl) == ServerTypes.BackupDomainCtrl)
             {
-                var serverInfo = NetServerGetInfo<SERVER_INFO_101>();
-                if ((serverInfo.Type & ServerTypes.DomainCtrl) == ServerTypes.DomainCtrl
-                    || (serverInfo.Type & ServerTypes.BackupDomainCtrl) == ServerTypes.BackupDomainCtrl)
-                {
-                    // Computer is a DC
-                    return true;
-                }
-            }
-            catch (ActiveDirectoryObjectNotFoundException)
-            {
-                // Computer is not joined to a domain, it can't be a DC
+                // Computer is a DC
+                return true;
             }
             return false;
         }
@@ -61,109 +52,22 @@ namespace Datadog.CustomActions
         /// </remarks>
         private static string GetDefaultDomainPart()
         {
-            if (HostIsDomainController())
+            if (!HostIsDomainController())
+            {
+                return Environment.MachineName;
+            }
+
+            try
             {
                 // Computer is a DC, default to domain name
-                var joinedDomain = Domain.GetComputerDomain();
-                return joinedDomain.Name;
+                return Domain.GetComputerDomain().Name;
+            }
+            catch (ActiveDirectoryObjectNotFoundException)
+            {
+                // Computer is not joined to a domain, it can't be a DC
             }
             // Computer is not a DC, default to machine name (NetBIOS name)
             return Environment.MachineName;
-        }
-
-        /// <summary>
-        /// If the WIX property <c>propertyName</c> does not have a value, assign it the value returned by <c>handler</c>.
-        /// This gives precedence to properties provided on the command line over the registry values.
-        /// </summary>
-        private static void RegistryProperty(ISession session, string propertyName, GetRegistryPropertyHandler handler)
-        {
-            if (string.IsNullOrEmpty(session[propertyName]))
-            {
-                try
-                {
-                    var propertyVal = handler(session);
-                    if (!string.IsNullOrEmpty(propertyVal))
-                    {
-                        session[propertyName] = propertyVal;
-                        session.Log($"Found {propertyName} in registry {session[propertyName]}");
-                    }
-                }
-                catch (Exception e)
-                {
-                    session.Log($"Exception processing registry value for {propertyName}: {e}");
-                }
-            }
-            else
-            {
-                session.Log($"User provided {propertyName} {session[propertyName]}");
-            }
-        }
-
-        /// <summary>
-        /// Convenience wrapper of <c>RegistryProperty</c> for properties that have an exact 1:1 mapping to a registry value
-        /// and don't require additional processing.
-        /// </summary>
-        private static void RegistryValueProperty(ISession session, string propertyName, RegistryKey registryKey, string registryValue)
-        {
-            RegistryProperty(session, propertyName,
-                _ => registryKey.GetValue(registryValue)?.ToString());
-        }
-
-        /// <summary>
-        /// Assigns WIX properties that were not provided by the user to their registry values.
-        /// </summary>
-        /// <remarks>
-        /// Custom Action that runs (only once) in either the InstallUISequence or the InstallExecuteSequence.
-        /// </remarks>
-        private static ActionResult ReadRegistryProperties(ISession session)
-        {
-            try
-            {
-                using var subkey = Registry.LocalMachine.OpenSubKey(@"Software\Datadog\Datadog Agent");
-                if (subkey != null)
-                {
-                    // DDAGENTUSER_NAME
-                    //
-                    // The user account can be provided to the installer by
-                    // * The registry
-                    // * The command line
-                    // * The agent user dialog
-                    // The user account domain and name are stored separately in the registry
-                    // but are passed together on the command line and the agent user dialog.
-                    // This function will combine the registry properties if they exist.
-                    // Preference is given to creds provided on the command line and the agent user dialog.
-                    // For UI installs it ensures that the agent user dialog is pre-populated.
-                    RegistryProperty(session, "DDAGENTUSER_NAME",
-                        _ =>
-                        {
-                            var domain = subkey.GetValue("installedDomain").ToString();
-                            var user = subkey.GetValue("installedUser").ToString();
-                            if (!string.IsNullOrEmpty(domain) && !string.IsNullOrEmpty(user))
-                            {
-                                return $"{domain}\\{user}";
-                            }
-                            return string.Empty;
-                        });
-
-                    // PROJECTLOCATION
-                    RegistryValueProperty(session, "PROJECTLOCATION", subkey, "InstallPath");
-
-                    // APPLICATIONDATADIRECTORY
-                    RegistryValueProperty(session, "APPLICATIONDATADIRECTORY", subkey, "ConfigRoot");
-                }
-            }
-            catch (Exception e)
-            {
-                session.Log($"Error processing registry properties: {e}");
-                return ActionResult.Failure;
-            }
-            return ActionResult.Success;
-        }
-
-        [CustomAction]
-        public static ActionResult ReadRegistryProperties(Session session)
-        {
-            return ReadRegistryProperties(new SessionWrapper(session));
         }
 
         /// <summary>
@@ -266,7 +170,8 @@ namespace Datadog.CustomActions
                 out domain,
                 out securityIdentifier,
                 out nameUse);
-            if (!userFound) {
+            if (!userFound)
+            {
                 // The first LookupAccountName failed, this could be because the user does not exist,
                 // or it could be because the domain part of the name is invalid.
                 ParseUserName(account, out var tmpUser, out var tmpDomain);
@@ -293,6 +198,17 @@ namespace Datadog.CustomActions
                 }
 
                 var ddAgentUserName = session["DDAGENTUSER_NAME"];
+                var ddAgentUserPassword = session["DDAGENTUSER_PASSWORD"];
+
+                var datadogAgentService = ServiceController.GetServices()
+                    .FirstOrDefault(svc => svc.ServiceName == "datadogagent");
+                if (HostIsDomainController() &&
+                    string.IsNullOrEmpty(ddAgentUserName) &&
+                    string.IsNullOrEmpty(ddAgentUserPassword) &&
+                    datadogAgentService == null)
+                {
+                    throw new InvalidOperationException("Must provide DDAGENTUSER_NAME and DDAGENTUSER_PASSWORD on Domain Controllers.");
+                }
 
                 // LocalSystem is not supported by LookupAccountName as it is a pseudo account,
                 // do the conversion here for user's convenience.
@@ -339,23 +255,22 @@ namespace Datadog.CustomActions
                 if (string.IsNullOrEmpty(userName))
                 {
                     // If userName is empty at this point, then it is likely that the input is malformed
-                    session.Log($"Unable to parse username from {ddAgentUserName}");
-                    return ActionResult.Failure;
+                    throw new Exception($"Unable to parse username from {ddAgentUserName}");
                 }
+
                 if (string.IsNullOrEmpty(domain))
                 {
                     // This case is hit if user specifies a username without a domain part and it does not exist
                     session.Log("domain part is empty, using default");
                     domain = GetDefaultDomainPart();
                 }
+
                 session.Log($"Installing with DDAGENTUSER_PROCESSED_NAME={userName} and DDAGENTUSER_PROCESSED_DOMAIN={domain}");
                 // Create new DDAGENTUSER_PROCESSED_NAME property so we don't modify the property containing
                 // the user provided value DDAGENTUSER_NAME
                 session["DDAGENTUSER_PROCESSED_NAME"] = userName;
                 session["DDAGENTUSER_PROCESSED_DOMAIN"] = domain;
                 session["DDAGENTUSER_PROCESSED_FQ_NAME"] = $"{domain}\\{userName}";
-
-                var ddAgentUserPassword = session["DDAGENTUSER_PASSWORD"];
 
                 if (!isServiceAccount &&
                     !isDomainAccount  &&
@@ -582,72 +497,6 @@ namespace Datadog.CustomActions
         public static ActionResult ConfigureUser(Session session)
         {
             return ConfigureUser(new SessionWrapper(session));
-        }
-
-        private static ActionResult OpenMsiLog(ISession session)
-        {
-            // The MessageBoxs are unlikely to ever show.
-            // In testing I couldn't hit the "failed" ones. For permissions errors,
-            // Notepad still opens, and Notepad shows its own error dialog box.
-            // The log file should always exist because we set the MsiLogging
-            // property, so unless that changes we won't see the "no log file"
-            // MessageBoxs either.
-            // The log file can't be deleted/renamed while the installer is running
-            // because the installer has a handle to it.
-            // We use MessageBoxIcon.Warning rather than MessageBoxIcon.Error
-            // to match the WiX built-in error dialogs.
-            var wixLogLocation = string.Empty;
-            var messageBoxTitle = "Datadog Agent Setup";
-            try
-            {
-                wixLogLocation = session["MsiLogFileLocation"];
-                if (!string.IsNullOrEmpty(wixLogLocation))
-                {
-                    var proc = System.Diagnostics.Process.Start(wixLogLocation);
-                    if (proc == null)
-                    {
-                        // Did not start a process
-                        MessageBox.Show($"Failed to open log file: {wixLogLocation}",
-                            messageBoxTitle,
-                            MessageBoxButtons.OK,
-                            MessageBoxIcon.Warning);
-                    }
-                }
-                else
-                {
-                    // Log file path property is empty
-                    MessageBox.Show("There is no log file. Please pass the /l or /log options to the installer to create a log file.",
-                        messageBoxTitle,
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Warning);
-                }
-            }
-            catch (Exception e)
-            {
-                if (!string.IsNullOrEmpty(wixLogLocation))
-                {
-                    MessageBox.Show($"Failed to open log file: {wixLogLocation}\n{e.Message}",
-                        messageBoxTitle,
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Warning);
-                }
-                else
-                {
-                    // Log file path property is empty
-                    MessageBox.Show("There is no log file. Please pass the /l or /log options to the installer to create a log file.",
-                        messageBoxTitle,
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Warning);
-                }
-                return ActionResult.Failure;
-            }
-            return ActionResult.Success;
-        }
-
-        [CustomAction]
-        public static ActionResult OpenMsiLog(Session session)
-        {
-            return OpenMsiLog(new SessionWrapper(session));
         }
     }
 }

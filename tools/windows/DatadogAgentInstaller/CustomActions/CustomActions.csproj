@@ -62,11 +62,13 @@
     <Compile Include="IInstallerHttpClient.cs" />
     <Compile Include="InstallerWebClient.cs" />
     <Compile Include="InstallInfoCustomActions.cs" />
+    <Compile Include="MsiLogCustomActions.cs" />
     <Compile Include="NpmCustomAction.cs" />
     <Compile Include="PatchInstallerCustomAction.cs" />
     <Compile Include="PythonDistributionCustomAction.cs" />
     <Compile Include="Extensions\SessionExtensions.cs" />
     <Compile Include="ISession.cs" />
+    <Compile Include="RegistryCustomActions.cs" />
     <Compile Include="SessionWrapper.cs" />
     <Compile Include="Telemetry.cs" />
     <Compile Include="UserCustomActions.cs" />

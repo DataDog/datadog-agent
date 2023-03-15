@@ -46,9 +46,9 @@ namespace WixSetup.Datadog
 
         public AgentCustomActions()
         {
-            ReadRegistryProperties = new CustomAction<UserCustomActions>(
+            ReadRegistryProperties = new CustomAction<RegistryCustomActions>(
                 new Id(nameof(ReadRegistryProperties)),
-                UserCustomActions.ReadRegistryProperties,
+                RegistryCustomActions.ReadRegistryProperties,
                 Return.ignore,
                 // AppSearch is when RegistrySearch is run, so that will overwrite
                 // any command line values.
@@ -255,9 +255,9 @@ namespace WixSetup.Datadog
                            "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME]")
             .HideTarget(true);
 
-            OpenMsiLog = new CustomAction<UserCustomActions>(
+            OpenMsiLog = new CustomAction<MsiLogCustomActions>(
                 new Id(nameof(OpenMsiLog)),
-                UserCustomActions.OpenMsiLog
+                MsiLogCustomActions.OpenMsiLog
             )
             {
                 Sequence = Sequence.NotInSequence
