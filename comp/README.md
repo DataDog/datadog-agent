@@ -41,6 +41,10 @@ component temporarily wraps pkg/config.
 
 Package server implements a component to run the dogstatsd server
 
+### [comp/dogstatsd/serverDebug](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/dogstatsd/serverDebug)
+
+Package serverDebug implements a component to run the dogstatsd server debug
+
 ## [comp/process](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process) (Component Bundle)
 
 *Datadog Team*: processes
