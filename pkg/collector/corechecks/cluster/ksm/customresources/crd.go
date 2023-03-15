@@ -114,7 +114,7 @@ func wrapCustomResourceDefinition(f func(*v1.CustomResourceDefinition) *metric.F
 		metricFamily := f(crd)
 
 		for _, m := range metricFamily.Metrics {
-			m.LabelKeys, m.LabelValues = mergeKeyValues(descPodDisruptionBudgetLabelsDefaultLabels, []string{crd.Namespace, crd.Name}, m.LabelKeys, m.LabelValues)
+			m.LabelKeys, m.LabelValues = mergeKeyValues(descCustomResourceDefinitionLabelsDefaultLabels, []string{crd.Namespace, crd.Name}, m.LabelKeys, m.LabelValues)
 		}
 
 		return metricFamily
