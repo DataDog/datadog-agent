@@ -13,12 +13,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 
 	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
@@ -87,7 +88,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, opts ...Opts) (*CWSConsumer,
 		cancelFnc:      cancelFnc,
 		currentRuleSet: new(atomic.Value),
 		reloading:      atomic.NewBool(false),
-		apiServer:      NewAPIServer(config, evm.Config, evm.Probe, evm.StatsdClient),
+		apiServer:      NewAPIServer(config, evm.Probe, evm.StatsdClient),
 		rateLimiter:    NewRateLimiter(evm.StatsdClient),
 		sigupChan:      make(chan os.Signal, 1),
 		selfTester:     selfTester,

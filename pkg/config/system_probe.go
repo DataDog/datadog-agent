@@ -248,8 +248,6 @@ func InitSystemProbeConfig(cfg Config) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "events_stats.polling_interval"), 20)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "socket"), "/opt/datadog-agent/run/event-monitor.sock")
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_server.burst"), 40)
-	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_server.retention"), 6)
-	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_server.rate"), 10)
 
 	// process event monitoring data limits for network tracer
 	eventMonitorBindEnv(cfg, join(evNS, "network_process", "max_processes_tracked"))
@@ -263,6 +261,9 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.dir", DefaultRuntimePoliciesDir)
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.watch_dir", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.monitor.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.burst", 40)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.retention", 6)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.rate", 10)
 	cfg.BindEnvAndSetDefault("runtime_security_config.cookie_cache_size", 100)
 	cfg.BindEnvAndSetDefault("runtime_security_config.log_patterns", []string{})
 	cfg.BindEnvAndSetDefault("runtime_security_config.log_tags", []string{})

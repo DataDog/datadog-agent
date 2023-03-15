@@ -31,6 +31,12 @@ type Config struct {
 	WatchPoliciesDir bool
 	// PolicyMonitorEnabled enable policy monitoring
 	PolicyMonitorEnabled bool
+	// EventServerBurst defines the maximum burst of events that can be sent over the grpc server
+	EventServerBurst int
+	// EventServerRate defines the grpc server rate at which events can be sent
+	EventServerRate int
+	// EventServerRetention defines an event retention period so that some fields can be resolved
+	EventServerRetention int
 	// FIMEnabled determines whether fim rules will be loaded
 	FIMEnabled bool
 	// SelfTestEnabled defines if the self tests should be executed at startup or not
@@ -65,6 +71,10 @@ func NewConfig() *Config {
 	c := &Config{
 		RuntimeEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.enabled"),
 		FIMEnabled:     coreconfig.SystemProbe.GetBool("runtime_security_config.fim_enabled"),
+
+		EventServerBurst:     coreconfig.SystemProbe.GetInt("runtime_security_config.event_server.burst"),
+		EventServerRate:      coreconfig.SystemProbe.GetInt("runtime_security_config.event_server.rate"),
+		EventServerRetention: coreconfig.SystemProbe.GetInt("runtime_security_config.event_server.retention"),
 
 		SelfTestEnabled:            coreconfig.SystemProbe.GetBool("runtime_security_config.self_test.enabled"),
 		SelfTestSendReport:         coreconfig.SystemProbe.GetBool("runtime_security_config.self_test.send_report"),
