@@ -30,11 +30,12 @@ type trafficCapture struct {
 	sync.RWMutex
 }
 
+// TODO: (components) - remove once serverless is an FX app
 func NewServerlessTrafficCapture() Component {
 	return newTrafficCapture()
 }
 
-// NewTrafficCapture creates a TrafficCapture instance.
+// newTrafficCapture creates a TrafficCapture instance.
 func newTrafficCapture() Component {
 	return &trafficCapture{}
 }
