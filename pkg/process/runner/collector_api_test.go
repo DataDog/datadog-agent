@@ -80,13 +80,14 @@ func TestSendConnectionsMessage(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	runCollectorTest(t, check, &endpointConfig{}, ddconfig.Mock(t), func(c *CheckRunner, ep *mockEndpoint) {
+	cfg := ddconfig.Mock(t)
+	runCollectorTest(t, check, &endpointConfig{}, cfg, func(c *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/connections", req.uri)
 
 		assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
-		apiEps, err := GetAPIEndpoints()
+		apiEps, err := GetAPIEndpoints(cfg)
 		assert.NoError(t, err)
 		assert.Equal(t, apiEps[0].APIKey, req.headers.Get("DD-Api-Key"))
 
@@ -119,13 +120,14 @@ func TestSendContainerMessage(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	runCollectorTest(t, check, &endpointConfig{}, ddconfig.Mock(t), func(c *CheckRunner, ep *mockEndpoint) {
+	cfg := ddconfig.Mock(t)
+	runCollectorTest(t, check, &endpointConfig{}, cfg, func(c *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/container", req.uri)
 
 		assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
-		eps, err := GetAPIEndpoints()
+		eps, err := GetAPIEndpoints(cfg)
 		assert.NoError(t, err)
 		assert.Equal(t, eps[0].APIKey, req.headers.Get("DD-Api-Key"))
 		assert.Equal(t, "1", req.headers.Get(headers.ContainerCountHeader))
@@ -156,13 +158,14 @@ func TestSendProcMessage(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	runCollectorTest(t, check, &endpointConfig{}, ddconfig.Mock(t), func(c *CheckRunner, ep *mockEndpoint) {
+	cfg := ddconfig.Mock(t)
+	runCollectorTest(t, check, &endpointConfig{}, cfg, func(c *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/collector", req.uri)
 
 		assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
-		eps, err := GetAPIEndpoints()
+		eps, err := GetAPIEndpoints(cfg)
 		assert.NoError(t, err)
 		assert.Equal(t, eps[0].APIKey, req.headers.Get("DD-Api-Key"))
 		assert.Equal(t, "1", req.headers.Get(headers.ContainerCountHeader))
@@ -196,13 +199,14 @@ func TestSendProcessDiscoveryMessage(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	runCollectorTest(t, check, &endpointConfig{}, ddconfig.Mock(t), func(c *CheckRunner, ep *mockEndpoint) {
+	cfg := ddconfig.Mock(t)
+	runCollectorTest(t, check, &endpointConfig{}, cfg, func(c *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/discovery", req.uri)
 
 		assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
-		eps, err := GetAPIEndpoints()
+		eps, err := GetAPIEndpoints(cfg)
 		assert.NoError(t, err)
 		assert.Equal(t, eps[0].APIKey, req.headers.Get("DD-Api-Key"))
 		assert.Equal(t, "0", req.headers.Get(headers.ContainerCountHeader))
@@ -245,13 +249,14 @@ func TestSendProcessEventMessage(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	runCollectorTest(t, check, &endpointConfig{}, ddconfig.Mock(t), func(c *CheckRunner, ep *mockEndpoint) {
+	cfg := ddconfig.Mock(t)
+	runCollectorTest(t, check, &endpointConfig{}, cfg, func(c *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v2/proclcycle", req.uri)
 
 		assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
-		eps, err := getEventsAPIEndpoints()
+		eps, err := getEventsAPIEndpoints(cfg)
 		assert.NoError(t, err)
 		assert.Equal(t, eps[0].APIKey, req.headers.Get("DD-Api-Key"))
 		assert.Equal(t, "0", req.headers.Get(headers.ContainerCountHeader))
@@ -289,7 +294,8 @@ func TestSendProcMessageWithRetry(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, ddconfig.Mock(t), func(c *CheckRunner, ep *mockEndpoint) {
+	cfg := ddconfig.Mock(t)
+	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, cfg, func(c *CheckRunner, ep *mockEndpoint) {
 		requests := []request{
 			<-ep.Requests,
 			<-ep.Requests,
@@ -298,7 +304,7 @@ func TestSendProcMessageWithRetry(t *testing.T) {
 		timestamps := make(map[string]struct{})
 		for _, req := range requests {
 			assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
-			eps, err := GetAPIEndpoints()
+			eps, err := GetAPIEndpoints(cfg)
 			assert.NoError(t, err)
 			assert.Equal(t, eps[0].APIKey, req.headers.Get("DD-Api-Key"))
 			assert.Equal(t, "1", req.headers.Get(headers.ContainerCountHeader))
