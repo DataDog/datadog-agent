@@ -48,7 +48,7 @@ type MockNetflowPacket struct {
 	Records []MockNetflowPayload
 }
 
-//Marshall NetflowData into a buffer
+// Marshall NetflowData into a buffer
 func BuildNFlowPayload(data MockNetflowPacket) bytes.Buffer {
 	buffer := new(bytes.Buffer)
 	err := binary.Write(buffer, binary.BigEndian, &data.Header)
@@ -71,7 +71,7 @@ func GenerateNetflow5Packet(startTime time.Time, records int) MockNetflowPacket 
 	}
 }
 
-//Generate and initialize netflow header
+// Generate and initialize netflow header
 func CreateNFlowHeader(recordCount int, startTime time.Time) MockNetflowHeader {
 
 	t := time.Now().UnixNano()
