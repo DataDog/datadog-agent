@@ -10,6 +10,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,13 +19,13 @@ var checkRunData []byte
 
 func TestCheckRun(t *testing.T) {
 	t.Run("parseCheckRunPayload should return error on invalid data", func(t *testing.T) {
-		checks, err := parseCheckRunPayload([]byte(""))
+		checks, err := parseCheckRunPayload(api.Payload{Data: []byte(""), Encoding: encodingDeflate})
 		assert.Error(t, err)
-		assert.Nil(t, checks)
+		assert.Empty(t, checks)
 	})
 
 	t.Run("parseCheckRunPayload should return valid checks on valid ", func(t *testing.T) {
-		checks, err := parseCheckRunPayload(checkRunData)
+		checks, err := parseCheckRunPayload(api.Payload{Data: checkRunData, Encoding: encodingDeflate})
 		assert.NoError(t, err)
 		assert.Equal(t, 12, len(checks))
 		assert.Equal(t, "snmp.can_check", checks[0].name())

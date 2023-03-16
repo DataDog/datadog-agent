@@ -7,7 +7,9 @@ package aggregator
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,13 +27,13 @@ func (m *mockPayloadItem) tags() []string {
 	return m.Tags
 }
 
-func parseMockPayloadItem(data []byte) (items []*mockPayloadItem, err error) {
+func parseMockPayloadItem(payload api.Payload) (items []*mockPayloadItem, err error) {
 	items = []*mockPayloadItem{}
-	err = json.Unmarshal(data, &items)
+	err = json.Unmarshal(payload.Data, &items)
 	return items, err
 }
 
-func generateTestData() (data [][]byte, err error) {
+func generateTestData() (data []api.Payload, err error) {
 	items := []*mockPayloadItem{
 		{
 			Name: "totoro",
@@ -42,11 +44,17 @@ func generateTestData() (data [][]byte, err error) {
 			Tags: []string{"age:43", "country:it", "role:pilot"},
 		},
 	}
+
 	jsonData, err := json.Marshal(items)
 	if err != nil {
 		return nil, err
 	}
-	return [][]byte{jsonData}, nil
+	return []api.Payload{
+		{
+			Data:      jsonData,
+			Timestamp: time.Time{},
+		},
+	}, nil
 }
 
 func TestCommonAggregator(t *testing.T) {

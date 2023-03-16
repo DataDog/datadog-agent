@@ -10,6 +10,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,13 +19,16 @@ var metricsData []byte
 
 func TestNewMetricPayloads(t *testing.T) {
 	t.Run("parseMetricSeries empty body should return error", func(t *testing.T) {
-		metrics, err := parseMetricSeries([]byte(""))
+		metrics, err := parseMetricSeries(api.Payload{
+			Data:     []byte(""),
+			Encoding: encodingDeflate,
+		})
 		assert.Error(t, err)
 		assert.Nil(t, metrics)
 	})
 
 	t.Run("parseMetricSeries valid body should parse metrics", func(t *testing.T) {
-		metrics, err := parseMetricSeries(metricsData)
+		metrics, err := parseMetricSeries(api.Payload{Data: metricsData, Encoding: encodingDeflate})
 		assert.NoError(t, err)
 		assert.Equal(t, 151, len(metrics))
 		assert.Equal(t, "datadog.dogstatsd.client.aggregated_context_by_type", metrics[0].name())

@@ -99,6 +99,12 @@ namespace WixSetup.Datadog
                 {
                     AttributesDefinition = "Secure=yes",
                 },
+                // Add a checkbox at the end of the setup to launch the Datadog Agent Manager
+                new LaunchCustomApplicationFromExitDialog(
+                    _agentBinaries.TrayId,
+                    "!(loc.LaunchAgentManager)",
+                    "AGENT",
+                    "\"[AGENT]ddtray.exe\" \"--launch-gui\""),
                 new CloseApplication(new Id("CloseTrayApp"),
                     Path.GetFileName(_agentBinaries.Tray),
                     closeMessage: true,
@@ -222,13 +228,14 @@ namespace WixSetup.Datadog
                 document
                     .Select("Wix/Product/InstallExecuteSequence")
                     .AddElement("DeleteServices", value: "(Installed AND (REMOVE=\"ALL\") AND NOT (WIX_UPGRADE_DETECTED OR UPGRADINGPRODUCTCODE))");
+
+                // We don't use the Wix "Merge" MSM feature because it seems to be a no-op...
                 document
                     .FindAll("Directory")
                     .First(x => x.HasAttribute("Id", value => value == "AGENT"))
                     .AddElement("Directory", "Id=DRIVER; Name=driver")
                     .AddElement("Merge",
                         $"Id=ddnpminstall; SourceFile={BinSource}\\agent\\DDNPM.msm; DiskId=1; Language=1033");
-                // We don't use the Wix "Merge" MSM feature because it seems to be a no-op...
                 document
                     .FindAll("Feature")
                     .First(x => x.HasAttribute("Id", value => value == "NPM"))
@@ -382,6 +389,7 @@ namespace WixSetup.Datadog
                 "Datadog Process Agent",
                 "Send process metrics to Datadog",
                 "LocalSystem",
+                null,
                 "--cfgpath=\"[APPLICATIONDATADIRECTORY]\\datadog.yaml\"");
             var traceAgentService = GenerateDependentServiceInstaller(
                 new Id("ddagenttraceservice"),
@@ -412,7 +420,7 @@ namespace WixSetup.Datadog
                     new Dir("dist",
                         new Files($@"{InstallerSource}\bin\agent\dist\*")
                     ),
-                    new WixSharp.File(_agentBinaries.Tray),
+                    new WixSharp.File(_agentBinaries.TrayId, _agentBinaries.Tray),
                     new WixSharp.File(_agentBinaries.ProcessAgent, processAgentService),
                     new EventSource
                     {
