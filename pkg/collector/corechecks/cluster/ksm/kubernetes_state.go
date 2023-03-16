@@ -349,6 +349,7 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		customresources.NewExtendedJobFactory(),
 		customresources.NewExtendedNodeFactory(),
 		customresources.NewExtendedPodFactory(),
+		customresources.NewCustomResourceDefinitionFactory(),
 	}
 
 	factories = manageResourcesReplacement(c, factories)
