@@ -27,19 +27,19 @@ namespace Datadog.CustomActions
 
         private static ActionResult ReadConfig(ISession session)
         {
-            var configFolder = session.Property("APPLICATIONDATADIRECTORY");
-            var configFilePath = Path.Combine(configFolder, "datadog.yaml");
-            if (!File.Exists(configFilePath))
-            {
-                session.Log($"No user config found in {configFilePath}, continuing.");
-                session["DATADOGYAMLEXISTS"] = "no";
-                return ActionResult.Success;
-            }
-
-            session["DATADOGYAMLEXISTS"] = "yes";
-
             try
             {
+                var configFolder = session.Property("APPLICATIONDATADIRECTORY");
+                var configFilePath = Path.Combine(configFolder, "datadog.yaml");
+                if (!File.Exists(configFilePath))
+                {
+                    session.Log($"No user config found in {configFilePath}, continuing.");
+                    session["DATADOGYAMLEXISTS"] = "no";
+                    return ActionResult.Success;
+                }
+
+                session["DATADOGYAMLEXISTS"] = "yes";
+
                 using var input = new StreamReader(configFilePath);
                 var deserializer = new DeserializerBuilder()
                     .IgnoreUnmatchedProperties()
@@ -243,7 +243,7 @@ namespace Datadog.CustomActions
 
         static string FormatTags(string value)
         {
-            const string newTagLine = "\n  - ";
+            string newTagLine = $"{Environment.NewLine} - ";
             var tagsConfiguration = new StringBuilder();
             tagsConfiguration.Append("tags: ");
             tagsConfiguration.Append(newTagLine);

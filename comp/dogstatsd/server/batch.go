@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package dogstatsd implements DogStatsD.
-package dogstatsd
+package server
 
 import (
 	"time"

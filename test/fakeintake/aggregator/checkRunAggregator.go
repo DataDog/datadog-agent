@@ -7,6 +7,8 @@ package aggregator
 
 import (
 	"encoding/json"
+
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
 type checkRun struct {
@@ -26,8 +28,8 @@ func (cr *checkRun) tags() []string {
 	return cr.Tags
 }
 
-func parseCheckRunPayload(data []byte) (checks []*checkRun, err error) {
-	enflated, err := enflate(data)
+func parseCheckRunPayload(payload api.Payload) (checks []*checkRun, err error) {
+	enflated, err := enflate(payload.Data, payload.Encoding)
 	if err != nil {
 		return nil, err
 	}
