@@ -114,11 +114,6 @@ typedef struct {
     __u8 iteration;
 } http2_tail_call_state_t;
 
-typedef struct {
-    conn_tuple_t tup;
-    skb_info_t skb_info;
-} http2_iterations_key_t;
-
 typedef enum {
     HEADER_ERROR = 0,
     HEADER_NOT_INTERESTING,
