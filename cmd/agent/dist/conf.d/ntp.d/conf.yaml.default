@@ -23,9 +23,9 @@ instances:
     #   - 3.datadog.pool.ntp.org
 
     ## @param host - string - optional
-    ## Single NTP host to connect to.
+    ## Single NTP server hostname or IP address to connect to.
     #
-    # host: time.windows.com
+    # host: <NTP_SERVER>
 
     ## @param port - integer - optional - default: 123
     ## Port to use when reaching the NTP server.
