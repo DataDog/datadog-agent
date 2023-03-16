@@ -54,6 +54,7 @@
     <AutoGenerateBindingRedirects>false</AutoGenerateBindingRedirects>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Microsoft.Deployment.WindowsInstaller, Version=3.0.0.0, Culture=neutral, PublicKeyToken=ce35f76fcda82bad, processorArchitecture=MSIL" />
     <Reference Include="System" />
     <Reference Include="System.ComponentModel.Composition" />
     <Reference Include="System.ComponentModel.DataAnnotations" />
@@ -73,6 +74,7 @@
     <Compile Include="Process\ProcessConfigTests.cs" />
     <Compile Include="Proxy\ProcessConfigTests.cs" />
     <Compile Include="Telemetry\TelemetryUnitTests.cs" />
+    <Compile Include="UserCustomActionsTests.cs" />
     <Compile Include="WriteConfigUnitTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="YamlAssertions\YamlAssertionsTests.cs" />
@@ -122,6 +124,9 @@
     </PackageReference>
     <PackageReference Include="System.Security.Cryptography.X509Certificates">
       <Version>4.3.2</Version>
+    </PackageReference>
+    <PackageReference Include="WixSharp.bin">
+      <Version>1.20.3</Version>
     </PackageReference>
     <PackageReference Include="xunit">
       <Version>2.4.2</Version>

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Collections.Specialized;
 
-namespace Datadog.CustomActions
+namespace Datadog.CustomActions.Interfaces
 {
     /// <summary>
     /// Interface for an HTTP client.

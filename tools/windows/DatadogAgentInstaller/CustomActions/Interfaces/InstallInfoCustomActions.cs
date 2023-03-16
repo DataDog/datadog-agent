@@ -1,10 +1,10 @@
-using Microsoft.Deployment.WindowsInstaller;
-using System.IO;
 using System;
+using System.IO;
 using System.Reflection;
 using Datadog.CustomActions.Extensions;
+using Microsoft.Deployment.WindowsInstaller;
 
-namespace Datadog.CustomActions
+namespace Datadog.CustomActions.Interfaces
 {
     public class InstallInfoCustomActions
     {

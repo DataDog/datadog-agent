@@ -6,35 +6,56 @@ using System.Linq;
 using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Security.Principal;
-using System.ServiceProcess;
 using Datadog.CustomActions.Extensions;
+using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
 using Microsoft.Deployment.WindowsInstaller;
-using Microsoft.Win32;
-using static Datadog.CustomActions.Native.NativeMethods;
 
 namespace Datadog.CustomActions
 {
     public class UserCustomActions
     {
-        public static string GetRandomPassword(int length)
+        private readonly ISession _session;
+        private readonly INativeMethods _nativeMethods;
+        private readonly IRegistryServices _registryServices;
+        private readonly IDirectoryServices _directoryServices;
+        private readonly IFileServices _fileServices;
+        private readonly IServiceController _serviceController;
+
+        public UserCustomActions(
+            ISession session,
+            INativeMethods nativeMethods,
+            IRegistryServices registryServices,
+            IDirectoryServices directoryServices,
+            IFileServices fileServices,
+            IServiceController serviceController)
+        {
+            _session = session;
+            _nativeMethods = nativeMethods;
+            _registryServices = registryServices;
+            _directoryServices = directoryServices;
+            _fileServices = fileServices;
+            _serviceController = serviceController;
+        }
+
+        public UserCustomActions(ISession session)
+        : this(
+            session,
+            new Win32NativeMethods(),
+            new RegistryServices(),
+            new DirectoryServices(),
+            new FileServices(),
+            new ServiceController()
+        )
+        {
+        }
+
+        private static string GetRandomPassword(int length)
         {
             var rgb = new byte[length];
             var rngCrypt = new RNGCryptoServiceProvider();
             rngCrypt.GetBytes(rgb);
             return Convert.ToBase64String(rgb);
-        }
-
-        private static bool HostIsDomainController()
-        {
-            var serverInfo = NetServerGetInfo<SERVER_INFO_101>();
-            if ((serverInfo.Type & ServerTypes.DomainCtrl) == ServerTypes.DomainCtrl
-                || (serverInfo.Type & ServerTypes.BackupDomainCtrl) == ServerTypes.BackupDomainCtrl)
-            {
-                // Computer is a DC
-                return true;
-            }
-            return false;
         }
 
         /// <summary>
@@ -50,17 +71,16 @@ namespace Datadog.CustomActions
         /// though, so it is not enough to check if the computer is domain joined,
         /// we must specifically check if this computer is a domain controller.
         /// </remarks>
-        private static string GetDefaultDomainPart()
+        private string GetDefaultDomainPart()
         {
-            if (!HostIsDomainController())
+            if (!_nativeMethods.IsDomainController())
             {
                 return Environment.MachineName;
             }
 
             try
             {
-                // Computer is a DC, default to domain name
-                return Domain.GetComputerDomain().Name;
+                return _nativeMethods.GetComputerDomain();
             }
             catch (ActiveDirectoryObjectNotFoundException)
             {
@@ -76,7 +96,7 @@ namespace Datadog.CustomActions
         /// <remarks>
         /// Comparisons are case-insensitive.
         /// </remarks>
-        private static bool NameIsLocalMachine(string name)
+        private bool NameIsLocalMachine(string name)
         {
             name = name.ToLower();
             if (name == Environment.MachineName.ToLower())
@@ -89,14 +109,14 @@ namespace Datadog.CustomActions
                 return true;
             }
             // Windows runas and logon screen do not support the following names, but we can try to.
-            if (GetComputerNameEx(COMPUTER_NAME_FORMAT.ComputerNameDnsHostname, out var hostname))
+            if (_nativeMethods.GetComputerName(COMPUTER_NAME_FORMAT.ComputerNameDnsHostname, out var hostname))
             {
                 if (name == hostname.ToLower())
                 {
                     return true;
                 }
             }
-            if (GetComputerNameEx(COMPUTER_NAME_FORMAT.ComputerNameDnsFullyQualified, out var fqdn))
+            if (_nativeMethods.GetComputerName(COMPUTER_NAME_FORMAT.ComputerNameDnsFullyQualified, out var fqdn))
             {
                 if (name == fqdn.ToLower())
                 {
@@ -112,7 +132,7 @@ namespace Datadog.CustomActions
         /// <remarks>
         /// Comparisons are case-insensitive.
         /// </remarks>
-        private static bool NameUsesDefaultPart(string name)
+        private bool NameUsesDefaultPart(string name)
         {
             if (name == ".")
             {
@@ -132,7 +152,7 @@ namespace Datadog.CustomActions
         ///   * on regular hosts, .\user => machinename\user
         ///   * on domain controllers, .\user => domain\user
         /// </remarks>
-        private static void ParseUserName(string account, out string userName, out string domain)
+        private void ParseUserName(string account, out string userName, out string domain)
         {
             // We do not use CredUIParseUserName because it does not handle some cases nicely.
             // e.g. CredUIParseUserName(host.ddev.net\user) returns userName=.ddev.net domain=host.ddev.net
@@ -162,10 +182,15 @@ namespace Datadog.CustomActions
         /// Wrapper for the LookupAccountName Windows API that also supports additional syntax for the domain part of the name.
         /// See ParseUserName for details on the supported names.
         /// </summary>
-        private static bool LookupAccountWithExtendedDomainSyntax(ISession session, string account, out string userName, out string domain, out SecurityIdentifier securityIdentifier, out SID_NAME_USE nameUse)
+        private bool LookupAccountWithExtendedDomainSyntax(
+            string account,
+            out string userName,
+            out string domain,
+            out SecurityIdentifier securityIdentifier,
+            out SID_NAME_USE nameUse)
         {
             // Provide the account name to Windows as is first, see if Windows can handle it.
-            var userFound = LookupAccountName(account,
+            var userFound = _nativeMethods.LookupAccountName(account,
                 out userName,
                 out domain,
                 out securityIdentifier,
@@ -177,8 +202,8 @@ namespace Datadog.CustomActions
                 ParseUserName(account, out var tmpUser, out var tmpDomain);
                 // Try LookupAccountName again but using a fixed domain part.
                 account = $"{tmpDomain}\\{tmpUser}";
-                session.Log($"User not found, trying again with fixed domain part: {account}");
-                userFound = LookupAccountName(account,
+                _session.Log($"User not found, trying again with fixed domain part: {account}");
+                userFound = _nativeMethods.LookupAccountName(account,
                     out userName,
                     out domain,
                     out securityIdentifier,
@@ -187,22 +212,22 @@ namespace Datadog.CustomActions
             return userFound;
         }
 
-        private static ActionResult ProcessDdAgentUserCredentials(ISession session)
+        public ActionResult ProcessDdAgentUserCredentials()
         {
             try
             {
-                if (!string.IsNullOrEmpty(session["DDAGENTUSER_PROCESSED_FQ_NAME"]))
+                if (!string.IsNullOrEmpty(_session.Property("DDAGENTUSER_PROCESSED_FQ_NAME")))
                 {
                     // This function has already executed successfully
                     return ActionResult.Success;
                 }
 
-                var ddAgentUserName = session["DDAGENTUSER_NAME"];
-                var ddAgentUserPassword = session["DDAGENTUSER_PASSWORD"];
+                var ddAgentUserName = _session.Property("DDAGENTUSER_NAME");
+                var ddAgentUserPassword = _session.Property("DDAGENTUSER_PASSWORD");
 
-                var datadogAgentService = ServiceController.GetServices()
-                    .FirstOrDefault(svc => svc.ServiceName == "datadogagent");
-                if (HostIsDomainController() &&
+                var datadogAgentService = _serviceController.GetServiceNames()
+                    .FirstOrDefault(svc => svc == "datadogagent");
+                if (_nativeMethods.IsDomainController() &&
                     string.IsNullOrEmpty(ddAgentUserName) &&
                     string.IsNullOrEmpty(ddAgentUserPassword) &&
                     datadogAgentService == null)
@@ -221,11 +246,11 @@ namespace Datadog.CustomActions
                 {
                     // Creds are not in registry and user did not pass a value, use default account name
                     ddAgentUserName = $"{GetDefaultDomainPart()}\\ddagentuser";
-                    session.Log($"No creds provided, using default {ddAgentUserName}");
+                    _session.Log($"No creds provided, using default {ddAgentUserName}");
                 }
 
                 // Check if user exists, and parse the full account name
-                var userFound = LookupAccountWithExtendedDomainSyntax(session,
+                var userFound = LookupAccountWithExtendedDomainSyntax(
                     ddAgentUserName,
                     out var userName,
                     out var domain,
@@ -235,20 +260,17 @@ namespace Datadog.CustomActions
                 var isDomainAccount = false;
                 if (userFound)
                 {
-                    session["DDAGENTUSER_FOUND"] = "true";
-                    session["DDAGENTUSER_SID"] = securityIdentifier.ToString();
-                    session.Log($"Found {userName} in {domain} as {nameUse}");
-                    NetIsServiceAccount(null, ddAgentUserName, out isServiceAccount);
-                    isServiceAccount |= securityIdentifier.IsWellKnown(WellKnownSidType.LocalSystemSid) ||
-                                        securityIdentifier.IsWellKnown(WellKnownSidType.LocalServiceSid) ||
-                                        securityIdentifier.IsWellKnown(WellKnownSidType.NetworkServiceSid);
-                    isDomainAccount = IsDomainAccount(securityIdentifier);
-                    session.Log($"\"{domain}\\{userName}\" ({securityIdentifier.Value}, {nameUse}) is a {(isDomainAccount ? "domain" : "local")} {(isServiceAccount ? "service " : string.Empty)}account");
+                    _session["DDAGENTUSER_FOUND"] = "true";
+                    _session["DDAGENTUSER_SID"] = securityIdentifier.ToString();
+                    _session.Log($"Found {userName} in {domain} as {nameUse}");
+                    isServiceAccount = _nativeMethods.IsServiceAccount(securityIdentifier);
+                    isDomainAccount = _nativeMethods.IsDomainAccount(securityIdentifier);
+                    _session.Log($"\"{domain}\\{userName}\" ({securityIdentifier.Value}, {nameUse}) is a {(isDomainAccount ? "domain" : "local")} {(isServiceAccount ? "service " : string.Empty)}account");
                 }
                 else
                 {
-                    session["DDAGENTUSER_FOUND"] = "false";
-                    session.Log($"User {ddAgentUserName} doesn't exist.");
+                    _session["DDAGENTUSER_FOUND"] = "false";
+                    _session.Log($"User {ddAgentUserName} doesn't exist.");
                     ParseUserName(ddAgentUserName, out userName, out domain);
                 }
 
@@ -261,37 +283,37 @@ namespace Datadog.CustomActions
                 if (string.IsNullOrEmpty(domain))
                 {
                     // This case is hit if user specifies a username without a domain part and it does not exist
-                    session.Log("domain part is empty, using default");
+                    _session.Log("domain part is empty, using default");
                     domain = GetDefaultDomainPart();
                 }
 
-                session.Log($"Installing with DDAGENTUSER_PROCESSED_NAME={userName} and DDAGENTUSER_PROCESSED_DOMAIN={domain}");
+                _session.Log($"Installing with DDAGENTUSER_PROCESSED_NAME={userName} and DDAGENTUSER_PROCESSED_DOMAIN={domain}");
                 // Create new DDAGENTUSER_PROCESSED_NAME property so we don't modify the property containing
                 // the user provided value DDAGENTUSER_NAME
-                session["DDAGENTUSER_PROCESSED_NAME"] = userName;
-                session["DDAGENTUSER_PROCESSED_DOMAIN"] = domain;
-                session["DDAGENTUSER_PROCESSED_FQ_NAME"] = $"{domain}\\{userName}";
+                _session["DDAGENTUSER_PROCESSED_NAME"] = userName;
+                _session["DDAGENTUSER_PROCESSED_DOMAIN"] = domain;
+                _session["DDAGENTUSER_PROCESSED_FQ_NAME"] = $"{domain}\\{userName}";
 
                 if (!isServiceAccount &&
                     !isDomainAccount  &&
                     string.IsNullOrEmpty(ddAgentUserPassword))
                 {
-                    session.Log("Generating a random password");
-                    session["DDAGENTUSER_RESET_PASSWORD"] = "yes";
+                    _session.Log("Generating a random password");
+                    _session["DDAGENTUSER_RESET_PASSWORD"] = "yes";
                     ddAgentUserPassword = GetRandomPassword(128);
                 }
 
                 if (!string.IsNullOrEmpty(ddAgentUserPassword) && isServiceAccount)
                 {
-                    session.Log("Ignoring provided password because account is a service account");
+                    _session.Log("Ignoring provided password because account is a service account");
                     ddAgentUserPassword = null;
                 }
 
-                session["DDAGENTUSER_PROCESSED_PASSWORD"] = ddAgentUserPassword;
+                _session["DDAGENTUSER_PROCESSED_PASSWORD"] = ddAgentUserPassword;
             }
             catch (Exception e)
             {
-                session.Log($"Error processing ddAgentUser credentials: {e}");
+                _session.Log($"Error processing ddAgentUser credentials: {e}");
                 return ActionResult.Failure;
             }
             return ActionResult.Success;
@@ -300,15 +322,15 @@ namespace Datadog.CustomActions
         [CustomAction]
         public static ActionResult ProcessDdAgentUserCredentials(Session session)
         {
-            return ProcessDdAgentUserCredentials(new SessionWrapper(session));
+            return new UserCustomActions(new SessionWrapper(session)).ProcessDdAgentUserCredentials();
         }
 
-        private static ActionResult ConfigureUser(ISession session)
+        public ActionResult ConfigureUser()
         {
             try
             {
-                var ddAgentUserName = $"{session.Property("DDAGENTUSER_PROCESSED_FQ_NAME")}";
-                var userFound = LookupAccountName(ddAgentUserName,
+                var ddAgentUserName = $"{_session.Property("DDAGENTUSER_PROCESSED_FQ_NAME")}";
+                var userFound = _nativeMethods.LookupAccountName(ddAgentUserName,
                     out _,
                     out _,
                     out var securityIdentifier,
@@ -318,38 +340,29 @@ namespace Datadog.CustomActions
                     throw new Exception($"Could not find user {ddAgentUserName}.");
                 }
                 
-                var resetPassword = session.Property("DDAGENTUSER_RESET_PASSWORD");
-                var ddagentuserPassword = session.Property("DDAGENTUSER_PROCESSED_PASSWORD");
-                var ddagentuser = session.Property("DDAGENTUSER_PROCESSED_NAME");
+                var resetPassword = _session.Property("DDAGENTUSER_RESET_PASSWORD");
+                var ddagentuserPassword = _session.Property("DDAGENTUSER_PROCESSED_PASSWORD");
+                var ddagentuser = _session.Property("DDAGENTUSER_PROCESSED_NAME");
                 if (!string.IsNullOrEmpty(resetPassword))
                 {
-                    session.Log($"Resetting {ddagentuser} password.");
+                    _session.Log($"Resetting {ddagentuser} password.");
                     if (string.IsNullOrEmpty(ddagentuserPassword))
                     {
                         throw new InvalidOperationException("Asked to reset password, but password was not provided");
                     }
-                    var userInfo = new USER_INFO_1003
-                    {
-                        sPassword = ddagentuserPassword
-                    };
-                    // A zero return indicates success. 
-                    var result = NetUserSetInfo(null, ddagentuser, 1003, ref userInfo, out _);
-                    if (result != 0)
-                    {
-                        throw new System.ComponentModel.Win32Exception(result, $"Error while setting the password for {ddAgentUserName}");
-                    }
+                    _nativeMethods.SetUserPassword(ddagentuser, ddagentuserPassword);
                 }
 
-                securityIdentifier.AddToGroup(WellKnownSidType.BuiltinPerformanceMonitoringUsersSid);
-                securityIdentifier.AddToGroup(new SecurityIdentifier("S-1-5-32-573")); // Builtin\Event Log Readers
+                _nativeMethods.AddToGroup(securityIdentifier, WellKnownSidType.BuiltinPerformanceMonitoringUsersSid);
+                _nativeMethods.AddToGroup(securityIdentifier, new SecurityIdentifier("S-1-5-32-573")); // Builtin\Event Log Readers
 
-                securityIdentifier.AddPrivilege(AccountRightsConstants.SeDenyInteractiveLogonRight);
-                securityIdentifier.AddPrivilege(AccountRightsConstants.SeDenyNetworkLogonRight);
-                securityIdentifier.AddPrivilege(AccountRightsConstants.SeDenyRemoteInteractiveLogonRight);
-                securityIdentifier.AddPrivilege(AccountRightsConstants.SeServiceLogonRight);
+                _nativeMethods.AddPrivilege(securityIdentifier, AccountRightsConstants.SeDenyInteractiveLogonRight);
+                _nativeMethods.AddPrivilege(securityIdentifier, AccountRightsConstants.SeDenyNetworkLogonRight);
+                _nativeMethods.AddPrivilege(securityIdentifier, AccountRightsConstants.SeDenyRemoteInteractiveLogonRight);
+                _nativeMethods.AddPrivilege(securityIdentifier, AccountRightsConstants.SeServiceLogonRight);
 
                 // Necessary to allow the ddagentuser to read the registry
-                var key = Registry.LocalMachine.CreateSubKey("SOFTWARE\\Datadog\\Datadog Agent");
+                var key = _registryServices.CreateRegistryKey(Registries.LocalMachine, "SOFTWARE\\Datadog\\Datadog Agent");
                 if (key != null)
                 {
                     var registrySecurity = new RegistrySecurity();
@@ -375,26 +388,26 @@ namespace Datadog.CustomActions
 
                 var files = new List<string>
                 {
-                    session.Property("APPLICATIONDATADIRECTORY"),
-                    Path.Combine(session.Property("APPLICATIONDATADIRECTORY"), "logs"),
-                    Path.Combine(session.Property("APPLICATIONDATADIRECTORY"), "logs\\agent.log"),
-                    Path.Combine(session.Property("APPLICATIONDATADIRECTORY"), "conf.d"),
-                    Path.Combine(session.Property("APPLICATIONDATADIRECTORY"), "auth_token"),
-                    Path.Combine(session.Property("APPLICATIONDATADIRECTORY"), "datadog.yaml"),
-                    Path.Combine(session.Property("APPLICATIONDATADIRECTORY"), "system-probe.yaml"),
-                    Path.Combine(session.Property("PROJECTLOCATION"), "embedded2"),
-                    Path.Combine(session.Property("PROJECTLOCATION"), "embedded3"),
+                    _session.Property("APPLICATIONDATADIRECTORY"),
+                    Path.Combine(_session.Property("APPLICATIONDATADIRECTORY"), "logs"),
+                    Path.Combine(_session.Property("APPLICATIONDATADIRECTORY"), "logs\\agent.log"),
+                    Path.Combine(_session.Property("APPLICATIONDATADIRECTORY"), "conf.d"),
+                    Path.Combine(_session.Property("APPLICATIONDATADIRECTORY"), "auth_token"),
+                    Path.Combine(_session.Property("APPLICATIONDATADIRECTORY"), "datadog.yaml"),
+                    Path.Combine(_session.Property("APPLICATIONDATADIRECTORY"), "system-probe.yaml"),
+                    Path.Combine(_session.Property("PROJECTLOCATION"), "embedded2"),
+                    Path.Combine(_session.Property("PROJECTLOCATION"), "embedded3"),
 
                 };
                 foreach (var filePath in files)
                 {
-                    if (!Directory.Exists(filePath) && !File.Exists(filePath))
+                    if (!_directoryServices.Exists(filePath) && !_fileServices.Exists(filePath))
                     {
                         if (filePath.Contains("embedded3"))
                         {
                             throw new InvalidOperationException($"The file {filePath} doesn't exist, but it should");
                         }
-                        session.Log($"{filePath} does not exists, skipping changing ACLs.");
+                        _session.Log($"{filePath} does not exists, skipping changing ACLs.");
                         continue;
                     }
 
@@ -402,24 +415,24 @@ namespace Datadog.CustomActions
                     string sddl;
                     try
                     {
-                        if (Directory.Exists(filePath))
+                        if (_directoryServices.Exists(filePath))
                         {
-                            fileSystemSecurity = Directory.GetAccessControl(filePath, AccessControlSections.All);
+                            fileSystemSecurity = _directoryServices.GetAccessControl(filePath, AccessControlSections.All);
                             sddl = $"D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;WD;;;BU)(A;OICI;FA;;;{securityIdentifier.Value})";
                         }
                         else
                         {
-                            fileSystemSecurity = File.GetAccessControl(filePath, AccessControlSections.All);
+                            fileSystemSecurity = _fileServices.GetAccessControl(filePath, AccessControlSections.All);
                             sddl = $"D:PAI(A;;FA;;;SY)(A;;FA;;;BA)(A;;WD;;;BU)(A;;FA;;;{securityIdentifier.Value})";
                         }
                     }
                     catch (Exception e)
                     {
-                        session.Log($"Failed to get ACLs on {filePath}: {e}");
+                        _session.Log($"Failed to get ACLs on {filePath}: {e}");
                         throw;
                     }
 
-                    session.Log($"{filePath} current ACLs: {fileSystemSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
+                    _session.Log($"{filePath} current ACLs: {fileSystemSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
 
                     // Set owner and group only if necessary
                     if (fileSystemSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.Owner) != "O:SY" ||
@@ -434,13 +447,13 @@ namespace Datadog.CustomActions
 
                     try
                     {
-                        if (Directory.Exists(filePath))
+                        if (_directoryServices.Exists(filePath))
                         {
-                            Directory.SetAccessControl(filePath, (DirectorySecurity)fileSystemSecurity);
+                            _directoryServices.SetAccessControl(filePath, (DirectorySecurity)fileSystemSecurity);
                         }
                         else
                         {
-                            File.SetAccessControl(filePath, (FileSecurity)fileSystemSecurity);
+                            _fileServices.SetAccessControl(filePath, (FileSecurity)fileSystemSecurity);
                         }
                     }
                     catch (Exception e)
@@ -449,38 +462,38 @@ namespace Datadog.CustomActions
                         {
                             // Try again but without owner/group
                             fileSystemSecurity.SetSecurityDescriptorSddlForm(sddl);
-                            if (Directory.Exists(filePath))
+                            if (_directoryServices.Exists(filePath))
                             {
-                                Directory.SetAccessControl(filePath, (DirectorySecurity)fileSystemSecurity);
+                                _directoryServices.SetAccessControl(filePath, (DirectorySecurity)fileSystemSecurity);
                             }
                             else
                             {
-                                File.SetAccessControl(filePath, (FileSecurity)fileSystemSecurity);
+                                _fileServices.SetAccessControl(filePath, (FileSecurity)fileSystemSecurity);
                             }
                         }
                         catch (Exception)
                         {
-                            session.Log($"Failed to set ACLs on {filePath}: {e}");
+                            _session.Log($"Failed to set ACLs on {filePath}: {e}");
                             throw;
                         }
                     }
 
                     try
                     {
-                        if (Directory.Exists(filePath))
+                        if (_directoryServices.Exists(filePath))
                         {
-                            fileSystemSecurity = Directory.GetAccessControl(filePath);
+                            fileSystemSecurity = _directoryServices.GetAccessControl(filePath);
                         }
                         else
                         {
-                            fileSystemSecurity = File.GetAccessControl(filePath);
+                            fileSystemSecurity = _fileServices.GetAccessControl(filePath);
                         }
 
-                        session.Log($"{filePath} new ACLs: {fileSystemSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
+                        _session.Log($"{filePath} new ACLs: {fileSystemSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
                     }
                     catch (Exception e)
                     {
-                        session.Log($"Failed to get ACLs on {filePath}: {e}");
+                        _session.Log($"Failed to get ACLs on {filePath}: {e}");
                     }
                 }
 
@@ -488,7 +501,7 @@ namespace Datadog.CustomActions
             }
             catch (Exception e)
             {
-                session.Log($"Failed to configure user: {e}");
+                _session.Log($"Failed to configure user: {e}");
                 return ActionResult.Failure;
             }
         }
@@ -496,7 +509,7 @@ namespace Datadog.CustomActions
         [CustomAction]
         public static ActionResult ConfigureUser(Session session)
         {
-            return ConfigureUser(new SessionWrapper(session));
+            return new UserCustomActions(new SessionWrapper(session)).ConfigureUser();
         }
     }
 }

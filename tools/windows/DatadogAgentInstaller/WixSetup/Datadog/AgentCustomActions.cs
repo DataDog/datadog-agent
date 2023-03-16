@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Datadog.CustomActions;
+using Datadog.CustomActions.Interfaces;
 using WixSharp;
 
 namespace WixSetup.Datadog
