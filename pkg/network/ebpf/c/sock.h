@@ -3,6 +3,8 @@
 
 #include "ktypes.h"
 
+#include "bpf_core_read.h"
+
 #include "tracer.h"
 #include "ipv6.h"
 #include "netns.h"
@@ -77,9 +79,9 @@ static __always_inline void get_tcp_segment_counts(struct sock* skp, __u32* pack
 #endif
 }
 
-static __always_inline __u16 read_sport(struct sock* skp) {
+static __always_inline u16 read_sport(struct sock* skp) {
     // try skc_num, then inet_sport
-    __u16 sport = 0;
+    u16 sport = 0;
 #ifdef COMPILE_PREBUILT
     // try skc_num, then inet_sport
     bpf_probe_read_kernel_with_telemetry(&sport, sizeof(sport), ((char*)skp) + offset_dport() + sizeof(sport));
@@ -98,21 +100,19 @@ static __always_inline __u16 read_sport(struct sock* skp) {
     return sport;
 }
 
-static __always_inline __u16 read_dport(struct sock *skp) {
-    __u16 dport = 0;
+static u16 read_dport(struct sock *skp) {
+    u16 dport = 0;
 #ifdef COMPILE_PREBUILT
     bpf_probe_read_kernel_with_telemetry(&dport, sizeof(dport), ((char*)skp) + offset_dport());
-    dport = bpf_ntohs(dport);
 #elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
-    BPF_CORE_READ_INTO(&dport, skp, sk_dport);
-    dport = bpf_ntohs(dport);
-    if (dport == 0) {
-        BPF_CORE_READ_INTO(&dport, inet_sk(skp), inet_dport);
-        dport = bpf_ntohs(dport);
-    }
+    bpf_probe_read_kernel(&dport, sizeof(dport), &skp->sk_dport);
+    /* BPF_CORE_READ_INTO(&dport, skp, sk_dport); */
+    /* if (dport == 0) { */
+    /*     BPF_CORE_READ_INTO(&dport, inet_sk(skp), inet_dport); */
+    /* } */
 #endif
 
-    return dport;
+    return bpf_ntohs(dport);
 }
 
 static __always_inline u32 read_saddr_v4(struct sock *skp) {
@@ -120,9 +120,9 @@ static __always_inline u32 read_saddr_v4(struct sock *skp) {
 #ifdef COMPILE_PREBUILT
     bpf_probe_read_kernel_with_telemetry(&saddr, sizeof(u32), ((char*)skp) + offset_saddr());
 #elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
-    BPF_CORE_READ_INTO((u32*)(&saddr), skp, sk_rcv_saddr);
+    BPF_CORE_READ_INTO(&saddr, skp, sk_rcv_saddr);
     if (saddr == 0) {
-        BPF_CORE_READ_INTO((u32*)(&saddr), inet_sk(skp), inet_saddr);
+        BPF_CORE_READ_INTO(&saddr, inet_sk(skp), inet_saddr);
     }
 #endif
 
@@ -134,9 +134,9 @@ static __always_inline u32 read_daddr_v4(struct sock *skp) {
 #ifdef COMPILE_PREBUILT
     bpf_probe_read_kernel_with_telemetry(&daddr, sizeof(u32), ((char*)skp) + offset_daddr());
 #elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
-    BPF_CORE_READ_INTO((u32*)(&daddr), skp, sk_daddr);
+    BPF_CORE_READ_INTO(&daddr, skp, sk_daddr);
     if (daddr == 0) {
-        BPF_CORE_READ_INTO((u32*)(&daddr), inet_sk(skp), inet_daddr);
+        BPF_CORE_READ_INTO(&daddr, inet_sk(skp), inet_daddr);
     }
 #endif
 
@@ -174,7 +174,7 @@ static __always_inline unsigned short _sk_family(struct sock *skp) {
 #ifdef COMPILE_PREBUILT
     bpf_probe_read_kernel_with_telemetry(&family, sizeof(family), ((char*)skp) + offset_family());
 #elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
-    family = BPF_PROBE_READ_INTO(&family, skp, sk_family);
+    BPF_PROBE_READ_INTO(&family, skp, sk_family);
 #endif
     return family;
 }
@@ -242,18 +242,8 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
         } else {
             t->metadata |= CONN_V6;
         }
-
-        // Check if we can map IPv6 to IPv4
-        if (is_ipv4_mapped_ipv6(t->saddr_h, t->saddr_l, t->daddr_h, t->daddr_l)) {
-            t->metadata |= CONN_V4;
-            t->saddr_h = 0;
-            t->daddr_h = 0;
-            t->saddr_l = (__u32)(t->saddr_l >> 32);
-            t->daddr_l = (__u32)(t->daddr_l >> 32);
-        } else {
-            t->metadata |= CONN_V6;
-        }
     } else {
+        log_debug("ERR(read_conn_tuple): unknown family %d\n", family);
         err = 1;
     }
 

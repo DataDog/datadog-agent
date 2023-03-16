@@ -28,7 +28,7 @@ static __always_inline __u32 get_netns_from_sock(struct sock* sk) {
 
 static __always_inline u32 get_netns_ino(struct net* ns) {
     u32 net_ns_inum = 0;
-#ifdef CONFIG_NET_NS
+#if !defined(COMPILE_RUNTIME) || defined(CONFIG_NET_NS)
 #if defined(_LINUX_NS_COMMON_H) || defined(COMPILE_CORE)
     BPF_CORE_READ_INTO(&net_ns_inum, ns, ns.inum);
 #else
@@ -40,8 +40,7 @@ static __always_inline u32 get_netns_ino(struct net* ns) {
 
 static __maybe_unused __always_inline u32 get_netns_from_sock(struct sock *sk) {
     struct net *ns = NULL;
-#ifdef CONFIG_NET_NS
-    log_debug("get_netns_from_sock\n");
+#if !defined(COMPILE_RUNTIME) || defined(CONFIG_NET_NS)
     BPF_CORE_READ_INTO(&ns, sk, sk_net);
 #endif
     return get_netns_ino(ns);
@@ -50,7 +49,7 @@ static __maybe_unused __always_inline u32 get_netns_from_sock(struct sock *sk) {
 // depending on the kernel version p_net may be a struct net** or possible_net_t*
 __maybe_unused static __always_inline u32 get_netns(void *p_net) {
     struct net *ns = NULL;
-#ifdef CONFIG_NET_NS
+#if !defined(COMPILE_RUNTIME) || defined(CONFIG_NET_NS)
     bpf_probe_read_kernel_with_telemetry(&ns, sizeof(ns), p_net);
 #endif
     return get_netns_ino(ns);
