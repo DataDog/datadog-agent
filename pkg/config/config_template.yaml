@@ -859,6 +859,15 @@ api_key:
     #
     # context_name: <CONTEXT_NAME>
 
+    ## @param tags - list of strings - optional
+    ## A list of tags to attach to every metric and service check of all devices discovered in the subnet.
+    ##
+    ## Learn more about tagging at https://docs.datadoghq.com/tagging
+    #
+    # tags:
+    #   - <KEY_1>:<VALUE_1>
+    #   - <KEY_2>:<VALUE_2>
+
     ## @param ad_identifier - string - optional - default: snmp
     ## A unique identifier to attach to devices from that subnetwork.
     ## When configuring the SNMP integration in snmp.d/auto_conf.yaml,
@@ -1225,7 +1234,7 @@ api_key:
   ## @param features - list of strings - optional
   ## @env DD_APM_FEATURES - comma separated list of strings - optional
   ## Configure additional beta APM features.
-  ## The list of items available under apm_config.features is not guaranteed to persist across versions; 
+  ## The list of items available under apm_config.features is not guaranteed to persist across versions;
   ## a feature may eventually be promoted to its own configuration option on the agent, or dropped entirely.
   #
   # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache"]
