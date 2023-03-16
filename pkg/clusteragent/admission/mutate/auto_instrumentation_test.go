@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -460,6 +461,90 @@ func TestInjectLibConfig(t *testing.T) {
 				}
 			}
 			require.Equal(t, len(tt.expectedEnvs), envCount)
+		})
+	}
+}
+
+func TestInjectLibInitContainer(t *testing.T) {
+	tests := []struct {
+		name    string
+		cpu     string
+		mem     string
+		pod     *corev1.Pod
+		image   string
+		lang    language
+		wantErr bool
+	}{
+		{
+			name:    "no resources",
+			pod:     fakePod("java-pod"),
+			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:    java,
+			wantErr: false,
+		},
+		{
+			name:    "with resources",
+			pod:     fakePod("java-pod"),
+			cpu:     "100m",
+			mem:     "500",
+			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:    java,
+			wantErr: false,
+		},
+		{
+			name:    "cpu only",
+			pod:     fakePod("java-pod"),
+			cpu:     "200m",
+			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:    java,
+			wantErr: false,
+		},
+		{
+			name:    "memory only",
+			pod:     fakePod("java-pod"),
+			mem:     "512Mi",
+			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:    java,
+			wantErr: false,
+		},
+		{
+			name:    "with invalid resources",
+			pod:     fakePod("java-pod"),
+			cpu:     "foo",
+			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:    java,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf := config.Mock(t)
+			if tt.cpu != "" {
+				conf.Set("admission_controller.auto_instrumentation.init_resources.cpu", tt.cpu)
+			}
+			if tt.mem != "" {
+				conf.Set("admission_controller.auto_instrumentation.init_resources.memory", tt.mem)
+			}
+			err := injectLibInitContainer(tt.pod, tt.image, tt.lang)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("injectLibInitContainer() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if err != nil {
+				return
+			}
+			require.Len(t, tt.pod.Spec.InitContainers, 1)
+			if tt.cpu != "" {
+				req := tt.pod.Spec.InitContainers[0].Resources.Requests[corev1.ResourceCPU]
+				lim := tt.pod.Spec.InitContainers[0].Resources.Limits[corev1.ResourceCPU]
+				require.Equal(t, tt.cpu, req.String())
+				require.Equal(t, tt.cpu, lim.String())
+			}
+			if tt.mem != "" {
+				req := tt.pod.Spec.InitContainers[0].Resources.Requests[corev1.ResourceMemory]
+				lim := tt.pod.Spec.InitContainers[0].Resources.Limits[corev1.ResourceMemory]
+				require.Equal(t, tt.mem, req.String())
+				require.Equal(t, tt.mem, lim.String())
+			}
 		})
 	}
 }
