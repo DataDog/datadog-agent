@@ -20,6 +20,7 @@ type event interface {
 	withSource(string)
 	withContainerExitCode(*int32)
 	withContainerExitTimestamp(*int64)
+	withPodExitTimestamp(*int64)
 	toPayloadModel() (*model.EventsPayload, error)
 	toEventModel() (*model.Event, error)
 }
@@ -31,6 +32,7 @@ type eventTransformer struct {
 	source       string
 	contExitCode *int32
 	contExitTS   *int64
+	podExitTS    *int64
 }
 
 func newEvent() event {
@@ -59,6 +61,10 @@ func (e *eventTransformer) withContainerExitCode(exitCode *int32) {
 
 func (e *eventTransformer) withContainerExitTimestamp(exitTS *int64) {
 	e.contExitTS = exitTS
+}
+
+func (e *eventTransformer) withPodExitTimestamp(exitTS *int64) {
+	e.podExitTS = exitTS
 }
 
 func (e *eventTransformer) toPayloadModel() (*model.EventsPayload, error) {
@@ -110,6 +116,10 @@ func (e *eventTransformer) toEventModel() (*model.Event, error) {
 		pod := &model.PodEvent{
 			PodUID: e.objectID,
 			Source: e.source,
+		}
+
+		if e.podExitTS != nil {
+			pod.OptionalExitTimestamp = &model.PodEvent_ExitTimestamp{ExitTimestamp: *e.podExitTS}
 		}
 
 		event.TypedEvent = &model.Event_Pod{Pod: pod}
