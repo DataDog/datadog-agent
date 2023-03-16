@@ -174,14 +174,6 @@ type Metadata struct {
 	DDAgentVersion string  `json:"ddagentversion,omitempty"`
 }
 
-/*
-type MetricSender struct {
-	sender           aggregator.Sender
-	hostname         string
-	submittedMetrics int
-}
-*/
-
 func (c *Check) SampleSession() error {
 	start := time.Now()
 
@@ -192,6 +184,9 @@ func (c *Check) SampleSession() error {
 	if err != nil {
 		return fmt.Errorf("failed to collect session sampling activity: %w", err)
 	}
+
+	forceMatchingSignatures := make(map[uint64]int)
+	SQLIDs := make(map[string]int)
 
 	o := obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})
 	for _, sample := range sessionSamples {
@@ -226,6 +221,10 @@ func (c *Check) SampleSession() error {
 		}
 		if sample.ForceMatchingSignature != nil {
 			sessionRow.ForceMatchingSignature = *sample.ForceMatchingSignature
+			forceMatchingSignatures[sessionRow.ForceMatchingSignature] = 1
+			if sessionRow.ForceMatchingSignature == 0 && sample.SQLID.Valid {
+				SQLIDs[sessionRow.SQLID] = 1
+			}
 		}
 		if sample.SQLPlanHashValue != nil {
 			sessionRow.SQLPlanHashValue = *sample.SQLPlanHashValue
@@ -317,8 +316,7 @@ func (c *Check) SampleSession() error {
 		return err
 	}
 
-	log.Tracef("JSON payload %s", strings.ReplaceAll(string(payloadBytes), "@", "xXx"))
-	//fmt.Println("JSON payload", string(payloadBytes))
+	log.Tracef("Activity payload %s", strings.ReplaceAll(string(payloadBytes), "@", "XX"))
 
 	sender, err := c.GetSender()
 	if err != nil {
@@ -328,5 +326,9 @@ func (c *Check) SampleSession() error {
 	sender.EventPlatformEvent(string(payloadBytes), "dbm-activity")
 	sender.Gauge("dd.oracle.activity.time_ms", float64(time.Since(start).Milliseconds()), c.hostname, c.tags)
 	sender.Commit()
+
+	c.StatementsFilter.SQLIDs = SQLIDs
+	c.StatementsFilter.ForceMatchingSignatures = forceMatchingSignatures
+
 	return nil
 }
