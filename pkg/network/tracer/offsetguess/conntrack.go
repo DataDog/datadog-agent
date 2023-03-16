@@ -63,7 +63,11 @@ func NewConntrackOffsetGuesser(consts []manager.ConstantEditor) (OffsetGuesser, 
 			PerfMaps: []*manager.PerfMap{},
 			Probes: []*manager.Probe{
 				{ProbeIdentificationPair: idPair(probes.ConntrackHashInsert)},
-			},
+				// have to add this for older kernels since loading
+				// it twice in a process (once by the tracer offset guesser)
+				// does not seem to work; this will be not be enabled,
+				// so explicitly disabled, and the manager won't load it
+				{ProbeIdentificationPair: idPair(probes.NetDevQueue)}},
 		},
 		status:      &ConntrackStatus{Offset_ino: offsetIno},
 		ipv6Enabled: ipv6Enabled,
