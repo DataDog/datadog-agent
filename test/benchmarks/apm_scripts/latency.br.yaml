@@ -113,5 +113,7 @@ configurations:
             --outpath reports/report_full.html \
             --framework=K6 \
             --format html $MAIN_BRANCH_RESULT $PR_BRANCH_RESULT
-
+teardown:
+  steps:
+    killall trace-agent
 
