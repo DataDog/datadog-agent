@@ -19,7 +19,6 @@ import (
 	"math/rand"
 	"net"
 	nethttp "net/http"
-	"net/url"
 	"os"
 	"runtime"
 	"strconv"
@@ -38,6 +37,7 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -761,69 +761,13 @@ func TestSkipConnectionDNS(t *testing.T) {
 	})
 }
 
-type connectionFilterFunc func(c network.ConnectionStats) bool
-
-func byAddress(l, r net.Addr) func(c network.ConnectionStats) bool {
-	return func(c network.ConnectionStats) bool {
-		return addrMatches(l, c.Source.String(), c.SPort) && addrMatches(r, c.Dest.String(), c.DPort)
-	}
-}
-
-func byType(ct network.ConnectionType) func(c network.ConnectionStats) bool {
-	return func(c network.ConnectionStats) bool {
-		return c.Type == ct
-	}
-}
-
-func byFamily(f network.ConnectionFamily) func(c network.ConnectionStats) bool {
-	return func(c network.ConnectionStats) bool {
-		return c.Family == f
-	}
-}
-
 func findConnection(l, r net.Addr, c *network.Connections) (*network.ConnectionStats, bool) {
-	if result := searchConnections(c, byAddress(l, r)); len(result) > 0 {
-		return &result[0], true
-	}
-
-	return nil, false
-}
-
-func firstConnection(c *network.Connections, filters ...connectionFilterFunc) *network.ConnectionStats {
-	if result := filterConnections(c, filters...); len(result) > 0 {
-		return &result[0]
-	}
-	return nil
-}
-
-func filterConnections(c *network.Connections, filters ...connectionFilterFunc) []network.ConnectionStats {
-	var results []network.ConnectionStats
-ConnLoop:
-	for _, conn := range c.Conns {
-		for _, f := range filters {
-			if !f(conn) {
-				continue ConnLoop
-			}
-		}
-		results = append(results, conn)
-	}
-	return results
+	res := nettestutil.FirstConnection(c, nettestutil.ByTuple(l, r))
+	return res, res != nil
 }
 
 func searchConnections(c *network.Connections, predicate func(network.ConnectionStats) bool) []network.ConnectionStats {
-	var results []network.ConnectionStats
-	for _, conn := range c.Conns {
-		if predicate(conn) {
-			results = append(results, conn)
-		}
-	}
-	return results
-}
-
-func addrMatches(addr net.Addr, host string, port uint16) bool {
-	addrURL := url.URL{Scheme: addr.Network(), Host: addr.String()}
-
-	return addrURL.Hostname() == host && addrURL.Port() == strconv.Itoa(int(port))
+	return nettestutil.FilterConnections(c, predicate)
 }
 
 func runBenchtests(b *testing.B, payloads []int, prefix string, f func(p int) func(*testing.B)) {
