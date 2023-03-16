@@ -12,7 +12,7 @@ setup:
       BRANCH_DIR: dev/br-main
     run: |
       mkdir $BRANCH_DIR -p
-      git --work-tree=$BRANCH_DIR checkout main -- .
+      git --work-tree=$BRANCH_DIR checkout origin/main -- .
       cd $BRANCH_DIR
       echo "MAIN_BRANCH_ROOT=$(pwd)" >> $R_PASS_ENV
 env:
