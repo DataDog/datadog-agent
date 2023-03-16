@@ -899,8 +899,6 @@ int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
     }
     sock_tup.netns = 0;
     sock_tup.pid = 0;
-    skb_tup.netns = 0;
-    skb_tup.pid = 0;
 
     if (!is_equal(&skb_tup, &sock_tup)) {
         normalize_tuple(&skb_tup);
