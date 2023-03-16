@@ -14,6 +14,14 @@ namespace CustomActions.Tests
 {
     public class UserCustomActionsTests
     {
+        // Return type must be void or MoQ won't accept it.
+        delegate void LookupAccountNameDelegate(
+            string accountName,
+            out string user,
+            out string domain,
+            out SecurityIdentifier securityIdentifier,
+            out SID_NAME_USE sidNameUse);
+
         /// <summary>
         /// Base case, installing with default credentials
         /// on a workstation (NOT domain controller).
@@ -38,21 +46,20 @@ namespace CustomActions.Tests
                     out It.Ref<string>.IsAny,
                     out It.Ref<SecurityIdentifier>.IsAny,
                     out It.Ref<SID_NAME_USE>.IsAny))
-                .Callback(
+                .Callback(new LookupAccountNameDelegate(
                     (
                         string _,
                         out string user,
                         out string domain,
                         out SecurityIdentifier sid,
                         out SID_NAME_USE nameUse
-
                     ) =>
                     {
                         user = null;
                         domain = null;
                         sid = null;
                         nameUse = SID_NAME_USE.SidTypeUnknown;
-                    })
+                    }))
                 .Returns(false);
 
             var registryServicesMock = new Mock<IRegistryServices>();
@@ -110,21 +117,20 @@ namespace CustomActions.Tests
                     out It.Ref<string>.IsAny,
                     out It.Ref<SecurityIdentifier>.IsAny,
                     out It.Ref<SID_NAME_USE>.IsAny))
-                .Callback(
+                .Callback(new LookupAccountNameDelegate(
                     (
                         string _,
                         out string user,
                         out string domain,
                         out SecurityIdentifier sid,
                         out SID_NAME_USE nameUse
-
                     ) =>
                     {
                         user = userName;
                         domain = userDomain;
                         sid = userSid;
                         nameUse = SID_NAME_USE.SidTypeWellKnownGroup;
-                    })
+                    }))
                 .Returns(true);
 
             // IsServiceAccount should be true for LocalSystem
@@ -285,7 +291,7 @@ namespace CustomActions.Tests
                     out It.Ref<string>.IsAny,
                     out It.Ref<SecurityIdentifier>.IsAny,
                     out It.Ref<SID_NAME_USE>.IsAny))
-                .Callback(
+                .Callback(new LookupAccountNameDelegate(
                     (
                         string _,
                         out string user,
@@ -299,7 +305,7 @@ namespace CustomActions.Tests
                         domain = ddAgentUserDomain;
                         sid = userSid;
                         nameUse = SID_NAME_USE.SidTypeUser;
-                    })
+                    }))
                 .Returns(true);
 
             var registryServicesMock = new Mock<IRegistryServices>();
@@ -362,7 +368,7 @@ namespace CustomActions.Tests
                     out It.Ref<string>.IsAny,
                     out It.Ref<SecurityIdentifier>.IsAny,
                     out It.Ref<SID_NAME_USE>.IsAny))
-                .Callback(
+                .Callback(new LookupAccountNameDelegate(
                     (
                         string _,
                         out string user,
@@ -376,7 +382,7 @@ namespace CustomActions.Tests
                         domain = ddAgentUserDomain;
                         sid = userSid;
                         nameUse = SID_NAME_USE.SidTypeUser;
-                    })
+                    }))
                 .Returns(true);
 
             var registryServicesMock = new Mock<IRegistryServices>();
