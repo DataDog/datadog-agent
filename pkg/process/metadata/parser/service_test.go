@@ -121,7 +121,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockConfig := ddconfig.Mock(t)
+			mockConfig := ddconfig.MockSystemProbe(t)
 			mockConfig.Set("service_monitoring_config.process_service_inference.enabled", true)
 			mockConfig.Set("service_monitoring_config.process_service_inference.use_windows_service_name", true)
 

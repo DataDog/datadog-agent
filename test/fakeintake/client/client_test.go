@@ -25,17 +25,26 @@ var apiV2SeriesResponse []byte
 //go:embed fixtures/api_v1_check_run_response
 var apiV1CheckRunResponse []byte
 
+//go:embed fixtures/api_v2_logs_response
+var apiV2LogsResponse []byte
+
 func TestClient(t *testing.T) {
 	t.Run("getFakePayloads should properly format the request", func(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// allow requests only to "/foo/bar"
 			routes := r.URL.Query()["endpoint"]
 
-			payloads := [][]byte{}
-
-			payloads = append(payloads, []byte(r.URL.Path))
-			payloads = append(payloads, []byte(fmt.Sprintf("%d", len(routes))))
-			payloads = append(payloads, []byte(routes[0]))
+			payloads := []api.Payload{
+				{
+					Data: []byte(r.URL.Path),
+				},
+				{
+					Data: []byte(fmt.Sprintf("%d", len(routes))),
+				},
+				{
+					Data: []byte(routes[0]),
+				},
+			}
 			// create fake response
 			resp, err := json.Marshal(api.APIFakeIntakePayloadsGETResponse{
 				Payloads: payloads,
@@ -49,9 +58,9 @@ func TestClient(t *testing.T) {
 		payloads, err := client.getFakePayloads("/foo/bar")
 		assert.NoError(t, err, "Error getting payloads")
 		assert.Equal(t, 3, len(payloads))
-		assert.Equal(t, "/fakeintake/payloads", string(payloads[0]))
-		assert.Equal(t, "1", string(payloads[1]))
-		assert.Equal(t, "/foo/bar", string(payloads[2]))
+		assert.Equal(t, "/fakeintake/payloads", string(payloads[0].Data))
+		assert.Equal(t, "1", string(payloads[1].Data))
+		assert.Equal(t, "/foo/bar", string(payloads[2].Data))
 	})
 
 	t.Run("getFakePayloads should handle response with errors", func(t *testing.T) {
@@ -94,6 +103,19 @@ func TestClient(t *testing.T) {
 		assert.False(t, client.checkRunAggregator.ContainsPayloadName("totoro"))
 		assert.True(t, client.checkRunAggregator.ContainsPayloadNameAndTags("datadog.agent.check_status", []string{"check:snmp"}))
 		assert.False(t, client.checkRunAggregator.ContainsPayloadNameAndTags("datadog.agent.check_status", []string{"totoro"}))
+	})
+
+	t.Run("getLogs", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write(apiV2LogsResponse)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		err := client.getLogs()
+		assert.NoError(t, err)
+		assert.True(t, client.logAggregator.ContainsPayloadName("testapp"))
+		assert.False(t, client.logAggregator.ContainsPayloadName("totoro"))
 	})
 
 	t.Run("GetServerHealth", func(t *testing.T) {

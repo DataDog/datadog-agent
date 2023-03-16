@@ -613,7 +613,7 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 			Cmdline: []string{"./my-server.sh"},
 		},
 	}
-	mockConfig := ddconfig.Mock(t)
+	mockConfig := ddconfig.MockSystemProbe(t)
 	mockConfig.Set("service_monitoring_config.process_service_inference.enabled", true)
 
 	maxConnsPerMessage := 1
