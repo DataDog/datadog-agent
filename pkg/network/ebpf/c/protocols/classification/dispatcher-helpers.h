@@ -149,6 +149,17 @@ static __always_inline void dispatch_kafka(struct __sk_buff *skb) {
     }
     if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
         // dispatch if possible
+        const u32 zero = 0;
+        dispatcher_arguments_t *args = bpf_map_lookup_elem(&dispatcher_arguments, &zero);
+        if (args == NULL) {
+            log_debug("dispatcher failed to save arguments for tail call\n");
+            return;
+        }
+        bpf_memset(args, 0, sizeof(dispatcher_arguments_t));
+        bpf_memcpy(&args->tup, &skb_tup, sizeof(conn_tuple_t));
+        bpf_memcpy(&args->skb_info, &skb_info, sizeof(skb_info_t));
+
+        // dispatch if possible
         log_debug("dispatching to protocol number: %d\n", cur_fragment_protocol);
         bpf_tail_call_compat(skb, &protocols_progs, cur_fragment_protocol);
     }
