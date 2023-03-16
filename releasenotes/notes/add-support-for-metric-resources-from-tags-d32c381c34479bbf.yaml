@@ -9,4 +9,4 @@
 enhancements:
   - |
     Add support for emitting resources on metrics from tags in the
-    format resource:type,name.
+    format dd.internal.resource:type,name.
