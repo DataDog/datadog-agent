@@ -80,7 +80,7 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeFuncNa
 			enableProbe(enabled, probes.Inet6BindRet)
 		}
 
-		missing, err := ebpf.VerifyKernelFuncs(ksymPath, []string{"skb_consume_udp", "__skb_free_datagram_locked", "skb_free_datagram_locked"})
+		missing, err := ebpf.VerifyKernelFuncs("skb_consume_udp", "__skb_free_datagram_locked", "skb_free_datagram_locked")
 		if err != nil {
 			return nil, fmt.Errorf("error verifying kernel function presence: %s", err)
 		}
