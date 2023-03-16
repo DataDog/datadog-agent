@@ -1,41 +1,79 @@
 setup:
+  workdir: /tmp/benchmarks/
   steps:
   - unpack_oci_artifact: registry.ddbuild.io/apm-reliability-environment/trace-agent-payloads:latest
     dest: payloads
-    workdir: /tmp/benchmarks/
-  - workdir: /tmp/benchmarks/
-    run: |
+  - run: |
+      mkdir -p $ARTIFACTS_DIR
       cp $R_ROOT_DIR/k6/*.js ./
       echo "K6_ROOT=$(pwd)" >> $R_PASS_ENV
-  - workdir: /tmp/benchmarks/results/
-    run: echo "ARTIFACTS_DIR=$(pwd)" >> $R_PASS_ENV
-  - run: echo "REPOSITORY_ROOT=$R_ROOT_DIR/../../.." >> $R_PASS_ENV
-  - run: echo "K6_STATSD_ADDR=$STATSD_URL" >> $R_PASS_ENV
-  
-env: 
-  LENGHT_OF_RUN: 2s
-  CI_JOB_ID: remove_before_commiting
-  REPOSITORY_ROOT: ../../..
-  DD_API_KEY: deadbeeffacefeeddeadbeeffacefeed
+  - workdir: $REPOSITORY_ROOT
+    env:
+      BRANCH_DIR: dev/br-main
+    run: |
+      mkdir $BRANCH_DIR -p
+      git --work-tree=$BRANCH_DIR checkout main -- .
+      cd $BRANCH_DIR
+      echo "MAIN_BRANCH_ROOT=$(pwd)" >> $R_PASS_ENV
+env:
+  ARTIFACTS_DIR: /tmp/benchmarks/artifacts/v2
+  REPOSITORY_ROOT: $R_ROOT_DIR/../../..
+  #MAIN_BRANCH_ROOT: $REPOSITORY_ROOT/br_main_branch # TODO: recursive resolution is not working as expected yet
+  LENGHT_OF_RUN: 20s
+  CI_JOB_ID: ${CI_JOB_ID:-42}
+  CI_COMMIT_REF_NAME: "${CI_COMMIT_REF_NAME:-localtest}"
+  DD_API_KEY: ${DD_API_KEY:-deadbeeffacefeeddeadbeeffacefeed}
   DD_LOG_LEVEL: error
   DD_APM_MAX_MEMORY: 5GB
   DD_APM_MAX_CPU_PERCENT: "200"
   DD_APM_REMOTE_TAGGER: "false"
   K6_STATSD_ENABLE_TAGS: "true"
+  K6_STATSD_ADDR: $STATSD_URL
 configurations: 
   - name: k6_basic
+    env: 
+      MAIN_BRANCH_RESULT: $ARTIFACTS_DIR/main.json
+      PR_BRANCH_RESULT: $ARTIFACTS_DIR/pr.json
     experiments:
-      - name: current agent load test
-        setup: 
-          steps:
-            - run: |
-                cd $REPOSITORY_ROOT
-                go build ./cmd/trace-agent
+      - name: branch-agent
         services:
           - name: "trace-agent-current"
             assign_cpus: 8
             run: |
               cd $REPOSITORY_ROOT
+              killall trace-agent
+              go run ./cmd/trace-agent -config ./cfg.yaml
+        execute:
+          assign_cpus: 2
+          workdir: $ARTIFACTS_DIR
+          script: |
+            pwd
+            k6 run \
+            --duration $LENGHT_OF_RUN \
+            --no-usage-report \
+            --tag test_run_id=k6-benchmark-dd-trace-agent-current \
+            --tag ci_job_id=$CI_JOB_ID \
+            --out json="${R_EXPERIMENT_NAME}.json" \
+            $K6_ROOT/basic.js
+        teardown:
+          steps:
+          - sdk_image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:latest
+            workdir: $ARTIFACTS_DIR
+            run_with_sdk: |
+              benchmark_analyzer convert \
+                --framework=K6 \
+                --outpath="${PR_BRANCH_RESULT}" \
+                --extra-params="{\"trace_agent\":\"${CI_COMMIT_REF_NAME}\"}" \
+                "${R_EXPERIMENT_NAME}.json"
+
+      - name: trace-agent-master
+        services:
+          - name: "trace-agent-master"
+            assign_cpus: 8
+            run: |
+              #TODO: add support for workdir in services
+              cd $MAIN_BRANCH_ROOT 
+              killall trace-agent
               go run ./cmd/trace-agent -config ./cfg.yaml
             
         execute:
@@ -44,11 +82,37 @@ configurations:
             k6 run \
             --duration $LENGHT_OF_RUN \
             --no-usage-report \
-            --tag test_run_id=k6-benchmark-dd-trace-agent-current \
+            --tag test_run_id=${R_EXPERIMENT_NAME} \
             --tag ci_job_id=$CI_JOB_ID \
-            --out statsd \
-            --out json="$ARTIFACTS_DIR/$RUN_ID.json" \
+            --out json="${R_EXPERIMENT_NAME}.json" \
             $K6_ROOT/basic.js
-        
+        teardown:
+          steps:
+          - sdk_image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:latest
+            workdir: $ARTIFACTS_DIR
+            run_with_sdk: |
+              benchmark_analyzer convert \
+                --framework=K6 \
+                --outpath="${MAIN_BRANCH_RESULT}" \
+                --extra-params="{\"trace_agent\":\"${CI_COMMIT_REF_NAME}\"}" \
+                "${R_EXPERIMENT_NAME}.json"
+    teardown:
+      steps:
+      - sdk_image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:latest
+        workdir: $ARTIFACTS_DIR
+        run_with_sdk: |
+          mkdir reports -p 
+          benchmark_analyzer compare pairwise \
+            --outpath reports/report.md \
+            --framework=K6 \
+            --format md $MAIN_BRANCH_RESULT $PR_BRANCH_RESULT
+      - sdk_image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:latest
+        workdir: $ARTIFACTS_DIR
+        run_with_sdk: |
+          mkdir reports -p 
+          benchmark_analyzer compare pairwise \
+            --outpath reports/report_full.html \
+            --framework=K6 \
+            --format html $MAIN_BRANCH_RESULT $PR_BRANCH_RESULT
 
 
