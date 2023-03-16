@@ -1662,9 +1662,11 @@ func TestTCPDirectionWithPreexistingConnection(t *testing.T) {
 	// setup server to listen on a port
 	server := NewTCPServer(func(c net.Conn) {
 		t.Logf("received connection from %s", c.RemoteAddr())
-		_, _ = bufio.NewReader(c).ReadBytes('\n')
+		_, err := bufio.NewReader(c).ReadBytes('\n')
 		c.Close()
-		wg.Done()
+		if err == nil {
+			wg.Done()
+		}
 	})
 	server.Run()
 	t.Cleanup(server.Shutdown)
@@ -1682,20 +1684,18 @@ func TestTCPDirectionWithPreexistingConnection(t *testing.T) {
 	tr := setupTracer(t, cfg)
 
 	// open and close another client connection to force port binding delete
-	wg.Add(1)
 	c2, err := net.DialTimeout("tcp", server.address, 5*time.Second)
 	require.NoError(t, err)
+	wg.Add(1)
 	_, err = c2.Write([]byte("conn2\n"))
 	require.NoError(t, err)
 	c2.Close()
-
 	wg.Wait()
 
 	wg.Add(1)
 	// write some data so tracer determines direction of this connection
 	_, err = c.Write([]byte("original\n"))
 	require.NoError(t, err)
-
 	wg.Wait()
 
 	// the original connection should still be incoming for the server

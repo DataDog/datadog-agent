@@ -87,6 +87,7 @@ var programs = map[string]struct{}{
 	udpDestroySockReturn: {},
 	udpRecvMsgReturn:     {},
 	udpSendMsgReturn:     {},
+	udpSendPageReturn:    {},
 	udpSendSkb:           {},
 	udpv6RecvMsgReturn:   {},
 	udpv6SendMsgReturn:   {},
