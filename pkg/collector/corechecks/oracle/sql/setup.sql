@@ -49,8 +49,44 @@ SELECT
     e.kslednam as event,
     e.ksledclass as wait_class,
     w.kslwtstime as wait_time_micro,
+    c.name as pdb_name,
     sq.sql_text as sql_text,
-    c.name as pdb_name
+    sq.sql_fulltext as sql_fulltext,
+    sq.parse_calls,
+    sq.disk_reads,
+    sq.direct_writes,
+    sq.direct_reads,
+    sq.buffer_gets,
+    sq.rows_processed,
+    sq.serializable_aborts,
+    sq.fetches,
+    sq.executions,
+    sq.end_of_fetch_count,
+    sq.loads,
+    sq.version_count,
+    sq.invalidations,
+    sq.px_servers_executions,
+    sq.cpu_time,
+    sq.elapsed_time,
+    sq.avg_hard_parse_time,
+    sq.application_wait_time,
+    sq.concurrency_wait_time,
+    sq.cluster_wait_time,
+    sq.user_io_wait_time,
+    sq.plsql_exec_time,
+    sq.java_exec_time,
+    sq.sorts,
+    sq.sharable_mem,
+    sq.typecheck_mem,
+    sq.io_cell_offload_eligible_bytes,
+    sq.io_interconnect_bytes,
+    sq.physical_read_requests,
+    sq.physical_read_bytes,
+    sq.physical_write_requests,
+    sq.physical_write_bytes,
+    sq.io_cell_uncompressed_bytes,
+    sq.io_cell_offload_returned_bytes,
+    sq.avoided_executions
   FROM
     x$ksuse s,
     x$kslwt w,
@@ -64,6 +100,7 @@ SELECT
     AND s.indx = w.kslwtsid
     AND w.kslwtevt = e.indx
     AND s.ksusesqi = sq.sql_id(+)
+    AND s.ksusesph = sq.plan_hash_value(+)
     AND s.con_id = c.con_id(+)
 ;
 

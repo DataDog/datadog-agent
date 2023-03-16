@@ -22,6 +22,11 @@ import (
 )
 
 // Check represents one Oracle instance check.
+type StatementsFilter struct {
+	SQLIDs                  map[string]int
+	ForceMatchingSignatures map[uint64]int
+}
+
 type Check struct {
 	core.CheckBase
 	config        *config.CheckConfig
@@ -31,19 +36,13 @@ type Check struct {
 	agentVersion  string
 	checkInterval float64
 	tags          []string
+	cdbName       string
+	StatementsFilter
+	//queryMetricTotalsPrevious []QueryMetricTotalsDB
 }
 
 // Run executes the check.
 func (c *Check) Run() error {
-	/*
-		sender, err := c.GetSender()
-		if err != nil {
-			log.Error("Get sender Run")
-			return err
-		}
-		sender.Gauge("oracle.helloworld", 10, "", nil)
-		sender.Commit()
-	*/
 
 	if c.db == nil {
 		db, err := c.Connect()
@@ -69,6 +68,10 @@ func (c *Check) Run() error {
 
 	if c.dbmEnabled {
 		err := c.SampleSession()
+		if err != nil {
+			return err
+		}
+		err = c.StatementMetrics()
 		if err != nil {
 			return err
 		}
@@ -106,6 +109,15 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to ping oracle instance: %w", err)
 	}
+
+	if c.cdbName == "" {
+		row := db.QueryRow("SELECT name FROM v$database")
+		err = row.Scan(&c.cdbName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query db name: %w", err)
+		}
+	}
+
 	return db, nil
 }
 
