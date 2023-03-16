@@ -83,7 +83,7 @@ func Commands() []*cobra.Command {
 		},
 	}
 	cmd.PersistentFlags().BoolVarP(&cliParams.usePrefixes, providerPrefixesFlag, "", false, "Use prefixes to select the secrets provider (file, k8s_secret)")
-	cmd.PersistentFlags().BoolVarP(&cliParams.removeTrailingLineBreak, removeTrailingLineBreak, "", false, "Remove the last trailing linebreaks from the file if any")
+	cmd.PersistentFlags().BoolVarP(&cliParams.removeTrailingLineBreak, removeTrailingLineBreak, "", false, "Remove the trailing newline characters (if any) from the fetched secrets")
 
 	secretHelperCmd := &cobra.Command{
 		Use:   "secret-helper",
