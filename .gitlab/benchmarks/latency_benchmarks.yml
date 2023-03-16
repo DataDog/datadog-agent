@@ -9,7 +9,7 @@ basic_k6_benchmark:
   tags: ["team:apm-k8s-tweaked-metal-datadog-agent,specific:true"]
   script:
     - ./test/benchmarks/apm_scripts/capture-hardware-software-info.sh
-    - ./test/benchmarks/apm_scripts/benchmark-runner.sh
+    - ARTIFACTS_DIR=/artifacts ./test/benchmarks/apm_scripts/benchmark-runner.sh
   artifacts:
     name: "reports"
     paths:

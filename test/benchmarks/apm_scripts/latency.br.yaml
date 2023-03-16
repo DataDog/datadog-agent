@@ -19,7 +19,7 @@ env:
   ARTIFACTS_DIR: "${ARTIFACTS_DIR:-/tmp/benchmarks/artifacts/v2}"
   REPOSITORY_ROOT: $R_ROOT_DIR/../../..
   #MAIN_BRANCH_ROOT: $REPOSITORY_ROOT/br_main_branch # TODO: recursive resolution is not working as expected yet
-  LENGHT_OF_RUN: 20s
+  LENGHT_OF_RUN: 60s
   CI_JOB_ID: ${CI_JOB_ID:-42}
   CI_COMMIT_REF_NAME: "${CI_COMMIT_REF_NAME:-localtest}"
   DD_API_KEY: ${DD_API_KEY:-deadbeeffacefeeddeadbeeffacefeed}
