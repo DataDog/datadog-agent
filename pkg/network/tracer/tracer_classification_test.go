@@ -1625,36 +1625,6 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 	}
 }
 
-func testProtocolClassificationInner(t *testing.T, params protocolClassificationAttributes, tr *Tracer) {
-	if params.skipCallback != nil {
-		params.skipCallback(t, params.context)
-	}
-	t.Cleanup(func() { tr.removeClient(clientID) })
-	t.Cleanup(func() { tr.ebpfTracer.Pause() })
-
-	if params.teardown != nil {
-		t.Cleanup(func() {
-			params.teardown(t, params.context)
-		})
-	}
-
-	require.NoError(t, tr.ebpfTracer.Pause(), "disable probes - before pre tracer")
-	if params.preTracerSetup != nil {
-		params.preTracerSetup(t, params.context)
-	}
-	initTracerState(t, tr)
-	t.Cleanup(func() { tr.removeClient(clientID) })
-
-	initTracerState(t, tr)
-	require.NoError(t, tr.ebpfTracer.Resume(), "enable probes - before post tracer")
-	// give a small amount of time for socket filter to re-engage
-	time.Sleep(1 * time.Millisecond)
-	params.postTracerSetup(t, params.context)
-	require.NoError(t, tr.ebpfTracer.Pause(), "disable probes - after post tracer")
-
-	params.validation(t, params.context, tr)
-}
-
 func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, serverAddr string, expectedProtocol network.ProtocolType) {
 	var incomingConns, outgoingConns []network.ConnectionStats
 
