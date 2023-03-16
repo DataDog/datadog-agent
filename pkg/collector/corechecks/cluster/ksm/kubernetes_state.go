@@ -345,6 +345,7 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 	// extended resource collectors always have a factory registered
 	factories := []customresource.RegistryFactory{
 		customresources.NewExtendedJobFactory(),
+		customresources.NewCustomResourceDefinitionFactory(),
 	}
 
 	factories = manageResourcesReplacement(c, factories)
