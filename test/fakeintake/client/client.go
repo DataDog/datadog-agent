@@ -7,7 +7,6 @@ package client
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -104,49 +103,49 @@ func (c *Client) GetMetric(name string) ([]*aggregator.MetricSeries, error) {
 	return c.metricAggregator.GetPayloadsByName(name), nil
 }
 
-type MatchOpt[P aggregator.PayloadItem] func(payload P) error
+type MatchOpt[P aggregator.PayloadItem] func(payload P) (bool, error)
 
 func WithTags[P aggregator.PayloadItem](tags []string) MatchOpt[P] {
-	return func(payload P) error {
+	return func(payload P) (bool, error) {
 		if aggregator.AreTagsSubsetOfOtherTags(tags, payload.GetTags()) {
-			return nil
+			return true, nil
 		}
 		// TODO return similarity error score
-		return errors.New("tags not found")
+		return false, nil
 	}
 }
 
 func WithMetricValueInRange(minValue float64, maxValue float64) MatchOpt[*aggregator.MetricSeries] {
-	return func(metric *aggregator.MetricSeries) error {
-		err := WithMetricValueHigherThan(minValue)(metric)
-		if err != nil {
-			return err
+	return func(metric *aggregator.MetricSeries) (bool, error) {
+		isMatch, err := WithMetricValueHigherThan(minValue)(metric)
+		if !isMatch || err != nil {
+			return isMatch, err
 		}
 		return WithMetricValueLowerThan(maxValue)(metric)
 	}
 }
 
 func WithMetricValueLowerThan(maxValue float64) MatchOpt[*aggregator.MetricSeries] {
-	return func(metric *aggregator.MetricSeries) error {
+	return func(metric *aggregator.MetricSeries) (bool, error) {
 		for _, point := range metric.Points {
 			if point.Value < maxValue {
-				return nil
+				return true, nil
 			}
 		}
 		// TODO return similarity error score
-		return errors.New("value higher than expected")
+		return false, nil
 	}
 }
 
 func WithMetricValueHigherThan(minValue float64) MatchOpt[*aggregator.MetricSeries] {
-	return func(metric *aggregator.MetricSeries) error {
+	return func(metric *aggregator.MetricSeries) (bool, error) {
 		for _, point := range metric.Points {
 			if point.Value > minValue {
-				return nil
+				return true, nil
 			}
 		}
 		// TODO return similarity error score
-		return errors.New("value lower than expected")
+		return false, nil
 	}
 }
 
@@ -160,8 +159,8 @@ func (c *Client) FilterMetrics(name string, options ...MatchOpt[*aggregator.Metr
 	for _, metric := range metrics {
 		matchCount := 0
 		for _, matchOpt := range options {
-			err = matchOpt(metric)
-			if err != nil {
+			isMatch, err := matchOpt(metric)
+			if !isMatch || err != nil {
 				break
 			}
 			matchCount++
@@ -182,26 +181,26 @@ func (c *Client) GetLog(name string) ([]*aggregator.Log, error) {
 }
 
 func WithMessageContaining(content string) MatchOpt[*aggregator.Log] {
-	return func(log *aggregator.Log) error {
+	return func(log *aggregator.Log) (bool, error) {
 		if strings.Contains(log.Message, content) {
-			return nil
+			return true, nil
 		}
 		// TODO return similarity score in error
-		return errors.New("log does not contain expcted content")
+		return false, nil
 	}
 }
 
 func WithMessageMatching(pattern string) MatchOpt[*aggregator.Log] {
-	return func(log *aggregator.Log) error {
+	return func(log *aggregator.Log) (bool, error) {
 		matched, err := regexp.MatchString(pattern, log.Message)
 		if err != nil {
-			return err
+			return false, err
 		}
 		if matched {
-			return nil
+			return true, nil
 		}
 		// TODO return similarity score in error
-		return errors.New("log does not match expected pattern")
+		return false, nil
 	}
 }
 
@@ -215,8 +214,8 @@ func (c *Client) FilterLogs(name string, options ...MatchOpt[*aggregator.Log]) (
 	for _, log := range logs {
 		matchCount := 0
 		for _, matchOpt := range options {
-			err = matchOpt(log)
-			if err != nil {
+			isMatch, err := matchOpt(log)
+			if !isMatch || err != nil {
 				break
 			}
 			matchCount++

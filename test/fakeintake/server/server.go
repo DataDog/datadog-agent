@@ -277,7 +277,7 @@ func (fi *Server) safeAppendPayload(route string, data []byte, encoding string) 
 func (fi *Server) safeGetPayloads(route string) []api.Payload {
 	fi.mu.Lock()
 	defer fi.mu.Unlock()
-	payloads := make([]api.Payload, len(fi.payloadStore[route]))
+	payloads := make([]api.Payload, 0, len(fi.payloadStore[route]))
 	payloads = append(payloads, fi.payloadStore[route]...)
 	return payloads
 }
