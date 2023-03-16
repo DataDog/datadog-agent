@@ -28,11 +28,9 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 	opts.DontStartForwarders = true
 	demux := aggregator.InitAndStartAgentDemultiplexer(opts, "hostname")
 
-	// var server server.Component
-	// fx.Populate(&server)
-
 	fxutil.Test(t, fx.Options(
 		core.MockBundle,
+		fx.Supply(core.BundleParams{}),
 		fx.Supply(server.Params{
 			Serverless: false,
 		}),

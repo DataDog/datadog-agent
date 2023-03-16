@@ -17,6 +17,7 @@ from .libs.pipeline_data import get_failed_jobs
 from .libs.pipeline_notifications import (
     GITHUB_SLACK_MAP,
     base_message,
+    check_for_missing_owners_slack,
     find_job_owners,
     get_failed_tests,
     send_slack_message,
@@ -418,6 +419,17 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
             raise Exit(f"Error: child pipeline status {pipestatus.title()}", code=1)
 
         print("Child pipeline finished successfully")
+
+
+@task
+def check_notify_teams(_):
+    if check_for_missing_owners_slack():
+        print(
+            "Error: Some teams in CODEOWNERS don't have their slack notification channel specified in the GITHUB_SLACK_MAP !!"
+        )
+        Exit(code=1)
+    else:
+        print("All CODEOWNERS teams have their slack notification channel specified !")
 
 
 @task

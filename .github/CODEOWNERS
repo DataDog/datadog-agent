@@ -83,8 +83,6 @@
 
 /.gitlab/container_scan.yml                          @DataDog/container-integrations @DataDog/agent-platform
 
-/.gitlab/internal_deploy.yml                         @DataDog/ebpf-platform @DataDog/agent-platform
-
 /.gitlab/internal_image_deploy.yml                   @DataDog/container-integrations @DataDog/agent-platform
 
 /.gitlab/maintenance_jobs/docker.yml                 @DataDog/container-integrations @DataDog/agent-platform

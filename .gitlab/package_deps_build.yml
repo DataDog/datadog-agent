@@ -5,7 +5,7 @@
 .generate_minimized_btfs_common:
   stage: package_deps_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen$DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   script:
     - cd $CI_PROJECT_DIR
     - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/btfs-$ARCH.tar.gz .

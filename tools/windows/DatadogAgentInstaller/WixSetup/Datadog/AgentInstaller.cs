@@ -13,11 +13,11 @@ namespace WixSetup.Datadog
     public class AgentInstaller : IWixProjectEvents
     {
         // Company
-        private const string CompanyFullName = "Datadog, inc.";
+        private const string CompanyFullName = "Datadog, Inc.";
 
         // Product
         private const string ProductFullName = "Datadog Agent";
-        private const string ProductDescription = "Datadog helps you monitor your infrastructure and application";
+        private const string ProductDescription = "Datadog Agent {0}";
         private const string ProductHelpUrl = @"https://help.datadoghq.com/hc/en-us";
         private const string ProductAboutUrl = @"https://www.datadoghq.com/about/";
         private const string ProductComment = @"Copyright 2015 - Present Datadog";
@@ -61,18 +61,6 @@ namespace WixSetup.Datadog
         public Project ConfigureProject()
         {
             var project = new ManagedProject("Datadog Agent",
-                new User
-                {
-                    // CreateUser fails with ERROR_BAD_USERNAME if Name is a fully qualified user name
-                    Name = "[DDAGENTUSER_PROCESSED_NAME]",
-                    Domain = "[DDAGENTUSER_PROCESSED_DOMAIN]",
-                    Password = "[DDAGENTUSER_PROCESSED_PASSWORD]",
-                    PasswordNeverExpires = true,
-                    RemoveOnUninstall = false,
-                    FailIfExists = false,
-                    UpdateIfExists = true,
-                    CreateUser = true
-                },
                 new Property("MsiLogging", "iwearucmop!"),
                 new Property("APIKEY")
                 {
@@ -96,6 +84,12 @@ namespace WixSetup.Datadog
                 {
                     AttributesDefinition = "Secure=yes",
                 },
+                // Add a checkbox at the end of the setup to launch the Datadog Agent Manager
+                new LaunchCustomApplicationFromExitDialog(
+                    _agentBinaries.TrayId,
+                    "!(loc.LaunchAgentManager)",
+                    "AGENT",
+                    "\"[AGENT]ddtray.exe\" \"--launch-gui\""),
                 new CloseApplication(new Id("CloseTrayApp"),
                     Path.GetFileName(_agentBinaries.Tray),
                     closeMessage: true,
@@ -120,15 +114,18 @@ namespace WixSetup.Datadog
                 new RemoveRegistryKey(_agentFeatures.MainApplication, @"Software\Datadog\Datadog Agent")
             );
             project
+            .AddAgentUser()
             .SetCustomActions(_agentCustomActions)
             .SetProjectInfo(
                 upgradeCode: ProductUpgradeCode,
                 name: ProductFullName,
-                description: ProductDescription,
-                // SetProjectInfo throws an Exception is Revision is != 0
-                // we use Revision = 2 for the next gen installer while it's still a prototype
-                version: new Version(_agentVersion.Version.Major, _agentVersion.Version.Minor,
-                    _agentVersion.Version.Build, 0)
+                description: string.Format(ProductDescription, _agentVersion.Version),
+                // This version is overridden below because SetProjectInfo throws an Exception if Revision is != 0
+                version: new Version(
+                    _agentVersion.Version.Major,
+                    _agentVersion.Version.Minor,
+                    _agentVersion.Version.Build,
+                    0)
             )
             .SetControlPanelInfo(
                 name: ProductFullName,
@@ -160,6 +157,9 @@ namespace WixSetup.Datadog
                 ),
                 new Dir("logs")
             );
+            // NineDigit.WixSharpExtensions SetProductInfo prohibits setting the revision, so we must do it here instead.
+            // The revision is ignored by WiX during upgrades, so it is only useful for documentation purposes.
+            project.Version = _agentVersion.Version;
 
             // Enable the ability to repair the installation even when the original MSI is no longer available.
             // This adds a symlink in %PROGRAMFILES%\Datadog\Datadog Agent which remains even when uninstalled
@@ -169,23 +169,13 @@ namespace WixSetup.Datadog
             //project.EnableResilientPackage();
 
             project.MajorUpgrade = MajorUpgrade.Default;
-            // When set to yes, WiX sets the msidbUpgradeAttributesVersionMaxInclusive attribute,
-            // which tells MSI to treat a product with the same version as a major upgrade.
-            // This is useful when two product versions differ only in the fourth version field.
-            // MSI specifically ignores that field when comparing product versions,
-            // so two products that differ only in the fourth version field are the same product and
-            // need this attribute set to "true" to be detected.
-            // Note that because MSI ignores the fourth product version field,
-            // setting this attribute to yes also allows downgrades when the first three product version fields are identical.
-            // For example, product version 1.0.0.1 will "upgrade" 1.0.0.2998 because they're seen as the same version (1.0.0).
-            // That could reintroduce serious bugs so the safest choice is to change the first three version fields and
-            // omit this attribute to get the default of no.
-            project.MajorUpgrade.AllowSameVersionUpgrades = false;
+            // Set to true otherwise RC versions can't upgrade each other.
+            project.MajorUpgrade.AllowSameVersionUpgrades = true;
             project.MajorUpgrade.Schedule = UpgradeSchedule.afterInstallInitialize;
             project.MajorUpgrade.DowngradeErrorMessage =
                 "Automatic downgrades are not supported.  Uninstall the current version, and then reinstall the desired version.";
             project.ReinstallMode = "amus";
-            
+
             project.Platform = Platform.x64;
             // MSI 5.0 was shipped in Windows Server 2012 R2.
             // https://learn.microsoft.com/en-us/windows/win32/msi/released-versions-of-windows-installer
@@ -196,6 +186,7 @@ namespace WixSetup.Datadog
             project.LocalizationFile = "localization-en-us.wxl";
             project.OutFileName = $"datadog-agent-ng-{_agentVersion.PackageVersion}-1-x86_64";
             project.DigitalSignature = _agentSignature.Signature;
+            project.Package.AttributesDefinition = $"Comments={ProductComment}";
 
             // clear default media as we will add it via MediaTemplate
             project.Media.Clear();
@@ -223,6 +214,18 @@ namespace WixSetup.Datadog
                 document
                     .Select("Wix/Product/InstallExecuteSequence")
                     .AddElement("DeleteServices", value: "(Installed AND (REMOVE=\"ALL\") AND NOT (WIX_UPGRADE_DETECTED OR UPGRADINGPRODUCTCODE))");
+
+                // We don't use the Wix "Merge" MSM feature because it seems to be a no-op...
+                document
+                    .FindAll("Directory")
+                    .First(x => x.HasAttribute("Id", value => value == "AGENT"))
+                    .AddElement("Directory", "Id=DRIVER; Name=driver")
+                    .AddElement("Merge",
+                        $"Id=ddnpminstall; SourceFile={BinSource}\\agent\\DDNPM.msm; DiskId=1; Language=1033");
+                document
+                    .FindAll("Feature")
+                    .First(x => x.HasAttribute("Id", value => value == "NPM"))
+                    .AddElement("MergeRef", "Id=ddnpminstall");
             };
             project.WixSourceFormated += (ref string content) => WixSourceFormated?.Invoke(content);
             project.WixSourceSaved += name => WixSourceSaved?.Invoke(name);
@@ -324,7 +327,14 @@ namespace WixSetup.Datadog
             };
         }
 
-        private static ServiceInstaller GenerateDependentServiceInstaller(Id id, string name, string displayName, string description, string account, string password = null)
+        private static ServiceInstaller GenerateDependentServiceInstaller(
+            Id id,
+            string name,
+            string displayName,
+            string description,
+            string account,
+            string password = null,
+            string arguments = null)
         {
             return new ServiceInstaller
             {
@@ -348,6 +358,7 @@ namespace WixSetup.Datadog
                 // Account must be a fully qualified name.
                 Account = account,
                 Password = password,
+                Arguments = arguments,
                 DependsOn = new[]
                 {
                     new ServiceDependency("datadogagent")
@@ -358,9 +369,28 @@ namespace WixSetup.Datadog
         private Dir CreateBinFolder()
         {
             var agentService = GenerateServiceInstaller("datadogagent", "Datadog Agent", "Send metrics to Datadog");
-            var processAgentService = GenerateDependentServiceInstaller(new Id("ddagentprocessservice"), "datadog-process-agent", "Datadog Process Agent", "Send process metrics to Datadog", "LocalSystem");
-            var traceAgentService = GenerateDependentServiceInstaller(new Id("ddagenttraceservice"), "datadog-trace-agent", "Datadog Trace Agent", "Send tracing metrics to Datadog", "[DDAGENTUSER_PROCESSED_FQ_NAME]", "[DDAGENTUSER_PROCESSED_PASSWORD]");
-            var systemProbeService = GenerateDependentServiceInstaller(new Id("ddagentsysprobeservice"), "datadog-system-probe", "Datadog System Probe", "Send network metrics to Datadog", "LocalSystem");
+            var processAgentService = GenerateDependentServiceInstaller(
+                new Id("ddagentprocessservice"),
+                "datadog-process-agent",
+                "Datadog Process Agent",
+                "Send process metrics to Datadog",
+                "LocalSystem",
+                null,
+                "--cfgpath=\"[APPLICATIONDATADIRECTORY]\\datadog.yaml\"");
+            var traceAgentService = GenerateDependentServiceInstaller(
+                new Id("ddagenttraceservice"),
+                "datadog-trace-agent",
+                "Datadog Trace Agent",
+                "Send tracing metrics to Datadog",
+                "[DDAGENTUSER_PROCESSED_FQ_NAME]",
+                "[DDAGENTUSER_PROCESSED_PASSWORD]",
+                "--config=\"[APPLICATIONDATADIRECTORY]\\datadog.yaml\"");
+            var systemProbeService = GenerateDependentServiceInstaller(
+                new Id("ddagentsysprobeservice"),
+                "datadog-system-probe",
+                "Datadog System Probe",
+                "Send network metrics to Datadog",
+                "LocalSystem");
 
             var targetBinFolder = new Dir(new Id("BIN"), "bin",
                 new WixSharp.File(_agentBinaries.Agent, agentService),
@@ -376,13 +406,7 @@ namespace WixSetup.Datadog
                     new Dir("dist",
                         new Files($@"{InstallerSource}\bin\agent\dist\*")
                     ),
-                    new Dir("driver",
-                        new Merge(_agentFeatures.Npm, $@"{BinSource}\agent\DDNPM.msm")
-                        {
-                            Feature = _agentFeatures.Npm
-                        }
-                    ),
-                    new WixSharp.File(_agentBinaries.Tray),
+                    new WixSharp.File(_agentBinaries.TrayId, _agentBinaries.Tray),
                     new WixSharp.File(_agentBinaries.ProcessAgent, processAgentService),
                     new EventSource
                     {

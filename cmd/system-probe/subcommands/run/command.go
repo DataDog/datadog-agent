@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -207,7 +208,10 @@ func startSystemProbe(cliParams *cliParams, log log.Component, sysprobeconfig sy
 		return log.Criticalf("error configuring statsd: %s", err)
 	}
 
-	if cfg.DebugPort > 0 {
+	if isValidPort(cfg.DebugPort) {
+		if cfg.TelemetryEnabled {
+			http.Handle("/telemetry", telemetry.Handler())
+		}
 		go func() {
 			common.ExpvarServer = &http.Server{
 				Addr:    fmt.Sprintf("127.0.0.1:%d", cfg.DebugPort),
@@ -269,4 +273,8 @@ func setupInternalProfiling(cfg ddconfig.ConfigReader, configPrefix string, log 
 			log.Errorf("Error starting profiler: %v", err)
 		}
 	}
+}
+
+func isValidPort(port int) bool {
+	return port > 0 && port < 65536
 }

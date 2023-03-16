@@ -602,13 +602,13 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 }
 
 func (s *store) getEntityByKind(kind Kind, id string) (Entity, error) {
+	s.storeMut.RLock()
+	defer s.storeMut.RUnlock()
+
 	entitiesOfKind, ok := s.store[kind]
 	if !ok {
 		return nil, errors.NewNotFound(string(kind))
 	}
-
-	s.storeMut.RLock()
-	defer s.storeMut.RUnlock()
 
 	entity, ok := entitiesOfKind[id]
 	if !ok {
