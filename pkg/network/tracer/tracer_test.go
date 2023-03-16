@@ -37,7 +37,6 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -762,12 +761,12 @@ func TestSkipConnectionDNS(t *testing.T) {
 }
 
 func findConnection(l, r net.Addr, c *network.Connections) (*network.ConnectionStats, bool) {
-	res := nettestutil.FirstConnection(c, nettestutil.ByTuple(l, r))
+	res := network.FirstConnection(c, network.ByTuple(l, r))
 	return res, res != nil
 }
 
 func searchConnections(c *network.Connections, predicate func(network.ConnectionStats) bool) []network.ConnectionStats {
-	return nettestutil.FilterConnections(c, predicate)
+	return network.FilterConnections(c, predicate)
 }
 
 func runBenchtests(b *testing.B, payloads []int, prefix string, f func(p int) func(*testing.B)) {

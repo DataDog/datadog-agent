@@ -212,7 +212,7 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 
 	// Fetch all connections matching source and target address
 	allConnections := getConnections(t, tr)
-	conns := testutil.FilterConnections(allConnections, testutil.ByTuple(c.LocalAddr(), c.RemoteAddr()))
+	conns := network.FilterConnections(allConnections, network.ByTuple(c.LocalAddr(), c.RemoteAddr()))
 	require.Len(t, conns, numProcesses)
 
 	totalSent := 0
@@ -1387,10 +1387,10 @@ func TestSendfileRegression(t *testing.T) {
 		assert.Eventually(t, func() bool {
 			conns := getConnections(t, tr)
 			if outConn == nil {
-				outConn = testutil.FirstConnection(conns, testutil.ByType(connType), testutil.ByFamily(family), testutil.ByTuple(c.LocalAddr(), c.RemoteAddr()))
+				outConn = network.FirstConnection(conns, network.ByType(connType), network.ByFamily(family), network.ByTuple(c.LocalAddr(), c.RemoteAddr()))
 			}
 			if inConn == nil {
-				inConn = testutil.FirstConnection(conns, testutil.ByType(connType), testutil.ByFamily(family), testutil.ByTuple(c.RemoteAddr(), c.LocalAddr()))
+				inConn = network.FirstConnection(conns, network.ByType(connType), network.ByFamily(family), network.ByTuple(c.RemoteAddr(), c.LocalAddr()))
 			}
 			return outConn != nil && inConn != nil
 		}, 3*time.Second, 500*time.Millisecond, "couldn't find connections used by sendfile(2)")
