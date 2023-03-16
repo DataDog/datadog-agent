@@ -22,12 +22,8 @@ type Component interface {
 
 	// IsDebugEnabled gets the DsdServerDebug instance which provides metric stats
 	IsDebugEnabled() bool
-
-	// EnableMetricsStats enables metric stats tracking
-	EnableMetricsStats()
-
-	// DisableMetricsStats disables metric stats tracking
-	DisableMetricsStats()
+	// SetMetricStatsEnabled enables or disables metric stats tracking
+	SetMetricStatsEnabled(bool)
 
 	// GetJSONDebugStats returns a json representation of debug stats
 	GetJSONDebugStats() ([]byte, error)

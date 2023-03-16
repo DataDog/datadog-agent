@@ -18,6 +18,10 @@ type DsdStatsRuntimeSetting struct {
 	ServerDebug dogstatsdDebug.Component
 }
 
+func NewDsdStatsRuntimeSetting(serverDebug dogstatsdDebug.Component) *DsdStatsRuntimeSetting {
+	return &DsdStatsRuntimeSetting{ServerDebug: serverDebug}
+}
+
 // Description returns the runtime setting's description
 func (s DsdStatsRuntimeSetting) Description() string {
 	return "Enable/disable the dogstatsd debug stats. Possible values: true, false"
@@ -47,11 +51,7 @@ func (s DsdStatsRuntimeSetting) Set(v interface{}) error {
 		return fmt.Errorf("DsdStatsRuntimeSetting: %v", err)
 	}
 
-	if newValue {
-		s.ServerDebug.EnableMetricsStats()
-	} else {
-		s.ServerDebug.DisableMetricsStats()
-	}
+	s.ServerDebug.SetMetricStatsEnabled(newValue)
 
 	config.Datadog.Set("dogstatsd_metrics_stats_enable", newValue)
 	return nil

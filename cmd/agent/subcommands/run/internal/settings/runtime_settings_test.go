@@ -87,7 +87,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 		// ensure the getter uses the value from the actual server
 
-		debug.EnableMetricsStats()
+		debug.SetMetricStatsEnabled(true)
 		v, err = s.Get()
 		assert.Nil(err)
 		assert.Equal(v, true)

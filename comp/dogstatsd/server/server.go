@@ -380,7 +380,7 @@ func (s *server) Start(demultiplexer aggregator.Demultiplexer) error {
 
 	if s.config.GetBool("dogstatsd_metrics_stats_enable") {
 		s.log.Info("Dogstatsd: metrics statistics will be stored.")
-		s.Debug.EnableMetricsStats()
+		s.Debug.SetMetricStatsEnabled(true)
 	}
 
 	// map some metric name
@@ -603,11 +603,8 @@ func (s *server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 					continue
 				}
 
-				debugEnabled := s.Debug.IsDebugEnabled()
 				for idx := range samples {
-					if debugEnabled {
-						s.Debug.StoreMetricStats(samples[idx])
-					}
+					s.Debug.StoreMetricStats(samples[idx])
 
 					if samples[idx].Timestamp > 0.0 {
 						batcher.appendLateSample(samples[idx])

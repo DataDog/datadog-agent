@@ -38,7 +38,7 @@ func TestDebugStatsSpike(t *testing.T) {
 		clk := clock.NewMock()
 		d.clock = clk
 
-		d.EnableMetricsStats()
+		d.SetMetricStatsEnabled(true)
 		sample := metrics.MetricSample{Name: "some.metric1", Tags: make([]string, 0)}
 
 		send := func(count int) {
@@ -62,12 +62,12 @@ func TestDebugStatsSpike(t *testing.T) {
 		send(500)
 
 		// stop the debug loop to avoid data race
-		d.DisableMetricsStats()
+		d.SetMetricStatsEnabled(false)
 		time.Sleep(500 * time.Millisecond)
 
 		assert.True(d.hasSpike())
 
-		d.EnableMetricsStats()
+		d.SetMetricStatsEnabled(true)
 		// This sleep is necessary as we need to wait for the goroutine function within 'EnableMetricsStats' to start.
 		// If we remove the sleep, the debug loop ticker will not be triggered by the clk.Add() call and the 500 samples
 		// added with 'send(500)' will be considered as if they had been added in the same second as the previous 500 samples.
@@ -78,7 +78,7 @@ func TestDebugStatsSpike(t *testing.T) {
 		send(500)
 
 		// stop the debug loop to avoid data race
-		d.DisableMetricsStats()
+		d.SetMetricStatsEnabled(false)
 		time.Sleep(500 * time.Millisecond)
 
 		// it is no more considered a spike because we had another second with 500 metrics
@@ -93,7 +93,7 @@ func TestDebugStats(t *testing.T) {
 		clk := clock.NewMock()
 		d.clock = clk
 
-		d.EnableMetricsStats()
+		d.SetMetricStatsEnabled(true)
 
 		keygen := ckey.NewKeyGenerator()
 

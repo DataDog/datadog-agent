@@ -23,7 +23,7 @@ func initRuntimeSettings(serverDebug dogstatsdDebug.Component) error {
 	if err := commonsettings.RegisterRuntimeSetting(commonsettings.RuntimeBlockProfileRate{}); err != nil {
 		return err
 	}
-	if err := commonsettings.RegisterRuntimeSetting(&settings.DsdStatsRuntimeSetting{ServerDebug: serverDebug}); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(settings.NewDsdStatsRuntimeSetting(serverDebug)); err != nil {
 		return err
 	}
 	if err := commonsettings.RegisterRuntimeSetting(settings.DsdCaptureDurationRuntimeSetting("dogstatsd_capture_duration")); err != nil {

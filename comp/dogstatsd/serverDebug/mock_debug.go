@@ -24,8 +24,8 @@ func newMockServerDebug(deps dependencies) Component {
 func (d *mockServerDebug) StoreMetricStats(sample metrics.MetricSample) {
 }
 
-func (d *mockServerDebug) EnableMetricsStats() {
-	d.enabled.Store(true)
+func (d *mockServerDebug) SetMetricStatsEnabled(enable bool) {
+	d.enabled.Store(enable)
 }
 
 func (d *mockServerDebug) GetJSONDebugStats() ([]byte, error) {
@@ -34,8 +34,4 @@ func (d *mockServerDebug) GetJSONDebugStats() ([]byte, error) {
 
 func (d *mockServerDebug) IsDebugEnabled() bool {
 	return d.enabled.Load()
-}
-
-func (d *mockServerDebug) DisableMetricsStats() {
-	d.enabled.Store(false)
 }

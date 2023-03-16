@@ -54,6 +54,7 @@ type serverDebug struct {
 	tagsAccumulator *tagset.HashingTagsAccumulator
 }
 
+// TODO: (components) - remove once serverless is an FX app
 func NewServerlessServerDebug() Component {
 	return newServerDebugCompat(logComponent.NewTemporaryLoggerWithoutInit())
 }
@@ -131,6 +132,10 @@ func FormatDebugStats(stats []byte) (string, error) {
 //
 // It can help troubleshooting clients with bad behaviors.
 func (d *serverDebug) StoreMetricStats(sample metrics.MetricSample) {
+	if !d.enabled.Load() {
+		return
+	}
+
 	now := d.clock.Now()
 	d.Lock()
 	defer d.Unlock()
@@ -155,12 +160,21 @@ func (d *serverDebug) StoreMetricStats(sample metrics.MetricSample) {
 	d.metricsCounts.metricChan <- struct{}{}
 }
 
-// EnableMetricsStats enables the debug mode of the DogStatsD server and start
-// the debug mainloop collecting the amount of metrics received.
-func (d *serverDebug) EnableMetricsStats() {
+// SetMetricStatsEnabled enables or disables metric stats
+func (d *serverDebug) SetMetricStatsEnabled(enable bool) {
 	d.Lock()
 	defer d.Unlock()
 
+	if enable {
+		d.enableMetricsStats()
+	} else {
+		d.dsableMetricsStats()
+	}
+}
+
+// enableMetricsStats enables the debug mode of the DogStatsD server and start
+// the debug mainloop collecting the amount of metrics received.
+func (d *serverDebug) enableMetricsStats() {
 	// already enabled?
 	if d.enabled.Load() {
 		return
@@ -225,12 +239,10 @@ func (d *serverDebug) IsDebugEnabled() bool {
 	return d.enabled.Load()
 }
 
-// DisableMetricsStats disables the debug mode of the DogStatsD server and
+// disableMetricsStats disables the debug mode of the DogStatsD server and
 // stops the debug mainloop.
-func (d *serverDebug) DisableMetricsStats() {
-	d.Lock()
-	defer d.Unlock()
 
+func (d *serverDebug) dsableMetricsStats() {
 	if d.enabled.Load() {
 		d.enabled.Store(false)
 		d.metricsCounts.closeChan <- struct{}{}
