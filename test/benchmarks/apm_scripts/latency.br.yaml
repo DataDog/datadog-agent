@@ -41,7 +41,7 @@ configurations:
             assign_cpus: 8
             run: |
               cd $REPOSITORY_ROOT
-              killall trace-agent
+              killall trace-agent || true
               go run ./cmd/trace-agent -config ./cfg.yaml
         execute:
           assign_cpus: 2
@@ -51,7 +51,7 @@ configurations:
             k6 run \
             --duration $LENGHT_OF_RUN \
             --no-usage-report \
-            --tag test_run_id=k6-benchmark-dd-trace-agent-current \
+            --tag test_run_id=${R_EXPERIMENT_NAME} \
             --tag ci_job_id=$CI_JOB_ID \
             --out json="${R_EXPERIMENT_NAME}.json" \
             $K6_ROOT/basic.js
@@ -63,7 +63,6 @@ configurations:
               benchmark_analyzer convert \
                 --framework=K6 \
                 --outpath="${PR_BRANCH_RESULT}" \
-                --extra-params="{\"trace_agent\":\"${CI_COMMIT_REF_NAME}\"}" \
                 "${R_EXPERIMENT_NAME}.json"
 
       - name: trace-agent-master
@@ -73,11 +72,12 @@ configurations:
             run: |
               #TODO: add support for workdir in services
               cd $MAIN_BRANCH_ROOT 
-              killall trace-agent
+              killall trace-agent || true
               go run ./cmd/trace-agent -config ./cfg.yaml
             
         execute:
           assign_cpus: 2
+          workdir: $ARTIFACTS_DIR
           script: |
             k6 run \
             --duration $LENGHT_OF_RUN \
@@ -94,7 +94,6 @@ configurations:
               benchmark_analyzer convert \
                 --framework=K6 \
                 --outpath="${MAIN_BRANCH_RESULT}" \
-                --extra-params="{\"trace_agent\":\"${CI_COMMIT_REF_NAME}\"}" \
                 "${R_EXPERIMENT_NAME}.json"
     teardown:
       steps:
