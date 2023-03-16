@@ -16,7 +16,7 @@ setup:
       cd $BRANCH_DIR
       echo "MAIN_BRANCH_ROOT=$(pwd)" >> $R_PASS_ENV
 env:
-  ARTIFACTS_DIR: /tmp/benchmarks/artifacts/v2
+  ARTIFACTS_DIR: "${ARTIFACTS_DIR:-/tmp/benchmarks/artifacts/v2}"
   REPOSITORY_ROOT: $R_ROOT_DIR/../../..
   #MAIN_BRANCH_ROOT: $REPOSITORY_ROOT/br_main_branch # TODO: recursive resolution is not working as expected yet
   LENGHT_OF_RUN: 20s
