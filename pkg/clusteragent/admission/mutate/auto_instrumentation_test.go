@@ -492,9 +492,16 @@ func TestInjectLibInitContainer(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "with partial resources",
+			name:    "cpu only",
 			pod:     fakePod("java-pod"),
 			cpu:     "200m",
+			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:    java,
+			wantErr: false,
+		},
+		{
+			name:    "memory only",
+			pod:     fakePod("java-pod"),
 			mem:     "512Mi",
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
