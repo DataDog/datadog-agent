@@ -160,7 +160,10 @@ func (c *Client) FilterMetrics(name string, options ...MatchOpt[*aggregator.Metr
 		matchCount := 0
 		for _, matchOpt := range options {
 			isMatch, err := matchOpt(metric)
-			if !isMatch || err != nil {
+			if err != nil {
+				return nil, err
+			}
+			if !isMatch {
 				break
 			}
 			matchCount++
@@ -215,7 +218,10 @@ func (c *Client) FilterLogs(name string, options ...MatchOpt[*aggregator.Log]) (
 		matchCount := 0
 		for _, matchOpt := range options {
 			isMatch, err := matchOpt(log)
-			if !isMatch || err != nil {
+			if err != nil {
+				return nil, err
+			}
+			if !isMatch {
 				break
 			}
 			matchCount++
