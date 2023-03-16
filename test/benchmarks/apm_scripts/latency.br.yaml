@@ -115,5 +115,5 @@ configurations:
             --format html $MAIN_BRANCH_RESULT $PR_BRANCH_RESULT
 teardown:
   steps:
-    killall trace-agent
+    - run: killall trace-agent
 
