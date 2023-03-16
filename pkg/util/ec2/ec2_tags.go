@@ -130,7 +130,7 @@ func getTagsWithCreds(ctx context.Context, instanceIdentity *ec2Identity, awsCre
 	connection := ec2.New(awsSess)
 
 	// We want to use 'ec2_metadata_timeout' here instead of current context. 'ctx' comes from the agent main and will
-	// only be canceled if the agent is stopped. The default timeout for the AWS SQK is 1 minutes (20s timeout with
+	// only be canceled if the agent is stopped. The default timeout for the AWS SDK is 1 minutes (20s timeout with
 	// 3 retries). Since we call getTagsWithCreds twice in a row, it can be a 2 minutes latency.
 	ctx, cancel := context.WithTimeout(ctx, config.Datadog.GetDuration("ec2_metadata_timeout")*time.Millisecond)
 	defer cancel()
