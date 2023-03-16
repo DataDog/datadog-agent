@@ -311,6 +311,7 @@ func protoDecodeProtoMatchedRule(r *adproto.MatchedRule) *model.MatchedRule {
 	rule := &model.MatchedRule{
 		RuleID:        r.RuleId,
 		RuleVersion:   r.RuleVersion,
+		RuleTags:      r.RuleTags,
 		PolicyName:    r.PolicyName,
 		PolicyVersion: r.PolicyVersion,
 	}

@@ -178,4 +178,5 @@ message MatchedRule {
     string rule_version = 2;
     string policy_name = 3;
     string policy_version = 4;
+    map<string, string> rule_tags = 5;
 }
