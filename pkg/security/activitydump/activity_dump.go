@@ -1068,6 +1068,14 @@ type ProcessActivityNode struct {
 	Children []*ProcessActivityNode
 }
 
+func (pan *ProcessActivityNode) getNodeLabel(args string) string {
+	label := fmt.Sprintf("%s %s", pan.Process.FileEvent.PathnameStr, args)
+	if len(pan.Process.FileEvent.PkgName) != 0 {
+		label += fmt.Sprintf(" \\{%s %s\\}", pan.Process.FileEvent.PkgName, pan.Process.FileEvent.PkgVersion)
+	}
+	return label
+}
+
 // NewProcessActivityNode returns a new ProcessActivityNode instance
 func NewProcessActivityNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType, nodeStats *ActivityDumpNodeStats) *ProcessActivityNode {
 	nodeStats.processNodes++
@@ -1530,6 +1538,11 @@ func (fan *FileActivityNode) getNodeLabel() string {
 	label := fan.Name
 	if fan.Open != nil {
 		label += " [open]"
+	}
+	if fan.File != nil {
+		if len(fan.File.PkgName) != 0 {
+			label += fmt.Sprintf(" \\{%s %s\\}", fan.File.PkgName, fan.File.PkgVersion)
+		}
 	}
 	return label
 }

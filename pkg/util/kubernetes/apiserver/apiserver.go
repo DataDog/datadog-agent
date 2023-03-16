@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
@@ -191,6 +192,9 @@ func getClientConfig(timeout time.Duration) (*rest.Config, error) {
 	}
 
 	clientConfig.Timeout = timeout
+	clientConfig.Wrap(func(rt http.RoundTripper) http.RoundTripper {
+		return NewCustomRoundTripper(rt)
+	})
 
 	return clientConfig, nil
 }

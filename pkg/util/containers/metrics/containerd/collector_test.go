@@ -91,7 +91,7 @@ func containerdClient(metrics *types.Metric) *fake.MockedContainerdClient {
 		MockInfo: func(namespace string, ctn containerd.Container) (containers.Container, error) {
 			return containers.Container{}, nil
 		},
-		MockSpec: func(namespace string, ctn containerd.Container) (*oci.Spec, error) {
+		MockSpec: func(namespace string, ctn containers.Container) (*oci.Spec, error) {
 			return nil, nil
 		},
 		MockTaskPids: func(namespace string, ctn containerd.Container) ([]containerd.ProcessInfo, error) {

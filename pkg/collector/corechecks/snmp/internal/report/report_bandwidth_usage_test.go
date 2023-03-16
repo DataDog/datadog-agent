@@ -466,7 +466,7 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 			},
 			expectedMetric: []Metric{
 				{"snmp.ifInSpeed", 160_000_000, []string{"interface:eth0", "speed_source:custom"}},
-				{"snmp.ifOutSpeed", 80_000_000, []string{"interface:eth0", "speed_source:snmp"}},
+				{"snmp.ifOutSpeed", 80_000_000, []string{"interface:eth0", "speed_source:device"}},
 			},
 		},
 		{
@@ -490,8 +490,8 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 				},
 			},
 			expectedMetric: []Metric{
-				{"snmp.ifInSpeed", 80_000_000, []string{"speed_source:snmp"}},
-				{"snmp.ifOutSpeed", 80_000_000, []string{"speed_source:snmp"}},
+				{"snmp.ifInSpeed", 80_000_000, []string{"speed_source:device"}},
+				{"snmp.ifOutSpeed", 80_000_000, []string{"speed_source:device"}},
 			},
 		},
 		{
@@ -510,8 +510,8 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 				},
 			},
 			expectedMetric: []Metric{
-				{"snmp.ifInSpeed", 80_000_000, []string{"speed_source:snmp"}},
-				{"snmp.ifOutSpeed", 80_000_000, []string{"speed_source:snmp"}},
+				{"snmp.ifInSpeed", 80_000_000, []string{"speed_source:device"}},
+				{"snmp.ifOutSpeed", 80_000_000, []string{"speed_source:device"}},
 			},
 		},
 		{

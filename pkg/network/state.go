@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -47,6 +48,7 @@ type State interface {
 		dns dns.StatsByKeyByNameByType,
 		http map[http.Key]*http.RequestStats,
 		http2 map[http.Key]*http.RequestStats,
+		kafka map[kafka.Key]*kafka.RequestStat,
 	) Delta
 
 	// GetTelemetryDelta returns the telemetry delta since last time the given client requested telemetry data.
@@ -83,6 +85,7 @@ type Delta struct {
 	BufferedData
 	HTTP     map[http.Key]*http.RequestStats
 	HTTP2    map[http.Key]*http.RequestStats
+	Kafka    map[kafka.Key]*kafka.RequestStat
 	DNSStats dns.StatsByKeyByNameByType
 }
 
@@ -95,6 +98,7 @@ type telemetry struct {
 	dnsStatsDropped       int64
 	httpStatsDropped      int64
 	http2StatsDropped     int64
+	kafkaStatsDropped     int64
 	dnsPidCollisions      int64
 }
 
@@ -111,6 +115,7 @@ type client struct {
 	dnsStats        dns.StatsByKeyByNameByType
 	httpStatsDelta  map[http.Key]*http.RequestStats
 	http2StatsDelta map[http.Key]*http.RequestStats
+	kafkaStatsDelta map[kafka.Key]*kafka.RequestStat
 	lastTelemetries map[ConnTelemetryType]int64
 }
 
@@ -125,6 +130,7 @@ func (c *client) Reset(active map[uint32]*ConnectionStats) {
 	c.dnsStats = make(dns.StatsByKeyByNameByType)
 	c.httpStatsDelta = make(map[http.Key]*http.RequestStats)
 	c.http2StatsDelta = make(map[http.Key]*http.RequestStats)
+	c.kafkaStatsDelta = make(map[kafka.Key]*kafka.RequestStat)
 
 	// XXX: we should change the way we clean this map once
 	// https://github.com/golang/go/issues/20135 is solved
@@ -154,10 +160,11 @@ type networkState struct {
 	maxClientStats int
 	maxDNSStats    int
 	maxHTTPStats   int
+	maxKafkaStats  int
 }
 
 // NewState creates a new network state
-func NewState(clientExpiry time.Duration, maxClosedConns, maxClientStats int, maxDNSStats int, maxHTTPStats int) State {
+func NewState(clientExpiry time.Duration, maxClosedConns, maxClientStats int, maxDNSStats int, maxHTTPStats int, maxKafkaStats int) State {
 	return &networkState{
 		clients:        map[string]*client{},
 		telemetry:      telemetry{},
@@ -166,6 +173,7 @@ func NewState(clientExpiry time.Duration, maxClosedConns, maxClientStats int, ma
 		maxClientStats: maxClientStats,
 		maxDNSStats:    maxDNSStats,
 		maxHTTPStats:   maxHTTPStats,
+		maxKafkaStats:  maxKafkaStats,
 	}
 }
 
@@ -207,6 +215,7 @@ func (ns *networkState) GetDelta(
 	dnsStats dns.StatsByKeyByNameByType,
 	httpStats map[http.Key]*http.RequestStats,
 	http2Stats map[http.Key]*http.RequestStats,
+	kafkaStats map[kafka.Key]*kafka.RequestStat,
 ) Delta {
 	ns.Lock()
 	defer ns.Unlock()
@@ -230,6 +239,9 @@ func (ns *networkState) GetDelta(
 	if len(httpStats) > 0 {
 		ns.storeHTTPStats(httpStats)
 	}
+	if len(kafkaStats) > 0 {
+		ns.storeKafkaStats(kafkaStats)
+	}
 
 	if len(http2Stats) > 0 {
 		ns.storeHTTP2Stats(http2Stats)
@@ -243,6 +255,7 @@ func (ns *networkState) GetDelta(
 		HTTP:     client.httpStatsDelta,
 		HTTP2:    client.http2StatsDelta,
 		DNSStats: client.dnsStats,
+		Kafka:    client.kafkaStatsDelta,
 	}
 }
 
@@ -488,7 +501,6 @@ func (ns *networkState) storeHTTPStats(allStats map[http.Key]*http.RequestStats)
 	}
 }
 
-// storeHTTPStats stores the latest HTTP stats for all clients
 func (ns *networkState) storeHTTP2Stats(allStats map[http.Key]*http.RequestStats) {
 	if len(ns.clients) == 1 {
 		for _, client := range ns.clients {
@@ -520,6 +532,37 @@ func (ns *networkState) storeHTTP2Stats(allStats map[http.Key]*http.RequestStats
 	}
 }
 
+// storeKafkaStats stores the latest Kafka stats for all clients
+func (ns *networkState) storeKafkaStats(allStats map[kafka.Key]*kafka.RequestStat) {
+	if len(ns.clients) == 1 {
+		for _, client := range ns.clients {
+			if len(client.kafkaStatsDelta) == 0 {
+				// optimization for the common case:
+				// if there is only one client and no previous state, no memory allocation is needed
+				client.kafkaStatsDelta = allStats
+				return
+			}
+		}
+	}
+
+	for key, stats := range allStats {
+		for _, client := range ns.clients {
+			prevStats, ok := client.kafkaStatsDelta[key]
+			if !ok && len(client.kafkaStatsDelta) >= ns.maxKafkaStats {
+				ns.telemetry.kafkaStatsDropped++
+				continue
+			}
+
+			if prevStats != nil {
+				prevStats.CombineWith(stats)
+				client.kafkaStatsDelta[key] = prevStats
+			} else {
+				client.kafkaStatsDelta[key] = stats
+			}
+		}
+	}
+}
+
 func (ns *networkState) getClient(clientID string) *client {
 	if c, ok := ns.clients[clientID]; ok {
 		return c
@@ -533,6 +576,7 @@ func (ns *networkState) getClient(clientID string) *client {
 		dnsStats:              dns.StatsByKeyByNameByType{},
 		httpStatsDelta:        map[http.Key]*http.RequestStats{},
 		http2StatsDelta:       map[http.Key]*http.RequestStats{},
+		kafkaStatsDelta:       map[kafka.Key]*kafka.RequestStat{},
 		lastTelemetries:       make(map[ConnTelemetryType]int64),
 	}
 	ns.clients[clientID] = c

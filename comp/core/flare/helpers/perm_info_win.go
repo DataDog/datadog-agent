@@ -230,7 +230,7 @@ func (p permissionsInfos) add(filePath string) {
 	}
 }
 
-// Commit resolves the infos of every stacked files in the map
+// commit resolves the infos of every stacked files in the map
 // and then writes the permissions.log file on the filesystem.
 func (p permissionsInfos) commit() ([]byte, error) {
 

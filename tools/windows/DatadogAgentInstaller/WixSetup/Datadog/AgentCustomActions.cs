@@ -14,6 +14,8 @@ namespace WixSetup.Datadog
 
         public ManagedAction ReadConfig { get; }
 
+        public ManagedAction PatchInstaller { get; set; }
+
         public ManagedAction WriteConfig { get; }
 
         public ManagedAction ReadRegistryProperties { get; }
@@ -40,6 +42,8 @@ namespace WixSetup.Datadog
 
         public ManagedAction ReportInstallSuccess { get; }
 
+        public ManagedAction EnsureNpmServiceDepdendency { get; }
+
         public AgentCustomActions()
         {
             ReadRegistryProperties = new CustomAction<UserCustomActions>(
@@ -52,7 +56,9 @@ namespace WixSetup.Datadog
                 // It is executed on the Welcome screen of the installer.
                 When.After,
                 Step.AppSearch,
-                Condition.NOT_BeingRemoved,
+                // Not needed during uninstall, but since it runs before InstallValidate the recommended
+                // REMOVE=ALL condition does not work, so always run it.
+                Condition.Always,
                 // Run in either sequence so our CA is also run in non-UI installs
                 Sequence.InstallExecuteSequence | Sequence.InstallUISequence
             )
@@ -71,7 +77,9 @@ namespace WixSetup.Datadog
                 // Must execute after CostFinalize since we depend
                 // on APPLICATIONDATADIRECTORY being set.
                 Step.CostFinalize,
-                Condition.NOT_BeingRemoved,
+                // Not needed during uninstall, but since it runs before InstallValidate the recommended
+                // REMOVE=ALL condition does not work, so always run it.
+                Condition.Always,
                 // Run in either sequence so our CA is also run in non-UI installs
                 Sequence.InstallExecuteSequence | Sequence.InstallUISequence
             )
@@ -81,28 +89,58 @@ namespace WixSetup.Datadog
             }
             .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
-            ReportInstallFailure = new CustomAction<Telemetry>(
-                    new Id(nameof(ReportInstallFailure)),
-                    Telemetry.ReportFailure,
-                    Return.ignore,
-                    When.Before,
-                    Step.StartServices
-                )
+            PatchInstaller = new CustomAction<PatchInstallerCustomAction>(
+                new Id(nameof(PatchInstaller)),
+                PatchInstallerCustomAction.Patch,
+                Return.ignore,
+                When.After,
+                Step.InstallFiles,
+                Conditions.Upgrading
+            )
             {
-                Execute = Execute.rollback
+                Execute = Execute.deferred,
+                Impersonate = false
+            };
+
+            ReportInstallFailure = new CustomAction<Telemetry>(
+                new Id(nameof(ReportInstallFailure)),
+                Telemetry.ReportFailure,
+                Return.ignore,
+                When.Before,
+                Step.StartServices
+            )
+            {
+                Execute = Execute.rollback,
+                Impersonate = false
             }
-                .SetProperties("APIKEY=[APIKEY], SITE=[SITE]");
+            .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
+            .HideTarget(true); ;
+
+            EnsureNpmServiceDepdendency = new CustomAction<NpmCustomAction>(
+                new Id(nameof(EnsureNpmServiceDepdendency)),
+                NpmCustomAction.EnsureNpmServiceDependency,
+                Return.check,
+                When.After,
+                new Step(ReportInstallFailure.Id),
+                Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
+            )
+                {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+            .SetProperties("ADDLOCAL=[ADDLOCAL]");
 
             WriteConfig = new CustomAction<ConfigCustomActions>(
                 new Id(nameof(WriteConfig)),
                 ConfigCustomActions.WriteConfig,
                 Return.check,
                 When.After,
-                new Step(ReportInstallFailure.Id),
-                Condition.NOT_BeingRemoved & NOT_Being_Reinstalled
+                new Step(EnsureNpmServiceDepdendency.Id),
+                Conditions.FirstInstall
             )
             {
-                Execute = Execute.deferred
+                Execute = Execute.deferred,
+                Impersonate = false
             }
             .SetProperties(
                 "APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
@@ -141,10 +179,12 @@ namespace WixSetup.Datadog
                 Return.check,
                 When.After,
                 new Step(WriteConfig.Id),
-                (Condition.NOT_Installed & Condition.NOT_BeingRemoved) | Being_Reinstalled
+                // Only on first install otherwise we risk ruining the existing install
+                Conditions.FirstInstall
             )
             {
-                Execute = Execute.rollback
+                Execute = Execute.rollback,
+                Impersonate = false
             }
             .SetProperties("PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
@@ -154,10 +194,11 @@ namespace WixSetup.Datadog
                 Return.check,
                 When.After,
                 new Step(CleanupOnRollback.Id),
-                (Condition.NOT_Installed & Condition.NOT_BeingRemoved) | Being_Reinstalled
+                Conditions.FirstInstall | Conditions.Upgrading
             )
             {
-                Execute = Execute.deferred
+                Execute = Execute.deferred,
+                Impersonate = false
             }
             .SetProperties("PROJECTLOCATION=[PROJECTLOCATION], embedded2_SIZE=[embedded2_SIZE], embedded3_SIZE=[embedded3_SIZE]");
 
@@ -165,9 +206,9 @@ namespace WixSetup.Datadog
                 new Id(nameof(PrepareDecompressPythonDistributions)),
                 PythonDistributionCustomAction.PrepareDecompressPythonDistributions,
                 Return.ignore,
-                When.After,
-                new Step(ReadConfig.Id),
-                (Condition.NOT_Installed & Condition.NOT_BeingRemoved) | Being_Reinstalled,
+                When.Before,
+                new Step(DecompressPythonDistributions.Id),
+                Conditions.FirstInstall | Conditions.Upgrading,
                 Sequence.InstallExecuteSequence
             )
             {
@@ -181,10 +222,11 @@ namespace WixSetup.Datadog
                 Return.check,
                 When.Before,
                 Step.RemoveFiles,
-                Condition.Installed
+                Conditions.Uninstalling
             )
             {
-                Execute = Execute.deferred
+                Execute = Execute.deferred,
+                Impersonate = false
             }
             .SetProperties("PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
@@ -194,10 +236,11 @@ namespace WixSetup.Datadog
                 Return.check,
                 When.After,
                 new Step(DecompressPythonDistributions.Id),
-                Condition.NOT_Installed & Condition.NOT_BeingRemoved
-                )
+                Condition.NOT(Conditions.Uninstalling)
+            )
             {
-                Execute = Execute.deferred
+                Execute = Execute.deferred,
+                Impersonate = false
             }
             .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
                            "PROJECTLOCATION=[PROJECTLOCATION], " +
@@ -209,11 +252,12 @@ namespace WixSetup.Datadog
                 UserCustomActions.ProcessDdAgentUserCredentials,
                 Return.check,
                 // Run at end of "config phase", right before the "make changes" phase.
+                // Must run before InstallValidate because it changes the User components
                 When.Before,
-                Step.InstallInitialize,
+                Step.InstallValidate,
                 // Run unless we are being uninstalled.
                 // This CA produces properties used for services, accounts, and permissions.
-                Condition.NOT_BeingRemoved
+                Condition.NOT(Conditions.Uninstalling)
             )
             .SetProperties("DDAGENTUSER_NAME=[DDAGENTUSER_NAME], DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD]")
             .HideTarget(true);
@@ -221,7 +265,7 @@ namespace WixSetup.Datadog
             OpenMsiLog = new CustomAction<UserCustomActions>(
                 new Id(nameof(OpenMsiLog)),
                 UserCustomActions.OpenMsiLog
-                )
+            )
             {
                 Sequence = Sequence.NotInSequence
             };
@@ -242,13 +286,14 @@ namespace WixSetup.Datadog
                 Step.StartServices,
                 // Include "Being_Reinstalled" so that if customer changes install method
                 // the install_info reflects that.
-                (Condition.NOT_Installed & Condition.NOT_BeingRemoved) | Being_Reinstalled
+                Conditions.FirstInstall | Conditions.Upgrading
             )
             {
-                Execute = Execute.deferred
+                Execute = Execute.deferred,
+                Impersonate = false
             }
             .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]," +
-                        "OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]");
+                           "OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]");
 
             // Hitting this CustomAction always means the install succeeded
             // because when an install fails, it rollbacks from the `InstallFinalize`
@@ -259,9 +304,10 @@ namespace WixSetup.Datadog
                 Return.ignore,
                 When.After,
                 Step.InstallFinalize,
-                Condition.NOT_Installed & Condition.NOT_BeingRemoved
+                Conditions.FirstInstall | Conditions.Upgrading
             )
-            .SetProperties("APIKEY=[APIKEY], SITE=[SITE]");
+            .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
+            .HideTarget(true);
         }
     }
 }

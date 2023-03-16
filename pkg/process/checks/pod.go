@@ -13,8 +13,6 @@ import (
 	"fmt"
 	"time"
 
-	model "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
@@ -100,7 +98,7 @@ func (c *PodCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, erro
 		Cfg:                c.config,
 		HostName:           c.hostInfo.HostName,
 		MsgGroupID:         groupID,
-		NodeType:           model.K8SResource_POD,
+		NodeType:           orchestrator.K8sPod,
 		ApiGroupVersionTag: fmt.Sprintf("kube_api_version:%s", "v1"),
 	}
 

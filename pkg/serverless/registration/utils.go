@@ -8,6 +8,7 @@ package registration
 import (
 	"fmt"
 	"net/http"
+	"os"
 )
 
 // ID is the extension ID within the AWS Lambda environment.
@@ -23,8 +24,9 @@ type HTTPClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
-// BuildURL builds and URL with a prefix and a route
-func BuildURL(prefix string, route string) string {
+// BuildURL returns the full url based on the route
+func BuildURL(route string) string {
+	prefix := os.Getenv("AWS_LAMBDA_RUNTIME_API")
 	if len(prefix) == 0 {
 		return fmt.Sprintf("http://localhost:9001%s", route)
 	}

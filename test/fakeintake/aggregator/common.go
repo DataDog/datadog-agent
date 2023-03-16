@@ -79,7 +79,7 @@ func (agg *Aggregator[P]) ContainsPayloadNameAndTags(name string, tags []string)
 }
 
 func enflate(payload []byte, encoding string) (enflated []byte, err error) {
-	rc, err := getReaderCloseForEncoding(payload, encoding)
+	rc, err := getReadCloserForEncoding(payload, encoding)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +91,7 @@ func enflate(payload []byte, encoding string) (enflated []byte, err error) {
 	return enflated, nil
 }
 
-func getReaderCloseForEncoding(payload []byte, encoding string) (rc io.ReadCloser, err error) {
+func getReadCloserForEncoding(payload []byte, encoding string) (rc io.ReadCloser, err error) {
 	switch encoding {
 	case encodingGzip:
 		rc, err = gzip.NewReader(bytes.NewReader(payload))

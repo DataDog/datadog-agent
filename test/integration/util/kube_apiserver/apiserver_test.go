@@ -44,7 +44,8 @@ func TestSuiteKube(t *testing.T) {
 	s := &testSuite{}
 
 	// Env detection
-	config.DetectFeatures()
+	config.SetDetectedFeatures(config.FeatureMap{config.Kubernetes: struct{}{}})
+	defer config.SetDetectedFeatures(nil)
 
 	// Start compose stack
 	compose, err := initAPIServerCompose()
@@ -193,7 +194,7 @@ func (suite *testSuite) TestHostnameProvider() {
 	assert.Equal(suite.T(), "target.host", foundHost)
 
 	// Testing hostname when a cluster name is set
-	var testClusterName = "laika"
+	testClusterName := "laika"
 	mockConfig.Set("cluster_name", testClusterName)
 	clustername.ResetClusterName()
 	defer mockConfig.Set("cluster_name", "")

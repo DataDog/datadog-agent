@@ -576,7 +576,7 @@ func TestGRPCScenarios(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		for _, val := range []bool{false} {
+		for _, val := range []bool{false, true} {
 			testNameSuffix := fmt.Sprintf("-different clients - %v", val)
 			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
 				// we are currently not supporting some edge cases:

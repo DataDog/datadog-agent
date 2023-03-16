@@ -44,8 +44,6 @@ type Service interface {
 	// with the full set of templates matching this service.  It must not rely
 	// on any non-static information except the given configs, and it must not
 	// modify the configs in the map.
-	//
-	// This method is only called with `logs_config.cca_in_ad` is set.
 	FilterTemplates(map[string]integration.Config)
 }
 
