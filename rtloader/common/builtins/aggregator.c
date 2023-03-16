@@ -434,6 +434,12 @@ static PyObject *submit_event_platform_event(PyObject *self, PyObject *args)
         return NULL;
     }
 
+    if (raw_event_sz > INT_MAX) {
+        PyErr_SetString(PyExc_ValueError, "event is too large");
+        PyGILState_Release(gstate);
+        return NULL;
+    }
+
     cb_submit_event_platform_event(check_id, raw_event_ptr, raw_event_sz, event_type);
     PyGILState_Release(gstate);
     Py_RETURN_NONE;
