@@ -61,12 +61,15 @@ static __always_inline struct sock * socket_sk(struct socket *sock) {
         return NULL;
     }
 #elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
-    sk = BPF_CORE_READ(sock, sk);
+    BPF_CORE_READ_INTO(&sk, sock, sk);
 #endif
     return sk;
 }
 
 static __always_inline void get_tcp_segment_counts(struct sock* skp, __u32* packets_in, __u32* packets_out) {
+    if (!packets_in || !packets_out) {
+        return;
+    }
 #ifdef COMPILE_PREBUILT
     // counting segments/packets not currently supported on prebuilt
     // to implement, would need to do the offset-guess on the following
@@ -148,12 +151,13 @@ static __always_inline void read_saddr_v6(struct sock *skp, u64 *addr_h, u64 *ad
         return;
     }
 
+    struct in6_addr in6 = {};
 #ifdef COMPILE_PREBUILT
-    bpf_probe_read_kernel_with_telemetry(addr_h, sizeof(*addr_h), ((char*)skp) + offset_daddr_ipv6() + 2 * sizeof(u64));
-    bpf_probe_read_kernel_with_telemetry(addr_l, sizeof(*addr_l), ((char*)skp) + offset_daddr_ipv6() + 3 * sizeof(u64));
+    bpf_probe_read_kernel_with_telemetry(&in6, sizeof(in6), ((char*)skp) + offset_daddr_ipv6() + 2 * sizeof(u64));
 #elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
-    read_in6_addr(addr_h, addr_l, &skp->sk_v6_rcv_saddr);
+    BPF_CORE_READ_INTO(&in6, skp, sk_v6_rcv_saddr);
 #endif
+    read_in6_addr(addr_h, addr_l, &in6);
 }
 
 static __always_inline void read_daddr_v6(struct sock *skp, u64 *addr_h, u64 *addr_l) {
@@ -161,12 +165,13 @@ static __always_inline void read_daddr_v6(struct sock *skp, u64 *addr_h, u64 *ad
         return;
     }
 
+    struct in6_addr in6 = {};
 #ifdef COMPILE_PREBUILT
-    bpf_probe_read_kernel_with_telemetry(addr_h, sizeof(*addr_h), ((char*)skp) + offset_daddr_ipv6());
-    bpf_probe_read_kernel_with_telemetry(addr_l, sizeof(*addr_l), ((char*)skp) + offset_daddr_ipv6() + sizeof(u64));
+    bpf_probe_read_kernel_with_telemetry(&in6, sizeof(in6), ((char*)skp) + offset_daddr_ipv6());
 #elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
-    read_in6_addr(addr_h, addr_l, &skp->sk_v6_daddr);
+    BPF_CORE_READ_INTO(&in6, skp, sk_v6_daddr);
 #endif
+    read_in6_addr(addr_h, addr_l, &in6);
 }
 
 static __always_inline u16 _sk_family(struct sock *skp) {

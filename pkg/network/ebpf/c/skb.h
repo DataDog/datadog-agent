@@ -42,7 +42,7 @@ static __always_inline unsigned char* sk_buff_head(struct sk_buff *skb) {
         return NULL;
     }
 #elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
-    h = BPF_CORE_READ(skb, head);
+    BPF_CORE_READ_INTO(&h, skb, head);
 #endif
 
     return h;
@@ -57,7 +57,7 @@ static __always_inline u16 sk_buff_network_header(struct sk_buff *skb) {
         return 0;
     }
 #elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
-    net_head = BPF_CORE_READ(skb, network_header);
+    BPF_CORE_READ_INTO(&net_head, skb, network_header);
 #endif
 
     return net_head;
@@ -72,7 +72,7 @@ static __always_inline u16 sk_buff_transport_header(struct sk_buff *skb) {
         return 0;
     }
 #elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
-    trans_head = BPF_CORE_READ(skb, transport_header);
+    BPF_CORE_READ_INTO(&trans_head, skb, transport_header);
 #endif
 
     return trans_head;

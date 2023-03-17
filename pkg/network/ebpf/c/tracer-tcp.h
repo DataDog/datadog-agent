@@ -204,7 +204,7 @@ int kprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
     tcp_retransmit_skb_args_t args = {};
     args.sk = sk;
     args.segs = 0;
-    args.retrans_out_pre = BPF_CORE_READ(tcp_sk(sk), retrans_out);
+    BPF_CORE_READ_INTO(&args.retrans_out_pre, tcp_sk(sk), retrans_out);
     bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &tid, &args, BPF_ANY);
     return 0;
 }
@@ -224,7 +224,8 @@ int kretprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
     struct sock* sk = args->sk;
     u32 retrans_out_pre = args->retrans_out_pre;
     bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
-    u32 retrans_out = BPF_CORE_READ(tcp_sk(sk), retrans_out);
+    u32 retrans_out = 0;
+    BPF_CORE_READ_INTO(&retrans_out, tcp_sk(sk), retrans_out);
     return handle_retransmit(sk, retrans_out-retrans_out_pre);
 }
 
@@ -363,7 +364,7 @@ static __always_inline const struct proto_ops * socket_proto_ops(struct socket *
     u64 ops_offset = offset_socket_sk() + sizeof(void *);
     bpf_probe_read_kernel_with_telemetry(&proto_ops, sizeof(proto_ops), (char*)sock + ops_offset);
 #elif defined(COMPILE_RUNTIME) || defined(COMPILE_CORE)
-    proto_ops = BPF_CORE_READ(sock, ops);
+    BPF_CORE_READ_INTO(&proto_ops, sock, ops);
 #endif
 
     return proto_ops;
@@ -398,6 +399,9 @@ int kretprobe__sockfd_lookup_light(struct pt_regs *ctx) {
 
     // Retrieve struct sock* pointer from struct socket*
     struct sock *sock = socket_sk(socket);
+    if (!sock) {
+        goto cleanup;
+    }
 
     pid_fd_t pid_fd = {
         .pid = pid_tgid >> 32,
@@ -458,7 +462,7 @@ static __always_inline struct sock* sk_buff_sk(struct sk_buff *skb) {
 #ifdef COMPILE_PREBUILT
     bpf_probe_read(&sk, sizeof(struct sock*), (char*)skb + offset_sk_buff_sock());
 #elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
-    sk = BPF_CORE_READ(skb, sk);
+    BPF_CORE_READ_INTO(&sk, skb, sk);
 #endif
 
     return sk;

@@ -22,8 +22,7 @@ static __always_inline void handle_skb_consume_udp(struct sock *sk, struct sk_bu
         // peeking or an error happened
         return;
     }
-    conn_tuple_t t;
-    bpf_memset(&t, 0, sizeof(conn_tuple_t));
+    conn_tuple_t t = {};
     int data_len = sk_buff_to_tuple(skb, &t);
     if (data_len <= 0) {
         log_debug("ERR(skb_consume_udp): error reading tuple ret=%d\n", data_len);
@@ -190,26 +189,32 @@ int kretprobe__udp_destroy_sock(struct pt_regs *ctx) {
 
 #if !defined(COMPILE_RUNTIME) || defined(FEATURE_IPV6_ENABLED)
 
-static __always_inline struct in6_addr* fl6_saddr(struct flowi6 *fl6) {
-    struct in6_addr * addr = NULL;
-#ifdef COMPILE_PREBUILT
-    addr = (struct in6_addr *)(((char *)fl6) + offset_saddr_fl6());
-#elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
-    addr = &fl6->saddr;
-#endif
+static __always_inline void fl6_saddr(struct flowi6 *fl6, u64 *addr_h, u64 *addr_l) {
+    if (!addr_h || !addr_l) {
+        return;
+    }
 
-    return addr;
+    struct in6_addr in6 = {};
+#ifdef COMPILE_PREBUILT
+    bpf_probe_read_kernel_with_telemetry(&in6, sizeof(in6), ((char *)fl6) + offset_saddr_fl6());
+#elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
+    BPF_CORE_READ_INTO(&in6, fl6, saddr);
+#endif
+    read_in6_addr(addr_h, addr_l, &in6);
 }
 
-static __always_inline struct in6_addr* fl6_daddr(struct flowi6 *fl6) {
-    struct in6_addr * addr = NULL;
-#ifdef COMPILE_PREBUILT
-    addr = (struct in6_addr *)(((char *)fl6) + offset_daddr_fl6());
-#elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
-    addr = &fl6->daddr;
-#endif
+static __always_inline void fl6_daddr(struct flowi6 *fl6, u64 *addr_h, u64 *addr_l) {
+    if (!addr_h || !addr_l) {
+        return;
+    }
 
-    return addr;
+    struct in6_addr in6 = {};
+#ifdef COMPILE_PREBUILT
+    bpf_probe_read_kernel_with_telemetry(&in6, sizeof(in6), ((char *)fl6) + offset_daddr_fl6());
+#elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
+    BPF_CORE_READ_INTO(&in6, fl6, daddr);
+#endif
+    read_in6_addr(addr_h, addr_l, &in6);
 }
 
 static __always_inline u16 _fl6_sport(struct flowi6 *fl6) {
@@ -217,7 +222,7 @@ static __always_inline u16 _fl6_sport(struct flowi6 *fl6) {
 #ifdef COMPILE_PREBUILT
     bpf_probe_read_kernel_with_telemetry(&sport, sizeof(sport), ((char *)fl6) + offset_sport_fl6());
 #elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
-    sport = BPF_CORE_READ(fl6, fl6_sport);
+    BPF_CORE_READ_INTO(&sport, fl6, fl6_sport);
 #endif
 
     return sport;
@@ -228,7 +233,7 @@ static __always_inline u16 _fl6_dport(struct flowi6 *fl6) {
 #ifdef COMPILE_PREBUILT
     bpf_probe_read_kernel_with_telemetry(&dport, sizeof(dport), ((char *)fl6) + offset_dport_fl6());
 #elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
-    dport = BPF_CORE_READ(fl6, fl6_dport);
+    BPF_CORE_READ_INTO(&dport, fl6, fl6_dport);
 #endif
 
     return dport;
@@ -247,8 +252,8 @@ static __always_inline int handle_ip6_skb(struct sock *sk, size_t size, struct f
             return 0;
         }
 #endif
-        read_in6_addr(&t.saddr_h, &t.saddr_l, fl6_saddr(fl6));
-        read_in6_addr(&t.daddr_h, &t.daddr_l, fl6_daddr(fl6));
+        fl6_saddr(fl6, &t.saddr_h, &t.saddr_l);
+        fl6_daddr(fl6, &t.daddr_h, &t.daddr_l);
 
         if (!(t.saddr_h || t.saddr_l)) {
             log_debug("ERR(fl6): src addr not set src_l:%d,src_h:%d\n", t.saddr_l, t.saddr_h);
@@ -362,7 +367,7 @@ static __always_inline u32 fl4_saddr(struct flowi4 *fl4) {
 #ifdef COMPILE_PREBUILT
     bpf_probe_read_kernel_with_telemetry(&addr, sizeof(addr), ((char *)fl4) + offset_saddr_fl4());
 #elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
-    addr = BPF_CORE_READ(fl4, saddr);
+    BPF_CORE_READ_INTO(&addr, fl4, saddr);
 #endif
 
     return addr;
@@ -373,7 +378,7 @@ static __always_inline u32 fl4_daddr(struct flowi4 *fl4) {
 #ifdef COMPILE_PREBUILT
     bpf_probe_read_kernel_with_telemetry(&addr, sizeof(addr), ((char *)fl4) + offset_daddr_fl4());
 #elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
-    addr = BPF_CORE_READ(fl4, daddr);
+    BPF_CORE_READ_INTO(&addr, fl4, daddr);
 #endif
 
     return addr;
@@ -384,7 +389,7 @@ static __always_inline u16 _fl4_sport(struct flowi4 *fl4) {
 #ifdef COMPILE_PREBUILT
     bpf_probe_read_kernel_with_telemetry(&sport, sizeof(sport), ((char *)fl4) + offset_sport_fl4());
 #elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
-    sport = BPF_CORE_READ(fl4, fl4_sport);
+    BPF_CORE_READ_INTO(&sport, fl4, fl4_sport);
 #endif
 
     return sport;
@@ -395,7 +400,7 @@ static __always_inline u16 _fl4_dport(struct flowi4 *fl4) {
 #ifdef COMPILE_PREBUILT
     bpf_probe_read_kernel_with_telemetry(&dport, sizeof(dport), ((char *)fl4) + offset_dport_fl4());
 #elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
-    dport = BPF_CORE_READ(fl4, fl4_dport);
+    BPF_CORE_READ_INTO(&dport, fl4, fl4_dport);
 #endif
 
     return dport;
