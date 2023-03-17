@@ -7,8 +7,11 @@ package aggregator
 
 import (
 	"bytes"
+	"compress/gzip"
 	"compress/zlib"
-	"io/ioutil"
+	"io"
+
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
 type GetPayloadResponse struct {
@@ -20,12 +23,17 @@ type PayloadItem interface {
 	tags() []string
 }
 
-type parseFunc[P PayloadItem] func(data []byte) (items []P, err error)
+type parseFunc[P PayloadItem] func(payload api.Payload) (items []P, err error)
 
 type Aggregator[P PayloadItem] struct {
 	payloadsByName map[string][]P
 	parse          parseFunc[P]
 }
+
+const (
+	encodingGzip    = "gzip"
+	encodingDeflate = "deflate"
+)
 
 func newAggregator[P PayloadItem](parse parseFunc[P]) Aggregator[P] {
 	return Aggregator[P]{
@@ -34,12 +42,12 @@ func newAggregator[P PayloadItem](parse parseFunc[P]) Aggregator[P] {
 	}
 }
 
-func (agg *Aggregator[P]) UnmarshallPayloads(rawPayloads [][]byte) error {
+func (agg *Aggregator[P]) UnmarshallPayloads(payloads []api.Payload) error {
 	// reset map
 	agg.payloadsByName = map[string][]P{}
 	// build map
-	for _, data := range rawPayloads {
-		payloads, err := agg.parse(data)
+	for _, p := range payloads {
+		payloads, err := agg.parse(p)
 		if err != nil {
 			return err
 		}
@@ -92,14 +100,27 @@ func tagsToSet(tags []string) map[string]struct{} {
 	return tagsSet
 }
 
-func enflate(payload []byte) (enflated []byte, err error) {
-	re, err := zlib.NewReader(bytes.NewReader(payload))
+func enflate(payload []byte, encoding string) (enflated []byte, err error) {
+	rc, err := getReaderCloseForEncoding(payload, encoding)
 	if err != nil {
 		return nil, err
 	}
-	enflated, err = ioutil.ReadAll(re)
+	defer rc.Close()
+	enflated, err = io.ReadAll(rc)
 	if err != nil {
 		return nil, err
 	}
 	return enflated, nil
+}
+
+func getReaderCloseForEncoding(payload []byte, encoding string) (rc io.ReadCloser, err error) {
+	switch encoding {
+	case encodingGzip:
+		rc, err = gzip.NewReader(bytes.NewReader(payload))
+	case encodingDeflate:
+		rc, err = zlib.NewReader(bytes.NewReader(payload))
+	default:
+		rc = io.NopCloser(bytes.NewReader(payload))
+	}
+	return rc, err
 }

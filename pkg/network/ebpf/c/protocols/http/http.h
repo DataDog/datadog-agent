@@ -170,5 +170,25 @@ static __always_inline bool http_allow_packet(http_transaction_t *http, struct _
     return true;
 }
 
+SEC("socket/http_filter")
+int socket__http_filter(struct __sk_buff* skb) {
+    skb_info_t skb_info;
+    http_transaction_t http;
+    bpf_memset(&http, 0, sizeof(http));
+
+    if (!fetch_dispatching_arguments(&http.tup, &skb_info)) {
+        log_debug("http_filter failed to fetch arguments for tail call\n");
+        return 0;
+    }
+
+    if (!http_allow_packet(&http, skb, &skb_info)) {
+        return 0;
+    }
+    normalize_tuple(&http.tup);
+
+    read_into_buffer_skb((char *)http.request_fragment, skb, &skb_info);
+    http_process(&http, &skb_info, NO_TAGS);
+    return 0;
+}
 
 #endif
