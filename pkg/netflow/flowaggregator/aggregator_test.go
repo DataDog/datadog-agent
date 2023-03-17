@@ -239,7 +239,7 @@ func TestAggregator_withMockPayload(t *testing.T) {
 	uptime := 100 * time.Second
 	mockNetflowPayload := testutil.GenerateNetflow5Packet(now, uptime, 6)
 	payload := testutil.BuildNetFlow5Payload(mockNetflowPayload)
-	err = goflowlib.SendUDPPacket(port, payload.Bytes())
+	err = testutil.SendUDPPacket(port, payload.Bytes())
 	require.NoError(t, err, "error sending udp packet")
 
 	// language=json

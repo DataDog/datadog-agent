@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 
-	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
 	"github.com/DataDog/datadog-agent/pkg/netflow/testutil"
 )
 
@@ -59,8 +58,7 @@ network_devices:
 	uptime := 100 * time.Second
 	mockNetflowPayload := testutil.GenerateNetflow5Packet(now, uptime, 6)
 	payload := testutil.BuildNetFlow5Payload(mockNetflowPayload)
-	bytes := payload.Bytes()
-	err = goflowlib.SendUDPPacket(port, bytes)
+	err = testutil.SendUDPPacket(port, payload.Bytes())
 	require.NoError(t, err, "error sending udp packet")
 
 	// Get Event Platform Events
