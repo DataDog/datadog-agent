@@ -16,6 +16,7 @@
 	<String Id="LicenseAgreementDlgDescription">{\WixUI_Font_Normal_White}Please read the following license agreement carefully</String>
 	<String Id="MaintenanceTypeDlgTitle">{\WixUI_Font_Title_White}Change, repair, or remove installation</String>
 	<String Id="MaintenanceTypeDlgDescription">{\WixUI_Font_Normal_White}Select the operation you wish to perform.</String>
+	<String Id="ProgressDlgTitleChanging">{\WixUI_Font_Title_White}Changing [ProductName]</String>
 	<String Id="ProgressDlgTitleInstalling">{\WixUI_Font_Title_White}Installing [ProductName]</String>
 	<String Id="ProgressDlgTitleRepairing">{\WixUI_Font_Title_White}Repairing [ProductName]</String>
 	<String Id="ProgressDlgTitleRemoving">{\WixUI_Font_Title_White}Removing [ProductName]</String>
