@@ -67,11 +67,12 @@ static __always_inline protocol_t classify_queue_protocols(struct __sk_buff *skb
     return PROTOCOL_UNKNOWN;
 }
 
-static __always_inline protocol_stack_t* get_protocol_stack(usm_context_t *usm_ctx) {
+static __always_inline protocol_stack_t* get_protocol_stack(struct __sk_buff *skb, usm_context_t *usm_ctx) {
     conn_tuple_t normalized_tup = usm_ctx->tuple;
     normalize_tuple(&normalized_tup);
     protocol_stack_t* stack = bpf_map_lookup_elem(&connection_protocol, &normalized_tup);
     if (stack) {
+        __init_layer_cache(skb, stack);
         return stack;
     }
 
@@ -107,7 +108,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
-    protocol_stack_t *protocol_stack = get_protocol_stack(usm_ctx);
+    protocol_stack_t *protocol_stack = get_protocol_stack(skb, usm_ctx);
     if (!protocol_stack) {
         return;
     }
@@ -141,7 +142,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_queues
         goto next_program;
     }
 
-    protocol_stack_t *protocol_stack = get_protocol_stack(usm_ctx);
+    protocol_stack_t *protocol_stack = get_protocol_stack(skb, usm_ctx);
     if (!protocol_stack) {
         return;
     }
@@ -164,7 +165,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_dbs(st
         goto next_program;
     }
 
-    protocol_stack_t *protocol_stack = get_protocol_stack(usm_ctx);
+    protocol_stack_t *protocol_stack = get_protocol_stack(skb, usm_ctx);
     if (!protocol_stack) {
         return;
     }
