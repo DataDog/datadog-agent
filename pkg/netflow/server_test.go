@@ -56,8 +56,7 @@ network_devices:
 
 	now := time.Now()
 	mockNetflowPayload := testutil.GenerateNetflow5Packet(now, 6)
-	payload := testutil.BuildNetFlow5Payload(mockNetflowPayload)
-	err = testutil.SendUDPPacket(port, payload.Bytes())
+	err = testutil.SendUDPPacket(port, testutil.BuildNetFlow5Payload(mockNetflowPayload))
 	require.NoError(t, err, "error sending udp packet")
 
 	// Get Event Platform Events

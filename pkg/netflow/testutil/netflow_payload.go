@@ -55,7 +55,7 @@ type MockNetflowPacket struct {
 }
 
 // BuildNetFlow5Payload builds netflow 5 payload
-func BuildNetFlow5Payload(data MockNetflowPacket) bytes.Buffer {
+func BuildNetFlow5Payload(data MockNetflowPacket) []byte {
 	buffer := new(bytes.Buffer)
 	err := binary.Write(buffer, binary.BigEndian, &data.Header)
 	if err != nil {
@@ -67,7 +67,7 @@ func BuildNetFlow5Payload(data MockNetflowPacket) bytes.Buffer {
 			log.Println("Writing netflow record failed:", err)
 		}
 	}
-	return *buffer
+	return buffer.Bytes()
 }
 
 func GenerateNetflow5Packet(baseTime time.Time, records int) MockNetflowPacket {
