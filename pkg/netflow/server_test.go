@@ -8,7 +8,6 @@ package netflow
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/netflow/testutil"
 	"strings"
 	"testing"
 	"time"
@@ -22,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 
 	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
+	"github.com/DataDog/datadog-agent/pkg/netflow/testutil"
 )
 
 func TestNewNetflowServer(t *testing.T) {
