@@ -356,12 +356,7 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 
 	clients := make(map[string]interface{}, len(factories))
 	for _, f := range factories {
-		name := f.Name()
-		if name == "customresourcedefinitions" {
-			clients[name] = c.CRDClient
-		} else {
-			clients[name] = c.Cl
-		}
+		clients[f.Name()] = customresources.GetAPIClient(c, f.Name())
 	}
 
 	return customResources{
