@@ -200,6 +200,7 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 	// the serie.NoIndex field.
 	for series.source.MoveNext() {
 		serie = series.source.Current()
+		serie.PopulateResources()
 
 		buf.Reset()
 		err = ps.Embedded(payloadSeries, func(ps *molecule.ProtoStream) error {

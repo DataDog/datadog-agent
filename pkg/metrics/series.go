@@ -137,8 +137,8 @@ func (serie *Serie) PopulateResources() {
 			commaIdx := strings.Index(tagVal, ",")
 			if commaIdx > 0 && commaIdx < len(tagVal)-1 {
 				resource := Resource{
-					Name: tagVal[:commaIdx],
-					Type: tagVal[commaIdx+1:],
+					Type: tagVal[:commaIdx],
+					Name: tagVal[commaIdx+1:],
 				}
 				serie.Resources = append(serie.Resources, resource)
 			}

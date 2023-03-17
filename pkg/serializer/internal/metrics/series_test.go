@@ -74,8 +74,8 @@ func TestPopulateResources(t *testing.T) {
 			[]string{"some:tag", "dd.internal.resource:aws_rds_instance,some_instance_endpoint"},
 			[]string{"some:tag"},
 			[]metrics.Resource{metrics.Resource{
-				Name: "aws_rds_instance",
-				Type: "some_instance_endpoint",
+				Type: "aws_rds_instance",
+				Name: "some_instance_endpoint",
 			}},
 		},
 		{
@@ -83,12 +83,12 @@ func TestPopulateResources(t *testing.T) {
 			[]string{"some:tag", "some_other:tag"},
 			[]metrics.Resource{
 				metrics.Resource{
-					Name: "database_instance",
-					Type: "some_db_host",
+					Type: "database_instance",
+					Name: "some_db_host",
 				},
 				metrics.Resource{
-					Name: "aws_rds_instance",
-					Type: "some_instance_endpoint",
+					Type: "aws_rds_instance",
+					Name: "some_instance_endpoint",
 				}},
 		},
 		{
@@ -96,8 +96,8 @@ func TestPopulateResources(t *testing.T) {
 			[]string{"some:tag", "resource:some_resource_value", "some_other:tag"},
 			[]metrics.Resource{
 				metrics.Resource{
-					Name: "database_instance",
-					Type: "some_db_host",
+					Type: "database_instance",
+					Name: "some_db_host",
 				},
 			},
 		},
@@ -361,13 +361,12 @@ func makeSeries(numItems, numPoints int) *IterableSeries {
 				}
 				return ps
 			}(),
-			MType:     metrics.APIGaugeType,
-			Name:      "test.metrics",
-			Interval:  15,
-			Host:      "localHost",
-			Device:    "SomeDevice",
-			Resources: []metrics.Resource{{Type: "database_instance", Name: "some_instance"}, {Type: "aws_rds_instance", Name: "some_endpoint"}},
-			Tags:      tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
+			MType:    metrics.APIGaugeType,
+			Name:     "test.metrics",
+			Interval: 15,
+			Host:     "localHost",
+			Device:   "SomeDevice",
+			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes", "dd.internal.resource:database_instance,some_instance", "dd.internal.resource:aws_rds_instance,some_endpoint"}),
 		})
 	}
 	return CreateIterableSeries(CreateSerieSource(series))
