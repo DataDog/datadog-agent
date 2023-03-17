@@ -312,6 +312,7 @@ func matchedRuleToProto(r *model.MatchedRule) *adproto.MatchedRule {
 	pmr := &adproto.MatchedRule{
 		RuleId:        r.RuleID,
 		RuleVersion:   r.RuleVersion,
+		RuleTags:      r.RuleTags,
 		PolicyName:    r.PolicyName,
 		PolicyVersion: r.PolicyVersion,
 	}
