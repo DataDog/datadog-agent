@@ -9,7 +9,6 @@
 package http
 
 import (
-	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -71,8 +70,7 @@ func HTTP2Supported() bool {
 }
 
 func sysOpenAt2Supported(c *config.Config) bool {
-	ksymPath := filepath.Join(c.ProcRoot, "kallsyms")
-	missing, err := ddebpf.VerifyKernelFuncs(ksymPath, []string{doSysOpenAt2.section})
+	missing, err := ddebpf.VerifyKernelFuncs(doSysOpenAt2.section)
 	if err == nil && len(missing) == 0 {
 		return true
 	}

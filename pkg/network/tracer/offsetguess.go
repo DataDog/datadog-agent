@@ -31,6 +31,7 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/native"
@@ -651,9 +652,11 @@ func guessOffsets(m *manager.Manager, cfg *config.Config) ([]manager.ConstantEdi
 		State:        uint64(netebpf.StateChecking),
 		Proc:         netebpf.Proc{Comm: cProcName},
 		Ipv6_enabled: enabled,
+		Fl6_offsets:  enabled,
 	}
 	if !cfg.CollectIPv6Conns {
 		status.Ipv6_enabled = disabled
+		status.Fl6_offsets = disabled
 	}
 
 	// if we already have the offsets, just return
@@ -667,6 +670,10 @@ func guessOffsets(m *manager.Manager, cfg *config.Config) ([]manager.ConstantEdi
 		return nil, err
 	}
 	defer eventGenerator.Close()
+
+	if eventGenerator.udp6Conn == nil {
+		status.Fl6_offsets = disabled
+	}
 
 	// initialize map
 	if err := mp.Put(unsafe.Pointer(&zero), unsafe.Pointer(status)); err != nil {
@@ -796,19 +803,33 @@ func newEventGenerator(ipv6 bool) (*eventGenerator, error) {
 	return eg, nil
 }
 
-func getUDP6Conn(ipv6 bool) (*net.UDPConn, error) {
+func getUDP6Conn(ipv6 bool) (c *net.UDPConn, err error) {
 	if !ipv6 {
 		return nil, nil
 	}
 
-	linkLocal, err := getIPv6LinkLocalAddress()
-	if err != nil {
-		// TODO: Find a offset guessing method that doesn't need an available IPv6 interface
-		log.Debugf("unable to find ipv6 device for udp6 flow offset guessing. unconnected udp6 flows won't be traced: %s", err)
-		return nil, nil
-	}
+	// it is necessary to run the following code in
+	// the root network namespace, as the network
+	// namespace where we're running may not have
+	// ipv6 enabled. we are here because the host
+	// does have ipv6 enabled (ipv6 bool is true).
+	// if system-probe's network namespace does
+	// not have ipv6 enabled, the below code will fail
+	// since none of the interfaces will have an
+	// ipv6 link local address assigned
+	err = util.WithRootNS(util.GetProcRoot(), func() error {
+		linkLocal, err := getIPv6LinkLocalAddress()
+		if err != nil {
+			// TODO: Find a offset guessing method that doesn't need an available IPv6 interface
+			log.Warnf("unable to find ipv6 device for udp6 flow offset guessing. unconnected udp6 flows won't be traced: %s", err)
+			return nil
+		}
 
-	return net.ListenUDP("udp6", linkLocal)
+		c, err = net.ListenUDP("udp6", linkLocal)
+		return err
+	})
+
+	return c, err
 }
 
 // Generate an event for offset guessing
