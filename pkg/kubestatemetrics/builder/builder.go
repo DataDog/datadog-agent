@@ -203,6 +203,14 @@ func (b *Builder) GenerateStores(
 	return GenerateStores(b, metricFamilies, expectedType, b.kubeClient, listWatchFunc, useAPIServerCache)
 }
 
+func (b *Builder) getCustomResourceClient(resourceName string) interface{} {
+	if client, ok := b.customResourceClients[resourceName]; ok {
+		return client
+	} else {
+		return b.kubeClient
+	}
+}
+
 // GenerateCustomResourceStoresFunc use to generate new Metrics Store for Metrics Families
 func (b *Builder) GenerateCustomResourceStoresFunc(
 	resourceName string,
@@ -213,7 +221,7 @@ func (b *Builder) GenerateCustomResourceStoresFunc(
 ) []cache.Store {
 	return GenerateStores(b, metricFamilies,
 		expectedType,
-		b.customResourceClients[resourceName],
+		b.getCustomResourceClient(resourceName),
 		listWatchFunc,
 		useAPIServerCache,
 	)
