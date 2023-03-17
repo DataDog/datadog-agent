@@ -9,6 +9,9 @@
 package fentry
 
 import (
+	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
@@ -38,19 +41,25 @@ const (
 	tcpCloseReturn = "tcp_close_exit"
 
 	// We use the following two probes for UDP
+	udpRecvMsg         = "udp_recvmsg"
 	udpRecvMsgReturn   = "udp_recvmsg_exit"
 	udpSendMsgReturn   = "udp_sendmsg_exit"
 	udpSendSkb         = "kprobe__udp_send_skb"
+	udpv6RecvMsg       = "udpv6_recvmsg"
 	udpv6RecvMsgReturn = "udpv6_recvmsg_exit"
 	udpv6SendMsgReturn = "udpv6_sendmsg_exit"
 	udpv6SendSkb       = "kprobe__udp_v6_send_skb"
+
+	skbFreeDatagramLocked   = "skb_free_datagram_locked"
+	__skbFreeDatagramLocked = "__skb_free_datagram_locked"
+	skbConsumeUdp           = "skb_consume_udp"
 
 	// udpDestroySock traces the udp_destroy_sock() function
 	udpDestroySock = "udp_destroy_sock"
 	// udpDestroySockReturn traces the return of the udp_destroy_sock() system call
 	udpDestroySockReturn = "udp_destroy_sock_exit"
 
-	// tcpRetransmit traces the the tcp_retransmit_skb() kernel function
+	// tcpRetransmit traces the tcp_retransmit_skb() kernel function
 	tcpRetransmit = "tcp_retransmit_skb"
 	// tcpRetransmitRet traces the return of the tcp_retransmit_skb() system call
 	tcpRetransmitRet = "tcp_retransmit_skb_exit"
@@ -68,30 +77,35 @@ const (
 )
 
 var programs = map[string]struct{}{
-	inet6BindRet:         {},
-	inetBindRet:          {},
-	inetCskAcceptReturn:  {},
-	inetCskListenStop:    {},
-	sockFDLookupRet:      {}, // TODO: not available on certain kernels, will have to one or more hooks to get equivalent functionality; affects HTTPS monitoring (OpenSSL/GnuTLS/GoTLS)
-	tcpRecvMsgReturn:     {},
-	tcpClose:             {},
-	tcpCloseReturn:       {},
-	tcpConnect:           {},
-	tcpFinishConnect:     {},
-	tcpRetransmit:        {},
-	tcpRetransmitRet:     {},
-	tcpSendMsgReturn:     {},
-	tcpSendPageReturn:    {},
-	tcpSetState:          {},
-	udpDestroySock:       {},
-	udpDestroySockReturn: {},
-	udpRecvMsgReturn:     {},
-	udpSendMsgReturn:     {},
-	udpSendPageReturn:    {},
-	udpSendSkb:           {},
-	udpv6RecvMsgReturn:   {},
-	udpv6SendMsgReturn:   {},
-	udpv6SendSkb:         {},
+	inet6BindRet:            {},
+	inetBindRet:             {},
+	inetCskAcceptReturn:     {},
+	inetCskListenStop:       {},
+	sockFDLookupRet:         {}, // TODO: not available on certain kernels, will have to one or more hooks to get equivalent functionality; affects HTTPS monitoring (OpenSSL/GnuTLS/GoTLS)
+	tcpRecvMsgReturn:        {},
+	tcpClose:                {},
+	tcpCloseReturn:          {},
+	tcpConnect:              {},
+	tcpFinishConnect:        {},
+	tcpRetransmit:           {},
+	tcpRetransmitRet:        {},
+	tcpSendMsgReturn:        {},
+	tcpSendPageReturn:       {},
+	tcpSetState:             {},
+	udpDestroySock:          {},
+	udpDestroySockReturn:    {},
+	udpRecvMsg:              {},
+	udpRecvMsgReturn:        {},
+	udpSendMsgReturn:        {},
+	udpSendPageReturn:       {},
+	udpSendSkb:              {},
+	udpv6RecvMsg:            {},
+	udpv6RecvMsgReturn:      {},
+	udpv6SendMsgReturn:      {},
+	udpv6SendSkb:            {},
+	skbFreeDatagramLocked:   {},
+	__skbFreeDatagramLocked: {},
+	skbConsumeUdp:           {},
 }
 
 func enableProgram(enabled map[string]struct{}, name string) {
@@ -130,6 +144,7 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, inetBindRet)
 		enableProgram(enabled, udpDestroySock)
 		enableProgram(enabled, udpDestroySockReturn)
+		enableProgram(enabled, udpRecvMsg)
 		enableProgram(enabled, udpRecvMsgReturn)
 		enableProgram(enabled, udpSendMsgReturn)
 		enableProgram(enabled, udpSendSkb)
@@ -137,9 +152,24 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 
 		if c.CollectIPv6Conns {
 			enableProgram(enabled, inet6BindRet)
+			enableProgram(enabled, udpv6RecvMsg)
 			enableProgram(enabled, udpv6RecvMsgReturn)
 			enableProgram(enabled, udpv6SendMsgReturn)
 			enableProgram(enabled, udpv6SendSkb)
+		}
+
+		missing, err := ebpf.VerifyKernelFuncs("skb_consume_udp", "__skb_free_datagram_locked", "skb_free_datagram_locked")
+		if err != nil {
+			return nil, fmt.Errorf("error verifying kernel function presence: %s", err)
+		}
+		if _, miss := missing["skb_consume_udp"]; !miss {
+			enableProgram(enabled, skbConsumeUdp)
+		} else if _, miss := missing["__skb_free_datagram_locked"]; !miss {
+			enableProgram(enabled, __skbFreeDatagramLocked)
+		} else if _, miss := missing["skb_free_datagram_locked"]; !miss {
+			enableProgram(enabled, skbFreeDatagramLocked)
+		} else {
+			return nil, fmt.Errorf("missing desired UDP receive kernel functions")
 		}
 	}
 

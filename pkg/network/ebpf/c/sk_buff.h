@@ -1,12 +1,5 @@
-#ifndef __SKB_H
-#define __SKB_H
-
-#include <linux/skbuff.h>
-#include <uapi/linux/in.h>
-#include <uapi/linux/ip.h>
-#include <uapi/linux/ipv6.h>
-#include <uapi/linux/udp.h>
-#include <uapi/linux/tcp.h>
+#ifndef __SK_BUFF_H
+#define __SK_BUFF_H
 
 #include "tracer.h"
 #include "bpf_helpers.h"
@@ -14,16 +7,25 @@
 #include "bpf_builtins.h"
 #include "ipv6.h"
 
+#ifndef COMPILE_CORE
+#include <linux/skbuff.h>
+#include <uapi/linux/in.h>
+#include <uapi/linux/ip.h>
+#include <uapi/linux/ipv6.h>
+#include <uapi/linux/udp.h>
+#include <uapi/linux/tcp.h>
+#endif
+
 // returns the data length of the skb or a negative value in case of an error
 static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *tup) {
     unsigned char *head = NULL;
-    int ret = bpf_probe_read_kernel_with_telemetry(&head, sizeof(head), &skb->head);
+    int ret = BPF_CORE_READ_INTO(&head, skb, head);
     if (ret || !head) {
         log_debug("ERR reading head\n");
         return ret;
     }
     u16 net_head = 0;
-    ret = bpf_probe_read_kernel_with_telemetry(&net_head, sizeof(net_head), &skb->network_header);
+    ret = BPF_CORE_READ_INTO(&net_head, skb, network_header);
     if (ret) {
         log_debug("ERR reading network_header\n");
         return ret;
@@ -88,7 +90,7 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
     }
 
     u16 trans_head = 0;
-    ret = bpf_probe_read_kernel_with_telemetry(&trans_head, sizeof(trans_head), &skb->transport_header);
+    ret = BPF_CORE_READ_INTO(&trans_head, skb, transport_header);
     if (ret) {
         log_debug("ERR reading trans_head\n");
         return ret;
