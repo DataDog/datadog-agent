@@ -78,7 +78,8 @@ typedef struct {
 } protocol_stack_t;
 
 typedef enum {
-    CLASSIFICATION_QUEUES_PROG = 0,
+    CLASSIFICATION_PROG_UNKNOWN = 0,
+    CLASSIFICATION_QUEUES_PROG,
     CLASSIFICATION_DBS_PROG,
     // Add before this value.
     CLASSIFICATION_PROG_MAX,

@@ -7,7 +7,6 @@
 
 #define LAYER_CACHE_CB_OFFSET 0
 #define PROGRAM_CACHE_CB_OFFSET 3
-#define CLASSIFICATION_PROG_UNKNOWN CLASSIFICATION_PROG_MAX
 
 // The purpose of caching all known (classified) layers and the current program in the skb->cb
 // field is to avoid one eBPF map lookup per tail call
@@ -58,6 +57,9 @@ static __always_inline classification_prog_t __get_next_program(struct __sk_buff
     switch(current_program) {
     case CLASSIFICATION_QUEUES_PROG:
         return CLASSIFICATION_DBS_PROG;
+    case CLASSIFICATION_DBS_PROG:
+        // proceed to next layer
+        break;
     default:
         // add here the entry-point of the application layer
         return CLASSIFICATION_QUEUES_PROG;
@@ -71,7 +73,7 @@ static __always_inline classification_prog_t __get_next_program(struct __sk_buff
     switch(current_program) {
     default:
         // add here the entry-point of the api layer
-        return CLASSIFICATION_PROG_UNKNOWN;
+        break;
     }
 
  encryption:
@@ -82,14 +84,16 @@ static __always_inline classification_prog_t __get_next_program(struct __sk_buff
     switch(current_program) {
     default:
         // add here the entry-point of the encryption layer
-        return CLASSIFICATION_PROG_UNKNOWN;
+        break;
     }
+
+    return CLASSIFICATION_PROG_UNKNOWN;
 }
 
 static __always_inline void classification_next_program(struct __sk_buff *skb) {
     classification_prog_t next_program = __get_next_program(skb);
     if (next_program == CLASSIFICATION_PROG_UNKNOWN) {
-        return;
+        log_debug("classification tail-call: skb=%llu tail-end\n", skb);
     }
 
     // update the program "cache"

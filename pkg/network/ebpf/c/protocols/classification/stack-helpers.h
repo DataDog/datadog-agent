@@ -65,35 +65,6 @@ static __always_inline void mark_as_fully_classified(protocol_stack_t *stack) {
     stack->flags |= FLAG_FULLY_CLASSIFIED;
 }
 
-static __always_inline protocol_layer_t protocol_next_layer(protocol_stack_t *stack, protocol_layer_t current_layer) {
-    if (!stack || is_fully_classified(stack)) {
-        return LAYER_UNKNOWN;
-    }
-
-    switch(current_layer) {
-    case LAYER_APPLICATION:
-        goto api;
-    case LAYER_API:
-        goto encryption;
-    default:
-        break;
-    }
-
-    if (!stack->layer_application) {
-        return LAYER_APPLICATION;
-    }
- api:
-    if (!stack->layer_api) {
-        return LAYER_API;
-    }
- encryption:
-    if (!stack->layer_encryption) {
-        return LAYER_ENCRYPTION;
-    }
-
-    return LAYER_UNKNOWN;
-}
-
 __maybe_unused static __always_inline protocol_t protocol_get(protocol_stack_t *stack, protocol_layer_t layer) {
     if (!stack) {
         return PROTOCOL_UNKNOWN;
