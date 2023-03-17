@@ -1,4 +1,4 @@
 enhancements:
   - |
-    Added support for CustomResourceDefinition metrics. Added CRDClient to apiserver.
+    Added support for CustomResourceDefinition metrics. Added CRDClient to apiserver.APIClient.
     Made GenerateCustomResourceStoresFunc use custom client.
