@@ -387,6 +387,7 @@ func TestMarshalSplitCompress(t *testing.T) {
 		err = pl.Unmarshal(payload)
 		for _, s := range pl.Series {
 			assert.Equal(t, []*gogen.MetricPayload_Resource{{Type: "host", Name: "localHost"}, {Type: "device", Name: "SomeDevice"}, {Type: "database_instance", Name: "some_instance"}, {Type: "aws_rds_instance", Name: "some_endpoint"}}, s.Resources)
+			assert.Equal(t, []string{"tag1", "tag2:yes"}, s.Tags)
 		}
 		require.NoError(t, err)
 	}
