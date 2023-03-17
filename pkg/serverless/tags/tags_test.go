@@ -201,7 +201,7 @@ func TestBuildTagMapFromArnCompleteWithVersionNumber(t *testing.T) {
 	assert.True(t, tagMap["runtime"] == "unknown" || tagMap["runtime"] == "provided.al2")
 }
 
-func TestAddTagInvalid(t *testing.T) {
+func TestAddTagInvalidNoValue(t *testing.T) {
 	tagMap := map[string]string{
 		"key_a": "value_a",
 		"key_b": "value_b",
@@ -212,7 +212,7 @@ func TestAddTagInvalid(t *testing.T) {
 	assert.Equal(t, "value_b", tagMap["key_b"])
 }
 
-func TestAddTagInvalid3(t *testing.T) {
+func TestAddTagInvalidEmpty(t *testing.T) {
 	tagMap := map[string]string{
 		"key_a": "value_a",
 		"key_b": "value_b",
@@ -223,7 +223,7 @@ func TestAddTagInvalid3(t *testing.T) {
 	assert.Equal(t, "value_b", tagMap["key_b"])
 }
 
-func TestAddTag(t *testing.T) {
+func TestAddTagValid(t *testing.T) {
 	tagMap := map[string]string{
 		"key_a": "value_a",
 		"key_b": "value_b",
@@ -235,7 +235,7 @@ func TestAddTag(t *testing.T) {
 	assert.Equal(t, "tag", tagMap["valid"])
 }
 
-func TestAddTagWithColumnInValue(t *testing.T) {
+func TestAddTagValidWithColumnInValue(t *testing.T) {
 	tagMap := map[string]string{
 		"key_a": "value_a",
 		"key_b": "value_b",
