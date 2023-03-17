@@ -7,6 +7,7 @@ package tag
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"sort"
 	"testing"
 
@@ -92,7 +93,7 @@ func TestDdTags(t *testing.T) {
 	overwritingTags := map[string]string{
 		"originalKey": "overWrittenValue",
 	}
-	mergedTags := MergeWithOverwrite(ArrayTagToMap(config.GetGlobalConfiguredTags(false)), overwritingTags)
+	mergedTags := MergeWithOverwrite(tags.ArrayToMap(config.GetGlobalConfiguredTags(false)), overwritingTags)
 	assert.Equal(t, "overWrittenValue", mergedTags["originalKey"])
 	assert.Equal(t, "value2", mergedTags["key2"])
 	assert.Equal(t, "value3", mergedTags["key3"])

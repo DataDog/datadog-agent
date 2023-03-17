@@ -9,6 +9,7 @@
 package main
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"os"
 	"time"
 
@@ -42,7 +43,7 @@ func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgen
 	setupProxy()
 
 	cloudService := cloudservice.GetCloudServiceType()
-	tags := tag.MergeWithOverwrite(tag.ArrayTagToMap(config.GetGlobalConfiguredTags(false)), cloudService.GetTags())
+	tags := tag.MergeWithOverwrite(tags.ArrayToMap(config.GetGlobalConfiguredTags(false)), cloudService.GetTags())
 	origin := cloudService.GetOrigin()
 	prefix := cloudService.GetPrefix()
 

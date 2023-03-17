@@ -212,16 +212,6 @@ func TestAddTagInvalid(t *testing.T) {
 	assert.Equal(t, "value_b", tagMap["key_b"])
 }
 
-func TestAddTagInvalid2(t *testing.T) {
-	tagMap := map[string]string{
-		"key_a": "value_a",
-		"key_b": "value_b",
-	}
-	addTag(tagMap, "invalidTag:invalid:invalid")
-	assert.Equal(t, 2, len(tagMap))
-	assert.Equal(t, "value_a", tagMap["key_a"])
-	assert.Equal(t, "value_b", tagMap["key_b"])
-}
 func TestAddTagInvalid3(t *testing.T) {
 	tagMap := map[string]string{
 		"key_a": "value_a",
@@ -243,6 +233,18 @@ func TestAddTag(t *testing.T) {
 	assert.Equal(t, "value_a", tagMap["key_a"])
 	assert.Equal(t, "value_b", tagMap["key_b"])
 	assert.Equal(t, "tag", tagMap["valid"])
+}
+
+func TestAddTagWithColumnInValue(t *testing.T) {
+	tagMap := map[string]string{
+		"key_a": "value_a",
+		"key_b": "value_b",
+	}
+	addTag(tagMap, "VaLiD:TaG:Val")
+	assert.Equal(t, 3, len(tagMap))
+	assert.Equal(t, "value_a", tagMap["key_a"])
+	assert.Equal(t, "value_b", tagMap["key_b"])
+	assert.Equal(t, "tag:val", tagMap["valid"])
 }
 
 func TestAddColdStartTagWithoutColdStart(t *testing.T) {

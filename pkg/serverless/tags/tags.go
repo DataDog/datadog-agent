@@ -91,11 +91,8 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	tags = setIfNotEmpty(tags, VersionKey, os.Getenv(versionEnvVar))
 	tags = setIfNotEmpty(tags, ServiceKey, os.Getenv(serviceEnvVar))
 
-	for _, tag := range configTags {
-		splitTags := strings.Split(tag, ",")
-		for _, singleTag := range splitTags {
-			tags = addTag(tags, singleTag)
-		}
+	for tagName, tagValue := range ArrayToMap(configTags) {
+		tags[tagName] = tagValue
 	}
 
 	tags = setIfNotEmpty(tags, traceOriginMetadataKey, traceOriginMetadataValue)
@@ -123,6 +120,17 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	}
 
 	return tags
+}
+
+func ArrayToMap(tagArray []string) map[string]string {
+	tagMap := make(map[string]string)
+	for _, tag := range tagArray {
+		splitTags := strings.Split(tag, ",")
+		for _, singleTag := range splitTags {
+			tagMap = addTag(tagMap, singleTag)
+		}
+	}
+	return tagMap
 }
 
 // BuildTagsFromMap builds an array of tag based on map of tags
@@ -183,9 +191,11 @@ func setIfNotEmpty(tagMap map[string]string, key string, value string) map[strin
 }
 
 func addTag(tagMap map[string]string, tag string) map[string]string {
-	extract := strings.Split(tag, ":")
+	extract := strings.SplitN(tag, ":", 2)
 	if len(extract) == 2 {
 		tagMap[strings.ToLower(extract[0])] = strings.ToLower(extract[1])
+	} else {
+		log.Debug("Tag" + tag + " has not expected format")
 	}
 	return tagMap
 }
