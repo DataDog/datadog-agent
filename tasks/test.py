@@ -759,7 +759,7 @@ def lint_filenames(ctx):
     max_length = 255
     for file in files:
         if (
-            not file.startswith('test/kitchen/', 'tools/windows/DatadogAgentInstaller')
+            not file.startswith(('test/kitchen/', 'tools/windows/DatadogAgentInstaller'))
             and prefix_length + len(file) > max_length
         ):
             print(f"Error: path {file} is too long ({prefix_length + len(file) - max_length} characters too many)")
