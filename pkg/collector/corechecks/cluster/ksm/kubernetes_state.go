@@ -55,7 +55,9 @@ const (
 )
 
 var extendedCollectors = map[string]string{
-	"jobs": "jobs_extended",
+	"jobs":  "jobs_extended",
+	"nodes": "nodes_extended",
+	"pods":  "pods_extended",
 }
 
 // KSMConfig contains the check config parameters
@@ -346,6 +348,8 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 	factories := []customresource.RegistryFactory{
 		customresources.NewExtendedJobFactory(),
 		customresources.NewCustomResourceDefinitionFactory(),
+		customresources.NewExtendedNodeFactory(),
+		customresources.NewExtendedPodFactory(),
 	}
 
 	factories = manageResourcesReplacement(c, factories)
@@ -946,6 +950,12 @@ func labelsMapperOverride(metricName string) map[string]string {
 			"path":         "kube_ingress_path",
 			"service_name": "kube_service",
 			"service_port": "kube_service_port",
+		}
+	}
+
+	if strings.HasPrefix(metricName, "kube_service") {
+		return map[string]string{
+			"service": "kube_service",
 		}
 	}
 	return nil

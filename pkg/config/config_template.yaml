@@ -2641,6 +2641,28 @@ api_key:
   ## See https://docs.microsoft.com/en-us/azure/aks/faq#can-i-use-admission-controller-webhooks-on-aks
   #
   # add_aks_selectors: false
+
+  ## @param auto_instrumentation - custom object - optional
+  ## Library injection parameters.
+  #
+  # auto_instrumentation:
+
+    ## @param init_resources - custom object - optional
+    ## CPU and Memory resources of the init containers.
+    #
+    # init_resources:
+
+      ## @param cpu - string - optional
+      ## @env DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_RESOURCES_CPU - string - optional
+      ## Configures the CPU request and limit for the init containers.
+      #
+      # cpu:
+
+      ## @param memory - string - optional
+      ## @env DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_RESOURCES_MEMORY - string - optional
+      ## Configures the memory request and limit for the init containers.
+      #
+      # memory:
 {{ end -}}
 {{- if .DockerTagging }}
 

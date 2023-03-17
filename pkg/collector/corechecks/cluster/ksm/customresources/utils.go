@@ -30,6 +30,8 @@ import (
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 )
 
+const networkBandwidthResourceName = "kubernetes.io/network-bandwidth"
+
 var (
 	invalidLabelCharRE = regexp.MustCompile(`[^a-zA-Z0-9_]`)
 	matchAllCap        = regexp.MustCompile("([a-z0-9])([A-Z])")
