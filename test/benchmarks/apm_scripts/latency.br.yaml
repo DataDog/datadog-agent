@@ -16,7 +16,7 @@ setup:
       cd $BRANCH_DIR
       echo "MAIN_BRANCH_ROOT=$(pwd)" >> $R_PASS_ENV
 env:
-  ARTIFACTS_DIR: "${ARTIFACTS_DIR:-/tmp/benchmarks/artifacts/v2}"
+  ARTIFACTS_DIR: "${ARTIFACTS_DIR:-/tmp/benchmarks/artifacts/v3}"
   REPOSITORY_ROOT: $R_ROOT_DIR/../../..
   #MAIN_BRANCH_ROOT: $REPOSITORY_ROOT/br_main_branch # TODO: recursive resolution is not working as expected yet
   LENGHT_OF_RUN: 60s
@@ -53,8 +53,9 @@ configurations:
             --no-usage-report \
             --tag test_run_id=${R_EXPERIMENT_NAME} \
             --tag ci_job_id=$CI_JOB_ID \
+            --out csv=${R_EXPERIMENT_NAME}.csv \
             --out json="${R_EXPERIMENT_NAME}.json" \
-            $K6_ROOT/basic.js
+            $K6_ROOT/hmm.js
         teardown:
           steps:
           - sdk_image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:latest
@@ -85,6 +86,7 @@ configurations:
             --tag test_run_id=${R_EXPERIMENT_NAME} \
             --tag ci_job_id=$CI_JOB_ID \
             --out json="${R_EXPERIMENT_NAME}.json" \
+            --out csv=${R_EXPERIMENT_NAME}.csv \
             $K6_ROOT/basic.js
         teardown:
           steps:
