@@ -1225,7 +1225,7 @@ api_key:
   ## @param features - list of strings - optional
   ## @env DD_APM_FEATURES - comma separated list of strings - optional
   ## Configure additional beta APM features.
-  ## The list of items available under apm_config.features is not guaranteed to persist across versions; 
+  ## The list of items available under apm_config.features is not guaranteed to persist across versions;
   ## a feature may eventually be promoted to its own configuration option on the agent, or dropped entirely.
   #
   # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache"]
@@ -3108,6 +3108,14 @@ api_key:
 ## regardless of the value of this parameter.
 #
 # disable_cluster_name_tag_key: false
+
+## @param kubernetes_ad_tags_disabled -- list of strings - optional
+## @env DD_KUBERNETES_AD_TAGS_DISABLED -- list of strings - optional
+## Can only be set to a single valid value: [ "kube_service" ]
+## in order to not attach the kube_service tag on ready pods
+#
+# kubernetes_ad_tags_disabled:
+#   - kube_service
 
 {{ end -}}
 {{- if .PrometheusScrape }}
