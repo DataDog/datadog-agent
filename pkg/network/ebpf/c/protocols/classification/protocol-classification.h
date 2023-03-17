@@ -13,6 +13,7 @@
 #include "protocols/classification/structs.h"
 #include "protocols/classification/stack-helpers.h"
 #include "protocols/classification/usm-context.h"
+#include "protocols/classification/routing.h"
 #include "protocols/http/classification-helpers.h"
 #include "protocols/http2/helpers.h"
 #include "protocols/kafka/kafka-classification.h"
@@ -66,12 +67,8 @@ static __always_inline protocol_t classify_queue_protocols(struct __sk_buff *skb
     return PROTOCOL_UNKNOWN;
 }
 
-static __always_inline protocol_stack_t* get_protocol_stack(conn_tuple_t *tup) {
-    if (!tup) {
-        return NULL;
-    }
-
-    conn_tuple_t normalized_tup = *tup;
+static __always_inline protocol_stack_t* get_protocol_stack(usm_context_t *usm_ctx) {
+    conn_tuple_t normalized_tup = usm_ctx->tuple;
     normalize_tuple(&normalized_tup);
     protocol_stack_t* stack = bpf_map_lookup_elem(&connection_protocol, &normalized_tup);
     if (stack) {
@@ -82,6 +79,12 @@ static __always_inline protocol_stack_t* get_protocol_stack(conn_tuple_t *tup) {
     protocol_stack_t empty_stack = {0};
     bpf_map_update_with_telemetry(connection_protocol, &normalized_tup, &empty_stack, BPF_NOEXIST);
     return bpf_map_lookup_elem(&connection_protocol, &normalized_tup);
+}
+
+static __always_inline void set_protocol_stack(struct __sk_buff *skb, protocol_stack_t *stack, protocol_t proto) {
+    protocol_set(stack, proto);
+    u16 *known_layers = __get_layer_cache(skb);
+    *known_layers |= proto;
 }
 
 // A shared implementation for the runtime & prebuilt socket filter that classifies the protocols of the connections.
@@ -104,37 +107,26 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
-    protocol_stack_t *protocol_stack = get_protocol_stack(&skb_tup);
+    protocol_stack_t *protocol_stack = get_protocol_stack(usm_ctx);
     if (!protocol_stack) {
         return;
     }
 
-    protocol_layer_t next_layer = protocol_next_layer(protocol_stack, LAYER_UNKNOWN);
-    if (next_layer != LAYER_APPLICATION) {
-        // for now we're only decoding application-layer protocols
-        // but this is where a tail call to the next layer to decode would be added
-        return;
+    if (protocol_layer_known(protocol_stack, LAYER_APPLICATION)) {
+        goto next_program;
     }
 
     const char *buffer = &(usm_ctx->buffer.data[0]);
     protocol_t cur_fragment_protocol = classify_http_protocols(buffer, usm_ctx->buffer.size);
-    if (!cur_fragment_protocol) {
-        bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_QUEUES_PROG);
-    }
-
-    protocol_set(protocol_stack, cur_fragment_protocol);
-    if (cur_fragment_protocol == PROTOCOL_HTTP) {
+    set_protocol_stack(skb, protocol_stack, cur_fragment_protocol);
+    if (cur_fragment_protocol) {
+        // this is mostly an optmization *for now* since we won't be classifying
+        // any other protocols if we detected HTTP for a socket filter program
         mark_as_fully_classified(protocol_stack);
     }
 
-    // TODO: once we have other protocol layers we should add something like the following
-    // next_layer = protocol_next_layer(protocol_stack, LAYER_APPLICATION);
-    // switch(next_layer) {
-    // case LAYER_API:
-    //     bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_API_PROG);
-    // case LAYER_ENCRYPTION:
-    //     bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_ENCRYPTION_PROG);
-    // }
+ next_program:
+    classification_next_program(skb);
 }
 
 __maybe_unused static __always_inline void protocol_classifier_entrypoint_queues(struct __sk_buff *skb) {
@@ -146,15 +138,18 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_queues
     const char *buffer = &(usm_ctx->buffer.data[0]);
     protocol_t cur_fragment_protocol = classify_queue_protocols(skb, &usm_ctx->skb_info, buffer, usm_ctx->buffer.size);
     if (!cur_fragment_protocol) {
-        bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_DBS_PROG);
+        goto next_program;
     }
 
-    protocol_stack_t *protocol_stack = get_protocol_stack(&usm_ctx->tuple);
+    protocol_stack_t *protocol_stack = get_protocol_stack(usm_ctx);
     if (!protocol_stack) {
         return;
     }
-    protocol_set(protocol_stack, cur_fragment_protocol);
+    set_protocol_stack(skb, protocol_stack, cur_fragment_protocol);
     mark_as_fully_classified(protocol_stack);
+
+ next_program:
+    classification_next_program(skb);
 }
 
 __maybe_unused static __always_inline void protocol_classifier_entrypoint_dbs(struct __sk_buff *skb) {
@@ -166,15 +161,18 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_dbs(st
     const char *buffer = &usm_ctx->buffer.data[0];
     protocol_t cur_fragment_protocol = classify_db_protocols(&usm_ctx->tuple, buffer, usm_ctx->buffer.size);
     if (!cur_fragment_protocol) {
-        return;
+        goto next_program;
     }
 
-    protocol_stack_t *protocol_stack = get_protocol_stack(&usm_ctx->tuple);
+    protocol_stack_t *protocol_stack = get_protocol_stack(usm_ctx);
     if (!protocol_stack) {
         return;
     }
-    protocol_set(protocol_stack, cur_fragment_protocol);
+    set_protocol_stack(skb, protocol_stack, cur_fragment_protocol);
     mark_as_fully_classified(protocol_stack);
+
+ next_program:
+    classification_next_program(skb);
 }
 
 #endif
