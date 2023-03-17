@@ -15,8 +15,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/atomic"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -412,7 +414,7 @@ func TestProcessEvents(t *testing.T) {
 			var imagesSent = atomic.NewInt32(0)
 
 			sender := mocksender.NewMockSender("")
-			sender.On("ContainerImage", mock.Anything, mock.Anything).Return().Run(func(_ mock.Arguments) {
+			sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Run(func(_ mock.Arguments) {
 				imagesSent.Inc()
 			})
 
@@ -434,13 +436,13 @@ func TestProcessEvents(t *testing.T) {
 			}, 1*time.Second, 5*time.Millisecond)
 
 			for _, expectedImage := range test.expectedImages {
-				sender.AssertContainerImage(t, []model.ContainerImagePayload{
-					{
-						Version: "v1",
-						Source:  &sourceAgent,
-						Images:  []*model.ContainerImage{expectedImage},
-					},
+				encoded, err := proto.Marshal(&model.ContainerImagePayload{
+					Version: "v1",
+					Source:  &sourceAgent,
+					Images:  []*model.ContainerImage{expectedImage},
 				})
+				assert.Nil(t, err)
+				sender.AssertEventPlatformEvent(t, encoded, epforwarder.EventTypeContainerImages)
 			}
 		})
 	}
