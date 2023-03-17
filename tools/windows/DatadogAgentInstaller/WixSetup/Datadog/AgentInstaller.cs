@@ -130,47 +130,47 @@ namespace WixSetup.Datadog
             );
             project
                 .SetCustomActions(_agentCustomActions)
-            .SetProjectInfo(
-                upgradeCode: ProductUpgradeCode,
-                name: ProductFullName,
-                description: string.Format(ProductDescription, _agentVersion.Version),
-                // This version is overridden below because SetProjectInfo throws an Exception if Revision is != 0
-                version: new Version(
-                    _agentVersion.Version.Major,
-                    _agentVersion.Version.Minor,
-                    _agentVersion.Version.Build,
-                    0)
-            )
-            .SetControlPanelInfo(
-                name: ProductFullName,
-                manufacturer: CompanyFullName,
-                readme: ProductHelpUrl,
-                comment: ProductComment,
-                contact: ProductContact,
-                helpUrl: new Uri(ProductHelpUrl),
-                aboutUrl: new Uri(ProductAboutUrl),
-                productIconFilePath: new FileInfo(ProductIconFilePath)
-            )
-            .SetMinimalUI(
-                backgroundImage: new FileInfo(InstallerBackgroundImagePath),
-                bannerImage: new FileInfo(InstallerBannerImagePath),
-                // $@"{installerSource}\LICENSE" is not RTF and Compiler.AllowNonRtfLicense = true doesn't help.
-                licenceRtfFile: new FileInfo(ProductLicenceRtfFilePath)
-            )
-            .AddDirectories(
-                CreateProgramFilesFolder(),
-                CreateAppDataFolder(),
-                new Dir(@"%ProgramMenu%\Datadog",
-                    new ExeFileShortcut
-                    {
-                        Name = "Datadog Agent Manager",
-                        Target = "[AGENT]ddtray.exe",
-                        Arguments = "\"--launch-gui\"",
-                        WorkingDirectory = "AGENT",
-                    }
-                ),
-                new Dir("logs")
-            );
+                .SetProjectInfo(
+                    upgradeCode: ProductUpgradeCode,
+                    name: ProductFullName,
+                    description: string.Format(ProductDescription, _agentVersion.Version),
+                    // This version is overridden below because SetProjectInfo throws an Exception if Revision is != 0
+                    version: new Version(
+                        _agentVersion.Version.Major,
+                        _agentVersion.Version.Minor,
+                        _agentVersion.Version.Build,
+                        0)
+                )
+                .SetControlPanelInfo(
+                    name: ProductFullName,
+                    manufacturer: CompanyFullName,
+                    readme: ProductHelpUrl,
+                    comment: ProductComment,
+                    contact: ProductContact,
+                    helpUrl: new Uri(ProductHelpUrl),
+                    aboutUrl: new Uri(ProductAboutUrl),
+                    productIconFilePath: new FileInfo(ProductIconFilePath)
+                )
+                .SetMinimalUI(
+                    backgroundImage: new FileInfo(InstallerBackgroundImagePath),
+                    bannerImage: new FileInfo(InstallerBannerImagePath),
+                    // $@"{installerSource}\LICENSE" is not RTF and Compiler.AllowNonRtfLicense = true doesn't help.
+                    licenceRtfFile: new FileInfo(ProductLicenceRtfFilePath)
+                )
+                .AddDirectories(
+                    CreateProgramFilesFolder(),
+                    CreateAppDataFolder(),
+                    new Dir(@"%ProgramMenu%\Datadog",
+                        new ExeFileShortcut
+                        {
+                            Name = "Datadog Agent Manager",
+                            Target = "[AGENT]ddtray.exe",
+                            Arguments = "\"--launch-gui\"",
+                            WorkingDirectory = "AGENT",
+                        }
+                    ),
+                    new Dir("logs")
+                );
             // NineDigit.WixSharpExtensions SetProductInfo prohibits setting the revision, so we must do it here instead.
             // The revision is ignored by WiX during upgrades, so it is only useful for documentation purposes.
             project.Version = _agentVersion.Version;
