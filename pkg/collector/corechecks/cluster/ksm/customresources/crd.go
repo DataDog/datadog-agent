@@ -20,7 +20,7 @@ import (
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 
-	crdClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
+	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 )
 
 var (
@@ -105,7 +105,7 @@ func (f *crdFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsLis
 }
 
 func (f *crdFactory) Name() string {
-	return "customresourcedefinition"
+	return "customresourcedefinitions"
 }
 
 // CreateClient is not implemented
@@ -118,15 +118,15 @@ func (f *crdFactory) ExpectedType() interface{} {
 }
 
 func (f *crdFactory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
-	client := customResourceClient.(crdClient.ApiextensionsV1Client)
+	client := customResourceClient.(clientset.Interface)
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = fieldSelector
-			return client.CustomResourceDefinitions().List(context.TODO(), opts)
+			return client.ApiextensionsV1().CustomResourceDefinitions().List(context.TODO(), opts)
 		},
 		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = fieldSelector
-			return client.CustomResourceDefinitions().Watch(context.TODO(), opts)
+			return client.ApiextensionsV1().CustomResourceDefinitions().Watch(context.TODO(), opts)
 		},
 	}
 }

@@ -239,18 +239,6 @@ func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig 
 		collectors = options.DefaultResources.AsSlice()
 	}
 
-	// Enable exposing resource labels explicitly for kube_<resource>_labels metadata metrics.
-	// Equivalent to configuring --metric-labels-allowlist.
-	allowedLabels := map[string][]string{}
-	for _, collector := range collectors {
-		// Any label can be used for label joins.
-		allowedLabels[collector] = []string{"*"}
-	}
-
-	if err = builder.WithAllowLabels(allowedLabels); err != nil {
-		return err
-	}
-
 	// Enable exposing resource annotations explicitly for kube_<resource>_annotations metadata metrics.
 	// Equivalent to configuring --metric-annotations-allowlist.
 	allowedAnnotations := map[string][]string{}
@@ -270,7 +258,6 @@ func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig 
 	}
 
 	builder.WithNamespaces(namespaces)
-
 	allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(collectors))
 	if err != nil {
 		return err
@@ -315,6 +302,19 @@ func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig 
 	builder.WithGenerateCustomResourceStoresFunc(builder.GenerateCustomResourceStoresFunc)
 	builder.WithCustomResourceStoreFactories(cr.factories...)
 	builder.WithCustomResourceClients(cr.clients)
+
+	// Enable exposing resource labels explicitly for kube_<resource>_labels metadata metrics.
+	// Equivalent to configuring --metric-labels-allowlist.
+	allowedLabels := map[string][]string{}
+	for _, collector := range collectors {
+		// Any label can be used for label joins.
+		allowedLabels[collector] = []string{"*"}
+	}
+
+	if err = builder.WithAllowLabels(allowedLabels); err != nil {
+		return err
+	}
+
 	if err := builder.WithEnabledResources(cr.collectors); err != nil {
 		return err
 	}
@@ -356,7 +356,12 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 
 	clients := make(map[string]interface{}, len(factories))
 	for _, f := range factories {
-		clients[f.Name()] = c.Cl
+		name := f.Name()
+		if name == "customresourcedefinitions" {
+			clients[name] = c.CRDClient
+		} else {
+			clients[name] = c.Cl
+		}
 	}
 
 	return customResources{
