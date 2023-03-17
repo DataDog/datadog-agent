@@ -760,6 +760,14 @@ api_key:
 ## Disable fetching secrets for check configurations
 #
 # secret_backend_skip_checks: false
+#
+
+## @param secret_backend_remove_trailing_line_break - boolean - optional - default: false
+## @env DD_SECRET_BACKEND_REMOVE_TRAILING_LINE_BREAK - boolean - optional - default: false
+## Remove trailing line breaks from secrets returned by the secret_backend_command. Some secret management tools automatically
+## add a line break when exporting secrets through files.
+#
+# secret_backend_remove_trailing_line_break: false
 
 ## @param snmp_listener - custom object - optional
 ## Creates and schedules a listener to automatically discover your SNMP devices.

@@ -142,6 +142,7 @@ func resetPackageVars() {
 	secretFetcher = fetchSecret
 	secretBackendTimeout = 0
 	scrubberAddReplacer = scrubber.AddStrippedKeys
+	removeTrailingLinebreak = false
 }
 
 func TestIsEnc(t *testing.T) {
