@@ -361,7 +361,7 @@ static __always_inline const struct proto_ops * socket_proto_ops(struct socket *
     // (struct socket).ops is always directly after (struct socket).sk,
     // which is a pointer.
     u64 ops_offset = offset_socket_sk() + sizeof(void *);
-    bpf_probe_read_kernel_with_telemetry(&proto_ops, sizeof(proto_ops), (void *)(sock) + ops_offset);
+    bpf_probe_read_kernel_with_telemetry(&proto_ops, sizeof(proto_ops), (char*)sock + ops_offset);
 #elif defined(COMPILE_RUNTIME) || defined(COMPILE_CORE)
     proto_ops = BPF_CORE_READ(sock, ops);
 #endif
@@ -456,7 +456,7 @@ cleanup:
 static __always_inline struct sock* sk_buff_sk(struct sk_buff *skb) {
     struct sock * sk = NULL;
 #ifdef COMPILE_PREBUILT
-    bpf_probe_read(&sk, sizeof(struct sock*), skb + offset_sk_buff_sock());
+    bpf_probe_read(&sk, sizeof(struct sock*), (char*)skb + offset_sk_buff_sock());
 #elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
     sk = BPF_CORE_READ(skb, sk);
 #endif
