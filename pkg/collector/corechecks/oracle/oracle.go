@@ -29,16 +29,16 @@ type StatementsFilter struct {
 
 type Check struct {
 	core.CheckBase
-	config        *config.CheckConfig
-	db            *sqlx.DB
-	hostname      string
-	dbmEnabled    bool
-	agentVersion  string
-	checkInterval float64
-	tags          []string
-	cdbName       string
-	StatementsFilter
-	//queryMetricTotalsPrevious []QueryMetricTotalsDB
+	config                                  *config.CheckConfig
+	db                                      *sqlx.DB
+	hostname                                string
+	dbmEnabled                              bool
+	agentVersion                            string
+	checkInterval                           float64
+	tags                                    []string
+	cdbName                                 string
+	statementsFilter                        StatementsFilter
+	statementMetricsMonotonicCountsPrevious map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB
 }
 
 // Run executes the check.

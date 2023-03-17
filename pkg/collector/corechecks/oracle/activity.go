@@ -327,8 +327,8 @@ func (c *Check) SampleSession() error {
 	sender.Gauge("dd.oracle.activity.time_ms", float64(time.Since(start).Milliseconds()), c.hostname, c.tags)
 	sender.Commit()
 
-	c.StatementsFilter.SQLIDs = SQLIDs
-	c.StatementsFilter.ForceMatchingSignatures = forceMatchingSignatures
+	c.statementsFilter.SQLIDs = SQLIDs
+	c.statementsFilter.ForceMatchingSignatures = forceMatchingSignatures
 
 	return nil
 }
