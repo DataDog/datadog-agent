@@ -29,7 +29,7 @@ func writerTest(t *testing.T, z bool) {
 
 	// setup directory
 	fs.MkdirAll("foo/bar", 0777)
-	file, path, err := OpenFile(fs, "foo/bar")
+	file, path, err := OpenFile(fs, "foo/bar", "")
 	require.NoError(t, err)
 
 	writer := NewTrafficCaptureWriter(1)
@@ -171,9 +171,9 @@ func TestValidateLocation(t *testing.T) {
 	fs.MkdirAll(locationBad, 0770)
 	fs.MkdirAll(locationGood, 0776)
 
-	_, err := validateLocation(fs, locationBad)
+	_, err := validateLocation(fs, locationBad, "")
 	assert.NotNil(t, err)
-	l, err := validateLocation(fs, locationGood)
+	l, err := validateLocation(fs, locationGood, "")
 	assert.Nil(t, err)
 	assert.Equal(t, locationGood, l)
 }

@@ -7,12 +7,15 @@ package replay
 
 import (
 	"fmt"
+	"path"
 	"sync"
 	"time"
 
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	"github.com/spf13/afero"
+	"go.uber.org/fx"
 )
 
 const (
@@ -23,25 +26,38 @@ const (
 	GUID = 999888777
 )
 
+type dependencies struct {
+	fx.In
+
+	Config configComponent.Component
+}
+
 // TrafficCapture allows capturing traffic from our listeners and writing it to file
 type trafficCapture struct {
 	writer *TrafficCaptureWriter
+	config config.ConfigReader
 
 	sync.RWMutex
 }
 
 // TODO: (components) - remove once serverless is an FX app
 func NewServerlessTrafficCapture() Component {
-	return newTrafficCapture()
+	return newTrafficCaptureCompat(config.Datadog)
 }
 
-// newTrafficCapture creates a TrafficCapture instance.
-func newTrafficCapture() Component {
-	return &trafficCapture{}
+// TODO: (components) - merge with newTrafficCaptureCompat once NewServerlessTrafficCapture is removed
+func newTrafficCapture(deps dependencies) Component {
+	return newTrafficCaptureCompat(deps.Config)
+}
+
+func newTrafficCaptureCompat(cfg config.ConfigReader) Component {
+	return &trafficCapture{
+		config: cfg,
+	}
 }
 
 func (tc *trafficCapture) Configure() error {
-	writer := NewTrafficCaptureWriter(config.Datadog.GetInt("dogstatsd_capture_depth"))
+	writer := NewTrafficCaptureWriter(tc.config.GetInt("dogstatsd_capture_depth"))
 	if writer == nil {
 		return fmt.Errorf("unable to instantiate capture writer")
 	}
@@ -68,7 +84,7 @@ func (tc *trafficCapture) Start(p string, d time.Duration, compressed bool) (str
 		return "", fmt.Errorf("Ongoing capture in progress")
 	}
 
-	target, path, err := OpenFile(afero.NewOsFs(), p)
+	target, path, err := OpenFile(afero.NewOsFs(), p, tc.defaultlocation())
 	if err != nil {
 		return "", err
 	}
@@ -106,4 +122,13 @@ func (tc *trafficCapture) Enqueue(msg *CaptureBuffer) bool {
 	tc.RLock()
 	defer tc.RUnlock()
 	return tc.writer.Enqueue(msg)
+}
+
+func (tc *trafficCapture) defaultlocation() string {
+	location := tc.config.GetString("dogstatsd_capture_path")
+	if location == "" {
+		location = path.Join(tc.config.GetString("run_path"), "dsd_capture")
+	}
+	return location
+
 }
