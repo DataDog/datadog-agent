@@ -42,6 +42,8 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeFuncNa
 		}
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPSendMsg, probes.TCPSendMsgPre410, kv410))
 		enableProbe(enabled, probes.TCPSendMsgReturn)
+		enableProbe(enabled, probes.TCPSendPage)
+		enableProbe(enabled, probes.TCPSendPageReturn)
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPRecvMsg, probes.TCPRecvMsgPre410, kv410))
 		enableProbe(enabled, probes.TCPRecvMsgReturn)
 		enableProbe(enabled, probes.TCPReadSock)
@@ -60,8 +62,6 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeFuncNa
 		if err == nil && len(missing) == 0 {
 			enableProbe(enabled, probes.SockFDLookup)
 			enableProbe(enabled, probes.SockFDLookupRet)
-			enableProbe(enabled, probes.DoSendfile)
-			enableProbe(enabled, probes.DoSendfileRet)
 		}
 	}
 
@@ -72,6 +72,8 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeFuncNa
 		enableProbe(enabled, probes.IPMakeSkbReturn)
 		enableProbe(enabled, probes.InetBind)
 		enableProbe(enabled, probes.InetBindRet)
+		enableProbe(enabled, probes.UDPSendPage)
+		enableProbe(enabled, probes.UDPSendPageReturn)
 
 		if c.CollectIPv6Conns {
 			enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.IP6MakeSkb, probes.IP6MakeSkbPre470, kv470))
