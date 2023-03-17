@@ -27,6 +27,8 @@
     - $S3_CP_CMD $S3_ARTIFACTS_URI/http-debug.o.${PACKAGE_ARCH} /tmp/system-probe/http-debug.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/dns.o.${PACKAGE_ARCH} /tmp/system-probe/dns.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/dns-debug.o.${PACKAGE_ARCH} /tmp/system-probe/dns-debug.o
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/conntrack.o.${PACKAGE_ARCH} /tmp/system-probe/conntrack.o
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/conntrack-debug.o.${PACKAGE_ARCH} /tmp/system-probe/conntrack-debug.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security.o.${PACKAGE_ARCH} /tmp/system-probe/runtime-security.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security-syscall-wrapper.o.${PACKAGE_ARCH} /tmp/system-probe/runtime-security-syscall-wrapper.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security-offset-guesser.o.${PACKAGE_ARCH} /tmp/system-probe/runtime-security-offset-guesser.o

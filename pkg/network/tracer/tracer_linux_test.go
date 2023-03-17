@@ -36,14 +36,18 @@ import (
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	rc "github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 func doDNSQuery(t *testing.T, domain string, serverIP string) (*net.UDPAddr, *net.UDPAddr) {
@@ -262,7 +266,7 @@ func TestTCPRTT(t *testing.T) {
 	require.NoError(t, err)
 
 	// Obtain information from a TCP socket via GETSOCKOPT(2) system call.
-	tcpInfo, err := tcpGetInfo(c)
+	tcpInfo, err := offsetguess.TcpGetInfo(c)
 	require.NoError(t, err)
 
 	// Fetch connection matching source and target address
@@ -498,11 +502,11 @@ func TestUnconnectedUDPSendIPv6(t *testing.T) {
 	cfg := testConfig()
 	cfg.CollectIPv6Conns = true
 	tr := setupTracer(t, cfg)
-	linkLocal, err := getIPv6LinkLocalAddress()
+	linkLocal, err := offsetguess.GetIPv6LinkLocalAddress()
 	require.NoError(t, err)
 
 	remotePort := rand.Int()%5000 + 15000
-	remoteAddr := &net.UDPAddr{IP: net.ParseIP(interfaceLocalMulticastIPv6), Port: remotePort}
+	remoteAddr := &net.UDPAddr{IP: net.ParseIP(offsetguess.InterfaceLocalMulticastIPv6), Port: remotePort}
 	conn, err := net.ListenUDP("udp6", linkLocal)
 	require.NoError(t, err)
 	defer conn.Close()
@@ -1749,4 +1753,107 @@ func TestPreexistingConnectionDirection(t *testing.T) {
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
 	assert.Equal(t, network.OUTGOING, conn.Direction)
 	assert.True(t, conn.IntraHost)
+}
+
+func TestEbpfConntrackerFallback(t *testing.T) {
+	type testCase struct {
+		enableRuntimeCompiler    bool
+		allowPrecompiledFallback bool
+		rcError                  bool
+		prebuiltError            bool
+
+		err        error
+		isPrebuilt bool
+	}
+
+	var tests = []testCase{
+		{false, false, false, false, nil, true},
+		{false, false, false, true, assert.AnError, false},
+		{false, false, true, false, nil, true},
+		{false, false, true, true, assert.AnError, false},
+		{false, true, false, false, nil, true},
+		{false, true, false, true, assert.AnError, false},
+		{false, true, true, false, nil, true},
+		{false, true, true, true, assert.AnError, false},
+		{true, false, false, false, nil, false},
+		{true, false, false, true, nil, false},
+		{true, false, true, false, assert.AnError, false},
+		{true, false, true, true, assert.AnError, false},
+		{true, true, false, false, nil, false},
+		{true, true, false, true, nil, false},
+		{true, true, true, false, nil, true},
+		{true, true, true, true, assert.AnError, false},
+	}
+
+	cfg := testConfig()
+	constants, err := getTracerOffsets(t, cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		ebpfConntrackerPrebuiltCreator = getPrebuiltConntracker
+		ebpfConntrackerRCCreator = getRuntimeCompiledConntracker
+	})
+
+	for _, te := range tests {
+		t.Run("", func(t *testing.T) {
+			t.Logf("%+v", te)
+
+			cfg.EnableRuntimeCompiler = te.enableRuntimeCompiler
+			cfg.AllowPrecompiledFallback = te.allowPrecompiledFallback
+
+			ebpfConntrackerPrebuiltCreator = getPrebuiltConntracker
+			ebpfConntrackerRCCreator = getRuntimeCompiledConntracker
+			if te.prebuiltError {
+				ebpfConntrackerPrebuiltCreator = func(c *config.Config, ce []manager.ConstantEditor) (bytecode.AssetReader, []manager.ConstantEditor, error) {
+					return nil, nil, assert.AnError
+				}
+			}
+			if te.rcError {
+				ebpfConntrackerRCCreator = func(cfg *config.Config) (rc.CompiledOutput, error) { return nil, assert.AnError }
+			}
+
+			conntracker, err := NewEBPFConntracker(cfg, nil, constants)
+			if te.err != nil {
+				assert.Error(t, err)
+				assert.Nil(t, conntracker)
+				return
+			}
+
+			assert.NoError(t, err)
+			require.NotNil(t, conntracker)
+			assert.Equal(t, te.isPrebuilt, conntracker.(*ebpfConntracker).isPrebuilt)
+			conntracker.Close()
+		})
+	}
+}
+
+func TestConntrackerFallback(t *testing.T) {
+	var tests = []struct {
+		enableRuntimeCompiler    bool
+		allowPrecompiledFallback bool
+		err                      error
+	}{
+		{false, false, nil},
+		{false, true, nil},
+		{true, false, assert.AnError},
+		{true, true, nil},
+	}
+
+	cfg := testConfig()
+	cfg.EnableEbpfConntracker = false
+	for _, te := range tests {
+		t.Logf("%+v", te)
+		cfg.EnableRuntimeCompiler = te.enableRuntimeCompiler
+		cfg.AllowPrecompiledFallback = te.allowPrecompiledFallback
+
+		conntracker, err := newConntracker(cfg, nil, nil)
+		if te.err != nil {
+			assert.Error(t, err)
+			assert.Nil(t, conntracker)
+			continue
+		}
+
+		assert.NoError(t, err)
+		require.NotNil(t, conntracker)
+		conntracker.Close()
+	}
 }
