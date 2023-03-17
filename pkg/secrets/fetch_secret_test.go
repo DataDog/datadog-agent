@@ -83,7 +83,7 @@ func TestLimitBuffer(t *testing.T) {
 }
 
 func TestExecCommandError(t *testing.T) {
-	defer resetPackageVars()
+	t.Cleanup(resetPackageVars)
 
 	inputPayload := "{\"version\": \"" + PayloadVersion + "\" , \"secrets\": [\"sec1\", \"sec2\"]}"
 
@@ -141,7 +141,7 @@ func TestExecCommandError(t *testing.T) {
 }
 
 func TestFetchSecretExecError(t *testing.T) {
-	defer resetPackageVars()
+	t.Cleanup(resetPackageVars)
 
 	runCommand = func(string) ([]byte, error) { return nil, fmt.Errorf("some error") }
 	_, err := fetchSecret([]string{"handle1", "handle2"})
@@ -149,7 +149,7 @@ func TestFetchSecretExecError(t *testing.T) {
 }
 
 func TestFetchSecretUnmarshalError(t *testing.T) {
-	defer resetPackageVars()
+	t.Cleanup(resetPackageVars)
 
 	runCommand = func(string) ([]byte, error) { return []byte("{"), nil }
 	_, err := fetchSecret([]string{"handle1", "handle2"})
@@ -157,7 +157,7 @@ func TestFetchSecretUnmarshalError(t *testing.T) {
 }
 
 func TestFetchSecretMissingSecret(t *testing.T) {
-	defer resetPackageVars()
+	t.Cleanup(resetPackageVars)
 
 	secrets := []string{"handle1", "handle2"}
 
@@ -168,7 +168,7 @@ func TestFetchSecretMissingSecret(t *testing.T) {
 }
 
 func TestFetchSecretErrorForHandle(t *testing.T) {
-	defer resetPackageVars()
+	t.Cleanup(resetPackageVars)
 
 	runCommand = func(string) ([]byte, error) {
 		return []byte("{\"handle1\":{\"value\": null, \"error\": \"some error\"}}"), nil
@@ -179,7 +179,7 @@ func TestFetchSecretErrorForHandle(t *testing.T) {
 }
 
 func TestFetchSecretEmptyValue(t *testing.T) {
-	defer resetPackageVars()
+	t.Cleanup(resetPackageVars)
 
 	runCommand = func(string) ([]byte, error) {
 		return []byte("{\"handle1\":{\"value\": null}}"), nil
@@ -197,7 +197,7 @@ func TestFetchSecretEmptyValue(t *testing.T) {
 }
 
 func TestFetchSecret(t *testing.T) {
-	defer resetPackageVars()
+	t.Cleanup(resetPackageVars)
 
 	secrets := []string{"handle1", "handle2"}
 	// some dummy value to check the cache is not purge
@@ -220,4 +220,17 @@ func TestFetchSecret(t *testing.T) {
 		"handle1": "p1",
 		"handle2": "p2",
 	}, secretCache)
+}
+
+func TestFetchSecretRemoveTrailingLineBreak(t *testing.T) {
+	t.Cleanup(resetPackageVars)
+	removeTrailingLinebreak = true
+
+	runCommand = func(string) ([]byte, error) {
+		return []byte("{\"handle1\":{\"value\":\"some data\\r\\n\"}}"), nil
+	}
+	secrets := []string{"handle1"}
+	resp, err := fetchSecret(secrets)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"handle1": "some data"}, resp)
 }
