@@ -224,16 +224,8 @@ namespace Datadog.CustomActions
 
                 var ddAgentUserName = _session.Property("DDAGENTUSER_NAME");
                 var ddAgentUserPassword = _session.Property("DDAGENTUSER_PASSWORD");
-
-                var datadogAgentService = _serviceController.GetServiceNames()
-                    .FirstOrDefault(svc => svc == "datadogagent");
-                if (_nativeMethods.IsDomainController() &&
-                    string.IsNullOrEmpty(ddAgentUserName) &&
-                    string.IsNullOrEmpty(ddAgentUserPassword) &&
-                    datadogAgentService == null)
-                {
-                    throw new InvalidOperationException("Must provide DDAGENTUSER_NAME and DDAGENTUSER_PASSWORD on Domain Controllers.");
-                }
+                var isDomainController = _nativeMethods.IsDomainController();
+                var datadogAgentService = _serviceController.GetServiceNames().FirstOrDefault(svc => svc == "datadogagent");
 
                 // LocalSystem is not supported by LookupAccountName as it is a pseudo account,
                 // do the conversion here for user's convenience.
@@ -266,11 +258,33 @@ namespace Datadog.CustomActions
                     isServiceAccount = _nativeMethods.IsServiceAccount(securityIdentifier);
                     isDomainAccount = _nativeMethods.IsDomainAccount(securityIdentifier);
                     _session.Log($"\"{domain}\\{userName}\" ({securityIdentifier.Value}, {nameUse}) is a {(isDomainAccount ? "domain" : "local")} {(isServiceAccount ? "service " : string.Empty)}account");
+
+                    if (string.IsNullOrEmpty(ddAgentUserPassword) &&
+                        !isServiceAccount)
+                    {
+                        if (isDomainController &&
+                            datadogAgentService == null)
+                        {
+                            throw new InvalidOperationException("Must provide DDAGENTUSER_PASSWORD for non-service accounts on Domain Controllers for first installs.");
+                        }
+
+                        if (isDomainAccount &&
+                            datadogAgentService == null)
+                        {
+                            throw new InvalidOperationException("Must provide DDAGENTUSER_PASSWORD for domain accounts.");
+                        }
+                    }
                 }
                 else
                 {
                     _session["DDAGENTUSER_FOUND"] = "false";
                     _session.Log($"User {ddAgentUserName} doesn't exist.");
+
+                    if (isDomainController)
+                    {
+                        throw new InvalidOperationException("DDAGENTUSER must exist on Domain Controllers.");
+                    }
+
                     ParseUserName(ddAgentUserName, out userName, out domain);
                 }
 
@@ -285,6 +299,14 @@ namespace Datadog.CustomActions
                     // This case is hit if user specifies a username without a domain part and it does not exist
                     _session.Log("domain part is empty, using default");
                     domain = GetDefaultDomainPart();
+                }
+
+                // We are trying to create a user in a domain on a non-domain controller.
+                // This must run *after* checking that the domain is not empty.
+                if (!userFound &&
+                    domain != Environment.MachineName)
+                {
+                    throw new InvalidOperationException("DDAGENTUSER must exist on Domain Clients.");
                 }
 
                 _session.Log($"Installing with DDAGENTUSER_PROCESSED_NAME={userName} and DDAGENTUSER_PROCESSED_DOMAIN={domain}");
