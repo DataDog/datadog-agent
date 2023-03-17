@@ -315,8 +315,9 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	return src
 }
 
-// createChunks creates a set of pb.TraceChunk's based on two maps:
+// createChunks creates a set of pb.TraceChunk's based on three maps:
 // - a map from trace ID to the spans sharing that trace ID
+// - a map from trace ID to the hex-encoding of the higher-order 64 bits of the original 128-bit OpenTelemetry trace ID.
 // - a map of user-set sampling priorities by trace ID, if set
 func (o *OTLPReceiver) createChunks(tracesByID map[uint64]pb.Trace, tidByID map[uint64]string, prioritiesByID map[uint64]sampler.SamplingPriority) []*pb.TraceChunk {
 	traceChunks := make([]*pb.TraceChunk, 0, len(tracesByID))
