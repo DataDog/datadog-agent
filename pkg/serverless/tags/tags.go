@@ -91,9 +91,7 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	tags = setIfNotEmpty(tags, VersionKey, os.Getenv(versionEnvVar))
 	tags = setIfNotEmpty(tags, ServiceKey, os.Getenv(serviceEnvVar))
 
-	for tagName, tagValue := range ArrayToMap(configTags) {
-		tags[tagName] = tagValue
-	}
+	tags = MergeWithOverwrite(tags, ArrayToMap(configTags))
 
 	tags = setIfNotEmpty(tags, traceOriginMetadataKey, traceOriginMetadataValue)
 	tags = setIfNotEmpty(tags, computeStatsKey, computeStatsValue)
@@ -131,6 +129,17 @@ func ArrayToMap(tagArray []string) map[string]string {
 		}
 	}
 	return tagMap
+}
+
+func MergeWithOverwrite(tags map[string]string, overwritingTags map[string]string) map[string]string {
+	merged := make(map[string]string)
+	for k, v := range tags {
+		merged[k] = v
+	}
+	for k, v := range overwritingTags {
+		merged[k] = v
+	}
+	return merged
 }
 
 // BuildTagsFromMap builds an array of tag based on map of tags
