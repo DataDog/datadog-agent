@@ -139,7 +139,7 @@ func readProfileData(cliParams *cliParams, pdata *pkgflare.ProfileData, seconds 
 
 		agentCollectors = append(agentCollectors, agentCollector{
 			name: "trace",
-			fn:   serviceProfileCollector("trace", "apm_config.receiver_port", traceCpusec),
+			fn:   serviceProfileCollector("trace", "apm_config.debug.port", traceCpusec),
 		})
 	}
 

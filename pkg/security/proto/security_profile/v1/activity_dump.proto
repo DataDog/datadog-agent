@@ -132,6 +132,7 @@ message FileInfo {
 
     string package_name = 14;
     string package_version = 15;
+    string package_srcversion = 16;
 }
 
 message Credentials {
@@ -177,4 +178,5 @@ message MatchedRule {
     string rule_version = 2;
     string policy_name = 3;
     string policy_version = 4;
+    map<string, string> rule_tags = 5;
 }

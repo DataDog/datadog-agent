@@ -272,7 +272,6 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.network.lazy_interface_prefixes", []string{})
 	cfg.BindEnvAndSetDefault("runtime_security_config.network.classifier_priority", 10)
 	cfg.BindEnvAndSetDefault("runtime_security_config.network.classifier_handle", 0)
-	cfg.BindEnvAndSetDefault("runtime_security_config.remote_configuration.enabled", false)
 
 	// Activity Dump
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.enabled", true)
@@ -293,10 +292,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.compression", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.syscall_monitor.period", 60)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.max_dump_count_per_workload", 25)
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.tag_rules.enabled", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.event_stream.use_ring_buffer", true)
-	cfg.BindEnv("runtime_security_config.event_stream.buffer_size")
-	cfg.BindEnvAndSetDefault("runtime_security_config.envs_with_value", []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE"})
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.tag_rules.enabled", true)
 
 	// SBOM
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.enabled", false)

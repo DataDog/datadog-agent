@@ -185,13 +185,13 @@ func (s *Store) Reset(newEntities []workloadmeta.Entity, source workloadmeta.Sou
 }
 
 func (s *Store) getEntityByKind(kind workloadmeta.Kind, id string) (workloadmeta.Entity, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	entitiesOfKind, ok := s.store[kind]
 	if !ok {
 		return nil, errors.NewNotFound(id)
 	}
-
-	s.mu.RLock()
-	defer s.mu.RUnlock()
 
 	entity, ok := entitiesOfKind[id]
 	if !ok {

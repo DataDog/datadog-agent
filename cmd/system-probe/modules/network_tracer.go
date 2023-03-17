@@ -49,8 +49,8 @@ var NetworkTracer = module.Factory{
 		ncfg := networkconfig.New()
 
 		// Checking whether the current OS + kernel version is supported by the tracer
-		if supported, msg := tracer.IsTracerSupportedByOS(ncfg.ExcludedBPFLinuxVersions); !supported {
-			return nil, fmt.Errorf("%w: %s", ErrSysprobeUnsupported, msg)
+		if supported, err := tracer.IsTracerSupportedByOS(ncfg.ExcludedBPFLinuxVersions); !supported {
+			return nil, fmt.Errorf("%w: %s", ErrSysprobeUnsupported, err)
 		}
 
 		if ncfg.NPMEnabled {

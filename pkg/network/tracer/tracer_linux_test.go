@@ -18,6 +18,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -211,7 +212,7 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 
 	// Fetch all connections matching source and target address
 	allConnections := getConnections(t, tr)
-	conns := searchConnections(allConnections, byAddress(c.LocalAddr(), c.RemoteAddr()))
+	conns := network.FilterConnections(allConnections, network.ByTuple(c.LocalAddr(), c.RemoteAddr()))
 	require.Len(t, conns, numProcesses)
 
 	totalSent := 0
@@ -827,10 +828,9 @@ func TestConnectionAssured(t *testing.T) {
 		},
 	}
 
-	done := make(chan struct{})
-	err := server.Run(done, clientMessageSize)
+	err := server.Run(clientMessageSize)
 	require.NoError(t, err)
-	defer close(done)
+	t.Cleanup(server.Shutdown)
 
 	c, err := net.DialTimeout("udp", server.address, time.Second)
 	require.NoError(t, err)
@@ -869,10 +869,9 @@ func TestConnectionNotAssured(t *testing.T) {
 		},
 	}
 
-	done := make(chan struct{})
-	err := server.Run(done, clientMessageSize)
+	err := server.Run(clientMessageSize)
 	require.NoError(t, err)
-	defer close(done)
+	t.Cleanup(server.Shutdown)
 
 	c, err := net.DialTimeout("udp", server.address, time.Second)
 	require.NoError(t, err)
@@ -1174,8 +1173,8 @@ func TestUDPReusePort(t *testing.T) {
 
 func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 	cfg := testConfig()
-	if !cfg.EnableRuntimeCompiler {
-		t.Skip("reuseport only supported on runtime compilation")
+	if isPrebuilt(cfg) {
+		t.Skip("reuseport not supported on prebuilt")
 	}
 
 	tr := setupTracer(t, cfg)
@@ -1203,15 +1202,15 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 		}
 	}
 
-	doneChan := make(chan struct{})
-	t.Cleanup(func() { close(doneChan) })
 	s1 := createReuseServer(port)
 	s2 := createReuseServer(port)
-	err := s1.Run(doneChan, clientMessageSize)
+	err := s1.Run(clientMessageSize)
 	require.NoError(t, err)
+	t.Cleanup(s1.Shutdown)
 
-	err = s2.Run(doneChan, clientMessageSize)
+	err = s2.Run(clientMessageSize)
 	require.NoError(t, err)
+	t.Cleanup(s2.Shutdown)
 
 	// Connect to server
 	c, err := net.DialTimeout(udpnet, s1.address, 50*time.Millisecond)
@@ -1344,64 +1343,120 @@ func ipRouteGet(t *testing.T, from, dest string, iif *net.Interface) *net.Interf
 	return ifi
 }
 
+type SyscallConn interface {
+	net.Conn
+	SyscallConn() (syscall.RawConn, error)
+}
+
 func TestSendfileRegression(t *testing.T) {
 	// Start tracer
-	tr := setupTracer(t, testConfig())
-
-	if tr.ebpfTracer.Type() == connection.EBPFFentry {
-		t.Skip("sendfile not yet supported on fentry tracer/Fargate")
-	}
+	cfg := testConfig()
+	tr := setupTracer(t, cfg)
 
 	// Create temporary file
-	tmpfile, err := os.CreateTemp("", "sendfile_source")
+	tmpdir := t.TempDir()
+	tmpfilePath := filepath.Join(tmpdir, "sendfile_source")
+	tmpfile, err := os.Create(tmpfilePath)
 	require.NoError(t, err)
-	defer os.Remove(tmpfile.Name())
+
 	n, err := tmpfile.Write(genPayload(clientMessageSize))
 	require.NoError(t, err)
 	require.Equal(t, clientMessageSize, n)
-	_, err = tmpfile.Seek(0, 0)
-	require.NoError(t, err)
-
-	// Start TCP server
-	var rcvd int64
-	server := NewTCPServer(func(c net.Conn) {
-		rcvd, _ = io.Copy(io.Discard, c)
-		c.Close()
-	})
-	t.Cleanup(server.Shutdown)
-	require.NoError(t, server.Run())
-
-	// Connect to TCP server
-	c, err := net.DialTimeout("tcp", server.address, time.Second)
-	require.NoError(t, err)
 
 	// Grab file size
 	stat, err := tmpfile.Stat()
 	require.NoError(t, err)
 	fsize := int(stat.Size())
 
-	// Send file contents via SENDFILE(2)
-	n, err = sendFile(t, c, tmpfile, nil, fsize)
-	require.NoError(t, err)
-	require.Equal(t, fsize, n)
+	testSendfileServer := func(t *testing.T, c SyscallConn, connType network.ConnectionType, family network.ConnectionFamily, rcvdFunc func() int64) {
+		_, err = tmpfile.Seek(0, 0)
+		require.NoError(t, err)
 
-	// Verify that our TCP server received the contents of the file
-	c.Close()
-	require.Eventually(t, func() bool {
-		return int64(clientMessageSize) == rcvd
-	}, 3*time.Second, 500*time.Millisecond, "TCP server didn't receive data")
+		// Send file contents via SENDFILE(2)
+		n, err = sendFile(t, c, tmpfile, nil, fsize)
+		require.NoError(t, err)
+		require.Equal(t, fsize, n)
 
-	// Finally, retrieve connection and assert that the sendfile was accounted for
-	var conn *network.ConnectionStats
-	require.Eventually(t, func() bool {
-		conns := getConnections(t, tr)
-		t.Logf("%+v", conns.Conns)
-		var ok bool
-		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		return ok && conn.Monotonic.SentBytes > 0
-	}, 3*time.Second, 500*time.Millisecond, "couldn't find connection used by sendfile(2)")
+		// Verify that our server received the contents of the file
+		c.Close()
+		require.Eventually(t, func() bool {
+			return int64(clientMessageSize) == rcvdFunc()
+		}, 3*time.Second, 500*time.Millisecond, "TCP server didn't receive data")
 
-	assert.Equalf(t, int64(clientMessageSize), int64(conn.Monotonic.SentBytes), "sendfile data wasn't properly traced")
+		var outConn, inConn *network.ConnectionStats
+		assert.Eventually(t, func() bool {
+			conns := getConnections(t, tr)
+			if outConn == nil {
+				outConn = network.FirstConnection(conns, network.ByType(connType), network.ByFamily(family), network.ByTuple(c.LocalAddr(), c.RemoteAddr()))
+			}
+			if inConn == nil {
+				inConn = network.FirstConnection(conns, network.ByType(connType), network.ByFamily(family), network.ByTuple(c.RemoteAddr(), c.LocalAddr()))
+			}
+			return outConn != nil && inConn != nil
+		}, 3*time.Second, 500*time.Millisecond, "couldn't find connections used by sendfile(2)")
+
+		if assert.NotNil(t, outConn, "couldn't find outgoing connection used by sendfile(2)") {
+			assert.Equalf(t, int64(clientMessageSize), int64(outConn.Monotonic.SentBytes), "sendfile send data wasn't properly traced")
+		}
+		if assert.NotNil(t, inConn, "couldn't find incoming connection used by sendfile(2)") {
+			assert.Equalf(t, int64(clientMessageSize), int64(inConn.Monotonic.RecvBytes), "sendfile recv data wasn't properly traced")
+		}
+	}
+
+	for _, family := range []network.ConnectionFamily{network.AFINET, network.AFINET6} {
+		t.Run(family.String(), func(t *testing.T) {
+			t.Run("TCP", func(t *testing.T) {
+				// Start TCP server
+				var rcvd int64
+				server := TCPServer{
+					network: "tcp" + strings.TrimPrefix(family.String(), "v"),
+					onMessage: func(c net.Conn) {
+						rcvd, _ = io.Copy(io.Discard, c)
+						c.Close()
+					},
+				}
+				t.Cleanup(server.Shutdown)
+				require.NoError(t, server.Run())
+
+				// Connect to TCP server
+				c, err := net.DialTimeout("tcp", server.address, time.Second)
+				require.NoError(t, err)
+
+				testSendfileServer(t, c.(*net.TCPConn), network.TCP, family, func() int64 { return rcvd })
+			})
+			t.Run("UDP", func(t *testing.T) {
+				if isPrebuilt(cfg) {
+					t.Skip("UDP will fail with prebuilt tracer")
+				}
+
+				// Start TCP server
+				var rcvd int64
+				server := &UDPServer{
+					network: "udp" + strings.TrimPrefix(family.String(), "v"),
+					onMessage: func(b []byte, n int) []byte {
+						rcvd = rcvd + int64(n)
+						return nil
+					},
+				}
+				t.Cleanup(server.Shutdown)
+				require.NoError(t, server.Run(1024))
+
+				// Connect to UDP server
+				c, err := net.DialTimeout(server.network, server.address, time.Second)
+				require.NoError(t, err)
+
+				testSendfileServer(t, c.(*net.UDPConn), network.UDP, family, func() int64 { return rcvd })
+			})
+		})
+	}
+
+}
+
+func isPrebuilt(cfg *config.Config) bool {
+	if cfg.EnableRuntimeCompiler || cfg.EnableCORE {
+		return false
+	}
+	return true
 }
 
 func TestSendfileError(t *testing.T) {
@@ -1429,7 +1484,7 @@ func TestSendfileError(t *testing.T) {
 
 	// Send file contents via SENDFILE(2)
 	offset := int64(math.MaxInt64 - 1)
-	_, err = sendFile(t, c, tmpfile, &offset, 10)
+	_, err = sendFile(t, c.(*net.TCPConn), tmpfile, &offset, 10)
 	require.Error(t, err)
 
 	c.Close()
@@ -1445,9 +1500,9 @@ func TestSendfileError(t *testing.T) {
 	assert.Equalf(t, int64(0), int64(conn.Monotonic.SentBytes), "sendfile data wasn't properly traced")
 }
 
-func sendFile(t *testing.T, c net.Conn, f *os.File, offset *int64, count int) (int, error) {
+func sendFile(t *testing.T, c SyscallConn, f *os.File, offset *int64, count int) (int, error) {
 	// Send payload using SENDFILE(2) syscall
-	rawConn, err := c.(*net.TCPConn).SyscallConn()
+	rawConn, err := c.SyscallConn()
 	require.NoError(t, err)
 	var n int
 	var serr error
@@ -1607,9 +1662,11 @@ func TestTCPDirectionWithPreexistingConnection(t *testing.T) {
 	// setup server to listen on a port
 	server := NewTCPServer(func(c net.Conn) {
 		t.Logf("received connection from %s", c.RemoteAddr())
-		_, _ = bufio.NewReader(c).ReadBytes('\n')
+		_, err := bufio.NewReader(c).ReadBytes('\n')
 		c.Close()
-		wg.Done()
+		if err == nil {
+			wg.Done()
+		}
 	})
 	server.Run()
 	t.Cleanup(server.Shutdown)
@@ -1627,20 +1684,18 @@ func TestTCPDirectionWithPreexistingConnection(t *testing.T) {
 	tr := setupTracer(t, cfg)
 
 	// open and close another client connection to force port binding delete
-	wg.Add(1)
 	c2, err := net.DialTimeout("tcp", server.address, 5*time.Second)
 	require.NoError(t, err)
+	wg.Add(1)
 	_, err = c2.Write([]byte("conn2\n"))
 	require.NoError(t, err)
 	c2.Close()
-
 	wg.Wait()
 
 	wg.Add(1)
 	// write some data so tracer determines direction of this connection
 	_, err = c.Write([]byte("original\n"))
 	require.NoError(t, err)
-
 	wg.Wait()
 
 	// the original connection should still be incoming for the server

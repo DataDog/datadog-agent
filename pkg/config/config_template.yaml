@@ -859,6 +859,15 @@ api_key:
     #
     # context_name: <CONTEXT_NAME>
 
+    ## @param tags - list of strings - optional
+    ## A list of tags to attach to every metric and service check of all devices discovered in the subnet.
+    ##
+    ## Learn more about tagging at https://docs.datadoghq.com/tagging
+    #
+    # tags:
+    #   - <KEY_1>:<VALUE_1>
+    #   - <KEY_2>:<VALUE_2>
+
     ## @param ad_identifier - string - optional - default: snmp
     ## A unique identifier to attach to devices from that subnetwork.
     ## When configuring the SNMP integration in snmp.d/auto_conf.yaml,
@@ -895,6 +904,31 @@ api_key:
     #
     # oid_batch_size: 5
 
+    ## @param interface_configs - map - optional
+    ## This option is used to override interface inbound/outbound speed.
+    ## Example:
+    ## interface_configs:
+    ##   "10.0.0.1":              # target device IP address
+    ##     - match_field: "name"  # (required) the field to match, can be `name` (interface name) or `index` (ifIndex)
+    ##       match_value: "eth0"  # (required) the value to match
+    ##       in_speed: 50         # (optional) inbound speed value in bits per sec, no value or 0 means no override
+    ##       out_speed: 25        # (optional) outbound speed value in bits per sec, no value or 0 means no override
+    #
+    # interface_config:
+    #   "10.0.0.1":
+    #     - match_field: name
+    #       match_value: eth0
+    #       in_speed: 50
+    #       out_speed: 25
+    #     - match_field: index
+    #       match_value: '10'
+    #       in_speed: 50
+    #       out_speed: 25
+    #   "10.0.0.2":
+    #     - match_field: name
+    #       match_value: eth3
+    #       in_speed: 50
+    #       out_speed: 25
 
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
@@ -1196,6 +1230,14 @@ api_key:
   ## See https://docs.datadoghq.com/tracing/troubleshooting/agent_rate_limits/#max-connection-limit
   #
   # connection_limit: 2000
+
+  ## @param features - list of strings - optional
+  ## @env DD_APM_FEATURES - comma separated list of strings - optional
+  ## Configure additional beta APM features.
+  ## The list of items available under apm_config.features is not guaranteed to persist across versions;
+  ## a feature may eventually be promoted to its own configuration option on the agent, or dropped entirely.
+  #
+  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache"]
 
   {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
@@ -2608,6 +2650,28 @@ api_key:
   ## See https://docs.microsoft.com/en-us/azure/aks/faq#can-i-use-admission-controller-webhooks-on-aks
   #
   # add_aks_selectors: false
+
+  ## @param auto_instrumentation - custom object - optional
+  ## Library injection parameters.
+  #
+  # auto_instrumentation:
+
+    ## @param init_resources - custom object - optional
+    ## CPU and Memory resources of the init containers.
+    #
+    # init_resources:
+
+      ## @param cpu - string - optional
+      ## @env DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_RESOURCES_CPU - string - optional
+      ## Configures the CPU request and limit for the init containers.
+      #
+      # cpu:
+
+      ## @param memory - string - optional
+      ## @env DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_RESOURCES_MEMORY - string - optional
+      ## Configures the memory request and limit for the init containers.
+      #
+      # memory:
 {{ end -}}
 {{- if .DockerTagging }}
 

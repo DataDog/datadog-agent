@@ -190,11 +190,12 @@ func protoDecodeFileEvent(fi *adproto.FileInfo) *model.FileEvent {
 			},
 			InUpperLayer: fi.InUpperLayer,
 		},
-		PathnameStr: fi.Path,
-		BasenameStr: fi.Basename,
-		Filesystem:  fi.Filesystem,
-		PkgName:     fi.PackageName,
-		PkgVersion:  fi.PackageVersion,
+		PathnameStr:   fi.Path,
+		BasenameStr:   fi.Basename,
+		Filesystem:    fi.Filesystem,
+		PkgName:       fi.PackageName,
+		PkgVersion:    fi.PackageVersion,
+		PkgSrcVersion: fi.PackageSrcversion,
 	}
 }
 
@@ -310,6 +311,7 @@ func protoDecodeProtoMatchedRule(r *adproto.MatchedRule) *model.MatchedRule {
 	rule := &model.MatchedRule{
 		RuleID:        r.RuleId,
 		RuleVersion:   r.RuleVersion,
+		RuleTags:      r.RuleTags,
 		PolicyName:    r.PolicyName,
 		PolicyVersion: r.PolicyVersion,
 	}

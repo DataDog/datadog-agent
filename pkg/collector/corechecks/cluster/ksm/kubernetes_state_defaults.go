@@ -100,7 +100,6 @@ func defaultLabelsMapper() map[string]string {
 		"replicaset":                          "kube_replica_set",
 		"statefulset":                         "kube_stateful_set",
 		"deployment":                          "kube_deployment",
-		"service":                             "kube_service",
 		"endpoint":                            "kube_endpoint",
 		"container":                           "kube_container_name",
 		"container_id":                        "container_id",

@@ -81,17 +81,23 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 	}
 
 	tagsResolver := tags.NewResolver(config)
-	sbomResolver, err := sbom.NewSBOMResolver(config, tagsResolver, statsdClient)
-	if err != nil {
-		return nil, err
+	var sbomResolver *sbom.Resolver
+	if config.SBOMResolverEnabled {
+		sbomResolver, err = sbom.NewSBOMResolver(config, tagsResolver, statsdClient)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	cgroupsResolver, err := cgroup.NewResolver(tagsResolver)
 	if err != nil {
 		return nil, err
 	}
-	_ = cgroupsResolver.RegisterListener(cgroup.CGroupDeleted, sbomResolver.OnCGroupDeletedEvent)
-	_ = cgroupsResolver.RegisterListener(cgroup.WorkloadSelectorResolved, sbomResolver.OnWorkloadSelectorResolvedEvent)
+
+	if config.SBOMResolverEnabled {
+		_ = cgroupsResolver.RegisterListener(cgroup.CGroupDeleted, sbomResolver.OnCGroupDeletedEvent)
+		_ = cgroupsResolver.RegisterListener(cgroup.WorkloadSelectorResolved, sbomResolver.OnWorkloadSelectorResolvedEvent)
+	}
 
 	mountResolver, err := mount.NewResolver(statsdClient, cgroupsResolver, mount.ResolverOpts{UseProcFS: true})
 	if err != nil {
@@ -142,7 +148,9 @@ func (r *Resolvers) Start(ctx context.Context) error {
 	}
 
 	r.CGroupResolver.Start(ctx)
-	r.SBOMResolver.Start(ctx)
+	if r.SBOMResolver != nil {
+		r.SBOMResolver.Start(ctx)
+	}
 	return r.NamespaceResolver.Start(ctx)
 }
 

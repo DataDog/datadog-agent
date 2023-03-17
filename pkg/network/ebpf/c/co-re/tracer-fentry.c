@@ -128,6 +128,48 @@ int BPF_PROG(tcp_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t size,
     return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, sk);
 }
 
+SEC("fexit/tcp_sendpage")
+int BPF_PROG(tcp_sendpage_exit, struct sock *sk, struct page *page, int offset, size_t size, int flags, int sent) {
+    if (sent < 0) {
+        log_debug("fexit/tcp_sendpage: err=%d\n", sent);
+        return 0;
+    }
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("fexit/tcp_sendpage: pid_tgid: %d, sent: %d, sock: %llx\n", pid_tgid, sent, sk);
+
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+        return 0;
+    }
+
+    handle_tcp_stats(&t, sk, 0);
+
+    __u32 packets_in = 0;
+    __u32 packets_out = 0;
+    get_tcp_segment_counts(sk, &packets_in, &packets_out);
+
+    return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, sk);
+}
+
+SEC("fexit/udp_sendpage")
+int BPF_PROG(udp_sendpage_exit, struct sock *sk, struct page *page, int offset, size_t size, int flags, int sent) {
+    if (sent < 0) {
+        log_debug("fexit/udp_sendpage: err=%d\n", sent);
+        return 0;
+    }
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("fexit/udp_sendpage: pid_tgid: %d, sent: %d, sock: %llx\n", pid_tgid, sent, sk);
+
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
+        return 0;
+    }
+
+    return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE, sk);
+}
+
 SEC("fexit/tcp_recvmsg")
 int BPF_PROG(tcp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, int nonblock, int flags, int *addr_len, int copied) {
     if (copied < 0) { // error
@@ -307,7 +349,7 @@ int BPF_PROG(tcp_retransmit_skb_exit, struct sock *sk, struct sk_buff *skb, int 
     u32 retrans_out_pre = args->retrans_out_pre;
     u32 retrans_out = BPF_CORE_READ(tcp_sk(sk), retrans_out);
     bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
-    
+
     if (retrans_out < 0) {
         return 0;
     }
@@ -545,33 +587,6 @@ int BPF_PROG(sockfd_lookup_light_exit, int fd, int *err, int *fput_needed, struc
     // These entries are cleaned up by tcp_close
     bpf_map_update_with_telemetry(pid_fd_by_sock, &sock, &pid_fd, BPF_ANY);
     bpf_map_update_with_telemetry(sock_by_pid_fd, &pid_fd, &sock, BPF_ANY);
-
-    return 0;
-}
-
-SEC("fexit/do_sendfile")
-int BPF_PROG(do_sendfile_exit, int out_fd, int in_fd, loff_t *ppos,
-             size_t count, loff_t max, ssize_t sent) {
-    if (sent <= 0) {
-        return 0;
-    }
-
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    pid_fd_t key = {
-        .pid = pid_tgid >> 32,
-        .fd = out_fd,
-    };
-    struct sock **sock = bpf_map_lookup_elem(&sock_by_pid_fd, &key);
-    if (sock == NULL) {
-        return 0;
-    }
-
-    conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, *sock, pid_tgid, CONN_TYPE_TCP)) {
-        return 0;
-    }
-
-    handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE, *sock);
 
     return 0;
 }

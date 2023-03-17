@@ -34,9 +34,8 @@ _Pragma( STRINGIFY(unroll(max_buffer_size)) )                                   
 
 SEC("socket/kafka_filter")
 int socket__kafka_filter(struct __sk_buff* skb) {
+    const u32 zero = 0;
     skb_info_t skb_info;
-    bpf_memset(&skb_info, 0, sizeof(skb_info));
-    u32 zero = 0;
     kafka_transaction_t *kafka = bpf_map_lookup_elem(&kafka_heap, &zero);
     if (kafka == NULL) {
         log_debug("socket__kafka_filter: kafka_transaction state is NULL\n");
@@ -44,9 +43,11 @@ int socket__kafka_filter(struct __sk_buff* skb) {
     }
     bpf_memset(kafka, 0, sizeof(kafka_transaction_t));
 
-    if (!read_conn_tuple_skb(skb, &skb_info, &kafka->base.tup)) {
+    if (!fetch_dispatching_arguments(&kafka->base.tup, &skb_info)) {
+        log_debug("socket__kafka_filter failed to fetch arguments for tail call\n");
         return 0;
     }
+
     if (!kafka_allow_packet(kafka, skb, &skb_info)) {
         return 0;
     }

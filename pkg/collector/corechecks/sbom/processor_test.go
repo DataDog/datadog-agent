@@ -15,10 +15,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/atomic"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	fakeworkloadmeta "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
@@ -81,7 +83,14 @@ func TestProcessEvents(t *testing.T) {
 				{
 					Type: model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
 					Id:   "datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
-					Tags: []string{
+					DdTags: []string{
+						"image_id:datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+						"image_name:datadog/agent",
+						"short_image:agent",
+						"image_tag:7-rc",
+						"image_tag:7.41.1-rc.1",
+					},
+					RepoTags: []string{
 						"7-rc",
 						"7.41.1-rc.1",
 					},
@@ -109,7 +118,14 @@ func TestProcessEvents(t *testing.T) {
 				{
 					Type: model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
 					Id:   "gcr.io/datadoghq/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
-					Tags: []string{
+					DdTags: []string{
+						"image_id:gcr.io/datadoghq/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+						"image_name:gcr.io/datadoghq/agent",
+						"short_image:agent",
+						"image_tag:7-rc",
+						"image_tag:7.41.1-rc.1",
+					},
+					RepoTags: []string{
 						"7-rc",
 						"7.41.1-rc.1",
 					},
@@ -137,7 +153,14 @@ func TestProcessEvents(t *testing.T) {
 				{
 					Type: model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
 					Id:   "public.ecr.aws/datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
-					Tags: []string{
+					DdTags: []string{
+						"image_id:public.ecr.aws/datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+						"image_name:public.ecr.aws/datadog/agent",
+						"short_image:agent",
+						"image_tag:7-rc",
+						"image_tag:7.41.1-rc.1",
+					},
+					RepoTags: []string{
 						"7-rc",
 						"7.41.1-rc.1",
 					},
@@ -214,7 +237,13 @@ func TestProcessEvents(t *testing.T) {
 				{
 					Type: model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
 					Id:   "public.ecr.aws/datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
-					Tags: []string{
+					DdTags: []string{
+						"image_id:public.ecr.aws/datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+						"image_name:public.ecr.aws/datadog/agent",
+						"short_image:agent",
+						"image_tag:7-rc",
+					},
+					RepoTags: []string{
 						"7-rc",
 					},
 					InUse:              false,
@@ -241,7 +270,13 @@ func TestProcessEvents(t *testing.T) {
 				{
 					Type: model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
 					Id:   "gcr.io/datadoghq/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
-					Tags: []string{
+					DdTags: []string{
+						"image_id:gcr.io/datadoghq/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+						"image_name:gcr.io/datadoghq/agent",
+						"short_image:agent",
+						"image_tag:7-rc",
+					},
+					RepoTags: []string{
 						"7-rc",
 					},
 					InUse:              false,
@@ -309,7 +344,13 @@ func TestProcessEvents(t *testing.T) {
 				{
 					Type: model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
 					Id:   "datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
-					Tags: []string{
+					DdTags: []string{
+						"image_id:datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+						"image_name:datadog/agent",
+						"short_image:agent",
+						"image_tag:7-rc",
+					},
+					RepoTags: []string{
 						"7-rc",
 					},
 					InUse:              false,
@@ -325,7 +366,13 @@ func TestProcessEvents(t *testing.T) {
 				{
 					Type: model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
 					Id:   "datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
-					Tags: []string{
+					DdTags: []string{
+						"image_id:datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+						"image_name:datadog/agent",
+						"short_image:agent",
+						"image_tag:7-rc",
+					},
+					RepoTags: []string{
 						"7-rc",
 					},
 					InUse:              true,
@@ -349,7 +396,7 @@ func TestProcessEvents(t *testing.T) {
 			fakeworkloadmeta := fakeworkloadmeta.NewStore()
 
 			sender := mocksender.NewMockSender("")
-			sender.On("SBOM", mock.Anything, mock.Anything).Return().Run(func(_ mock.Arguments) {
+			sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Run(func(_ mock.Arguments) {
 				SBOMsSent.Inc()
 			})
 
@@ -380,13 +427,13 @@ func TestProcessEvents(t *testing.T) {
 			}, 1*time.Second, 5*time.Millisecond)
 
 			for _, expectedSBOM := range test.expectedSBOMs {
-				sender.AssertSBOM(t, []model.SBOMPayload{
-					{
-						Version:  1,
-						Source:   &sourceAgent,
-						Entities: []*model.SBOMEntity{expectedSBOM},
-					},
+				encoded, err := proto.Marshal(&model.SBOMPayload{
+					Version:  1,
+					Source:   &sourceAgent,
+					Entities: []*model.SBOMEntity{expectedSBOM},
 				})
+				assert.Nil(t, err)
+				sender.AssertEventPlatformEvent(t, encoded, epforwarder.EventTypeContainerSBOM)
 			}
 		})
 	}

@@ -88,6 +88,11 @@
         "id": {
           "type": "string",
           "description": "Container ID"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation time of the container"
         }
       },
       "additionalProperties": false,

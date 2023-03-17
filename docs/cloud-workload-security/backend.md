@@ -104,6 +104,11 @@ CWS logs have the following JSON schema:
                 "id": {
                     "type": "string",
                     "description": "Container ID"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Creation time of the container"
                 }
             },
             "additionalProperties": false,
@@ -1376,6 +1381,11 @@ CWS logs have the following JSON schema:
         "id": {
             "type": "string",
             "description": "Container ID"
+        },
+        "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Creation time of the container"
         }
     },
     "additionalProperties": false,
@@ -1388,6 +1398,7 @@ CWS logs have the following JSON schema:
 | Field | Description |
 | ----- | ----------- |
 | `id` | Container ID |
+| `created_at` | Creation time of the container |
 
 
 ## `DDContext`
