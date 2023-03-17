@@ -131,6 +131,14 @@ func ArrayToMap(tagArray []string) map[string]string {
 	return tagMap
 }
 
+func MapToArray(tagsMap map[string]string) []string {
+	tagsArray := make([]string, 0, len(tagsMap))
+	for key, value := range tagsMap {
+		tagsArray = append(tagsArray, fmt.Sprintf("%s:%s", key, value))
+	}
+	return tagsArray
+}
+
 func MergeWithOverwrite(tags map[string]string, overwritingTags map[string]string) map[string]string {
 	merged := make(map[string]string)
 	for k, v := range tags {
@@ -144,29 +152,21 @@ func MergeWithOverwrite(tags map[string]string, overwritingTags map[string]strin
 
 // BuildTagsFromMap builds an array of tag based on map of tags
 func BuildTagsFromMap(tags map[string]string) []string {
-	tagsMap := make(map[string]string)
-	tagBlackList := []string{traceOriginMetadataKey, computeStatsKey}
-	for k, v := range tags {
-		tagsMap[k] = v
-	}
-	for _, blackListKey := range tagBlackList {
-		delete(tagsMap, blackListKey)
-	}
-	tagsArray := make([]string, 0, len(tagsMap))
-	for key, value := range tagsMap {
-		tagsArray = append(tagsArray, fmt.Sprintf("%s:%s", key, value))
-	}
-	return tagsArray
+	tagsMap := buildTags(tags, []string{traceOriginMetadataKey, computeStatsKey})
+	return MapToArray(tagsMap)
 }
 
 // BuildTracerTags builds a map of tag from an existing map of tag removing useless tags for traces
 func BuildTracerTags(tags map[string]string) map[string]string {
+	return buildTags(tags, []string{resourceKey})
+}
+
+func buildTags(tags map[string]string, tagsToSkip []string) map[string]string {
 	tagsMap := make(map[string]string)
-	tagBlackList := []string{resourceKey}
 	for k, v := range tags {
 		tagsMap[k] = v
 	}
-	for _, blackListKey := range tagBlackList {
+	for _, blackListKey := range tagsToSkip {
 		delete(tagsMap, blackListKey)
 	}
 	return tagsMap
