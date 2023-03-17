@@ -3,6 +3,7 @@ package testutil
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"log"
 	"net"
 	"time"
@@ -48,8 +49,8 @@ type MockNetflowPacket struct {
 	Records []MockNetflowPayload
 }
 
-// Marshall NetflowData into a buffer
-func BuildNFlowPayload(data MockNetflowPacket) bytes.Buffer {
+// BuildNetFlow5Payload builds netflow 5 payload
+func BuildNetFlow5Payload(data MockNetflowPacket) bytes.Buffer {
 	buffer := new(bytes.Buffer)
 	err := binary.Write(buffer, binary.BigEndian, &data.Header)
 	if err != nil {
@@ -71,20 +72,14 @@ func GenerateNetflow5Packet(baseTime time.Time, uptime time.Duration, records in
 	}
 }
 
-// Generate and initialize netflow header
+// CreateNFlowHeader netflow header
 func CreateNFlowHeader(recordCount int, baseTime time.Time, uptime time.Duration) MockNetflowHeader {
 
-	//t := time.Now().UnixNano()
 	nanoSeconds := baseTime.UnixNano()
 	sec := nanoSeconds / int64(time.Second)
 	nsec := nanoSeconds - sec*int64(time.Second)
-	//startTime := time.Now().UnixNano()
-	//sysUptime := uint32((t-startTime.UnixNano())/int64(time.Millisecond)) + 1000
-	flowSequence := uint32(recordCount) // TODO: use incremental flowSequence for multiple packets
 
-	// log.Infof("Time: %d; Seconds: %d; Nanoseconds: %d\n", t, sec, nsec)
-	// log.Infof("StartTime: %d; sysUptime: %d", StartTime, sysUptime)
-	// log.Infof("FlowSequence %d", flowSequence)
+	flowSequence := uint32(recordCount) // TODO: use incremental flowSequence for multiple packets
 
 	h := new(MockNetflowHeader)
 	h.Version = 5
@@ -109,8 +104,8 @@ func CreateNFlowPayload(recordCount int, baseTime time.Time, uptime time.Duratio
 
 func CreateCustomRandomFlow(index int, uptime time.Duration) MockNetflowPayload {
 	payload := new(MockNetflowPayload)
-	payload.SrcIP = IPtoUint32("1.1.1.1")
-	payload.DstIP = IPtoUint32("1.1.1.2")
+	payload.SrcIP = IPtoUint32("10.0.0.1")
+	payload.DstIP = IPtoUint32(fmt.Sprintf("20.0.0.%d", index))
 	payload.SrcPort = 50000
 	payload.DstPort = 8080
 

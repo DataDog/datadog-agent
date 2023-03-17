@@ -57,18 +57,18 @@ network_devices:
 
 	now := time.Now()
 	uptime := 100 * time.Second
-	mockNetflowPayload := testutil.GenerateNetflow5Packet(now, uptime, 1)
-	payload := testutil.BuildNFlowPayload(mockNetflowPayload)
+	mockNetflowPayload := testutil.GenerateNetflow5Packet(now, uptime, 6)
+	payload := testutil.BuildNetFlow5Payload(mockNetflowPayload)
 	bytes := payload.Bytes()
 	err = goflowlib.SendUDPPacket(port, bytes)
 	require.NoError(t, err, "error sending udp packet")
 
 	// Get Event Platform Events
-	netflowEvents, err := demux.WaitEventPlatformEvents(epforwarder.EventTypeNetworkDevicesNetFlow, 1, 15*time.Second)
+	netflowEvents, err := demux.WaitEventPlatformEvents(epforwarder.EventTypeNetworkDevicesNetFlow, 6, 15*time.Second)
 	require.NoError(t, err, "error waiting event platform events")
-	assert.Equal(t, 1, len(netflowEvents))
+	assert.Equal(t, 6, len(netflowEvents))
 
-	actualFlow, err := findEventBySourceDest(netflowEvents, "1.1.1.1", "1.1.1.2")
+	actualFlow, err := findEventBySourceDest(netflowEvents, "10.0.0.1", "20.0.0.1")
 	assert.NoError(t, err)
 
 	assert.Equal(t, "netflow5", actualFlow.FlowType)
@@ -81,11 +81,11 @@ network_devices:
 	assert.Equal(t, "IPv4", actualFlow.EtherType)
 	assert.Equal(t, "TCP", actualFlow.IPProtocol)
 	assert.Equal(t, "127.0.0.1", actualFlow.Device.IP)
-	assert.Equal(t, "1.1.1.1", actualFlow.Source.IP)
+	assert.Equal(t, "10.0.0.1", actualFlow.Source.IP)
 	assert.Equal(t, "50000", actualFlow.Source.Port)
 	assert.Equal(t, "00:00:00:00:00:00", actualFlow.Source.Mac)
 	assert.Equal(t, "0.0.0.0/0", actualFlow.Source.Mask)
-	assert.Equal(t, "1.1.1.2", actualFlow.Destination.IP)
+	assert.Equal(t, "20.0.0.1", actualFlow.Destination.IP)
 	assert.Equal(t, "8080", actualFlow.Destination.Port)
 	assert.Equal(t, "00:00:00:00:00:00", actualFlow.Destination.Mac)
 	assert.Equal(t, "0.0.0.0/0", actualFlow.Destination.Mask)
