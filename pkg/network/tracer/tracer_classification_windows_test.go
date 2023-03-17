@@ -35,6 +35,7 @@ func testProtocolClassificationInner(t *testing.T, params protocolClassification
 	if params.preTracerSetup != nil {
 		params.preTracerSetup(t, params.context)
 	}
+	cfg := testConfig()
 	tr := setupTracer(t, cfg)
 	params.postTracerSetup(t, params.context)
 	params.validation(t, params.context, tr)
