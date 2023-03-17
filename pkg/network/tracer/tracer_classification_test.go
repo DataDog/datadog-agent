@@ -407,8 +407,6 @@ func testKafkaProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				records := fetches.Records()
 				require.Len(t, records, 1)
 				require.Equal(t, ctx.extras["topic_name"].(string), records[0].Topic)
-				// unclear why it is needs this extra time but it fails without it
-				time.Sleep(1 * time.Millisecond)
 			},
 			validation: validateProtocolConnection(expectedProtocol),
 			teardown:   kafkaTeardown,
