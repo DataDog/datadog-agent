@@ -157,17 +157,6 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
         } else {
             t->metadata |= CONN_V6;
         }
-
-        // Check if we can map IPv6 to IPv4
-        if (is_ipv4_mapped_ipv6(t->saddr_h, t->saddr_l, t->daddr_h, t->daddr_l)) {
-            t->metadata |= CONN_V4;
-            t->saddr_h = 0;
-            t->daddr_h = 0;
-            t->saddr_l = (__u32)(t->saddr_l >> 32);
-            t->daddr_l = (__u32)(t->daddr_l >> 32);
-        } else {
-            t->metadata |= CONN_V6;
-        }
     } else {
         err = 1;
     }
