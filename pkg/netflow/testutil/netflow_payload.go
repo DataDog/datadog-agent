@@ -70,7 +70,8 @@ func BuildNetFlow5Payload(data MockNetflowPacket) bytes.Buffer {
 	return *buffer
 }
 
-func GenerateNetflow5Packet(baseTime time.Time, uptime time.Duration, records int) MockNetflowPacket {
+func GenerateNetflow5Packet(baseTime time.Time, records int) MockNetflowPacket {
+	uptime := 100 * time.Second
 	return MockNetflowPacket{
 		Header:  CreateNFlowHeader(records, baseTime, uptime),
 		Records: CreateNFlowPayload(records, baseTime, uptime),

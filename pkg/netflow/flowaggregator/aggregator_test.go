@@ -236,8 +236,7 @@ func TestAggregator_withMockPayload(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond) // wait to make sure goflow listener is started before sending
 	now := time.Now()
-	uptime := 100 * time.Second
-	mockNetflowPayload := testutil.GenerateNetflow5Packet(now, uptime, 6)
+	mockNetflowPayload := testutil.GenerateNetflow5Packet(now, 6)
 	payload := testutil.BuildNetFlow5Payload(mockNetflowPayload)
 	err = testutil.SendUDPPacket(port, payload.Bytes())
 	require.NoError(t, err, "error sending udp packet")
