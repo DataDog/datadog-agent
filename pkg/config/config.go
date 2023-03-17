@@ -1075,19 +1075,13 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
 
 	// Container lifecycle configuration
-	config.BindEnvAndSetDefault("container_lifecycle.enabled", false)
-	config.BindEnv("container_lifecycle.dd_url")
-	config.BindEnv("container_lifecycle.additional_endpoints")
+	bindEnvAndSetLogsConfigKeys(config, "container_lifecycle.")
 
 	// Container image configuration
-	config.BindEnvAndSetDefault("container_image.enabled", false)
-	config.BindEnv("container_image.dd_url")
-	config.BindEnv("container_image.additional_endpoints")
+	bindEnvAndSetLogsConfigKeys(config, "container_image.")
 
 	// SBOM configuration
-	config.BindEnvAndSetDefault("sbom.enabled", false)
-	config.BindEnv("sbom.dd_url")
-	config.BindEnv("sbom.additional_endpoints")
+	bindEnvAndSetLogsConfigKeys(config, "sbom.")
 
 	// Orchestrator Explorer - process agent
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.

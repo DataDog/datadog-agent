@@ -25,7 +25,7 @@ func (l *Log) name() string {
 	return l.Service
 }
 
-func (l *Log) tags() []string {
+func (l *Log) GetTags() []string {
 	return l.Tags
 }
 

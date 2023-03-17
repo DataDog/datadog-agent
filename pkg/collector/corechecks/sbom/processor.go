@@ -11,15 +11,17 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/DataDog/agent-payload/v5/sbom"
 	model "github.com/DataDog/agent-payload/v5/sbom"
+
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var /* const */ (
@@ -37,14 +39,18 @@ type processor struct {
 func newProcessor(workloadmetaStore workloadmeta.Store, sender aggregator.Sender, maxNbItem int, maxRetentionTime time.Duration) *processor {
 	return &processor{
 		queue: queue.NewQueue(maxNbItem, maxRetentionTime, func(entities []*model.SBOMEntity) {
-			sender.SBOM([]sbom.SBOMPayload{
-				{
-					Version:  1,
-					Source:   &sourceAgent,
-					Entities: entities,
-					DdEnv:    &envVarEnv,
-				},
+			encoded, err := proto.Marshal(&model.SBOMPayload{
+				Version:  1,
+				Source:   &sourceAgent,
+				Entities: entities,
+        DdEnv:    &envVarEnv,
 			})
+			if err != nil {
+				log.Errorf("Unable to encode message: %+v", err)
+				return
+			}
+
+			sender.EventPlatformEvent(encoded, epforwarder.EventTypeContainerSBOM)
 		}),
 		workloadmetaStore: workloadmetaStore,
 		imageRepoDigests:  make(map[string]string),
@@ -210,7 +216,7 @@ func (p *processor) processSBOM(img *workloadmeta.ContainerImageMetadata) {
 			RepoTags:           repoTags,
 			InUse:              inUse,
 			GenerationDuration: convertDuration(img.SBOM.GenerationDuration),
-			Sbom: &sbom.SBOMEntity_Cyclonedx{
+			Sbom: &model.SBOMEntity_Cyclonedx{
 				Cyclonedx: convertBOM(img.SBOM.CycloneDXBOM),
 			},
 		}
