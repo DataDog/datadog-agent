@@ -292,7 +292,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.compression", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.syscall_monitor.period", 60)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.max_dump_count_per_workload", 25)
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.tag_rules.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.tag_rules.enabled", true)
 
 	// SBOM
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.enabled", false)
