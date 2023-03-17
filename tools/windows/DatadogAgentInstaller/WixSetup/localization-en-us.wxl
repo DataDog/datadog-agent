@@ -48,7 +48,7 @@
 	<String Id ="DDAgentUserDialogDescription" Overridable="yes" Localizable="yes">{\WixUI_Font_Normal_White}Enter the agent user account</String>
 	<String Id ="DDAgentUserDialogTitle"  Overridable="yes" Localizable="yes">{\WixUI_Font_Title_White}Datadog Agent User Account</String>
 	<String Id ="DDAgentUserDialogUserNameLabel" Overridable="yes" Localizable="yes">Please enter the username (leave blank to use ddagentuser):</String>
-	<String Id ="DDAgentUserDialogPasswordLabel" Overridable="yes" Localizable="yes">Please enter the password (leave blank to re-use existing password if user exists or use random password if not):</String>
+	<String Id ="DDAgentUserDialogPasswordLabel" Overridable="yes" Localizable="yes">Please enter the password (leave blank to let the installer decide):</String>
 
 	<!-- these strings for the FatalError dialog -->
 	<String Id ="FatalErrorDialog_ViewLog" Overridable="yes" Localizable="yes">View Log</String>
