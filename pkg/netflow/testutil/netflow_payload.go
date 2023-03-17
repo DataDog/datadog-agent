@@ -1,4 +1,4 @@
-package netflow
+package testutil
 
 import (
 	"bytes"
@@ -64,21 +64,22 @@ func BuildNFlowPayload(data MockNetflowPacket) bytes.Buffer {
 	return *buffer
 }
 
-func GenerateNetflow5Packet(startTime time.Time, records int) MockNetflowPacket {
+func GenerateNetflow5Packet(baseTime time.Time, uptime time.Duration, records int) MockNetflowPacket {
 	return MockNetflowPacket{
-		Header:  CreateNFlowHeader(records, startTime),
-		Records: CreateNFlowPayload(records),
+		Header:  CreateNFlowHeader(records, baseTime, uptime),
+		Records: CreateNFlowPayload(records, baseTime, uptime),
 	}
 }
 
 // Generate and initialize netflow header
-func CreateNFlowHeader(recordCount int, startTime time.Time) MockNetflowHeader {
+func CreateNFlowHeader(recordCount int, baseTime time.Time, uptime time.Duration) MockNetflowHeader {
 
-	t := time.Now().UnixNano()
-	sec := t / int64(time.Second)
-	nsec := t - sec*int64(time.Second)
+	//t := time.Now().UnixNano()
+	nanoSeconds := baseTime.UnixNano()
+	sec := nanoSeconds / int64(time.Second)
+	nsec := nanoSeconds - sec*int64(time.Second)
 	//startTime := time.Now().UnixNano()
-	sysUptime := uint32((t-startTime.UnixNano())/int64(time.Millisecond)) + 1000
+	//sysUptime := uint32((t-startTime.UnixNano())/int64(time.Millisecond)) + 1000
 	flowSequence := uint32(recordCount) // TODO: use incremental flowSequence for multiple packets
 
 	// log.Infof("Time: %d; Seconds: %d; Nanoseconds: %d\n", t, sec, nsec)
@@ -88,7 +89,7 @@ func CreateNFlowHeader(recordCount int, startTime time.Time) MockNetflowHeader {
 	h := new(MockNetflowHeader)
 	h.Version = 5
 	h.FlowCount = uint16(recordCount)
-	h.SysUptime = sysUptime
+	h.SysUptime = uint32(uptime.Milliseconds())
 	h.UnixSec = uint32(sec)
 	h.UnixMsec = uint32(nsec)
 	h.FlowSequence = flowSequence
@@ -98,63 +99,30 @@ func CreateNFlowHeader(recordCount int, startTime time.Time) MockNetflowHeader {
 	return *h
 }
 
-func CreateNFlowPayload(recordCount int) []MockNetflowPayload {
+func CreateNFlowPayload(recordCount int, baseTime time.Time, uptime time.Duration) []MockNetflowPayload {
 	payload := make([]MockNetflowPayload, recordCount)
 	for i := 0; i < recordCount; i++ {
-		payload[i] = CreateCustomRandomFlow(i)
+		payload[i] = CreateCustomRandomFlow(i, uptime)
 	}
 	return payload
 }
 
-func CreateCustomRandomFlow(index int) MockNetflowPayload {
+func CreateCustomRandomFlow(index int, uptime time.Duration) MockNetflowPayload {
 	payload := new(MockNetflowPayload)
 	payload.SrcIP = IPtoUint32("1.1.1.1")
 	payload.DstIP = IPtoUint32("1.1.1.2")
-	payload.SrcPort = 50000 + uint16(index)
-	payload.DstPort = 80
+	payload.SrcPort = 50000
+	payload.DstPort = 8080
 
-	FillCommonFields(payload, 6, 32)
-	return *payload
-}
+	payload.SysUptimeStart = uint32(uptime.Milliseconds())
+	payload.SysUptimeEnd = uint32(uptime.Milliseconds())
 
-// patch up the common fields of the packets
-func FillCommonFields(
-	payload *MockNetflowPayload,
-	ipProtocol int,
-	srcPrefixMask int) MockNetflowPayload {
-
-	// Fill template with values not filled by caller
-	// payload.SrcIP = IPtoUint32("10.154.20.12")
-	// payload.DstIP = IPtoUint32("77.12.190.94")
-	// payload.NextHopIP = IPtoUint32("150.20.145.1")
-	// payload.SrcPort = uint16(9010)
-	// payload.DstPort = uint16(MYSQL_PORT)
-	// payload.SnmpInIndex = genRandUint16(UINT16_MAX)
-	// payload.SnmpOutIndex = genRandUint16(UINT16_MAX)
-	payload.NumPackets = 1
-	payload.NumOctets = 10
-	// payload.SysUptimeStart = rand.Uint32()
-	// payload.SysUptimeEnd = rand.Uint32()
-	payload.Padding1 = 0
-	payload.IpProtocol = uint8(ipProtocol)
-	payload.IpTos = 0
-	payload.SrcAsNumber = 1
-	payload.DstAsNumber = 2
-
-	payload.SrcPrefixMask = uint8(srcPrefixMask)
-	payload.DstPrefixMask = uint8(32)
-	payload.Padding2 = 0
-
-	payload.SnmpInIndex = 10
-	payload.SnmpOutIndex = 20
-
-	// TODO: Add SysUptimeEnd and SysUptimeStart
-	//uptime := int(sysUptime)
-	//payload.SysUptimeEnd = uint32(uptime - randomNum(10, 500))
-	//payload.SysUptimeStart = payload.SysUptimeEnd - uint32(randomNum(10, 500))
-
-	// log.Infof("S&D : %x %x %d, %d", payload.SrcIP, payload.DstIP, payload.DstPort, payload.SnmpInIndex)
-	// log.Infof("Time: %d %d %d", sysUptime, payload.SysUptimeStart, payload.SysUptimeEnd)
+	payload.NumPackets = 10
+	payload.NumOctets = 194
+	payload.IpProtocol = 6
+	payload.SnmpInIndex = 1
+	payload.SnmpOutIndex = 7
+	payload.TcpFlags = 22
 
 	return *payload
 }
