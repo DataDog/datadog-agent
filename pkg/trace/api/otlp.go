@@ -215,6 +215,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 		Stats: info.NewStats(),
 	}
 	tracesByID := make(map[uint64]pb.Trace)
+	tidByID := make(map[uint64]string)
 	priorityByID := make(map[uint64]sampler.SamplingPriority)
 	var spancount int64
 	for i := 0; i < rspans.ScopeSpans().Len(); i++ {
@@ -226,6 +227,9 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 			traceID := traceIDToUint64(span.TraceID())
 			if tracesByID[traceID] == nil {
 				tracesByID[traceID] = pb.Trace{}
+				if tid, ok := traceIDToHigherOrderBytes(span.TraceID()); ok {
+					tidByID[traceID] = tid
+				}
 			}
 			ddspan := o.convertSpan(rattr, lib, span)
 			if !srcok {
@@ -282,7 +286,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	}
 	p.TracerPayload = &pb.TracerPayload{
 		Hostname:        hostname,
-		Chunks:          o.createChunks(tracesByID, priorityByID),
+		Chunks:          o.createChunks(tracesByID, tidByID, priorityByID),
 		Env:             traceutil.NormalizeTag(env),
 		ContainerID:     containerID,
 		LanguageName:    tagstats.Lang,
@@ -314,7 +318,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 // createChunks creates a set of pb.TraceChunk's based on two maps:
 // - a map from trace ID to the spans sharing that trace ID
 // - a map of user-set sampling priorities by trace ID, if set
-func (o *OTLPReceiver) createChunks(tracesByID map[uint64]pb.Trace, prioritiesByID map[uint64]sampler.SamplingPriority) []*pb.TraceChunk {
+func (o *OTLPReceiver) createChunks(tracesByID map[uint64]pb.Trace, tidByID map[uint64]string, prioritiesByID map[uint64]sampler.SamplingPriority) []*pb.TraceChunk {
 	traceChunks := make([]*pb.TraceChunk, 0, len(tracesByID))
 	for k, spans := range tracesByID {
 		if len(spans) == 0 {
@@ -324,6 +328,9 @@ func (o *OTLPReceiver) createChunks(tracesByID map[uint64]pb.Trace, prioritiesBy
 		chunk := &pb.TraceChunk{
 			Tags:  map[string]string{"_dd.otlp_sr": rate},
 			Spans: spans,
+		}
+		if tid, ok := tidByID[k]; ok {
+			traceutil.SetMeta(spans[0], "_dd.p.tid", tid)
 		}
 		if p, ok := prioritiesByID[k]; ok {
 			// a manual decision has been made by the user
@@ -673,6 +680,12 @@ func spanKind2Type(kind ptrace.SpanKind, span *pb.Span) string {
 
 func traceIDToUint64(b [16]byte) uint64 {
 	return binary.BigEndian.Uint64(b[len(b)-8:])
+}
+
+func traceIDToHigherOrderBytes(b [16]byte) (string, bool) {
+	const ZERO16 = "0000000000000000"
+	hs := hex.EncodeToString(b[0 : len(b)-8])
+	return hs, hs != ZERO16
 }
 
 func spanIDToUint64(b [8]byte) uint64 {

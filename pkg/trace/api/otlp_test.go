@@ -205,10 +205,14 @@ func TestCreateChunks(t *testing.T) {
 		traceID2: {{TraceID: traceID2, SpanID: 1}, {TraceID: traceID2, SpanID: 2}},
 		traceID3: {{TraceID: traceID3, SpanID: 1}, {TraceID: traceID3, SpanID: 2}},
 	}
+	tids := map[uint64]string{
+		traceID1: "abcdef1234567890",
+		traceID3: "0987654321abcdef",
+	}
 	priorities := map[uint64]sampler.SamplingPriority{
 		traceID3: sampler.PriorityUserKeep,
 	}
-	chunks := o.createChunks(traces, priorities)
+	chunks := o.createChunks(traces, tids, priorities)
 	var found int
 	for _, c := range chunks {
 		id := c.Spans[0].TraceID
@@ -218,14 +222,22 @@ func TestCreateChunks(t *testing.T) {
 		case traceID1:
 			found += 1
 			require.Equal(t, "-9", c.Spans[0].Meta["_dd.p.dm"])
+			tid, exists := c.Spans[0].Meta["_dd.p.tid"]
+			require.True(t, exists)
+			require.Equal(t, "abcdef1234567890", tid)
 			require.Equal(t, int32(1), c.Priority)
 		case traceID2:
 			found += 2
 			require.Equal(t, "-9", c.Spans[0].Meta["_dd.p.dm"])
+			_, exists := c.Spans[0].Meta["_dd.p.tid"]
+			require.False(t, exists)
 			require.Equal(t, int32(0), c.Priority)
 		case traceID3:
 			found += 3
 			require.Equal(t, "-4", c.Spans[0].Meta["_dd.p.dm"])
+			tid, exists := c.Spans[0].Meta["_dd.p.tid"]
+			require.True(t, exists)
+			require.Equal(t, "0987654321abcdef", tid)
 			require.Equal(t, int32(2), c.Priority)
 		}
 	}
