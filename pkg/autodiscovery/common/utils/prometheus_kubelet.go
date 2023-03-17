@@ -30,34 +30,28 @@ func ConfigsForPod(pc *types.PrometheusCheck, pod *kubelet.Pod) []integration.Co
 	instances, found := buildInstances(pc, pod.Metadata.Annotations, namespacedName)
 	if found {
 		// If `prometheus.io/port` annotation has been provided, let’s keep only the container that declares this port.
-		var portFromAnnotation int
-		var containerPorts map[string]map[int]struct{}
+		var containerUsingThePort string
 		if portFromAnnotationString, portFromAnnotationFound := pod.Metadata.Annotations[types.PrometheusPortAnnotation]; portFromAnnotationFound {
-			var err error
-			if portFromAnnotation, err = strconv.Atoi(portFromAnnotationString); err != nil {
-				portFromAnnotationFound = false
-				portFromAnnotation = 0
-			} else {
-				containerPorts = make(map[string]map[int]struct{})
+			if portFromAnnotation, err := strconv.Atoi(portFromAnnotationString); err == nil {
+			containerFound:
 				for _, containerSpec := range pod.Spec.Containers {
-					containerPorts[containerSpec.Name] = make(map[int]struct{})
 					for _, port := range containerSpec.Ports {
-						containerPorts[containerSpec.Name][port.ContainerPort] = struct{}{}
+						if port.ContainerPort == portFromAnnotation {
+							containerUsingThePort = containerSpec.Name
+							break containerFound
+						}
 					}
 				}
 			}
 		}
+
 		for _, containerStatus := range pod.Status.GetAllContainers() {
 			if !pc.AD.MatchContainer(containerStatus.Name) {
 				log.Debugf("Container '%s' doesn't match the AD configuration 'kubernetes_container_names', ignoring it", containerStatus.Name)
 				continue
 			}
-			if portFromAnnotation != 0 {
-				if ctr, found := containerPorts[containerStatus.Name]; found {
-					if _, found := ctr[portFromAnnotation]; !found {
-						continue
-					}
-				}
+			if containerUsingThePort != "" && containerStatus.Name != containerUsingThePort {
+				continue
 			}
 			configs = append(configs, integration.Config{
 				Name:          openmetricsCheckName,
