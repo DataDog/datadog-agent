@@ -37,6 +37,10 @@ component temporarily wraps pkg/config.
 
 
 
+### [comp/dogstatsd/replay](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/dogstatsd/replay)
+
+Package server implements a component to run the dogstatsd capture/replay
+
 ### [comp/dogstatsd/server](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/dogstatsd/server)
 
 Package server implements a component to run the dogstatsd server
