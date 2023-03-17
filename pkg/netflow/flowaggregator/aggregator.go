@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,7 +33,10 @@ type FlowAggregator struct {
 	rollupTrackerRefreshInterval time.Duration
 	flowAcc                      *flowAccumulator
 	sender                       aggregator.Sender
+	epForwarder                  epforwarder.EventPlatformForwarder
 	stopChan                     chan struct{}
+	flushLoopDone                chan struct{}
+	runDone                      chan struct{}
 	receivedFlowCount            *atomic.Uint64
 	flushedFlowCount             *atomic.Uint64
 	hostname                     string
@@ -40,7 +44,7 @@ type FlowAggregator struct {
 }
 
 // NewFlowAggregator returns a new FlowAggregator
-func NewFlowAggregator(sender aggregator.Sender, config *config.NetflowConfig, hostname string) *FlowAggregator {
+func NewFlowAggregator(sender aggregator.Sender, epForwarder epforwarder.EventPlatformForwarder, config *config.NetflowConfig, hostname string) *FlowAggregator {
 	flushInterval := time.Duration(config.AggregatorFlushInterval) * time.Second
 	flowContextTTL := time.Duration(config.AggregatorFlowContextTTL) * time.Second
 	rollupTrackerRefreshInterval := time.Duration(config.AggregatorRollupTrackerRefreshInterval) * time.Second
@@ -50,7 +54,10 @@ func NewFlowAggregator(sender aggregator.Sender, config *config.NetflowConfig, h
 		flushFlowsToSendInterval:     flushFlowsToSendInterval,
 		rollupTrackerRefreshInterval: rollupTrackerRefreshInterval,
 		sender:                       sender,
+		epForwarder:                  epForwarder,
 		stopChan:                     make(chan struct{}),
+		runDone:                      make(chan struct{}),
+		flushLoopDone:                make(chan struct{}),
 		receivedFlowCount:            atomic.NewUint64(0),
 		flushedFlowCount:             atomic.NewUint64(0),
 		hostname:                     hostname,
@@ -68,6 +75,8 @@ func (agg *FlowAggregator) Start() {
 // Stop will stop running FlowAggregator
 func (agg *FlowAggregator) Stop() {
 	close(agg.stopChan)
+	<-agg.flushLoopDone
+	<-agg.runDone
 }
 
 // GetFlowInChan returns flow input chan
@@ -80,6 +89,7 @@ func (agg *FlowAggregator) run() {
 		select {
 		case <-agg.stopChan:
 			log.Info("Stopping aggregator")
+			agg.runDone <- struct{}{}
 			return
 		case flow := <-agg.flowIn:
 			agg.receivedFlowCount.Inc()
@@ -98,7 +108,13 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
 		}
 
 		log.Tracef("flushed flow: %s", string(payloadBytes))
-		agg.sender.EventPlatformEvent(payloadBytes, epforwarder.EventTypeNetworkDevicesNetFlow)
+
+		m := &message.Message{Content: payloadBytes}
+		err = agg.epForwarder.SendEventPlatformEventBlocking(m, epforwarder.EventTypeNetworkDevicesNetFlow)
+		if err != nil {
+			log.Errorf("Error sending to event platform forwarder: %s", err)
+			continue
+		}
 	}
 }
 
@@ -112,11 +128,13 @@ func (agg *FlowAggregator) flushLoop() {
 	}
 
 	rollupTrackersRefresh := time.NewTicker(agg.rollupTrackerRefreshInterval).C
+	// TODO: move rollup tracker refresh to a separate loop (separate PR) to avoid rollup tracker and flush flows impacting each other
 
 	for {
 		select {
 		// stop sequence
 		case <-agg.stopChan:
+			agg.flushLoopDone <- struct{}{}
 			return
 		// automatic flush sequence
 		case <-flushFlowsToSendTicker:

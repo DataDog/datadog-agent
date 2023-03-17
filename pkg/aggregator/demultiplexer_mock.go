@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -39,6 +40,11 @@ func (a *TestAgentDemultiplexer) AggregateSample(sample metrics.MetricSample) {
 	a.Lock()
 	a.aggregatedSamples = append(a.aggregatedSamples, sample)
 	a.Unlock()
+}
+
+// GetEventPlatformForwarder returns a event platform forwarder
+func (a *TestAgentDemultiplexer) GetEventPlatformForwarder() (epforwarder.EventPlatformForwarder, error) {
+	return a.aggregator.GetEventPlatformForwarder()
 }
 
 // GetEventsAndServiceChecksChannels returneds underlying events and service checks channels.
