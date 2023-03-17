@@ -36,6 +36,8 @@ build do
     copy "#{ENV['SYSTEM_PROBE_BIN']}/runtime-security-offset-guesser.o", "#{install_dir}/embedded/share/system-probe/ebpf/"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/oom-kill-co-re.o", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/oom-kill.o"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/tcp-queue-length-co-re.o", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/tcp-queue-length.o"
+    copy "#{ENV['SYSTEM_PROBE_BIN']}/http-co-re.o", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/http.o"
+    copy "#{ENV['SYSTEM_PROBE_BIN']}/http-debug-co-re.o", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/http-debug.o"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/tracer.c", "#{install_dir}/embedded/share/system-probe/ebpf/runtime/"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/http.c", "#{install_dir}/embedded/share/system-probe/ebpf/runtime/"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/runtime-security.c", "#{install_dir}/embedded/share/system-probe/ebpf/runtime/"
