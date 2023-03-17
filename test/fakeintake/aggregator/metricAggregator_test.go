@@ -34,7 +34,7 @@ func TestNewMetricPayloads(t *testing.T) {
 		assert.Equal(t, "datadog.dogstatsd.client.aggregated_context_by_type", metrics[0].name())
 		expectedTags := []string{"client:go", "client_version:5.1.1", "client_transport:udp", "metrics_type:distribution"}
 		sort.Strings(expectedTags)
-		gotTags := metrics[0].tags()
+		gotTags := metrics[0].GetTags()
 		sort.Strings(gotTags)
 		assert.Equal(t, expectedTags, gotTags)
 	})

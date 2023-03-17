@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
-type checkRun struct {
+type CheckRun struct {
 	Check     string   `json:"check"`
 	HostName  string   `json:"host_name"`
 	Timestamp int      `json:"timestamp"`
@@ -20,26 +20,26 @@ type checkRun struct {
 	Tags      []string `json:"tags"`
 }
 
-func (cr *checkRun) name() string {
+func (cr *CheckRun) name() string {
 	return cr.Check
 }
 
-func (cr *checkRun) tags() []string {
+func (cr *CheckRun) GetTags() []string {
 	return cr.Tags
 }
 
-func parseCheckRunPayload(payload api.Payload) (checks []*checkRun, err error) {
+func parseCheckRunPayload(payload api.Payload) (checks []*CheckRun, err error) {
 	enflated, err := enflate(payload.Data, payload.Encoding)
 	if err != nil {
 		return nil, err
 	}
-	checks = []*checkRun{}
+	checks = []*CheckRun{}
 	err = json.Unmarshal(enflated, &checks)
 	return checks, err
 }
 
 type CheckRunAggregator struct {
-	Aggregator[*checkRun]
+	Aggregator[*CheckRun]
 }
 
 func NewCheckRunAggregator() CheckRunAggregator {

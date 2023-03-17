@@ -31,7 +31,7 @@ func TestLogAggregator(t *testing.T) {
 		assert.Equal(t, "callme", logs[0].name())
 		expectedTags := []string{"singer:adele"}
 		sort.Strings(expectedTags)
-		gotTags := logs[0].tags()
+		gotTags := logs[0].GetTags()
 		sort.Strings(gotTags)
 		assert.Equal(t, expectedTags, gotTags)
 	})
