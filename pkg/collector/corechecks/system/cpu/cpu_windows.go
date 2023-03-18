@@ -8,7 +8,6 @@
 // copyright WAKAYAMA Shirou, and the gopsutil contributors
 
 //go:build windows
-// +build windows
 
 package cpu
 

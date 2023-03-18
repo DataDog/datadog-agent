@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker && linux
-// +build docker,linux
 
 // As we compare some paths, running the tests on Linux only
 
