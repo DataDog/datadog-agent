@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
-	"github.com/gogo/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 )
 
 type processor struct {
@@ -154,9 +154,9 @@ func (p *processor) flushPods() {
 	}
 }
 
-func (p *processor) containerLifecycleEvent(msgs []contlcycle.EventsPayload) {
+func (p *processor) containerLifecycleEvent(msgs []*contlcycle.EventsPayload) {
 	for _, msg := range msgs {
-		encoded, err := proto.Marshal(&msg)
+		encoded, err := proto.Marshal(msg)
 		if err != nil {
 			log.Errorf("Unable to encode message: %+v", err)
 			continue
@@ -166,7 +166,7 @@ func (p *processor) containerLifecycleEvent(msgs []contlcycle.EventsPayload) {
 	}
 }
 
-func eventCountByType(eventPayloads []contlcycle.EventsPayload) map[string]int {
+func eventCountByType(eventPayloads []*contlcycle.EventsPayload) map[string]int {
 	res := make(map[string]int)
 
 	for _, payload := range eventPayloads {
