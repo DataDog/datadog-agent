@@ -31,8 +31,8 @@ func (p *Point) MarshalJSON() ([]byte, error) {
 
 // Resource holds a resource name and type
 type Resource struct {
-	Name string `json:"name,omitempty"`
-	Type string `json:"type,omitempty"`
+	Name string
+	Type string
 }
 
 // Serie holds a timeseries (w/ json serialization to DD API format)
