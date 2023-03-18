@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text;
 using Datadog.CustomActions.Interfaces;
+using Microsoft.Win32.SafeHandles;
 
 namespace Datadog.CustomActions.Native
 {
@@ -78,6 +79,8 @@ namespace Datadog.CustomActions.Native
         {
             Success = 0x00000000
         }
+
+        public static int SERVICE_NO_CHANGE = -1;
 
         [DllImport("logoncli.dll", EntryPoint = "NetIsServiceAccount", CharSet = CharSet.Unicode)]
         private static extern NtStatus NetIsServiceAccount(
@@ -285,6 +288,12 @@ namespace Datadog.CustomActions.Native
         private static extern bool GetComputerNameEx(COMPUTER_NAME_FORMAT NameType,
                            [Out] StringBuilder lpBuffer, ref uint lpnSize);
 
+        [DllImport("advapi32.dll", SetLastError=true, CharSet=CharSet.Auto)]
+        public static extern bool ChangeServiceConfig(SafeHandle hService, uint dwServiceType,
+        int dwStartType, int dwErrorControl, string lpBinaryPathName, string lpLoadOrderGroup,
+        string lpdwTagId, string lpDependencies, string lpServiceStartName, string lpPassword,
+        string lpDisplayName);
+
         #endregion
         #region Public interface
 
@@ -410,7 +419,7 @@ namespace Datadog.CustomActions.Native
             {
                 sPassword = password
             };
-            // A zero return indicates success. 
+            // A zero return indicates success.
             var result = NetUserSetInfo(null, accountName, 1003, ref userInfo, out _);
             if (result != 0)
             {

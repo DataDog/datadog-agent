@@ -1,7 +1,13 @@
+using System;
+
 namespace Datadog.CustomActions.Interfaces
 {
     public interface IServiceController
     {
-        string[] GetServiceNames();
+        Tuple<string,string>[] GetServiceNames();
+        bool ServiceExists(string serviceName);
+        void SetCredentials(string serviceName, string username, string password);
+        void StopService(string serviceName, TimeSpan timeout);
+        void StartService(string serviceName, TimeSpan timeout);
     }
 }

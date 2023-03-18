@@ -44,6 +44,9 @@ namespace WixSetup.Datadog
         public ManagedAction ReportInstallSuccess { get; }
 
         public ManagedAction EnsureNpmServiceDepdendency { get; }
+        public ManagedAction ConfigureServiceUsers { get; }
+        public ManagedAction StopDDServices { get; }
+        public ManagedAction StartDDServices { get; }
 
         public AgentCustomActions()
         {
@@ -117,9 +120,9 @@ namespace WixSetup.Datadog
             .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
             .HideTarget(true); ;
 
-            EnsureNpmServiceDepdendency = new CustomAction<NpmCustomAction>(
+            EnsureNpmServiceDepdendency = new CustomAction<ServiceCustomAction>(
                 new Id(nameof(EnsureNpmServiceDepdendency)),
-                NpmCustomAction.EnsureNpmServiceDependency,
+                ServiceCustomAction.EnsureNpmServiceDependency,
                 Return.check,
                 When.After,
                 new Step(ReportInstallFailure.Id),
@@ -314,6 +317,57 @@ namespace WixSetup.Datadog
             )
             .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
             .HideTarget(true);
+
+            // Enables the user to change the service accounts during upgrade/change
+            // Relies on StopDDServices/StartDDServices to ensure the services are restarted
+            // so that the new configuration is used.
+            ConfigureServiceUsers = new CustomAction<ServiceCustomAction>(
+                new Id(nameof(ConfigureServiceUsers)),
+                ServiceCustomAction.ConfigureServiceUsers,
+                Return.check,
+                When.After,
+                new Step(ConfigureUser.Id),
+                Condition.NOT(Conditions.Uninstalling)
+            )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+            .SetProperties("DDAGENTUSER_PROCESSED_PASSWORD=[DDAGENTUSER_PROCESSED_PASSWORD], " +
+                           "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME]")
+            .HideTarget(true);
+
+            // WiX built-in StopServices only stops services if the component is changing.
+            // This means that the services associated with MainApplication won't be restarted
+            // during change operations.
+            StopDDServices = new CustomAction<ServiceCustomAction>(
+                new Id(nameof(StopDDServices)),
+                ServiceCustomAction.StopDDServices,
+                Return.check,
+                When.Before,
+                Step.StopServices,
+                Condition.NOT(Conditions.Uninstalling)
+            )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            };
+
+            // WiX built-in StartServices only starts services if the component is changing.
+            // This means that the services associated with MainApplication won't be restarted
+            // during change operations.
+            StartDDServices = new CustomAction<ServiceCustomAction>(
+                new Id(nameof(StartDDServices)),
+                ServiceCustomAction.StartDDServices,
+                Return.check,
+                When.Before,
+                Step.StartServices,
+                Condition.NOT(Conditions.Uninstalling)
+            )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            };
         }
     }
 }

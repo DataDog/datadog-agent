@@ -225,7 +225,7 @@ namespace Datadog.CustomActions
                 var ddAgentUserName = _session.Property("DDAGENTUSER_NAME");
                 var ddAgentUserPassword = _session.Property("DDAGENTUSER_PASSWORD");
                 var isDomainController = _nativeMethods.IsDomainController();
-                var datadogAgentService = _serviceController.GetServiceNames().FirstOrDefault(svc => svc == "datadogagent");
+                var datadogAgentServiceExists = _serviceController.ServiceExists("datadogagent");
 
                 // LocalSystem is not supported by LookupAccountName as it is a pseudo account,
                 // do the conversion here for user's convenience.
@@ -263,13 +263,13 @@ namespace Datadog.CustomActions
                         !isServiceAccount)
                     {
                         if (isDomainController &&
-                            datadogAgentService == null)
+                            !datadogAgentServiceExists)
                         {
                             throw new InvalidOperationException("Must provide DDAGENTUSER_PASSWORD for non-service accounts on Domain Controllers for first installs.");
                         }
 
                         if (isDomainAccount &&
-                            datadogAgentService == null)
+                            !datadogAgentServiceExists)
                         {
                             throw new InvalidOperationException("Must provide DDAGENTUSER_PASSWORD for domain accounts.");
                         }
@@ -282,7 +282,7 @@ namespace Datadog.CustomActions
 
                     if (isDomainController)
                     {
-                        throw new InvalidOperationException("DDAGENTUSER must exist on Domain Controllers.");
+                        throw new InvalidOperationException("DDAGENTUSER_NAME must exist on Domain Controllers.");
                     }
 
                     ParseUserName(ddAgentUserName, out userName, out domain);
@@ -306,7 +306,7 @@ namespace Datadog.CustomActions
                 if (!userFound &&
                     domain != Environment.MachineName)
                 {
-                    throw new InvalidOperationException("DDAGENTUSER must exist on Domain Clients.");
+                    throw new InvalidOperationException("Domain account DDAGENTUSER_NAME must exist on Domain Clients.");
                 }
 
                 _session.Log($"Installing with DDAGENTUSER_PROCESSED_NAME={userName} and DDAGENTUSER_PROCESSED_DOMAIN={domain}");
@@ -324,8 +324,7 @@ namespace Datadog.CustomActions
                     _session["DDAGENTUSER_RESET_PASSWORD"] = "yes";
                     ddAgentUserPassword = GetRandomPassword(128);
                 }
-
-                if (!string.IsNullOrEmpty(ddAgentUserPassword) && isServiceAccount)
+                else if (isServiceAccount && !string.IsNullOrEmpty(ddAgentUserPassword))
                 {
                     _session.Log("Ignoring provided password because account is a service account");
                     ddAgentUserPassword = null;
@@ -375,6 +374,15 @@ namespace Datadog.CustomActions
                     _nativeMethods.SetUserPassword(ddagentuser, ddagentuserPassword);
                 }
 
+                {
+                    using var actionRecord = new Record(
+                        "ConfigureUser",
+                        $"Configuring service account {ddagentuser}",
+                        ""
+                    );
+                    _session.Message(InstallMessage.ActionStart, actionRecord);
+                }
+
                 _nativeMethods.AddToGroup(securityIdentifier, WellKnownSidType.BuiltinPerformanceMonitoringUsersSid);
                 _nativeMethods.AddToGroup(securityIdentifier, new SecurityIdentifier("S-1-5-32-573")); // Builtin\Event Log Readers
 
@@ -384,10 +392,19 @@ namespace Datadog.CustomActions
                 _nativeMethods.AddPrivilege(securityIdentifier, AccountRightsConstants.SeServiceLogonRight);
 
                 // Necessary to allow the ddagentuser to read the registry
+                {
+                    using var actionRecord = new Record(
+                        "ConfigureUser",
+                        $"Configuring registry permissions",
+                        ""
+                    );
+                    _session.Message(InstallMessage.ActionStart, actionRecord);
+                }
                 var key = _registryServices.CreateRegistryKey(Registries.LocalMachine, "SOFTWARE\\Datadog\\Datadog Agent");
                 if (key != null)
                 {
                     var registrySecurity = new RegistrySecurity();
+                    // Allow system and admins to access registry, standard privs
                     registrySecurity.AddAccessRule(new RegistryAccessRule(
                         new SecurityIdentifier("SY"),
                         RegistryRights.FullControl,
@@ -396,6 +413,13 @@ namespace Datadog.CustomActions
                         new SecurityIdentifier("BA"),
                         RegistryRights.FullControl,
                         AccessControlType.Allow));
+                    // Allow users read access, important so installer can read settings
+                    registrySecurity.AddAccessRule(new RegistryAccessRule(
+                        new SecurityIdentifier("BU"),
+                        RegistryRights.ReadKey,
+                        AccessControlType.Allow));
+                    // Give ddagentuser full access, important so it can read settings
+                    // TODO: Switch to readonly
                     registrySecurity.AddAccessRule(new RegistryAccessRule(
                         securityIdentifier,
                         RegistryRights.FullControl,
@@ -408,6 +432,14 @@ namespace Datadog.CustomActions
                     throw new Exception("Could not set registry ACLs.");
                 }
 
+                {
+                    using var actionRecord = new Record(
+                        "ConfigureUser",
+                        $"Configuring file permissions",
+                        ""
+                    );
+                    _session.Message(InstallMessage.ActionStart, actionRecord);
+                }
                 var files = new List<string>
                 {
                     _session.Property("APPLICATIONDATADIRECTORY"),

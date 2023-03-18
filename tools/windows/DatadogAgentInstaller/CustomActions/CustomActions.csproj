@@ -75,7 +75,7 @@
     <Compile Include="Native\RegistryKey.cs" />
     <Compile Include="Native\RegistryServices.cs" />
     <Compile Include="Native\ServiceController.cs" />
-    <Compile Include="NpmCustomAction.cs" />
+    <Compile Include="ServiceCustomAction.cs" />
     <Compile Include="PatchInstallerCustomAction.cs" />
     <Compile Include="PythonDistributionCustomAction.cs" />
     <Compile Include="Extensions\SessionExtensions.cs" />

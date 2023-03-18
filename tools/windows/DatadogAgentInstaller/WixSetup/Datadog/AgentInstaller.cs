@@ -81,6 +81,10 @@ namespace WixSetup.Datadog
                 {
                     AttributesDefinition = "Hidden=yes;Secure=yes"
                 },
+                new Property("DDAGENTUSER_NAME")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 // User provided password property
                 new Property("DDAGENTUSER_PASSWORD")
                 {
@@ -323,7 +327,10 @@ namespace WixSetup.Datadog
                 Name = name,
                 DisplayName = displayName,
                 Description = description,
-                StartOn = SvcEvent.Install_Wait,
+                // Tell MSI not to start the services. We handle service start manually in StartDDServices custom action.
+                StartOn = null,
+                // Tell MSI not to stop the services. We handle service stop manually in StopDDServices custom action.
+                StopOn = null,
                 Start = SvcStartType.auto,
                 DelayedAutoStart = false,
                 RemoveOn = SvcEvent.Uninstall_Wait,
@@ -356,7 +363,10 @@ namespace WixSetup.Datadog
                 Name = name,
                 DisplayName = displayName,
                 Description = description,
+                // Tell MSI not to start the services. We handle service start manually in StartDDServices custom action.
                 StartOn = null,
+                // Tell MSI not to stop the services. We handle service stop manually in StopDDServices custom action.
+                StopOn = null,
                 Start = SvcStartType.demand,
                 RemoveOn = SvcEvent.Uninstall_Wait,
                 ServiceSid = ServiceSid.none,

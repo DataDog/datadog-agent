@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.DirectoryServices.ActiveDirectory;
 using System.Security.Principal;
@@ -78,7 +79,8 @@ namespace CustomActions.Tests.UserCustomActions
 
         public UserCustomActionsTestSetup WithDatadogAgentService()
         {
-            ServiceController.Setup(s => s.GetServiceNames()).Returns(new[] { "datadogagent" });
+            ServiceController.Setup(s => s.GetServiceNames()).Returns(new[] { Tuple.Create("datadogagent", "Datadog Agent") });
+            ServiceController.Setup(s => s.ServiceExists("datadogagent")).Returns(true);
 
             return this;
         }
