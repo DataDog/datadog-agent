@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build otlp
-// +build otlp
 
 package host
 

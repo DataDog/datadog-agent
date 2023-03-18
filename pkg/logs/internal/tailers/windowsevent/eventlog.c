@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build windows
+//go:build windows
 
 #define _WIN32_WINNT 0x0602
 #include "event.h"
