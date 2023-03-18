@@ -413,11 +413,6 @@ namespace Datadog.CustomActions
                         new SecurityIdentifier("BA"),
                         RegistryRights.FullControl,
                         AccessControlType.Allow));
-                    // Allow users read access, important so installer can read settings
-                    registrySecurity.AddAccessRule(new RegistryAccessRule(
-                        new SecurityIdentifier("BU"),
-                        RegistryRights.ReadKey,
-                        AccessControlType.Allow));
                     // Give ddagentuser full access, important so it can read settings
                     // TODO: Switch to readonly
                     registrySecurity.AddAccessRule(new RegistryAccessRule(
