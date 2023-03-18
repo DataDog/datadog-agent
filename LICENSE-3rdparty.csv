@@ -1106,7 +1106,7 @@ core,github.com/open-policy-agent/opa/internal/compiler/wasm/opa,Apache-2.0,Copy
 core,github.com/open-policy-agent/opa/internal/debug,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/deepcopy,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/edittree,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/internal/edittree/bitvector,BSD-3-Clause,"Copyright (c) 2014 Dropbox, Inc | Copyright 2016 The OPA Authors.  All rights reserved."
+core,github.com/open-policy-agent/opa/internal/edittree/bitvector,BSD-3-Clause,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/file/archive,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/file/url,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/future,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
