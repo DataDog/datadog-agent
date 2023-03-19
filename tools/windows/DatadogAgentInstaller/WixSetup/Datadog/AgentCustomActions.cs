@@ -47,6 +47,7 @@ namespace WixSetup.Datadog
         public ManagedAction ConfigureServiceUsers { get; }
         public ManagedAction StopDDServices { get; }
         public ManagedAction StartDDServices { get; }
+        public ManagedAction StartDDServicesRollback { get; }
 
         public AgentCustomActions()
         {
@@ -366,6 +367,22 @@ namespace WixSetup.Datadog
             )
             {
                 Execute = Execute.deferred,
+                Impersonate = false
+            };
+
+            // Rollback StartDDServices stops the the services so that any file locks are released.
+            StartDDServicesRollback = new CustomAction<ServiceCustomAction>(
+                new Id(nameof(StartDDServicesRollback)),
+                ServiceCustomAction.StartDDServicesRollback,
+                Return.ignore,
+                // Must be sequenced before the action it will rollback for
+                When.Before,
+                new Step(StartDDServices.Id),
+                // Must have same condition as the action it will rollback for
+                Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+            )
+            {
+                Execute = Execute.rollback,
                 Impersonate = false
             };
         }

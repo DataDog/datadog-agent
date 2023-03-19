@@ -1,8 +1,6 @@
 using System;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Security.Principal;
-using System.ServiceProcess;
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
@@ -165,7 +163,7 @@ namespace Datadog.CustomActions
         /// Stop any existing datadog services
         /// </summary>
         /// <returns></returns>
-        private ActionResult StopDDServices()
+        private ActionResult StopDDServices(bool continueOnError)
         {
             try
             {
@@ -181,21 +179,34 @@ namespace Datadog.CustomActions
                 };
                 foreach (var service in ddservices)
                 {
-                    var svcNames = _serviceController.GetServiceNames().FirstOrDefault(svc => svc.Item1 == service);
-                    if (svcNames != null)
+                    try
                     {
-                        using var actionRecord = new Record(
-                            "Stop Datadog services",
-                            $"Stopping {svcNames.Item2} service",
-                            ""
-                        );
-                        _session.Message(InstallMessage.ActionStart, actionRecord);
-                        _session.Log($"Stopping service {service}");
-                        _serviceController.StopService(service, TimeSpan.FromMinutes(3));
+                        var svcNames = _serviceController.GetServiceNames().FirstOrDefault(svc => svc.Item1 == service);
+                        if (svcNames != null)
+                        {
+                            using var actionRecord = new Record(
+                                "Stop Datadog services",
+                                $"Stopping {svcNames.Item2} service",
+                                ""
+                            );
+                            _session.Message(InstallMessage.ActionStart, actionRecord);
+                            _session.Log($"Stopping service {service}");
+                            _serviceController.StopService(service, TimeSpan.FromMinutes(3));
+                        }
+                        else
+                        {
+                            _session.Log($"Service {service} not found");
+                        }
                     }
-                    else
+                    catch (Exception e)
                     {
-                        _session.Log($"Service {service} not found");
+                        _session.Log($"Failed to stop service {service}: {e.Message}");
+                        _session.Log(e.ToString());
+                        if (!continueOnError)
+                        {
+                            // rethrow exception implictly to preserve the original error information
+                            throw;
+                        }
                     }
                 }
             }
@@ -211,7 +222,7 @@ namespace Datadog.CustomActions
         [CustomAction]
         public static ActionResult StopDDServices(Session session)
         {
-            return new ServiceCustomAction(new SessionWrapper(session)).StopDDServices();
+            return new ServiceCustomAction(new SessionWrapper(session)).StopDDServices(false);
         }
 
         private ActionResult StartDDServices()
@@ -241,6 +252,19 @@ namespace Datadog.CustomActions
         public static ActionResult StartDDServices(Session session)
         {
             return new ServiceCustomAction(new SessionWrapper(session)).StartDDServices();
+        }
+
+        private ActionResult StartDDServicesRollback()
+        {
+            // rollback StartDDServices by stopping all of the services
+            // continue on error so we can send a stop to all services.
+            return StopDDServices(true);
+        }
+
+        [CustomAction]
+        public static ActionResult StartDDServicesRollback(Session session)
+        {
+            return new ServiceCustomAction(new SessionWrapper(session)).StartDDServicesRollback();
         }
     }
 }
