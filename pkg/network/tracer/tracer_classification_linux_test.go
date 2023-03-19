@@ -31,9 +31,8 @@ func testProtocolClassificationInner(t *testing.T, params protocolClassification
 	if params.preTracerSetup != nil {
 		params.preTracerSetup(t, params.context)
 	}
-	initTracerState(t, tr)
-	t.Cleanup(func() { tr.removeClient(clientID) })
 
+	tr.removeClient(clientID)
 	initTracerState(t, tr)
 	require.NoError(t, tr.ebpfTracer.Resume(), "enable probes - before post tracer")
 	params.postTracerSetup(t, params.context)
