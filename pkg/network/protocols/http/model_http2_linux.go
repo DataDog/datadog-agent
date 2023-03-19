@@ -41,7 +41,7 @@ func (tx *ebpfHttp2Tx) RequestLatency() float64 {
 // Incomplete returns true if the transaction contains only the request or response information
 // This happens in the context of localhost with NAT, in which case we join the two parts in userspace
 func (tx *ebpfHttp2Tx) Incomplete() bool {
-	return tx.Request_started == 0 || tx.Response_status_code == 0 || tx.Path_size == 0 || (tx.Request_method != GetValue && tx.Request_method != PostValue)
+	return tx.Request_started == 0 || tx.Response_last_seen == 0 || tx.StatusCode() == 0 || tx.Path_size == 0 || tx.Method() == MethodUnknown
 }
 
 func (tx *ebpfHttp2Tx) ConnTuple() KeyTuple {

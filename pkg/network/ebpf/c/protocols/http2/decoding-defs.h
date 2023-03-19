@@ -30,8 +30,12 @@
 // Http2 max batch size.
 #define HTTP2_BATCH_SIZE 10
 
+// MAX_6_BITS represents the maximum number that can be represented with 6 bits or less.
+// 1 << 6 - 1
 #define MAX_6_BITS 63
 
+// MAX_6_BITS represents the maximum number that can be represented with 6 bits or less.
+// 1 << 7 - 1
 #define MAX_7_BITS 127
 
 typedef enum {
