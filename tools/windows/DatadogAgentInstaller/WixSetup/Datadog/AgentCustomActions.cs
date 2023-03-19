@@ -240,7 +240,7 @@ namespace WixSetup.Datadog
                 Return.check,
                 When.After,
                 new Step(DecompressPythonDistributions.Id),
-                Condition.NOT(Conditions.Uninstalling)
+                Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
             )
             {
                 Execute = Execute.deferred,
@@ -327,7 +327,8 @@ namespace WixSetup.Datadog
                 Return.check,
                 When.After,
                 new Step(ConfigureUser.Id),
-                Condition.NOT(Conditions.Uninstalling)
+                Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+
             )
             {
                 Execute = Execute.deferred,
@@ -345,8 +346,7 @@ namespace WixSetup.Datadog
                 ServiceCustomAction.StopDDServices,
                 Return.check,
                 When.Before,
-                Step.StopServices,
-                Condition.NOT(Conditions.Uninstalling)
+                Step.StopServices
             )
             {
                 Execute = Execute.deferred,
@@ -360,9 +360,9 @@ namespace WixSetup.Datadog
                 new Id(nameof(StartDDServices)),
                 ServiceCustomAction.StartDDServices,
                 Return.check,
-                When.Before,
+                When.After,
                 Step.StartServices,
-                Condition.NOT(Conditions.Uninstalling)
+                Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
             )
             {
                 Execute = Execute.deferred,
