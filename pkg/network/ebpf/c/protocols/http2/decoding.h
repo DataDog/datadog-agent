@@ -8,7 +8,6 @@
 
 #include "protocols/http2/decoding-defs.h"
 #include "protocols/http2/maps-defs.h"
-#include "protocols/http2/read_into_buffer.h"
 #include "protocols/http/types.h"
 #include "protocols/classification/defs.h"
 #include "protocols/events.h"
