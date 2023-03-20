@@ -45,7 +45,7 @@ struct bpf_map_def SEC("maps/str_array_buffers") str_array_buffers = {
     .max_entries = 1,
 };
 
-struct exec_event_t {
+struct process_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
@@ -60,16 +60,16 @@ struct exec_event_t {
 };
 
 // _gen is a suffix for maps storing large structs to work around ebpf object size limits
-struct bpf_map_def SEC("maps/exec_event_gen") exec_event_gen = {
+struct bpf_map_def SEC("maps/process_event_gen") process_event_gen = {
     .type = BPF_MAP_TYPE_PERCPU_ARRAY,
     .key_size = sizeof(u32),
-    .value_size = sizeof(struct exec_event_t),
+    .value_size = sizeof(struct process_event_t),
     .max_entries = 1,
 };
 
-__attribute__((always_inline)) struct exec_event_t *new_exec_event(u8 is_fork) {
+__attribute__((always_inline)) struct process_event_t *new_process_event(u8 is_fork) {
     u32 key = 0;
-    struct exec_event_t *evt = bpf_map_lookup_elem(&exec_event_gen, &key);
+    struct process_event_t *evt = bpf_map_lookup_elem(&process_event_gen, &key);
 
     if (evt) {
         __builtin_memset(evt, 0, sizeof(*evt));
@@ -437,7 +437,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     }
 
     u64 ts = bpf_ktime_get_ns();
-    struct exec_event_t *event = new_exec_event(1);
+    struct process_event_t *event = new_process_event(1);
     if (event == NULL) {
         return 0;
     }
@@ -916,7 +916,7 @@ int kprobe_setup_arg_pages(struct pt_regs *ctx) {
     return 0;
 }
 
-void __attribute__((always_inline)) fill_args_envs(struct exec_event_t *event, struct syscall_cache_t *syscall) {
+void __attribute__((always_inline)) fill_args_envs(struct process_event_t *event, struct syscall_cache_t *syscall) {
     event->args_id = syscall->exec.args.id;
     event->args_truncated = syscall->exec.args.truncated;
     event->envs_id = syscall->exec.envs.id;
@@ -941,7 +941,7 @@ int __attribute__((always_inline)) send_exec_event(struct pt_regs *ctx) {
         u32 cookie = pid_entry->cookie;
         struct proc_cache_t *pc = bpf_map_lookup_elem(&proc_cache, &cookie);
         if (pc) {
-            struct exec_event_t *event = new_exec_event(0);
+            struct process_event_t *event = new_process_event(0);
             if (event == NULL) {
                 return 0;
             }
