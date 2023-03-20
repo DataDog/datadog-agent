@@ -395,7 +395,7 @@ type Container struct {
 	// CollectorTags represent tags coming from the collector itself
 	// and that it would be impossible to compute later on
 	CollectorTags []string
-	Owner         EntityID
+	Owner         *EntityID
 }
 
 // GetID implements Entity#GetID.

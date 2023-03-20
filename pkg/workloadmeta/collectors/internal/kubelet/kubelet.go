@@ -257,7 +257,7 @@ func (c *collector) parsePodContainers(
 				Ports:   ports,
 				Runtime: workloadmeta.ContainerRuntime(runtime),
 				State:   containerState,
-				Owner:   *parent,
+				Owner:   parent,
 			},
 		})
 	}
