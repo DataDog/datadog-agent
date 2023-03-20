@@ -80,8 +80,7 @@ namespace Datadog.CustomActions
             }
             catch (Exception e)
             {
-                session.Log($"Could not update system probe dependent service: {e.Message}");
-                session.Log(e.ToString());
+                session.Log($"Could not update system probe dependent service: {e}");
             }
             return ActionResult.Success;
         }
@@ -146,8 +145,7 @@ namespace Datadog.CustomActions
             }
             catch (Exception e)
             {
-                _session.Log($"Failed to configure service logon users: {e.Message}");
-                _session.Log(e.ToString());
+                _session.Log($"Failed to configure service logon users: {e}");
                 return ActionResult.Failure;
             }
             return ActionResult.Success;
@@ -200,8 +198,7 @@ namespace Datadog.CustomActions
                     }
                     catch (Exception e)
                     {
-                        _session.Log($"Failed to stop service {service}: {e.Message}");
-                        _session.Log(e.ToString());
+                        _session.Log($"Failed to stop service {service}: {e}");
                         if (!continueOnError)
                         {
                             // rethrow exception implictly to preserve the original error information
@@ -212,8 +209,7 @@ namespace Datadog.CustomActions
             }
             catch (Exception e)
             {
-                _session.Log($"Failed to stop services: {e.Message}");
-                _session.Log(e.ToString());
+                _session.Log($"Failed to stop services: {e}");
                 return ActionResult.Failure;
             }
             return ActionResult.Success;
@@ -241,8 +237,7 @@ namespace Datadog.CustomActions
             }
             catch (Exception e)
             {
-                _session.Log($"Failed to stop services: {e.Message}");
-                _session.Log(e.ToString());
+                _session.Log($"Failed to stop services: {e}");
                 // Allow service start to fail and continue the install
             }
             return ActionResult.Success;

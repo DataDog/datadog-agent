@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Configuration;
 using System.Diagnostics;
 using System.Linq;
@@ -38,7 +39,7 @@ namespace Datadog.CustomActions.Native
                 password,
                 null))
             {
-                throw new System.Exception($"ChangeServiceConfig({serviceName}) failed {Marshal.GetLastWin32Error()}");
+                throw new Win32Exception($"ChangeServiceConfig({serviceName}) failed");
             }
         }
 
@@ -91,6 +92,11 @@ namespace Datadog.CustomActions.Native
             {
                 svc.Start();
             }
+            // svc.Start() puts the service into the StartPending state before returning.
+            // The service will either succeed to start, or fail to start, so if we use
+            // WaitForStatus to wait for a single state then we'll block for timeout
+            // in the other case. So instead we wait for the service status to change.
+            // https://learn.microsoft.com/en-us/windows/win32/services/starting-a-service
             var newState = WaitForStatusChange(svc, ServiceControllerStatus.StartPending, timeout);
             if (newState != ServiceControllerStatus.Running)
             {
