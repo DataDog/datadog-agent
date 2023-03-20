@@ -15,22 +15,24 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/activitydump"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 )
 
 // Monitor regroups all the work we want to do to monitor the probes we pushed in the kernel
 type Monitor struct {
 	probe *Probe
 
-	loadController      *LoadController
-	perfBufferMonitor   *PerfBufferMonitor
-	activityDumpManager *activitydump.ActivityDumpManager
-	runtimeMonitor      *RuntimeMonitor
-	discarderMonitor    *DiscarderMonitor
-	cgroupsMonitor      *CgroupsMonitor
+	loadController         *LoadController
+	perfBufferMonitor      *PerfBufferMonitor
+	activityDumpManager    *dump.ActivityDumpManager
+	securityProfileManager *profile.SecurityProfileManager
+	runtimeMonitor         *RuntimeMonitor
+	discarderMonitor       *DiscarderMonitor
+	cgroupsMonitor         *CgroupsMonitor
 }
 
 // NewMonitor returns a new instance of a ProbeMonitor
@@ -53,9 +55,16 @@ func NewMonitor(p *Probe) (*Monitor, error) {
 	}
 
 	if p.Config.ActivityDumpEnabled {
-		m.activityDumpManager, err = activitydump.NewActivityDumpManager(p.Config, p.StatsdClient, func() *model.Event { return NewEvent(p.fieldHandlers) }, p.resolvers.ProcessResolver, p.resolvers.TimeResolver, p.resolvers.TagsResolver, p.kernelVersion, p.scrubber, p.Manager)
+		m.activityDumpManager, err = dump.NewActivityDumpManager(p.Config, p.StatsdClient, func() *model.Event { return NewEvent(p.fieldHandlers) }, p.resolvers.ProcessResolver, p.resolvers.TimeResolver, p.resolvers.TagsResolver, p.kernelVersion, p.scrubber, p.Manager)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't create the activity dump manager: %w", err)
+		}
+	}
+
+	if p.Config.SecurityProfileEnabled {
+		m.securityProfileManager, err = profile.NewSecurityProfileManager(p.Config, p.StatsdClient, p.resolvers.CGroupResolver)
+		if err != nil {
+			return nil, fmt.Errorf("couldn't create the security profile manager: %w", err)
 		}
 	}
 
@@ -79,7 +88,7 @@ func (m *Monitor) GetPerfBufferMonitor() *PerfBufferMonitor {
 }
 
 // GetActivityDumpManager returns the activity dump manager
-func (m *Monitor) GetActivityDumpManager() *activitydump.ActivityDumpManager {
+func (m *Monitor) GetActivityDumpManager() *dump.ActivityDumpManager {
 	return m.activityDumpManager
 }
 
@@ -95,6 +104,9 @@ func (m *Monitor) Start(ctx context.Context, wg *sync.WaitGroup) error {
 
 	if m.activityDumpManager != nil {
 		go m.activityDumpManager.Start(ctx, wg)
+	}
+	if m.securityProfileManager != nil {
+		go m.securityProfileManager.Start(ctx)
 	}
 	return nil
 }
@@ -138,7 +150,13 @@ func (m *Monitor) SendStats() error {
 
 	if m.activityDumpManager != nil {
 		if err := m.activityDumpManager.SendStats(); err != nil {
-			return fmt.Errorf("failed to send activity dump maanger stats: %w", err)
+			return fmt.Errorf("failed to send activity dump manager stats: %w", err)
+		}
+	}
+
+	if m.securityProfileManager != nil {
+		if err := m.securityProfileManager.SendStats(); err != nil {
+			return fmt.Errorf("failed to send security profile manager stats: %w", err)
 		}
 	}
 

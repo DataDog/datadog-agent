@@ -141,11 +141,6 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 
 // checkTags checks if the tags of a workload were properly set
 func (cr *Resolver) checkTags(workload *cgroupModel.CacheEntry) {
-	if workload.Deleted.Load() {
-		// nothing to do
-		return
-	}
-
 	// check if the workload tags were found
 	if workload.NeedsTagsResolution() {
 		// this is a container, try to resolve its tags now

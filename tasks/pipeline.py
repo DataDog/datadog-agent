@@ -479,9 +479,10 @@ def notify(_, notification_type="merge", print_to_stdout=False):
 
     # Send messages
     for owner, message in messages_to_send.items():
-        channel = GITHUB_SLACK_MAP.get(owner, "#datadog-agent-pipelines")
+        channel = GITHUB_SLACK_MAP.get(owner.lower(), None)
         message.base_message = base
-        if owner not in GITHUB_SLACK_MAP.keys():
+        if channel is None:
+            channel = "#datadog-agent-pipelines"
             message.base_message += UNKNOWN_OWNER_TEMPLATE.format(owner=owner)
         message.coda = coda
         if print_to_stdout:

@@ -31,7 +31,7 @@ func TestCheckRun(t *testing.T) {
 		assert.Equal(t, "snmp.can_check", checks[0].name())
 		expectedTags := []string{"agent_host:COMP-N52P6N99MH", "device_namespace:COMP-N52P6N99MH", "snmp_device:192.168.0.3", "snmp_host:41ba948911b9", "snmp_profile:generic-router"}
 		sort.Strings(expectedTags)
-		gotTags := checks[0].tags()
+		gotTags := checks[0].GetTags()
 		sort.Strings(gotTags)
 		assert.Equal(t, expectedTags, gotTags)
 	})

@@ -178,18 +178,3 @@ func (tf *MockedForwarder) SubmitOrchestratorChecks(payload transaction.BytesPay
 func (tf *MockedForwarder) SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
 	return nil, tf.Called(payload, extra).Error(0)
 }
-
-// SubmitContainerLifecycleEvents mock
-func (tf *MockedForwarder) SubmitContainerLifecycleEvents(payload transaction.BytesPayloads, extra http.Header) error {
-	return tf.Called(payload, extra).Error(0)
-}
-
-// SubmitContainerImages mock
-func (tf *MockedForwarder) SubmitContainerImages(payload transaction.BytesPayloads, extra http.Header) error {
-	return tf.Called(payload, extra).Error(0)
-}
-
-// SubmitSBOM mock
-func (tf *MockedForwarder) SubmitSBOM(payload transaction.BytesPayloads, extra http.Header) error {
-	return tf.Called(payload, extra).Error(0)
-}
