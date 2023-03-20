@@ -67,13 +67,15 @@ struct bpf_map_def SEC("maps/exec_event_gen") exec_event_gen = {
     .max_entries = 1,
 };
 
-__attribute__((always_inline)) struct exec_event_t *new_exec_event() {
+__attribute__((always_inline)) struct exec_event_t *new_exec_event(u8 is_fork) {
     u32 key = 0;
     struct exec_event_t *evt = bpf_map_lookup_elem(&exec_event_gen, &key);
 
     if (evt) {
         __builtin_memset(evt, 0, sizeof(*evt));
-        evt->event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
+        if (!is_fork) {
+            evt->event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
+        }
     }
 
     return evt;
@@ -435,7 +437,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     }
 
     u64 ts = bpf_ktime_get_ns();
-    struct exec_event_t *event = new_exec_event();
+    struct exec_event_t *event = new_exec_event(1);
     if (event == NULL) {
         return 0;
     }
@@ -939,7 +941,7 @@ int __attribute__((always_inline)) send_exec_event(struct pt_regs *ctx) {
         u32 cookie = pid_entry->cookie;
         struct proc_cache_t *pc = bpf_map_lookup_elem(&proc_cache, &cookie);
         if (pc) {
-            struct exec_event_t *event = new_exec_event();
+            struct exec_event_t *event = new_exec_event(0);
             if (event == NULL) {
                 return 0;
             }

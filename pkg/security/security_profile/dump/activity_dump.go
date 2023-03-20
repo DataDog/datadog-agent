@@ -102,8 +102,8 @@ type ActivityDump struct {
 	processedCount     map[model.EventType]*atomic.Uint64
 	addedRuntimeCount  map[model.EventType]*atomic.Uint64
 	addedSnapshotCount map[model.EventType]*atomic.Uint64
+	eventTypeDrop      map[model.EventType]*atomic.Uint64
 	brokenLineageDrop  *atomic.Uint64
-	eventTypeDrop      *atomic.Uint64
 	validRootNodeDrop  *atomic.Uint64
 	bindFamilyDrop     *atomic.Uint64
 
@@ -155,8 +155,8 @@ func NewEmptyActivityDump() *ActivityDump {
 		processedCount:     make(map[model.EventType]*atomic.Uint64),
 		addedRuntimeCount:  make(map[model.EventType]*atomic.Uint64),
 		addedSnapshotCount: make(map[model.EventType]*atomic.Uint64),
+		eventTypeDrop:      make(map[model.EventType]*atomic.Uint64),
 		brokenLineageDrop:  atomic.NewUint64(0),
-		eventTypeDrop:      atomic.NewUint64(0),
 		validRootNodeDrop:  atomic.NewUint64(0),
 		bindFamilyDrop:     atomic.NewUint64(0),
 		pathMergedCount:    atomic.NewUint64(0),
@@ -168,6 +168,7 @@ func NewEmptyActivityDump() *ActivityDump {
 		ad.processedCount[i] = atomic.NewUint64(0)
 		ad.addedRuntimeCount[i] = atomic.NewUint64(0)
 		ad.addedSnapshotCount[i] = atomic.NewUint64(0)
+		ad.eventTypeDrop[i] = atomic.NewUint64(0)
 	}
 	return ad
 }
@@ -582,7 +583,7 @@ func (ad *ActivityDump) Insert(event *model.Event) (newEntry bool) {
 	// check if this event type is traced
 	if !ad.isEventTypeTraced(event) {
 		// should not happen
-		ad.eventTypeDrop.Inc()
+		ad.eventTypeDrop[event.GetEventType()].Inc()
 		return false
 	}
 
@@ -834,9 +835,12 @@ func (ad *ActivityDump) SendStats() error {
 		}
 	}
 
-	if value := ad.eventTypeDrop.Swap(0); value > 0 {
-		if err := ad.adm.statsdClient.Count(metrics.MetricActivityDumpEventTypeDrop, int64(value), nil, 1.0); err != nil {
-			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEventTypeDrop, err)
+	for evtType, count := range ad.eventTypeDrop {
+		tags := []string{fmt.Sprintf("event_type:%s", evtType)}
+		if value := count.Swap(0); value > 0 {
+			if err := ad.adm.statsdClient.Count(metrics.MetricActivityDumpEventTypeDrop, int64(value), tags, 1.0); err != nil {
+				return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEventTypeDrop, err)
+			}
 		}
 	}
 
