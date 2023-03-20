@@ -139,7 +139,7 @@ build_processed_btfhub_archive:
     !reference [.manual]
   stage: deps_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen$DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   script:
     - git clone https://github.com/aquasecurity/btfhub-archive.git
     - cd btfhub-archive

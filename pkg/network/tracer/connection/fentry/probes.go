@@ -23,7 +23,9 @@ const (
 	tcpFinishConnect = "tcp_finish_connect"
 
 	// tcpSendMsgReturn traces the return value for the tcp_sendmsg() system call
-	tcpSendMsgReturn = "tcp_sendmsg_exit"
+	tcpSendMsgReturn  = "tcp_sendmsg_exit"
+	tcpSendPageReturn = "tcp_sendpage_exit"
+	udpSendPageReturn = "udp_sendpage_exit"
 
 	// tcpSetState traces the tcp_set_state() kernel function
 	tcpSetState = "tcp_set_state"
@@ -63,18 +65,14 @@ const (
 
 	// sockFDLookupRet is the kretprobe used for mapping socket FDs to kernel sock structs
 	sockFDLookupRet = "sockfd_lookup_light_exit"
-
-	// doSendfileRet is the kretprobe used to trace traffic via SENDFILE(2) syscall
-	doSendfileRet = "do_sendfile_exit"
 )
 
 var programs = map[string]struct{}{
-	doSendfileRet:        {}, // TODO: available but sockfd_lookup_light not available on some kernels
 	inet6BindRet:         {},
 	inetBindRet:          {},
 	inetCskAcceptReturn:  {},
 	inetCskListenStop:    {},
-	sockFDLookupRet:      {}, // TODO: not available on certain kernels, will have to one or more hooks to get equivalent functionality; affects do_sendfile and HTTPS monitoring (OpenSSL/GnuTLS/GoTLS)
+	sockFDLookupRet:      {}, // TODO: not available on certain kernels, will have to one or more hooks to get equivalent functionality; affects HTTPS monitoring (OpenSSL/GnuTLS/GoTLS)
 	tcpRecvMsgReturn:     {},
 	tcpClose:             {},
 	tcpCloseReturn:       {},
@@ -83,11 +81,13 @@ var programs = map[string]struct{}{
 	tcpRetransmit:        {},
 	tcpRetransmitRet:     {},
 	tcpSendMsgReturn:     {},
+	tcpSendPageReturn:    {},
 	tcpSetState:          {},
 	udpDestroySock:       {},
 	udpDestroySockReturn: {},
 	udpRecvMsgReturn:     {},
 	udpSendMsgReturn:     {},
+	udpSendPageReturn:    {},
 	udpSendSkb:           {},
 	udpv6RecvMsgReturn:   {},
 	udpv6SendMsgReturn:   {},
@@ -105,6 +105,7 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 	enabled := make(map[string]struct{}, 0)
 	if c.CollectTCPConns {
 		enableProgram(enabled, tcpSendMsgReturn)
+		enableProgram(enabled, tcpSendPageReturn)
 		enableProgram(enabled, tcpRecvMsgReturn)
 		enableProgram(enabled, tcpClose)
 		enableProgram(enabled, tcpCloseReturn)
@@ -122,7 +123,6 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		// missing, err := ebpf.VerifyKernelFuncs(ksymPath, []string{"sockfd_lookup_light"})
 		// if err == nil && len(missing) == 0 {
 		// 	enableProgram(enabled, sockFDLookupRet)
-		// 	enableProgram(enabled, doSendfileRet)
 		// }
 	}
 
@@ -133,6 +133,7 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, udpRecvMsgReturn)
 		enableProgram(enabled, udpSendMsgReturn)
 		enableProgram(enabled, udpSendSkb)
+		enableProgram(enabled, udpSendPageReturn)
 
 		if c.CollectIPv6Conns {
 			enableProgram(enabled, inet6BindRet)

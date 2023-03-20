@@ -14,7 +14,6 @@ namespace CustomActions.Tests.Telemetry
         [Theory]
         [InlineAutoData("aaaa", "", "agent.installation.success")]
         [InlineAutoData("aaaa", "datadoghq.eu", "agent.installation.failure")]
-        [InlineAutoData("", "", "aaaaaaa")]
         public void ReportTelemetry_Should_Post_Telemetry(
             string apiKey,
             string site,
@@ -53,6 +52,29 @@ namespace CustomActions.Tests.Telemetry
                     { "Content-Type", "application/json" },
                 }
             ));
+        }
+
+        [Theory]
+        [InlineAutoData("", "")]
+        [InlineAutoData("", "datadoghq.eu")]
+        public void ReportTelemetry_Should_Not_Post_Telemetry(
+            string apiKey,
+            string site,
+            string eventName,
+            Mock<IInstallerHttpClient> httpClientMock,
+            Mock<ISession> sessionMock
+        )
+        {
+            if (site == string.Empty)
+            {
+                site = "datadoghq.com";
+            }
+            sessionMock.Setup(session => session["SITE"]).Returns(site);
+            sessionMock.Setup(session => session["APIKEY"]).Returns(apiKey);
+
+            var sut = new Datadog.CustomActions.Telemetry(httpClientMock.Object, sessionMock.Object);
+            sut.ReportTelemetry(eventName);
+            httpClientMock.VerifyNoOtherCalls();
         }
     }
 }

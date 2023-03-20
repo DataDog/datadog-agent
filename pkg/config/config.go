@@ -824,7 +824,7 @@ func InitConfig(config Config) {
 
 	// internal profiling
 	config.BindEnvAndSetDefault("internal_profiling.enabled", false)
-	config.BindEnv("internal_profiling.profile_dd_url", "")
+	config.BindEnv("internal_profiling.profile_dd_url")
 	config.BindEnvAndSetDefault("internal_profiling.period", 5*time.Minute)
 	config.BindEnvAndSetDefault("internal_profiling.cpu_duration", 1*time.Minute)
 	config.BindEnvAndSetDefault("internal_profiling.block_profile_rate", 0)
@@ -1029,6 +1029,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider", false)                                // to be enabled only in e2e tests
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.file_provider_path", "/etc/datadog-agent/patch/auto-instru.json") // to be used only in e2e tests
+	config.BindEnv("admission_controller.auto_instrumentation.init_resources.cpu")
+	config.BindEnv("admission_controller.auto_instrumentation.init_resources.memory")
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.
@@ -1073,19 +1075,13 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
 
 	// Container lifecycle configuration
-	config.BindEnvAndSetDefault("container_lifecycle.enabled", false)
-	config.BindEnv("container_lifecycle.dd_url")
-	config.BindEnv("container_lifecycle.additional_endpoints")
+	bindEnvAndSetLogsConfigKeys(config, "container_lifecycle.")
 
 	// Container image configuration
-	config.BindEnvAndSetDefault("container_image.enabled", false)
-	config.BindEnv("container_image.dd_url")
-	config.BindEnv("container_image.additional_endpoints")
+	bindEnvAndSetLogsConfigKeys(config, "container_image.")
 
 	// SBOM configuration
-	config.BindEnvAndSetDefault("sbom.enabled", false)
-	config.BindEnv("sbom.dd_url")
-	config.BindEnv("sbom.additional_endpoints")
+	bindEnvAndSetLogsConfigKeys(config, "sbom.")
 
 	// Orchestrator Explorer - process agent
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
@@ -1120,7 +1116,7 @@ func InitConfig(config Config) {
 	// Datadog security agent (common)
 	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
 	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
-	config.BindEnvAndSetDefault("security_agent.log_file", defaultSecurityAgentLogFile)
+	config.BindEnvAndSetDefault("security_agent.log_file", DefaultSecurityAgentLogFile)
 	config.BindEnvAndSetDefault("security_agent.remote_tagger", true)
 	config.BindEnvAndSetDefault("security_agent.remote_workloadmeta", false) // TODO: switch this to true when ready
 
@@ -1311,12 +1307,12 @@ func LoadProxyFromEnv(config Config) {
 
 // Load reads configs files and initializes the config module
 func Load() (*Warnings, error) {
-	return LoadDatadogCustom(Datadog, "datadog.yaml", true)
+	return LoadDatadogCustomWithKnownEnvVars(Datadog, "datadog.yaml", true, SystemProbe.GetEnvVars())
 }
 
 // LoadWithoutSecret reads configs files, initializes the config module without decrypting any secrets
 func LoadWithoutSecret() (*Warnings, error) {
-	return LoadDatadogCustom(Datadog, "datadog.yaml", false)
+	return LoadDatadogCustomWithKnownEnvVars(Datadog, "datadog.yaml", false, SystemProbe.GetEnvVars())
 }
 
 // Merge will merge additional configuration into an existing configuration

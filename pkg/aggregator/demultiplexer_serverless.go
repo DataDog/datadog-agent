@@ -39,7 +39,7 @@ type ServerlessDemultiplexer struct {
 func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.DomainResolver, forwarderTimeout time.Duration) *ServerlessDemultiplexer {
 	bufferSize := config.Datadog.GetInt("aggregator_buffer_size")
 	forwarder := forwarder.NewSyncForwarder(domainResolvers, forwarderTimeout)
-	serializer := serializer.NewSerializer(forwarder, nil, nil, nil, nil)
+	serializer := serializer.NewSerializer(forwarder, nil)
 	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize)
 	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "timesampler")
 
