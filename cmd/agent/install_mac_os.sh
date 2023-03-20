@@ -165,7 +165,7 @@ if [ -z "$dmg_version" ]; then
     if [ "$agent_minor_version" = "$clean_agent_minor_version" ];then
         dmg_version="${agent_major_version}.${agent_minor_version_without_patch}.${agent_patch_version}-1"
     else
-        dmg_version="${agent_minor_version}-1"
+        dmg_version="${agent_major_version}.${agent_minor_version}-1"
     fi
 fi
 dmg_url="$dmg_base_url/datadog-agent-${dmg_version}.dmg"
