@@ -186,9 +186,12 @@
 
 # pkg
 /pkg/                                   @DataDog/agent-shared-components
+/pkg/api/                               @DataDog/agent-shared-components
 /pkg/aggregator/                        @DataDog/agent-metrics-logs
 /pkg/collector/                         @DataDog/agent-metrics-logs
+/pkg/cli/                               @DataDog/agent-shared-components
 /pkg/dogstatsd/                         @DataDog/agent-metrics-logs
+/pkg/errors/                            @DataDog/agent-shared-components
 /pkg/forwarder/                         @DataDog/agent-metrics-logs @DataDog/agent-shared-components
 /pkg/jmxfetch/                          @DataDog/agent-metrics-logs
 /pkg/metadata/                          @DataDog/agent-shared-components
@@ -243,6 +246,7 @@
 /pkg/config/system_probe.go             @DataDog/ebpf-platform
 /pkg/config/remote/                     @DataDog/remote-config
 /pkg/config/remote/service/meta/        @DataDog/remote-config @DataDog/software-integrity-and-trust
+/pkg/containerlifecycle/                @Datadog/container-integrations
 /pkg/diagnose/                          @Datadog/container-integrations
 /pkg/diagnose/connectivity/             @DataDog/agent-shared-components
 /pkg/epforwarder/                       @DataDog/agent-shared-components @DataDog/agent-metrics-logs
@@ -257,6 +261,7 @@
 /pkg/serializer/                        @DataDog/agent-metrics-logs
 /pkg/tagger/                            @DataDog/container-integrations
 /pkg/tagset/                            @DataDog/agent-shared-components
+/pkg/util/                              @DataDog/agent-shared-components
 /pkg/util/aggregatingqueue              @DataDog/container-integrations
 /pkg/util/cloudproviders/cloudfoundry/  @DataDog/platform-integrations
 /pkg/util/clusteragent/                 @DataDog/container-integrations
