@@ -63,9 +63,6 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.Inet6BindRet,
 	probes.SockFDLookup,
 	probes.SockFDLookupRet,
-	probes.SKBFreeDatagramLocked,
-	probes.UnderscoredSKBFreeDatagramLocked,
-	probes.SKBConsumeUDP,
 	probes.UDPSendPage,
 	probes.UDPSendPageReturn,
 }

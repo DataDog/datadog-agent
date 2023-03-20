@@ -113,16 +113,6 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeFuncNa
 				return nil, fmt.Errorf("missing desired UDP receive kernel functions")
 			}
 		}
-
-		if _, miss := missing["skb_consume_udp"]; !miss {
-			enableProbe(enabled, probes.SKBConsumeUDP)
-		} else if _, miss := missing["__skb_free_datagram_locked"]; !miss {
-			enableProbe(enabled, probes.UnderscoredSKBFreeDatagramLocked)
-		} else if _, miss := missing["skb_free_datagram_locked"]; !miss {
-			enableProbe(enabled, probes.SKBFreeDatagramLocked)
-		} else {
-			return nil, fmt.Errorf("missing desired UDP receive kernel functions")
-		}
 	}
 
 	return enabled, nil

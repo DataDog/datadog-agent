@@ -31,50 +31,6 @@ int socket__classifier_dbs(struct __sk_buff *skb) {
     return 0;
 }
 
-SEC("kprobe/udp_recvmsg/pre_4_7_0")
-int kprobe__udp_recvmsg_pre_4_7_0(struct pt_regs *ctx) {
-    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
-    struct msghdr *msg = (struct msghdr *)PT_REGS_PARM2(ctx);
-    int flags = (int)PT_REGS_PARM5(ctx);
-    handle_udp_recvmsg(sk, msg, flags, udp_recv_sock);
-}
-
-SEC("kprobe/udpv6_recvmsg/pre_4_7_0")
-int kprobe__udpv6_recvmsg_pre_4_7_0(struct pt_regs *ctx) {
-    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
-    struct msghdr *msg = (struct msghdr *)PT_REGS_PARM2(ctx);
-    int flags = (int)PT_REGS_PARM5(ctx);
-    handle_udp_recvmsg(sk, msg, flags, udpv6_recv_sock);
-}
-
-SEC("kprobe/udp_recvmsg/pre_4_1_0")
-int kprobe__udp_recvmsg_pre_4_1_0(struct pt_regs *ctx) {
-    struct sock *sk = (struct sock *)PT_REGS_PARM2(ctx);
-    struct msghdr *msg = (struct msghdr *)PT_REGS_PARM3(ctx);
-    int flags = (int)PT_REGS_PARM6(ctx);
-    handle_udp_recvmsg(sk, msg, flags, udp_recv_sock);
-}
-
-SEC("kprobe/udpv6_recvmsg/pre_4_1_0")
-int kprobe__udpv6_recvmsg_pre_4_1_0(struct pt_regs *ctx) {
-    struct sock *sk = (struct sock *)PT_REGS_PARM2(ctx);
-    struct msghdr *msg = (struct msghdr *)PT_REGS_PARM3(ctx);
-    int flags = (int)PT_REGS_PARM6(ctx);
-    handle_udp_recvmsg(sk, msg, flags, udpv6_recv_sock);
-}
-
-SEC("kretprobe/udp_recvmsg/pre_4_7_0")
-int kretprobe__udp_recvmsg_pre_4_7_0(struct pt_regs *ctx) {
-    int copied = (int)PT_REGS_RC(ctx);
-    return handle_ret_udp_recvmsg(copied, &udp_recv_sock);
-}
-
-SEC("kretprobe/udpv6_recvmsg/pre_4_7_0")
-int kretprobe__udpv6_recvmsg_pre_4_7_0(struct pt_regs *ctx) {
-    int copied = (int)PT_REGS_RC(ctx);
-    return handle_ret_udp_recvmsg(copied, &udpv6_recv_sock);
-}
-
 SEC("kprobe/tcp_retransmit_skb")
 int kprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);

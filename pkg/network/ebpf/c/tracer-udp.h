@@ -82,18 +82,19 @@ int kprobe__skb_consume_udp(struct pt_regs *ctx) {
     return 0;
 }
 
-static __always_inline int handle_udp_recvmsg(int flags) {
-    log_debug("kprobe/udp_recvmsg: flags: %x\n", flags);
-    if (flags & MSG_PEEK) {
-        return 0;
-    }
-
-    // keep track of non-peeking calls, since skb_free_datagram_locked doesn't have that argument
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    udp_recv_sock_t t = {};
-    bpf_map_update_with_telemetry(udp_recv_sock, &pid_tgid, &t, BPF_ANY);
-    return 0;
-}
+#define handle_udp_recvmsg(sk, msg, flags, udp_sock_map)                \
+    do {                                                                \
+        log_debug("kprobe/udp_recvmsg: flags: %x\n", flags);            \
+        if (flags & MSG_PEEK) {                                         \
+            return 0;                                                   \
+        }                                                               \
+                                                                        \
+        /* keep track of non-peeking calls, since skb_free_datagram_locked doesn't have that argument */ \
+        u64 pid_tgid = bpf_get_current_pid_tgid();                      \
+        udp_recv_sock_t t = { .sk = sk, .msg = msg };                   \
+        bpf_map_update_with_telemetry(udp_sock_map, &pid_tgid, &t, BPF_ANY); \
+        return 0;                                                       \
+    } while (0);
 
 SEC("kprobe/udp_recvmsg")
 int kprobe__udp_recvmsg(struct pt_regs *ctx) {
@@ -102,7 +103,9 @@ int kprobe__udp_recvmsg(struct pt_regs *ctx) {
 #else
     int flags = (int)PT_REGS_PARM5(ctx);
 #endif
-    return handle_udp_recvmsg(flags);
+    struct sock *sk = NULL;
+    struct msghdr *msg = NULL;
+    handle_udp_recvmsg(sk, msg, flags, udp_recv_sock);
 }
 
 #if !defined(COMPILE_RUNTIME) || defined(FEATURE_IPV6_ENABLED)
@@ -113,7 +116,9 @@ int kprobe__udpv6_recvmsg(struct pt_regs *ctx) {
 #else
     int flags = (int)PT_REGS_PARM5(ctx);
 #endif
-    return handle_udp_recvmsg(flags);
+    struct sock *sk = NULL;
+    struct msghdr *msg = NULL;
+    handle_udp_recvmsg(sk, msg, flags, udp_recv_sock);
 }
 #endif // !COMPILE_RUNTIME || FEATURE_IPV6_ENABLED
 
@@ -137,16 +142,90 @@ int kretprobe__udpv6_recvmsg(struct pt_regs *ctx) {
 
 #if defined(COMPILE_CORE) || defined(COMPILE_PREBUILT)
 
+static __always_inline int handle_ret_udp_recvmsg_pre_4_7_0(int copied, void *udp_sock_map) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("kretprobe/udp_recvmsg: tgid: %u, pid: %u\n", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+
+    // Retrieve socket pointer from kprobe via pid/tgid
+    udp_recv_sock_t *st = bpf_map_lookup_elem(udp_sock_map, &pid_tgid);
+    if (!st) { // Missed entry
+        return 0;
+    }
+
+    if (copied < 0) { // Non-zero values are errors (or a peek) (e.g -EINVAL)
+        log_debug("kretprobe/udp_recvmsg: ret=%d < 0, pid_tgid=%d\n", copied, pid_tgid);
+        // Make sure we clean up the key
+        bpf_map_delete_elem(udp_sock_map, &pid_tgid);
+        return 0;
+    }
+
+    log_debug("kretprobe/udp_recvmsg: ret=%d\n", copied);
+
+    conn_tuple_t t = {};
+    bpf_memset(&t, 0, sizeof(conn_tuple_t));
+    if (st->msg) {
+        struct sockaddr *sap = NULL;
+        bpf_probe_read_kernel_with_telemetry(&sap, sizeof(sap), &(st->msg->msg_name));
+        sockaddr_to_addr(sap, &t.daddr_h, &t.daddr_l, &t.dport, &t.metadata);
+    }
+
+    if (!read_conn_tuple_partial(&t, st->sk, pid_tgid, CONN_TYPE_UDP)) {
+        log_debug("ERR(kretprobe/udp_recvmsg): error reading conn tuple, pid_tgid=%d\n", pid_tgid);
+        bpf_map_delete_elem(udp_sock_map, &pid_tgid);
+        return 0;
+    }
+    bpf_map_delete_elem(udp_sock_map, &pid_tgid);
+
+    log_debug("kretprobe/udp_recvmsg: pid_tgid: %d, return: %d\n", pid_tgid, copied);
+    // segment count is not currently enabled on prebuilt.
+    // to enable, change PACKET_COUNT_NONE => PACKET_COUNT_INCREMENT
+    handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN, 0, 1, PACKET_COUNT_NONE, st->sk);
+
+    return 0;
+}
+
+SEC("kprobe/udp_recvmsg/pre_4_7_0")
+int kprobe__udp_recvmsg_pre_4_7_0(struct pt_regs *ctx) {
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    struct msghdr *msg = (struct msghdr *)PT_REGS_PARM2(ctx);
+    int flags = (int)PT_REGS_PARM5(ctx);
+    handle_udp_recvmsg(sk, msg, flags, udp_recv_sock);
+}
+
+SEC("kprobe/udpv6_recvmsg/pre_4_7_0")
+int kprobe__udpv6_recvmsg_pre_4_7_0(struct pt_regs *ctx) {
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    struct msghdr *msg = (struct msghdr *)PT_REGS_PARM2(ctx);
+    int flags = (int)PT_REGS_PARM5(ctx);
+    handle_udp_recvmsg(sk, msg, flags, udpv6_recv_sock);
+}
+
 SEC("kprobe/udp_recvmsg/pre_4_1_0")
 int kprobe__udp_recvmsg_pre_4_1_0(struct pt_regs *ctx) {
+    struct sock *sk = (struct sock *)PT_REGS_PARM2(ctx);
+    struct msghdr *msg = (struct msghdr *)PT_REGS_PARM3(ctx);
     int flags = (int)PT_REGS_PARM6(ctx);
-    return handle_udp_recvmsg(flags);
+    handle_udp_recvmsg(sk, msg, flags, udp_recv_sock);
 }
 
 SEC("kprobe/udpv6_recvmsg/pre_4_1_0")
 int kprobe__udpv6_recvmsg_pre_4_1_0(struct pt_regs *ctx) {
+    struct sock *sk = (struct sock *)PT_REGS_PARM2(ctx);
+    struct msghdr *msg = (struct msghdr *)PT_REGS_PARM3(ctx);
     int flags = (int)PT_REGS_PARM6(ctx);
-    return handle_udp_recvmsg(flags);
+    handle_udp_recvmsg(sk, msg, flags, udpv6_recv_sock);
+}
+
+SEC("kretprobe/udp_recvmsg/pre_4_7_0")
+int kretprobe__udp_recvmsg_pre_4_7_0(struct pt_regs *ctx) {
+    int copied = (int)PT_REGS_RC(ctx);
+    return handle_ret_udp_recvmsg_pre_4_7_0(copied, &udp_recv_sock);
+}
+
+SEC("kretprobe/udpv6_recvmsg/pre_4_7_0")
+int kretprobe__udpv6_recvmsg_pre_4_7_0(struct pt_regs *ctx) {
+    int copied = (int)PT_REGS_RC(ctx);
+    return handle_ret_udp_recvmsg_pre_4_7_0(copied, &udpv6_recv_sock);
 }
 
 #endif // COMPILE_CORE || COMPILE_PREBUILT
