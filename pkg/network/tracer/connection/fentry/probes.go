@@ -41,7 +41,7 @@ const (
 	udpSendMsgReturn   = "udp_sendmsg_exit"
 	udpSendSkb         = "kprobe__udp_send_skb"
 	udpv6RecvMsgReturn = "udpv6_recvmsg_exit"
-	udpv6RecvMsgReturnPRE5190 = "udpv6_recvmsg_exit_PRE_5_19_0"
+	udpv6RecvMsgReturnPre5190 = "udpv6_recvmsg_exit_pre_5_19_0"
 	udpv6SendMsgReturn = "udpv6_sendmsg_exit"
 	udpv6SendSkb       = "kprobe__udp_v6_send_skb"
 
@@ -137,7 +137,7 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, inetBindRet)
 		enableProgram(enabled, udpDestroySock)
 		enableProgram(enabled, udpDestroySockReturn)
-		enableProgram(enabled, selectVersionBasedProbe(kv, udpv6SendMsgReturn, udpv6RecvMsgReturnPRE5190, kv5190))
+		enableProgram(enabled, selectVersionBasedProbe(kv, udpv6SendMsgReturn, udpv6RecvMsgReturnPre5190, kv5190))
 		enableProgram(enabled, udpSendMsgReturn)
 		enableProgram(enabled, udpSendSkb)
 
