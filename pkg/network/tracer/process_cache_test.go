@@ -67,7 +67,7 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 					values = append(values, e+"="+envs[e])
 				}
 
-				entry.EnvsEntry.Values = values
+				entry.EnvsEntry.SetValues(values)
 
 				p := pc.processEvent(entry)
 				if entry.ContainerID == "" && len(te.filter) > 0 && len(te.filtered) == 0 {
