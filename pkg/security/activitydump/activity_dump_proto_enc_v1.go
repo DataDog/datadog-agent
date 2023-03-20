@@ -77,11 +77,16 @@ func processActivityNodeToProto(pan *ProcessActivityNode) *adproto.ProcessActivi
 	*ppan = adproto.ProcessActivityNode{
 		Process:        processNodeToProto(&pan.Process),
 		GenerationType: adproto.GenerationType(pan.GenerationType),
+		MatchedRules:   make([]*adproto.MatchedRule, 0, len(pan.MatchedRules)),
 		Children:       make([]*adproto.ProcessActivityNode, 0, len(pan.Children)),
 		Files:          make([]*adproto.FileActivityNode, 0, len(pan.Files)),
 		DnsNames:       make([]*adproto.DNSNode, 0, len(pan.DNSNames)),
 		Sockets:        make([]*adproto.SocketNode, 0, len(pan.Sockets)),
 		Syscalls:       make([]uint32, 0, len(pan.Syscalls)),
+	}
+
+	for _, rule := range pan.MatchedRules {
+		ppan.MatchedRules = append(ppan.MatchedRules, matchedRuleToProto(rule))
 	}
 
 	for _, child := range pan.Children {
@@ -175,19 +180,22 @@ func fileEventToProto(fe *model.FileEvent) *adproto.FileInfo {
 
 	fi := adproto.FileInfoFromVTPool()
 	*fi = adproto.FileInfo{
-		Uid:          fe.UID,
-		User:         fe.User,
-		Gid:          fe.GID,
-		Group:        fe.Group,
-		Mode:         uint32(fe.Mode), // yeah sorry
-		Ctime:        fe.CTime,
-		Mtime:        fe.MTime,
-		MountId:      fe.MountID,
-		Inode:        fe.Inode,
-		InUpperLayer: fe.InUpperLayer,
-		Path:         fe.PathnameStr,
-		Basename:     fe.BasenameStr,
-		Filesystem:   fe.Filesystem,
+		Uid:               fe.UID,
+		User:              fe.User,
+		Gid:               fe.GID,
+		Group:             fe.Group,
+		Mode:              uint32(fe.Mode), // yeah sorry
+		Ctime:             fe.CTime,
+		Mtime:             fe.MTime,
+		MountId:           fe.MountID,
+		Inode:             fe.Inode,
+		InUpperLayer:      fe.InUpperLayer,
+		Path:              fe.PathnameStr,
+		Basename:          fe.BasenameStr,
+		Filesystem:        fe.Filesystem,
+		PackageName:       fe.PkgName,
+		PackageVersion:    fe.PkgVersion,
+		PackageSrcversion: fe.PkgSrcVersion,
 	}
 
 	return fi
@@ -200,12 +208,17 @@ func fileActivityNodeToProto(fan *FileActivityNode) *adproto.FileActivityNode {
 
 	pfan := adproto.FileActivityNodeFromVTPool()
 	*pfan = adproto.FileActivityNode{
+		MatchedRules:   make([]*adproto.MatchedRule, 0, len(fan.MatchedRules)),
 		Name:           fan.Name,
 		File:           fileEventToProto(fan.File),
 		GenerationType: adproto.GenerationType(fan.GenerationType),
 		FirstSeen:      timestampToProto(&fan.FirstSeen),
 		Open:           openNodeToProto(fan.Open),
 		Children:       make([]*adproto.FileActivityNode, 0, len(fan.Children)),
+	}
+
+	for _, rule := range fan.MatchedRules {
+		pfan.MatchedRules = append(pfan.MatchedRules, matchedRuleToProto(rule))
 	}
 
 	for _, child := range fan.Children {
@@ -235,7 +248,12 @@ func dnsNodeToProto(dn *DNSNode) *adproto.DNSNode {
 	}
 
 	pdn := &adproto.DNSNode{
-		Requests: make([]*adproto.DNSInfo, 0, len(dn.Requests)),
+		MatchedRules: make([]*adproto.MatchedRule, 0, len(dn.MatchedRules)),
+		Requests:     make([]*adproto.DNSInfo, 0, len(dn.Requests)),
+	}
+
+	for _, rule := range dn.MatchedRules {
+		pdn.MatchedRules = append(pdn.MatchedRules, matchedRuleToProto(rule))
 	}
 
 	for _, req := range dn.Requests {
@@ -270,13 +288,36 @@ func socketNodeToProto(sn *SocketNode) *adproto.SocketNode {
 	}
 
 	for _, bn := range sn.Bind {
-		psn.Bind = append(psn.Bind, &adproto.BindNode{
-			Port: uint32(bn.Port),
-			Ip:   bn.IP,
-		})
+		pbn := &adproto.BindNode{
+			MatchedRules: make([]*adproto.MatchedRule, 0, len(bn.MatchedRules)),
+			Port:         uint32(bn.Port),
+			Ip:           bn.IP,
+		}
+
+		for _, rule := range bn.MatchedRules {
+			pbn.MatchedRules = append(pbn.MatchedRules, matchedRuleToProto(rule))
+		}
+
+		psn.Bind = append(psn.Bind, pbn)
 	}
 
 	return psn
+}
+
+func matchedRuleToProto(r *model.MatchedRule) *adproto.MatchedRule {
+	if r == nil {
+		return nil
+	}
+
+	pmr := &adproto.MatchedRule{
+		RuleId:        r.RuleID,
+		RuleVersion:   r.RuleVersion,
+		RuleTags:      r.RuleTags,
+		PolicyName:    r.PolicyName,
+		PolicyVersion: r.PolicyVersion,
+	}
+
+	return pmr
 }
 
 func timestampToProto(t *time.Time) uint64 {

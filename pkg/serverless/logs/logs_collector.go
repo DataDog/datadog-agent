@@ -37,6 +37,7 @@ type LambdaLogsCollector struct {
 	In                     chan []LambdaLogAPIMessage
 	lastRequestID          string
 	coldstartRequestID     string
+	outOfMemory            bool
 	out                    chan<- *logConfig.ChannelMessage
 	demux                  aggregator.Demultiplexer
 	extraTags              *Tags
@@ -92,6 +93,13 @@ func (lc *LambdaLogsCollector) Start() {
 		go func() {
 			for messages := range lc.In {
 				lc.processLogMessages(messages)
+			}
+			// Store the execution context if an out of memory is detected
+			if lc.outOfMemory {
+				err := lc.executionContext.SaveCurrentExecutionContext()
+				if err != nil {
+					log.Warnf("Unable to save the current state. Failed with: %s", err)
+				}
 			}
 		}()
 	})
@@ -187,8 +195,10 @@ func (lc *LambdaLogsCollector) processMessage(
 
 	if lc.enhancedMetricsEnabled {
 		tags := tags.AddColdStartTag(lc.extraTags.Tags, lc.lastRequestID == lc.coldstartRequestID)
-		if message.logType == logTypeFunction {
-			serverlessMetrics.GenerateEnhancedMetricsFromFunctionLog(message.stringRecord, message.time, tags, lc.demux)
+		if message.logType == logTypeFunction && !lc.outOfMemory {
+			if lc.outOfMemory = serverlessMetrics.ContainsOutOfMemoryLog(message.stringRecord); lc.outOfMemory {
+				serverlessMetrics.GenerateEnhancedMetricsFromFunctionLog(message.time, tags, lc.demux)
+			}
 		}
 		if message.logType == logTypePlatformReport {
 			args := serverlessMetrics.GenerateEnhancedMetricsFromReportLogArgs{

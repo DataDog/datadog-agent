@@ -102,3 +102,25 @@ func TestExtractRegionFromMalformedPrefixSecretsManagerArnPrefix(t *testing.T) {
 	assert.Equal(t, result, "")
 	assert.Error(t, err, "could not extract region from arn: aws:secretsmanager:us-west-2:123456789012:secret:DatadogAPIKeySecret. arn: invalid prefix")
 }
+
+func TestDDApiKey(t *testing.T) {
+	t.Setenv("DD_API_KEY", "abc")
+	assert.True(t, hasApiKey())
+}
+
+func TestHasDDApiKeySecretArn(t *testing.T) {
+	t.Setenv("DD_API_KEY_SECRET_ARN", "abc")
+	assert.True(t, hasApiKey())
+}
+
+func TestHasDDKmsApiKey(t *testing.T) {
+	t.Setenv("DD_KMS_API_KEY", "abc")
+	assert.True(t, hasApiKey())
+}
+
+func TestHasNoKeys(t *testing.T) {
+	t.Setenv("DD_KMS_API_KEY", "")
+	t.Setenv("DD_API_KEY_SECRET_ARN", "")
+	t.Setenv("DD_API_KEY", "")
+	assert.False(t, hasApiKey())
+}

@@ -38,6 +38,7 @@ message ProcessActivityNode {
     reserved 2;
     GenerationType generation_type = 8;
 
+    repeated MatchedRule matched_rules = 9;
     repeated ProcessActivityNode children = 3;
     repeated FileActivityNode files = 4;
     repeated DNSNode dns_names = 5;
@@ -76,6 +77,8 @@ message ProcessInfo {
 }
 
 message FileActivityNode {
+    repeated MatchedRule matched_rules = 9;
+
     string name = 1;
     bool is_pattern = 7;
     FileInfo file = 2;
@@ -95,6 +98,8 @@ message OpenNode {
 }
 
 message DNSNode {
+    repeated MatchedRule matched_rules = 2;
+
     repeated DNSInfo requests = 1;
 }
 
@@ -124,6 +129,10 @@ message FileInfo {
     string path = 11;
     string basename = 12;
     string filesystem = 13;
+
+    string package_name = 14;
+    string package_version = 15;
+    string package_srcversion = 16;
 }
 
 message Credentials {
@@ -152,6 +161,8 @@ message SocketNode {
 }
 
 message BindNode {
+    repeated MatchedRule matched_rules = 3;
+
     uint32 port = 1;
     string ip = 2;
 }
@@ -160,4 +171,12 @@ enum GenerationType {
     UNKNOWN = 0;
     RUNTIME = 1;
     SNAPSHOT = 2;
+}
+
+message MatchedRule {
+    string rule_id = 1;
+    string rule_version = 2;
+    string policy_name = 3;
+    string policy_version = 4;
+    map<string, string> rule_tags = 5;
 }

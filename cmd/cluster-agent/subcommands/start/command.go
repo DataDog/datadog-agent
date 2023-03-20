@@ -191,7 +191,6 @@ func start(log log.Component, config config.Component, cliParams *command.Global
 	forwarderOpts.DisableAPIKeyChecking = true
 	opts := aggregator.DefaultAgentDemultiplexerOptions(forwarderOpts)
 	opts.UseEventPlatformForwarder = false
-	opts.UseContainerLifecycleForwarder = false
 	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hname)
 	demux.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 

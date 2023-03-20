@@ -20,6 +20,8 @@
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/http-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/http-debug.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/dns.o $CI_PROJECT_DIR/.tmp/binary-ebpf/dns.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/dns-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/dns-debug.o
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/conntrack.o $CI_PROJECT_DIR/.tmp/binary-ebpf/conntrack.o
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/conntrack-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/conntrack-debug.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/http-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/http-debug.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/http.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/http.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/oom-kill.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/oom-kill.o
@@ -42,9 +44,9 @@
   script:
     - inv -e install-tools
     - inv -e system-probe.object-files
-    - invoke -e golangci-lint --build system-probe ./pkg
+    - invoke -e golangci-lint --build system-probe --concurrency 4 ./pkg
     - invoke -e security-agent.run-ebpf-unit-tests --verbose
-    - invoke -e golangci-lint --targets=./pkg/security/tests --build-tags="stresstests linux_bpf ebpf_bindata" --arch=$TASK_ARCH
+    - invoke -e golangci-lint --targets=./pkg/security/tests --concurrency 4 --build-tags="stresstests linux_bpf ebpf_bindata" --arch=$TASK_ARCH
 
 .tests_windows_sysprobe:
   stage: source_test
@@ -63,7 +65,7 @@
       -e PY_RUNTIMES="$PYTHON_RUNTIMES"
       -e GOMODCACHE="c:\modcache"
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
-      486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES
+      486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\sysprobe.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
   artifacts:
@@ -73,16 +75,16 @@
 
 tests_ebpf_x64:
   extends: .tests_linux_ebpf
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["runner:main"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["arch:amd64"]
   variables:
     ARCH: amd64
     TASK_ARCH: x64
 
 tests_ebpf_arm64:
   extends: .tests_linux_ebpf
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["runner:docker-arm", "platform:arm64"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["arch:arm64"]
   variables:
     ARCH: arm64
     TASK_ARCH: arm64
@@ -109,15 +111,15 @@ tests_ebpf_arm64:
 
 prepare_ebpf_functional_tests_arm64:
   extends: .prepare_ebpf_functional_tests
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["runner:docker-arm", "platform:arm64"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["arch:arm64"]
   variables:
     ARCH: arm64
 
 prepare_ebpf_functional_tests_x64:
   extends: .prepare_ebpf_functional_tests
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["runner:main"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["arch:amd64"]
   variables:
     ARCH: amd64
 

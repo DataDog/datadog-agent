@@ -25,6 +25,8 @@
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/http-debug.o $S3_ARTIFACTS_URI/http-debug.o.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/dns.o $S3_ARTIFACTS_URI/dns.o.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/dns-debug.o $S3_ARTIFACTS_URI/dns-debug.o.$ARCH
+    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/conntrack.o $S3_ARTIFACTS_URI/conntrack.o.$ARCH
+    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/conntrack-debug.o $S3_ARTIFACTS_URI/conntrack-debug.o.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime-security.o $S3_ARTIFACTS_URI/runtime-security.o.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime-security-syscall-wrapper.o $S3_ARTIFACTS_URI/runtime-security-syscall-wrapper.o.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime-security-offset-guesser.o $S3_ARTIFACTS_URI/runtime-security-offset-guesser.o.$ARCH
@@ -42,8 +44,8 @@
 
 build_system-probe-x64:
   stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["runner:main"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["arch:amd64"]
   needs: ["go_deps"]
   extends: .system-probe_build_common
   variables:
@@ -51,9 +53,9 @@ build_system-probe-x64:
 
 build_system-probe-arm64:
   stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   needs: ["go_deps"]
-  tags: ["runner:docker-arm", "platform:arm64"]
+  tags: ["arch:arm64"]
   extends: .system-probe_build_common
   variables:
     ARCH: arm64

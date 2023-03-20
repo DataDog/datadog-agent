@@ -7,9 +7,12 @@ package registration
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -18,14 +21,15 @@ const (
 
 	//HeaderExtID is the header name for the extension identifier
 	HeaderExtID = "Lambda-Extension-Identifier"
+
+	routeEventNext string = "/2020-01-01/extension/event/next"
 )
 
 // RegisterExtension registers the serverless daemon and subscribe to INVOKE and SHUTDOWN messages.
 // Returns either (the serverless ID assigned by the serverless daemon + the api key as read from
 // the environment) or an error.
 func RegisterExtension(runtimeURL string, registrationRoute string, timeout time.Duration) (ID, error) {
-
-	extesionRegistrationURL := BuildURL(runtimeURL, registrationRoute)
+	extesionRegistrationURL := BuildURL(registrationRoute)
 	payload := createRegistrationPayload()
 
 	request, err := buildRegisterRequest(headerExtName, extensionName, extesionRegistrationURL, payload)
@@ -37,9 +41,9 @@ func RegisterExtension(runtimeURL string, registrationRoute string, timeout time
 	if err != nil {
 		return "", fmt.Errorf("registerExtension: error while POST register route: %v", err)
 	}
-	defer response.Body.Close()
+	response.Body.Close()
 
-	if !isAValidResponse(response) {
+  if !isAValidResponse(response) {
 		return "", fmt.Errorf("registerExtension: didn't receive an HTTP 200")
 	}
 
@@ -76,4 +80,36 @@ func buildRegisterRequest(headerExtensionName string, extensionName string, url 
 
 func sendRequest(client HTTPClient, request *http.Request) (*http.Response, error) {
 	return client.Do(request)
+}
+
+// NoOpProcessEvent conforms to the Lambda Runtime API but act as a no-op
+// this is required NOT to fail the extension (and customer code) when no api key has been set
+func NoOpProcessEvent(ctx context.Context, id ID) error {
+	var err error
+	var request *http.Request
+	var response *http.Response
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			if request, err = http.NewRequest(http.MethodGet, NextUrl(), nil); err != nil {
+				return fmt.Errorf("NoOp WaitForNextInvocation: can't create the GET request: %v", err)
+			}
+			request.Header.Set(HeaderExtID, id.String())
+			// make a blocking HTTP call to wait for the next event from AWS
+			client := &http.Client{Timeout: 0} // this one should never timeout
+			if response, err = client.Do(request); err != nil {
+				return fmt.Errorf("WaitForNextInvocation: while GET next route: %v", err)
+			}
+
+			defer response.Body.Close()
+			log.Warn("The extension is running as a no-op extension")
+		}
+	}
+}
+
+// NextUrl returns the /next endpoint
+func NextUrl() string {
+	return BuildURL(routeEventNext)
 }

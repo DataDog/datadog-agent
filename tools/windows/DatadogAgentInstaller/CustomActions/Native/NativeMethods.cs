@@ -1,10 +1,8 @@
 using System;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
-using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text;
-using static Datadog.CustomActions.Native.NativeMethods;
 
 namespace Datadog.CustomActions.Native
 {
@@ -47,60 +45,6 @@ namespace Datadog.CustomActions.Native
 
             //The local group specified by the groupname parameter does not exist.
             NERR_GROUP_NOT_FOUND = 2220,
-        }
-
-        [DllImport("credui.dll", EntryPoint = "CredUIParseUserNameW", CharSet = CharSet.Unicode)]
-        private static extern ReturnCodes CredUIParseUserName(
-            string userName,
-            StringBuilder user,
-            int userMaxChars,
-            StringBuilder domain,
-            int domainMaxChars);
-
-        /// <summary>
-        /// Extracts the domain and user account name from a fully qualified user name.
-        /// </summary>
-        /// <param name="userName">A <see cref="string"/> that contains the user name to be parsed. The name must be in UPN or down-level format, or a certificate.</param>
-        /// <param name="user">A <see cref="string"/> that receives the user account name.</param>
-        /// <param name="domain">A <see cref="string"/> that receives the domain name. If <paramref name="userName"/> specifies a certificate, pszDomain will be <see langword="null"/>.</param>
-        /// <returns>
-        ///     <see langword="true"/> if the <paramref name="userName"/> contains a domain and a user-name; otherwise, <see langword="false"/>.
-        /// </returns>
-        public static bool ParseUserName(string userName, out string user, out string domain)
-        {
-            if (string.IsNullOrEmpty(userName))
-            {
-                throw new ArgumentNullException(nameof(userName));
-            }
-
-            StringBuilder userBuilder = new StringBuilder();
-            StringBuilder domainBuilder = new StringBuilder();
-
-            ReturnCodes returnCode = CredUIParseUserName(userName, userBuilder, int.MaxValue, domainBuilder, int.MaxValue);
-            switch (returnCode)
-            {
-                case ReturnCodes.NO_ERROR: // The username is valid.
-                    user = userBuilder.ToString();
-                    domain = domainBuilder.ToString();
-                    return true;
-
-                case ReturnCodes.ERROR_INVALID_ACCOUNT_NAME: // The username is not valid.
-                    user = userName;
-                    domain = null;
-                    return false;
-
-                // Impossible to reach this state
-                //case ReturnCodes.ERROR_INSUFFICIENT_BUFFER: // One of the buffers is too small.
-                //    throw new OutOfMemoryException();
-
-                case ReturnCodes.ERROR_INVALID_PARAMETER: // ulUserMaxChars or ulDomainMaxChars is zero OR userName, user, or domain is NULL.
-                    throw new ArgumentNullException("userName");
-
-                default:
-                    user = null;
-                    domain = null;
-                    return false;
-            }
         }
 
         public enum NtStatus : uint
@@ -349,6 +293,67 @@ namespace Datadog.CustomActions.Native
             }
         }
 
+        /// <summary>Receives a security identifier (SID) and returns a SID representing the domain of that SID.</summary>
+        /// <param name="pSid">A pointer to the SID to examine.</param>
+        /// <param name="pDomainSid">Pointer that <b>GetWindowsAccountDomainSid</b> fills with a pointer to a SID representing the domain.</param>
+        /// <param name="cbDomainSid">A pointer to a <b>DWORD</b> that <b>GetWindowsAccountDomainSid</b> fills with the size of the domain SID, in bytes.</param>
+        /// <returns>
+        /// <para>Returns <b>TRUE</b> if successful. Otherwise, returns <b>FALSE</b>. For extended error information, call <a href="/windows/desktop/api/errhandlingapi/nf-errhandlingapi-getlasterror">GetLastError</a>.</para>
+        /// </returns>
+        /// <remarks>
+        /// <para><see href="https://docs.microsoft.com/windows/win32/api//securitybaseapi/nf-securitybaseapi-getwindowsaccountdomainsid">Learn more about this API from docs.microsoft.com</see>.</para>
+        /// </remarks>
+        [DllImport("ADVAPI32.dll", ExactSpelling = true, SetLastError = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        public static extern bool GetWindowsAccountDomainSid(
+            [MarshalAs(UnmanagedType.LPArray)] byte[] pSid,
+            [MarshalAs(UnmanagedType.LPArray)] byte[] pDomainSid,
+            ref uint cbDomainSid);
+
+        /// <summary>
+        /// Checks whether or not a user account belongs to a domain or is a local account.
+        /// </summary>
+        /// <param name="userSid">The SID of the user.</param>
+        /// <returns>True if the <paramref name="userSid"/> belongs to a domain, false otherwise.</returns>
+        /// <exception cref="Exception">
+        /// This method throws an exception if the second call
+        /// to <see cref="GetWindowsAccountDomainSid"/> fails.</exception>
+        public static bool IsDomainAccount(SecurityIdentifier userSid)
+        {
+            var userBinSid = new byte[userSid.BinaryLength];
+            userSid.GetBinaryForm(userBinSid, 0);
+            uint sz = 0;
+            if (!GetWindowsAccountDomainSid(userBinSid, null, ref sz) && sz == 0)
+            {
+                // This will fail if the SID is not a domain SID (i.e. a local account)
+                return false;
+            }
+            var domainBinSid = new byte[sz];
+            if (GetWindowsAccountDomainSid(userBinSid, domainBinSid, ref sz))
+            {
+                var domainSid = new SecurityIdentifier(domainBinSid, 0);
+                var machineFound = LookupAccountName(
+                    Environment.MachineName,
+                    out _,
+                    out _,
+                    out var machineSid,
+                    out _);
+                if (machineFound)
+                {
+                    // If the machineSid is different from the domainSid
+                    // that means it's a domain account.
+                    return machineSid != domainSid;
+                }
+            }
+            else
+            {
+                // That call should not fail
+                throw new Exception("Unexpected failure while checking if the account belonged to a domain.");
+            }
+
+            return false;
+        }
+
         #region Add/Remove privileges
         [DllImport("advapi32.dll", PreserveSig = true)]
         private static extern uint LsaOpenPolicy(
@@ -466,5 +471,31 @@ namespace Datadog.CustomActions.Native
             }
         }
         #endregion
+
+        public enum COMPUTER_NAME_FORMAT
+        {
+            ComputerNameNetBIOS,
+            ComputerNameDnsHostname,
+            ComputerNameDnsDomain,
+            ComputerNameDnsFullyQualified,
+            ComputerNamePhysicalNetBIOS,
+            ComputerNamePhysicalDnsHostname,
+            ComputerNamePhysicalDnsDomain,
+            ComputerNamePhysicalDnsFullyQualified
+        }
+
+        [DllImport("kernel32.dll", SetLastError=true, CharSet=CharSet.Auto)]
+        private static extern bool GetComputerNameEx(COMPUTER_NAME_FORMAT NameType,
+                           [Out] StringBuilder lpBuffer, ref uint lpnSize);
+
+        public static bool GetComputerNameEx(COMPUTER_NAME_FORMAT NameType, out string name)
+        {
+            var nameBuilder = new StringBuilder();
+            uint nSize = 260;
+            nameBuilder.EnsureCapacity((int)nSize);
+            var result = GetComputerNameEx(NameType, nameBuilder, ref nSize);
+            name = nameBuilder.ToString();
+            return result;
+        }
     }
 }

@@ -8,6 +8,8 @@
 
 package ksm
 
+import "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+
 // ksmMetricPrefix defines the KSM metrics namespace
 const ksmMetricPrefix = "kubernetes_state."
 
@@ -24,6 +26,7 @@ func defaultMetricNamesMapper() map[string]string {
 		"kube_deployment_spec_strategy_rollingupdate_max_unavailable":                              "deployment.rollingupdate.max_unavailable",
 		"kube_deployment_spec_strategy_rollingupdate_max_surge":                                    "deployment.rollingupdate.max_surge",
 		"kube_deployment_status_replicas":                                                          "deployment.replicas",
+		"kube_deployment_status_replicas_ready":                                                    "deployment.replicas_ready",
 		"kube_deployment_status_replicas_available":                                                "deployment.replicas_available",
 		"kube_deployment_status_replicas_unavailable":                                              "deployment.replicas_unavailable",
 		"kube_deployment_status_replicas_updated":                                                  "deployment.replicas_updated",
@@ -70,6 +73,7 @@ func defaultMetricNamesMapper() map[string]string {
 		"kube_horizontalpodautoscaler_status_desired_replicas":                                     "hpa.desired_replicas",
 		"kube_horizontalpodautoscaler_status_current_replicas":                                     "hpa.current_replicas",
 		"kube_horizontalpodautoscaler_spec_target_metric":                                          "hpa.spec_target_metric",
+		"kube_horizontalpodautoscaler_status_target_metric":                                        "hpa.status_target_metric",
 		"kube_verticalpodautoscaler_status_recommendation_containerrecommendations_lowerbound":     "vpa.lower_bound",
 		"kube_verticalpodautoscaler_status_recommendation_containerrecommendations_target":         "vpa.target",
 		"kube_verticalpodautoscaler_status_recommendation_containerrecommendations_uncappedtarget": "vpa.uncapped_target",
@@ -96,7 +100,6 @@ func defaultLabelsMapper() map[string]string {
 		"replicaset":                          "kube_replica_set",
 		"statefulset":                         "kube_stateful_set",
 		"deployment":                          "kube_deployment",
-		"service":                             "kube_service",
 		"endpoint":                            "kube_endpoint",
 		"container":                           "kube_container_name",
 		"container_id":                        "container_id",
@@ -225,5 +228,12 @@ func getLabelToMatchForKind(kind string) []string {
 		return []string{"persistentvolume"}
 	default:
 		return []string{kind, "namespace"}
+	}
+}
+
+func defaultAnnotationsAsTags() map[string]map[string]string {
+	return map[string]map[string]string{
+		"pod":        {kubernetes.RcIDAnnotKey: kubernetes.RcIDTagName, kubernetes.RcRevisionAnnotKey: kubernetes.RcRevisionTagName},
+		"deployment": {kubernetes.RcIDAnnotKey: kubernetes.RcIDTagName, kubernetes.RcRevisionAnnotKey: kubernetes.RcRevisionTagName},
 	}
 }

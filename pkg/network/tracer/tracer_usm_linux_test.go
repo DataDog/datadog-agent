@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	javatestutil "github.com/DataDog/datadog-agent/pkg/network/java/testutil"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/gotls"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
@@ -68,6 +69,10 @@ func httpSupported(t *testing.T) bool {
 
 func httpsSupported(t *testing.T) bool {
 	return http.HTTPSSupported(testConfig())
+}
+
+func goTLSSupported(t *testing.T) bool {
+	return config.New().EnableRuntimeCompiler && httpSupported(t) && httpsSupported(t)
 }
 
 func javaTLSSupported(t *testing.T) bool {
@@ -135,24 +140,19 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 	resp.Body.Close()
 
 	// Iterate through active connections until we find connection created above
-	var httpReqStats *http.RequestStats
 	require.Eventuallyf(t, func() bool {
 		payload := getConnections(t, tr)
 		for key, stats := range payload.HTTP {
-			if key.Path.Content == "/test" {
-				httpReqStats = stats
-				return true
+			if key.Method == http.MethodGet && key.Path.Content == "/test" && (key.SrcPort == 8080 || key.DstPort == 8080) {
+				currentStats := stats.Data[stats.NormalizeStatusCode(204)]
+				if currentStats != nil && currentStats.Count == 1 {
+					return true
+				}
 			}
 		}
 
 		return false
 	}, 3*time.Second, 10*time.Millisecond, "couldn't find http connection matching: %s", serverAddr)
-
-	// Verify HTTP stats
-	require.NotNil(t, httpReqStats)
-	require.Len(t, httpReqStats.Data, 1)
-	require.NotNil(t, httpReqStats.Data[httpReqStats.NormalizeStatusCode(204)])
-	require.Equal(t, 1, httpReqStats.Data[httpReqStats.NormalizeStatusCode(204)].Count)
 }
 
 func TestHTTPSViaLibraryIntegration(t *testing.T) {
@@ -841,7 +841,7 @@ func TestJavaInjection(t *testing.T) {
 
 // GoTLS test
 func TestHTTPGoTLSAttachProbes(t *testing.T) {
-	if !config.New().EnableRuntimeCompiler || !httpSupported(t) || !httpsSupported(t) {
+	if !goTLSSupported(t) {
 		t.Skip("GoTLS not supported for this setup")
 	}
 
@@ -879,6 +879,46 @@ func TestHTTPGoTLSAttachProbes(t *testing.T) {
 	})
 }
 
+func TestHTTPSGoTLSAttachProbesOnContainer(t *testing.T) {
+	t.Skip("Skipping a flaky test")
+	if !goTLSSupported(t) {
+		t.Skip("GoTLS not supported for this setup")
+	}
+
+	t.Run("new process (runtime compilation)", func(t *testing.T) {
+		cfg := config.New()
+		cfg.EnableRuntimeCompiler = true
+		cfg.EnableCORE = false
+		testHTTPsGoTLSCaptureNewProcessContainer(t, cfg)
+	})
+
+	t.Run("already running process (runtime compilation)", func(t *testing.T) {
+		cfg := config.New()
+		cfg.EnableRuntimeCompiler = true
+		cfg.EnableCORE = false
+		testHTTPsGoTLSCaptureAlreadyRunningContainer(t, cfg)
+	})
+
+	// note: this is a bit of hack since CI runs an entire package either as
+	// runtime, CO-RE, or pre-built. here we're piggybacking on the runtime pass
+	// and running the CO-RE tests as well
+	t.Run("new process (co-re)", func(t *testing.T) {
+		cfg := config.New()
+		cfg.EnableCORE = true
+		cfg.EnableRuntimeCompiler = false
+		cfg.AllowRuntimeCompiledFallback = false
+		testHTTPsGoTLSCaptureNewProcessContainer(t, cfg)
+	})
+
+	t.Run("already running process (co-re)", func(t *testing.T) {
+		cfg := config.New()
+		cfg.EnableCORE = true
+		cfg.EnableRuntimeCompiler = false
+		cfg.AllowRuntimeCompiledFallback = false
+		testHTTPsGoTLSCaptureAlreadyRunningContainer(t, cfg)
+	})
+}
+
 // Test that we can capture HTTPS traffic from Go processes started after the
 // tracer.
 func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config) {
@@ -899,7 +939,7 @@ func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config) {
 
 	tr := setupTracer(t, cfg)
 
-	// This maps will keep track of whether or not the tracer saw this request already or not
+	// This maps will keep track of whether the tracer saw this request already or not
 	reqs := make(requestsMap)
 	for i := 0; i < expectedOccurrences; i++ {
 		req, err := nethttp.NewRequest(nethttp.MethodGet, fmt.Sprintf("https://%s/%d/request-%d", serverAddr, nethttp.StatusOK, i), nil)
@@ -935,7 +975,7 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 	t.Cleanup(tr.Stop)
 	require.NoError(t, tr.RegisterClient("1"))
 
-	// This maps will keep track of whether or not the tracer saw this request already or not
+	// This maps will keep track of whether the tracer saw this request already or not
 	reqs := make(requestsMap)
 	for i := 0; i < expectedOccurrences; i++ {
 		req, err := nethttp.NewRequest(nethttp.MethodGet, fmt.Sprintf("https://%s/%d/request-%d", serverAddr, nethttp.StatusOK, i), nil)
@@ -944,6 +984,78 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 	}
 
 	issueRequestsFn()
+	checkRequests(t, tr, expectedOccurrences, reqs)
+}
+
+// Test that we can capture HTTPS traffic from Go processes started after the
+// tracer.
+func testHTTPsGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) {
+	const (
+		serverPort          = "8443"
+		expectedOccurrences = 10
+	)
+
+	// problems with aggregation
+	client := &nethttp.Client{
+		Transport: &nethttp.Transport{
+			TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
+			DisableKeepAlives: false,
+		},
+	}
+
+	// Setup
+	cfg.EnableGoTLSSupport = true
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableHTTPSMonitoring = true
+	cfg.EnableHTTPStatsByStatusCode = true
+
+	tr := setupTracer(t, cfg)
+
+	gotls.RunServer(t, serverPort)
+	reqs := make(requestsMap)
+	for i := 0; i < expectedOccurrences; i++ {
+		resp, err := client.Get(fmt.Sprintf("https://localhost:%s/status/%d", serverPort, 200+i))
+		require.NoError(t, err)
+		resp.Body.Close()
+		reqs[resp.Request] = false
+	}
+
+	client.CloseIdleConnections()
+	checkRequests(t, tr, expectedOccurrences, reqs)
+}
+
+func testHTTPsGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Config) {
+	const (
+		serverPort          = "8443"
+		expectedOccurrences = 10
+	)
+
+	gotls.RunServer(t, serverPort)
+
+	client := &nethttp.Client{
+		Transport: &nethttp.Transport{
+			TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
+			DisableKeepAlives: false,
+		},
+	}
+
+	// Setup
+	cfg.EnableGoTLSSupport = true
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableHTTPSMonitoring = true
+	cfg.EnableHTTPStatsByStatusCode = true
+
+	tr := setupTracer(t, cfg)
+
+	reqs := make(requestsMap)
+	for i := 0; i < expectedOccurrences; i++ {
+		resp, err := client.Get(fmt.Sprintf("https://localhost:%s/status/%d", serverPort, 200+i))
+		require.NoError(t, err)
+		resp.Body.Close()
+		reqs[resp.Request] = false
+	}
+
+	client.CloseIdleConnections()
 	checkRequests(t, tr, expectedOccurrences, reqs)
 }
 

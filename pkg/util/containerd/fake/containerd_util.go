@@ -30,7 +30,6 @@ type MockedContainerdClient struct {
 	MockContainers            func(namespace string) ([]containerd.Container, error)
 	MockContainer             func(namespace string, id string) (containerd.Container, error)
 	MockContainerWithCtx      func(ctx context.Context, namespace string, id string) (containerd.Container, error)
-	MockEnvVars               func(namespace string, ctn containerd.Container) (map[string]string, error)
 	MockMetadata              func() (containerd.Version, error)
 	MockListImages            func(namespace string) ([]containerd.Image, error)
 	MockImage                 func(namespace string, name string) (containerd.Image, error)
@@ -42,11 +41,9 @@ type MockedContainerdClient struct {
 	MockLabels                func(namespace string, ctn containerd.Container) (map[string]string, error)
 	MockLabelsWithContext     func(ctx context.Context, namespace string, ctn containerd.Container) (map[string]string, error)
 	MockNamespaces            func(ctx context.Context) ([]string, error)
-	MockSpec                  func(namespace string, ctn containerd.Container) (*oci.Spec, error)
-	MockSpecWithContext       func(ctx context.Context, namespace string, ctn containerd.Container) (*oci.Spec, error)
+	MockSpec                  func(namespace string, ctn containers.Container) (*oci.Spec, error)
 	MockStatus                func(namespace string, ctn containerd.Container) (containerd.ProcessStatus, error)
 	MockCallWithClientContext func(namespace string, f func(context.Context) error) error
-	MockAnnotations           func(namespace string, ctn containerd.Container) (map[string]string, error)
 	MockIsSandbox             func(namespace string, ctn containerd.Container) (bool, error)
 	MockMountImage            func(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image, targetDir string) (func(context.Context) error, error)
 }
@@ -142,18 +139,8 @@ func (client *MockedContainerdClient) GetEvents() containerd.EventService {
 }
 
 // Spec is a mock method
-func (client *MockedContainerdClient) Spec(namespace string, ctn containerd.Container) (*oci.Spec, error) {
+func (client *MockedContainerdClient) Spec(namespace string, ctn containers.Container, maxSize int) (*oci.Spec, error) {
 	return client.MockSpec(namespace, ctn)
-}
-
-// SpecWithContext is a mock method
-func (client *MockedContainerdClient) SpecWithContext(ctx context.Context, namespace string, ctn containerd.Container) (*oci.Spec, error) {
-	return client.MockSpecWithContext(ctx, namespace, ctn)
-}
-
-// EnvVars is a mock method
-func (client *MockedContainerdClient) EnvVars(namespace string, ctn containerd.Container) (map[string]string, error) {
-	return client.MockEnvVars(namespace, ctn)
 }
 
 // Status is a mock method
@@ -164,11 +151,6 @@ func (client *MockedContainerdClient) Status(namespace string, ctn containerd.Co
 // CallWithClientContext is a mock method
 func (client *MockedContainerdClient) CallWithClientContext(namespace string, f func(context.Context) error) error {
 	return client.MockCallWithClientContext(namespace, f)
-}
-
-// Annotations is a mock method
-func (client *MockedContainerdClient) Annotations(namespace string, ctn containerd.Container) (map[string]string, error) {
-	return client.MockAnnotations(namespace, ctn)
 }
 
 // IsSandbox is a mock method

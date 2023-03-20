@@ -217,7 +217,7 @@ func (d *DockerCheck) runDockerCustom(sender aggregator.Sender, du docker.Client
 
 		tags, err := getImageTagsFromContainer(taggerEntityID, resolvedImageName, isContainerExcluded || !isContainerRunning)
 		if err != nil {
-			log.Warnf("Unable to fetch tags for container: %s, err: %v", rawContainer.ImageID, err)
+			log.Debugf("Unable to fetch tags for image: %s, err: %v", rawContainer.ImageID, err)
 		} else {
 			sort.Strings(tags)
 			key := strings.Join(tags, "|")

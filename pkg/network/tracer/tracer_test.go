@@ -13,12 +13,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
 	"net"
 	nethttp "net/http"
-	"net/url"
 	"os"
 	"runtime"
 	"strconv"
@@ -81,13 +81,6 @@ func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
 
 func TestGetStats(t *testing.T) {
 	httpSupported := httpSupported(t)
-	cfg := testConfig()
-	cfg.EnableHTTPMonitoring = true
-	tr := setupTracer(t, cfg)
-
-	<-time.After(time.Second)
-
-	getConnections(t, tr)
 	linuxExpected := map[string]interface{}{}
 	err := json.Unmarshal([]byte(`{
       "conntrack": {
@@ -193,24 +186,37 @@ func TestGetStats(t *testing.T) {
 		}
 	}
 
-	actual, _ := tr.GetStats()
+	for _, enableEbpfConntracker := range []bool{true, false} {
+		t.Run(fmt.Sprintf("ebpf conntracker %v", enableEbpfConntracker), func(t *testing.T) {
+			cfg := testConfig()
+			cfg.EnableHTTPMonitoring = true
+			cfg.EnableEbpfConntracker = enableEbpfConntracker
+			cfg.AllowPrecompiledFallback = true
+			tr := setupTracer(t, cfg)
 
-	for section, entries := range expected {
-		if section == "usm" && !httpSupported {
-			// HTTP stats not supported on some systems
-			continue
-		}
-		require.Contains(t, actual, section, "missing section from telemetry map: %s", section)
-		for name := range entries.(map[string]interface{}) {
-			if cfg.EnableRuntimeCompiler {
-				if sec, ok := rcExceptions[section]; ok {
-					if _, ok := sec.(map[string]interface{})[name]; ok {
-						continue
+			<-time.After(time.Second)
+
+			getConnections(t, tr)
+			actual, _ := tr.GetStats()
+
+			for section, entries := range expected {
+				if section == "usm" && !httpSupported {
+					// HTTP stats not supported on some systems
+					continue
+				}
+				require.Contains(t, actual, section, "missing section from telemetry map: %s", section)
+				for name := range entries.(map[string]interface{}) {
+					if cfg.EnableRuntimeCompiler || cfg.EnableEbpfConntracker {
+						if sec, ok := rcExceptions[section]; ok {
+							if _, ok := sec.(map[string]interface{})[name]; ok {
+								continue
+							}
+						}
 					}
+					assert.Contains(t, actual[section], name, "%s actual is missing %s", section, name)
 				}
 			}
-			assert.Contains(t, actual[section], name, "%s actual is missing %s", section, name)
-		}
+		})
 	}
 }
 
@@ -485,10 +491,9 @@ func testUDPSendAndReceive(t *testing.T, addr string) {
 		},
 	}
 
-	doneChan := make(chan struct{})
-	err := server.Run(doneChan, clientMessageSize)
+	err := server.Run(clientMessageSize)
 	require.NoError(t, err)
-	t.Cleanup(func() { close(doneChan) })
+	t.Cleanup(server.Shutdown)
 
 	initTracerState(t, tr)
 
@@ -540,10 +545,9 @@ func TestUDPDisabled(t *testing.T) {
 		},
 	}
 
-	doneChan := make(chan struct{})
-	err := server.Run(doneChan, clientMessageSize)
+	err := server.Run(clientMessageSize)
 	require.NoError(t, err)
-	defer close(doneChan)
+	t.Cleanup(server.Shutdown)
 
 	// Connect to server
 	c, err := net.DialTimeout("udp", server.address, 50*time.Millisecond)
@@ -762,34 +766,13 @@ func TestSkipConnectionDNS(t *testing.T) {
 	})
 }
 
-func byAddress(l, r net.Addr) func(c network.ConnectionStats) bool {
-	return func(c network.ConnectionStats) bool {
-		return addrMatches(l, c.Source.String(), c.SPort) && addrMatches(r, c.Dest.String(), c.DPort)
-	}
-}
-
 func findConnection(l, r net.Addr, c *network.Connections) (*network.ConnectionStats, bool) {
-	if result := searchConnections(c, byAddress(l, r)); len(result) > 0 {
-		return &result[0], true
-	}
-
-	return nil, false
+	res := network.FirstConnection(c, network.ByTuple(l, r))
+	return res, res != nil
 }
 
 func searchConnections(c *network.Connections, predicate func(network.ConnectionStats) bool) []network.ConnectionStats {
-	var results []network.ConnectionStats
-	for _, conn := range c.Conns {
-		if predicate(conn) {
-			results = append(results, conn)
-		}
-	}
-	return results
-}
-
-func addrMatches(addr net.Addr, host string, port uint16) bool {
-	addrURL := url.URL{Scheme: addr.Network(), Host: addr.String()}
-
-	return addrURL.Hostname() == host && addrURL.Port() == strconv.Itoa(int(port))
+	return network.FilterConnections(c, predicate)
 }
 
 func runBenchtests(b *testing.B, payloads []int, prefix string, f func(p int) func(*testing.B)) {
@@ -817,11 +800,10 @@ func benchEchoUDP(size int) func(b *testing.B) {
 	}
 
 	return func(b *testing.B) {
-		end := make(chan struct{})
 		server := &UDPServer{onMessage: echoOnMessage}
-		err := server.Run(end, size)
+		err := server.Run(size)
 		require.NoError(b, err)
-		defer close(end)
+		defer server.Shutdown()
 
 		c, err := net.DialTimeout("udp", server.address, 50*time.Millisecond)
 		if err != nil {
@@ -936,6 +918,7 @@ func benchSendTCP(size int) func(b *testing.B) {
 
 type TCPServer struct {
 	address   string
+	network   string
 	onMessage func(c net.Conn)
 	ln        net.Listener
 }
@@ -952,7 +935,11 @@ func NewTCPServerOnAddress(addr string, onMessage func(c net.Conn)) *TCPServer {
 }
 
 func (t *TCPServer) Run() error {
-	ln, err := net.Listen("tcp", t.address)
+	networkType := "tcp"
+	if t.network != "" {
+		networkType = t.network
+	}
+	ln, err := net.Listen(networkType, t.address)
 	if err != nil {
 		return err
 	}
@@ -984,51 +971,57 @@ type UDPServer struct {
 	address   string
 	lc        *net.ListenConfig
 	onMessage func(b []byte, n int) []byte
+	ln        net.PacketConn
 }
 
-func (s *UDPServer) Run(done chan struct{}, payloadSize int) error {
+func (s *UDPServer) Run(payloadSize int) error {
 	networkType := "udp"
 	if s.network != "" {
 		networkType = s.network
 	}
 	var err error
-	var ln net.PacketConn
 	if s.lc != nil {
-		ln, err = s.lc.ListenPacket(context.Background(), networkType, s.address)
+		s.ln, err = s.lc.ListenPacket(context.Background(), networkType, s.address)
 	} else {
-		ln, err = net.ListenPacket(networkType, s.address)
+		s.ln, err = net.ListenPacket(networkType, s.address)
 	}
 	if err != nil {
 		return err
 	}
 
-	s.address = ln.LocalAddr().String()
+	s.address = s.ln.LocalAddr().String()
 
 	go func() {
 		buf := make([]byte, payloadSize)
-		running := true
-		for running {
-			select {
-			case <-done:
-				running = false
-			default:
-				ln.SetReadDeadline(time.Now().Add(50 * time.Millisecond))
-				n, addr, err := ln.ReadFrom(buf)
-				if err != nil {
-					break
+		for {
+			n, addr, err := s.ln.ReadFrom(buf)
+			if err != nil {
+				if !errors.Is(err, net.ErrClosed) {
+					fmt.Printf("readfrom: %s\n", err)
 				}
-				_, err = ln.WriteTo(s.onMessage(buf, n), addr)
+				return
+			}
+			ret := s.onMessage(buf, n)
+			if ret != nil {
+				_, err = s.ln.WriteTo(ret, addr)
 				if err != nil {
-					fmt.Println(err)
-					break
+					if !errors.Is(err, net.ErrClosed) {
+						fmt.Printf("writeto: %s\n", err)
+					}
+					return
 				}
 			}
 		}
-
-		ln.Close()
 	}()
 
 	return nil
+}
+
+func (s *UDPServer) Shutdown() {
+	if s.ln != nil {
+		_ = s.ln.Close()
+		s.ln = nil
+	}
 }
 
 var letterBytes = []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")

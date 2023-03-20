@@ -27,9 +27,6 @@ type senderWithChans struct {
 	orchestratorChan         chan senderOrchestratorMetadata
 	orchestratorManifestChan chan senderOrchestratorManifest
 	eventPlatformEventChan   chan senderEventPlatformEvent
-	contlcycleOut            chan senderContainerLifecycleEvent
-	contimageOut             chan senderContainerImage
-	sbomOut                  chan senderSBOM
 	sender                   *checkSender
 }
 
@@ -40,10 +37,7 @@ func initSender(id check.ID, defaultHostname string) (s senderWithChans) {
 	s.orchestratorChan = make(chan senderOrchestratorMetadata, 10)
 	s.orchestratorManifestChan = make(chan senderOrchestratorManifest, 10)
 	s.eventPlatformEventChan = make(chan senderEventPlatformEvent, 10)
-	s.contlcycleOut = make(chan senderContainerLifecycleEvent, 10)
-	s.contimageOut = make(chan senderContainerImage, 10)
-	s.sbomOut = make(chan senderSBOM, 10)
-	s.sender = newCheckSender(id, defaultHostname, s.itemChan, s.serviceCheckChan, s.eventChan, s.orchestratorChan, s.orchestratorManifestChan, s.eventPlatformEventChan, s.contlcycleOut, s.contimageOut, s.sbomOut)
+	s.sender = newCheckSender(id, defaultHostname, s.itemChan, s.serviceCheckChan, s.eventChan, s.orchestratorChan, s.orchestratorManifestChan, s.eventPlatformEventChan)
 	return s
 }
 
@@ -178,10 +172,7 @@ func TestGetAndSetSender(t *testing.T) {
 	orchestratorChan := make(chan senderOrchestratorMetadata, 10)
 	orchestratorManifestChan := make(chan senderOrchestratorManifest, 10)
 	eventPlatformChan := make(chan senderEventPlatformEvent, 10)
-	contlcycleChan := make(chan senderContainerLifecycleEvent, 10)
-	contimageChan := make(chan senderContainerImage, 10)
-	sbomChan := make(chan senderSBOM, 10)
-	testCheckSender := newCheckSender(checkID1, "", itemChan, serviceCheckChan, eventChan, orchestratorChan, orchestratorManifestChan, eventPlatformChan, contlcycleChan, contimageChan, sbomChan)
+	testCheckSender := newCheckSender(checkID1, "", itemChan, serviceCheckChan, eventChan, orchestratorChan, orchestratorManifestChan, eventPlatformChan)
 
 	err := demux.SetSender(testCheckSender, checkID1)
 	assert.Nil(t, err)
@@ -447,7 +438,7 @@ func TestCheckSenderInterface(t *testing.T) {
 	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", []string{"foo", "bar"}, true)
 	s.sender.Commit()
 	s.sender.ServiceCheck("my_service.can_connect", metrics.ServiceCheckOK, "my-hostname", []string{"foo", "bar"}, "message")
-	s.sender.EventPlatformEvent("raw-event", "dbm-sample")
+	s.sender.EventPlatformEvent([]byte("raw-event"), "dbm-sample")
 	submittedEvent := metrics.Event{
 		Title:          "Something happened",
 		Text:           "Description of the event",
@@ -524,7 +515,7 @@ func TestCheckSenderInterface(t *testing.T) {
 
 	eventPlatformEvent := <-s.eventPlatformEventChan
 	assert.Equal(t, checkID1, eventPlatformEvent.id)
-	assert.Equal(t, "raw-event", eventPlatformEvent.rawEvent)
+	assert.Equal(t, []byte("raw-event"), eventPlatformEvent.rawEvent)
 	assert.Equal(t, "dbm-sample", eventPlatformEvent.eventType)
 }
 

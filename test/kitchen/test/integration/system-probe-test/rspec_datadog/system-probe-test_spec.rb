@@ -27,6 +27,7 @@ co_re_tests = Array.[](
 TIMEOUTS = {
   "pkg/network/protocols" => "5m",
   # disable timeouts for pkg/network/tracer
+  "pkg/network/protocols/http$" => "0",
   "pkg/network/tracer$" => "0",
 }
 
@@ -161,7 +162,7 @@ describe "system-probe" do
       "DD_ENABLE_RUNTIME_COMPILER"=>"false",
       "DD_ALLOW_RUNTIME_COMPILED_FALLBACK"=>"false"
     }
-    if platform == "ubuntu-22.04" and arch == "x86_64"
+    if platform == "amzn-2" and arch == "x86_64" and release.start_with?("5.10.")
       include_examples "passes", "fentry", env, skip_prebuilt_tests, false
     end
   end

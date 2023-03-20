@@ -10,6 +10,7 @@ package utils
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -28,9 +29,28 @@ func ConfigsForPod(pc *types.PrometheusCheck, pod *kubelet.Pod) []integration.Co
 
 	instances, found := buildInstances(pc, pod.Metadata.Annotations, namespacedName)
 	if found {
-		for _, container := range pod.Status.GetAllContainers() {
-			if !pc.AD.MatchContainer(container.Name) {
-				log.Debugf("Container '%s' doesn't match the AD configuration 'kubernetes_container_names', ignoring it", container.Name)
+		// If `prometheus.io/port` annotation has been provided, let’s keep only the container that declares this port.
+		var containerUsingThePort string
+		if portFromAnnotationString, portFromAnnotationFound := pod.Metadata.Annotations[types.PrometheusPortAnnotation]; portFromAnnotationFound {
+			if portFromAnnotation, err := strconv.Atoi(portFromAnnotationString); err == nil {
+			containerFound:
+				for _, containerSpec := range pod.Spec.Containers {
+					for _, port := range containerSpec.Ports {
+						if port.ContainerPort == portFromAnnotation {
+							containerUsingThePort = containerSpec.Name
+							break containerFound
+						}
+					}
+				}
+			}
+		}
+
+		for _, containerStatus := range pod.Status.GetAllContainers() {
+			if !pc.AD.MatchContainer(containerStatus.Name) {
+				log.Debugf("Container '%s' doesn't match the AD configuration 'kubernetes_container_names', ignoring it", containerStatus.Name)
+				continue
+			}
+			if containerUsingThePort != "" && containerStatus.Name != containerUsingThePort {
 				continue
 			}
 			configs = append(configs, integration.Config{
@@ -38,8 +58,8 @@ func ConfigsForPod(pc *types.PrometheusCheck, pod *kubelet.Pod) []integration.Co
 				InitConfig:    integration.Data(openmetricsInitConfig),
 				Instances:     instances,
 				Provider:      names.PrometheusPods,
-				Source:        "prometheus_pods:" + container.ID,
-				ADIdentifiers: []string{container.ID},
+				Source:        "prometheus_pods:" + containerStatus.ID,
+				ADIdentifiers: []string{containerStatus.ID},
 			})
 		}
 		return configs

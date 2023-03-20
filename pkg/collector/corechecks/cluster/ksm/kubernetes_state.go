@@ -55,7 +55,9 @@ const (
 )
 
 var extendedCollectors = map[string]string{
-	"jobs": "jobs_extended",
+	"jobs":  "jobs_extended",
+	"nodes": "nodes_extended",
+	"pods":  "pods_extended",
 }
 
 // KSMConfig contains the check config parameters
@@ -215,6 +217,8 @@ func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig 
 
 	k.processLabelJoins()
 	k.processLabelsAsTags()
+
+	k.mergeAnnotationsAsTags(defaultAnnotationsAsTags())
 	k.processAnnotationsAsTags()
 
 	// Prepare labels mapper
@@ -343,6 +347,8 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 	// extended resource collectors always have a factory registered
 	factories := []customresource.RegistryFactory{
 		customresources.NewExtendedJobFactory(),
+		customresources.NewExtendedNodeFactory(),
+		customresources.NewExtendedPodFactory(),
 	}
 
 	factories = manageResourcesReplacement(c, factories)
@@ -654,6 +660,27 @@ func (k *KSMCheck) mergeLabelJoins(extra map[string]*JoinsConfigWithoutLabelsMap
 	}
 }
 
+// mergeAnnotationsAsTags adds extra annotations as tags to the configured mapping.
+// User-defined annotations as tags are prioritized.
+func (k *KSMCheck) mergeAnnotationsAsTags(extra map[string]map[string]string) {
+	if k.instance.AnnotationsAsTags == nil {
+		k.instance.AnnotationsAsTags = make(map[string]map[string]string)
+	}
+	for resource, mapping := range extra {
+		_, found := k.instance.AnnotationsAsTags[resource]
+		if !found {
+			k.instance.AnnotationsAsTags[resource] = make(map[string]string)
+			k.instance.AnnotationsAsTags[resource] = mapping
+			continue
+		}
+		for key, value := range mapping {
+			if _, found := k.instance.AnnotationsAsTags[resource][key]; !found {
+				k.instance.AnnotationsAsTags[resource][key] = value
+			}
+		}
+	}
+}
+
 func (k *KSMCheck) processLabelJoins() {
 	k.instance.labelJoins = make(map[string]*joinsConfig)
 	for metric, joinConf := range k.instance.LabelJoins {
@@ -922,6 +949,12 @@ func labelsMapperOverride(metricName string) map[string]string {
 			"path":         "kube_ingress_path",
 			"service_name": "kube_service",
 			"service_port": "kube_service_port",
+		}
+	}
+
+	if strings.HasPrefix(metricName, "kube_service") {
+		return map[string]string{
+			"service": "kube_service",
 		}
 	}
 	return nil

@@ -115,7 +115,9 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 
 				RouteIdx: -1,
 				Protocol: &model.ProtocolStack{
-					Stack: []model.ProtocolType{model.ProtocolType_protocolHTTP2},
+					Stack: []model.ProtocolType{
+						model.ProtocolType_protocolHTTP2,
+					},
 				},
 			},
 		},
@@ -139,6 +141,8 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 	if runtime.GOOS == "linux" {
 		out.Conns[1].Tags = []uint32{0}
 		out.Conns[1].TagsChecksum = uint32(3241915907)
+		out.Conns[1].Protocol.Stack = append([]model.ProtocolType{model.ProtocolType_protocolTLS}, out.Conns[1].Protocol.Stack...)
+
 	}
 	return out
 }
@@ -275,6 +279,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 			result.Conns[1].Tags = nil
 			result.Tags = nil
 		}
+		result.PrebuiltEBPFAssets = nil
 		assert.Equal(out, result)
 	})
 	t.Run("requesting application/json serialization (with query types)", func(t *testing.T) {
@@ -299,6 +304,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 			result.Conns[1].Tags = nil
 			result.Tags = nil
 		}
+		result.PrebuiltEBPFAssets = nil
 		assert.Equal(out, result)
 	})
 
@@ -324,6 +330,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 			result.Conns[1].Tags = nil
 			result.Tags = nil
 		}
+		result.PrebuiltEBPFAssets = nil
 		assert.Equal(out, result)
 	})
 
@@ -351,6 +358,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 			result.Conns[1].Tags = nil
 			result.Tags = nil
 		}
+		result.PrebuiltEBPFAssets = nil
 		assert.Equal(out, result)
 	})
 
@@ -489,14 +497,14 @@ func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCo
 				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				HttpAggregations: httpOutBlob,
 				RouteIdx:         -1,
-				Protocol:         formatProtocol(network.ProtocolUnknown),
+				Protocol:         formatProtocol(network.ProtocolUnknown, 0),
 			},
 			{
 				Laddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
 				HttpAggregations: httpOutBlob,
 				RouteIdx:         -1,
-				Protocol:         formatProtocol(network.ProtocolUnknown),
+				Protocol:         formatProtocol(network.ProtocolUnknown, 0),
 			},
 		},
 		AgentConfiguration: &model.AgentConfiguration{

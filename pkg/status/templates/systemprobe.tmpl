@@ -14,14 +14,12 @@ System Probe
 
   USM
   ===
-  {{- if .network_tracer.universal_service_monitoring.Error }}
-    Status: Not running
-    Error: {{ .network_tracer.universal_service_monitoring.Error }}
-  {{- else }}
-    Status: Running
-    {{- if .network_tracer.universal_service_monitoring.last_check }}
+    Status: {{ .network_tracer.universal_service_monitoring.state }}
+  {{- if .network_tracer.universal_service_monitoring.error }}
+    Error: {{ .network_tracer.universal_service_monitoring.error }}
+  {{- end }}
+  {{- if .network_tracer.universal_service_monitoring.last_check }}
     Last Check: {{ formatUnixTime .network_tracer.universal_service_monitoring.last_check }}
-    {{- end }}
   {{- end }}
 
   NPM

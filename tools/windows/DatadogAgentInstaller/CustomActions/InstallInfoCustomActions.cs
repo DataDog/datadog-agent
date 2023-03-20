@@ -18,7 +18,7 @@ namespace Datadog.CustomActions
                 using var output = new StreamWriter(installInfo);
                 if (string.IsNullOrEmpty(installMethod))
                 {
-                    if (int.Parse(session["UILevel"]) > 2)
+                    if (int.Parse(session.Property("UILevel")) > 2)
                     {
                         installMethod = "windows_msi_gui";
                     }
