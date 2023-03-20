@@ -76,7 +76,7 @@ def lint_codeowner(ctx):
     # make sure each root package has an owner        
     pkgs_without_owner = find_packages_without_owner(owners, "pkg")        
     if len(pkgs_without_owner) > 0:
-        raise Exit(f'The following root packages don\'t have an owner in CODEOWNERS: {pkgs_without_owner}')    
+        raise Exit(f'The following packages  in `pkg` directory don\'t have an owner in CODEOWNERS: {pkgs_without_owner}', code=1)    
 
 
 def find_packages_without_owner(owners, folder):
