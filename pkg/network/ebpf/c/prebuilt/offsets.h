@@ -2,6 +2,7 @@
 #define __OFFSETS_H
 
 #include "ktypes.h"
+#include "compiler.h"
 
 #include "defs.h"
 

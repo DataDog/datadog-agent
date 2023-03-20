@@ -334,15 +334,17 @@ func (ev *Event) GetProcessServiceTag() string {
 type MatchedRule struct {
 	RuleID        string
 	RuleVersion   string
+	RuleTags      map[string]string
 	PolicyName    string
 	PolicyVersion string
 }
 
 // NewMatchedRule return a new MatchedRule instance
-func NewMatchedRule(ruleID, ruleVersion, policyName, policyVersion string) *MatchedRule {
+func NewMatchedRule(ruleID, ruleVersion string, ruleTags map[string]string, policyName, policyVersion string) *MatchedRule {
 	return &MatchedRule{
 		RuleID:        ruleID,
 		RuleVersion:   ruleVersion,
+		RuleTags:      ruleTags,
 		PolicyName:    policyName,
 		PolicyVersion: policyVersion,
 	}

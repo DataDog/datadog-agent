@@ -38,7 +38,6 @@ int socket__classifier_dbs(struct __sk_buff *skb) {
     return 0;
 }
 
-
 // This number will be interpreted by elf-loader to set the current running kernel version
 __u32 _version SEC("version") = 0xFFFFFFFE; // NOLINT(bugprone-reserved-identifier)
 

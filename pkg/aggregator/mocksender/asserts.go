@@ -12,8 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/DataDog/agent-payload/v5/contimage"
-	"github.com/DataDog/agent-payload/v5/sbom"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
@@ -68,18 +66,8 @@ func (m *MockSender) AssertEvent(t *testing.T, expectedEvent metrics.Event, allo
 }
 
 // AssertEventPlatformEvent assert the expected event was emitted with the following values
-func (m *MockSender) AssertEventPlatformEvent(t *testing.T, expectedRawEvent string, expectedEventType string) bool {
+func (m *MockSender) AssertEventPlatformEvent(t *testing.T, expectedRawEvent []byte, expectedEventType string) bool {
 	return m.Mock.AssertCalled(t, "EventPlatformEvent", expectedRawEvent, expectedEventType)
-}
-
-// AssertContainerImage assert the expected event was emitted with the following values
-func (m *MockSender) AssertContainerImage(t *testing.T, expectedContainerImages []contimage.ContainerImagePayload) bool {
-	return m.Mock.AssertCalled(t, "ContainerImage", expectedContainerImages)
-}
-
-// AssertSBOM assert the expected event was emitted with the following values
-func (m *MockSender) AssertSBOM(t *testing.T, expectedSBOM []sbom.SBOMPayload) bool {
-	return m.Mock.AssertCalled(t, "SBOM", expectedSBOM)
 }
 
 // AssertEventMissing assert the expectedEvent was never emitted with the following values:

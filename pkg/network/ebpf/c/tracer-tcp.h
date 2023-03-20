@@ -204,7 +204,7 @@ int kprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
     tcp_retransmit_skb_args_t args = {};
     args.sk = sk;
     args.segs = 0;
-    args.retrans_out_pre = BPF_CORE_READ(tcp_sk(sk), retrans_out);
+    BPF_CORE_READ_INTO(&args.retrans_out_pre, tcp_sk(sk), retrans_out);
     bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &tid, &args, BPF_ANY);
     return 0;
 }
@@ -224,7 +224,8 @@ int kretprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
     struct sock* sk = args->sk;
     u32 retrans_out_pre = args->retrans_out_pre;
     bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
-    u32 retrans_out = BPF_CORE_READ(tcp_sk(sk), retrans_out);
+    u32 retrans_out = 0;
+    BPF_CORE_READ_INTO(&retrans_out, tcp_sk(sk), retrans_out);
     return handle_retransmit(sk, retrans_out-retrans_out_pre);
 }
 
@@ -361,9 +362,9 @@ static __always_inline const struct proto_ops * socket_proto_ops(struct socket *
     // (struct socket).ops is always directly after (struct socket).sk,
     // which is a pointer.
     u64 ops_offset = offset_socket_sk() + sizeof(void *);
-    bpf_probe_read_kernel_with_telemetry(&proto_ops, sizeof(proto_ops), (void *)(sock) + ops_offset);
+    bpf_probe_read_kernel_with_telemetry(&proto_ops, sizeof(proto_ops), (char*)sock + ops_offset);
 #elif defined(COMPILE_RUNTIME) || defined(COMPILE_CORE)
-    proto_ops = BPF_CORE_READ(sock, ops);
+    BPF_CORE_READ_INTO(&proto_ops, sock, ops);
 #endif
 
     return proto_ops;
@@ -398,6 +399,9 @@ int kretprobe__sockfd_lookup_light(struct pt_regs *ctx) {
 
     // Retrieve struct sock* pointer from struct socket*
     struct sock *sock = socket_sk(socket);
+    if (!sock) {
+        goto cleanup;
+    }
 
     pid_fd_t pid_fd = {
         .pid = pid_tgid >> 32,
@@ -412,56 +416,49 @@ cleanup:
     return 0;
 }
 
-SEC("kprobe/do_sendfile")
-int kprobe__do_sendfile(struct pt_regs *ctx) {
-    u32 fd_out = (int)PT_REGS_PARM1(ctx);
+SEC("kprobe/tcp_sendpage")
+int kprobe__tcp_sendpage(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    pid_fd_t key = {
-        .pid = pid_tgid >> 32,
-        .fd = fd_out,
-    };
-    struct sock **sock = bpf_map_lookup_elem(&sock_by_pid_fd, &key);
-    if (sock == NULL) {
-        return 0;
-    }
-
-    // bring map value to eBPF stack to satisfy Kernel 4.4 verifier
-    struct sock *skp = *sock;
-    bpf_map_update_with_telemetry(do_sendfile_args, &pid_tgid, &skp, BPF_ANY);
+    log_debug("kprobe/tcp_sendpage: pid_tgid: %d\n", pid_tgid);
+    struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
+    bpf_map_update_with_telemetry(tcp_sendpage_args, &pid_tgid, &skp, BPF_ANY);
     return 0;
 }
 
-SEC("kretprobe/do_sendfile")
-int kretprobe__do_sendfile(struct pt_regs *ctx) {
+SEC("kretprobe/tcp_sendpage")
+int kretprobe__tcp_sendpage(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    struct sock **sock = bpf_map_lookup_elem(&do_sendfile_args, &pid_tgid);
-    if (sock == NULL) {
+    struct sock **skpp = (struct sock **)bpf_map_lookup_elem(&tcp_sendpage_args, &pid_tgid);
+    if (!skpp) {
+        log_debug("kretprobe/tcp_sendpage: sock not found\n");
         return 0;
     }
 
+    struct sock *skp = *skpp;
+    bpf_map_delete_elem(&tcp_sendpage_args, &pid_tgid);
+
+    int sent = PT_REGS_RC(ctx);
+    if (sent < 0) {
+        return 0;
+    }
+
+    if (!skp) {
+        return 0;
+    }
+
+    log_debug("kretprobe/tcp_sendpage: pid_tgid: %d, sent: %d, sock: %x\n", pid_tgid, sent, skp);
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, *sock, pid_tgid, CONN_TYPE_TCP)) {
-        goto cleanup;
+    if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
+        return 0;
     }
 
-    ssize_t sent = (ssize_t)PT_REGS_RC(ctx);
-    if (sent > 0) {
-        handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE, *sock);
-    }
-cleanup:
-    bpf_map_delete_elem(&do_sendfile_args, &pid_tgid);
-    return 0;
-}
+    handle_tcp_stats(&t, skp, 0);
 
-static __always_inline struct sock* sk_buff_sk(struct sk_buff *skb) {
-    struct sock * sk = NULL;
-#ifdef COMPILE_PREBUILT
-    bpf_probe_read(&sk, sizeof(struct sock*), skb + offset_sk_buff_sock());
-#elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
-    sk = BPF_CORE_READ(skb, sk);
-#endif
+    __u32 packets_in = 0;
+    __u32 packets_out = 0;
+    get_tcp_segment_counts(skp, &packets_in, &packets_out);
 
-    return sk;
+    return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, skp);
 }
 
 // Represents the parameters being passed to the tracepoint net/net_dev_queue
@@ -469,6 +466,17 @@ struct net_dev_queue_ctx {
     u64 unused;
     struct sk_buff* skb;
 };
+
+static __always_inline struct sock* sk_buff_sk(struct sk_buff *skb) {
+    struct sock * sk = NULL;
+#ifdef COMPILE_PREBUILT
+    bpf_probe_read(&sk, sizeof(struct sock*), (char*)skb + offset_sk_buff_sock());
+#elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
+    BPF_CORE_READ_INTO(&sk, skb, sk);
+#endif
+
+    return sk;
+}
 
 SEC("tracepoint/net/net_dev_queue")
 int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {

@@ -72,7 +72,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	// URI Generic Syntax
 	// https://tools.ietf.org/html/rfc3986
 	uriPasswordReplacer := Replacer{
-		Regex: regexp.MustCompile(`([A-Za-z][A-Za-z0-9+-.]+\:\/\/|\b)([^\:]+)\:([^\s]+)\@`),
+		Regex: regexp.MustCompile(`(?i)([a-z][a-z0-9+-.]+://|\b)([^:]+):([^\s|"]+)@`),
 		Repl:  []byte(`$1$2:********@`),
 	}
 	passwordReplacer := matchYAMLKeyPart(

@@ -15,10 +15,12 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/davecgh/go-spew/spew"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	ddebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.Map) string {
@@ -39,7 +41,16 @@ func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.
 		output.WriteString("Map: '" + mapName + "', key: 'C.__u64', value: 'tracerStatus'\n")
 		iter := currentMap.Iterate()
 		var key uint64
-		var value ddebpf.TracerStatus
+		var value offsetguess.TracerStatus
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			output.WriteString(spew.Sdump(key, value))
+		}
+
+	case probes.ConntrackStatusMap: // maps/conntrack_status (BPF_MAP_TYPE_HASH), key C.__u64, value conntrackStatus
+		output.WriteString("Map: '" + mapName + "', key: 'C.__u64', value: 'conntrackStatus'\n")
+		iter := currentMap.Iterate()
+		var key uint64
+		var value offsetguess.ConntrackStatus
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
 		}
@@ -171,16 +182,6 @@ func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.
 			log.Tracef("error retrieving the telemetry struct: %s", err)
 		}
 		output.WriteString(spew.Sdump(telemetry))
-
-	case probes.DoSendfileArgsMap: // maps/do_sendfile_args (BPF_MAP_TYPE_HASH), key C.__u64, value uintptr // C.struct sock*
-		output.WriteString("Map: '" + mapName + "', key: 'C.__u64', value: 'uintptr // C.struct sock*'\n")
-		iter := currentMap.Iterate()
-		var key uint64
-		var value uintptr // C.struct sock*
-		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			output.WriteString(spew.Sdump(key, value))
-		}
-
 	}
 
 	return output.String()

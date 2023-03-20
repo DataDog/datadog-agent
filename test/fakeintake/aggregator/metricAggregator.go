@@ -19,7 +19,7 @@ func (mp *MetricSeries) name() string {
 	return mp.Metric
 }
 
-func (mp *MetricSeries) tags() []string {
+func (mp *MetricSeries) GetTags() []string {
 	return mp.Tags
 }
 

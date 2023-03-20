@@ -209,6 +209,14 @@ func TestConfigStripURLPassword(t *testing.T) {
 	assertClean(t,
 		`   random_url_key:   'http://user-with-hyphen:pass@abc.example.com/database'   `,
 		`   random_url_key:   'http://user-with-hyphen:********@abc.example.com/database'   `)
+
+	assertClean(t,
+		`flushing serie: {"metric":"kubeproxy","tags":["image_id":"foobar/foobaz@sha256:e8dabc7d398d25ecc8a3e33e3153e988e79952f8783b81663feb299ca2d0abdd"]}`,
+		`flushing serie: {"metric":"kubeproxy","tags":["image_id":"foobar/foobaz@sha256:e8dabc7d398d25ecc8a3e33e3153e988e79952f8783b81663feb299ca2d0abdd"]}`)
+
+	assertClean(t,
+		`"simple.metric:44|g|@1.00000"`,
+		`"simple.metric:44|g|@1.00000"`)
 }
 
 func TestTextStripApiKey(t *testing.T) {

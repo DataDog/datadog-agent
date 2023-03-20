@@ -241,6 +241,21 @@ var (
 	// Tags: -
 	MetricSBOMResolverSBOMCacheMiss = newRuntimeMetric(".sbom_resolver.sbom_cache.miss")
 
+	// Security Profile metrics
+
+	// MetricSecurityProfileActiveProfiles is the name of the metric used to report the count of active Security Profiles
+	// Tags: -
+	MetricSecurityProfileActiveProfiles = newRuntimeMetric(".security_profile.active_profiles")
+	// MetricSecurityProfileCacheLen is the name of the metric used to report the size of the Security Profile cache
+	// Tags: -
+	MetricSecurityProfileCacheLen = newRuntimeMetric(".security_profile.cache.len")
+	// MetricSecurityProfileCacheHit is the name of the metric used to report the count of Security Profile cache hits
+	// Tags: -
+	MetricSecurityProfileCacheHit = newRuntimeMetric(".security_profile.cache.hit")
+	// MetricSecurityProfileCacheMiss is the name of the metric used to report the count of Security Profile cache misses
+	// Tags: -
+	MetricSecurityProfileCacheMiss = newRuntimeMetric(".security_profile.cache.miss")
+
 	// Namespace resolver metrics
 
 	// MetricNamespaceResolverNetNSHandle is the name of the metric used to report the count of netns handles
