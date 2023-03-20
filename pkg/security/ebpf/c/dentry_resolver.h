@@ -169,7 +169,6 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
         }
 
         if (map_value.name[0] == '/' || map_value.name[0] == 0) {
-            map_value.name[0] = '/';
             next_key.ino = 0;
             next_key.mount_id = 0;
         }
@@ -180,8 +179,8 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
 
         dentry = d_parent;
         if (next_key.ino == 0) {
-            input->dentry = d_parent;
-            input->key = next_key;
+            // mark the path resolution as complete which will stop the tail calls
+            input->key.ino = 0;
             return i + 1;
         }
     }
