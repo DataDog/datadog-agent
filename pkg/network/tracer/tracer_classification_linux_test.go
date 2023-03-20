@@ -3,40 +3,40 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows && npm
-// +build windows,npm
+//go:build linux_bpf
+// +build linux_bpf
 
 package tracer
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-func TestProtocolClassification(t *testing.T) {
-	cfg := testConfig()
-	if !classificationSupported(cfg) {
-		t.Skip("Classification is not supported")
-	}
-	t.Run("without nat", func(t *testing.T) {
-		testProtocolClassification(t, nil, "localhost", "127.0.0.1", "127.0.0.1")
-	})
-}
-
-func testProtocolClassificationInner(t *testing.T, params protocolClassificationAttributes, _ *Tracer) {
+func testProtocolClassificationInner(t *testing.T, params protocolClassificationAttributes, tr *Tracer) {
 	if params.skipCallback != nil {
 		params.skipCallback(t, params.context)
 	}
+	t.Cleanup(func() { tr.removeClient(clientID) })
+	t.Cleanup(func() { tr.ebpfTracer.Pause() })
 
 	if params.teardown != nil {
 		t.Cleanup(func() {
 			params.teardown(t, params.context)
 		})
 	}
+
+	require.NoError(t, tr.ebpfTracer.Pause(), "disable probes - before pre tracer")
 	if params.preTracerSetup != nil {
 		params.preTracerSetup(t, params.context)
 	}
-	cfg := testConfig()
-	tr := setupTracer(t, cfg)
+
+	tr.removeClient(clientID)
+	initTracerState(t, tr)
+	require.NoError(t, tr.ebpfTracer.Resume(), "enable probes - before post tracer")
 	params.postTracerSetup(t, params.context)
+	require.NoError(t, tr.ebpfTracer.Pause(), "disable probes - after post tracer")
+
 	params.validation(t, params.context, tr)
 }

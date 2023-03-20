@@ -29,7 +29,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/amqp"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	protocolsmongo "github.com/DataDog/datadog-agent/pkg/network/protocols/mongo"
@@ -129,10 +128,10 @@ const (
 	fetchMinVersion          = 0
 )
 
-func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	tests := []struct {
 		name     string
-		testFunc func(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string)
+		testFunc func(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string)
 	}{
 		{
 			name:     "kafka",
@@ -173,12 +172,12 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.testFunc(t, cfg, clientHost, targetHost, serverHost)
+			tt.testFunc(t, tr, clientHost, targetHost, serverHost)
 		})
 	}
 }
 
-func testKafkaProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testKafkaProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	const topicName = "franz-kafka"
 	testIndex := 0
 	// Kafka does not allow us to delete topic, but to mark them for deletion, so we have to generate a unique topic
@@ -416,12 +415,12 @@ func testKafkaProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, cfg)
+			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
 }
 
-func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
@@ -728,12 +727,12 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, cfg)
+			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
 }
 
-func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
@@ -936,12 +935,12 @@ func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, client
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, cfg)
+			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
 }
 
-func testMongoProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testMongoProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
@@ -1087,12 +1086,12 @@ func testMongoProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, cfg)
+			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
 }
 
-func testRedisProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
@@ -1242,12 +1241,12 @@ func testRedisProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, cfg)
+			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
 }
 
-func testAMQPProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testAMQPProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
@@ -1371,12 +1370,12 @@ func testAMQPProtocolClassification(t *testing.T, cfg *config.Config, clientHost
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, cfg)
+			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
 }
 
-func testHTTPProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testHTTPProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
 			IP: net.ParseIP(clientHost),
@@ -1436,12 +1435,12 @@ func testHTTPProtocolClassification(t *testing.T, cfg *config.Config, clientHost
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, cfg)
+			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
 }
 
-func testHTTP2ProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
 			IP:   net.ParseIP(clientHost),
@@ -1499,12 +1498,12 @@ func testHTTP2ProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, cfg)
+			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
 }
 
-func testEdgeCasesProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
 			IP: net.ParseIP(clientHost),
@@ -1619,27 +1618,9 @@ func testEdgeCasesProtocolClassification(t *testing.T, cfg *config.Config, clien
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, cfg)
+			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
-}
-
-func testProtocolClassificationInner(t *testing.T, params protocolClassificationAttributes, cfg *config.Config) {
-	if params.skipCallback != nil {
-		params.skipCallback(t, params.context)
-	}
-
-	if params.teardown != nil {
-		t.Cleanup(func() {
-			params.teardown(t, params.context)
-		})
-	}
-	if params.preTracerSetup != nil {
-		params.preTracerSetup(t, params.context)
-	}
-	tr := setupTracer(t, cfg)
-	params.postTracerSetup(t, params.context)
-	params.validation(t, params.context, tr)
 }
 
 func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, serverAddr string, expectedProtocol network.ProtocolType) {

@@ -13,11 +13,14 @@ import (
 	"fmt"
 	"math"
 	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
+
+	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -30,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 // TracerType is the type of the underlying tracer
@@ -64,6 +66,9 @@ type Tracer interface {
 	DumpMaps(maps ...string) (string, error)
 	// Type returns the type of the underlying ebpf tracer that is currently loaded
 	Type() TracerType
+
+	Pause() error
+	Resume() error
 }
 
 const (
@@ -222,6 +227,19 @@ func (t *tracer) Start(callback func([]network.ConnectionStats)) (err error) {
 
 	t.closeConsumer.Start(callback)
 	return nil
+}
+
+func (t *tracer) Pause() error {
+	// add small delay for socket filters to properly detach
+	time.Sleep(1 * time.Millisecond)
+	return t.m.Pause()
+}
+
+func (t *tracer) Resume() error {
+	err := t.m.Resume()
+	// add small delay for socket filters to properly attach
+	time.Sleep(1 * time.Millisecond)
+	return err
 }
 
 func (t *tracer) FlushPending() {
