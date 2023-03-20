@@ -225,7 +225,7 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: run CODEOWNER linting
-          command: inv -e github.lint_codeowner
+          command: inv -e github.lint-codeowner
 
   docker_tests:
     <<: *job_template
