@@ -489,6 +489,42 @@ int kretprobe__ip_make_skb(struct pt_regs *ctx) {
     return handle_ip_skb(sk, size, fl4);
 }
 
+SEC("kprobe/udp_sendpage")
+int kprobe__udp_sendpage(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("kprobe/udp_sendpage: pid_tgid: %d\n", pid_tgid);
+    struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
+    bpf_map_update_with_telemetry(udp_sendpage_args, &pid_tgid, &skp, BPF_ANY);
+    return 0;
+}
 
+SEC("kretprobe/udp_sendpage")
+int kretprobe__udp_sendpage(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    struct sock **skpp = (struct sock **)bpf_map_lookup_elem(&udp_sendpage_args, &pid_tgid);
+    if (!skpp) {
+        log_debug("kretprobe/udp_sendpage: sock not found\n");
+        return 0;
+    }
+
+    struct sock *skp = *skpp;
+    bpf_map_delete_elem(&udp_sendpage_args, &pid_tgid);
+
+    int sent = PT_REGS_RC(ctx);
+    if (sent < 0) {
+        return 0;
+    }
+    if (!skp) {
+        return 0;
+    }
+
+    log_debug("kretprobe/udp_sendpage: pid_tgid: %d, sent: %d, sock: %x\n", pid_tgid, sent, skp);
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_UDP)) {
+        return 0;
+    }
+
+    return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE, skp);
+}
 
 #endif // __TRACER_UDP_H
