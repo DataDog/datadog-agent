@@ -3040,6 +3040,14 @@ api_key:
 #
 # disable_cluster_name_tag_key: false
 
+## @param kubernetes_ad_tags_disabled -- list of strings - optional
+## @env DD_KUBERNETES_AD_TAGS_DISABLED -- list of strings - optional
+## Can only be set to a single valid value: [ "kube_service" ]
+## in order to not attach the kube_service tag on ready pods
+#
+# kubernetes_ad_tags_disabled:
+#   - kube_service
+
 {{ end -}}
 {{- if .PrometheusScrape }}
 ## @param prometheus_scrape - custom object - optional
