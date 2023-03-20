@@ -1,6 +1,6 @@
 import os
 
-from invoke import task
+from invoke import task, Exit
 
 from .libs.github_actions_tools import download_artifacts, follow_workflow_run, trigger_macos_workflow
 from .utils import DEFAULT_BRANCH, load_release_versions
@@ -59,3 +59,44 @@ def trigger_macos_test(
     follow_workflow_run(run_id)
 
     download_artifacts(run_id, destination)
+
+
+@task
+def lint_codeowner(ctx):
+    """
+    Check every package in `pkg` has an owner
+    """
+
+    base = os.path.dirname(os.path.abspath(__file__))
+    root_folder = os.path.join(base, "..")
+    os.chdir(root_folder)
+
+    owners = get_code_owners(root_folder)
+    
+    # make sure each root package has an owner        
+    pkgs_without_owner = find_packages_without_owner(owners, "pkg")        
+    if len(pkgs_without_owner) > 0:
+        raise Exit(f'The following root packages don\'t have an owner in CODEOWNERS: {pkgs_without_owner}')    
+
+
+def find_packages_without_owner(owners, folder):
+    pkg_without_owners = []
+    for x in os.listdir(folder):
+        path = os.path.join("/" + folder, x)
+        if path not in owners:
+            pkg_without_owners.append(path)    
+    return pkg_without_owners
+
+
+def get_code_owners(root_folder):
+    code_owner_path = os.path.join(root_folder, ".github", "CODEOWNERS")
+    owners = {}
+    with open(code_owner_path) as f:
+        for line in f:
+            line = line.strip()
+            line = line.split("#")[0] # remove comment
+            if len(line) > 0:
+                parts = line.split()
+                path = os.path.normpath(parts[0])
+                owners[path] = parts[1:] # example /tools/retry_file_dump ['@DataDog/agent-metrics-logs']
+    return owners
