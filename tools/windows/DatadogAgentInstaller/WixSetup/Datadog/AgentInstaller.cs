@@ -62,6 +62,7 @@ namespace WixSetup.Datadog
         public Project ConfigureProject()
         {
             var project = new ManagedProject("Datadog Agent",
+                new CustomActionRef("WixCloseApplications", When.Before, Step.RemoveFiles),
                 new User
                 {
                     // CreateUser fails with ERROR_BAD_USERNAME if Name is a fully qualified user name
@@ -115,7 +116,11 @@ namespace WixSetup.Datadog
                     rebootPrompt: false
                 )
                 {
-                    Timeout = 1
+                    Timeout = 1,
+                    TerminateProcess = 1,
+                    EndSessionMessage = true,
+                    ElevatedCloseMessage = true,
+                    ElevatedEndSessionMessage = true
                 },
                 new RegKey(
                     _agentFeatures.MainApplication,
