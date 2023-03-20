@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package activitydump
+package dump
 
 import (
 	"bytes"
@@ -63,12 +63,12 @@ func (ad *ActivityDump) EncodeDOT() (*bytes.Buffer, error) {
 	ad.Lock()
 	defer ad.Unlock()
 
-	title := fmt.Sprintf("%s: %s", ad.DumpMetadata.Name, ad.getSelectorStr())
+	title := fmt.Sprintf("%s: %s", ad.Metadata.Name, ad.getSelectorStr())
 	data := ad.prepareGraphData(title)
 	t := template.Must(template.New("tmpl").Parse(GraphTemplate))
 	raw := bytes.NewBuffer(nil)
 	if err := t.Execute(raw, data); err != nil {
-		return nil, fmt.Errorf("couldn't encode %s in %s: %w", ad.getSelectorStr(), config.DOT, err)
+		return nil, fmt.Errorf("couldn't encode %s in %s: %w", ad.getSelectorStr(), config.Dot, err)
 	}
 	return raw, nil
 }

@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package activitydump
+package dump
 
 import (
 	"bytes"
@@ -142,7 +142,7 @@ func (storage *ActivityDumpLocalStorage) GetStorageType() config.StorageType {
 
 // Persist saves the provided buffer to the persistent storage
 func (storage *ActivityDumpLocalStorage) Persist(request config.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) error {
-	outputPath := request.GetOutputPath(ad.DumpMetadata.Name)
+	outputPath := request.GetOutputPath(ad.Metadata.Name)
 
 	if request.Compression {
 		tmpRaw, err := compressWithGZip(path.Base(outputPath), raw.Bytes())
@@ -153,15 +153,15 @@ func (storage *ActivityDumpLocalStorage) Persist(request config.StorageRequest, 
 	}
 
 	// set activity dump size for current encoding
-	ad.DumpMetadata.Size = uint64(len(raw.Bytes()))
+	ad.Metadata.Size = uint64(len(raw.Bytes()))
 
 	// add the file to the list of local dumps (thus removing one or more files if we reached the limit)
 	if storage.localDumps != nil {
-		files, ok := storage.localDumps.Get(ad.DumpMetadata.Name)
+		files, ok := storage.localDumps.Get(ad.Metadata.Name)
 		if !ok {
-			storage.localDumps.Add(ad.DumpMetadata.Name, []string{outputPath})
+			storage.localDumps.Add(ad.Metadata.Name, []string{outputPath})
 		} else {
-			storage.localDumps.Add(ad.DumpMetadata.Name, append(files, outputPath))
+			storage.localDumps.Add(ad.Metadata.Name, append(files, outputPath))
 		}
 	}
 

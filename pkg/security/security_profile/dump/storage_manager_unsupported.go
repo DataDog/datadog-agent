@@ -6,7 +6,7 @@
 //go:build !linux
 // +build !linux
 
-package activitydump
+package dump
 
 import (
 	"bytes"

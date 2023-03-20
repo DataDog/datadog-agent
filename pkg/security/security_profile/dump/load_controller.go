@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package activitydump
+package dump
 
 import (
 	"fmt"
@@ -73,9 +73,9 @@ func (lc *ActivityDumpLoadController) PushCurrentConfig() error {
 // when applicable
 func (lc *ActivityDumpLoadController) NextPartialDump(ad *ActivityDump) *ActivityDump {
 	newDump := NewActivityDump(ad.adm)
-	newDump.DumpMetadata.ContainerID = ad.DumpMetadata.ContainerID
-	newDump.DumpMetadata.Comm = ad.DumpMetadata.Comm
-	newDump.DumpMetadata.DifferentiateArgs = ad.DumpMetadata.DifferentiateArgs
+	newDump.Metadata.ContainerID = ad.Metadata.ContainerID
+	newDump.Metadata.Comm = ad.Metadata.Comm
+	newDump.Metadata.DifferentiateArgs = ad.Metadata.DifferentiateArgs
 	newDump.Tags = ad.Tags
 
 	// copy storage requests

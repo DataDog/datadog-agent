@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package activitydump
+package dump
 
 import (
 	"context"
@@ -128,7 +128,7 @@ func (adm *ActivityDumpManager) cleanup() {
 
 		// remove from the map of ignored dumps
 		adm.Lock()
-		delete(adm.ignoreFromSnapshot, ad.DumpMetadata.ContainerID)
+		delete(adm.ignoreFromSnapshot, ad.Metadata.ContainerID)
 		adm.Unlock()
 	}
 
@@ -155,10 +155,10 @@ func (adm *ActivityDumpManager) getExpiredDumps() []*ActivityDump {
 	var dumps []*ActivityDump
 	var toDelete []int
 	for i, ad := range adm.activeDumps {
-		if time.Now().After(ad.DumpMetadata.End) {
+		if time.Now().After(ad.Metadata.End) {
 			toDelete = append([]int{i}, toDelete...)
 			dumps = append(dumps, ad)
-			adm.ignoreFromSnapshot[ad.DumpMetadata.ContainerID] = true
+			adm.ignoreFromSnapshot[ad.Metadata.ContainerID] = true
 		}
 	}
 	for _, i := range toDelete {
@@ -319,20 +319,20 @@ func (adm *ActivityDumpManager) prepareContextTags() {
 // insertActivityDump inserts an activity dump in the list of activity dumps handled by the manager
 func (adm *ActivityDumpManager) insertActivityDump(newDump *ActivityDump) error {
 	// sanity checks
-	if len(newDump.DumpMetadata.ContainerID) > 0 {
+	if len(newDump.Metadata.ContainerID) > 0 {
 		// check if the provided container ID is new
 		for _, ad := range adm.activeDumps {
-			if ad.DumpMetadata.ContainerID == newDump.DumpMetadata.ContainerID {
+			if ad.Metadata.ContainerID == newDump.Metadata.ContainerID {
 				// an activity dump is already active for this container ID, ignore
 				return nil
 			}
 		}
 	}
 
-	if len(newDump.DumpMetadata.Comm) > 0 {
+	if len(newDump.Metadata.Comm) > 0 {
 		// check if the provided comm is new
 		for _, ad := range adm.activeDumps {
-			if ad.DumpMetadata.Comm == newDump.DumpMetadata.Comm {
+			if ad.Metadata.Comm == newDump.Metadata.Comm {
 				return fmt.Errorf("an activity dump is already active for the provided comm")
 			}
 		}
@@ -373,8 +373,8 @@ func (adm *ActivityDumpManager) HandleCgroupTracingEvent(event *model.CgroupTrac
 	}
 
 	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
-		ad.DumpMetadata.ContainerID = event.ContainerContext.ID
-		ad.DumpMetadata.DifferentiateArgs = adm.config.ActivityDumpCgroupDifferentiateArgs
+		ad.Metadata.ContainerID = event.ContainerContext.ID
+		ad.Metadata.DifferentiateArgs = adm.config.ActivityDumpCgroupDifferentiateArgs
 		ad.SetLoadConfig(event.ConfigCookie, event.Config)
 	})
 
@@ -410,8 +410,8 @@ func (adm *ActivityDumpManager) DumpActivity(params *api.ActivityDumpParams) (*a
 	defer adm.Unlock()
 
 	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
-		ad.DumpMetadata.Comm = params.GetComm()
-		ad.DumpMetadata.DifferentiateArgs = params.GetDifferentiateArgs()
+		ad.Metadata.Comm = params.GetComm()
+		ad.Metadata.DifferentiateArgs = params.GetDifferentiateArgs()
 		ad.SetTimeout(time.Duration(params.Timeout) * time.Minute)
 	})
 
@@ -705,7 +705,7 @@ func (adm *ActivityDumpManager) triggerLoadController() {
 		}
 
 		// remove container ID from the map of ignored container IDs for the snapshot
-		delete(adm.ignoreFromSnapshot, ad.DumpMetadata.ContainerID)
+		delete(adm.ignoreFromSnapshot, ad.Metadata.ContainerID)
 		adm.Unlock()
 	}
 }
@@ -728,7 +728,7 @@ func (adm *ActivityDumpManager) getOverweightDumps() []*ActivityDump {
 		if dumpSize >= int64(adm.config.ActivityDumpMaxDumpSize()) {
 			toDelete = append([]int{i}, toDelete...)
 			dumps = append(dumps, ad)
-			adm.ignoreFromSnapshot[ad.DumpMetadata.ContainerID] = true
+			adm.ignoreFromSnapshot[ad.Metadata.ContainerID] = true
 		}
 	}
 	for _, i := range toDelete {

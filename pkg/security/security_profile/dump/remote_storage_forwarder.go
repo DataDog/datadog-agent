@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package activitydump
+package dump
 
 import (
 	"bytes"
@@ -37,7 +37,7 @@ func (storage *ActivityDumpRemoteStorageForwarder) GetStorageType() config.Stora
 // Persist saves the provided buffer to the persistent storage
 func (storage *ActivityDumpRemoteStorageForwarder) Persist(request config.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) error {
 	// set activity dump size for current encoding
-	ad.DumpMetadata.Size = uint64(raw.Len())
+	ad.Metadata.Size = uint64(raw.Len())
 
 	// generate stream message
 	msg := &api.ActivityDumpStreamMessage{
@@ -46,7 +46,7 @@ func (storage *ActivityDumpRemoteStorageForwarder) Persist(request config.Storag
 	}
 
 	// override storage request so that it contains only the current persisted data
-	msg.Dump.Storage = []*api.StorageRequestMessage{request.ToStorageRequestMessage(ad.DumpMetadata.Name)}
+	msg.Dump.Storage = []*api.StorageRequestMessage{request.ToStorageRequestMessage(ad.Metadata.Name)}
 
 	if handler := storage.activityDumpHandler; handler != nil {
 		handler.HandleActivityDump(msg)

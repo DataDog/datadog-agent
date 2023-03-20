@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package activitydump
+package dump
 
 import (
 	"time"
@@ -24,7 +24,7 @@ func protoToActivityDump(dest *ActivityDump, ad *adproto.ActivityDump) {
 	dest.Host = ad.Host
 	dest.Service = ad.Service
 	dest.Source = ad.Source
-	dest.DumpMetadata = protoMetadataToDumpMetadata(ad.Metadata)
+	dest.Metadata = ProtoMetadataToMetadata(ad.Metadata)
 
 	dest.Tags = make([]string, len(ad.Tags))
 	copy(dest.Tags, ad.Tags)
@@ -32,16 +32,17 @@ func protoToActivityDump(dest *ActivityDump, ad *adproto.ActivityDump) {
 	dest.StorageRequests = make(map[config.StorageFormat][]config.StorageRequest)
 
 	for _, tree := range ad.Tree {
-		dest.ProcessActivityTree = append(dest.ProcessActivityTree, protoDecodeProcessActivityNode(tree))
+		dest.ProcessActivityTree = append(dest.ProcessActivityTree, ProtoDecodeProcessActivityNode(tree))
 	}
 }
 
-func protoMetadataToDumpMetadata(meta *adproto.Metadata) DumpMetadata {
+// ProtoMetadataToMetadata decodes a Metadata structure
+func ProtoMetadataToMetadata(meta *adproto.Metadata) Metadata {
 	if meta == nil {
-		return DumpMetadata{}
+		return Metadata{}
 	}
 
-	return DumpMetadata{
+	return Metadata{
 		AgentVersion:      meta.AgentVersion,
 		AgentCommit:       meta.AgentCommit,
 		KernelVersion:     meta.KernelVersion,
@@ -60,7 +61,8 @@ func protoMetadataToDumpMetadata(meta *adproto.Metadata) DumpMetadata {
 	}
 }
 
-func protoDecodeProcessActivityNode(pan *adproto.ProcessActivityNode) *ProcessActivityNode {
+// ProtoDecodeProcessActivityNode decodes a ProcessActivityNode structure
+func ProtoDecodeProcessActivityNode(pan *adproto.ProcessActivityNode) *ProcessActivityNode {
 	if pan == nil {
 		return nil
 	}
@@ -81,7 +83,7 @@ func protoDecodeProcessActivityNode(pan *adproto.ProcessActivityNode) *ProcessAc
 	}
 
 	for _, child := range pan.Children {
-		ppan.Children = append(ppan.Children, protoDecodeProcessActivityNode(child))
+		ppan.Children = append(ppan.Children, ProtoDecodeProcessActivityNode(child))
 	}
 
 	for _, fan := range pan.Files {
