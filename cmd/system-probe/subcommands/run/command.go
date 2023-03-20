@@ -89,6 +89,9 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 
 	// prepare go runtime
 	ddruntime.SetMaxProcs()
+	if err := ddruntime.SetGoMemLimit(ddconfig.IsContainerized()); err != nil {
+		log.Debugf("Couldn't set Go memory limit: %s", err)
+	}
 
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
