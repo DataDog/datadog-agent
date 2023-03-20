@@ -25,13 +25,15 @@ type processor struct {
 	sender          aggregator.Sender
 	podsQueue       *queue
 	containersQueue *queue
+	store           workloadmeta.Store
 }
 
-func newProcessor(sender aggregator.Sender, chunkSize int) *processor {
+func newProcessor(sender aggregator.Sender, chunkSize int, store workloadmeta.Store) *processor {
 	return &processor{
 		sender:          sender,
 		podsQueue:       newQueue(chunkSize),
 		containersQueue: newQueue(chunkSize),
+		store:           store,
 	}
 }
 
