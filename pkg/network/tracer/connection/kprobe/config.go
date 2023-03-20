@@ -74,32 +74,43 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeFuncNa
 		enableProbe(enabled, probes.InetBindRet)
 		enableProbe(enabled, probes.UDPSendPage)
 		enableProbe(enabled, probes.UDPSendPageReturn)
-
+		if kv >= kv470 || runtimeTracer {
+			enableProbe(enabled, probes.UDPRecvMsg)
+		} else if kv > kv410 {
+			enableProbe(enabled, probes.UDPRecvMsgPre470)
+		} else {
+			enableProbe(enabled, probes.UDPRecvMsgPre410)
+		}
+		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.UDPRecvMsgReturn, probes.UDPRecvMsgReturnPre470, kv470))
 		if c.CollectIPv6Conns {
 			enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.IP6MakeSkb, probes.IP6MakeSkbPre470, kv470))
+			if kv >= kv470 || runtimeTracer {
+				enableProbe(enabled, probes.UDPv6RecvMsg)
+			} else if kv > kv410 {
+				enableProbe(enabled, probes.UDPv6RecvMsgPre470)
+			} else {
+				enableProbe(enabled, probes.UDPv6RecvMsgPre410)
+			}
+			enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.UDPv6RecvMsgReturn, probes.UDPv6RecvMsgReturnPre470, kv470))
 			enableProbe(enabled, probes.IP6MakeSkbReturn)
 			enableProbe(enabled, probes.Inet6Bind)
 			enableProbe(enabled, probes.Inet6BindRet)
 		}
 
-		missing, err := ebpf.VerifyKernelFuncs("skb_consume_udp", "__skb_free_datagram_locked", "skb_free_datagram_locked")
-		if err != nil {
-			return nil, fmt.Errorf("error verifying kernel function presence: %s", err)
-		}
-
-		if runtimeTracer {
-			enableProbe(enabled, probes.UDPRecvMsg)
-			enableProbe(enabled, probes.UDPRecvMsgReturn)
-			if c.CollectIPv6Conns {
-				enableProbe(enabled, probes.UDPv6RecvMsg)
-				enableProbe(enabled, probes.UDPv6RecvMsgReturn)
+		if runtimeTracer || kv >= kv470 {
+			missing, err := ebpf.VerifyKernelFuncs("skb_consume_udp", "__skb_free_datagram_locked", "skb_free_datagram_locked")
+			if err != nil {
+				return nil, fmt.Errorf("error verifying kernel function presence: %s", err)
 			}
-		} else {
-			enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.UDPRecvMsg, probes.UDPRecvMsgPre410, kv410))
-			enableProbe(enabled, probes.UDPRecvMsgReturn)
-			if c.CollectIPv6Conns {
-				enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.UDPv6RecvMsg, probes.UDPv6RecvMsgPre410, kv410))
-				enableProbe(enabled, probes.UDPv6RecvMsgReturn)
+
+			if _, miss := missing["skb_consume_udp"]; !miss {
+				enableProbe(enabled, probes.SKBConsumeUDP)
+			} else if _, miss := missing["__skb_free_datagram_locked"]; !miss {
+				enableProbe(enabled, probes.UnderscoredSKBFreeDatagramLocked)
+			} else if _, miss := missing["skb_free_datagram_locked"]; !miss {
+				enableProbe(enabled, probes.SKBFreeDatagramLocked)
+			} else {
+				return nil, fmt.Errorf("missing desired UDP receive kernel functions")
 			}
 		}
 
