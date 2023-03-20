@@ -37,13 +37,13 @@ const (
 	tcpCloseReturn = "tcp_close_exit"
 
 	// We use the following seven probes for UDP
-	udpRecvMsgReturn   = "udp_recvmsg_exit"
-	udpSendMsgReturn   = "udp_sendmsg_exit"
-	udpSendSkb         = "kprobe__udp_send_skb"
-	udpv6RecvMsgReturn = "udpv6_recvmsg_exit"
+	udpRecvMsgReturn          = "udp_recvmsg_exit"
+	udpSendMsgReturn          = "udp_sendmsg_exit"
+	udpSendSkb                = "kprobe__udp_send_skb"
+	udpv6RecvMsgReturn        = "udpv6_recvmsg_exit"
 	udpv6RecvMsgReturnPre5190 = "udpv6_recvmsg_exit_pre_5_19_0"
-	udpv6SendMsgReturn = "udpv6_sendmsg_exit"
-	udpv6SendSkb       = "kprobe__udp_v6_send_skb"
+	udpv6SendMsgReturn        = "udpv6_sendmsg_exit"
+	udpv6SendSkb              = "kprobe__udp_v6_send_skb"
 
 	// udpDestroySock traces the udp_destroy_sock() function
 	udpDestroySock = "udp_destroy_sock"
