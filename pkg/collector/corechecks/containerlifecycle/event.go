@@ -119,7 +119,7 @@ func (e *eventTransformer) toEventModel() (*model.Event, error) {
 		}
 
 		if e.podExitTS != nil {
-			pod.OptionalExitTimestamp = &model.PodEvent_ExitTimestamp{ExitTimestamp: *e.podExitTS}
+			pod.ExitTimestamp = e.podExitTS
 		}
 
 		event.TypedEvent = &model.Event_Pod{Pod: pod}
