@@ -56,9 +56,7 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
         trans_len = iph.tot_len - (iph.ihl * 4);
         bpf_probe_read_kernel_with_telemetry(&tup->saddr_l, sizeof(__be32), &iph.saddr);
         bpf_probe_read_kernel_with_telemetry(&tup->daddr_l, sizeof(__be32), &iph.daddr);
-    }
-#ifdef FEATURE_IPV6_ENABLED
-    else if (iph.version == 6) {
+    } else if (is_ipv6_enabled() && iph.version == 6) {
         struct ipv6hdr ip6h;
         bpf_memset(&ip6h, 0, sizeof(struct ipv6hdr));
         ret = bpf_probe_read_kernel_with_telemetry(&ip6h, sizeof(ip6h), (struct ipv6hdr *)(head + net_head));
@@ -82,9 +80,7 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
         trans_len = bpf_ntohs(ip6h.payload_len) - sizeof(struct ipv6hdr);
         read_in6_addr(&tup->saddr_h, &tup->saddr_l, &ip6h.saddr);
         read_in6_addr(&tup->daddr_h, &tup->daddr_l, &ip6h.daddr);
-    }
-#endif
-    else {
+    } else {
         log_debug("unknown IP version: %d\n", iph.version);
         return 0;
     }
