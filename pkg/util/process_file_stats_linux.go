@@ -34,8 +34,8 @@ func GetProcessFileStats() (*ProcessFileStats, error) {
 	}
 
 	// Retrieving how many file handles the Core Agent process has open and the file limit set on the OS level
-	stats.AgentOpenFiles = float64(rs[process.RLIMIT_NOFILE].Used)
-	stats.OsFileLimit = float64(rs[process.RLIMIT_NOFILE].Soft)
+	stats.AgentOpenFiles = rs[process.RLIMIT_NOFILE].Used
+	stats.OsFileLimit = rs[process.RLIMIT_NOFILE].Soft
 
 	return &stats, nil
 }
