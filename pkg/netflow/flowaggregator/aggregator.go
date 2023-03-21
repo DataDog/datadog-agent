@@ -130,6 +130,7 @@ func (agg *FlowAggregator) flushLoop() {
 	rollupTrackersRefresh := time.NewTicker(agg.rollupTrackerRefreshInterval).C
 	// TODO: move rollup tracker refresh to a separate loop (separate PR) to avoid rollup tracker and flush flows impacting each other
 
+	var lastFlushTime time.Time
 	for {
 		select {
 		// stop sequence
@@ -138,7 +139,16 @@ func (agg *FlowAggregator) flushLoop() {
 			return
 		// automatic flush sequence
 		case <-flushFlowsToSendTicker:
+			now := time.Now()
+			if !lastFlushTime.IsZero() {
+				flushInterval := now.Sub(lastFlushTime)
+				agg.sender.Gauge("datadog.netflow.aggregator.flush_interval", flushInterval.Seconds(), "", nil)
+			}
+			lastFlushTime = now
+
+			flushStartTime := time.Now()
 			agg.flush()
+			agg.sender.Gauge("datadog.netflow.aggregator.flush_duration", time.Since(flushStartTime).Seconds(), "", nil)
 		// refresh rollup trackers
 		case <-rollupTrackersRefresh:
 			agg.rollupTrackersRefresh()
