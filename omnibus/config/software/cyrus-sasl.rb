@@ -27,6 +27,7 @@ build do
                         "--with-dblib=gdbm"]
 
   if osx?
+    # https://github.com/Homebrew/homebrew-core/blob/e2071268473bcddaf72f8e3f7aa4153a18d1ccfa/Formula/cyrus-sasl.rb
     configure_command = configure_command.append("--disable-macos-framework")
   end
 
