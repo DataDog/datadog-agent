@@ -229,6 +229,7 @@ type miscDeps struct {
 }
 
 // initMisc initializes modules that cannot, or have not yet been componetized.
+// Todo: (Components) WorkloadMeta, remoteTagger, telemetry Server, expvars, api server
 func initMisc(deps miscDeps) error {
 	initRuntimeSettings()
 

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2023-present Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package profiler
 
@@ -36,7 +36,7 @@ func newProfiler(deps dependencies) Component {
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
 			if deps.Config.GetBool("process_config.internal_profiling.enabled") {
-				err := p.Start(settings)
+				err := profiling.Start(settings)
 				if err != nil {
 					_ = log.Warn("Failed to enable profiling:", err.Error())
 				} else {
@@ -49,19 +49,11 @@ func newProfiler(deps dependencies) Component {
 			return nil
 		},
 		OnStop: func(context.Context) error {
-			p.Stop()
+			profiling.Stop()
 			return nil
 		},
 	})
 	return p
-}
-
-func (*profiler) Start(settings profiling.Settings) error {
-	return profiling.Start(settings)
-}
-
-func (*profiler) Stop() {
-	profiling.Stop()
 }
 
 func getProfilingSettings(cfg config.Component) profiling.Settings {

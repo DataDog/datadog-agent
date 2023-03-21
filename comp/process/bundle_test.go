@@ -15,7 +15,7 @@ import (
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/process/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -23,12 +23,6 @@ var mockCoreBundleParams = core.BundleParams{
 	ConfigParams: configComp.NewParams("", configComp.WithConfigMissingOK(true)),
 	LogParams:    log.LogForOneShot("PROCESS", "trace", false),
 }
-
-// Don't enable any features, we haven't set up a container provider so the container check will crash
-var disableContainerFeatures = fx.Invoke(func(t testing.TB, _ configComp.Component) {
-	config.SetDetectedFeatures(config.FeatureMap{})
-	t.Cleanup(func() { config.SetDetectedFeatures(nil) })
-})
 
 func TestBundleDependencies(t *testing.T) {
 	require.NoError(t, fx.ValidateApp(
@@ -38,7 +32,7 @@ func TestBundleDependencies(t *testing.T) {
 			mockCoreBundleParams,
 		),
 
-		disableContainerFeatures,
+		utils.DisableContainerFeatures,
 
 		// Start the runner
 		fx.Invoke(func(r runner.Component) {}),
@@ -48,10 +42,6 @@ func TestBundleDependencies(t *testing.T) {
 }
 
 func TestBundleOneShot(t *testing.T) {
-	// Don't enable any features, we haven't set up a container provider so the container check will crash
-	config.SetDetectedFeatures(config.FeatureMap{})
-	t.Cleanup(func() { config.SetDetectedFeatures(nil) })
-
 	runCmd := func(r runner.Component) {
 		checks := r.GetProvidedChecks()
 		require.Len(t, checks, 7)
@@ -79,7 +69,7 @@ func TestBundleOneShot(t *testing.T) {
 			mockCoreBundleParams,
 		),
 
-		disableContainerFeatures,
+		utils.DisableContainerFeatures,
 
 		Bundle,
 	)

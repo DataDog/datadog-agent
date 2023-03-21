@@ -14,26 +14,20 @@ import (
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core"
-	configComp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck"
 	"github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/comp/process/types"
+	"github.com/DataDog/datadog-agent/comp/process/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// Don't enable any features, we haven't set up a container provider so the container check will crash
-var disableContainerFeatures = fx.Invoke(func(t testing.TB, _ configComp.Component) {
-	config.SetDetectedFeatures(config.FeatureMap{})
-	t.Cleanup(func() { config.SetDetectedFeatures(nil) })
-})
-
 func TestRunnerLifecycle(t *testing.T) {
 	fxutil.Test(t, fx.Options(
-		disableContainerFeatures,
+		utils.DisableContainerFeatures,
 
 		fx.Supply(core.BundleParams{}),
 
@@ -61,7 +55,7 @@ func TestRunnerRealtime(t *testing.T) {
 				func() <-chan types.RTResponse { return rtChan },
 			),
 
-			disableContainerFeatures,
+			utils.DisableContainerFeatures,
 
 			fx.Supply(core.BundleParams{}),
 
@@ -102,7 +96,7 @@ func TestRunnerRealtime(t *testing.T) {
 				func() <-chan types.RTResponse { return rtChan },
 			),
 
-			disableContainerFeatures,
+			utils.DisableContainerFeatures,
 
 			fx.Supply(core.BundleParams{}),
 
