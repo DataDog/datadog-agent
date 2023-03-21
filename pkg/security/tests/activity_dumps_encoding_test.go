@@ -15,22 +15,22 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/security/activitydump"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 )
 
 //go:embed testdata/adv1.protobuf
 var v1testdata []byte
 
-func getTestDataActivityDump(tb testing.TB) *activitydump.ActivityDump {
-	ad := activitydump.NewEmptyActivityDump()
-	if err := ad.DecodeFromReader(bytes.NewReader(v1testdata), config.PROTOBUF); err != nil {
+func getTestDataActivityDump(tb testing.TB) *dump.ActivityDump {
+	ad := dump.NewEmptyActivityDump()
+	if err := ad.DecodeFromReader(bytes.NewReader(v1testdata), config.Protobuf); err != nil {
 		tb.Fatal(err)
 	}
 	return ad
 }
 
-func runEncoding(b *testing.B, encode func(ad *activitydump.ActivityDump) (*bytes.Buffer, error)) {
+func runEncoding(b *testing.B, encode func(ad *dump.ActivityDump) (*bytes.Buffer, error)) {
 	b.Helper()
 	ad := getTestDataActivityDump(b)
 
@@ -47,13 +47,13 @@ func runEncoding(b *testing.B, encode func(ad *activitydump.ActivityDump) (*byte
 }
 
 func BenchmarkProtobufEncoding(b *testing.B) {
-	runEncoding(b, func(ad *activitydump.ActivityDump) (*bytes.Buffer, error) {
+	runEncoding(b, func(ad *dump.ActivityDump) (*bytes.Buffer, error) {
 		return ad.EncodeProtobuf()
 	})
 }
 
 func BenchmarkProtoJSONEncoding(b *testing.B) {
-	runEncoding(b, func(ad *activitydump.ActivityDump) (*bytes.Buffer, error) {
+	runEncoding(b, func(ad *dump.ActivityDump) (*bytes.Buffer, error) {
 		return ad.EncodeJSON()
 	})
 }
@@ -81,8 +81,8 @@ func TestProtobufDecoding(t *testing.T) {
 	}
 }
 
-func decodeAD(buffer *bytes.Buffer) (*activitydump.ActivityDump, error) {
-	decoded := activitydump.NewEmptyActivityDump()
+func decodeAD(buffer *bytes.Buffer) (*dump.ActivityDump, error) {
+	decoded := dump.NewEmptyActivityDump()
 	if err := decoded.DecodeProtobuf(bytes.NewReader(buffer.Bytes())); err != nil {
 		return nil, err
 	}

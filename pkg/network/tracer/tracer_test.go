@@ -1043,14 +1043,16 @@ func addrPort(addr string) int {
 	return p
 }
 
+const clientID = "1"
+
 func initTracerState(t testing.TB, tr *Tracer) {
-	err := tr.RegisterClient("1")
+	err := tr.RegisterClient(clientID)
 	require.NoError(t, err)
 }
 
 func getConnections(t *testing.T, tr *Tracer) *network.Connections {
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
-	connections, err := tr.GetActiveConnections("1")
+	connections, err := tr.GetActiveConnections(clientID)
 	require.NoError(t, err)
 	return connections
 }

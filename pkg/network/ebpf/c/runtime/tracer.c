@@ -24,7 +24,7 @@
 #include "ip.h"
 #include "netns.h"
 #include "sockfd.h"
-#include "skb.h"
+#include "sk_buff.h"
 #include "port.h"
 #include "tcp-recv.h"
 

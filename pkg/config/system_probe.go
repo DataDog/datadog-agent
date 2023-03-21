@@ -229,7 +229,7 @@ func InitSystemProbeConfig(cfg Config) {
 	// enable/disable use of root net namespace
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_root_netns"), true)
 
-	// CWS
+	// CWS - general config
 	cfg.BindEnvAndSetDefault("runtime_security_config.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.fim_enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.erpc_dentry_resolution_enabled", true)
@@ -267,13 +267,13 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnv("runtime_security_config.event_stream.buffer_size")
 	cfg.BindEnvAndSetDefault("runtime_security_config.envs_with_value", []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE"})
 
-	// CWS Network
+	// CWS - network
 	cfg.BindEnvAndSetDefault("runtime_security_config.network.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.network.lazy_interface_prefixes", []string{})
 	cfg.BindEnvAndSetDefault("runtime_security_config.network.classifier_priority", 10)
 	cfg.BindEnvAndSetDefault("runtime_security_config.network.classifier_handle", 0)
 
-	// Activity Dump
+	// CWS - activity dump
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cleanup_period", 30)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.tags_resolution_period", 60)
@@ -294,9 +294,15 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.max_dump_count_per_workload", 25)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.tag_rules.enabled", true)
 
-	// SBOM
+	// CWS - SBOM
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.workloads_cache_size", 10)
+
+	// CWS - Security Profiles
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.dir", DefaultSecurityProfilesDir)
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.watch_dir", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.cache_size", 10)
 }
 
 func join(pieces ...string) string {

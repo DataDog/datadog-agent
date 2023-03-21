@@ -6,14 +6,15 @@
 //go:build linux
 // +build linux
 
-package activitydump
+package dump
 
 import (
 	"time"
 
+	"golang.org/x/text/runes"
+
 	adproto "github.com/DataDog/datadog-agent/pkg/security/proto/security_profile/v1"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"golang.org/x/text/runes"
 )
 
 func activityDumpToProto(ad *ActivityDump) *adproto.ActivityDump {
@@ -27,7 +28,7 @@ func activityDumpToProto(ad *ActivityDump) *adproto.ActivityDump {
 		Service: ad.Service,
 		Source:  ad.Source,
 
-		Metadata: adMetadataToProto(&ad.DumpMetadata),
+		Metadata: adMetadataToProto(&ad.Metadata),
 
 		Tags: make([]string, len(ad.Tags)),
 		Tree: make([]*adproto.ProcessActivityNode, 0, len(ad.ProcessActivityTree)),
@@ -42,7 +43,7 @@ func activityDumpToProto(ad *ActivityDump) *adproto.ActivityDump {
 	return pad
 }
 
-func adMetadataToProto(meta *DumpMetadata) *adproto.Metadata {
+func adMetadataToProto(meta *Metadata) *adproto.Metadata {
 	if meta == nil {
 		return nil
 	}

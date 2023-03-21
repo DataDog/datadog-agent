@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package activitydump
+package dump
 
 import (
 	"bytes"
@@ -193,8 +193,8 @@ func (ad *ActivityDump) GenerateProfileData() Profile {
 	}
 
 	// generate selector
-	if len(ad.DumpMetadata.Comm) > 0 {
-		p.Selector = fmt.Sprintf("process.comm = \"%s\"", ad.DumpMetadata.Comm)
+	if len(ad.Metadata.Comm) > 0 {
+		p.Selector = fmt.Sprintf("process.comm = \"%s\"", ad.Metadata.Comm)
 	}
 
 	// Add rules
@@ -206,8 +206,8 @@ func (ad *ActivityDump) GenerateProfileData() Profile {
 	return p
 }
 
-// EncodeProfile encodes an activity dump in the Profile format
-func (ad *ActivityDump) EncodeProfile() (*bytes.Buffer, error) {
+// EncodeSecL encodes an activity dump in the SecL format
+func (ad *ActivityDump) EncodeSecL() (*bytes.Buffer, error) {
 	t := template.Must(template.New("tmpl").Parse(ProfileTemplate))
 	raw := bytes.NewBuffer(nil)
 	if err := t.Execute(raw, ad.GenerateProfileData()); err != nil {

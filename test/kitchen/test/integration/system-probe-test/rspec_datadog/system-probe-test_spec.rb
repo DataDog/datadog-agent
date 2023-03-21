@@ -57,7 +57,8 @@ print KernelOut.format(`uname -a`)
 arch = `uname -m`.strip
 release = `uname -r`.strip
 osr = Hash[*CSV.read("/etc/os-release", col_sep: "=").flatten(1)]
-platform = "#{osr["ID"]}-#{osr["VERSION_ID"]}"
+platform = Gem::Platform.local.os
+osname = "#{osr["ID"]}-#{osr["VERSION_ID"]}"
 
 ##
 ## The main chef recipe (test\kitchen\site-cookbooks\dd-system-probe-check\recipes\default.rb)
@@ -111,6 +112,7 @@ shared_examples "passes" do |bundle, env, filter, filter_inclusive|
         REXML::XPath.each(xmldoc, "//testsuites/testsuite/properties") do |props|
           props.add_element("property", { "name" => "dd_tags[test.bundle]", "value" => bundle })
           props.add_element("property", { "name" => "dd_tags[os.platform]", "value" => platform })
+          props.add_element("property", { "name" => "dd_tags[os.name]", "value" => osname })
           props.add_element("property", { "name" => "dd_tags[os.architecture]", "value" => arch })
           props.add_element("property", { "name" => "dd_tags[os.version]", "value" => release })
         end

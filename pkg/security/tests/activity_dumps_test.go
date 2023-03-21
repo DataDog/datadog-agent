@@ -16,10 +16,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/activitydump"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	activitydump "github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+
 	"github.com/stretchr/testify/assert"
 )
 

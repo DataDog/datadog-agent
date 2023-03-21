@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package activitydump
+package dump
 
 import (
 	"bytes"
@@ -138,7 +138,7 @@ func (storage *ActivityDumpRemoteStorage) buildBody(request config.StorageReques
 	defer multipartWriter.Close()
 
 	// set activity dump size
-	ad.DumpMetadata.Size = uint64(len(raw.Bytes()))
+	ad.Metadata.Size = uint64(len(raw.Bytes()))
 
 	if err := storage.writeEventMetadata(multipartWriter, ad); err != nil {
 		return nil, nil, err
