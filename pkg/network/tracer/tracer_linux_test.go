@@ -50,6 +50,13 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 )
 
+var kv470 kernel.Version = kernel.VersionCode(4, 7, 0)
+var kv kernel.Version
+
+func init() {
+	kv, _ = kernel.HostVersion()
+}
+
 func doDNSQuery(t *testing.T, domain string, serverIP string) (*net.UDPAddr, *net.UDPAddr) {
 	dnsServerAddr := &net.UDPAddr{IP: net.ParseIP(serverIP), Port: 53}
 	queryMsg := new(dns.Msg)
@@ -323,11 +330,11 @@ func TestTCPMiscount(t *testing.T) {
 	server.Shutdown()
 
 	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
-	assert.True(t, ok)
-
-	// TODO this should not happen but is expected for now
-	// we don't have the correct count since retries happened
-	assert.False(t, uint64(len(x)) == conn.Monotonic.SentBytes)
+	if assert.True(t, ok) {
+		// TODO this should not happen but is expected for now
+		// we don't have the correct count since retries happened
+		assert.False(t, uint64(len(x)) == conn.Monotonic.SentBytes)
+	}
 
 	tel := tr.ebpfTracer.GetTelemetry()
 	assert.NotZero(t, tel["tcp_sent_miscounts"])
@@ -1087,8 +1094,8 @@ func TestUDPPeekCount(t *testing.T) {
 
 func TestUDPPythonReusePort(t *testing.T) {
 	cfg := testConfig()
-	if !cfg.EnableRuntimeCompiler {
-		t.Skip("reuseport only supported on runtime compilation")
+	if isPrebuilt(cfg) && kv < kv470 {
+		t.Skip("reuseport not supported on prebuilt")
 	}
 
 	cfg.TCPConnTimeout = 3 * time.Second
@@ -1175,7 +1182,7 @@ func TestUDPReusePort(t *testing.T) {
 
 func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 	cfg := testConfig()
-	if isPrebuilt(cfg) {
+	if isPrebuilt(cfg) && kv < kv470 {
 		t.Skip("reuseport not supported on prebuilt")
 	}
 
@@ -1427,7 +1434,7 @@ func TestSendfileRegression(t *testing.T) {
 				testSendfileServer(t, c.(*net.TCPConn), network.TCP, family, func() int64 { return rcvd })
 			})
 			t.Run("UDP", func(t *testing.T) {
-				if isPrebuilt(cfg) {
+				if isPrebuilt(cfg) && kv < kv470 {
 					t.Skip("UDP will fail with prebuilt tracer")
 				}
 

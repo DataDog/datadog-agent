@@ -980,21 +980,23 @@ func (s *UDPServer) Run(payloadSize int) error {
 		networkType = s.network
 	}
 	var err error
+	var ln net.PacketConn
 	if s.lc != nil {
-		s.ln, err = s.lc.ListenPacket(context.Background(), networkType, s.address)
+		ln, err = s.lc.ListenPacket(context.Background(), networkType, s.address)
 	} else {
-		s.ln, err = net.ListenPacket(networkType, s.address)
+		ln, err = net.ListenPacket(networkType, s.address)
 	}
 	if err != nil {
 		return err
 	}
 
+	s.ln = ln
 	s.address = s.ln.LocalAddr().String()
 
 	go func() {
 		buf := make([]byte, payloadSize)
 		for {
-			n, addr, err := s.ln.ReadFrom(buf)
+			n, addr, err := ln.ReadFrom(buf)
 			if err != nil {
 				if !errors.Is(err, net.ErrClosed) {
 					fmt.Printf("readfrom: %s\n", err)
@@ -1043,14 +1045,16 @@ func addrPort(addr string) int {
 	return p
 }
 
+const clientID = "1"
+
 func initTracerState(t testing.TB, tr *Tracer) {
-	err := tr.RegisterClient("1")
+	err := tr.RegisterClient(clientID)
 	require.NoError(t, err)
 }
 
 func getConnections(t *testing.T, tr *Tracer) *network.Connections {
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
-	connections, err := tr.GetActiveConnections("1")
+	connections, err := tr.GetActiveConnections(clientID)
 	require.NoError(t, err)
 	return connections
 }

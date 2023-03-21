@@ -202,7 +202,7 @@ var (
 	// Tags: -
 	MetricActivityDumpBrokenLineageDrop = newRuntimeMetric(".activity_dump.broken_lineage_drop")
 	// MetricActivityDumpEventTypeDrop is the name of the metric used to report the number of event dropped because their event types is not traced
-	// Tags: -
+	// Tags: event_type
 	MetricActivityDumpEventTypeDrop = newRuntimeMetric(".activity_dump.event_type_drop")
 	// MetricActivityDumpValidRootNodeDrop is the name of the metric used to report the number of dropped root not valide node
 	// Tags: -

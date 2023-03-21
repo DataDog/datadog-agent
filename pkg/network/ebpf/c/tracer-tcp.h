@@ -116,6 +116,7 @@ int kretprobe__tcp_read_sock(struct pt_regs *ctx) {
 SEC("kprobe/tcp_sendmsg")
 int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("kprobe/tcp_sendmsg: pid_tgid: %d\n", pid_tgid);
 #if defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
     struct sock *skp = (struct sock *)PT_REGS_PARM2(ctx);
 #else
