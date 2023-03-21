@@ -165,8 +165,12 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 	}
 	for _, s := range pt.TraceChunk.Spans {
 		isTop := traceutil.HasTopLevel(s)
-		isRemoteOutgoing := traceutil.IsRemoteOutgoing(s)
-		if !(isTop || traceutil.IsMeasured(s) || isRemoteOutgoing) || traceutil.IsPartialSnapshot(s) {
+		if !(isTop || traceutil.IsMeasured(s) || traceutil.IsRemoteOutgoing(s)) {
+			continue
+		}
+		if traceutil.IsPartialSnapshot(s) {
+			continue
+		}
 			continue
 		}
 		end := s.Start + s.Duration
