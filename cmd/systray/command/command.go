@@ -75,7 +75,7 @@ func MakeCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Check if we are elevated and elevate if necessary. Elevation is required prior to component initialization
 			// because of restricted permissions to the agent configuration file.
-			err := ensureElevated(systrayParams, args)
+			err := ensureElevated(systrayParams)
 			if err != nil {
 				return err
 			}
@@ -114,7 +114,7 @@ func MakeCommand() *cobra.Command {
 	return cmd
 }
 
-func ensureElevated(params systray.Params, args []string) error {
+func ensureElevated(params systray.Params) error {
 	isAdmin, err := winutil.IsUserAnAdmin()
 	if err != nil {
 		return fmt.Errorf("failed to call IsUserAnAdmin %v", err)
@@ -131,7 +131,7 @@ func ensureElevated(params systray.Params, args []string) error {
 	}
 
 	// attempt to launch as admin
-	err = relaunchElevated(args)
+	err = relaunchElevated()
 	if err != nil {
 		return err
 	}
@@ -141,14 +141,16 @@ func ensureElevated(params systray.Params, args []string) error {
 
 // relaunchElevated launch another instance of the current process asking it to carry out a command as admin.
 // If the function succeeds, it will quit the process, otherwise the function will return to the caller.
-func relaunchElevated(origargs []string) error {
+func relaunchElevated() error {
 	verb := "runas"
 	exe, _ := os.Executable()
 	cwd, _ := os.Getwd()
 
 	// Reconstruct arguments and tell the new process it should be elevated.
 	xargs := []string{"--launch-elev=true"}
-	xargs = append(xargs, origargs...)
+	if len(os.Args) > 1 {
+		xargs = append(xargs, os.Args[1:]...)
+	}
 	args := strings.Join(xargs, " ")
 
 	verbPtr, _ := windows.UTF16PtrFromString(verb)
