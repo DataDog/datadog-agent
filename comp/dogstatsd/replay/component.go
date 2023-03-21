@@ -18,8 +18,8 @@ import (
 
 // Component is the component type.
 type Component interface {
-	// TODO: (components) we should remove the configure method once Dogsatasd's lifecycle is managed by FX (start/stop)
-	// Because Dogstatsd is failable at runtime, we can't yet rely on fx to configure and start up the replay feature
+	// TODO: (components) we should remove the configure method once Dogstatsd's lifecycle is managed by FX (start/stop)
+	// Because Dogstatsd can fail at runtime, we can't yet rely on fx to configure and start up the replay feature
 	// since it has no way of knowing if dogstatsd succeeded to start.
 	Configure() error
 
