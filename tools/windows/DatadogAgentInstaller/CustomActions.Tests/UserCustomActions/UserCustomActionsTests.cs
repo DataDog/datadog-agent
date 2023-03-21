@@ -1,6 +1,7 @@
 using System;
 using System.Security.Principal;
 using AutoFixture.Xunit2;
+using Datadog.CustomActions.Native;
 using FluentAssertions;
 using Microsoft.Deployment.WindowsInstaller;
 using Xunit;
@@ -52,6 +53,25 @@ namespace CustomActions.Tests.UserCustomActions
                 .Contain("DDAGENTUSER_PROCESSED_FQ_NAME", $"{Environment.MachineName}\\ddagentuser").And
                 .Contain("DDAGENTUSER_RESET_PASSWORD", "yes").And
                 .Contain(kvp => kvp.Key == "DDAGENTUSER_PROCESSED_PASSWORD" && !string.IsNullOrEmpty(kvp.Value));
+        }
+
+        [Theory]
+        [AutoData]
+        public void ProcessDdAgentUserCredentials_With_Non_User_Account(string userDomain, string userName)
+        {
+            Test.WithLocalUser(userDomain, userName, SID_NAME_USE.SidTypeDomain);
+
+            Test.Session
+                .Setup(session => session["DDAGENTUSER_NAME"]).Returns($"{userDomain}\\{userName}");
+
+            Test.Create()
+                .ProcessDdAgentUserCredentials()
+                .Should()
+                .Be(ActionResult.Failure);
+
+            Test.Properties
+                .Should()
+                .BeEmpty();
         }
 
         /// <summary>

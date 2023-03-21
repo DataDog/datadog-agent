@@ -226,7 +226,7 @@ namespace Datadog.CustomActions
         ///
         /// When calledFromUIControl is true: sets property DDAgentUser_Valid="True" on success, on error, stores error information in the ErrorModal_ErrorMessage property.
         ///
-        /// When calledFromUIControl is false (during InstallExecuteSequence), sends an InstallMessage.Error emssage.
+        /// When calledFromUIControl is false (during InstallExecuteSequence), sends an InstallMessage.Error message.
         /// The installer may display an error popup depending on the UILevel.
         /// https://learn.microsoft.com/en-us/windows/win32/msi/user-interface-levels
         /// </remarks>
@@ -384,22 +384,20 @@ namespace Datadog.CustomActions
                     _session["DDAgentUser_Valid"] = "False";
                     return ActionResult.Success;
                 }
-                else
+
+                // Send an error message, the installer may display an error popup depending on the UILevel.
+                // https://learn.microsoft.com/en-us/windows/win32/msi/user-interface-levels
                 {
-                    // Send an error message, the installer may display an error popup depending on the UILevel.
-                    // https://learn.microsoft.com/en-us/windows/win32/msi/user-interface-levels
+                    using var actionRecord = new Record
                     {
-                        using var actionRecord = new Record()
-                        {
-                            FormatString = errorDialogMessage
-                        };
-                        _session.Message(InstallMessage.Error
-                            | (InstallMessage)((int)MessageBoxButtons.OK|(int)MessageBoxIcon.Warning),
-                            actionRecord);
-                    }
-                    // When called from InstallExecuteSequence we want to fail on error
-                    return ActionResult.Failure;
+                        FormatString = errorDialogMessage
+                    };
+                    _session.Message(InstallMessage.Error
+                                     | (InstallMessage)((int)MessageBoxButtons.OK | (int)MessageBoxIcon.Warning),
+                        actionRecord);
                 }
+                // When called from InstallExecuteSequence we want to fail on error
+                return ActionResult.Failure;
             }
             if (calledFromUIControl)
             {
@@ -504,7 +502,7 @@ namespace Datadog.CustomActions
                 {
                     using var actionRecord = new Record(
                         "ConfigureUser",
-                        $"Configuring file permissions",
+                        "Configuring file permissions",
                         ""
                     );
                     _session.Message(InstallMessage.ActionStart, actionRecord);

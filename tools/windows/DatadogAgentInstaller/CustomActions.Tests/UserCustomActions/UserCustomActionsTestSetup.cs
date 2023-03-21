@@ -105,7 +105,10 @@ namespace CustomActions.Tests.UserCustomActions
             return this;
         }
 
-        public UserCustomActionsTestSetup WithLocalUser(string userDomain, string userName)
+        public UserCustomActionsTestSetup WithLocalUser(
+            string userDomain,
+            string userName,
+            SID_NAME_USE userType = SID_NAME_USE.SidTypeUser)
         {
             var userSid = new SecurityIdentifier($"S-1-0-{_fixture.Create<uint>()}");
 
@@ -129,14 +132,16 @@ namespace CustomActions.Tests.UserCustomActions
                         user = userName;
                         domain = userDomain;
                         sid = userSid;
-                        nameUse = SID_NAME_USE.SidTypeUser;
+                        nameUse = userType;
                     }))
                 .Returns(true);
 
             return this;
         }
 
-        public UserCustomActionsTestSetup WithDomainUser(string userName = null)
+        public UserCustomActionsTestSetup WithDomainUser(
+            string userName = null,
+            SID_NAME_USE userType = SID_NAME_USE.SidTypeUser)
         {
             userName ??= _fixture.Create<string>();
             var userDomain = NativeMethods.Object.GetComputerDomain();
@@ -162,14 +167,16 @@ namespace CustomActions.Tests.UserCustomActions
                         user = userName;
                         domain = userDomain;
                         sid = userSid;
-                        nameUse = SID_NAME_USE.SidTypeUser;
+                        nameUse = userType;
                     }))
                 .Returns(true);
 
             return this;
         }
 
-        public UserCustomActionsTestSetup WithManagedServiceAccount(string userName)
+        public UserCustomActionsTestSetup WithManagedServiceAccount(
+            string userName,
+            SID_NAME_USE userType = SID_NAME_USE.SidTypeUser)
         {
             var userDomain = NativeMethods.Object.GetComputerDomain();
             var userSid = new SecurityIdentifier($"S-1-0-{_fixture.Create<uint>()}");
@@ -194,7 +201,7 @@ namespace CustomActions.Tests.UserCustomActions
                         user = userName;
                         domain = userDomain;
                         sid = userSid;
-                        nameUse = SID_NAME_USE.SidTypeUser;
+                        nameUse = userType;
                     }))
                 .Returns(true);
 
