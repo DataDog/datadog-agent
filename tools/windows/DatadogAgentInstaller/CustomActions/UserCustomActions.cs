@@ -225,6 +225,10 @@ namespace Datadog.CustomActions
         /// UI multiple times.
         ///
         /// When calledFromUIControl is true: sets property DDAgentUser_Valid="True" on success, on error, stores error information in the ErrorModal_ErrorMessage property.
+        ///
+        /// When calledFromUIControl is false (during InstallExecuteSequence), sends an InstallMessage.Error emssage.
+        /// The installer may display an error popup depending on the UILevel.
+        /// https://learn.microsoft.com/en-us/windows/win32/msi/user-interface-levels
         /// </remarks>
         public ActionResult ProcessDdAgentUserCredentials(bool calledFromUIControl = false)
         {
@@ -375,12 +379,24 @@ namespace Datadog.CustomActions
                     // otherwise the installer exits. The control that called this action should check the
                     // DDAgentUser_Valid property to determine if this function succeeded or failed.
                     // Error information is contained in the ErrorModal_ErrorMessage property.
+                    // MsiProcessMessage doesn't work here so we must use our own custom error popup.
                     _session["ErrorModal_ErrorMessage"] = errorDialogMessage;
                     _session["DDAgentUser_Valid"] = "False";
                     return ActionResult.Success;
                 }
                 else
                 {
+                    // Send an error message, the installer may display an error popup depending on the UILevel.
+                    // https://learn.microsoft.com/en-us/windows/win32/msi/user-interface-levels
+                    {
+                        using var actionRecord = new Record()
+                        {
+                            FormatString = errorDialogMessage
+                        };
+                        _session.Message(InstallMessage.Error
+                            | (InstallMessage)((int)MessageBoxButtons.OK|(int)MessageBoxIcon.Warning),
+                            actionRecord);
+                    }
                     // When called from InstallExecuteSequence we want to fail on error
                     return ActionResult.Failure;
                 }
