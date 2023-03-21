@@ -129,7 +129,7 @@ func fromEC2(ctx context.Context, currentHostname string) (string, error) {
 
 	prioritizeEC2Hostname := config.Datadog.GetBool("ec2_prioritize_instance_id_as_hostname")
 
-	log.Debugf("detected default EC2 hostname: %v", ec2.IsDefaultHostname(currentHostname))
+	log.Debugf("Detected a default EC2 hostname: %v", ec2.IsDefaultHostname(currentHostname))
 	log.Debugf("ec2_prioritize_instance_id_as_hostname is set to %v", prioritizeEC2Hostname)
 
 	// We use the instance id if we're on an ECS cluster or we're on EC2 and the hostname is one of the default ones
