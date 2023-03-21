@@ -14,6 +14,10 @@ run_dir=/opt/datadog-agent/run
 service_name="com.datadoghq.agent"
 systemwide_servicefile_name="/Library/LaunchDaemons/${service_name}.plist"
 
+if [ -n "$DD_REPO_URL" ]; then
+    dmg_base_url=$DD_REPO_URL
+fi
+
 upgrade=
 if [ -n "$DD_UPGRADE" ]; then
     upgrade=$DD_UPGRADE
