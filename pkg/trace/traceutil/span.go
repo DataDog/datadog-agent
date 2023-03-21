@@ -17,14 +17,12 @@ import (
 const (
 	// This is a special metric, it's 1 if the span is top-level, 0 if not.
 	topLevelKey = "_top_level"
-
 	// measuredKey is a special metric flag that marks a span for trace metrics calculation.
 	measuredKey = "_dd.measured"
 	// tracerTopLevelKey is a metric flag set by tracers on top_level spans
 	tracerTopLevelKey = "_dd.top_level"
 	// partialVersionKey is a metric carrying the snapshot seq number in the case the span is a partial snapshot
 	partialVersionKey = "_dd.partial_version"
-
 	// spanKindKey is the name of the field where a span's kind is stored.
 	spanKindKey = "span.kind"
 )
