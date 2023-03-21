@@ -48,7 +48,7 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 			log.Errorf("Error marshalling device metadata: %s", err)
 			return
 		}
-		ms.sender.EventPlatformEvent(string(payloadBytes), epforwarder.EventTypeNetworkDevicesMetadata)
+		ms.sender.EventPlatformEvent(payloadBytes, epforwarder.EventTypeNetworkDevicesMetadata)
 	}
 
 	// Telemetry
@@ -380,7 +380,13 @@ func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]ma
 		for key := range matchedIfIndexesMap {
 			matchedIfIndexes = append(matchedIfIndexes, key)
 		}
-		return deviceID + ":" + strconv.Itoa(int(matchedIfIndexes[0]))
+		interfaceID := deviceID + ":" + strconv.Itoa(int(matchedIfIndexes[0]))
+		log.Tracef("[local interface resolution] found 1 matching interface (idType=%s, id=%s) resolved to interface_id `%s`", localInterfaceIDType, localInterfaceID, interfaceID)
+		return interfaceID
+	} else if len(matchedIfIndexesMap) > 1 {
+		log.Tracef("[local interface resolution] expected 1 matching interface but found %d (idType=%s, id=%s): %+v", len(matchedIfIndexesMap), localInterfaceIDType, localInterfaceID, matchedIfIndexesMap)
+	} else {
+		log.Tracef("[local interface resolution] expected 1 matching interface but found 0 (idType=%s, id=%s)", localInterfaceIDType, localInterfaceID)
 	}
 	return ""
 }

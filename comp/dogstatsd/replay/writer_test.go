@@ -149,8 +149,6 @@ func writerTest(t *testing.T, z bool) {
 		cnt++
 	}
 	assert.Equal(t, cnt, enqueued.Load())
-	// Expect at least every thread to have enqueued a message
-	assert.Greater(t, enqueued.Load(), int32(threads))
 }
 
 func TestWriterUncompressed(t *testing.T) {

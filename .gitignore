@@ -115,7 +115,7 @@ compile_commands.json
 pkg/ebpf/bytecode/build/**/*.d
 pkg/ebpf/bytecode/runtime/conntrack.go
 pkg/ebpf/bytecode/runtime/http.go
-pkg/ebpf/bytecode/runtime/offsetguess.go
+pkg/ebpf/bytecode/runtime/offsetguess-test.go
 pkg/ebpf/bytecode/runtime/oom-kill.go
 pkg/ebpf/bytecode/runtime/runtime-security.go
 pkg/ebpf/bytecode/runtime/tcp-queue-length.go

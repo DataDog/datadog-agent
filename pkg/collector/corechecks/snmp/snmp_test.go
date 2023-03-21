@@ -905,7 +905,7 @@ profiles:
 	err = json.Compact(compactEvent, event)
 	assert.NoError(t, err)
 
-	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
+	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 
 	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckOK, "", snmpTags, "")
 }
@@ -1543,7 +1543,7 @@ tags:
 	err = json.Compact(compactEvent, event)
 	assert.NoError(t, err)
 
-	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
+	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 
 	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckCritical, "", snmpTags, "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value")
 }
@@ -1632,7 +1632,7 @@ tags:
 	err = json.Compact(compactEvent, event)
 	assert.NoError(t, err)
 
-	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
+	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 
 	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckCritical, "", snmpTags, expectedErrMsg)
 }
@@ -1959,7 +1959,7 @@ metric_tags:
 		err = json.Compact(compactEvent, event)
 		assert.NoError(t, err)
 
-		sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
+		sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 	}
 	networkTags := []string{"network:10.10.0.0/30", "autodiscovery_subnet:10.10.0.0/30"}
 	sender.AssertMetric(t, "Gauge", "snmp.discovered_devices_count", 4, "", networkTags)

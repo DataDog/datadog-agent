@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
@@ -18,6 +19,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/contimage"
 
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -32,13 +34,17 @@ type processor struct {
 func newProcessor(sender aggregator.Sender, maxNbItem int, maxRetentionTime time.Duration) *processor {
 	return &processor{
 		queue: queue.NewQueue(maxNbItem, maxRetentionTime, func(images []*model.ContainerImage) {
-			sender.ContainerImage([]model.ContainerImagePayload{
-				{
-					Version: "v1",
-					Source:  &sourceAgent,
-					Images:  images,
-				},
+			encoded, err := proto.Marshal(&model.ContainerImagePayload{
+				Version: "v1",
+				Source:  &sourceAgent,
+				Images:  images,
 			})
+			if err != nil {
+				log.Errorf("Unable to encode message: %+v", err)
+				return
+			}
+
+			sender.EventPlatformEvent(encoded, epforwarder.EventTypeContainerImages)
 		}),
 	}
 }
