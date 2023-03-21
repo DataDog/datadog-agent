@@ -481,7 +481,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, mapErrTelemetryMap, helperE
 	}
 
 	if err := features.HaveMapType(ebpf.LRUHash); err == nil {
-		me := opts.MapSpecEditors[string(probes.ConntrackMap)]
+		me := opts.MapSpecEditors[probes.ConntrackMap]
 		me.Type = ebpf.LRUHash
 		me.EditorFlag |= manager.EditType
 	}

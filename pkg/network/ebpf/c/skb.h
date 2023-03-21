@@ -119,7 +119,7 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
         bpf_probe_read_kernel_with_telemetry(&tup->daddr_l, sizeof(__be32), &iph.daddr);
     }
 #if !defined(COMPILE_RUNTIME) || defined(FEATURE_IPV6_ENABLED)
-    else if (iph.version == 6) {
+    else if (is_ipv6_enabled() && iph.version == 6) {
         struct ipv6hdr ip6h;
         bpf_memset(&ip6h, 0, sizeof(struct ipv6hdr));
         ret = bpf_probe_read_kernel_with_telemetry(&ip6h, sizeof(ip6h), (struct ipv6hdr *)(head + net_head));

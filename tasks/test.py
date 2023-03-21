@@ -156,7 +156,7 @@ def lint_flavor(
     Runs linters for given flavor, build tags, and modules.
     """
 
-    def command(lint_results, module, module_result):
+    def command(module_results, module, module_result):
         with ctx.cd(module.full_path()):
             lint_results = run_golangci_lint(
                 ctx, targets=module.targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch
@@ -165,7 +165,7 @@ def lint_flavor(
                 module_result.lint_outputs.append(lint_result)
                 if lint_result.exited != 0:
                     module_result.failed = True
-        lint_results.append(module_result)
+        module_results.append(module_result)
 
     return test_core(modules, flavor, ModuleLintResult, "golangci_lint", command)
 

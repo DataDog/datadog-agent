@@ -323,11 +323,11 @@ func TestTCPMiscount(t *testing.T) {
 	server.Shutdown()
 
 	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
-	assert.True(t, ok)
-
-	// TODO this should not happen but is expected for now
-	// we don't have the correct count since retries happened
-	assert.False(t, uint64(len(x)) == conn.Monotonic.SentBytes)
+	if assert.True(t, ok) {
+		// TODO this should not happen but is expected for now
+		// we don't have the correct count since retries happened
+		assert.False(t, uint64(len(x)) == conn.Monotonic.SentBytes)
+	}
 
 	tel := tr.ebpfTracer.GetTelemetry()
 	assert.NotZero(t, tel["tcp_sent_miscounts"])

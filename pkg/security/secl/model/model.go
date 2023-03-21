@@ -1041,6 +1041,8 @@ type SyscallsEvent struct {
 	Syscalls []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
 }
 
+const PathKeySize = 16
+
 // PathKey identifies an entry in the dentry cache
 type PathKey struct {
 	Inode   uint64 `field:"inode"`    // SECLDoc[inode] Definition:`Inode of the file`
@@ -1071,6 +1073,38 @@ func (p *PathKey) MarshalBinary() ([]byte, error) {
 
 	buff := make([]byte, 16)
 	p.Write(buff)
+
+	return buff, nil
+}
+
+// PathLeafSize defines path_leaf struct size
+const PathLeafSize = PathKeySize + MaxSegmentLength + 1 + 2 + 6 // path_key + name + len + padding
+
+// PathLeaf is the go representation of the eBPF path_leaf_t structure
+type PathLeaf struct {
+	Parent PathKey
+	Name   [MaxSegmentLength + 1]byte
+	Len    uint16
+}
+
+// GetName returns the path value as a string
+func (pl *PathLeaf) GetName() string {
+	return NullTerminatedString(pl.Name[:])
+}
+
+// GetName returns the path value as a string
+func (pl *PathLeaf) SetName(name string) {
+	copy(pl.Name[:], []byte(name))
+	pl.Len = uint16(len(name) + 1)
+}
+
+// MarshalBinary returns the binary representation of a path key
+func (pl *PathLeaf) MarshalBinary() ([]byte, error) {
+	buff := make([]byte, PathLeafSize)
+
+	pl.Parent.Write(buff)
+	copy(buff[16:], pl.Name[:])
+	ByteOrder.PutUint16(buff[16+len(pl.Name):], pl.Len)
 
 	return buff, nil
 }
