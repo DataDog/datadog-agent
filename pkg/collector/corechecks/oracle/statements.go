@@ -1,9 +1,12 @@
 package oracle
 
 import (
+	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
+	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/jmoiron/sqlx"
@@ -55,10 +58,10 @@ WHERE
 GROUP BY c.name, %s, plan_hash_value`
 
 type StatementMetricsKeyDB struct {
-	PDBName                string  `db:"PDB_NAME"`
-	SQLID                  *string `db:"SQL_ID"`
-	ForceMatchingSignature *uint64 `db:"FORCE_MATCHING_SIGNATURE"`
-	PlanHashValue          uint64  `db:"PLAN_HASH_VALUE"`
+	PDBName                string `db:"PDB_NAME"`
+	SQLID                  string `db:"SQL_ID"`
+	ForceMatchingSignature uint64 `db:"FORCE_MATCHING_SIGNATURE"`
+	PlanHashValue          uint64 `db:"PLAN_HASH_VALUE"`
 }
 
 type StatementMetricsMonotonicCountDB struct {
@@ -124,7 +127,7 @@ type OracleRowMonotonicCount struct {
 	SerializableAborts         float64 `json:"serializable_aborts,omitempty"`
 	Fetches                    float64 `json:"fetches,omitempty"`
 	Executions                 float64 `json:"executions,omitempty"`
-	EndOfFetchCount            float64 `json:"end_of_fetch_count,omitT"`
+	EndOfFetchCount            float64 `json:"end_of_fetch_count,omittempty"`
 	Loads                      float64 `json:"loads,omitempty"`
 	Invalidations              float64 `json:"invalidations,omitempty"`
 	PxServersExecutions        float64 `json:"px_servers_executions,omitempty"`
@@ -172,6 +175,18 @@ type OracleRow struct {
 	OracleRowGauge
 }
 
+type MetricsPayload struct {
+	Host                  string   `json:"host,omitempty"` // Host is the database hostname, not the agent hostname
+	Timestamp             float64  `json:"timestamp,omitempty"`
+	MinCollectionInterval float64  `json:"min_collection_interval,omitempty"`
+	Tags                  []string `json:"tags,omitempty"`
+	AgentVersion          string   `json:"ddagentversion,omitempty"`
+	AgentHostname         string   `json:"ddagenthostname,omitempty"`
+
+	OracleRows    []OracleRow `json:"oracle_rows,omitempty"`
+	OracleVersion string      `json:"oracle_version,omitempty"`
+}
+
 func ConstructStatementMetricsQueryBlock(sqlHandleColumn string) string {
 	return fmt.Sprintf(STATEMENT_METRICS_QUERY, sqlHandleColumn, sqlHandleColumn, sqlHandleColumn)
 }
@@ -203,6 +218,8 @@ func (c *Check) copyToPreviousMap(newMap map[StatementMetricsKeyDB]StatementMetr
 }
 
 func (c *Check) StatementMetrics() error {
+	fmt.Printf("statement previous cache %+v", c.statementMetricsMonotonicCountsPrevious)
+
 	statementMetrics, err := GetStatementsMetricsForKeys(c.db, "force_matching_signature", c.statementsFilter.ForceMatchingSignatures)
 	if err != nil {
 		return fmt.Errorf("error collecting statement metrics for force_matching_signature: %w", err)
@@ -221,13 +238,15 @@ func (c *Check) StatementMetrics() error {
 	}
 
 	o := obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})
-	var diff StatementMetricsMonotonicCountDB
-	for i, statementMetricRow := range statementMetricsAll {
-		fmt.Printf("%d statements row %+v \n", i, statementMetricRow)
+	//var diff StatementMetricsMonotonicCountDB
+	var diff OracleRowMonotonicCount
+	var oracleRows []OracleRow
+	for _, statementMetricRow := range statementMetricsAll {
 		newCache[statementMetricRow.StatementMetricsKeyDB] = statementMetricRow.StatementMetricsMonotonicCountDB
 		previousMonotonic, exists := c.statementMetricsMonotonicCountsPrevious[statementMetricRow.StatementMetricsKeyDB]
 		if exists {
-			diff = StatementMetricsMonotonicCountDB{}
+			//diff = StatementMetricsMonotonicCountDB{}
+			diff = OracleRowMonotonicCount{}
 			if diff.ParseCalls = statementMetricRow.ParseCalls - previousMonotonic.ParseCalls; diff.ParseCalls < 0 {
 				continue
 			}
@@ -329,14 +348,14 @@ func (c *Check) StatementMetrics() error {
 		}
 
 		var queryHashCol string
-		if *statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature == 0 {
+		if statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature == 0 {
 			queryHashCol = "sql_id"
 		} else {
 			queryHashCol = "force_matching_signature"
 		}
 		p := map[string]interface{}{
-			"force_matching_signature": *statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature,
-			"sql_id":                   *statementMetricRow.StatementMetricsKeyDB.SQLID,
+			"force_matching_signature": statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature,
+			"sql_id":                   statementMetricRow.StatementMetricsKeyDB.SQLID,
 		}
 		SQLTextQuery := fmt.Sprintf("SELECT sql_fulltext FROM v$sqlstats WHERE %s=:%s AND rownum = 1", queryHashCol, queryHashCol)
 		rows, err := c.db.NamedQuery(SQLTextQuery, p)
@@ -352,21 +371,21 @@ func (c *Check) StatementMetrics() error {
 			log.Errorf("statements scan error %s ", err)
 		}
 		SQLStatement = cols[0].(string)
-		fmt.Printf("statements sql %s \n", SQLStatement)
 
 		queryRow := QueryRow{}
-		obfuscatedStatement, err := common.GetObfuscatedStatement(o, SQLStatement)
+		//obfuscatedStatement, err := common.GetObfuscatedStatement(o, SQLStatement)
+		obfuscatedStatement, err := c.GetObfuscatedStatement(o, SQLStatement, statementMetricRow.ForceMatchingSignature, statementMetricRow.SQLID)
 		SQLStatement = obfuscatedStatement.Statement
 		if err == nil {
 			queryRow.QuerySignature = obfuscatedStatement.QuerySignature
 			queryRow.Commands = obfuscatedStatement.Commands
 			queryRow.Tables = obfuscatedStatement.Tables
-		} else {
+		} /*else {
 			obfuscationError := "Obfuscation error"
-			if statementMetricRow.ForceMatchingSignature != nil {
-				obfuscationError = obfuscationError + fmt.Sprintf(" for force_matching_signature %d", *statementMetricRow.ForceMatchingSignature)
-			} else if statementMetricRow.SQLID != nil {
-				obfuscationError = obfuscationError + fmt.Sprintf("for SQL_ID %s", *statementMetricRow.SQLID)
+			if statementMetricRow.ForceMatchingSignature != 0 {
+				obfuscationError = obfuscationError + fmt.Sprintf(" for force_matching_signature %d", statementMetricRow.ForceMatchingSignature)
+			} else if statementMetricRow.SQLID != "" {
+				obfuscationError = obfuscationError + fmt.Sprintf("for SQL_ID %s", statementMetricRow.SQLID)
 			}
 
 			var errorText string
@@ -375,12 +394,57 @@ func (c *Check) StatementMetrics() error {
 			}
 			log.Errorf("%s %s", errorText, err)
 			SQLStatement = obfuscationError
-		}
-		fmt.Printf("statement SQL text %s \n", SQLStatement)
+		} */
 
+		var queryHash string
+		if queryHashCol == "force_matching_signature" {
+			queryHash = strconv.FormatUint(statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature, 10)
+		} else {
+			queryHash = statementMetricRow.StatementMetricsKeyDB.SQLID
+		}
+		oracleRow := OracleRow{
+			QueryRow:                queryRow,
+			SQLText:                 SQLStatement,
+			QueryHash:               queryHash,
+			PlanHash:                strconv.FormatUint(statementMetricRow.PlanHashValue, 10),
+			PDBName:                 c.getFullPDBName(statementMetricRow.PDBName),
+			OracleRowMonotonicCount: diff,
+			OracleRowGauge:          OracleRowGauge(statementMetricRow.StatementMetricsGaugeDB),
+		}
+		//fmt.Printf("statement oracle Row %+v \n", oracleRow)
+		oracleRows = append(oracleRows, oracleRow)
 	}
 	o.Stop()
 	c.copyToPreviousMap(newCache)
+
+	//fmt.Printf("statement ora rows %+v", oracleRows)
+	payload := MetricsPayload{
+		Host:                  c.dbHostname,
+		Timestamp:             float64(time.Now().UnixMilli()),
+		MinCollectionInterval: c.checkInterval,
+		Tags:                  c.tags,
+		AgentVersion:          c.agentVersion,
+		AgentHostname:         c.hostname,
+		OracleRows:            oracleRows,
+		OracleVersion:         c.dbVersion,
+	}
+	//fmt.Printf("statement ora payload %+v", payload)
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		log.Errorf("Error marshalling query metrics payload: %s", err)
+		return err
+	}
+
+	log.Tracef("Query metrics payload %s", strings.ReplaceAll(string(payloadBytes), "@", "XX"))
+
+	sender, err := c.GetSender()
+	if err != nil {
+		log.Errorf("GetSender query metrics %s", string(payloadBytes))
+		return err
+	}
+	sender.EventPlatformEvent(string(payloadBytes), "dbm-metrics")
+	sender.Commit()
 
 	return nil
 }
