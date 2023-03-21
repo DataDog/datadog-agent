@@ -611,7 +611,6 @@ func TestRemoteOutboundSpanStats(t *testing.T) {
 		c := NewTestConcentrator(now)
 		c.addNow(testTrace, "")
 		stats := c.flushNow(now.UnixNano() + int64(c.bufferLen)*testBucketInterval)
-		// There should be two ClientGroupedStats because we have two unique service/op name combinations to count.
 		assert.Len(stats.Stats[0].Stats[0].Stats, expectedStatsLen)
 	}
 }
