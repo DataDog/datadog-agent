@@ -7,4 +7,5 @@
 # Each section note must be formatted as reStructuredText.
 ---
 enhancements:
-  - [corechecks/snmp] Adds ability to map metric tag value to string in SNMP profiles.
+  - |
+    [corechecks/snmp] Adds ability to map metric tag value to string in SNMP profiles.
