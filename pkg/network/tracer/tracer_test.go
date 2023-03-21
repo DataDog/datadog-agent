@@ -81,13 +81,6 @@ func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
 
 func TestGetStats(t *testing.T) {
 	httpSupported := httpSupported(t)
-	cfg := testConfig()
-	cfg.EnableHTTPMonitoring = true
-	tr := setupTracer(t, cfg)
-
-	<-time.After(time.Second)
-
-	getConnections(t, tr)
 	linuxExpected := map[string]interface{}{}
 	err := json.Unmarshal([]byte(`{
       "conntrack": {
@@ -193,24 +186,37 @@ func TestGetStats(t *testing.T) {
 		}
 	}
 
-	actual, _ := tr.GetStats()
+	for _, enableEbpfConntracker := range []bool{true, false} {
+		t.Run(fmt.Sprintf("ebpf conntracker %v", enableEbpfConntracker), func(t *testing.T) {
+			cfg := testConfig()
+			cfg.EnableHTTPMonitoring = true
+			cfg.EnableEbpfConntracker = enableEbpfConntracker
+			cfg.AllowPrecompiledFallback = true
+			tr := setupTracer(t, cfg)
 
-	for section, entries := range expected {
-		if section == "usm" && !httpSupported {
-			// HTTP stats not supported on some systems
-			continue
-		}
-		require.Contains(t, actual, section, "missing section from telemetry map: %s", section)
-		for name := range entries.(map[string]interface{}) {
-			if cfg.EnableRuntimeCompiler {
-				if sec, ok := rcExceptions[section]; ok {
-					if _, ok := sec.(map[string]interface{})[name]; ok {
-						continue
+			<-time.After(time.Second)
+
+			getConnections(t, tr)
+			actual, _ := tr.GetStats()
+
+			for section, entries := range expected {
+				if section == "usm" && !httpSupported {
+					// HTTP stats not supported on some systems
+					continue
+				}
+				require.Contains(t, actual, section, "missing section from telemetry map: %s", section)
+				for name := range entries.(map[string]interface{}) {
+					if cfg.EnableRuntimeCompiler || cfg.EnableEbpfConntracker {
+						if sec, ok := rcExceptions[section]; ok {
+							if _, ok := sec.(map[string]interface{})[name]; ok {
+								continue
+							}
+						}
 					}
+					assert.Contains(t, actual[section], name, "%s actual is missing %s", section, name)
 				}
 			}
-			assert.Contains(t, actual[section], name, "%s actual is missing %s", section, name)
-		}
+		})
 	}
 }
 
@@ -1037,14 +1043,16 @@ func addrPort(addr string) int {
 	return p
 }
 
+const clientID = "1"
+
 func initTracerState(t testing.TB, tr *Tracer) {
-	err := tr.RegisterClient("1")
+	err := tr.RegisterClient(clientID)
 	require.NoError(t, err)
 }
 
 func getConnections(t *testing.T, tr *Tracer) *network.Connections {
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
-	connections, err := tr.GetActiveConnections("1")
+	connections, err := tr.GetActiveConnections(clientID)
 	require.NoError(t, err)
 	return connections
 }
