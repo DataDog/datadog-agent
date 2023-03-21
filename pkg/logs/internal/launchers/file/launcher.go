@@ -343,18 +343,18 @@ func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, patt
 
 func CheckProcessTelemetry(stats *util.ProcessFileStats) {
 	ratio := float64(stats.AgentOpenFiles) / float64(stats.OsFileLimit)
-	if ratio > 0.7 {
-		log.Warnf("Agent process has %v files open (%0.f%%), which is over 70%% of OS open file limit (%v). Consider increasing OS file limit.",
+	if ratio > 0.9 {
+		log.Errorf("Agent process has %v files open which is %0.f%% of the OS open file limit (%v). This is over 90%% utilization. This may be preventing log files from being tailed by the Agent and could interfere with the basic functionality of the Agent. OS file limit must be increased.",
 			stats.AgentOpenFiles,
 			ratio*100,
 			stats.OsFileLimit)
-	} else if ratio > 0.9 {
-		log.Errorf("Agent process has %v files open (%0.f%%), which is over 90%% of OS open file limit (%v). This may be preventing log files from being tailed by the Agent and could interfere with the basic functionality of the Agent. OS file limit must be increased.",
+	} else if ratio > 0.7 {
+		log.Warnf("Agent process has %v files open which is %0.f%% of the OS open file limit (%v). This is over 70%% utilization; consider increasing the OS open file limit.",
 			stats.AgentOpenFiles,
 			ratio*100,
 			stats.OsFileLimit)
 	}
-	log.Debugf("Agent process has %v files open or %0.f%% of the OS file limit. OS file limit is currently set to %v.",
+	log.Debugf("Agent process has %v files open which is %0.f%% of the OS open file limit (%v).",
 		stats.AgentOpenFiles,
 		ratio*100,
 		stats.OsFileLimit)
