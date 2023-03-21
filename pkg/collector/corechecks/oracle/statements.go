@@ -3,6 +3,8 @@ package oracle
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/jmoiron/sqlx"
 	"golang.org/x/exp/maps"
@@ -53,10 +55,10 @@ WHERE
 GROUP BY c.name, %s, plan_hash_value`
 
 type StatementMetricsKeyDB struct {
-	PDBName                string `db:"PDB_NAME"`
-	SQLID                  string `db:"SQL_ID"`
-	ForceMatchingSignature uint64 `db:"FORCE_MATCHING_SIGNATURE"`
-	PlanHashValue          uint64 `db:"PLAN_HASH_VALUE"`
+	PDBName                string  `db:"PDB_NAME"`
+	SQLID                  *string `db:"SQL_ID"`
+	ForceMatchingSignature *uint64 `db:"FORCE_MATCHING_SIGNATURE"`
+	PlanHashValue          uint64  `db:"PLAN_HASH_VALUE"`
 }
 
 type StatementMetricsMonotonicCountDB struct {
@@ -217,57 +219,124 @@ func (c *Check) StatementMetrics() error {
 		c.copyToPreviousMap(newCache)
 		return nil
 	}
-	for _, statementMetricRow := range statementMetricsAll {
-		fmt.Printf("statements row %+v \n", statementMetricRow)
+
+	o := obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})
+	var diff StatementMetricsMonotonicCountDB
+	for i, statementMetricRow := range statementMetricsAll {
+		fmt.Printf("%d statements row %+v \n", i, statementMetricRow)
 		newCache[statementMetricRow.StatementMetricsKeyDB] = statementMetricRow.StatementMetricsMonotonicCountDB
 		previousMonotonic, exists := c.statementMetricsMonotonicCountsPrevious[statementMetricRow.StatementMetricsKeyDB]
 		if exists {
-			diff := StatementMetricsMonotonicCountDB{}
-			diff.ParseCalls = statementMetricRow.ParseCalls - previousMonotonic.ParseCalls
-			diff.DiskReads = statementMetricRow.DiskReads - previousMonotonic.DiskReads
-			diff.DirectWrites = statementMetricRow.DirectWrites - previousMonotonic.DirectWrites
-			diff.DirectReads = statementMetricRow.DirectReads - previousMonotonic.DirectReads
-			diff.BufferGets = statementMetricRow.BufferGets - previousMonotonic.BufferGets
-			diff.RowsProcessed = statementMetricRow.RowsProcessed - previousMonotonic.RowsProcessed
-			diff.SerializableAborts = statementMetricRow.SerializableAborts - previousMonotonic.SerializableAborts
-			diff.Fetches = statementMetricRow.Fetches - previousMonotonic.Fetches
-			diff.Executions = statementMetricRow.Executions - previousMonotonic.Executions
-			diff.EndOfFetchCount = statementMetricRow.EndOfFetchCount - previousMonotonic.EndOfFetchCount
-			diff.Loads = statementMetricRow.Loads - previousMonotonic.Loads
-			diff.Invalidations = statementMetricRow.Invalidations - previousMonotonic.Invalidations
-			diff.PxServersExecutions = statementMetricRow.PxServersExecutions - previousMonotonic.PxServersExecutions
-			diff.CPUTime = statementMetricRow.CPUTime - previousMonotonic.CPUTime
-			diff.ElapsedTime = statementMetricRow.ElapsedTime - previousMonotonic.ElapsedTime
-			diff.ApplicationWaitTime = statementMetricRow.ApplicationWaitTime - previousMonotonic.ApplicationWaitTime
-			diff.ConcurrencyWaitTime = statementMetricRow.ConcurrencyWaitTime - previousMonotonic.ConcurrencyWaitTime
-			diff.ClusterWaitTime = statementMetricRow.ClusterWaitTime - previousMonotonic.ClusterWaitTime
-			diff.UserIOWaitTime = statementMetricRow.UserIOWaitTime - previousMonotonic.UserIOWaitTime
-			diff.PLSQLExecTime = statementMetricRow.PLSQLExecTime - previousMonotonic.PLSQLExecTime
-			diff.JavaExecTime = statementMetricRow.JavaExecTime - previousMonotonic.JavaExecTime
-			diff.Sorts = statementMetricRow.Sorts - previousMonotonic.Sorts
-			diff.IOCellOffloadEligibleBytes = statementMetricRow.IOCellOffloadEligibleBytes - previousMonotonic.IOCellOffloadEligibleBytes
-			diff.IOCellUncompressedBytes = statementMetricRow.IOCellUncompressedBytes - previousMonotonic.IOCellUncompressedBytes
-			diff.IOCellOffloadReturnedBytes = statementMetricRow.IOCellOffloadReturnedBytes - previousMonotonic.IOCellOffloadReturnedBytes
-			diff.IOInterconnectBytes = statementMetricRow.IOInterconnectBytes - previousMonotonic.IOInterconnectBytes
-			diff.PhysicalReadRequests = statementMetricRow.PhysicalReadRequests - previousMonotonic.PhysicalReadRequests
-			diff.PhysicalReadBytes = statementMetricRow.PhysicalReadBytes - previousMonotonic.PhysicalReadBytes
-			diff.PhysicalWriteRequests = statementMetricRow.PhysicalWriteRequests - previousMonotonic.PhysicalWriteRequests
-			diff.PhysicalWriteBytes = statementMetricRow.PhysicalWriteBytes - previousMonotonic.PhysicalWriteBytes
-			diff.ObsoleteCount = statementMetricRow.ObsoleteCount - previousMonotonic.ObsoleteCount
-			diff.AvoidedExecutions = statementMetricRow.AvoidedExecutions - previousMonotonic.AvoidedExecutions
+			diff = StatementMetricsMonotonicCountDB{}
+			if diff.ParseCalls = statementMetricRow.ParseCalls - previousMonotonic.ParseCalls; diff.ParseCalls < 0 {
+				continue
+			}
+			if diff.DiskReads = statementMetricRow.DiskReads - previousMonotonic.DiskReads; diff.DiskReads < 0 {
+				continue
+			}
+			if diff.DirectWrites = statementMetricRow.DirectWrites - previousMonotonic.DirectWrites; diff.DirectWrites < 0 {
+				continue
+			}
+			if diff.DirectReads = statementMetricRow.DirectReads - previousMonotonic.DirectReads; diff.DirectReads < 0 {
+				continue
+			}
+			if diff.BufferGets = statementMetricRow.BufferGets - previousMonotonic.BufferGets; diff.BufferGets < 0 {
+				continue
+			}
+			if diff.RowsProcessed = statementMetricRow.RowsProcessed - previousMonotonic.RowsProcessed; diff.RowsProcessed < 0 {
+				continue
+			}
+			if diff.SerializableAborts = statementMetricRow.SerializableAborts - previousMonotonic.SerializableAborts; diff.SerializableAborts < 0 {
+				continue
+			}
+			if diff.Fetches = statementMetricRow.Fetches - previousMonotonic.Fetches; diff.Fetches < 0 {
+				continue
+			}
+			if diff.Executions = statementMetricRow.Executions - previousMonotonic.Executions; diff.Executions < 0 {
+				continue
+			}
+			if diff.EndOfFetchCount = statementMetricRow.EndOfFetchCount - previousMonotonic.EndOfFetchCount; diff.EndOfFetchCount < 0 {
+				continue
+			}
+			if diff.Loads = statementMetricRow.Loads - previousMonotonic.Loads; diff.Loads < 0 {
+				continue
+			}
+			if diff.Invalidations = statementMetricRow.Invalidations - previousMonotonic.Invalidations; diff.Invalidations < 0 {
+				continue
+			}
+			if diff.PxServersExecutions = statementMetricRow.PxServersExecutions - previousMonotonic.PxServersExecutions; diff.PxServersExecutions < 0 {
+				continue
+			}
+			if diff.CPUTime = statementMetricRow.CPUTime - previousMonotonic.CPUTime; diff.CPUTime < 0 {
+				continue
+			}
+			if diff.ElapsedTime = statementMetricRow.ElapsedTime - previousMonotonic.ElapsedTime; diff.ElapsedTime < 0 {
+				continue
+			}
+			if diff.ApplicationWaitTime = statementMetricRow.ApplicationWaitTime - previousMonotonic.ApplicationWaitTime; diff.ApplicationWaitTime < 0 {
+				continue
+			}
+			if diff.ConcurrencyWaitTime = statementMetricRow.ConcurrencyWaitTime - previousMonotonic.ConcurrencyWaitTime; diff.ConcurrencyWaitTime < 0 {
+				continue
+			}
+			if diff.ClusterWaitTime = statementMetricRow.ClusterWaitTime - previousMonotonic.ClusterWaitTime; diff.ClusterWaitTime < 0 {
+				continue
+			}
+			if diff.UserIOWaitTime = statementMetricRow.UserIOWaitTime - previousMonotonic.UserIOWaitTime; diff.UserIOWaitTime < 0 {
+				continue
+			}
+			if diff.PLSQLExecTime = statementMetricRow.PLSQLExecTime - previousMonotonic.PLSQLExecTime; diff.PLSQLExecTime < 0 {
+				continue
+			}
+			if diff.JavaExecTime = statementMetricRow.JavaExecTime - previousMonotonic.JavaExecTime; diff.JavaExecTime < 0 {
+				continue
+			}
+			if diff.Sorts = statementMetricRow.Sorts - previousMonotonic.Sorts; diff.Sorts < 0 {
+				continue
+			}
+			if diff.IOCellOffloadEligibleBytes = statementMetricRow.IOCellOffloadEligibleBytes - previousMonotonic.IOCellOffloadEligibleBytes; diff.IOCellOffloadEligibleBytes < 0 {
+				continue
+			}
+			if diff.IOCellUncompressedBytes = statementMetricRow.IOCellUncompressedBytes - previousMonotonic.IOCellUncompressedBytes; diff.IOCellUncompressedBytes < 0 {
+				continue
+			}
+			if diff.IOCellOffloadReturnedBytes = statementMetricRow.IOCellOffloadReturnedBytes - previousMonotonic.IOCellOffloadReturnedBytes; diff.IOCellOffloadReturnedBytes < 0 {
+				continue
+			}
+			if diff.IOInterconnectBytes = statementMetricRow.IOInterconnectBytes - previousMonotonic.IOInterconnectBytes; diff.IOInterconnectBytes < 0 {
+				continue
+			}
+			if diff.PhysicalReadRequests = statementMetricRow.PhysicalReadRequests - previousMonotonic.PhysicalReadRequests; diff.PhysicalReadRequests < 0 {
+				continue
+			}
+			if diff.PhysicalReadBytes = statementMetricRow.PhysicalReadBytes - previousMonotonic.PhysicalReadBytes; diff.PhysicalReadBytes < 0 {
+				continue
+			}
+			if diff.PhysicalWriteRequests = statementMetricRow.PhysicalWriteRequests - previousMonotonic.PhysicalWriteRequests; diff.PhysicalWriteRequests < 0 {
+				continue
+			}
+			if diff.PhysicalWriteBytes = statementMetricRow.PhysicalWriteBytes - previousMonotonic.PhysicalWriteBytes; diff.PhysicalWriteBytes < 0 {
+				continue
+			}
+			if diff.ObsoleteCount = statementMetricRow.ObsoleteCount - previousMonotonic.ObsoleteCount; diff.ObsoleteCount < 0 {
+				continue
+			}
+			if diff.AvoidedExecutions = statementMetricRow.AvoidedExecutions - previousMonotonic.AvoidedExecutions; diff.AvoidedExecutions < 0 {
+				continue
+			}
 		} else {
 			continue
 		}
 
 		var queryHashCol string
-		if statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature == 0 {
+		if *statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature == 0 {
 			queryHashCol = "sql_id"
 		} else {
 			queryHashCol = "force_matching_signature"
 		}
 		p := map[string]interface{}{
-			"force_matching_signature": statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature,
-			"sql_id":                   statementMetricRow.StatementMetricsKeyDB.SQLID,
+			"force_matching_signature": *statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature,
+			"sql_id":                   *statementMetricRow.StatementMetricsKeyDB.SQLID,
 		}
 		SQLTextQuery := fmt.Sprintf("SELECT sql_fulltext FROM v$sqlstats WHERE %s=:%s AND rownum = 1", queryHashCol, queryHashCol)
 		rows, err := c.db.NamedQuery(SQLTextQuery, p)
@@ -278,27 +347,39 @@ func (c *Check) StatementMetrics() error {
 		defer rows.Close()
 		rows.Next()
 		cols, err := rows.SliceScan()
+		var SQLStatement string
 		if err != nil {
 			log.Errorf("statements scan error %s ", err)
 		}
-		fmt.Printf("statements sql %s \n", cols[0])
+		SQLStatement = cols[0].(string)
+		fmt.Printf("statements sql %s \n", SQLStatement)
 
-		/*
-			for rows.Next() {
-				// cols is an []interface{} of all of the column results
-				cols, err := rows.SliceScan()
-				fmt.Printf("statements cols %+v \n", cols)
+		queryRow := QueryRow{}
+		obfuscatedStatement, err := common.GetObfuscatedStatement(o, SQLStatement)
+		SQLStatement = obfuscatedStatement.Statement
+		if err == nil {
+			queryRow.QuerySignature = obfuscatedStatement.QuerySignature
+			queryRow.Commands = obfuscatedStatement.Commands
+			queryRow.Tables = obfuscatedStatement.Tables
+		} else {
+			obfuscationError := "Obfuscation error"
+			if statementMetricRow.ForceMatchingSignature != nil {
+				obfuscationError = obfuscationError + fmt.Sprintf(" for force_matching_signature %d", *statementMetricRow.ForceMatchingSignature)
+			} else if statementMetricRow.SQLID != nil {
+				obfuscationError = obfuscationError + fmt.Sprintf("for SQL_ID %s", *statementMetricRow.SQLID)
+			}
 
+			var errorText string
+			if c.config.InstanceConfig.LogUnobfuscatedQueries {
+				errorText = obfuscationError + fmt.Sprintf(" SQL: %s", obfuscatedStatement.Statement)
 			}
-		*/
-		/*
-			err = row.Scan(&SQLText)
-			if err != nil {
-				log.Errorf("failed to get text for query %s=%s %s ", queryHashSource, queryHashSource, queryHashFilter, err)
-			}
-		*/
-		//fmt.Printf("statements SQL %s \n", SQLText)
+			log.Errorf("%s %s", errorText, err)
+			SQLStatement = obfuscationError
+		}
+		fmt.Printf("statement SQL text %s \n", SQLStatement)
+
 	}
+	o.Stop()
 	c.copyToPreviousMap(newCache)
 
 	return nil
