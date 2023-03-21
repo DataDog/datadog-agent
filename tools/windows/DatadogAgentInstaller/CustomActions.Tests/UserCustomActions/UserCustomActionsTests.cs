@@ -4,6 +4,7 @@ using AutoFixture.Xunit2;
 using Datadog.CustomActions.Native;
 using FluentAssertions;
 using Microsoft.Deployment.WindowsInstaller;
+using Moq;
 using Xunit;
 
 namespace CustomActions.Tests.UserCustomActions
@@ -99,6 +100,25 @@ namespace CustomActions.Tests.UserCustomActions
                 .Contain(kvp => kvp.Key == "DDAGENTUSER_PROCESSED_PASSWORD" &&
                                 // !! The password should be null
                                 string.IsNullOrEmpty(kvp.Value));
+        }
+
+        [Theory]
+        [AutoData]
+        public void ProcessDdAgentUserCredentials_With_Failing_IsDomainAccount(string userDomain, string userName)
+        {
+            Test.WithLocalUser(userDomain, userName)
+                .NativeMethods.Setup(n => n.IsDomainAccount(It.IsAny<SecurityIdentifier>())).Throws<Exception>();
+
+            Test.Session
+                .Setup(session => session["DDAGENTUSER_NAME"]).Returns($"{userDomain}\\{userName}");
+
+            Test.Create()
+                .ProcessDdAgentUserCredentials()
+                .Should()
+                .Be(ActionResult.Failure);
+
+            Test.Properties.Should()
+                .Contain("DDAGENTUSER_FOUND", "true");
         }
     }
 }
