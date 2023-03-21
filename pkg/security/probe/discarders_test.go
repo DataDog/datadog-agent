@@ -377,7 +377,9 @@ func TestIsDiscarderOverride(t *testing.T) {
 	event.SetFieldValue("unlink.file.path", "/var/log/httpd")
 	event.SetFieldValue("process.file.path", "/bin/touch")
 
-	rs.Evaluate(event)
+	if rs.Evaluate(event) {
+		rs.PushDiscarders(event)
+	}
 
 	if listener.fields["process.file.path"] > 0 {
 		t.Error("shouldn't get a discarder")
@@ -385,7 +387,9 @@ func TestIsDiscarderOverride(t *testing.T) {
 
 	event.SetFieldValue("process.file.path", "/bin/cat")
 
-	rs.Evaluate(event)
+	if rs.Evaluate(event) {
+		rs.PushDiscarders(event)
+	}
 
 	if listener.fields["process.file.path"] == 0 {
 		t.Error("should get a discarder")

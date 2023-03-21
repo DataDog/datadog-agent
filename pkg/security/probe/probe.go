@@ -21,6 +21,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
+	"go.uber.org/atomic"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 	"golang.org/x/time/rate"
@@ -37,6 +38,7 @@ import (
 	kernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
@@ -107,8 +109,9 @@ type Probe struct {
 	wg             sync.WaitGroup
 
 	// Events section
-	eventHandlers       [model.MaxAllEventType][]EventHandler
-	customEventHandlers [model.MaxAllEventType][]CustomEventHandler
+	eventHandlers        [model.MaxAllEventType][]EventHandler
+	customEventHandlers  [model.MaxAllEventType][]CustomEventHandler
+	anomalyDetectionSent map[model.EventType]*atomic.Uint64
 
 	// internals
 	monitor       *Monitor
@@ -358,12 +361,53 @@ func (p *Probe) AddCustomEventHandler(eventType model.EventType, handler CustomE
 	return nil
 }
 
+func (p *Probe) SendAnomalyDetection(event *model.Event) {
+	evtType := event.GetEventType()
+	if evtType != model.FileOpenEventType &&
+		evtType != model.DNSEventType &&
+		evtType != model.BindEventType &&
+		evtType != model.ExecEventType {
+		return // at least, fork and exit
+	}
+
+	if evtType == model.FileOpenEventType && !p.Config.RuntimeSecurity.SecurityProfileFilesBestEffort {
+		return
+	}
+
+	// TODO: delete debug logs
+	switch event.GetEventType() {
+	case model.FileOpenEventType:
+		fmt.Printf("FILE Event not found in profile -> generate anomaly detection ! %s @ %+v for %s\n",
+			event.ProcessContext.Comm, event.GetEventType().String(), event.Open.File.PathnameStr)
+	case model.DNSEventType:
+		fmt.Printf("DNS Event not found in profile -> generate anomaly detection ! %s @ %+v for %s (%d)\n",
+			event.ProcessContext.Comm, event.GetEventType().String(), event.DNS.Name, event.DNS.Type)
+	case model.BindEventType:
+		fmt.Printf("BIND Event not found in profile -> generate anomaly detection ! %s @ %+v\n",
+			event.ProcessContext.Comm, event.GetEventType().String())
+	case model.ExecEventType:
+		fmt.Printf("EXEC Event not found in profile -> generate anomaly detection ! %s @ %+v\n",
+			event.ProcessContext.Comm, event.GetEventType().String())
+	}
+
+	p.DispatchCustomEvent(
+		events.NewCustomRule(events.AnomalyDetectionRuleID),
+		events.NewCustomEvent(event.GetEventType(), serializers.NewEventSerializer(event, p.resolvers)),
+	)
+	p.anomalyDetectionSent[model.ExecEventType].Inc()
+}
+
 // DispatchEvent sends an event to the probe event handler
 func (p *Probe) DispatchEvent(event *model.Event) {
 	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
 		eventJSON, err := serializers.MarshalEvent(event, p.resolvers)
 		return eventJSON, event.GetEventType(), err
 	})
+
+	// filter out event if already present on a profile
+	if p.Config.RuntimeSecurity.SecurityProfileEnabled {
+		p.monitor.securityProfileManager.LookupEventOnProfiles(event)
+	}
 
 	// send wildcard first
 	for _, handler := range p.eventHandlers[model.UnknownEventType] {
@@ -375,8 +419,15 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 		handler.HandleEvent(event)
 	}
 
-	// Process after evaluation because some monitors need the DentryResolver to have been called first.
-	p.monitor.ProcessEvent(event)
+	if event.AnomalyDetectionEnabled && event.IsSecurityProfileFoundAndAbsent() && event.GetEventType() != model.SyscallsEventType {
+		p.SendAnomalyDetection(event)
+	}
+
+	// if a profile is already present for this event, dont even try to add it to a dump
+	if !event.HaveMatchedAProfile() {
+		// Process after evaluation because some monitors need the DentryResolver to have been called first.
+		p.monitor.ProcessEvent(event)
+	}
 }
 
 // DispatchCustomEvent sends a custom event to the probe event handler
@@ -417,6 +468,15 @@ func traceEvent(fmt string, marshaller func() ([]byte, model.EventType, error)) 
 // SendStats sends statistics about the probe to Datadog
 func (p *Probe) SendStats() error {
 	p.resolvers.TCResolver.SendTCProgramsStats(p.StatsdClient)
+
+	for evtType, count := range p.anomalyDetectionSent {
+		tags := []string{fmt.Sprintf("event_type:%s", evtType)}
+		if value := count.Swap(0); value > 0 {
+			if err := p.StatsdClient.Count(metrics.MetricSecurityProfileAnomalyDetectionSent, int64(value), tags, 1.0); err != nil {
+				return fmt.Errorf("couldn't send MetricSecurityProfileAnomalyDetectionSent metric: %w", err)
+			}
+		}
+	}
 
 	return p.monitor.SendStats()
 }
@@ -1354,6 +1414,10 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
 		isRuntimeDiscarded:   !opts.DontDiscardRuntime,
 		event:                &model.Event{},
+		anomalyDetectionSent: make(map[model.EventType]*atomic.Uint64),
+	}
+	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
+		p.anomalyDetectionSent[i] = atomic.NewUint64(0)
 	}
 
 	if err := p.detectKernelVersion(); err != nil {

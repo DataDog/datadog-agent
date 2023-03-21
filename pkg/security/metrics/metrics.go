@@ -255,6 +255,15 @@ var (
 	// MetricSecurityProfileCacheMiss is the name of the metric used to report the count of Security Profile cache misses
 	// Tags: -
 	MetricSecurityProfileCacheMiss = newRuntimeMetric(".security_profile.cache.miss")
+	// MetricSecurityProfileAnomalyDetection
+	// Tags: - event_type
+	MetricSecurityProfileAnomalyDetectionSent = newRuntimeMetric(".security_profile.anomaly_detection.sent")
+	// MetricSecurityProfileEventFilteringLookup
+	// Tags: -
+	MetricSecurityProfileEventFilteringLookup = newRuntimeMetric(".security_profile.event_filtering.lookup")
+	// MetricSecurityProfileEventFilteringNoProfile
+	// Tags: - event_type, present_in_profile ('yes' or 'no')
+	MetricSecurityProfileEventFiltering = newRuntimeMetric(".security_profile.event_filtering")
 
 	// Namespace resolver metrics
 
