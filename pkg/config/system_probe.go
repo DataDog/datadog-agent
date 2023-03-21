@@ -106,11 +106,6 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.block_profile_rate"), 0)
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.enable_goroutine_stacktraces"), false)
 
-	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.enabled"), false)
-	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.hierarchy"), "v1")
-	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.pressure_levels"), map[string]string{})
-	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.thresholds"), map[string]string{})
-
 	// ebpf general settings
 	cfg.BindEnvAndSetDefault(join(spNS, "bpf_debug"), false)
 	cfg.BindEnvAndSetDefault(join(spNS, "bpf_dir"), defaultSystemProbeBPFDir, "DD_SYSTEM_PROBE_BPF_DIR")
