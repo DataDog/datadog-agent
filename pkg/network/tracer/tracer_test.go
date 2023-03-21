@@ -948,7 +948,7 @@ func (t *TCPServer) Run() error {
 
 	go func() {
 		for {
-			conn, err := t.ln.Accept()
+			conn, err := ln.Accept()
 			if err != nil {
 				return
 			}
