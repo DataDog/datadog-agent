@@ -13,6 +13,7 @@
 #include "ipv6.h"
 #include "port.h"
 #include "sock.h"
+#include "skb.h"
 
 BPF_PERCPU_HASH_MAP(udp6_send_skb_args, u64, u64, 1024)
 BPF_PERCPU_HASH_MAP(udp_send_skb_args, u64, conn_tuple_t, 1024)
