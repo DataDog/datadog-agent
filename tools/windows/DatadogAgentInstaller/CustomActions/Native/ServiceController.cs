@@ -5,6 +5,8 @@ using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.ServiceProcess;
+using System.Threading;
+using System.Threading.Tasks;
 using Datadog.CustomActions.Interfaces;
 
 namespace Datadog.CustomActions.Native
@@ -20,8 +22,9 @@ namespace Datadog.CustomActions.Native
 
         public bool ServiceExists(string serviceName)
         {
-            var svc = System.ServiceProcess.ServiceController.GetServices().FirstOrDefault(svc => svc.ServiceName == serviceName);
-            return svc != null;
+            return System.ServiceProcess.ServiceController
+                .GetServices()
+                .Any(svc => svc.ServiceName.Equals(serviceName, StringComparison.InvariantCultureIgnoreCase));
         }
 
         public void SetCredentials(string serviceName, string username, string password)
@@ -43,25 +46,22 @@ namespace Datadog.CustomActions.Native
             }
         }
 
-        private ServiceControllerStatus WaitForStatusChange(System.ServiceProcess.ServiceController svc, ServiceControllerStatus state, TimeSpan timeout)
+        private async Task<ServiceControllerStatus> WaitForStatusChange(System.ServiceProcess.ServiceController svc, ServiceControllerStatus state, TimeSpan timeout)
         {
-            var timer = new Stopwatch();
-            timer.Start();
-
-            while (true)
+            using var cts = new CancellationTokenSource(timeout);
+            var delay = TimeSpan.FromMilliseconds(250);
+            while (!cts.IsCancellationRequested)
             {
                 svc.Refresh();
                 if (svc.Status != state)
                 {
                     return svc.Status;
                 }
-                if (timer.Elapsed > timeout)
-                {
-                    throw new System.ServiceProcess.TimeoutException();
-                }
+
                 // Use the same interval as ServiceController.WaitForStatus
-                System.Threading.Thread.Sleep(250);
+                await Task.Delay(delay, cts.Token);
             }
+            throw new System.ServiceProcess.TimeoutException();
         }
 
         /// <summary>
@@ -97,7 +97,7 @@ namespace Datadog.CustomActions.Native
             // WaitForStatus to wait for a single state then we'll block for timeout
             // in the other case. So instead we wait for the service status to change.
             // https://learn.microsoft.com/en-us/windows/win32/services/starting-a-service
-            var newState = WaitForStatusChange(svc, ServiceControllerStatus.StartPending, timeout);
+            var newState = WaitForStatusChange(svc, ServiceControllerStatus.StartPending, timeout).Result;
             if (newState != ServiceControllerStatus.Running)
             {
                 throw new Exception($"Failed to start {serviceName} service");

@@ -45,9 +45,13 @@ namespace WixSetup.Datadog
         public ManagedAction ReportInstallSuccess { get; }
 
         public ManagedAction EnsureNpmServiceDepdendency { get; }
+
         public ManagedAction ConfigureServiceUsers { get; }
+
         public ManagedAction StopDDServices { get; }
+
         public ManagedAction StartDDServices { get; }
+
         public ManagedAction StartDDServicesRollback { get; }
 
         /// <summary>

@@ -41,7 +41,7 @@ namespace Datadog.CustomActions
             new RegistryServices(),
             new DirectoryServices(),
             new FileServices(),
-            new Native.ServiceController()
+            new ServiceController()
         )
         {
         }
