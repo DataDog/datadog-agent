@@ -9,8 +9,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"hash/fnv"
-	"strconv"
 	"strings"
 	"time"
 
@@ -218,6 +216,8 @@ func (c *Check) SampleSession() error {
 		}
 		if sample.SQLID.Valid {
 			sessionRow.SQLID = sample.SQLID.String
+		} else {
+			sessionRow.SQLID = ""
 		}
 		if sample.ForceMatchingSignature != nil {
 			sessionRow.ForceMatchingSignature = *sample.ForceMatchingSignature
@@ -225,6 +225,8 @@ func (c *Check) SampleSession() error {
 			if sessionRow.ForceMatchingSignature == 0 && sample.SQLID.Valid {
 				SQLIDs[sessionRow.SQLID] = 1
 			}
+		} else {
+			sessionRow.ForceMatchingSignature = 0
 		}
 		if sample.SQLPlanHashValue != nil {
 			sessionRow.SQLPlanHashValue = *sample.SQLPlanHashValue
@@ -269,26 +271,40 @@ func (c *Check) SampleSession() error {
 			sessionRow.WaitTimeMicro = *sample.WaitTimeMicro
 		}
 		if sample.Statement.Valid {
-			if c.config.AllowUnobfuscatedStatements {
-				sessionRow.Statement = sample.Statement.String
-			} else {
+			/*
 				obfuscatedQuery, err := o.ObfuscateSQLString(sample.Statement.String)
-				if err != nil {
-					error_text := fmt.Sprintf("query obfuscation failed for SQL_ID: %s", sample.SQLID.String)
-					if c.config.InstanceConfig.LogUnobfuscatedQueries {
-						error_text = error_text + fmt.Sprintf(" SQL: %s", sample.Statement.String)
+					if err != nil {
+						error_text := fmt.Sprintf("query obfuscation failed for SQL_ID: %s, force_matching_signature: %d", sample.SQLID.String, *sample.ForceMatchingSignature)
+						if c.config.InstanceConfig.LogUnobfuscatedQueries {
+							error_text = error_text + fmt.Sprintf(" SQL: %s", sample.Statement.String)
+						}
+						log.Error(error_text)
+					} else {
+						sessionRow.Statement = obfuscatedQuery.Query
+						sessionRow.Commands = obfuscatedQuery.Metadata.Commands
+						sessionRow.Tables = strings.Split(obfuscatedQuery.Metadata.TablesCSV, ",")
+						sessionRow.Comments = obfuscatedQuery.Metadata.Comments
+						sessionRow.QuerySignature = common.GetQuerySignature(sample.Statement.String)
 					}
-					log.Error(error_text)
-				} else {
-					sessionRow.Statement = obfuscatedQuery.Query
-					sessionRow.Commands = obfuscatedQuery.Metadata.Commands
-					sessionRow.Tables = strings.Split(obfuscatedQuery.Metadata.TablesCSV, ",")
-					sessionRow.Comments = obfuscatedQuery.Metadata.Comments
-					h := fnv.New64a()
-					h.Write([]byte(sample.Statement.String))
-					sessionRow.QuerySignature = strconv.FormatUint(h.Sum64(), 10)
+			*/
+
+			obfuscatedStatement, err := common.GetObfuscatedStatement(o, sample.Statement.String)
+			sessionRow.Statement = obfuscatedStatement.Statement
+			if err == nil {
+				sessionRow.Commands = obfuscatedStatement.Commands
+				sessionRow.Tables = obfuscatedStatement.Tables
+				sessionRow.Comments = obfuscatedStatement.Comments
+				sessionRow.QuerySignature = obfuscatedStatement.QuerySignature
+			} else {
+				obfuscationError := fmt.Sprintf("Obfuscation error for force_matching_signature: %d, SQL_ID: %s", sessionRow.SQLID, sessionRow.ForceMatchingSignature)
+				var errorText string
+				if c.config.InstanceConfig.LogUnobfuscatedQueries {
+					errorText = obfuscationError + fmt.Sprintf(" SQL: %s", obfuscatedStatement.Statement)
 				}
+				log.Errorf("%s %s", errorText, err)
+				sessionRow.Statement = obfuscationError
 			}
+
 		}
 		if sample.PdbName.Valid {
 			sessionRow.PdbName = sample.PdbName.String
