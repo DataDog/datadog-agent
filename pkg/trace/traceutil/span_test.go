@@ -232,8 +232,20 @@ func TestIsRemoteOutbound(t *testing.T) {
 	assert.False(IsRemoteOutbound(span))
 
 	span.Meta = map[string]string{"span.kind": "INTERNAL"}
-	assert.True(IsRemoteOutbound(span))
+	assert.False(IsRemoteOutbound(span))
 
 	span.Meta = map[string]string{"span.kind": "internal"}
+	assert.False(IsRemoteOutbound(span))
+
+	span.Meta = map[string]string{"span.kind": "CLIENT"}
+	assert.True(IsRemoteOutbound(span))
+
+	span.Meta = map[string]string{"span.kind": "client"}
+	assert.True(IsRemoteOutbound(span))
+
+	span.Meta = map[string]string{"span.kind": "PRODUCER"}
+	assert.True(IsRemoteOutbound(span))
+
+	span.Meta = map[string]string{"span.kind": "producer"}
 	assert.True(IsRemoteOutbound(span))
 }
