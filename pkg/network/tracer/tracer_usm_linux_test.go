@@ -220,10 +220,7 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 	cfg.ProtocolClassificationEnabled = true
 	cfg.CollectTCPConns = true
 	tr := setupTracer(t, cfg)
-	fentryTracerEnabled := false
-	if tr.ebpfTracer.Type() == connection.EBPFFentry {
-		fentryTracerEnabled = true
-	}
+	fentryTracerEnabled := tr.ebpfTracer.Type() == connection.EBPFFentry
 
 	// not ideal but, short process are hard to catch
 	for _, lib := range prefetchLibs {
@@ -259,12 +256,14 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 				foundPathAndHTTPTag = true
 				t.Logf("found tag 0x%x %s", statsTags, network.GetStaticTags(statsTags))
 			}
-			// socket filter is not supported on fentry tracer
-			if fentryTracerEnabled && foundPathAndHTTPTag {
-				// so we return early if the test was successful until now
-				return true
-			}
-			if !fentryTracerEnabled && foundPathAndHTTPTag {
+
+			if foundPathAndHTTPTag {
+				// socket filter is not supported on fentry tracer
+				if fentryTracerEnabled {
+					// so we return early if the test was successful until now
+					return true
+				}
+
 				for _, c := range payload.Conns {
 					if c.SPort == key.SrcPort && c.DPort == key.DstPort && isTLSTag(c.StaticTags) {
 						return true
@@ -1069,12 +1068,7 @@ func TestTLSClassification(t *testing.T) {
 
 	// testContext shares the context of a given test.
 	// It contains common variable used by all tests, and allows extending the context dynamically by setting more
-	// attributes to the `extras` map.
-	type testContext struct {
-		// A dynamic map that allows extending the context easily between phases of the test.
-		extras map[string]interface{}
-	}
-
+	type testContext struct{}
 	type tlsTest struct {
 		name            string
 		context         testContext
@@ -1087,19 +1081,14 @@ func TestTLSClassification(t *testing.T) {
 	for _, tlsVersion := range []string{"-tls1", "-tls1_1", "-tls1_2", "-tls1_3"} {
 		tests = append(tests, tlsTest{
 			name: "TLS" + tlsVersion + "_docker",
-			context: testContext{
-				extras: make(map[string]interface{}),
-			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				clientSuccess := false
 				var wg sync.WaitGroup
 				wg.Add(1)
 				go func() {
+					defer wg.Done()
 					time.Sleep(5 * time.Second)
 					clientSuccess = prototls.RunClientOpenssl(t, "localhost", "44330", tlsVersion)
-					wg.Done()
 				}()
 				prototls.RunServerOpenssl(t, "44330", "-www")
 				wg.Wait()
@@ -1117,7 +1106,7 @@ func TestTLSClassification(t *testing.T) {
 						}
 					}
 					return false
-				}, 4*time.Second, time.Second, "couldn't find TLS connection matching: dstport %d", 44330)
+				}, 4*time.Second, time.Second, "couldn't find TLS connection matching: dstport 44330")
 			},
 		})
 	}
@@ -1125,9 +1114,6 @@ func TestTLSClassification(t *testing.T) {
 		// run this test at the end
 		tlsTest{
 			name: "http_443_should_not_match",
-			context: testContext{
-				extras: make(map[string]interface{}),
-			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				cfg.EnableHTTPMonitoring = true
 				t.Cleanup(func() { cfg.EnableHTTPMonitoring = false })
