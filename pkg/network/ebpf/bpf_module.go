@@ -20,15 +20,16 @@ import (
 var prebuiltModulesInUse = []string{}
 var telemetrymu sync.Mutex
 
-func readModule(bpfDir, moduleName string, debug bool) (bytecode.AssetReader, error) {
-	var file string
+func ModuleFileName(moduleName string, debug bool) string {
 	if debug {
-		file = fmt.Sprintf("%s-debug.o", moduleName)
-	} else {
-		file = fmt.Sprintf("%s.o", moduleName)
+		return fmt.Sprintf("%s-debug.o", moduleName)
 	}
 
-	ebpfReader, err := bytecode.GetReader(bpfDir, file)
+	return fmt.Sprintf("%s.o", moduleName)
+}
+
+func readModule(bpfDir, moduleName string, debug bool) (bytecode.AssetReader, error) {
+	ebpfReader, err := bytecode.GetReader(bpfDir, ModuleFileName(moduleName, debug))
 	if err != nil {
 		return nil, fmt.Errorf("couldn't find asset: %s", err)
 	}

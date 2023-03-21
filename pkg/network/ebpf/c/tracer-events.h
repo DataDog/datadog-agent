@@ -5,7 +5,6 @@
 #include "bpf_telemetry.h"
 #include "bpf_builtins.h"
 
-#include "tcp_states.h"
 #include "tracer.h"
 #include "tracer-maps.h"
 #include "tracer-stats.h"

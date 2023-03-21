@@ -179,7 +179,7 @@ static __always_inline u16 _sk_family(struct sock *skp) {
 #ifdef COMPILE_PREBUILT
     bpf_probe_read_kernel_with_telemetry(&family, sizeof(family), ((char*)skp) + offset_family());
 #elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
-    BPF_PROBE_READ_INTO(&family, skp, sk_family);
+    BPF_CORE_READ_INTO(&family, skp, sk_family);
 #endif
     return family;
 }

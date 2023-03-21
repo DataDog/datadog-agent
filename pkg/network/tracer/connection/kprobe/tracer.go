@@ -9,6 +9,7 @@
 package kprobe
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/cilium/ebpf"
@@ -83,11 +84,29 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 	runtimeTracer := false
 	var buf bytecode.AssetReader
 	var err error
+	if config.EnableCORE {
+		var closeFn func()
+		err = ddebpf.LoadCOREAsset(&config.Config, netebpf.ModuleFileName("tracer", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
+			o.RLimit = mgrOpts.RLimit
+			o.MapSpecEditors = mgrOpts.MapSpecEditors
+			o.ConstantEditors = mgrOpts.ConstantEditors
+			closeFn, err = loadTracerFromAsset(ar, false, config, m, o, perfHandlerTCP)
+			return err
+		})
+
+		var ve *ebpf.VerifierError
+		if err == nil || errors.As(err, &ve) {
+			return closeFn, err
+		}
+
+		log.Warnf("could not load CO-RE tracer, falling back to runtime compiled tracer (if enabled): %s", err)
+	}
+
 	if config.EnableRuntimeCompiler {
 		buf, err = getRuntimeCompiledTracer(config)
 		if err != nil {
 			if !config.AllowPrecompiledFallback {
-				return nil, fmt.Errorf("error compiling network tracer: %s", err)
+				return nil, fmt.Errorf("error compiling network tracer: %w", err)
 			}
 			log.Warnf("error compiling network tracer, falling back to pre-compiled: %s", err)
 		} else {
@@ -99,13 +118,17 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 	if buf == nil {
 		buf, err = netebpf.ReadBPFModule(config.BPFDir, config.BPFDebug)
 		if err != nil {
-			return nil, fmt.Errorf("could not read bpf module: %s", err)
+			return nil, fmt.Errorf("could not read bpf module: %w", err)
 		}
 
 		defer buf.Close()
 	}
 
-	if err = initManager(m, config, perfHandlerTCP, runtimeTracer); err != nil {
+	return loadTracerFromAsset(buf, runtimeTracer, config, m, mgrOpts, perfHandlerTCP)
+}
+
+func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer bool, config *config.Config, m *manager.Manager, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler) (func(), error) {
+	if err := initManager(m, config, perfHandlerTCP, runtimeTracer); err != nil {
 		return nil, fmt.Errorf("could not initialize manager: %w", err)
 	}
 
@@ -124,9 +147,10 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 			return nil, fmt.Errorf("error retrieving protocol classifier socket filter")
 		}
 
+		var err error
 		closeProtocolClassifierSocketFilterFn, err = filter.HeadlessSocketFilter(config, socketFilterProbe)
 		if err != nil {
-			return nil, fmt.Errorf("error enabling protocol classifier: %s", err)
+			return nil, fmt.Errorf("error enabling protocol classifier: %w", err)
 		}
 
 		undefinedProbes = append(undefinedProbes, tailCalls[0].ProbeIdentificationPair)
@@ -183,7 +207,7 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 	}
 
 	if err := m.InitWithOptions(buf, mgrOpts); err != nil {
-		return nil, fmt.Errorf("failed to init ebpf manager: %v", err)
+		return nil, fmt.Errorf("failed to init ebpf manager: %w", err)
 	}
 
 	return closeProtocolClassifierSocketFilterFn, nil
