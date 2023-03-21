@@ -232,9 +232,6 @@ namespace Datadog.CustomActions
         /// </remarks>
         public ActionResult ProcessDdAgentUserCredentials(bool calledFromUIControl = false)
         {
-            // This message is displayed to the customer in a dialog box. Ensure the text is well formatted.
-            string errorDialogMessage = null;
-
             try
             {
                 if (calledFromUIControl)
@@ -278,8 +275,7 @@ namespace Datadog.CustomActions
                     // Ensure name belongs to a user account or special accounts like SYSTEM, and not to a domain, computer or group.
                     if (nameUse != SID_NAME_USE.SidTypeUser && nameUse != SID_NAME_USE.SidTypeWellKnownGroup)
                     {
-                        errorDialogMessage = "The name provided is not a user account. Please supply a user account name in the format domain\\username.";
-                        throw new InvalidOperationException(errorDialogMessage);
+                        throw new InvalidOperationException("The name provided is not a user account. Please supply a user account name in the format domain\\username.");
                     }
                     _session["DDAGENTUSER_FOUND"] = "true";
                     _session["DDAGENTUSER_SID"] = securityIdentifier.ToString();
@@ -293,15 +289,13 @@ namespace Datadog.CustomActions
                         if (isDomainController &&
                             !datadogAgentServiceExists)
                         {
-                            errorDialogMessage = "A password was not provided. Passwords are required for non-service accounts on Domain Controllers.";
-                            throw new InvalidOperationException(errorDialogMessage);
+                            throw new InvalidOperationException("A password was not provided. Passwords are required for non-service accounts on Domain Controllers.");
                         }
 
                         if (isDomainAccount &&
                             !datadogAgentServiceExists)
                         {
-                            errorDialogMessage = "A password was not provided. Passwords are required for domain accounts.";
-                            throw new InvalidOperationException(errorDialogMessage);
+                            throw new InvalidOperationException("A password was not provided. Passwords are required for domain accounts.");
                         }
                     }
                 }
@@ -312,8 +306,7 @@ namespace Datadog.CustomActions
 
                     if (isDomainController)
                     {
-                        errorDialogMessage = "The account does not exist. The account must already exist when installing on Domain Controllers.";
-                        throw new InvalidOperationException(errorDialogMessage);
+                        throw new InvalidOperationException("The account does not exist. The account must already exist when installing on Domain Controllers.");
                     }
 
                     ParseUserName(ddAgentUserName, out userName, out domain);
@@ -322,8 +315,7 @@ namespace Datadog.CustomActions
                 if (string.IsNullOrEmpty(userName))
                 {
                     // If userName is empty at this point, then it is likely that the input is malformed
-                    errorDialogMessage = $"Unable to parse account name from {ddAgentUserName}. Please ensure the account name follows the format domain\\username.";
-                    throw new Exception(errorDialogMessage);
+                    throw new Exception($"Unable to parse account name from {ddAgentUserName}. Please ensure the account name follows the format domain\\username.");
                 }
 
                 if (string.IsNullOrEmpty(domain))
@@ -338,8 +330,7 @@ namespace Datadog.CustomActions
                 if (!userFound &&
                     domain != Environment.MachineName)
                 {
-                    errorDialogMessage = "The account does not exist. Domain accounts must already exist when installing on Domain Clients.";
-                    throw new InvalidOperationException(errorDialogMessage);
+                    throw new InvalidOperationException("The account does not exist. Domain accounts must already exist when installing on Domain Clients.");
                 }
 
                 _session.Log($"Installing with DDAGENTUSER_PROCESSED_NAME={userName} and DDAGENTUSER_PROCESSED_DOMAIN={domain}");
@@ -364,15 +355,18 @@ namespace Datadog.CustomActions
                 }
 
                 _session["DDAGENTUSER_PROCESSED_PASSWORD"] = ddAgentUserPassword;
+
             }
             catch (Exception e)
             {
                 _session.Log($"Error processing ddAgentUser credentials: {e}");
-                if (string.IsNullOrEmpty(errorDialogMessage))
-                {
-                    errorDialogMessage = $"An unexpected error occurred while parsing the account name: {e.Message}";
-                }
 
+                var errorMessage = e.Message;
+                if (string.IsNullOrEmpty(errorMessage))
+                {
+                    errorMessage = "An unexpected error occurred";
+                }
+                
                 if (calledFromUIControl)
                 {
                     // When called from InstallUISequence we must return success for the modal dialog to show,
@@ -380,7 +374,7 @@ namespace Datadog.CustomActions
                     // DDAgentUser_Valid property to determine if this function succeeded or failed.
                     // Error information is contained in the ErrorModal_ErrorMessage property.
                     // MsiProcessMessage doesn't work here so we must use our own custom error popup.
-                    _session["ErrorModal_ErrorMessage"] = errorDialogMessage;
+                    _session["ErrorModal_ErrorMessage"] = errorMessage;
                     _session["DDAgentUser_Valid"] = "False";
                     return ActionResult.Success;
                 }
@@ -390,7 +384,7 @@ namespace Datadog.CustomActions
                 {
                     using var actionRecord = new Record
                     {
-                        FormatString = errorDialogMessage
+                        FormatString = errorMessage
                     };
                     _session.Message(InstallMessage.Error
                                      | (InstallMessage)((int)MessageBoxButtons.OK | (int)MessageBoxIcon.Warning),
