@@ -273,7 +273,7 @@ namespace WixSetup.Datadog
                 Step.InstallInitialize,
                 // Run unless we are being uninstalled.
                 // This CA produces properties used for services, accounts, and permissions.
-                Condition.NOT(Conditions.Uninstalling)
+                Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
             )
             .SetProperties("DDAGENTUSER_NAME=[DDAGENTUSER_NAME], " +
                            "DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD], " +
