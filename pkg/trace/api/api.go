@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 // outOfCPULogThreshold is used to throttle the out-of-cpu warnning logs
@@ -239,7 +240,13 @@ func (r *HTTPReceiver) listenUnix(path string) (net.Listener, error) {
 	if err := os.Chmod(path, 0o722); err != nil {
 		return nil, fmt.Errorf("error setting socket permissions: %v", err)
 	}
-	return NewMeasuredListener(ln, "uds_connections"), err
+	found, allowedUsrID, allowedGrpID, err := filesystem.UserDDAgent()
+	if err != nil || !found {
+		// if user dd-agent doesn't exist, map to root
+		allowedUsrID = 0
+		allowedGrpID = 0
+	}
+	return NewMeasuredListener(ln, "uds_connections", allowedUsrID, allowedGrpID), err
 }
 
 // listenTCP creates a new net.Listener on the provided TCP address.

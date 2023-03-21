@@ -85,7 +85,9 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/proto => ../proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../remoteconfig/state
 	github.com/DataDog/datadog-agent/pkg/util/cgroups => ../util/cgroups
+	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../util/filesystem
 	github.com/DataDog/datadog-agent/pkg/util/log => ../util/log
+	github.com/DataDog/datadog-agent/pkg/util/net => ../util/net
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../util/scrubber
 )

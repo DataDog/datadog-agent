@@ -13,36 +13,16 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	utilnet "github.com/DataDog/datadog-agent/pkg/util/net"
 )
 
 // UDSListener (Unix Domain Socket Listener)
 type UDSListener struct {
 	conn       net.Listener
 	socketPath string
-}
-
-func IsUnixNetConnValid(unixConn *net.UnixConn, allowedUsrID int, allowedGrpID int) (bool, error) {
-	sysConn, err := unixConn.SyscallConn()
-	if err != nil {
-		return false, err
-	}
-	var ucred *syscall.Ucred
-	var ucredErr error
-	err = sysConn.Control(func(fd uintptr) {
-		ucred, ucredErr = syscall.GetsockoptUcred(int(fd), syscall.SOL_SOCKET, syscall.SO_PEERCRED)
-	})
-	if err != nil || ucredErr != nil {
-		return false, err
-	}
-	if (ucred.Uid == 0 && ucred.Gid == 0) ||
-		(ucred.Uid == uint32(allowedUsrID) && ucred.Gid == uint32(allowedGrpID)) {
-		return true, nil
-	}
-	return false, nil
 }
 
 // HttpServe is equivalent to http.Serve()
@@ -56,7 +36,7 @@ func HttpServe(l net.Listener, handler http.Handler, allowedUsrID int, allowedGr
 			if unixConn, ok = c.(*net.UnixConn); !ok {
 				return ctx
 			}
-			valid, err := IsUnixNetConnValid(unixConn, allowedUsrID, allowedGrpID)
+			valid, err := utilnet.IsUnixNetConnValid(unixConn, allowedUsrID, allowedGrpID)
 			if err != nil || !valid {
 				if err != nil {
 					log.Errorf("unix socket %s -> %s closing connection, error %s", unixConn.LocalAddr(), unixConn.RemoteAddr(), err)
