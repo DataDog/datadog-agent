@@ -965,10 +965,8 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTPSMonitoring = true
-	tr, err := NewTracer(cfg)
-	require.NoError(t, err)
-	t.Cleanup(tr.Stop)
-	require.NoError(t, tr.RegisterClient("1"))
+
+	tr := setupTracer(t, cfg)
 
 	// This maps will keep track of whether the tracer saw this request already or not
 	reqs := make(requestsMap)
