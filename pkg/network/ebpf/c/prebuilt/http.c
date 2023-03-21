@@ -5,6 +5,7 @@
 
 #include "offsets.h"
 
+#include "protocols/classification/dispatcher-helpers.h"
 #include "protocols/http/http.h"
 #include "protocols/http/buffer.h"
 #include "protocols/http2/decoding.h"
