@@ -25,7 +25,7 @@ class Gitlab(RemoteAPI):
         self.authorization_error_message = (
             "HTTP 401: Your GITLAB_TOKEN may have expired. You can "
             "check and refresh it at "
-            "https://gitlab.ddbuild.io/profile/personal_access_tokens"
+            "https://gitlab.ddbuild.io/-/profile/personal_access_tokens"
         )
 
     def test_project_found(self):
@@ -320,7 +320,7 @@ def get_gitlab_token():
                 pass
         print(
             "Please create an 'api' access token at "
-            "https://gitlab.ddbuild.io/profile/personal_access_tokens and "
+            "https://gitlab.ddbuild.io/-/profile/personal_access_tokens and "
             "add it as GITLAB_TOKEN in your keychain "
             "or export it from your .bashrc or equivalent."
         )

@@ -11,11 +11,14 @@ import (
 )
 
 // RuntimeMutexProfileFraction wraps runtime.SetMutexProfileFraction setting.
-type RuntimeMutexProfileFraction (string)
+type RuntimeMutexProfileFraction struct {
+	Config       config.ConfigReaderWriter
+	ConfigPrefix string
+}
 
 // Name returns the name of the runtime setting
 func (r RuntimeMutexProfileFraction) Name() string {
-	return string(r)
+	return "runtime_mutex_profile_fraction"
 }
 
 // Description returns the runtime setting's description
@@ -46,7 +49,11 @@ func (r RuntimeMutexProfileFraction) Set(value interface{}) error {
 	err = checkProfilingNeedsRestart(profiling.GetMutexProfileFraction(), rate)
 
 	profiling.SetMutexProfileFraction(rate)
-	config.Datadog.Set("internal_profiling.mutex_profile_fraction", rate)
+	var cfg config.ConfigReaderWriter = config.Datadog
+	if r.Config != nil {
+		cfg = r.Config
+	}
+	cfg.Set(r.ConfigPrefix+"internal_profiling.mutex_profile_fraction", rate)
 
 	return err
 }

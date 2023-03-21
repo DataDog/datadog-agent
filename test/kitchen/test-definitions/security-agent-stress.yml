@@ -5,6 +5,7 @@ suites:
   run_list:
     - "recipe[dd-agent-rhel-workaround]"
     - "recipe[dd-agent-sles-workaround]"
+    - "recipe[dd-security-agent-check]"
     - "recipe[dd-security-agent-check::stress-tests]"
   attributes:
     apt:

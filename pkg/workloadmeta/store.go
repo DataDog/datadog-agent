@@ -7,6 +7,7 @@ package workloadmeta
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"sync"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta/telemetry"
+	"github.com/cenkalti/backoff"
 )
 
 var (
@@ -23,10 +25,12 @@ var (
 )
 
 const (
-	retryCollectorInterval = 30 * time.Second
-	pullCollectorInterval  = 5 * time.Second
-	eventBundleChTimeout   = 1 * time.Second
-	eventChBufferSize      = 50
+	retryCollectorInitialInterval = 1 * time.Second
+	retryCollectorMaxInterval     = 30 * time.Second
+	pullCollectorInterval         = 5 * time.Second
+	maxCollectorPullTime          = 1 * time.Minute
+	eventBundleChTimeout          = 1 * time.Second
+	eventChBufferSize             = 50
 )
 
 type subscriber struct {
@@ -51,6 +55,9 @@ type store struct {
 	collectors   map[string]Collector
 
 	eventCh chan []CollectorEvent
+
+	ongoingPullsMut sync.Mutex
+	ongoingPulls    map[string]time.Time // collector ID => time when last pull started
 }
 
 var _ Store = &store{}
@@ -69,10 +76,11 @@ func newStore(catalog CollectorCatalog) *store {
 	}
 
 	return &store{
-		store:      make(map[Kind]map[string]*cachedEntity),
-		candidates: candidates,
-		collectors: make(map[string]Collector),
-		eventCh:    make(chan []CollectorEvent, eventChBufferSize),
+		store:        make(map[Kind]map[string]*cachedEntity),
+		candidates:   candidates,
+		collectors:   make(map[string]Collector),
+		eventCh:      make(chan []CollectorEvent, eventChBufferSize),
+		ongoingPulls: make(map[string]time.Time),
 	}
 }
 
@@ -99,40 +107,22 @@ func (s *store) Start(ctx context.Context) {
 	}()
 
 	go func() {
-		retryTicker := time.NewTicker(retryCollectorInterval)
 		pullTicker := time.NewTicker(pullCollectorInterval)
 		health := health.RegisterLiveness("workloadmeta-puller")
-		pullCtx, pullCancel := context.WithTimeout(ctx, pullCollectorInterval)
 
 		// Start a pull immediately to fill the store without waiting for the
 		// next tick.
-		s.pull(pullCtx)
+		s.pull(ctx)
 
 		for {
 			select {
 			case <-health.C:
 
 			case <-pullTicker.C:
-				// pullCtx will always be expired at this point
-				// if pullTicker has the same duration as
-				// pullCtx, so we cancel just as good practice
-				pullCancel()
-
-				pullCtx, pullCancel = context.WithTimeout(ctx, pullCollectorInterval)
-				s.pull(pullCtx)
-
-			case <-retryTicker.C:
-				stop := s.startCandidates(ctx)
-
-				if stop {
-					retryTicker.Stop()
-				}
+				s.pull(ctx)
 
 			case <-ctx.Done():
-				retryTicker.Stop()
 				pullTicker.Stop()
-
-				pullCancel()
 
 				err := health.Deregister()
 				if err != nil {
@@ -148,7 +138,11 @@ func (s *store) Start(ctx context.Context) {
 		}
 	}()
 
-	s.startCandidates(ctx)
+	go func() {
+		if err := s.startCandidatesWithRetry(ctx); err != nil {
+			log.Errorf("error starting collectors: %s", err)
+		}
+	}()
 
 	log.Info("workloadmeta store initialized successfully")
 }
@@ -380,6 +374,27 @@ func (s *store) Reset(newEntities []Entity, source Source) {
 	s.Notify(events)
 }
 
+func (s *store) startCandidatesWithRetry(ctx context.Context) error {
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = retryCollectorInitialInterval
+	expBackoff.MaxInterval = retryCollectorMaxInterval
+	expBackoff.MaxElapsedTime = 0 // Don't stop trying
+
+	return backoff.Retry(func() error {
+		select {
+		case <-ctx.Done():
+			return &backoff.PermanentError{Err: fmt.Errorf("stopped before all collectors were able to start")}
+		default:
+		}
+
+		if s.startCandidates(ctx) {
+			return nil
+		}
+
+		return fmt.Errorf("some collectors failed to start. Will retry")
+	}, expBackoff)
+}
+
 func (s *store) startCandidates(ctx context.Context) bool {
 	s.collectorMut.Lock()
 	defer s.collectorMut.Unlock()
@@ -416,14 +431,40 @@ func (s *store) pull(ctx context.Context) {
 	defer s.collectorMut.RUnlock()
 
 	for id, c := range s.collectors {
+		s.ongoingPullsMut.Lock()
+		ongoingPullStartTime := s.ongoingPulls[id]
+		alreadyRunning := !ongoingPullStartTime.IsZero()
+		if alreadyRunning {
+			timeRunning := time.Now().Sub(ongoingPullStartTime)
+			if timeRunning > maxCollectorPullTime {
+				log.Errorf("collector %q has been running for too long (%d seconds)", id, timeRunning/time.Second)
+			} else {
+				log.Debugf("collector %q is still running. Will not pull again for now", id)
+			}
+			s.ongoingPullsMut.Unlock()
+			continue
+		} else {
+			s.ongoingPulls[id] = time.Now()
+			s.ongoingPullsMut.Unlock()
+		}
+
 		// Run each pull in its own separate goroutine to reduce
 		// latency and unlock the main goroutine to do other work.
 		go func(id string, c Collector) {
-			err := c.Pull(ctx)
+			pullCtx, pullCancel := context.WithTimeout(ctx, maxCollectorPullTime)
+			defer pullCancel()
+
+			err := c.Pull(pullCtx)
 			if err != nil {
 				log.Warnf("error pulling from collector %q: %s", id, err.Error())
 				telemetry.PullErrors.Inc(id)
 			}
+
+			s.ongoingPullsMut.Lock()
+			pullDuration := time.Now().Sub(s.ongoingPulls[id])
+			telemetry.PullDuration.Observe(pullDuration.Seconds(), id)
+			s.ongoingPulls[id] = time.Time{}
+			s.ongoingPullsMut.Unlock()
 		}(id, c)
 	}
 }
@@ -561,13 +602,13 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 }
 
 func (s *store) getEntityByKind(kind Kind, id string) (Entity, error) {
+	s.storeMut.RLock()
+	defer s.storeMut.RUnlock()
+
 	entitiesOfKind, ok := s.store[kind]
 	if !ok {
 		return nil, errors.NewNotFound(string(kind))
 	}
-
-	s.storeMut.RLock()
-	defer s.storeMut.RUnlock()
 
 	entity, ok := entitiesOfKind[id]
 	if !ok {

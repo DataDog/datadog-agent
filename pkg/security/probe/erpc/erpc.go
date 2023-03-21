@@ -40,6 +40,8 @@ const (
 	ExpirePidDiscarderOp
 	// BumpDiscardersRevision is used to bump the discarders revision
 	BumpDiscardersRevision
+	// GetRingbufUsage is used to retrieve the ring buffer usage
+	GetRingbufUsage
 )
 
 // ERPC defines a krpc object

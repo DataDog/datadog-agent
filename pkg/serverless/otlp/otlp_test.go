@@ -78,7 +78,7 @@ func TestServerlessOTLPAgentReceivesTraces(t *testing.T) {
 	defer traceAgent.Stop()
 	assert.NotNil(traceAgent.Get())
 	traceChan := make(chan struct{})
-	traceAgent.SetSpanModifier(func(span *pb.Span) {
+	traceAgent.SetSpanModifier(func(_ *pb.TraceChunk, _ *pb.Span) {
 		// indicates when trace is received
 		traceChan <- struct{}{}
 	})

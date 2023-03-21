@@ -13,7 +13,6 @@ issues:
   max-same-issues: 0
 
   exclude:
-    - "`RandomString|TimeNowNano|InitLogging|SetHostname` is unused" # 'deadcode' errors in test/benchmarks/util.go
     - "Error return value of `io.WriteString` is not checked" # 'errcheck' errors in tools/dep_tree_resolver/go_deps.go
     - "Error return value of `pem.Encode` is not checked" # 'errcheck' errors in test/integration/utils/certificates.go
     - "exported: exported const Exec should have comment \\(or a comment on this block\\) or be unexported" # 'revive' errors in pkg/process/events/model/model_common.go
@@ -53,7 +52,6 @@ issues:
 linters:
   disable-all: true
   enable:
-    - deadcode    # Finds unused code
     - unconvert   # Remove unnecessary type conversions
     - unused      # Checks Go code for unused constants, variables, functions and types
     - ineffassign # Detects when assignments to existing variables are not used

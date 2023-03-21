@@ -151,6 +151,7 @@ message GetStateConfigResponse {
   map<string, FileMetaState> config_state = 1;
   map<string, FileMetaState> director_state = 2;
   map<string, string> target_filenames = 3;
+  repeated Client active_clients = 4;
 }
 
 

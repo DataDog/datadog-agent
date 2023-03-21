@@ -84,11 +84,18 @@ func TestSketchSeriesListMarshal(t *testing.T) {
 	}
 }
 
+func TestSketchSeriesSplitEmptyPayload(t *testing.T) {
+	sl := SketchSeriesList{SketchesSource: metrics.NewSketchesSourceTest()}
+	pieces, err := sl.SplitPayload(10)
+	require.Len(t, pieces, 0)
+	require.Nil(t, err)
+}
+
 func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 
 	sl := SketchSeriesList{SketchesSource: metrics.NewSketchesSourceTest()}
 	payload, _ := sl.Marshal()
-	payloads, err := sl.MarshalSplitCompress(marshaler.DefaultBufferContext())
+	payloads, err := sl.MarshalSplitCompress(marshaler.NewBufferContext())
 
 	assert.Nil(t, err)
 
@@ -122,7 +129,7 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 	})
 
 	serializer := SketchSeriesList{SketchesSource: sl}
-	payloads, err := serializer.MarshalSplitCompress(marshaler.DefaultBufferContext())
+	payloads, err := serializer.MarshalSplitCompress(marshaler.NewBufferContext())
 
 	assert.Nil(t, err)
 
@@ -153,7 +160,7 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 	payload, _ := serializer1.Marshal()
 	sl.Reset()
 	serializer2 := SketchSeriesList{SketchesSource: sl}
-	payloads, err := serializer2.MarshalSplitCompress(marshaler.DefaultBufferContext())
+	payloads, err := serializer2.MarshalSplitCompress(marshaler.NewBufferContext())
 	require.NoError(t, err)
 
 	firstPayload := payloads[0]
@@ -203,7 +210,7 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 	}
 
 	serializer := SketchSeriesList{SketchesSource: sl}
-	payloads, err := serializer.MarshalSplitCompress(marshaler.DefaultBufferContext())
+	payloads, err := serializer.MarshalSplitCompress(marshaler.NewBufferContext())
 	assert.Nil(t, err)
 
 	recoveredSketches := []gogen.SketchPayload{}

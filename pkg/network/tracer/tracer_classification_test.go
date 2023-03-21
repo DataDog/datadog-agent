@@ -22,13 +22,15 @@ import (
 
 	redis2 "github.com/go-redis/redis/v9"
 	"github.com/stretchr/testify/require"
+	"github.com/twmb/franz-go/pkg/kgo"
+	"github.com/twmb/franz-go/pkg/kversion"
 	"github.com/uptrace/bun"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/amqp"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	protocolsmongo "github.com/DataDog/datadog-agent/pkg/network/protocols/mongo"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/mysql"
 	pgutils "github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
@@ -110,13 +112,31 @@ const (
 	httpPort     = "8080"
 	tcpPort      = "9999"
 	http2Port    = "9090"
+	kafkaPort    = "9092"
+
+	produceAPIKey = 0
+	fetchAPIKey   = 1
+
+	produceMaxSupportedVersion = 8
+	produceMaxVersion          = 9
+	produceMinSupportedVersion = 1
+	produceMinVersion          = 0
+
+	fetchMaxSupportedVersion = 11
+	fetchMaxVersion          = 13
+	fetchMinSupportedVersion = 0
+	fetchMinVersion          = 0
 )
 
-func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	tests := []struct {
 		name     string
-		testFunc func(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string)
+		testFunc func(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string)
 	}{
+		{
+			name:     "kafka",
+			testFunc: testKafkaProtocolClassification,
+		},
 		{
 			name:     "mysql",
 			testFunc: testMySQLProtocolClassification,
@@ -152,12 +172,255 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.testFunc(t, cfg, clientHost, targetHost, serverHost)
+			tt.testFunc(t, tr, clientHost, targetHost, serverHost)
 		})
 	}
 }
 
-func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testKafkaProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+	const topicName = "franz-kafka"
+	testIndex := 0
+	// Kafka does not allow us to delete topic, but to mark them for deletion, so we have to generate a unique topic
+	// per a test.
+	getTopicName := func() string {
+		testIndex++
+		return fmt.Sprintf("%s-%d", topicName, testIndex)
+	}
+
+	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
+	skipFunc(t, testContext{
+		serverAddress: serverHost,
+		serverPort:    kafkaPort,
+		targetAddress: targetHost,
+	})
+
+	defaultDialer := &net.Dialer{
+		LocalAddr: &net.TCPAddr{
+			IP: net.ParseIP(clientHost),
+		},
+	}
+
+	kafkaTeardown := func(t *testing.T, ctx testContext) {
+		if _, ok := ctx.extras["client"]; !ok {
+			return
+		}
+		client := ctx.extras["client"].(*kafka.Client)
+		defer client.Client.Close()
+		for k, value := range ctx.extras {
+			if strings.HasPrefix(k, "topic_name") {
+				require.NoError(t, client.DeleteTopic(value.(string)))
+			}
+		}
+	}
+
+	serverAddress := net.JoinHostPort(serverHost, kafkaPort)
+	targetAddress := net.JoinHostPort(targetHost, kafkaPort)
+	require.True(t, kafka.RunServer(t, serverHost, kafkaPort))
+
+	tests := []protocolClassificationAttributes{
+		{
+			name: "connect",
+			context: testContext{
+				serverPort:    kafkaPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client, err := kafka.NewClient(kafka.Options{
+					ServerAddress: ctx.targetAddress,
+					Dialer:        defaultDialer,
+					CustomOptions: []kgo.Opt{kgo.MaxVersions(kversion.V0_10_1())},
+				})
+				require.NoError(t, err)
+				ctx.extras["client"] = client
+			},
+			validation: validateProtocolConnection(network.ProtocolUnknown),
+			teardown:   kafkaTeardown,
+		},
+		{
+			name: "create topic",
+			context: testContext{
+				serverPort:    kafkaPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras: map[string]interface{}{
+					"topic_name": getTopicName(),
+				},
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				client, err := kafka.NewClient(kafka.Options{
+					ServerAddress: ctx.targetAddress,
+					Dialer:        defaultDialer,
+					CustomOptions: []kgo.Opt{kgo.MaxVersions(kversion.V0_10_1())},
+				})
+				require.NoError(t, err)
+				ctx.extras["client"] = client
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*kafka.Client)
+				require.NoError(t, client.CreateTopic(ctx.extras["topic_name"].(string)))
+			},
+			validation: validateProtocolConnection(network.ProtocolUnknown),
+			teardown:   kafkaTeardown,
+		},
+		{
+			name: "produce - empty string client id",
+			context: testContext{
+				serverPort:    kafkaPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras: map[string]interface{}{
+					"topic_name": getTopicName(),
+				},
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				client, err := kafka.NewClient(kafka.Options{
+					ServerAddress: ctx.targetAddress,
+					Dialer:        defaultDialer,
+					CustomOptions: []kgo.Opt{kgo.ClientID(""), kgo.MaxVersions(kversion.V0_10_1())},
+				})
+				require.NoError(t, err)
+				ctx.extras["client"] = client
+				require.NoError(t, client.CreateTopic(ctx.extras["topic_name"].(string)))
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*kafka.Client)
+				record := &kgo.Record{Topic: ctx.extras["topic_name"].(string), Value: []byte("Hello Kafka!")}
+				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+				defer cancel()
+				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
+			},
+			validation: validateProtocolConnection(network.ProtocolKafka),
+			teardown:   kafkaTeardown,
+		},
+		{
+			name: "produce - multiple topics",
+			context: testContext{
+				serverPort:    kafkaPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras: map[string]interface{}{
+					"topic_name1": getTopicName(),
+					"topic_name2": getTopicName(),
+				},
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				client, err := kafka.NewClient(kafka.Options{
+					ServerAddress: ctx.targetAddress,
+					Dialer:        defaultDialer,
+					CustomOptions: []kgo.Opt{kgo.ClientID(""), kgo.MaxVersions(kversion.V0_10_1())},
+				})
+				require.NoError(t, err)
+				ctx.extras["client"] = client
+				require.NoError(t, client.CreateTopic(ctx.extras["topic_name1"].(string)))
+				require.NoError(t, client.CreateTopic(ctx.extras["topic_name2"].(string)))
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*kafka.Client)
+				record1 := &kgo.Record{Topic: ctx.extras["topic_name1"].(string), Value: []byte("Hello Kafka!")}
+				record2 := &kgo.Record{Topic: ctx.extras["topic_name2"].(string), Value: []byte("Hello Kafka!")}
+				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+				defer cancel()
+				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1, record2).FirstErr(), "record had a produce error while synchronously producing")
+			},
+			validation: validateProtocolConnection(network.ProtocolKafka),
+			teardown:   kafkaTeardown,
+		},
+	}
+
+	// Adding produce tests in different versions
+	for i := int16(produceMinVersion); i <= produceMaxVersion; i++ {
+		version := kversion.V3_4_0()
+		expectedProtocol := network.ProtocolKafka
+		if i < produceMinSupportedVersion || i > produceMaxSupportedVersion {
+			expectedProtocol = network.ProtocolUnknown
+		}
+		version.SetMaxKeyVersion(produceAPIKey, i)
+		tests = append(tests, protocolClassificationAttributes{
+			name: fmt.Sprintf("produce - version %d", i),
+			context: testContext{
+				serverPort:    kafkaPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras: map[string]interface{}{
+					"topic_name": getTopicName(),
+				},
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				client, err := kafka.NewClient(kafka.Options{
+					ServerAddress: ctx.targetAddress,
+					Dialer:        defaultDialer,
+					CustomOptions: []kgo.Opt{kgo.MaxVersions(version)},
+				})
+				require.NoError(t, err)
+				ctx.extras["client"] = client
+				require.NoError(t, client.CreateTopic(ctx.extras["topic_name"].(string)))
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*kafka.Client)
+				record := &kgo.Record{Topic: ctx.extras["topic_name"].(string), Value: []byte("Hello Kafka!")}
+				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+				defer cancel()
+				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
+			},
+			validation: validateProtocolConnection(expectedProtocol),
+			teardown:   kafkaTeardown,
+		})
+	}
+	// Adding fetch tests in different versions
+	for i := int16(fetchMinVersion); i < fetchMaxVersion; i++ {
+		expectedProtocol := network.ProtocolKafka
+		if i < fetchMinSupportedVersion || i > fetchMaxSupportedVersion {
+			expectedProtocol = network.ProtocolUnknown
+		}
+		version := kversion.V3_4_0()
+		version.SetMaxKeyVersion(fetchAPIKey, i)
+		tests = append(tests, protocolClassificationAttributes{
+			name: fmt.Sprintf("fetch - sanity version %d", i),
+			context: testContext{
+				serverPort:    kafkaPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras: map[string]interface{}{
+					"topic_name": getTopicName(),
+				},
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				client, err := kafka.NewClient(kafka.Options{
+					ServerAddress: ctx.targetAddress,
+					Dialer:        defaultDialer,
+					CustomOptions: []kgo.Opt{kgo.MaxVersions(version), kgo.ConsumeTopics(ctx.extras["topic_name"].(string))},
+				})
+				require.NoError(t, err)
+				ctx.extras["client"] = client
+				require.NoError(t, client.CreateTopic(ctx.extras["topic_name"].(string)))
+				record := &kgo.Record{Topic: ctx.extras["topic_name"].(string), Value: []byte("Hello Kafka!")}
+				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+				defer cancel()
+				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*kafka.Client)
+				fetches := client.Client.PollFetches(context.Background())
+				require.Empty(t, fetches.Errors())
+				records := fetches.Records()
+				require.Len(t, records, 1)
+				require.Equal(t, ctx.extras["topic_name"].(string), records[0].Topic)
+			},
+			validation: validateProtocolConnection(expectedProtocol),
+			teardown:   kafkaTeardown,
+		})
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testProtocolClassificationInner(t, tt, tr)
+		})
+	}
+}
+
+func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
@@ -177,10 +440,9 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 		client.DropDB()
 	}
 
-	// Setting one instance of postgres server for all tests.
 	serverAddress := net.JoinHostPort(serverHost, mysqlPort)
 	targetAddress := net.JoinHostPort(targetHost, mysqlPort)
-	mysql.RunServer(t, serverHost, mysqlPort)
+	require.True(t, mysql.RunServer(t, serverHost, mysqlPort))
 
 	tests := []protocolClassificationAttributes{
 		{
@@ -465,12 +727,12 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, cfg)
+			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
 }
 
-func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
@@ -492,7 +754,7 @@ func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, client
 	// Setting one instance of postgres server for all tests.
 	serverAddress := net.JoinHostPort(serverHost, postgresPort)
 	targetAddress := net.JoinHostPort(targetHost, postgresPort)
-	pgutils.RunPostgresServer(t, serverHost, postgresPort)
+	require.True(t, pgutils.RunServer(t, serverHost, postgresPort))
 
 	tests := []protocolClassificationAttributes{
 		{
@@ -673,12 +935,12 @@ func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, client
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, cfg)
+			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
 }
 
-func testMongoProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testMongoProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
@@ -701,7 +963,7 @@ func testMongoProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 	// Setting one instance of mongo server for all tests.
 	serverAddress := net.JoinHostPort(serverHost, mongoPort)
 	targetAddress := net.JoinHostPort(targetHost, mongoPort)
-	protocolsmongo.RunMongoServer(t, serverHost, mongoPort)
+	require.True(t, protocolsmongo.RunServer(t, serverHost, mongoPort))
 
 	tests := []protocolClassificationAttributes{
 		{
@@ -824,12 +1086,12 @@ func testMongoProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, cfg)
+			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
 }
 
-func testRedisProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
@@ -854,7 +1116,7 @@ func testRedisProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 	// Setting one instance of redis server for all tests.
 	serverAddress := net.JoinHostPort(serverHost, redisPort)
 	targetAddress := net.JoinHostPort(targetHost, redisPort)
-	redis.RunRedisServer(t, serverHost, redisPort)
+	require.True(t, redis.RunServer(t, serverHost, redisPort))
 
 	tests := []protocolClassificationAttributes{
 		{
@@ -979,12 +1241,12 @@ func testRedisProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, cfg)
+			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
 }
 
-func testAMQPProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testAMQPProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
@@ -1008,7 +1270,7 @@ func testAMQPProtocolClassification(t *testing.T, cfg *config.Config, clientHost
 	// Setting one instance of amqp server for all tests.
 	serverAddress := net.JoinHostPort(serverHost, amqpPort)
 	targetAddress := net.JoinHostPort(targetHost, amqpPort)
-	amqp.RunAmqpServer(t, serverHost, amqpPort)
+	require.True(t, amqp.RunServer(t, serverHost, amqpPort))
 
 	tests := []protocolClassificationAttributes{
 		{
@@ -1108,12 +1370,12 @@ func testAMQPProtocolClassification(t *testing.T, cfg *config.Config, clientHost
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, cfg)
+			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
 }
 
-func testHTTPProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testHTTPProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
 			IP: net.ParseIP(clientHost),
@@ -1173,12 +1435,12 @@ func testHTTPProtocolClassification(t *testing.T, cfg *config.Config, clientHost
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, cfg)
+			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
 }
 
-func testHTTP2ProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
 			IP:   net.ParseIP(clientHost),
@@ -1236,12 +1498,12 @@ func testHTTP2ProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, cfg)
+			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
 }
 
-func testEdgeCasesProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
 			IP: net.ParseIP(clientHost),
@@ -1356,27 +1618,9 @@ func testEdgeCasesProtocolClassification(t *testing.T, cfg *config.Config, clien
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, cfg)
+			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
-}
-
-func testProtocolClassificationInner(t *testing.T, params protocolClassificationAttributes, cfg *config.Config) {
-	if params.skipCallback != nil {
-		params.skipCallback(t, params.context)
-	}
-
-	if params.teardown != nil {
-		t.Cleanup(func() {
-			params.teardown(t, params.context)
-		})
-	}
-	if params.preTracerSetup != nil {
-		params.preTracerSetup(t, params.context)
-	}
-	tr := setupTracer(t, cfg)
-	params.postTracerSetup(t, params.context)
-	params.validation(t, params.context, tr)
 }
 
 func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, serverAddr string, expectedProtocol network.ProtocolType) {

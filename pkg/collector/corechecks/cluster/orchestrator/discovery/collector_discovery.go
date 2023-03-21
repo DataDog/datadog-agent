@@ -13,12 +13,12 @@ import (
 	"fmt"
 	"time"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -116,7 +116,7 @@ func (p *APIServerDiscoveryProvider) walkAPIResources(inventory *inventory.Colle
 			}
 
 			// Enable the cluster collector when the node resource is discovered.
-			if collector.Metadata().NodeType == model.K8SResource_NODE {
+			if collector.Metadata().NodeType == orchestrator.K8sNode {
 				clusterCollector, _ := inventory.CollectorForDefaultVersion("clusters")
 				p.addCollector(clusterCollector)
 			}

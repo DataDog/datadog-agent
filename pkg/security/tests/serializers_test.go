@@ -17,22 +17,22 @@ import (
 	"github.com/mailru/easyjson"
 	"github.com/stretchr/testify/assert"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 )
 
 var eventOnce sync.Once
-var eventSerializer *sprobe.EventSerializer
+var eventSerializer *serializers.EventSerializer
 
-func fetchRealisticEventSerializer(tb testing.TB) *sprobe.EventSerializer {
+func fetchRealisticEventSerializer(tb testing.TB) *serializers.EventSerializer {
 	eventOnce.Do(func() {
 		eventSerializer = fetchRealisticEventSerializerInner(tb)
 	})
 	return eventSerializer
 }
 
-func fetchRealisticEventSerializerInner(tb testing.TB) *sprobe.EventSerializer {
+func fetchRealisticEventSerializerInner(tb testing.TB) *serializers.EventSerializer {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.file.path == "{{.Root}}/test-open" && open.flags & O_CREAT != 0`,
@@ -61,7 +61,7 @@ func fetchRealisticEventSerializerInner(tb testing.TB) *sprobe.EventSerializer {
 		assert.Equal(tb, "open", event.GetType(), "wrong event type")
 	})
 
-	return sprobe.NewEventSerializer(workingEvent, test.probe)
+	return serializers.NewEventSerializer(workingEvent, test.probe.GetResolvers())
 }
 
 func BenchmarkSerializersEasyJson(b *testing.B) {

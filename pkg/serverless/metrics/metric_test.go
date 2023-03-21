@@ -20,9 +20,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
@@ -67,7 +67,7 @@ func TestStartInvalidConfig(t *testing.T) {
 type MetricDogStatsDMocked struct {
 }
 
-func (m *MetricDogStatsDMocked) NewServer(demux aggregator.Demultiplexer) (*dogstatsd.Server, error) {
+func (m *MetricDogStatsDMocked) NewServer(demux aggregator.Demultiplexer) (dogstatsdServer.Component, error) {
 	return nil, fmt.Errorf("error")
 }
 
@@ -191,6 +191,7 @@ func getAvailableUDPPort() (int, error) {
 }
 
 func TestRaceFlushVersusParsePacket(t *testing.T) {
+
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
@@ -200,7 +201,8 @@ func TestRaceFlushVersusParsePacket(t *testing.T) {
 	opts.DontStartForwarders = true
 	demux := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000)
 
-	s, err := dogstatsd.NewServer(demux, true)
+	s := dogstatsdServer.NewServerlessServer()
+	err = s.Start(demux)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 

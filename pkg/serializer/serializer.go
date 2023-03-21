@@ -28,8 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/benbjohnson/clock"
-	"github.com/gogo/protobuf/proto"
-	googleproto "google.golang.org/protobuf/proto"
 )
 
 const (
@@ -101,9 +99,6 @@ type MetricSerializer interface {
 	SendAgentchecksMetadata(m marshaler.JSONMarshaler) error
 	SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID string, payloadType int) error
 	SendOrchestratorManifests(msgs []ProcessMessageBody, hostName, clusterID string) error
-	SendContainerLifecycleEvent(msgs []ContainerLifecycleMessage, hostName string) error
-	SendContainerImage(msgs []ContainerImageMessage, hostname string) error
-	SendSBOM(msgs []SBOMMessage, hostname string) error
 }
 
 // Serializer serializes metrics to the correct format and routes the payloads to the correct endpoint in the Forwarder
@@ -111,9 +106,6 @@ type Serializer struct {
 	clock                 clock.Clock
 	Forwarder             forwarder.Forwarder
 	orchestratorForwarder forwarder.Forwarder
-	contlcycleForwarder   forwarder.Forwarder
-	contimageForwarder    forwarder.Forwarder
-	sbomForwarder         forwarder.Forwarder
 
 	seriesJSONPayloadBuilder *stream.JSONPayloadBuilder
 
@@ -135,14 +127,11 @@ type Serializer struct {
 }
 
 // NewSerializer returns a new Serializer initialized
-func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder, contlcycleForwarder, contimageForwarder, sbomForwarder forwarder.Forwarder) *Serializer {
+func NewSerializer(forwarder, orchestratorForwarder forwarder.Forwarder) *Serializer {
 	s := &Serializer{
 		clock:                         clock.New(),
 		Forwarder:                     forwarder,
 		orchestratorForwarder:         orchestratorForwarder,
-		contlcycleForwarder:           contlcycleForwarder,
-		contimageForwarder:            contimageForwarder,
-		sbomForwarder:                 sbomForwarder,
 		seriesJSONPayloadBuilder:      stream.NewJSONPayloadBuilder(config.Datadog.GetBool("enable_json_stream_shared_compressor_buffers")),
 		enableEvents:                  config.Datadog.GetBool("enable_payloads.events"),
 		enableSeries:                  config.Datadog.GetBool("enable_payloads.series"),
@@ -169,6 +158,10 @@ func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder, contlcy
 	}
 	if !s.enableJSONToV1Intake {
 		log.Warn("JSON to V1 intake is disabled: all payloads to that endpoint will be dropped")
+	}
+
+	if !config.Datadog.GetBool("enable_sketch_stream_payload_serialization") {
+		log.Warn("'enable_sketch_stream_payload_serialization' is set to false which is not recommended. This option is deprecated and will removed in the future. If you need this option, please reach out to support")
 	}
 
 	return s
@@ -336,7 +329,7 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	} else if useV1API && !s.enableJSONStream {
 		seriesBytesPayloads, extraHeaders, err = s.serializePayloadJSON(seriesSerializer, true)
 	} else {
-		seriesBytesPayloads, err = seriesSerializer.MarshalSplitCompress(marshaler.DefaultBufferContext())
+		seriesBytesPayloads, err = seriesSerializer.MarshalSplitCompress(marshaler.NewBufferContext())
 		extraHeaders = protobufExtraHeadersWithCompression
 	}
 
@@ -363,20 +356,21 @@ func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
 	}
 	sketchesSerializer := metricsserializer.SketchSeriesList{SketchesSource: sketches}
 	if s.enableSketchProtobufStream {
-		payloads, err := sketchesSerializer.MarshalSplitCompress(marshaler.DefaultBufferContext())
-		if err == nil {
-			return s.Forwarder.SubmitSketchSeries(payloads, protobufExtraHeadersWithCompression)
+		payloads, err := sketchesSerializer.MarshalSplitCompress(marshaler.NewBufferContext())
+		if err != nil {
+			return fmt.Errorf("dropping sketch payload: %v", err)
 		}
-		log.Warnf("Error: %v trying to stream compress SketchSeriesList - falling back to split/compress method", err)
-	}
 
-	compress := true
-	splitSketches, extraHeaders, err := s.serializePayloadProto(sketchesSerializer, compress)
-	if err != nil {
-		return fmt.Errorf("dropping sketch payload: %s", err)
-	}
+		return s.Forwarder.SubmitSketchSeries(payloads, protobufExtraHeadersWithCompression)
+	} else {
+		compress := true
+		splitSketches, extraHeaders, err := s.serializePayloadProto(sketchesSerializer, compress)
+		if err != nil {
+			return fmt.Errorf("dropping sketch payload: %s", err)
+		}
 
-	return s.Forwarder.SubmitSketchSeries(splitSketches, extraHeaders)
+		return s.Forwarder.SubmitSketchSeries(splitSketches, extraHeaders)
+	}
 }
 
 // SendMetadata serializes a metadata payload and sends it to the forwarder
@@ -461,114 +455,6 @@ func (s *Serializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hostNam
 
 		}
 	}
-	return nil
-}
-
-// SendContainerLifecycleEvent serializes & sends container lifecycle event payloads
-func (s *Serializer) SendContainerLifecycleEvent(msgs []ContainerLifecycleMessage, hostname string) error {
-	if s.contlcycleForwarder == nil {
-		return errors.New("container lifecycle forwarder is not setup")
-	}
-
-	payloads := make([]*[]byte, 0, len(msgs))
-
-	for _, msg := range msgs {
-		msg.Host = hostname
-		encoded, err := proto.Marshal(&msg)
-		if err != nil {
-			return log.Errorf("Unable to encode message: %v", err)
-		}
-
-		payloads = append(payloads, &encoded)
-	}
-
-	bytePayloads := transaction.NewBytesPayloadsWithoutMetaData(payloads)
-
-	extraHeaders := make(http.Header)
-	extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(s.clock.Now().Unix())))
-	extraHeaders.Set(headers.EVPOriginHeader, "agent")
-	extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
-	extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
-	extraHeaders.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
-
-	if err := s.contlcycleForwarder.SubmitContainerLifecycleEvents(bytePayloads, extraHeaders); err != nil {
-		return log.Errorf("Unable to submit container lifecycle payloads: %v", err)
-	}
-
-	log.Tracef("Sent container lifecycle events %+v", msgs)
-
-	return nil
-}
-
-// SendContainerImage serializes & sends container image payloads
-func (s *Serializer) SendContainerImage(msgs []ContainerImageMessage, hostname string) error {
-	if s.contimageForwarder == nil {
-		return errors.New("container image forwarder is not setup")
-	}
-
-	payloads := make([]*[]byte, 0, len(msgs))
-
-	for i := range msgs {
-		msgs[i].Host = hostname
-		encoded, err := googleproto.Marshal(&msgs[i])
-		if err != nil {
-			return log.Errorf("Unable to encode message: %+v", err)
-		}
-
-		payloads = append(payloads, &encoded)
-	}
-
-	bytesPayloads := transaction.NewBytesPayloadsWithoutMetaData(payloads)
-
-	extraHeaders := make(http.Header)
-	extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(s.clock.Now().Unix())))
-	extraHeaders.Set(headers.EVPOriginHeader, "agent")
-	extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
-	extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
-	extraHeaders.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
-
-	if err := s.contimageForwarder.SubmitContainerImages(bytesPayloads, extraHeaders); err != nil {
-		return log.Errorf("Unable to submit container image payload: %v", err)
-	}
-
-	log.Tracef("Send container images %+v", msgs)
-
-	return nil
-}
-
-// SendSBOM serializes & sends sbom payloads
-func (s *Serializer) SendSBOM(msgs []SBOMMessage, hostname string) error {
-	if s.sbomForwarder == nil {
-		return errors.New("SBOM forwarder is not setup")
-	}
-
-	payloads := make([]*[]byte, 0, len(msgs))
-
-	for i := range msgs {
-		msgs[i].Host = hostname
-		encoded, err := googleproto.Marshal(&msgs[i])
-		if err != nil {
-			return log.Errorf("Unable to encode message: %+v", err)
-		}
-
-		payloads = append(payloads, &encoded)
-	}
-
-	bytesPayloads := transaction.NewBytesPayloadsWithoutMetaData(payloads)
-
-	extraHeaders := make(http.Header)
-	extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(s.clock.Now().Unix())))
-	extraHeaders.Set(headers.EVPOriginHeader, "agent")
-	extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
-	extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
-	extraHeaders.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
-
-	if err := s.sbomForwarder.SubmitSBOM(bytesPayloads, extraHeaders); err != nil {
-		return log.Errorf("Unable to submit SBOM payload: %v", err)
-	}
-
-	log.Tracef("Send SBOM %+v", msgs)
-
 	return nil
 }
 

@@ -185,10 +185,7 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 // If the status can not be obtained for any reason, the returned map will contain an "error"
 // key with an explanation.
 func getAPMStatus(config config.Component) map[string]interface{} {
-	port := 8126
-	if config.IsSet("apm_config.receiver_port") {
-		port = config.GetInt("apm_config.receiver_port")
-	}
+	port := config.GetInt("apm_config.debug.port")
 	url := fmt.Sprintf("http://localhost:%d/debug/vars", port)
 	resp, err := (&http.Client{Timeout: 2 * time.Second}).Get(url)
 	if err != nil {

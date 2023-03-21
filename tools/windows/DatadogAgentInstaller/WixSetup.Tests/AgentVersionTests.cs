@@ -6,7 +6,7 @@ namespace WixSetup.Tests
     public class AgentVersionTests
     {
         [Fact]
-        public void Should_Version_Be_7_99_0_2_By_Default()
+        public void Should_Version_Be_7_99_0_1_By_Default()
         {
             // Explicit null to avoid env var influence.
             var version = new Datadog.AgentVersion(null);
@@ -14,20 +14,45 @@ namespace WixSetup.Tests
             version.Version.Major.Should().Be(7);
             version.Version.Minor.Should().Be(99);
             version.Version.Build.Should().Be(0);
-            version.Version.Revision.Should().Be(2);
+            version.Version.Revision.Should().Be(1);
         }
 
         [Fact]
-        public void Should_Parse_Nightly_Version_Correctly()
+        public void Should_Parse_Stable_Version_OmnibusFormat_Correctly()
+        {
+            var packageVersion = "6.35.0";
+            var version = new Datadog.AgentVersion(packageVersion);
+            version.PackageVersion.Should().Be(packageVersion);
+            version.Version.Major.Should().Be(6);
+            version.Version.Minor.Should().Be(35);
+            version.Version.Build.Should().Be(0);
+            version.Version.Revision.Should().Be(1);
+        }
+
+        [Fact]
+        public void Should_Parse_Nightly_Version_OmnibusFormat_Correctly()
         {
             // Output of inv -e agent.version --omnibus-format on a nightly
-            string packageVersion = "7.40.0~rc.2+git.309.1240df2";
+            var packageVersion = "7.40.0~rc.2+git.309.1240df2";
             var version = new Datadog.AgentVersion(packageVersion);
             version.PackageVersion.Should().Be(packageVersion);
             version.Version.Major.Should().Be(7);
             version.Version.Minor.Should().Be(40);
             version.Version.Build.Should().Be(0);
             version.Version.Revision.Should().Be(2);
+        }
+
+        [Fact]
+        public void Should_Parse_Nightly_Version_UrlSafe_Correctly()
+        {
+            // Output of inv -e agent.version --url-safe on an RC
+            var packageVersion = "7.43.1-rc.3.git.485.14b9337";
+            var version = new Datadog.AgentVersion(packageVersion);
+            version.PackageVersion.Should().Be(packageVersion);
+            version.Version.Major.Should().Be(7);
+            version.Version.Minor.Should().Be(43);
+            version.Version.Build.Should().Be(1);
+            version.Version.Revision.Should().Be(3);
         }
     }
 }

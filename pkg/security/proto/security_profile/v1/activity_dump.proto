@@ -1,0 +1,191 @@
+syntax = "proto3";
+
+option go_package = "pkg/security/proto/security_profile/v1";
+
+package adproto;
+
+message ActivityDump {
+    string host = 1;
+    string service = 2;
+    string source = 3;
+
+    Metadata metadata = 4;
+
+    repeated string tags = 5;
+    repeated ProcessActivityNode tree = 6;
+}
+
+message Metadata {
+    string agent_version = 1;
+    string agent_commit = 2;
+    string kernel_version = 3;
+    string linux_distribution = 4;
+    string arch = 13;
+
+    string name = 5;
+    string protobuf_version = 6;
+    bool differentiate_args = 7;
+    string comm = 8;
+    string container_id = 9;
+    uint64 start = 10;
+    uint64 end = 11;
+    uint64 size = 12;
+    string serialization = 14;
+}
+
+message SecurityProfile {
+    uint32 status = 1;
+    string version = 2;
+    Metadata metadata = 3;
+    repeated string tags = 4;
+    repeated uint32 syscalls = 5;
+    repeated ProcessActivityNode tree = 6;
+}
+
+message ProcessActivityNode {
+    ProcessInfo process = 1;
+    reserved 2;
+    GenerationType generation_type = 8;
+
+    repeated MatchedRule matched_rules = 9;
+    repeated ProcessActivityNode children = 3;
+    repeated FileActivityNode files = 4;
+    repeated DNSNode dns_names = 5;
+    repeated SocketNode sockets = 6;
+    repeated uint32 syscalls = 7;
+}
+
+message ProcessInfo {
+    uint32 pid = 1;
+    uint32 tid = 2;
+    uint32 ppid = 3;
+    uint32 cookie = 4;
+    bool is_thread = 5;
+
+    FileInfo file = 6;
+
+    string container_id = 7;
+
+    uint64 span_id = 8;
+    uint64 trace_id = 9;
+
+    string tty = 10;
+    string comm = 11;
+
+    uint64 fork_time = 12;
+    uint64 exit_time = 13;
+    uint64 exec_time = 14;
+
+    Credentials credentials = 15;
+
+    repeated string args = 16;
+    string argv0 = 17;
+    bool args_truncated = 18;
+    repeated string envs = 19;
+    bool envs_truncated = 20;
+}
+
+message FileActivityNode {
+    repeated MatchedRule matched_rules = 9;
+
+    string name = 1;
+    bool is_pattern = 7;
+    FileInfo file = 2;
+    reserved 3;
+    GenerationType generation_type = 8;
+    uint64 first_seen = 4;
+
+    OpenNode open = 5;
+
+    repeated FileActivityNode children = 6;
+}
+
+message OpenNode {
+    sint64 retval = 1;
+    uint32 flags = 2;
+    uint32 mode = 3;
+}
+
+message DNSNode {
+    repeated MatchedRule matched_rules = 2;
+
+    repeated DNSInfo requests = 1;
+}
+
+message DNSInfo {
+    string name = 1;
+    uint32 type = 2;
+    uint32 class = 3;
+    uint32 size = 4;
+    uint32 count = 5;
+}
+
+message FileInfo {
+    uint32 uid = 1;
+    string user = 2;
+    uint32 gid = 3;
+    string group = 4;
+
+    uint32 mode = 5; // TODO: check conversion with uint16
+
+    uint64 ctime = 6;
+    uint64 mtime = 7;
+
+    uint32 mount_id = 8;
+    uint64 inode = 9;
+    bool in_upper_layer = 10;
+
+    string path = 11;
+    string basename = 12;
+    string filesystem = 13;
+
+    string package_name = 14;
+    string package_version = 15;
+    string package_srcversion = 16;
+}
+
+message Credentials {
+    uint32 uid = 1;
+    uint32 gid = 2;
+    string user = 3;
+    string group = 4;
+
+    uint32 effective_uid = 5;
+    uint32 effective_gid = 6;
+    string effective_user = 7;
+    string effective_group = 8;
+
+    uint32 fs_uid = 9;
+    uint32 fs_gid = 10;
+    string fs_user = 11;
+    string fs_group = 12;
+
+    uint64 cap_effective = 13;
+    uint64 cap_permitted = 14;
+}
+
+message SocketNode {
+    string family = 1;
+    repeated BindNode bind = 2;
+}
+
+message BindNode {
+    repeated MatchedRule matched_rules = 3;
+
+    uint32 port = 1;
+    string ip = 2;
+}
+
+enum GenerationType {
+    UNKNOWN = 0;
+    RUNTIME = 1;
+    SNAPSHOT = 2;
+}
+
+message MatchedRule {
+    string rule_id = 1;
+    string rule_version = 2;
+    string policy_name = 3;
+    string policy_version = 4;
+    map<string, string> rule_tags = 5;
+}

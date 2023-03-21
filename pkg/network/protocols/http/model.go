@@ -9,7 +9,6 @@
 package http
 
 type httpTX interface {
-	StatusClass() int
 	RequestLatency() float64
 	ConnTuple() KeyTuple
 	Method() Method

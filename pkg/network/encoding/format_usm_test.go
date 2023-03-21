@@ -16,9 +16,10 @@ import (
 
 func TestFormatProtocols(t *testing.T) {
 	tests := []struct {
-		name     string
-		protocol network.ProtocolType
-		want     *model.ProtocolStack
+		name       string
+		protocol   network.ProtocolType
+		staticTags uint64
+		want       *model.ProtocolStack
 	}{
 		{
 			name:     "unknown protocol",
@@ -44,6 +45,15 @@ func TestFormatProtocols(t *testing.T) {
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
 					model.ProtocolType_protocolHTTP,
+				},
+			},
+		},
+		{
+			name:     "kafka protocol",
+			protocol: network.ProtocolKafka,
+			want: &model.ProtocolStack{
+				Stack: []model.ProtocolType{
+					model.ProtocolType_protocolKafka,
 				},
 			},
 		},
@@ -86,7 +96,7 @@ func TestFormatProtocols(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.want, formatProtocol(tt.protocol), "formatProtocol(%v)", tt.protocol)
+			assert.Equalf(t, tt.want, formatProtocol(tt.protocol, tt.staticTags), "formatProtocol(%v)", tt.protocol)
 		})
 	}
 }

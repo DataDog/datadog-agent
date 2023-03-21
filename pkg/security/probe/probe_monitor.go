@@ -15,20 +15,24 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 )
 
 // Monitor regroups all the work we want to do to monitor the probes we pushed in the kernel
 type Monitor struct {
 	probe *Probe
 
-	loadController      *LoadController
-	perfBufferMonitor   *PerfBufferMonitor
-	activityDumpManager *ActivityDumpManager
-	runtimeMonitor      *RuntimeMonitor
-	discarderMonitor    *DiscarderMonitor
-	cgroupsMonitor      *CgroupsMonitor
+	loadController         *LoadController
+	perfBufferMonitor      *PerfBufferMonitor
+	activityDumpManager    *dump.ActivityDumpManager
+	securityProfileManager *profile.SecurityProfileManager
+	runtimeMonitor         *RuntimeMonitor
+	discarderMonitor       *DiscarderMonitor
+	cgroupsMonitor         *CgroupsMonitor
 }
 
 // NewMonitor returns a new instance of a ProbeMonitor
@@ -51,9 +55,16 @@ func NewMonitor(p *Probe) (*Monitor, error) {
 	}
 
 	if p.Config.ActivityDumpEnabled {
-		m.activityDumpManager, err = NewActivityDumpManager(p, p.Config, p.StatsdClient, p.resolvers, p.kernelVersion, p.scrubber, p.Manager)
+		m.activityDumpManager, err = dump.NewActivityDumpManager(p.Config, p.StatsdClient, func() *model.Event { return NewEvent(p.fieldHandlers) }, p.resolvers.ProcessResolver, p.resolvers.TimeResolver, p.resolvers.TagsResolver, p.kernelVersion, p.scrubber, p.Manager)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't create the activity dump manager: %w", err)
+		}
+	}
+
+	if p.Config.SecurityProfileEnabled {
+		m.securityProfileManager, err = profile.NewSecurityProfileManager(p.Config, p.StatsdClient, p.resolvers.CGroupResolver)
+		if err != nil {
+			return nil, fmt.Errorf("couldn't create the security profile manager: %w", err)
 		}
 	}
 
@@ -66,7 +77,7 @@ func NewMonitor(p *Probe) (*Monitor, error) {
 		return nil, fmt.Errorf("couldn't create the discarder monitor: %w", err)
 	}
 
-	m.cgroupsMonitor = NewCgroupsMonitor(p.StatsdClient, p.resolvers.CgroupsResolver)
+	m.cgroupsMonitor = NewCgroupsMonitor(p.StatsdClient, p.resolvers.CGroupResolver)
 
 	return m, nil
 }
@@ -77,7 +88,7 @@ func (m *Monitor) GetPerfBufferMonitor() *PerfBufferMonitor {
 }
 
 // GetActivityDumpManager returns the activity dump manager
-func (m *Monitor) GetActivityDumpManager() *ActivityDumpManager {
+func (m *Monitor) GetActivityDumpManager() *dump.ActivityDumpManager {
 	return m.activityDumpManager
 }
 
@@ -93,6 +104,9 @@ func (m *Monitor) Start(ctx context.Context, wg *sync.WaitGroup) error {
 
 	if m.activityDumpManager != nil {
 		go m.activityDumpManager.Start(ctx, wg)
+	}
+	if m.securityProfileManager != nil {
+		go m.securityProfileManager.Start(ctx)
 	}
 	return nil
 }
@@ -118,6 +132,11 @@ func (m *Monitor) SendStats() error {
 		if err := resolvers.MountResolver.SendStats(); err != nil {
 			return fmt.Errorf("failed to send mount_resolver stats: %w", err)
 		}
+		if resolvers.SBOMResolver != nil {
+			if err := resolvers.SBOMResolver.SendStats(); err != nil {
+				return fmt.Errorf("failed to send sbom_resolver stats: %w", err)
+			}
+		}
 	}
 
 	if err := m.perfBufferMonitor.SendStats(); err != nil {
@@ -131,7 +150,13 @@ func (m *Monitor) SendStats() error {
 
 	if m.activityDumpManager != nil {
 		if err := m.activityDumpManager.SendStats(); err != nil {
-			return fmt.Errorf("failed to send activity dump maanger stats: %w", err)
+			return fmt.Errorf("failed to send activity dump manager stats: %w", err)
+		}
+	}
+
+	if m.securityProfileManager != nil {
+		if err := m.securityProfileManager.SendStats(); err != nil {
+			return fmt.Errorf("failed to send security profile manager stats: %w", err)
 		}
 	}
 
@@ -158,7 +183,7 @@ func (m *Monitor) ProcessEvent(event *model.Event) {
 
 	// Look for an unresolved path
 	if err := event.PathResolutionError; err != nil {
-		var notCritical *ErrPathResolutionNotCritical
+		var notCritical *path.ErrPathResolutionNotCritical
 		if !errors.As(err, &notCritical) {
 			m.probe.DispatchCustomEvent(
 				NewAbnormalPathEvent(event, m.probe, err),

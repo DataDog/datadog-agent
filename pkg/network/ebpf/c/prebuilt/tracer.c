@@ -20,8 +20,6 @@
 #include "conn-tuple.h"
 
 #include "tracer.h"
-#include "protocols/classification/tracer-maps.h"
-#include "protocols/classification/protocol-classification.h"
 #include "tracer-events.h"
 #include "tracer-maps.h"
 #include "tracer-stats.h"
@@ -35,20 +33,24 @@
 #include "skb.h"
 #include "offsets.h"
 
-// This entry point is needed to bypass a memory limit on socket filters.
-// There is a limitation on number of instructions can be attached to a socket filter,
-// as we classify more protocols, we reached that limit, thus we workaround it
-// by using tail call.
+#include "protocols/classification/tracer-maps.h"
+#include "protocols/classification/protocol-classification.h"
+
 SEC("socket/classifier_entry")
 int socket__classifier_entry(struct __sk_buff *skb) {
-    bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_PROG);
+    protocol_classifier_entrypoint(skb);
     return 0;
 }
 
-// The entrypoint for all packets.
-SEC("socket/classifier")
-int socket__classifier(struct __sk_buff *skb) {
-    protocol_classifier_entrypoint(skb);
+SEC("socket/classifier_queues")
+int socket__classifier_queues(struct __sk_buff *skb) {
+    protocol_classifier_entrypoint_queues(skb);
+    return 0;
+}
+
+SEC("socket/classifier_dbs")
+int socket__classifier_dbs(struct __sk_buff *skb) {
+    protocol_classifier_entrypoint_dbs(skb);
     return 0;
 }
 
@@ -107,6 +109,89 @@ int kretprobe__tcp_sendmsg(struct pt_regs *ctx) {
     get_tcp_segment_counts(skp, &packets_in, &packets_out);
 
     return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, skp);
+}
+
+SEC("kprobe/tcp_sendpage")
+int kprobe__tcp_sendpage(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("kprobe/tcp_sendpage: pid_tgid: %d\n", pid_tgid);
+    struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
+    bpf_map_update_with_telemetry(tcp_sendpage_args, &pid_tgid, &skp, BPF_ANY);
+    return 0;
+}
+
+SEC("kretprobe/tcp_sendpage")
+int kretprobe__tcp_sendpage(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    struct sock **skpp = (struct sock **)bpf_map_lookup_elem(&tcp_sendpage_args, &pid_tgid);
+    if (!skpp) {
+        log_debug("kretprobe/tcp_sendpage: sock not found\n");
+        return 0;
+    }
+
+    struct sock *skp = *skpp;
+    bpf_map_delete_elem(&tcp_sendpage_args, &pid_tgid);
+
+    int sent = PT_REGS_RC(ctx);
+    if (sent < 0) {
+        return 0;
+    }
+
+    if (!skp) {
+        return 0;
+    }
+
+    log_debug("kretprobe/tcp_sendpage: pid_tgid: %d, sent: %d, sock: %x\n", pid_tgid, sent, skp);
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
+        return 0;
+    }
+
+    handle_tcp_stats(&t, skp, 0);
+
+    __u32 packets_in = 0;
+    __u32 packets_out = 0;
+    get_tcp_segment_counts(skp, &packets_in, &packets_out);
+
+    return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, skp);
+}
+
+SEC("kprobe/udp_sendpage")
+int kprobe__udp_sendpage(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("kprobe/udp_sendpage: pid_tgid: %d\n", pid_tgid);
+    struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
+    bpf_map_update_with_telemetry(udp_sendpage_args, &pid_tgid, &skp, BPF_ANY);
+    return 0;
+}
+
+SEC("kretprobe/udp_sendpage")
+int kretprobe__udp_sendpage(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    struct sock **skpp = (struct sock **)bpf_map_lookup_elem(&udp_sendpage_args, &pid_tgid);
+    if (!skpp) {
+        log_debug("kretprobe/udp_sendpage: sock not found\n");
+        return 0;
+    }
+
+    struct sock *skp = *skpp;
+    bpf_map_delete_elem(&udp_sendpage_args, &pid_tgid);
+
+    int sent = PT_REGS_RC(ctx);
+    if (sent < 0) {
+        return 0;
+    }
+    if (!skp) {
+        return 0;
+    }
+
+    log_debug("kretprobe/udp_sendpage: pid_tgid: %d, sent: %d, sock: %x\n", pid_tgid, sent, skp);
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_UDP)) {
+        return 0;
+    }
+
+    return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE, skp);
 }
 
 SEC("kprobe/tcp_recvmsg/pre_4_1_0")
@@ -456,16 +541,43 @@ int kprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     int segs = (int)PT_REGS_PARM3(ctx);
     log_debug("kprobe/tcp_retransmit: segs: %d\n", segs);
-
-    return handle_retransmit(sk, segs);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    tcp_retransmit_skb_args_t args = {};
+    args.sk = sk;
+    args.segs = segs;
+    bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &pid_tgid, &args, BPF_ANY);
+    return 0;
 }
 
 SEC("kprobe/tcp_retransmit_skb/pre_4_7_0")
 int kprobe__tcp_retransmit_skb_pre_4_7_0(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     log_debug("kprobe/tcp_retransmit/pre_4_7_0\n");
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    tcp_retransmit_skb_args_t args = {};
+    args.sk = sk;
+    args.segs = 1;
+    bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &pid_tgid, &args, BPF_ANY);
+    return 0;
+}
 
-    return handle_retransmit(sk, 1);
+SEC("kretprobe/tcp_retransmit_skb")
+int kretprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
+    int ret = PT_REGS_RC(ctx);
+    __u64 tid = bpf_get_current_pid_tgid();
+    if (ret < 0) {
+        bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
+        return 0;
+    }
+    tcp_retransmit_skb_args_t *args = bpf_map_lookup_elem(&pending_tcp_retransmit_skb, &tid);
+    if (args == NULL) {
+        return 0;
+    }
+    struct sock *sk = args->sk;
+    int segs = args->segs;
+    bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
+    log_debug("kretprobe/tcp_retransmit: segs: %d\n", segs);
+    return handle_retransmit(sk, segs);
 }
 
 SEC("kprobe/tcp_set_state")
@@ -784,47 +896,6 @@ int kretprobe__sockfd_lookup_light(struct pt_regs *ctx) {
     bpf_map_update_with_telemetry(sock_by_pid_fd, &pid_fd, &sock, BPF_ANY);
 cleanup:
     bpf_map_delete_elem(&sockfd_lookup_args, &pid_tgid);
-    return 0;
-}
-
-SEC("kprobe/do_sendfile")
-int kprobe__do_sendfile(struct pt_regs *ctx) {
-    u32 fd_out = (int)PT_REGS_PARM1(ctx);
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    pid_fd_t key = {
-        .pid = pid_tgid >> 32,
-        .fd = fd_out,
-    };
-    struct sock **sock = bpf_map_lookup_elem(&sock_by_pid_fd, &key);
-    if (sock == NULL) {
-        return 0;
-    }
-
-    // bring map value to eBPF stack to satisfy Kernel 4.4 verifier
-    struct sock *skp = *sock;
-    bpf_map_update_with_telemetry(do_sendfile_args, &pid_tgid, &skp, BPF_ANY);
-    return 0;
-}
-
-SEC("kretprobe/do_sendfile")
-int kretprobe__do_sendfile(struct pt_regs *ctx) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    struct sock **sock = bpf_map_lookup_elem(&do_sendfile_args, &pid_tgid);
-    if (sock == NULL) {
-        return 0;
-    }
-
-    conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, *sock, pid_tgid, CONN_TYPE_TCP)) {
-        goto cleanup;
-    }
-
-    ssize_t sent = (ssize_t)PT_REGS_RC(ctx);
-    if (sent > 0) {
-        handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE, *sock);
-    }
-cleanup:
-    bpf_map_delete_elem(&do_sendfile_args, &pid_tgid);
     return 0;
 }
 

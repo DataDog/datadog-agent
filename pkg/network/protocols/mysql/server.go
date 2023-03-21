@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
@@ -19,7 +20,7 @@ const (
 	Pass = "root"
 )
 
-func RunServer(t *testing.T, serverAddr, serverPort string) {
+func RunServer(t *testing.T, serverAddr, serverPort string) bool {
 	env := []string{
 		"MYSQL_ADDR=" + serverAddr,
 		"MYSQL_PORT=" + serverPort,
@@ -28,5 +29,5 @@ func RunServer(t *testing.T, serverAddr, serverPort string) {
 
 	t.Helper()
 	dir, _ := testutil.CurDir()
-	protocolsUtils.RunDockerServer(t, "MYSQL", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(fmt.Sprintf(".*ready for connections.*port: %s.*", serverPort)))
+	return protocolsUtils.RunDockerServer(t, "MYSQL", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(fmt.Sprintf(".*ready for connections.*port: %s.*", serverPort)), 10*time.Minute)
 }

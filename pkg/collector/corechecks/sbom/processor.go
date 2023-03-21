@@ -10,13 +10,17 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/DataDog/agent-payload/v5/sbom"
 	model "github.com/DataDog/agent-payload/v5/sbom"
+
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var /* const */ (
@@ -24,20 +28,30 @@ var /* const */ (
 )
 
 type processor struct {
-	queue chan *model.SBOMEntity
+	queue             chan *model.SBOMEntity
+	workloadmetaStore workloadmeta.Store
+	imageRepoDigests  map[string]string              // Map where keys are image repo digest and values are image ID
+	imageUsers        map[string]map[string]struct{} // Map where keys are image repo digest and values are set of container IDs
 }
 
-func newProcessor(sender aggregator.Sender, maxNbItem int, maxRetentionTime time.Duration) *processor {
+func newProcessor(workloadmetaStore workloadmeta.Store, sender aggregator.Sender, maxNbItem int, maxRetentionTime time.Duration) *processor {
 	return &processor{
 		queue: queue.NewQueue(maxNbItem, maxRetentionTime, func(entities []*model.SBOMEntity) {
-			sender.SBOM([]sbom.SBOMPayload{
-				{
-					Version:  1,
-					Source:   &sourceAgent,
-					Entities: entities,
-				},
+			encoded, err := proto.Marshal(&model.SBOMPayload{
+				Version:  1,
+				Source:   &sourceAgent,
+				Entities: entities,
 			})
+			if err != nil {
+				log.Errorf("Unable to encode message: %+v", err)
+				return
+			}
+
+			sender.EventPlatformEvent(encoded, epforwarder.EventTypeContainerSBOM)
 		}),
+		workloadmetaStore: workloadmetaStore,
+		imageRepoDigests:  make(map[string]string),
+		imageUsers:        make(map[string]map[string]struct{}),
 	}
 }
 
@@ -47,7 +61,76 @@ func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
 	log.Tracef("Processing %d events", len(evBundle.Events))
 
 	for _, event := range evBundle.Events {
-		p.processSBOM(event.Entity.(*workloadmeta.ContainerImageMetadata))
+		switch event.Entity.GetID().Kind {
+		case workloadmeta.KindContainerImageMetadata:
+			switch event.Type {
+			case workloadmeta.EventTypeSet:
+				p.registerImage(event.Entity.(*workloadmeta.ContainerImageMetadata))
+				p.processSBOM(event.Entity.(*workloadmeta.ContainerImageMetadata))
+			case workloadmeta.EventTypeUnset:
+				p.unregisterImage(event.Entity.(*workloadmeta.ContainerImageMetadata))
+				// Let the SBOM expire on back-end side
+			}
+		case workloadmeta.KindContainer:
+			switch event.Type {
+			case workloadmeta.EventTypeSet:
+				p.registerContainer(event.Entity.(*workloadmeta.Container))
+			case workloadmeta.EventTypeUnset:
+				p.unregisterContainer(event.Entity.(*workloadmeta.Container))
+			}
+		}
+	}
+}
+
+func (p *processor) registerImage(img *workloadmeta.ContainerImageMetadata) {
+	for _, repoDigest := range img.RepoDigests {
+		p.imageRepoDigests[repoDigest] = img.ID
+	}
+}
+
+func (p *processor) unregisterImage(img *workloadmeta.ContainerImageMetadata) {
+	for _, repoDigest := range img.RepoDigests {
+		delete(p.imageUsers, repoDigest)
+		if p.imageRepoDigests[repoDigest] == img.ID {
+			delete(p.imageRepoDigests, repoDigest)
+		}
+	}
+}
+
+func (p *processor) registerContainer(ctr *workloadmeta.Container) {
+	imgID := ctr.Image.ID
+	ctrID := ctr.ID
+
+	if !ctr.State.Running {
+		return
+	}
+
+	if _, found := p.imageUsers[imgID]; found {
+		p.imageUsers[imgID][ctrID] = struct{}{}
+	} else {
+		p.imageUsers[imgID] = map[string]struct{}{
+			ctrID: {},
+		}
+
+		if realImgID, found := p.imageRepoDigests[imgID]; found {
+			imgID = realImgID
+		}
+
+		if img, err := p.workloadmetaStore.GetImage(imgID); err != nil {
+			log.Infof("Couldn’t find image %s in workloadmeta whereas it’s used by container %s: %v", imgID, ctrID, err)
+		} else {
+			p.processSBOM(img)
+		}
+	}
+}
+
+func (p *processor) unregisterContainer(ctr *workloadmeta.Container) {
+	imgID := ctr.Image.ID
+	ctrID := ctr.ID
+
+	delete(p.imageUsers[imgID], ctrID)
+	if len(p.imageUsers[imgID]) == 0 {
+		delete(p.imageUsers, imgID)
 	}
 }
 
@@ -63,6 +146,11 @@ func (p *processor) processSBOM(img *workloadmeta.ContainerImageMetadata) {
 		return
 	}
 
+	ddTags, err := tagger.Tag("container_image_metadata://"+img.ID, collectors.HighCardinality)
+	if err != nil {
+		log.Errorf("Could not retrieve tags for container image %s: %v", img.ID, err)
+	}
+
 	// In containerd some images are created without a repo digest, and it's
 	// also possible to remove repo digests manually.
 	// This means that the set of repos that we need to handle is the union of
@@ -76,24 +164,56 @@ func (p *processor) processSBOM(img *workloadmeta.ContainerImageMetadata) {
 		repos[strings.SplitN(repoTag, ":", 2)[0]] = struct{}{}
 	}
 
+	inUse := false
+	for _, repoDigest := range img.RepoDigests {
+		if _, found := p.imageUsers[repoDigest]; found {
+			inUse = true
+			break
+		}
+	}
+
 	for repo := range repos {
+		repoSplitted := strings.Split(repo, "/")
+		shortName := repoSplitted[len(repoSplitted)-1]
+
 		id := repo + "@" + img.ID
 
-		tags := make([]string, 0, len(img.RepoTags))
+		repoTags := make([]string, 0, len(img.RepoTags))
 		for _, repoTag := range img.RepoTags {
 			if strings.HasPrefix(repoTag, repo+":") {
-				tags = append(tags, strings.SplitN(repoTag, ":", 2)[1])
+				repoTags = append(repoTags, strings.SplitN(repoTag, ":", 2)[1])
 			}
+		}
+
+		// Because we split a single image entity into different payloads if it has several repo digests,
+		// me must re-compute `image_id`, `image_name`, `short_image` and `image_tag` tags.
+		ddTags2 := make([]string, 0, len(ddTags))
+		for _, ddTag := range ddTags {
+			if !strings.HasPrefix(ddTag, "image_id:") &&
+				!strings.HasPrefix(ddTag, "image_name:") &&
+				!strings.HasPrefix(ddTag, "short_image:") &&
+				!strings.HasPrefix(ddTag, "image_tag:") {
+				ddTags2 = append(ddTags2, ddTag)
+			}
+		}
+
+		ddTags2 = append(ddTags2,
+			"image_id:"+id,
+			"image_name:"+repo,
+			"short_image:"+shortName)
+		for _, t := range repoTags {
+			ddTags2 = append(ddTags2, "image_tag:"+t)
 		}
 
 		p.queue <- &model.SBOMEntity{
 			Type:               model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
 			Id:                 id,
+			DdTags:             ddTags2,
 			GeneratedAt:        timestamppb.New(img.SBOM.GenerationTime),
-			Tags:               tags,
-			InUse:              true, // TODO: compute this field
+			RepoTags:           repoTags,
+			InUse:              inUse,
 			GenerationDuration: convertDuration(img.SBOM.GenerationDuration),
-			Sbom: &sbom.SBOMEntity_Cyclonedx{
+			Sbom: &model.SBOMEntity_Cyclonedx{
 				Cyclonedx: convertBOM(img.SBOM.CycloneDXBOM),
 			},
 		}

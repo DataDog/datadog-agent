@@ -248,3 +248,10 @@ func GetPerfBufferStatisticsMaps() map[string]string {
 		"events": "events_stats",
 	}
 }
+
+// GetRingBufferStatisticsMaps returns the list of maps used to monitor the performances of each ring buffer
+func GetRingBufferStatisticsMaps() map[string]string {
+	return map[string]string{
+		"events": "events_ringbuf_stats",
+	}
+}

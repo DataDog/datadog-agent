@@ -15,14 +15,14 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/aws/aws-lambda-go/events"
-
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/aws/aws-lambda-go/events"
 )
 
-// Monitorer is the interface type execpted by the httpsec invocation
+// Monitorer is the interface type expected by the httpsec invocation
 // subprocessor monitoring the given security rules addresses and returning
 // the security events that matched.
 type Monitorer interface {

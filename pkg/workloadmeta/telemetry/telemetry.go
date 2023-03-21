@@ -56,6 +56,17 @@ var (
 		commonOpts,
 	)
 
+	// PullDuration measures the time that it takes to pull from the
+	// workloadmeta collectors.
+	PullDuration = telemetry.NewHistogramWithOpts(
+		subsystem,
+		"pull_duration",
+		[]string{"collector_id"},
+		"The time it takes to pull from the collectors (in seconds)",
+		[]float64{0.25, 0.5, 0.75, 1, 2, 5, 10, 15, 30, 45, 60},
+		commonOpts,
+	)
+
 	// NotificationsSent tracks the number of notifications sent from the
 	// workloadmeta store to its subscribers. Note that each notification can
 	// include multiple events.
@@ -95,6 +106,24 @@ var (
 		[]string{},
 		"SBOM generation duration (in seconds)",
 		[]float64{10, 30, 60, 120, 180, 240, 300, 360, 420, 480, 540, 600},
+		commonOpts,
+	)
+
+	// SBOMCacheMemSize size in memory of the cache used for SBOM collection
+	SBOMCacheMemSize = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"sbom_cache_mem_size",
+		[]string{},
+		"SBOM cache size in memory (in bytes)",
+		commonOpts,
+	)
+
+	// SBOMCacheDiskSize size in disk of the cache used for SBOM collection
+	SBOMCacheDiskSize = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"sbom_cache_disk_size",
+		[]string{},
+		"SBOM cache size in disk (in bytes)",
 		commonOpts,
 	)
 )

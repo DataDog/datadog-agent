@@ -2,6 +2,29 @@
 Release Notes
 =============
 
+.. _Release Notes_7.43.0:
+
+7.43.0 / 6.43.0
+======
+
+.. _Release Notes_7.43.0_New Features:
+
+New Features
+------------
+
+- Starts the collecting of Vertical Pod Autoscalers within Kubernetes clusters.
+
+- Enable orchestrator manifest collection by default
+
+
+.. _Release Notes_7.43.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Make the cluster-agent admission controller able to inject libraries for several languages in a single pod.
+
+
 .. _Release Notes_7.42.0:
 
 7.42.0 / 6.42.0

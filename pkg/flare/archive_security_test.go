@@ -14,6 +14,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/pkg/config"
+
+	// Required to initialize the "dogstatsd" expvar
+	_ "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 )
 
 func TestCreateSecurityAgentArchive(t *testing.T) {

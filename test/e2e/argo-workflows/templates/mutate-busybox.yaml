@@ -146,7 +146,7 @@ spec:
               "app": "busybox"
               "admission.datadoghq.com/enabled": "true"
             annotations:
-              admission.datadoghq.com/dotnet-lib.custom-image: "ghcr.io/datadog/dd-trace-dotnet/dd-lib-dotnet-init:a43a0170de4c469864385fa2cc38cad48fb91bad" # TODO: Use the default repo when ready
+              admission.datadoghq.com/dotnet-lib.version: "latest"
           spec:
             containers:
               - command:

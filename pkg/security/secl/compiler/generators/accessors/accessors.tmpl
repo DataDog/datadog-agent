@@ -128,10 +128,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					{{- if $Field.Handler}}
 						{{$Ptr := "&"}}
 						{{$Parent := index $.AllFields $Field.Prefix}}
-						{{- if $Parent.IsOrigTypePtr}}
+						{{- if or (not $Parent) $Parent.IsOrigTypePtr}}
 							{{$Ptr = ""}}
 						{{end}}
-						{{$Return = print "ev.FieldHandlers." $Field.Handler "(ev, " $Ptr "ev." $Field.Prefix ")"}}
+
+						{{$Prefix := $Field.Prefix}}
+						{{ if not $Prefix }}
+							{{$Return = print "ev.FieldHandlers." $Field.Handler "(ev)"}}
+						{{else}}
+							{{$Return = print "ev.FieldHandlers." $Field.Handler "(ev, " $Ptr "ev." $Prefix ")"}}
+						{{end}}
 					{{end}}
 
 					{{- if eq $ReturnType "int"}}
@@ -248,11 +254,16 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			{{if $Field.Handler}}
 				{{$Ptr := "&"}}
 				{{$Parent := index $.AllFields $Field.Prefix}}
-				{{- if $Parent.IsOrigTypePtr}}
+				{{- if or (not $Parent) $Parent.IsOrigTypePtr}}
 					{{$Ptr = ""}}
 				{{end}}
 
-				{{$Return = print "ev.FieldHandlers." $Field.Handler "(ev, " $Ptr "ev." $Field.Prefix ")"}}
+				{{$Prefix := $Field.Prefix}}
+				{{ if not $Prefix }}
+					{{$Return = print "ev.FieldHandlers." $Field.Handler "(ev)"}}
+				{{else}}
+					{{$Return = print "ev.FieldHandlers." $Field.Handler "(ev, " $Ptr "ev." $Prefix ")"}}
+				{{end}}
 			{{end}}
 
 			{{if eq $Field.ReturnType "string"}}

@@ -150,7 +150,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 	err = json.Compact(compactEvent, event)
 	assert.NoError(t, err)
 
-	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
+	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 
 	w.Flush()
 	logs := b.String()
@@ -227,7 +227,7 @@ profiles:
 	err = json.Compact(compactEvent, event)
 	assert.NoError(t, err)
 
-	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
+	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 }
 
 func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) {
@@ -236,6 +236,14 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 			"1.3.6.1.2.1.31.1.1.1.1": {
 				"1": valuestore.ResultValue{Value: float64(21)},
 				"2": valuestore.ResultValue{Value: float64(22)},
+			},
+			"1.3.6.1.2.1.2.2.1.7": {
+				"1": valuestore.ResultValue{Value: float64(2)},
+				"2": valuestore.ResultValue{Value: float64(2)},
+			},
+			"1.3.6.1.2.1.2.2.1.8": {
+				"1": valuestore.ResultValue{Value: float64(1)},
+				"2": valuestore.ResultValue{Value: float64(2)},
 			},
 			"1.3.6.1.2.1.31.1.1.1.18": {
 				"1": valuestore.ResultValue{Value: "ifAlias1"},
@@ -271,6 +279,18 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 							Name: "ifAlias",
 						},
 					},
+					"admin_status": {
+						Symbol: checkconfig.SymbolConfig{
+							OID:  "1.3.6.1.2.1.2.2.1.7",
+							Name: "ifAdminStatus",
+						},
+					},
+					"oper_status": {
+						Symbol: checkconfig.SymbolConfig{
+							OID:  "1.3.6.1.2.1.2.2.1.8",
+							Name: "ifOperStatus",
+						},
+					},
 				},
 				IDTags: checkconfig.MetricTagConfigList{
 					checkconfig.MetricTagConfig{
@@ -291,8 +311,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 	assert.NoError(t, err)
 	ms.ReportNetworkDeviceMetadata(config, storeWithIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable)
 
-	ifTags1 := []string{"tag1", "tag2", "status:down", "interface:21", "interface_alias:ifAlias1", "interface_index:1"}
-	ifTags2 := []string{"tag1", "tag2", "status:down", "interface:22", "interface_index:2"}
+	ifTags1 := []string{"tag1", "tag2", "status:down", "interface:21", "interface_alias:ifAlias1", "interface_index:1", "oper_status:up", "admin_status:down"}
+	ifTags2 := []string{"tag1", "tag2", "status:off", "interface:22", "interface_index:2", "oper_status:down", "admin_status:down"}
 
 	sender.AssertMetric(t, "Gauge", interfaceStatusMetric, 1., "", ifTags1)
 	sender.AssertMetric(t, "Gauge", interfaceStatusMetric, 1., "", ifTags2)
@@ -324,7 +344,9 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
             ],
             "index": 1,
 			"name": "21",
-			"alias": "ifAlias1"
+			"alias": "ifAlias1",
+			"admin_status": 2,
+			"oper_status": 1
         },
         {
             "device_id": "1234",
@@ -332,7 +354,9 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
                 "interface:22"
             ],
             "index": 2,
-            "name": "22"
+            "name": "22",
+			"admin_status": 2,
+			"oper_status": 2
         }
     ],
     "collect_timestamp":1415792726
@@ -342,7 +366,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 	err = json.Compact(compactEvent, event)
 	assert.NoError(t, err)
 
-	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
+	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 }
 
 func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testing.T) {
@@ -411,7 +435,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 	err = json.Compact(compactEvent, event)
 	assert.NoError(t, err)
 
-	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
+	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 }
 
 func Test_batchPayloads(t *testing.T) {

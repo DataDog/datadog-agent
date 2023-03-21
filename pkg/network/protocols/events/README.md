@@ -15,13 +15,6 @@ mitigated by properly configuring the `watermark` option when issuing the
 (eg. flush all buffered events) at a given moment in time[^1], which is a
 requirement for us.
 
-[^1]: this may be available in the near future since we could probably force
-wake-up events on the fly via `ioctl` calls, but this will likely require us to
-upstream changes to the `cilium/ebpf` library. There is a Jira card owned by
-`ebpf-platform` tracking this, and once this is available we could _greatly_
-simplify this package.
-
-
 ## How to use the library
 
 ### Kernel Side
@@ -33,9 +26,9 @@ USM_EVENTS_INIT(<protocol>, <event_type>, <batch_size>);
 
 This will instantiate the necessary eBPF maps along with two functions:
 * `<protocol>_batch_enqueue`;
-* `<protocol>_flush_batch`;
+* `<protocol>_batch_flush`;
 
-Please note that `<protocol>_flush_batch` requires access to the
+Please note that `<protocol>_batch_flush` requires access to the
 `bpf_perf_event_output` helper, which is typically not available to socket
 filter programs. Because of that we recommend to call it from
 `netif_receive_skb` which is associated to the execution of socket filter programs:
@@ -43,7 +36,7 @@ filter programs. Because of that we recommend to call it from
 ```c
 SEC("tracepoint/net/netif_receive_skb")
 int tracepoint__net__netif_receive_skb(struct pt_regs* ctx) {
-    <protocol>_flush_batch(ctx);
+    <protocol>_batch_flush(ctx);
     return 0;
 }
 ```
@@ -72,3 +65,9 @@ Aside from that, it is _recommended_ (though not strictly necessary) to call
 all buffered USM events can be sent to backend.
 
 For a complete integration example, please refer to `pkg/network/protocols/http/monitor.go`
+
+[^1]: this may be available in the near future since we could probably force
+wake-up events on the fly via `ioctl` calls, but this will likely require us to
+upstream changes to the `cilium/ebpf` library. There is a Jira card owned by
+`ebpf-platform` tracking this, and once this is available we could _greatly_
+simplify this package.

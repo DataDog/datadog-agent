@@ -4,6 +4,9 @@
 #include "bpf_helpers.h"
 
 #define REG_SIZE 8
+#ifdef __TARGET_ARCH_arm64
+#define NUM_REGISTERS 31
+#endif
 
 // This function was adapted from https://github.com/go-delve/delve:
 // - https://github.com/go-delve/delve/blob/cd9e6c02a6ca5f0d66c1f770ee10a0d8f4419333/pkg/proc/internal/ebpf/bpf/trace.bpf.c#L43
@@ -101,18 +104,33 @@ static __always_inline int read_register(struct pt_regs* ctx, int64_t regnum, vo
         *(u64*)dest = tmp;
         return 0;
     #elif defined(__TARGET_ARCH_arm64)
-        // TODO Support ARM
-        /*if (regnum >= 0 && regnum < sizeof(ctx->regs)) {
-            // Verifier won't allow direct access to regs array if the index is not const
-            switch (regnum) {
-                case 0:
-                    __builtin_memcpy(dest, &ctx->regs[0], sizeof(ctx->regs[0]));
-                default:
-                    return 1;
+        if (regnum < 0 || regnum >= NUM_REGISTERS) {
+            return 1;
+        }
+
+        volatile u64 tmp = 0;
+    #pragma unroll
+        for (int i = 0; i < NUM_REGISTERS; i++) {
+            if (i == regnum) {
+                tmp = ctx->regs[i];
+                // Adding a `break` statement here results in a variable ctx
+                // pointer dereference like the following:
+                //
+                // r7 += r1
+                // r1 = *(u64 *)(r7 +0)
+                //
+                // Where r7 is the ctx pointer. This in turn results in the following error
+                // ctx access var_off=(0x0; 0x<R1 value>) disallowed
+                //
+                // Without the `break` statement LLVM is generating the expected code with
+                // constant offsets
+                //
+                // r1 = *(u64 *)(r7 +<constant>)
             }
-            return 0;
-        }*/
-        return 1;
+        }
+
+        *(u64*)dest = tmp;
+        return 0;
     #else
         #error "Unsupported platform"
     #endif
@@ -160,16 +178,9 @@ static __always_inline void* read_register_indirect(struct pt_regs* ctx, int64_t
                 return NULL;
         }
     #elif defined(__TARGET_ARCH_arm64)
-        // TODO Support ARM
-        /*if (regnum >= 0 && regnum < sizeof(ctx->regs)) {
-            // Verifier won't allow direct access to regs array if the index is not const
-            switch (regnum) {
-                case 0:
-                    return &ctx->regs[0];
-                default:
-                    return NULL;
-            }
-        }*/
+        if (regnum >= 0 && regnum < NUM_REGISTERS) {
+            return &ctx->regs[regnum];
+        }
         return NULL;
     #else
         #error "Unsupported platform"

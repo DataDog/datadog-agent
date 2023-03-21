@@ -17,9 +17,9 @@ import (
 	"github.com/xeipuuv/gojsonschema"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 )
 
 //nolint:deadcode,unused
@@ -50,7 +50,7 @@ func (v ValidInodeFormatChecker) IsFormat(input interface{}) bool {
 	default:
 		return false
 	}
-	return !resolvers.IsFakeInode(inode)
+	return !dentry.IsFakeInode(inode)
 }
 
 //nolint:deadcode,unused
@@ -223,7 +223,7 @@ func (tm *testModule) validateMountSchema(t *testing.T, event *model.Event) bool
 func validateRuleSetLoadedSchema(t *testing.T, event *events.CustomEvent) bool {
 	t.Helper()
 
-	eventJSON, err := probe.MarshalCustomEvent(event)
+	eventJSON, err := serializers.MarshalCustomEvent(event)
 	if err != nil {
 		t.Error(err)
 		return false

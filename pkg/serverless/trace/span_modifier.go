@@ -21,8 +21,8 @@ type spanModifier struct {
 	coldStartSpanId uint64
 }
 
-// Process applies extra logic to the given span
-func (s *spanModifier) ModifySpan(span *pb.Span) {
+// ModifySpan applies extra logic to the given span
+func (s *spanModifier) ModifySpan(_ *pb.TraceChunk, span *pb.Span) {
 	if span.Service == "aws.lambda" {
 		// service name could be incorrectly set to 'aws.lambda' in datadog lambda libraries
 		if s.tags["service"] != "" {

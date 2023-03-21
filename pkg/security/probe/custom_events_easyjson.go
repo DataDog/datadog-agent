@@ -7,6 +7,7 @@ package probe
 
 import (
 	json "encoding/json"
+	serializers "github.com/DataDog/datadog-agent/pkg/security/serializers"
 	easyjson "github.com/mailru/easyjson"
 	jlexer "github.com/mailru/easyjson/jlexer"
 	jwriter "github.com/mailru/easyjson/jwriter"
@@ -314,7 +315,7 @@ func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe3(in *jle
 				out.Event = nil
 			} else {
 				if out.Event == nil {
-					out.Event = new(EventSerializer)
+					out.Event = new(serializers.EventSerializer)
 				}
 				(*out.Event).UnmarshalEasyJSON(in)
 			}

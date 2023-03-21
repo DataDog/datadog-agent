@@ -22,9 +22,11 @@ type proxyTransport struct {
 }
 
 func (p *proxyTransport) RoundTrip(request *http.Request) (*http.Response, error) {
-	log.Debug("[proxy] new request to %s", request.URL)
+	log.Debugf("runtime api proxy: new request to %s", request.URL)
 
-	processRequest(p, request)
+	if err := processRequest(p, request); err != nil {
+		log.Error("runtime api proxy: error while processing the request:", err)
+	}
 
 	response, err := http.DefaultTransport.RoundTrip(request)
 	if err != nil {
@@ -32,44 +34,73 @@ func (p *proxyTransport) RoundTrip(request *http.Request) (*http.Response, error
 		return nil, err
 	}
 
-	dumpedResponse, err := httputil.DumpResponse(response, true)
-	if err != nil {
-		log.Error("could not dump the response")
-		return nil, err
-	}
-
-	// extract only the payload as headers can be retrieved without inspecting the response
-	indexPayload := bytes.Index(dumpedResponse, []byte("\r\n\r\n"))
-	if indexPayload == -1 {
-		return nil, errors.New("invalid payload format")
-	}
-
-	// triggers onInvokeStart when /next response is received
-	if request.Method == "GET" && strings.HasSuffix(request.URL.String(), "/next") {
-		details := &invocationlifecycle.InvocationStartDetails{
-			StartTime:             time.Now(),
-			InvokeEventRawPayload: dumpedResponse[indexPayload:],
-		}
-		p.processor.OnInvokeStart(details)
+	if err := processResponse(p, request, response); err != nil {
+		log.Error("runtime api proxy: error while processing the response:", err)
 	}
 
 	return response, nil
 }
 
-func processRequest(p *proxyTransport, request *http.Request) {
-	if request.Method == "POST" && strings.HasSuffix(request.URL.String(), "/response") {
-		details := &invocationlifecycle.InvocationEndDetails{
-			EndTime: time.Now(),
-			IsError: false,
-		}
-		p.processor.OnInvokeEnd(details)
-	} else if request.Method == "POST" && strings.HasSuffix(request.URL.String(), "/error") {
-		details := &invocationlifecycle.InvocationEndDetails{
-			EndTime: time.Now(),
-			IsError: true,
-		}
-		p.processor.OnInvokeEnd(details)
-	} else {
-		log.Debug("[proxy] unknown verb/url (%s/%s) pattern found, ignoring", request.Method, request.URL.String())
+func processResponse(p *proxyTransport, request *http.Request, response *http.Response) error {
+	dumpedResponse, err := httputil.DumpResponse(response, true)
+	if err != nil {
+		return err
 	}
+
+	// triggers onInvokeStart when /next response is received
+	switch {
+	case request.Method == "GET" && strings.HasSuffix(request.URL.String(), "/next"):
+		// extract only the payload as headers can be retrieved without inspecting the response
+		indexPayload := bytes.Index(dumpedResponse, []byte("\r\n\r\n"))
+		if indexPayload == -1 {
+			return errors.New("invalid payload format")
+		}
+		payload := dumpedResponse[indexPayload:]
+		log.Debugf("runtime api proxy: /next: processing event payload `%s`", payload)
+		details := &invocationlifecycle.InvocationStartDetails{
+			StartTime:             time.Now(),
+			InvokeEventRawPayload: payload,
+		}
+		p.processor.OnInvokeStart(details)
+	}
+
+	return nil
+}
+
+func processRequest(p *proxyTransport, request *http.Request) error {
+	body, err := httputil.DumpRequest(request, true)
+	if err != nil {
+		log.Error("could not dump the request:", err)
+		return err
+	}
+	indexPayload := bytes.Index(body, []byte("\r\n\r\n"))
+	if indexPayload == -1 {
+		return errors.New("invalid request payload format")
+	}
+	body = body[indexPayload:]
+
+	switch {
+	case request.Method == "POST" && strings.HasSuffix(request.URL.String(), "/response"):
+		log.Debugf("runtime api proxy: /response: processing response payload `%s`", body)
+		details := &invocationlifecycle.InvocationEndDetails{
+			EndTime:            time.Now(),
+			IsError:            false,
+			ResponseRawPayload: body,
+		}
+		p.processor.OnInvokeEnd(details)
+
+	case request.Method == "POST" && strings.HasSuffix(request.URL.String(), "/error"):
+		log.Debugf("runtime api proxy: /error: processing response payload `%s`", body)
+		details := &invocationlifecycle.InvocationEndDetails{
+			EndTime:            time.Now(),
+			IsError:            true,
+			ResponseRawPayload: body,
+		}
+		p.processor.OnInvokeEnd(details)
+
+	default:
+		log.Debugf("runtime api proxy: unknown verb/url (%s/%s) pattern found, ignoring", request.Method, request.URL.String())
+	}
+
+	return nil
 }

@@ -27,6 +27,25 @@ namespace Datadog.CustomActions
             return Convert.ToBase64String(rgb);
         }
 
+        private static bool HostIsDomainController()
+        {
+            try
+            {
+                var serverInfo = NetServerGetInfo<SERVER_INFO_101>();
+                if ((serverInfo.Type & ServerTypes.DomainCtrl) == ServerTypes.DomainCtrl
+                    || (serverInfo.Type & ServerTypes.BackupDomainCtrl) == ServerTypes.BackupDomainCtrl)
+                {
+                    // Computer is a DC
+                    return true;
+                }
+            }
+            catch (ActiveDirectoryObjectNotFoundException)
+            {
+                // Computer is not joined to a domain, it can't be a DC
+            }
+            return false;
+        }
+
         /// <summary>
         /// Determine the default 'domain' part of a user account name when one is not provided by the user.
         /// </summary>
@@ -42,22 +61,13 @@ namespace Datadog.CustomActions
         /// </remarks>
         private static string GetDefaultDomainPart()
         {
-            try
+            if (HostIsDomainController())
             {
-                var serverInfo = NetServerGetInfo<SERVER_INFO_101>();
-                if ((serverInfo.Type & ServerTypes.DomainCtrl) == ServerTypes.DomainCtrl
-                    || (serverInfo.Type & ServerTypes.BackupDomainCtrl) == ServerTypes.BackupDomainCtrl)
-                {
-                    // Computer is a DC, default to domain name
-                    var joinedDomain = Domain.GetComputerDomain();
-                    return joinedDomain.Name;
-                }
-                // Computer is not a DC, default to machine name
+                // Computer is a DC, default to domain name
+                var joinedDomain = Domain.GetComputerDomain();
+                return joinedDomain.Name;
             }
-            catch (ActiveDirectoryObjectNotFoundException)
-            {
-                // not joined to a domain, use the machine name
-            }
+            // Computer is not a DC, default to machine name (NetBIOS name)
             return Environment.MachineName;
         }
 
@@ -96,7 +106,7 @@ namespace Datadog.CustomActions
         private static void RegistryValueProperty(ISession session, string propertyName, RegistryKey registryKey, string registryValue)
         {
             RegistryProperty(session, propertyName,
-                GetRegistryPropertyHandler => registryKey.GetValue(registryValue)?.ToString());
+                _ => registryKey.GetValue(registryValue)?.ToString());
         }
 
         /// <summary>
@@ -109,39 +119,37 @@ namespace Datadog.CustomActions
         {
             try
             {
-                using (var subkey = Registry.LocalMachine.OpenSubKey(@"Software\Datadog\Datadog Agent"))
+                using var subkey = Registry.LocalMachine.OpenSubKey(@"Software\Datadog\Datadog Agent");
+                if (subkey != null)
                 {
-                    if (subkey != null)
-                    {
-                        // DDAGENTUSER_NAME
-                        //
-                        // The user account can be provided to the installer by
-                        // * The registry
-                        // * The command line
-                        // * The agent user dialog
-                        // The user account domain and name are stored separately in the registry
-                        // but are passed together on the command line and the agent user dialog.
-                        // This function will combine the registry properties if they exist.
-                        // Preference is given to creds provided on the command line and the agent user dialog.
-                        // For UI installs it ensures that the agent user dialog is pre-populated.
-                        RegistryProperty(session, "DDAGENTUSER_NAME",
-                            GetRegistryPropertyHandler =>
+                    // DDAGENTUSER_NAME
+                    //
+                    // The user account can be provided to the installer by
+                    // * The registry
+                    // * The command line
+                    // * The agent user dialog
+                    // The user account domain and name are stored separately in the registry
+                    // but are passed together on the command line and the agent user dialog.
+                    // This function will combine the registry properties if they exist.
+                    // Preference is given to creds provided on the command line and the agent user dialog.
+                    // For UI installs it ensures that the agent user dialog is pre-populated.
+                    RegistryProperty(session, "DDAGENTUSER_NAME",
+                        _ =>
+                        {
+                            var domain = subkey.GetValue("installedDomain").ToString();
+                            var user = subkey.GetValue("installedUser").ToString();
+                            if (!string.IsNullOrEmpty(domain) && !string.IsNullOrEmpty(user))
                             {
-                                var domain = subkey.GetValue("installedDomain").ToString();
-                                var user = subkey.GetValue("installedUser").ToString();
-                                if (!string.IsNullOrEmpty(domain) && !string.IsNullOrEmpty(user))
-                                {
-                                    return $"{domain}\\{user}";
-                                }
-                                return string.Empty;
-                            });
+                                return $"{domain}\\{user}";
+                            }
+                            return string.Empty;
+                        });
 
-                        // PROJECTLOCATION
-                        RegistryValueProperty(session, "PROJECTLOCATION", subkey, "InstallPath");
+                    // PROJECTLOCATION
+                    RegistryValueProperty(session, "PROJECTLOCATION", subkey, "InstallPath");
 
-                        // APPLICATIONDATADIRECTORY
-                        RegistryValueProperty(session, "APPLICATIONDATADIRECTORY", subkey, "ConfigRoot");
-                    }
+                    // APPLICATIONDATADIRECTORY
+                    RegistryValueProperty(session, "APPLICATIONDATADIRECTORY", subkey, "ConfigRoot");
                 }
             }
             catch (Exception e)
@@ -158,17 +166,140 @@ namespace Datadog.CustomActions
             return ReadRegistryProperties(new SessionWrapper(session));
         }
 
+        /// <summary>
+        /// Returns true if we will treat <c>name</c> as an alias for the local machine name.
+        /// </summary>
+        /// <remarks>
+        /// Comparisons are case-insensitive.
+        /// </remarks>
+        private static bool NameIsLocalMachine(string name)
+        {
+            name = name.ToLower();
+            if (name == Environment.MachineName.ToLower())
+            {
+                return true;
+            }
+            // Windows runas does not support the following names, but we can try to.
+            if (name == ".")
+            {
+                return true;
+            }
+            // Windows runas and logon screen do not support the following names, but we can try to.
+            if (GetComputerNameEx(COMPUTER_NAME_FORMAT.ComputerNameDnsHostname, out var hostname))
+            {
+                if (name == hostname.ToLower())
+                {
+                    return true;
+                }
+            }
+            if (GetComputerNameEx(COMPUTER_NAME_FORMAT.ComputerNameDnsFullyQualified, out var fqdn))
+            {
+                if (name == fqdn.ToLower())
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Returns true if <c>name</c> should be replaced by GetDefaultDomainPart()
+        /// </summary>
+        /// <remarks>
+        /// Comparisons are case-insensitive.
+        /// </remarks>
+        private static bool NameUsesDefaultPart(string name)
+        {
+            if (name == ".")
+            {
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Gets the domain and user parts from an account name.
+        /// </summary>
+        /// <remarks>
+        /// Windows has varying support for name syntax accross the OS, this function may normalize the domain
+        /// part to the machine name (NetBIOS name) or the domain name.
+        /// See NameUsesDefaultPart and NameIsLocalMachine for details on the supported aliases.
+        /// For example,
+        ///   * on regular hosts, .\user => machinename\user
+        ///   * on domain controllers, .\user => domain\user
+        /// </remarks>
+        private static void ParseUserName(string account, out string userName, out string domain)
+        {
+            // We do not use CredUIParseUserName because it does not handle some cases nicely.
+            // e.g. CredUIParseUserName(host.ddev.net\user) returns userName=.ddev.net domain=host.ddev.net
+            // e.g. CredUIParseUserName(.\user) returns userName=.\user domain=
+            if (account.Contains("\\"))
+            {
+                var parts = account.Split('\\');
+                domain = parts[0];
+                userName = parts[1];
+                if (NameUsesDefaultPart(domain))
+                {
+                    domain = GetDefaultDomainPart();
+                }
+                else if (NameIsLocalMachine(domain))
+                {
+                    domain = Environment.MachineName;
+                }
+                return;
+            }
+
+            // If no \\, then full string is username
+            userName = account;
+            domain = "";
+        }
+
+        /// <summary>
+        /// Wrapper for the LookupAccountName Windows API that also supports additional syntax for the domain part of the name.
+        /// See ParseUserName for details on the supported names.
+        /// </summary>
+        private static bool LookupAccountWithExtendedDomainSyntax(ISession session, string account, out string userName, out string domain, out SecurityIdentifier securityIdentifier, out SID_NAME_USE nameUse)
+        {
+            // Provide the account name to Windows as is first, see if Windows can handle it.
+            var userFound = LookupAccountName(account,
+                out userName,
+                out domain,
+                out securityIdentifier,
+                out nameUse);
+            if (!userFound) {
+                // The first LookupAccountName failed, this could be because the user does not exist,
+                // or it could be because the domain part of the name is invalid.
+                ParseUserName(account, out var tmpUser, out var tmpDomain);
+                // Try LookupAccountName again but using a fixed domain part.
+                account = $"{tmpDomain}\\{tmpUser}";
+                session.Log($"User not found, trying again with fixed domain part: {account}");
+                userFound = LookupAccountName(account,
+                    out userName,
+                    out domain,
+                    out securityIdentifier,
+                    out nameUse);
+            }
+            return userFound;
+        }
+
         private static ActionResult ProcessDdAgentUserCredentials(ISession session)
         {
             try
             {
                 if (!string.IsNullOrEmpty(session["DDAGENTUSER_PROCESSED_FQ_NAME"]))
                 {
-                  // This function has already executed successfully
-                  return ActionResult.Success;
+                    // This function has already executed successfully
+                    return ActionResult.Success;
                 }
 
                 var ddAgentUserName = session["DDAGENTUSER_NAME"];
+
+                // LocalSystem is not supported by LookupAccountName as it is a pseudo account,
+                // do the conversion here for user's convenience.
+                if (ddAgentUserName == "LocalSystem")
+                {
+                    ddAgentUserName = "NT AUTHORITY\\SYSTEM";
+                }
 
                 if (string.IsNullOrEmpty(ddAgentUserName))
                 {
@@ -178,19 +309,25 @@ namespace Datadog.CustomActions
                 }
 
                 // Check if user exists, and parse the full account name
-                var userFound = LookupAccountName(ddAgentUserName,
+                var userFound = LookupAccountWithExtendedDomainSyntax(session,
+                    ddAgentUserName,
                     out var userName,
                     out var domain,
                     out var securityIdentifier,
                     out var nameUse);
                 var isServiceAccount = false;
+                var isDomainAccount = false;
                 if (userFound)
                 {
                     session["DDAGENTUSER_FOUND"] = "true";
                     session["DDAGENTUSER_SID"] = securityIdentifier.ToString();
                     session.Log($"Found {userName} in {domain} as {nameUse}");
                     NetIsServiceAccount(null, ddAgentUserName, out isServiceAccount);
-                    session.Log($"Is {userName} in {domain} a service account: {isServiceAccount}");
+                    isServiceAccount |= securityIdentifier.IsWellKnown(WellKnownSidType.LocalSystemSid) ||
+                                        securityIdentifier.IsWellKnown(WellKnownSidType.LocalServiceSid) ||
+                                        securityIdentifier.IsWellKnown(WellKnownSidType.NetworkServiceSid);
+                    isDomainAccount = IsDomainAccount(securityIdentifier);
+                    session.Log($"\"{domain}\\{userName}\" ({securityIdentifier.Value}, {nameUse}) is a {(isDomainAccount ? "domain" : "local")} {(isServiceAccount ? "service " : string.Empty)}account");
                 }
                 else
                 {
@@ -199,8 +336,16 @@ namespace Datadog.CustomActions
                     ParseUserName(ddAgentUserName, out userName, out domain);
                 }
 
+                if (string.IsNullOrEmpty(userName))
+                {
+                    // If userName is empty at this point, then it is likely that the input is malformed
+                    session.Log($"Unable to parse username from {ddAgentUserName}");
+                    return ActionResult.Failure;
+                }
                 if (string.IsNullOrEmpty(domain))
                 {
+                    // This case is hit if user specifies a username without a domain part and it does not exist
+                    session.Log($"domain part is empty, using default");
                     domain = GetDefaultDomainPart();
                 }
                 session.Log($"Installing with DDAGENTUSER_PROCESSED_NAME={userName} and DDAGENTUSER_PROCESSED_DOMAIN={domain}");
@@ -212,13 +357,24 @@ namespace Datadog.CustomActions
 
                 var ddAgentUserPassword = session["DDAGENTUSER_PASSWORD"];
 
-                if (!isServiceAccount && string.IsNullOrEmpty(ddAgentUserPassword))
+                if (!isServiceAccount &&
+                    !isDomainAccount  &&
+                    string.IsNullOrEmpty(ddAgentUserPassword))
                 {
+                    session.Log("Generating a random password");
                     ddAgentUserPassword = GetRandomPassword(128);
+                    session.Components["InstallerManagedAgentUser"].RequestState = InstallState.Local;
+                    session.Components["UserManagedAgentUser"].RequestState = InstallState.Absent;
+                }
+                else
+                {
+                    session.Components["InstallerManagedAgentUser"].RequestState = InstallState.Absent;
+                    session.Components["UserManagedAgentUser"].RequestState = InstallState.Local;
                 }
 
                 if (!string.IsNullOrEmpty(ddAgentUserPassword) && isServiceAccount)
                 {
+                    session.Log("Ignoring provided password because account is a service account");
                     ddAgentUserPassword = null;
                 }
 
@@ -304,7 +460,7 @@ namespace Datadog.CustomActions
                     Path.Combine(session.Property("APPLICATIONDATADIRECTORY"), "conf.d"),
                     Path.Combine(session.Property("APPLICATIONDATADIRECTORY"), "auth_token"),
                     Path.Combine(session.Property("APPLICATIONDATADIRECTORY"), "datadog.yaml"),
-
+                    Path.Combine(session.Property("APPLICATIONDATADIRECTORY"), "system-probe.yaml"),
                     Path.Combine(session.Property("PROJECTLOCATION"), "embedded2"),
                     Path.Combine(session.Property("PROJECTLOCATION"), "embedded3"),
 

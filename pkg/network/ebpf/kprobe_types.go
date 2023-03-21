@@ -12,6 +12,7 @@ package ebpf
 #include "./c/tracer.h"
 #include "./c/tcp_states.h"
 #include "./c/prebuilt/offset-guess.h"
+#include "./c/protocols/classification/defs.h"
 */
 import "C"
 
@@ -48,3 +49,10 @@ const (
 
 const BatchSize = C.CONN_CLOSED_BATCH_SIZE
 const SizeofBatch = C.sizeof_batch_t
+
+type ClassificationProgram = uint32
+
+const (
+	ClassificationQueues ClassificationProgram = C.CLASSIFICATION_QUEUES_PROG
+	ClassificationDBs    ClassificationProgram = C.CLASSIFICATION_DBS_PROG
+)

@@ -33,6 +33,7 @@ func setDefaultHooks(env *mocks.Env) {
 	env.On("DumpInputPath").Return("").Maybe()
 	env.On("ShouldSkipRegoEval").Return(false).Maybe()
 	env.On("Hostname").Return("test-host").Maybe()
+	env.On("StatsdClient").Return(nil).Maybe()
 }
 
 func normalizePath(t *testing.T, env *mocks.Env, file *compliance.File) {
@@ -563,7 +564,7 @@ func TestFileCheck(t *testing.T) {
 			regoRule.Inputs[1].Constants.Values["resource_type"] = "docker_daemon"
 			regoRule.Inputs = append(test.additionalResources, regoRule.Inputs...)
 			fileCheck := rego.NewCheck(regoRule)
-			err := fileCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{}, nil)
+			err := fileCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{})
 			assert.NoError(err)
 
 			reports := fileCheck.Check(env)

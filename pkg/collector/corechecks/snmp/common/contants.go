@@ -22,6 +22,20 @@ const (
 	AdminStatus_Testing IfAdminStatus = 3
 )
 
+var adminStatus_StringMap map[IfAdminStatus]string = map[IfAdminStatus]string{
+	AdminStatus_Up:      "up",
+	AdminStatus_Down:    "down",
+	AdminStatus_Testing: "testing",
+}
+
+func (i IfAdminStatus) AsString() string {
+	status, ok := adminStatus_StringMap[i]
+	if !ok {
+		return "unknown"
+	}
+	return status
+}
+
 type IfOperStatus int
 
 const (
@@ -33,6 +47,24 @@ const (
 	OperStatus_NotPresent     IfOperStatus = 6
 	OperStatus_LowerLayerDown IfOperStatus = 7
 )
+
+var operStatus_StringMap map[IfOperStatus]string = map[IfOperStatus]string{
+	OperStatus_Up:             "up",
+	OperStatus_Down:           "down",
+	OperStatus_Testing:        "testing",
+	OperStatus_Unknown:        "unknown",
+	OperStatus_Dormant:        "dormant",
+	OperStatus_NotPresent:     "not_present",
+	OperStatus_LowerLayerDown: "lower_layer_down",
+}
+
+func (i IfOperStatus) AsString() string {
+	status, ok := operStatus_StringMap[i]
+	if !ok {
+		return "unknown"
+	}
+	return status
+}
 
 type InterfaceStatus string
 

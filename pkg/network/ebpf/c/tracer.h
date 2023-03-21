@@ -150,6 +150,12 @@ typedef struct {
 } bind_syscall_args_t;
 
 typedef struct {
+    struct sock *sk;
+    int segs;
+    __u32 retrans_out_pre;
+} tcp_retransmit_skb_args_t;
+
+typedef struct {
     __u32 netns;
     __u16 port;
 } port_binding_t;

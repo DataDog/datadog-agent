@@ -9,6 +9,8 @@
 package python
 
 import (
+	"unsafe"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	chk "github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -142,12 +144,12 @@ func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong
 // SubmitEventPlatformEvent is the method exposed to Python scripts to submit event platform events
 //
 //export SubmitEventPlatformEvent
-func SubmitEventPlatformEvent(checkID *C.char, rawEvent *C.char, eventType *C.char) {
+func SubmitEventPlatformEvent(checkID *C.char, rawEventPtr *C.char, rawEventSize C.int, eventType *C.char) {
 	_checkID := C.GoString(checkID)
 	sender, err := aggregator.GetSender(chk.ID(_checkID))
 	if err != nil || sender == nil {
 		log.Errorf("Error submitting event platform event to the Sender: %v", err)
 		return
 	}
-	sender.EventPlatformEvent(C.GoString(rawEvent), C.GoString(eventType))
+	sender.EventPlatformEvent(C.GoBytes(unsafe.Pointer(rawEventPtr), rawEventSize), C.GoString(eventType))
 }

@@ -10,7 +10,6 @@ package kprobe
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -26,7 +25,6 @@ func enableProbe(enabled map[probes.ProbeFuncName]struct{}, name probes.ProbeFun
 // This map does not include the probes used exclusively in the offset guessing process.
 func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeFuncName]struct{}, error) {
 	enabled := make(map[probes.ProbeFuncName]struct{}, 0)
-	ksymPath := filepath.Join(c.ProcRoot, "kallsyms")
 
 	kv410 := kernel.VersionCode(4, 1, 0)
 	kv470 := kernel.VersionCode(4, 7, 0)
@@ -38,11 +36,14 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeFuncNa
 	if c.CollectTCPConns {
 		if ClassificationSupported(c) {
 			enableProbe(enabled, probes.ProtocolClassifierEntrySocketFilter)
-			enableProbe(enabled, probes.ProtocolClassifierSocketFilter)
+			enableProbe(enabled, probes.ProtocolClassifierQueuesSocketFilter)
+			enableProbe(enabled, probes.ProtocolClassifierDBsSocketFilter)
 			enableProbe(enabled, probes.NetDevQueue)
 		}
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPSendMsg, probes.TCPSendMsgPre410, kv410))
 		enableProbe(enabled, probes.TCPSendMsgReturn)
+		enableProbe(enabled, probes.TCPSendPage)
+		enableProbe(enabled, probes.TCPSendPageReturn)
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPRecvMsg, probes.TCPRecvMsgPre410, kv410))
 		enableProbe(enabled, probes.TCPRecvMsgReturn)
 		enableProbe(enabled, probes.TCPReadSock)
@@ -55,13 +56,12 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeFuncNa
 		enableProbe(enabled, probes.InetCskListenStop)
 		enableProbe(enabled, probes.TCPSetState)
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPRetransmit, probes.TCPRetransmitPre470, kv470))
+		enableProbe(enabled, probes.TCPRetransmitRet)
 
-		missing, err := ebpf.VerifyKernelFuncs(ksymPath, []string{"sockfd_lookup_light"})
+		missing, err := ebpf.VerifyKernelFuncs("sockfd_lookup_light")
 		if err == nil && len(missing) == 0 {
 			enableProbe(enabled, probes.SockFDLookup)
 			enableProbe(enabled, probes.SockFDLookupRet)
-			enableProbe(enabled, probes.DoSendfile)
-			enableProbe(enabled, probes.DoSendfileRet)
 		}
 	}
 
@@ -72,6 +72,8 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeFuncNa
 		enableProbe(enabled, probes.IPMakeSkbReturn)
 		enableProbe(enabled, probes.InetBind)
 		enableProbe(enabled, probes.InetBindRet)
+		enableProbe(enabled, probes.UDPSendPage)
+		enableProbe(enabled, probes.UDPSendPageReturn)
 
 		if c.CollectIPv6Conns {
 			enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.IP6MakeSkb, probes.IP6MakeSkbPre470, kv470))
@@ -81,7 +83,7 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeFuncNa
 		}
 
 		if runtimeTracer {
-			missing, err := ebpf.VerifyKernelFuncs(ksymPath, []string{"skb_consume_udp", "__skb_free_datagram_locked", "skb_free_datagram_locked"})
+			missing, err := ebpf.VerifyKernelFuncs("skb_consume_udp", "__skb_free_datagram_locked", "skb_free_datagram_locked")
 			if err != nil {
 				return nil, fmt.Errorf("error verifying kernel function presence: %s", err)
 			}

@@ -6,8 +6,10 @@
 package main
 
 import (
+	"context"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -115,6 +117,21 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	outputDatadogEnvVariablesForDebugging()
 
+	if !hasApiKey() {
+		log.Errorf("Can't start the Datadog extension as no API has been detected")
+		// we still need to register the extension but let's return after (no-op)
+		id, registrationError := registration.RegisterExtension(os.Getenv(runtimeAPIEnvVar), extensionRegistrationRoute, extensionRegistrationTimeout)
+		if registrationError != nil {
+			log.Errorf("Can't register as a serverless agent: %s", registrationError)
+		}
+		ctx := context.Background()
+		processError := registration.NoOpProcessEvent(ctx, id)
+		if processError != nil {
+			log.Errorf("Can't process events: %s", processError)
+		}
+		return nil, nil
+	}
+
 	// immediately starts the communication server
 	serverlessDaemon = daemon.StartDaemon(httpServerAddr)
 	err = serverlessDaemon.ExecutionContext.RestoreCurrentStateFromFile()
@@ -185,7 +202,6 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		// we're not reporting the error to AWS because we don't want the function
 		// execution to be stopped. TODO(remy): discuss with AWS if there is way
 		// of reporting non-critical init errors.
-		// serverless.ReportInitError(serverlessID, serverless.FatalNoAPIKey)
 		log.Error("No API key configured")
 	}
 	config.Datadog.SetConfigFile(datadogConfigPath)
@@ -237,7 +253,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 			return
 		}
 		log.Debug("Enabling telemetry collection HTTP route")
-		logRegistrationURL := registration.BuildURL(os.Getenv(runtimeAPIEnvVar), logsAPIRegistrationRoute)
+		logRegistrationURL := registration.BuildURL(logsAPIRegistrationRoute)
 		logRegistrationError := registration.EnableTelemetryCollection(
 			registration.EnableTelemetryCollectionArgs{
 				ID:                  serverlessID,
@@ -259,16 +275,16 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	}()
 
 	// start appsec
+	var (
+		appsecSubProcessor   *httpsec.InvocationSubProcessor
+		appsecProxyProcessor *httpsec.ProxyLifecycleProcessor
+	)
 	wg.Add(1)
-	var httpsecSubProcessor invocationlifecycle.InvocationSubProcessor
 	go func() {
 		defer wg.Done()
-		appsec, err := appsec.New()
+		appsecSubProcessor, appsecProxyProcessor, err = appsec.New()
 		if err != nil {
 			log.Error("appsec: could not start: ", err)
-		} else if appsec != nil {
-			log.Info("appsec: started successfully")
-			httpsecSubProcessor = httpsec.NewInvocationSubProcessor(appsec) // note that the receiving variable is in the parent scope
 		}
 	}()
 
@@ -287,22 +303,34 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	log.Debug("Setting ColdStartSpanCreator on Daemon")
 	serverlessDaemon.SetColdStartSpanCreator(coldStartSpanCreator)
 
+	ta := serverlessDaemon.TraceAgent.Get()
+	if ta == nil {
+		log.Error("Unexpected nil instance of the trace-agent")
+		return
+	}
+
 	// set up invocation processor in the serverless Daemon to be used for the proxy and/or lifecycle API
 	serverlessDaemon.InvocationProcessor = &invocationlifecycle.LifecycleProcessor{
 		ExtraTags:            serverlessDaemon.ExtraTags,
 		Demux:                serverlessDaemon.MetricAgent.Demux,
-		ProcessTrace:         serverlessDaemon.TraceAgent.Get().Process,
+		ProcessTrace:         ta.Process,
 		DetectLambdaLibrary:  func() bool { return serverlessDaemon.LambdaLibraryDetected },
 		InferredSpansEnabled: inferredspan.IsInferredSpansEnabled(),
-		SubProcessor:         httpsecSubProcessor,
+		SubProcessor:         appsecSubProcessor, // Universal Instrumentation API mode - nil in the runtime api proxy mode
 	}
 
-	// start the experimental proxy if enabled
-	_ = proxy.Start(
-		"127.0.0.1:9000",
-		"127.0.0.1:9001",
-		serverlessDaemon.InvocationProcessor,
-	)
+	if appsecProxyProcessor != nil {
+		// Runtime API proxy mode
+		ta.ModifySpan = appsecProxyProcessor.WrapSpanModifier(serverlessDaemon.ExecutionContext, ta.ModifySpan)
+	} else if enabled, _ := strconv.ParseBool(os.Getenv("DD_EXPERIMENTAL_ENABLE_PROXY")); enabled {
+		// start the experimental proxy if enabled
+		log.Debug("Starting the experimental runtime api proxy")
+		proxy.Start(
+			"127.0.0.1:9000",
+			"127.0.0.1:9001",
+			serverlessDaemon.InvocationProcessor,
+		)
+	}
 
 	// run the invocation loop in a routine
 	// we don't want to start this mainloop before because once we're waiting on

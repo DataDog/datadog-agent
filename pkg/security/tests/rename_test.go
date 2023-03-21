@@ -72,7 +72,9 @@ func TestRename(t *testing.T) {
 			assertRights(t, event.Rename.New.Mode, expectedMode)
 			assertNearTime(t, event.Rename.New.MTime)
 			assertNearTime(t, event.Rename.New.CTime)
-			assert.Equal(t, event.Async, false)
+
+			value, _ := event.GetFieldValue("async")
+			assert.Equal(t, value.(bool), false)
 
 			test.validateRenameSchema(t, event)
 		})
@@ -101,7 +103,9 @@ func TestRename(t *testing.T) {
 			assertRights(t, event.Rename.New.Mode, expectedMode)
 			assertNearTime(t, event.Rename.New.MTime)
 			assertNearTime(t, event.Rename.New.CTime)
-			assert.Equal(t, event.Async, false)
+
+			value, _ := event.GetFieldValue("async")
+			assert.Equal(t, value.(bool), false)
 
 			test.validateRenameSchema(t, event)
 		})
@@ -131,7 +135,9 @@ func TestRename(t *testing.T) {
 			assertRights(t, event.Rename.New.Mode, expectedMode)
 			assertNearTime(t, event.Rename.New.MTime)
 			assertNearTime(t, event.Rename.New.CTime)
-			assert.Equal(t, event.Async, false)
+
+			value, _ := event.GetFieldValue("async")
+			assert.Equal(t, value.(bool), false)
 
 			test.validateRenameSchema(t, event)
 		})
@@ -186,7 +192,9 @@ func TestRename(t *testing.T) {
 			assertRights(t, event.Rename.New.Mode, expectedMode)
 			assertNearTime(t, event.Rename.New.MTime)
 			assertNearTime(t, event.Rename.New.CTime)
-			assert.Equal(t, event.Async, true)
+
+			value, _ := event.GetFieldValue("async")
+			assert.Equal(t, value.(bool), true)
 
 			executable, err := os.Executable()
 			if err != nil {
