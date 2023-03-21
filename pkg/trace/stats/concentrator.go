@@ -171,8 +171,6 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 		if traceutil.IsPartialSnapshot(s) {
 			continue
 		}
-			continue
-		}
 		end := s.Start + s.Duration
 		btime := end - end%c.bsize
 
