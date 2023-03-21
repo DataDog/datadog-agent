@@ -543,17 +543,75 @@ func TestPeerServiceStats(t *testing.T) {
 	assert.Equal("remote-service", stats.Stats[0].Stats[0].Stats[0].PeerService)
 }
 
-// TestInternalSpanStats tests that we do not calculate stats if span.kind == INTERNAL.
-func TestInternalSpanStats(t *testing.T) {
+// TestRemoteOutboundSpanStats tests that we do calculate stats if span.kind == CLIENT || PRODUCER.
+func TestRemoteOutboundSpanStats(t *testing.T) {
 	assert := assert.New(t)
 	now := time.Now()
-	sp := testSpan(1, 0, 50, 5, "myservice", "rsrc-a", 0)
-	sp.Meta = map[string]string{"span.kind": "INTERNAL"}
-	spans := []*pb.Span{sp}
-	traceutil.ComputeTopLevel(spans)
-	testTrace := toProcessedTrace(spans, "none", "")
-	c := NewTestConcentrator(now)
-	c.addNow(testTrace, "")
-	stats := c.flushNow(now.UnixNano() + int64(c.bufferLen)*testBucketInterval)
-	assert.Empty(stats.Stats)
+
+	serverSpan := func() *pb.Span {
+		return &pb.Span{
+			ParentID: 0,
+			SpanID:   1,
+			Service:  "myservice",
+			Name:     "http.server.request",
+			Resource: "rsrc1",
+			Duration: 100,
+		}
+	}
+	// spansTestCaseFn returns the input spans for test and the expected
+	// number of stats to be exported.
+	type spansTestCaseFn func() ([]*pb.Span, int)
+	for _, testCaseFn := range []spansTestCaseFn{
+		func() ([]*pb.Span, int) {
+			// Make a server span and then a child client span.
+			sp := serverSpan()
+			sp2 := &pb.Span{
+				ParentID: sp.SpanID,
+				SpanID:   2,
+				Service:  "myservice",
+				Name:     "http.client.request",
+				Resource: "client_rsrc1",
+				Meta:     map[string]string{"span.kind": "CLIENT"},
+				Duration: 50,
+			}
+			return []*pb.Span{sp, sp2}, 2
+		},
+		func() ([]*pb.Span, int) {
+			// Make a server span and then a child producer span.
+			sp := serverSpan()
+			sp2 := &pb.Span{
+				ParentID: sp.SpanID,
+				SpanID:   2,
+				Service:  "myservice",
+				Name:     "kafka.send",
+				Resource: "topic1",
+				Meta:     map[string]string{"span.kind": "PRODUCER"},
+				Duration: 50,
+			}
+			return []*pb.Span{sp, sp2}, 2
+		},
+		func() ([]*pb.Span, int) {
+			// Make a server span and then a child internal span (i.e. not CLIENT or PRODUCER).
+			sp := serverSpan()
+			sp2 := &pb.Span{
+				ParentID: sp.SpanID,
+				SpanID:   2,
+				Service:  "myservice",
+				Name:     "internal.op",
+				Resource: "internal_rsrc1",
+				Meta:     map[string]string{"span.kind": "INTERNAL"},
+				Duration: 50,
+			}
+			return []*pb.Span{sp, sp2}, 1
+		},
+	} {
+		spans, expectedStatsLen := testCaseFn()
+		traceutil.ComputeTopLevel(spans)
+		testTrace := toProcessedTrace(spans, "none", "")
+		c := NewTestConcentrator(now)
+		c.addNow(testTrace, "")
+		stats := c.flushNow(now.UnixNano() + int64(c.bufferLen)*testBucketInterval)
+		// There should be two ClientGroupedStats because we have two unique service/op name combinations to count.
+		assert.Len(stats.Stats[0].Stats[0].Stats, expectedStatsLen)
+	}
 }
