@@ -27,7 +27,7 @@ func (ss SSBytes) Swap(i, j int) {
 	ss[i], ss[j] = ss[j], ss[i]
 }
 
-// Search returns the index of element x if found or the length of the SSBytes otherwise.
+// Search returns the index of element x if found or -1 otherwise.
 // SSBytes is expected to be sorted.
 func (ss SSBytes) Search(x []byte) int {
 	i := sort.Search(len(ss), func(i int) bool {
@@ -38,5 +38,5 @@ func (ss SSBytes) Search(x []byte) int {
 		return i
 	}
 
-	return len(ss)
+	return -1
 }

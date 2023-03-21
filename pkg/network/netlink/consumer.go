@@ -437,7 +437,6 @@ func (c *Consumer) dumpAndDiscardTable(family uint8, ns netns.NsHandle) error {
 func (c *Consumer) Stop() {
 	if c.conn != nil {
 		c.conn.Close()
-		c.socket = nil
 	}
 	c.breaker.Stop()
 	c.rootNetNs.Close()

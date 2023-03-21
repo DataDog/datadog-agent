@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/dynamic"
 )
 
@@ -251,11 +252,17 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo) error {
 	}
 
 	for lang, image := range initContainerToInject {
-		injectLibInitContainer(pod, image, lang)
-		err := injectLibConfig(pod, lang)
+		err := injectLibInitContainer(pod, image, lang)
 		if err != nil {
 			metrics.LibInjectionErrors.Inc(string(lang))
 			lastError = err
+			log.Errorf("Cannot inject init container into pod %s: %s", podString(pod), err)
+		}
+		err = injectLibConfig(pod, lang)
+		if err != nil {
+			metrics.LibInjectionErrors.Inc(string(lang))
+			lastError = err
+			log.Errorf("Cannot inject library configuration into pod %s: %s", podString(pod), err)
 		}
 	}
 
@@ -264,22 +271,53 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo) error {
 	return lastError
 }
 
-func injectLibInitContainer(pod *corev1.Pod, image string, lang language) {
+func injectLibInitContainer(pod *corev1.Pod, image string, lang language) error {
 	initCtrName := initContainerName(lang)
 	log.Debugf("Injecting init container named %q with image %q into pod %s", initCtrName, image, podString(pod))
-	pod.Spec.InitContainers = append([]corev1.Container{
-		{
-			Name:    initCtrName,
-			Image:   image,
-			Command: []string{"sh", "copy-lib.sh", mountPath},
-			VolumeMounts: []corev1.VolumeMount{
-				{
-					Name:      volumeName,
-					MountPath: mountPath,
-				},
+	initContainer := corev1.Container{
+		Name:    initCtrName,
+		Image:   image,
+		Command: []string{"sh", "copy-lib.sh", mountPath},
+		VolumeMounts: []corev1.VolumeMount{
+			{
+				Name:      volumeName,
+				MountPath: mountPath,
 			},
 		},
-	}, pod.Spec.InitContainers...)
+	}
+	resources, hasResources, err := initResources()
+	if err != nil {
+		return err
+	}
+	if hasResources {
+		initContainer.Resources = resources
+	}
+	pod.Spec.InitContainers = append([]corev1.Container{initContainer}, pod.Spec.InitContainers...)
+	return nil
+}
+
+func initResources() (corev1.ResourceRequirements, bool, error) {
+	hasResources := false
+	var resources = corev1.ResourceRequirements{Limits: corev1.ResourceList{}, Requests: corev1.ResourceList{}}
+	if config.Datadog.IsSet("admission_controller.auto_instrumentation.init_resources.cpu") {
+		quantity, err := resource.ParseQuantity(config.Datadog.GetString("admission_controller.auto_instrumentation.init_resources.cpu"))
+		if err != nil {
+			return resources, hasResources, err
+		}
+		resources.Requests[corev1.ResourceCPU] = quantity
+		resources.Limits[corev1.ResourceCPU] = quantity
+		hasResources = true
+	}
+	if config.Datadog.IsSet("admission_controller.auto_instrumentation.init_resources.memory") {
+		quantity, err := resource.ParseQuantity(config.Datadog.GetString("admission_controller.auto_instrumentation.init_resources.memory"))
+		if err != nil {
+			return resources, hasResources, err
+		}
+		resources.Requests[corev1.ResourceMemory] = quantity
+		resources.Limits[corev1.ResourceMemory] = quantity
+		hasResources = true
+	}
+	return resources, hasResources, nil
 }
 
 // injectLibRequirements injects the minimal config requirements to enable instrumentation

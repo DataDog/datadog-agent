@@ -32,6 +32,8 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.ProtocolClassifierDBsSocketFilter,
 	probes.TCPSendMsg,
 	probes.TCPSendMsgReturn,
+	probes.TCPSendPage,
+	probes.TCPSendPageReturn,
 	probes.TCPRecvMsg,
 	probes.TCPRecvMsgReturn,
 	probes.TCPReadSock,
@@ -61,8 +63,8 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.Inet6BindRet,
 	probes.SockFDLookup,
 	probes.SockFDLookupRet,
-	probes.DoSendfile,
-	probes.DoSendfileRet,
+	probes.UDPSendPage,
+	probes.UDPSendPageReturn,
 }
 
 func initManager(mgr *manager.Manager, config *config.Config, closedHandler *ebpf.PerfHandler, runtimeTracer bool) {
@@ -80,8 +82,9 @@ func initManager(mgr *manager.Manager, config *config.Config, closedHandler *ebp
 		{Name: probes.SockByPidFDMap},
 		{Name: probes.PidFDBySockMap},
 		{Name: probes.SockFDLookupArgsMap},
-		{Name: probes.DoSendfileArgsMap},
 		{Name: probes.TcpSendMsgArgsMap},
+		{Name: probes.TcpSendPageArgsMap},
+		{Name: probes.UdpSendPageArgsMap},
 		{Name: probes.IpMakeSkbArgsMap},
 		{Name: probes.MapErrTelemetryMap},
 		{Name: probes.HelperErrTelemetryMap},

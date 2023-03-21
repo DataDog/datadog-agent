@@ -19,6 +19,8 @@ import (
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -31,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 // TracerType is the type of the underlying tracer
@@ -65,6 +66,9 @@ type Tracer interface {
 	DumpMaps(maps ...string) (string, error)
 	// Type returns the type of the underlying ebpf tracer that is currently loaded
 	Type() TracerType
+
+	Pause() error
+	Resume() error
 }
 
 const (
@@ -133,14 +137,14 @@ func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTel
 			Max: math.MaxUint64,
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
-			string(probes.ConnMap):                           {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.TCPStatsMap):                       {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.PortBindingsMap):                   {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.UDPPortBindingsMap):                {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.SockByPidFDMap):                    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.PidFDBySockMap):                    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.ConnectionProtocolMap):             {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.ConnectionTupleToSocketSKBConnMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries}},
+			probes.ConnMap:                           {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			probes.TCPStatsMap:                       {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			probes.PortBindingsMap:                   {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			probes.UDPPortBindingsMap:                {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			probes.SockByPidFDMap:                    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			probes.PidFDBySockMap:                    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			probes.ConnectionProtocolMap:             {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			probes.ConnectionTupleToSocketSKBConnMap: {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries}},
 		ConstantEditors: constants,
 	}
 
@@ -190,21 +194,21 @@ func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTel
 		ebpfTracerType: tracerType,
 	}
 
-	tr.conns, _, err = m.GetMap(string(probes.ConnMap))
+	tr.conns, _, err = m.GetMap(probes.ConnMap)
 	if err != nil {
 		tr.Stop()
 		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.ConnMap, err)
 	}
 
-	tr.tcpStats, _, err = m.GetMap(string(probes.TCPStatsMap))
+	tr.tcpStats, _, err = m.GetMap(probes.TCPStatsMap)
 	if err != nil {
 		tr.Stop()
 		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.TCPStatsMap, err)
 	}
 
 	if bpfTelemetry != nil {
-		bpfTelemetry.MapErrMap = tr.GetMap(string(probes.MapErrTelemetryMap))
-		bpfTelemetry.HelperErrMap = tr.GetMap(string(probes.HelperErrTelemetryMap))
+		bpfTelemetry.MapErrMap = tr.GetMap(probes.MapErrTelemetryMap)
+		bpfTelemetry.HelperErrMap = tr.GetMap(probes.HelperErrTelemetryMap)
 	}
 
 	if err := bpfTelemetry.RegisterEBPFTelemetry(m); err != nil {
@@ -236,6 +240,19 @@ func (t *tracer) Start(callback func([]network.ConnectionStats)) (err error) {
 	return nil
 }
 
+func (t *tracer) Pause() error {
+	// add small delay for socket filters to properly detach
+	time.Sleep(1 * time.Millisecond)
+	return t.m.Pause()
+}
+
+func (t *tracer) Resume() error {
+	err := t.m.Resume()
+	// add small delay for socket filters to properly attach
+	time.Sleep(1 * time.Millisecond)
+	return err
+}
+
 func (t *tracer) FlushPending() {
 	t.closeConsumer.FlushPending()
 }
@@ -252,9 +269,9 @@ func (t *tracer) Stop() {
 
 func (t *tracer) GetMap(name string) *ebpf.Map {
 	switch name {
-	case string(probes.SockByPidFDMap):
-	case string(probes.MapErrTelemetryMap):
-	case string(probes.HelperErrTelemetryMap):
+	case probes.SockByPidFDMap:
+	case probes.MapErrTelemetryMap:
+	case probes.HelperErrTelemetryMap:
 	default:
 		return nil
 	}
@@ -376,7 +393,7 @@ func (t *tracer) Remove(conn *network.ConnectionStats) error {
 
 func (t *tracer) getEBPFTelemetry() *netebpf.Telemetry {
 	var zero uint64
-	mp, _, err := t.m.GetMap(string(probes.TelemetryMap))
+	mp, _, err := t.m.GetMap(probes.TelemetryMap)
 	if err != nil {
 		log.Warnf("error retrieving telemetry map: %s", err)
 		return nil
@@ -430,7 +447,7 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 		return fmt.Errorf("failed to read initial TCP pid->port mapping: %s", err)
 	}
 
-	tcpPortMap, _, err := m.GetMap(string(probes.PortBindingsMap))
+	tcpPortMap, _, err := m.GetMap(probes.PortBindingsMap)
 	if err != nil {
 		return fmt.Errorf("failed to get TCP port binding map: %w", err)
 	}
@@ -448,7 +465,7 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 		return fmt.Errorf("failed to read initial UDP pid->port mapping: %s", err)
 	}
 
-	udpPortMap, _, err := m.GetMap(string(probes.UDPPortBindingsMap))
+	udpPortMap, _, err := m.GetMap(probes.UDPPortBindingsMap)
 	if err != nil {
 		return fmt.Errorf("failed to get UDP port binding map: %w", err)
 	}
