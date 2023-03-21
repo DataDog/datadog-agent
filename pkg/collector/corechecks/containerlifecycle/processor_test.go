@@ -33,7 +33,7 @@ func TestProcessQueues(t *testing.T) {
 		},
 		{
 			name: "one container",
-			containersQueue: &queue{data: []model.EventsPayload{
+			containersQueue: &queue{data: []*model.EventsPayload{
 				{Version: "v1", Events: modelEvents("cont1")},
 			}},
 			podsQueue: &queue{},
@@ -43,11 +43,11 @@ func TestProcessQueues(t *testing.T) {
 		},
 		{
 			name: "multiple chunks per types",
-			containersQueue: &queue{data: []model.EventsPayload{
+			containersQueue: &queue{data: []*model.EventsPayload{
 				{Version: "v1", Events: modelEvents("cont1", "cont2")},
 				{Version: "v1", Events: modelEvents("cont3")},
 			}},
-			podsQueue: &queue{data: []model.EventsPayload{
+			podsQueue: &queue{data: []*model.EventsPayload{
 				{Version: "v1", Events: modelEvents("pod1", "pod2")},
 				{Version: "v1", Events: modelEvents("pod3")},
 			}},
