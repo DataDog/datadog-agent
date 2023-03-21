@@ -161,13 +161,15 @@ type SecurityProfileContext struct {
 // Event represents an event sent from the kernel
 // genaccessors
 type Event struct {
-	ID           string         `field:"-" json:"-"`
-	Type         uint32         `field:"-"`
-	Flags        uint32         `field:"-"`
-	Async        bool           `field:"async,handler:ResolveAsync" event:"*"` // SECLDoc[async] Definition:`True if the syscall was asynchronous`
-	TimestampRaw uint64         `field:"-" json:"-"`
-	Timestamp    time.Time      `field:"-"` // Timestamp of the event
-	Rules        []*MatchedRule `field:"-"`
+	ID                      string         `field:"-" json:"-"`
+	Type                    uint32         `field:"-"`
+	Flags                   uint32         `field:"-"`
+	Async                   bool           `field:"async,handler:ResolveAsync" event:"*"` // SECLDoc[async] Definition:`True if the syscall was asynchronous`
+	TimestampRaw            uint64         `field:"-" json:"-"`
+	Timestamp               time.Time      `field:"-"` // Timestamp of the event
+	Rules                   []*MatchedRule `field:"-"`
+	AnomalyDetectionEnabled bool           `field:"-"`
+	AutoSuppressionEnabled  bool           `field:"-"`
 
 	// context shared with all events
 	ProcessCacheEntry      *ProcessCacheEntry     `field:"-" json:"-"`
@@ -283,6 +285,26 @@ func (e *Event) IsSavedByActivityDumps() bool {
 // IsSavedByActivityDumps return whether AD sample
 func (e *Event) IsActivityDumpSample() bool {
 	return e.Flags&EventFlagsActivityDumpSample > 0
+}
+
+// IsSecurityProfileFoundAndAbsent return true if the corresponding flag is set
+func (e *Event) IsSecurityProfileFoundAndAbsent() bool {
+	return e.Flags&EventFlagsSecurityProfileFoundAndAbsent > 0
+}
+
+// IsSecurityProfileFoundAndPresent return true if the corresponding flag is set
+func (e *Event) IsSecurityProfileFoundAndPresent() bool {
+	return e.Flags&EventFlagsSecurityProfileFoundAndPresent > 0
+}
+
+// AddToFlags adds a flag to the event
+func (e *Event) AddToFlags(flag uint32) {
+	e.Flags |= flag
+}
+
+// HaveMatchedAProfile returns true if we found a profile for that event
+func (e *Event) HaveMatchedAProfile() bool {
+	return e.SecurityProfileContext.Name != ""
 }
 
 // GetType returns the event type

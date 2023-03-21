@@ -224,7 +224,10 @@ func (dp *DirectoryProvider) loadProfile(profilePath string) error {
 	if err != nil {
 		return fmt.Errorf("couldn't load profile %s: %w", profilePath, err)
 	}
-	workloadSelector := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", profile.Tags), utils.GetTagValue("image_tag", profile.Tags))
+	workloadSelector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", profile.Tags), utils.GetTagValue("image_tag", profile.Tags))
+	if err != nil {
+		return err
+	}
 
 	// lock selectors and profiles mapping
 	dp.Lock()
