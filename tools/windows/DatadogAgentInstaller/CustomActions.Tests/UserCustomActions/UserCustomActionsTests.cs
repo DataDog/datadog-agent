@@ -80,21 +80,5 @@ namespace CustomActions.Tests.UserCustomActions
                                 // !! The password should be null
                                 string.IsNullOrEmpty(kvp.Value));
         }
-
-        [Theory]
-        [AutoData]
-        public void ProcessDdAgentUserCredentials_Dont_Run_Twice()
-        {
-            Test.Session
-                .Setup(session => session["DDAGENTUSER_PROCESSED_FQ_NAME"]).Returns("not empty");
-
-            Test.Create()
-                .ProcessDdAgentUserCredentials()
-                .Should()
-                .Be(ActionResult.Success);
-
-            Test.Properties.Should()
-                .BeEmpty();
-        }
     }
 }

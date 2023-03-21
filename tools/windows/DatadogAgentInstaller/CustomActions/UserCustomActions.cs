@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.DirectoryServices.ActiveDirectory;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Security.Principal;
+using System.Windows.Forms;
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
@@ -212,14 +214,30 @@ namespace Datadog.CustomActions
             return userFound;
         }
 
-        public ActionResult ProcessDdAgentUserCredentials()
+        /// <summary>
+        /// Processes the DDAGENTUSER_NAME and DDAGENTUSER_PASSWORD properties into formats that can be
+        /// consumed by other custom actions. Also does some basic error handling/checking on the property values.
+        /// </summary>
+        /// <param name="calledFromUIControl"></param>
+        /// <returns></returns>
+        /// <remarks>
+        /// This function must support being called multiple times during the install, as the user can back/next the
+        /// UI multiple times.
+        ///
+        /// When calledFromUIControl is true: sets property DDAgentUser_Valid="True" on success, on error, stores error information in the ErrorModal_ErrorMessage property.
+        /// </remarks>
+        public ActionResult ProcessDdAgentUserCredentials(bool calledFromUIControl = false)
         {
+            // This message is displayed to the customer in a dialog box. Ensure the text is well formatted.
+            string errorDialogMessage = null;
+
             try
             {
-                if (!string.IsNullOrEmpty(_session.Property("DDAGENTUSER_PROCESSED_FQ_NAME")))
+                if (calledFromUIControl)
                 {
-                    // This function has already executed successfully
-                    return ActionResult.Success;
+                    // reset output properties
+                    _session["ErrorModal_ErrorMessage"] = "";
+                    _session["DDAgentUser_Valid"] = "False";
                 }
 
                 var ddAgentUserName = _session.Property("DDAGENTUSER_NAME");
@@ -252,9 +270,15 @@ namespace Datadog.CustomActions
                 var isDomainAccount = false;
                 if (userFound)
                 {
+                    _session.Log($"Found {userName} in {domain} as {nameUse}");
+                    // Ensure name belongs to a user account or special accounts like SYSTEM, and not to a domain, computer or group.
+                    if (nameUse != SID_NAME_USE.SidTypeUser && nameUse != SID_NAME_USE.SidTypeWellKnownGroup)
+                    {
+                        errorDialogMessage = "The name provided is not a user account. Please supply a user account name in the format domain\\username.";
+                        throw new InvalidOperationException(errorDialogMessage);
+                    }
                     _session["DDAGENTUSER_FOUND"] = "true";
                     _session["DDAGENTUSER_SID"] = securityIdentifier.ToString();
-                    _session.Log($"Found {userName} in {domain} as {nameUse}");
                     isServiceAccount = _nativeMethods.IsServiceAccount(securityIdentifier);
                     isDomainAccount = _nativeMethods.IsDomainAccount(securityIdentifier);
                     _session.Log($"\"{domain}\\{userName}\" ({securityIdentifier.Value}, {nameUse}) is a {(isDomainAccount ? "domain" : "local")} {(isServiceAccount ? "service " : string.Empty)}account");
@@ -265,13 +289,15 @@ namespace Datadog.CustomActions
                         if (isDomainController &&
                             !datadogAgentServiceExists)
                         {
-                            throw new InvalidOperationException("Must provide DDAGENTUSER_PASSWORD for non-service accounts on Domain Controllers for first installs.");
+                            errorDialogMessage = "A password was not provided. Passwords are required for non-service accounts on Domain Controllers.";
+                            throw new InvalidOperationException(errorDialogMessage);
                         }
 
                         if (isDomainAccount &&
                             !datadogAgentServiceExists)
                         {
-                            throw new InvalidOperationException("Must provide DDAGENTUSER_PASSWORD for domain accounts.");
+                            errorDialogMessage = "A password was not provided. Passwords are required for domain accounts.";
+                            throw new InvalidOperationException(errorDialogMessage);
                         }
                     }
                 }
@@ -282,7 +308,8 @@ namespace Datadog.CustomActions
 
                     if (isDomainController)
                     {
-                        throw new InvalidOperationException("DDAGENTUSER_NAME must exist on Domain Controllers.");
+                        errorDialogMessage = "The account does not exist. The account must already exist when installing on Domain Controllers.";
+                        throw new InvalidOperationException(errorDialogMessage);
                     }
 
                     ParseUserName(ddAgentUserName, out userName, out domain);
@@ -291,7 +318,8 @@ namespace Datadog.CustomActions
                 if (string.IsNullOrEmpty(userName))
                 {
                     // If userName is empty at this point, then it is likely that the input is malformed
-                    throw new Exception($"Unable to parse username from {ddAgentUserName}");
+                    errorDialogMessage = $"Unable to parse account name from {ddAgentUserName}. Please ensure the account name follows the format domain\\username.";
+                    throw new Exception(errorDialogMessage);
                 }
 
                 if (string.IsNullOrEmpty(domain))
@@ -306,7 +334,8 @@ namespace Datadog.CustomActions
                 if (!userFound &&
                     domain != Environment.MachineName)
                 {
-                    throw new InvalidOperationException("Domain account DDAGENTUSER_NAME must exist on Domain Clients.");
+                    errorDialogMessage = "The account does not exist. Domain accounts must already exist when installing on Domain Clients.";
+                    throw new InvalidOperationException(errorDialogMessage);
                 }
 
                 _session.Log($"Installing with DDAGENTUSER_PROCESSED_NAME={userName} and DDAGENTUSER_PROCESSED_DOMAIN={domain}");
@@ -335,7 +364,30 @@ namespace Datadog.CustomActions
             catch (Exception e)
             {
                 _session.Log($"Error processing ddAgentUser credentials: {e}");
-                return ActionResult.Failure;
+                if (string.IsNullOrEmpty(errorDialogMessage))
+                {
+                    errorDialogMessage = $"An unexpected error occurred while parsing the account name: {e.Message}";
+                }
+
+                if (calledFromUIControl)
+                {
+                    // When called from InstallUISequence we must return success for the modal dialog to show,
+                    // otherwise the installer exits. The control that called this action should check the
+                    // DDAgentUser_Valid property to determine if this function succeeded or failed.
+                    // Error information is contained in the ErrorModal_ErrorMessage property.
+                    _session["ErrorModal_ErrorMessage"] = errorDialogMessage;
+                    _session["DDAgentUser_Valid"] = "False";
+                    return ActionResult.Success;
+                }
+                else
+                {
+                    // When called from InstallExecuteSequence we want to fail on error
+                    return ActionResult.Failure;
+                }
+            }
+            if (calledFromUIControl)
+            {
+                _session["DDAgentUser_Valid"] = "True";
             }
             return ActionResult.Success;
         }
@@ -343,7 +395,13 @@ namespace Datadog.CustomActions
         [CustomAction]
         public static ActionResult ProcessDdAgentUserCredentials(Session session)
         {
-            return new UserCustomActions(new SessionWrapper(session)).ProcessDdAgentUserCredentials();
+            return new UserCustomActions(new SessionWrapper(session)).ProcessDdAgentUserCredentials(calledFromUIControl: false);
+        }
+
+        [CustomAction]
+        public static ActionResult ProcessDdAgentUserCredentialsUI(Session session)
+        {
+            return new UserCustomActions(new SessionWrapper(session)).ProcessDdAgentUserCredentials(calledFromUIControl: true);
         }
 
         public ActionResult ConfigureUser()

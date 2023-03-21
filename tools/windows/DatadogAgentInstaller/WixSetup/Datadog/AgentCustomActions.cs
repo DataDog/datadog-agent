@@ -22,6 +22,7 @@ namespace WixSetup.Datadog
         public ManagedAction ReadRegistryProperties { get; }
 
         public ManagedAction ProcessDdAgentUserCredentials { get; }
+        public ManagedAction ProcessDdAgentUserCredentialsUI { get; }
 
         public ManagedAction PrepareDecompressPythonDistributions { get; }
 
@@ -49,6 +50,12 @@ namespace WixSetup.Datadog
         public ManagedAction StartDDServices { get; }
         public ManagedAction StartDDServicesRollback { get; }
 
+        /// <summary>
+        /// Registers and sequences our custom actions
+        /// </summary>
+        /// <remarks>
+        /// Please refer to https://learn.microsoft.com/en-us/windows/win32/msi/sequencing-custom-actions
+        /// </remarks>
         public AgentCustomActions()
         {
             ReadRegistryProperties = new CustomAction<RegistryCustomActions>(
@@ -261,6 +268,7 @@ namespace WixSetup.Datadog
                 UserCustomActions.ProcessDdAgentUserCredentials,
                 Return.check,
                 // Run at end of "config phase", right before the "make changes" phase.
+                // Ensure no actions that modify the input properties are run after this action.
                 When.Before,
                 Step.InstallInitialize,
                 // Run unless we are being uninstalled.
@@ -272,11 +280,21 @@ namespace WixSetup.Datadog
                            "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME]")
             .HideTarget(true);
 
+            ProcessDdAgentUserCredentialsUI = new CustomAction<UserCustomActions>(
+                new Id(nameof(ProcessDdAgentUserCredentialsUI)),
+                UserCustomActions.ProcessDdAgentUserCredentialsUI
+            )
+            {
+                // Not run in a sequence, run when Next is clicked on ddagentuserdlg
+                Sequence = Sequence.NotInSequence
+            };
+
             OpenMsiLog = new CustomAction<MsiLogCustomActions>(
                 new Id(nameof(OpenMsiLog)),
                 MsiLogCustomActions.OpenMsiLog
             )
             {
+                // Not run in a sequence, run from button on fatalError dialog
                 Sequence = Sequence.NotInSequence
             };
 
@@ -285,6 +303,7 @@ namespace WixSetup.Datadog
                 Flare.SendFlare
             )
             {
+                // Not run in a sequence, run from button on fatalError dialog
                 Sequence = Sequence.NotInSequence
             };
 

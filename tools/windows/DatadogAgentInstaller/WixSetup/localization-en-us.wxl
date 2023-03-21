@@ -62,6 +62,9 @@
 	<String Id ="SendFlareDialogKeyLabel" Overridable="yes" Localizable="yes">Clicking on the Send Flare button will send a diagnostic report to Datadog, including the install logs.</String>
 	<String Id ="SendFlareHelpText" Overridable="yes" Localizable="yes">Submit your email address in the text box below for a follow-up from Datadog support. (Optional)</String>
 
+	<!-- these strings for the error modal dialog -->
+	<String Id ="ErrorModalDialog_Title" Overridable="yes" Localizable="yes">[ProductName] Setup</String>
+
 	<String Id="MsiRMFilesInUse_Title" Overridable="yes">[ProductName] Setup</String>
 	<String Id="MsiRMFilesInUseExit" Overridable="yes">E&amp;xit</String>
 	<String Id="MsiRMFilesInUseBannerBitmap" Overridable="yes">WixUI_Bmp_Banner</String>
