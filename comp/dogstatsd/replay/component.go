@@ -20,7 +20,7 @@ import (
 type Component interface {
 	// TODO: (components) we should remove the configure method once Dogstatsd's lifecycle is managed by FX (start/stop)
 	// Because Dogstatsd can fail at runtime, we can't yet rely on fx to configure and start up the replay feature
-	// since it has no way of knowing if dogstatsd succeeded to start.
+	// since it has no way of knowing if dogstatsd started successfully.
 	Configure() error
 
 	// IsOngoing returns whether a capture is ongoing for this TrafficCapture instance.
