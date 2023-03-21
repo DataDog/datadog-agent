@@ -97,6 +97,15 @@ type RowMetadata struct {
 	QueryTruncated string   `json:"query_truncated,omitempty"`
 }
 
+// Metadata contains the metadata fields common to all events processed
+type Metadata struct {
+	Timestamp      float64 `json:"timestamp,omitempty"`
+	Host           string  `json:"host,omitempty"`
+	Source         string  `json:"ddsource,omitempty"`
+	DBMType        string  `json:"dbm_type,omitempty"`
+	DDAgentVersion string  `json:"ddagentversion,omitempty"`
+}
+
 type OracleActivityRow struct {
 	Now                    string `json:"now"`
 	SessionID              uint64 `json:"sid,omitempty"`
@@ -161,15 +170,6 @@ type OracleActivityRowDB struct {
 	WaitTimeMicro          *uint64        `db:"WAIT_TIME_MICRO"`
 	Statement              sql.NullString `db:"SQL_TEXT"`
 	PdbName                sql.NullString `db:"PDB_NAME"`
-}
-
-// Metadata contains the metadata fields common to all events processed
-type Metadata struct {
-	Timestamp      float64 `json:"timestamp,omitempty"`
-	Host           string  `json:"host,omitempty"`
-	Source         string  `json:"ddsource,omitempty"`
-	DBMType        string  `json:"dbm_type,omitempty"`
-	DDAgentVersion string  `json:"ddagentversion,omitempty"`
 }
 
 func (c *Check) SampleSession() error {
@@ -288,26 +288,27 @@ func (c *Check) SampleSession() error {
 					}
 			*/
 
-			obfuscatedStatement, err := common.GetObfuscatedStatement(o, sample.Statement.String)
+			//obfuscatedStatement, err := common.GetObfuscatedStatement(o, sample.Statement.String)
+			obfuscatedStatement, err := c.GetObfuscatedStatement(o, sample.Statement.String, sessionRow.ForceMatchingSignature, sessionRow.SQLID)
 			sessionRow.Statement = obfuscatedStatement.Statement
 			if err == nil {
 				sessionRow.Commands = obfuscatedStatement.Commands
 				sessionRow.Tables = obfuscatedStatement.Tables
 				sessionRow.Comments = obfuscatedStatement.Comments
 				sessionRow.QuerySignature = obfuscatedStatement.QuerySignature
-			} else {
-				obfuscationError := fmt.Sprintf("Obfuscation error for force_matching_signature: %d, SQL_ID: %s", sessionRow.SQLID, sessionRow.ForceMatchingSignature)
+			} /* else {
+				obfuscationError := fmt.Sprintf("Obfuscation error for force_matching_signature: %s, SQL_ID: %d", sessionRow.SQLID, sessionRow.ForceMatchingSignature)
 				var errorText string
 				if c.config.InstanceConfig.LogUnobfuscatedQueries {
 					errorText = obfuscationError + fmt.Sprintf(" SQL: %s", obfuscatedStatement.Statement)
 				}
 				log.Errorf("%s %s", errorText, err)
 				sessionRow.Statement = obfuscationError
-			}
+			}*/
 
 		}
 		if sample.PdbName.Valid {
-			sessionRow.PdbName = sample.PdbName.String
+			sessionRow.PdbName = c.getFullPDBName(sample.PdbName.String)
 		}
 		sessionRows = append(sessionRows, sessionRow)
 	}

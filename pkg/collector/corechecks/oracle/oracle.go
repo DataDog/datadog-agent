@@ -8,12 +8,14 @@ package oracle
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config"
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	_ "github.com/godror/godror"
@@ -39,6 +41,8 @@ type Check struct {
 	cdbName                                 string
 	statementsFilter                        StatementsFilter
 	statementMetricsMonotonicCountsPrevious map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB
+	dbHostname                              string
+	dbVersion                               string
 }
 
 // Run executes the check.
@@ -118,6 +122,14 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		}
 	}
 
+	if c.dbHostname == "" || c.dbVersion == "" {
+		row := db.QueryRow("SELECT host_name, version FROM v$instance")
+		err = row.Scan(&c.dbHostname, &c.dbVersion)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query db name: %w", err)
+		}
+	}
+
 	return db, nil
 }
 
@@ -165,4 +177,32 @@ func oracleFactory() check.Check {
 
 func init() {
 	core.RegisterCheck(common.IntegrationName, oracleFactory)
+}
+
+func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string, forceMatchingSignature uint64, SQLID string) (common.ObfuscatedStatement, error) {
+	obfuscatedStatement, err := o.ObfuscateSQLString(statement)
+	if err == nil {
+		return common.ObfuscatedStatement{
+			Statement:      obfuscatedStatement.Query,
+			QuerySignature: common.GetQuerySignature(statement),
+			Commands:       obfuscatedStatement.Metadata.Commands,
+			Tables:         strings.Split(obfuscatedStatement.Metadata.TablesCSV, ","),
+			Comments:       obfuscatedStatement.Metadata.Comments,
+		}, nil
+	} else {
+		obfuscationError := fmt.Sprintf("force_matching_signature: %d", forceMatchingSignature)
+		if SQLID != "" {
+			obfuscationError = obfuscationError + fmt.Sprintf(", SQL_ID: %s", SQLID)
+		}
+
+		if c.config.InstanceConfig.LogUnobfuscatedQueries {
+			log.Error(obfuscationError + fmt.Sprintf(" SQL: %s", statement))
+		}
+
+		return common.ObfuscatedStatement{Statement: statement}, err
+	}
+}
+
+func (c *Check) getFullPDBName(pdb string) string {
+	return fmt.Sprintf("%s.%s", c.cdbName, pdb)
 }
