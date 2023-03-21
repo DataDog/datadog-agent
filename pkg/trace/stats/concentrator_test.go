@@ -527,22 +527,6 @@ func TestIgnoresPartialSpans(t *testing.T) {
 	assert.Empty(stats.GetStats())
 }
 
-// TestPeerServiceStats tests that if peer.service is present in the span's meta, we will generate stats with it as an additional field.
-func TestPeerServiceStats(t *testing.T) {
-	assert := assert.New(t)
-	now := time.Now()
-	sp := testSpan(1, 0, 50, 5, "myservice", "rsrc-a", 0)
-	sp.Meta = map[string]string{"peer.service": "remote-service"}
-	spans := []*pb.Span{sp}
-	traceutil.ComputeTopLevel(spans)
-	testTrace := toProcessedTrace(spans, "none", "")
-	c := NewTestConcentrator(now)
-	c.addNow(testTrace, "")
-	stats := c.flushNow(now.UnixNano() + int64(c.bufferLen)*testBucketInterval)
-	assert.EqualValues(1, stats.Stats[0].Stats[0].Stats[0].Hits)
-	assert.Equal("remote-service", stats.Stats[0].Stats[0].Stats[0].PeerService)
-}
-
 // TestRemoteOutgoingSpanStats tests that we do calculate stats if span.kind == CLIENT || PRODUCER.
 func TestRemoteOutgoingSpanStats(t *testing.T) {
 	assert := assert.New(t)
@@ -612,5 +596,43 @@ func TestRemoteOutgoingSpanStats(t *testing.T) {
 		c.addNow(testTrace, "")
 		stats := c.flushNow(now.UnixNano() + int64(c.bufferLen)*testBucketInterval)
 		assert.Len(stats.Stats[0].Stats[0].Stats, expectedStatsLen)
+	}
+}
+
+// TestPeerServiceStats tests that if peer.service is present in the span's meta, we will generate stats with it as an additional field.
+// In the test case below, the peer.service field is on a child CLIENT span.
+func TestPeerServiceStats(t *testing.T) {
+	assert := assert.New(t)
+	now := time.Now()
+	sp := &pb.Span{
+		ParentID: 0,
+		SpanID:   1,
+		Service:  "myservice",
+		Name:     "http.server.request",
+		Resource: "GET /users",
+		Duration: 100,
+	}
+	peerSvcSp := &pb.Span{
+		ParentID: sp.SpanID,
+		SpanID:   2,
+		Service:  "myservice",
+		Name:     "postgres.query",
+		Resource: "SELECT user_id from users WHERE user_name = ?",
+		Duration: 75,
+		Meta:     map[string]string{"span.kind": "CLIENT", "peer.service": "users-db"},
+	}
+	spans := []*pb.Span{sp, peerSvcSp}
+	traceutil.ComputeTopLevel(spans)
+	testTrace := toProcessedTrace(spans, "none", "")
+	c := NewTestConcentrator(now)
+	c.addNow(testTrace, "")
+	stats := c.flushNow(now.UnixNano() + int64(c.bufferLen)*testBucketInterval)
+	assert.Len(stats.Stats[0].Stats[0].Stats, 2)
+	for _, st := range stats.Stats[0].Stats[0].Stats {
+		if st.Name == "postgres.query" {
+			assert.Equal("users-db", st.PeerService)
+		} else {
+			assert.Equal("", st.PeerService)
+		}
 	}
 }
