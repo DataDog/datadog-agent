@@ -71,7 +71,7 @@ func TestPopulateResources(t *testing.T) {
 		ExpectedResources []metrics.Resource
 	}{
 		{
-			[]string{"some:tag", "dd.internal.resource:aws_rds_instance,some_instance_endpoint"},
+			[]string{"some:tag", "dd.internal.resource:aws_rds_instance:some_instance_endpoint"},
 			[]string{"some:tag"},
 			[]metrics.Resource{metrics.Resource{
 				Type: "aws_rds_instance",
@@ -79,7 +79,7 @@ func TestPopulateResources(t *testing.T) {
 			}},
 		},
 		{
-			[]string{"some:tag", "dd.internal.resource:database_instance,some_db_host", "dd.internal.resource:aws_rds_instance,some_instance_endpoint", "some_other:tag"},
+			[]string{"some:tag", "dd.internal.resource:database_instance:some_db_host", "dd.internal.resource:aws_rds_instance:some_instance_endpoint", "some_other:tag"},
 			[]string{"some:tag", "some_other:tag"},
 			[]metrics.Resource{
 				metrics.Resource{
@@ -92,7 +92,7 @@ func TestPopulateResources(t *testing.T) {
 				}},
 		},
 		{
-			[]string{"some:tag", "dd.internal.resource:database_instance,some_db_host", "resource:some_resource_value", "some_other:tag"},
+			[]string{"some:tag", "dd.internal.resource:database_instance:some_db_host", "resource:some_resource_value", "some_other:tag"},
 			[]string{"some:tag", "resource:some_resource_value", "some_other:tag"},
 			[]metrics.Resource{
 				metrics.Resource{
@@ -107,7 +107,7 @@ func TestPopulateResources(t *testing.T) {
 			nil,
 		},
 		{
-			[]string{"some:tag", "dd.internal.resource:type_without_value,", "some_other:tag"},
+			[]string{"some:tag", "dd.internal.resource:type_without_value:", "some_other:tag"},
 			[]string{"some:tag", "some_other:tag"},
 			nil,
 		},
@@ -366,7 +366,7 @@ func makeSeries(numItems, numPoints int) *IterableSeries {
 			Interval: 15,
 			Host:     "localHost",
 			Device:   "SomeDevice",
-			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes", "dd.internal.resource:database_instance,some_instance", "dd.internal.resource:aws_rds_instance,some_endpoint"}),
+			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes", "dd.internal.resource:device:some_other_device", "dd.internal.resource:database_instance:some_instance", "dd.internal.resource:aws_rds_instance:some_endpoint"}),
 		})
 	}
 	return CreateIterableSeries(CreateSerieSource(series))
@@ -386,7 +386,7 @@ func TestMarshalSplitCompress(t *testing.T) {
 		pl := new(gogen.MetricPayload)
 		err = pl.Unmarshal(payload)
 		for _, s := range pl.Series {
-			assert.Equal(t, []*gogen.MetricPayload_Resource{{Type: "host", Name: "localHost"}, {Type: "device", Name: "SomeDevice"}, {Type: "database_instance", Name: "some_instance"}, {Type: "aws_rds_instance", Name: "some_endpoint"}}, s.Resources)
+			assert.Equal(t, []*gogen.MetricPayload_Resource{{Type: "host", Name: "localHost"}, {Type: "device", Name: "SomeDevice"}, {Type: "device", Name: "some_other_device"}, {Type: "database_instance", Name: "some_instance"}, {Type: "aws_rds_instance", Name: "some_endpoint"}}, s.Resources)
 			assert.Equal(t, []string{"tag1", "tag2:yes"}, s.Tags)
 		}
 		require.NoError(t, err)

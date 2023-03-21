@@ -16,6 +16,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
+const (
+	internalResourceTagPrefix    = "dd.internal.resource:"
+	internalResourceTagSeparator = ":"
+)
+
 // Point represents a metric value at a specific time
 type Point struct {
 	Ts    float64
@@ -118,7 +123,7 @@ func (serie *Serie) hasDeviceTag() bool {
 	})
 }
 
-// PopulateResources removes any `dd.internal.resource:` tags in the series tags and uses the values to
+// PopulateResources removes any dd.internal.resource: tags in the series tags and uses the values to
 // populate the Serie.Resources field. The format for the dd.internal.resource tag values is
 // <resource_type>,<resource_name>. Any dd.internal.resource tag not matching the expected format
 // will be dropped.
@@ -132,9 +137,9 @@ func (serie *Serie) PopulateResources() {
 	filteredTags := make([]string, 0, serie.Tags.Len())
 
 	serie.Tags.ForEach(func(tag string) {
-		if strings.HasPrefix(tag, "dd.internal.resource:") {
-			tagVal := tag[21:]
-			commaIdx := strings.Index(tagVal, ",")
+		if strings.HasPrefix(tag, internalResourceTagPrefix) {
+			tagVal := tag[len(internalResourceTagPrefix):]
+			commaIdx := strings.Index(tagVal, internalResourceTagSeparator)
 			if commaIdx > 0 && commaIdx < len(tagVal)-1 {
 				resource := Resource{
 					Type: tagVal[:commaIdx],
@@ -153,7 +158,7 @@ func (serie *Serie) PopulateResources() {
 // hasResourceTag checks whether a series contains a resource tag
 func (serie *Serie) hasResourceTag() bool {
 	return serie.Tags.Find(func(tag string) bool {
-		return strings.HasPrefix(tag, "dd.internal.resource:")
+		return strings.HasPrefix(tag, internalResourceTagPrefix)
 	})
 }
 

@@ -58,7 +58,7 @@ func BenchmarkPopulateResources(b *testing.B) {
 			for i := 0; i < tc.tagCount; i++ {
 				tags = append(tags, "some:tag")
 			}
-			t := tagset.CompositeTagsFromSlice(append(tags, "resource:database_instance,somedb", "resource:aws_rds_instance,endpoint"))
+			t := tagset.CompositeTagsFromSlice(append(tags, "dd.internal.resource:database_instance:somedb", "dd.internal_resource:aws_rds_instance:endpoint"))
 
 			serie := &metrics.Serie{
 				Tags: t,
