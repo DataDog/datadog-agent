@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	tagStatusCode = "http.status_code"
-	tagSynthetics = "synthetics"
+	tagStatusCode  = "http.status_code"
+	tagSynthetics  = "synthetics"
+	tagPeerService = "peer.service"
 )
 
 // Aggregation contains all the dimension on which we aggregate statistics.
@@ -70,7 +71,7 @@ func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregation
 		BucketsAggregationKey: BucketsAggregationKey{
 			Resource:    s.Resource,
 			Service:     s.Service,
-			PeerService: s.Meta["peer.service"],
+			PeerService: s.Meta[tagPeerService],
 			Name:        s.Name,
 			Type:        s.Type,
 			StatusCode:  getStatusCode(s),

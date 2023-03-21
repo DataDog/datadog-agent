@@ -215,3 +215,25 @@ func TestIsPartialSnapshot(t *testing.T) {
 	span.Metrics = map[string]float64{"_dd.partial_version": float64(rand.Uint32())}
 	assert.True(IsPartialSnapshot(span), "Any value in partialVersion key will mark the span as incomplete")
 }
+
+func TestIsInternal(t *testing.T) {
+	assert := assert.New(t)
+	span := &pb.Span{}
+
+	assert.False(IsInternal(span))
+
+	span.Meta = map[string]string{"span.kind": ""}
+	assert.False(IsInternal(span))
+
+	span.Meta = map[string]string{"span.kind": "SERVER"}
+	assert.False(IsInternal(span))
+
+	span.Meta = map[string]string{"span.kind": "server"}
+	assert.False(IsInternal(span))
+
+	span.Meta = map[string]string{"span.kind": "INTERNAL"}
+	assert.True(IsInternal(span))
+
+	span.Meta = map[string]string{"span.kind": "internal"}
+	assert.True(IsInternal(span))
+}

@@ -542,3 +542,18 @@ func TestPeerServiceStats(t *testing.T) {
 	assert.EqualValues(1, stats.Stats[0].Stats[0].Stats[0].Hits)
 	assert.Equal("remote-service", stats.Stats[0].Stats[0].Stats[0].PeerService)
 }
+
+// TestInternalSpanStats tests that we do not calculate stats if span.kind == INTERNAL.
+func TestInternalSpanStats(t *testing.T) {
+	assert := assert.New(t)
+	now := time.Now()
+	sp := testSpan(1, 0, 50, 5, "myservice", "rsrc-a", 0)
+	sp.Meta = map[string]string{"span.kind": "INTERNAL"}
+	spans := []*pb.Span{sp}
+	traceutil.ComputeTopLevel(spans)
+	testTrace := toProcessedTrace(spans, "none", "")
+	c := NewTestConcentrator(now)
+	c.addNow(testTrace, "")
+	stats := c.flushNow(now.UnixNano() + int64(c.bufferLen)*testBucketInterval)
+	assert.Empty(stats.Stats)
+}
