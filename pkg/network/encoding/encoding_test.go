@@ -494,6 +494,25 @@ func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCo
 			): httpReqStats,
 		},
 	}
+	if runtime.GOOS == "windows" {
+		/*
+		 * on Windows, there are separate http transactions for
+		 * each side of the connection.  And they're kept separate,
+		 * and keyed separately.  Address this condition until the
+		 * platforms are resynced
+		 */
+		httpKeyWin := http.NewKey(
+			localhost,
+			localhost,
+			serverPort,
+			clientPort,
+			"/testpath",
+			true,
+			http.MethodGet,
+		)
+
+		in.HTTP[httpKeyWin] = httpReqStats
+	}
 
 	httpOut := &model.HTTPAggregations{
 		EndpointAggregations: []*model.HTTPStats{

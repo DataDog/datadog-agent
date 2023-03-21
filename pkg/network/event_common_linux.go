@@ -8,6 +8,10 @@
 
 package network
 
+import (
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+)
+
 // Sub returns s-other.
 //
 // This implementation is different from the implementation on
@@ -50,4 +54,19 @@ func (s StatCounters) Sub(other StatCounters) (sc StatCounters, underflow bool) 
 	}
 
 	return sc, false
+}
+
+// HTTPKeyTuplesFromConn build the key for the http map based on whether the local or remote side is http.
+func HTTPKeyTuplesFromConn(c ConnectionStats) []http.KeyTuple {
+	// Retrieve translated addresses
+	laddr, lport := GetNATLocalAddress(c)
+	raddr, rport := GetNATRemoteAddress(c)
+
+	// HTTP data is always indexed as (client, server), but we don't know which is the remote
+	// and which is the local address. To account for this, we'll construct 2 possible
+	// http keys and check for both of them in our http aggregations map.
+	return []http.KeyTuple{
+		http.NewKeyTuple(laddr, raddr, lport, rport),
+		http.NewKeyTuple(raddr, laddr, rport, lport),
+	}
 }
