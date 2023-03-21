@@ -78,6 +78,7 @@ namespace WixSetup.Datadog
                     CreateUser = true
                 },
                 new Property("MsiLogging", "iwearucmop!"),
+                new Property("MSIRESTARTMANAGERCONTROL", "Disable"),
                 new Property("APIKEY")
                 {
                     AttributesDefinition = "Hidden=yes;Secure=yes"
