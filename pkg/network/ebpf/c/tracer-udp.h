@@ -382,7 +382,7 @@ int kprobe__ip6_make_skb(struct pt_regs *ctx) {
     size_t len = (size_t)PT_REGS_PARM4(ctx);
     // commit: https://github.com/torvalds/linux/commit/26879da58711aa604a1b866cbeedd7e0f78f90ad
     // changed the arguments to ip6_make_skb and introduced the struct ipcm6_cookie
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
+#if !defined(COMPILE_RUNTIME) || LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
     struct flowi6 *fl6 = (struct flowi6 *)PT_REGS_PARM7(ctx);
 #else
     struct flowi6 *fl6 = (struct flowi6 *)PT_REGS_PARM9(ctx);

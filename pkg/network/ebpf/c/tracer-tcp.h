@@ -14,7 +14,7 @@
 SEC("kprobe/tcp_recvmsg")
 int kprobe__tcp_recvmsg(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+#if defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
     void *parm = (void*)PT_REGS_PARM2(ctx);
     int flags = (int)PT_REGS_PARM6(ctx);
 #else
@@ -120,7 +120,7 @@ SEC("kprobe/tcp_sendmsg")
 int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("kprobe/tcp_sendmsg: pid_tgid: %d\n", pid_tgid);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+#if defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
     struct sock *parm1 = (struct sock *)PT_REGS_PARM2(ctx);
 #else
     struct sock *parm1 = (struct sock *)PT_REGS_PARM1(ctx);
