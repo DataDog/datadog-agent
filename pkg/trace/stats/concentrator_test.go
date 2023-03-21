@@ -543,8 +543,8 @@ func TestPeerServiceStats(t *testing.T) {
 	assert.Equal("remote-service", stats.Stats[0].Stats[0].Stats[0].PeerService)
 }
 
-// TestRemoteOutboundSpanStats tests that we do calculate stats if span.kind == CLIENT || PRODUCER.
-func TestRemoteOutboundSpanStats(t *testing.T) {
+// TestRemoteOutgoingSpanStats tests that we do calculate stats if span.kind == CLIENT || PRODUCER.
+func TestRemoteOutgoingSpanStats(t *testing.T) {
 	assert := assert.New(t)
 	now := time.Now()
 

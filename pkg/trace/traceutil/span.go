@@ -34,10 +34,10 @@ func HasTopLevel(s *pb.Span) bool {
 	return s.Metrics[topLevelKey] == 1
 }
 
-// IsRemoteOutbound returns true if the span's `span.kind` field is equal to CLIENT or PRODUCER,
+// IsRemoteOutgoing returns true if the span's `span.kind` field is equal to CLIENT or PRODUCER,
 // both of which are "remote outgoing" spans.
 // (https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/api.md#spankind)
-func IsRemoteOutbound(s *pb.Span) bool {
+func IsRemoteOutgoing(s *pb.Span) bool {
 	kind := strings.ToUpper(s.Meta[spanKindKey])
 	if kind != "" && (kind == "CLIENT" || kind == "PRODUCER") {
 		return true

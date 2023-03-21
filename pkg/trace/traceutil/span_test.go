@@ -216,36 +216,36 @@ func TestIsPartialSnapshot(t *testing.T) {
 	assert.True(IsPartialSnapshot(span), "Any value in partialVersion key will mark the span as incomplete")
 }
 
-func TestIsRemoteOutbound(t *testing.T) {
+func TestIsRemoteOutgoing(t *testing.T) {
 	assert := assert.New(t)
 	span := &pb.Span{}
 
-	assert.False(IsRemoteOutbound(span))
+	assert.False(IsRemoteOutgoing(span))
 
 	span.Meta = map[string]string{"span.kind": ""}
-	assert.False(IsRemoteOutbound(span))
+	assert.False(IsRemoteOutgoing(span))
 
 	span.Meta = map[string]string{"span.kind": "SERVER"}
-	assert.False(IsRemoteOutbound(span))
+	assert.False(IsRemoteOutgoing(span))
 
 	span.Meta = map[string]string{"span.kind": "server"}
-	assert.False(IsRemoteOutbound(span))
+	assert.False(IsRemoteOutgoing(span))
 
 	span.Meta = map[string]string{"span.kind": "INTERNAL"}
-	assert.False(IsRemoteOutbound(span))
+	assert.False(IsRemoteOutgoing(span))
 
 	span.Meta = map[string]string{"span.kind": "internal"}
-	assert.False(IsRemoteOutbound(span))
+	assert.False(IsRemoteOutgoing(span))
 
 	span.Meta = map[string]string{"span.kind": "CLIENT"}
-	assert.True(IsRemoteOutbound(span))
+	assert.True(IsRemoteOutgoing(span))
 
 	span.Meta = map[string]string{"span.kind": "client"}
-	assert.True(IsRemoteOutbound(span))
+	assert.True(IsRemoteOutgoing(span))
 
 	span.Meta = map[string]string{"span.kind": "PRODUCER"}
-	assert.True(IsRemoteOutbound(span))
+	assert.True(IsRemoteOutgoing(span))
 
 	span.Meta = map[string]string{"span.kind": "producer"}
-	assert.True(IsRemoteOutbound(span))
+	assert.True(IsRemoteOutgoing(span))
 }
