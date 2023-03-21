@@ -184,7 +184,7 @@ static __always_inline int handle_ret_udp_recvmsg_pre_4_7_0(int copied, void *ud
     return 0;
 }
 
-SEC("kprobe/udp_recvmsg/pre_4_7_0")
+SEC("kprobe/udp_recvmsg")
 int kprobe__udp_recvmsg_pre_4_7_0(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     struct msghdr *msg = (struct msghdr *)PT_REGS_PARM2(ctx);
@@ -192,7 +192,7 @@ int kprobe__udp_recvmsg_pre_4_7_0(struct pt_regs *ctx) {
     handle_udp_recvmsg(sk, msg, flags, udp_recv_sock);
 }
 
-SEC("kprobe/udpv6_recvmsg/pre_4_7_0")
+SEC("kprobe/udpv6_recvmsg")
 int kprobe__udpv6_recvmsg_pre_4_7_0(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     struct msghdr *msg = (struct msghdr *)PT_REGS_PARM2(ctx);
@@ -216,13 +216,13 @@ int kprobe__udpv6_recvmsg_pre_4_1_0(struct pt_regs *ctx) {
     handle_udp_recvmsg(sk, msg, flags, udpv6_recv_sock);
 }
 
-SEC("kretprobe/udp_recvmsg/pre_4_7_0")
+SEC("kretprobe/udp_recvmsg")
 int kretprobe__udp_recvmsg_pre_4_7_0(struct pt_regs *ctx) {
     int copied = (int)PT_REGS_RC(ctx);
     return handle_ret_udp_recvmsg_pre_4_7_0(copied, &udp_recv_sock);
 }
 
-SEC("kretprobe/udpv6_recvmsg/pre_4_7_0")
+SEC("kretprobe/udpv6_recvmsg")
 int kretprobe__udpv6_recvmsg_pre_4_7_0(struct pt_regs *ctx) {
     int copied = (int)PT_REGS_RC(ctx);
     return handle_ret_udp_recvmsg_pre_4_7_0(copied, &udpv6_recv_sock);
