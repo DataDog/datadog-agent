@@ -6,6 +6,8 @@
 package hostinfo
 
 import (
+	"fmt"
+
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -28,7 +30,7 @@ func newHostInfo(deps dependencies) (Component, error) {
 	hinfo, err := checks.CollectHostInfo()
 	if err != nil {
 		_ = deps.Logger.Critical("Error collecting host details:", err)
-		return nil, err
+		return nil, fmt.Errorf("error collecting host details: %v", err)
 	}
 	return &hostinfo{hostinfo: hinfo}, nil
 }
