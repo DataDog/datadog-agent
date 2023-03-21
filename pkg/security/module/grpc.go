@@ -8,14 +8,19 @@
 package module
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
 	"sync"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
+	processnet "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type GRPCServer struct {
@@ -25,13 +30,71 @@ type GRPCServer struct {
 	socketPath  string
 }
 
+type info struct {
+	credentials.CommonAuthInfo
+}
+
+// AuthType returns the type of info as a string.
+func (info) AuthType() string {
+	return "unix socket"
+}
+
+type grpcUnixSocketTransportCredential struct {
+	allowedUsrID int
+	allowedGrpID int
+}
+
+func (gustc grpcUnixSocketTransportCredential) ClientHandshake(ctx context.Context, authority string, conn net.Conn) (net.Conn, credentials.AuthInfo, error) {
+	return conn, info{credentials.CommonAuthInfo{SecurityLevel: credentials.NoSecurity}}, nil
+}
+
+func (gustc grpcUnixSocketTransportCredential) ServerHandshake(conn net.Conn) (net.Conn, credentials.AuthInfo, error) {
+	unixConn, ok := conn.(*net.UnixConn)
+	if !ok {
+		return conn, info{credentials.CommonAuthInfo{SecurityLevel: credentials.NoSecurity}}, nil
+	}
+	valid, err := processnet.IsUnixNetConnValid(unixConn, gustc.allowedUsrID, gustc.allowedGrpID)
+	if err != nil || !valid {
+		if err != nil {
+			log.Errorf("unix socket %s -> %s closing connection, error %s", unixConn.LocalAddr(), unixConn.RemoteAddr(), err)
+		}
+		if !valid {
+			log.Debugf("unix socket %s -> %s closing connection, rejected", unixConn.LocalAddr(), unixConn.RemoteAddr())
+		}
+		// reject the connection
+		conn.Close()
+	}
+	return conn, info{credentials.CommonAuthInfo{SecurityLevel: credentials.PrivacyAndIntegrity}}, nil
+}
+
+func (gustc grpcUnixSocketTransportCredential) Info() credentials.ProtocolInfo {
+	return credentials.ProtocolInfo{SecurityProtocol: "unix socket"}
+}
+
+func (gustc grpcUnixSocketTransportCredential) Clone() credentials.TransportCredentials {
+	return grpcUnixSocketTransportCredential{gustc.allowedUsrID, gustc.allowedGrpID}
+}
+
+func (gustc grpcUnixSocketTransportCredential) OverrideServerName(string) error {
+	return nil
+}
+
 func NewGRPCServer(socketPath string) *GRPCServer {
 	// force socket cleanup of previous socket not cleanup
 	_ = os.Remove(socketPath)
 
+	allowedUsrID, allowedGrpID, err := filesystem.UserDDAgent()
+	if err != nil {
+		// if user dd-agent doesn't exist, map to root
+		allowedUsrID = 0
+		allowedGrpID = 0
+	}
+
 	return &GRPCServer{
 		socketPath: socketPath,
-		server:     grpc.NewServer(),
+		server: grpc.NewServer(grpc.Creds(grpcUnixSocketTransportCredential{
+			allowedUsrID: allowedUsrID,
+			allowedGrpID: allowedGrpID})),
 	}
 }
 
