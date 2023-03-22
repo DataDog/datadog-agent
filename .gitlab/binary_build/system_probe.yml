@@ -25,6 +25,8 @@
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/http-debug.o $S3_ARTIFACTS_URI/http-debug.o.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/dns.o $S3_ARTIFACTS_URI/dns.o.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/dns-debug.o $S3_ARTIFACTS_URI/dns-debug.o.$ARCH
+    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/conntrack.o $S3_ARTIFACTS_URI/conntrack.o.$ARCH
+    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/conntrack-debug.o $S3_ARTIFACTS_URI/conntrack-debug.o.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime-security.o $S3_ARTIFACTS_URI/runtime-security.o.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime-security-syscall-wrapper.o $S3_ARTIFACTS_URI/runtime-security-syscall-wrapper.o.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime-security-offset-guesser.o $S3_ARTIFACTS_URI/runtime-security-offset-guesser.o.$ARCH

@@ -34,13 +34,13 @@ def get_with_retries(uri_or_host, path, port, max_retries=10)
   retries = 0
   begin
     return Net::HTTP.get(uri_or_host, path, port)
-  rescue Error
+  rescue Exception => e
     if retries < max_retries
       retries += 1
       sleep 1
       retry
     else
-      raise "Failed to connect to a running agent"
+      raise # if we're out of retries, raise the last exception
     end
   end
 end

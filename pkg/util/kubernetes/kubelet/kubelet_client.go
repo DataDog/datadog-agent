@@ -264,9 +264,9 @@ func checkKubeletConnection(ctx context.Context, scheme string, port int, prefix
 	for _, ip := range hosts.ips {
 		// If `ip` is an IPv6, it must be enclosed in square brackets
 		if ipv6Re.MatchString(ip) {
-			clientConfig.baseURL = fmt.Sprintf("[%s]:%d", ip, port)
+			clientConfig.baseURL = fmt.Sprintf("[%s]:%d%s", ip, port, prefix)
 		} else {
-			clientConfig.baseURL = fmt.Sprintf("%s:%d", ip, port)
+			clientConfig.baseURL = fmt.Sprintf("%s:%d%s", ip, port, prefix)
 		}
 
 		log.Debugf("Trying to reach Kubelet at: %s", clientConfig.baseURL)

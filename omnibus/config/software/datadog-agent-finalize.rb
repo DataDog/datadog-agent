@@ -196,6 +196,7 @@ build do
             strip_exclude("*http*")
             strip_exclude("*runtime-security*")
             strip_exclude("*dns*")
+            strip_exclude("*conntrack*")
             strip_exclude("*oom-kill*")
             strip_exclude("*tcp-queue-length*")
         end

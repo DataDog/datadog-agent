@@ -63,8 +63,8 @@ type WindowsServiceInfo struct {
 // NewServiceExtractor instantiates a new service discovery extractor
 func NewServiceExtractor() *ServiceExtractor {
 	var (
-		enabled               = ddconfig.Datadog.GetBool("service_monitoring_config.process_service_inference.enabled")
-		useWindowsServiceName = ddconfig.Datadog.GetBool("service_monitoring_config.process_service_inference.use_windows_service_name")
+		enabled               = ddconfig.SystemProbe.GetBool("service_monitoring_config.process_service_inference.enabled")
+		useWindowsServiceName = ddconfig.SystemProbe.GetBool("service_monitoring_config.process_service_inference.use_windows_service_name")
 	)
 	return &ServiceExtractor{
 		enabled:               enabled,

@@ -15,9 +15,8 @@ import (
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/pkg/config"
 
-	// Required for the expvar init hooks to be called
-	// TODO: (components) Remove this when dogstatsd/server.go is migrated to a component
-	_ "github.com/DataDog/datadog-agent/pkg/dogstatsd"
+	// Required to initialize the "dogstatsd" expvar
+	_ "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 )
 
 func TestCreateSecurityAgentArchive(t *testing.T) {

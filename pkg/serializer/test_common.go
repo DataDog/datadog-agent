@@ -71,22 +71,7 @@ func (s *MockSerializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hos
 	return s.Called(msgs, hostName, clusterID, payloadType).Error(0)
 }
 
-// SendContainerLifecycleEvent serializes & sends container lifecycle event payloads
-func (s *MockSerializer) SendContainerLifecycleEvent(msgs []ContainerLifecycleMessage, hostname string) error {
-	return s.Called(msgs, hostname).Error(0)
-}
-
-// SendContainerImage serializes & sends container image payloads
-func (s *MockSerializer) SendContainerImage(msgs []ContainerImageMessage, hostname string) error {
-	return s.Called(msgs, hostname).Error(0)
-}
-
-// SendSBOM serializes & sends SBOM payloads
-func (s *MockSerializer) SendSBOM(msgs []SBOMMessage, hostname string) error {
-	return s.Called(msgs, hostname).Error(0)
-}
-
-// SendOrchestratorManifests serializes & sends orchestrator manifest payloads
+// SendOrchestratorManifests serializes & send orchestrator manifest payloads
 func (s *MockSerializer) SendOrchestratorManifests(msgs []ProcessMessageBody, hostName, clusterID string) error {
 	return s.Called(msgs, hostName, clusterID).Error(0)
 }
