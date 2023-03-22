@@ -20,7 +20,7 @@ if ohai["platform"] != "windows"
   dependency "libyaml"
 
   source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
-         :sha256 => "71ca9d935637ed2feb59e90a368361dc91eca472a90acb1d344a2e8178ccaf10"
+         :sha256 => "1ad539e9dbd2b42df714b69726e0693bc6b9d2d2c8e91c2e43204026605140c5"
 
   relative_path "Python-#{version}"
 
