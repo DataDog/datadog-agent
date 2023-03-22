@@ -261,5 +261,4 @@ func getHelmValues(fb flarehelpers.FlareBuilder) error {
 	}
 
 	return nil
-
 }

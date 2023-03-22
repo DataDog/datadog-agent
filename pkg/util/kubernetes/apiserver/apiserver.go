@@ -694,7 +694,6 @@ func (c *APIClient) GetARandomNodeName(ctx context.Context) (string, error) {
 // Retrieve a DaemonSet YAML from the API server for a given name and namespace, and returns the associated YAML manifest into a a byte array.
 // Its purpose is to retrieve the Datadog Agent DaemonSet manifest when building a Cluster Agent flare.
 func GetDs(cl *APIClient, name string, namespace string) ([]byte, error) {
-
 	var b bytes.Buffer
 
 	ds, err := cl.Cl.AppsV1().DaemonSets(namespace).Get(context.TODO(), name, metav1.GetOptions{})
@@ -713,7 +712,6 @@ func GetDs(cl *APIClient, name string, namespace string) ([]byte, error) {
 // Retrieve a Deployment YAML from the API server for a given name and namespace, and returns the associated YAML manifest into a a byte array.
 // Its purpose is to retrieve the Datadog Cluster Agent Deployment manifest when building a Cluster Agent flare.
 func GetDeploy(cl *APIClient, name string, namespace string) ([]byte, error) {
-
 	var b bytes.Buffer
 
 	deploy, err := cl.Cl.AppsV1().Deployments(namespace).Get(context.TODO(), name, metav1.GetOptions{})
@@ -770,7 +768,7 @@ func getConfigmapList(cl *APIClient, namespace string) ([]v1.ConfigMap, error) {
 func getSecretList(cl *APIClient, namespace string) ([]v1.Secret, error) {
 	secrets, err := cl.Cl.CoreV1().Secrets(namespace).List(context.TODO(), metav1.ListOptions{TimeoutSeconds: &cl.timeoutSeconds})
 	if err != nil {
-		log.Errorf("Can't list configmaps from the API server: %s", err.Error())
+		log.Errorf("Can't list secrets from the API server: %s", err.Error())
 		return nil, err
 	}
 	return secrets.Items, nil
