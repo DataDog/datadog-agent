@@ -156,8 +156,8 @@ int kprobe__ip6_make_skb(struct pt_regs *ctx) {
     struct flowi6 *fl6 = (struct flowi6 *)PT_REGS_PARM7(ctx);
     bpf_probe_read_kernel_with_telemetry(&args.fl6, sizeof(args.fl6), &fl6);
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
-    struct inet_cork_full cork = (struct sock *)PT_REGS_PARM9(ctx);
-    bpf_probe_read_kernel_with_telemetry(&args.fl6, sizeof(args.fl6), cork.fl.u.ip6);
+    struct inet_cork_full cork = (struct inet_cork_full *)PT_REGS_PARM9(ctx);
+    bpf_probe_read_kernel_with_telemetry(&args.fl6, sizeof(args.fl6), &(cork->fl.u.ip6));
 #else
     struct flowi6 *fl6 = (struct flowi6 *)PT_REGS_PARM9(ctx);
     bpf_probe_read_kernel_with_telemetry(&args.fl6, sizeof(args.fl6), &fl6);
