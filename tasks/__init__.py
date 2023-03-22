@@ -10,6 +10,7 @@ from . import (
     bench,
     cluster_agent,
     cluster_agent_cloudfoundry,
+    components,
     customaction,
     docker,
     dogstatsd,
@@ -101,6 +102,7 @@ ns.add_task(fuzz)
 ns.add_collection(agent)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
+ns.add_collection(components)
 ns.add_collection(customaction)
 ns.add_collection(bench)
 ns.add_collection(trace_agent)

@@ -106,11 +106,6 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.block_profile_rate"), 0)
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.enable_goroutine_stacktraces"), false)
 
-	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.enabled"), false)
-	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.hierarchy"), "v1")
-	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.pressure_levels"), map[string]string{})
-	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.thresholds"), map[string]string{})
-
 	// ebpf general settings
 	cfg.BindEnvAndSetDefault(join(spNS, "bpf_debug"), false)
 	cfg.BindEnvAndSetDefault(join(spNS, "bpf_dir"), defaultSystemProbeBPFDir, "DD_SYSTEM_PROBE_BPF_DIR")
@@ -255,7 +250,7 @@ func InitSystemProbeConfig(cfg Config) {
 	// enable/disable use of root net namespace
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_root_netns"), true)
 
-	// CWS
+	// CWS - general config
 	cfg.BindEnvAndSetDefault("runtime_security_config.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.fim_enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.dir", DefaultRuntimePoliciesDir)
@@ -272,7 +267,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.self_test.send_report", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.remote_configuration.enabled", false)
 
-	// Activity Dump
+	// CWS - activity dump
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cleanup_period", 30)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.tags_resolution_period", 60)
@@ -291,11 +286,17 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.compression", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.syscall_monitor.period", 60)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.max_dump_count_per_workload", 25)
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.tag_rules.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.tag_rules.enabled", true)
 
-	// SBOM
+	// CWS - SBOM
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.workloads_cache_size", 10)
+
+	// CWS - Security Profiles
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.dir", DefaultSecurityProfilesDir)
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.watch_dir", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.cache_size", 10)
 }
 
 func join(pieces ...string) string {

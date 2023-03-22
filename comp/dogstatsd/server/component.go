@@ -7,8 +7,6 @@
 package server
 
 import (
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
@@ -27,9 +25,6 @@ type Component interface {
 
 	// IsRunning returns true if the server is running
 	IsRunning() bool
-
-	// Capture starts a new dogstatsd traffic capture, returns the capture path if successful
-	Capture(p string, d time.Duration, compressed bool) (string, error)
 
 	// GetJSONDebugStats returns a json representation of debug stats
 	GetJSONDebugStats() ([]byte, error)
@@ -63,8 +58,7 @@ var Module = fxutil.Component(
 	fx.Provide(newServer),
 )
 
-// TODO: Create a mock version once dogstatsd server is migrated
 // MockModule defines the fx options for the mock component.
-// var MockModule = fxutil.Component(
-// fx.Provide(newMock),
-// )
+var MockModule = fxutil.Component(
+	fx.Provide(newMock),
+)

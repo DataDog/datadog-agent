@@ -19,10 +19,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/pkg/security/activitydump"
-	adconfig "github.com/DataDog/datadog-agent/pkg/security/activitydump/config"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+	adconfig "github.com/DataDog/datadog-agent/pkg/security/security_profile/dump/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -319,7 +319,7 @@ func generateEncodingFromActivityDump(log log.Component, config config.Component
 
 	} else {
 		// encoding request will be handled locally
-		ad := activitydump.NewEmptyActivityDump()
+		ad := dump.NewEmptyActivityDump()
 
 		// open and parse input file
 		if err := ad.Decode(activityDumpArgs.file); err != nil {
@@ -343,7 +343,7 @@ func generateEncodingFromActivityDump(log log.Component, config config.Component
 			return fmt.Errorf("couldn't load configuration: %w", err)
 
 		}
-		storage, err := activitydump.NewActivityDumpStorageManager(cfg, nil, nil)
+		storage, err := dump.NewActivityDumpStorageManager(cfg, nil, nil)
 		if err != nil {
 			return fmt.Errorf("couldn't instantiate storage manager: %w", err)
 		}

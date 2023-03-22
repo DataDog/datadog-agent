@@ -34,7 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/security/activitydump"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	kernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
@@ -54,6 +53,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -122,7 +122,7 @@ type Probe struct {
 	eventStream EventStream
 
 	// ActivityDumps section
-	activityDumpHandler activitydump.ActivityDumpHandler
+	activityDumpHandler dump.ActivityDumpHandler
 
 	// Approvers / discarders section
 	Erpc                               *erpc.ERPC
@@ -331,7 +331,7 @@ func (p *Probe) Start() error {
 }
 
 // AddActivityDumpHandler set the probe activity dump handler
-func (p *Probe) AddActivityDumpHandler(handler activitydump.ActivityDumpHandler) {
+func (p *Probe) AddActivityDumpHandler(handler dump.ActivityDumpHandler) {
 	p.activityDumpHandler = handler
 }
 

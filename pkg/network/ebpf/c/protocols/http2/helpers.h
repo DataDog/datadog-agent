@@ -32,11 +32,7 @@ static __always_inline bool read_http2_frame_header(const char *buf, size_t buf_
     out->length = bpf_ntohl(out->length << 8);
     out->stream_id = bpf_ntohl(out->stream_id << 1);
 
-    if (out->type > HTTP2_MAX_FRAME_TYPE) {
-        return false;
-    }
-
-    return true;
+    return out->type <= kContinuationFrame;
 }
 
 // The method checks if the given buffer starts with the HTTP2 marker as defined in https://datatracker.ietf.org/doc/html/rfc7540.

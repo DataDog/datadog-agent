@@ -22,7 +22,6 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -107,7 +106,11 @@ type Resolver struct {
 }
 
 // NewSBOMResolver returns a new instance of Resolver
+<<<<<<< HEAD
 func NewSBOMResolver(c *Config, tagsResolver *tags.Resolver, statsdClient statsd.ClientInterface) (*Resolver, error) {
+=======
+func NewSBOMResolver(c *config.Config, statsdClient statsd.ClientInterface) (*Resolver, error) {
+>>>>>>> origin/main
 	tmpDir, err := temp.CreateTempDir("sbom-resolver")
 	if err != nil {
 		return nil, err

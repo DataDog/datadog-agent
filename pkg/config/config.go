@@ -7,6 +7,7 @@ package config
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -73,6 +74,9 @@ const (
 
 	// DefaultRuntimePoliciesDir is the default policies directory used by the runtime security module
 	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
+
+	// DefaultSecurityProfilesDir is the default directory used to store Security Profiles by the runtime security module
+	DefaultSecurityProfilesDir = "/etc/datadog-agent/runtime-security.d/profiles"
 
 	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor
 	DefaultLogsSenderBackoffFactor = 2.0
@@ -650,6 +654,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("kubernetes_apiserver_client_timeout", 10)
 	config.BindEnvAndSetDefault("kubernetes_map_services_on_ip", false) // temporary opt-out of the new mapping logic
 	config.BindEnvAndSetDefault("kubernetes_apiserver_use_protobuf", false)
+	config.BindEnvAndSetDefault("kubernetes_ad_tags_disabled", []string{})
 
 	config.BindEnvAndSetDefault("prometheus_scrape.enabled", false)           // Enables the prometheus config provider
 	config.BindEnvAndSetDefault("prometheus_scrape.service_endpoints", false) // Enables Service Endpoints checks in the prometheus config provider
@@ -824,7 +829,7 @@ func InitConfig(config Config) {
 
 	// internal profiling
 	config.BindEnvAndSetDefault("internal_profiling.enabled", false)
-	config.BindEnv("internal_profiling.profile_dd_url", "")
+	config.BindEnv("internal_profiling.profile_dd_url")
 	config.BindEnvAndSetDefault("internal_profiling.period", 5*time.Minute)
 	config.BindEnvAndSetDefault("internal_profiling.cpu_duration", 1*time.Minute)
 	config.BindEnvAndSetDefault("internal_profiling.block_profile_rate", 0)
@@ -1029,6 +1034,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider", false)                                // to be enabled only in e2e tests
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.file_provider_path", "/etc/datadog-agent/patch/auto-instru.json") // to be used only in e2e tests
+	config.BindEnv("admission_controller.auto_instrumentation.init_resources.cpu")
+	config.BindEnv("admission_controller.auto_instrumentation.init_resources.memory")
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.inject_all.namespaces", []string{})
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.
@@ -1073,19 +1081,13 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
 
 	// Container lifecycle configuration
-	config.BindEnvAndSetDefault("container_lifecycle.enabled", false)
-	config.BindEnv("container_lifecycle.dd_url")
-	config.BindEnv("container_lifecycle.additional_endpoints")
+	bindEnvAndSetLogsConfigKeys(config, "container_lifecycle.")
 
 	// Container image configuration
-	config.BindEnvAndSetDefault("container_image.enabled", false)
-	config.BindEnv("container_image.dd_url")
-	config.BindEnv("container_image.additional_endpoints")
+	bindEnvAndSetLogsConfigKeys(config, "container_image.")
 
 	// SBOM configuration
-	config.BindEnvAndSetDefault("sbom.enabled", false)
-	config.BindEnv("sbom.dd_url")
-	config.BindEnv("sbom.additional_endpoints")
+	bindEnvAndSetLogsConfigKeys(config, "sbom.")
 
 	// Orchestrator Explorer - process agent
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
@@ -2058,8 +2060,8 @@ func getBindHost(cfg Config) string {
 
 // GetValidHostAliases validates host aliases set in `host_aliases` variable and returns
 // only valid ones.
-func GetValidHostAliases() []string {
-	return getValidHostAliasesWithConfig(Datadog)
+func GetValidHostAliases(_ context.Context) ([]string, error) {
+	return getValidHostAliasesWithConfig(Datadog), nil
 }
 
 func getValidHostAliasesWithConfig(config Config) []string {

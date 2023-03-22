@@ -951,5 +951,11 @@ func labelsMapperOverride(metricName string) map[string]string {
 			"service_port": "kube_service_port",
 		}
 	}
+
+	if strings.HasPrefix(metricName, "kube_service") {
+		return map[string]string{
+			"service": "kube_service",
+		}
+	}
 	return nil
 }

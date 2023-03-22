@@ -44,7 +44,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/security/activitydump"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
@@ -53,6 +52,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -1731,7 +1731,7 @@ func (tm *testModule) ListActivityDumps() ([]*activityDumpIdentifier, error) {
 	return dumps, nil
 }
 
-func (tm *testModule) DecodeActivityDump(path string) (*activitydump.ActivityDump, error) {
+func (tm *testModule) DecodeActivityDump(path string) (*dump.ActivityDump, error) {
 	monitor := tm.probe.GetMonitor()
 	if monitor == nil {
 		return nil, errors.New("No monitor")
@@ -1742,7 +1742,7 @@ func (tm *testModule) DecodeActivityDump(path string) (*activitydump.ActivityDum
 		return nil, errors.New("No activity dump manager")
 	}
 
-	ad := activitydump.NewActivityDump(adm)
+	ad := dump.NewActivityDump(adm)
 	if ad == nil {
 		return nil, errors.New("Creation of new activity dump fails")
 	}
@@ -1902,7 +1902,7 @@ func (tm *testModule) findNextPartialDump(dockerInstance *dockerCmdWrapper, id *
 }
 
 //nolint:deadcode,unused
-func searchForOpen(ad *activitydump.ActivityDump) bool {
+func searchForOpen(ad *dump.ActivityDump) bool {
 	for _, node := range ad.ProcessActivityTree {
 		if len(node.Files) > 0 {
 			return true
@@ -1912,7 +1912,7 @@ func searchForOpen(ad *activitydump.ActivityDump) bool {
 }
 
 //nolint:deadcode,unused
-func searchForDns(ad *activitydump.ActivityDump) bool {
+func searchForDns(ad *dump.ActivityDump) bool {
 	for _, node := range ad.ProcessActivityTree {
 		if len(node.DNSNames) > 0 {
 			return true
@@ -1922,7 +1922,7 @@ func searchForDns(ad *activitydump.ActivityDump) bool {
 }
 
 //nolint:deadcode,unused
-func searchForBind(ad *activitydump.ActivityDump) bool {
+func searchForBind(ad *dump.ActivityDump) bool {
 	for _, node := range ad.ProcessActivityTree {
 		if len(node.Sockets) > 0 {
 			return true
@@ -1932,7 +1932,7 @@ func searchForBind(ad *activitydump.ActivityDump) bool {
 }
 
 //nolint:deadcode,unused
-func searchForSyscalls(ad *activitydump.ActivityDump) bool {
+func searchForSyscalls(ad *dump.ActivityDump) bool {
 	for _, node := range ad.ProcessActivityTree {
 		if len(node.Syscalls) > 0 {
 			return true
@@ -1942,7 +1942,7 @@ func searchForSyscalls(ad *activitydump.ActivityDump) bool {
 }
 
 //nolint:deadcode,unused
-func (tm *testModule) getADFromDumpId(id *activityDumpIdentifier) (*activitydump.ActivityDump, error) {
+func (tm *testModule) getADFromDumpId(id *activityDumpIdentifier) (*dump.ActivityDump, error) {
 	var fileProtobuf string
 	// decode the dump
 	for _, file := range id.OutputFiles {

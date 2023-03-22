@@ -401,18 +401,7 @@ func getWorkloadList(w http.ResponseWriter, r *http.Request) {
 }
 
 func secretInfo(w http.ResponseWriter, r *http.Request) {
-	info, err := secrets.GetDebugInfo()
-	if err != nil {
-		setJSONError(w, err, 500)
-		return
-	}
-
-	jsonInfo, err := json.Marshal(info)
-	if err != nil {
-		setJSONError(w, log.Errorf("Unable to marshal secrets info response: %s", err), 500)
-		return
-	}
-	w.Write(jsonInfo)
+	secrets.GetDebugInfo(w)
 }
 
 func metadataPayload(w http.ResponseWriter, r *http.Request) {

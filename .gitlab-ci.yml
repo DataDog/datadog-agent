@@ -10,7 +10,6 @@ include:
   - /.gitlab/binary_build.yml
   - /.gitlab/integration_test.yml
   - /.gitlab/package_build.yml
-  - /.gitlab/internal_deploy.yml
   - /.gitlab/kitchen_deploy.yml
   - /.gitlab/kitchen_testing.yml
   - /.gitlab/pkg_metrics.yml
@@ -61,7 +60,6 @@ stages:
   - integration_test
   - benchmarks
   - package_build
-  - internal_deploy
   - kitchen_deploy
   - kitchen_testing
   - pkg_metrics
