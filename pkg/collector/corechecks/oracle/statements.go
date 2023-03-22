@@ -3,10 +3,10 @@ package oracle
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/jmoiron/sqlx"
@@ -127,7 +127,7 @@ type OracleRowMonotonicCount struct {
 	SerializableAborts         float64 `json:"serializable_aborts,omitempty"`
 	Fetches                    float64 `json:"fetches,omitempty"`
 	Executions                 float64 `json:"executions,omitempty"`
-	EndOfFetchCount            float64 `json:"end_of_fetch_count,omittempty"`
+	EndOfFetchCount            float64 `json:"end_of_fetch_count,omitempty"`
 	Loads                      float64 `json:"loads,omitempty"`
 	Invalidations              float64 `json:"invalidations,omitempty"`
 	PxServersExecutions        float64 `json:"px_servers_executions,omitempty"`
@@ -218,206 +218,211 @@ func (c *Check) copyToPreviousMap(newMap map[StatementMetricsKeyDB]StatementMetr
 }
 
 func (c *Check) StatementMetrics() error {
-	fmt.Printf("statement previous cache %+v", c.statementMetricsMonotonicCountsPrevious)
+	/*
+		statementMetrics, err := GetStatementsMetricsForKeys(c.db, "force_matching_signature", c.statementsFilter.ForceMatchingSignatures)
+		if err != nil {
+			return fmt.Errorf("error collecting statement metrics for force_matching_signature: %w", err)
+		}
+		statementMetricsAll := statementMetrics
+		statementMetrics, err = GetStatementsMetricsForKeys(c.db, "sql_id", c.statementsFilter.SQLIDs)
+		if err != nil {
+			return fmt.Errorf("error collecting statement metrics for SQL_IDs: %w", err)
+		}
+		statementMetricsAll = append(statementMetricsAll, statementMetrics...)
 
-	statementMetrics, err := GetStatementsMetricsForKeys(c.db, "force_matching_signature", c.statementsFilter.ForceMatchingSignatures)
-	if err != nil {
-		return fmt.Errorf("error collecting statement metrics for force_matching_signature: %w", err)
-	}
-	statementMetricsAll := statementMetrics
-	statementMetrics, err = GetStatementsMetricsForKeys(c.db, "sql_id", c.statementsFilter.SQLIDs)
-	if err != nil {
-		return fmt.Errorf("error collecting statement metrics for SQL_IDs: %w", err)
-	}
-	statementMetricsAll = append(statementMetricsAll, statementMetrics...)
+		newCache := make(map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB)
+		if c.statementMetricsMonotonicCountsPrevious == nil {
+			c.copyToPreviousMap(newCache)
+			return nil
+		}
 
-	newCache := make(map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB)
-	if c.statementMetricsMonotonicCountsPrevious == nil {
+		o := obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})
+		var diff OracleRowMonotonicCount
+		var oracleRows []OracleRow
+		for _, statementMetricRow := range statementMetricsAll {
+			newCache[statementMetricRow.StatementMetricsKeyDB] = statementMetricRow.StatementMetricsMonotonicCountDB
+			previousMonotonic, exists := c.statementMetricsMonotonicCountsPrevious[statementMetricRow.StatementMetricsKeyDB]
+			if exists {
+				diff = OracleRowMonotonicCount{}
+				if diff.ParseCalls = statementMetricRow.ParseCalls - previousMonotonic.ParseCalls; diff.ParseCalls < 0 {
+					continue
+				}
+				if diff.DiskReads = statementMetricRow.DiskReads - previousMonotonic.DiskReads; diff.DiskReads < 0 {
+					continue
+				}
+				if diff.DirectWrites = statementMetricRow.DirectWrites - previousMonotonic.DirectWrites; diff.DirectWrites < 0 {
+					continue
+				}
+				if diff.DirectReads = statementMetricRow.DirectReads - previousMonotonic.DirectReads; diff.DirectReads < 0 {
+					continue
+				}
+				if diff.BufferGets = statementMetricRow.BufferGets - previousMonotonic.BufferGets; diff.BufferGets < 0 {
+					continue
+				}
+				if diff.RowsProcessed = statementMetricRow.RowsProcessed - previousMonotonic.RowsProcessed; diff.RowsProcessed < 0 {
+					continue
+				}
+				if diff.SerializableAborts = statementMetricRow.SerializableAborts - previousMonotonic.SerializableAborts; diff.SerializableAborts < 0 {
+					continue
+				}
+				if diff.Fetches = statementMetricRow.Fetches - previousMonotonic.Fetches; diff.Fetches < 0 {
+					continue
+				}
+				if diff.Executions = statementMetricRow.Executions - previousMonotonic.Executions; diff.Executions < 0 {
+					continue
+				}
+				if diff.EndOfFetchCount = statementMetricRow.EndOfFetchCount - previousMonotonic.EndOfFetchCount; diff.EndOfFetchCount < 0 {
+					continue
+				}
+				if diff.Loads = statementMetricRow.Loads - previousMonotonic.Loads; diff.Loads < 0 {
+					continue
+				}
+				if diff.Invalidations = statementMetricRow.Invalidations - previousMonotonic.Invalidations; diff.Invalidations < 0 {
+					continue
+				}
+				if diff.PxServersExecutions = statementMetricRow.PxServersExecutions - previousMonotonic.PxServersExecutions; diff.PxServersExecutions < 0 {
+					continue
+				}
+				if diff.CPUTime = statementMetricRow.CPUTime - previousMonotonic.CPUTime; diff.CPUTime < 0 {
+					continue
+				}
+				if diff.ElapsedTime = statementMetricRow.ElapsedTime - previousMonotonic.ElapsedTime; diff.ElapsedTime < 0 {
+					continue
+				}
+				if diff.ApplicationWaitTime = statementMetricRow.ApplicationWaitTime - previousMonotonic.ApplicationWaitTime; diff.ApplicationWaitTime < 0 {
+					continue
+				}
+				if diff.ConcurrencyWaitTime = statementMetricRow.ConcurrencyWaitTime - previousMonotonic.ConcurrencyWaitTime; diff.ConcurrencyWaitTime < 0 {
+					continue
+				}
+				if diff.ClusterWaitTime = statementMetricRow.ClusterWaitTime - previousMonotonic.ClusterWaitTime; diff.ClusterWaitTime < 0 {
+					continue
+				}
+				if diff.UserIOWaitTime = statementMetricRow.UserIOWaitTime - previousMonotonic.UserIOWaitTime; diff.UserIOWaitTime < 0 {
+					continue
+				}
+				if diff.PLSQLExecTime = statementMetricRow.PLSQLExecTime - previousMonotonic.PLSQLExecTime; diff.PLSQLExecTime < 0 {
+					continue
+				}
+				if diff.JavaExecTime = statementMetricRow.JavaExecTime - previousMonotonic.JavaExecTime; diff.JavaExecTime < 0 {
+					continue
+				}
+				if diff.Sorts = statementMetricRow.Sorts - previousMonotonic.Sorts; diff.Sorts < 0 {
+					continue
+				}
+				if diff.IOCellOffloadEligibleBytes = statementMetricRow.IOCellOffloadEligibleBytes - previousMonotonic.IOCellOffloadEligibleBytes; diff.IOCellOffloadEligibleBytes < 0 {
+					continue
+				}
+				if diff.IOCellUncompressedBytes = statementMetricRow.IOCellUncompressedBytes - previousMonotonic.IOCellUncompressedBytes; diff.IOCellUncompressedBytes < 0 {
+					continue
+				}
+				if diff.IOCellOffloadReturnedBytes = statementMetricRow.IOCellOffloadReturnedBytes - previousMonotonic.IOCellOffloadReturnedBytes; diff.IOCellOffloadReturnedBytes < 0 {
+					continue
+				}
+				if diff.IOInterconnectBytes = statementMetricRow.IOInterconnectBytes - previousMonotonic.IOInterconnectBytes; diff.IOInterconnectBytes < 0 {
+					continue
+				}
+				if diff.PhysicalReadRequests = statementMetricRow.PhysicalReadRequests - previousMonotonic.PhysicalReadRequests; diff.PhysicalReadRequests < 0 {
+					continue
+				}
+				if diff.PhysicalReadBytes = statementMetricRow.PhysicalReadBytes - previousMonotonic.PhysicalReadBytes; diff.PhysicalReadBytes < 0 {
+					continue
+				}
+				if diff.PhysicalWriteRequests = statementMetricRow.PhysicalWriteRequests - previousMonotonic.PhysicalWriteRequests; diff.PhysicalWriteRequests < 0 {
+					continue
+				}
+				if diff.PhysicalWriteBytes = statementMetricRow.PhysicalWriteBytes - previousMonotonic.PhysicalWriteBytes; diff.PhysicalWriteBytes < 0 {
+					continue
+				}
+				if diff.ObsoleteCount = statementMetricRow.ObsoleteCount - previousMonotonic.ObsoleteCount; diff.ObsoleteCount < 0 {
+					continue
+				}
+				if diff.AvoidedExecutions = statementMetricRow.AvoidedExecutions - previousMonotonic.AvoidedExecutions; diff.AvoidedExecutions < 0 {
+					continue
+				}
+			} else {
+				continue
+			}
+
+			var queryHashCol string
+			if statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature == 0 {
+				queryHashCol = "sql_id"
+			} else {
+				queryHashCol = "force_matching_signature"
+			}
+			p := map[string]interface{}{
+				"force_matching_signature": statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature,
+				"sql_id":                   statementMetricRow.StatementMetricsKeyDB.SQLID,
+			}
+			SQLTextQuery := fmt.Sprintf("SELECT sql_fulltext FROM v$sqlstats WHERE %s=:%s AND rownum = 1", queryHashCol, queryHashCol)
+			rows, err := c.db.NamedQuery(SQLTextQuery, p)
+			if err != nil {
+				log.Errorf("statements error named exec %s ", err)
+				continue
+			}
+			defer rows.Close()
+			rows.Next()
+			cols, err := rows.SliceScan()
+			var SQLStatement string
+			if err != nil {
+				log.Errorf("statements scan error %s ", err)
+			}
+			SQLStatement = cols[0].(string)
+
+			queryRow := QueryRow{}
+			obfuscatedStatement, err := c.GetObfuscatedStatement(o, SQLStatement, statementMetricRow.ForceMatchingSignature, statementMetricRow.SQLID)
+			SQLStatement = obfuscatedStatement.Statement
+			if err == nil {
+				queryRow.QuerySignature = obfuscatedStatement.QuerySignature
+				queryRow.Commands = obfuscatedStatement.Commands
+				queryRow.Tables = obfuscatedStatement.Tables
+			}
+
+			var queryHash string
+			if queryHashCol == "force_matching_signature" {
+				queryHash = strconv.FormatUint(statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature, 10)
+			} else {
+				queryHash = statementMetricRow.StatementMetricsKeyDB.SQLID
+			}
+			oracleRow := OracleRow{
+				QueryRow:                queryRow,
+				SQLText:                 SQLStatement,
+				QueryHash:               queryHash,
+				PlanHash:                strconv.FormatUint(statementMetricRow.PlanHashValue, 10),
+				PDBName:                 c.getFullPDBName(statementMetricRow.PDBName),
+				OracleRowMonotonicCount: diff,
+				OracleRowGauge:          OracleRowGauge(statementMetricRow.StatementMetricsGaugeDB),
+			}
+
+			oracleRows = append(oracleRows, oracleRow)
+		}
+		o.Stop()
 		c.copyToPreviousMap(newCache)
-		return nil
+	*/
+
+	// dummy metric begin
+	o := obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})
+	queryRowDummy := QueryRow{}
+	dummyStatement := "__other__"
+	obfuscatedStatementDummy, err := o.ObfuscateSQLString(dummyStatement)
+	if err == nil {
+		dummyStatement = obfuscatedStatementDummy.Query
+		queryRowDummy.QuerySignature = common.GetQuerySignature(dummyStatement)
 	}
 
-	o := obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})
-	//var diff StatementMetricsMonotonicCountDB
-	var diff OracleRowMonotonicCount
-	var oracleRows []OracleRow
-	for _, statementMetricRow := range statementMetricsAll {
-		newCache[statementMetricRow.StatementMetricsKeyDB] = statementMetricRow.StatementMetricsMonotonicCountDB
-		previousMonotonic, exists := c.statementMetricsMonotonicCountsPrevious[statementMetricRow.StatementMetricsKeyDB]
-		if exists {
-			//diff = StatementMetricsMonotonicCountDB{}
-			diff = OracleRowMonotonicCount{}
-			if diff.ParseCalls = statementMetricRow.ParseCalls - previousMonotonic.ParseCalls; diff.ParseCalls < 0 {
-				continue
-			}
-			if diff.DiskReads = statementMetricRow.DiskReads - previousMonotonic.DiskReads; diff.DiskReads < 0 {
-				continue
-			}
-			if diff.DirectWrites = statementMetricRow.DirectWrites - previousMonotonic.DirectWrites; diff.DirectWrites < 0 {
-				continue
-			}
-			if diff.DirectReads = statementMetricRow.DirectReads - previousMonotonic.DirectReads; diff.DirectReads < 0 {
-				continue
-			}
-			if diff.BufferGets = statementMetricRow.BufferGets - previousMonotonic.BufferGets; diff.BufferGets < 0 {
-				continue
-			}
-			if diff.RowsProcessed = statementMetricRow.RowsProcessed - previousMonotonic.RowsProcessed; diff.RowsProcessed < 0 {
-				continue
-			}
-			if diff.SerializableAborts = statementMetricRow.SerializableAborts - previousMonotonic.SerializableAborts; diff.SerializableAborts < 0 {
-				continue
-			}
-			if diff.Fetches = statementMetricRow.Fetches - previousMonotonic.Fetches; diff.Fetches < 0 {
-				continue
-			}
-			if diff.Executions = statementMetricRow.Executions - previousMonotonic.Executions; diff.Executions < 0 {
-				continue
-			}
-			if diff.EndOfFetchCount = statementMetricRow.EndOfFetchCount - previousMonotonic.EndOfFetchCount; diff.EndOfFetchCount < 0 {
-				continue
-			}
-			if diff.Loads = statementMetricRow.Loads - previousMonotonic.Loads; diff.Loads < 0 {
-				continue
-			}
-			if diff.Invalidations = statementMetricRow.Invalidations - previousMonotonic.Invalidations; diff.Invalidations < 0 {
-				continue
-			}
-			if diff.PxServersExecutions = statementMetricRow.PxServersExecutions - previousMonotonic.PxServersExecutions; diff.PxServersExecutions < 0 {
-				continue
-			}
-			if diff.CPUTime = statementMetricRow.CPUTime - previousMonotonic.CPUTime; diff.CPUTime < 0 {
-				continue
-			}
-			if diff.ElapsedTime = statementMetricRow.ElapsedTime - previousMonotonic.ElapsedTime; diff.ElapsedTime < 0 {
-				continue
-			}
-			if diff.ApplicationWaitTime = statementMetricRow.ApplicationWaitTime - previousMonotonic.ApplicationWaitTime; diff.ApplicationWaitTime < 0 {
-				continue
-			}
-			if diff.ConcurrencyWaitTime = statementMetricRow.ConcurrencyWaitTime - previousMonotonic.ConcurrencyWaitTime; diff.ConcurrencyWaitTime < 0 {
-				continue
-			}
-			if diff.ClusterWaitTime = statementMetricRow.ClusterWaitTime - previousMonotonic.ClusterWaitTime; diff.ClusterWaitTime < 0 {
-				continue
-			}
-			if diff.UserIOWaitTime = statementMetricRow.UserIOWaitTime - previousMonotonic.UserIOWaitTime; diff.UserIOWaitTime < 0 {
-				continue
-			}
-			if diff.PLSQLExecTime = statementMetricRow.PLSQLExecTime - previousMonotonic.PLSQLExecTime; diff.PLSQLExecTime < 0 {
-				continue
-			}
-			if diff.JavaExecTime = statementMetricRow.JavaExecTime - previousMonotonic.JavaExecTime; diff.JavaExecTime < 0 {
-				continue
-			}
-			if diff.Sorts = statementMetricRow.Sorts - previousMonotonic.Sorts; diff.Sorts < 0 {
-				continue
-			}
-			if diff.IOCellOffloadEligibleBytes = statementMetricRow.IOCellOffloadEligibleBytes - previousMonotonic.IOCellOffloadEligibleBytes; diff.IOCellOffloadEligibleBytes < 0 {
-				continue
-			}
-			if diff.IOCellUncompressedBytes = statementMetricRow.IOCellUncompressedBytes - previousMonotonic.IOCellUncompressedBytes; diff.IOCellUncompressedBytes < 0 {
-				continue
-			}
-			if diff.IOCellOffloadReturnedBytes = statementMetricRow.IOCellOffloadReturnedBytes - previousMonotonic.IOCellOffloadReturnedBytes; diff.IOCellOffloadReturnedBytes < 0 {
-				continue
-			}
-			if diff.IOInterconnectBytes = statementMetricRow.IOInterconnectBytes - previousMonotonic.IOInterconnectBytes; diff.IOInterconnectBytes < 0 {
-				continue
-			}
-			if diff.PhysicalReadRequests = statementMetricRow.PhysicalReadRequests - previousMonotonic.PhysicalReadRequests; diff.PhysicalReadRequests < 0 {
-				continue
-			}
-			if diff.PhysicalReadBytes = statementMetricRow.PhysicalReadBytes - previousMonotonic.PhysicalReadBytes; diff.PhysicalReadBytes < 0 {
-				continue
-			}
-			if diff.PhysicalWriteRequests = statementMetricRow.PhysicalWriteRequests - previousMonotonic.PhysicalWriteRequests; diff.PhysicalWriteRequests < 0 {
-				continue
-			}
-			if diff.PhysicalWriteBytes = statementMetricRow.PhysicalWriteBytes - previousMonotonic.PhysicalWriteBytes; diff.PhysicalWriteBytes < 0 {
-				continue
-			}
-			if diff.ObsoleteCount = statementMetricRow.ObsoleteCount - previousMonotonic.ObsoleteCount; diff.ObsoleteCount < 0 {
-				continue
-			}
-			if diff.AvoidedExecutions = statementMetricRow.AvoidedExecutions - previousMonotonic.AvoidedExecutions; diff.AvoidedExecutions < 0 {
-				continue
-			}
-		} else {
-			continue
-		}
-
-		var queryHashCol string
-		if statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature == 0 {
-			queryHashCol = "sql_id"
-		} else {
-			queryHashCol = "force_matching_signature"
-		}
-		p := map[string]interface{}{
-			"force_matching_signature": statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature,
-			"sql_id":                   statementMetricRow.StatementMetricsKeyDB.SQLID,
-		}
-		SQLTextQuery := fmt.Sprintf("SELECT sql_fulltext FROM v$sqlstats WHERE %s=:%s AND rownum = 1", queryHashCol, queryHashCol)
-		rows, err := c.db.NamedQuery(SQLTextQuery, p)
-		if err != nil {
-			log.Errorf("statements error named exec %s ", err)
-			continue
-		}
-		defer rows.Close()
-		rows.Next()
-		cols, err := rows.SliceScan()
-		var SQLStatement string
-		if err != nil {
-			log.Errorf("statements scan error %s ", err)
-		}
-		SQLStatement = cols[0].(string)
-
-		queryRow := QueryRow{}
-		//obfuscatedStatement, err := common.GetObfuscatedStatement(o, SQLStatement)
-		obfuscatedStatement, err := c.GetObfuscatedStatement(o, SQLStatement, statementMetricRow.ForceMatchingSignature, statementMetricRow.SQLID)
-		SQLStatement = obfuscatedStatement.Statement
-		if err == nil {
-			queryRow.QuerySignature = obfuscatedStatement.QuerySignature
-			queryRow.Commands = obfuscatedStatement.Commands
-			queryRow.Tables = obfuscatedStatement.Tables
-		} /*else {
-			obfuscationError := "Obfuscation error"
-			if statementMetricRow.ForceMatchingSignature != 0 {
-				obfuscationError = obfuscationError + fmt.Sprintf(" for force_matching_signature %d", statementMetricRow.ForceMatchingSignature)
-			} else if statementMetricRow.SQLID != "" {
-				obfuscationError = obfuscationError + fmt.Sprintf("for SQL_ID %s", statementMetricRow.SQLID)
-			}
-
-			var errorText string
-			if c.config.InstanceConfig.LogUnobfuscatedQueries {
-				errorText = obfuscationError + fmt.Sprintf(" SQL: %s", obfuscatedStatement.Statement)
-			}
-			log.Errorf("%s %s", errorText, err)
-			SQLStatement = obfuscationError
-		} */
-
-		var queryHash string
-		if queryHashCol == "force_matching_signature" {
-			queryHash = strconv.FormatUint(statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature, 10)
-		} else {
-			queryHash = statementMetricRow.StatementMetricsKeyDB.SQLID
-		}
-		oracleRow := OracleRow{
-			QueryRow:                queryRow,
-			SQLText:                 SQLStatement,
-			QueryHash:               queryHash,
-			PlanHash:                strconv.FormatUint(statementMetricRow.PlanHashValue, 10),
-			PDBName:                 c.getFullPDBName(statementMetricRow.PDBName),
-			OracleRowMonotonicCount: diff,
-			OracleRowGauge:          OracleRowGauge(statementMetricRow.StatementMetricsGaugeDB),
-		}
-		//fmt.Printf("statement oracle Row %+v \n", oracleRow)
-		oracleRows = append(oracleRows, oracleRow)
+	oracleRow := OracleRow{
+		QueryRow:                queryRowDummy,
+		SQLText:                 dummyStatement,
+		QueryHash:               "dummyQH",
+		PlanHash:                "dummyPH",
+		PDBName:                 c.getFullPDBName("dummyPDB"),
+		OracleRowMonotonicCount: OracleRowMonotonicCount{Executions: 1, ElapsedTime: 1},
 	}
 	o.Stop()
-	c.copyToPreviousMap(newCache)
+	var oracleRows []OracleRow
+	oracleRows = append(oracleRows, oracleRow)
+	// dummy metric end
 
-	//fmt.Printf("statement ora rows %+v", oracleRows)
 	payload := MetricsPayload{
 		Host:                  c.dbHostname,
 		Timestamp:             float64(time.Now().UnixMilli()),
@@ -428,7 +433,6 @@ func (c *Check) StatementMetrics() error {
 		OracleRows:            oracleRows,
 		OracleVersion:         c.dbVersion,
 	}
-	//fmt.Printf("statement ora payload %+v", payload)
 
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
