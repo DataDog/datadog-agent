@@ -68,9 +68,9 @@ func createDCAArchive(fb flarehelpers.FlareBuilder, local bool, confSearchPaths 
 	getMetadataMap(fb)               //nolint:errcheck
 	getClusterAgentClusterChecks(fb) //nolint:errcheck
 	getClusterAgentDiagnose(fb)      //nolint:errcheck
-	getAgentDaemonSet(fb)
-	getClusterAgentDeployment(fb)
-	getHelmValues(fb)
+	getAgentDaemonSet(fb)            //nolint:errcheck
+	getClusterAgentDeployment(fb)    //nolint:errcheck
+	getHelmValues(fb)                //nolint:errcheck
 	fb.AddFileFromFunc("envvars.log", getEnvVars)
 	fb.AddFileFromFunc("telemetry.log", QueryDCAMetrics)
 	fb.AddFileFromFunc("tagger-list.json", getDCATaggerList)
@@ -197,7 +197,7 @@ func getAgentDaemonSet(fb flarehelpers.FlareBuilder) error {
 
 	cl, err := apiserver.GetAPIClient()
 	if err != nil {
-		log.Info("Can't create client to query the API Server: %s", err)
+		log.Errorf("Can't create client to query the API Server: %s", err)
 	} else {
 		agentDaemonsetName = os.Getenv(HELM_AGENT_DAEMONSET)
 		releaseNamespace = os.Getenv(HELM_CHART_RELEASE_NAMESPACE)
@@ -219,7 +219,7 @@ func getClusterAgentDeployment(fb flarehelpers.FlareBuilder) error {
 
 	cl, err := apiserver.GetAPIClient()
 	if err != nil {
-		log.Info("Can't create client to query the API Server: %s", err)
+		log.Errorf("Can't create client to query the API Server: %s", err)
 	} else {
 		clusterAgentDeploymentName = os.Getenv(HELM_CLUSTER_AGENT_DEPLOYMENT)
 		releaseNamespace = os.Getenv(HELM_CHART_RELEASE_NAMESPACE)
@@ -240,25 +240,27 @@ func getHelmValues(fb flarehelpers.FlareBuilder) error {
 
 	cl, err := apiserver.GetAPIClient()
 	if err != nil {
-		log.Info("Can't create client to query the API Server: %s", err)
+		log.Errorf("Can't create client to query the API Server: %s", err)
 	} else {
 		releaseName = os.Getenv(HELM_CHART_RELEASE_NAME)
 		releaseNamespace = os.Getenv(HELM_CHART_RELEASE_NAMESPACE)
 		helmUserValues, err = apiserver.GetDatadogHelmUserValuesFromSecret(cl, releaseName, releaseNamespace)
+		if err != nil {
+			log.Warnf("Error while collecting the Helm chart values from secret: %v", err)
+		}
 		// The returned bytes array is not nil, we can exit
 		if len(helmUserValues) != 0 {
 			return fb.AddFile("helm-values.yaml", helmUserValues)
 		}
 		// The cluster Agent was unable to retrieve Helm chart data from secrets, attempting to retrieve them from Configmaps
 		helmUserValues, err = apiserver.GetDatadogHelmUserValuesFromConfigmap(cl, releaseName, releaseNamespace)
+		if err != nil {
+			log.Warnf("Error while collecting the Helm chart values from configmap: %v", err)
+		}
 		// The returned bytes array is not nil, we can exit
 		if len(helmUserValues) != 0 {
 			return fb.AddFile("helm-values.yaml", helmUserValues)
 		}
-		if err != nil {
-			log.Debugf("Error while collecting the Helm chart values: %q", err)
-		}
 	}
-
 	return nil
 }
