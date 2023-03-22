@@ -17,13 +17,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/process"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	ddstatus "github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var httpClient = apiutil.GetClient(false)
@@ -58,6 +58,7 @@ type dependencies struct {
 	CliParams *cliParams
 
 	Config config.Component
+	Log    log.Component
 }
 
 // Commands returns a slice of subcommands for the `status` command in the Process Agent
@@ -83,14 +84,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{statusCmd}
 }
 
-func writeNotRunning(w io.Writer) {
+func writeNotRunning(log log.Component, w io.Writer) {
 	_, err := fmt.Fprint(w, notRunning)
 	if err != nil {
 		_ = log.Error(err)
 	}
 }
 
-func writeError(w io.Writer, e error) {
+func writeError(log log.Component, w io.Writer, e error) {
 	tpl, err := template.New("").Funcs(ddstatus.Textfmap()).Parse(errorMessage)
 	if err != nil {
 		_ = log.Error(err)
@@ -112,14 +113,14 @@ func fetchStatus(statusURL string) ([]byte, error) {
 }
 
 // getAndWriteStatus calls the status server and writes it to `w`
-func getAndWriteStatus(statusURL string, w io.Writer, options ...util.StatusOption) {
+func getAndWriteStatus(log log.Component, statusURL string, w io.Writer, options ...util.StatusOption) {
 	body, err := fetchStatus(statusURL)
 	if err != nil {
 		switch err.(type) {
 		case util.ConnectionError:
-			writeNotRunning(w)
+			writeNotRunning(log, w)
 		default:
-			writeError(w, err)
+			writeError(log, w, err)
 		}
 		return
 	}
@@ -129,7 +130,7 @@ func getAndWriteStatus(statusURL string, w io.Writer, options ...util.StatusOpti
 		var s util.Status
 		err = json.Unmarshal(body, &s)
 		if err != nil {
-			writeError(w, err)
+			writeError(log, w, err)
 			return
 		}
 
@@ -139,14 +140,14 @@ func getAndWriteStatus(statusURL string, w io.Writer, options ...util.StatusOpti
 
 		body, err = json.Marshal(s)
 		if err != nil {
-			writeError(w, err)
+			writeError(log, w, err)
 			return
 		}
 	}
 
 	stats, err := ddstatus.FormatProcessAgentStatus(body)
 	if err != nil {
-		writeError(w, err)
+		writeError(log, w, err)
 		return
 	}
 
@@ -167,10 +168,10 @@ func getStatusURL() (string, error) {
 func runStatus(deps dependencies) error {
 	statusURL, err := getStatusURL()
 	if err != nil {
-		writeError(os.Stdout, err)
+		writeError(deps.Log, os.Stdout, err)
 		return err
 	}
 
-	getAndWriteStatus(statusURL, os.Stdout)
+	getAndWriteStatus(deps.Log, statusURL, os.Stdout)
 	return nil
 }
