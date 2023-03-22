@@ -10,11 +10,11 @@ package dump
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/security/activitydump/config"
 	"time"
 
 	"github.com/cilium/ebpf"
 
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -55,14 +55,14 @@ func NewActivityDumpLoadController(adm *ActivityDumpManager) (*ActivityDumpLoadC
 func (lc *ActivityDumpLoadController) PushCurrentConfig() error {
 	// push default load config values
 	defaults := NewActivityDumpLoadConfig(
-		lc.adm.config.ActivityDumpTracedEventTypes,
-		lc.adm.config.ActivityDumpCgroupDumpTimeout,
+		lc.adm.config.RuntimeSecurity.ActivityDumpTracedEventTypes,
+		lc.adm.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout,
 		0,
-		lc.adm.config.ActivityDumpRateLimiter,
+		lc.adm.config.RuntimeSecurity.ActivityDumpRateLimiter,
 		time.Now(),
 		lc.adm.timeResolver,
 	)
-	defaults.WaitListTimestampRaw = uint64(lc.adm.config.ActivityDumpCgroupWaitListTimeout)
+	defaults.WaitListTimestampRaw = uint64(lc.adm.config.RuntimeSecurity.ActivityDumpCgroupWaitListTimeout)
 	if err := lc.activityDumpConfigDefaults.Put(uint32(0), defaults); err != nil {
 		return fmt.Errorf("couldn't update default activity dump load config: %w", err)
 	}

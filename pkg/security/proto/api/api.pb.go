@@ -956,7 +956,7 @@ func (x *EnvironmentStatus) GetUseRingBuffer() bool {
 	return false
 }
 
-//Discarders
+// Discarders
 type DumpDiscardersParams struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

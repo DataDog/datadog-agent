@@ -60,7 +60,7 @@ type APIServer struct {
 	queueLock         sync.Mutex
 	queue             []*pendingMsg
 	retention         time.Duration
-	cfg               *config.Config
+	cfg               *config.RuntimeSecurityConfig
 	cwsConsumer       *CWSConsumer
 }
 
@@ -537,7 +537,7 @@ func (a *APIServer) Apply(ruleIDs []rules.RuleID) {
 }
 
 // NewAPIServer returns a new gRPC event server
-func NewAPIServer(cfg *config.Config, probe *sprobe.Probe, client statsd.ClientInterface) *APIServer {
+func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, client statsd.ClientInterface) *APIServer {
 	es := &APIServer{
 		msgs:          make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
 		activityDumps: make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),

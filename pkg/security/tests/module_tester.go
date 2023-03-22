@@ -40,13 +40,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	spconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
-	"github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
+	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -257,7 +259,7 @@ func (to testOpts) Equal(opts testOpts) bool {
 
 type testModule struct {
 	sync.RWMutex
-	config        *config.Config
+	secconfig     *secconfig.Config
 	opts          testOpts
 	st            *simpleTest
 	t             testing.TB
@@ -661,10 +663,10 @@ func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.R
 	return testPolicyFile.Name(), nil
 }
 
-func genTestConfig(dir string, opts testOpts, testDir string) (*config.Config, error) {
+func genTestConfigs(dir string, opts testOpts, testDir string) (*emconfig.Config, *secconfig.Config, error) {
 	tmpl, err := template.New("test-config").Parse(testConfig)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if opts.eventsCountThreshold == 0 {
@@ -729,7 +731,7 @@ func genTestConfig(dir string, opts testOpts, testDir string) (*config.Config, e
 		"RuntimeSecurityEnabled":              runtimeSecurityEnabled,
 		"SBOMEnabled":                         opts.enableSBOM,
 	}); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	ddConfigName, sysprobeConfigName, err := func() (string, string, error) {
@@ -752,28 +754,30 @@ func genTestConfig(dir string, opts testOpts, testDir string) (*config.Config, e
 		return ddConfig.Name(), sysprobeConfig.Name(), nil
 	}()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	err = sysconfig.SetupOptionalDatadogConfigWithDir(testDir, ddConfigName)
+	err = spconfig.SetupOptionalDatadogConfigWithDir(testDir, ddConfigName)
 	if err != nil {
-		return nil, fmt.Errorf("unable to set up datadog.yaml configuration: %s", err)
+		return nil, nil, fmt.Errorf("unable to set up datadog.yaml configuration: %s", err)
 	}
 
-	sysProbeConfig, err := sysconfig.New(sysprobeConfigName)
+	spconfig, err := spconfig.New(sysprobeConfigName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load config: %w", err)
+		return nil, nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
-	config, err := config.NewConfig(sysProbeConfig)
+	emconfig := emconfig.NewConfig(spconfig)
+
+	secconfig, err := secconfig.NewConfig()
 	if err != nil {
-		return nil, fmt.Errorf("failed to load config: %w", err)
+		return nil, nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
-	config.ERPCDentryResolutionEnabled = !opts.disableERPCDentryResolution
-	config.MapDentryResolutionEnabled = !opts.disableMapDentryResolution
+	secconfig.Probe.ERPCDentryResolutionEnabled = !opts.disableERPCDentryResolution
+	secconfig.Probe.MapDentryResolutionEnabled = !opts.disableMapDentryResolution
 
-	return config, nil
+	return emconfig, secconfig, nil
 }
 
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, opts testOpts) (*testModule, error) {
@@ -805,7 +809,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
-	config, err := genTestConfig(st.root, opts, st.root)
+	emconfig, secconfig, err := genTestConfigs(st.root, opts, st.root)
 	if err != nil {
 		return nil, err
 	}
@@ -849,7 +853,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	statsdClient := NewStatsdClient()
 
 	testMod = &testModule{
-		config:        config,
+		secconfig:     secconfig,
 		opts:          opts,
 		st:            st,
 		t:             t,
@@ -859,23 +863,20 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		eventHandlers: eventHandlers{},
 	}
 
-	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(config)
-	if err != nil {
-		return nil, err
+	emopts := eventmonitor.Opts{
+		StatsdClient: statsdClient,
+		ProbeOpts: probe.Opts{
+			StatsdClient:       statsdClient,
+			DontDiscardRuntime: true,
+		},
 	}
 
-	probe, err := sprobe.NewProbe(config, sprobe.Opts{StatsdClient: statsdClient, DontDiscardRuntime: true})
-	if err != nil {
-		return nil, err
-	}
-
-	testMod.eventMonitor.StatsdClient = statsdClient
-	testMod.eventMonitor.Probe = probe
-	testMod.probe = probe
+	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts)
+	testMod.probe = testMod.eventMonitor.Probe
 
 	var ruleSetloadedErr *multierror.Error
 	if !opts.disableRuntimeSecurity {
-		cws, err := module.NewCWSConsumer(testMod.eventMonitor, module.Opts{EventSender: testMod})
+		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, module.Opts{EventSender: testMod})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}
@@ -903,7 +904,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	kv, _ := kernel.NewKernelVersion()
 
-	if os.Getenv("DD_TESTS_RUNTIME_COMPILED") == "1" && config.RuntimeCompilationEnabled && !testMod.eventMonitor.Probe.IsRuntimeCompiled() && !kv.IsSuseKernel() {
+	if os.Getenv("DD_TESTS_RUNTIME_COMPILED") == "1" && secconfig.Probe.RuntimeCompilationEnabled && !testMod.eventMonitor.Probe.IsRuntimeCompiled() && !kv.IsSuseKernel() {
 		return nil, errors.New("failed to runtime compile module")
 	}
 

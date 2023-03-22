@@ -48,7 +48,7 @@ func TestOctogonConstants(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	config, err := genTestConfig(dir, testOpts{}, "")
+	_, secconfig, err := genTestConfigs(dir, testOpts{}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestOctogonConstants(t *testing.T) {
 		})
 
 		fallbackFetcher := constantfetch.NewFallbackConstantFetcher(kv)
-		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&config.Config, nil)
+		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&secconfig.Probe.Config, nil)
 
 		assertConstantsEqual(t, rcFetcher, fallbackFetcher, kv, RCVsFallbackPossiblyMissingConstants)
 	})
@@ -77,7 +77,7 @@ func TestOctogonConstants(t *testing.T) {
 			t.Skip("btfhub has no constant for this OS")
 		}
 
-		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&config.Config, nil)
+		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&secconfig.Probe.Config, nil)
 
 		assertConstantsEqual(t, rcFetcher, btfhubFetcher, kv, BTFHubVsRcPossiblyMissingConstants)
 	})
@@ -112,8 +112,8 @@ func TestOctogonConstants(t *testing.T) {
 			return kv.IsSLESKernel()
 		})
 
-		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&config.Config, nil)
-		ogFetcher := constantfetch.NewOffsetGuesserFetcher(config)
+		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&secconfig.Probe.Config, nil)
+		ogFetcher := constantfetch.NewOffsetGuesserFetcher(secconfig.Probe)
 
 		assertConstantContains(t, rcFetcher, ogFetcher, kv)
 	})

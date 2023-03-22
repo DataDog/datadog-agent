@@ -13,8 +13,6 @@ import (
 	_ "embed"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/activitydump/config"
-
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"

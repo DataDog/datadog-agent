@@ -23,6 +23,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
+	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -37,6 +38,12 @@ var (
 	// allowedEventTypes defines allowed event type for subscribers
 	allowedEventTypes = []model.EventType{model.ForkEventType, model.ExecEventType, model.ExitEventType}
 )
+
+// Opts defines options that can be used for the eventmonitor
+type Opts struct {
+	ProbeOpts    probe.Opts
+	StatsdClient statsd.ClientInterface
+}
 
 // EventMonitor represents the system-probe module for kernel event monitoring
 type EventMonitor struct {
@@ -196,7 +203,7 @@ func (m *EventMonitor) sendStats() {
 func (m *EventMonitor) statsSender() {
 	defer m.wg.Done()
 
-	statsTicker := time.NewTicker(m.Config.StatsPollingInterval)
+	statsTicker := time.NewTicker(m.Probe.StatsPollingInterval())
 	defer statsTicker.Stop()
 
 	for {
@@ -226,16 +233,23 @@ func (m *EventMonitor) GetStats() map[string]interface{} {
 }
 
 // NewEventMonitor instantiates an event monitoring system-probe module
-func NewEventMonitor(config *config.Config) (*EventMonitor, error) {
-	probe, err := probe.NewProbe(config, probe.Opts{})
-	if err != nil {
-		return nil, err
+func NewEventMonitor(config *config.Config, secconfig *secconfig.Config, opts Opts) (*EventMonitor, error) {
+	if opts.StatsdClient == nil {
+		statsdClient, err := getStatsdClient(config)
+		if err != nil {
+			log.Info("Unable to init statsd client")
+			return nil, module.ErrNotEnabled
+		}
+		opts.StatsdClient = statsdClient
 	}
 
-	statsdClient, err := getStatsdClient(config)
+	if opts.ProbeOpts.StatsdClient == nil {
+		opts.ProbeOpts.StatsdClient = opts.StatsdClient
+	}
+
+	probe, err := probe.NewProbe(secconfig, opts.ProbeOpts)
 	if err != nil {
-		log.Info("Unable to init statsd client")
-		return nil, module.ErrNotEnabled
+		return nil, err
 	}
 
 	ctx, cancelFnc := context.WithCancel(context.Background())
@@ -243,7 +257,7 @@ func NewEventMonitor(config *config.Config) (*EventMonitor, error) {
 	return &EventMonitor{
 		Config:       config,
 		Probe:        probe,
-		StatsdClient: statsdClient,
+		StatsdClient: opts.StatsdClient,
 		GRPCServer:   grpc.NewServer(),
 
 		ctx:           ctx,

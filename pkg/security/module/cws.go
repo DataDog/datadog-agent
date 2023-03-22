@@ -44,7 +44,7 @@ import (
 // CWSConsumer represents the system-probe module for the runtime security agent
 type CWSConsumer struct {
 	sync.RWMutex
-	config       *config.Config
+	config       *config.RuntimeSecurityConfig
 	probe        *probe.Probe
 	statsdClient statsd.ClientInterface
 
@@ -70,8 +70,7 @@ type CWSConsumer struct {
 }
 
 // Init initializes the module with options
-func NewCWSConsumer(evm *eventmonitor.EventMonitor, opts ...Opts) (*CWSConsumer, error) {
-	config := config.NewConfig()
+func NewCWSConsumer(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, opts ...Opts) (*CWSConsumer, error) {
 
 	selfTester, err := selftests.NewSelfTester()
 	if err != nil {

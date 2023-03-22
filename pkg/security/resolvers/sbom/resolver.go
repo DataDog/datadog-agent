@@ -20,6 +20,7 @@ import (
 	"k8s.io/utils/temp"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -106,11 +107,7 @@ type Resolver struct {
 }
 
 // NewSBOMResolver returns a new instance of Resolver
-<<<<<<< HEAD
-func NewSBOMResolver(c *Config, tagsResolver *tags.Resolver, statsdClient statsd.ClientInterface) (*Resolver, error) {
-=======
-func NewSBOMResolver(c *config.Config, statsdClient statsd.ClientInterface) (*Resolver, error) {
->>>>>>> origin/main
+func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface) (*Resolver, error) {
 	tmpDir, err := temp.CreateTempDir("sbom-resolver")
 	if err != nil {
 		return nil, err

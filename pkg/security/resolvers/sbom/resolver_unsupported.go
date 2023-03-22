@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -20,7 +21,7 @@ import (
 type Resolver struct {
 }
 
-func NewSBOMResolver(c *Config, statsdClient statsd.ClientInterface) (*Resolver, error) {
+func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface) (*Resolver, error) {
 	return &Resolver{}, nil
 }
 

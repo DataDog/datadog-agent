@@ -16,10 +16,9 @@ import (
 	lib "github.com/cilium/ebpf"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
-	adconfig "github.com/DataDog/datadog-agent/pkg/security/activitydump/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -58,11 +57,10 @@ func (s *PerfMapStats) UnmarshalBinary(data []byte) error {
 //nolint:structcheck,unused
 type PerfBufferMonitor struct {
 	// probe is a pointer to the Probe
-	probe              *Probe
-	config             *config.Config
-	statsdClient       statsd.ClientInterface
-	eRPC               *erpc.ERPC
-	activityDumpConfig *adconfig.Config
+	probe        *Probe
+	config       *config.Config
+	statsdClient statsd.ClientInterface
+	eRPC         *erpc.ERPC
 
 	// numCPU holds the current count of CPU
 	numCPU int
@@ -106,7 +104,7 @@ type perfBufferStatMap struct {
 func NewPerfBufferMonitor(p *Probe) (*PerfBufferMonitor, error) {
 	pbm := PerfBufferMonitor{
 		probe:               p,
-		config:              p.Config,
+		config:              p.Config.Probe,
 		statsdClient:        p.StatsdClient,
 		eRPC:                p.Erpc,
 		perfBufferStatsMaps: make(map[string]*perfBufferStatMap),

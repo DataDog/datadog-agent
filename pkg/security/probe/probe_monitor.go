@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	adconfig "github.com/DataDog/datadog-agent/pkg/security/securit_profile/dump/config"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 )
@@ -30,7 +29,6 @@ type Monitor struct {
 	loadController         *LoadController
 	perfBufferMonitor      *PerfBufferMonitor
 	activityDumpManager    *dump.ActivityDumpManager
-	activityDumpConfig     *adconfig.Config
 	securityProfileManager *profile.SecurityProfileManager
 	runtimeMonitor         *RuntimeMonitor
 	discarderMonitor       *DiscarderMonitor
@@ -62,20 +60,20 @@ func (m *Monitor) Init() error {
 	}
 
 	if p.IsActivityDumpEnabled() {
-		m.activityDumpManager, err = dump.NewActivityDumpManager(p.adcfg, p.StatsdClient, func() *model.Event { return NewEvent(p.fieldHandlers) }, p.resolvers.ProcessResolver, p.resolvers.TimeResolver, p.resolvers.TagsResolver, p.kernelVersion, p.scrubber, p.Manager)
+		m.activityDumpManager, err = dump.NewActivityDumpManager(p.Config, p.StatsdClient, func() *model.Event { return NewEvent(p.fieldHandlers) }, p.resolvers.ProcessResolver, p.resolvers.TimeResolver, p.resolvers.TagsResolver, p.kernelVersion, p.scrubber, p.Manager)
 		if err != nil {
 			return fmt.Errorf("couldn't create the activity dump manager: %w", err)
 		}
 	}
 
-	if p.Config.SecurityProfileEnabled {
+	if p.Config.RuntimeSecurity.SecurityProfileEnabled {
 		m.securityProfileManager, err = profile.NewSecurityProfileManager(p.Config, p.StatsdClient, p.resolvers.CGroupResolver)
 		if err != nil {
-			return nil, fmt.Errorf("couldn't create the security profile manager: %w", err)
+			return fmt.Errorf("couldn't create the security profile manager: %w", err)
 		}
 	}
 
-	if p.Config.RuntimeMonitor {
+	if p.Config.Probe.RuntimeMonitor {
 		m.runtimeMonitor = NewRuntimeMonitor(p.StatsdClient)
 	}
 
@@ -167,7 +165,7 @@ func (m *Monitor) SendStats() error {
 		}
 	}
 
-	if m.probe.Config.RuntimeMonitor {
+	if m.probe.Config.Probe.RuntimeMonitor {
 		if err := m.runtimeMonitor.SendStats(); err != nil {
 			return fmt.Errorf("failed to send runtime monitor stats: %w", err)
 		}
@@ -247,5 +245,5 @@ func (m *Monitor) GenerateTranscoding(params *api.TranscodingRequestParams) (*ap
 }
 
 func (m *Monitor) GetActivityDumpTracedEventTypes() []model.EventType {
-	return m.probe.adcfg.ActivityDumpTracedEventTypes
+	return m.probe.Config.RuntimeSecurity.ActivityDumpTracedEventTypes
 }

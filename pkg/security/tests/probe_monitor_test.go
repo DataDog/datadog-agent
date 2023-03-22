@@ -174,7 +174,7 @@ func TestNoisyProcess(t *testing.T) {
 	t.Run("noisy_process", func(t *testing.T) {
 		err = test.GetCustomEventSent(t, func() error {
 			// generate load
-			for i := int64(0); i < testMod.config.LoadControllerEventsCountThreshold*2; i++ {
+			for i := int64(0); i < testMod.secconfig.Probe.LoadControllerEventsCountThreshold*2; i++ {
 				f, err := os.OpenFile(file, os.O_CREATE, 0755)
 				if err != nil {
 					return err
@@ -196,7 +196,7 @@ func TestNoisyProcess(t *testing.T) {
 		}
 
 		// make sure the discarder has expired before moving on to other tests
-		t.Logf("waiting for the discarder to expire (%s)", testMod.config.LoadControllerDiscarderTimeout)
-		time.Sleep(testMod.config.LoadControllerDiscarderTimeout + 1*time.Second)
+		t.Logf("waiting for the discarder to expire (%s)", testMod.secconfig.Probe.LoadControllerDiscarderTimeout)
+		time.Sleep(testMod.secconfig.Probe.LoadControllerDiscarderTimeout + 1*time.Second)
 	})
 }

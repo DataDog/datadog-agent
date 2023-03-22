@@ -15,7 +15,6 @@ import (
 	"compress/gzip"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/security/activitydump/config"
 	"io"
 	"net"
 	"os"
@@ -37,6 +36,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
@@ -188,20 +188,20 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 		Name:              fmt.Sprintf("activity-dump-%s", utils.RandString(10)),
 		ProtobufVersion:   ProtobufVersion,
 		Start:             now,
-		End:               now.Add(adm.config.ActivityDumpCgroupDumpTimeout),
+		End:               now.Add(adm.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout),
 		Arch:              probes.RuntimeArch,
 	}
 	ad.Host = adm.hostname
 	ad.Source = ActivityDumpSource
 	ad.adm = adm
-	ad.shouldMergePaths = adm.config.ActivityDumpPathMergeEnabled
+	ad.shouldMergePaths = adm.config.RuntimeSecurity.ActivityDumpPathMergeEnabled
 
 	// set load configuration to initial defaults
 	ad.LoadConfig = NewActivityDumpLoadConfig(
-		adm.config.ActivityDumpTracedEventTypes,
-		adm.config.ActivityDumpCgroupDumpTimeout,
-		adm.config.ActivityDumpCgroupWaitListTimeout,
-		adm.config.ActivityDumpRateLimiter,
+		adm.config.RuntimeSecurity.ActivityDumpTracedEventTypes,
+		adm.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout,
+		adm.config.RuntimeSecurity.ActivityDumpCgroupWaitListTimeout,
+		adm.config.RuntimeSecurity.ActivityDumpRateLimiter,
 		now,
 		adm.timeResolver,
 	)
@@ -331,7 +331,7 @@ func (ad *ActivityDump) AddStorageRequest(request config.StorageRequest) {
 }
 
 func (ad *ActivityDump) checkInMemorySize() {
-	if ad.computeInMemorySize() < int64(ad.adm.config.ActivityDumpMaxDumpSize()) {
+	if ad.computeInMemorySize() < int64(ad.adm.config.RuntimeSecurity.ActivityDumpMaxDumpSize()) {
 		return
 	}
 

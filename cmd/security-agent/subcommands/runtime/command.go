@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	logsconfig "github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -38,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	seccommon "github.com/DataDog/datadog-agent/pkg/security/common"
+	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -435,7 +435,7 @@ func newAgentVersionFilter() (*rules.AgentVersionFilter, error) {
 }
 
 func checkPoliciesInner(policiesDir string) error {
-	emcfg := &emconfig.Config{
+	cfg := &pconfig.Config{
 		EnableKernelFilters: true,
 		EnableApprovers:     true,
 		EnableDiscarders:    true,
@@ -476,7 +476,7 @@ func checkPoliciesInner(policiesDir string) error {
 		return err
 	}
 
-	report, err := kfilters.NewApplyRuleSetReport(emcfg, ruleSet)
+	report, err := kfilters.NewApplyRuleSetReport(cfg, ruleSet)
 	if err != nil {
 		return err
 	}

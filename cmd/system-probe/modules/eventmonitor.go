@@ -24,20 +24,22 @@ var EventMonitor = module.Factory{
 	Name:             config.EventMonitorModule,
 	ConfigNamespaces: []string{"event_monitoring_config", "runtime_security_config"},
 	Fn: func(sysProbeConfig *config.Config) (module.Module, error) {
-		emconfig, err := emconfig.NewConfig(sysProbeConfig)
+		emconfig := emconfig.NewConfig(sysProbeConfig)
+
+		secconfig, err := secconfig.NewConfig()
 		if err != nil {
-			log.Infof("invalid event monitoring configuration: %v", err)
+			log.Infof("invalid probe configuration: %v", err)
 			return nil, module.ErrNotEnabled
 		}
 
-		evm, err := eventmonitor.NewEventMonitor(emconfig)
+		evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, eventmonitor.Opts{})
 		if err != nil {
 			log.Infof("error initializing event monitoring module: %v", err)
 			return nil, module.ErrNotEnabled
 		}
 
-		if secconfig.IsRuntimeEnabled() {
-			cws, err := secmodule.NewCWSConsumer(evm)
+		if secconfig.RuntimeSecurity.IsRuntimeEnabled() {
+			cws, err := secmodule.NewCWSConsumer(evm, secconfig.RuntimeSecurity)
 			if err != nil {
 				return nil, err
 			}
