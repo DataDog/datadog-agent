@@ -98,7 +98,7 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
 		}
 
 		log.Tracef("flushed flow: %s", string(payloadBytes))
-		agg.sender.EventPlatformEvent(payloadBytes, epforwarder.EventTypeNetworkDevicesNetFlow)
+		agg.sender.EventPlatformEventBlocking(payloadBytes, epforwarder.EventTypeNetworkDevicesNetFlow)
 	}
 }
 
