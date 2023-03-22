@@ -59,6 +59,10 @@ Package connectionscheck implements a component to handle Connections data colle
 
 Package containercheck implements a component to handle Container data collection in the Process Agent.
 
+### [comp/process/hostinfo](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process/hostinfo)
+
+Package hostinfo wraps the hostinfo inside a component. This is useful because it is relied on by other components.
+
 ### [comp/process/podcheck](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process/podcheck)
 
 Package podcheck implements a component to handle Kubernetes data collection in the Process Agent.
@@ -74,6 +78,10 @@ Package processdiscoverycheck implements a component to handle Process Discovery
 ### [comp/process/processeventscheck](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process/processeventscheck)
 
 Package processeventscheck implements a component to handle Process Events data collection in the Process Agent.
+
+### [comp/process/profiler](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process/profiler)
+
+Package profiler implements a component to handle starting and stopping the internal profiler.
 
 ### [comp/process/rtcontainercheck](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process/rtcontainercheck)
 
