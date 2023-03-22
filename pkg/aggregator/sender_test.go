@@ -439,6 +439,7 @@ func TestCheckSenderInterface(t *testing.T) {
 	s.sender.Commit()
 	s.sender.ServiceCheck("my_service.can_connect", metrics.ServiceCheckOK, "my-hostname", []string{"foo", "bar"}, "message")
 	s.sender.EventPlatformEvent([]byte("raw-event"), "dbm-sample")
+	s.sender.EventPlatformEventBlocking([]byte("raw-event2"), "dbm-sample")
 	submittedEvent := metrics.Event{
 		Title:          "Something happened",
 		Text:           "Description of the event",
@@ -450,7 +451,6 @@ func TestCheckSenderInterface(t *testing.T) {
 		AggregationKey: "event_agg_key",
 		SourceTypeName: "docker",
 	}
-	// TODO: test event platform event blocking
 	s.sender.Event(submittedEvent)
 
 	gaugeSenderSample := (<-s.itemChan).(*senderMetricSample)
