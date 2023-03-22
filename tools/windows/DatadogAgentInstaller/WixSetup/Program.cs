@@ -25,7 +25,7 @@ namespace WixSetup
 
 #if DEBUG
             // Useful to produce multiple versions of the installer for testing.
-            BuildMsi("7.45.0");
+            BuildMsi("7.43.0~rc.3+git.485.14b9337");
 #endif
             BuildMsi();
         }

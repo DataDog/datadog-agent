@@ -147,8 +147,8 @@ func (p *Processor) UpdateExternalMetrics(emList map[string]custommetrics.Extern
 		}
 	}
 
-	// In non-DatadogMetric path, we don't have any custom maxAge possible, passing 0 as custom time window to QueryExternalMetric
-	metrics, err := p.QueryExternalMetric(batch, 0)
+	// In non-DatadogMetric path, we don't have any custom maxAge possible, always use default time window
+	metrics, err := p.QueryExternalMetric(batch, GetDefaultTimeWindow())
 	if len(metrics) == 0 && err != nil {
 		log.Errorf("Error getting metrics from Datadog: %v", err.Error())
 		// If no metrics can be retrieved from Datadog in a given list, we need to invalidate them

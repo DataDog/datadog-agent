@@ -12,6 +12,7 @@
 #include "bpf_helpers.h"
 #include "bpf_endian.h"
 #include "bpf_builtins.h"
+#include "bpf_telemetry.h"
 #include "ipv6.h"
 
 static __always_inline __u64 offset_sk_buff_head() {
@@ -28,15 +29,15 @@ static __always_inline __u64 offset_sk_buff_transport_header() {
 
 // returns the data length of the skb or a negative value in case of an error
 // duplication of sk_buff_to_tuple from `runtime/skb.h` but with offset guessing.
-static __always_inline int sk_buff_to_tuple(void *skb, conn_tuple_t *tup) {
+static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *tup) {
     unsigned char *head = NULL;
-    int ret = bpf_probe_read_kernel_with_telemetry(&head, sizeof(head), skb + offset_sk_buff_head());
+    int ret = bpf_probe_read_kernel_with_telemetry(&head, sizeof(head), (char*)skb + offset_sk_buff_head());
     if (ret || !head) {
         log_debug("ERR reading head\n");
         return ret;
     }
     u16 net_head = 0;
-    ret = bpf_probe_read_kernel_with_telemetry(&net_head, sizeof(net_head), skb + offset_sk_buff_transport_header() + 2);
+    ret = bpf_probe_read_kernel_with_telemetry(&net_head, sizeof(net_head), (char*)skb + offset_sk_buff_transport_header() + 2);
     if (ret) {
         log_debug("ERR reading network_header\n");
         return ret;
@@ -97,7 +98,7 @@ static __always_inline int sk_buff_to_tuple(void *skb, conn_tuple_t *tup) {
     }
 
     u16 trans_head = 0;
-    ret = bpf_probe_read_kernel_with_telemetry(&trans_head, sizeof(trans_head), skb + offset_sk_buff_transport_header());
+    ret = bpf_probe_read_kernel_with_telemetry(&trans_head, sizeof(trans_head), (char*)skb + offset_sk_buff_transport_header());
     if (ret) {
         log_debug("ERR reading trans_head\n");
         return ret;

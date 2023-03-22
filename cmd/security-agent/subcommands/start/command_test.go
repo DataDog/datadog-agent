@@ -27,7 +27,6 @@ func TestCommand(t *testing.T) {
 			check: func(cliParams *cliParams, params core.BundleParams) {
 				// Verify logger defaults
 				require.Equal(t, command.LoggerName, params.LoggerName(), "logger name not matching")
-				require.Equal(t, "info", params.LogLevelFn(nil), "log level not matching")
 			},
 		},
 		{
@@ -36,7 +35,6 @@ func TestCommand(t *testing.T) {
 			check: func(cliParams *cliParams, params core.BundleParams) {
 				// Verify logger defaults
 				require.Equal(t, command.LoggerName, params.LoggerName(), "logger name not matching")
-				require.Equal(t, "info", params.LogLevelFn(nil), "log level not matching")
 				require.Equal(t, "/pid/file", cliParams.pidfilePath, "PID file path not matching")
 			},
 		},

@@ -449,7 +449,6 @@ func (c *Consumer) GetStats() map[string]int64 {
 func (c *Consumer) Stop() {
 	if c.conn != nil {
 		c.conn.Close()
-		c.socket = nil
 	}
 	c.breaker.Stop()
 	c.rootNetNs.Close()
