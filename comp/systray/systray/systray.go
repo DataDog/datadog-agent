@@ -13,10 +13,8 @@ import "C"
 import (
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
 	"runtime"
-	"strings"
 	"sync"
 	"time"
 	"unsafe"
@@ -55,8 +53,6 @@ type systray struct {
 	flare  flare.Component
 	params Params
 
-	isUserAdmin bool
-
 	// allocated in start, destroyed in stop
 	singletonEventHandle windows.Handle
 
@@ -93,7 +89,16 @@ var (
 
 // newSystray creates a new systray component, which will start and stop based on
 // the fx Lifecycle
-func newSystray(deps dependencies) Component {
+func newSystray(deps dependencies) (Component, error) {
+	// init vars
+	isAdmin, err := winutil.IsUserAnAdmin()
+	if err != nil {
+		return nil, fmt.Errorf("failed to call IsUserAnAdmin %v", err)
+	}
+	if !isAdmin {
+		return nil, fmt.Errorf("not running as an admin, systray requires administrative privileges")
+	}
+
 	// fx init
 	s := &systray{
 		log:        deps.Log,
@@ -106,17 +111,7 @@ func newSystray(deps dependencies) Component {
 	// fx lifecycle hooks
 	deps.Lc.Append(fx.Hook{OnStart: s.start, OnStop: s.stop})
 
-	// init vars
-	isAdmin, err := winutil.IsUserAnAdmin()
-	if err != nil {
-		s.log.Warnf("Failed to call IsUserAnAdmin %v", err)
-		// If we cannot determine if the user is admin or not let the user allow to click on the buttons.
-		s.isUserAdmin = true
-	} else {
-		s.isUserAdmin = isAdmin
-	}
-
-	return s
+	return s, nil
 }
 
 // start hook has a fx enforced timeout, so don't do long running things
@@ -141,7 +136,7 @@ func (s *systray) start(ctx context.Context) error {
 
 	// If a command is specified in process command line, carry it out.
 	if s.params.LaunchCommand != "" {
-		go execCmdOrElevate(s, s.params.LaunchCommand)
+		go execCmd(s, s.params.LaunchCommand)
 	}
 
 	return nil
@@ -388,7 +383,7 @@ func createMenuItems(s *systray, notifyIcon *walk.NotifyIcon) []menuItem {
 
 	menuHandler := func(cmd string) func() {
 		return func() {
-			execCmdOrElevate(s, cmd)
+			execCmd(s, cmd)
 		}
 	}
 
@@ -419,44 +414,9 @@ func open(url string) error {
 	return nil
 }
 
-// execCmdOrElevate carries out a command. If current process is not elevated and is not supposed to be elevated, it will launch
-// itself as elevated and quit from the current instance.
-func execCmdOrElevate(s *systray, cmd string) {
-	if !s.params.LaunchElevatedFlag && !s.isUserAdmin {
-		// If not launched as elevated and user is not admin, relaunch self. Use AND here to prevent from dead loop.
-		relaunchElevated(s, cmd)
-
-		// If elevation failed, just quit to the caller.
-		return
-	}
-
+// execCmdOrElevate carries out a command
+func execCmd(s *systray, cmd string) {
 	if cmds[cmd] != nil {
 		cmds[cmd](s)
-	}
-}
-
-// relaunchElevated launch another instance of the current process asking it to carry out a command as admin.
-// If the function succeeds, it will quit the process, otherwise the function will return to the caller.
-func relaunchElevated(s *systray, cmd string) {
-	verb := "runas"
-	exe, _ := os.Executable()
-	cwd, _ := os.Getwd()
-
-	// Reconstruct arguments, drop launch-gui and tell the new process it should have been elevated.
-	xargs := []string{"--launch-elev=true", "--launch-cmd=" + cmd}
-	args := strings.Join(xargs, " ")
-
-	verbPtr, _ := windows.UTF16PtrFromString(verb)
-	exePtr, _ := windows.UTF16PtrFromString(exe)
-	cwdPtr, _ := windows.UTF16PtrFromString(cwd)
-	argPtr, _ := windows.UTF16PtrFromString(args)
-
-	var showCmd int32 = 1 //SW_NORMAL
-
-	err := windows.ShellExecute(0, verbPtr, exePtr, argPtr, cwdPtr, showCmd)
-	if err != nil {
-		s.log.Warnf("Failed to launch self as elevated %v", err)
-	} else {
-		triggerShutdown(s)
 	}
 }
