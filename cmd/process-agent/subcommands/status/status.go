@@ -16,6 +16,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/process"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -50,6 +52,14 @@ type cliParams struct {
 	*command.GlobalParams
 }
 
+type dependencies struct {
+	fx.In
+
+	CliParams *cliParams
+
+	Config config.Component
+}
+
 // Commands returns a slice of subcommands for the `status` command in the Process Agent
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &cliParams{
@@ -63,7 +73,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(runStatus,
-				fx.Supply(cliParams),
+				fx.Supply(cliParams, command.GetCoreBundleParamsForOneShot(globalParams)),
+
+				process.Bundle,
 			)
 		},
 	}
@@ -152,11 +164,7 @@ func getStatusURL() (string, error) {
 	return fmt.Sprintf("http://%s/agent/status", addressPort), nil
 }
 
-func runStatus(cliParams *cliParams) error {
-	if err := command.BootstrapConfig(cliParams.GlobalParams.ConfFilePath, true); err != nil {
-		return log.Criticalf("Error parsing config: %s", err)
-	}
-
+func runStatus(deps dependencies) error {
 	statusURL, err := getStatusURL()
 	if err != nil {
 		writeError(os.Stdout, err)
