@@ -1,13 +1,18 @@
 name "python3"
 
 if ohai["platform"] != "windows"
-  default_version "3.8.16"
+  default_version "3.9.16"
+  agent_major_version = ENV["AGENT_MAJOR_VERSION"].to_i
 
   dependency "libxcrypt"
   dependency "libffi"
   dependency "ncurses"
   dependency "zlib"
-  dependency "openssl"
+  if agent_major_version >= 7
+    dependency "openssl3"
+  else
+    dependency "openssl"
+  end
   dependency "pkg-config"
   dependency "bzip2"
   dependency "libsqlite3"
@@ -57,7 +62,7 @@ if ohai["platform"] != "windows"
     command python_configure.join(" "), :env => env
     command "make -j #{workers}", :env => env
     command "make install", :env => env
-    delete "#{install_dir}/embedded/lib/python3.8/test"
+    delete "#{install_dir}/embedded/lib/python3.9/test"
 
     # There exists no configure flag to tell Python to not compile readline support :(
     major, minor, bugfix = version.split(".")
