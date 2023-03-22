@@ -12,29 +12,21 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
-	"strconv"
 	"strings"
 	"testing"
 
-	"github.com/benbjohnson/clock"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/agent-payload/v5/contimage"
-	"github.com/DataDog/agent-payload/v5/contlcycle"
-	"github.com/DataDog/agent-payload/v5/sbom"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var initialContentEncoding = compression.ContentEncoding
@@ -232,7 +224,7 @@ func TestSendV1Events(t *testing.T) {
 	matcher := createJSONPayloadMatcher(`{"apiKey":"","events":{},"internalHostname"`)
 	f.On("SubmitV1Intake", matcher, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
-	s := NewSerializer(f, nil, nil, nil, nil)
+	s := NewSerializer(f, nil)
 	err := s.SendEvents([]*metrics.Event{})
 	require.Nil(t, err)
 	f.AssertExpectations(t)
@@ -250,7 +242,7 @@ func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
 	defer config.Datadog.Set("enable_events_stream_payload_serialization", nil)
 	f := &forwarder.MockedForwarder{}
 
-	s := NewSerializer(f, nil, nil, nil, nil)
+	s := NewSerializer(f, nil)
 
 	events := metrics.Events{&metrics.Event{SourceTypeName: "source1"}, &metrics.Event{SourceTypeName: "source2"}, &metrics.Event{SourceTypeName: "source3"}}
 	payloadsCountMatcher := func(payloadCount int) interface{} {
@@ -280,7 +272,7 @@ func TestSendV1ServiceChecks(t *testing.T) {
 	config.Datadog.Set("enable_service_checks_stream_payload_serialization", false)
 	defer config.Datadog.Set("enable_service_checks_stream_payload_serialization", nil)
 
-	s := NewSerializer(f, nil, nil, nil, nil)
+	s := NewSerializer(f, nil)
 	err := s.SendServiceChecks(metrics.ServiceChecks{&metrics.ServiceCheck{}})
 	require.Nil(t, err)
 	f.AssertExpectations(t)
@@ -296,7 +288,7 @@ func TestSendV1Series(t *testing.T) {
 	config.Datadog.Set("use_v2_api.series", false)
 	defer config.Datadog.Set("use_v2_api.series", true)
 
-	s := NewSerializer(f, nil, nil, nil, nil)
+	s := NewSerializer(f, nil)
 
 	err := s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{}))
 	require.Nil(t, err)
@@ -309,7 +301,7 @@ func TestSendSeries(t *testing.T) {
 	f.On("SubmitSeries", matcher, protobufExtraHeadersWithCompression).Return(nil).Times(1)
 	config.Datadog.Set("use_v2_api.series", true) // default value, but just to be sure
 
-	s := NewSerializer(f, nil, nil, nil, nil)
+	s := NewSerializer(f, nil)
 
 	err := s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{&metrics.Serie{}}))
 	require.Nil(t, err)
@@ -322,7 +314,7 @@ func TestSendSketch(t *testing.T) {
 	matcher := createProtoPayloadMatcher([]byte{18, 0})
 	f.On("SubmitSketchSeries", matcher, protobufExtraHeadersWithCompression).Return(nil).Times(1)
 
-	s := NewSerializer(f, nil, nil, nil, nil)
+	s := NewSerializer(f, nil)
 	err := s.SendSketch(metrics.NewSketchesSourceTest())
 	require.Nil(t, err)
 	f.AssertExpectations(t)
@@ -332,7 +324,7 @@ func TestSendMetadata(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitMetadata", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
-	s := NewSerializer(f, nil, nil, nil, nil)
+	s := NewSerializer(f, nil)
 
 	payload := &testPayload{}
 	err := s.SendMetadata(payload)
@@ -355,7 +347,7 @@ func TestSendProcessesMetadata(t *testing.T) {
 	payloads, _ := mkPayloads(payload, true)
 	f.On("SubmitV1Intake", payloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
-	s := NewSerializer(f, nil, nil, nil, nil)
+	s := NewSerializer(f, nil)
 
 	err := s.SendProcessesMetadata("test")
 	require.Nil(t, err)
@@ -369,101 +361,6 @@ func TestSendProcessesMetadata(t *testing.T) {
 	errPayload := &testErrorPayload{}
 	err = s.SendProcessesMetadata(errPayload)
 	require.NotNil(t, err)
-}
-
-func TestSendContainerLifecycleEvents(t *testing.T) {
-	clock := clock.NewMock()
-	f := &forwarder.MockedForwarder{}
-	payload := []byte("\x0a\x02v1\x12\x08hostname\x18\x01")
-	payloads, _ := mkPayloads(payload, false)
-	extraHeaders := protobufExtraHeaders.Clone()
-	extraHeaders.Set(headers.EVPOriginHeader, "agent")
-	extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
-	extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(clock.Now().Unix())))
-	f.On("SubmitContainerLifecycleEvents", payloads, extraHeaders).Return(nil).Times(1)
-
-	s := NewSerializer(nil, nil, f, nil, nil)
-	s.clock = clock
-
-	msg := []ContainerLifecycleMessage{
-		{
-			Version:    "v1",
-			Host:       "hostname",
-			ObjectKind: contlcycle.EventsPayload_Pod,
-			Events:     []*contlcycle.Event{},
-		},
-	}
-	err := s.SendContainerLifecycleEvent(msg, "hostname")
-	require.Nil(t, err)
-	f.AssertExpectations(t)
-
-	f.On("SubmitContainerLifecycleEvents", payloads, extraHeaders).Return(fmt.Errorf("some error")).Times(1)
-	err = s.SendContainerLifecycleEvent(msg, "hostname")
-	require.NotNil(t, err)
-	f.AssertExpectations(t)
-}
-
-func TestSendContainerImage(t *testing.T) {
-	clock := clock.NewMock()
-	f := &forwarder.MockedForwarder{}
-	payload := []byte("\x0a\x02v1\x12\x08hostname")
-	payloads, _ := mkPayloads(payload, false)
-	extraHeaders := protobufExtraHeaders.Clone()
-	extraHeaders.Set(headers.EVPOriginHeader, "agent")
-	extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
-	extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(clock.Now().Unix())))
-	f.On("SubmitContainerImages", payloads, extraHeaders).Return(nil).Times(1)
-
-	s := NewSerializer(nil, nil, nil, f, nil)
-	s.clock = clock
-
-	msg := []ContainerImageMessage{
-		{
-			Version: "v1",
-			Host:    "hostname",
-			Images:  []*contimage.ContainerImage{},
-		},
-	}
-	err := s.SendContainerImage(msg, "hostname")
-	require.Nil(t, err)
-	f.AssertExpectations(t)
-
-	f.On("SubmitContainerImages", payloads, extraHeaders).Return(fmt.Errorf("some error")).Times(1)
-	err = s.SendContainerImage(msg, "hostname")
-	require.NotNil(t, err)
-	f.AssertExpectations(t)
-}
-
-func TestSendSBOM(t *testing.T) {
-	clock := clock.NewMock()
-	f := &forwarder.MockedForwarder{}
-	payload := []byte("\x08\x01\x12\x08hostname\x1a\x05agent")
-	payloads, _ := mkPayloads(payload, false)
-	extraHeaders := protobufExtraHeaders.Clone()
-	extraHeaders.Set(headers.EVPOriginHeader, "agent")
-	extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
-	extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(clock.Now().Unix())))
-	f.On("SubmitSBOM", payloads, extraHeaders).Return(nil).Times(1)
-
-	s := NewSerializer(nil, nil, nil, nil, f)
-	s.clock = clock
-
-	msg := []SBOMMessage{
-		{
-			Version:  1,
-			Host:     "hostname",
-			Source:   pointer.Ptr("agent"),
-			Entities: []*sbom.SBOMEntity{},
-		},
-	}
-	err := s.SendSBOM(msg, "hostname")
-	require.Nil(t, err)
-	f.AssertExpectations(t)
-
-	f.On("SubmitSBOM", payloads, extraHeaders).Return(fmt.Errorf("some error")).Times(1)
-	err = s.SendSBOM(msg, "hostname")
-	require.NotNil(t, err)
-	f.AssertExpectations(t)
 }
 
 func TestSendWithDisabledKind(t *testing.T) {
@@ -485,7 +382,7 @@ func TestSendWithDisabledKind(t *testing.T) {
 	}()
 
 	f := &forwarder.MockedForwarder{}
-	s := NewSerializer(f, nil, nil, nil, nil)
+	s := NewSerializer(f, nil)
 
 	payload := &testPayload{}
 

@@ -160,7 +160,7 @@ func TestAggregator(t *testing.T) {
 	err = waitForFlowsToBeFlushed(aggregator, 10*time.Second, 1)
 	assert.NoError(t, err)
 
-	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-netflow")
+	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-netflow")
 	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.flows_flushed", 1, "", nil)
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.aggregator.flows_received", 1, "", nil)
 	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.flows_contexts", 1, "", nil)
@@ -294,7 +294,7 @@ func TestAggregator_withMockPayload(t *testing.T) {
 	err = waitForFlowsToBeFlushed(aggregator, 3*time.Second, 1)
 	assert.NoError(t, err)
 
-	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-netflow")
+	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-netflow")
 	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.flows_flushed", 6, "", nil)
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.aggregator.flows_received", 6, "", nil)
 	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.flows_contexts", 6, "", nil)

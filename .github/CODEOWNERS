@@ -83,8 +83,6 @@
 
 /.gitlab/container_scan.yml                          @DataDog/container-integrations @DataDog/agent-platform
 
-/.gitlab/internal_deploy.yml                         @DataDog/ebpf-platform @DataDog/agent-platform
-
 /.gitlab/internal_image_deploy.yml                   @DataDog/container-integrations @DataDog/agent-platform
 
 /.gitlab/maintenance_jobs/docker.yml                 @DataDog/container-integrations @DataDog/agent-platform
@@ -190,7 +188,6 @@
 /pkg/                                   @DataDog/agent-shared-components
 /pkg/aggregator/                        @DataDog/agent-metrics-logs
 /pkg/collector/                         @DataDog/agent-metrics-logs
-/pkg/dogstatsd/                         @DataDog/agent-metrics-logs
 /pkg/forwarder/                         @DataDog/agent-metrics-logs @DataDog/agent-shared-components
 /pkg/jmxfetch/                          @DataDog/agent-metrics-logs
 /pkg/metadata/                          @DataDog/agent-shared-components
@@ -386,6 +383,7 @@
 /tools/gdb/                             @DataDog/agent-shared-components
 /tools/retry_file_dump/                 @DataDog/agent-metrics-logs
 /tools/windows/                         @DataDog/windows-agent
+/tools/windows/DatadogAgentInstaller/WixSetup/localization-en-us.wxl @DataDog/windows-agent @DataDog/documentation
 /tools/agent_QA/                        @DataDog/agent-metrics-logs
 
 /internal/tools/                        @DataDog/agent-platform

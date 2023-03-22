@@ -10,41 +10,46 @@ package secrets
 
 import (
 	"bytes"
+	_ "embed"
 	"fmt"
 	"os/exec"
 	"strings"
 )
 
-func (info *SecretInfo) populateRights() {
-	execPath := fmt.Sprintf("\"%s\"", strings.TrimSpace(info.ExecutablePath))
-	err := checkRights(execPath, secretBackendCommandAllowGroupExec)
-	if err != nil {
-		info.Rights = fmt.Sprintf("Error: %s", err)
-	} else {
-		info.Rights = fmt.Sprintf("OK, the executable has the correct rights")
-	}
+//go:embed info_win.tmpl
+var permissionsDetailsTemplate string
 
+type permissionsDetails struct {
+	Error  string
+	Stdout string
+	Stderr string
+}
+
+func getExecutablePermissions() (interface{}, error) {
+	execPath := fmt.Sprintf("\"%s\"", strings.TrimSpace(secretBackendCommand))
 	ps, err := exec.LookPath("powershell.exe")
 	if err != nil {
-		info.RightDetails = fmt.Sprintf("Could not find executable powershell.exe: %s", err)
-		return
+		return nil, fmt.Errorf("Could not find executable powershell.exe: %s", err)
 	}
-
-	cmd := exec.Command(ps, "get-acl", "-Path", execPath, "|", "format-list")
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
+	details := permissionsDetails{}
+
+	cmd := exec.Command(ps, "get-acl", "-Path", execPath, "|", "format-list")
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	err = cmd.Run()
 	if err != nil {
-		info.RightDetails += fmt.Sprintf("Error calling 'get-acl': %s\n", err)
-	} else {
-		info.RightDetails += fmt.Sprintf("Acl list:\n")
+		details.Error = fmt.Sprintf("Error calling 'get-acl': %s", err)
 	}
-	info.RightDetails += fmt.Sprintf("stdout:\n %s\n", stdout.String())
+
+	details.Stdout = strings.TrimSpace(stdout.String())
+
 	if stderr.Len() != 0 {
-		info.RightDetails += fmt.Sprintf("stderr:\n %s\n", stderr.String())
+		details.Stderr = strings.TrimSpace(stderr.String())
 	}
+
+	return details, nil
 }

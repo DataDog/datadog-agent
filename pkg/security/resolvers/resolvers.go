@@ -80,15 +80,15 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 		return nil, err
 	}
 
-	tagsResolver := tags.NewResolver(config)
 	var sbomResolver *sbom.Resolver
 	if config.SBOMResolverEnabled {
-		sbomResolver, err = sbom.NewSBOMResolver(config, tagsResolver, statsdClient)
+		sbomResolver, err = sbom.NewSBOMResolver(config, statsdClient)
 		if err != nil {
 			return nil, err
 		}
 	}
 
+	tagsResolver := tags.NewResolver(config)
 	cgroupsResolver, err := cgroup.NewResolver(tagsResolver)
 	if err != nil {
 		return nil, err
