@@ -42,10 +42,10 @@ if linux?
 end
 
 relative_path 'integrations-core'
-whitelist_file "embedded/lib/python3.8/site-packages/.libsaerospike"
-whitelist_file "embedded/lib/python3.8/site-packages/aerospike.libs"
-whitelist_file "embedded/lib/python3.8/site-packages/psycopg2"
-whitelist_file "embedded/lib/python3.8/site-packages/pymqi"
+whitelist_file "embedded/lib/python3.9/site-packages/.libsaerospike"
+whitelist_file "embedded/lib/python3.9/site-packages/aerospike.libs"
+whitelist_file "embedded/lib/python3.9/site-packages/psycopg2"
+whitelist_file "embedded/lib/python3.9/site-packages/pymqi"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
 
@@ -481,7 +481,7 @@ build do
       if windows?
         patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{python_3_embedded}/Lib/site-packages/psutil/__init__.py"
       else
-        patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{install_dir}/embedded/lib/python3.8/site-packages/psutil/__init__.py"
+        patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{install_dir}/embedded/lib/python3.9/site-packages/psutil/__init__.py"
       end
 
       # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
