@@ -18,12 +18,12 @@ import (
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/mapper"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -64,6 +64,7 @@ type dependencies struct {
 
 	Log    logComponent.Component
 	Config configComponent.Component
+	Replay replay.Component
 	Params Params
 }
 
@@ -108,7 +109,7 @@ type server struct {
 	extraTags               []string
 	Debug                   *DsdServerDebug
 
-	TCapture                *replay.TrafficCapture
+	tCapture                replay.Component
 	mapper                  *mapper.MetricMapper
 	eolTerminationUDP       bool
 	eolTerminationUDS       bool
@@ -180,15 +181,15 @@ func initTelemetry(cfg config.ConfigReader, logger logComponent.Component) {
 
 // TODO: (components) - remove once serverless is an FX app
 func NewServerlessServer() Component {
-	return newServerCompat(config.Datadog, logComponent.NewTemporaryLoggerWithoutInit(), true)
+	return newServerCompat(config.Datadog, logComponent.NewTemporaryLoggerWithoutInit(), replay.NewServerlessTrafficCapture(), true) // TODO
 }
 
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
 func newServer(deps dependencies) Component {
-	return newServerCompat(deps.Config, deps.Log, deps.Params.Serverless)
+	return newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Params.Serverless)
 }
 
-func newServerCompat(cfg config.ConfigReader, log logComponent.Component, serverless bool) Component {
+func newServerCompat(cfg config.ConfigReader, log logComponent.Component, capture replay.Component, serverless bool) Component {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry(cfg, log) })
 
@@ -273,7 +274,7 @@ func newServerCompat(cfg config.ConfigReader, log logComponent.Component, server
 		Debug:                   newDSDServerDebug(),
 		originTelemetry: cfg.GetBool("telemetry.enabled") &&
 			cfg.GetBool("telemetry.dogstatsd_origin"),
-		TCapture:             nil,
+		tCapture:             capture,
 		udsListenerRunning:   false,
 		cachedOriginCounters: make(map[string]cachedOriginCounter),
 		ServerlessMode:       serverless,
@@ -297,7 +298,7 @@ func (s *server) Start(demultiplexer aggregator.Demultiplexer) error {
 
 	packetsChannel := make(chan packets.Packets, s.config.GetInt("dogstatsd_queue_size"))
 	tmpListeners := make([]listeners.StatsdListener, 0, 2)
-	capture, err := replay.NewTrafficCapture()
+	err := s.tCapture.Configure()
 
 	if err != nil {
 		return err
@@ -312,7 +313,7 @@ func (s *server) Start(demultiplexer aggregator.Demultiplexer) error {
 
 	socketPath := s.config.GetString("dogstatsd_socket")
 	if len(socketPath) > 0 {
-		unixListener, err := listeners.NewUDSListener(packetsChannel, sharedPacketPoolManager, capture)
+		unixListener, err := listeners.NewUDSListener(packetsChannel, sharedPacketPoolManager, s.tCapture)
 		if err != nil {
 			s.log.Errorf(err.Error())
 		} else {
@@ -321,7 +322,7 @@ func (s *server) Start(demultiplexer aggregator.Demultiplexer) error {
 		}
 	}
 	if s.config.GetInt("dogstatsd_port") > 0 {
-		udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPoolManager, capture)
+		udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPoolManager, s.tCapture)
 		if err != nil {
 			s.log.Errorf(err.Error())
 		} else {
@@ -331,7 +332,7 @@ func (s *server) Start(demultiplexer aggregator.Demultiplexer) error {
 
 	pipeName := s.config.GetString("dogstatsd_pipe_name")
 	if len(pipeName) > 0 {
-		namedPipeListener, err := listeners.NewNamedPipeListener(pipeName, packetsChannel, sharedPacketPoolManager, capture)
+		namedPipeListener, err := listeners.NewNamedPipeListener(pipeName, packetsChannel, sharedPacketPoolManager, s.tCapture)
 		if err != nil {
 			s.log.Errorf("named pipe error: %v", err.Error())
 		} else {
@@ -349,7 +350,6 @@ func (s *server) Start(demultiplexer aggregator.Demultiplexer) error {
 	s.sharedPacketPool = sharedPacketPool
 	s.sharedPacketPoolManager = sharedPacketPoolManager
 	s.listeners = tmpListeners
-	s.TCapture = capture
 
 	// packets forwarding
 	// ----------------------
@@ -409,8 +409,8 @@ func (s *server) Stop() {
 	if s.Statistics != nil {
 		s.Statistics.Stop()
 	}
-	if s.TCapture != nil {
-		s.TCapture.Stop()
+	if s.tCapture != nil {
+		s.tCapture.Stop()
 	}
 	s.health.Deregister() //nolint:errcheck
 	s.Started = false
@@ -418,12 +418,6 @@ func (s *server) Stop() {
 
 func (s *server) IsRunning() bool {
 	return s.Started
-}
-
-// Capture starts a traffic capture at the specified path and with the specified duration,
-// an empty path will default to the default location. Returns an error if any.
-func (s *server) Capture(p string, d time.Duration, compressed bool) (string, error) {
-	return s.TCapture.Start(p, d, compressed)
 }
 
 // GetJSONDebugStats returns jsonified debug statistics.

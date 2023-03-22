@@ -336,6 +336,72 @@ func TestConfigsForPod(t *testing.T) {
 			},
 		},
 		{
+			name:    "multi containers, match based on port",
+			check:   types.DefaultPrometheusCheck,
+			version: 2,
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name: "foo-pod",
+					Annotations: map[string]string{
+						"prometheus.io/scrape": "true",
+						"prometheus.io/port":   "8080",
+					},
+				},
+				Spec: kubelet.Spec{
+					Containers: []kubelet.ContainerSpec{
+						{
+							Name: "foo-ctr1",
+							Ports: []kubelet.ContainerPortSpec{
+								{
+									ContainerPort: 8080,
+								},
+							},
+						},
+						{
+							Name: "foo-ctr2",
+							Ports: []kubelet.ContainerPortSpec{
+								{
+									ContainerPort: 8081,
+								},
+							},
+						},
+					},
+				},
+				Status: kubelet.Status{
+					Containers: []kubelet.ContainerStatus{
+						{
+							Name: "foo-ctr1",
+							ID:   "foo-ctr1-id",
+						},
+						{
+							Name: "foo-ctr2",
+							ID:   "foo-ctr2-id",
+						},
+					},
+					AllContainers: []kubelet.ContainerStatus{
+						{
+							Name: "foo-ctr1",
+							ID:   "foo-ctr1-id",
+						},
+						{
+							Name: "foo-ctr2",
+							ID:   "foo-ctr2-id",
+						},
+					},
+				},
+			},
+			want: []integration.Config{
+				{
+					Name:          "openmetrics",
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:8080/metrics"}`)},
+					Provider:      names.PrometheusPods,
+					Source:        "prometheus_pods:foo-ctr1-id",
+					ADIdentifiers: []string{"foo-ctr1-id"},
+				},
+			},
+		},
+		{
 			name: "container name mismatch",
 			check: &types.PrometheusCheck{
 				AD: &types.ADConfig{

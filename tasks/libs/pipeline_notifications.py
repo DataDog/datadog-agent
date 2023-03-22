@@ -7,28 +7,33 @@ from .common.gitlab import Gitlab, get_gitlab_token
 from .types import FailedJobType, Test
 
 DEFAULT_SLACK_CHANNEL = "#agent-platform"
+# Map keys in lowercase
 GITHUB_SLACK_MAP = {
-    "@DataDog/agent-platform": DEFAULT_SLACK_CHANNEL,
-    "@DataDog/container-integrations": "#container-integrations",
-    "@DataDog/platform-integrations": "#platform-integrations",
-    "@DataDog/agent-security": "#security-and-compliance-agent-ops",
-    "@DataDog/agent-apm": "#apm-agent",
-    "@DataDog/network-device-monitoring": "#network-device-monitoring",
-    "@DataDog/processes": "#process-agent-ops",
-    "@DataDog/agent-metrics-logs": "#agent-metrics-logs",
-    "@DataDog/agent-shared-components": "#agent-shared-components",
-    "@DataDog/container-app": "#container-app",
-    "@DataDog/metrics-aggregation": "#metrics-aggregation",
-    "@DataDog/serverless": "#serverless-agent",
-    "@DataDog/remote-config": "#remote-config-monitoring",
-    "@DataDog/agent-all": "#datadog-agent-pipelines",
-    "@DataDog/ebpf-platform": "#ebpf-platform-ops",
-    "@DataDog/Networks": "#network-performance-monitoring",
-    "@DataDog/universal-service-monitoring": "#universal-service-monitoring",
-    "@DataDog/windows-agent": "#windows-agent",
-    "@DataDog/windows-kernel-integrations": "#windows-kernel-integrations",
-    "@DataDog/opentelemetry": "#opentelemetry-ops",
-    "@DataDog/agent-e2e-testing": "#agent-testing-and-qa",
+    "@datadog/agent-platform": DEFAULT_SLACK_CHANNEL,
+    "@datadog/documentation": DEFAULT_SLACK_CHANNEL,
+    "@datadog/container-integrations": "#container-integrations",
+    "@datadog/platform-integrations": "#platform-integrations",
+    "@datadog/agent-security": "#security-and-compliance-agent-ops",
+    "@datadog/agent-apm": "#apm-agent",
+    "@datadog/network-device-monitoring": "#network-device-monitoring",
+    "@datadog/processes": "#process-agent-ops",
+    "@datadog/agent-metrics-logs": "#agent-metrics-logs",
+    "@datadog/agent-shared-components": "#agent-shared-components",
+    "@datadog/container-app": "#container-app",
+    "@datadog/metrics-aggregation": "#metrics-aggregation",
+    "@datadog/serverless": "#serverless-agent",
+    "@datadog/remote-config": "#remote-config-monitoring",
+    "@datadog/agent-all": "#datadog-agent-pipelines",
+    "@datadog/ebpf-platform": "#ebpf-platform-ops",
+    "@datadog/networks": "#network-performance-monitoring",
+    "@datadog/universal-service-monitoring": "#universal-service-monitoring",
+    "@datadog/windows-agent": "#windows-agent",
+    "@datadog/windows-kernel-integrations": "#windows-kernel-integrations",
+    "@datadog/opentelemetry": "#opentelemetry-ops",
+    "@datadog/agent-e2e-testing": "#agent-testing-and-qa",
+    "@datadog/software-integrity-and-trust": "#sit",
+    "@datadog/single-machine-performance": "#single-machine-performance",
+    "@datadog/agent-integrations": "#agent-integrations",
 }
 
 
@@ -37,6 +42,19 @@ def read_owners(owners_file):
 
     with open(owners_file, 'r') as f:
         return CodeOwners(f.read())
+
+
+def check_for_missing_owners_slack(print_missing_teams=True, owners_file=".github/CODEOWNERS"):
+    owners = read_owners(owners_file)
+    error = False
+    for path in owners.paths:
+        if not path[2] or path[2][0][0] != "TEAM":
+            continue
+        if path[2][0][1].lower() not in GITHUB_SLACK_MAP:
+            error = True
+            if print_missing_teams:
+                print(f"The team {path[2][0][1]} doesn't have a slack team assigned !!")
+    return error
 
 
 def get_failed_tests(project_name, job, owners_file=".github/CODEOWNERS"):

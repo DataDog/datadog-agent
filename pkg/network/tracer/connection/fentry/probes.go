@@ -9,6 +9,9 @@
 package fentry
 
 import (
+	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -24,7 +27,9 @@ const (
 	tcpFinishConnect = "tcp_finish_connect"
 
 	// tcpSendMsgReturn traces the return value for the tcp_sendmsg() system call
-	tcpSendMsgReturn = "tcp_sendmsg_exit"
+	tcpSendMsgReturn  = "tcp_sendmsg_exit"
+	tcpSendPageReturn = "tcp_sendpage_exit"
+	udpSendPageReturn = "udp_sendpage_exit"
 
 	// tcpSetState traces the tcp_set_state() kernel function
 	tcpSetState = "tcp_set_state"
@@ -36,21 +41,28 @@ const (
 	// tcpCloseReturn traces the return of tcp_close() system call
 	tcpCloseReturn = "tcp_close_exit"
 
-	// We use the following seven probes for UDP
+	// We use the following probes for UDP
+	udpRecvMsg                = "udp_recvmsg"
 	udpRecvMsgReturn          = "udp_recvmsg_exit"
 	udpSendMsgReturn          = "udp_sendmsg_exit"
 	udpSendSkb                = "kprobe__udp_send_skb"
+	udpv6RecvMsg              = "udpv6_recvmsg"
+	udpv6RecvMsgPre5190       = "udpv6_recvmsg_pre_5_19_0"
 	udpv6RecvMsgReturn        = "udpv6_recvmsg_exit"
 	udpv6RecvMsgReturnPre5190 = "udpv6_recvmsg_exit_pre_5_19_0"
 	udpv6SendMsgReturn        = "udpv6_sendmsg_exit"
 	udpv6SendSkb              = "kprobe__udp_v6_send_skb"
+
+	skbFreeDatagramLocked   = "skb_free_datagram_locked"
+	__skbFreeDatagramLocked = "__skb_free_datagram_locked"
+	skbConsumeUdp           = "skb_consume_udp"
 
 	// udpDestroySock traces the udp_destroy_sock() function
 	udpDestroySock = "udp_destroy_sock"
 	// udpDestroySockReturn traces the return of the udp_destroy_sock() system call
 	udpDestroySockReturn = "udp_destroy_sock_exit"
 
-	// tcpRetransmit traces the the tcp_retransmit_skb() kernel function
+	// tcpRetransmit traces the tcp_retransmit_skb() kernel function
 	tcpRetransmit = "tcp_retransmit_skb"
 	// tcpRetransmitRet traces the return of the tcp_retransmit_skb() system call
 	tcpRetransmitRet = "tcp_retransmit_skb_exit"
@@ -65,35 +77,38 @@ const (
 
 	// sockFDLookupRet is the kretprobe used for mapping socket FDs to kernel sock structs
 	sockFDLookupRet = "sockfd_lookup_light_exit"
-
-	// doSendfileRet is the kretprobe used to trace traffic via SENDFILE(2) syscall
-	doSendfileRet = "do_sendfile_exit"
 )
 
 var programs = map[string]struct{}{
-	doSendfileRet:        {}, // TODO: available but sockfd_lookup_light not available on some kernels
-	inet6BindRet:         {},
-	inetBindRet:          {},
-	inetCskAcceptReturn:  {},
-	inetCskListenStop:    {},
-	sockFDLookupRet:      {}, // TODO: not available on certain kernels, will have to one or more hooks to get equivalent functionality; affects do_sendfile and HTTPS monitoring (OpenSSL/GnuTLS/GoTLS)
-	tcpRecvMsgReturn:     {},
-	tcpClose:             {},
-	tcpCloseReturn:       {},
-	tcpConnect:           {},
-	tcpFinishConnect:     {},
-	tcpRetransmit:        {},
-	tcpRetransmitRet:     {},
-	tcpSendMsgReturn:     {},
-	tcpSetState:          {},
-	udpDestroySock:       {},
-	udpDestroySockReturn: {},
-	udpRecvMsgReturn:     {},
-	udpSendMsgReturn:     {},
-	udpSendSkb:           {},
-	udpv6RecvMsgReturn:   {},
-	udpv6SendMsgReturn:   {},
-	udpv6SendSkb:         {},
+	inet6BindRet:            {},
+	inetBindRet:             {},
+	inetCskAcceptReturn:     {},
+	inetCskListenStop:       {},
+	sockFDLookupRet:         {}, // TODO: not available on certain kernels, will have to one or more hooks to get equivalent functionality; affects HTTPS monitoring (OpenSSL/GnuTLS/GoTLS)
+	tcpRecvMsgReturn:        {},
+	tcpClose:                {},
+	tcpCloseReturn:          {},
+	tcpConnect:              {},
+	tcpFinishConnect:        {},
+	tcpRetransmit:           {},
+	tcpRetransmitRet:        {},
+	tcpSendMsgReturn:        {},
+	tcpSendPageReturn:       {},
+	tcpSetState:             {},
+	udpDestroySock:          {},
+	udpDestroySockReturn:    {},
+	udpRecvMsg:              {},
+	udpRecvMsgReturn:        {},
+	udpSendMsgReturn:        {},
+	udpSendPageReturn:       {},
+	udpSendSkb:              {},
+	udpv6RecvMsg:            {},
+	udpv6RecvMsgReturn:      {},
+	udpv6SendMsgReturn:      {},
+	udpv6SendSkb:            {},
+	skbFreeDatagramLocked:   {},
+	__skbFreeDatagramLocked: {},
+	skbConsumeUdp:           {},
 }
 
 func enableProgram(enabled map[string]struct{}, name string) {
@@ -112,6 +127,7 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 	enabled := make(map[string]struct{}, 0)
 	if c.CollectTCPConns {
 		enableProgram(enabled, tcpSendMsgReturn)
+		enableProgram(enabled, tcpSendPageReturn)
 		enableProgram(enabled, tcpRecvMsgReturn)
 		enableProgram(enabled, tcpClose)
 		enableProgram(enabled, tcpCloseReturn)
@@ -129,7 +145,6 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		// missing, err := ebpf.VerifyKernelFuncs(ksymPath, []string{"sockfd_lookup_light"})
 		// if err == nil && len(missing) == 0 {
 		// 	enableProgram(enabled, sockFDLookupRet)
-		// 	enableProgram(enabled, doSendfileRet)
 		// }
 	}
 
@@ -137,15 +152,32 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, inetBindRet)
 		enableProgram(enabled, udpDestroySock)
 		enableProgram(enabled, udpDestroySockReturn)
-		enableProgram(enabled, selectVersionBasedProbe(kv, udpv6SendMsgReturn, udpv6RecvMsgReturnPre5190, kv5190))
+		enableProgram(enabled, udpRecvMsg)
+		enableProgram(enabled, udpRecvMsgReturn)
 		enableProgram(enabled, udpSendMsgReturn)
 		enableProgram(enabled, udpSendSkb)
+		enableProgram(enabled, udpSendPageReturn)
 
 		if c.CollectIPv6Conns {
 			enableProgram(enabled, inet6BindRet)
-			enableProgram(enabled, udpv6RecvMsgReturn)
+			enableProgram(enabled, selectVersionBasedProbe(kv, udpv6RecvMsg, udpv6RecvMsgPre5190, kv5190))
+			enableProgram(enabled, selectVersionBasedProbe(kv, udpv6RecvMsgReturn, udpv6RecvMsgReturnPre5190, kv5190))
 			enableProgram(enabled, udpv6SendMsgReturn)
 			enableProgram(enabled, udpv6SendSkb)
+		}
+
+		missing, err := ebpf.VerifyKernelFuncs("skb_consume_udp", "__skb_free_datagram_locked", "skb_free_datagram_locked")
+		if err != nil {
+			return nil, fmt.Errorf("error verifying kernel function presence: %s", err)
+		}
+		if _, miss := missing["skb_consume_udp"]; !miss {
+			enableProgram(enabled, skbConsumeUdp)
+		} else if _, miss := missing["__skb_free_datagram_locked"]; !miss {
+			enableProgram(enabled, __skbFreeDatagramLocked)
+		} else if _, miss := missing["skb_free_datagram_locked"]; !miss {
+			enableProgram(enabled, skbFreeDatagramLocked)
+		} else {
+			return nil, fmt.Errorf("missing desired UDP receive kernel functions")
 		}
 	}
 

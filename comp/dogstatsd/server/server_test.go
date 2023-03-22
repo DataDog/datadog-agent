@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -55,6 +56,7 @@ func runWithComponent(t testing.TB, test func(Component)) {
 		core.MockBundle,
 		fx.Supply(core.BundleParams{}),
 		fx.Supply(Params{Serverless: false}),
+		replay.MockModule,
 		Module,
 	), test)
 }
@@ -64,6 +66,7 @@ func runWithComponentAndConfig(t testing.TB, overrides map[string]interface{}, t
 		core.MockBundle,
 		fx.Supply(core.BundleParams{ConfigParams: configComponent.NewParams("", configComponent.WithOverrides(overrides))}),
 		fx.Supply(Params{Serverless: false}),
+		replay.MockModule,
 		Module,
 	), test)
 }
@@ -227,7 +230,7 @@ func TestUDPReceive(t *testing.T) {
 
 		// multi-metric packet
 		conn.Write([]byte("daemon1:666|c\ndaemon2:1000|c"))
-		samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+		samples, timedSamples = demux.WaitForNumberOfSamples(2, 0, time.Second*2)
 		require.Len(t, samples, 2)
 		require.Len(t, timedSamples, 0)
 		sample1 := samples[0]
@@ -244,7 +247,7 @@ func TestUDPReceive(t *testing.T) {
 
 		// multi-value packet
 		conn.Write([]byte("daemon1:666:123|c\ndaemon2:1000|c"))
-		samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+		samples, timedSamples = demux.WaitForNumberOfSamples(3, 0, time.Second*2)
 		require.Len(t, samples, 3)
 		require.Len(t, timedSamples, 0)
 		sample1 = samples[0]
@@ -266,7 +269,7 @@ func TestUDPReceive(t *testing.T) {
 
 		// multi-value packet with skip empty
 		conn.Write([]byte("daemon1::666::123::::|c\ndaemon2:1000|c"))
-		samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+		samples, timedSamples = demux.WaitForNumberOfSamples(3, 0, time.Second*2)
 		require.Len(t, samples, 3)
 		require.Len(t, timedSamples, 0)
 		sample1 = samples[0]
@@ -288,7 +291,7 @@ func TestUDPReceive(t *testing.T) {
 
 		//	// slightly malformed multi-metric packet, should still be parsed in whole
 		conn.Write([]byte("daemon1:666|c\n\ndaemon2:1000|c\n"))
-		samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+		samples, timedSamples = demux.WaitForNumberOfSamples(2, 0, time.Second*2)
 		require.Len(t, samples, 2)
 		require.Len(t, timedSamples, 0)
 		sample1 = samples[0]
@@ -349,7 +352,7 @@ func TestUDPReceive(t *testing.T) {
 
 		// Late metric and a normal one
 		conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2|T1658328888\ndaemon2:666|c"))
-		samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+		samples, timedSamples = demux.WaitForNumberOfSamples(1, 1, time.Second*2)
 		require.Len(t, samples, 1)
 		require.Len(t, timedSamples, 1)
 		sample = timedSamples[0]

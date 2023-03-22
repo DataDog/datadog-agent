@@ -69,3 +69,39 @@ func TestHashingTagsAccumulatorCopy(t *testing.T) {
 	assert.Equal(t, []string{"test", "b", "c"}, tagsCopy)
 	assert.Equal(t, []string{"a", "b", "c"}, tb.data)
 }
+
+func TestRemoveSorted(t *testing.T) {
+	l := NewHashingTagsAccumulator()
+	r := NewHashingTagsAccumulator()
+	l.Append("a", "b", "c", "d")
+	l.SortUniq()
+	r.Append("a", "b", "e", "f")
+	r.SortUniq()
+	r.removeSorted(l)
+	assert.ElementsMatch(t, []string{"a", "b", "c", "d"}, l.Get())
+	assert.ElementsMatch(t, []string{"e", "f"}, r.Get())
+
+	r.Reset()
+	r.Append("c", "d", "e", "f")
+	r.SortUniq()
+	r.removeSorted(l)
+	assert.ElementsMatch(t, []string{"e", "f"}, r.Get())
+
+	r.Reset()
+	r.Append("a", "aa", "ab", "b")
+	r.SortUniq()
+	r.removeSorted(l)
+	assert.ElementsMatch(t, []string{"aa", "ab"}, r.Get())
+
+	r.Reset()
+	r.Append("A", "B", "a", "d")
+	r.SortUniq()
+	r.removeSorted(l)
+	assert.ElementsMatch(t, []string{"A", "B"}, r.Get())
+
+	r.Reset()
+	r.Append("A", "a", "b", "e")
+	r.SortUniq()
+	r.removeSorted(l)
+	assert.ElementsMatch(t, []string{"A", "e"}, r.Get())
+}
