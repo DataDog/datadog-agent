@@ -168,7 +168,7 @@ func (d *serverDebug) SetMetricStatsEnabled(enable bool) {
 	if enable {
 		d.enableMetricsStats()
 	} else {
-		d.dsableMetricsStats()
+		d.disableMetricsStats()
 	}
 }
 
@@ -242,7 +242,7 @@ func (d *serverDebug) IsDebugEnabled() bool {
 // disableMetricsStats disables the debug mode of the DogStatsD server and
 // stops the debug mainloop.
 
-func (d *serverDebug) dsableMetricsStats() {
+func (d *serverDebug) disableMetricsStats() {
 	if d.enabled.Load() {
 		d.enabled.Store(false)
 		d.metricsCounts.closeChan <- struct{}{}
