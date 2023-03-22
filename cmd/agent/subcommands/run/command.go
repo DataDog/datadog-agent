@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsdDebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -154,13 +155,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // run starts the main loop.
 //
 // This is exported because it also used from the deprecated `agent start` command.
-func run(log log.Component, config config.Component,
+func run(log log.Component,
+	config config.Component,
 	flare flare.Component,
 	sysprobeconfig sysprobeconfig.Component,
 	server dogstatsdServer.Component,
+	capture replay.Component,
 	serverDebug dogstatsdDebug.Component,
 	cliParams *cliParams) error {
-
 	defer func() {
 		stopAgent(cliParams, server)
 	}()
@@ -201,7 +203,7 @@ func run(log log.Component, config config.Component,
 		}
 	}()
 
-	if err := startAgent(cliParams, flare, sysprobeconfig, server, serverDebug); err != nil {
+	if err := startAgent(cliParams, flare, sysprobeconfig, server, capture, serverDebug); err != nil {
 		return err
 	}
 
@@ -220,9 +222,11 @@ func StartAgentWithDefaults() (dogstatsdServer.Component, error) {
 		flare flare.Component,
 		sysprobeconfig sysprobeconfig.Component,
 		server dogstatsdServer.Component,
-		serverDebug dogstatsdDebug.Component) error {
+		serverDebug dogstatsdDebug.Component,
+		capture replay.Component,
+	) error {
 		dsdServer = server
-		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, flare, sysprobeconfig, server, serverDebug)
+		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, flare, sysprobeconfig, server, capture, serverDebug)
 	},
 		// no config file path specification in this situation
 		fx.Supply(core.BundleParams{
@@ -250,7 +254,9 @@ func startAgent(
 	flare flare.Component,
 	sysprobeconfig sysprobeconfig.Component,
 	server dogstatsdServer.Component,
+	capture replay.Component,
 	serverDebug dogstatsdDebug.Component) error {
+
 	var err error
 
 	// Main context passed to components
@@ -381,7 +387,7 @@ func startAgent(
 	}
 
 	// start the cmd HTTP server
-	if err = api.StartServer(configService, flare, server, serverDebug); err != nil {
+	if err = api.StartServer(configService, flare, server, capture, serverDebug); err != nil {
 		return pkglog.Errorf("Error while starting api server, exiting: %v", err)
 	}
 
@@ -414,9 +420,6 @@ func startAgent(
 	forwarderOpts.EnabledFeatures = forwarder.SetFeature(forwarderOpts.EnabledFeatures, forwarder.CoreFeatures)
 	opts := aggregator.DefaultAgentDemultiplexerOptions(forwarderOpts)
 	opts.EnableNoAggregationPipeline = pkgconfig.Datadog.GetBool("dogstatsd_no_aggregation_pipeline")
-	opts.UseContainerLifecycleForwarder = pkgconfig.Datadog.GetBool("container_lifecycle.enabled")
-	opts.UseContainerImageForwarder = pkgconfig.Datadog.GetBool("container_image.enabled")
-	opts.UseSBOMForwarder = pkgconfig.Datadog.GetBool("sbom.enabled")
 	demux = aggregator.InitAndStartAgentDemultiplexer(opts, hostnameDetected)
 
 	// Setup stats telemetry handler

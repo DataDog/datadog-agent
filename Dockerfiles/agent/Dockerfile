@@ -136,8 +136,10 @@ RUN if [ -n "$WITH_JMX" ]; then echo "Pulling openjdk-11 from testing" \
   && apt clean; fi
 
 # cleaning up
-RUN ln -sf /opt/datadog-agent/embedded/ssl /etc/ssl \
-  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+# We remove /etc/ssl because in JMX images, openjdk triggers installation of ca-certificates-java
+# which writes to /etc/ssl. Yet, in the Agent we only rely on certs shipped in the Agent package.
+RUN rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /etc/ssl
+RUN ln -sf /opt/datadog-agent/embedded/ssl /etc/ssl
 
 # Copy agent from extract stage
 COPY --from=extract /output/ /

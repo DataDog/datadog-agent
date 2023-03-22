@@ -156,6 +156,15 @@ type Config struct {
 	// ActivityDumpMaxDumpSize defines the maximum size of a dump
 	ActivityDumpMaxDumpSize func() int
 
+	// SecurityProfileEnabled defines if the Security Profile manager should be enabled
+	SecurityProfileEnabled bool
+	// SecurityProfileDir defines the directory in which Security Profiles are stored
+	SecurityProfileDir string
+	// SecurityProfileWatchDir defines if the Security Profiles directory should be monitored
+	SecurityProfileWatchDir bool
+	// SecurityProfileCacheSize defines the count of Security Profiles held in cache
+	SecurityProfileCacheSize int
+
 	// RuntimeMonitor defines if the Go runtime and system monitor should be enabled
 	RuntimeMonitor bool
 	// NetworkEnabled defines if the network probes should be activated
@@ -298,6 +307,12 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		// SBOM resolver
 		SBOMResolverEnabled:            coreconfig.SystemProbe.GetBool("runtime_security_config.sbom.enabled"),
 		SBOMResolverWorkloadsCacheSize: coreconfig.SystemProbe.GetInt("runtime_security_config.sbom.workloads_cache_size"),
+
+		// security profiles
+		SecurityProfileEnabled:   coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.enabled"),
+		SecurityProfileDir:       coreconfig.SystemProbe.GetString("runtime_security_config.security_profile.dir"),
+		SecurityProfileWatchDir:  coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.watch_dir"),
+		SecurityProfileCacheSize: coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.cache_size"),
 	}
 
 	c.NetworkProcessEventMonitoringEnabled = c.NetworkProcessEventMonitoringEnabled && cfg.ModuleIsEnabled(config.NetworkTracerModule)

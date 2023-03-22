@@ -37,6 +37,18 @@ BPF_HASH_MAP(conn_close_batch, __u32, batch_t, 1024)
 BPF_HASH_MAP(tcp_sendmsg_args, __u64, struct sock *, 1024)
 
 /*
+ * Map to hold struct sock parameter for tcp_sendpage calls
+ * to be used in kretprobe/tcp_sendpage
+ */
+BPF_HASH_MAP(tcp_sendpage_args, __u64, struct sock *, 1024)
+
+/*
+ * Map to hold struct sock parameter for udp_sendpage calls
+ * to be used in kretprobe/udp_sendpage
+ */
+BPF_HASH_MAP(udp_sendpage_args, __u64, struct sock *, 1024)
+
+/*
  * Map to hold struct sock parameter for tcp_recvmsg/tcp_read_sock calls
  * to be used in kretprobe/tcp_recvmsg/tcp_read_sock
  */
@@ -87,13 +99,6 @@ BPF_ARRAY_MAP(telemetry, telemetry_t, 1)
  * Values: the args of the tcp_retransmit_skb call being instrumented.
  */
 BPF_HASH_MAP(pending_tcp_retransmit_skb, __u64, tcp_retransmit_skb_args_t, 8192)
-
-// This map is used to to temporarily store function arguments (the struct sock*
-// mapped to the given fd_out) for do_sendfile function calls, so they can be
-// accessed by the corresponding kretprobe.
-// * Key is pid_tgid (u64)
-// * Value is (struct sock*)
-BPF_HASH_MAP(do_sendfile_args, __u64, struct sock *, 1024)
 
 // Used to store ip(6)_make_skb args to be used in the
 // corresponding kretprobes
