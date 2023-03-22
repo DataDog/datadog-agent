@@ -2,17 +2,12 @@ name "python3"
 
 if ohai["platform"] != "windows"
   default_version "3.9.16"
-  agent_major_version = ENV["AGENT_MAJOR_VERSION"].to_i
 
   dependency "libxcrypt"
   dependency "libffi"
   dependency "ncurses"
   dependency "zlib"
-  if agent_major_version >= 7
-    dependency "openssl3"
-  else
-    dependency "openssl"
-  end
+  dependency ENV["OMNIBUS_OPENSSL_SOFTWARE"] || "openssl"
   dependency "pkg-config"
   dependency "bzip2"
   dependency "libsqlite3"
