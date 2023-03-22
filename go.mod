@@ -28,6 +28,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ./pkg/obfuscate
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ./pkg/remoteconfig/state
 	github.com/DataDog/datadog-agent/pkg/security/secl => ./pkg/security/secl
+	github.com/DataDog/datadog-agent/pkg/security/serializers/jsonmodel => ./pkg/security/serializers/jsonmodel
 	github.com/DataDog/datadog-agent/pkg/trace => ./pkg/trace
 	github.com/DataDog/datadog-agent/pkg/util/cgroups => ./pkg/util/cgroups
 	github.com/DataDog/datadog-agent/pkg/util/log => ./pkg/util/log
@@ -45,6 +46,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.44.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.44.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.44.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/security/serializers/jsonmodel v0.44.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/trace v0.44.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.44.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/log v0.44.0-rc.4

@@ -1,7 +1,7 @@
 //go:build linux
 // +build linux
 
-package serializers
+package jsonmodel
 
 import (
 	jlexer "github.com/mailru/easyjson/jlexer"

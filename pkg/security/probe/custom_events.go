@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+	"github.com/DataDog/datadog-agent/pkg/security/serializers/jsonmodel"
 )
 
 // EventLostRead is the event used to report lost events detected from user space
@@ -98,9 +99,9 @@ func resolutionErrorToEventType(err error) model.EventType {
 // AbnormalPathEvent is used to report that a path resolution failed for a suspicious reason
 // easyjson:json
 type AbnormalPathEvent struct {
-	Timestamp           time.Time                    `json:"date"`
-	Event               *serializers.EventSerializer `json:"triggering_event"`
-	PathResolutionError string                       `json:"path_resolution_error"`
+	Timestamp           time.Time                  `json:"date"`
+	Event               *jsonmodel.EventSerializer `json:"triggering_event"`
+	PathResolutionError string                     `json:"path_resolution_error"`
 }
 
 // NewAbnormalPathEvent returns the rule and a populated custom event for a abnormal_path event
