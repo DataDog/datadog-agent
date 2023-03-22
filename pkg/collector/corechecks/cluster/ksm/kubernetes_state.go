@@ -386,15 +386,6 @@ func manageResourcesReplacement(c *apiserver.APIClient, factories []customresour
 	// registered if they're needed, otherwise they'd overwrite the default
 	// ones that ship with ksm
 	resourceReplacements := map[string]map[string]func() customresource.RegistryFactory{
-		// support for older k8s versions where the resources are no
-		// longer supported in KSM
-		"batch/v1": {
-			"CronJob": customresources.NewCronJobV1Beta1Factory,
-		},
-		"policy/v1": {
-			"PodDisruptionBudget": customresources.NewPodDisruptionBudgetV1Beta1Factory,
-		},
-
 		// support for newer k8s versions where the newer resources are
 		// not yet supported by KSM
 		"autoscaling/v2beta2": {
