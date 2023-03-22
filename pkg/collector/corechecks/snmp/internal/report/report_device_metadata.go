@@ -404,8 +404,8 @@ func buildNetworkTopologyMetadataWithCDP(deviceID string, store *metadata.Store,
 			Local: &metadata.TopologyLinkSide{
 				Interface: &metadata.TopologyLinkInterface{
 					DDID:   resolvedLocalInterfaceID,
-					ID:     cdpCacheIfIndex,
-					IDType: "interface_index",
+					ID:     "",
+					IDType: "",
 				},
 				Device: &metadata.TopologyLinkDevice{
 					DDID: deviceID,
