@@ -450,6 +450,7 @@ func TestCheckSenderInterface(t *testing.T) {
 		AggregationKey: "event_agg_key",
 		SourceTypeName: "docker",
 	}
+	// TODO: test event platform event blocking
 	s.sender.Event(submittedEvent)
 
 	gaugeSenderSample := (<-s.itemChan).(*senderMetricSample)

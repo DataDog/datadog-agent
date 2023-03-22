@@ -105,7 +105,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		eventType:                     EventTypeNetworkDevicesNetFlow,
 		contentType:                   http.JSONContentType,
 		endpointsConfigPrefix:         "network_devices.netflow.forwarder.",
-		hostnameEndpointPrefix:        "ndmflow-intake.",
+		hostnameEndpointPrefix:        "ndmflow-intake-xx.",
 		intakeTrackType:               "ndmflow",
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
@@ -160,7 +160,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 
 // An EventPlatformForwarder forwards Messages to a destination based on their event type
 type EventPlatformForwarder interface {
-	SendEventPlatformEvent(e *message.Message, eventType string) error
+	SendEventPlatformEvent(e *message.Message, eventType string, blocking bool) error
 	Purge() map[string][]*message.Message
 	Start()
 	Stop()
@@ -172,16 +172,20 @@ type defaultEventPlatformForwarder struct {
 	destinationsCtx *client.DestinationsContext
 }
 
-func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Message, eventType string) error {
+func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Message, eventType string, blocking bool) error {
 	p, ok := s.pipelines[eventType]
 	if !ok {
 		return fmt.Errorf("unknown eventType=%s", eventType)
 	}
-	select {
-	case p.in <- e:
-		return nil
-	default:
-		return fmt.Errorf("event platform forwarder pipeline channel is full for eventType=%s. Channel capacity is %d. consider increasing batch_max_concurrent_send", eventType, cap(p.in))
+	if blocking {
+		p.in <- e
+	} else {
+		select {
+		case p.in <- e:
+			return nil
+		default:
+			return fmt.Errorf("event platform forwarder pipeline channel is full for eventType=%s. Channel capacity is %d. consider increasing batch_max_concurrent_send", eventType, cap(p.in))
+		}
 	}
 }
 

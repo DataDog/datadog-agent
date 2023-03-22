@@ -8,6 +8,7 @@ package aggregator
 import (
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"sync"
 	"time"
 
@@ -33,6 +34,7 @@ type Sender interface {
 	HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool)
 	Event(e metrics.Event)
 	EventPlatformEvent(rawEvent []byte, eventType string)
+	EventPlatformEventBlocking(rawEvent []byte, eventType string)
 	GetSenderStats() check.SenderStats
 	DisableDefaultHostname(disable bool)
 	SetCheckCustomTags(tags []string)
@@ -63,6 +65,7 @@ type checkSender struct {
 	orchestratorMetadataOut chan<- senderOrchestratorMetadata
 	orchestratorManifestOut chan<- senderOrchestratorManifest
 	eventPlatformOut        chan<- senderEventPlatformEvent
+	eventPlatformForwarder  epforwarder.EventPlatformForwarder
 	checkTags               []string
 	service                 string
 }
@@ -95,6 +98,7 @@ type senderEventPlatformEvent struct {
 	id        check.ID
 	rawEvent  []byte
 	eventType string
+	blocking  bool
 }
 
 type senderOrchestratorMetadata struct {
@@ -397,16 +401,14 @@ func (s *checkSender) Event(e metrics.Event) {
 	s.statsLock.Unlock()
 }
 
-// Event submits an event
+// EventPlatformEvent submits an event platform event
 func (s *checkSender) EventPlatformEvent(rawEvent []byte, eventType string) {
-	s.eventPlatformOut <- senderEventPlatformEvent{
-		id:        s.id,
-		rawEvent:  rawEvent,
-		eventType: eventType,
-	}
-	s.statsLock.Lock()
-	defer s.statsLock.Unlock()
-	s.metricStats.EventPlatformEvents[eventType] = s.metricStats.EventPlatformEvents[eventType] + 1
+	s.sendEventPlatformEvent(rawEvent, eventType, false)
+}
+
+// EventPlatformEventBlocking submits an event platform event
+func (s *checkSender) EventPlatformEventBlocking(rawEvent []byte, eventType string) {
+	s.sendEventPlatformEvent(rawEvent, eventType, true)
 }
 
 // OrchestratorMetadata submit orchestrator metadata messages
@@ -475,4 +477,16 @@ func (sp *checkSenderPool) removeSender(id check.ID) {
 
 	delete(sp.senders, id)
 	sp.agg.deregisterSender(id)
+}
+
+func (s *checkSender) sendEventPlatformEvent(rawEvent []byte, eventType string, blocking bool) {
+	s.eventPlatformOut <- senderEventPlatformEvent{
+		id:        s.id,
+		rawEvent:  rawEvent,
+		eventType: eventType,
+		blocking:  blocking,
+	}
+	s.statsLock.Lock()
+	defer s.statsLock.Unlock()
+	s.metricStats.EventPlatformEvents[eventType] = s.metricStats.EventPlatformEvents[eventType] + 1
 }
