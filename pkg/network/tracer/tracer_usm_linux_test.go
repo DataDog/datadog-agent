@@ -1054,8 +1054,6 @@ func testHTTPsGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Conf
 
 // TLS classification tests
 func TestTLSClassification(t *testing.T) {
-	log.SetupLogger(seelog.Default, "debug")
-
 	cfg := testConfig()
 	cfg.ProtocolClassificationEnabled = true
 	cfg.CollectTCPConns = true
