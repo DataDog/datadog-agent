@@ -5,7 +5,7 @@ build_dogstatsd_static-binary_x64:
   rules:
     !reference [.on_a7]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["lint_deb-x64", "tests_deb-x64-py3", "go_deps"]
   variables:
     ARCH: amd64
@@ -22,7 +22,7 @@ build_dogstatsd_static-binary_arm64:
   rules:
     !reference [.on_a7]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
-  tags: ["runner:docker-arm", "platform:arm64"]
+  tags: ["arch:arm64"]
   needs: ["lint_deb-arm64", "tests_deb-arm64-py3", "go_deps"]
   variables:
     ARCH: arm64
@@ -39,7 +39,7 @@ build_dogstatsd-binary_x64:
   rules:
     !reference [.on_a7]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["lint_deb-x64", "tests_deb-x64-py3", "go_deps"]
   before_script:
     - source /root/.bashrc
@@ -54,7 +54,7 @@ build_dogstatsd-binary_arm64:
     !reference [.on_all_builds_a7]
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
-  tags: ["runner:docker-arm", "platform:arm64"]
+  tags: ["arch:arm64"]
   needs: ["lint_deb-arm64", "tests_deb-arm64-py3", "go_deps"]
   variables:
     ARCH: arm64
@@ -72,7 +72,7 @@ build_iot_agent-binary_x64:
   rules:
     !reference [.on_a7]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["lint_deb-x64", "tests_deb-x64-py3", "go_deps"]
   before_script:
     - !reference [.retrieve_linux_go_deps]
@@ -87,7 +87,7 @@ build_iot_agent-binary_arm64:
     !reference [.on_all_builds_a7]
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:docker-arm", "platform:arm64"]
+  tags: ["arch:arm64"]
   needs: ["lint_deb-arm64", "tests_deb-arm64-py3", "go_deps"]
   variables:
     ARCH: arm64

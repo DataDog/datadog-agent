@@ -45,7 +45,7 @@ tests_deb-x64-py2:
   rules:
     !reference [.on_a6]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["go_deps"]
   variables:
     PYTHON_RUNTIMES: '2'
@@ -56,7 +56,7 @@ tests_deb-x64-py3:
     - .rtloader_tests
     - .linux_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["go_deps", "go_tools_deps"]
   variables:
     PYTHON_RUNTIMES: '3'
@@ -74,7 +74,7 @@ tests_flavor_iot_deb-x64:
     - .rtloader_tests
     - .linux_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["go_deps", "go_tools_deps"]
   variables:
     PYTHON_RUNTIMES: '3'
@@ -95,7 +95,7 @@ tests_flavor_dogstatsd_deb-x64:
     - .rtloader_tests
     - .linux_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["go_deps", "go_tools_deps"]
   variables:
     PYTHON_RUNTIMES: '3'
@@ -119,7 +119,7 @@ tests_rpm-x64-py2:
   rules:
     !reference [.on_a6]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64_testing$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["go_deps"]
   variables:
     PYTHON_RUNTIMES: '2'
@@ -131,7 +131,7 @@ tests_rpm-x64-py3:
     - .rtloader_tests
     - .linux_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64_testing$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["go_deps", "go_tools_deps"]
   variables:
     PYTHON_RUNTIMES: '3'
@@ -152,7 +152,7 @@ tests_deb-arm64-py2:
   rules:
     !reference [.on_a6]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:docker-arm", "platform:arm64"]
+  tags: ["arch:arm64"]
   needs: ["go_deps"]
   variables:
     PYTHON_RUNTIMES: '2'
@@ -164,7 +164,7 @@ tests_deb-arm64-py3:
     - .linux_tests
   needs: ["go_deps", "go_tools_deps"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:docker-arm", "platform:arm64"]
+  tags: ["arch:arm64"]
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
@@ -181,7 +181,7 @@ tests_rpm-arm64-py2:
   rules:
     !reference [.on_a6]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:docker-arm", "platform:arm64"]
+  tags: ["arch:arm64"]
   needs: ["go_deps"]
   variables:
     PYTHON_RUNTIMES: '2'
@@ -192,7 +192,7 @@ tests_rpm-arm64-py3:
     - .rtloader_tests
     - .linux_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:docker-arm", "platform:arm64"]
+  tags: ["arch:arm64"]
   needs: ["go_deps", "go_tools_deps"]
   variables:
     PYTHON_RUNTIMES: '3'
@@ -209,7 +209,7 @@ lint_rpm-arm64:
 go_mod_tidy_check:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["go_deps"]
   before_script:
     - source /root/.bashrc

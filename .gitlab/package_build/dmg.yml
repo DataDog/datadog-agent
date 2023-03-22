@@ -24,7 +24,7 @@ agent_dmg-x64-a7:
     !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials

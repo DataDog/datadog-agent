@@ -6,7 +6,7 @@ golang_deps_generate:
     !reference [.on_main_or_release_branch]
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["go_deps"]
   before_script:
     - source /root/.bashrc
