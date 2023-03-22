@@ -1,5 +1,6 @@
 ---
 include:
+  - /.gitlab/setup.yml
   - /.gitlab/shared.yml
   - /.gitlab/maintenance_jobs.yml
   - /.gitlab/deps_build.yml
@@ -51,6 +52,7 @@ default:
       - api_failure
 
 stages:
+  - setup
   - maintenance_jobs
   - deps_build
   - deps_fetch
