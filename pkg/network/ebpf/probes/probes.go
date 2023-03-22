@@ -97,6 +97,8 @@ const (
 
 	// UDPRecvMsg traces the udp_recvmsg() system call
 	UDPRecvMsg ProbeFuncName = "kprobe__udp_recvmsg"
+	// UDPRecvMsgPre5190 traces the udp_recvmsg() system call on kernels prior to 5.19.0
+	UDPRecvMsgPre5190 ProbeFuncName = "kprobe__udp_recvmsg_pre_5_19_0"
 	// UDPRecvMsgPre470 traces the udp_recvmsg() system call on kernels prior to 4.7.0
 	UDPRecvMsgPre470 ProbeFuncName = "kprobe__udp_recvmsg_pre_4_7_0"
 	// UDPRecvMsgPre410 traces the udp_recvmsg() system call on kernels prior to 4.1.0
@@ -108,6 +110,8 @@ const (
 
 	// UDPv6RecvMsg traces the udpv6_recvmsg() system call
 	UDPv6RecvMsg ProbeFuncName = "kprobe__udpv6_recvmsg"
+	// UDPv6RecvMsgPre5190 traces the udpv6_recvmsg() system call on kernels prior to 5.19.0
+	UDPv6RecvMsgPre5190 ProbeFuncName = "kprobe__udpv6_recvmsg_pre_5_19_0"
 	// UDPv6RecvMsgPre470 traces the udpv6_recvmsg() system call on kernels prior to 4.7.0
 	UDPv6RecvMsgPre470 ProbeFuncName = "kprobe__udpv6_recvmsg_pre_4_7_0"
 	// UDPv6RecvMsgPre410 traces the udpv6_recvmsg() system call on kernels prior to 4.1.0

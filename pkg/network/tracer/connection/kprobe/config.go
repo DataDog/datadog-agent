@@ -28,6 +28,7 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeFuncNa
 
 	kv410 := kernel.VersionCode(4, 1, 0)
 	kv470 := kernel.VersionCode(4, 7, 0)
+	kv5190 := kernel.VersionCode(5, 19, 0)
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, err
@@ -74,8 +75,10 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeFuncNa
 		enableProbe(enabled, probes.InetBindRet)
 		enableProbe(enabled, probes.UDPSendPage)
 		enableProbe(enabled, probes.UDPSendPageReturn)
-		if kv >= kv470 || runtimeTracer {
+		if kv >= kv5190 || runtimeTracer {
 			enableProbe(enabled, probes.UDPRecvMsg)
+		} else if kv > kv470 {
+			enableProbe(enabled, probes.UDPRecvMsgPre5190)
 		} else if kv > kv410 {
 			enableProbe(enabled, probes.UDPRecvMsgPre470)
 		} else {
@@ -84,8 +87,10 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeFuncNa
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.UDPRecvMsgReturn, probes.UDPRecvMsgReturnPre470, kv470))
 		if c.CollectIPv6Conns {
 			enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.IP6MakeSkb, probes.IP6MakeSkbPre470, kv470))
-			if kv >= kv470 || runtimeTracer {
-				enableProbe(enabled, probes.UDPv6RecvMsg)
+			if kv >= kv5190 || runtimeTracer {
+				enableProbe(enabled, probes.UDPRecvMsg)
+			} else if kv > kv470 {
+				enableProbe(enabled, probes.UDPv6RecvMsgPre5190)
 			} else if kv > kv410 {
 				enableProbe(enabled, probes.UDPv6RecvMsgPre470)
 			} else {
