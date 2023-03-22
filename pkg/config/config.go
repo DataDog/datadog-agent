@@ -1036,6 +1036,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.file_provider_path", "/etc/datadog-agent/patch/auto-instru.json") // to be used only in e2e tests
 	config.BindEnv("admission_controller.auto_instrumentation.init_resources.cpu")
 	config.BindEnv("admission_controller.auto_instrumentation.init_resources.memory")
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.inject_all.namespaces", []string{})
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.
