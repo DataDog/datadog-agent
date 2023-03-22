@@ -17,6 +17,11 @@ import (
 )
 
 const (
+	// internalResourceTagPrefix is the tag name used for propagating resources to be emitted on metrics.
+	// The format for the tag is dd.internal.resource:resource_type,resource_name. Resource names
+	// should comply with the Datadog tagging requirements documented at
+	// https://docs.datadoghq.com/getting_started/tagging/#define-tags.
+	// Note: resources are only supported on metrics api v2. 
 	internalResourceTagPrefix    = "dd.internal.resource:"
 	internalResourceTagSeparator = ":"
 )
@@ -123,9 +128,9 @@ func (serie *Serie) hasDeviceTag() bool {
 	})
 }
 
-// PopulateResources removes any dd.internal.resource: tags in the series tags and uses the values to
+// PopulateResources removes any dd.internal.resource tags in the series tags and uses the values to
 // populate the Serie.Resources field. The format for the dd.internal.resource tag values is
-// <resource_type>,<resource_name>. Any dd.internal.resource tag not matching the expected format
+// <resource_type>:<resource_name>. Any dd.internal.resource tag not matching the expected format
 // will be dropped.
 func (serie *Serie) PopulateResources() {
 	if !serie.hasResourceTag() {
