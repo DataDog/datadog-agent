@@ -177,12 +177,8 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 	if !ok {
 		return fmt.Errorf("unknown eventType=%s", eventType)
 	}
-	select {
-	case p.in <- e:
-		return nil
-	default:
-		return fmt.Errorf("event platform forwarder pipeline channel is full for eventType=%s. Channel capacity is %d. consider increasing batch_max_concurrent_send", eventType, cap(p.in))
-	}
+	p.in <- e
+	return nil
 }
 
 func purgeChan(in chan *message.Message) (result []*message.Message) {
