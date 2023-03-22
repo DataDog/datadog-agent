@@ -7,8 +7,7 @@
   - $ARTIFACTORY_TOKEN=$(aws ssm get-parameter --region us-east-1 --name $ARTIFACTORY_TOKEN_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
 
 .get_artifactory_bypass: &get_artifactory_bypass
-  - $ARTIFACTORY_BYPASS=$(aws ssm get-parameter --region us-east-1 --name $ARTIFACTORY_BYPASS_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
-  - echo $ARTIFACTORY_BYPASS
+  - ARTIFACTORY_BYPASS=$(aws ssm get-parameter --region us-east-1 --name $ARTIFACTORY_BYPASS_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
   - if [ "${ARTIFACTORY_BYPASS}" = "true" ]; then echo "Bypassing Artifactory"; fi
 
 .setup_ruby_mirror_linux:
