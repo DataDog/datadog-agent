@@ -789,7 +789,7 @@ func (e *LoadModuleEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 
-	if len(data)-read < 60 {
+	if len(data)-read < 188 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -797,8 +797,14 @@ func (e *LoadModuleEvent) UnmarshalBinary(data []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	e.LoadedFromMemory = ByteOrder.Uint32(data[read+56:read+60]) == uint32(1)
-	return read + 60, nil
+
+	e.Args, err = UnmarshalString(data[read+56:read+56+128], 128)
+	if err != nil {
+		return 0, err
+	}
+	e.LoadedFromMemory = ByteOrder.Uint32(data[read+56+128:read+56+128+4]) == uint32(1)
+
+	return read + 56 + 4 + 128, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself

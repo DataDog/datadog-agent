@@ -228,6 +228,105 @@ func TestLoadModule(t *testing.T) {
 	})
 }
 
+func TestLoadModuleWithParams(t *testing.T) {
+	if testEnvironment == DockerEnvironment {
+		t.Skip("skipping kernel module test in docker")
+	}
+
+	// before trying to load the module, some dependant modules might be needed, use modprobe to load them first
+	if _, err := loadModule(testModuleName); err != nil {
+		t.Skipf("failed to load %s module: %v", testModuleName, err)
+	}
+
+	modulePath, wasCompressed := getModulePath(testModulePathFmt, t)
+	if wasCompressed {
+		// we need to re-compress the module, otherwise it breaks modprobe
+		defer compressModule(modulePath, t)
+	}
+
+	// make sure the xfs module isn't currently loaded
+	err := unix.DeleteModule(testModuleName, unix.O_NONBLOCK)
+	if err != nil {
+		t.Skipf("couldn't delete %s module: %v", testModuleName, err)
+	}
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_load_module_with_specific_param",
+			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.argv in ["toto=1"]`, testModuleName),
+		},
+		{
+			ID:         "test_load_module_with_params",
+			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.args != ""`, testModuleName),
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	t.Run("load_module_with_any_params", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			var f *os.File
+			f, err = os.Open(modulePath)
+			if err != nil {
+				return fmt.Errorf("couldn't open module: %w", err)
+			}
+			defer f.Close()
+
+			var module []byte
+			module, err = io.ReadAll(f)
+			if err != nil {
+				return fmt.Errorf("couldn't load module content: %w", err)
+			}
+
+			if err = unix.InitModule(module, "toto=2 toto=3"); err != nil {
+				return fmt.Errorf("couldn't insert module: %w", err)
+			}
+
+			return unix.DeleteModule(testModuleName, unix.O_NONBLOCK)
+		}, func(event *model.Event, r *rules.Rule) {
+			assert.Equal(t, "test_load_module_with_params", r.ID, "invalid rule triggered")
+
+			event.ResolveFields()
+			assert.Equal(t, "toto=2 toto=3", event.LoadModule.Args, "should have the list of parameters")
+
+			test.validateLoadModuleSchema(t, event)
+		})
+	})
+
+	t.Run("load_module_with_specific_param", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			var f *os.File
+			f, err = os.Open(modulePath)
+			if err != nil {
+				return fmt.Errorf("couldn't open module: %w", err)
+			}
+			defer f.Close()
+
+			var module []byte
+			module, err = io.ReadAll(f)
+			if err != nil {
+				return fmt.Errorf("couldn't load module content: %w", err)
+			}
+
+			if err = unix.InitModule(module, "toto=1"); err != nil {
+				return fmt.Errorf("couldn't insert module: %w", err)
+			}
+
+			return unix.DeleteModule(testModuleName, unix.O_NONBLOCK)
+		}, func(event *model.Event, r *rules.Rule) {
+			assert.Equal(t, "test_load_module_with_specific_param", r.ID, "invalid rule triggered")
+
+			event.ResolveFields()
+			assert.Equal(t, []string{"toto=1"}, event.LoadModule.Argv, "should have the list of parameters")
+			test.validateLoadModuleSchema(t, event)
+		})
+	})
+}
+
 func TestUnloadModule(t *testing.T) {
 	if testEnvironment == DockerEnvironment {
 		t.Skip("skipping kernel module test in docker")

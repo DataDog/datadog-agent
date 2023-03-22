@@ -471,3 +471,9 @@ func (fh *FieldHandlers) ResolvePackageSourceVersion(ev *model.Event, f *model.F
 	}
 	return f.PkgSrcVersion
 }
+
+// ResolveModuleArgv resolves the args of the event as an array
+func (fh *FieldHandlers) ResolveModuleArgv(ev *model.Event, module *model.LoadModuleEvent) []string {
+	module.Argv = strings.Split(module.Args, " ")
+	return module.Argv
+}

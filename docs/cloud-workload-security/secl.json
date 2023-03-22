@@ -2458,6 +2458,16 @@
       "experimental": false,
       "properties": [
         {
+          "name": "load_module.args",
+          "definition": "Parameters (as a string) of the new kernel module",
+          "property_doc_link": "load_module-args-doc"
+        },
+        {
+          "name": "load_module.argv",
+          "definition": "Parameters (as an array) of the new kernel module",
+          "property_doc_link": "load_module-argv-doc"
+        },
+        {
           "name": "load_module.file.change_time",
           "definition": "Change time of the file",
           "property_doc_link": "common-filefields-change_time-doc"
@@ -8240,6 +8250,30 @@
       "definition": "Exit code of the process or number of the signal that caused the process to terminate",
       "prefixes": [
         "exit"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "load_module.args",
+      "link": "load_module-args-doc",
+      "type": "string",
+      "definition": "Parameters (as a string) of the new kernel module",
+      "prefixes": [
+        "load_module"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "load_module.argv",
+      "link": "load_module-argv-doc",
+      "type": "string",
+      "definition": "Parameters (as an array) of the new kernel module",
+      "prefixes": [
+        "load_module"
       ],
       "constants": "",
       "constants_link": "",

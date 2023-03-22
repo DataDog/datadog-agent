@@ -923,9 +923,11 @@ type MProtectEvent struct {
 type LoadModuleEvent struct {
 	SyscallEvent
 
-	File             FileEvent `field:"file"`               // Path to the kernel module file
-	LoadedFromMemory bool      `field:"loaded_from_memory"` // SECLDoc[loaded_from_memory] Definition:`Indicates if the kernel module was loaded from memory`
-	Name             string    `field:"name"`               // SECLDoc[name] Definition:`Name of the new kernel module`
+	File             FileEvent `field:"file"`                           // Path to the kernel module file
+	LoadedFromMemory bool      `field:"loaded_from_memory"`             // SECLDoc[loaded_from_memory] Definition:`Indicates if the kernel module was loaded from memory`
+	Name             string    `field:"name"`                           // SECLDoc[name] Definition:`Name of the new kernel module`
+	Args             string    `field:"args"`                           // SECLDoc[args] Definition:`Parameters (as a string) of the new kernel module`
+	Argv             []string  `field:"argv,handler:ResolveModuleArgv"` // SECLDoc[argv] Definition:`Parameters (as an array) of the new kernel module`
 }
 
 // UnloadModuleEvent represents an unload_module event
