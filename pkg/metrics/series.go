@@ -21,7 +21,7 @@ const (
 	// The format for the tag is dd.internal.resource:resource_type,resource_name. Resource names
 	// should comply with the Datadog tagging requirements documented at
 	// https://docs.datadoghq.com/getting_started/tagging/#define-tags.
-	// Note: resources are only supported on metrics api v2. 
+	// Note: resources are only supported on metrics api v2.
 	internalResourceTagPrefix    = "dd.internal.resource:"
 	internalResourceTagSeparator = ":"
 )
