@@ -15,9 +15,9 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/Microsoft/go-winio"
@@ -39,7 +39,7 @@ type NamedPipeListener struct {
 
 // NewNamedPipeListener returns an named pipe Statsd listener
 func NewNamedPipeListener(pipeName string, packetOut chan packets.Packets,
-	sharedPacketPoolManager *packets.PoolManager, capture replay.Component, config config.Component) (*NamedPipeListener, error) {
+	sharedPacketPoolManager *packets.PoolManager, capture replay.Component, config config.ConfigReader) (*NamedPipeListener, error) {
 
 	bufferSize := config.GetInt("dogstatsd_buffer_size")
 	return newNamedPipeListener(

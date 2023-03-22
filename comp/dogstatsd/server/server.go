@@ -332,7 +332,7 @@ func (s *server) Start(demultiplexer aggregator.Demultiplexer) error {
 
 	pipeName := s.config.GetString("dogstatsd_pipe_name")
 	if len(pipeName) > 0 {
-		namedPipeListener, err := listeners.NewNamedPipeListener(pipeName, packetsChannel, sharedPacketPoolManager, s.tCapture)
+		namedPipeListener, err := listeners.NewNamedPipeListener(pipeName, packetsChannel, sharedPacketPoolManager, s.tCapture, s.config)
 		if err != nil {
 			s.log.Errorf("named pipe error: %v", err.Error())
 		} else {
