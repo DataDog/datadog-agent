@@ -5,7 +5,6 @@ using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text;
 using Datadog.CustomActions.Interfaces;
-using Microsoft.Win32.SafeHandles;
 
 namespace Datadog.CustomActions.Native
 {
@@ -82,7 +81,7 @@ namespace Datadog.CustomActions.Native
 
         public static int SERVICE_NO_CHANGE = -1;
 
-        [DllImport("logoncli.dll", EntryPoint = "NetIsServiceAccount", CharSet = CharSet.Unicode)]
+        [DllImport("logoncli.dll", CharSet = CharSet.Unicode)]
         private static extern NtStatus NetIsServiceAccount(
             string serverName,
             string accountName,
@@ -107,6 +106,62 @@ namespace Datadog.CustomActions.Native
             StringBuilder referencedDomainName,
             ref uint cchReferencedDomainName,
             out SID_NAME_USE peUse);
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct USER_INFO_1
+        {
+            [MarshalAs(UnmanagedType.LPWStr)]
+            public string sUsername;
+
+            [MarshalAs(UnmanagedType.LPWStr)]
+            public string sPassword;
+
+            [MarshalAs(UnmanagedType.U4)]
+            public UserFlags uiPasswordAge;
+
+            [MarshalAs(UnmanagedType.U4)]
+            public uint uiPriv;
+
+            [MarshalAs(UnmanagedType.LPWStr)]
+            public string sHome_Dir;
+
+            [MarshalAs(UnmanagedType.LPWStr)]
+            public string sComment;
+
+            [MarshalAs(UnmanagedType.U4)]
+            public UserFlags uiFlags;
+
+            [MarshalAs(UnmanagedType.LPWStr)]
+            public string sScript_Path;
+        }
+
+        private const uint USER_PRIV_USER = 1;
+
+        [Flags]
+        private enum UserFlags : uint
+        {
+            UF_DONT_EXPIRE_PASSWD = 0x10000
+        }
+
+        [DllImport("netapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern int NetUserAdd(
+            [MarshalAs(UnmanagedType.LPWStr)] string servername,
+            uint level,
+            ref USER_INFO_1 userinfo,
+            out uint parm_err);
+
+        public int AddUser(string userName, string password)
+        {
+            var userInfo = new USER_INFO_1
+            {
+                sComment = "User context under which the DatadogAgent service runs",
+                sUsername = userName,
+                sPassword = password,
+                uiPriv = USER_PRIV_USER,
+                uiFlags = UserFlags.UF_DONT_EXPIRE_PASSWD
+            };
+            return NetUserAdd(null, 1, ref userInfo, out _);
+        }
 
         [StructLayout(LayoutKind.Sequential)]
         private struct LOCALGROUP_MEMBERS_INFO_0
@@ -142,8 +197,8 @@ namespace Datadog.CustomActions.Native
         [Flags]
         public enum ServerTypes : uint
         {
-            DomainCtrl= 0x00000008,
-            BackupDomainCtrl= 0x00000010,
+            DomainCtrl = 0x00000008,
+            BackupDomainCtrl = 0x00000010,
         };
 
         public enum ServerPlatform

@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Diagnostics;
 using System.DirectoryServices.ActiveDirectory;
 using System.IO;
-using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Security.Principal;
@@ -418,10 +418,46 @@ namespace Datadog.CustomActions
             return new UserCustomActions(new SessionWrapper(session)).ProcessDdAgentUserCredentials(calledFromUIControl: true);
         }
 
+        private ActionResult AddUser()
+        {
+            try
+            {
+                var userFound = _session.Property("DDAGENTUSER_FOUND");
+                var userSid = _session.Property("DDAGENTUSER_SID");
+                var userName = _session.Property("DDAGENTUSER_PROCESSED_NAME");
+                var userPassword = _session.Property("DDAGENTUSER_PROCESSED_PASSWORD");
+                if (userFound != "true" && string.IsNullOrEmpty(userSid))
+                {
+                    _session.Log($"Creating user {userName}");
+                    var ret = _nativeMethods.AddUser(userName, userPassword);
+                    if (ret != 0)
+                    {
+                        throw new Win32Exception(ret);
+                    }
+                }
+                else
+                {
+                    _session.Log($"{userName} already exists, not creating");
+                }
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Failed to create user: {e}");
+                return ActionResult.Failure;
+            }
+
+            return ActionResult.Success;
+        }
+
         public ActionResult ConfigureUser()
         {
             try
             {
+                if (AddUser() != ActionResult.Success)
+                {
+                    return ActionResult.Failure;
+                }
+
                 var ddAgentUserName = $"{_session.Property("DDAGENTUSER_PROCESSED_FQ_NAME")}";
                 var userFound = _nativeMethods.LookupAccountName(ddAgentUserName,
                     out _,
@@ -467,7 +503,7 @@ namespace Datadog.CustomActions
                 {
                     using var actionRecord = new Record(
                         "ConfigureUser",
-                        $"Configuring registry permissions",
+                        "Configuring registry permissions",
                         ""
                     );
                     _session.Message(InstallMessage.ActionStart, actionRecord);

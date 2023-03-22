@@ -136,11 +136,11 @@ namespace WixSetup.Datadog
                 new Id(nameof(EnsureNpmServiceDepdendency)),
                 ServiceCustomAction.EnsureNpmServiceDependency,
                 Return.check,
-                When.After,
-                new Step(ReportInstallFailure.Id),
+                When.Before,
+                Step.InstallServices,
                 Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
             )
-                {
+            {
                 Execute = Execute.deferred,
                 Impersonate = false
             }
@@ -263,6 +263,7 @@ namespace WixSetup.Datadog
                            "DDAGENTUSER_PROCESSED_NAME=[DDAGENTUSER_PROCESSED_NAME], " +
                            "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME], " +
                            "DDAGENTUSER_PROCESSED_PASSWORD=[DDAGENTUSER_PROCESSED_PASSWORD], " +
+                           "DDAGENTUSER_FOUND=[DDAGENTUSER_FOUND], " +
                            "DDAGENTUSER_SID=[DDAGENTUSER_SID], " +
                            "DDAGENTUSER_RESET_PASSWORD=[DDAGENTUSER_RESET_PASSWORD]")
             .HideTarget(true);
@@ -350,7 +351,7 @@ namespace WixSetup.Datadog
                 ServiceCustomAction.ConfigureServiceUsers,
                 Return.check,
                 When.After,
-                new Step(ConfigureUser.Id),
+                Step.InstallServices,
                 Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
 
             )

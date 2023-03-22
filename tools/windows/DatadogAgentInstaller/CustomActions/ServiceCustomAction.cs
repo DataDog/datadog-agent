@@ -59,7 +59,7 @@ namespace Datadog.CustomActions
                     {
                         systemProbeDef.SetValue("DependOnService", new[]
                         {
-                            "datadogagent"
+                            Constants.AgentServiceName
                         }, RegistryValueKind.MultiString);
 
                     }
@@ -68,8 +68,8 @@ namespace Datadog.CustomActions
                     {
                         systemProbeDef.SetValue("DependOnService", new[]
                         {
-                            "datadogagent",
-                            "ddnpm"
+                            Constants.AgentServiceName,
+                            Constants.NpmServiceName
                         }, RegistryValueKind.MultiString);
                     }
                 }
@@ -135,13 +135,27 @@ namespace Datadog.CustomActions
                 }
 
                 _session.Log($"Configuring services with account {ddAgentUserName}");
+
                 // ddagentuser
-                _serviceController.SetCredentials("datadogagent", ddAgentUserName, ddAgentUserPassword);
-                _serviceController.SetCredentials("datadog-trace-agent", ddAgentUserName, ddAgentUserPassword);
+                if (securityIdentifier.IsWellKnown(WellKnownSidType.LocalSystemSid))
+                {
+                    ddAgentUserName = "LocalSystem";
+                }
+                else if (securityIdentifier.IsWellKnown(WellKnownSidType.LocalServiceSid))
+                {
+                    ddAgentUserName = "LocalService";
+                }
+                else if (securityIdentifier.IsWellKnown(WellKnownSidType.NetworkServiceSid))
+                {
+                    ddAgentUserName = "NetworkService";
+                }
+                _serviceController.SetCredentials(Constants.AgentServiceName, ddAgentUserName, ddAgentUserPassword);
+                _serviceController.SetCredentials(Constants.TraceAgentServiceName, ddAgentUserName, ddAgentUserPassword);
+
                 // SYSTEM
                 // LocalSystem is a SCM specific shorthand that doesn't need to be localized
-                _serviceController.SetCredentials("datadog-system-probe", "LocalSystem", "");
-                _serviceController.SetCredentials( "datadog-process-agent", "LocalSystem", "");
+                _serviceController.SetCredentials(Constants.SystemProbeServiceName, "LocalSystem", "");
+                _serviceController.SetCredentials(Constants.ProcessAgentServiceName, "LocalSystem", "");
             }
             catch (Exception e)
             {
@@ -167,13 +181,13 @@ namespace Datadog.CustomActions
             {
                 // Stop each service individually in case the install is broken
                 // e.g. datadogagent doesn't exist or the service dependencies are not correect.
-                var ddservices = new string[]
+                var ddservices = new []
                 {
-                    "datadog-system-probe",
-                    "ddnpm",
-                    "datadog-process-agent",
-                    "datadog-trace-agent",
-                    "datadogagent"
+                    Constants.SystemProbeServiceName,
+                    Constants.NpmServiceName,
+                    Constants.ProcessAgentServiceName,
+                    Constants.TraceAgentServiceName,
+                    Constants.AgentServiceName
                 };
                 foreach (var service in ddservices)
                 {
@@ -233,7 +247,7 @@ namespace Datadog.CustomActions
                 _session.Message(InstallMessage.ActionStart, actionRecord);
                 // only start the main agent service. it should start any other services
                 // that should be running.
-                _serviceController.StartService("datadogagent", TimeSpan.FromMinutes(3));
+                _serviceController.StartService(Constants.AgentServiceName, TimeSpan.FromMinutes(3));
             }
             catch (Exception e)
             {

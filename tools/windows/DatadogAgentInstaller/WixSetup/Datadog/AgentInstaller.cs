@@ -63,20 +63,6 @@ namespace WixSetup.Datadog
         {
             var project = new ManagedProject("Datadog Agent",
                 new CustomActionRef("WixCloseApplications", When.Before, Step.RemoveFiles),
-                new User
-                {
-                    // CreateUser fails with ERROR_BAD_USERNAME if Name is a fully qualified user name
-                    Name = "[DDAGENTUSER_PROCESSED_NAME]",
-                    Domain = "[DDAGENTUSER_PROCESSED_DOMAIN]",
-                    Password = "[DDAGENTUSER_PROCESSED_PASSWORD]",
-                    PasswordNeverExpires = true,
-                    RemoveOnUninstall = false,
-                    FailIfExists = false,
-                    // False because we don't want to change the user's password
-                    // on domains.
-                    UpdateIfExists = false,
-                    CreateUser = true
-                },
                 new Property("MsiLogging", "iwearucmop!"),
                 new Property("MSIRESTARTMANAGERCONTROL", "Disable"),
                 new Property("APIKEY")
@@ -391,17 +377,17 @@ namespace WixSetup.Datadog
                 Arguments = arguments,
                 DependsOn = new[]
                 {
-                    new ServiceDependency("datadogagent")
+                    new ServiceDependency(Constants.AgentServiceName)
                 }
             };
         }
 
         private Dir CreateBinFolder()
         {
-            var agentService = GenerateServiceInstaller("datadogagent", "Datadog Agent", "Send metrics to Datadog");
+            var agentService = GenerateServiceInstaller(Constants.AgentServiceName, "Datadog Agent", "Send metrics to Datadog");
             var processAgentService = GenerateDependentServiceInstaller(
                 new Id("ddagentprocessservice"),
-                "datadog-process-agent",
+                Constants.ProcessAgentServiceName,
                 "Datadog Process Agent",
                 "Send process metrics to Datadog",
                 "LocalSystem",
@@ -409,7 +395,7 @@ namespace WixSetup.Datadog
                 "--cfgpath=\"[APPLICATIONDATADIRECTORY]\\datadog.yaml\"");
             var traceAgentService = GenerateDependentServiceInstaller(
                 new Id("ddagenttraceservice"),
-                "datadog-trace-agent",
+                Constants.TraceAgentServiceName,
                 "Datadog Trace Agent",
                 "Send tracing metrics to Datadog",
                 "[DDAGENTUSER_PROCESSED_FQ_NAME]",
@@ -417,7 +403,7 @@ namespace WixSetup.Datadog
                 "--config=\"[APPLICATIONDATADIRECTORY]\\datadog.yaml\"");
             var systemProbeService = GenerateDependentServiceInstaller(
                 new Id("ddagentsysprobeservice"),
-                "datadog-system-probe",
+                Constants.SystemProbeServiceName,
                 "Datadog System Probe",
                 "Send network metrics to Datadog",
                 "LocalSystem");
@@ -426,7 +412,7 @@ namespace WixSetup.Datadog
                 new WixSharp.File(_agentBinaries.Agent, agentService),
                 new EventSource
                 {
-                    Name = "DatadogAgent",
+                    Name = Constants.AgentServiceName,
                     Log = "Application",
                     EventMessageFile = $"[BIN]{Path.GetFileName(_agentBinaries.Agent)}",
                     AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes"
@@ -440,7 +426,7 @@ namespace WixSetup.Datadog
                     new WixSharp.File(_agentBinaries.ProcessAgent, processAgentService),
                     new EventSource
                     {
-                        Name = "datadog-process-agent",
+                        Name = Constants.ProcessAgentServiceName,
                         Log = "Application",
                         EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.ProcessAgent)}",
                         AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes"
@@ -448,7 +434,7 @@ namespace WixSetup.Datadog
                     new WixSharp.File(_agentBinaries.SystemProbe, systemProbeService),
                     new EventSource
                     {
-                        Name = "datadog-system-probe",
+                        Name = Constants.SystemProbeServiceName,
                         Log = "Application",
                         EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.SystemProbe)}",
                         AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes"
@@ -456,7 +442,7 @@ namespace WixSetup.Datadog
                     new WixSharp.File(_agentBinaries.TraceAgent, traceAgentService),
                     new EventSource
                     {
-                        Name = "datadog-trace-agent",
+                        Name = Constants.TraceAgentServiceName,
                         Log = "Application",
                         EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.TraceAgent)}",
                         AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes"

@@ -39,5 +39,6 @@ namespace Datadog.CustomActions.Interfaces
         bool IsDomainAccount(SecurityIdentifier userSid);
 
         bool GetComputerName(COMPUTER_NAME_FORMAT format, out string name);
+        int AddUser(string userName, string userPassword);
     }
 }
