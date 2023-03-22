@@ -23,6 +23,7 @@
 	<String Id="VerifyReadyDlgInstallTitle">{\WixUI_Font_Title_White}Ready to install [ProductName]</String>
 	<String Id="VerifyReadyDlgRepairTitle">{\WixUI_Font_Title_White}Ready to repair [ProductName]</String>
 	<String Id="VerifyReadyDlgRemoveTitle">{\WixUI_Font_Title_White}Ready to remove [ProductName]</String>
+	<String Id="VerifyReadyDlgUpdateTitle">{\WixUI_Font_Title_White}Ready to update [ProductName]</String>
 
 	<String Id="FeatureMainName">Agent</String>
 	<String Id="LaunchAgentManager"> Launch Datadog Agent Manager</String>

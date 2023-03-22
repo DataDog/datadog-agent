@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
@@ -24,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/common"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -62,7 +63,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
-				fx.Supply(config.NewAgentParamsWithoutSecrets("")),
+				fx.Supply(config.NewAgentParamsWithoutSecrets("", config.WithConfigMissingOK(true))),
 				fx.Supply(sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.ConfFilePath))),
 				fx.Supply(log.LogForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 				config.Module,
@@ -87,6 +88,9 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 
 	// prepare go runtime
 	ddruntime.SetMaxProcs()
+	if err := ddruntime.SetGoMemLimit(ddconfig.IsContainerized()); err != nil {
+		log.Debugf("Couldn't set Go memory limit: %s", err)
+	}
 
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
@@ -142,7 +146,7 @@ func StartSystemProbeWithDefaults() error {
 			return startSystemProbe(&cliParams{GlobalParams: &command.GlobalParams{}}, log, sysprobeconfig)
 		},
 		// no config file path specification in this situation
-		fx.Supply(config.NewAgentParamsWithoutSecrets("")),
+		fx.Supply(config.NewAgentParamsWithoutSecrets("", config.WithConfigMissingOK(true))),
 		fx.Supply(sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(""))),
 		fx.Supply(log.LogForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 		config.Module,
@@ -173,18 +177,6 @@ func startSystemProbe(cliParams *cliParams, log log.Component, sysprobeconfig sy
 		log.Warnf("cannot setup core dumps: %s, core dumps might not be available after a crash", err)
 	}
 
-	if sysprobeconfig.GetBool("system_probe_config.memory_controller.enabled") {
-		memoryPressureLevels := sysprobeconfig.GetStringMapString("system_probe_config.memory_controller.pressure_levels")
-		memoryThresholds := sysprobeconfig.GetStringMapString("system_probe_config.memory_controller.thresholds")
-		hierarchy := sysprobeconfig.GetString("system_probe_config.memory_controller.hierarchy")
-		common.MemoryMonitor, err = utils.NewMemoryMonitor(hierarchy, ddconfig.IsContainerized(), memoryPressureLevels, memoryThresholds)
-		if err != nil {
-			log.Warnf("cannot set up memory controller: %s", err)
-		} else {
-			common.MemoryMonitor.Start()
-		}
-	}
-
 	if err := initRuntimeSettings(); err != nil {
 		log.Warnf("cannot initialize the runtime settings: %s", err)
 	}
@@ -207,7 +199,10 @@ func startSystemProbe(cliParams *cliParams, log log.Component, sysprobeconfig sy
 		return log.Criticalf("error configuring statsd: %s", err)
 	}
 
-	if cfg.DebugPort > 0 {
+	if isValidPort(cfg.DebugPort) {
+		if cfg.TelemetryEnabled {
+			http.Handle("/telemetry", telemetry.Handler())
+		}
 		go func() {
 			common.ExpvarServer = &http.Server{
 				Addr:    fmt.Sprintf("127.0.0.1:%d", cfg.DebugPort),
@@ -239,9 +234,7 @@ func stopSystemProbe(cliParams *cliParams) {
 		}
 	}
 	profiling.Stop()
-	if common.MemoryMonitor != nil {
-		common.MemoryMonitor.Stop()
-	}
+
 	_ = os.Remove(cliParams.pidfilePath)
 
 	// gracefully shut down any component
@@ -269,4 +262,8 @@ func setupInternalProfiling(cfg ddconfig.ConfigReader, configPrefix string, log 
 			log.Errorf("Error starting profiler: %v", err)
 		}
 	}
+}
+
+func isValidPort(port int) bool {
+	return port > 0 && port < 65536
 }

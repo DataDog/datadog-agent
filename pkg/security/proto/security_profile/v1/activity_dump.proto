@@ -33,6 +33,15 @@ message Metadata {
     string serialization = 14;
 }
 
+message SecurityProfile {
+    uint32 status = 1;
+    string version = 2;
+    Metadata metadata = 3;
+    repeated string tags = 4;
+    repeated uint32 syscalls = 5;
+    repeated ProcessActivityNode tree = 6;
+}
+
 message ProcessActivityNode {
     ProcessInfo process = 1;
     reserved 2;
@@ -129,6 +138,10 @@ message FileInfo {
     string path = 11;
     string basename = 12;
     string filesystem = 13;
+
+    string package_name = 14;
+    string package_version = 15;
+    string package_srcversion = 16;
 }
 
 message Credentials {
@@ -174,4 +187,5 @@ message MatchedRule {
     string rule_version = 2;
     string policy_name = 3;
     string policy_version = 4;
+    map<string, string> rule_tags = 5;
 }

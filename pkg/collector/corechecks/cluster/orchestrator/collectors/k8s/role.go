@@ -12,8 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	"k8s.io/apimachinery/pkg/labels"
 	rbacv1Informers "k8s.io/client-go/informers/rbac/v1"
 	rbacv1Listers "k8s.io/client-go/listers/rbac/v1"
@@ -45,7 +45,7 @@ func NewRoleCollector() *RoleCollector {
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
 			Name:                      "roles",
-			NodeType:                  model.K8SResource_ROLE,
+			NodeType:                  orchestrator.K8sRole,
 			Version:                   "rbac.authorization.k8s.io/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.RoleHandlers)),

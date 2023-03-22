@@ -145,8 +145,9 @@ type ChownEvent struct {
 
 // ContainerContext holds the container context of an event
 type ContainerContext struct {
-	ID   string   `field:"id,handler:ResolveContainerID"`                              // SECLDoc[id] Definition:`ID of the container`
-	Tags []string `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
+	ID        string   `field:"id,handler:ResolveContainerID"`                              // SECLDoc[id] Definition:`ID of the container`
+	CreatedAt uint64   `field:"created_at,handler:ResolveContainerCreatedAt"`               // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
+	Tags      []string `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
 }
 
 // Event represents an event sent from the kernel
@@ -333,15 +334,17 @@ func (ev *Event) GetProcessServiceTag() string {
 type MatchedRule struct {
 	RuleID        string
 	RuleVersion   string
+	RuleTags      map[string]string
 	PolicyName    string
 	PolicyVersion string
 }
 
 // NewMatchedRule return a new MatchedRule instance
-func NewMatchedRule(ruleID, ruleVersion, policyName, policyVersion string) *MatchedRule {
+func NewMatchedRule(ruleID, ruleVersion string, ruleTags map[string]string, policyName, policyVersion string) *MatchedRule {
 	return &MatchedRule{
 		RuleID:        ruleID,
 		RuleVersion:   ruleVersion,
+		RuleTags:      ruleTags,
 		PolicyName:    policyName,
 		PolicyVersion: policyVersion,
 	}
@@ -448,8 +451,7 @@ type Process struct {
 
 	FileEvent FileEvent `field:"file,check:IsNotKworker"`
 
-	ContainerID   string   `field:"container.id"` // SECLDoc[container.id] Definition:`Container ID`
-	ContainerTags []string `field:"-"`
+	ContainerID string `field:"container.id"` // SECLDoc[container.id] Definition:`Container ID`
 
 	SpanID  uint64 `field:"-"`
 	TraceID uint64 `field:"-"`
@@ -564,6 +566,10 @@ type FileEvent struct {
 	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem"`                                          // SECLDoc[filesystem] Definition:`File's filesystem`
 
 	PathResolutionError error `field:"-" json:"-"`
+
+	PkgName       string `field:"package.name,handler:ResolvePackageName"`                    // SECLDoc[package.name] Definition:`[Experimental] Name of the package that provided this file`
+	PkgVersion    string `field:"package.version,handler:ResolvePackageVersion"`              // SECLDoc[package.version] Definition:`[Experimental] Full version of the package that provided this file`
+	PkgSrcVersion string `field:"package.source_version,handler:ResolvePackageSourceVersion"` // SECLDoc[package.source_version] Definition:`[Experimental] Full version of the source package of the package that provided this file`
 
 	// used to mark as already resolved, can be used in case of empty path
 	IsPathnameStrResolved bool `field:"-" json:"-"`
@@ -704,8 +710,8 @@ type ProcessCacheEntry struct {
 	releaseCb func()                     `field:"-" json:"-"`
 }
 
-// IsContainerInit returns whether this is the entrypoint of the container
-func (pc *ProcessCacheEntry) IsContainerInit() bool {
+// IsContainerRoot returns whether this is a top level process in the container ID
+func (pc *ProcessCacheEntry) IsContainerRoot() bool {
 	return pc.ContainerID != "" && pc.Ancestor != nil && pc.Ancestor.ContainerID == ""
 }
 
@@ -1035,6 +1041,8 @@ type SyscallsEvent struct {
 	Syscalls []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
 }
 
+const PathKeySize = 16
+
 // PathKey identifies an entry in the dentry cache
 type PathKey struct {
 	Inode   uint64 `field:"inode"`    // SECLDoc[inode] Definition:`Inode of the file`
@@ -1065,6 +1073,38 @@ func (p *PathKey) MarshalBinary() ([]byte, error) {
 
 	buff := make([]byte, 16)
 	p.Write(buff)
+
+	return buff, nil
+}
+
+// PathLeafSize defines path_leaf struct size
+const PathLeafSize = PathKeySize + MaxSegmentLength + 1 + 2 + 6 // path_key + name + len + padding
+
+// PathLeaf is the go representation of the eBPF path_leaf_t structure
+type PathLeaf struct {
+	Parent PathKey
+	Name   [MaxSegmentLength + 1]byte
+	Len    uint16
+}
+
+// GetName returns the path value as a string
+func (pl *PathLeaf) GetName() string {
+	return NullTerminatedString(pl.Name[:])
+}
+
+// GetName returns the path value as a string
+func (pl *PathLeaf) SetName(name string) {
+	copy(pl.Name[:], []byte(name))
+	pl.Len = uint16(len(name) + 1)
+}
+
+// MarshalBinary returns the binary representation of a path key
+func (pl *PathLeaf) MarshalBinary() ([]byte, error) {
+	buff := make([]byte, PathLeafSize)
+
+	pl.Parent.Write(buff)
+	copy(buff[16:], pl.Name[:])
+	ByteOrder.PutUint16(buff[16+len(pl.Name):], pl.Len)
 
 	return buff, nil
 }

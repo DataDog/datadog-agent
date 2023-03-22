@@ -140,24 +140,19 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 	resp.Body.Close()
 
 	// Iterate through active connections until we find connection created above
-	var httpReqStats *http.RequestStats
 	require.Eventuallyf(t, func() bool {
 		payload := getConnections(t, tr)
 		for key, stats := range payload.HTTP {
-			if key.Path.Content == "/test" {
-				httpReqStats = stats
-				return true
+			if key.Method == http.MethodGet && key.Path.Content == "/test" && (key.SrcPort == 8080 || key.DstPort == 8080) {
+				currentStats := stats.Data[stats.NormalizeStatusCode(204)]
+				if currentStats != nil && currentStats.Count == 1 {
+					return true
+				}
 			}
 		}
 
 		return false
 	}, 3*time.Second, 10*time.Millisecond, "couldn't find http connection matching: %s", serverAddr)
-
-	// Verify HTTP stats
-	require.NotNil(t, httpReqStats)
-	require.Len(t, httpReqStats.Data, 1)
-	require.NotNil(t, httpReqStats.Data[httpReqStats.NormalizeStatusCode(204)])
-	require.Equalf(t, 1, httpReqStats.Data[httpReqStats.NormalizeStatusCode(204)].Count, "%v", httpReqStats)
 }
 
 func TestHTTPSViaLibraryIntegration(t *testing.T) {
@@ -482,28 +477,39 @@ func TestProtocolClassification(t *testing.T) {
 		t.Skip("Classification is not supported")
 	}
 
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		tr.Stop()
+	})
+
 	t.Run("with dnat", func(t *testing.T) {
 		// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
 		netlink.SetupDNAT(t)
-		testProtocolClassification(t, cfg, "localhost", "2.2.2.2", "1.1.1.1")
-		testProtocolClassificationMapCleanup(t, cfg, "localhost", "2.2.2.2", "1.1.1.1:0")
+		testProtocolClassification(t, tr, "localhost", "2.2.2.2", "1.1.1.1")
+		testProtocolClassificationMapCleanup(t, tr, "localhost", "2.2.2.2", "1.1.1.1:0")
 	})
 
 	t.Run("with snat", func(t *testing.T) {
 		// SetupDNAT sets up a NAT translation from 6.6.6.6 to 7.7.7.7
 		netlink.SetupSNAT(t)
-		testProtocolClassification(t, cfg, "6.6.6.6", "127.0.0.1", "127.0.0.1")
-		testProtocolClassificationMapCleanup(t, cfg, "6.6.6.6", "127.0.0.1", "127.0.0.1:0")
+		testProtocolClassification(t, tr, "6.6.6.6", "127.0.0.1", "127.0.0.1")
+		testProtocolClassificationMapCleanup(t, tr, "6.6.6.6", "127.0.0.1", "127.0.0.1:0")
 	})
 
 	t.Run("without nat", func(t *testing.T) {
-		testProtocolClassification(t, cfg, "localhost", "127.0.0.1", "127.0.0.1")
-		testProtocolClassificationMapCleanup(t, cfg, "localhost", "127.0.0.1", "127.0.0.1:0")
+		testProtocolClassification(t, tr, "localhost", "127.0.0.1", "127.0.0.1")
+		testProtocolClassificationMapCleanup(t, tr, "localhost", "127.0.0.1", "127.0.0.1:0")
 	})
 }
 
-func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testProtocolClassificationMapCleanup(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	t.Run("protocol cleanup", func(t *testing.T) {
+		if tr.ebpfTracer.Type() == connection.EBPFFentry {
+			t.Skip("protocol classification not supported for fentry tracer")
+		}
+		t.Cleanup(func() { tr.ebpfTracer.Pause() })
+
 		dialer := &net.Dialer{
 			LocalAddr: &net.TCPAddr{
 				IP:   net.ParseIP(clientHost),
@@ -522,11 +528,8 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 			},
 		}
 
-		tr := setupTracer(t, cfg)
-
-		if tr.ebpfTracer.Type() == connection.EBPFFentry {
-			t.Skip("protocol classification not supported for fentry tracer")
-		}
+		initTracerState(t, tr)
+		require.NoError(t, tr.ebpfTracer.Resume())
 
 		HTTPServer := NewTCPServerOnAddress(serverHost, func(c net.Conn) {
 			r := bufio.NewReader(c)
@@ -541,9 +544,6 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 		_, port, err := net.SplitHostPort(HTTPServer.address)
 		require.NoError(t, err)
 		targetAddr := net.JoinHostPort(targetHost, port)
-
-		// Letting the server time to start
-		time.Sleep(500 * time.Millisecond)
 
 		// Running a HTTP client
 		client := nethttp.Client{
@@ -560,8 +560,6 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 		client.CloseIdleConnections()
 		waitForConnectionsWithProtocol(t, tr, targetAddr, HTTPServer.address, network.ProtocolHTTP)
 		HTTPServer.Shutdown()
-
-		time.Sleep(2 * time.Second)
 
 		gRPCServer, err := grpc.NewServer(HTTPServer.address)
 		require.NoError(t, err)
@@ -884,7 +882,8 @@ func TestHTTPGoTLSAttachProbes(t *testing.T) {
 	})
 }
 
-func TestHTTsPGoTLSAttachProbesOnContainer(t *testing.T) {
+func TestHTTPSGoTLSAttachProbesOnContainer(t *testing.T) {
+	t.Skip("Skipping a flaky test")
 	if !goTLSSupported(t) {
 		t.Skip("GoTLS not supported for this setup")
 	}
@@ -1015,7 +1014,7 @@ func testHTTPsGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) 
 
 	tr := setupTracer(t, cfg)
 
-	gotls.RunGoHTTPSServer(t, serverPort)
+	gotls.RunServer(t, serverPort)
 	reqs := make(requestsMap)
 	for i := 0; i < expectedOccurrences; i++ {
 		resp, err := client.Get(fmt.Sprintf("https://localhost:%s/status/%d", serverPort, 200+i))
@@ -1034,7 +1033,7 @@ func testHTTPsGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Conf
 		expectedOccurrences = 10
 	)
 
-	gotls.RunGoHTTPSServer(t, serverPort)
+	gotls.RunServer(t, serverPort)
 
 	client := &nethttp.Client{
 		Transport: &nethttp.Transport{

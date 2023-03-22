@@ -8,7 +8,7 @@ package metrics
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 )
 
 var (
@@ -202,7 +202,7 @@ var (
 	// Tags: -
 	MetricActivityDumpBrokenLineageDrop = newRuntimeMetric(".activity_dump.broken_lineage_drop")
 	// MetricActivityDumpEventTypeDrop is the name of the metric used to report the number of event dropped because their event types is not traced
-	// Tags: -
+	// Tags: event_type
 	MetricActivityDumpEventTypeDrop = newRuntimeMetric(".activity_dump.event_type_drop")
 	// MetricActivityDumpValidRootNodeDrop is the name of the metric used to report the number of dropped root not valide node
 	// Tags: -
@@ -219,6 +219,42 @@ var (
 	// MetricActivityDumpNotYetProfiledWorkload is the name of the metric used to report the count of workload not yet profiled
 	// Tags: -
 	MetricActivityDumpNotYetProfiledWorkload = newAgentMetric(".activity_dump.not_yet_profiled_workload")
+
+	// SBOM resolver metrics
+
+	// MetricSBOMResolverActiveSBOMs is the name of the metric used to report the count of SBOMs kept in memory
+	// Tags: -
+	MetricSBOMResolverActiveSBOMs = newRuntimeMetric(".sbom_resolver.active_sboms")
+	// MetricSBOMResolverSBOMGenerations is the name of the metric used to report when a SBOM is being generated at runtime
+	// Tags: -
+	MetricSBOMResolverSBOMGenerations = newRuntimeMetric(".sbom_resolver.sbom_generations")
+	// MetricSBOMResolverFailedSBOMGenerations is the name of the metric used to report when a SBOM generation failed
+	// Tags: -
+	MetricSBOMResolverFailedSBOMGenerations = newRuntimeMetric(".sbom_resolver.failed_sbom_generations")
+	// MetricSBOMResolverSBOMCacheLen is the name of the metric used to report the count of SBOMs kept in cache
+	// Tags: -
+	MetricSBOMResolverSBOMCacheLen = newRuntimeMetric(".sbom_resolver.sbom_cache.len")
+	// MetricSBOMResolverSBOMCacheHit is the name of the metric used to report the number of SBOMs that were generated from cache
+	// Tags: -
+	MetricSBOMResolverSBOMCacheHit = newRuntimeMetric(".sbom_resolver.sbom_cache.hit")
+	// MetricSBOMResolverSBOMCacheMiss is the name of the metric used to report the number of SBOMs that weren't in cache
+	// Tags: -
+	MetricSBOMResolverSBOMCacheMiss = newRuntimeMetric(".sbom_resolver.sbom_cache.miss")
+
+	// Security Profile metrics
+
+	// MetricSecurityProfileActiveProfiles is the name of the metric used to report the count of active Security Profiles
+	// Tags: -
+	MetricSecurityProfileActiveProfiles = newRuntimeMetric(".security_profile.active_profiles")
+	// MetricSecurityProfileCacheLen is the name of the metric used to report the size of the Security Profile cache
+	// Tags: -
+	MetricSecurityProfileCacheLen = newRuntimeMetric(".security_profile.cache.len")
+	// MetricSecurityProfileCacheHit is the name of the metric used to report the count of Security Profile cache hits
+	// Tags: -
+	MetricSecurityProfileCacheHit = newRuntimeMetric(".security_profile.cache.hit")
+	// MetricSecurityProfileCacheMiss is the name of the metric used to report the count of Security Profile cache misses
+	// Tags: -
+	MetricSecurityProfileCacheMiss = newRuntimeMetric(".security_profile.cache.miss")
 
 	// Namespace resolver metrics
 
@@ -417,7 +453,7 @@ var (
 
 // SetTagsWithCardinality returns the array of tags and set the requested cardinality
 func SetTagsWithCardinality(cardinality string, tags ...string) []string {
-	return append(tags, fmt.Sprintf("%s:%s", dogstatsd.CardinalityTagPrefix, cardinality))
+	return append(tags, fmt.Sprintf("%s:%s", dogstatsdServer.CardinalityTagPrefix, cardinality))
 }
 
 var (

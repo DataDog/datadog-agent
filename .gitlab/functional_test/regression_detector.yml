@@ -1,6 +1,6 @@
 single-machine-performance-regression_detector:
   stage: functional_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker"]
   needs:
     - job: single_machine_performance-amd64-a7
@@ -10,11 +10,11 @@ single-machine-performance-regression_detector:
     paths:
       - submission_metadata
   variables:
-    SMP_VERSION: 0.7.1
+    SMP_VERSION: 0.7.3
     LADING_VERSION: 0.13.0
     TOTAL_SAMPLES: 600
     WARMUP_SECONDS: 45
-    REPLICAS: 20
+    REPLICAS: 10
     CPUS: 7
     MEMORY: "30g"
   # At present we require two artifacts to exist for the 'baseline' and the

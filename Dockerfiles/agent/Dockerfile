@@ -10,9 +10,11 @@ ARG CIBUILD
 # indefinitely. Therefore we create a mirrorlist with the 2 mirrors that we know
 # should be reliable enough in combination and also well maintained.
 RUN if [ "$CIBUILD" = "true" ]; then \
-  echo "http://us-east-1.ec2.archive.ubuntu.com/ubuntu\tpriority:1\nhttp://archive.ubuntu.com/ubuntu" > /etc/apt/mirrorlist && \
-  sed -i -e 's#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist#g' \
-         -e 's#http://security.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist#g' /etc/apt/sources.list; \
+  echo "http://us-east-1.ec2.archive.ubuntu.com/ubuntu\tpriority:1\nhttp://archive.ubuntu.com/ubuntu" > /etc/apt/mirrorlist.main && \
+  echo "http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\tpriority:1\nhttp://ports.ubuntu.com/ubuntu-ports" > /etc/apt/mirrorlist.ports && \
+  sed -i -e 's#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
+         -e 's#http://security.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
+         -e 's#http://ports.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' /etc/apt/sources.list; \
   fi
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -134,8 +136,10 @@ RUN if [ -n "$WITH_JMX" ]; then echo "Pulling openjdk-11 from testing" \
   && apt clean; fi
 
 # cleaning up
-RUN ln -sf /opt/datadog-agent/embedded/ssl /etc/ssl \
-  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+# We remove /etc/ssl because in JMX images, openjdk triggers installation of ca-certificates-java
+# which writes to /etc/ssl. Yet, in the Agent we only rely on certs shipped in the Agent package.
+RUN rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /etc/ssl
+RUN ln -sf /opt/datadog-agent/embedded/ssl /etc/ssl
 
 # Copy agent from extract stage
 COPY --from=extract /output/ /

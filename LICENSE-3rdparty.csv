@@ -2,6 +2,7 @@ Component,Origin,License,Copyright
 core,cloud.google.com/go/compute/internal,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/compute/metadata,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/iam,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/iam/apiv1/iampb,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/internal,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/internal/optional,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/internal/trace,Apache-2.0,Copyright 2019 Google LLC
@@ -64,6 +65,7 @@ core,github.com/DataDog/datadog-operator/apis/utils,Apache-2.0,"Copyright 2016-2
 core,github.com/DataDog/datadog-operator/pkg/defaulting,Apache-2.0,"Copyright 2016-2020 Datadog, Inc"
 core,github.com/DataDog/datadog-operator/pkg/utils,Apache-2.0,"Copyright 2016-2020 Datadog, Inc"
 core,github.com/DataDog/ebpf-manager,MIT,Copyright (c) 2021 Authors of Datadog
+core,github.com/DataDog/ebpf-manager/tracefs,MIT,Copyright (c) 2021 Authors of Datadog
 core,github.com/DataDog/extendeddaemonset/api/v1alpha1,Apache-2.0,"Copyright 2016-2020 Datadog, Inc"
 core,github.com/DataDog/go-libddwaf,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/go-libddwaf/include,Apache-2.0,"Copyright 2016-present Datadog, Inc"
@@ -528,6 +530,7 @@ core,github.com/cavaliergopher/grab/v3,BSD-3-Clause,Copyright (c) 2017 Ryan Arms
 core,github.com/cavaliergopher/grab/v3/pkg/bps,BSD-3-Clause,Copyright (c) 2017 Ryan Armstrong. All rights reserved
 core,github.com/cenkalti/backoff,MIT,Copyright (c) 2014 Cenk Altı
 core,github.com/cenkalti/backoff/v4,MIT,Copyright (c) 2014 Cenk Altı
+core,github.com/cespare/xxhash,MIT,Copyright (c) 2016 Caleb Spare
 core,github.com/cespare/xxhash/v2,MIT,Copyright (c) 2016 Caleb Spare
 core,github.com/cihub/seelog,BSD-3-Clause,"Copyright (c) 2012, Cloud Instruments Co., Ltd. <info@cin.io>"
 core,github.com/cilium/ebpf,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
@@ -542,7 +545,6 @@ core,github.com/cilium/ebpf/perf,MIT,"Copyright (c) 2017 Nathan Sweet | Copyrigh
 core,github.com/cilium/ebpf/ringbuf,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/clbanning/mxj,MIT,Copyright (c) 2012-2016 Charles Banning <clbanning@gmail.com>.  All rights reserved | Copyright 2009 The Go Authors. All rights reserved
 core,github.com/cloudfoundry-community/go-cfclient,MIT,Copyright (c) 2017 Long Nguyen
-core,github.com/containerd/cgroups,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/cgroups/stats/v1,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/cgroups/v2/stats,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
@@ -626,12 +628,22 @@ core,github.com/coreos/go-semver/semver,Apache-2.0,"Copyright 2017 CoreOS, Inc"
 core,github.com/coreos/go-systemd/dbus,Apache-2.0,"Copyright 2017 CoreOS, Inc"
 core,github.com/coreos/go-systemd/sdjournal,Apache-2.0,"Copyright 2017 CoreOS, Inc"
 core,github.com/coreos/go-systemd/v22/daemon,Apache-2.0,"Copyright 2017 CoreOS, Inc"
-core,github.com/coreos/go-systemd/v22/dbus,Apache-2.0,"Copyright 2017 CoreOS, Inc"
 core,github.com/coreos/go-systemd/v22/journal,Apache-2.0,"Copyright 2017 CoreOS, Inc"
 core,github.com/coreos/pkg/dlopen,Apache-2.0,"Copyright 2017 CoreOS, Inc"
 core,github.com/cri-o/ocicni/pkg/ocicni,Apache-2.0,"Copyright 2016 Red Hat, Inc"
 core,github.com/cyphar/filepath-securejoin,BSD-3-Clause,Copyright (C) 2014-2015 Docker Inc & Go Authors. All rights reserved | Copyright (C) 2017 SUSE LLC. All rights reserved
 core,github.com/davecgh/go-spew/spew,ISC,Copyright (c) 2012-2016 Dave Collins <dave@davec.name>
+core,github.com/dgraph-io/badger/v3,Apache-2.0,"Copyright 2013 The LevelDB-Go Authors. All rights reserved. | Copyright 2017 Dgraph Labs, Inc. and Contributors | Copyright 2018 Dgraph Labs, Inc. and Contributors | Copyright 2019 Dgraph Labs, Inc. and Contributors | Copyright 2020 Dgraph Labs, Inc. and Contributors | Copyright 2021 Dgraph Labs, Inc. and Contributors"
+core,github.com/dgraph-io/badger/v3/fb,Apache-2.0,"Copyright 2013 The LevelDB-Go Authors. All rights reserved. | Copyright 2017 Dgraph Labs, Inc. and Contributors | Copyright 2018 Dgraph Labs, Inc. and Contributors | Copyright 2019 Dgraph Labs, Inc. and Contributors | Copyright 2020 Dgraph Labs, Inc. and Contributors | Copyright 2021 Dgraph Labs, Inc. and Contributors"
+core,github.com/dgraph-io/badger/v3/options,Apache-2.0,"Copyright 2013 The LevelDB-Go Authors. All rights reserved. | Copyright 2017 Dgraph Labs, Inc. and Contributors | Copyright 2018 Dgraph Labs, Inc. and Contributors | Copyright 2019 Dgraph Labs, Inc. and Contributors | Copyright 2020 Dgraph Labs, Inc. and Contributors | Copyright 2021 Dgraph Labs, Inc. and Contributors"
+core,github.com/dgraph-io/badger/v3/pb,Apache-2.0,"Copyright 2013 The LevelDB-Go Authors. All rights reserved. | Copyright 2017 Dgraph Labs, Inc. and Contributors | Copyright 2018 Dgraph Labs, Inc. and Contributors | Copyright 2019 Dgraph Labs, Inc. and Contributors | Copyright 2020 Dgraph Labs, Inc. and Contributors | Copyright 2021 Dgraph Labs, Inc. and Contributors"
+core,github.com/dgraph-io/badger/v3/skl,Apache-2.0,"Copyright 2013 The LevelDB-Go Authors. All rights reserved. | Copyright 2017 Dgraph Labs, Inc. and Contributors | Copyright 2018 Dgraph Labs, Inc. and Contributors | Copyright 2019 Dgraph Labs, Inc. and Contributors | Copyright 2020 Dgraph Labs, Inc. and Contributors | Copyright 2021 Dgraph Labs, Inc. and Contributors"
+core,github.com/dgraph-io/badger/v3/table,Apache-2.0,"Copyright 2013 The LevelDB-Go Authors. All rights reserved. | Copyright 2017 Dgraph Labs, Inc. and Contributors | Copyright 2018 Dgraph Labs, Inc. and Contributors | Copyright 2019 Dgraph Labs, Inc. and Contributors | Copyright 2020 Dgraph Labs, Inc. and Contributors | Copyright 2021 Dgraph Labs, Inc. and Contributors"
+core,github.com/dgraph-io/badger/v3/trie,Apache-2.0,"Copyright 2013 The LevelDB-Go Authors. All rights reserved. | Copyright 2017 Dgraph Labs, Inc. and Contributors | Copyright 2018 Dgraph Labs, Inc. and Contributors | Copyright 2019 Dgraph Labs, Inc. and Contributors | Copyright 2020 Dgraph Labs, Inc. and Contributors | Copyright 2021 Dgraph Labs, Inc. and Contributors"
+core,github.com/dgraph-io/badger/v3/y,Apache-2.0,"Copyright 2013 The LevelDB-Go Authors. All rights reserved. | Copyright 2017 Dgraph Labs, Inc. and Contributors | Copyright 2018 Dgraph Labs, Inc. and Contributors | Copyright 2019 Dgraph Labs, Inc. and Contributors | Copyright 2020 Dgraph Labs, Inc. and Contributors | Copyright 2021 Dgraph Labs, Inc. and Contributors"
+core,github.com/dgraph-io/ristretto,Apache-2.0,"Copyright (c) 2014 Andreas Briese, eduToolbox@Bri-C GmbH, Sarstedt | Copyright (c) 2019 Ewan Chou | Copyright 2019 Dgraph Labs, Inc. and Contributors | Copyright 2020 Dgraph Labs, Inc. and Contributors | Copyright 2020 The LevelDB-Go and Pebble Authors. All rights reserved."
+core,github.com/dgraph-io/ristretto/z,MIT,"Copyright (c) 2014 Andreas Briese, eduToolbox@Bri-C GmbH, Sarstedt | Copyright (c) 2019 Ewan Chou | Copyright 2019 Dgraph Labs, Inc. and Contributors | Copyright 2020 Dgraph Labs, Inc. and Contributors | Copyright 2020 The LevelDB-Go and Pebble Authors. All rights reserved."
+core,github.com/dgraph-io/ristretto/z/simd,MIT,"Copyright (c) 2014 Andreas Briese, eduToolbox@Bri-C GmbH, Sarstedt | Copyright (c) 2019 Ewan Chou | Copyright 2019 Dgraph Labs, Inc. and Contributors | Copyright 2020 Dgraph Labs, Inc. and Contributors | Copyright 2020 The LevelDB-Go and Pebble Authors. All rights reserved."
 core,github.com/dgryski/go-jump,MIT,Copyright (c) 2014 Damian Gryski <damian@gryski.com>
 core,github.com/dgryski/go-rendezvous,MIT,Copyright (c) 2017-2020 Damian Gryski <damian@gryski.com>
 core,github.com/dimchansky/utfbom,Apache-2.0,"Copyright (c) 2018-2020, Dmitrij Koniajev (dimchansky@gmail.com)"
@@ -812,7 +824,6 @@ core,github.com/gobwas/glob/syntax/lexer,MIT,Copyright (c) 2016 Sergey Kamardin
 core,github.com/gobwas/glob/util/runes,MIT,Copyright (c) 2016 Sergey Kamardin
 core,github.com/gobwas/glob/util/strings,MIT,Copyright (c) 2016 Sergey Kamardin
 core,github.com/godbus/dbus,BSD-2-Clause,"Copyright (c) 2013, Georg Reinke (<guelfey at gmail dot com>), Google"
-core,github.com/godbus/dbus/v5,BSD-2-Clause,"Copyright (c) 2013, Georg Reinke (<guelfey at gmail dot com>), Google"
 core,github.com/gogo/googleapis/google/rpc,Apache-2.0,"Copyright 2015, Google Inc | Copyright 2018, GoGo Authors"
 core,github.com/gogo/protobuf/gogoproto,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved. | Copyright 2010 The Go Authors.  All rights reserved."
 core,github.com/gogo/protobuf/jsonpb,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved. | Copyright 2010 The Go Authors.  All rights reserved."
@@ -839,6 +850,7 @@ core,github.com/golang/protobuf/ptypes/struct,BSD-3-Clause,Copyright (c) 2009 Th
 core,github.com/golang/protobuf/ptypes/timestamp,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/protobuf/ptypes/wrappers,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/snappy,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved.
+core,github.com/google/flatbuffers/go,Apache-2.0,Copyright (c) 2014 Google
 core,github.com/google/go-cmp/cmp,BSD-3-Clause,Copyright (c) 2017 The Go Authors. All rights reserved.
 core,github.com/google/go-cmp/cmp/internal/diff,BSD-3-Clause,Copyright (c) 2017 The Go Authors. All rights reserved.
 core,github.com/google/go-cmp/cmp/internal/flags,BSD-3-Clause,Copyright (c) 2017 The Go Authors. All rights reserved.
@@ -965,7 +977,7 @@ core,github.com/inconshreveable/mousetrap,Apache-2.0,Copyright 2022 Alan Shreve 
 core,github.com/invopop/jsonschema,MIT,Copyright (C) 2014 Alec Thomas
 core,github.com/iovisor/gobpf/pkg/cpupossible,Apache-2.0,Copyright 2016 Kinvolk | Copyright 2016 PLUMgrid
 core,github.com/iovisor/gobpf/pkg/cpurange,Apache-2.0,Copyright 2016 Kinvolk | Copyright 2016 PLUMgrid
-core,github.com/itchyny/gojq,MIT,Copyright (c) 2019-2022 itchyny
+core,github.com/itchyny/gojq,MIT,Copyright (c) 2019-2023 itchyny
 core,github.com/itchyny/timefmt-go,MIT,Copyright (c) 2020-2022 itchyny
 core,github.com/jbenet/go-context/io,MIT,Copyright (c) 2014 Juan Batiz-Benet
 core,github.com/jinzhu/inflection,MIT,Copyright (c) 2015 - Jinzhu
@@ -974,6 +986,8 @@ core,github.com/jmespath/go-jmespath,Apache-2.0,Copyright 2015 James Saryerwinni
 core,github.com/josharian/intern,MIT,Copyright (c) 2019 Josh Bleecher Snyder
 core,github.com/josharian/native,MIT,Copyright 2020 Josh Bleecher Snyder
 core,github.com/json-iterator/go,MIT,Copyright (c) 2016 json-iterator
+core,github.com/justincormack/go-memfd,MIT,Copyright (c) 2017 Justin Cormack
+core,github.com/justincormack/go-memfd/msyscall,MIT,Copyright (c) 2017 Justin Cormack
 core,github.com/kardianos/osext,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved
 core,github.com/karrick/godirwalk,BSD-2-Clause,"Copyright (c) 2017, Karrick McDermott"
 core,github.com/kballard/go-shellquote,MIT,Copyright (C) 2014 Kevin Ballard
@@ -1088,6 +1102,8 @@ core,github.com/open-policy-agent/opa/internal/compiler/wasm,Apache-2.0,Copyrigh
 core,github.com/open-policy-agent/opa/internal/compiler/wasm/opa,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/debug,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/deepcopy,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/internal/edittree,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/internal/edittree/bitvector,BSD-3-Clause,"Copyright (c) 2014 Dropbox, Inc | Copyright 2016 The OPA Authors.  All rights reserved."
 core,github.com/open-policy-agent/opa/internal/file/archive,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/file/url,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/future,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
@@ -1159,6 +1175,7 @@ core,github.com/opencontainers/selinux/go-selinux/label,Apache-2.0,Copyright (c)
 core,github.com/opencontainers/selinux/pkg/pwalk,Apache-2.0,Copyright (c) 2017 The Authors
 core,github.com/opencontainers/selinux/pkg/pwalkdir,Apache-2.0,Copyright (c) 2017 The Authors
 core,github.com/openshift/api/quota/v1,Apache-2.0,"Copyright 2020 Red Hat, Inc."
+core,github.com/openshift/api/security/v1,Apache-2.0,"Copyright 2020 Red Hat, Inc."
 core,github.com/opentracing/opentracing-go,Apache-2.0,Copyright 2016 The OpenTracing Authors
 core,github.com/opentracing/opentracing-go/ext,Apache-2.0,Copyright 2016 The OpenTracing Authors
 core,github.com/opentracing/opentracing-go/log,Apache-2.0,Copyright 2016 The OpenTracing Authors
@@ -1768,6 +1785,7 @@ core,google.golang.org/grpc/encoding,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/encoding/gzip,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/encoding/proto,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/examples/helloworld/helloworld,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/examples/route_guide/routeguide,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/grpclog,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/health/grpc_health_v1,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal,Apache-2.0,Copyright 2014 gRPC authors.
@@ -1823,6 +1841,7 @@ core,google.golang.org/protobuf/internal/filetype,BSD-3-Clause,Copyright (c) 201
 core,google.golang.org/protobuf/internal/flags,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/internal/genid,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/internal/impl,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
+core,google.golang.org/protobuf/internal/msgfmt,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/internal/order,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/internal/pragma,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/internal/set,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
@@ -1830,11 +1849,14 @@ core,google.golang.org/protobuf/internal/strs,BSD-3-Clause,Copyright (c) 2018 Th
 core,google.golang.org/protobuf/internal/version,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/proto,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/reflect/protodesc,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
+core,google.golang.org/protobuf/reflect/protopath,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
+core,google.golang.org/protobuf/reflect/protorange,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/reflect/protoreflect,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/reflect/protoregistry,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/runtime/protoiface,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/runtime/protoimpl,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/types/descriptorpb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
+core,google.golang.org/protobuf/types/dynamicpb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/types/known/anypb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/types/known/durationpb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/types/known/emptypb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
@@ -2474,6 +2496,7 @@ core,k8s.io/utils/lru,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/utils/net,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/utils/path,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/utils/pointer,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/utils/temp,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/utils/trace,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,lukechampine.com/uint128,MIT,Copyright (c) 2019 Luke Champine
 core,mellium.im/sasl,BSD-2-Clause,Copyright © 2014 The Mellium Contributors

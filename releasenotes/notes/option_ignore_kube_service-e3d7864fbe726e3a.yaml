@@ -1,0 +1,25 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Add an option and an annotation to skip ``kube_service`` tags on Kubernetes pods.
+
+    When the selector of a service matches a pod and that pod is ready, its metrics are decorated with a ``kube_service`` tag.
+
+    When the readiness of a pod flips, so does the ``kube_service`` tag. This could create visual artifacts (spikes when the tag flips) on dashboards where the queries are missing ``.fill(null)``.
+
+    If many services target a pod, the total number of tags attached to its metrics might exceed a limit that causes the whole metric to be discarded.
+
+    In order to mitigate these two issues, it’s now possible to set the ``kubernetes_ad_tags_disabled`` parameter to ``kube_config`` to globally remove the ``kube_service`` tags on all pods::
+      kubernetes_ad_tags_disabled
+        - kube_service
+
+    It’s also possible to add a ``tags.datadoghq.com/disable: kube_service`` annotation on only the pods for which we want to remove the ``kube_service`` tag.
+
+    Note that ``kube_service`` is the only tag that can be removed via this parameter and this annotation.

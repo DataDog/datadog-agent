@@ -37,7 +37,7 @@ func main() {
 	}
 	timeout.Stop()
 
-	log.Println("🏃 Fake intake running")
+	log.Printf("🏃 Fake intake running at %s", fi.URL())
 
 	<-sigs
 	log.Println("Stopping fake intake")

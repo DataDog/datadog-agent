@@ -6,9 +6,11 @@
 #   - /.gitlab/kitchen_common/testing.yml
 
 .pull_test_dockers:
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   needs: []
   tags: ["runner:docker"]
+  rules:
+    !reference [ .on_system_probe_changes_or_manual ]
   stage: functional_test
   script:
     # DockerHub login for build to limit rate limit when pulling base images
@@ -73,7 +75,7 @@ kitchen_test_system_probe_linux_x64:
   variables:
     ARCH: amd64
     KITCHEN_ARCH: x86_64
-    KITCHEN_IMAGE_SIZE: Standard_D3_v2
+    KITCHEN_IMAGE_SIZE: Standard_D11_v2
     KITCHEN_CI_MOUNT_PATH: "/mnt/ci"
     KITCHEN_CI_ROOT_PATH: "/tmp/ci"
   before_script:
