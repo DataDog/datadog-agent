@@ -504,6 +504,13 @@ def test(
     # }
     modules_results_per_phase = defaultdict(dict)
 
+    # Sanitize environment variables
+    # We want to ignore all `DD_` variables, as they will interfere with the behavior
+    # of some unit tests
+    for env in os.environ.keys():
+        if env.startswith("DD_"):
+            del os.environ[env]
+
     # Run linters first
 
     if not skip_linters:
