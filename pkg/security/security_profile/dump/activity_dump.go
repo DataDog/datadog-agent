@@ -1047,10 +1047,10 @@ func (ad *ActivityDump) Unzip(inputFile string, ext string) (string, error) {
 		return "", fmt.Errorf("couldn't unzip %s: %w", inputFile, err)
 	}
 
-	err = outputFile.Close()
 	if err = outputFile.Close(); err != nil {
 		return "", fmt.Errorf("could not close file [%s]: %w", outputFile.Name(), err)
 	}
+
 	return strings.TrimSuffix(inputFile, ext), nil
 }
 
