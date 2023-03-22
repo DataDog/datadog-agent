@@ -8,7 +8,6 @@ package aggregator
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"sync"
 	"time"
 
@@ -65,7 +64,6 @@ type checkSender struct {
 	orchestratorMetadataOut chan<- senderOrchestratorMetadata
 	orchestratorManifestOut chan<- senderOrchestratorManifest
 	eventPlatformOut        chan<- senderEventPlatformEvent
-	eventPlatformForwarder  epforwarder.EventPlatformForwarder
 	checkTags               []string
 	service                 string
 }
