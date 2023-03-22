@@ -200,7 +200,7 @@ int kprobe__udpv6_recvmsg_pre_4_7_0(struct pt_regs *ctx) {
     handle_udp_recvmsg(sk, msg, flags, udpv6_recv_sock);
 }
 
-SEC("kprobe/udp_recvmsg/pre_4_1_0")
+SEC("kprobe/udp_recvmsg")
 int kprobe__udp_recvmsg_pre_4_1_0(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM2(ctx);
     struct msghdr *msg = (struct msghdr *)PT_REGS_PARM3(ctx);
@@ -208,7 +208,7 @@ int kprobe__udp_recvmsg_pre_4_1_0(struct pt_regs *ctx) {
     handle_udp_recvmsg(sk, msg, flags, udp_recv_sock);
 }
 
-SEC("kprobe/udpv6_recvmsg/pre_4_1_0")
+SEC("kprobe/udpv6_recvmsg")
 int kprobe__udpv6_recvmsg_pre_4_1_0(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM2(ctx);
     struct msghdr *msg = (struct msghdr *)PT_REGS_PARM3(ctx);
