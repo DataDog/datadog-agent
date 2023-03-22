@@ -62,7 +62,7 @@ def trigger_macos_test(
 
 
 @task
-def lint_codeowner():
+def lint_codeowner(_):
     """
     Check every package in `pkg` has an owner
     """
