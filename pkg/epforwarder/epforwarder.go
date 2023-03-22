@@ -179,6 +179,7 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 	}
 	if blocking {
 		p.in <- e
+		return nil
 	} else {
 		select {
 		case p.in <- e:
