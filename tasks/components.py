@@ -1,8 +1,8 @@
 """
 Invoke entrypoint, import here all the tasks we want to make available
 """
-from collections import namedtuple
 import os
+from collections import namedtuple
 from string import Template
 
 from invoke import task
