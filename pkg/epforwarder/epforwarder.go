@@ -105,7 +105,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		eventType:                     EventTypeNetworkDevicesNetFlow,
 		contentType:                   http.JSONContentType,
 		endpointsConfigPrefix:         "network_devices.netflow.forwarder.",
-		hostnameEndpointPrefix:        "ndmflow-intake-xx.",
+		hostnameEndpointPrefix:        "ndmflow-intake.",
 		intakeTrackType:               "ndmflow",
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
