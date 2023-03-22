@@ -210,7 +210,7 @@ require (
 	go.uber.org/multierr v1.9.0
 	go.uber.org/zap v1.24.0
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
-	golang.org/x/arch v0.0.0-20190927153633-4e8777c89be4
+	golang.org/x/arch v0.3.0
 	golang.org/x/exp v0.0.0-20230202163644-54bba9f4231b
 	golang.org/x/net v0.8.0
 	golang.org/x/sync v0.1.0
