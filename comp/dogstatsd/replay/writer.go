@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/zstd"
 	"github.com/spf13/afero"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/proto/utils"
@@ -115,22 +114,15 @@ func (tc *TrafficCaptureWriter) processMessage(msg *CaptureBuffer) error {
 
 // validateLocation validates the location passed as an argument is writable.
 // The location and/or and error if any are returned.
-func validateLocation(fs afero.Fs, l string) (string, error) {
-	defaultLocation := l == ""
-
-	var location string
-	if defaultLocation {
-		location = config.Datadog.GetString("dogstatsd_capture_path")
-		if location == "" {
-			location = path.Join(config.Datadog.GetString("run_path"), "dsd_capture")
-		}
-	} else {
-		location = l
+func validateLocation(fs afero.Fs, location string, defaultLocation string) (string, error) {
+	useDefaultLocation := location == ""
+	if useDefaultLocation {
+		location = defaultLocation
 	}
 
 	s, err := fs.Stat(location)
 	if os.IsNotExist(err) {
-		if defaultLocation {
+		if useDefaultLocation {
 			err := fs.MkdirAll(location, 0755)
 			if err != nil {
 				return "", err
@@ -139,11 +131,11 @@ func validateLocation(fs afero.Fs, l string) (string, error) {
 			return "", log.Errorf("specified location does not exist: %v ", err)
 		}
 	} else if !s.IsDir() {
-		return "", log.Errorf("specified location is not a directory: %v ", l)
+		return "", log.Errorf("specified location is not a directory: %v ", location)
 	}
 
-	if !defaultLocation && s.Mode()&os.FileMode(2) == 0 {
-		return "", log.Errorf("specified location (%v) is not world writable: %v", l, s.Mode())
+	if !useDefaultLocation && s.Mode()&os.FileMode(2) == 0 {
+		return "", log.Errorf("specified location (%v) is not world writable: %v", location, s.Mode())
 	}
 
 	return location, nil
@@ -151,8 +143,8 @@ func validateLocation(fs afero.Fs, l string) (string, error) {
 }
 
 // OpenFile checks that location is acceptable for a capture and creates a new file using given fs implementation.
-func OpenFile(fs afero.Fs, l string) (afero.File, string, error) {
-	location, err := validateLocation(fs, l)
+func OpenFile(fs afero.Fs, l string, defaultLocation string) (afero.File, string, error) {
+	location, err := validateLocation(fs, l, defaultLocation)
 	if err != nil {
 		return nil, "", err
 	}

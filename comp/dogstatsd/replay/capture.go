@@ -7,12 +7,15 @@ package replay
 
 import (
 	"fmt"
+	"path"
 	"sync"
 	"time"
 
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	"github.com/spf13/afero"
+	"go.uber.org/fx"
 )
 
 const (
@@ -23,29 +26,48 @@ const (
 	GUID = 999888777
 )
 
+type dependencies struct {
+	fx.In
+
+	Config configComponent.Component
+}
+
 // TrafficCapture allows capturing traffic from our listeners and writing it to file
-type TrafficCapture struct {
+type trafficCapture struct {
 	writer *TrafficCaptureWriter
+	config config.ConfigReader
 
 	sync.RWMutex
 }
 
-// NewTrafficCapture creates a TrafficCapture instance.
-func NewTrafficCapture() (*TrafficCapture, error) {
-	writer := NewTrafficCaptureWriter(config.Datadog.GetInt("dogstatsd_capture_depth"))
+// TODO: (components) - remove once serverless is an FX app
+func NewServerlessTrafficCapture() Component {
+	return newTrafficCaptureCompat(config.Datadog)
+}
+
+// TODO: (components) - merge with newTrafficCaptureCompat once NewServerlessTrafficCapture is removed
+func newTrafficCapture(deps dependencies) Component {
+	return newTrafficCaptureCompat(deps.Config)
+}
+
+func newTrafficCaptureCompat(cfg config.ConfigReader) Component {
+	return &trafficCapture{
+		config: cfg,
+	}
+}
+
+func (tc *trafficCapture) Configure() error {
+	writer := NewTrafficCaptureWriter(tc.config.GetInt("dogstatsd_capture_depth"))
 	if writer == nil {
-		return nil, fmt.Errorf("unable to instantiate capture writer")
+		return fmt.Errorf("unable to instantiate capture writer")
 	}
+	tc.writer = writer
 
-	tc := &TrafficCapture{
-		writer: writer,
-	}
-
-	return tc, nil
+	return nil
 }
 
 // IsOngoing returns whether a capture is ongoing for this TrafficCapture instance.
-func (tc *TrafficCapture) IsOngoing() bool {
+func (tc *trafficCapture) IsOngoing() bool {
 	tc.RLock()
 	defer tc.RUnlock()
 
@@ -57,12 +79,12 @@ func (tc *TrafficCapture) IsOngoing() bool {
 }
 
 // Start starts a TrafficCapture and returns an error in the event of an issue.
-func (tc *TrafficCapture) Start(p string, d time.Duration, compressed bool) (string, error) {
+func (tc *trafficCapture) Start(p string, d time.Duration, compressed bool) (string, error) {
 	if tc.IsOngoing() {
 		return "", fmt.Errorf("Ongoing capture in progress")
 	}
 
-	target, path, err := OpenFile(afero.NewOsFs(), p)
+	target, path, err := OpenFile(afero.NewOsFs(), p, tc.defaultlocation())
 	if err != nil {
 		return "", err
 	}
@@ -74,7 +96,7 @@ func (tc *TrafficCapture) Start(p string, d time.Duration, compressed bool) (str
 }
 
 // Stop stops an ongoing TrafficCapture.
-func (tc *TrafficCapture) Stop() {
+func (tc *trafficCapture) Stop() {
 	tc.Lock()
 	defer tc.Unlock()
 
@@ -82,22 +104,31 @@ func (tc *TrafficCapture) Stop() {
 }
 
 // RegisterSharedPoolManager registers the shared pool manager with the TrafficCapture.
-func (tc *TrafficCapture) RegisterSharedPoolManager(p *packets.PoolManager) error {
+func (tc *trafficCapture) RegisterSharedPoolManager(p *packets.PoolManager) error {
 	tc.Lock()
 	defer tc.Unlock()
 	return tc.writer.RegisterSharedPoolManager(p)
 }
 
 // RegisterOOBPoolManager registers the OOB shared pool manager with the TrafficCapture.
-func (tc *TrafficCapture) RegisterOOBPoolManager(p *packets.PoolManager) error {
+func (tc *trafficCapture) RegisterOOBPoolManager(p *packets.PoolManager) error {
 	tc.Lock()
 	defer tc.Unlock()
 	return tc.writer.RegisterOOBPoolManager(p)
 }
 
 // Enqueue enqueues a capture buffer so it's written to file.
-func (tc *TrafficCapture) Enqueue(msg *CaptureBuffer) bool {
+func (tc *trafficCapture) Enqueue(msg *CaptureBuffer) bool {
 	tc.RLock()
 	defer tc.RUnlock()
 	return tc.writer.Enqueue(msg)
+}
+
+func (tc *trafficCapture) defaultlocation() string {
+	location := tc.config.GetString("dogstatsd_capture_path")
+	if location == "" {
+		location = path.Join(tc.config.GetString("run_path"), "dsd_capture")
+	}
+	return location
+
 }

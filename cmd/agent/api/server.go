@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/api/internal/agent"
 	"github.com/DataDog/datadog-agent/cmd/agent/api/internal/check"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -44,7 +45,7 @@ import (
 var listener net.Listener
 
 // StartServer creates the router and starts the HTTP server
-func StartServer(configService *remoteconfig.Service, flare flare.Component, dogstatsdServer dogstatsdServer.Component) error {
+func StartServer(configService *remoteconfig.Service, flare flare.Component, dogstatsdServer dogstatsdServer.Component, capture replay.Component) error {
 	initializeTLS()
 
 	// get the transport we're going to use under HTTP
@@ -76,6 +77,7 @@ func StartServer(configService *remoteconfig.Service, flare flare.Component, dog
 		taggerServer:       taggerserver.NewServer(tagger.GetDefaultTagger()),
 		workloadmetaServer: workloadmetaServer.NewServer(workloadmeta.GetGlobalStore()),
 		dogstatsdServer:    dogstatsdServer,
+		capture:            capture,
 	})
 
 	dcreds := credentials.NewTLS(&tls.Config{
