@@ -518,6 +518,13 @@ func TestCheckSenderInterface(t *testing.T) {
 	assert.Equal(t, checkID1, eventPlatformEvent.id)
 	assert.Equal(t, []byte("raw-event"), eventPlatformEvent.rawEvent)
 	assert.Equal(t, "dbm-sample", eventPlatformEvent.eventType)
+	assert.Equal(t, false, eventPlatformEvent.blocking)
+
+	eventPlatformEvent = <-s.eventPlatformEventChan
+	assert.Equal(t, checkID1, eventPlatformEvent.id)
+	assert.Equal(t, []byte("raw-event2"), eventPlatformEvent.rawEvent)
+	assert.Equal(t, "dbm-sample", eventPlatformEvent.eventType)
+	assert.Equal(t, true, eventPlatformEvent.blocking)
 }
 
 func TestCheckSenderHostname(t *testing.T) {
