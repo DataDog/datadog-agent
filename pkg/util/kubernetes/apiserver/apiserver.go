@@ -9,18 +9,26 @@
 package apiserver
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"sync"
 	"time"
+
+	"sigs.k8s.io/yaml"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	vpa "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned"
 	vpai "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/informers/externalversions"
@@ -46,6 +54,8 @@ var (
 	ErrNotFound         = errors.New("entity not found") //nolint:revive
 	ErrIsEmpty          = errors.New("entity is empty")  //nolint:revive
 	ErrNotLeader        = errors.New("not Leader")       //nolint:revive
+	b64                 = base64.StdEncoding
+	magicGzip           = []byte{0x1f, 0x8b, 0x08}
 )
 
 const (
@@ -107,6 +117,12 @@ type APIClient struct {
 
 	// timeoutSeconds defines the kubernetes client timeout
 	timeoutSeconds int64
+}
+
+// chartUserValues is defined to unmarshall JSON data decoded from a Helm cart release into accessible fields
+type chartUserValues struct {
+	// user-defined values overriding the chart defaults
+	Config map[string]interface{} `json:"config,omitempty"`
 }
 
 func initAPIClient() {
@@ -673,4 +689,184 @@ func (c *APIClient) GetARandomNodeName(ctx context.Context) (string, error) {
 	}
 
 	return nodeList.Items[0].Name, nil
+}
+
+// Retrieve a DaemonSet YAML from the API server for a given name and namespace, and returns the associated YAML manifest into a a byte array.
+// Its purpose is to retrieve the Datadog Agent DaemonSet manifest when building a Cluster Agent flare.
+func GetDs(cl *APIClient, name string, namespace string) ([]byte, error) {
+
+	var b bytes.Buffer
+
+	ds, err := cl.Cl.AppsV1().DaemonSets(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	if err != nil {
+		log.Debugf("Can't retrieve DaemonSet %v from the API server: %s", name, err.Error())
+		return nil, err
+	}
+
+	dsjson, err := json.Marshal(ds)
+	ddyaml, err := yaml.JSONToYAML(dsjson)
+	fmt.Fprintln(&b, string(ddyaml))
+
+	return b.Bytes(), nil
+}
+
+// Retrieve a Deployment YAML from the API server for a given name and namespace, and returns the associated YAML manifest into a a byte array.
+// Its purpose is to retrieve the Datadog Cluster Agent Deployment manifest when building a Cluster Agent flare.
+func GetDeploy(cl *APIClient, name string, namespace string) ([]byte, error) {
+
+	var b bytes.Buffer
+
+	deploy, err := cl.Cl.AppsV1().Deployments(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	if err != nil {
+		log.Debugf("Can't retrieve Deployment %v from the API server: %s", name, err.Error())
+		return nil, err
+	}
+
+	deployjson, err := json.Marshal(deploy)
+	deployyaml, err := yaml.JSONToYAML(deployjson)
+	fmt.Fprintln(&b, string(deployyaml))
+
+	return b.Bytes(), nil
+}
+
+// decodeRelease decodes the bytes of data into a readable byte array.
+// Data must contain a base64 encoded gzipped string of a valid release, otherwise nil is returned.
+func decodeRelease(data string) []byte {
+	// base64 decode string
+	b, err := b64.DecodeString(data)
+	if err != nil {
+		return nil
+	}
+
+	// For backwards compatibility with releases that were stored before
+	// compression was introduced we skip decompression if the
+	// gzip magic header is not found
+	if bytes.Equal(b[0:3], magicGzip) {
+		r, err := gzip.NewReader(bytes.NewReader(b))
+		if err != nil {
+			return nil
+		}
+		defer r.Close()
+		b2, err := io.ReadAll(r)
+		if err != nil {
+			return nil
+		}
+		b = b2
+	}
+	return b
+}
+
+// getConfigmapList retrieves a list of configmaps for a given namespace
+func getConfigmapList(cl *APIClient, namespace string) ([]v1.ConfigMap, error) {
+	configmaps, err := cl.Cl.CoreV1().ConfigMaps(namespace).List(context.TODO(), metav1.ListOptions{TimeoutSeconds: &cl.timeoutSeconds})
+	if err != nil {
+		log.Errorf("Can't list configmaps from the API server: %s", err.Error())
+		return nil, err
+	}
+	return configmaps.Items, nil
+}
+
+// getSecretList retrieves a list of secrets for a given namespace
+func getSecretList(cl *APIClient, namespace string) ([]v1.Secret, error) {
+	secrets, err := cl.Cl.CoreV1().Secrets(namespace).List(context.TODO(), metav1.ListOptions{TimeoutSeconds: &cl.timeoutSeconds})
+	if err != nil {
+		log.Errorf("Can't list configmaps from the API server: %s", err.Error())
+		return nil, err
+	}
+	return secrets.Items, nil
+}
+
+// Retrieve Helm chart user values from the API server for a given name and namespace looking through Configmaps
+func GetDatadogHelmUserValuesFromConfigmap(cl *APIClient, name string, namespace string) ([]byte, error) {
+	var b bytes.Buffer
+	var userConfig chartUserValues
+	var selector labels.Selector
+	var helmConfigmap *v1.ConfigMap
+
+	// Only a single release for a given name can be deployed at one time.
+	// Other releases present a different status.
+	selector = labels.Set{
+		"owner":  "helm",
+		"status": "deployed",
+		"name":   name,
+	}.AsSelector()
+
+	configmaps, err := getConfigmapList(cl, namespace)
+	if err != nil {
+		log.Errorf("Can't list configmaps from the API server: %s", err.Error())
+	}
+
+	for _, cm := range configmaps {
+		if selector.Matches(labels.Set(cm.ObjectMeta.Labels)) {
+			helmConfigmap = &cm
+			// Chart data is stored in a gzipped base 64 encoded string
+			b64EncodedGzipRelease := helmConfigmap.Data["release"]
+			decodedrelease := decodeRelease(b64EncodedGzipRelease)
+			err := json.Unmarshal(decodedrelease, &userConfig)
+			if err != nil {
+				log.Debugf("Unable to retrieve the config data: %s", err.Error())
+			}
+			configjson, err := json.Marshal(userConfig)
+			if err != nil {
+				log.Debugf("Can't marshall user values into a proper JSON: %s", err.Error())
+			}
+			configyaml, err := yaml.JSONToYAML(configjson)
+			if err != nil {
+				log.Debugf("Can't convert user values to YAML: %s", err.Error())
+			}
+			fmt.Fprintln(&b, string(configyaml))
+			return b.Bytes(), nil
+		}
+	}
+
+	// If we exit the loop and reach this point, a matching configmap couldn't be found
+	return nil, log.Error("No matching configmap found")
+}
+
+// Retrieve Helm chart user values from the API server for a given name and namespace looking through secrets
+func GetDatadogHelmUserValuesFromSecret(cl *APIClient, name string, namespace string) ([]byte, error) {
+	var b bytes.Buffer
+	var userConfig chartUserValues
+	var selector labels.Selector
+	var helmSecret *v1.Secret
+
+	// Only a single release for a given name can be deployed at one time.
+	// Other releases present a different status.
+	selector = labels.Set{
+		"owner":  "helm",
+		"status": "deployed",
+		"name":   name,
+	}.AsSelector()
+
+	secrets, err := getSecretList(cl, namespace)
+	if err != nil {
+		log.Errorf("Can't list secrets from the API server: %s", err.Error())
+	}
+
+	for _, secret := range secrets {
+		if selector.Matches(labels.Set(secret.ObjectMeta.Labels)) {
+			helmSecret = &secret
+			// Contrary to the configmap, the chart data is encoded twice in base64 (native Kubernetes secret base64 + Helm).
+			// The K8s Go client decodes the native Kubernetes encoding, so we do not have to do it ourselves and can use the same logic, as the ConfigMap
+			b64EncodedGzipRelease := helmSecret.Data["release"]
+			decodedrelease := decodeRelease(string(b64EncodedGzipRelease))
+			err = json.Unmarshal(decodedrelease, &userConfig)
+			if err != nil {
+				log.Debugf("Unable to retrieve the config data: %s", err.Error())
+			}
+			configjson, err := json.Marshal(userConfig)
+			if err != nil {
+				log.Debugf("Can't marshall user values into a proper JSON: %s", err.Error())
+			}
+			configyaml, err := yaml.JSONToYAML(configjson)
+			if err != nil {
+				log.Debugf("Can't convert user values to YAML: %s", err.Error())
+			}
+			fmt.Fprintln(&b, string(configyaml))
+			return b.Bytes(), nil
+		}
+	}
+
+	// If we exit the loop and reach this point, a matching secret couldn't be found
+	return nil, log.Error("No matching secret found")
 }
