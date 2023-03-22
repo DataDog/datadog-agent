@@ -21,6 +21,9 @@ func init() {
 }
 
 func TestGetHostTags(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	ctx := context.Background()
 	mockConfig := config.Mock(t)
 	mockConfig.Set("tags", []string{"tag1:value1", "tag2", "tag3"})
@@ -32,6 +35,9 @@ func TestGetHostTags(t *testing.T) {
 }
 
 func TestGetEmptyHostTags(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	ctx := context.Background()
 	// getHostTags should never return a nil value under System even when there are no host tags
 	hostTags := GetHostTags(ctx, false)
@@ -40,6 +46,9 @@ func TestGetEmptyHostTags(t *testing.T) {
 }
 
 func TestGetHostTagsWithSplits(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	ctx := context.Background()
 	mockConfig := config.Mock(t)
 	mockConfig.Set("tag_value_split_separator", map[string]string{"kafka_partition": ","})
@@ -52,6 +61,9 @@ func TestGetHostTagsWithSplits(t *testing.T) {
 }
 
 func TestGetHostTagsWithoutSplits(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	ctx := context.Background()
 	mockConfig := config.Mock(t)
 	mockConfig.Set("tag_value_split_separator", map[string]string{"kafka_partition": ";"})
@@ -64,6 +76,9 @@ func TestGetHostTagsWithoutSplits(t *testing.T) {
 }
 
 func TestGetHostTagsWithEnv(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	ctx := context.Background()
 	mockConfig := config.Mock(t)
 	mockConfig.Set("tags", []string{"tag1:value1", "tag2", "tag3", "env:prod"})
@@ -89,6 +104,9 @@ func TestMarshalEmptyHostTags(t *testing.T) {
 }
 
 func TestCombineExtraTags(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	ctx := context.Background()
 	mockConfig := config.Mock(t)
 	mockConfig.Set("tags", []string{"tag1:value1", "tag2", "tag4"})
@@ -102,6 +120,9 @@ func TestCombineExtraTags(t *testing.T) {
 }
 
 func TestHostTagsCache(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	ctx := context.Background()
 	mockConfig := config.Mock(t)
 	mockConfig.Set("collect_gce_tags", false)
