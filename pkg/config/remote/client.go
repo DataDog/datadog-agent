@@ -427,7 +427,7 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 				Name:        c.agentName,
 				Version:     c.agentVersion,
 				ClusterName: c.clusterName,
-				ClusterID:   c.clusterID,
+				ClusterId:   c.clusterID,
 			},
 		},
 		CachedTargetFiles: pbCachedFiles,
