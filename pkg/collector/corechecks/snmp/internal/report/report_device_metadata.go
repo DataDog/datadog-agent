@@ -397,7 +397,7 @@ func buildNetworkTopologyMetadataWithCDP(deviceID string, store *metadata.Store,
 				},
 				Interface: &metadata.TopologyLinkInterface{
 					ID:          store.GetColumnAsString("cdp_remote.interface_id", strIndex),
-					IDType:      "interface_name",
+					IDType:      metadata.IDTypeInterfaceName,
 					Description: "",
 				},
 			},
