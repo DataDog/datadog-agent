@@ -112,6 +112,7 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
 		m := &message.Message{Content: payloadBytes}
 		err = agg.epForwarder.SendEventPlatformEventBlocking(m, epforwarder.EventTypeNetworkDevicesNetFlow)
 		if err != nil {
+			// TODO: Add telemetry
 			log.Errorf("Error sending to event platform forwarder: %s", err)
 			continue
 		}
