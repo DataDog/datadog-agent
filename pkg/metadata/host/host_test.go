@@ -29,9 +29,6 @@ import (
 )
 
 func TestGetPayload(t *testing.T) {
-	config.SetDetectedFeatures(config.FeatureMap{})
-	defer config.SetDetectedFeatures(nil)
-
 	ctx := context.Background()
 	p := GetPayload(ctx, hostname.Data{Hostname: "myhostname", Provider: ""})
 	assert.NotEmpty(t, p.Os)
@@ -79,9 +76,6 @@ func TestGetHostInfo(t *testing.T) {
 }
 
 func TestGetMeta(t *testing.T) {
-	config.SetDetectedFeatures(config.FeatureMap{})
-	defer config.SetDetectedFeatures(nil)
-
 	ctx := context.Background()
 	meta := getMeta(ctx, hostname.Data{})
 	assert.NotEmpty(t, meta.SocketHostname)
