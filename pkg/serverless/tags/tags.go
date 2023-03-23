@@ -204,7 +204,7 @@ func addTag(tagMap map[string]string, tag string) map[string]string {
 	if len(extract) == 2 {
 		tagMap[strings.ToLower(extract[0])] = strings.ToLower(extract[1])
 	} else {
-		log.Debug("Tag" + tag + " has not expected format")
+		log.Warn("Tag" + tag + " has not expected format")
 	}
 	return tagMap
 }
