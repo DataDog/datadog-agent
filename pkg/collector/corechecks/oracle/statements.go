@@ -3,9 +3,11 @@ package oracle
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/jmoiron/sqlx"
 	"golang.org/x/exp/maps"
@@ -216,7 +218,8 @@ func (c *Check) copyToPreviousMap(newMap map[StatementMetricsKeyDB]StatementMetr
 }
 
 func (c *Check) StatementMetrics() error {
-	/*
+	var oracleRows []OracleRow
+	if c.config.QueryMetrics {
 		statementMetrics, err := GetStatementsMetricsForKeys(c.db, "force_matching_signature", c.statementsFilter.ForceMatchingSignatures)
 		if err != nil {
 			return fmt.Errorf("error collecting statement metrics for force_matching_signature: %w", err)
@@ -236,7 +239,7 @@ func (c *Check) StatementMetrics() error {
 
 		o := obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})
 		var diff OracleRowMonotonicCount
-		var oracleRows []OracleRow
+		//var oracleRows []OracleRow
 		for _, statementMetricRow := range statementMetricsAll {
 			newCache[statementMetricRow.StatementMetricsKeyDB] = statementMetricRow.StatementMetricsMonotonicCountDB
 			previousMonotonic, exists := c.statementMetricsMonotonicCountsPrevious[statementMetricRow.StatementMetricsKeyDB]
@@ -355,18 +358,19 @@ func (c *Check) StatementMetrics() error {
 			SQLTextQuery := fmt.Sprintf("SELECT sql_fulltext FROM v$sqlstats WHERE %s=:%s AND rownum = 1", queryHashCol, queryHashCol)
 			rows, err := c.db.NamedQuery(SQLTextQuery, p)
 			if err != nil {
-				log.Errorf("statements error named exec %s ", err)
+				log.Errorf("query metrics statements error named exec %s ", err)
 				continue
 			}
-			defer rows.Close()
+
 			rows.Next()
 			cols, err := rows.SliceScan()
 			var SQLStatement string
 			if err != nil {
-				log.Errorf("statements scan error %s ", err)
+				log.Errorf("query metrics statement scan error %s ", err)
+				continue
 			}
 			SQLStatement = cols[0].(string)
-
+			//defer rows.Close()
 			queryRow := QueryRow{}
 			obfuscatedStatement, err := c.GetObfuscatedStatement(o, SQLStatement, statementMetricRow.ForceMatchingSignature, statementMetricRow.SQLID)
 			SQLStatement = obfuscatedStatement.Statement
@@ -396,24 +400,22 @@ func (c *Check) StatementMetrics() error {
 		}
 		o.Stop()
 		c.copyToPreviousMap(newCache)
-	*/
+	} else {
+		dummyStatement := "__other__"
+		queryRowDummy := QueryRow{QuerySignature: dummyStatement}
 
-	// dummy metric begin
-	dummyStatement := "__other__"
-	queryRowDummy := QueryRow{QuerySignature: dummyStatement}
+		oracleRow := OracleRow{
+			QueryRow:                queryRowDummy,
+			SQLText:                 dummyStatement,
+			QueryHash:               "dummyQH",
+			PlanHash:                "dummyPH",
+			PDBName:                 c.getFullPDBName("dummyPDB"),
+			OracleRowMonotonicCount: OracleRowMonotonicCount{Executions: 1, ElapsedTime: 1},
+		}
+		oracleRows = append(oracleRows, oracleRow)
+		// dummy metric end
 
-	oracleRow := OracleRow{
-		QueryRow:                queryRowDummy,
-		SQLText:                 dummyStatement,
-		QueryHash:               "dummyQH",
-		PlanHash:                "dummyPH",
-		PDBName:                 c.getFullPDBName("dummyPDB"),
-		OracleRowMonotonicCount: OracleRowMonotonicCount{Executions: 1, ElapsedTime: 1},
 	}
-	var oracleRows []OracleRow
-	oracleRows = append(oracleRows, oracleRow)
-	// dummy metric end
-
 	payload := MetricsPayload{
 		Host:                  c.dbHostname,
 		Timestamp:             float64(time.Now().UnixMilli()),
