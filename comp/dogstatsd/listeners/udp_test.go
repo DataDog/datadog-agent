@@ -29,10 +29,10 @@ type testDeps struct {
 	Config config.Component
 }
 
-func fulfillDepsWithConfig(t testing.TB, cfg map[string]interface{}) testDeps {
+func fulfillDepsWithConfig(t testing.TB, overrides map[string]interface{}) testDeps {
 	return fxutil.Test[testDeps](t, fx.Options(
 		core.MockBundle,
-		fx.Supply(core.BundleParams{}),
+		fx.Supply(core.BundleParams{ConfigParams: config.NewParams("", config.WithOverrides(overrides))}),
 	))
 }
 
