@@ -13,9 +13,6 @@ import (
 )
 
 func init() {
-	for _, format := range AllStorageFormats() {
-		strToFormats[format.String()] = format
-	}
 	for _, storage := range AllStorageTypes() {
 		strToTypes[storage.String()] = storage
 	}
@@ -94,25 +91,21 @@ func (sr *StorageRequest) GetOutputPath(filename string) string {
 }
 
 // StorageFormat is used to define the format of a dump
-type StorageFormat string
+//
+//go:generate stringer -type=StorageFormat
+type StorageFormat int
 
-func (sf StorageFormat) String() string {
-	return string(sf)
-}
-
-var (
+const (
 	// Json is used to request the JSON format
-	Json StorageFormat = "json"
+	Json StorageFormat = iota // json
 	// Protobuf is used to request the protobuf format
-	Protobuf StorageFormat = "protobuf"
+	Protobuf // protobuf
 	// Dot is used to request the dot format
-	Dot StorageFormat = "dot"
+	Dot // dot
 	// Profile is used to request the generation of a profile
-	Profile StorageFormat = "profile"
+	Profile // profile
 	// SecL is used to request the Secl policy format
-	SecL StorageFormat = "secl"
-
-	strToFormats = make(map[string]StorageFormat)
+	SecL // secl
 )
 
 // AllStorageFormats returns the list of supported formats
@@ -125,11 +118,14 @@ func ParseStorageFormat(input string) (StorageFormat, error) {
 	if len(input) > 0 && input[0] == '.' {
 		input = input[1:]
 	}
-	format, ok := strToFormats[input]
-	if !ok {
-		return "", fmt.Errorf("%s: unknown storage format, available options are %v", input, AllStorageFormats())
+
+	for _, fmt := range AllStorageFormats() {
+		if fmt.String() == input {
+			return fmt, nil
+		}
 	}
-	return format, nil
+
+	return 0, fmt.Errorf("%s: unknown storage format, available options are %v", input, AllStorageFormats())
 }
 
 // ParseStorageFormats returns a list of storage formats from a list of strings
