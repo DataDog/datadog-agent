@@ -208,7 +208,8 @@ func testKafkaProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 		defer client.Client.Close()
 		for k, value := range ctx.extras {
 			if strings.HasPrefix(k, "topic_name") {
-				require.NoError(t, client.DeleteTopic(value.(string)))
+				// We're in teardown, and deleting the topic name is best effort. Thus, we can ignore, an error.
+				_ = client.DeleteTopic(value.(string))
 			}
 		}
 	}
