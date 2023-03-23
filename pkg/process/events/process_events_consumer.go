@@ -6,22 +6,25 @@
 //go:build linux
 // +build linux
 
-package checks
+package events
 
 import (
+	"time"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-go/v5/statsd"
-	"go.uber.org/atomic"
-	"time"
 )
 
-// ProcessConsumer receives events from the event monitoring module of the system-probe,
-// batches them in the messages channel and serves the messages over GRPC when requested
+// ProcessConsumer is part of the event monitoring module of the system-probe. It receives
+// events, batches them in the messages channel and serves the messages to the process-agent
+// over GRPC when requested
 type ProcessConsumer struct {
 	api.EventMonitoringModuleServer
 	messages        chan *api.ProcessEventMessage
