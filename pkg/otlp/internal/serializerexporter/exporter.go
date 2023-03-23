@@ -41,7 +41,6 @@ func newDefaultConfig() component.Config {
 			TagCardinality: collectors.LowCardinalityString,
 			HistConfig: histogramConfig{
 				Mode:             "distributions",
-				SendCountSum:     false,
 				SendAggregations: false,
 			},
 			SumConfig: sumConfig{
@@ -93,6 +92,10 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*metrics.Tra
 		metrics.WithPreviewHostnameFromAttributes(),
 		metrics.WithHistogramMode(histogramMode),
 		metrics.WithDeltaTTL(cfg.Metrics.DeltaTTL),
+	}
+
+	if cfg.Metrics.HistConfig.SendCountSum || cfg.Metrics.HistConfig.SendAggregations {
+		return nil, fmt.Errorf("cannot use both send_count_sum_metrics (deprecated) and send_aggregation_metrics")
 	}
 
 	if cfg.Metrics.HistConfig.SendCountSum || cfg.Metrics.HistConfig.SendAggregations {
