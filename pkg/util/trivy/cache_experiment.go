@@ -101,14 +101,8 @@ func (c *PersistentCache) Get(key string) ([]byte, error) {
 		return nil, err
 	}
 
-	_, ok := c.ttlCache.Get(key)
-	if !ok {
-		_ = c.db.Delete(key)
-		return nil, fmt.Errorf("entry [%s] exists in database but not in the cache", key)
-	}
-
-	if c.ttl != nil {
-		c.ttlCache.Add(key, time.Now().Add(*c.ttl))
+	if err = c.RefreshTTL(key); err != nil {
+		return nil, err
 	}
 
 	return res, nil
@@ -124,4 +118,19 @@ func (c *PersistentCache) Delete(key string) error {
 		err,
 		c.db.Delete(key),
 	})
+}
+
+func (c *PersistentCache) RefreshTTL(key string) error {
+	if c.ttl == nil {
+		return nil
+	}
+
+	_, ok := c.ttlCache.Get(key)
+	if !ok {
+		_ = c.db.Delete(key)
+		return fmt.Errorf("[%s] does not exists", key)
+	}
+
+	c.ttlCache.Add(key, time.Now().Add(*c.ttl))
+	return nil
 }
