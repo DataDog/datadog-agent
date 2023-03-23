@@ -1,6 +1,8 @@
 name "libkrb5"
 default_version "1.20.1"
 
+dependency ENV["OMNIBUS_OPENSSL_SOFTWARE"] || "openssl"
+
 version "1.20.1" do
   source url: "https://kerberos.org/dist/krb5/1.20/krb5-1.20.1.tar.gz"
   source sha256: "704aed49b19eb5a7178b34b2873620ec299db08752d6a8574f95d41879ab8851"
