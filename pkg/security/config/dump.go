@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:generate stringer -type=StorageFormat,StorageType -output enum_string.go
+
 package config
 
 import (
@@ -91,8 +93,6 @@ func (sr *StorageRequest) GetOutputPath(filename string) string {
 }
 
 // StorageFormat is used to define the format of a dump
-//
-//go:generate stringer -type=StorageFormat
 type StorageFormat int
 
 const (
@@ -159,17 +159,6 @@ func AllStorageTypes() []StorageType {
 var (
 	strToTypes = make(map[string]StorageType)
 )
-
-func (st StorageType) String() string {
-	switch st {
-	case LocalStorage:
-		return "local_storage"
-	case RemoteStorage:
-		return "remote_storage"
-	default:
-		return ""
-	}
-}
 
 // ParseStorageType returns a storage type from its string representation
 func ParseStorageType(input string) (StorageType, error) {
