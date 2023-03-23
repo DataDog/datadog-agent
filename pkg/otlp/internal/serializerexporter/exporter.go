@@ -40,8 +40,9 @@ func newDefaultConfig() component.Config {
 			},
 			TagCardinality: collectors.LowCardinalityString,
 			HistConfig: histogramConfig{
-				Mode:         "distributions",
-				SendCountSum: false,
+				Mode:             "distributions",
+				SendCountSum:     false,
+				SendAggregations: false,
 			},
 			SumConfig: sumConfig{
 				CumulativeMonotonicMode: CumulativeMonotonicSumModeToDelta,
@@ -94,8 +95,8 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*metrics.Tra
 		metrics.WithDeltaTTL(cfg.Metrics.DeltaTTL),
 	}
 
-	if cfg.Metrics.HistConfig.SendCountSum {
-		options = append(options, metrics.WithCountSumMetrics())
+	if cfg.Metrics.HistConfig.SendCountSum || cfg.Metrics.HistConfig.SendAggregations {
+		options = append(options, metrics.WithHistogramAggregations())
 	}
 
 	switch cfg.Metrics.SummaryConfig.Mode {

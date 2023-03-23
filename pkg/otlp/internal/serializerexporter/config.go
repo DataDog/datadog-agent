@@ -59,9 +59,14 @@ type histogramConfig struct {
 	// The current default is 'distributions'.
 	Mode string `mapstructure:"mode"`
 
-	// SendCountSum states if the export should send .sum and .count metrics for histograms.
-	// The current default is false.
+	// SendCountSum states if the export should send .sum, .count, .min and .max metrics for histograms.
+	// The default is false.
+	// Deprecated: use `send_aggregation_metrics` instead.
 	SendCountSum bool `mapstructure:"send_count_sum_metrics"`
+
+	// SendAggregations states if the export should send .sum, .count, .min and .max metrics for histograms.
+	// The default is false.
+	SendAggregations bool `mapstructure:"send_aggregation_metrics"`
 }
 
 // CumulativeMonotonicSumMode is the export mode for OTLP Sum metrics.
