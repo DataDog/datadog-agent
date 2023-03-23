@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
-func TestProfileMetadata_f5(t *testing.T) {
+func TestTopologyPayload_LLDP(t *testing.T) {
 	timeNow = common.MockTimeNow
 	aggregator.NewBufferedAggregator(nil, nil, "", 1*time.Hour)
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
@@ -45,9 +45,9 @@ func TestProfileMetadata_f5(t *testing.T) {
 ip_address: 1.2.3.4
 community_string: public
 profile: f5-big-ip
-oid_batch_size: 20
+oid_batch_size: 50
 namespace: profile-metadata
-collect_topology: false
+collect_topology: true
 `)
 	// language=yaml
 	rawInitConfig := []byte(`
@@ -138,6 +138,56 @@ profiles:
 	bulkPacket := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{
 			{
+				Name:  "1.0.8802.1.1.2.1.3.7.1.2.101",
+				Type:  gosnmp.Integer,
+				Value: 3, // 3->macAddress
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.3.7.1.3.101",
+				Type:  gosnmp.OctetString,
+				Value: []byte{0x82, 0xa5, 0x6e, 0xa5, 0xc9, 0x01},
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.1.1.10.0.101.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("RemoteDev1-Description"),
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.1.1.4.0.101.1", // chassis id type
+				Type:  gosnmp.Integer,
+				Value: 4, // 4->macAddress
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.1.1.5.0.101.1", // chassis id
+				Type:  gosnmp.OctetString,
+				Value: []byte{0x01, 0x00, 0x00, 0x00, 0x01, 0x02},
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.1.1.6.0.101.1",
+				Type:  gosnmp.Integer,
+				Value: 3, // 3->macAddress
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.1.1.7.0.101.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte{0x01, 0x00, 0x00, 0x00, 0x01, 0x01},
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.1.1.8.0.101.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("RemoteDev1-Port1-Description"),
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.1.1.9.0.101.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("RemoteDev1-Name"),
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.2.1.3.0.101.1.1.4.10.250.0.6",
+				Type:  gosnmp.OctetString,
+				Value: []byte("RemoteDev2-Name"),
+			},
+			{
 				Name:  "1.3.6.1.2.1.2.2.1.13.1",
 				Type:  gosnmp.Integer,
 				Value: 131,
@@ -187,7 +237,87 @@ profiles:
 				Type:  gosnmp.IPAddress,
 				Value: "255.255.255.0",
 			},
+			{
+				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.17",
+				Type:  gosnmp.NoSuchInstance,
+				Value: "",
+			},
+			{
+				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.19",
+				Type:  gosnmp.NoSuchInstance,
+				Value: "",
+			},
+			{
+				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.20",
+				Type:  gosnmp.NoSuchInstance,
+				Value: "",
+			},
+			{
+				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.5",
+				Type:  gosnmp.NoSuchInstance,
+				Value: "",
+			},
+			{
+				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.6",
+				Type:  gosnmp.NoSuchInstance,
+				Value: "",
+			},
+			{
+				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.7",
+				Type:  gosnmp.NoSuchInstance,
+				Value: "",
+			},
 			// second iteration
+			{
+				Name:  "1.0.8802.1.1.2.1.3.7.1.2.102",
+				Type:  gosnmp.Integer,
+				Value: 3, // 3->macAddress
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.3.7.1.3.102",
+				Type:  gosnmp.OctetString,
+				Value: []byte{0x82, 0xa5, 0x6e, 0xa5, 0xc9, 0x02},
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.1.1.10.0.102.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("RemoteDev2-Description"),
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.1.1.4.0.102.2",
+				Type:  gosnmp.Integer,
+				Value: 4, // 4->macAddress
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.1.1.5.0.102.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte{0x01, 0x00, 0x00, 0x00, 0x02, 0x02},
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.1.1.6.0.102.2",
+				Type:  gosnmp.Integer,
+				Value: 3, // 3->macAddress
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.1.1.7.0.102.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte{0x01, 0x00, 0x00, 0x00, 0x02, 0x01},
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.1.1.8.0.102.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("RemoteDev2-Port1-Description"),
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.1.1.9.0.102.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("RemoteDev2-Name"),
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.2.1.3.0.102.2.1.4.10.250.0.7",
+				Type:  gosnmp.OctetString,
+				Value: []byte("RemoteDev2-Name"),
+			},
 			{
 				Name:  "1.3.6.1.2.1.2.2.1.13.2",
 				Type:  gosnmp.Integer,
@@ -299,6 +429,81 @@ profiles:
 				Type:  gosnmp.Integer,
 				Value: 999,
 			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
 		},
 	}
 
@@ -319,6 +524,16 @@ profiles:
 		"1.3.6.1.4.1.3375.2.1.6.4.0",
 	}).Return(&packet, nil)
 	sess.On("GetBulk", []string{
+		"1.0.8802.1.1.2.1.3.7.1.2",
+		"1.0.8802.1.1.2.1.3.7.1.3",
+		"1.0.8802.1.1.2.1.4.1.1.10",
+		"1.0.8802.1.1.2.1.4.1.1.4",
+		"1.0.8802.1.1.2.1.4.1.1.5",
+		"1.0.8802.1.1.2.1.4.1.1.6",
+		"1.0.8802.1.1.2.1.4.1.1.7",
+		"1.0.8802.1.1.2.1.4.1.1.8",
+		"1.0.8802.1.1.2.1.4.1.1.9",
+		"1.0.8802.1.1.2.1.4.2.1.3",
 		"1.3.6.1.2.1.2.2.1.13",
 		"1.3.6.1.2.1.2.2.1.14",
 		"1.3.6.1.2.1.2.2.1.2",
@@ -329,6 +544,12 @@ profiles:
 		"1.3.6.1.2.1.31.1.1.1.18",
 		"1.3.6.1.2.1.4.20.1.2",
 		"1.3.6.1.2.1.4.20.1.3",
+		"1.3.6.1.4.1.9.9.23.1.2.1.1.17",
+		"1.3.6.1.4.1.9.9.23.1.2.1.1.19",
+		"1.3.6.1.4.1.9.9.23.1.2.1.1.20",
+		"1.3.6.1.4.1.9.9.23.1.2.1.1.5",
+		"1.3.6.1.4.1.9.9.23.1.2.1.1.6",
+		"1.3.6.1.4.1.9.9.23.1.2.1.1.7",
 	}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
 
 	err = chk.Run()
@@ -407,6 +628,64 @@ profiles:
       "prefixlen": 24
     }
   ],
+  "links": [
+        {
+            "id": "profile-metadata:1.2.3.4:101.1",
+            "source_type": "lldp",
+            "local": {
+                "device": {
+                    "dd_id": "profile-metadata:1.2.3.4"
+                },
+                "interface": {
+                    "dd_id": "profile-metadata:1.2.3.4:1",
+                    "id": "82:a5:6e:a5:c9:01",
+                    "id_type": "mac_address"
+                }
+            },
+            "remote": {
+                "device": {
+                    "id": "01:00:00:00:01:02",
+                    "id_type": "mac_address",
+                    "name": "RemoteDev1-Name",
+                    "description": "RemoteDev1-Description",
+                    "ip_address": "10.250.0.6"
+                },
+                "interface": {
+                    "id": "01:00:00:00:01:01",
+                    "id_type": "mac_address",
+                    "description": "RemoteDev1-Port1-Description"
+                }
+            }
+        },
+        {
+            "id": "profile-metadata:1.2.3.4:102.2",
+            "source_type": "lldp",
+            "local": {
+                "device": {
+                    "dd_id": "profile-metadata:1.2.3.4"
+                },
+                "interface": {
+                    "dd_id": "profile-metadata:1.2.3.4:2",
+                    "id": "82:a5:6e:a5:c9:02",
+                    "id_type": "mac_address"
+                }
+            },
+            "remote": {
+                "device": {
+                    "id": "01:00:00:00:02:02",
+                    "id_type": "mac_address",
+                    "name": "RemoteDev2-Name",
+                    "description": "RemoteDev2-Description",
+                    "ip_address": "10.250.0.7"
+                },
+                "interface": {
+                    "id": "01:00:00:00:02:01",
+                    "id_type": "mac_address",
+                    "description": "RemoteDev2-Port1-Description"
+                }
+            }
+        }
+  ],
   "collect_timestamp":946684800
 }
 `, version.AgentVersion))
@@ -414,5 +693,5 @@ profiles:
 	err = json.Compact(compactEvent, event)
 	assert.NoError(t, err)
 
-	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
+	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
 }
