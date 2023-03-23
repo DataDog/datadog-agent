@@ -18,6 +18,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -26,7 +28,7 @@ import (
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const (
@@ -66,6 +68,15 @@ func TestConntrackers(t *testing.T) {
 				testConntracker(t, net.ParseIP("fd00::1"), net.ParseIP("fd00::2"), ct)
 			})
 			t.Run("cross namespace - NAT rule on test namespace", func(t *testing.T) {
+				if conntracker.name == "netlink" {
+					kv, err := kernel.HostVersion()
+					require.NoError(t, err)
+					if kv >= kernel.VersionCode(5, 19, 0) && kv < kernel.VersionCode(6, 3, 0) {
+						// see https://lore.kernel.org/netfilter-devel/CALvGib_xHOVD2+6tKm2Sf0wVkQwut2_z2gksZPcGw30tOvOAAA@mail.gmail.com/T/#u
+						t.Skip("skip due to a kernel bug with conntrack netlink events flowing across namespaces")
+					}
+				}
+
 				cfg := config.New()
 				cfg.EnableConntrackAllNamespaces = true
 				ct, err := conntracker.create(t, cfg)
