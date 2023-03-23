@@ -22,8 +22,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+type testDeps struct {
+	fx.In
+	Runner Component
+}
+
 func TestRunnerLifecycle(t *testing.T) {
-	fxutil.Test(t, fx.Options(
+	_ = fxutil.Test[testDeps](t, fx.Options(
 		fx.Supply(
 			&checks.HostInfo{},
 			&sysconfig.Config{},
@@ -32,9 +37,7 @@ func TestRunnerLifecycle(t *testing.T) {
 		Module,
 		submitter.MockModule,
 		processcheck.Module,
-	), func(runner Component) {
-		// Start and stop the component
-	})
+	))
 }
 
 func TestRunnerRealtime(t *testing.T) {
@@ -44,7 +47,7 @@ func TestRunnerRealtime(t *testing.T) {
 		mockConfig := config.Mock(t)
 		mockConfig.Set("process_config.disable_realtime_checks", false)
 
-		fxutil.Test(t, fx.Options(
+		deps := fxutil.Test[testDeps](t, fx.Options(
 			fx.Supply(
 				&checks.HostInfo{},
 				&sysconfig.Config{},
@@ -59,17 +62,16 @@ func TestRunnerRealtime(t *testing.T) {
 			Module,
 			submitter.MockModule,
 			processcheck.Module,
-		), func(r Component) {
-			rtChan <- types.RTResponse{
-				{
-					ActiveClients: 1,
-					Interval:      10,
-				},
-			}
-			assert.Eventually(t, func() bool {
-				return r.(*runner).IsRealtimeEnabled()
-			}, 1*time.Second, 10*time.Millisecond)
-		})
+		))
+		rtChan <- types.RTResponse{
+			{
+				ActiveClients: 1,
+				Interval:      10,
+			},
+		}
+		assert.Eventually(t, func() bool {
+			return deps.Runner.(*runner).IsRealtimeEnabled()
+		}, 1*time.Second, 10*time.Millisecond)
 	})
 
 	t.Run("rt disallowed", func(t *testing.T) {
@@ -79,7 +81,7 @@ func TestRunnerRealtime(t *testing.T) {
 		mockConfig := config.Mock(t)
 		mockConfig.Set("process_config.disable_realtime_checks", true)
 
-		fxutil.Test(t, fx.Options(
+		deps := fxutil.Test[testDeps](t, fx.Options(
 			fx.Supply(
 				&checks.HostInfo{},
 				&sysconfig.Config{},
@@ -94,17 +96,16 @@ func TestRunnerRealtime(t *testing.T) {
 			Module,
 			submitter.MockModule,
 			processcheck.Module,
-		), func(r Component) {
-			rtChan <- types.RTResponse{
-				{
-					ActiveClients: 1,
-					Interval:      10,
-				},
-			}
-			assert.Never(t, func() bool {
-				return r.(*runner).IsRealtimeEnabled()
-			}, 1*time.Second, 10*time.Millisecond)
-		})
+		))
+		rtChan <- types.RTResponse{
+			{
+				ActiveClients: 1,
+				Interval:      10,
+			},
+		}
+		assert.Never(t, func() bool {
+			return deps.Runner.(*runner).IsRealtimeEnabled()
+		}, 1*time.Second, 10*time.Millisecond)
 	})
 }
 
@@ -112,7 +113,7 @@ func TestProvidedChecks(t *testing.T) {
 	config.SetDetectedFeatures(config.FeatureMap{config.Docker: {}})
 	t.Cleanup(func() { config.SetDetectedFeatures(nil) })
 
-	fxutil.Test(t, fx.Options(
+	deps := fxutil.Test[testDeps](t, fx.Options(
 		fx.Supply(
 			&checks.HostInfo{},
 			&sysconfig.Config{},
@@ -124,15 +125,14 @@ func TestProvidedChecks(t *testing.T) {
 		// Checks
 		processcheck.MockModule,
 		containercheck.MockModule,
-	), func(r Component) {
-		providedChecks := r.GetProvidedChecks()
+	))
+	providedChecks := deps.Runner.GetProvidedChecks()
 
-		var checkNames []string
-		for _, check := range providedChecks {
-			checkNames = append(checkNames, check.Object().Name())
-		}
-		t.Log("Provided Checks:", checkNames)
+	var checkNames []string
+	for _, check := range providedChecks {
+		checkNames = append(checkNames, check.Object().Name())
+	}
+	t.Log("Provided Checks:", checkNames)
 
-		assert.Len(t, providedChecks, 2)
-	})
+	assert.Len(t, providedChecks, 2)
 }

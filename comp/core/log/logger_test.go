@@ -15,12 +15,11 @@ import (
 )
 
 func TestLogging(t *testing.T) {
-	fxutil.Test(t, fx.Options(
+	deps := fxutil.Test[testDeps](t, fx.Options(
 		fx.Supply(LogForOneShot("TEST", "debug", false)),
 		fx.Supply(config.Params{}),
 		config.MockModule,
 		Module,
-	), func(log Component) {
-		log.Debugf("hello, world. %s", "hi")
-	})
+	))
+	deps.Log.Debugf("hello, world. %s", "hi")
 }

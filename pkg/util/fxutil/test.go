@@ -15,6 +15,10 @@ import (
 	"go.uber.org/fx/fxtest"
 )
 
+type NoDependencies struct {
+	fx.In
+}
+
 // Test starts an app and returns fulfilled dependencies
 //
 // The generic return type T must conform to fx.In such

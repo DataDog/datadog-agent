@@ -14,14 +14,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+type testDeps struct {
+	fx.In
+	Runner Component
+}
+
 func TestSubmitterLifecycle(t *testing.T) {
-	fxutil.Test(t, fx.Options(
+	_ = fxutil.Test[testDeps](t, fx.Options(
 		fx.Supply(
 			&checks.HostInfo{},
 		),
 
 		Module,
-	), func(runner Component) {
-		// Start and stop the component
-	})
+	))
 }
