@@ -3,23 +3,21 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package log
+// Package profiler implements a component to handle starting and stopping the internal profiler.
+package profiler
 
 import (
-	"testing"
-
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func TestLogging(t *testing.T) {
-	deps := fxutil.Test[testDeps](t, fx.Options(
-		fx.Supply(LogForOneShot("TEST", "debug", false)),
-		fx.Supply(config.Params{}),
-		config.MockModule,
-		Module,
-	))
-	deps.Log.Debugf("hello, world. %s", "hi")
+// team: processes
+
+type Component interface {
 }
+
+// Module defines the fx options for this component.
+var Module = fxutil.Component(
+	fx.Provide(newProfiler),
+)
