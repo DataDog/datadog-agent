@@ -47,8 +47,7 @@ k8s-e2e-tags-6:
   extends: .k8s_e2e_template
   rules: !reference [.on_deploy_stable_or_beta_repo_branch_a6_manual]
   script:
-    - source $CI_PROJECT_DIR/build.env
-    - AGENT_VERSION=$AGENT_VERSION_6
+    - AGENT_VERSION=$(inv -e agent.version --major-version 6)
     - DCA_VERSION=$(inv -e cluster-agent.version)
     - inv -e e2e-tests --agent-image=datadog/agent:${AGENT_VERSION} --dca-image=datadog/cluster-agent:${DCA_VERSION} --argo-workflow=default
 
@@ -56,8 +55,7 @@ k8s-e2e-tags-7:
   extends: .k8s_e2e_template
   rules: !reference [.on_deploy_stable_or_beta_repo_branch_a7_manual]
   script:
-    - source $CI_PROJECT_DIR/build.env
-    - AGENT_VERSION=$AGENT_VERSION_7
+    - AGENT_VERSION=$(inv -e agent.version --major-version 7)
     - DCA_VERSION=$(inv -e cluster-agent.version)
     - inv -e e2e-tests --agent-image=datadog/agent:${AGENT_VERSION} --dca-image=datadog/cluster-agent:${DCA_VERSION} --argo-workflow=default
 

@@ -7,6 +7,7 @@ import json
 import os
 import re
 import sys
+import pickle
 from subprocess import check_output
 
 from invoke import task
@@ -330,12 +331,25 @@ def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
 
     return version, pre, commit_number, git_sha, pipeline_id
 
+def cache_version(ctx, git_sha_length=7, prefix=None, major_version='7'):
+    version = ""
+    version, pre, commits_since_version, git_sha, pipeline_id = query_version(
+        ctx, git_sha_length, prefix, major_version_hint=major_version
+    )
+
+    is_nightly = is_allowed_repo_nightly_branch(os.getenv("BUCKET_BRANCH"))
+    with open("_version.cache", "wb") as file:
+    pickle.dump((version, pre, commits_since_version, git_sha, pipeline_id, is_nightly), file)
+
 
 def get_version(
     ctx, include_git=False, url_safe=False, git_sha_length=7, prefix=None, major_version='7', include_pipeline_id=False
 ):
+    
+    if os.path.exists("_version.cache"):
+        with open("_version.cache", "rb") as file:
+            version, pre, commits_since_version, git_sha, pipeline_id, is_nightly = pickle.load(file)
     # we only need the git info for the non omnibus builds, omnibus includes all this information by default
-
     version = ""
     version, pre, commits_since_version, git_sha, pipeline_id = query_version(
         ctx, git_sha_length, prefix, major_version_hint=major_version
