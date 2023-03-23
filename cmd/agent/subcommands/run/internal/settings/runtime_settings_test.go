@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -23,6 +24,7 @@ import (
 type testDeps struct {
 	fx.In
 	Server server.Component
+	Debug  serverDebug.Component
 }
 
 func TestDogstatsdMetricsStats(t *testing.T) {
@@ -48,7 +50,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 	require.Nil(t, err)
 
 	s := DsdStatsRuntimeSetting{
-		Server: deps.Server,
+		ServerDebug: deps.Debug,
 	}
 
 	// runtime settings set/get underlying implementation
@@ -57,7 +59,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 	err = s.Set("true")
 	assert.Nil(err)
-	assert.Equal(deps.Server.IsDebugEnabled(), true)
+	assert.Equal(deps.Debug.IsDebugEnabled(), true)
 	v, err := s.Get()
 	assert.Nil(err)
 	assert.Equal(v, true)
@@ -66,7 +68,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 	err = s.Set("false")
 	assert.Nil(err)
-	assert.Equal(deps.Server.IsDebugEnabled(), false)
+	assert.Equal(deps.Debug.IsDebugEnabled(), false)
 	v, err = s.Get()
 	assert.Nil(err)
 	assert.Equal(v, false)
@@ -75,7 +77,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 	err = s.Set(true)
 	assert.Nil(err)
-	assert.Equal(deps.Server.IsDebugEnabled(), true)
+	assert.Equal(deps.Debug.IsDebugEnabled(), true)
 	v, err = s.Get()
 	assert.Nil(err)
 	assert.Equal(v, true)
@@ -84,14 +86,14 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 	err = s.Set(false)
 	assert.Nil(err)
-	assert.Equal(deps.Server.IsDebugEnabled(), false)
+	assert.Equal(deps.Debug.IsDebugEnabled(), false)
 	v, err = s.Get()
 	assert.Nil(err)
 	assert.Equal(v, false)
 
 	// ensure the getter uses the value from the actual server
 
-	deps.Server.EnableMetricsStats()
+	deps.Debug.SetMetricStatsEnabled(true)
 	v, err = s.Get()
 	assert.Nil(err)
 	assert.Equal(v, true)

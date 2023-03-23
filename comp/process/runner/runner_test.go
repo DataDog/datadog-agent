@@ -13,10 +13,13 @@ import (
 	"go.uber.org/fx"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck"
+	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck"
 	"github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/comp/process/types"
+	"github.com/DataDog/datadog-agent/comp/process/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -29,14 +32,15 @@ type testDeps struct {
 
 func TestRunnerLifecycle(t *testing.T) {
 	_ = fxutil.Test[testDeps](t, fx.Options(
-		fx.Supply(
-			&checks.HostInfo{},
-			&sysconfig.Config{},
-		),
+		utils.DisableContainerFeatures,
+
+		fx.Supply(core.BundleParams{}),
 
 		Module,
 		submitter.MockModule,
 		processcheck.Module,
+		hostinfo.MockModule,
+		core.MockBundle,
 	))
 }
 
@@ -48,20 +52,21 @@ func TestRunnerRealtime(t *testing.T) {
 		mockConfig.Set("process_config.disable_realtime_checks", false)
 
 		deps := fxutil.Test[testDeps](t, fx.Options(
-			fx.Supply(
-				&checks.HostInfo{},
-				&sysconfig.Config{},
-			),
-
 			fx.Provide(
 				// Cast `chan types.RTResponse` to `<-chan types.RTResponse`.
 				// We can't use `fx.As` because `<-chan types.RTResponse` is not an interface.
 				func() <-chan types.RTResponse { return rtChan },
 			),
 
+			utils.DisableContainerFeatures,
+
+			fx.Supply(core.BundleParams{}),
+
 			Module,
 			submitter.MockModule,
 			processcheck.Module,
+			hostinfo.MockModule,
+			core.MockBundle,
 		))
 		rtChan <- types.RTResponse{
 			{
@@ -93,9 +98,15 @@ func TestRunnerRealtime(t *testing.T) {
 				func() <-chan types.RTResponse { return rtChan },
 			),
 
+			utils.DisableContainerFeatures,
+
+			fx.Supply(core.BundleParams{}),
+
 			Module,
 			submitter.MockModule,
 			processcheck.Module,
+			hostinfo.MockModule,
+			core.MockBundle,
 		))
 		rtChan <- types.RTResponse{
 			{
@@ -115,16 +126,18 @@ func TestProvidedChecks(t *testing.T) {
 
 	deps := fxutil.Test[testDeps](t, fx.Options(
 		fx.Supply(
-			&checks.HostInfo{},
-			&sysconfig.Config{},
+			core.BundleParams{},
 		),
 
 		Module,
 		submitter.MockModule,
+		hostinfo.MockModule,
 
 		// Checks
 		processcheck.MockModule,
 		containercheck.MockModule,
+
+		core.MockBundle,
 	))
 	providedChecks := deps.Runner.GetProvidedChecks()
 

@@ -79,8 +79,10 @@ func New(configPath string) (*Config, error) {
 		if strings.HasSuffix(configPath, ".yaml") {
 			aconfig.SystemProbe.SetConfigFile(configPath)
 		}
+	} else {
+		// only add default if a custom configPath was not supplied
+		aconfig.SystemProbe.AddConfigPath(defaultConfigDir)
 	}
-	aconfig.SystemProbe.AddConfigPath(defaultConfigDir)
 	// load the configuration
 	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", true, aconfig.Datadog.GetEnvVars())
 	if err != nil {
