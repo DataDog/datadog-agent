@@ -84,7 +84,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Periodically pull process lifecycle events. This feature is currently in alpha version and needs root privilege to run.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(runEventStore,
-				fx.Supply(cliParams),
+				fx.Supply(cliParams, command.GetCoreBundleParamsForOneShot(globalParams)),
 
 				process.Bundle,
 			)
