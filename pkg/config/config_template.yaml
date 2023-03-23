@@ -1521,39 +1521,6 @@ api_key:
     ## Enable internal profiling for the System Probe process.
     #
     # enabled: false
-
-  ## @param memory_controller - custom object - optional
-  ## Cgroup memory controller for internal memory profiling.
-  ##
-  ## memory_controller:
-  #
-    ## @param enabled - boolean - optional - default: false
-    ## Enable cgroup memory controller.
-    #
-    # enabled: false
-    #
-    ## @param thresholds - map of strings - optional
-    ## Thresholds and the respective active actions to trigger when
-    ## memory usage is above the specified threshold.
-    ## Threshold can be either an absolute value - such as 500MB or 2GB -
-    ## or a percentage of the cgroup allocated memory such as 50%.
-    ## The action can be:
-    ## - gc: to trigger the Go garbage collector
-    ## - profile: to generate a system-probe memory profile in /tmp
-    ## - log: to simply log that the threshold was reached
-    #
-    # thresholds:
-    #   500MB: gc
-    #   50%: profile
-
-    ## @param pressure_levels - map of strings - optional
-    ## Pressure levels and the respective active actions to trigger when
-    ## memory usage reaches the specified level.
-    ## The pressure level is 'low', 'medium' or 'critical'.
-    ## The actions are the same for thresholds (see above).
-    #
-    # pressure_levels:
-    #   medium: gc
 {{ end }}
 
 {{- if .NetworkModule }}
@@ -3117,6 +3084,14 @@ api_key:
 ## regardless of the value of this parameter.
 #
 # disable_cluster_name_tag_key: false
+
+## @param kubernetes_ad_tags_disabled -- list of strings - optional
+## @env DD_KUBERNETES_AD_TAGS_DISABLED -- list of strings - optional
+## Can only be set to a single valid value: [ "kube_service" ]
+## in order to not attach the kube_service tag on ready pods
+#
+# kubernetes_ad_tags_disabled:
+#   - kube_service
 
 {{ end -}}
 {{- if .PrometheusScrape }}

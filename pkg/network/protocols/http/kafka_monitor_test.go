@@ -487,5 +487,5 @@ func loadKafkaBinary(t *testing.T, debug bool, binaryType BinaryType) {
 		cfg.EnableCORE = true
 	}
 
-	newHTTPWithKafkaMonitor(t, getDefaultTestConfiguration())
+	newHTTPWithKafkaMonitor(t, cfg)
 }

@@ -209,4 +209,32 @@ static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u
     update_tcp_stats(t, stats);
 }
 
+#if defined(COMPILE_RUNTIME) || defined(COMPILE_PREBUILT)
+
+static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t);
+
+static __always_inline void handle_skb_consume_udp(struct sock *sk, struct sk_buff *skb, int len) {
+    if (len < 0) {
+        // peeking or an error happened
+        return;
+    }
+    conn_tuple_t t;
+    bpf_memset(&t, 0, sizeof(conn_tuple_t));
+    int data_len = sk_buff_to_tuple(skb, &t);
+    if (data_len <= 0) {
+        log_debug("ERR(skb_consume_udp): error reading tuple ret=%d\n", data_len);
+        return;
+    }
+    // we are receiving, so we want the daddr to become the laddr
+    flip_tuple(&t);
+
+    log_debug("skb_consume_udp: bytes=%d\n", data_len);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    t.pid = pid_tgid >> 32;
+    t.netns = get_netns_from_sock(sk);
+    handle_message(&t, 0, data_len, CONN_DIRECTION_UNKNOWN, 0, 1, PACKET_COUNT_INCREMENT, sk);
+}
+
+#endif // defined(COMPILE_RUNTIME) || defined(COMPILE_PREBUILT)
+
 #endif // __TRACER_STATS_H
