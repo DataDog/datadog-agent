@@ -1,18 +1,14 @@
 using System.Runtime.CompilerServices;
 using Microsoft.Deployment.WindowsInstaller;
 
-namespace Datadog.CustomActions
+namespace Datadog.CustomActions.Interfaces
 {
     public interface ISession
     {
         /// <summary>
         /// see <see cref="Session.this[string]"/>
         /// </summary>
-        string this[string property]
-        {
-            get;
-            set;
-        }
+        string this[string property] { get; set; }
 
         /// <summary>
         /// see <see cref="Session.Message"/>
@@ -31,25 +27,16 @@ namespace Datadog.CustomActions
         /// <summary>
         /// see <see cref="Session.Components"/>
         /// </summary>
-        ComponentInfoCollection Components
-        {
-            get;
-        }
+        ComponentInfoCollection Components { get; }
 
         /// <summary>
         /// see <see cref="Session.Features"/>
         /// </summary>
-        FeatureInfoCollection Features
-        {
-            get;
-        }
+        FeatureInfoCollection Features { get; }
 
         /// <summary>
         /// see <see cref="Session.CustomActionData"/>
         /// </summary>
-        CustomActionData CustomActionData
-        {
-            get;
-        }
+        CustomActionData CustomActionData { get; }
     }
 }

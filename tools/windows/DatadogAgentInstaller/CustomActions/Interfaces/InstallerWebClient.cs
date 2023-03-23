@@ -4,7 +4,7 @@ using System.Collections.Specialized;
 using System.Net;
 using System.Security.Authentication;
 
-namespace Datadog.CustomActions
+namespace Datadog.CustomActions.Interfaces
 {
     public class InstallerWebClient : IInstallerHttpClient
     {

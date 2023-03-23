@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Text;
+using Datadog.CustomActions.Interfaces;
 
 namespace Datadog.CustomActions
 {
@@ -342,9 +343,15 @@ namespace Datadog.CustomActions
         {
             var configFolder = session.Property("APPLICATIONDATADIRECTORY");
             var datadogYaml = Path.Combine(configFolder, "datadog.yaml");
+            var systemProbeYaml = Path.Combine(configFolder, "system-probe.yaml");
 
             try
             {
+                if (!File.Exists(systemProbeYaml))
+                {
+                    File.Copy(systemProbeYaml + ".example", systemProbeYaml);
+                }
+
                 if (File.Exists(datadogYaml))
                 {
                     session.Log($"{datadogYaml} exists, not modifying it.");
