@@ -35,12 +35,12 @@ import (
 	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/encoding/protojson"
 
+	adproto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
-	adproto "github.com/DataDog/datadog-agent/pkg/security/proto/security_profile/v1"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -1096,7 +1096,7 @@ func (ad *ActivityDump) DecodeProtobuf(reader io.Reader) error {
 		return fmt.Errorf("couldn't open activity dump file: %w", err)
 	}
 
-	inter := &adproto.ActivityDump{}
+	inter := &adproto.SecDump{}
 	if err := inter.UnmarshalVT(raw); err != nil {
 		return fmt.Errorf("couldn't decode protobuf activity dump file: %w", err)
 	}
