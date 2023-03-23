@@ -14,12 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 )
 
-func init() {
-	for _, storage := range AllStorageTypes() {
-		strToTypes[storage.String()] = storage
-	}
-}
-
 // StorageRequest is used to request a type of storage for a dump
 type StorageRequest struct {
 	Type        StorageType
@@ -125,7 +119,7 @@ func ParseStorageFormat(input string) (StorageFormat, error) {
 		}
 	}
 
-	return 0, fmt.Errorf("%s: unknown storage format, available options are %v", input, AllStorageFormats())
+	return -1, fmt.Errorf("%s: unknown storage format, available options are %v", input, AllStorageFormats())
 }
 
 // ParseStorageFormats returns a list of storage formats from a list of strings
@@ -156,15 +150,12 @@ func AllStorageTypes() []StorageType {
 	return []StorageType{LocalStorage, RemoteStorage}
 }
 
-var (
-	strToTypes = make(map[string]StorageType)
-)
-
 // ParseStorageType returns a storage type from its string representation
 func ParseStorageType(input string) (StorageType, error) {
-	storageType, ok := strToTypes[input]
-	if !ok {
-		return -1, fmt.Errorf("unknown storage type [%s]", input)
+	for _, st := range AllStorageTypes() {
+		if st.String() == input {
+			return st, nil
+		}
 	}
-	return storageType, nil
+	return -1, fmt.Errorf("unknown storage type [%s]", input)
 }
