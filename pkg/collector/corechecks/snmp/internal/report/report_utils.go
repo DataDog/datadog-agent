@@ -173,12 +173,22 @@ func getInterfaceConfig(interfaceConfigs []snmpintegration.InterfaceConfig, inde
 }
 
 // getIpAddressFromHexDecimal converts the hexadecimal representation of an ip address to a decimal one
-// for example convert "0A FA 01 4C" to "10.250.1.76"
+// for example convert "0A FA 01 4C" to "10.250.1.76" or "0AFA014C" to "10.250.1.76"
 func getIpAddressFromHexDecimal(hexstring string) string {
-	if hexstring == "" {
-		return ""
+	// we need at least 8 for ipv4, if we have less then it's an invalid format so keep and return the initial hexadecimal value
+	if len(hexstring) < 8 {
+		return hexstring
 	}
-	hexdecList := strings.Split(hexstring, " ")
+	var hexdecList []string
+	// we have 2 different formats: "0A FA 01 4C" or "0AFA014C"
+	if strings.Contains(hexstring, " ") {
+		hexdecList = strings.Split(hexstring, " ")
+	} else {
+		for i := 0; i < len(hexstring); i += 2 {
+			hexdecList = append(hexdecList, hexstring[i:i+2])
+		}
+	}
+
 	var decList []string
 	for _, x := range hexdecList {
 		decimal, err := strconv.ParseInt(x, 16, 64)
