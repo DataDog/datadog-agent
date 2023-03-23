@@ -157,6 +157,24 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 		out.Conns[1].Tags = []uint32{0, 1}
 		out.Conns[1].TagsChecksum = uint32(3359960845)
 	}
+	if runtime.GOOS == "windows" {
+		/*
+		 * on Windows, there are separate http transactions for
+		 * each side of the connection.  And they're kept separate,
+		 * and keyed separately.  Address this condition until the
+		 * platforms are resynced
+		 *
+		 * Also on windows, we do not use the NAT translation.  There
+		 * is an artifact of the NAT translation that results in
+		 * being unable to match the connectoin at this time, due
+		 * to the above.  Remove the nat translation, so that we're
+		 * still testing the rest of the encoding functions.
+		 *
+		 * there is the corresponding change required in
+		 * testSerialization() below
+		 */
+		out.Conns[0].IpTranslation = nil
+	}
 	return out
 }
 
@@ -257,6 +275,35 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		},
 	}
 
+	if runtime.GOOS == "windows" {
+		/*
+		 * on Windows, there are separate http transactions for
+		 * each side of the connection.  And they're kept separate,
+		 * and keyed separately.  Address this condition until the
+		 * platforms are resynced
+		 *
+		 * Also on windows, we do not use the NAT translation.  There
+		 * is an artifact of the NAT translation that results in
+		 * being unable to match the connectoin at this time, due
+		 * to the above.  Remove the nat translation, so that we're
+		 * still testing the rest of the encoding functions.
+		 *
+		 * there is a corresponding change in the above helper function
+		 * getExpectedConnections()
+		 */
+		in.BufferedData.Conns[0].IPTranslation = nil
+		in.HTTP = map[http.Key]*http.RequestStats{
+			http.NewKey(
+				util.AddressFromString("10.1.1.1"),
+				util.AddressFromString("10.2.2.2"),
+				1000,
+				9000,
+				"/testpath",
+				true,
+				http.MethodGet,
+			): httpReqStats,
+		}
+	}
 	httpOut := &model.HTTPAggregations{
 		EndpointAggregations: []*model.HTTPStats{
 			{
@@ -296,6 +343,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		result.PrebuiltEBPFAssets = nil
 		assert.Equal(out, result)
 	})
+
 	t.Run("requesting application/json serialization (with query types)", func(t *testing.T) {
 		newConfig(t)
 		config.SystemProbe.Set("system_probe_config.collect_dns_domains", false)
