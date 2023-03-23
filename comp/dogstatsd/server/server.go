@@ -314,7 +314,7 @@ func (s *server) Start(demultiplexer aggregator.Demultiplexer) error {
 
 	socketPath := s.config.GetString("dogstatsd_socket")
 	if len(socketPath) > 0 {
-		unixListener, err := listeners.NewUDSListener(packetsChannel, sharedPacketPoolManager, s.tCapture)
+		unixListener, err := listeners.NewUDSListener(packetsChannel, sharedPacketPoolManager, s.config, s.tCapture)
 		if err != nil {
 			s.log.Errorf(err.Error())
 		} else {
@@ -323,7 +323,7 @@ func (s *server) Start(demultiplexer aggregator.Demultiplexer) error {
 		}
 	}
 	if s.config.GetInt("dogstatsd_port") > 0 {
-		udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPoolManager, s.tCapture)
+		udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPoolManager, s.config, s.tCapture)
 		if err != nil {
 			s.log.Errorf(err.Error())
 		} else {
@@ -333,7 +333,7 @@ func (s *server) Start(demultiplexer aggregator.Demultiplexer) error {
 
 	pipeName := s.config.GetString("dogstatsd_pipe_name")
 	if len(pipeName) > 0 {
-		namedPipeListener, err := listeners.NewNamedPipeListener(pipeName, packetsChannel, sharedPacketPoolManager, s.tCapture, s.config)
+		namedPipeListener, err := listeners.NewNamedPipeListener(pipeName, packetsChannel, sharedPacketPoolManager, s.config, s.tCapture)
 		if err != nil {
 			s.log.Errorf("named pipe error: %v", err.Error())
 		} else {

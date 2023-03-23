@@ -47,7 +47,7 @@ var ballast []byte //nolint:unused
 var ballastOnce sync.Once
 
 // BuildMemBasedRateLimiter builds a new instance of *MemBasedRateLimiter
-func BuildMemBasedRateLimiter() (*MemBasedRateLimiter, error) {
+func BuildMemBasedRateLimiter(cfg config.ConfigReader) (*MemBasedRateLimiter, error) {
 	var memoryUsage memoryUsage
 	var err error
 	if memoryUsage, err = newCgroupMemoryUsage(); err == nil {
@@ -59,7 +59,7 @@ func BuildMemBasedRateLimiter() (*MemBasedRateLimiter, error) {
 	}
 
 	ballastOnce.Do(func() {
-		ballastSize := config.Datadog.GetInt64("dogstatsd_mem_based_rate_limiter.memory_ballast")
+		ballastSize := cfg.GetInt64("dogstatsd_mem_based_rate_limiter.memory_ballast")
 		if ballastSize != 0 {
 			ballast = make([]byte, 0, ballastSize)
 			log.Infof("ballast size %vMB", ballastSize/1024/1024)
@@ -75,23 +75,23 @@ func BuildMemBasedRateLimiter() (*MemBasedRateLimiter, error) {
 	return NewMemBasedRateLimiter(
 		memBasedRateLimiterTml,
 		memoryUsage,
-		getConfigFloat("low_soft_limit"),
-		getConfigFloat("high_soft_limit"),
-		config.Datadog.GetInt("dogstatsd_mem_based_rate_limiter.go_gc"),
+		getConfigFloat(cfg, "low_soft_limit"),
+		getConfigFloat(cfg, "high_soft_limit"),
+		cfg.GetInt("dogstatsd_mem_based_rate_limiter.go_gc"),
 		geometricRateLimiterConfig{
-			getConfigFloat("rate_check.min"),
-			getConfigFloat("rate_check.max"),
-			getConfigFloat("rate_check.factor")},
+			getConfigFloat(cfg, "rate_check.min"),
+			getConfigFloat(cfg, "rate_check.max"),
+			getConfigFloat(cfg, "rate_check.factor")},
 		geometricRateLimiterConfig{
-			getConfigFloat("soft_limit_freeos_check.min"),
-			getConfigFloat("soft_limit_freeos_check.max"),
-			getConfigFloat("soft_limit_freeos_check.factor"),
+			getConfigFloat(cfg, "soft_limit_freeos_check.min"),
+			getConfigFloat(cfg, "soft_limit_freeos_check.max"),
+			getConfigFloat(cfg, "soft_limit_freeos_check.factor"),
 		},
 	)
 }
 
-func getConfigFloat(subkey string) float64 {
-	return config.Datadog.GetFloat64("dogstatsd_mem_based_rate_limiter." + subkey)
+func getConfigFloat(cfg config.ConfigReader, subkey string) float64 {
+	return cfg.GetFloat64("dogstatsd_mem_based_rate_limiter." + subkey)
 }
 
 // NewMemBasedRateLimiter creates a new instance of MemBasedRateLimiter.

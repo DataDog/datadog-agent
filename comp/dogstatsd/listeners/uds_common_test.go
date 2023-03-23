@@ -17,36 +17,38 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
-	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-var (
-	packetPoolUDS        = packets.NewPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
-	packetPoolManagerUDS = packets.NewPoolManager(packetPoolUDS)
-)
+func newPacketPoolManagerUDS(cfg config.Component) *packets.PoolManager {
+	packetPoolUDS := packets.NewPool(cfg.GetInt("dogstatsd_buffer_size"))
+	return packets.NewPoolManager(packetPoolUDS)
+}
 
-func testFileExistsNewUDSListener(t *testing.T, socketPath string) {
+func testFileExistsNewUDSListener(t *testing.T, socketPath string, cfg map[string]interface{}) {
 	_, err := os.Create(socketPath)
 	assert.Nil(t, err)
 	defer os.Remove(socketPath)
-	_, err = NewUDSListener(nil, packetPoolManagerUDS, nil)
+	deps := fulfillDepsWithConfig(t, cfg)
+	_, err = NewUDSListener(nil, newPacketPoolManagerUDS(deps.Config), deps.Config, nil)
 	assert.Error(t, err)
 }
 
-func testSocketExistsNewUSDListener(t *testing.T, socketPath string) {
+func testSocketExistsNewUSDListener(t *testing.T, socketPath string, cfg map[string]interface{}) {
 	address, err := net.ResolveUnixAddr("unix", socketPath)
 	assert.Nil(t, err)
 	_, err = net.ListenUnix("unix", address)
 	assert.Nil(t, err)
-	testWorkingNewUDSListener(t, socketPath)
+	testWorkingNewUDSListener(t, socketPath, cfg)
 }
 
-func testWorkingNewUDSListener(t *testing.T, socketPath string) {
-	s, err := NewUDSListener(nil, packetPoolManagerUDS, nil)
+func testWorkingNewUDSListener(t *testing.T, socketPath string, cfg map[string]interface{}) {
+	deps := fulfillDepsWithConfig(t, cfg)
+	s, err := NewUDSListener(nil, newPacketPoolManagerUDS(deps.Config), deps.Config, nil)
 	defer s.Stop()
 
 	assert.Nil(t, err)
@@ -59,17 +61,17 @@ func testWorkingNewUDSListener(t *testing.T, socketPath string) {
 func TestNewUDSListener(t *testing.T) {
 	dir := t.TempDir()
 	socketPath := filepath.Join(dir, "dsd.socket")
-	mockConfig := config.Mock(t)
-	mockConfig.Set("dogstatsd_socket", socketPath)
+	mockConfig := map[string]interface{}{}
+	mockConfig["dogstatsd_socket"] = socketPath
 
 	t.Run("fail_file_exists", func(tt *testing.T) {
-		testFileExistsNewUDSListener(tt, socketPath)
+		testFileExistsNewUDSListener(tt, socketPath, mockConfig)
 	})
 	t.Run("socket_exists", func(tt *testing.T) {
-		testSocketExistsNewUSDListener(tt, socketPath)
+		testSocketExistsNewUSDListener(tt, socketPath, mockConfig)
 	})
 	t.Run("working", func(tt *testing.T) {
-		testWorkingNewUDSListener(tt, socketPath)
+		testWorkingNewUDSListener(tt, socketPath, mockConfig)
 	})
 }
 
@@ -77,10 +79,12 @@ func TestStartStopUDSListener(t *testing.T) {
 	dir := t.TempDir()
 	socketPath := filepath.Join(dir, "dsd.socket")
 
-	mockConfig := config.Mock(t)
-	mockConfig.Set("dogstatsd_socket", socketPath)
-	mockConfig.Set("dogstatsd_origin_detection", false)
-	s, err := NewUDSListener(nil, packetPoolManagerUDS, nil)
+	mockConfig := map[string]interface{}{}
+	mockConfig["dogstatsd_socket"] = socketPath
+	mockConfig["dogstatsd_origin_detection"] = false
+
+	deps := fulfillDepsWithConfig(t, mockConfig)
+	s, err := NewUDSListener(nil, newPacketPoolManagerUDS(deps.Config), deps.Config, nil)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
@@ -98,14 +102,16 @@ func TestUDSReceive(t *testing.T) {
 	dir := t.TempDir()
 	socketPath := filepath.Join(dir, "dsd.socket")
 
-	mockConfig := config.Mock(t)
-	mockConfig.Set("dogstatsd_socket", socketPath)
-	mockConfig.Set("dogstatsd_origin_detection", false)
+	mockConfig := map[string]interface{}{}
+	mockConfig["dogstatsd_socket"] = socketPath
+	mockConfig["dogstatsd_origin_detection"] = false
 
 	var contents = []byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2")
 
 	packetsChannel := make(chan packets.Packets)
-	s, err := NewUDSListener(packetsChannel, packetPoolManagerUDS, nil)
+
+	deps := fulfillDepsWithConfig(t, mockConfig)
+	s, err := NewUDSListener(packetsChannel, newPacketPoolManagerUDS(deps.Config), deps.Config, nil)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 

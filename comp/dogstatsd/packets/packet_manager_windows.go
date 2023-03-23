@@ -21,10 +21,10 @@ type PacketManager struct {
 }
 
 // NewPacketManagerFromConfig creates a PacketManager from the relevant config settings.
-func NewPacketManagerFromConfig(packetOut chan Packets, sharedPacketPoolManager *PoolManager) *PacketManager {
-	bufferSize := config.Datadog.GetInt("dogstatsd_buffer_size")
-	packetsBufferSize := config.Datadog.GetInt("dogstatsd_packet_buffer_size")
-	flushTimeout := config.Datadog.GetDuration("dogstatsd_packet_buffer_flush_timeout")
+func NewPacketManagerFromConfig(packetOut chan Packets, sharedPacketPoolManager *PoolManager, cfg config.ConfigReader) *PacketManager {
+	bufferSize := cfg.GetInt("dogstatsd_buffer_size")
+	packetsBufferSize := cfg.GetInt("dogstatsd_packet_buffer_size")
+	flushTimeout := cfg.GetDuration("dogstatsd_packet_buffer_flush_timeout")
 
 	return NewPacketManager(bufferSize, packetsBufferSize, flushTimeout, packetOut, sharedPacketPoolManager)
 }

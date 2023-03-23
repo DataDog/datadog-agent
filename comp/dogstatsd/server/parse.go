@@ -50,15 +50,15 @@ type parser struct {
 	readTimestamps bool
 }
 
-func newParser(float64List *float64ListPool) *parser {
-	stringInternerCacheSize := config.Datadog.GetInt("dogstatsd_string_interner_size")
-	readTimestamps := config.Datadog.GetBool("dogstatsd_no_aggregation_pipeline")
+func newParser(float64List *float64ListPool, cfg config.ConfigReader) *parser {
+	stringInternerCacheSize := cfg.GetInt("dogstatsd_string_interner_size")
+	readTimestamps := cfg.GetBool("dogstatsd_no_aggregation_pipeline")
 
 	return &parser{
 		interner:         newStringInterner(stringInternerCacheSize),
 		readTimestamps:   readTimestamps,
 		float64List:      float64List,
-		dsdOriginEnabled: config.Datadog.GetBool("dogstatsd_origin_detection_client"),
+		dsdOriginEnabled: cfg.GetBool("dogstatsd_origin_detection_client"),
 	}
 }
 
