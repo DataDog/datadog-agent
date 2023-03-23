@@ -17,7 +17,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.44.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.44.0-rc.4
 	github.com/DataDog/datadog-go/v5 v5.1.1
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.1.3
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.1.4
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/Microsoft/go-winio v0.5.2
 	github.com/davecgh/go-spew v1.1.1
