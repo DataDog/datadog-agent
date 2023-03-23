@@ -3472,13 +3472,13 @@ api_key:
       ## Deprecated - use `send_aggregation_metrics` instead
       ## @param send_count_sum_metrics - boolean - optional - default: false
       ## @env DD_OTLP_CONFIG_METRICS_HISTOGRAMS_SEND_COUNT_SUM_METRICS - boolean - optional - default: false
-      ## Whether to report sum, count, min and max as separate histogram metrics.
+      ## Whether to report sum, count, min, and max as separate histogram metrics.
       #
       # send_count_sum_metrics: false
 
       ## @param send_aggregation_metrics - boolean - optional - default: false
       ## @env DD_OTLP_CONFIG_METRICS_HISTOGRAMS_SEND_AGGREGATION_METRICS - boolean - optional - default: false
-      ## Whether to report sum, count, min and max as separate histogram metrics.
+      ## Whether to report sum, count, min, and max as separate histogram metrics.
       #
       # send_aggregation_metrics: false
 
