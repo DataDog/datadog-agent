@@ -244,7 +244,7 @@ func getAllKeys(key string) (string, string) {
 
 func isSet(key string) bool {
 	deprecatedKey, newKey := getAllKeys(key)
-	return coreconfig.Datadog.IsSet(deprecatedKey) || coreconfig.Datadog.IsSet(newKey)
+	return coreconfig.SystemProbe.IsSet(deprecatedKey) || coreconfig.SystemProbe.IsSet(newKey)
 }
 
 func getBool(key string) bool {
