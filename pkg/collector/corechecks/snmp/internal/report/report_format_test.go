@@ -34,11 +34,11 @@ func Test_formatValue(t *testing.T) {
 		{
 			name: "ip_address: format IPv4 address",
 			value: valuestore.ResultValue{
-				Value: []byte{0x64, 0x43, 0x00, 0x07},
+				Value: []byte{0x0a, 0x43, 0x00, 0x07},
 			},
 			format: "ip_address",
 			expectedValue: valuestore.ResultValue{
-				Value: "100.67.0.7",
+				Value: "10.67.0.7",
 			},
 		},
 		{
