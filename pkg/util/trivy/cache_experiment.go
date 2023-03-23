@@ -44,6 +44,10 @@ func NewPersistentCache(
 		return nil, err
 	}
 
+	for _, key := range localDB.GetAllKeys() {
+		ttlCache.Add(key, time.Now().Add(ttl))
+	}
+
 	ttlTicker := time.NewTicker(ttlTicker)
 	persistentCache := &PersistentCache{
 		ttlCache: ttlCache,
