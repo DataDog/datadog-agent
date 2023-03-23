@@ -83,9 +83,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 			bundleParams := command.GetCoreBundleParamsForOneShot(globalParams)
 
-			// Override the log_to_console setting if `--json` is specified. This way the check command will output proper json.
+			// Disable logging if `--json` is specified. This way the check command will output proper json.
 			if cliParams.checkOutputJSON {
-				bundleParams.LogParams.LogToConsole(false)
+				bundleParams.LogParams = log.LogForOneShot(string(command.LoggerName), "off", true)
 			}
 
 			return fxutil.OneShot(runCheckCmd,
@@ -159,9 +159,10 @@ func runCheckCmd(deps dependencies) error {
 		net.SetSystemProbePath(deps.Syscfg.Object().SocketAddress)
 	}
 
-	all := checks.All(deps.Syscfg.Object())
-	names := make([]string, 0, len(all))
-	for _, ch := range all {
+	names := make([]string, 0, len(deps.Checks))
+	for _, checkComponent := range deps.Checks {
+		ch := checkComponent.Object()
+
 		names = append(names, ch.Name())
 
 		cfg := &checks.SysProbeConfig{
