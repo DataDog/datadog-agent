@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate go run golang.org/x/tools/cmd/stringer -type=StorageFormat,StorageType -output enum_string.go
+//go:generate go run golang.org/x/tools/cmd/stringer -type=StorageFormat,StorageType -linecomment -output enum_string.go
 
 package config
 
