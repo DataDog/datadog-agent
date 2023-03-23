@@ -393,7 +393,7 @@ func buildNetworkTopologyMetadataWithCDP(deviceID string, store *metadata.Store,
 					Description: store.GetColumnAsString("cdp_remote.device_desc", strIndex),
 					ID:          store.GetColumnAsString("cdp_remote.device_id", strIndex),
 					IDType:      "",
-					IPAddress:   remoteDeviceAddress,
+					IPAddress:   getIpAddressFromHexDecimal(remoteDeviceAddress),
 				},
 				Interface: &metadata.TopologyLinkInterface{
 					ID:          store.GetColumnAsString("cdp_remote.interface_id", strIndex),

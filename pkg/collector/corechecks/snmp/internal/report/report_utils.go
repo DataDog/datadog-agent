@@ -8,6 +8,7 @@ package report
 import (
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -169,4 +170,25 @@ func getInterfaceConfig(interfaceConfigs []snmpintegration.InterfaceConfig, inde
 		}
 	}
 	return snmpintegration.InterfaceConfig{}, fmt.Errorf("no matching interface found for index=%s, tags=%s", index, tags)
+}
+
+// getIpAddressFromHexDecimal converts the hexadecimal representation of an ip address to a decimal one
+// for example convert "0A FA 01 4C" to "10.250.1.76"
+func getIpAddressFromHexDecimal(hexstring string) string {
+	if hexstring == "" {
+		return ""
+	}
+	hexdecList := strings.Split(hexstring, " ")
+	var decList []string
+	for _, x := range hexdecList {
+		decimal, err := strconv.ParseInt(x, 16, 64)
+		// if there's a conversion error then keep and return the initial hexadecimal value
+		if err != nil {
+			return hexstring
+		}
+		decList = append(decList, strconv.FormatInt(decimal, 10))
+	}
+
+	ipAddress := strings.Join(decList, ".")
+	return ipAddress
 }
