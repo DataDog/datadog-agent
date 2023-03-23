@@ -136,6 +136,7 @@ type OracleActivityRow struct {
 	WaitTimeMicro          uint64 `json:"wait_time_micro,omitempty"`
 	Statement              string `json:"statement,omitempty"`
 	PdbName                string `json:"pdb_name,omitempty"`
+	CdbName                string `json:"cdb_name,omitempty"`
 	QuerySignature         string `json:"query_signature,omitempty"`
 	RowMetadata
 }
@@ -271,24 +272,6 @@ func (c *Check) SampleSession() error {
 			sessionRow.WaitTimeMicro = *sample.WaitTimeMicro
 		}
 		if sample.Statement.Valid {
-			/*
-				obfuscatedQuery, err := o.ObfuscateSQLString(sample.Statement.String)
-					if err != nil {
-						error_text := fmt.Sprintf("query obfuscation failed for SQL_ID: %s, force_matching_signature: %d", sample.SQLID.String, *sample.ForceMatchingSignature)
-						if c.config.InstanceConfig.LogUnobfuscatedQueries {
-							error_text = error_text + fmt.Sprintf(" SQL: %s", sample.Statement.String)
-						}
-						log.Error(error_text)
-					} else {
-						sessionRow.Statement = obfuscatedQuery.Query
-						sessionRow.Commands = obfuscatedQuery.Metadata.Commands
-						sessionRow.Tables = strings.Split(obfuscatedQuery.Metadata.TablesCSV, ",")
-						sessionRow.Comments = obfuscatedQuery.Metadata.Comments
-						sessionRow.QuerySignature = common.GetQuerySignature(sample.Statement.String)
-					}
-			*/
-
-			//obfuscatedStatement, err := common.GetObfuscatedStatement(o, sample.Statement.String)
 			obfuscatedStatement, err := c.GetObfuscatedStatement(o, sample.Statement.String, sessionRow.ForceMatchingSignature, sessionRow.SQLID)
 			sessionRow.Statement = obfuscatedStatement.Statement
 			if err == nil {
@@ -296,20 +279,12 @@ func (c *Check) SampleSession() error {
 				sessionRow.Tables = obfuscatedStatement.Tables
 				sessionRow.Comments = obfuscatedStatement.Comments
 				sessionRow.QuerySignature = obfuscatedStatement.QuerySignature
-			} /* else {
-				obfuscationError := fmt.Sprintf("Obfuscation error for force_matching_signature: %s, SQL_ID: %d", sessionRow.SQLID, sessionRow.ForceMatchingSignature)
-				var errorText string
-				if c.config.InstanceConfig.LogUnobfuscatedQueries {
-					errorText = obfuscationError + fmt.Sprintf(" SQL: %s", obfuscatedStatement.Statement)
-				}
-				log.Errorf("%s %s", errorText, err)
-				sessionRow.Statement = obfuscationError
-			}*/
-
+			}
 		}
 		if sample.PdbName.Valid {
-			sessionRow.PdbName = c.getFullPDBName(sample.PdbName.String)
+			sessionRow.PdbName = sample.PdbName.String
 		}
+		sessionRow.CdbName = c.cdbName
 		sessionRows = append(sessionRows, sessionRow)
 	}
 	o.Stop()
@@ -329,7 +304,7 @@ func (c *Check) SampleSession() error {
 
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		log.Errorf("Error marshalling device metadata: %s", err)
+		log.Errorf("Error marshalling activity payload: %s", err)
 		return err
 	}
 

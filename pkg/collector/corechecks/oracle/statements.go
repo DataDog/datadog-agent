@@ -6,8 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
-	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/jmoiron/sqlx"
 	"golang.org/x/exp/maps"
@@ -401,14 +399,8 @@ func (c *Check) StatementMetrics() error {
 	*/
 
 	// dummy metric begin
-	o := obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})
-	queryRowDummy := QueryRow{}
 	dummyStatement := "__other__"
-	obfuscatedStatementDummy, err := o.ObfuscateSQLString(dummyStatement)
-	if err == nil {
-		dummyStatement = obfuscatedStatementDummy.Query
-		queryRowDummy.QuerySignature = common.GetQuerySignature(dummyStatement)
-	}
+	queryRowDummy := QueryRow{QuerySignature: dummyStatement}
 
 	oracleRow := OracleRow{
 		QueryRow:                queryRowDummy,
@@ -418,7 +410,6 @@ func (c *Check) StatementMetrics() error {
 		PDBName:                 c.getFullPDBName("dummyPDB"),
 		OracleRowMonotonicCount: OracleRowMonotonicCount{Executions: 1, ElapsedTime: 1},
 	}
-	o.Stop()
 	var oracleRows []OracleRow
 	oracleRows = append(oracleRows, oracleRow)
 	// dummy metric end
