@@ -242,6 +242,8 @@ func (c *CWSConsumer) Start() error {
 		provider.Start()
 	}
 
+	seclog.Infof("runtime security started")
+
 	return nil
 }
 
