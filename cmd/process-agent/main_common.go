@@ -101,7 +101,7 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 	exitCode := runApp(exit, globalParams)
 
 	// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
-	// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though we may have a
+	// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though the exit may be expected
 	// http://supervisord.org/subprocess.html#process-states
 	if exitCode == 0 {
 		<-exitGate
