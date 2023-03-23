@@ -97,7 +97,16 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 	// Log any potential misconfigs that are related to the process agent
 	misconfig.ToLog(misconfig.ProcessAgent)
 
+	exitGate := time.After(5 * time.Second)
 	exitCode := runApp(exit, globalParams)
+
+	// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
+	// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though we may have a
+	// http://supervisord.org/subprocess.html#process-states
+	if exitCode == 0 {
+		<-exitGate
+	}
+
 	cleanupAndExit(exitCode)
 }
 
@@ -150,11 +159,6 @@ func runApp(exit chan struct{}, globalParams *command.GlobalParams) int {
 	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
 	if !anyChecksEnabled(appInitDeps.Checks) {
 		log.Infof(agent6DisabledMessage)
-
-		// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
-		// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
-		// http://supervisord.org/subprocess.html#process-states
-		time.Sleep(5 * time.Second)
 		return 0
 	}
 
