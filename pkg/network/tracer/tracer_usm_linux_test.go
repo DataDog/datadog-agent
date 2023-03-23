@@ -228,7 +228,7 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 	// not ideal but, short process are hard to catch
 	for _, lib := range prefetchLibs {
 		f, err := os.Open(lib)
-		if err != nil {
+		if err == nil {
 			t.Cleanup(func() { f.Close() })
 		}
 	}
@@ -254,12 +254,8 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 			statsTags := req.StaticTags
 			// debian 10 have curl binary linked with openssl and gnutls but use only openssl during tls query (there no runtime flag available)
 			// this make harder to map lib and tags, one set of tag should match but not both
-			foundPathAndHTTPTag := false
 			if key.Path.Content == "/200/foobar" && (statsTags == tagGnuTLS || statsTags == tagOpenSSL) {
-				foundPathAndHTTPTag = true
 				t.Logf("found tag 0x%x %s", statsTags, staticTags[statsTags])
-			}
-			if foundPathAndHTTPTag {
 				return true
 			}
 			t.Logf("HTTP stat didn't match criteria %v tags 0x%x\n", key, statsTags)
