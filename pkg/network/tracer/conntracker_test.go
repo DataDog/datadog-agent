@@ -91,7 +91,7 @@ func getTracerOffsets(t *testing.T, cfg *config.Config) ([]manager.ConstantEdito
 	offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir, cfg.BPFDebug)
 	require.NoError(t, err, "could not read offset bpf module")
 	defer offsetBuf.Close()
-	return runOffsetGuessing(cfg, offsetBuf, offsetguess.NewTracerOffsetGuesser())
+	return runOffsetGuessing(cfg, offsetBuf, offsetguess.NewTracerOffsetGuesser)
 }
 
 func setupPrebuiltEBPFConntracker(t *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
