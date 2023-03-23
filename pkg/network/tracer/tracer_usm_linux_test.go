@@ -505,7 +505,7 @@ func TestProtocolClassification(t *testing.T) {
 
 func testProtocolClassificationMapCleanup(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	t.Run("protocol cleanup", func(t *testing.T) {
-		if tr.ebpfTracer.Type() == connection.EBPFFentry {
+		if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
 			t.Skip("protocol classification not supported for fentry tracer")
 		}
 		t.Cleanup(func() { tr.ebpfTracer.Pause() })

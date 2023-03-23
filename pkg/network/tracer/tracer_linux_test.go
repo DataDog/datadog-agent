@@ -1614,7 +1614,7 @@ func TestKprobeAttachWithKprobeEvents(t *testing.T) {
 
 	tr := setupTracer(t, cfg)
 
-	if tr.ebpfTracer.Type() == connection.EBPFFentry {
+	if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
 		t.Skip("skipped on Fargate")
 	}
 
