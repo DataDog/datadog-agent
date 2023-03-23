@@ -16,13 +16,22 @@ build do
   license "Apache-2.0"
   license_file "./LICENSE.txt"
 
-  build_env = {
-    "CFLAGS" => "-I#{install_dir}/embedded/include -std=c99"
-  }
+  
 
   if windows?
+    librd_dir = "c:\\librdkafka-redist"
+    build_env = {
+       "INCLUDE" => "#{librd_dir}\\librdkafka.redist.2.0.2\\build\\native\\include",
+       "LIB" => "#{librd_dir}\\librdkafka.redist.2.0.2\\build\\native\\lib\\win\\x64\\win-x64-Release\\v142"
+    }
+    
+    command "nuget install librdkafka.redist -version #{version} -OutputDirectory #{librd_dir}"
+  
     pip = "#{windows_safe_path(python_3_embedded)}\\Scripts\\pip.exe"
   else
+    build_env = {
+      "CFLAGS" => "-I#{install_dir}/embedded/include -std=c99"
+    }
     pip = "#{install_dir}/embedded/bin/pip3"
   end
 
