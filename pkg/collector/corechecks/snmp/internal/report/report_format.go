@@ -8,6 +8,7 @@ package report
 import (
 	"encoding/hex"
 	"fmt"
+	"net"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
@@ -21,6 +22,12 @@ func formatValue(value valuestore.ResultValue, format string) (valuestore.Result
 		case "mac_address":
 			// Format mac address from OctetString to IEEE 802.1a canonical format e.g. `82:a5:6e:a5:c8:01`
 			value.Value = formatColonSepBytes(val)
+		case "ip_address":
+			if len(val) == 0 {
+				value.Value = ""
+			} else {
+				value.Value = net.IP(val).String()
+			}
 		default:
 			return valuestore.ResultValue{}, fmt.Errorf("unknown format `%s` (value type `%T`)", format, value.Value)
 		}
