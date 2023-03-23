@@ -139,36 +139,40 @@ func replyWithVersion(hash string, version string, h http.Handler) http.Handler 
 func (r *HTTPReceiver) Start() {
 	if r.conf.ReceiverPort == 0 {
 		log.Debug("HTTP receiver disabled by config (apm_config.receiver_port: 0).")
-		return
+		if r.conf.ReceiverSocket == "" && r.conf.WindowsPipeName == "" {
+			return
+		} 
 	}
 
-	timeout := 5 * time.Second
-	if r.conf.ReceiverTimeout > 0 {
-		timeout = time.Duration(r.conf.ReceiverTimeout) * time.Second
-	}
-	httpLogger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
-	r.server = &http.Server{
-		ReadTimeout:  timeout,
-		WriteTimeout: timeout,
-		ErrorLog:     stdlog.New(httpLogger, "http.Server: ", 0),
-		Handler:      r.buildMux(),
-		ConnContext:  connContext,
-	}
-
-	addr := net.JoinHostPort(r.conf.ReceiverHost, strconv.Itoa(r.conf.ReceiverPort))
-	ln, err := r.listenTCP(addr)
-	if err != nil {
-		r.telemetryCollector.SendStartupError(telemetry.CantStartHttpServer, err)
-		killProcess("Error creating tcp listener: %v", err)
-	}
-	go func() {
-		defer watchdog.LogOnPanic()
-		if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
-			log.Errorf("Could not start HTTP server: %v. HTTP receiver disabled.", err)
-			r.telemetryCollector.SendStartupError(telemetry.CantStartHttpServer, err)
+	if r.conf.ReceiverPort != 0 {
+		timeout := 5 * time.Second
+		if r.conf.ReceiverTimeout > 0 {
+			timeout = time.Duration(r.conf.ReceiverTimeout) * time.Second
 		}
-	}()
-	log.Infof("Listening for traces at http://%s", addr)
+		httpLogger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
+		r.server = &http.Server{
+			ReadTimeout:  timeout,
+			WriteTimeout: timeout,
+			ErrorLog:     stdlog.New(httpLogger, "http.Server: ", 0),
+			Handler:      r.buildMux(),
+			ConnContext:  connContext,
+		}
+
+		addr := net.JoinHostPort(r.conf.ReceiverHost, strconv.Itoa(r.conf.ReceiverPort))
+		ln, err := r.listenTCP(addr)
+		if err != nil {
+			r.telemetryCollector.SendStartupError(telemetry.CantStartHttpServer, err)
+			killProcess("Error creating tcp listener: %v", err)
+		}
+		go func() {
+			defer watchdog.LogOnPanic()
+			if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
+				log.Errorf("Could not start HTTP server: %v. HTTP receiver disabled.", err)
+				r.telemetryCollector.SendStartupError(telemetry.CantStartHttpServer, err)
+			}
+		}()
+		log.Infof("Listening for traces at http://%s", addr)
+	}
 
 	if path := r.conf.ReceiverSocket; path != "" {
 		ln, err := r.listenUnix(path)
@@ -254,7 +258,7 @@ func (r *HTTPReceiver) listenTCP(addr string) (net.Listener, error) {
 
 // Stop stops the receiver and shuts down the HTTP server.
 func (r *HTTPReceiver) Stop() error {
-	if r.conf.ReceiverPort == 0 {
+	if r.conf.ReceiverPort == 0 && r.conf.ReceiverSocket == "" && r.conf.WindowsPipeName == "" {
 		return nil
 	}
 	r.exit <- struct{}{}
