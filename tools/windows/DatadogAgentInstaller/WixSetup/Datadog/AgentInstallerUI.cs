@@ -77,6 +77,7 @@ namespace WixSetup.Datadog
             OnFreshInstall(Dialogs.AgentUserDialog, Buttons.Back, new ShowDialog(Dialogs.SiteSelectionDialog, Conditions.NOT_DatadogYamlExists));
             OnFreshInstall(Dialogs.AgentUserDialog, Buttons.Back, new ShowDialog(NativeDialogs.CustomizeDlg, Conditions.DatadogYamlExists));
             OnFreshInstall(NativeDialogs.VerifyReadyDlg, Buttons.Back, new ShowDialog(Dialogs.AgentUserDialog));
+
             // Upgrade track
             OnUpgrade(NativeDialogs.WelcomeDlg, Buttons.Next, new ShowDialog(NativeDialogs.CustomizeDlg));
             OnUpgrade(NativeDialogs.CustomizeDlg, Buttons.Back, new ShowDialog(NativeDialogs.WelcomeDlg));
@@ -87,15 +88,36 @@ namespace WixSetup.Datadog
                 new SpawnDialog(Dialogs.ErrorModalDialog, new Condition("DDAgentUser_Valid <> \"True\"")) { Order = 2 },
                 new ShowDialog(NativeDialogs.VerifyReadyDlg, new Condition("DDAgentUser_Valid = \"True\"")) { Order = 3 });
             OnUpgrade(NativeDialogs.VerifyReadyDlg, Buttons.Back, new ShowDialog(Dialogs.AgentUserDialog));
+
             // Maintenance track
             OnMaintenance(NativeDialogs.MaintenanceWelcomeDlg, Buttons.Next, new ShowDialog(NativeDialogs.MaintenanceTypeDlg));
             OnMaintenance(NativeDialogs.MaintenanceTypeDlg, Buttons.Back, new ShowDialog(NativeDialogs.MaintenanceWelcomeDlg));
-            OnMaintenance(NativeDialogs.MaintenanceTypeDlg, "ChangeButton", new ShowDialog(NativeDialogs.CustomizeDlg));
+
+            OnMaintenance(NativeDialogs.MaintenanceTypeDlg, "ChangeButton",
+                new SetProperty("PREVIOUS_PAGE", NativeDialogs.CustomizeDlg),
+                new ShowDialog(NativeDialogs.CustomizeDlg));
+
+            OnMaintenance(NativeDialogs.MaintenanceTypeDlg, Buttons.Repair,
+                new SetProperty("PREVIOUS_PAGE", NativeDialogs.MaintenanceTypeDlg),
+                new ShowDialog(Dialogs.AgentUserDialog));
+
+            OnMaintenance(NativeDialogs.MaintenanceTypeDlg, Buttons.Remove,
+                new ShowDialog(NativeDialogs.VerifyReadyDlg));
+
             OnMaintenance(NativeDialogs.CustomizeDlg, Buttons.Back, new ShowDialog(NativeDialogs.MaintenanceTypeDlg));
-            OnMaintenance(NativeDialogs.CustomizeDlg, Buttons.Next, new ShowDialog(NativeDialogs.VerifyReadyDlg));
-            OnMaintenance(NativeDialogs.MaintenanceTypeDlg, Buttons.Repair, new ShowDialog(NativeDialogs.VerifyReadyDlg));
-            OnMaintenance(NativeDialogs.MaintenanceTypeDlg, Buttons.Remove, new ShowDialog(NativeDialogs.VerifyReadyDlg));
-            // There's not way to know if we were on MaintenanceTypeDlg or CustomizeDlg previously, so go back the furthest.
+            OnMaintenance(NativeDialogs.CustomizeDlg, Buttons.Next, new ShowDialog(Dialogs.AgentUserDialog));
+
+            OnMaintenance(Dialogs.AgentUserDialog, Buttons.Back,
+                new ShowDialog(NativeDialogs.CustomizeDlg, new Condition($"PREVIOUS_PAGE = \"{NativeDialogs.CustomizeDlg}\"")) { Order = 1 });
+            OnMaintenance(Dialogs.AgentUserDialog, Buttons.Back,
+                new ShowDialog(NativeDialogs.MaintenanceTypeDlg, new Condition($"PREVIOUS_PAGE = \"{NativeDialogs.MaintenanceTypeDlg}\"")) { Order = 2 });
+            OnMaintenance(Dialogs.AgentUserDialog, Buttons.Next,
+                new SetProperty("PREVIOUS_PAGE", Dialogs.AgentUserDialog),
+                new ExecuteCustomAction(agentCustomActions.ProcessDdAgentUserCredentialsUI) { Order = 1 },
+                new SpawnDialog(Dialogs.ErrorModalDialog, new Condition("DDAgentUser_Valid <> \"True\"")) { Order = 2 },
+                new ShowDialog(NativeDialogs.VerifyReadyDlg, new Condition("DDAgentUser_Valid = \"True\"")) { Order = 3 });
+
+            // There's no way to know if we were on MaintenanceTypeDlg or CustomizeDlg previously, so go back the furthest.
             OnMaintenance(NativeDialogs.VerifyReadyDlg, Buttons.Back, new ShowDialog(NativeDialogs.MaintenanceTypeDlg));
 
             On(NativeDialogs.ExitDialog, Buttons.Finish, new CloseDialog { Order = 9999 });

@@ -24,6 +24,14 @@ namespace Datadog.CustomActions.Native
                 .Any(svc => svc.ServiceName.Equals(serviceName, StringComparison.InvariantCultureIgnoreCase));
         }
 
+        public ServiceControllerStatus? ServiceStatus(string serviceName)
+        {
+            return System.ServiceProcess.ServiceController
+                .GetServices()
+                .FirstOrDefault(svc => svc.ServiceName.Equals(serviceName, StringComparison.InvariantCultureIgnoreCase))
+                ?.Status;
+        }
+
         public void SetCredentials(string serviceName, string username, string password)
         {
             var svc = new System.ServiceProcess.ServiceController(serviceName);

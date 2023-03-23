@@ -255,6 +255,14 @@ namespace Datadog.CustomActions
                 {
                     ddAgentUserName = "NT AUTHORITY\\SYSTEM";
                 }
+                else if (ddAgentUserName == "LocalService")
+                {
+                    ddAgentUserName = "NT AUTHORITY\\LOCAL SERVICE";
+                }
+                else if (ddAgentUserName == "NetworkService")
+                {
+                    ddAgentUserName = "NT AUTHORITY\\NETWORK SERVICE";
+                }
 
                 if (string.IsNullOrEmpty(ddAgentUserName))
                 {

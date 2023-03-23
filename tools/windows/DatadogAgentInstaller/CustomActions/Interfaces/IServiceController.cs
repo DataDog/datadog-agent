@@ -1,4 +1,5 @@
 using System;
+using System.ServiceProcess;
 
 namespace Datadog.CustomActions.Interfaces
 {
@@ -6,6 +7,7 @@ namespace Datadog.CustomActions.Interfaces
     {
         Tuple<string,string>[] GetServiceNames();
         bool ServiceExists(string serviceName);
+        ServiceControllerStatus? ServiceStatus(string serviceName);
         void SetCredentials(string serviceName, string username, string password);
         void StopService(string serviceName, TimeSpan timeout);
         void StartService(string serviceName, TimeSpan timeout);

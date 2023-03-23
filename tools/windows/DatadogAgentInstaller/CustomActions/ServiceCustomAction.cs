@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Security.Principal;
 using Datadog.CustomActions.Extensions;
@@ -179,6 +180,40 @@ namespace Datadog.CustomActions
         {
             try
             {
+#if false
+                try
+                {
+                    // Kill MMC as being open can keep a handle on the DatadogAgent service
+                    // which will cause a cryptic 1923 error later in the InstallServices phase.
+                    // We do this here as opposed to using Wix's CloseApplication feature because this custom action
+                    // runs on uninstall.
+                    var mmcProcesses = Process.GetProcessesByName("mmc");
+                    if (mmcProcesses.Any())
+                    {
+                        _session.Log("The installer detected that at least one mmc.exe process is currently running. " +
+                                     "The mmc.exe process can keep a handle on the Datadog Agent service and cause error 1923 " +
+                                     "while trying to install/upgrade the Datadog Agent services. The installer will now attempt to " +
+                                     "close those processes.");
+                    }
+                    foreach (var mmcProc in mmcProcesses)
+                    {
+                        try
+                        {
+                            _session.Log($"Found {mmcProc.ProcessName} (PID:{mmcProc.Id}), attempting to kill it.");
+                            mmcProc.Kill();
+                        }
+                        finally
+                        {
+                            // Don't fail
+                        }
+                    }
+                }
+                finally
+                {
+                    // Don't fail
+                }
+#endif
+
                 // Stop each service individually in case the install is broken
                 // e.g. datadogagent doesn't exist or the service dependencies are not correect.
                 var ddservices = new []
@@ -204,6 +239,8 @@ namespace Datadog.CustomActions
                             _session.Message(InstallMessage.ActionStart, actionRecord);
                             _session.Log($"Stopping service {service}");
                             _serviceController.StopService(service, TimeSpan.FromMinutes(3));
+
+                            _session.Log($"Service {service} status: {_serviceController.ServiceStatus(service)}");
                         }
                         else
                         {
@@ -212,12 +249,14 @@ namespace Datadog.CustomActions
                     }
                     catch (Exception e)
                     {
-                        _session.Log($"Failed to stop service {service}: {e}");
+                        _session.Log($"Service {service} status: {_serviceController.ServiceStatus(service)}");
                         if (!continueOnError)
                         {
-                            // rethrow exception implictly to preserve the original error information
-                            throw;
+                            // rethrow exception implicitly to preserve the original error information
+                            throw new Exception($"Failed to stop service {service}", e);
                         }
+                        _session.Log($"Failed to stop service {service} due to exception {e}\r\n" +
+                                     "but will be translated to success due to continue on error.");
                     }
                 }
             }
