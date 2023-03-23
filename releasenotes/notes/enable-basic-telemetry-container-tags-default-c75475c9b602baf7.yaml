@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    Enable ``basic_telemetry_add_container_tags`` by default in containerized environments.
