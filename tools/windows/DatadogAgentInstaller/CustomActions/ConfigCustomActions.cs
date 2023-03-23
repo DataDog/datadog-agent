@@ -27,32 +27,34 @@ namespace Datadog.CustomActions
 
         private static ActionResult ReadConfig(ISession session)
         {
-            var configFolder = session.Property("APPLICATIONDATADIRECTORY");
-            var configFilePath = Path.Combine(configFolder, "datadog.yaml");
-            if (!File.Exists(configFilePath))
-            {
-                session.Log($"No user config found in {configFilePath}, continuing.");
-                return ActionResult.Success;
-            }
             try
             {
-                using (var input = new StreamReader(configFilePath))
+                var configFolder = session.Property("APPLICATIONDATADIRECTORY");
+                var configFilePath = Path.Combine(configFolder, "datadog.yaml");
+                if (!File.Exists(configFilePath))
                 {
-                    var deserializer = new DeserializerBuilder()
+                    session.Log($"No user config found in {configFilePath}, continuing.");
+                    session["DATADOGYAMLEXISTS"] = "no";
+                    return ActionResult.Success;
+                }
+
+                session["DATADOGYAMLEXISTS"] = "yes";
+
+                using var input = new StreamReader(configFilePath);
+                var deserializer = new DeserializerBuilder()
                     .IgnoreUnmatchedProperties()
                     .WithNamingConvention(UnderscoredNamingConvention.Instance)
                     .Build();
 
-                    var datadogConfig = deserializer.Deserialize<DatadogConfig>(input);
-                    if (string.IsNullOrEmpty(session["APIKEY"]))
-                    {
-                        session["APIKEY"] = datadogConfig.ApiKey;
-                    }
+                var datadogConfig = deserializer.Deserialize<DatadogConfig>(input);
+                if (string.IsNullOrEmpty(session.Property("APIKEY")))
+                {
+                    session["APIKEY"] = datadogConfig.ApiKey;
+                }
 
-                    if (string.IsNullOrEmpty(session["SITE"]))
-                    {
-                        session["SITE"] = datadogConfig.Site;
-                    }
+                if (string.IsNullOrEmpty(session.Property("SITE")))
+                {
+                    session["SITE"] = datadogConfig.Site;
                 }
             }
             catch (Exception e)
@@ -241,7 +243,7 @@ namespace Datadog.CustomActions
 
         static string FormatTags(string value)
         {
-            const string newTagLine = "\n  - ";
+            string newTagLine = $"{Environment.NewLine} - ";
             var tagsConfiguration = new StringBuilder();
             tagsConfiguration.Append("tags: ");
             tagsConfiguration.Append(newTagLine);

@@ -16,9 +16,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func Test_getScalarValueFromSymbol(t *testing.T) {
@@ -598,7 +600,7 @@ metric_tags:
 			},
 		},
 		{
-			name: "mapping does not exist",
+			name: "index mapping does not exist",
 			// language=yaml
 			rawMetricConfig: []byte(`
 table:
@@ -661,6 +663,106 @@ metric_tags:
 			expectedLogs: []logCount{
 				{"[DEBUG] getTagsFromMetricTagConfigList: error getting tags. index `100` not found in indexes `[1]`", 1},
 			},
+		},
+		{
+			name: "tag value mapping",
+			// language=yaml
+			rawMetricConfig: []byte(`
+table:
+  OID: 1.3.6.1.2.1.2.2
+  name: ifTable
+symbols:
+  - OID: 1.3.6.1.2.1.2.2.1.10
+    name: ifInOctets
+metric_tags:
+  - tag: if_type
+    column:
+      OID: 1.3.6.1.2.1.2.2.1.3
+      name: ifType
+    mapping:
+      1: other
+      2: regular1822
+      3: hdh1822
+      4: ddn-x25
+      29: ultra
+`),
+			fullIndex: "1",
+			values: &valuestore.ResultValueStore{
+				ColumnValues: map[string]map[string]valuestore.ResultValue{
+					"1.3.6.1.2.1.2.2.1.3": {
+						"1": valuestore.ResultValue{
+							Value: float64(2),
+						},
+					},
+				},
+			},
+			expectedTags: []string{"if_type:regular1822"},
+		},
+		{
+			name: "tag value mapping does not exist",
+			// language=yaml
+			rawMetricConfig: []byte(`
+table:
+  OID: 1.3.6.1.2.1.2.2
+  name: ifTable
+symbols:
+  - OID: 1.3.6.1.2.1.2.2.1.10
+    name: ifInOctets
+metric_tags:
+  - tag: if_type
+    column:
+      OID: 1.3.6.1.2.1.2.2.1.3
+      name: ifType
+    mapping:
+      1: other
+      2: regular1822
+      3: hdh1822
+      4: ddn-x25
+      29: ultra
+`),
+			fullIndex: "1",
+			values: &valuestore.ResultValueStore{
+				ColumnValues: map[string]map[string]valuestore.ResultValue{
+					"1.3.6.1.2.1.2.2.1.3": {
+						"1": valuestore.ResultValue{
+							Value: float64(5),
+						},
+					},
+				},
+			},
+			expectedTags: []string(nil),
+			expectedLogs: []logCount{
+				{"[DEBUG] GetTags: error getting tags. mapping for `5` does not exist.", 1},
+			},
+		},
+		{
+			name: "empty tag value mapping",
+			// language=yaml
+			rawMetricConfig: []byte(`
+table:
+  OID: 1.3.6.1.2.1.2.2
+  name: ifTable
+symbols:
+  - OID: 1.3.6.1.2.1.2.2.1.10
+    name: ifInOctets
+metric_tags:
+  - tag: if_type
+    column:
+      OID: 1.3.6.1.2.1.2.2.1.3
+      name: ifType
+    mapping:
+`),
+			fullIndex: "1",
+			values: &valuestore.ResultValueStore{
+				ColumnValues: map[string]map[string]valuestore.ResultValue{
+					"1.3.6.1.2.1.2.2.1.3": {
+						"1": valuestore.ResultValue{
+							Value: float64(7),
+						},
+					},
+				},
+			},
+			expectedTags: []string{"if_type:7"},
 		},
 	}
 	for _, tt := range tests {
@@ -726,4 +828,78 @@ func Test_netmaskToPrefixlen(t *testing.T) {
 	assert.Equal(t, 2, netmaskToPrefixlen("192.0.0.0"))
 	assert.Equal(t, 1, netmaskToPrefixlen("128.0.0.0"))
 	assert.Equal(t, 0, netmaskToPrefixlen("0.0.0.0"))
+}
+
+func Test_getInterfaceConfig(t *testing.T) {
+	tests := []struct {
+		name                    string
+		interfaceConfigs        []snmpintegration.InterfaceConfig
+		index                   string
+		tags                    []string
+		expectedInterfaceConfig snmpintegration.InterfaceConfig
+		expectedError           string
+	}{
+		{
+			name: "matched by name",
+			interfaceConfigs: []snmpintegration.InterfaceConfig{
+				{
+					MatchField: "name",
+					MatchValue: "eth0",
+					InSpeed:    80,
+				},
+			},
+			index: "10",
+			tags: []string{
+				"interface:eth0",
+			},
+			expectedInterfaceConfig: snmpintegration.InterfaceConfig{
+				MatchField: "name",
+				MatchValue: "eth0",
+				InSpeed:    80,
+			},
+		},
+		{
+			name: "matched by index",
+			interfaceConfigs: []snmpintegration.InterfaceConfig{
+				{
+					MatchField: "index",
+					MatchValue: "10",
+					InSpeed:    80,
+				},
+			},
+			index: "10",
+			tags: []string{
+				"interface:eth0",
+			},
+			expectedInterfaceConfig: snmpintegration.InterfaceConfig{
+				MatchField: "index",
+				MatchValue: "10",
+				InSpeed:    80,
+			},
+		},
+		{
+			name: "not matched",
+			interfaceConfigs: []snmpintegration.InterfaceConfig{
+				{
+					MatchField: "index",
+					MatchValue: "99",
+					InSpeed:    80,
+				},
+			},
+			index: "10",
+			tags: []string{
+				"interface:eth0",
+			},
+			expectedError: "no matching interface found for index=10, tags=[interface:eth0]",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config, err := getInterfaceConfig(tt.interfaceConfigs, tt.index, tt.tags)
+			if tt.expectedError != "" {
+				assert.EqualError(t, err, tt.expectedError)
+			}
+			assert.Equal(t, tt.expectedInterfaceConfig, config)
+		})
+	}
 }

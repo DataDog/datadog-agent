@@ -20,40 +20,25 @@
 #include "protocols/classification/dispatcher-helpers.h"
 #include "protocols/http/http.h"
 #include "protocols/http/buffer.h"
+#include "protocols/http2/decoding.h"
 #include "protocols/tls/https.h"
 #include "protocols/tls/tags-types.h"
+#include "protocols/tls/java-tls-erpc.h"
+#include "protocols/kafka/kafka-parsing.h"
 
 #define SO_SUFFIX_SIZE 3
 
-// This entry point is needed to bypass a memory limit on socket filters
-// See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Known-issues
 SEC("socket/protocol_dispatcher")
 int socket__protocol_dispatcher(struct __sk_buff *skb) {
     protocol_dispatcher_entrypoint(skb);
     return 0;
 }
 
-SEC("socket/http_filter")
-int socket__http_filter(struct __sk_buff* skb) {
-    skb_info_t skb_info;
-    http_transaction_t http;
-    bpf_memset(&http, 0, sizeof(http));
-
-    if (!read_conn_tuple_skb(skb, &skb_info, &http.tup)) {
-        return 0;
-    }
-
-    if (!http_allow_packet(&http, skb, &skb_info)) {
-        return 0;
-    }
-
-    // src_port represents the source port number *before* normalization
-    // for more context please refer to http-types.h comment on `owned_by_src_port` field
-    http.owned_by_src_port = http.tup.sport;
-    normalize_tuple(&http.tup);
-
-    read_into_buffer_skb((char *)http.request_fragment, skb, &skb_info);
-    http_process(&http, &skb_info, NO_TAGS);
+// This entry point is needed to bypass a memory limit on socket filters
+// See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Known-issues
+SEC("socket/protocol_dispatcher_kafka")
+int socket__protocol_dispatcher_kafka(struct __sk_buff *skb) {
+    dispatch_kafka(skb);
     return 0;
 }
 
@@ -70,7 +55,9 @@ int tracepoint__net__netif_receive_skb(struct pt_regs* ctx) {
     log_debug("tracepoint/net/netif_receive_skb\n");
     // flush batch to userspace
     // because perf events can't be sent from socket filter programs
-    http_flush_batch(ctx);
+    http_batch_flush(ctx);
+    http2_batch_flush(ctx);
+    kafka_batch_flush(ctx);
     return 0;
 }
 
@@ -196,7 +183,7 @@ int uretprobe__SSL_read(struct pt_regs* ctx) {
     }
 
     https_process(t, args->buf, len, LIBSSL);
-    http_flush_batch(ctx);
+    http_batch_flush(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     return 0;
@@ -233,7 +220,7 @@ int uretprobe__SSL_write(struct pt_regs* ctx) {
     }
 
     https_process(t, args->buf, write_len, LIBSSL);
-    http_flush_batch(ctx);
+    http_batch_flush(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
     return 0;
@@ -286,7 +273,7 @@ int uretprobe__SSL_read_ex(struct pt_regs* ctx) {
     }
 
     https_process(conn_tuple, args->buf, bytes_count, LIBSSL);
-    http_flush_batch(ctx);
+    http_batch_flush(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_read_ex_args, &pid_tgid);
     return 0;
@@ -336,7 +323,7 @@ int uretprobe__SSL_write_ex(struct pt_regs* ctx) {
     }
 
     https_process(conn_tuple, args->buf, bytes_count, LIBSSL);
-    http_flush_batch(ctx);
+    http_batch_flush(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_write_ex_args, &pid_tgid);
     return 0;
@@ -353,6 +340,8 @@ int uprobe__SSL_shutdown(struct pt_regs* ctx) {
     }
 
     https_finish(t);
+    http_batch_flush(ctx);
+
     bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_ctx);
     return 0;
 }
@@ -457,7 +446,7 @@ int uretprobe__gnutls_record_recv(struct pt_regs *ctx) {
     }
 
     https_process(t, args->buf, read_len, LIBGNUTLS);
-    http_flush_batch(ctx);
+    http_batch_flush(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     return 0;
@@ -495,7 +484,7 @@ int uretprobe__gnutls_record_send(struct pt_regs *ctx) {
     }
 
     https_process(t, args->buf, write_len, LIBGNUTLS);
-    http_flush_batch(ctx);
+    http_batch_flush(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
     return 0;
@@ -518,6 +507,7 @@ SEC("uprobe/gnutls_bye")
 int uprobe__gnutls_bye(struct pt_regs *ctx) {
     void *ssl_session = (void *)PT_REGS_PARM1(ctx);
     gnutls_goodbye(ssl_session);
+    http_batch_flush(ctx);
     return 0;
 }
 
@@ -526,6 +516,7 @@ SEC("uprobe/gnutls_deinit")
 int uprobe__gnutls_deinit(struct pt_regs *ctx) {
     void *ssl_session = (void *)PT_REGS_PARM1(ctx);
     gnutls_goodbye(ssl_session);
+    http_batch_flush(ctx);
     return 0;
 }
 
@@ -625,6 +616,15 @@ int kretprobe__do_sys_open(struct pt_regs* ctx) {
 SEC("kretprobe/do_sys_openat2")
 int kretprobe__do_sys_openat2(struct pt_regs* ctx) {
     return do_sys_open_helper_exit(ctx);
+}
+
+SEC("kprobe/do_vfs_ioctl")
+int kprobe__do_vfs_ioctl(struct pt_regs *ctx) {
+    if (is_usm_erpc_request(ctx)) {
+        handle_erpc_request(ctx);
+    }
+
+    return 0;
 }
 
 // This number will be interpreted by elf-loader to set the current running kernel version

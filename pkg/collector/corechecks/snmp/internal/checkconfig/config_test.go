@@ -7,6 +7,7 @@ package checkconfig
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 	"regexp"
 	"testing"
 	"time"
@@ -81,6 +82,16 @@ metrics:
       3: ipv4z
       4: ipv6z
       16: dns
+  - tag: if_type
+    column:
+      OID: 1.3.6.1.2.1.2.2.1.3
+      name: ifType
+    mapping:
+      1: other
+      2: regular1822
+      3: hdh1822
+      4: ddn-x25
+      29: ultra
   - column:
       OID: '1.2.3.4.8.1.2'
       name: 'cpiPduName'
@@ -92,6 +103,12 @@ metric_tags:
   - OID: 1.2.3
     symbol: mySymbol
     tag: my_symbol
+  - OID: 1.2.3
+    symbol: mySymbol
+    tag: my_symbol_mapped
+    mapping:
+      1: one
+      2: two
   - OID: 1.2.3
     symbol: mySymbol
     match: '(\w)(\w+)'
@@ -169,6 +186,15 @@ bulk_max_repetitions: 20
 					"4":  "ipv6z",
 					"16": "dns",
 				}},
+				{Tag: "if_type",
+					Column: SymbolConfig{OID: "1.3.6.1.2.1.2.2.1.3", Name: "ifType"},
+					Mapping: map[string]string{
+						"1":  "other",
+						"2":  "regular1822",
+						"3":  "hdh1822",
+						"4":  "ddn-x25",
+						"29": "ultra",
+					}},
 				{
 					Column: SymbolConfig{
 						Name: "cpiPduName",
@@ -189,6 +215,7 @@ bulk_max_repetitions: 20
 
 	expectedMetricTags := []MetricTagConfig{
 		{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol"},
+		{Tag: "my_symbol_mapped", OID: "1.2.3", Name: "mySymbol", Mapping: map[string]string{"1": "one", "2": "two"}},
 		{
 			OID:     "1.2.3",
 			Name:    "mySymbol",
@@ -1497,6 +1524,67 @@ min_collection_interval: -10
 				assert.EqualError(t, err, tt.expectedErr)
 			} else {
 				assert.Equal(t, tt.expectedInterval, config.MinCollectionInterval)
+			}
+		})
+	}
+}
+
+func Test_buildConfig_InterfaceConfigs(t *testing.T) {
+	tests := []struct {
+		name                     string
+		rawInstanceConfig        []byte
+		rawInitConfig            []byte
+		expectedInterfaceConfigs []snmpintegration.InterfaceConfig
+		expectedErr              string
+	}{
+		{
+			name: "interface config as yaml",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+interface_configs:
+  - match_field: "name"
+    match_value: "eth0"
+    in_speed: 25
+    out_speed: 10
+`),
+			// language=yaml
+			rawInitConfig: []byte(``),
+			expectedInterfaceConfigs: []snmpintegration.InterfaceConfig{
+				{
+					MatchField: "name",
+					MatchValue: "eth0",
+					InSpeed:    25,
+					OutSpeed:   10,
+				},
+			},
+		},
+		{
+			name: "interface config as json string",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+interface_configs: '[{"match_field":"name","match_value":"eth0","in_speed":25,"out_speed":10}]'
+`),
+			// language=yaml
+			rawInitConfig: []byte(``),
+			expectedInterfaceConfigs: []snmpintegration.InterfaceConfig{
+				{
+					MatchField: "name",
+					MatchValue: "eth0",
+					InSpeed:    25,
+					OutSpeed:   10,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig)
+			if tt.expectedErr != "" {
+				assert.EqualError(t, err, tt.expectedErr)
+			} else {
+				assert.Equal(t, tt.expectedInterfaceConfigs, config.InterfaceConfigs)
 			}
 		})
 	}

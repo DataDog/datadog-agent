@@ -45,9 +45,19 @@ func NewInvocationSubProcessor(appsec Monitorer) *InvocationSubProcessor {
 
 func (p *InvocationSubProcessor) OnInvokeStart(_ *invocationlifecycle.InvocationStartDetails, _ *invocationlifecycle.RequestHandler) {
 	// In monitoring-only mode - without blocking - we can wait until the request's end to monitor it
+
+	// XXX: Because this *InvocationSubProcessor is referenced as an interface,
+	// a nil check like (*myInterface)(nil) != nil will return true.
+	// See https://go.dev/tour/methods/12
+	if p == nil {
+		return
+	}
 }
 
 func (p *InvocationSubProcessor) OnInvokeEnd(endDetails *invocationlifecycle.InvocationEndDetails, invocCtx *invocationlifecycle.RequestHandler) {
+	if p == nil {
+		return
+	}
 	span := invocCtx
 	// Set the span tags that are always expected to be there when appsec is enabled
 	setAppSecEnabledTags(span)

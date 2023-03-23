@@ -60,7 +60,7 @@ profiles:
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 
-	deviceCk.SetSender(report.NewMetricSender(sender, ""))
+	deviceCk.SetSender(report.NewMetricSender(sender, "", nil))
 
 	sysObjectIDPacket := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{
@@ -356,7 +356,7 @@ experimental_detect_metrics_enabled: true
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 
-	deviceCk.SetSender(report.NewMetricSender(sender, ""))
+	deviceCk.SetSender(report.NewMetricSender(sender, "", nil))
 
 	sysObjectIDPacket := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{
@@ -738,7 +738,7 @@ profiles:
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
-	deviceCk.SetSender(report.NewMetricSender(sender, ""))
+	deviceCk.SetSender(report.NewMetricSender(sender, "", nil))
 	sess.On("GetNext", []string{"1.0"}).Return(session.CreateGetNextPacket("9999", gosnmp.EndOfMibView, nil), nil)
 
 	deviceCk.detectMetricsToMonitor(sess)
@@ -790,12 +790,12 @@ community_string: public
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 	// without hostname
-	deviceCk.SetSender(report.NewMetricSender(sender, ""))
+	deviceCk.SetSender(report.NewMetricSender(sender, "", nil))
 	deviceCk.sender.Gauge("snmp.devices_monitored", float64(1), []string{"snmp_device:1.2.3.4"})
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", []string{"snmp_device:1.2.3.4"})
 
 	// with hostname
-	deviceCk.SetSender(report.NewMetricSender(sender, "device:123"))
+	deviceCk.SetSender(report.NewMetricSender(sender, "device:123", nil))
 	deviceCk.sender.Gauge("snmp.devices_monitored", float64(1), []string{"snmp_device:1.2.3.4"})
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "device:123", []string{"snmp_device:1.2.3.4"})
 }
@@ -889,7 +889,7 @@ profiles:
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 
-	deviceCk.SetSender(report.NewMetricSender(sender, ""))
+	deviceCk.SetSender(report.NewMetricSender(sender, "", nil))
 
 	sysObjectIDPacket := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{
@@ -1183,7 +1183,7 @@ profiles:
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
 	sender.SetupAcceptAll()
 
-	deviceCk.SetSender(report.NewMetricSender(sender, ""))
+	deviceCk.SetSender(report.NewMetricSender(sender, "", nil))
 
 	packet := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{},
@@ -1223,7 +1223,7 @@ community_string: public
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
 	sender.SetupAcceptAll()
 
-	deviceCk.SetSender(report.NewMetricSender(sender, ""))
+	deviceCk.SetSender(report.NewMetricSender(sender, "", nil))
 
 	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("GetNext", []string{"1.3.6.1.2.1.1.2.0"}).Return(session.CreateGetNextPacket("1.3.6.1.2.1.1.5.0", gosnmp.OctetString, []byte(`123`)), nil)

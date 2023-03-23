@@ -191,24 +191,25 @@ unknown_key.unknown_subkey: true
 }
 
 func TestUnknownVarsWarning(t *testing.T) {
-	test := func(v string, unknown bool) func(*testing.T) {
+	test := func(v string, unknown bool, additional []string) func(*testing.T) {
 		return func(t *testing.T) {
 			env := []string{fmt.Sprintf("%s=foo", v)}
 			var exp []string
 			if unknown {
 				exp = append(exp, v)
 			}
-			assert.Equal(t, exp, findUnknownEnvVars(Mock(t), env))
+			assert.Equal(t, exp, findUnknownEnvVars(Mock(t), env, additional))
 		}
 	}
-	t.Run("DD_API_KEY", test("DD_API_KEY", false))
-	t.Run("DD_SITE", test("DD_SITE", false))
-	t.Run("DD_UNKNOWN", test("DD_UNKNOWN", true))
-	t.Run("UNKNOWN", test("UNKNOWN", false)) // no DD_ prefix
-	t.Run("DD_PROXY_NO_PROXY", test("DD_PROXY_NO_PROXY", false))
-	t.Run("DD_PROXY_HTTP", test("DD_PROXY_HTTP", false))
-	t.Run("DD_PROXY_HTTPS", test("DD_PROXY_HTTPS", false))
-	t.Run("DD_INSIDE_CI", test("DD_INSIDE_CI", false))
+	t.Run("DD_API_KEY", test("DD_API_KEY", false, nil))
+	t.Run("DD_SITE", test("DD_SITE", false, nil))
+	t.Run("DD_UNKNOWN", test("DD_UNKNOWN", true, nil))
+	t.Run("UNKNOWN", test("UNKNOWN", false, nil)) // no DD_ prefix
+	t.Run("DD_PROXY_NO_PROXY", test("DD_PROXY_NO_PROXY", false, nil))
+	t.Run("DD_PROXY_HTTP", test("DD_PROXY_HTTP", false, nil))
+	t.Run("DD_PROXY_HTTPS", test("DD_PROXY_HTTPS", false, nil))
+	t.Run("DD_INSIDE_CI", test("DD_INSIDE_CI", false, nil))
+	t.Run("DD_SYSTEM_PROBE_EXTRA", test("DD_SYSTEM_PROBE_EXTRA", false, []string{"DD_SYSTEM_PROBE_EXTRA"}))
 }
 
 func TestSiteEnvVar(t *testing.T) {
@@ -228,6 +229,17 @@ func TestSiteEnvVar(t *testing.T) {
 	assert.Nil(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 	assert.Equal(t, "https://external-agent.datadoghq.eu", externalAgentURL)
+}
+
+func TestDefaultTraceManagedServicesEnvVarValue(t *testing.T) {
+	testConfig := setupConfFromYAML("")
+	assert.Equal(t, true, testConfig.Get("serverless.trace_managed_services"))
+}
+
+func TestExplicitFalseTraceManagedServicesEnvVar(t *testing.T) {
+	t.Setenv("DD_TRACE_MANAGED_SERVICES", "false")
+	testConfig := setupConfFromYAML("")
+	assert.Equal(t, false, testConfig.Get("serverless.trace_managed_services"))
 }
 
 func TestDDHostnameFileEnvVar(t *testing.T) {

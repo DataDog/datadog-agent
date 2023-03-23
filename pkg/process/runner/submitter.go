@@ -15,10 +15,12 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/comp/process/types"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
@@ -32,14 +34,14 @@ import (
 )
 
 type Submitter interface {
-	Submit(start time.Time, name string, messages []model.MessageBody)
+	Submit(start time.Time, name string, messages *types.Payload)
 	Start() error
 	Stop()
 }
 
-var _ Submitter = &checkSubmitter{}
+var _ Submitter = &CheckSubmitter{}
 
-type checkSubmitter struct {
+type CheckSubmitter struct {
 	// Per-check Weighted Queues
 	processResults     *api.WeightedQueue
 	rtProcessResults   *api.WeightedQueue
@@ -68,11 +70,11 @@ type checkSubmitter struct {
 
 	forwarderRetryMaxQueueBytes int
 
-	// Callback for setting realtime mode. If this is nil realtime mode is never toggled.
-	updateRTStatusCallback func([]*model.CollectorStatus)
+	// Channel for notifying the submitter to enable/disable realtime mode
+	rtNotifierChan chan types.RTResponse
 }
 
-func NewSubmitter(hostname string, enableRealtimeCallback func([]*model.CollectorStatus)) (*checkSubmitter, error) {
+func NewSubmitter(hostname string) (*CheckSubmitter, error) {
 	queueBytes := ddconfig.Datadog.GetInt("process_config.process_queue_bytes")
 	if queueBytes <= 0 {
 		log.Warnf("Invalid queue bytes size: %d. Using default value: %d", queueBytes, ddconfig.DefaultProcessQueueBytes)
@@ -146,7 +148,7 @@ func NewSubmitter(hostname string, enableRealtimeCallback func([]*model.Collecto
 	eventForwarder := forwarder.NewDefaultForwarder(eventForwarderOpts)
 
 	printStartMessage(hostname, processAPIEndpoints, processEventsAPIEndpoints, orchestrator.OrchestratorEndpoints)
-	return &checkSubmitter{
+	return &CheckSubmitter{
 		processResults:     processResults,
 		rtProcessResults:   rtProcessResults,
 		eventResults:       eventResults,
@@ -166,7 +168,7 @@ func NewSubmitter(hostname string, enableRealtimeCallback func([]*model.Collecto
 
 		forwarderRetryMaxQueueBytes: queueBytes,
 
-		updateRTStatusCallback: enableRealtimeCallback,
+		rtNotifierChan: make(chan types.RTResponse, 1), // Buffer the channel so we don't block submissions
 
 		wg:   &sync.WaitGroup{},
 		exit: make(chan struct{}),
@@ -187,23 +189,23 @@ func printStartMessage(hostname string, processAPIEndpoints, processEventsAPIEnd
 		eventsEps = append(eventsEps, e.Endpoint.String())
 	}
 
-	log.Infof("Starting checkSubmitter for host=%s, endpoints=%s, events endpoints=%s orchestrator endpoints=%s", hostname, eps, eventsEps, orchestratorEps)
+	log.Infof("Starting CheckSubmitter for host=%s, endpoints=%s, events endpoints=%s orchestrator endpoints=%s", hostname, eps, eventsEps, orchestratorEps)
 }
 
-func (s *checkSubmitter) Submit(start time.Time, name string, messages []model.MessageBody) {
+func (s *CheckSubmitter) Submit(start time.Time, name string, messages *types.Payload) {
 	results := s.resultsQueueForCheck(name)
 	if name == checks.PodCheckName {
-		s.messagesToResultsQueue(start, checks.PodCheckName, messages[:len(messages)/2], results)
+		s.messagesToResultsQueue(start, checks.PodCheckName, messages.Message[:len(messages.Message)/2], results)
 		if s.orchestrator.IsManifestCollectionEnabled {
-			s.messagesToResultsQueue(start, checks.PodCheckManifestName, messages[len(messages)/2:], results)
+			s.messagesToResultsQueue(start, checks.PodCheckManifestName, messages.Message[len(messages.Message)/2:], results)
 		}
 		return
 	}
 
-	s.messagesToResultsQueue(start, name, messages, results)
+	s.messagesToResultsQueue(start, name, messages.Message, results)
 }
 
-func (s *checkSubmitter) Start() error {
+func (s *CheckSubmitter) Start() error {
 	if err := s.processForwarder.Start(); err != nil {
 		return fmt.Errorf("error starting forwarder: %s", err)
 	}
@@ -300,12 +302,16 @@ func (s *checkSubmitter) Start() error {
 	return nil
 }
 
-func (s *checkSubmitter) Stop() {
+func (s *CheckSubmitter) Stop() {
+	close(s.exit)
+
 	s.processResults.Stop()
 	s.rtProcessResults.Stop()
 	s.connectionsResults.Stop()
 	s.podResults.Stop()
 	s.eventResults.Stop()
+
+	s.wg.Wait()
 
 	s.processForwarder.Stop()
 	s.rtProcessForwarder.Stop()
@@ -313,11 +319,14 @@ func (s *checkSubmitter) Stop() {
 	s.podForwarder.Stop()
 	s.eventForwarder.Stop()
 
-	close(s.exit)
-	s.wg.Wait()
+	close(s.rtNotifierChan)
 }
 
-func (s *checkSubmitter) consumePayloads(results *api.WeightedQueue, fwd forwarder.Forwarder) {
+func (s *CheckSubmitter) GetRTNotifierChan() <-chan types.RTResponse {
+	return s.rtNotifierChan
+}
+
+func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue, fwd forwarder.Forwarder) {
 	for {
 		// results.Poll() will return ok=false when stopped
 		item, ok := results.Poll()
@@ -355,7 +364,7 @@ func (s *checkSubmitter) consumePayloads(results *api.WeightedQueue, fwd forward
 				responses, err = fwd.SubmitConnectionChecks(forwarderPayload, payload.headers)
 			// Pod check metadata
 			case checks.PodCheckName:
-				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(model.K8SResource_POD))
+				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
 			// Pod check manifest data
 			case checks.PodCheckManifestName:
 				responses, err = fwd.SubmitOrchestratorManifests(forwarderPayload, payload.headers)
@@ -374,15 +383,15 @@ func (s *checkSubmitter) consumePayloads(results *api.WeightedQueue, fwd forward
 			}
 
 			if statuses := readResponseStatuses(result.name, responses); len(statuses) > 0 {
-				if updateRTStatus && s.updateRTStatusCallback != nil {
-					s.updateRTStatusCallback(statuses)
+				if updateRTStatus {
+					notifyRTStatusChange(s.rtNotifierChan, statuses)
 				}
 			}
 		}
 	}
 }
 
-func (s *checkSubmitter) resultsQueueForCheck(name string) *api.WeightedQueue {
+func (s *CheckSubmitter) resultsQueueForCheck(name string) *api.WeightedQueue {
 	switch name {
 	case checks.PodCheckName:
 		return s.podResults
@@ -396,7 +405,7 @@ func (s *checkSubmitter) resultsQueueForCheck(name string) *api.WeightedQueue {
 	return s.processResults
 }
 
-func (s *checkSubmitter) logQueuesSize() {
+func (s *CheckSubmitter) logQueuesSize() {
 	var (
 		processSize     = s.processResults.Len()
 		rtProcessSize   = s.rtProcessResults.Len()
@@ -423,7 +432,7 @@ func (s *checkSubmitter) logQueuesSize() {
 	)
 }
 
-func (s *checkSubmitter) messagesToResultsQueue(start time.Time, name string, messages []model.MessageBody, queue *api.WeightedQueue) {
+func (s *CheckSubmitter) messagesToResultsQueue(start time.Time, name string, messages []model.MessageBody, queue *api.WeightedQueue) {
 	result := s.messagesToCheckResult(start, name, messages)
 	if result == nil {
 		return
@@ -433,7 +442,7 @@ func (s *checkSubmitter) messagesToResultsQueue(start time.Time, name string, me
 	status.UpdateProcContainerCount(messages)
 }
 
-func (s *checkSubmitter) messagesToCheckResult(start time.Time, name string, messages []model.MessageBody) *checkResult {
+func (s *CheckSubmitter) messagesToCheckResult(start time.Time, name string, messages []model.MessageBody) *checkResult {
 	if len(messages) == 0 {
 		return nil
 	}
@@ -493,7 +502,7 @@ func (s *checkSubmitter) messagesToCheckResult(start time.Time, name string, mes
 //  1. 22 bits of the seconds in the current month.
 //  2. 28 bits of hash of the hostname and process agent pid.
 //  3. 14 bits of the current message in the batch being sent to the server.
-func (s *checkSubmitter) getRequestID(start time.Time, chunkIndex int) string {
+func (s *CheckSubmitter) getRequestID(start time.Time, chunkIndex int) string {
 	// The epoch is the beginning of the month of the `start` variable.
 	epoch := time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, start.Location())
 	// We are taking the seconds in the current month, and representing them under 22 bits.
@@ -516,7 +525,7 @@ func (s *checkSubmitter) getRequestID(start time.Time, chunkIndex int) string {
 	return fmt.Sprintf("%d", seconds+*s.requestIDCachedHash+chunk)
 }
 
-func (s *checkSubmitter) shouldDropPayload(check string) bool {
+func (s *CheckSubmitter) shouldDropPayload(check string) bool {
 	for _, d := range s.dropCheckPayloads {
 		if d == check {
 			return true
@@ -524,4 +533,11 @@ func (s *checkSubmitter) shouldDropPayload(check string) bool {
 	}
 
 	return false
+}
+
+func notifyRTStatusChange(rtNotifierChan chan<- types.RTResponse, statuses types.RTResponse) {
+	select {
+	case rtNotifierChan <- statuses:
+	default: // Never block on the rtNotifierChan in case the runner has somehow stopped
+	}
 }

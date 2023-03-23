@@ -10,9 +10,12 @@ import (
 	"net"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func getScalarValueFromSymbol(values *valuestore.ResultValueStore, symbol checkconfig.SymbolConfig) (valuestore.ResultValue, error) {
@@ -87,16 +90,10 @@ func getTagsFromMetricTagConfigList(mtcl checkconfig.MetricTagConfigList, fullIn
 				log.Debugf("error getting tags. index `%d` not found in indexes `%v`", metricTag.Index, indexes)
 				continue
 			}
-			var tagValue string
-			if len(metricTag.Mapping) > 0 {
-				mappedValue, ok := metricTag.Mapping[indexes[index]]
-				if !ok {
-					log.Debugf("error getting tags. mapping for `%s` does not exist. mapping=`%v`, indexes=`%v`", indexes[index], metricTag.Mapping, indexes)
-					continue
-				}
-				tagValue = mappedValue
-			} else {
-				tagValue = indexes[index]
+			tagValue, err := checkconfig.GetMappedValue(indexes[index], metricTag.Mapping)
+			if err != nil {
+				log.Debugf("error getting tags. mapping for `%s` does not exist. mapping=`%v`, indexes=`%v`", indexes[index], metricTag.Mapping, indexes)
+				continue
 			}
 			rowTags = append(rowTags, metricTag.Tag+":"+tagValue)
 		}
@@ -153,4 +150,23 @@ func netmaskToPrefixlen(netmask string) int {
 	stringMask := net.IPMask(net.ParseIP(netmask).To4())
 	length, _ := stringMask.Size()
 	return length
+}
+
+// getInterfaceConfig retrieves snmpintegration.InterfaceConfig by index and tags
+func getInterfaceConfig(interfaceConfigs []snmpintegration.InterfaceConfig, index string, tags []string) (snmpintegration.InterfaceConfig, error) {
+	var ifName string
+	for _, tag := range tags {
+		tagElems := strings.SplitN(tag, ":", 2)
+		if len(tagElems) == 2 && tagElems[0] == "interface" {
+			ifName = tagElems[1]
+			break
+		}
+	}
+	for _, ifConfig := range interfaceConfigs {
+		if (ifConfig.MatchField == "name" && ifConfig.MatchValue == ifName) ||
+			(ifConfig.MatchField == "index" && ifConfig.MatchValue == index) {
+			return ifConfig, nil
+		}
+	}
+	return snmpintegration.InterfaceConfig{}, fmt.Errorf("no matching interface found for index=%s, tags=%s", index, tags)
 }

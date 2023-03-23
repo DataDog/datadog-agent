@@ -7,6 +7,8 @@
 #include "bpf_builtins.h"
 #include "bpf_telemetry.h"
 
+#include "protocols/read_into_buffer.h"
+
 #define CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, min_buff_size) \
     do {                                                                  \
         if (buf_size < min_buff_size) {                                   \
@@ -28,68 +30,6 @@ static __always_inline bool is_payload_empty(struct __sk_buff *skb, skb_info_t *
     return skb_info->data_off == skb->len;
 }
 
-// The method is used to read the data buffer from the __sk_buf struct. Similar implementation as `read_into_buffer_skb`
-// from http parsing, but uses a different constant (CLASSIFICATION_MAX_BUFFER).
-static __always_inline void read_into_buffer_for_classification(char *buffer, struct __sk_buff *skb, skb_info_t *info) {
-    u64 offset = (u64)info->data_off;
-
-#define BLK_SIZE (16)
-    const u32 len = CLASSIFICATION_MAX_BUFFER < (skb->len - (u32)offset) ? (u32)offset + CLASSIFICATION_MAX_BUFFER : skb->len;
-
-    unsigned i = 0;
-
-#pragma unroll(CLASSIFICATION_MAX_BUFFER / BLK_SIZE)
-    for (; i < (CLASSIFICATION_MAX_BUFFER / BLK_SIZE); i++) {
-        if (offset + BLK_SIZE - 1 >= len) { break; }
-
-        bpf_skb_load_bytes_with_telemetry(skb, offset, &buffer[i * BLK_SIZE], BLK_SIZE);
-        offset += BLK_SIZE;
-    }
-
-    // This part is very hard to write in a loop and unroll it.
-    // Indeed, mostly because of older kernel verifiers, we want to make sure the offset into the buffer is not
-    // stored on the stack, so that the verifier is able to verify that we're not doing out-of-bound on
-    // the stack.
-    // Basically, we should get a register from the code block above containing an fp relative address. As
-    // we are doing `buffer[0]` here, there is not dynamic computation on that said register after this,
-    // and thus the verifier is able to ensure that we are in-bound.
-    void *buf = &buffer[i * BLK_SIZE];
-    // Check that we have enough room in the request fragment buffer. Even
-    // though that's not strictly needed here, the verifier does not know that,
-    // so this check makes it happy.
-    if (i * BLK_SIZE >= CLASSIFICATION_MAX_BUFFER) {
-        return;
-    } else if (offset + 14 < len) {
-        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 15);
-    } else if (offset + 13 < len) {
-        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 14);
-    } else if (offset + 12 < len) {
-        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 13);
-    } else if (offset + 11 < len) {
-        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 12);
-    } else if (offset + 10 < len) {
-        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 11);
-    } else if (offset + 9 < len) {
-        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 10);
-    } else if (offset + 8 < len) {
-        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 9);
-    } else if (offset + 7 < len) {
-        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 8);
-    } else if (offset + 6 < len) {
-        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 7);
-    } else if (offset + 5 < len) {
-        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 6);
-    } else if (offset + 4 < len) {
-        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 5);
-    } else if (offset + 3 < len) {
-        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 4);
-    } else if (offset + 2 < len) {
-        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 3);
-    } else if (offset + 1 < len) {
-        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 2);
-    } else if (offset < len) {
-        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 1);
-    }
-}
+READ_INTO_BUFFER(for_classification, CLASSIFICATION_MAX_BUFFER, BLK_SIZE)
 
 #endif

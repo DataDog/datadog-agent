@@ -145,19 +145,21 @@ type ChownEvent struct {
 
 // ContainerContext holds the container context of an event
 type ContainerContext struct {
-	ID   string   `field:"id,handler:ResolveContainerID"`                              // SECLDoc[id] Definition:`ID of the container`
-	Tags []string `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
+	ID        string   `field:"id,handler:ResolveContainerID"`                              // SECLDoc[id] Definition:`ID of the container`
+	CreatedAt uint64   `field:"created_at,handler:ResolveContainerCreatedAt"`               // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
+	Tags      []string `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
 }
 
 // Event represents an event sent from the kernel
 // genaccessors
 type Event struct {
-	ID           string    `field:"-" json:"-"`
-	Type         uint32    `field:"-"`
-	Flags        uint32    `field:"-"`
-	Async        bool      `field:"async,handler:ResolveAsync" event:"*"` // SECLDoc[async] Definition:`True if the syscall was asynchronous`
-	TimestampRaw uint64    `field:"-" json:"-"`
-	Timestamp    time.Time `field:"-"` // Timestamp of the event
+	ID           string         `field:"-" json:"-"`
+	Type         uint32         `field:"-"`
+	Flags        uint32         `field:"-"`
+	Async        bool           `field:"async,handler:ResolveAsync" event:"*"` // SECLDoc[async] Definition:`True if the syscall was asynchronous`
+	TimestampRaw uint64         `field:"-" json:"-"`
+	Timestamp    time.Time      `field:"-"` // Timestamp of the event
+	Rules        []*MatchedRule `field:"-"`
 
 	// context shared with all events
 	ProcessCacheEntry *ProcessCacheEntry `field:"-" json:"-"`
@@ -328,6 +330,54 @@ func (ev *Event) GetProcessServiceTag() string {
 	return ev.FieldHandlers.GetProcessServiceTag(ev)
 }
 
+// MatchedRules contains the identification of one rule that has match
+type MatchedRule struct {
+	RuleID        string
+	RuleVersion   string
+	RuleTags      map[string]string
+	PolicyName    string
+	PolicyVersion string
+}
+
+// NewMatchedRule return a new MatchedRule instance
+func NewMatchedRule(ruleID, ruleVersion string, ruleTags map[string]string, policyName, policyVersion string) *MatchedRule {
+	return &MatchedRule{
+		RuleID:        ruleID,
+		RuleVersion:   ruleVersion,
+		RuleTags:      ruleTags,
+		PolicyName:    policyName,
+		PolicyVersion: policyVersion,
+	}
+}
+
+func (mr *MatchedRule) Match(mr2 *MatchedRule) bool {
+	if mr2 == nil ||
+		mr.RuleID != mr2.RuleID ||
+		mr.RuleVersion != mr2.RuleVersion ||
+		mr.PolicyName != mr2.PolicyName ||
+		mr.PolicyVersion != mr2.PolicyVersion {
+		return false
+	}
+	return true
+}
+
+// Append two lists, but avoiding duplicates
+func AppendMatchedRule(list []*MatchedRule, toAdd []*MatchedRule) []*MatchedRule {
+	for _, ta := range toAdd {
+		found := false
+		for _, l := range list {
+			if l.Match(ta) { // rule already present
+				found = true
+				break
+			}
+		}
+		if !found {
+			list = append(list, ta)
+		}
+	}
+	return list
+}
+
 // SetuidEvent represents a setuid event
 type SetuidEvent struct {
 	UID    uint32 `field:"uid"`                                // SECLDoc[uid] Definition:`New UID of the process`
@@ -401,8 +451,7 @@ type Process struct {
 
 	FileEvent FileEvent `field:"file,check:IsNotKworker"`
 
-	ContainerID   string   `field:"container.id"` // SECLDoc[container.id] Definition:`Container ID`
-	ContainerTags []string `field:"-"`
+	ContainerID string `field:"container.id"` // SECLDoc[container.id] Definition:`Container ID`
 
 	SpanID  uint64 `field:"-"`
 	TraceID uint64 `field:"-"`
@@ -517,6 +566,10 @@ type FileEvent struct {
 	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem"`                                          // SECLDoc[filesystem] Definition:`File's filesystem`
 
 	PathResolutionError error `field:"-" json:"-"`
+
+	PkgName       string `field:"package.name,handler:ResolvePackageName"`                    // SECLDoc[package.name] Definition:`[Experimental] Name of the package that provided this file`
+	PkgVersion    string `field:"package.version,handler:ResolvePackageVersion"`              // SECLDoc[package.version] Definition:`[Experimental] Full version of the package that provided this file`
+	PkgSrcVersion string `field:"package.source_version,handler:ResolvePackageSourceVersion"` // SECLDoc[package.source_version] Definition:`[Experimental] Full version of the source package of the package that provided this file`
 
 	// used to mark as already resolved, can be used in case of empty path
 	IsPathnameStrResolved bool `field:"-" json:"-"`
@@ -657,8 +710,8 @@ type ProcessCacheEntry struct {
 	releaseCb func()                     `field:"-" json:"-"`
 }
 
-// IsContainerInit returns whether this is the entrypoint of the container
-func (pc *ProcessCacheEntry) IsContainerInit() bool {
+// IsContainerRoot returns whether this is a top level process in the container ID
+func (pc *ProcessCacheEntry) IsContainerRoot() bool {
 	return pc.ContainerID != "" && pc.Ancestor != nil && pc.Ancestor.ContainerID == ""
 }
 
@@ -988,6 +1041,8 @@ type SyscallsEvent struct {
 	Syscalls []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
 }
 
+const PathKeySize = 16
+
 // PathKey identifies an entry in the dentry cache
 type PathKey struct {
 	Inode   uint64 `field:"inode"`    // SECLDoc[inode] Definition:`Inode of the file`
@@ -1018,6 +1073,38 @@ func (p *PathKey) MarshalBinary() ([]byte, error) {
 
 	buff := make([]byte, 16)
 	p.Write(buff)
+
+	return buff, nil
+}
+
+// PathLeafSize defines path_leaf struct size
+const PathLeafSize = PathKeySize + MaxSegmentLength + 1 + 2 + 6 // path_key + name + len + padding
+
+// PathLeaf is the go representation of the eBPF path_leaf_t structure
+type PathLeaf struct {
+	Parent PathKey
+	Name   [MaxSegmentLength + 1]byte
+	Len    uint16
+}
+
+// GetName returns the path value as a string
+func (pl *PathLeaf) GetName() string {
+	return NullTerminatedString(pl.Name[:])
+}
+
+// GetName returns the path value as a string
+func (pl *PathLeaf) SetName(name string) {
+	copy(pl.Name[:], []byte(name))
+	pl.Len = uint16(len(name) + 1)
+}
+
+// MarshalBinary returns the binary representation of a path key
+func (pl *PathLeaf) MarshalBinary() ([]byte, error) {
+	buff := make([]byte, PathLeafSize)
+
+	pl.Parent.Write(buff)
+	copy(buff[16:], pl.Name[:])
+	ByteOrder.PutUint16(buff[16+len(pl.Name):], pl.Len)
 
 	return buff, nil
 }

@@ -70,9 +70,6 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 	}
 
 	client := fake.MockedContainerdClient{
-		MockEnvVars: func(namespace string, ctn containerd.Container) (map[string]string, error) {
-			return envVars, nil
-		},
 		MockInfo: func(namespace string, ctn containerd.Container) (containers.Container, error) {
 			return containers.Container{
 				Labels:    labels,
@@ -80,7 +77,7 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 				Image:     imgName,
 			}, nil
 		},
-		MockSpec: func(namespace string, ctn containerd.Container) (*oci.Spec, error) {
+		MockSpec: func(namespace string, ctn containers.Container) (*oci.Spec, error) {
 			return &oci.Spec{Hostname: hostName, Process: &specs.Process{Env: envVarStrs}}, nil
 		},
 		MockStatus: func(namespace string, ctn containerd.Container) (containerd.ProcessStatus, error) {

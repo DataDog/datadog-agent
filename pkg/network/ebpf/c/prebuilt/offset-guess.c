@@ -10,6 +10,56 @@
 #include <uapi/linux/tcp.h>
 #include <uapi/linux/ip.h>
 
+#define sizeof_member(T, m) sizeof(((T*)0)->m)
+
+static const __u8 SIZEOF_SADDR = sizeof_member(tracer_status_t, saddr);
+static const __u8 SIZEOF_DADDR = sizeof_member(tracer_status_t, daddr);
+static const __u8 SIZEOF_FAMILY = sizeof_member(tracer_status_t, family);
+static const __u8 SIZEOF_SPORT = sizeof_member(tracer_status_t, sport);
+static const __u8 SIZEOF_DPORT = sizeof_member(tracer_status_t, dport);
+static const __u8 SIZEOF_NETNS = sizeof((void*)0); // possible_net_t*
+static const __u8 SIZEOF_NETNS_INO = sizeof_member(tracer_status_t, netns);
+static const __u8 SIZEOF_RTT = sizeof_member(tracer_status_t, rtt);
+static const __u8 SIZEOF_RTT_VAR = sizeof_member(tracer_status_t, rtt_var);
+static const __u8 SIZEOF_DADDR_IPV6 = sizeof_member(tracer_status_t, daddr_ipv6) / 4;
+static const __u8 SIZEOF_SADDR_FL4 = sizeof_member(tracer_status_t, saddr_fl4);
+static const __u8 SIZEOF_DADDR_FL4 = sizeof_member(tracer_status_t, daddr_fl4);
+static const __u8 SIZEOF_SPORT_FL4 = sizeof_member(tracer_status_t, sport_fl4);
+static const __u8 SIZEOF_DPORT_FL4 = sizeof_member(tracer_status_t, dport_fl4);
+static const __u8 SIZEOF_SADDR_FL6 = sizeof_member(tracer_status_t, saddr_fl6) / 4;
+static const __u8 SIZEOF_DADDR_FL6 = sizeof_member(tracer_status_t, daddr_fl6) / 4;
+static const __u8 SIZEOF_SPORT_FL6 = sizeof_member(tracer_status_t, sport_fl6);
+static const __u8 SIZEOF_DPORT_FL6 = sizeof_member(tracer_status_t, dport_fl6);
+static const __u8 SIZEOF_SOCKET_SK = sizeof((void*)0); // char*
+static const __u8 SIZEOF_SK_BUFF_SOCK = sizeof((void*)0); // char*
+static const __u8 SIZEOF_SK_BUFF_TRANSPORT_HEADER = sizeof_member(tracer_status_t, transport_header);
+static const __u8 SIZEOF_SK_BUFF_HEAD = sizeof((void*)0); // char*
+
+static const __u8 SIZEOF_CT_TUPLE_ORIGIN = sizeof_member(conntrack_status_t, saddr);
+static const __u8 SIZEOF_CT_TUPLE_REPLY = sizeof_member(conntrack_status_t, saddr);
+static const __u8 SIZEOF_CT_STATUS = sizeof_member(conntrack_status_t, status);
+static const __u8 SIZEOF_CT_NET = sizeof((void*)0); // possible_net_t*
+
+// aligned_offset returns an offset that when added to
+// p, would produce an address that is mod size (aligned).
+//
+// This function works in concert with the offset guessing
+// code in pkg/network/tracer/offsetguess.go that will
+// increment the returned here by 1 (thus yielding an offset
+// that will not produce an aligned address anymore). When
+// that offset is passed in here on subsequent calls, it
+// has the affect of producing an offset that will move
+// p to the next address mod size.
+static __always_inline u64 aligned_offset(void *p, u64 offset, uintptr_t size) {
+    u64 _p = (u64)p;
+    _p += offset;
+    // for a value of _p that is not mod size
+    // we want to advance to the next _p that is
+    // mod size
+    _p = _p + size - 1 - (_p + size - 1) % size;
+    return (char*)_p - (char*)p;
+}
+
 /* These maps are used to match the kprobe & kretprobe of connect for IPv6 */
 /* This is a key/value store with the keys being a pid
  * and the values being a struct sock *.
@@ -17,6 +67,7 @@
 BPF_HASH_MAP(connectsock_ipv6, __u64, void*, 1024)
 
 BPF_HASH_MAP(tracer_status, __u64, tracer_status_t, 1)
+BPF_HASH_MAP(conntrack_status, __u64, conntrack_status_t, 1)
 
 static __always_inline bool proc_t_comm_equals(proc_t a, proc_t b) {
     for (int i = 0; i < TASK_COMM_LEN; i++) {
@@ -40,7 +91,7 @@ static __always_inline bool check_family(struct sock* sk, tracer_status_t* statu
 static __always_inline int guess_offsets(tracer_status_t* status, char* subject) {
     u64 zero = 0;
 
-    if (status->state != TRACER_STATE_CHECKING) {
+    if (status->state != STATE_CHECKING) {
         return 1;
     }
 
@@ -57,7 +108,7 @@ static __always_inline int guess_offsets(tracer_status_t* status, char* subject)
     tracer_status_t new_status = {};
     // Copy values from status to new_status
     bpf_probe_read_kernel(&new_status, sizeof(tracer_status_t), status);
-    new_status.state = TRACER_STATE_CHECKED;
+    new_status.state = STATE_CHECKED;
     new_status.err = 0;
     bpf_probe_read_kernel(&new_status.proc.comm, sizeof(proc.comm), proc.comm);
 
@@ -67,91 +118,118 @@ static __always_inline int guess_offsets(tracer_status_t* status, char* subject)
 
     switch (status->what) {
     case GUESS_SADDR:
-        bpf_probe_read_kernel(&new_status.saddr, sizeof(new_status.saddr), subject + status->offset_saddr);
+        new_status.offset_saddr = aligned_offset(subject, status->offset_saddr, SIZEOF_SADDR);
+        bpf_probe_read_kernel(&new_status.saddr, sizeof(new_status.saddr), subject + new_status.offset_saddr);
         break;
     case GUESS_DADDR:
-        bpf_probe_read_kernel(&new_status.daddr, sizeof(new_status.daddr), subject + status->offset_daddr);
+        new_status.offset_daddr = aligned_offset(subject, status->offset_daddr, SIZEOF_DADDR);
+        bpf_probe_read_kernel(&new_status.daddr, sizeof(new_status.daddr), subject + new_status.offset_daddr);
         break;
     case GUESS_FAMILY:
-        bpf_probe_read_kernel(&new_status.family, sizeof(new_status.family), subject + status->offset_family);
+        new_status.offset_family = aligned_offset(subject, status->offset_family, SIZEOF_FAMILY);
+        bpf_probe_read_kernel(&new_status.family, sizeof(new_status.family), subject + new_status.offset_family);
         break;
     case GUESS_SPORT:
-        bpf_probe_read_kernel(&new_status.sport, sizeof(new_status.sport), subject + status->offset_sport);
+        new_status.offset_sport = aligned_offset(subject, status->offset_sport, SIZEOF_SPORT);
+        bpf_probe_read_kernel(&new_status.sport, sizeof(new_status.sport), subject + new_status.offset_sport);
         break;
     case GUESS_DPORT:
-        bpf_probe_read_kernel(&new_status.dport, sizeof(new_status.dport), subject + status->offset_dport);
+        new_status.offset_dport = aligned_offset(subject, status->offset_dport, SIZEOF_DPORT);
+        bpf_probe_read_kernel(&new_status.dport, sizeof(new_status.dport), subject + new_status.offset_dport);
         break;
     case GUESS_SADDR_FL4:
-        bpf_probe_read_kernel(&new_status.saddr_fl4, sizeof(new_status.saddr_fl4), subject + status->offset_saddr_fl4);
+        new_status.offset_saddr_fl4 = aligned_offset(subject, status->offset_saddr_fl4, SIZEOF_SADDR_FL4);
+        bpf_probe_read_kernel(&new_status.saddr_fl4, sizeof(new_status.saddr_fl4), subject + new_status.offset_saddr_fl4);
         break;
     case GUESS_DADDR_FL4:
-        bpf_probe_read_kernel(&new_status.daddr_fl4, sizeof(new_status.daddr_fl4), subject + status->offset_daddr_fl4);
+        new_status.offset_daddr_fl4 = aligned_offset(subject, status->offset_daddr_fl4, SIZEOF_DADDR_FL4);
+        bpf_probe_read_kernel(&new_status.daddr_fl4, sizeof(new_status.daddr_fl4), subject + new_status.offset_daddr_fl4);
         break;
     case GUESS_SPORT_FL4:
-        bpf_probe_read_kernel(&new_status.sport_fl4, sizeof(new_status.sport_fl4), subject + status->offset_sport_fl4);
+        new_status.offset_sport_fl4 = aligned_offset(subject, status->offset_sport_fl4, SIZEOF_SPORT_FL4);
+        bpf_probe_read_kernel(&new_status.sport_fl4, sizeof(new_status.sport_fl4), subject + new_status.offset_sport_fl4);
         break;
     case GUESS_DPORT_FL4:
-        bpf_probe_read_kernel(&new_status.dport_fl4, sizeof(new_status.dport_fl4), subject + status->offset_dport_fl4);
+        new_status.offset_dport_fl4 = aligned_offset(subject, status->offset_dport_fl4, SIZEOF_DPORT_FL4);
+        bpf_probe_read_kernel(&new_status.dport_fl4, sizeof(new_status.dport_fl4), subject + new_status.offset_dport_fl4);
         break;
     case GUESS_SADDR_FL6:
-        bpf_probe_read_kernel(&new_status.saddr_fl6, sizeof(u32) * 4, subject + status->offset_saddr_fl6);
+        new_status.offset_saddr_fl6 = aligned_offset(subject, status->offset_saddr_fl6, SIZEOF_SADDR_FL6);
+        bpf_probe_read_kernel(&new_status.saddr_fl6, sizeof(u32) * 4, subject + new_status.offset_saddr_fl6);
         break;
     case GUESS_DADDR_FL6:
-        bpf_probe_read_kernel(&new_status.daddr_fl6, sizeof(u32) * 4, subject + status->offset_daddr_fl6);
+        new_status.offset_daddr_fl6 = aligned_offset(subject, status->offset_daddr_fl6, SIZEOF_DADDR_FL6);
+        bpf_probe_read_kernel(&new_status.daddr_fl6, sizeof(u32) * 4, subject + new_status.offset_daddr_fl6);
         break;
     case GUESS_SPORT_FL6:
-        bpf_probe_read_kernel(&new_status.sport_fl6, sizeof(new_status.sport_fl6), subject + status->offset_sport_fl6);
+        new_status.offset_sport_fl6 = aligned_offset(subject, status->offset_sport_fl6, SIZEOF_SPORT_FL6);
+        bpf_probe_read_kernel(&new_status.sport_fl6, sizeof(new_status.sport_fl6), subject + new_status.offset_sport_fl6);
         break;
     case GUESS_DPORT_FL6:
-        bpf_probe_read_kernel(&new_status.dport_fl6, sizeof(new_status.dport_fl6), subject + status->offset_dport_fl6);
+        new_status.offset_dport_fl6 = aligned_offset(subject, status->offset_dport_fl6, SIZEOF_DPORT_FL6);
+        bpf_probe_read_kernel(&new_status.dport_fl6, sizeof(new_status.dport_fl6), subject + new_status.offset_dport_fl6);
         break;
     case GUESS_NETNS:
-        bpf_probe_read_kernel(&possible_skc_net, sizeof(possible_net_t*), subject + status->offset_netns);
+        new_status.offset_netns = aligned_offset(subject, status->offset_netns, SIZEOF_NETNS);
+        bpf_probe_read_kernel(&possible_skc_net, sizeof(possible_net_t*), subject + new_status.offset_netns);
+        if (!possible_skc_net) {
+            new_status.err = 1;
+            break;
+        }
         // if we get a kernel fault, it means possible_skc_net
         // is an invalid pointer, signal an error so we can go
         // to the next offset_netns
-        ret = bpf_probe_read_kernel(&possible_netns, sizeof(possible_netns), ((char*)possible_skc_net) + status->offset_ino);
+        new_status.offset_ino = aligned_offset(subject, status->offset_ino, SIZEOF_NETNS_INO);
+        ret = bpf_probe_read_kernel(&possible_netns, sizeof(possible_netns), (char*)possible_skc_net + new_status.offset_ino);
         if (ret == -EFAULT) {
             new_status.err = 1;
             break;
         }
+        //log_debug("netns: off=%u ino=%u val=%u\n", status->offset_netns, status->offset_ino, possible_netns);
         new_status.netns = possible_netns;
         break;
     case GUESS_RTT:
-        bpf_probe_read_kernel(&new_status.rtt, sizeof(new_status.rtt), subject + status->offset_rtt);
-        bpf_probe_read_kernel(&new_status.rtt_var, sizeof(new_status.rtt_var), subject + status->offset_rtt_var);
+        new_status.offset_rtt = aligned_offset(subject, status->offset_rtt, SIZEOF_RTT);
+        bpf_probe_read_kernel(&new_status.rtt, sizeof(new_status.rtt), subject + new_status.offset_rtt);
+        new_status.offset_rtt_var = aligned_offset(subject, status->offset_rtt_var, SIZEOF_RTT_VAR);
+        bpf_probe_read_kernel(&new_status.rtt_var, sizeof(new_status.rtt_var), subject + new_status.offset_rtt_var);
         break;
     case GUESS_DADDR_IPV6:
         if (!check_family((struct sock*)subject, status, AF_INET6)) {
             break;
         }
 
-        bpf_probe_read_kernel(new_status.daddr_ipv6, sizeof(u32) * 4, subject + status->offset_daddr_ipv6);
+        new_status.offset_daddr_ipv6 = aligned_offset(subject, status->offset_daddr_ipv6, SIZEOF_DADDR_IPV6);
+        bpf_probe_read_kernel(new_status.daddr_ipv6, sizeof(u32) * 4, subject + new_status.offset_daddr_ipv6);
         break;
     case GUESS_SOCKET_SK:
         // Note that in this line we're essentially dereferencing a pointer
         // subject initially points to a (struct socket*), and we're trying to guess the offset of
         // (struct socket*)->sk which points to a (struct sock*) object.
-        bpf_probe_read_kernel(&subject, sizeof(subject), subject + status->offset_socket_sk);
-        bpf_probe_read_kernel(&new_status.sport_via_sk, sizeof(new_status.sport_via_sk), subject + status->offset_sport);
-        bpf_probe_read_kernel(&new_status.dport_via_sk, sizeof(new_status.dport_via_sk), subject + status->offset_dport);
+        new_status.offset_socket_sk = aligned_offset(subject, status->offset_socket_sk, SIZEOF_SOCKET_SK);
+        bpf_probe_read_kernel(&subject, sizeof(subject), subject + new_status.offset_socket_sk);
+        bpf_probe_read_kernel(&new_status.sport_via_sk, sizeof(new_status.sport_via_sk), subject + new_status.offset_sport);
+        bpf_probe_read_kernel(&new_status.dport_via_sk, sizeof(new_status.dport_via_sk), subject + new_status.offset_dport);
         break;
     case GUESS_SK_BUFF_SOCK:
         // Note that in this line we're essentially dereferencing a pointer
         // subject initially points to a (struct socket*), and we're trying to guess the offset of
         // (struct socket*)->sk which points to a (struct sock*) object.
-        bpf_probe_read_kernel(&subject, sizeof(subject), subject + status->offset_sk_buff_sock);
-        bpf_probe_read_kernel(&new_status.sport_via_sk_via_sk_buf, sizeof(new_status.sport_via_sk_via_sk_buf), subject + status->offset_sport);
-        bpf_probe_read_kernel(&new_status.dport_via_sk_via_sk_buf, sizeof(new_status.dport_via_sk_via_sk_buf), subject + status->offset_dport);
+        new_status.offset_sk_buff_sock = aligned_offset(subject, status->offset_sk_buff_sock, SIZEOF_SK_BUFF_SOCK);
+        bpf_probe_read_kernel(&subject, sizeof(subject), subject + new_status.offset_sk_buff_sock);
+        bpf_probe_read_kernel(&new_status.sport_via_sk_via_sk_buf, sizeof(new_status.sport_via_sk_via_sk_buf), subject + new_status.offset_sport);
+        bpf_probe_read_kernel(&new_status.dport_via_sk_via_sk_buf, sizeof(new_status.dport_via_sk_via_sk_buf), subject + new_status.offset_dport);
         break;
     case GUESS_SK_BUFF_TRANSPORT_HEADER:
-        bpf_probe_read_kernel(&new_status.transport_header, sizeof(new_status.transport_header), subject + status->offset_sk_buff_transport_header);
-        bpf_probe_read_kernel(&new_status.network_header, sizeof(new_status.network_header), subject + status->offset_sk_buff_transport_header + sizeof(__u16));
-        bpf_probe_read_kernel(&new_status.mac_header, sizeof(new_status.mac_header), subject + status->offset_sk_buff_transport_header + 2*sizeof(__u16));
+        new_status.offset_sk_buff_transport_header = aligned_offset(subject, status->offset_sk_buff_transport_header, SIZEOF_SK_BUFF_TRANSPORT_HEADER);
+        bpf_probe_read_kernel(&new_status.transport_header, sizeof(new_status.transport_header), subject + new_status.offset_sk_buff_transport_header);
+        bpf_probe_read_kernel(&new_status.network_header, sizeof(new_status.network_header), subject + new_status.offset_sk_buff_transport_header + sizeof(__u16));
+        bpf_probe_read_kernel(&new_status.mac_header, sizeof(new_status.mac_header), subject + new_status.offset_sk_buff_transport_header + 2*sizeof(__u16));
         break;
     case GUESS_SK_BUFF_HEAD:
         // Loading the head field into `subject`.
-        bpf_probe_read_kernel(&subject, sizeof(subject), subject + status->offset_sk_buff_head);
+        new_status.offset_sk_buff_head = aligned_offset(subject, status->offset_sk_buff_head, SIZEOF_SK_BUFF_HEAD);
+        bpf_probe_read_kernel(&subject, sizeof(subject), subject + new_status.offset_sk_buff_head);
         // Loading source and dest ports.
         // The ports are located in the transport section (subject + status->transport_header), if the traffic is udp or tcp
         // the source port is the first field in the struct (16 bits), and the dest is the second field (16 bits).
@@ -302,6 +380,86 @@ int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
     guess_offsets(status, (char*)skb);
     return 0;
 }
+
+static __always_inline int guess_conntrack_offsets(conntrack_status_t* status, char* subject) {
+    u64 zero = 0;
+
+    if (status->state != STATE_CHECKING) {
+        return 1;
+    }
+
+    // Only traffic for the expected process name. Extraneous connections from other processes must be ignored here.
+    // Userland must take care to generate connections from the correct thread. In Golang, this can be achieved
+    // with runtime.LockOSThread.
+    proc_t proc = {};
+    bpf_get_current_comm(&proc.comm, sizeof(proc.comm));
+
+    if (!proc_t_comm_equals(status->proc, proc)) {
+        return 0;
+    }
+
+    conntrack_status_t new_status = {};
+    // Copy values from status to new_status
+    bpf_probe_read_kernel(&new_status, sizeof(conntrack_status_t), status);
+    new_status.state = STATE_CHECKED;
+    bpf_probe_read_kernel(&new_status.proc.comm, sizeof(proc.comm), proc.comm);
+
+    possible_net_t* possible_ct_net = NULL;
+    u32 possible_netns = 0;
+    switch (status->what) {
+    case GUESS_CT_TUPLE_ORIGIN:
+        new_status.offset_origin = aligned_offset(subject, status->offset_origin, SIZEOF_CT_TUPLE_ORIGIN);
+        bpf_probe_read_kernel(&new_status.saddr, sizeof(new_status.saddr), subject + new_status.offset_origin);
+        break;
+    case GUESS_CT_TUPLE_REPLY:
+        new_status.offset_reply = aligned_offset(subject, status->offset_reply, SIZEOF_CT_TUPLE_REPLY);
+        bpf_probe_read_kernel(&new_status.saddr, sizeof(new_status.saddr), subject + new_status.offset_reply);
+        break;
+    case GUESS_CT_STATUS:
+        new_status.offset_status = aligned_offset(subject, status->offset_status, SIZEOF_CT_STATUS);
+        bpf_probe_read_kernel(&new_status.status, sizeof(new_status.status), subject + new_status.offset_status);
+        break;
+    case GUESS_CT_NET:
+        new_status.offset_netns = aligned_offset(subject, status->offset_netns, SIZEOF_CT_NET);
+        bpf_probe_read_kernel(&possible_ct_net, sizeof(possible_net_t*), subject + new_status.offset_netns);
+        bpf_probe_read_kernel(&possible_netns, sizeof(possible_netns), ((char*)possible_ct_net) + status->offset_ino);
+        new_status.netns = possible_netns;
+        break;
+    default:
+        // not for us
+        return 0;
+    }
+
+    bpf_map_update_elem(&conntrack_status, &zero, &new_status, BPF_ANY);
+
+    return 0;
+}
+
+static __always_inline bool is_ct_event(u64 what) {
+    switch (what) {
+    case GUESS_CT_TUPLE_ORIGIN:
+    case GUESS_CT_TUPLE_REPLY:
+    case GUESS_CT_STATUS:
+    case GUESS_CT_NET:
+        return true;
+    default:
+        return false;
+    }
+}
+
+SEC("kprobe/__nf_conntrack_hash_insert")
+int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
+    u64 zero = 0;
+    conntrack_status_t* status = bpf_map_lookup_elem(&conntrack_status, &zero);
+    if (status == NULL || !is_ct_event(status->what)) {
+        return 0;
+    }
+
+    void *ct = (void*)PT_REGS_PARM1(ctx);
+    guess_conntrack_offsets(status, (char*)ct);
+    return 0;
+}
+
 
 // This number will be interpreted by elf-loader to set the current running kernel version
 __u32 _version SEC("version") = 0xFFFFFFFE; // NOLINT(bugprone-reserved-identifier)
