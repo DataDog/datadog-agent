@@ -29,6 +29,7 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -184,8 +185,11 @@ func makeAnnotations(metricName string, labels map[string]string) map[string]str
 
 // TestupdateExternalMetrics checks the reconciliation between the local cache and the global store logic
 func TestUpdate(t *testing.T) {
+	mockConfig := config.Mock(t)
+	mockConfig.Set("kube_resources_namespace", "nsfoo")
+
 	name := custommetrics.GetConfigmapName()
-	store, client := newFakeConfigMapStore(t, "default", name, nil)
+	store, client := newFakeConfigMapStore(t, "nsfoo", name, nil)
 	d := &fakeDatadogClient{}
 
 	p := &fakeProcessor{
@@ -215,13 +219,13 @@ func TestUpdate(t *testing.T) {
 	// Start the DCA with already existing Data
 	// Check if nothing in local store and Global Store is full we update the Global Store metrics correctly
 	metricsToStore := map[string]custommetrics.ExternalMetricValue{
-		"external_metric-horizontal-default-foo-metric1": {
+		"external_metric-horizontal-nsfoo-foo-metric1": {
 			MetricName: "metric1",
 			Labels:     map[string]string{"foo": "bar"},
 			Ref: custommetrics.ObjectReference{
 				Type:      "horizontal",
 				Name:      "foo",
-				Namespace: "default",
+				Namespace: "nsfoo",
 			},
 			Value: 1.3,
 			Valid: true,
@@ -248,13 +252,13 @@ func TestUpdate(t *testing.T) {
 	// Fresh start
 	// Check if local store is not empty
 	hctrl.toStore.m.Lock()
-	hctrl.toStore.data["external_metric-horizontal-default-foo-metric2"] = custommetrics.ExternalMetricValue{
+	hctrl.toStore.data["external_metric-horizontal-nsfoo-foo-metric2"] = custommetrics.ExternalMetricValue{
 		MetricName: "metric2",
 		Labels:     map[string]string{"foo": "bar"},
 		Ref: custommetrics.ObjectReference{
 			Type:      "horizontal",
 			Name:      "foo",
-			Namespace: "default",
+			Namespace: "nsfoo",
 		},
 	}
 	require.Len(t, hctrl.toStore.data, 1)
@@ -269,13 +273,13 @@ func TestUpdate(t *testing.T) {
 	// Check that if there is conflicting info from the local store and the Global Store that we merge correctly
 	// Check conflict on metric name and labels
 	hctrl.toStore.m.Lock()
-	hctrl.toStore.data["external_metric-horizontal-default-foo-metric2"] = custommetrics.ExternalMetricValue{
+	hctrl.toStore.data["external_metric-horizontal-nsfoo-foo-metric2"] = custommetrics.ExternalMetricValue{
 		MetricName: "metric2",
 		Labels:     map[string]string{"foo": "baz"},
 		Ref: custommetrics.ObjectReference{
 			Type:      "horizontal",
 			Name:      "foo",
-			Namespace: "default",
+			Namespace: "nsfoo",
 		},
 	}
 	require.Len(t, hctrl.toStore.data, 1)
@@ -295,9 +299,12 @@ func TestUpdate(t *testing.T) {
 
 // TestAutoscalerController is an integration test of the AutoscalerController
 func TestAutoscalerController(t *testing.T) {
+	mockConfig := config.Mock(t)
+	mockConfig.Set("kube_resources_namespace", "nsfoo")
+
 	penTime := (int(time.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000
 	name := custommetrics.GetConfigmapName()
-	store, client := newFakeConfigMapStore(t, "default", name, nil)
+	store, client := newFakeConfigMapStore(t, "nsfoo", name, nil)
 	metricName := "foo"
 	ddSeries := []datadog.Series{
 		{
@@ -333,14 +340,14 @@ func TestAutoscalerController(t *testing.T) {
 
 	mockedHPA := newFakeHorizontalPodAutoscaler(
 		"hpa_1",
-		"default",
+		"nsfoo",
 		"1",
 		"foo",
 		map[string]string{"foo": "bar"},
 	)
 	mockedHPA.Annotations = makeAnnotations("foo", map[string]string{"foo": "bar"})
 
-	_, err := c.HorizontalPodAutoscalers("default").Create(context.TODO(), mockedHPA, metav1.CreateOptions{})
+	_, err := c.HorizontalPodAutoscalers("nsfoo").Create(context.TODO(), mockedHPA, metav1.CreateOptions{})
 	require.NoError(t, err)
 
 	timeout := time.NewTimer(5 * time.Second)
@@ -454,14 +461,14 @@ func TestAutoscalerController(t *testing.T) {
 
 	newMockedHPA := newFakeHorizontalPodAutoscaler(
 		"hpa_2",
-		"default",
+		"nsfoo",
 		"1",
 		"foo",
 		map[string]string{"foo": "bar"},
 	)
 	mockedHPA.Annotations = makeAnnotations("foo", map[string]string{"foo": "bar"})
 
-	_, err = c.HorizontalPodAutoscalers("default").Create(context.TODO(), newMockedHPA, metav1.CreateOptions{})
+	_, err = c.HorizontalPodAutoscalers("nsfoo").Create(context.TODO(), newMockedHPA, metav1.CreateOptions{})
 	require.NoError(t, err)
 	select {
 	case key := <-hctrl.autoscalers:
@@ -471,7 +478,7 @@ func TestAutoscalerController(t *testing.T) {
 	}
 
 	// Verify that a Delete removes the Data from the Global Store and decreases metricsProcessdCount
-	err = c.HorizontalPodAutoscalers("default").Delete(context.TODO(), newMockedHPA.Name, metav1.DeleteOptions{})
+	err = c.HorizontalPodAutoscalers("nsfoo").Delete(context.TODO(), newMockedHPA.Name, metav1.DeleteOptions{})
 	require.NoError(t, err)
 	select {
 	case <-ticker.C:
@@ -480,7 +487,7 @@ func TestAutoscalerController(t *testing.T) {
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}
 	// Verify that a Delete removes the Data from the Global Store
-	err = c.HorizontalPodAutoscalers("default").Delete(context.TODO(), mockedHPA.Name, metav1.DeleteOptions{})
+	err = c.HorizontalPodAutoscalers("nsfoo").Delete(context.TODO(), mockedHPA.Name, metav1.DeleteOptions{})
 	require.NoError(t, err)
 	select {
 	case <-ticker.C:
