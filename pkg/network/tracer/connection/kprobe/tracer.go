@@ -99,7 +99,11 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 			return closeFn, err
 		}
 
-		log.Warnf("could not load CO-RE tracer, falling back to runtime compiled tracer (if enabled): %s", err)
+		if config.AllowRuntimeCompiledFallback {
+			log.Warnf("error loading CO-RE network tracer, falling back to runtime compiled (if enabled): %s", err)
+		} else {
+			return nil, fmt.Errorf("error loading CO-RE network tracer: %w", err)
+		}
 	}
 
 	if config.EnableRuntimeCompiler {
