@@ -87,7 +87,7 @@ func Register(cfg *config.Config, httpMux *mux.Router, factories []Factory) erro
 
 	if !driver.IsNeeded() {
 		// if running, shut it down
-		log.Debug("system-probe module initialization complete, driver not needed, shutting down")
+		log.Debug("Shutting down the driver.  Upon successful initialization, it was not needed by the current configuration.")
 
 		// shut the driver down and optionally disable it, if closed source isn't allowed anymore
 		if err := driver.ForceStop(); err != nil {
