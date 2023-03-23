@@ -54,11 +54,13 @@
     <AutoGenerateBindingRedirects>false</AutoGenerateBindingRedirects>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Microsoft.Deployment.WindowsInstaller, Version=3.0.0.0, Culture=neutral, PublicKeyToken=ce35f76fcda82bad, processorArchitecture=MSIL" />
     <Reference Include="System" />
     <Reference Include="System.ComponentModel.Composition" />
     <Reference Include="System.ComponentModel.DataAnnotations" />
     <Reference Include="System.Configuration" />
     <Reference Include="System.Core" />
+    <Reference Include="System.DirectoryServices" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
@@ -67,12 +69,18 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="APM\ApmConfigTests.cs" />
+    <Compile Include="UserCustomActions\BaseUserCustomActionsDomainTests.cs" />
     <Compile Include="Flare\FlareUnitTests.cs" />
     <Compile Include="IntegrationTests\TestConfig.cs" />
     <Compile Include="Logs\ProcessConfigTests.cs" />
+    <Compile Include="UserCustomActions\LookupAccountNameDelegate.cs" />
     <Compile Include="Process\ProcessConfigTests.cs" />
     <Compile Include="Proxy\ProcessConfigTests.cs" />
     <Compile Include="Telemetry\TelemetryUnitTests.cs" />
+    <Compile Include="UserCustomActions\UserCustomActionsDomainClientTests.cs" />
+    <Compile Include="UserCustomActions\UserCustomActionsDomainControllerTests.cs" />
+    <Compile Include="UserCustomActions\UserCustomActionsTestSetup.cs" />
+    <Compile Include="UserCustomActions\UserCustomActionsTests.cs" />
     <Compile Include="WriteConfigUnitTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="YamlAssertions\YamlAssertionsTests.cs" />
@@ -83,6 +91,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
+    <None Include="xunit.runner.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\CustomActions\CustomActions.csproj">
@@ -123,6 +134,9 @@
     <PackageReference Include="System.Security.Cryptography.X509Certificates">
       <Version>4.3.2</Version>
     </PackageReference>
+    <PackageReference Include="WixSharp.bin">
+      <Version>1.20.3</Version>
+    </PackageReference>
     <PackageReference Include="xunit">
       <Version>2.4.2</Version>
     </PackageReference>
@@ -133,5 +147,6 @@
       <Version>13.0.1</Version>
     </PackageReference>
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
