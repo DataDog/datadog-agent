@@ -119,9 +119,6 @@ platforms:
       ed25519_platforms = []
       use_ed25519 = ed25519_platforms.any? { |p| platform_name.include?(p) }
 
-      allow_rsa_key_platforms = []
-      allow_rsa_key = allow_rsa_key_platforms.any? { |p| platform_name.include?(p) }
-
       vm_password = ENV['SERVER_PASSWORD']
 
 %>
