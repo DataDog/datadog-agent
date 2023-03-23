@@ -1,3 +1,12 @@
+create user c##datadog identified by datadog ;
+grant create session to c##datadog ;
+grant select on v$session to c##datadog ;
+grant select on v$database to c##datadog ;
+grant select on v$containers to c##datadog;
+grant select on v$sqlstats to c##datadog ;
+grant select on v$instance to c##datadog ;
+grant select on dba_feature_usage_statistics to c##datadog ;
+
 CREATE OR REPLACE VIEW dd_session AS
 SELECT 
     s.indx as sid,
