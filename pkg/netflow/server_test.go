@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 
-	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
+	"github.com/DataDog/datadog-agent/pkg/netflow/testutil"
 )
 
 func TestNewNetflowServer(t *testing.T) {
@@ -53,7 +53,10 @@ network_devices:
 	// Send netflowV5Data twice to test aggregator
 	// Flows will have 2x bytes/packets after aggregation
 	time.Sleep(100 * time.Millisecond) // wait to make sure goflow listener is started before sending
-	err = goflowlib.SendUDPPacket(port, goflowlib.MockNetflowV5Data)
+
+	now := time.Now()
+	mockNetflowPayload := testutil.GenerateNetflow5Packet(now, 6)
+	err = testutil.SendUDPPacket(port, testutil.BuildNetFlow5Payload(mockNetflowPayload))
 	require.NoError(t, err, "error sending udp packet")
 
 	// Get Event Platform Events
@@ -61,23 +64,24 @@ network_devices:
 	require.NoError(t, err, "error waiting event platform events")
 	assert.Equal(t, 6, len(netflowEvents))
 
-	actualFlow, err := findEventBySourceDest(netflowEvents, "10.129.2.1", "10.128.2.119")
+	actualFlow, err := findEventBySourceDest(netflowEvents, "10.0.0.1", "20.0.0.1")
 	assert.NoError(t, err)
 
 	assert.Equal(t, "netflow5", actualFlow.FlowType)
 	assert.Equal(t, uint64(0), actualFlow.SamplingRate)
 	assert.Equal(t, "ingress", actualFlow.Direction)
-	assert.Equal(t, uint64(1540209168), actualFlow.Start)
-	assert.Equal(t, uint64(1540209169), actualFlow.End)
+	assert.Equal(t, uint64(now.Unix()), actualFlow.Start)
+	assert.Equal(t, uint64(now.Unix()), actualFlow.End)
 	assert.Equal(t, uint64(194), actualFlow.Bytes)
+	assert.Equal(t, uint64(10), actualFlow.Packets)
 	assert.Equal(t, "IPv4", actualFlow.EtherType)
 	assert.Equal(t, "TCP", actualFlow.IPProtocol)
 	assert.Equal(t, "127.0.0.1", actualFlow.Device.IP)
-	assert.Equal(t, "10.129.2.1", actualFlow.Source.IP)
-	assert.Equal(t, "49452", actualFlow.Source.Port)
+	assert.Equal(t, "10.0.0.1", actualFlow.Source.IP)
+	assert.Equal(t, "50000", actualFlow.Source.Port)
 	assert.Equal(t, "00:00:00:00:00:00", actualFlow.Source.Mac)
 	assert.Equal(t, "0.0.0.0/0", actualFlow.Source.Mask)
-	assert.Equal(t, "10.128.2.119", actualFlow.Destination.IP)
+	assert.Equal(t, "20.0.0.1", actualFlow.Destination.IP)
 	assert.Equal(t, "8080", actualFlow.Destination.Port)
 	assert.Equal(t, "00:00:00:00:00:00", actualFlow.Destination.Mac)
 	assert.Equal(t, "0.0.0.0/0", actualFlow.Destination.Mask)
