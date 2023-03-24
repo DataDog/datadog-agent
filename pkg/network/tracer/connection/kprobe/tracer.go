@@ -127,7 +127,7 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 	return closeFn, TracerTypePrebuilt, err
 }
 
-func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer bool, config *config.Config, m *manager.Manager, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler) (func(), error) {
+func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer bool, config *config.Config, m *manager.Manager, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler) (func(), error) {
 	if err := initManager(m, config, perfHandlerTCP, runtimeTracer); err != nil {
 		return nil, fmt.Errorf("could not initialize manager: %w", err)
 	}
@@ -173,7 +173,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer bool, config *c
 	}
 
 	// Use the config to determine what kernel probes should be enabled
-	enabledProbes, err := enabledProbes(config, runtimeTracer)
+	enabledProbes, err := enabledProbes(config, runtimeTracer, coreTracer)
 	if err != nil {
 		return nil, fmt.Errorf("invalid probe configuration: %v", err)
 	}
@@ -220,7 +220,7 @@ func loadCORETracer(config *config.Config, m *manager.Manager, mgrOpts manager.O
 		o.RLimit = mgrOpts.RLimit
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
 		o.ConstantEditors = mgrOpts.ConstantEditors
-		closeFn, err = loadTracerFromAsset(ar, false, config, m, o, perfHandlerTCP)
+		closeFn, err = loadTracerFromAsset(ar, false, true, config, m, o, perfHandlerTCP)
 		return err
 	})
 
@@ -234,7 +234,7 @@ func loadRuntimeCompiledTracer(config *config.Config, m *manager.Manager, mgrOpt
 	}
 	defer buf.Close()
 
-	return loadTracerFromAsset(buf, true, config, m, mgrOpts, perfHandlerTCP)
+	return loadTracerFromAsset(buf, true, false, config, m, mgrOpts, perfHandlerTCP)
 }
 
 func loadPrebuiltTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler) (func(), error) {
@@ -244,5 +244,5 @@ func loadPrebuiltTracer(config *config.Config, m *manager.Manager, mgrOpts manag
 	}
 	defer buf.Close()
 
-	return loadTracerFromAsset(buf, false, config, m, mgrOpts, perfHandlerTCP)
+	return loadTracerFromAsset(buf, false, false, config, m, mgrOpts, perfHandlerTCP)
 }

@@ -44,7 +44,7 @@ int kprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/tcp_retransmit_skb/pre_4_7_0")
+SEC("kprobe/tcp_retransmit_skb")
 int kprobe__tcp_retransmit_skb_pre_4_7_0(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     log_debug("kprobe/tcp_retransmit/pre_4_7_0\n");

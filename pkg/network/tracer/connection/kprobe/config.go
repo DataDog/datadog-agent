@@ -23,7 +23,7 @@ func enableProbe(enabled map[probes.ProbeFuncName]struct{}, name probes.ProbeFun
 
 // enabledProbes returns a map of probes that are enabled per config settings.
 // This map does not include the probes used exclusively in the offset guessing process.
-func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeFuncName]struct{}, error) {
+func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes.ProbeFuncName]struct{}, error) {
 	enabled := make(map[probes.ProbeFuncName]struct{}, 0)
 
 	kv410 := kernel.VersionCode(4, 1, 0)
@@ -55,7 +55,15 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeFuncNa
 		enableProbe(enabled, probes.InetCskAcceptReturn)
 		enableProbe(enabled, probes.InetCskListenStop)
 		enableProbe(enabled, probes.TCPSetState)
-		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPRetransmit, probes.TCPRetransmitPre470, kv470))
+		// special case for tcp_retransmit_skb probe: on CO-RE,
+		// we want to load the version that makes use of
+		// the tcp_sock field, which is the same as the
+		// runtime compiled implementation
+		if coreTracer {
+			enableProbe(enabled, probes.TCPRetransmit)
+		} else {
+			enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPRetransmit, probes.TCPRetransmitPre470, kv470))
+		}
 		enableProbe(enabled, probes.TCPRetransmitRet)
 
 		missing, err := ebpf.VerifyKernelFuncs("sockfd_lookup_light")

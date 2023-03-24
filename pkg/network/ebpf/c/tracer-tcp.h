@@ -31,7 +31,7 @@ int kprobe__tcp_recvmsg(struct pt_regs *ctx) {
 
 #if defined(COMPILE_CORE) || defined(COMPILE_PREBUILT)
 
-SEC("kprobe/tcp_sendmsg/pre_4_1_0")
+SEC("kprobe/tcp_sendmsg")
 int kprobe__tcp_sendmsg__pre_4_1_0(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("kprobe/tcp_sendmsg: pid_tgid: %d\n", pid_tgid);
@@ -40,7 +40,7 @@ int kprobe__tcp_sendmsg__pre_4_1_0(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/tcp_recvmsg/pre_4_1_0")
+SEC("kprobe/tcp_recvmsg")
 int kprobe__tcp_recvmsg__pre_4_1_0(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("kprobe/tcp_recvmsg: pid_tgid: %d\n", pid_tgid);
