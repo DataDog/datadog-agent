@@ -332,14 +332,16 @@ def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
     return version, pre, commit_number, git_sha, pipeline_id
 
 def cache_version(ctx, git_sha_length=7, prefix=None, major_version='7'):
-    version = ""
-    version, pre, commits_since_version, git_sha, pipeline_id = query_version(
-        ctx, git_sha_length, prefix, major_version_hint=major_version
-    )
-
+    packed_data = []
+    for maj_version in ['6', '7']:
+        version, pre, commits_since_version, git_sha, pipeline_id = query_version(
+            ctx, git_sha_length, prefix, major_version_hint=maj_version
+        )
+        packed_data.append((version, pre, commits_since_version, git_sha, pipeline_id))
     is_nightly = is_allowed_repo_nightly_branch(os.getenv("BUCKET_BRANCH"))
+    packed_data.append(is_nightly)
     with open("_version.cache", "wb") as file:
-        pickle.dump((version, pre, commits_since_version, git_sha, pipeline_id, is_nightly), file)
+        pickle.dump(packed_data, file)
 
 
 def get_version(
@@ -349,10 +351,13 @@ def get_version(
     if os.path.exists("_version.cache"):
         try:
             with open("_version.cache", "rb") as file:
-                version, pre, commits_since_version, git_sha, pipeline_id, is_nightly = pickle.load(file)
+                cache_data = pickle.load(file)
+                data_index = ord(major_version) - ord('6')
+                version, pre, commits_since_version, git_sha, pipeline_id = cache_data[data_index]
+                is_nightly = cache_data[-1]
         except:
             # If a cache file is found but corrupted we ignore it.
-            pass
+            version = ""
     # If we didn't load the cache
     if not version and False:
         # we only need the git info for the non omnibus builds, omnibus includes all this information by default
