@@ -1,8 +1,6 @@
 ---
 .rtloader_tests:
   stage: source_test
-  dependencies:
-    - setup_agent_version
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate $CONDA_ENV
@@ -59,7 +57,7 @@ tests_deb-x64-py3:
     - .linux_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["go_deps", "go_tools_deps"]
+  needs: ["go_deps", "go_tools_deps", "setup_agent_version"]
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
