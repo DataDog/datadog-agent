@@ -442,6 +442,8 @@ func TestPublishReceiverStats(t *testing.T) {
 				atom(10),
 				atom(11),
 				atom(12),
+				atom(13),
+				atom(14),
 			},
 			TracesFiltered:     atom(4),
 			TracesPriorityNone: atom(5),

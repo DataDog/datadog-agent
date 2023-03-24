@@ -28,6 +28,8 @@ const (
 	// tagSamplingPriority specifies the sampling priority of the trace.
 	// DEPRECATED: Priority is now specified as a TraceChunk field.
 	tagSamplingPriority = "_sampling_priority_v1"
+	// peerServiceKey is the key for the peer.service meta field.
+	peerServiceKey = "peer.service"
 )
 
 var (
@@ -59,6 +61,19 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 		log.Debugf("Fixing malformed trace. Service is invalid (reason:service_invalid), replacing invalid span.service=%s with fallback span.service=%s: %s", s.Service, svc, s)
 	}
 	s.Service = svc
+
+	pSvc, ok := s.Meta[peerServiceKey]
+	if ok {
+		ps, err := traceutil.NormalizePeerService(pSvc)
+		switch err {
+		case traceutil.ErrTooLong:
+			// incr
+			log.Debugf("Fixing malformed trace. peer.service is too long (reason:peer_service_truncate), truncating peer.service to length=%d: %s", traceutil.MaxServiceLen, ps)
+		case traceutil.ErrInvalid:
+			log.Debugf("Fixing malformed trace. peer.service is invalid (reason:peer_service_invalid), replacing invalid peer.service=%s with empty string", pSvc)
+		}
+		s.Meta[peerServiceKey] = ps
+	}
 
 	if a.conf.HasFeature("component2name") {
 		// This feature flag determines the component tag to become the span name.
