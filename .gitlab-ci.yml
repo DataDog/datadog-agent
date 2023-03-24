@@ -50,7 +50,7 @@ default:
       - api_failure
 
 stages:
-  # - maintenance_jobs
+  - maintenance_jobs
   # - deps_build
   # - deps_fetch
   # - source_test
