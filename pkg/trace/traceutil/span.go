@@ -7,7 +7,6 @@ package traceutil
 
 import (
 	"bytes"
-	"strings"
 
 	"github.com/tinylib/msgp/msgp"
 
@@ -23,24 +22,11 @@ const (
 	tracerTopLevelKey = "_dd.top_level"
 	// partialVersionKey is a metric carrying the snapshot seq number in the case the span is a partial snapshot
 	partialVersionKey = "_dd.partial_version"
-	// spanKindKey is the name of the field where a span's kind is stored.
-	spanKindKey = "span.kind"
 )
 
 // HasTopLevel returns true if span is top-level.
 func HasTopLevel(s *pb.Span) bool {
 	return s.Metrics[topLevelKey] == 1
-}
-
-// IsRemoteOutgoing returns true if the span's `span.kind` field is equal to CLIENT or PRODUCER,
-// both of which are "remote outgoing" spans.
-// (https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/api.md#spankind)
-func IsRemoteOutgoing(s *pb.Span) bool {
-	kind := strings.ToUpper(s.Meta[spanKindKey])
-	if kind != "" && (kind == "CLIENT" || kind == "PRODUCER") {
-		return true
-	}
-	return false
 }
 
 // UpdateTracerTopLevel sets _top_level tag on spans flagged by the tracer

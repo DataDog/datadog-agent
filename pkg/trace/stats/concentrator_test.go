@@ -527,80 +527,7 @@ func TestIgnoresPartialSpans(t *testing.T) {
 	assert.Empty(stats.GetStats())
 }
 
-// TestRemoteOutgoingSpanStats tests that we do calculate stats if span.kind == CLIENT || PRODUCER.
-func TestRemoteOutgoingSpanStats(t *testing.T) {
-	assert := assert.New(t)
-	now := time.Now()
-
-	serverSpan := func() *pb.Span {
-		return &pb.Span{
-			ParentID: 0,
-			SpanID:   1,
-			Service:  "myservice",
-			Name:     "http.server.request",
-			Resource: "rsrc1",
-			Duration: 100,
-		}
-	}
-	// spansTestCaseFn returns the input spans for test and the expected
-	// number of stats to be exported.
-	type spansTestCaseFn func() ([]*pb.Span, int)
-	for _, testCaseFn := range []spansTestCaseFn{
-		func() ([]*pb.Span, int) {
-			// Make a server span and then a child client span.
-			sp := serverSpan()
-			sp2 := &pb.Span{
-				ParentID: sp.SpanID,
-				SpanID:   2,
-				Service:  "myservice",
-				Name:     "http.client.request",
-				Resource: "client_rsrc1",
-				Meta:     map[string]string{"span.kind": "CLIENT"},
-				Duration: 50,
-			}
-			return []*pb.Span{sp, sp2}, 2
-		},
-		func() ([]*pb.Span, int) {
-			// Make a server span and then a child producer span.
-			sp := serverSpan()
-			sp2 := &pb.Span{
-				ParentID: sp.SpanID,
-				SpanID:   2,
-				Service:  "myservice",
-				Name:     "kafka.send",
-				Resource: "topic1",
-				Meta:     map[string]string{"span.kind": "PRODUCER"},
-				Duration: 50,
-			}
-			return []*pb.Span{sp, sp2}, 2
-		},
-		func() ([]*pb.Span, int) {
-			// Make a server span and then a child internal span (i.e. not CLIENT or PRODUCER).
-			sp := serverSpan()
-			sp2 := &pb.Span{
-				ParentID: sp.SpanID,
-				SpanID:   2,
-				Service:  "myservice",
-				Name:     "internal.op",
-				Resource: "internal_rsrc1",
-				Meta:     map[string]string{"span.kind": "INTERNAL"},
-				Duration: 50,
-			}
-			return []*pb.Span{sp, sp2}, 1
-		},
-	} {
-		spans, expectedStatsLen := testCaseFn()
-		traceutil.ComputeTopLevel(spans)
-		testTrace := toProcessedTrace(spans, "none", "")
-		c := NewTestConcentrator(now)
-		c.addNow(testTrace, "")
-		stats := c.flushNow(now.UnixNano() + int64(c.bufferLen)*testBucketInterval)
-		assert.Len(stats.Stats[0].Stats[0].Stats, expectedStatsLen)
-	}
-}
-
 // TestPeerServiceStats tests that if peer.service is present in the span's meta, we will generate stats with it as an additional field.
-// In the test case below, the peer.service field is on a child CLIENT span.
 func TestPeerServiceStats(t *testing.T) {
 	assert := assert.New(t)
 	now := time.Now()
@@ -619,7 +546,8 @@ func TestPeerServiceStats(t *testing.T) {
 		Name:     "postgres.query",
 		Resource: "SELECT user_id from users WHERE user_name = ?",
 		Duration: 75,
-		Meta:     map[string]string{"span.kind": "CLIENT", "peer.service": "users-db"},
+		Metrics:  map[string]float64{"_dd.measured": 1.0},
+		Meta:     map[string]string{"peer.service": "users-db"},
 	}
 	spans := []*pb.Span{sp, peerSvcSp}
 	traceutil.ComputeTopLevel(spans)

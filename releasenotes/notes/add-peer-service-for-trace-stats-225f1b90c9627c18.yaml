@@ -2,5 +2,3 @@
 features:
   - |
     Addition of `peer.service` to trace stats exported by the Agent.
-  - |
-    Computation of trace stats now extends to spans that have a `span.kind` equal to "CLIENT" or "PRODUCER".
