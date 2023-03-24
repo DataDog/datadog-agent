@@ -2,7 +2,7 @@ import json
 import os
 
 from .githubapp import GithubApp, GithubAppException
-from .remote_api import RemoteAPI
+from .remote_api import RemoteAPI, APIError
 
 __all__ = ["GithubWorkflows", "GithubException", "get_github_app_token"]
 
@@ -102,17 +102,23 @@ class GithubWorkflows(RemoteAPI):
         headers["Authorization"] = f"token {self.api_token}"
         headers["Accept"] = "application/vnd.github.v3+json"
 
-        for _ in range(5):  # Retry up to 5 times
-            return self.request(
-                path=path,
-                headers=headers,
-                data=data,
-                json_input=False,
-                json_output=json_output,
-                raw_output=raw_output,
-                stream_output=False,
-                method=method,
-            )
+        for retry_count in range(5):  # Retry up to 5 times
+            try:
+                return self.request(
+                    path=path,
+                    headers=headers,
+                    data=data,
+                    json_input=False,
+                    json_output=json_output,
+                    raw_output=raw_output,
+                    stream_output=False,
+                    method=method,
+                )
+            except APIError as e:
+                if 500 <= e.status_code < 600:
+                    time.sleep(1 + retry_count * 2)
+                else:
+                    raise e
         raise GithubException(f"Failed while making HTTP request: {method} {url}")
 
 
