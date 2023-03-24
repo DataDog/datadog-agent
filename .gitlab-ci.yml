@@ -51,36 +51,36 @@ default:
 
 stages:
   - maintenance_jobs
-  # - deps_build
-  # - deps_fetch
-  # - source_test
-  # - source_test_junit_upload
-  # - binary_build
-  # - package_deps_build
-  # - integration_test
-  # - benchmarks
-  # - package_build
+  - deps_build
+  - deps_fetch
+  - source_test
+  - source_test_junit_upload
+  - binary_build
+  - package_deps_build
+  - integration_test
+  - benchmarks
+  - package_build
   - kitchen_deploy
   - kitchen_testing
-    # - pkg_metrics
-    # - container_build
-    # - container_scan
-    # - check_deploy
-    # - dev_container_deploy
-    # - deploy6
-    # - deploy7
-    # - deploy_dca
-    # - choco_build
-    # - choco_deploy
-    # - internal_image_deploy
-    # - trigger_release
-    # - e2e
+  - pkg_metrics
+  - container_build
+  - container_scan
+  - check_deploy
+  - dev_container_deploy
+  - deploy6
+  - deploy7
+  - deploy_dca
+  - choco_build
+  - choco_deploy
+  - internal_image_deploy
+  - trigger_release
+  - e2e
   - kitchen_cleanup
-    # - functional_test
-    # - functional_test_cleanup
-    # - functional_test_junit_upload
-    # - internal_kubernetes_deploy
-    # - notify
+  - functional_test
+  - functional_test_cleanup
+  - functional_test_junit_upload
+  - internal_kubernetes_deploy
+     # - notify
 
 variables:
   #Do not change this - must be the repository name for Kubernetes runners to work
