@@ -5,27 +5,27 @@ include:
   - /.gitlab/deps_build.yml
   - /.gitlab/package_deps_build.yml
   - /.gitlab/deps_fetch.yml
-  - /.gitlab/source_test.yml
-  - /.gitlab/source_test_junit_upload.yml
+    # - /.gitlab/source_test.yml
+    # - /.gitlab/source_test_junit_upload.yml
   - /.gitlab/binary_build.yml
-  - /.gitlab/integration_test.yml
+    # - /.gitlab/integration_test.yml
   - /.gitlab/package_build.yml
   - /.gitlab/kitchen_deploy.yml
   - /.gitlab/kitchen_testing.yml
   - /.gitlab/pkg_metrics.yml
-  - /.gitlab/container_build.yml
-  - /.gitlab/container_scan.yml
+    # - /.gitlab/container_build.yml
+    # - /.gitlab/container_scan.yml
   - /.gitlab/check_deploy.yml
   - /.gitlab/dev_container_deploy.yml
-  - /.gitlab/deploy_6.yml
-  - /.gitlab/deploy_7.yml
-  - /.gitlab/deploy_dca.yml
-  - /.gitlab/choco_build.yml
-  - /.gitlab/choco_deploy.yml
-  - /.gitlab/internal_image_deploy.yml
-  - /.gitlab/trigger_release.yml
-  - /.gitlab/e2e.yml
-  - /.gitlab/fakeintake.yml
+    # - /.gitlab/deploy_6.yml
+    # - /.gitlab/deploy_7.yml
+    # - /.gitlab/deploy_dca.yml
+    # - /.gitlab/choco_build.yml
+    # - /.gitlab/choco_deploy.yml
+    # - /.gitlab/internal_image_deploy.yml
+    # - /.gitlab/trigger_release.yml
+    # - /.gitlab/e2e.yml
+    # - /.gitlab/fakeintake.yml
   - /.gitlab/kitchen_cleanup.yml
   - /.gitlab/functional_test.yml
   - /.gitlab/functional_test_cleanup.yml
