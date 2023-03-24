@@ -89,9 +89,9 @@ var allowedEnvvarNames = []string{
 	"DD_INSIDE_CI",
 
 	// Cluster agent
-	HELM_CHART_RELEASE_NAME,
-	HELM_AGENT_DAEMONSET,
-	HELM_CLUSTER_AGENT_DEPLOYMENT,
+	"CHART_RELEASE_NAME",
+	"AGENT_DAEMONSET",
+	"CLUSTER_AGENT_DEPLOYMENT",
 }
 
 func getAllowedEnvvars() []string {
