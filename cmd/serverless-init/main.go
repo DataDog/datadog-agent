@@ -32,10 +32,10 @@ const (
 func main() {
 	if len(os.Args) < 2 {
 		panic("[datadog init process] invalid argument count, did you forget to set CMD ?")
+	} else {
+		cloudService, logConfig, traceAgent, metricAgent := setup()
+		initcontainer.Run(cloudService, logConfig, metricAgent, traceAgent, os.Args[1:])
 	}
-
-	cloudService, logConfig, traceAgent, metricAgent := setup()
-	initcontainer.Run(cloudService, logConfig, metricAgent, traceAgent, os.Args[1:])
 }
 
 func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent) {
