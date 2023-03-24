@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    RPMs on openSUSE are now built with RPM 4.14.3 and have SHA256 digest headers.
+    SUSE RPMs are now built with RPM 4.14.3 and have SHA256 digest headers.
