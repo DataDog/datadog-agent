@@ -120,7 +120,7 @@ deploy_staging_dsd:
   stage: deploy7
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main"]
-  dependencies: ["build_dogstatsd-binary_x64"]
+  dependencies: ["build_dogstatsd-binary_x64", "setup_agent_version"]
   script:
     - $S3_CP_CMD $S3_ARTIFACTS_URI/dogstatsd/dogstatsd ./dogstatsd
     - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
@@ -133,7 +133,7 @@ deploy_staging_iot_agent:
   stage: deploy7
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main"]
-  dependencies: ["build_iot_agent-binary_x64"]
+  dependencies: ["build_iot_agent-binary_x64", "setup_agent_version"]
   script:
     - $S3_CP_CMD $S3_ARTIFACTS_URI/iot/agent ./agent
     - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)

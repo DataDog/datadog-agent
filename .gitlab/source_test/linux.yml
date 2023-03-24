@@ -1,6 +1,8 @@
 ---
 .rtloader_tests:
   stage: source_test
+  dependencies:
+    - setup_agent_version
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate $CONDA_ENV

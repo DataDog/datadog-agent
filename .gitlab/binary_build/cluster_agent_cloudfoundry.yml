@@ -6,6 +6,8 @@ cluster_agent_cloudfoundry-build_amd64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   needs: ["go_mod_tidy_check", "go_deps"]
+  dependencies:
+    - setup_agent_version
   artifacts:
     expire_in: 2 weeks
     paths:
