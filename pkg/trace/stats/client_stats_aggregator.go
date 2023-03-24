@@ -232,6 +232,7 @@ func (b *bucket) aggregationToPayloads() []pb.ClientStatsPayload {
 		for aggrKey, counts := range aggrCounts {
 			stats = append(stats, pb.ClientGroupedStats{
 				Service:        aggrKey.Service,
+				PeerService:    aggrKey.PeerService,
 				Name:           aggrKey.Name,
 				Resource:       aggrKey.Resource,
 				HTTPStatusCode: aggrKey.StatusCode,

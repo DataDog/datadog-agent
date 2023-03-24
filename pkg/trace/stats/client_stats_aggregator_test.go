@@ -52,6 +52,7 @@ func payloadWithCounts(ts time.Time, k BucketsAggregationKey, hits, errors, dura
 				Stats: []pb.ClientGroupedStats{
 					{
 						Service:        k.Service,
+						PeerService:    k.PeerService,
 						Name:           k.Name,
 						Resource:       k.Resource,
 						HTTPStatusCode: k.StatusCode,
@@ -289,6 +290,11 @@ func TestCountAggregation(t *testing.T) {
 			BucketsAggregationKey{StatusCode: 10},
 			pb.ClientGroupedStats{HTTPStatusCode: 10},
 			"status",
+		},
+		{
+			BucketsAggregationKey{PeerService: "remote-service"},
+			pb.ClientGroupedStats{PeerService: "remote-service"},
+			"peer.service",
 		},
 	}
 	for _, tc := range tts {
