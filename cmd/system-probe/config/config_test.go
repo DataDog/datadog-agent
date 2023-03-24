@@ -26,7 +26,7 @@ func newConfig(t *testing.T) {
 	config.InitSystemProbeConfig(config.SystemProbe)
 }
 
-func TestEventMonitor(t *testing.T) {
+func TestRuntimeSecurityLoad(t *testing.T) {
 	newConfig(t)
 
 	for i, tc := range []struct {
@@ -59,7 +59,7 @@ func TestEventMonitor(t *testing.T) {
 			cfg, err := New("")
 			t.Log(cfg)
 			require.NoError(t, err)
-			assert.Equal(t, tc.enabled, cfg.ModuleIsEnabled(EventMonitorModule))
+			assert.Equal(t, tc.enabled, cfg.ModuleIsEnabled(SecurityRuntimeModule))
 		})
 	}
 }

@@ -36,55 +36,50 @@ type Monitor struct {
 }
 
 // NewMonitor returns a new instance of a ProbeMonitor
-func NewMonitor(p *Probe) *Monitor {
-	return &Monitor{
+func NewMonitor(p *Probe) (*Monitor, error) {
+	var err error
+	m := &Monitor{
 		probe: p,
 	}
-}
-
-// Init initializes the monitor
-func (m *Monitor) Init() error {
-	var err error
-	p := m.probe
 
 	// instantiate a new load controller
 	m.loadController, err = NewLoadController(p)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// instantiate a new event statistics monitor
 	m.perfBufferMonitor, err = NewPerfBufferMonitor(p)
 	if err != nil {
-		return fmt.Errorf("couldn't create the events statistics monitor: %w", err)
+		return nil, fmt.Errorf("couldn't create the events statistics monitor: %w", err)
 	}
 
-	if p.IsActivityDumpEnabled() {
+	if p.Config.ActivityDumpEnabled {
 		m.activityDumpManager, err = dump.NewActivityDumpManager(p.Config, p.StatsdClient, func() *model.Event { return NewEvent(p.fieldHandlers) }, p.resolvers.ProcessResolver, p.resolvers.TimeResolver, p.resolvers.TagsResolver, p.kernelVersion, p.scrubber, p.Manager)
 		if err != nil {
-			return fmt.Errorf("couldn't create the activity dump manager: %w", err)
+			return nil, fmt.Errorf("couldn't create the activity dump manager: %w", err)
 		}
 	}
 
-	if p.Config.RuntimeSecurity.SecurityProfileEnabled {
+	if p.Config.SecurityProfileEnabled {
 		m.securityProfileManager, err = profile.NewSecurityProfileManager(p.Config, p.StatsdClient, p.resolvers.CGroupResolver)
 		if err != nil {
-			return fmt.Errorf("couldn't create the security profile manager: %w", err)
+			return nil, fmt.Errorf("couldn't create the security profile manager: %w", err)
 		}
 	}
 
-	if p.Config.Probe.RuntimeMonitor {
+	if p.Config.RuntimeMonitor {
 		m.runtimeMonitor = NewRuntimeMonitor(p.StatsdClient)
 	}
 
 	m.discarderMonitor, err = NewDiscarderMonitor(p.Manager, p.StatsdClient)
 	if err != nil {
-		return fmt.Errorf("couldn't create the discarder monitor: %w", err)
+		return nil, fmt.Errorf("couldn't create the discarder monitor: %w", err)
 	}
 
 	m.cgroupsMonitor = NewCgroupsMonitor(p.StatsdClient, p.resolvers.CGroupResolver)
 
-	return nil
+	return m, nil
 }
 
 // GetPerfBufferMonitor returns the perf buffer monitor
@@ -165,7 +160,7 @@ func (m *Monitor) SendStats() error {
 		}
 	}
 
-	if m.probe.Config.Probe.RuntimeMonitor {
+	if m.probe.Config.RuntimeMonitor {
 		if err := m.runtimeMonitor.SendStats(); err != nil {
 			return fmt.Errorf("failed to send runtime monitor stats: %w", err)
 		}
@@ -206,7 +201,7 @@ var ErrActivityDumpManagerDisabled = errors.New("ActivityDumpManager is disabled
 
 // DumpActivity handles an activity dump request
 func (m *Monitor) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
-	if !m.probe.IsActivityDumpEnabled() {
+	if !m.probe.Config.ActivityDumpEnabled {
 		return &api.ActivityDumpMessage{
 			Error: ErrActivityDumpManagerDisabled.Error(),
 		}, ErrActivityDumpManagerDisabled
@@ -216,7 +211,7 @@ func (m *Monitor) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDum
 
 // ListActivityDumps returns the list of active dumps
 func (m *Monitor) ListActivityDumps(params *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
-	if !m.probe.IsActivityDumpEnabled() {
+	if !m.probe.Config.ActivityDumpEnabled {
 		return &api.ActivityDumpListMessage{
 			Error: ErrActivityDumpManagerDisabled.Error(),
 		}, ErrActivityDumpManagerDisabled
@@ -226,7 +221,7 @@ func (m *Monitor) ListActivityDumps(params *api.ActivityDumpListParams) (*api.Ac
 
 // StopActivityDump stops an active activity dump
 func (m *Monitor) StopActivityDump(params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
-	if !m.probe.IsActivityDumpEnabled() {
+	if !m.probe.Config.ActivityDumpEnabled {
 		return &api.ActivityDumpStopMessage{
 			Error: ErrActivityDumpManagerDisabled.Error(),
 		}, ErrActivityDumpManagerDisabled
@@ -236,14 +231,10 @@ func (m *Monitor) StopActivityDump(params *api.ActivityDumpStopParams) (*api.Act
 
 // GenerateTranscoding encodes an activity dump following the input parameters
 func (m *Monitor) GenerateTranscoding(params *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
-	if !m.probe.IsActivityDumpEnabled() {
+	if !m.probe.Config.ActivityDumpEnabled {
 		return &api.TranscodingRequestMessage{
 			Error: ErrActivityDumpManagerDisabled.Error(),
 		}, ErrActivityDumpManagerDisabled
 	}
 	return m.activityDumpManager.TranscodingRequest(params)
-}
-
-func (m *Monitor) GetActivityDumpTracedEventTypes() []model.EventType {
-	return m.probe.Config.RuntimeSecurity.ActivityDumpTracedEventTypes
 }

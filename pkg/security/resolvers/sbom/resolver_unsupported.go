@@ -21,7 +21,7 @@ import (
 type Resolver struct {
 }
 
-func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface) (*Resolver, error) {
+func NewSBOMResolver(c *config.Config, statsdClient statsd.ClientInterface) (*Resolver, error) {
 	return &Resolver{}, nil
 }
 

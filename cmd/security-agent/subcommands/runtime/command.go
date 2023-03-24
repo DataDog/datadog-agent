@@ -37,7 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	seccommon "github.com/DataDog/datadog-agent/pkg/security/common"
-	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
+	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -434,8 +434,9 @@ func newAgentVersionFilter() (*rules.AgentVersionFilter, error) {
 	return rules.NewAgentVersionFilter(agentVersion)
 }
 
-func checkPoliciesInner(policiesDir string) error {
-	cfg := &pconfig.Config{
+func checkPoliciesInner(dir string) error {
+	cfg := &secconfig.Config{
+		PoliciesDir:         dir,
 		EnableKernelFilters: true,
 		EnableApprovers:     true,
 		EnableDiscarders:    true,
@@ -465,7 +466,7 @@ func checkPoliciesInner(policiesDir string) error {
 		},
 	}
 
-	provider, err := rules.NewPoliciesDirProvider(policiesDir, false)
+	provider, err := rules.NewPoliciesDirProvider(cfg.PoliciesDir, false)
 	if err != nil {
 		return err
 	}
@@ -550,7 +551,13 @@ func eventDataFromJSON(file string) (eval.Event, error) {
 }
 
 func evalRule(log log.Component, config config.Component, evalArgs *evalCliParams) error {
-	policiesDir := evalArgs.dir
+	cfg := &secconfig.Config{
+		PoliciesDir:         evalArgs.dir,
+		EnableKernelFilters: true,
+		EnableApprovers:     true,
+		EnableDiscarders:    true,
+		PIDCacheSize:        1,
+	}
 
 	// enabled all the rules
 	enabled := map[eval.EventType]bool{"*": true}
@@ -576,7 +583,7 @@ func evalRule(log log.Component, config config.Component, evalArgs *evalCliParam
 		},
 	}
 
-	provider, err := rules.NewPoliciesDirProvider(policiesDir, false)
+	provider, err := rules.NewPoliciesDirProvider(cfg.PoliciesDir, false)
 	if err != nil {
 		return err
 	}

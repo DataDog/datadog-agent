@@ -107,7 +107,7 @@ type Resolver struct {
 }
 
 // NewSBOMResolver returns a new instance of Resolver
-func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface) (*Resolver, error) {
+func NewSBOMResolver(c *config.Config, statsdClient statsd.ClientInterface) (*Resolver, error) {
 	tmpDir, err := temp.CreateTempDir("sbom-resolver")
 	if err != nil {
 		return nil, err

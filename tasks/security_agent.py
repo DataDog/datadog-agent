@@ -127,11 +127,7 @@ def gen_mocks(ctx):
         "./pkg/security/proto/api": [
             "SecurityModuleServer",
             "SecurityModuleClient",
-        ],
-        "./pkg/eventmonitor/proto/api": [
-            "EventMonitoringModuleServer",
-            "EventMonitoringModuleClient",
-            "EventMonitoringModule_GetProcessEventsClient",
+            "SecurityModule_GetProcessEventsClient",
         ],
     }
 

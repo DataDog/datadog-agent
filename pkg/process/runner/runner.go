@@ -282,6 +282,11 @@ func (l *CheckRunner) Run() error {
 		}()
 	}
 
+	for _, check := range l.enabledChecks {
+		log.Debugf("Cleaning up %s check", check.Name())
+		check.Cleanup()
+	}
+
 	return nil
 }
 
@@ -428,11 +433,6 @@ func (l *CheckRunner) UpdateRTStatus(statuses []*model.CollectorStatus) {
 func (l *CheckRunner) Stop() {
 	close(l.stop)
 	l.wg.Wait()
-
-	for _, check := range l.enabledChecks {
-		log.Debugf("Cleaning up %s check", check.Name())
-		check.Cleanup()
-	}
 }
 
 func (l *CheckRunner) GetChecks() []checks.Check {

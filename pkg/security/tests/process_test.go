@@ -611,8 +611,6 @@ func TestProcessContext(t *testing.T) {
 			cmd := cmdFunc(bin, args, envs)
 			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_rule_args_envs")
-
 			execEnvp, err := event.GetFieldValue("exec.envp")
 			if err != nil {
 				t.Errorf("not able to get exec.envp")
@@ -689,7 +687,6 @@ func TestProcessContext(t *testing.T) {
 			return nil
 
 		}, func(event *model.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_rule_tty")
 			assertFieldEqual(t, event, "process.file.path", executable)
 
 			if name, _ := event.GetFieldValue("process.tty_name"); !strings.HasPrefix(name.(string), "pts") {

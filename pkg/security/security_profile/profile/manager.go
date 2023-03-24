@@ -27,6 +27,7 @@ import (
 
 // SecurityProfileManager is used to manage Security Profiles
 type SecurityProfileManager struct {
+	config         *config.Config
 	statsdClient   statsd.ClientInterface
 	cgroupResolver *cgroup.Resolver
 	providers      []Provider
@@ -45,20 +46,21 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 	var providers []Provider
 
 	// instantiate directory provider
-	if len(config.RuntimeSecurity.SecurityProfileDir) != 0 {
-		dirProvider, err := NewDirectoryProvider(config.RuntimeSecurity.SecurityProfileDir, config.RuntimeSecurity.SecurityProfileWatchDir)
+	if len(config.SecurityProfileDir) != 0 {
+		dirProvider, err := NewDirectoryProvider(config.SecurityProfileDir, config.SecurityProfileWatchDir)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't instantiate a new security profile directory provider: %w", err)
 		}
 		providers = append(providers, dirProvider)
 	}
 
-	profileCache, err := simplelru.NewLRU[cgroupModel.WorkloadSelector, *SecurityProfile](config.RuntimeSecurity.SecurityProfileCacheSize, nil)
+	profileCache, err := simplelru.NewLRU[cgroupModel.WorkloadSelector, *SecurityProfile](config.SecurityProfileCacheSize, nil)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create security profile cache: %w", err)
 	}
 
 	m := &SecurityProfileManager{
+		config:         config,
 		statsdClient:   statsdClient,
 		providers:      providers,
 		cgroupResolver: cgroupResolver,

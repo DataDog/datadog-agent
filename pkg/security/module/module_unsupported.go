@@ -3,26 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-// +build linux
+//go:build !linux
+// +build !linux
 
-package modules
+package module
 
 import (
-	"time"
-
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 )
 
-// All System Probe modules should register their factories here
-var All = []module.Factory{
-	NetworkTracer,
-	TCPQueueLength,
-	OOMKillProbe,
-	SecurityRuntime,
-	Process,
-}
-
-func inactivityEventLog(duration time.Duration) {
-
+// NewModule instantiates a runtime security system-probe module
+func NewModule(cfg *config.Config) (module.Module, error) {
+	return nil, ebpf.ErrNotImplemented
 }

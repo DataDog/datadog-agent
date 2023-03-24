@@ -9,6 +9,7 @@
 package probe
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
@@ -18,10 +19,16 @@ type Opts struct {
 	DontDiscardRuntime bool
 	// StatsdClient to be used for probe stats
 	StatsdClient statsd.ClientInterface
+	// EventTypeEnabled defines event types enabled
+	EventTypeEnabled map[eval.EventType]bool
 }
 
 func (o *Opts) normalize() {
 	if o.StatsdClient == nil {
 		o.StatsdClient = &statsd.NoOpClient{}
+	}
+
+	if o.EventTypeEnabled == nil || len(o.EventTypeEnabled) == 0 {
+		o.EventTypeEnabled = map[eval.EventType]bool{"*": true}
 	}
 }

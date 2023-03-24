@@ -48,20 +48,22 @@ type pendingMsg struct {
 // the runtime security system-probe module and forwards them to Datadog
 type APIServer struct {
 	api.UnimplementedSecurityModuleServer
-	msgs              chan *api.SecurityEventMessage
-	activityDumps     chan *api.ActivityDumpStreamMessage
-	expiredEventsLock sync.RWMutex
-	expiredEvents     map[rules.RuleID]*atomic.Int64
-	expiredDumpsLock  sync.RWMutex
-	expiredDumps      *atomic.Int64
-	rate              *Limiter
-	statsdClient      statsd.ClientInterface
-	probe             *sprobe.Probe
-	queueLock         sync.Mutex
-	queue             []*pendingMsg
-	retention         time.Duration
-	cfg               *config.RuntimeSecurityConfig
-	cwsConsumer       *CWSConsumer
+	msgs                 chan *api.SecurityEventMessage
+	processMsgs          chan *api.SecurityProcessEventMessage
+	activityDumps        chan *api.ActivityDumpStreamMessage
+	expiredEventsLock    sync.RWMutex
+	expiredEvents        map[rules.RuleID]*atomic.Int64
+	expiredProcessEvents *atomic.Int64
+	expiredDumpsLock     sync.RWMutex
+	expiredDumps         *atomic.Int64
+	rate                 *Limiter
+	statsdClient         statsd.ClientInterface
+	probe                *sprobe.Probe
+	queueLock            sync.Mutex
+	queue                []*pendingMsg
+	retention            time.Duration
+	cfg                  *config.Config
+	module               *Module
 }
 
 // GetActivityDumpStream waits for activity dumps and forwards them to the stream
@@ -115,6 +117,32 @@ LOOP:
 		// Read one message
 		select {
 		case msg := <-a.msgs:
+			if err := stream.Send(msg); err != nil {
+				return err
+			}
+			msgs--
+		case <-time.After(time.Second):
+			break LOOP
+		}
+
+		// Stop the loop when 10 messages were retrieved
+		if msgs <= 0 {
+			break
+		}
+	}
+
+	return nil
+}
+
+// GetProcessEvents sends process events through a gRPC stream
+func (a *APIServer) GetProcessEvents(params *api.GetProcessEventParams, stream api.SecurityModule_GetProcessEventsServer) error {
+	// Read 10 security events per call
+	msgs := 10
+LOOP:
+	for {
+		// Read on message
+		select {
+		case msg := <-a.processMsgs:
 			if err := stream.Send(msg); err != nil {
 				return err
 			}
@@ -238,7 +266,7 @@ func (a *APIServer) GetStatus(ctx context.Context, params *api.GetStatusParams) 
 				Values:   constants,
 			},
 		},
-		SelfTests: a.cwsConsumer.selfTester.GetStatus(),
+		SelfTests: a.module.selfTester.GetStatus(),
 	}
 
 	envErrors := a.probe.VerifyEnvironment()
@@ -364,7 +392,7 @@ func (a *APIServer) GetConfig(ctx context.Context, params *api.GetConfigParams) 
 		return &api.SecurityConfigMessage{
 			FIMEnabled:          a.cfg.FIMEnabled,
 			RuntimeEnabled:      a.cfg.RuntimeEnabled,
-			ActivityDumpEnabled: a.probe.IsActivityDumpEnabled(),
+			ActivityDumpEnabled: a.cfg.ActivityDumpEnabled,
 		}, nil
 	}
 	return &api.SecurityConfigMessage{}, nil
@@ -372,18 +400,18 @@ func (a *APIServer) GetConfig(ctx context.Context, params *api.GetConfigParams) 
 
 // RunSelfTest runs self test and then reload the current policies
 func (a *APIServer) RunSelfTest(ctx context.Context, params *api.RunSelfTestParams) (*api.SecuritySelfTestResultMessage, error) {
-	if a.cwsConsumer == nil {
+	if a.module == nil {
 		return nil, errors.New("failed to found module in APIServer")
 	}
 
-	if a.cwsConsumer.selfTester == nil {
+	if a.module.selfTester == nil {
 		return &api.SecuritySelfTestResultMessage{
 			Ok:    false,
 			Error: "self-tests are disabled",
 		}, nil
 	}
 
-	if _, err := a.cwsConsumer.RunSelfTest(false); err != nil {
+	if _, err := a.module.RunSelfTest(false); err != nil {
 		return &api.SecuritySelfTestResultMessage{
 			Ok:    false,
 			Error: err.Error(),
@@ -514,12 +542,18 @@ func (a *APIServer) SendStats() error {
 			}
 		}
 	}
+
+	if count := a.expiredProcessEvents.Swap(0); count > 0 {
+		if err := a.statsdClient.Count(metrics.MetricProcessEventsServerExpired, count, []string{}, 1.0); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 // ReloadPolicies reloads the policies
 func (a *APIServer) ReloadPolicies(ctx context.Context, params *api.ReloadPoliciesParams) (*api.ReloadPoliciesResultMessage, error) {
-	if err := a.cwsConsumer.ReloadPolicies(); err != nil {
+	if err := a.module.ReloadPolicies(); err != nil {
 		return nil, err
 	}
 	return &api.ReloadPoliciesResultMessage{}, nil
@@ -536,18 +570,47 @@ func (a *APIServer) Apply(ruleIDs []rules.RuleID) {
 	}
 }
 
+// SendProcessEvent forwards collected process events to the processMsgs channel so they can be consumed next time GetProcessEvents
+// is called
+func (a *APIServer) SendProcessEvent(data []byte) {
+	m := &api.SecurityProcessEventMessage{
+		Data: data,
+	}
+
+	select {
+	case a.processMsgs <- m:
+		break
+	default:
+		// The channel is full, expire the oldest event
+		<-a.processMsgs
+		a.expiredProcessEvents.Inc()
+		// Try to send the event again
+		select {
+		case a.processMsgs <- m:
+			break
+		default:
+			// looks like the process msgs channel is full again, expire the current event
+			a.expiredProcessEvents.Inc()
+			break
+		}
+		break
+	}
+}
+
 // NewAPIServer returns a new gRPC event server
-func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, client statsd.ClientInterface) *APIServer {
+func NewAPIServer(cfg *config.Config, probe *sprobe.Probe, client statsd.ClientInterface) *APIServer {
 	es := &APIServer{
-		msgs:          make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
-		activityDumps: make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
-		expiredEvents: make(map[rules.RuleID]*atomic.Int64),
-		expiredDumps:  atomic.NewInt64(0),
-		rate:          NewLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
-		statsdClient:  client,
-		probe:         probe,
-		retention:     time.Duration(cfg.EventServerRetention) * time.Second,
-		cfg:           cfg,
+		msgs:                 make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
+		processMsgs:          make(chan *api.SecurityProcessEventMessage, cfg.EventServerBurst*3),
+		activityDumps:        make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
+		expiredEvents:        make(map[rules.RuleID]*atomic.Int64),
+		expiredProcessEvents: atomic.NewInt64(0),
+		expiredDumps:         atomic.NewInt64(0),
+		rate:                 NewLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
+		statsdClient:         client,
+		probe:                probe,
+		retention:            time.Duration(cfg.EventServerRetention) * time.Second,
+		cfg:                  cfg,
 	}
 	return es
 }
