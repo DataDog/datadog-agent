@@ -279,7 +279,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_dump_timeout", 30)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.rate_limiter", 500)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_wait_list_timeout", 75)
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_differentiate_args", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_differentiate_args", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.max_dumps_count", 100)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.output_directory", "/tmp/activity_dumps/")
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.formats", []string{})
