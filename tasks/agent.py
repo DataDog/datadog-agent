@@ -631,7 +631,7 @@ def omnibus_build(
         base_dir=base_dir,
         env=env,
         omnibus_s3_cache=omnibus_s3_cache,
-        log_level=log_level,
+        log_level='debug',
     )
     omnibus_done = datetime.datetime.now()
     omnibus_elapsed = omnibus_done - omnibus_start
