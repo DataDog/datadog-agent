@@ -40,10 +40,9 @@ func IsUnixNetConnValid(unixConn *net.UnixConn, allowedUsrID int, allowedGrpID i
 	}
 	if (ucred.Uid == 0 && ucred.Gid == 0) ||
 		(ucred.Uid == uint32(allowedUsrID) && ucred.Gid == uint32(allowedGrpID)) {
-
-		return false, nil
+		return true, nil
 	}
-	return true, nil
+	return false, nil
 }
 
 // HttpServe is equivalent to http.Serve()

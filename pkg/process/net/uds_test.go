@@ -8,8 +8,13 @@
 package net
 
 import (
+	"errors"
 	"net"
+	"net/http"
 	"os"
+	"os/exec"
+	"os/user"
+	"strconv"
 	"testing"
 	"time"
 
@@ -70,4 +75,87 @@ func TestNewUDSListener(t *testing.T) {
 		dir := t.TempDir()
 		testWorkingNewUDSListener(tt, dir+"/net.sock")
 	})
+}
+
+type fakeHandler struct {
+	t       *testing.T
+	request string
+}
+
+func (f *fakeHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	f.request = req.URL.String()
+}
+
+func testHttpServe(t *testing.T, shouldFailed bool, f *fakeHandler, prefixCmd []string, uid int, gid int) error {
+	dir, err := os.MkdirTemp("", "testHttpServe-*")
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	err = os.Chmod(dir, 0777)
+	assert.NoError(t, err)
+
+	socketPath := dir + "/test.http.sock"
+	conn, err := net.Listen("unix", socketPath)
+	assert.NoError(t, err)
+	err = os.Chmod(socketPath, 0666)
+	assert.NoError(t, err)
+
+	go func() {
+		time.Sleep(time.Second)
+		cmd := append(prefixCmd, "curl", "-s", "--unix-socket", socketPath, "http://unix/test")
+		o, err := exec.Command(cmd[0], cmd[1:]...).CombinedOutput()
+		if err != nil && !shouldFailed {
+			t.Log(string(o))
+		}
+		if !shouldFailed {
+			assert.NoError(t, err)
+		} else {
+			assert.Error(t, err)
+		}
+		conn.Close()
+	}()
+
+	return HttpServe(conn, f, uid, gid)
+}
+
+func lookupUser(t *testing.T, name string) (usrID int, grpID int, usrIDstr string, grpIDstr string) {
+	usr, err := user.Lookup(name)
+	assert.NoError(t, err)
+
+	usrID, err = strconv.Atoi(usr.Uid)
+	assert.NoError(t, err)
+
+	grpID, err = strconv.Atoi(usr.Gid)
+	assert.NoError(t, err)
+
+	grp, err := user.LookupGroupId(usr.Gid)
+	assert.NoError(t, err)
+
+	return usrID, grpID, usr.Username, grp.Name
+}
+
+func TestHttpServe(t *testing.T) {
+	uid, gid, uidStr, gidStr := lookupUser(t, "nobody")
+
+	// root is always valid
+	f := &fakeHandler{t: t}
+	err := testHttpServe(t, false, f, []string{"sudo"}, uid, gid)
+	if !errors.Is(err, net.ErrClosed) && err != http.ErrServerClosed {
+		assert.NoError(t, err)
+	}
+	assert.Equal(t, "/test", f.request)
+
+	// nobody:nogroup is valid
+	f = &fakeHandler{t: t}
+	err = testHttpServe(t, false, f, []string{"sudo", "-u", uidStr, "-g", gidStr}, uid, gid)
+	if !errors.Is(err, net.ErrClosed) && err != http.ErrServerClosed {
+		assert.NoError(t, err)
+	}
+	assert.Equal(t, "/test", f.request)
+
+	// nobody:nogroup no access
+	f = &fakeHandler{t: t}
+	err = testHttpServe(t, true, f, []string{"sudo", "-u", uidStr, "-g", gidStr}, 0, 0)
+	if errors.Is(err, net.ErrClosed) || err == http.ErrServerClosed {
+		assert.Error(t, err)
+	}
+	assert.Equal(t, "", f.request)
 }
