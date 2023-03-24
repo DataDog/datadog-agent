@@ -810,4 +810,5 @@ func Test_getIpAddressFromHexDecimal(t *testing.T) {
 	assert.Equal(t, "1.2.3.4", getIpAddressFromHexDecimal("01 02 03 04"))
 	assert.Equal(t, "10.128.27.197", getIpAddressFromHexDecimal("0A 80 1B C5"))
 	assert.Equal(t, "10.128.27.197", getIpAddressFromHexDecimal("0A801BC5"))
+	assert.Equal(t, "10.128.27.197", getIpAddressFromHexDecimal("10.128.27.197"))
 }
