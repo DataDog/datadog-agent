@@ -1,17 +1,12 @@
 ---
-setup:
+setup_agent_version:
   stage: setup
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   script:
-    - echo "AGENT_VERSION_6=$(inv -e agent.version --major-version 6)" > build.env
-    - echo "AGENT_VERSION_7=$(inv -e agent.version --major-version 7)" >> build.env
-    - echo "AGENT_VERSION_URL_SAFE_6=$(inv -e agent.version --major-version 6 --url-safe)" >> build.env
-    - echo "AGENT_VERSION_URL_SAFE_7=$(inv -e agent.version --major-version 7 --url-safe)" >> build.env
-    - echo "AGENT_VERSION_URL_SAFE_AND_OMNIBUS_6=$(inv -e agent.version --major-version 6 --url-safe --omnibus-format)" >> build.env
-    - echo "AGENT_VERSION_URL_SAFE_AND_OMNIBUS_7=$(inv -e agent.version --major-version 7 --url-safe --omnibus-format)" >> build.env
+    inv -e agent.version --cached-save
   artifacts:
     paths:
-      - $CI_PROJECT_DIR/build.env
+      - $CI_PROJECT_DIR/_version.cache
     expire_in: 1 days
 
