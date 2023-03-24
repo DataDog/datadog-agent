@@ -311,7 +311,7 @@ namespace WixSetup.Datadog
                 Description = description,
                 StartOn = SvcEvent.Install_Wait,
                 Start = SvcStartType.auto,
-                DelayedAutoStart = false,
+                DelayedAutoStart = true,
                 RemoveOn = SvcEvent.Uninstall_Wait,
                 ServiceSid = ServiceSid.none,
                 FirstFailureActionType = FailureActionType.restart,
