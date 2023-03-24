@@ -63,7 +63,6 @@ func (c *Check) Run() error {
 		} else {
 			hostname, err := os.Hostname()
 			if err != nil {
-				fmt.Printf("FAILED: %s", err)
 				return fmt.Errorf("failed to get hostname: %w", err)
 			}
 			c.hostname = hostname

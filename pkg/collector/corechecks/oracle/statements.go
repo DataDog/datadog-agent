@@ -361,7 +361,7 @@ func (c *Check) StatementMetrics() error {
 				"sql_id":                   statementMetricRow.StatementMetricsKeyDB.SQLID,
 			}
 			SQLTextQuery := fmt.Sprintf("SELECT sql_fulltext FROM v$sqlstats WHERE %s=:%s AND rownum = 1", queryHashCol, queryHashCol)
-			fmt.Printf("Query metrics sql text query %s", SQLTextQuery)
+			//fmt.Printf("Query metrics sql text query %s", SQLTextQuery)
 			rows, err := c.db.NamedQuery(SQLTextQuery, p)
 			if err != nil {
 				log.Errorf("query metrics statements error named exec %s ", err)
