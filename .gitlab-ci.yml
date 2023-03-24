@@ -5,7 +5,7 @@ include:
   - /.gitlab/deps_build.yml
   - /.gitlab/package_deps_build.yml
   - /.gitlab/deps_fetch.yml
-    # - /.gitlab/source_test.yml
+  - /.gitlab/source_test.yml
     # - /.gitlab/source_test_junit_upload.yml
   - /.gitlab/binary_build.yml
     # - /.gitlab/integration_test.yml
