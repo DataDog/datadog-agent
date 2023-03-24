@@ -343,13 +343,14 @@ def cache_version(ctx, git_sha_length=7, prefix=None, major_version='7'):
     with open("_version.cache", "wb") as file:
         pickle.dump(packed_data, file)
 
-
 def get_version(
     ctx, include_git=False, url_safe=False, git_sha_length=7, prefix=None, major_version='7', include_pipeline_id=False
 ):
     version = ""
-    if os.path.exists("_version.cache"):
+    pipeline_id = os.getenv("CI_PIPELINE_ID")
+    if pipeline_id is not None:
         try:
+            os.system(f"aws s3 cp s3://dd-ci-artefacts-build-stable/{os.getenv('CI_PROJECT_NAME')}/{pipeline_id}/_version.cache .")
             with open("_version.cache", "rb") as file:
                 cache_data = pickle.load(file)
             data_index = ord(major_version) - ord('6')
@@ -358,7 +359,6 @@ def get_version(
             if pre:
                 version = f"{version}-{pre}"
         except Exception as e:
-            raise e
             # If a cache file is found but corrupted we ignore it.
             version = ""
     # If we didn't load the cache

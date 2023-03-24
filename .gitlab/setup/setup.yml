@@ -5,8 +5,5 @@ setup_agent_version:
   tags: ["runner:main"]
   script:
     inv -e agent.version --cached-save
-  artifacts:
-    paths:
-      - $CI_PROJECT_DIR/_version.cache
-    expire_in: 1 days
+    $S3_CP_CMD $CI_PROJECT_DIR/_version.cache $S3_ARTIFACTS_URI/_version.cache
 
