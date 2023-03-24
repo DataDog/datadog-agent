@@ -8,7 +8,6 @@ package api
 import (
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 // Payload specifies information about a set of traces received by the API.
@@ -50,20 +49,4 @@ func (p *Payload) RemoveChunk(i int) {
 // ReplaceChunk replaces a chunk in TracerPayload at a given index
 func (p *Payload) ReplaceChunk(i int, chunk *pb.TraceChunk) {
 	p.TracerPayload.Chunks[i] = chunk
-}
-
-// ProcessedTrace creates a ProcessedTrace based on the provided chunk and root.
-// It makes a deep copy of the provided chunk to ensure that any changes to the
-// chunk will not affect the TraceChunk of the ProcessedTrace.
-func (p *Payload) ProcessedTrace(chunk *pb.TraceChunk, root *pb.Span) traceutil.ProcessedTrace {
-	ptChunk := new(pb.TraceChunk)
-	*ptChunk = *chunk
-	return traceutil.ProcessedTrace{
-		TraceChunk:             ptChunk,
-		Root:                   root,
-		AppVersion:             p.TracerPayload.AppVersion,
-		TracerEnv:              p.TracerPayload.Env,
-		TracerHostname:         p.TracerPayload.Hostname,
-		ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.Chunks())),
-	}
 }
