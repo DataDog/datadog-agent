@@ -17,11 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-type testDeps struct {
-	fx.In
-	Config Component
-}
-
 func TestRealConfig(t *testing.T) {
 	// point the ConfFilePath to a valid, but empty config file so that it does
 	// not use the config file on the developer's system
@@ -31,7 +26,7 @@ func TestRealConfig(t *testing.T) {
 	os.Setenv("DD_DD_URL", "https://example.com")
 	defer func() { os.Unsetenv("DD_DD_URL") }()
 
-	deps := fxutil.Test[testDeps](t, fx.Options(
+	config := fxutil.Test[Component](t, fx.Options(
 		fx.Supply(NewParams(
 			"",
 			WithConfigMissingOK(true),
@@ -39,7 +34,7 @@ func TestRealConfig(t *testing.T) {
 		)),
 		Module,
 	))
-	require.Equal(t, "https://example.com", deps.Config.GetString("dd_url"))
+	require.Equal(t, "https://example.com", config.GetString("dd_url"))
 }
 
 // TODO: test various bundle params

@@ -14,16 +14,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-type testDeps struct {
-	fx.In
-	Log Component
-}
-
 func TestMockLogging(t *testing.T) {
-	deps := fxutil.Test[testDeps](t, fx.Options(
+	log := fxutil.Test[Component](t, fx.Options(
 		fx.Supply(Params{}),
 		config.MockModule,
 		MockModule,
 	))
-	deps.Log.Debugf("hello, world. %s", "hi")
+	log.Debugf("hello, world. %s", "hi")
 }
