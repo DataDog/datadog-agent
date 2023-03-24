@@ -184,7 +184,7 @@ func getIpAddressFromHexDecimal(hexstring string) string {
 	if strings.Contains(hexstring, " ") {
 		hexdecList = strings.Split(hexstring, " ")
 	} else {
-		for i := 0; i < len(hexstring); i += 2 {
+		for i := 0; i < len(hexstring)-1; i += 2 {
 			hexdecList = append(hexdecList, hexstring[i:i+2])
 		}
 	}
