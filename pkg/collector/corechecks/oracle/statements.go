@@ -235,7 +235,7 @@ func (c *Check) StatementMetrics() error {
 			return fmt.Errorf("error collecting statement metrics for SQL_IDs: %w", err)
 		}
 		statementMetricsAll = append(statementMetricsAll, statementMetrics...)
-
+		log.Tracef("colleced keys: %+v", statementMetricsAll)
 		newCache := make(map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB)
 		if c.statementMetricsMonotonicCountsPrevious == nil {
 			c.copyToPreviousMap(newCache)
@@ -244,7 +244,7 @@ func (c *Check) StatementMetrics() error {
 
 		o := obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})
 		var diff OracleRowMonotonicCount
-		//var oracleRows []OracleRow
+
 		for _, statementMetricRow := range statementMetricsAll {
 			newCache[statementMetricRow.StatementMetricsKeyDB] = statementMetricRow.StatementMetricsMonotonicCountDB
 			previousMonotonic, exists := c.statementMetricsMonotonicCountsPrevious[statementMetricRow.StatementMetricsKeyDB]
@@ -361,7 +361,6 @@ func (c *Check) StatementMetrics() error {
 				"sql_id":                   statementMetricRow.StatementMetricsKeyDB.SQLID,
 			}
 			SQLTextQuery := fmt.Sprintf("SELECT sql_fulltext FROM v$sqlstats WHERE %s=:%s AND rownum = 1", queryHashCol, queryHashCol)
-			//fmt.Printf("Query metrics sql text query %s", SQLTextQuery)
 			rows, err := c.db.NamedQuery(SQLTextQuery, p)
 			if err != nil {
 				log.Errorf("query metrics statements error named exec %s ", err)
@@ -373,7 +372,7 @@ func (c *Check) StatementMetrics() error {
 			cols, err := rows.SliceScan()
 
 			if err != nil {
-				log.Errorf("query metrics statement scan error %s %s ", err, SQLTextQuery)
+				log.Errorf("query metrics statement scan error %s %s %+v", err, SQLTextQuery, p)
 				continue
 			}
 			SQLStatement = cols[0].(string)
