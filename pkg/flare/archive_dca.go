@@ -195,7 +195,7 @@ func getAgentDaemonSet(fb flarehelpers.FlareBuilder) error {
 	agentDaemonsetName = os.Getenv(HELM_AGENT_DAEMONSET)
 	releaseNamespace = os.Getenv(HELM_CHART_RELEASE_NAMESPACE)
 	if agentDaemonsetName == "" || releaseNamespace == "" {
-		return log.Errorf("Can't collect the Agent Daemonset name or namespace from the environment variables %s and %v", HELM_AGENT_DAEMONSET, HELM_CHART_RELEASE_NAMESPACE)
+		return log.Errorf("Can't collect the Agent Daemonset name and/or namespace from the environment variables %s and %v", HELM_AGENT_DAEMONSET, HELM_CHART_RELEASE_NAMESPACE)
 	}
 	agentDaemonset, err = GetDaemonset(cl, agentDaemonsetName, releaseNamespace)
 	if err != nil {
@@ -218,7 +218,7 @@ func getClusterAgentDeployment(fb flarehelpers.FlareBuilder) error {
 	clusterAgentDeploymentName = os.Getenv(HELM_CLUSTER_AGENT_DEPLOYMENT)
 	releaseNamespace = os.Getenv(HELM_CHART_RELEASE_NAMESPACE)
 	if clusterAgentDeploymentName == "" || releaseNamespace == "" {
-		return log.Errorf("Can't collect the Cluster Agent Deployment name or namespace from the environment variables %s and %v", HELM_CLUSTER_AGENT_DEPLOYMENT, HELM_CHART_RELEASE_NAMESPACE)
+		return log.Errorf("Can't collect the Cluster Agent Deployment name and/or namespace from the environment variables %s and %v", HELM_CLUSTER_AGENT_DEPLOYMENT, HELM_CHART_RELEASE_NAMESPACE)
 	}
 	clusterAgentDeployment, err = GetDeployment(cl, clusterAgentDeploymentName, releaseNamespace)
 	if err != nil {

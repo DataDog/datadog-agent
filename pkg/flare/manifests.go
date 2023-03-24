@@ -41,38 +41,35 @@ type chartUserValues struct {
 	Config map[string]interface{} `json:"config,omitempty"`
 }
 
+// convertToYAMLBytes is a helper function to turn an object returned from `k8s.io/api/core/v1` into a readable YAML manifest
+func convertToYAMLBytes(input any) ([]byte, error) {
+	objJson, err := json.Marshal(input)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to Marshal the object manifest: %w", err)
+	}
+	return yaml.JSONToYAML(objJson)
+}
+
 // Retrieve a DaemonSet YAML from the API server for a given name and namespace, and returns the associated YAML manifest into a a byte array.
 // Its purpose is to retrieve the Datadog Agent DaemonSet manifest when building a Cluster Agent flare.
 func GetDaemonset(cl *apiserver.APIClient, name string, namespace string) ([]byte, error) {
-	var b bytes.Buffer
-
 	ds, err := cl.Cl.AppsV1().DaemonSets(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		log.Debugf("Can't retrieve DaemonSet %v from the API server: %s", name, err.Error())
 		return nil, err
 	}
-
-	dsjson, err := json.Marshal(ds)
-	ddyaml, err := yaml.JSONToYAML(dsjson)
-	fmt.Fprintln(&b, string(ddyaml))
-	return b.Bytes(), nil
+	return convertToYAMLBytes(ds)
 }
 
 // Retrieve a Deployment YAML from the API server for a given name and namespace, and returns the associated YAML manifest into a a byte array.
 // Its purpose is to retrieve the Datadog Cluster Agent Deployment manifest when building a Cluster Agent flare.
 func GetDeployment(cl *apiserver.APIClient, name string, namespace string) ([]byte, error) {
-	var b bytes.Buffer
-
 	deploy, err := cl.Cl.AppsV1().Deployments(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		log.Debugf("Can't retrieve Deployment %v from the API server: %s", name, err.Error())
 		return nil, err
 	}
-
-	deployjson, err := json.Marshal(deploy)
-	deployyaml, err := yaml.JSONToYAML(deployjson)
-	fmt.Fprintln(&b, string(deployyaml))
-	return b.Bytes(), nil
+	return convertToYAMLBytes(deploy)
 }
 
 // getDeployedHelmConfigmap returns the configmap for a given release.
@@ -117,33 +114,26 @@ func getDeployedHelmSecret(cl *apiserver.APIClient, name string, namespace strin
 
 // Retrieve Helm chart user values from the API server for a given name and namespace looking through Secrets or Configmaps
 func GetDatadogHelmUserValues(cl *apiserver.APIClient, name string, namespace string, storage string) ([]byte, error) {
+	var dataString string
+
 	switch storage {
 	case "secret":
 		secret, err := getDeployedHelmSecret(cl, name, namespace)
 		if err != nil {
 			return nil, err
 		}
-		b64EncodedGzipRelease := secret.Data["release"]
 		// Contrary to the Configmap, the secret data is a byte array, so the string function is necessary
-		b, err := decodeChartValuesFromRelease(string(b64EncodedGzipRelease))
-		if err != nil {
-			return nil, err
-		}
-		return b, nil
+		dataString = string(secret.Data["release"])
 	case "configmap":
 		configmap, err := getDeployedHelmConfigmap(cl, name, namespace)
 		if err != nil {
 			return nil, err
 		}
-		b64EncodedGzipRelease := configmap.Data["release"]
-		b, err := decodeChartValuesFromRelease(b64EncodedGzipRelease)
-		if err != nil {
-			return nil, err
-		}
-		return b, nil
+		dataString = configmap.Data["release"]
 	default:
 		return nil, log.Errorf("The requested storage %s is not supported", storage)
 	}
+	return decodeChartValuesFromRelease(dataString)
 }
 
 // decodeRelease decodes the bytes of data into a readable byte array.
@@ -179,7 +169,6 @@ func decodeRelease(data string) ([]byte, error) {
 
 // decodeChartValuesFromRelease returns a byte array with the user values from an encoded Helm chart release
 func decodeChartValuesFromRelease(encodedRelease string) ([]byte, error) {
-	var b bytes.Buffer
 	var userConfig chartUserValues
 
 	decodedrelease, err := decodeRelease(encodedRelease)
@@ -196,11 +185,5 @@ func decodeChartValuesFromRelease(encodedRelease string) ([]byte, error) {
 		log.Debugf("Can't marshall user values into a proper JSON: %s", err.Error())
 		return nil, err
 	}
-	configyaml, err := yaml.JSONToYAML(configjson)
-	if err != nil {
-		log.Debugf("Can't convert user values to YAML: %s", err.Error())
-		return nil, err
-	}
-	fmt.Fprintln(&b, string(configyaml))
-	return b.Bytes(), nil
+	return yaml.JSONToYAML(configjson)
 }
