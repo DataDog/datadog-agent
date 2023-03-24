@@ -41,7 +41,7 @@ require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.7.0
 	github.com/DataDog/agent-payload/v5 v5.0.76
-	github.com/DataDog/appsec-internal-go v0.0.0-20230215162203-5149228be86a
+	github.com/DataDog/appsec-internal-go v0.0.0-20230216105641-1d0c059e50fa
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.44.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.44.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.44.0-rc.5
@@ -567,6 +567,15 @@ require (
 	sigs.k8s.io/json v0.0.0-20220713155537-f223a00ba0e2 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
+)
+
+require github.com/sijms/go-ora/v2 v2.5.27
+
+require github.com/godror/knownpb v0.1.0 // indirect
+
+require (
+	github.com/godror/godror v0.36.0
+	github.com/jmoiron/sqlx v1.3.5
 )
 
 replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be => github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe
