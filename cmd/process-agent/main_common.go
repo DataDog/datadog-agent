@@ -11,7 +11,6 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
-	"time"
 
 	"go.uber.org/fx"
 
@@ -72,13 +71,11 @@ func main() {
 }
 
 func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
-	cleanupAndExit := cleanupAndExitHandler(globalParams)
-
 	if !globalParams.Info && globalParams.PidFilePath != "" {
 		err := pidfile.WritePID(globalParams.PidFilePath)
 		if err != nil {
 			log.Errorf("Error while writing PID file, exiting: %v", err)
-			cleanupAndExit(1)
+			os.Exit(1)
 		}
 
 		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), globalParams.PidFilePath)
@@ -97,20 +94,13 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 	// Log any potential misconfigs that are related to the process agent
 	misconfig.ToLog(misconfig.ProcessAgent)
 
-	exitGate := time.After(5 * time.Second)
-	exitCode := runApp(exit, globalParams)
-
-	// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
-	// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though the exit may be expected
-	// http://supervisord.org/subprocess.html#process-states
-	if exitCode == 0 {
-		<-exitGate
+	err := runApp(exit, globalParams)
+	if err != nil {
+		os.Exit(1)
 	}
-
-	cleanupAndExit(exitCode)
 }
 
-func runApp(exit chan struct{}, globalParams *command.GlobalParams) int {
+func runApp(exit chan struct{}, globalParams *command.GlobalParams) error {
 	go util.HandleSignals(exit)
 
 	var appInitDeps struct {
@@ -151,21 +141,21 @@ func runApp(exit chan struct{}, globalParams *command.GlobalParams) int {
 		url := fmt.Sprintf("http://localhost:%d/debug/vars", getExpvarPort(appInitDeps.Config))
 		if err := status.Info(os.Stdout, url); err != nil {
 			_ = log.Criticalf("Failed to render info:", err.Error())
-			return 1
+			return err
 		}
-		return 0
+		return nil
 	}
 
 	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
 	if !anyChecksEnabled(appInitDeps.Checks) {
 		log.Infof(agent6DisabledMessage)
-		return 0
+		return nil
 	}
 
 	err := app.Start(context.Background())
 	if err != nil {
 		log.Criticalf("Failed to start process agent: %v", err)
-		return 1
+		return err
 	}
 
 	// Set up an exit channel
@@ -177,7 +167,7 @@ func runApp(exit chan struct{}, globalParams *command.GlobalParams) int {
 		log.Info("The process-agent has successfully been shut down")
 	}
 
-	return 0
+	return nil
 }
 
 func anyChecksEnabled(checks []types.CheckComponent) bool {
@@ -187,20 +177,6 @@ func anyChecksEnabled(checks []types.CheckComponent) bool {
 		}
 	}
 	return false
-}
-
-// cleanupAndExitHandler cleans all resources allocated by the agent before calling os.Exit
-func cleanupAndExitHandler(globalParams *command.GlobalParams) func(int) {
-	return func(status int) {
-		// remove pidfile if set
-		if globalParams.PidFilePath != "" {
-			if _, err := os.Stat(globalParams.PidFilePath); err == nil {
-				os.Remove(globalParams.PidFilePath)
-			}
-		}
-
-		os.Exit(status)
-	}
 }
 
 // initRuntimeSettings registers settings to be added to the runtime config.
