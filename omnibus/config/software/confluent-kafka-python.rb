@@ -21,8 +21,8 @@ build do
   if windows?
     librd_dir = "c:\\librdkafka-redist"
     build_env = {
-       "INCLUDE" => "#{librd_dir}\\librdkafka.redist.2.0.2\\build\\native\\include",
-       "LIB" => "#{librd_dir}\\librdkafka.redist.2.0.2\\build\\native\\lib\\win\\x64\\win-x64-Release\\v142"
+       "INCLUDE" => "#{librd_dir}\\librdkafka.redist.#{version}\\build\\native\\include",
+       "LIB" => "#{librd_dir}\\librdkafka.redist.#{version}\\build\\native\\lib\\win\\x64\\win-x64-Release\\v142"
     }
     
     command "nuget install librdkafka.redist -version #{version} -OutputDirectory #{librd_dir}"
@@ -36,4 +36,28 @@ build do
   end
 
   command "#{pip} install --no-binary confluent-kafka .", :env => build_env
+
+  if windows?
+    ## seem to need to copy this by hand
+    ## why is this not handled by pip install?
+    
+    librd_bindir = "#{librd_dir}\\librdkafka.redist.#{version}\\runtimes\\win-x64\\native"
+    librd_target = "#{windows_safe_path(python_3_embedded)}\\Lib\\site-packages\\confluent_kafka"
+
+    needed_dlls = ["libcrypto-3-x64.dll",
+      "libcurl.dll",
+      "librdkafka.dll",
+      "librdkafkacpp.dll",
+      "libssl-3-x64.dll",
+      ## do not for any reason copy  the base C runtime DLLS that come with the librdkafka
+      ## package.  They would likely mess up the entire rest of the windows agent python distro
+      ##"msvcp140.dll",     
+      ##"vcruntime140.dll",
+      "zlib1.dll",
+      "zstd.dll"]
+
+    needed_dlls.each do |dll|
+      copy "#{librd_bindir}\\#{dll}", "#{librd_target}"
+    end
+  end
 end
