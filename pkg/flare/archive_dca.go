@@ -240,7 +240,7 @@ func getHelmValues(fb flarehelpers.FlareBuilder) error {
 	releaseName = os.Getenv(HELM_CHART_RELEASE_NAME)
 	releaseNamespace = os.Getenv(HELM_CHART_RELEASE_NAMESPACE)
 	if releaseName == "" || releaseNamespace == "" {
-		return log.Errorf("Can't collect the Datadog Helm chart release name and/or namespace from the environment variables %s and %v", HELM_CLUSTER_AGENT_DEPLOYMENT, HELM_CHART_RELEASE_NAMESPACE)
+		return log.Errorf("Can't collect the Datadog Helm chart release name and/or namespace from the environment variables %s and %v", HELM_CHART_RELEASE_NAME, HELM_CHART_RELEASE_NAMESPACE)
 	}
 	helmUserValues, err = GetDatadogHelmUserValues(cl, releaseName, releaseNamespace, "secret")
 	if err != nil {
