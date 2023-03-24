@@ -94,11 +94,7 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*metrics.Tra
 		metrics.WithDeltaTTL(cfg.Metrics.DeltaTTL),
 	}
 
-	if cfg.Metrics.HistConfig.SendCountSum || cfg.Metrics.HistConfig.SendAggregations {
-		return nil, fmt.Errorf("cannot use both send_count_sum_metrics (deprecated) and send_aggregation_metrics")
-	}
-
-	if cfg.Metrics.HistConfig.SendCountSum || cfg.Metrics.HistConfig.SendAggregations {
+	if cfg.Metrics.HistConfig.SendAggregations {
 		options = append(options, metrics.WithHistogramAggregations())
 	}
 
@@ -136,6 +132,11 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*metrics.Tra
 }
 
 func newExporter(logger *zap.Logger, s serializer.MetricSerializer, cfg *exporterConfig) (*exporter, error) {
+	// Log any warnings from unmarshaling.
+	for _, warning := range cfg.warnings {
+		logger.Warn(warning)
+	}
+
 	tr, err := translatorFromConfig(logger, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
