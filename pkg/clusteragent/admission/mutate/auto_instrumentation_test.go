@@ -548,3 +548,51 @@ func TestInjectLibInitContainer(t *testing.T) {
 		})
 	}
 }
+
+func TestInjectAll(t *testing.T) {
+	wantAll := []libInfo{
+		{lang: java, image: "gcr.io/datadoghq/dd-lib-java-init:latest"},
+		{lang: js, image: "gcr.io/datadoghq/dd-lib-js-init:latest"},
+		{lang: python, image: "gcr.io/datadoghq/dd-lib-python-init:latest"},
+		{lang: dotnet, image: "gcr.io/datadoghq/dd-lib-dotnet-init:latest"},
+		{lang: ruby, image: "gcr.io/datadoghq/dd-lib-ruby-init:latest"},
+	}
+	tests := []struct {
+		name             string
+		ns               string
+		targetNamespaces []string
+		want             []libInfo
+	}{
+		{
+			name:             "nominal",
+			ns:               "targeted",
+			targetNamespaces: []string{"targeted"},
+			want:             wantAll,
+		},
+		{
+			name:             "many",
+			ns:               "targeted",
+			targetNamespaces: []string{"targeted", "foo", "bar"},
+			want:             wantAll,
+		},
+		{
+			name:             "no match",
+			ns:               "not-targeted",
+			targetNamespaces: []string{"foo", "bar"},
+			want:             []libInfo{},
+		},
+		{
+			name:             "empty target",
+			ns:               "targeted",
+			targetNamespaces: []string{},
+			want:             []libInfo{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			targetNamespaces = tt.targetNamespaces
+			got := injectAll(tt.ns, "gcr.io/datadoghq")
+			require.EqualValues(t, tt.want, got)
+		})
+	}
+}

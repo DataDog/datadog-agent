@@ -21,11 +21,8 @@ BPF_LRU_MAP(http2_in_flight, http2_stream_key_t, http2_stream_t, 0)
    It allows retrieval of both the current offset and the number of iterations that have already been executed. */
 BPF_LRU_MAP(http2_iterations, dispatcher_arguments_t, http2_tail_call_state_t, 1024)
 
-/* Allocating a buffer on the heap, the buffer represents the frame payload. */
-BPF_PERCPU_ARRAY_MAP(http2_heap_buffer, __u32, heap_buffer_t, 1)
-
 /* Allocating an array of headers, to hold all interesting headers from the frame. */
-BPF_PERCPU_ARRAY_MAP(http2_headers_to_process, __u32, http2_headers_t, 1)
+BPF_PERCPU_ARRAY_MAP(http2_headers_to_process, __u32, http2_header_t[HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING], 1)
 
 /* Allocating a stream on the heap, the stream is used to save the current stream info. */
 BPF_PERCPU_ARRAY_MAP(http2_stream_heap, __u32, http2_stream_t, 1)

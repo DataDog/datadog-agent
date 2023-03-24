@@ -19,7 +19,7 @@ var All = []module.Factory{
 	NetworkTracer,
 	TCPQueueLength,
 	OOMKillProbe,
-	SecurityRuntime,
+	EventMonitor,
 	Process,
 }
 

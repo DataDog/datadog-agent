@@ -1,8 +1,8 @@
-using System;
 using System.Collections.Generic;
 using System.IO;
 using AutoFixture.Xunit2;
 using Datadog.CustomActions;
+using Datadog.CustomActions.Interfaces;
 using FluentAssertions;
 using Moq;
 using Xunit;

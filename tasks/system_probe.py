@@ -18,6 +18,7 @@ from invoke.exceptions import Exit
 from .build_tags import get_default_build_tags
 from .libs.common.color import color_message
 from .libs.ninja_syntax import NinjaWriter
+from .test import environ
 from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
@@ -211,7 +212,7 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
     network_flags = "-Ipkg/network/ebpf/c -g"
-    network_programs = ["dns", "offset-guess", "tracer", "http", "usm_events_test"]
+    network_programs = ["dns", "offset-guess", "tracer", "http", "usm_events_test", "conntrack"]
     network_co_re_programs = ["co-re/tracer-fentry", "runtime/http"]
 
     for prog in network_programs:
@@ -295,8 +296,7 @@ def ninja_cgo_type_files(nw, windows):
     else:
         go_platform = "linux"
         def_files = {
-            "pkg/network/ebpf/offsetguess_types.go": ["pkg/network/ebpf/c/prebuilt/offset-guess.h"],
-            "pkg/network/ebpf/conntrack_types.go": ["pkg/network/ebpf/c/runtime/conntrack-types.h"],
+            "pkg/network/ebpf/conntrack_types.go": ["pkg/network/ebpf/c/conntrack-types.h"],
             "pkg/network/ebpf/tuple_types.go": ["pkg/network/ebpf/c/tracer.h"],
             "pkg/network/ebpf/kprobe_types.go": [
                 "pkg/network/ebpf/c/tracer.h",
@@ -323,6 +323,9 @@ def ninja_cgo_type_files(nw, windows):
             ],
             "pkg/network/telemetry/telemetry_types.go": [
                 "pkg/ebpf/c/telemetry_types.h",
+            ],
+            "pkg/network/tracer/offsetguess/offsetguess_types.go": [
+                "pkg/network/ebpf/c/prebuilt/offset-guess.h",
             ],
             "pkg/network/protocols/events/types.go": [
                 "pkg/network/ebpf/c/protocols/events-types.h",
@@ -1373,6 +1376,36 @@ def generate_minimized_btfs(
                 )
 
     ctx.run(f"ninja -f {ninja_file_path}")
+
+
+@task
+def generate_event_monitor_proto(ctx):
+    with tempfile.TemporaryDirectory() as temp_gobin:
+        with environ({"GOBIN": temp_gobin}):
+            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1")
+            ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.4.0")
+            ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2.0")
+
+            plugin_opts = " ".join(
+                [
+                    f"--plugin protoc-gen-go=\"{temp_gobin}/protoc-gen-go\"",
+                    f"--plugin protoc-gen-go-grpc=\"{temp_gobin}/protoc-gen-go-grpc\"",
+                    f"--plugin protoc-gen-go-vtproto=\"{temp_gobin}/protoc-gen-go-vtproto\"",
+                ]
+            )
+
+            ctx.run(
+                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/eventmonitor/proto/api/api.proto"
+            )
+
+    for path in glob.glob("pkg/eventmonitor/**/*.pb.go", recursive=True):
+        print(f"replacing protoc version in {path}")
+        with open(path) as f:
+            content = f.read()
+
+        replaced_content = re.sub(r"\/\/\s*protoc\s*v\d+\.\d+\.\d+", "//  protoc", content)
+        with open(path, "w") as f:
+            f.write(replaced_content)
 
 
 @task

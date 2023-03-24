@@ -12,13 +12,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"sync"
 	"time"
 
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
-	"golang.org/x/sys/unix"
+
+	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -35,12 +35,12 @@ import (
 	usmtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
@@ -154,14 +154,7 @@ func newTracer(config *config.Config) (*Tracer, error) {
 	needsOffsets := !config.EnableRuntimeCompiler || config.AllowPrecompiledFallback
 	var constantEditors []manager.ConstantEditor
 	if needsOffsets {
-		for i := 0; i < 5; i++ {
-			constantEditors, err = runOffsetGuessing(config, offsetBuf)
-			if err == nil {
-				break
-			}
-			time.Sleep(1 * time.Second)
-		}
-		if err != nil {
+		if constantEditors, err = runOffsetGuessing(config, offsetBuf, offsetguess.NewTracerOffsetGuesser); err != nil {
 			return nil, fmt.Errorf("error guessing offsets: %s", err)
 		}
 	}
@@ -176,7 +169,7 @@ func newTracer(config *config.Config) (*Tracer, error) {
 		return nil, err
 	}
 
-	conntracker, err := newConntracker(config, bpfTelemetry)
+	conntracker, err := newConntracker(config, bpfTelemetry, constantEditors)
 	if err != nil {
 		return nil, err
 	}
@@ -253,39 +246,30 @@ func (tr *Tracer) start() error {
 	return nil
 }
 
-func newConntracker(cfg *config.Config, bpfTelemetry *telemetry.EBPFTelemetry) (netlink.Conntracker, error) {
+func newConntracker(cfg *config.Config, bpfTelemetry *telemetry.EBPFTelemetry, constants []manager.ConstantEditor) (netlink.Conntracker, error) {
 	if !cfg.EnableConntrack {
 		return netlink.NewNoOpConntracker(), nil
 	}
 
 	var c netlink.Conntracker
 	var err error
-	if cfg.EnableRuntimeCompiler {
-		c, err = NewEBPFConntracker(cfg, bpfTelemetry)
-		if err == nil {
+	if c, err = NewEBPFConntracker(cfg, bpfTelemetry, constants); err == nil {
+		return c, nil
+	}
+
+	if !cfg.EnableRuntimeCompiler || cfg.AllowPrecompiledFallback {
+		log.Warnf("error initializing ebpf conntracker, falling back to netlink version: %s", err)
+		if c, err = netlink.NewConntracker(cfg); err == nil {
 			return c, nil
 		}
-
-		if !cfg.AllowPrecompiledFallback {
-			if cfg.IgnoreConntrackInitFailure {
-				log.Warnf("could not initialize ebpf conntrack, tracer will continue without NAT tracking: %s", err)
-				return netlink.NewNoOpConntracker(), nil
-			}
-			return nil, fmt.Errorf("error initializing ebpf conntracker: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
-		}
-
-		log.Warnf("error initializing ebpf conntracker, falling back to netlink version: %s", err)
 	}
 
-	c, err = netlink.NewConntracker(cfg)
-	if err != nil {
-		if cfg.IgnoreConntrackInitFailure {
-			log.Warnf("could not initialize netlink conntrack, tracer will continue without NAT tracking: %s", err)
-			return netlink.NewNoOpConntracker(), nil
-		}
-		return nil, fmt.Errorf("could not initialize conntrack: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
+	if cfg.IgnoreConntrackInitFailure {
+		log.Warnf("could not initialize conntrack, tracer will continue without NAT tracking: %s", err)
+		return netlink.NewNoOpConntracker(), nil
 	}
-	return c, nil
+
+	return nil, fmt.Errorf("error initializing conntracker: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
 }
 
 func newReverseDNS(c *config.Config) dns.ReverseDNS {
@@ -303,55 +287,34 @@ func newReverseDNS(c *config.Config) dns.ReverseDNS {
 	return rdns
 }
 
-func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader) ([]manager.ConstantEditor, error) {
-	// Enable kernel probes used for offset guessing.
-	offsetMgr := newOffsetManager()
-	offsetOptions := manager.Options{
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
-		},
-	}
-	enabledProbes, err := offsetGuessProbes(config)
-	if err != nil {
-		return nil, fmt.Errorf("unable to configure offset guessing probes: %w", err)
-	}
-
-	for _, p := range offsetMgr.Probes {
-		if _, enabled := enabledProbes[p.EBPFFuncName]; !enabled {
-			offsetOptions.ExcludedFunctions = append(offsetOptions.ExcludedFunctions, p.EBPFFuncName)
-		}
-	}
-	for funcName := range enabledProbes {
-		offsetOptions.ActivatedProbes = append(
-			offsetOptions.ActivatedProbes,
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: funcName,
-					UID:          "offset",
-				},
-			})
-	}
-	if err := offsetMgr.InitWithOptions(buf, offsetOptions); err != nil {
-		return nil, fmt.Errorf("could not load bpf module for offset guessing: %s", err)
-	}
-
-	if err := offsetMgr.Start(); err != nil {
-		return nil, fmt.Errorf("could not start offset ebpf manager: %s", err)
-	}
-	defer func() {
-		err := offsetMgr.Stop(manager.CleanAll)
-		if err != nil {
-			log.Warnf("error stopping offset ebpf manager: %s", err)
-		}
-	}()
+func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader, newGuesser func() (offsetguess.OffsetGuesser, error)) (editors []manager.ConstantEditor, err error) {
+	// Offset guessing has been flaky for some customers, so if it fails we'll retry it up to 5 times
 	start := time.Now()
-	editors, err := guessOffsets(offsetMgr, config)
-	if err != nil {
-		return nil, err
+	for i := 0; i < 5; i++ {
+		err = func() error {
+			guesser, err := newGuesser()
+			if err != nil {
+				return err
+			}
+			defer guesser.Close()
+
+			if err = offsetguess.SetupOffsetGuesser(guesser, config, buf); err != nil {
+				return err
+			}
+
+			editors, err = guesser.Guess(config)
+			return err
+		}()
+
+		if err == nil {
+			log.Infof("offset guessing complete (took %v)", time.Since(start))
+			return editors, nil
+		}
+
+		time.Sleep(1 * time.Second)
 	}
-	log.Infof("socket struct offset guessing complete (took %v)", time.Since(start))
-	return editors, nil
+
+	return nil, err
 }
 
 func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
@@ -476,6 +439,10 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 func (t *Tracer) RegisterClient(clientID string) error {
 	t.state.RegisterClient(clientID)
 	return nil
+}
+
+func (t *Tracer) removeClient(clientID string) {
+	t.state.RemoveClient(clientID)
 }
 
 func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int64 {

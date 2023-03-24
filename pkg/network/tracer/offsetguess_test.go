@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	manager "github.com/DataDog/ebpf-manager"
@@ -56,6 +57,11 @@ const (
 	offsetSkBuffSock
 	offsetSkBuffTransportHeader
 	offsetSkBuffHead
+	offsetCtOrigin
+	offsetCtReply
+	offsetCtStatus
+	offsetCtNetns
+	offsetCtIno
 	offsetMax
 )
 
@@ -105,6 +111,16 @@ func (o offsetT) String() string {
 		return "offset_sk_buff_transport_header"
 	case offsetSkBuffHead:
 		return "offset_sk_buff_head"
+	case offsetCtOrigin:
+		return "offset_ct_origin"
+	case offsetCtReply:
+		return "offset_ct_reply"
+	case offsetCtStatus:
+		return "offset_ct_status"
+	case offsetCtNetns:
+		return "offset_ct_netns"
+	case offsetCtIno:
+		return "offset_ct_ino"
 	}
 
 	return "unknown offset"
@@ -119,8 +135,15 @@ func TestOffsetGuess(t *testing.T) {
 	offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir, cfg.BPFDebug)
 	require.NoError(t, err, "could not read offset bpf module")
 	t.Cleanup(func() { offsetBuf.Close() })
-	_consts, err := runOffsetGuessing(cfg, offsetBuf)
+
+	_consts, err := runOffsetGuessing(cfg, offsetBuf, offsetguess.NewTracerOffsetGuesser)
 	require.NoError(t, err)
+	cts, err := runOffsetGuessing(cfg, offsetBuf, func() (offsetguess.OffsetGuesser, error) {
+		return offsetguess.NewConntrackOffsetGuesser(_consts)
+	})
+	require.NoError(t, err)
+	_consts = append(_consts, cts...)
+
 	consts := map[offsetT]uint64{}
 	for _, c := range _consts {
 		value := c.Value.(uint64)
@@ -169,6 +192,16 @@ func TestOffsetGuess(t *testing.T) {
 			consts[offsetSkBuffTransportHeader] = value
 		case "offset_sk_buff_head":
 			consts[offsetSkBuffHead] = value
+		case "offset_ct_origin":
+			consts[offsetCtOrigin] = value
+		case "offset_ct_reply":
+			consts[offsetCtReply] = value
+		case "offset_ct_status":
+			consts[offsetCtStatus] = value
+		case "offset_ct_netns":
+			consts[offsetCtNetns] = value
+		case "offset_ct_ino":
+			consts[offsetCtIno] = value
 		}
 	}
 

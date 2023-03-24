@@ -1,5 +1,5 @@
 SECURITY_START_LOG = "Successfully connected to the runtime security module"
-SYS_PROBE_START_LOG = "module security_runtime started"
+SYS_PROBE_START_LOG = "runtime security started"
 SEC_AGENT_PATH = "/opt/datadog-agent/embedded/bin/security-agent"
 
 CSPM_START_LOG = "Loading compliance rules from"

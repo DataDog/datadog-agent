@@ -129,9 +129,6 @@ func TestSubmitIfStopped(t *testing.T) {
 	assert.NotNil(t, forwarder.SubmitSeries(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitV1Intake(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitV1CheckRuns(nil, make(http.Header)))
-	assert.NotNil(t, forwarder.SubmitContainerLifecycleEvents(nil, make(http.Header)))
-	assert.NotNil(t, forwarder.SubmitContainerImages(nil, make(http.Header)))
-	assert.NotNil(t, forwarder.SubmitSBOM(nil, make(http.Header)))
 }
 
 func TestCreateHTTPTransactions(t *testing.T) {
@@ -385,15 +382,6 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	numReqs += 4
 
 	assert.Nil(t, f.SubmitMetadata(payload, headers))
-	numReqs += 4
-
-	assert.Nil(t, f.SubmitContainerLifecycleEvents(payload, headers))
-	numReqs += 4
-
-	assert.Nil(t, f.SubmitContainerImages(payload, headers))
-	numReqs += 4
-
-	assert.Nil(t, f.SubmitSBOM(payload, headers))
 	numReqs += 4
 
 	// let's wait a second for every channel communication to trigger

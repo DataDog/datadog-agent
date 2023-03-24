@@ -105,13 +105,9 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 		defer buf.Close()
 	}
 
-	// Use the config to determine what kernel probes should be enabled
-	enabledProbes, err := enabledProbes(config, runtimeTracer)
-	if err != nil {
-		return nil, fmt.Errorf("invalid probe configuration: %v", err)
+	if err = initManager(m, config, perfHandlerTCP, runtimeTracer); err != nil {
+		return nil, fmt.Errorf("could not initialize manager: %w", err)
 	}
-
-	initManager(m, config, perfHandlerTCP, runtimeTracer)
 
 	telemetryMapKeys := errtelemetry.BuildTelemetryKeys(m)
 	mgrOpts.ConstantEditors = append(mgrOpts.ConstantEditors, telemetryMapKeys...)
@@ -150,6 +146,12 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 
 	if err := errtelemetry.ActivateBPFTelemetry(m, undefinedProbes); err != nil {
 		return nil, fmt.Errorf("could not activate ebpf telemetry: %w", err)
+	}
+
+	// Use the config to determine what kernel probes should be enabled
+	enabledProbes, err := enabledProbes(config, runtimeTracer)
+	if err != nil {
+		return nil, fmt.Errorf("invalid probe configuration: %v", err)
 	}
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types

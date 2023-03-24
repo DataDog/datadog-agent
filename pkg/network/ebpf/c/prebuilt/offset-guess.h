@@ -32,11 +32,15 @@ static const __u8 GUESS_SOCKET_SK = 16;
 static const __u8 GUESS_SK_BUFF_SOCK = 17;
 static const __u8 GUESS_SK_BUFF_TRANSPORT_HEADER = 18;
 static const __u8 GUESS_SK_BUFF_HEAD = 19;
+static const __u8 GUESS_CT_TUPLE_ORIGIN = 20;
+static const __u8 GUESS_CT_TUPLE_REPLY = 21;
+static const __u8 GUESS_CT_STATUS = 22;
+static const __u8 GUESS_CT_NET = 23;
 
-static const __u8 TRACER_STATE_UNINITIALIZED = 0;
-static const __u8 TRACER_STATE_CHECKING = 1;
-static const __u8 TRACER_STATE_CHECKED = 2;
-static const __u8 TRACER_STATE_READY = 3;
+static const __u8 STATE_UNINITIALIZED = 0;
+static const __u8 STATE_CHECKING = 1;
+static const __u8 STATE_CHECKED = 2;
+static const __u8 STATE_READY = 3;
 
 typedef struct {
     __u64 state;
@@ -100,6 +104,25 @@ typedef struct {
     __u8 ipv6_enabled;
     __u8 fl4_offsets;
     __u8 fl6_offsets;
+
 } tracer_status_t;
+
+typedef struct {
+    __u64 state;
+    __u64 what;
+
+    /* checking */
+    proc_t proc;
+    __u64 offset_origin;
+    __u64 offset_reply;
+    __u64 offset_status;
+    __u64 offset_netns;
+    __u64 offset_ino;
+
+    __u32 saddr;
+    __u32 status;
+    __u32 netns;
+} conntrack_status_t;
+
 
 #endif //__OFFSET_GUESS_H

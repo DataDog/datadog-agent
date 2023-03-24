@@ -10,8 +10,12 @@
 #define HTTP2_MAX_FRAMES_ITERATIONS 10
 
 // A limit of max headers which we process in the request/response.
-// NOTE: we may need to change the max size.
-#define HTTP2_MAX_HEADERS_COUNT 20
+#define HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING 20
+
+// Per request or response we have fewer headers than HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING that are interesting us.
+// For request - those are method, path, and soon to be content type. For response - status code.
+// Thus differentiating between the limits can allow reducing code size.
+#define HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING 3
 
 // Maximum size for the path buffer.
 // NOTE: we may need to change the max size.
@@ -20,14 +24,19 @@
 // The maximum index which may be in the static table.
 #define MAX_STATIC_TABLE_INDEX 61
 
-// This determines the size of the payload fragment that is captured for each headers frame.
-#define HTTP2_BUFFER_SIZE (8 * 20)
-
 // The flag which will be sent in the data/header frame that indicates end of stream.
 #define HTTP2_END_OF_STREAM 0x1
 
 // Http2 max batch size.
 #define HTTP2_BATCH_SIZE 10
+
+// MAX_6_BITS represents the maximum number that can be represented with 6 bits or less.
+// 1 << 6 - 1
+#define MAX_6_BITS 63
+
+// MAX_6_BITS represents the maximum number that can be represented with 6 bits or less.
+// 1 << 7 - 1
+#define MAX_7_BITS 127
 
 typedef enum {
     kMethod = 2,
@@ -85,29 +94,20 @@ typedef struct {
 typedef struct {
     dynamic_table_index_t dynamic_index;
     http2_stream_key_t http2_stream_key;
-    http2_stream_t http2_stream;
 } http2_ctx_t;
-
-typedef struct {
-    char fragment[HTTP2_BUFFER_SIZE];
-    __u16 offset;
-    __u16 size;
-} heap_buffer_t;
 
 typedef enum {
     kStaticHeader  = 0,
-    kDynamicHeader = 1,
+    kExistingDynamicHeader = 1,
+    kNewDynamicHeader = 2,
 } __attribute__ ((packed)) http2_header_type_t;
 
 typedef struct {
-    __u32 stream_id;
     __u32 index;
+    __u32 new_dynamic_value_offset;
+    __u32 new_dynamic_value_size;
     http2_header_type_t type;
 } http2_header_t;
-
-typedef struct {
-    http2_header_t array[HTTP2_MAX_HEADERS_COUNT];
-} http2_headers_t;
 
 typedef struct {
     __u32 offset;

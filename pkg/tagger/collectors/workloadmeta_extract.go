@@ -318,8 +318,23 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo 
 		utils.AddMetadataAsTags(name, value, c.nsLabelsAsTags, c.globNsLabels, tags)
 	}
 
-	for _, svc := range pod.KubeServices {
-		tags.AddLow("kube_service", svc)
+	kubeServiceDisabled := false
+	for _, disabledTag := range config.Datadog.GetStringSlice("kubernetes_ad_tags_disabled") {
+		if disabledTag == "kube_service" {
+			kubeServiceDisabled = true
+			break
+		}
+	}
+	for _, disabledTag := range strings.Split(pod.Annotations["tags.datadoghq.com/disable"], ",") {
+		if disabledTag == "kube_service" {
+			kubeServiceDisabled = true
+			break
+		}
+	}
+	if !kubeServiceDisabled {
+		for _, svc := range pod.KubeServices {
+			tags.AddLow("kube_service", svc)
+		}
 	}
 
 	c.extractTagsFromJSONInMap(podTagsAnnotation, pod.Annotations, tags)

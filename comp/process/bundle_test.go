@@ -11,41 +11,37 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	model "github.com/DataDog/agent-payload/v5/process"
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/core"
+	configComp "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	"github.com/DataDog/datadog-agent/comp/process/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-var testHostInfo = &checks.HostInfo{SystemInfo: &model.SystemInfo{}}
+var mockCoreBundleParams = core.BundleParams{
+	ConfigParams: configComp.NewParams("", configComp.WithConfigMissingOK(true)),
+	LogParams:    log.LogForOneShot("PROCESS", "trace", false),
+}
 
 func TestBundleDependencies(t *testing.T) {
-	// Don't enable any features, as the container check won't work in all environments
-	config.SetDetectedFeatures(config.FeatureMap{})
-	t.Cleanup(func() { config.SetDetectedFeatures(nil) })
-
 	require.NoError(t, fx.ValidateApp(
 		fx.Supply(
 			fx.Annotate(t, fx.As(new(testing.TB))),
 
-			testHostInfo,
-			&sysconfig.Config{},
+			mockCoreBundleParams,
 		),
 
-		// instantiate all of the process components, since this is not done
-		// automatically.
+		utils.DisableContainerFeatures,
+
+		// Start the runner
 		fx.Invoke(func(r runner.Component) {}),
 
-		Bundle))
+		Bundle,
+	))
 }
 
 func TestBundleOneShot(t *testing.T) {
-	// Don't enable any features, we haven't set up a container provider so the container check will crash
-	config.SetDetectedFeatures(config.FeatureMap{})
-	t.Cleanup(func() { config.SetDetectedFeatures(nil) })
-
 	runCmd := func(r runner.Component) {
 		checks := r.GetProvidedChecks()
 		require.Len(t, checks, 7)
@@ -70,9 +66,10 @@ func TestBundleOneShot(t *testing.T) {
 		fx.Supply(
 			fx.Annotate(t, fx.As(new(testing.TB))),
 
-			testHostInfo,
-			&sysconfig.Config{},
+			mockCoreBundleParams,
 		),
+
+		utils.DisableContainerFeatures,
 
 		Bundle,
 	)

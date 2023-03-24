@@ -20,12 +20,11 @@ type event interface {
 	withSource(string)
 	withContainerExitCode(*int32)
 	withContainerExitTimestamp(*int64)
-	toPayloadModel() (model.EventsPayload, error)
+	toPayloadModel() (*model.EventsPayload, error)
 	toEventModel() (*model.Event, error)
 }
 
 type eventTransformer struct {
-	tpl          model.EventsPayload
 	objectKind   string
 	objectID     string
 	eventType    string
@@ -35,9 +34,7 @@ type eventTransformer struct {
 }
 
 func newEvent() event {
-	return &eventTransformer{
-		tpl: model.EventsPayload{Version: types.PayloadV1},
-	}
+	return &eventTransformer{}
 }
 
 func (e *eventTransformer) withObjectKind(kind string) {
@@ -64,18 +61,18 @@ func (e *eventTransformer) withContainerExitTimestamp(exitTS *int64) {
 	e.contExitTS = exitTS
 }
 
-func (e *eventTransformer) toPayloadModel() (model.EventsPayload, error) {
-	payload := e.tpl
+func (e *eventTransformer) toPayloadModel() (*model.EventsPayload, error) {
+	payload := &model.EventsPayload{Version: types.PayloadV1}
 	kind, err := e.kind()
 	if err != nil {
-		return model.EventsPayload{}, err
+		return nil, err
 	}
 
 	payload.ObjectKind = kind
 
 	event, err := e.toEventModel()
 	if err != nil {
-		return model.EventsPayload{}, err
+		return nil, err
 	}
 
 	payload.Events = []*model.Event{event}
