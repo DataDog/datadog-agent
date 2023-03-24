@@ -229,6 +229,7 @@ func getClusterAgentDeployment(fb flarehelpers.FlareBuilder) error {
 
 // getHelmValues retrieves the user-defined values for the Datadog Helm chart
 func getHelmValues(fb flarehelpers.FlareBuilder) error {
+	var dataString string
 	var helmUserValues []byte
 	var releaseName string
 	var releaseNamespace string
@@ -242,22 +243,32 @@ func getHelmValues(fb flarehelpers.FlareBuilder) error {
 	if releaseName == "" || releaseNamespace == "" {
 		return log.Errorf("Can't collect the Datadog Helm chart release name and/or namespace from the environment variables %s and %v", HELM_CHART_RELEASE_NAME, HELM_CHART_RELEASE_NAMESPACE)
 	}
-	helmUserValues, err = GetDatadogHelmUserValues(cl, releaseName, releaseNamespace, "secret")
+	// Attempting to retrieve Helm chart data from secrets (default storage in Helm v3)
+	secret, err := getDeployedHelmSecret(cl, releaseName, releaseNamespace)
 	if err != nil {
 		log.Warnf("Error while collecting the Helm chart values from secret: %v", err)
-	}
-	// The returned bytes array is not nil, we can exit
-	if len(helmUserValues) != 0 {
-		return fb.AddFile("helm-values.yaml", helmUserValues)
+	} else {
+		// Contrary to the Configmap, the secret data is a byte array, so the string function is necessary
+		dataString = string(secret.Data["release"])
+		helmUserValues, err = decodeChartValuesFromRelease(dataString)
+		if err != nil {
+			log.Warnf("Unable to decode release stored in secret: %v", err)
+		} else {
+			return fb.AddFile("helm-values.yaml", helmUserValues)
+		}
 	}
 	// The cluster Agent was unable to retrieve Helm chart data from secrets, attempting to retrieve them from Configmaps
-	helmUserValues, err = GetDatadogHelmUserValues(cl, releaseName, releaseNamespace, "configmap")
+	configmap, err := getDeployedHelmConfigmap(cl, releaseName, releaseNamespace)
 	if err != nil {
 		log.Warnf("Error while collecting the Helm chart values from configmap: %v", err)
-	}
-	// The returned bytes array is not nil, we can exit
-	if len(helmUserValues) != 0 {
-		return fb.AddFile("helm-values.yaml", helmUserValues)
+	} else {
+		dataString = configmap.Data["release"]
+		helmUserValues, err = decodeChartValuesFromRelease(dataString)
+		if err != nil {
+			log.Warnf("Unable to decode release stored in configmap: %v", err)
+		} else {
+			return fb.AddFile("helm-values.yaml", helmUserValues)
+		}
 	}
 	return nil
 }

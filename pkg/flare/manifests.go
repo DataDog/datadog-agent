@@ -87,7 +87,7 @@ func getDeployedHelmConfigmap(cl *apiserver.APIClient, name string, namespace st
 		return nil, err
 	}
 	if len(configmapList.Items) != 1 {
-		return nil, log.Errorf("%s configmaps found, but expected 1", fmt.Sprint((configmapList.Items)))
+		return nil, log.Errorf("%s configmaps found, but expected 1", fmt.Sprint(len(configmapList.Items)))
 	}
 	return &configmapList.Items[0], nil
 }
@@ -110,30 +110,6 @@ func getDeployedHelmSecret(cl *apiserver.APIClient, name string, namespace strin
 		return nil, log.Errorf("%s secrets found, but expected 1", fmt.Sprint(len(secretList.Items)))
 	}
 	return &secretList.Items[0], nil
-}
-
-// Retrieve Helm chart user values from the API server for a given name and namespace looking through Secrets or Configmaps
-func GetDatadogHelmUserValues(cl *apiserver.APIClient, name string, namespace string, storage string) ([]byte, error) {
-	var dataString string
-
-	switch storage {
-	case "secret":
-		secret, err := getDeployedHelmSecret(cl, name, namespace)
-		if err != nil {
-			return nil, err
-		}
-		// Contrary to the Configmap, the secret data is a byte array, so the string function is necessary
-		dataString = string(secret.Data["release"])
-	case "configmap":
-		configmap, err := getDeployedHelmConfigmap(cl, name, namespace)
-		if err != nil {
-			return nil, err
-		}
-		dataString = configmap.Data["release"]
-	default:
-		return nil, log.Errorf("The requested storage %s is not supported", storage)
-	}
-	return decodeChartValuesFromRelease(dataString)
 }
 
 // decodeRelease decodes the bytes of data into a readable byte array.
