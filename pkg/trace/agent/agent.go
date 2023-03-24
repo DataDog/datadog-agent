@@ -317,14 +317,7 @@ func (a *Agent) Process(p *api.Payload) {
 			p.TracerPayload.AppVersion = traceutil.GetAppVersion(root, chunk)
 		}
 
-		pt := traceutil.ProcessedTrace{
-			TraceChunk:             chunk,
-			Root:                   root,
-			AppVersion:             p.TracerPayload.AppVersion,
-			TracerEnv:              p.TracerPayload.Env,
-			TracerHostname:         p.TracerPayload.Hostname,
-			ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.Chunks())),
-		}
+		pt := p.ProcessedTrace(chunk, root)
 		if !p.ClientComputedStats {
 			statsInput.Traces = append(statsInput.Traces, pt)
 		}
