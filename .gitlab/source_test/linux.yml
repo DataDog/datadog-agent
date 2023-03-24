@@ -57,7 +57,7 @@ tests_deb-x64-py3:
     - .linux_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["go_deps", "go_tools_deps", "setup_agent_version"]
+  needs: ["go_deps", "go_tools_deps"]
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3

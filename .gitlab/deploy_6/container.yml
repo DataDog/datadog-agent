@@ -12,8 +12,7 @@
 .deploy_containers-a6-base:
   extends: .docker_publish_job_definition
   stage: deploy6
-  dependencies:
-    - setup_agent_version
+  dependencies: []
   before_script:
     - if [[ "$VERSION" == "" ]]; then export VERSION="$(inv -e agent.version --major-version 6 --url-safe)"; fi
     - export IMG_SOURCES="${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6${JMX}-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6${JMX}-arm64"
