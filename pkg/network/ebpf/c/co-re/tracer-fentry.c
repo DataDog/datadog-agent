@@ -484,8 +484,7 @@ int BPF_PROG(inet_csk_listen_stop_enter, struct sock *sk) {
     return 0;
 }
 
-SEC("fentry/udp_destroy_sock")
-int BPF_PROG(udp_destroy_sock, struct sock *sk) {
+static __always_inline int handle_udp_destroy_sock(struct sock *sk) {
     conn_tuple_t tup = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
     int valid_tuple = read_conn_tuple(&tup, sk, pid_tgid, CONN_TYPE_UDP);
@@ -517,8 +516,24 @@ int BPF_PROG(udp_destroy_sock, struct sock *sk) {
     return 0;
 }
 
+SEC("fentry/udp_destroy_sock")
+int BPF_PROG(udp_destroy_sock, struct sock *sk) {
+    return handle_udp_destroy_sock(sk);
+}
+
+SEC("fentry/udpv6_destroy_sock")
+int BPF_PROG(udpv6_destroy_sock, struct sock *sk) {
+    return handle_udp_destroy_sock(sk);
+}
+
 SEC("fexit/udp_destroy_sock")
 int BPF_PROG(udp_destroy_sock_exit, struct sock *sk) {
+    flush_conn_close_if_full(ctx);
+    return 0;
+}
+
+SEC("fexit/udpv6_destroy_sock")
+int BPF_PROG(udpv6_destroy_sock_exit, struct sock *sk) {
     flush_conn_close_if_full(ctx);
     return 0;
 }

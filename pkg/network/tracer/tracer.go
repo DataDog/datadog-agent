@@ -109,7 +109,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 
 // newTracer is an internal function used by tests primarily
 // (and NewTracer above)
-func newTracer(config *config.Config) (*Tracer, error) {
+func newTracer(cfg *config.Config) (*Tracer, error) {
 	if _, err := tracefs.Root(); err != nil {
 		return nil, fmt.Errorf("system-probe unsupported: %s", err)
 	}
@@ -128,34 +128,40 @@ func newTracer(config *config.Config) (*Tracer, error) {
 	}
 
 	usmSupported := currKernelVersion >= http.MinimumKernelVersion
-	if !usmSupported && config.ServiceMonitoringEnabled {
+	if !usmSupported && cfg.ServiceMonitoringEnabled {
 		errStr := fmt.Sprintf("Universal Service Monitoring (USM) requires a Linux kernel version of %s or higher. We detected %s", http.MinimumKernelVersion, currKernelVersion)
-		if !config.NPMEnabled {
+		if !cfg.NPMEnabled {
 			return nil, fmt.Errorf(errStr)
 		}
 		log.Warnf("%s. NPM is explicitly enabled, so system-probe will continue with only NPM features enabled.", errStr)
-		config.EnableHTTPMonitoring = false
-		config.EnableHTTP2Monitoring = false
-		config.EnableHTTPSMonitoring = false
+		cfg.EnableHTTPMonitoring = false
+		cfg.EnableHTTP2Monitoring = false
+		cfg.EnableHTTPSMonitoring = false
 	}
 
 	http2Supported := http.HTTP2Supported()
-	if !http2Supported && config.ServiceMonitoringEnabled {
-		config.EnableHTTP2Monitoring = false
+	if !http2Supported && cfg.ServiceMonitoringEnabled {
+		cfg.EnableHTTP2Monitoring = false
 		log.Warnf("http2 requires a Linux kernel version of %s or higher. We detected %s", http.HTTP2MinimumKernelVersion, currKernelVersion)
 	}
 
-	offsetBuf, err := netebpf.ReadOffsetBPFModule(config.BPFDir, config.BPFDebug)
+	offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir, cfg.BPFDebug)
 	if err != nil {
 		return nil, fmt.Errorf("could not read offset bpf module: %s", err)
 	}
 	defer offsetBuf.Close()
 
 	// Offset guessing has been flaky for some customers, so if it fails we'll retry it up to 5 times
-	needsOffsets := !config.EnableRuntimeCompiler || config.AllowPrecompiledFallback
+	needsOffsets := !cfg.EnableRuntimeCompiler || cfg.AllowPrecompiledFallback
 	var constantEditors []manager.ConstantEditor
 	if needsOffsets {
-		if constantEditors, err = runOffsetGuessing(config, offsetBuf, offsetguess.NewTracerOffsetGuesser); err != nil {
+		// we must create a copy of the config as-if we were loading prebuilt
+		var ogConfig = *cfg
+		// prebuilt on 5.18+ cannot support UDPv6
+		if currKernelVersion >= kernel.VersionCode(5, 18, 0) {
+			ogConfig.CollectUDPv6Conns = false
+		}
+		if constantEditors, err = runOffsetGuessing(&ogConfig, offsetBuf, offsetguess.NewTracerOffsetGuesser); err != nil {
 			return nil, fmt.Errorf("error guessing offsets: %s", err)
 		}
 	}
@@ -165,41 +171,41 @@ func newTracer(config *config.Config) (*Tracer, error) {
 		bpfTelemetry = telemetry.NewEBPFTelemetry()
 	}
 
-	ebpfTracer, err := connection.NewTracer(config, constantEditors, bpfTelemetry)
+	ebpfTracer, err := connection.NewTracer(cfg, constantEditors, bpfTelemetry)
 	if err != nil {
 		return nil, err
 	}
 
-	conntracker, err := newConntracker(config, bpfTelemetry, constantEditors)
+	conntracker, err := newConntracker(cfg, bpfTelemetry, constantEditors)
 	if err != nil {
 		return nil, err
 	}
 
 	state := network.NewState(
-		config.ClientStateExpiry,
-		config.MaxClosedConnectionsBuffered,
-		config.MaxConnectionsStateBuffered,
-		config.MaxDNSStatsBuffered,
-		config.MaxHTTPStatsBuffered,
-		config.MaxKafkaStatsBuffered,
+		cfg.ClientStateExpiry,
+		cfg.MaxClosedConnectionsBuffered,
+		cfg.MaxConnectionsStateBuffered,
+		cfg.MaxDNSStatsBuffered,
+		cfg.MaxHTTPStatsBuffered,
+		cfg.MaxKafkaStatsBuffered,
 	)
 
-	gwLookup := newGatewayLookup(config)
+	gwLookup := newGatewayLookup(cfg)
 	if gwLookup != nil {
 		log.Info("gateway lookup enabled")
 	}
 
 	tr := &Tracer{
-		config:                     config,
+		config:                     cfg,
 		state:                      state,
-		reverseDNS:                 newReverseDNS(config),
-		usmMonitor:                 newUSMMonitor(config, ebpfTracer, bpfTelemetry, constantEditors),
+		reverseDNS:                 newReverseDNS(cfg),
+		usmMonitor:                 newUSMMonitor(cfg, ebpfTracer, bpfTelemetry, constantEditors),
 		activeBuffer:               network.NewConnectionBuffer(512, 256),
 		conntracker:                conntracker,
-		sourceExcludes:             network.ParseConnectionFilters(config.ExcludedSourceConnections),
-		destExcludes:               network.ParseConnectionFilters(config.ExcludedDestinationConnections),
-		sysctlUDPConnTimeout:       sysctl.NewInt(config.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout", time.Minute),
-		sysctlUDPConnStreamTimeout: sysctl.NewInt(config.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout_stream", time.Minute),
+		sourceExcludes:             network.ParseConnectionFilters(cfg.ExcludedSourceConnections),
+		destExcludes:               network.ParseConnectionFilters(cfg.ExcludedDestinationConnections),
+		sysctlUDPConnTimeout:       sysctl.NewInt(cfg.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout", time.Minute),
+		sysctlUDPConnStreamTimeout: sysctl.NewInt(cfg.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout_stream", time.Minute),
 		gwLookup:                   gwLookup,
 		ebpfTracer:                 ebpfTracer,
 
@@ -211,12 +217,12 @@ func newTracer(config *config.Config) (*Tracer, error) {
 		bpfTelemetry:     bpfTelemetry,
 	}
 
-	if config.EnableProcessEventMonitoring {
+	if cfg.EnableProcessEventMonitoring {
 		if err = events.Init(); err != nil {
 			return nil, fmt.Errorf("could not initialize event monitoring: %w", err)
 		}
 
-		if tr.processCache, err = newProcessCache(config.MaxProcessesTracked, defaultFilteredEnvs); err != nil {
+		if tr.processCache, err = newProcessCache(cfg.MaxProcessesTracked, defaultFilteredEnvs); err != nil {
 			return nil, fmt.Errorf("could not create process cache; %w", err)
 		}
 

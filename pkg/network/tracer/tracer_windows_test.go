@@ -22,6 +22,7 @@ func classificationSupported(config *config.Config) bool {
 	return true
 }
 
-func isTestIPv6Enabled(cfg *config.Config) bool {
-	return true
+func testConfig() *config.Config {
+	cfg := config.New()
+	return cfg
 }

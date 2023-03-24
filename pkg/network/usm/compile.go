@@ -24,8 +24,11 @@ func getRuntimeCompiledHTTP(config *config.Config) (runtime.CompiledOutput, erro
 func getCFlags(config *config.Config) []string {
 	cflags := []string{"-g"}
 
-	if config.CollectIPv6Conns {
-		cflags = append(cflags, "-DFEATURE_IPV6_ENABLED")
+	if config.CollectTCPv6Conns {
+		cflags = append(cflags, "-DFEATURE_TCPV6_ENABLED")
+	}
+	if config.CollectUDPv6Conns {
+		cflags = append(cflags, "-DFEATURE_UDPV6_ENABLED")
 	}
 	if config.BPFDebug {
 		cflags = append(cflags, "-DDEBUG=1")

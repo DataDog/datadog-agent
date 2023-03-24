@@ -101,7 +101,8 @@ typedef struct {
     __u16 network_header;
     __u16 mac_header;
 
-    __u8 ipv6_enabled;
+    __u8 tcpv6_enabled;
+    __u8 udpv6_enabled;
     __u8 fl4_offsets;
     __u8 fl6_offsets;
 

@@ -211,7 +211,7 @@ int kretprobe__tcp_close(struct pt_regs *ctx) {
     return 0;
 }
 
-#if !defined(COMPILE_RUNTIME) || defined(FEATURE_IPV6_ENABLED)
+#if !defined(COMPILE_RUNTIME) || defined(FEATURE_TCPV6_ENABLED) || defined(FEATURE_UDPV6_ENABLED)
 
 static __always_inline void fl6_saddr(struct flowi6 *fl6, u64 *addr_h, u64 *addr_l) {
     if (!fl6 || !addr_h || !addr_l) {
@@ -546,7 +546,7 @@ int kprobe__udp_recvmsg(struct pt_regs *ctx) {
     handle_udp_recvmsg(sk, msg, flags, udp_recv_sock);
 }
 
-#if !defined(COMPILE_RUNTIME) || defined(FEATURE_IPV6_ENABLED)
+#if !defined(COMPILE_RUNTIME) || defined(FEATURE_TCPV6_ENABLED) || defined(FEATURE_UDPV6_ENABLED)
 SEC("kprobe/udpv6_recvmsg")
 int kprobe__udpv6_recvmsg(struct pt_regs *ctx) {
 #if defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
@@ -560,7 +560,7 @@ int kprobe__udpv6_recvmsg(struct pt_regs *ctx) {
     struct msghdr *msg = NULL;
     handle_udp_recvmsg(sk, msg, flags, udp_recv_sock);
 }
-#endif // !COMPILE_RUNTIME || FEATURE_IPV6_ENABLED
+#endif // !COMPILE_RUNTIME || defined(FEATURE_TCPV6_ENABLED) || defined(FEATURE_UDPV6_ENABLED)
 
 static __always_inline int handle_udp_recvmsg_ret() {
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -573,12 +573,12 @@ int kretprobe__udp_recvmsg(struct pt_regs *ctx) {
     return handle_udp_recvmsg_ret();
 }
 
-#if !defined(COMPILE_RUNTIME) || defined(FEATURE_IPV6_ENABLED)
+#if !defined(COMPILE_RUNTIME) || defined(FEATURE_TCPV6_ENABLED) || defined(FEATURE_UDPV6_ENABLED)
 SEC("kretprobe/udpv6_recvmsg")
 int kretprobe__udpv6_recvmsg(struct pt_regs *ctx) {
     return handle_udp_recvmsg_ret();
 }
-#endif // !COMPILE_RUNTIME || FEATURE_IPV6_ENABLED
+#endif // !COMPILE_RUNTIME || defined(FEATURE_TCPV6_ENABLED) || defined(FEATURE_UDPV6_ENABLED)
 
 #if defined(COMPILE_CORE) || defined(COMPILE_PREBUILT)
 
@@ -896,9 +896,7 @@ int kprobe__inet_csk_listen_stop(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/udp_destroy_sock")
-int kprobe__udp_destroy_sock(struct pt_regs *ctx) {
-    struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
+static __always_inline int handle_udp_destroy_sock(struct sock *skp) {
     conn_tuple_t tup = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
     int valid_tuple = read_conn_tuple(&tup, skp, pid_tgid, CONN_TYPE_UDP);
@@ -926,8 +924,25 @@ int kprobe__udp_destroy_sock(struct pt_regs *ctx) {
     return 0;
 }
 
+SEC("kprobe/udp_destroy_sock")
+int kprobe__udp_destroy_sock(struct pt_regs *ctx) {
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    return handle_udp_destroy_sock(sk);
+}
+
+SEC("kprobe/udpv6_destroy_sock")
+int kprobe__udpv6_destroy_sock(struct pt_regs *ctx) {
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    return handle_udp_destroy_sock(sk);
+}
+
 SEC("kretprobe/udp_destroy_sock")
 int kretprobe__udp_destroy_sock(struct pt_regs *ctx) {
+    flush_conn_close_if_full(ctx);
+    return 0;
+}
+SEC("kretprobe/udpv6_destroy_sock")
+int kretprobe__udpv6_destroy_sock(struct pt_regs *ctx) {
     flush_conn_close_if_full(ctx);
     return 0;
 }

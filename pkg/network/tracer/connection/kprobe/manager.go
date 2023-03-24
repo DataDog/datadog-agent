@@ -57,6 +57,8 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.InetCskListenStop,
 	probes.UDPDestroySock,
 	probes.UDPDestroySockReturn,
+	probes.UDPv6DestroySock,
+	probes.UDPv6DestroySockReturn,
 	probes.InetBind,
 	probes.Inet6Bind,
 	probes.InetBindRet,
