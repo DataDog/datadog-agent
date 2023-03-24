@@ -356,7 +356,7 @@ def get_version(
         try:
             if not os.path.exists("_version.cache"):
                 os.system(
-                    f"aws s3 cp s3://dd-ci-artefacts-build-stable/{os.getenv('CI_PROJECT_NAME')}/{pipeline_id}/_version.cache ."
+                    f"aws s3 cp s3://dd-ci-artefacts-build-stable/{os.getenv('CI_PROJECT_NAME')}/{pipeline_id}/_version.cache . >/dev/null"
                 )
 
             with open("_version.cache", "rb") as file:
