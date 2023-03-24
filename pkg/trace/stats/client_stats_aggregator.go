@@ -265,12 +265,13 @@ func newPayloadAggregationKey(env, hostname, version, cid string) PayloadAggrega
 
 func newBucketAggregationKey(b pb.ClientGroupedStats) BucketsAggregationKey {
 	return BucketsAggregationKey{
-		Service:    b.Service,
-		Name:       b.Name,
-		Resource:   b.Resource,
-		Type:       b.Type,
-		Synthetics: b.Synthetics,
-		StatusCode: b.HTTPStatusCode,
+		Service:     b.Service,
+		PeerService: b.PeerService,
+		Name:        b.Name,
+		Resource:    b.Resource,
+		Type:        b.Type,
+		Synthetics:  b.Synthetics,
+		StatusCode:  b.HTTPStatusCode,
 	}
 }
 

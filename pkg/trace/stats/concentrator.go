@@ -37,14 +37,15 @@ type Concentrator struct {
 	// It means that we can compute stats only for the last `bufferLen * bsize` and that we
 	// wait such time before flushing the stats.
 	// This only applies to past buckets. Stats buckets in the future are allowed with no restriction.
-	bufferLen     int
-	exit          chan struct{}
-	exitWG        sync.WaitGroup
-	buckets       map[int64]*RawBucket // buckets used to aggregate stats per timestamp
-	mu            sync.Mutex
-	agentEnv      string
-	agentHostname string
-	agentVersion  string
+	bufferLen        int
+	exit             chan struct{}
+	exitWG           sync.WaitGroup
+	buckets          map[int64]*RawBucket // buckets used to aggregate stats per timestamp
+	mu               sync.Mutex
+	agentEnv         string
+	agentHostname    string
+	agentVersion     string
+	aggregatePeerSvc bool
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
@@ -57,13 +58,14 @@ func NewConcentrator(conf *config.AgentConfig, out chan pb.StatsPayload, now tim
 		// override buckets which could have been sent before an Agent restart.
 		oldestTs: alignTs(now.UnixNano(), bsize),
 		// TODO: Move to configuration.
-		bufferLen:     defaultBufferLen,
-		In:            make(chan Input, 100),
-		Out:           out,
-		exit:          make(chan struct{}),
-		agentEnv:      conf.DefaultEnv,
-		agentHostname: conf.Hostname,
-		agentVersion:  conf.AgentVersion,
+		bufferLen:        defaultBufferLen,
+		In:               make(chan Input, 100),
+		Out:              out,
+		exit:             make(chan struct{}),
+		agentEnv:         conf.DefaultEnv,
+		agentHostname:    conf.Hostname,
+		agentVersion:     conf.AgentVersion,
+		aggregatePeerSvc: conf.PeerServiceStatsAggregation,
 	}
 	return &c
 }
@@ -184,7 +186,7 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 			b = NewRawBucket(uint64(btime), uint64(c.bsize))
 			c.buckets[btime] = b
 		}
-		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey)
+		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey, c.aggregatePeerSvc)
 	}
 }
 

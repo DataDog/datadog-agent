@@ -549,18 +549,34 @@ func TestPeerServiceStats(t *testing.T) {
 		Metrics:  map[string]float64{"_dd.measured": 1.0},
 		Meta:     map[string]string{"peer.service": "users-db"},
 	}
-	spans := []*pb.Span{sp, peerSvcSp}
-	traceutil.ComputeTopLevel(spans)
-	testTrace := toProcessedTrace(spans, "none", "")
-	c := NewTestConcentrator(now)
-	c.addNow(testTrace, "")
-	stats := c.flushNow(now.UnixNano() + int64(c.bufferLen)*testBucketInterval)
-	assert.Len(stats.Stats[0].Stats[0].Stats, 2)
-	for _, st := range stats.Stats[0].Stats[0].Stats {
-		if st.Name == "postgres.query" {
-			assert.Equal("users-db", st.PeerService)
-		} else {
+	t.Run("enabled", func(t *testing.T) {
+		spans := []*pb.Span{sp, peerSvcSp}
+		traceutil.ComputeTopLevel(spans)
+		testTrace := toProcessedTrace(spans, "none", "")
+		c := NewTestConcentrator(now)
+		c.aggregatePeerSvc = true
+		c.addNow(testTrace, "")
+		stats := c.flushNow(now.UnixNano() + int64(c.bufferLen)*testBucketInterval)
+		assert.Len(stats.Stats[0].Stats[0].Stats, 2)
+		for _, st := range stats.Stats[0].Stats[0].Stats {
+			if st.Name == "postgres.query" {
+				assert.Equal("users-db", st.PeerService)
+			} else {
+				assert.Equal("", st.PeerService)
+			}
+		}
+	})
+	t.Run("disabled", func(t *testing.T) {
+		spans := []*pb.Span{sp, peerSvcSp}
+		traceutil.ComputeTopLevel(spans)
+		testTrace := toProcessedTrace(spans, "none", "")
+		c := NewTestConcentrator(now)
+		c.aggregatePeerSvc = false
+		c.addNow(testTrace, "")
+		stats := c.flushNow(now.UnixNano() + int64(c.bufferLen)*testBucketInterval)
+		assert.Len(stats.Stats[0].Stats[0].Stats, 2)
+		for _, st := range stats.Stats[0].Stats[0].Stats {
 			assert.Equal("", st.PeerService)
 		}
-	}
+	})
 }

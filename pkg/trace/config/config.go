@@ -311,8 +311,8 @@ type AgentConfig struct {
 	Endpoints []*Endpoint
 
 	// Concentrator
-	BucketInterval   time.Duration // the size of our pre-aggregation per bucket
-	ExtraAggregators []string
+	BucketInterval              time.Duration // the size of our pre-aggregation per bucket
+	PeerServiceStatsAggregation bool          // enables/disables stats aggregation for peer.service
 
 	// Sampler configuration
 	ExtraSampleRate float64
@@ -458,7 +458,8 @@ func New() *AgentConfig {
 		Site:                "datadoghq.com",
 		MaxCatalogEntries:   5000,
 
-		BucketInterval: time.Duration(10) * time.Second,
+		BucketInterval:              time.Duration(10) * time.Second,
+		PeerServiceStatsAggregation: true,
 
 		ExtraSampleRate: 1.0,
 		TargetTPS:       10,

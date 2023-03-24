@@ -67,9 +67,10 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 		ps, err := traceutil.NormalizePeerService(pSvc)
 		switch err {
 		case traceutil.ErrTooLong:
-			// incr
+			ts.SpansMalformed.PeerServiceTruncate.Inc()
 			log.Debugf("Fixing malformed trace. peer.service is too long (reason:peer_service_truncate), truncating peer.service to length=%d: %s", traceutil.MaxServiceLen, ps)
 		case traceutil.ErrInvalid:
+			ts.SpansMalformed.PeerServiceInvalid.Inc()
 			log.Debugf("Fixing malformed trace. peer.service is invalid (reason:peer_service_invalid), replacing invalid peer.service=%s with empty string", pSvc)
 		}
 		s.Meta[peerServiceKey] = ps

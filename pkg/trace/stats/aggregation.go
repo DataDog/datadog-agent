@@ -64,20 +64,23 @@ func getStatusCode(s *pb.Span) uint32 {
 }
 
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
-func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey) Aggregation {
+func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey, peerSvcAggregation bool) Aggregation {
 	synthetics := strings.HasPrefix(origin, tagSynthetics)
-	return Aggregation{
+	agg := Aggregation{
 		PayloadAggregationKey: aggKey,
 		BucketsAggregationKey: BucketsAggregationKey{
-			Resource:    s.Resource,
-			Service:     s.Service,
-			PeerService: s.Meta[tagPeerService],
-			Name:        s.Name,
-			Type:        s.Type,
-			StatusCode:  getStatusCode(s),
-			Synthetics:  synthetics,
+			Resource:   s.Resource,
+			Service:    s.Service,
+			Name:       s.Name,
+			Type:       s.Type,
+			StatusCode: getStatusCode(s),
+			Synthetics: synthetics,
 		},
 	}
+	if peerSvcAggregation {
+		agg.PeerService = s.Meta[tagPeerService]
+	}
+	return agg
 }
 
 // NewAggregationFromGroup gets the Aggregation key of grouped stats.
