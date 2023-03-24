@@ -1224,7 +1224,7 @@ api_key:
 
   ## @param peer_service_stats_aggregation - bool - default: true
   ## @env DD_APM_PEER_SERVICE_STATS_AGGREGATION - bool - default: true
-  ## Enables peer.service stats aggregation in the agent.
+  ## Enables peer.service stats aggregation in the agent. If disabled, aggregated stats will not include peer.service as a dimension.
   # peer_service_stats_aggregation: true
 
   ## @param features - list of strings - optional
