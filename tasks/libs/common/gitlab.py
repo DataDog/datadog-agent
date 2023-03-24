@@ -2,6 +2,7 @@ import json
 import os
 import platform
 import subprocess
+import time
 from urllib.parse import quote
 
 from invoke.exceptions import Exit
@@ -292,17 +293,23 @@ class Gitlab(RemoteAPI):
         """
         headers = dict(headers or [])
         headers["PRIVATE-TOKEN"] = self.api_token
-
-        return self.request(
-            path=path,
-            headers=headers,
-            data=data,
-            json_input=json_input,
-            json_output=json_output,
-            stream_output=stream_output,
-            raw_output=False,
-            method=method,
-        )
+        for retry_count in range(5):
+            try:
+                return self.request(
+                    path=path,
+                    headers=headers,
+                    data=data,
+                    json_input=json_input,
+                    json_output=json_output,
+                    stream_output=stream_output,
+                    raw_output=False,
+                    method=method,
+                )
+            except APIError as e:
+                if 500 <= e.status_code < 600:
+                    time.sleep(1 + retry_count * 2)
+                else:
+                    raise e
 
 
 def get_gitlab_token():

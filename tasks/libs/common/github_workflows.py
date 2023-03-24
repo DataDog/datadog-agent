@@ -1,5 +1,6 @@
 import json
 import os
+import time
 
 from .githubapp import GithubApp, GithubAppException
 from .remote_api import RemoteAPI, APIError
