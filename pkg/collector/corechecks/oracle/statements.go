@@ -60,6 +60,7 @@ FROM v$sqlstats s, v$containers c
 WHERE 
 	s.con_id = c.con_id(+)
 	AND %s IN (?)
+	%s
 GROUP BY c.name, %s, plan_hash_value`
 
 type StatementMetricsKeyDB struct {
@@ -192,14 +193,14 @@ type MetricsPayload struct {
 	OracleVersion string      `json:"oracle_version,omitempty"`
 }
 
-func ConstructStatementMetricsQueryBlock(sqlHandleColumn string) string {
+func ConstructStatementMetricsQueryBlock(sqlHandleColumn string, whereClause string) string {
 	return fmt.Sprintf(STATEMENT_METRICS_QUERY, sqlHandleColumn, sqlHandleColumn, sqlHandleColumn)
 }
 
-func GetStatementsMetricsForKeys[K comparable](db *sqlx.DB, keyName string, keys map[K]int) ([]StatementMetricsDB, error) {
+func GetStatementsMetricsForKeys[K comparable](db *sqlx.DB, keyName string, whereClause string, keys map[K]int) ([]StatementMetricsDB, error) {
 	if len(keys) != 0 {
 		var statementMetrics []StatementMetricsDB
-		statements_metrics_query := ConstructStatementMetricsQueryBlock(keyName)
+		statements_metrics_query := ConstructStatementMetricsQueryBlock(keyName, whereClause)
 		keysSlice := maps.Keys(keys)
 		log.Tracef("Statements query metrics keys %s: %+v", keyName, keysSlice)
 		query, args, err := sqlx.In(statements_metrics_query, keysSlice)
@@ -369,14 +370,15 @@ func (c *Check) StatementMetrics() error {
 
 			var SQLStatement string
 			rows.Next()
-			cols, err := rows.SliceScan()
 
+			cols, err := rows.SliceScan()
+			rows.Close()
 			if err != nil {
 				log.Errorf("query metrics statement scan error %s %s %+v", err, SQLTextQuery, p)
 				continue
 			}
 			SQLStatement = cols[0].(string)
-			//defer rows.Close()
+
 			queryRow := QueryRow{}
 			obfuscatedStatement, err := c.GetObfuscatedStatement(o, SQLStatement, statementMetricRow.ForceMatchingSignature, statementMetricRow.SQLID)
 			SQLStatement = obfuscatedStatement.Statement
