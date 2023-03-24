@@ -190,16 +190,17 @@ func getAgentDaemonSet(fb flarehelpers.FlareBuilder) error {
 
 	cl, err := apiserver.GetAPIClient()
 	if err != nil {
-		log.Errorf("Can't create client to query the API Server: %s", err)
-	} else {
-		agentDaemonsetName = os.Getenv(HELM_AGENT_DAEMONSET)
-		releaseNamespace = os.Getenv(HELM_CHART_RELEASE_NAMESPACE)
-		agentDaemonset, err = GetDaemonset(cl, agentDaemonsetName, releaseNamespace)
-		if err != nil {
-			log.Debugf("Error while collecting the Agent DaemonSet: %q", err)
-		}
+		return log.Errorf("Can't create client to query the API Server: %s", err)
 	}
-
+	agentDaemonsetName = os.Getenv(HELM_AGENT_DAEMONSET)
+	releaseNamespace = os.Getenv(HELM_CHART_RELEASE_NAMESPACE)
+	if agentDaemonsetName == "" || releaseNamespace == "" {
+		return log.Errorf("Can't collect the Agent Daemonset name or namespace from the environment variables %s and %v", HELM_AGENT_DAEMONSET, HELM_CHART_RELEASE_NAMESPACE)
+	}
+	agentDaemonset, err = GetDaemonset(cl, agentDaemonsetName, releaseNamespace)
+	if err != nil {
+		return log.Errorf("Error while collecting the Agent DaemonSet: %q", err)
+	}
 	return fb.AddFile("agent-daemonset.yaml", agentDaemonset)
 }
 
@@ -212,16 +213,17 @@ func getClusterAgentDeployment(fb flarehelpers.FlareBuilder) error {
 
 	cl, err := apiserver.GetAPIClient()
 	if err != nil {
-		log.Errorf("Can't create client to query the API Server: %s", err)
-	} else {
-		clusterAgentDeploymentName = os.Getenv(HELM_CLUSTER_AGENT_DEPLOYMENT)
-		releaseNamespace = os.Getenv(HELM_CHART_RELEASE_NAMESPACE)
-		clusterAgentDeployment, err = GetDeployment(cl, clusterAgentDeploymentName, releaseNamespace)
-		if err != nil {
-			log.Debugf("Error while collecting the Cluster Agent Deployment: %q", err)
-		}
+		return log.Errorf("Can't create client to query the API Server: %s", err)
 	}
-
+	clusterAgentDeploymentName = os.Getenv(HELM_CLUSTER_AGENT_DEPLOYMENT)
+	releaseNamespace = os.Getenv(HELM_CHART_RELEASE_NAMESPACE)
+	if clusterAgentDeploymentName == "" || releaseNamespace == "" {
+		return log.Errorf("Can't collect the Cluster Agent Deployment name or namespace from the environment variables %s and %v", HELM_CLUSTER_AGENT_DEPLOYMENT, HELM_CHART_RELEASE_NAMESPACE)
+	}
+	clusterAgentDeployment, err = GetDeployment(cl, clusterAgentDeploymentName, releaseNamespace)
+	if err != nil {
+		return log.Errorf("Error while collecting the Cluster Agent Deployment: %q", err)
+	}
 	return fb.AddFile("cluster-agent-deployment.yaml", clusterAgentDeployment)
 }
 
