@@ -4,6 +4,6 @@ setup_agent_version:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   script:
-    inv -e agent.version --cached-save
-    $S3_CP_CMD $CI_PROJECT_DIR/_version.cache $S3_ARTIFACTS_URI/_version.cache
+    - inv -e agent.version --cached-save
+    - $S3_CP_CMD $CI_PROJECT_DIR/_version.cache $S3_ARTIFACTS_URI/_version.cache
 
