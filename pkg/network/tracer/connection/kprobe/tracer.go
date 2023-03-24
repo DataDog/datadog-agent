@@ -28,11 +28,6 @@ import (
 
 const probeUID = "net"
 
-// interface to use for mocks in tests
-type tracerLoader interface {
-	Load(_ *config.Config, _ *manager.Manager, _ manager.Options, _ *ddebpf.PerfHandler) (func(), error)
-}
-
 type TracerType int
 
 const (

@@ -11,9 +11,9 @@ package kprobe
 import (
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	manager "github.com/DataDog/ebpf-manager"
 )
@@ -158,6 +158,12 @@ func testTracerFallbackCOREAndRCErr(t *testing.T) {
 	runFallbackTests(t, "CORE and RC error", true, true, tests)
 }
 
+func loaderFunc(closeFn func(), err error) func(_ *config.Config, _ *manager.Manager, _ manager.Options, _ *ddebpf.PerfHandler) (func(), error) {
+	return func(_ *config.Config, _ *manager.Manager, _ manager.Options, _ *ddebpf.PerfHandler) (func(), error) {
+		return closeFn, err
+	}
+}
+
 func runFallbackTests(t *testing.T, desc string, coreErr, rcErr bool, tests []struct {
 	enableCORE         bool
 	enableCOREFallback bool
@@ -168,27 +174,16 @@ func runFallbackTests(t *testing.T, desc string, coreErr, rcErr bool, tests []st
 	err        error
 }) {
 	expectedCloseFn := func() {}
-	ctrl := gomock.NewController(t)
-	t.Cleanup(ctrl.Finish)
-	m := NewMocktracerLoader(ctrl)
+	rcTracerLoader = loaderFunc(expectedCloseFn, nil)
+	coreTracerLoader = loaderFunc(expectedCloseFn, nil)
 	if rcErr {
-		m.EXPECT().Load(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, assert.AnError).AnyTimes()
-	} else {
-		m.EXPECT().Load(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(expectedCloseFn, nil).AnyTimes()
+		rcTracerLoader = loaderFunc(nil, assert.AnError)
 	}
-	rcTracerLoader = m.Load
-
-	m = NewMocktracerLoader(ctrl)
 	if coreErr {
-		m.EXPECT().Load(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, assert.AnError).AnyTimes()
-	} else {
-		m.EXPECT().Load(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(expectedCloseFn, nil).AnyTimes()
+		coreTracerLoader = loaderFunc(nil, assert.AnError)
 	}
-	coreTracerLoader = m.Load
 
-	prebuiltMock := NewMocktracerLoader(ctrl)
-	prebuiltMock.EXPECT().Load(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(expectedCloseFn, nil).AnyTimes()
-	prebuiltTracerLoader = prebuiltMock.Load
+	prebuiltTracerLoader = loaderFunc(expectedCloseFn, nil)
 
 	cfg := config.New()
 	for _, te := range tests {
