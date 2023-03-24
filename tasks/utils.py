@@ -352,10 +352,13 @@ def get_version(
         try:
             with open("_version.cache", "rb") as file:
                 cache_data = pickle.load(file)
-                data_index = ord(major_version) - ord('6')
-                version, pre, commits_since_version, git_sha, pipeline_id = cache_data[data_index]
-                is_nightly = cache_data[-1]
-        except:
+            data_index = ord(major_version) - ord('6')
+            version, pre, commits_since_version, git_sha, pipeline_id = cache_data[data_index]
+            is_nightly = cache_data[-1]
+            if pre:
+                version = f"{version}-{pre}"
+        except Exception as e:
+            raise e
             # If a cache file is found but corrupted we ignore it.
             version = ""
     # If we didn't load the cache
@@ -366,8 +369,8 @@ def get_version(
         )
 
         is_nightly = is_allowed_repo_nightly_branch(os.getenv("BUCKET_BRANCH"))
-    if pre:
-        version = f"{version}-{pre}"
+        if pre:
+            version = f"{version}-{pre}"
 
     if not commits_since_version and is_nightly and include_git:
         if url_safe:
