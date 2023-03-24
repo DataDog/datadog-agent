@@ -238,34 +238,34 @@ profiles:
 				Value: "255.255.255.0",
 			},
 			{
-				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.17",
-				Type:  gosnmp.NoSuchInstance,
-				Value: "",
+				Name:  "9", // to count for cdp oid
+				Type:  gosnmp.Integer,
+				Value: 999,
 			},
 			{
-				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.19",
-				Type:  gosnmp.NoSuchInstance,
-				Value: "",
+				Name:  "9", // to count for cdp oid
+				Type:  gosnmp.Integer,
+				Value: 999,
 			},
 			{
-				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.20",
-				Type:  gosnmp.NoSuchInstance,
-				Value: "",
+				Name:  "9", // to count for cdp oid
+				Type:  gosnmp.Integer,
+				Value: 999,
 			},
 			{
-				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.5",
-				Type:  gosnmp.NoSuchInstance,
-				Value: "",
+				Name:  "9", // to count for cdp oid
+				Type:  gosnmp.Integer,
+				Value: 999,
 			},
 			{
-				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.6",
-				Type:  gosnmp.NoSuchInstance,
-				Value: "",
+				Name:  "9", // to count for cdp oid
+				Type:  gosnmp.Integer,
+				Value: 999,
 			},
 			{
-				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.7",
-				Type:  gosnmp.NoSuchInstance,
-				Value: "",
+				Name:  "9", // to count for cdp oid
+				Type:  gosnmp.Integer,
+				Value: 999,
 			},
 			// second iteration
 			{
@@ -368,12 +368,37 @@ profiles:
 				Type:  gosnmp.IPAddress,
 				Value: "255.255.255.0",
 			},
-
 			{
-				Name:  "9", // exit table
+				Name:  "9", // to count for cdp oid
 				Type:  gosnmp.Integer,
 				Value: 999,
 			},
+			{
+				Name:  "9", // to count for cdp oid
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // to count for cdp oid
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // to count for cdp oid
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // to count for cdp oid
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // to count for cdp oid
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			// third iteration
 			{
 				Name:  "9", // exit table
 				Type:  gosnmp.Integer,
@@ -805,52 +830,52 @@ profiles:
 	bulkPacket := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{
 			{
-				Name:  "9", // exit table
+				Name:  "9", // to count for lldp oid
 				Type:  gosnmp.Integer,
 				Value: 999,
 			},
 			{
-				Name:  "9", // exit table
+				Name:  "9", // to count for lldp oid
 				Type:  gosnmp.Integer,
 				Value: 999,
 			},
 			{
-				Name:  "9", // exit table
+				Name:  "9", // to count for lldp oid
 				Type:  gosnmp.Integer,
 				Value: 999,
 			},
 			{
-				Name:  "9", // exit table
+				Name:  "9", // to count for lldp oid
 				Type:  gosnmp.Integer,
 				Value: 999,
 			},
 			{
-				Name:  "9", // exit table
+				Name:  "9", // to count for lldp oid
 				Type:  gosnmp.Integer,
 				Value: 999,
 			},
 			{
-				Name:  "9", // exit table
+				Name:  "9", // to count for lldp oid
 				Type:  gosnmp.Integer,
 				Value: 999,
 			},
 			{
-				Name:  "9", // exit table
+				Name:  "9", // to count for lldp oid
 				Type:  gosnmp.Integer,
 				Value: 999,
 			},
 			{
-				Name:  "9", // exit table
+				Name:  "9", // to count for lldp oid
 				Type:  gosnmp.Integer,
 				Value: 999,
 			},
 			{
-				Name:  "9", // exit table
+				Name:  "9", // to count for lldp oid
 				Type:  gosnmp.Integer,
 				Value: 999,
 			},
 			{
-				Name:  "9", // exit table
+				Name:  "9", // to count for lldp oid
 				Type:  gosnmp.Integer,
 				Value: 999,
 			},
@@ -907,81 +932,81 @@ profiles:
 			{
 				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.17.1.5",
 				Type:  gosnmp.OctetString,
-				Value: "",
+				Value: []byte(""),
 			},
 			{
 				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.19.1.5",
 				Type:  gosnmp.OctetString,
-				Value: "1",
+				Value: []byte("1"),
 			},
 			{
 				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.20.1.5",
 				Type:  gosnmp.OctetString,
-				Value: "10.10.0.134",
+				Value: []byte("0A0A0086"),
 			},
 			{
 				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.5.1.5",
 				Type:  gosnmp.OctetString,
-				Value: "",
+				Value: []byte(""),
 			},
 			{
 				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.6.1.5",
 				Type:  gosnmp.OctetString,
-				Value: "K10-ITV.tine.no",
+				Value: []byte("K10-ITV.tine.no"),
 			},
 			{
 				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.7.1.5",
 				Type:  gosnmp.OctetString,
-				Value: "GE0/1",
+				Value: []byte("GE0/1"),
 			},
 			// second iteration
 			{
-				Name:  "9", // exit table
+				Name:  "9", // to count for lldp oid
 				Type:  gosnmp.Integer,
 				Value: 999,
 			},
 			{
-				Name:  "9", // exit table
+				Name:  "9", // to count for lldp oid
 				Type:  gosnmp.Integer,
 				Value: 999,
 			},
 			{
-				Name:  "9", // exit table
+				Name:  "9", // to count for lldp oid
 				Type:  gosnmp.Integer,
 				Value: 999,
 			},
 			{
-				Name:  "9", // exit table
+				Name:  "9", // to count for lldp oid
 				Type:  gosnmp.Integer,
 				Value: 999,
 			},
 			{
-				Name:  "9", // exit table
+				Name:  "9", // to count for lldp oid
 				Type:  gosnmp.Integer,
 				Value: 999,
 			},
 			{
-				Name:  "9", // exit table
+				Name:  "9", // to count for lldp oid
 				Type:  gosnmp.Integer,
 				Value: 999,
 			},
 			{
-				Name:  "9", // exit table
+				Name:  "9", // to count for lldp oid
 				Type:  gosnmp.Integer,
 				Value: 999,
 			},
 			{
-				Name:  "9", // exit table
+				Name:  "9", // to count for lldp oid
 				Type:  gosnmp.Integer,
 				Value: 999,
 			},
 			{
-				Name:  "9", // exit table
+				Name:  "9", // to count for lldp oid
 				Type:  gosnmp.Integer,
 				Value: 999,
 			},
 			{
-				Name:  "9", // exit table
+				Name:  "9", // to count for lldp oid
 				Type:  gosnmp.Integer,
 				Value: 999,
 			},
@@ -1038,32 +1063,32 @@ profiles:
 			{
 				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.17.2.3",
 				Type:  gosnmp.OctetString,
-				Value: "",
+				Value: []byte(""),
 			},
 			{
 				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.19.2.3",
 				Type:  gosnmp.OctetString,
-				Value: "1",
+				Value: []byte("1"),
 			},
 			{
 				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.20.2.3",
 				Type:  gosnmp.OctetString,
-				Value: "10.10.0.132",
+				Value: []byte("0A0A0084"),
 			},
 			{
 				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.5.2.3",
 				Type:  gosnmp.OctetString,
-				Value: "",
+				Value: []byte(""),
 			},
 			{
 				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.6.2.3",
 				Type:  gosnmp.OctetString,
-				Value: "K06-ITV.tine.no",
+				Value: []byte("K06-ITV.tine.no"),
 			},
 			{
 				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.7.2.3",
 				Type:  gosnmp.OctetString,
-				Value: "GE0/2",
+				Value: []byte("GE0/2"),
 			},
 			// third iteration
 			{
@@ -1329,7 +1354,8 @@ profiles:
                     "dd_id": "profile-metadata:1.2.3.4"
                 },
                 "interface": {
-                    "dd_id": "profile-metadata:1.2.3.4:1"
+                    "dd_id": "profile-metadata:1.2.3.4:1",
+					"id": ""
                 }
             },
             "remote": {
@@ -1352,8 +1378,7 @@ profiles:
                 },
                 "interface": {
                     "dd_id": "profile-metadata:1.2.3.4:2",
-                    "id": "82:a5:6e:a5:c9:02",
-                    "id_type": "mac_address"
+                    "id": ""
                 }
             },
             "remote": {
