@@ -80,7 +80,6 @@ stages:
   - functional_test_cleanup
   - functional_test_junit_upload
   - internal_kubernetes_deploy
-     # - notify
 
 variables:
   #Do not change this - must be the repository name for Kubernetes runners to work
