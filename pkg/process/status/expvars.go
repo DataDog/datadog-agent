@@ -3,27 +3,24 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// This file provides methods to set various expvar values, which are then queried by the `status` command.
+
 package status
 
 import (
 	"bufio"
-	"encoding/json"
 	"expvar"
-	"fmt"
-	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
-	"html/template"
-	"io"
-	"net/http"
 	"os"
 	"strings"
 	"sync"
 	"time"
 
+	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
+
 	"go.uber.org/atomic"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -32,9 +29,6 @@ var (
 	infoMutex                 sync.RWMutex
 	infoOnce                  sync.Once
 	infoStart                 = time.Now()
-	infoNotRunningTmpl        *template.Template
-	infoTmpl                  *template.Template
-	infoErrorTmpl             *template.Template
 	infoDockerSocket          string
 	infoLastCollectTime       string
 	infoProcCount             atomic.Int64
@@ -51,58 +45,6 @@ var (
 	infoPodQueueBytes         atomic.Int64
 	infoEnabledChecks         []string
 	infoDropCheckPayloads     []string
-)
-
-const (
-	infoTmplSrc = `{{.Banner}}
-{{.Program}}
-{{.Banner}}
-
-  Pid: {{.Status.Pid}}
-  Hostname: {{.Status.HostName}}
-  Uptime: {{.Status.Uptime}} seconds
-  Mem alloc: {{.Status.MemStats.Alloc}} bytes
-  {{- if .Status.SystemProbeProcessModuleEnabled }}
-  System Probe Process Module Status: Running
-  {{- else}}
-  System Probe Process Module Status: Not running
-  {{- end}}
-
-  Last collection time: {{.Status.LastCollectTime}}{{if ne .Status.DockerSocket ""}}
-  Docker socket: {{.Status.DockerSocket}}{{end}}
-  Number of processes: {{.Status.ProcessCount}}
-  Number of containers: {{.Status.ContainerCount}}
-  Process Queue length: {{.Status.ProcessQueueSize}}
-  RTProcess Queue length: {{.Status.RTProcessQueueSize}}
-  Connections Queue length: {{.Status.ConnectionsQueueSize}}
-  Event Queue length: {{.Status.EventQueueSize}}
-  Pod Queue length: {{.Status.PodQueueSize}}
-  Process Bytes enqueued: {{.Status.ProcessQueueBytes}}
-  RTProcess Bytes enqueued: {{.Status.RTProcessQueueBytes}}
-  Connections Bytes enqueued: {{.Status.ConnectionsQueueBytes}}
-  Event Bytes enqueued: {{.Status.EventQueueBytes}}
-  Pod Bytes enqueued: {{.Status.PodQueueBytes}}
-  Drop Check Payloads: {{.Status.DropCheckPayloads}}
-
-  Logs: {{.Status.LogFile}}{{if .Status.ProxyURL}}
-  HttpProxy: {{.Status.ProxyURL}}{{end}}{{if ne .Status.ContainerID ""}}
-  Container ID: {{.Status.ContainerID}}{{end}}
-
-`
-	infoNotRunningTmplSrc = `{{.Banner}}
-{{.Program}}
-{{.Banner}}
-
-  Not running
-
-`
-	infoErrorTmplSrc = `{{.Banner}}
-{{.Program}}
-{{.Banner}}
-
-  Error: {{.Error}}
-
-`
 )
 
 func publishUptime() interface{} {
@@ -276,12 +218,6 @@ func publishDropCheckPayloads() interface{} {
 	return infoDropCheckPayloads
 }
 
-func getProgramBanner(version string) (string, string) {
-	program := fmt.Sprintf("Processes and Containers Agent (v %s)", version)
-	banner := strings.Repeat("=", len(program))
-	return program, banner
-}
-
 // StatusInfo is a structure to get information from expvar and feed to template
 type StatusInfo struct {
 	Pid                             int                    `json:"pid"`
@@ -310,17 +246,7 @@ type StatusInfo struct {
 	SystemProbeProcessModuleEnabled bool                   `json:"system_probe_process_module_enabled"`
 }
 
-func InitInfo(hostname string, processModuleEnabled bool, eps []apicfg.Endpoint) error {
-	var err error
-
-	funcMap := template.FuncMap{
-		"add": func(a, b int64) int64 {
-			return a + b
-		},
-		"percent": func(v float64) string {
-			return fmt.Sprintf("%02.1f", v*100)
-		},
-	}
+func InitInfo(hostname string, processModuleEnabled bool, eps []apicfg.Endpoint) {
 	infoOnce.Do(func() {
 		expvar.NewString("host").Set(hostname)
 		expvar.NewInt("pid").Set(int64(os.Getpid()))
@@ -346,73 +272,5 @@ func InitInfo(hostname string, processModuleEnabled bool, eps []apicfg.Endpoint)
 		expvar.Publish("endpoints", expvar.Func(publishEndpoints(eps)))
 		expvar.Publish("drop_check_payloads", expvar.Func(publishDropCheckPayloads))
 		expvar.Publish("system_probe_process_module_enabled", publishBool(processModuleEnabled))
-
-		infoTmpl, err = template.New("info").Funcs(funcMap).Parse(infoTmplSrc)
-		if err != nil {
-			return
-		}
-		infoNotRunningTmpl, err = template.New("infoNotRunning").Parse(infoNotRunningTmplSrc)
-		if err != nil {
-			return
-		}
-		infoErrorTmpl, err = template.New("infoError").Parse(infoErrorTmplSrc)
-		if err != nil {
-			return
-		}
 	})
-
-	return err
-}
-
-// Info is called when --info flag is enabled when executing the agent binary
-func Info(w io.Writer, expvarURL string) error {
-	agentVersion, _ := version.Agent()
-	var err error
-	client := http.Client{Timeout: 2 * time.Second}
-	resp, err := client.Get(expvarURL)
-	if err != nil {
-		program, banner := getProgramBanner(agentVersion.GetNumber())
-		_ = infoNotRunningTmpl.Execute(w, struct {
-			Banner  string
-			Program string
-		}{
-			Banner:  banner,
-			Program: program,
-		})
-		return err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	var info StatusInfo
-	info.LogFile = ddconfig.Datadog.GetString("process_config.log_file")
-	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
-		// Since the request failed, we can't get the version of the remote agent.
-		clientVersion, _ := version.Agent()
-		program, banner := getProgramBanner(clientVersion.GetNumber())
-		_ = infoErrorTmpl.Execute(w, struct {
-			Banner  string
-			Program string
-			Error   error
-		}{
-			Banner:  banner,
-			Program: program,
-			Error:   err,
-		})
-		return err
-	}
-
-	program, banner := getProgramBanner(info.Version.GetNumber())
-	err = infoTmpl.Execute(w, struct {
-		Banner  string
-		Program string
-		Status  *StatusInfo
-	}{
-		Banner:  banner,
-		Program: program,
-		Status:  &info,
-	})
-	if err != nil {
-		return err
-	}
-	return nil
 }
