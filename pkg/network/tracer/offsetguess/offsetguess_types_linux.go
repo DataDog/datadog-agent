@@ -61,10 +61,11 @@ type TracerStatus struct {
 	Transport_header                uint16
 	Network_header                  uint16
 	Mac_header                      uint16
-	Ipv6_enabled                    uint8
+	Tcpv6_enabled                   uint8
+	Udpv6_enabled                   uint8
 	Fl4_offsets                     uint8
 	Fl6_offsets                     uint8
-	Pad_cgo_0                       [3]byte
+	Pad_cgo_0                       [2]byte
 }
 
 type State uint8
