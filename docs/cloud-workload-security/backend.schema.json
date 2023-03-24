@@ -552,9 +552,6 @@
           "type": "boolean",
           "description": "indicates if a module was loaded from memory, as opposed to a file"
         },
-        "args": {
-          "type": "string"
-        },
         "argv": {
           "items": {
             "type": "string"

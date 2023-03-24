@@ -477,7 +477,6 @@ type ModuleEventSerializer struct {
 	Name string `json:"name"`
 	// indicates if a module was loaded from memory, as opposed to a file
 	LoadedFromMemory *bool    `json:"loaded_from_memory,omitempty"`
-	Args             string   `json:"args,omitempty"`
 	Argv             []string `json:"argv,omitempty"`
 }
 
@@ -900,8 +899,7 @@ func newLoadModuleEventSerializer(e *model.Event) *ModuleEventSerializer {
 	return &ModuleEventSerializer{
 		Name:             e.LoadModule.Name,
 		LoadedFromMemory: &loadedFromMemory,
-		Args:             e.LoadModule.Args,
-		Argv:             e.LoadModule.Argv,
+		Argv:             e.FieldHandlers.ResolveModuleArgv(e, &e.LoadModule),
 	}
 }
 

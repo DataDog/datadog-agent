@@ -2143,8 +2143,6 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecuritySerializers16(
 				}
 				*out.LoadedFromMemory = bool(in.Bool())
 			}
-		case "args":
-			out.Args = string(in.String())
 		case "argv":
 			if in.IsNull() {
 				in.Skip()
@@ -2191,11 +2189,6 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecuritySerializers16(
 		const prefix string = ",\"loaded_from_memory\":"
 		out.RawString(prefix)
 		out.Bool(bool(*in.LoadedFromMemory))
-	}
-	if in.Args != "" {
-		const prefix string = ",\"args\":"
-		out.RawString(prefix)
-		out.String(string(in.Args))
 	}
 	if len(in.Argv) != 0 {
 		const prefix string = ",\"argv\":"

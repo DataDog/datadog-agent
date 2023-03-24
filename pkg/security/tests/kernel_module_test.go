@@ -137,6 +137,14 @@ func TestLoadModule(t *testing.T) {
 			ID:         "test_load_module_kworker",
 			Expression: `load_module.name == "xt_LED" && process.is_kworker`,
 		},
+		{
+			ID:         "test_load_module_with_specific_param",
+			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.argv in ["toto=1"]`, testModuleName),
+		},
+		{
+			ID:         "test_load_module_with_params",
+			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.args != ""`, testModuleName),
+		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
@@ -226,46 +234,6 @@ func TestLoadModule(t *testing.T) {
 			assert.Equal(t, "test_load_module_kworker", r.ID, "invalid rule triggered")
 		})
 	})
-}
-
-func TestLoadModuleWithParams(t *testing.T) {
-	if testEnvironment == DockerEnvironment {
-		t.Skip("skipping kernel module test in docker")
-	}
-
-	// before trying to load the module, some dependant modules might be needed, use modprobe to load them first
-	if _, err := loadModule(testModuleName); err != nil {
-		t.Skipf("failed to load %s module: %v", testModuleName, err)
-	}
-
-	modulePath, wasCompressed := getModulePath(testModulePathFmt, t)
-	if wasCompressed {
-		// we need to re-compress the module, otherwise it breaks modprobe
-		defer compressModule(modulePath, t)
-	}
-
-	// make sure the xfs module isn't currently loaded
-	err := unix.DeleteModule(testModuleName, unix.O_NONBLOCK)
-	if err != nil {
-		t.Skipf("couldn't delete %s module: %v", testModuleName, err)
-	}
-
-	ruleDefs := []*rules.RuleDefinition{
-		{
-			ID:         "test_load_module_with_specific_param",
-			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.argv in ["toto=1"]`, testModuleName),
-		},
-		{
-			ID:         "test_load_module_with_params",
-			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.args != ""`, testModuleName),
-		},
-	}
-
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer test.Close()
 
 	t.Run("load_module_with_any_params", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
@@ -276,23 +244,14 @@ func TestLoadModuleWithParams(t *testing.T) {
 			}
 			defer f.Close()
 
-			var module []byte
-			module, err = io.ReadAll(f)
-			if err != nil {
-				return fmt.Errorf("couldn't load module content: %w", err)
-			}
-
-			if err = unix.InitModule(module, "toto=2 toto=3"); err != nil {
+			if err = unix.FinitModule(int(f.Fd()), "toto=2 toto=3", 0); err != nil {
 				return fmt.Errorf("couldn't insert module: %w", err)
 			}
-
 			return unix.DeleteModule(testModuleName, unix.O_NONBLOCK)
 		}, func(event *model.Event, r *rules.Rule) {
-			assert.Equal(t, "test_load_module_with_params", r.ID, "invalid rule triggered")
-
-			event.ResolveFields()
-			assert.Equal(t, "toto=2 toto=3", event.LoadModule.Args, "should have the list of parameters")
-
+			assert.Equal(t, strings.Contains("test_load_module_with_params, test_load_module_with_specific_param, test_load_module", r.ID), true, "invalid rule triggered")
+			assertFieldEqual(t, event, "load_module.args", "toto=2 toto=3")
+			assertFieldEqual(t, event, "load_module.loaded_from_memory", false)
 			test.validateLoadModuleSchema(t, event)
 		})
 	})
@@ -318,10 +277,9 @@ func TestLoadModuleWithParams(t *testing.T) {
 
 			return unix.DeleteModule(testModuleName, unix.O_NONBLOCK)
 		}, func(event *model.Event, r *rules.Rule) {
-			assert.Equal(t, "test_load_module_with_specific_param", r.ID, "invalid rule triggered")
-
-			event.ResolveFields()
-			assert.Equal(t, []string{"toto=1"}, event.LoadModule.Argv, "should have the list of parameters")
+			assert.Equal(t, strings.Contains("test_load_module_with_params, test_load_module_with_specific_param, test_load_module_from_memory", r.ID), true, "invalid rule triggered")
+			assertFieldEqual(t, event, "load_module.argv", []string{"toto=1"})
+			assertFieldEqual(t, event, "load_module.loaded_from_memory", true)
 			test.validateLoadModuleSchema(t, event)
 		})
 	})
