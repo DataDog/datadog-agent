@@ -718,7 +718,7 @@ profiles:
 	err = json.Compact(compactEvent, event)
 	assert.NoError(t, err)
 
-	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
+	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 }
 
 func TestTopologyPayload_CDP(t *testing.T) {
@@ -1400,7 +1400,7 @@ profiles:
 	err = json.Compact(compactEvent, event)
 	assert.NoError(t, err)
 
-	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
+	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 }
 
 // we have different data for LLDP and CDP to test that we're only using LLDP to build the links
@@ -2093,5 +2093,5 @@ profiles:
 	err = json.Compact(compactEvent, event)
 	assert.NoError(t, err)
 
-	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
+	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 }
