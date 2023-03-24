@@ -88,6 +88,7 @@ func (f *fakeHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 func testHttpServe(t *testing.T, shouldFailed bool, f *fakeHandler, prefixCmd []string, uid int, gid int) error {
 	dir, err := os.MkdirTemp("", "testHttpServe-*")
+	assert.NoError(t, err)
 	t.Cleanup(func() { os.RemoveAll(dir) })
 	err = os.Chmod(dir, 0777)
 	assert.NoError(t, err)
@@ -135,27 +136,30 @@ func lookupUser(t *testing.T, name string) (usrID int, grpID int, usrIDstr strin
 func TestHttpServe(t *testing.T) {
 	uid, gid, uidStr, gidStr := lookupUser(t, "nobody")
 
-	// root is always valid
-	f := &fakeHandler{t: t}
-	err := testHttpServe(t, false, f, []string{"sudo"}, uid, gid)
-	if !errors.Is(err, net.ErrClosed) && err != http.ErrServerClosed {
-		assert.NoError(t, err)
-	}
-	assert.Equal(t, "/test", f.request)
+	t.Run("root always valid", func(t *testing.T) {
+		f := &fakeHandler{t: t}
+		err := testHttpServe(t, false, f, []string{"sudo"}, uid, gid)
+		if !errors.Is(err, net.ErrClosed) && err != http.ErrServerClosed {
+			assert.NoError(t, err)
+		}
+		assert.Equal(t, "/test", f.request)
+	})
 
-	// nobody:nogroup is valid
-	f = &fakeHandler{t: t}
-	err = testHttpServe(t, false, f, []string{"sudo", "-u", uidStr, "-g", gidStr}, uid, gid)
-	if !errors.Is(err, net.ErrClosed) && err != http.ErrServerClosed {
-		assert.NoError(t, err)
-	}
-	assert.Equal(t, "/test", f.request)
+	t.Run("nobody:nogroup is valid", func(t *testing.T) {
+		f := &fakeHandler{t: t}
+		err := testHttpServe(t, false, f, []string{"sudo", "-u", uidStr, "-g", gidStr}, uid, gid)
+		if !errors.Is(err, net.ErrClosed) && err != http.ErrServerClosed {
+			assert.NoError(t, err)
+		}
+		assert.Equal(t, "/test", f.request)
+	})
 
-	// nobody:nogroup no access
-	f = &fakeHandler{t: t}
-	err = testHttpServe(t, true, f, []string{"sudo", "-u", uidStr, "-g", gidStr}, 0, 0)
-	if errors.Is(err, net.ErrClosed) || err == http.ErrServerClosed {
-		assert.Error(t, err)
-	}
-	assert.Equal(t, "", f.request)
+	t.Run("nobody:nogroup no access", func(t *testing.T) {
+		f := &fakeHandler{t: t}
+		err := testHttpServe(t, true, f, []string{"sudo", "-u", uidStr, "-g", gidStr}, 0, 0)
+		if errors.Is(err, net.ErrClosed) || err == http.ErrServerClosed {
+			assert.Error(t, err)
+		}
+		assert.Equal(t, "", f.request)
+	})
 }

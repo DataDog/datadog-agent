@@ -49,8 +49,8 @@ func StartServer(cfg *config.Config, telemetry telemetry.Component) error {
 	mux.Handle("/debug/vars", http.DefaultServeMux)
 	mux.Handle("/telemetry", telemetry.Handler())
 
-	allowedUsrID, allowedGrpID, err := filesystem.UserDDAgent()
-	if err != nil {
+	found, allowedUsrID, allowedGrpID, err := filesystem.UserDDAgent()
+	if err != nil || !found {
 		// if user dd-agent doesn't exist, map to root
 		allowedUsrID = 0
 		allowedGrpID = 0

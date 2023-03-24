@@ -83,8 +83,8 @@ func NewGRPCServer(socketPath string) *GRPCServer {
 	// force socket cleanup of previous socket not cleanup
 	_ = os.Remove(socketPath)
 
-	allowedUsrID, allowedGrpID, err := filesystem.UserDDAgent()
-	if err != nil {
+	found, allowedUsrID, allowedGrpID, err := filesystem.UserDDAgent()
+	if err != nil || !found {
 		// if user dd-agent doesn't exist, map to root
 		allowedUsrID = 0
 		allowedGrpID = 0
