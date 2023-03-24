@@ -15,7 +15,6 @@ def trigger_macos_build(
     python_runtimes="3",
     destination=".",
 ):
-
     env = load_release_versions(ctx, release_version)
     github_action_ref = env["MACOS_BUILD_VERSION"]
 
@@ -45,7 +44,6 @@ def trigger_macos_test(
     python_runtimes="3",
     destination=".",
 ):
-
     env = load_release_versions(ctx, release_version)
     github_action_ref = env["MACOS_BUILD_VERSION"]
 
@@ -72,11 +70,14 @@ def lint_codeowner(_):
     os.chdir(root_folder)
 
     owners = get_code_owners(root_folder)
-    
-    # make sure each root package has an owner        
-    pkgs_without_owner = find_packages_without_owner(owners, "pkg")        
+
+    # make sure each root package has an owner
+    pkgs_without_owner = find_packages_without_owner(owners, "pkg")
     if len(pkgs_without_owner) > 0:
-        raise Exit(f'The following packages  in `pkg` directory don\'t have an owner in CODEOWNERS: {pkgs_without_owner}', code=1)    
+        raise Exit(
+            f'The following packages  in `pkg` directory don\'t have an owner in CODEOWNERS: {pkgs_without_owner}',
+            code=1,
+        )
 
 
 def find_packages_without_owner(owners, folder):
@@ -84,7 +85,7 @@ def find_packages_without_owner(owners, folder):
     for x in os.listdir(folder):
         path = os.path.join("/" + folder, x)
         if path not in owners:
-            pkg_without_owners.append(path)    
+            pkg_without_owners.append(path)
     return pkg_without_owners
 
 
@@ -94,9 +95,10 @@ def get_code_owners(root_folder):
     with open(code_owner_path) as f:
         for line in f:
             line = line.strip()
-            line = line.split("#")[0] # remove comment
+            line = line.split("#")[0]  # remove comment
             if len(line) > 0:
                 parts = line.split()
                 path = os.path.normpath(parts[0])
-                owners[path] = parts[1:] # example /tools/retry_file_dump ['@DataDog/agent-metrics-logs']
+                # example /tools/retry_file_dump ['@DataDog/agent-metrics-logs']
+                owners[path] = parts[1:]
     return owners
