@@ -713,7 +713,7 @@ def clean(ctx):
 
 
 @task
-def version(ctx, url_safe=False, omnibus_format=False, git_sha_length=7, major_version='7', cached_save=False):
+def version(ctx, url_safe=False, omnibus_format=False, git_sha_length=7, major_version='7', version_cached=False):
     """
     Get the agent version.
     url_safe: get the version that is able to be addressed as a url
@@ -722,10 +722,10 @@ def version(ctx, url_safe=False, omnibus_format=False, git_sha_length=7, major_v
     git_sha_length: different versions of git have a different short sha length,
                     use this to explicitly set the version
                     (the windows builder and the default ubuntu version have such an incompatibility)
-    cached_save: save the version inside a "_version.cache" that will be reused
-                 by each next call of version.
+    version_cached: save the version inside a "_version.cache" that will be reused
+                    by each next call of version.
     """
-    if cached_save:
+    if version_cached:
         cache_version(ctx, git_sha_length=git_sha_length, major_version=major_version)
 
     version = get_version(
