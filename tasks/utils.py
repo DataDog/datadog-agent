@@ -331,17 +331,21 @@ def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
 
     return version, pre, commit_number, git_sha, pipeline_id
 
+
 def cache_version(ctx, git_sha_length=7, prefix=None, major_version='7'):
+    """
+    Generate a pickle cache file containing all needed variables used by get_version.
+    """
     packed_data = []
     for maj_version in ['6', '7']:
         version, pre, commits_since_version, git_sha, pipeline_id = query_version(
             ctx, git_sha_length, prefix, major_version_hint=maj_version
         )
         packed_data.append((version, pre, commits_since_version, git_sha, pipeline_id))
-    is_nightly = is_allowed_repo_nightly_branch(os.getenv("BUCKET_BRANCH"))
-    packed_data.append(is_nightly)
+    packed_data.append(is_allowed_repo_nightly_branch(os.getenv("BUCKET_BRANCH")))
     with open("_version.cache", "wb") as file:
         pickle.dump(packed_data, file)
+
 
 def get_version(
     ctx, include_git=False, url_safe=False, git_sha_length=7, prefix=None, major_version='7', include_pipeline_id=False
@@ -350,19 +354,25 @@ def get_version(
     pipeline_id = os.getenv("CI_PIPELINE_ID")
     if pipeline_id is not None:
         try:
-            os.system(f"aws s3 cp s3://dd-ci-artefacts-build-stable/{os.getenv('CI_PROJECT_NAME')}/{pipeline_id}/_version.cache .")
+            if not os.path.exists("_version.cache"):
+                os.system(
+                    f"aws s3 cp s3://dd-ci-artefacts-build-stable/{os.getenv('CI_PROJECT_NAME')}/{pipeline_id}/_version.cache ."
+                )
+
             with open("_version.cache", "rb") as file:
                 cache_data = pickle.load(file)
+
             data_index = ord(major_version) - ord('6')
             version, pre, commits_since_version, git_sha, pipeline_id = cache_data[data_index]
             is_nightly = cache_data[-1]
+
             if pre:
                 version = f"{version}-{pre}"
-        except Exception as e:
+        except:
             # If a cache file is found but corrupted we ignore it.
             version = ""
     # If we didn't load the cache
-    if not version and False:
+    if not version:
         # we only need the git info for the non omnibus builds, omnibus includes all this information by default
         version, pre, commits_since_version, git_sha, pipeline_id = query_version(
             ctx, git_sha_length, prefix, major_version_hint=major_version

@@ -722,11 +722,11 @@ def version(ctx, url_safe=False, omnibus_format=False, git_sha_length=7, major_v
     git_sha_length: different versions of git have a different short sha length,
                     use this to explicitly set the version
                     (the windows builder and the default ubuntu version have such an incompatibility)
-    cached_save: save the version inside a "_version.cache" that will be reused 
+    cached_save: save the version inside a "_version.cache" that will be reused
                  by each next call of version.
     """
     if cached_save:
-        cache_version(ctx,git_sha_length=git_sha_length,major_version=major_version)
+        cache_version(ctx, git_sha_length=git_sha_length, major_version=major_version)
 
     version = get_version(
         ctx,
