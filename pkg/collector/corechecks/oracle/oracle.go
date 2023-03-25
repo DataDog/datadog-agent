@@ -113,6 +113,8 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		return nil, fmt.Errorf("failed to ping oracle instance: %w", err)
 	}
 
+	db.SetMaxOpenConns(1)
+
 	if c.cdbName == "" {
 		row := db.QueryRow("SELECT name FROM v$database")
 		err = row.Scan(&c.cdbName)
