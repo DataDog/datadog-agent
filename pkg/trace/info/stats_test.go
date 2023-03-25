@@ -61,6 +61,8 @@ func TestSpansMalformed(t *testing.T) {
 			"span_name_invalid":        0,
 			"span_name_empty":          0,
 			"service_truncate":         0,
+			"peer_service_truncate":    0,
+			"peer_service_invalid":     0,
 			"invalid_start_date":       0,
 			"invalid_http_status_code": 0,
 			"invalid_duration":         0,
@@ -263,7 +265,7 @@ func TestReceiverStats(t *testing.T) {
 	t.Run("PublishAndReset", func(t *testing.T) {
 		rs := testStats()
 		rs.PublishAndReset()
-		assert.EqualValues(t, 41, statsclient.counts.Load())
+		assert.EqualValues(t, 39, statsclient.counts.Load())
 		assertStatsAreReset(t, rs)
 	})
 
@@ -285,7 +287,7 @@ func TestReceiverStats(t *testing.T) {
 		logs := strings.Split(b.String(), "\n")
 		assert.Equal(t, "[INFO] [lang:go lang_version:1.12 lang_vendor:gov interpreter:gcc tracer_version:1.33 endpoint_version:v0.4] -> traces received: 1, traces filtered: 4, traces amount: 9 bytes, events extracted: 13, events sampled: 14",
 			logs[0])
-		assert.Equal(t, "[WARN] [lang:go lang_version:1.12 lang_vendor:gov interpreter:gcc tracer_version:1.33 endpoint_version:v0.4] -> traces_dropped(decoding_error:1, empty_trace:3, foreign_span:6, payload_too_large:2, span_id_zero:5, timeout:7, trace_id_zero:4, unexpected_eof:8), spans_malformed(duplicate_span_id:1, invalid_duration:13, invalid_http_status_code:14, invalid_start_date:12, peer_service_invalid:8, peer_service_truncate:7, resource_empty:10, service_empty:2, service_invalid:4, service_truncate:3, span_name_empty:5, span_name_invalid:9, span_name_truncate:6, type_truncate:11). Enable debug logging for more details.",
+		assert.Equal(t, "[WARN] [lang:go lang_version:1.12 lang_vendor:gov interpreter:gcc tracer_version:1.33 endpoint_version:v0.4] -> traces_dropped(decoding_error:1, empty_trace:3, foreign_span:6, payload_too_large:2, span_id_zero:5, timeout:7, trace_id_zero:4, unexpected_eof:8), spans_malformed(duplicate_span_id:1, invalid_duration:11, invalid_http_status_code:12, invalid_start_date:10, resource_empty:8, service_empty:2, service_invalid:4, service_truncate:3, span_name_empty:5, span_name_invalid:7, span_name_truncate:6, type_truncate:9). Enable debug logging for more details.",
 			logs[1])
 
 		assertStatsAreReset(t, rs)
