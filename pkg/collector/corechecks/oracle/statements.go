@@ -223,6 +223,13 @@ func (c *Check) copyToPreviousMap(newMap map[StatementMetricsKeyDB]StatementMetr
 }
 
 func (c *Check) StatementMetrics() error {
+	start := time.Now()
+	sender, err := c.GetSender()
+	if err != nil {
+		log.Errorf("GetSender statements metrics")
+		return err
+	}
+	SQLTextErrors := 0
 	var oracleRows []OracleRow
 	if c.config.QueryMetrics {
 		statementMetrics, err := GetStatementsMetricsForKeys(c.db, "force_matching_signature", "AND force_matching_signature != 0", c.statementsFilter.ForceMatchingSignatures)
@@ -236,6 +243,9 @@ func (c *Check) StatementMetrics() error {
 		}
 		statementMetricsAll = append(statementMetricsAll, statementMetrics...)
 		log.Tracef("colleced keys: %+v", statementMetricsAll)
+		SQLCount := len(statementMetricsAll)
+		sender.Count("dd.oracle.statements_metrics.sql_count", float64(SQLCount), c.hostname, c.tags)
+
 		newCache := make(map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB)
 		if c.statementMetricsMonotonicCountsPrevious == nil {
 			c.copyToPreviousMap(newCache)
@@ -361,9 +371,11 @@ func (c *Check) StatementMetrics() error {
 				"sql_id":                   statementMetricRow.StatementMetricsKeyDB.SQLID,
 			}
 			SQLTextQuery := fmt.Sprintf("SELECT sql_fulltext FROM v$sqlstats WHERE %s=:%s AND rownum = 1", queryHashCol, queryHashCol)
+
 			rows, err := c.db.NamedQuery(SQLTextQuery, p)
 			if err != nil {
 				log.Errorf("query metrics statements error named exec %s ", err)
+				SQLTextErrors++
 				continue
 			}
 
@@ -373,10 +385,12 @@ func (c *Check) StatementMetrics() error {
 			rows.Close()
 			if err != nil {
 				log.Errorf("query metrics statement scan error %s %s %+v", err, SQLTextQuery, p)
+				SQLTextErrors++
 				continue
 			}
 			SQLStatement = cols[0].(string)
-			//defer rows.Close()
+			sender.Histogram("dd.oracle.statements_metrics.sql_text_length", float64(len(SQLStatement)), c.hostname, c.tags)
+
 			queryRow := QueryRow{}
 			obfuscatedStatement, err := c.GetObfuscatedStatement(o, SQLStatement, statementMetricRow.ForceMatchingSignature, statementMetricRow.SQLID)
 			SQLStatement = obfuscatedStatement.Statement
@@ -439,12 +453,9 @@ func (c *Check) StatementMetrics() error {
 
 	log.Tracef("Query metrics payload %s", strings.ReplaceAll(string(payloadBytes), "@", "XX"))
 
-	sender, err := c.GetSender()
-	if err != nil {
-		log.Errorf("GetSender query metrics %s", string(payloadBytes))
-		return err
-	}
 	sender.EventPlatformEvent(string(payloadBytes), "dbm-metrics")
+	sender.Gauge("dd.oracle.statements_metrics.sql_text_errors", float64(SQLTextErrors), c.hostname, c.tags)
+	sender.Gauge("dd.oracle.statements_metrics.time_ms", float64(time.Since(start).Milliseconds()), c.hostname, c.tags)
 	sender.Commit()
 
 	return nil
