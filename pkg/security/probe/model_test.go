@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -24,11 +24,11 @@ import (
 
 func TestProcessArgsFlags(t *testing.T) {
 	var argsEntry model.ArgsEntry
-	argsEntry.SetValues([]string{
+	argsEntry.Values = []string{
 		"cmd", "-abc", "--verbose", "test",
 		"-v=1", "--host=myhost",
 		"-9", "-", "--",
-	})
+	}
 
 	resolver, _ := process.NewResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
 		&procutil.DataScrubber{}, nil, nil, nil, nil, nil, nil, process.NewResolverOpts(nil))
@@ -85,11 +85,11 @@ func TestProcessArgsFlags(t *testing.T) {
 
 func TestProcessArgsOptions(t *testing.T) {
 	var argsEntry model.ArgsEntry
-	argsEntry.SetValues([]string{
+	argsEntry.Values = []string{
 		"cmd", "--config", "/etc/myfile", "--host=myhost", "--verbose",
 		"-c", "/etc/myfile", "-e", "", "-h=myhost", "-v",
 		"--", "---", "-9",
-	})
+	}
 
 	resolver, _ := process.NewResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
 		&procutil.DataScrubber{}, nil, nil, nil, nil, nil, nil, process.NewResolverOpts(nil))

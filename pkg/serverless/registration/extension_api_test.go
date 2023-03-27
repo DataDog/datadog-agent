@@ -89,7 +89,9 @@ func TestRegisterSuccess(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	id, err := RegisterExtension(strings.Replace(ts.URL, "http://", "", 1), "/myRoute", registerExtensionTimeout)
+	baseRuntime := strings.Replace(ts.URL, "http://", "", 1)
+	t.Setenv("AWS_LAMBDA_RUNTIME_API", baseRuntime)
+	id, err := RegisterExtension(baseRuntime, "/myRoute", registerExtensionTimeout)
 
 	assert.Equal(t, "myGeneratedId", id.String())
 	assert.Nil(t, err)
@@ -103,6 +105,7 @@ func TestRegisterErrorNoExtensionId(t *testing.T) {
 	}))
 	defer ts.Close()
 
+	t.Setenv("AWS_LAMBDA_RUNTIME_API", ts.URL)
 	id, err := RegisterExtension(strings.Replace(ts.URL, "http://", "", 1), "", registerExtensionTimeout)
 
 	assert.Empty(t, id.String())

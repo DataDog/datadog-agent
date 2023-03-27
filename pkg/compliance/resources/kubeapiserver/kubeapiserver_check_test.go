@@ -155,6 +155,7 @@ func (f *kubeApiserverFixture) run(t *testing.T) {
 	env.On("DumpInputPath").Return("").Maybe()
 	env.On("ShouldSkipRegoEval").Return(false).Maybe()
 	env.On("Hostname").Return("test-host").Maybe()
+	env.On("StatsdClient").Return(nil).Maybe()
 
 	defer env.AssertExpectations(t)
 
@@ -166,7 +167,7 @@ func (f *kubeApiserverFixture) run(t *testing.T) {
 	regoRule := resource_test.NewTestRule(f.resource, "kuberapiserver", f.module)
 
 	kubeCheck := rego.NewCheck(regoRule)
-	err := kubeCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{}, nil)
+	err := kubeCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{})
 	assert.NoError(err)
 
 	reports := kubeCheck.Check(env)

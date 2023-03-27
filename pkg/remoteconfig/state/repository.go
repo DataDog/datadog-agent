@@ -62,6 +62,11 @@ type Update struct {
 	ClientConfigs []string
 }
 
+// isEmpty returns whether or not all the fields of `Update` are empty
+func (u *Update) isEmpty() bool {
+	return len(u.TUFRoots) == 0 && len(u.TUFTargets) == 0 && (u.TargetFiles == nil || len(u.TargetFiles) == 0) && len(u.ClientConfigs) == 0
+}
+
 // Repository is a remote config client used in a downstream process to retrieve
 // remote config updates from an Agent.
 type Repository struct {
@@ -131,6 +136,11 @@ func (r *Repository) Update(update Update) ([]string, error) {
 	var err error
 	var updatedTargets *data.Targets
 	var tmpRootClient *tufRootsClient
+
+	// If there's literally nothing in the update, it's not an error.
+	if update.isEmpty() {
+		return []string{}, nil
+	}
 
 	// TUF: Update the roots and verify the TUF Targets file (optional)
 	//

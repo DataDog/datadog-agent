@@ -58,10 +58,10 @@ func FuzzObfuscateSpan(f *testing.F) {
 	encode := func(pbSpan *pb.Span) ([]byte, error) {
 		return pbSpan.MarshalMsg(nil)
 	}
-	decode := func(span []byte) (*pb.Span, error) {
+	decode := func(span []byte) (pb.Span, error) {
 		var pbSpan pb.Span
 		_, err := pbSpan.UnmarshalMsg(span)
-		return &pbSpan, err
+		return pbSpan, err
 	}
 	seedCorpus := []*pb.Span{
 		{
@@ -92,8 +92,8 @@ func FuzzObfuscateSpan(f *testing.F) {
 		if err != nil {
 			t.Skipf("Skipping invalid span: %v", err)
 		}
-		agent.obfuscateSpan(pbSpan)
-		encPostObfuscate, err := encode(pbSpan)
+		agent.obfuscateSpan(&pbSpan)
+		encPostObfuscate, err := encode(&pbSpan)
 		if err != nil {
 			t.Fatalf("obfuscateSpan returned an invalid span: %v", err)
 		}
@@ -108,6 +108,8 @@ func FuzzObfuscateSpan(f *testing.F) {
 }
 
 func FuzzNormalizeTrace(f *testing.F) {
+	agent, cancel := agentWithDefaults()
+	defer cancel()
 	encode := func(pbTrace pb.Trace) ([]byte, error) {
 		return pbTrace.MarshalMsg(nil)
 	}
@@ -128,7 +130,7 @@ func FuzzNormalizeTrace(f *testing.F) {
 			t.Skipf("Skipping invalid trace: %v", err)
 		}
 		ts := newTagStats()
-		if err := normalizeTrace(ts, pbTrace); err != nil {
+		if err := agent.normalizeTrace(ts, pbTrace); err != nil {
 			t.Skipf("Skipping rejected trace: %v", err)
 		}
 		encPostNorm, err := encode(pbTrace)

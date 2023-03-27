@@ -27,6 +27,7 @@ co_re_tests = Array.[](
 TIMEOUTS = {
   "pkg/network/protocols" => "5m",
   # disable timeouts for pkg/network/tracer
+  "pkg/network/protocols/http$" => "0",
   "pkg/network/tracer$" => "0",
 }
 
@@ -56,7 +57,8 @@ print KernelOut.format(`uname -a`)
 arch = `uname -m`.strip
 release = `uname -r`.strip
 osr = Hash[*CSV.read("/etc/os-release", col_sep: "=").flatten(1)]
-platform = "#{osr["ID"]}-#{osr["VERSION_ID"]}"
+platform = Gem::Platform.local.os
+osname = "#{osr["ID"]}-#{osr["VERSION_ID"]}"
 
 ##
 ## The main chef recipe (test\kitchen\site-cookbooks\dd-system-probe-check\recipes\default.rb)
@@ -82,6 +84,7 @@ shared_examples "passes" do |bundle, env, filter, filter_inclusive|
 
     base_env = {
       "DD_SYSTEM_PROBE_BPF_DIR"=>"#{tests_dir}/pkg/ebpf/bytecode/build",
+      "DD_SYSTEM_PROBE_JAVA_DIR"=>"#{tests_dir}/pkg/network/java",
       "GOVERSION"=>"unknown"
     }
     junitfile = pkg.gsub("/","-") + ".xml"
@@ -109,6 +112,7 @@ shared_examples "passes" do |bundle, env, filter, filter_inclusive|
         REXML::XPath.each(xmldoc, "//testsuites/testsuite/properties") do |props|
           props.add_element("property", { "name" => "dd_tags[test.bundle]", "value" => bundle })
           props.add_element("property", { "name" => "dd_tags[os.platform]", "value" => platform })
+          props.add_element("property", { "name" => "dd_tags[os.name]", "value" => osname })
           props.add_element("property", { "name" => "dd_tags[os.architecture]", "value" => arch })
           props.add_element("property", { "name" => "dd_tags[os.version]", "value" => release })
         end
@@ -160,7 +164,7 @@ describe "system-probe" do
       "DD_ENABLE_RUNTIME_COMPILER"=>"false",
       "DD_ALLOW_RUNTIME_COMPILED_FALLBACK"=>"false"
     }
-    if platform == "ubuntu-22.04" and arch == "x86_64"
+    if osname == "amzn-2" and arch == "x86_64" and release.start_with?("5.10.")
       include_examples "passes", "fentry", env, skip_prebuilt_tests, false
     end
   end

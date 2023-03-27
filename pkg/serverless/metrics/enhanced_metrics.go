@@ -7,6 +7,7 @@ package metrics
 
 import (
 	"math"
+	"os"
 	"strings"
 	"time"
 
@@ -39,8 +40,9 @@ const (
 	OutOfMemoryMetric = "aws.lambda.enhanced.out_of_memory"
 	timeoutsMetric    = "aws.lambda.enhanced.timeouts"
 	// ErrorsMetric is the name of the errors enhanced Lambda metric
-	ErrorsMetric      = "aws.lambda.enhanced.errors"
-	invocationsMetric = "aws.lambda.enhanced.invocations"
+	ErrorsMetric          = "aws.lambda.enhanced.errors"
+	invocationsMetric     = "aws.lambda.enhanced.invocations"
+	enhancedMetricsEnvVar = "DD_ENHANCED_METRICS"
 )
 
 func getOutOfMemorySubstrings() []string {
@@ -109,15 +111,20 @@ func GenerateEnhancedMetricsFromRuntimeDoneLog(args GenerateEnhancedMetricsFromR
 	})
 }
 
-// GenerateEnhancedMetricsFromFunctionLog generates enhanced metrics from a LogTypeFunction message
-func GenerateEnhancedMetricsFromFunctionLog(logString string, time time.Time, tags []string, demux aggregator.Demultiplexer) {
+// ContainsOutOfMemoryLog determines whether a runtime specific out of memory string is found in the log line
+func ContainsOutOfMemoryLog(logString string) bool {
 	for _, substring := range getOutOfMemorySubstrings() {
 		if strings.Contains(logString, substring) {
-			SendOutOfMemoryEnhancedMetric(tags, time, demux)
-			SendErrorsEnhancedMetric(tags, time, demux)
-			return
+			return true
 		}
 	}
+	return false
+}
+
+// GenerateEnhancedMetricsFromFunctionLog generates enhanced metrics specific to an out of memory from a LogTypeFunction message
+func GenerateEnhancedMetricsFromFunctionLog(time time.Time, tags []string, demux aggregator.Demultiplexer) {
+	SendOutOfMemoryEnhancedMetric(tags, time, demux)
+	SendErrorsEnhancedMetric(tags, time, demux)
 }
 
 // GenerateEnhancedMetricsFromReportLogArgs provides the arguments required for
@@ -223,6 +230,10 @@ func SendInvocationEnhancedMetric(tags []string, demux aggregator.Demultiplexer)
 
 // incrementEnhancedMetric sends an enhanced metric with a value of 1 to the metrics channel
 func incrementEnhancedMetric(name string, tags []string, timestamp float64, demux aggregator.Demultiplexer) {
+	// TODO - pass config here, instead of directly looking up var
+	if strings.ToLower(os.Getenv(enhancedMetricsEnvVar)) == "false" {
+		return
+	}
 	demux.AggregateSample(metrics.MetricSample{
 		Name:       name,
 		Value:      1.0,

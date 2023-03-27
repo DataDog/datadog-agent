@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/types"
-	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	processRunner "github.com/DataDog/datadog-agent/pkg/process/runner"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/mocks"
 )
@@ -28,7 +28,7 @@ type dependencies struct {
 	fx.In
 	Lc fx.Lifecycle
 
-	HostInfo *checks.HostInfo
+	HostInfo hostinfo.Component
 }
 
 type result struct {
@@ -39,7 +39,7 @@ type result struct {
 }
 
 func newSubmitter(deps dependencies) (result, error) {
-	s, err := processRunner.NewSubmitter(deps.HostInfo.HostName)
+	s, err := processRunner.NewSubmitter(deps.HostInfo.Object().HostName)
 	if err != nil {
 		return result{}, err
 	}
@@ -75,6 +75,6 @@ func (s *submitter) Stop() {
 
 func newMock(t testing.TB) Component {
 	s := mocks.NewSubmitter(t)
-	s.On("Submit", mock.Anything, mock.Anything, mock.Anything)
+	s.On("Submit", mock.Anything, mock.Anything, mock.Anything).Maybe()
 	return s
 }

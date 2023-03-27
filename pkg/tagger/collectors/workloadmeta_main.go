@@ -22,10 +22,11 @@ import (
 const (
 	workloadmetaCollectorName = "workloadmeta"
 
-	staticSource    = workloadmetaCollectorName + "-static"
-	podSource       = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesPod)
-	taskSource      = workloadmetaCollectorName + "-" + string(workloadmeta.KindECSTask)
-	containerSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainer)
+	staticSource         = workloadmetaCollectorName + "-static"
+	podSource            = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesPod)
+	taskSource           = workloadmetaCollectorName + "-" + string(workloadmeta.KindECSTask)
+	containerSource      = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainer)
+	containerImageSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainerImageMetadata)
 )
 
 // CollectorPriorities holds collector priorities
@@ -146,6 +147,7 @@ func NewWorkloadMetaCollector(ctx context.Context, store workloadmeta.Store, p p
 		retrieveMappingFromConfig("docker_labels_as_tags"),
 		retrieveMappingFromConfig("container_labels_as_tags"),
 	)
+	// Adding new environment variables require adding them to pkg/util/containers/env_vars_filter.go
 	containerEnvAsTags := mergeMaps(
 		retrieveMappingFromConfig("docker_env_as_tags"),
 		retrieveMappingFromConfig("container_env_as_tags"),
@@ -187,4 +189,5 @@ func init() {
 	CollectorPriorities[podSource] = NodeOrchestrator
 	CollectorPriorities[taskSource] = NodeOrchestrator
 	CollectorPriorities[containerSource] = NodeRuntime
+	CollectorPriorities[containerImageSource] = NodeRuntime
 }

@@ -31,14 +31,15 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/manager"
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	dogstatsdDebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
@@ -122,7 +123,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Supply(core.BundleParams{
 				ConfigParams:         config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
 				SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-				LogParams:            log.LogForDaemon("CORE", "log_file", common.DefaultLogFile)}),
+				LogParams:            log.LogForDaemon("CORE", "log_file", common.DefaultLogFile),
+			}),
+			flare.Module,
 			core.Bundle,
 			fx.Supply(dogstatsdServer.Params{
 				Serverless: false,
@@ -152,7 +155,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // run starts the main loop.
 //
 // This is exported because it also used from the deprecated `agent start` command.
-func run(log log.Component, config config.Component, flare flare.Component, sysprobeconfig sysprobeconfig.Component, server dogstatsdServer.Component, cliParams *cliParams) error {
+func run(log log.Component,
+	config config.Component,
+	flare flare.Component,
+	sysprobeconfig sysprobeconfig.Component,
+	server dogstatsdServer.Component,
+	capture replay.Component,
+	serverDebug dogstatsdDebug.Component,
+	cliParams *cliParams) error {
 	defer func() {
 		stopAgent(cliParams, server)
 	}()
@@ -193,7 +203,7 @@ func run(log log.Component, config config.Component, flare flare.Component, sysp
 		}
 	}()
 
-	if err := startAgent(cliParams, flare, server); err != nil {
+	if err := startAgent(cliParams, flare, sysprobeconfig, server, capture, serverDebug); err != nil {
 		return err
 	}
 
@@ -207,14 +217,24 @@ func run(log log.Component, config config.Component, flare flare.Component, sysp
 func StartAgentWithDefaults() (dogstatsdServer.Component, error) {
 	var dsdServer dogstatsdServer.Component
 	// run startAgent in an app, so that the log and config components get initialized
-	err := fxutil.OneShot(func(log log.Component, config config.Component, flare flare.Component, server dogstatsdServer.Component) error {
+	err := fxutil.OneShot(func(log log.Component,
+		config config.Component,
+		flare flare.Component,
+		sysprobeconfig sysprobeconfig.Component,
+		server dogstatsdServer.Component,
+		serverDebug dogstatsdDebug.Component,
+		capture replay.Component,
+	) error {
 		dsdServer = server
-		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, flare, server)
+		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, flare, sysprobeconfig, server, capture, serverDebug)
 	},
 		// no config file path specification in this situation
 		fx.Supply(core.BundleParams{
-			ConfigParams: config.NewAgentParamsWithSecrets(""),
-			LogParams:    log.LogForDaemon("CORE", "log_file", common.DefaultLogFile)}),
+			ConfigParams:         config.NewAgentParamsWithSecrets(""),
+			SysprobeConfigParams: sysprobeconfig.NewParams(),
+			LogParams:            log.LogForDaemon("CORE", "log_file", common.DefaultLogFile),
+		}),
+		flare.Module,
 		core.Bundle,
 		fx.Supply(dogstatsdServer.Params{
 			Serverless: false,
@@ -229,7 +249,14 @@ func StartAgentWithDefaults() (dogstatsdServer.Component, error) {
 }
 
 // startAgent Initializes the agent process
-func startAgent(cliParams *cliParams, flare flare.Component, server dogstatsdServer.Component) error {
+func startAgent(
+	cliParams *cliParams,
+	flare flare.Component,
+	sysprobeconfig sysprobeconfig.Component,
+	server dogstatsdServer.Component,
+	capture replay.Component,
+	serverDebug dogstatsdDebug.Component) error {
+
 	var err error
 
 	// Main context passed to components
@@ -276,7 +303,7 @@ func startAgent(cliParams *cliParams, flare flare.Component, server dogstatsdSer
 	}
 
 	// init settings that can be changed at runtime
-	if err := initRuntimeSettings(server); err != nil {
+	if err := initRuntimeSettings(serverDebug); err != nil {
 		pkglog.Warnf("Can't initiliaze the runtime settings: %v", err)
 	}
 
@@ -360,7 +387,7 @@ func startAgent(cliParams *cliParams, flare flare.Component, server dogstatsdSer
 	}
 
 	// start the cmd HTTP server
-	if err = api.StartServer(configService, flare, server); err != nil {
+	if err = api.StartServer(configService, flare, server, capture, serverDebug); err != nil {
 		return pkglog.Errorf("Error while starting api server, exiting: %v", err)
 	}
 
@@ -393,9 +420,6 @@ func startAgent(cliParams *cliParams, flare flare.Component, server dogstatsdSer
 	forwarderOpts.EnabledFeatures = forwarder.SetFeature(forwarderOpts.EnabledFeatures, forwarder.CoreFeatures)
 	opts := aggregator.DefaultAgentDemultiplexerOptions(forwarderOpts)
 	opts.EnableNoAggregationPipeline = pkgconfig.Datadog.GetBool("dogstatsd_no_aggregation_pipeline")
-	opts.UseContainerLifecycleForwarder = pkgconfig.Datadog.GetBool("container_lifecycle.enabled")
-	opts.UseContainerImageForwarder = pkgconfig.Datadog.GetBool("container_image.enabled")
-	opts.UseSBOMForwarder = pkgconfig.Datadog.GetBool("sbom.enabled")
 	demux = aggregator.InitAndStartAgentDemultiplexer(opts, hostnameDetected)
 
 	// Setup stats telemetry handler
@@ -422,14 +446,6 @@ func startAgent(cliParams *cliParams, flare flare.Component, server dogstatsdSer
 		if err != nil {
 			pkglog.Errorf("Failed to start snmp-traps server: %s", err)
 		}
-	}
-
-	// FIXME: this is necessary to fix windows agent starting as a service, since it is bypassing fx providing
-	// sysprobeconfig via the cobra run command. If this is removed, the system-probe config is not initialized
-	// correctly, and the agent does not correctly determine if system-probe is enabled. Ultimately causing the
-	// system-probe service to not start.
-	if _, err := sysconfig.New(cliParams.SysProbeConfFilePath); err != nil {
-		pkglog.Infof("System probe config not found, disabling pulling system probe info in the status page: %v", err)
 	}
 
 	// Detect Cloud Provider

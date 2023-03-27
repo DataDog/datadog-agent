@@ -289,7 +289,6 @@ int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u
 typedef enum discard_check_state {
     NOT_DISCARDED,
     DISCARDED,
-    SAVED_BY_AD,
 } discard_check_state;
 
 discard_check_state __attribute__((always_inline)) is_discarded_by_inode(struct is_discarded_by_inode_t *params) {
@@ -303,12 +302,6 @@ discard_check_state __attribute__((always_inline)) is_discarded_by_inode(struct 
     bool are_revisions_equal = inode_params->mount_revision == get_mount_discarder_revision(params->discarder.path_key.mount_id);
     if (!are_revisions_equal) {
         return NOT_DISCARDED;
-    }
-
-    // should we ignore the discarder check because of an activity dump ?
-    if (params->ad_state == ACTIVITY_DUMP_RUNNING) {
-        // do not discard this event
-        return SAVED_BY_AD;
     }
 
     u32 revision = get_discarders_revision();

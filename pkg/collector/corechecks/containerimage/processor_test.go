@@ -15,8 +15,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/atomic"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -79,11 +81,18 @@ func TestProcessEvents(t *testing.T) {
 			},
 			expectedImages: []*model.ContainerImage{
 				{
-					Id:        "datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+					Id: "datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+					DdTags: []string{
+						"image_id:datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+						"image_name:datadog/agent",
+						"short_image:agent",
+						"image_tag:7-rc",
+						"image_tag:7.41.1-rc.1",
+					},
 					Name:      "datadog/agent",
 					Registry:  "",
 					ShortName: "agent",
-					Tags: []string{
+					RepoTags: []string{
 						"7-rc",
 						"7.41.1-rc.1",
 					},
@@ -127,11 +136,18 @@ func TestProcessEvents(t *testing.T) {
 					},
 				},
 				{
-					Id:        "gcr.io/datadoghq/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+					Id: "gcr.io/datadoghq/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+					DdTags: []string{
+						"image_id:gcr.io/datadoghq/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+						"image_name:gcr.io/datadoghq/agent",
+						"short_image:agent",
+						"image_tag:7-rc",
+						"image_tag:7.41.1-rc.1",
+					},
 					Name:      "gcr.io/datadoghq/agent",
 					Registry:  "gcr.io",
 					ShortName: "agent",
-					Tags: []string{
+					RepoTags: []string{
 						"7-rc",
 						"7.41.1-rc.1",
 					},
@@ -175,11 +191,18 @@ func TestProcessEvents(t *testing.T) {
 					},
 				},
 				{
-					Id:        "public.ecr.aws/datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+					Id: "public.ecr.aws/datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+					DdTags: []string{
+						"image_id:public.ecr.aws/datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+						"image_name:public.ecr.aws/datadog/agent",
+						"short_image:agent",
+						"image_tag:7-rc",
+						"image_tag:7.41.1-rc.1",
+					},
 					Name:      "public.ecr.aws/datadog/agent",
 					Registry:  "public.ecr.aws",
 					ShortName: "agent",
-					Tags: []string{
+					RepoTags: []string{
 						"7-rc",
 						"7.41.1-rc.1",
 					},
@@ -277,11 +300,17 @@ func TestProcessEvents(t *testing.T) {
 			},
 			expectedImages: []*model.ContainerImage{
 				{
-					Id:        "public.ecr.aws/datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+					Id: "public.ecr.aws/datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+					DdTags: []string{
+						"image_id:public.ecr.aws/datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+						"image_name:public.ecr.aws/datadog/agent",
+						"short_image:agent",
+						"image_tag:7-rc",
+					},
 					Name:      "public.ecr.aws/datadog/agent",
 					Registry:  "public.ecr.aws",
 					ShortName: "agent",
-					Tags: []string{
+					RepoTags: []string{
 						"7-rc",
 					},
 					Digest:      "sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
@@ -324,11 +353,17 @@ func TestProcessEvents(t *testing.T) {
 					},
 				},
 				{
-					Id:        "gcr.io/datadoghq/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+					Id: "gcr.io/datadoghq/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+					DdTags: []string{
+						"image_id:gcr.io/datadoghq/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+						"image_name:gcr.io/datadoghq/agent",
+						"short_image:agent",
+						"image_tag:7-rc",
+					},
 					Name:      "gcr.io/datadoghq/agent",
 					Registry:  "gcr.io",
 					ShortName: "agent",
-					Tags: []string{
+					RepoTags: []string{
 						"7-rc",
 					},
 					Digest:      "sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
@@ -379,7 +414,7 @@ func TestProcessEvents(t *testing.T) {
 			var imagesSent = atomic.NewInt32(0)
 
 			sender := mocksender.NewMockSender("")
-			sender.On("ContainerImage", mock.Anything, mock.Anything).Return().Run(func(_ mock.Arguments) {
+			sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Run(func(_ mock.Arguments) {
 				imagesSent.Inc()
 			})
 
@@ -401,12 +436,13 @@ func TestProcessEvents(t *testing.T) {
 			}, 1*time.Second, 5*time.Millisecond)
 
 			for _, expectedImage := range test.expectedImages {
-				sender.AssertContainerImage(t, []model.ContainerImagePayload{
-					{
-						Version: "v1",
-						Images:  []*model.ContainerImage{expectedImage},
-					},
+				encoded, err := proto.Marshal(&model.ContainerImagePayload{
+					Version: "v1",
+					Source:  &sourceAgent,
+					Images:  []*model.ContainerImage{expectedImage},
 				})
+				assert.Nil(t, err)
+				sender.AssertEventPlatformEvent(t, encoded, epforwarder.EventTypeContainerImages)
 			}
 		})
 	}

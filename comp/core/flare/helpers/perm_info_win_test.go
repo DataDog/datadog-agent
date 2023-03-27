@@ -11,7 +11,6 @@ package helpers
 import (
 	"os"
 	"path/filepath"
-	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -73,10 +72,15 @@ func TestPermsFileCommit(t *testing.T) {
 	b, err := pi.commit()
 	require.NoError(t, err)
 
-	res, _ := regexp.Match("\nFile: C:\\\\.+\\\\file1\n", b)
-	assert.True(t, res)
-	res, _ = regexp.Match("\nFile: C:\\\\.+\\\\file2\n", b)
-	assert.True(t, res)
-	res, _ = regexp.Match("\ncould not stat file.+C:\\\\.+\\\\file3", b)
-	assert.True(t, res)
+	// file1 and file2 header
+	assert.Regexp(t, "(?ms)^File: C:\\\\.+\\\\file1$", string(b))
+	assert.Regexp(t, "(?ms)^File: C:\\\\.+\\\\file2$", string(b))
+	assert.Regexp(t, "(?ms)^File: C:\\\\.+\\\\file3$", string(b))
+
+	// check no error was raised for file21 and file2
+	assert.NotRegexp(t, "(?ms)^could not stat file: C:\\\\.+\\\\file1", string(b))
+	assert.NotRegexp(t, "(?ms)^could not stat file: C:\\\\.+\\\\file2", string(b))
+
+	// check that an error was raised for file3
+	assert.Regexp(t, "(?ms)^could not stat file.+C:\\\\.+\\\\file3", string(b))
 }

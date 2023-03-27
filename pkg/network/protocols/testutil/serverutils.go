@@ -6,6 +6,7 @@
 package testutil
 
 import (
+	"context"
 	"os/exec"
 	"regexp"
 	"testing"
@@ -23,19 +24,20 @@ const (
 // - dockerPath is the path for the docker-compose.
 // - env is any environment variable required for running the server.
 // - serverStartRegex is a regex to be matched on the server logs to ensure it started correctly.
-func RunDockerServer(t *testing.T, serverName, dockerPath string, env []string, serverStartRegex *regexp.Regexp, timeout time.Duration) {
+// return true on success
+func RunDockerServer(t *testing.T, serverName, dockerPath string, env []string, serverStartRegex *regexp.Regexp, timeout time.Duration) bool {
 	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 
-	cmd := exec.Command("docker-compose", "-f", dockerPath, "up")
+	cmd := exec.CommandContext(ctx, "docker-compose", "-f", dockerPath, "up")
 	patternScanner := NewScanner(serverStartRegex, make(chan struct{}, 1))
 
 	cmd.Stdout = patternScanner
 	cmd.Stderr = patternScanner
 	cmd.Env = append(cmd.Env, env...)
-	go func() {
-		require.NoErrorf(t, cmd.Run(), "could not start %s with docker-compose", serverName)
-	}()
-
+	err := cmd.Start()
+	require.NoErrorf(t, err, "could not start %s with docker-compose", serverName)
 	t.Cleanup(func() {
 		c := exec.Command("docker-compose", "-f", dockerPath, "down", "--remove-orphans")
 		c.Env = append(c.Env, env...)
@@ -44,13 +46,20 @@ func RunDockerServer(t *testing.T, serverName, dockerPath string, env []string, 
 
 	for {
 		select {
+		case <-ctx.Done():
+			if err := ctx.Err(); err != nil {
+				patternScanner.PrintLogs(t)
+				t.Errorf("failed to start %s server: %s", serverName, err)
+			}
+			return false
 		case <-patternScanner.DoneChan:
-			t.Logf("%s server is ready", serverName)
-			return
+			t.Logf("%s server pid (docker) %d is ready", serverName, cmd.Process.Pid)
+			return true
 		case <-time.After(timeout):
 			patternScanner.PrintLogs(t)
-			t.Fatalf("failed to start %s server", serverName)
-			return
+			// please don't use t.Fatalf() here as we could test if it failed later
+			t.Errorf("failed to start %s server: timed out after %s", serverName, timeout.String())
+			return false
 		}
 	}
 }

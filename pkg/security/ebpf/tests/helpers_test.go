@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/config"
 	secebpf "github.com/DataDog/datadog-agent/pkg/security/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/cilium/ebpf"
 	"github.com/safchain/baloum/pkg/baloum"
@@ -62,7 +62,7 @@ func newVM(t *testing.T) *baloum.VM {
 		t.Fatal(err)
 	}
 
-	loader := secebpf.NewProbeLoader(&config.Config{}, useSyscallWrapper, &statsd.NoOpClient{})
+	loader := secebpf.NewProbeLoader(&config.Config{}, useSyscallWrapper, false, &statsd.NoOpClient{})
 	reader, _, err := loader.Load()
 	if err != nil {
 		t.Fatal(err)

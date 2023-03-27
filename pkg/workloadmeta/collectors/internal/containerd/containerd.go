@@ -99,14 +99,7 @@ type collector struct {
 	handleImagesMut sync.Mutex
 
 	// SBOM Scanning
-	trivyClient  trivy.Collector // nolint: unused
-	imagesToScan chan namespacedImage
-}
-
-type namespacedImage struct {
-	namespace string
-	image     containerd.Image
-	imageID   string
+	trivyClient trivy.Collector // nolint: unused
 }
 
 func init() {
@@ -156,10 +149,6 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 			}
 		}()
 		defer cancelEvents()
-
-		if c.imagesToScan != nil {
-			defer close(c.imagesToScan)
-		}
 
 		c.stream(ctx)
 	}()

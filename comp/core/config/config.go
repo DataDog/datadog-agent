@@ -6,13 +6,11 @@
 package config
 
 import (
-	"os"
 	"strings"
 	"testing"
 
 	"go.uber.org/fx"
 
-	secconfig "github.com/DataDog/datadog-agent/cmd/security-agent/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -32,15 +30,32 @@ type dependencies struct {
 	Params Params
 }
 
+type mockDependencies struct {
+	fx.In
+
+	Params Params
+}
+
 func newConfig(deps dependencies) (Component, error) {
 	warnings, err := setupConfig(deps)
+	returnErrFct := func(e error) (Component, error) {
+		if e != nil && deps.Params.ignoreErrors {
+			if warnings == nil {
+				warnings = &config.Warnings{}
+			}
+			warnings.Err = e
+			e = nil
+		}
+		return &cfg{Config: config.Datadog, warnings: warnings}, e
+	}
+
 	if err != nil {
-		return nil, err
+		return returnErrFct(err)
 	}
 
 	if deps.Params.configLoadSecurityAgent {
-		if err := secconfig.Merge(deps.Params.securityAgentConfigFilePaths); err != nil {
-			return &cfg{Config: config.Datadog, warnings: warnings}, err
+		if err := config.Merge(deps.Params.securityAgentConfigFilePaths); err != nil {
+			return returnErrFct(err)
 		}
 	}
 
@@ -51,36 +66,28 @@ func (c *cfg) Warnings() *config.Warnings {
 	return c.warnings
 }
 
-func newMock(deps dependencies, t testing.TB) Component {
-	old := config.Datadog
-	config.Datadog = config.NewConfig("mock", "XXXX", strings.NewReplacer())
+func newMock(deps mockDependencies, t testing.TB) Component {
+	backupConfig := config.NewConfig("", "", strings.NewReplacer())
+	backupConfig.CopyConfig(config.Datadog)
+
+	config.Datadog.CopyConfig(config.NewConfig("mock", "XXXX", strings.NewReplacer()))
+
+	// call InitConfig to set defaults.
+	config.InitConfig(config.Datadog)
+
+	// Overrides are explicit and will take precedence over any other
+	// setting
+	for k, v := range deps.Params.overrides {
+		config.Datadog.Set(k, v)
+	}
+
 	c := &cfg{
 		Config:   config.Datadog,
 		warnings: &config.Warnings{},
 	}
 
-	// call InitConfig to set defaults.
-	config.InitConfig(config.Datadog)
-
-	// Viper's `GetXxx` methods read environment variables at the time they are
-	// called, if those names were passed explicitly to BindEnv*(), so we must
-	// also strip all `DD_` environment variables for the duration of the test.
-	oldEnv := os.Environ()
-	for _, kv := range oldEnv {
-		if strings.HasPrefix(kv, "DD_") {
-			kvslice := strings.SplitN(kv, "=", 2)
-			os.Unsetenv(kvslice[0])
-		}
-	}
-	t.Cleanup(func() {
-		for _, kv := range oldEnv {
-			kvslice := strings.SplitN(kv, "=", 2)
-			os.Setenv(kvslice[0], kvslice[1])
-		}
-	})
-
 	// swap the existing config back at the end of the test.
-	t.Cleanup(func() { config.Datadog = old })
+	t.Cleanup(func() { config.Datadog.CopyConfig(backupConfig) })
 
 	return c
 }

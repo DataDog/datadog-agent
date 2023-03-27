@@ -18,8 +18,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes"
-	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -30,6 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
@@ -180,7 +180,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 		rattr[k] = v.AsString()
 		return true
 	})
-	src, srcok := attributes.SourceFromAttributes(attr, o.conf.OTLPReceiver.UsePreviewHostnameLogic)
+	src, srcok := attributes.SourceFromAttrs(attr)
 	hostFromMap := func(m map[string]string, key string) {
 		// hostFromMap sets the hostname to m[key] if it is set.
 		if v, ok := m[key]; ok {
@@ -398,6 +398,54 @@ func marshalEvents(events ptrace.SpanEventSlice) string {
 	return str.String()
 }
 
+// marshalLinks marshals span links into JSON.
+func marshalLinks(links ptrace.SpanLinkSlice) string {
+	var str strings.Builder
+	str.WriteString("[")
+	for i := 0; i < links.Len(); i++ {
+		l := links.At(i)
+		if i > 0 {
+			str.WriteString(",")
+		}
+		t := l.TraceID()
+		str.WriteString(`{"trace_id":"`)
+		str.WriteString(hex.EncodeToString(t[:]))
+		s := l.SpanID()
+		str.WriteString(`","span_id":"`)
+		str.WriteString(hex.EncodeToString(s[:]))
+		str.WriteString(`"`)
+		if ts := l.TraceState().AsRaw(); len(ts) > 0 {
+			str.WriteString(`,"trace_state":"`)
+			str.WriteString(ts)
+			str.WriteString(`"`)
+		}
+		if l.Attributes().Len() > 0 {
+			str.WriteString(`,"attributes":{`)
+			var b bool
+			l.Attributes().Range(func(k string, v pcommon.Value) bool {
+				if b {
+					str.WriteString(",")
+				}
+				b = true
+				str.WriteString(`"`)
+				str.WriteString(k)
+				str.WriteString(`":"`)
+				str.WriteString(v.AsString())
+				str.WriteString(`"`)
+				return true
+			})
+			str.WriteString("}")
+		}
+		if l.DroppedAttributesCount() > 0 {
+			str.WriteString(`,"dropped_attributes_count":`)
+			str.WriteString(strconv.FormatUint(uint64(l.DroppedAttributesCount()), 10))
+		}
+		str.WriteString("}")
+	}
+	str.WriteString("]")
+	return str.String()
+}
+
 // setMetaOTLP sets the k/v OTLP attribute pair as a tag on span s.
 func setMetaOTLP(s *pb.Span, k, v string) {
 	switch k {
@@ -456,6 +504,9 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	}
 	if in.Events().Len() > 0 {
 		setMetaOTLP(span, "events", marshalEvents(in.Events()))
+	}
+	if in.Links().Len() > 0 {
+		setMetaOTLP(span, "_dd.span_links", marshalLinks(in.Links()))
 	}
 	if svc, ok := in.Attributes().Get(semconv.AttributePeerService); ok {
 		// the span attribute "peer.service" takes precedence over any resource attributes,

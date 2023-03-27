@@ -9,6 +9,7 @@
 package runtime
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -104,7 +105,7 @@ func (tm *CompilationTelemetry) SubmitTelemetry(filename string, statsdClient st
 			fmt.Sprintf("reason:%s", model.RuntimeCompilationResult(tm.compilationResult).String()),
 		)
 
-		if err := statsdClient.Count("datadog.system_probe.runtime_compilation.attempted", 1.0, rcTags, 1.0); err != nil {
+		if err := statsdClient.Count("datadog.system_probe.runtime_compilation.attempted", 1.0, rcTags, 1.0); err != nil && !errors.Is(err, statsd.ErrNoClient) {
 			log.Warnf("error submitting runtime compilation metric to statsd: %s", err)
 		}
 	}

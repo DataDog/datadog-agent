@@ -321,7 +321,7 @@ func (s *Service) refresh() error {
 		if err == nil && ri > 0 && s.defaultRefreshInterval != ri {
 			s.defaultRefreshInterval = ri
 			s.cacheBypassClients.windowDuration = ri
-			log.Info("Overriding agent's base refresh interval to %v due to backend recommendation", ri)
+			log.Infof("Overriding agent's base refresh interval to %v due to backend recommendation", ri)
 		}
 	}
 
@@ -489,6 +489,7 @@ func (s *Service) ConfigGetState() (*pbgo.GetStateConfigResponse, error) {
 		ConfigState:     map[string]*pbgo.FileMetaState{},
 		DirectorState:   map[string]*pbgo.FileMetaState{},
 		TargetFilenames: map[string]string{},
+		ActiveClients:   s.clients.activeClients(),
 	}
 
 	for metaName, metaState := range state.ConfigState {

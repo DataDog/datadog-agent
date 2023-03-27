@@ -18,6 +18,7 @@ from .go import golangci_lint
 from .libs.ninja_syntax import NinjaWriter
 from .system_probe import (
     CURRENT_ARCH,
+    SBOM_TAG,
     build_cws_object_files,
     check_for_ninja,
     ninja_define_ebpf_compiler,
@@ -126,7 +127,11 @@ def gen_mocks(ctx):
         "./pkg/security/proto/api": [
             "SecurityModuleServer",
             "SecurityModuleClient",
-            "SecurityModule_GetProcessEventsClient",
+        ],
+        "./pkg/eventmonitor/proto/api": [
+            "EventMonitoringModuleServer",
+            "EventMonitoringModuleClient",
+            "EventMonitoringModule_GetProcessEventsClient",
         ],
     }
 
@@ -315,6 +320,9 @@ def build_functional_tests(
 
     build_tags = build_tags.split(",")
     build_tags.append("linux_bpf")
+    build_tags.append(SBOM_TAG)
+    build_tags.append("containerd")
+
     if bundle_ebpf:
         build_tags.append("ebpf_bindata")
 
@@ -576,7 +584,7 @@ def cws_go_generate(ctx):
         "cp ./pkg/security/serializers/serializers_easyjson.mock ./pkg/security/serializers/serializers_easyjson.go"
     )
     ctx.run(
-        "cp ./pkg/security/activitydump/activity_dump_easyjson.mock ./pkg/security/activitydump/activity_dump_easyjson.go"
+        "cp ./pkg/security/security_profile/dump/activity_dump_easyjson.mock ./pkg/security/security_profile/dump/activity_dump_easyjson.go"
     )
     ctx.run("go generate ./pkg/security/...")
 

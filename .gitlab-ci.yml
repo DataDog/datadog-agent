@@ -10,7 +10,6 @@ include:
   - /.gitlab/binary_build.yml
   - /.gitlab/integration_test.yml
   - /.gitlab/package_build.yml
-  - /.gitlab/internal_deploy.yml
   - /.gitlab/kitchen_deploy.yml
   - /.gitlab/kitchen_testing.yml
   - /.gitlab/pkg_metrics.yml
@@ -61,7 +60,6 @@ stages:
   - integration_test
   - benchmarks
   - package_build
-  - internal_deploy
   - kitchen_deploy
   - kitchen_testing
   - pkg_metrics
@@ -139,13 +137,24 @@ variables:
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
-  DATADOG_AGENT_BUILDIMAGES: v13321514-644fed4
+
+  # Build images versions
+  # To use images from datadog-agent-buildimages dev branches, set the corresponding
+  # SUFFIX variable to _test_only
+  DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_BUILDIMAGES: v14002862-b2bcfc9
+  DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_WINBUILDIMAGES: v14002862-b2bcfc9
+  DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_ARMBUILDIMAGES: v14002862-b2bcfc9
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v14002862-b2bcfc9
+  DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v14002862-b2bcfc9
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v14002862-b2bcfc9
   DATADOG_AGENT_BUILDERS: v9930706-ef9d493
-  DATADOG_AGENT_WINBUILDIMAGES: v12605723-c5447ff
-  DATADOG_AGENT_ARMBUILDIMAGES: v12605723-c5447ff
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v13019318-b404755
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v12605723-c5447ff
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v13216831-f911126
+
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   NIKOS_INSTALL_DIR: /opt/datadog-agent/embedded/nikos
   NIKOS_EMBEDDED_PATH: /opt/datadog-agent/embedded/nikos/embedded
@@ -164,6 +173,7 @@ variables:
   KITCHEN_INFRASTRUCTURE_FLAKES_RETRY: 2
   ARTIFACTORY_USERNAME: datadog-agent
   ARTIFACTORY_TOKEN_SSM_NAME: ci.datadog-agent.artifactory_token
+  ARTIFACTORY_BYPASS_SSM_NAME: ci.datadog-agent.artifactory_bypass
   ARTIFACTORY_URL: datadog.jfrog.io
   ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
   ARTIFACTORY_PYPI_PATH: artifactory/api/pypi/agent-pypi/simple
