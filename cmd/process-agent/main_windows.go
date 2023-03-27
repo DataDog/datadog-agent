@@ -147,18 +147,8 @@ func rootCmdRun(globalParams *command.GlobalParams) {
 		}
 	}
 
-	exit := make(chan struct{})
-	exitGate := time.After(5 * time.Second)
-
 	// Invoke the Agent
-	runAgent(globalParams, exit)
-
-	// On Windows, the SCM will require that dependent services stop. This means that when running
-	// `Restart-Service datadogagent`, windows will try to stop the Process Agent, and then to be helpful it will immediately start it again.
-	// However, if Process Agent is not configured to be running it will exit immediately, which `Restart-Service` will report as an error.
-	// To avoid the error on a successful exit we ensure that we are in the RUNNING state long enough for `Restart-Service` or other tools to consider
-	// the restart successful.
-	<-exitGate
+	runAgent(globalParams, make(chan struct{}))
 }
 
 func startService() error {
