@@ -366,8 +366,8 @@ func (a *Agent) Process(p *api.Payload) {
 }
 
 // processedTrace creates a ProcessedTrace based on the provided chunk and root.
-// It makes a deep copy of the provided chunk to ensure that any changes to the
-// chunk will not affect the TraceChunk of the ProcessedTrace.
+// It makes a deep copy of the provided chunk to ensure that any subsequent changes
+// to the original chunk will not affect the TraceChunk of the ProcessedTrace.
 func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span) traceutil.ProcessedTrace {
 	ptChunk := new(pb.TraceChunk)
 	*ptChunk = *chunk
