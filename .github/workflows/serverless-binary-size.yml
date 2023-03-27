@@ -1,0 +1,99 @@
+name: "Serverless Binary Size"
+
+on:
+  pull_request:
+
+env:
+  SIZE_ALLOWANCE: 1000000  # 1 MB
+
+jobs:
+  comment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout datadog-agent repository
+        uses: actions/checkout@v3
+        with:
+          path: go/src/github.com/DataDog/datadog-agent
+
+      - name: Checkout the datadog-lambda-extension repository
+        uses: actions/checkout@v3
+        with:
+          repository: DataDog/datadog-lambda-extension
+          path: go/src/github.com/DataDog/datadog-lambda-extension
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Current binary size and dependencies
+        id: current
+        run: |
+          cd go/src/github.com/DataDog/datadog-lambda-extension
+
+          OUTPUT=$(./scripts/visualize_size.sh size)
+          echo "binary size after merging this pull request will be $OUTPUT"
+          echo "result=$OUTPUT" >> $GITHUB_OUTPUT
+
+          echo "deps<<EOF" >> $GITHUB_OUTPUT
+          ./scripts/visualize_size.sh list_symbols | awk '{print $2}' | head -n 100 >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Checkout datadog-agent main
+        run: |
+          cd go/src/github.com/DataDog/datadog-agent
+          git fetch origin $GITHUB_BASE_REF --depth 1
+          git checkout origin/$GITHUB_BASE_REF
+
+      - name: Previous binary size and dependencies
+        id: previous
+        run: |
+          cd go/src/github.com/DataDog/datadog-lambda-extension
+
+          OUTPUT=$(./scripts/visualize_size.sh size)
+          echo "binary size before merging this pull request is $OUTPUT"
+          echo "result=$OUTPUT" >> $GITHUB_OUTPUT
+
+          echo "deps<<EOF" >> $GITHUB_OUTPUT
+          ./scripts/visualize_size.sh list_symbols | awk '{print $2}' | head -n 100 >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Compare sizes
+        id: compare
+        run: |
+          OUTPUT=$(( ${{ steps.current.outputs.result }} - ${{ steps.previous.outputs.result }} ))
+          echo "diff=$OUTPUT" >> $GITHUB_OUTPUT
+
+          OUTPUT=$(( $OUTPUT / 100000 ))
+          echo "coldstart=$OUTPUT" >> $GITHUB_OUTPUT
+
+      - name: List new dependencies
+        id: deps
+        if: steps.compare.outputs.diff > env.SIZE_ALLOWANCE
+        run: |
+          echo "deps<<EOF" >> $GITHUB_OUTPUT
+          for dep in $(echo "${{ steps.current.outputs.deps }}"); do
+            if ! echo "${{ steps.previous.outputs.deps }}" | grep -w -q "$dep"; then
+              echo "$dep" >> $GITHUB_OUTPUT
+            fi
+          done
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Post comment
+        if: steps.compare.outputs.diff > env.SIZE_ALLOWANCE
+        uses: marocchino/sticky-pull-request-comment@v2.5.0
+        with:
+          hide_and_recreate: true
+          hide_classify: "RESOLVED"
+          message: |
+            :warning::rotating_light: Warning, this pull request increases the binary size of serverless extension by ${{ steps.compare.outputs.diff }} bytes. Each MB of binary size increase means about 10ms of additional cold start time, so this pull request would increase cold start time by ${{ steps.compare.outputs.coldstart }}ms.
+
+            <details>
+            <summary>New dependencies added</summary>
+
+            ```
+            ${{ steps.deps.outputs.deps }}
+            ```
+            </details>
+
+            We suggest you consider adding the `!serverless` build tag to remove any new dependencies not needed in the serverless extension.
+
+            If you have questions, we are happy to help, come visit us in the [#serverless](https://dd.slack.com/archives/CBWDFKWV8) slack channel and provide a link to this comment.
