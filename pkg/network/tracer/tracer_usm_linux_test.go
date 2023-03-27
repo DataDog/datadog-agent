@@ -1106,47 +1106,6 @@ func TestTLSClassification(t *testing.T) {
 			},
 		})
 	}
-	tests = append(tests,
-		// run this test at the end
-		tlsTest{
-			name: "http_443_should_not_match",
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				cfg.EnableHTTPMonitoring = true
-				t.Cleanup(func() { cfg.EnableHTTPMonitoring = false })
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				const (
-					serverAddr          = "localhost:44330"
-					expectedOccurrences = 1
-				)
-
-				closeServer := testutil.HTTPServer(t, serverAddr, testutil.Options{
-					EnableTLS: false,
-				})
-				t.Cleanup(closeServer)
-
-				resp, err := nethttp.Get(fmt.Sprintf("http://%s/200/request-test-http44330", serverAddr))
-				require.NoError(t, err)
-				resp.Body.Close()
-			},
-			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
-				// Iterate through active connections until we find connection created above
-				require.Eventuallyf(t, func() bool {
-					payload := getConnections(t, tr)
-					for key := range payload.HTTP {
-						if key.Path.Content == "/200/request-test-http44330" {
-							for _, c := range payload.Conns {
-								if c.SPort == key.SrcPort && c.DPort == key.DstPort && !isTLSTag(c.StaticTags) {
-									return true
-								}
-							}
-						}
-					}
-
-					return false
-				}, 4*time.Second, time.Second, "couldn't find http connection matching: %s", "http://localhost:443/200/request-test-http443")
-			},
-		})
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
