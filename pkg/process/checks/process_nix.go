@@ -11,9 +11,12 @@ package checks
 import (
 	"os/user"
 	"strconv"
+	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/gopsutil/cpu"
+
+	"github.com/patrickmn/go-cache"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
@@ -24,11 +27,26 @@ var (
 	hostCPUCount = system.HostCPUCount
 )
 
+var formatUserCache = cache.New(time.Hour, time.Hour)
+
+func lookupIdWithCache(uid string) (*user.User, error) {
+	u, ok := formatUserCache.Get(uid)
+	if !ok {
+		var err error
+		u, err = user.LookupId(uid)
+		if err != nil {
+			return nil, err
+		}
+		formatUserCache.SetDefault(uid, u)
+	}
+	return u.(*user.User), nil
+}
+
 func formatUser(fp *procutil.Process) *model.ProcessUser {
 	var username string
 	var uid, gid int32
 	if len(fp.Uids) > 0 {
-		u, err := user.LookupId(strconv.Itoa(int(fp.Uids[0])))
+		u, err := lookupIdWithCache(strconv.Itoa(int(fp.Uids[0])))
 		if err == nil {
 			username = u.Username
 		}
