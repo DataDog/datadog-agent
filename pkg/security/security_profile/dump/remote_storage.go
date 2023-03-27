@@ -93,10 +93,7 @@ func (storage *ActivityDumpRemoteStorage) writeEventMetadata(writer *multipart.W
 	ad.DDTags = strings.Join(ad.Tags, ",")
 
 	// prepare hacky DNS list
-	ad.DNSNames = make([]string, 0, len(ad.allDNSNamesMap))
-	for name := range ad.allDNSNamesMap {
-		ad.DNSNames = append(ad.DNSNames, name)
-	}
+	ad.syncDNSNames()
 
 	// marshal event metadata
 	w := &jwriter.Writer{

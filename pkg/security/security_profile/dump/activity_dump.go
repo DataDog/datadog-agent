@@ -265,6 +265,7 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 		startTime,
 		nil,
 	)
+	ad.DNSNames = msg.GetDNSNames()
 
 	// parse requests from message
 	for _, request := range msg.GetStorage() {
@@ -924,6 +925,8 @@ func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage
 		}
 	}
 
+	ad.syncDNSNames()
+
 	return &api.ActivityDumpMessage{
 		Host:    ad.Host,
 		Source:  ad.Source,
@@ -945,6 +948,21 @@ func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage
 			Size:              ad.Metadata.Size,
 			Arch:              ad.Metadata.Arch,
 		},
+		DNSNames: ad.DNSNames,
+	}
+}
+
+// needs ad to be locked before use
+func (ad *ActivityDump) syncDNSNames() {
+	// array to map
+	for _, name := range ad.DNSNames {
+		ad.allDNSNamesMap[name] = struct{}{}
+	}
+
+	// map to array
+	ad.DNSNames = make([]string, 0, len(ad.allDNSNamesMap))
+	for name := range ad.allDNSNamesMap {
+		ad.DNSNames = append(ad.DNSNames, name)
 	}
 }
 
