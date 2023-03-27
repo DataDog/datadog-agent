@@ -57,7 +57,7 @@ require (
 	github.com/DataDog/go-tuf v0.3.0--fix-localmeta-fork
 	github.com/DataDog/gohai v0.0.0-20221116153829-5d479901d2e9
 	github.com/DataDog/gopsutil v1.2.2
-	github.com/DataDog/nikos v1.11.0-rc.3
+	github.com/DataDog/nikos v1.11.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.1.4
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.1.4
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.1.4
