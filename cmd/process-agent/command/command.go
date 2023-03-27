@@ -42,9 +42,6 @@ type GlobalParams struct {
 	// PidFilePath specifies the path to the pid file
 	PidFilePath string
 
-	// Info
-	Info bool
-
 	// WinParams provides windows specific options
 	WinParams WinParams
 }
@@ -82,7 +79,6 @@ func MakeCommand(subcommandFactories []SubcommandFactory, winParams bool, rootCm
 	}
 
 	rootCmd.PersistentFlags().StringVarP(&globalParams.PidFilePath, "pid", "p", "", "Path to set pidfile for process")
-	rootCmd.PersistentFlags().BoolVarP(&globalParams.Info, "info", "i", false, "Show info about running process agent and exit")
 	rootCmd.PersistentFlags().BoolP("version", "v", false, "[deprecated] Print the version and exit")
 	rootCmd.PersistentFlags().String("check", "",
 		"[deprecated] Run a specific check and print the results. Choose from: process, rtprocess, container, rtcontainer, connections, process_discovery")

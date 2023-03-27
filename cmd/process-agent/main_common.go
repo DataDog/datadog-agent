@@ -73,10 +73,10 @@ func main() {
 func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 	cleanupAndExit := cleanupAndExitHandler(globalParams)
 
-	if !globalParams.Info && globalParams.PidFilePath != "" {
+	if globalParams.PidFilePath != "" {
 		err := pidfile.WritePID(globalParams.PidFilePath)
 		if err != nil {
-			log.Errorf("Error while writing PID file, exiting: %v", err)
+			_ = log.Errorf("Error while writing PID file, exiting: %v", err)
 			cleanupAndExit(1)
 		}
 
@@ -137,16 +137,6 @@ func runApp(exit chan struct{}, globalParams *command.GlobalParams) error {
 		// Invoke the components that we want to start
 		fx.Invoke(func(runnerComp.Component, profiler.Component) {}),
 	)
-
-	if globalParams.Info {
-		// using the debug port to get info to work
-		url := fmt.Sprintf("http://localhost:%d/debug/vars", getExpvarPort(appInitDeps.Config))
-		if err := status.Info(os.Stdout, url); err != nil {
-			_ = log.Criticalf("Failed to render info:", err.Error())
-			return err
-		}
-		return nil
-	}
 
 	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
 	if !anyChecksEnabled(appInitDeps.Checks) {
@@ -334,7 +324,7 @@ func initStatus(hostInfo *checks.HostInfo, syscfg sysprobeconfig.Component) erro
 	if err != nil {
 		log.Criticalf("Failed to initialize Api Endpoints: %s", err.Error())
 	}
-	err = status.InitInfo(hostInfo.HostName, processModuleEnabled, eps)
+	status.InitInfo(hostInfo.HostName, processModuleEnabled, eps)
 	if err != nil {
 		_ = log.Criticalf("Error initializing info: %s", err)
 	}
