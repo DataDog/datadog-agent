@@ -24,7 +24,7 @@
 #include "ip.h"
 #include "netns.h"
 #include "sockfd.h"
-#include "skb.h"
+#include "sk_buff.h"
 #include "port.h"
 #include "tcp-recv.h"
 
@@ -383,33 +383,13 @@ int kretprobe__ip_make_skb(struct pt_regs *ctx) {
     return 0;
 }
 
-static __always_inline void handle_skb_consume_udp(struct sock *sk, struct sk_buff *skb, int len) {
-    if (len < 0) {
-        // peeking or an error happened
-        return;
-    }
-    conn_tuple_t t;
-    bpf_memset(&t, 0, sizeof(conn_tuple_t));
-    int data_len = sk_buff_to_tuple(skb, &t);
-    if (data_len <= 0) {
-        log_debug("ERR(skb_consume_udp): error reading tuple ret=%d\n", data_len);
-        return;
-    }
-    // we are receiving, so we want the daddr to become the laddr
-    flip_tuple(&t);
-
-    log_debug("skb_consume_udp: bytes=%d\n", data_len);
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    t.pid = pid_tgid >> 32;
-    t.netns = get_netns(&sk->sk_net);
-    handle_message(&t, 0, data_len, CONN_DIRECTION_UNKNOWN, 0, 1, PACKET_COUNT_INCREMENT, sk);
-}
-
 static __always_inline int handle_udp_recvmsg(struct pt_regs *ctx) {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
     int flags = (int)PT_REGS_PARM6(ctx);
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0)
     int flags = (int)PT_REGS_PARM5(ctx);
+#else
+    int flags = (int)PT_REGS_PARM4(ctx);
 #endif
     log_debug("kprobe/udp_recvmsg: flags: %x\n", flags);
     if (flags & MSG_PEEK) {

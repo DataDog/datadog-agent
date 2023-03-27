@@ -18,10 +18,13 @@ import (
 // GetHostAliases uses the "kubelet" hostname provider to fetch the kubernetes alias
 func GetHostAliases(ctx context.Context) ([]string, error) {
 	name, err := GetHostname(ctx)
-	if err == nil && validate.ValidHostname(name) == nil {
-		return []string{name}, nil
+	if err != nil {
+		return nil, fmt.Errorf("couldn't extract a host alias from the kubelet: %w", err)
 	}
-	return nil, fmt.Errorf("couldn't extract a host alias from the kubelet: %s", err)
+	if err := validate.ValidHostname(name); err != nil {
+		return nil, fmt.Errorf("host alias from kubelet is not valid: %w", err)
+	}
+	return []string{name}, nil
 }
 
 // GetMetaClusterNameText returns the clusterName text for the agent status output. Returns "" if the feature kubernetes is not activated

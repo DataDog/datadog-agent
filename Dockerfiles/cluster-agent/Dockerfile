@@ -6,6 +6,8 @@ FROM ubuntu:22.04 as builder
 ARG TARGETARCH
 LABEL baseimage.os "ubuntu jammy LTS"
 LABEL baseimage.name "ubuntu:22.04"
+# Can be used by Dependabot
+LABEL org.opencontainers.image.source "https://github.com/DataDog/datadog-agent"
 
 WORKDIR /output
 

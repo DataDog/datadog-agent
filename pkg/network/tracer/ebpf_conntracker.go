@@ -481,7 +481,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, mapErrTelemetryMap, helperE
 	}
 
 	if err := features.HaveMapType(ebpf.LRUHash); err == nil {
-		me := opts.MapSpecEditors[string(probes.ConntrackMap)]
+		me := opts.MapSpecEditors[probes.ConntrackMap]
 		me.Type = ebpf.LRUHash
 		me.EditorFlag |= manager.EditType
 	}
@@ -506,18 +506,15 @@ func getPrebuiltConntracker(cfg *config.Config, constants []manager.ConstantEdit
 		return nil, nil, fmt.Errorf("could not read bpf module: %s", err)
 	}
 
-	guesser, err := offsetguess.NewConntrackOffsetGuesser(constants)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error creating offset guesser for ebpf conntracker: %w", err)
-	}
-
 	offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir, cfg.BPFDebug)
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not load offset guessing module: %w", err)
 	}
 	defer offsetBuf.Close()
 
-	constants, err = runOffsetGuessing(cfg, offsetBuf, guesser)
+	constants, err = runOffsetGuessing(cfg, offsetBuf, func() (offsetguess.OffsetGuesser, error) {
+		return offsetguess.NewConntrackOffsetGuesser(constants)
+	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not guess offsets for ebpf conntracker: %w", err)
 	}

@@ -6,6 +6,7 @@
 package testutil
 
 import (
+	"context"
 	"os/exec"
 	"regexp"
 	"testing"
@@ -26,17 +27,17 @@ const (
 // return true on success
 func RunDockerServer(t *testing.T, serverName, dockerPath string, env []string, serverStartRegex *regexp.Regexp, timeout time.Duration) bool {
 	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 
-	cmd := exec.Command("docker-compose", "-f", dockerPath, "up")
+	cmd := exec.CommandContext(ctx, "docker-compose", "-f", dockerPath, "up")
 	patternScanner := NewScanner(serverStartRegex, make(chan struct{}, 1))
 
 	cmd.Stdout = patternScanner
 	cmd.Stderr = patternScanner
 	cmd.Env = append(cmd.Env, env...)
-	go func() {
-		require.NoErrorf(t, cmd.Run(), "could not start %s with docker-compose", serverName)
-	}()
-
+	err := cmd.Start()
+	require.NoErrorf(t, err, "could not start %s with docker-compose", serverName)
 	t.Cleanup(func() {
 		c := exec.Command("docker-compose", "-f", dockerPath, "down", "--remove-orphans")
 		c.Env = append(c.Env, env...)
@@ -45,50 +46,20 @@ func RunDockerServer(t *testing.T, serverName, dockerPath string, env []string, 
 
 	for {
 		select {
+		case <-ctx.Done():
+			if err := ctx.Err(); err != nil {
+				patternScanner.PrintLogs(t)
+				t.Errorf("failed to start %s server: %s", serverName, err)
+			}
+			return false
 		case <-patternScanner.DoneChan:
 			t.Logf("%s server pid (docker) %d is ready", serverName, cmd.Process.Pid)
 			return true
 		case <-time.After(timeout):
 			patternScanner.PrintLogs(t)
 			// please don't use t.Fatalf() here as we could test if it failed later
-			t.Errorf("failed to start %s server", serverName)
+			t.Errorf("failed to start %s server: timed out after %s", serverName, timeout.String())
 			return false
-		}
-	}
-}
-
-func RunHostServer(t *testing.T, command []string, env []string, serverStartRegex *regexp.Regexp) {
-	if len(command) < 1 {
-		t.Fatalf("command not set %v host server", command)
-	}
-	t.Helper()
-
-	cmd := exec.Command(command[0], command[1:]...)
-	serverName := cmd.String()
-	patternScanner := NewScanner(serverStartRegex, make(chan struct{}, 1))
-
-	cmd.Stdout = patternScanner
-	cmd.Stderr = patternScanner
-	cmd.Env = append(cmd.Env, env...)
-	go func() {
-		require.NoErrorf(t, cmd.Run(), "could not start %s on host", serverName)
-	}()
-
-	t.Cleanup(func() {
-		_ = cmd.Process.Kill()
-		_ = cmd.Process.Release()
-	})
-
-	for {
-		select {
-		case <-patternScanner.DoneChan:
-			t.Logf("%s host server is ready", serverName)
-			patternScanner.PrintLogs(t)
-			return
-		case <-time.After(time.Second * 60):
-			patternScanner.PrintLogs(t)
-			t.Fatalf("failed to start %s host server", serverName)
-			return
 		}
 	}
 }

@@ -31,12 +31,12 @@ import (
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/security/activitydump"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	kernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
+	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
@@ -52,6 +52,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -60,12 +61,16 @@ import (
 // EventHandler represents an handler for the events sent by the probe
 type EventHandler interface {
 	HandleEvent(event *model.Event)
+}
+
+// CustomEventHandler represents an handler for the custom events sent by the probe
+type CustomEventHandler interface {
 	HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 }
 
 // EventStream describes the interface implemented by reordered perf maps or ring buffers
 type EventStream interface {
-	Init(*manager.Manager, *config.Config) error
+	Init(*manager.Manager, *pconfig.Config) error
 	SetMonitor(reorderer.LostEventCounter)
 	Start(*sync.WaitGroup) error
 	Pause() error
@@ -74,6 +79,15 @@ type EventStream interface {
 
 // NotifyDiscarderPushedCallback describe the callback used to retrieve pushed discarders information
 type NotifyDiscarderPushedCallback func(eventType string, event *model.Event, field string)
+
+var (
+	// defaultEventTypes event types used whatever the event handlers or the rules
+	defaultEventTypes = []eval.EventType{
+		model.ForkEventType.String(),
+		model.ExecEventType.String(),
+		model.ExecEventType.String(),
+	}
+)
 
 // Probe represents the runtime security eBPF probe in charge of
 // setting up the required kProbes and decoding events sent from the kernel
@@ -90,8 +104,12 @@ type Probe struct {
 	ctx            context.Context
 	cancelFnc      context.CancelFunc
 	wg             sync.WaitGroup
+
 	// Events section
-	handlers      [model.MaxAllEventType][]EventHandler
+	eventHandlers       [model.MaxAllEventType][]EventHandler
+	customEventHandlers [model.MaxAllEventType][]CustomEventHandler
+
+	// internals
 	monitor       *Monitor
 	resolvers     *resolvers.Resolvers
 	event         *model.Event
@@ -102,7 +120,7 @@ type Probe struct {
 	eventStream EventStream
 
 	// ActivityDumps section
-	activityDumpHandler activitydump.ActivityDumpHandler
+	activityDumpHandler dump.ActivityDumpHandler
 
 	// Approvers / discarders section
 	Erpc                               *erpc.ERPC
@@ -144,7 +162,7 @@ func (p *Probe) GetKernelVersion() (*kernel.Version, error) {
 
 // UseRingBuffers returns true if eBPF ring buffers are supported and used
 func (p *Probe) UseRingBuffers() bool {
-	return p.kernelVersion.HaveRingBuffers() && p.Config.EventStreamUseRingBuffer
+	return p.kernelVersion.HaveRingBuffers() && p.Config.Probe.EventStreamUseRingBuffer
 }
 
 func (p *Probe) sanityChecks() error {
@@ -157,9 +175,9 @@ func (p *Probe) sanityChecks() error {
 		return errors.New("eBPF not supported in lockdown `confidentiality` mode")
 	}
 
-	if p.Config.NetworkEnabled && p.kernelVersion.IsRH7Kernel() {
+	if p.Config.Probe.NetworkEnabled && p.kernelVersion.IsRH7Kernel() {
 		seclog.Warnf("The network feature of CWS isn't supported on Centos7, setting runtime_security_config.network.enabled to false")
-		p.Config.NetworkEnabled = false
+		p.Config.Probe.NetworkEnabled = false
 	}
 
 	return nil
@@ -234,7 +252,7 @@ func (p *Probe) Init() error {
 		return err
 	}
 
-	loader := ebpf.NewProbeLoader(p.Config, useSyscallWrapper, p.UseRingBuffers(), p.StatsdClient)
+	loader := ebpf.NewProbeLoader(p.Config.Probe, useSyscallWrapper, p.UseRingBuffers(), p.StatsdClient)
 	defer loader.Close()
 
 	bytecodeReader, runtimeCompiled, err := loader.Load()
@@ -245,7 +263,7 @@ func (p *Probe) Init() error {
 
 	p.runtimeCompiled = runtimeCompiled
 
-	if err := p.eventStream.Init(p.Manager, p.Config); err != nil {
+	if err := p.eventStream.Init(p.Manager, p.Config.Probe); err != nil {
 		return err
 	}
 
@@ -269,7 +287,7 @@ func (p *Probe) Init() error {
 		return err
 	}
 
-	p.monitor, err = NewMonitor(p)
+	err = p.monitor.Init()
 	if err != nil {
 		return err
 	}
@@ -299,17 +317,42 @@ func (p *Probe) Setup() error {
 
 // Start processing events
 func (p *Probe) Start() error {
-	return p.eventStream.Start(&p.wg)
+	if err := p.eventStream.Start(&p.wg); err != nil {
+		return err
+	}
+
+	return p.updateProbes([]eval.EventType{
+		model.ForkEventType.String(),
+		model.ExecEventType.String(),
+		model.ExecEventType.String(),
+	})
 }
 
 // AddActivityDumpHandler set the probe activity dump handler
-func (p *Probe) AddActivityDumpHandler(handler activitydump.ActivityDumpHandler) {
+func (p *Probe) AddActivityDumpHandler(handler dump.ActivityDumpHandler) {
 	p.activityDumpHandler = handler
 }
 
 // AddEventHandler set the probe event handler
-func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler) {
-	p.handlers[eventType] = append(p.handlers[eventType], handler)
+func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler) error {
+	if eventType >= model.MaxAllEventType {
+		return errors.New("unsupported event type")
+	}
+
+	p.eventHandlers[eventType] = append(p.eventHandlers[eventType], handler)
+
+	return nil
+}
+
+// AddCustomEventHandler set the probe event handler
+func (p *Probe) AddCustomEventHandler(eventType model.EventType, handler CustomEventHandler) error {
+	if eventType >= model.MaxAllEventType {
+		return errors.New("unsupported event type")
+	}
+
+	p.customEventHandlers[eventType] = append(p.customEventHandlers[eventType], handler)
+
+	return nil
 }
 
 // DispatchEvent sends an event to the probe event handler
@@ -320,12 +363,12 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 	})
 
 	// send wildcard first
-	for _, handler := range p.handlers[model.UnknownEventType] {
+	for _, handler := range p.eventHandlers[model.UnknownEventType] {
 		handler.HandleEvent(event)
 	}
 
 	// send specific event
-	for _, handler := range p.handlers[event.GetEventType()] {
+	for _, handler := range p.eventHandlers[event.GetEventType()] {
 		handler.HandleEvent(event)
 	}
 
@@ -341,14 +384,14 @@ func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 	})
 
 	// send specific event
-	if p.Config.AgentMonitoringEvents {
+	if p.Config.RuntimeSecurity.CustomEventEnabled {
 		// send wildcard first
-		for _, handler := range p.handlers[model.UnknownEventType] {
+		for _, handler := range p.customEventHandlers[model.UnknownEventType] {
 			handler.HandleCustomEvent(rule, event)
 		}
 
 		// send specific event
-		for _, handler := range p.handlers[event.GetEventType()] {
+		for _, handler := range p.customEventHandlers[event.GetEventType()] {
 			handler.HandleCustomEvent(rule, event)
 		}
 	}
@@ -471,7 +514,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 		return
 	case model.CgroupTracingEventType:
-		if !p.Config.ActivityDumpEnabled {
+		if !p.Config.RuntimeSecurity.ActivityDumpEnabled {
 			seclog.Errorf("shouldn't receive Cgroup event if activity dumps are disabled")
 			return
 		}
@@ -837,7 +880,7 @@ func (p *Probe) AddNewNotifyDiscarderPushedCallback(cb NotifyDiscarderPushedCall
 // OnNewDiscarder is called when a new discarder is found
 func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eval.Field, eventType eval.EventType) {
 	// discarders disabled
-	if !p.Config.EnableDiscarders {
+	if !p.Config.Probe.EnableDiscarders {
 		return
 	}
 
@@ -920,8 +963,8 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 }
 
 func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {
-	if p.Config.ActivityDumpEnabled {
-		for _, e := range p.Config.ActivityDumpTracedEventTypes {
+	if p.Config.RuntimeSecurity.ActivityDumpEnabled {
+		for _, e := range p.monitor.GetActivityDumpTracedEventTypes() {
 			if e.String() == eventType {
 				return true
 			}
@@ -931,17 +974,33 @@ func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {
 }
 
 func (p *Probe) validEventTypeForConfig(eventType string) bool {
-	if eventType == "dns" && !p.Config.NetworkEnabled {
+	if eventType == "dns" && !p.Config.Probe.NetworkEnabled {
 		return false
 	}
 	return true
 }
 
-// SelectProbes applies the loaded set of rules and returns a report
+// updateProbes applies the loaded set of rules and returns a report
 // of the applied approvers for it.
-func (p *Probe) SelectProbes(eventTypes []eval.EventType) error {
+func (p *Probe) updateProbes(ruleEventTypes []eval.EventType) error {
+	// event types enabled either by event handlers or by rules
+	eventTypes := append([]eval.EventType{}, defaultEventTypes...)
+	eventTypes = append(eventTypes, ruleEventTypes...)
+	for eventType, handlers := range p.eventHandlers {
+		if len(handlers) == 0 {
+			continue
+		}
+		if slices.Contains(eventTypes, model.EventType(eventType).String()) {
+			continue
+		}
+		if eventType != int(model.UnknownEventType) && eventType != int(model.MaxAllEventType) {
+			eventTypes = append(eventTypes, model.EventType(eventType).String())
+		}
+	}
+
 	var activatedProbes []manager.ProbesSelector
 
+	// extract probe to activate per the event types
 	for eventType, selectors := range probes.GetSelectorsPerEventType() {
 		if (eventType == "*" || slices.Contains(eventTypes, eventType) || p.isNeededForActivityDump(eventType)) && p.validEventTypeForConfig(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
@@ -950,9 +1009,9 @@ func (p *Probe) SelectProbes(eventTypes []eval.EventType) error {
 
 	activatedProbes = append(activatedProbes, p.resolvers.TCResolver.SelectTCProbes())
 
-	// Add syscall monitor probes
-	if p.Config.ActivityDumpEnabled {
-		for _, e := range p.Config.ActivityDumpTracedEventTypes {
+	// ActivityDumps
+	if p.Config.RuntimeSecurity.ActivityDumpEnabled {
+		for _, e := range p.monitor.GetActivityDumpTracedEventTypes() {
 			if e == model.SyscallsEventType {
 				activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
 				break
@@ -1109,8 +1168,8 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 }
 
 // NewRuleSet returns a new rule set
-func (p *Probe) NewRuleSet() *rules.RuleSet {
-	ruleOpts, evalOpts := rules.NewEvalOpts(p.Opts.EventTypeEnabled)
+func (p *Probe) NewRuleSet(eventTypeEnabled map[eval.EventType]bool) *rules.RuleSet {
+	ruleOpts, evalOpts := rules.NewEvalOpts(eventTypeEnabled)
 
 	ruleOpts.WithLogger(seclog.DefaultLogger)
 	ruleOpts.WithSupportedDiscarders(SupportedDiscarders)
@@ -1192,7 +1251,7 @@ func (p *Probe) handleNewMount(ev *model.Event, m *model.Mount) error {
 
 // ApplyRuleSet setup the filters for the provided set of rules and returns the policy report.
 func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
-	ars, err := kfilters.NewApplyRuleSetReport(p.Config, rs)
+	ars, err := kfilters.NewApplyRuleSetReport(p.Config.Probe, rs)
 	if err != nil {
 		return nil, err
 	}
@@ -1210,7 +1269,7 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, e
 		return nil, fmt.Errorf("failed to flush discarders: %w", err)
 	}
 
-	if err := p.SelectProbes(rs.GetEventTypes()); err != nil {
+	if err := p.updateProbes(rs.GetEventTypes()); err != nil {
 		return nil, fmt.Errorf("failed to select probes: %w", err)
 	}
 
@@ -1267,24 +1326,26 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 
 	p.ensureConfigDefaults()
 
+	p.monitor = NewMonitor(p)
+
 	numCPU, err := utils.NumCPU()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse CPU count: %w", err)
 	}
 	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(
 		numCPU,
-		p.Config.ActivityDumpTracedCgroupsCount,
+		config.RuntimeSecurity.ActivityDumpTracedCgroupsCount,
 		useMmapableMaps,
 		useRingBuffers,
-		uint32(p.Config.EventStreamBufferSize),
+		uint32(p.Config.Probe.EventStreamBufferSize),
 	)
 
-	if !p.Config.EnableKernelFilters {
+	if !p.Config.Probe.EnableKernelFilters {
 		seclog.Warnf("Forcing in-kernel filter policy to `pass`: filtering not enabled")
 	}
 
-	if p.Config.ActivityDumpEnabled {
-		for _, e := range p.Config.ActivityDumpTracedEventTypes {
+	if config.RuntimeSecurity.ActivityDumpEnabled {
+		for _, e := range config.RuntimeSecurity.ActivityDumpTracedEventTypes {
 			if e == model.SyscallsEventType {
 				// Add syscall monitor probes
 				p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
@@ -1305,7 +1366,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, constantfetch.CreateConstantEditors(p.constantOffsets)...)
 
-	areCGroupADsEnabled := config.ActivityDumpTracedCgroupsCount > 0
+	areCGroupADsEnabled := config.RuntimeSecurity.ActivityDumpTracedCgroupsCount > 0
 
 	// Add global constant editors
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
@@ -1355,7 +1416,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		},
 		manager.ConstantEditor{
 			Name:  "cgroup_activity_dumps_enabled",
-			Value: utils.BoolTouint64(config.ActivityDumpEnabled && areCGroupADsEnabled),
+			Value: utils.BoolTouint64(config.RuntimeSecurity.ActivityDumpEnabled && areCGroupADsEnabled),
 		},
 		manager.ConstantEditor{
 			Name:  "net_struct_type",
@@ -1363,7 +1424,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		},
 		manager.ConstantEditor{
 			Name:  "syscall_monitor_event_period",
-			Value: uint64(p.Config.ActivityDumpSyscallMonitorPeriod.Nanoseconds()),
+			Value: uint64(config.RuntimeSecurity.ActivityDumpSyscallMonitorPeriod.Nanoseconds()),
 		},
 	)
 
@@ -1391,20 +1452,29 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		)
 	}
 
+	if p.kernelVersion.HavePIDLinkStruct() {
+		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
+			manager.ConstantEditor{
+				Name:  "kernel_has_pid_link_struct",
+				Value: utils.BoolTouint64(true),
+			},
+		)
+	}
+
 	// tail calls
-	p.managerOptions.TailCallRouter = probes.AllTailRoutes(p.Config.ERPCDentryResolutionEnabled, p.Config.NetworkEnabled, useMmapableMaps)
-	if !p.Config.ERPCDentryResolutionEnabled || useMmapableMaps {
+	p.managerOptions.TailCallRouter = probes.AllTailRoutes(p.Config.Probe.ERPCDentryResolutionEnabled, p.Config.Probe.NetworkEnabled, useMmapableMaps)
+	if !p.Config.Probe.ERPCDentryResolutionEnabled || useMmapableMaps {
 		// exclude the programs that use the bpf_probe_write_user helper
 		p.managerOptions.ExcludedFunctions = probes.AllBPFProbeWriteUserProgramFunctions()
 	}
 
-	if !p.Config.NetworkEnabled {
+	if !p.Config.Probe.NetworkEnabled {
 		// prevent all TC classifiers from loading
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllTCProgramFunctions()...)
 	}
 
 	p.scrubber = procutil.NewDefaultDataScrubber()
-	p.scrubber.AddCustomSensitiveWords(config.CustomSensitiveWords)
+	p.scrubber.AddCustomSensitiveWords(config.Probe.CustomSensitiveWords)
 
 	resolvers, err := resolvers.NewResolvers(config, p.Manager, p.StatsdClient, p.scrubber, p.Erpc)
 	if err != nil {
@@ -1431,8 +1501,8 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 
 func (p *Probe) ensureConfigDefaults() {
 	// enable runtime compiled constants on COS by default
-	if !p.Config.RuntimeCompiledConstantsIsSet && p.kernelVersion.IsCOSKernel() {
-		p.Config.RuntimeCompiledConstantsEnabled = true
+	if !p.Config.Probe.RuntimeCompiledConstantsIsSet && p.kernelVersion.IsCOSKernel() {
+		p.Config.Probe.RuntimeCompiledConstantsEnabled = true
 	}
 }
 
@@ -1488,7 +1558,7 @@ func getCGroupWriteConstants() manager.ConstantEditor {
 
 // GetOffsetConstants returns the offsets and struct sizes constants
 func (p *Probe) GetOffsetConstants() (map[string]uint64, error) {
-	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.Config, p.kernelVersion, p.StatsdClient))
+	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.Config.Probe, p.kernelVersion, p.StatsdClient))
 	kv, err := p.GetKernelVersion()
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch probe kernel version: %w", err)
@@ -1499,7 +1569,7 @@ func (p *Probe) GetOffsetConstants() (map[string]uint64, error) {
 
 // GetConstantFetcherStatus returns the status of the constant fetcher associated with this probe
 func (p *Probe) GetConstantFetcherStatus() (*constantfetch.ConstantFetcherStatus, error) {
-	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.Config, p.kernelVersion, p.StatsdClient))
+	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.Config.Probe, p.kernelVersion, p.StatsdClient))
 	kv, err := p.GetKernelVersion()
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch probe kernel version: %w", err)
@@ -1540,6 +1610,12 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePIDStructLevel, "struct pid", "level", "linux/pid.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePIDStructNumbers, "struct pid", "numbers", "linux/pid.h")
 	constantFetcher.AppendSizeofRequest(constantfetch.SizeOfUPID, "struct upid", "linux/pid.h")
+	if kv.HavePIDLinkStruct() {
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameTaskStructPIDLink, "struct task_struct", "pids", "linux/sched.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePIDLinkStructPID, "struct pid_link", "pid", "linux/pid.h")
+	} else {
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameTaskStructPID, "struct task_struct", "thread_pid", "linux/sched.h")
+	}
 
 	// splice event
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePipeInodeInfoStructBufs, "struct pipe_inode_info", "bufs", "linux/pipe_fs_i.h")
@@ -1571,4 +1647,20 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel5_1) {
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameIoKiocbStructCtx, "struct io_kiocb", "ctx", "")
 	}
+}
+
+func (p *Probe) IsNetworkEnabled() bool {
+	return p.Config.Probe.NetworkEnabled
+}
+
+func (p *Probe) IsActivityDumpEnabled() bool {
+	return p.Config.RuntimeSecurity.ActivityDumpEnabled
+}
+
+func (p *Probe) IsActivityDumpTagRulesEnabled() bool {
+	return p.Config.RuntimeSecurity.ActivityDumpTagRulesEnabled
+}
+
+func (p *Probe) StatsPollingInterval() time.Duration {
+	return p.Config.Probe.StatsPollingInterval
 }

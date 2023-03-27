@@ -9,6 +9,7 @@
 package main
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"os"
 	"time"
 
@@ -31,13 +32,18 @@ const (
 func main() {
 	if len(os.Args) < 2 {
 		panic("[datadog init process] invalid argument count, did you forget to set CMD ?")
+	} else {
+		cloudService, logConfig, traceAgent, metricAgent := setup()
+		initcontainer.Run(cloudService, logConfig, metricAgent, traceAgent, os.Args[1:])
 	}
+}
 
+func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent) {
 	// load proxy settings
 	setupProxy()
 
 	cloudService := cloudservice.GetCloudServiceType()
-	tags := cloudService.GetTags()
+	tags := tags.MergeWithOverwrite(tags.ArrayToMap(config.GetGlobalConfiguredTags(false)), cloudService.GetTags())
 	origin := cloudService.GetOrigin()
 	prefix := cloudService.GetPrefix()
 
@@ -58,7 +64,7 @@ func main() {
 	metric.AddColdStartMetric(prefix, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 
 	go flushMetricsAgent(metricAgent)
-	initcontainer.Run(cloudService, logConfig, metricAgent, traceAgent, os.Args[1:])
+	return cloudService, logConfig, traceAgent, metricAgent
 }
 
 func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]string) {

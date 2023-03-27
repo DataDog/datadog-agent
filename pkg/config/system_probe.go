@@ -106,11 +106,6 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.block_profile_rate"), 0)
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.enable_goroutine_stacktraces"), false)
 
-	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.enabled"), false)
-	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.hierarchy"), "v1")
-	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.pressure_levels"), map[string]string{})
-	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.thresholds"), map[string]string{})
-
 	// ebpf general settings
 	cfg.BindEnvAndSetDefault(join(spNS, "bpf_debug"), false)
 	cfg.BindEnvAndSetDefault(join(spNS, "bpf_dir"), defaultSystemProbeBPFDir, "DD_SYSTEM_PROBE_BPF_DIR")
@@ -222,58 +217,57 @@ func InitSystemProbeConfig(cfg Config) {
 	// event monitoring
 	cfg.BindEnvAndSetDefault(join(evNS, "process", "enabled"), false, "DD_SYSTEM_PROBE_EVENT_MONITORING_PROCESS_ENABLED")
 	cfg.BindEnvAndSetDefault(join(evNS, "network_process", "enabled"), false, "DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED")
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "enable_kernel_filters"), true)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "flush_discarder_window"), 3)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "pid_cache_size"), 10000)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "load_controller.events_count_threshold"), 20000)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "load_controller.discarder_timeout"), 60)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "load_controller.control_period"), 2)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "events_stats.tags_cardinality"), "high")
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "custom_sensitive_words"), []string{})
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "erpc_dentry_resolution_enabled"), true)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "map_dentry_resolution_enabled"), true)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "dentry_cache_size"), 1024)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "remote_tagger"), true)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "runtime_monitor.enabled"), false)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.lazy_interface_prefixes"), []string{})
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.classifier_priority"), 10)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.classifier_handle"), 0)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_ring_buffer"), true)
+	eventMonitorBindEnv(cfg, join(evNS, "event_stream.buffer_size"))
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "envs_with_value"), []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE"})
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "runtime_compilation.enabled"), false)
+	eventMonitorBindEnv(cfg, join(evNS, "runtime_compilation.compiled_constants_enabled"))
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.enabled"), true)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "events_stats.polling_interval"), 20)
+	cfg.BindEnvAndSetDefault(join(evNS, "socket"), "/opt/datadog-agent/run/event-monitor.sock")
+	cfg.BindEnvAndSetDefault(join(evNS, "event_server.burst"), 40)
 
 	// process event monitoring data limits for network tracer
-	cfg.BindEnv(join(evNS, "network_process.max_processes_tracked"))
+	eventMonitorBindEnv(cfg, join(evNS, "network_process", "max_processes_tracked"))
 
 	// enable/disable use of root net namespace
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_root_netns"), true)
 
-	// CWS
+	// CWS - general config
 	cfg.BindEnvAndSetDefault("runtime_security_config.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.fim_enabled", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.erpc_dentry_resolution_enabled", true)
-	cfg.BindEnvAndSetDefault("runtime_security_config.map_dentry_resolution_enabled", true)
-	cfg.BindEnvAndSetDefault("runtime_security_config.dentry_cache_size", 1024)
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.dir", DefaultRuntimePoliciesDir)
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.watch_dir", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.monitor.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
-	cfg.BindEnvAndSetDefault("runtime_security_config.enable_approvers", true)
-	cfg.BindEnvAndSetDefault("runtime_security_config.enable_kernel_filters", true)
-	cfg.BindEnvAndSetDefault("runtime_security_config.flush_discarder_window", 3)
-	cfg.BindEnvAndSetDefault("runtime_security_config.runtime_monitor.enabled", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.events_stats.polling_interval", 20)
-	cfg.BindEnvAndSetDefault("runtime_security_config.events_stats.tags_cardinality", "high")
 	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.burst", 40)
 	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.retention", 6)
 	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.rate", 10)
-	cfg.BindEnvAndSetDefault("runtime_security_config.load_controller.events_count_threshold", 20000)
-	cfg.BindEnvAndSetDefault("runtime_security_config.load_controller.discarder_timeout", 60)
-	cfg.BindEnvAndSetDefault("runtime_security_config.load_controller.control_period", 2)
-	cfg.BindEnvAndSetDefault("runtime_security_config.pid_cache_size", 10000)
 	cfg.BindEnvAndSetDefault("runtime_security_config.cookie_cache_size", 100)
 	cfg.BindEnvAndSetDefault("runtime_security_config.agent_monitoring_events", true)
-	cfg.BindEnvAndSetDefault("runtime_security_config.custom_sensitive_words", []string{})
-	cfg.BindEnvAndSetDefault("runtime_security_config.remote_tagger", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.log_patterns", []string{})
 	cfg.BindEnvAndSetDefault("runtime_security_config.log_tags", []string{})
 	cfg.BindEnvAndSetDefault("runtime_security_config.self_test.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.self_test.send_report", true)
-	cfg.BindEnvAndSetDefault("runtime_security_config.runtime_compilation.enabled", false)
-	cfg.BindEnv("runtime_security_config.runtime_compilation.compiled_constants_enabled")
 	cfg.BindEnvAndSetDefault("runtime_security_config.remote_configuration.enabled", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.event_stream.use_ring_buffer", true)
-	cfg.BindEnv("runtime_security_config.event_stream.buffer_size")
-	cfg.BindEnvAndSetDefault("runtime_security_config.envs_with_value", []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE"})
 
-	// CWS Network
-	cfg.BindEnvAndSetDefault("runtime_security_config.network.enabled", true)
-	cfg.BindEnvAndSetDefault("runtime_security_config.network.lazy_interface_prefixes", []string{})
-	cfg.BindEnvAndSetDefault("runtime_security_config.network.classifier_priority", 10)
-	cfg.BindEnvAndSetDefault("runtime_security_config.network.classifier_handle", 0)
-
-	// Activity Dump
+	// CWS - activity dump
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cleanup_period", 30)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.tags_resolution_period", 60)
@@ -285,7 +279,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_dump_timeout", 30)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.rate_limiter", 500)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_wait_list_timeout", 75)
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_differentiate_args", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_differentiate_args", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.max_dumps_count", 100)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.output_directory", "/tmp/activity_dumps/")
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.formats", []string{})
@@ -294,9 +288,15 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.max_dump_count_per_workload", 25)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.tag_rules.enabled", true)
 
-	// SBOM
+	// CWS - SBOM
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.workloads_cache_size", 10)
+
+	// CWS - Security Profiles
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.dir", DefaultSecurityProfilesDir)
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.watch_dir", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.cache_size", 10)
 }
 
 func join(pieces ...string) string {
@@ -308,4 +308,25 @@ func suffixHostEtc(suffix string) string {
 		return path.Join(value, suffix)
 	}
 	return path.Join("/etc", suffix)
+}
+
+// eventMonitorBindEnvAndSetDefault is a helper function that generates both "DD_RUNTIME_SECURITY_CONFIG_" and "DD_EVENT_MONITORING_CONFIG_"
+// prefixes from a key. We need this helper function because the standard BindEnvAndSetDefault can only generate one prefix, but we want to
+// support both for backwards compatibility.
+func eventMonitorBindEnvAndSetDefault(config Config, key string, val interface{}) {
+	// Uppercase, replace "." with "_" and add "DD_" prefix to key so that we follow the same environment
+	// variable convention as the core agent.
+	emConfigKey := "DD_" + strings.Replace(strings.ToUpper(key), ".", "_", -1)
+	runtimeSecKey := strings.Replace(emConfigKey, "EVENT_MONITORING_CONFIG", "RUNTIME_SECURITY_CONFIG", 1)
+
+	envs := []string{emConfigKey, runtimeSecKey}
+	config.BindEnvAndSetDefault(key, val, envs...)
+}
+
+// eventMonitorBindEnv is the same as eventMonitorBindEnvAndSetDefault, but without setting a default.
+func eventMonitorBindEnv(config Config, key string) {
+	emConfigKey := "DD_" + strings.Replace(strings.ToUpper(key), ".", "_", -1)
+	runtimeSecKey := strings.Replace(emConfigKey, "EVENT_MONITORING_CONFIG", "RUNTIME_SECURITY_CONFIG", 1)
+
+	config.BindEnv(key, emConfigKey, runtimeSecKey)
 }

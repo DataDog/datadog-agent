@@ -21,7 +21,7 @@ struct bpf_map_def SEC("maps/span_tls") span_tls = {
 };
 
 // defined in process.h
-u32 get_namespace_nr(u32 root_nr);
+u32 get_namespace_nr_from_task_struct(struct task_struct *task);
 
 int __attribute__((always_inline)) handle_register_span_memory(void *data) {
    struct span_tls_t tls = {};
@@ -52,7 +52,8 @@ void __attribute__((always_inline)) fill_span_context(struct span_context_t *spa
    if (tls) {
       u32 tid = pid_tgid;
 
-      u32 pid = get_namespace_nr(tid);
+      struct task_struct *current_ptr = (struct task_struct *)bpf_get_current_task();
+      u32 pid = get_namespace_nr_from_task_struct(current_ptr);
       if (pid) {
          tid = pid;
       }

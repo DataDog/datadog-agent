@@ -156,7 +156,7 @@ def lint_flavor(
     Runs linters for given flavor, build tags, and modules.
     """
 
-    def command(lint_results, module, module_result):
+    def command(module_results, module, module_result):
         with ctx.cd(module.full_path()):
             lint_results = run_golangci_lint(
                 ctx, targets=module.targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch
@@ -165,7 +165,7 @@ def lint_flavor(
                 module_result.lint_outputs.append(lint_result)
                 if lint_result.exited != 0:
                     module_result.failed = True
-        lint_results.append(module_result)
+        module_results.append(module_result)
 
     return test_core(modules, flavor, ModuleLintResult, "golangci_lint", command)
 
@@ -758,7 +758,10 @@ def lint_filenames(ctx):
     # Maximum length supported by the win32 API
     max_length = 255
     for file in files:
-        if not file.startswith('test/kitchen/') and prefix_length + len(file) > max_length:
+        if (
+            not file.startswith(('test/kitchen/', 'tools/windows/DatadogAgentInstaller'))
+            and prefix_length + len(file) > max_length
+        ):
             print(f"Error: path {file} is too long ({prefix_length + len(file) - max_length} characters too many)")
             failure = True
 
