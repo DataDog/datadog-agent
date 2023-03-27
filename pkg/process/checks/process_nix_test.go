@@ -10,6 +10,7 @@ package checks
 
 import (
 	"fmt"
+	"os/user"
 	"regexp"
 	"sort"
 	"testing"
@@ -19,6 +20,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/gopsutil/cpu"
+	"github.com/patrickmn/go-cache"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
@@ -366,6 +368,75 @@ func TestFormatCPUTimes(t *testing.T) {
 			assert.Equal(t, test.expected, formatCPUTimes(
 				test.statsNow, test.statsNow.CPUTime, test.statsPrev, test.timeNow, test.timeBefore,
 			))
+		})
+	}
+}
+
+func TestLookupUserWithId(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		expectedUser  *user.User
+		expectedError error
+		ttl           time.Duration
+	}{
+		{
+			name:         "user found",
+			expectedUser: &user.User{Name: "steve"},
+			ttl:          cache.NoExpiration,
+		},
+		{
+			name:          "user not found",
+			expectedError: user.UnknownUserIdError(0),
+			ttl:           cache.NoExpiration,
+		},
+	} {
+		const testUID = "0"
+		t.Run(tc.name, func(t *testing.T) {
+			oldUserLookupFunc := userLookupFunc
+			t.Cleanup(func() { userLookupFunc = oldUserLookupFunc })
+			t.Cleanup(func() { formatUserCache = cache.New(tc.ttl, cache.NoExpiration) })
+
+			var timesCalled int
+			userLookupFunc = func(inputUid string) (*user.User, error) {
+				// Make sure this function is called once despite the fact that we call `lookupIdWithCache`.
+				// This should simulate a cache hit vs a miss.
+				timesCalled++
+				assert.Equal(t, 1, timesCalled)
+
+				assert.Equal(t, testUID, inputUid)
+				if tc.expectedError != nil {
+					return nil, tc.expectedError
+				}
+				return tc.expectedUser, nil
+			}
+
+			checkResult := func(u *user.User, err error) {
+				t.Helper()
+
+				if tc.expectedUser != nil {
+					assert.Equal(t, tc.expectedUser.Name, u.Name)
+				} else {
+					assert.Nil(t, tc.expectedUser)
+				}
+
+				assert.ErrorIs(t, tc.expectedError, err)
+			}
+
+			checkCacheResult := func(res interface{}, ok bool) {
+				t.Helper()
+
+				assert.True(t, ok)
+				switch v := res.(type) {
+				case *user.User:
+					assert.Equal(t, tc.expectedUser.Name, v.Name)
+				case error:
+					assert.ErrorIs(t, v, tc.expectedError)
+				}
+			}
+
+			checkResult(lookupIdWithCache(testUID))
+			checkCacheResult(formatUserCache.Get(testUID))
+			checkResult(lookupIdWithCache(testUID))
 		})
 	}
 }
