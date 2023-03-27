@@ -1618,7 +1618,7 @@ func TestKprobeAttachWithKprobeEvents(t *testing.T) {
 		t.Skip("skipped on Fargate")
 	}
 
-	cmd := []string{"curl", "-k", "-o/dev/null", "facebook.com"}
+	cmd := []string{"curl", "-k", "-o/dev/null", "example.com"}
 	exec.Command(cmd[0], cmd[1:]...).Run()
 
 	stats := ddebpf.GetProbeStats()
