@@ -474,6 +474,7 @@ type KubernetesPod struct {
 	QOSClass                   string
 	KubeServices               []string
 	NamespaceLabels            map[string]string
+	FinishedAt                 time.Time
 }
 
 // GetID implements Entity#GetID.
@@ -531,6 +532,9 @@ func (p KubernetesPod) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "PVCs:", sliceToString(p.PersistentVolumeClaimNames))
 		_, _ = fmt.Fprintln(&sb, "Kube Services:", sliceToString(p.KubeServices))
 		_, _ = fmt.Fprintln(&sb, "Namespace Labels:", mapToString(p.NamespaceLabels))
+		if !p.FinishedAt.IsZero() {
+			_, _ = fmt.Fprintln(&sb, "Finished At:", p.FinishedAt)
+		}
 	}
 
 	return sb.String()

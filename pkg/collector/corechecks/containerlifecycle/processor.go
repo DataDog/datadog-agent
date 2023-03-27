@@ -63,7 +63,13 @@ func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
 				log.Debugf("Couldn't process container %q: %v", container.ID, err)
 			}
 		case workloadmeta.KindKubernetesPod:
-			err := p.processPod(event.Entity)
+			pod, ok := event.Entity.(*workloadmeta.KubernetesPod)
+			if !ok {
+				log.Debugf("Expected workloadmeta.KubernetesPod got %T, skipping", event.Entity)
+				continue
+			}
+
+			err := p.processPod(pod)
 			if err != nil {
 				log.Debugf("Couldn't process pod %q: %v", event.Entity.GetID().ID, err)
 			}
@@ -99,12 +105,17 @@ func (p *processor) processContainer(container *workloadmeta.Container, sources 
 }
 
 // processPod enqueue pod events
-func (p *processor) processPod(pod workloadmeta.Entity) error {
+func (p *processor) processPod(pod *workloadmeta.KubernetesPod) error {
 	event := newEvent()
 	event.withObjectKind(types.ObjectKindPod)
 	event.withEventType(types.EventNameDelete)
 	event.withObjectID(pod.GetID().ID)
 	event.withSource(string(workloadmeta.SourceNodeOrchestrator))
+
+	if !pod.FinishedAt.IsZero() {
+		ts := pod.FinishedAt.Unix()
+		event.withPodExitTimestamp(&ts)
+	}
 
 	return p.podsQueue.add(event)
 }

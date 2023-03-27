@@ -298,6 +298,7 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 
 func (c *collector) parseExpires(expiredIDs []string) []workloadmeta.CollectorEvent {
 	events := make([]workloadmeta.CollectorEvent, 0, len(expiredIDs))
+	podTerminatedTime := time.Now()
 
 	for _, expiredID := range expiredIDs {
 		prefix, id := containers.SplitEntityName(expiredID)
@@ -310,6 +311,7 @@ func (c *collector) parseExpires(expiredIDs []string) []workloadmeta.CollectorEv
 					Kind: workloadmeta.KindKubernetesPod,
 					ID:   id,
 				},
+				FinishedAt: podTerminatedTime,
 			}
 		} else {
 			entity = &workloadmeta.Container{
