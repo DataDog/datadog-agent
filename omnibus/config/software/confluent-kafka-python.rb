@@ -16,8 +16,6 @@ build do
   license "Apache-2.0"
   license_file "./LICENSE.txt"
 
-
-
   if windows?
     # See `librdkafka.rb`
     librd_dir = "c:\\librdkafka-redist"
