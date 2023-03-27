@@ -125,10 +125,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
     }
     *params = (struct is_discarded_by_inode_t){
         .discarder_type = input->discarder_type,
-        // TODO(safchain) do we need the pid ?????
-        .tgid = bpf_get_current_pid_tgid() >> 32,
         .now = bpf_ktime_get_ns(),
-        .ad_state = input->ad_state,
     };
 
     if (key.ino == 0) {
@@ -154,13 +151,12 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
             params->discarder.path_key.mount_id = key.mount_id;
             params->discarder.is_leaf = i == 0;
 
-            switch (is_discarded_by_inode(params)) {
-            case DISCARDED:
-                return DENTRY_DISCARDED;
-            case SAVED_BY_AD:
-                input->saved_by_ad = true;
-            default:
-                break;
+            if (is_discarded_by_inode(params)) {
+                if (input->flags & ACTIVITY_DUMP_RUNNING) {
+                    input->flags |= SAVED_BY_ACTIVITY_DUMP;
+                } else {
+                    return DENTRY_DISCARDED;
+                }
             }
         }
 
@@ -700,8 +696,9 @@ int kprobe_dentry_resolver_ad_filter(struct pt_regs *ctx) {
         return 0;
     }
 
-    // get the activity dump state
-    syscall->resolver.ad_state = get_activity_dump_state(ctx, bpf_get_current_pid_tgid() >> 32, bpf_ktime_get_ns(), syscall->type);
+    if (is_activity_dump_running(ctx, bpf_get_current_pid_tgid() >> 32, bpf_ktime_get_ns(), syscall->type)) {
+        syscall->resolver.flags |= ACTIVITY_DUMP_RUNNING;
+    }
 
     bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_progs, DR_KPROBE_DENTRY_RESOLVER_KERN_KEY);
     return 0;
@@ -714,8 +711,9 @@ int tracepoint_dentry_resolver_ad_filter(void *ctx) {
         return 0;
     }
 
-    // get the activity dump state
-    syscall->resolver.ad_state = get_activity_dump_state(ctx, bpf_get_current_pid_tgid() >> 32, bpf_ktime_get_ns(), syscall->type);
+    if (is_activity_dump_running(ctx, bpf_get_current_pid_tgid() >> 32, bpf_ktime_get_ns(), syscall->type)) {
+        syscall->resolver.flags |= ACTIVITY_DUMP_RUNNING;
+    }
 
     bpf_tail_call_compat(ctx, &dentry_resolver_tracepoint_progs, DR_TRACEPOINT_DENTRY_RESOLVER_KERN_KEY);
     return 0;

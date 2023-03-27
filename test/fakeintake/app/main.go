@@ -6,6 +6,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"os"
 	"os/signal"
@@ -16,12 +17,15 @@ import (
 )
 
 func main() {
+	portPtr := flag.Int("port", 80, "fakeintake listening port, default to 80. Using -port=0 will use a random available port")
+	flag.Parse()
+
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
 
 	log.Println("⌛️ Starting fake intake")
 	ready := make(chan bool, 1)
-	fi := fakeintake.NewServer(fakeintake.WithPort(8080), fakeintake.WithReadyChannel(ready))
+	fi := fakeintake.NewServer(fakeintake.WithPort(*portPtr), fakeintake.WithReadyChannel(ready))
 	fi.Start()
 	timeout := time.NewTimer(5 * time.Second)
 

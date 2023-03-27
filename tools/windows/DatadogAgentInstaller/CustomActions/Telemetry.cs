@@ -3,6 +3,7 @@ using Microsoft.Deployment.WindowsInstaller;
 using System.Collections.Generic;
 using System.Reflection;
 using Datadog.CustomActions.Extensions;
+using Datadog.CustomActions.Interfaces;
 
 namespace Datadog.CustomActions
 {

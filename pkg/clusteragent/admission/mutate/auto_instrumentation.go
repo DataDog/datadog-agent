@@ -79,10 +79,13 @@ const (
 	customLibAnnotationKeyFormat     = "admission.datadoghq.com/%s-lib.custom-image"
 	libVersionAnnotationKeyCtrFormat = "admission.datadoghq.com/%s.%s-lib.version"
 	customLibAnnotationKeyCtrFormat  = "admission.datadoghq.com/%s.%s-lib.custom-image"
+
+	imageFormat = "%s/dd-lib-%s-init:%s"
 )
 
 var (
 	supportedLanguages = []language{java, js, python, dotnet, ruby}
+	targetNamespaces   = config.Datadog.GetStringSlice("admission_controller.auto_instrumentation.inject_all.namespaces")
 )
 
 // InjectAutoInstrumentation injects APM libraries into pods
@@ -108,12 +111,42 @@ func injectAutoInstrumentation(pod *corev1.Pod, _ string, _ dynamic.Interface) e
 		}
 	}
 
-	libsToInject := extractLibInfo(pod, config.Datadog.GetString("admission_controller.auto_instrumentation.container_registry"))
+	containerRegistry := config.Datadog.GetString("admission_controller.auto_instrumentation.container_registry")
+	libsToInject := extractLibInfo(pod, containerRegistry)
 	if len(libsToInject) == 0 {
-		return nil
+		libsToInject = injectAll(pod.Namespace, containerRegistry)
+		if len(libsToInject) == 0 {
+			return nil
+		}
+		log.Debugf("Injecting all libraries into pod %q in namespace %q", podString(pod), pod.Namespace)
 	}
 
 	return injectAutoInstruConfig(pod, libsToInject)
+}
+
+func isNsTargeted(ns string) bool {
+	if len(targetNamespaces) == 0 {
+		return false
+	}
+	for _, targetNs := range targetNamespaces {
+		if ns == targetNs {
+			return true
+		}
+	}
+	return false
+}
+
+func injectAll(ns, registry string) []libInfo {
+	libsToInject := []libInfo{}
+	if isNsTargeted(ns) {
+		for _, lang := range supportedLanguages {
+			libsToInject = append(libsToInject, libInfo{
+				lang:  lang,
+				image: fmt.Sprintf(imageFormat, registry, lang, "latest"),
+			})
+		}
+	}
+	return libsToInject
 }
 
 type libInfo struct {
@@ -157,7 +190,7 @@ func extractLibInfo(pod *corev1.Pod, containerRegistry string) []libInfo {
 
 			libVersionAnnotation := strings.ToLower(fmt.Sprintf(libVersionAnnotationKeyCtrFormat, ctr.Name, lang))
 			if version, found := podAnnotations[libVersionAnnotation]; found {
-				image := fmt.Sprintf("%s/dd-lib-%s-init:%s", containerRegistry, lang, version)
+				image := fmt.Sprintf(imageFormat, containerRegistry, lang, version)
 				libInfoList = append(libInfoList, libInfo{
 					ctrName: ctr.Name,
 					lang:    lang,

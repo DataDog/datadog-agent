@@ -9,15 +9,18 @@
 package constantfetch
 
 import (
+	"errors"
 	"math"
 	"os"
+	"os/exec"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -25,14 +28,20 @@ const offsetGuesserUID = "security-og"
 
 var (
 	offsetGuesserMaps = []*manager.Map{
-		{Name: "pid_offset"},
+		{Name: "guessed_offsets"},
 	}
 
 	offsetGuesserProbes = []*manager.Probe{
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          offsetGuesserUID,
-				EBPFFuncName: "kprobe_get_pid_task",
+				EBPFFuncName: "kprobe_get_pid_task_numbers",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          offsetGuesserUID + "_a",
+				EBPFFuncName: "kprobe_get_pid_task_offset",
 			},
 		},
 	}
@@ -42,17 +51,19 @@ var (
 type OffsetGuesser struct {
 	config  *config.Config
 	manager *manager.Manager
+	kv      *kernel.Version
 	res     map[string]uint64
 }
 
 // NewOffsetGuesserFetcher returns a new OffsetGuesserFetcher
-func NewOffsetGuesserFetcher(config *config.Config) *OffsetGuesser {
+func NewOffsetGuesserFetcher(config *config.Config, kv *kernel.Version) *OffsetGuesser {
 	return &OffsetGuesser{
 		config: config,
 		manager: &manager.Manager{
 			Maps:   offsetGuesserMaps,
 			Probes: offsetGuesserProbes,
 		},
+		kv:  kv,
 		res: make(map[string]uint64),
 	}
 }
@@ -65,12 +76,15 @@ func (og *OffsetGuesser) guessPidNumbersOfsset() (uint64, error) {
 	if _, err := os.ReadFile(utils.StatusPath(int32(utils.Getpid()))); err != nil {
 		return ErrorSentinel, err
 	}
-	offsetMap, _, err := og.manager.GetMap("pid_offset")
-	if err != nil || offsetMap == nil {
+	offsetMap, found, err := og.manager.GetMap("guessed_offsets")
+	if err != nil {
 		return ErrorSentinel, err
+	} else if !found || offsetMap == nil {
+		return ErrorSentinel, errors.New("map not found")
 	}
 
-	var key, offset uint32
+	var offset uint32
+	key := uint32(0)
 	if err := offsetMap.Lookup(key, &offset); err != nil {
 		return ErrorSentinel, err
 	}
@@ -78,10 +92,63 @@ func (og *OffsetGuesser) guessPidNumbersOfsset() (uint64, error) {
 	return uint64(offset), nil
 }
 
+func (og *OffsetGuesser) guessTaskStructPidOffset() (uint64, error) {
+	catPath, err := exec.LookPath("cat")
+	if err != nil {
+		return ErrorSentinel, err
+	}
+	_ = exec.Command(catPath, "/proc/self/fdinfo/1").Run()
+
+	offsetMap, found, err := og.manager.GetMap("guessed_offsets")
+	if err != nil {
+		return ErrorSentinel, err
+	} else if !found || offsetMap == nil {
+		return ErrorSentinel, errors.New("map not found")
+	}
+
+	var offset uint32
+	key := uint32(1)
+	if err := offsetMap.Lookup(key, &offset); err != nil {
+		return ErrorSentinel, err
+	}
+
+	return uint64(offset), nil
+}
+
+func (og *OffsetGuesser) guessTaskStructPidLinkOffset() (uint64, error) {
+	if !og.kv.HavePIDLinkStruct() {
+		return ErrorSentinel, errors.New("invalid kernel version")
+	}
+
+	pidLinkPIDOffset := getPIDLinkPIDOffset(og.kv)
+	if pidLinkPIDOffset == ErrorSentinel {
+		return ErrorSentinel, errors.New("invalid pid_link pid offset")
+	}
+
+	guessedtaskStructPIDOffset, err := og.guessTaskStructPidOffset()
+	if err != nil {
+		return ErrorSentinel, err
+	}
+
+	return guessedtaskStructPIDOffset - pidLinkPIDOffset, nil
+}
+
 func (og *OffsetGuesser) guess(id string) error {
 	switch id {
 	case OffsetNamePIDStructNumbers:
 		offset, err := og.guessPidNumbersOfsset()
+		if err != nil {
+			return err
+		}
+		og.res[id] = offset
+	case OffsetNameTaskStructPID:
+		offset, err := og.guessTaskStructPidOffset()
+		if err != nil {
+			return err
+		}
+		og.res[id] = offset
+	case OffsetNameTaskStructPIDLink:
+		offset, err := og.guessTaskStructPidLinkOffset()
 		if err != nil {
 			return err
 		}

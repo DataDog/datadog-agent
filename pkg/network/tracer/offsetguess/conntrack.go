@@ -78,6 +78,12 @@ func (c *conntrackOffsetGuesser) Manager() *manager.Manager {
 	return c.m
 }
 
+func (c *conntrackOffsetGuesser) Close() {
+	if err := c.m.Stop(manager.CleanAll); err != nil {
+		log.Warnf("error stopping conntrack offset guesser: %s", err)
+	}
+}
+
 func (c *conntrackOffsetGuesser) Probes(cfg *config.Config) (map[probes.ProbeFuncName]struct{}, error) {
 	p := map[probes.ProbeFuncName]struct{}{}
 	enableProbe(p, probes.ConntrackHashInsert)
