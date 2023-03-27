@@ -21,6 +21,7 @@ import (
 	"time"
 
 	redis2 "github.com/go-redis/redis/v9"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kversion"
@@ -1625,62 +1626,31 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 }
 
 func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, serverAddr string, expectedProtocol network.ProtocolType) {
-	var incomingConns, outgoingConns []network.ConnectionStats
-
-	foundIncomingWithProtocol := false
-	foundOutgoingWithProtocol := false
-
-	for start := time.Now(); time.Since(start) < 5*time.Second; {
+	var outgoing, incoming *network.ConnectionStats
+	assert.Eventually(t, func() bool {
 		conns := getConnections(t, tr)
-		newOutgoingConns := searchConnections(conns, func(cs network.ConnectionStats) bool {
-			return cs.Type == network.TCP && fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == targetAddr
-		})
-		newIncomingConns := searchConnections(conns, func(cs network.ConnectionStats) bool {
-			return cs.Type == network.TCP && fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == serverAddr
-		})
-
-		outgoingConns = append(outgoingConns, newOutgoingConns...)
-		incomingConns = append(incomingConns, newIncomingConns...)
-
-		for _, conn := range newOutgoingConns {
-			t.Logf("Found outgoing connection %v", conn)
-			if conn.Protocol == expectedProtocol {
-				foundOutgoingWithProtocol = true
-				break
-			}
-		}
-		for _, conn := range newIncomingConns {
-			t.Logf("Found incoming connection %v", conn)
-			if conn.Protocol == expectedProtocol {
-				foundIncomingWithProtocol = true
-				break
+		if outgoing == nil {
+			for _, c := range searchConnections(conns, func(cs network.ConnectionStats) bool {
+				return cs.Direction == network.OUTGOING && cs.Type == network.TCP && fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == targetAddr
+			}) {
+				if c.Protocol == expectedProtocol {
+					outgoing = &c
+					break
+				}
 			}
 		}
 
-		if foundOutgoingWithProtocol && foundIncomingWithProtocol {
-			return
+		if incoming == nil {
+			for _, c := range searchConnections(conns, func(cs network.ConnectionStats) bool {
+				return cs.Direction == network.INCOMING && cs.Type == network.TCP && fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == serverAddr
+			}) {
+				if c.Protocol == expectedProtocol {
+					incoming = &c
+					break
+				}
+			}
 		}
 
-		time.Sleep(200 * time.Millisecond)
-	}
-
-	// If we didn't find both -> fail
-	if foundOutgoingWithProtocol || foundIncomingWithProtocol {
-		// We have found at least one.
-		// Checking if the reason for not finding the other is flakiness of npm
-		if !foundIncomingWithProtocol && len(incomingConns) == 0 {
-			t.Log("npm didn't find the incoming connections, not failing the test")
-			return
-		}
-
-		if !foundOutgoingWithProtocol && len(outgoingConns) == 0 {
-			t.Log("npm didn't find the outgoing connections, not failing the test")
-			return
-		}
-
-	}
-
-	t.Errorf("couldn't find incoming and outgoing connections with protocol %d for "+
-		"server address %s and target address %s.\nIncoming: %v\nOutgoing: %v\nfound incoming with protocol: "+
-		"%v\nfound outgoing with protocol: %v", expectedProtocol, serverAddr, targetAddr, incomingConns, outgoingConns, foundIncomingWithProtocol, foundOutgoingWithProtocol)
+		return incoming != nil && outgoing != nil
+	}, 5*time.Second, 500*time.Millisecond, "could not find incoming or outgoing connections, incoming=%+v outgoing=%+v", incoming, outgoing)
 }
