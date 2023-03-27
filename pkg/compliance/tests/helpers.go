@@ -100,7 +100,6 @@ func (s *suite) Run() {
 	if len(s.rules) == 0 {
 		s.t.Fatal("no rule to run")
 	}
-	s.t.Parallel()
 	for _, c := range s.rules {
 		s.t.Run(c.name, func(t *testing.T) {
 			var options []checks.BuilderOption
