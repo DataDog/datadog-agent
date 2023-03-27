@@ -470,9 +470,7 @@ func TestProtocolClassification(t *testing.T) {
 		t.Skip("Classification is not supported")
 	}
 
-	tr, err := NewTracer(cfg)
-	require.NoError(t, err)
-	t.Cleanup(tr.Stop)
+	tr := setupTracer(t, cfg)
 
 	t.Run("with dnat", func(t *testing.T) {
 		// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
