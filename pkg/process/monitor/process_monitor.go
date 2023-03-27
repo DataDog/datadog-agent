@@ -60,6 +60,11 @@ type ProcessMonitor struct {
 	procEventCallbacks map[ProcessEventType][]*ProcessCallback
 	runningPids        map[uint32]interface{}
 	callbackRunner     chan func()
+
+	// monitor stats
+	eventCount int
+	execCount  int
+	exitCount  int
 }
 
 type ProcessEventType int
@@ -234,11 +239,15 @@ func (pm *ProcessMonitor) Initialize() error {
 	// events are dropped until
 	pm.wg.Add(1)
 	go func() {
+		logTicker := time.NewTicker(2 * time.Minute)
+
 		defer func() {
 			log.Info("netlink process monitor ended")
 			pm.wg.Done()
 			close(pm.callbackRunner)
+			logTicker.Stop()
 		}()
+
 		for {
 			select {
 			case <-pm.done:
@@ -253,13 +262,17 @@ func (pm *ProcessMonitor) Initialize() error {
 					continue
 				}
 
+				pm.eventCount += 1
+
 				switch ev := event.Msg.(type) {
 				case *netlink.ExecProcEvent:
 					for _, c := range pm.procEventCallbacks[EXEC] {
+						pm.execCount += 1
 						pm.evalEXECCallback(c, ev.ProcessPid)
 					}
 				case *netlink.ExitProcEvent:
 					for _, c := range pm.procEventCallbacks[EXIT] {
+						pm.exitCount += 1
 						pm.evalEXITCallback(c, ev.ProcessPid)
 					}
 					delete(pm.runningPids, ev.ProcessPid)
@@ -273,6 +286,9 @@ func (pm *ProcessMonitor) Initialize() error {
 				log.Errorf("process monitor error: %s", err)
 				pm.Stop()
 				return
+
+			case <-logTicker.C:
+				pm.logStats()
 			}
 		}
 	}()
@@ -362,4 +378,12 @@ func (pm *ProcessMonitor) Stop() {
 	pm.m.Unlock()
 	close(pm.done)
 	pm.wg.Wait()
+}
+
+func (pm *ProcessMonitor) logStats() {
+	log.Debugf("process monitor stats - total events: %v; exec events: %v; exit events: %v", pm.eventCount, pm.execCount, pm.exitCount)
+
+	pm.eventCount = 0
+	pm.execCount = 0
+	pm.exitCount = 0
 }
