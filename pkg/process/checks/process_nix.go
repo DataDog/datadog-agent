@@ -37,7 +37,7 @@ func lookupIdWithCache(uid string) (*user.User, error) {
 		var err error
 		u, err := userLookupFunc(uid)
 		if err == nil {
-			formatUserCache.SetDefault(uid, result)
+			formatUserCache.SetDefault(uid, u)
 		} else {
 			formatUserCache.SetDefault(uid, err)
 		}
