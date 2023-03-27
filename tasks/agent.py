@@ -726,7 +726,7 @@ def version(ctx, url_safe=False, omnibus_format=False, git_sha_length=7, major_v
                     by each next call of version.
     """
     if version_cached:
-        cache_version(ctx, git_sha_length=git_sha_length, major_version=major_version)
+        cache_version(ctx, git_sha_length=git_sha_length)
 
     version = get_version(
         ctx,

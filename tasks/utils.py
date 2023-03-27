@@ -332,7 +332,7 @@ def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
     return version, pre, commit_number, git_sha, pipeline_id
 
 
-def cache_version(ctx, git_sha_length=7, prefix=None, major_version='7'):
+def cache_version(ctx, git_sha_length=7, prefix=None):
     """
     Generate a pickle cache file containing all needed variables used by get_version.
     """
@@ -368,7 +368,7 @@ def get_version(
 
             if pre:
                 version = f"{version}-{pre}"
-        except:
+        except (IOError, pickle.PickleError, IndexError):
             # If a cache file is found but corrupted we ignore it.
             version = ""
     # If we didn't load the cache
