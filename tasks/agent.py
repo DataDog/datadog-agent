@@ -722,7 +722,7 @@ def version(ctx, url_safe=False, omnibus_format=False, git_sha_length=7, major_v
     git_sha_length: different versions of git have a different short sha length,
                     use this to explicitly set the version
                     (the windows builder and the default ubuntu version have such an incompatibility)
-    version_cached: save the version inside a "_version.cache" that will be reused
+    version_cached: save the version inside a "agent-version.cache" that will be reused
                     by each next call of version.
     """
     if version_cached:
