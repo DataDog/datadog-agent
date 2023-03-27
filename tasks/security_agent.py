@@ -309,9 +309,7 @@ def build_functional_tests(
 
     build_embed_syscall_tester(ctx)
 
-    ldflags, gcflags, env = get_build_flags(
-        ctx, major_version=major_version, static=static
-    )
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static)
 
     env["CGO_ENABLED"] = "1"
     if arch == "x86":
@@ -722,7 +720,7 @@ def go_generate_check(ctx):
 
 
 @task
-def kitchen_prepare(ctx, local=False, skip_linters=False):
+def kitchen_prepare(ctx, skip_linters=False):
     """
     Compile test suite for kitchen
     """
