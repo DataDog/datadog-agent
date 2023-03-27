@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Add ownership information for containers to container-lifecycle check.
+    Add ownership information for containers to the container-lifecycle check.
