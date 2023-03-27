@@ -6,6 +6,7 @@ High level testing tasks
 # so we only need to check that we don't run this code with old Python versions.
 
 import abc
+import glob
 import json
 import operator
 import os
@@ -122,6 +123,16 @@ def install_tools(ctx):
                 for tool in tools:
                     ctx.run(f"go install {tool}")
 
+
+@task
+def invoke_unit_tests(ctx):
+    """
+    Start unit testsuite of tasks
+    """
+    for _, _, files in os.walk("tasks/unit-tests/", topdown=False):
+        for file in files:
+            if file[-3:] == ".py" and file != "__init__.py":
+                ctx.run(f"python3 -m tasks.unit-tests.{file[:-3]}")
 
 def test_core(
     modules: List[GoModule],
