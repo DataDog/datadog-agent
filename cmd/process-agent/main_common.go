@@ -71,11 +71,13 @@ func main() {
 }
 
 func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
+	cleanupAndExit := cleanupAndExitHandler(globalParams)
+
 	if !globalParams.Info && globalParams.PidFilePath != "" {
 		err := pidfile.WritePID(globalParams.PidFilePath)
 		if err != nil {
 			log.Errorf("Error while writing PID file, exiting: %v", err)
-			os.Exit(1)
+			cleanupAndExit(1)
 		}
 
 		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), globalParams.PidFilePath)
@@ -96,7 +98,7 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 
 	err := runApp(exit, globalParams)
 	if err != nil {
-		os.Exit(1)
+		cleanupAndExit(1)
 	}
 }
 
@@ -177,6 +179,20 @@ func anyChecksEnabled(checks []types.CheckComponent) bool {
 		}
 	}
 	return false
+}
+
+// cleanupAndExitHandler cleans all resources allocated by the agent before calling os.Exit
+func cleanupAndExitHandler(globalParams *command.GlobalParams) func(int) {
+	return func(status int) {
+		// remove pidfile if set
+		if globalParams.PidFilePath != "" {
+			if _, err := os.Stat(globalParams.PidFilePath); err == nil {
+				os.Remove(globalParams.PidFilePath)
+			}
+		}
+
+		os.Exit(status)
+	}
 }
 
 // initRuntimeSettings registers settings to be added to the runtime config.
