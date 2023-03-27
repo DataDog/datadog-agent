@@ -248,7 +248,7 @@ def ninja_runtime_compilation_files(nw):
     runtime_compiler_files = {
         "pkg/collector/corechecks/ebpf/probe/oom_kill.go": "oom-kill",
         "pkg/collector/corechecks/ebpf/probe/tcp_queue_length.go": "tcp-queue-length",
-        "pkg/network/protocols/http/compile.go": "http",
+        "pkg/network/usm/compile.go": "http",
         "pkg/network/tracer/compile.go": "conntrack",
         "pkg/network/tracer/connection/kprobe/compile.go": "tracer",
         "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",

@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
+	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
@@ -51,7 +52,7 @@ type Tracer struct {
 	state        network.State
 	conntracker  netlink.Conntracker
 	reverseDNS   dns.ReverseDNS
-	httpMonitor  *http.Monitor
+	httpMonitor  *usm.Monitor
 	ebpfTracer   connection.Tracer
 	bpfTelemetry *telemetry.EBPFTelemetry
 
@@ -860,11 +861,11 @@ func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error)
 	return nil, nil
 }
 
-func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *telemetry.EBPFTelemetry, offsets []manager.ConstantEditor) *http.Monitor {
+func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *telemetry.EBPFTelemetry, offsets []manager.ConstantEditor) *usm.Monitor {
 	// Shared with the HTTP program
 	sockFDMap := tracer.GetMap(probes.SockByPidFDMap)
 
-	monitor, err := http.NewMonitor(c, offsets, sockFDMap, bpfTelemetry)
+	monitor, err := usm.NewMonitor(c, offsets, sockFDMap, bpfTelemetry)
 	if err != nil {
 		log.Error(err)
 		return nil

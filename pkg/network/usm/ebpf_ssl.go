@@ -6,7 +6,7 @@
 //go:build linux_bpf
 // +build linux_bpf
 
-package http
+package usm
 
 import (
 	"debug/elf"
@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -219,7 +220,7 @@ type sslProgram struct {
 var _ subprogram = &sslProgram{}
 
 func newSSLProgram(c *config.Config, sockFDMap *ebpf.Map) *sslProgram {
-	if !c.EnableHTTPSMonitoring || !HTTPSSupported(c) {
+	if !c.EnableHTTPSMonitoring || !http.HTTPSSupported(c) {
 		return nil
 	}
 

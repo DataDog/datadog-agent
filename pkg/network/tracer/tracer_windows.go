@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -42,7 +42,7 @@ type Tracer struct {
 	stopChan        chan struct{}
 	state           network.State
 	reverseDNS      dns.ReverseDNS
-	httpMonitor     http.Monitor
+	httpMonitor     usm.Monitor
 
 	activeBuffer *network.ConnectionBuffer
 	closedBuffer *network.ConnectionBuffer
@@ -279,16 +279,16 @@ func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error)
 	return nil, ebpf.ErrNotImplemented
 }
 
-func newHttpMonitor(c *config.Config, dh driver.Handle) http.Monitor {
+func newHttpMonitor(c *config.Config, dh driver.Handle) usm.Monitor {
 	if !c.EnableHTTPMonitoring && !c.EnableHTTPSMonitoring {
 		return nil
 	}
 	log.Infof("http monitoring has been enabled")
 
-	var monitor http.Monitor
+	var monitor usm.Monitor
 	var err error
 
-	monitor, err = http.NewWindowsMonitor(c, dh)
+	monitor, err = usm.NewWindowsMonitor(c, dh)
 
 	if err != nil {
 		log.Errorf("could not instantiate http monitor: %s", err)

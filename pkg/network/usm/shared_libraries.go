@@ -6,7 +6,7 @@
 //go:build linux_bpf
 // +build linux_bpf
 
-package http
+package usm
 
 import (
 	"encoding/base64"
@@ -24,17 +24,19 @@ import (
 	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func toLibPath(data []byte) libPath {
-	return *(*libPath)(unsafe.Pointer(&data[0]))
+func toLibPath(data []byte) http.LibPath {
+	return *(*http.LibPath)(unsafe.Pointer(&data[0]))
 }
 
-func (l *libPath) Bytes() []byte {
+func toBytes(l *http.LibPath) []byte {
 	return l.Buf[:l.Len]
+
 }
 
 // pathIdentifier is the unique key (system wide) of a file based on dev/inode
@@ -230,7 +232,7 @@ func (w *soWatcher) Start() {
 				}
 
 				lib := toLibPath(event.Data)
-				path := lib.Bytes()
+				path := toBytes(&lib)
 				libPath := string(path)
 				procPid := fmt.Sprintf("%s/%d", w.procRoot, lib.Pid)
 				root := procPid + "/root"
