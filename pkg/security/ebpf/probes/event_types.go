@@ -368,6 +368,9 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 		// List of probes required to capture ptrace events
 		"ptrace": {
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "ptrace", EntryAndExit)},
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_ptrace_check_attach"}},
+			}},
 		},
 
 		// List of probes required to capture mmap events
