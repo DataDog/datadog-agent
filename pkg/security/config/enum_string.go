@@ -33,9 +33,9 @@ func _() {
 	_ = x[RemoteStorage-1]
 }
 
-const _StorageType_name = "LocalStorageRemoteStorage"
+const _StorageType_name = "local_storageremote_storage"
 
-var _StorageType_index = [...]uint8{0, 12, 25}
+var _StorageType_index = [...]uint8{0, 13, 27}
 
 func (i StorageType) String() string {
 	if i < 0 || i >= StorageType(len(_StorageType_index)-1) {

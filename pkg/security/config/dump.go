@@ -140,9 +140,9 @@ type StorageType int
 
 const (
 	// LocalStorage is used to request a local storage
-	LocalStorage StorageType = iota
+	LocalStorage StorageType = iota // local_storage
 	// RemoteStorage is used to request a remote storage
-	RemoteStorage
+	RemoteStorage // remote_storage
 )
 
 // AllStorageTypes returns the list of supported storage types
