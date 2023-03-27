@@ -64,9 +64,9 @@ func createDCAArchive(fb flarehelpers.FlareBuilder, local bool, confSearchPaths 
 	getMetadataMap(fb)               //nolint:errcheck
 	getClusterAgentClusterChecks(fb) //nolint:errcheck
 	getClusterAgentDiagnose(fb)      //nolint:errcheck
-	getAgentDaemonSet(fb)            //nolint:errcheck
-	getClusterAgentDeployment(fb)    //nolint:errcheck
-	getHelmValues(fb)                //nolint:errcheck
+	fb.AddFileFromFunc("agent-daemonset.yaml", getAgentDaemonSet)
+	fb.AddFileFromFunc("cluster-agent-deployment.yaml", getClusterAgentDeployment)
+	fb.AddFileFromFunc("helm-values.yaml", getHelmValues)
 	fb.AddFileFromFunc("envvars.log", getEnvVars)
 	fb.AddFileFromFunc("telemetry.log", QueryDCAMetrics)
 	fb.AddFileFromFunc("tagger-list.json", getDCATaggerList)
@@ -185,7 +185,7 @@ func getDCAWorkloadList() ([]byte, error) {
 }
 
 // getAgentDaemonSet retrieves the DaemonSet manifest of the Agent
-func getAgentDaemonSet(fb flarehelpers.FlareBuilder) error {
+func getAgentDaemonSet() ([]byte, error) {
 	// The Agent DaemonSet name is based on the Helm chart template and added to the Cluster Agent as an environment variable
 	var agentDaemonsetName string
 	var releaseNamespace string
@@ -193,22 +193,22 @@ func getAgentDaemonSet(fb flarehelpers.FlareBuilder) error {
 
 	cl, err := apiserver.GetAPIClient()
 	if err != nil {
-		return log.Errorf("Can't create client to query the API Server: %s", err)
+		return nil, log.Errorf("Can't create client to query the API Server: %s", err)
 	}
 	agentDaemonsetName = os.Getenv(HELM_AGENT_DAEMONSET)
 	releaseNamespace = os.Getenv(HELM_CHART_RELEASE_NAMESPACE)
 	if agentDaemonsetName == "" || releaseNamespace == "" {
-		return log.Errorf("Can't collect the Agent Daemonset name and/or namespace from the environment variables %s and %v", HELM_AGENT_DAEMONSET, HELM_CHART_RELEASE_NAMESPACE)
+		return nil, log.Errorf("Can't collect the Agent Daemonset name and/or namespace from the environment variables %s and %v", HELM_AGENT_DAEMONSET, HELM_CHART_RELEASE_NAMESPACE)
 	}
 	agentDaemonset, err = GetDaemonset(cl, agentDaemonsetName, releaseNamespace)
 	if err != nil {
-		return log.Errorf("Error while collecting the Agent DaemonSet: %q", err)
+		return nil, log.Errorf("Error while collecting the Agent DaemonSet: %q", err)
 	}
-	return fb.AddFile("agent-daemonset.yaml", agentDaemonset)
+	return agentDaemonset, nil
 }
 
 // getClusterAgentDeployment retrieves the Deployment manifest of the Cluster Agent
-func getClusterAgentDeployment(fb flarehelpers.FlareBuilder) error {
+func getClusterAgentDeployment() ([]byte, error) {
 	// The Cluster Agent Deployment name is based on the Helm chart template and added to the Cluster Agent as an environment variable
 	var clusterAgentDeploymentName string
 	var releaseNamespace string
@@ -216,22 +216,22 @@ func getClusterAgentDeployment(fb flarehelpers.FlareBuilder) error {
 
 	cl, err := apiserver.GetAPIClient()
 	if err != nil {
-		return log.Errorf("Can't create client to query the API Server: %s", err)
+		return nil, log.Errorf("Can't create client to query the API Server: %s", err)
 	}
 	clusterAgentDeploymentName = os.Getenv(HELM_CLUSTER_AGENT_DEPLOYMENT)
 	releaseNamespace = os.Getenv(HELM_CHART_RELEASE_NAMESPACE)
 	if clusterAgentDeploymentName == "" || releaseNamespace == "" {
-		return log.Errorf("Can't collect the Cluster Agent Deployment name and/or namespace from the environment variables %s and %v", HELM_CLUSTER_AGENT_DEPLOYMENT, HELM_CHART_RELEASE_NAMESPACE)
+		return nil, log.Errorf("Can't collect the Cluster Agent Deployment name and/or namespace from the environment variables %s and %v", HELM_CLUSTER_AGENT_DEPLOYMENT, HELM_CHART_RELEASE_NAMESPACE)
 	}
 	clusterAgentDeployment, err = GetDeployment(cl, clusterAgentDeploymentName, releaseNamespace)
 	if err != nil {
-		return log.Errorf("Error while collecting the Cluster Agent Deployment: %q", err)
+		return nil, log.Errorf("Error while collecting the Cluster Agent Deployment: %q", err)
 	}
-	return fb.AddFile("cluster-agent-deployment.yaml", clusterAgentDeployment)
+	return clusterAgentDeployment, nil
 }
 
 // getHelmValues retrieves the user-defined values for the Datadog Helm chart
-func getHelmValues(fb flarehelpers.FlareBuilder) error {
+func getHelmValues() ([]byte, error) {
 	var dataString string
 	var helmUserValues []byte
 	var releaseName string
@@ -239,12 +239,12 @@ func getHelmValues(fb flarehelpers.FlareBuilder) error {
 
 	cl, err := apiserver.GetAPIClient()
 	if err != nil {
-		return log.Errorf("Can't create client to query the API Server: %s", err)
+		return nil, log.Errorf("Can't create client to query the API Server: %s", err)
 	}
 	releaseName = os.Getenv(HELM_CHART_RELEASE_NAME)
 	releaseNamespace = os.Getenv(HELM_CHART_RELEASE_NAMESPACE)
 	if releaseName == "" || releaseNamespace == "" {
-		return log.Errorf("Can't collect the Datadog Helm chart release name and/or namespace from the environment variables %s and %v", HELM_CHART_RELEASE_NAME, HELM_CHART_RELEASE_NAMESPACE)
+		return nil, log.Errorf("Can't collect the Datadog Helm chart release name and/or namespace from the environment variables %s and %v", HELM_CHART_RELEASE_NAME, HELM_CHART_RELEASE_NAMESPACE)
 	}
 	// Attempting to retrieve Helm chart data from secrets (default storage in Helm v3)
 	secret, err := getDeployedHelmSecret(cl, releaseName, releaseNamespace)
@@ -257,7 +257,7 @@ func getHelmValues(fb flarehelpers.FlareBuilder) error {
 		if err != nil {
 			log.Warnf("Unable to decode release stored in secret: %v", err)
 		} else {
-			return fb.AddFile("helm-values.yaml", helmUserValues)
+			return helmUserValues, nil
 		}
 	}
 	// The cluster Agent was unable to retrieve Helm chart data from secrets, attempting to retrieve them from Configmaps
@@ -270,8 +270,8 @@ func getHelmValues(fb flarehelpers.FlareBuilder) error {
 		if err != nil {
 			log.Warnf("Unable to decode release stored in configmap: %v", err)
 		} else {
-			return fb.AddFile("helm-values.yaml", helmUserValues)
+			return helmUserValues, nil
 		}
 	}
-	return nil
+	return nil, fmt.Errorf("Unable to collect Helm values from secrets/configmaps")
 }
