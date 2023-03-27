@@ -14,6 +14,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/constants"
 	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/kubeapiserver"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -38,6 +39,12 @@ func getMockedKubeClient(t *testing.T, objects ...runtime.Object) dynamic.Interf
 
 func TestKubernetesCluster(t *testing.T) {
 	kubeClient := getMockedKubeClient(t,
+		&corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				UID:  "my-cluster",
+				Name: "kube-system",
+			},
+		},
 		newMyObj("testns1", "dummy1", "100"),
 		newMyObj("testns2", "dummy1", "101"),
 		newMyObj("testns2", "dummy2", "102"),

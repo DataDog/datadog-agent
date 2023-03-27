@@ -111,7 +111,7 @@ func (s *suite) Run() {
 				options = append(options, checks.WithDockerClient(s.dockerClient))
 			}
 			if s.kubeClient != nil {
-				options = append(options, checks.WithKubernetesClient(s.kubeClient, "my-cluster"))
+				options = append(options, checks.WithKubernetesClient(s.kubeClient, ""))
 			}
 			c.run(t, options)
 		})
