@@ -25,13 +25,15 @@ type processor struct {
 	sender          aggregator.Sender
 	podsQueue       *queue
 	containersQueue *queue
+	store           workloadmeta.Store
 }
 
-func newProcessor(sender aggregator.Sender, chunkSize int) *processor {
+func newProcessor(sender aggregator.Sender, chunkSize int, store workloadmeta.Store) *processor {
 	return &processor{
 		sender:          sender,
 		podsQueue:       newQueue(chunkSize),
 		containersQueue: newQueue(chunkSize),
+		store:           store,
 	}
 }
 
@@ -99,6 +101,21 @@ func (p *processor) processContainer(container *workloadmeta.Container, sources 
 	if container.State.ExitCode != nil {
 		code := int32(*container.State.ExitCode)
 		event.withContainerExitCode(&code)
+	}
+
+	// Because the container processor is triggered off of runtime events, and the
+	// container runtime would have no knowledge surrounding what owns the container,
+	// we need to query the workloadmeta store to get this information.
+	if c, err := p.store.GetContainer(container.ID); err == nil {
+		if c.Owner != nil {
+			event.withOwnerID(c.Owner.ID)
+			switch c.Owner.Kind {
+			case workloadmeta.KindKubernetesPod:
+				event.withOwnerType(types.ObjectKindPod)
+			default:
+				log.Tracef("Cannot handle owner for container %q with type %q", container.ID, c.Owner.Kind)
+			}
+		}
 	}
 
 	return p.containersQueue.add(event)
