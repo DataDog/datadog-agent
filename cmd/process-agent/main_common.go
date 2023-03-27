@@ -11,7 +11,6 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
-	"time"
 
 	"go.uber.org/fx"
 
@@ -97,11 +96,13 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 	// Log any potential misconfigs that are related to the process agent
 	misconfig.ToLog(misconfig.ProcessAgent)
 
-	exitCode := runApp(exit, globalParams)
-	cleanupAndExit(exitCode)
+	err := runApp(exit, globalParams)
+	if err != nil {
+		cleanupAndExit(1)
+	}
 }
 
-func runApp(exit chan struct{}, globalParams *command.GlobalParams) int {
+func runApp(exit chan struct{}, globalParams *command.GlobalParams) error {
 	go util.HandleSignals(exit)
 
 	var appInitDeps struct {
@@ -142,26 +143,21 @@ func runApp(exit chan struct{}, globalParams *command.GlobalParams) int {
 		url := fmt.Sprintf("http://localhost:%d/debug/vars", getExpvarPort(appInitDeps.Config))
 		if err := status.Info(os.Stdout, url); err != nil {
 			_ = log.Criticalf("Failed to render info:", err.Error())
-			return 1
+			return err
 		}
-		return 0
+		return nil
 	}
 
 	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
 	if !anyChecksEnabled(appInitDeps.Checks) {
 		log.Infof(agent6DisabledMessage)
-
-		// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
-		// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
-		// http://supervisord.org/subprocess.html#process-states
-		time.Sleep(5 * time.Second)
-		return 0
+		return nil
 	}
 
 	err := app.Start(context.Background())
 	if err != nil {
 		log.Criticalf("Failed to start process agent: %v", err)
-		return 1
+		return err
 	}
 
 	// Set up an exit channel
@@ -173,7 +169,7 @@ func runApp(exit chan struct{}, globalParams *command.GlobalParams) int {
 		log.Info("The process-agent has successfully been shut down")
 	}
 
-	return 0
+	return nil
 }
 
 func anyChecksEnabled(checks []types.CheckComponent) bool {
