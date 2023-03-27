@@ -16,8 +16,6 @@ build do
   mkdir "#{install_dir}/embedded/share/system-probe/ebpf/co-re"
   mkdir "#{install_dir}/embedded/share/system-probe/ebpf/co-re/btf"
   mkdir "#{install_dir}/embedded/share/system-probe/java"
-  mkdir "#{install_dir}/embedded/nikos/embedded/bin"
-  mkdir "#{install_dir}/embedded/nikos/embedded/lib"
 
   copy 'pkg/network/java/agent-usm.jar', "#{install_dir}/embedded/share/system-probe/java/"
 
