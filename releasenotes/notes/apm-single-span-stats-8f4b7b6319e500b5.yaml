@@ -8,5 +8,5 @@
 ---
 fixes:
   - |
-    Fixes bug with how stats are calculated when using single span sampling
+    Fixes a bug with how stats are calculated when using single span sampling
     along with other sampling configurations.
