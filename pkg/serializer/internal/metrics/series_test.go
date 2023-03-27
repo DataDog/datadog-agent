@@ -365,8 +365,7 @@ func makeSeries(numItems, numPoints int) *IterableSeries {
 			Name:     "test.metrics",
 			Interval: 15,
 			Host:     "localHost",
-			Device:   "SomeDevice",
-			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes", "dd.internal.resource:device:some_other_device", "dd.internal.resource:database_instance:some_instance", "dd.internal.resource:aws_rds_instance:some_endpoint"}),
+			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes", "device:SomeDevice", "dd.internal.resource:device:some_other_device", "dd.internal.resource:database_instance:some_instance", "dd.internal.resource:aws_rds_instance:some_endpoint"}),
 		})
 	}
 	return CreateIterableSeries(CreateSerieSource(series))
