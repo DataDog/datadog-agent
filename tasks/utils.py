@@ -5,7 +5,6 @@ Miscellaneous functions, no tasks here
 
 import json
 import os
-import pickle
 import re
 import sys
 from subprocess import check_output
@@ -334,17 +333,17 @@ def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
 
 def cache_version(ctx, git_sha_length=7, prefix=None):
     """
-    Generate a pickle cache file containing all needed variables used by get_version.
+    Generate a json cache file containing all needed variables used by get_version.
     """
-    packed_data = []
+    packed_data = {}
     for maj_version in ['6', '7']:
         version, pre, commits_since_version, git_sha, pipeline_id = query_version(
             ctx, git_sha_length, prefix, major_version_hint=maj_version
         )
-        packed_data.append((version, pre, commits_since_version, git_sha, pipeline_id))
-    packed_data.append(is_allowed_repo_nightly_branch(os.getenv("BUCKET_BRANCH")))
-    with open("_version.cache", "wb") as file:
-        pickle.dump(packed_data, file)
+        packed_data[maj_version] = [version, pre, commits_since_version, git_sha, pipeline_id]
+    packed_data["nightly"] = is_allowed_repo_nightly_branch(os.getenv("BUCKET_BRANCH"))
+    with open("agent-version.cache", "w") as file:
+        json.dump(packed_data, file, indent=4)
 
 
 def get_version(
@@ -352,23 +351,22 @@ def get_version(
 ):
     version = ""
     pipeline_id = os.getenv("CI_PIPELINE_ID")
-    if pipeline_id is not None:
+    if pipeline_id:
         try:
-            if not os.path.exists("_version.cache"):
+            if not os.path.exists("agent-version.cache"):
                 os.system(
-                    f"aws s3 cp s3://dd-ci-artefacts-build-stable/{os.getenv('CI_PROJECT_NAME')}/{pipeline_id}/_version.cache . >/dev/null"
+                    f"aws s3 cp s3://dd-ci-artefacts-build-stable/{os.getenv('CI_PROJECT_NAME')}/{pipeline_id}/agent-version.cache . >/dev/null"
                 )
 
-            with open("_version.cache", "rb") as file:
-                cache_data = pickle.load(file)
+            with open("agent-version.cache", "r") as file:
+                cache_data = json.load(file)
 
-            data_index = ord(major_version) - ord('6')
-            version, pre, commits_since_version, git_sha, pipeline_id = cache_data[data_index]
-            is_nightly = cache_data[-1]
+            version, pre, commits_since_version, git_sha, pipeline_id = cache_data[major_version]
+            is_nightly = cache_data["nightly"]
 
             if pre:
                 version = f"{version}-{pre}"
-        except (IOError, pickle.PickleError, IndexError):
+        except (IOError, json.JSONDecodeError, IndexError):
             # If a cache file is found but corrupted we ignore it.
             version = ""
     # If we didn't load the cache
