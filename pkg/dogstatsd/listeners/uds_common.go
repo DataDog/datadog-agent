@@ -14,10 +14,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners/ratelimit"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -45,14 +45,14 @@ type UDSListener struct {
 	packetsBuffer           *packets.Buffer
 	sharedPacketPoolManager *packets.PoolManager
 	oobPoolManager          *packets.PoolManager
-	trafficCapture          *replay.TrafficCapture
+	trafficCapture          replay.Component
 	OriginDetection         bool
 
 	dogstatsdMemBasedRateLimiter bool
 }
 
 // NewUDSListener returns an idle UDS Statsd listener
-func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, capture *replay.TrafficCapture) (*UDSListener, error) {
+func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, capture replay.Component) (*UDSListener, error) {
 	socketPath := config.Datadog.GetString("dogstatsd_socket")
 	originDetection := config.Datadog.GetBool("dogstatsd_origin_detection")
 

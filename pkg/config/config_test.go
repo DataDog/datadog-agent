@@ -231,6 +231,17 @@ func TestSiteEnvVar(t *testing.T) {
 	assert.Equal(t, "https://external-agent.datadoghq.eu", externalAgentURL)
 }
 
+func TestDefaultTraceManagedServicesEnvVarValue(t *testing.T) {
+	testConfig := setupConfFromYAML("")
+	assert.Equal(t, true, testConfig.Get("serverless.trace_managed_services"))
+}
+
+func TestExplicitFalseTraceManagedServicesEnvVar(t *testing.T) {
+	t.Setenv("DD_TRACE_MANAGED_SERVICES", "false")
+	testConfig := setupConfFromYAML("")
+	assert.Equal(t, false, testConfig.Get("serverless.trace_managed_services"))
+}
+
 func TestDDHostnameFileEnvVar(t *testing.T) {
 	t.Setenv("DD_API_KEY", "fakeapikey")
 	t.Setenv("DD_HOSTNAME_FILE", "somefile")

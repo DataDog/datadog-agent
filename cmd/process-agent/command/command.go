@@ -15,12 +15,16 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
+	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const LoggerName config.LoggerName = "PROCESS"
+
+// DaemonLogParams are the log params should be given to the `core.BundleParams` for when the process agent is running as a daemon
+var DaemonLogParams = logComponent.LogForDaemon(string(LoggerName), "process_config.log_file", config.DefaultProcessAgentLogFile)
 
 // GlobalParams contains the values of agent-global Cobra flags.
 //
@@ -37,9 +41,6 @@ type GlobalParams struct {
 
 	// PidFilePath specifies the path to the pid file
 	PidFilePath string
-
-	// Info
-	Info bool
 
 	// WinParams provides windows specific options
 	WinParams WinParams
@@ -78,7 +79,6 @@ func MakeCommand(subcommandFactories []SubcommandFactory, winParams bool, rootCm
 	}
 
 	rootCmd.PersistentFlags().StringVarP(&globalParams.PidFilePath, "pid", "p", "", "Path to set pidfile for process")
-	rootCmd.PersistentFlags().BoolVarP(&globalParams.Info, "info", "i", false, "Show info about running process agent and exit")
 	rootCmd.PersistentFlags().BoolP("version", "v", false, "[deprecated] Print the version and exit")
 	rootCmd.PersistentFlags().String("check", "",
 		"[deprecated] Run a specific check and print the results. Choose from: process, rtprocess, container, rtcontainer, connections, process_discovery")

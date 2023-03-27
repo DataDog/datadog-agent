@@ -82,6 +82,7 @@ func (series *IterableSeries) WriteCurrentItem(stream *jsoniter.Stream) error {
 
 func writeItem(stream *jsoniter.Stream, serie *metrics.Serie) error {
 	serie.PopulateDeviceField()
+	serie.PopulateResources()
 	encodeSerie(serie, stream)
 	return stream.Flush()
 }
@@ -199,6 +200,7 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 	// the serie.NoIndex field.
 	for series.source.MoveNext() {
 		serie = series.source.Current()
+		serie.PopulateResources()
 
 		buf.Reset()
 		err = ps.Embedded(payloadSeries, func(ps *molecule.ProtoStream) error {
@@ -237,6 +239,27 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 				})
 				if err != nil {
 					return err
+				}
+			}
+
+			if len(serie.Resources) > 0 {
+				for _, r := range serie.Resources {
+					err = ps.Embedded(seriesResources, func(ps *molecule.ProtoStream) error {
+						err = ps.String(resourceType, r.Type)
+						if err != nil {
+							return err
+						}
+
+						err = ps.String(resourceName, r.Name)
+						if err != nil {
+							return err
+						}
+
+						return nil
+					})
+					if err != nil {
+						return err
+					}
 				}
 			}
 
@@ -374,6 +397,7 @@ func (series *IterableSeries) MarshalJSON() ([]byte, error) {
 	for series.MoveNext() {
 		serie := series.source.Current()
 		serie.PopulateDeviceField()
+		serie.PopulateResources()
 		seriesAlias = append(seriesAlias, serie)
 	}
 

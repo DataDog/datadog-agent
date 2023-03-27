@@ -82,6 +82,16 @@ metrics:
       3: ipv4z
       4: ipv6z
       16: dns
+  - tag: if_type
+    column:
+      OID: 1.3.6.1.2.1.2.2.1.3
+      name: ifType
+    mapping:
+      1: other
+      2: regular1822
+      3: hdh1822
+      4: ddn-x25
+      29: ultra
   - column:
       OID: '1.2.3.4.8.1.2'
       name: 'cpiPduName'
@@ -93,6 +103,12 @@ metric_tags:
   - OID: 1.2.3
     symbol: mySymbol
     tag: my_symbol
+  - OID: 1.2.3
+    symbol: mySymbol
+    tag: my_symbol_mapped
+    mapping:
+      1: one
+      2: two
   - OID: 1.2.3
     symbol: mySymbol
     match: '(\w)(\w+)'
@@ -170,6 +186,15 @@ bulk_max_repetitions: 20
 					"4":  "ipv6z",
 					"16": "dns",
 				}},
+				{Tag: "if_type",
+					Column: SymbolConfig{OID: "1.3.6.1.2.1.2.2.1.3", Name: "ifType"},
+					Mapping: map[string]string{
+						"1":  "other",
+						"2":  "regular1822",
+						"3":  "hdh1822",
+						"4":  "ddn-x25",
+						"29": "ultra",
+					}},
 				{
 					Column: SymbolConfig{
 						Name: "cpiPduName",
@@ -190,6 +215,7 @@ bulk_max_repetitions: 20
 
 	expectedMetricTags := []MetricTagConfig{
 		{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol"},
+		{Tag: "my_symbol_mapped", OID: "1.2.3", Name: "mySymbol", Mapping: map[string]string{"1": "one", "2": "two"}},
 		{
 			OID:     "1.2.3",
 			Name:    "mySymbol",

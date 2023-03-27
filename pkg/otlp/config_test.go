@@ -336,8 +336,9 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 					"instrumentation_scope_metadata_as_tags":   true,
 					"tag_cardinality":                          "orchestrator",
 					"histograms": map[string]interface{}{
-						"mode":                   "counters",
-						"send_count_sum_metrics": true,
+						"mode":                     "counters",
+						"send_count_sum_metrics":   true,
+						"send_aggregation_metrics": true,
 					},
 				},
 				Debug: map[string]interface{}{

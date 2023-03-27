@@ -169,7 +169,17 @@ int BPF_PROG(udp_sendpage_exit, struct sock *sk, struct page *page, int offset, 
 }
 
 SEC("fexit/tcp_recvmsg")
-int BPF_PROG(tcp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, int nonblock, int flags, int *addr_len, int copied) {
+int BPF_PROG(tcp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, int flags, int *addr_len, int copied) {
+    if (copied < 0) { // error
+        return 0;
+    }
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    return handle_tcp_recv(pid_tgid, sk, copied);
+}
+
+SEC("fexit/tcp_recvmsg")
+int BPF_PROG(tcp_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, size_t len, int nonblock, int flags, int *addr_len, int copied) {
     if (copied < 0) { // error
         return 0;
     }
@@ -326,14 +336,28 @@ int BPF_PROG(udpv6_recvmsg, struct sock *sk, struct msghdr *msg, size_t len, int
 }
 
 SEC("fexit/udp_recvmsg")
-int BPF_PROG(udp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, int noblock,
+int BPF_PROG(udp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len,
+             int flags, int *addr_len,
+             int copied) {
+    return handle_udp_recvmsg_ret();
+}
+
+SEC("fexit/udp_recvmsg")
+int BPF_PROG(udp_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, size_t len, int noblock,
              int flags, int *addr_len,
              int copied) {
     return handle_udp_recvmsg_ret();
 }
 
 SEC("fexit/udpv6_recvmsg")
-int BPF_PROG(udpv6_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, int noblock,
+int BPF_PROG(udpv6_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len,
+             int flags, int *addr_len,
+             int copied) {
+    return handle_udp_recvmsg_ret();
+}
+
+SEC("fexit/udpv6_recvmsg")
+int BPF_PROG(udpv6_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, size_t len, int noblock,
              int flags, int *addr_len,
              int copied) {
     return handle_udp_recvmsg_ret();

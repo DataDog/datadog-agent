@@ -11,7 +11,6 @@ import java.io.FileOutputStream;
 public class TestAgentLoaded {
 
     public static void agentmain(String agentArgs, Instrumentation inst) {
-        System.out.println("loading TestAgentLoaded.agentmain("+agentArgs+")");
         try {
             // parsing the argument like agent-usm.jar
             if (agentArgs != ""){
@@ -28,7 +27,8 @@ public class TestAgentLoaded {
             }
         } catch (Exception ex) {
             System.out.println(ex);
+        } finally {
+            System.out.println("loading TestAgentLoaded.agentmain("+agentArgs+")");
         }
     }
-    
 }

@@ -28,6 +28,7 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 
 	kv410 := kernel.VersionCode(4, 1, 0)
 	kv470 := kernel.VersionCode(4, 7, 0)
+	kv5190 := kernel.VersionCode(5, 19, 0)
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, err
@@ -44,7 +45,8 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 		enableProbe(enabled, probes.TCPSendMsgReturn)
 		enableProbe(enabled, probes.TCPSendPage)
 		enableProbe(enabled, probes.TCPSendPageReturn)
-		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPRecvMsg, probes.TCPRecvMsgPre410, kv410))
+		// 5.19: remove noblock parameter in *_recvmsg https://github.com/torvalds/linux/commit/ec095263a965720e1ca39db1d9c5cd47846c789b
+		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPRecvMsg, probes.TCPRecvMsgPre5190, kv5190), probes.TCPRecvMsgPre410, kv410))
 		enableProbe(enabled, probes.TCPRecvMsgReturn)
 		enableProbe(enabled, probes.TCPReadSock)
 		enableProbe(enabled, probes.TCPReadSockReturn)
@@ -82,9 +84,11 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 		enableProbe(enabled, probes.InetBindRet)
 		enableProbe(enabled, probes.UDPSendPage)
 		enableProbe(enabled, probes.UDPSendPageReturn)
-		if kv >= kv470 || runtimeTracer {
+		if kv >= kv5190 || runtimeTracer {
 			enableProbe(enabled, probes.UDPRecvMsg)
-		} else if kv > kv410 {
+		} else if kv >= kv470 {
+			enableProbe(enabled, probes.UDPRecvMsgPre5190)
+		} else if kv >= kv410 {
 			enableProbe(enabled, probes.UDPRecvMsgPre470)
 		} else {
 			enableProbe(enabled, probes.UDPRecvMsgPre410)
@@ -92,9 +96,11 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.UDPRecvMsgReturn, probes.UDPRecvMsgReturnPre470, kv470))
 		if c.CollectIPv6Conns {
 			enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.IP6MakeSkb, probes.IP6MakeSkbPre470, kv470))
-			if kv >= kv470 || runtimeTracer {
+			if kv >= kv5190 || runtimeTracer {
 				enableProbe(enabled, probes.UDPv6RecvMsg)
-			} else if kv > kv410 {
+			} else if kv >= kv470 {
+				enableProbe(enabled, probes.UDPv6RecvMsgPre5190)
+			} else if kv >= kv410 {
 				enableProbe(enabled, probes.UDPv6RecvMsgPre470)
 			} else {
 				enableProbe(enabled, probes.UDPv6RecvMsgPre410)

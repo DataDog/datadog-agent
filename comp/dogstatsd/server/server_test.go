@@ -6,7 +6,6 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
 	"net"
 	"sort"
@@ -15,18 +14,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -53,8 +51,10 @@ func getAvailableUDPPort() (int, error) {
 func runWithComponent(t testing.TB, test func(Component)) {
 	fxutil.Test(t, fx.Options(
 		core.MockBundle,
+		serverDebug.MockModule,
 		fx.Supply(core.BundleParams{}),
 		fx.Supply(Params{Serverless: false}),
+		replay.MockModule,
 		Module,
 	), test)
 }
@@ -62,8 +62,10 @@ func runWithComponent(t testing.TB, test func(Component)) {
 func runWithComponentAndConfig(t testing.TB, overrides map[string]interface{}, test func(Component, configComponent.Component)) {
 	fxutil.Test(t, fx.Options(
 		core.MockBundle,
+		serverDebug.MockModule,
 		fx.Supply(core.BundleParams{ConfigParams: configComponent.NewParams("", configComponent.WithOverrides(overrides))}),
 		fx.Supply(Params{Serverless: false}),
+		replay.MockModule,
 		Module,
 	), test)
 }
@@ -692,156 +694,6 @@ func TestStaticTags(t *testing.T) {
 			"sometag3:somevalue3",
 			"from:dd_tags",
 		})
-	})
-}
-
-func TestDebugStatsSpike(t *testing.T) {
-	config.SetDetectedFeatures(config.FeatureMap{})
-	defer config.SetDetectedFeatures(nil)
-
-	runWithComponent(t, func(c Component) {
-		s := c.(*server)
-
-		config.SetDetectedFeatures(config.FeatureMap{})
-		defer config.SetDetectedFeatures(nil)
-
-		assert := assert.New(t)
-		demux := mockDemultiplexer()
-		defer demux.Stop(false)
-
-		requireStart(t, s, demux)
-
-		clk := clock.NewMock()
-		s.Debug = newDSDServerDebugWithClock(clk)
-
-		defer s.Stop()
-
-		s.EnableMetricsStats()
-		sample := metrics.MetricSample{Name: "some.metric1", Tags: make([]string, 0)}
-
-		send := func(count int) {
-			for i := 0; i < count; i++ {
-				s.Debug.storeMetricStats(sample)
-			}
-		}
-
-		send(10)
-
-		clk.Add(1050 * time.Millisecond)
-		send(10)
-
-		clk.Add(1050 * time.Millisecond)
-		send(10)
-
-		clk.Add(1050 * time.Millisecond)
-		send(10)
-
-		clk.Add(1050 * time.Millisecond)
-		send(500)
-
-		// stop the debug loop to avoid data race
-		s.DisableMetricsStats()
-		time.Sleep(500 * time.Millisecond)
-
-		assert.True(s.hasSpike())
-
-		s.EnableMetricsStats()
-		// This sleep is necessary as we need to wait for the goroutine function within 'EnableMetricsStats' to start.
-		// If we remove the sleep, the debug loop ticker will not be triggered by the clk.Add() call and the 500 samples
-		// added with 'send(500)' will be considered as if they had been added in the same second as the previous 500 samples.
-		// This will lead to a spike because we have 1000 samples in 1 second instead of having 500 and 500 in 2 different seconds.
-		time.Sleep(1050 * time.Millisecond)
-
-		clk.Add(1050 * time.Millisecond)
-		send(500)
-
-		// stop the debug loop to avoid data race
-		s.DisableMetricsStats()
-		time.Sleep(500 * time.Millisecond)
-
-		// it is no more considered a spike because we had another second with 500 metrics
-		assert.False(s.hasSpike())
-	})
-}
-
-func TestDebugStats(t *testing.T) {
-	config.SetDetectedFeatures(config.FeatureMap{})
-	defer config.SetDetectedFeatures(nil)
-
-	runWithComponent(t, func(c Component) {
-		s := c.(*server)
-
-		demux := mockDemultiplexer()
-		defer demux.Stop(false)
-		requireStart(t, s, demux)
-		clk := clock.NewMock()
-		s.Debug = newDSDServerDebugWithClock(clk)
-		defer s.Stop()
-
-		s.EnableMetricsStats()
-
-		keygen := ckey.NewKeyGenerator()
-
-		// data
-		sample1 := metrics.MetricSample{Name: "some.metric1", Tags: make([]string, 0)}
-		sample2 := metrics.MetricSample{Name: "some.metric2", Tags: []string{"a"}}
-		sample3 := metrics.MetricSample{Name: "some.metric3", Tags: make([]string, 0)}
-		sample4 := metrics.MetricSample{Name: "some.metric4", Tags: []string{"b", "c"}}
-		sample5 := metrics.MetricSample{Name: "some.metric4", Tags: []string{"c", "b"}}
-		hash1 := keygen.Generate(sample1.Name, "", tagset.NewHashingTagsAccumulatorWithTags(sample1.Tags))
-		hash2 := keygen.Generate(sample2.Name, "", tagset.NewHashingTagsAccumulatorWithTags(sample2.Tags))
-		hash3 := keygen.Generate(sample3.Name, "", tagset.NewHashingTagsAccumulatorWithTags(sample3.Tags))
-		hash4 := keygen.Generate(sample4.Name, "", tagset.NewHashingTagsAccumulatorWithTags(sample4.Tags))
-		hash5 := keygen.Generate(sample5.Name, "", tagset.NewHashingTagsAccumulatorWithTags(sample5.Tags))
-
-		// test ingestion and ingestion time
-		s.Debug.storeMetricStats(sample1)
-		s.Debug.storeMetricStats(sample2)
-		clk.Add(10 * time.Millisecond)
-		s.Debug.storeMetricStats(sample1)
-
-		data, err := s.GetJSONDebugStats()
-		require.NoError(t, err, "cannot get debug stats")
-		require.NotNil(t, data)
-		require.NotEmpty(t, data)
-
-		var stats map[ckey.ContextKey]metricStat
-		err = json.Unmarshal(data, &stats)
-		require.NoError(t, err, "data is not valid")
-		require.Len(t, stats, 2, "two metrics should have been captured")
-
-		require.True(t, stats[hash1].LastSeen.After(stats[hash2].LastSeen), "some.metric1 should have appeared again after some.metric2")
-
-		s.Debug.storeMetricStats(sample3)
-		clk.Add(10 * time.Millisecond)
-		s.Debug.storeMetricStats(sample1)
-
-		s.Debug.storeMetricStats(sample4)
-		s.Debug.storeMetricStats(sample5)
-		data, _ = s.GetJSONDebugStats()
-		err = json.Unmarshal(data, &stats)
-		require.NoError(t, err, "data is not valid")
-		require.Len(t, stats, 4, "4 metrics should have been captured")
-
-		// test stats array
-		metric1 := stats[hash1]
-		metric2 := stats[hash2]
-		metric3 := stats[hash3]
-		metric4 := stats[hash4]
-		metric5 := stats[hash5]
-
-		require.True(t, metric1.LastSeen.After(metric2.LastSeen), "some.metric1 should have appeared again after some.metric2")
-		require.True(t, metric1.LastSeen.After(metric3.LastSeen), "some.metric1 should have appeared again after some.metric3")
-		require.True(t, metric3.LastSeen.After(metric2.LastSeen), "some.metric3 should have appeared again after some.metric2")
-
-		require.Equal(t, metric1.Count, uint64(3))
-		require.Equal(t, metric2.Count, uint64(1))
-		require.Equal(t, metric3.Count, uint64(1))
-
-		// test context correctness
-		require.Equal(t, metric4.Tags, "c b")
-		require.Equal(t, metric5.Tags, "c b")
-		require.Equal(t, hash4, hash5)
 	})
 }
 

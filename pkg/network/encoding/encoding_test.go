@@ -524,6 +524,101 @@ func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCo
 	assert.Equal(t, out, result)
 }
 
+func TestHTTP2SerializationWithLocalhostTraffic(t *testing.T) {
+	t.Run("status code", func(t *testing.T) {
+		testHTTP2SerializationWithLocalhostTraffic(t, true)
+	})
+	t.Run("status class", func(t *testing.T) {
+		testHTTP2SerializationWithLocalhostTraffic(t, false)
+	})
+}
+
+func testHTTP2SerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCode bool) {
+	var (
+		clientPort = uint16(52800)
+		serverPort = uint16(8080)
+		localhost  = util.AddressFromString("127.0.0.1")
+	)
+
+	http2ReqStats := http.NewRequestStats(aggregateByStatusCode)
+	in := &network.Connections{
+		BufferedData: network.BufferedData{
+			Conns: []network.ConnectionStats{
+				{
+					Source: localhost,
+					Dest:   localhost,
+					SPort:  clientPort,
+					DPort:  serverPort,
+				},
+				{
+					Source: localhost,
+					Dest:   localhost,
+					SPort:  serverPort,
+					DPort:  clientPort,
+				},
+			},
+		},
+		HTTP2: map[http.Key]*http.RequestStats{
+			http.NewKey(
+				localhost,
+				localhost,
+				clientPort,
+				serverPort,
+				"/testpath",
+				true,
+				http.MethodPost,
+			): http2ReqStats,
+		},
+	}
+
+	http2Out := &model.HTTP2Aggregations{
+		EndpointAggregations: []*model.HTTPStats{
+			{
+				Path:              "/testpath",
+				Method:            model.HTTPMethod_Post,
+				FullPath:          true,
+				StatsByStatusCode: make(map[int32]*model.HTTPStats_Data),
+			},
+		},
+	}
+
+	http2OutBlob, err := proto.Marshal(http2Out)
+	require.NoError(t, err)
+
+	out := &model.Connections{
+		Conns: []*model.Connection{
+			{
+				Laddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
+				Raddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
+				Http2Aggregations: http2OutBlob,
+				RouteIdx:          -1,
+				Protocol:          formatProtocol(network.ProtocolUnknown, 0),
+			},
+			{
+				Laddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
+				Raddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
+				Http2Aggregations: http2OutBlob,
+				RouteIdx:          -1,
+				Protocol:          formatProtocol(network.ProtocolUnknown, 0),
+			},
+		},
+		AgentConfiguration: &model.AgentConfiguration{
+			NpmEnabled: false,
+			UsmEnabled: false,
+		},
+	}
+
+	marshaler := GetMarshaler("application/protobuf")
+	blob, err := marshaler.Marshal(in)
+	require.NoError(t, err)
+
+	unmarshaler := GetUnmarshaler("application/protobuf")
+	result, err := unmarshaler.Unmarshal(blob)
+	require.NoError(t, err)
+
+	assert.Equal(t, out, result)
+}
+
 func TestPooledObjectGarbageRegression(t *testing.T) {
 	// This test ensures that no garbage data is accidentally
 	// left on pooled Connection objects used during serialization
@@ -587,6 +682,74 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 			// No HTTP data in this payload, so we should never get HTTP data back after the serialization
 			in.HTTP = nil
 			out := encodeAndDecodeHTTP(in)
+			require.Nil(t, out, "expected a nil object, but got garbage")
+		}
+	}
+}
+
+func TestPooledHTTP2ObjectGarbageRegression(t *testing.T) {
+	// This test ensures that no garbage data is accidentally
+	// left on pooled Connection objects used during serialization
+	httpKey := http.NewKey(
+		util.AddressFromString("10.0.15.1"),
+		util.AddressFromString("172.217.10.45"),
+		60000,
+		8080,
+		"",
+		true,
+		http.MethodGet,
+	)
+
+	in := &network.Connections{
+		BufferedData: network.BufferedData{
+			Conns: []network.ConnectionStats{
+				{
+					Source: util.AddressFromString("10.0.15.1"),
+					SPort:  uint16(60000),
+					Dest:   util.AddressFromString("172.217.10.45"),
+					DPort:  uint16(8080),
+				},
+			},
+		},
+	}
+
+	encodeAndDecodeHTTP2 := func(c *network.Connections) *model.HTTP2Aggregations {
+		marshaler := GetMarshaler("application/protobuf")
+		blob, err := marshaler.Marshal(c)
+		require.NoError(t, err)
+
+		unmarshaler := GetUnmarshaler("application/protobuf")
+		result, err := unmarshaler.Unmarshal(blob)
+		require.NoError(t, err)
+
+		http2Blob := result.Conns[0].Http2Aggregations
+		if http2Blob == nil {
+			return nil
+		}
+
+		http2Out := new(model.HTTP2Aggregations)
+		err = proto.Unmarshal(http2Blob, http2Out)
+		require.NoError(t, err)
+		return http2Out
+	}
+
+	// Let's alternate between payloads with and without HTTP2 data
+	for i := 0; i < 1000; i++ {
+		if (i % 2) == 0 {
+			httpKey.Path = http.Path{
+				Content:  fmt.Sprintf("/path-%d", i),
+				FullPath: true,
+			}
+			in.HTTP2 = map[http.Key]*http.RequestStats{httpKey: {}}
+			out := encodeAndDecodeHTTP2(in)
+
+			require.NotNil(t, out)
+			require.Len(t, out.EndpointAggregations, 1)
+			require.Equal(t, httpKey.Path.Content, out.EndpointAggregations[0].Path)
+		} else {
+			// No HTTP2 data in this payload, so we should never get HTTP2 data back after the serialization
+			in.HTTP2 = nil
+			out := encodeAndDecodeHTTP2(in)
 			require.Nil(t, out, "expected a nil object, but got garbage")
 		}
 	}
