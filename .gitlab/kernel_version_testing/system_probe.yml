@@ -54,7 +54,7 @@ pull_test_dockers_arm64:
     - mkdir junit
     - mkdir testjson
     - mkdir pkgjson
-    # copy over docker images
+   # copy over docker images
     - cp -R $KITCHEN_DOCKERS $DEPENDENCIES/kitchen-docker
     # copy system probe tests
     - mkdir -p $SYSTEM_PROBE_TESTS
@@ -112,8 +112,8 @@ kernel_matrix_testing_setup_env:
   variables:
     EC2_X86_INSTANCE_TYPE: "i3.metal"
     EC2_ARM_INSTANCE_TYPE: "m6g.metal"
-    X86_AMI_ID: "ami-06cd73b2190867365"
-    ARM_AMI_ID: "ami-06e1611879d5a5b85"
+    X86_AMI_ID: "ami-0f50812e4388946ff"
+    ARM_AMI_ID: "ami-0d0b8e440bb126e28"
     AWS_REGION: us-east-1
     LibvirtSSHKeyX86: $CI_PROJECT_DIR/libvirt_rsa-x86
     LibvirtSSHKeyARM: $CI_PROJECT_DIR/libvirt_rsa-arm
