@@ -127,6 +127,12 @@ type ActivityDump struct {
 	// Dump metadata
 	Metadata
 
+	// Used to store the global list of DNS names contained in this dump
+	// this is a hack used to provide this global list to the backend in the JSON header
+	// instead of in the protobuf payload.
+	allDNSNamesMap map[string]struct{} `json:"-"`
+	DNSNames       []string            `json:"dns_names"`
+
 	// Load config
 	LoadConfig       *model.ActivityDumpLoadConfig `json:"-"`
 	LoadConfigCookie uint32                        `json:"-"`
@@ -161,6 +167,8 @@ func NewEmptyActivityDump() *ActivityDump {
 		bindFamilyDrop:     atomic.NewUint64(0),
 		pathMergedCount:    atomic.NewUint64(0),
 		StorageRequests:    make(map[config.StorageFormat][]config.StorageRequest),
+
+		allDNSNamesMap: make(map[string]struct{}),
 	}
 
 	// generate counters
@@ -1479,6 +1487,8 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 
 // InsertDNSEvent inserts
 func (ad *ActivityDump) InsertDNSEvent(pan *ProcessActivityNode, evt *model.DNSEvent, rules []*model.MatchedRule) bool {
+	ad.insertDNSNameToHackyBackendList(evt.Name)
+
 	if dnsNode, ok := pan.DNSNames[evt.Name]; ok {
 		dnsNode.MatchedRules = model.AppendMatchedRule(dnsNode.MatchedRules, rules)
 		// look for the DNS request type
@@ -1494,6 +1504,14 @@ func (ad *ActivityDump) InsertDNSEvent(pan *ProcessActivityNode, evt *model.DNSE
 	}
 	pan.DNSNames[evt.Name] = NewDNSNode(evt, &ad.nodeStats, rules)
 	return true
+}
+
+func (ad *ActivityDump) insertDNSNameToHackyBackendList(name string) {
+	if name == "" {
+		return
+	}
+
+	ad.allDNSNamesMap[name] = struct{}{}
 }
 
 // InsertBindEvent inserts a bind event to the activity dump
