@@ -49,6 +49,29 @@ func easyjson9a9a4de6DecodeGithubComDataDogDatadogAgentPkgSecuritySecurityProfil
 			out.Source = string(in.String())
 		case "ddtags":
 			out.DDTags = string(in.String())
+		case "dns_names":
+			if in.IsNull() {
+				in.Skip()
+				out.DNSNames = nil
+			} else {
+				in.Delim('[')
+				if out.DNSNames == nil {
+					if !in.IsDelim(']') {
+						out.DNSNames = make([]string, 0, 4)
+					} else {
+						out.DNSNames = []string{}
+					}
+				} else {
+					out.DNSNames = (out.DNSNames)[:0]
+				}
+				for !in.IsDelim(']') {
+					var v1 string
+					v1 = string(in.String())
+					out.DNSNames = append(out.DNSNames, v1)
+					in.WantComma()
+				}
+				in.Delim(']')
+			}
 		case "agent_version":
 			out.AgentVersion = string(in.String())
 		case "agent_commit":
@@ -130,13 +153,29 @@ func easyjson9a9a4de6EncodeGithubComDataDogDatadogAgentPkgSecuritySecurityProfil
 		out.String(string(in.DDTags))
 	}
 	{
-		const prefix string = ",\"agent_version\":"
+		const prefix string = ",\"dns_names\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)
 		}
+		if in.DNSNames == nil && (out.Flags&jwriter.NilSliceAsEmpty) == 0 {
+			out.RawString("null")
+		} else {
+			out.RawByte('[')
+			for v2, v3 := range in.DNSNames {
+				if v2 > 0 {
+					out.RawByte(',')
+				}
+				out.String(string(v3))
+			}
+			out.RawByte(']')
+		}
+	}
+	{
+		const prefix string = ",\"agent_version\":"
+		out.RawString(prefix)
 		out.String(string(in.AgentVersion))
 	}
 	{
