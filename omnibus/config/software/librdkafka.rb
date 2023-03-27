@@ -7,7 +7,8 @@ default_version "2.0.2"
 
 if windows?
   build do
-    command "nuget install librdkafka.redist -version #{version} -OutputDirectory #{install_dir}/embedded/lib"
+    librd_dir = "c:\\librdkafka-redist"
+    command "nuget install librdkafka.redist -version #{version} -OutputDirectory #{librd_dir}"
   end
 else
     dependency "cyrus-sasl"
