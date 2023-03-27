@@ -81,45 +81,6 @@ def get_rtloader_paths(embedded_path=None, rtloader_root=None):
     return rtloader_lib, rtloader_headers, rtloader_common_headers
 
 
-def get_nikos_linker_flags(nikos_libs_path):
-    nikos_libs = [
-        'dnf',
-        'gio-2.0',
-        'modulemd',
-        'gobject-2.0',
-        'ffi',
-        'yaml',
-        'gmodule-2.0',
-        'repo',
-        'glib-2.0',
-        'pcre',
-        'z',
-        'solvext',
-        'rpm',
-        'rpmio',
-        'bz2',
-        'solv',
-        'gpgme',
-        'assuan',
-        'gcrypt',
-        'gpg-error',
-        'sqlite3',
-        'curl',
-        'nghttp2',
-        'ssl',
-        'crypto',
-        'json-c',
-        'lzma',
-        'xml2',
-        'popt',
-        'zstd',
-    ]
-    # hardcode the path to each library to ensure we link against the version which was built by omnibus-nikos
-    linker_flags = [nikos_libs_path + '/lib' + lib + '.a' for lib in nikos_libs]
-
-    return ' -L' + nikos_libs_path + ' ' + ' '.join(linker_flags) + ' -static-libstdc++ -pthread -ldl -lm'
-
-
 def has_both_python(python_runtimes):
     python_runtimes = python_runtimes.split(',')
     return '2' in python_runtimes and '3' in python_runtimes
