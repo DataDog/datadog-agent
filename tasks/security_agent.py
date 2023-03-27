@@ -761,10 +761,6 @@ def kitchen_prepare(ctx, local=False, skip_linters=False):
     # Build test2json binary
     ctx.run(f"go build -o {KITCHEN_ARTIFACT_DIR}/test2json -ldflags=\"-s -w\" cmd/test2json", env={"CGO_ENABLED": "0"})
 
-    # Copy nikos zip file
-    if not local:
-        ctx.run(f"cp /tmp/nikos.tar.gz {KITCHEN_ARTIFACT_DIR}/")
-
     ebpf_bytecode_dir = os.path.join(KITCHEN_ARTIFACT_DIR, "ebpf_bytecode")
     ebpf_runtime_dir = os.path.join(ebpf_bytecode_dir, "runtime")
     bytecode_build_dir = os.path.join(CI_PROJECT_DIR, "pkg", "ebpf", "bytecode", "build")
