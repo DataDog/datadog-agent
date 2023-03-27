@@ -5,9 +5,9 @@ Miscellaneous functions, no tasks here
 
 import json
 import os
+import pickle
 import re
 import sys
-import pickle
 from subprocess import check_output
 
 from invoke import task

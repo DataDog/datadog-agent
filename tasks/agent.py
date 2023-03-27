@@ -27,10 +27,10 @@ from .ssm import get_pfx_pass, get_signing_cert
 from .utils import (
     REPO_PATH,
     bin_name,
+    cache_version,
     generate_config,
     get_build_flags,
     get_version,
-    cache_version,
     get_version_numeric_only,
     get_win_py_runtime_var,
     has_both_python,
