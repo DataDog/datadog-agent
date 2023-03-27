@@ -3,7 +3,7 @@ import os
 import time
 
 from .githubapp import GithubApp, GithubAppException
-from .remote_api import RemoteAPI, APIError
+from .remote_api import APIError, RemoteAPI
 
 __all__ = ["GithubWorkflows", "GithubException", "get_github_app_token"]
 
