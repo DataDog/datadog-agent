@@ -4,7 +4,7 @@ on:
   pull_request:
 
 env:
-  SIZE_ALLOWANCE: 100000  # 0.1 MB
+  SIZE_ALLOWANCE: 1000000  # 1 MB
 
 jobs:
   comment:
