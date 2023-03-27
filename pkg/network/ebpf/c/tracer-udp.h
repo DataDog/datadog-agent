@@ -100,8 +100,10 @@ SEC("kprobe/udp_recvmsg")
 int kprobe__udp_recvmsg(struct pt_regs *ctx) {
 #if defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
     int flags = (int)PT_REGS_PARM6(ctx);
-#else
+#elif defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0)
     int flags = (int)PT_REGS_PARM5(ctx);
+#else
+    int flags = (int)PT_REGS_PARM4(ctx);
 #endif
     struct sock *sk = NULL;
     struct msghdr *msg = NULL;
@@ -113,8 +115,10 @@ SEC("kprobe/udpv6_recvmsg")
 int kprobe__udpv6_recvmsg(struct pt_regs *ctx) {
 #if defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
     int flags = (int)PT_REGS_PARM6(ctx);
-#else
+#elif defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0)
     int flags = (int)PT_REGS_PARM5(ctx);
+#else
+    int flags = (int)PT_REGS_PARM4(ctx);
 #endif
     struct sock *sk = NULL;
     struct msghdr *msg = NULL;
@@ -182,6 +186,22 @@ static __always_inline int handle_ret_udp_recvmsg_pre_4_7_0(int copied, void *ud
     handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN, 0, 1, PACKET_COUNT_NONE, st->sk);
 
     return 0;
+}
+
+SEC("kprobe/udp_recvmsg")
+int kprobe__udp_recvmsg_pre_5_19_0(struct pt_regs *ctx) {
+    struct sock *sk = NULL;
+    struct msghdr *msg = NULL;
+    int flags = (int)PT_REGS_PARM5(ctx);
+    handle_udp_recvmsg(sk, msg, flags, udp_recv_sock);
+}
+
+SEC("kprobe/udpv6_recvmsg")
+int kprobe__udpv6_recvmsg_pre_5_19_0(struct pt_regs *ctx) {
+    struct sock *sk = NULL;
+    struct msghdr *msg = NULL;
+    int flags = (int)PT_REGS_PARM5(ctx);
+    handle_udp_recvmsg(sk, msg, flags, udp_recv_sock);
 }
 
 SEC("kprobe/udp_recvmsg")

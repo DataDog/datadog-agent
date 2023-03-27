@@ -17,9 +17,12 @@ int kprobe__tcp_recvmsg(struct pt_regs *ctx) {
 #if defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
     struct sock *skp = (void*)PT_REGS_PARM2(ctx);
     int flags = (int)PT_REGS_PARM6(ctx);
+#elif defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0)
+    struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
+    int flags = (int)PT_REGS_PARM5(ctx);
 #else
     struct sock *skp = (void*)PT_REGS_PARM1(ctx);
-    int flags = (int)PT_REGS_PARM5(ctx);
+    int flags = (int)PT_REGS_PARM4(ctx);
 #endif
     if (flags & MSG_PEEK) {
         return 0;
@@ -37,6 +40,18 @@ int kprobe__tcp_sendmsg__pre_4_1_0(struct pt_regs *ctx) {
     log_debug("kprobe/tcp_sendmsg: pid_tgid: %d\n", pid_tgid);
     struct sock *skp = (struct sock *)PT_REGS_PARM2(ctx);
     bpf_map_update_with_telemetry(tcp_sendmsg_args, &pid_tgid, &skp, BPF_ANY);
+    return 0;
+}
+
+SEC("kprobe/tcp_recvmsg")
+int kprobe__tcp_recvmsg__pre_5_19_0(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    int flags = (int)PT_REGS_PARM5(ctx);
+    if (flags & MSG_PEEK) {
+        return 0;
+    }
+    struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
+    bpf_map_update_with_telemetry(tcp_recvmsg_args, &pid_tgid, &skp, BPF_ANY);
     return 0;
 }
 
