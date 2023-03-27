@@ -19,27 +19,39 @@ import (
 	"github.com/patrickmn/go-cache"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 var (
 	// overridden in tests
 	hostCPUCount = system.HostCPUCount
+
+	formatUserCache = cache.New(time.Hour, time.Hour) // Used by lookupIdWithCache
+	userLookupFunc  = user.LookupId                   // Overridden in tests
 )
 
-var formatUserCache = cache.New(time.Hour, time.Hour)
-
 func lookupIdWithCache(uid string) (*user.User, error) {
-	u, ok := formatUserCache.Get(uid)
+	result, ok := formatUserCache.Get(uid)
 	if !ok {
 		var err error
-		u, err = user.LookupId(uid)
-		if err != nil {
-			return nil, err
+		u, err := userLookupFunc(uid)
+		if err == nil {
+			formatUserCache.SetDefault(uid, result)
+		} else {
+			formatUserCache.SetDefault(uid, err)
 		}
-		formatUserCache.SetDefault(uid, u)
+		return u, err
 	}
-	return u.(*user.User), nil
+
+	switch v := result.(type) {
+	case *user.User:
+		return v, nil
+	case error:
+		return nil, v
+	default:
+		return nil, log.Error("Unknown value cached in formatUserCache for uid:", uid)
+	}
 }
 
 func formatUser(fp *procutil.Process) *model.ProcessUser {
