@@ -26,27 +26,27 @@ var (
 
 // Telemetry
 var stateTelemetry = struct {
-	closedConnDropped     nettelemetry.StatGaugeWrapper
-	connDropped           nettelemetry.StatGaugeWrapper
-	statsUnderflows       nettelemetry.StatGaugeWrapper
-	statsCookieCollisions nettelemetry.StatGaugeWrapper
-	timeSyncCollisions    nettelemetry.StatGaugeWrapper
-	dnsStatsDropped       nettelemetry.StatGaugeWrapper
-	httpStatsDropped      nettelemetry.StatGaugeWrapper
-	http2StatsDropped     nettelemetry.StatGaugeWrapper
-	kafkaStatsDropped     nettelemetry.StatGaugeWrapper
-	dnsPidCollisions      nettelemetry.StatGaugeWrapper
+	closedConnDropped     *nettelemetry.StatCounterWrapper
+	connDropped           *nettelemetry.StatCounterWrapper
+	statsUnderflows       *nettelemetry.StatCounterWrapper
+	statsCookieCollisions *nettelemetry.StatCounterWrapper
+	timeSyncCollisions    *nettelemetry.StatCounterWrapper
+	dnsStatsDropped       *nettelemetry.StatCounterWrapper
+	httpStatsDropped      *nettelemetry.StatCounterWrapper
+	http2StatsDropped     *nettelemetry.StatCounterWrapper
+	kafkaStatsDropped     *nettelemetry.StatCounterWrapper
+	dnsPidCollisions      *nettelemetry.StatCounterWrapper
 }{
-	nettelemetry.NewStatGaugeWrapper(stateModuleName, "closed_conn_dropped", []string{}, "Gauge measuring the number of dropped closed connections"),
-	nettelemetry.NewStatGaugeWrapper(stateModuleName, "conn_dropped", []string{}, "Gauge measuring the number of closed connections"),
-	nettelemetry.NewStatGaugeWrapper(stateModuleName, "stats_underflows", []string{}, "Gauge measuring the number of stats underflows"),
-	nettelemetry.NewStatGaugeWrapper(stateModuleName, "stats_cookie_collisions", []string{}, "Gauge measuring the number of stats cookie collisions"),
-	nettelemetry.NewStatGaugeWrapper(stateModuleName, "time_sync_collisions", []string{}, "Gauge measuring the number of time sync collisions"),
-	nettelemetry.NewStatGaugeWrapper(stateModuleName, "dns_stats_dropped", []string{}, "Gauge measuring the number of DNS stats dropped"),
-	nettelemetry.NewStatGaugeWrapper(stateModuleName, "http_stats_dropped", []string{}, "Gauge measuring the number of http stats"),
-	nettelemetry.NewStatGaugeWrapper(stateModuleName, "http2_stats_dropped", []string{}, "Gauge measuring the number of http2 stats"),
-	nettelemetry.NewStatGaugeWrapper(stateModuleName, "kafka_stats_dropped", []string{}, "Gauge measuring the number of kafka stats dropped"),
-	nettelemetry.NewStatGaugeWrapper(stateModuleName, "dns_pid_collisions", []string{}, "Gauge measuring the number of DNS PID collisions"),
+	nettelemetry.NewStatCounterWrapper(stateModuleName, "closed_conn_dropped", []string{}, "Counter measuring the number of dropped closed connections"),
+	nettelemetry.NewStatCounterWrapper(stateModuleName, "conn_dropped", []string{}, "Counter measuring the number of closed connections"),
+	nettelemetry.NewStatCounterWrapper(stateModuleName, "stats_underflows", []string{}, "Counter measuring the number of stats underflows"),
+	nettelemetry.NewStatCounterWrapper(stateModuleName, "stats_cookie_collisions", []string{}, "Counter measuring the number of stats cookie collisions"),
+	nettelemetry.NewStatCounterWrapper(stateModuleName, "time_sync_collisions", []string{}, "Counter measuring the number of time sync collisions"),
+	nettelemetry.NewStatCounterWrapper(stateModuleName, "dns_stats_dropped", []string{}, "Counter measuring the number of DNS stats dropped"),
+	nettelemetry.NewStatCounterWrapper(stateModuleName, "http_stats_dropped", []string{}, "Counter measuring the number of http stats"),
+	nettelemetry.NewStatCounterWrapper(stateModuleName, "http2_stats_dropped", []string{}, "Counter measuring the number of http2 stats"),
+	nettelemetry.NewStatCounterWrapper(stateModuleName, "kafka_stats_dropped", []string{}, "Counter measuring the number of kafka stats dropped"),
+	nettelemetry.NewStatCounterWrapper(stateModuleName, "dns_pid_collisions", []string{}, "Gauge measuring the number of DNS PID collisions"),
 }
 
 const (
@@ -61,7 +61,7 @@ const (
 	// ConnectionByteKeyMaxLen represents the maximum size in bytes of a connection byte key
 	ConnectionByteKeyMaxLen = 41
 
-	stateModuleName = "network_tracer_state"
+	stateModuleName = "network_tracer__state"
 )
 
 // State takes care of handling the logic for:
@@ -347,6 +347,7 @@ func (ns *networkState) logTelemetry() {
 		s += " [%d dns stats dropped]"
 		s += " [%d HTTP stats dropped]"
 		s += " [%d HTTP2 stats dropped]"
+		s += " [%d Kafka stats dropped]"
 		s += " [%d DNS pid collisions]"
 		s += " [%d time sync collisions]"
 		log.Warnf(s,
@@ -357,6 +358,7 @@ func (ns *networkState) logTelemetry() {
 			dnsStatsDroppedDelta,
 			httpStatsDroppedDelta,
 			http2StatsDroppedDelta,
+			kafkaStatsDroppedDelta,
 			dnsPidCollisionsDelta,
 			timeSyncCollisionsDelta)
 	}

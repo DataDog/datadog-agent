@@ -20,19 +20,15 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 )
 
-const (
-	perfReceivedStat        = "closed_conn_polling_received"
-	perfLostStat            = "closed_conn_polling_lost"
-	closeConsumerModuleName = "network_tracer_ebpf"
-)
+const closeConsumerModuleName = "network_tracer__ebpf"
 
 // Telemetry
 var closerConsumerTelemetry = struct {
-	perfReceived telemetry.Gauge
-	perfLost     telemetry.Gauge
+	perfReceived telemetry.Counter
+	perfLost     telemetry.Counter
 }{
-	telemetry.NewGauge(closeConsumerModuleName, perfReceivedStat, []string{}, "Gauge measuring the number of closed connection batches received"),
-	telemetry.NewGauge(closeConsumerModuleName, perfLostStat, []string{}, "Gauge measuring the number of batches lost (were transmitted from ebpf but never received)"),
+	telemetry.NewCounter(closeConsumerModuleName, "closed_conn_polling_received", []string{}, "Counter measuring the number of closed connection batches received"),
+	telemetry.NewCounter(closeConsumerModuleName, "closed_conn_polling_lost", []string{}, "Counter measuring the number of batches lost (were transmitted from ebpf but never received)"),
 }
 
 type tcpCloseConsumer struct {

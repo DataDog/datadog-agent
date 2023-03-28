@@ -31,19 +31,19 @@ const (
 	maxProcessQueueLen = 100
 	// maxProcessListSize is the max size of a processList
 	maxProcessListSize     = 3
-	processCacheModuleName = "network_tracer_process_cache"
+	processCacheModuleName = "network_tracer__process_cache"
 )
 
 var processCacheTelemetry = struct {
-	cacheEvicts   telemetry.Gauge
+	cacheEvicts   telemetry.Counter
 	cacheLength   telemetry.Gauge
-	eventsDropped telemetry.Gauge
-	eventsSkipped telemetry.Gauge
+	eventsDropped telemetry.Counter
+	eventsSkipped telemetry.Counter
 }{
-	newGauge(processCacheModuleName, "cache_evicts", "Gauge measuring the number of evictions in the process cache"),
-	newGauge(processCacheModuleName, "cache_length", "Gauge measuring the current size of the process cache"),
-	newGauge(processCacheModuleName, "events_dropped", "Gauge measuring the number of dropped process events"),
-	newGauge(processCacheModuleName, "events_skipped", "Gauge measuring the number of skipped process events"),
+	telemetry.NewCounter(processCacheModuleName, "cache_evicts", []string{}, "Counter measuring the number of evictions in the process cache"),
+	telemetry.NewGauge(processCacheModuleName, "cache_length", []string{}, "Gauge measuring the current size of the process cache"),
+	telemetry.NewCounter(processCacheModuleName, "events_dropped", []string{}, "Counter measuring the number of dropped process events"),
+	telemetry.NewCounter(processCacheModuleName, "events_skipped", []string{}, "Counter measuring the number of skipped process events"),
 }
 
 type process struct {
@@ -119,10 +119,17 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 		}
 	}()
 
+	// Refreshes process cache telemetry on a loop
+	// TODO: Replace with prometheus collector interface
 	go func() {
+		ticker := time.NewTicker(10 * time.Second)
 		for {
-			processCacheTelemetry.cacheLength.Set(float64(pc.cache.Len()))
-			time.Sleep(10 * time.Second)
+			select {
+			case <-pc.stopped:
+				return
+			case <-ticker.C:
+				processCacheTelemetry.cacheLength.Set(float64(pc.cache.Len()))
+			}
 		}
 	}()
 

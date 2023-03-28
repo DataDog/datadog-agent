@@ -30,17 +30,17 @@ const maxSubnetCacheSize = 1024
 
 // Telemetry
 var gatewayLookupTelemetry = struct {
-	subnetCacheSize    nettelemetry.StatGaugeWrapper
-	subnetCacheMisses  nettelemetry.StatGaugeWrapper
-	subnetCacheLookups nettelemetry.StatGaugeWrapper
-	subnetLookups      nettelemetry.StatGaugeWrapper
-	subnetLookupErrors nettelemetry.StatGaugeWrapper
+	subnetCacheSize    *nettelemetry.StatGaugeWrapper
+	subnetCacheMisses  *nettelemetry.StatCounterWrapper
+	subnetCacheLookups *nettelemetry.StatCounterWrapper
+	subnetLookups      *nettelemetry.StatCounterWrapper
+	subnetLookupErrors *nettelemetry.StatCounterWrapper
 }{
-	nettelemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_cache_size", []string{}, "Gauge measuring the size of the subnet cache"),
-	nettelemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_cache_misses", []string{}, "Gauge measuring the number of subnet cache misses"),
-	nettelemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_cache_lookups", []string{}, "Gauge measuring the number of subnet cache lookups"),
-	nettelemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_lookups", []string{}, "Gauge measuring the number of subnet lookups"),
-	nettelemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_lookup_errors", []string{}, "Gauge measuring the number of subnet lookup errors"),
+	nettelemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_cache_size", []string{}, "Counter measuring the size of the subnet cache"),
+	nettelemetry.NewStatCounterWrapper("gateway_lookup", "subnet_cache_misses", []string{}, "Counter measuring the number of subnet cache misses"),
+	nettelemetry.NewStatCounterWrapper("gateway_lookup", "subnet_cache_lookups", []string{}, "Counter measuring the number of subnet cache lookups"),
+	nettelemetry.NewStatCounterWrapper("gateway_lookup", "subnet_lookups", []string{}, "Counter measuring the number of subnet lookups"),
+	nettelemetry.NewStatCounterWrapper("gateway_lookup", "subnet_lookup_errors", []string{}, "Counter measuring the number of subnet lookup errors"),
 }
 
 type gatewayLookup struct {

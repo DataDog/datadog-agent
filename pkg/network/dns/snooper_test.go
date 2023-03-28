@@ -54,8 +54,8 @@ func checkSnooping(t *testing.T, destIP string, destName string, reverseDNS *dns
 
 func TestDNSOverUDPSnooping(t *testing.T) {
 	cacheTelemetry.length.Set(0)
-	cacheTelemetry.lookups.Set(0)
-	cacheTelemetry.resolved.Set(0)
+	cacheTelemetry.lookups.Delete()
+	cacheTelemetry.resolved.Delete()
 	reverseDNS := initDNSTestsWithDomainCollection(t, false)
 	defer reverseDNS.Close()
 
@@ -76,8 +76,8 @@ func TestDNSOverUDPSnooping(t *testing.T) {
 
 func TestDNSOverTCPSnooping(t *testing.T) {
 	cacheTelemetry.length.Set(0)
-	cacheTelemetry.lookups.Set(0)
-	cacheTelemetry.resolved.Set(0)
+	cacheTelemetry.lookups.Delete()
+	cacheTelemetry.resolved.Delete()
 	reverseDNS := initDNSTestsWithDomainCollection(t, false)
 	defer reverseDNS.Close()
 
@@ -411,7 +411,7 @@ func TestDNSOverUDPTimeoutCountWithoutDomain(t *testing.T) {
 
 func TestParsingError(t *testing.T) {
 	cacheTelemetry.length.Set(0)
-	snooperTelemetry.decodingErrors.Set(0)
+	snooperTelemetry.decodingErrors.Delete()
 	cfg := testConfig()
 	cfg.CollectDNSStats = false
 	cfg.CollectLocalDNS = false
@@ -456,8 +456,8 @@ func TestDNSOverIPv6(t *testing.T) {
 
 func TestDNSNestedCNAME(t *testing.T) {
 	cacheTelemetry.length.Set(0)
-	cacheTelemetry.lookups.Set(0)
-	cacheTelemetry.resolved.Set(0)
+	cacheTelemetry.lookups.Delete()
+	cacheTelemetry.resolved.Delete()
 	reverseDNS := initDNSTestsWithDomainCollection(t, true)
 	defer reverseDNS.Close()
 	statKeeper := reverseDNS.statKeeper

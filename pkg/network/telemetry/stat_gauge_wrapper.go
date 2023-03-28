@@ -11,7 +11,7 @@ import (
 )
 
 // StatGaugeWrapper is a convenience type that allows for migrating telemetry to
-// prometheus Gauges while continuing to return the underlying values as expvars
+// prometheus Gauges while continuing to make the underlying values available for reading
 type StatGaugeWrapper struct {
 	stat  *atomic.Int64
 	gauge telemetry.Gauge
@@ -41,8 +41,8 @@ func (sgw *StatGaugeWrapper) Load() int64 {
 	return sgw.stat.Load()
 }
 
-func NewStatGaugeWrapper(subsystem string, statName string, tags []string, description string) StatGaugeWrapper {
-	return StatGaugeWrapper{
+func NewStatGaugeWrapper(subsystem string, statName string, tags []string, description string) *StatGaugeWrapper {
+	return &StatGaugeWrapper{
 		stat:  atomic.NewInt64(0),
 		gauge: telemetry.NewGauge(subsystem, statName, tags, description),
 	}

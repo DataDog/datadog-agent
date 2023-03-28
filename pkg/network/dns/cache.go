@@ -19,19 +19,19 @@ import (
 
 // Telemetry
 var cacheTelemetry = struct {
-	length    nettelemetry.StatGaugeWrapper
-	lookups   nettelemetry.StatGaugeWrapper
-	resolved  nettelemetry.StatGaugeWrapper
-	added     nettelemetry.StatGaugeWrapper
-	expired   nettelemetry.StatGaugeWrapper
-	oversized nettelemetry.StatGaugeWrapper
+	length    *nettelemetry.StatGaugeWrapper
+	lookups   *nettelemetry.StatCounterWrapper
+	resolved  *nettelemetry.StatCounterWrapper
+	added     *nettelemetry.StatCounterWrapper
+	expired   *nettelemetry.StatGaugeWrapper
+	oversized *nettelemetry.StatCounterWrapper
 }{
 	nettelemetry.NewStatGaugeWrapper(dnsModuleName, "length", []string{}, "Gauge measuring the current size of the DNS cache"),
-	nettelemetry.NewStatGaugeWrapper(dnsModuleName, "lookups", []string{}, "Gauge measuring the number of lookups to the DNS cache"),
-	nettelemetry.NewStatGaugeWrapper(dnsModuleName, "resolved", []string{}, "Gauge measuring the number of successful lookups to the DNS cache"),
-	nettelemetry.NewStatGaugeWrapper(dnsModuleName, "added", []string{}, "Gauge measuring the number of additions to the DNS cache"),
+	nettelemetry.NewStatCounterWrapper(dnsModuleName, "lookups", []string{}, "Counter measuring the number of lookups to the DNS cache"),
+	nettelemetry.NewStatCounterWrapper(dnsModuleName, "resolved", []string{}, "Counter measuring the number of successful lookups to the DNS cache"),
+	nettelemetry.NewStatCounterWrapper(dnsModuleName, "added", []string{}, "Counter measuring the number of additions to the DNS cache"),
 	nettelemetry.NewStatGaugeWrapper(dnsModuleName, "expired", []string{}, "Gauge measuring the number of failed lookups to the DNS cache"),
-	nettelemetry.NewStatGaugeWrapper(dnsModuleName, "oversized", []string{}, "Gauge measuring the number of lookups to the DNS cache that reached the max domains per IP limit"),
+	nettelemetry.NewStatCounterWrapper(dnsModuleName, "oversized", []string{}, "Counter measuring the number of lookups to the DNS cache that reached the max domains per IP limit"),
 }
 
 type reverseDNSCache struct {

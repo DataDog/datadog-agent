@@ -23,23 +23,23 @@ import (
 const (
 	dnsCacheExpirationPeriod = 1 * time.Minute
 	dnsCacheSize             = 100000
-	dnsModuleName            = "network_tracer_dns"
+	dnsModuleName            = "network_tracer__dns"
 )
 
 // Telemetry
 var snooperTelemetry = struct {
-	decodingErrors telemetry.StatGaugeWrapper
-	truncatedPkts  telemetry.StatGaugeWrapper
-	queries        telemetry.StatGaugeWrapper
-	successes      telemetry.StatGaugeWrapper
-	errors         telemetry.StatGaugeWrapper
+	decodingErrors *telemetry.StatCounterWrapper
+	truncatedPkts  *telemetry.StatCounterWrapper
+	queries        *telemetry.StatCounterWrapper
+	successes      *telemetry.StatCounterWrapper
+	errors         *telemetry.StatCounterWrapper
 }{
-	telemetry.NewStatGaugeWrapper(dnsModuleName, "decoding_errors", []string{}, "Gauge measuring the number of decoding errors while processing packets"),
-	telemetry.NewStatGaugeWrapper(dnsModuleName, "truncated_pkts", []string{}, "Gauge measuring the number of truncated packets while processing"),
+	telemetry.NewStatCounterWrapper(dnsModuleName, "decoding_errors", []string{}, "Counter measuring the number of decoding errors while processing packets"),
+	telemetry.NewStatCounterWrapper(dnsModuleName, "truncated_pkts", []string{}, "Counter measuring the number of truncated packets while processing"),
 	// DNS telemetry, values calculated *till* the last tick in pollStats
-	telemetry.NewStatGaugeWrapper(dnsModuleName, "queries", []string{}, "Gauge measuring the number of packets that are DNS queries in processed packets"),
-	telemetry.NewStatGaugeWrapper(dnsModuleName, "successes", []string{}, "Gauge measuring the number of successful DNS responses in processed packets"),
-	telemetry.NewStatGaugeWrapper(dnsModuleName, "errors", []string{}, "Gauge measuring the number of failed DNS responses in processed packets"),
+	telemetry.NewStatCounterWrapper(dnsModuleName, "queries", []string{}, "Counter measuring the number of packets that are DNS queries in processed packets"),
+	telemetry.NewStatCounterWrapper(dnsModuleName, "successes", []string{}, "Counter measuring the number of successful DNS responses in processed packets"),
+	telemetry.NewStatCounterWrapper(dnsModuleName, "errors", []string{}, "Counter measuring the number of failed DNS responses in processed packets"),
 }
 
 var _ ReverseDNS = &socketFilterSnooper{}
@@ -79,7 +79,7 @@ func newSocketFilterSnooper(cfg *config.Config, source packetSource) (*socketFil
 	cache := newReverseDNSCache(dnsCacheSize, dnsCacheExpirationPeriod)
 	var statKeeper *dnsStatKeeper
 	if cfg.CollectDNSStats {
-		statKeeper = newDNSStatkeeper(cfg.DNSTimeout, cfg.MaxDNSStats)
+		statKeeper = newDNSStatkeeper(cfg.DNSTimeout, int64(cfg.MaxDNSStats))
 		log.Infof("DNS Stats Collection has been enabled. Maximum number of stats objects: %d", cfg.MaxDNSStats)
 		if cfg.CollectDNSDomains {
 			log.Infof("DNS domain collection has been enabled")

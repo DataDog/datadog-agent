@@ -24,19 +24,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const telemetryModuleName = "network_tracer_dns"
+const telemetryModuleName = "network_tracer__dns"
 
 // Telemetry
 var packetSourceTelemetry = struct {
-	polls     telemetry.StatGaugeWrapper
-	processed telemetry.StatGaugeWrapper
-	captured  telemetry.StatGaugeWrapper
-	dropped   telemetry.StatGaugeWrapper
+	polls     *telemetry.StatCounterWrapper
+	processed *telemetry.StatCounterWrapper
+	captured  *telemetry.StatCounterWrapper
+	dropped   *telemetry.StatCounterWrapper
 }{
-	telemetry.NewStatGaugeWrapper(telemetryModuleName, "polls", []string{}, "Gauge measuring the number of polled packets"),
-	telemetry.NewStatGaugeWrapper(telemetryModuleName, "processed", []string{}, "Gauge measuring the number of processed packets"),
-	telemetry.NewStatGaugeWrapper(telemetryModuleName, "captured", []string{}, "Gauge measuring the number of captured packets"),
-	telemetry.NewStatGaugeWrapper(telemetryModuleName, "dropped", []string{}, "Gauge measuring the number of dropped packets"),
+	telemetry.NewStatCounterWrapper(telemetryModuleName, "polls", []string{}, "Counter measuring the number of polled packets"),
+	telemetry.NewStatCounterWrapper(telemetryModuleName, "processed", []string{}, "Counter measuring the number of processed packets"),
+	telemetry.NewStatCounterWrapper(telemetryModuleName, "captured", []string{}, "Counter measuring the number of captured packets"),
+	telemetry.NewStatCounterWrapper(telemetryModuleName, "dropped", []string{}, "Counter measuring the number of dropped packets"),
 }
 
 // AFPacketSource provides a RAW_SOCKET attached to an eBPF SOCKET_FILTER

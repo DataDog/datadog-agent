@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -27,18 +27,18 @@ const (
 	// query means the packet contains a DNS query
 	query
 	// Subsystem name for telemetry purposes
-	dnsStatKeeperModuleName = "network_tracer_dns_stat_keeper"
+	dnsStatKeeperModuleName = "network_tracer__dns_stat_keeper"
 	// This const limits the maximum size of the state map. Benchmark results show that allocated space is less than 3MB
 	// for 10000 entries.
 	maxStateMapSize = 10000
 )
 
 var statsTelemetry = struct {
-	lastNumStats     telemetry.Gauge
-	lastDroppedStats telemetry.Gauge
+	processedStats *nettelemetry.StatCounterWrapper
+	droppedStats   *nettelemetry.StatCounterWrapper
 }{
-	telemetry.NewGauge(dnsStatKeeperModuleName, "last_num_stats", []string{}, "Gauge measuring the number of processed DNS stats"),
-	telemetry.NewGauge(dnsStatKeeperModuleName, "last_dropped_stats", []string{}, "Gauge measuring the number of dropped DNS stats"),
+	nettelemetry.NewStatCounterWrapper(dnsStatKeeperModuleName, "processed_stats", []string{}, "Counter measuring the number of processed DNS stats"),
+	nettelemetry.NewStatCounterWrapper(dnsStatKeeperModuleName, "dropped_stats", []string{}, "Counter measuring the number of dropped DNS stats"),
 }
 
 type dnsPacketInfo struct {
@@ -64,18 +64,18 @@ type stateValue struct {
 type dnsStatKeeper struct {
 	mux sync.Mutex
 	// map a DNS key to a map of domain strings to a map of query types to a map of  DNS stats
-	stats            StatsByKeyByNameByType
-	state            map[stateKey]stateValue
-	expirationPeriod time.Duration
-	exit             chan struct{}
-	maxSize          int // maximum size of the state map
-	deleteCount      int
-	numStats         int
-	maxStats         int
-	droppedStats     int
+	stats              StatsByKeyByNameByType
+	state              map[stateKey]stateValue
+	expirationPeriod   time.Duration
+	exit               chan struct{}
+	maxSize            int // maximum size of the state map
+	deleteCount        int
+	lastProcessedStats int64
+	maxStats           int64
+	lastDroppedStats   int64
 }
 
-func newDNSStatkeeper(timeout time.Duration, maxStats int) *dnsStatKeeper {
+func newDNSStatkeeper(timeout time.Duration, maxStats int64) *dnsStatKeeper {
 	statsKeeper := &dnsStatKeeper{
 		stats:            make(StatsByKeyByNameByType),
 		state:            make(map[stateKey]stateValue),
@@ -138,20 +138,20 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 	}
 	stats, ok := allStats[start.question]
 	if !ok {
-		if d.numStats >= d.maxStats {
-			d.droppedStats++
+		if statsTelemetry.processedStats.Load() >= d.maxStats {
+			statsTelemetry.droppedStats.Inc()
 			return
 		}
 		stats = make(map[QueryType]Stats)
 	}
 	byqtype, ok := stats[start.qtype]
 	if !ok {
-		if d.numStats >= d.maxStats {
-			d.droppedStats++
+		if statsTelemetry.processedStats.Load() >= d.maxStats {
+			statsTelemetry.droppedStats.Inc()
 			return
 		}
 		byqtype.CountByRcode = make(map[uint32]uint32)
-		d.numStats++
+		statsTelemetry.processedStats.Inc()
 	}
 
 	// Note: time.Duration in the agent version of go (1.12.9) does not have the Microseconds method.
@@ -175,11 +175,13 @@ func (d *dnsStatKeeper) GetAndResetAllStats() StatsByKeyByNameByType {
 	defer d.mux.Unlock()
 	ret := d.stats // No deep copy needed since `d.stats` gets reset
 	d.stats = make(StatsByKeyByNameByType)
-	log.Debugf("[DNS Stats] Number of processed stats: %d, Number of dropped stats: %d", d.numStats, d.droppedStats)
-	statsTelemetry.lastNumStats.Set(float64(d.numStats))
-	statsTelemetry.lastDroppedStats.Set(float64(d.droppedStats))
-	d.numStats = 0
-	d.droppedStats = 0
+	processedStats := statsTelemetry.processedStats.Load()
+	droppedStats := statsTelemetry.droppedStats.Load()
+	log.Debugf("[DNS Stats] Number of processed stats: %d, Number of dropped stats: %d", processedStats, droppedStats)
+	d.lastProcessedStats = processedStats
+	d.lastDroppedStats = droppedStats
+	statsTelemetry.droppedStats.Delete()
+	statsTelemetry.processedStats.Delete()
 	return ret
 }
 
@@ -226,15 +228,15 @@ func (d *dnsStatKeeper) removeExpiredStates(earliestTs time.Time) {
 			}
 			bytype, ok := allStats[v.question]
 			if !ok {
-				if d.numStats >= d.maxStats {
-					d.droppedStats++
+				if statsTelemetry.processedStats.Load() >= d.maxStats {
+					statsTelemetry.droppedStats.Inc()
 					continue
 				}
 				bytype = make(map[QueryType]Stats)
 			}
 			stats, ok := bytype[v.qtype]
 			if !ok {
-				d.numStats++
+				statsTelemetry.processedStats.Inc()
 				stats.CountByRcode = make(map[uint32]uint32)
 			}
 			stats.Timeouts++

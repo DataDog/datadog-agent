@@ -32,7 +32,7 @@ import (
 const (
 	compactInterval      = time.Minute
 	defaultOrphanTimeout = 2 * time.Minute
-	telemetryModuleName  = "network_tracer_conntracker"
+	telemetryModuleName  = "network_tracer__conntracker"
 )
 
 // Conntracker is a wrapper around go-conntracker that keeps a record of all connections in user space
@@ -63,10 +63,7 @@ type orphanEntry struct {
 }
 
 type stats struct {
-	registersDropped     *atomic.Int64
-	getTimeTotal         *atomic.Int64
-	registersTotalTime   *atomic.Int64
-	unregisters          *atomic.Int64
+	unregistersTotal     *atomic.Int64
 	unregistersTotalTime *atomic.Int64
 }
 
@@ -80,37 +77,28 @@ type realConntracker struct {
 	maxStateSize int
 
 	compactTicker *time.Ticker
+	exit          chan struct{}
 	stats         stats
 }
 
-func newGauge(name string, help string, tags ...string) telemetry.Gauge {
-	return telemetry.NewGauge(telemetryModuleName, name,
-		append([]string{}, tags...), help)
-}
-
-func newGaugeWrapper(name string, help string, tags ...string) nettelemetry.StatGaugeWrapper {
-	return nettelemetry.NewStatGaugeWrapper(telemetryModuleName, name,
-		append([]string{}, tags...), help)
-}
-
 var conntrackerTelemetry = struct {
-	getsTotal                nettelemetry.StatGaugeWrapper
-	registersTotal           nettelemetry.StatGaugeWrapper
-	evictsTotal              nettelemetry.StatGaugeWrapper
-	nanoSecondsPerGet        telemetry.Gauge
+	gets                     telemetry.Histogram
+	registers                telemetry.Histogram
+	evictsTotal              *nettelemetry.StatCounterWrapper
+	registersDropped         *nettelemetry.StatCounterWrapper
 	nanoSecondsPerRegister   telemetry.Gauge
 	nanoSecondsPerUnRegister telemetry.Gauge
 	stateSize                telemetry.Gauge
 	orphanSize               telemetry.Gauge
 }{
-	newGaugeWrapper("gets_total", "Gauge measuring the total number of attempts to get connection tuples from the EBPF map"),
-	newGaugeWrapper("registers_total", "Gauge measuring the total number of attempts to update/create connection tuples in the EBPF map"),
-	newGaugeWrapper("evicts_total", "Gauge measuring the number of evictions from the conntrack cache"),
-	newGauge("nanoseconds_per_get", "Gauge measuring the time spent getting a single connection tuple from the EBPF map"),
-	newGauge("nanoseconds_per_register", "Gauge measuring the time spent updating/creating a single connection tuple in the EBPF map"),
-	newGauge("nanoseconds_per_unregister", "Gauge measuring the time spent deleting a single connection tuple from the EBPF map"),
-	newGauge("state_size", "Gauge measuring the current size of the conntrack cache"),
-	newGauge("orphan_size", "Gauge measuring the number of orphaned items in the conntrack cache"),
+	telemetry.NewHistogram(telemetryModuleName, "gets", []string{}, "Histogram measuring the time spent retrieving connection tuples in the EBPF map", []float64{750, 900, 1000, 1250, 1500, 2500, 5000, 10000}),
+	telemetry.NewHistogram(telemetryModuleName, "registers", []string{}, "Histogram measuring the time spent updating/creating connection tuples in the EBPF map", []float64{50, 100, 250, 500, 750, 1000}),
+	nettelemetry.NewStatCounterWrapper(telemetryModuleName, "evicts_total", []string{}, "Counter measuring the number of evictions from the conntrack cache"),
+	nettelemetry.NewStatCounterWrapper(telemetryModuleName, "registers_dropped", []string{}, "Counter measuring the number of skipped registers due to a non-NAT connection"),
+	telemetry.NewGauge(telemetryModuleName, "nanoseconds_per_register", []string{}, "Counter measuring the time spent updating/creating a single connection tuple in the EBPF map"),
+	telemetry.NewGauge(telemetryModuleName, "nanoseconds_per_unregister", []string{}, "Gauge measuring the time spent deleting a single connection tuple from the EBPF map"),
+	telemetry.NewGauge(telemetryModuleName, "state_size", []string{}, "Counter measuring the current size of the conntrack cache"),
+	telemetry.NewGauge(telemetryModuleName, "orphan_size", []string{}, "Counter measuring the number of orphaned items in the conntrack cache"),
 }
 
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size
@@ -137,10 +125,7 @@ func NewConntracker(config *config.Config) (Conntracker, error) {
 
 func newStats() stats {
 	return stats{
-		getTimeTotal:         atomic.NewInt64(0),
-		registersDropped:     atomic.NewInt64(0),
-		registersTotalTime:   atomic.NewInt64(0),
-		unregisters:          atomic.NewInt64(0),
+		unregistersTotal:     atomic.NewInt64(0),
 		unregistersTotalTime: atomic.NewInt64(0),
 	}
 }
@@ -156,6 +141,7 @@ func newConntrackerOnce(cfg *config.Config) (Conntracker, error) {
 		cache:         newConntrackCache(cfg.ConntrackMaxStateSize, defaultOrphanTimeout),
 		maxStateSize:  cfg.ConntrackMaxStateSize,
 		compactTicker: time.NewTicker(compactInterval),
+		exit:          make(chan struct{}),
 		decoder:       NewDecoder(),
 		stats:         newStats(),
 	}
@@ -177,13 +163,9 @@ func newConntrackerOnce(cfg *config.Config) (Conntracker, error) {
 }
 
 func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *network.IPTranslation {
-	then := time.Now().UnixNano()
+	then := time.Now()
 	defer func() {
-		conntrackerTelemetry.getsTotal.Inc()
-		ctr.stats.getTimeTotal.Add(time.Now().UnixNano() - then)
-		if gets := conntrackerTelemetry.getsTotal.Load(); gets > 0 {
-			conntrackerTelemetry.nanoSecondsPerGet.Set(float64(ctr.stats.getTimeTotal.Load() / gets))
-		}
+		conntrackerTelemetry.gets.Observe(float64(time.Since(then).Nanoseconds()))
 	}()
 
 	ctr.Lock()
@@ -203,27 +185,26 @@ func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *ne
 	return t.IPTranslation
 }
 
+// Refreshes conntracker telemetry on a loop
+// TODO: Replace with prometheus collector interface
 func (ctr *realConntracker) RefreshTelemetry() {
+	ticker := time.NewTicker(10 * time.Second)
 	for {
-		ctr.RLock()
-		conntrackerTelemetry.stateSize.Set(float64(ctr.cache.cache.Len()))
-		conntrackerTelemetry.orphanSize.Set(float64(ctr.cache.orphans.Len()))
-		ctr.RUnlock()
-		registersTotal := conntrackerTelemetry.registersTotal.Load()
-		registersTotalTime := ctr.stats.registersTotalTime.Load()
-		if registersTotal != 0 {
-			conntrackerTelemetry.nanoSecondsPerRegister.Set(float64(registersTotalTime / registersTotal))
+		select {
+		case <-ticker.C:
+			ctr.RLock()
+			conntrackerTelemetry.stateSize.Set(float64(ctr.cache.cache.Len()))
+			conntrackerTelemetry.orphanSize.Set(float64(ctr.cache.orphans.Len()))
+			ctr.RUnlock()
+		case <-ctr.exit:
+			ticker.Stop()
+			return
 		}
-		time.Sleep(10 * time.Second)
 	}
 }
 
 func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {
 	then := time.Now().UnixNano()
-	defer func() {
-		ctr.stats.unregistersTotalTime.Add(time.Now().UnixNano() - then)
-		conntrackerTelemetry.nanoSecondsPerUnRegister.Set(float64(ctr.stats.unregistersTotalTime.Load() / ctr.stats.unregisters.Load()))
-	}()
 
 	ctr.Lock()
 	defer ctr.Unlock()
@@ -235,7 +216,11 @@ func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {
 	}
 
 	if ctr.cache.Remove(k) {
-		ctr.stats.unregisters.Inc()
+		ctr.stats.unregistersTotal.Inc()
+		ctr.stats.unregistersTotalTime.Add(time.Now().UnixNano() - then)
+		if unregisters := ctr.stats.unregistersTotal.Load(); (unregisters != 0) {
+			conntrackerTelemetry.nanoSecondsPerUnRegister.Set(float64(ctr.stats.unregistersTotalTime.Load() / unregisters))
+		}
 	}
 }
 
@@ -243,6 +228,7 @@ func (ctr *realConntracker) Close() {
 	ctr.consumer.Stop()
 	ctr.compactTicker.Stop()
 	ctr.cache.Purge()
+	ctr.exit <- struct{}{}
 }
 
 func (ctr *realConntracker) loadInitialState(events <-chan Event) {
@@ -252,9 +238,11 @@ func (ctr *realConntracker) loadInitialState(events <-chan Event) {
 			if !IsNAT(c) {
 				continue
 			}
+			then := time.Now()
 
 			evicts := ctr.cache.Add(c, false)
-			conntrackerTelemetry.registersTotal.Inc()
+
+			conntrackerTelemetry.registers.Observe(float64(time.Since(then)))
 			conntrackerTelemetry.evictsTotal.Add(int64(evicts))
 		}
 	}
@@ -265,20 +253,18 @@ func (ctr *realConntracker) loadInitialState(events <-chan Event) {
 func (ctr *realConntracker) register(c Con) int {
 	// don't bother storing if the connection is not NAT
 	if !IsNAT(c) {
-		ctr.stats.registersDropped.Inc()
+		conntrackerTelemetry.registersDropped.Inc()
 		return 0
 	}
-
-	then := time.Now().UnixNano()
+	then := time.Now()
 
 	ctr.Lock()
 	defer ctr.Unlock()
 
 	evicts := ctr.cache.Add(c, true)
 
-	conntrackerTelemetry.registersTotal.Inc()
+	conntrackerTelemetry.registers.Observe(float64(time.Since(then)))
 	conntrackerTelemetry.evictsTotal.Add(int64(evicts))
-	ctr.stats.registersTotalTime.Add(time.Now().UnixNano() - then)
 
 	return 0
 }
@@ -316,7 +302,7 @@ func (ctr *realConntracker) run() error {
 func (ctr *realConntracker) compact() {
 	var removed int64
 	defer func() {
-		ctr.stats.unregisters.Add(removed)
+		ctr.stats.unregistersTotal.Add(removed)
 		log.Debugf("removed %d orphans", removed)
 	}()
 

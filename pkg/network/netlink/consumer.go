@@ -114,17 +114,17 @@ func (e *Event) Done() {
 
 // Telemetry
 var consumerTelemetry = struct {
-	enobufs     telemetry.Gauge
-	throttles   telemetry.Gauge
+	enobufs     telemetry.Counter
+	throttles   telemetry.Counter
 	samplingPct telemetry.Gauge
-	readErrors  telemetry.Gauge
-	msgErrors   telemetry.Gauge
+	readErrors  telemetry.Counter
+	msgErrors   telemetry.Counter
 }{
-	newGauge("enobufs", "Gauge measuring the number of consumer enobufs"),
-	newGauge("throttles", "Gauge measuring the number of consumer throttles"),
-	newGauge("sampling_pct", "Gauge measuring the percent of events sampled by the consumer"),
-	newGauge("read_errors", "Gauge measuring the number of consumer read errors"),
-	newGauge("msg_errors", "Gauge measuring the number of consumer message errors"),
+	telemetry.NewCounter(telemetryModuleName, "enobufs", []string{}, "Counter measuring the number of consumer enobufs"),
+	telemetry.NewCounter(telemetryModuleName, "throttles", []string{}, "Counter measuring the number of consumer throttles"),
+	telemetry.NewGauge(telemetryModuleName, "sampling_pct", []string{}, "Gauge measuring the percent of events sampled by the consumer"),
+	telemetry.NewCounter(telemetryModuleName, "read_errors", []string{}, "Counter measuring the number of consumer read errors"),
+	telemetry.NewCounter(telemetryModuleName, "msg_errors", []string{}, "Counter measuring the number of consumer message errors"),
 }
 
 // NewConsumer creates a new Conntrack event consumer.

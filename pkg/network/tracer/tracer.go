@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/cilium/ebpf"
+	"go.uber.org/atomic"
 
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -59,17 +60,15 @@ const tracerModuleName = "network_tracer"
 // If we want to have a way to track the # of active TCP connections in the future we could use the procfs like here: https://github.com/DataDog/datadog-agent/pull/3728
 // to determine whether a connection is truly closed or not
 var tracerTelemetry = struct {
-	skippedConns     telemetry.Gauge
-	expiredTCPConns  telemetry.Gauge
-	closedConns      nettelemetry.StatGaugeWrapper
+	skippedConns     telemetry.Counter
+	expiredTCPConns  telemetry.Counter
+	closedConns      *nettelemetry.StatCounterWrapper
 	connStatsMapSize telemetry.Gauge
-	lastCheck        nettelemetry.StatGaugeWrapper
 }{
-	newGauge(tracerModuleName, "skipped_conns", "Gauge measuring skipped TCP connections"),
-	newGauge(tracerModuleName, "expired_tcp_conns", "Gauge measuring expired TCP connections"),
-	newGaugeWrapper(tracerModuleName, "closed_conns", "Gauge measuring closed TCP connections"),
-	newGauge(tracerModuleName, "conn_stats_map_size", "Gauge measuring the size of the active connections map"),
-	newGaugeWrapper(tracerModuleName, "last_check", "Gauge tracking the timestamp of when gauges were last updated"),
+	telemetry.NewCounter(tracerModuleName, "skipped_conns", []string{}, "Counter measuring skipped TCP connections"),
+	telemetry.NewCounter(tracerModuleName, "expired_tcp_conns", []string{}, "Counter measuring expired TCP connections"),
+	nettelemetry.NewStatCounterWrapper(tracerModuleName, "closed_conns", []string{}, "Counter measuring closed TCP connections"),
+	telemetry.NewGauge(tracerModuleName, "conn_stats_map_size", []string{}, "Gauge measuring the size of the active connections map"),
 }
 
 // Tracer implements the functionality of the network tracer
@@ -81,6 +80,7 @@ type Tracer struct {
 	httpMonitor  *http.Monitor
 	ebpfTracer   connection.Tracer
 	bpfTelemetry *nettelemetry.EBPFTelemetry
+	lastCheck    *atomic.Int64
 
 	activeBuffer *network.ConnectionBuffer
 	bufferLock   sync.Mutex
@@ -97,6 +97,8 @@ type Tracer struct {
 	processCache *processCache
 
 	timeResolver *TimeResolver
+
+	exit chan struct{}
 }
 
 // NewTracer creates a Tracer
@@ -210,6 +212,7 @@ func newTracer(config *config.Config) (*Tracer, error) {
 		gwLookup:                   gwLookup,
 		ebpfTracer:                 ebpfTracer,
 		bpfTelemetry:               bpfTelemetry,
+		exit:                       make(chan struct{}),
 	}
 
 	if config.EnableProcessEventMonitoring {
@@ -228,9 +231,19 @@ func newTracer(config *config.Config) (*Tracer, error) {
 		}
 	}
 
+	// Refreshes tracer telemetry on a loop
+	// TODO: Replace with prometheus collector interface
 	go func() {
-		ddebpf.GetProbeStats()
-		time.Sleep(10 * time.Second)
+		ticker := time.NewTicker(10 * time.Second)
+		for {
+			select {
+			case <-ticker.C:
+				ddebpf.GetProbeStats()
+			case <-tr.exit:
+				ticker.Stop()
+				return
+			}
+		}
 	}()
 
 	return tr, nil
@@ -394,6 +407,7 @@ func (t *Tracer) Stop() {
 	t.httpMonitor.Stop()
 	t.conntracker.Close()
 	t.processCache.Stop()
+	t.exit <- struct{}{}
 }
 
 // GetActiveConnections returns the delta for connection info from the last time it was called with the same clientID
@@ -422,7 +436,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	khfr := int32(kernel.HeaderProvider.GetResult())
 	coretm := ddebpf.GetCORETelemetryByAsset()
 	pbassets := netebpf.GetModulesInUse()
-	tracerTelemetry.lastCheck.Set(time.Now().Unix())
+	t.lastCheck.Store(time.Now().Unix())
 
 	return &network.Connections{
 		BufferedData:                delta.BufferedData,
@@ -652,7 +666,7 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 			ret["state"] = t.state.GetStats()["telemetry"]
 		case tracerStats:
 			tracerStats := make(map[string]interface{})
-			tracerStats["last_check"] = tracerTelemetry.lastCheck.Load()
+			tracerStats["last_check"] = t.lastCheck.Load()
 			tracerStats["runtime"] = runtime.Tracer.GetTelemetry()
 			ret["tracer"] = tracerStats
 		case httpStats:

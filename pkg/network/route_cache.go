@@ -50,39 +50,39 @@ type routeCache struct {
 }
 
 const (
-	defaultTTL                       = 2 * time.Minute
-	routeCacheTelemetryModuleName    = "network_tracer_gateway_lookup_route_cache"
-	netlinkRouterTelemetryModuleName = "network_tracer_gateway_lookup_route_cache_router"
+	defaultTTL                    = 2 * time.Minute
+	routeCacheTelemetryModuleName = "network_tracer__gateway_lookup_route_cache"
+	routerTelemetryModuleName     = "network_tracer__gateway_lookup_route_cache_router"
 )
 
 var routeCacheTelemetry = struct {
 	size    telemetry.Gauge
-	misses  telemetry.Gauge
-	lookups telemetry.Gauge
-	expires telemetry.Gauge
+	misses  telemetry.Counter
+	lookups telemetry.Counter
+	expires telemetry.Counter
 
-	netlinkLookups telemetry.Gauge
-	netlinkErrors  telemetry.Gauge
-	netlinkMisses  telemetry.Gauge
+	netlinkLookups telemetry.Counter
+	netlinkErrors  telemetry.Counter
+	netlinkMisses  telemetry.Counter
 
-	ifCacheLookups telemetry.Gauge
-	ifCacheMisses  telemetry.Gauge
-	ifCacheSize    telemetry.Gauge
-	ifCacheErrors  telemetry.Gauge
+	ifCacheLookups telemetry.Counter
+	ifCacheMisses  telemetry.Counter
+	ifCacheSize    telemetry.Counter
+	ifCacheErrors  telemetry.Counter
 }{
 	telemetry.NewGauge(routeCacheTelemetryModuleName, "size", []string{}, "Gauge measuring the size of the route cache"),
-	telemetry.NewGauge(routeCacheTelemetryModuleName, "misses", []string{}, "Gauge measuring the number of route cache misses"),
-	telemetry.NewGauge(routeCacheTelemetryModuleName, "lookups", []string{}, "Gauge measuring the number of route cache lookups"),
-	telemetry.NewGauge(routeCacheTelemetryModuleName, "expires", []string{}, "Gauge measuring the number of route cache expirations"),
+	telemetry.NewCounter(routeCacheTelemetryModuleName, "misses", []string{}, "Counter measuring the number of route cache misses"),
+	telemetry.NewCounter(routeCacheTelemetryModuleName, "lookups", []string{}, "Counter measuring the number of route cache lookups"),
+	telemetry.NewCounter(routeCacheTelemetryModuleName, "expires", []string{}, "Counter measuring the number of route cache expirations"),
 
-	telemetry.NewGauge(netlinkRouterTelemetryModuleName, "netlink_lookups", []string{}, "Gauge measuring the number of netlink lookups"),
-	telemetry.NewGauge(netlinkRouterTelemetryModuleName, "netlink_errors", []string{}, "Gauge measuring the number of netlink errors"),
-	telemetry.NewGauge(netlinkRouterTelemetryModuleName, "netlink_misses", []string{}, "Gauge measuring the number of netlink misses"),
+	telemetry.NewCounter(routerTelemetryModuleName, "netlink_lookups", []string{}, "Counter measuring the number of netlink lookups"),
+	telemetry.NewCounter(routerTelemetryModuleName, "netlink_errors", []string{}, "Counter measuring the number of netlink errors"),
+	telemetry.NewCounter(routerTelemetryModuleName, "netlink_misses", []string{}, "Counter measuring the number of netlink misses"),
 
-	telemetry.NewGauge(netlinkRouterTelemetryModuleName, "if_cache_lookups", []string{}, "Gauge measuring the number of interface cache lookups"),
-	telemetry.NewGauge(netlinkRouterTelemetryModuleName, "if_cache_misses", []string{}, "Gauge measuring the number of interface cache misses"),
-	telemetry.NewGauge(netlinkRouterTelemetryModuleName, "if_cache_size", []string{}, "Gauge measuring the size of the interface cache"),
-	telemetry.NewGauge(netlinkRouterTelemetryModuleName, "if_cache_errors", []string{}, "Gauge measuring the number of interface cache errors"),
+	telemetry.NewCounter(routerTelemetryModuleName, "if_cache_lookups", []string{}, "Counter measuring the number of interface cache lookups"),
+	telemetry.NewCounter(routerTelemetryModuleName, "if_cache_misses", []string{}, "Counter measuring the number of interface cache misses"),
+	telemetry.NewCounter(routerTelemetryModuleName, "if_cache_size", []string{}, "Counter measuring the size of the interface cache"),
+	telemetry.NewCounter(routerTelemetryModuleName, "if_cache_errors", []string{}, "Counter measuring the number of interface cache errors"),
 }
 
 // RouteCache is the interface to a cache that stores routes for a given (source, destination, net ns) tuple

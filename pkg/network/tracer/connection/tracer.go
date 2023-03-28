@@ -57,7 +57,7 @@ type Tracer interface {
 	// Remove deletes the connection from tracking state.
 	// It does not prevent the connection from re-appearing later, if additional traffic occurs.
 	Remove(conn *network.ConnectionStats) error
-	// RefreshProbeTelemetry sets the prometheus gauges to the current values of the underlying stats
+	// RefreshProbeTelemetry sets the prometheus objects to the current values of the underlying stats
 	RefreshProbeTelemetry()
 	// GetMap returns the underlying named map. This is useful if any maps are shared with other eBPF components.
 	// An individual tracer implementation may choose which maps to expose via this function.
@@ -74,35 +74,29 @@ type Tracer interface {
 const (
 	defaultClosedChannelSize = 500
 	ProbeUID                 = "net"
-	connTracerModuleName     = "network_tracer_ebpf"
+	connTracerModuleName     = "network_tracer__ebpf"
 )
 
 var ConnTracerTelemetry = struct {
-	tcpConns4         telemetry.Gauge
-	udpConns4         telemetry.Gauge
-	tcpConns6         telemetry.Gauge
-	udpConns6         telemetry.Gauge
+	connections       telemetry.Gauge
 	tcpFailedConnects telemetry.Gauge
-	TcpSentMiscounts  nettelemetry.StatGaugeWrapper
+	TcpSentMiscounts  *nettelemetry.StatGaugeWrapper
 	missedTcpClose    telemetry.Gauge
 	missedUdpClose    telemetry.Gauge
-	UdpSendsProcessed nettelemetry.StatGaugeWrapper
-	UdpSendsMissed    nettelemetry.StatGaugeWrapper
+	UdpSendsProcessed *nettelemetry.StatGaugeWrapper
+	UdpSendsMissed    *nettelemetry.StatGaugeWrapper
 	UdpDroppedConns   telemetry.Gauge
-	PidCollisions     nettelemetry.StatGaugeWrapper
+	PidCollisions     *nettelemetry.StatCounterWrapper
 }{
-	telemetry.NewGauge(connTracerModuleName, "tcp_conns4", []string{}, "Gauge measuring the number of active TCP4 connections in the EBPF map"),
-	telemetry.NewGauge(connTracerModuleName, "udp_conns4", []string{}, "Gauge measuring the number of active UDP4 connections in the EBPF map"),
-	telemetry.NewGauge(connTracerModuleName, "tcp_conns6", []string{}, "Gauge measuring the number of active TCP6 connections in the EBPF map"),
-	telemetry.NewGauge(connTracerModuleName, "udp_conns6", []string{}, "Gauge measuring the number of active UDP6 connections in the EBPF map"),
+	telemetry.NewGauge(connTracerModuleName, "connections", []string{"ip_proto", "family"}, "Gauge measuring the number of active connections in the EBPF map"),
 	telemetry.NewGauge(connTracerModuleName, "tcp_failed_connects", []string{}, "Gauge measuring the number of failed TCP connections in the EBPF map"),
-	nettelemetry.NewStatGaugeWrapper(connTracerModuleName, "tcp_sent_miscounts", []string{}, "Gauge measuring the number of active UDP6 connections in the EBPF map"),
+	nettelemetry.NewStatGaugeWrapper(connTracerModuleName, "tcp_sent_miscounts", []string{}, "Gauge measuring the number of miscounted tcp sends in the EBPF map"),
 	telemetry.NewGauge(connTracerModuleName, "missed_tcp_close", []string{}, "Gauge measuring the number of missed TCP close events in the EBPF map"),
 	telemetry.NewGauge(connTracerModuleName, "missed_udp_close", []string{}, "Gauge measuring the number of missed UDP close events in the EBPF map"),
 	nettelemetry.NewStatGaugeWrapper(connTracerModuleName, "udp_sends_processed", []string{}, "Gauge measuring the number of processed UDP sends in EBPF"),
 	nettelemetry.NewStatGaugeWrapper(connTracerModuleName, "udp_sends_missed", []string{}, "Gauge measuring failures to process UDP sends in EBPF"),
 	telemetry.NewGauge(connTracerModuleName, "udp_dropped_conns", []string{}, "Gauge measuring the number of dropped UDP connections in the EBPF map"),
-	nettelemetry.NewStatGaugeWrapper(connTracerModuleName, "pid_collisions", []string{}, "Gauge measuring number of process collisions"),
+	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
 }
 
 type tracer struct {
@@ -121,6 +115,8 @@ type tracer struct {
 	stopOnce    sync.Once
 
 	ebpfTracerType TracerType
+
+	exit chan struct{}
 }
 
 // NewTracer creates a new tracer
@@ -192,6 +188,7 @@ func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTel
 		removeTuple:    &netebpf.ConnTuple{},
 		closeTracer:    closeTracerFn,
 		ebpfTracerType: tracerType,
+		exit:           make(chan struct{}),
 	}
 
 	tr.conns, _, err = m.GetMap(probes.ConnMap)
@@ -265,6 +262,7 @@ func (t *tracer) Stop() {
 			t.closeTracer()
 		}
 	})
+	t.exit <- struct{}{}
 }
 
 func (t *tracer) GetMap(name string) *ebpf.Map {
@@ -322,16 +320,16 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 		return fmt.Errorf("unable to iterate connection map: %s", err)
 	}
 
-	updateTelemtry(tcp4, tcp6, udp4, udp6)
+	updateTelemetry(tcp4, tcp6, udp4, udp6)
 
 	return nil
 }
 
-func updateTelemtry(tcp4 float64, tcp6 float64, udp4 float64, udp6 float64) {
-	ConnTracerTelemetry.tcpConns4.Set(tcp4)
-	ConnTracerTelemetry.tcpConns6.Set(tcp6)
-	ConnTracerTelemetry.udpConns4.Set(udp4)
-	ConnTracerTelemetry.udpConns6.Set(udp6)
+func updateTelemetry(tcp4 float64, tcp6 float64, udp4 float64, udp6 float64) {
+	ConnTracerTelemetry.connections.Set(tcp4, "tcp", "v4")
+	ConnTracerTelemetry.connections.Set(tcp6, "tcp", "v6")
+	ConnTracerTelemetry.connections.Set(udp4, "udp", "v4")
+	ConnTracerTelemetry.connections.Set(udp6, "udp", "v6")
 }
 
 func removeConnection(conn *network.ConnectionStats) {
@@ -339,15 +337,15 @@ func removeConnection(conn *network.ConnectionStats) {
 	switch conn.Family {
 	case network.AFINET6:
 		if isTCP {
-			ConnTracerTelemetry.tcpConns6.Dec()
+			ConnTracerTelemetry.connections.Dec("tcp", "v6")
 		} else {
-			ConnTracerTelemetry.udpConns6.Dec()
+			ConnTracerTelemetry.connections.Dec("udp", "v6")
 		}
 	case network.AFINET:
 		if isTCP {
-			ConnTracerTelemetry.tcpConns4.Dec()
+			ConnTracerTelemetry.connections.Dec("tcp", "v4")
 		} else {
-			ConnTracerTelemetry.udpConns4.Dec()
+			ConnTracerTelemetry.connections.Dec("udp", "v4")
 		}
 	}
 }
@@ -410,12 +408,20 @@ func (t *tracer) getEBPFTelemetry() *netebpf.Telemetry {
 }
 
 func (t *tracer) RefreshProbeTelemetry() {
+	ticker := time.NewTicker(10 * time.Second)
 	for {
-		time.Sleep(10 * time.Second)
-		t.refreshProbeTelemetry()
+		select {
+		case <-ticker.C:
+			t.refreshProbeTelemetry()
+		case <-t.exit:
+			ticker.Stop()
+			return
+		}
 	}
 }
 
+// Refreshes connection tracer telemetry on a loop
+// TODO: Replace with prometheus collector interface
 func (t *tracer) refreshProbeTelemetry() {
 	telemetry := t.getEBPFTelemetry()
 	if telemetry == nil {
