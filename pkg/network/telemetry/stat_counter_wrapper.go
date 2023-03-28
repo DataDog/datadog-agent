@@ -13,7 +13,7 @@ import (
 // StatCounterWrapper is a convenience type that allows for migrating telemetry to
 // prometheus Counters while continuing to make the underlying values available for reading
 type StatCounterWrapper struct {
-	stat  *atomic.Int64
+	stat    *atomic.Int64
 	counter telemetry.Counter
 }
 
@@ -38,7 +38,7 @@ func (sgw *StatCounterWrapper) Load() int64 {
 
 func NewStatCounterWrapper(subsystem string, statName string, tags []string, description string) *StatCounterWrapper {
 	return &StatCounterWrapper{
-		stat:  atomic.NewInt64(0),
+		stat:    atomic.NewInt64(0),
 		counter: telemetry.NewCounter(subsystem, statName, tags, description),
 	}
 }

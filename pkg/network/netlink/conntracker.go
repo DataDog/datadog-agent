@@ -218,7 +218,7 @@ func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {
 	if ctr.cache.Remove(k) {
 		ctr.stats.unregistersTotal.Inc()
 		ctr.stats.unregistersTotalTime.Add(time.Now().UnixNano() - then)
-		if unregisters := ctr.stats.unregistersTotal.Load(); (unregisters != 0) {
+		if unregisters := ctr.stats.unregistersTotal.Load(); unregisters != 0 {
 			conntrackerTelemetry.nanoSecondsPerUnRegister.Set(float64(ctr.stats.unregistersTotalTime.Load() / unregisters))
 		}
 	}
