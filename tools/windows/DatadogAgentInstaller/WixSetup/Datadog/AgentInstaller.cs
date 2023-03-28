@@ -324,7 +324,7 @@ namespace WixSetup.Datadog
                 // Tell MSI not to stop the services. We handle service stop manually in StopDDServices custom action.
                 StopOn = null,
                 Start = SvcStartType.auto,
-                DelayedAutoStart = false,
+                DelayedAutoStart = true,
                 RemoveOn = SvcEvent.Uninstall_Wait,
                 ServiceSid = ServiceSid.none,
                 FirstFailureActionType = FailureActionType.restart,
