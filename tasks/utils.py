@@ -26,7 +26,7 @@ elif sys.platform == "win32":
 else:
     RTLOADER_LIB_NAME = "libdatadog-agent-rtloader.so"
 RTLOADER_HEADER_NAME = "datadog_agent_rtloader.h"
-
+AGENT_VERSION_CACHE_NAME = "agent-version.cache"
 
 def get_all_allowed_repo_branches():
     return ALLOWED_REPO_ALL_BRANCHES
@@ -342,7 +342,7 @@ def cache_version(ctx, git_sha_length=7, prefix=None):
         )
         packed_data[maj_version] = [version, pre, commits_since_version, git_sha, pipeline_id]
     packed_data["nightly"] = is_allowed_repo_nightly_branch(os.getenv("BUCKET_BRANCH"))
-    with open("agent-version.cache", "w") as file:
+    with open(AGENT_VERSION_CACHE_NAME, "w") as file:
         json.dump(packed_data, file, indent=4)
 
 
@@ -353,12 +353,12 @@ def get_version(
     pipeline_id = os.getenv("CI_PIPELINE_ID")
     if pipeline_id and pipeline_id.isdigit():
         try:
-            if not os.path.exists("agent-version.cache"):
+            if not os.path.exists(AGENT_VERSION_CACHE_NAME):
                 ctx.run(
-                    f"aws s3 cp s3://dd-ci-artefacts-build-stable/datadog-agent/{pipeline_id}/agent-version.cache . >/dev/null"
+                    f"aws s3 cp s3://dd-ci-artefacts-build-stable/datadog-agent/{pipeline_id}/{AGENT_VERSION_CACHE_NAME} . >/dev/null"
                 )
 
-            with open("agent-version.cache", "r") as file:
+            with open(AGENT_VERSION_CACHE_NAME, "r") as file:
                 cache_data = json.load(file)
 
             version, pre, commits_since_version, git_sha, pipeline_id = cache_data[major_version]
