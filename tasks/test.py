@@ -126,7 +126,7 @@ def install_tools(ctx):
 @task
 def invoke_unit_tests(ctx):
     """
-    Start unit testsuite of tasks
+    Run the unit tests on the invoke tasks
     """
     for _, _, files in os.walk("tasks/unit-tests/"):
         for file in files:
