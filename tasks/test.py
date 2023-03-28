@@ -35,7 +35,7 @@ from .utils import DEFAULT_BRANCH, get_build_flags
 
 PROFILE_COV = "profile.cov"
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
-
+UNIT_TEST_FILE_FORMAT = re.compile(r'[^a-zA-Z0-9]')
 
 class TestProfiler:
     times = []
@@ -131,7 +131,7 @@ def invoke_unit_tests(ctx):
     """
     for _, _, files in os.walk("tasks/unit-tests/", topdown=False):
         for file in files:
-            if file[-3:] == ".py" and file != "__init__.py":
+            if file[-3:] == ".py" and file != "__init__.py" and not bool(UNIT_TEST_FILE_FORMAT.search(file[:-3])):
                 ctx.run(f"python3 -m tasks.unit-tests.{file[:-3]}")
 
 def test_core(
