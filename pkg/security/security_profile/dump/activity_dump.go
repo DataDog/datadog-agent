@@ -130,8 +130,7 @@ type ActivityDump struct {
 	// Used to store the global list of DNS names contained in this dump
 	// this is a hack used to provide this global list to the backend in the JSON header
 	// instead of in the protobuf payload.
-	allDNSNamesMap map[string]struct{} `json:"-"`
-	DNSNames       []string            `json:"dns_names"`
+	DNSNames *utils.StringKeys `json:"dns_names"`
 
 	// Load config
 	LoadConfig       *model.ActivityDumpLoadConfig `json:"-"`
@@ -168,7 +167,7 @@ func NewEmptyActivityDump() *ActivityDump {
 		pathMergedCount:    atomic.NewUint64(0),
 		StorageRequests:    make(map[config.StorageFormat][]config.StorageRequest),
 
-		allDNSNamesMap: make(map[string]struct{}),
+		DNSNames: utils.NewStringKeys(nil),
 	}
 
 	// generate counters
@@ -265,7 +264,7 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 		startTime,
 		nil,
 	)
-	ad.DNSNames = msg.GetDNSNames()
+	ad.DNSNames = utils.NewStringKeys(msg.GetDNSNames())
 
 	// parse requests from message
 	for _, request := range msg.GetStorage() {
@@ -925,8 +924,6 @@ func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage
 		}
 	}
 
-	ad.syncDNSNames()
-
 	return &api.ActivityDumpMessage{
 		Host:    ad.Host,
 		Source:  ad.Source,
@@ -948,21 +945,7 @@ func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage
 			Size:              ad.Metadata.Size,
 			Arch:              ad.Metadata.Arch,
 		},
-		DNSNames: ad.DNSNames,
-	}
-}
-
-// needs ad to be locked before use
-func (ad *ActivityDump) syncDNSNames() {
-	// array to map
-	for _, name := range ad.DNSNames {
-		ad.allDNSNamesMap[name] = struct{}{}
-	}
-
-	// map to array
-	ad.DNSNames = make([]string, 0, len(ad.allDNSNamesMap))
-	for name := range ad.allDNSNamesMap {
-		ad.DNSNames = append(ad.DNSNames, name)
+		DNSNames: ad.DNSNames.Keys(),
 	}
 }
 
@@ -1529,7 +1512,7 @@ func (ad *ActivityDump) insertDNSNameToHackyBackendList(name string) {
 		return
 	}
 
-	ad.allDNSNamesMap[name] = struct{}{}
+	ad.DNSNames.Insert(name)
 }
 
 // InsertBindEvent inserts a bind event to the activity dump

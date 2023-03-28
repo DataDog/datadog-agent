@@ -27,6 +27,10 @@ func NewStringKeys(from []string) *StringKeys {
 	return sk
 }
 
+func (sk *StringKeys) Insert(value string) {
+	sk.inner[value] = struct{}{}
+}
+
 func (sk *StringKeys) ForEach(f func(string)) {
 	for value := range sk.inner {
 		f(value)
