@@ -267,7 +267,7 @@ func (pm *ProcessMonitor) Initialize() error {
 					return
 				}
 				log.Errorf("process monitor error: %s", err)
-				pm.Stop()
+				pm.stop()
 				return
 			}
 		}
@@ -341,6 +341,13 @@ func (pm *ProcessMonitor) Subscribe(callback *ProcessCallback) (UnSubscribe func
 	}, nil
 }
 
+func (pm *ProcessMonitor) stop() {
+	pm.m.Lock()
+	pm.isInitialized = false
+	pm.m.Unlock()
+	close(pm.done)
+}
+
 func (pm *ProcessMonitor) Stop() {
 	pm.m.Lock()
 	if pm.refcount == 0 {
@@ -353,9 +360,7 @@ func (pm *ProcessMonitor) Stop() {
 		pm.m.Unlock()
 		return
 	}
-
-	pm.isInitialized = false
 	pm.m.Unlock()
-	close(pm.done)
+	pm.stop()
 	pm.wg.Wait()
 }
