@@ -774,7 +774,7 @@ func (agg *BufferedAggregator) runEventPlatformBlocking() {
 			if err != nil {
 				state = stateError
 				aggregatorEventPlatformEventsErrors.Add(event.eventType, 1)
-				log.Errorf("error submitting event platform event: %s", err)
+				log.Errorf("Failed to process some event platform events. error='%s' eventCounts=%s errorCounts=%s", err, aggregatorEventPlatformEvents.String(), aggregatorEventPlatformEventsErrors.String())
 			}
 			tlmFlush.Add(1, event.eventType, state)
 		}
