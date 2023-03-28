@@ -318,22 +318,33 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 			}
 
 			if serie.NoIndex {
-				return ps.Embedded(serieMetadata, func(ps *molecule.ProtoStream) error {
+				err = ps.Embedded(serieMetadata, func(ps *molecule.ProtoStream) error {
 					return ps.Embedded(serieMetadataOrigin, func(ps *molecule.ProtoStream) error {
 						return ps.Int32(serieMetadataOriginMetricType, metryTypeNotIndexed)
 					})
 				})
+				if err != nil {
+					return err
+				}
 			}
 
-			if serie.Source != metrics.MetricSourceUnknown {
-				return ps.Embedded(serieMetadata, func(ps *molecule.ProtoStream) error {
-					return ps.Embedded(serieMetadataOrigin, func(ps *molecule.ProtoStream) error {
-						ps.Int32(serieMetadataOriginOriginProduct, serieMetadataOriginOriginProductAgentType)
-						ps.Int32(serieMetadataOriginOriginCategory, serie.Source.OriginCategory())
-						return ps.Int32(serieMetadataOriginOriginService, serie.Source.OriginService())
-					})
+			err = ps.Embedded(serieMetadata, func(ps *molecule.ProtoStream) error {
+				return ps.Embedded(serieMetadataOrigin, func(ps *molecule.ProtoStream) error {
+					err = ps.Int32(serieMetadataOriginOriginProduct, serieMetadataOriginOriginProductAgentType)
+					if err != nil {
+						return err
+					}
+					err = ps.Int32(serieMetadataOriginOriginCategory, serie.Source.OriginCategory())
+					if err != nil {
+						return err
+					}
+					return ps.Int32(serieMetadataOriginOriginService, serie.Source.OriginService())
 				})
+			})
+			if err != nil {
+				return err
 			}
+
 			return nil
 		})
 		if err != nil {
