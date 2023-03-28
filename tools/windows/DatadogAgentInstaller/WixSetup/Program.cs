@@ -15,11 +15,13 @@ namespace WixSetup
             var project = new AgentInstaller(version)
                 .ConfigureProject();
 
+#if DEBUG
             // Save a copy of the WXS for analysis since WixSharp deletes it after it's done generating the MSI.
             project.WixSourceSaved += path =>
             {
                 System.IO.File.Copy(path, "wix/WixSetup.g.wxs", overwrite: true);
             };
+#endif
 
             project
                 .BuildMsi();
