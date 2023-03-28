@@ -81,6 +81,20 @@ updates:
       interval: weekly
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
+    directory: /pkg/security/serializers/jsonmodel
+    labels:
+      - dependencies
+      - dependencies-go
+      - team/agent-security
+      - changelog/no-changelog
+    milestone: 22
+    ignore:
+      # Ignore internal modules
+      - dependency-name: github.com/DataDog/datadog-agent/*
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 100
+  - package-ecosystem: gomod
     directory: /internal/tools
     labels:
       - dependencies
