@@ -114,7 +114,8 @@ namespace WixSetup.Datadog
                 Conditions.Upgrading
             )
             {
-                Execute = Execute.deferred
+                Execute = Execute.deferred,
+                Impersonate = false
             };
 
             ReportInstallFailure = new CustomAction<Telemetry>(
@@ -125,10 +126,11 @@ namespace WixSetup.Datadog
                 Step.StartServices
             )
             {
-                Execute = Execute.rollback
+                Execute = Execute.rollback,
+                Impersonate = false
             }
             .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
-            .HideTarget(true); ;
+            .HideTarget(true);
 
             EnsureNpmServiceDepdendency = new CustomAction<ServiceCustomAction>(
                 new Id(nameof(EnsureNpmServiceDepdendency)),
@@ -139,7 +141,8 @@ namespace WixSetup.Datadog
                 Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
             )
             {
-                Execute = Execute.deferred
+                Execute = Execute.deferred,
+                Impersonate = false
             }
             .SetProperties("ADDLOCAL=[ADDLOCAL]");
 
@@ -152,7 +155,8 @@ namespace WixSetup.Datadog
                 Conditions.FirstInstall
             )
             {
-                Execute = Execute.deferred
+                Execute = Execute.deferred,
+                Impersonate = false
             }
             .SetProperties(
                 "APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
@@ -195,7 +199,8 @@ namespace WixSetup.Datadog
                 Conditions.FirstInstall
             )
             {
-                Execute = Execute.rollback
+                Execute = Execute.rollback,
+                Impersonate = false
             }
             .SetProperties("PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
@@ -208,7 +213,8 @@ namespace WixSetup.Datadog
                 Conditions.FirstInstall | Conditions.Upgrading
             )
             {
-                Execute = Execute.deferred
+                Execute = Execute.deferred,
+                Impersonate = false
             }
             .SetProperties("PROJECTLOCATION=[PROJECTLOCATION], embedded2_SIZE=[embedded2_SIZE], embedded3_SIZE=[embedded3_SIZE]");
 
@@ -235,7 +241,8 @@ namespace WixSetup.Datadog
                 Conditions.Uninstalling
             )
             {
-                Execute = Execute.deferred
+                Execute = Execute.deferred,
+                Impersonate = false
             }
             .SetProperties("PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
@@ -248,7 +255,8 @@ namespace WixSetup.Datadog
                 Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
             )
             {
-                Execute = Execute.deferred
+                Execute = Execute.deferred,
+                Impersonate = false
             }
             .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
                            "PROJECTLOCATION=[PROJECTLOCATION], " +
@@ -315,7 +323,8 @@ namespace WixSetup.Datadog
                 Conditions.FirstInstall | Conditions.Upgrading
             )
             {
-                Execute = Execute.deferred
+                Execute = Execute.deferred,
+                Impersonate = false
             }
             .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]," +
                            "OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]");
@@ -344,7 +353,6 @@ namespace WixSetup.Datadog
                 When.After,
                 Step.InstallServices,
                 Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
-
             )
             {
                 Execute = Execute.deferred,
