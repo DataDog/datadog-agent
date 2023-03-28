@@ -243,6 +243,11 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 		c.FIMEnabled = true
 	}
 
+	// if runtime is disabled then we force disable activity dumps
+	if !c.RuntimeEnabled {
+		c.ActivityDumpEnabled = false
+	}
+
 	serviceName := utils.GetTagValue("service", coreconfig.GetGlobalConfiguredTags(true))
 	if len(serviceName) > 0 {
 		c.HostServiceName = fmt.Sprintf("service:%s", serviceName)
