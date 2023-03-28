@@ -1,5 +1,6 @@
 using Microsoft.Deployment.WindowsInstaller;
 using System;
+using Datadog.CustomActions.Interfaces;
 
 namespace Datadog.CustomActions
 {
