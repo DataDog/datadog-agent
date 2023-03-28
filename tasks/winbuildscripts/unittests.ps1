@@ -15,7 +15,7 @@ $Env:PATH="$Env:BUILD_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python3_ROOT_DIR;$Env:Py
 
 & $Env:Python3_ROOT_DIR\python.exe -m pip install PyYAML==5.3.1
 
-inv -e invoke-unit-tests
+& inv -e invoke-unit-tests
 
 $archflag = "x64"
 if ($Env:TARGET_ARCH -eq "x86") {
