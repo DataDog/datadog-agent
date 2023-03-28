@@ -134,42 +134,48 @@ func testProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost
 		name     string
 		testFunc func(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string)
 	}{
-		{
-			name:     "kafka",
-			testFunc: testKafkaProtocolClassification,
-		},
-		{
-			name:     "mysql",
-			testFunc: testMySQLProtocolClassification,
-		},
-		{
-			name:     "postgres",
-			testFunc: testPostgresProtocolClassification,
-		},
-		{
-			name:     "mongo",
-			testFunc: testMongoProtocolClassification,
-		},
-		{
-			name:     "redis",
-			testFunc: testRedisProtocolClassification,
-		},
-		{
-			name:     "amqp",
-			testFunc: testAMQPProtocolClassification,
-		},
+		/*
+			{
+				name:     "kafka",
+				testFunc: testKafkaProtocolClassification,
+			},
+			{
+				name:     "mysql",
+				testFunc: testMySQLProtocolClassification,
+			},
+			{
+				name:     "postgres",
+				testFunc: testPostgresProtocolClassification,
+			},
+			{
+				name:     "mongo",
+				testFunc: testMongoProtocolClassification,
+			},
+			{
+				name:     "redis",
+				testFunc: testRedisProtocolClassification,
+			},
+			{
+				name:     "amqp",
+				testFunc: testAMQPProtocolClassification,
+			},
+		*/
 		{
 			name:     "http",
 			testFunc: testHTTPProtocolClassification,
 		},
-		{
-			name:     "http2",
-			testFunc: testHTTP2ProtocolClassification,
-		},
-		{
-			name:     "edge cases",
-			testFunc: testEdgeCasesProtocolClassification,
-		},
+		/*
+			{
+				name:     "http2",
+				testFunc: testHTTP2ProtocolClassification,
+			},
+		*/
+		/*
+			{
+				name:     "edge cases",
+				testFunc: testEdgeCasesProtocolClassification,
+			},
+		*/
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

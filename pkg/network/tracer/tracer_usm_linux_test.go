@@ -464,6 +464,33 @@ func isRequestIncluded(allStats map[http.Key]*http.RequestStats, req *nethttp.Re
 	return false
 }
 
+func TestTracerStopIssue(t *testing.T) {
+	cfg := testConfig()
+	if !classificationSupported(cfg) {
+		t.Skip("Classification is not supported")
+	}
+
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	t.Run("without nat", func(t *testing.T) {
+		testProtocolClassification(t, tr, "localhost", "127.0.0.1", "127.0.0.1")
+		testProtocolClassificationMapCleanup(t, tr, "localhost", "127.0.0.1", "127.0.0.1:0")
+	})
+	tr.Stop()
+
+	// what ever time you wait for the prog/map will still loaded
+	// if you run bpftool prog ;bpftool map on the host it will list entries
+	//	time.Sleep(60 * time.Second)
+
+	// workaround  : running the GC
+	//runtime.GC()
+
+	cfg = testConfig()
+	tr, err = NewTracer(cfg)
+	require.NoError(t, err)
+	t.Cleanup(tr.Stop)
+}
+
 func TestProtocolClassification(t *testing.T) {
 	cfg := testConfig()
 	if !classificationSupported(cfg) {

@@ -71,7 +71,7 @@ func TestMain(m *testing.M) {
 func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
-	t.Cleanup(func() { tr.Stop(); runtime.GC() })
+	t.Cleanup(func() { tr.Stop() /*runtime.GC() */ })
 
 	initTracerState(t, tr)
 	return tr
