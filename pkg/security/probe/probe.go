@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -311,6 +312,8 @@ func (p *Probe) Setup() error {
 	if err := p.Manager.Start(); err != nil {
 		return err
 	}
+
+	p.applyDefaultFilterPolicies()
 
 	return p.monitor.Start(p.ctx, &p.wg)
 }
@@ -1249,6 +1252,28 @@ func (p *Probe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	return nil
 }
 
+func (p *Probe) applyDefaultFilterPolicies() {
+	if !p.Config.Probe.EnableKernelFilters {
+		seclog.Warnf("Forcing in-kernel filter policy to `pass`: filtering not enabled")
+	}
+
+	for eventType := model.FirstEventType; eventType <= model.LastEventType; eventType++ {
+		var mode kfilters.PolicyMode
+
+		if !p.Config.Probe.EnableKernelFilters {
+			mode = kfilters.PolicyModeNoFilter
+		} else if len(p.eventHandlers[eventType]) > 0 {
+			mode = kfilters.PolicyModeAccept
+		} else {
+			mode = kfilters.PolicyModeDeny
+		}
+
+		if err := p.ApplyFilterPolicy(eventType.String(), mode, math.MaxUint8); err != nil {
+			seclog.Debugf("unable to apply to filter policy `%s` for `%s`", eventType, mode)
+		}
+	}
+}
+
 // ApplyRuleSet setup the filters for the provided set of rules and returns the policy report.
 func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
 	ars, err := kfilters.NewApplyRuleSetReport(p.Config.Probe, rs)
@@ -1339,10 +1364,6 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		useRingBuffers,
 		uint32(p.Config.Probe.EventStreamBufferSize),
 	)
-
-	if !p.Config.Probe.EnableKernelFilters {
-		seclog.Warnf("Forcing in-kernel filter policy to `pass`: filtering not enabled")
-	}
 
 	if config.RuntimeSecurity.ActivityDumpEnabled {
 		for _, e := range config.RuntimeSecurity.ActivityDumpTracedEventTypes {
