@@ -18,6 +18,7 @@ from invoke.exceptions import Exit
 from .build_tags import get_default_build_tags
 from .libs.common.color import color_message
 from .libs.ninja_syntax import NinjaWriter
+from .test import environ
 from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
@@ -144,7 +145,7 @@ def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
         kernel_release=kernel_release, minimal_kernel_release=CWS_PREBUILT_MINIMUM_KERNEL_VERSION
     )
     kheaders = " ".join(f"-isystem{d}" for d in kernel_headers)
-    debugdef = "-DDEBUG=1" if debug else ""
+    debugdef = "-DDEBUG=1 -g" if debug else ""
     security_flags = f"-I{security_agent_c_dir} {debugdef}"
 
     outfiles = []
@@ -1375,6 +1376,36 @@ def generate_minimized_btfs(
                 )
 
     ctx.run(f"ninja -f {ninja_file_path}")
+
+
+@task
+def generate_event_monitor_proto(ctx):
+    with tempfile.TemporaryDirectory() as temp_gobin:
+        with environ({"GOBIN": temp_gobin}):
+            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1")
+            ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.4.0")
+            ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2.0")
+
+            plugin_opts = " ".join(
+                [
+                    f"--plugin protoc-gen-go=\"{temp_gobin}/protoc-gen-go\"",
+                    f"--plugin protoc-gen-go-grpc=\"{temp_gobin}/protoc-gen-go-grpc\"",
+                    f"--plugin protoc-gen-go-vtproto=\"{temp_gobin}/protoc-gen-go-vtproto\"",
+                ]
+            )
+
+            ctx.run(
+                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/eventmonitor/proto/api/api.proto"
+            )
+
+    for path in glob.glob("pkg/eventmonitor/**/*.pb.go", recursive=True):
+        print(f"replacing protoc version in {path}")
+        with open(path) as f:
+            content = f.read()
+
+        replaced_content = re.sub(r"\/\/\s*protoc\s*v\d+\.\d+\.\d+", "//  protoc", content)
+        with open(path, "w") as f:
+            f.write(replaced_content)
 
 
 @task

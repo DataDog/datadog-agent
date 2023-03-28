@@ -71,9 +71,7 @@ func TestMain(m *testing.M) {
 func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		tr.Stop()
-	})
+	t.Cleanup(tr.Stop)
 
 	initTracerState(t, tr)
 	return tr
@@ -948,7 +946,7 @@ func (t *TCPServer) Run() error {
 
 	go func() {
 		for {
-			conn, err := t.ln.Accept()
+			conn, err := ln.Accept()
 			if err != nil {
 				return
 			}
@@ -1043,14 +1041,16 @@ func addrPort(addr string) int {
 	return p
 }
 
+const clientID = "1"
+
 func initTracerState(t testing.TB, tr *Tracer) {
-	err := tr.RegisterClient("1")
+	err := tr.RegisterClient(clientID)
 	require.NoError(t, err)
 }
 
 func getConnections(t *testing.T, tr *Tracer) *network.Connections {
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
-	connections, err := tr.GetActiveConnections("1")
+	connections, err := tr.GetActiveConnections(clientID)
 	require.NoError(t, err)
 	return connections
 }

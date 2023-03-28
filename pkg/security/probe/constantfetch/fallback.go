@@ -72,6 +72,12 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getPIDNumbersOffset(f.kernelVersion)
 	case SizeOfUPID:
 		value = getSizeOfUpid(f.kernelVersion)
+	case OffsetNameTaskStructPID:
+		value = getTaskStructPIDOffset(f.kernelVersion)
+	case OffsetNameTaskStructPIDLink:
+		value = getTaskStructPIDLinkOffset(f.kernelVersion)
+	case OffsetNamePIDLinkStructPID:
+		value = getPIDLinkPIDOffset(f.kernelVersion)
 	case OffsetNameDentryStructDSB:
 		value = getDentrySuperBlockOffset(f.kernelVersion)
 	case OffsetNamePipeInodeInfoStructBufs:
@@ -786,5 +792,23 @@ func getLinuxBinPrmEnvcOffset(kv *kernel.Version) uint64 {
 		offset = 324
 	}
 
+	return offset
+}
+
+func getTaskStructPIDOffset(kv *kernel.Version) uint64 {
+	// do not use fallback for offsets inside task_struct
+	return ErrorSentinel
+}
+
+func getTaskStructPIDLinkOffset(kv *kernel.Version) uint64 {
+	// do not use fallback for offsets inside task_struct
+	return ErrorSentinel
+}
+
+func getPIDLinkPIDOffset(kv *kernel.Version) uint64 {
+	offset := ErrorSentinel
+	if kv.HavePIDLinkStruct() {
+		offset = uint64(16)
+	}
 	return offset
 }

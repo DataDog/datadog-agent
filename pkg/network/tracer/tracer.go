@@ -18,6 +18,8 @@ import (
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
@@ -39,7 +41,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
@@ -153,7 +154,7 @@ func newTracer(config *config.Config) (*Tracer, error) {
 	needsOffsets := !config.EnableRuntimeCompiler || config.AllowPrecompiledFallback
 	var constantEditors []manager.ConstantEditor
 	if needsOffsets {
-		if constantEditors, err = runOffsetGuessing(config, offsetBuf, offsetguess.NewTracerOffsetGuesser()); err != nil {
+		if constantEditors, err = runOffsetGuessing(config, offsetBuf, offsetguess.NewTracerOffsetGuesser); err != nil {
 			return nil, fmt.Errorf("error guessing offsets: %s", err)
 		}
 	}
@@ -286,22 +287,26 @@ func newReverseDNS(c *config.Config) dns.ReverseDNS {
 	return rdns
 }
 
-func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader, guesser offsetguess.OffsetGuesser) (editors []manager.ConstantEditor, err error) {
-	if err := offsetguess.SetupOffsetGuesser(guesser, config, buf); err != nil {
-		return nil, err
-	}
-
-	defer func() {
-		err := guesser.Manager().Stop(manager.CleanAll)
-		if err != nil {
-			log.Warnf("error stopping offset ebpf manager: %s", err)
-		}
-	}()
-
+func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader, newGuesser func() (offsetguess.OffsetGuesser, error)) (editors []manager.ConstantEditor, err error) {
 	// Offset guessing has been flaky for some customers, so if it fails we'll retry it up to 5 times
+	start := time.Now()
 	for i := 0; i < 5; i++ {
-		start := time.Now()
-		if editors, err = guesser.Guess(config); err == nil {
+		err = func() error {
+			guesser, err := newGuesser()
+			if err != nil {
+				return err
+			}
+			defer guesser.Close()
+
+			if err = offsetguess.SetupOffsetGuesser(guesser, config, buf); err != nil {
+				return err
+			}
+
+			editors, err = guesser.Guess(config)
+			return err
+		}()
+
+		if err == nil {
 			log.Infof("offset guessing complete (took %v)", time.Since(start))
 			return editors, nil
 		}
@@ -434,6 +439,10 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 func (t *Tracer) RegisterClient(clientID string) error {
 	t.state.RegisterClient(clientID)
 	return nil
+}
+
+func (t *Tracer) removeClient(clientID string) {
+	t.state.RemoveClient(clientID)
 }
 
 func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int64 {

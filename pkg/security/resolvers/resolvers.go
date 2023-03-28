@@ -58,7 +58,7 @@ type Resolvers struct {
 
 // NewResolvers creates a new instance of Resolvers
 func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC) (*Resolvers, error) {
-	dentryResolver, err := dentry.NewResolver(config, statsdClient, eRPC)
+	dentryResolver, err := dentry.NewResolver(config.Probe, statsdClient, eRPC)
 	if err != nil {
 		return nil, err
 	}
@@ -73,28 +73,29 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 		return nil, err
 	}
 
-	tcResolver := tc.NewResolver(config)
+	tcResolver := tc.NewResolver(config.Probe)
 
-	namespaceResolver, err := netns.NewResolver(config, manager, statsdClient, tcResolver)
+	namespaceResolver, err := netns.NewResolver(config.Probe, manager, statsdClient, tcResolver)
 	if err != nil {
 		return nil, err
 	}
 
-	tagsResolver := tags.NewResolver(config)
 	var sbomResolver *sbom.Resolver
-	if config.SBOMResolverEnabled {
-		sbomResolver, err = sbom.NewSBOMResolver(config, tagsResolver, statsdClient)
+
+	if config.RuntimeSecurity.SBOMResolverEnabled {
+		sbomResolver, err = sbom.NewSBOMResolver(config.RuntimeSecurity, statsdClient)
 		if err != nil {
 			return nil, err
 		}
 	}
 
+	tagsResolver := tags.NewResolver(config.Probe)
 	cgroupsResolver, err := cgroup.NewResolver(tagsResolver)
 	if err != nil {
 		return nil, err
 	}
 
-	if config.SBOMResolverEnabled {
+	if config.RuntimeSecurity.SBOMResolverEnabled {
 		_ = cgroupsResolver.RegisterListener(cgroup.CGroupDeleted, sbomResolver.OnCGroupDeletedEvent)
 		_ = cgroupsResolver.RegisterListener(cgroup.WorkloadSelectorResolved, sbomResolver.OnWorkloadSelectorResolvedEvent)
 	}
@@ -107,8 +108,8 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 	pathResolver := path.NewResolver(dentryResolver, mountResolver)
 
 	containerResolver := &container.Resolver{}
-	processResolver, err := process.NewResolver(manager, config, statsdClient,
-		scrubber, containerResolver, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, process.NewResolverOpts(config.EnvsWithValue))
+	processResolver, err := process.NewResolver(manager, config.Probe, statsdClient,
+		scrubber, containerResolver, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, process.NewResolverOpts(config.Probe.EnvsWithValue))
 	if err != nil {
 		return nil, err
 	}

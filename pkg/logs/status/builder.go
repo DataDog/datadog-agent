@@ -177,8 +177,8 @@ func (b *Builder) getMetricsStatus() map[string]int64 {
 	return metrics
 }
 
-func (b *Builder) getProcessFileStats() map[string]float64 {
-	stats := make(map[string]float64)
+func (b *Builder) getProcessFileStats() map[string]uint64 {
+	stats := make(map[string]uint64)
 	fs, err := util.GetProcessFileStats()
 	if err != nil {
 		return stats

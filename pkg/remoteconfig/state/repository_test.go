@@ -32,7 +32,9 @@ func TestNewUnverifiedRepository(t *testing.T) {
 	assert.Nil(t, err, "Creating an unverified repository should always succeed with no error")
 }
 
-func TestEmptyUpdate(t *testing.T) {
+// TestEmptyUpdateZeroTypes makes sure that a properly initialized, but otherwise empty,
+// `Update` won't cause an error, crash the Update process, and also results in unchanged state.
+func TestEmptyUpdateZeroTypes(t *testing.T) {
 	ta := newTestArtifacts()
 
 	emptyUpdate := Update{
@@ -45,7 +47,7 @@ func TestEmptyUpdate(t *testing.T) {
 	r := ta.repository
 
 	updatedProducts, err := r.Update(emptyUpdate)
-	assert.NotNil(t, err)
+	assert.Nil(t, err)
 	assert.Equal(t, 0, len(updatedProducts), "An empty update shouldn't indicate any updated products")
 	assert.Equal(t, 0, len(r.APMConfigs()), "An empty update shoudldn't add any APM configs")
 	assert.Equal(t, 0, len(r.CWSDDConfigs()), "An empty update shouldn't add any CWSDD configs")
@@ -62,7 +64,53 @@ func TestEmptyUpdate(t *testing.T) {
 	r = ta.unverifiedRepository
 
 	updatedProducts, err = r.Update(emptyUpdate)
-	assert.NotNil(t, err)
+	assert.Nil(t, err)
+	assert.Equal(t, 0, len(updatedProducts), "An empty update shouldn't indicate any updated products")
+	assert.Equal(t, 0, len(r.APMConfigs()), "An empty update shoudldn't add any APM configs")
+	assert.Equal(t, 0, len(r.CWSDDConfigs()), "An empty update shouldn't add any CWSDD configs")
+
+	state, err = r.CurrentState()
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(state.Configs))
+	assert.Equal(t, 0, len(state.CachedFiles))
+	assert.EqualValues(t, 0, state.TargetsVersion)
+	assert.EqualValues(t, 1, state.RootsVersion)
+	assert.Nil(t, state.OpaqueBackendState)
+}
+
+// TestEmptyUpdateNilTypes makes sure that a completely uninitialized `Update` field won't
+// cause an error, crash the Update process, and also results in unchanged state.
+func TestEmptyUpdateNilTypes(t *testing.T) {
+	ta := newTestArtifacts()
+
+	emptyUpdate := Update{
+		TUFRoots:      nil,
+		TUFTargets:    nil,
+		TargetFiles:   nil,
+		ClientConfigs: nil,
+	}
+
+	r := ta.repository
+
+	updatedProducts, err := r.Update(emptyUpdate)
+	assert.Nil(t, err)
+	assert.Equal(t, 0, len(updatedProducts), "An empty update shouldn't indicate any updated products")
+	assert.Equal(t, 0, len(r.APMConfigs()), "An empty update shoudldn't add any APM configs")
+	assert.Equal(t, 0, len(r.CWSDDConfigs()), "An empty update shouldn't add any CWSDD configs")
+
+	state, err := r.CurrentState()
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(state.Configs))
+	assert.Equal(t, 0, len(state.CachedFiles))
+	assert.EqualValues(t, 0, state.TargetsVersion)
+	assert.EqualValues(t, 1, state.RootsVersion)
+	assert.Nil(t, state.OpaqueBackendState)
+
+	// Do the same with the unverified repository, there should be no functional difference.
+	r = ta.unverifiedRepository
+
+	updatedProducts, err = r.Update(emptyUpdate)
+	assert.Nil(t, err)
 	assert.Equal(t, 0, len(updatedProducts), "An empty update shouldn't indicate any updated products")
 	assert.Equal(t, 0, len(r.APMConfigs()), "An empty update shoudldn't add any APM configs")
 	assert.Equal(t, 0, len(r.CWSDDConfigs()), "An empty update shouldn't add any CWSDD configs")

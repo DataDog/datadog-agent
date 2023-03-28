@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Datadog.CustomActions;
+using Datadog.CustomActions.Interfaces;
 using WixSharp;
 
 namespace WixSetup.Datadog
@@ -21,6 +22,7 @@ namespace WixSetup.Datadog
         public ManagedAction ReadRegistryProperties { get; }
 
         public ManagedAction ProcessDdAgentUserCredentials { get; }
+        public ManagedAction ProcessDdAgentUserCredentialsUI { get; }
 
         public ManagedAction PrepareDecompressPythonDistributions { get; }
 
@@ -44,11 +46,25 @@ namespace WixSetup.Datadog
 
         public ManagedAction EnsureNpmServiceDepdendency { get; }
 
+        public ManagedAction ConfigureServiceUsers { get; }
+
+        public ManagedAction StopDDServices { get; }
+
+        public ManagedAction StartDDServices { get; }
+
+        public ManagedAction StartDDServicesRollback { get; }
+
+        /// <summary>
+        /// Registers and sequences our custom actions
+        /// </summary>
+        /// <remarks>
+        /// Please refer to https://learn.microsoft.com/en-us/windows/win32/msi/sequencing-custom-actions
+        /// </remarks>
         public AgentCustomActions()
         {
-            ReadRegistryProperties = new CustomAction<UserCustomActions>(
+            ReadRegistryProperties = new CustomAction<RegistryCustomActions>(
                 new Id(nameof(ReadRegistryProperties)),
-                UserCustomActions.ReadRegistryProperties,
+                RegistryCustomActions.ReadRegistryProperties,
                 Return.ignore,
                 // AppSearch is when RegistrySearch is run, so that will overwrite
                 // any command line values.
@@ -116,15 +132,15 @@ namespace WixSetup.Datadog
             .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
             .HideTarget(true); ;
 
-            EnsureNpmServiceDepdendency = new CustomAction<NpmCustomAction>(
+            EnsureNpmServiceDepdendency = new CustomAction<ServiceCustomAction>(
                 new Id(nameof(EnsureNpmServiceDepdendency)),
-                NpmCustomAction.EnsureNpmServiceDependency,
+                ServiceCustomAction.EnsureNpmServiceDependency,
                 Return.check,
-                When.After,
-                new Step(ReportInstallFailure.Id),
+                When.Before,
+                Step.InstallServices,
                 Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
             )
-                {
+            {
                 Execute = Execute.deferred,
                 Impersonate = false
             }
@@ -236,7 +252,7 @@ namespace WixSetup.Datadog
                 Return.check,
                 When.After,
                 new Step(DecompressPythonDistributions.Id),
-                Condition.NOT(Conditions.Uninstalling)
+                Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
             )
             {
                 Execute = Execute.deferred,
@@ -244,29 +260,46 @@ namespace WixSetup.Datadog
             }
             .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
                            "PROJECTLOCATION=[PROJECTLOCATION], " +
+                           "DDAGENTUSER_PROCESSED_NAME=[DDAGENTUSER_PROCESSED_NAME], " +
                            "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME], " +
-                           "DDAGENTUSER_SID=[DDAGENTUSER_SID]");
+                           "DDAGENTUSER_PROCESSED_PASSWORD=[DDAGENTUSER_PROCESSED_PASSWORD], " +
+                           "DDAGENTUSER_FOUND=[DDAGENTUSER_FOUND], " +
+                           "DDAGENTUSER_SID=[DDAGENTUSER_SID], " +
+                           "DDAGENTUSER_RESET_PASSWORD=[DDAGENTUSER_RESET_PASSWORD]")
+            .HideTarget(true);
 
             ProcessDdAgentUserCredentials = new CustomAction<UserCustomActions>(
                 new Id(nameof(ProcessDdAgentUserCredentials)),
                 UserCustomActions.ProcessDdAgentUserCredentials,
                 Return.check,
                 // Run at end of "config phase", right before the "make changes" phase.
-                // Must run before InstallValidate because it changes the User components
+                // Ensure no actions that modify the input properties are run after this action.
                 When.Before,
-                Step.InstallValidate,
+                Step.InstallInitialize,
                 // Run unless we are being uninstalled.
                 // This CA produces properties used for services, accounts, and permissions.
-                Condition.NOT(Conditions.Uninstalling)
+                Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
             )
-            .SetProperties("DDAGENTUSER_NAME=[DDAGENTUSER_NAME], DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD]")
+            .SetProperties("DDAGENTUSER_NAME=[DDAGENTUSER_NAME], " +
+                           "DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD], " +
+                           "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME]")
             .HideTarget(true);
 
-            OpenMsiLog = new CustomAction<UserCustomActions>(
-                new Id(nameof(OpenMsiLog)),
-                UserCustomActions.OpenMsiLog
+            ProcessDdAgentUserCredentialsUI = new CustomAction<UserCustomActions>(
+                new Id(nameof(ProcessDdAgentUserCredentialsUI)),
+                UserCustomActions.ProcessDdAgentUserCredentialsUI
             )
             {
+                // Not run in a sequence, run when Next is clicked on ddagentuserdlg
+                Sequence = Sequence.NotInSequence
+            };
+
+            OpenMsiLog = new CustomAction<MsiLogCustomActions>(
+                new Id(nameof(OpenMsiLog)),
+                MsiLogCustomActions.OpenMsiLog
+            )
+            {
+                // Not run in a sequence, run from button on fatalError dialog
                 Sequence = Sequence.NotInSequence
             };
 
@@ -275,6 +308,7 @@ namespace WixSetup.Datadog
                 Flare.SendFlare
             )
             {
+                // Not run in a sequence, run from button on fatalError dialog
                 Sequence = Sequence.NotInSequence
             };
 
@@ -308,6 +342,73 @@ namespace WixSetup.Datadog
             )
             .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
             .HideTarget(true);
+
+            // Enables the user to change the service accounts during upgrade/change
+            // Relies on StopDDServices/StartDDServices to ensure the services are restarted
+            // so that the new configuration is used.
+            ConfigureServiceUsers = new CustomAction<ServiceCustomAction>(
+                new Id(nameof(ConfigureServiceUsers)),
+                ServiceCustomAction.ConfigureServiceUsers,
+                Return.check,
+                When.After,
+                Step.InstallServices,
+                Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+
+            )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+            .SetProperties("DDAGENTUSER_PROCESSED_PASSWORD=[DDAGENTUSER_PROCESSED_PASSWORD], " +
+                           "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME]")
+            .HideTarget(true);
+
+            // WiX built-in StopServices only stops services if the component is changing.
+            // This means that the services associated with MainApplication won't be restarted
+            // during change operations.
+            StopDDServices = new CustomAction<ServiceCustomAction>(
+                new Id(nameof(StopDDServices)),
+                ServiceCustomAction.StopDDServices,
+                Return.check,
+                When.Before,
+                Step.StopServices
+            )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            };
+
+            // WiX built-in StartServices only starts services if the component is changing.
+            // This means that the services associated with MainApplication won't be restarted
+            // during change operations.
+            StartDDServices = new CustomAction<ServiceCustomAction>(
+                new Id(nameof(StartDDServices)),
+                ServiceCustomAction.StartDDServices,
+                Return.check,
+                When.After,
+                Step.StartServices,
+                Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+            )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            };
+
+            // Rollback StartDDServices stops the the services so that any file locks are released.
+            StartDDServicesRollback = new CustomAction<ServiceCustomAction>(
+                new Id(nameof(StartDDServicesRollback)),
+                ServiceCustomAction.StartDDServicesRollback,
+                Return.ignore,
+                // Must be sequenced before the action it will rollback for
+                When.Before,
+                new Step(StartDDServices.Id),
+                // Must have same condition as the action it will rollback for
+                Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+            )
+            {
+                Execute = Execute.rollback,
+                Impersonate = false
+            };
         }
     }
 }

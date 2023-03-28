@@ -14,7 +14,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net"
 	nethttp "net/http"
@@ -27,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
@@ -44,7 +42,6 @@ import (
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type connTag = uint64
@@ -231,7 +228,7 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 	// not ideal but, short process are hard to catch
 	for _, lib := range prefetchLibs {
 		f, err := os.Open(lib)
-		if err != nil {
+		if err == nil {
 			t.Cleanup(func() { f.Close() })
 		}
 	}
@@ -257,12 +254,8 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 			statsTags := req.StaticTags
 			// debian 10 have curl binary linked with openssl and gnutls but use only openssl during tls query (there no runtime flag available)
 			// this make harder to map lib and tags, one set of tag should match but not both
-			foundPathAndHTTPTag := false
 			if key.Path.Content == "/200/foobar" && (statsTags == tagGnuTLS || statsTags == tagOpenSSL) {
-				foundPathAndHTTPTag = true
 				t.Logf("found tag 0x%x %s", statsTags, staticTags[statsTags])
-			}
-			if foundPathAndHTTPTag {
 				return true
 			}
 			t.Logf("HTTP stat didn't match criteria %v tags 0x%x\n", key, statsTags)
@@ -477,28 +470,37 @@ func TestProtocolClassification(t *testing.T) {
 		t.Skip("Classification is not supported")
 	}
 
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	t.Cleanup(tr.Stop)
+
 	t.Run("with dnat", func(t *testing.T) {
 		// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
 		netlink.SetupDNAT(t)
-		testProtocolClassification(t, cfg, "localhost", "2.2.2.2", "1.1.1.1")
-		testProtocolClassificationMapCleanup(t, cfg, "localhost", "2.2.2.2", "1.1.1.1:0")
+		testProtocolClassification(t, tr, "localhost", "2.2.2.2", "1.1.1.1")
+		testProtocolClassificationMapCleanup(t, tr, "localhost", "2.2.2.2", "1.1.1.1:0")
 	})
 
 	t.Run("with snat", func(t *testing.T) {
 		// SetupDNAT sets up a NAT translation from 6.6.6.6 to 7.7.7.7
 		netlink.SetupSNAT(t)
-		testProtocolClassification(t, cfg, "6.6.6.6", "127.0.0.1", "127.0.0.1")
-		testProtocolClassificationMapCleanup(t, cfg, "6.6.6.6", "127.0.0.1", "127.0.0.1:0")
+		testProtocolClassification(t, tr, "6.6.6.6", "127.0.0.1", "127.0.0.1")
+		testProtocolClassificationMapCleanup(t, tr, "6.6.6.6", "127.0.0.1", "127.0.0.1:0")
 	})
 
 	t.Run("without nat", func(t *testing.T) {
-		testProtocolClassification(t, cfg, "localhost", "127.0.0.1", "127.0.0.1")
-		testProtocolClassificationMapCleanup(t, cfg, "localhost", "127.0.0.1", "127.0.0.1:0")
+		testProtocolClassification(t, tr, "localhost", "127.0.0.1", "127.0.0.1")
+		testProtocolClassificationMapCleanup(t, tr, "localhost", "127.0.0.1", "127.0.0.1:0")
 	})
 }
 
-func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testProtocolClassificationMapCleanup(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	t.Run("protocol cleanup", func(t *testing.T) {
+		if tr.ebpfTracer.Type() == connection.EBPFFentry {
+			t.Skip("protocol classification not supported for fentry tracer")
+		}
+		t.Cleanup(func() { tr.ebpfTracer.Pause() })
+
 		dialer := &net.Dialer{
 			LocalAddr: &net.TCPAddr{
 				IP:   net.ParseIP(clientHost),
@@ -517,11 +519,8 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 			},
 		}
 
-		tr := setupTracer(t, cfg)
-
-		if tr.ebpfTracer.Type() == connection.EBPFFentry {
-			t.Skip("protocol classification not supported for fentry tracer")
-		}
+		initTracerState(t, tr)
+		require.NoError(t, tr.ebpfTracer.Resume())
 
 		HTTPServer := NewTCPServerOnAddress(serverHost, func(c net.Conn) {
 			r := bufio.NewReader(c)
@@ -536,9 +535,6 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 		_, port, err := net.SplitHostPort(HTTPServer.address)
 		require.NoError(t, err)
 		targetAddr := net.JoinHostPort(targetHost, port)
-
-		// Letting the server time to start
-		time.Sleep(500 * time.Millisecond)
 
 		// Running a HTTP client
 		client := nethttp.Client{
@@ -555,8 +551,6 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 		client.CloseIdleConnections()
 		waitForConnectionsWithProtocol(t, tr, targetAddr, HTTPServer.address, network.ProtocolHTTP)
 		HTTPServer.Shutdown()
-
-		time.Sleep(2 * time.Second)
 
 		gRPCServer, err := grpc.NewServer(HTTPServer.address)
 		require.NoError(t, err)
@@ -575,13 +569,19 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 
 // Java Injection and TLS tests
 
+func createJavaTempFile(t *testing.T, dir string) string {
+	tempfile, err := os.CreateTemp(dir, "TestAgentLoaded.agentmain.*")
+	require.NoError(t, err)
+	tempfile.Close()
+	os.Remove(tempfile.Name())
+
+	return tempfile.Name()
+}
+
 func TestJavaInjection(t *testing.T) {
-
 	if !javaTLSSupported(t) {
-		t.Skip("java TLS platform not supported")
+		t.Skip("java TLS not supported on the current platform")
 	}
-
-	log.SetupLogger(seelog.Default, "debug")
 
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
@@ -589,12 +589,13 @@ func TestJavaInjection(t *testing.T) {
 	cfg.EnableJavaTLSSupport = true
 
 	dir, _ := testutil.CurDir()
+	testdataDir := filepath.Join(dir, "../java/testdata")
 	legacyJavaDir := cfg.JavaDir
 	// create a fake agent-usm.jar based on TestAgentLoaded.jar by forcing cfg.JavaDir
 	fakeAgentDir, err := os.MkdirTemp("", "fake.agent-usm.jar.")
 	require.NoError(t, err)
 	defer os.RemoveAll(fakeAgentDir)
-	_, err = nettestutil.RunCommand("install -m444 " + dir + "/../java/testdata/TestAgentLoaded.jar " + fakeAgentDir + "/agent-usm.jar")
+	_, err = nettestutil.RunCommand("install -m444 " + filepath.Join(testdataDir, "TestAgentLoaded.jar") + " " + filepath.Join(fakeAgentDir, "agent-usm.jar"))
 	require.NoError(t, err)
 
 	// testContext shares the context of a given test.
@@ -603,6 +604,22 @@ func TestJavaInjection(t *testing.T) {
 	type testContext struct {
 		// A dynamic map that allows extending the context easily between phases of the test.
 		extras map[string]interface{}
+	}
+
+	commonTearDown := func(t *testing.T, ctx testContext) {
+		cfg.JavaAgentArgs = ctx.extras["JavaAgentArgs"].(string)
+
+		testfile := ctx.extras["testfile"].(string)
+		_, err := os.Stat(testfile)
+		if err == nil {
+			os.Remove(testfile)
+		}
+	}
+
+	commonValidation := func(t *testing.T, ctx testContext, tr *Tracer) {
+		testfile := ctx.extras["testfile"].(string)
+		_, err := os.Stat(testfile)
+		require.NoError(t, err)
 	}
 
 	tests := []struct {
@@ -623,27 +640,15 @@ func TestJavaInjection(t *testing.T) {
 				cfg.JavaDir = fakeAgentDir
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
 
-				tfile, err := ioutil.TempFile(dir+"/../java/testdata/", "TestAgentLoaded.agentmain.*")
-				require.NoError(t, err)
-				tfile.Close()
-				os.Remove(tfile.Name())
-				ctx.extras["testfile"] = tfile.Name()
-				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(tfile.Name())
+				ctx.extras["testfile"] = createJavaTempFile(t, testdataDir)
+				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				javatestutil.RunJavaVersion(t, "openjdk:8u151-jre", "JustWait")
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
-
-				cfg.JavaAgentArgs = ctx.extras["JavaAgentArgs"].(string)
+				javatestutil.RunJavaVersion(t, "openjdk:8u151-jre", "JustWait")
 			},
-			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
-				time.Sleep(time.Second)
-
-				testfile := ctx.extras["testfile"].(string)
-				_, err := os.Stat(testfile)
-				require.NoError(t, err)
-				os.Remove(testfile)
-			},
+			validation: commonValidation,
+			teardown:   commonTearDown,
 		},
 		{
 			// Test the java hotspot injection is working
@@ -655,12 +660,8 @@ func TestJavaInjection(t *testing.T) {
 				cfg.JavaDir = fakeAgentDir
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
 
-				tfile, err := ioutil.TempFile(dir+"/../java/testdata/", "TestAgentLoaded.agentmain.*")
-				require.NoError(t, err)
-				tfile.Close()
-				os.Remove(tfile.Name())
-				ctx.extras["testfile"] = tfile.Name()
-				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(tfile.Name())
+				ctx.extras["testfile"] = createJavaTempFile(t, testdataDir)
+				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
 
 				// testing allow/block list, as Allow list have higher priority
 				// this test will pass normally
@@ -671,21 +672,10 @@ func TestJavaInjection(t *testing.T) {
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
 				javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait")
 				var fake testing.T
-				testSuccess := javatestutil.RunJavaVersion(&fake, "openjdk:21-oraclelinux8", "AnotherWait")
-				if testSuccess {
-					t.Fatalf("AnotherWait should not be attached")
-				}
-
-				cfg.JavaAgentArgs = ctx.extras["JavaAgentArgs"].(string)
+				require.Falsef(t, javatestutil.RunJavaVersion(&fake, "openjdk:21-oraclelinux8", "AnotherWait"), "AnotherWait should not be attached")
 			},
-			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
-				time.Sleep(time.Second)
-
-				testfile := ctx.extras["testfile"].(string)
-				_, err := os.Stat(testfile)
-				require.NoError(t, err)
-				os.Remove(testfile)
-			},
+			validation: commonValidation,
+			teardown:   commonTearDown,
 		},
 		{
 			// Test the java hotspot injection is working
@@ -696,12 +686,8 @@ func TestJavaInjection(t *testing.T) {
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
 
-				tfile, err := ioutil.TempFile(dir+"/../java/testdata/", "TestAgentLoaded.agentmain.*")
-				require.NoError(t, err)
-				tfile.Close()
-				os.Remove(tfile.Name())
-				ctx.extras["testfile"] = tfile.Name()
-				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(tfile.Name())
+				ctx.extras["testfile"] = createJavaTempFile(t, testdataDir)
+				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
 
 				// block the agent attachment
 				cfg.JavaAgentAllowRegex = ""
@@ -711,20 +697,10 @@ func TestJavaInjection(t *testing.T) {
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
 				javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "AnotherWait")
 				var fake testing.T
-				testSuccess := javatestutil.RunJavaVersion(&fake, "openjdk:21-oraclelinux8", "JustWait")
-				if testSuccess {
-					t.Fatalf("JustWait should not be attached")
-				}
-
-				cfg.JavaAgentArgs = ctx.extras["JavaAgentArgs"].(string)
+				require.Falsef(t, javatestutil.RunJavaVersion(&fake, "openjdk:21-oraclelinux8", "JustWait"), "JustWait should not be attached")
 			},
-			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
-				time.Sleep(time.Second)
-
-				testfile := ctx.extras["testfile"].(string)
-				_, err := os.Stat(testfile)
-				require.NoError(t, err)
-			},
+			validation: commonValidation,
+			teardown:   commonTearDown,
 		},
 		{
 			name: "java_hotspot_injection_21_allowblock",
@@ -734,12 +710,8 @@ func TestJavaInjection(t *testing.T) {
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
 
-				tfile, err := ioutil.TempFile(dir+"/../java/testdata/", "TestAgentLoaded.agentmain.*")
-				require.NoError(t, err)
-				tfile.Close()
-				os.Remove(tfile.Name())
-				ctx.extras["testfile"] = tfile.Name()
-				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(tfile.Name())
+				ctx.extras["testfile"] = createJavaTempFile(t, testdataDir)
+				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
 
 				// block the agent attachment
 				cfg.JavaAgentAllowRegex = ".*JustWait.*"
@@ -748,20 +720,10 @@ func TestJavaInjection(t *testing.T) {
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait")
 				var fake testing.T
-				testSuccess := javatestutil.RunJavaVersion(&fake, "openjdk:21-oraclelinux8", "AnotherWait")
-				if testSuccess {
-					t.Fatalf("AnotherWait should not be attached")
-				}
-
-				cfg.JavaAgentArgs = ctx.extras["JavaAgentArgs"].(string)
+				require.Falsef(t, javatestutil.RunJavaVersion(&fake, "openjdk:21-oraclelinux8", "AnotherWait"), "AnotherWait should not be attached")
 			},
-			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
-				time.Sleep(time.Second)
-
-				testfile := ctx.extras["testfile"].(string)
-				_, err := os.Stat(testfile)
-				require.NoError(t, err)
-			},
+			validation: commonValidation,
+			teardown:   commonTearDown,
 		},
 		{
 			name: "java_hotspot_injection_21_allowhigherpriority",
@@ -771,36 +733,22 @@ func TestJavaInjection(t *testing.T) {
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
 
-				tfile, err := ioutil.TempFile(dir+"/../java/testdata/", "TestAgentLoaded.agentmain.*")
-				require.NoError(t, err)
-				tfile.Close()
-				os.Remove(tfile.Name())
-				ctx.extras["testfile"] = tfile.Name()
-				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(tfile.Name())
+				ctx.extras["testfile"] = createJavaTempFile(t, testdataDir)
+				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
 
-				// allow has an higher priority
+				// allow has a higher priority
 				cfg.JavaAgentAllowRegex = ".*JustWait.*"
 				cfg.JavaAgentBlockRegex = ".*JustWait.*"
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait")
-
-				cfg.JavaAgentArgs = ctx.extras["JavaAgentArgs"].(string)
 			},
-			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
-				time.Sleep(time.Second)
-
-				testfile := ctx.extras["testfile"].(string)
-				_, err := os.Stat(testfile)
-				require.NoError(t, err)
-			},
+			validation: commonValidation,
+			teardown:   commonTearDown,
 		},
 		{
 			// Test the java jdk client https request is working
 			name: "java_jdk_client_httpbin_docker_java15",
-			context: testContext{
-				extras: make(map[string]interface{}),
-			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				cfg.JavaDir = legacyJavaDir
 			},

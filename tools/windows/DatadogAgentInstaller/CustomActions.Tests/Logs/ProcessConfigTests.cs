@@ -1,6 +1,7 @@
 using AutoFixture.Xunit2;
 using CustomActions.Tests.Helpers;
 using Datadog.CustomActions;
+using Datadog.CustomActions.Interfaces;
 using Moq;
 using Xunit;
 

@@ -81,13 +81,13 @@ func (adm *ActivityDumpManager) Start(ctx context.Context, wg *sync.WaitGroup) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	ticker := time.NewTicker(adm.config.ActivityDumpCleanupPeriod)
+	ticker := time.NewTicker(adm.config.RuntimeSecurity.ActivityDumpCleanupPeriod)
 	defer ticker.Stop()
 
-	tagsTicker := time.NewTicker(adm.config.ActivityDumpTagsResolutionPeriod)
+	tagsTicker := time.NewTicker(adm.config.RuntimeSecurity.ActivityDumpTagsResolutionPeriod)
 	defer tagsTicker.Stop()
 
-	loadControlTicker := time.NewTicker(adm.config.ActivityDumpLoadControlPeriod)
+	loadControlTicker := time.NewTicker(adm.config.RuntimeSecurity.ActivityDumpLoadControlPeriod)
 	defer loadControlTicker.Stop()
 
 	for {
@@ -196,7 +196,7 @@ func (adm *ActivityDumpManager) resolveTags() {
 				adm.dumpLimiter.Add(limiterKey, counter)
 			}
 
-			if counter.Load() >= uint64(ad.adm.config.ActivityDumpMaxDumpCountPerWorkload) {
+			if counter.Load() >= uint64(ad.adm.config.RuntimeSecurity.ActivityDumpMaxDumpCountPerWorkload) {
 				ad.Finalize(true)
 				adm.RemoveDump(ad)
 				adm.dropMaxDumpReached.Inc()
@@ -374,22 +374,22 @@ func (adm *ActivityDumpManager) HandleCgroupTracingEvent(event *model.CgroupTrac
 
 	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
 		ad.Metadata.ContainerID = event.ContainerContext.ID
-		ad.Metadata.DifferentiateArgs = adm.config.ActivityDumpCgroupDifferentiateArgs
+		ad.Metadata.DifferentiateArgs = adm.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs
 		ad.SetLoadConfig(event.ConfigCookie, event.Config)
 	})
 
 	// add local storage requests
-	for _, format := range adm.config.ActivityDumpLocalStorageFormats {
+	for _, format := range adm.config.RuntimeSecurity.ActivityDumpLocalStorageFormats {
 		newDump.AddStorageRequest(config.NewStorageRequest(
 			config.LocalStorage,
 			format,
-			adm.config.ActivityDumpLocalStorageCompression,
-			adm.config.ActivityDumpLocalStorageDirectory,
+			adm.config.RuntimeSecurity.ActivityDumpLocalStorageCompression,
+			adm.config.RuntimeSecurity.ActivityDumpLocalStorageDirectory,
 		))
 	}
 
 	// add remote storage requests
-	for _, format := range adm.config.ActivityDumpRemoteStorageFormats {
+	for _, format := range adm.config.RuntimeSecurity.ActivityDumpRemoteStorageFormats {
 		newDump.AddStorageRequest(config.NewStorageRequest(
 			config.RemoteStorage,
 			format,
@@ -725,7 +725,7 @@ func (adm *ActivityDumpManager) getOverweightDumps() []*ActivityDump {
 			seclog.Errorf("couldn't send %s metric: %v", metrics.MetricActivityDumpActiveDumpSizeInMemory, err)
 		}
 
-		if dumpSize >= int64(adm.config.ActivityDumpMaxDumpSize()) {
+		if dumpSize >= int64(adm.config.RuntimeSecurity.ActivityDumpMaxDumpSize()) {
 			toDelete = append([]int{i}, toDelete...)
 			dumps = append(dumps, ad)
 			adm.ignoreFromSnapshot[ad.Metadata.ContainerID] = true

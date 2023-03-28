@@ -8,6 +8,7 @@ package cloudproviders
 import (
 	"context"
 	"errors"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
@@ -85,31 +86,45 @@ type cloudProviderAliasesDetector struct {
 	callback func(context.Context) ([]string, error)
 }
 
+var hostAliasesDetectors = []cloudProviderAliasesDetector{
+	{name: "config", callback: config.GetValidHostAliases},
+	{name: alibaba.CloudProviderName, callback: alibaba.GetHostAliases},
+	{name: ec2.CloudProviderName, callback: ec2.GetHostAliases},
+	{name: azure.CloudProviderName, callback: azure.GetHostAliases},
+	{name: gce.CloudProviderName, callback: gce.GetHostAliases},
+	{name: cloudfoundry.CloudProviderName, callback: cloudfoundry.GetHostAliases},
+	{name: "kubelet", callback: kubelet.GetHostAliases},
+	{name: tencent.CloudProviderName, callback: tencent.GetHostAliases},
+	{name: oracle.CloudProviderName, callback: oracle.GetHostAliases},
+	{name: ibm.CloudProviderName, callback: ibm.GetHostAliases},
+	{name: kubernetes.CloudProviderName, callback: kubernetes.GetHostAliases},
+}
+
 // GetHostAliases returns the hostname aliases from different provider
 func GetHostAliases(ctx context.Context) []string {
-	aliases := config.GetValidHostAliases()
+	aliases := []string{}
 
-	detectors := []cloudProviderAliasesDetector{
-		{name: alibaba.CloudProviderName, callback: alibaba.GetHostAliases},
-		{name: ec2.CloudProviderName, callback: ec2.GetHostAliases},
-		{name: azure.CloudProviderName, callback: azure.GetHostAliases},
-		{name: gce.CloudProviderName, callback: gce.GetHostAliases},
-		{name: cloudfoundry.CloudProviderName, callback: cloudfoundry.GetHostAliases},
-		{name: "kubelet", callback: kubelet.GetHostAliases},
-		{name: tencent.CloudProviderName, callback: tencent.GetHostAliases},
-		{name: oracle.CloudProviderName, callback: oracle.GetHostAliases},
-		{name: ibm.CloudProviderName, callback: ibm.GetHostAliases},
-		{name: kubernetes.CloudProviderName, callback: kubernetes.GetHostAliases},
-	}
+	// cloud providers endpoints can take a few seconds to answer. We're using a WaitGroup to call all of them
+	// concurrently since GetHostAliases is called during the agent startup and is blocking.
+	var wg sync.WaitGroup
+	m := sync.Mutex{}
 
-	for _, cloudAliasesDetector := range detectors {
-		cloudAliases, err := cloudAliasesDetector.callback(ctx)
-		if err != nil {
-			log.Debugf("no %s Host Alias: %s", cloudAliasesDetector.name, err)
-		} else if len(cloudAliases) > 0 {
-			aliases = append(aliases, cloudAliases...)
-		}
+	for _, cloudAliasesDetector := range hostAliasesDetectors {
+		wg.Add(1)
+		go func(cloudAliasesDetector cloudProviderAliasesDetector) {
+			defer wg.Done()
+
+			cloudAliases, err := cloudAliasesDetector.callback(ctx)
+			if err != nil {
+				log.Debugf("No %s Host Alias: %s", cloudAliasesDetector.name, err)
+			} else if len(cloudAliases) > 0 {
+				m.Lock()
+				aliases = append(aliases, cloudAliases...)
+				m.Unlock()
+			}
+		}(cloudAliasesDetector)
 	}
+	wg.Wait()
 
 	return util.SortUniqInPlace(aliases)
 }

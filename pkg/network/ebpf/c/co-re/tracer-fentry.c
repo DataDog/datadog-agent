@@ -14,6 +14,7 @@
 #include "port.h"
 #include "sock.h"
 #include "tcp-recv.h"
+#include "sk_buff.h"
 
 #define MSG_PEEK 2
 
@@ -171,7 +172,17 @@ int BPF_PROG(udp_sendpage_exit, struct sock *sk, struct page *page, int offset, 
 }
 
 SEC("fexit/tcp_recvmsg")
-int BPF_PROG(tcp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, int nonblock, int flags, int *addr_len, int copied) {
+int BPF_PROG(tcp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, int flags, int *addr_len, int copied) {
+    if (copied < 0) { // error
+        return 0;
+    }
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    return handle_tcp_recv(pid_tgid, sk, copied);
+}
+
+SEC("fexit/tcp_recvmsg")
+int BPF_PROG(tcp_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, size_t len, int nonblock, int flags, int *addr_len, int copied) {
     if (copied < 0) { // error
         return 0;
     }
@@ -273,50 +284,101 @@ int BPF_PROG(udp_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, 
     return handle_udp_send(sk, sent);
 }
 
-static __always_inline int handle_ret_udp_recvmsg(struct sock *sk, struct msghdr *msg, int copied, int flags) {
+static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buff *skb, int len) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    if (copied < 0) { // Non-zero values are errors (or a peek) (e.g -EINVAL)
-        log_debug("fexit/udp_recvmsg: ret=%d < 0, pid_tgid=%d\n", copied, pid_tgid);
+    udp_recv_sock_t *st = bpf_map_lookup_elem(&udp_recv_sock, &pid_tgid);
+    if (!st) { // no entry means a peek
         return 0;
     }
+    if (len < 0) { // peeking or an error happened
+        return 0;
+    }
+    conn_tuple_t t;
+    bpf_memset(&t, 0, sizeof(conn_tuple_t));
+    int data_len = sk_buff_to_tuple(skb, &t);
+    if (data_len <= 0) {
+        log_debug("ERR(skb_consume_udp): error reading tuple ret=%d\n", data_len);
+        return 0;
+    }
+    // we are receiving, so we want the daddr to become the laddr
+    flip_tuple(&t);
 
+    log_debug("skb_consume_udp: bytes=%d\n", data_len);
+    t.pid = pid_tgid >> 32;
+    t.netns = get_netns(&sk->sk_net);
+    return handle_message(&t, 0, data_len, CONN_DIRECTION_UNKNOWN, 0, 1, PACKET_COUNT_INCREMENT, sk);
+}
+
+static __always_inline int handle_udp_recvmsg(struct sock *sk, int flags) {
     if (flags & MSG_PEEK) {
         return 0;
     }
-
-    log_debug("fexit/udp_recvmsg: ret=%d\n", copied);
-
-    conn_tuple_t t = {};
-    __bpf_memset_builtin(&t, 0, sizeof(conn_tuple_t));
-    if (msg && msg->msg_name) {
-        sockaddr_to_addr(msg->msg_name, &t.daddr_h, &t.daddr_l, &t.dport, &t.metadata);
-    }
-
-    if (!read_conn_tuple_partial(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
-        log_debug("ERR(fexit/udp_recvmsg): error reading conn tuple, pid_tgid=%d\n", pid_tgid);
-        return 0;
-    }
-
-    log_debug("fexit/udp_recvmsg: pid_tgid: %d, return: %d\n", pid_tgid, copied);
-    // segment count is not currently enabled on prebuilt.
-    // to enable, change PACKET_COUNT_NONE => PACKET_COUNT_INCREMENT
-    handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN, 0, 1, PACKET_COUNT_NONE, sk);
-
+    // keep track of non-peeking calls, since skb_free_datagram_locked doesn't have that argument
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    udp_recv_sock_t t = {};
+    bpf_map_update_with_telemetry(udp_recv_sock, &pid_tgid, &t, BPF_ANY);
     return 0;
 }
 
+static __always_inline int handle_udp_recvmsg_ret() {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    bpf_map_delete_elem(&udp_recv_sock, &pid_tgid);
+    return 0;
+}
+
+SEC("fentry/udp_recvmsg")
+int BPF_PROG(udp_recvmsg, struct sock *sk, struct msghdr *msg, size_t len, int noblock, int flags) {
+    log_debug("fentry/udp_recvmsg: flags: %x\n", flags);
+    return handle_udp_recvmsg(sk, flags);
+}
+
+SEC("fentry/udpv6_recvmsg")
+int BPF_PROG(udpv6_recvmsg, struct sock *sk, struct msghdr *msg, size_t len, int noblock, int flags) {
+    log_debug("fentry/udpv6_recvmsg: flags: %x\n", flags);
+    return handle_udp_recvmsg(sk, flags);
+}
+
 SEC("fexit/udp_recvmsg")
-int BPF_PROG(udp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, int noblock,
+int BPF_PROG(udp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len,
              int flags, int *addr_len,
              int copied) {
-    return handle_ret_udp_recvmsg(sk, msg, copied, flags);
+    return handle_udp_recvmsg_ret();
+}
+
+SEC("fexit/udp_recvmsg")
+int BPF_PROG(udp_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, size_t len, int noblock,
+             int flags, int *addr_len,
+             int copied) {
+    return handle_udp_recvmsg_ret();
 }
 
 SEC("fexit/udpv6_recvmsg")
-int BPF_PROG(udpv6_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, int noblock,
+int BPF_PROG(udpv6_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len,
              int flags, int *addr_len,
              int copied) {
-    return handle_ret_udp_recvmsg(sk, msg, copied, flags);
+    return handle_udp_recvmsg_ret();
+}
+
+SEC("fexit/udpv6_recvmsg")
+int BPF_PROG(udpv6_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, size_t len, int noblock,
+             int flags, int *addr_len,
+             int copied) {
+    return handle_udp_recvmsg_ret();
+}
+
+SEC("fentry/skb_free_datagram_locked")
+int BPF_PROG(skb_free_datagram_locked, struct sock *sk, struct sk_buff *skb) {
+    return handle_skb_consume_udp(sk, skb, 0);
+}
+
+SEC("fentry/__skb_free_datagram_locked")
+int BPF_PROG(__skb_free_datagram_locked, struct sock *sk, struct sk_buff *skb, int len) {
+    return handle_skb_consume_udp(sk, skb, len);
+}
+
+SEC("fentry/skb_consume_udp")
+int BPF_PROG(skb_consume_udp, struct sock *sk, struct sk_buff *skb, int len) {
+    return handle_skb_consume_udp(sk, skb, len);
 }
 
 SEC("fentry/tcp_retransmit_skb")

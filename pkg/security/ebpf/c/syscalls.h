@@ -26,6 +26,11 @@ struct args_envs_parsing_context_t {
     u32 args_count;
 };
 
+enum {
+    ACTIVITY_DUMP_RUNNING = 1<<0, // defines if an activity dump is running
+    SAVED_BY_ACTIVITY_DUMP = 1<<1, // defines if the dentry should have been discarded, but was saved because of an activity dump
+};
+
 struct dentry_resolver_input_t {
     struct path_key_t key;
     struct dentry *dentry;
@@ -33,8 +38,7 @@ struct dentry_resolver_input_t {
     int callback;
     int ret;
     int iteration;
-    u32 ad_state; // defines if an activity dump is running
-    u32 saved_by_ad; // defines if the dentry should have been discarded, but was saved because of an activity dump
+    u32 flags;
 };
 
 union selinux_write_payload_t {
@@ -207,8 +211,7 @@ struct syscall_cache_t {
         } delete_module;
 
         struct {
-            u32 namespaced_pid;
-            u32 root_ns_pid;
+            u32 pid;
             u32 type;
         } signal;
 
@@ -351,7 +354,7 @@ int __attribute__((always_inline)) filter_syscall(struct syscall_cache_t *syscal
             if (mask_has_event(config->event_mask, syscall->type)
                 && activity_dump_rate_limiter_allow(config, *cookie, now, 0)) {
                 if (!pass_to_userspace) {
-                    syscall->resolver.saved_by_ad = true;
+                    syscall->resolver.flags |= SAVED_BY_ACTIVITY_DUMP;
                 }
                 return 0;
             }
