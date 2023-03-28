@@ -15,11 +15,14 @@ import (
 	"os/exec"
 	"path"
 	"regexp"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/vishvananda/netns"
 
+	procutils "github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
@@ -173,4 +176,30 @@ func TestProcessMonitorRefcount(t *testing.T) {
 	require.Eventuallyf(t, func() bool {
 		return numberOfExecs == oldNumberOfExecs
 	}, time.Second, time.Millisecond*200, fmt.Sprintf("capture a new exec %d old %d", numberOfExecs, oldNumberOfExecs))
+}
+
+func TestProcessMonitorInNamespace(t *testing.T) {
+	execSet := sync.Map{}
+
+	pm := GetProcessMonitor()
+	unsubscribeExec, err := pm.Subscribe(&ProcessCallback{
+		Event:    EXEC,
+		Metadata: ANY,
+		Callback: func(pid uint32) {
+			execSet.Store(pid, struct{}{})
+		},
+	})
+	defer unsubscribeExec()
+	require.NoError(t, err, "could not subscribe to EXEC events")
+
+	monNs, err := netns.New()
+	require.NoError(t, err, "could not create network namespace for process monitor")
+
+	require.NoError(t, procutils.WithNS(monNs, pm.Initialize), "could not start process monitor in netNS")
+
+	cmd := exec.Command("/bin/echo")
+	require.NoError(t, cmd.Run(), "could not run process in root namespace")
+
+	_, captured := execSet.Load(uint32(cmd.ProcessState.Pid()))
+	require.True(t, captured, "did not capture process EXEC from root namespace")
 }
