@@ -46,12 +46,11 @@ func TestDefaultSet(t *testing.T) {
 	//define the output
 	Exoutput := []SNMPConfig{
 		{
-			Version:         "2",
-			CommunityString: "public",
-			IPAddress:       "98.6.18.158",
-			Port:            161,
-			Timeout:         10,
-			Retries:         3,
+			Version:   "2",
+			IPAddress: "98.6.18.158",
+			Port:      161,
+			Timeout:   2,
+			Retries:   3,
 		},
 	}
 	assertSNMP(t, input, Exoutput)
