@@ -3,7 +3,6 @@ using System.IO;
 using System.Linq;
 using System.Xml.Linq;
 using Datadog.CustomActions;
-using Microsoft.Deployment.WindowsInstaller;
 using NineDigit.WixSharpExtensions;
 using WixSharp;
 using WixSharp.CommonTasks;
@@ -61,10 +60,19 @@ namespace WixSetup.Datadog
         public Project ConfigureProject()
         {
             var project = new ManagedProject("Datadog Agent",
+                // Use 2 LaunchConditions, one for server versions,
+                // one for client versions.
+                MinimumSupportedWindowsVersion.WindowsServer2012 |
+                MinimumSupportedWindowsVersion.Windows8_1,
                 new Property("MsiLogging", "iwearucmop!"),
+                new Property("MSIRESTARTMANAGERCONTROL", "Disable"),
                 new Property("APIKEY")
                 {
                     AttributesDefinition = "Hidden=yes;Secure=yes"
+                },
+                new Property("DDAGENTUSER_NAME")
+                {
+                    AttributesDefinition = "Secure=yes"
                 },
                 // User provided password property
                 new Property("DDAGENTUSER_PASSWORD")
