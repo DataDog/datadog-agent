@@ -351,11 +351,11 @@ def get_version(
 ):
     version = ""
     pipeline_id = os.getenv("CI_PIPELINE_ID")
-    if pipeline_id:
+    if pipeline_id and pipeline_id.isdigit():
         try:
             if not os.path.exists("agent-version.cache"):
                 os.system(
-                    f"aws s3 cp s3://dd-ci-artefacts-build-stable/{os.getenv('CI_PROJECT_NAME')}/{pipeline_id}/agent-version.cache . >/dev/null"
+                    f"aws s3 cp s3://dd-ci-artefacts-build-stable/datadog-agent/{pipeline_id}/agent-version.cache . >/dev/null"
                 )
 
             with open("agent-version.cache", "r") as file:
