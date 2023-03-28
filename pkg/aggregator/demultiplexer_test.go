@@ -186,7 +186,7 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 		time.Sleep(250 * time.Millisecond)
 		demux.aggregator.stopChan <- struct{}{}
 	}()
-	demux.aggregator.run()
+	demux.aggregator.runOther()
 
 	series, sketches := demux.aggregator.checkSamplers[defaultCheckID].flush()
 	require.Len(series, 3)

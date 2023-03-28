@@ -67,7 +67,7 @@ func TestGetDefaultSenderReturnsSameSender(t *testing.T) {
 
 	demux := testDemux()
 	aggregatorInstance := demux.Aggregator()
-	go aggregatorInstance.run()
+	aggregatorInstance.run()
 	defer aggregatorInstance.Stop()
 
 	s, err := demux.GetDefaultSender()
@@ -87,7 +87,7 @@ func TestGetSenderWithDifferentIDsReturnsDifferentCheckSamplers(t *testing.T) {
 
 	demux := testDemux()
 	aggregatorInstance := demux.Aggregator()
-	go aggregatorInstance.run()
+	aggregatorInstance.run()
 	defer aggregatorInstance.Stop()
 
 	s, err := demux.GetSender(checkID1)
@@ -115,7 +115,7 @@ func TestGetSenderWithSameIDsReturnsSameSender(t *testing.T) {
 
 	demux := testDemux()
 	aggregatorInstance := demux.Aggregator()
-	go aggregatorInstance.run()
+	aggregatorInstance.run()
 	defer aggregatorInstance.Stop()
 
 	sender1, err := demux.GetSender(checkID1)
@@ -137,7 +137,7 @@ func TestDestroySender(t *testing.T) {
 
 	demux := testDemux()
 	aggregatorInstance := demux.Aggregator()
-	go aggregatorInstance.run()
+	aggregatorInstance.run()
 	defer aggregatorInstance.Stop()
 
 	_, err := demux.GetSender(checkID1)
@@ -188,7 +188,7 @@ func TestGetSenderDefaultHostname(t *testing.T) {
 
 	demux := testDemux()
 	aggregatorInstance := demux.Aggregator()
-	go aggregatorInstance.run()
+	aggregatorInstance.run()
 
 	sender, err := demux.GetSender(checkID1)
 	require.NoError(t, err)

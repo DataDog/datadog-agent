@@ -318,7 +318,7 @@ func (d *AgentDemultiplexer) Run() {
 		go w.run()
 	}
 
-	go d.aggregator.run()
+	d.aggregator.run()
 
 	if d.noAggStreamWorker != nil {
 		go d.noAggStreamWorker.run()
