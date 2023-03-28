@@ -236,8 +236,10 @@ func (s *checkSender) sendMetricSample(
 	flushFirstValue bool,
 	noIndex bool) {
 	tags = append(tags, s.checkTags...)
+	checkName := check.IDToCheckName(s.id)
+	source := metrics.CheckNameToMetricSource(checkName)
 
-	log.Trace(mType.String(), " sample: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
+	log.Trace(mType.String(), " sample: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags, " checkName: ", checkName, " source ", source.String())
 
 	metricSample := &metrics.MetricSample{
 		Name:            metric,
@@ -249,13 +251,7 @@ func (s *checkSender) sendMetricSample(
 		Timestamp:       timeNowNano(),
 		FlushFirstValue: flushFirstValue,
 		NoIndex:         noIndex,
-		Source:          metrics.CheckNameToMetricSource(check.IDToCheckName(s.id)),
-	}
-
-	var agentTelemetryCheckName check.ID
-	// The metricSource is only set for checks from `integrations-internal`, all others will be "Unknown"
-	if metricSample.Source == metrics.MetricSourceUnknown && s.id != agentTelemetryCheckName {
-		log.Tracef("Did not find MetricSource for metric %q emitted from check name: %q", metric, check.IDToCheckName(s.id))
+		Source:          source,
 	}
 
 	if hostname == "" && !s.defaultHostnameDisabled {
