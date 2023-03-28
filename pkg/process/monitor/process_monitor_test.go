@@ -189,8 +189,8 @@ func TestProcessMonitorInNamespace(t *testing.T) {
 			execSet.Store(pid, struct{}{})
 		},
 	})
-	defer unsubscribeExec()
 	require.NoError(t, err, "could not subscribe to EXEC events")
+	defer unsubscribeExec()
 
 	monNs, err := netns.New()
 	require.NoError(t, err, "could not create network namespace for process monitor")
@@ -200,6 +200,8 @@ func TestProcessMonitorInNamespace(t *testing.T) {
 	cmd := exec.Command("/bin/echo")
 	require.NoError(t, cmd.Run(), "could not run process in root namespace")
 
-	_, captured := execSet.Load(uint32(cmd.ProcessState.Pid()))
-	require.True(t, captured, "did not capture process EXEC from root namespace")
+	require.Eventually(t, func() bool {
+		_, captured := execSet.Load(uint32(cmd.ProcessState.Pid()))
+		return captured
+	}, time.Second, 200*time.Millisecond, "did not capture process EXEC from root namespace")
 }
