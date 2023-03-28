@@ -7,7 +7,7 @@ package probe
 
 import (
 	json "encoding/json"
-	"github.com/DataDog/datadog-agent/pkg/security/serializers/jsonmodel"
+	jsonmodel "github.com/DataDog/datadog-agent/pkg/security/serializers/jsonmodel"
 	easyjson "github.com/mailru/easyjson"
 	jlexer "github.com/mailru/easyjson/jlexer"
 	jwriter "github.com/mailru/easyjson/jwriter"

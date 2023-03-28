@@ -18,8 +18,7 @@ import (
 
 	"github.com/invopop/jsonschema"
 
-	"github.com/DataDog/datadog-agent/pkg/security/serializers"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/serializers/jsonmodel"
 )
 
 func generateBackendJSON(output string) error {
@@ -35,7 +34,7 @@ func generateBackendJSON(output string) error {
 	}
 	reflector.CommentMap = cleanupEasyjson(reflector.CommentMap)
 
-	schema := reflector.Reflect(&serializers.EventSerializer{})
+	schema := reflector.Reflect(&jsonmodel.EventSerializer{})
 
 	schemaJSON, err := json.MarshalIndent(schema, "", "  ")
 	if err != nil {
@@ -46,7 +45,7 @@ func generateBackendJSON(output string) error {
 }
 
 func jsonTypeMapper(ty reflect.Type) *jsonschema.Schema {
-	if ty == reflect.TypeOf(utils.EasyjsonTime{}) {
+	if ty == reflect.TypeOf(jsonmodel.EasyjsonTime{}) {
 		schema := jsonschema.Reflect(time.Time{})
 		schema.Version = ""
 		return schema

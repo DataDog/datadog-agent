@@ -574,11 +574,13 @@ def cws_go_generate(ctx):
     with ctx.cd("./pkg/security/secl"):
         ctx.run("go generate ./...")
     ctx.run(
-        "cp ./pkg/security/serializers/json/serializers_easyjson.mock ./pkg/security/serializers/json/serializers_easyjson.go"
+        "cp ./pkg/security/serializers/jsonmodel/jsonmodel_easyjson.mock ./pkg/security/serializers/jsonmodel/jsonmodel_easyjson.go"
     )
     ctx.run(
         "cp ./pkg/security/security_profile/dump/activity_dump_easyjson.mock ./pkg/security/security_profile/dump/activity_dump_easyjson.go"
     )
+    with ctx.cd("./pkg/security/serializers/jsonmodel"):
+        ctx.run("go generate ./...")
     ctx.run("go generate ./pkg/security/...")
 
 
