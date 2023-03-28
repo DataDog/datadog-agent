@@ -84,12 +84,12 @@ Run all go linters and unit tests using `invoke test`.
 invoke test --targets=./pkg/aggregator
 ```
 
-You can add the `--skip-linters` option to skip go linters and only run the unit tests.
+You can add the `--skip-linters` option to skip go linters and run just the unit tests.
 ```
 invoke test --targets=./pkg/aggregator --skip-linters
 ```
 
-You can also use `invoke lint-go` to only run the go linters.
+You can also use `invoke lint-go` to run just the go linters.
 ```
 invoke lint-go
 ```
