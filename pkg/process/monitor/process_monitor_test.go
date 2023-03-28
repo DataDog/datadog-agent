@@ -194,9 +194,11 @@ func TestProcessMonitorInNamespace(t *testing.T) {
 
 	monNs, err := netns.New()
 	require.NoError(t, err, "could not create network namespace for process monitor")
+	defer monNs.Close()
 
 	require.NoError(t, procutils.WithNS(monNs, pm.Initialize), "could not start process monitor in netNS")
 
+	// Process in root NS
 	cmd := exec.Command("/bin/echo")
 	require.NoError(t, cmd.Run(), "could not run process in root namespace")
 
@@ -204,4 +206,17 @@ func TestProcessMonitorInNamespace(t *testing.T) {
 		_, captured := execSet.Load(uint32(cmd.ProcessState.Pid()))
 		return captured
 	}, time.Second, 200*time.Millisecond, "did not capture process EXEC from root namespace")
+
+	// Process in another NS
+	cmdNs, err := netns.New()
+	require.NoError(t, err, "could not create network namespace for process")
+	defer cmdNs.Close()
+
+	cmd = exec.Command("/bin/echo")
+	require.NoError(t, procutils.WithNS(cmdNs, cmd.Run), "could not run process in other network namespace")
+
+	require.Eventually(t, func() bool {
+		_, captured := execSet.Load(uint32(cmd.ProcessState.Pid()))
+		return captured
+	}, time.Second, 200*time.Millisecond, "did not capture process EXEC from other namespace")
 }
