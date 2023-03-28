@@ -10,6 +10,7 @@ package runtime
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -69,6 +70,10 @@ func (a *generatedAsset) Compile(config *ebpf.Config, inputCode string, addition
 	if err != nil {
 		a.tm.compilationResult = inputHashError
 		return nil, fmt.Errorf("error hashing input: %w", err)
+	}
+
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return nil, fmt.Errorf("unable to create compiler output directory %s: %w", outputDir, err)
 	}
 
 	inputReader := strings.NewReader(inputCode)
