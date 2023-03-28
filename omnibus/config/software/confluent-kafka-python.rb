@@ -17,13 +17,6 @@ build do
   license_file "./LICENSE.txt"
 
   if windows?
-    # See `librdkafka.rb`
-    librd_dir = "c:\\librdkafka-redist"
-    build_env = {
-       "INCLUDE" => "#{librd_dir}\\librdkafka.redist.#{version}\\build\\native\\include",
-       "LIB" => "#{librd_dir}\\librdkafka.redist.#{version}\\build\\native\\lib\\win\\x64\\win-x64-Release\\v142"
-    }
-
     pip = "#{windows_safe_path(python_3_embedded)}\\Scripts\\pip.exe"
   else
     build_env = {
@@ -34,30 +27,4 @@ build do
 
   command "#{pip} install --no-binary confluent-kafka .", :env => build_env
 
-  if windows?
-    # https://github.com/confluentinc/confluent-kafka-python/blob/master/tools/windows-build.bat
-    # https://github.com/confluentinc/confluent-kafka-python/blob/master/tools/windows-copy-librdkafka.bat
-    # https://github.com/confluentinc/confluent-kafka-python/blob/master/tools/windows-install-librdkafka.bat
-
-    ## seem to need to copy this by hand
-    ## why is this not handled by pip install?
-    librd_bindir = "#{librd_dir}\\librdkafka.redist.#{version}\\runtimes\\win-x64\\native"
-    librd_target = "#{windows_safe_path(python_3_embedded)}\\Lib\\site-packages\\confluent_kafka"
-
-    needed_dlls = ["libcrypto-3-x64.dll",
-      "libcurl.dll",
-      "librdkafka.dll",
-      "librdkafkacpp.dll",
-      "libssl-3-x64.dll",
-      ## do not for any reason copy  the base C runtime DLLS that come with the librdkafka
-      ## package.  They would likely mess up the entire rest of the windows agent python distro
-      ##"msvcp140.dll",
-      ##"vcruntime140.dll",
-      "zlib1.dll",
-      "zstd.dll"]
-
-    needed_dlls.each do |dll|
-      copy "#{librd_bindir}\\#{dll}", "#{librd_target}"
-    end
-  end
 end
