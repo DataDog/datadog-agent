@@ -50,6 +50,11 @@ func (sk *StringKeys) MarshalJSON() ([]byte, error) {
 }
 
 func (sk *StringKeys) MarshalEasyJSON(out *jwriter.Writer) {
+	if len(sk.inner) == 0 && (out.Flags&jwriter.NilSliceAsEmpty) == 0 {
+		out.RawString("null")
+		return
+	}
+
 	out.RawByte('[')
 	isFirst := true
 	for value := range sk.inner {
