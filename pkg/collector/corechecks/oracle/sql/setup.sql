@@ -1,10 +1,12 @@
-create user c##datadog identified by datadog ;
+accept password hide prompt password:
+
+create user c##datadog identified by &password ;
 grant create session to c##datadog ;
-grant select on v$session to c##datadog ;
-grant select on v$database to c##datadog ;
-grant select on v$containers to c##datadog;
-grant select on v$sqlstats to c##datadog ;
-grant select on v$instance to c##datadog ;
+grant select on v_$session to c##datadog ;
+grant select on v_$database to c##datadog ;
+grant select on v_$containers to c##datadog;
+grant select on v_$sqlstats to c##datadog ;
+grant select on v_$instance to c##datadog ;
 grant select on dba_feature_usage_statistics to c##datadog ;
 
 CREATE OR REPLACE VIEW dd_session AS
