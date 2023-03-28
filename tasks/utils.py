@@ -354,7 +354,7 @@ def get_version(
     if pipeline_id and pipeline_id.isdigit():
         try:
             if not os.path.exists("agent-version.cache"):
-                os.system(
+                ctx.run(
                     f"aws s3 cp s3://dd-ci-artefacts-build-stable/datadog-agent/{pipeline_id}/agent-version.cache . >/dev/null"
                 )
 
