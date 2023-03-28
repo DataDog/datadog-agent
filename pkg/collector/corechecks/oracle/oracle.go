@@ -122,14 +122,16 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 			return nil, fmt.Errorf("failed to query db name: %w", err)
 		}
 	}
+	c.tags = append(c.tags, fmt.Sprintf("cdb:%s", c.cdbName))
 
 	if c.dbHostname == "" || c.dbVersion == "" {
 		row := db.QueryRow("SELECT host_name, version FROM v$instance")
 		err = row.Scan(&c.dbHostname, &c.dbVersion)
 		if err != nil {
-			return nil, fmt.Errorf("failed to query db name: %w", err)
+			return nil, fmt.Errorf("failed to query hostname and version: %w", err)
 		}
 	}
+	c.tags = append(c.tags, fmt.Sprintf("dbhost:%s", c.dbHostname))
 
 	return db, nil
 }
