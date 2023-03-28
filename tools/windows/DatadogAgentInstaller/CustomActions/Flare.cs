@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Windows.Forms;
+using Datadog.CustomActions.Interfaces;
 using Microsoft.Deployment.WindowsInstaller;
 
 namespace Datadog.CustomActions

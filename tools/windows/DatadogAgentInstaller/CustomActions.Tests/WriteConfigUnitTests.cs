@@ -4,7 +4,7 @@ using Datadog.CustomActions;
 using Moq;
 using Xunit;
 using YamlDotNet.RepresentationModel;
-using ISession = Datadog.CustomActions.ISession;
+using ISession = Datadog.CustomActions.Interfaces.ISession;
 
 namespace CustomActions.Tests
 {
