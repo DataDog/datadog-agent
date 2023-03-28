@@ -6,7 +6,6 @@ High level testing tasks
 # so we only need to check that we don't run this code with old Python versions.
 
 import abc
-import glob
 import json
 import operator
 import os
@@ -129,7 +128,7 @@ def invoke_unit_tests(ctx):
     """
     Start unit testsuite of tasks
     """
-    for _, _, files in os.walk("tasks/unit-tests/", topdown=False):
+    for _, _, files in os.walk("tasks/unit-tests/"):
         for file in files:
             if file[-3:] == ".py" and file != "__init__.py" and not bool(UNIT_TEST_FILE_FORMAT.search(file[:-3])):
                 ctx.run(f"python3 -m tasks.unit-tests.{file[:-3]}")
