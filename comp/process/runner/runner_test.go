@@ -25,13 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-type testDeps struct {
-	fx.In
-	Runner Component
-}
-
 func TestRunnerLifecycle(t *testing.T) {
-	_ = fxutil.Test[testDeps](t, fx.Options(
+	_ = fxutil.Test[Component](t, fx.Options(
 		utils.DisableContainerFeatures,
 
 		fx.Supply(core.BundleParams{}),
@@ -51,7 +46,7 @@ func TestRunnerRealtime(t *testing.T) {
 		mockConfig := config.Mock(t)
 		mockConfig.Set("process_config.disable_realtime_checks", false)
 
-		deps := fxutil.Test[testDeps](t, fx.Options(
+		r := fxutil.Test[Component](t, fx.Options(
 			fx.Provide(
 				// Cast `chan types.RTResponse` to `<-chan types.RTResponse`.
 				// We can't use `fx.As` because `<-chan types.RTResponse` is not an interface.
@@ -75,7 +70,7 @@ func TestRunnerRealtime(t *testing.T) {
 			},
 		}
 		assert.Eventually(t, func() bool {
-			return deps.Runner.(*runner).IsRealtimeEnabled()
+			return r.(*runner).IsRealtimeEnabled()
 		}, 1*time.Second, 10*time.Millisecond)
 	})
 
@@ -86,7 +81,7 @@ func TestRunnerRealtime(t *testing.T) {
 		mockConfig := config.Mock(t)
 		mockConfig.Set("process_config.disable_realtime_checks", true)
 
-		deps := fxutil.Test[testDeps](t, fx.Options(
+		r := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(
 				&checks.HostInfo{},
 				&sysconfig.Config{},
@@ -115,7 +110,7 @@ func TestRunnerRealtime(t *testing.T) {
 			},
 		}
 		assert.Never(t, func() bool {
-			return deps.Runner.(*runner).IsRealtimeEnabled()
+			return r.(*runner).IsRealtimeEnabled()
 		}, 1*time.Second, 10*time.Millisecond)
 	})
 }
@@ -124,7 +119,7 @@ func TestProvidedChecks(t *testing.T) {
 	config.SetDetectedFeatures(config.FeatureMap{config.Docker: {}})
 	t.Cleanup(func() { config.SetDetectedFeatures(nil) })
 
-	deps := fxutil.Test[testDeps](t, fx.Options(
+	r := fxutil.Test[Component](t, fx.Options(
 		fx.Supply(
 			core.BundleParams{},
 		),
@@ -139,7 +134,7 @@ func TestProvidedChecks(t *testing.T) {
 
 		core.MockBundle,
 	))
-	providedChecks := deps.Runner.GetProvidedChecks()
+	providedChecks := r.GetProvidedChecks()
 
 	var checkNames []string
 	for _, check := range providedChecks {
