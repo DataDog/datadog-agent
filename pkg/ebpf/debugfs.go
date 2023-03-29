@@ -23,7 +23,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 )
 
-const kProbeTelemetryName = "ebpf_kprobes"
+const kProbeTelemetryName = "ebpf__kprobes"
 
 var (
 	myPid int
