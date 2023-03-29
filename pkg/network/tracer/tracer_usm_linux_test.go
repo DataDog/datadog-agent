@@ -251,13 +251,9 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 			statsTags := req.StaticTags
 			// debian 10 have curl binary linked with openssl and gnutls but use only openssl during tls query (there no runtime flag available)
 			// this make harder to map lib and tags, one set of tag should match but not both
-			foundPathAndHTTPTag := false
 			if key.Path.Content == "/200/foobar" && (statsTags == network.ConnTagGnuTLS || statsTags == network.ConnTagOpenSSL) {
-				foundPathAndHTTPTag = true
 				t.Logf("found tag 0x%x %s", statsTags, network.GetStaticTags(statsTags))
-			}
 
-			if foundPathAndHTTPTag {
 				// socket filter is not supported on fentry tracer
 				if fentryTracerEnabled {
 					// so we return early if the test was successful until now
@@ -599,6 +595,7 @@ func TestJavaInjection(t *testing.T) {
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTPSMonitoring = true
 	cfg.EnableJavaTLSSupport = true
+	defaultCfg := cfg
 
 	dir, _ := testutil.CurDir()
 	testdataDir := filepath.Join(dir, "../java/testdata")
@@ -760,33 +757,7 @@ func TestJavaInjection(t *testing.T) {
 		},
 		{
 			// Test the java jdk client https request is working
-			name: "java_jdk_client_httpbin_docker_java15",
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				cfg.JavaDir = legacyJavaDir
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://httpbin.org/anything/java-tls-request", regexp.MustCompile("Response code = .*"))
-			},
-			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
-				// Iterate through active connections until we find connection created above
-				require.Eventuallyf(t, func() bool {
-					payload := getConnections(t, tr)
-					for key := range payload.HTTP {
-						if key.Path.Content == "/anything/java-tls-request" {
-							return true
-						}
-					}
-
-					return false
-				}, 4*time.Second, time.Second, "couldn't find http connection matching: %s", "https://httpbin.org/anything/java-tls-request")
-			},
-		},
-		{
-			// Test the java jdk client https request is working
-			name: "java_jdk_client_httpbin_docker_withTLSclassification_java15",
-			context: testContext{
-				extras: make(map[string]interface{}),
-			},
+			name: "java_jdk_client_httpbin_docker_withTLSClassificaiton_java15",
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				cfg.JavaDir = legacyJavaDir
 				cfg.ProtocolClassificationEnabled = true
@@ -796,14 +767,18 @@ func TestJavaInjection(t *testing.T) {
 				javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://httpbin.org/anything/java-tls-request", regexp.MustCompile("Response code = .*"))
 			},
 			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
-				if tr.ebpfTracer.Type() == connection.EBPFFentry {
-					t.Skip("protocol classification not supported for fentry tracer")
-				}
 				// Iterate through active connections until we find connection created above
 				require.Eventuallyf(t, func() bool {
 					payload := getConnections(t, tr)
 					for key := range payload.HTTP {
 						if key.Path.Content == "/anything/java-tls-request" {
+							t.Log("path content found")
+							// socket filter is not supported on fentry tracer
+							if tr.ebpfTracer.Type() == connection.EBPFFentry {
+								// so we return early if the test was successful until now
+								return true
+							}
+
 							for _, c := range payload.Conns {
 								if c.SPort == key.SrcPort && c.DPort == key.DstPort && isTLSTag(c.StaticTags) {
 									return true
@@ -824,6 +799,7 @@ func TestJavaInjection(t *testing.T) {
 					tt.teardown(t, tt.context)
 				})
 			}
+			cfg = defaultCfg
 			if tt.preTracerSetup != nil {
 				tt.preTracerSetup(t, tt.context)
 			}
