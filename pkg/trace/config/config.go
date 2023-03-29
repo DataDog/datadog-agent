@@ -458,8 +458,7 @@ func New() *AgentConfig {
 		Site:                "datadoghq.com",
 		MaxCatalogEntries:   5000,
 
-		BucketInterval:              time.Duration(10) * time.Second,
-		PeerServiceStatsAggregation: true,
+		BucketInterval: time.Duration(10) * time.Second,
 
 		ExtraSampleRate: 1.0,
 		TargetTPS:       10,

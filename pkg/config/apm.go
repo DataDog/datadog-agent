@@ -68,7 +68,7 @@ func setupAPM(config Config) {
 	config.BindEnvAndSetDefault("apm_config.windows_pipe_buffer_size", 1_000_000, "DD_APM_WINDOWS_PIPE_BUFFER_SIZE")                          //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.windows_pipe_security_descriptor", "D:AI(A;;GA;;;WD)", "DD_APM_WINDOWS_PIPE_SECURITY_DESCRIPTOR") //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.remote_tagger", true, "DD_APM_REMOTE_TAGGER")                                                     //nolint:errcheck
-	config.BindEnvAndSetDefault("apm_config.peer_service_stats_aggregation", true, "DD_APM_PEER_SERVICE_STATS_AGGREGATION")                   //nolint:errcheck
+	config.BindEnvAndSetDefault("apm_config.peer_service_stats_aggregation", false, "DD_APM_PEER_SERVICE_STATS_AGGREGATION")                  //nolint:errcheck
 
 	config.BindEnv("apm_config.max_catalog_services", "DD_APM_MAX_CATALOG_SERVICES")
 	config.BindEnv("apm_config.receiver_timeout", "DD_APM_RECEIVER_TIMEOUT")

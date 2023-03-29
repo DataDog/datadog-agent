@@ -1094,3 +1094,25 @@ func TestSetMaxMemCPU(t *testing.T) {
 		assert.Equal(t, 300.0, c.MaxMemory)
 	})
 }
+
+func TestPeerServiceAggregation(t *testing.T) {
+	t.Run("disabled", func(t *testing.T) {
+		defer cleanConfig()
+		cfg := config.New()
+		err := applyDatadogConfig(cfg)
+
+		assert := assert.New(t)
+		assert.NoError(err)
+		assert.False(cfg.PeerServiceStatsAggregation)
+	})
+	t.Run("enabled", func(t *testing.T) {
+		defer cleanConfig()
+		coreconfig.Datadog.Set("apm_config.peer_service_stats_aggregation", true)
+		cfg := config.New()
+		err := applyDatadogConfig(cfg)
+
+		assert := assert.New(t)
+		assert.NoError(err)
+		assert.True(cfg.PeerServiceStatsAggregation)
+	})
+}
