@@ -22,7 +22,7 @@ import (
 	4. Add a method on the `Repository` to retrieved typed configs for the product.
 */
 
-var allProducts = []string{ProductAPMSampling, ProductCWSDD, ProductCWSCustom, ProductASMFeatures, ProductASMDD, ProductASMData, ProductAPMTracing}
+var allProducts = []string{ProductAPMSampling, ProductCWSDD, ProductCWSCustom, ProductASM, ProductASMFeatures, ProductASMDD, ProductASMData, ProductAPMTracing}
 
 const (
 	// ProductAPMSampling is the apm sampling product
@@ -31,6 +31,8 @@ const (
 	ProductCWSDD = "CWS_DD"
 	// ProductCWSCustom is the cloud workload security product managed by datadog customers
 	ProductCWSCustom = "CWS_CUSTOM"
+	// ProductASM is the ASM product used by customers to issue rules configurations
+	ProductASM = "ASM"
 	// ProductASMFeatures is the ASM product used form ASM activation through remote config
 	ProductASMFeatures = "ASM_FEATURES"
 	// ProductASMDD is the application security monitoring product managed by datadog employees
@@ -56,6 +58,8 @@ func parseConfig(product string, raw []byte, metadata Metadata) (interface{}, er
 		c, err = parseConfigCWSDD(raw, metadata)
 	case ProductCWSCustom:
 		c, err = parseConfigCWSCustom(raw, metadata)
+	case ProductASM:
+		c, err = parseConfigASM(raw, metadata)
 	case ProductASMDD:
 		c, err = parseConfigASMDD(raw, metadata)
 	case ProductASMData:
@@ -161,6 +165,39 @@ func (r *Repository) CWSCustomConfigs() map[string]ConfigCWSCustom {
 		typed, ok := conf.(ConfigCWSCustom)
 		if !ok {
 			panic("unexpected config stored as CWSDD Config")
+		}
+
+		typedConfigs[path] = typed
+	}
+
+	return typedConfigs
+}
+
+// ConfigASM is a deserialized ASM configuration file along with its
+// associated remote config metadata
+type ConfigASM struct {
+	Config   []byte
+	Metadata Metadata
+}
+
+func parseConfigASM(data []byte, metadata Metadata) (ConfigASMDD, error) {
+	return ConfigASMDD{
+		Config:   data,
+		Metadata: metadata,
+	}, nil
+}
+
+// ASMConfigs returns the currently active ASM configs
+func (r *Repository) ASMConfigs() map[string]ConfigASM {
+	typedConfigs := make(map[string]ConfigASM)
+
+	configs := r.getConfigs(ProductASM)
+
+	for path, conf := range configs {
+		// We control this, so if this has gone wrong something has gone horribly wrong
+		typed, ok := conf.(ConfigASM)
+		if !ok {
+			panic("unexpected config stored as ASM Config")
 		}
 
 		typedConfigs[path] = typed

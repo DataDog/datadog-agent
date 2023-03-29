@@ -36,18 +36,6 @@ func (s *serverMock) Capture(p string, d time.Duration, compressed bool) (string
 	return "", nil
 }
 
-func (s *serverMock) GetJSONDebugStats() ([]byte, error) {
-	return []byte{}, nil
-}
-
-func (s *serverMock) IsDebugEnabled() bool {
-	return false
-}
-
-func (s *serverMock) EnableMetricsStats() {}
-
-func (s *serverMock) DisableMetricsStats() {}
-
 func (s *serverMock) UdsListenerRunning() bool {
 	return false
 }

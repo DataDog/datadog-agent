@@ -44,10 +44,10 @@ int kprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/tcp_retransmit_skb/pre_4_7_0")
+SEC("kprobe/tcp_retransmit_skb")
 int kprobe__tcp_retransmit_skb_pre_4_7_0(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
-    log_debug("kprobe/tcp_retransmit/pre_4_7_0\n");
+    log_debug("kprobe/tcp_retransmit\n");
     u64 pid_tgid = bpf_get_current_pid_tgid();
     tcp_retransmit_skb_args_t args = {};
     args.sk = sk;

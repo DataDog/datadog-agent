@@ -12,6 +12,7 @@ import (
 	"errors"
 	"os"
 	"runtime"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 )
@@ -72,10 +73,26 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getPIDNumbersOffset(f.kernelVersion)
 	case SizeOfUPID:
 		value = getSizeOfUpid(f.kernelVersion)
+	case OffsetNameTaskStructPID:
+		value = getTaskStructPIDOffset(f.kernelVersion)
+	case OffsetNameTaskStructPIDLink:
+		value = getTaskStructPIDLinkOffset(f.kernelVersion)
+	case OffsetNamePIDLinkStructPID:
+		value = getPIDLinkPIDOffset(f.kernelVersion)
 	case OffsetNameDentryStructDSB:
 		value = getDentrySuperBlockOffset(f.kernelVersion)
 	case OffsetNamePipeInodeInfoStructBufs:
 		value = getPipeInodeInfoBufsOffset(f.kernelVersion)
+	case OffsetNamePipeInodeInfoStructNrbufs:
+		value = getPipeInodeInfoStructNrbufs(f.kernelVersion)
+	case OffsetNamePipeInodeInfoStructCurbuf:
+		value = getPipeInodeInfoStructCurbuf(f.kernelVersion)
+	case OffsetNamePipeInodeInfoStructBuffers:
+		value = getPipeInodeInfoStructBuffers(f.kernelVersion)
+	case OffsetNamePipeInodeInfoStructHead:
+		value = getPipeInodeInfoStructHead(f.kernelVersion)
+	case OffsetNamePipeInodeInfoStructRingsize:
+		value = getPipeInodeInfoStructRingsize(f.kernelVersion)
 	case OffsetNameNetDeviceStructIfIndex:
 		value = getNetDeviceIfindexOffset(f.kernelVersion)
 	case OffsetNameNetStructNS:
@@ -540,6 +557,70 @@ func getPipeInodeInfoBufsOffset(kv *kernel.Version) uint64 {
 	return offset
 }
 
+func getPipeInodeInfoStructNrbufs(kv *kernel.Version) uint64 {
+	offset := ErrorSentinel
+	if kv.HaveLegacyPipeInodeInfoStruct() {
+		offset = 56
+		switch {
+		case kv.IsDebianKernel() && strings.Contains(kv.UnameRelease, "-rt-"):
+			offset = 104
+		case kv.Code < kernel.Kernel4_10:
+			offset = 64
+		}
+	}
+	return offset
+}
+
+func getPipeInodeInfoStructCurbuf(kv *kernel.Version) uint64 {
+	offset := ErrorSentinel
+	if kv.HaveLegacyPipeInodeInfoStruct() {
+		offset = 60
+		switch {
+		case kv.IsDebianKernel() && strings.Contains(kv.UnameRelease, "-rt-"):
+			offset = 108
+		case kv.Code < kernel.Kernel4_10:
+			offset = 68
+		}
+	}
+	return offset
+}
+
+func getPipeInodeInfoStructBuffers(kv *kernel.Version) uint64 {
+	offset := ErrorSentinel
+	if kv.HaveLegacyPipeInodeInfoStruct() {
+		offset = 64
+		switch {
+		case kv.IsDebianKernel() && strings.Contains(kv.UnameRelease, "-rt-"):
+			offset = 112
+		case kv.Code < kernel.Kernel4_10:
+			offset = 72
+		}
+	}
+	return offset
+}
+
+func getPipeInodeInfoStructHead(kv *kernel.Version) uint64 {
+	offset := ErrorSentinel
+	if !kv.HaveLegacyPipeInodeInfoStruct() {
+		offset = 80
+		if kv.IsDebianKernel() && strings.Contains(kv.UnameRelease, "-rt-") {
+			offset = 168
+		}
+	}
+	return offset
+}
+
+func getPipeInodeInfoStructRingsize(kv *kernel.Version) uint64 {
+	offset := ErrorSentinel
+	if !kv.HaveLegacyPipeInodeInfoStruct() {
+		offset = 92
+		if kv.IsDebianKernel() && strings.Contains(kv.UnameRelease, "-rt-") {
+			offset = 180
+		}
+	}
+	return offset
+}
+
 func getNetDeviceIfindexOffset(kv *kernel.Version) uint64 {
 	offset := uint64(260)
 
@@ -786,5 +867,23 @@ func getLinuxBinPrmEnvcOffset(kv *kernel.Version) uint64 {
 		offset = 324
 	}
 
+	return offset
+}
+
+func getTaskStructPIDOffset(kv *kernel.Version) uint64 {
+	// do not use fallback for offsets inside task_struct
+	return ErrorSentinel
+}
+
+func getTaskStructPIDLinkOffset(kv *kernel.Version) uint64 {
+	// do not use fallback for offsets inside task_struct
+	return ErrorSentinel
+}
+
+func getPIDLinkPIDOffset(kv *kernel.Version) uint64 {
+	offset := ErrorSentinel
+	if kv.HavePIDLinkStruct() {
+		offset = uint64(16)
+	}
 	return offset
 }

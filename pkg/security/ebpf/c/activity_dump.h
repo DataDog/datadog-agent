@@ -473,10 +473,7 @@ __attribute__((always_inline)) u8 activity_dump_rate_limiter_allow(struct activi
     return (allow);
 }
 
-#define NO_ACTIVITY_DUMP       0
-#define ACTIVITY_DUMP_RUNNING  1
-
-__attribute__((always_inline)) u32 get_activity_dump_state(void *ctx, u32 pid, u64 now, u32 event_type) {
+__attribute__((always_inline)) u32 is_activity_dump_running(void *ctx, u32 pid, u64 now, u32 event_type) {
     u32 cookie = 0;
     struct activity_dump_config *config = NULL;
 
@@ -492,7 +489,7 @@ __attribute__((always_inline)) u32 get_activity_dump_state(void *ctx, u32 pid, u
         config = lookup_or_delete_traced_pid(pid, now, NULL);
     }
     if (config == NULL) {
-        return NO_ACTIVITY_DUMP;
+        return 0;
     }
 
     // Warning: this check has to be made before any other check on an existing config. The rational is that a dump is
@@ -502,20 +499,19 @@ __attribute__((always_inline)) u32 get_activity_dump_state(void *ctx, u32 pid, u
     // controller isn't done with it.
     if (config->paused) {
         // ignore for now, the userspace load controller will re-enable this dump soon
-        return NO_ACTIVITY_DUMP;
+        return 0;
     }
 
     // is this event type traced ?
     if (!mask_has_event(config->event_mask, event_type)) {
-        return NO_ACTIVITY_DUMP;
+        return 0;
     }
 
     if (!activity_dump_rate_limiter_allow(config, cookie, now, 1)) {
-        return NO_ACTIVITY_DUMP;
+        return 0;
     }
 
-    // set ACTIVITY_DUMP_RUNNING
-    return ACTIVITY_DUMP_RUNNING;
+    return 1;
 }
 
 #endif
