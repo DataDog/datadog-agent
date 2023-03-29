@@ -30,8 +30,9 @@ import (
 )
 
 const (
-	agentUSMJar           = "agent-usm.jar"
-	javaTLSConnectionsMap = "java_tls_connections"
+	agentUSMJar                 = "agent-usm.jar"
+	javaTLSConnectionsMap       = "java_tls_connections"
+	javaDomainsToConnectionsMap = "conn_tuple_by_java_peer"
 )
 
 var (
@@ -132,6 +133,12 @@ func (p *JavaTLSProgram) ConfigureOptions(options *manager.Options) {
 		MaxEntries: uint32(p.cfg.MaxTrackedConnections),
 		EditorFlag: manager.EditMaxEntries,
 	}
+	options.MapSpecEditors[javaDomainsToConnectionsMap] = manager.MapSpecEditor{
+		Type:       ebpf.Hash,
+		MaxEntries: uint32(p.cfg.MaxTrackedConnections),
+		EditorFlag: manager.EditMaxEntries,
+	}
+
 	options.ActivatedProbes = append(options.ActivatedProbes,
 		&manager.ProbeSelector{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
