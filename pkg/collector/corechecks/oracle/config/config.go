@@ -7,6 +7,7 @@ package config
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -18,8 +19,7 @@ import (
 
 // InitConfig is used to deserialize integration init config.
 type InitConfig struct {
-	GlobalCustomQueries   []MetricConfig `yaml:"global_custom_metrics"`
-	MinCollectionInterval int            `yaml:"min_collection_interval"`
+	MinCollectionInterval int `yaml:"min_collection_interval"`
 }
 
 // InstanceConfig is used to deserialize integration instance config.
@@ -27,7 +27,6 @@ type InstanceConfig struct {
 	Server                 string              `yaml:"server"`
 	Port                   int                 `yaml:"port"`
 	ServiceName            string              `yaml:"service_name"`
-	Protocol               string              `yaml:"protocol"`
 	Username               string              `yaml:"username"`
 	Password               string              `yaml:"password"`
 	TnsAlias               string              `yaml:"tns_alias"`
@@ -36,7 +35,7 @@ type InstanceConfig struct {
 	Tags                   []string            `yaml:"tags"`
 	LogUnobfuscatedQueries bool                `yaml:"log_unobfuscated_queries"`
 	ObfuscatorOptions      obfuscate.SQLConfig `yaml:"obfuscator_options"`
-	UseGodrorWithEZConnect bool                `yaml:"use_godror_with_ezconnect"`
+	InstantClient          bool                `yaml:"instant_client"`
 	ReportedHostname       string              `yaml:"reported_hostname"`
 	QueryMetrics           bool                `yaml:"query_metrics"`
 }
@@ -75,14 +74,16 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	serverSlice := strings.Split(instance.Server, ":")
 	instance.Server = serverSlice[0]
-	if instance.Port == 0 {
-		if len(serverSlice) > 1 {
-			//instance.Port = uint64(serverSlice[1])
-			instance.Port = 1522
 
+	if len(serverSlice) > 1 {
+		port, err := strconv.Atoi(serverSlice[1])
+		if err == nil {
+			instance.Port = port
 		} else {
-			instance.Port = 1523
+			return nil, fmt.Errorf("Cannot extract port from server %w", err)
 		}
+	} else {
+		instance.Port = 1521
 	}
 
 	c := &CheckConfig{

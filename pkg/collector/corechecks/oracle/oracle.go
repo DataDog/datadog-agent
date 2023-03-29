@@ -58,15 +58,11 @@ func (c *Check) Run() error {
 	}
 
 	if c.hostname == "" {
-		if c.config.InstanceConfig.ReportedHostname != "" {
-			c.hostname = c.config.InstanceConfig.ReportedHostname
-		} else {
-			hostname, err := os.Hostname()
-			if err != nil {
-				return fmt.Errorf("failed to get hostname: %w", err)
-			}
-			c.hostname = hostname
+		hostname, err := os.Hostname()
+		if err != nil {
+			return fmt.Errorf("failed to get hostname: %w", err)
 		}
+		c.hostname = hostname
 	}
 
 	if c.dbmEnabled {
@@ -93,7 +89,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		oracleDriver = "godror"
 	} else {
 		//godror ezconnect string
-		if c.config.InstanceConfig.UseGodrorWithEZConnect {
+		if c.config.InstanceConfig.InstantClient {
 			oracleDriver = "godror"
 			connStr = fmt.Sprintf("%s/%s@%s/%s", c.config.Username, c.config.Password, c.config.Server, c.config.ServiceName)
 		} else {
@@ -126,9 +122,15 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 
 	if c.dbHostname == "" || c.dbVersion == "" {
 		row := db.QueryRow("SELECT host_name, version FROM v$instance")
-		err = row.Scan(&c.dbHostname, &c.dbVersion)
+		var dbHostname string
+		err = row.Scan(&dbHostname, &c.dbVersion)
 		if err != nil {
 			return nil, fmt.Errorf("failed to query hostname and version: %w", err)
+		}
+		if c.config.ReportedHostname != "" {
+			c.dbHostname = c.config.ReportedHostname
+		} else {
+			c.dbHostname = dbHostname
 		}
 	}
 	c.tags = append(c.tags, fmt.Sprintf("dbhost:%s", c.dbHostname))
