@@ -246,7 +246,7 @@ type StatusInfo struct {
 	SystemProbeProcessModuleEnabled bool                   `json:"system_probe_process_module_enabled"`
 }
 
-func InitInfo(hostname string, processModuleEnabled bool, eps []apicfg.Endpoint) {
+func InitExpvars(hostname string, processModuleEnabled bool, eps []apicfg.Endpoint) {
 	infoOnce.Do(func() {
 		expvar.NewString("host").Set(hostname)
 		expvar.NewInt("pid").Set(int64(os.Getpid()))

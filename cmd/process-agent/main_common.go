@@ -22,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/process"
+	"github.com/DataDog/datadog-agent/comp/process/apiserver"
+	"github.com/DataDog/datadog-agent/comp/process/expvars"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/profiler"
 	runnerComp "github.com/DataDog/datadog-agent/comp/process/runner"
@@ -129,7 +131,13 @@ func runApp(exit chan struct{}, globalParams *command.GlobalParams) error {
 		fx.Invoke(initMisc),
 
 		// Invoke the components that we want to start
-		fx.Invoke(func(runnerComp.Component, profiler.Component) {}),
+		fx.Invoke(func(
+			runnerComp.Component,
+			profiler.Component,
+			expvars.Component,
+			apiserver.Component,
+		) {
+		}),
 	)
 
 	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
