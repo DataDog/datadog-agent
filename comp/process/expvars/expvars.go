@@ -82,6 +82,6 @@ func initStatus(deps dependencies) error {
 	if err != nil {
 		_ = deps.Log.Criticalf("Failed to initialize Api Endpoints: %s", err.Error())
 	}
-	status.InitExpvars(deps.HostInfo.Object().HostName, processModuleEnabled, eps)
+	status.InitExpvars(deps.Config, deps.HostInfo.Object().HostName, processModuleEnabled, eps)
 	return nil
 }

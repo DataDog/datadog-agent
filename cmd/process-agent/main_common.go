@@ -7,7 +7,6 @@ package main
 
 import (
 	"context"
-	"net/http"
 	_ "net/http/pprof"
 	"os"
 
@@ -37,7 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	ddutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -217,7 +215,7 @@ type miscDeps struct {
 }
 
 // initMisc initializes modules that cannot, or have not yet been componetized.
-// Todo: (Components) WorkloadMeta, remoteTagger, telemetry Server, expvars, api server
+// Todo: (Components) WorkloadMeta, remoteTagger
 func initMisc(deps miscDeps) error {
 	initRuntimeSettings()
 
@@ -252,11 +250,6 @@ func initMisc(deps miscDeps) error {
 		t = local.NewTagger(store)
 	}
 	tagger.SetDefaultTagger(t)
-
-	// Run a profile & telemetry server.
-	if deps.Config.GetBool("telemetry.enabled") {
-		http.Handle("/telemetry", telemetry.Handler())
-	}
 
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
