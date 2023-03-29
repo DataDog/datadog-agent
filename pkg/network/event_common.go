@@ -277,6 +277,12 @@ type IPTranslation struct {
 	ReplDstPort uint16
 }
 
+// connectionTwoTuple represents one end of a connection
+type connectionTwoTuple struct {
+	address util.Address
+	port    uint16
+}
+
 func (c ConnectionStats) String() string {
 	return ConnectionSummary(&c, nil)
 }
@@ -408,19 +414,40 @@ func printAddress(address util.Address, names []dns.Hostname) string {
 	return b.String()
 }
 
-// HTTPKeyTuplesFromConn build the key for the http map based on whether the local or remote side is http.
-func HTTPKeyTuplesFromConn(c ConnectionStats) [2]http.KeyTuple {
-	// Retrieve translated addresses
-	laddr, lport := GetNATLocalAddress(c)
-	raddr, rport := GetNATRemoteAddress(c)
+// HTTPKeyTuplesFromConn constructs HTTP key tuples using the underlying raw connection stats object, which is produced by the tracer.
+// Each ConnectionStats object contains both the source and destination addresses, as well as an IPTranslation object that stores the original addresses in the event that the connection is NAT'd.
+// This function generates all possible combinations of connection keys: [(source, dest), (real_source, dest), (source, real_dest), (real_source, real_dest)].
+// This is necessary to handle all possible scenarios for connections originating from the USM HTTP module (i.e., whether they are NAT'd or not, and whether they use TLS or plain HTTP).
+func HTTPKeyTuplesFromConn(connectionStats ConnectionStats) []http.KeyTuple {
+	var localAddresses []connectionTwoTuple
+	var remoteAddresses []connectionTwoTuple
 
-	// HTTP data is always indexed as (client, server), but we don't know which is the remote
-	// and which is the local address. To account for this, we'll construct 2 possible
-	// http keys and check for both of them in our http aggregations map.
-	return [2]http.KeyTuple{
-		http.NewKeyTuple(laddr, raddr, lport, rport),
-		http.NewKeyTuple(raddr, laddr, rport, lport),
+	// Adding source and destination addresses
+	localAddresses = append(localAddresses, connectionTwoTuple{connectionStats.Source, connectionStats.SPort})
+	remoteAddresses = append(remoteAddresses, connectionTwoTuple{connectionStats.Dest, connectionStats.DPort})
+
+	// Adding original addresses in case of a NAT'd connection
+	if connectionStats.IPTranslation != nil {
+		if !connectionStats.IPTranslation.ReplDstIP.IsZero() {
+			localAddresses = append(localAddresses, connectionTwoTuple{connectionStats.IPTranslation.ReplDstIP, connectionStats.IPTranslation.ReplDstPort})
+		}
+		if !connectionStats.IPTranslation.ReplSrcIP.IsZero() {
+			remoteAddresses = append(remoteAddresses, connectionTwoTuple{connectionStats.IPTranslation.ReplSrcIP, connectionStats.IPTranslation.ReplSrcPort})
+		}
 	}
+
+	// Construct all http key tuples combinations
+	var httpKeyTuples []http.KeyTuple
+	for _, localAddress := range localAddresses {
+		for _, remoteAddress := range remoteAddresses {
+			httpKeyTuples = append(httpKeyTuples,
+				http.NewKeyTuple(localAddress.address, remoteAddress.address, localAddress.port, remoteAddress.port),
+				http.NewKeyTuple(remoteAddress.address, localAddress.address, remoteAddress.port, localAddress.port),
+			)
+		}
+	}
+
+	return httpKeyTuples
 }
 
 // KafkaKeyTuplesFromConn build the key for the kafka map based on whether the local or remote side is kafka.
