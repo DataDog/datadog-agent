@@ -158,26 +158,6 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityModule1(in *jl
 			out.Status = string(in.String())
 		case "message":
 			out.Message = string(in.String())
-		case "tags":
-			if in.IsNull() {
-				in.Skip()
-			} else {
-				in.Delim('{')
-				if !in.IsDelim('}') {
-					out.Tags = make(map[string]string)
-				} else {
-					out.Tags = nil
-				}
-				for !in.IsDelim('}') {
-					key := string(in.String())
-					in.WantColon()
-					var v4 string
-					v4 = string(in.String())
-					(out.Tags)[key] = v4
-					in.WantComma()
-				}
-				in.Delim('}')
-			}
 		default:
 			in.SkipRecursive()
 		}
@@ -216,25 +196,6 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityModule1(out *j
 		const prefix string = ",\"message\":"
 		out.RawString(prefix)
 		out.String(string(in.Message))
-	}
-	if len(in.Tags) != 0 {
-		const prefix string = ",\"tags\":"
-		out.RawString(prefix)
-		{
-			out.RawByte('{')
-			v5First := true
-			for v5Name, v5Value := range in.Tags {
-				if v5First {
-					v5First = false
-				} else {
-					out.RawByte(',')
-				}
-				out.String(string(v5Name))
-				out.RawByte(':')
-				out.String(string(v5Value))
-			}
-			out.RawByte('}')
-		}
 	}
 	out.RawByte('}')
 }
@@ -289,17 +250,17 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityModule2(in *jl
 					out.Rules = (out.Rules)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v6 *RuleState
+					var v4 *RuleState
 					if in.IsNull() {
 						in.Skip()
-						v6 = nil
+						v4 = nil
 					} else {
-						if v6 == nil {
-							v6 = new(RuleState)
+						if v4 == nil {
+							v4 = new(RuleState)
 						}
-						(*v6).UnmarshalEasyJSON(in)
+						(*v4).UnmarshalEasyJSON(in)
 					}
-					out.Rules = append(out.Rules, v6)
+					out.Rules = append(out.Rules, v4)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -340,14 +301,14 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityModule2(out *j
 			out.RawString("null")
 		} else {
 			out.RawByte('[')
-			for v7, v8 := range in.Rules {
-				if v7 > 0 {
+			for v5, v6 := range in.Rules {
+				if v5 > 0 {
 					out.RawByte(',')
 				}
-				if v8 == nil {
+				if v6 == nil {
 					out.RawString("null")
 				} else {
-					(*v8).MarshalEasyJSON(out)
+					(*v6).MarshalEasyJSON(out)
 				}
 			}
 			out.RawByte(']')
