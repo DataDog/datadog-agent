@@ -175,6 +175,8 @@ type defaultEventPlatformForwarder struct {
 	destinationsCtx *client.DestinationsContext
 }
 
+// SendEventPlatformEvent sends messages to the event platform intake.
+// SendEventPlatformEvent will drop messages and return an error if the input channel is already full.
 func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Message, eventType string) error {
 	p, ok := s.pipelines[eventType]
 	if !ok {
@@ -188,6 +190,8 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 	}
 }
 
+// SendEventPlatformEventBlocking sends messages to the event platform intake.
+// SendEventPlatformEventBlocking will block if the input channel is already full.
 func (s *defaultEventPlatformForwarder) SendEventPlatformEventBlocking(e *message.Message, eventType string) error {
 	p, ok := s.pipelines[eventType]
 	if !ok {
