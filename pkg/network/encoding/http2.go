@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type http2Encoder struct {
@@ -95,9 +96,10 @@ func newHTTP2Encoder(payload *network.Connections) *http2Encoder {
 	}
 
 	// pre-populate aggregation map with keys for all existent connections
-	// this allows us to skip encoding orphan HTTP objects that can't be matched to a connection
+	// this allows us to skip encoding orphan HTTP2 objects that can't be matched to a connection
 	for _, conn := range payload.Conns {
 		for _, key := range network.HTTPKeyTuplesFromConn(conn) {
+			log.Debugf("Payload has a connection %v and was converted to http2 key %v", conn, key)
 			encoder.aggregations[key] = nil
 		}
 	}
@@ -116,6 +118,7 @@ func (e *http2Encoder) buildAggregations(payload *network.Connections) {
 		aggregation, ok := e.aggregations[key.KeyTuple]
 		if !ok {
 			// if there is no matching connection don't even bother to serialize HTTP2 data
+			log.Debugf("Found http orphan connection %v", key.KeyTuple)
 			e.orphanEntries++
 			continue
 		}
