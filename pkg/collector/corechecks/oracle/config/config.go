@@ -7,17 +7,18 @@ package config
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/yaml.v3"
 )
 
 // InitConfig is used to deserialize integration init config.
 type InitConfig struct {
 	GlobalCustomQueries   []MetricConfig `yaml:"global_custom_metrics"`
-	Service               string         `yaml:"service"`
 	MinCollectionInterval int            `yaml:"min_collection_interval"`
 }
 
@@ -49,12 +50,10 @@ type CheckConfig struct {
 // ToString returns a string representation of the CheckConfig without sensitive information.
 func (c *CheckConfig) String() string {
 	return fmt.Sprintf(`CheckConfig:
-GlobalCustomQueries: '%+v'
-Service: '%s'
 Server: '%s'
 ServiceName: '%s'
-Protocol: '%s'
-`, c.GlobalCustomQueries, c.Service, c.Server, c.ServiceName, c.Protocol)
+Port: '%d'
+`, c.Server, c.ServiceName, c.Port)
 }
 
 // NewCheckConfig builds a new check config.
@@ -74,10 +73,24 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		return nil, err
 	}
 
+	serverSlice := strings.Split(instance.Server, ":")
+	instance.Server = serverSlice[0]
+	if instance.Port == 0 {
+		if len(serverSlice) > 1 {
+			//instance.Port = uint64(serverSlice[1])
+			instance.Port = 1522
+
+		} else {
+			instance.Port = 1523
+		}
+	}
+
 	c := &CheckConfig{
 		InstanceConfig: instance,
 		InitConfig:     initCfg,
 	}
+
+	log.Debugf("Oracle config: %s", c.String())
 
 	return c, nil
 }
