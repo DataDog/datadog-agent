@@ -263,20 +263,29 @@ func (l *LogsConfigKeys) useV2API() bool {
 	return l.getConfig().GetBool(l.getConfigKey("use_v2_api"))
 }
 
-func (l *LogsConfigKeys) getVectorConfigKey(key string) string {
-	return "vector." + l.vectorPrefix + key
+func (l *LogsConfigKeys) getVectorConfigKey(configPrefix string, key string) string {
+	return configPrefix + "." + l.vectorPrefix + key
 }
 
-func (l *LogsConfigKeys) vectorEnabled() bool {
+func (l *LogsConfigKeys) obsPipelineWorkerEnabled() bool {
 	if l.vectorPrefix == "" {
 		return false
 	}
-	return l.getConfig().GetBool(l.getVectorConfigKey("enabled"))
+	if l.getConfig().GetBool(l.getVectorConfigKey("observability_pipelines_worker", "enabled")) {
+		return true
+	}
+	// vector is deprecated in favor of observability_pipelines_worker.
+	return l.getConfig().GetBool(l.getVectorConfigKey("vector", "enabled"))
 }
 
-func (l *LogsConfigKeys) getVectorURL() (string, bool) {
+func (l *LogsConfigKeys) getObsPipelineURL() (string, bool) {
 	if l.vectorPrefix != "" {
-		configKey := l.getVectorConfigKey("url")
+		configKey := l.getVectorConfigKey("observability_pipelines_worker", "url")
+		if l.isSetAndNotEmpty(configKey) {
+			return l.getConfig().GetString(configKey), true
+		}
+
+		configKey = l.getVectorConfigKey("vector", "url")
 		if l.isSetAndNotEmpty(configKey) {
 			return l.getConfig().GetString(configKey), true
 		}
