@@ -1,7 +1,7 @@
 api_key: api_key_test
 dd_url: https://app.datadoghq.com
 site: datadoghq.eu
-vector:
+observability_pipelines_worker:
   traces:
     enabled: true
     url: https://vector.domain.tld:8443
