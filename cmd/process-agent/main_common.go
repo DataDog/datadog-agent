@@ -194,7 +194,7 @@ type miscDeps struct {
 }
 
 // initMisc initializes modules that cannot, or have not yet been componetized.
-// Todo: (Components) WorkloadMeta, remoteTagger
+// Todo: (Components) WorkloadMeta, remoteTagger, statsd
 func initMisc(deps miscDeps) error {
 	if err := statsd.Configure(ddconfig.GetBindHost(), deps.Config.GetInt("dogstatsd_port")); err != nil {
 		_ = log.Criticalf("Error configuring statsd: %s", err)
