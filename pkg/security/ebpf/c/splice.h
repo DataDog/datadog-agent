@@ -56,6 +56,53 @@ u64 __attribute__((always_inline)) get_pipe_inode_info_bufs_offset(void) {
     return pipe_inode_info_bufs_offset;
 }
 
+int __attribute__((always_inline)) get_pipe_last_buffer_flags(struct pipe_inode_info *pipe, struct pipe_buffer *bufs) {
+    u64 kernel_has_legacy_pipe_inode_info;
+    LOAD_CONSTANT("kernel_has_legacy_pipe_inode_info", kernel_has_legacy_pipe_inode_info);
+
+    struct pipe_buffer *pipe_last_buffer = NULL;
+
+    if (kernel_has_legacy_pipe_inode_info) { // kernels < 5.5
+        u64 pipe_inode_info_nrbufs_offset;
+        LOAD_CONSTANT("pipe_inode_info_nrbufs_offset", pipe_inode_info_nrbufs_offset);
+
+        u64 pipe_inode_info_curbuf_offset;
+        LOAD_CONSTANT("pipe_inode_info_curbuf_offset", pipe_inode_info_curbuf_offset);
+
+        u64 pipe_inode_info_buffers_offset;
+        LOAD_CONSTANT("pipe_inode_info_buffers_offset", pipe_inode_info_buffers_offset);
+
+        unsigned int nrbufs, curbuf, buffers;
+        bpf_probe_read(&nrbufs, sizeof(nrbufs), (void *)pipe + pipe_inode_info_nrbufs_offset);
+        bpf_probe_read(&curbuf, sizeof(curbuf), (void *)pipe + pipe_inode_info_curbuf_offset);
+        bpf_probe_read(&buffers, sizeof(buffers), (void *)pipe + pipe_inode_info_buffers_offset);
+
+        unsigned int last_buffer_index = nrbufs > 0 ? nrbufs - 1 : 0;
+        pipe_last_buffer = bufs + ((curbuf + last_buffer_index) & (buffers - 1));
+    } else {
+        u64 pipe_inode_info_head_offset;
+        LOAD_CONSTANT("pipe_inode_info_head_offset", pipe_inode_info_head_offset);
+
+        u64 pipe_inode_info_ring_size_offset;
+        LOAD_CONSTANT("pipe_inode_info_ring_size_offset", pipe_inode_info_ring_size_offset);
+
+        unsigned int head, ring_size;
+        bpf_probe_read(&head, sizeof(head), (void *)pipe + pipe_inode_info_head_offset);
+        bpf_probe_read(&ring_size, sizeof(ring_size), (void *)pipe + pipe_inode_info_ring_size_offset);
+
+        unsigned int last_buffer_index = head > 0 ? head - 1 : 0;
+        pipe_last_buffer = bufs + (last_buffer_index & (ring_size - 1));
+    }
+
+    if (!pipe_last_buffer) {
+        return 0;
+    }
+
+    int pipe_last_buffer_flags;
+    bpf_probe_read(&pipe_last_buffer_flags, sizeof(pipe_last_buffer_flags), &pipe_last_buffer->flags);
+    return pipe_last_buffer_flags;
+}
+
 struct splice_event_t {
     struct kevent_t event;
     struct process_context_t process;
@@ -123,8 +170,9 @@ int kretprobe_get_pipe_info(struct pt_regs *ctx) {
 
     bpf_probe_read(&syscall->splice.bufs, sizeof(syscall->splice.bufs), (void *)info + get_pipe_inode_info_bufs_offset());
     if (syscall->splice.bufs != NULL) {
-        // copy the entry flag of the pipe
-        bpf_probe_read(&syscall->splice.pipe_entry_flag, sizeof(syscall->splice.pipe_entry_flag), &syscall->splice.bufs->flags);
+        syscall->splice.pipe_info = info;
+        // read the entry flag of the pipe
+        syscall->splice.pipe_entry_flag = get_pipe_last_buffer_flags(syscall->splice.pipe_info, syscall->splice.bufs);
     }
     return 0;
 }
@@ -140,9 +188,9 @@ int __attribute__((always_inline)) sys_splice_ret(void *ctx, int retval) {
         return 0;
     }
 
-    if (syscall->splice.bufs != NULL) {
-        // copy the pipe exit flag
-        bpf_probe_read(&syscall->splice.pipe_exit_flag, sizeof(syscall->splice.pipe_exit_flag), &syscall->splice.bufs->flags);
+    if (syscall->splice.pipe_info != NULL && syscall->splice.bufs != NULL) {
+        // read the pipe exit flag
+        syscall->splice.pipe_exit_flag = get_pipe_last_buffer_flags(syscall->splice.pipe_info, syscall->splice.bufs);
     }
 
     if (filter_syscall(syscall, splice_approvers)) {

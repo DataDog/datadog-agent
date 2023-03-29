@@ -5,8 +5,8 @@ from unittest import mock
 
 from invoke.exceptions import Exit
 
-from . import release
-from .libs.version import Version
+from .. import release
+from ..libs.version import Version
 
 
 def mocked_github_requests_get(*args, **_kwargs):

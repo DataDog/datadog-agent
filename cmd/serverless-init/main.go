@@ -9,6 +9,7 @@
 package main
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"os"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/otlp"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	logger "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,13 +33,18 @@ const (
 func main() {
 	if len(os.Args) < 2 {
 		panic("[datadog init process] invalid argument count, did you forget to set CMD ?")
+	} else {
+		cloudService, logConfig, traceAgent, metricAgent := setup()
+		initcontainer.Run(cloudService, logConfig, metricAgent, traceAgent, os.Args[1:])
 	}
+}
 
+func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent) {
 	// load proxy settings
 	setupProxy()
 
 	cloudService := cloudservice.GetCloudServiceType()
-	tags := cloudService.GetTags()
+	tags := tags.MergeWithOverwrite(tags.ArrayToMap(config.GetGlobalConfiguredTags(false)), cloudService.GetTags())
 	origin := cloudService.GetOrigin()
 	prefix := cloudService.GetPrefix()
 
@@ -57,8 +64,10 @@ func main() {
 	metricAgent := setupMetricAgent(tags)
 	metric.AddColdStartMetric(prefix, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 
+	setupOtlpAgent(metricAgent)
+
 	go flushMetricsAgent(metricAgent)
-	initcontainer.Run(cloudService, logConfig, metricAgent, traceAgent, os.Args[1:])
+	return cloudService, logConfig, traceAgent, metricAgent
 }
 
 func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]string) {
@@ -78,6 +87,15 @@ func setupMetricAgent(tags map[string]string) *metrics.ServerlessMetricAgent {
 	metricAgent.Start(5*time.Second, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	metricAgent.SetExtraTags(tagArray)
 	return metricAgent
+}
+
+func setupOtlpAgent(metricAgent *metrics.ServerlessMetricAgent) {
+	if !otlp.IsEnabled() {
+		logger.Debugf("otlp endpoint disabled")
+		return
+	}
+	otlpAgent := otlp.NewServerlessOTLPAgent(metricAgent.Demux.Serializer())
+	otlpAgent.Start()
 }
 
 func flushMetricsAgent(metricAgent *metrics.ServerlessMetricAgent) {

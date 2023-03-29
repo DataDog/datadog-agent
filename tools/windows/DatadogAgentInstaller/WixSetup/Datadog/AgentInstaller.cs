@@ -1,10 +1,8 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Xml.Linq;
 using Datadog.CustomActions;
-using Microsoft.Deployment.WindowsInstaller;
 using NineDigit.WixSharpExtensions;
 using WixSharp;
 using WixSharp.CommonTasks;
@@ -62,7 +60,10 @@ namespace WixSetup.Datadog
         public Project ConfigureProject()
         {
             var project = new ManagedProject("Datadog Agent",
-                new CustomActionRef("WixCloseApplications", When.Before, Step.RemoveFiles),
+                // Use 2 LaunchConditions, one for server versions,
+                // one for client versions.
+                MinimumSupportedWindowsVersion.WindowsServer2012 |
+                MinimumSupportedWindowsVersion.Windows8_1,
                 new Property("MsiLogging", "iwearucmop!"),
                 new Property("MSIRESTARTMANAGERCONTROL", "Disable"),
                 new Property("APIKEY")
@@ -324,7 +325,7 @@ namespace WixSetup.Datadog
                 // Tell MSI not to stop the services. We handle service stop manually in StopDDServices custom action.
                 StopOn = null,
                 Start = SvcStartType.auto,
-                DelayedAutoStart = false,
+                DelayedAutoStart = true,
                 RemoveOn = SvcEvent.Uninstall_Wait,
                 ServiceSid = ServiceSid.none,
                 FirstFailureActionType = FailureActionType.restart,

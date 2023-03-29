@@ -211,14 +211,14 @@ struct syscall_cache_t {
         } delete_module;
 
         struct {
-            u32 namespaced_pid;
-            u32 root_ns_pid;
+            u32 pid;
             u32 type;
         } signal;
 
         struct {
             struct file_t file;
             struct dentry *dentry;
+            struct pipe_inode_info *pipe_info;
             struct pipe_buffer *bufs;
             u32 file_found;
             u32 pipe_entry_flag;
