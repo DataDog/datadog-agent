@@ -752,6 +752,10 @@ func TestOTLPHelpers(t *testing.T) {
 				out:  "DO OP",
 			},
 			{
+				meta: map[string]string{"messaging.operation": "process", "messaging.destination.name": "Queue1", "messaging.destination": "Queue2"},
+				out:  "process Queue2",
+			},
+			{
 				meta: map[string]string{semconv.AttributeRPCService: "SVC", semconv.AttributeRPCMethod: "M"},
 				out:  "M SVC",
 			},
