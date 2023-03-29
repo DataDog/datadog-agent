@@ -392,7 +392,7 @@ func TestProcessMessageShouldNotProcessLogsDropped(t *testing.T) {
 	assert.Len(t, timed, 0)
 }
 
-func TestProcessMessageShouldProcessLogTypeFunction(t *testing.T) {
+func TestProcessMessageShouldProcessLogTypeFunctionOutOfMemory(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
 	defer demux.Stop(false)
 	message := &LambdaLogAPIMessage{
@@ -413,6 +413,7 @@ func TestProcessMessageShouldProcessLogTypeFunction(t *testing.T) {
 	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
 
 	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- float64))
+	lc.lastRequestID = lastRequestID
 
 	go lc.processMessage(message)
 
@@ -421,6 +422,44 @@ func TestProcessMessageShouldProcessLogTypeFunction(t *testing.T) {
 	assert.Len(t, timed, 0)
 	assert.Equal(t, serverlessMetrics.OutOfMemoryMetric, received[0].Name)
 	assert.Equal(t, serverlessMetrics.ErrorsMetric, received[1].Name)
+}
+
+func TestProcessMessageShouldProcessLogTypePlatformReportOutOfMemory(t *testing.T) {
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	defer demux.Stop(false)
+	message := &LambdaLogAPIMessage{
+		logType: logTypePlatformReport,
+		time:    time.Now(),
+		objectRecord: platformObjectRecord{
+			reportLogItem: reportLogMetrics{
+				memorySizeMB:    512.0,
+				maxMemoryUsedMB: 512.0,
+			},
+			requestID: "8286a188-ba32-4475-8077-530cd35c09a9",
+		},
+	}
+
+	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
+	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
+	metricTags := []string{"functionname:test-function"}
+	tags := Tags{
+		Tags: metricTags,
+	}
+	computeEnhancedMetrics := true
+
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
+
+	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- float64))
+	lc.lastRequestID = lastRequestID
+
+	go lc.processMessage(message)
+
+	received, timed := demux.WaitForNumberOfSamples(2, 0, 100*time.Millisecond)
+	assert.Len(t, received, 8)
+	assert.Len(t, timed, 0)
+	assert.Equal(t, serverlessMetrics.OutOfMemoryMetric, received[6].Name)
+	assert.Equal(t, serverlessMetrics.ErrorsMetric, received[7].Name)
 }
 
 func TestProcessLogMessageLogsEnabled(t *testing.T) {
