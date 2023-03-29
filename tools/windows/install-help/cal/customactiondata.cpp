@@ -185,20 +185,28 @@ void CustomActionData::setClosedSourceConfig()
     {
         if(this->_propertyView->value(L"ADDLOCAL", addlocal)) 
         {
-            // Convert to upper when normalizing string for comparison
-            // https://learn.microsoft.com/en-us/previous-versions/visualstudio/visual-studio-2015/code-quality/ca1308-normalize-strings-to-uppercase
-            std::transform(addlocal.begin(), addlocal.end(), std::back_inserter(addlocal), toupper);
-            if (addlocal.find(L"ALL") != std::wstring::npos ||
-                addlocal.find(L"NPM") != std::wstring::npos)
+             // argh.  strstr is only case sensitive.  std::find is only case sensitive
+
+            // strlwr is in-place, so can't take a const.... yes, we _could_ just cast
+            // the const to non-const, but that's even uglier.  So
+            wchar_t * lowerbuffer = new wchar_t[addlocal.length() + 1];
+            if(lowerbuffer)
             {
-                WcaLog(LOGMSG_STANDARD, "Found addlocal key %S.  Allowing closed source", addlocal.c_str());
-                WcaLog(LOGMSG_STANDARD, "Installation is no longer controlled via Windows Features.  Please update install tools");
-                newEnabledFlag = true;
-                setEnabledFlag = true;
-            }
-            else
-            {
-                WcaLog(LOGMSG_STANDARD, "ADDLOCAL key does not contain all/NPM (%S)", addlocal.c_str());
+                wcscpy(lowerbuffer, addlocal.c_str());
+                _wcslwr(lowerbuffer);
+                if(wcsstr((const wchar_t*)lowerbuffer, L"all") != NULL ||
+                   wcsstr((const wchar_t*)lowerbuffer, L"npm") != NULL)
+                {
+                        WcaLog(LOGMSG_STANDARD, "Found addlocal key %S.  Allowing closed source", addlocal.c_str());
+                        WcaLog(LOGMSG_STANDARD, "Installation is no longer controlled via Windows Features.  Please update install tools");
+                        newEnabledFlag = true;
+                        setEnabledFlag = true;
+                }
+                else
+                {
+                        WcaLog(LOGMSG_STANDARD, "ADDLOCAL key does not contain all/NPM (%S)", addlocal.c_str());
+                }
+                delete [] lowerbuffer;
             }
         }
     }
