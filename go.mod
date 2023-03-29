@@ -40,7 +40,7 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.7.0
-	github.com/DataDog/agent-payload/v5 v5.0.79
+	github.com/DataDog/agent-payload/v5 v5.0.80
 	github.com/DataDog/appsec-internal-go v0.0.0-20230215162203-5149228be86a
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.44.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.44.0-rc.4
@@ -52,7 +52,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.44.0-rc.4
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v0.7.1-0.20230215125730-2ba58ce29d56
-	github.com/DataDog/ebpf-manager v0.2.5
+	github.com/DataDog/ebpf-manager v0.2.7
 	github.com/DataDog/go-libddwaf v0.0.0-20221118110754-0372d7c76b8a
 	github.com/DataDog/go-tuf v0.3.0--fix-localmeta-fork
 	github.com/DataDog/gohai v0.0.0-20221116153829-5d479901d2e9
@@ -452,7 +452,7 @@ require (
 	github.com/opencontainers/runc v1.1.3 // indirect
 	github.com/opencontainers/selinux v1.10.2 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
-	github.com/outcaste-io/ristretto v0.2.0 // indirect
+	github.com/outcaste-io/ristretto v0.2.1 // indirect
 	github.com/owenrumney/go-sarif/v2 v2.1.2 // indirect
 	github.com/package-url/packageurl-go v0.1.1-0.20220428063043-89078438f170 // indirect
 	github.com/pborman/uuid v1.2.1 // indirect
@@ -563,7 +563,7 @@ require (
 	sigs.k8s.io/controller-runtime v0.11.2 // indirect
 	sigs.k8s.io/json v0.0.0-20220713155537-f223a00ba0e2 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
-	sigs.k8s.io/yaml v1.3.0 // indirect
+	sigs.k8s.io/yaml v1.3.0
 )
 
 require github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000

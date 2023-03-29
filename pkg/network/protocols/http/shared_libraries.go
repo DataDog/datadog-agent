@@ -146,7 +146,7 @@ func (r *soRegistration) Unregister() bool {
 	}
 	if r.unregisterCB != nil {
 		if err := r.unregisterCB(r.pathID); err != nil {
-			log.Debugf("error while unregisterin %s : %s", r.pathID.String(), err)
+			log.Debugf("error while unregistering %s : %s", r.pathID.String(), err)
 		}
 	}
 	return true
