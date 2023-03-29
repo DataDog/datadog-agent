@@ -50,7 +50,6 @@ func setupAPM(config Config) {
 	config.SetKnown("apm_config.analyzed_rate_by_service.*")
 	config.SetKnown("apm_config.log_throttling")
 	config.SetKnown("apm_config.bucket_size_seconds")
-	config.SetKnown("apm_config.peer_service_stats_aggregation")
 	config.SetKnown("apm_config.watchdog_check_delay")
 	config.SetKnown("apm_config.sync_flushing")
 	config.SetKnown("apm_config.features")

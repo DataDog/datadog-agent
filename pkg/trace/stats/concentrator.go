@@ -45,7 +45,7 @@ type Concentrator struct {
 	agentEnv         string
 	agentHostname    string
 	agentVersion     string
-	aggregatePeerSvc bool
+	extraAggregators map[string]struct{}
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
@@ -58,14 +58,16 @@ func NewConcentrator(conf *config.AgentConfig, out chan pb.StatsPayload, now tim
 		// override buckets which could have been sent before an Agent restart.
 		oldestTs: alignTs(now.UnixNano(), bsize),
 		// TODO: Move to configuration.
-		bufferLen:        defaultBufferLen,
-		In:               make(chan Input, 100),
-		Out:              out,
-		exit:             make(chan struct{}),
-		agentEnv:         conf.DefaultEnv,
-		agentHostname:    conf.Hostname,
-		agentVersion:     conf.AgentVersion,
-		aggregatePeerSvc: conf.PeerServiceStatsAggregation,
+		bufferLen:     defaultBufferLen,
+		In:            make(chan Input, 100),
+		Out:           out,
+		exit:          make(chan struct{}),
+		agentEnv:      conf.DefaultEnv,
+		agentHostname: conf.Hostname,
+		agentVersion:  conf.AgentVersion,
+	}
+	if conf.PeerServiceStatsAggregation {
+		c.extraAggregators = map[string]struct{}{"peer.service": {}}
 	}
 	return &c
 }
@@ -186,7 +188,7 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 			b = NewRawBucket(uint64(btime), uint64(c.bsize))
 			c.buckets[btime] = b
 		}
-		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey, c.aggregatePeerSvc)
+		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey, c.extraAggregators)
 	}
 }
 
