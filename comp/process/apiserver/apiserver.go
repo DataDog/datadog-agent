@@ -10,8 +10,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 )
 
-type apiserver struct {
-}
+var _ Component = (*apiserver)(nil)
+
+type apiserver struct{}
 
 type dependencies struct {
 	fx.In
@@ -23,6 +24,7 @@ type dependencies struct {
 
 func newApiServer(deps dependencies) Component {
 	initRuntimeSettings(deps.Log)
+
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
 			err := api.StartServer()
