@@ -942,7 +942,7 @@ profiles:
 			{
 				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.20.1.5",
 				Type:  gosnmp.OctetString,
-				Value: []byte("0A0A0086"),
+				Value: []byte{10, 25, 0, 6},
 			},
 			{
 				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.5.1.5",
@@ -1073,7 +1073,7 @@ profiles:
 			{
 				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.20.2.3",
 				Type:  gosnmp.OctetString,
-				Value: []byte("0A0A0084"),
+				Value: []byte{10, 10, 0, 132},
 			},
 			{
 				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.5.2.3",
@@ -1361,7 +1361,7 @@ profiles:
             "remote": {
                 "device": {
                     "id": "K10-ITV.tine.no",
-                    "ip_address": "10.10.0.134"
+                    "ip_address": "10.25.0.6"
                 },
                 "interface": {
                     "id": "GE0/1",

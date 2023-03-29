@@ -7,6 +7,7 @@ package report
 
 import (
 	json "encoding/json"
+	"net"
 	"sort"
 	"strconv"
 	"strings"
@@ -384,6 +385,7 @@ func buildNetworkTopologyMetadataWithCDP(deviceID string, store *metadata.Store,
 		// remEntryUniqueID: The combination of cdpCacheIfIndex and cdpCacheDeviceIndex is expected to be unique for each entry in cdpCacheTable
 		remEntryUniqueID := cdpCacheIfIndex + "." + cdpCacheDeviceIndex
 
+		ipAddress := net.IP(remoteDeviceAddress).String()
 		newLink := metadata.TopologyLinkMetadata{
 			ID:         deviceID + ":" + remEntryUniqueID,
 			SourceType: topologyLinkSourceTypeCDP,
@@ -393,7 +395,7 @@ func buildNetworkTopologyMetadataWithCDP(deviceID string, store *metadata.Store,
 					Description: store.GetColumnAsString("cdp_remote.device_desc", strIndex),
 					ID:          store.GetColumnAsString("cdp_remote.device_id", strIndex),
 					IDType:      "",
-					IPAddress:   getIpAddressFromHexDecimal(remoteDeviceAddress),
+					IPAddress:   ipAddress,
 				},
 				Interface: &metadata.TopologyLinkInterface{
 					ID:          store.GetColumnAsString("cdp_remote.interface_id", strIndex),
@@ -417,13 +419,13 @@ func buildNetworkTopologyMetadataWithCDP(deviceID string, store *metadata.Store,
 	return links
 }
 
-func getRemDeviceAddressByCDPRemIndex(store *metadata.Store, strIndex string) string {
+func getRemDeviceAddressByCDPRemIndex(store *metadata.Store, strIndex string) []byte {
 	remoteDeviceAddressType := store.GetColumnAsString("cdp_remote.device_address_type", strIndex)
 	if remoteDeviceAddressType == "1" {
-		return store.GetColumnAsString("cdp_remote.device_address", strIndex)
+		return store.GetColumnAsByteArray("cdp_remote.device_address", strIndex)
 	} else {
 		// TODO: use cdpCacheSecondaryMgmtAddrType or cdpCacheAddress in this case
-		return "" // Note if this is the case this won't pass the backend check and will generate the error
+		return nil // Note if this is the case this won't pass the backend check and will generate the error
 		// "deviceIP cannot be empty (except when interface id_type is mac_address)"
 	}
 
