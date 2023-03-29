@@ -27,6 +27,12 @@ const (
 	orgDataEndpoint = "/api/v0.1/org"
 )
 
+var (
+	// errUnauthorized is the error that will be logged for the customer to see in case of a 401. We make it as
+	// descriptive as possible (while not leaking data) to make RC onboarding easier
+	errUnauthorized = fmt.Errorf("unauthorized. Please make sure your API key is valid and has the Remote Config scope")
+)
+
 // API is the interface to implement for a configuration fetcher
 type API interface {
 	Fetch(context.Context, *pbgo.LatestConfigsRequest) (*pbgo.LatestConfigsResponse, error)
@@ -105,7 +111,7 @@ func (c *HTTPClient) Fetch(ctx context.Context, request *pbgo.LatestConfigsReque
 	// we want to be descriptive about what can be done
 	// to fix this as the error is pretty common
 	if resp.StatusCode == 401 {
-		return nil, fmt.Errorf("unauthorized. Please make sure your API key is valid and has the Remote Config scope")
+		return nil, errUnauthorized
 	}
 
 	// Any other error will have a generic message
@@ -154,7 +160,7 @@ func (c *HTTPClient) FetchOrgData(ctx context.Context) (*pbgo.OrgDataResponse, e
 	// we want to be descriptive about what can be done
 	// to fix this as the error is pretty common
 	if resp.StatusCode == 401 {
-		return nil, fmt.Errorf("unauthorized. Please make sure your API key is valid and has the Remote Config scope")
+		return nil, errUnauthorized
 	}
 
 	// Any other error will have a generic message
