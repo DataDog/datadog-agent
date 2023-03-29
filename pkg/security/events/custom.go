@@ -17,7 +17,7 @@ import (
 
 const (
 	// ServiceName is the service tag of the custom event types defined in this package
-	ServiceName = "runtime_security_agent"
+	ServiceName = "runtime-security-agent"
 
 	// LostEventsRuleID is the rule ID for the lost_events_* events
 	LostEventsRuleID = "lost_events"
