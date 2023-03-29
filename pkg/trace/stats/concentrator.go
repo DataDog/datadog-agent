@@ -37,15 +37,16 @@ type Concentrator struct {
 	// It means that we can compute stats only for the last `bufferLen * bsize` and that we
 	// wait such time before flushing the stats.
 	// This only applies to past buckets. Stats buckets in the future are allowed with no restriction.
-	bufferLen        int
-	exit             chan struct{}
-	exitWG           sync.WaitGroup
-	buckets          map[int64]*RawBucket // buckets used to aggregate stats per timestamp
-	mu               sync.Mutex
-	agentEnv         string
-	agentHostname    string
-	agentVersion     string
-	extraAggregators map[string]struct{} // additional tags by which to aggregate stats
+	bufferLen              int
+	exit                   chan struct{}
+	exitWG                 sync.WaitGroup
+	buckets                map[int64]*RawBucket // buckets used to aggregate stats per timestamp
+	mu                     sync.Mutex
+	agentEnv               string
+	agentHostname          string
+	agentVersion           string
+	extraAggregators       map[string]struct{} // additional tags by which to aggregate stats
+	computeStatsBySpanKind bool                // flag to enable computation of stats through checking the span.kind field
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
@@ -169,7 +170,11 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 	}
 	for _, s := range pt.TraceChunk.Spans {
 		isTop := traceutil.HasTopLevel(s)
-		if !(isTop || traceutil.IsMeasured(s)) {
+		eligibleSpanKind := false
+		if c.computeStatsBySpanKind {
+			eligibleSpanKind = traceutil.ComputeStatsForSpanKind(s)
+		}
+		if !(isTop || traceutil.IsMeasured(s) || eligibleSpanKind) {
 			continue
 		}
 		if traceutil.IsPartialSnapshot(s) {

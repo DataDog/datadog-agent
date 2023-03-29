@@ -579,3 +579,87 @@ func TestPeerServiceStats(t *testing.T) {
 		}
 	})
 }
+
+// TestComputeStatsThroughSpanKindCheck ensures that we generate stats for spans that have an eligible span.kind.
+func TestComputeStatsThroughSpanKindCheck(t *testing.T) {
+	assert := assert.New(t)
+	now := time.Now()
+	sp := &pb.Span{
+		ParentID: 0,
+		SpanID:   1,
+		Service:  "myservice",
+		Name:     "http.server.request",
+		Resource: "GET /users",
+		Duration: 500,
+	}
+	// Even though span.kind = internal is an ineligible case, we should still compute stats based on the top_level flag.
+	// This is a case that should rarely (if ever) come up in practice though.
+	topLevelInternalSpan := &pb.Span{
+		ParentID: sp.SpanID,
+		SpanID:   2,
+		Service:  "myservice",
+		Name:     "internal.op1",
+		Resource: "compute_1",
+		Duration: 25,
+		Metrics:  map[string]float64{"_top_level": 1.0},
+		Meta:     map[string]string{"span.kind": "internal"},
+	}
+	// Even though span.kind = internal is an ineligible case, we should still compute stats based on the measured flag.
+	measuredInternalSpan := &pb.Span{
+		ParentID: sp.SpanID,
+		SpanID:   3,
+		Service:  "myservice",
+		Name:     "internal.op2",
+		Resource: "compute_2",
+		Duration: 25,
+		Metrics:  map[string]float64{"_dd.measured": 1.0},
+		Meta:     map[string]string{"span.kind": "internal"},
+	}
+	// client is an eligible span.kind for stats computation.
+	clientSpan := &pb.Span{
+		ParentID: sp.SpanID,
+		SpanID:   4,
+		Service:  "myservice",
+		Name:     "postgres.query",
+		Resource: "SELECT user_id from users WHERE user_name = ?",
+		Duration: 75,
+		Meta:     map[string]string{"span.kind": "client"},
+	}
+	t.Run("disabled", func(t *testing.T) {
+		spans := []*pb.Span{sp, topLevelInternalSpan, measuredInternalSpan, clientSpan}
+		traceutil.ComputeTopLevel(spans)
+		testTrace := toProcessedTrace(spans, "none", "")
+		c := NewTestConcentrator(now)
+		c.addNow(testTrace, "")
+		stats := c.flushNow(now.UnixNano() + int64(c.bufferLen)*testBucketInterval)
+		assert.Len(stats.Stats[0].Stats[0].Stats, 3)
+		opNames := make(map[string]struct{}, 3)
+		for _, s := range stats.Stats {
+			for _, b := range s.Stats {
+				for _, g := range b.Stats {
+					opNames[g.Name] = struct{}{}
+				}
+			}
+		}
+		assert.Equal(map[string]struct{}{"http.server.request": {}, "internal.op1": {}, "internal.op2": {}}, opNames)
+	})
+	t.Run("enabled", func(t *testing.T) {
+		spans := []*pb.Span{sp, topLevelInternalSpan, measuredInternalSpan, clientSpan}
+		traceutil.ComputeTopLevel(spans)
+		testTrace := toProcessedTrace(spans, "none", "")
+		c := NewTestConcentrator(now)
+		c.computeStatsBySpanKind = true
+		c.addNow(testTrace, "")
+		stats := c.flushNow(now.UnixNano() + int64(c.bufferLen)*testBucketInterval)
+		assert.Len(stats.Stats[0].Stats[0].Stats, 4)
+		opNames := make(map[string]struct{}, 4)
+		for _, s := range stats.Stats {
+			for _, b := range s.Stats {
+				for _, g := range b.Stats {
+					opNames[g.Name] = struct{}{}
+				}
+			}
+		}
+		assert.Equal(map[string]struct{}{"http.server.request": {}, "internal.op1": {}, "internal.op2": {}, "postgres.query": {}}, opNames)
+	})
+}

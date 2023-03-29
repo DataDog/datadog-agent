@@ -215,3 +215,45 @@ func TestIsPartialSnapshot(t *testing.T) {
 	span.Metrics = map[string]float64{"_dd.partial_version": float64(rand.Uint32())}
 	assert.True(IsPartialSnapshot(span), "Any value in partialVersion key will mark the span as incomplete")
 }
+
+func TestComputeStatsForSpanKind(t *testing.T) {
+	assert := assert.New(t)
+
+	type testCase struct {
+		s   *pb.Span
+		res bool
+	}
+
+	for _, tc := range []testCase{
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": "server"}},
+			true,
+		},
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": "consumer"}},
+			true,
+		},
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": "client"}},
+			true,
+		},
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": "producer"}},
+			true,
+		},
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": "internal"}},
+			false,
+		},
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": ""}},
+			false,
+		},
+		{
+			&pb.Span{Meta: map[string]string{}},
+			false,
+		},
+	} {
+		assert.Equal(tc.res, ComputeStatsForSpanKind(tc.s))
+	}
+}
