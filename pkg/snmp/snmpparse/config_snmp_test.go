@@ -307,7 +307,6 @@ snmp_listener:
 			NetAddress: "127.0.0.4/30",
 		},
 	}
-
 	assert.Equal(t, Exoutput, Output)
 
 }
