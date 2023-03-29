@@ -30,9 +30,9 @@ var (
 )
 
 var debugfsStats = struct {
-	hits telemetry.Gauge
+	hits   telemetry.Gauge
 	misses telemetry.Gauge
-} {
+}{
 	telemetry.NewGauge(kProbeTelemetryName, "hits", []string{"name"}, "Gauge tracking number of kprobe hits"),
 	telemetry.NewGauge(kProbeTelemetryName, "misses", []string{"name"}, "Gauge tracking number of kprobe misses"),
 }
