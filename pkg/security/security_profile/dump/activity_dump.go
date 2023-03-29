@@ -127,6 +127,11 @@ type ActivityDump struct {
 	// Dump metadata
 	Metadata
 
+	// Used to store the global list of DNS names contained in this dump
+	// this is a hack used to provide this global list to the backend in the JSON header
+	// instead of in the protobuf payload.
+	DNSNames *utils.StringKeys `json:"dns_names"`
+
 	// Load config
 	LoadConfig       *model.ActivityDumpLoadConfig `json:"-"`
 	LoadConfigCookie uint32                        `json:"-"`
@@ -161,6 +166,8 @@ func NewEmptyActivityDump() *ActivityDump {
 		bindFamilyDrop:     atomic.NewUint64(0),
 		pathMergedCount:    atomic.NewUint64(0),
 		StorageRequests:    make(map[config.StorageFormat][]config.StorageRequest),
+
+		DNSNames: utils.NewStringKeys(nil),
 	}
 
 	// generate counters
@@ -257,6 +264,7 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 		startTime,
 		nil,
 	)
+	ad.DNSNames = utils.NewStringKeys(msg.GetDNSNames())
 
 	// parse requests from message
 	for _, request := range msg.GetStorage() {
@@ -937,6 +945,7 @@ func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage
 			Size:              ad.Metadata.Size,
 			Arch:              ad.Metadata.Arch,
 		},
+		DNSNames: ad.DNSNames.Keys(),
 	}
 }
 
@@ -1479,6 +1488,8 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 
 // InsertDNSEvent inserts
 func (ad *ActivityDump) InsertDNSEvent(pan *ProcessActivityNode, evt *model.DNSEvent, rules []*model.MatchedRule) bool {
+	ad.insertDNSNameToHackyBackendList(evt.Name)
+
 	if dnsNode, ok := pan.DNSNames[evt.Name]; ok {
 		dnsNode.MatchedRules = model.AppendMatchedRule(dnsNode.MatchedRules, rules)
 		// look for the DNS request type
@@ -1494,6 +1505,14 @@ func (ad *ActivityDump) InsertDNSEvent(pan *ProcessActivityNode, evt *model.DNSE
 	}
 	pan.DNSNames[evt.Name] = NewDNSNode(evt, &ad.nodeStats, rules)
 	return true
+}
+
+func (ad *ActivityDump) insertDNSNameToHackyBackendList(name string) {
+	if name == "" {
+		return
+	}
+
+	ad.DNSNames.Insert(name)
 }
 
 // InsertBindEvent inserts a bind event to the activity dump
