@@ -115,8 +115,11 @@ func StartServer(demux aggregator.DemultiplexerWithAggregator) error {
 		return err
 	}
 	server, err := NewNetflowServer(sender, epForwarder)
+	if err != nil {
+		return err
+	}
 	serverInstance = server
-	return err
+	return nil
 }
 
 // StopServer stops the netflow server, if it is running.
