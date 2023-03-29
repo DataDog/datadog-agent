@@ -12,7 +12,7 @@ LABEL org.opencontainers.image.source "https://github.com/DataDog/datadog-agent"
 WORKDIR /output
 
 COPY datadog-cluster-agent.$TARGETARCH opt/datadog-agent/bin/datadog-cluster-agent
-COPY -chmod=644 ./conf.d etc/datadog-agent/conf.d
+COPY --chmod=644 ./conf.d etc/datadog-agent/conf.d
 COPY ./datadog-cluster.yaml etc/datadog-agent/datadog-cluster.yaml
 COPY ./security-agent-policies/compliance/containers/ etc/datadog-agent/compliance.d
 COPY --chmod=644 ./install_info etc/datadog-agent/install_info
