@@ -249,8 +249,9 @@ func (m *Monitor) GetUSMStats() map[string]interface{} {
 		response["error"] = startupError.Error()
 	}
 
-	response["last_check"] = m.httpTelemetry.lastCheck
-
+	if m != nil {
+		response["last_check"] = m.httpTelemetry.lastCheck
+	}
 	return response
 }
 
