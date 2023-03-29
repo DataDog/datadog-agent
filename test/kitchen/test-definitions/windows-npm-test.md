@@ -2,7 +2,7 @@
 
 ## Test matrix
 
-The tests in this test file attempt to test all of the install/upgrade scenarios for installing the Windows agent with various install options.  Starting in 7.44, the installation option changed from a Windows feature (NPM) to a more general "allow closed source".  
+The tests in this test file attempt to test all of the install/upgrade scenarios for installing the Windows agent with various install options.  Starting in 7.45, the installation option changed from a Windows feature (NPM) to a more general "allow closed source".  
 
 For these tests, then, installing/upgrading from an "old" version means <= 7.43.  
 Installing/upgrading from a "previous" version means > 7.43, but less than current version. (this is different for testing reacting

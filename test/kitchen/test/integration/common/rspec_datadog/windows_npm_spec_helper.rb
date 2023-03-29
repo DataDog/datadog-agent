@@ -20,7 +20,7 @@ shared_examples_for 'a Windows Agent with NPM driver that can start' do
     program_files = safe_program_files
     expect(File).to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.cat")
     expect(File).to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.sys")
-    expect(File).to exist("#{program_files}\f\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.inf")
+    expect(File).to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.inf")
   end
 
   it 'does not have the driver running on install' do

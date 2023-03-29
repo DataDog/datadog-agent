@@ -136,12 +136,12 @@ void CustomActionData::setClosedSourceConfig()
     bool bKey = cskey.getDWORDValue(keyClosedSourceEnabled.c_str(), closedSource);
     if (bKey)
     {
-        if( closedSource == 1)
+        if( closedSource == 1 )
         {
             WcaLog(LOGMSG_STANDARD, "Closed source already marked accepted; leaving setting as enabled");
             return;
         }
-        if( closedSource == 0)
+        if( closedSource == 0 )
         {
             WcaLog(LOGMSG_STANDARD, "Closed source already marked disabled; leaving setting as disabled");
             return;
@@ -150,7 +150,7 @@ void CustomActionData::setClosedSourceConfig()
     }
 
     // check to see if previously installed.
-    if(this->_propertyView->value(L"DDNPM_INSTALLED", npmAlreadyInstalled))
+    if (this->_propertyView->value(L"DDNPM_INSTALLED", npmAlreadyInstalled))
     {
         // because of the way WiX gets it's properties, if it's there, the
         // string will be either #?3 (? is either + or -) for DEMAND_START
@@ -161,19 +161,20 @@ void CustomActionData::setClosedSourceConfig()
         // docs say "optionally followed by + or -". Empirically it's `#3`.  But
         // if the char `3` appears at all then we know.
         if(npmAlreadyInstalled.length() >= 2) {
-            if(wcschr(npmAlreadyInstalled.c_str(), L'3'))
+            if (npmAlreadyInstalled.find_first_of(L'3') != std::wstring::npos)
             {
                 WcaLog(LOGMSG_STANDARD, "NPM driver previously set to enabled; enabling closed source flag");
                 newEnabledFlag = true;
                 setEnabledFlag = true;
             }
-            else if(wcschr(npmAlreadyInstalled.c_str(), L'3'))
+            else if(npmAlreadyInstalled.find_first_of(L'4') != std::wstring::npos)
             {
                 WcaLog(LOGMSG_STANDARD, "NPM driver previously set to disabled; disabling closed source flag");
                 newEnabledFlag = false;
                 setEnabledFlag = true;
             }
-            else {
+            else 
+            {
                 WcaLog(LOGMSG_STANDARD, "Unexpected driver install state %S", npmAlreadyInstalled.c_str());
                 // keep looking
             }
@@ -184,28 +185,20 @@ void CustomActionData::setClosedSourceConfig()
     {
         if(this->_propertyView->value(L"ADDLOCAL", addlocal)) 
         {
-            // argh.  strstr is only case sensitive.  std::find is only case sensitive
-
-            // strlwr is in-place, so can't take a const.... yes, we _could_ just cast
-            // the const to non-const, but that's even uglier.  So
-            wchar_t * lowerbuffer = new wchar_t[addlocal.length() + 1];
-            if(lowerbuffer)
+            // Convert to upper when normalizing string for comparison
+            // https://learn.microsoft.com/en-us/previous-versions/visualstudio/visual-studio-2015/code-quality/ca1308-normalize-strings-to-uppercase
+            std::transform(addlocal.begin(), addlocal.end(), std::back_inserter(addlocal), toupper);
+            if (addlocal.find(L"ALL") != std::wstring::npos ||
+                addlocal.find(L"NPM") != std::wstring::npos)
             {
-                wcscpy(lowerbuffer, addlocal.c_str());
-                _wcslwr(lowerbuffer);
-                if(wcsstr((const wchar_t*)lowerbuffer, L"all") != NULL ||
-                   wcsstr((const wchar_t*)lowerbuffer, L"npm") != NULL)
-                {
-                        WcaLog(LOGMSG_STANDARD, "Found addlocal key %S.  Allowing closed source", addlocal.c_str());
-                        WcaLog(LOGMSG_STANDARD, "Installation is no longer controlled via Windows Features.  Please update install tools");
-                        newEnabledFlag = true;
-                        setEnabledFlag = true;
-                }
-                else
-                {
-                        WcaLog(LOGMSG_STANDARD, "ADDLOCAL key does not contain all/NPM (%S)", addlocal.c_str());
-                }
-                delete [] lowerbuffer;
+                WcaLog(LOGMSG_STANDARD, "Found addlocal key %S.  Allowing closed source", addlocal.c_str());
+                WcaLog(LOGMSG_STANDARD, "Installation is no longer controlled via Windows Features.  Please update install tools");
+                newEnabledFlag = true;
+                setEnabledFlag = true;
+            }
+            else
+            {
+                WcaLog(LOGMSG_STANDARD, "ADDLOCAL key does not contain all/NPM (%S)", addlocal.c_str());
             }
         }
     }
@@ -235,7 +228,7 @@ void CustomActionData::setClosedSourceConfig()
             // since the checkbox value of zero is off, assume any other state
             // means on, so it can also be set on the command line.
             WcaLog(LOGMSG_STANDARD, "CLOSEDSOURCE key is present and (%S)", csProperty.c_str());
-            if (_wcsicmp(csProperty.c_str(), L"0") == 0 )
+            if (_wcsicmp(csProperty.c_str(), L"0") == 0)
             {
                 newEnabledFlag = false;
                 setEnabledFlag = true;
