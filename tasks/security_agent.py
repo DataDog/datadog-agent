@@ -294,7 +294,6 @@ def build_functional_tests(
     major_version='7',
     build_tags='functionaltests',
     build_flags='',
-    nikos_embedded_path=None,
     bundle_ebpf=True,
     static=False,
     skip_linters=False,
@@ -310,9 +309,7 @@ def build_functional_tests(
 
     build_embed_syscall_tester(ctx)
 
-    ldflags, gcflags, env = get_build_flags(
-        ctx, major_version=major_version, nikos_embedded_path=nikos_embedded_path, static=static
-    )
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static)
 
     env["CGO_ENABLED"] = "1"
     if arch == "x86":
@@ -332,10 +329,6 @@ def build_functional_tests(
     if not skip_linters:
         targets = ['./pkg/security/tests']
         golangci_lint(ctx, targets=targets, build_tags=build_tags, arch=arch)
-
-    # linters have a hard time with dnf, so we add the build tag after running them
-    if nikos_embedded_path:
-        build_tags.append("dnf")
 
     if race:
         build_flags += " -race"
@@ -727,7 +720,7 @@ def go_generate_check(ctx):
 
 
 @task
-def kitchen_prepare(ctx, local=False, skip_linters=False):
+def kitchen_prepare(ctx, skip_linters=False):
     """
     Compile test suite for kitchen
     """
@@ -736,15 +729,12 @@ def kitchen_prepare(ctx, local=False, skip_linters=False):
     if os.path.exists(KITCHEN_ARTIFACT_DIR):
         shutil.rmtree(KITCHEN_ARTIFACT_DIR)
 
-    nikos_embedded_path = os.environ.get("NIKOS_EMBEDDED_PATH", None)
-
     testsuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", "testsuite")
     build_functional_tests(
         ctx,
         bundle_ebpf=False,
         race=True,
         output=testsuite_out_path,
-        nikos_embedded_path=nikos_embedded_path,
         skip_linters=skip_linters,
     )
     stresssuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", STRESS_TEST_SUITE)
@@ -760,10 +750,6 @@ def kitchen_prepare(ctx, local=False, skip_linters=False):
 
     # Build test2json binary
     ctx.run(f"go build -o {KITCHEN_ARTIFACT_DIR}/test2json -ldflags=\"-s -w\" cmd/test2json", env={"CGO_ENABLED": "0"})
-
-    # Copy nikos zip file
-    if not local:
-        ctx.run(f"cp /tmp/nikos.tar.gz {KITCHEN_ARTIFACT_DIR}/")
 
     ebpf_bytecode_dir = os.path.join(KITCHEN_ARTIFACT_DIR, "ebpf_bytecode")
     ebpf_runtime_dir = os.path.join(ebpf_bytecode_dir, "runtime")

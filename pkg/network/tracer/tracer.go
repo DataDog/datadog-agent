@@ -296,13 +296,13 @@ func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader, newGuess
 			if err != nil {
 				return err
 			}
-			defer guesser.Close()
 
 			if err = offsetguess.SetupOffsetGuesser(guesser, config, buf); err != nil {
 				return err
 			}
 
 			editors, err = guesser.Guess(config)
+			guesser.Close()
 			return err
 		}()
 

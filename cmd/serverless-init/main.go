@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/otlp"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	logger "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -63,6 +64,8 @@ func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgen
 	metricAgent := setupMetricAgent(tags)
 	metric.AddColdStartMetric(prefix, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 
+	setupOtlpAgent(metricAgent)
+
 	go flushMetricsAgent(metricAgent)
 	return cloudService, logConfig, traceAgent, metricAgent
 }
@@ -84,6 +87,15 @@ func setupMetricAgent(tags map[string]string) *metrics.ServerlessMetricAgent {
 	metricAgent.Start(5*time.Second, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	metricAgent.SetExtraTags(tagArray)
 	return metricAgent
+}
+
+func setupOtlpAgent(metricAgent *metrics.ServerlessMetricAgent) {
+	if !otlp.IsEnabled() {
+		logger.Debugf("otlp endpoint disabled")
+		return
+	}
+	otlpAgent := otlp.NewServerlessOTLPAgent(metricAgent.Demux.Serializer())
+	otlpAgent.Start()
 }
 
 func flushMetricsAgent(metricAgent *metrics.ServerlessMetricAgent) {

@@ -218,6 +218,7 @@ struct syscall_cache_t {
         struct {
             struct file_t file;
             struct dentry *dentry;
+            struct pipe_inode_info *pipe_info;
             struct pipe_buffer *bufs;
             u32 file_found;
             u32 pipe_entry_flag;
