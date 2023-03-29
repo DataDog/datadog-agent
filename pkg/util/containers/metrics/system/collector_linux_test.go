@@ -53,6 +53,9 @@ func TestBuildContainerMetrics(t *testing.T) {
 					CPUCount:         pointer.Ptr(uint64(10)),
 					SchedulerPeriod:  pointer.Ptr(uint64(100)),
 					SchedulerQuota:   pointer.Ptr(uint64(50)),
+					PSISome: cgroups.PSIStats{
+						Total: pointer.Ptr(uint64(96)),
+					},
 				},
 				Memory: &cgroups.MemoryStats{
 					UsageTotal:   pointer.Ptr(uint64(100)),
@@ -64,12 +67,18 @@ func TestBuildContainerMetrics(t *testing.T) {
 					Swap:         pointer.Ptr(uint64(0)),
 					SwapLimit:    pointer.Ptr(uint64(500)),
 					OOMEvents:    pointer.Ptr(uint64(10)),
+					PSISome: cgroups.PSIStats{
+						Total: pointer.Ptr(uint64(97)),
+					},
 				},
 				IOStats: &cgroups.IOStats{
 					ReadBytes:       pointer.Ptr(uint64(100)),
 					WriteBytes:      pointer.Ptr(uint64(200)),
 					ReadOperations:  pointer.Ptr(uint64(10)),
 					WriteOperations: pointer.Ptr(uint64(20)),
+					PSISome: cgroups.PSIStats{
+						Total: pointer.Ptr(uint64(98)),
+					},
 					// Device will be ignored as no matching device name
 					Devices: map[string]cgroups.DeviceIOStats{
 						"foo": {
@@ -96,23 +105,26 @@ func TestBuildContainerMetrics(t *testing.T) {
 					ElapsedPeriods:   pointer.Ptr(500.0),
 					ThrottledPeriods: pointer.Ptr(0.0),
 					ThrottledTime:    pointer.Ptr(100.0),
+					PartialStallTime: pointer.Ptr(96000.0),
 				},
 				Memory: &provider.ContainerMemStats{
-					UsageTotal:   pointer.Ptr(100.0),
-					KernelMemory: pointer.Ptr(40.0),
-					Limit:        pointer.Ptr(42000.0),
-					Softlimit:    pointer.Ptr(40000.0),
-					RSS:          pointer.Ptr(300.0),
-					Cache:        pointer.Ptr(200.0),
-					Swap:         pointer.Ptr(0.0),
-					SwapLimit:    pointer.Ptr(500.0),
-					OOMEvents:    pointer.Ptr(10.0),
+					UsageTotal:       pointer.Ptr(100.0),
+					KernelMemory:     pointer.Ptr(40.0),
+					Limit:            pointer.Ptr(42000.0),
+					Softlimit:        pointer.Ptr(40000.0),
+					RSS:              pointer.Ptr(300.0),
+					Cache:            pointer.Ptr(200.0),
+					Swap:             pointer.Ptr(0.0),
+					SwapLimit:        pointer.Ptr(500.0),
+					OOMEvents:        pointer.Ptr(10.0),
+					PartialStallTime: pointer.Ptr(97000.0),
 				},
 				IO: &provider.ContainerIOStats{
-					ReadBytes:       pointer.Ptr(100.0),
-					WriteBytes:      pointer.Ptr(200.0),
-					ReadOperations:  pointer.Ptr(10.0),
-					WriteOperations: pointer.Ptr(20.0),
+					ReadBytes:        pointer.Ptr(100.0),
+					WriteBytes:       pointer.Ptr(200.0),
+					ReadOperations:   pointer.Ptr(10.0),
+					WriteOperations:  pointer.Ptr(20.0),
+					PartialStallTime: pointer.Ptr(98000.0),
 				},
 				PID: &provider.ContainerPIDStats{
 					PIDs:        []int{4, 2},
