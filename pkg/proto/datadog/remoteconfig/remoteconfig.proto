@@ -95,6 +95,7 @@ message ClientAgent {
   string name = 1;
   string version = 2;
   string cluster_name = 3;
+  string cluster_id = 4;
 }
 
 message ConfigState {
