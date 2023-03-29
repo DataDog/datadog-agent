@@ -28,7 +28,6 @@ import (
 	runnerComp "github.com/DataDog/datadog-agent/comp/process/runner"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
@@ -185,26 +184,6 @@ func cleanupAndExitHandler(globalParams *command.GlobalParams) func(int) {
 	}
 }
 
-// initRuntimeSettings registers settings to be added to the runtime config.
-func initRuntimeSettings() {
-	// NOTE: Any settings you want to register should simply be added here
-	processRuntimeSettings := []settings.RuntimeSetting{
-		settings.LogLevelRuntimeSetting{},
-		settings.RuntimeMutexProfileFraction{},
-		settings.RuntimeBlockProfileRate{},
-		settings.ProfilingGoroutines{},
-		settings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "process-agent"},
-	}
-
-	// Before we begin listening, register runtime settings
-	for _, setting := range processRuntimeSettings {
-		err := settings.RegisterRuntimeSetting(setting)
-		if err != nil {
-			_ = log.Warnf("Cannot initialize the runtime setting %s: %v", setting.Name(), err)
-		}
-	}
-}
-
 type miscDeps struct {
 	fx.In
 	Lc fx.Lifecycle
@@ -217,8 +196,6 @@ type miscDeps struct {
 // initMisc initializes modules that cannot, or have not yet been componetized.
 // Todo: (Components) WorkloadMeta, remoteTagger
 func initMisc(deps miscDeps) error {
-	initRuntimeSettings()
-
 	if err := statsd.Configure(ddconfig.GetBindHost(), deps.Config.GetInt("dogstatsd_port")); err != nil {
 		_ = log.Criticalf("Error configuring statsd: %s", err)
 		return err
@@ -262,7 +239,7 @@ func initMisc(deps miscDeps) error {
 
 			err = manager.ConfigureAutoExit(ctx, deps.Config)
 			if err != nil {
-				_ = log.Criticalf("Unable to deps.Configure auto-exit, err: %w", err)
+				_ = log.Criticalf("Unable to configure auto-exit, err: %w", err)
 				return err
 			}
 
