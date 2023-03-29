@@ -138,6 +138,7 @@ def ninja_ebpf_co_re_program(nw, infile, outfile, variables=None):
 
 def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
     security_agent_c_dir = os.path.join("pkg", "security", "ebpf", "c")
+    security_agent_prebuilt_dir_include = os.path.join(security_agent_c_dir, "include")
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
 
     kernel_headers = get_linux_header_dirs(
@@ -145,7 +146,7 @@ def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
     )
     kheaders = " ".join(f"-isystem{d}" for d in kernel_headers)
     debugdef = "-DDEBUG=1 -g" if debug else ""
-    security_flags = f"-I{security_agent_c_dir} {debugdef}"
+    security_flags = f"-g -I{security_agent_prebuilt_dir_include} {debugdef}"
 
     outfiles = []
 
