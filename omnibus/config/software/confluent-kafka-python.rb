@@ -17,10 +17,10 @@ build do
 
   if windows?
     pip = "#{windows_safe_path(python_3_embedded)}\\Scripts\\pip.exe"
-    command "#{pip} install confluent-kafka", :env => build_env
+    command "#{pip} install confluent-kafka"
   else
     dependency "librdkafka"
-    
+
     build_env = {
       "CFLAGS" => "-I#{install_dir}/embedded/include -std=c99"
     }
