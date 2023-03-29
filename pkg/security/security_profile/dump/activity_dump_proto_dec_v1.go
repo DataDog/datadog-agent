@@ -11,12 +11,12 @@ package dump
 import (
 	"time"
 
+	adproto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	adproto "github.com/DataDog/datadog-agent/pkg/security/proto/security_profile/v1"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-func protoToActivityDump(dest *ActivityDump, ad *adproto.ActivityDump) {
+func protoToActivityDump(dest *ActivityDump, ad *adproto.SecDump) {
 	if ad == nil {
 		return
 	}
