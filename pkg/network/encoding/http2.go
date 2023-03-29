@@ -118,7 +118,7 @@ func (e *http2Encoder) buildAggregations(payload *network.Connections) {
 		aggregation, ok := e.aggregations[key.KeyTuple]
 		if !ok {
 			// if there is no matching connection don't even bother to serialize HTTP2 data
-			log.Debugf("Found http orphan connection %v", key.KeyTuple)
+			log.Debugf("Found http2 orphan connection %v", key.KeyTuple)
 			e.orphanEntries++
 			continue
 		}
