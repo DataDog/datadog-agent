@@ -11,9 +11,6 @@ package flare
 import (
 	"errors"
 
-	v1 "k8s.io/api/core/v1"
-
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -23,38 +20,17 @@ var (
 	ErrNotCompiled = errors.New("kubernetes apiserver support not compiled in")
 )
 
-const (
-	HELM_CHART_RELEASE_NAME       = "CHART_RELEASE_NAME"
-	HELM_CHART_RELEASE_NAMESPACE  = "DD_KUBE_RESOURCES_NAMESPACE"
-	HELM_AGENT_DAEMONSET          = "AGENT_DAEMONSET"
-	HELM_CLUSTER_AGENT_DEPLOYMENT = "CLUSTER_AGENT_DEPLOYMENT"
-)
-
-// Retrieve a DaemonSet YAML from the API server for a given name and namespace, and returns the associated YAML manifest into a a byte array.
-// Its purpose is to retrieve the Datadog Agent DaemonSet manifest when building a Cluster Agent flare.
-func GetDaemonset(cl *apiserver.APIClient, name string, namespace string) ([]byte, error) {
-	return nil, log.Errorf("GetDaemonset not implemented %s", ErrNotCompiled.Error())
+// getAgentDaemonSet retrieves the DaemonSet manifest of the Agent
+func getAgentDaemonSet() ([]byte, error) {
+	return nil, log.Errorf("getAgentDaemonSet not implemented %s", ErrNotCompiled.Error())
 }
 
-// Retrieve a Deployment YAML from the API server for a given name and namespace, and returns the associated YAML manifest into a a byte array.
-// Its purpose is to retrieve the Datadog Cluster Agent Deployment manifest when building a Cluster Agent flare.
-func GetDeployment(cl *apiserver.APIClient, name string, namespace string) ([]byte, error) {
-	return nil, log.Errorf("GetDeployment not implemented %s", ErrNotCompiled.Error())
+// getClusterAgentDeployment retrieves the Deployment manifest of the Cluster Agent
+func getClusterAgentDeployment() ([]byte, error) {
+	return nil, log.Errorf("getClusterAgentDeployment not implemented %s", ErrNotCompiled.Error())
 }
 
-// getDeployedHelmSecret returns the secret for a given release.
-// Only a single release for a given name can be deployed at one time.
-func getDeployedHelmSecret(cl *apiserver.APIClient, name string, namespace string) (*v1.Secret, error) {
-	return nil, log.Errorf("getDeployedHelmSecret not implemented %s", ErrNotCompiled.Error())
-}
-
-// getDeployedHelmConfigmap returns the configmap for a given release.
-// Only a single release for a given name can be deployed at one time.
-func getDeployedHelmConfigmap(cl *apiserver.APIClient, name string, namespace string) (*v1.ConfigMap, error) {
-	return nil, log.Errorf("getDeployedHelmConfigmap not implemented %s", ErrNotCompiled.Error())
-}
-
-// decodeChartValuesFromRelease returns a byte array with the user values from an encoded Helm chart release
-func decodeChartValuesFromRelease(encodedRelease string) ([]byte, error) {
-	return nil, log.Errorf("decodeChartValuesFromRelease not implemented %s", ErrNotCompiled.Error())
+// getHelmValues retrieves the user-defined values for the Datadog Helm chart
+func getHelmValues() ([]byte, error) {
+	return nil, log.Errorf("getHelmValues not implemented %s", ErrNotCompiled.Error())
 }
