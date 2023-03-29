@@ -64,7 +64,7 @@ func getStatusCode(s *pb.Span) uint32 {
 }
 
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
-func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey, extraAggrs map[string]struct{}) Aggregation {
+func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey, extraAggregators map[string]struct{}) Aggregation {
 	synthetics := strings.HasPrefix(origin, tagSynthetics)
 	agg := Aggregation{
 		PayloadAggregationKey: aggKey,
@@ -77,7 +77,7 @@ func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregation
 			Synthetics: synthetics,
 		},
 	}
-	if _, ok := extraAggrs[tagPeerService]; ok {
+	if _, ok := extraAggregators[tagPeerService]; ok {
 		agg.PeerService = s.Meta[tagPeerService]
 	}
 	return agg

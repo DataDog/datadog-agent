@@ -45,7 +45,7 @@ type Concentrator struct {
 	agentEnv         string
 	agentHostname    string
 	agentVersion     string
-	extraAggregators map[string]struct{}
+	extraAggregators map[string]struct{} // additional tags by which to aggregate stats
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
@@ -67,7 +67,7 @@ func NewConcentrator(conf *config.AgentConfig, out chan pb.StatsPayload, now tim
 		agentVersion:  conf.AgentVersion,
 	}
 	if conf.PeerServiceStatsAggregation {
-		c.extraAggregators = map[string]struct{}{"peer.service": {}}
+		c.extraAggregators = map[string]struct{}{tagPeerService: {}}
 	}
 	return &c
 }
