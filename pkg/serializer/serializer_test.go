@@ -10,6 +10,7 @@ package serializer
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"reflect"
 	"strings"
@@ -207,6 +208,7 @@ func createProtoPayloadMatcher(content []byte) interface{} {
 			if payload, err := compression.Decompress(compressedPayload.GetContent()); err != nil {
 				return false
 			} else {
+				log.Printf("Content %+v Payload %+v", content, payload)
 				if reflect.DeepEqual(content, payload) {
 					return true
 				}
@@ -298,6 +300,9 @@ func TestSendV1Series(t *testing.T) {
 func TestSendSeries(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	matcher := createProtoPayloadMatcher([]byte{0xa, 0xa, 0xa, 0x6, 0xa, 0x4, 0x68, 0x6f, 0x73, 0x74, 0x28, 0x3})
+	// TODO fix this test and validate this new payload is desired
+	//                                  Content [10 10 10 6 10 4 104 111 115 116 40 3]
+	//                                  Payload [10 16 10 6 10 4 104 111 115 116 40 3 74 4 10 2 32 10]
 	f.On("SubmitSeries", matcher, protobufExtraHeadersWithCompression).Return(nil).Times(1)
 	config.Datadog.Set("use_v2_api.series", true) // default value, but just to be sure
 
