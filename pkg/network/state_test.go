@@ -1224,7 +1224,7 @@ func TestDoubleCloseOnTwoClients(t *testing.T) {
 }
 
 func TestUnorderedCloseEvent(t *testing.T) {
-	stateTelemetry.statsUnderflows.Set(0)
+	stateTelemetry.statsUnderflows.Delete()
 	conn := ConnectionStats{
 		Pid:       123,
 		Type:      TCP,
