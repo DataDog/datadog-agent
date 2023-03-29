@@ -13,14 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-var modules = fx.Options(
-	fx.Supply(core.BundleParams{}),
-
-	Module,
-	hostinfo.MockModule,
-	core.MockBundle,
-)
-
 func TestExpvarServer(t *testing.T) {
 	fxutil.Test(t, fx.Options(
 		fx.Supply(core.BundleParams{}),
