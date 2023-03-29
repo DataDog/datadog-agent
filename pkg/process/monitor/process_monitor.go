@@ -199,14 +199,6 @@ func (pm *ProcessMonitor) evalEXITCallback(c *ProcessCallback, pid uint32) {
 	}
 }
 
-// terminateProcessMonitor is a helper function of Initialize. The goal is to make sure we properly terminate our
-// go-routine.
-func (pm *ProcessMonitor) terminateProcessMonitor() {
-	log.Info("netlink process monitor ended")
-	pm.wg.Done()
-	close(pm.callbackRunner)
-}
-
 // Initialize will scan all running processes and execute matching callbacks
 // Once it's done all new events from netlink socket will be processed by the main async loop
 func (pm *ProcessMonitor) Initialize() error {
@@ -225,7 +217,6 @@ func (pm *ProcessMonitor) Initialize() error {
 	hostProc := util.HostProc()
 	if err := util.WithRootNS(hostProc, func() error {
 		return netlink.ProcEventMonitor(pm.events, pm.done, pm.errors)
-
 	}); err != nil {
 		return fmt.Errorf("couldn't initialize process monitor: %s", err)
 	}
@@ -249,11 +240,10 @@ func (pm *ProcessMonitor) Initialize() error {
 	go func() {
 		logTicker := time.NewTicker(2 * time.Minute)
 
-		terminated := false
 		defer func() {
-			if !terminated {
-				pm.terminateProcessMonitor()
-			}
+			log.Info("netlink process monitor ended")
+			pm.wg.Done()
+			pm.Stop()
 			logTicker.Stop()
 		}()
 
@@ -293,9 +283,6 @@ func (pm *ProcessMonitor) Initialize() error {
 					return
 				}
 				log.Errorf("process monitor error: %s", err)
-				pm.terminateProcessMonitor()
-				terminated = true
-				pm.Stop()
 				return
 
 			case <-logTicker.C:
@@ -386,8 +373,13 @@ func (pm *ProcessMonitor) Stop() {
 	}
 
 	pm.isInitialized = false
+	if pm.done != nil {
+		close(pm.done)
+	}
+	if pm.callbackRunner != nil {
+		close(pm.callbackRunner)
+	}
 	pm.m.Unlock()
-	close(pm.done)
 	pm.wg.Wait()
 }
 
