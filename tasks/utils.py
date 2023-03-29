@@ -28,6 +28,7 @@ else:
 RTLOADER_HEADER_NAME = "datadog_agent_rtloader.h"
 AGENT_VERSION_CACHE_NAME = "agent-version.cache"
 
+
 def get_all_allowed_repo_branches():
     return ALLOWED_REPO_ALL_BRANCHES
 
@@ -355,7 +356,9 @@ def get_version(
         try:
             if not os.path.exists(AGENT_VERSION_CACHE_NAME):
                 ctx.run(
-                    f"aws s3 cp s3://dd-ci-artefacts-build-stable/datadog-agent/{pipeline_id}/{AGENT_VERSION_CACHE_NAME} .", hide="stdout")
+                    f"aws s3 cp s3://dd-ci-artefacts-build-stable/datadog-agent/{pipeline_id}/{AGENT_VERSION_CACHE_NAME} .",
+                    hide="stdout",
+                )
 
             with open(AGENT_VERSION_CACHE_NAME, "r") as file:
                 cache_data = json.load(file)
