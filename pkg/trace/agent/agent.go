@@ -317,14 +317,7 @@ func (a *Agent) Process(p *api.Payload) {
 			p.TracerPayload.AppVersion = traceutil.GetAppVersion(root, chunk)
 		}
 
-		pt := traceutil.ProcessedTrace{
-			TraceChunk:             chunk,
-			Root:                   root,
-			AppVersion:             p.TracerPayload.AppVersion,
-			TracerEnv:              p.TracerPayload.Env,
-			TracerHostname:         p.TracerPayload.Hostname,
-			ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.Chunks())),
-		}
+		pt := processedTrace(p, chunk, root)
 		if !p.ClientComputedStats {
 			statsInput.Traces = append(statsInput.Traces, pt)
 		}
@@ -369,6 +362,22 @@ func (a *Agent) Process(p *api.Payload) {
 	}
 	if len(statsInput.Traces) > 0 {
 		a.Concentrator.In <- statsInput
+	}
+}
+
+// processedTrace creates a ProcessedTrace based on the provided chunk and root.
+// It makes a deep copy of the provided chunk to ensure that any subsequent changes
+// to the original chunk will not affect the TraceChunk of the ProcessedTrace.
+func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span) traceutil.ProcessedTrace {
+	ptChunk := new(pb.TraceChunk)
+	*ptChunk = *chunk
+	return traceutil.ProcessedTrace{
+		TraceChunk:             ptChunk,
+		Root:                   root,
+		AppVersion:             p.TracerPayload.AppVersion,
+		TracerEnv:              p.TracerPayload.Env,
+		TracerHostname:         p.TracerPayload.Hostname,
+		ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.Chunks())),
 	}
 }
 
@@ -498,6 +507,7 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt traceutil.ProcessedT
 
 	filteredChunk = pt.TraceChunk
 	if !sampled {
+		// Make a deep copy to ensure that the copy used for stats is not affected
 		filteredChunk = new(pb.TraceChunk)
 		*filteredChunk = *pt.TraceChunk
 		filteredChunk.DroppedTrace = true
