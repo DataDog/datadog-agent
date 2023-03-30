@@ -14,6 +14,7 @@ package customresources
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	autoscaling "k8s.io/api/autoscaling/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -53,11 +54,15 @@ var (
 
 // NewHorizontalPodAutoscalerV2Factory returns a new HorizontalPodAutoscaler
 // metric family generator factory.
-func NewHorizontalPodAutoscalerV2Factory() customresource.RegistryFactory {
-	return &hpav2Factory{}
+func NewHorizontalPodAutoscalerV2Factory(client *apiserver.APIClient) customresource.RegistryFactory {
+	return &hpav2Factory{
+		client: client.Cl,
+	}
 }
 
-type hpav2Factory struct{}
+type hpav2Factory struct {
+	client interface{}
+}
 
 func (f *hpav2Factory) Name() string {
 	return "horizontalpodautoscalers"
@@ -65,7 +70,7 @@ func (f *hpav2Factory) Name() string {
 
 // CreateClient is not implemented
 func (f *hpav2Factory) CreateClient(cfg *rest.Config) (interface{}, error) {
-	panic("not implemented")
+	return f.client, nil
 }
 
 func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {

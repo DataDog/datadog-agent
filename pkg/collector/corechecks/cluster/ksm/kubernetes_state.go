@@ -346,17 +346,18 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 
 	// extended resource collectors always have a factory registered
 	factories := []customresource.RegistryFactory{
-		customresources.NewExtendedJobFactory(),
-		customresources.NewExtendedNodeFactory(),
-		customresources.NewExtendedPodFactory(),
-		customresources.NewCustomResourceDefinitionFactory(),
+		customresources.NewExtendedJobFactory(c),
+		customresources.NewCustomResourceDefinitionFactory(c),
+		customresources.NewExtendedNodeFactory(c),
+		customresources.NewExtendedPodFactory(c),
 	}
 
 	factories = manageResourcesReplacement(c, factories)
 
 	clients := make(map[string]interface{}, len(factories))
 	for _, f := range factories {
-		clients[f.Name()] = customresources.GetAPIClient(c, f.Name())
+		client, _ := f.CreateClient(nil)
+		clients[f.Name()] = client
 	}
 
 	return customResources{
@@ -386,7 +387,7 @@ func manageResourcesReplacement(c *apiserver.APIClient, factories []customresour
 	// backwards/forwards compatibility resource factories are only
 	// registered if they're needed, otherwise they'd overwrite the default
 	// ones that ship with ksm
-	resourceReplacements := map[string]map[string]func() customresource.RegistryFactory{
+	resourceReplacements := map[string]map[string]func(c *apiserver.APIClient) customresource.RegistryFactory{
 		// support for older k8s versions where the resources are no
 		// longer supported in KSM
 		"batch/v1": {
@@ -419,7 +420,7 @@ func manageResourcesReplacement(c *apiserver.APIClient, factories []customresour
 
 	for _, resourceReplacement := range resourceReplacements {
 		for _, factory := range resourceReplacement {
-			factories = append(factories, factory())
+			factories = append(factories, factory(c))
 		}
 	}
 

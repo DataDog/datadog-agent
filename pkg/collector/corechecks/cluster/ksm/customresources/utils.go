@@ -23,7 +23,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	v1 "k8s.io/api/core/v1"
 	extension "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
@@ -202,11 +201,4 @@ func addConditionMetricsV1(cs v1.ConditionStatus) []*metric.Metric {
 
 func addConditionMetricsExtensionV1(cs extension.ConditionStatus) []*metric.Metric {
 	return addConditionMetrics(cs, conditionStatusesExtensionV1)
-}
-
-func GetAPIClient(c *apiserver.APIClient, name string) interface{} {
-	if name == "customresourcedefinitions" {
-		return c.CRDClient
-	}
-	return c.Cl
 }

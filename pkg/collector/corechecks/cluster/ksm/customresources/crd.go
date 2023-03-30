@@ -8,6 +8,7 @@ package customresources
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	crd "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,11 +34,15 @@ var (
 
 // NewCustomResourceDefinitionFactory returns a new CustomResourceDefinition
 // metric family generator factory.
-func NewCustomResourceDefinitionFactory() customresource.RegistryFactory {
-	return &crdFactory{}
+func NewCustomResourceDefinitionFactory(client *apiserver.APIClient) customresource.RegistryFactory {
+	return &crdFactory{
+		client: client.CRDClient,
+	}
 }
 
-type crdFactory struct{}
+type crdFactory struct {
+	client interface{}
+}
 
 func (f *crdFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
@@ -110,7 +115,7 @@ func (f *crdFactory) Name() string {
 
 // CreateClient is not implemented
 func (f *crdFactory) CreateClient(cfg *rest.Config) (interface{}, error) {
-	panic("not implemented")
+	return f.client, nil
 }
 
 func (f *crdFactory) ExpectedType() interface{} {
