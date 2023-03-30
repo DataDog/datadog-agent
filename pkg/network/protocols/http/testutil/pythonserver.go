@@ -85,15 +85,10 @@ func writeTempFile(pattern string, content string) (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if _, err := f.WriteString(content); err != nil {
 		return nil, err
-	}
-
-	err = f.Close()
-	if err != nil {
-		return nil, fmt.Errorf("failed to close file [%s]: %w", f.Name(), err)
 	}
 
 	return f, nil
