@@ -244,6 +244,7 @@ func TestInfoHandler(t *testing.T) {
 			NoProxy: true,
 		}},
 		BucketInterval:         time.Second,
+		ExtraAggregators:       []string{"agg:val"},
 		PeerServiceAggregation: true,
 		ExtraSampleRate:        2.4,
 		TargetTPS:              11,
