@@ -48,13 +48,7 @@ func IsMeasured(s *pb.Span) bool {
 func ComputeStatsForSpanKind(s *pb.Span) bool {
 	k := strings.ToLower(s.Meta[spanKindKey])
 	switch k {
-	case "server":
-		return true
-	case "consumer":
-		return true
-	case "client":
-		return true
-	case "producer":
+	case "server", "consumer", "client", "producer":
 		return true
 	default:
 		return false
