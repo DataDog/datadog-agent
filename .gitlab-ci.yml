@@ -220,6 +220,11 @@ variables:
 .if_not_stable_repo_branch: &if_not_stable_repo_branch
   if: $BUCKET_BRANCH != "stable"
 
+# CI_PIPELINE_SOURCE can be set to "trigger" or "pipeline" depending on how the trigger was done.
+# See https://docs.gitlab.com/ee/ci/triggers/index.html#configure-cicd-jobs-to-run-in-triggered-pipelines.
+.if_triggered_pipeline: &if_triggered_pipeline
+  if: $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "pipeline"
+
 # Rule to trigger all builds conditionally.
 # By default:
 # - on main and deploy pipelines, all builds are run
@@ -272,6 +277,10 @@ variables:
 
 workflow:
   rules:
+    - <<: *if_triggered_pipeline
+      variables:
+        USE_CACHING_PROXY_PYTHON: "false"
+        USE_CACHING_PROXY_RUBY: "false"
     - <<: *if_main_branch
       variables:
         USE_CACHING_PROXY_PYTHON: "true"
