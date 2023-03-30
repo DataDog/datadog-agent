@@ -47,7 +47,6 @@ type Check struct {
 
 // Run executes the check.
 func (c *Check) Run() error {
-
 	if c.db == nil {
 		db, err := c.Connect()
 		if err != nil {
@@ -98,7 +97,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		}
 	}
 
-	log.Infof("Connect string: %s", connStr)
+	log.Infof("driver: %s, Connect string: %s", oracleDriver, connStr)
 
 	db, err := sqlx.Open(oracleDriver, connStr)
 	if err != nil {
@@ -109,7 +108,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		return nil, fmt.Errorf("failed to ping oracle instance: %w", err)
 	}
 
-	db.SetMaxOpenConns(1)
+	db.SetMaxOpenConns(10)
 
 	if c.cdbName == "" {
 		row := db.QueryRow("SELECT name FROM v$database")
