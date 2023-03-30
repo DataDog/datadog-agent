@@ -196,6 +196,9 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	if coreconfig.Datadog.IsSet("apm_config.peer_service_stats_aggregation") {
 		c.PeerServiceStatsAggregation = coreconfig.Datadog.GetBool("apm_config.peer_service_stats_aggregation")
 	}
+	if coreconfig.Datadog.IsSet("apm_config.compute_stats_by_span_kind") {
+		c.ComputeStatsBySpanKind = coreconfig.Datadog.GetBool("apm_config.compute_stats_by_span_kind")
+	}
 	if coreconfig.Datadog.IsSet("apm_config.extra_sample_rate") {
 		c.ExtraSampleRate = coreconfig.Datadog.GetFloat64("apm_config.extra_sample_rate")
 	}

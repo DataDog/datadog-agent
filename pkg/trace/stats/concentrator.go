@@ -59,13 +59,14 @@ func NewConcentrator(conf *config.AgentConfig, out chan pb.StatsPayload, now tim
 		// override buckets which could have been sent before an Agent restart.
 		oldestTs: alignTs(now.UnixNano(), bsize),
 		// TODO: Move to configuration.
-		bufferLen:     defaultBufferLen,
-		In:            make(chan Input, 100),
-		Out:           out,
-		exit:          make(chan struct{}),
-		agentEnv:      conf.DefaultEnv,
-		agentHostname: conf.Hostname,
-		agentVersion:  conf.AgentVersion,
+		bufferLen:              defaultBufferLen,
+		In:                     make(chan Input, 100),
+		Out:                    out,
+		exit:                   make(chan struct{}),
+		agentEnv:               conf.DefaultEnv,
+		agentHostname:          conf.Hostname,
+		agentVersion:           conf.AgentVersion,
+		computeStatsBySpanKind: conf.ComputeStatsBySpanKind,
 	}
 	if conf.PeerServiceStatsAggregation {
 		c.extraAggregators = map[string]struct{}{tagPeerService: {}}

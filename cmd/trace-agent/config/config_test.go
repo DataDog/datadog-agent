@@ -1116,3 +1116,25 @@ func TestPeerServiceAggregation(t *testing.T) {
 		assert.True(cfg.PeerServiceStatsAggregation)
 	})
 }
+
+func TestComputeStatsBySpanKind(t *testing.T) {
+	t.Run("disabled", func(t *testing.T) {
+		defer cleanConfig()
+		cfg := config.New()
+		err := applyDatadogConfig(cfg)
+
+		assert := assert.New(t)
+		assert.NoError(err)
+		assert.False(cfg.ComputeStatsBySpanKind)
+	})
+	t.Run("enabled", func(t *testing.T) {
+		defer cleanConfig()
+		coreconfig.Datadog.Set("apm_config.compute_stats_by_span_kind", true)
+		cfg := config.New()
+		err := applyDatadogConfig(cfg)
+
+		assert := assert.New(t)
+		assert.NoError(err)
+		assert.True(cfg.ComputeStatsBySpanKind)
+	})
+}
