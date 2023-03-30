@@ -183,10 +183,7 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 	}
 	for _, s := range pt.TraceChunk.Spans {
 		isTop := traceutil.HasTopLevel(s)
-		eligibleSpanKind := false
-		if c.computeStatsBySpanKind {
-			eligibleSpanKind = traceutil.ComputeStatsForSpanKind(s)
-		}
+		eligibleSpanKind := c.computeStatsBySpanKind && traceutil.ComputeStatsForSpanKind(s)
 		if !(isTop || traceutil.IsMeasured(s) || eligibleSpanKind) {
 			continue
 		}
