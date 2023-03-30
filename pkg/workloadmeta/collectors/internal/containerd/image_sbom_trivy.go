@@ -42,6 +42,8 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 	trivyConfiguration.ContainerdAccessor = func() (cutil.ContainerdItf, error) {
 		return c.containerdClient, nil
 	}
+	trivyConfiguration.CheckDiskUsage = config.Datadog.GetBool("container_image_collection.sbom.check_disk_usage")
+	trivyConfiguration.MinAvailableDisk = uint64(config.Datadog.GetSizeInBytes("container_image_collection.sbom.min_available_disk"))
 
 	c.trivyClient, err = trivy.NewCollector(trivyConfiguration)
 	if err != nil {
