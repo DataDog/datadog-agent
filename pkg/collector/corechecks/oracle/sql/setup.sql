@@ -1,3 +1,5 @@
+set verify off
+
 accept password hide prompt password:
 
 create user c##datadog identified by &password ;
