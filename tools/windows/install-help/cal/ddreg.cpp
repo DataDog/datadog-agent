@@ -104,9 +104,9 @@ bool RegKey::getDWORDValue(const wchar_t *valname, DWORD &val)
 
 bool RegKey::setDWORDValue(const wchar_t *valname, DWORD value)
 {
-    RegSetValueEx(this->hKeyRoot, valname, 0, REG_DWORD, (const BYTE *)&value,
-                  (DWORD)sizeof(DWORD));
-    return true;
+    return RegSetValueEx(this->hKeyRoot, valname, 0, REG_DWORD, (const BYTE *)&value,
+                  (DWORD)sizeof(DWORD)) == ERROR_SUCCESS ? true : false;
+    
 }
 bool RegKey::deleteSubKey(const wchar_t *keyname)
 {
