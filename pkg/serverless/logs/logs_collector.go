@@ -199,7 +199,9 @@ func (lc *LambdaLogsCollector) processMessage(
 		if message.logType == logTypePlatformReport {
 			memorySize := message.objectRecord.reportLogItem.memorySizeMB
 			memoryUsed := message.objectRecord.reportLogItem.maxMemoryUsedMB
+			errorStatus := message.objectRecord.status == "error"
 			reportOutOfMemory := memoryUsed > 0 && memoryUsed >= memorySize
+
 			args := serverlessMetrics.GenerateEnhancedMetricsFromReportLogArgs{
 				InitDurationMs:   message.objectRecord.reportLogItem.initDurationMs,
 				DurationMs:       message.objectRecord.reportLogItem.durationMs,
@@ -213,7 +215,7 @@ func (lc *LambdaLogsCollector) processMessage(
 				Demux:            lc.demux,
 			}
 
-			if lc.lastOOMRequestID != message.objectRecord.requestID && reportOutOfMemory {
+			if errorStatus && lc.lastOOMRequestID != message.objectRecord.requestID && reportOutOfMemory {
 				outOfMemoryRequestId = message.objectRecord.requestID
 			}
 			serverlessMetrics.GenerateEnhancedMetricsFromReportLog(args)

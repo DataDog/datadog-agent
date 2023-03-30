@@ -436,6 +436,7 @@ func TestProcessMessageShouldProcessLogTypePlatformReportOutOfMemory(t *testing.
 				maxMemoryUsedMB: 512.0,
 			},
 			requestID: "8286a188-ba32-4475-8077-530cd35c09a9",
+			status:    "error",
 		},
 	}
 
@@ -782,6 +783,19 @@ func TestUnmarshalJSONLogTypePlatformEnd(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "", logMessage.logType)
 	assert.Equal(t, "", logMessage.stringRecord)
+}
+
+func TestUnmarshalJSONLogTypePlatformReport(t *testing.T) {
+	logMessage := &LambdaLogAPIMessage{}
+	raw, errReadFile := os.ReadFile("./testdata/platform_report.json")
+	if errReadFile != nil {
+		assert.Fail(t, "should be able to read the file")
+	}
+	err := logMessage.UnmarshalJSON(raw)
+	assert.Nil(t, err)
+	assert.Equal(t, "platform.report", logMessage.logType)
+	assert.Equal(t, "", logMessage.stringRecord)
+	assert.Equal(t, "error", logMessage.objectRecord.status)
 }
 
 func TestUnmarshalJSONLogTypeIncorrectReportNotFatalMetrics(t *testing.T) {
