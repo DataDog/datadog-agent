@@ -90,7 +90,7 @@ func runCheckCmd(cliParams *cliParams) error {
 	}
 
 	// For system probe, there is an additional config file that is shared with the system-probe
-	syscfg, err := sysconfig.New(cliParams.SysProbeConfFilePath)
+	syscfg, err := sysconfig.NewCustom(cliParams.SysProbeConfFilePath, false)
 	if err != nil {
 		return log.Critical(err)
 	}

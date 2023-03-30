@@ -69,6 +69,15 @@ type Config struct {
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
 func New(configPath string) (*Config, error) {
+	return newSysprobeConfig(configPath, true)
+}
+
+// NewCustom creates a config object for system-probe. It assumes no configuration has been loaded as this point.
+func NewCustom(configPath string, loadSecrets bool) (*Config, error) {
+	return newSysprobeConfig(configPath, loadSecrets)
+}
+
+func newSysprobeConfig(configPath string, loadSecrets bool) (*Config, error) {
 	aconfig.SystemProbe.SetConfigName("system-probe")
 	// set the paths where a config file is expected
 	if len(configPath) != 0 {
@@ -82,7 +91,7 @@ func New(configPath string) (*Config, error) {
 	}
 	aconfig.SystemProbe.AddConfigPath(defaultConfigDir)
 	// load the configuration
-	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", true, aconfig.Datadog.GetEnvVars())
+	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", loadSecrets, aconfig.Datadog.GetEnvVars())
 	if err != nil {
 		var e viper.ConfigFileNotFoundError
 		if errors.As(err, &e) || errors.Is(err, os.ErrNotExist) {
