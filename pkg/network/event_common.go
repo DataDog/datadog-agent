@@ -442,7 +442,7 @@ func KafkaKeyTuplesFromConn(connectionStats ConnectionStats) []kafka.KeyTuple {
 
 	// Kafka data is always indexed as (client, server), but we don't know which is the remote
 	// and which is the local address. To account for this, we'll construct 2 possible
-	// http keys and check for both of them in our http aggregations map.
+	// kafka keys and check for both of them in our kafka aggregations map.
 	kafkaKeyTuples := []kafka.KeyTuple{
 		kafka.NewKeyTuple(connectionStats.Source, connectionStats.Dest, connectionStats.SPort, connectionStats.DPort),
 		kafka.NewKeyTuple(connectionStats.Dest, connectionStats.Source, connectionStats.DPort, connectionStats.SPort),
