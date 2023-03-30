@@ -12,14 +12,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/lldp"
-
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/lldp"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/metadata"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
@@ -28,7 +29,7 @@ const interfaceStatusMetric = "snmp.interface.status"
 const topologyLinkSourceTypeLLDP = "lldp"
 
 // ReportNetworkDeviceMetadata reports device metadata
-func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus metadata.DeviceStatus) {
+func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus devicemetadata.DeviceStatus) {
 	tags := common.CopyStrings(origTags)
 	tags = util.SortUniqInPlace(tags)
 
@@ -40,7 +41,7 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 	ipAddresses := buildNetworkIPAddressesMetadata(config.DeviceID, metadataStore)
 	topologyLinks := buildNetworkTopologyMetadata(config.DeviceID, metadataStore, interfaces)
 
-	metadataPayloads := batchPayloads(config.Namespace, config.ResolvedSubnetName, collectTime, metadata.PayloadMetadataBatchSize, device, interfaces, ipAddresses, topologyLinks)
+	metadataPayloads := batchPayloads(config.Namespace, config.ResolvedSubnetName, collectTime, devicemetadata.PayloadMetadataBatchSize, device, interfaces, ipAddresses, topologyLinks)
 
 	for _, payload := range metadataPayloads {
 		payloadBytes, err := json.Marshal(payload)
@@ -159,7 +160,7 @@ func buildMetadataStore(metadataConfigs checkconfig.MetadataConfig, values *valu
 	return metadataStore
 }
 
-func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkconfig.CheckConfig, store *metadata.Store, tags []string, deviceStatus metadata.DeviceStatus) metadata.DeviceMetadata {
+func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkconfig.CheckConfig, store *metadata.Store, tags []string, deviceStatus devicemetadata.DeviceStatus) devicemetadata.DeviceMetadata {
 	var vendor, sysName, sysDescr, sysObjectID, location, serialNumber, version, productName, model, osName, osVersion, osHostname string
 	if store != nil {
 		sysName = store.GetScalarAsString("device.name")
@@ -181,7 +182,7 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		vendor = config.ProfileDef.Device.Vendor
 	}
 
-	return metadata.DeviceMetadata{
+	return devicemetadata.DeviceMetadata{
 		ID:           deviceID,
 		IDTags:       idTags,
 		Name:         sysName,
@@ -204,7 +205,7 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 	}
 }
 
-func buildNetworkInterfacesMetadata(deviceID string, store *metadata.Store) []metadata.InterfaceMetadata {
+func buildNetworkInterfacesMetadata(deviceID string, store *metadata.Store) []devicemetadata.InterfaceMetadata {
 	if store == nil {
 		// it's expected that the value store is nil if we can't reach the device
 		// in that case, we just return a nil slice.
@@ -216,7 +217,7 @@ func buildNetworkInterfacesMetadata(deviceID string, store *metadata.Store) []me
 		return nil
 	}
 	sort.Strings(indexes)
-	var interfaces []metadata.InterfaceMetadata
+	var interfaces []devicemetadata.InterfaceMetadata
 	for _, strIndex := range indexes {
 		index, err := strconv.ParseInt(strIndex, 10, 32)
 		if err != nil {
@@ -227,7 +228,7 @@ func buildNetworkInterfacesMetadata(deviceID string, store *metadata.Store) []me
 		ifIDTags := store.GetIDTags("interface", strIndex)
 
 		name := store.GetColumnAsString("interface.name", strIndex)
-		networkInterface := metadata.InterfaceMetadata{
+		networkInterface := devicemetadata.InterfaceMetadata{
 			DeviceID:    deviceID,
 			Index:       int32(index),
 			Name:        name,
@@ -243,7 +244,7 @@ func buildNetworkInterfacesMetadata(deviceID string, store *metadata.Store) []me
 	return interfaces
 }
 
-func buildNetworkIPAddressesMetadata(deviceID string, store *metadata.Store) []metadata.IPAddressMetadata {
+func buildNetworkIPAddressesMetadata(deviceID string, store *metadata.Store) []devicemetadata.IPAddressMetadata {
 	if store == nil {
 		// it's expected that the value store is nil if we can't reach the device
 		// in that case, we just return a nil slice.
@@ -255,11 +256,11 @@ func buildNetworkIPAddressesMetadata(deviceID string, store *metadata.Store) []m
 		return nil
 	}
 	sort.Strings(indexes)
-	var ipAddresses []metadata.IPAddressMetadata
+	var ipAddresses []devicemetadata.IPAddressMetadata
 	for _, strIndex := range indexes {
 		index := store.GetColumnAsString("ip_addresses.if_index", strIndex)
 		Netmask := store.GetColumnAsString("ip_addresses.netmask", strIndex)
-		ipAddress := metadata.IPAddressMetadata{
+		ipAddress := devicemetadata.IPAddressMetadata{
 			InterfaceID: deviceID + ":" + index,
 			IPAddress:   strIndex,
 			Prefixlen:   int32(netmaskToPrefixlen(Netmask)),
@@ -269,7 +270,7 @@ func buildNetworkIPAddressesMetadata(deviceID string, store *metadata.Store) []m
 	return ipAddresses
 }
 
-func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store, interfaces []metadata.InterfaceMetadata) []metadata.TopologyLinkMetadata {
+func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store, interfaces []devicemetadata.InterfaceMetadata) []devicemetadata.TopologyLinkMetadata {
 	if store == nil {
 		// it's expected that the value store is nil if we can't reach the device
 		// in that case, we just return a nil slice.
@@ -286,7 +287,7 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store, interf
 		return nil
 	}
 	sort.Strings(indexes)
-	var links []metadata.TopologyLinkMetadata
+	var links []devicemetadata.TopologyLinkMetadata
 	for _, strIndex := range indexes {
 		indexElems := strings.Split(strIndex, ".")
 
@@ -316,30 +317,30 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store, interf
 		//                   lldpRemTable. We don't include lldpRemTimeMark (used for filtering only recent data) since it can change often.
 		remEntryUniqueID := localPortNum + "." + lldpRemIndex
 
-		newLink := metadata.TopologyLinkMetadata{
+		newLink := devicemetadata.TopologyLinkMetadata{
 			ID:         deviceID + ":" + remEntryUniqueID,
 			SourceType: topologyLinkSourceTypeLLDP,
-			Remote: &metadata.TopologyLinkSide{
-				Device: &metadata.TopologyLinkDevice{
+			Remote: &devicemetadata.TopologyLinkSide{
+				Device: &devicemetadata.TopologyLinkDevice{
 					Name:        store.GetColumnAsString("lldp_remote.device_name", strIndex),
 					Description: store.GetColumnAsString("lldp_remote.device_desc", strIndex),
 					ID:          remoteDeviceID,
 					IDType:      remoteDeviceIDType,
 					IPAddress:   remManAddrByLLDPRemIndex[lldpRemIndex],
 				},
-				Interface: &metadata.TopologyLinkInterface{
+				Interface: &devicemetadata.TopologyLinkInterface{
 					ID:          remoteInterfaceID,
 					IDType:      remoteInterfaceIDType,
 					Description: store.GetColumnAsString("lldp_remote.interface_desc", strIndex),
 				},
 			},
-			Local: &metadata.TopologyLinkSide{
-				Interface: &metadata.TopologyLinkInterface{
+			Local: &devicemetadata.TopologyLinkSide{
+				Interface: &devicemetadata.TopologyLinkInterface{
 					DDID:   resolvedLocalInterfaceID,
 					ID:     localInterfaceID,
 					IDType: localInterfaceIDType,
 				},
-				Device: &metadata.TopologyLinkDevice{
+				Device: &devicemetadata.TopologyLinkDevice{
 					DDID: deviceID,
 				},
 			},
@@ -391,7 +392,7 @@ func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]ma
 	return ""
 }
 
-func buildInterfaceIndexByIDType(interfaces []metadata.InterfaceMetadata) map[string]map[string][]int32 {
+func buildInterfaceIndexByIDType(interfaces []devicemetadata.InterfaceMetadata) map[string]map[string][]int32 {
 	interfaceIndexByIDType := make(map[string]map[string][]int32) // map[ID_TYPE]map[ID_VALUE]IF_INDEX
 	for _, idType := range []string{"mac_address", "interface_name", "interface_alias", "interface_index"} {
 		interfaceIndexByIDType[idType] = make(map[string][]int32)
@@ -438,7 +439,7 @@ func getRemManIPAddrByLLDPRemIndex(remManIndexes []string) map[string]string {
 
 func formatID(idType string, store *metadata.Store, field string, strIndex string) string {
 	var remoteDeviceID string
-	if idType == metadata.IDTypeMacAddress {
+	if idType == devicemetadata.IDTypeMacAddress {
 		remoteDeviceID = formatColonSepBytes(store.GetColumnAsByteArray(field, strIndex))
 	} else {
 		remoteDeviceID = store.GetColumnAsString(field, strIndex)
@@ -446,11 +447,11 @@ func formatID(idType string, store *metadata.Store, field string, strIndex strin
 	return remoteDeviceID
 }
 
-func batchPayloads(namespace string, subnet string, collectTime time.Time, batchSize int, device metadata.DeviceMetadata, interfaces []metadata.InterfaceMetadata, ipAddresses []metadata.IPAddressMetadata, topologyLinks []metadata.TopologyLinkMetadata) []metadata.NetworkDevicesMetadata {
-	var payloads []metadata.NetworkDevicesMetadata
+func batchPayloads(namespace string, subnet string, collectTime time.Time, batchSize int, device devicemetadata.DeviceMetadata, interfaces []devicemetadata.InterfaceMetadata, ipAddresses []devicemetadata.IPAddressMetadata, topologyLinks []devicemetadata.TopologyLinkMetadata) []devicemetadata.NetworkDevicesMetadata {
+	var payloads []devicemetadata.NetworkDevicesMetadata
 	var resourceCount int
-	payload := metadata.NetworkDevicesMetadata{
-		Devices: []metadata.DeviceMetadata{
+	payload := devicemetadata.NetworkDevicesMetadata{
+		Devices: []devicemetadata.DeviceMetadata{
 			device,
 		},
 		Subnet:           subnet,
@@ -462,7 +463,7 @@ func batchPayloads(namespace string, subnet string, collectTime time.Time, batch
 	for _, interfaceMetadata := range interfaces {
 		if resourceCount == batchSize {
 			payloads = append(payloads, payload)
-			payload = metadata.NetworkDevicesMetadata{
+			payload = devicemetadata.NetworkDevicesMetadata{
 				Subnet:           subnet,
 				Namespace:        namespace,
 				CollectTimestamp: collectTime.Unix(),
@@ -476,7 +477,7 @@ func batchPayloads(namespace string, subnet string, collectTime time.Time, batch
 	for _, ipAddress := range ipAddresses {
 		if resourceCount == batchSize {
 			payloads = append(payloads, payload)
-			payload = metadata.NetworkDevicesMetadata{
+			payload = devicemetadata.NetworkDevicesMetadata{
 				Subnet:           subnet,
 				Namespace:        namespace,
 				CollectTimestamp: collectTime.Unix(),
@@ -490,7 +491,7 @@ func batchPayloads(namespace string, subnet string, collectTime time.Time, batch
 	for _, linkMetadata := range topologyLinks {
 		if resourceCount == batchSize {
 			payloads = append(payloads, payload)
-			payload = metadata.NetworkDevicesMetadata{ // TODO: Avoid duplication
+			payload = devicemetadata.NetworkDevicesMetadata{ // TODO: Avoid duplication
 				Subnet:           subnet,
 				Namespace:        namespace,
 				CollectTimestamp: collectTime.Unix(),
