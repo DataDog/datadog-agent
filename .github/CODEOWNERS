@@ -33,6 +33,7 @@
 /.github/CODEOWNERS                                 # do not notify anyone
 /.github/*_TEMPLATE.md                              @DataDog/agent-all
 /.github/dependabot.yaml                            @DataDog/agent-platform
+/.github/workflows/serverless-binary-size.yml       @DataDog/serverless
 /.github/workflows/serverless-integration.yml       @DataDog/serverless
 /.github/workflows/cws-btfhub-sync.yml              @DataDog/agent-security
 
@@ -245,6 +246,7 @@
 /pkg/config/remote/service/meta/        @DataDog/remote-config @DataDog/software-integrity-and-trust
 /pkg/diagnose/                          @Datadog/container-integrations
 /pkg/diagnose/connectivity/             @DataDog/agent-shared-components
+/pkg/eventmonitor/                      @DataDog/ebpf-platform @DataDog/agent-security
 /pkg/epforwarder/                       @DataDog/agent-shared-components @DataDog/agent-metrics-logs
 /pkg/flare/                             @DataDog/agent-shared-components
 /pkg/otlp/                              @DataDog/opentelemetry
@@ -384,6 +386,7 @@
 /tools/gdb/                             @DataDog/agent-shared-components
 /tools/retry_file_dump/                 @DataDog/agent-metrics-logs
 /tools/windows/                         @DataDog/windows-agent
+/tools/windows/DatadogAgentInstaller/WixSetup/localization-en-us.wxl @DataDog/windows-agent @DataDog/documentation
 /tools/agent_QA/                        @DataDog/agent-metrics-logs
 
 /internal/tools/                        @DataDog/agent-platform

@@ -113,8 +113,10 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 		if err != nil {
 			errs = multierror.Append(errs, err)
 		}
-		normalize(policy)
-		policies = append(policies, policy)
+		if policy != nil && len(policy.Rules) > 0 {
+			normalize(policy)
+			policies = append(policies, policy)
+		}
 	}
 
 	for _, c := range r.lastDefaults {

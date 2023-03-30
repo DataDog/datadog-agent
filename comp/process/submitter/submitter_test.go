@@ -10,16 +10,15 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestSubmitterLifecycle(t *testing.T) {
 	fxutil.Test(t, fx.Options(
-		fx.Supply(
-			&checks.HostInfo{},
-		),
-
+		hostinfo.MockModule,
+		core.MockBundle,
 		Module,
 	), func(runner Component) {
 		// Start and stop the component

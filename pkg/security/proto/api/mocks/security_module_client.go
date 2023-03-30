@@ -248,39 +248,6 @@ func (_m *SecurityModuleClient) GetEvents(ctx context.Context, in *api.GetEventP
 	return r0, r1
 }
 
-// GetProcessEvents provides a mock function with given fields: ctx, in, opts
-func (_m *SecurityModuleClient) GetProcessEvents(ctx context.Context, in *api.GetProcessEventParams, opts ...grpc.CallOption) (api.SecurityModule_GetProcessEventsClient, error) {
-	_va := make([]interface{}, len(opts))
-	for _i := range opts {
-		_va[_i] = opts[_i]
-	}
-	var _ca []interface{}
-	_ca = append(_ca, ctx, in)
-	_ca = append(_ca, _va...)
-	ret := _m.Called(_ca...)
-
-	var r0 api.SecurityModule_GetProcessEventsClient
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *api.GetProcessEventParams, ...grpc.CallOption) (api.SecurityModule_GetProcessEventsClient, error)); ok {
-		return rf(ctx, in, opts...)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, *api.GetProcessEventParams, ...grpc.CallOption) api.SecurityModule_GetProcessEventsClient); ok {
-		r0 = rf(ctx, in, opts...)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(api.SecurityModule_GetProcessEventsClient)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, *api.GetProcessEventParams, ...grpc.CallOption) error); ok {
-		r1 = rf(ctx, in, opts...)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // GetStatus provides a mock function with given fields: ctx, in, opts
 func (_m *SecurityModuleClient) GetStatus(ctx context.Context, in *api.GetStatusParams, opts ...grpc.CallOption) (*api.Status, error) {
 	_va := make([]interface{}, len(opts))

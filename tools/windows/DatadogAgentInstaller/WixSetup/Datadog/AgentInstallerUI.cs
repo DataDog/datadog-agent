@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Xml.Linq;
 using WixSharp;
 using WixSharp.Controls;
+using WixSharp.Forms;
 
 namespace WixSetup.Datadog
 {
@@ -51,7 +52,8 @@ namespace WixSetup.Datadog
                 .AddXmlInclude("dialogs/sitedlg.wxi")
                 .AddXmlInclude("dialogs/fatalError.wxi")
                 .AddXmlInclude("dialogs/sendFlaredlg.wxi")
-                .AddXmlInclude("dialogs/ddagentuserdlg.wxi");
+                .AddXmlInclude("dialogs/ddagentuserdlg.wxi")
+                .AddXmlInclude("dialogs/errormodaldlg.wxi");
 
             // NOTE: CustomActions called from dialog Controls will not be able to add messages to the log.
             //       If possible, prefer adding the custom action to an install sequence.
@@ -68,26 +70,54 @@ namespace WixSetup.Datadog
             OnFreshInstall(Dialogs.ApiKeyDialog, Buttons.Next, new ShowDialog(Dialogs.SiteSelectionDialog));
             OnFreshInstall(Dialogs.SiteSelectionDialog, Buttons.Next, new ShowDialog(Dialogs.AgentUserDialog));
             OnFreshInstall(Dialogs.SiteSelectionDialog, Buttons.Back, new ShowDialog(Dialogs.ApiKeyDialog));
-            OnFreshInstall(Dialogs.AgentUserDialog, Buttons.Next, new ShowDialog(NativeDialogs.VerifyReadyDlg));
+            OnFreshInstall(Dialogs.AgentUserDialog, Buttons.Next,
+                new ExecuteCustomAction(agentCustomActions.ProcessDdAgentUserCredentialsUI) { Order = 1},
+                new SpawnDialog(Dialogs.ErrorModalDialog, new Condition("DDAgentUser_Valid <> \"True\"")) { Order = 2 },
+                new ShowDialog(NativeDialogs.VerifyReadyDlg, new Condition("DDAgentUser_Valid = \"True\"")) { Order = 3 });
             OnFreshInstall(Dialogs.AgentUserDialog, Buttons.Back, new ShowDialog(Dialogs.SiteSelectionDialog, Conditions.NOT_DatadogYamlExists));
             OnFreshInstall(Dialogs.AgentUserDialog, Buttons.Back, new ShowDialog(NativeDialogs.CustomizeDlg, Conditions.DatadogYamlExists));
             OnFreshInstall(NativeDialogs.VerifyReadyDlg, Buttons.Back, new ShowDialog(Dialogs.AgentUserDialog));
+
             // Upgrade track
             OnUpgrade(NativeDialogs.WelcomeDlg, Buttons.Next, new ShowDialog(NativeDialogs.CustomizeDlg));
             OnUpgrade(NativeDialogs.CustomizeDlg, Buttons.Back, new ShowDialog(NativeDialogs.WelcomeDlg));
             OnUpgrade(NativeDialogs.CustomizeDlg, Buttons.Next, new ShowDialog(Dialogs.AgentUserDialog));
             OnUpgrade(Dialogs.AgentUserDialog, Buttons.Back, new ShowDialog(NativeDialogs.CustomizeDlg));
-            OnUpgrade(Dialogs.AgentUserDialog, Buttons.Next, new ShowDialog(NativeDialogs.VerifyReadyDlg));
+            OnUpgrade(Dialogs.AgentUserDialog, Buttons.Next,
+                new ExecuteCustomAction(agentCustomActions.ProcessDdAgentUserCredentialsUI) { Order = 1 },
+                new SpawnDialog(Dialogs.ErrorModalDialog, new Condition("DDAgentUser_Valid <> \"True\"")) { Order = 2 },
+                new ShowDialog(NativeDialogs.VerifyReadyDlg, new Condition("DDAgentUser_Valid = \"True\"")) { Order = 3 });
             OnUpgrade(NativeDialogs.VerifyReadyDlg, Buttons.Back, new ShowDialog(Dialogs.AgentUserDialog));
+
             // Maintenance track
             OnMaintenance(NativeDialogs.MaintenanceWelcomeDlg, Buttons.Next, new ShowDialog(NativeDialogs.MaintenanceTypeDlg));
             OnMaintenance(NativeDialogs.MaintenanceTypeDlg, Buttons.Back, new ShowDialog(NativeDialogs.MaintenanceWelcomeDlg));
-            OnMaintenance(NativeDialogs.MaintenanceTypeDlg, "ChangeButton", new ShowDialog(NativeDialogs.CustomizeDlg));
+
+            OnMaintenance(NativeDialogs.MaintenanceTypeDlg, "ChangeButton",
+                new SetProperty("PREVIOUS_PAGE", NativeDialogs.CustomizeDlg),
+                new ShowDialog(NativeDialogs.CustomizeDlg));
+
+            OnMaintenance(NativeDialogs.MaintenanceTypeDlg, Buttons.Repair,
+                new SetProperty("PREVIOUS_PAGE", NativeDialogs.MaintenanceTypeDlg),
+                new ShowDialog(Dialogs.AgentUserDialog));
+
+            OnMaintenance(NativeDialogs.MaintenanceTypeDlg, Buttons.Remove,
+                new ShowDialog(NativeDialogs.VerifyReadyDlg));
+
             OnMaintenance(NativeDialogs.CustomizeDlg, Buttons.Back, new ShowDialog(NativeDialogs.MaintenanceTypeDlg));
-            OnMaintenance(NativeDialogs.CustomizeDlg, Buttons.Next, new ShowDialog(NativeDialogs.VerifyReadyDlg));
-            OnMaintenance(NativeDialogs.MaintenanceTypeDlg, Buttons.Repair, new ShowDialog(NativeDialogs.VerifyReadyDlg));
-            OnMaintenance(NativeDialogs.MaintenanceTypeDlg, Buttons.Remove, new ShowDialog(NativeDialogs.VerifyReadyDlg));
-            // There's not way to know if we were on MaintenanceTypeDlg or CustomizeDlg previously, so go back the furthest.
+            OnMaintenance(NativeDialogs.CustomizeDlg, Buttons.Next, new ShowDialog(Dialogs.AgentUserDialog));
+
+            OnMaintenance(Dialogs.AgentUserDialog, Buttons.Back,
+                new ShowDialog(NativeDialogs.CustomizeDlg, new Condition($"PREVIOUS_PAGE = \"{NativeDialogs.CustomizeDlg}\"")) { Order = 1 });
+            OnMaintenance(Dialogs.AgentUserDialog, Buttons.Back,
+                new ShowDialog(NativeDialogs.MaintenanceTypeDlg, new Condition($"PREVIOUS_PAGE = \"{NativeDialogs.MaintenanceTypeDlg}\"")) { Order = 2 });
+            OnMaintenance(Dialogs.AgentUserDialog, Buttons.Next,
+                new SetProperty("PREVIOUS_PAGE", Dialogs.AgentUserDialog),
+                new ExecuteCustomAction(agentCustomActions.ProcessDdAgentUserCredentialsUI) { Order = 1 },
+                new SpawnDialog(Dialogs.ErrorModalDialog, new Condition("DDAgentUser_Valid <> \"True\"")) { Order = 2 },
+                new ShowDialog(NativeDialogs.VerifyReadyDlg, new Condition("DDAgentUser_Valid = \"True\"")) { Order = 3 });
+
+            // There's no way to know if we were on MaintenanceTypeDlg or CustomizeDlg previously, so go back the furthest.
             OnMaintenance(NativeDialogs.VerifyReadyDlg, Buttons.Back, new ShowDialog(NativeDialogs.MaintenanceTypeDlg));
 
             On(NativeDialogs.ExitDialog, Buttons.Finish, new CloseDialog { Order = 9999 });

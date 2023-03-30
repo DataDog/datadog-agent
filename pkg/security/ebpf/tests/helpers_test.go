@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/config"
 	secebpf "github.com/DataDog/datadog-agent/pkg/security/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/cilium/ebpf"
 	"github.com/safchain/baloum/pkg/baloum"

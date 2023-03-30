@@ -647,6 +647,8 @@ shared_examples_for 'an Agent that stops' do
 
   it 'is not running any agent processes' do
     expect(agent_processes_running?).to be_falsey
+    expect(security_agent_running?).to be_falsey
+    expect(system_probe_running?).to be_falsey
   end
 
   it 'starts after being stopped' do
@@ -804,8 +806,10 @@ shared_examples_for 'an Agent that is removed' do
   end
 
   it 'should not be running the agent after removal' do
-    sleep 5
+    sleep 15
     expect(agent_processes_running?).to be_falsey
+    expect(security_agent_running?).to be_falsey
+    expect(system_probe_running?).to be_falsey
   end
 
   if os == :windows

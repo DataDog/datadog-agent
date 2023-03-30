@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -35,7 +36,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 			Serverless: false,
 		}),
 		dogstatsd.Bundle,
-	), func(server server.Component) {
+	), func(server server.Component, debug serverDebug.Component) {
 
 		global.DSD = server
 		server.Start(demux)
@@ -43,7 +44,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 		require.Nil(t, err)
 
 		s := DsdStatsRuntimeSetting{
-			Server: server,
+			ServerDebug: debug,
 		}
 
 		// runtime settings set/get underlying implementation
@@ -52,7 +53,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 		err = s.Set("true")
 		assert.Nil(err)
-		assert.Equal(server.IsDebugEnabled(), true)
+		assert.Equal(debug.IsDebugEnabled(), true)
 		v, err := s.Get()
 		assert.Nil(err)
 		assert.Equal(v, true)
@@ -61,7 +62,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 		err = s.Set("false")
 		assert.Nil(err)
-		assert.Equal(server.IsDebugEnabled(), false)
+		assert.Equal(debug.IsDebugEnabled(), false)
 		v, err = s.Get()
 		assert.Nil(err)
 		assert.Equal(v, false)
@@ -70,7 +71,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 		err = s.Set(true)
 		assert.Nil(err)
-		assert.Equal(server.IsDebugEnabled(), true)
+		assert.Equal(debug.IsDebugEnabled(), true)
 		v, err = s.Get()
 		assert.Nil(err)
 		assert.Equal(v, true)
@@ -79,14 +80,14 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 		err = s.Set(false)
 		assert.Nil(err)
-		assert.Equal(server.IsDebugEnabled(), false)
+		assert.Equal(debug.IsDebugEnabled(), false)
 		v, err = s.Get()
 		assert.Nil(err)
 		assert.Equal(v, false)
 
 		// ensure the getter uses the value from the actual server
 
-		server.EnableMetricsStats()
+		debug.SetMetricStatsEnabled(true)
 		v, err = s.Get()
 		assert.Nil(err)
 		assert.Equal(v, true)

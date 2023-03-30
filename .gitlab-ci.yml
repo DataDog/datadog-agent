@@ -142,7 +142,7 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v14002862-b2bcfc9
+  DATADOG_AGENT_BUILDIMAGES: v14189740-26a2d48
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
   DATADOG_AGENT_WINBUILDIMAGES: v14002862-b2bcfc9
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
@@ -156,8 +156,6 @@ variables:
   DATADOG_AGENT_BUILDERS: v9930706-ef9d493
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
-  NIKOS_INSTALL_DIR: /opt/datadog-agent/embedded/nikos
-  NIKOS_EMBEDDED_PATH: /opt/datadog-agent/embedded/nikos/embedded
   DEB_GPG_KEY_ID: ad9589b7
   DEB_GPG_KEY_NAME: "Datadog, Inc. Master key"
   DEB_GPG_KEY_SSM_NAME: ci.datadog-agent.deb_signing_private_key_${DEB_GPG_KEY_ID}
@@ -173,6 +171,7 @@ variables:
   KITCHEN_INFRASTRUCTURE_FLAKES_RETRY: 2
   ARTIFACTORY_USERNAME: datadog-agent
   ARTIFACTORY_TOKEN_SSM_NAME: ci.datadog-agent.artifactory_token
+  ARTIFACTORY_BYPASS_SSM_NAME: ci.datadog-agent.artifactory_bypass
   ARTIFACTORY_URL: datadog.jfrog.io
   ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
   ARTIFACTORY_PYPI_PATH: artifactory/api/pypi/agent-pypi/simple
