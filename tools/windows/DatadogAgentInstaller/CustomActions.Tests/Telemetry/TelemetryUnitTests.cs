@@ -1,11 +1,10 @@
-using System;
 using System.Collections.Generic;
-using System.Reflection;
 using AutoFixture.Xunit2;
 using Moq;
 using Datadog.CustomActions;
+using Datadog.CustomActions.Interfaces;
 using Xunit;
-using ISession = Datadog.CustomActions.ISession;
+using ISession = Datadog.CustomActions.Interfaces.ISession;
 
 namespace CustomActions.Tests.Telemetry
 {

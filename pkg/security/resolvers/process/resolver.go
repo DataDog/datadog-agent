@@ -28,8 +28,8 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
@@ -1182,6 +1182,7 @@ func (p *Resolver) Dump(withArgs bool) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	defer dump.Close()
 
 	if err := os.Chmod(dump.Name(), 0400); err != nil {
@@ -1200,7 +1201,10 @@ func (p *Resolver) Dump(withArgs bool) (string, error) {
 
 	fmt.Fprintf(dump, `}`)
 
-	return dump.Name(), err
+	if err = dump.Close(); err != nil {
+		return "", fmt.Errorf("could not close file [%s]: %w", dump.Name(), err)
+	}
+	return dump.Name(), nil
 }
 
 // GetCacheSize returns the cache size of the process resolver

@@ -12,7 +12,7 @@ GITHUB_SLACK_MAP = {
     "@datadog/agent-platform": DEFAULT_SLACK_CHANNEL,
     "@datadog/documentation": DEFAULT_SLACK_CHANNEL,
     "@datadog/container-integrations": "#container-integrations",
-    "@datadog/platform-integrations": "#platform-integrations",
+    "@datadog/platform-integrations": "#platform-integrations-ops",
     "@datadog/agent-security": "#security-and-compliance-agent-ops",
     "@datadog/agent-apm": "#apm-agent",
     "@datadog/network-device-monitoring": "#network-device-monitoring",

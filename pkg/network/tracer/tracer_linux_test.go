@@ -588,6 +588,7 @@ func TestGatewayLookupEnabled(t *testing.T) {
 	tr, err := newTracer(cfg)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
+	t.Cleanup(tr.Stop)
 	require.NotNil(t, tr.gwLookup)
 
 	tr.gwLookup.subnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
@@ -602,7 +603,6 @@ func TestGatewayLookupEnabled(t *testing.T) {
 	}
 
 	require.NoError(t, tr.start(), "could not start tracer")
-	defer tr.Stop()
 
 	initTracerState(t, tr)
 
@@ -636,6 +636,7 @@ func TestGatewayLookupSubnetLookupError(t *testing.T) {
 	tr, err := newTracer(cfg)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
+	t.Cleanup(tr.Stop)
 	require.NotNil(t, tr.gwLookup)
 
 	ifi := ipRouteGet(t, "", "8.8.8.8", nil)
@@ -649,7 +650,6 @@ func TestGatewayLookupSubnetLookupError(t *testing.T) {
 
 	tr.gwLookup.purge()
 	require.NoError(t, tr.start(), "failed to start tracer")
-	defer tr.Stop()
 
 	initTracerState(t, tr)
 
@@ -690,6 +690,7 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 	tr, err := newTracer(cfg)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
+	t.Cleanup(tr.Stop)
 	require.NotNil(t, tr.gwLookup)
 
 	// setup two network namespaces
@@ -745,7 +746,6 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 	}
 
 	require.NoError(t, tr.start(), "could not start tracer")
-	defer tr.Stop()
 
 	test1Ns, err := vnetns.GetFromName("test1")
 	require.NoError(t, err)

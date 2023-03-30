@@ -107,10 +107,16 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 		containerSpecs = append(containerSpecs, pod.Spec.InitContainers...)
 		containerSpecs = append(containerSpecs, pod.Spec.Containers...)
 
+		podId := workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   podMeta.UID,
+		}
+
 		podContainers, containerEvents := c.parsePodContainers(
 			pod,
 			containerSpecs,
 			pod.Status.GetAllContainers(),
+			&podId,
 		)
 
 		podOwners := pod.Owners()
@@ -124,10 +130,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 		}
 
 		entity := &workloadmeta.KubernetesPod{
-			EntityID: workloadmeta.EntityID{
-				Kind: workloadmeta.KindKubernetesPod,
-				ID:   podMeta.UID,
-			},
+			EntityID: podId,
 			EntityMeta: workloadmeta.EntityMeta{
 				Name:        podMeta.Name,
 				Namespace:   podMeta.Namespace,
@@ -159,6 +162,7 @@ func (c *collector) parsePodContainers(
 	pod *kubelet.Pod,
 	containerSpecs []kubelet.ContainerSpec,
 	containerStatuses []kubelet.ContainerStatus,
+	parent *workloadmeta.EntityID,
 ) ([]workloadmeta.OrchestratorContainer, []workloadmeta.CollectorEvent) {
 	podContainers := make([]workloadmeta.OrchestratorContainer, 0, len(containerStatuses))
 	events := make([]workloadmeta.CollectorEvent, 0, len(containerStatuses))
@@ -253,6 +257,7 @@ func (c *collector) parsePodContainers(
 				Ports:   ports,
 				Runtime: workloadmeta.ContainerRuntime(runtime),
 				State:   containerState,
+				Owner:   parent,
 			},
 		})
 	}
@@ -298,6 +303,7 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 
 func (c *collector) parseExpires(expiredIDs []string) []workloadmeta.CollectorEvent {
 	events := make([]workloadmeta.CollectorEvent, 0, len(expiredIDs))
+	podTerminatedTime := time.Now()
 
 	for _, expiredID := range expiredIDs {
 		prefix, id := containers.SplitEntityName(expiredID)
@@ -310,6 +316,7 @@ func (c *collector) parseExpires(expiredIDs []string) []workloadmeta.CollectorEv
 					Kind: workloadmeta.KindKubernetesPod,
 					ID:   id,
 				},
+				FinishedAt: podTerminatedTime,
 			}
 		} else {
 			entity = &workloadmeta.Container{

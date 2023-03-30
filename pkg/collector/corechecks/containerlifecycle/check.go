@@ -75,7 +75,7 @@ func (c *Check) Configure(integrationConfigDigest uint64, config, initConfig int
 		c.instance.PollInterval = defaultPollInterval
 	}
 
-	c.processor = newProcessor(sender, c.instance.ChunkSize)
+	c.processor = newProcessor(sender, c.instance.ChunkSize, c.workloadmetaStore)
 
 	return nil
 }

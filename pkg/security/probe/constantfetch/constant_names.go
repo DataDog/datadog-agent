@@ -36,12 +36,20 @@ const (
 	OffsetNameBPFProgAuxStructName            = "bpf_prog_aux_name_offset"
 
 	// namespace nr offsets
-	OffsetNamePIDStructLevel   = "pid_level_offset"
-	OffsetNamePIDStructNumbers = "pid_numbers_offset"
-	OffsetNameDentryStructDSB  = "dentry_sb_offset"
+	OffsetNamePIDStructLevel    = "pid_level_offset"
+	OffsetNamePIDStructNumbers  = "pid_numbers_offset"
+	OffsetNameDentryStructDSB   = "dentry_sb_offset"
+	OffsetNameTaskStructPID     = "task_struct_pid_offset"      // kernels >= 4.19
+	OffsetNameTaskStructPIDLink = "task_struct_pid_link_offset" // kernels < 4.19
+	OffsetNamePIDLinkStructPID  = "pid_link_pid_offset"         // kernels < 4.19
 
 	// splice event
-	OffsetNamePipeInodeInfoStructBufs = "pipe_inode_info_bufs_offset"
+	OffsetNamePipeInodeInfoStructBufs     = "pipe_inode_info_bufs_offset"
+	OffsetNamePipeInodeInfoStructNrbufs   = "pipe_inode_info_nrbufs_offset"    // kernels < 5.5
+	OffsetNamePipeInodeInfoStructCurbuf   = "pipe_inode_info_curbuf_offset"    // kernels < 5.5
+	OffsetNamePipeInodeInfoStructBuffers  = "pipe_inode_info_buffers_offset"   // kernels < 5.5
+	OffsetNamePipeInodeInfoStructHead     = "pipe_inode_info_head_offset"      // kernels >= 5.5
+	OffsetNamePipeInodeInfoStructRingsize = "pipe_inode_info_ring_size_offset" // kernels >= 5.5
 
 	// network related constants
 	OffsetNameNetDeviceStructIfIndex    = "net_device_ifindex_offset"

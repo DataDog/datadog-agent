@@ -60,6 +60,9 @@ func createDCAArchive(fb flarehelpers.FlareBuilder, local bool, confSearchPaths 
 	getMetadataMap(fb)               //nolint:errcheck
 	getClusterAgentClusterChecks(fb) //nolint:errcheck
 	getClusterAgentDiagnose(fb)      //nolint:errcheck
+	fb.AddFileFromFunc("agent-daemonset.yaml", getAgentDaemonSet)
+	fb.AddFileFromFunc("cluster-agent-deployment.yaml", getClusterAgentDeployment)
+	fb.AddFileFromFunc("helm-values.yaml", getHelmValues)
 	fb.AddFileFromFunc("envvars.log", getEnvVars)
 	fb.AddFileFromFunc("telemetry.log", QueryDCAMetrics)
 	fb.AddFileFromFunc("tagger-list.json", getDCATaggerList)

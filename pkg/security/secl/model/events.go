@@ -92,6 +92,12 @@ const (
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
+	// FirstEventType is the first valid event type
+	FirstEventType = FileOpenEventType
+
+	// LastEventType is the last valid event type
+	LastEventType = SyscallsEventType
+
 	// FirstDiscarderEventType first event that accepts discarders
 	FirstDiscarderEventType = FileOpenEventType
 

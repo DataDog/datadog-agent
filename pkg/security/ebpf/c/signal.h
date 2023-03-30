@@ -27,7 +27,7 @@ SYSCALL_KPROBE2(kill, int, pid, int, type) {
     struct syscall_cache_t syscall = {
         .type = EVENT_SIGNAL,
         .signal = {
-            .namespaced_pid = pid, // keep the namespaced pid for now
+            .pid = 0, // 0 in case the root ns pid resolution failed
             .type = type,
         },
     };
@@ -38,7 +38,7 @@ SYSCALL_KPROBE2(kill, int, pid, int, type) {
 SEC("kprobe/kill_pid_info")
 int kprobe_kill_pid_info(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_SIGNAL);
-    if (!syscall || syscall->signal.root_ns_pid) {
+    if (!syscall || syscall->signal.pid) {
         return 0;
     }
 
@@ -46,7 +46,7 @@ int kprobe_kill_pid_info(struct pt_regs *ctx) {
     if (!pid) {
         return 0;
     }
-    syscall->signal.root_ns_pid = get_pid_from_root_pidns(pid);
+    syscall->signal.pid = get_root_nr_from_pid_struct(pid);
 
     return 0;
 }
@@ -67,18 +67,10 @@ int kretprobe_check_kill_permission(struct pt_regs* ctx) {
         return 0;
     }
 
-    u32 pid = syscall->signal.root_ns_pid;
-    if (!pid) {
-        pid = get_root_nr(syscall->signal.namespaced_pid);
-        if (!pid) {
-            pid = syscall->signal.namespaced_pid;
-        }
-    }
-
     /* constuct and send the event */
     struct signal_event_t event = {
         .syscall.retval = retval,
-        .pid = pid,
+        .pid = syscall->signal.pid,
         .type = syscall->signal.type,
     };
     struct proc_cache_t *entry = fill_process_context(&event.process);

@@ -173,20 +173,6 @@ func (_m *SecurityModuleServer) GetEvents(_a0 *api.GetEventParams, _a1 api.Secur
 	return r0
 }
 
-// GetProcessEvents provides a mock function with given fields: _a0, _a1
-func (_m *SecurityModuleServer) GetProcessEvents(_a0 *api.GetProcessEventParams, _a1 api.SecurityModule_GetProcessEventsServer) error {
-	ret := _m.Called(_a0, _a1)
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(*api.GetProcessEventParams, api.SecurityModule_GetProcessEventsServer) error); ok {
-		r0 = rf(_a0, _a1)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
 // GetStatus provides a mock function with given fields: _a0, _a1
 func (_m *SecurityModuleServer) GetStatus(_a0 context.Context, _a1 *api.GetStatusParams) (*api.Status, error) {
 	ret := _m.Called(_a0, _a1)

@@ -23,41 +23,45 @@ import (
 // EventLostRead is the event used to report lost events detected from user space
 // easyjson:json
 type EventLostRead struct {
-	Timestamp time.Time `json:"date"`
-	Name      string    `json:"map"`
-	Lost      float64   `json:"lost"`
+	events.CustomEventCommonFields
+	Name string  `json:"map"`
+	Lost float64 `json:"lost"`
 }
 
 // NewEventLostReadEvent returns the rule and a populated custom event for a lost_events_read event
 func NewEventLostReadEvent(mapName string, lost float64) (*rules.Rule, *events.CustomEvent) {
-	return events.NewCustomRule(events.LostEventsRuleID), events.NewCustomEvent(model.CustomLostReadEventType, EventLostRead{
-		Name:      mapName,
-		Lost:      lost,
-		Timestamp: time.Now(),
-	})
+	evt := EventLostRead{
+		Name: mapName,
+		Lost: lost,
+	}
+	evt.FillCustomEventCommonFields()
+
+	return events.NewCustomRule(events.LostEventsRuleID), events.NewCustomEvent(model.CustomLostReadEventType, evt)
 }
 
 // EventLostWrite is the event used to report lost events detected from kernel space
 // easyjson:json
 type EventLostWrite struct {
-	Timestamp time.Time         `json:"date"`
-	Name      string            `json:"map"`
-	Lost      map[string]uint64 `json:"per_event"`
+	events.CustomEventCommonFields
+	Name string            `json:"map"`
+	Lost map[string]uint64 `json:"per_event"`
 }
 
 // NewEventLostWriteEvent returns the rule and a populated custom event for a lost_events_write event
 func NewEventLostWriteEvent(mapName string, perEventPerCPU map[string]uint64) (*rules.Rule, *events.CustomEvent) {
-	return events.NewCustomRule(events.LostEventsRuleID), events.NewCustomEvent(model.CustomLostWriteEventType, EventLostWrite{
-		Name:      mapName,
-		Lost:      perEventPerCPU,
-		Timestamp: time.Now(),
-	})
+	evt := EventLostWrite{
+		Name: mapName,
+		Lost: perEventPerCPU,
+	}
+	evt.FillCustomEventCommonFields()
+
+	return events.NewCustomRule(events.LostEventsRuleID), events.NewCustomEvent(model.CustomLostWriteEventType, evt)
 }
 
 // NoisyProcessEvent is used to report that a noisy process was temporarily discarded
 // easyjson:json
 type NoisyProcessEvent struct {
-	Timestamp      time.Time     `json:"date"`
+	events.CustomEventCommonFields
 	Count          uint64        `json:"pid_count"`
 	Threshold      int64         `json:"threshold"`
 	ControlPeriod  time.Duration `json:"control_period"`
@@ -75,15 +79,19 @@ func NewNoisyProcessEvent(count uint64,
 	comm string,
 	timestamp time.Time) (*rules.Rule, *events.CustomEvent) {
 
-	return events.NewCustomRule(events.NoisyProcessRuleID), events.NewCustomEvent(model.CustomNoisyProcessEventType, NoisyProcessEvent{
-		Timestamp:      timestamp,
+	evt := NoisyProcessEvent{
 		Count:          count,
 		Threshold:      threshold,
 		ControlPeriod:  controlPeriod,
 		DiscardedUntil: discardedUntil,
 		Pid:            pid,
 		Comm:           comm,
-	})
+	}
+	evt.FillCustomEventCommonFields()
+	// Overwrite common timestamp
+	evt.Timestamp = timestamp
+
+	return events.NewCustomRule(events.NoisyProcessRuleID), events.NewCustomEvent(model.CustomNoisyProcessEventType, evt)
 }
 
 func resolutionErrorToEventType(err error) model.EventType {
@@ -98,16 +106,20 @@ func resolutionErrorToEventType(err error) model.EventType {
 // AbnormalPathEvent is used to report that a path resolution failed for a suspicious reason
 // easyjson:json
 type AbnormalPathEvent struct {
-	Timestamp           time.Time                    `json:"date"`
+	events.CustomEventCommonFields
 	Event               *serializers.EventSerializer `json:"triggering_event"`
 	PathResolutionError string                       `json:"path_resolution_error"`
 }
 
 // NewAbnormalPathEvent returns the rule and a populated custom event for a abnormal_path event
 func NewAbnormalPathEvent(event *model.Event, probe *Probe, pathResolutionError error) (*rules.Rule, *events.CustomEvent) {
-	return events.NewCustomRule(events.AbnormalPathRuleID), events.NewCustomEvent(resolutionErrorToEventType(event.PathResolutionError), AbnormalPathEvent{
-		Timestamp:           event.FieldHandlers.ResolveEventTimestamp(event),
+	evt := AbnormalPathEvent{
 		Event:               serializers.NewEventSerializer(event, probe.resolvers),
 		PathResolutionError: pathResolutionError.Error(),
-	})
+	}
+	evt.FillCustomEventCommonFields()
+	// Overwrite common timestamp with event timestamp
+	evt.Timestamp = event.FieldHandlers.ResolveEventTimestamp(event)
+
+	return events.NewCustomRule(events.AbnormalPathRuleID), events.NewCustomEvent(resolutionErrorToEventType(event.PathResolutionError), evt)
 }

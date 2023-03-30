@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/netflow/config"
 	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
+	"github.com/DataDog/datadog-agent/pkg/netflow/testutil"
 )
 
 func waitForFlowsToBeFlushed(aggregator *FlowAggregator, timeoutDuration time.Duration, minEvents uint64) error {
@@ -234,19 +235,21 @@ func TestAggregator_withMockPayload(t *testing.T) {
 	assert.NoError(t, err)
 
 	time.Sleep(100 * time.Millisecond) // wait to make sure goflow listener is started before sending
-	err = goflowlib.SendUDPPacket(port, goflowlib.MockNetflowV5Data)
+	now := time.Now()
+	mockNetflowPayload := testutil.GenerateNetflow5Packet(now, 6)
+	err = testutil.SendUDPPacket(port, testutil.BuildNetFlow5Payload(mockNetflowPayload))
 	require.NoError(t, err, "error sending udp packet")
 
 	// language=json
-	event := []byte(`
+	event := []byte(fmt.Sprintf(`
 {
     "type": "netflow5",
     "sampling_rate": 0,
     "direction": "ingress",
-    "start": 1540209169,
-    "end": 1540209169,
-    "bytes": 590,
-    "packets": 5,
+    "start": %d,
+    "end": %d,
+    "bytes": 194,
+    "packets": 10,
     "ether_type": "IPv4",
     "ip_protocol": "TCP",
     "device": {
@@ -254,39 +257,38 @@ func TestAggregator_withMockPayload(t *testing.T) {
         "namespace": "default"
     },
     "source": {
-        "ip": "10.128.2.121",
-        "port": "8080",
+        "ip": "10.0.0.1",
+        "port": "50000",
         "mac": "00:00:00:00:00:00",
         "mask": "0.0.0.0/0"
     },
     "destination": {
-        "ip": "10.128.2.1",
-        "port": "47384",
+        "ip": "20.0.0.1",
+        "port": "8080",
         "mac": "00:00:00:00:00:00",
         "mask": "0.0.0.0/0"
     },
     "ingress": {
         "interface": {
-            "index": 9
+            "index": 1
         }
     },
     "egress": {
         "interface": {
-            "index": 2
+            "index": 7
         }
     },
     "host": "my-hostname",
     "tcp_flags": [
-        "FIN",
         "SYN",
-        "PSH",
+        "RST",
         "ACK"
     ],
     "next_hop": {
         "ip": "0.0.0.0"
     }
 }
-`)
+`, now.Unix(), now.Unix()))
 	compactEvent := new(bytes.Buffer)
 	err = json.Compact(compactEvent, event)
 	assert.NoError(t, err)
@@ -298,8 +300,8 @@ func TestAggregator_withMockPayload(t *testing.T) {
 	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.flows_flushed", 6, "", nil)
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.aggregator.flows_received", 6, "", nil)
 	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.flows_contexts", 6, "", nil)
-	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.port_rollup.current_store_size", 10, "", nil)
-	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.port_rollup.new_store_size", 10, "", nil)
+	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.port_rollup.current_store_size", 12, "", nil)
+	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.port_rollup.new_store_size", 12, "", nil)
 	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.input_buffer.capacity", 20, "", nil)
 	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.input_buffer.length", 0, "", nil)
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.decoder.messages", 1, "", []string{"collector_type:netflow5", "worker:0"})

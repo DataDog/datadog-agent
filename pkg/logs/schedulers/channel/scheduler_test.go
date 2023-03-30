@@ -17,7 +17,7 @@ import (
 
 func setup() (scheduler *Scheduler, spy *schedulers.MockSourceManager) {
 	ch := make(chan *config.ChannelMessage)
-	scheduler = NewScheduler("test source", "testy", ch, nil)
+	scheduler = NewScheduler("test source", "testy", ch)
 	spy = &schedulers.MockSourceManager{}
 	scheduler.Start(spy)
 	return

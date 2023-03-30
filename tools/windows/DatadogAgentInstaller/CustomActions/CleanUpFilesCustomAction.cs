@@ -2,6 +2,7 @@ using Datadog.CustomActions.Extensions;
 using Microsoft.Deployment.WindowsInstaller;
 using System.IO;
 using System;
+using Datadog.CustomActions.Interfaces;
 
 namespace Datadog.CustomActions
 {
