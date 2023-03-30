@@ -7,6 +7,7 @@ package flowaggregator
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -15,11 +16,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/netflow/config"
+	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
 )
 
 const flushFlowsToSendInterval = 10 * time.Second
@@ -37,6 +40,7 @@ type FlowAggregator struct {
 	flushedFlowCount             *atomic.Uint64
 	hostname                     string
 	goflowPrometheusGatherer     prometheus.Gatherer
+	timeNowFunction              func() time.Time // Allows to mock time in tests
 }
 
 // NewFlowAggregator returns a new FlowAggregator
@@ -55,6 +59,7 @@ func NewFlowAggregator(sender aggregator.Sender, config *config.NetflowConfig, h
 		flushedFlowCount:             atomic.NewUint64(0),
 		hostname:                     hostname,
 		goflowPrometheusGatherer:     prometheus.DefaultGatherer,
+		timeNowFunction:              time.Now,
 	}
 }
 
@@ -102,6 +107,43 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
 	}
 }
 
+func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime time.Time) {
+	exporterMap := make(map[string]metadata.NetflowExporter)
+	for _, flow := range flows {
+		ipAddress := common.IPBytesToString(flow.DeviceAddr)
+		if ipAddress == "" || strings.HasPrefix(ipAddress, "?") {
+			// TODO: test me
+			continue
+		}
+		key := flow.Namespace + "|" + ipAddress
+		if _, ok := exporterMap[key]; ok {
+			continue
+		}
+		exporterMap[key] = metadata.NetflowExporter{
+			IPAddress: ipAddress,
+			Namespace: flow.Namespace,
+			FlowType:  string(flow.FlowType),
+		}
+	}
+	if len(exporterMap) == 0 {
+		return
+	}
+	var exporters []metadata.NetflowExporter
+	for _, exporter := range exporterMap {
+		exporters = append(exporters, exporter)
+	}
+	payload := metadata.NetworkDevicesMetadata{
+		CollectTimestamp: flushTime.Unix(),
+		NetflowExporters: exporters,
+	}
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		log.Errorf("Error marshalling netflow exporter metadata: %s", err)
+		return
+	}
+	agg.sender.EventPlatformEvent(payloadBytes, epforwarder.EventTypeNetworkDevicesMetadata)
+}
+
 func (agg *FlowAggregator) flushLoop() {
 	var flushFlowsToSendTicker <-chan time.Time
 
@@ -131,14 +173,15 @@ func (agg *FlowAggregator) flushLoop() {
 // Flush flushes the aggregator
 func (agg *FlowAggregator) flush() int {
 	flowsContexts := agg.flowAcc.getFlowContextCount()
-	now := time.Now()
+	flushTime := agg.timeNowFunction()
 	flowsToFlush := agg.flowAcc.flush()
-	log.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(now).Milliseconds(), flowsContexts)
+	log.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
 	// TODO: Add flush stats to agent telemetry e.g. aggregator newFlushCountStats()
 	if len(flowsToFlush) > 0 {
 		agg.sendFlows(flowsToFlush)
 	}
+	agg.sendExporterMetadata(flowsToFlush, flushTime)
 
 	flushCount := len(flowsToFlush)
 

@@ -30,12 +30,13 @@ const (
 
 // NetworkDevicesMetadata contains network devices metadata
 type NetworkDevicesMetadata struct {
-	Subnet           string                 `json:"subnet"`
-	Namespace        string                 `json:"namespace"`
+	Subnet           string                 `json:"subnet,omitempty"`
+	Namespace        string                 `json:"namespace,omitempty"`
 	Devices          []DeviceMetadata       `json:"devices,omitempty"`
 	Interfaces       []InterfaceMetadata    `json:"interfaces,omitempty"`
 	IPAddresses      []IPAddressMetadata    `json:"ip_addresses,omitempty"`
 	Links            []TopologyLinkMetadata `json:"links,omitempty"`
+	NetflowExporters []NetflowExporter      `json:"netflow_exporters,omitempty"`
 	CollectTimestamp int64                  `json:"collect_timestamp"`
 }
 
@@ -112,4 +113,11 @@ type TopologyLinkMetadata struct {
 	SourceType string            `json:"source_type"`
 	Local      *TopologyLinkSide `json:"local"`
 	Remote     *TopologyLinkSide `json:"remote"`
+}
+
+// NetflowExporter contains netflow exporters info
+type NetflowExporter struct {
+	IPAddress string `json:"ip_address"`
+	Namespace string `json:"namespace"`
+	FlowType  string `json:"flow_type"` // TODO: needed?
 }

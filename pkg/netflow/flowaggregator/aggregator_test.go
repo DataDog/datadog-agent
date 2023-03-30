@@ -24,9 +24,9 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/netflow/config"
 	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
@@ -219,6 +219,10 @@ func TestAggregator_withMockPayload(t *testing.T) {
 
 	aggregator := NewFlowAggregator(sender, &conf, "my-hostname")
 	aggregator.flushFlowsToSendInterval = 1 * time.Second
+	aggregator.timeNowFunction = func() time.Time {
+		t, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
+		return t
+	}
 
 	stoppedFlushLoop := make(chan struct{})
 	stoppedRun := make(chan struct{})
@@ -293,10 +297,28 @@ func TestAggregator_withMockPayload(t *testing.T) {
 	err = json.Compact(compactEvent, event)
 	assert.NoError(t, err)
 
+	// language=json
+	metadataEvent := []byte(fmt.Sprintf(`
+{
+  "netflow_exporters":[
+    {
+      "ip_address":"127.0.0.1",
+      "namespace":"default",
+      "flow_type":"netflow5"
+    }
+  ],
+  "collect_timestamp": 1550505606
+}
+`))
+	compactMetadataEvent := new(bytes.Buffer)
+	err = json.Compact(compactMetadataEvent, metadataEvent)
+	assert.NoError(t, err)
+
 	err = waitForFlowsToBeFlushed(aggregator, 3*time.Second, 1)
 	assert.NoError(t, err)
 
 	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-netflow")
+	sender.AssertEventPlatformEvent(t, compactMetadataEvent.Bytes(), "network-devices-metadata")
 	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.flows_flushed", 6, "", nil)
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.aggregator.flows_received", 6, "", nil)
 	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.flows_contexts", 6, "", nil)
