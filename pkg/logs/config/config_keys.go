@@ -274,7 +274,6 @@ func (l *LogsConfigKeys) obsPipelineWorkerEnabled() bool {
 	if l.getConfig().GetBool(l.getVectorConfigKey("observability_pipelines_worker", "enabled")) {
 		return true
 	}
-	// Vector config is deprecated in favor of observability_pipelines_worker.
 	return l.getConfig().GetBool(l.getVectorConfigKey("vector", "enabled"))
 }
 

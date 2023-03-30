@@ -693,7 +693,6 @@ func isObsPipelineEnabled() (bool, string) {
 	if coreconfig.Datadog.GetBool("observability_pipelines_worker.traces.enabled") {
 		return true, "observability_pipelines_worker"
 	}
-	// Vector config is deprecated in favor of observability_pipelines_worker.
 	if coreconfig.Datadog.GetBool("vector.traces.enabled") {
 		return true, "vector"
 	}

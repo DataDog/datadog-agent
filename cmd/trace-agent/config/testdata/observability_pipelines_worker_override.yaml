@@ -4,4 +4,4 @@ site: datadoghq.eu
 observability_pipelines_worker:
   traces:
     enabled: true
-    url: https://vector.domain.tld:8443
+    url: https://observability_pipelines_worker.domain.tld:8443
