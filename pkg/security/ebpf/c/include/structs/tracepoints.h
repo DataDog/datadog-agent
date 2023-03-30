@@ -81,4 +81,14 @@ struct _tracepoint_raw_syscalls_sys_enter {
     unsigned long args[6];
 };
 
+struct tracepoint_module_module_load_t {
+    unsigned short common_type;
+    unsigned char common_flags;
+    unsigned char common_preempt_count;
+    int common_pid;
+
+    unsigned int taints;
+    int data_loc_modname;
+};
+
 #endif

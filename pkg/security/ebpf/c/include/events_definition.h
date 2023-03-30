@@ -198,16 +198,6 @@ struct init_module_event_t {
     u32 padding;
 };
 
-struct tracepoint_module_module_load_t {
-    unsigned short common_type;
-    unsigned char common_flags;
-    unsigned char common_preempt_count;
-    int common_pid;
-
-    unsigned int taints;
-    int data_loc_modname;
-};
-
 struct delete_module_event_t {
     struct kevent_t event;
     struct process_context_t process;
