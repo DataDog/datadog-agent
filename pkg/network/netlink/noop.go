@@ -35,8 +35,6 @@ func (*noOpConntracker) IsSampling() bool {
 
 func (*noOpConntracker) Close() {}
 
-func (*noOpConntracker) RefreshTelemetry() {}
-
 func (c *noOpConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]DebugConntrackEntry, error) {
 	return nil, nil
 }

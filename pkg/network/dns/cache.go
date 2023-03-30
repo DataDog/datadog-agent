@@ -17,6 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const dnsCacheModuleName = "network_tracer__dns_cache"
+
 // Telemetry
 var cacheTelemetry = struct {
 	length    *nettelemetry.StatGaugeWrapper
@@ -26,9 +28,9 @@ var cacheTelemetry = struct {
 	expired   *nettelemetry.StatGaugeWrapper
 	oversized *nettelemetry.StatCounterWrapper
 }{
-	nettelemetry.NewStatGaugeWrapper(dnsModuleName, "length", []string{}, "Gauge measuring the current size of the DNS cache"),
+	nettelemetry.NewStatGaugeWrapper(dnsModuleName, "size", []string{}, "Gauge measuring the current size of the DNS cache"),
 	nettelemetry.NewStatCounterWrapper(dnsModuleName, "lookups", []string{}, "Counter measuring the number of lookups to the DNS cache"),
-	nettelemetry.NewStatCounterWrapper(dnsModuleName, "resolved", []string{}, "Counter measuring the number of successful lookups to the DNS cache"),
+	nettelemetry.NewStatCounterWrapper(dnsModuleName, "hits", []string{}, "Counter measuring the number of successful lookups to the DNS cache"),
 	nettelemetry.NewStatCounterWrapper(dnsModuleName, "added", []string{}, "Counter measuring the number of additions to the DNS cache"),
 	nettelemetry.NewStatGaugeWrapper(dnsModuleName, "expired", []string{}, "Gauge measuring the number of failed lookups to the DNS cache"),
 	nettelemetry.NewStatCounterWrapper(dnsModuleName, "oversized", []string{}, "Counter measuring the number of lookups to the DNS cache that reached the max domains per IP limit"),

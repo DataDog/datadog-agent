@@ -30,11 +30,11 @@ var (
 )
 
 var debugfsStats = struct {
-	hits   telemetry.Gauge
-	misses telemetry.Gauge
+	hits   telemetry.Counter
+	misses telemetry.Counter
 }{
-	telemetry.NewGauge(kProbeTelemetryName, "hits", []string{"name"}, "Gauge tracking number of kprobe hits"),
-	telemetry.NewGauge(kProbeTelemetryName, "misses", []string{"name"}, "Gauge tracking number of kprobe misses"),
+	telemetry.NewCounter(kProbeTelemetryName, "hits", []string{"name"}, "Counter tracking number of kprobe hits"),
+	telemetry.NewCounter(kProbeTelemetryName, "misses", []string{"name"}, "Counter tracking number of kprobe misses"),
 }
 
 func init() {
@@ -83,8 +83,8 @@ func getProbeStats(pid int, profile string) map[string]int64 {
 		event = strings.ToLower(event)
 		hitsKey := fmt.Sprintf("%s_hits", event)
 		missesKey := fmt.Sprintf("%s_misses", event)
-		debugfsStats.hits.Set(float64(st.Hits), event)
-		debugfsStats.misses.Set(float64(st.Misses), event)
+		debugfsStats.hits.Add(float64(st.Hits), event)
+		debugfsStats.misses.Add(float64(st.Misses), event)
 		res[hitsKey] = st.Hits
 		res[missesKey] = st.Misses
 	}

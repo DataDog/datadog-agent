@@ -262,7 +262,7 @@ func (t *tracer) Stop() {
 			t.closeTracer()
 		}
 	})
-	t.exit <- struct{}{}
+	close(t.exit)
 }
 
 func (t *tracer) GetMap(name string) *ebpf.Map {
@@ -409,12 +409,12 @@ func (t *tracer) getEBPFTelemetry() *netebpf.Telemetry {
 
 func (t *tracer) RefreshProbeTelemetry() {
 	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
 			t.refreshProbeTelemetry()
 		case <-t.exit:
-			ticker.Stop()
 			return
 		}
 	}

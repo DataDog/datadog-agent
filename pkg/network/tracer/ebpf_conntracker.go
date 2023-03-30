@@ -49,16 +49,21 @@ var tuplePool = sync.Pool{
 }
 
 const ebpfConntrackerModuleName = "network_tracer__ebpf_conntracker"
-const million = 1000000
+
+var defaultBuckets = []float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000}
 
 var conntrackerTelemetry = struct {
-	gets           telemetry.Histogram
-	unregisters    telemetry.Histogram
-	registersTotal telemetry.Gauge
+	getsDuration        telemetry.Histogram
+	unregistersDuration telemetry.Histogram
+	getsTotal           telemetry.Gauge
+	registersTotal      telemetry.Gauge
+	unregistersTotal    telemetry.Gauge
 }{
-	telemetry.NewHistogram(ebpfConntrackerModuleName, "gets", []string{}, "Histogram measuring the total number of attempts to get connection tuples from the EBPF map", []float64{million, 5 * million, 10 * million, 25 * million, 50 * million, 100 * million}),
-	telemetry.NewHistogram(ebpfConntrackerModuleName, "unregisters", []string{}, "Histogram measuring the number of attempts to delete a single connection tuples from the EBPF map", []float64{100000, 500000, 1 * million, 5 * million, 10 * million}),
+	telemetry.NewHistogram(ebpfConntrackerModuleName, "gets_duration_nanoseconds", []string{}, "Histogram measuring the time spent retrieving connection tuples from the EBPF map", defaultBuckets),
+	telemetry.NewHistogram(ebpfConntrackerModuleName, "unregisters_duration_nanoseconds", []string{}, "Histogram measuring the time spent deleting connection tuples from the EBPF map", defaultBuckets),
+	telemetry.NewGauge(ebpfConntrackerModuleName, "gets_total", []string{}, "Gauge measuring the total number of attempts to get connection tuples from the EBPF map"),
 	telemetry.NewGauge(ebpfConntrackerModuleName, "registers_total", []string{}, "Gauge measuring the total number of attempts to update/create connection tuples in the EBPF map"),
+	telemetry.NewGauge(ebpfConntrackerModuleName, "unregisters_total", []string{}, "Gauge measuring the total number of attempts to delete connection tuples from the EBPF map"),
 }
 
 type ebpfConntracker struct {
@@ -173,6 +178,8 @@ func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelem
 		}
 		return nil, err
 	}
+	go e.refreshTelemetry()
+
 	log.Infof("initialized ebpf conntrack")
 	return e, nil
 }
@@ -263,7 +270,8 @@ func (e *ebpfConntracker) GetTranslationForConn(stats network.ConnectionStats) *
 	}
 	defer tuplePool.Put(dst)
 
-	conntrackerTelemetry.gets.Observe(float64(time.Since(start).Nanoseconds()))
+	conntrackerTelemetry.getsTotal.Inc()
+	conntrackerTelemetry.getsDuration.Observe(float64(time.Since(start).Nanoseconds()))
 	return &network.IPTranslation{
 		ReplSrcIP:   dst.SourceAddress(),
 		ReplDstIP:   dst.DestAddress(),
@@ -311,13 +319,15 @@ func (e *ebpfConntracker) DeleteTranslation(stats network.ConnectionStats) {
 		e.delete(dst)
 		tuplePool.Put(dst)
 	}
-	conntrackerTelemetry.unregisters.Observe(float64(time.Since(start).Nanoseconds()))
+	conntrackerTelemetry.unregistersTotal.Inc()
+	conntrackerTelemetry.unregistersDuration.Observe(float64(time.Since(start).Nanoseconds()))
 }
 
 // Refreshes conntracker telemetry on a loop
 // TODO: Replace with prometheus collector interface
-func (e *ebpfConntracker) RefreshTelemetry() {
+func (e *ebpfConntracker) refreshTelemetry() {
 	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
@@ -328,7 +338,6 @@ func (e *ebpfConntracker) RefreshTelemetry() {
 				conntrackerTelemetry.registersTotal.Set(float64(telemetry.Registers))
 			}
 		case <-e.stop:
-			ticker.Stop()
 			return
 
 		}
@@ -340,7 +349,7 @@ func (e *ebpfConntracker) Close() {
 	if err != nil {
 		log.Warnf("error cleaning up ebpf conntrack: %s", err)
 	}
-	e.stop <- struct{}{}
+	close(e.stop)
 }
 
 // DumpCachedTable dumps the cached conntrack NAT entries grouped by network namespace

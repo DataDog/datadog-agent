@@ -123,6 +123,7 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 	// TODO: Replace with prometheus collector interface
 	go func() {
 		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-pc.stopped:

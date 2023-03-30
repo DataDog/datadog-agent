@@ -235,12 +235,12 @@ func newTracer(config *config.Config) (*Tracer, error) {
 	// TODO: Replace with prometheus collector interface
 	go func() {
 		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
 				ddebpf.GetProbeStats()
 			case <-tr.exit:
-				ticker.Stop()
 				return
 			}
 		}
@@ -288,7 +288,6 @@ func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry
 		log.Warnf("could not initialize conntrack, tracer will continue without NAT tracking: %s", err)
 		return netlink.NewNoOpConntracker(), nil
 	}
-	go c.RefreshTelemetry()
 
 	return nil, fmt.Errorf("error initializing conntracker: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
 }
@@ -407,7 +406,7 @@ func (t *Tracer) Stop() {
 	t.httpMonitor.Stop()
 	t.conntracker.Close()
 	t.processCache.Stop()
-	t.exit <- struct{}{}
+	close(t.exit)
 }
 
 // GetActiveConnections returns the delta for connection info from the last time it was called with the same clientID
