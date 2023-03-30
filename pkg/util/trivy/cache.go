@@ -25,9 +25,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta/telemetry"
 )
 
-var garbageCollectionTick = 10 * time.Minute
-var garbageCollectionDiscardRatio = 0.5 // Recommended value: https://github.com/dgraph-io/badger/blob/3aa7bd6841baa884ff03f00f789317509dbcb051/db.go#L1192
 var telemetryTick = 1 * time.Minute
+const sizeOfKey = 32
+const maxCacheSize = 500
 
 type CacheProvider func() (cache.Cache, error)
 
@@ -35,230 +35,269 @@ func NewBoltCache(cacheDir string) (cache.Cache, error) {
 	if cacheDir == "" {
 		cacheDir = utils.DefaultCacheDir()
 	}
-
-	return cache.NewFSCache(cacheDir)
-}
-
-// BadgerCache implements the Trivy Cache interface. It's provided as an
-// alternative to BoltDB, the cache used by default in Trivy. The main advantage
-// of Badger is that it allows to specify a TTL for the objects stored in the
-// cache.
-type BadgerCache struct {
-	db                      *badger.DB
-	ttl                     time.Duration
-	garbageCollectionTicker *time.Ticker
-	telemetryTicker         *time.Ticker
-}
-
-// This is needed so that Badger logs using the same format as the Agent
-type badgerLogger struct{}
-
-func (l badgerLogger) Errorf(format string, params ...interface{}) {
-	log.Errorf(format, params...)
-}
-
-func (l badgerLogger) Warningf(format string, params ...interface{}) {
-	log.Warnf(format, params...)
-}
-
-func (l badgerLogger) Infof(format string, params ...interface{}) {
-	log.Infof(format, params...)
-}
-
-func (l badgerLogger) Debugf(format string, params ...interface{}) {
-	log.Debugf(format, params...)
-}
-
-func NewBadgerCache(cacheDir string, ttl time.Duration) (*BadgerCache, error) {
-	if cacheDir == "" {
-		cacheDir = filepath.Join(os.TempDir(), "datadog-agent-sbom-cache")
-	}
-
-	db, err := badger.Open(badger.DefaultOptions(cacheDir).WithLogger(badgerLogger{}))
+	db, err := NewPersistentBoltDB(cacheDir)
 	if err != nil {
-		return nil, fmt.Errorf("error creating Badger cache: %w", err)
+		return cache.Cache{}, err
 	}
-
-	telemetryTicker := time.NewTicker(telemetryTick)
-	gcTicker := time.NewTicker(garbageCollectionTick)
-
-	badgerCache := &BadgerCache{
-		db:                      db,
-		ttl:                     ttl,
-		garbageCollectionTicker: gcTicker,
-		telemetryTicker:         telemetryTicker,
+	return TrivyCache{
+		Cache: NewPersistentCache(
+			maxCacheSize,
+			db,
+			NewMaintainer(context.TODO(), telemetryTick),		
+		), nil
 	}
-
-	go func() {
-		for {
-			select {
-			case <-telemetryTicker.C:
-				badgerCache.collectTelemetry()
-			case <-gcTicker.C:
-				// Run garbage collection periodically. It's needed because Badger relies on
-				// the client to run the garbage collection
-				// (https://dgraph.io/docs/badger/get-started/#garbage-collection).
-				if err := db.RunValueLogGC(garbageCollectionDiscardRatio); err != nil && err != badger.ErrNoRewrite {
-					// ErrNoRewrite is returned when the GC runs fine but doesn't
-					// result any cleanup. That's why we don't log anything in that
-					// case.
-					log.Warnf("error while running garbage collection in Badger: %s", err)
-				}
-			}
-		}
-	}()
-
-	return badgerCache, nil
 }
 
-func (cache *BadgerCache) MissingBlobs(artifactID string, blobIDs []string) (bool, []string, error) {
-	var missingArtifact bool
+type Cache interface {
+	Clear() error
+	Close() error
+	Contains(string) bool
+	Remove([]string) error
+	Set(string, []byte) error
+	Get(string) ([]byte, error)
+}
+
+func (cache *PersistentCache) collectTelemetry() {
+	diskSize := cache.db.Size()
+	telemetry.SBOMCacheMemSize.Set(float64(c.Len() * sizeOfKey))
+	telemetry.SBOMCacheDiskSize.Set(float64(diskSize))
+}
+
+type TrivyCache struct {
+	Cache Cache
+}
+
+func NewTrivyCache(cache Cache) *TrivyCache {
+	return &TrivyCache{
+		Cache: cache,
+	}
+}
+
+// MissingBlobs returns missing blob IDs such as layer IDs in cache
+func (c *TrivyCache) MissingBlobs(artifactID string, blobIDs []string) (bool, []string, error) {
 	var missingBlobIDs []string
-
-	err := cache.db.View(func(txn *badger.Txn) error {
-		if _, err := txn.Get([]byte(artifactID)); err != nil {
-			if err == badger.ErrKeyNotFound {
-				missingArtifact = true
-			} else {
-				return err
-			}
+	for _, blobID := range blobIDs {
+		if ok := c.Cache.Contains(blobID); !ok {
+			missingBlobIDs = append(missingBlobIDs, blobID)
 		}
-
-		for _, blobID := range blobIDs {
-			if _, err := txn.Get([]byte(blobID)); err != nil {
-				if err == badger.ErrKeyNotFound {
-					missingBlobIDs = append(missingBlobIDs, blobID)
-				} else {
-					return err
-				}
-			}
-		}
-
-		return nil
-	})
-	if err != nil {
-		return false, nil, fmt.Errorf("error getting missing blobs from Badger cache: %w", err)
 	}
-
-	return missingArtifact, missingBlobIDs, nil
+	return c.Cache.Contains(artifactID), missingBlobIDs, nil
 }
 
-type cachedObject interface {
-	types.ArtifactInfo | types.BlobInfo
-}
-
-// Cannot be a BadgerCache method because methods cannot have type parameters
-func badgerCachePut[T cachedObject](cache *BadgerCache, id string, info T) error {
+func trivyCachePut[T any](cache *TrivyCache, id string, info T) error {
 	objectBytes, err := json.Marshal(info)
 	if err != nil {
 		return fmt.Errorf("error converting object with ID %q to JSON: %w", id, err)
 	}
+	return cache.Cache.Set(id, objectBytes)
+}
 
-	err = cache.db.Update(func(txn *badger.Txn) error {
-		entry := badger.NewEntry([]byte(id), objectBytes).WithTTL(cache.ttl)
-		return txn.SetEntry(entry)
-	})
+// PutArtifact stores artifact information such as image metadata in cache
+func (c *TrivyCache) PutArtifact(artifactID string, artifactInfo types.ArtifactInfo) error {
+	return trivyCachePut(c, artifactID, artifactInfo)
+}
+
+// PutBlob stores blob information such as layer information in local cache
+func (c *TrivyCache) PutBlob(blobID string, blobInfo types.BlobInfo) error {
+	return trivyCachePut(c, blobID, blobInfo)
+}
+
+// DeleteBlobs removes blobs by IDs
+func (c *TrivyCache) DeleteBlobs(blobIDs []string) error {
+	err := make([]error, len(blobIDs))
+	for i, blobID := range blobIDs {
+		err[i] = c.Cache.Remove(blobID)
+	}
+	return kerrors.NewAggregate(err)
+}
+
+var (
+	ttlTicker = 5 * time.Minute
+)
+
+type Maintainer struct {
+	ctx    context.Context
+	ticker *time.Ticker
+}
+
+func (c *Maintainer) Clean(cache *PersistentCache) {
+	listedImages := make(map[string]struct{})
+	for _, imageMetadata := range workloadmeta.GetGlobalStore().ListImages() {
+		sbom := imageMetadata.SBOM
+		listedImages[sbom.ArtifactID] = struct{}{}
+		for _, blobID := range sbom.BlobIDs {
+			listedImages[blobID] = struct{}{}
+		}
+	}
+	for _, key := range cache.Keys() {
+		if _, ok := listedImages[key]; !ok {
+			cache.Remove(key)
+		}
+	}
+}
+
+func (c *Maintainer) Maintain(cache *PersistentCache) {
+	for {
+		select {
+		case <-c.ctx.Done():
+			return
+		case <-c.ticker.C:
+			c.Clean(cache)
+		}
+	}
+}
+
+func (c *Maintainer) NewMaintainer(ctx context.Context, interval time.Duration) *Maintainer {
+	return &Maintainer{
+		ctx:    ctx,
+		ticker: time.NewTicker(interval),
+	}
+}
+
+type PersistentCache struct {
+	lruCache        *simplelru.LRU[string, struct{}]
+	db              PersistentDB
+	mutex           sync.RWMutex
+	currentDiskSize uint
+	maximumDiskSize uint
+}
+
+func NewPersistentCache(
+	cacheSize int,
+	localDB PersistentDB,
+	maintainer *Maintainer,
+) (*PersistentCache, error) {
+
+	lruCache, err := simplelru.NewLRU[string, struct{}](cacheSize, func(string, struct{}) {})
 	if err != nil {
-		return fmt.Errorf("error saving object with ID %q into Badger cache: %w", id, err)
+		return nil, err
+	}
+
+	for _, key := range localDB.GetAllKeys() {
+		lruCache.Add(key, struct{}{})
+	}
+
+	persistentCache := &PersistentCache{
+		lruCache: lruCache,
+		db:       localDB,
+	}
+
+	go maintainer.Maintain(persistentCache)
+
+	return persistentCache, nil
+}
+
+func (c *PersistentCache) Contains(key string) bool {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	return c.lruCache.Contains(key)
+}
+
+func (c *PersistentCache) Keys() []string {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	return c.lruCache.Keys()
+}
+
+func (c *PersistentCache) Len() int {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+
+	return c.lruCache.Len()
+}
+
+func (c *PersistentCache) Purge() {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	for _, key := range c.lruCache.Keys() {
+		_, _ = c.db.Delete(key)
+	}
+	c.lruCache.Purge()
+	c.currentDiskSize = 0
+}
+
+func (c *PersistentCache) Resize(size int) int {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	return c.lruCache.Resize(size)
+}
+
+func (c *PersistentCache) RemoveOldest() (string, []byte, error) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	key, _, ok := c.lruCache.RemoveOldest()
+	if !ok {
+		return "", nil, fmt.Errorf("cache is empty")
+	}
+
+	val, err := c.db.Get(key)
+	c.currentDiskSize -= uint(len(val))
+	return key, val, err
+}
+
+func (c *PersistentCache) ReduceSize(target uint) error {
+	if target > c.maximumDiskSize {
+		return fmt.Errorf("cache can not exceed %d", c.maximumDiskSize)
+	}
+
+	for c.currentDiskSize > target {
+		_, _, err := c.RemoveOldest()
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func (cache *BadgerCache) PutArtifact(artifactID string, artifactInfo types.ArtifactInfo) error {
-	return badgerCachePut(cache, artifactID, artifactInfo)
-}
+func (c *PersistentCache) Set(key string, value []byte) error {
 
-func (cache *BadgerCache) PutBlob(blobID string, blobInfo types.BlobInfo) error {
-	return badgerCachePut(cache, blobID, blobInfo)
-}
+	if len(value) > int(c.maximumDiskSize) {
+		return fmt.Errorf("value of [%s] is too big for the cache : %d", key, c.maximumDiskSize)
+	}
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
-func (cache *BadgerCache) DeleteBlobs(blobIDs []string) error {
-	var errs error
-
-	err := cache.db.Update(func(txn *badger.Txn) error {
-		for _, blobID := range blobIDs {
-			if err := txn.Delete([]byte(blobID)); err != nil {
-				errs = multierror.Append(errs, err)
-			}
-		}
-
-		return nil
-	})
+	c.lruCache.Add(key, struct{}{})
+	err := c.db.Store(key, value)
 	if err != nil {
-		return fmt.Errorf("error deleting blobs from Badger cache: %w", err)
+		c.lruCache.Remove(key)
+		return err
+	}
+	c.currentDiskSize += uint(len(value))
+	return nil
+}
+
+func (c *PersistentCache) Get(key string) ([]byte, error) {
+	ok := c.Contains(key)
+	if !ok {
+		return nil, fmt.Errorf("Key not found")
 	}
 
-	return errs
-}
-
-// Cannot be a BadgerCache method because methods cannot have type parameters
-func badgerCacheGet[T cachedObject](cache *BadgerCache, id string) (T, error) {
-	rawValue, err := cache.getRawValue(id)
-	var empty T
-
+	res, err := c.db.Get(key)
 	if err != nil {
-		return empty, fmt.Errorf("error getting object with ID %q from Badger cache: %w", id, err)
-	}
-
-	var res T
-	if err := json.Unmarshal(rawValue, &res); err != nil {
-		return empty, fmt.Errorf("JSON unmarshal error: %w", err)
+		_ = c.Remove([]{key})
+		return nil, err
 	}
 
 	return res, nil
 }
 
-func (cache *BadgerCache) GetArtifact(artifactID string) (types.ArtifactInfo, error) {
-	return badgerCacheGet[types.ArtifactInfo](cache, artifactID)
-}
-
-func (cache *BadgerCache) GetBlob(blobID string) (types.BlobInfo, error) {
-	return badgerCacheGet[types.BlobInfo](cache, blobID)
-}
-
-func (cache *BadgerCache) Close() error {
-	cache.telemetryTicker.Stop()
-	cache.garbageCollectionTicker.Stop()
-
-	if err := cache.db.Close(); err != nil {
-		return fmt.Errorf("error closing the Badger cache: %w", err)
+func (c *PersistentCache) Remove(keys []string) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	for _, key := range keys {
+		c.lruCache.Remove(key)
 	}
-
-	return nil
-}
-
-func (cache *BadgerCache) Clear() error {
-	if err := cache.db.DropAll(); err != nil {
-		return fmt.Errorf("error clearing the Badger cache: %w", err)
-	}
-
-	return nil
-}
-
-func (cache *BadgerCache) getRawValue(key string) ([]byte, error) {
-	var rawValue []byte
-	err := cache.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte(key))
-		if err != nil {
-			return err
-		}
-
-		return item.Value(func(val []byte) error {
-			rawValue = append([]byte{}, val...)
-			return nil
-		})
-	})
-
+	values, errors, err := c.db.Delete(keys)
 	if err != nil {
-		return nil, err
+		return err
 	}
-
-	return rawValue, nil
-}
-
-func (cache *BadgerCache) collectTelemetry() {
-	lsmSize, vlogSize := cache.db.Size()
-	telemetry.SBOMCacheMemSize.Set(float64(lsmSize))
-	telemetry.SBOMCacheDiskSize.Set(float64(vlogSize))
+	for _, err := range errors {
+		if err == nil {
+			c.currentDiskSize -= uint(len(val))
+		}
+	}
+	return nil
 }
