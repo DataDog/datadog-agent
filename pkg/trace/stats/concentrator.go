@@ -17,13 +17,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
 
-const (
-	// defaultBufferLen represents the default buffer length; the number of bucket size
-	// units used by the concentrator.
-	defaultBufferLen = 2
-	// peerSvcAggConfigKey is the agent configuration field that enables stats aggregation by peer.service.
-	peerSvcAggConfigKey = "apm_config.peer_service_aggregation"
-)
+// defaultBufferLen represents the default buffer length; the number of bucket size
+// units used by the concentrator.
+const defaultBufferLen = 2
 
 // Concentrator produces time bucketed statistics from a stream of raw traces.
 // https://en.wikipedia.org/wiki/Knelson_concentrator
