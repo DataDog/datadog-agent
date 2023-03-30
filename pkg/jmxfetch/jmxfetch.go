@@ -277,6 +277,10 @@ func (j *JMXFetch) Start(manage bool) error {
 		subprocessArgs = append(subprocessArgs, "--statsd_telemetry")
 	}
 
+	if config.Datadog.GetBool("jmx_statsd_client_use_non_blocking") {
+		subprocessArgs = append(subprocessArgs, "--statsd-nonblocking")
+	}
+
 	if config.Datadog.GetBool("log_format_rfc3339") {
 		subprocessArgs = append(subprocessArgs, "--log_format_rfc3339")
 	}

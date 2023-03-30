@@ -819,6 +819,7 @@ func InitConfig(config Config) {
 	// this is an internal setting and will not be documented in the config template.
 	// the queue size is the no. of elements (metrics, event, service checks) it can hold.
 	config.BindEnvAndSetDefault("jmx_statsd_client_queue_size", 4096)
+	config.BindEnvAndSetDefault("jmx_statsd_client_use_non_blocking", false)
 
 	// Go_expvar server port
 	config.BindEnvAndSetDefault("expvar_port", "5000")
