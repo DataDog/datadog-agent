@@ -229,6 +229,7 @@ func (c *Check) StatementMetrics() error {
 		log.Errorf("GetSender statements metrics")
 		return err
 	}
+
 	SQLTextErrors := 0
 	var oracleRows []OracleRow
 	if c.config.QueryMetrics {

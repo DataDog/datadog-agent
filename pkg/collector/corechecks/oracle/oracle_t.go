@@ -8,6 +8,7 @@ package oracle
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"testing"
 	"time"
 
@@ -90,10 +91,56 @@ func demuxOpts() aggregator.AgentDemultiplexerOptions {
 	return opts
 }
 
+func connectToDB(driver string) (*sqlx.DB, error) {
+	var connStr string
+	if driver == "godror" {
+		connStr = fmt.Sprintf(`user="%s" password="%s" connectString="%s:%d/%s"`, USER, PASSWORD, HOST, PORT, SERVICE_NAME)
+	} else if driver == "oracle" {
+		connStr = go_ora.BuildUrl(HOST, PORT, SERVICE_NAME, USER, PASSWORD, map[string]string{})
+	} else {
+		return nil, fmt.Errorf("wrong driver: %s", driver)
+	}
+
+	db, err := sqlx.Open(driver, connStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to oracle instance: %w", err)
+	}
+	err = db.Ping()
+	if err != nil {
+		return nil, fmt.Errorf("failed to ping oracle instance: %w", err)
+	}
+	return db, nil
+}
+
 func TestChkRun(t *testing.T) {
 	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
-	err := chk.Run()
-	assert.NoError(t, err)
+
+	chk.dbmEnabled = true
+	chk.config.QueryMetrics = true
+
+	chk.config.InstanceConfig.InstantClient = false
+
+	for _, tnsAlias := range []string{TNS_ALIAS, ""} {
+		chk.config.InstanceConfig.TnsAlias = tnsAlias
+		var driver string
+		if tnsAlias == "" {
+			driver = "oracle"
+		} else {
+			driver = "godror"
+		}
+
+		err := chk.Run()
+		assert.NoError(t, err, "check run with %s driver", driver)
+
+		m := make(map[uint64]int)
+		m[1] = 1
+		chk.statementsFilter = StatementsFilter{ForceMatchingSignatures: m}
+
+		err = chk.StatementMetrics()
+		assert.NoError(t, err, "query metrics with %s driver", driver)
+
+		chk.db = nil
+	}
 }
 
 func TestLicense(t *testing.T) {
@@ -131,4 +178,54 @@ func TestLicense(t *testing.T) {
 		fmt.Printf("failed to query hostname and version: %s", err)
 	}
 	assert.Equal(t, 0, usedFeaturesCount)
+}
+
+var DRIVERS = []string{"oracle", "godror"}
+
+func TestBindingSimple(t *testing.T) {
+	result := 3
+	for _, driver := range DRIVERS {
+		db, _ := connectToDB(driver)
+		stmt, err := db.Prepare(fmt.Sprintf("SELECT %d FROM dual WHERE rownum = :1", result))
+		if err != nil {
+			log.Fatalf("preparing statement with driver %s %s", driver, err)
+		}
+		row := stmt.QueryRow(1)
+		if row.Err() != nil {
+			log.Fatalf("row error with driver %s %s", driver, row.Err())
+			return
+		}
+		var retValue int
+		err = row.Scan(&retValue)
+		if err != nil {
+			log.Fatalf("scanning with driver %s %s", driver, err)
+		}
+		assert.Equal(t, retValue, result, driver)
+	}
+}
+
+func TestBindingIn(t *testing.T) {
+	slice := []int{1}
+	result := 7
+	query, args, err := sqlx.In(fmt.Sprintf("SELECT %d FROM dual WHERE rownum IN (?)", result), slice)
+	if err != nil {
+		fmt.Println(err)
+	}
+	for _, driver := range DRIVERS {
+		db, _ := connectToDB(driver)
+		rows, err := db.Query(db.Rebind(query), args...)
+		if err != nil {
+			assert.NoErrorf(t, err, "preparing statement with IN clause for %s driver", driver)
+			continue
+		}
+		rows.Next()
+		var retValue int
+		err = rows.Scan(&retValue)
+		rows.Close()
+		if err != nil {
+			log.Fatalf("scan error %s", err)
+		}
+		assert.Equal(t, retValue, result, driver)
+	}
+
 }
