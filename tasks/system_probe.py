@@ -146,7 +146,7 @@ def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
     )
     kheaders = " ".join(f"-isystem{d}" for d in kernel_headers)
     debugdef = "-DDEBUG=1 -g" if debug else ""
-    security_flags = f"-g -I{security_agent_prebuilt_dir_include} {debugdef}"
+    security_flags = f"-I{security_agent_prebuilt_dir_include} {debugdef}"
 
     outfiles = []
 

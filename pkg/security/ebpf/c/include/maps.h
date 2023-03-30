@@ -1,7 +1,7 @@
 #ifndef _MAPS_H_
 #define _MAPS_H_
 
-#include "map-defs.h"
+#include "constants/maps_macros.h"
 #include "constants/custom.h"
 #include "constants/enums.h"
 #include "structs/all.h"
@@ -62,15 +62,7 @@ BPF_LRU_MAP(veth_device_name_to_ifindex, struct device_name_t, struct device_ifi
 BPF_LRU_MAP(exec_file_cache, u64, struct file_t, 4096)
 BPF_LRU_MAP(syscall_monitor, u32, struct syscall_monitor_entry_t, 2048)
 BPF_LRU_MAP(syscall_table, struct syscall_table_key_t, u8, 50)
-
-struct {
-    __uint(type, BPF_MAP_TYPE_LRU_HASH);
-    __uint(max_entries, 64);
-    __uint(pinning, 0);
-    __type(key, u64);
-    __type(value, u8);
-    __uint(map_flags, BPF_F_NO_COMMON_LRU);
-} tasks_in_coredump SEC(".maps");
+BPF_LRU_MAP_FLAGS(tasks_in_coredump, u64, u8, 64, BPF_F_NO_COMMON_LRU)
 
 BPF_PERCPU_ARRAY_MAP(cgroup_tracing_event_gen, u32, struct cgroup_tracing_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(discarder_stats_fb, u32, struct discarder_stats_t, EVENT_LAST_DISCARDER)

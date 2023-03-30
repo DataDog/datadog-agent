@@ -7,10 +7,11 @@
 #include <linux/bpf.h>
 
 #include "bpf_tracing.h"
-#include "map-defs.h"
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
+#include "constants/maps_macros.h"
 
 BPF_ARRAY_MAP(guessed_offsets, u32, 2)
 
