@@ -29,6 +29,7 @@ const interfaceStatusMetric = "snmp.interface.status"
 const topologyLinkSourceTypeLLDP = "lldp"
 const topologyLinkSourceTypeCDP = "cdp"
 const ciscoNetworkProtocolIPv4 = "1"
+const ciscoNetworkProtocolIPv6 = "20"
 
 // ReportNetworkDeviceMetadata reports device metadata
 func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus metadata.DeviceStatus) {
@@ -421,7 +422,7 @@ func buildNetworkTopologyMetadataWithCDP(deviceID string, store *metadata.Store,
 
 func getRemDeviceAddressByCDPRemIndex(store *metadata.Store, strIndex string) string {
 	remoteDeviceAddressType := store.GetColumnAsString("cdp_remote.device_address_type", strIndex)
-	if remoteDeviceAddressType == ciscoNetworkProtocolIPv4 {
+	if remoteDeviceAddressType == ciscoNetworkProtocolIPv4 || remoteDeviceAddressType == ciscoNetworkProtocolIPv6 {
 		return net.IP(store.GetColumnAsByteArray("cdp_remote.device_address", strIndex)).String()
 	} else {
 		// TODO: use cdpCacheSecondaryMgmtAddrType or cdpCacheAddress in this case
