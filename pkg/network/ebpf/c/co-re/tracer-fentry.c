@@ -302,7 +302,7 @@ static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buf
 
     log_debug("skb_consume_udp: bytes=%d\n", data_len);
     t.pid = pid_tgid >> 32;
-    t.netns = get_netns(&sk->sk_net);
+    t.netns = get_netns_from_sock(sk);
     return handle_message(&t, 0, data_len, CONN_DIRECTION_UNKNOWN, 0, 1, PACKET_COUNT_INCREMENT, sk);
 }
 
