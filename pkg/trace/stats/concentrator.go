@@ -6,6 +6,7 @@
 package stats
 
 import (
+	"strings"
 	"sync"
 	"time"
 
@@ -117,6 +118,17 @@ func (c *Concentrator) Run() {
 func (c *Concentrator) Stop() {
 	close(c.exit)
 	c.exitWG.Wait()
+}
+
+// ComputeStatsForSpanKind returns true if the span.kind value makes the span eligible for stats computation.
+func ComputeStatsForSpanKind(s *pb.Span) bool {
+	k := strings.ToLower(s.Meta["span.kind"])
+	switch k {
+	case "server", "consumer", "client", "producer":
+		return true
+	default:
+		return false
+	}
 }
 
 // Input specifies a set of traces originating from a certain payload.
