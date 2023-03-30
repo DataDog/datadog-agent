@@ -7,6 +7,7 @@ package report
 
 import (
 	json "encoding/json"
+	"net"
 	"sort"
 	"strconv"
 	"strings"
@@ -27,6 +28,7 @@ import (
 const interfaceStatusMetric = "snmp.interface.status"
 const topologyLinkSourceTypeLLDP = "lldp"
 const topologyLinkSourceTypeCDP = "cdp"
+const ciscoNetworkProtocolIPv4 = "1"
 
 // ReportNetworkDeviceMetadata reports device metadata
 func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus metadata.DeviceStatus) {
@@ -393,7 +395,7 @@ func buildNetworkTopologyMetadataWithCDP(deviceID string, store *metadata.Store,
 					Description: store.GetColumnAsString("cdp_remote.device_desc", strIndex),
 					ID:          store.GetColumnAsString("cdp_remote.device_id", strIndex),
 					IDType:      "",
-					IPAddress:   getIpAddressFromHexDecimal(remoteDeviceAddress),
+					IPAddress:   remoteDeviceAddress,
 				},
 				Interface: &metadata.TopologyLinkInterface{
 					ID:          store.GetColumnAsString("cdp_remote.interface_id", strIndex),
@@ -419,8 +421,8 @@ func buildNetworkTopologyMetadataWithCDP(deviceID string, store *metadata.Store,
 
 func getRemDeviceAddressByCDPRemIndex(store *metadata.Store, strIndex string) string {
 	remoteDeviceAddressType := store.GetColumnAsString("cdp_remote.device_address_type", strIndex)
-	if remoteDeviceAddressType == "1" {
-		return store.GetColumnAsString("cdp_remote.device_address", strIndex)
+	if remoteDeviceAddressType == ciscoNetworkProtocolIPv4 {
+		return net.IP(store.GetColumnAsByteArray("cdp_remote.device_address", strIndex)).String()
 	} else {
 		// TODO: use cdpCacheSecondaryMgmtAddrType or cdpCacheAddress in this case
 		return "" // Note if this is the case this won't pass the backend check and will generate the error

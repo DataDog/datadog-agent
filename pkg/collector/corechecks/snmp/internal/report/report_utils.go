@@ -8,7 +8,6 @@ package report
 import (
 	"fmt"
 	"net"
-	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -170,42 +169,4 @@ func getInterfaceConfig(interfaceConfigs []snmpintegration.InterfaceConfig, inde
 		}
 	}
 	return snmpintegration.InterfaceConfig{}, fmt.Errorf("no matching interface found for index=%s, tags=%s", index, tags)
-}
-
-// getIpAddressFromHexDecimal converts the hexadecimal representation of an ip address to a decimal one
-// for example convert "0A FA 01 4C" to "10.250.1.76" or "0AFA014C" to "10.250.1.76"
-func getIpAddressFromHexDecimal(hexstring string) string {
-	if len(hexstring) == 0 {
-		return ""
-	}
-	// check if there's a prefix 0x
-	if hexstring[0:2] == "0x" {
-		hexstring = hexstring[2:]
-	}
-	// we need at least 8 for ipv4, if we have less then it's an invalid format so keep and return the initial hexadecimal value
-	if len(hexstring) < 8 {
-		return hexstring
-	}
-	var hexdecList []string
-	// we have 2 different formats: "0A FA 01 4C" or "0AFA014C"
-	if strings.Contains(hexstring, " ") {
-		hexdecList = strings.Split(hexstring, " ")
-	} else {
-		for i := 0; i < len(hexstring)-1; i += 2 {
-			hexdecList = append(hexdecList, hexstring[i:i+2])
-		}
-	}
-
-	var decList []string
-	for _, x := range hexdecList {
-		decimal, err := strconv.ParseInt(x, 16, 64)
-		// if there's a conversion error then keep and return the initial hexadecimal value
-		if err != nil {
-			return hexstring
-		}
-		decList = append(decList, strconv.FormatInt(decimal, 10))
-	}
-
-	ipAddress := strings.Join(decList, ".")
-	return ipAddress
 }

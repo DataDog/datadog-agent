@@ -903,13 +903,3 @@ func Test_getInterfaceConfig(t *testing.T) {
 		})
 	}
 }
-
-func Test_getIpAddressFromHexDecimal(t *testing.T) {
-	assert.Equal(t, "", getIpAddressFromHexDecimal(""))
-	assert.Equal(t, "X1 02 03 04", getIpAddressFromHexDecimal("X1 02 03 04"))
-	assert.Equal(t, "1.2.3.4", getIpAddressFromHexDecimal("01 02 03 04"))
-	assert.Equal(t, "10.128.27.197", getIpAddressFromHexDecimal("0A 80 1B C5"))
-	assert.Equal(t, "10.128.27.197", getIpAddressFromHexDecimal("0A801BC5"))
-	assert.Equal(t, "10.128.27.197", getIpAddressFromHexDecimal("10.128.27.197"))
-	assert.Equal(t, "10.5.14.134", getIpAddressFromHexDecimal("0x0a050e86"))
-}
