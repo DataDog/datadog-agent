@@ -10,11 +10,9 @@ package module
 import (
 	"context"
 	"fmt"
+	"github.com/hashicorp/go-multierror"
 	"sync"
 	"time"
-
-	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/hashicorp/go-multierror"
 
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -24,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -160,8 +159,8 @@ type PolicyState struct {
 // RulesetLoadedEvent is used to report that a new ruleset was loaded
 // easyjson:json
 type RulesetLoadedEvent struct {
-	Timestamp time.Time      `json:"date"`
-	Policies  []*PolicyState `json:"policies"`
+	events.CustomEventCommonFields
+	Policies []*PolicyState `json:"policies"`
 }
 
 func PolicyStateFromRuleDefinition(def *rules.RuleDefinition) *PolicyState {
@@ -222,8 +221,11 @@ func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rul
 		policies = append(policies, policy)
 	}
 
-	return events.NewCustomRule(events.RulesetLoadedRuleID), events.NewCustomEvent(model.CustomRulesetLoadedEventType, RulesetLoadedEvent{
-		Timestamp: time.Now(),
-		Policies:  policies,
-	})
+	evt := RulesetLoadedEvent{
+		Policies: policies,
+	}
+	evt.FillCustomEventCommonFields()
+
+	return events.NewCustomRule(events.RulesetLoadedRuleID),
+		events.NewCustomEvent(model.CustomRulesetLoadedEventType, evt)
 }

@@ -273,3 +273,8 @@ func (k *Version) HaveRingBuffers() bool {
 func (k *Version) HavePIDLinkStruct() bool {
 	return k.Code != 0 && k.Code < Kernel4_19 && !k.IsRH8Kernel()
 }
+
+// HaveLegacyPipeInodeInfoStruct returns whether the kernel uses the legacy pipe_inode_info struct
+func (k *Version) HaveLegacyPipeInodeInfoStruct() bool {
+	return k.Code != 0 && k.Code < Kernel5_5
+}

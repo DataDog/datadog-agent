@@ -51,6 +51,7 @@ from .test import (
     install_shellcheck,
     install_tools,
     integration_tests,
+    invoke_unit_tests,
     junit_macos_repack,
     junit_upload,
     lint_copyrights,
@@ -90,6 +91,7 @@ ns.add_task(e2e_tests)
 ns.add_task(install_shellcheck)
 ns.add_task(download_tools)
 ns.add_task(install_tools)
+ns.add_task(invoke_unit_tests)
 ns.add_task(check_mod_tidy)
 ns.add_task(tidy_all)
 ns.add_task(check_go_version)

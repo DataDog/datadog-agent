@@ -11,7 +11,7 @@ package profile
 import (
 	"context"
 
-	proto "github.com/DataDog/datadog-agent/pkg/security/proto/security_profile/v1"
+	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 )
 

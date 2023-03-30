@@ -13,31 +13,27 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const taggerListURLTpl = "http://%s/agent/tagger-list"
 
-type cliParams struct {
-	*command.GlobalParams
-}
-
 // Commands returns a slice of subcommands for the `tagger-list` command in the Process Agent
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	cliParams := &cliParams{
-		GlobalParams: globalParams,
-	}
-
 	taggerCmd := &cobra.Command{
 		Use:   "tagger-list",
 		Short: "Print the tagger content of a running agent",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(taggerList,
-				fx.Supply(cliParams),
+				fx.Supply(command.GetCoreBundleParamsForOneShot(globalParams)),
+
+				core.Bundle,
 			)
 		},
 		SilenceUsage: true,
@@ -46,12 +42,15 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{taggerCmd}
 }
 
-func taggerList(cliParams *cliParams) error {
-	log.Info("Got a request for the tagger-list. Calling tagger.")
+type dependencies struct {
+	fx.In
 
-	if err := command.BootstrapConfig(cliParams.GlobalParams.ConfFilePath, true); err != nil {
-		return log.Criticalf("Error parsing config: %s", err)
-	}
+	Config config.Component
+	Log    log.Component
+}
+
+func taggerList(deps dependencies) error {
+	deps.Log.Info("Got a request for the tagger-list. Calling tagger.")
 
 	taggerURL, err := getTaggerURL()
 	if err != nil {

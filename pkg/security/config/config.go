@@ -104,8 +104,6 @@ type RuntimeSecurityConfig struct {
 	// ActivityDumpLocalStorageMaxDumpsCount defines the maximum count of activity dumps that should be kept locally.
 	// When the limit is reached, the oldest dumps will be deleted first.
 	ActivityDumpLocalStorageMaxDumpsCount int
-	// ActivityDumpRemoteStorageFormats defines the formats that should be used to persist the activity dumps remotely.
-	ActivityDumpRemoteStorageFormats []StorageFormat
 	// ActivityDumpSyscallMonitorPeriod defines the minimum amount of time to wait between 2 syscalls event for the same
 	// process.
 	ActivityDumpSyscallMonitorPeriod time.Duration
@@ -243,6 +241,11 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 		c.FIMEnabled = true
 	}
 
+	// if runtime is disabled then we force disable activity dumps
+	if !c.RuntimeEnabled {
+		c.ActivityDumpEnabled = false
+	}
+
 	serviceName := utils.GetTagValue("service", coreconfig.GetGlobalConfiguredTags(true))
 	if len(serviceName) > 0 {
 		c.HostServiceName = fmt.Sprintf("service:%s", serviceName)
@@ -269,13 +272,6 @@ func (c *RuntimeSecurityConfig) sanitizeRuntimeSecurityConfigActivityDump() erro
 		c.ActivityDumpLocalStorageFormats, err = ParseStorageFormats(formats)
 		if err != nil {
 			return fmt.Errorf("invalid value for runtime_security_config.activity_dump.local_storage.formats: %w", err)
-		}
-	}
-	if formats := coreconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.remote_storage.formats"); len(formats) > 0 {
-		var err error
-		c.ActivityDumpRemoteStorageFormats, err = ParseStorageFormats(formats)
-		if err != nil {
-			return fmt.Errorf("invalid value for runtime_security_config.activity_dump.remote_storage.formats: %w", err)
 		}
 	}
 
