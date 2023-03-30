@@ -87,16 +87,24 @@ class GithubAPI(RemoteAPI):
         headers = dict(headers or [])
         headers["Authorization"] = f"token {self.api_token}"
         headers["Accept"] = "application/vnd.github.v3+json"
-
-        return self.request(
-            path=path,
-            headers=headers,
-            data=data,
-            json_input=False,
-            json_output=json_output,
-            stream_output=False,
-            method=method,
-        )
+        
+        for retry_count in range(5):
+            try:
+                return self.request(
+                    path=path,
+                    headers=headers,
+                    data=data,
+                    json_input=False,
+                    json_output=json_output,
+                    stream_output=False,
+                    method=method,
+                )
+            except APIError as e:
+                if 500 <= e.status_code < 600:
+                    time.sleep(1 + retry_count * 2)
+                else:
+                    raise e
+        raise GithubException(f"Failed while making HTTP request: {method} {url}")
 
 
 def get_github_token():
