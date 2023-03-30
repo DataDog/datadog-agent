@@ -16,10 +16,9 @@ import (
 
 func TestFormatProtocols(t *testing.T) {
 	tests := []struct {
-		name       string
-		protocol   network.ProtocolType
-		staticTags uint64
-		want       *model.ProtocolStack
+		name     string
+		protocol network.ProtocolType
+		want     *model.ProtocolStack
 	}{
 		{
 			name:     "unknown protocol",
@@ -45,6 +44,24 @@ func TestFormatProtocols(t *testing.T) {
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
 					model.ProtocolType_protocolHTTP,
+				},
+			},
+		},
+		{
+			name:     "http2 protocol",
+			protocol: network.ProtocolHTTP2,
+			want: &model.ProtocolStack{
+				Stack: []model.ProtocolType{
+					model.ProtocolType_protocolHTTP2,
+				},
+			},
+		},
+		{
+			name:     "tls protocol",
+			protocol: network.ProtocolTLS,
+			want: &model.ProtocolStack{
+				Stack: []model.ProtocolType{
+					model.ProtocolType_protocolTLS,
 				},
 			},
 		},
@@ -96,7 +113,7 @@ func TestFormatProtocols(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.want, formatProtocol(tt.protocol, tt.staticTags), "formatProtocol(%v)", tt.protocol)
+			assert.Equalf(t, tt.want, formatProtocol(tt.protocol, 0), "formatProtocol(%v)", tt.protocol)
 		})
 	}
 }

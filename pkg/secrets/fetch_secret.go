@@ -148,6 +148,11 @@ func fetchSecret(secretsHandle []string) (map[string]string, error) {
 		if v.ErrorMsg != "" {
 			return nil, fmt.Errorf("an error occurred while decrypting '%s': %s", sec, v.ErrorMsg)
 		}
+
+		if removeTrailingLinebreak {
+			v.Value = strings.TrimRight(v.Value, "\r\n")
+		}
+
 		if v.Value == "" {
 			return nil, fmt.Errorf("decrypted secret for '%s' is empty", sec)
 		}

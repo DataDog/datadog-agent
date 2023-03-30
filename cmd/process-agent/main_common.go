@@ -11,7 +11,6 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
-	"time"
 
 	"go.uber.org/fx"
 
@@ -22,7 +21,12 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/subcommands"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/process"
+	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
+	"github.com/DataDog/datadog-agent/comp/process/profiler"
 	runnerComp "github.com/DataDog/datadog-agent/comp/process/runner"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -41,7 +45,6 @@ import (
 	ddutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
@@ -68,49 +71,20 @@ func main() {
 }
 
 func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
-	if err := ddutil.SetupCoreDump(ddconfig.Datadog); err != nil {
-		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
-	}
-
 	cleanupAndExit := cleanupAndExitHandler(globalParams)
 
-	if !globalParams.Info && globalParams.PidFilePath != "" {
+	if globalParams.PidFilePath != "" {
 		err := pidfile.WritePID(globalParams.PidFilePath)
 		if err != nil {
-			log.Errorf("Error while writing PID file, exiting: %v", err)
+			_ = log.Errorf("Error while writing PID file, exiting: %v", err)
 			cleanupAndExit(1)
 		}
 
 		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), globalParams.PidFilePath)
 		defer func() {
 			// remove pidfile if set
-			os.Remove(globalParams.PidFilePath)
+			_ = os.Remove(globalParams.PidFilePath)
 		}()
-	}
-
-	if err := command.BootstrapConfig(globalParams.ConfFilePath, false); err != nil {
-		_ = log.Critical(err)
-		cleanupAndExit(1)
-	}
-
-	// For system probe, there is an additional config file that is shared with the system-probe
-	syscfg, err := sysconfig.New(globalParams.SysProbeConfFilePath)
-	if err != nil {
-		_ = log.Critical(err)
-		cleanupAndExit(1)
-	}
-
-	// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
-	_, processModuleEnabled := syscfg.EnabledModules[sysconfig.ProcessModule]
-
-	initRuntimeSettings()
-
-	mainCtx, mainCancel := context.WithCancel(context.Background())
-	defer mainCancel()
-	err = manager.ConfigureAutoExit(mainCtx, ddconfig.Datadog)
-	if err != nil {
-		log.Criticalf("Unable to configure auto-exit, err: %w", err)
-		cleanupAndExit(1)
 	}
 
 	// Now that the logger is configured log host info
@@ -122,180 +96,58 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 	// Log any potential misconfigs that are related to the process agent
 	misconfig.ToLog(misconfig.ProcessAgent)
 
-	// Start workload metadata store before tagger (used for containerCollection)
-	var workloadmetaCollectors workloadmeta.CollectorCatalog
-	if ddconfig.Datadog.GetBool("process_config.remote_workloadmeta") {
-		workloadmetaCollectors = workloadmeta.RemoteCatalog
-	} else {
-		workloadmetaCollectors = workloadmeta.NodeAgentCatalog
-	}
-	store := workloadmeta.CreateGlobalStore(workloadmetaCollectors)
-	store.Start(mainCtx)
-
-	// Tagger must be initialized after agent config has been setup
-	var t tagger.Tagger
-	if ddconfig.Datadog.GetBool("process_config.remote_tagger") {
-		options, err := remote.NodeAgentOptions()
-		if err != nil {
-			log.Errorf("unable to configure the remote tagger: %s", err)
-		} else {
-			t = remote.NewTagger(options)
-		}
-	} else {
-		t = local.NewTagger(store)
-	}
-
-	tagger.SetDefaultTagger(t)
-	err = tagger.Init(mainCtx)
+	err := runApp(exit, globalParams)
 	if err != nil {
-		log.Errorf("failed to start the tagger: %s", err)
-	}
-	defer tagger.Stop() //nolint:errcheck
-
-	if err := statsd.Configure(ddconfig.GetBindHost(), ddconfig.Datadog.GetInt("dogstatsd_port")); err != nil {
-		log.Criticalf("Error configuring statsd: %s", err)
 		cleanupAndExit(1)
-	}
-
-	// update docker socket path in info
-	dockerSock, err := util.GetDockerSocketPath()
-	if err != nil {
-		log.Debugf("Docker is not available on this host")
-	}
-	// we shouldn't quit because docker is not required. If no docker docket is available,
-	// we just pass down empty string
-	status.UpdateDockerSocket(dockerSock)
-
-	// use `internal_profiling.enabled` field in `process_config` section to enable/disable profiling for process-agent,
-	// but use the configuration from main agent to fill the settings
-	if ddconfig.Datadog.GetBool("process_config.internal_profiling.enabled") {
-		// allow full url override for development use
-		site := ddconfig.Datadog.GetString("internal_profiling.profile_dd_url")
-		if site == "" {
-			s := ddconfig.Datadog.GetString("site")
-			if s == "" {
-				s = ddconfig.DefaultSite
-			}
-			site = fmt.Sprintf(profiling.ProfilingURLTemplate, s)
-		}
-
-		v, _ := version.Agent()
-		profilingSettings := profiling.Settings{
-			ProfilingURL:         site,
-			Env:                  ddconfig.Datadog.GetString("env"),
-			Service:              "process-agent",
-			Period:               ddconfig.Datadog.GetDuration("internal_profiling.period"),
-			CPUDuration:          ddconfig.Datadog.GetDuration("internal_profiling.cpu_duration"),
-			MutexProfileFraction: ddconfig.Datadog.GetInt("internal_profiling.mutex_profile_fraction"),
-			BlockProfileRate:     ddconfig.Datadog.GetInt("internal_profiling.block_profile_rate"),
-			WithGoroutineProfile: ddconfig.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
-			Tags:                 []string{fmt.Sprintf("version:%v", v)},
-		}
-
-		if err := profiling.Start(profilingSettings); err != nil {
-			log.Warnf("failed to enable profiling: %s", err)
-		} else {
-			log.Info("start profiling process-agent")
-		}
-		defer profiling.Stop()
-	}
-
-	log.Debug("Running process-agent with DEBUG logging enabled")
-
-	expVarPort := ddconfig.Datadog.GetInt("process_config.expvar_port")
-	if expVarPort <= 0 {
-		log.Warnf("Invalid process_config.expvar_port -- %d, using default port %d", expVarPort, ddconfig.DefaultProcessExpVarPort)
-		expVarPort = ddconfig.DefaultProcessExpVarPort
-	}
-
-	hostInfo, err := checks.CollectHostInfo()
-	if err != nil {
-		log.Criticalf("Error collecting host details: %s", err)
-		cleanupAndExit(1)
-		return
-	}
-
-	eps, err := runner.GetAPIEndpoints()
-	if err != nil {
-		log.Criticalf("Failed to initialize Api Endpoints: %s", err.Error())
-	}
-	err = status.InitInfo(hostInfo.HostName, processModuleEnabled, eps)
-	if err != nil {
-		log.Criticalf("Error initializing info: %s", err)
-		cleanupAndExit(1)
-	}
-
-	if globalParams.Info {
-		// using the debug port to get info to work
-		url := fmt.Sprintf("http://localhost:%d/debug/vars", expVarPort)
-		if err := status.Info(os.Stdout, url); err != nil {
-			cleanupAndExit(1)
-		}
-		return
-	}
-
-	// Run a profile & telemetry server.
-	if ddconfig.Datadog.GetBool("telemetry.enabled") {
-		http.Handle("/telemetry", telemetry.Handler())
-	}
-	srv := &http.Server{Addr: fmt.Sprintf("localhost:%d", expVarPort), Handler: http.DefaultServeMux}
-	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Errorf("Error creating expvar server on port %v: %v", expVarPort, err)
-		}
-	}()
-
-	// Run API server
-	err = api.StartServer()
-	if err != nil {
-		_ = log.Error(err)
-	}
-
-	runApp(exit, syscfg, hostInfo)
-
-	if err := srv.Shutdown(context.Background()); err != nil {
-		log.Errorf("Error shutting down expvar server on port %v: %v", expVarPort, err)
 	}
 }
 
-func runApp(exit chan struct{}, syscfg *sysconfig.Config, hostInfo *checks.HostInfo) {
+func runApp(exit chan struct{}, globalParams *command.GlobalParams) error {
 	go util.HandleSignals(exit)
 
-	var allChecks struct {
+	var appInitDeps struct {
 		fx.In
+
 		Checks []types.CheckComponent `group:"check"`
+		Syscfg sysprobeconfig.Component
+		Config config.Component
 	}
 	app := fx.New(
 		fx.Supply(
-			syscfg,
-			hostInfo,
+			core.BundleParams{
+				SysprobeConfigParams: sysprobeconfig.NewParams(
+					sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath),
+				),
+				ConfigParams: config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
+				LogParams:    command.DaemonLogParams,
+			},
 		),
-		fx.Populate(&allChecks),
+		// Populate dependencies required for initialization in this function.
+		fx.Populate(&appInitDeps),
 
+		// Provide process agent bundle so fx knows where to find components.
 		process.Bundle,
 
 		// Allows for debug logging of fx components if the `TRACE_FX` environment variable is set
 		fxutil.FxLoggingOption(),
 
-		// Invoke the runner to call its start hook
-		fx.Invoke(func(runnerComp.Component) {}),
+		// Initialize components not manged by fx
+		fx.Invoke(initMisc),
+
+		// Invoke the components that we want to start
+		fx.Invoke(func(runnerComp.Component, profiler.Component) {}),
 	)
 
 	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
-	if !anyChecksEnabled(allChecks.Checks) {
+	if !anyChecksEnabled(appInitDeps.Checks) {
 		log.Infof(agent6DisabledMessage)
-
-		// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
-		// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
-		// http://supervisord.org/subprocess.html#process-states
-		time.Sleep(5 * time.Second)
-		return
+		return nil
 	}
 
 	err := app.Start(context.Background())
 	if err != nil {
 		log.Criticalf("Failed to start process agent: %v", err)
-		return
+		return err
 	}
 
 	// Set up an exit channel
@@ -306,6 +158,8 @@ func runApp(exit chan struct{}, syscfg *sysconfig.Config, hostInfo *checks.HostI
 	} else {
 		log.Info("The process-agent has successfully been shut down")
 	}
+
+	return nil
 }
 
 func anyChecksEnabled(checks []types.CheckComponent) bool {
@@ -349,4 +203,139 @@ func initRuntimeSettings() {
 			_ = log.Warnf("Cannot initialize the runtime setting %s: %v", setting.Name(), err)
 		}
 	}
+}
+
+type miscDeps struct {
+	fx.In
+	Lc fx.Lifecycle
+
+	Config   config.Component
+	Syscfg   sysprobeconfig.Component
+	HostInfo hostinfo.Component
+}
+
+// initMisc initializes modules that cannot, or have not yet been componetized.
+// Todo: (Components) WorkloadMeta, remoteTagger, telemetry Server, expvars, api server
+func initMisc(deps miscDeps) error {
+	initRuntimeSettings()
+
+	if err := statsd.Configure(ddconfig.GetBindHost(), deps.Config.GetInt("dogstatsd_port")); err != nil {
+		_ = log.Criticalf("Error configuring statsd: %s", err)
+		return err
+	}
+
+	if err := ddutil.SetupCoreDump(deps.Config); err != nil {
+		_ = log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+	}
+
+	// Setup workloadmeta
+	var workloadmetaCollectors workloadmeta.CollectorCatalog
+	if deps.Config.GetBool("process_config.remote_workloadmeta") {
+		workloadmetaCollectors = workloadmeta.RemoteCatalog
+	} else {
+		workloadmetaCollectors = workloadmeta.NodeAgentCatalog
+	}
+	store := workloadmeta.CreateGlobalStore(workloadmetaCollectors)
+
+	// Setup remote tagger
+	var t tagger.Tagger
+	if deps.Config.GetBool("process_config.remote_tagger") {
+		options, err := remote.NodeAgentOptions()
+		if err != nil {
+			_ = log.Errorf("unable to deps.Configure the remote tagger: %s", err)
+		} else {
+			t = remote.NewTagger(options)
+		}
+	} else {
+		t = local.NewTagger(store)
+	}
+	tagger.SetDefaultTagger(t)
+
+	// Run a profile & telemetry server.
+	if deps.Config.GetBool("telemetry.enabled") {
+		http.Handle("/telemetry", telemetry.Handler())
+	}
+
+	expvarPort := getExpvarPort(deps.Config)
+	expvarServer := &http.Server{Addr: fmt.Sprintf("localhost:%d", expvarPort), Handler: http.DefaultServeMux}
+
+	// Initialize status
+	err := initStatus(deps.HostInfo.Object(), deps.Syscfg)
+	if err != nil {
+		log.Critical("Failed to initialize status:", err)
+	}
+
+	deps.Lc.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
+			store.Start(ctx)
+
+			err := tagger.Init(ctx)
+			if err != nil {
+				_ = log.Errorf("failed to start the tagger: %s", err)
+			}
+
+			go func() {
+				_ = expvarServer.ListenAndServe()
+			}()
+
+			// Run API server
+			err = api.StartServer()
+			if err != nil {
+				_ = log.Error(err)
+			}
+
+			err = manager.ConfigureAutoExit(ctx, deps.Config)
+			if err != nil {
+				_ = log.Criticalf("Unable to deps.Configure auto-exit, err: %w", err)
+				return err
+			}
+
+			return nil
+		},
+		OnStop: func(ctx context.Context) error {
+			// Stop the remote tagger
+			err := tagger.Stop()
+			if err != nil {
+				return err
+			}
+
+			if err := expvarServer.Shutdown(ctx); err != nil {
+				log.Errorf("Error shutting down expvar server on port %v: %v", getExpvarPort(deps.Config), err)
+			}
+
+			return nil
+		},
+	})
+
+	return nil
+}
+
+func initStatus(hostInfo *checks.HostInfo, syscfg sysprobeconfig.Component) error {
+	// update docker socket path in info
+	dockerSock, err := util.GetDockerSocketPath()
+	if err != nil {
+		log.Debugf("Docker is not available on this host")
+	}
+	status.UpdateDockerSocket(dockerSock)
+
+	// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
+	_, processModuleEnabled := syscfg.Object().EnabledModules[sysconfig.ProcessModule]
+	eps, err := runner.GetAPIEndpoints()
+	if err != nil {
+		log.Criticalf("Failed to initialize Api Endpoints: %s", err.Error())
+	}
+	status.InitInfo(hostInfo.HostName, processModuleEnabled, eps)
+	if err != nil {
+		_ = log.Criticalf("Error initializing info: %s", err)
+	}
+	return nil
+}
+
+func getExpvarPort(config ddconfig.ConfigReader) int {
+	expVarPort := config.GetInt("process_config.expvar_port")
+	if expVarPort <= 0 {
+		log.Warnf("Invalid process_config.expvar_port -- %d, using default port %d", expVarPort, ddconfig.DefaultProcessExpVarPort)
+		expVarPort = ddconfig.DefaultProcessExpVarPort
+	}
+	return expVarPort
 }

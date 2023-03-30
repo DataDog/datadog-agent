@@ -115,8 +115,6 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
     struct qstr qstr;
     struct dentry *dentry = input->dentry;
     struct dentry *d_parent = NULL;
-    struct inode *d_inode = NULL;
-    int segment_len = 0;
 
     u32 zero = 0;
     struct is_discarded_by_inode_t *params = bpf_map_lookup_elem(&is_discarded_by_inode_gen, &zero);
@@ -125,10 +123,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
     }
     *params = (struct is_discarded_by_inode_t){
         .discarder_type = input->discarder_type,
-        // TODO(safchain) do we need the pid ?????
-        .tgid = bpf_get_current_pid_tgid() >> 32,
         .now = bpf_ktime_get_ns(),
-        .ad_state = input->ad_state,
     };
 
     if (key.ino == 0) {
@@ -142,8 +137,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
 
         key = next_key;
         if (dentry != d_parent) {
-            write_dentry_inode(d_parent, &d_inode);
-            write_inode_ino(d_inode, &next_key.ino);
+            next_key.ino = get_dentry_ino(d_parent);
         } else {
             next_key.ino = 0;
             next_key.mount_id = 0;
@@ -154,26 +148,24 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
             params->discarder.path_key.mount_id = key.mount_id;
             params->discarder.is_leaf = i == 0;
 
-            switch (is_discarded_by_inode(params)) {
-            case DISCARDED:
-                return DENTRY_DISCARDED;
-            case SAVED_BY_AD:
-                input->saved_by_ad = true;
-            default:
-                break;
+            if (is_discarded_by_inode(params)) {
+                if (input->flags & ACTIVITY_DUMP_RUNNING) {
+                    input->flags |= SAVED_BY_ACTIVITY_DUMP;
+                } else {
+                    return DENTRY_DISCARDED;
+                }
             }
         }
 
         bpf_probe_read(&qstr, sizeof(qstr), &dentry->d_name);
-        segment_len = bpf_probe_read_str(&map_value.name, sizeof(map_value.name), (void *)qstr.name);
-        if (segment_len > 0) {
-            map_value.len = (u16) segment_len;
-        } else {
-            map_value.len = 0;
+
+        long len = bpf_probe_read_str(&map_value.name, sizeof(map_value.name), (void *)qstr.name);
+        if (len < 0) {
+            len = 0;
         }
+        map_value.len = len;
 
         if (map_value.name[0] == '/' || map_value.name[0] == 0) {
-            map_value.name[0] = '/';
             next_key.ino = 0;
             next_key.mount_id = 0;
         }
@@ -184,8 +176,8 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
 
         dentry = d_parent;
         if (next_key.ino == 0) {
-            input->dentry = d_parent;
-            input->key = next_key;
+            // mark the path resolution as complete which will stop the tail calls
+            input->key.ino = 0;
             return i + 1;
         }
     }
@@ -700,8 +692,9 @@ int kprobe_dentry_resolver_ad_filter(struct pt_regs *ctx) {
         return 0;
     }
 
-    // get the activity dump state
-    syscall->resolver.ad_state = get_activity_dump_state(ctx, bpf_get_current_pid_tgid() >> 32, bpf_ktime_get_ns(), syscall->type);
+    if (is_activity_dump_running(ctx, bpf_get_current_pid_tgid() >> 32, bpf_ktime_get_ns(), syscall->type)) {
+        syscall->resolver.flags |= ACTIVITY_DUMP_RUNNING;
+    }
 
     bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_progs, DR_KPROBE_DENTRY_RESOLVER_KERN_KEY);
     return 0;
@@ -714,8 +707,9 @@ int tracepoint_dentry_resolver_ad_filter(void *ctx) {
         return 0;
     }
 
-    // get the activity dump state
-    syscall->resolver.ad_state = get_activity_dump_state(ctx, bpf_get_current_pid_tgid() >> 32, bpf_ktime_get_ns(), syscall->type);
+    if (is_activity_dump_running(ctx, bpf_get_current_pid_tgid() >> 32, bpf_ktime_get_ns(), syscall->type)) {
+        syscall->resolver.flags |= ACTIVITY_DUMP_RUNNING;
+    }
 
     bpf_tail_call_compat(ctx, &dentry_resolver_tracepoint_progs, DR_TRACEPOINT_DENTRY_RESOLVER_KERN_KEY);
     return 0;

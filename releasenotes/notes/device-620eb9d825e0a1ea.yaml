@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Fix missing case-sensitive version of the ``device`` tag on the ``system.disk`` group of metrics.

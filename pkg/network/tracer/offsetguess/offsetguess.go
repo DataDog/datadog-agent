@@ -79,6 +79,7 @@ type OffsetGuesser interface {
 	Manager() *manager.Manager
 	Probes(c *config.Config) (map[string]struct{}, error)
 	Guess(c *config.Config) ([]manager.ConstantEditor, error)
+	Close()
 }
 
 type fieldValues struct {

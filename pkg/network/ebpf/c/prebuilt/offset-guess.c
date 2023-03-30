@@ -213,8 +213,8 @@ static __always_inline int guess_offsets(tracer_status_t* status, char* subject)
         break;
     case GUESS_SK_BUFF_SOCK:
         // Note that in this line we're essentially dereferencing a pointer
-        // subject initially points to a (struct socket*), and we're trying to guess the offset of
-        // (struct socket*)->sk which points to a (struct sock*) object.
+        // subject initially points to a (struct sk_buff*), and we're trying to guess the offset of
+        // (struct sk_buff*)->sk which points to a (struct sock*) object.
         new_status.offset_sk_buff_sock = aligned_offset(subject, status->offset_sk_buff_sock, SIZEOF_SK_BUFF_SOCK);
         bpf_probe_read_kernel(&subject, sizeof(subject), subject + new_status.offset_sk_buff_sock);
         bpf_probe_read_kernel(&new_status.sport_via_sk_via_sk_buf, sizeof(new_status.sport_via_sk_via_sk_buf), subject + new_status.offset_sport);
@@ -376,8 +376,7 @@ int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
         return 0;
     }
 
-    void* skb = (void*)ctx->skb;
-    guess_offsets(status, (char*)skb);
+    guess_offsets(status, ctx->skb);
     return 0;
 }
 

@@ -7,6 +7,7 @@ package dump
 
 import (
 	json "encoding/json"
+	utils "github.com/DataDog/datadog-agent/pkg/security/utils"
 	easyjson "github.com/mailru/easyjson"
 	jlexer "github.com/mailru/easyjson/jlexer"
 	jwriter "github.com/mailru/easyjson/jwriter"
@@ -49,6 +50,16 @@ func easyjson9a9a4de6DecodeGithubComDataDogDatadogAgentPkgSecuritySecurityProfil
 			out.Source = string(in.String())
 		case "ddtags":
 			out.DDTags = string(in.String())
+		case "dns_names":
+			if in.IsNull() {
+				in.Skip()
+				out.DNSNames = nil
+			} else {
+				if out.DNSNames == nil {
+					out.DNSNames = new(utils.StringKeys)
+				}
+				easyjson9a9a4de6DecodeGithubComDataDogDatadogAgentPkgSecurityUtils(in, out.DNSNames)
+			}
 		case "agent_version":
 			out.AgentVersion = string(in.String())
 		case "agent_commit":
@@ -130,13 +141,22 @@ func easyjson9a9a4de6EncodeGithubComDataDogDatadogAgentPkgSecuritySecurityProfil
 		out.String(string(in.DDTags))
 	}
 	{
-		const prefix string = ",\"agent_version\":"
+		const prefix string = ",\"dns_names\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)
 		}
+		if in.DNSNames == nil {
+			out.RawString("null")
+		} else {
+			(*in.DNSNames).MarshalEasyJSON(out)
+		}
+	}
+	{
+		const prefix string = ",\"agent_version\":"
+		out.RawString(prefix)
 		out.String(string(in.AgentVersion))
 	}
 	{
@@ -210,4 +230,39 @@ func (v ActivityDump) MarshalEasyJSON(w *jwriter.Writer) {
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *ActivityDump) UnmarshalEasyJSON(l *jlexer.Lexer) {
 	easyjson9a9a4de6DecodeGithubComDataDogDatadogAgentPkgSecuritySecurityProfileDump(l, v)
+}
+func easyjson9a9a4de6DecodeGithubComDataDogDatadogAgentPkgSecurityUtils(in *jlexer.Lexer, out *utils.StringKeys) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjson9a9a4de6EncodeGithubComDataDogDatadogAgentPkgSecurityUtils(out *jwriter.Writer, in utils.StringKeys) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	out.RawByte('}')
 }

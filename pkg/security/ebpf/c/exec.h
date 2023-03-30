@@ -382,29 +382,6 @@ int kretprobe_alloc_pid(struct pt_regs *ctx) {
     return 0;
 }
 
-// There is only one use case for this hook point: fetch the nr translation for a long running process in a container,
-// for which we missed the fork, and that finally decides to exec without cloning first.
-// Note that in most cases (except the exec one), bpf_get_current_pid_tgid won't match the input task.
-// TODO(will): replace this hook point by a snapshot
-SEC("kretprobe/__task_pid_nr_ns")
-int kretprobe__task_pid_nr_ns(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
-    if (!syscall) {
-        return 0;
-    }
-
-    u32 root_nr = bpf_get_current_pid_tgid();
-    u32 namespace_nr = (pid_t) PT_REGS_RC(ctx);
-
-    // no namespace
-    if (!namespace_nr || root_nr == namespace_nr) {
-      return 0;
-    }
-
-    register_nr(root_nr, namespace_nr);
-    return 0;
-}
-
 SEC("tracepoint/sched/sched_process_fork")
 int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     // inherit netns
@@ -427,9 +404,6 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
         u32 child_netns_entry = *netns;
         bpf_map_update_elem(&netns_cache, &pid, &child_netns_entry, BPF_ANY);
     }
-
-    // cache namespace nr translations
-    cache_nr_translations(syscall->fork.pid);
 
     // if this is a thread, leave
     if (syscall->fork.is_thread) {
@@ -547,9 +521,6 @@ int kprobe_do_exit(struct pt_regs *ctx) {
         // [activity_dump] cleanup tracing state for this pid
         cleanup_traced_state(tgid);
     }
-
-    // remove nr translations
-    remove_nr(pid);
 
     return 0;
 }

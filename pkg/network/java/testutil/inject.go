@@ -23,7 +23,7 @@ func RunJavaVersion(t *testing.T, version string, class string, waitForParam ...
 	var waitFor *regexp.Regexp
 	if len(waitForParam) == 0 {
 		// test if injection happen
-		waitFor = regexp.MustCompile("loading TestAgentLoaded.agentmain.*")
+		waitFor = regexp.MustCompile(`loading TestAgentLoaded\.agentmain.*`)
 	} else {
 		waitFor = waitForParam[0]
 	}
@@ -34,19 +34,4 @@ func RunJavaVersion(t *testing.T, version string, class string, waitForParam ...
 		"ENTRYCLASS=" + class,
 	}
 	return protocolsUtils.RunDockerServer(t, version, dir+"/../testdata/docker-compose.yml", env, waitFor, 20*time.Second)
-}
-
-// RunJavaHost run class under java host runtime
-func RunJavaHost(t *testing.T, class string, args []string, waitFor *regexp.Regexp) {
-	t.Helper()
-	if waitFor == nil {
-		waitFor = regexp.MustCompile("loading TestAgentLoaded.agentmain.*")
-	}
-
-	dir, _ := testutil.CurDir()
-	env := []string{
-		"ENTRYCLASS=" + class,
-	}
-	cmd := []string{"java", "-cp", dir + "/../testdata/", class}
-	protocolsUtils.RunHostServer(t, cmd, env, waitFor)
 }

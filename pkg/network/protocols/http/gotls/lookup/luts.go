@@ -75,7 +75,7 @@ func GetReadParams(version goversion.GoVersion, goarch string) ([]bininspect.Par
 	}
 }
 
-// GetWriteParams gets the parameter metadata (positions/types) for crypto/tls.(*Conn).Close
+// GetCloseParams gets the parameter metadata (positions/types) for crypto/tls.(*Conn).Close
 func GetCloseParams(version goversion.GoVersion, goarch string) ([]bininspect.ParameterMetadata, error) {
 	switch goarch {
 	case "amd64":

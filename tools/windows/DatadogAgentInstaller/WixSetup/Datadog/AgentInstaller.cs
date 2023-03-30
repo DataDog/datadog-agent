@@ -3,7 +3,6 @@ using System.IO;
 using System.Linq;
 using System.Xml.Linq;
 using Datadog.CustomActions;
-using Microsoft.Deployment.WindowsInstaller;
 using NineDigit.WixSharpExtensions;
 using WixSharp;
 using WixSharp.CommonTasks;
@@ -61,10 +60,19 @@ namespace WixSetup.Datadog
         public Project ConfigureProject()
         {
             var project = new ManagedProject("Datadog Agent",
+                // Use 2 LaunchConditions, one for server versions,
+                // one for client versions.
+                MinimumSupportedWindowsVersion.WindowsServer2012 |
+                MinimumSupportedWindowsVersion.Windows8_1,
                 new Property("MsiLogging", "iwearucmop!"),
+                new Property("MSIRESTARTMANAGERCONTROL", "Disable"),
                 new Property("APIKEY")
                 {
                     AttributesDefinition = "Hidden=yes;Secure=yes"
+                },
+                new Property("DDAGENTUSER_NAME")
+                {
+                    AttributesDefinition = "Secure=yes"
                 },
                 // User provided password property
                 new Property("DDAGENTUSER_PASSWORD")
@@ -96,7 +104,11 @@ namespace WixSetup.Datadog
                     rebootPrompt: false
                 )
                 {
-                    Timeout = 1
+                    Timeout = 1,
+                    TerminateProcess = 1,
+                    EndSessionMessage = true,
+                    ElevatedCloseMessage = true,
+                    ElevatedEndSessionMessage = true
                 },
                 new RegKey(
                     _agentFeatures.MainApplication,
@@ -114,49 +126,48 @@ namespace WixSetup.Datadog
                 new RemoveRegistryKey(_agentFeatures.MainApplication, @"Software\Datadog\Datadog Agent")
             );
             project
-            .AddAgentUser()
-            .SetCustomActions(_agentCustomActions)
-            .SetProjectInfo(
-                upgradeCode: ProductUpgradeCode,
-                name: ProductFullName,
-                description: string.Format(ProductDescription, _agentVersion.Version),
-                // This version is overridden below because SetProjectInfo throws an Exception if Revision is != 0
-                version: new Version(
-                    _agentVersion.Version.Major,
-                    _agentVersion.Version.Minor,
-                    _agentVersion.Version.Build,
-                    0)
-            )
-            .SetControlPanelInfo(
-                name: ProductFullName,
-                manufacturer: CompanyFullName,
-                readme: ProductHelpUrl,
-                comment: ProductComment,
-                contact: ProductContact,
-                helpUrl: new Uri(ProductHelpUrl),
-                aboutUrl: new Uri(ProductAboutUrl),
-                productIconFilePath: new FileInfo(ProductIconFilePath)
-            )
-            .SetMinimalUI(
-                backgroundImage: new FileInfo(InstallerBackgroundImagePath),
-                bannerImage: new FileInfo(InstallerBannerImagePath),
-                // $@"{installerSource}\LICENSE" is not RTF and Compiler.AllowNonRtfLicense = true doesn't help.
-                licenceRtfFile: new FileInfo(ProductLicenceRtfFilePath)
-            )
-            .AddDirectories(
-                CreateProgramFilesFolder(),
-                CreateAppDataFolder(),
-                new Dir(@"%ProgramMenu%\Datadog",
-                    new ExeFileShortcut
-                    {
-                        Name = "Datadog Agent Manager",
-                        Target = "[AGENT]ddtray.exe",
-                        Arguments = "\"--launch-gui\"",
-                        WorkingDirectory = "AGENT",
-                    }
-                ),
-                new Dir("logs")
-            );
+                .SetCustomActions(_agentCustomActions)
+                .SetProjectInfo(
+                    upgradeCode: ProductUpgradeCode,
+                    name: ProductFullName,
+                    description: string.Format(ProductDescription, _agentVersion.Version),
+                    // This version is overridden below because SetProjectInfo throws an Exception if Revision is != 0
+                    version: new Version(
+                        _agentVersion.Version.Major,
+                        _agentVersion.Version.Minor,
+                        _agentVersion.Version.Build,
+                        0)
+                )
+                .SetControlPanelInfo(
+                    name: ProductFullName,
+                    manufacturer: CompanyFullName,
+                    readme: ProductHelpUrl,
+                    comment: ProductComment,
+                    contact: ProductContact,
+                    helpUrl: new Uri(ProductHelpUrl),
+                    aboutUrl: new Uri(ProductAboutUrl),
+                    productIconFilePath: new FileInfo(ProductIconFilePath)
+                )
+                .SetMinimalUI(
+                    backgroundImage: new FileInfo(InstallerBackgroundImagePath),
+                    bannerImage: new FileInfo(InstallerBannerImagePath),
+                    // $@"{installerSource}\LICENSE" is not RTF and Compiler.AllowNonRtfLicense = true doesn't help.
+                    licenceRtfFile: new FileInfo(ProductLicenceRtfFilePath)
+                )
+                .AddDirectories(
+                    CreateProgramFilesFolder(),
+                    CreateAppDataFolder(),
+                    new Dir(@"%ProgramMenu%\Datadog",
+                        new ExeFileShortcut
+                        {
+                            Name = "Datadog Agent Manager",
+                            Target = "[AGENT]ddtray.exe",
+                            Arguments = "\"--launch-gui\"",
+                            WorkingDirectory = "AGENT",
+                        }
+                    ),
+                    new Dir("logs")
+                );
             // NineDigit.WixSharpExtensions SetProductInfo prohibits setting the revision, so we must do it here instead.
             // The revision is ignored by WiX during upgrades, so it is only useful for documentation purposes.
             project.Version = _agentVersion.Version;
@@ -309,9 +320,12 @@ namespace WixSetup.Datadog
                 Name = name,
                 DisplayName = displayName,
                 Description = description,
-                StartOn = SvcEvent.Install_Wait,
+                // Tell MSI not to start the services. We handle service start manually in StartDDServices custom action.
+                StartOn = null,
+                // Tell MSI not to stop the services. We handle service stop manually in StopDDServices custom action.
+                StopOn = null,
                 Start = SvcStartType.auto,
-                DelayedAutoStart = false,
+                DelayedAutoStart = true,
                 RemoveOn = SvcEvent.Uninstall_Wait,
                 ServiceSid = ServiceSid.none,
                 FirstFailureActionType = FailureActionType.restart,
@@ -342,7 +356,10 @@ namespace WixSetup.Datadog
                 Name = name,
                 DisplayName = displayName,
                 Description = description,
+                // Tell MSI not to start the services. We handle service start manually in StartDDServices custom action.
                 StartOn = null,
+                // Tell MSI not to stop the services. We handle service stop manually in StopDDServices custom action.
+                StopOn = null,
                 Start = SvcStartType.demand,
                 RemoveOn = SvcEvent.Uninstall_Wait,
                 ServiceSid = ServiceSid.none,
@@ -361,17 +378,17 @@ namespace WixSetup.Datadog
                 Arguments = arguments,
                 DependsOn = new[]
                 {
-                    new ServiceDependency("datadogagent")
+                    new ServiceDependency(Constants.AgentServiceName)
                 }
             };
         }
 
         private Dir CreateBinFolder()
         {
-            var agentService = GenerateServiceInstaller("datadogagent", "Datadog Agent", "Send metrics to Datadog");
+            var agentService = GenerateServiceInstaller(Constants.AgentServiceName, "Datadog Agent", "Send metrics to Datadog");
             var processAgentService = GenerateDependentServiceInstaller(
                 new Id("ddagentprocessservice"),
-                "datadog-process-agent",
+                Constants.ProcessAgentServiceName,
                 "Datadog Process Agent",
                 "Send process metrics to Datadog",
                 "LocalSystem",
@@ -379,7 +396,7 @@ namespace WixSetup.Datadog
                 "--cfgpath=\"[APPLICATIONDATADIRECTORY]\\datadog.yaml\"");
             var traceAgentService = GenerateDependentServiceInstaller(
                 new Id("ddagenttraceservice"),
-                "datadog-trace-agent",
+                Constants.TraceAgentServiceName,
                 "Datadog Trace Agent",
                 "Send tracing metrics to Datadog",
                 "[DDAGENTUSER_PROCESSED_FQ_NAME]",
@@ -387,7 +404,7 @@ namespace WixSetup.Datadog
                 "--config=\"[APPLICATIONDATADIRECTORY]\\datadog.yaml\"");
             var systemProbeService = GenerateDependentServiceInstaller(
                 new Id("ddagentsysprobeservice"),
-                "datadog-system-probe",
+                Constants.SystemProbeServiceName,
                 "Datadog System Probe",
                 "Send network metrics to Datadog",
                 "LocalSystem");
@@ -396,7 +413,7 @@ namespace WixSetup.Datadog
                 new WixSharp.File(_agentBinaries.Agent, agentService),
                 new EventSource
                 {
-                    Name = "DatadogAgent",
+                    Name = Constants.AgentServiceName,
                     Log = "Application",
                     EventMessageFile = $"[BIN]{Path.GetFileName(_agentBinaries.Agent)}",
                     AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes"
@@ -410,7 +427,7 @@ namespace WixSetup.Datadog
                     new WixSharp.File(_agentBinaries.ProcessAgent, processAgentService),
                     new EventSource
                     {
-                        Name = "datadog-process-agent",
+                        Name = Constants.ProcessAgentServiceName,
                         Log = "Application",
                         EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.ProcessAgent)}",
                         AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes"
@@ -418,7 +435,7 @@ namespace WixSetup.Datadog
                     new WixSharp.File(_agentBinaries.SystemProbe, systemProbeService),
                     new EventSource
                     {
-                        Name = "datadog-system-probe",
+                        Name = Constants.SystemProbeServiceName,
                         Log = "Application",
                         EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.SystemProbe)}",
                         AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes"
@@ -426,7 +443,7 @@ namespace WixSetup.Datadog
                     new WixSharp.File(_agentBinaries.TraceAgent, traceAgentService),
                     new EventSource
                     {
-                        Name = "datadog-trace-agent",
+                        Name = Constants.TraceAgentServiceName,
                         Log = "Application",
                         EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.TraceAgent)}",
                         AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes"
