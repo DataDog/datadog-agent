@@ -246,6 +246,46 @@ func TestComputeStatsForSpanKind(t *testing.T) {
 			false,
 		},
 		{
+			&pb.Span{Meta: map[string]string{"span.kind": "SERVER"}},
+			true,
+		},
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": "CONSUMER"}},
+			true,
+		},
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": "CLIENT"}},
+			true,
+		},
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": "PRODUCER"}},
+			true,
+		},
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": "INTERNAL"}},
+			false,
+		},
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": "SErVER"}},
+			true,
+		},
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": "COnSUMER"}},
+			true,
+		},
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": "CLiENT"}},
+			true,
+		},
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": "PRoDUCER"}},
+			true,
+		},
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": "INtERNAL"}},
+			false,
+		},
+		{
 			&pb.Span{Meta: map[string]string{"span.kind": ""}},
 			false,
 		},
