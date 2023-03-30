@@ -78,7 +78,7 @@ func newKafkaEncoder(payload *network.Connections) *kafkaEncoder {
 	// this allows us to skip encoding orphan Kafka objects that can't be matched to a connection
 	for _, conn := range payload.Conns {
 		for _, key := range network.KafkaKeyTuplesFromConn(conn) {
-			log.Debugf("Payload has a connection %v and was converted to kafka key %v", conn, key)
+			log.Tracef("Payload has a connection %v and was converted to kafka key %v", conn, key)
 			encoder.aggregations[key] = nil
 		}
 	}
@@ -111,7 +111,7 @@ func (e *kafkaEncoder) buildAggregations(payload *network.Connections) {
 		aggregation, ok := e.aggregations[key.KeyTuple]
 		if !ok {
 			// if there is no matching connection don't even bother to serialize Kafka data
-			log.Debugf("Found kafka orphan connection %v", key.KeyTuple)
+			log.Tracef("Found kafka orphan connection %v", key.KeyTuple)
 			e.orphanEntries++
 			continue
 		}
