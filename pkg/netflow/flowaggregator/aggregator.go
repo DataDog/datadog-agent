@@ -141,6 +141,7 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 		log.Errorf("Error marshalling netflow exporter metadata: %s", err)
 		return
 	}
+	log.Debugf("NetFlow exporters metadata: %s", string(payloadBytes))
 	agg.sender.EventPlatformEvent(payloadBytes, epforwarder.EventTypeNetworkDevicesMetadata)
 }
 
