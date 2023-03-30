@@ -68,7 +68,7 @@ func NewConcentrator(conf *config.AgentConfig, out chan pb.StatsPayload, now tim
 		agentVersion:           conf.AgentVersion,
 		computeStatsBySpanKind: conf.ComputeStatsBySpanKind,
 	}
-	if conf.PeerServiceStatsAggregation {
+	if conf.PeerServiceAggregation {
 		c.extraAggregators = map[string]struct{}{tagPeerService: {}}
 	}
 	return &c

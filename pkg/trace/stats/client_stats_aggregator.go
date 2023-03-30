@@ -64,7 +64,7 @@ func NewClientStatsAggregator(conf *config.AgentConfig, out chan pb.StatsPayload
 		exit:          make(chan struct{}),
 		done:          make(chan struct{}),
 	}
-	if conf.PeerServiceStatsAggregation {
+	if conf.PeerServiceAggregation {
 		c.extraAggregators = map[string]struct{}{tagPeerService: {}}
 	}
 	return c

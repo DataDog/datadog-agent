@@ -1103,17 +1103,17 @@ func TestPeerServiceAggregation(t *testing.T) {
 
 		assert := assert.New(t)
 		assert.NoError(err)
-		assert.False(cfg.PeerServiceStatsAggregation)
+		assert.False(cfg.PeerServiceAggregation)
 	})
 	t.Run("enabled", func(t *testing.T) {
 		defer cleanConfig()
-		coreconfig.Datadog.Set("apm_config.peer_service_stats_aggregation", true)
+		coreconfig.Datadog.Set("apm_config.peer_service_aggregation", true)
 		cfg := config.New()
 		err := applyDatadogConfig(cfg)
 
 		assert := assert.New(t)
 		assert.NoError(err)
-		assert.True(cfg.PeerServiceStatsAggregation)
+		assert.True(cfg.PeerServiceAggregation)
 	})
 }
 

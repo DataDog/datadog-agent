@@ -72,6 +72,10 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 		case traceutil.ErrInvalid:
 			ts.SpansMalformed.PeerServiceInvalid.Inc()
 			log.Debugf("Fixing malformed trace. peer.service is invalid (reason:peer_service_invalid), replacing invalid peer.service=%s with empty string", pSvc)
+		default:
+			if err != nil {
+				log.Debugf("Unexpected error in peer.service normalization from original value (%s) to new value (%s): %s", pSvc, ps, err)
+			}
 		}
 		s.Meta[peerServiceKey] = ps
 	}

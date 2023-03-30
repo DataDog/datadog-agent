@@ -193,7 +193,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	if coreconfig.Datadog.IsSet("apm_config.connection_limit") {
 		c.ConnectionLimit = coreconfig.Datadog.GetInt("apm_config.connection_limit")
 	}
-	c.PeerServiceStatsAggregation = coreconfig.Datadog.GetBool("apm_config.peer_service_stats_aggregation")
+	c.PeerServiceAggregation = coreconfig.Datadog.GetBool("apm_config.peer_service_aggregation")
 	c.ComputeStatsBySpanKind = coreconfig.Datadog.GetBool("apm_config.compute_stats_by_span_kind")
 	if coreconfig.Datadog.IsSet("apm_config.extra_sample_rate") {
 		c.ExtraSampleRate = coreconfig.Datadog.GetFloat64("apm_config.extra_sample_rate")
