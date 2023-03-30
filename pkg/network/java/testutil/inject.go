@@ -11,7 +11,6 @@ package testutil
 import (
 	"regexp"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
@@ -33,5 +32,5 @@ func RunJavaVersion(t *testing.T, version string, class string, waitForParam ...
 		"IMAGE_VERSION=" + version,
 		"ENTRYCLASS=" + class,
 	}
-	return protocolsUtils.RunDockerServer(t, version, dir+"/../testdata/docker-compose.yml", env, waitFor, 20*time.Second)
+	return protocolsUtils.RunDockerServer(t, version, dir+"/../testdata/docker-compose.yml", env, waitFor, protocolsUtils.DefaultTimeout)
 }
