@@ -236,16 +236,8 @@ void CustomActionData::setClosedSourceConfig()
             // since the checkbox value of zero is off, assume any other state
             // means on, so it can also be set on the command line.
             WcaLog(LOGMSG_STANDARD, "CLOSEDSOURCE key is present and (%S)", csProperty.c_str());
-            if (_wcsicmp(csProperty.c_str(), L"0") == 0)
-            {
-                newEnabledFlag = false;
-                setEnabledFlag = true;
-            }
-            else 
-            {
-                newEnabledFlag = true;
-                setEnabledFlag = true;
-            }
+            setEnabledFlag = true;
+            newEnabledFlag = _wcsicmp(csProperty.c_str(), L"0") != 0;
         }
     }
     if( false == setEnabledFlag)
