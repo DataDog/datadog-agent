@@ -1222,6 +1222,12 @@ api_key:
   #
   # connection_limit: 2000
 
+  ## @param compute_stats_by_span_kind - bool - default: false
+  ## @env DD_APM_COMPUTE_STATS_BY_SPAN_KIND - bool - default: false
+  ## Enables an additional stats computation check on spans to see they have an eligible `span.kind` (server, consumer, client, producer).
+  ## If enabled, a span with an eligible `span.kind` will have stats computed. If disabled, only top-level and measured spans will have stats computed.
+  # compute_stats_by_span_kind: false
+
   ## @param peer_service_stats_aggregation - bool - default: false
   ## @env DD_APM_PEER_SERVICE_STATS_AGGREGATION - bool - default: false
   ## Enables peer.service stats aggregation in the agent. If disabled, aggregated stats will not include peer.service as a dimension.
