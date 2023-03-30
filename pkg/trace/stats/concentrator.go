@@ -120,8 +120,8 @@ func (c *Concentrator) Stop() {
 	c.exitWG.Wait()
 }
 
-// ComputeStatsForSpanKind returns true if the span.kind value makes the span eligible for stats computation.
-func ComputeStatsForSpanKind(s *pb.Span) bool {
+// computeStatsForSpanKind returns true if the span.kind value makes the span eligible for stats computation.
+func computeStatsForSpanKind(s *pb.Span) bool {
 	k := strings.ToLower(s.Meta["span.kind"])
 	switch k {
 	case "server", "consumer", "client", "producer":
@@ -183,7 +183,7 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 	}
 	for _, s := range pt.TraceChunk.Spans {
 		isTop := traceutil.HasTopLevel(s)
-		eligibleSpanKind := c.computeStatsBySpanKind && traceutil.ComputeStatsForSpanKind(s)
+		eligibleSpanKind := c.computeStatsBySpanKind && computeStatsForSpanKind(s)
 		if !(isTop || traceutil.IsMeasured(s) || eligibleSpanKind) {
 			continue
 		}

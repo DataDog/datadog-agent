@@ -7,7 +7,6 @@ package traceutil
 
 import (
 	"bytes"
-	"strings"
 
 	"github.com/tinylib/msgp/msgp"
 
@@ -42,17 +41,6 @@ func UpdateTracerTopLevel(s *pb.Span) {
 // IsMeasured returns true if a span should be measured (i.e., it should get trace metrics calculated).
 func IsMeasured(s *pb.Span) bool {
 	return s.Metrics[measuredKey] == 1
-}
-
-// ComputeStatsForSpanKind returns true if the span.kind value makes the span eligible for stats computation.
-func ComputeStatsForSpanKind(s *pb.Span) bool {
-	k := strings.ToLower(s.Meta[spanKindKey])
-	switch k {
-	case "server", "consumer", "client", "producer":
-		return true
-	default:
-		return false
-	}
 }
 
 // IsPartialSnapshot returns true if the span is a partial snapshot.

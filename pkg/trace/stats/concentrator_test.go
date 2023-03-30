@@ -742,6 +742,6 @@ func TestComputeStatsForSpanKind(t *testing.T) {
 			false,
 		},
 	} {
-		assert.Equal(tc.res, ComputeStatsForSpanKind(tc.s))
+		assert.Equal(tc.res, computeStatsForSpanKind(tc.s))
 	}
 }
