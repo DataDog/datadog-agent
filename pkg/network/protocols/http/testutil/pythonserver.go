@@ -8,6 +8,7 @@ package testutil
 import (
 	"context"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"os/exec"
@@ -85,7 +86,11 @@ func writeTempFile(pattern string, content string) (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = f.Close() }()
+	defer func() {
+		if err := f.Close(); err != nil {
+			log.Printf("Error closing file: %s\n", err)
+		}
+	}()
 
 	if _, err := f.WriteString(content); err != nil {
 		return nil, err
