@@ -93,7 +93,7 @@
     "oracle": {
         "azure": {
             "x86_64": {
-                "oracle-7-9": "urn,Oracle:Oracle-Linux:ol79:7.9.6"
+                "oracle-7-9": "urn,Oracle:Oracle-Linux:ol79:7.9.9"
             }
         }
     },

@@ -27,6 +27,12 @@ const (
 	orgDataEndpoint = "/api/v0.1/org"
 )
 
+var (
+	// errUnauthorized is the error that will be logged for the customer to see in case of a 401. We make it as
+	// descriptive as possible (while not leaking data) to make RC onboarding easier
+	errUnauthorized = fmt.Errorf("unauthorized. Please make sure your API key is valid and has the Remote Config scope")
+)
+
 // API is the interface to implement for a configuration fetcher
 type API interface {
 	Fetch(context.Context, *pbgo.LatestConfigsRequest) (*pbgo.LatestConfigsResponse, error)
@@ -101,12 +107,20 @@ func (c *HTTPClient) Fetch(ctx context.Context, request *pbgo.LatestConfigsReque
 	}
 	defer resp.Body.Close()
 
+	// Specific case: authentication method is wrong
+	// we want to be descriptive about what can be done
+	// to fix this as the error is pretty common
+	if resp.StatusCode == 401 {
+		return nil, errUnauthorized
+	}
+
+	// Any other error will have a generic message
 	if resp.StatusCode != 200 {
 		body, err = io.ReadAll(resp.Body)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response: %w", err)
 		}
-		log.Debugf("Non-200 response. Response body: %s", string(body))
+		log.Debugf("Got a %d response code. Response body: %s", resp.StatusCode, string(body))
 		return nil, fmt.Errorf("non-200 response code: %d", resp.StatusCode)
 	}
 
@@ -142,6 +156,14 @@ func (c *HTTPClient) FetchOrgData(ctx context.Context) (*pbgo.OrgDataResponse, e
 	defer resp.Body.Close()
 
 	var body []byte
+	// Specific case: authentication method is wrong
+	// we want to be descriptive about what can be done
+	// to fix this as the error is pretty common
+	if resp.StatusCode == 401 {
+		return nil, errUnauthorized
+	}
+
+	// Any other error will have a generic message
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("non-200 response code: %d", resp.StatusCode)
 	}

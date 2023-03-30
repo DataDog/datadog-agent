@@ -50,8 +50,8 @@ cloud.google.com/go/storage v1.6.0/go.mod h1:N7U0C8pVQ/+NIKOBQyamJIeKQKkZ+mxpohl
 cloud.google.com/go/storage v1.8.0/go.mod h1:Wv1Oy7z6Yz3DshWRJFhqM/UCfaWIRTdp0RXyy7KQOVs=
 cloud.google.com/go/storage v1.10.0/go.mod h1:FLPqc6j+Ki4BU591ie1oL6qBQGu2Bl/tZ9ullr3+Kg0=
 cloud.google.com/go/storage v1.14.0/go.mod h1:GrKmX003DSIwi9o29oFT7YDnHYwZoctc3fOKtUw0Xmo=
-cloud.google.com/go/storage v1.30.0 h1:g1yrbxAWOrvg/594228pETWkOi00MLTrOWfh56veU5o=
-cloud.google.com/go/storage v1.30.0/go.mod h1:xAVretHSROm1BQX4IIsoVgJqw0LqOyX+I/O2GzRAzdE=
+cloud.google.com/go/storage v1.30.1 h1:uOdMxAs8HExqBlnLtnQyP0YkvbiDpdGShGKtx6U/oNM=
+cloud.google.com/go/storage v1.30.1/go.mod h1:NfxhC0UJE1aXSx7CIIbCf7y9HKT7BiccwkR7+P7gN8E=
 code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db h1:e0HKyVUgju7z1J4C3roz2Jdl2ZpcVq/DaJrq49GobXM=
 code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db/go.mod h1:XKlGVVXFi5EcHHMPzw3xgONK9PeEZuUbIC43XNwxD10=
 code.cloudfoundry.org/cfhttp/v2 v2.0.0 h1:4+mLfyzm84gUpJnCT68BLPUypGgvUsYq29QKaSotTz4=
@@ -141,8 +141,8 @@ github.com/DataDog/datadog-go/v5 v5.1.1 h1:JLZ6s2K1pG2h9GkvEvMdEGqMDyVLEAccdX5Tl
 github.com/DataDog/datadog-go/v5 v5.1.1/go.mod h1:KhiYb2Badlv9/rofz+OznKoEF5XKTonWyhx5K83AP8E=
 github.com/DataDog/datadog-operator v0.7.1-0.20230215125730-2ba58ce29d56 h1:uj+2t8VpFSgnRucSTr3fG3atc1I6j6fgSw8+nCxnwOs=
 github.com/DataDog/datadog-operator v0.7.1-0.20230215125730-2ba58ce29d56/go.mod h1:3XBfwfK0wBBcs7L+10JI79pg6vYdbOwY3oj+O4Omi6c=
-github.com/DataDog/ebpf-manager v0.2.5 h1:hWpMPL/ysxV9FBNjH+zLXcV8y7EtkuIJbk0V2PDmv2A=
-github.com/DataDog/ebpf-manager v0.2.5/go.mod h1:QNbbXqQdl1RDRDna/vSHzhpTNXTnqxxJRVXdeANgCUA=
+github.com/DataDog/ebpf-manager v0.2.7 h1:nUN0a4E4KDSiSqWRIK23cUEr45wIDo9hyQSQ6A4aCq0=
+github.com/DataDog/ebpf-manager v0.2.7/go.mod h1:QNbbXqQdl1RDRDna/vSHzhpTNXTnqxxJRVXdeANgCUA=
 github.com/DataDog/extendeddaemonset v0.9.0-rc.2 h1:uTE/QEU0oYtHnebKSMbxap7XMG5603WQxNP/UX63E7k=
 github.com/DataDog/extendeddaemonset v0.9.0-rc.2/go.mod h1:JgKVGTsjdTdtJjNyxRZjcs81/rng6LJ3XX/0D7Y12Gc=
 github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe h1:RO40ywnX/vZLi4Pb4jRuFGgQQBYGIIoQ6u+P2MIgFOA=
@@ -161,8 +161,8 @@ github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYx
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
 github.com/DataDog/netlink v1.0.1-0.20220504230202-f7323aba1f6c h1:w4mZkX45/iUyef4qUp+ryZ4ItuhmIpT6tWeZ0vBdvfo=
 github.com/DataDog/netlink v1.0.1-0.20220504230202-f7323aba1f6c/go.mod h1:twkDnbuQxJYemMlGd4JFIcuhgX83tXhKS2B/PRMpOho=
-github.com/DataDog/nikos v1.11.0 h1:hi5RQK4ePHFGaEXUQASESuJFPLdR3E+KrrkJPham/Rk=
-github.com/DataDog/nikos v1.11.0/go.mod h1:JVPKpZYUjTWGzYvgCPVvJfzinjX2Zb2caSABqxZszH4=
+github.com/DataDog/nikos v1.12.0 h1:B9seaiowtbMyH2MX3f3/EcEk1sznSFXaPBwTcBLdogU=
+github.com/DataDog/nikos v1.12.0/go.mod h1:vboQtY04KmE+Ua8m7gVheZJcnStQY+fIiSPY/6jJVrY=
 github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.1.4 h1:5gC2zb2xTNyDGuWwHWbje/sJiyaBcSo4rBERCnG42ds=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.1.4 h1:tl35Ud2sh1P8mFo2bWWM3yqtDnLeDouWE//NvtDUb4M=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.1.4/go.mod h1:LMY0LJIbNndS+68ouip+w1G7dieGkoA1TjLZyvVzbyg=
@@ -2879,8 +2879,8 @@ google.golang.org/genproto v0.0.0-20210402141018-6c239bbf2bb1/go.mod h1:9lPAdzaE
 google.golang.org/genproto v0.0.0-20210602131652-f16073e35f0c/go.mod h1:UODoCrxHCcBojKKwX1terBiRUaqAsFqJiF615XL43r0=
 google.golang.org/genproto v0.0.0-20210831024726-fe130286e0e2/go.mod h1:eFjDcFEctNawg4eG61bRv87N7iHBWyVhJu7u1kqDUXY=
 google.golang.org/genproto v0.0.0-20211118181313-81c1377c94b1/go.mod h1:5CzLGKJ67TSI2B9POpiiyGha0AjJvZIUgRMt1dSmuhc=
-google.golang.org/genproto v0.0.0-20230306155012-7f2fa6fef1f4 h1:DdoeryqhaXp1LtT/emMP1BRJPHHKFi5akj/nbx/zNTA=
-google.golang.org/genproto v0.0.0-20230306155012-7f2fa6fef1f4/go.mod h1:NWraEVixdDnqcqQ30jipen1STv2r/n24Wb7twVTGR4s=
+google.golang.org/genproto v0.0.0-20230320184635-7606e756e683 h1:khxVcsk/FhnzxMKOyD+TDGwjbEOpcPuIpmafPGFmhMA=
+google.golang.org/genproto v0.0.0-20230320184635-7606e756e683/go.mod h1:NWraEVixdDnqcqQ30jipen1STv2r/n24Wb7twVTGR4s=
 google.golang.org/grpc v0.0.0-20160317175043-d3ddb4469d5a/go.mod h1:yo6s7OP7yaDglbqo1J04qKzAhqBH6lvTonzMVmEdcZw=
 google.golang.org/grpc v1.8.0/go.mod h1:yo6s7OP7yaDglbqo1J04qKzAhqBH6lvTonzMVmEdcZw=
 google.golang.org/grpc v1.14.0/go.mod h1:yo6s7OP7yaDglbqo1J04qKzAhqBH6lvTonzMVmEdcZw=
