@@ -58,8 +58,12 @@ func (l *UDPListener) Start() {
 
 // Stop stops the tailer.
 func (l *UDPListener) Stop() {
-	log.Infof("Stopping UDP forwarder on port: %d", l.source.Config.Port)
-	l.tailer.Stop()
+	if l.tailer != nil {
+		log.Infof("Stopping UDP forwarder on port: %d", l.source.Config.Port)
+		l.tailer.Stop()
+	} else {
+		log.Infof("Cannot stop UDP forwarder because the tailer never started")
+	}
 }
 
 // startNewTailer starts a new Tailer
