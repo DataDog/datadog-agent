@@ -342,26 +342,26 @@ func TestCountAggregationPeerService(t *testing.T) {
 		k                BucketsAggregationKey
 		res              pb.ClientGroupedStats
 		name             string
-		extraAggregators map[string]struct{}
+		enablePeerSvcAgg bool
 	}
 	tts := []tt{
 		{
 			BucketsAggregationKey{Service: "s", PeerService: "remote-service"},
 			pb.ClientGroupedStats{Service: "s", PeerService: ""},
 			"peer.service",
-			nil,
+			false,
 		},
 		{
 			BucketsAggregationKey{Service: "s", PeerService: "remote-service"},
 			pb.ClientGroupedStats{Service: "s", PeerService: "remote-service"},
 			"peer.service",
-			map[string]struct{}{"peer.service": {}},
+			true,
 		},
 	}
 	for _, tc := range tts {
 		t.Run(tc.name, func(t *testing.T) {
 			a := newTestAggregator()
-			a.extraAggregators = tc.extraAggregators
+			a.peerSvcAggregation = tc.enablePeerSvcAgg
 			testTime := time.Unix(time.Now().Unix(), 0)
 
 			c1 := payloadWithCounts(testTime, tc.k, 11, 7, 100)
