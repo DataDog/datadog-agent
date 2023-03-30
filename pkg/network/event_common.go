@@ -277,8 +277,8 @@ type IPTranslation struct {
 	ReplDstPort uint16
 }
 
-// connectionTwoTuple represents one end of a connection
-type connectionTwoTuple struct {
+// connectionEndpoint represents one end of a connection
+type connectionEndpoint struct {
 	address util.Address
 	port    uint16
 }
@@ -419,20 +419,20 @@ func printAddress(address util.Address, names []dns.Hostname) string {
 // This function generates all possible combinations of connection keys: [(source, dest), (real_source, dest), (source, real_dest), (real_source, real_dest)].
 // This is necessary to handle all possible scenarios for connections originating from the USM HTTP module (i.e., whether they are NAT'd or not, and whether they use TLS or plain HTTP).
 func HTTPKeyTuplesFromConn(connectionStats ConnectionStats) []http.KeyTuple {
-	var localAddresses []connectionTwoTuple
-	var remoteAddresses []connectionTwoTuple
+	var localAddresses []connectionEndpoint
+	var remoteAddresses []connectionEndpoint
 
 	// Adding source and destination addresses
-	localAddresses = append(localAddresses, connectionTwoTuple{connectionStats.Source, connectionStats.SPort})
-	remoteAddresses = append(remoteAddresses, connectionTwoTuple{connectionStats.Dest, connectionStats.DPort})
+	localAddresses = append(localAddresses, connectionEndpoint{connectionStats.Source, connectionStats.SPort})
+	remoteAddresses = append(remoteAddresses, connectionEndpoint{connectionStats.Dest, connectionStats.DPort})
 
 	// Adding original addresses in case of a NAT'd connection
 	if connectionStats.IPTranslation != nil {
 		if !connectionStats.IPTranslation.ReplDstIP.IsZero() {
-			localAddresses = append(localAddresses, connectionTwoTuple{connectionStats.IPTranslation.ReplDstIP, connectionStats.IPTranslation.ReplDstPort})
+			localAddresses = append(localAddresses, connectionEndpoint{connectionStats.IPTranslation.ReplDstIP, connectionStats.IPTranslation.ReplDstPort})
 		}
 		if !connectionStats.IPTranslation.ReplSrcIP.IsZero() {
-			remoteAddresses = append(remoteAddresses, connectionTwoTuple{connectionStats.IPTranslation.ReplSrcIP, connectionStats.IPTranslation.ReplSrcPort})
+			remoteAddresses = append(remoteAddresses, connectionEndpoint{connectionStats.IPTranslation.ReplSrcIP, connectionStats.IPTranslation.ReplSrcPort})
 		}
 	}
 
@@ -455,20 +455,20 @@ func HTTPKeyTuplesFromConn(connectionStats ConnectionStats) []http.KeyTuple {
 // This function generates all possible combinations of connection keys: [(source, dest), (real_source, dest), (source, real_dest), (real_source, real_dest)].
 // This is necessary to handle all possible scenarios for connections originating from the Kafka module (i.e., whether they are NAT'd or not, and whether they use TLS or plain Kafka).
 func KafkaKeyTuplesFromConn(connectionStats ConnectionStats) []kafka.KeyTuple {
-	var localAddresses []connectionTwoTuple
-	var remoteAddresses []connectionTwoTuple
+	var localAddresses []connectionEndpoint
+	var remoteAddresses []connectionEndpoint
 
 	// Adding source and destination addresses
-	localAddresses = append(localAddresses, connectionTwoTuple{connectionStats.Source, connectionStats.SPort})
-	remoteAddresses = append(remoteAddresses, connectionTwoTuple{connectionStats.Dest, connectionStats.DPort})
+	localAddresses = append(localAddresses, connectionEndpoint{connectionStats.Source, connectionStats.SPort})
+	remoteAddresses = append(remoteAddresses, connectionEndpoint{connectionStats.Dest, connectionStats.DPort})
 
 	// Adding original addresses in case of a NAT'd connection
 	if connectionStats.IPTranslation != nil {
 		if !connectionStats.IPTranslation.ReplDstIP.IsZero() {
-			localAddresses = append(localAddresses, connectionTwoTuple{connectionStats.IPTranslation.ReplDstIP, connectionStats.IPTranslation.ReplDstPort})
+			localAddresses = append(localAddresses, connectionEndpoint{connectionStats.IPTranslation.ReplDstIP, connectionStats.IPTranslation.ReplDstPort})
 		}
 		if !connectionStats.IPTranslation.ReplSrcIP.IsZero() {
-			remoteAddresses = append(remoteAddresses, connectionTwoTuple{connectionStats.IPTranslation.ReplSrcIP, connectionStats.IPTranslation.ReplSrcPort})
+			remoteAddresses = append(remoteAddresses, connectionEndpoint{connectionStats.IPTranslation.ReplSrcIP, connectionStats.IPTranslation.ReplSrcPort})
 		}
 	}
 
