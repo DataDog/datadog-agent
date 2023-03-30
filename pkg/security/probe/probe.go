@@ -1127,8 +1127,11 @@ func (p *Probe) DumpDiscarders() (string, error) {
 	if err := encoder.Encode(dump); err != nil {
 		return "", err
 	}
-
-	return fp.Name(), nil
+	err = fp.Close()
+	if err != nil {
+		return "", fmt.Errorf("could not close file [%s]: %w", fp.Name(), err)
+	}
+	return fp.Name(), err
 }
 
 // FlushDiscarders invalidates all the discarders
@@ -1204,14 +1207,23 @@ func (p *Probe) setupNewTCClassifier(device model.NetDevice) error {
 	netns := p.resolvers.NamespaceResolver.ResolveNetworkNamespace(device.NetNS)
 	if netns != nil {
 		handle, err = netns.GetNamespaceHandleDup()
+		defer handle.Close()
 	}
 	if netns == nil || err != nil || handle == nil {
 		// queue network device so that a TC classifier can be added later
 		p.resolvers.NamespaceResolver.QueueNetworkDevice(device)
 		return QueuedNetworkDeviceError{msg: fmt.Sprintf("device %s is queued until %d is resolved", device.Name, device.NetNS)}
 	}
-	defer handle.Close()
-	return p.resolvers.TCResolver.SetupNewTCClassifierWithNetNSHandle(device, handle, p.Manager)
+	err = p.resolvers.TCResolver.SetupNewTCClassifierWithNetNSHandle(device, handle, p.Manager)
+	if err != nil {
+		return err
+	}
+	if handle != nil {
+		if err := handle.Close(); err != nil {
+			return fmt.Errorf("could not close file [%s]: %w", handle.Name(), err)
+		}
+	}
+	return err
 }
 
 // FlushNetworkNamespace removes all references and stops all TC programs in the provided network namespace. This method
