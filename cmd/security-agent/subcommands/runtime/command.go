@@ -728,6 +728,8 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 }
 
 func downloadPolicy(log log.Component, config config.Component, downloadPolicyArgs *downloadPolicyCliParams) error {
+	var outputFile *os.File
+
 	apiKey := config.GetString("api_key")
 	appKey := config.GetString("app_key")
 
@@ -753,6 +755,7 @@ func downloadPolicy(log log.Component, config config.Component, downloadPolicyAr
 			return err
 		}
 		defer f.Close()
+		outputFile = f
 		outputWriter = f
 	}
 
@@ -794,6 +797,14 @@ func downloadPolicy(log log.Component, config config.Component, downloadPolicyAr
 	}
 
 	_, err = outputWriter.Write(resBytes)
+	if err != nil {
+		return err
+	}
+
+	if outputFile != nil {
+		return outputFile.Close()
+	}
+
 	return err
 }
 
