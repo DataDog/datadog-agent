@@ -138,9 +138,9 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 		},
 		Tags: network.GetStaticTags(tagOpenSSL | tagTLS),
 	}
-	// fixup Protocol stack as on windows
+	// fixup Protocol stack as on windows or macos
 	// we don't have tags mechanism inserting TLS protocol on protocol stack
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS != "linux" {
 		for _, c := range out.Conns {
 			stack := []model.ProtocolType{}
 			for _, p := range c.Protocol.Stack {
