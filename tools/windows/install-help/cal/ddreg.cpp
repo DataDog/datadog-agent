@@ -83,10 +83,12 @@ bool RegKey::getDWORDValue(const wchar_t *valname, DWORD &val)
         return false;
     }
     // retdata indicates buffer size in bytes. 
-    if (dataSize != sizeof(DWORD)){
+    if (dataSize != sizeof(DWORD))
+    {
         return false;
     }
-    if (type != REG_DWORD){
+    if (type != REG_DWORD)
+    {
         return false;
     }
     DWORD retdata;

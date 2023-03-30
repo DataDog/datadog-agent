@@ -136,12 +136,12 @@ void CustomActionData::setClosedSourceConfig()
     bool bKey = cskey.getDWORDValue(keyClosedSourceEnabled.c_str(), closedSource);
     if (bKey)
     {
-        if( closedSource == 1 )
+        if ( closedSource == 1 )
         {
             WcaLog(LOGMSG_STANDARD, "Closed source already marked accepted; leaving setting as enabled");
             return;
         }
-        if( closedSource == 0 )
+        if ( closedSource == 0 )
         {
             WcaLog(LOGMSG_STANDARD, "Closed source already marked disabled; leaving setting as disabled");
             return;
@@ -160,7 +160,8 @@ void CustomActionData::setClosedSourceConfig()
         //
         // docs say "optionally followed by + or -". Empirically it's `#3`.  But
         // if the char `3` appears at all then we know.
-        if(npmAlreadyInstalled.length() >= 2) {
+        if(npmAlreadyInstalled.length() >= 2) 
+        {
             if (npmAlreadyInstalled.find_first_of(L'3') != std::wstring::npos)
             {
                 WcaLog(LOGMSG_STANDARD, "NPM driver previously set to enabled; enabling closed source flag");
