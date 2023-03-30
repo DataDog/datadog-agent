@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    JMXFetch upgraded to ``0.47.6`` which contains security,
+   Upgraded JMXFetch to ``0.47.6`` which contains security,
     performance, and bug fixes. See JMXFetch changelog for more.
