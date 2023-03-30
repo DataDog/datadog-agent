@@ -94,7 +94,7 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 	}
 
 	// For system probe, there is an additional config file that is shared with the system-probe
-	syscfg, err := sysconfig.New(globalParams.SysProbeConfFilePath)
+	syscfg, err := sysconfig.NewCustom(globalParams.SysProbeConfFilePath, false)
 	if err != nil {
 		_ = log.Critical(err)
 		cleanupAndExit(1)

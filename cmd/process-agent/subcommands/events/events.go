@@ -90,7 +90,7 @@ func bootstrapEventsCmd(cliParams *cliParams) error {
 	}
 
 	// Load system-probe.yaml file and merge it to the global Datadog config
-	_, err := sysconfig.New(cliParams.SysProbeConfFilePath)
+	_, err := sysconfig.NewCustom(cliParams.SysProbeConfFilePath, false)
 	if err != nil {
 		return log.Critical(err)
 	}
