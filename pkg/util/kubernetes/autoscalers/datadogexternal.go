@@ -146,7 +146,7 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, timeWindow time.Dur
 		if _, found := processedMetrics[ddQuery]; !found {
 			processedMetrics[ddQuery] = Point{
 				Timestamp: time.Now().Unix(),
-				Error:     fmt.Errorf("no serie returned for this query, check data is available in the last %f seconds", timeWindow.Seconds()),
+				Error:     fmt.Errorf("no serie returned for this query, check data is available in the last %.0f seconds", math.Ceil(timeWindow.Seconds())),
 			}
 		}
 	}
