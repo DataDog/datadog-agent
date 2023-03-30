@@ -50,7 +50,7 @@ type Concentrator struct {
 	agentEnv               string
 	agentHostname          string
 	agentVersion           string
-	peerSvcAggregation     bool // flag to enable or disable peer.service aggregation
+	peerSvcAggregation     bool // flag to enable peer.service aggregation
 	computeStatsBySpanKind bool // flag to enable computation of stats through checking the span.kind field
 }
 
