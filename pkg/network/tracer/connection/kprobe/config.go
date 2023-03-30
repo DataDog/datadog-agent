@@ -93,7 +93,7 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 		} else {
 			enableProbe(enabled, probes.UDPRecvMsgPre410)
 		}
-		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.UDPRecvMsgReturn, probes.UDPRecvMsgReturnPre470, kv470))
+		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer || coreTracer, kv, probes.UDPRecvMsgReturn, probes.UDPRecvMsgReturnPre470, kv470))
 		if c.CollectIPv6Conns {
 			enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.IP6MakeSkb, probes.IP6MakeSkbPre470, kv470))
 			if kv >= kv5190 || runtimeTracer {
@@ -105,13 +105,13 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 			} else {
 				enableProbe(enabled, probes.UDPv6RecvMsgPre410)
 			}
-			enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.UDPv6RecvMsgReturn, probes.UDPv6RecvMsgReturnPre470, kv470))
+			enableProbe(enabled, selectVersionBasedProbe(runtimeTracer || coreTracer, kv, probes.UDPv6RecvMsgReturn, probes.UDPv6RecvMsgReturnPre470, kv470))
 			enableProbe(enabled, probes.IP6MakeSkbReturn)
 			enableProbe(enabled, probes.Inet6Bind)
 			enableProbe(enabled, probes.Inet6BindRet)
 		}
 
-		if runtimeTracer || kv >= kv470 {
+		if runtimeTracer || coreTracer || kv >= kv470 {
 			missing, err := ebpf.VerifyKernelFuncs("skb_consume_udp", "__skb_free_datagram_locked", "skb_free_datagram_locked")
 			if err != nil {
 				return nil, fmt.Errorf("error verifying kernel function presence: %s", err)
