@@ -554,7 +554,7 @@ func TestPeerServiceStats(t *testing.T) {
 		traceutil.ComputeTopLevel(spans)
 		testTrace := toProcessedTrace(spans, "none", "")
 		c := NewTestConcentrator(now)
-		c.extraAggregators = map[string]struct{}{"peer.service": {}}
+		c.peerSvcAggregation = true
 		c.addNow(testTrace, "")
 		stats := c.flushNow(now.UnixNano() + int64(c.bufferLen)*testBucketInterval)
 		assert.Len(stats.Stats[0].Stats[0].Stats, 2)
@@ -571,6 +571,7 @@ func TestPeerServiceStats(t *testing.T) {
 		traceutil.ComputeTopLevel(spans)
 		testTrace := toProcessedTrace(spans, "none", "")
 		c := NewTestConcentrator(now)
+		c.peerSvcAggregation = false
 		c.addNow(testTrace, "")
 		stats := c.flushNow(now.UnixNano() + int64(c.bufferLen)*testBucketInterval)
 		assert.Len(stats.Stats[0].Stats[0].Stats, 2)

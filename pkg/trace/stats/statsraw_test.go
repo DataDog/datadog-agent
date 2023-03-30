@@ -20,7 +20,7 @@ func TestGrain(t *testing.T) {
 		Env:         "default",
 		Hostname:    "default",
 		ContainerID: "cid",
-	}, nil)
+	})
 	assert.Equal(Aggregation{
 		PayloadAggregationKey: PayloadAggregationKey{
 			Env:         "default",
@@ -43,7 +43,7 @@ func TestGrainWithPeerService(t *testing.T) {
 			Env:         "default",
 			Hostname:    "default",
 			ContainerID: "cid",
-		}, nil)
+		})
 		assert.Equal(Aggregation{
 			PayloadAggregationKey: PayloadAggregationKey{
 				Env:         "default",
@@ -65,7 +65,7 @@ func TestGrainWithPeerService(t *testing.T) {
 			Env:         "default",
 			Hostname:    "default",
 			ContainerID: "cid",
-		}, map[string]struct{}{"peer.service": {}})
+		})
 		assert.Equal(Aggregation{
 			PayloadAggregationKey: PayloadAggregationKey{
 				Env:         "default",
@@ -90,7 +90,7 @@ func TestGrainWithExtraTags(t *testing.T) {
 		Version:     "v0",
 		Env:         "default",
 		ContainerID: "cid",
-	}, nil)
+	})
 	assert.Equal(Aggregation{
 		PayloadAggregationKey: PayloadAggregationKey{
 			Hostname:    "host-id",
@@ -114,7 +114,7 @@ func BenchmarkHandleSpanRandom(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		for _, span := range benchSpans {
-			sb.HandleSpan(span, 1, true, "", PayloadAggregationKey{"a", "b", "c", "d"}, nil)
+			sb.HandleSpan(span, 1, true, "", PayloadAggregationKey{"a", "b", "c", "d"}, true)
 		}
 	}
 }

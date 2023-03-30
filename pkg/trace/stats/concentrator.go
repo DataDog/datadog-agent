@@ -17,9 +17,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
 
-// defaultBufferLen represents the default buffer length; the number of bucket size
-// units used by the concentrator.
-const defaultBufferLen = 2
+const (
+	// defaultBufferLen represents the default buffer length; the number of bucket size
+	// units used by the concentrator.
+	defaultBufferLen = 2
+	// peerSvcAggConfigKey is the agent configuration field that enables stats aggregation by peer.service.
+	peerSvcAggConfigKey = "apm_config.peer_service_aggregation"
+)
 
 // Concentrator produces time bucketed statistics from a stream of raw traces.
 // https://en.wikipedia.org/wiki/Knelson_concentrator
@@ -46,8 +50,8 @@ type Concentrator struct {
 	agentEnv               string
 	agentHostname          string
 	agentVersion           string
-	extraAggregators       map[string]struct{} // additional tags by which to aggregate stats
-	computeStatsBySpanKind bool                // flag to enable computation of stats through checking the span.kind field
+	peerSvcAggregation     bool // flag to enable or disable peer.service aggregation
+	computeStatsBySpanKind bool // flag to enable computation of stats through checking the span.kind field
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
@@ -67,10 +71,8 @@ func NewConcentrator(conf *config.AgentConfig, out chan pb.StatsPayload, now tim
 		agentEnv:               conf.DefaultEnv,
 		agentHostname:          conf.Hostname,
 		agentVersion:           conf.AgentVersion,
+		peerSvcAggregation:     conf.PeerServiceAggregation,
 		computeStatsBySpanKind: conf.ComputeStatsBySpanKind,
-	}
-	if conf.PeerServiceAggregation {
-		c.extraAggregators = map[string]struct{}{tagPeerService: {}}
 	}
 	return &c
 }
@@ -203,7 +205,7 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 			b = NewRawBucket(uint64(btime), uint64(c.bsize))
 			c.buckets[btime] = b
 		}
-		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey, c.extraAggregators)
+		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey, c.peerSvcAggregation)
 	}
 }
 
