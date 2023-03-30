@@ -61,8 +61,6 @@ func (l *UDPListener) Stop() {
 	if l.tailer != nil {
 		log.Infof("Stopping UDP forwarder on port: %d", l.source.Config.Port)
 		l.tailer.Stop()
-	} else {
-		log.Infof("Cannot stop UDP forwarder because the tailer never started")
 	}
 }
 
