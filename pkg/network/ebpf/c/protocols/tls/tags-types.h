@@ -8,6 +8,7 @@ enum static_tags {
     LIBSSL = (1<<1),
     GO = (1<<2),
     JAVA_TLS = (1<<3),
+    CONN_TLS = (1<<4),
 };
 
 #endif

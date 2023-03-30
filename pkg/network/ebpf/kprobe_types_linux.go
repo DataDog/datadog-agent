@@ -31,7 +31,8 @@ type ConnStats struct {
 	Recv_packets uint64
 	Direction    uint8
 	Protocol     uint8
-	Pad_cgo_0    [6]byte
+	Conn_tags    uint8
+	Pad_cgo_0    [5]byte
 }
 type Conn struct {
 	Tup        ConnTuple

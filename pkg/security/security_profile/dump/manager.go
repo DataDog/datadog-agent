@@ -389,14 +389,12 @@ func (adm *ActivityDumpManager) HandleCgroupTracingEvent(event *model.CgroupTrac
 	}
 
 	// add remote storage requests
-	for _, format := range adm.config.RuntimeSecurity.ActivityDumpRemoteStorageFormats {
-		newDump.AddStorageRequest(config.NewStorageRequest(
-			config.RemoteStorage,
-			format,
-			true, // force remote compression
-			"",
-		))
-	}
+	newDump.AddStorageRequest(config.NewStorageRequest(
+		config.RemoteStorage,
+		config.Protobuf,
+		true, // force remote compression
+		"",
+	))
 
 	if err := adm.insertActivityDump(newDump); err != nil {
 		seclog.Errorf("couldn't start tracing [%s]: %v", newDump.GetSelectorStr(), err)

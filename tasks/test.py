@@ -34,7 +34,7 @@ from .utils import DEFAULT_BRANCH, get_build_flags
 
 PROFILE_COV = "profile.cov"
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
-UNIT_TEST_FILE_FORMAT = re.compile(r'[^a-zA-Z0-9]')
+UNIT_TEST_FILE_FORMAT = re.compile(r'[^a-zA-Z0-9_\-]')
 
 
 class TestProfiler:
