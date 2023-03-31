@@ -63,6 +63,9 @@ func NewBoltDB(cacheDir string) (BoltDB, error) {
 }
 
 func (b BoltDB) Clear() error {
+	if err := b.Close(); err != nil {
+		return err
+	}
 	return os.RemoveAll(b.directory)
 }
 

@@ -31,13 +31,9 @@ func TestBoltDB_Clear(t *testing.T) {
 	require.NoError(t, db.Store("key", []byte("value")))
 	require.NoError(t, db.Clear())
 
-	value, err := db.Get("key1")
-	require.NoError(t, err)
-	require.Equal(t, []byte(nil), value)
-	require.NoError(t, db.Store("key", []byte("value")))
-	value, err = db.Get("key")
-	require.NoError(t, err)
-	require.Equal(t, []byte("value"), value)
+	require.Error(t, db.Store("key", []byte("value")))
+	_, err = db.Get("key")
+	require.Error(t, err)
 }
 
 func TestBoltDB_StoreAndGet(t *testing.T) {

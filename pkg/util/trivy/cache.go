@@ -113,7 +113,7 @@ func (c *TrivyCache) MissingBlobs(artifactID string, blobIDs []string) (bool, []
 			missingBlobIDs = append(missingBlobIDs, blobID)
 		}
 	}
-	return c.Cache.Contains(artifactID), missingBlobIDs, nil
+	return !c.Cache.Contains(artifactID), missingBlobIDs, nil
 }
 
 func (c *TrivyCache) PutArtifact(artifactID string, artifactInfo types.ArtifactInfo) error {
@@ -347,4 +347,8 @@ func (c *PersistentCache) Remove(keys []string) error {
 		c.currentDiskSize -= len(val)
 	}
 	return nil
+}
+
+func (c *PersistentCache) GetCurrentDiskSize() int {
+	return c.currentDiskSize
 }
