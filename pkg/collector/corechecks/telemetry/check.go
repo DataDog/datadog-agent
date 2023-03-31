@@ -29,14 +29,12 @@ func init() {
 type Check struct {
 	core.CheckBase
 	sender aggregator.Sender
-	stopCh chan struct{}
 }
 
 // CheckFactory registers the container_image check
 func CheckFactory() check.Check {
 	return &Check{
 		CheckBase: core.NewCheckBase(checkName),
-		stopCh:    make(chan struct{}),
 	}
 }
 
