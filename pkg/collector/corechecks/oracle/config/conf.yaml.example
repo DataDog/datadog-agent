@@ -15,7 +15,12 @@ instances:
   ## If you use Oracle names resolution via tnsnamas.ora or ldap.ora, 
   ## you must specify 'tns_alias' instead of 'server' and 'service_name'.
   # 
-- server: <HOST>:<PORT> or server: <HOST>
+- server: <HOST> or server: <HOST>:<PORT>
+
+  ## @param port - string - optional
+  ## The port of your Oracle database. It overrides the port specified in 'server'
+  #
+  # port: <PORT>
 
   ## @param service_name - string - optional
   ## The Oracle CDB service name. To view the services available on your server,

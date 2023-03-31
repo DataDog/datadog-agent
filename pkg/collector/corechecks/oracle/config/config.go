@@ -75,15 +75,17 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	serverSlice := strings.Split(instance.Server, ":")
 	instance.Server = serverSlice[0]
 
-	if len(serverSlice) > 1 {
-		port, err := strconv.Atoi(serverSlice[1])
-		if err == nil {
-			instance.Port = port
+	if instance.Port == 0 {
+		if len(serverSlice) > 1 {
+			port, err := strconv.Atoi(serverSlice[1])
+			if err == nil {
+				instance.Port = port
+			} else {
+				return nil, fmt.Errorf("Cannot extract port from server %w", err)
+			}
 		} else {
-			return nil, fmt.Errorf("Cannot extract port from server %w", err)
+			instance.Port = 1521
 		}
-	} else {
-		instance.Port = 1521
 	}
 
 	c := &CheckConfig{

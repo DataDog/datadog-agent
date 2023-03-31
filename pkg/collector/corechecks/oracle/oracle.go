@@ -176,11 +176,11 @@ func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integratio
 }
 
 func oracleFactory() check.Check {
-	return &Check{CheckBase: core.NewCheckBase(common.IntegrationName)}
+	return &Check{CheckBase: core.NewCheckBase(common.IntegrationNameScheduler)}
 }
 
 func init() {
-	core.RegisterCheck(common.IntegrationName, oracleFactory)
+	core.RegisterCheck(common.IntegrationNameScheduler, oracleFactory)
 }
 
 func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string, forceMatchingSignature uint64, SQLID string) (common.ObfuscatedStatement, error) {
