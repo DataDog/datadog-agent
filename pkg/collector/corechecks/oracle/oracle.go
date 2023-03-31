@@ -25,8 +25,9 @@ import (
 
 // Check represents one Oracle instance check.
 type StatementsFilter struct {
-	SQLIDs                  map[string]int
-	ForceMatchingSignatures map[uint64]int
+	SQLIDs map[string]int
+	//ForceMatchingSignatures map[uint64]int
+	ForceMatchingSignatures map[string]int
 }
 
 type Check struct {
@@ -43,6 +44,7 @@ type Check struct {
 	statementMetricsMonotonicCountsPrevious map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB
 	dbHostname                              string
 	dbVersion                               string
+	driver                                  string
 }
 
 // Run executes the check.
@@ -69,7 +71,7 @@ func (c *Check) Run() error {
 		if err != nil {
 			return err
 		}
-		err = c.StatementMetrics()
+		_, err = c.StatementMetrics()
 		if err != nil {
 			return err
 		}
@@ -96,6 +98,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 			connStr = go_ora.BuildUrl(c.config.Server, c.config.Port, c.config.ServiceName, c.config.Username, c.config.Password, map[string]string{})
 		}
 	}
+	c.driver = oracleDriver
 
 	log.Infof("driver: %s, Connect string: %s", oracleDriver, connStr)
 
@@ -183,7 +186,8 @@ func init() {
 	core.RegisterCheck(common.IntegrationNameScheduler, oracleFactory)
 }
 
-func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string, forceMatchingSignature uint64, SQLID string) (common.ObfuscatedStatement, error) {
+// func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string, forceMatchingSignature uint64, SQLID string) (common.ObfuscatedStatement, error) {
+func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string, forceMatchingSignature string, SQLID string) (common.ObfuscatedStatement, error) {
 	obfuscatedStatement, err := o.ObfuscateSQLString(statement)
 	if err == nil {
 		return common.ObfuscatedStatement{
