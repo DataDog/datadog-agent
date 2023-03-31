@@ -403,6 +403,19 @@ func TestCountAggregationPeerService(t *testing.T) {
 	}
 }
 
+func TestNewBucketAggregationKeyPeerService(t *testing.T) {
+	t.Run("disabled", func(t *testing.T) {
+		assert := assert.New(t)
+		r := newBucketAggregationKey(pb.ClientGroupedStats{Service: "a", PeerService: "remote-test"}, false)
+		assert.Equal(BucketsAggregationKey{Service: "a"}, r)
+	})
+	t.Run("enabled", func(t *testing.T) {
+		assert := assert.New(t)
+		r := newBucketAggregationKey(pb.ClientGroupedStats{Service: "a", PeerService: "remote-test"}, true)
+		assert.Equal(BucketsAggregationKey{Service: "a", PeerService: "remote-test"}, r)
+	})
+}
+
 func deepCopy(p pb.ClientStatsPayload) pb.ClientStatsPayload {
 	new := p
 	new.Stats = deepCopyStatsBucket(p.Stats)
