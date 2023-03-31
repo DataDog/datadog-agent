@@ -157,4 +157,6 @@ func (p Params) ConfigMissingOK() bool {
 type MockParams struct {
 	// Overrides is a parameter used to override values of the config
 	Overrides map[string]interface{}
+
+	ConfigYaml string
 }
