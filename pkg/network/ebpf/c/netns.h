@@ -41,17 +41,14 @@ struct sock___old {
 
 static __always_inline __u32 get_netns_from_sock(struct sock* sk) {
     u32 net_ns_inum = 0;
-    if (bpf_core_field_exists(sk->sk_net.net)) {
-        BPF_CORE_READ_INTO(&net_ns_inum, sk, sk_net.net, ns.inum);
-    } else {
-        struct sock___old *oldsk = (struct sock___old*)sk;
-        if (bpf_core_field_exists(oldsk->sk_net->ns)) {
-            BPF_CORE_READ_INTO(&net_ns_inum, oldsk, sk_net, ns.inum);
-        } else {
-            struct net___old *ns = NULL;
-            BPF_CORE_READ_INTO(&ns, oldsk, sk_net);
-            BPF_CORE_READ_INTO(&net_ns_inum, ns, proc_inum);
-        }
+    struct net *ns = NULL;
+    if (bpf_core_field_exists(sk->sk_net.net) ||
+        bpf_core_field_exists(((struct sock___old*)sk)->sk_net->ns)) {
+        BPF_CORE_READ_INTO(&ns, sk, sk_net);
+        BPF_CORE_READ_INTO(&net_ns_inum, ns, ns.inum);
+    } else if (bpf_core_field_exists(((struct net___old*)ns)->proc_inum)) {
+        BPF_CORE_READ_INTO(&ns, (struct sock___old*)sk, sk_net);
+        BPF_CORE_READ_INTO(&net_ns_inum, (struct net___old*)ns, proc_inum);
     }
     return net_ns_inum;
 }
@@ -69,10 +66,12 @@ static __maybe_unused __always_inline u32 get_netns_from_sock(struct sock *sk) {
     // https://github.com/torvalds/linux/commit/0c5c9fb55106333e773de8c9dd321fa8240caeb3
     u32 net_ns_inum = 0;
 #ifdef CONFIG_NET_NS
+    struct net *ns = NULL;
+    BPF_PROBE_READ_INTO(&ns, sk, sk_net);
 #ifdef _LINUX_NS_COMMON_H
-    BPF_PROBE_READ_INTO(&net_ns_inum, sk, sk_net.net, ns.inum);
+    BPF_PROBE_READ_INTO(&net_ns_inum, ns, ns.inum);
 #else
-    BPF_PROBE_READ_INTO(&net_ns_inum, sk, sk_net, proc_inum);
+    BPF_PROBE_READ_INTO(&net_ns_inum, ns, proc_inum);
 #endif // LINUX_NS_COMMON_H
 #endif // CONFIG_NET_NS
 
