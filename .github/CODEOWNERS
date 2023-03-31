@@ -253,7 +253,7 @@
 /pkg/diagnose/                          @Datadog/container-integrations
 /pkg/diagnose/connectivity/             @DataDog/agent-shared-components
 /pkg/eventmonitor/                      @DataDog/ebpf-platform @DataDog/agent-security
-/pkg/dynamic-instrumentation/           @DataDog/debugger
+/pkg/dynamicinstrumentation/            @DataDog/debugger
 /pkg/epforwarder/                       @DataDog/agent-shared-components @DataDog/agent-metrics-logs
 /pkg/flare/                             @DataDog/agent-shared-components
 /pkg/otlp/                              @DataDog/opentelemetry
