@@ -33,8 +33,8 @@ func testFileExistsNewUDSListener(t *testing.T, socketPath string, cfg map[strin
 	_, err := os.Create(socketPath)
 	assert.Nil(t, err)
 	defer os.Remove(socketPath)
-	deps := fulfillDepsWithConfig(t, cfg)
-	_, err = NewUDSListener(nil, newPacketPoolManagerUDS(deps.Config), deps.Config, nil)
+	config := fulfillDepsWithConfig(t, cfg)
+	_, err = NewUDSListener(nil, newPacketPoolManagerUDS(config), config, nil)
 	assert.Error(t, err)
 }
 
@@ -47,8 +47,8 @@ func testSocketExistsNewUSDListener(t *testing.T, socketPath string, cfg map[str
 }
 
 func testWorkingNewUDSListener(t *testing.T, socketPath string, cfg map[string]interface{}) {
-	deps := fulfillDepsWithConfig(t, cfg)
-	s, err := NewUDSListener(nil, newPacketPoolManagerUDS(deps.Config), deps.Config, nil)
+	config := fulfillDepsWithConfig(t, cfg)
+	s, err := NewUDSListener(nil, newPacketPoolManagerUDS(config), config, nil)
 	defer s.Stop()
 
 	assert.Nil(t, err)
@@ -83,8 +83,8 @@ func TestStartStopUDSListener(t *testing.T) {
 	mockConfig["dogstatsd_socket"] = socketPath
 	mockConfig["dogstatsd_origin_detection"] = false
 
-	deps := fulfillDepsWithConfig(t, mockConfig)
-	s, err := NewUDSListener(nil, newPacketPoolManagerUDS(deps.Config), deps.Config, nil)
+	config := fulfillDepsWithConfig(t, mockConfig)
+	s, err := NewUDSListener(nil, newPacketPoolManagerUDS(config), config, nil)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
@@ -110,8 +110,8 @@ func TestUDSReceive(t *testing.T) {
 
 	packetsChannel := make(chan packets.Packets)
 
-	deps := fulfillDepsWithConfig(t, mockConfig)
-	s, err := NewUDSListener(packetsChannel, newPacketPoolManagerUDS(deps.Config), deps.Config, nil)
+	config := fulfillDepsWithConfig(t, mockConfig)
+	s, err := NewUDSListener(packetsChannel, newPacketPoolManagerUDS(config), config, nil)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 

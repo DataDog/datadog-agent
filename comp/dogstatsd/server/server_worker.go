@@ -42,7 +42,7 @@ func newWorker(s *server) *worker {
 	return &worker{
 		server:  s,
 		batcher: batcher,
-		parser:  newParser(s.sharedFloat64List, s.config),
+		parser:  newParser(s.config, s.sharedFloat64List),
 		samples: make(metrics.MetricSampleBatch, 0, defaultSampleSize),
 	}
 }

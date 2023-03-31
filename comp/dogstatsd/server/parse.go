@@ -50,7 +50,7 @@ type parser struct {
 	readTimestamps bool
 }
 
-func newParser(float64List *float64ListPool, cfg config.ConfigReader) *parser {
+func newParser(cfg config.ConfigReader, float64List *float64ListPool) *parser {
 	stringInternerCacheSize := cfg.GetInt("dogstatsd_string_interner_size")
 	readTimestamps := cfg.GetBool("dogstatsd_no_aggregation_pipeline")
 
