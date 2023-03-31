@@ -32,3 +32,7 @@ func Handler() http.Handler {
 func Reset() {
 	telemetryRegistry = prometheus.NewRegistry()
 }
+
+func GetRegistry() *prometheus.Registry {
+  return telemetryRegistry
+}
