@@ -47,7 +47,6 @@ type Check struct {
 
 // Run executes the check.
 func (c *Check) Run() error {
-
 	if c.db == nil {
 		db, err := c.Connect()
 		if err != nil {
@@ -58,15 +57,11 @@ func (c *Check) Run() error {
 	}
 
 	if c.hostname == "" {
-		if c.config.InstanceConfig.ReportedHostname != "" {
-			c.hostname = c.config.InstanceConfig.ReportedHostname
-		} else {
-			hostname, err := os.Hostname()
-			if err != nil {
-				return fmt.Errorf("failed to get hostname: %w", err)
-			}
-			c.hostname = hostname
+		hostname, err := os.Hostname()
+		if err != nil {
+			return fmt.Errorf("failed to get hostname: %w", err)
 		}
+		c.hostname = hostname
 	}
 
 	if c.dbmEnabled {
@@ -93,7 +88,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		oracleDriver = "godror"
 	} else {
 		//godror ezconnect string
-		if c.config.InstanceConfig.UseGodrorWithEZConnect {
+		if c.config.InstanceConfig.InstantClient {
 			oracleDriver = "godror"
 			connStr = fmt.Sprintf("%s/%s@%s/%s", c.config.Username, c.config.Password, c.config.Server, c.config.ServiceName)
 		} else {
@@ -102,7 +97,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		}
 	}
 
-	log.Infof("Connect string: %s", connStr)
+	log.Infof("driver: %s, Connect string: %s", oracleDriver, connStr)
 
 	db, err := sqlx.Open(oracleDriver, connStr)
 	if err != nil {
@@ -113,7 +108,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		return nil, fmt.Errorf("failed to ping oracle instance: %w", err)
 	}
 
-	db.SetMaxOpenConns(1)
+	db.SetMaxOpenConns(10)
 
 	if c.cdbName == "" {
 		row := db.QueryRow("SELECT name FROM v$database")
@@ -122,14 +117,22 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 			return nil, fmt.Errorf("failed to query db name: %w", err)
 		}
 	}
+	c.tags = append(c.tags, fmt.Sprintf("cdb:%s", c.cdbName))
 
 	if c.dbHostname == "" || c.dbVersion == "" {
 		row := db.QueryRow("SELECT host_name, version FROM v$instance")
-		err = row.Scan(&c.dbHostname, &c.dbVersion)
+		var dbHostname string
+		err = row.Scan(&dbHostname, &c.dbVersion)
 		if err != nil {
-			return nil, fmt.Errorf("failed to query db name: %w", err)
+			return nil, fmt.Errorf("failed to query hostname and version: %w", err)
+		}
+		if c.config.ReportedHostname != "" {
+			c.dbHostname = c.config.ReportedHostname
+		} else {
+			c.dbHostname = dbHostname
 		}
 	}
+	c.tags = append(c.tags, fmt.Sprintf("dbhost:%s", c.dbHostname))
 
 	return db, nil
 }
@@ -173,11 +176,11 @@ func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integratio
 }
 
 func oracleFactory() check.Check {
-	return &Check{CheckBase: core.NewCheckBase(common.IntegrationName)}
+	return &Check{CheckBase: core.NewCheckBase(common.IntegrationNameScheduler)}
 }
 
 func init() {
-	core.RegisterCheck(common.IntegrationName, oracleFactory)
+	core.RegisterCheck(common.IntegrationNameScheduler, oracleFactory)
 }
 
 func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string, forceMatchingSignature uint64, SQLID string) (common.ObfuscatedStatement, error) {
