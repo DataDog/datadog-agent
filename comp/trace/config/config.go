@@ -98,8 +98,6 @@ func (c *cfg) SetHandler() http.Handler {
 // If the agent is containerized, max_memory and max_cpu_percent are disabled by default.
 // Resource limits are better handled by container runtimes and orchestrators.
 func (c *cfg) SetMaxMemCPU(isContainerized bool) {
-	if c.coreConfig.Object().IsSet("apm_config.max_cpu_percent") {
-	}
 
 	if c.coreConfig.Object().IsSet("apm_config.max_cpu_percent") {
 		c.MaxCPU = c.coreConfig.Object().GetFloat64("apm_config.max_cpu_percent") / 100
