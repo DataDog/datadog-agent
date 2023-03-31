@@ -503,7 +503,7 @@ shared_examples_for "an installed Agent" do
         "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python.exe",
         "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\pythonw.exe",
         "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python3.dll",
-        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python38.dll"
+        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python39.dll"
       ]
       libdatadog_agent_two = "#{program_files}\\DataDog\\Datadog Agent\\bin\\libdatadog-agent-two.dll"
       if File.file?(libdatadog_agent_two)
