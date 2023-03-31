@@ -8,7 +8,6 @@ package testutil
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"os/exec"
@@ -17,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -88,7 +88,7 @@ func writeTempFile(pattern string, content string) (*os.File, error) {
 	}
 	defer func() {
 		if err := f.Close(); err != nil {
-			log.Printf("Error closing file: %s\n", err)
+			log.Errorf("Error closing file: %v\n", err)
 		}
 	}()
 
