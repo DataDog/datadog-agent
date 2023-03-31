@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 
 	bolt "go.etcd.io/bbolt"
-	"golang.org/x/xerrors"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 )
 
@@ -38,8 +37,8 @@ type BoltDB struct {
 
 func NewBoltDB(cacheDir string) (BoltDB, error) {
 	dir := filepath.Join(cacheDir, CacheDirName)
-	if err := os.MkdirAll(dir, 0600); err != nil {
-		return BoltDB{}, xerrors.Errorf("failed to create cache dir: %w", err)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return BoltDB{}, fmt.Errorf("failed to create cache dir: %v", err)
 	}
 
 	db, err := bolt.Open(filepath.Join(dir, "fanal.db"), 0600, &bolt.Options{
@@ -47,8 +46,15 @@ func NewBoltDB(cacheDir string) (BoltDB, error) {
 		NoFreelistSync: true,
 	})
 	if err != nil {
-		return BoltDB{}, xerrors.Errorf("unable to open DB: %w", err)
+		return BoltDB{}, fmt.Errorf("unable to open DB: %v", err)
 	}
+
+	err = db.Update(func(tx *bolt.Tx) error {
+		if _, err := tx.CreateBucketIfNotExists([]byte(boltBucket)); err != nil {
+			return fmt.Errorf("unable to create %s bucket: %v", err)
+		}
+		return nil
+	})
 
 	return BoltDB{
 		db:        db,
@@ -57,10 +63,6 @@ func NewBoltDB(cacheDir string) (BoltDB, error) {
 }
 
 func (b BoltDB) Clear() error {
-	err := b.Close()
-	if err != nil {
-		return err
-	}
 	return os.RemoveAll(b.directory)
 }
 
@@ -74,7 +76,7 @@ func (b BoltDB) Delete(keys []string) ([][]byte, error) {
 	errs = append(errs, b.db.Update(func(tx *bolt.Tx) error {
 		bucket, err := tx.CreateBucketIfNotExists([]byte(boltBucket))
 		if err != nil {
-			return fmt.Errorf("bucket %s not found", boltBucket)
+			return err
 		}
 		for i, key := range keys {
 			v := bucket.Get([]byte(key))
@@ -91,8 +93,8 @@ func (b BoltDB) Delete(keys []string) ([][]byte, error) {
 func (b BoltDB) Get(key string) ([]byte, error) {
 	var res []byte
 	return res, b.db.View(func(tx *bolt.Tx) error {
-		bucket, err := tx.CreateBucketIfNotExists([]byte(boltBucket))
-		if err != nil {
+		bucket := tx.Bucket([]byte(boltBucket))
+		if bucket == nil {
 			return fmt.Errorf("bucket %s not found", boltBucket)
 		}
 		res = bucket.Get([]byte(key))
@@ -104,26 +106,19 @@ func (b BoltDB) Store(key string, value []byte) error {
 	return b.db.Update(func(tx *bolt.Tx) error {
 		bucket, err := tx.CreateBucketIfNotExists([]byte(boltBucket))
 		if err != nil {
-			return fmt.Errorf("bucket %s not found", boltBucket)
+			return err
 		}
-		if err := bucket.Put([]byte(key), value); err != nil {
-			return fmt.Errorf("failed to write value: %v", err)
-		}
-		return nil
+		return bucket.Put([]byte(key), value)
 	})
 }
 
 func (b BoltDB) ForEach(f func(string, []byte) error) error {
 	return b.db.View(func(tx *bolt.Tx) error {
-		bucket, err := tx.CreateBucketIfNotExists([]byte(boltBucket))
-		if err != nil {
+		bucket := tx.Bucket([]byte(boltBucket))
+		if bucket == nil {
 			return fmt.Errorf("bucket %s not found", boltBucket)
 		}
-
-		if err = bucket.ForEach(func(k []byte, v []byte) error { return f(string(k), v) }); err != nil {
-			return fmt.Errorf("foreach failed: %v", err)
-		}
-		return nil
+		return bucket.ForEach(func(k []byte, v []byte) error { return f(string(k), v) })
 	})
 }
 

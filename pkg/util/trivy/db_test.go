@@ -31,10 +31,13 @@ func TestBoltDB_Clear(t *testing.T) {
 	require.NoError(t, db.Store("key", []byte("value")))
 	require.NoError(t, db.Clear())
 
-	_, err = db.Get("key1")
-	require.Error(t, err)
+	value, err := db.Get("key1")
+	require.NoError(t, err)
+	require.Equal(t, []byte(nil), value)
 	require.NoError(t, db.Store("key", []byte("value")))
-	require.NoError(t, db.Store("key2", []byte("value2")))
+	value, err = db.Get("key")
+	require.NoError(t, err)
+	require.Equal(t, []byte("value"), value)
 }
 
 func TestBoltDB_StoreAndGet(t *testing.T) {
@@ -70,11 +73,15 @@ func TestBoltDB_Delete(t *testing.T) {
 
 	value1, err := db.Get("key1")
 	require.NoError(t, err)
-	require.Equal(t, value1, []byte("value1"))
+	require.Equal(t, []byte(nil), value1)
 
 	value2, err := db.Get("key2")
 	require.NoError(t, err)
-	require.Equal(t, value2, []byte("value2"))
+	require.Equal(t, []byte("value2"), value2)
+
+	value3, err := db.Get("key3")
+	require.NoError(t, err)
+	require.Equal(t, []byte(nil), value3)
 }
 
 func TestBoltDB_ForEach(t *testing.T) {

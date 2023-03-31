@@ -29,6 +29,7 @@ var telemetryTick = 1 * time.Minute
 
 const sizeOfKey = 32
 const maxCacheSize = 500
+const maxDiskSize = 100000000
 
 type CacheProvider func() (cache.Cache, error)
 
@@ -219,6 +220,7 @@ func NewPersistentCache(
 		lruCache:        lruCache,
 		db:              localDB,
 		currentDiskSize: currentSize,
+		maximumDiskSize: maxDiskSize,
 		maxCacheSize:    cacheSize,
 	}
 
@@ -300,7 +302,7 @@ func (c *PersistentCache) Close() error {
 }
 
 func (c *PersistentCache) Set(key string, value []byte) error {
-	if len(value) > int(c.maximumDiskSize) {
+	if len(value) > c.maximumDiskSize {
 		return fmt.Errorf("value of [%s] is too big for the cache : %d", key, c.maximumDiskSize)
 	}
 	c.mutex.Lock()

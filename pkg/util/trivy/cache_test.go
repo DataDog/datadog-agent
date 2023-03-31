@@ -9,7 +9,6 @@
 package trivy
 
 import (
-	"strconv"
 	"testing"
 	"time"
 
@@ -17,8 +16,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TTL needs to be long enough so that keys don't expire in the middle of a test
-var testCacheTTL = 1 * time.Hour
+func TestBoltCache_Artifacts(t *testing.T) {
+	cache, err := NewBoltCache(t.TempDir())
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, cache.Close())
+	}()
+
+	_, err = cache.GetArtifact("non-existing-ID")
+	require.Error(t, err)
+
+	artifactID := "some_ID"
+	artifactInfo := newTestArtifactInfo()
+
+	err = cache.PutArtifact(artifactID, artifactInfo)
+	require.NoError(t, err)
+
+	storedArtifact, err := cache.GetArtifact(artifactID)
+	require.NoError(t, err)
+	require.Equal(t, artifactInfo, storedArtifact)
+}
 
 func newTestArtifactInfo() types.ArtifactInfo {
 	return types.ArtifactInfo{

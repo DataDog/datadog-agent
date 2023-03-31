@@ -90,14 +90,6 @@ func DefaultCollectorConfig(enabledAnalyzers []string, cacheLocation string) Col
 }
 
 func cacheProvider(cacheLocation string, useBadgerDB bool) func() (cache.Cache, error) {
-	if useBadgerDB {
-		return func() (cache.Cache, error) {
-			return NewBadgerCache(cacheLocation, cacheTTL())
-		}
-	}
-
-	// Leaving this here for now, just in case Badger does not work well for us
-	// and we need to switch back to Bolt DB.
 	return func() (cache.Cache, error) {
 		return NewBoltCache(cacheLocation)
 	}
