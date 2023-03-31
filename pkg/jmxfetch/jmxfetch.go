@@ -280,6 +280,14 @@ func (j *JMXFetch) Start(manage bool) error {
 		subprocessArgs = append(subprocessArgs, "--statsd-nonblocking")
 	}
 
+	if bufSize := config.Datadog.GetInt("jmx_statsd_client_buffer_size"); bufSize != 0 {
+		subprocessArgs = append(subprocessArgs, "--statsd-client-buffer-size", fmt.Sprintf("%d", bufSize))
+	}
+
+	if socketTimeout := config.Datadog.GetInt("jmx_statsd_client_socket_timeout"); socketTimeout != 0 {
+		subprocessArgs = append(subprocessArgs, "--statsd-client-socket-timeout", fmt.Sprintf("%d", socketTimeout))
+	}
+
 	if config.Datadog.GetBool("log_format_rfc3339") {
 		subprocessArgs = append(subprocessArgs, "--log_format_rfc3339")
 	}
