@@ -13,7 +13,10 @@ import (
 	"strings"
 	"testing"
 
+	"go.uber.org/atomic"
+
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestDebuggerProxy(t *testing.T) {
@@ -47,7 +50,7 @@ func TestDebuggerProxy(t *testing.T) {
 	}
 	rec := httptest.NewRecorder()
 	c := &traceconfig.AgentConfig{}
-	newDebuggerProxy(c, u, "123", "key:val").ServeHTTP(rec, req)
+	newDebuggerProxy(c, []*url.URL{u}, []string{"123"}, "key:val").ServeHTTP(rec, req)
 	result := rec.Result()
 	slurp, err := io.ReadAll(result.Body)
 	result.Body.Close()
@@ -81,7 +84,7 @@ func TestDebuggerProxyHandler(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		conf := newTestReceiverConfig()
+		conf := getConf()
 		conf.Hostname = "myhost"
 		conf.DebuggerProxy.DDURL = srv.URL
 		receiver := newTestReceiverFromConfig(conf)
@@ -138,4 +141,108 @@ func TestDebuggerProxyHandler(t *testing.T) {
 			t.Fatalf("invalid message: %q", slurp)
 		}
 	})
+
+	t.Run("ok_additional_endpoints", func(t *testing.T) {
+		numEndpoints := 10
+		var numCalls atomic.Int32
+		conf := getConf()
+		for i := 0; i < numEndpoints; i++ {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				ddtags := req.URL.Query().Get("ddtags")
+				for _, tag := range []string{"host", "default_env", "agent_version"} {
+					if !strings.Contains(ddtags, tag) {
+						t.Fatalf("ddtags should contain %s", tag)
+					}
+				}
+				numCalls.Add(1)
+			}))
+			if i == 0 {
+				conf.DebuggerProxy.DDURL = srv.URL
+				continue
+			}
+			conf.DebuggerProxy.AdditionalEndpoints[srv.URL] = []string{"foo"}
+		}
+		req, err := http.NewRequest("POST", "/some/path", strings.NewReader("body"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		receiver := newTestReceiverFromConfig(conf)
+		receiver.debuggerProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
+		var expected atomic.Int32
+		expected.Store(int32(numEndpoints))
+		if numCalls != expected {
+			t.Fatalf("requests not proxied, expected %d calls, got %d", numEndpoints, numCalls)
+		}
+	})
+
+	t.Run("error_additional_endpoints_main_endpoint_error", func(t *testing.T) {
+		numEndpoints := 2
+		conf := getConf()
+		for i := 0; i < numEndpoints; i++ {
+			var srv *httptest.Server
+
+			if i == 0 {
+				srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+					w.WriteHeader(500)
+				}))
+				conf.DebuggerProxy.DDURL = srv.URL
+				continue
+			}
+
+			srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				w.WriteHeader(200)
+			}))
+			conf.DebuggerProxy.AdditionalEndpoints[srv.URL] = []string{"foo"}
+		}
+		req, err := http.NewRequest("POST", "/some/path", strings.NewReader("body"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		receiver := newTestReceiverFromConfig(conf)
+		recorder := httptest.NewRecorder()
+		receiver.debuggerProxyHandler().ServeHTTP(recorder, req)
+		result := recorder.Result()
+		result.Body.Close()
+		assert.Equal(t, 500, result.StatusCode)
+	})
+
+	t.Run("ok_additional_endpoints_main_endpoint_ok_additional_error", func(t *testing.T) {
+		numEndpoints := 10
+		conf := getConf()
+		for i := 0; i < numEndpoints; i++ {
+			var srv *httptest.Server
+
+			if i == 0 {
+				srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+					w.WriteHeader(200)
+				}))
+				conf.DebuggerProxy.DDURL = srv.URL
+				continue
+			}
+
+			srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				w.WriteHeader(500)
+			}))
+			conf.DebuggerProxy.AdditionalEndpoints[srv.URL] = []string{"foo"}
+		}
+		req, err := http.NewRequest("POST", "/some/path", strings.NewReader("body"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		receiver := newTestReceiverFromConfig(conf)
+		recorder := httptest.NewRecorder()
+		receiver.debuggerProxyHandler().ServeHTTP(recorder, req)
+		result := recorder.Result()
+		result.Body.Close()
+		assert.Equal(t, 200, result.StatusCode)
+	})
+}
+
+func getConf() *traceconfig.AgentConfig {
+	conf := newTestReceiverConfig()
+	conf.DebuggerProxy.AdditionalEndpoints = make(map[string][]string)
+	conf.DefaultEnv = "test"
+	conf.Hostname = "myhost"
+	conf.AgentVersion = "v1"
+	return conf
 }

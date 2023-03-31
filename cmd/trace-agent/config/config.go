@@ -414,6 +414,9 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	if k := "apm_config.debugger_api_key"; coreconfig.Datadog.IsSet(k) {
 		c.DebuggerProxy.APIKey = coreconfig.Datadog.GetString(k)
 	}
+	if k := "apm_config.debugger_additional_endpoints"; coreconfig.Datadog.IsSet(k) {
+		c.DebuggerProxy.AdditionalEndpoints = coreconfig.Datadog.GetStringMapStringSlice(k)
+	}
 	if k := "evp_proxy_config.enabled"; coreconfig.Datadog.IsSet(k) {
 		c.EVPProxy.Enabled = coreconfig.Datadog.GetBool(k)
 	}
