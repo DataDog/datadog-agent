@@ -63,7 +63,7 @@ func runWithComponentAndConfig(t testing.TB, overrides map[string]interface{}, t
 	fxutil.Test(t, fx.Options(
 		core.MockBundle,
 		serverDebug.MockModule,
-		fx.Supply(core.BundleParams{ConfigParams: configComponent.NewParams("", configComponent.WithOverrides(overrides))}),
+		fx.Replace(configComponent.MockParams{Overrides: overrides}),
 		fx.Supply(Params{Serverless: false}),
 		replay.MockModule,
 		Module,
