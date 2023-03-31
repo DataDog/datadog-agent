@@ -191,7 +191,6 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`process.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
-| [`process.ancestors.cookie`](#common-process-cookie-doc) | Cookie of the process |
 | [`process.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`process.ancestors.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -262,7 +261,6 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`process.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.container.id`](#common-process-container-id-doc) | Container ID |
-| [`process.cookie`](#common-process-cookie-doc) | Cookie of the process |
 | [`process.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`process.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -327,7 +325,6 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`process.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.parent.container.id`](#common-process-container-id-doc) | Container ID |
-| [`process.parent.cookie`](#common-process-cookie-doc) | Cookie of the process |
 | [`process.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`process.parent.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -523,7 +520,6 @@ A process was executed or forked
 | [`exec.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`exec.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`exec.container.id`](#common-process-container-id-doc) | Container ID |
-| [`exec.cookie`](#common-process-cookie-doc) | Cookie of the process |
 | [`exec.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`exec.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`exec.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -603,7 +599,6 @@ A process was terminated
 | [`exit.code`](#exit-code-doc) | Exit code of the process or number of the signal that caused the process to terminate |
 | [`exit.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`exit.container.id`](#common-process-container-id-doc) | Container ID |
-| [`exit.cookie`](#common-process-cookie-doc) | Cookie of the process |
 | [`exit.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`exit.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`exit.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -868,7 +863,6 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`ptrace.tracee.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
-| [`ptrace.tracee.ancestors.cookie`](#common-process-cookie-doc) | Cookie of the process |
 | [`ptrace.tracee.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`ptrace.tracee.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`ptrace.tracee.ancestors.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -939,7 +933,6 @@ A ptrace command was executed
 | [`ptrace.tracee.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`ptrace.tracee.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.container.id`](#common-process-container-id-doc) | Container ID |
-| [`ptrace.tracee.cookie`](#common-process-cookie-doc) | Cookie of the process |
 | [`ptrace.tracee.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`ptrace.tracee.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`ptrace.tracee.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -1004,7 +997,6 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`ptrace.tracee.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.parent.container.id`](#common-process-container-id-doc) | Container ID |
-| [`ptrace.tracee.parent.cookie`](#common-process-cookie-doc) | Cookie of the process |
 | [`ptrace.tracee.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`ptrace.tracee.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`ptrace.tracee.parent.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -1258,7 +1250,6 @@ A signal was sent
 | [`signal.target.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`signal.target.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
-| [`signal.target.ancestors.cookie`](#common-process-cookie-doc) | Cookie of the process |
 | [`signal.target.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`signal.target.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`signal.target.ancestors.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -1329,7 +1320,6 @@ A signal was sent
 | [`signal.target.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`signal.target.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.container.id`](#common-process-container-id-doc) | Container ID |
-| [`signal.target.cookie`](#common-process-cookie-doc) | Cookie of the process |
 | [`signal.target.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`signal.target.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`signal.target.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -1394,7 +1384,6 @@ A signal was sent
 | [`signal.target.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`signal.target.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.parent.container.id`](#common-process-container-id-doc) | Container ID |
-| [`signal.target.parent.cookie`](#common-process-cookie-doc) | Cookie of the process |
 | [`signal.target.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`signal.target.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`signal.target.parent.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -1706,15 +1695,6 @@ Type: string
 Definition: Container ID
 
 `*.container.id` has 11 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
-
-
-### `*.cookie` {#common-process-cookie-doc}
-Type: int
-
-Definition: Cookie of the process
-
-`*.cookie` has 11 possible prefixes:
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
