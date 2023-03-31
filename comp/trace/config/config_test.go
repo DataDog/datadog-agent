@@ -32,18 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// func TestMain(m *testing.M) {
-// 	seelog.UseLogger(seelog.Disabled)
-// 	os.Exit(m.Run())
-// }
-
-// func cleanConfig() func() {
-// 	oldConfig := coreconfig.Datadog
-// 	coreconfig.Datadog = coreconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-// 	coreconfig.InitConfig(coreconfig.Datadog)
-// 	return func() { coreconfig.Datadog = oldConfig }
-// }
-
 // TestParseReplaceRules tests the compileReplaceRules helper function.
 func TestParseRepaceRules(t *testing.T) {
 	assert := assert.New(t)
