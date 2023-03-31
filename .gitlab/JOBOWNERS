@@ -69,5 +69,5 @@ k8s-e2e-cws-*                     @DataDog/agent-security
 k8s-e2e-cspm-*                    @DataDog/agent-security
 
 # Kernel version testing
-package_dependencies*                          @DataDog/ebpf-platform
-kernel_matrix_testing*                         @DataDog/ebpf-platform
+package_dependencies*             @DataDog/ebpf-platform
+kernel_matrix_testing*            @DataDog/ebpf-platform
