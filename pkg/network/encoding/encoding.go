@@ -84,7 +84,7 @@ func modelConnections(conns *network.Connections) *model.Connections {
 
 	if httpEncoder != nil && httpEncoder.orphanEntries > 0 {
 		log.Debugf(
-			"detected orphan http aggreggations. this can be either caused by conntrack sampling or missed tcp close events. count=%d",
+			"detected orphan http aggregations. this can be either caused by conntrack sampling or missed tcp close events. count=%d",
 			httpEncoder.orphanEntries,
 		)
 
@@ -94,6 +94,34 @@ func modelConnections(conns *network.Connections) *model.Connections {
 			telemetry.OptExpvar,
 			telemetry.OptStatsd,
 		).Add(int64(httpEncoder.orphanEntries))
+	}
+
+	if http2Encoder != nil && http2Encoder.orphanEntries > 0 {
+		log.Debugf(
+			"detected orphan http2 aggregations. this can be either caused by conntrack sampling or missed tcp close events. count=%d",
+			http2Encoder.orphanEntries,
+		)
+
+		telemetry.NewMetric(
+			"usm.http2.orphan_aggregations",
+			telemetry.OptMonotonic,
+			telemetry.OptExpvar,
+			telemetry.OptStatsd,
+		).Add(int64(http2Encoder.orphanEntries))
+	}
+
+	if kafkaEncoder != nil && kafkaEncoder.orphanEntries > 0 {
+		log.Debugf(
+			"detected orphan kafka aggregations. this can be either caused by conntrack sampling or missed tcp close events. count=%d",
+			kafkaEncoder.orphanEntries,
+		)
+
+		telemetry.NewMetric(
+			"usm.kafka.orphan_aggregations",
+			telemetry.OptMonotonic,
+			telemetry.OptExpvar,
+			telemetry.OptStatsd,
+		).Add(int64(kafkaEncoder.orphanEntries))
 	}
 
 	routes := make([]*model.Route, len(routeIndex))

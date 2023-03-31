@@ -50,6 +50,10 @@ namespace WixSetup.Datadog
 
         public static MinimumSupportedWindowsVersion Windows8            = new("Windows 8",              602,  9200, Client);
         public static MinimumSupportedWindowsVersion Windows8_1          = new("Windows 8.1",            603,  9600, Client);
+        // Windows 10 RTM (1507) shipped with 10240, so it's safe to assume anything above 10000 is Windows 10.
+        public static MinimumSupportedWindowsVersion Windows10           = new("Windows 10",             603, 10000, Client);
+        // Official first publicly available preview of Windows 11 bore the build number 22000.51, so assume anything
+        // above 22000 is Windows 11.
         public static MinimumSupportedWindowsVersion Windows11           = new("Windows 11",             603, 22000, Client);
 
         public void Process(ProcessingContext context)

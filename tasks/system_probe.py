@@ -1456,3 +1456,32 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
         output_path = image.translate(str.maketrans('', '', string.punctuation))
         ctx.run(f"docker pull --platform linux/{arch} {image}")
         ctx.run(f"docker save {image} > {os.path.join(output_dir, output_path)}.tar")
+
+
+@task
+def test_microvms(
+    ctx,
+    security_groups=None,
+    subnets=None,
+    instance_type_x86=None,
+    instance_type_arm=None,
+    x86_ami_id=None,
+    arm_ami_id=None,
+    destroy=False,
+    upload_dependencies=False,
+):
+    args = [
+        f"--sgs {security_groups}" if security_groups is not None else "",
+        f"--subnets {subnets}" if subnets is not None else "",
+        f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 is not None else "",
+        f"--instance-type-arm {instance_type_arm}" if instance_type_arm is not None else "",
+        f"--x86-ami-id {x86_ami_id}" if x86_ami_id is not None else "",
+        f"--arm-ami-id {arm_ami_id}" if arm_ami_id is not None else "",
+        "--destroy" if destroy else "",
+        "--upload-dependencies" if upload_dependencies else "",
+    ]
+
+    go_args = ' '.join(filter(lambda x: x != "", args))
+    ctx.run(
+        f"cd ./test/new-e2e && go run ./scenarios/system-probe/main.go --name usama-saqib-test {go_args} --shutdown-period 720",
+    )
