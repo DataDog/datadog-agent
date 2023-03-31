@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package run
+package command
 
 import (
 	"testing"
@@ -14,20 +14,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestStartCommand(t *testing.T) {
+func TestRootCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		[]*cobra.Command{MakeCommand(func() *subcommands.GlobalParams {
-			return &subcommands.GlobalParams{
-				ConfPath: "PATH",
-			}
-
-		})},
-		[]string{"run", "--cpu-profile", "/foo", "--mem-profile", "/bar", "--pidfile", "/var/run/quz.pid"},
-		Start,
-		func(cliParams *RunParams) {
+		[]*cobra.Command{MakeRootCommand("foo")},
+		[]string{"--config", "PATH"},
+		test,
+		func(cliParams *subcommands.GlobalParams) {
 			require.Equal(t, "PATH", cliParams.ConfPath)
-			require.Equal(t, "/foo", cliParams.CPUProfile)
-			require.Equal(t, "/bar", cliParams.MemProfile)
-			require.Equal(t, "/var/run/quz.pid", cliParams.PIDFilePath)
 		})
+}
+
+func test(cliParams *subcommands.GlobalParams) error {
+	return nil
 }

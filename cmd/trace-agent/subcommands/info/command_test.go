@@ -17,11 +17,10 @@ func TestInfoCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		[]*cobra.Command{MakeCommand(func() *subcommands.GlobalParams {
 			return &subcommands.GlobalParams{}
-
 		})},
-		[]string{"info", "--config", "PATH"},
+		[]string{"info"},
 		agentInfo,
 		func() {
-			// ?
+			// No errors is good enough
 		})
 }
