@@ -7,18 +7,19 @@ package config
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/yaml.v3"
 )
 
 // InitConfig is used to deserialize integration init config.
 type InitConfig struct {
-	GlobalCustomQueries   []MetricConfig `yaml:"global_custom_metrics"`
-	Service               string         `yaml:"service"`
-	MinCollectionInterval int            `yaml:"min_collection_interval"`
+	MinCollectionInterval int `yaml:"min_collection_interval"`
 }
 
 // InstanceConfig is used to deserialize integration instance config.
@@ -26,7 +27,6 @@ type InstanceConfig struct {
 	Server                 string              `yaml:"server"`
 	Port                   int                 `yaml:"port"`
 	ServiceName            string              `yaml:"service_name"`
-	Protocol               string              `yaml:"protocol"`
 	Username               string              `yaml:"username"`
 	Password               string              `yaml:"password"`
 	TnsAlias               string              `yaml:"tns_alias"`
@@ -35,7 +35,7 @@ type InstanceConfig struct {
 	Tags                   []string            `yaml:"tags"`
 	LogUnobfuscatedQueries bool                `yaml:"log_unobfuscated_queries"`
 	ObfuscatorOptions      obfuscate.SQLConfig `yaml:"obfuscator_options"`
-	UseGodrorWithEZConnect bool                `yaml:"use_godror_with_ezconnect"`
+	InstantClient          bool                `yaml:"instant_client"`
 	ReportedHostname       string              `yaml:"reported_hostname"`
 	QueryMetrics           bool                `yaml:"query_metrics"`
 }
@@ -49,12 +49,10 @@ type CheckConfig struct {
 // ToString returns a string representation of the CheckConfig without sensitive information.
 func (c *CheckConfig) String() string {
 	return fmt.Sprintf(`CheckConfig:
-GlobalCustomQueries: '%+v'
-Service: '%s'
 Server: '%s'
 ServiceName: '%s'
-Protocol: '%s'
-`, c.GlobalCustomQueries, c.Service, c.Server, c.ServiceName, c.Protocol)
+Port: '%d'
+`, c.Server, c.ServiceName, c.Port)
 }
 
 // NewCheckConfig builds a new check config.
@@ -74,10 +72,28 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		return nil, err
 	}
 
+	serverSlice := strings.Split(instance.Server, ":")
+	instance.Server = serverSlice[0]
+
+	if instance.Port == 0 {
+		if len(serverSlice) > 1 {
+			port, err := strconv.Atoi(serverSlice[1])
+			if err == nil {
+				instance.Port = port
+			} else {
+				return nil, fmt.Errorf("Cannot extract port from server %w", err)
+			}
+		} else {
+			instance.Port = 1521
+		}
+	}
+
 	c := &CheckConfig{
 		InstanceConfig: instance,
 		InitConfig:     initCfg,
 	}
+
+	log.Debugf("Oracle config: %s", c.String())
 
 	return c, nil
 }
