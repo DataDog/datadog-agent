@@ -575,7 +575,7 @@ api_key:
 ## @param observability_pipelines_worker - custom object - optional
 ## Configuration for forwarding telemetry to an Observability Pipelines Worker instead of Datadog.
 ## https://www.datadoghq.com/product/observability-pipelines/
-## Note: this config is interchangeable with `vector`
+## Note: This config is interchangeable with `vector`
 #
 # observability_pipelines_worker:
 
