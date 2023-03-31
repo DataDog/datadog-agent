@@ -1226,11 +1226,18 @@ api_key:
   ## @env DD_APM_COMPUTE_STATS_BY_SPAN_KIND - bool - default: false
   ## Enables an additional stats computation check on spans to see they have an eligible `span.kind` (server, consumer, client, producer).
   ## If enabled, a span with an eligible `span.kind` will have stats computed. If disabled, only top-level and measured spans will have stats computed.
+  ## NOTE: For stats computed from OTel traces, only top-level spans are considered when this option is off.
+  ## If you are sending OTel traces and want stats on non-top-level spans, this flag will need to be enabled.
   # compute_stats_by_span_kind: false
 
   ## @param peer_service_aggregation - bool - default: false
   ## @env DD_APM_PEER_SERVICE_AGGREGATION - bool - default: false
-  ## Enables peer.service aggregation in the agent. If disabled, aggregated trace stats will not include peer.service as a dimension.
+  ## Enables `peer.service` aggregation in the agent. If disabled, aggregated trace stats will not include `peer.service` as a dimension.
+  ## For the best experience with `peer.service`, it is recommended to also enable `compute_stats_by_span_kind`.
+  ## If enabling both causes the Agent to consume too many resources, try disabling `compute_stats_by_span_kind` first.
+  ## If the overhead remains high, it will be due to a high cardinality of `peer.service` values from the traces. You may need to check your instrumentation.
+  ## NOTE: If you are using an OTel tracer it's best to have both enabled because client/producer spans with a `peer.service` value
+  ## may not be marked by the Agent as top-level spans.
   # peer_service_aggregation: false
 
   ## @param features - list of strings - optional
