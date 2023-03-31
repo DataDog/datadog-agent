@@ -36,10 +36,6 @@ func easyjsonF0077844DecodeGithubComDataDogDatadogAgentPkgSecurityModule(in *jle
 			continue
 		}
 		switch key {
-		case "date":
-			if data := in.Raw(); in.Ok() {
-				in.AddError((out.Timestamp).UnmarshalJSON(data))
-			}
 		case "succeeded_tests":
 			if in.IsNull() {
 				in.Skip()
@@ -86,6 +82,12 @@ func easyjsonF0077844DecodeGithubComDataDogDatadogAgentPkgSecurityModule(in *jle
 				}
 				in.Delim(']')
 			}
+		case "date":
+			if data := in.Raw(); in.Ok() {
+				in.AddError((out.Timestamp).UnmarshalJSON(data))
+			}
+		case "service":
+			out.Service = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -101,13 +103,8 @@ func easyjsonF0077844EncodeGithubComDataDogDatadogAgentPkgSecurityModule(out *jw
 	first := true
 	_ = first
 	{
-		const prefix string = ",\"date\":"
-		out.RawString(prefix[1:])
-		out.Raw((in.Timestamp).MarshalJSON())
-	}
-	{
 		const prefix string = ",\"succeeded_tests\":"
-		out.RawString(prefix)
+		out.RawString(prefix[1:])
 		if in.Success == nil && (out.Flags&jwriter.NilSliceAsEmpty) == 0 {
 			out.RawString("null")
 		} else {
@@ -136,6 +133,16 @@ func easyjsonF0077844EncodeGithubComDataDogDatadogAgentPkgSecurityModule(out *jw
 			}
 			out.RawByte(']')
 		}
+	}
+	{
+		const prefix string = ",\"date\":"
+		out.RawString(prefix)
+		out.Raw((in.Timestamp).MarshalJSON())
+	}
+	{
+		const prefix string = ",\"service\":"
+		out.RawString(prefix)
+		out.String(string(in.Service))
 	}
 	out.RawByte('}')
 }
