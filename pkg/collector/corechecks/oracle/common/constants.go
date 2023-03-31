@@ -8,3 +8,6 @@ package common
 // IntegrationName is the name of the integration.
 const IntegrationName = "oracle"
 const IntegrationNameScheduler = "oracle-dbm"
+
+const Godror = "godror"
+const GoOra = "oracle"

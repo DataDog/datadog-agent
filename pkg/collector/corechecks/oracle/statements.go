@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/jmoiron/sqlx"
@@ -59,13 +60,14 @@ const STATEMENT_METRICS_QUERY = `SELECT
 FROM v$sqlstats s, v$containers c
 WHERE 
 	s.con_id = c.con_id(+)
-	AND %s IN (?) %s
+	AND %s IN (%s) %s
 GROUP BY c.name, %s, plan_hash_value`
 
 type StatementMetricsKeyDB struct {
-	PDBName                string `db:"PDB_NAME"`
-	SQLID                  string `db:"SQL_ID"`
-	ForceMatchingSignature uint64 `db:"FORCE_MATCHING_SIGNATURE"`
+	PDBName string `db:"PDB_NAME"`
+	SQLID   string `db:"SQL_ID"`
+	//ForceMatchingSignature uint64 `db:"FORCE_MATCHING_SIGNATURE"`
+	ForceMatchingSignature string `db:"FORCE_MATCHING_SIGNATURE"`
 	PlanHashValue          uint64 `db:"PLAN_HASH_VALUE"`
 }
 
@@ -192,23 +194,57 @@ type MetricsPayload struct {
 	OracleVersion string      `json:"oracle_version,omitempty"`
 }
 
-func ConstructStatementMetricsQueryBlock(sqlHandleColumn string, whereClause string) string {
-	return fmt.Sprintf(STATEMENT_METRICS_QUERY, sqlHandleColumn, sqlHandleColumn, whereClause, sqlHandleColumn)
+func ConstructStatementMetricsQueryBlock(sqlHandleColumn string, whereClause string, bindPlaceholder string) string {
+	return fmt.Sprintf(STATEMENT_METRICS_QUERY, sqlHandleColumn, sqlHandleColumn, bindPlaceholder, whereClause, sqlHandleColumn)
 }
 
-func GetStatementsMetricsForKeys[K comparable](db *sqlx.DB, keyName string, whereClause string, keys map[K]int) ([]StatementMetricsDB, error) {
+// func GetStatementsMetricsForKeys[K comparable](db *sqlx.DB, keyName string, whereClause string, keys map[K]int) ([]StatementMetricsDB, error) {
+func GetStatementsMetricsForKeys[K comparable](c *Check, keyName string, whereClause string, keys map[K]int) ([]StatementMetricsDB, error) {
 	if len(keys) != 0 {
-		var statementMetrics []StatementMetricsDB
-		statements_metrics_query := ConstructStatementMetricsQueryBlock(keyName, whereClause)
+		db := c.db
+		driver := c.driver
+		var bindPlaceholder string
 		keysSlice := maps.Keys(keys)
-		log.Tracef("Statements query metrics keys %s: %+v", keyName, keysSlice)
-		query, args, err := sqlx.In(statements_metrics_query, keysSlice)
-		if err != nil {
-			return nil, fmt.Errorf("error preparing statement metrics query: %w %s", err, statements_metrics_query)
+
+		if driver == common.Godror {
+			bindPlaceholder = "?"
+		} else if driver == common.GoOra {
+			// workaround for https://github.com/jmoiron/sqlx/issues/854
+			for i := range keysSlice {
+				if i > 0 {
+					bindPlaceholder = bindPlaceholder + ","
+				}
+				bindPlaceholder = fmt.Sprintf("%s:%d", bindPlaceholder, i+1)
+			}
+		} else {
+			return nil, fmt.Errorf("statements wrong driver %s", driver)
 		}
-		err = db.Select(&statementMetrics, db.Rebind(query), args...)
-		if err != nil {
-			return nil, fmt.Errorf("error executing statement metrics query: %w %s", err, statements_metrics_query)
+
+		var statementMetrics []StatementMetricsDB
+		statements_metrics_query := ConstructStatementMetricsQueryBlock(keyName, whereClause, bindPlaceholder)
+
+		log.Tracef("Statements query metrics keys %s: %+v", keyName, keysSlice)
+
+		if driver == common.Godror {
+			query, args, err := sqlx.In(statements_metrics_query, keysSlice)
+			if err != nil {
+				return nil, fmt.Errorf("error preparing statement metrics query: %w %s", err, statements_metrics_query)
+			}
+			err = db.Select(&statementMetrics, db.Rebind(query), args...)
+			if err != nil {
+				return nil, fmt.Errorf("error executing statement metrics query: %w %s", err, statements_metrics_query)
+			}
+		} else if driver == common.GoOra {
+			// workaround for https://github.com/jmoiron/sqlx/issues/854
+			convertedSlice := make([]any, len(keysSlice))
+			for i := range keysSlice {
+				convertedSlice[i] = K(keysSlice[i])
+			}
+			fmt.Printf("converted slice %+v \n", convertedSlice)
+			err := db.Select(&statementMetrics, statements_metrics_query, convertedSlice...)
+			if err != nil {
+				return nil, fmt.Errorf("error executing statement metrics query: %w %s", err, statements_metrics_query)
+			}
 		}
 		return statementMetrics, nil
 	}
@@ -222,35 +258,37 @@ func (c *Check) copyToPreviousMap(newMap map[StatementMetricsKeyDB]StatementMetr
 	}
 }
 
-func (c *Check) StatementMetrics() error {
+func (c *Check) StatementMetrics() (int, error) {
 	start := time.Now()
 	sender, err := c.GetSender()
 	if err != nil {
 		log.Errorf("GetSender statements metrics")
-		return err
+		return 0, err
 	}
 
 	SQLTextErrors := 0
+	SQLCount := 0
 	var oracleRows []OracleRow
 	if c.config.QueryMetrics {
-		statementMetrics, err := GetStatementsMetricsForKeys(c.db, "force_matching_signature", "AND force_matching_signature != 0", c.statementsFilter.ForceMatchingSignatures)
+		statementMetrics, err := GetStatementsMetricsForKeys(c, "force_matching_signature", "AND force_matching_signature != 0", c.statementsFilter.ForceMatchingSignatures)
 		if err != nil {
-			return fmt.Errorf("error collecting statement metrics for force_matching_signature: %w", err)
+			return 0, fmt.Errorf("error collecting statement metrics for force_matching_signature: %w", err)
 		}
+		log.Tracef("number of collected metrics with force_matching_signature %+v", len(statementMetrics))
 		statementMetricsAll := statementMetrics
-		statementMetrics, err = GetStatementsMetricsForKeys(c.db, "sql_id", " ", c.statementsFilter.SQLIDs)
+		statementMetrics, err = GetStatementsMetricsForKeys(c, "sql_id", " ", c.statementsFilter.SQLIDs)
 		if err != nil {
-			return fmt.Errorf("error collecting statement metrics for SQL_IDs: %w", err)
+			return 0, fmt.Errorf("error collecting statement metrics for SQL_IDs: %w", err)
 		}
 		statementMetricsAll = append(statementMetricsAll, statementMetrics...)
-		log.Tracef("colleced keys: %+v", statementMetricsAll)
-		SQLCount := len(statementMetricsAll)
+		log.Tracef("all collected metrics: %+v", statementMetricsAll)
+		SQLCount = len(statementMetricsAll)
 		sender.Count("dd.oracle.statements_metrics.sql_count", float64(SQLCount), c.hostname, c.tags)
 
 		newCache := make(map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB)
 		if c.statementMetricsMonotonicCountsPrevious == nil {
 			c.copyToPreviousMap(newCache)
-			return nil
+			return 0, nil
 		}
 
 		o := obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})
@@ -362,7 +400,8 @@ func (c *Check) StatementMetrics() error {
 			}
 
 			var queryHashCol string
-			if statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature == 0 {
+			//if statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature == 0 {
+			if statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature == "" {
 				queryHashCol = "sql_id"
 			} else {
 				queryHashCol = "force_matching_signature"
@@ -403,7 +442,8 @@ func (c *Check) StatementMetrics() error {
 
 			var queryHash string
 			if queryHashCol == "force_matching_signature" {
-				queryHash = strconv.FormatUint(statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature, 10)
+				//queryHash = strconv.FormatUint(statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature, 10)
+				queryHash = statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature
 			} else {
 				queryHash = statementMetricRow.StatementMetricsKeyDB.SQLID
 			}
@@ -449,7 +489,7 @@ func (c *Check) StatementMetrics() error {
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		log.Errorf("Error marshalling query metrics payload: %s", err)
-		return err
+		return 0, err
 	}
 
 	log.Tracef("Query metrics payload %s", strings.ReplaceAll(string(payloadBytes), "@", "XX"))
@@ -459,5 +499,5 @@ func (c *Check) StatementMetrics() error {
 	sender.Gauge("dd.oracle.statements_metrics.time_ms", float64(time.Since(start).Milliseconds()), c.hostname, c.tags)
 	sender.Commit()
 
-	return nil
+	return SQLCount, nil
 }

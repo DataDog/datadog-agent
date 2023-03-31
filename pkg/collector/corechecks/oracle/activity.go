@@ -107,19 +107,20 @@ type Metadata struct {
 }
 
 type OracleActivityRow struct {
-	Now                    string `json:"now"`
-	SessionID              uint64 `json:"sid,omitempty"`
-	SessionSerial          uint64 `json:"serial,omitempty"`
-	User                   string `json:"user,omitempty"`
-	Status                 string `json:"status"`
-	OsUser                 string `json:"os_user,omitempty"`
-	Process                string `json:"process,omitempty"`
-	Client                 string `json:"client,omitempty"`
-	Port                   uint64 `json:"port,omitempty"`
-	Program                string `json:"program,omitempty"`
-	Type                   string `json:"type,omitempty"`
-	SQLID                  string `json:"sql_id,omitempty"`
-	ForceMatchingSignature uint64 `json:"force_matching_signature,omitempty"`
+	Now           string `json:"now"`
+	SessionID     uint64 `json:"sid,omitempty"`
+	SessionSerial uint64 `json:"serial,omitempty"`
+	User          string `json:"user,omitempty"`
+	Status        string `json:"status"`
+	OsUser        string `json:"os_user,omitempty"`
+	Process       string `json:"process,omitempty"`
+	Client        string `json:"client,omitempty"`
+	Port          uint64 `json:"port,omitempty"`
+	Program       string `json:"program,omitempty"`
+	Type          string `json:"type,omitempty"`
+	SQLID         string `json:"sql_id,omitempty"`
+	//ForceMatchingSignature uint64 `json:"force_matching_signature,omitempty"`
+	ForceMatchingSignature string `json:"force_matching_signature,omitempty"`
 	SQLPlanHashValue       uint64 `json:"sql_plan_hash_value,omitempty"`
 	SQLExecStart           string `json:"sql_exec_start,omitempty"`
 	Module                 string `json:"module,omitempty"`
@@ -142,19 +143,20 @@ type OracleActivityRow struct {
 }
 
 type OracleActivityRowDB struct {
-	Now                    string         `db:"NOW"`
-	SessionID              uint64         `db:"SID"`
-	SessionSerial          uint64         `db:"SERIAL#"`
-	User                   sql.NullString `db:"USERNAME"`
-	Status                 string         `db:"STATUS"`
-	OsUser                 sql.NullString `db:"OSUSER"`
-	Process                sql.NullString `db:"PROCESS"`
-	Client                 sql.NullString `db:"MACHINE"`
-	Port                   sql.NullInt64  `db:"PORT"`
-	Program                sql.NullString `db:"PROGRAM"`
-	Type                   sql.NullString `db:"TYPE"`
-	SQLID                  sql.NullString `db:"SQL_ID"`
-	ForceMatchingSignature *uint64        `db:"FORCE_MATCHING_SIGNATURE"`
+	Now           string         `db:"NOW"`
+	SessionID     uint64         `db:"SID"`
+	SessionSerial uint64         `db:"SERIAL#"`
+	User          sql.NullString `db:"USERNAME"`
+	Status        string         `db:"STATUS"`
+	OsUser        sql.NullString `db:"OSUSER"`
+	Process       sql.NullString `db:"PROCESS"`
+	Client        sql.NullString `db:"MACHINE"`
+	Port          sql.NullInt64  `db:"PORT"`
+	Program       sql.NullString `db:"PROGRAM"`
+	Type          sql.NullString `db:"TYPE"`
+	SQLID         sql.NullString `db:"SQL_ID"`
+	//ForceMatchingSignature *uint64        `db:"FORCE_MATCHING_SIGNATURE"`
+	ForceMatchingSignature *string        `db:"FORCE_MATCHING_SIGNATURE"`
 	SQLPlanHashValue       *uint64        `db:"SQL_PLAN_HASH_VALUE"`
 	SQLExecStart           sql.NullString `db:"SQL_EXEC_START"`
 	Module                 sql.NullString `db:"MODULE"`
@@ -184,7 +186,8 @@ func (c *Check) SampleSession() error {
 		return fmt.Errorf("failed to collect session sampling activity: %w", err)
 	}
 
-	forceMatchingSignatures := make(map[uint64]int)
+	//forceMatchingSignatures := make(map[uint64]int)
+	forceMatchingSignatures := make(map[string]int)
 	SQLIDs := make(map[string]int)
 
 	o := obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})
@@ -223,11 +226,13 @@ func (c *Check) SampleSession() error {
 		if sample.ForceMatchingSignature != nil {
 			sessionRow.ForceMatchingSignature = *sample.ForceMatchingSignature
 			forceMatchingSignatures[sessionRow.ForceMatchingSignature] = 1
-			if sessionRow.ForceMatchingSignature == 0 && sample.SQLID.Valid {
+			//if sessionRow.ForceMatchingSignature == 0 && sample.SQLID.Valid {
+			if sessionRow.ForceMatchingSignature == "" && sample.SQLID.Valid {
 				SQLIDs[sessionRow.SQLID] = 1
 			}
 		} else {
-			sessionRow.ForceMatchingSignature = 0
+			//sessionRow.ForceMatchingSignature = 0
+			sessionRow.ForceMatchingSignature = ""
 		}
 		if sample.SQLPlanHashValue != nil {
 			sessionRow.SQLPlanHashValue = *sample.SQLPlanHashValue
