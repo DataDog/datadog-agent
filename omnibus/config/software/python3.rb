@@ -68,7 +68,7 @@ if ohai["platform"] != "windows"
   end
 
 else
-  default_version "3.8.16-2609a9b"
+  default_version "3.9.16-3ec1f3d"
   dependency "vc_redist_14"
 
   if windows_arch_i386?
