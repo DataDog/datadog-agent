@@ -25,9 +25,7 @@ import (
 
 const kProbeTelemetryName = "ebpf__kprobes"
 
-var (
-	myPid int
-)
+var myPid int
 
 var debugfsStats = struct {
 	hits   telemetry.Counter
