@@ -16,11 +16,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/gopsutil/process"
 	"github.com/vishvananda/netlink"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/gopsutil/process"
 )
 
 const (
@@ -47,9 +48,9 @@ var (
 type ProcessMonitor struct {
 	m        sync.Mutex
 	wg       sync.WaitGroup
-	refcount int
+	refcount *atomic.Int32
 
-	isInitialized bool
+	isInitialized *atomic.Bool
 
 	// chan push done by vishvananda/netlink library
 	events chan netlink.ProcEvent
@@ -121,10 +122,11 @@ type ProcessCallback struct {
 func GetProcessMonitor() *ProcessMonitor {
 	once.Do(func() {
 		processMonitor = &ProcessMonitor{
-			isInitialized:      false,
 			procEventCallbacks: make(map[ProcessEventType][]*ProcessCallback),
 			runningPids:        make(map[uint32]interface{}),
 		}
+		processMonitor.refcount = atomic.NewInt32(0)
+		processMonitor.isInitialized = atomic.NewBool(false)
 	})
 
 	return processMonitor
@@ -199,12 +201,13 @@ func (pm *ProcessMonitor) evalEXITCallback(c *ProcessCallback, pid uint32) {
 	}
 }
 
-// terminateProcessMonitor is a helper function of Initialize. The goal is to make sure we properly terminate our
-// go-routine.
-func (pm *ProcessMonitor) terminateProcessMonitor() {
-	log.Info("netlink process monitor ended")
-	pm.wg.Done()
-	close(pm.callbackRunner)
+func (pm *ProcessMonitor) closeDone() {
+	pm.m.Lock()
+	if pm.done != nil {
+		close(pm.done)
+		pm.done = nil
+	}
+	pm.m.Unlock()
 }
 
 // Initialize will scan all running processes and execute matching callbacks
@@ -213,8 +216,8 @@ func (pm *ProcessMonitor) Initialize() error {
 	pm.m.Lock()
 	defer pm.m.Unlock()
 
-	pm.refcount++
-	if pm.isInitialized {
+	pm.refcount.Inc()
+	if pm.isInitialized.Load() {
 		return nil
 	}
 
@@ -249,12 +252,12 @@ func (pm *ProcessMonitor) Initialize() error {
 	go func() {
 		logTicker := time.NewTicker(2 * time.Minute)
 
-		terminated := false
 		defer func() {
-			if !terminated {
-				pm.terminateProcessMonitor()
-			}
 			logTicker.Stop()
+			close(pm.callbackRunner)
+			pm.isInitialized.Store(false)
+			pm.wg.Done()
+			log.Info("netlink process monitor ended")
 		}()
 
 		for {
@@ -263,14 +266,14 @@ func (pm *ProcessMonitor) Initialize() error {
 				return
 			case event, ok := <-pm.events:
 				if !ok {
+					pm.closeDone()
 					return
 				}
-				pm.m.Lock()
-				if !pm.isInitialized {
-					pm.m.Unlock()
+				if !pm.isInitialized.Load() {
 					continue
 				}
 
+				pm.m.Lock()
 				pm.eventCount += 1
 
 				switch ev := event.Msg.(type) {
@@ -290,12 +293,12 @@ func (pm *ProcessMonitor) Initialize() error {
 
 			case err, ok := <-pm.errors:
 				if !ok {
+					pm.closeDone()
 					return
 				}
 				log.Errorf("process monitor error: %s", err)
-				pm.terminateProcessMonitor()
-				terminated = true
-				pm.Stop()
+				// closing netlink subscription
+				pm.closeDone()
 				return
 
 			case <-logTicker.C:
@@ -315,7 +318,7 @@ func (pm *ProcessMonitor) Initialize() error {
 		return fmt.Errorf("process monitor init, scanning all process failed %s", err)
 	}
 	// enable events to be processed
-	pm.isInitialized = true
+	pm.isInitialized.Store(true)
 	return nil
 }
 
@@ -373,21 +376,13 @@ func (pm *ProcessMonitor) Subscribe(callback *ProcessCallback) (UnSubscribe func
 }
 
 func (pm *ProcessMonitor) Stop() {
-	pm.m.Lock()
-	if pm.refcount == 0 {
-		pm.m.Unlock()
+	if pm.refcount.Load() == 0 {
 		return
 	}
-
-	pm.refcount--
-	if pm.refcount > 0 {
-		pm.m.Unlock()
+	if pm.refcount.Dec() > 0 {
 		return
 	}
-
-	pm.isInitialized = false
-	pm.m.Unlock()
-	close(pm.done)
+	pm.closeDone()
 	pm.wg.Wait()
 }
 
