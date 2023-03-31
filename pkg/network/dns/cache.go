@@ -28,12 +28,12 @@ var cacheTelemetry = struct {
 	expired   *nettelemetry.StatGaugeWrapper
 	oversized *nettelemetry.StatCounterWrapper
 }{
-	nettelemetry.NewStatGaugeWrapper(dnsModuleName, "size", []string{}, "Gauge measuring the current size of the DNS cache"),
-	nettelemetry.NewStatCounterWrapper(dnsModuleName, "lookups", []string{}, "Counter measuring the number of lookups to the DNS cache"),
-	nettelemetry.NewStatCounterWrapper(dnsModuleName, "hits", []string{}, "Counter measuring the number of successful lookups to the DNS cache"),
-	nettelemetry.NewStatCounterWrapper(dnsModuleName, "added", []string{}, "Counter measuring the number of additions to the DNS cache"),
-	nettelemetry.NewStatGaugeWrapper(dnsModuleName, "expired", []string{}, "Gauge measuring the number of failed lookups to the DNS cache"),
-	nettelemetry.NewStatCounterWrapper(dnsModuleName, "oversized", []string{}, "Counter measuring the number of lookups to the DNS cache that reached the max domains per IP limit"),
+	nettelemetry.NewStatGaugeWrapper(dnsCacheModuleName, "size", []string{}, "Gauge measuring the current size of the DNS cache"),
+	nettelemetry.NewStatCounterWrapper(dnsCacheModuleName, "lookups", []string{}, "Counter measuring the number of lookups to the DNS cache"),
+	nettelemetry.NewStatCounterWrapper(dnsCacheModuleName, "hits", []string{}, "Counter measuring the number of successful lookups to the DNS cache"),
+	nettelemetry.NewStatCounterWrapper(dnsCacheModuleName, "added", []string{}, "Counter measuring the number of additions to the DNS cache"),
+	nettelemetry.NewStatGaugeWrapper(dnsCacheModuleName, "expired", []string{}, "Gauge measuring the number of failed lookups to the DNS cache"),
+	nettelemetry.NewStatCounterWrapper(dnsCacheModuleName, "oversized", []string{}, "Counter measuring the number of lookups to the DNS cache that reached the max domains per IP limit"),
 }
 
 type reverseDNSCache struct {
