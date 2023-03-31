@@ -31,7 +31,7 @@ func TestRealConfig(t *testing.T) {
 	os.Setenv("DD_DD_URL", "https://example.com")
 	defer func() { os.Unsetenv("DD_DD_URL") }()
 
-	deps := fxutil.Test[testDeps](t, fx.Options(
+	config := fxutil.Test[Component](t, fx.Options(
 		fx.Supply(NewParams(
 			"",
 			WithConfigMissingOK(true),
@@ -39,7 +39,7 @@ func TestRealConfig(t *testing.T) {
 		)),
 		Module,
 	))
-	require.Equal(t, "https://example.com", deps.Config.GetString("dd_url"))
+	require.Equal(t, "https://example.com", config.GetString("dd_url"))
 }
 
 // TODO: test various bundle params

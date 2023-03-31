@@ -676,6 +676,9 @@ func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolver
 			Pid:       ps.Pid,
 			Tid:       ps.Tid,
 			IsKworker: ps.IsKworker,
+			Credentials: &ProcessCredentialsSerializer{
+				CredentialsSerializer: &CredentialsSerializer{},
+			},
 		}
 	}
 }

@@ -85,35 +85,6 @@ build_clang_arm64:
   variables:
     ARCH: arm64
 
-.build_omnibus-nikos_common:
-  stage: deps_build
-  rules:
-    !reference [.manual]
-  script:
-    - git clone https://github.com/DataDog/omnibus-nikos.git /tmp/omnibus-nikos
-    - cd /tmp/omnibus-nikos
-    - !reference [.setup_ruby_mirror_linux]
-    - /bin/bash -l -c "bundle install"
-    - /bin/bash -l -c "export NIKOS_INSTALL_DIR=$NIKOS_INSTALL_DIR && bundle exec omnibus build nikos"
-    - cd $NIKOS_EMBEDDED_PATH
-    - cp lib/glib-2.0/include/glibconfig.h include
-    - tar czf nikos.tar.gz *
-    - $S3_CP_CMD nikos.tar.gz $S3_PERMANENT_ARTIFACTS_URI/nikos-$ARCH.tar.gz
-
-build_omnibus-nikos_x64:
-  extends: .build_omnibus-nikos_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/omnibus-nikos_x64$DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_NIKOS_BUILDIMAGES
-  tags: ["runner:main"]
-  variables:
-    ARCH: amd64
-
-build_omnibus-nikos_arm64:
-  extends: .build_omnibus-nikos_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/omnibus-nikos_arm64$DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_NIKOS_BUILDIMAGES
-  tags: ["runner:docker-arm", "platform:arm64"]
-  variables:
-    ARCH: arm64
-
 build_vcpkg_deps:
   stage: deps_build
   tags: ["runner:windows-docker", "windowsversion:1809"]

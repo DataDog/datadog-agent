@@ -55,7 +55,7 @@ type tracerOffsetGuesser struct {
 	status *TracerStatus
 }
 
-func NewTracerOffsetGuesser() OffsetGuesser {
+func NewTracerOffsetGuesser() (OffsetGuesser, error) {
 	return &tracerOffsetGuesser{
 		m: &manager.Manager{
 			Maps: []*manager.Map{
@@ -74,11 +74,17 @@ func NewTracerOffsetGuesser() OffsetGuesser {
 				{ProbeIdentificationPair: idPair(probes.NetDevQueue)},
 			},
 		},
-	}
+	}, nil
 }
 
 func (t *tracerOffsetGuesser) Manager() *manager.Manager {
 	return t.m
+}
+
+func (t *tracerOffsetGuesser) Close() {
+	if err := t.m.Stop(manager.CleanAll); err != nil {
+		log.Warnf("error stopping tracer offset guesser: %s", err)
+	}
 }
 
 func extractIPsAndPorts(conn net.Conn) (

@@ -80,7 +80,10 @@ func decodeRelease(data string) (*release, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	if len(b) < 4 {
+		// Avoid panic if b[0:3] cannot be accessed
+		return nil, fmt.Errorf("The byte array is too short (expected at least 4 characters, got %s instead): it cannot contain a Helm release", fmt.Sprint(len(b)))
+	}
 	// For backwards compatibility with releases that were stored before
 	// compression was introduced we skip decompression if the
 	// gzip magic header is not found

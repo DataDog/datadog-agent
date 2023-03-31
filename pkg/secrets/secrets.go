@@ -37,6 +37,7 @@ var (
 	secretBackendArguments             []string
 	secretBackendTimeout               = 5
 	secretBackendCommandAllowGroupExec bool
+	removeTrailingLinebreak            bool
 
 	// SecretBackendOutputMaxSize defines max size of the JSON output from a secrets reader backend
 	SecretBackendOutputMaxSize = 1024 * 1024
@@ -83,12 +84,13 @@ func registerSecretOrigin(handle string, origin string, yamlPath []string) {
 // Init initializes the command and other options of the secrets package. Since
 // this package is used by the 'config' package to decrypt itself we can't
 // directly use it.
-func Init(command string, arguments []string, timeout int, maxSize int, groupExecPerm bool) {
+func Init(command string, arguments []string, timeout int, maxSize int, groupExecPerm bool, removeLinebreak bool) {
 	secretBackendCommand = command
 	secretBackendArguments = arguments
 	secretBackendTimeout = timeout
 	SecretBackendOutputMaxSize = maxSize
 	secretBackendCommandAllowGroupExec = groupExecPerm
+	removeTrailingLinebreak = removeLinebreak
 	if secretBackendCommandAllowGroupExec {
 		log.Warnf("Agent configuration relax permissions constraint on the secret backend cmd, Group can read and exec")
 	}

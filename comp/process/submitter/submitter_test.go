@@ -21,7 +21,7 @@ type testDeps struct {
 }
 
 func TestSubmitterLifecycle(t *testing.T) {
-	_ = fxutil.Test[testDeps](t, fx.Options(
+	_ = fxutil.Test[Component](t, fx.Options(
 		hostinfo.MockModule,
 		core.MockBundle,
 		Module,

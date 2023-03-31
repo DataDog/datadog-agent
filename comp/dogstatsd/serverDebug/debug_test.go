@@ -21,13 +21,8 @@ import (
 	"go.uber.org/fx"
 )
 
-type testDeps struct {
-	fx.In
-	Debug Component
-}
-
-func fulfillDeps(t testing.TB) testDeps {
-	return fxutil.Test[testDeps](t, fx.Options(
+func fulfillDeps(t testing.TB) Component {
+	return fxutil.Test[Component](t, fx.Options(
 		core.MockBundle,
 		fx.Supply(core.BundleParams{}),
 		Module,
@@ -35,8 +30,8 @@ func fulfillDeps(t testing.TB) testDeps {
 }
 
 func TestDebugStatsSpike(t *testing.T) {
-	deps := fulfillDeps(t)
-	d := deps.Debug.(*serverDebug)
+	debug := fulfillDeps(t)
+	d := debug.(*serverDebug)
 
 	assert := assert.New(t)
 
@@ -91,8 +86,8 @@ func TestDebugStatsSpike(t *testing.T) {
 }
 
 func TestDebugStats(t *testing.T) {
-	deps := fulfillDeps(t)
-	d := deps.Debug.(*serverDebug)
+	debug := fulfillDeps(t)
+	d := debug.(*serverDebug)
 
 	clk := clock.NewMock()
 	d.clock = clk
