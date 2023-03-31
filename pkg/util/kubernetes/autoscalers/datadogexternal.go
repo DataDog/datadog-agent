@@ -11,6 +11,7 @@ package autoscalers
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
