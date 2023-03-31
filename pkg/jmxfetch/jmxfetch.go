@@ -278,15 +278,15 @@ func (j *JMXFetch) Start(manage bool) error {
 	}
 
 	if config.Datadog.GetBool("jmx_statsd_client_use_non_blocking") {
-		subprocessArgs = append(subprocessArgs, "--statsd-nonblocking")
+		subprocessArgs = append(subprocessArgs, "--statsd_nonblocking")
 	}
 
 	if bufSize := config.Datadog.GetInt("jmx_statsd_client_buffer_size"); bufSize != 0 {
-		subprocessArgs = append(subprocessArgs, "--statsd-client-buffer-size", fmt.Sprintf("%d", bufSize))
+		subprocessArgs = append(subprocessArgs, "--statsd_buffer_size", fmt.Sprintf("%d", bufSize))
 	}
 
 	if socketTimeout := config.Datadog.GetInt("jmx_statsd_client_socket_timeout"); socketTimeout != 0 {
-		subprocessArgs = append(subprocessArgs, "--statsd-client-socket-timeout", fmt.Sprintf("%d", socketTimeout))
+		subprocessArgs = append(subprocessArgs, "--statsd_socket_timeout", fmt.Sprintf("%d", socketTimeout))
 	}
 
 	if config.Datadog.GetBool("log_format_rfc3339") {
