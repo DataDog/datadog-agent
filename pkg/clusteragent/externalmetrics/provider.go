@@ -12,7 +12,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"strings"
 
 	apierr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
@@ -128,9 +127,6 @@ func (p *datadogMetricProvider) GetExternalMetric(ctx context.Context, namespace
 
 func (p *datadogMetricProvider) getExternalMetric(namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
 	log.Debugf("Received external metric query with ns: %s, selector: %s, metricName: %s", namespace, metricSelector.String(), info.Metric)
-
-	// Convert metric name to lower case to allow proper matching (and DD metrics are always lower case)
-	info.Metric = strings.ToLower(info.Metric)
 
 	// If the metric name is already prefixed, we can directly look up metrics in store
 	datadogMetricID, parsed, hasPrefix := metricNameToDatadogMetricID(info.Metric)
