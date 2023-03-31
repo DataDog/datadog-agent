@@ -37,5 +37,7 @@ func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper, useRin
 		cflags = append(cflags, "-DUSE_RING_BUFFER=1")
 	}
 
+	cflags = append(cflags, "-g")
+
 	return runtime.RuntimeSecurity.Compile(&config.Config, cflags, client)
 }

@@ -145,8 +145,8 @@ def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
         kernel_release=kernel_release, minimal_kernel_release=CWS_PREBUILT_MINIMUM_KERNEL_VERSION
     )
     kheaders = " ".join(f"-isystem{d}" for d in kernel_headers)
-    debugdef = "-DDEBUG=1 -g" if debug else ""
-    security_flags = f"-I{security_agent_prebuilt_dir_include} {debugdef}"
+    debugdef = "-DDEBUG=1" if debug else ""
+    security_flags = f"-g -I{security_agent_prebuilt_dir_include} {debugdef}"
 
     outfiles = []
 

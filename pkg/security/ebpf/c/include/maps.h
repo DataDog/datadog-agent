@@ -1,7 +1,8 @@
 #ifndef _MAPS_H_
 #define _MAPS_H_
 
-#include "constants/maps_macros.h"
+#include "map-defs.h"
+
 #include "constants/custom.h"
 #include "constants/enums.h"
 #include "structs/all.h"

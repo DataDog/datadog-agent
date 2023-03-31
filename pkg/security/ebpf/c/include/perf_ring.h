@@ -1,7 +1,8 @@
 #ifndef _PERF_RING_H_
 #define _PERF_RING_H_
 
-#include "constants/maps_macros.h"
+#include "map-defs.h"
+
 #include "structs/all.h"
 #include "constants/custom.h"
 
@@ -15,11 +16,7 @@ struct ring_buffer_stats_t {
     u64 usage;
 };
 
-struct bpf_map_def SEC("maps/events") events = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .max_entries = 0,
-};
-
+BPF_PERF_EVENT_ARRAY_MAP(events, u32)
 BPF_HASH_MAP(events_stats, u32, struct perf_map_stats_t, EVENT_MAX)
 
 #if USE_RING_BUFFER == 1
