@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -186,12 +187,12 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 	}
 
 	// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
-	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = 0
 	opts.UseNoopForwarder = true
 	opts.UseNoopEventPlatformForwarder = true
 	opts.UseNoopOrchestratorForwarder = true
-	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostnameDetected)
+	demux := aggregator.InitAndStartAgentDemultiplexer(forwarder.NewOptions(nil), opts, hostnameDetected)
 
 	common.LoadComponents(context.Background(), pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())

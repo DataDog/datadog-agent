@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/stretchr/testify/require"
 )
@@ -50,7 +51,7 @@ func TestDemuxNoAggOptionDisabled(t *testing.T) {
 	require := require.New(t)
 
 	opts := demuxTestOptions()
-	demux := initAgentDemultiplexer(opts, "")
+	demux := initAgentDemultiplexer(forwarder.NewOptions(nil), opts, "")
 
 	batch := testDemuxSamples(t)
 
@@ -69,7 +70,7 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 	opts := demuxTestOptions()
 	mockSerializer := &MockSerializerIterableSerie{}
 	opts.EnableNoAggregationPipeline = true
-	demux := initAgentDemultiplexer(opts, "")
+	demux := initAgentDemultiplexer(forwarder.NewOptions(nil), opts, "")
 	demux.statsd.noAggStreamWorker.serializer = mockSerializer // the no agg pipeline will use our mocked serializer
 
 	go demux.Run()
@@ -94,7 +95,7 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 
 func TestDemuxNoAggOptionIsDisabledByDefault(t *testing.T) {
 	opts := demuxTestOptions()
-	demux := InitAndStartAgentDemultiplexer(opts, "")
+	demux := InitAndStartAgentDemultiplexer(forwarder.NewOptions(nil), opts, "")
 	require.False(t, demux.Options().EnableNoAggregationPipeline, "the no aggregation pipeline should be disabled by default")
 	demux.Stop(false)
 }

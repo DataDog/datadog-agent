@@ -98,10 +98,10 @@ func run(log log.Component, config config.Component, cliParams *command.GlobalPa
 	}
 
 	forwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomain))
-	opts := aggregator.DefaultAgentDemultiplexerOptions(forwarderOpts)
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.UseEventPlatformForwarder = false
 	opts.UseOrchestratorForwarder = false
-	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hname)
+	demux := aggregator.InitAndStartAgentDemultiplexer(forwarderOpts, opts, hname)
 	demux.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
 	pkglog.Infof("Datadog Cluster Agent is now running.")

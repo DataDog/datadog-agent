@@ -418,9 +418,9 @@ func startAgent(
 	forwarderOpts := forwarder.NewOptions(keysPerDomain)
 	// Enable core agent specific features like persistence-to-disk
 	forwarderOpts.EnabledFeatures = forwarder.SetFeature(forwarderOpts.EnabledFeatures, forwarder.CoreFeatures)
-	opts := aggregator.DefaultAgentDemultiplexerOptions(forwarderOpts)
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.EnableNoAggregationPipeline = pkgconfig.Datadog.GetBool("dogstatsd_no_aggregation_pipeline")
-	demux = aggregator.InitAndStartAgentDemultiplexer(opts, hostnameDetected)
+	demux = aggregator.InitAndStartAgentDemultiplexer(forwarderOpts, opts, hostnameDetected)
 
 	// Setup stats telemetry handler
 	if sender, err := demux.GetDefaultSender(); err == nil {

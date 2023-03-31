@@ -21,9 +21,9 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	// For some reasons using InitAggregator[WithInterval] doesn't fix the problem,
 	// but this do.
 	forwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(map[string][]string{"hello": {"world"}}))
-	options := DefaultAgentDemultiplexerOptions(forwarderOpts)
+	options := DefaultAgentDemultiplexerOptions()
 	options.DontStartForwarders = true
-	demux := InitAndStartAgentDemultiplexer(options, "hostname")
+	demux := InitAndStartAgentDemultiplexer(forwarderOpts, options, "hostname")
 	defer demux.Stop(true)
 
 	checkSampler := newCheckSampler(1, true, 1000, tags.NewStore(true, "bench"))

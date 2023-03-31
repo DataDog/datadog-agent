@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 
@@ -95,9 +96,9 @@ func eventMatcher(m eventMatch) interface{} {
 func TestRunK8s(t *testing.T) {
 	assert := assert.New(t)
 
-	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	aggregator.InitAndStartAgentDemultiplexer(opts, "foo")
+	aggregator.InitAndStartAgentDemultiplexer(forwarder.NewOptions(nil), opts, "foo")
 
 	e := enterTempEnv(t, true)
 	defer e.leave()
@@ -171,9 +172,9 @@ func TestRunK8s(t *testing.T) {
 func TestRunDocker(t *testing.T) {
 	assert := assert.New(t)
 
-	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	aggregator.InitAndStartAgentDemultiplexer(opts, "foo")
+	aggregator.InitAndStartAgentDemultiplexer(forwarder.NewOptions(nil), opts, "foo")
 
 	e := enterTempEnv(t, false)
 	defer e.leave()
@@ -264,9 +265,9 @@ func TestRunDocker(t *testing.T) {
 func TestRunChecks(t *testing.T) {
 	assert := assert.New(t)
 
-	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	aggregator.InitAndStartAgentDemultiplexer(opts, "foo")
+	aggregator.InitAndStartAgentDemultiplexer(forwarder.NewOptions(nil), opts, "foo")
 
 	e := enterTempEnv(t, false)
 	defer e.leave()

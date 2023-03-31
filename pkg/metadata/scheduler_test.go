@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
@@ -54,9 +55,9 @@ func TestNewScheduler(t *testing.T) {
 	enableFirstRunCollection = false
 	defer func() { enableFirstRunCollection = true }()
 
-	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	demux := aggregator.InitAndStartAgentDemultiplexer(opts, "hostname")
+	demux := aggregator.InitAndStartAgentDemultiplexer(forwarder.NewOptions(nil), opts, "hostname")
 	c := NewScheduler(demux)
 
 	assert.Equal(t, demux, c.demux)
@@ -193,8 +194,8 @@ func TestTriggerAndResetCollectorTimer(t *testing.T) {
 }
 
 func buildDemultiplexer() aggregator.Demultiplexer {
-	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	demux := aggregator.InitAndStartAgentDemultiplexer(opts, "hostname")
+	demux := aggregator.InitAndStartAgentDemultiplexer(forwarder.NewOptions(nil), opts, "hostname")
 	return demux
 }

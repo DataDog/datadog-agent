@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -34,7 +35,7 @@ import (
 )
 
 func demuxOpts() aggregator.AgentDemultiplexerOptions {
-	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = 1 * time.Hour
 	opts.DontStartForwarders = true
 	return opts
@@ -48,7 +49,7 @@ func Test_Run_simpleCase(t *testing.T) {
 	}
 	chk := Check{sessionFactory: sessionFactory}
 
-	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
+	aggregator.InitAndStartAgentDemultiplexer(forwarder.NewOptions(nil), demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -326,7 +327,7 @@ func Test_Run_customIfSpeed(t *testing.T) {
 	}
 	chk := Check{sessionFactory: sessionFactory}
 
-	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
+	aggregator.InitAndStartAgentDemultiplexer(forwarder.NewOptions(nil), demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -532,7 +533,7 @@ metrics:
 func TestProfile(t *testing.T) {
 	timeNow = common.MockTimeNow
 
-	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
+	aggregator.InitAndStartAgentDemultiplexer(forwarder.NewOptions(nil), demuxOpts(), "")
 
 	checkconfig.SetConfdPathAndCleanProfiles()
 
@@ -1181,7 +1182,7 @@ namespace: '%s'
 			sender := new(mocksender.MockSender)
 
 			if !tt.disableAggregator {
-				aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
+				aggregator.InitAndStartAgentDemultiplexer(forwarder.NewOptions(nil), demuxOpts(), "")
 			}
 
 			mocksender.SetSender(sender, chk.ID())
@@ -1260,7 +1261,7 @@ metrics:
 func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {
 	timeNow = common.MockTimeNow
 
-	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
+	aggregator.InitAndStartAgentDemultiplexer(forwarder.NewOptions(nil), demuxOpts(), "")
 	checkconfig.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
@@ -1550,7 +1551,7 @@ tags:
 
 func TestReportDeviceMetadataWithFetchError(t *testing.T) {
 	timeNow = common.MockTimeNow
-	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
+	aggregator.InitAndStartAgentDemultiplexer(forwarder.NewOptions(nil), demuxOpts(), "")
 
 	checkconfig.SetConfdPathAndCleanProfiles()
 
@@ -1645,7 +1646,7 @@ func TestDiscovery(t *testing.T) {
 		return sess, nil
 	}
 	chk := Check{sessionFactory: sessionFactory}
-	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
+	aggregator.InitAndStartAgentDemultiplexer(forwarder.NewOptions(nil), demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -1976,7 +1977,7 @@ func TestDiscovery_CheckError(t *testing.T) {
 		return sess, nil
 	}
 	chk := Check{sessionFactory: sessionFactory, workerRunDeviceCheckErrors: atomic.NewUint64(0)}
-	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
+	aggregator.InitAndStartAgentDemultiplexer(forwarder.NewOptions(nil), demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -2052,7 +2053,7 @@ func TestDeviceIDAsHostname(t *testing.T) {
 		return sess, nil
 	}
 	chk := Check{sessionFactory: sessionFactory}
-	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
+	aggregator.InitAndStartAgentDemultiplexer(forwarder.NewOptions(nil), demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -2241,7 +2242,7 @@ func TestDiscoveryDeviceIDAsHostname(t *testing.T) {
 	}
 	chk := Check{sessionFactory: sessionFactory}
 
-	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
+	aggregator.InitAndStartAgentDemultiplexer(forwarder.NewOptions(nil), demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -2442,7 +2443,7 @@ func TestCheckCancel(t *testing.T) {
 	}
 	chk := Check{sessionFactory: sessionFactory}
 
-	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
+	aggregator.InitAndStartAgentDemultiplexer(forwarder.NewOptions(nil), demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`

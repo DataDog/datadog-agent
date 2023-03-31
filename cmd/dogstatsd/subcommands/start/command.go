@@ -194,7 +194,7 @@ func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component
 	}
 
 	forwarderOpts := forwarder.NewOptions(keysPerDomain)
-	opts := aggregator.DefaultAgentDemultiplexerOptions(forwarderOpts)
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.UseOrchestratorForwarder = false
 	opts.UseEventPlatformForwarder = false
 	opts.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
@@ -204,7 +204,7 @@ func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component
 		hname = ""
 	}
 	log.Debugf("Using hostname: %s", hname)
-	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hname)
+	demux := aggregator.InitAndStartAgentDemultiplexer(forwarderOpts, opts, hname)
 	demux.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// setup the metadata collector
