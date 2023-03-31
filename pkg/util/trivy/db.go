@@ -9,19 +9,25 @@
 package trivy
 
 import (
-	"github.com/aquasecurity/trivy/pkg/fanal/cache"
-	"github.com/boltdb/bolt"
+	"fmt"
+	"os"
+	"path/filepath"
+
+	bolt "go.etcd.io/bbolt"
+	"golang.org/x/xerrors"
+	kerrors "k8s.io/apimachinery/pkg/util/errors"
 )
 
 const CacheDirName = "fanal"
+const boltBucket = "boltdb"
 
 type PersistentDB interface {
 	Clear() error
 	Close() error
-	Delete([]string) ([][]byte, []error, error)
+	Delete([]string) ([][]byte, error)
 	Get(string) ([]byte, error)
 	Store(string, []byte) error
-	GetAllKeys() ([]string, error)
+	ForEach(func(string, []byte) error) error
 	Size() (uint, error)
 }
 
@@ -36,7 +42,10 @@ func NewBoltDB(cacheDir string) (BoltDB, error) {
 		return BoltDB{}, xerrors.Errorf("failed to create cache dir: %w", err)
 	}
 
-	db, err := bolt.Open(filepath.Join(dir, "fanal.db"), 0600, nil)
+	db, err := bolt.Open(filepath.Join(dir, "fanal.db"), 0600, &bolt.Options{
+		NoGrowSync:     true,
+		NoFreelistSync: true,
+	})
 	if err != nil {
 		return BoltDB{}, xerrors.Errorf("unable to open DB: %w", err)
 	}
@@ -56,91 +65,72 @@ func (b BoltDB) Clear() error {
 }
 
 func (b BoltDB) Close() error {
-	return fs.db.Close()
+	return b.db.Close()
 }
 
-func (b BoltDB) Delete(keys []string) ([][]byte, []error, error) {
-	errs = make([]error, len(keys))
-	values = make([][]byte, len(keys))
-	global_err := fs.db.Update(func(tx *bolt.Tx) error {
-		root := tx.RootBucket()
-		if root == nil {
-			return fmt.Errorf("root bucket not found")
+func (b BoltDB) Delete(keys []string) ([][]byte, error) {
+	var errs []error
+	values := make([][]byte, len(keys))
+	errs = append(errs, b.db.Update(func(tx *bolt.Tx) error {
+		bucket, err := tx.CreateBucketIfNotExists([]byte(boltBucket))
+		if err != nil {
+			return fmt.Errorf("bucket %s not found", boltBucket)
 		}
 		for i, key := range keys {
-			v, err_get := root.Get([]byte(key))
-			if err_get != nil {
-				errs[i] = err_get
-				continue
-			}
-			if err_delete = root.Delete([]byte(key)); err != nil {
-				errs[i] = err_delete
-				continue
-			}
+			v := bucket.Get([]byte(key))
 			values[i] = v
+			if cerr := bucket.Delete([]byte(key)); cerr != nil {
+				errs = append(errs, cerr)
+			}
 		}
 		return nil
-	})
-
-	return values, errs, global_err
+	}))
+	return values, kerrors.NewAggregate(errs)
 }
 
 func (b BoltDB) Get(key string) ([]byte, error) {
 	var res []byte
-	err := fs.db.View(func(tx *bolt.Tx) error {
-		root := tx.RootBucket()
-		if root == nil {
-			return fmt.Errorf("root bucket not found")
+	return res, b.db.View(func(tx *bolt.Tx) error {
+		bucket, err := tx.CreateBucketIfNotExists([]byte(boltBucket))
+		if err != nil {
+			return fmt.Errorf("bucket %s not found", boltBucket)
 		}
-		res, err := root.Get([]byte(key))
-		return err
+		res = bucket.Get([]byte(key))
+		return nil
 	})
-	return res, err
 }
 
 func (b BoltDB) Store(key string, value []byte) error {
-	return db.Update(func(tx *bolt.Tx) error {
-		// Get the root bucket.
-		root := tx.RootBucket()
-		if root == nil {
-			return fmt.Errorf("root bucket not found")
-		}
-
-		// Write the value "Hello, world!" to the key "myKey".
-		err = root.Put([]byte("myKey"), []byte("Hello, world!"))
+	return b.db.Update(func(tx *bolt.Tx) error {
+		bucket, err := tx.CreateBucketIfNotExists([]byte(boltBucket))
 		if err != nil {
+			return fmt.Errorf("bucket %s not found", boltBucket)
+		}
+		if err := bucket.Put([]byte(key), value); err != nil {
 			return fmt.Errorf("failed to write value: %v", err)
 		}
-
 		return nil
 	})
 }
 
-func (b BoltDB) GetAllKeys() ([]string, error) {
-	var keys []string
-	err = db.View(func(tx *bolt.Tx) error {
-		root := tx.RootBucket()
-		if root == nil {
-			return fmt.Errorf("root bucket not found")
+func (b BoltDB) ForEach(f func(string, []byte) error) error {
+	return b.db.View(func(tx *bolt.Tx) error {
+		bucket, err := tx.CreateBucketIfNotExists([]byte(boltBucket))
+		if err != nil {
+			return fmt.Errorf("bucket %s not found", boltBucket)
 		}
-		c := root.Cursor()
-		for k, _ := c.First(); k != nil; k, _ = c.Next() {
-			keys = append(keys, string(k))
+
+		if err = bucket.ForEach(func(k []byte, v []byte) error { return f(string(k), v) }); err != nil {
+			return fmt.Errorf("foreach failed: %v", err)
 		}
 		return nil
 	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve keys: %v", err)
-	}
-
-	return keys, nil
 }
 
 func (b BoltDB) Size() (uint, error) {
-	res := 0
-	err = db.View(func(tx *bolt.Tx) error {
+	var res uint
+	return res, b.db.View(func(tx *bolt.Tx) error {
 		res = uint(tx.Size())
 		return nil
 	})
-	return db.Size(), err
 }

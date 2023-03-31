@@ -9,23 +9,24 @@
 package trivy
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/aquasecurity/trivy/pkg/fanal/cache"
 	"github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/aquasecurity/trivy/pkg/utils"
-	"github.com/dgraph-io/badger/v3"
-	"github.com/hashicorp/go-multierror"
+	"github.com/hashicorp/golang-lru/simplelru"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta/telemetry"
 )
 
 var telemetryTick = 1 * time.Minute
+
 const sizeOfKey = 32
 const maxCacheSize = 500
 
@@ -35,17 +36,21 @@ func NewBoltCache(cacheDir string) (cache.Cache, error) {
 	if cacheDir == "" {
 		cacheDir = utils.DefaultCacheDir()
 	}
-	db, err := NewPersistentBoltDB(cacheDir)
+	db, err := NewBoltDB(cacheDir)
 	if err != nil {
-		return cache.Cache{}, err
+		return nil, err
 	}
-	return TrivyCache{
-		Cache: NewPersistentCache(
-			maxCacheSize,
-			db,
-			NewMaintainer(context.TODO(), telemetryTick),		
-		), nil
+	cache, err := NewPersistentCache(
+		maxCacheSize,
+		db,
+		NewMaintainer(context.TODO(), telemetryTick),
+	)
+	if err != nil {
+		return nil, err
 	}
+	return &TrivyCache{
+		Cache: cache,
+	}, nil
 }
 
 type Cache interface {
@@ -58,8 +63,11 @@ type Cache interface {
 }
 
 func (cache *PersistentCache) collectTelemetry() {
-	diskSize := cache.db.Size()
-	telemetry.SBOMCacheMemSize.Set(float64(c.Len() * sizeOfKey))
+	diskSize, err := cache.db.Size()
+	if err != nil {
+		log.Errorf("could not collect telemetry: %v", err)
+	}
+	telemetry.SBOMCacheMemSize.Set(float64(cache.Len() * sizeOfKey))
 	telemetry.SBOMCacheDiskSize.Set(float64(diskSize))
 }
 
@@ -73,7 +81,30 @@ func NewTrivyCache(cache Cache) *TrivyCache {
 	}
 }
 
-// MissingBlobs returns missing blob IDs such as layer IDs in cache
+func trivyCachePut[T any](cache *TrivyCache, id string, info T) error {
+	objectBytes, err := json.Marshal(info)
+	if err != nil {
+		return fmt.Errorf("error converting object with ID %q to JSON: %w", id, err)
+	}
+	return cache.Cache.Set(id, objectBytes)
+}
+
+func trivyCacheGet[T any](cache *TrivyCache, id string) (T, error) {
+	rawValue, err := cache.Cache.Get(id)
+	var empty T
+
+	if err != nil {
+		return empty, fmt.Errorf("error getting object with ID %q from Badger cache: %w", id, err)
+	}
+
+	var res T
+	if err := json.Unmarshal(rawValue, &res); err != nil {
+		return empty, fmt.Errorf("JSON unmarshal error: %w", err)
+	}
+
+	return res, nil
+}
+
 func (c *TrivyCache) MissingBlobs(artifactID string, blobIDs []string) (bool, []string, error) {
 	var missingBlobIDs []string
 	for _, blobID := range blobIDs {
@@ -84,31 +115,32 @@ func (c *TrivyCache) MissingBlobs(artifactID string, blobIDs []string) (bool, []
 	return c.Cache.Contains(artifactID), missingBlobIDs, nil
 }
 
-func trivyCachePut[T any](cache *TrivyCache, id string, info T) error {
-	objectBytes, err := json.Marshal(info)
-	if err != nil {
-		return fmt.Errorf("error converting object with ID %q to JSON: %w", id, err)
-	}
-	return cache.Cache.Set(id, objectBytes)
-}
-
-// PutArtifact stores artifact information such as image metadata in cache
 func (c *TrivyCache) PutArtifact(artifactID string, artifactInfo types.ArtifactInfo) error {
 	return trivyCachePut(c, artifactID, artifactInfo)
 }
 
-// PutBlob stores blob information such as layer information in local cache
 func (c *TrivyCache) PutBlob(blobID string, blobInfo types.BlobInfo) error {
 	return trivyCachePut(c, blobID, blobInfo)
 }
 
-// DeleteBlobs removes blobs by IDs
 func (c *TrivyCache) DeleteBlobs(blobIDs []string) error {
-	err := make([]error, len(blobIDs))
-	for i, blobID := range blobIDs {
-		err[i] = c.Cache.Remove(blobID)
-	}
-	return kerrors.NewAggregate(err)
+	return c.Cache.Remove(blobIDs)
+}
+
+func (c *TrivyCache) Clear() error {
+	return c.Cache.Clear()
+}
+
+func (c *TrivyCache) Close() error {
+	return c.Cache.Close()
+}
+
+func (c *TrivyCache) GetArtifact(id string) (types.ArtifactInfo, error) {
+	return trivyCacheGet[types.ArtifactInfo](c, id)
+}
+
+func (c *TrivyCache) GetBlob(id string) (types.BlobInfo, error) {
+	return trivyCacheGet[types.BlobInfo](c, id)
 }
 
 var (
@@ -129,11 +161,11 @@ func (c *Maintainer) Clean(cache *PersistentCache) {
 			listedImages[blobID] = struct{}{}
 		}
 	}
+	var toRemove []string
 	for _, key := range cache.Keys() {
-		if _, ok := listedImages[key]; !ok {
-			cache.Remove(key)
-		}
+		toRemove = append(toRemove, key)
 	}
+	cache.Remove(toRemove)
 }
 
 func (c *Maintainer) Maintain(cache *PersistentCache) {
@@ -147,7 +179,7 @@ func (c *Maintainer) Maintain(cache *PersistentCache) {
 	}
 }
 
-func (c *Maintainer) NewMaintainer(ctx context.Context, interval time.Duration) *Maintainer {
+func NewMaintainer(ctx context.Context, interval time.Duration) *Maintainer {
 	return &Maintainer{
 		ctx:    ctx,
 		ticker: time.NewTicker(interval),
@@ -155,11 +187,12 @@ func (c *Maintainer) NewMaintainer(ctx context.Context, interval time.Duration) 
 }
 
 type PersistentCache struct {
-	lruCache        *simplelru.LRU[string, struct{}]
+	lruCache        *simplelru.LRU
 	db              PersistentDB
 	mutex           sync.RWMutex
-	currentDiskSize uint
-	maximumDiskSize uint
+	currentDiskSize int
+	maximumDiskSize int
+	maxCacheSize    int
 }
 
 func NewPersistentCache(
@@ -168,18 +201,25 @@ func NewPersistentCache(
 	maintainer *Maintainer,
 ) (*PersistentCache, error) {
 
-	lruCache, err := simplelru.NewLRU[string, struct{}](cacheSize, func(string, struct{}) {})
+	lruCache, err := simplelru.NewLRU(cacheSize, func(interface{}, interface{}) {})
 	if err != nil {
 		return nil, err
 	}
 
-	for _, key := range localDB.GetAllKeys() {
+	currentSize := 0
+	if err = localDB.ForEach(func(key string, value []byte) error {
 		lruCache.Add(key, struct{}{})
+		currentSize += len(value)
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 
 	persistentCache := &PersistentCache{
-		lruCache: lruCache,
-		db:       localDB,
+		lruCache:        lruCache,
+		db:              localDB,
+		currentDiskSize: currentSize,
+		maxCacheSize:    cacheSize,
 	}
 
 	go maintainer.Maintain(persistentCache)
@@ -196,7 +236,11 @@ func (c *PersistentCache) Contains(key string) bool {
 func (c *PersistentCache) Keys() []string {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
-	return c.lruCache.Keys()
+	keys := make([]string, c.lruCache.Len())
+	for i, key := range c.lruCache.Keys() {
+		keys[i] = key.(string)
+	}
+	return keys
 }
 
 func (c *PersistentCache) Len() int {
@@ -206,14 +250,15 @@ func (c *PersistentCache) Len() int {
 	return c.lruCache.Len()
 }
 
-func (c *PersistentCache) Purge() {
+func (c *PersistentCache) Clear() error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	for _, key := range c.lruCache.Keys() {
-		_, _ = c.db.Delete(key)
+	if err := c.db.Clear(); err != nil {
+		return err
 	}
 	c.lruCache.Purge()
 	c.currentDiskSize = 0
+	return nil
 }
 
 func (c *PersistentCache) Resize(size int) int {
@@ -228,15 +273,15 @@ func (c *PersistentCache) RemoveOldest() (string, []byte, error) {
 	defer c.mutex.Unlock()
 	key, _, ok := c.lruCache.RemoveOldest()
 	if !ok {
-		return "", nil, fmt.Errorf("cache is empty")
+		return "", nil, fmt.Errorf("in-memory cache is empty")
 	}
 
-	val, err := c.db.Get(key)
-	c.currentDiskSize -= uint(len(val))
-	return key, val, err
+	val, err := c.db.Get(key.(string))
+	c.currentDiskSize -= len(val)
+	return key.(string), val, err
 }
 
-func (c *PersistentCache) ReduceSize(target uint) error {
+func (c *PersistentCache) ReduceSize(target int) error {
 	if target > c.maximumDiskSize {
 		return fmt.Errorf("cache can not exceed %d", c.maximumDiskSize)
 	}
@@ -247,25 +292,27 @@ func (c *PersistentCache) ReduceSize(target uint) error {
 			return err
 		}
 	}
-
 	return nil
 }
 
-func (c *PersistentCache) Set(key string, value []byte) error {
+func (c *PersistentCache) Close() error {
+	return c.db.Close()
+}
 
+func (c *PersistentCache) Set(key string, value []byte) error {
 	if len(value) > int(c.maximumDiskSize) {
 		return fmt.Errorf("value of [%s] is too big for the cache : %d", key, c.maximumDiskSize)
 	}
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	c.lruCache.Add(key, struct{}{})
 	err := c.db.Store(key, value)
 	if err != nil {
-		c.lruCache.Remove(key)
 		return err
 	}
-	c.currentDiskSize += uint(len(value))
+
+	c.lruCache.Add(key, struct{}{})
+	c.currentDiskSize += len(value)
 	return nil
 }
 
@@ -277,7 +324,7 @@ func (c *PersistentCache) Get(key string) ([]byte, error) {
 
 	res, err := c.db.Get(key)
 	if err != nil {
-		_ = c.Remove([]{key})
+		_ = c.Remove([]string{key})
 		return nil, err
 	}
 
@@ -290,14 +337,12 @@ func (c *PersistentCache) Remove(keys []string) error {
 	for _, key := range keys {
 		c.lruCache.Remove(key)
 	}
-	values, errors, err := c.db.Delete(keys)
+	values, err := c.db.Delete(keys)
 	if err != nil {
 		return err
 	}
-	for _, err := range errors {
-		if err == nil {
-			c.currentDiskSize -= uint(len(val))
-		}
+	for _, val := range values {
+		c.currentDiskSize -= len(val)
 	}
 	return nil
 }
