@@ -624,6 +624,8 @@ api_key:
 ## Default is:
 ##  * Windows & macOS : `5002`
 ##  * Linux: `-1`
+## On Linux, to be able to edit the configuration from the GUI
+## you need to give write access on this file to the dd-agent user.
 ##
 #
 # GUI_port: <GUI_PORT>
@@ -3527,11 +3529,18 @@ api_key:
       #
       # mode: distributions
 
+      ## Deprecated - use `send_aggregation_metrics` instead. This flag will override `send_aggregation_metrics` if both are set.
       ## @param send_count_sum_metrics - boolean - optional - default: false
       ## @env DD_OTLP_CONFIG_METRICS_HISTOGRAMS_SEND_COUNT_SUM_METRICS - boolean - optional - default: false
-      ## Whether to report sum and count as separate histogram metrics.
+      ## Whether to report sum, count, min, and max as separate histogram metrics.
       #
       # send_count_sum_metrics: false
+
+      ## @param send_aggregation_metrics - boolean - optional - default: false
+      ## @env DD_OTLP_CONFIG_METRICS_HISTOGRAMS_SEND_AGGREGATION_METRICS - boolean - optional - default: false
+      ## Whether to report sum, count, min, and max as separate histogram metrics.
+      #
+      # send_aggregation_metrics: false
 
     ## @param sums - custom object - optional
     ## Configuration for OTLP Sums.

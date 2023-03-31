@@ -33,6 +33,7 @@
 /.github/CODEOWNERS                                 # do not notify anyone
 /.github/*_TEMPLATE.md                              @DataDog/agent-all
 /.github/dependabot.yaml                            @DataDog/agent-platform
+/.github/workflows/serverless-binary-size.yml       @DataDog/serverless
 /.github/workflows/serverless-integration.yml       @DataDog/serverless
 /.github/workflows/cws-btfhub-sync.yml              @DataDog/agent-security
 
@@ -375,6 +376,8 @@
 /test/new-e2e/                          @DataDog/agent-e2e-testing
 /test/new-e2e/ndm                       @DataDog/network-device-monitoring
 /test/new-e2e/scenarios/ndm             @DataDog/network-device-monitoring
+/test/new-e2e/system-probe              @DataDog/ebpf-platform
+/test/new-e2e/scenarios/system-probe    @DataDog/ebpf-platform
 /test/system/                           @DataDog/agent-shared-components
 /test/system/dogstatsd/                 @DataDog/agent-metrics-logs
 /test/benchmarks/apm_scripts/           @DataDog/agent-apm

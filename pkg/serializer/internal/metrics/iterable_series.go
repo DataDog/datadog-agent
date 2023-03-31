@@ -200,6 +200,7 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 	// the serie.NoIndex field.
 	for series.source.MoveNext() {
 		serie = series.source.Current()
+		serie.PopulateDeviceField()
 		serie.PopulateResources()
 
 		buf.Reset()

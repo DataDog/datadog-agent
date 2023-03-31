@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -311,6 +312,8 @@ func (p *Probe) Setup() error {
 	if err := p.Manager.Start(); err != nil {
 		return err
 	}
+
+	p.applyDefaultFilterPolicies()
 
 	return p.monitor.Start(p.ctx, &p.wg)
 }
@@ -1124,8 +1127,11 @@ func (p *Probe) DumpDiscarders() (string, error) {
 	if err := encoder.Encode(dump); err != nil {
 		return "", err
 	}
-
-	return fp.Name(), nil
+	err = fp.Close()
+	if err != nil {
+		return "", fmt.Errorf("could not close file [%s]: %w", fp.Name(), err)
+	}
+	return fp.Name(), err
 }
 
 // FlushDiscarders invalidates all the discarders
@@ -1201,14 +1207,23 @@ func (p *Probe) setupNewTCClassifier(device model.NetDevice) error {
 	netns := p.resolvers.NamespaceResolver.ResolveNetworkNamespace(device.NetNS)
 	if netns != nil {
 		handle, err = netns.GetNamespaceHandleDup()
+		defer handle.Close()
 	}
 	if netns == nil || err != nil || handle == nil {
 		// queue network device so that a TC classifier can be added later
 		p.resolvers.NamespaceResolver.QueueNetworkDevice(device)
 		return QueuedNetworkDeviceError{msg: fmt.Sprintf("device %s is queued until %d is resolved", device.Name, device.NetNS)}
 	}
-	defer handle.Close()
-	return p.resolvers.TCResolver.SetupNewTCClassifierWithNetNSHandle(device, handle, p.Manager)
+	err = p.resolvers.TCResolver.SetupNewTCClassifierWithNetNSHandle(device, handle, p.Manager)
+	if err != nil {
+		return err
+	}
+	if handle != nil {
+		if err := handle.Close(); err != nil {
+			return fmt.Errorf("could not close file [%s]: %w", handle.Name(), err)
+		}
+	}
+	return err
 }
 
 // FlushNetworkNamespace removes all references and stops all TC programs in the provided network namespace. This method
@@ -1247,6 +1262,28 @@ func (p *Probe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	}
 
 	return nil
+}
+
+func (p *Probe) applyDefaultFilterPolicies() {
+	if !p.Config.Probe.EnableKernelFilters {
+		seclog.Warnf("Forcing in-kernel filter policy to `pass`: filtering not enabled")
+	}
+
+	for eventType := model.FirstEventType; eventType <= model.LastEventType; eventType++ {
+		var mode kfilters.PolicyMode
+
+		if !p.Config.Probe.EnableKernelFilters {
+			mode = kfilters.PolicyModeNoFilter
+		} else if len(p.eventHandlers[eventType]) > 0 {
+			mode = kfilters.PolicyModeAccept
+		} else {
+			mode = kfilters.PolicyModeDeny
+		}
+
+		if err := p.ApplyFilterPolicy(eventType.String(), mode, math.MaxUint8); err != nil {
+			seclog.Debugf("unable to apply to filter policy `%s` for `%s`", eventType, mode)
+		}
+	}
 }
 
 // ApplyRuleSet setup the filters for the provided set of rules and returns the policy report.
@@ -1339,10 +1376,6 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		useRingBuffers,
 		uint32(p.Config.Probe.EventStreamBufferSize),
 	)
-
-	if !p.Config.Probe.EnableKernelFilters {
-		seclog.Warnf("Forcing in-kernel filter policy to `pass`: filtering not enabled")
-	}
 
 	if config.RuntimeSecurity.ActivityDumpEnabled {
 		for _, e := range config.RuntimeSecurity.ActivityDumpTracedEventTypes {
@@ -1447,6 +1480,24 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
 			manager.ConstantEditor{
 				Name:  "use_ring_buffer",
+				Value: utils.BoolTouint64(true),
+			},
+		)
+	}
+
+	if p.kernelVersion.HavePIDLinkStruct() {
+		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
+			manager.ConstantEditor{
+				Name:  "kernel_has_pid_link_struct",
+				Value: utils.BoolTouint64(true),
+			},
+		)
+	}
+
+	if p.kernelVersion.HaveLegacyPipeInodeInfoStruct() {
+		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
+			manager.ConstantEditor{
+				Name:  "kernel_has_legacy_pipe_inode_info",
 				Value: utils.BoolTouint64(true),
 			},
 		)
@@ -1601,9 +1652,23 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePIDStructLevel, "struct pid", "level", "linux/pid.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePIDStructNumbers, "struct pid", "numbers", "linux/pid.h")
 	constantFetcher.AppendSizeofRequest(constantfetch.SizeOfUPID, "struct upid", "linux/pid.h")
+	if kv.HavePIDLinkStruct() {
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameTaskStructPIDLink, "struct task_struct", "pids", "linux/sched.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePIDLinkStructPID, "struct pid_link", "pid", "linux/pid.h")
+	} else {
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameTaskStructPID, "struct task_struct", "thread_pid", "linux/sched.h")
+	}
 
 	// splice event
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePipeInodeInfoStructBufs, "struct pipe_inode_info", "bufs", "linux/pipe_fs_i.h")
+	if kv.HaveLegacyPipeInodeInfoStruct() {
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePipeInodeInfoStructNrbufs, "struct pipe_inode_info", "nrbufs", "linux/pipe_fs_i.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePipeInodeInfoStructCurbuf, "struct pipe_inode_info", "curbuf", "linux/pipe_fs_i.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePipeInodeInfoStructBuffers, "struct pipe_inode_info", "buffers", "linux/pipe_fs_i.h")
+	} else {
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePipeInodeInfoStructHead, "struct pipe_inode_info", "head", "linux/pipe_fs_i.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePipeInodeInfoStructRingsize, "struct pipe_inode_info", "ring_size", "linux/pipe_fs_i.h")
+	}
 
 	// network related constants
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameNetDeviceStructIfIndex, "struct net_device", "ifindex", "linux/netdevice.h")

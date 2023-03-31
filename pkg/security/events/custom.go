@@ -8,6 +8,7 @@ package events
 import (
 	"github.com/mailru/easyjson"
 	"github.com/mailru/easyjson/jwriter"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -15,6 +16,9 @@ import (
 )
 
 const (
+	// ServiceName is the service tag of the custom event types defined in this package
+	ServiceName = "runtime-security-agent"
+
 	// LostEventsRuleID is the rule ID for the lost_events_* events
 	LostEventsRuleID = "lost_events"
 	// RulesetLoadedRuleID is the rule ID for the ruleset_loaded events
@@ -26,6 +30,16 @@ const (
 	// SelfTestRuleID is the rule ID for the self_test events
 	SelfTestRuleID = "self_test"
 )
+
+type CustomEventCommonFields struct {
+	Timestamp time.Time `json:"date"`
+	Service   string    `json:"service"`
+}
+
+func (commonFields *CustomEventCommonFields) FillCustomEventCommonFields() {
+	commonFields.Service = ServiceName
+	commonFields.Timestamp = time.Now()
+}
 
 // NewCustomRule returns a new custom rule
 func NewCustomRule(id eval.RuleID) *rules.Rule {

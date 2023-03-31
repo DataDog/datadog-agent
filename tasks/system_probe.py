@@ -27,7 +27,6 @@ BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
 BPF_TAG = "linux_bpf"
 BUNDLE_TAG = "ebpf_bindata"
 NPM_TAG = "npm"
-DNF_TAG = "dnf"
 SBOM_TAG = "trivy"
 
 KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "kitchen"))
@@ -145,7 +144,7 @@ def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
         kernel_release=kernel_release, minimal_kernel_release=CWS_PREBUILT_MINIMUM_KERNEL_VERSION
     )
     kheaders = " ".join(f"-isystem{d}" for d in kernel_headers)
-    debugdef = "-DDEBUG=1" if debug else ""
+    debugdef = "-DDEBUG=1 -g" if debug else ""
     security_flags = f"-I{security_agent_c_dir} {debugdef}"
 
     outfiles = []
@@ -408,7 +407,6 @@ def build(
     go_mod="mod",
     windows=is_windows,
     arch=CURRENT_ARCH,
-    nikos_embedded_path=None,
     bundle_ebpf=False,
     kernel_release=None,
     debug=False,
@@ -435,7 +433,6 @@ def build(
         ctx,
         major_version=major_version,
         python_runtimes=python_runtimes,
-        nikos_embedded_path=nikos_embedded_path,
         bundle_ebpf=bundle_ebpf,
         arch=arch,
         go_mod=go_mod,
@@ -468,7 +465,6 @@ def build_sysprobe_binary(
     python_runtimes='3',
     go_mod="mod",
     arch=CURRENT_ARCH,
-    nikos_embedded_path=None,
     bundle_ebpf=False,
     strip_binary=False,
     sbom=True,
@@ -477,14 +473,11 @@ def build_sysprobe_binary(
         ctx,
         major_version=major_version,
         python_runtimes=python_runtimes,
-        nikos_embedded_path=nikos_embedded_path,
     )
 
     build_tags = get_default_build_tags(build="system-probe", arch=arch)
     if bundle_ebpf:
         build_tags.append(BUNDLE_TAG)
-    if nikos_embedded_path:
-        build_tags.append(DNF_TAG)
     if sbom:
         build_tags.append(SBOM_TAG)
 
@@ -1456,10 +1449,39 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
             images.add(docker_compose["services"][component]["image"])
 
     # Java tests have dynamic images in docker-compose.yml
-    for image in ["openjdk:21-oraclelinux8", "openjdk:15-oraclelinux8", "openjdk:8u151-jre"]:
+    for image in ["openjdk:21-oraclelinux8", "openjdk:15-oraclelinux8", "openjdk:8u151-jre", "menci/archlinuxarm:base"]:
         images.add(image)
 
     for image in images:
         output_path = image.translate(str.maketrans('', '', string.punctuation))
         ctx.run(f"docker pull --platform linux/{arch} {image}")
         ctx.run(f"docker save {image} > {os.path.join(output_dir, output_path)}.tar")
+
+
+@task
+def test_microvms(
+    ctx,
+    security_groups=None,
+    subnets=None,
+    instance_type_x86=None,
+    instance_type_arm=None,
+    x86_ami_id=None,
+    arm_ami_id=None,
+    destroy=False,
+    upload_dependencies=False,
+):
+    args = [
+        f"--sgs {security_groups}" if security_groups is not None else "",
+        f"--subnets {subnets}" if subnets is not None else "",
+        f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 is not None else "",
+        f"--instance-type-arm {instance_type_arm}" if instance_type_arm is not None else "",
+        f"--x86-ami-id {x86_ami_id}" if x86_ami_id is not None else "",
+        f"--arm-ami-id {arm_ami_id}" if arm_ami_id is not None else "",
+        "--destroy" if destroy else "",
+        "--upload-dependencies" if upload_dependencies else "",
+    ]
+
+    go_args = ' '.join(filter(lambda x: x != "", args))
+    ctx.run(
+        f"cd ./test/new-e2e && go run ./scenarios/system-probe/main.go --name usama-saqib-test {go_args} --shutdown-period 720",
+    )
