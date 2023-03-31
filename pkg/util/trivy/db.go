@@ -3,9 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build trivy
-// +build trivy
-
 package trivy
 
 import (
@@ -51,7 +48,7 @@ func NewBoltDB(cacheDir string) (BoltDB, error) {
 
 	err = db.Update(func(tx *bolt.Tx) error {
 		if _, err := tx.CreateBucketIfNotExists([]byte(boltBucket)); err != nil {
-			return fmt.Errorf("unable to create %s bucket: %v", err)
+			return fmt.Errorf("unable to create %s bucket: %v", boltBucket, err)
 		}
 		return nil
 	})

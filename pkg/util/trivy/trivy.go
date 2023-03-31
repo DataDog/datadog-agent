@@ -80,7 +80,7 @@ func DefaultCollectorConfig(enabledAnalyzers []string, cacheLocation string) Col
 		ClearCacheOnClose: true,
 	}
 
-	collectorConfig.CacheProvider = cacheProvider(cacheLocation, false)
+	collectorConfig.CacheProvider = cacheProvider(cacheLocation, config.Datadog.GetBool("container_image_collection.sbom.use_custom_cache"))
 
 	if len(enabledAnalyzers) == 1 && enabledAnalyzers[0] == OSAnalyzers {
 		collectorConfig.ArtifactOption.OnlyDirs = []string{"etc", "var/lib/dpkg", "var/lib/rpm", "lib/apk"}
@@ -89,10 +89,14 @@ func DefaultCollectorConfig(enabledAnalyzers []string, cacheLocation string) Col
 	return collectorConfig
 }
 
-func cacheProvider(cacheLocation string, useBadgerDB bool) func() (cache.Cache, error) {
-	return func() (cache.Cache, error) {
-		return NewBoltCache(cacheLocation)
+func cacheProvider(cacheLocation string, useCustomCache bool) func() (cache.Cache, error) {
+	if useCustomCache {
+		return func() (cache.Cache, error) {
+			return NewCustomBoltCache(cacheLocation)
+		}
 	}
+
+	return func() (cache.Cache, error) { return NewBoltCache(cacheLocation) }
 }
 
 func cacheTTL() time.Duration {

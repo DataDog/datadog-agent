@@ -3,9 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build trivy
-// +build trivy
-
 package trivy
 
 import (
@@ -20,20 +17,27 @@ import (
 	"github.com/aquasecurity/trivy/pkg/utils"
 	"github.com/hashicorp/golang-lru/simplelru"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta/telemetry"
 )
 
-var telemetryTick = 1 * time.Minute
-
 const sizeOfKey = 32
-const maxCacheSize = 500
-const maxDiskSize = 100000000
+
+var telemetryTick = 1 * time.Minute
 
 type CacheProvider func() (cache.Cache, error)
 
 func NewBoltCache(cacheDir string) (cache.Cache, error) {
+	if cacheDir == "" {
+		cacheDir = utils.DefaultCacheDir()
+	}
+
+	return cache.NewFSCache(cacheDir)
+}
+
+func NewCustomBoltCache(cacheDir string) (cache.Cache, error) {
 	if cacheDir == "" {
 		cacheDir = utils.DefaultCacheDir()
 	}
@@ -42,9 +46,10 @@ func NewBoltCache(cacheDir string) (cache.Cache, error) {
 		return nil, err
 	}
 	cache, err := NewPersistentCache(
-		maxCacheSize,
+		config.Datadog.GetInt("custom_cache_max_cache_entries"),
+		config.Datadog.GetInt("custom_cache_max_disk_size"),
 		db,
-		NewMaintainer(context.TODO(), telemetryTick),
+		NewMaintainer(context.TODO(), config.Datadog.GetDuration("custom_cache_gc_interval")),
 	)
 	if err != nil {
 		return nil, err
@@ -68,7 +73,6 @@ func (cache *PersistentCache) collectTelemetry() {
 	if err != nil {
 		log.Errorf("could not collect telemetry: %v", err)
 	}
-	telemetry.SBOMCacheMemSize.Set(float64(cache.Len() * sizeOfKey))
 	telemetry.SBOMCacheDiskSize.Set(float64(diskSize))
 }
 
@@ -149,8 +153,8 @@ var (
 )
 
 type Maintainer struct {
-	ctx    context.Context
-	ticker *time.Ticker
+	gcTicker        *time.Ticker
+	telemetryTicker *time.Ticker
 }
 
 func (c *Maintainer) Clean(cache *PersistentCache) {
@@ -166,62 +170,76 @@ func (c *Maintainer) Clean(cache *PersistentCache) {
 	for _, key := range cache.Keys() {
 		toRemove = append(toRemove, key)
 	}
-	cache.Remove(toRemove)
+	err := cache.Remove(toRemove)
+	if err != nil {
+		// will always be triggered if the database is closed
+		log.Errorf("error cleaning the database: %v", err)
+	}
 }
 
-func (c *Maintainer) Maintain(cache *PersistentCache) {
+func (m *Maintainer) Maintain(cache *PersistentCache) {
 	for {
 		select {
-		case <-c.ctx.Done():
-			return
-		case <-c.ticker.C:
-			c.Clean(cache)
+		case <-m.telemetryTicker.C:
+			cache.collectTelemetry()
+		case <-m.gcTicker.C:
+			m.Clean(cache)
 		}
 	}
 }
 
 func NewMaintainer(ctx context.Context, interval time.Duration) *Maintainer {
 	return &Maintainer{
-		ctx:    ctx,
-		ticker: time.NewTicker(interval),
+		gcTicker:        time.NewTicker(interval),
+		telemetryTicker: time.NewTicker(telemetryTick),
 	}
 }
 
 type PersistentCache struct {
-	lruCache        *simplelru.LRU
-	db              PersistentDB
-	mutex           sync.RWMutex
-	currentDiskSize int
-	maximumDiskSize int
-	maxCacheSize    int
+	ctx                     context.Context
+	lruCache                *simplelru.LRU
+	db                      PersistentDB
+	mutex                   sync.RWMutex
+	currentCachedObjectSize int
+	maximumCachedObjectSize int
+	lastEvicted             string
 }
 
 func NewPersistentCache(
-	cacheSize int,
+	maxCacheSize int,
+	maxCachedObjectSize int,
 	localDB PersistentDB,
 	maintainer *Maintainer,
 ) (*PersistentCache, error) {
 
-	lruCache, err := simplelru.NewLRU(cacheSize, func(interface{}, interface{}) {})
+	persistentCache := &PersistentCache{
+		db:                      localDB,
+		currentCachedObjectSize: 0,
+		maximumCachedObjectSize: maxCachedObjectSize,
+	}
+
+	lruCache, err := simplelru.NewLRU(maxCacheSize, func(key interface{}, _ interface{}) {
+		persistentCache.lastEvicted = key.(string)
+		telemetry.SBOMCacheEvicts.Inc()
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	currentSize := 0
+	var evicted []string
 	if err = localDB.ForEach(func(key string, value []byte) error {
-		lruCache.Add(key, struct{}{})
-		currentSize += len(value)
+		if ok := lruCache.Add(key, struct{}{}); ok {
+			evicted = append(evicted, persistentCache.lastEvicted)
+		}
+		persistentCache.IncCurrentCachedObjectSize(len(value))
 		return nil
 	}); err != nil {
 		return nil, err
 	}
 
-	persistentCache := &PersistentCache{
-		lruCache:        lruCache,
-		db:              localDB,
-		currentDiskSize: currentSize,
-		maximumDiskSize: maxDiskSize,
-		maxCacheSize:    cacheSize,
+	err = persistentCache.Remove(evicted)
+	if err != nil {
+		return nil, err
 	}
 
 	go maintainer.Maintain(persistentCache)
@@ -259,7 +277,8 @@ func (c *PersistentCache) Clear() error {
 		return err
 	}
 	c.lruCache.Purge()
-	c.currentDiskSize = 0
+	c.currentCachedObjectSize = 0
+	telemetry.SBOMCachedObjectSize.Set(0)
 	return nil
 }
 
@@ -279,16 +298,16 @@ func (c *PersistentCache) RemoveOldest() (string, []byte, error) {
 	}
 
 	val, err := c.db.Get(key.(string))
-	c.currentDiskSize -= len(val)
+	c.DecCurrentCachedObjectSize(len(val))
 	return key.(string), val, err
 }
 
 func (c *PersistentCache) ReduceSize(target int) error {
-	if target > c.maximumDiskSize {
-		return fmt.Errorf("cache can not exceed %d", c.maximumDiskSize)
+	if target > c.maximumCachedObjectSize {
+		return fmt.Errorf("cache can not exceed %d", c.maximumCachedObjectSize)
 	}
 
-	for c.currentDiskSize > target {
+	for c.currentCachedObjectSize > target {
 		_, _, err := c.RemoveOldest()
 		if err != nil {
 			return err
@@ -302,25 +321,32 @@ func (c *PersistentCache) Close() error {
 }
 
 func (c *PersistentCache) Set(key string, value []byte) error {
-	if len(value) > c.maximumDiskSize {
-		return fmt.Errorf("value of [%s] is too big for the cache : %d", key, c.maximumDiskSize)
+	if len(value) > c.maximumCachedObjectSize {
+		return fmt.Errorf("value of [%s] is too big for the cache : %d", key, c.maximumCachedObjectSize)
 	}
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+
+	if evict := c.lruCache.Add(key, struct{}{}); evict {
+		if evictedValue, err := c.db.Delete([]string{c.lastEvicted}); err != nil {
+			c.DecCurrentCachedObjectSize(len(evictedValue))
+			return err
+		}
+	}
 
 	err := c.db.Store(key, value)
 	if err != nil {
 		return err
 	}
 
-	c.lruCache.Add(key, struct{}{})
-	c.currentDiskSize += len(value)
+	c.IncCurrentCachedObjectSize(len(value))
 	return nil
 }
 
 func (c *PersistentCache) Get(key string) ([]byte, error) {
 	ok := c.Contains(key)
 	if !ok {
+		telemetry.SBOMCacheMisses.Inc()
 		return nil, fmt.Errorf("Key not found")
 	}
 
@@ -329,7 +355,7 @@ func (c *PersistentCache) Get(key string) ([]byte, error) {
 		_ = c.Remove([]string{key})
 		return nil, err
 	}
-
+	telemetry.SBOMCacheHits.Inc()
 	return res, nil
 }
 
@@ -344,11 +370,21 @@ func (c *PersistentCache) Remove(keys []string) error {
 		return err
 	}
 	for _, val := range values {
-		c.currentDiskSize -= len(val)
+		c.DecCurrentCachedObjectSize(len(val))
 	}
 	return nil
 }
 
-func (c *PersistentCache) GetCurrentDiskSize() int {
-	return c.currentDiskSize
+func (c *PersistentCache) GetCurrentCachedObjectSize() int {
+	return c.currentCachedObjectSize
+}
+
+func (c *PersistentCache) IncCurrentCachedObjectSize(val int) {
+	c.currentCachedObjectSize += val
+	telemetry.SBOMCachedObjectSize.Add(float64(val))
+}
+
+func (c *PersistentCache) DecCurrentCachedObjectSize(val int) {
+	c.currentCachedObjectSize -= val
+	telemetry.SBOMCachedObjectSize.Sub(float64(val))
 }

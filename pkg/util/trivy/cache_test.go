@@ -18,7 +18,7 @@ import (
 )
 
 func TestBoltCache_Artifacts(t *testing.T) {
-	cache, err := NewBoltCache(t.TempDir())
+	cache, err := NewCustomBoltCache(t.TempDir())
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -39,7 +39,7 @@ func TestBoltCache_Artifacts(t *testing.T) {
 }
 
 func TestBoltCache_Blobs(t *testing.T) {
-	cache, err := NewBoltCache(t.TempDir())
+	cache, err := NewCustomBoltCache(t.TempDir())
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -60,7 +60,7 @@ func TestBoltCache_Blobs(t *testing.T) {
 }
 
 func TestBoltCache_DeleteBlobs(t *testing.T) {
-	cache, err := NewBoltCache(t.TempDir())
+	cache, err := NewCustomBoltCache(t.TempDir())
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -94,7 +94,7 @@ func TestBoltCache_DeleteBlobs(t *testing.T) {
 }
 
 func TestBoltCache_MissingBlobs(t *testing.T) {
-	cache, err := NewBoltCache(t.TempDir())
+	cache, err := NewCustomBoltCache(t.TempDir())
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -126,7 +126,7 @@ func TestBoltCache_MissingBlobs(t *testing.T) {
 }
 
 func TestBoltCache_Clear(t *testing.T) {
-	cache, err := NewBoltCache(t.TempDir())
+	cache, err := NewCustomBoltCache(t.TempDir())
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())

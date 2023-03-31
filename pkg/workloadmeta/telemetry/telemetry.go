@@ -109,12 +109,12 @@ var (
 		commonOpts,
 	)
 
-	// SBOMCacheMemSize size in memory of the cache used for SBOM collection
+	// SBOM cached keys in memory
 	SBOMCacheMemSize = telemetry.NewGaugeWithOpts(
 		subsystem,
-		"sbom_cache_mem_size",
+		"sbom_cached_keys",
 		[]string{},
-		"SBOM cache size in memory (in bytes)",
+		"Number of cache keys stored in memory",
 		commonOpts,
 	)
 
@@ -124,6 +124,42 @@ var (
 		"sbom_cache_disk_size",
 		[]string{},
 		"SBOM cache size in disk (in bytes)",
+		commonOpts,
+	)
+
+	// SBOMCachedObjectSize total size in disk
+	SBOMCachedObjectSize = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"sbom_cached_object_size",
+		[]string{},
+		"SBOM cached object total size in disk (in bytes)",
+		commonOpts,
+	)
+
+	// SBOMCacheHits number of cache hits during SBOM collection
+	SBOMCacheHits = telemetry.NewCounterWithOpts(
+		subsystem,
+		"sbom_cache_hits_total",
+		[]string{},
+		"Total number of cache hits during SBOM collection",
+		commonOpts,
+	)
+
+	// SBOMCacheMisses number of cache misses during SBOM collection
+	SBOMCacheMisses = telemetry.NewCounterWithOpts(
+		subsystem,
+		"sbom_cache_misses_total",
+		[]string{},
+		"Total number of cache misses during SBOM collection",
+		commonOpts,
+	)
+
+	// SBOMCacheEvicts number of cache evicts during SBOM collection
+	SBOMCacheEvicts = telemetry.NewCounterWithOpts(
+		subsystem,
+		"sbom_cache_evicts_total",
+		[]string{},
+		"Total number of cache misses during SBOM collection",
 		commonOpts,
 	)
 )
