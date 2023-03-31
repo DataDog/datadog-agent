@@ -70,9 +70,6 @@ func TestDebuggerProxyHandler(t *testing.T) {
 			if strings.Contains(ddtags, "orchestrator") {
 				t.Fatalf("ddtags should not contain orchestrator: %v", ddtags)
 			}
-			if strings.Contains(ddtags, "orchestrator") {
-				t.Fatalf("ddtags should not contain orchestrator: %v", ddtags)
-			}
 			for _, tag := range []string{"host", "default_env", "agent_version"} {
 				if !strings.Contains(ddtags, tag) {
 					t.Fatalf("ddtags should contain %s", tag)
