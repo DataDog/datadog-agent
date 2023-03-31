@@ -6,6 +6,7 @@ import hashlib
 import json
 import re
 import sys
+import time
 from collections import OrderedDict
 from datetime import date
 from time import sleep
@@ -34,7 +35,7 @@ REPOSITORY_NAME = "DataDog/datadog-agent"
 
 UNFREEZE_REPO_AGENT = "datadog-agent"
 UNFREEZE_REPOS = [UNFREEZE_REPO_AGENT, "omnibus-software", "omnibus-ruby", "datadog-agent-macos-build"]
-
+CI_MODE=False
 
 @task
 def add_prelude(ctx, version):
@@ -354,7 +355,12 @@ def _query_github_api(auth_token, url):
 
     # Basic auth doesn't seem to work with private repos, so we use token auth here
     headers = {"Authorization": f"token {auth_token}"}
-    response = requests.get(url, headers=headers)
+    for retry_count in range(5):
+        response = requests.get(url, headers=headers)
+        if response.status_code < 500 or response.status_code >= 600:
+            break
+        elif not CI_MODE:
+            time.sleep(0.5 + 1 * retry_count)
     return response
 
 
