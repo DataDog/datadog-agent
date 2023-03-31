@@ -8,29 +8,30 @@
 
 package config
 
-// import (
-// 	"strings"
-// 	"testing"
-//
-// 	"github.com/stretchr/testify/assert"
-//
-// 	"github.com/DataDog/datadog-agent/pkg/config"
-// )
+import (
+	"testing"
 
-// func TestFullYamlConfigWithOTLP(t *testing.T) {
-// 	defer cleanConfig()()
-// 	origcfg := config.Datadog
-// 	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-// 	defer func() {
-// 		config.Datadog = origcfg
-// 	}()
-//
-// 	assert := assert.New(t)
-//
-// 	c, err := prepareConfig("./testdata/full.yaml")
-// 	assert.NoError(err)
-// 	assert.NoError(applyDatadogConfig(c))
-//
-// 	assert.Equal("0.0.0.0", c.OTLPReceiver.BindHost)
-// 	assert.Equal(50053, c.OTLPReceiver.GRPCPort)
-// }
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
+
+	corecomp "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+)
+
+func TestFullYamlConfigWithOTLP(t *testing.T) {
+
+	fxutil.Test(t, fx.Options(
+		fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
+		corecomp.MockModule,
+		fx.Supply(Params{}),
+		MockModule,
+	), func(config Component) {
+		cfg := config.Object()
+
+		require.NotNil(t, cfg)
+
+		assert.Equal(t, "0.0.0.0", cfg.OTLPReceiver.BindHost)
+		assert.Equal(t, 50053, cfg.OTLPReceiver.GRPCPort)
+	})
+}
