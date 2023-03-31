@@ -88,7 +88,7 @@ class GithubAPI(RemoteAPI):
         headers["Authorization"] = f"token {self.api_token}"
         headers["Accept"] = "application/vnd.github.v3+json"
         
-        for retry_count in range(5):
+        for retry_count in range(self.requests_500_retry_count):
             try:
                 return self.request(
                     path=path,
@@ -101,7 +101,7 @@ class GithubAPI(RemoteAPI):
                 )
             except APIError as e:
                 if 500 <= e.status_code < 600:
-                    time.sleep(1 + retry_count * 2)
+                    time.sleep(self.requests_sleep_time + retry_count * self.requests_sleep_time)
                 else:
                     raise e
         raise GithubException(f"Failed while making HTTP request: {method} {url}")

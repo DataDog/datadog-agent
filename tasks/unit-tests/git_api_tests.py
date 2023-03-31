@@ -10,11 +10,9 @@ from itertools import cycle
 
 from .. import release
 from ..libs.version import Version
-from ..libs.common.gitlab import Gitlab, get_gitlab_bot_token, get_gitlab_token, CI_MODE
-from ..libs.common import gitlab as glab
+from ..libs.common.gitlab import Gitlab, get_gitlab_bot_token, get_gitlab_token
 
 release.CI_MODE = True
-glab.CI_MODE = True
 
 
 def mocked_502_gitlab_requests(*args, **_kwargs):
@@ -96,6 +94,7 @@ class TestStatusCode5XX(unittest.TestCase):
             "",
             release.build_compatible_version_re(release.COMPATIBLE_MAJOR_VERSIONS[7], 29),
             release.COMPATIBLE_MAJOR_VERSIONS[7],
+            request_retry_sleep_time=0,
         )
         self.assertEqual(version, Version(major=7, minor=29, patch=0))
 
@@ -116,6 +115,7 @@ class TestStatusCode5XX(unittest.TestCase):
             "",
             release.build_compatible_version_re(release.COMPATIBLE_MAJOR_VERSIONS[7], 29),
             release.COMPATIBLE_MAJOR_VERSIONS[7],
+            request_retry_sleep_time=0,
         )
         self.assertEqual(version, Version(major=7, minor=29, patch=0))
 
@@ -129,6 +129,7 @@ class TestStatusCode5XX(unittest.TestCase):
                 "",
                 release.build_compatible_version_re(release.COMPATIBLE_MAJOR_VERSIONS[7], 29),
                 release.COMPATIBLE_MAJOR_VERSIONS[7],
+                request_retry_sleep_time=0,
             )
         except Exit:
             failed = True
@@ -139,6 +140,7 @@ class TestStatusCode5XX(unittest.TestCase):
     def test_gitlab_one_fail_one_success(self, _):
         project_name = "DataDog/datadog-agent"
         gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
+        gitlab.requests_sleep_time = 0
         gitlab.test_project_found()
 
     @mock.patch(
@@ -154,6 +156,7 @@ class TestStatusCode5XX(unittest.TestCase):
     def test_gitlab_last_one_success(self, _):
         project_name = "DataDog/datadog-agent"
         gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
+        gitlab.requests_sleep_time = 0
         gitlab.test_project_found()
 
     @mock.patch('requests.get', side_effect=SideEffect(mocked_502_gitlab_requests))
@@ -162,6 +165,7 @@ class TestStatusCode5XX(unittest.TestCase):
         try:
             project_name = "DataDog/datadog-agent"
             gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
+            gitlab.requests_sleep_time = 0
             gitlab.test_project_found()
         except Exit:
             failed = True

@@ -10,7 +10,6 @@ from invoke.exceptions import Exit
 from .remote_api import APIError, RemoteAPI
 
 __all__ = ["Gitlab"]
-CI_MODE = False
 
 class Gitlab(RemoteAPI):
     """
@@ -293,7 +292,7 @@ class Gitlab(RemoteAPI):
         """
         headers = dict(headers or [])
         headers["PRIVATE-TOKEN"] = self.api_token
-        for retry_count in range(5):
+        for retry_count in range(self.requests_500_retry_count):
             try:
                 return self.request(
                     path=path,
@@ -307,8 +306,7 @@ class Gitlab(RemoteAPI):
                 )
             except APIError as e:
                 if 500 <= e.status_code < 600:
-                    if not CI_MODE:
-                        time.sleep(1 + retry_count * 2)
+                    time.sleep(self.requests_sleep_time + retry_count * self.requests_sleep_time)
                 else:
                     raise e
         raise Exit(code=1)

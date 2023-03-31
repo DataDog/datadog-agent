@@ -20,9 +20,11 @@ class RemoteAPI(object):
 
     BASE_URL = ""
 
-    def __init__(self, api_name):
+    def __init__(self, api_name, sleep_time=1, retry_count=5):
         self.api_name = api_name
         self.authorization_error_message = "HTTP 401 Unauthorized"
+        self.requests_sleep_time = sleep_time
+        self.requests_500_retry_count = retry_count
 
     def request(
         self,

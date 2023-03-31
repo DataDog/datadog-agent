@@ -35,7 +35,6 @@ REPOSITORY_NAME = "DataDog/datadog-agent"
 
 UNFREEZE_REPO_AGENT = "datadog-agent"
 UNFREEZE_REPOS = [UNFREEZE_REPO_AGENT, "omnibus-software", "omnibus-ruby", "datadog-agent-macos-build"]
-CI_MODE=False
 
 @task
 def add_prelude(ctx, version):
@@ -350,17 +349,17 @@ def _stringify_config(config_dict):
     return {key: str(value) for key, value in config_dict.items()}
 
 
-def _query_github_api(auth_token, url):
+def _query_github_api(auth_token, url, retry_number=5, sleep_time=1):
     import requests
 
     # Basic auth doesn't seem to work with private repos, so we use token auth here
     headers = {"Authorization": f"token {auth_token}"}
     for retry_count in range(5):
         response = requests.get(url, headers=headers)
-        if response.status_code < 500 or response.status_code >= 600:
+        if 500 <= response.status_code < 600:
+            time.sleep(sleep_time + sleep_time * retry_count)
+        else:
             break
-        elif not CI_MODE:
-            time.sleep(0.5 + 1 * retry_count)
     return response
 
 
@@ -383,7 +382,7 @@ def build_compatible_version_re(allowed_major_versions, minor_version):
 
 
 def _get_highest_repo_version(
-    auth, repo, version_prefix, version_re, allowed_major_versions=None, max_version: Version = None
+    auth, repo, version_prefix, version_re, allowed_major_versions=None, max_version: Version = None, request_retry_sleep_time=1
 ):
     # If allowed_major_versions is not specified, search for all versions by using an empty
     # major version prefix.
@@ -395,7 +394,7 @@ def _get_highest_repo_version(
     for major_version in allowed_major_versions:
         url = f"https://api.github.com/repos/DataDog/{repo}/git/matching-refs/tags/{version_prefix}{major_version}"
 
-        tags = _query_github_api(auth, url).json()
+        tags = _query_github_api(auth, url, sleep_time=request_retry_sleep_time).json()
 
         for tag in tags:
             match = version_re.search(tag["ref"])
