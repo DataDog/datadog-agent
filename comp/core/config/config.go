@@ -75,6 +75,11 @@ func newMock(deps mockDependencies, t testing.TB) Component {
 	// call InitConfig to set defaults.
 	config.InitConfig(config.Datadog)
 
+	if deps.Params.ConfigYaml != "" {
+		config.Datadog.SetConfigType("yaml")
+		config.Datadog.ReadConfig(strings.NewReader(deps.Params.ConfigYaml))
+	}
+
 	// Overrides are explicit and will take precedence over any other
 	// setting
 	for k, v := range deps.Params.Overrides {
