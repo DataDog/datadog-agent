@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	go_ora "github.com/sijms/go-ora/v2"
 
 	_ "github.com/godror/godror"
@@ -120,26 +121,48 @@ func TestChkRun(t *testing.T) {
 
 	chk.config.InstanceConfig.InstantClient = false
 
-	for _, tnsAlias := range []string{TNS_ALIAS, ""} {
+	type RowsStruct struct {
+		N       int    `db:"N"`
+		SQLText string `db:"SQL_TEXT"`
+	}
+	r := RowsStruct{}
+
+	for _, tnsAlias := range []string{"", TNS_ALIAS} {
+		chk.db = nil
+
 		chk.config.InstanceConfig.TnsAlias = tnsAlias
 		var driver string
 		if tnsAlias == "" {
-			driver = "oracle"
+			driver = common.GoOra
+			chk.config.InstanceConfig.InstantClient = false
 		} else {
-			driver = "godror"
+			driver = common.Godror
 		}
 
 		err := chk.Run()
 		assert.NoError(t, err, "check run with %s driver", driver)
 
-		m := make(map[uint64]int)
-		m[1] = 1
+		err = chk.db.Get(&r, "select /* DDTEST */ 1 n from dual")
+		assert.NoError(t, err, "running test statement with %s driver", driver)
+		//m := make(map[uint64]int)
+		m := make(map[string]int)
+		m["2267897546238586672"] = 1
 		chk.statementsFilter = StatementsFilter{ForceMatchingSignatures: m}
 
-		err = chk.StatementMetrics()
-		assert.NoError(t, err, "query metrics with %s driver", driver)
+		statementMetrics, err := GetStatementsMetricsForKeys(&chk, "force_matching_signature", "AND force_matching_signature != 0", chk.statementsFilter.ForceMatchingSignatures)
+		assert.NoError(t, err, "running GetStatementsMetricsForKeys with %s driver", driver)
+		assert.Equal(t, 1, len(statementMetrics), "test query metrics captured with %s driver", driver)
+		err = chk.db.Get(&r, "select sql_text from v$sqlstats where sql_text like '%t111%'")
+		assert.NoError(t, err, "running statement with large force_matching_signature with %s driver", driver)
+		//m = make(map[uint64]int)
+		m = make(map[string]int)
+		m["17202440635181618732"] = 1
+		chk.statementsFilter = StatementsFilter{ForceMatchingSignatures: m}
+		assert.Equal(t, 1, len(statementMetrics), "test query metrics for uint64 overflow with %s driver", driver)
 
-		chk.db = nil
+		n, err := chk.StatementMetrics()
+		assert.NoError(t, err, "query metrics with %s driver", driver)
+		assert.Equal(t, 1, n, "total query metrics captured with %s driver", driver)
 	}
 }
 
@@ -205,18 +228,30 @@ func TestBindingSimple(t *testing.T) {
 }
 
 func TestBindingIn(t *testing.T) {
-	slice := []int{1}
+	slice := []any{1}
 	result := 7
-	query, args, err := sqlx.In(fmt.Sprintf("SELECT %d FROM dual WHERE rownum IN (?)", result), slice)
-	if err != nil {
-		fmt.Println(err)
-	}
 	for _, driver := range DRIVERS {
 		db, _ := connectToDB(driver)
-		rows, err := db.Query(db.Rebind(query), args...)
-		if err != nil {
-			assert.NoErrorf(t, err, "preparing statement with IN clause for %s driver", driver)
-			continue
+
+		var rows *sql.Rows
+		var err error
+		if driver == common.Godror {
+			query, args, err := sqlx.In(fmt.Sprintf("SELECT %d FROM dual WHERE rownum IN (?)", result), slice)
+			if err != nil {
+				fmt.Println(err)
+			}
+
+			rows, err = db.Query(db.Rebind(query), args...)
+			if err != nil {
+				assert.NoErrorf(t, err, "preparing statement with IN clause for %s driver", driver)
+				continue
+			}
+		} else if driver == common.GoOra {
+			rows, err = db.Query(fmt.Sprintf("SELECT %d FROM dual WHERE rownum IN (:1)", result), slice...)
+			if err != nil {
+				log.Fatalf("row error with driver %s %s", driver, err)
+				return
+			}
 		}
 		rows.Next()
 		var retValue int
