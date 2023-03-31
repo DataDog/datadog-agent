@@ -212,6 +212,7 @@ func newTracer(config *config.Config) (*Tracer, error) {
 		gwLookup:                   gwLookup,
 		ebpfTracer:                 ebpfTracer,
 		bpfTelemetry:               bpfTelemetry,
+		lastCheck:                  atomic.NewInt64(time.Now().Unix()),
 		exit:                       make(chan struct{}),
 	}
 
