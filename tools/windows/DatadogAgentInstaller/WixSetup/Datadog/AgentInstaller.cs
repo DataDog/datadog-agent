@@ -118,7 +118,8 @@ namespace WixSetup.Datadog
                     new RegValue("InstallPath", "[PROJECTLOCATION]") { Win64 = true },
                     new RegValue("ConfigRoot", "[APPLICATIONDATADIRECTORY]") { Win64 = true },
                     new RegValue("installedDomain", "[DDAGENTUSER_PROCESSED_DOMAIN]") { Win64 = true },
-                    new RegValue("installedUser", "[DDAGENTUSER_PROCESSED_NAME]") { Win64 = true }
+                    new RegValue("installedUser", "[DDAGENTUSER_PROCESSED_NAME]") { Win64 = true },
+                    new RegValue("AllowClosedSource", "[ALLOWCLOSEDSOURCE]") { Win64 = true }
                 )
                 {
                     Win64 = true

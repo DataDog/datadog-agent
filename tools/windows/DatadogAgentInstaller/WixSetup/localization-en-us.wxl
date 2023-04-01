@@ -71,4 +71,12 @@
 	<String Id="MsiRMFilesInUseText" Overridable="yes">The following applications are using files that need to be updated by this setup. Close these applications and then click &amp;Retry to continue setup or Exit to exit it.</String>
 	<String Id="MsiRMFilesInUseDescription" Overridable="yes">{\WixUI_Font_Normal_White}Some files that need to be updated are currently in use.</String>
 	<String Id="MsiRMFilesInUseTitle" Overridable="yes">{\WixUI_Font_Title_White}Files in Use</String>
+
+	<!-- these strings for the closed source dialog -->
+	<String Id ="ClosedSourceDialog_Title">[ProductName] Setup</String>
+	<String Id ="ClosedSrcDialogTitle" >{\WixUI_Font_Title_White}Datadog Open Source</String>
+	<String Id ="ClosedSrcDescription">{\WixUI_Font_Normal_White}Accept components which are not open source</String>
+
+	<String Id ="ClosedSrcKeyLabel">Enable components which are not open source. This option must be enabled for the NPM product to function.</String>
+	<String Id ="ClosedSrcAcceptedCheckText">Enable components which are not open source.</String>
 </WixLocalization>

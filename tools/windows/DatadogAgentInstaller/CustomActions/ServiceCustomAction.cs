@@ -47,7 +47,7 @@ namespace Datadog.CustomActions
         {
         }
 
-        private static ActionResult EnsureNpmServiceDepdendency(ISession session)
+        private static ActionResult EnsureNpmServiceDependendency(ISession session)
         {
             try
             {
@@ -89,7 +89,7 @@ namespace Datadog.CustomActions
         [CustomAction]
         public static ActionResult EnsureNpmServiceDependency(Session session)
         {
-            return EnsureNpmServiceDepdendency(new SessionWrapper(session));
+            return EnsureNpmServiceDependendency(new SessionWrapper(session));
         }
 
         private ActionResult ConfigureServiceUsers()

@@ -1,4 +1,5 @@
 using System;
+using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
 using Microsoft.Deployment.WindowsInstaller;
 using Microsoft.Win32;
@@ -85,11 +86,26 @@ namespace Datadog.CustomActions
                                 return string.Empty;
                             });
 
-                        // PROJECTLOCATION
                         RegistryValueProperty(session, "PROJECTLOCATION", subkey, "InstallPath");
-
-                        // APPLICATIONDATADIRECTORY
                         RegistryValueProperty(session, "APPLICATIONDATADIRECTORY", subkey, "ConfigRoot");
+                        RegistryValueProperty(session, "ALLOWCLOSEDSOURCE", subkey, "AllowClosedSource");
+                    }
+                }
+
+                if (string.IsNullOrEmpty(session.Property("ALLOWCLOSEDSOURCE")))
+                {
+                    session.Log("Cannot find the \"AllowClosedSource\" registry key, checking the NPM service state.");
+                    using var subkey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\ddnpm");
+                    if (subkey != null)
+                    {
+                        // https://renenyffenegger.ch/notes/Windows/registry/tree/HKEY_LOCAL_MACHINE/System/CurrentControlSet/Services/_driver_name_/index
+                        // Start = 4 means service is disabled, so NOT 4 means it's enabled.
+                        session["ALLOWCLOSEDSOURCE"] = int.Parse(subkey.GetValue("Start").ToString()) != 4 ? "1" : "0";
+                        session.Log($"Found \"AllowClosedSource\" key, with value: {session["ALLOWCLOSEDSOURCE"]}");
+                    }
+                    else
+                    {
+                        session.Log("NPM service not found, assuming closed source consent was not given.");
                     }
                 }
 
