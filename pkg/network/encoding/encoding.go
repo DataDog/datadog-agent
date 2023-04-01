@@ -96,6 +96,34 @@ func modelConnections(conns *network.Connections) *model.Connections {
 		).Add(int64(httpEncoder.orphanEntries))
 	}
 
+	if http2Encoder != nil && http2Encoder.orphanEntries > 0 {
+		log.Debugf(
+			"detected orphan http2 aggregations. this may be caused by conntrack sampling or missed tcp close events. count=%d",
+			http2Encoder.orphanEntries,
+		)
+
+		telemetry.NewMetric(
+			"usm.http2.orphan_aggregations",
+			telemetry.OptMonotonic,
+			telemetry.OptExpvar,
+			telemetry.OptStatsd,
+		).Add(int64(http2Encoder.orphanEntries))
+	}
+
+	if kafkaEncoder != nil && kafkaEncoder.orphanEntries > 0 {
+		log.Debugf(
+			"detected orphan kafka aggregations. this may be caused by conntrack sampling or missed tcp close events. count=%d",
+			kafkaEncoder.orphanEntries,
+		)
+
+		telemetry.NewMetric(
+			"usm.kafka.orphan_aggregations",
+			telemetry.OptMonotonic,
+			telemetry.OptExpvar,
+			telemetry.OptStatsd,
+		).Add(int64(kafkaEncoder.orphanEntries))
+	}
+
 	routes := make([]*model.Route, len(routeIndex))
 	for _, v := range routeIndex {
 		routes[v.Idx] = &v.Route
