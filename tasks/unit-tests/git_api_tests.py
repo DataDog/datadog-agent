@@ -1,8 +1,4 @@
 import unittest
-import hashlib
-import unittest
-import json
-from typing import OrderedDict
 from unittest import mock
 
 from invoke.exceptions import Exit
@@ -10,14 +6,14 @@ from itertools import cycle
 
 from .. import release
 from ..libs.version import Version
-from ..libs.common.gitlab import Gitlab, get_gitlab_bot_token, get_gitlab_token
+from ..libs.common.gitlab import Gitlab, get_gitlab_token
 from ..libs.common.github_workflows import GithubWorkflows, GithubException
 from ..libs.common.github_api import GithubAPI
 
 ##################### MOCKED GITLAB #####################
 
 
-def mocked_502_gitlab_requests(*args, **_kwargs):
+def mocked_502_gitlab_requests(*_args, **_kwargs):
     class MockResponse:
         def __init__(self, content, status_code):
             self.content = content
@@ -32,7 +28,7 @@ def mocked_502_gitlab_requests(*args, **_kwargs):
     )
 
 
-def mocked_gitlab_project_request(*args, **_kwargs):
+def mocked_gitlab_project_request(*_args, **_kwargs):
     class MockResponse:
         def __init__(self, content, status_code):
             self.content = content
@@ -47,7 +43,7 @@ def mocked_gitlab_project_request(*args, **_kwargs):
 ##################### MOCKED GITHUB #####################
 
 
-def mocked_github_requests_get(*_args, **kwargs):
+def mocked_github_requests_get(*_args, **_kwargs):
     class MockResponse:
         def __init__(self, json_data, status_code):
             self.json_data = json_data
@@ -155,7 +151,7 @@ class TestStatusCode5XX(unittest.TestCase):
     def test_github_full_fail(self, _):
         failed = False
         try:
-            version = release._get_highest_repo_version(
+            release._get_highest_repo_version(
                 "FAKE_TOKEN",
                 "target-repo",
                 "",
@@ -222,13 +218,13 @@ class TestStatusCode5XX(unittest.TestCase):
             mocked_github_workflow_requests,
         ),
     )
-    def test_github_last_one_success(self, _):
+    def test_github_workflow_last_one_success(self, _):
         workflow = GithubWorkflows()
         workflow.requests_sleep_time = 0
         assert workflow.repo() == "valid content"
 
     @mock.patch('requests.get', side_effect=SideEffect(mocked_502_github_workflow_requests))
-    def test_github_full_fail(self, _):
+    def test_github_workflow_full_fail(self, _):
         failed = False
         try:
             workflow = GithubWorkflows()
