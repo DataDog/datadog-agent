@@ -14,6 +14,8 @@ import (
 // Flow contains flow info used for aggregation
 // json annotations are used in AsJSONString() for debugging purpose
 type Flow struct {
+	FlowCount uint64
+
 	Namespace    string
 	FlowType     FlowType
 	SamplingRate uint64

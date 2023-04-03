@@ -130,6 +130,7 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 		go f.detectHashCollision(aggHash, *aggFlow.flow, *flowToAdd)
 
 		// accumulate flowToAdd with existing flow(s) with same hash
+		aggFlow.flow.FlowCount += 1
 		aggFlow.flow.Bytes += flowToAdd.Bytes
 		aggFlow.flow.Packets += flowToAdd.Packets
 		aggFlow.flow.StartTimestamp = common.MinUint64(aggFlow.flow.StartTimestamp, flowToAdd.StartTimestamp)

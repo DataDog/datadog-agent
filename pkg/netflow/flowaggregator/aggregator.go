@@ -13,7 +13,6 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -34,6 +33,7 @@ type FlowAggregator struct {
 	sender                       aggregator.Sender
 	stopChan                     chan struct{}
 	receivedFlowCount            *atomic.Uint64
+	rawFlushedFlowCount          *atomic.Uint64
 	flushedFlowCount             *atomic.Uint64
 	hostname                     string
 	goflowPrometheusGatherer     prometheus.Gatherer
@@ -52,6 +52,7 @@ func NewFlowAggregator(sender aggregator.Sender, config *config.NetflowConfig, h
 		sender:                       sender,
 		stopChan:                     make(chan struct{}),
 		receivedFlowCount:            atomic.NewUint64(0),
+		rawFlushedFlowCount:          atomic.NewUint64(0),
 		flushedFlowCount:             atomic.NewUint64(0),
 		hostname:                     hostname,
 		goflowPrometheusGatherer:     prometheus.DefaultGatherer,
@@ -89,7 +90,9 @@ func (agg *FlowAggregator) run() {
 }
 
 func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
+	var rawFlowsCount uint64
 	for _, flow := range flows {
+		rawFlowsCount += flow.FlowCount
 		flowPayload := buildPayload(flow, agg.hostname)
 		payloadBytes, err := json.Marshal(flowPayload)
 		if err != nil {
@@ -98,8 +101,9 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
 		}
 
 		log.Tracef("flushed flow: %s", string(payloadBytes))
-		agg.sender.EventPlatformEvent(payloadBytes, epforwarder.EventTypeNetworkDevicesNetFlow)
+		//agg.sender.EventPlatformEvent(payloadBytes, epforwarder.EventTypeNetworkDevicesNetFlow)
 	}
+	agg.rawFlushedFlowCount.Add(rawFlowsCount)
 }
 
 func (agg *FlowAggregator) flushLoop() {
@@ -139,6 +143,8 @@ func (agg *FlowAggregator) flush() int {
 	if len(flowsToFlush) > 0 {
 		agg.sendFlows(flowsToFlush)
 	}
+	log.Debugf("receivedFlowCount: %d", agg.receivedFlowCount.Load())
+	log.Debugf("rawFlushedFlowCount: %d", agg.rawFlushedFlowCount.Load())
 
 	flushCount := len(flowsToFlush)
 

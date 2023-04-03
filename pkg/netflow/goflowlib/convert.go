@@ -15,6 +15,7 @@ import (
 func ConvertFlow(srcFlow *flowpb.FlowMessage, namespace string) *common.Flow {
 	return &common.Flow{
 		Namespace:       namespace,
+		FlowCount:       1,
 		FlowType:        convertFlowType(srcFlow.Type),
 		SamplingRate:    srcFlow.SamplingRate,
 		Direction:       srcFlow.FlowDirection,
