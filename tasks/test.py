@@ -34,6 +34,7 @@ from .utils import DEFAULT_BRANCH, get_build_flags
 
 PROFILE_COV = "profile.cov"
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
+UNIT_TEST_FILE_FORMAT = re.compile(r'[^a-zA-Z0-9_\-]')
 
 
 class TestProfiler:
@@ -121,6 +122,17 @@ def install_tools(ctx):
             with ctx.cd(path):
                 for tool in tools:
                     ctx.run(f"go install {tool}")
+
+
+@task
+def invoke_unit_tests(ctx):
+    """
+    Run the unit tests on the invoke tasks
+    """
+    for _, _, files in os.walk("tasks/unit-tests/"):
+        for file in files:
+            if file[-3:] == ".py" and file != "__init__.py" and not bool(UNIT_TEST_FILE_FORMAT.search(file[:-3])):
+                ctx.run(f"python3 -m tasks.unit-tests.{file[:-3]}")
 
 
 def test_core(
@@ -758,7 +770,10 @@ def lint_filenames(ctx):
     # Maximum length supported by the win32 API
     max_length = 255
     for file in files:
-        if not file.startswith('test/kitchen/') and prefix_length + len(file) > max_length:
+        if (
+            not file.startswith(('test/kitchen/', 'tools/windows/DatadogAgentInstaller'))
+            and prefix_length + len(file) > max_length
+        ):
             print(f"Error: path {file} is too long ({prefix_length + len(file) - max_length} characters too many)")
             failure = True
 

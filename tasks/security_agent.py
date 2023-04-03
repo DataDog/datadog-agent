@@ -127,7 +127,11 @@ def gen_mocks(ctx):
         "./pkg/security/proto/api": [
             "SecurityModuleServer",
             "SecurityModuleClient",
-            "SecurityModule_GetProcessEventsClient",
+        ],
+        "./pkg/eventmonitor/proto/api": [
+            "EventMonitoringModuleServer",
+            "EventMonitoringModuleClient",
+            "EventMonitoringModule_GetProcessEventsClient",
         ],
     }
 
@@ -290,7 +294,6 @@ def build_functional_tests(
     major_version='7',
     build_tags='functionaltests',
     build_flags='',
-    nikos_embedded_path=None,
     bundle_ebpf=True,
     static=False,
     skip_linters=False,
@@ -306,9 +309,7 @@ def build_functional_tests(
 
     build_embed_syscall_tester(ctx)
 
-    ldflags, gcflags, env = get_build_flags(
-        ctx, major_version=major_version, nikos_embedded_path=nikos_embedded_path, static=static
-    )
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static)
 
     env["CGO_ENABLED"] = "1"
     if arch == "x86":
@@ -328,10 +329,6 @@ def build_functional_tests(
     if not skip_linters:
         targets = ['./pkg/security/tests']
         golangci_lint(ctx, targets=targets, build_tags=build_tags, arch=arch)
-
-    # linters have a hard time with dnf, so we add the build tag after running them
-    if nikos_embedded_path:
-        build_tags.append("dnf")
 
     if race:
         build_flags += " -race"
@@ -621,19 +618,6 @@ def generate_btfhub_constants(ctx, archive_path, force_refresh=False):
 
 @task
 def generate_cws_proto(ctx):
-    # The general view of which structures to pool is to currently pool the big ones.
-    # During testing/benchmarks we saw that enabling pooling for small/leaf nodes had a negative effect
-    # on both performance and memory.
-    # What could explain this impact is that putting back the node in the pool requires to walk the tree to put back
-    # child nodes. The maximum depth difference between nodes become a very important metric.
-    ad_pool_structs = [
-        "ActivityDump",
-        "ProcessActivityNode",
-        "FileActivityNode",
-        "FileInfo",
-        "ProcessInfo",
-    ]
-
     with tempfile.TemporaryDirectory() as temp_gobin:
         with environ({"GOBIN": temp_gobin}):
             ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1")
@@ -646,15 +630,6 @@ def generate_cws_proto(ctx):
                     f"--plugin protoc-gen-go-grpc=\"{temp_gobin}/protoc-gen-go-grpc\"",
                     f"--plugin protoc-gen-go-vtproto=\"{temp_gobin}/protoc-gen-go-vtproto\"",
                 ]
-            )
-
-            # Activity Dumps
-            ad_pool_opts = " ".join(
-                f"--go-vtproto_opt=pool=pkg/security/proto/security_profile/v1.{struct_name}"
-                for struct_name in ad_pool_structs
-            )
-            ctx.run(
-                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=pool+marshal+unmarshal+size {ad_pool_opts} pkg/security/proto/security_profile/v1/activity_dump.proto"
             )
 
             # API
@@ -723,7 +698,7 @@ def go_generate_check(ctx):
 
 
 @task
-def kitchen_prepare(ctx, local=False, skip_linters=False):
+def kitchen_prepare(ctx, skip_linters=False):
     """
     Compile test suite for kitchen
     """
@@ -732,15 +707,12 @@ def kitchen_prepare(ctx, local=False, skip_linters=False):
     if os.path.exists(KITCHEN_ARTIFACT_DIR):
         shutil.rmtree(KITCHEN_ARTIFACT_DIR)
 
-    nikos_embedded_path = os.environ.get("NIKOS_EMBEDDED_PATH", None)
-
     testsuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", "testsuite")
     build_functional_tests(
         ctx,
         bundle_ebpf=False,
         race=True,
         output=testsuite_out_path,
-        nikos_embedded_path=nikos_embedded_path,
         skip_linters=skip_linters,
     )
     stresssuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", STRESS_TEST_SUITE)
@@ -756,10 +728,6 @@ def kitchen_prepare(ctx, local=False, skip_linters=False):
 
     # Build test2json binary
     ctx.run(f"go build -o {KITCHEN_ARTIFACT_DIR}/test2json -ldflags=\"-s -w\" cmd/test2json", env={"CGO_ENABLED": "0"})
-
-    # Copy nikos zip file
-    if not local:
-        ctx.run(f"cp /tmp/nikos.tar.gz {KITCHEN_ARTIFACT_DIR}/")
 
     ebpf_bytecode_dir = os.path.join(KITCHEN_ARTIFACT_DIR, "ebpf_bytecode")
     ebpf_runtime_dir = os.path.join(ebpf_bytecode_dir, "runtime")

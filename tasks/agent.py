@@ -362,7 +362,6 @@ def get_omnibus_env(
     python_runtimes='3',
     hardened_runtime=False,
     system_probe_bin=None,
-    nikos_path=None,
     go_mod_cache=None,
     flavor=AgentFlavor.base,
     pip_config_file="pip.conf",
@@ -409,8 +408,6 @@ def get_omnibus_env(
 
     if system_probe_bin:
         env['SYSTEM_PROBE_BIN'] = system_probe_bin
-    if nikos_path:
-        env['NIKOS_PATH'] = nikos_path
     env['AGENT_FLAVOR'] = flavor.name
 
     return env
@@ -484,7 +481,6 @@ def omnibus_build(
     omnibus_s3_cache=False,
     hardened_runtime=False,
     system_probe_bin=None,
-    nikos_path=None,
     go_mod_cache=None,
     python_mirror=None,
     pip_config_file="pip.conf",
@@ -518,7 +514,6 @@ def omnibus_build(
         python_runtimes=python_runtimes,
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
-        nikos_path=nikos_path,
         go_mod_cache=go_mod_cache,
         flavor=flavor,
         pip_config_file=pip_config_file,

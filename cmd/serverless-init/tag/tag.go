@@ -6,7 +6,6 @@
 package tag
 
 import (
-	"fmt"
 	"os"
 	"strings"
 
@@ -62,9 +61,5 @@ func GetBaseTagsMapWithMetadata(metadata map[string]string) map[string]string {
 // GetBaseTagsArrayWithMetadataTags see GetBaseTagsMapWithMetadata (as array)
 func GetBaseTagsArrayWithMetadataTags(metadata map[string]string) []string {
 	tagsMap := GetBaseTagsMapWithMetadata(metadata)
-	tagsArray := make([]string, 0, len(tagsMap))
-	for key, value := range tagsMap {
-		tagsArray = append(tagsArray, fmt.Sprintf("%s:%s", key, value))
-	}
-	return tagsArray
+	return tags.MapToArray(tagsMap)
 }

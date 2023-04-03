@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	dogstatsdDebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
@@ -160,6 +161,7 @@ func run(log log.Component,
 	sysprobeconfig sysprobeconfig.Component,
 	server dogstatsdServer.Component,
 	capture replay.Component,
+	serverDebug dogstatsdDebug.Component,
 	cliParams *cliParams) error {
 	defer func() {
 		stopAgent(cliParams, server)
@@ -201,7 +203,7 @@ func run(log log.Component,
 		}
 	}()
 
-	if err := startAgent(cliParams, flare, sysprobeconfig, server, capture); err != nil {
+	if err := startAgent(cliParams, flare, sysprobeconfig, server, capture, serverDebug); err != nil {
 		return err
 	}
 
@@ -220,10 +222,11 @@ func StartAgentWithDefaults() (dogstatsdServer.Component, error) {
 		flare flare.Component,
 		sysprobeconfig sysprobeconfig.Component,
 		server dogstatsdServer.Component,
+		serverDebug dogstatsdDebug.Component,
 		capture replay.Component,
 	) error {
 		dsdServer = server
-		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, flare, sysprobeconfig, server, capture)
+		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, flare, sysprobeconfig, server, capture, serverDebug)
 	},
 		// no config file path specification in this situation
 		fx.Supply(core.BundleParams{
@@ -246,7 +249,14 @@ func StartAgentWithDefaults() (dogstatsdServer.Component, error) {
 }
 
 // startAgent Initializes the agent process
-func startAgent(cliParams *cliParams, flare flare.Component, sysprobeconfig sysprobeconfig.Component, server dogstatsdServer.Component, capture replay.Component) error {
+func startAgent(
+	cliParams *cliParams,
+	flare flare.Component,
+	sysprobeconfig sysprobeconfig.Component,
+	server dogstatsdServer.Component,
+	capture replay.Component,
+	serverDebug dogstatsdDebug.Component) error {
+
 	var err error
 
 	// Main context passed to components
@@ -293,7 +303,7 @@ func startAgent(cliParams *cliParams, flare flare.Component, sysprobeconfig sysp
 	}
 
 	// init settings that can be changed at runtime
-	if err := initRuntimeSettings(server); err != nil {
+	if err := initRuntimeSettings(serverDebug); err != nil {
 		pkglog.Warnf("Can't initiliaze the runtime settings: %v", err)
 	}
 
@@ -377,7 +387,7 @@ func startAgent(cliParams *cliParams, flare flare.Component, sysprobeconfig sysp
 	}
 
 	// start the cmd HTTP server
-	if err = api.StartServer(configService, flare, server, capture); err != nil {
+	if err = api.StartServer(configService, flare, server, capture, serverDebug); err != nil {
 		return pkglog.Errorf("Error while starting api server, exiting: %v", err)
 	}
 
