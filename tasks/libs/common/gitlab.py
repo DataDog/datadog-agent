@@ -11,6 +11,7 @@ from .remote_api import APIError, RemoteAPI
 
 __all__ = ["Gitlab"]
 
+
 class Gitlab(RemoteAPI):
     """
     Helper class to perform API calls against the Gitlab API, using a Gitlab PAT.

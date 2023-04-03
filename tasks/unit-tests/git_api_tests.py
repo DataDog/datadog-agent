@@ -11,8 +11,10 @@ from itertools import cycle
 from .. import release
 from ..libs.version import Version
 from ..libs.common.gitlab import Gitlab, get_gitlab_bot_token, get_gitlab_token
+from ..libs.common.github_workflows import GithubWorkflows, GithubException
+from ..libs.common.github_api import GithubAPI
 
-release.CI_MODE = True
+##################### MOCKED GITLAB #####################
 
 
 def mocked_502_gitlab_requests(*args, **_kwargs):
@@ -40,6 +42,9 @@ def mocked_gitlab_project_request(*args, **_kwargs):
             return self.content
 
     return MockResponse("name", 200)
+
+
+##################### MOCKED GITHUB #####################
 
 
 def mocked_github_requests_get(*_args, **kwargs):
@@ -74,6 +79,33 @@ def mocked_502_github_requests(*_args, **_kwargs):
             return self.json_data
 
     return MockResponse([], 502)
+
+
+##################### MOCKED GITHUB WORKFLOW #####################
+
+
+def mocked_502_github_workflow_requests(*_args, **_kwargs):
+    class MockResponse:
+        def __init__(self, content, status_code):
+            self.content = content
+            self.status_code = status_code
+
+        def json(self):
+            return self.content
+
+    return MockResponse([], 502)
+
+
+def mocked_github_workflow_requests(*_args, **_kwargs):
+    class MockResponse:
+        def __init__(self, content, status_code):
+            self.content = content
+            self.status_code = status_code
+
+        def json(self):
+            return self.content
+
+    return MockResponse("valid content", 200)
 
 
 class SideEffect:
@@ -171,6 +203,76 @@ class TestStatusCode5XX(unittest.TestCase):
             failed = True
         if not failed:
             Exit("GitlabAPI was expected to fail")
+
+    @mock.patch(
+        'requests.get', side_effect=SideEffect(mocked_502_github_workflow_requests, mocked_github_workflow_requests)
+    )
+    def test_github_workflow_one_fail_one_success(self, _):
+        workflow = GithubWorkflows()
+        workflow.requests_sleep_time = 0
+        assert workflow.repo() == "valid content"
+
+    @mock.patch(
+        'requests.get',
+        side_effect=SideEffect(
+            mocked_502_github_workflow_requests,
+            mocked_502_github_workflow_requests,
+            mocked_502_github_workflow_requests,
+            mocked_502_github_workflow_requests,
+            mocked_github_workflow_requests,
+        ),
+    )
+    def test_github_last_one_success(self, _):
+        workflow = GithubWorkflows()
+        workflow.requests_sleep_time = 0
+        assert workflow.repo() == "valid content"
+
+    @mock.patch('requests.get', side_effect=SideEffect(mocked_502_github_workflow_requests))
+    def test_github_full_fail(self, _):
+        failed = False
+        try:
+            workflow = GithubWorkflows()
+            workflow.requests_sleep_time = 0
+            workflow.repo()
+        except GithubException:
+            failed = True
+        if not failed:
+            Exit("Github Workflow API was expected to fail !")
+
+    @mock.patch(
+        'requests.get', side_effect=SideEffect(mocked_502_github_workflow_requests, mocked_github_workflow_requests)
+    )
+    def test_githubapi_one_fail_one_success(self, _):
+        workflow = GithubAPI()
+        workflow.requests_sleep_time = 0
+        assert workflow.repo() == "valid content"
+
+    @mock.patch(
+        'requests.get',
+        side_effect=SideEffect(
+            mocked_502_github_workflow_requests,
+            mocked_502_github_workflow_requests,
+            mocked_502_github_workflow_requests,
+            mocked_502_github_workflow_requests,
+            mocked_github_workflow_requests,
+        ),
+    )
+    def test_githubapi_last_one_success(self, _):
+        workflow = GithubAPI()
+        workflow.requests_sleep_time = 0
+        assert workflow.repo() == "valid content"
+
+    @mock.patch('requests.get', side_effect=SideEffect(mocked_502_github_workflow_requests))
+    def test_githubapi_full_fail(self, _):
+        failed = False
+        try:
+            workflow = GithubAPI()
+            workflow.requests_sleep_time = 0
+            workflow.repo()
+        except Exit:
+            failed = True
+        if not failed:
+            Exit("Github Workflow API was expected to fail !")
 
 
 if __name__ == "__main__":

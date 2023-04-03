@@ -2,10 +2,11 @@ import json
 import os
 import platform
 import subprocess
+import time
 
 from invoke.exceptions import Exit
 
-from .remote_api import RemoteAPI
+from .remote_api import RemoteAPI, APIError
 
 __all__ = ["GithubAPI", "get_github_token"]
 
@@ -87,7 +88,7 @@ class GithubAPI(RemoteAPI):
         headers = dict(headers or [])
         headers["Authorization"] = f"token {self.api_token}"
         headers["Accept"] = "application/vnd.github.v3+json"
-        
+
         for retry_count in range(self.requests_500_retry_count):
             try:
                 return self.request(
@@ -104,7 +105,7 @@ class GithubAPI(RemoteAPI):
                     time.sleep(self.requests_sleep_time + retry_count * self.requests_sleep_time)
                 else:
                     raise e
-        raise GithubException(f"Failed while making HTTP request: {method} {url}")
+        raise Exit(message=f"Failed while making HTTP request: {method} {path}", code=1)
 
 
 def get_github_token():
