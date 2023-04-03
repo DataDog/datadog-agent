@@ -31,7 +31,7 @@
 
 .retrieve_test_dockers:
   - mkdir -p $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/dockers
-  - mv $KITCHEN_DOCKERS $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/dockers
+  - mv $KITCHEN_DOCKERS/* $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/dockers
 
 .retrieve_minimized_btfs:
   - $S3_CP_CMD $S3_ARTIFACTS_URI/minimized-btfs-${ARCH}.tar.xz /tmp/minimized-btfs.tar.xz
