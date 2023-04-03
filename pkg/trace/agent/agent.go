@@ -317,26 +317,24 @@ func (a *Agent) Process(p *api.Payload) {
 			p.TracerPayload.AppVersion = traceutil.GetAppVersion(root, chunk)
 		}
 
+		// pt.TraceChunk MUST NOT be modified during sampling, since this
+		// entire chunk is used for stats calculation after the main loop.
 		pt := processedTrace(p, chunk, root)
 		if !p.ClientComputedStats {
 			statsInput.Traces = append(statsInput.Traces, pt)
 		}
 
-		numEvents, keep, filteredChunk := a.sample(now, ts, pt)
+		numEvents, keep := a.sample(now, ts, chunk, pt)
 		if !keep {
+			// numEvents doesn't need to be updated since single spans are not
+			// used with App Analytics, e.g. aren't tagged with _dd.analyzed,
+			// so no spans are counted as events in the trace. It will remain zero.
 			keep = sampler.ApplySpanSampling(chunk)
 		}
-		if !keep {
-			if numEvents == 0 {
-				// the trace was dropped and no analyzed span were kept
-				p.RemoveChunk(i)
-				continue
-			}
-			// The sampler step filtered a subset of spans in the chunk. The new
-			// filtered chunk is added to the TracerPayload to be sent to
-			// TraceWriter. The complete chunk is still sent to the stats
-			// concentrator.
-			p.ReplaceChunk(i, filteredChunk)
+		if !keep && numEvents == 0 {
+			// The entire trace was dropped and no analyzed spans were kept.
+			p.RemoveChunk(i)
+			continue
 		}
 
 		if !chunk.DroppedTrace {
@@ -485,7 +483,7 @@ func isManualUserDrop(priority sampler.SamplingPriority, pt traceutil.ProcessedT
 }
 
 // sample reports the number of events found in pt and whether the chunk should be kept as a trace.
-func (a *Agent) sample(now time.Time, ts *info.TagStats, pt traceutil.ProcessedTrace) (numEvents int64, keep bool, filteredChunk *pb.TraceChunk) {
+func (a *Agent) sample(now time.Time, ts *info.TagStats, chunk *pb.TraceChunk, pt traceutil.ProcessedTrace) (numEvents int64, keep bool) {
 	priority, hasPriority := sampler.GetSamplingPriority(pt.TraceChunk)
 
 	if hasPriority {
@@ -495,29 +493,24 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt traceutil.ProcessedT
 	}
 	if a.conf.HasFeature("error_rare_sample_tracer_drop") {
 		if isManualUserDrop(priority, pt) {
-			return 0, false, nil
+			return 0, false
 		}
 	} else { // This path to be deleted once manualUserDrop detection is available on all tracers for P < 1.
 		if priority < 0 {
-			return 0, false, nil
+			return 0, false
 		}
 	}
 
 	sampled := a.runSamplers(now, pt, hasPriority)
-
-	filteredChunk = pt.TraceChunk
 	if !sampled {
-		// Make a deep copy to ensure that the copy used for stats is not affected
-		filteredChunk = new(pb.TraceChunk)
-		*filteredChunk = *pt.TraceChunk
-		filteredChunk.DroppedTrace = true
+		chunk.DroppedTrace = true
 	}
-	numEvents, numExtracted := a.EventProcessor.Process(pt.Root, filteredChunk)
+	numEvents, numExtracted := a.EventProcessor.Process(pt.Root, chunk)
 
 	ts.EventsExtracted.Add(numExtracted)
 	ts.EventsSampled.Add(numEvents)
 
-	return numEvents, sampled, filteredChunk
+	return numEvents, sampled
 }
 
 // runSamplers runs all the agent's samplers on pt and returns the sampling decision

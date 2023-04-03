@@ -947,7 +947,7 @@ func TestSampling(t *testing.T) {
 }
 
 func TestSample(t *testing.T) {
-	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 10, Features: make(map[string]struct{})}
+	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 1000, Features: make(map[string]struct{})}
 	a := &Agent{
 		NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
 		ErrorsSampler:     sampler.NewErrorsSampler(cfg),
@@ -956,13 +956,13 @@ func TestSample(t *testing.T) {
 		EventProcessor:    newEventProcessor(cfg),
 		conf:              cfg,
 	}
-	genSpan := func(decisionMaker string, priority sampler.SamplingPriority) traceutil.ProcessedTrace {
+	genSpan := func(decisionMaker string, priority sampler.SamplingPriority, err int32) traceutil.ProcessedTrace {
 		root := &pb.Span{
 			Service:  "serv1",
 			Start:    time.Now().UnixNano(),
 			Duration: (100 * time.Millisecond).Nanoseconds(),
 			Metrics:  map[string]float64{"_top_level": 1},
-			Error:    1,
+			Error:    err, // If 1, the Error Sampler will keep the trace, if 0, it will not be sampled
 			Meta:     map[string]string{},
 		}
 		if decisionMaker != "" {
@@ -973,44 +973,70 @@ func TestSample(t *testing.T) {
 		return pt
 	}
 	tests := map[string]struct {
-		trace              traceutil.ProcessedTrace
-		sampledNoFeature   bool
-		sampledWithFeature bool
+		trace           traceutil.ProcessedTrace
+		keep            bool
+		keepWithFeature bool
+		dropped         bool // whether the trace was dropped by sampling
 	}{
 		"userdrop-error-no-dm-sampled": {
-			trace:              genSpan("", sampler.PriorityUserDrop),
-			sampledNoFeature:   false,
-			sampledWithFeature: true,
+			trace:           genSpan("", sampler.PriorityUserDrop, 1),
+			keep:            false,
+			keepWithFeature: true,
+			dropped:         false,
 		},
 		"userdrop-error-manual-dm-unsampled": {
-			trace:              genSpan("-4", sampler.PriorityUserDrop),
-			sampledNoFeature:   false,
-			sampledWithFeature: false,
+			trace:           genSpan("-4", sampler.PriorityUserDrop, 1),
+			keep:            false,
+			keepWithFeature: false,
+			dropped:         false,
 		},
 		"userdrop-error-agent-dm-sampled": {
-			trace:              genSpan("-1", sampler.PriorityUserDrop),
-			sampledNoFeature:   false,
-			sampledWithFeature: true,
+			trace:           genSpan("-1", sampler.PriorityUserDrop, 1),
+			keep:            false,
+			keepWithFeature: true,
+			dropped:         false,
 		},
 		"userkeep-error-no-dm-sampled": {
-			trace:              genSpan("", sampler.PriorityUserKeep),
-			sampledNoFeature:   true,
-			sampledWithFeature: true,
+			trace:           genSpan("", sampler.PriorityUserKeep, 1),
+			keep:            true,
+			keepWithFeature: true,
+			dropped:         false,
 		},
 		"userkeep-error-agent-dm-sampled": {
-			trace:              genSpan("-1", sampler.PriorityUserKeep),
-			sampledNoFeature:   true,
-			sampledWithFeature: true,
+			trace:           genSpan("-1", sampler.PriorityUserKeep, 1),
+			keep:            true,
+			keepWithFeature: true,
+			dropped:         false,
+		},
+		"autodrop-sampled": {
+			trace:           genSpan("", sampler.PriorityAutoDrop, 1),
+			keep:            true,
+			keepWithFeature: true,
+			dropped:         false,
+		},
+		"autodrop-not-sampled": {
+			trace:           genSpan("", sampler.PriorityAutoDrop, 0),
+			keep:            false,
+			keepWithFeature: false,
+			dropped:         true,
 		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			_, keep, _ := a.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), tt.trace)
-			assert.Equal(t, tt.sampledNoFeature, keep)
+			before := new(pb.TraceChunk) // make sure tt.trace.TraceChunk never changes
+			*before = *tt.trace.TraceChunk
+			chunkCopy := new(pb.TraceChunk)
+			*chunkCopy = *tt.trace.TraceChunk
+			_, keep := a.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), chunkCopy, tt.trace)
+			assert.Equal(t, tt.keep, keep)
+			assert.Equal(t, tt.dropped, chunkCopy.DroppedTrace)
+			assert.Equal(t, before, tt.trace.TraceChunk) // make sure tt.trace.TraceChunk didn't change
 			cfg.Features["error_rare_sample_tracer_drop"] = struct{}{}
 			defer delete(cfg.Features, "error_rare_sample_tracer_drop")
-			_, keep, _ = a.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), tt.trace)
-			assert.Equal(t, tt.sampledWithFeature, keep)
+			_, keep = a.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), chunkCopy, tt.trace)
+			assert.Equal(t, tt.keepWithFeature, keep)
+			assert.Equal(t, before, tt.trace.TraceChunk) // make sure tt.trace.TraceChunk didn't change
+			assert.Equal(t, tt.dropped, chunkCopy.DroppedTrace)
 		})
 	}
 }
@@ -1630,11 +1656,18 @@ func TestSampleWithPriorityNone(t *testing.T) {
 	defer cancel()
 
 	span := testutil.RandomSpan()
-	numEvents, keep, _ := agnt.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), traceutil.ProcessedTrace{
+	pt := traceutil.ProcessedTrace{
 		TraceChunk: testutil.TraceChunkWithSpan(span),
 		Root:       span,
-	})
+	}
+	before := new(pb.TraceChunk)
+	*before = *pt.TraceChunk
+	chunkCopy := new(pb.TraceChunk)
+	*chunkCopy = *pt.TraceChunk
+	numEvents, keep := agnt.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), chunkCopy, pt)
 	assert.True(t, keep) // Score Sampler should keep the trace.
+	assert.False(t, chunkCopy.DroppedTrace)
+	assert.Equal(t, before, pt.TraceChunk)
 	assert.EqualValues(t, numEvents, 0)
 }
 
