@@ -117,6 +117,7 @@ kernel_matrix_testing_setup_env:
     EC2_ARM_INSTANCE_TYPE: "m6g.metal"
     X86_AMI_ID: "ami-0f50812e4388946ff"
     ARM_AMI_ID: "ami-0d0b8e440bb126e28"
+    AWS_REGION: us-east-1
     LibvirtSSHKeyX86: $CI_PROJECT_DIR/libvirt_rsa-x86
     LibvirtSSHKeyARM: $CI_PROJECT_DIR/libvirt_rsa-arm
     STACK_DIR: $CI_PROJECT_DIR/stack.dir
@@ -148,6 +149,7 @@ kernel_matrix_testing_upload_deps:
     EC2_ARM_INSTANCE_TYPE: "m6g.metal"
     X86_AMI_ID: "ami-0f50812e4388946ff"
     ARM_AMI_ID: "ami-0d0b8e440bb126e28"
+    AWS_REGION: us-east-1
     LibvirtSSHKeyX86: $CI_PROJECT_DIR/libvirt_rsa-x86
     LibvirtSSHKeyARM: $CI_PROJECT_DIR/libvirt_rsa-arm
     STACK_DIR: $CI_PROJECT_DIR/stack.dir
