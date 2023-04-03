@@ -484,9 +484,10 @@ func (v *ScopedVariables[T]) GetVariable(name string, value interface{}) (Variab
 		key := v.scoper(ctx)
 		vars := v.vars[key]
 		if vars == nil {
-			v.vars[key] = &Variables{}
+			vars = &Variables{}
+			v.vars[key] = vars
 		}
-		v.vars[key].Set(name, value)
+		vars.Set(name, value)
 		return nil
 	}
 
