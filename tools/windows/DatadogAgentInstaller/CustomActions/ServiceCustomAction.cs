@@ -228,19 +228,19 @@ namespace Datadog.CustomActions
                 {
                     try
                     {
-                        var svcNames = _serviceController.GetServiceNames().FirstOrDefault(svc => svc.Item1 == service);
+                        var svcNames = _serviceController.Services.FirstOrDefault(svc => svc.ServiceName == service);
                         if (svcNames != null)
                         {
                             using var actionRecord = new Record(
                                 "Stop Datadog services",
-                                $"Stopping {svcNames.Item2} service",
+                                $"Stopping {svcNames.DisplayName} service",
                                 ""
                             );
                             _session.Message(InstallMessage.ActionStart, actionRecord);
                             _session.Log($"Stopping service {service}");
                             _serviceController.StopService(service, TimeSpan.FromMinutes(3));
 
-                            _session.Log($"Service {service} status: {_serviceController.ServiceStatus(service)}");
+                            _session.Log($"Service {service} status: {svcNames.Status}");
                         }
                         else
                         {
@@ -249,7 +249,6 @@ namespace Datadog.CustomActions
                     }
                     catch (Exception e)
                     {
-                        _session.Log($"Service {service} status: {_serviceController.ServiceStatus(service)}");
                         if (!continueOnError)
                         {
                             // rethrow exception implicitly to preserve the original error information

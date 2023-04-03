@@ -1,9 +1,11 @@
 using System;
+using System.Linq;
 using System.ServiceProcess;
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
 using Microsoft.Deployment.WindowsInstaller;
+using ServiceController = Datadog.CustomActions.Native.ServiceController;
 
 namespace Datadog.CustomActions
 {
@@ -14,20 +16,23 @@ namespace Datadog.CustomActions
     {
         private readonly ISession _session;
         private readonly IRegistryServices _registryServices;
+        private readonly IServiceController _serviceController;
 
         public InstallStateCustomActions(
             ISession session,
-            IRegistryServices registryServices)
+            IRegistryServices registryServices,
+            IServiceController serviceController)
         {
             _session = session;
             _registryServices = registryServices;
+            _serviceController = serviceController;
         }
 
         public InstallStateCustomActions(ISession session)
         : this(
             session,
-            new RegistryServices()
-        )
+            new RegistryServices(),
+            new ServiceController())
         {
         }
 
@@ -115,21 +120,11 @@ namespace Datadog.CustomActions
                 if (string.IsNullOrEmpty(_session.Property("ALLOWCLOSEDSOURCE")))
                 {
                     _session.Log("Cannot find the \"AllowClosedSource\" registry key, checking the NPM service state.");
-                    
-                    using var subkey = _registryServices.OpenRegistryKey(Registries.LocalMachine, @"SYSTEM\CurrentControlSet\Services\ddnpm");
-                    if (subkey != null)
+                    var ddNpmService = _serviceController.Find("ddnpm");
+                    if (ddNpmService != null)
                     {
-                        if (Enum.TryParse<ServiceStartMode>(subkey.GetValue("Start").ToString(),
-                                out var ddNpmServiceServiceStartMode))
-                        {
-                            _session["ALLOWCLOSEDSOURCE"] = ddNpmServiceServiceStartMode != ServiceStartMode.Disabled ? "1" : "0";
-                            _session.Log($"Found \"AllowClosedSource\" key, with value: {_session["ALLOWCLOSEDSOURCE"]}");
-                        }
-                        else
-                        {
-                            _session.Log(
-                                "Invalid service start mode for service \"ddnpm\", assuming closed source consent was not given.");
-                        }
+                        _session["ALLOWCLOSEDSOURCE"] = ddNpmService.StartType != ServiceStartMode.Disabled ? "1" : "0";
+                        _session.Log($"Found \"AllowClosedSource\" key, with value: {_session["ALLOWCLOSEDSOURCE"]}");
                     }
                     else
                     {

@@ -70,8 +70,13 @@ namespace CustomActions.Tests.UserCustomActions
 
         public UserCustomActionsTestSetup WithDatadogAgentService()
         {
-            ServiceController.Setup(s => s.GetServiceNames()).Returns(new[] { Tuple.Create("datadogagent", "Datadog Agent") });
-            ServiceController.Setup(s => s.ServiceExists("datadogagent")).Returns(true);
+            var service = new Mock<IWindowsService>();
+            service.SetupGet(s => s.DisplayName).Returns("Datadog Agent");
+            service.SetupGet(s => s.ServiceName).Returns("datadogagent");
+            ServiceController.SetupGet(s => s.Services).Returns(new[]
+            {
+                service.Object
+            });
 
             return this;
         }

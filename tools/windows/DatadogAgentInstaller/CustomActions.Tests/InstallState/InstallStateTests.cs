@@ -68,10 +68,7 @@ namespace CustomActions.Tests.InstallState
             ServiceStartMode serviceStartMode,
             string exepctedAllowClosedSource)
         {
-            Test.WithRegistryKey(Registries.LocalMachine, @"SYSTEM\CurrentControlSet\Services\ddnpm", new()
-                {
-                    ["Start"] = serviceStartMode,
-                })
+            Test.WithDdnpmService(serviceStartMode)
                 .Create()
                 .ReadInstallState()
                 .Should()
@@ -79,23 +76,6 @@ namespace CustomActions.Tests.InstallState
 
             Test.Properties.Should()
                 .Contain("ALLOWCLOSEDSOURCE", exepctedAllowClosedSource);
-        }
-
-        [Theory]
-        [AutoData]
-        public void ReadInstallState_Should_AllowClosedSource_Be_Absent_If_Ddnpm_Service_Has_Invalid_Value()
-        {
-            Test.WithRegistryKey(Registries.LocalMachine, @"SYSTEM\CurrentControlSet\Services\ddnpm", new()
-                {
-                    ["Start"] = "zzyy",
-                })
-                .Create()
-                .ReadInstallState()
-                .Should()
-                .Be(ActionResult.Success);
-
-            Test.Properties.Should()
-                .NotContainKey("ALLOWCLOSEDSOURCE");
         }
 
         [Theory]
@@ -110,10 +90,7 @@ namespace CustomActions.Tests.InstallState
                 {
                     ["AllowClosedSource"] = allowClosedSource,
                 })
-                .WithRegistryKey(Registries.LocalMachine, @"SYSTEM\CurrentControlSet\Services\ddnpm", new()
-                {
-                    ["Start"] = serviceStartMode,
-                })
+                .WithDdnpmService(serviceStartMode)
                 .Create()
                 .ReadInstallState()
                 .Should()

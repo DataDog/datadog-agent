@@ -72,10 +72,13 @@
     <Compile Include="Interfaces\IRegistryKey.cs" />
     <Compile Include="Interfaces\IRegistryServices.cs" />
     <Compile Include="Interfaces\IServiceController.cs" />
+    <Compile Include="Interfaces\IWindowsService.cs" />
     <Compile Include="Native\Registries.cs" />
     <Compile Include="Native\RegistryKey.cs" />
     <Compile Include="Native\RegistryServices.cs" />
     <Compile Include="Native\ServiceController.cs" />
+    <Compile Include="Native\ServiceControllerExtensions.cs" />
+    <Compile Include="Native\WindowsService.cs" />
     <Compile Include="ServiceCustomAction.cs" />
     <Compile Include="PatchInstallerCustomAction.cs" />
     <Compile Include="PythonDistributionCustomAction.cs" />
