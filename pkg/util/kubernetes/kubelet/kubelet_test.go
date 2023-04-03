@@ -560,6 +560,7 @@ func (suite *KubeletTestSuite) TestKubeletInitTokenHttps() {
 	mockConfig.Set("kubelet_auth_token_path", "./testdata/fakeBearerToken")
 	mockConfig.Set("kubelet_tls_verify", false)
 	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig.Set("kubelet_client_ca", "./testdata/ca.crt")
 
 	ku := NewKubeUtil()
 	err = ku.init()
@@ -578,6 +579,7 @@ func (suite *KubeletTestSuite) TestKubeletInitTokenHttps() {
 		map[string]string{
 			"url":        fmt.Sprintf("https://127.0.0.1:%d", kubeletPort),
 			"verify_tls": "false",
+			"ca_cert":    "./testdata/ca.crt",
 			"token":      "fakeBearerToken",
 		}, ku.GetRawConnectionInfo())
 }
