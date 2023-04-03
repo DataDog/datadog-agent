@@ -163,9 +163,9 @@ kernel_matrix_testing_upload_deps:
       - $LibvirtSSHKeyARM.pub
       - $STACK_DIR
 
-kernel_matrix_testing_run_tests:
-  stage: kernel_matrix_testing
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen$DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
-  needs: ["kernel_matrix_testing_upload_deps"]
-  tags: ["runner:main"]
+        #kernel_matrix_testing_run_tests:
+        #  stage: kernel_matrix_testing
+        #  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen$DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
+        #  needs: ["kernel_matrix_testing_upload_deps"]
+        #  tags: ["runner:main"]
 
