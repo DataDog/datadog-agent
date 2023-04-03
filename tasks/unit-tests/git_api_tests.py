@@ -6,7 +6,7 @@ from invoke.exceptions import Exit
 
 from .. import release
 from ..libs.common.github_api import GithubAPI
-from ..libs.common.github_workflows import GithubWorkflows, GithubException
+from ..libs.common.github_workflows import GithubException, GithubWorkflows
 from ..libs.common.gitlab import Gitlab, get_gitlab_token
 from ..libs.version import Version
 
