@@ -38,16 +38,16 @@ deploy_containers-a6-rc:
     VERSION: 6-rc
 
 
-deploy_containers-a6:
+deploy_containers-a6_internal:
   extends: .deploy_containers-a6-base
   rules:
-    !reference [.on_deploy_a6_manual_auto_on_rc]
+    !reference [.on_deploy_a6_internal_manual_auto_on_rc]
 
 
-deploy_containers-a6-rc:
+deploy_containers-a6_internal-rc:
   extends: .deploy_containers-a6-base
   rules:
-    !reference [.on_deploy_a6_rc]
+    !reference [.on_deploy_a6_internal_rc]
   variables:
     VERSION: 6-rc
 
@@ -70,11 +70,11 @@ deploy_containers_latest-a6:
         IMG_DESTINATIONS: ${AGENT_REPOSITORY}:6-jmx,${AGENT_REPOSITORY}:latest-py2-jmx
 
 
-deploy_containers_latest-a6:
+deploy_containers_latest-a6_internal:
   extends: .docker_publish_job_definition
   stage: deploy6
   rules:
-    !reference [.on_deploy_a6_manual_final]
+    !reference [.on_deploy_a6_internal_manual_final]
   dependencies: []
   parallel:
     matrix:

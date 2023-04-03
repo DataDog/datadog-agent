@@ -449,7 +449,7 @@ workflow:
       AGENT_REPOSITORY: agent
       IMG_REGISTRIES: public
 
-.on_deploy_a6_rc:
+.on_deploy_a6_internal_rc:
   - <<: *if_not_version_6
     when: never
   - <<: *if_not_deploy
@@ -457,30 +457,26 @@ workflow:
   - <<: *if_rc_tag_on_beta_repo_branch
     when: on_success
     variables:
-      AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
+      AGENT_REPOSITORY: ci/datadog-agent/agent-release
+      DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
+      IMG_REGISTRIES: internal-aws-ddbuild
 
-.on_deploy_a6_manual:
+.on_deploy_a6_internal_manual:
   - <<: *if_not_version_6
     when: never
   - <<: *if_not_deploy
     when: never
   - <<: *if_not_stable_or_beta_repo_branch
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent-dev
-      IMG_REGISTRIES: dev
+    when: never
   - when: manual
     allow_failure: true
     variables:
-      AGENT_REPOSITORY: agent
-      IMG_REGISTRIES: public
+      AGENT_REPOSITORY: ci/datadog-agent/agent-release
+      IMG_REGISTRIES: internal-aws-ddbuild
 
-# Same as on_deploy_a6_manual, except the job would not run on pipelines
+# Same as on_deploy_a6_internal_manual, except the job would not run on pipelines
 # using beta branch, it would only run for the final release.
-.on_deploy_a6_manual_final:
+.on_deploy_a6_internal_manual_final:
   - <<: *if_not_version_6
     when: never
   - <<: *if_not_deploy
@@ -488,44 +484,36 @@ workflow:
   - <<: *if_deploy_on_beta_repo_branch
     when: never
   - <<: *if_not_stable_or_beta_repo_branch
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent-dev
-      IMG_REGISTRIES: dev
+    when: never
   - when: manual
     allow_failure: true
     variables:
-      AGENT_REPOSITORY: agent
-      IMG_REGISTRIES: public
+      AGENT_REPOSITORY: ci/datadog-agent/agent-release
+      IMG_REGISTRIES: internal-aws-ddbuild
 
-# This rule is a variation of on_deploy_a6_manual where
+# This rule is a variation of on_deploy_a6_internal_manual where
 # the job is usually run manually, except when the pipeline
 # builds an RC: in this case, the job is run automatically.
 # This is done to reduce the number of manual steps that have
 # to be done when creating RCs.
-.on_deploy_a6_manual_auto_on_rc:
+.on_deploy_a6_internal_manual_auto_on_rc:
   - <<: *if_not_version_6
     when: never
   - <<: *if_not_deploy
     when: never
   - <<: *if_not_stable_or_beta_repo_branch
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent-dev
-      IMG_REGISTRIES: dev
+    when: never
   - <<: *if_rc_tag_on_beta_repo_branch
     when: on_success
     variables:
-      AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
+      AGENT_REPOSITORY: ci/datadog-agent/agent-release
+      DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
+      IMG_REGISTRIES: internal-aws-ddbuild
   - when: manual
     allow_failure: true
     variables:
-      AGENT_REPOSITORY: agent
-      IMG_REGISTRIES: public
+      AGENT_REPOSITORY: ci/datadog-agent/agent-release
+      IMG_REGISTRIES: internal-aws-ddbuild
 
 .on_deploy_a7:
   - <<: *if_not_version_7
@@ -616,7 +604,7 @@ workflow:
       DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
 
-.on_deploy_a7_rc:
+.on_deploy_a7_internal_rc:
   - <<: *if_not_version_7
     when: never
   - <<: *if_not_deploy
@@ -624,32 +612,27 @@ workflow:
   - <<: *if_rc_tag_on_beta_repo_branch
     when: on_success
     variables:
-      AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
+      AGENT_REPOSITORY: ci/datadog-agent/agent-release
+      DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
+      IMG_REGISTRIES: internal-aws-ddbuild
 
-.on_deploy_a7_manual:
+.on_deploy_a7_internal_manual:
   - <<: *if_not_version_7
     when: never
   - <<: *if_not_deploy
     when: never
   - <<: *if_not_stable_or_beta_repo_branch
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent-dev
-      DSD_REPOSITORY: dogstatsd-dev
-      IMG_REGISTRIES: dev
+    when: never
   - when: manual
     allow_failure: true
     variables:
-      AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
+      AGENT_REPOSITORY: ci/datadog-agent/agent-release
+      DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
+      IMG_REGISTRIES: internal-aws-ddbuild
 
-# Same as on_deploy_a7_manual, except the job would not run on pipelines
+# Same as on_deploy_a7_internal_manual, except the job would not run on pipelines
 # using beta branch, it would only run for the final release.
-.on_deploy_a7_manual_final:
+.on_deploy_a7_internal_manual_final:
   - <<: *if_not_version_7
     when: never
   - <<: *if_not_deploy
@@ -657,48 +640,38 @@ workflow:
   - <<: *if_deploy_on_beta_repo_branch
     when: never
   - <<: *if_not_stable_or_beta_repo_branch
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent-dev
-      DSD_REPOSITORY: dogstatsd-dev
-      IMG_REGISTRIES: dev
+    when: never
   - when: manual
     allow_failure: true
     variables:
-      AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
+      AGENT_REPOSITORY: ci/datadog-agent/agent-release
+      DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
+      IMG_REGISTRIES: internal-aws-ddbuild
 
-# This rule is a variation of on_deploy_a7_manual where
+# This rule is a variation of on_deploy_a7_internal_manual where
 # the job is usually run manually, except when the pipeline
 # builds an RC: in this case, the job is run automatically.
 # This is done to reduce the number of manual steps that have
 # to be done when creating RCs.
-.on_deploy_a7_manual_auto_on_rc:
+.on_deploy_a7_internal_manual_auto_on_rc:
   - <<: *if_not_version_7
     when: never
   - <<: *if_not_deploy
     when: never
   - <<: *if_not_stable_or_beta_repo_branch
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent-dev
-      DSD_REPOSITORY: dogstatsd-dev
-      IMG_REGISTRIES: dev
+    when: never
   - <<: *if_rc_tag_on_beta_repo_branch
     when: on_success
     variables:
-      AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
+      AGENT_REPOSITORY: ci/datadog-agent/agent-release
+      DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
+      IMG_REGISTRIES: internal-aws-ddbuild
   - when: manual
     allow_failure: true
     variables:
-      AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
+      AGENT_REPOSITORY: ci/datadog-agent/agent-release
+      DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
+      IMG_REGISTRIES: internal-aws-ddbuild
 
 .on_deploy_nightly_repo_branch_a6:
   - <<: *if_not_version_6
