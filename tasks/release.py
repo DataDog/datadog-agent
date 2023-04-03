@@ -36,6 +36,7 @@ REPOSITORY_NAME = "DataDog/datadog-agent"
 UNFREEZE_REPO_AGENT = "datadog-agent"
 UNFREEZE_REPOS = [UNFREEZE_REPO_AGENT, "omnibus-software", "omnibus-ruby", "datadog-agent-macos-build"]
 
+
 @task
 def add_prelude(ctx, version):
     res = ctx.run(f"reno new prelude-release-{version}")
@@ -354,7 +355,7 @@ def _query_github_api(auth_token, url, retry_number=5, sleep_time=1):
 
     # Basic auth doesn't seem to work with private repos, so we use token auth here
     headers = {"Authorization": f"token {auth_token}"}
-    for retry_count in range(5):
+    for retry_count in range(retry_number):
         response = requests.get(url, headers=headers)
         if 500 <= response.status_code < 600:
             time.sleep(sleep_time + sleep_time * retry_count)
@@ -382,7 +383,13 @@ def build_compatible_version_re(allowed_major_versions, minor_version):
 
 
 def _get_highest_repo_version(
-    auth, repo, version_prefix, version_re, allowed_major_versions=None, max_version: Version = None, request_retry_sleep_time=1
+    auth,
+    repo,
+    version_prefix,
+    version_re,
+    allowed_major_versions=None,
+    max_version: Version = None,
+    request_retry_sleep_time=1,
 ):
     # If allowed_major_versions is not specified, search for all versions by using an empty
     # major version prefix.
@@ -1307,7 +1314,6 @@ def build_rc(ctx, major_versions="6,7", patch_version=False):
 
 @task(help={'key': "Path to the release.json key, separated with double colons, eg. 'last_stable::6'"})
 def get_release_json_value(_, key):
-
     release_json = _load_release_json()
 
     path = key.split('::')
