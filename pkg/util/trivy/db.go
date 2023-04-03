@@ -23,7 +23,7 @@ const (
 	boltBucket = "boltdb"
 )
 
-// onDeleteCallback is a type alias for a callback function that is called before deleting an entry from a PersistentDB.
+// onDeleteCallback describes a callback function that is called before deleting an entry from a PersistentDB.
 type onDeleteCallback = func(key string, value []byte) error
 
 // PersistentDB describes an interface for a persistent key-value store.
@@ -57,10 +57,7 @@ func NewBoltDB(cacheDir string) (BoltDB, error) {
 		return BoltDB{}, fmt.Errorf("failed to create cache dir: %v", err)
 	}
 
-	db, err := bolt.Open(filepath.Join(dir, "fanal.db"), 0600, &bolt.Options{
-		NoGrowSync:     true,
-		NoFreelistSync: true,
-	})
+	db, err := bolt.Open(filepath.Join(dir, "fanal.db"), 0600, nil)
 	if err != nil {
 		return BoltDB{}, fmt.Errorf("unable to open DB: %v", err)
 	}
