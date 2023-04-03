@@ -114,7 +114,7 @@ namespace WixSetup.Datadog
                     _agentFeatures.MainApplication,
                     RegistryHive.LocalMachine, @"Software\Datadog\Datadog Agent",
                     // Store these properties in the registry for retrieval by future
-                    // installer runs via the ReadRegistryProperties CA.
+                    // installer runs via the ReadInstallState CA.
                     new RegValue("InstallPath", "[PROJECTLOCATION]") { Win64 = true },
                     new RegValue("ConfigRoot", "[APPLICATIONDATADIRECTORY]") { Win64 = true },
                     new RegValue("installedDomain", "[DDAGENTUSER_PROCESSED_DOMAIN]") { Win64 = true },

@@ -81,7 +81,7 @@
     <Compile Include="PythonDistributionCustomAction.cs" />
     <Compile Include="Extensions\SessionExtensions.cs" />
     <Compile Include="Interfaces\ISession.cs" />
-    <Compile Include="RegistryCustomActions.cs" />
+    <Compile Include="InstallStateCustomActions.cs" />
     <Compile Include="SessionWrapper.cs" />
     <Compile Include="Telemetry.cs" />
     <Compile Include="UserCustomActions.cs" />

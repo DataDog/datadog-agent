@@ -19,9 +19,10 @@ namespace WixSetup.Datadog
 
         public ManagedAction WriteConfig { get; }
 
-        public ManagedAction ReadRegistryProperties { get; }
+        public ManagedAction ReadInstallState { get; }
 
         public ManagedAction ProcessDdAgentUserCredentials { get; }
+
         public ManagedAction ProcessDdAgentUserCredentialsUI { get; }
 
         public ManagedAction PrepareDecompressPythonDistributions { get; }
@@ -62,11 +63,11 @@ namespace WixSetup.Datadog
         /// </remarks>
         public AgentCustomActions()
         {
-            ReadRegistryProperties = new CustomAction<RegistryCustomActions>(
-                new Id(nameof(ReadRegistryProperties)),
-                RegistryCustomActions.ReadRegistryProperties,
+            ReadInstallState = new CustomAction<InstallStateCustomActions>(
+                new Id(nameof(ReadInstallState)),
+                InstallStateCustomActions.ReadInstallState,
                 Return.ignore,
-                // AppSearch is when RegistrySearch is run, so that will overwrite
+                // AppSearch is when ReadInstallState is run, so that will overwrite
                 // any command line values.
                 // Prefer using our CA over RegistrySearch.
                 // It is executed on the Welcome screen of the installer.
@@ -81,7 +82,8 @@ namespace WixSetup.Datadog
             {
                 // Ensure we only run in one sequence
                 Execute = Execute.firstSequence
-            };
+            }
+            .SetProperties("ALLOWCLOSEDSOURCE=[ALLOWCLOSEDSOURCE]");
 
             // We need to explicitly set the ID since that we are going to reference before the Build* call.
             // See <see cref="WixSharp.WixEntity.Id" /> for more information.

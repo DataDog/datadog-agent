@@ -16,5 +16,15 @@ namespace Datadog.CustomActions.Native
         {
             _key.SetAccessControl(registrySecurity);
         }
+
+        public object GetValue(string name)
+        {
+            return _key.GetValue(name);
+        }
+
+        public void Dispose()
+        {
+            _key.Dispose();
+        }
     }
 }
