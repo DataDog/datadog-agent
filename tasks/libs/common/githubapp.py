@@ -7,6 +7,7 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 logger.setLevel(os.environ.get('LOGGING_LEVEL', 'INFO'))
 
+
 # Defining a custom exception class to throw if the requests error out
 class GithubAppException(Exception):
     pass

@@ -6,7 +6,6 @@ class TailJounald(TestCase):
     name = "[Journald] Agent collect logs from journald"
 
     def build(self, config):
-
         self.append("# Setup")
         self.append(confDir(config))
 
@@ -49,7 +48,6 @@ class TailJournaldStartPosition(TestCase):
     name = "[Files] `start_position` defines where to tail from"
 
     def build(self, config):
-
         self.append("# Setup")
         self.append(confDir(config))
 
@@ -76,7 +74,6 @@ class SNMPTraps(TestCase):
     name = "[SNMP traps] Check that traps are working"
 
     def build(self, config):  # noqa: U100
-
         self.append(
             """
 # Setup

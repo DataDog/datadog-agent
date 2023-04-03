@@ -7,7 +7,6 @@ class TailTCPUDP(TestCase):
     name = "[TCP/UDP] Agent can collect logs from TCP or UDP"
 
     def build(self, config):
-
         self.append("# Setup")
         self.append(confDir(config))
         self.append(

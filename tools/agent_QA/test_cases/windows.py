@@ -6,7 +6,6 @@ class TestEventLog(TestCase):
     name = "[Windows Event] Agent collect windows event as logs"
 
     def build(self, config):
-
         self.append("# Setup")
         self.append(confDir(config))
 
