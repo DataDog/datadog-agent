@@ -39,11 +39,17 @@ else
   for env in "${remote_env_array[@]}"; do remote_env_array_as_grep_patterns+=(-e "$env"); done
 
   # Ignore local environment variables that could cause problem in the remote machine
-  ENV_IGNORE_LIST=("TMPDIR" "GOPRIVATE")
+  ENV_IGNORE_LIST=("TMPDIR" "GOPRIVATE" "GOROOT" "GOPATH")
   for env in "${ENV_IGNORE_LIST[@]}"; do remote_env_array_as_grep_patterns+=(-e "$env"); done
 
+  # Get all environment variables enclosed in quote so we'll handle special characters correctly ($, =, etc..)
+  env_vars=""
+  for var in $(env | cut -d= -f1); do
+      env_vars+="$(echo "$var"=\"${!var}\")"$'\n'
+  done
+
   # Finally create the environment variable to inject list in the format that works with sh `ssh` command
-  env_variables_to_inject=$(env | grep -v -w "${remote_env_array_as_grep_patterns[@]}" | tr '\n' ' ')
+  env_variables_to_inject=$(echo "$env_vars" | grep -v -w "${remote_env_array_as_grep_patterns[@]}" | tr '\n' ' ')
   # shellcheck disable=SC2002
   cat "${SCRIPT_TO_RUN}" | ssh -tt "vagrant@$REMOTE_MACHINE_IP" \
   "export $env_variables_to_inject;cd ${DD_AGENT_ROOT_DIR};bash --login"

@@ -7,6 +7,7 @@ package config
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -73,6 +74,9 @@ const (
 
 	// DefaultRuntimePoliciesDir is the default policies directory used by the runtime security module
 	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
+
+	// DefaultSecurityProfilesDir is the default directory used to store Security Profiles by the runtime security module
+	DefaultSecurityProfilesDir = "/etc/datadog-agent/runtime-security.d/profiles"
 
 	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor
 	DefaultLogsSenderBackoffFactor = 2.0
@@ -378,6 +382,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("secret_backend_timeout", 30)
 	config.BindEnvAndSetDefault("secret_backend_command_allow_group_exec_perm", false)
 	config.BindEnvAndSetDefault("secret_backend_skip_checks", false)
+	config.BindEnvAndSetDefault("secret_backend_remove_trailing_line_break", false)
 
 	// Use to output logs in JSON format
 	config.BindEnvAndSetDefault("log_format_json", false)
@@ -650,6 +655,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("kubernetes_apiserver_client_timeout", 10)
 	config.BindEnvAndSetDefault("kubernetes_map_services_on_ip", false) // temporary opt-out of the new mapping logic
 	config.BindEnvAndSetDefault("kubernetes_apiserver_use_protobuf", false)
+	config.BindEnvAndSetDefault("kubernetes_ad_tags_disabled", []string{})
 
 	config.BindEnvAndSetDefault("prometheus_scrape.enabled", false)           // Enables the prometheus config provider
 	config.BindEnvAndSetDefault("prometheus_scrape.service_endpoints", false) // Enables Service Endpoints checks in the prometheus config provider
@@ -824,7 +830,7 @@ func InitConfig(config Config) {
 
 	// internal profiling
 	config.BindEnvAndSetDefault("internal_profiling.enabled", false)
-	config.BindEnv("internal_profiling.profile_dd_url", "")
+	config.BindEnv("internal_profiling.profile_dd_url")
 	config.BindEnvAndSetDefault("internal_profiling.period", 5*time.Minute)
 	config.BindEnvAndSetDefault("internal_profiling.cpu_duration", 1*time.Minute)
 	config.BindEnvAndSetDefault("internal_profiling.block_profile_rate", 0)
@@ -1029,6 +1035,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider", false)                                // to be enabled only in e2e tests
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.file_provider_path", "/etc/datadog-agent/patch/auto-instru.json") // to be used only in e2e tests
+	config.BindEnv("admission_controller.auto_instrumentation.init_resources.cpu")
+	config.BindEnv("admission_controller.auto_instrumentation.init_resources.memory")
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.inject_all.namespaces", []string{})
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.
@@ -1073,19 +1082,13 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
 
 	// Container lifecycle configuration
-	config.BindEnvAndSetDefault("container_lifecycle.enabled", false)
-	config.BindEnv("container_lifecycle.dd_url")
-	config.BindEnv("container_lifecycle.additional_endpoints")
+	bindEnvAndSetLogsConfigKeys(config, "container_lifecycle.")
 
 	// Container image configuration
-	config.BindEnvAndSetDefault("container_image.enabled", false)
-	config.BindEnv("container_image.dd_url")
-	config.BindEnv("container_image.additional_endpoints")
+	bindEnvAndSetLogsConfigKeys(config, "container_image.")
 
 	// SBOM configuration
-	config.BindEnvAndSetDefault("sbom.enabled", false)
-	config.BindEnv("sbom.dd_url")
-	config.BindEnv("sbom.additional_endpoints")
+	bindEnvAndSetLogsConfigKeys(config, "sbom.")
 
 	// Orchestrator Explorer - process agent
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
@@ -1120,7 +1123,7 @@ func InitConfig(config Config) {
 	// Datadog security agent (common)
 	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
 	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
-	config.BindEnvAndSetDefault("security_agent.log_file", defaultSecurityAgentLogFile)
+	config.BindEnvAndSetDefault("security_agent.log_file", DefaultSecurityAgentLogFile)
 	config.BindEnvAndSetDefault("security_agent.remote_tagger", true)
 	config.BindEnvAndSetDefault("security_agent.remote_workloadmeta", false) // TODO: switch this to true when ready
 
@@ -1152,7 +1155,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)
 	config.BindEnvAndSetDefault("runtime_security_config.log_profiled_workloads", false)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.formats", []string{"protobuf"})
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
 
 	// Serverless Agent
@@ -1161,7 +1163,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("enhanced_metrics", true)
 	config.BindEnvAndSetDefault("capture_lambda_payload", false)
 	config.BindEnvAndSetDefault("serverless.trace_enabled", false, "DD_TRACE_ENABLED")
-	config.BindEnvAndSetDefault("serverless.trace_managed_services", false, "DD_TRACE_MANAGED_SERVICES")
+	config.BindEnvAndSetDefault("serverless.trace_managed_services", true, "DD_TRACE_MANAGED_SERVICES")
 
 	// trace-agent's evp_proxy
 	config.BindEnv("evp_proxy_config.enabled")
@@ -1666,6 +1668,7 @@ func ResolveSecrets(config Config, origin string) error {
 		config.GetInt("secret_backend_timeout"),
 		config.GetInt("secret_backend_output_max_size"),
 		config.GetBool("secret_backend_command_allow_group_exec_perm"),
+		config.GetBool("secret_backend_remove_trailing_line_break"),
 	)
 
 	if config.GetString("secret_backend_command") != "" {
@@ -2058,8 +2061,8 @@ func getBindHost(cfg Config) string {
 
 // GetValidHostAliases validates host aliases set in `host_aliases` variable and returns
 // only valid ones.
-func GetValidHostAliases() []string {
-	return getValidHostAliasesWithConfig(Datadog)
+func GetValidHostAliases(_ context.Context) ([]string, error) {
+	return getValidHostAliasesWithConfig(Datadog), nil
 }
 
 func getValidHostAliasesWithConfig(config Config) []string {

@@ -18,13 +18,15 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/events"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -37,6 +39,16 @@ type cliParams struct {
 
 	pullInterval     time.Duration
 	eventsOutputJSON bool
+}
+
+type dependencies struct {
+	fx.In
+
+	Params *cliParams
+
+	Config         config.Component
+	SysProbeConfig sysprobeconfig.Component
+	Log            log.Component
 }
 
 // Commands returns a slice of subcommands for the `events` command in the Process Agent
@@ -58,7 +70,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Open a session to listen for process lifecycle events. This feature is currently in alpha version and needs root privilege to run.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(runEventListener,
-				fx.Supply(cliParams),
+				fx.Supply(cliParams, command.GetCoreBundleParamsForOneShot(globalParams)),
+
+				process.Bundle,
 			)
 		},
 		SilenceUsage: true,
@@ -70,7 +84,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Periodically pull process lifecycle events. This feature is currently in alpha version and needs root privilege to run.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(runEventStore,
-				fx.Supply(cliParams),
+				fx.Supply(cliParams, command.GetCoreBundleParamsForOneShot(globalParams)),
+
+				process.Bundle,
 			)
 		},
 		SilenceUsage: true,
@@ -82,20 +98,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	eventsPullCmd.Flags().DurationVarP(&cliParams.pullInterval, "tick", "t", defaultPullInterval, "The period between 2 consecutive pulls to fetch process events")
 
 	return []*cobra.Command{eventsCmd}
-}
-
-func bootstrapEventsCmd(cliParams *cliParams) error {
-	if err := command.BootstrapConfig(cliParams.GlobalParams.ConfFilePath, true); err != nil {
-		return log.Criticalf("Error parsing config: %s", err)
-	}
-
-	// Load system-probe.yaml file and merge it to the global Datadog config
-	_, err := sysconfig.New(cliParams.SysProbeConfFilePath)
-	if err != nil {
-		return log.Critical(err)
-	}
-
-	return nil
 }
 
 func printEvents(cliParams *cliParams, events ...*model.ProcessEvent) error {
@@ -126,17 +128,12 @@ func printEventsJSON(events []*model.ProcessEvent) error {
 	return nil
 }
 
-func runEventListener(cliParams *cliParams) error {
-	err := bootstrapEventsCmd(cliParams)
-	if err != nil {
-		return err
-	}
-
+func runEventListener(deps dependencies) error {
 	// Create a handler to print the collected event to stdout
 	handler := func(e *model.ProcessEvent) {
-		err = printEvents(cliParams, e)
+		err := printEvents(deps.Params, e)
 		if err != nil {
-			log.Error(err)
+			_ = deps.Log.Error(err)
 		}
 	}
 
@@ -151,17 +148,12 @@ func runEventListener(cliParams *cliParams) error {
 
 	<-exit
 	l.Stop()
-	log.Flush()
+	deps.Log.Flush()
 
 	return nil
 }
 
-func runEventStore(cliParams *cliParams) error {
-	err := bootstrapEventsCmd(cliParams)
-	if err != nil {
-		return err
-	}
-
+func runEventStore(deps dependencies) error {
 	store, err := events.NewRingStore(&statsd.NoOpClient{})
 	if err != nil {
 		return err
@@ -181,7 +173,7 @@ func runEventStore(cliParams *cliParams) error {
 	exit := make(chan struct{})
 	go util.HandleSignals(exit)
 
-	ticker := time.NewTicker(cliParams.pullInterval)
+	ticker := time.NewTicker(deps.Params.pullInterval)
 	defer ticker.Stop()
 	go func() {
 		for {
@@ -189,13 +181,13 @@ func runEventStore(cliParams *cliParams) error {
 			case <-ticker.C:
 				events, err := store.Pull(context.Background(), time.Second)
 				if err != nil {
-					log.Error(err)
+					_ = deps.Log.Error(err)
 					continue
 				}
 
-				err = printEvents(cliParams, events...)
+				err = printEvents(deps.Params, events...)
 				if err != nil {
-					log.Error(err)
+					_ = deps.Log.Error(err)
 				}
 			case <-exit:
 				return
@@ -206,7 +198,7 @@ func runEventStore(cliParams *cliParams) error {
 	<-exit
 	l.Stop()
 	store.Stop()
-	log.Flush()
+	deps.Log.Flush()
 
 	return nil
 }

@@ -1933,8 +1933,9 @@ func TestSpanSampling(t *testing.T) {
 			})
 			assert.Len(t, traceAgent.TraceWriter.In, 1)
 			sampledChunks := <-traceAgent.TraceWriter.In
-			chunks := sampledChunks.TracerPayload.Chunks
-			tc.checks(t, tc.payload, chunks)
+			tc.checks(t, tc.payload, sampledChunks.TracerPayload.Chunks)
+			stats := <-traceAgent.Concentrator.In
+			assert.Equal(t, len(tc.payload.Chunks[0].Spans), len(stats.Traces[0].TraceChunk.Spans))
 		})
 	}
 }

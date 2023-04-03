@@ -17,6 +17,7 @@ from .libs.pipeline_data import get_failed_jobs
 from .libs.pipeline_notifications import (
     GITHUB_SLACK_MAP,
     base_message,
+    check_for_missing_owners_slack,
     find_job_owners,
     get_failed_tests,
     send_slack_message,
@@ -421,6 +422,17 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
 
 
 @task
+def check_notify_teams(_):
+    if check_for_missing_owners_slack():
+        print(
+            "Error: Some teams in CODEOWNERS don't have their slack notification channel specified in the GITHUB_SLACK_MAP !!"
+        )
+        Exit(code=1)
+    else:
+        print("All CODEOWNERS teams have their slack notification channel specified !")
+
+
+@task
 def notify(_, notification_type="merge", print_to_stdout=False):
     """
     Send notifications for the current pipeline. CI-only task.
@@ -467,9 +479,10 @@ def notify(_, notification_type="merge", print_to_stdout=False):
 
     # Send messages
     for owner, message in messages_to_send.items():
-        channel = GITHUB_SLACK_MAP.get(owner, "#datadog-agent-pipelines")
+        channel = GITHUB_SLACK_MAP.get(owner.lower(), None)
         message.base_message = base
-        if owner not in GITHUB_SLACK_MAP.keys():
+        if channel is None:
+            channel = "#datadog-agent-pipelines"
             message.base_message += UNKNOWN_OWNER_TEMPLATE.format(owner=owner)
         message.coda = coda
         if print_to_stdout:

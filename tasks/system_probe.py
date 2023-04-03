@@ -18,6 +18,7 @@ from invoke.exceptions import Exit
 from .build_tags import get_default_build_tags
 from .libs.common.color import color_message
 from .libs.ninja_syntax import NinjaWriter
+from .test import environ
 from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
@@ -26,7 +27,6 @@ BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
 BPF_TAG = "linux_bpf"
 BUNDLE_TAG = "ebpf_bindata"
 NPM_TAG = "npm"
-DNF_TAG = "dnf"
 SBOM_TAG = "trivy"
 
 KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "kitchen"))
@@ -144,7 +144,7 @@ def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
         kernel_release=kernel_release, minimal_kernel_release=CWS_PREBUILT_MINIMUM_KERNEL_VERSION
     )
     kheaders = " ".join(f"-isystem{d}" for d in kernel_headers)
-    debugdef = "-DDEBUG=1" if debug else ""
+    debugdef = "-DDEBUG=1 -g" if debug else ""
     security_flags = f"-I{security_agent_c_dir} {debugdef}"
 
     outfiles = []
@@ -211,7 +211,7 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
     network_flags = "-Ipkg/network/ebpf/c -g"
-    network_programs = ["dns", "offset-guess", "tracer", "http", "usm_events_test"]
+    network_programs = ["dns", "offset-guess", "tracer", "http", "usm_events_test", "conntrack"]
     network_co_re_programs = ["co-re/tracer-fentry", "runtime/http"]
 
     for prog in network_programs:
@@ -295,8 +295,7 @@ def ninja_cgo_type_files(nw, windows):
     else:
         go_platform = "linux"
         def_files = {
-            "pkg/network/ebpf/offsetguess_types.go": ["pkg/network/ebpf/c/prebuilt/offset-guess.h"],
-            "pkg/network/ebpf/conntrack_types.go": ["pkg/network/ebpf/c/runtime/conntrack-types.h"],
+            "pkg/network/ebpf/conntrack_types.go": ["pkg/network/ebpf/c/conntrack-types.h"],
             "pkg/network/ebpf/tuple_types.go": ["pkg/network/ebpf/c/tracer.h"],
             "pkg/network/ebpf/kprobe_types.go": [
                 "pkg/network/ebpf/c/tracer.h",
@@ -323,6 +322,9 @@ def ninja_cgo_type_files(nw, windows):
             ],
             "pkg/network/telemetry/telemetry_types.go": [
                 "pkg/ebpf/c/telemetry_types.h",
+            ],
+            "pkg/network/tracer/offsetguess/offsetguess_types.go": [
+                "pkg/network/ebpf/c/prebuilt/offset-guess.h",
             ],
             "pkg/network/protocols/events/types.go": [
                 "pkg/network/ebpf/c/protocols/events-types.h",
@@ -405,7 +407,6 @@ def build(
     go_mod="mod",
     windows=is_windows,
     arch=CURRENT_ARCH,
-    nikos_embedded_path=None,
     bundle_ebpf=False,
     kernel_release=None,
     debug=False,
@@ -432,7 +433,6 @@ def build(
         ctx,
         major_version=major_version,
         python_runtimes=python_runtimes,
-        nikos_embedded_path=nikos_embedded_path,
         bundle_ebpf=bundle_ebpf,
         arch=arch,
         go_mod=go_mod,
@@ -465,7 +465,6 @@ def build_sysprobe_binary(
     python_runtimes='3',
     go_mod="mod",
     arch=CURRENT_ARCH,
-    nikos_embedded_path=None,
     bundle_ebpf=False,
     strip_binary=False,
     sbom=True,
@@ -474,14 +473,11 @@ def build_sysprobe_binary(
         ctx,
         major_version=major_version,
         python_runtimes=python_runtimes,
-        nikos_embedded_path=nikos_embedded_path,
     )
 
     build_tags = get_default_build_tags(build="system-probe", arch=arch)
     if bundle_ebpf:
         build_tags.append(BUNDLE_TAG)
-    if nikos_embedded_path:
-        build_tags.append(DNF_TAG)
     if sbom:
         build_tags.append(SBOM_TAG)
 
@@ -1376,6 +1372,36 @@ def generate_minimized_btfs(
 
 
 @task
+def generate_event_monitor_proto(ctx):
+    with tempfile.TemporaryDirectory() as temp_gobin:
+        with environ({"GOBIN": temp_gobin}):
+            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1")
+            ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.4.0")
+            ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2.0")
+
+            plugin_opts = " ".join(
+                [
+                    f"--plugin protoc-gen-go=\"{temp_gobin}/protoc-gen-go\"",
+                    f"--plugin protoc-gen-go-grpc=\"{temp_gobin}/protoc-gen-go-grpc\"",
+                    f"--plugin protoc-gen-go-vtproto=\"{temp_gobin}/protoc-gen-go-vtproto\"",
+                ]
+            )
+
+            ctx.run(
+                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/eventmonitor/proto/api/api.proto"
+            )
+
+    for path in glob.glob("pkg/eventmonitor/**/*.pb.go", recursive=True):
+        print(f"replacing protoc version in {path}")
+        with open(path) as f:
+            content = f.read()
+
+        replaced_content = re.sub(r"\/\/\s*protoc\s*v\d+\.\d+\.\d+", "//  protoc", content)
+        with open(path, "w") as f:
+            f.write(replaced_content)
+
+
+@task
 def print_failed_tests(_, output_dir):
     fail_count = 0
     for testjson_tgz in glob.glob(f"{output_dir}/**/testjson.tar.gz"):
@@ -1423,10 +1449,39 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
             images.add(docker_compose["services"][component]["image"])
 
     # Java tests have dynamic images in docker-compose.yml
-    for image in ["openjdk:21-oraclelinux8", "openjdk:15-oraclelinux8", "openjdk:8u151-jre"]:
+    for image in ["openjdk:21-oraclelinux8", "openjdk:15-oraclelinux8", "openjdk:8u151-jre", "menci/archlinuxarm:base"]:
         images.add(image)
 
     for image in images:
         output_path = image.translate(str.maketrans('', '', string.punctuation))
         ctx.run(f"docker pull --platform linux/{arch} {image}")
         ctx.run(f"docker save {image} > {os.path.join(output_dir, output_path)}.tar")
+
+
+@task
+def test_microvms(
+    ctx,
+    security_groups=None,
+    subnets=None,
+    instance_type_x86=None,
+    instance_type_arm=None,
+    x86_ami_id=None,
+    arm_ami_id=None,
+    destroy=False,
+    upload_dependencies=False,
+):
+    args = [
+        f"--sgs {security_groups}" if security_groups is not None else "",
+        f"--subnets {subnets}" if subnets is not None else "",
+        f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 is not None else "",
+        f"--instance-type-arm {instance_type_arm}" if instance_type_arm is not None else "",
+        f"--x86-ami-id {x86_ami_id}" if x86_ami_id is not None else "",
+        f"--arm-ami-id {arm_ami_id}" if arm_ami_id is not None else "",
+        "--destroy" if destroy else "",
+        "--upload-dependencies" if upload_dependencies else "",
+    ]
+
+    go_args = ' '.join(filter(lambda x: x != "", args))
+    ctx.run(
+        f"cd ./test/new-e2e && go run ./scenarios/system-probe/main.go --name usama-saqib-test {go_args} --shutdown-period 720",
+    )

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
+	"github.com/benbjohnson/clock"
 	"github.com/cenkalti/backoff"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,7 +26,7 @@ func TestServer(t *testing.T) {
 	t.Skip("unstable on windows unit test")
 
 	t.Run("should accept payloads on any route", func(t *testing.T) {
-		fi := NewServer()
+		fi := NewServer(WithClock(clock.NewMock()))
 
 		request, err := http.NewRequest(http.MethodPost, "/api/v2/series", strings.NewReader("totoro|5|tag:valid,owner:pducolin"))
 		assert.NoError(t, err, "Error creating POST request")
@@ -37,7 +38,7 @@ func TestServer(t *testing.T) {
 	})
 
 	t.Run("should accept GET requests on any other route", func(t *testing.T) {
-		fi := NewServer()
+		fi := NewServer(WithClock(clock.NewMock()))
 
 		request, err := http.NewRequest(http.MethodGet, "/api/v1/validate", nil)
 		assert.NoError(t, err, "Error creating GET request")
@@ -49,7 +50,7 @@ func TestServer(t *testing.T) {
 	})
 
 	t.Run("should accept GET requests on /fakeintake/payloads route", func(t *testing.T) {
-		fi := NewServer()
+		fi := NewServer(WithClock(clock.NewMock()))
 
 		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads?endpoint=/foo", nil)
 
@@ -60,7 +61,7 @@ func TestServer(t *testing.T) {
 		assert.Equal(t, http.StatusOK, response.Code, "unexpected code")
 
 		expectedResponse := api.APIFakeIntakePayloadsGETResponse{
-			Payloads: [][]byte{},
+			Payloads: nil,
 		}
 		actualResponse := api.APIFakeIntakePayloadsGETResponse{}
 		body, err := io.ReadAll(response.Body)
@@ -71,7 +72,7 @@ func TestServer(t *testing.T) {
 	})
 
 	t.Run("should not accept GET requests on /fakeintake/payloads route without endpoint query parameter", func(t *testing.T) {
-		fi := NewServer()
+		fi := NewServer(WithClock(clock.NewMock()))
 
 		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads", nil)
 
@@ -83,7 +84,8 @@ func TestServer(t *testing.T) {
 	})
 
 	t.Run("should store multiple payloads on any route and return them", func(t *testing.T) {
-		fi := NewServer()
+		clock := clock.NewMock()
+		fi := NewServer(WithClock(clock))
 
 		postSomePayloads(t, fi)
 
@@ -96,9 +98,17 @@ func TestServer(t *testing.T) {
 		assert.Equal(t, http.StatusOK, getResponse.Code)
 
 		expectedGETResponse := api.APIFakeIntakePayloadsGETResponse{
-			Payloads: [][]byte{
-				[]byte("totoro|5|tag:valid,owner:pducolin"),
-				[]byte("totoro|7|tag:valid,owner:pducolin"),
+			Payloads: []api.Payload{
+				{
+					Timestamp: clock.Now(),
+					Data:      []byte("totoro|5|tag:valid,owner:pducolin"),
+					Encoding:  "",
+				},
+				{
+					Timestamp: clock.Now(),
+					Data:      []byte("totoro|7|tag:valid,owner:pducolin"),
+					Encoding:  "",
+				},
 			},
 		}
 		actualGETResponse := api.APIFakeIntakePayloadsGETResponse{}
@@ -110,7 +120,7 @@ func TestServer(t *testing.T) {
 	})
 
 	t.Run("should accept GET requests on /fakeintake/health route", func(t *testing.T) {
-		fi := NewServer()
+		fi := NewServer(WithClock(clock.NewMock()))
 
 		request, err := http.NewRequest(http.MethodGet, "/fakeintake/health", nil)
 
@@ -122,7 +132,7 @@ func TestServer(t *testing.T) {
 	})
 
 	t.Run("should accept payloads on any route", func(t *testing.T) {
-		fi := NewServer()
+		fi := NewServer(WithClock(clock.NewMock()))
 
 		request, err := http.NewRequest(http.MethodPost, "/api/v2/series", strings.NewReader("totoro|5|tag:valid,owner:pducolin"))
 		assert.NoError(t, err, "Error creating POST request")
@@ -134,14 +144,16 @@ func TestServer(t *testing.T) {
 	})
 
 	t.Run("should return error when calling stop on a non-started server", func(t *testing.T) {
-		fi := NewServer()
+		fi := NewServer(WithClock(clock.NewMock()))
+
 		err := fi.Stop()
 		assert.Error(t, err)
 		assert.Equal(t, "server not running", err.Error())
 	})
 
 	t.Run("should correctly start a server with no ready channel defined", func(t *testing.T) {
-		fi := NewServer()
+		fi := NewServer(WithClock(clock.NewMock()))
+
 		fi.Start()
 
 		err := backoff.Retry(func() error {
@@ -166,7 +178,7 @@ func TestServer(t *testing.T) {
 
 	t.Run("should correctly notify when a server is ready", func(t *testing.T) {
 		ready := make(chan bool, 1)
-		fi := NewServer(WithReadyChannel(ready))
+		fi := NewServer(WithClock(clock.NewMock()), WithReadyChannel(ready))
 		fi.Start()
 		ok := <-ready
 		assert.True(t, ok)
@@ -187,7 +199,7 @@ func TestServer(t *testing.T) {
 		assert.NoError(t, err)
 	})
 	t.Run("should store multiple payloads on any route and return the list of routes", func(t *testing.T) {
-		fi := NewServer()
+		fi := NewServer(WithClock(clock.NewMock()))
 
 		postSomePayloads(t, fi)
 

@@ -8,14 +8,9 @@ package common
 import (
 	"context"
 	"net/http"
-
-	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 )
 
 var (
-	// MemoryMonitor is the global system-probe memory monitor
-	MemoryMonitor *utils.MemoryMonitor
-
 	// ExpvarServer is the global expvar server
 	ExpvarServer *http.Server
 

@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -118,9 +117,8 @@ type Secret struct {
 var runCommand = execCommand
 
 // fetchSecret receives a list of secrets name to fetch, exec a custom
-// executable to fetch the actual secrets and returns them. Origin should be
-// the name of the configuration where the secret was referenced.
-func fetchSecret(secretsHandle []string, origin string) (map[string]string, error) {
+// executable to fetch the actual secrets and returns them.
+func fetchSecret(secretsHandle []string) (map[string]string, error) {
 	payload := map[string]interface{}{
 		"version": PayloadVersion,
 		"secrets": secretsHandle,
@@ -150,14 +148,17 @@ func fetchSecret(secretsHandle []string, origin string) (map[string]string, erro
 		if v.ErrorMsg != "" {
 			return nil, fmt.Errorf("an error occurred while decrypting '%s': %s", sec, v.ErrorMsg)
 		}
+
+		if removeTrailingLinebreak {
+			v.Value = strings.TrimRight(v.Value, "\r\n")
+		}
+
 		if v.Value == "" {
 			return nil, fmt.Errorf("decrypted secret for '%s' is empty", sec)
 		}
 
 		// add it to the cache
 		secretCache[sec] = v.Value
-		// keep track of place where a handle was found
-		secretOrigin[sec] = common.NewStringSet(origin)
 		res[sec] = v.Value
 	}
 	return res, nil

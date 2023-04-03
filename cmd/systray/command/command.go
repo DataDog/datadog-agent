@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"go.uber.org/fx"
+	"golang.org/x/sys/windows"
 )
 
 const (
@@ -71,6 +73,13 @@ func MakeCommand() *cobra.Command {
 		Use:          fmt.Sprintf("%s", os.Args[0]),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Check if we are elevated and elevate if necessary. Elevation is required prior to component initialization
+			// because of restricted permissions to the agent configuration file.
+			err := ensureElevated(systrayParams)
+			if err != nil {
+				return err
+			}
+
 			return fxutil.Run(
 				// core
 				fx.Supply(core.BundleParams{
@@ -95,7 +104,7 @@ func MakeCommand() *cobra.Command {
 
 	cmd.PersistentFlags().BoolVar(&systrayParams.LaunchGuiFlag, "launch-gui", false, "Launch browser configuration and exit")
 
-	// launch-elev=true only means the process should have been elevated so that it will not elevate again. If the
+	// launch-elev=true only means the process should be elevated so that it will not elevate again. If the
 	// parameter is specified but the process is not elevated, some operation will fail due to access denied.
 	cmd.PersistentFlags().BoolVar(&systrayParams.LaunchElevatedFlag, "launch-elev", false, "Launch program as elevated, internal use only")
 
@@ -103,4 +112,57 @@ func MakeCommand() *cobra.Command {
 	cmd.PersistentFlags().StringVar(&systrayParams.LaunchCommand, "launch-cmd", "", "Carry out a specific command after launch")
 
 	return cmd
+}
+
+func ensureElevated(params systray.Params) error {
+	isAdmin, err := winutil.IsUserAnAdmin()
+	if err != nil {
+		return fmt.Errorf("failed to call IsUserAnAdmin %v", err)
+	}
+
+	if isAdmin {
+		// user is an admin, allow execution to continue
+		return nil
+	}
+
+	// user is not an admin
+	if params.LaunchElevatedFlag {
+		return fmt.Errorf("not running as elevated but elevated flag is set")
+	}
+
+	// attempt to launch as admin
+	err = relaunchElevated()
+	if err != nil {
+		return err
+	}
+
+	return fmt.Errorf("exiting to allow elevated process to start")
+}
+
+// relaunchElevated launch another instance of the current process asking it to carry out a command as admin.
+// If the function succeeds, it will quit the process, otherwise the function will return to the caller.
+func relaunchElevated() error {
+	verb := "runas"
+	exe, _ := os.Executable()
+	cwd, _ := os.Getwd()
+
+	// Reconstruct arguments and tell the new process it should be elevated.
+	xargs := []string{"--launch-elev=true"}
+	if len(os.Args) > 1 {
+		xargs = append(xargs, os.Args[1:]...)
+	}
+	args := strings.Join(xargs, " ")
+
+	verbPtr, _ := windows.UTF16PtrFromString(verb)
+	exePtr, _ := windows.UTF16PtrFromString(exe)
+	cwdPtr, _ := windows.UTF16PtrFromString(cwd)
+	argPtr, _ := windows.UTF16PtrFromString(args)
+
+	var showCmd int32 = 1 //SW_NORMAL
+
+	err := windows.ShellExecute(0, verbPtr, exePtr, argPtr, cwdPtr, showCmd)
+	if err != nil {
+		return fmt.Errorf("Failed to launch self as elevated %v", err)
+	}
+	return nil
 }

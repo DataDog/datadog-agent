@@ -7,6 +7,7 @@ package report
 
 import (
 	json "encoding/json"
+	"net"
 	"sort"
 	"strconv"
 	"strings"
@@ -26,6 +27,9 @@ import (
 
 const interfaceStatusMetric = "snmp.interface.status"
 const topologyLinkSourceTypeLLDP = "lldp"
+const topologyLinkSourceTypeCDP = "cdp"
+const ciscoNetworkProtocolIPv4 = "1"
+const ciscoNetworkProtocolIPv6 = "20"
 
 // ReportNetworkDeviceMetadata reports device metadata
 func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus metadata.DeviceStatus) {
@@ -48,7 +52,7 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 			log.Errorf("Error marshalling device metadata: %s", err)
 			return
 		}
-		ms.sender.EventPlatformEvent(string(payloadBytes), epforwarder.EventTypeNetworkDevicesMetadata)
+		ms.sender.EventPlatformEvent(payloadBytes, epforwarder.EventTypeNetworkDevicesMetadata)
 	}
 
 	// Telemetry
@@ -276,6 +280,14 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store, interf
 		return nil
 	}
 
+	links := buildNetworkTopologyMetadataWithLLDP(deviceID, store, interfaces)
+	if len(links) == 0 {
+		links = buildNetworkTopologyMetadataWithCDP(deviceID, store, interfaces)
+	}
+	return links
+}
+
+func buildNetworkTopologyMetadataWithLLDP(deviceID string, store *metadata.Store, interfaces []metadata.InterfaceMetadata) []metadata.TopologyLinkMetadata {
 	interfaceIndexByIDType := buildInterfaceIndexByIDType(interfaces)
 
 	remManAddrByLLDPRemIndex := getRemManIPAddrByLLDPRemIndex(store.GetColumnIndexes("lldp_remote_management.interface_id_type"))
@@ -348,6 +360,77 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store, interf
 	}
 	return links
 }
+func buildNetworkTopologyMetadataWithCDP(deviceID string, store *metadata.Store, interfaces []metadata.InterfaceMetadata) []metadata.TopologyLinkMetadata {
+	indexes := store.GetColumnIndexes("cdp_remote.interface_id") // using `cdp_remote.interface_id` to get indexes since it's expected to be always present
+	if len(indexes) == 0 {
+		log.Debugf("Unable to build links metadata: no cdp_remote indexes found")
+		return nil
+	}
+	sort.Strings(indexes)
+	var links []metadata.TopologyLinkMetadata
+	for _, strIndex := range indexes {
+		indexElems := strings.Split(strIndex, ".")
+
+		// The cdpCacheEntry index is composed of 2 elements separated by `.`: cdpCacheIfIndex, cdpCacheDeviceIndex
+		if len(indexElems) != 2 {
+			log.Debugf("Expected 2 index elements, but got %d, index=`%s`", len(indexElems), strIndex)
+			continue
+		}
+
+		cdpCacheIfIndex := indexElems[0]
+		cdpCacheDeviceIndex := indexElems[1]
+
+		remoteDeviceAddress := getRemDeviceAddressByCDPRemIndex(store, strIndex)
+
+		resolvedLocalInterfaceID := deviceID + ":" + cdpCacheIfIndex
+
+		// remEntryUniqueID: The combination of cdpCacheIfIndex and cdpCacheDeviceIndex is expected to be unique for each entry in cdpCacheTable
+		remEntryUniqueID := cdpCacheIfIndex + "." + cdpCacheDeviceIndex
+
+		newLink := metadata.TopologyLinkMetadata{
+			ID:         deviceID + ":" + remEntryUniqueID,
+			SourceType: topologyLinkSourceTypeCDP,
+			Remote: &metadata.TopologyLinkSide{
+				Device: &metadata.TopologyLinkDevice{
+					Name:        store.GetColumnAsString("cdp_remote.device_name", strIndex),
+					Description: store.GetColumnAsString("cdp_remote.device_desc", strIndex),
+					ID:          store.GetColumnAsString("cdp_remote.device_id", strIndex),
+					IDType:      "",
+					IPAddress:   remoteDeviceAddress,
+				},
+				Interface: &metadata.TopologyLinkInterface{
+					ID:          store.GetColumnAsString("cdp_remote.interface_id", strIndex),
+					IDType:      metadata.IDTypeInterfaceName,
+					Description: "",
+				},
+			},
+			Local: &metadata.TopologyLinkSide{
+				Interface: &metadata.TopologyLinkInterface{
+					DDID:   resolvedLocalInterfaceID,
+					ID:     "",
+					IDType: "",
+				},
+				Device: &metadata.TopologyLinkDevice{
+					DDID: deviceID,
+				},
+			},
+		}
+		links = append(links, newLink)
+	}
+	return links
+}
+
+func getRemDeviceAddressByCDPRemIndex(store *metadata.Store, strIndex string) string {
+	remoteDeviceAddressType := store.GetColumnAsString("cdp_remote.device_address_type", strIndex)
+	if remoteDeviceAddressType == ciscoNetworkProtocolIPv4 || remoteDeviceAddressType == ciscoNetworkProtocolIPv6 {
+		return net.IP(store.GetColumnAsByteArray("cdp_remote.device_address", strIndex)).String()
+	} else {
+		// TODO: use cdpCacheSecondaryMgmtAddrType or cdpCacheAddress in this case
+		return "" // Note if this is the case this won't pass the backend check and will generate the error
+		// "deviceIP cannot be empty (except when interface id_type is mac_address)"
+	}
+
+}
 
 func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]map[string][]int32, localInterfaceIDType string, localInterfaceID string) string {
 	if localInterfaceID == "" {
@@ -380,7 +463,13 @@ func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]ma
 		for key := range matchedIfIndexesMap {
 			matchedIfIndexes = append(matchedIfIndexes, key)
 		}
-		return deviceID + ":" + strconv.Itoa(int(matchedIfIndexes[0]))
+		interfaceID := deviceID + ":" + strconv.Itoa(int(matchedIfIndexes[0]))
+		log.Tracef("[local interface resolution] found 1 matching interface (idType=%s, id=%s) resolved to interface_id `%s`", localInterfaceIDType, localInterfaceID, interfaceID)
+		return interfaceID
+	} else if len(matchedIfIndexesMap) > 1 {
+		log.Tracef("[local interface resolution] expected 1 matching interface but found %d (idType=%s, id=%s): %+v", len(matchedIfIndexesMap), localInterfaceIDType, localInterfaceID, matchedIfIndexesMap)
+	} else {
+		log.Tracef("[local interface resolution] expected 1 matching interface but found 0 (idType=%s, id=%s)", localInterfaceIDType, localInterfaceID)
 	}
 	return ""
 }

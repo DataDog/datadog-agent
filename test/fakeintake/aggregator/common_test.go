@@ -7,7 +7,9 @@ package aggregator
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,17 +23,17 @@ func (m *mockPayloadItem) name() string {
 	return m.Name
 }
 
-func (m *mockPayloadItem) tags() []string {
+func (m *mockPayloadItem) GetTags() []string {
 	return m.Tags
 }
 
-func parseMockPayloadItem(data []byte) (items []*mockPayloadItem, err error) {
+func parseMockPayloadItem(payload api.Payload) (items []*mockPayloadItem, err error) {
 	items = []*mockPayloadItem{}
-	err = json.Unmarshal(data, &items)
+	err = json.Unmarshal(payload.Data, &items)
 	return items, err
 }
 
-func generateTestData() (data [][]byte, err error) {
+func generateTestData() (data []api.Payload, err error) {
 	items := []*mockPayloadItem{
 		{
 			Name: "totoro",
@@ -42,11 +44,17 @@ func generateTestData() (data [][]byte, err error) {
 			Tags: []string{"age:43", "country:it", "role:pilot"},
 		},
 	}
+
 	jsonData, err := json.Marshal(items)
 	if err != nil {
 		return nil, err
 	}
-	return [][]byte{jsonData}, nil
+	return []api.Payload{
+		{
+			Data:      jsonData,
+			Timestamp: time.Time{},
+		},
+	}, nil
 }
 
 func TestCommonAggregator(t *testing.T) {
@@ -69,5 +77,29 @@ func TestCommonAggregator(t *testing.T) {
 		assert.True(t, agg.ContainsPayloadNameAndTags("totoro", []string{"age:123"}))
 		assert.False(t, agg.ContainsPayloadNameAndTags("porco rosso", []string{"country:it", "role:king"}))
 		assert.True(t, agg.ContainsPayloadNameAndTags("porco rosso", []string{"country:it", "role:pilot"}))
+	})
+
+	t.Run("AreTagsSubsetOfOtherTags", func(t *testing.T) {
+		assert.True(t, AreTagsSubsetOfOtherTags([]string{"interface:lo"}, []string{"interface:lo", "snmp_profile:generic-router"}))
+		assert.False(t, AreTagsSubsetOfOtherTags([]string{"totoro"}, []string{"interface:lo", "snmp_profile:generic-router"}))
+		assert.False(t, AreTagsSubsetOfOtherTags([]string{"totoro", "interface:lo"}, []string{"interface:lo", "snmp_profile:generic-router"}))
+	})
+
+	t.Run("FilterByTags", func(t *testing.T) {
+		items := []*mockPayloadItem{
+			{
+				Name: "totoro",
+				Tags: []string{"age:123", "country:jp"},
+			},
+			{
+				Name: "totoro",
+				Tags: []string{"age:43", "country:jp"},
+			},
+		}
+
+		assert.NotEmpty(t, FilterByTags(items, []string{"age:123"}))
+		assert.NotEmpty(t, FilterByTags(items, []string{"age:123", "country:jp"}))
+		assert.Empty(t, FilterByTags(items, []string{"age:123", "country:it"}))
+		assert.NotEmpty(t, FilterByTags(items, []string{"age:43"}))
 	})
 }
