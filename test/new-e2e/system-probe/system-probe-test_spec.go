@@ -171,7 +171,6 @@ func testPass(config testConfig) error {
 
 	for _, file := range matches {
 		args := buildCommandArgs(file, config.bundle)
-		fmt.Println(args)
 		cmd := exec.Command(Sudo, args...)
 
 		r, w := io.Pipe()
