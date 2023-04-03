@@ -157,18 +157,21 @@ type Maintainer struct {
 }
 
 func (c *Maintainer) Clean(cache *PersistentCache) {
-	listedImages := make(map[string]struct{})
+	toKeep := make(map[string]struct{})
 	for _, imageMetadata := range workloadmeta.GetGlobalStore().ListImages() {
 		sbom := imageMetadata.SBOM
-		listedImages[sbom.ArtifactID] = struct{}{}
+		toKeep[sbom.ArtifactID] = struct{}{}
 		for _, blobID := range sbom.BlobIDs {
-			listedImages[blobID] = struct{}{}
+			toKeep[blobID] = struct{}{}
 		}
 	}
 	var toRemove []string
 	for _, key := range cache.Keys() {
-		toRemove = append(toRemove, key)
+		if _, ok := toKeep[key]; !ok {
+			toRemove = append(toRemove, key)
+		}
 	}
+
 	err := cache.Remove(toRemove)
 	if err != nil {
 		// will always be triggered if the database is closed
@@ -231,7 +234,7 @@ func NewPersistentCache(
 		if ok := lruCache.Add(key, struct{}{}); ok {
 			evicted = append(evicted, persistentCache.lastEvicted)
 		}
-		persistentCache.IncCurrentCachedObjectSize(len(value))
+		persistentCache.incCurrentCachedObjectSize(len(value))
 		return nil
 	}); err != nil {
 		return nil, err
@@ -282,53 +285,72 @@ func (c *PersistentCache) Clear() error {
 	return nil
 }
 
-func (c *PersistentCache) Resize(size int) int {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
-	return c.lruCache.Resize(size)
-}
-
-func (c *PersistentCache) RemoveOldest() (string, []byte, error) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+func (c *PersistentCache) removeOldest() error {
 	key, _, ok := c.lruCache.RemoveOldest()
 	if !ok {
-		return "", nil, fmt.Errorf("in-memory cache is empty")
+		return fmt.Errorf("in-memory cache is empty")
 	}
 
-	val, err := c.db.Get(key.(string))
-	c.DecCurrentCachedObjectSize(len(val))
-	return key.(string), val, err
+	evicted := 0
+	if err := c.db.Delete([]string{key.(string)}, func(key string, value []byte) error {
+		evicted += len(value)
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	c.decCurrentCachedObjectSize(evicted)
+
+	return nil
 }
 
-func (c *PersistentCache) ReduceSize(target int) error {
+func (c *PersistentCache) RemoveOldest() error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	return c.removeOldest()
+}
+
+func (c *PersistentCache) reduceSize(target int) error {
+	if c.currentCachedObjectSize <= target {
+		return nil
+	}
+
 	if target > c.maximumCachedObjectSize {
 		return fmt.Errorf("cache can not exceed %d", c.maximumCachedObjectSize)
 	}
 
+	prev := c.currentCachedObjectSize
 	for c.currentCachedObjectSize > target {
-		_, _, err := c.RemoveOldest()
+		err := c.removeOldest()
 		if err != nil {
 			return err
+		}
+		if prev == c.currentCachedObjectSize {
+			return fmt.Errorf("cache and db are out of sync")
 		}
 	}
 	return nil
 }
 
 func (c *PersistentCache) Close() error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	return c.db.Close()
 }
 
-func (c *PersistentCache) Set(key string, value []byte) error {
+func (c *PersistentCache) set(key string, value []byte) error {
 	if len(value) > c.maximumCachedObjectSize {
 		return fmt.Errorf("value of [%s] is too big for the cache : %d", key, c.maximumCachedObjectSize)
 	}
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
 
-	evictedSize := 0
+	if c.currentCachedObjectSize+len(value) > c.maximumCachedObjectSize {
+		if err := c.reduceSize(c.maximumCachedObjectSize - len(value)); err != nil {
+			return err
+		}
+	}
+
 	if evict := c.lruCache.Add(key, struct{}{}); evict {
+		evictedSize := 0
 		if err := c.db.Delete([]string{c.lastEvicted}, func(_ string, value []byte) error {
 			evictedSize += len(value)
 			return nil
@@ -337,9 +359,8 @@ func (c *PersistentCache) Set(key string, value []byte) error {
 			c.lruCache.Add(c.lastEvicted, struct{}{})
 			return err
 		}
+		c.decCurrentCachedObjectSize(evictedSize)
 	}
-
-	c.DecCurrentCachedObjectSize(evictedSize)
 
 	err := c.db.Store(key, value)
 	if err != nil {
@@ -347,8 +368,14 @@ func (c *PersistentCache) Set(key string, value []byte) error {
 		return err
 	}
 
-	c.IncCurrentCachedObjectSize(len(value))
+	c.incCurrentCachedObjectSize(len(value))
 	return nil
+}
+
+func (c *PersistentCache) Set(key string, value []byte) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	return c.set(key, value)
 }
 
 func (c *PersistentCache) Get(key string) ([]byte, error) {
@@ -367,37 +394,41 @@ func (c *PersistentCache) Get(key string) ([]byte, error) {
 	return res, nil
 }
 
-func (c *PersistentCache) Remove(keys []string) error {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-	var presentKeys []string
-	for _, key := range keys {
-		if ok := c.lruCache.Remove(key); ok {
-			presentKeys = append(presentKeys, key)
-		}
-	}
+func (c *PersistentCache) remove(keys []string) error {
 	removedSize := 0
-	err := c.db.Delete(presentKeys, func(_ string, value []byte) error {
+	if err := c.db.Delete(keys, func(_ string, value []byte) error {
 		removedSize += len(value)
 		return nil
-	})
-	if err != nil {
+	}); err != nil {
 		return err
 	}
-	c.DecCurrentCachedObjectSize(removedSize)
+
+	for _, key := range keys {
+		_ = c.lruCache.Remove(key)
+	}
+
+	c.decCurrentCachedObjectSize(removedSize)
 	return nil
 }
 
+func (c *PersistentCache) Remove(keys []string) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	return c.remove(keys)
+}
+
 func (c *PersistentCache) GetCurrentCachedObjectSize() int {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 	return c.currentCachedObjectSize
 }
 
-func (c *PersistentCache) IncCurrentCachedObjectSize(val int) {
+func (c *PersistentCache) incCurrentCachedObjectSize(val int) {
 	c.currentCachedObjectSize += val
 	telemetry.SBOMCachedObjectSize.Add(float64(val))
 }
 
-func (c *PersistentCache) DecCurrentCachedObjectSize(val int) {
+func (c *PersistentCache) decCurrentCachedObjectSize(val int) {
 	c.currentCachedObjectSize -= val
 	telemetry.SBOMCachedObjectSize.Sub(float64(val))
 }
