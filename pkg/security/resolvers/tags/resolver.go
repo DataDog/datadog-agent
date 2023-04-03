@@ -10,12 +10,14 @@ package tags
 
 import (
 	"context"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 // Tagger defines a Tagger for the Tags Resolver
@@ -97,4 +99,37 @@ func NewResolver(config *config.Config) *Resolver {
 	return &Resolver{
 		tagger: &nullTagger{},
 	}
+}
+
+// Resolove image_id
+func (t *Resolver) ImageIDResolver(containerID string) string {
+	var imageID string
+	m := workloadmeta.GetGlobalStore()
+
+	// Get imageID from container with ID == containerID
+	containers := m.ListContainersWithFilter(workloadmeta.GetRunningContainers)
+	for _, container := range containers {
+		if container.ID == containerID {
+			imageID = container.Image.ID
+		}
+	}
+
+	// Build new imageId (repo + @sha256:XXX)
+	// To get repo, check repoDigests first,
+	// If empty check repoTags
+	imageMetadata, _ := m.GetImage(imageID)
+	repoDigests := imageMetadata.RepoDigests
+	repoTags := imageMetadata.RepoTags
+	if len(repoDigests) != 0 {
+		repo := strings.SplitN(repoDigests[0], "@sha256:", 2)[0]
+		return repo + "@" + imageID
+	}
+
+	if len(repoTags) != 0 {
+		repo := strings.SplitN(repoDigests[0], ":", 2)[0]
+		return repo + "@" + imageID
+	}
+
+	// If repo is empty, return imageID without repo
+	return imageID
 }

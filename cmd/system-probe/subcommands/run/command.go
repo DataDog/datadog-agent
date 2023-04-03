@@ -39,6 +39,10 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+
+	// register all workloadmeta collectors
+	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
 
 // ErrNotEnabled represents the case in which system-probe is not enabled
@@ -198,6 +202,16 @@ func startSystemProbe(cliParams *cliParams, log log.Component, sysprobeconfig sy
 	if err := statsd.Configure(cfg.StatsdHost, cfg.StatsdPort); err != nil {
 		return log.Criticalf("error configuring statsd: %s", err)
 	}
+
+	// Init workload metastore collectors
+	workloadmetaCollectors := workloadmeta.NodeAgentCatalog
+	if sysprobeconfig.GetBool("system_probe.remote_workloadmeta") {
+		workloadmetaCollectors = workloadmeta.RemoteCatalog
+	}
+
+	// Start workloadmeta store
+	store := workloadmeta.CreateGlobalStore(workloadmetaCollectors)
+	store.Start(ctx)
 
 	if isValidPort(cfg.DebugPort) {
 		if cfg.TelemetryEnabled {

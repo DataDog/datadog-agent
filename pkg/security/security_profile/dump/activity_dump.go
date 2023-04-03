@@ -538,6 +538,10 @@ func (ad *ActivityDump) finalize(releaseTracedCgroupSpot bool) {
 		ad.Tags = append(ad.Tags, "container_id:"+ad.ContainerID)
 	}
 
+	// Add image_id in tags
+	image_id := ad.adm.tagsResolvers.ImageIDResolver(ad.ContainerID)
+	ad.Tags = append(ad.Tags, "image_id:"+image_id)
+
 	// scrub processes and retain args envs now
 	ad.scrubAndRetainProcessArgsEnvs()
 }
