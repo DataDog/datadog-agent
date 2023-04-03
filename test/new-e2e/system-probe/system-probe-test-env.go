@@ -6,9 +6,9 @@
 package systemProbe
 
 import (
+	"bufio"
 	"context"
 	_ "embed"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -44,13 +44,31 @@ type TestEnv struct {
 }
 
 var (
-	CustomAMIWorkingDir  = filepath.Join("/", "home", "kernel-version-testing")
-	SSHKeyFile           = filepath.Join(".", "/", "aws-ssh-key")
-	vmConfig             = filepath.Join(".", "system-probe", "config", "vmconfig.json")
+	CustomAMIWorkingDir = filepath.Join("/", "home", "kernel-version-testing")
+	SSHKeyFile          = filepath.Join(".", "/", "aws-ssh-key")
+	vmConfig            = filepath.Join(".", "system-probe", "config", "vmconfig.json")
+	stackOutputs        = filepath.Join(".", "stack.outputs")
+
 	DD_AGENT_TESTING_DIR = os.Getenv("DD_AGENT_TESTING_DIR")
 	sshKeyX86            = os.Getenv("LibvirtSSHKeyX86")
 	sshKeyArm            = os.Getenv("LibvirtSSHKeyARM")
 )
+
+func outputsToFile(output auto.OutputMap) error {
+	f, err := os.Create(stackOutputs)
+	if err != nil {
+		return fmt.Errorf("failed to create file: %s: %w", stackOutputs, err)
+	}
+	defer f.Close()
+
+	w := bufio.NewWriter(f)
+
+	for key, value := range output {
+		fmt.Fprintf(w, "%s: %s", key, value.Value.(string))
+	}
+
+	return nil
+}
 
 func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType string, opts *SystemProbeEnvOpts) (*TestEnv, error) {
 	systemProbeTestEnv := &TestEnv{
@@ -156,11 +174,10 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 		return nil, fmt.Errorf("failed to create stack: %w", err)
 	}
 
-	b, err := json.MarshalIndent(upResult.Outputs, "", "	")
+	err = outputsToFile(upResult.Outputs)
 	if err != nil {
-		fmt.Println(err)
+		return nil, fmt.Errorf("failed to write stack output to file: %w", err)
 	}
-	fmt.Println(string(b))
 
 	systemProbeTestEnv.StackOutput = upResult
 
