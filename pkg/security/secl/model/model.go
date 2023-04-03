@@ -773,10 +773,6 @@ var zeroProcessContext ProcessContext
 // ProcessCacheEntry this struct holds process context kept in the process tree
 type ProcessCacheEntry struct {
 	ProcessContext
-
-	refCount  uint64                     `field:"-" json:"-"`
-	onRelease func(_ *ProcessCacheEntry) `field:"-" json:"-"`
-	releaseCb func()                     `field:"-" json:"-"`
 }
 
 // IsContainerRoot returns whether this is a top level process in the container ID
@@ -787,39 +783,11 @@ func (pc *ProcessCacheEntry) IsContainerRoot() bool {
 // Reset the entry
 func (pc *ProcessCacheEntry) Reset() {
 	pc.ProcessContext = zeroProcessContext
-	pc.refCount = 0
-	pc.releaseCb = nil
-}
-
-// Retain increment ref counter
-func (pc *ProcessCacheEntry) Retain() {
-	pc.refCount++
-}
-
-// SetReleaseCallback set the callback called when the entry is released
-func (pc *ProcessCacheEntry) SetReleaseCallback(callback func()) {
-	pc.releaseCb = callback
-}
-
-// Release decrement and eventually release the entry
-func (pc *ProcessCacheEntry) Release() {
-	pc.refCount--
-	if pc.refCount > 0 {
-		return
-	}
-
-	if pc.onRelease != nil {
-		pc.onRelease(pc)
-	}
-
-	if pc.releaseCb != nil {
-		pc.releaseCb()
-	}
 }
 
 // NewProcessCacheEntry returns a new process cache entry
-func NewProcessCacheEntry(onRelease func(_ *ProcessCacheEntry)) *ProcessCacheEntry {
-	return &ProcessCacheEntry{onRelease: onRelease}
+func NewProcessCacheEntry() *ProcessCacheEntry {
+	return &ProcessCacheEntry{}
 }
 
 // ProcessAncestorsIterator defines an iterator of ancestors

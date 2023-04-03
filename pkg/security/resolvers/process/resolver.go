@@ -105,44 +105,7 @@ type Resolver struct {
 	entryCache    map[uint32]*model.ProcessCacheEntry
 	argsEnvsCache *simplelru.LRU[uint32, *argsEnvsCacheEntry]
 
-	processCacheEntryPool *ProcessCacheEntryPool
-
 	exitedQueue []uint32
-}
-
-// ProcessCacheEntryPool defines a pool for process entry allocations
-type ProcessCacheEntryPool struct {
-	pool *sync.Pool
-}
-
-// Get returns a cache entry
-func (p *ProcessCacheEntryPool) Get() *model.ProcessCacheEntry {
-	return p.pool.Get().(*model.ProcessCacheEntry)
-}
-
-// Put returns a cache entry
-func (p *ProcessCacheEntryPool) Put(pce *model.ProcessCacheEntry) {
-	pce.Reset()
-	p.pool.Put(pce)
-}
-
-// NewProcessCacheEntryPool returns a new ProcessCacheEntryPool pool
-func NewProcessCacheEntryPool(p *Resolver) *ProcessCacheEntryPool {
-	pcep := ProcessCacheEntryPool{pool: &sync.Pool{}}
-
-	pcep.pool.New = func() interface{} {
-		return model.NewProcessCacheEntry(func(pce *model.ProcessCacheEntry) {
-			if pce.Ancestor != nil {
-				pce.Ancestor.Release()
-			}
-
-			p.cacheSize.Dec()
-
-			pcep.Put(pce)
-		})
-	}
-
-	return &pcep
 }
 
 // DequeueExited dequeue exited process
@@ -176,7 +139,7 @@ func (p *Resolver) DequeueExited() {
 
 // NewProcessCacheEntry returns a new process cache entry
 func (p *Resolver) NewProcessCacheEntry(pidContext model.PIDContext) *model.ProcessCacheEntry {
-	entry := p.processCacheEntryPool.Get()
+	entry := &model.ProcessCacheEntry{}
 	entry.PIDContext = pidContext
 	entry.Cookie = utils.NewCookie()
 	return entry
@@ -484,11 +447,6 @@ func (p *Resolver) retrieveExecFileFields(procExecPath string) (*model.FileField
 
 func (p *Resolver) insertEntry(entry, prev *model.ProcessCacheEntry, origin processCacheEntrySource) {
 	p.entryCache[entry.Pid] = entry
-	entry.Retain()
-
-	if prev != nil {
-		prev.Release()
-	}
 
 	if p.cgroupResolver != nil && entry.ContainerID != "" {
 		// add the new PID in the right cgroup_resolver bucket
@@ -548,7 +506,6 @@ func (p *Resolver) deleteEntry(pid uint32, exitTime time.Time) {
 
 	entry.Exit(exitTime)
 	delete(p.entryCache, entry.Pid)
-	entry.Release()
 }
 
 // DeleteEntry tries to delete an entry in the process cache
@@ -1107,8 +1064,6 @@ func (p *Resolver) syncCache(proc *process.Process, filledProc *process.FilledPr
 
 	// update the cache entry
 	if err := p.enrichEventFromProc(entry, proc, filledProc); err != nil {
-		entry.Release()
-
 		seclog.Trace(err)
 		return nil, false
 	}
@@ -1274,7 +1229,6 @@ func NewResolver(manager *manager.Manager, config *config.Config, statsdClient s
 	for _, t := range metrics.AllTypesTags {
 		p.hitsStats[t] = atomic.NewInt64(0)
 	}
-	p.processCacheEntryPool = NewProcessCacheEntryPool(p)
 
 	return p, nil
 }

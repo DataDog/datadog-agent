@@ -295,7 +295,7 @@ func (fh *FieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.Proce
 
 	if ev.ProcessCacheEntry == nil {
 		// keep the original PIDContext
-		ev.ProcessCacheEntry = model.NewProcessCacheEntry(nil)
+		ev.ProcessCacheEntry = model.NewProcessCacheEntry()
 		ev.ProcessCacheEntry.PIDContext = ev.PIDContext
 
 		ev.ProcessCacheEntry.FileEvent.SetPathnameStr("")
