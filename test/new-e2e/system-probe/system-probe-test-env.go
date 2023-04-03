@@ -156,22 +156,13 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 		return nil, fmt.Errorf("failed to create stack: %w", err)
 	}
 
-	b, err := json.MarshalIndent(upResult.Summary, "", "	")
+	b, err := json.MarshalIndent(upResult.Outputs, "", "	")
 	if err != nil {
 		fmt.Println(err)
 	}
 	fmt.Println(string(b))
 
 	systemProbeTestEnv.StackOutput = upResult
-
-	outputX86, found := upResult.Outputs["x86_64-instance-ip"]
-	if found {
-		systemProbeTestEnv.X86_64InstanceIP = outputX86.Value.(string)
-	}
-	outputARM, found := upResult.Outputs["arm64-instance-ip"]
-	if found {
-		systemProbeTestEnv.ARM64InstanceIP = outputARM.Value.(string)
-	}
 
 	return systemProbeTestEnv, nil
 }
