@@ -6,7 +6,9 @@
 package trivy
 
 import (
+	"encoding/json"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -145,6 +147,61 @@ func TestBoltCache_Clear(t *testing.T) {
 
 	_, err = cache.GetArtifact(artifactID)
 	require.Error(t, err)
+}
+
+func TestBoltCache_CurrentObjectSize(t *testing.T) {
+	cache, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize, defaultGcInterval)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, cache.Close())
+	}()
+
+	serializedArtifactInfo, err := json.Marshal(newTestArtifactInfo())
+	require.NoError(t, err)
+
+	artifactIDs := []string{"some_ID", "some_other_ID"}
+	for _, id := range artifactIDs {
+		err = cache.PutArtifact(id, newTestArtifactInfo())
+		require.NoError(t, err)
+	}
+
+	persistentCache := cache.(*TrivyCache).Cache.(*PersistentCache)
+	require.Equal(t, len(serializedArtifactInfo)*len(artifactIDs), persistentCache.GetCurrentCachedObjectSize())
+
+	err = persistentCache.Remove([]string{"some_ID"})
+	require.NoError(t, err)
+	require.Equal(t, len(serializedArtifactInfo)*(len(artifactIDs)-1), persistentCache.GetCurrentCachedObjectSize())
+
+	err = persistentCache.Remove(artifactIDs)
+	require.NoError(t, err)
+	require.Equal(t, 0, persistentCache.GetCurrentCachedObjectSize())
+}
+
+func TestBoltCache_Eviction(t *testing.T) {
+	cache, err := NewCustomBoltCache(t.TempDir(), 2, defaultDiskSize, defaultGcInterval)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, cache.Close())
+	}()
+	artifactIDs := []string{"key1", "key2", "key3"}
+	artifactSize := make(map[string]int)
+
+	// Make artifacts of different size and record their size
+	for i, id := range artifactIDs {
+
+		artifact := newTestArtifactInfo()
+		artifact.Architecture = strings.Repeat("A", i*7)
+
+		serializedArtifactInfo, err := json.Marshal(artifact)
+		require.NoError(t, err)
+		artifactSize[id] = len(serializedArtifactInfo)
+
+		err = cache.PutArtifact(id, artifact)
+		require.NoError(t, err)
+	}
+
+	persistentCache := cache.(*TrivyCache).Cache.(*PersistentCache)
+	require.Equal(t, artifactSize["key2"]+artifactSize["key3"], persistentCache.GetCurrentCachedObjectSize())
 }
 
 func newTestArtifactInfo() types.ArtifactInfo {

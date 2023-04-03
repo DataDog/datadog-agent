@@ -370,11 +370,14 @@ func (c *PersistentCache) Get(key string) ([]byte, error) {
 func (c *PersistentCache) Remove(keys []string) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+	var presentKeys []string
 	for _, key := range keys {
-		c.lruCache.Remove(key)
+		if ok := c.lruCache.Remove(key); ok {
+			presentKeys = append(presentKeys, key)
+		}
 	}
 	removedSize := 0
-	err := c.db.Delete(keys, func(_ string, value []byte) error {
+	err := c.db.Delete(presentKeys, func(_ string, value []byte) error {
 		removedSize += len(value)
 		return nil
 	})
