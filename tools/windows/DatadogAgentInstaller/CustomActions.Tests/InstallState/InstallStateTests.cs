@@ -59,11 +59,14 @@ namespace CustomActions.Tests.InstallState
         }
 
         [Theory]
-        [InlineAutoData(ServiceStartMode.Automatic)]
-        [InlineAutoData(ServiceStartMode.Boot)]
-        [InlineAutoData(ServiceStartMode.Manual)]
-        [InlineAutoData(ServiceStartMode.System)]
-        public void ReadInstallState_Should_Read_Ddnpm_InstallState_If_AllowClosedSource_Missing(ServiceStartMode serviceStartMode)
+        [InlineAutoData(ServiceStartMode.Automatic, "1")]
+        [InlineAutoData(ServiceStartMode.Boot, "1")]
+        [InlineAutoData(ServiceStartMode.Manual, "1")]
+        [InlineAutoData(ServiceStartMode.System, "1")]
+        [InlineAutoData(ServiceStartMode.Disabled, "0")]
+        public void ReadInstallState_Should_Read_Ddnpm_InstallState_If_AllowClosedSource_Missing(
+            ServiceStartMode serviceStartMode,
+            string exepctedAllowClosedSource)
         {
             Test.WithRegistryKey(Registries.LocalMachine, @"SYSTEM\CurrentControlSet\Services\ddnpm", new()
                 {
@@ -75,29 +78,12 @@ namespace CustomActions.Tests.InstallState
                 .Be(ActionResult.Success);
 
             Test.Properties.Should()
-                .Contain("ALLOWCLOSEDSOURCE", "1");
+                .Contain("ALLOWCLOSEDSOURCE", exepctedAllowClosedSource);
         }
 
         [Theory]
         [AutoData]
-        public void ReadInstallState_Should_AllowClosedSource_Be_0_If_Ddnpm_Service_Disabled()
-        {
-            Test.WithRegistryKey(Registries.LocalMachine, @"SYSTEM\CurrentControlSet\Services\ddnpm", new()
-                {
-                    ["Start"] = ServiceStartMode.Disabled,
-                })
-                .Create()
-                .ReadInstallState()
-                .Should()
-                .Be(ActionResult.Success);
-
-            Test.Properties.Should()
-                .Contain("ALLOWCLOSEDSOURCE", "0");
-        }
-
-        [Theory]
-        [AutoData]
-        public void ReadInstallState_Should_AllowClosedSource_Be_0_If_Ddnpm_Service_Has_Invalid_Value()
+        public void ReadInstallState_Should_AllowClosedSource_Be_Absent_If_Ddnpm_Service_Has_Invalid_Value()
         {
             Test.WithRegistryKey(Registries.LocalMachine, @"SYSTEM\CurrentControlSet\Services\ddnpm", new()
                 {
