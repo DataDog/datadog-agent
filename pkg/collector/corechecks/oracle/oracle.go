@@ -198,7 +198,8 @@ func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string
 			Comments:       obfuscatedStatement.Metadata.Comments,
 		}, nil
 	} else {
-		obfuscationError := fmt.Sprintf("force_matching_signature: %d", forceMatchingSignature)
+		//obfuscationError := fmt.Sprintf("force_matching_signature: %d", forceMatchingSignature)
+		obfuscationError := fmt.Sprintf("force_matching_signature: %s", forceMatchingSignature)
 		if SQLID != "" {
 			obfuscationError = obfuscationError + fmt.Sprintf(", SQL_ID: %s", SQLID)
 		}
