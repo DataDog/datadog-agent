@@ -64,9 +64,9 @@ func outputsToFile(output auto.OutputMap) error {
 	w := bufio.NewWriter(f)
 
 	for key, value := range output {
-		fmt.Printf("writing: %s: %s\n", key, value.Value.(string))
 		fmt.Fprintf(w, "%s: %s\n", key, value.Value.(string))
 	}
+	w.Flush()
 
 	return nil
 }
