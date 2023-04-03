@@ -60,7 +60,7 @@ pull_test_dockers_arm64:
     - mkdir -p $SYSTEM_PROBE_TESTS
     - cp -R $KITCHEN_TESTS $SYSTEM_PROBE_TESTS
     # Compile system-probe-test_spec.go
-    - go build $CI_PROJECT_DIR/test/new-e2e/system-probe/system-probe-test_spec.go
+    - go build $CI_PROJECT_DIR/test/new-e2e/system-probe/test/system-probe-test_spec.go
     - popd
     # package all the dependencies
     - ls -la $DEPENDENCIES
@@ -89,7 +89,7 @@ package_dependencies_x64:
   extends:
     - .package_dependencies
   needs: ["prepare_ebpf_functional_tests_x64", "tests_ebpf_x64", "pull_test_dockers_x64", "generate_minimized_btfs_x64"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   variables:
     ARCHIVE_NAME: dependencies-x86_64.tar.gz
     ARCH: amd64
@@ -110,7 +110,7 @@ kernel_matrix_testing_setup_env:
   stage: kernel_matrix_testing
   rules:
     !reference [.manual]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   needs: ["go_deps", "go_tools_deps"]
   tags: ["runner:main"]
   variables:
@@ -140,7 +140,7 @@ kernel_matrix_testing_upload_deps:
   extends:
     - .kitchen_ec2_location_us_east_1
   stage: kernel_matrix_testing
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   needs: ["kernel_matrix_testing_setup_env", "package_dependencies_x64", "package_dependencies_arm64"]
   tags: ["runner:main"]
   variables:
@@ -163,4 +163,9 @@ kernel_matrix_testing_upload_deps:
       - $LibvirtSSHKeyARM.pub
       - $STACK_DIR
 
+kernel_matrix_testing_run_tests:
+  stage: kernel_matrix_testing
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen$DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
+  needs: ["kernel_matrix_testing_upload_deps"]
+  tags: ["runner:main"]
 
