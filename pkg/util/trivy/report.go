@@ -16,10 +16,12 @@ import (
 	"github.com/aquasecurity/trivy/pkg/types"
 )
 
-// TrivyReport describes a trivy report along with its marshaler
+// TrivyReport describes a trivy report along with its marshaler, the artifact ids and the blob ids.
 type TrivyReport struct {
 	types.Report
-	marshaler *cyclonedx.Marshaler
+	marshaler  *cyclonedx.Marshaler
+	artifactID string
+	blobIDs    []string
 }
 
 // ToCycloneDX returns the report as a CycloneDX SBOM
@@ -32,4 +34,14 @@ func (r *TrivyReport) ToCycloneDX() (*cyclonedxgo.BOM, error) {
 	// We don't need the dependencies attribute. Remove to save memory.
 	bom.Dependencies = nil
 	return bom, nil
+}
+
+// GetArtifactID returns the artifactID associated to the given image
+func (r *TrivyReport) GetArtifactID() string {
+	return r.artifactID
+}
+
+// GetBlobIDs returns the blobs associated to the given image
+func (r *TrivyReport) GetBlobIDs() []string {
+	return r.blobIDs
 }

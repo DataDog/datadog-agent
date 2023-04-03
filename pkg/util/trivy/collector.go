@@ -17,6 +17,8 @@ import (
 // Report interface
 type Report interface {
 	ToCycloneDX() (*cyclonedxgo.BOM, error)
+	GetArtifactID() string
+	GetBlobIDs() []string
 }
 
 // Collector interface

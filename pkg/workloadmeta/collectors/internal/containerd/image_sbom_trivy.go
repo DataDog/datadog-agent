@@ -143,6 +143,8 @@ func (c *collector) extractBOMWithTrivy(ctx context.Context, image *workloadmeta
 		CycloneDXBOM:       cycloneDXBOM,
 		GenerationTime:     tStartScan,
 		GenerationDuration: scanDuration,
+		ArtifactID:         report.GetArtifactID(),
+		BlobIDs:            report.GetBlobIDs(),
 	}
 
 	// Updating workloadmeta entities directly is not thread-safe, that's why we
