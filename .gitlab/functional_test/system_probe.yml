@@ -77,6 +77,7 @@ kitchen_test_system_probe_linux_x64_ec2:
     KITCHEN_EC2_INSTANCE_TYPE: "t2.xlarge"
     KITCHEN_CI_MOUNT_PATH: "/mnt/ci"
     KITCHEN_CI_ROOT_PATH: "/tmp/ci"
+    KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers-$ARCH
   before_script:
     - !reference [.retrieve_test_dockers]
     - !reference [.retrieve_minimized_btfs]
