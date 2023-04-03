@@ -93,6 +93,7 @@ The payload is a JSON dict with the following fields
     `network_config.enabled` config option in `system-probe.yaml`).
   - `feature_networks_http_enabled` - **bool**: True if HTTP monitoring is enabled for Network Performance Monitoring (see: `network_config.enable_http_monitoring` config option in `system-probe.yaml`).
   - `feature_networks_https_enabled` - **bool**: True if HTTPS monitoring is enabled for Network Performance Monitoring (see: `network_config.enable_https_monitoring` config option in `system-probe.yaml`).
+  - `feature_remote_configuration_enabled` - **bool**: True if the Cloud Workload Security is enabled (see: `remote_configuration.enabled` config option).
   - `feature_usm_http2_enabled` - **bool**: True if HTTP2 monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_http2_monitoring` config option in `system-probe.yaml`).
   - `feature_usm_kafka_enabled` - **bool**: True is Kafka monitoring is enabled for Universal Service Monitoring (see: `data_streams_config.enabled` config option in `system-probe.yaml`)
   - `feature_usm_java_tls_enabled` - **bool**: True if HTTPS monitoring through java TLS is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_java_tls_support` config option in `system-probe.yaml`).
@@ -177,6 +178,7 @@ Here an example of an inventory payload:
         "feature_logs_enabled": true,
         "feature_networks_enabled": false,
         "feature_process_enabled": false,
+        "feature_remote_configuration_enabled": false,
         "flavor": "agent",
         "hostname_source": "os",
         "install_method_installer_version": "",
