@@ -84,7 +84,7 @@ func modelConnections(conns *network.Connections) *model.Connections {
 
 	if httpEncoder != nil && httpEncoder.orphanEntries > 0 {
 		log.Debugf(
-			"detected orphan http aggregations. this can be either caused by conntrack sampling or missed tcp close events. count=%d",
+			"detected orphan http aggregations. this may be caused by conntrack sampling or missed tcp close events. count=%d",
 			httpEncoder.orphanEntries,
 		)
 
@@ -98,7 +98,7 @@ func modelConnections(conns *network.Connections) *model.Connections {
 
 	if http2Encoder != nil && http2Encoder.orphanEntries > 0 {
 		log.Debugf(
-			"detected orphan http2 aggregations. this can be either caused by conntrack sampling or missed tcp close events. count=%d",
+			"detected orphan http2 aggregations. this may be caused by conntrack sampling or missed tcp close events. count=%d",
 			http2Encoder.orphanEntries,
 		)
 
@@ -112,7 +112,7 @@ func modelConnections(conns *network.Connections) *model.Connections {
 
 	if kafkaEncoder != nil && kafkaEncoder.orphanEntries > 0 {
 		log.Debugf(
-			"detected orphan kafka aggregations. this can be either caused by conntrack sampling or missed tcp close events. count=%d",
+			"detected orphan kafka aggregations. this may be caused by conntrack sampling or missed tcp close events. count=%d",
 			kafkaEncoder.orphanEntries,
 		)
 
