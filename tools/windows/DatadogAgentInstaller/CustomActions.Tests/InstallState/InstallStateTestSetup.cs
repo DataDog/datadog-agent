@@ -5,29 +5,30 @@ using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
 using Moq;
 
-namespace CustomActions.Tests.InstallState;
-
-public class InstallStateTestSetup : SessionTestBaseSetup
+namespace CustomActions.Tests.InstallState
 {
-    public Fixture Fixture { get; } = new();
-
-    public Mock<IRegistryServices> RegistryServices { get; } = new();
-
-    public InstallStateCustomActions Create()
+    public class InstallStateTestSetup : SessionTestBaseSetup
     {
-        return new InstallStateCustomActions(Session.Object, RegistryServices.Object);
-    }
+        public Fixture Fixture { get; } = new();
 
-    public InstallStateTestSetup WithRegistryKey(Registries registry, string path, Dictionary<string, object> keys)
-    {
-        var mockRegKey = Fixture.Create<Mock<IRegistryKey>>();
-        RegistryServices.Setup(
-            r => r.OpenRegistryKey(Registries.LocalMachine, path)).Returns(mockRegKey.Object);
-        foreach (var kvp in keys)
+        public Mock<IRegistryServices> RegistryServices { get; } = new();
+
+        public InstallStateCustomActions Create()
         {
-            mockRegKey.Setup(r => r.GetValue(kvp.Key)).Returns(kvp.Value);
+            return new InstallStateCustomActions(Session.Object, RegistryServices.Object);
         }
 
-        return this;
+        public InstallStateTestSetup WithRegistryKey(Registries registry, string path, Dictionary<string, object> keys)
+        {
+            var mockRegKey = Fixture.Create<Mock<IRegistryKey>>();
+            RegistryServices.Setup(
+                r => r.OpenRegistryKey(Registries.LocalMachine, path)).Returns(mockRegKey.Object);
+            foreach (var kvp in keys)
+            {
+                mockRegKey.Setup(r => r.GetValue(kvp.Key)).Returns(kvp.Value);
+            }
+
+            return this;
+        }
     }
 }
