@@ -75,6 +75,8 @@
 /.gitlab/functional_test/system_probe.yml            @DataDog/ebpf-platform @DataDog/agent-platform
 /.gitlab/functional_test_cleanup.yml                 @DataDog/agent-security @DataDog/ebpf-platform @DataDog/agent-platform
 
+/.gitlab/kernel_version_testing                      @DataDog/ebpf-platform
+
 /.gitlab/container_build/                            @DataDog/container-integrations @DataDog/agent-platform
 /.gitlab/container_build/docker_windows_agent6.yml   @DataDog/agent-platform @DataDog/windows-agent
 /.gitlab/container_build/docker_windows_agent7.yml   @DataDog/agent-platform @DataDog/windows-agent
