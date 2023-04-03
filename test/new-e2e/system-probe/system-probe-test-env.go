@@ -45,13 +45,15 @@ type TestEnv struct {
 
 var (
 	CustomAMIWorkingDir = filepath.Join("/", "home", "kernel-version-testing")
-	SSHKeyFile          = filepath.Join(".", "/", "aws-ssh-key")
+	SSHKeyFile          = filepath.Join(".", "aws-ssh-key")
 	vmConfig            = filepath.Join(".", "system-probe", "config", "vmconfig.json")
-	stackOutputs        = filepath.Join(".", "stack.outputs")
 
 	DD_AGENT_TESTING_DIR = os.Getenv("DD_AGENT_TESTING_DIR")
+	CI_PROJECT_DIR       = os.Getenv("CI_PROJECT_DIR")
 	sshKeyX86            = os.Getenv("LibvirtSSHKeyX86")
 	sshKeyArm            = os.Getenv("LibvirtSSHKeyARM")
+
+	stackOutputs = filepath.Join(CI_PROJECT_DIR, "stack.outputs")
 )
 
 func outputsToFile(output auto.OutputMap) error {
