@@ -214,6 +214,7 @@ func TestLeaderUpdateFromStoreInitialUpdate(t *testing.T) {
 		Valid:      true,
 		Value:      2332548489456.557505560,
 		UpdateTime: updateTime,
+		DataTime:   updateTime,
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query0")
@@ -297,6 +298,7 @@ func TestLeaderUpdateFromStoreAfterInitial(t *testing.T) {
 		Valid:      true,
 		Value:      10.0,
 		UpdateTime: updateTime,
+		DataTime:   updateTime,
 		Error:      fmt.Errorf("Error from backend while fetching metric"),
 	}
 	ddm.SetQueries("metric query0")
@@ -381,6 +383,7 @@ func TestLeaderNoUpdate(t *testing.T) {
 		Valid:      true,
 		Value:      10.0,
 		UpdateTime: updateTime,
+		DataTime:   updateTime,
 		Error:      fmt.Errorf("Error from backend while fetching metric"),
 	}
 	ddm.SetQueries("metric query0")
@@ -402,6 +405,7 @@ func TestCreateDatadogMetric(t *testing.T) {
 		ExternalMetricName: "name1",
 		Value:              20.0,
 		UpdateTime:         updateTime,
+		DataTime:           updateTime,
 		Error:              nil,
 	}
 	ddm.SetQueries("metric query0")
@@ -414,6 +418,7 @@ func TestCreateDatadogMetric(t *testing.T) {
 		Autogen:    false,
 		Value:      20.0,
 		UpdateTime: updateTime,
+		DataTime:   updateTime,
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query1")
@@ -426,6 +431,7 @@ func TestCreateDatadogMetric(t *testing.T) {
 		Autogen:    true,
 		Value:      20.0,
 		UpdateTime: updateTime,
+		DataTime:   updateTime,
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query1")
@@ -438,6 +444,7 @@ func TestCreateDatadogMetric(t *testing.T) {
 		Autogen:    true,
 		Value:      20.0,
 		UpdateTime: updateTime,
+		DataTime:   updateTime,
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query2")
@@ -564,6 +571,7 @@ func TestLeaderDeleteExisting(t *testing.T) {
 		Autogen:    true,
 		Value:      20.0,
 		UpdateTime: prevUpdateTime.UTC(),
+		DataTime:   prevUpdateTime.UTC(),
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query0")
@@ -576,6 +584,7 @@ func TestLeaderDeleteExisting(t *testing.T) {
 		Autogen:    false,
 		Value:      20.0,
 		UpdateTime: prevUpdateTime.UTC(),
+		DataTime:   prevUpdateTime.UTC(),
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query1")
@@ -592,6 +601,7 @@ func TestLeaderDeleteExisting(t *testing.T) {
 		Autogen:    true,
 		Value:      20.0,
 		UpdateTime: prevUpdateTime.UTC(),
+		DataTime:   prevUpdateTime.UTC(),
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query0")
@@ -614,6 +624,7 @@ func TestLeaderDeleteCleanup(t *testing.T) {
 		Deleted:    true,
 		Value:      20.0,
 		UpdateTime: updateTime,
+		DataTime:   updateTime,
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query0")
@@ -711,6 +722,7 @@ func TestFollower(t *testing.T) {
 		Valid:      true,
 		Value:      20.0,
 		UpdateTime: kubernetes.TimeWithoutWall(updateTime),
+		DataTime:   kubernetes.TimeWithoutWall(updateTime),
 		Error:      fmt.Errorf("Error from backend while fetching metric"),
 	}
 	ddm.SetQueries("metric query0")

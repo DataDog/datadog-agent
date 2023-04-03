@@ -44,6 +44,7 @@ type DatadogMetricInternal struct {
 	Value                float64
 	AutoscalerReferences string
 	UpdateTime           time.Time
+	DataTime             time.Time
 	Error                error
 	MaxAge               time.Duration
 	TimeWindow           time.Duration
@@ -195,6 +196,11 @@ func (d *DatadogMetricInternal) HasBeenUpdatedFor(duration time.Duration) bool {
 // BuildStatus generates a new status for `DatadogMetric` based on current status and information from `DatadogMetricInternal`
 func (d *DatadogMetricInternal) BuildStatus(currentStatus *datadoghq.DatadogMetricStatus) *datadoghq.DatadogMetricStatus {
 	updateTime := metav1.NewTime(d.UpdateTime)
+	dataTime := metav1.NewTime(d.DataTime)
+	if dataTime.IsZero() {
+		dataTime = updateTime
+	}
+
 	existingConditions := map[datadoghq.DatadogMetricConditionType]*datadoghq.DatadogMetricCondition{
 		datadoghq.DatadogMetricConditionTypeActive:  nil,
 		datadoghq.DatadogMetricConditionTypeValid:   nil,
@@ -213,7 +219,8 @@ func (d *DatadogMetricInternal) BuildStatus(currentStatus *datadoghq.DatadogMetr
 
 	activeCondition := d.newCondition(d.Active, updateTime, datadoghq.DatadogMetricConditionTypeActive, existingConditions[datadoghq.DatadogMetricConditionTypeActive])
 	validCondition := d.newCondition(d.Valid, updateTime, datadoghq.DatadogMetricConditionTypeValid, existingConditions[datadoghq.DatadogMetricConditionTypeValid])
-	updatedCondition := d.newCondition(true, updateTime, datadoghq.DatadogMetricConditionTypeUpdated, existingConditions[datadoghq.DatadogMetricConditionTypeUpdated])
+	// The `updatedCondition` should be set to `updateTime` too, but we will do that once we have another way to expose the `dataTime`
+	updatedCondition := d.newCondition(true, dataTime, datadoghq.DatadogMetricConditionTypeUpdated, existingConditions[datadoghq.DatadogMetricConditionTypeUpdated])
 	errorCondition := d.newCondition(d.Error != nil, updateTime, datadoghq.DatadogMetricConditionTypeError, existingConditions[datadoghq.DatadogMetricConditionTypeError])
 	if d.Error != nil {
 		errorCondition.Reason = DatadogMetricErrorConditionReason
