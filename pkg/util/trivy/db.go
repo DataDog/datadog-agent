@@ -11,16 +11,17 @@ import (
 	"path/filepath"
 
 	bolt "go.etcd.io/bbolt"
-	kerrors "k8s.io/apimachinery/pkg/util/errors"
 )
 
 const CacheDirName = "fanal"
 const boltBucket = "boltdb"
 
+type onDeleteCallback = func(string, []byte) error
+
 type PersistentDB interface {
 	Clear() error
 	Close() error
-	Delete([]string) ([][]byte, error)
+	Delete([]string, onDeleteCallback) error
 	Get(string) ([]byte, error)
 	Store(string, []byte) error
 	ForEach(func(string, []byte) error) error
@@ -70,24 +71,24 @@ func (b BoltDB) Close() error {
 	return b.db.Close()
 }
 
-func (b BoltDB) Delete(keys []string) ([][]byte, error) {
-	var errs []error
-	values := make([][]byte, len(keys))
-	errs = append(errs, b.db.Update(func(tx *bolt.Tx) error {
+func (b BoltDB) Delete(keys []string, callback onDeleteCallback) error {
+	err := b.db.Update(func(tx *bolt.Tx) error {
 		bucket, err := tx.CreateBucketIfNotExists([]byte(boltBucket))
 		if err != nil {
 			return err
 		}
-		for i, key := range keys {
-			v := bucket.Get([]byte(key))
-			values[i] = v
-			if cerr := bucket.Delete([]byte(key)); cerr != nil {
-				errs = append(errs, cerr)
+		for _, key := range keys {
+			value := bucket.Get([]byte(key))
+			if err = bucket.Delete([]byte(key)); err != nil {
+				return err
+			}
+			if err = callback(key, value); err != nil {
+				return err
 			}
 		}
 		return nil
-	}))
-	return values, kerrors.NewAggregate(errs)
+	})
+	return err
 }
 
 func (b BoltDB) Get(key string) ([]byte, error) {

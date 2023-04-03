@@ -3,9 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build trivy
-// +build trivy
-
 package trivy
 
 import (
@@ -17,8 +14,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	defaultCacheSize  = 100
+	defaultDiskSize   = 1000000
+	defaultGcInterval = 1000 * time.Minute
+)
+
 func TestBoltCache_Artifacts(t *testing.T) {
-	cache, err := NewCustomBoltCache(t.TempDir())
+	cache, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize, defaultGcInterval)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -39,7 +42,7 @@ func TestBoltCache_Artifacts(t *testing.T) {
 }
 
 func TestBoltCache_Blobs(t *testing.T) {
-	cache, err := NewCustomBoltCache(t.TempDir())
+	cache, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize, defaultGcInterval)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -60,7 +63,7 @@ func TestBoltCache_Blobs(t *testing.T) {
 }
 
 func TestBoltCache_DeleteBlobs(t *testing.T) {
-	cache, err := NewCustomBoltCache(t.TempDir())
+	cache, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize, defaultGcInterval)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -94,7 +97,7 @@ func TestBoltCache_DeleteBlobs(t *testing.T) {
 }
 
 func TestBoltCache_MissingBlobs(t *testing.T) {
-	cache, err := NewCustomBoltCache(t.TempDir())
+	cache, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize, defaultGcInterval)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -126,7 +129,7 @@ func TestBoltCache_MissingBlobs(t *testing.T) {
 }
 
 func TestBoltCache_Clear(t *testing.T) {
-	cache, err := NewCustomBoltCache(t.TempDir())
+	cache, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize, defaultGcInterval)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())

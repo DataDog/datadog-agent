@@ -17,7 +17,6 @@ import (
 	"github.com/aquasecurity/trivy/pkg/utils"
 	"github.com/hashicorp/golang-lru/simplelru"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta/telemetry"
@@ -37,7 +36,7 @@ func NewBoltCache(cacheDir string) (cache.Cache, error) {
 	return cache.NewFSCache(cacheDir)
 }
 
-func NewCustomBoltCache(cacheDir string) (cache.Cache, error) {
+func NewCustomBoltCache(cacheDir string, maxCacheEntries int, maxDiskSize int, gcInterval time.Duration) (cache.Cache, error) {
 	if cacheDir == "" {
 		cacheDir = utils.DefaultCacheDir()
 	}
@@ -46,10 +45,10 @@ func NewCustomBoltCache(cacheDir string) (cache.Cache, error) {
 		return nil, err
 	}
 	cache, err := NewPersistentCache(
-		config.Datadog.GetInt("custom_cache_max_cache_entries"),
-		config.Datadog.GetInt("custom_cache_max_disk_size"),
+		maxCacheEntries,
+		maxDiskSize,
 		db,
-		NewMaintainer(context.TODO(), config.Datadog.GetDuration("custom_cache_gc_interval")),
+		NewMaintainer(context.TODO(), gcInterval, telemetryTick),
 	)
 	if err != nil {
 		return nil, err
@@ -188,9 +187,9 @@ func (m *Maintainer) Maintain(cache *PersistentCache) {
 	}
 }
 
-func NewMaintainer(ctx context.Context, interval time.Duration) *Maintainer {
+func NewMaintainer(ctx context.Context, gcTick time.Duration, telemetryTick time.Duration) *Maintainer {
 	return &Maintainer{
-		gcTicker:        time.NewTicker(interval),
+		gcTicker:        time.NewTicker(gcTick),
 		telemetryTicker: time.NewTicker(telemetryTick),
 	}
 }
@@ -225,6 +224,7 @@ func NewPersistentCache(
 	if err != nil {
 		return nil, err
 	}
+	persistentCache.lruCache = lruCache
 
 	var evicted []string
 	if err = localDB.ForEach(func(key string, value []byte) error {
@@ -327,15 +327,23 @@ func (c *PersistentCache) Set(key string, value []byte) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
+	evictedSize := 0
 	if evict := c.lruCache.Add(key, struct{}{}); evict {
-		if evictedValue, err := c.db.Delete([]string{c.lastEvicted}); err != nil {
-			c.DecCurrentCachedObjectSize(len(evictedValue))
+		if err := c.db.Delete([]string{c.lastEvicted}, func(_ string, value []byte) error {
+			evictedSize += len(value)
+			return nil
+		}); err != nil {
+			c.lruCache.Remove(key)
+			c.lruCache.Add(c.lastEvicted, struct{}{})
 			return err
 		}
 	}
 
+	c.DecCurrentCachedObjectSize(evictedSize)
+
 	err := c.db.Store(key, value)
 	if err != nil {
+		c.lruCache.Remove(key)
 		return err
 	}
 
@@ -347,7 +355,7 @@ func (c *PersistentCache) Get(key string) ([]byte, error) {
 	ok := c.Contains(key)
 	if !ok {
 		telemetry.SBOMCacheMisses.Inc()
-		return nil, fmt.Errorf("Key not found")
+		return nil, fmt.Errorf("key not found")
 	}
 
 	res, err := c.db.Get(key)
@@ -365,13 +373,15 @@ func (c *PersistentCache) Remove(keys []string) error {
 	for _, key := range keys {
 		c.lruCache.Remove(key)
 	}
-	values, err := c.db.Delete(keys)
+	removedSize := 0
+	err := c.db.Delete(keys, func(_ string, value []byte) error {
+		removedSize += len(value)
+		return nil
+	})
 	if err != nil {
 		return err
 	}
-	for _, val := range values {
-		c.DecCurrentCachedObjectSize(len(val))
-	}
+	c.DecCurrentCachedObjectSize(removedSize)
 	return nil
 }
 

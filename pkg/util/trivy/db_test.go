@@ -62,10 +62,14 @@ func TestBoltDB_Delete(t *testing.T) {
 	require.NoError(t, db.Store("key2", []byte("value2")))
 	require.NoError(t, db.Store("key3", []byte("value3")))
 
+	deletedValues := 0
 	keysToDelete := []string{"key1", "key3"}
-	deletedValues, err := db.Delete(keysToDelete)
+	err = db.Delete(keysToDelete, func(_ string, _ []byte) error {
+		deletedValues += 1
+		return nil
+	})
 	require.NoError(t, err)
-	require.Equal(t, 2, len(deletedValues))
+	require.Equal(t, 2, deletedValues)
 
 	value1, err := db.Get("key1")
 	require.NoError(t, err)

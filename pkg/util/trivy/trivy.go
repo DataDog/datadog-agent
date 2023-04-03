@@ -92,7 +92,12 @@ func DefaultCollectorConfig(enabledAnalyzers []string, cacheLocation string) Col
 func cacheProvider(cacheLocation string, useCustomCache bool) func() (cache.Cache, error) {
 	if useCustomCache {
 		return func() (cache.Cache, error) {
-			return NewCustomBoltCache(cacheLocation)
+			return NewCustomBoltCache(
+				cacheLocation,
+				config.Datadog.GetInt("custom_cache_max_cache_entries"),
+				config.Datadog.GetInt("custom_cache_max_disk_size"),
+				config.Datadog.GetDuration("custom_cache_gc_interval"),
+			)
 		}
 	}
 
