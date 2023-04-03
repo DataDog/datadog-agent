@@ -232,6 +232,8 @@ func TestFuzzCountFields(t *testing.T) {
 	assert := assert.New(t)
 	for i := 0; i < 30; i++ {
 		a := newTestAggregator()
+		// Ensure that peer.service aggregation is on. Some tests may expect non-empty values for peer.service.
+		a.peerSvcAggregation = true
 		payloadTime := time.Now().Truncate(bucketDuration)
 		merge1 := getTestStatsWithStart(payloadTime)
 
