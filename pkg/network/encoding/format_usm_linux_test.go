@@ -28,7 +28,7 @@ func TestFormatTLSProtocols(t *testing.T) {
 		{
 			name:       "GnuTLS - unknown protocol",
 			protocol:   network.ProtocolUnknown,
-			staticTags: http.GnuTLS,
+			staticTags: http.TLS | http.GnuTLS,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
 					model.ProtocolType_protocolTLS,
@@ -39,7 +39,7 @@ func TestFormatTLSProtocols(t *testing.T) {
 		{
 			name:       "OpenSSL - HTTP protocol",
 			protocol:   network.ProtocolHTTP,
-			staticTags: http.OpenSSL,
+			staticTags: http.TLS | http.OpenSSL,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
 					model.ProtocolType_protocolTLS,
@@ -50,7 +50,7 @@ func TestFormatTLSProtocols(t *testing.T) {
 		{
 			name:       "GoTLS - MySQL protocol",
 			protocol:   network.ProtocolMySQL,
-			staticTags: http.Go,
+			staticTags: http.TLS | http.Go,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
 					model.ProtocolType_protocolTLS,
@@ -61,7 +61,7 @@ func TestFormatTLSProtocols(t *testing.T) {
 		{
 			name:       "Unknown static tags - MySQL protocol",
 			protocol:   network.ProtocolMySQL,
-			staticTags: 1 << 10,
+			staticTags: 0x80000000,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
 					model.ProtocolType_protocolMySQL,

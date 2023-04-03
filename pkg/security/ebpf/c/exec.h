@@ -45,7 +45,7 @@ struct bpf_map_def SEC("maps/str_array_buffers") str_array_buffers = {
     .max_entries = 1,
 };
 
-struct exec_event_t {
+struct process_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
@@ -60,20 +60,22 @@ struct exec_event_t {
 };
 
 // _gen is a suffix for maps storing large structs to work around ebpf object size limits
-struct bpf_map_def SEC("maps/exec_event_gen") exec_event_gen = {
+struct bpf_map_def SEC("maps/process_event_gen") process_event_gen = {
     .type = BPF_MAP_TYPE_PERCPU_ARRAY,
     .key_size = sizeof(u32),
-    .value_size = sizeof(struct exec_event_t),
+    .value_size = sizeof(struct process_event_t),
     .max_entries = 1,
 };
 
-__attribute__((always_inline)) struct exec_event_t *new_exec_event() {
+__attribute__((always_inline)) struct process_event_t *new_process_event(u8 is_fork) {
     u32 key = 0;
-    struct exec_event_t *evt = bpf_map_lookup_elem(&exec_event_gen, &key);
+    struct process_event_t *evt = bpf_map_lookup_elem(&process_event_gen, &key);
 
     if (evt) {
         __builtin_memset(evt, 0, sizeof(*evt));
-        evt->event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
+        if (!is_fork) {
+            evt->event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
+        }
     }
 
     return evt;
@@ -380,29 +382,6 @@ int kretprobe_alloc_pid(struct pt_regs *ctx) {
     return 0;
 }
 
-// There is only one use case for this hook point: fetch the nr translation for a long running process in a container,
-// for which we missed the fork, and that finally decides to exec without cloning first.
-// Note that in most cases (except the exec one), bpf_get_current_pid_tgid won't match the input task.
-// TODO(will): replace this hook point by a snapshot
-SEC("kretprobe/__task_pid_nr_ns")
-int kretprobe__task_pid_nr_ns(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
-    if (!syscall) {
-        return 0;
-    }
-
-    u32 root_nr = bpf_get_current_pid_tgid();
-    u32 namespace_nr = (pid_t) PT_REGS_RC(ctx);
-
-    // no namespace
-    if (!namespace_nr || root_nr == namespace_nr) {
-      return 0;
-    }
-
-    register_nr(root_nr, namespace_nr);
-    return 0;
-}
-
 SEC("tracepoint/sched/sched_process_fork")
 int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     // inherit netns
@@ -426,16 +405,13 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
         bpf_map_update_elem(&netns_cache, &pid, &child_netns_entry, BPF_ANY);
     }
 
-    // cache namespace nr translations
-    cache_nr_translations(syscall->fork.pid);
-
     // if this is a thread, leave
     if (syscall->fork.is_thread) {
         return 0;
     }
 
     u64 ts = bpf_ktime_get_ns();
-    struct exec_event_t *event = new_exec_event();
+    struct process_event_t *event = new_process_event(1);
     if (event == NULL) {
         return 0;
     }
@@ -545,9 +521,6 @@ int kprobe_do_exit(struct pt_regs *ctx) {
         // [activity_dump] cleanup tracing state for this pid
         cleanup_traced_state(tgid);
     }
-
-    // remove nr translations
-    remove_nr(pid);
 
     return 0;
 }
@@ -914,7 +887,7 @@ int kprobe_setup_arg_pages(struct pt_regs *ctx) {
     return 0;
 }
 
-void __attribute__((always_inline)) fill_args_envs(struct exec_event_t *event, struct syscall_cache_t *syscall) {
+void __attribute__((always_inline)) fill_args_envs(struct process_event_t *event, struct syscall_cache_t *syscall) {
     event->args_id = syscall->exec.args.id;
     event->args_truncated = syscall->exec.args.truncated;
     event->envs_id = syscall->exec.envs.id;
@@ -939,7 +912,7 @@ int __attribute__((always_inline)) send_exec_event(struct pt_regs *ctx) {
         u32 cookie = pid_entry->cookie;
         struct proc_cache_t *pc = bpf_map_lookup_elem(&proc_cache, &cookie);
         if (pc) {
-            struct exec_event_t *event = new_exec_event();
+            struct process_event_t *event = new_process_event(0);
             if (event == NULL) {
                 return 0;
             }

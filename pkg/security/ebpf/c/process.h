@@ -151,54 +151,6 @@ static struct proc_cache_t * __attribute__((always_inline)) fill_process_context
     return fill_process_context_with_pid_tgid(data, pid_tgid);
 }
 
-struct bpf_map_def SEC("maps/root_nr_namespace_nr") root_nr_namespace_nr = {
-    .type = BPF_MAP_TYPE_LRU_HASH,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = 32768,
-};
-
-struct bpf_map_def SEC("maps/namespace_nr_root_nr") namespace_nr_root_nr = {
-    .type = BPF_MAP_TYPE_LRU_HASH,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = 32768,
-};
-
-void __attribute__((always_inline)) register_nr(u32 root_nr, u64 namespace_nr) {
-    // no namespace
-    if (root_nr == 0 || namespace_nr == 0) {
-        return;
-    }
-
-    // TODO(will): this can conflict between containers, add cgroup ID or namespace to the lookup key
-    bpf_map_update_elem(&root_nr_namespace_nr, &root_nr, &namespace_nr, BPF_ANY);
-    bpf_map_update_elem(&namespace_nr_root_nr, &namespace_nr, &root_nr, BPF_ANY);
-}
-
-u32 __attribute__((always_inline)) get_root_nr(u32 namespace_nr) {
-    // TODO(will): this can conflict between containers, add cgroup ID or namespace to the lookup key
-    u32 *pid = bpf_map_lookup_elem(&namespace_nr_root_nr, &namespace_nr);
-    return pid ? *pid : 0;
-}
-
-u32 __attribute__((always_inline)) get_namespace_nr(u32 root_nr) {
-    // TODO(will): this can conflict between containers, add cgroup ID or namespace to the lookup key
-    u32 *pid = bpf_map_lookup_elem(&root_nr_namespace_nr, &root_nr);
-    return pid ? *pid : 0;
-}
-
-void __attribute__((always_inline)) remove_nr(u32 root_nr) {
-    // TODO(will): this can conflict between containers, add cgroup ID or namespace to the lookup key
-    u32 namespace_nr = get_namespace_nr(root_nr);
-    if (root_nr == 0 || namespace_nr == 0) {
-        return;
-    }
-
-    bpf_map_delete_elem(&root_nr_namespace_nr, &root_nr);
-    bpf_map_delete_elem(&namespace_nr_root_nr, &namespace_nr);
-}
-
 u64 __attribute__((always_inline)) get_pid_level_offset() {
     u64 pid_level_offset;
     LOAD_CONSTANT("pid_level_offset", pid_level_offset);
@@ -217,21 +169,41 @@ u64 __attribute__((always_inline)) get_sizeof_upid() {
     return sizeof_upid;
 }
 
-u32 __attribute__((always_inline)) get_pid_from_root_pidns(struct pid *pid) {
+u64 __attribute__((always_inline)) get_task_struct_pid_offset() {
+    u64 kernel_has_pid_link_struct;
+    LOAD_CONSTANT("kernel_has_pid_link_struct", kernel_has_pid_link_struct);
+
+    u64 task_struct_pid_offset;
+    if (kernel_has_pid_link_struct) { // kernels < 4.19
+        u64 task_struct_pid_link_offset;
+        LOAD_CONSTANT("task_struct_pid_link_offset", task_struct_pid_link_offset);
+        u64 pid_link_pid_offset;
+        LOAD_CONSTANT("pid_link_pid_offset", pid_link_pid_offset);
+        task_struct_pid_offset = task_struct_pid_link_offset + pid_link_pid_offset;
+    } else {
+        LOAD_CONSTANT("task_struct_pid_offset", task_struct_pid_offset);
+    }
+
+    return task_struct_pid_offset;
+}
+
+u32 __attribute__((always_inline)) get_root_nr_from_pid_struct(struct pid *pid) {
     // read the root pid namespace nr from &pid->numbers[0].nr
     u32 root_nr = 0;
     bpf_probe_read(&root_nr, sizeof(root_nr), (void *)pid + get_pid_numbers_offset());
     return root_nr;
 }
 
-void __attribute__((always_inline)) cache_nr_translations(struct pid *pid) {
-    if (pid == NULL) {
-        return;
-    }
+u32 __attribute__((always_inline)) get_root_nr_from_task_struct(struct task_struct *task) {
+    struct pid *pid = NULL;
+    bpf_probe_read(&pid, sizeof(pid), (void *)task + get_task_struct_pid_offset());
+    return get_root_nr_from_pid_struct(pid);
+}
 
-    u32 root_nr = get_pid_from_root_pidns(pid);
+u32 __attribute__((always_inline)) get_namespace_nr_from_task_struct(struct task_struct *task) {
+    struct pid *pid = NULL;
+    bpf_probe_read(&pid, sizeof(pid), (void *)task + get_task_struct_pid_offset());
 
-    // TODO(will): iterate over the list to insert the nr of each namespace, for now get only the deepest one
     u32 pid_level = 0;
     bpf_probe_read(&pid_level, sizeof(pid_level), (void *)pid + get_pid_level_offset());
 
@@ -240,7 +212,7 @@ void __attribute__((always_inline)) cache_nr_translations(struct pid *pid) {
     u64 namespace_numbers_offset = pid_level * get_sizeof_upid();
     bpf_probe_read(&namespace_nr, sizeof(namespace_nr), (void *)pid + get_pid_numbers_offset() + namespace_numbers_offset);
 
-    register_nr(root_nr, namespace_nr);
+    return namespace_nr;
 }
 
 __attribute__((always_inline)) u32 get_ifindex_from_net_device(struct net_device *device) {

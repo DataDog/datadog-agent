@@ -643,8 +643,6 @@ struct is_discarded_by_inode_t {
     u64 discarder_type;
     struct inode_discarder_t discarder;
     u64 now;
-    u32 tgid;
-    u32 ad_state;
 };
 
 struct pid_route_t {

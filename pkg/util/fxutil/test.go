@@ -15,26 +15,39 @@ import (
 	"go.uber.org/fx/fxtest"
 )
 
-// Test runs a test case within an fx.App.
+type NoDependencies struct {
+	fx.In
+}
+
+// Test starts an app and returns fulfilled dependencies
 //
-// The given function is called after the app's startup has completed, with its
-// arguments filled via Fx's dependency injection.  Within the app, `t` is
-// provided as type `testing.TB`.
+// The generic return type T must conform to fx.In such
+// that it's dependencies can be fulfilled.
 //
 // Use `fx.Options(..)` to bundle multiple fx.Option values into one.
-func Test(t testing.TB, opts fx.Option, fn interface{}) {
-	delayed := newDelayedFxInvocation(fn)
+func Test[T any](t testing.TB, opts fx.Option) T {
+	var deps T
+	delayed := newDelayedFxInvocation(func(d T) {
+		deps = d
+	})
+
 	app := fxtest.New(
 		t,
 		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
 		delayed.option(),
 		opts,
 	)
-	defer app.RequireStart().RequireStop()
+	app.RequireStart()
+
+	t.Cleanup(func() {
+		app.RequireStop()
+	})
 
 	if err := delayed.call(); err != nil {
 		t.Fatal(err.Error())
 	}
+
+	return deps
 }
 
 type appAssertFn func(testing.TB, *fx.App)

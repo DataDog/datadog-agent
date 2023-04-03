@@ -159,7 +159,7 @@ func run(
 				Name:            "GetCloseParams",
 				OutputType:      "[]bininspect.ParameterMetadata",
 				OutputZeroValue: "nil",
-				DocComment:      `GetWriteParams gets the parameter metadata (positions/types) for crypto/tls.(*Conn).Close`,
+				DocComment:      `GetCloseParams gets the parameter metadata (positions/types) for crypto/tls.(*Conn).Close`,
 				ExtractValue: func(r interface{}) interface{} {
 					return (r).(*bininspect.Result).Functions[bininspect.CloseGoTLSFunc].Parameters
 				},

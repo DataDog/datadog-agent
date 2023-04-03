@@ -16,9 +16,9 @@ import (
 	lib "github.com/cilium/ebpf"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -104,7 +104,7 @@ type perfBufferStatMap struct {
 func NewPerfBufferMonitor(p *Probe) (*PerfBufferMonitor, error) {
 	pbm := PerfBufferMonitor{
 		probe:               p,
-		config:              p.Config,
+		config:              p.Config.Probe,
 		statsdClient:        p.StatsdClient,
 		eRPC:                p.Erpc,
 		perfBufferStatsMaps: make(map[string]*perfBufferStatMap),
@@ -571,7 +571,7 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInte
 			)
 
 			// snapshot traced cgroups if a CgroupTracing event was lost
-			if pbm.config.ActivityDumpEnabled && perEvent[model.CgroupTracingEventType.String()] > 0 {
+			if pbm.probe.IsActivityDumpEnabled() && perEvent[model.CgroupTracingEventType.String()] > 0 {
 				pbm.probe.monitor.activityDumpManager.SnapshotTracedCgroups()
 			}
 		}

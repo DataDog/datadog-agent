@@ -24,24 +24,29 @@ int __always_inline handle_tcp_recv(u64 pid_tgid, struct sock *skp, int recv) {
 
 #if defined(COMPILE_RUNTIME) || defined(COMPILE_PREBUILT)
 
+// we cannot assume what version prebuilt will be built with
+#if defined(COMPILE_RUNTIME)
 SEC("kprobe/tcp_recvmsg")
 int kprobe__tcp_recvmsg(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
-    void *parm = (void*)PT_REGS_PARM2(ctx);
+    struct sock *skp = (struct sock *)PT_REGS_PARM2(ctx);
     int flags = (int)PT_REGS_PARM6(ctx);
-#else
-    void *parm = (void*)PT_REGS_PARM1(ctx);
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0)
+    struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
     int flags = (int)PT_REGS_PARM5(ctx);
+#else
+    struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
+    int flags = (int)PT_REGS_PARM4(ctx);
 #endif
     if (flags & MSG_PEEK) {
         return 0;
     }
 
-    struct sock *skp = parm;
     bpf_map_update_with_telemetry(tcp_recvmsg_args, &pid_tgid, &skp, BPF_ANY);
     return 0;
 }
+#endif
 
 SEC("kretprobe/tcp_recvmsg")
 int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {

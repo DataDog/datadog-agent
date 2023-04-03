@@ -17,9 +17,10 @@
 #include "protocols/mysql/helpers.h"
 #include "protocols/redis/helpers.h"
 #include "protocols/postgres/helpers.h"
+#include "protocols/tls/tls.h"
 
 // Checks if a given buffer is http, http2, gRPC.
-static __always_inline protocol_t classify_http_protocols(const char *buf, __u32 size) {
+static __always_inline protocol_t classify_applayer_protocols(const char *buf, __u32 size) {
     if (is_http(buf, size)) {
         return PROTOCOL_HTTP;
     }
@@ -86,6 +87,15 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
+    // Currently TLS is marked by a connection tag rather than the protocol stack,
+    // but as we add support for multiple protocols in the stack, we should revisit this implementation,
+    // and unify it with the following if clause.
+    //
+    // The connection is TLS encrypted, thus we cannot classify the protocol using socket filter.
+    if (is_tls_connection_cached(&skb_tup)) {
+        return;
+    }
+
     protocol_t *cur_fragment_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, &skb_tup);
     if (cur_fragment_protocol_ptr) {
         return;
@@ -102,11 +112,21 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     }
 
     bpf_memset(request_fragment, 0, sizeof(request_fragment));
-    read_into_buffer_for_classification((char *)request_fragment, skb, &skb_info);
+    read_into_buffer_for_classification((char *)request_fragment, skb, skb_info.data_off);
     const size_t payload_length = skb->len - skb_info.data_off;
     const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
 
-    protocol_t cur_fragment_protocol = classify_http_protocols(request_fragment, final_fragment_size);
+    // In the context of socket filter, we can classify the protocol if it is plain text,
+    // so if the protocol is encrypted, then we have to rely on our uprobes to classify correctly the protocol.
+    if (is_tls(request_fragment, final_fragment_size)) {
+        const bool t = true;
+        bpf_map_update_with_telemetry(tls_connection, &skb_tup, &t, BPF_ANY);
+        flip_tuple(&skb_tup);
+        bpf_map_update_with_telemetry(tls_connection, &skb_tup, &t, BPF_ANY);
+        return;
+    }
+
+    protocol_t cur_fragment_protocol = classify_applayer_protocols(request_fragment, final_fragment_size);
     // If there has been a change in the classification, save the new protocol.
     if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
         save_protocol(&skb_tup, cur_fragment_protocol);
@@ -135,7 +155,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_queues
         return;
     }
     bpf_memset(request_fragment, 0, sizeof(request_fragment));
-    read_into_buffer_for_classification((char *)request_fragment, skb, &skb_info);
+    read_into_buffer_for_classification((char *)request_fragment, skb, skb_info.data_off);
 
     const size_t payload_length = skb->len - skb_info.data_off;
     const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
@@ -169,7 +189,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_dbs(st
         return;
     }
     bpf_memset(request_fragment, 0, sizeof(request_fragment));
-    read_into_buffer_for_classification((char *)request_fragment, skb, &skb_info);
+    read_into_buffer_for_classification((char *)request_fragment, skb, skb_info.data_off);
 
     const size_t payload_length = skb->len - skb_info.data_off;
     const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;

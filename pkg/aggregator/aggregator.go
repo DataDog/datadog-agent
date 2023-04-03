@@ -122,12 +122,6 @@ var (
 	aggregatorDogstatsdContextsByMtype         = []expvar.Int{}
 	aggregatorEventPlatformEvents              = expvar.Map{}
 	aggregatorEventPlatformEventsErrors        = expvar.Map{}
-	aggregatorContainerLifecycleEvents         = expvar.Int{}
-	aggregatorContainerLifecycleEventsErrors   = expvar.Int{}
-	aggregatorContainerImages                  = expvar.Int{}
-	aggregatorContainerImagesErrors            = expvar.Int{}
-	aggregatorSBOM                             = expvar.Int{}
-	aggregatorSBOMErrors                       = expvar.Int{}
 
 	tlmFlush = telemetry.NewCounter("aggregator", "flush",
 		[]string{"data_type", "state"}, "Number of metrics/service checks/events flushed")
@@ -181,12 +175,6 @@ func init() {
 	aggregatorExpvars.Set("DogstatsdContexts", &aggregatorDogstatsdContexts)
 	aggregatorExpvars.Set("EventPlatformEvents", &aggregatorEventPlatformEvents)
 	aggregatorExpvars.Set("EventPlatformEventsErrors", &aggregatorEventPlatformEventsErrors)
-	aggregatorExpvars.Set("ContainerLifecycleEvents", &aggregatorContainerLifecycleEvents)
-	aggregatorExpvars.Set("ContainerLifecycleEventsErrors", &aggregatorContainerLifecycleEventsErrors)
-	aggregatorExpvars.Set("ContainerImages", &aggregatorContainerImages)
-	aggregatorExpvars.Set("ContainerImagesErrors", &aggregatorContainerImagesErrors)
-	aggregatorExpvars.Set("SBOM", &aggregatorSBOM)
-	aggregatorExpvars.Set("SBOMErrors", &aggregatorSBOMErrors)
 
 	contextsByMtypeMap := expvar.Map{}
 	aggregatorDogstatsdContextsByMtype = make([]expvar.Int, int(metrics.NumMetricTypes))
@@ -214,21 +202,6 @@ type BufferedAggregator struct {
 	orchestratorMetadataIn chan senderOrchestratorMetadata
 	orchestratorManifestIn chan senderOrchestratorManifest
 	eventPlatformIn        chan senderEventPlatformEvent
-
-	contLcycleIn          chan senderContainerLifecycleEvent
-	contLcycleBuffer      chan senderContainerLifecycleEvent
-	contLcycleStopper     chan struct{}
-	contLcycleDequeueOnce sync.Once
-
-	contImageIn          chan senderContainerImage
-	contImageBuffer      chan senderContainerImage
-	contImageStopper     chan struct{}
-	contImageDequeueOnce sync.Once
-
-	sbomIn          chan senderSBOM
-	sbomBuffer      chan senderSBOM
-	sbomStopper     chan struct{}
-	sbomDequeueOnce sync.Once
 
 	// metricSamplePool is a pool of slices of metric sample to avoid allocations.
 	// Used by the Dogstatsd Batcher.
@@ -304,18 +277,6 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		orchestratorMetadataIn: make(chan senderOrchestratorMetadata, bufferSize),
 		orchestratorManifestIn: make(chan senderOrchestratorManifest, bufferSize),
 		eventPlatformIn:        make(chan senderEventPlatformEvent, bufferSize),
-
-		contLcycleIn:      make(chan senderContainerLifecycleEvent, bufferSize),
-		contLcycleBuffer:  make(chan senderContainerLifecycleEvent, bufferSize),
-		contLcycleStopper: make(chan struct{}),
-
-		contImageIn:      make(chan senderContainerImage, bufferSize),
-		contImageBuffer:  make(chan senderContainerImage, bufferSize),
-		contImageStopper: make(chan struct{}),
-
-		sbomIn:      make(chan senderSBOM, bufferSize),
-		sbomBuffer:  make(chan senderSBOM, bufferSize),
-		sbomStopper: make(chan struct{}),
 
 		tagsStore:                   tagsStore,
 		checkSamplers:               make(map[check.ID]*CheckSampler),
@@ -453,7 +414,7 @@ func (agg *BufferedAggregator) handleEventPlatformEvent(event senderEventPlatfor
 	if agg.eventPlatformForwarder == nil {
 		return errors.New("event platform forwarder not initialized")
 	}
-	m := &message.Message{Content: []byte(event.rawEvent)}
+	m := &message.Message{Content: event.rawEvent}
 	// eventPlatformForwarder is threadsafe so no locking needed here
 	return agg.eventPlatformForwarder.SendEventPlatformEvent(m, event.eventType)
 }
@@ -732,7 +693,6 @@ func (agg *BufferedAggregator) Flush(trigger flushTrigger) {
 // Stop stops the aggregator.
 func (agg *BufferedAggregator) Stop() {
 	agg.stopChan <- struct{}{}
-	close(agg.contLcycleStopper)
 }
 
 func (agg *BufferedAggregator) run() {
@@ -811,97 +771,7 @@ func (agg *BufferedAggregator) run() {
 				}
 			}
 			tlmFlush.Add(1, event.eventType, state)
-		case event := <-agg.contLcycleIn:
-			aggregatorContainerLifecycleEvents.Add(1)
-			agg.handleContainerLifecycleEvent(event)
-		case event := <-agg.contImageIn:
-			aggregatorContainerImages.Add(1)
-			agg.handleContainerImage(event)
-		case event := <-agg.sbomIn:
-			aggregatorSBOM.Add(1)
-			agg.handleSBOM(event)
 		}
-	}
-}
-
-// dequeueContainerLifecycleEvents consumes buffered container lifecycle events.
-// It is blocking so it should be started in its own routine and only one instance should be started.
-func (agg *BufferedAggregator) dequeueContainerLifecycleEvents() {
-	for {
-		select {
-		case event := <-agg.contLcycleBuffer:
-			if err := agg.serializer.SendContainerLifecycleEvent(event.msgs, agg.hostname); err != nil {
-				aggregatorContainerLifecycleEventsErrors.Add(1)
-				log.Warnf("Error submitting container lifecycle data: %v", err)
-			}
-		case <-agg.contLcycleStopper:
-			return
-		}
-	}
-}
-
-// dequeueContainerImages consumes buffered container image.
-// It is blocking so it should be started in its own routine and only one instance should be started.
-func (agg *BufferedAggregator) dequeueContainerImages() {
-	for {
-		select {
-		case event := <-agg.contImageBuffer:
-			if err := agg.serializer.SendContainerImage(event.msgs, agg.hostname); err != nil {
-				aggregatorContainerImagesErrors.Add(1)
-				log.Warnf("Error submitting container image data: %v", err)
-			}
-		case <-agg.contImageStopper:
-			return
-		}
-	}
-}
-
-// dequeueSBOM consumes buffered SBOM.
-// It is blocking so it should be started in its own routine and only one instance should be started.
-func (agg *BufferedAggregator) dequeueSBOM() {
-	for {
-		select {
-		case event := <-agg.sbomBuffer:
-			if err := agg.serializer.SendSBOM(event.msgs, agg.hostname); err != nil {
-				aggregatorSBOMErrors.Add(1)
-				log.Warnf("Error submitting SBOM data: %v", err)
-			}
-		case <-agg.sbomStopper:
-			return
-		}
-	}
-}
-
-// handleContainerLifecycleEvent forwards container lifecycle events to the buffering channel.
-func (agg *BufferedAggregator) handleContainerLifecycleEvent(event senderContainerLifecycleEvent) {
-	select {
-	case agg.contLcycleBuffer <- event:
-		return
-	default:
-		aggregatorContainerLifecycleEventsErrors.Add(1)
-		log.Warn("Container lifecycle events channel is full")
-	}
-}
-
-// handleContainerImage forwards container image to the buffering channel.
-func (agg *BufferedAggregator) handleContainerImage(event senderContainerImage) {
-	select {
-	case agg.contImageBuffer <- event:
-		return
-	default:
-		aggregatorContainerImagesErrors.Add(1)
-		log.Warn("Container image channel is full")
-	}
-}
-
-// handleSBOM forwards SBOM to the buffering channel.
-func (agg *BufferedAggregator) handleSBOM(event senderSBOM) {
-	select {
-	case agg.sbomBuffer <- event:
-		return
-	default:
-		aggregatorSBOMErrors.Add(1)
-		log.Warn("SBOM channel is full")
 	}
 }
 

@@ -26,37 +26,35 @@ func TestRealConfig(t *testing.T) {
 	os.Setenv("DD_DD_URL", "https://example.com")
 	defer func() { os.Unsetenv("DD_DD_URL") }()
 
-	fxutil.Test(t, fx.Options(
+	config := fxutil.Test[Component](t, fx.Options(
 		fx.Supply(NewParams(
 			"",
 			WithConfigMissingOK(true),
 			WithConfFilePath(dir),
 		)),
 		Module,
-	), func(config Component) {
-		require.Equal(t, "https://example.com", config.GetString("dd_url"))
-	})
+	))
+	require.Equal(t, "https://example.com", config.GetString("dd_url"))
 }
 
 func TestMockConfig(t *testing.T) {
 	t.Setenv("XXXX_APP_KEY", "abc1234")
 	t.Setenv("DD_URL", "https://example.com")
 
-	fxutil.Test(t, fx.Options(
+	config := fxutil.Test[Component](t, fx.Options(
 		fx.Supply(Params{}),
 		MockModule,
-	), func(config Component) {
-		// values are set from env..
-		require.Equal(t, "abc1234", config.GetString("app_key"))
-		require.Equal(t, "https://example.com", config.GetString("dd_url"))
+	))
+	// values are set from env..
+	require.Equal(t, "abc1234", config.GetString("app_key"))
+	require.Equal(t, "https://example.com", config.GetString("dd_url"))
 
-		// but defaults are set
-		require.Equal(t, "localhost", config.GetString("ipc_address"))
+	// but defaults are set
+	require.Equal(t, "localhost", config.GetString("ipc_address"))
 
-		// values can also be set by the mock (ConfigWriter)
-		config.(Mock).Set("app_key", "newvalue")
-		require.Equal(t, "newvalue", config.GetString("app_key"))
-	})
+	// values can also be set by the mock (ConfigWriter)
+	config.(Mock).Set("app_key", "newvalue")
+	require.Equal(t, "newvalue", config.GetString("app_key"))
 }
 
 // TODO: test various bundle params

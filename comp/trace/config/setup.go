@@ -300,9 +300,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		GRPCPort:                grpcPort,
 		UsePreviewHostnameLogic: true,
 		MaxRequestBytes:         c.MaxRequestBytes,
-		SpanNameRemappings:      core.GetStringMapString("otlp_config.traces.span_name_remappings"),
-		SpanNameAsResourceName:  core.GetBool("otlp_config.traces.span_name_as_resource_name"),
-		ProbabilisticSampling:   core.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
+		SpanNameRemappings:      coreconfig.Datadog.GetStringMapString("otlp_config.traces.span_name_remappings"),
+		SpanNameAsResourceName:  coreconfig.Datadog.GetBool("otlp_config.traces.span_name_as_resource_name"),
+		ProbabilisticSampling:   coreconfig.Datadog.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
 	}
 
 	if core.GetBool("apm_config.telemetry.enabled") {
