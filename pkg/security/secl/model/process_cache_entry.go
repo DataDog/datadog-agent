@@ -29,14 +29,9 @@ func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 		return
 	}
 
-	if pc.Ancestor != nil {
-		pc.Ancestor.Release()
-	}
-
 	pc.Ancestor = parent
 	pc.Parent = &parent.Process
 	pc.IsThread = false
-	parent.Retain()
 }
 
 // GetNextAncestorBinary returns the first ancestor with a different binary
