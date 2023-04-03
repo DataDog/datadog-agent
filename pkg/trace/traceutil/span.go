@@ -22,8 +22,6 @@ const (
 	tracerTopLevelKey = "_dd.top_level"
 	// partialVersionKey is a metric carrying the snapshot seq number in the case the span is a partial snapshot
 	partialVersionKey = "_dd.partial_version"
-	// spanKindKey is the field name for span.kind
-	spanKindKey = "span.kind"
 )
 
 // HasTopLevel returns true if span is top-level.
