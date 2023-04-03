@@ -115,8 +115,8 @@ kernel_matrix_testing_setup_env:
   variables:
     EC2_X86_INSTANCE_TYPE: "i3.metal"
     EC2_ARM_INSTANCE_TYPE: "m6g.metal"
-    X86_AMI_ID: "ami-0f50812e4388946ff"
-    ARM_AMI_ID: "ami-0d0b8e440bb126e28"
+    X86_AMI_ID: "ami-06cd73b2190867365"
+    ARM_AMI_ID: "ami-0dbd54c9f0aca2d5b"
     AWS_REGION: us-east-1
     LibvirtSSHKeyX86: $CI_PROJECT_DIR/libvirt_rsa-x86
     LibvirtSSHKeyARM: $CI_PROJECT_DIR/libvirt_rsa-arm
@@ -135,6 +135,7 @@ kernel_matrix_testing_setup_env:
       - $LibvirtSSHKeyARM
       - $LibvirtSSHKeyARM.pub
       - $STACK_DIR
+      - $CI_PROJECT_DIR/stack.outputs
 
 kernel_matrix_testing_upload_deps:
   extends:
@@ -163,9 +164,18 @@ kernel_matrix_testing_upload_deps:
       - $LibvirtSSHKeyARM.pub
       - $STACK_DIR
 
-        #kernel_matrix_testing_run_tests:
-        #  stage: kernel_matrix_testing
-        #  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen$DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
-        #  needs: ["kernel_matrix_testing_upload_deps"]
-        #  tags: ["runner:main"]
+kernel_matrix_testing_run_tests_x64:
+  stage: kernel_matrix_testing
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen$DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
+  needs: ["kernel_matrix_testing_upload_deps", "kernel_matrix_testing_setup_env"]
+  tags: ["runner:main"]
+  variables:
+    - ARCH: x86_64
+  script:
+    - INSTANCE_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-instance-ip | cut -d ' ' -f 2)
+    - MICRO_VM_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-$TAG | cut -d ' ' -f 2)
+    - ssh ubuntu@$INSTANCE_IP "sudo ssh -i /home/kernel-version-testing/rootfs/ddvm_rsa root@${MICRO_VM_IP} ls -la /opt/kernel-version-testing"
+  parallel:
+    matrix:
+      - TAG: ["4.18", "5.4", "5.15"]
 
