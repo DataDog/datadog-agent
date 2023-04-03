@@ -96,6 +96,23 @@ namespace CustomActions.Tests.InstallState
         }
 
         [Theory]
+        [AutoData]
+        public void ReadInstallState_Should_AllowClosedSource_Be_0_If_Ddnpm_Service_Has_Invalid_Value()
+        {
+            Test.WithRegistryKey(Registries.LocalMachine, @"SYSTEM\CurrentControlSet\Services\ddnpm", new()
+                {
+                    ["Start"] = "zzyy",
+                })
+                .Create()
+                .ReadInstallState()
+                .Should()
+                .Be(ActionResult.Success);
+
+            Test.Properties.Should()
+                .NotContainKey("ALLOWCLOSEDSOURCE");
+        }
+
+        [Theory]
         [InlineData("0", ServiceStartMode.Manual, "0")]
         [InlineData("1", ServiceStartMode.Disabled, "1")]
         public void ReadInstallState_Should_AllowClosedSource_Ignore_Service_State_If_RegKey_Present(
