@@ -6,7 +6,7 @@ import time
 
 from invoke.exceptions import Exit
 
-from .remote_api import RemoteAPI, APIError
+from .remote_api import APIError, RemoteAPI
 
 __all__ = ["GithubAPI", "get_github_token"]
 

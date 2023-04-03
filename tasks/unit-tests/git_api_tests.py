@@ -1,14 +1,14 @@
 import unittest
+from itertools import cycle
 from unittest import mock
 
 from invoke.exceptions import Exit
-from itertools import cycle
 
 from .. import release
-from ..libs.version import Version
-from ..libs.common.gitlab import Gitlab, get_gitlab_token
-from ..libs.common.github_workflows import GithubWorkflows, GithubException
 from ..libs.common.github_api import GithubAPI
+from ..libs.common.github_workflows import GithubWorkflows, GithubException
+from ..libs.common.gitlab import Gitlab, get_gitlab_token
+from ..libs.version import Version
 
 ##################### MOCKED GITLAB #####################
 
