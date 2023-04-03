@@ -470,9 +470,8 @@ func (v *Variables) Set(name string, value interface{}) bool {
 
 // ScopedVariables holds a set of scoped variables
 type ScopedVariables[T comparable] struct {
-	scoper         Scoper[T]
-	onNewVariables func(T)
-	vars           map[T]*Variables
+	scoper Scoper[T]
+	vars   map[T]*Variables
 }
 
 // GetVariable returns new variable of the type of the specified value
@@ -485,13 +484,9 @@ func (v *ScopedVariables[T]) GetVariable(name string, value interface{}) (Variab
 		key := v.scoper(ctx)
 		vars := v.vars[key]
 		if vars == nil {
-			vars = &Variables{}
-			v.vars[key] = vars
-			if v.onNewVariables != nil {
-				v.onNewVariables(key)
-			}
+			v.vars[key] = &Variables{}
 		}
-		vars.Set(name, value)
+		v.vars[key].Set(name, value)
 		return nil
 	}
 
@@ -538,10 +533,9 @@ func (v *ScopedVariables[T]) GetVariable(name string, value interface{}) (Variab
 }
 
 // NewScopedVariables returns a new set of scope variables
-func NewScopedVariables[T comparable](scoper Scoper[T], onNewVariables func(T)) *ScopedVariables[T] {
+func NewScopedVariables[T comparable](scoper Scoper[T]) *ScopedVariables[T] {
 	return &ScopedVariables[T]{
-		scoper:         scoper,
-		onNewVariables: onNewVariables,
-		vars:           make(map[T]*Variables),
+		scoper: scoper,
+		vars:   make(map[T]*Variables),
 	}
 }
