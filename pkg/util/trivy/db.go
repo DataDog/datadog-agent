@@ -16,28 +16,43 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-const CacheDirName = "fanal"
-const boltBucket = "boltdb"
+const (
+	// cacheDirName is the name of the directory where the cache files are stored.
+	cacheDirName = "fanal"
+	// boltBucket is the name of the BoltDB bucket that stores key-value pairs.
+	boltBucket = "boltdb"
+)
 
-type onDeleteCallback = func(string, []byte) error
+// onDeleteCallback is a type alias for a callback function that is called before deleting an entry from a PersistentDB.
+type onDeleteCallback = func(key string, value []byte) error
 
+// PersistentDB describes an interface for a persistent key-value store.
 type PersistentDB interface {
+	// Clear closes the database and removes all stored data.
 	Clear() error
+	// Close closes the database connection.
 	Close() error
-	Delete([]string, onDeleteCallback) error
-	Get(string) ([]byte, error)
-	Store(string, []byte) error
+	// Delete deletes a set of keys from the database and invokes the specified callback for each key before committing the transaction.
+	Delete(keys []string, callback onDeleteCallback) error
+	// Get returns the value associated with the given key. If the key is not found, it returns nil.
+	Get(key string) ([]byte, error)
+	// Store stores a key-value pair in the database.
+	Store(key string, value []byte) error
+	// ForEach invokes the specified function for every key-value pair in the database.
 	ForEach(func(string, []byte) error) error
+	// Size returns the number of key-value pairs in the database.
 	Size() (uint, error)
 }
 
+// BoltDB implements the PersistentDB interface. It holds a bolt.DB instance and the storage directory.
 type BoltDB struct {
 	db        *bolt.DB
 	directory string
 }
 
+// NewBoltDB creates a new BoltDB instance.
 func NewBoltDB(cacheDir string) (BoltDB, error) {
-	dir := filepath.Join(cacheDir, CacheDirName)
+	dir := filepath.Join(cacheDir, cacheDirName)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return BoltDB{}, fmt.Errorf("failed to create cache dir: %v", err)
 	}
@@ -63,6 +78,7 @@ func NewBoltDB(cacheDir string) (BoltDB, error) {
 	}, nil
 }
 
+// Clear implements PersistentDB
 func (b BoltDB) Clear() error {
 	if err := b.Close(); err != nil {
 		return err
@@ -70,10 +86,12 @@ func (b BoltDB) Clear() error {
 	return os.RemoveAll(b.directory)
 }
 
+// Close implements PersistentDB
 func (b BoltDB) Close() error {
 	return b.db.Close()
 }
 
+// Delete implements PersistentDB
 func (b BoltDB) Delete(keys []string, callback onDeleteCallback) error {
 	err := b.db.Update(func(tx *bolt.Tx) error {
 		bucket, err := tx.CreateBucketIfNotExists([]byte(boltBucket))
@@ -94,6 +112,7 @@ func (b BoltDB) Delete(keys []string, callback onDeleteCallback) error {
 	return err
 }
 
+// Get implements PersistentDB
 func (b BoltDB) Get(key string) ([]byte, error) {
 	var res []byte
 	return res, b.db.View(func(tx *bolt.Tx) error {
@@ -106,6 +125,7 @@ func (b BoltDB) Get(key string) ([]byte, error) {
 	})
 }
 
+// Store implements PersistentDB
 func (b BoltDB) Store(key string, value []byte) error {
 	return b.db.Update(func(tx *bolt.Tx) error {
 		bucket, err := tx.CreateBucketIfNotExists([]byte(boltBucket))
@@ -116,6 +136,7 @@ func (b BoltDB) Store(key string, value []byte) error {
 	})
 }
 
+// ForEach implements PersistentDB
 func (b BoltDB) ForEach(f func(string, []byte) error) error {
 	return b.db.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(boltBucket))
@@ -126,6 +147,7 @@ func (b BoltDB) ForEach(f func(string, []byte) error) error {
 	})
 }
 
+// Size implements PersistentDB
 func (b BoltDB) Size() (uint, error) {
 	var res uint
 	return res, b.db.View(func(tx *bolt.Tx) error {
