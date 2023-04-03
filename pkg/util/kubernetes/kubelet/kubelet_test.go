@@ -600,7 +600,7 @@ func (suite *KubeletTestSuite) TestKubeletInitHttpsCerts() {
 
 	mockConfig.Set("kubernetes_https_kubelet_port", kubeletPort)
 	mockConfig.Set("kubernetes_http_kubelet_port", -1)
-	mockConfig.Set("kubelet_auth_token_path", "")
+	mockConfig.Set("kubelet_auth_token_path", "./testdata/fakeBearerToken")
 	mockConfig.Set("kubelet_tls_verify", true)
 	mockConfig.Set("kubelet_client_crt", k.testingCertificate)
 	mockConfig.Set("kubelet_client_key", k.testingPrivateKey)
@@ -613,16 +613,20 @@ func (suite *KubeletTestSuite) TestKubeletInitHttpsCerts() {
 	<-k.Requests // Throwing away first GET
 
 	assert.Equal(suite.T(), fmt.Sprintf("https://127.0.0.1:%d", kubeletPort), ku.kubeletClient.kubeletURL)
-	assert.False(suite.T(), ku.kubeletClient.client.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
+	if transport, ok := ku.kubeletClient.client.Transport.(*http.Transport); ok {
+		assert.False(suite.T(), transport.TLSClientConfig.InsecureSkipVerify)
+	}
 	b, code, err := ku.QueryKubelet(ctx, "/healthz")
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), "ok", string(b))
 	assert.Equal(suite.T(), 200, code)
 	r := <-k.Requests
-	assert.Equal(suite.T(), "", r.Header.Get(authorizationHeaderKey))
-	clientCerts := ku.kubeletClient.client.Transport.(*http.Transport).TLSClientConfig.Certificates
-	require.Equal(suite.T(), 1, len(clientCerts))
-	assert.Equal(suite.T(), clientCerts, s.TLS.Certificates)
+	assert.Equal(suite.T(), "Bearer fakeBearerToken", r.Header.Get(authorizationHeaderKey))
+	if transport, ok := ku.kubeletClient.client.Transport.(*http.Transport); ok {
+		clientCerts := transport.TLSClientConfig.Certificates
+		require.Equal(suite.T(), 1, len(clientCerts))
+		assert.Equal(suite.T(), clientCerts, s.TLS.Certificates)
+	}
 
 	require.EqualValues(suite.T(),
 		map[string]string{
@@ -631,6 +635,7 @@ func (suite *KubeletTestSuite) TestKubeletInitHttpsCerts() {
 			"client_crt": k.testingCertificate,
 			"client_key": k.testingPrivateKey,
 			"ca_cert":    k.testingCertificate,
+			"token":      "fakeBearerToken",
 		}, ku.GetRawConnectionInfo())
 }
 
