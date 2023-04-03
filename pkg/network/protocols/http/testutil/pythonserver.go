@@ -88,7 +88,7 @@ func writeTempFile(pattern string, content string) (*os.File, error) {
 	}
 	defer func() {
 		if err := f.Close(); err != nil {
-			log.Errorf("Error closing file: %v\n", err)
+			log.Warnf("failed closing file: %v\n", err)
 		}
 	}()
 
