@@ -84,7 +84,7 @@ func (h *headerDownloader) downloadHeaders(headerDownloadDir string) error {
 			return fmt.Errorf("failed to download kernel headers: %s", err)
 		}
 		return nil
-	}, retry.Attempts(2), retry.Delay(5 * time.Second), retry.OnRetry(func(_ uint, err error) {
+	}, retry.Attempts(2), retry.Delay(5*time.Second), retry.OnRetry(func(_ uint, err error) {
 		log.Infof("%s. Waiting 5 seconds and retrying kernel header download.", err)
 	}))
 }
