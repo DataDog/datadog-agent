@@ -37,9 +37,7 @@ import (
 	spath "github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -1232,18 +1230,6 @@ func (p *Resolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 	for _, entry := range p.entryCache {
 		callback(entry)
 	}
-}
-
-// NewProcessVariables returns a provider for variables attached to a process cache entry
-func (p *Resolver) NewProcessVariables(scoper func(ctx *eval.Context) *model.ProcessCacheEntry) rules.VariableProvider {
-	var variables *eval.ScopedVariables[*model.ProcessCacheEntry]
-	variables = eval.NewScopedVariables(scoper, func(key *model.ProcessCacheEntry) {
-		key.SetReleaseCallback(func() {
-			variables.ReleaseVariable(key)
-		})
-	})
-
-	return variables
 }
 
 // NewResolver returns a new process resolver

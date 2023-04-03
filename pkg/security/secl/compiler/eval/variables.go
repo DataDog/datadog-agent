@@ -537,11 +537,6 @@ func (v *ScopedVariables[T]) GetVariable(name string, value interface{}) (Variab
 	}
 }
 
-// ReleaseVariable releases a scoped variable
-func (v *ScopedVariables[T]) ReleaseVariable(key T) {
-	delete(v.vars, key)
-}
-
 // NewScopedVariables returns a new set of scope variables
 func NewScopedVariables[T comparable](scoper Scoper[T], onNewVariables func(T)) *ScopedVariables[T] {
 	return &ScopedVariables[T]{
