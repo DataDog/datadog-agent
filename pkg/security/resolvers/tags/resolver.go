@@ -116,20 +116,22 @@ func (t *Resolver) ImageIDResolver(containerID string) string {
 
 	// Build new imageId (repo + @sha256:XXX)
 	// To get repo, check repoDigests first,
-	// If empty check repoTags
-	imageMetadata, _ := m.GetImage(imageID)
-	repoDigests := imageMetadata.RepoDigests
-	repoTags := imageMetadata.RepoTags
-	if len(repoDigests) != 0 {
-		repo := strings.SplitN(repoDigests[0], "@sha256:", 2)[0]
-		return repo + "@" + imageID
+	// If empty, check repoTags
+	imageMetadata, err := m.GetImage(imageID)
+	if err != nil {
+		log.Errorf("unable get image metadata for %s: %s", imageID, err)
+	} else {
+		repoDigests := imageMetadata.RepoDigests
+		repoTags := imageMetadata.RepoTags
+		if len(repoDigests) != 0 {
+			repo := strings.SplitN(repoDigests[0], "@sha256:", 2)[0]
+			return repo + "@" + imageID
+		}
+		if len(repoTags) != 0 {
+			repo := strings.SplitN(repoDigests[0], ":", 2)[0]
+			return repo + "@" + imageID
+		}
 	}
-
-	if len(repoTags) != 0 {
-		repo := strings.SplitN(repoDigests[0], ":", 2)[0]
-		return repo + "@" + imageID
-	}
-
-	// If repo is empty, return imageID without repo
+	// If repo is empty or if could not find it, return imageID without repo
 	return imageID
 }
