@@ -1,0 +1,9 @@
+
+enhancements:
+  - |
+    Add new custom local cache for Trivy backed by BoltDB and parametrized by:
+    - ``container_image_collection.sbom.use_custom_cache``: Enables the custom cache.
+    - ``container_image_collection.sbom.custom_cache_max_disk_size``: Maximum total size of the cached objects.
+    - ``container_image_collection.sbom.custom_cache_max_cache_entries``: Maximum number of cached objects.
+    - ``container_image_collection.sbom.custom_cache_gc_interval``: Duration interval of garbage collection.
+    This custom cache uses a LRU algorithm and periodically deletes unused entries. 
