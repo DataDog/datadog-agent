@@ -85,7 +85,6 @@ type Resolver struct {
 	execFileCacheMap *lib.Map
 	procCacheMap     *lib.Map
 	pidCacheMap      *lib.Map
-	cacheSize        *atomic.Int64
 	opts             ResolverOpts
 
 	// stats
@@ -461,8 +460,6 @@ func (p *Resolver) insertEntry(entry, prev *model.ProcessCacheEntry, origin proc
 	case processCacheEntryFromProcFS:
 		p.addedEntriesFromProcFS.Inc()
 	}
-
-	p.cacheSize.Inc()
 }
 
 func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry, origin processCacheEntrySource) {
@@ -1169,7 +1166,7 @@ func (p *Resolver) GetCacheSize() float64 {
 
 // GetEntryCacheSize returns the cache size of the process resolver
 func (p *Resolver) GetEntryCacheSize() float64 {
-	return float64(p.cacheSize.Load())
+	return float64(len(p.entryCache))
 }
 
 // SetState sets the process resolver state
@@ -1207,7 +1204,6 @@ func NewResolver(manager *manager.Manager, config *config.Config, statsdClient s
 		argsEnvsCache:             argsEnvsCache,
 		state:                     atomic.NewInt64(Snapshotting),
 		hitsStats:                 map[string]*atomic.Int64{},
-		cacheSize:                 atomic.NewInt64(0),
 		missStats:                 atomic.NewInt64(0),
 		addedEntriesFromEvent:     atomic.NewInt64(0),
 		addedEntriesFromKernelMap: atomic.NewInt64(0),
