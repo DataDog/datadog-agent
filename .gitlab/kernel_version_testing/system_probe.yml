@@ -140,7 +140,7 @@ kernel_matrix_testing_setup_env:
       - $LibvirtSSHKeyARM.pub
       - $STACK_DIR
       - $CI_PROJECT_DIR/stack.outputs
-      - AWS_SSH_KEY
+      - $AWS_SSH_KEY
 
 kernel_matrix_testing_upload_deps:
   extends:
