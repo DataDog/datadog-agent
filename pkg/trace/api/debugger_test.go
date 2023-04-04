@@ -9,14 +9,12 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
 
-	"go.uber.org/atomic"
-
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/atomic"
 )
 
 func TestDebuggerProxy(t *testing.T) {
@@ -26,19 +24,21 @@ func TestDebuggerProxy(t *testing.T) {
 		err = req.Body.Close()
 		assert.NoError(t, err)
 		body := string(slurp)
+		ddtags := req.URL.Query().Get("ddtags")
 		assert.Equal(t, "body", string(slurp), "invalid request body: %q", body)
-		assert.Equal(t, "123", req.Header.Get("DD-API-KEY"), "got invalid API key: %q", req.Header.Get("DD-API-KEY"))
-		assert.Equal(t, "ddtags=key%3Aval", req.URL.RawQuery, "got invalid query params: %q", req.URL.Query())
+		assert.Equal(t, "test", req.Header.Get("DD-API-KEY"), "got invalid API key: %q", req.Header.Get("DD-API-KEY"))
+		assert.Equal(t, "host:myhost,default_env:test,agent_version:v1", ddtags, "got unexpected tags")
 		_, err = w.Write([]byte("OK"))
 		assert.NoError(t, err)
 	}))
-	u, err := url.Parse(srv.URL)
-	assert.NoError(t, err)
 	req, err := http.NewRequest("POST", "dummy.com/path", strings.NewReader("body"))
 	assert.NoError(t, err)
 	rec := httptest.NewRecorder()
-	c := &traceconfig.AgentConfig{}
-	newDebuggerProxy(c, []*url.URL{u}, []string{"123"}, "key:val").ServeHTTP(rec, req)
+	conf := getConf()
+	conf.Hostname = "myhost"
+	conf.DebuggerProxy.DDURL = srv.URL
+	receiver := newTestReceiverFromConfig(conf)
+	receiver.debuggerProxyHandler().ServeHTTP(rec, req)
 	result := rec.Result()
 	slurp, err := io.ReadAll(result.Body)
 	result.Body.Close()
@@ -66,7 +66,6 @@ func TestDebuggerProxyHandler(t *testing.T) {
 		receiver.debuggerProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
 		assert.True(t, called, "request not proxied")
 	})
-
 	t.Run("ok_fargate", func(t *testing.T) {
 		var called bool
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -107,7 +106,8 @@ func TestDebuggerProxyHandler(t *testing.T) {
 		conf := getConf()
 		for i := 0; i < numEndpoints; i++ {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-				assert.Equal(t, "ddtags=host%3Amyhost%2Cdefault_env%3Atest%2Cagent_version%3Av1", req.URL.RawQuery, "got invalid query params: %q", req.URL.Query())
+				ddtags := req.URL.Query().Get("ddtags")
+				assert.Equal(t, "host:myhost,default_env:test,agent_version:v1", ddtags, "got unexpected additional tags")
 				numCalls.Add(1)
 			}))
 			if i == 0 {
