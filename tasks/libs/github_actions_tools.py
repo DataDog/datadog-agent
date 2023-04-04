@@ -97,7 +97,7 @@ def get_macos_workflow_run_for_ref(workflow="macos.yaml", github_action_ref="mas
 
 def follow_workflow_run(run_id):
     """
-    Follow the workflow run until completion.
+    Follow the workflow run until completion and return its conclusion.
     """
 
     try:
