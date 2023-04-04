@@ -10,7 +10,7 @@ struct bpf_map_def SEC("maps/cache") cache = {
     .max_entries = 10,
 };
 
-struct bpf_map_def SEC("maps/path_id") path_id = {
+struct bpf_map_def SEC("maps/is_discarded_by_inode_gen") is_discarded_by_inode_gen = {
     .type = BPF_MAP_TYPE_ARRAY,
     .key_size = sizeof(u32),
     .value_size = sizeof(u32),

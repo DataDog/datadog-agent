@@ -49,7 +49,7 @@ func BPFLoad() error {
 				Name: "cache",
 			},
 			{
-				Name: "path_id",
+				Name: "is_discarded_by_inode_gen",
 			},
 		},
 	}
