@@ -7,14 +7,23 @@ package main
 
 import (
 	"bufio"
-	"fmt"
+	_ "embed"
 	"os"
 	"regexp"
+	"text/template"
 )
+
+//go:embed gen.go.tmpl
+var templateSrc string
 
 type mapEntry struct {
 	Name string
 	Kind string
+}
+
+type tmplContext struct {
+	PackageName string
+	Entries     []mapEntry
 }
 
 func main() {
@@ -51,5 +60,15 @@ func main() {
 		panic(err)
 	}
 
-	fmt.Println(entries)
+	tmpl, err := template.New("bpf_maps").Parse(templateSrc)
+	if err != nil {
+		panic(err)
+	}
+
+	if err := tmpl.Execute(os.Stdout, tmplContext{
+		PackageName: "test",
+		Entries:     entries,
+	}); err != nil {
+		panic(err)
+	}
 }

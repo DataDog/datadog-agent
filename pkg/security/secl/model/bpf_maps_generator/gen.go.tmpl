@@ -1,0 +1,7 @@
+package {{ .PackageName }}
+
+var BPFMapNames = []string{
+{{- range .Entries }}
+    "{{ .Name }}",
+{{- end }}
+}
