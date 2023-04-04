@@ -71,9 +71,11 @@ func (c *Check) Run() error {
 		if err != nil {
 			return err
 		}
-		_, err = c.StatementMetrics()
-		if err != nil {
-			return err
+		if c.config.QueryMetrics {
+			_, err = c.StatementMetrics()
+			if err != nil {
+				return err
+			}
 		}
 	}
 

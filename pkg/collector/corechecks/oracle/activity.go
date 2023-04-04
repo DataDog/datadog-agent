@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -107,38 +108,38 @@ type Metadata struct {
 }
 
 type OracleActivityRow struct {
-	Now           string `json:"now"`
-	SessionID     uint64 `json:"sid,omitempty"`
-	SessionSerial uint64 `json:"serial,omitempty"`
-	User          string `json:"user,omitempty"`
-	Status        string `json:"status"`
-	OsUser        string `json:"os_user,omitempty"`
-	Process       string `json:"process,omitempty"`
-	Client        string `json:"client,omitempty"`
-	Port          uint64 `json:"port,omitempty"`
-	Program       string `json:"program,omitempty"`
-	Type          string `json:"type,omitempty"`
-	SQLID         string `json:"sql_id,omitempty"`
-	//ForceMatchingSignature uint64 `json:"force_matching_signature,omitempty"`
-	ForceMatchingSignature string `json:"force_matching_signature,omitempty"`
-	SQLPlanHashValue       uint64 `json:"sql_plan_hash_value,omitempty"`
-	SQLExecStart           string `json:"sql_exec_start,omitempty"`
-	Module                 string `json:"module,omitempty"`
-	Action                 string `json:"action,omitempty"`
-	ClientInfo             string `json:"client_info,omitempty"`
-	LogonTime              string `json:"logon_time,omitempty"`
-	ClientIdentifier       string `json:"client_identifier,omitempty"`
-	BlockingInstance       uint64 `json:"blocking_instance,omitempty"`
-	BlockingSession        uint64 `json:"blocking_session,omitempty"`
-	FinalBlockingInstance  uint64 `json:"final_blocking_instance,omitempty"`
-	FinalBlockingSession   uint64 `json:"final_blocking_session,omitempty"`
-	WaitEvent              string `json:"wait_event,omitempty"`
-	WaitEventGroup         string `json:"wait_event_group,omitempty"`
-	WaitTimeMicro          uint64 `json:"wait_time_micro,omitempty"`
-	Statement              string `json:"statement,omitempty"`
-	PdbName                string `json:"pdb_name,omitempty"`
-	CdbName                string `json:"cdb_name,omitempty"`
-	QuerySignature         string `json:"query_signature,omitempty"`
+	Now                    string `json:"now"`
+	SessionID              uint64 `json:"sid,omitempty"`
+	SessionSerial          uint64 `json:"serial,omitempty"`
+	User                   string `json:"user,omitempty"`
+	Status                 string `json:"status"`
+	OsUser                 string `json:"os_user,omitempty"`
+	Process                string `json:"process,omitempty"`
+	Client                 string `json:"client,omitempty"`
+	Port                   uint64 `json:"port,omitempty"`
+	Program                string `json:"program,omitempty"`
+	Type                   string `json:"type,omitempty"`
+	SQLID                  string `json:"sql_id,omitempty"`
+	ForceMatchingSignature uint64 `json:"force_matching_signature,omitempty"`
+	//ForceMatchingSignature string `json:"force_matching_signature,omitempty"`
+	SQLPlanHashValue      uint64 `json:"sql_plan_hash_value,omitempty"`
+	SQLExecStart          string `json:"sql_exec_start,omitempty"`
+	Module                string `json:"module,omitempty"`
+	Action                string `json:"action,omitempty"`
+	ClientInfo            string `json:"client_info,omitempty"`
+	LogonTime             string `json:"logon_time,omitempty"`
+	ClientIdentifier      string `json:"client_identifier,omitempty"`
+	BlockingInstance      uint64 `json:"blocking_instance,omitempty"`
+	BlockingSession       uint64 `json:"blocking_session,omitempty"`
+	FinalBlockingInstance uint64 `json:"final_blocking_instance,omitempty"`
+	FinalBlockingSession  uint64 `json:"final_blocking_session,omitempty"`
+	WaitEvent             string `json:"wait_event,omitempty"`
+	WaitEventGroup        string `json:"wait_event_group,omitempty"`
+	WaitTimeMicro         uint64 `json:"wait_time_micro,omitempty"`
+	Statement             string `json:"statement,omitempty"`
+	PdbName               string `json:"pdb_name,omitempty"`
+	CdbName               string `json:"cdb_name,omitempty"`
+	QuerySignature        string `json:"query_signature,omitempty"`
 	RowMetadata
 }
 
@@ -186,6 +187,8 @@ func (c *Check) SampleSession() error {
 		return fmt.Errorf("failed to collect session sampling activity: %w", err)
 	}
 
+	log.Tracef("activity query returned %d rows\n", len(sessionSamples))
+
 	//forceMatchingSignatures := make(map[uint64]int)
 	forceMatchingSignatures := make(map[string]int)
 	SQLIDs := make(map[string]int)
@@ -193,6 +196,7 @@ func (c *Check) SampleSession() error {
 	o := obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})
 	for _, sample := range sessionSamples {
 		var sessionRow OracleActivityRow
+		forceMatchingSignature := ""
 		sessionRow.Now = sample.Now
 		sessionRow.SessionID = sample.SessionID
 		sessionRow.SessionSerial = sample.SessionSerial
@@ -224,15 +228,23 @@ func (c *Check) SampleSession() error {
 			sessionRow.SQLID = ""
 		}
 		if sample.ForceMatchingSignature != nil {
-			sessionRow.ForceMatchingSignature = *sample.ForceMatchingSignature
-			forceMatchingSignatures[sessionRow.ForceMatchingSignature] = 1
+			//sessionRow.ForceMatchingSignature = *sample.ForceMatchingSignature
+			forceMatchingSignature = *sample.ForceMatchingSignature
+			if err != nil {
+				return fmt.Errorf("failed converting force_matching_signature to uint64 %w", err)
+			}
+			sessionRow.ForceMatchingSignature, err = strconv.ParseUint(forceMatchingSignature, 10, 64)
+			//forceMatchingSignatures[sessionRow.ForceMatchingSignature] = 1
+			forceMatchingSignatures[*sample.ForceMatchingSignature] = 1
 			//if sessionRow.ForceMatchingSignature == 0 && sample.SQLID.Valid {
-			if sessionRow.ForceMatchingSignature == "" && sample.SQLID.Valid {
+			//if sessionRow.ForceMatchingSignature == "" && sample.SQLID.Valid {
+			if *sample.ForceMatchingSignature == "" && sample.SQLID.Valid {
 				SQLIDs[sessionRow.SQLID] = 1
 			}
+
 		} else {
-			//sessionRow.ForceMatchingSignature = 0
-			sessionRow.ForceMatchingSignature = ""
+			sessionRow.ForceMatchingSignature = 0
+			//sessionRow.ForceMatchingSignature = ""
 		}
 		if sample.SQLPlanHashValue != nil {
 			sessionRow.SQLPlanHashValue = *sample.SQLPlanHashValue
@@ -277,7 +289,7 @@ func (c *Check) SampleSession() error {
 			sessionRow.WaitTimeMicro = *sample.WaitTimeMicro
 		}
 		if sample.Statement.Valid {
-			obfuscatedStatement, err := c.GetObfuscatedStatement(o, sample.Statement.String, sessionRow.ForceMatchingSignature, sessionRow.SQLID)
+			obfuscatedStatement, err := c.GetObfuscatedStatement(o, sample.Statement.String, forceMatchingSignature, sessionRow.SQLID)
 			sessionRow.Statement = obfuscatedStatement.Statement
 			if err == nil {
 				sessionRow.Commands = obfuscatedStatement.Commands
@@ -297,7 +309,7 @@ func (c *Check) SampleSession() error {
 	payload := ActivitySnapshot{
 		Metadata: Metadata{
 			Timestamp:      float64(time.Now().UnixMilli()),
-			Host:           c.hostname,
+			Host:           c.dbHostname,
 			Source:         common.IntegrationName,
 			DBMType:        "activity",
 			DDAgentVersion: c.agentVersion,
@@ -321,6 +333,7 @@ func (c *Check) SampleSession() error {
 		return err
 	}
 	sender.EventPlatformEvent(string(payloadBytes), "dbm-activity")
+	sender.Count("dd.oracle.activity.samples_count", float64(len(sessionRows)), c.hostname, c.tags)
 	sender.Gauge("dd.oracle.activity.time_ms", float64(time.Since(start).Milliseconds()), c.hostname, c.tags)
 	sender.Commit()
 
