@@ -110,6 +110,13 @@ func convertToEvent(container *podman.Container) workloadmeta.CollectorEvent {
 		log.Warnf("Could not get image for container %s", containerID)
 	}
 
+	// Add imageID to image
+	imageID := container.Config.ContainerRootFSConfig.RootfsImageID
+	if !strings.HasPrefix(imageID, "sha256:") {
+		imageID = "sha256:" + imageID
+	}
+	image.ID = imageID
+
 	var ports []workloadmeta.ContainerPort
 	for _, portMapping := range container.Config.PortMappings {
 		ports = append(ports, workloadmeta.ContainerPort{
