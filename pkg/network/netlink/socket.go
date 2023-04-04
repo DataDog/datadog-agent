@@ -367,19 +367,6 @@ func (s *Socket) recvmsg() (int, int, error) {
 }
 
 func (s *Socket) rawread(fd uintptr) bool {
-	for {
-		n, _, _, err := noallocRecvmsg(int(fd), s.recvbuf, s.oobbuf, unix.MSG_PEEK|unix.MSG_DONTWAIT)
-		if !ready(err) {
-			return false
-		}
-
-		if n < len(s.recvbuf) {
-			break
-		}
-
-		s.recvbuf = make([]byte, len(s.recvbuf)*2)
-	}
-
 	s.n, s.oobn, _, s.readErr = noallocRecvmsg(int(fd), s.recvbuf, s.oobbuf, unix.MSG_DONTWAIT)
 	return ready(s.readErr)
 }
