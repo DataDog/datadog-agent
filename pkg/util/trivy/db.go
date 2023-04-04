@@ -68,7 +68,7 @@ func NewBoltDB(cacheDir string) (BoltDB, error) {
 		}
 		return nil
 	}); err != nil {
-		return err
+		return BoltDB{}, err
 	}
 
 	return BoltDB{

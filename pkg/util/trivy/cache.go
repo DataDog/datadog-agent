@@ -9,7 +9,6 @@
 package trivy
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"sync"
