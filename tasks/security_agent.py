@@ -618,19 +618,6 @@ def generate_btfhub_constants(ctx, archive_path, force_refresh=False):
 
 @task
 def generate_cws_proto(ctx):
-    # The general view of which structures to pool is to currently pool the big ones.
-    # During testing/benchmarks we saw that enabling pooling for small/leaf nodes had a negative effect
-    # on both performance and memory.
-    # What could explain this impact is that putting back the node in the pool requires to walk the tree to put back
-    # child nodes. The maximum depth difference between nodes become a very important metric.
-    ad_pool_structs = [
-        "ActivityDump",
-        "ProcessActivityNode",
-        "FileActivityNode",
-        "FileInfo",
-        "ProcessInfo",
-    ]
-
     with tempfile.TemporaryDirectory() as temp_gobin:
         with environ({"GOBIN": temp_gobin}):
             ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1")
@@ -643,15 +630,6 @@ def generate_cws_proto(ctx):
                     f"--plugin protoc-gen-go-grpc=\"{temp_gobin}/protoc-gen-go-grpc\"",
                     f"--plugin protoc-gen-go-vtproto=\"{temp_gobin}/protoc-gen-go-vtproto\"",
                 ]
-            )
-
-            # Activity Dumps
-            ad_pool_opts = " ".join(
-                f"--go-vtproto_opt=pool=pkg/security/proto/security_profile/v1.{struct_name}"
-                for struct_name in ad_pool_structs
-            )
-            ctx.run(
-                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=pool+marshal+unmarshal+size {ad_pool_opts} pkg/security/proto/security_profile/v1/activity_dump.proto"
             )
 
             # API
