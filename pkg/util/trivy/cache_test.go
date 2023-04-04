@@ -281,7 +281,16 @@ func TestBoltCache_GarbageCollector(t *testing.T) {
 			BlobIDs:    []string{"blob2", "blob"},
 		},
 	}
-	globalStore.Reset([]workloadmeta.Entity{image1, image2}, workloadmeta.SourceAll)
+
+	// Test with no SBOM
+	image3 := &workloadmeta.ContainerImageMetadata{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainerImageMetadata,
+			ID:   "image3",
+		},
+	}
+
+	globalStore.Reset([]workloadmeta.Entity{image1, image2, image3}, workloadmeta.SourceAll)
 
 	// Create a cache with a garbage collector called every 500ms
 	cache, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize, 500*time.Millisecond)

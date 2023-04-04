@@ -189,9 +189,11 @@ type Maintainer struct {
 func (c *Maintainer) Clean(cache *PersistentCache) {
 	toKeep := make(map[string]struct{})
 	for _, imageMetadata := range workloadmeta.GetGlobalStore().ListImages() {
-		sbom := imageMetadata.SBOM
-		toKeep[sbom.ArtifactID] = struct{}{}
-		for _, blobID := range sbom.BlobIDs {
+		if imageMetadata.SBOM == nil {
+			continue
+		}
+		toKeep[imageMetadata.SBOM.ArtifactID] = struct{}{}
+		for _, blobID := range imageMetadata.SBOM.BlobIDs {
 			toKeep[blobID] = struct{}{}
 		}
 	}
