@@ -48,15 +48,16 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 	img, err := container.Image(ctx)
 	if err != nil {
 		log.Debugf("cannot get container's image: %s", err)
+	} else {
+		imgConfig, err := img.Config(ctx)
+		if err != nil {
+			log.Debugf("cannot get image's config: %s", err)
+		} else {
+			imageID := imgConfig.Digest.String()
+			// Add imageID
+			image.ID = imageID
+		}
 	}
-	imgConfig, err := img.Config(ctx)
-	if err != nil {
-		log.Debugf("cannot get image's config: %s", err)
-	}
-	imageID := imgConfig.Digest.String()
-
-	// Add imageID
-	image.ID = imageID
 
 	status, err := containerdClient.Status(namespace, container)
 	if err != nil {
