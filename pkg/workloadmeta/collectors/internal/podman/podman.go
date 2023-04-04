@@ -112,9 +112,6 @@ func convertToEvent(container *podman.Container) workloadmeta.CollectorEvent {
 
 	// Add imageID to image
 	imageID := container.Config.ContainerRootFSConfig.RootfsImageID
-	if !strings.HasPrefix(imageID, "sha256:") {
-		imageID = "sha256:" + imageID
-	}
 	image.ID = imageID
 
 	var ports []workloadmeta.ContainerPort
