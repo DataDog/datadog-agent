@@ -1118,7 +1118,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("container_image_collection.sbom.analyzers", []string{"os"})
 	config.BindEnvAndSetDefault("container_image_collection.sbom.cache_directory", "")
 	config.BindEnvAndSetDefault("container_image_collection.sbom.clear_cache_on_exit", false)
-	config.BindEnvAndSetDefault("container_image_collection.sbom.use_custom_cache", true)
+	config.BindEnvAndSetDefault("container_image_collection.sbom.use_custom_cache", false)
 	config.BindEnvAndSetDefault("container_image_collection.sbom.custom_cache_max_disk_size", 1000*1000*10) // max disk space used by cached objects. Not equal to max disk usage
 	config.BindEnvAndSetDefault("container_image_collection.sbom.custom_cache_max_cache_entries", 1000)     // keys stored in memory
 	config.BindEnvAndSetDefault("container_image_collection.sbom.custom_cache_gc_interval", 60*30)
