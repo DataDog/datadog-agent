@@ -2,7 +2,11 @@ set verify off
 
 accept password hide prompt password:
 
-create user c##datadog identified by &password ;
+
+CREATE USER c##datadog IDENTIFIED BY &password CONTAINER = ALL ;
+
+ALTER USER c##datadog SET CONTAINER_DATA=ALL CONTAINER=CURRENT;
+
 grant create session to c##datadog ;
 grant select on v_$session to c##datadog ;
 grant select on v_$database to c##datadog ;
@@ -102,7 +106,7 @@ SELECT
     sq.avoided_executions
   FROM
     x$ksuse s,
-    x$kslwt w,
+    x$kslwt w, 
     x$ksled e,
     v$sqlstats sq,
     v$containers c

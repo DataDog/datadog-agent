@@ -64,7 +64,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.ObfuscatorOptions.TableNames = true
 	instance.ObfuscatorOptions.CollectCommands = true
 	instance.ObfuscatorOptions.CollectComments = true
-	instance.QueryMetrics = true
+	//instance.QueryMetrics = true
 
 	if err := yaml.Unmarshal(rawInstance, &instance); err != nil {
 		return nil, err
