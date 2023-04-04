@@ -68,9 +68,6 @@ const (
 	logsAPITimeout             = 25
 	logsAPIMaxBytes            = 262144
 	logsAPIMaxItems            = 1000
-
-	// shellTCPHostAndPort is the host and port for tcp connexion to the shell
-	shellTCPHostAndPort = "localhost:5555"
 )
 
 func main() {
@@ -181,10 +178,6 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		log.Warn("An API Key has been set in multiple places:", strings.Join(apikeySetIn, ", "))
 	}
 
-	if !sendAPIKeyToShell(os.Getenv(apiKeyEnvVar), shellTCPHostAndPort) {
-		log.Warn("crash reporting is disabled")
-	}
-
 	config.LoadProxyFromEnv(config.Datadog)
 
 	// Set secrets from the environment that are suffixed with
@@ -216,6 +209,11 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	if _, err := config.Load(); err != nil {
 		log.Errorf("Error happened when loading configuration from datadog.yaml for metric agent: %s", err)
 	}
+
+	if !sendAPIKeyToShell(os.Getenv(apiKeyEnvVar)) {
+		log.Warn("crash reporting is disabled")
+	}
+
 	logChannel := make(chan *logConfig.ChannelMessage)
 	// Channels for ColdStartCreator
 	lambdaSpanChan := make(chan *pb.Span)

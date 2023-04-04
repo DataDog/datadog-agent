@@ -163,11 +163,16 @@ func hasApiKey() bool {
 		len(os.Getenv(secretsManagerAPIKeyEnvVar)) > 0
 }
 
-func sendAPIKeyToShell(apiKey string, hostAndPort string) bool {
-	conn, err := net.Dial("tcp", hostAndPort)
+func sendAPIKeyToShell(apiKey string) bool {
+	conn, err := net.Dial("tcp", buildShellHostPort())
 	if err != nil {
 		return false
 	}
 	n, err := conn.Write([]byte(apiKey))
 	return err == nil && n == len(apiKey)
+}
+
+func buildShellHostPort() string {
+	shell_port := config.Datadog.GetInt("serverless.shell_port")
+	return fmt.Sprintf("localhost:%d", shell_port)
 }
