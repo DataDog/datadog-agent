@@ -82,7 +82,7 @@ api_key: fakeapikey
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 	assert.Equal(t, "https://external-agent.datadoghq.com", externalAgentURL)
 }
@@ -103,7 +103,7 @@ api_key: fakeapikey
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 	assert.Equal(t, "https://external-agent.datadoghq.eu", externalAgentURL)
 }
@@ -226,7 +226,7 @@ func TestSiteEnvVar(t *testing.T) {
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 	assert.Equal(t, "https://external-agent.datadoghq.eu", externalAgentURL)
 }
@@ -266,7 +266,7 @@ func TestDDURLEnvVar(t *testing.T) {
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 	assert.Equal(t, "https://custom.external-agent.datadoghq.com", externalAgentURL)
 }
@@ -287,7 +287,7 @@ func TestDDDDURLEnvVar(t *testing.T) {
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 	assert.Equal(t, "https://custom.external-agent.datadoghq.com", externalAgentURL)
 }
@@ -312,7 +312,7 @@ func TestDDURLAndDDDDURLEnvVar(t *testing.T) {
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 	assert.Equal(t, "https://custom.external-agent.datadoghq.com", externalAgentURL)
 }
@@ -337,7 +337,7 @@ external_config:
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 	assert.Equal(t, "https://external-agent.datadoghq.com", externalAgentURL)
 }
@@ -361,7 +361,7 @@ external_config:
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 	assert.Equal(t, "https://custom.external-agent.datadoghq.eu", externalAgentURL)
 }
@@ -393,7 +393,7 @@ additional_endpoints:
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 }
 
@@ -414,7 +414,7 @@ func TestGetMultipleEndpointsEnvVar(t *testing.T) {
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 }
 
@@ -448,7 +448,7 @@ additional_endpoints:
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 }
 
@@ -480,7 +480,7 @@ additional_endpoints:
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 }
 
@@ -500,7 +500,7 @@ api_key: fakeapikey
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 }
 
@@ -532,7 +532,7 @@ additional_endpoints:
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 }
 
@@ -566,7 +566,7 @@ additional_endpoints:
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 }
 
@@ -1047,7 +1047,7 @@ dogstatsd_mapper_profiles:
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedProfiles, profiles)
 }
 
@@ -1061,7 +1061,7 @@ dogstatsd_mapper_profiles:
 
 	var expectedProfiles []MappingProfile
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedProfiles, profiles)
 }
 
