@@ -81,6 +81,7 @@ func (f *fixture) newController(leader bool) (*DatadogMetricController, dynamici
 }
 
 func (f *fixture) runControllerSync(leader bool, datadogMetricID string, expectedError error) {
+	f.t.Helper()
 	controller, informer := f.newController(leader)
 	stopCh := make(chan struct{})
 	defer close(stopCh)
@@ -182,10 +183,8 @@ func TestLeaderHandlingNewMetric(t *testing.T) {
 				LastUpdateTime:     updateTimeKube,
 			},
 			{
-				Type:               datadoghq.DatadogMetricConditionTypeUpdated,
-				Status:             corev1.ConditionTrue,
-				LastTransitionTime: updateTimeKube,
-				LastUpdateTime:     updateTimeKube,
+				Type:   datadoghq.DatadogMetricConditionTypeUpdated,
+				Status: corev1.ConditionTrue,
 			},
 			{
 				Type:               datadoghq.DatadogMetricConditionTypeError,
@@ -506,7 +505,7 @@ func TestLeaderDeleteExisting(t *testing.T) {
 		Value: "20",
 		Conditions: []datadoghq.DatadogMetricCondition{
 			{
-				Type:               datadoghq.DatadogMetricConditionTypeValid,
+				Type:               datadoghq.DatadogMetricConditionTypeActive,
 				Status:             corev1.ConditionTrue,
 				LastTransitionTime: prevUpdateTimeKube,
 				LastUpdateTime:     prevUpdateTimeKube,
@@ -535,7 +534,7 @@ func TestLeaderDeleteExisting(t *testing.T) {
 		Value: "20",
 		Conditions: []datadoghq.DatadogMetricCondition{
 			{
-				Type:               datadoghq.DatadogMetricConditionTypeValid,
+				Type:               datadoghq.DatadogMetricConditionTypeActive,
 				Status:             corev1.ConditionTrue,
 				LastTransitionTime: prevUpdateTimeKube,
 				LastUpdateTime:     prevUpdateTimeKube,
@@ -656,7 +655,7 @@ func TestFollower(t *testing.T) {
 		Value: "10",
 		Conditions: []datadoghq.DatadogMetricCondition{
 			{
-				Type:               datadoghq.DatadogMetricConditionTypeValid,
+				Type:               datadoghq.DatadogMetricConditionTypeActive,
 				Status:             corev1.ConditionTrue,
 				LastTransitionTime: prevUpdateTimeKube,
 				LastUpdateTime:     prevUpdateTimeKube,
@@ -685,7 +684,7 @@ func TestFollower(t *testing.T) {
 		Value: "10",
 		Conditions: []datadoghq.DatadogMetricCondition{
 			{
-				Type:               datadoghq.DatadogMetricConditionTypeValid,
+				Type:               datadoghq.DatadogMetricConditionTypeActive,
 				Status:             corev1.ConditionTrue,
 				LastTransitionTime: prevUpdateTimeKube,
 				LastUpdateTime:     prevUpdateTimeKube,
@@ -720,6 +719,7 @@ func TestFollower(t *testing.T) {
 	ddm := model.DatadogMetricInternal{
 		ID:         "default/dd-metric-0",
 		Valid:      true,
+		Active:     true,
 		Value:      20.0,
 		UpdateTime: kubernetes.TimeWithoutWall(updateTime),
 		DataTime:   kubernetes.TimeWithoutWall(updateTime),
@@ -735,8 +735,10 @@ func TestFollower(t *testing.T) {
 	ddm = model.DatadogMetricInternal{
 		ID:         "default/dd-metric-0",
 		Valid:      true,
+		Active:     true,
 		Value:      10.0,
 		UpdateTime: kubernetes.TimeWithoutWall(prevUpdateTime.UTC()),
+		DataTime:   kubernetes.TimeWithoutWall(prevUpdateTime.UTC()),
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query0")
@@ -748,10 +750,12 @@ func TestFollower(t *testing.T) {
 	ddm = model.DatadogMetricInternal{
 		ID:                 "default/autogen-1",
 		Valid:              true,
+		Active:             true,
 		Autogen:            true,
 		ExternalMetricName: "dd-metric-1",
 		Value:              10.0,
 		UpdateTime:         kubernetes.TimeWithoutWall(prevUpdateTime.UTC()),
+		DataTime:           kubernetes.TimeWithoutWall(prevUpdateTime.UTC()),
 		Error:              nil,
 	}
 	ddm.SetQueries("metric query1")
