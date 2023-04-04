@@ -588,7 +588,6 @@ func TestTimeSamplerFlush(t *testing.T) {
 	demux.sharedSerializer = s
 	expectedSeries := flushSomeSamples(demux)
 	assertSeriesEqual(t, s.series, expectedSeries)
-	s.AssertExpectations(t)
 }
 
 // The implementation of MockSerializer.SendIterableSeries uses `s.Called(series).Error(0)`.

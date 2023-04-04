@@ -72,7 +72,7 @@ func (m *MockSender) Event(e metrics.Event) {
 }
 
 // EventPlatformEvent enables the event platform event mock call.
-func (m *MockSender) EventPlatformEvent(rawEvent string, eventType string) {
+func (m *MockSender) EventPlatformEvent(rawEvent []byte, eventType string) {
 	m.Called(rawEvent, eventType)
 }
 
@@ -110,21 +110,6 @@ func (m *MockSender) GetSenderStats() check.SenderStats {
 // OrchestratorMetadata submit orchestrator metadata messages
 func (m *MockSender) OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID string, nodeType int) {
 	m.Called(msgs, clusterID, nodeType)
-}
-
-// ContainerLifecycleEvent submit container life cycle messages
-func (m *MockSender) ContainerLifecycleEvent(msgs []serializer.ContainerLifecycleMessage) {
-	m.Called(msgs)
-}
-
-// ContainerImage submit container image messages
-func (m *MockSender) ContainerImage(msgs []serializer.ContainerImageMessage) {
-	m.Called(msgs)
-}
-
-// SBOM submit sbom data
-func (m *MockSender) SBOM(msgs []serializer.SBOMMessage) {
-	m.Called(msgs)
 }
 
 // OrchestratorManifest submit orchestrator manifest messages

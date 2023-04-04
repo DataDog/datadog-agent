@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:generate go run golang.org/x/tools/cmd/stringer -type=StorageFormat,StorageType -linecomment -output enum_string.go
+
 package config
 
 import (
@@ -11,15 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 )
-
-func init() {
-	for _, format := range AllStorageFormats() {
-		strToFormats[format.String()] = format
-	}
-	for _, storage := range AllStorageTypes() {
-		strToTypes[storage.String()] = storage
-	}
-}
 
 // StorageRequest is used to request a type of storage for a dump
 type StorageRequest struct {
@@ -94,28 +87,24 @@ func (sr *StorageRequest) GetOutputPath(filename string) string {
 }
 
 // StorageFormat is used to define the format of a dump
-type StorageFormat string
+type StorageFormat int
 
-func (sf StorageFormat) String() string {
-	return string(sf)
-}
-
-var (
-	// JSON is used to request the JSON format
-	JSON StorageFormat = "json"
-	// PROTOBUF is used to request the protobuf format
-	PROTOBUF StorageFormat = "protobuf"
-	// DOT is used to request the dot format
-	DOT StorageFormat = "dot"
-	// Profile is used to request the Secl profile format
-	Profile StorageFormat = "profile"
-
-	strToFormats = make(map[string]StorageFormat)
+const (
+	// Json is used to request the JSON format
+	Json StorageFormat = iota // json
+	// Protobuf is used to request the protobuf format
+	Protobuf // protobuf
+	// Dot is used to request the dot format
+	Dot // dot
+	// Profile is used to request the generation of a profile
+	Profile // profile
+	// SecL is used to request the Secl policy format
+	SecL // secl
 )
 
 // AllStorageFormats returns the list of supported formats
 func AllStorageFormats() []StorageFormat {
-	return []StorageFormat{JSON, PROTOBUF, DOT, Profile}
+	return []StorageFormat{Json, Protobuf, Dot, Profile, SecL}
 }
 
 // ParseStorageFormat returns a storage format from a string input
@@ -123,11 +112,14 @@ func ParseStorageFormat(input string) (StorageFormat, error) {
 	if len(input) > 0 && input[0] == '.' {
 		input = input[1:]
 	}
-	format, ok := strToFormats[input]
-	if !ok {
-		return "", fmt.Errorf("%s: unknown storage format, available options are %v", input, AllStorageFormats())
+
+	for _, fmt := range AllStorageFormats() {
+		if fmt.String() == input {
+			return fmt, nil
+		}
 	}
-	return format, nil
+
+	return -1, fmt.Errorf("%s: unknown storage format, available options are %v", input, AllStorageFormats())
 }
 
 // ParseStorageFormats returns a list of storage formats from a list of strings
@@ -148,9 +140,9 @@ type StorageType int
 
 const (
 	// LocalStorage is used to request a local storage
-	LocalStorage StorageType = iota
+	LocalStorage StorageType = iota // local_storage
 	// RemoteStorage is used to request a remote storage
-	RemoteStorage
+	RemoteStorage // remote_storage
 )
 
 // AllStorageTypes returns the list of supported storage types
@@ -158,26 +150,12 @@ func AllStorageTypes() []StorageType {
 	return []StorageType{LocalStorage, RemoteStorage}
 }
 
-var (
-	strToTypes = make(map[string]StorageType)
-)
-
-func (st StorageType) String() string {
-	switch st {
-	case LocalStorage:
-		return "local_storage"
-	case RemoteStorage:
-		return "remote_storage"
-	default:
-		return ""
-	}
-}
-
 // ParseStorageType returns a storage type from its string representation
 func ParseStorageType(input string) (StorageType, error) {
-	storageType, ok := strToTypes[input]
-	if !ok {
-		return -1, fmt.Errorf("unknown storage type [%s]", input)
+	for _, st := range AllStorageTypes() {
+		if st.String() == input {
+			return st, nil
+		}
 	}
-	return storageType, nil
+	return -1, fmt.Errorf("unknown storage type [%s]", input)
 }

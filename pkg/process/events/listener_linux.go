@@ -22,15 +22,15 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
-	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// SysProbeListener collects process events using the runtime-security module in system-probe
+// SysProbeListener collects process events using the event monitoring module in system-probe
 type SysProbeListener struct {
 	// client holds a gRPC client to connect to system-probe
-	client api.SecurityModuleClient
+	client api.EventMonitoringModuleClient
 	// conn holds the connection used by the client, so it can be closed once the listener is stopped
 	conn *grpc.ClientConn
 	// retryInterval is how long the listener will wait before trying to reconnect to system-probe if there's a connection failure
@@ -46,9 +46,9 @@ type SysProbeListener struct {
 
 // NewListener returns a new SysProbeListener to listen for process events
 func NewListener(handler EventHandler) (*SysProbeListener, error) {
-	socketPath := ddconfig.SystemProbe.GetString("runtime_security_config.socket")
+	socketPath := ddconfig.SystemProbe.GetString("event_monitoring_config.socket")
 	if socketPath == "" {
-		return nil, errors.New("runtime_security_config.socket must be set")
+		return nil, errors.New("event_monitoring_config.socket must be set")
 	}
 
 	conn, err := grpc.Dial(socketPath, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
@@ -58,12 +58,12 @@ func NewListener(handler EventHandler) (*SysProbeListener, error) {
 		return nil, err
 	}
 
-	client := api.NewSecurityModuleClient(conn)
+	client := api.NewEventMonitoringModuleClient(conn)
 	return NewSysProbeListener(conn, client, handler)
 }
 
 // NewSysProbeListener returns a new SysPobeListener
-func NewSysProbeListener(conn *grpc.ClientConn, client api.SecurityModuleClient, handler EventHandler) (*SysProbeListener, error) {
+func NewSysProbeListener(conn *grpc.ClientConn, client api.EventMonitoringModuleClient, handler EventHandler) (*SysProbeListener, error) {
 	if handler == nil {
 		return nil, errors.New("can't create a Listener without an EventHandler")
 	}
@@ -88,7 +88,7 @@ func (l *SysProbeListener) Run() {
 	}()
 }
 
-// run keeps polling the SecurityModule server for process events
+// run keeps polling the event monitoring module process events consumer for process events
 func (l *SysProbeListener) run() {
 	l.connected.Store(false)
 	logTicker := newLogBackoffTicker()
@@ -100,7 +100,7 @@ func (l *SysProbeListener) run() {
 			running = false
 			continue
 		default:
-			stream, err := l.client.GetProcessEvents(context.Background(), &api.GetProcessEventParams{})
+			stream, err := l.client.GetProcessEvents(context.Background(), &api.GetProcessEventParams{TimeoutSeconds: 1})
 			if err != nil {
 				l.connected.Store(false)
 
@@ -118,7 +118,7 @@ func (l *SysProbeListener) run() {
 			if l.connected.Load() != true {
 				l.connected.Store(true)
 
-				log.Info("Successfully connected to the runtime-security module")
+				log.Info("Successfully connected to the event monitoring module")
 			}
 
 			readStream := true
@@ -145,7 +145,7 @@ func (l *SysProbeListener) run() {
 	logTicker.Stop()
 }
 
-// consumeData unmarshals the serialized process event received from the SecurityModule server, filters it and applies the
+// consumeData unmarshals the serialized process event received from the event monitoring module, filters it and applies the
 // EventHandler
 func (l *SysProbeListener) consumeData(data []byte) {
 	var sysEvent model.ProcessEvent

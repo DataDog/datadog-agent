@@ -27,9 +27,9 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -76,23 +76,11 @@ type Resolver struct {
 // ErrEntryNotFound is thrown when a path key was not found in the cache
 var ErrEntryNotFound = errors.New("entry not found")
 
-// PathLeaf is the go representation of the eBPF path_leaf_t structure
-type PathLeaf struct {
-	Parent model.PathKey
-	Name   [model.MaxSegmentLength + 1]byte
-	Len    uint16
-}
-
 // PathEntry is the path structure saved in cache
 type PathEntry struct {
 	Parent     model.PathKey
 	Name       string
 	Generation uint64
-}
-
-// GetName returns the path value as a string
-func (pv *PathLeaf) GetName() string {
-	return model.NullTerminatedString(pv.Name[:])
 }
 
 // eRPCStats is used to collect kernel space metrics about the eRPC resolution
@@ -283,9 +271,9 @@ func (dr *Resolver) ResolveNameFromCache(mountID uint32, inode uint64) (string, 
 	return path.Name, nil
 }
 
-func (dr *Resolver) lookupInodeFromMap(mountID uint32, inode uint64, pathID uint32) (PathLeaf, error) {
+func (dr *Resolver) lookupInodeFromMap(mountID uint32, inode uint64, pathID uint32) (model.PathLeaf, error) {
 	key := model.PathKey{MountID: mountID, Inode: inode, PathID: pathID}
-	var pathLeaf PathLeaf
+	var pathLeaf model.PathLeaf
 	if err := dr.pathnames.Lookup(key, &pathLeaf); err != nil {
 		return pathLeaf, fmt.Errorf("unable to get filename for mountID `%d` and inode `%d`: %w", mountID, inode, err)
 	}
@@ -415,7 +403,7 @@ func (dr *Resolver) ResolveFromMap(mountID uint32, inode uint64, pathID uint32, 
 	var cacheEntry *PathEntry
 	var resolutionErr error
 	var name string
-	var path PathLeaf
+	var pathLeaf model.PathLeaf
 	key := model.PathKey{MountID: mountID, Inode: inode, PathID: pathID}
 
 	keyBuffer, err := key.MarshalBinary()
@@ -433,7 +421,7 @@ func (dr *Resolver) ResolveFromMap(mountID uint32, inode uint64, pathID uint32, 
 	// Fetch path recursively
 	for i := 0; i <= model.MaxPathDepth; i++ {
 		key.Write(keyBuffer)
-		if err := dr.pathnames.Lookup(keyBuffer, &path); err != nil {
+		if err := dr.pathnames.Lookup(keyBuffer, &pathLeaf); err != nil {
 			filenameParts = nil
 			resolutionErr = errDentryPathKeyNotFound
 			break
@@ -442,7 +430,7 @@ func (dr *Resolver) ResolveFromMap(mountID uint32, inode uint64, pathID uint32, 
 
 		cacheKey = model.PathKey{MountID: key.MountID, Inode: key.Inode}
 
-		if path.Name[0] == '\x00' {
+		if pathLeaf.Name[0] == '\x00' {
 			if depth >= model.MaxPathDepth {
 				resolutionErr = errTruncatedParents
 			} else {
@@ -452,27 +440,27 @@ func (dr *Resolver) ResolveFromMap(mountID uint32, inode uint64, pathID uint32, 
 		}
 
 		// Don't append dentry name if this is the root dentry (i.d. name == '/')
-		if path.Name[0] == '/' {
+		if pathLeaf.Name[0] == '/' {
 			name = "/"
 		} else {
-			name = model.NullTerminatedString(path.Name[:])
+			name = model.NullTerminatedString(pathLeaf.Name[:])
 			filenameParts = append(filenameParts, name)
 		}
 
 		// do not cache fake path keys in the case of rename events
 		if !IsFakeInode(key.Inode) && cache {
-			cacheEntry = dr.getPathEntryFromPool(path.Parent, name)
+			cacheEntry = dr.getPathEntryFromPool(pathLeaf.Parent, name)
 
 			keys = append(keys, cacheKey)
 			entries = append(entries, cacheEntry)
 		}
 
-		if path.Parent.Inode == 0 {
+		if pathLeaf.Parent.Inode == 0 {
 			break
 		}
 
 		// Prepare next key
-		key = path.Parent
+		key = pathLeaf.Parent
 	}
 
 	filename := computeFilenameFromParts(filenameParts)

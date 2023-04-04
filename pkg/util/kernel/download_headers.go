@@ -111,8 +111,10 @@ func (h *headerDownloader) getHeaderDownloadBackend(target *types.Target, reposD
 	switch strings.ToLower(target.Distro.Display) {
 	case "fedora":
 		backend, err = rpm.NewFedoraBackend(target, reposDir, logger)
-	case "rhel", "redhat", "oracle":
+	case "rhel", "redhat":
 		backend, err = rpm.NewRedHatBackend(target, reposDir, logger)
+	case "oracle":
+		backend, err = rpm.NewOracleBackend(target, reposDir, logger)
 	case "amazon":
 		if target.Distro.Release == "2022" {
 			backend, err = rpm.NewAmazonLinux2022Backend(target, reposDir, logger)

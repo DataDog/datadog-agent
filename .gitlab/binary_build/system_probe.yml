@@ -7,13 +7,9 @@
     # TODO: remove this once we switch to k8s runners, they won't have this problem
     - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -depth  # -delete implies -depth
     - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -delete || true  # Allow failure, we can't remove parent folders of datadog-agent
-    # Retrieve nikos from S3
-    - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/nikos-$ARCH.tar.gz /tmp/nikos.tar.gz
-    - mkdir -p $NIKOS_EMBEDDED_PATH
-    - tar -xf /tmp/nikos.tar.gz -C $NIKOS_EMBEDDED_PATH
   script:
     - inv check-go-version
-    - inv -e system-probe.build --nikos-embedded-path=$NIKOS_EMBEDDED_PATH --strip-object-files
+    - inv -e system-probe.build --strip-object-files
     # fail if references to glibc >= 2.18
     - objdump -p $CI_PROJECT_DIR/$SYSTEM_PROBE_BINARIES_DIR/system-probe | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])' && exit 1
     - $S3_CP_CMD $CI_PROJECT_DIR/$SYSTEM_PROBE_BINARIES_DIR/system-probe $S3_ARTIFACTS_URI/system-probe.$ARCH
@@ -25,6 +21,8 @@
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/http-debug.o $S3_ARTIFACTS_URI/http-debug.o.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/dns.o $S3_ARTIFACTS_URI/dns.o.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/dns-debug.o $S3_ARTIFACTS_URI/dns-debug.o.$ARCH
+    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/conntrack.o $S3_ARTIFACTS_URI/conntrack.o.$ARCH
+    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/conntrack-debug.o $S3_ARTIFACTS_URI/conntrack-debug.o.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime-security.o $S3_ARTIFACTS_URI/runtime-security.o.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime-security-syscall-wrapper.o $S3_ARTIFACTS_URI/runtime-security-syscall-wrapper.o.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime-security-offset-guesser.o $S3_ARTIFACTS_URI/runtime-security-offset-guesser.o.$ARCH

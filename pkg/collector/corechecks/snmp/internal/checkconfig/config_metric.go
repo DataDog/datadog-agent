@@ -6,6 +6,7 @@
 package checkconfig
 
 import (
+	"fmt"
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -110,7 +111,16 @@ func (m *MetricsConfig) IsScalar() bool {
 func (mtc *MetricTagConfig) GetTags(value string) []string {
 	var tags []string
 	if mtc.Tag != "" {
-		tags = append(tags, mtc.Tag+":"+value)
+		if len(mtc.Mapping) > 0 {
+			mappedValue, err := GetMappedValue(value, mtc.Mapping)
+			if err != nil {
+				log.Debugf("error getting tags. mapping for `%s` does not exist. mapping=`%v`", value, mtc.Mapping)
+			} else {
+				tags = append(tags, mtc.Tag+":"+mappedValue)
+			}
+		} else {
+			tags = append(tags, mtc.Tag+":"+value)
+		}
 	} else if mtc.Match != "" {
 		if mtc.pattern == nil {
 			log.Warnf("match pattern must be present: match=%s", mtc.Match)
@@ -162,4 +172,17 @@ func normalizeMetrics(metrics []MetricsConfig) {
 			metric.OID = ""
 		}
 	}
+}
+
+// GetMappedValue retrieves mapped value from a given mapping.
+// If mapping is empty, it will return the index.
+func GetMappedValue(index string, mapping map[string]string) (string, error) {
+	if len(mapping) > 0 {
+		mappedValue, ok := mapping[index]
+		if !ok {
+			return "", fmt.Errorf("mapping for `%s` does not exist. mapping=`%v`", index, mapping)
+		}
+		return mappedValue, nil
+	}
+	return index, nil
 }

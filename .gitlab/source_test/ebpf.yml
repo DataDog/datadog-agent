@@ -4,10 +4,6 @@
   - mkdir -p $DATADOG_AGENT_EMBEDDED_PATH/include
   - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/clang-$CLANG_LLVM_VER.$ARCH /tmp/clang-bpf
   - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/llc-$CLANG_LLVM_VER.$ARCH /tmp/llc-bpf
-  # Retrieve nikos from S3
-  - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/nikos-$ARCH.tar.gz /tmp/nikos.tar.gz
-  - mkdir -p $NIKOS_EMBEDDED_PATH
-  - tar -xf /tmp/nikos.tar.gz -C $NIKOS_EMBEDDED_PATH
 
 .build_sysprobe_artifacts:
   # kitchen prepare also builds object files
@@ -20,6 +16,8 @@
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/http-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/http-debug.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/dns.o $CI_PROJECT_DIR/.tmp/binary-ebpf/dns.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/dns-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/dns-debug.o
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/conntrack.o $CI_PROJECT_DIR/.tmp/binary-ebpf/conntrack.o
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/conntrack-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/conntrack-debug.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/http-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/http-debug.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/http.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/http.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/oom-kill.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/oom-kill.o
@@ -44,7 +42,7 @@
     - inv -e system-probe.object-files
     - invoke -e golangci-lint --build system-probe --concurrency 4 ./pkg
     - invoke -e security-agent.run-ebpf-unit-tests --verbose
-    - invoke -e golangci-lint --targets=./pkg/security/tests --concurrency 4 --build-tags="stresstests linux_bpf ebpf_bindata" --arch=$TASK_ARCH
+    - invoke -e golangci-lint --targets=./pkg/security/tests --concurrency 4 --build-tags="functionaltests stresstests trivy containerd linux_bpf ebpf_bindata" --arch=$TASK_ARCH
 
 .tests_windows_sysprobe:
   stage: source_test

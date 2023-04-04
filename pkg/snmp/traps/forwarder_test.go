@@ -72,7 +72,7 @@ func TestV1GenericTrapAreForwarder(t *testing.T) {
 	require.NoError(t, err)
 	forwarder.trapsIn <- packet
 	forwarder.Stop()
-	sender.AssertEventPlatformEvent(t, string(rawEvent), epforwarder.EventTypeSnmpTraps)
+	sender.AssertEventPlatformEvent(t, rawEvent, epforwarder.EventTypeSnmpTraps)
 }
 
 func TestV1SpecificTrapAreForwarder(t *testing.T) {
@@ -85,7 +85,7 @@ func TestV1SpecificTrapAreForwarder(t *testing.T) {
 	require.NoError(t, err)
 	forwarder.trapsIn <- packet
 	forwarder.Stop()
-	sender.AssertEventPlatformEvent(t, string(rawEvent), epforwarder.EventTypeSnmpTraps)
+	sender.AssertEventPlatformEvent(t, rawEvent, epforwarder.EventTypeSnmpTraps)
 }
 func TestV2TrapAreForwarder(t *testing.T) {
 	forwarder, err := createForwarder(t)
@@ -94,5 +94,5 @@ func TestV2TrapAreForwarder(t *testing.T) {
 	require.True(t, ok)
 	forwarder.trapsIn <- makeSnmpPacket(NetSNMPExampleHeartbeatNotification)
 	forwarder.Stop()
-	sender.AssertEventPlatformEvent(t, "0dee7422f503d972db97b711e39a5003d1995c0d2f718542813acc4c46053ef0", epforwarder.EventTypeSnmpTraps)
+	sender.AssertEventPlatformEvent(t, []byte("0dee7422f503d972db97b711e39a5003d1995c0d2f718542813acc4c46053ef0"), epforwarder.EventTypeSnmpTraps)
 }

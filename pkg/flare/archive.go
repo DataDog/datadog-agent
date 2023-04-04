@@ -354,12 +354,7 @@ func getConfigFiles(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths) {
 
 func getSecrets() ([]byte, error) {
 	fct := func(writer io.Writer) error {
-		info, err := secrets.GetDebugInfo()
-		if err != nil {
-			fmt.Fprintf(writer, "%s", err)
-		} else {
-			info.Print(writer)
-		}
+		secrets.GetDebugInfo(writer)
 		return nil
 	}
 

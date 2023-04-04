@@ -37,7 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 
-	"google.golang.org/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -696,7 +696,7 @@ func TestClientComputedTopLevel(t *testing.T) {
 }
 
 func TestFilteredByTags(t *testing.T) {
-	for _, tt := range []*struct {
+	for _, tt := range []struct {
 		require []*config.Tag
 		reject  []*config.Tag
 		span    pb.Span
@@ -1933,8 +1933,9 @@ func TestSpanSampling(t *testing.T) {
 			})
 			assert.Len(t, traceAgent.TraceWriter.In, 1)
 			sampledChunks := <-traceAgent.TraceWriter.In
-			chunks := sampledChunks.TracerPayload.Chunks
-			tc.checks(t, tc.payload, chunks)
+			tc.checks(t, tc.payload, sampledChunks.TracerPayload.Chunks)
+			stats := <-traceAgent.Concentrator.In
+			assert.Equal(t, len(tc.payload.Chunks[0].Spans), len(stats.Traces[0].TraceChunk.Spans))
 		})
 	}
 }

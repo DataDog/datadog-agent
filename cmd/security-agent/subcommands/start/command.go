@@ -72,7 +72,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(params),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(params.ConfigFilePaths),
-					LogParams:    log.LogForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.LogForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),
+				}),
 				core.Bundle,
 			)
 		},
@@ -217,7 +218,6 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, p
 	opts := aggregator.DefaultAgentDemultiplexerOptions(forwarderOpts)
 	opts.UseEventPlatformForwarder = false
 	opts.UseOrchestratorForwarder = false
-	opts.UseContainerLifecycleForwarder = false
 	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostnameDetected)
 	demux.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Security Agent", version.AgentVersion))
 

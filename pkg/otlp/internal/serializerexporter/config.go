@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 )
 
@@ -20,6 +21,8 @@ type exporterConfig struct {
 	exporterhelper.QueueSettings   `mapstructure:",squash"`
 
 	Metrics metricsConfig `mapstructure:"metrics"`
+
+	warnings []string
 }
 
 var _ component.Config = (*exporterConfig)(nil)
@@ -59,9 +62,14 @@ type histogramConfig struct {
 	// The current default is 'distributions'.
 	Mode string `mapstructure:"mode"`
 
-	// SendCountSum states if the export should send .sum and .count metrics for histograms.
-	// The current default is false.
+	// SendCountSum states if the export should send .sum, .count, .min and .max metrics for histograms.
+	// The default is false.
+	// Deprecated: use `send_aggregation_metrics` instead.
 	SendCountSum bool `mapstructure:"send_count_sum_metrics"`
+
+	// SendAggregations states if the export should send .sum, .count, .min and .max metrics for histograms.
+	// The default is false.
+	SendAggregations bool `mapstructure:"send_aggregation_metrics"`
 }
 
 // CumulativeMonotonicSumMode is the export mode for OTLP Sum metrics.
@@ -162,4 +170,34 @@ type metricsExporterConfig struct {
 // Validate configuration
 func (e *exporterConfig) Validate() error {
 	return e.QueueSettings.Validate()
+}
+
+var _ confmap.Unmarshaler = (*exporterConfig)(nil)
+
+const (
+	warnDeprecatedSendCountSum   = "otlp_config.metrics.histograms.send_count_sum_metrics is deprecated in favor of otlp_config.metrics.histograms.send_aggregation_metrics"
+	warnOverrideSendAggregations = "Overriding otlp_config.metrics.histograms.send_aggregation_metrics with otlp_config.metrics.histograms.send_count_sum_metrics value (deprecated)"
+)
+
+// Unmarshal a configuration map into the configuration struct.
+func (e *exporterConfig) Unmarshal(configMap *confmap.Conf) error {
+	err := configMap.Unmarshal(e, confmap.WithErrorUnused())
+	if err != nil {
+		return err
+	}
+
+	if configMap.IsSet("metrics::histograms::send_count_sum_metrics") {
+		// send_count_sum_metrics is deprecated, warn the user
+		e.warnings = append(e.warnings, warnDeprecatedSendCountSum)
+
+		// override the value since send_count_sum_metrics was set
+		e.Metrics.HistConfig.SendAggregations = e.Metrics.HistConfig.SendCountSum
+
+		// if the user explicitly also set send_aggregation_metrics, warn that we overrided the value
+		if configMap.IsSet("metrics::histograms::send_aggregation_metrics") {
+			e.warnings = append(e.warnings, warnOverrideSendAggregations)
+		}
+	}
+
+	return nil
 }

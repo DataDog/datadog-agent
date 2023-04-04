@@ -1,0 +1,5 @@
+---
+security:
+  - |
+    Fixes cwe 703. Handle the return value of Close() for writable files and forces writes to disks
+    in `system-probe`

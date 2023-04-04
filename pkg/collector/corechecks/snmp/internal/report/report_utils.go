@@ -90,16 +90,10 @@ func getTagsFromMetricTagConfigList(mtcl checkconfig.MetricTagConfigList, fullIn
 				log.Debugf("error getting tags. index `%d` not found in indexes `%v`", metricTag.Index, indexes)
 				continue
 			}
-			var tagValue string
-			if len(metricTag.Mapping) > 0 {
-				mappedValue, ok := metricTag.Mapping[indexes[index]]
-				if !ok {
-					log.Debugf("error getting tags. mapping for `%s` does not exist. mapping=`%v`, indexes=`%v`", indexes[index], metricTag.Mapping, indexes)
-					continue
-				}
-				tagValue = mappedValue
-			} else {
-				tagValue = indexes[index]
+			tagValue, err := checkconfig.GetMappedValue(indexes[index], metricTag.Mapping)
+			if err != nil {
+				log.Debugf("error getting tags. mapping for `%s` does not exist. mapping=`%v`, indexes=`%v`", indexes[index], metricTag.Mapping, indexes)
+				continue
 			}
 			rowTags = append(rowTags, metricTag.Tag+":"+tagValue)
 		}
