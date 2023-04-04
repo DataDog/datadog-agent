@@ -176,11 +176,11 @@ kernel_matrix_testing_run_tests:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/kernel-version-testing_x64_test_only:$DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES
   needs: ["kernel_matrix_testing_upload_deps", "kernel_matrix_testing_setup_env"]
   tags: ["runner:main"]
+  variables:
+    AWS_SSH_KEY: $CI_PROJECT_DIR/aws-ssh-key
   script:
     - INSTANCE_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-instance-ip | cut -d ' ' -f 2)
     - MICRO_VM_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-$TAG | cut -d ' ' -f 2)
-    - ls -la $AWS_SSH_KEY
-    - echo $AWS_SSH_KEY
     - ssh -i $AWS_SSH_KEY ubuntu@$INSTANCE_IP "sudo ssh -i /home/kernel-version-testing/rootfs/ddvm_rsa root@${MICRO_VM_IP} ls -la /opt/kernel-version-testing"
   parallel:
     matrix:
