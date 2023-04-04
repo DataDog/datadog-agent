@@ -384,10 +384,8 @@ func (c *PersistentCache) set(key string, value []byte) error {
 		return fmt.Errorf("value of [%s] is too big for the cache : %d", key, c.maximumCachedObjectSize)
 	}
 
-	if c.currentCachedObjectTotalSize+len(value) > c.maximumCachedObjectSize {
-		if err := c.reduceSize(c.maximumCachedObjectSize - len(value)); err != nil {
-			return err
-		}
+	if err := c.reduceSize(c.maximumCachedObjectSize - len(value)); err != nil {
+		return fmt.Errorf("failed to reduce the size of the cache to store [%s]: %v", key, err)
 	}
 
 	if evict := c.lruCache.Add(key, struct{}{}); evict {
