@@ -132,11 +132,7 @@ def follow_workflow_run(run_id):
         conclusion = run["conclusion"]
 
         if status == "completed":
-            if conclusion == "success":
-                print(color_message("Workflow run succeeded", "green"))
-            else:
-                print(color_message(f"Workflow run ended with state: {conclusion}", "red"))
-            return
+            return conclusion
         else:
             print(f"Workflow still running... ({minutes}m)")
             # For some unknown reason, in Gitlab these lines do not get flushed, leading to not being
@@ -145,6 +141,13 @@ def follow_workflow_run(run_id):
 
         minutes += 1
         sleep(60)
+
+def print_workflow_conclusion(conclusion):
+    if conclusion == "success":
+        print(color_message("Workflow run succeeded", "green"))
+    else:
+        print(color_message(f"Workflow run ended with state: {conclusion}", "red"))
+
 
 
 def download_artifacts(run_id, destination="."):
