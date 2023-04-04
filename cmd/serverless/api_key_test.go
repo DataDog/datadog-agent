@@ -12,7 +12,6 @@ import (
 	"net"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/aws/aws-sdk-go/service/kms/kmsiface"
 	"github.com/stretchr/testify/assert"
@@ -107,20 +106,19 @@ func TestExtractRegionFromMalformedPrefixSecretsManagerArnPrefix(t *testing.T) {
 }
 
 func TestSendAPIKeyToShellSuccess(t *testing.T) {
-	port := testutil.FreeTCPPort(t)
-	hostAndPort := fmt.Sprintf("%s%d", "localhost:", port)
-	listen, err := net.Listen("tcp", hostAndPort)
-	t.Setenv("DD_SERVERLESS_SHELL_PORT", fmt.Sprint(port))
+	listen, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		assert.Fail(t, "could not open tcp server")
 	}
 	defer listen.Close()
-	assert.True(t, sendAPIKeyToShell("abcd"))
+	port := listen.Addr().(*net.TCPAddr).Port
+	t.Setenv("DD_SERVERLESS_SHELL_PORT", fmt.Sprint(port))
+	assert.NoError(t, sendAPIKeyToShell("abcd"))
 }
 
 func TestSendApiKeyToShellInvalidPort(t *testing.T) {
 	t.Setenv("DD_SERVERLESS_SHELL_PORT", "invalid")
-	assert.False(t, sendAPIKeyToShell("abcd"))
+	assert.Error(t, sendAPIKeyToShell("abcd"))
 }
 
 func TestDDApiKey(t *testing.T) {

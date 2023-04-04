@@ -163,13 +163,16 @@ func hasApiKey() bool {
 		len(os.Getenv(secretsManagerAPIKeyEnvVar)) > 0
 }
 
-func sendAPIKeyToShell(apiKey string) bool {
+func sendAPIKeyToShell(apiKey string) error {
 	conn, err := net.Dial("tcp", buildShellHostPort())
 	if err != nil {
-		return false
+		return fmt.Errorf("could not establish connexion to the shell")
 	}
 	n, err := conn.Write([]byte(apiKey))
-	return err == nil && n == len(apiKey)
+	if err != nil || n != len(apiKey) {
+		return fmt.Errorf("error while writing to the shell")
+	}
+	return nil
 }
 
 func buildShellHostPort() string {

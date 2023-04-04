@@ -210,8 +210,8 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		log.Errorf("Error happened when loading configuration from datadog.yaml for metric agent: %s", err)
 	}
 
-	if !sendAPIKeyToShell(os.Getenv(apiKeyEnvVar)) {
-		log.Warn("crash reporting is disabled")
+	if err := sendAPIKeyToShell(os.Getenv(apiKeyEnvVar)); err != nil {
+		log.Warn(err)
 	}
 
 	logChannel := make(chan *logConfig.ChannelMessage)
