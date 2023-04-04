@@ -357,8 +357,8 @@ def _query_github_api(auth_token, url, retry_number=5, sleep_time=1):
     headers = {"Authorization": f"token {auth_token}"}
     for retry_count in range(retry_number):
         response = requests.get(url, headers=headers)
-        # Allows 5XX error code to be retried
         if 500 <= response.status_code < 600:
+            # We wait progressively more at each retry in case of overloaded servers
             time.sleep(sleep_time + sleep_time * retry_count)
         else:
             break

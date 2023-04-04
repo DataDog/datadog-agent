@@ -116,8 +116,8 @@ class GithubWorkflows(RemoteAPI):
                     method=method,
                 )
             except APIError as e:
-                # Allows 5XX error code to be retried
                 if 500 <= e.status_code < 600:
+                    # We wait progressively more at each retry in case of overloaded servers
                     time.sleep(self.requests_sleep_time + retry_count * self.requests_sleep_time)
                 else:
                     raise e
