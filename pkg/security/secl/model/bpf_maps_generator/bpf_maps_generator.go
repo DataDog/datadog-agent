@@ -74,10 +74,19 @@ func main() {
 		panic(err)
 	}
 
-	if err := tmpl.Execute(os.Stdout, tmplContext{
+	outputFile, err := os.Create(outputPath)
+	if err != nil {
+		panic(err)
+	}
+
+	if err := tmpl.Execute(outputFile, tmplContext{
 		PackageName: "test",
 		Entries:     entries,
 	}); err != nil {
+		panic(err)
+	}
+
+	if err := outputFile.Close(); err != nil {
 		panic(err)
 	}
 }
