@@ -139,8 +139,8 @@ github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3
 github.com/DataDog/datadog-go/v5 v5.0.2/go.mod h1:ZI9JFB4ewXbw1sBnF4sxsR2k1H3xjV+PUAOUsHvKpcU=
 github.com/DataDog/datadog-go/v5 v5.1.1 h1:JLZ6s2K1pG2h9GkvEvMdEGqMDyVLEAccdX5TltWcLMU=
 github.com/DataDog/datadog-go/v5 v5.1.1/go.mod h1:KhiYb2Badlv9/rofz+OznKoEF5XKTonWyhx5K83AP8E=
-github.com/DataDog/datadog-operator v0.7.1-0.20230215125730-2ba58ce29d56 h1:uj+2t8VpFSgnRucSTr3fG3atc1I6j6fgSw8+nCxnwOs=
-github.com/DataDog/datadog-operator v0.7.1-0.20230215125730-2ba58ce29d56/go.mod h1:3XBfwfK0wBBcs7L+10JI79pg6vYdbOwY3oj+O4Omi6c=
+github.com/DataDog/datadog-operator v1.0.0 h1:lXgI9/PiwDch0wPmx6PMVDvL71JmHmlM2NbdJW1Wldw=
+github.com/DataDog/datadog-operator v1.0.0/go.mod h1:CXTLg7VFcpaMvjbwkKTxKUIzxRumfSe01/CWOINo4c0=
 github.com/DataDog/ebpf-manager v0.2.8-0.20230331131947-0cbd4db2728c h1:tX6ul0I7xhlzihcBU/ivz1cr50VzqVl8qDRtSqVB4F8=
 github.com/DataDog/ebpf-manager v0.2.8-0.20230331131947-0cbd4db2728c/go.mod h1:QNbbXqQdl1RDRDna/vSHzhpTNXTnqxxJRVXdeANgCUA=
 github.com/DataDog/extendeddaemonset v0.9.0-rc.2 h1:uTE/QEU0oYtHnebKSMbxap7XMG5603WQxNP/UX63E7k=
