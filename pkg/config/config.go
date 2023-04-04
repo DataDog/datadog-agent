@@ -104,7 +104,6 @@ const (
 var (
 	Datadog       Config
 	SystemProbe   Config
-	proxies       *Proxy
 	overrideFuncs = make([]func(Config), 0)
 )
 
@@ -173,13 +172,6 @@ func (l *Listeners) IsProviderEnabled(provider string) bool {
 	_, found := l.EnabledProviders[provider]
 
 	return found
-}
-
-// Proxy represents the configuration for proxies in the agent
-type Proxy struct {
-	HTTP    string   `mapstructure:"http"`
-	HTTPS   string   `mapstructure:"https"`
-	NoProxy []string `mapstructure:"no_proxy"`
 }
 
 // MappingProfile represent a group of mappings
@@ -1222,11 +1214,6 @@ func InitConfig(config Config) {
 // ddURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed with the Agent
 // version (see AddAgentVersionToDomain).
 var ddURLRegexp = regexp.MustCompile(`^app(\.[a-z]{2}\d)?\.(datad(oghq|0g)\.(com|eu)|ddog-gov\.com)$`)
-
-// GetProxies returns the proxy settings from the configuration
-func GetProxies() *Proxy {
-	return proxies
-}
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables
 func LoadProxyFromEnv(config Config) {
