@@ -11,24 +11,24 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type httpEncoder struct {
-	aggregations   map[http.KeyTuple]*aggregationWrapper
-	staticTags     map[http.KeyTuple]uint64
-	dynamicTagsSet map[http.KeyTuple]map[string]struct{}
+	aggregations   map[types.FourTuple]*aggregationWrapper
+	staticTags     map[types.FourTuple]uint64
+	dynamicTagsSet map[types.FourTuple]map[string]struct{}
 
 	orphanEntries int
 }
 
 // aggregationWrapper is meant to handle collision scenarios where multiple
 // `ConnectionStats` objects may claim the same `HTTPAggregations` object because
-// they generate the same http.KeyTuple
+// they generate the same four tuple
 // TODO: we should probably revisit/get rid of this if we ever replace socket
 // filters by kprobes, since in that case we would have access to PIDs, and
-// could incorporate that information in the `http.KeyTuple` struct.
+// could incorporate that information in the `types.FourTuple` struct.
 type aggregationWrapper struct {
 	*model.HTTPAggregations
 
@@ -64,7 +64,7 @@ func (a *aggregationWrapper) ValueFor(c network.ConnectionStats) *model.HTTPAggr
 	// exactly the same source and destination addresses but different PIDs to
 	// "bind" to the same HTTPAggregations object, which would result in a
 	// overcount problem. (Note that this is due to the fact that
-	// `http.KeyTuple` doesn't have a PID field.) This happens mostly in the
+	// `types.FourTuple` doesn't have a PID field.) This happens mostly in the
 	// context of pre-fork web servers, where multiple worker processes share the
 	// same socket
 	return nil
@@ -76,15 +76,15 @@ func newHTTPEncoder(payload *network.Connections) *httpEncoder {
 	}
 
 	encoder := &httpEncoder{
-		aggregations:   make(map[http.KeyTuple]*aggregationWrapper, len(payload.Conns)),
-		staticTags:     make(map[http.KeyTuple]uint64, len(payload.Conns)),
-		dynamicTagsSet: make(map[http.KeyTuple]map[string]struct{}, len(payload.Conns)),
+		aggregations:   make(map[types.FourTuple]*aggregationWrapper, len(payload.Conns)),
+		staticTags:     make(map[types.FourTuple]uint64, len(payload.Conns)),
+		dynamicTagsSet: make(map[types.FourTuple]map[string]struct{}, len(payload.Conns)),
 	}
 
 	// pre-populate aggregation map with keys for all existent connections
 	// this allows us to skip encoding orphan HTTP objects that can't be matched to a connection
 	for _, conn := range payload.Conns {
-		for _, key := range network.HTTPKeyTuplesFromConn(conn) {
+		for _, key := range network.FourTuplesFromConn(conn) {
 			log.Tracef("Payload has a connection %v and was converted to http key %v", conn, key)
 			encoder.aggregations[key] = nil
 		}
@@ -99,8 +99,8 @@ func (e *httpEncoder) GetHTTPAggregationsAndTags(c network.ConnectionStats) (*mo
 		return nil, 0, nil
 	}
 
-	keyTuples := network.HTTPKeyTuplesFromConn(c)
-	for _, key := range keyTuples {
+	fourTuples := network.FourTuplesFromConn(c)
+	for _, key := range fourTuples {
 		if aggregation := e.aggregations[key]; aggregation != nil {
 			return e.aggregations[key].ValueFor(c), e.staticTags[key], e.dynamicTagsSet[key]
 		}
@@ -109,16 +109,16 @@ func (e *httpEncoder) GetHTTPAggregationsAndTags(c network.ConnectionStats) (*mo
 }
 
 func (e *httpEncoder) buildAggregations(payload *network.Connections) {
-	aggrSize := make(map[http.KeyTuple]int)
+	aggrSize := make(map[types.FourTuple]int)
 	for key := range payload.HTTP {
-		aggrSize[key.KeyTuple]++
+		aggrSize[key.FourTuple]++
 	}
 
 	for key, stats := range payload.HTTP {
-		aggregation, ok := e.aggregations[key.KeyTuple]
+		aggregation, ok := e.aggregations[key.FourTuple]
 		if !ok {
 			// if there is no matching connection don't even bother to serialize HTTP data
-			log.Tracef("Found http orphan connection %v", key.KeyTuple)
+			log.Tracef("Found http orphan connection %v", key.FourTuple)
 			e.orphanEntries++
 			continue
 		}
@@ -126,10 +126,10 @@ func (e *httpEncoder) buildAggregations(payload *network.Connections) {
 		if aggregation == nil {
 			aggregation = &aggregationWrapper{
 				HTTPAggregations: &model.HTTPAggregations{
-					EndpointAggregations: make([]*model.HTTPStats, 0, aggrSize[key.KeyTuple]),
+					EndpointAggregations: make([]*model.HTTPStats, 0, aggrSize[key.FourTuple]),
 				},
 			}
-			e.aggregations[key.KeyTuple] = aggregation
+			e.aggregations[key.FourTuple] = aggregation
 		}
 
 		ms := &model.HTTPStats{
@@ -139,7 +139,7 @@ func (e *httpEncoder) buildAggregations(payload *network.Connections) {
 			StatsByStatusCode: make(map[int32]*model.HTTPStats_Data, len(stats.Data)),
 		}
 
-		staticTags := e.staticTags[key.KeyTuple]
+		staticTags := e.staticTags[key.FourTuple]
 		var dynamicTags map[string]struct{}
 		for status, s := range stats.Data {
 			data, ok := ms.StatsByStatusCode[int32(status)]
@@ -170,8 +170,8 @@ func (e *httpEncoder) buildAggregations(payload *network.Connections) {
 			}
 		}
 
-		e.staticTags[key.KeyTuple] = staticTags
-		e.dynamicTagsSet[key.KeyTuple] = dynamicTags
+		e.staticTags[key.FourTuple] = staticTags
+		e.dynamicTagsSet[key.FourTuple] = dynamicTags
 
 		aggregation.EndpointAggregations = append(aggregation.EndpointAggregations, ms)
 	}

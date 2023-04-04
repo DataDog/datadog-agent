@@ -12,6 +12,8 @@ import (
 	"strings"
 
 	"golang.org/x/net/http2/hpack"
+
+	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
 // Path returns the URL from the request fragment captured in eBPF.
@@ -44,8 +46,8 @@ func (tx *ebpfHttp2Tx) Incomplete() bool {
 	return tx.Request_started == 0 || tx.Response_last_seen == 0 || tx.StatusCode() == 0 || tx.Path_size == 0 || tx.Method() == MethodUnknown
 }
 
-func (tx *ebpfHttp2Tx) ConnTuple() KeyTuple {
-	return KeyTuple{
+func (tx *ebpfHttp2Tx) ConnTuple() types.FourTuple {
+	return types.FourTuple{
 		SrcIPHigh: tx.Tup.Saddr_h,
 		SrcIPLow:  tx.Tup.Saddr_l,
 		DstIPHigh: tx.Tup.Daddr_h,

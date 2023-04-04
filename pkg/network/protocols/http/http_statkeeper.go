@@ -124,7 +124,7 @@ func (h *httpStatKeeper) add(tx httpTX) {
 
 func (h *httpStatKeeper) newKey(tx httpTX, path string, fullPath bool) Key {
 	return Key{
-		KeyTuple: tx.ConnTuple(),
+		FourTuple: tx.ConnTuple(),
 		Path: Path{
 			Content:  path,
 			FullPath: fullPath,
@@ -161,7 +161,7 @@ func (h *httpStatKeeper) processHTTPPath(tx httpTX, path []byte) (pathStr string
 	// Otherwise, we don't want the custom path to be rejected by our path formatting check.
 	if !match && pathIsMalformed(path) {
 		if h.oversizedLogLimit.ShouldLog() {
-			log.Debugf("http path malformed: %+v %s", h.newKey(tx, "", false).KeyTuple, tx.String())
+			log.Debugf("http path malformed: %+v %s", h.newKey(tx, "", false).FourTuple, tx.String())
 		}
 		h.telemetry.malformed.Add(1)
 		return "", true

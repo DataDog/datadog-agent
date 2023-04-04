@@ -8,9 +8,13 @@
 
 package http
 
+import (
+	"github.com/DataDog/datadog-agent/pkg/network/types"
+)
+
 type httpTX interface {
 	RequestLatency() float64
-	ConnTuple() KeyTuple
+	ConnTuple() types.FourTuple
 	Method() Method
 	SetRequestMethod(Method)
 	StatusCode() uint16
