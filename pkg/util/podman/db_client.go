@@ -3,9 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build podman
-// +build podman
-
 package podman
 
 // The podman go package brings a lot of dependencies because it includes the
