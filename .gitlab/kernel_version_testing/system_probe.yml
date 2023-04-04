@@ -183,7 +183,7 @@ kernel_matrix_testing_run_tests:
     - MICRO_VM_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-$TAG | cut -d ' ' -f 2)
     - echo $MICRO_VM_IP
     - echo $INSTANCE_IP
-    - ssh -o StrictHostKeyChecking=no -i $AWS_SSH_KEY ubuntu@INSTANCE_IP 'whoami'
+    - ssh -o StrictHostKeyChecking=no -i $AWS_SSH_KEY ubuntu@$INSTANCE_IP 'whoami'
     - ssh -o StrictHostKeyChecking=no -i $AWS_SSH_KEY ubuntu@$INSTANCE_IP "sudo ssh -i /home/kernel-version-testing/rootfs/ddvm_rsa root@${MICRO_VM_IP} ls -la /opt/kernel-version-testing"
   parallel:
     matrix:
