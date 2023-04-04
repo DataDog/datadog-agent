@@ -179,6 +179,8 @@ kernel_matrix_testing_run_tests:
   script:
     - INSTANCE_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-instance-ip | cut -d ' ' -f 2)
     - MICRO_VM_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-$TAG | cut -d ' ' -f 2)
+    - ls -la $AWS_SSH_KEY
+    - echo $AWS_SSH_KEY
     - ssh -i $AWS_SSH_KEY ubuntu@$INSTANCE_IP "sudo ssh -i /home/kernel-version-testing/rootfs/ddvm_rsa root@${MICRO_VM_IP} ls -la /opt/kernel-version-testing"
   parallel:
     matrix:
