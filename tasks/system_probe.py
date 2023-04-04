@@ -485,6 +485,8 @@ def build_sysprobe_binary(
     if strip_binary:
         ldflags += ' -s -w'
 
+    ctx.run("go run github.com/DataDog/datadog-agent/pkg/security/secl/model/bpf_maps_generator -runtime-path pkg/ebpf/bytecode/build/runtime/runtime-security.c -output pkg/security/secl/model/consts_map_names.go -pkg-name model")
+
     cmd = 'go build -mod={go_mod}{race_opt}{build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/system-probe'
 
