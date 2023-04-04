@@ -124,7 +124,7 @@ kernel_matrix_testing_setup_env:
     # The ssh key is created by the pulumi scenario, to be used for creating
     # instances in the build-stable account. We reuse this file to ssh into
     # the instances in subsequent jobs.
-    AWS_SSH_KEY: ./aws-ssh-key
+    AWS_SSH_KEY: $CI_PROJECT_DIR/aws-ssh-key
   script:
     - echo s3://dd-ci-datadog-agent-omnibus-cache-build-stable/kernel-matrix-testing/$CI_PIPELINE_ID/$CI_JOB_ID/pulumi > $STACK_DIR
     - pulumi login $(cat $STACK_DIR | tr -d '\n')
