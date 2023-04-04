@@ -46,7 +46,7 @@ deploy_containers-dca-latest:
 deploy_containers-dca_internal:
   extends: .deploy_containers-dca-base
   rules:
-    !reference [.on_deploy_a7_internal_manual_auto_on_rc]
+    !reference [.on_deploy_a7_internal_manual_final]
 
 
 deploy_containers-dca_internal-rc:

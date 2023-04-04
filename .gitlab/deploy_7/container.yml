@@ -34,15 +34,6 @@
           - "-servercore"
 
 
-.deploy_containers-a7_internal:
-  extends: .deploy_containers-a7_base
-  parallel:
-    matrix:
-      - JMX:
-          - ""
-          - "-jmx"
-
-
 deploy_containers-a7:
   extends: .deploy_containers-a7_external
   rules:
@@ -70,13 +61,15 @@ deploy_containers-dogstatsd:
 
 
 deploy_containers-a7_internal:
-  extends: .deploy_containers-a7_internal
+  extends: .deploy_containers-a7-base
   rules:
-    !reference [.on_deploy_a7_internal_manual_auto_on_rc]
+    !reference [.on_deploy_a7_internal_manual_final]
+  variables:
+    JMX: "-jmx"
 
 
 deploy_containers-a7_internal-rc:
-  extends: .deploy_containers-a7_internal
+  extends: .deploy_containers-a7-base
   rules:
     !reference [.on_deploy_a7_internal_rc]
   variables:
@@ -117,9 +110,6 @@ deploy_containers_latest-a7_internal:
   dependencies: []
   parallel:
     matrix:
-      - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7"
-        IMG_SOURCES: "%BASE%-amd64,%BASE%-arm64,%BASE%-win1809-amd64,%BASE%-winltsc2022-amd64"
-        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7
       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx"
         IMG_SOURCES: "%BASE%-amd64,%BASE%-arm64,%BASE%-win1809-amd64,%BASE%-winltsc2022-amd64"
         IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-jmx
