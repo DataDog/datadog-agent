@@ -12,9 +12,14 @@ import (
 	"regexp"
 )
 
+type mapEntry struct {
+	Name string
+	Kind string
+}
+
 func main() {
 	prebuiltPath := "pkg/ebpf/bytecode/build/runtime/runtime-security.c"
-	mapMatcher := regexp.MustCompile(`BPF_(.*?)_MAP\((.*?),.*?\)`)
+	mapMatcher := regexp.MustCompile(`BPF_(.*?)_MAP\(\s*(.*?)\s*,.*?\)`)
 	defineMatcher := regexp.MustCompile(`\s*#define BPF`)
 
 	f, err := os.Open(prebuiltPath)
@@ -25,6 +30,7 @@ func main() {
 
 	scanner := bufio.NewScanner(f)
 
+	entries := make([]mapEntry, 0)
 	for scanner.Scan() {
 		line := scanner.Text()
 		if defineMatcher.MatchString(line) {
@@ -35,11 +41,15 @@ func main() {
 		for _, submatch := range submatches {
 			kind := submatch[1]
 			name := submatch[2]
-			fmt.Println(kind, name)
+			entries = append(entries, mapEntry{
+				Name: name,
+				Kind: kind,
+			})
 		}
 	}
-
 	if err := scanner.Err(); err != nil {
 		panic(err)
 	}
+
+	fmt.Println(entries)
 }
