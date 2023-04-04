@@ -59,7 +59,7 @@ type DBClient struct {
 	DBPath string
 }
 
-// NewDBClient returns a DB client that uses the DB stored in dbPath. 
+// NewDBClient returns a DB client that uses the DB stored in dbPath.
 func NewDBClient(dbPath string) *DBClient {
 	return &DBClient{
 		DBPath: dbPath,
