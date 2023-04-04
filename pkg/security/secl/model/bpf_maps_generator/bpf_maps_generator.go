@@ -32,10 +32,12 @@ func main() {
 	var (
 		runtimePath string
 		outputPath  string
+		packageName string
 	)
 
 	flag.StringVar(&runtimePath, "runtime-path", "", "path to the runtime generated path")
 	flag.StringVar(&outputPath, "output", "", "Output path of the generated file with the map names")
+	flag.StringVar(&packageName, "pkg-name", "", "Package name to use in the output")
 	flag.Parse()
 
 	mapMatcher := regexp.MustCompile(`BPF_(.*?)_MAP\(\s*(.*?)\s*,.*?\)`)
@@ -81,7 +83,7 @@ func main() {
 	}
 
 	if err := tmpl.Execute(outputFile, tmplContext{
-		PackageName: "test",
+		PackageName: packageName,
 		Entries:     entries,
 	}); err != nil {
 		panic(err)
