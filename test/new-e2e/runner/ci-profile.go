@@ -12,12 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner/parameters"
 )
 
-const (
-	workspaceFolder = "/tmp/e2e-workspace"
-)
-
 type ciProfile struct {
-	profile
+	baseProfile
 
 	ciUniqueID string
 }
@@ -46,8 +42,8 @@ func NewCIProfile() (Profile, error) {
 	}
 
 	return ciProfile{
-		profile:    newProfile("e2eci", []string{"aws/agent-qa"}, &secretStore),
-		ciUniqueID: pipelineID + "-" + projectID,
+		baseProfile: newProfile("e2eci", []string{"aws/agent-qa"}, &secretStore),
+		ciUniqueID:  pipelineID + "-" + projectID,
 	}, nil
 }
 
@@ -57,4 +53,8 @@ func (p ciProfile) RootWorkspacePath() string {
 
 func (p ciProfile) NamePrefix() string {
 	return p.ciUniqueID
+}
+
+func (p ciProfile) AllowDevMode() bool {
+	return false
 }

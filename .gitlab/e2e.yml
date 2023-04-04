@@ -141,13 +141,12 @@ k8s-e2e-otlp-main:
     - export AWS_PROFILE=agent-qa-ci
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
   script:
-    - inv -e new-e2e-tests.run --targets $TARGETS
+    - inv -e new-e2e-tests.run --targets $TARGETS $CONFIGPARAMS
 
-new-e2e-containers:
+new-e2e-containers-main:
   extends: .new_e2e_template
-  # needs:
-  #   - dev_master-a6
-  #   - dev_master-a7
-  dependencies: []
+  rules:
+    !reference [.on_main]
   variables:
     TARGETS: ./containers
+    CONFIGPARAMS: "-c ddagent:fullImagePath=datadog/agent-dev:master-py3"

@@ -7,6 +7,7 @@ package runner
 
 import (
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -25,8 +26,9 @@ const (
 )
 
 var (
-	runProfile  Profile
-	initProfile sync.Once
+	workspaceFolder = os.TempDir()
+	runProfile      Profile
+	initProfile     sync.Once
 )
 
 type Profile interface {
@@ -42,18 +44,20 @@ type Profile interface {
 	SecretStore() parameters.Store
 	// NamePrefix returns a prefix to name objects
 	NamePrefix() string
+	// AllowDevMode returns if DevMode is allowed
+	AllowDevMode() bool
 }
 
 // Shared implementations for common profiles methods
-type profile struct {
+type baseProfile struct {
 	projectName  string
 	environments []string
 	store        parameters.Store
 	secretStore  parameters.Store
 }
 
-func newProfile(projectName string, environments []string, secretStore *parameters.Store) profile {
-	p := profile{
+func newProfile(projectName string, environments []string, secretStore *parameters.Store) baseProfile {
+	p := baseProfile{
 		projectName:  projectName,
 		environments: environments,
 		store:        parameters.NewEnvStore(EnvPrefix),
@@ -68,26 +72,27 @@ func newProfile(projectName string, environments []string, secretStore *paramete
 	return p
 }
 
-func (p profile) EnvironmentNames() string {
+func (p baseProfile) EnvironmentNames() string {
 	return strings.Join(p.environments, envSep)
 }
 
-func (p profile) ProjectName() string {
+func (p baseProfile) ProjectName() string {
 	return p.projectName
 }
 
-func (p profile) ParamStore() parameters.Store {
+func (p baseProfile) ParamStore() parameters.Store {
 	return p.store
 }
 
-func (p profile) SecretStore() parameters.Store {
+func (p baseProfile) SecretStore() parameters.Store {
 	return p.secretStore
 }
 
 func GetProfile() Profile {
 	initProfile.Do(func() {
 		var profileFunc func() (Profile, error) = NewLocalProfile
-		if strings.ToLower(os.Getenv("CI")) == "true" || strings.ToLower(os.Getenv(strings.ToUpper(EnvPrefix+parameters.Profile))) == "ci" {
+		isCI, _ := strconv.ParseBool(os.Getenv("CI"))
+		if isCI || strings.ToLower(os.Getenv(strings.ToUpper(EnvPrefix+parameters.Profile))) == "ci" {
 			profileFunc = NewCIProfile
 		}
 

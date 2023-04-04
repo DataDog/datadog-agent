@@ -17,11 +17,11 @@ func NewLocalProfile() (Profile, error) {
 		return nil, fmt.Errorf("unable to create temporary folder at: %s, err: %w", workspaceFolder, err)
 	}
 
-	return localProfile{profile: newProfile("e2elocal", []string{"aws/sandbox"}, nil)}, nil
+	return localProfile{baseProfile: newProfile("e2elocal", []string{"aws/sandbox"}, nil)}, nil
 }
 
 type localProfile struct {
-	profile
+	baseProfile
 }
 
 func (p localProfile) RootWorkspacePath() string {
@@ -29,6 +29,8 @@ func (p localProfile) RootWorkspacePath() string {
 }
 
 func (p localProfile) NamePrefix() string {
+	// Stack names may only contain alphanumeric characters, hyphens, underscores, or periods.
+	// As NamePrefix is used as stack name, we sanitize the user name.
 	var username string
 	user, err := user.Current()
 	if err == nil {
@@ -53,4 +55,8 @@ func (p localProfile) NamePrefix() string {
 	username = strings.ReplaceAll(username, " ", "-")
 
 	return username
+}
+
+func (p localProfile) AllowDevMode() bool {
+	return true
 }

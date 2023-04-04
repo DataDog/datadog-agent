@@ -9,7 +9,6 @@ package e2e
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner"
@@ -64,6 +63,10 @@ type Suite[Env any] struct {
 	// These fields are initialized in SetupSuite
 	Env  *Env
 	auth client.Authentification
+
+	// Setting DevMode allows to skip deletion regardless of test results
+	// Unavailable in CI.
+	DevMode bool
 }
 
 type StackDefinition[Env any] struct {
@@ -114,6 +117,10 @@ func (suite *Suite[Env]) SetupSuite() {
 //
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (suite *Suite[Env]) HandleStats(string, stats *suite.SuiteInformation) {
+	if runner.GetProfile().AllowDevMode() && suite.DevMode {
+		return
+	}
+
 	skipDelete, _ := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipDeleteOnFailure, false)
 	if !stats.Passed() && skipDelete {
 		return
@@ -124,7 +131,8 @@ func (suite *Suite[Env]) HandleStats(string, stats *suite.SuiteInformation) {
 	defer cancel()
 	err := infra.GetStackManager().DeleteStack(ctx, suite.stackName)
 	if err != nil {
-		panic(fmt.Errorf("unable to delete stack: %s, err :%w", suite.stackName, err))
+		suite.T().Errorf("unable to delete stack: %s, err :%v", suite.stackName, err)
+		suite.T().Fail()
 	}
 }
 

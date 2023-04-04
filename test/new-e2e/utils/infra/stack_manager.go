@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path"
 	"runtime"
 	"strings"
 	"sync"
@@ -25,8 +26,8 @@ import (
 )
 
 const (
-	projectName = "dd-e2e"
-	nameSep     = "-"
+	nameSep               = "-"
+	e2eWorkspaceDirectory = "dd-e2e-workspace"
 
 	stackUpTimeout      = 60 * time.Minute
 	stackDestroyTimeout = 60 * time.Minute
@@ -34,6 +35,7 @@ const (
 )
 
 var (
+	workspaceFolder  = path.Join(os.TempDir(), e2eWorkspaceDirectory)
 	stackManager     *StackManager
 	initStackManager sync.Once
 )
@@ -63,7 +65,7 @@ func newStackManager(ctx context.Context) (*StackManager, error) {
 	}, nil
 }
 
-// GetStack creates or return a stack based on env+stack name
+// GetStack creates or return a stack based on stack name and config
 func (sm *StackManager) GetStack(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool) (*auto.Stack, auto.UpResult, error) {
 	sm.lock.RLock()
 	defer sm.lock.RUnlock()
@@ -142,13 +144,8 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 		return fmt.Errorf("unable to find stack, skipping deletion of: %s", stackID)
 	}
 
-	_, err := stack.Refresh(ctx)
-	if err != nil {
-		return err
-	}
-
 	destroyContext, cancel := context.WithTimeout(ctx, stackDestroyTimeout)
-	_, err = stack.Destroy(destroyContext, optdestroy.ProgressStreams(os.Stdout))
+	_, err := stack.Destroy(destroyContext, optdestroy.ProgressStreams(os.Stdout))
 	cancel()
 	if err != nil {
 		return err
@@ -162,7 +159,7 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 
 func buildWorkspace(ctx context.Context, profile runner.Profile, stackName string, runFunc pulumi.RunFunc) (auto.Workspace, error) {
 	project := workspace.Project{
-		Name:           tokens.PackageName(projectName),
+		Name:           tokens.PackageName(profile.ProjectName()),
 		Runtime:        workspace.NewProjectRuntimeInfo("go", nil),
 		Description:    pulumi.StringRef("E2E Test inline project"),
 		StackConfigDir: stackName,

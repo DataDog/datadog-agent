@@ -7,7 +7,7 @@ go 1.18
 // TODO: Implement hard check in CI
 
 require (
-	github.com/DataDog/test-infra-definitions v0.0.0-20230404095642-ce7c11c06e65
+	github.com/DataDog/test-infra-definitions v0.0.0-20230413171146-10597f8dcbbf
 	github.com/aws/aws-sdk-go-v2 v1.17.7
 	github.com/aws/aws-sdk-go-v2/config v1.18.19
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.33.2
