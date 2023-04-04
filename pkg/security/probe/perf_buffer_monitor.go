@@ -86,6 +86,9 @@ type PerfBufferMonitor struct {
 	lastTimestamp uint64
 	// shouldBumpGeneration is used to track if the dentry cache generations should be bumped
 	shouldBumpGeneration *atomic.Bool
+
+	// call that can be used to get notify when events are lost
+	onEventLost func(perfMapName string, perEvent map[string]uint64)
 }
 
 type ringBufferStatMap struct {
@@ -99,7 +102,7 @@ type perfBufferStatMap struct {
 }
 
 // NewPerfBufferMonitor instantiates a new event statistics counter
-func NewPerfBufferMonitor(p *Probe) (*PerfBufferMonitor, error) {
+func NewPerfBufferMonitor(p *Probe, onEventLost func(perfMapName string, perEvent map[string]uint64)) (*PerfBufferMonitor, error) {
 	pbm := PerfBufferMonitor{
 		probe:               p,
 		config:              p.Config.Probe,
@@ -116,6 +119,8 @@ func NewPerfBufferMonitor(p *Probe) (*PerfBufferMonitor, error) {
 		sortingErrorStats: make(map[string][model.MaxKernelEventType]*atomic.Int64),
 
 		shouldBumpGeneration: atomic.NewBool(false),
+
+		onEventLost: onEventLost,
 	}
 	numCPU, err := utils.NumCPU()
 	if err != nil {
@@ -448,13 +453,6 @@ func (pbm *PerfBufferMonitor) sendLostEventsReadStats(client statsd.ClientInterf
 				total += count
 			}
 		}
-
-		// Disable custom event for now
-		// if total > 0 {
-		// 	pbm.probe.DispatchCustomEvent(
-		// 		NewEventLostReadEvent(m, total),
-		// 	)
-		// }
 	}
 	return nil
 }
@@ -562,16 +560,8 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInte
 			}
 		}
 
-		// send an alert if events were lost
-		if total > 0 {
-			pbm.probe.DispatchCustomEvent(
-				NewEventLostWriteEvent(perfMapName, perEvent),
-			)
-
-			// snapshot traced cgroups if a CgroupTracing event was lost
-			if pbm.probe.IsActivityDumpEnabled() && perEvent[model.CgroupTracingEventType.String()] > 0 {
-				pbm.probe.monitor.activityDumpManager.SnapshotTracedCgroups()
-			}
+		if total > 0 && pbm.onEventLost != nil {
+			pbm.onEventLost(perfMapName, perEvent)
 		}
 	}
 	return nil

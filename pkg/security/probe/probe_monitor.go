@@ -15,24 +15,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 )
 
 // Monitor regroups all the work we want to do to monitor the probes we pushed in the kernel
 type Monitor struct {
 	probe *Probe
 
-	loadController         *LoadController
-	perfBufferMonitor      *PerfBufferMonitor
-	activityDumpManager    *dump.ActivityDumpManager
-	securityProfileManager *profile.SecurityProfileManager
-	runtimeMonitor         *RuntimeMonitor
-	discarderMonitor       *DiscarderMonitor
-	cgroupsMonitor         *CgroupsMonitor
+	loadController    *LoadController
+	perfBufferMonitor *PerfBufferMonitor
+	runtimeMonitor    *RuntimeMonitor
+	discarderMonitor  *DiscarderMonitor
+	cgroupsMonitor    *CgroupsMonitor
 }
 
 // NewMonitor returns a new instance of a ProbeMonitor
@@ -54,23 +49,9 @@ func (m *Monitor) Init() error {
 	}
 
 	// instantiate a new event statistics monitor
-	m.perfBufferMonitor, err = NewPerfBufferMonitor(p)
+	m.perfBufferMonitor, err = NewPerfBufferMonitor(p, p.onPerfEventLost)
 	if err != nil {
 		return fmt.Errorf("couldn't create the events statistics monitor: %w", err)
-	}
-
-	if p.IsActivityDumpEnabled() {
-		m.activityDumpManager, err = dump.NewActivityDumpManager(p.Config, p.StatsdClient, func() *model.Event { return NewEvent(p.fieldHandlers) }, p.resolvers.ProcessResolver, p.resolvers.TimeResolver, p.resolvers.TagsResolver, p.kernelVersion, p.scrubber, p.Manager)
-		if err != nil {
-			return fmt.Errorf("couldn't create the activity dump manager: %w", err)
-		}
-	}
-
-	if p.Config.RuntimeSecurity.SecurityProfileEnabled {
-		m.securityProfileManager, err = profile.NewSecurityProfileManager(p.Config, p.StatsdClient, p.resolvers.CGroupResolver, p.Manager)
-		if err != nil {
-			return fmt.Errorf("couldn't create the security profile manager: %w", err)
-		}
 	}
 
 	if p.Config.Probe.RuntimeMonitor {
@@ -92,27 +73,12 @@ func (m *Monitor) GetPerfBufferMonitor() *PerfBufferMonitor {
 	return m.perfBufferMonitor
 }
 
-// GetActivityDumpManager returns the activity dump manager
-func (m *Monitor) GetActivityDumpManager() *dump.ActivityDumpManager {
-	return m.activityDumpManager
-}
-
 // Start triggers the goroutine of all the underlying controllers and monitors of the Monitor
 func (m *Monitor) Start(ctx context.Context, wg *sync.WaitGroup) error {
-	delta := 1
-	if m.activityDumpManager != nil {
-		delta++
-	}
-	wg.Add(delta)
+	wg.Add(1)
 
 	go m.loadController.Start(ctx, wg)
 
-	if m.activityDumpManager != nil {
-		go m.activityDumpManager.Start(ctx, wg)
-	}
-	if m.securityProfileManager != nil {
-		go m.securityProfileManager.Start(ctx)
-	}
 	return nil
 }
 
@@ -153,18 +119,6 @@ func (m *Monitor) SendStats() error {
 		return fmt.Errorf("failed to send load controller stats: %w", err)
 	}
 
-	if m.activityDumpManager != nil {
-		if err := m.activityDumpManager.SendStats(); err != nil {
-			return fmt.Errorf("failed to send activity dump manager stats: %w", err)
-		}
-	}
-
-	if m.securityProfileManager != nil {
-		if err := m.securityProfileManager.SendStats(); err != nil {
-			return fmt.Errorf("failed to send security profile manager stats: %w", err)
-		}
-	}
-
 	if m.probe.Config.Probe.RuntimeMonitor {
 		if err := m.runtimeMonitor.SendStats(); err != nil {
 			return fmt.Errorf("failed to send runtime monitor stats: %w", err)
@@ -194,56 +148,5 @@ func (m *Monitor) ProcessEvent(event *model.Event) {
 				NewAbnormalPathEvent(event, m.probe, err),
 			)
 		}
-	} else {
-		if m.activityDumpManager != nil {
-			m.activityDumpManager.ProcessEvent(event)
-		}
 	}
-}
-
-// ErrActivityDumpManagerDisabled is returned when the activity dump manager is disabled
-var ErrActivityDumpManagerDisabled = errors.New("ActivityDumpManager is disabled")
-
-// DumpActivity handles an activity dump request
-func (m *Monitor) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
-	if !m.probe.IsActivityDumpEnabled() {
-		return &api.ActivityDumpMessage{
-			Error: ErrActivityDumpManagerDisabled.Error(),
-		}, ErrActivityDumpManagerDisabled
-	}
-	return m.activityDumpManager.DumpActivity(params)
-}
-
-// ListActivityDumps returns the list of active dumps
-func (m *Monitor) ListActivityDumps(params *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
-	if !m.probe.IsActivityDumpEnabled() {
-		return &api.ActivityDumpListMessage{
-			Error: ErrActivityDumpManagerDisabled.Error(),
-		}, ErrActivityDumpManagerDisabled
-	}
-	return m.activityDumpManager.ListActivityDumps(params)
-}
-
-// StopActivityDump stops an active activity dump
-func (m *Monitor) StopActivityDump(params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
-	if !m.probe.IsActivityDumpEnabled() {
-		return &api.ActivityDumpStopMessage{
-			Error: ErrActivityDumpManagerDisabled.Error(),
-		}, ErrActivityDumpManagerDisabled
-	}
-	return m.activityDumpManager.StopActivityDump(params)
-}
-
-// GenerateTranscoding encodes an activity dump following the input parameters
-func (m *Monitor) GenerateTranscoding(params *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
-	if !m.probe.IsActivityDumpEnabled() {
-		return &api.TranscodingRequestMessage{
-			Error: ErrActivityDumpManagerDisabled.Error(),
-		}, ErrActivityDumpManagerDisabled
-	}
-	return m.activityDumpManager.TranscodingRequest(params)
-}
-
-func (m *Monitor) GetActivityDumpTracedEventTypes() []model.EventType {
-	return m.probe.Config.RuntimeSecurity.ActivityDumpTracedEventTypes
 }

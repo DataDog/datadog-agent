@@ -119,7 +119,9 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, config *config.RuntimeSecuri
 	}
 
 	// Activity dumps related
-	evm.Probe.AddActivityDumpHandler(c)
+	if adm := evm.Probe.GetProfileHandler().GetActivityDumpManager(); adm != nil {
+		adm.AddActivityDumpHandler(c)
+	}
 
 	// policy loader
 	c.policyLoader = rules.NewPolicyLoader()

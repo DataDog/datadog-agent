@@ -237,6 +237,16 @@ func (c *RuntimeSecurityConfig) IsRuntimeEnabled() bool {
 	return c.RuntimeEnabled || c.FIMEnabled
 }
 
+// IsActivityDumpEnabled returns true if AD is enabled
+func (c *RuntimeSecurityConfig) IsActivityDumpEnabled() bool {
+	return c.ActivityDumpEnabled
+}
+
+// IsActivityDumpTagRulesEnabled returns true is AD with rules tags is enabled
+func (c *RuntimeSecurityConfig) IsActivityDumpTagRulesEnabled() bool {
+	return c.ActivityDumpTagRulesEnabled
+}
+
 // sanitize ensures that the configuration is properly setup
 func (c *RuntimeSecurityConfig) sanitize() error {
 	// if runtime is enabled then we force fim

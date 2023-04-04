@@ -165,8 +165,8 @@ func (a *APIServer) DumpProcessCache(ctx context.Context, params *api.DumpProces
 
 // DumpActivity handle an activity dump request
 func (a *APIServer) DumpActivity(ctx context.Context, params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
-	if monitor := a.probe.GetMonitor(); monitor != nil {
-		msg, err := monitor.DumpActivity(params)
+	if handler := a.probe.GetProfileHandler(); handler != nil {
+		msg, err := handler.DumpActivity(params)
 		if err != nil {
 			seclog.Errorf(err.Error())
 		}
@@ -178,8 +178,8 @@ func (a *APIServer) DumpActivity(ctx context.Context, params *api.ActivityDumpPa
 
 // ListActivityDumps returns the list of active dumps
 func (a *APIServer) ListActivityDumps(ctx context.Context, params *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
-	if monitor := a.probe.GetMonitor(); monitor != nil {
-		msg, err := monitor.ListActivityDumps(params)
+	if handler := a.probe.GetProfileHandler(); handler != nil {
+		msg, err := handler.ListActivityDumps(params)
 		if err != nil {
 			seclog.Errorf(err.Error())
 		}
@@ -191,8 +191,8 @@ func (a *APIServer) ListActivityDumps(ctx context.Context, params *api.ActivityD
 
 // StopActivityDump stops an active activity dump if it exists
 func (a *APIServer) StopActivityDump(ctx context.Context, params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
-	if monitor := a.probe.GetMonitor(); monitor != nil {
-		msg, err := monitor.StopActivityDump(params)
+	if handler := a.probe.GetProfileHandler(); handler != nil {
+		msg, err := handler.StopActivityDump(params)
 		if err != nil {
 			seclog.Errorf(err.Error())
 		}
@@ -204,8 +204,8 @@ func (a *APIServer) StopActivityDump(ctx context.Context, params *api.ActivityDu
 
 // TranscodingRequest encodes an activity dump following the requested parameters
 func (a *APIServer) TranscodingRequest(ctx context.Context, params *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
-	if monitor := a.probe.GetMonitor(); monitor != nil {
-		msg, err := monitor.GenerateTranscoding(params)
+	if handler := a.probe.GetProfileHandler(); handler != nil {
+		msg, err := handler.GenerateTranscoding(params)
 		if err != nil {
 			seclog.Errorf(err.Error())
 		}
@@ -364,7 +364,7 @@ func (a *APIServer) GetConfig(ctx context.Context, params *api.GetConfigParams) 
 		return &api.SecurityConfigMessage{
 			FIMEnabled:          a.cfg.FIMEnabled,
 			RuntimeEnabled:      a.cfg.RuntimeEnabled,
-			ActivityDumpEnabled: a.probe.IsActivityDumpEnabled(),
+			ActivityDumpEnabled: a.cfg.IsActivityDumpEnabled(),
 		}, nil
 	}
 	return &api.SecurityConfigMessage{}, nil

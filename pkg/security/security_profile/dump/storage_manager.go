@@ -61,7 +61,7 @@ func NewSecurityAgentStorageManager() (*ActivityDumpStorageManager, error) {
 }
 
 // NewActivityDumpStorageManager returns a new instance of ActivityDumpStorageManager
-func NewActivityDumpStorageManager(cfg *config.Config, statsdClient statsd.ClientInterface, handler ActivityDumpHandler) (*ActivityDumpStorageManager, error) {
+func NewActivityDumpStorageManager(cfg *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface, handler ActivityDumpHandler) (*ActivityDumpStorageManager, error) {
 	manager := &ActivityDumpStorageManager{
 		storages:     make(map[config.StorageType]ActivityDumpStorage),
 		statsdClient: statsdClient,
