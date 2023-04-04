@@ -48,6 +48,9 @@ func BPFLoad() error {
 			{
 				Name: "cache",
 			},
+			{
+				Name: "path_id",
+			},
 		},
 	}
 	defer func() {
