@@ -5,8 +5,8 @@ from invoke import Exit, task
 from .libs.github_actions_tools import (
     download_artifacts,
     follow_workflow_run,
-    trigger_macos_workflow,
     print_workflow_conclusion,
+    trigger_macos_workflow,
 )
 from .utils import DEFAULT_BRANCH, load_release_versions
 
