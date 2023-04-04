@@ -1195,9 +1195,7 @@ proxy:
 	assert.Equal(t, false, testConfig.GetBool("logs_config.logs_no_ssl"))
 	assert.Equal(t, false, testConfig.GetBool("runtime_security_config.endpoints.use_http"))
 	assert.Equal(t, false, testConfig.GetBool("runtime_security_config.endpoints.logs_no_ssl"))
-	assert.NotNil(t, GetProxies())
-	// reseting proxies
-	proxies = nil
+	assert.NotNil(t, testConfig.GetProxies())
 
 	datadogYamlFips := datadogYaml + `
 fips:
@@ -1219,7 +1217,7 @@ fips:
 	assert.Equal(t, true, testConfig.GetBool("logs_config.logs_no_ssl"))
 	assert.Equal(t, true, testConfig.GetBool("runtime_security_config.endpoints.use_http"))
 	assert.Equal(t, true, testConfig.GetBool("runtime_security_config.endpoints.logs_no_ssl"))
-	assert.Nil(t, GetProxies())
+	assert.Nil(t, testConfig.GetProxies())
 
 	datadogYamlFips = datadogYaml + `
 fips:
@@ -1243,7 +1241,7 @@ fips:
 	assert.Equal(t, true, testConfig.GetBool("runtime_security_config.endpoints.use_http"))
 	assert.Equal(t, false, testConfig.GetBool("runtime_security_config.endpoints.logs_no_ssl"))
 	assert.Equal(t, true, testConfig.GetBool("skip_ssl_validation"))
-	assert.Nil(t, GetProxies())
+	assert.Nil(t, testConfig.GetProxies())
 
 	testConfig.Set("skip_ssl_validation", true) // should be overridden by fips.tls_verify
 	testConfig.Set("fips.tls_verify", true)
@@ -1252,7 +1250,7 @@ fips:
 	require.NoError(t, err)
 
 	assert.Equal(t, false, testConfig.GetBool("skip_ssl_validation"))
-	assert.Nil(t, GetProxies())
+	assert.Nil(t, testConfig.GetProxies())
 }
 
 func assertFipsProxyExpectedConfig(t *testing.T, expectedBaseHTTPURL, expectedBaseURL string, rng bool, c Config) {
