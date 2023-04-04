@@ -142,12 +142,12 @@ def follow_workflow_run(run_id):
         minutes += 1
         sleep(60)
 
+
 def print_workflow_conclusion(conclusion):
     if conclusion == "success":
         print(color_message("Workflow run succeeded", "green"))
     else:
         print(color_message(f"Workflow run ended with state: {conclusion}", "red"))
-
 
 
 def download_artifacts(run_id, destination="."):

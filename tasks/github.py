@@ -2,7 +2,12 @@ import os
 
 from invoke import Exit, task
 
-from .libs.github_actions_tools import download_artifacts, follow_workflow_run, trigger_macos_workflow, print_workflow_conclusion
+from .libs.github_actions_tools import (
+    download_artifacts,
+    follow_workflow_run,
+    trigger_macos_workflow,
+    print_workflow_conclusion,
+)
 from .utils import DEFAULT_BRANCH, load_release_versions
 
 
@@ -67,6 +72,7 @@ def trigger_macos_test(
 
     if workflow_conclusion != "success":
         raise Exit(code=1)
+
 
 @task
 def lint_codeowner(_):
