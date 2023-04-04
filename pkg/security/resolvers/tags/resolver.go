@@ -104,6 +104,7 @@ func NewResolver(config *config.Config) *Resolver {
 // Resolove image_id
 func (t *Resolver) ImageIDResolver(containerID string) string {
 	var imageID string
+	var imageName string
 	m := workloadmeta.GetGlobalStore()
 
 	// Get imageID from container with ID == containerID
@@ -111,6 +112,7 @@ func (t *Resolver) ImageIDResolver(containerID string) string {
 	for _, container := range containers {
 		if container.ID == containerID {
 			imageID = container.Image.ID
+			imageName = container.Image.Name
 		}
 	}
 
@@ -132,6 +134,6 @@ func (t *Resolver) ImageIDResolver(containerID string) string {
 			return repo + "@" + imageID
 		}
 	}
-	// If repo is empty or if could not find it, return imageID without repo
-	return imageID
+	// If repo is empty or if could not find it, return imageName+@+imageID
+	return imageName + "@" + imageID
 }
