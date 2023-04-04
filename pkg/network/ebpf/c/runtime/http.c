@@ -777,23 +777,6 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
     // Read the PID and goroutine ID to make the partial call key
     go_tls_function_args_key_t call_key = {0};
     call_key.pid = pid;
-
-    uint64_t bytes_read = 0;
-    if (read_location(ctx, &od->read_return_bytes, sizeof(bytes_read), &bytes_read)) {
-        log_debug("[go-tls-read-return] failed reading return bytes location for pid %d\n", pid);
-        return 0;
-    }
-
-    if (bytes_read <= 0) {
-        log_debug("[go-tls-read-return] read returned non-positive for amount of bytes read for pid: %d\n", pid);
-        return 0;
-    }
-
-    // Errors like "EOF" of "unexpected EOF" can be treated as no error by the hooked program.
-    // Therefore, if we choose to ignore data if read had returned these errors we may have accuracy issues.
-    // For now for success validation we chose to check only the amount of bytes read
-    // and make sure it's greater than zero.
-
     if (read_goroutine_id(ctx, &od->goroutine_id, &call_key.goroutine_id)) {
         log_debug("[go-tls-read-return] failed reading go routine id for pid %d\n", pid);
         return 0;
@@ -804,6 +787,24 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
         log_debug("[go-tls-read-return] no read information in read-return for pid %d\n", pid);
         return 0;
     }
+
+    uint64_t bytes_read = 0;
+    if (read_location(ctx, &od->read_return_bytes, sizeof(bytes_read), &bytes_read)) {
+        log_debug("[go-tls-read-return] failed reading return bytes location for pid %d\n", pid);
+        bpf_map_delete_elem(&go_tls_read_args, &call_key);
+        return 0;
+    }
+
+    if (bytes_read <= 0) {
+        log_debug("[go-tls-read-return] read returned non-positive for amount of bytes read for pid: %d\n", pid);
+        bpf_map_delete_elem(&go_tls_read_args, &call_key);
+        return 0;
+    }
+
+    // Errors like "EOF" of "unexpected EOF" can be treated as no error by the hooked program.
+    // Therefore, if we choose to ignore data if read had returned these errors we may have accuracy issues.
+    // For now for success validation we chose to check only the amount of bytes read
+    // and make sure it's greater than zero.
 
     conn_tuple_t* t = conn_tup_from_tls_conn(od, (void*) call_data_ptr->conn_pointer, pid_tgid);
     if (t == NULL) {
@@ -827,6 +828,14 @@ int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
     if (od == NULL) {
         log_debug("[go-tls-close] no offsets data in map for pid %d\n", pid_tgid >> 32);
         return 0;
+    }
+
+    // Read the PID and goroutine ID to make the partial call key
+    go_tls_function_args_key_t call_key = {0};
+    call_key.pid = pid_tgid >> 32;
+    if (read_goroutine_id(ctx, &od->goroutine_id, &call_key.goroutine_id) == 0) {
+        bpf_map_delete_elem(&go_tls_read_args, &call_key);
+        bpf_map_delete_elem(&go_tls_write_args, &call_key);
     }
 
     void* conn_pointer = NULL;
