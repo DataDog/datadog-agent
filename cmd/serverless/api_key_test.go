@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
@@ -108,7 +107,6 @@ func TestExtractRegionFromMalformedPrefixSecretsManagerArnPrefix(t *testing.T) {
 }
 
 func TestSendAPIKeyToShellSuccess(t *testing.T) {
-	os.Setenv("DD_SHELL_ENABLED", "true")
 	port := testutil.FreeTCPPort(t)
 	hostAndPort := fmt.Sprintf("%s%d", "localhost:", port)
 	listen, err := net.Listen("tcp", hostAndPort)
@@ -120,19 +118,7 @@ func TestSendAPIKeyToShellSuccess(t *testing.T) {
 }
 
 func TestSendApiKeyToShellError(t *testing.T) {
-	os.Setenv("DD_SHELL_ENABLED", "true")
-	defer os.Unsetenv("DD_SHELL_ENABLED")
 	assert.False(t, sendAPIKeyToShell("abcd", "localhost:invalid"))
-}
-
-func TestSendApiKeyToShellIsDisabledByDefault(t *testing.T) {
-	assert.True(t, sendAPIKeyToShell("abcd", "localhost:1234"))
-}
-
-func TestSendApiKeyToShellIsDisabledBecauseNotTrue(t *testing.T) {
-	os.Setenv("DD_SHELL_ENABLED", "false")
-	defer os.Unsetenv("DD_SHELL_ENABLED")
-	assert.True(t, sendAPIKeyToShell("abcd", "localhost:1234"))
 }
 
 func TestDDApiKey(t *testing.T) {
