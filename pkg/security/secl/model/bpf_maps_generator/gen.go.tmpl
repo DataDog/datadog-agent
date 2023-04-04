@@ -7,6 +7,6 @@ package {{ .PackageName }}
 
 var bpfMapNames = []string{
 {{- range .Entries }}
-    "{{ .Name }}",
+    "{{ .TrimmedName }}",
 {{- end }}
 }

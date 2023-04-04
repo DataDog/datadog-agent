@@ -19,8 +19,9 @@ import (
 var templateSrc string
 
 type mapEntry struct {
-	Name string
-	Kind string
+	Name        string
+	TrimmedName string
+	Kind        string
 }
 
 type tmplContext struct {
@@ -62,9 +63,16 @@ func main() {
 		for _, submatch := range submatches {
 			kind := submatch[1]
 			name := submatch[2]
+
+			trimmed := name
+			if len(name) > 16 {
+				trimmed = name[:16]
+			}
+
 			entries = append(entries, mapEntry{
-				Name: name,
-				Kind: kind,
+				Name:        name,
+				TrimmedName: trimmed,
+				Kind:        kind,
 			})
 		}
 	}
