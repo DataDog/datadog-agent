@@ -266,7 +266,7 @@ func NewPersistentCache(
 
 	var evicted []string
 	if err = localDB.ForEach(func(key string, value []byte) error {
-		if ok := lruCache.Add(key, struct{}{}); ok {
+		if ok := persistentCache.addKeyInMemory(key); ok {
 			evicted = append(evicted, persistentCache.lastEvicted)
 		}
 		persistentCache.addCurrentCachedObjectTotalSize(len(value))
@@ -307,7 +307,6 @@ func (c *PersistentCache) Keys() []string {
 func (c *PersistentCache) Len() int {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
-
 	return c.lruCache.Len()
 }
 
@@ -326,13 +325,13 @@ func (c *PersistentCache) Clear() error {
 
 // removeOldest removes the least recently used item from the cache.
 func (c *PersistentCache) removeOldest() error {
-	key, _, ok := c.lruCache.RemoveOldest()
+	key, ok := c.removeOldestKeyFromMemory()
 	if !ok {
 		return fmt.Errorf("in-memory cache is empty")
 	}
 
 	evicted := 0
-	if err := c.db.Delete([]string{key.(string)}, func(key string, value []byte) error {
+	if err := c.db.Delete([]string{key}, func(key string, value []byte) error {
 		evicted += len(value)
 		return nil
 	}); err != nil {
@@ -388,14 +387,14 @@ func (c *PersistentCache) set(key string, value []byte) error {
 		return fmt.Errorf("failed to reduce the size of the cache to store [%s]: %v", key, err)
 	}
 
-	if evict := c.lruCache.Add(key, struct{}{}); evict {
+	if evict := c.addKeyInMemory(key); evict {
 		evictedSize := 0
 		if err := c.db.Delete([]string{c.lastEvicted}, func(_ string, value []byte) error {
 			evictedSize += len(value)
 			return nil
 		}); err != nil {
-			c.lruCache.Remove(key)
-			c.lruCache.Add(c.lastEvicted, struct{}{})
+			c.removeKeyFromMemory(key)
+			c.addKeyInMemory(c.lastEvicted)
 			return err
 		}
 		c.subCurrentCachedObjectTotalSize(evictedSize)
@@ -403,7 +402,7 @@ func (c *PersistentCache) set(key string, value []byte) error {
 
 	err := c.db.Store(key, value)
 	if err != nil {
-		c.lruCache.Remove(key)
+		c.removeKeyFromMemory(key)
 		return err
 	}
 
@@ -446,7 +445,7 @@ func (c *PersistentCache) remove(keys []string) error {
 	}
 
 	for _, key := range keys {
-		_ = c.lruCache.Remove(key)
+		_ = c.removeKeyFromMemory(key)
 	}
 
 	c.subCurrentCachedObjectTotalSize(removedSize)
@@ -458,6 +457,35 @@ func (c *PersistentCache) Remove(keys []string) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	return c.remove(keys)
+}
+
+// addKeyInMemory adds the provided key in the lrucache, returning if an entry was evicted.
+func (c *PersistentCache) addKeyInMemory(key string) bool {
+	ok := c.lruCache.Add(key, struct{}{})
+	if !ok {
+		telemetry.SBOMCacheEntries.Inc()
+	}
+	return ok
+}
+
+// removeKeyFromMemory removes the provided key from the lrucache, returning if the
+// key was contained.
+func (c *PersistentCache) removeKeyFromMemory(key string) bool {
+	ok := c.lruCache.Remove(key)
+	if ok {
+		telemetry.SBOMCacheEntries.Dec()
+	}
+	return ok
+}
+
+// removeOldestKeyFromMemory removes the oldest key from the lrucache returning the key and
+// if a key was removed.
+func (c *PersistentCache) removeOldestKeyFromMemory() (string, bool) {
+	key, _, ok := c.lruCache.RemoveOldest()
+	if ok {
+		telemetry.SBOMCacheEntries.Dec()
+	}
+	return key.(string), ok
 }
 
 // GetCurrentCachedObjectTotalSize returns the current cached object total size.

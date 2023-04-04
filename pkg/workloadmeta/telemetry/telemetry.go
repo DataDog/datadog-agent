@@ -109,8 +109,8 @@ var (
 		commonOpts,
 	)
 
-	// SBOM cached keys in memory
-	SBOMCacheMemSize = telemetry.NewGaugeWithOpts(
+	// SBOM number of cache keys stored in memory
+	SBOMCacheEntries = telemetry.NewGaugeWithOpts(
 		subsystem,
 		"sbom_cached_keys",
 		[]string{},
