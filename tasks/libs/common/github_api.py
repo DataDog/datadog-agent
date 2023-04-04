@@ -101,6 +101,7 @@ class GithubAPI(RemoteAPI):
                     method=method,
                 )
             except APIError as e:
+                # Allows 5XX error code to be retried
                 if 500 <= e.status_code < 600:
                     time.sleep(self.requests_sleep_time + retry_count * self.requests_sleep_time)
                 else:
