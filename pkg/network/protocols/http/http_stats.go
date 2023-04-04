@@ -79,26 +79,12 @@ type Key struct {
 // NewKey generates a new Key
 func NewKey(saddr, daddr util.Address, sport, dport uint16, path string, fullPath bool, method Method) Key {
 	return Key{
-		FourTuple: NewFourTuple(saddr, daddr, sport, dport),
+		FourTuple: types.NewFourTuple(saddr, daddr, sport, dport),
 		Path: Path{
 			Content:  path,
 			FullPath: fullPath,
 		},
 		Method: method,
-	}
-}
-
-// NewFourTuple generates a new FourTuple
-func NewFourTuple(saddr, daddr util.Address, sport, dport uint16) types.FourTuple {
-	saddrl, saddrh := util.ToLowHigh(saddr)
-	daddrl, daddrh := util.ToLowHigh(daddr)
-	return types.FourTuple{
-		SrcIPHigh: saddrh,
-		SrcIPLow:  saddrl,
-		SrcPort:   sport,
-		DstIPHigh: daddrh,
-		DstIPLow:  daddrl,
-		DstPort:   dport,
 	}
 }
 

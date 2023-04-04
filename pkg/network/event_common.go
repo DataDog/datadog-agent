@@ -412,15 +412,15 @@ func printAddress(address util.Address, names []dns.Hostname) string {
 // FourTuplesFromConn constructs four tuples using the underlying raw connection stats object, which is produced by the tracer.
 // Each ConnectionStats object contains both the source and destination addresses, as well as an IPTranslation object that stores the original addresses in the event that the connection is NAT'd.
 // This function generates all relevant combinations of connection keys: [(source, dest), (dest, source), (NAT'd source, NAT'd dest), (NAT'd dest, NAT'd source)].
-// This is necessary to handle all possible scenarios for connections originating from the USM HTTP module (i.e., whether they are NAT'd or not, and whether they use TLS or plain HTTP).
+// This is necessary to handle all possible scenarios for connections originating from the USM module (i.e., whether they are NAT'd or not, and whether they use TLS).
 func FourTuplesFromConn(connectionStats ConnectionStats) []types.FourTuple {
 
-	// HTTP data is always indexed as (client, server), but we don't know which is the remote
+	// USM data is always indexed as (client, server), but we don't know which is the remote
 	// and which is the local address. To account for this, we'll construct 2 possible
-	// http keys and check for both of them in our http aggregations map.
+	// four tuples and check for both of them in the aggregations map.
 	fourTuples := []types.FourTuple{
-		http.NewFourTuple(connectionStats.Source, connectionStats.Dest, connectionStats.SPort, connectionStats.DPort),
-		http.NewFourTuple(connectionStats.Dest, connectionStats.Source, connectionStats.DPort, connectionStats.SPort),
+		types.NewFourTuple(connectionStats.Source, connectionStats.Dest, connectionStats.SPort, connectionStats.DPort),
+		types.NewFourTuple(connectionStats.Dest, connectionStats.Source, connectionStats.DPort, connectionStats.SPort),
 	}
 
 	// if IPTranslation is not nil, at least one of the sides has a translation, thus we need to add translated addresses.
@@ -428,8 +428,8 @@ func FourTuplesFromConn(connectionStats ConnectionStats) []types.FourTuple {
 		localAddress, localPort := GetNATLocalAddress(connectionStats)
 		remoteAddress, remotePort := GetNATRemoteAddress(connectionStats)
 		fourTuples = append(fourTuples,
-			http.NewFourTuple(localAddress, remoteAddress, localPort, remotePort),
-			http.NewFourTuple(remoteAddress, localAddress, remotePort, localPort))
+			types.NewFourTuple(localAddress, remoteAddress, localPort, remotePort),
+			types.NewFourTuple(remoteAddress, localAddress, remotePort, localPort))
 	}
 
 	return fourTuples
