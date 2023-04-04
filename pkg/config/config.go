@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/podman"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"gopkg.in/yaml.v2"
@@ -632,7 +633,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("container_labels_as_tags", map[string]string{})
 
 	// Podman
-	config.BindEnvAndSetDefault("podman_db_path", "/var/lib/containers/storage/libpod/bolt_state.db")
+	config.BindEnvAndSetDefault("podman_db_path", podman.DefaultDBPath)
 
 	// Kubernetes
 	config.BindEnvAndSetDefault("kubernetes_kubelet_host", "")
