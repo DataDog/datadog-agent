@@ -8,6 +8,7 @@ package main
 import (
 	"bufio"
 	_ "embed"
+	"flag"
 	"os"
 	"regexp"
 	"text/template"
@@ -27,11 +28,19 @@ type tmplContext struct {
 }
 
 func main() {
-	prebuiltPath := "pkg/ebpf/bytecode/build/runtime/runtime-security.c"
+	var (
+		runtimePath string
+		outputPath  string
+	)
+
+	flag.StringVar(&runtimePath, "runtime-path", "", "path to the runtime generated path")
+	flag.StringVar(&outputPath, "output", "", "Output path of the generated file with the map names")
+	flag.Parse()
+
 	mapMatcher := regexp.MustCompile(`BPF_(.*?)_MAP\(\s*(.*?)\s*,.*?\)`)
 	defineMatcher := regexp.MustCompile(`\s*#define BPF`)
 
-	f, err := os.Open(prebuiltPath)
+	f, err := os.Open(runtimePath)
 	if err != nil {
 		panic(err)
 	}
