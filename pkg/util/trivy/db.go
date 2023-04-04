@@ -62,12 +62,14 @@ func NewBoltDB(cacheDir string) (BoltDB, error) {
 		return BoltDB{}, fmt.Errorf("unable to open DB: %v", err)
 	}
 
-	err = db.Update(func(tx *bolt.Tx) error {
+	if err = db.Update(func(tx *bolt.Tx) error {
 		if _, err := tx.CreateBucketIfNotExists([]byte(boltBucket)); err != nil {
 			return fmt.Errorf("unable to create %s bucket: %v", boltBucket, err)
 		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
 
 	return BoltDB{
 		db:        db,

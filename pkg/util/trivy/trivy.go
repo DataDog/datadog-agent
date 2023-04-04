@@ -104,10 +104,6 @@ func cacheProvider(cacheLocation string, useCustomCache bool) func() (cache.Cach
 	return func() (cache.Cache, error) { return NewBoltCache(cacheLocation) }
 }
 
-func cacheTTL() time.Duration {
-	return time.Duration(config.Datadog.GetInt("container_image_collection.sbom.cache_ttl")) * time.Second
-}
-
 func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
 	sort.Strings(enabledAnalyzers)
 	analyzersDisabled := func(analyzers string) bool {

@@ -232,7 +232,6 @@ func NewMaintainer(gcTick time.Duration, telemetryTick time.Duration) *Maintaine
 
 // PersistentCache is a cache that uses a persistent database for storage.
 type PersistentCache struct {
-	ctx                          context.Context
 	lruCache                     *simplelru.LRU
 	db                           PersistentDB
 	mutex                        sync.RWMutex
