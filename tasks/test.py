@@ -883,6 +883,6 @@ def junit_upload(_, tgz_path):
 def junit_macos_repack(_, infile, outfile):
     """
     Repacks JUnit tgz file from macOS Github Action run, so it would
-    containt correct job name and job URL.
+    contain correct job name and job URL.
     """
     repack_macos_junit_tar(infile, outfile)
