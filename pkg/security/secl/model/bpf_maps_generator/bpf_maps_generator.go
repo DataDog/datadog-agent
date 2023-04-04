@@ -29,6 +29,8 @@ type tmplContext struct {
 	Entries     []mapEntry
 }
 
+const BPF_MAX_OBJ_SIZE = 15 // 16 - 1 for the \0
+
 func main() {
 	var (
 		runtimePath string
@@ -65,8 +67,8 @@ func main() {
 			name := submatch[2]
 
 			trimmed := name
-			if len(name) > 16 {
-				trimmed = name[:16]
+			if len(name) > BPF_MAX_OBJ_SIZE {
+				trimmed = name[:BPF_MAX_OBJ_SIZE]
 			}
 
 			entries = append(entries, mapEntry{
