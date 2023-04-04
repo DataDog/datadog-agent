@@ -121,6 +121,9 @@ kernel_matrix_testing_setup_env:
     LibvirtSSHKeyX86: $CI_PROJECT_DIR/libvirt_rsa-x86
     LibvirtSSHKeyARM: $CI_PROJECT_DIR/libvirt_rsa-arm
     STACK_DIR: $CI_PROJECT_DIR/stack.dir
+    # The ssh key is created by the pulumi scenario, to be used for creating
+    # instances in the build-stable account. We reuse this file to ssh into
+    # the instances in subsequent jobs.
     AWS_SSH_KEY: ./aws-ssh-key
   script:
     - echo s3://dd-ci-datadog-agent-omnibus-cache-build-stable/kernel-matrix-testing/$CI_PIPELINE_ID/$CI_JOB_ID/pulumi > $STACK_DIR
