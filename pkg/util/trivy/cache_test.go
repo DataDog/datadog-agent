@@ -3,9 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build trivy
-// +build trivy
-
 package trivy
 
 import (
@@ -28,7 +25,7 @@ var (
 )
 
 func TestBoltCache_Artifacts(t *testing.T) {
-	cache, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize, defaultGcInterval)
+	cache, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -49,7 +46,7 @@ func TestBoltCache_Artifacts(t *testing.T) {
 }
 
 func TestBoltCache_Blobs(t *testing.T) {
-	cache, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize, defaultGcInterval)
+	cache, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -70,7 +67,7 @@ func TestBoltCache_Blobs(t *testing.T) {
 }
 
 func TestBoltCache_DeleteBlobs(t *testing.T) {
-	cache, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize, defaultGcInterval)
+	cache, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -104,7 +101,7 @@ func TestBoltCache_DeleteBlobs(t *testing.T) {
 }
 
 func TestBoltCache_MissingBlobs(t *testing.T) {
-	cache, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize, defaultGcInterval)
+	cache, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -136,7 +133,7 @@ func TestBoltCache_MissingBlobs(t *testing.T) {
 }
 
 func TestBoltCache_Clear(t *testing.T) {
-	cache, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize, defaultGcInterval)
+	cache, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -155,7 +152,7 @@ func TestBoltCache_Clear(t *testing.T) {
 }
 
 func TestBoltCache_CurrentObjectSize(t *testing.T) {
-	cache, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize, defaultGcInterval)
+	cache, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -188,7 +185,7 @@ func TestBoltCache_CurrentObjectSize(t *testing.T) {
 
 func TestBoltCache_Eviction(t *testing.T) {
 	// Set the maximum cache entries to 2
-	cache, err := NewCustomBoltCache(t.TempDir(), 2, defaultDiskSize, defaultGcInterval)
+	cache, err := NewCustomBoltCache(t.TempDir(), 2, defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -231,7 +228,7 @@ func TestBoltCache_DiskSizeLimit(t *testing.T) {
 	serializedArtifactInfo, err := json.Marshal(artifact)
 	require.NoError(t, err)
 
-	cache, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, len(serializedArtifactInfo), defaultGcInterval)
+	cache, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, len(serializedArtifactInfo))
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -293,10 +290,18 @@ func TestBoltCache_GarbageCollector(t *testing.T) {
 	globalStore.Reset([]workloadmeta.Entity{image1, image2, image3}, workloadmeta.SourceAll)
 
 	// Create a cache with a garbage collector called every 500ms
-	cache, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize, 500*time.Millisecond)
+	cache, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
+	}()
+
+	cleaner := NewCacheCleaner(cache.(*TrivyCache).Cache.(*PersistentCache))
+	go func() {
+		cleanTicker := time.NewTicker(500 * time.Millisecond)
+		for _ = range cleanTicker.C {
+			cleaner.Clean()
+		}
 	}()
 
 	// Store the artifacts of both images, the exclusive blobs and the shared blob

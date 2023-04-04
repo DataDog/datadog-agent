@@ -98,15 +98,22 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 				log.Warnf("Unable to close trivy client: %v", err)
 			}
 		}()
+		cleanTicker := time.NewTicker(config.Datadog.GetDuration("container_image_collection.sbom.custom_cache_gc_interval"))
+		for {
+			select {
+			case im <- imagesToScanCh:
+				scanContext, cancel := context.WithTimeout(ctx, scanningTimeout())
+				if err := c.extractBOMWithTrivy(scanContext, image); err != nil {
+					log.Warnf("Error extracting SBOM for image: namespace=%s name=%s, err: %s", image.Namespace, image.Name, err)
+				}
+				cancel()
 
-		for image := range imagesToScanCh {
-			scanContext, cancel := context.WithTimeout(ctx, scanningTimeout())
-			if err := c.extractBOMWithTrivy(scanContext, image); err != nil {
-				log.Warnf("Error extracting SBOM for image: namespace=%s name=%s, err: %s", image.Namespace, image.Name, err)
+				time.Sleep(timeBetweenScans())
+			case cleanTicker.C:
+				if c.trivyClient.CacheCleaner {
+					c.trivyClient.CacheCleaner.Clean()
+				}
 			}
-			cancel()
-
-			time.Sleep(timeBetweenScans())
 		}
 	}()
 

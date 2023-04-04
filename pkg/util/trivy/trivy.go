@@ -56,13 +56,14 @@ type CollectorConfig struct {
 
 // Collector uses trivy to generate a SBOM
 type collector struct {
-	config     CollectorConfig
-	cache      cache.Cache
-	applier    local.Applier
-	detector   local.OspkgDetector
-	dbConfig   db.Config
-	vulnClient vulnerability.Client
-	marshaler  *cyclonedx.Marshaler
+	config       CollectorConfig
+	Cache        cache.Cache
+	CacheCleaner *CacheCleaner
+	applier      local.Applier
+	detector     local.OspkgDetector
+	dbConfig     db.Config
+	vulnClient   vulnerability.Client
+	marshaler    *cyclonedx.Marshaler
 }
 
 // DefaultCollectorConfig returns a default collector configuration
@@ -96,7 +97,6 @@ func cacheProvider(cacheLocation string, useCustomCache bool) func() (cache.Cach
 				cacheLocation,
 				config.Datadog.GetInt("container_image_collection.sbom.custom_cache_max_cache_entries"),
 				config.Datadog.GetInt("container_image_collection.sbom.custom_cache_max_disk_size"),
-				config.Datadog.GetDuration("container_image_collection.sbom.custom_cache_gc_interval"),
 			)
 		}
 	}
@@ -136,31 +136,36 @@ func DefaultDisabledHandlers() []ftypes.HandlerType {
 }
 
 func NewCollector(collectorConfig CollectorConfig) (Collector, error) {
+	var cleaner *CacheCleaner
 	dbConfig := db.Config{}
 	fanalCache, err := collectorConfig.CacheProvider()
 	if err != nil {
 		return nil, err
 	}
+	if config.Datadog.GetBool("container_image_collection.sbom.use_custom_cache") {
+		cleaner = NewCacheCleaner(fanalCache.(*TrivyCache).Cache.(*PersistentCache))
+	}
 
 	return &collector{
-		config:     collectorConfig,
-		cache:      fanalCache,
-		applier:    applier.NewApplier(fanalCache),
-		detector:   ospkg.Detector{},
-		dbConfig:   dbConfig,
-		vulnClient: vulnerability.NewClient(dbConfig),
-		marshaler:  cyclonedx.NewMarshaler(""),
+		config:       collectorConfig,
+		Cache:        fanalCache,
+		CacheCleaner: cleaner,
+		applier:      applier.NewApplier(fanalCache),
+		detector:     ospkg.Detector{},
+		dbConfig:     dbConfig,
+		vulnClient:   vulnerability.NewClient(dbConfig),
+		marshaler:    cyclonedx.NewMarshaler(""),
 	}, nil
 }
 
 func (c *collector) Close() error {
 	if c.config.ClearCacheOnClose {
-		if err := c.cache.Clear(); err != nil {
+		if err := c.Cache.Clear(); err != nil {
 			return fmt.Errorf("error when clearing trivy cache: %w", err)
 		}
 	}
 
-	return c.cache.Close()
+	return c.Cache.Close()
 }
 
 func (c *collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (Report, error) {
@@ -177,7 +182,7 @@ func (c *collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadme
 		return nil, fmt.Errorf("unable to convert containerd image, err: %w", err)
 	}
 
-	imageArtifact, err := image2.NewArtifact(fanalImage, c.cache, c.config.ArtifactOption)
+	imageArtifact, err := image2.NewArtifact(fanalImage, c.Cache, c.config.ArtifactOption)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create artifact from image, err: %w", err)
 	}
@@ -229,7 +234,7 @@ func (c *collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMe
 }
 
 func (c *collector) ScanFilesystem(ctx context.Context, path string) (Report, error) {
-	fsArtifact, err := local2.NewArtifact(path, c.cache, c.config.ArtifactOption)
+	fsArtifact, err := local2.NewArtifact(path, c.Cache, c.config.ArtifactOption)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create artifact from fs, err: %w", err)
 	}

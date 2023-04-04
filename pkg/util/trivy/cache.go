@@ -3,9 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build trivy
-// +build trivy
-
 package trivy
 
 import (
@@ -41,7 +38,7 @@ func NewBoltCache(cacheDir string) (cache.Cache, error) {
 
 // NewCustomBoltCache is a CacheProvider. It returns a custom implementation of a BoltDB cache using an LRU algorithm with a
 // maximum number of cache entries, maximum disk size and garbage collection of unused images.
-func NewCustomBoltCache(cacheDir string, maxCacheEntries int, maxDiskSize int, gcInterval time.Duration) (cache.Cache, error) {
+func NewCustomBoltCache(cacheDir string, maxCacheEntries int, maxDiskSize int) (cache.Cache, error) {
 	if cacheDir == "" {
 		cacheDir = utils.DefaultCacheDir()
 	}
@@ -53,7 +50,6 @@ func NewCustomBoltCache(cacheDir string, maxCacheEntries int, maxDiskSize int, g
 		maxCacheEntries,
 		maxDiskSize,
 		db,
-		NewMaintainer(gcInterval, telemetryTick),
 	)
 	if err != nil {
 		return nil, err
@@ -177,16 +173,15 @@ func (c *TrivyCache) GetBlob(id string) (types.BlobInfo, error) {
 	return trivyCacheGet[types.BlobInfo](c, id)
 }
 
-// Maintainer periodically removes unused entries from the cache and collects telemetry.
+// CacheCleaner periodically removes unused entries from the cache and collects telemetry.
 // It holds a ticket for garbage collection and another for collecting telemetry.
-type Maintainer struct {
-	gcTicker        *time.Ticker
-	telemetryTicker *time.Ticker
+type CacheCleaner struct {
+	target *PersistentCache
 }
 
 // Clean lists images from the workloadmeta, gets the list of currently used artifactIDs and blobIDs and
 // removes all the others from the cache.
-func (c *Maintainer) Clean(cache *PersistentCache) {
+func (c *CacheCleaner) Clean() {
 	toKeep := make(map[string]struct{})
 	for _, imageMetadata := range workloadmeta.GetGlobalStore().ListImages() {
 		if imageMetadata.SBOM == nil {
@@ -198,36 +193,23 @@ func (c *Maintainer) Clean(cache *PersistentCache) {
 		}
 	}
 	var toRemove []string
-	for _, key := range cache.Keys() {
+	for _, key := range c.target.Keys() {
 		if _, ok := toKeep[key]; !ok {
 			toRemove = append(toRemove, key)
 		}
 	}
 
-	err := cache.Remove(toRemove)
+	err := c.target.Remove(toRemove)
 	if err != nil {
 		// will always be triggered if the database is closed
 		log.Errorf("error cleaning the database: %v", err)
 	}
 }
 
-// Maintain periodically cleans the cache and collects telemetry
-func (m *Maintainer) Maintain(cache *PersistentCache) {
-	for {
-		select {
-		case <-m.telemetryTicker.C:
-			cache.collectTelemetry()
-		case <-m.gcTicker.C:
-			m.Clean(cache)
-		}
-	}
-}
-
-// NewMaintainer creates a new instance of Maintainer and returns a pointer to it.
-func NewMaintainer(gcTick time.Duration, telemetryTick time.Duration) *Maintainer {
-	return &Maintainer{
-		gcTicker:        time.NewTicker(gcTick),
-		telemetryTicker: time.NewTicker(telemetryTick),
+// NewCacheCleaner creates a new instance of CacheCleaner and returns a pointer to it.
+func NewCacheCleaner(target *PersistentCache) *CacheCleaner {
+	return &CacheCleaner{
+		target: target,
 	}
 }
 
@@ -246,7 +228,6 @@ func NewPersistentCache(
 	maxCacheSize int,
 	maxCachedObjectSize int,
 	localDB PersistentDB,
-	maintainer *Maintainer,
 ) (*PersistentCache, error) {
 
 	persistentCache := &PersistentCache{
@@ -280,7 +261,14 @@ func NewPersistentCache(
 		return nil, err
 	}
 
-	go maintainer.Maintain(persistentCache)
+	go func() {
+		ticker := time.NewTicker(telemetryTick)
+		for {
+			for _ = range ticker.C {
+				persistentCache.collectTelemetry()
+			}
+		}
+	}()
 
 	return persistentCache, nil
 }
