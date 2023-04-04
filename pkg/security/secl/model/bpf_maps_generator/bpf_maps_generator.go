@@ -10,6 +10,7 @@ import (
 	_ "embed"
 	"flag"
 	"os"
+	"os/exec"
 	"regexp"
 	"text/template"
 )
@@ -87,6 +88,11 @@ func main() {
 	}
 
 	if err := outputFile.Close(); err != nil {
+		panic(err)
+	}
+
+	cmd := exec.Command("gofmt", "-s", "-w", outputPath)
+	if err := cmd.Run(); err != nil {
 		panic(err)
 	}
 }
