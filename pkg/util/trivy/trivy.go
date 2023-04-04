@@ -94,9 +94,9 @@ func cacheProvider(cacheLocation string, useCustomCache bool) func() (cache.Cach
 		return func() (cache.Cache, error) {
 			return NewCustomBoltCache(
 				cacheLocation,
-				config.Datadog.GetInt("custom_cache_max_cache_entries"),
-				config.Datadog.GetInt("custom_cache_max_disk_size"),
-				config.Datadog.GetDuration("custom_cache_gc_interval"),
+				config.Datadog.GetInt("container_image_collection.sbom.custom_cache_max_cache_entries"),
+				config.Datadog.GetInt("container_image_collection.sbom.custom_cache_max_disk_size"),
+				config.Datadog.GetDuration("container_image_collection.sbom.custom_cache_gc_interval"),
 			)
 		}
 	}
