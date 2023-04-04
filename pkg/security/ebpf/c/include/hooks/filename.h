@@ -1,0 +1,24 @@
+#ifndef _HOOKS_FILENAME_H_
+#define _HOOKS_FILENAME_H_
+
+#include "helpers/syscalls.h"
+
+SEC("kprobe/filename_create")
+int kprobe_filename_create(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);
+    if (!syscall) {
+        return 0;
+    }
+
+    switch (syscall->type) {
+        case EVENT_MKDIR:
+            syscall->mkdir.path = (struct path *)PT_REGS_PARM3(ctx);
+            break;
+       case EVENT_LINK:
+            syscall->link.target_path = (struct path *)PT_REGS_PARM3(ctx);
+            break;
+    }
+    return 0;
+}
+
+#endif
