@@ -2373,6 +2373,11 @@ api_key:
   #
   # listen_address: /var/vcap/data/garden/garden.sock
 
+## @param podman_db_path - string - optional - default: /var/lib/containers/storage/libpod/bolt_state.db
+## Settings for Podman DB that Datadog Agent collects container metrics.
+#
+# podman_db_path: /var/lib/containers/storage/libpod/bolt_state.db
+
 {{ end -}}
 {{- if .ClusterAgent }}
 
