@@ -43,7 +43,7 @@ const defaultMinAge = 30 * time.Second
 // request segment at "t0" with response segment "t3". This is why we buffer data here for 30 seconds
 // and then sort all events by their timestamps before joining them.
 type incompleteBuffer struct {
-	data       map[types.FourTuple]*txParts
+	data       map[types.ConnectionKey]*txParts
 	maxEntries int
 	telemetry  *telemetry
 	minAgeNano int64
@@ -63,7 +63,7 @@ func newTXParts() *txParts {
 
 func newIncompleteBuffer(c *config.Config, telemetry *telemetry) *incompleteBuffer {
 	return &incompleteBuffer{
-		data:       make(map[types.FourTuple]*txParts),
+		data:       make(map[types.ConnectionKey]*txParts),
 		maxEntries: c.MaxHTTPStatsBuffered,
 		telemetry:  telemetry,
 		minAgeNano: defaultMinAge.Nanoseconds(),
@@ -72,7 +72,7 @@ func newIncompleteBuffer(c *config.Config, telemetry *telemetry) *incompleteBuff
 
 func (b *incompleteBuffer) Add(tx httpTX) {
 	connTuple := tx.ConnTuple()
-	key := types.FourTuple{
+	key := types.ConnectionKey{
 		SrcIPHigh: connTuple.SrcIPHigh,
 		SrcIPLow:  connTuple.SrcIPLow,
 		SrcPort:   connTuple.SrcPort,
@@ -115,7 +115,7 @@ func (b *incompleteBuffer) Flush(now time.Time) []httpTX {
 		nowUnix  = now.UnixNano()
 	)
 
-	b.data = make(map[types.FourTuple]*txParts)
+	b.data = make(map[types.ConnectionKey]*txParts)
 	for key, parts := range previous {
 		// TODO: in this loop we're sorting all transactions at once, but we could also
 		// consider sorting data during insertion time (using a tree-like structure, for example)

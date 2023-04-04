@@ -14,16 +14,16 @@ import (
 )
 
 type kafkaEncoder struct {
-	aggregations  map[types.FourTuple]*kafkaAggregationWrapper
+	aggregations  map[types.ConnectionKey]*kafkaAggregationWrapper
 	orphanEntries int
 }
 
 // aggregationWrapper is meant to handle collision scenarios where multiple
 // `ConnectionStats` objects may claim the same `DataStreamsAggregations` object because
-// they generate the same four tuple
+// they generate the same connection key
 // TODO: we should probably revist/get rid of this if we ever replace socket
 // filters by kprobes, since in that case we would have access to PIDs, and
-// could incorporate that information in the `types.FourTuple` struct.
+// could incorporate that information in the `types.ConnectionKey` struct.
 type kafkaAggregationWrapper struct {
 	*model.DataStreamsAggregations
 
@@ -59,7 +59,7 @@ func (a *kafkaAggregationWrapper) ValueFor(c network.ConnectionStats) *model.Dat
 	// exactly the same source and destination addresses but different PIDs to
 	// "bind" to the same DataStreamsAggregations object, which would result in a
 	// overcount problem. (Note that this is due to the fact that
-	// `types.FourTuple` doesn't have a PID field.) This happens mostly in the
+	// `types.ConnectionKey` doesn't have a PID field.) This happens mostly in the
 	// context of pre-fork web servers, where multiple worker proceses share the
 	// same socket
 	return nil
@@ -71,13 +71,13 @@ func newKafkaEncoder(payload *network.Connections) *kafkaEncoder {
 	}
 
 	encoder := &kafkaEncoder{
-		aggregations: make(map[types.FourTuple]*kafkaAggregationWrapper, len(payload.Conns)),
+		aggregations: make(map[types.ConnectionKey]*kafkaAggregationWrapper, len(payload.Conns)),
 	}
 
 	// pre-populate aggregation map with keys for all existent connections
 	// this allows us to skip encoding orphan Kafka objects that can't be matched to a connection
 	for _, conn := range payload.Conns {
-		for _, key := range network.FourTuplesFromConn(conn) {
+		for _, key := range network.ConnectionKeysFromConnectionStats(conn) {
 			log.Tracef("Payload has a connection %v and was converted to kafka key %v", conn, key)
 			encoder.aggregations[key] = nil
 		}
@@ -91,8 +91,8 @@ func (e *kafkaEncoder) GetKafkaAggregations(c network.ConnectionStats) *model.Da
 		return nil
 	}
 
-	fourTuple := network.FourTuplesFromConn(c)
-	for _, key := range fourTuple {
+	connectionKeys := network.ConnectionKeysFromConnectionStats(c)
+	for _, key := range connectionKeys {
 		if aggregation := e.aggregations[key]; aggregation != nil {
 			return e.aggregations[key].ValueFor(c)
 		}
@@ -102,16 +102,16 @@ func (e *kafkaEncoder) GetKafkaAggregations(c network.ConnectionStats) *model.Da
 
 func (e *kafkaEncoder) buildAggregations(payload *network.Connections) {
 	// Count the number of aggregations per connections, so we can set the capacity of the aggregation slice accordingly
-	aggregationsCountPerConnection := make(map[types.FourTuple]int)
+	aggregationsCountPerConnection := make(map[types.ConnectionKey]int)
 	for key := range payload.Kafka {
-		aggregationsCountPerConnection[key.FourTuple]++
+		aggregationsCountPerConnection[key.ConnectionKey]++
 	}
 
 	for key, stats := range payload.Kafka {
-		aggregation, ok := e.aggregations[key.FourTuple]
+		aggregation, ok := e.aggregations[key.ConnectionKey]
 		if !ok {
 			// if there is no matching connection don't even bother to serialize Kafka data
-			log.Tracef("Found kafka orphan connection %v", key.FourTuple)
+			log.Tracef("Found kafka orphan connection %v", key.ConnectionKey)
 			e.orphanEntries++
 			continue
 		}
@@ -120,10 +120,10 @@ func (e *kafkaEncoder) buildAggregations(payload *network.Connections) {
 			// No aggregation created for this connection yet, creating the slice and set the capacity accordingly
 			aggregation = &kafkaAggregationWrapper{
 				DataStreamsAggregations: &model.DataStreamsAggregations{
-					KafkaAggregations: make([]*model.KafkaAggregation, 0, aggregationsCountPerConnection[key.FourTuple]),
+					KafkaAggregations: make([]*model.KafkaAggregation, 0, aggregationsCountPerConnection[key.ConnectionKey]),
 				},
 			}
-			e.aggregations[key.FourTuple] = aggregation
+			e.aggregations[key.ConnectionKey] = aggregation
 		}
 
 		kafkaAggregation := model.KafkaAggregation{

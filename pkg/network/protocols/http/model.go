@@ -14,7 +14,7 @@ import (
 
 type httpTX interface {
 	RequestLatency() float64
-	ConnTuple() types.FourTuple
+	ConnTuple() types.ConnectionKey
 	Method() Method
 	SetRequestMethod(Method)
 	StatusCode() uint16

@@ -20,14 +20,14 @@ type Key struct {
 	RequestAPIKey  uint16
 	RequestVersion uint16
 	TopicName      string
-	types.FourTuple
+	types.ConnectionKey
 }
 
 // NewKey generates a new Key
 func NewKey(saddr, daddr util.Address, sport, dport uint16, topicName string) Key {
 	return Key{
-		FourTuple: types.NewFourTuple(saddr, daddr, sport, dport),
-		TopicName: topicName,
+		ConnectionKey: types.NewConnectionKey(saddr, daddr, sport, dport),
+		TopicName:     topicName,
 	}
 }
 

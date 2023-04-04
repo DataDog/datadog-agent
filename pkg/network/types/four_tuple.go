@@ -7,8 +7,8 @@ package types
 
 import "github.com/DataDog/datadog-agent/pkg/process/util"
 
-// FourTuple represents a network four-tuple (source IP, destination IP, source port, destination port)
-type FourTuple struct {
+// ConnectionKey represents a network four-tuple (source IP, destination IP, source port, destination port)
+type ConnectionKey struct {
 	SrcIPHigh uint64
 	SrcIPLow  uint64
 
@@ -20,11 +20,11 @@ type FourTuple struct {
 	DstPort uint16
 }
 
-// NewFourTuple generates a new FourTuple
-func NewFourTuple(saddr, daddr util.Address, sport, dport uint16) FourTuple {
+// NewConnectionKey generates a new ConnectionKey
+func NewConnectionKey(saddr, daddr util.Address, sport, dport uint16) ConnectionKey {
 	saddrl, saddrh := util.ToLowHigh(saddr)
 	daddrl, daddrh := util.ToLowHigh(daddr)
-	return FourTuple{
+	return ConnectionKey{
 		SrcIPHigh: saddrh,
 		SrcIPLow:  saddrl,
 		SrcPort:   sport,

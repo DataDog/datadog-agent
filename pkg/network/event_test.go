@@ -257,17 +257,17 @@ func TestKeyTuplesFromConn(t *testing.T) {
 		Dest:   destinationAddress,
 		DPort:  destinationPort,
 	}
-	keyTuples := FourTuplesFromConn(connectionStats)
+	keyTuples := ConnectionKeysFromConnectionStats(connectionStats)
 
 	assert.Len(t, keyTuples, 2, "Expected different number of key tuples")
-	assert.True(t, slices.ContainsFunc(keyTuples, func(keyTuple types.FourTuple) bool {
+	assert.True(t, slices.ContainsFunc(keyTuples, func(keyTuple types.ConnectionKey) bool {
 		sourceAddressLow, sourceAddressHigh := util.ToLowHigh(sourceAddress)
 		destinationAddressLow, destinationAddressHigh := util.ToLowHigh(destinationAddress)
 		return (keyTuple.SrcIPLow == sourceAddressLow) && (keyTuple.SrcIPHigh == sourceAddressHigh) &&
 			(keyTuple.DstIPLow == destinationAddressLow) && (keyTuple.DstIPHigh == destinationAddressHigh) &&
 			(keyTuple.SrcPort == sourcePort) && (keyTuple.DstPort == destinationPort)
 	}), "Missing original connection")
-	assert.True(t, slices.ContainsFunc(keyTuples, func(keyTuple types.FourTuple) bool {
+	assert.True(t, slices.ContainsFunc(keyTuples, func(keyTuple types.ConnectionKey) bool {
 		sourceAddressLow, sourceAddressHigh := util.ToLowHigh(sourceAddress)
 		destinationAddressLow, destinationAddressHigh := util.ToLowHigh(destinationAddress)
 		return (keyTuple.SrcIPLow == destinationAddressLow) && (keyTuple.SrcIPHigh == destinationAddressHigh) &&
@@ -299,19 +299,19 @@ func TestKeyTuplesFromConnNAT(t *testing.T) {
 			ReplDstPort: natDestinationPort,
 		},
 	}
-	keyTuples := FourTuplesFromConn(connectionStats)
+	keyTuples := ConnectionKeysFromConnectionStats(connectionStats)
 
 	// Expecting 2 non NAT'd keys and 2 NAT'd keys
 	assert.Len(t, keyTuples, 4, "Expected different number of key tuples")
 
-	assert.True(t, slices.ContainsFunc(keyTuples, func(keyTuple types.FourTuple) bool {
+	assert.True(t, slices.ContainsFunc(keyTuples, func(keyTuple types.ConnectionKey) bool {
 		sourceAddressLow, sourceAddressHigh := util.ToLowHigh(sourceAddress)
 		destinationAddressLow, destinationAddressHigh := util.ToLowHigh(destinationAddress)
 		return (keyTuple.SrcIPLow == sourceAddressLow) && (keyTuple.SrcIPHigh == sourceAddressHigh) &&
 			(keyTuple.DstIPLow == destinationAddressLow) && (keyTuple.DstIPHigh == destinationAddressHigh) &&
 			(keyTuple.SrcPort == sourcePort) && (keyTuple.DstPort == destinationPort)
 	}), "Missing original connection")
-	assert.True(t, slices.ContainsFunc(keyTuples, func(keyTuple types.FourTuple) bool {
+	assert.True(t, slices.ContainsFunc(keyTuples, func(keyTuple types.ConnectionKey) bool {
 		sourceAddressLow, sourceAddressHigh := util.ToLowHigh(sourceAddress)
 		destinationAddressLow, destinationAddressHigh := util.ToLowHigh(destinationAddress)
 		return (keyTuple.SrcIPLow == destinationAddressLow) && (keyTuple.SrcIPHigh == destinationAddressHigh) &&
@@ -319,14 +319,14 @@ func TestKeyTuplesFromConnNAT(t *testing.T) {
 			(keyTuple.SrcPort == destinationPort) && (keyTuple.DstPort == sourcePort)
 	}), "Missing flipped connection")
 
-	assert.True(t, slices.ContainsFunc(keyTuples, func(keyTuple types.FourTuple) bool {
+	assert.True(t, slices.ContainsFunc(keyTuples, func(keyTuple types.ConnectionKey) bool {
 		sourceAddressLow, sourceAddressHigh := util.ToLowHigh(natSourceAddress)
 		destinationAddressLow, destinationAddressHigh := util.ToLowHigh(natDestinationAddress)
 		return (keyTuple.SrcIPLow == sourceAddressLow) && (keyTuple.SrcIPHigh == sourceAddressHigh) &&
 			(keyTuple.DstIPLow == destinationAddressLow) && (keyTuple.DstIPHigh == destinationAddressHigh) &&
 			(keyTuple.SrcPort == natSourcePort) && (keyTuple.DstPort == natDestinationPort)
 	}), "Missing NAT'd connection")
-	assert.True(t, slices.ContainsFunc(keyTuples, func(keyTuple types.FourTuple) bool {
+	assert.True(t, slices.ContainsFunc(keyTuples, func(keyTuple types.ConnectionKey) bool {
 		sourceAddressLow, sourceAddressHigh := util.ToLowHigh(natSourceAddress)
 		destinationAddressLow, destinationAddressHigh := util.ToLowHigh(natDestinationAddress)
 		return (keyTuple.SrcIPLow == destinationAddressLow) && (keyTuple.SrcIPHigh == destinationAddressHigh) &&

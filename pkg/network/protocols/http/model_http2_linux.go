@@ -46,8 +46,8 @@ func (tx *ebpfHttp2Tx) Incomplete() bool {
 	return tx.Request_started == 0 || tx.Response_last_seen == 0 || tx.StatusCode() == 0 || tx.Path_size == 0 || tx.Method() == MethodUnknown
 }
 
-func (tx *ebpfHttp2Tx) ConnTuple() types.FourTuple {
-	return types.FourTuple{
+func (tx *ebpfHttp2Tx) ConnTuple() types.ConnectionKey {
+	return types.ConnectionKey{
 		SrcIPHigh: tx.Tup.Saddr_h,
 		SrcIPLow:  tx.Tup.Saddr_l,
 		DstIPHigh: tx.Tup.Daddr_h,

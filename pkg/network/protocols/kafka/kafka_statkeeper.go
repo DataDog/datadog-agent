@@ -34,7 +34,7 @@ func (statKeeper *KafkaStatKeeper) Process(tx *EbpfKafkaTx) {
 		RequestAPIKey:  tx.APIKey(),
 		RequestVersion: tx.APIVersion(),
 		TopicName:      tx.TopicName(),
-		FourTuple:      tx.ConnTuple(),
+		ConnectionKey:  tx.ConnTuple(),
 	}
 	statKeeper.statsMutex.Lock()
 	defer statKeeper.statsMutex.Unlock()

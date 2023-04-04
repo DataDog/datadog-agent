@@ -72,14 +72,14 @@ type Path struct {
 type Key struct {
 	// this field order is intentional to help the GC pointer tracking
 	Path Path
-	types.FourTuple
+	types.ConnectionKey
 	Method Method
 }
 
 // NewKey generates a new Key
 func NewKey(saddr, daddr util.Address, sport, dport uint16, path string, fullPath bool, method Method) Key {
 	return Key{
-		FourTuple: types.NewFourTuple(saddr, daddr, sport, dport),
+		ConnectionKey: types.NewConnectionKey(saddr, daddr, sport, dport),
 		Path: Path{
 			Content:  path,
 			FullPath: fullPath,
