@@ -151,12 +151,8 @@ func (p *Resolver) CountBrokenLineage() {
 
 // SendStats sends process resolver metrics
 func (p *Resolver) SendStats() error {
-	if err := p.statsdClient.Gauge(metrics.MetricProcessResolverCacheSize, p.GetCacheSize(), []string{}, 1.0); err != nil {
+	if err := p.statsdClient.Gauge(metrics.MetricProcessResolverCacheSize, float64(p.GetCacheSize()), []string{}, 1.0); err != nil {
 		return fmt.Errorf("failed to send process_resolver cache_size metric: %w", err)
-	}
-
-	if err := p.statsdClient.Gauge(metrics.MetricProcessResolverReferenceCount, p.GetEntryCacheSize(), []string{}, 1.0); err != nil {
-		return fmt.Errorf("failed to send process_resolver reference_count metric: %w", err)
 	}
 
 	for _, resolutionType := range metrics.AllTypesTags {
@@ -1158,15 +1154,10 @@ func (p *Resolver) Dump(withArgs bool) (string, error) {
 }
 
 // GetCacheSize returns the cache size of the process resolver
-func (p *Resolver) GetCacheSize() float64 {
+func (p *Resolver) GetCacheSize() int {
 	p.RLock()
 	defer p.RUnlock()
-	return float64(len(p.entryCache))
-}
-
-// GetEntryCacheSize returns the cache size of the process resolver
-func (p *Resolver) GetEntryCacheSize() float64 {
-	return float64(len(p.entryCache))
+	return len(p.entryCache)
 }
 
 // SetState sets the process resolver state
