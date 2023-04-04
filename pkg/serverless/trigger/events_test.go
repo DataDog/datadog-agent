@@ -6,12 +6,12 @@
 package trigger
 
 import (
+	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"reflect"
 	"runtime"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -38,10 +38,10 @@ func TestEventPayloadParsing(t *testing.T) {
 		file, err := os.Open(fmt.Sprintf("%v/%v", testDir, testFile))
 		assert.NoError(t, err)
 
-		jsonData, err := ioutil.ReadAll(file)
+		jsonData, err := io.ReadAll(file)
 		assert.NoError(t, err)
 
-		event, err := Unmarshal(strings.ToLower(string(jsonData)))
+		event, err := Unmarshal(bytes.ToLower(jsonData))
 		assert.NoError(t, err)
 
 		funcName := runtime.FuncForPC(reflect.ValueOf(testFunc).Pointer()).Name()
@@ -78,10 +78,10 @@ func TestEventPayloadParsingWrong(t *testing.T) {
 			file, err := os.Open(fmt.Sprintf("%v/%v", testDir, wrongTestFile.Name()))
 			assert.NoError(t, err)
 
-			jsonData, err := ioutil.ReadAll(file)
+			jsonData, err := io.ReadAll(file)
 			assert.NoError(t, err)
 
-			event, err := Unmarshal(strings.ToLower(string(jsonData)))
+			event, err := Unmarshal(bytes.ToLower(jsonData))
 			assert.NoError(t, err)
 
 			funcName := runtime.FuncForPC(reflect.ValueOf(testFunc).Pointer()).Name()
@@ -112,10 +112,10 @@ func TestGetEventType(t *testing.T) {
 		file, err := os.Open(fmt.Sprintf("%v/%v", testDir, testFile))
 		assert.NoError(t, err)
 
-		jsonData, err := ioutil.ReadAll(file)
+		jsonData, err := io.ReadAll(file)
 		assert.NoError(t, err)
 
-		jsonPayload, err := Unmarshal(strings.ToLower(string(jsonData)))
+		jsonPayload, err := Unmarshal(bytes.ToLower(jsonData))
 		assert.NoError(t, err)
 
 		parsedEventType := GetEventType(jsonPayload)

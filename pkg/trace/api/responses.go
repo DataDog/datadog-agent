@@ -14,8 +14,8 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
@@ -29,8 +29,7 @@ const (
 // should we add another fied.
 type traceResponse struct {
 	// All the sampling rates recommended, by service
-	Rates      map[string]float64                       `json:"rate_by_service"`
-	Mechanisms map[string]apmsampling.SamplingMechanism `json:"mechanism,omitempty"`
+	Rates map[string]float64 `json:"rate_by_service"`
 }
 
 // httpFormatError is used for payload format errors
@@ -113,12 +112,11 @@ func httpRateByService(ratesVersion string, w http.ResponseWriter, dynConf *samp
 		Rates: currentState.Rates,
 	}
 	if ratesVersion != "" {
-		w.Header().Set(headerRatesPayloadVersion, currentState.Version)
+		w.Header().Set(header.RatesPayloadVersion, currentState.Version)
 		if ratesVersion == currentState.Version {
 			_, err = wc.Write([]byte("{}"))
 			return
 		}
-		response.Mechanisms = currentState.Mechanisms
 	}
 	encoder := json.NewEncoder(wc)
 	err = encoder.Encode(response)

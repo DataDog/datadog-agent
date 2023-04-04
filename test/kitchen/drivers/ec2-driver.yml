@@ -1,9 +1,20 @@
 provisioner:
   name: chef_solo
+  <% if ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH'] %>
+  root_path: <%= ENV['KITCHEN_CI_ROOT_PATH'] %>/kitchen
+  <% end %>
   product_name: chef
   # There is no arm64 distribution of Chef 14 for Debian. Use the Ubuntu package instead
   <% if ENV['KITCHEN_PLATFORM'] == "debian" && ENV['KITCHEN_ARCH'] == "arm64" %>
   download_url: https://packages.chef.io/files/stable/chef/14.15.6/ubuntu/18.04/chef_14.15.6-1_arm64.deb
+  product_version: 14.15.6
+  <% elsif ENV['KITCHEN_PLATFORM'] == "amazonlinux" && ENV['KITCHEN_ARCH'] == "arm64" %>
+  # There is no arm64 distribution of Chef 14 for Amazon Linux 2022. Use the CentOS package instead
+  download_url: https://packages.chef.io/files/stable/chef/14.15.6/el/7/chef-14.15.6-1.el7.aarch64.rpm
+  product_version: 14.15.6
+  <% elsif ENV['KITCHEN_PLATFORM'] == "amazonlinux" && ENV['KITCHEN_ARCH'] == "x86_64" %>
+  # There is no x86_64 distribution of Chef 14 for Amazon Linux 2022. Use the CentOS package instead
+  download_url: https://packages.chef.io/files/stable/chef/14.15.6/el/7/chef-14.15.6-1.el7.x86_64.rpm
   product_version: 14.15.6
   <% else %>
   product_version: <%= ENV['CHEF_VERSION'] ||= '14.12.9' %>
@@ -18,8 +29,14 @@ provisioner:
 
 driver:
   name: ec2
+  <% if ENV['KITCHEN_EC2_SSH_KEY_ID'] %>
   aws_ssh_key_id: <%= ENV['KITCHEN_EC2_SSH_KEY_ID'] %>
-  security_group_ids: <%= [ENV['KITCHEN_EC2_SG_IDS']] || ["sg-7fedd80a","sg-46506837"] %>
+  <% end %>
+  <% if ENV['KITCHEN_EC2_SG_IDS'] %>
+  security_group_ids: <%= [ENV['KITCHEN_EC2_SG_IDS']] %>
+  <% else %>
+  security_group_ids: [ "sg-7fedd80a","sg-46506837" ]
+  <% end %>
   region: <%= ENV['KITCHEN_EC2_REGION'] ||= "us-east-1" %>
   instance_type: <%= ENV['KITCHEN_EC2_INSTANCE_TYPE'] ||= 't3.xlarge' %>
   associate_public_ip: false
@@ -42,6 +59,7 @@ platforms:
 <%
     # TEST_PLATFORMS syntax is `short_name1,ami|...`
     ec2_test_platforms = ENV['TEST_PLATFORMS'].split('|').map { |p| p.split(',') }
+    cws_supported_platforms = (ENV['KITCHEN_CWS_SUPPORTED_OSVERS'] || "").split(',')
 
     windows_platforms = []
     sles15_platforms = []
@@ -51,10 +69,11 @@ platforms:
       idx += 1
 
       host = "ec2"
-      platform_name = platform[0] + "-#{host}"
+      platform_name = platform[0] + "-#{host}-#{ENV['KITCHEN_ARCH']}"
 
       windows = platform_name.include?("win")
       sles15 = platform_name.include?("sles-15")
+      al2022 = platform_name.include?("amazonlinux2022")
       windows2008 = windows && platform_name.include?("2008")
 
       if windows
@@ -77,6 +96,15 @@ platforms:
 - name: <%= platform_name %>
   attributes:
     color_idx: <%= idx %>
+    dd-agent-rspec:
+      enable_cws: <%= ENV['KITCHEN_CWS'] == "true" && cws_supported_platforms.include?(platform[0]) %>
+    <% if ENV["KITCHEN_CWS_PLATFORM"] %>
+    cws_platform: <%= ENV["KITCHEN_CWS_PLATFORM"] %>
+    <% end %>
+  <% if ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH'] %>
+  provisioner:
+    command_prefix: TMPDIR=<%= ENV['KITCHEN_CI_ROOT_PATH'] %>
+  <% end %>
   driver:
     <% if windows %>
     connection_timeout: 20
@@ -87,17 +115,60 @@ platforms:
     <% end %>
     image_id: <%= platform[1] %>
     block_device_mappings:
-      - device_name: /dev/xvda
+      <% if ENV['KITCHEN_ARCH'] == "arm64" %>
+      - device_name: <%= ENV['KITCHEN_EC2_DEVICE_NAME'] || "/dev/sda1" %>
+      <% else %>
+      - device_name: <%= ENV['KITCHEN_EC2_DEVICE_NAME'] || "/dev/xvda" %>
+      <% end %>
         ebs:
           volume_type: gp2
-          volume_size: 40
+          volume_size: 100
           delete_on_termination: true
-    <% if allow_rsa_key %>
+    <% if allow_rsa_key || al2022 %>
     user_data: |
       #!/bin/sh
+    <% end %>
+    <% if allow_rsa_key %>
       echo PubkeyAcceptedKeyTypes=+ssh-rsa >> /etc/ssh/sshd_config
       service ssh reload
     <% end %>
+    <% if al2022 %>
+      sudo dnf install -y libxcrypt-compat
+    <% end %>
+  <% if (ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH']) || al2022 %>
+  lifecycle:
+    post_create:
+  <% end %>
+  <% if ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH'] %>
+    - remote: |
+        sudo mkdir -p <%= ENV['KITCHEN_CI_MOUNT_PATH'] %>;
+        sudo chmod a+rwx <%= ENV['KITCHEN_CI_MOUNT_PATH'] %>;
+        sudo ln -s <%= ENV['KITCHEN_CI_MOUNT_PATH'] %> <%= ENV['KITCHEN_CI_ROOT_PATH'] %>;
+  <% end %>
+  <% if al2022 %>
+  # Add a hook after creating the host, to make sure we wait until the user_data
+  # script has been run.
+  # Snippet taken from the kitchen docs: https://kitchen.ci/docs/reference/lifecycle-hooks/
+    - local: echo 'Awaiting cloud-init completion'
+    - remote: |
+        declare i=0;
+        declare wait=5;
+        declare timeout=300;
+        while true; do
+          [ -f /var/lib/cloud/instance/boot-finished ] && break;
+          if [ ${i} -ge ${timeout} ]; then
+            echo "Timed out after ${i}s waiting for cloud-init to complete";
+            exit 1;
+          fi;
+          echo "Waited ${i}/${timeout}s for cloud-init to complete, retrying in ${wait} seconds"
+          sleep ${wait};
+          let i+=${wait};
+        done;
+  <% end %>
+  verifier:
+    downloads:
+      "/tmp/junit.tar.gz": kitchen-junit-<%= platform_name %>.tar.gz
+      "/tmp/testjson.tar.gz": testjson/<%= platform_name %>/testjson.tar.gz
 
   transport:
     <% if windows %>
@@ -107,8 +178,13 @@ platforms:
     connection_retries: 30
     connection_retry_sleep: 2
     <% end %>
-    <% if sles15 %>
+    <% if sles15 || al2022 %>
+    # The AWS EC2 driver doesn't recognize Amazon Linux 2022 yet,
+    # therefore it doesn't know that it needs to use ec2-user.
     username: ec2-user
+    <% end %>
+    <% if ENV['KITCHEN_EC2_SSH_KEY_PATH'] %>
+    ssh_key: <%= ENV['KITCHEN_EC2_SSH_KEY_PATH'] %>
     <% end %>
 
 <% end %>

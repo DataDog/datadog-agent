@@ -31,8 +31,7 @@ func TestGetDDAgentClientTimeout(t *testing.T) {
 }
 
 func TestGetDDAgentClientWithCmdPort0(t *testing.T) {
-	os.Setenv("DD_CMD_PORT", "-1")
-	defer os.Unsetenv("DD_CMD_PORT")
+	t.Setenv("DD_CMD_PORT", "-1")
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 

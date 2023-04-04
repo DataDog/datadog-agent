@@ -84,10 +84,13 @@ func (i *mockImage) Size(ctx context.Context) (int64, error) {
 	return i.size, nil
 }
 
+const TestNamespace = "default"
+
 func TestEnvVars(t *testing.T) {
 	tests := []struct {
 		name           string
 		specEnvs       []string
+		filterFunc     func(string) bool
 		expectedResult map[string]string
 		expectsErr     bool
 	}{
@@ -95,6 +98,14 @@ func TestEnvVars(t *testing.T) {
 			name:           "valid envs",
 			specEnvs:       []string{"ENV1=val1", "ENV2=val2"},
 			expectedResult: map[string]string{"ENV1": "val1", "ENV2": "val2"},
+		},
+		{
+			name:     "valid envs",
+			specEnvs: []string{"ENV1=val1", "ENV2=val2"},
+			filterFunc: func(s string) bool {
+				return s == "ENV1"
+			},
+			expectedResult: map[string]string{"ENV1": "val1"},
 		},
 		{
 			name:       "wrong format",
@@ -105,19 +116,13 @@ func TestEnvVars(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			mockUtil := ContainerdUtil{}
-
-			container := &mockContainer{
-				mockSpec: func() (*oci.Spec, error) {
-					return &oci.Spec{
-						Process: &specs.Process{
-							Env: test.specEnvs,
-						},
-					}, nil
+			spec := &oci.Spec{
+				Process: &specs.Process{
+					Env: test.specEnvs,
 				},
 			}
 
-			envVars, err := mockUtil.EnvVars(container)
+			envVars, err := EnvVarsFromSpec(spec, test.filterFunc)
 
 			if test.expectsErr {
 				require.Error(t, err)
@@ -140,12 +145,12 @@ func TestInfo(t *testing.T) {
 		},
 	}
 	ctn := containerd.Container(cs)
-	c, err := mockUtil.Info(ctn)
+	c, err := mockUtil.Info(TestNamespace, ctn)
 	require.NoError(t, err)
 	require.Equal(t, "foo", c.Image)
 }
 
-func TestImage(t *testing.T) {
+func TestImageOfContainer(t *testing.T) {
 	mockUtil := ContainerdUtil{}
 
 	image := &mockImage{
@@ -158,7 +163,7 @@ func TestImage(t *testing.T) {
 		},
 	}
 
-	resultImage, err := mockUtil.Image(container)
+	resultImage, err := mockUtil.ImageOfContainer(TestNamespace, container)
 	require.NoError(t, err)
 	require.Equal(t, resultImage, image)
 }
@@ -174,7 +179,7 @@ func TestImageSize(t *testing.T) {
 		},
 	}
 	ctn := containerd.Container(cs)
-	c, err := mockUtil.ImageSize(ctn)
+	c, err := mockUtil.ImageSize(TestNamespace, ctn)
 	require.NoError(t, err)
 	require.Equal(t, int64(12), c)
 }
@@ -236,7 +241,7 @@ func TestTaskMetrics(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			cton := makeCtn(test.values, test.typeURL, test.taskMetricError)
 
-			m, e := mockUtil.TaskMetrics(cton)
+			m, e := mockUtil.TaskMetrics(TestNamespace, cton)
 			if e != nil {
 				require.Equal(t, e, test.taskMetricError)
 				return
@@ -274,7 +279,7 @@ func TestStatus(t *testing.T) {
 		},
 	}
 
-	resultStatus, err := mockUtil.Status(container)
+	resultStatus, err := mockUtil.Status(TestNamespace, container)
 	require.NoError(t, err)
 	require.Equal(t, resultStatus, status)
 }
@@ -291,20 +296,7 @@ func TestIsSandbox(t *testing.T) {
 		},
 	}
 
-	isSandbox, err := mockUtil.IsSandbox(withSandboxLabel)
-	require.NoError(t, err)
-	require.True(t, isSandbox)
-
-	withSandboxAnnotation := &mockContainer{
-		mockSpec: func() (*oci.Spec, error) {
-			return &oci.Spec{Annotations: map[string]string{"io.kubernetes.cri.container-type": "sandbox"}}, nil
-		},
-		mockLabels: func() (map[string]string, error) {
-			return map[string]string{}, nil
-		},
-	}
-
-	isSandbox, err = mockUtil.IsSandbox(withSandboxAnnotation)
+	isSandbox, err := mockUtil.IsSandbox(TestNamespace, withSandboxLabel)
 	require.NoError(t, err)
 	require.True(t, isSandbox)
 
@@ -317,7 +309,7 @@ func TestIsSandbox(t *testing.T) {
 		},
 	}
 
-	isSandbox, err = mockUtil.IsSandbox(notSandbox)
+	isSandbox, err = mockUtil.IsSandbox(TestNamespace, notSandbox)
 	require.NoError(t, err)
 	require.False(t, isSandbox)
 }

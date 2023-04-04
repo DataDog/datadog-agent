@@ -103,7 +103,7 @@ func newNodeStore(name, clientIP string) *nodeStore {
 }
 
 func (s *nodeStore) addConfig(config integration.Config) {
-	s.lastConfigChange = timestampNow()
+	s.lastConfigChange = timestampNowNano()
 	s.digestToConfig[config.Digest()] = config
 	dispatchedConfigs.Inc(s.name, le.JoinLeaderValue)
 }
@@ -114,7 +114,7 @@ func (s *nodeStore) removeConfig(digest string) {
 		log.Debugf("unknown digest %s, skipping", digest)
 		return
 	}
-	s.lastConfigChange = timestampNow()
+	s.lastConfigChange = timestampNowNano()
 	delete(s.digestToConfig, digest)
 	dispatchedConfigs.Dec(s.name, le.JoinLeaderValue)
 }

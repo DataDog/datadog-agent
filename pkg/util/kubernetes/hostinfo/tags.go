@@ -22,10 +22,18 @@ func GetTags(ctx context.Context) (tags []string, err error) {
 	labelsToTags := getLabelsToTags()
 
 	if len(labelsToTags) > 0 {
-		nodeLabels, e := GetNodeLabels(ctx)
+		var nodeLabels map[string]string
+		nodeInfo, e := NewNodeInfo()
 		if e != nil {
 			err = e
 		} else {
+			nodeLabels, e = nodeInfo.GetNodeLabels(ctx)
+			if e != nil {
+				err = e
+			}
+		}
+
+		if len(nodeLabels) > 0 {
 			tags = append(tags, extractTags(nodeLabels, labelsToTags)...)
 		}
 	}

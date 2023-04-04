@@ -30,6 +30,12 @@ Logs Agent
   {{- end }}
 {{- end }}
 
+{{- if .process_file_stats }}
+  {{- range $metric_name, $metric_value := .process_file_stats }}
+    {{$metric_name}}: {{printf "%.0f" $metric_value}}
+  {{- end}}
+{{- end}}
+
 {{- if .errors }}
 
   Errors
@@ -67,11 +73,6 @@ Logs Agent
         {{$input}}
       {{- end }}
       {{- end }}
-      BytesRead: {{ .bytes_read }}
-      Average Latency (ms): {{ .all_time_avg_latency }}
-      24h Average Latency (ms): {{ .recent_avg_latency }}
-      Peak Latency (ms): {{ .all_time_peak_latency }}
-      24h Peak Latency (ms): {{ .recent_peak_latency }}
       {{- if .info }}
       {{- range $key, $value := .info }} {{ $len := len $value }} {{ if eq $len 1 }}
       {{$key}}: {{index $value 0}} {{ else }}

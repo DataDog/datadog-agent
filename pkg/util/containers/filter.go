@@ -60,11 +60,25 @@ const (
 	pauseContainerUpstream = `image:upstream/pause.*`
 	// - cdk/pause-amd64
 	pauseContainerCDK = `image:cdk/pause.*`
+	// - giantswarm/pause
+	pauseContainerGiantSwarm = `image:giantswarm/pause.*`
 
 	// filter prefixes for inclusion/exclusion
 	imageFilterPrefix         = `image:`
 	nameFilterPrefix          = `name:`
 	kubeNamespaceFilterPrefix = `kube_namespace:`
+)
+
+// FilterType indicates the container filter type
+type FilterType string
+
+const (
+	// GlobalFilter is used to cover both MetricsFilter and LogsFilter filter types
+	GlobalFilter FilterType = "GlobalFilter"
+	// MetricsFilter refers to the Metrics filter type
+	MetricsFilter FilterType = "MetricsFilter"
+	// LogsFilter refers to the Logs filter type
+	LogsFilter FilterType = "LogsFilter"
 )
 
 // Filter holds the state for the container filtering logic
@@ -164,6 +178,7 @@ func GetPauseContainerFilter() (*Filter, error) {
 			pauseContainerECR,
 			pauseContainerUpstream,
 			pauseContainerCDK,
+			pauseContainerGiantSwarm,
 		)
 	}
 
@@ -257,6 +272,7 @@ func newMetricFilterFromConfig() (*Filter, error) {
 			pauseContainerECR,
 			pauseContainerUpstream,
 			pauseContainerCDK,
+			pauseContainerGiantSwarm,
 		)
 	}
 	return NewFilter(includeList, excludeList)

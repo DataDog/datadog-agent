@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
-//go:build !serverless && otlp
-// +build !serverless,otlp
+//go:build otlp
+// +build otlp
 
 package otlp
 
@@ -83,6 +83,7 @@ func FromAgentConfig(cfg config.Config) (PipelineConfig, error) {
 		errs = append(errs, fmt.Errorf("at least one OTLP signal needs to be enabled"))
 	}
 	metricsConfig := readConfigSection(cfg, config.OTLPMetrics)
+	debugConfig := readConfigSection(cfg, config.OTLPDebug)
 
 	return PipelineConfig{
 		OTLPReceiverConfig: otlpConfig.ToStringMap(),
@@ -90,7 +91,7 @@ func FromAgentConfig(cfg config.Config) (PipelineConfig, error) {
 		MetricsEnabled:     metricsEnabled,
 		TracesEnabled:      tracesEnabled,
 		Metrics:            metricsConfig.ToStringMap(),
-		Debug:              map[string]interface{}{"loglevel": cfg.GetString(config.OTLPDebugLogLevel)},
+		Debug:              debugConfig.ToStringMap(),
 	}, multierr.Combine(errs...)
 }
 

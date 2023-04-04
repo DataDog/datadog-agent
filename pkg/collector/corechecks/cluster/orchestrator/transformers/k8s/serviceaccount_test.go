@@ -13,6 +13,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
@@ -29,7 +30,7 @@ func TestExtractServiceAccount(t *testing.T) {
 	}{
 		"standard": {
 			input: corev1.ServiceAccount{
-				AutomountServiceAccountToken: boolPtr(true),
+				AutomountServiceAccountToken: pointer.Ptr(true),
 				ImagePullSecrets: []corev1.LocalObjectReference{
 					{
 						Name: "registry-key",

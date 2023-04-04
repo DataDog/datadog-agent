@@ -26,6 +26,7 @@ var filter *containers.Filter
 // IsContainerExcluded returns whether a container should be excluded,
 // based on it's name, image name and namespace. Exclusion patterns are configured
 // via the global options (ac_include/ac_exclude/exclude_pause_container)
+//
 //export IsContainerExcluded
 func IsContainerExcluded(name, image, namespace *C.char) C.int {
 	// If init failed, fallback to False

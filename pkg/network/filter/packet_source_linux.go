@@ -38,6 +38,7 @@ type AFPacketSource struct {
 	dropped   *atomic.Int64
 }
 
+// NewPacketSource creates an AFPacketSource using the provided BPF filter
 func NewPacketSource(filter *manager.Probe, bpfFilter []bpf.RawInstruction) (*AFPacketSource, error) {
 	rawSocket, err := afpacket.NewTPacket(
 		afpacket.OptPollTimeout(1*time.Second),
@@ -77,6 +78,7 @@ func NewPacketSource(filter *manager.Probe, bpfFilter []bpf.RawInstruction) (*AF
 	return ps, nil
 }
 
+// Stats returns statistics about the AFPacketSource
 func (p *AFPacketSource) Stats() map[string]int64 {
 	return map[string]int64{
 		"socket_polls":      p.polls.Load(),
@@ -86,6 +88,7 @@ func (p *AFPacketSource) Stats() map[string]int64 {
 	}
 }
 
+// VisitPackets starts reading packets from the source
 func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit func([]byte, time.Time) error) error {
 	for {
 		// allow the read loop to be prematurely interrupted
@@ -116,10 +119,12 @@ func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit func([]byte, t
 	}
 }
 
+// PacketType is the gopacket.LayerType for this source
 func (p *AFPacketSource) PacketType() gopacket.LayerType {
 	return layers.LayerTypeEthernet
 }
 
+// Close stops packet reading
 func (p *AFPacketSource) Close() {
 	close(p.exit)
 	p.TPacket.Close()

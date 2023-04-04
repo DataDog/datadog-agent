@@ -25,7 +25,7 @@ const (
 
 var (
 	// Buffer holding datadog driver filterapi (ddnpmapi) signature to ensure consistency with driver.
-	ddAPIVersionBuf = makeDDAPIVersionBuffer(Signature)
+	DdAPIVersionBuf = makeDDAPIVersionBuffer(Signature)
 )
 
 // Creates a buffer that Driver will use to verify proper versions are communicating
@@ -131,7 +131,7 @@ func (dh *RealDriverHandle) GetStatsForHandle() (map[string]map[string]int64, er
 		returnmap     = make(map[string]map[string]int64)
 	)
 
-	err := dh.DeviceIoControl(GetStatsIOCTL, &ddAPIVersionBuf[0], uint32(len(ddAPIVersionBuf)), &statbuf[0], uint32(len(statbuf)), &bytesReturned, nil)
+	err := dh.DeviceIoControl(GetStatsIOCTL, &DdAPIVersionBuf[0], uint32(len(DdAPIVersionBuf)), &statbuf[0], uint32(len(statbuf)), &bytesReturned, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read driver stats for filter type %v - returned error %v", dh.handleType, err)
 	}
@@ -169,9 +169,15 @@ func (dh *RealDriverHandle) GetStatsForHandle() (map[string]map[string]int64, er
 			"num_flows_missed_max_no_handle": stats.Flow_stats.Num_flows_missed_max_no_handle_exceeded,
 			"num_packets_after_closed":       stats.Flow_stats.Num_packets_after_flow_closed,
 
+			"classify_no_direction":        stats.Flow_stats.Classify_with_no_direction,
+			"classify_multiple_request":    stats.Flow_stats.Classify_multiple_request,
+			"classify_multiple_response":   stats.Flow_stats.Classify_multiple_response,
+			"classify_response_no_request": stats.Flow_stats.Classify_response_no_request,
+
 			"http_txns_captured":       stats.Http_stats.Txns_captured,
 			"http_txns_skipped_max":    stats.Http_stats.Txns_skipped_max_exceeded,
 			"http_ndis_non_contiguous": stats.Http_stats.Ndis_buffer_non_contiguous,
+			"Flows_ignored_as_etw":     stats.Http_stats.Flows_ignored_as_etw,
 		}
 	// A DataHandle handle returns transfer stats specific to this handle
 	case DataHandle:

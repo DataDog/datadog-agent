@@ -77,8 +77,7 @@ func (mockKMSClientNoEncryptionContext) Decrypt(params *kms.DecryptInput) (*kms.
 }
 
 func TestDecryptKMSWithEncryptionContext(t *testing.T) {
-	os.Setenv(functionNameEnvVar, mockFunctionName)
-	defer os.Setenv(functionNameEnvVar, "")
+	t.Setenv(functionNameEnvVar, mockFunctionName)
 
 	client := mockKMSClientWithEncryptionContext{}
 	result, _ := decryptKMS(client, mockEncryptedAPIKeyBase64)
@@ -110,7 +109,6 @@ func TestExtractRegionFromMalformedPrefixSecretsManagerArnPrefix(t *testing.T) {
 
 func TestSendAPIKeyToShellSuccess(t *testing.T) {
 	os.Setenv("DD_SHELL_ENABLED", "true")
-	defer os.Unsetenv("DD_SHELL_ENABLED")
 	port := testutil.FreeTCPPort(t)
 	hostAndPort := fmt.Sprintf("%s%d", "localhost:", port)
 	listen, err := net.Listen("tcp", hostAndPort)
@@ -135,4 +133,25 @@ func TestSendApiKeyToShellIsDisabledBecauseNotTrue(t *testing.T) {
 	os.Setenv("DD_SHELL_ENABLED", "false")
 	defer os.Unsetenv("DD_SHELL_ENABLED")
 	assert.True(t, sendAPIKeyToShell("abcd", "localhost:1234"))
+}
+
+func TestDDApiKey(t *testing.T) {
+	t.Setenv("DD_API_KEY", "abc")
+}
+
+func TestHasDDApiKeySecretArn(t *testing.T) {
+	t.Setenv("DD_API_KEY_SECRET_ARN", "abc")
+	assert.True(t, hasApiKey())
+}
+
+func TestHasDDKmsApiKey(t *testing.T) {
+	t.Setenv("DD_KMS_API_KEY", "abc")
+	assert.True(t, hasApiKey())
+}
+
+func TestHasNoKeys(t *testing.T) {
+	t.Setenv("DD_KMS_API_KEY", "")
+	t.Setenv("DD_API_KEY_SECRET_ARN", "")
+	t.Setenv("DD_API_KEY", "")
+	assert.False(t, hasApiKey())
 }

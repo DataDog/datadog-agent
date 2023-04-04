@@ -6,13 +6,11 @@
 package serverless
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -26,9 +24,6 @@ import (
 )
 
 const (
-	routeEventNext string = "/2020-01-01/extension/event/next"
-	routeInitError string = "/2020-01-01/extension/init/error"
-
 	headerExtID      string = "Lambda-Extension-Identifier"
 	headerExtErrType string = "Lambda-Extension-Function-Error-Type"
 
@@ -92,41 +87,9 @@ type Payload struct {
 	RequestID          string         `json:"requestId"`
 }
 
-// ReportInitError reports an init error to the environment.
-func ReportInitError(id registration.ID, errorEnum ErrorEnum) error {
-	var err error
-	var content []byte
-	var request *http.Request
-	var response *http.Response
-
-	if content, err = json.Marshal(map[string]string{
-		"error": string(errorEnum),
-	}); err != nil {
-		return fmt.Errorf("ReportInitError: can't write the payload: %s", err)
-	}
-
-	if request, err = http.NewRequest(http.MethodPost, buildURL(routeInitError), bytes.NewBuffer(content)); err != nil {
-		return fmt.Errorf("ReportInitError: can't create the POST request: %s", err)
-	}
-
-	request.Header.Set(headerExtID, id.String())
-	request.Header.Set(headerExtErrType, FatalConnectFailed.String())
-
-	client := &http.Client{
-		Transport: &http.Transport{IdleConnTimeout: requestTimeout},
-		Timeout:   requestTimeout,
-	}
-
-	if response, err = client.Do(request); err != nil {
-		return fmt.Errorf("ReportInitError: while POST init error route: %s", err)
-	}
-
-	defer response.Body.Close()
-	if response.StatusCode >= 300 {
-		return fmt.Errorf("ReportInitError: received an HTTP %s", response.Status)
-	}
-
-	return nil
+// FlushableAgent allows flushing
+type FlushableAgent interface {
+	Flush()
 }
 
 // WaitForNextInvocation makes a blocking HTTP call to receive the next event from AWS.
@@ -137,7 +100,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 	var request *http.Request
 	var response *http.Response
 
-	if request, err = http.NewRequest(http.MethodGet, buildURL(routeEventNext), nil); err != nil {
+	if request, err = http.NewRequest(http.MethodGet, registration.NextUrl(), nil); err != nil {
 		return fmt.Errorf("WaitForNextInvocation: can't create the GET request: %v", err)
 	}
 	request.Header.Set(headerExtID, id.String())
@@ -151,7 +114,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 	daemon.StoreInvocationTime(time.Now())
 
 	var body []byte
-	if body, err = ioutil.ReadAll(response.Body); err != nil {
+	if body, err = io.ReadAll(response.Body); err != nil {
 		return fmt.Errorf("WaitForNextInvocation: can't read the body: %v", err)
 	}
 	defer response.Body.Close()
@@ -170,6 +133,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 		if isTimeout {
 			ecs := daemon.ExecutionContext.GetCurrentState()
 			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, ecs.Coldstart)
+			metricTags = tags.AddInitTypeTag(metricTags)
 			metrics.SendTimeoutEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
 			metrics.SendErrorsEnhancedMetric(metricTags, time.Now(), daemon.MetricAgent.Demux)
 		}
@@ -192,7 +156,7 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 		log.Debug("Timeout detected, finishing the current invocation now to allow receiving the SHUTDOWN event")
 		err := daemon.ExecutionContext.SaveCurrentExecutionContext()
 		if err != nil {
-			log.Debug("Unable to save the current state")
+			log.Warnf("Unable to save the current state. Failed with: %s", err)
 		}
 		// Tell the Daemon that the runtime is done (even though it isn't, because it's timing out) so that we can receive the SHUTDOWN event
 		daemon.TellDaemonRuntimeDone()
@@ -205,11 +169,13 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, requestID string) {
 	log.Debug("Received invocation event...")
 	daemon.ExecutionContext.SetFromInvocation(arn, requestID)
-	daemon.ComputeGlobalTags(config.GetConfiguredTags(true))
+	daemon.ComputeGlobalTags(config.GetGlobalConfiguredTags(true))
+	daemon.StartLogCollection()
 	ecs := daemon.ExecutionContext.GetCurrentState()
 
 	if daemon.MetricAgent != nil {
 		metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, ecs.Coldstart)
+		metricTags = tags.AddInitTypeTag(metricTags)
 		metrics.SendInvocationEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
 	} else {
 		log.Error("Could not send the invocation enhanced metric")
@@ -229,14 +195,6 @@ func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, 
 
 	daemon.WaitForDaemon()
 	doneChannel <- true
-}
-
-func buildURL(route string) string {
-	prefix := os.Getenv("AWS_LAMBDA_RUNTIME_API")
-	if len(prefix) == 0 {
-		return fmt.Sprintf("http://localhost:9001%s", route)
-	}
-	return fmt.Sprintf("http://%s%s", prefix, route)
 }
 
 func computeTimeout(now time.Time, deadlineMs int64, safetyBuffer time.Duration) time.Duration {

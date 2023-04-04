@@ -16,6 +16,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 func setCorrectRight(path string) {
@@ -27,14 +29,27 @@ func setCorrectRight(path string) {
 		"-addDDuser", "1").Run()
 }
 
+func testCheckRightsStub() {
+	// Stub for CI since running as Administrator and no installer data
+	getDDAgentUserSID = winutil.GetSidFromUser
+}
+
 func TestWrongPath(t *testing.T) {
 	require.NotNil(t, checkRights("does not exists", false))
 }
 
-func TestCheckRights(t *testing.T) {
-	tmpfile, err := ioutil.TempFile("", "agent-collector-test")
+func TestSpaceInPath(t *testing.T) {
+	tmpDir, err := ioutil.TempDir("", "super temp")
 	require.Nil(t, err)
+	defer os.Remove(tmpDir)
+	tmpFile, err := os.CreateTemp(tmpDir, "agent-collector-test")
+	require.Nil(t, err)
+	defer os.Remove(tmpFile.Name())
+	require.Nil(t, os.Chmod(tmpFile.Name(), 0700))
+	require.Nil(t, checkRights(tmpFile.Name(), false))
+}
 
+func TestCheckRights(t *testing.T) {
 	// default options
 	allowGroupExec := false
 
@@ -42,7 +57,7 @@ func TestCheckRights(t *testing.T) {
 	require.NotNil(t, checkRights("/does not exists", allowGroupExec))
 
 	// missing current user
-	tmpfile, err = ioutil.TempFile("", "agent-collector-test")
+	tmpfile, err := os.CreateTemp("", "agent-collector-test")
 	require.Nil(t, err)
 	defer os.Remove(tmpfile.Name())
 
@@ -52,11 +67,10 @@ func TestCheckRights(t *testing.T) {
 		"-removeAdmin", "0",
 		"-removeLocalSystem", "0",
 		"-addDDuser", "0").Run()
-	err = checkRights(tmpfile.Name(), allowGroupExec)
 	assert.NotNil(t, checkRights(tmpfile.Name(), allowGroupExec))
 
 	// missing localSystem
-	tmpfile, err = ioutil.TempFile("", "agent-collector-test")
+	tmpfile, err = os.CreateTemp("", "agent-collector-test")
 	require.Nil(t, err)
 	defer os.Remove(tmpfile.Name())
 	exec.Command("powershell", "test/setAcl.ps1",
@@ -68,7 +82,7 @@ func TestCheckRights(t *testing.T) {
 	assert.NotNil(t, checkRights(tmpfile.Name(), allowGroupExec))
 
 	// missing Administrator
-	tmpfile, err = ioutil.TempFile("", "agent-collector-test")
+	tmpfile, err = os.CreateTemp("", "agent-collector-test")
 	require.Nil(t, err)
 	defer os.Remove(tmpfile.Name())
 	exec.Command("powershell", "test/setAcl.ps1",
@@ -80,7 +94,7 @@ func TestCheckRights(t *testing.T) {
 	assert.NotNil(t, checkRights(tmpfile.Name(), allowGroupExec))
 
 	// extra rights for someone else
-	tmpfile, err = ioutil.TempFile("", "agent-collector-test")
+	tmpfile, err = os.CreateTemp("", "agent-collector-test")
 	require.Nil(t, err)
 	defer os.Remove(tmpfile.Name())
 	exec.Command("powershell", "test/setAcl.ps1",
@@ -92,7 +106,7 @@ func TestCheckRights(t *testing.T) {
 	assert.Nil(t, checkRights(tmpfile.Name(), allowGroupExec))
 
 	// missing localSystem or Administrator
-	tmpfile, err = ioutil.TempFile("", "agent-collector-test")
+	tmpfile, err = os.CreateTemp("", "agent-collector-test")
 	require.Nil(t, err)
 	defer os.Remove(tmpfile.Name())
 	exec.Command("powershell", "test/setAcl.ps1",

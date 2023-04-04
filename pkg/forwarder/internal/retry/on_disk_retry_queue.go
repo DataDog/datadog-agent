@@ -7,7 +7,6 @@ package retry
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -23,29 +22,32 @@ const retryTransactionsExtension = ".retry"
 const retryFileFormat = "2006_01_02__15_04_05_"
 
 type onDiskRetryQueue struct {
-	serializer         *HTTPTransactionsSerializer
-	storagePath        string
-	diskUsageLimit     *DiskUsageLimit
-	filenames          []string
-	currentSizeInBytes int64
-	telemetry          onDiskRetryQueueTelemetry
+	serializer          *HTTPTransactionsSerializer
+	storagePath         string
+	diskUsageLimit      *DiskUsageLimit
+	filenames           []string
+	currentSizeInBytes  int64
+	telemetry           onDiskRetryQueueTelemetry
+	pointCountTelemetry *PointCountTelemetry
 }
 
 func newOnDiskRetryQueue(
 	serializer *HTTPTransactionsSerializer,
 	storagePath string,
 	diskUsageLimit *DiskUsageLimit,
-	telemetry onDiskRetryQueueTelemetry) (*onDiskRetryQueue, error) {
+	telemetry onDiskRetryQueueTelemetry,
+	pointCountTelemetry *PointCountTelemetry) (*onDiskRetryQueue, error) {
 
 	if err := os.MkdirAll(storagePath, 0700); err != nil {
 		return nil, err
 	}
 
 	storage := &onDiskRetryQueue{
-		serializer:     serializer,
-		storagePath:    storagePath,
-		diskUsageLimit: diskUsageLimit,
-		telemetry:      telemetry,
+		serializer:          serializer,
+		storagePath:         storagePath,
+		diskUsageLimit:      diskUsageLimit,
+		telemetry:           telemetry,
+		pointCountTelemetry: pointCountTelemetry,
 	}
 
 	if err := storage.reloadExistingRetryFiles(); err != nil {
@@ -59,8 +61,8 @@ func newOnDiskRetryQueue(
 	return storage, err
 }
 
-// Serialize serializes transactions to the file system.
-func (s *onDiskRetryQueue) Serialize(transactions []transaction.Transaction) error {
+// Store stores transactions to the file system.
+func (s *onDiskRetryQueue) Store(transactions []transaction.Transaction) error {
 	s.telemetry.addSerializeCount()
 
 	// Reset the serializer in case some transactions were serialized
@@ -84,7 +86,7 @@ func (s *onDiskRetryQueue) Serialize(transactions []transaction.Transaction) err
 	}
 
 	filename := time.Now().UTC().Format(retryFileFormat)
-	file, err := ioutil.TempFile(s.storagePath, filename+"*"+retryTransactionsExtension)
+	file, err := os.CreateTemp(s.storagePath, filename+"*"+retryTransactionsExtension)
 	if err != nil {
 		return err
 	}
@@ -93,8 +95,11 @@ func (s *onDiskRetryQueue) Serialize(transactions []transaction.Transaction) err
 		_ = os.Remove(file.Name())
 		return err
 	}
-	defer file.Close()
-
+	err = file.Close()
+	if err != nil {
+		_ = os.Remove(file.Name())
+		return err
+	}
 	s.currentSizeInBytes += bufferSize
 	s.filenames = append(s.filenames, file.Name())
 	s.telemetry.setFileSize(bufferSize)
@@ -103,15 +108,15 @@ func (s *onDiskRetryQueue) Serialize(transactions []transaction.Transaction) err
 	return nil
 }
 
-// Deserialize deserializes a transactions from the file system.
-func (s *onDiskRetryQueue) Deserialize() ([]transaction.Transaction, error) {
+// ExtractLast extracts the last transactions stored.
+func (s *onDiskRetryQueue) ExtractLast() ([]transaction.Transaction, error) {
 	if len(s.filenames) == 0 {
 		return nil, nil
 	}
 	s.telemetry.addDeserializeCount()
 	index := len(s.filenames) - 1
 	path := s.filenames[index]
-	bytes, err := ioutil.ReadFile(path)
+	bytes, err := os.ReadFile(path)
 
 	// Remove the file even in case of a read failure.
 	if errRemoveFile := s.removeFileAt(index); errRemoveFile != nil {
@@ -157,6 +162,20 @@ func (s *onDiskRetryQueue) makeRoomFor(bufferSize int64) error {
 		index := 0
 		filename := s.filenames[index]
 		log.Errorf("Maximum disk space for retry transactions is reached. Removing %s", filename)
+
+		bytes, err := os.ReadFile(filename)
+		if err != nil {
+			log.Errorf("Cannot read the file %v: %v", filename, err)
+		} else if transactions, _, errDeserialize := s.serializer.Deserialize(bytes); errDeserialize == nil {
+			pointDroppedCount := 0
+			for _, tr := range transactions {
+				pointDroppedCount += tr.GetPointCount()
+			}
+			s.onPointDropped(pointDroppedCount)
+		} else {
+			log.Errorf("Cannot deserialize the content of file %v: %v", filename, errDeserialize)
+		}
+
 		if err := s.removeFileAt(index); err != nil {
 			return err
 		}
@@ -164,6 +183,11 @@ func (s *onDiskRetryQueue) makeRoomFor(bufferSize int64) error {
 	}
 
 	return nil
+}
+
+func (s *onDiskRetryQueue) onPointDropped(count int) {
+	s.telemetry.addPointDroppedCount(count)
+	s.pointCountTelemetry.OnPointDropped(count)
 }
 
 func (s *onDiskRetryQueue) removeFileAt(index int) error {
@@ -207,16 +231,22 @@ func (s *onDiskRetryQueue) reloadExistingRetryFiles() error {
 }
 
 func (s *onDiskRetryQueue) getExistingRetryFiles() ([]os.FileInfo, int64, error) {
-	entries, err := ioutil.ReadDir(s.storagePath)
+	entries, err := os.ReadDir(s.storagePath)
 	if err != nil {
 		return nil, 0, err
 	}
 	var files []os.FileInfo
 	currentSizeInBytes := int64(0)
 	for _, entry := range entries {
-		if entry.Mode().IsRegular() && filepath.Ext(entry.Name()) == retryTransactionsExtension {
-			currentSizeInBytes += entry.Size()
-			files = append(files, entry)
+		info, err := entry.Info()
+		if err != nil {
+			log.Warn("Can't get file info", err)
+			continue
+		}
+
+		if info.Mode().IsRegular() && filepath.Ext(entry.Name()) == retryTransactionsExtension {
+			currentSizeInBytes += info.Size()
+			files = append(files, info)
 		}
 	}
 	return files, currentSizeInBytes, nil

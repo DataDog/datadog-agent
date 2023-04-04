@@ -7,8 +7,7 @@ rules:
 - id: cis-kubernetes-1
   scope:
     - kubernetesNode
-  hostSelector: node.label("kubernetes.io/role") in ["worker"]
-  resources:
+  input:
     - file:
         path: /files/kube-apiserver.yaml
-      condition: file.permissions == 0647
+      type: object

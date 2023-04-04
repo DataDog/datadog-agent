@@ -10,6 +10,7 @@ The following environment variables are supported:
   - `DD_HOSTNAME`: hostname to use for metrics
   - `DD_DOGSTATSD_SOCKET`: path to the unix socket to use instead of UDP. Must be in a `rw` mounted volume.
   - `DD_ENABLE_METADATA_COLLECTION`: whether to collect metadata (default is true, set to false only if running alonside an existing dd-agent)
+  - `DD_SITE`: Destination site for your metrics, should be set to the site you are using. Defaults to datadoghq.com.
 
 This is a sample Kubernetes DaemonSet, using the UDS protocol, running alongside an existing agent5:
 

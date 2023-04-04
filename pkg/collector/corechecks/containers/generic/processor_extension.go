@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -24,7 +24,7 @@ type ProcessorExtension interface {
 	// Process is called after core process (regardless of encountered error)
 	// Tags are given after `AdaptTags()` has been called
 	// aggSender is only passed as the sender function (sender.Gauge for instance) needs to be passed back to sender
-	Process(tags []string, container *workloadmeta.Container, collector provider.Collector, cacheValidity time.Duration)
+	Process(tags []string, container *workloadmeta.Container, collector metrics.Collector, cacheValidity time.Duration)
 
 	// PostProcess is called once during each check run, after all calls to `Process`
 	PostProcess()

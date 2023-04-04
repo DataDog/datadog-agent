@@ -6,35 +6,23 @@
 package file
 
 import (
-	"os"
-	"path/filepath"
 	"regexp"
-	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
+	fileprovider "github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/file/provider"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
-
-// rxContainerID is used in the shouldIgnore func to do a best-effort validation
-// that the file currently scanned for a source is attached to the proper container.
-// If the container ID we parse from the filename isn't matching this regexp, we *will*
-// tail the file because we prefer a false-negative than a false-positive (best-effort).
-var rxContainerID = regexp.MustCompile("^[a-fA-F0-9]{64}$")
-
-// ContainersLogsDir is the directory in which we should find containers logsfile
-// with the container ID in their filename.
-// Public to be able to change it while running unit tests.
-var ContainersLogsDir = "/var/log/containers"
 
 // DefaultSleepDuration represents the amount of time the tailer waits before reading new data when no data is received
 const DefaultSleepDuration = 1 * time.Second
@@ -47,7 +35,7 @@ type Launcher struct {
 	removedSources      chan *sources.LogSource
 	activeSources       []*sources.LogSource
 	tailingLimit        int
-	fileProvider        *fileProvider
+	fileProvider        *fileprovider.FileProvider
 	tailers             map[string]*tailer.Tailer
 	registry            auditor.Registry
 	tailerSleepDuration time.Duration
@@ -60,10 +48,22 @@ type Launcher struct {
 }
 
 // NewLauncher returns a new launcher.
-func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration) *Launcher {
+func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration, wildcardMode string) *Launcher {
+
+	var wildcardStrategy fileprovider.WildcardSelectionStrategy
+	switch wildcardMode {
+	case "by_modification_time":
+		wildcardStrategy = fileprovider.WildcardUseFileModTime
+	case "by_name":
+		wildcardStrategy = fileprovider.WildcardUseFileName
+	default:
+		log.Warnf("Unknown wildcard mode specified: %q, defaulting to 'by_name' strategy.", wildcardMode)
+		wildcardStrategy = fileprovider.WildcardUseFileName
+	}
+
 	return &Launcher{
 		tailingLimit:           tailingLimit,
-		fileProvider:           newFileProvider(tailingLimit),
+		fileProvider:           fileprovider.NewFileProvider(tailingLimit, wildcardStrategy),
 		tailers:                make(map[string]*tailer.Tailer),
 		tailerSleepDuration:    tailerSleepDuration,
 		stop:                   make(chan struct{}),
@@ -122,10 +122,14 @@ func (s *Launcher) cleanup() {
 // For instance, when a file is logrotated, its tailer will keep tailing the rotated file.
 // The Scanner needs to stop that previous tailer, and start a new one for the new file.
 func (s *Launcher) scan() {
-	files := s.fileProvider.filesToTail(s.activeSources)
+	files := s.fileProvider.FilesToTail(s.validatePodContainerID, s.activeSources)
 	filesTailed := make(map[string]bool)
-	tailersLen := len(s.tailers)
 
+	log.Debugf("Scan - got %d files from FilesToTail and currently tailing %d files\n", len(files), len(s.tailers))
+
+	// Pass 1 - Compare 'files' to our current set of tailed files. If any no longer need to be tailed,
+	// stop the tailers.
+	// Defer creation of new tailers until second pass.
 	for _, file := range files {
 		// We're using generated key here: in case this file has been found while
 		// scanning files for container, the key will use the format:
@@ -136,43 +140,34 @@ func (s *Launcher) scan() {
 		// It is a hack to let two tailers tail the same file (it's happening
 		// when a tailer for a dead container is still tailing the file, and another
 		// tailer is tailing the file for the new container).
-		tailerKey := file.GetScanKey()
-		tailer, isTailed := s.tailers[tailerKey]
+		scanKey := file.GetScanKey()
+		tailer, isTailed := s.tailers[scanKey]
 		if isTailed && tailer.IsFinished() {
 			// skip this tailer as it must be stopped
 			continue
 		}
-		if !isTailed && tailersLen >= s.tailingLimit {
-			// can't create new tailer because tailingLimit is reached
-			continue
-		}
 
-		if !isTailed && tailersLen < s.tailingLimit {
-			// create a new tailer tailing from the beginning of the file if no offset has been recorded
-			succeeded := s.startNewTailer(file, config.Beginning)
-			if !succeeded {
-				// the setup failed, let's try to tail this file in the next scan
+		// If the file is currently being tailed, check for rotation and handle it appropriately.
+		if isTailed {
+			didRotate, err := tailer.DidRotate()
+			if err != nil {
 				continue
 			}
-			tailersLen++
-			filesTailed[tailerKey] = true
-			continue
-		}
-
-		didRotate, err := tailer.DidRotate()
-		if err != nil {
-			continue
-		}
-		if didRotate {
-			// restart tailer because of file-rotation on file
-			succeeded := s.restartTailerAfterFileRotation(tailer, file)
-			if !succeeded {
-				// the setup failed, let's try to tail this file in the next scan
-				continue
+			if didRotate {
+				// restart tailer because of file-rotation on file
+				succeeded := s.restartTailerAfterFileRotation(tailer, file)
+				if !succeeded {
+					// the setup failed, let's try to tail this file in the next scan
+					continue
+				}
 			}
+		} else {
+			// Defer any files that are not tailed for the 2nd pass
+
+			continue
 		}
 
-		filesTailed[tailerKey] = true
+		filesTailed[scanKey] = true
 	}
 
 	for scanKey, tailer := range s.tailers {
@@ -181,6 +176,32 @@ func (s *Launcher) scan() {
 		if !shouldTail {
 			s.stopTailer(scanKey, tailer)
 		}
+	}
+
+	tailersLen := len(s.tailers)
+	log.Debugf("After stopping tailers, there are %d tailers running.\n", tailersLen)
+
+	for _, file := range files {
+		scanKey := file.GetScanKey()
+		_, isTailed := s.tailers[scanKey]
+		if !isTailed && tailersLen < s.tailingLimit {
+			// create a new tailer tailing from the beginning of the file if no offset has been recorded
+			succeeded := s.startNewTailer(file, config.Beginning)
+			if !succeeded {
+				// the setup failed, let's try to tail this file in the next scan
+				continue
+			}
+			tailersLen++
+			filesTailed[scanKey] = true
+			continue
+		}
+	}
+	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", tailersLen, s.tailingLimit)
+
+	// Check how many file handles the Agent process has open and log a warning if the process is coming close to the OS file limit
+	fileStats, err := util.GetProcessFileStats()
+	if err == nil {
+		CheckProcessTelemetry(fileStats)
 	}
 }
 
@@ -203,7 +224,11 @@ func (s *Launcher) removeSource(source *sources.LogSource) {
 
 // launch launches new tailers for a new source.
 func (s *Launcher) launchTailers(source *sources.LogSource) {
-	files, err := s.fileProvider.collectFiles(source)
+	// If we're at the limit already, no need to do a 'CollectFiles', just wait for the next 'scan'
+	if len(s.tailers) >= s.tailingLimit {
+		return
+	}
+	files, err := s.fileProvider.CollectFiles(source)
 	if err != nil {
 		source.Status.Error(err)
 		log.Warnf("Could not collect files: %v", err)
@@ -217,6 +242,7 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 			// the file is already tailed, update the existing tailer's source so that the tailer
 			// uses this new source going forward
 			tailer.ReplaceSource(source)
+			continue
 		}
 
 		mode, _ := config.TailingModeFromString(source.Config.TailingMode)
@@ -240,23 +266,6 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode) bool 
 		return false
 	}
 
-	// We also use the file launcher to look for containers and pods logs file, because of that
-	// we have to make sure that the file we just detected is tagged with the correct
-	// container ID. Enabled through `logs_config.validate_pod_container_id`.
-	// The way k8s is storing files in /var/log/pods doesn't let us do that properly
-	// (the filename doesn't contain the container ID).
-	// However, the symlinks present in /var/log/containers are pointing to /var/log/pods files,
-	// meaning that we can use them to validate that the file we have found is concerning us.
-	// That's what the function shouldIgnore is trying to do when the directory exists and is readable.
-	// See these links for more info:
-	//   - https://github.com/kubernetes/kubernetes/issues/58638
-	//   - https://github.com/fabric8io/fluent-plugin-kubernetes_metadata_filter/issues/105
-	if s.validatePodContainerID && file.Source != nil &&
-		(file.Source.GetSourceType() == sources.KubernetesSourceType || file.Source.GetSourceType() == sources.DockerSourceType) &&
-		s.shouldIgnore(file) {
-		return false
-	}
-
 	tailer := s.createTailer(file, s.pipelineProvider.NextPipelineChan())
 
 	var offset int64
@@ -277,69 +286,6 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode) bool 
 
 	s.tailers[file.GetScanKey()] = tailer
 	return true
-}
-
-// shouldIgnore resolves symlinks in /var/log/containers in order to use that redirection
-// to validate that we will be reading a file for the correct container.
-func (s *Launcher) shouldIgnore(file *tailer.File) bool {
-	// this method needs a source config to detect whether we should ignore that file or not
-	if file == nil || file.Source == nil || file.Source.Config() == nil {
-		return false
-	}
-
-	infos := make(map[string]string)
-	err := filepath.Walk(ContainersLogsDir, func(containerLogFilename string, info os.FileInfo, err error) error {
-		// we only wants to follow symlinks
-		if info == nil || info.Mode()&os.ModeSymlink != os.ModeSymlink || info.IsDir() {
-			// not a symlink, we are not interested in this file
-			return nil
-		}
-
-		// resolve the symlink
-		podLogFilename, err2 := os.Readlink(containerLogFilename)
-		if err2 != nil {
-			log.Debug("Error while resolving symlink of", containerLogFilename, ":", err)
-			return nil
-		}
-
-		infos[podLogFilename] = containerLogFilename
-		return nil
-	})
-
-	// this is not an error if we we are not currently looking for container logs files,
-	// so not problem and just return false.
-	// Still, we write a debug message to be able to troubleshoot that
-	// in cases we're legitimately looking for containers logs.
-	if err != nil {
-		log.Debug("Can't look for symlinks in /var/log/containers:", err)
-		return false
-	}
-
-	// container id extracted from the file found in /var/log/containers
-	base := filepath.Base(infos[file.Path]) // only the file
-	ext := filepath.Ext(base)               // file extension
-	parts := strings.Split(base, "-")       // get only the container ID part from the file
-	var containerIDFromFilename string
-	if len(parts) > 1 {
-		containerIDFromFilename = strings.TrimSuffix(parts[len(parts)-1], ext)
-	}
-
-	// basic validation of the ID that has been parsed, if it doesn't look like
-	// an ID we don't want to compare another ID to it
-	if containerIDFromFilename == "" || !rxContainerID.Match([]byte(containerIDFromFilename)) {
-		return false
-	}
-
-	if file.Source.Config().Identifier != "" && containerIDFromFilename != "" {
-		if strings.TrimSpace(strings.ToLower(containerIDFromFilename)) != strings.TrimSpace(strings.ToLower(file.Source.Config().Identifier)) {
-			log.Debugf("We were about to tail a file attached to the wrong container (%s != %s), probably due to short-lived containers.",
-				containerIDFromFilename, file.Source.Config().Identifier)
-			// ignore this file, it is not concerning the container stored in file.Source
-			return true
-		}
-	}
-
-	return false
 }
 
 // handleTailingModeChange determines the tailing behaviour when the tailing mode for a given file has its
@@ -393,4 +339,23 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 
 func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, pattern *regexp.Regexp) *tailer.Tailer {
 	return t.NewRotatedTailer(file, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern))
+}
+
+func CheckProcessTelemetry(stats *util.ProcessFileStats) {
+	ratio := float64(stats.AgentOpenFiles) / float64(stats.OsFileLimit)
+	if ratio > 0.9 {
+		log.Errorf("Agent process has %v files open which is %0.f%% of the OS open file limit (%v). This is over 90%% utilization. This may be preventing log files from being tailed by the Agent and could interfere with the basic functionality of the Agent. OS file limit must be increased.",
+			stats.AgentOpenFiles,
+			ratio*100,
+			stats.OsFileLimit)
+	} else if ratio > 0.7 {
+		log.Warnf("Agent process has %v files open which is %0.f%% of the OS open file limit (%v). This is over 70%% utilization; consider increasing the OS open file limit.",
+			stats.AgentOpenFiles,
+			ratio*100,
+			stats.OsFileLimit)
+	}
+	log.Debugf("Agent process has %v files open which is %0.f%% of the OS open file limit (%v).",
+		stats.AgentOpenFiles,
+		ratio*100,
+		stats.OsFileLimit)
 }

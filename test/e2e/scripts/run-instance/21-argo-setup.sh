@@ -15,7 +15,7 @@ done
 set -e
 
 kubectl create namespace argo
-kubectl apply -n argo -f https://github.com/argoproj/argo-workflows/releases/download/v3.1.1/install.yaml
+kubectl apply -n argo -f https://github.com/argoproj/argo-workflows/releases/download/v3.4.3/install.yaml
 
 # TODO use a more restrictive SA
 kubectl apply -f - << EOF
@@ -31,17 +31,6 @@ subjects:
 - kind: ServiceAccount
   name: default
   namespace: default
-EOF
-
-# From https://github.com/argoproj/argo-workflows/blob/master/docs/workflow-controller-configmap.yaml
-kubectl replace -f - << EOF
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: workflow-controller-configmap
-  namespace: argo
-data:
-  containerRuntimeExecutor: k8sapi
 EOF
 
 set +e

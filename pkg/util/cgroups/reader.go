@@ -17,6 +17,10 @@ import (
 	"time"
 )
 
+const (
+	ContainerRegexpStr = "([0-9a-f]{64})|([0-9a-f]{8}(-[0-9a-f]{4}){4}$)"
+)
+
 // Reader is the main interface to scrape data from cgroups
 // Calling RefreshCgroups() with your cache toleration is mandatory to retrieve accurate data
 // All Reader methods support concurrent calls
@@ -48,7 +52,7 @@ func DefaultFilter(path, name string) (string, error) {
 // ContainerRegexp defines the regexp used to match container ids
 // First part is usual containerid (opencontainers standard)
 // Second part is PCF/Garden regexp. We currently assume no suffix ($) to avoid matching pod UIDs
-var ContainerRegexp = regexp.MustCompile("([0-9a-f]{64})|([0-9a-f]{8}(-[0-9a-f]{4}){4}$)")
+var ContainerRegexp = regexp.MustCompile(ContainerRegexpStr)
 
 // ContainerFilter returns a filter that will match cgroup folders containing a container id
 func ContainerFilter(path, name string) (string, error) {

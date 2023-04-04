@@ -1,8 +1,15 @@
 #include "kconfig.h"
-#include <linux/version.h>
-
-#include "bpf_helpers.h"
+#include "ktypes.h"
+#include "bpf_tracing.h"
+#include "bpf_telemetry.h"
 #include "bpf_endian.h"
+
+#include <linux/version.h>
+#include <uapi/linux/ip.h>
+#include <uapi/linux/ipv6.h>
+#include <uapi/linux/udp.h>
+
+#include "defs.h"
 #include "conntrack.h"
 #include "conntrack-maps.h"
 #include "netns.h"
@@ -24,7 +31,7 @@ int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
     if (!(status&IPS_CONFIRMED) || !(status&IPS_NAT_MASK)) {
         return 0;
     }
-    
+
     log_debug("kprobe/__nf_conntrack_hash_insert: netns: %u, status: %x\n", get_netns(&ct->ct_net), status);
 
     conntrack_tuple_t orig = {}, reply = {};
@@ -32,8 +39,8 @@ int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
         return 0;
     }
 
-    bpf_map_update_elem(&conntrack, &orig, &reply, BPF_ANY);
-    bpf_map_update_elem(&conntrack, &reply, &orig, BPF_ANY);
+    bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_ANY);
+    bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_ANY);
     increment_telemetry_registers_count();
 
     return 0;
@@ -41,11 +48,8 @@ int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
 
 SEC("kprobe/ctnetlink_fill_info")
 int kprobe_ctnetlink_fill_info(struct pt_regs* ctx) {
-
-    proc_t proc = {};
-    bpf_get_current_comm(&proc.comm, sizeof(proc.comm));
-
-    if (!proc_t_comm_prefix_equals("system-probe", 12, proc)) {
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
+    if (pid != systemprobe_pid()) {
         log_debug("skipping kprobe/ctnetlink_fill_info invocation from non-system-probe process\n");
         return 0;
     }
@@ -56,7 +60,7 @@ int kprobe_ctnetlink_fill_info(struct pt_regs* ctx) {
     if (!(status&IPS_CONFIRMED) || !(status&IPS_NAT_MASK)) {
         return 0;
     }
-    
+
     log_debug("kprobe/ctnetlink_fill_info: netns: %u, status: %x\n", get_netns(&ct->ct_net), status);
 
     conntrack_tuple_t orig = {}, reply = {};
@@ -64,8 +68,8 @@ int kprobe_ctnetlink_fill_info(struct pt_regs* ctx) {
         return 0;
     }
 
-    bpf_map_update_elem(&conntrack, &orig, &reply, BPF_ANY);
-    bpf_map_update_elem(&conntrack, &reply, &orig, BPF_ANY);
+    bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_ANY);
+    bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_ANY);
     increment_telemetry_registers_count();
 
     return 0;

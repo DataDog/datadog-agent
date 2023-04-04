@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build zlib
-// +build zlib
+//go:build zlib && test
+// +build zlib,test
 
 package serializer
 
@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
@@ -36,7 +36,7 @@ func buildEvents(numberOfEvents int) metricsserializer.Events {
 	return events
 }
 
-var results forwarder.Payloads
+var results transaction.BytesPayloads
 
 func benchmarkJSONStream(b *testing.B, passes int, sharedBuffers bool, numberOfEvents int) {
 	events := buildEvents(numberOfEvents)
@@ -46,7 +46,7 @@ func benchmarkJSONStream(b *testing.B, passes int, sharedBuffers bool, numberOfE
 
 	for n := 0; n < b.N; n++ {
 		for i := 0; i < passes; i++ {
-			results, _ = payloadBuilder.Build(marshaler)
+			results, _ = stream.BuildJSONPayload(payloadBuilder, marshaler)
 		}
 	}
 }

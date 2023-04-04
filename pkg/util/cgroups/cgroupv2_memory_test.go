@@ -11,6 +11,8 @@ package cgroups
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 )
@@ -113,33 +115,33 @@ func TestCgroupV2MemoryStats(t *testing.T) {
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []error{}, tr.errors)
 	assert.Empty(t, cmp.Diff(MemoryStats{
-		UsageTotal:    uint64Ptr(6193152),
-		Cache:         uint64Ptr(2297856),
-		Swap:          uint64Ptr(0),
-		RSS:           uint64Ptr(3108864),
-		RSSHuge:       uint64Ptr(0),
-		MappedFile:    uint64Ptr(2297856),
-		Pgfault:       uint64Ptr(2706),
-		Pgmajfault:    uint64Ptr(0),
-		InactiveAnon:  uint64Ptr(5541888),
-		ActiveAnon:    uint64Ptr(0),
-		InactiveFile:  uint64Ptr(0),
-		ActiveFile:    uint64Ptr(0),
-		Unevictable:   uint64Ptr(0),
-		KernelMemory:  uint64Ptr(49152),
-		OOMEvents:     uint64Ptr(3),
-		OOMKiilEvents: uint64Ptr(0),
+		UsageTotal:    pointer.Ptr(uint64(6193152)),
+		Cache:         pointer.Ptr(uint64(2297856)),
+		Swap:          pointer.Ptr(uint64(0)),
+		RSS:           pointer.Ptr(uint64(3108864)),
+		RSSHuge:       pointer.Ptr(uint64(0)),
+		MappedFile:    pointer.Ptr(uint64(2297856)),
+		Pgfault:       pointer.Ptr(uint64(2706)),
+		Pgmajfault:    pointer.Ptr(uint64(0)),
+		InactiveAnon:  pointer.Ptr(uint64(5541888)),
+		ActiveAnon:    pointer.Ptr(uint64(0)),
+		InactiveFile:  pointer.Ptr(uint64(0)),
+		ActiveFile:    pointer.Ptr(uint64(0)),
+		Unevictable:   pointer.Ptr(uint64(0)),
+		KernelMemory:  pointer.Ptr(uint64(49152)),
+		OOMEvents:     pointer.Ptr(uint64(3)),
+		OOMKiilEvents: pointer.Ptr(uint64(0)),
 		PSISome: PSIStats{
-			Avg10:  float64Ptr(0),
-			Avg60:  float64Ptr(0),
-			Avg300: float64Ptr(0),
-			Total:  uint64Ptr(0),
+			Avg10:  pointer.Ptr(0.0),
+			Avg60:  pointer.Ptr(0.0),
+			Avg300: pointer.Ptr(0.0),
+			Total:  pointer.Ptr(uint64(0)),
 		},
 		PSIFull: PSIStats{
-			Avg10:  float64Ptr(0),
-			Avg60:  float64Ptr(0),
-			Avg300: float64Ptr(0),
-			Total:  uint64Ptr(0),
+			Avg10:  pointer.Ptr(0.0),
+			Avg60:  pointer.Ptr(0.0),
+			Avg300: pointer.Ptr(0.0),
+			Total:  pointer.Ptr(uint64(0)),
 		},
 	}, *stats))
 }

@@ -5,7 +5,9 @@
 
 package common
 
-import "net"
+import (
+	"net"
+)
 
 // MinUint64 returns the min of the two passed number
 func MinUint64(a uint64, b uint64) uint64 {
@@ -23,11 +25,10 @@ func MaxUint64(a uint64, b uint64) uint64 {
 	return b
 }
 
-// Uint32ToBytes converts uint32 to []byte
-func Uint32ToBytes(val uint32) []byte {
-	b := make([]byte, 4)
-	for i := 0; i < 4; i++ {
-		b[i] = byte(val >> (8 * i))
+// MaxUint16 returns the max of the two passed number
+func MaxUint16(a uint16, b uint16) uint16 {
+	if a > b {
+		return a
 	}
 	return b
 }

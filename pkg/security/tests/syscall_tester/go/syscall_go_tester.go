@@ -10,10 +10,9 @@ package main
 
 import (
 	"bytes"
+	_ "embed"
 	"flag"
 	"fmt"
-
-	_ "embed"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/syndtr/gocapability/capability"
@@ -41,7 +40,6 @@ func BPFLoad() error {
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					UID:          "MyVFSOpen",
-					EBPFSection:  "kprobe/vfs_open",
 					EBPFFuncName: "kprobe_vfs_open",
 				},
 			},

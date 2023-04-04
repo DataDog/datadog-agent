@@ -14,7 +14,6 @@ import (
 	"expvar"
 	"fmt"
 	"sort"
-
 	"testing"
 	"time"
 
@@ -84,36 +83,59 @@ func TestRegisterCheckSampler(t *testing.T) {
 	agg := getAggregator()
 	agg.checkSamplers = make(map[check.ID]*CheckSampler)
 
+	lenSenders := func(n int) bool {
+		agg.mu.Lock()
+		defer agg.mu.Unlock()
+		return len(agg.checkSamplers) == n
+	}
+
 	err := agg.registerSender(checkID1)
 	assert.Nil(t, err)
-	assert.Len(t, agg.checkSamplers, 1)
+
+	require.Eventually(t, func() bool { return lenSenders(1) }, time.Second, 10*time.Millisecond)
 
 	err = agg.registerSender(checkID2)
 	assert.Nil(t, err)
-	assert.Len(t, agg.checkSamplers, 2)
-
-	// Already registered sender => error
-	err = agg.registerSender(checkID2)
-	assert.NotNil(t, err)
+	require.Eventually(t, func() bool { return lenSenders(2) }, time.Second, 10*time.Millisecond)
 }
 
 func TestDeregisterCheckSampler(t *testing.T) {
 	// this test IS USING globals
 	// -
 
-	agg := getAggregator()
+	opts := demuxTestOptions()
+	demux := InitAndStartAgentDemultiplexer(opts, defaultHostname)
+	defer demux.Stop(false)
+
+	agg := demux.Aggregator()
 	agg.checkSamplers = make(map[check.ID]*CheckSampler)
 
 	agg.registerSender(checkID1)
 	agg.registerSender(checkID2)
-	assert.Len(t, agg.checkSamplers, 2)
+
+	require.Eventually(t, func() bool {
+		agg.mu.Lock()
+		defer agg.mu.Unlock()
+		return len(agg.checkSamplers) == 2
+	}, time.Second, 10*time.Millisecond)
 
 	agg.deregisterSender(checkID1)
+
+	require.Eventually(t, func() bool {
+		agg.mu.Lock()
+		defer agg.mu.Unlock()
+		return agg.checkSamplers[checkID1].deregistered && !agg.checkSamplers[checkID2].deregistered
+	}, time.Second, 10*time.Millisecond)
+
+	agg.Flush(testNewFlushTrigger(time.Now(), false))
+
+	agg.mu.Lock()
 	require.Len(t, agg.checkSamplers, 1)
 	_, ok := agg.checkSamplers[checkID1]
 	assert.False(t, ok)
 	_, ok = agg.checkSamplers[checkID2]
 	assert.True(t, ok)
+	agg.mu.Unlock()
 }
 
 func TestAddServiceCheckDefaultValues(t *testing.T) {
@@ -197,25 +219,6 @@ func TestAddEventDefaultValues(t *testing.T) {
 	assert.Equal(t, "custom_source_type", event2.SourceTypeName)
 }
 
-func TestSetHostname(t *testing.T) {
-	// this test IS USING globals
-	// -
-
-	agg := getAggregator()
-	agg.checkSamplers = make(map[check.ID]*CheckSampler)
-
-	assert.Equal(t, "hostname", agg.hostname)
-	sender, err := GetSender(checkID1)
-	require.NoError(t, err)
-	checkSender, ok := sender.(*checkSender)
-	require.True(t, ok)
-	assert.Equal(t, "hostname", checkSender.defaultHostname)
-
-	agg.SetHostname("different-hostname")
-	assert.Equal(t, "different-hostname", agg.hostname)
-	assert.Equal(t, "different-hostname", checkSender.defaultHostname)
-}
-
 func TestDefaultData(t *testing.T) {
 	// this test IS USING globals (tagsetTlm) but a local aggregator
 	// -
@@ -250,6 +253,7 @@ func TestDefaultData(t *testing.T) {
 		Tags:           tagset.CompositeTagsFromSlice([]string{}),
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
+		NoIndex:        true,
 	}}
 
 	s.On("SendSeries", series).Return(nil).Times(1)
@@ -360,7 +364,7 @@ func TestDistributionsTooManyTags(t *testing.T) {
 				Host:      "",
 				Timestamp: timeNowNano() - 10000000,
 			}
-			demux.AddTimeSample(samp)
+			demux.AggregateSample(samp)
 
 			time.Sleep(1 * time.Second)
 
@@ -445,6 +449,7 @@ func TestRecurrentSeries(t *testing.T) {
 		Tags:           tagset.CompositeTagsFromSlice([]string{}),
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
+		NoIndex:        true,
 	}}
 
 	// Check only the name for `datadog.agent.up` as the timestamp may not be the same.
@@ -487,53 +492,84 @@ func TestTags(t *testing.T) {
 
 	tests := []struct {
 		name                    string
+		hostname                string
 		tlmContainerTagsEnabled bool
 		agentTags               func(collectors.TagCardinality) ([]string, error)
+		globalTags              func(collectors.TagCardinality) ([]string, error)
 		withVersion             bool
 		want                    []string
 	}{
 		{
 			name:                    "tags disabled, with version",
+			hostname:                "hostname",
 			tlmContainerTagsEnabled: false,
 			agentTags:               func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
+			globalTags:              func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             true,
 			want:                    []string{"version:" + version.AgentVersion},
 		},
 		{
 			name:                    "tags disabled, without version",
+			hostname:                "hostname",
 			tlmContainerTagsEnabled: false,
 			agentTags:               func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
+			globalTags:              func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             false,
 			want:                    []string{},
 		},
 		{
 			name:                    "tags enabled, with version",
+			hostname:                "hostname",
 			tlmContainerTagsEnabled: true,
 			agentTags:               func(collectors.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
+			globalTags:              func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             true,
 			want:                    []string{"container_name:agent", "version:" + version.AgentVersion},
 		},
 		{
 			name:                    "tags enabled, without version",
+			hostname:                "hostname",
 			tlmContainerTagsEnabled: true,
 			agentTags:               func(collectors.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
+			globalTags:              func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             false,
 			want:                    []string{"container_name:agent"},
 		},
 		{
 			name:                    "tags enabled, with version, tagger error",
+			hostname:                "hostname",
 			tlmContainerTagsEnabled: true,
 			agentTags:               func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("no tags") },
+			globalTags:              func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             true,
 			want:                    []string{"version:" + version.AgentVersion},
+		},
+		{
+			name:                    "tags enabled, with version, with global tags (no hostname)",
+			hostname:                "",
+			tlmContainerTagsEnabled: true,
+			agentTags:               func(collectors.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
+			globalTags:              func(collectors.TagCardinality) ([]string, error) { return []string{"kube_cluster_name:foo"}, nil },
+			withVersion:             true,
+			want:                    []string{"container_name:agent", "version:" + version.AgentVersion, "kube_cluster_name:foo"},
+		},
+		{
+			name:                    "tags enabled, with version, with global tags (hostname present)",
+			hostname:                "hostname",
+			tlmContainerTagsEnabled: true,
+			agentTags:               func(collectors.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
+			globalTags:              func(collectors.TagCardinality) ([]string, error) { return []string{"kube_cluster_name:foo"}, nil },
+			withVersion:             true,
+			want:                    []string{"container_name:agent", "version:" + version.AgentVersion},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			defer config.Datadog.Set("basic_telemetry_add_container_tags", nil)
 			config.Datadog.Set("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
-			agg := NewBufferedAggregator(nil, nil, "hostname", time.Second)
+			agg := NewBufferedAggregator(nil, nil, tt.hostname, time.Second)
 			agg.agentTags = tt.agentTags
+			agg.globalTags = tt.globalTags
 			assert.ElementsMatch(t, tt.want, agg.tags(tt.withVersion))
 		})
 	}
@@ -552,7 +588,6 @@ func TestTimeSamplerFlush(t *testing.T) {
 	demux.sharedSerializer = s
 	expectedSeries := flushSomeSamples(demux)
 	assertSeriesEqual(t, s.series, expectedSeries)
-	s.AssertExpectations(t)
 }
 
 // The implementation of MockSerializer.SendIterableSeries uses `s.Called(series).Error(0)`.
@@ -583,7 +618,7 @@ func flushSomeSamples(demux *AgentDemultiplexer) map[string]*metrics.Serie {
 		for i := 0; i < sampleCount; i++ {
 			name := fmt.Sprintf("serie%d", i)
 
-			demux.AddTimeSample(metrics.MetricSample{Name: name, Value: value, Mtype: metrics.CountType, Timestamp: timestamp})
+			demux.AggregateSample(metrics.MetricSample{Name: name, Value: value, Mtype: metrics.CountType, Timestamp: timestamp})
 
 			if _, found := expectedSeries[name]; !found {
 				expectedSeries[name] = &metrics.Serie{
@@ -597,7 +632,7 @@ func flushSomeSamples(demux *AgentDemultiplexer) map[string]*metrics.Serie {
 		}
 	}
 
-	// we have to wait here because AddTimeSample is async and we want to be
+	// we have to wait here because AggregateSample is async and we want to be
 	// sure all samples have been processed by the sampler
 	time.Sleep(1 * time.Second)
 

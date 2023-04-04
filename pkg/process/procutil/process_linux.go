@@ -12,7 +12,6 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -58,6 +57,7 @@ type statInfo struct {
 	ppid       int32
 	createTime int64
 	nice       int32
+	flags      uint32
 	cpuStat    *CPUTimesStat
 }
 
@@ -218,14 +218,19 @@ func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 		}
 
 		cmdline := p.getCmdline(pathForPID)
-		if len(cmdline) == 0 {
-			// NOTE: The agent's process check currently skips all processes that have no cmdline (i.e kernel processes).
-			//       Moving this check down the stack saves us from a number of needless follow-up system calls.
-			continue
-		}
-
 		statusInfo := p.parseStatus(pathForPID)
 		statInfo := p.parseStat(pathForPID, pid, now)
+
+		if len(cmdline) == 0 {
+			if isKernelThread(statInfo.flags) {
+				log.Tracef("Skipping kernel process pid:%d", pid)
+				// NOTE: The agent's process check currently skips all processes that are kernel threads which have
+				//       no cmdline and they have the PF_KTHREAD flag set in /proc/<pid>/stat
+				//       Moving this check down the stack saves us from a number of needless follow-up system calls.
+				continue
+			}
+			log.Debugf("process with empty cmdline not skipped pid:%d", pid)
+		}
 
 		// On linux, setting the `collectStats` parameter to false will only prevent collection of memory stats.
 		// It does not prevent collection of stats from the /proc/(pid)/stat file, since we need to read the
@@ -346,7 +351,7 @@ func (p *probe) getActivePIDs() ([]int32, error) {
 
 // getCmdline retrieves the command line text from "cmdline" file for a process in procfs
 func (p *probe) getCmdline(pidPath string) []string {
-	cmdline, err := ioutil.ReadFile(filepath.Join(pidPath, "cmdline"))
+	cmdline, err := os.ReadFile(filepath.Join(pidPath, "cmdline"))
 	if err != nil {
 		log.Debugf("Unable to read process command line from %s: %s", pidPath, err)
 		return nil
@@ -440,7 +445,7 @@ func (p *probe) parseStatus(pidPath string) *statusInfo {
 		ctxSwitches: &NumCtxSwitchesStat{},
 	}
 
-	content, err := ioutil.ReadFile(path)
+	content, err := os.ReadFile(path)
 
 	if err != nil {
 		return sInfo
@@ -460,7 +465,7 @@ func (p *probe) parseStatus(pidPath string) *statusInfo {
 // parseStatusLine takes each line in "status" file and parses info from it
 func (p *probe) parseStatusLine(line []byte, sInfo *statusInfo) {
 	for i := range line {
-		// the fields are all having format "field_name:\tfield_value", so we always
+		// the fields are all having format "field_name:\s+field_value", so we always
 		// look for ":\t" and skip them
 		if i+2 < len(line) && line[i] == ':' && unicode.IsSpace(rune(line[i+1])) {
 			key := line[0:i]
@@ -517,19 +522,22 @@ func (p *probe) parseStatusKV(key, value string, sInfo *statusInfo) {
 			sInfo.ctxSwitches.Involuntary = v
 		}
 	case "VmRSS":
-		value := strings.Trim(value, " kB") // trim spaces and suffix "kB"
+		value := strings.TrimSuffix(value, "kB") // trim spaces and suffix "kB"
+		value = strings.Trim(value, " ")
 		v, err := strconv.ParseUint(value, 10, 64)
 		if err == nil {
 			sInfo.memInfo.RSS = v * 1024
 		}
 	case "VmSize":
-		value := strings.Trim(value, " kB") // trim spaces and suffix "kB"
+		value := strings.TrimSuffix(value, "kB") // trim spaces and suffix "kB"
+		value = strings.Trim(value, " ")
 		v, err := strconv.ParseUint(value, 10, 64)
 		if err == nil {
 			sInfo.memInfo.VMS = v * 1024
 		}
 	case "VmSwap":
-		value := strings.Trim(value, " kB") // trim spaces and suffix "kB"
+		value := strings.TrimSuffix(value, "kB") // trim spaces and suffix "kB"
+		value = strings.Trim(value, " ")
 		v, err := strconv.ParseUint(value, 10, 64)
 		if err == nil {
 			sInfo.memInfo.Swap = v * 1024
@@ -546,7 +554,7 @@ func (p *probe) parseStat(pidPath string, pid int32, now time.Time) *statInfo {
 		cpuStat: &CPUTimesStat{},
 	}
 
-	contents, err := ioutil.ReadFile(path)
+	contents, err := os.ReadFile(path)
 	if err != nil {
 		return sInfo
 	}
@@ -567,7 +575,7 @@ func (p *probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 	// use spaces and prevCharIsSpace to simulate strings.Fields() to avoid allocation
 	spaces := 0
 	prevCharIsSpace := false
-	var ppidStr, utimeStr, stimeStr, startTimeStr string
+	var ppidStr, flagStr, utimeStr, stimeStr, startTimeStr string
 
 	for _, c := range content {
 		if unicode.IsSpace(rune(c)) {
@@ -583,6 +591,8 @@ func (p *probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 		switch spaces {
 		case 2:
 			ppidStr += string(c)
+		case 7:
+			flagStr += string(c)
 		case 12:
 			utimeStr += string(c)
 		case 13:
@@ -599,6 +609,11 @@ func (p *probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 	ppid, err := strconv.ParseInt(ppidStr, 10, 32)
 	if err == nil {
 		sInfo.ppid = int32(ppid)
+	}
+
+	flags, err := strconv.ParseInt(flagStr, 10, 32)
+	if err == nil {
+		sInfo.flags = uint32(flags)
 	}
 
 	utime, err := strconv.ParseFloat(utimeStr, 64)
@@ -636,7 +651,7 @@ func (p *probe) parseStatm(pidPath string) *MemoryInfoExStat {
 
 	memInfoEx := &MemoryInfoExStat{}
 
-	contents, err := ioutil.ReadFile(path)
+	contents, err := os.ReadFile(path)
 	if err != nil {
 		return memInfoEx
 	}
@@ -799,7 +814,7 @@ func trimAndSplitBytes(bs []byte) []string {
 // the value is extracted from "/proc/stat"
 func bootTime(hostProc string) (uint64, error) {
 	filePath := filepath.Join(hostProc, "stat")
-	content, err := ioutil.ReadFile(filePath)
+	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return 0, fmt.Errorf("unable to read stat file from %s: %s", filePath, err)
 	}
@@ -847,4 +862,10 @@ func getClockTicks() float64 {
 		}
 	}
 	return clockTicks
+}
+
+// isKernelThread checks if the PF_KTHREAD flag is set which identifies this process as a kernel thread
+// See: https://github.com/torvalds/linux/commit/7b34e4283c685f5cc6ba6d30e939906eee0d4bcf
+func isKernelThread(flags uint32) bool {
+	return flags&0x00200000 == 0x00200000
 }

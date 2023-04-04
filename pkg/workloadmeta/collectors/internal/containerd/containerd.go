@@ -12,8 +12,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 	"github.com/containerd/containerd"
 	containerdevents "github.com/containerd/containerd/events"
 
@@ -33,6 +35,10 @@ const (
 	containerCreationTopic = "/containers/create"
 	containerUpdateTopic   = "/containers/update"
 	containerDeletionTopic = "/containers/delete"
+
+	imageCreationTopic = "/images/create"
+	imageUpdateTopic   = "/images/update"
+	imageDeletionTopic = "/images/delete"
 
 	// These are not all the task-related topics, but enough to detect changes
 	// in the state of the container (only need to know if it's running or not).
@@ -56,6 +62,9 @@ var containerdTopics = []string{
 	containerCreationTopic,
 	containerUpdateTopic,
 	containerDeletionTopic,
+	imageCreationTopic,
+	imageUpdateTopic,
+	imageDeletionTopic,
 	TaskStartTopic,
 	TaskOOMTopic,
 	TaskExitTopic,
@@ -79,12 +88,25 @@ type collector struct {
 	// Container exit info (mainly exit code and exit timestamp) are attached to the corresponding task events.
 	// contToExitInfo caches the exit info of a task to enrich the container deletion event when it's received later.
 	contToExitInfo map[string]*exitInfo
+
+	knownImages *knownImages
+
+	// Images are updated from 2 goroutines: the one that handles containerd
+	// events, and the one that extracts SBOMS.
+	// This mutex is used to handle images one at a time to avoid
+	// inconsistencies like trying to set an SBOM for an image that is being
+	// deleted.
+	handleImagesMut sync.Mutex
+
+	// SBOM Scanning
+	trivyClient trivy.Collector // nolint: unused
 }
 
 func init() {
 	workloadmeta.RegisterCollector(collectorID, func() workloadmeta.Collector {
 		return &collector{
 			contToExitInfo: make(map[string]*exitInfo),
+			knownImages:    newKnownImages(),
 		}
 	})
 }
@@ -102,6 +124,10 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 		return err
 	}
 
+	if err = c.startSBOMCollection(ctx); err != nil {
+		return err
+	}
+
 	c.filterPausedContainers, err = containers.GetPauseContainerFilter()
 	if err != nil {
 		return err
@@ -110,7 +136,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	eventsCtx, cancelEvents := context.WithCancel(ctx)
 	c.eventsChan, c.errorsChan = c.containerdClient.GetEvents().Subscribe(eventsCtx, subscribeFilters()...)
 
-	err = c.generateEventsFromContainerList(ctx)
+	err = c.notifyInitialEvents(ctx)
 	if err != nil {
 		cancelEvents()
 		return err
@@ -165,8 +191,8 @@ func (c *collector) stream(ctx context.Context) {
 	}
 }
 
-func (c *collector) generateEventsFromContainerList(ctx context.Context) error {
-	var events []workloadmeta.CollectorEvent
+func (c *collector) notifyInitialEvents(ctx context.Context) error {
+	var containerEvents []workloadmeta.CollectorEvent
 
 	namespaces, err := cutil.NamespacesToWatch(ctx, c.containerdClient)
 	if err != nil {
@@ -174,27 +200,30 @@ func (c *collector) generateEventsFromContainerList(ctx context.Context) error {
 	}
 
 	for _, namespace := range namespaces {
-		c.containerdClient.SetCurrentNamespace(namespace)
-
-		nsEvents, err := c.generateInitialEvents(ctx, namespace)
+		nsContainerEvents, err := c.generateInitialContainerEvents(namespace)
 		if err != nil {
 			return err
 		}
+		containerEvents = append(containerEvents, nsContainerEvents...)
 
-		events = append(events, nsEvents...)
+		if imageMetadataCollectionIsEnabled() {
+			if err := c.notifyInitialImageEvents(ctx, namespace); err != nil {
+				return err
+			}
+		}
 	}
 
-	if len(events) > 0 {
-		c.store.Notify(events)
+	if len(containerEvents) > 0 {
+		c.store.Notify(containerEvents)
 	}
 
 	return nil
 }
 
-func (c *collector) generateInitialEvents(ctx context.Context, namespace string) ([]workloadmeta.CollectorEvent, error) {
+func (c *collector) generateInitialContainerEvents(namespace string) ([]workloadmeta.CollectorEvent, error) {
 	var events []workloadmeta.CollectorEvent
 
-	existingContainers, err := c.containerdClient.Containers()
+	existingContainers, err := c.containerdClient.Containers(namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +233,7 @@ func (c *collector) generateInitialEvents(ctx context.Context, namespace string)
 		// regardless.  it might've been because of network errors, so
 		// it's better to keep a container we should've ignored than
 		// ignoring a container we should've kept
-		ignore, err := c.ignoreContainer(container)
+		ignore, err := c.ignoreContainer(namespace, container)
 		if err != nil {
 			log.Debugf("Error while deciding to ignore event %s, keeping it: %s", container.ID(), err)
 		} else if ignore {
@@ -223,16 +252,38 @@ func (c *collector) generateInitialEvents(ctx context.Context, namespace string)
 	return events, nil
 }
 
-func (c *collector) handleEvent(ctx context.Context, containerdEvent *containerdevents.Envelope) error {
-	c.containerdClient.SetCurrentNamespace(containerdEvent.Namespace)
+func (c *collector) notifyInitialImageEvents(ctx context.Context, namespace string) error {
+	existingImages, err := c.containerdClient.ListImages(namespace)
+	if err != nil {
+		return err
+	}
 
+	for _, image := range existingImages {
+		if err := c.notifyEventForImage(ctx, namespace, image, nil); err != nil {
+			log.Warnf("error getting information for image with name %q: %s", image.Name(), err.Error())
+			continue
+		}
+	}
+
+	return nil
+}
+
+func (c *collector) handleEvent(ctx context.Context, containerdEvent *containerdevents.Envelope) error {
+	if isImageTopic(containerdEvent.Topic) {
+		return c.handleImageEvent(ctx, containerdEvent)
+	}
+
+	return c.handleContainerEvent(ctx, containerdEvent)
+}
+
+func (c *collector) handleContainerEvent(ctx context.Context, containerdEvent *containerdevents.Envelope) error {
 	containerID, container, err := c.extractContainerFromEvent(ctx, containerdEvent)
 	if err != nil {
 		return fmt.Errorf("cannot extract container from event: %w", err)
 	}
 
 	if container != nil {
-		ignore, err := c.ignoreContainer(container)
+		ignore, err := c.ignoreContainer(containerdEvent.Namespace, container)
 		if err != nil {
 			log.Debugf("Error while deciding to ignore event %s, keeping it: %s", container.ID(), err)
 		} else if ignore {
@@ -255,7 +306,7 @@ func (c *collector) handleEvent(ctx context.Context, containerdEvent *containerd
 	return nil
 }
 
-// extractContainerFromEvent extracts a container ID from an envent, and
+// extractContainerFromEvent extracts a container ID from an event, and
 // queries for a containerd.Container object. The Container object will always
 // be missing in a delete event, so that's why we return a separate ID and not
 // just an object.
@@ -284,7 +335,7 @@ func (c *collector) extractContainerFromEvent(ctx context.Context, containerdEve
 
 	// ignore NotFound errors, since they happen for every deleted
 	// container, but these events still need to be handled
-	container, err := c.containerdClient.ContainerWithContext(ctx, containerID)
+	container, err := c.containerdClient.ContainerWithContext(ctx, containerdEvent.Namespace, containerID)
 	if err != nil && !agentErrors.IsNotFound(err) {
 		return "", nil, err
 	}
@@ -294,8 +345,8 @@ func (c *collector) extractContainerFromEvent(ctx context.Context, containerdEve
 
 // ignoreContainer returns whether a containerd event should be ignored.
 // The ignored events are the ones that refer to a "pause" container.
-func (c *collector) ignoreContainer(container containerd.Container) (bool, error) {
-	isSandbox, err := c.containerdClient.IsSandbox(container)
+func (c *collector) ignoreContainer(namespace string, container containerd.Container) (bool, error) {
+	isSandbox, err := c.containerdClient.IsSandbox(namespace, container)
 	if err != nil {
 		return false, err
 	}
@@ -304,7 +355,7 @@ func (c *collector) ignoreContainer(container containerd.Container) (bool, error
 		return true, nil
 	}
 
-	info, err := c.containerdClient.Info(container)
+	info, err := c.containerdClient.Info(namespace, container)
 	if err != nil {
 		return false, err
 	}
@@ -317,6 +368,10 @@ func subscribeFilters() []string {
 	var filters []string
 
 	for _, topic := range containerdTopics {
+		if isImageTopic(topic) && !imageMetadataCollectionIsEnabled() {
+			continue
+		}
+
 		filters = append(filters, fmt.Sprintf(`topic==%q`, topic))
 	}
 
@@ -336,4 +391,8 @@ func (c *collector) cacheExitInfo(id string, exitCode *uint32, exitTS time.Time)
 		exitTS:   exitTS,
 		exitCode: exitCode,
 	}
+}
+
+func imageMetadataCollectionIsEnabled() bool {
+	return config.Datadog.GetBool("container_image_collection.metadata.enabled")
 }

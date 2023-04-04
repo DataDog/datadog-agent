@@ -24,6 +24,7 @@ func BenchmarkRegexMatchingCustom1000(b *testing.B) { benchmarkMatchingCustomReg
 // https://dave.cheney.net/2013/06/30/how-to-write-benchmarks-in-go
 // store the result to a package level variable
 // so the compiler cannot eliminate the Benchmark itself.
+//
 //goland:noinspection ALL
 var avoidOptimization bool
 

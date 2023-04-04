@@ -21,8 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	taggerUtils "github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -55,7 +55,7 @@ type containerNetworkEntry struct {
 	containerID  string
 	tags         []string
 	pids         []int
-	networkStats *provider.ContainerNetworkStats
+	networkStats *metrics.ContainerNetworkStats
 
 	ifaceNetworkMapping map[string]string
 	networkContainerID  string
@@ -76,7 +76,7 @@ func (dn *dockerNetworkExtension) PreProcess(sender generic.SenderFunc, aggSende
 }
 
 // Process is called after core process (regardless of encountered error)
-func (dn *dockerNetworkExtension) Process(tags []string, container *workloadmeta.Container, collector provider.Collector, cacheValidity time.Duration) {
+func (dn *dockerNetworkExtension) Process(tags []string, container *workloadmeta.Container, collector metrics.Collector, cacheValidity time.Duration) {
 	// Duplicate call with generic.Processor, but cache should allow for a fast response.
 	// We only need it for PIDs
 	containerStats, err := collector.GetContainerStats(container.Namespace, container.ID, cacheValidity)
@@ -134,7 +134,7 @@ func (dn *dockerNetworkExtension) processContainer(rawContainer dockerTypes.Cont
 	// We keep excluded containers because pause containers are required as they usually hold
 	// the network configuration for other containers.
 	// However stopped containers are not useful there.
-	if rawContainer.State != containers.ContainerRunningState {
+	if rawContainer.State != string(workloadmeta.ContainerStatusRunning) {
 		return
 	}
 
@@ -201,10 +201,10 @@ func findDockerNetworks(procPath string, entry *containerNetworkEntry, container
 	netMode := container.HostConfig.NetworkMode
 	// Check the known network modes that require specific handling.
 	// Other network modes will look at the docker NetworkSettings.
-	if netMode == containers.HostNetworkMode {
+	if netMode == docker.HostNetworkMode {
 		log.Debugf("Container %s is in network host mode, its network metrics are for the whole host", entry.containerID)
 		return
-	} else if netMode == containers.NoneNetworkMode {
+	} else if netMode == docker.NoneNetworkMode {
 		// Keep legacy behavior, maping eth0 to bridge
 		entry.ifaceNetworkMapping = map[string]string{"eth0": "bridge"}
 		return

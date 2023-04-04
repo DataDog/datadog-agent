@@ -6,6 +6,7 @@
 package checks
 
 import (
+	"sort"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -13,8 +14,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
+	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
+	// Register compliance resources
+	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/audit"
+	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/command"
+	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/constants"
+	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/docker"
+	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/file"
+	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/group"
+	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/kubeapiserver"
+	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/process"
 )
 
 // eventNotify is a callback invoked when a compliance check reported an event
@@ -35,7 +47,7 @@ type complianceCheck struct {
 	scope           compliance.RuleScope
 	resourceHandler resourceReporter
 
-	checkable checkable
+	checkable Checkable
 
 	eventNotify eventNotify
 }
@@ -50,7 +62,7 @@ func (c *complianceCheck) String() string {
 	return compliance.CheckName(c.ruleID, c.description)
 }
 
-func (c *complianceCheck) Configure(config, initConfig integration.Data, source string) error {
+func (c *complianceCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	return nil
 }
 
@@ -115,7 +127,9 @@ func (c *complianceCheck) Run() error {
 
 	var err error
 
-	reports := c.checkable.check(c)
+	reports := c.checkable.Check(c)
+	sort.Stable(reports)
+
 	resourceQuadIDs := make(map[resourceQuadID]bool)
 
 	for _, report := range reports {
@@ -165,6 +179,17 @@ func (c *complianceCheck) Run() error {
 		c.Reporter().Report(e)
 		if c.eventNotify != nil {
 			c.eventNotify(c.ruleID, e)
+		}
+
+		if client := c.StatsdClient(); client != nil {
+			tags := []string{
+				"rule_id:" + e.AgentRuleID,
+				"rule_result:" + e.Result,
+				"agent_version:" + e.AgentVersion,
+			}
+			if err := client.Gauge(metrics.MetricChecksStatuses, 1, tags, 1.0); err != nil {
+				log.Errorf("failed to send checks metric: %v", err)
+			}
 		}
 	}
 

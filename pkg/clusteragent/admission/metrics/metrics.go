@@ -62,4 +62,19 @@ var (
 	LibInjectionErrors = telemetry.NewCounterWithOpts("admission_webhooks", "library_injection_errors",
 		[]string{"language"}, "Number of library injection failures by language",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
+	RemoteConfigs = telemetry.NewGaugeWithOpts("admission_webhooks", "rc_provider_configs",
+		[]string{}, "Number of valid remote configurations.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	InvalidRemoteConfigs = telemetry.NewGaugeWithOpts("admission_webhooks", "rc_provider_configs_invalid",
+		[]string{}, "Number of invalid remote configurations.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	PatchAttempts = telemetry.NewCounterWithOpts("admission_webhooks", "patcher_attempts",
+		[]string{}, "Number of patch attempts.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	PatchCompleted = telemetry.NewCounterWithOpts("admission_webhooks", "patcher_completed",
+		[]string{}, "Number of completed patch attempts.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	PatchErrors = telemetry.NewCounterWithOpts("admission_webhooks", "patcher_errors",
+		[]string{}, "Number of patch errors.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
 )

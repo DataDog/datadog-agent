@@ -6,7 +6,6 @@
 package gohai
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,8 +22,7 @@ func TestGetPayload(t *testing.T) {
 }
 
 func TestGetPayloadContainerized(t *testing.T) {
-	os.Setenv("DOCKER_DD_AGENT", "true")
-	defer os.Unsetenv("DOCKER_DD_AGENT")
+	t.Setenv("DOCKER_DD_AGENT", "true")
 
 	detectDocker0()
 	oldDocker0Detected := docker0Detected
@@ -41,8 +39,7 @@ func TestGetPayloadContainerized(t *testing.T) {
 }
 
 func TestGetPayloadContainerizedWithDocker0(t *testing.T) {
-	os.Setenv("DOCKER_DD_AGENT", "true")
-	defer os.Unsetenv("DOCKER_DD_AGENT")
+	t.Setenv("DOCKER_DD_AGENT", "true")
 
 	detectDocker0()
 	oldDocker0Detected := docker0Detected

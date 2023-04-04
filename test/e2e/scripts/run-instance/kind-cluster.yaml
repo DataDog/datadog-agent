@@ -10,3 +10,7 @@ nodes:
   extraPortMappings:
   - containerPort: 30001
     hostPort: 443
+containerdConfigPatches:
+  - |-
+    [plugins."io.containerd.grpc.v1.cri".registry.mirrors."docker.io"]
+      endpoint = ["https://mirror.gcr.io", "https://registry-1.docker.io"]

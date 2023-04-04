@@ -12,17 +12,17 @@ import (
 )
 
 // ChangeChecker checks the state of `config.Datadog` did not change
-// between `NewChangeChecker()`` and `HasChanged()`. It is
+// between `NewChangeChecker()“ and `HasChanged()`. It is
 // designed to be used in `TestMain` function as follow:
 //
-// 	func TestMain(m *testing.M) {
-// 		checker := testutil.NewConfigChangeChecker()
-// 		exit := m.Run()
-// 		if checker.HasChanged() {
-// 			os.Exit(1)
-// 		}
-// 		os.Exit(exit)
-// 	}
+//	func TestMain(m *testing.M) {
+//		checker := testutil.NewConfigChangeChecker()
+//		exit := m.Run()
+//		if checker.HasChanged() {
+//			os.Exit(1)
+//		}
+//		os.Exit(exit)
+//	}
 type ChangeChecker struct {
 	configSettings map[string]interface{}
 }

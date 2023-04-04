@@ -84,6 +84,144 @@ var LegacyMetadataConfig = MetadataConfig{
 			},
 		},
 	},
+	"ip_addresses": {
+		Fields: map[string]MetadataField{
+			"if_index": {
+				Symbol: SymbolConfig{
+					OID:  "1.3.6.1.2.1.4.20.1.2",
+					Name: "ipAdEntIfIndex",
+				},
+			},
+			"netmask": {
+				Symbol: SymbolConfig{
+					OID:  "1.3.6.1.2.1.4.20.1.3",
+					Name: "ipAdEntNetMask",
+				},
+			},
+		},
+	},
+}
+
+var TopologyMetadataConfig = MetadataConfig{
+	"lldp_remote": {
+		Fields: map[string]MetadataField{
+			"chassis_id_type": {
+				Symbol: SymbolConfig{
+					OID:  "1.0.8802.1.1.2.1.4.1.1.4",
+					Name: "lldpRemChassisIdSubtype",
+				},
+			},
+			"chassis_id": {
+				Symbol: SymbolConfig{
+					OID:  "1.0.8802.1.1.2.1.4.1.1.5",
+					Name: "lldpRemChassisId",
+				},
+			},
+			"interface_id_type": {
+				Symbol: SymbolConfig{
+					OID:  "1.0.8802.1.1.2.1.4.1.1.6",
+					Name: "lldpRemPortIdSubtype",
+				},
+			},
+			"interface_id": {
+				Symbol: SymbolConfig{
+					OID:  "1.0.8802.1.1.2.1.4.1.1.7",
+					Name: "lldpRemPortId",
+				},
+			},
+			"interface_desc": {
+				Symbol: SymbolConfig{
+					OID:  "1.0.8802.1.1.2.1.4.1.1.8",
+					Name: "lldpRemPortDesc",
+				},
+			},
+			"device_name": {
+				Symbol: SymbolConfig{
+					OID:  "1.0.8802.1.1.2.1.4.1.1.9",
+					Name: "lldpRemSysName",
+				},
+			},
+			"device_desc": {
+				Symbol: SymbolConfig{
+					OID:  "1.0.8802.1.1.2.1.4.1.1.10",
+					Name: "lldpRemSysDesc",
+				},
+			},
+			// TODO: Implement later lldpRemSysCapSupported and lldpRemSysCapEnabled
+			//   - 1.0.8802.1.1.2.1.4.1.1.11 lldpRemSysCapSupported
+			//   - 1.0.8802.1.1.2.1.4.1.1.12  lldpRemSysCapEnabled
+		},
+	},
+	"lldp_remote_management": {
+		Fields: map[string]MetadataField{
+			"interface_id_type": {
+				Symbol: SymbolConfig{
+					OID:  "1.0.8802.1.1.2.1.4.2.1.3",
+					Name: "lldpRemManAddrIfSubtype",
+				},
+			},
+		},
+	},
+	"lldp_local": {
+		Fields: map[string]MetadataField{
+			"interface_id_type": {
+				Symbol: SymbolConfig{
+					OID:  "1.0.8802.1.1.2.1.3.7.1.2",
+					Name: "lldpLocPortIdSubtype",
+				},
+			},
+			"interface_id": {
+				Symbol: SymbolConfig{
+					OID:  "1.0.8802.1.1.2.1.3.7.1.3",
+					Name: "lldpLocPortID",
+				},
+			},
+		},
+	},
+	"cdp_remote": {
+		Fields: map[string]MetadataField{
+			"device_desc": {
+				Symbol: SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.5",
+					Name: "cdpCacheVersion",
+				},
+			},
+			"device_id": {
+				Symbol: SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.6",
+					Name: "cdpCacheDeviceId",
+				},
+			},
+			"interface_id": {
+				Symbol: SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.7",
+					Name: "cdpCacheDevicePort",
+				},
+			},
+			"device_name": {
+				Symbol: SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.17",
+					Name: "cdpCacheSysName",
+				},
+			},
+			"device_address_type": {
+				Symbol: SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.19",
+					Name: "cdpCachePrimaryMgmtAddrType",
+				},
+			},
+			"device_address": {
+				Symbol: SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.20",
+					Name: "cdpCachePrimaryMgmtAddr",
+				},
+			},
+			// TODO: Add
+			//   - 1.3.6.1.4.1.9.9.23.1.2.1.1.4 cdpCacheAddress
+			//   - 1.3.6.1.4.1.9.9.23.1.2.1.1.22  cdpCacheSecondaryMgmtAddrType
+			// as backup when cdpCachePrimaryMgmtAddr is not present or cdpCachePrimaryMgmtAddrType is not ip(1)
+		},
+	},
 }
 
 // MetadataConfig holds configs per resource type
@@ -113,16 +251,22 @@ func IsMetadataResourceWithScalarOids(resource string) bool {
 	return resource == common.MetadataDeviceResource
 }
 
-// updateMetadataDefinitionWithLegacyFallback will add metadata config for resources
+// updateMetadataDefinitionWithDefaults will add metadata config for resources
 // that does not have metadata definitions
-func updateMetadataDefinitionWithLegacyFallback(config MetadataConfig) MetadataConfig {
-	if config == nil {
-		config = MetadataConfig{}
+func updateMetadataDefinitionWithDefaults(metadataConfig MetadataConfig, collectTopology bool) MetadataConfig {
+	newConfig := make(MetadataConfig)
+	mergeMetadata(newConfig, metadataConfig)
+	mergeMetadata(newConfig, LegacyMetadataConfig)
+	if collectTopology {
+		mergeMetadata(newConfig, TopologyMetadataConfig)
 	}
-	for resourceName, resourceConfig := range LegacyMetadataConfig {
-		if _, ok := config[resourceName]; !ok {
-			config[resourceName] = resourceConfig
+	return newConfig
+}
+
+func mergeMetadata(metadataConfig MetadataConfig, extraMetadata MetadataConfig) {
+	for resourceName, resourceConfig := range extraMetadata {
+		if _, ok := metadataConfig[resourceName]; !ok {
+			metadataConfig[resourceName] = resourceConfig
 		}
 	}
-	return config
 }

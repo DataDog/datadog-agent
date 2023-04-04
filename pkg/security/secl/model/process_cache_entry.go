@@ -3,18 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate go run github.com/tinylib/msgp -tests=false
-
 package model
 
 import (
-	"container/list"
 	"strings"
 	"time"
+
+	"golang.org/x/exp/slices"
 )
 
 const (
-	maxArgEnvSize = 256
+	// MaxArgEnvSize maximum size of one argument or environment variable
+	MaxArgEnvSize = 256
 )
 
 // SetSpan sets the span
@@ -34,27 +34,34 @@ func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 	}
 
 	pc.Ancestor = parent
+	pc.Parent = &parent.Process
 	pc.IsThread = false
 	parent.Retain()
 }
 
-// GetNextAncestorNoFork returns the first ancestor that is not a fork entry
-func (pc *ProcessCacheEntry) GetNextAncestorNoFork() *ProcessCacheEntry {
-	if pc.Ancestor == nil {
-		return nil
-	}
-
+// GetNextAncestorBinary returns the first ancestor with a different binary
+func (pc *ProcessCacheEntry) GetNextAncestorBinary() *ProcessCacheEntry {
+	current := pc
 	ancestor := pc.Ancestor
-	for ancestor.Ancestor != nil {
-		if (ancestor.Ancestor.ExitTime == ancestor.ExecTime || ancestor.Ancestor.ExitTime.IsZero()) && ancestor.Tid == ancestor.Ancestor.Tid {
-			// this is a fork entry, move on to the next ancestor
-			ancestor = ancestor.Ancestor
-		} else {
-			break
+	for ancestor != nil {
+		if current.Inode != ancestor.Inode {
+			return ancestor
 		}
+		current = ancestor
+		ancestor = ancestor.Ancestor
 	}
+	return nil
+}
 
-	return ancestor
+// HasCompleteLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1
+func (pc *ProcessCacheEntry) HasCompleteLineage() bool {
+	for pc != nil {
+		if pc.Pid == 1 {
+			return true
+		}
+		pc = pc.Ancestor
+	}
+	return false
 }
 
 // Exit a process
@@ -85,22 +92,13 @@ func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 	copyProcessContext(pc, entry)
 }
 
-// ShareArgsEnvs share args and envs between the current entry and the given child entry
-func (pc *ProcessCacheEntry) ShareArgsEnvs(childEntry *ProcessCacheEntry) {
-	childEntry.ArgsEntry = pc.ArgsEntry
-	if childEntry.ArgsEntry != nil && childEntry.ArgsEntry.ArgsEnvsCacheEntry != nil {
-		childEntry.ArgsEntry.ArgsEnvsCacheEntry.Retain()
-	}
-	childEntry.EnvsEntry = pc.EnvsEntry
-	if childEntry.EnvsEntry != nil && childEntry.EnvsEntry.ArgsEnvsCacheEntry != nil {
-		childEntry.EnvsEntry.ArgsEnvsCacheEntry.Retain()
-	}
-}
-
-// SetParent set the parent of a fork child
-func (pc *ProcessCacheEntry) SetParent(parent *ProcessCacheEntry) {
+// SetParentOfForkChild set the parent of a fork child
+func (pc *ProcessCacheEntry) SetParentOfForkChild(parent *ProcessCacheEntry) {
 	pc.SetAncestor(parent)
-	parent.ShareArgsEnvs(pc)
+	if parent != nil {
+		pc.ArgsEntry = parent.ArgsEntry
+		pc.EnvsEntry = parent.EnvsEntry
+	}
 	pc.IsThread = true
 }
 
@@ -113,9 +111,10 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.ContainerID = pc.ContainerID
 	childEntry.ExecTime = pc.ExecTime
 	childEntry.Credentials = pc.Credentials
+	childEntry.LinuxBinprm = pc.LinuxBinprm
 	childEntry.Cookie = pc.Cookie
 
-	childEntry.SetParent(pc)
+	childEntry.SetParentOfForkChild(pc)
 }
 
 // Equals returns whether process cache entries share the same values for comm and args/envs
@@ -123,159 +122,22 @@ func (pc *ProcessCacheEntry) Equals(entry *ProcessCacheEntry) bool {
 	return pc.Comm == entry.Comm && pc.ArgsEntry.Equals(entry.ArgsEntry) && pc.EnvsEntry.Equals(entry.EnvsEntry)
 }
 
-/*func (pc *ProcessCacheEntry) String() string {
-	s := fmt.Sprintf("filename: %s[%s] pid:%d ppid:%d args:%v\n", pc.PathnameStr, pc.Comm, pc.Pid, pc.PPid, pc.ArgsArray)
-	ancestor := pc.Ancestor
-	for i := 0; ancestor != nil; i++ {
-		for j := 0; j <= i; j++ {
-			s += "\t"
-		}
-		s += fmt.Sprintf("filename: %s[%s] pid:%d ppid:%d args:%v\n", ancestor.PathnameStr, ancestor.Comm, ancestor.Pid, ancestor.PPid, ancestor.ArgsArray)
-		ancestor = ancestor.Ancestor
-	}
-	return s
-}*/
+// NewEmptyProcessCacheEntry returns an empty process cache entry for kworker events or failed process resolutions
+func NewEmptyProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
+	return &ProcessCacheEntry{ProcessContext: ProcessContext{Process: Process{PIDContext: PIDContext{Pid: pid, Tid: tid, IsKworker: isKworker}}}}
+}
 
 // ArgsEnvs raw value for args and envs
-//msgp:ignore ArgsEnvs
 type ArgsEnvs struct {
 	ID        uint32
 	Size      uint32
-	ValuesRaw [maxArgEnvSize]byte
-}
-
-// ArgsEnvsCacheEntry defines a args/envs base entry
-//msgp:ignore ArgsEnvsCacheEntry
-type ArgsEnvsCacheEntry struct {
-	Size      uint32
-	ValuesRaw []byte
-
-	Container *list.Element
-
-	next *ArgsEnvsCacheEntry
-	last *ArgsEnvsCacheEntry
-
-	refCount  uint64
-	onRelease func(_ *ArgsEnvsCacheEntry)
-}
-
-// Reset the entry
-func (p *ArgsEnvsCacheEntry) release() {
-	entry := p
-	for entry != nil {
-		next := entry.next
-
-		entry.Size = 0
-		entry.ValuesRaw = nil
-		entry.next = nil
-		entry.last = nil
-		entry.refCount = 0
-
-		// all the element of the list need to return to the
-		// pool
-		if p.onRelease != nil {
-			p.onRelease(entry)
-		}
-
-		entry = next
-	}
-}
-
-// Append an entry to the list
-func (p *ArgsEnvsCacheEntry) Append(entry *ArgsEnvsCacheEntry) {
-	if p.last != nil {
-		p.last.next = entry
-	} else {
-		p.next = entry
-	}
-	p.last = entry
-}
-
-// Retain increment ref counter
-func (p *ArgsEnvsCacheEntry) Retain() {
-	p.refCount++
-}
-
-// Release decrement and eventually release the entry
-func (p *ArgsEnvsCacheEntry) Release() {
-	p.refCount--
-	if p.refCount > 0 {
-		return
-	}
-
-	p.release()
-}
-
-// NewArgsEnvsCacheEntry returns a new args/env cache entry
-func NewArgsEnvsCacheEntry(onRelease func(_ *ArgsEnvsCacheEntry)) *ArgsEnvsCacheEntry {
-	entry := &ArgsEnvsCacheEntry{
-		onRelease: onRelease,
-	}
-
-	return entry
-}
-
-func (p *ArgsEnvsCacheEntry) toArray() ([]string, bool) {
-	entry := p
-
-	var values []string
-	var truncated bool
-
-	for entry != nil {
-		v, err := UnmarshalStringArray(entry.ValuesRaw[:entry.Size])
-		if err != nil || entry.Size == maxArgEnvSize {
-			if len(v) > 0 {
-				v[len(v)-1] = v[len(v)-1] + "..."
-			}
-			truncated = true
-		}
-		if len(v) > 0 {
-			values = append(values, v...)
-		}
-
-		entry = entry.next
-	}
-
-	return values, truncated
-}
-
-func stringArraysEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i, v := range a {
-		if v != b[i] {
-			return false
-		}
-	}
-	return true
+	ValuesRaw [MaxArgEnvSize]byte
 }
 
 // ArgsEntry defines a args cache entry
 type ArgsEntry struct {
-	*ArgsEnvsCacheEntry `msg:"-"`
-
-	Values    []string `msg:"values"`
-	Truncated bool     `msg:"-"`
-
-	parsed bool
-}
-
-// ToArray returns args as array
-func (p *ArgsEntry) ToArray() ([]string, bool) {
-	if len(p.Values) > 0 || p.parsed {
-		return p.Values, p.Truncated
-	}
-	p.Values, p.Truncated = p.toArray()
-	p.parsed = true
-
-	// now we have the cache we can free
-	if p.ArgsEnvsCacheEntry != nil {
-		p.release()
-		p.ArgsEnvsCacheEntry = nil
-	}
-
-	return p.Values, p.Truncated
+	Values    []string
+	Truncated bool
 }
 
 // Equals compares two ArgsEntry
@@ -286,40 +148,16 @@ func (p *ArgsEntry) Equals(o *ArgsEntry) bool {
 		return false
 	}
 
-	pa, _ := p.ToArray()
-	oa, _ := o.ToArray()
-
-	return stringArraysEqual(pa, oa)
+	return slices.Equal(p.Values, o.Values)
 }
 
 // EnvsEntry defines a args cache entry
 type EnvsEntry struct {
-	*ArgsEnvsCacheEntry `msg:"-"`
+	Values    []string
+	Truncated bool
 
-	Values    []string `msg:"values"`
-	Truncated bool     `msg:"-"`
-
-	parsed       bool
 	filteredEnvs []string
 	kv           map[string]string
-}
-
-// ToArray returns envs as an array
-func (p *EnvsEntry) ToArray() ([]string, bool) {
-	if p.parsed {
-		return p.Values, p.Truncated
-	}
-
-	p.Values, p.Truncated = p.toArray()
-	p.parsed = true
-
-	// now we have the cache we can free
-	if p.ArgsEnvsCacheEntry != nil {
-		p.release()
-		p.ArgsEnvsCacheEntry = nil
-	}
-
-	return p.Values, p.Truncated
 }
 
 // FilterEnvs returns an array of envs, only the name of each variable is returned unless the variable name is part of the provided filter
@@ -328,26 +166,23 @@ func (p *EnvsEntry) FilterEnvs(envsWithValue map[string]bool) ([]string, bool) {
 		return p.filteredEnvs, p.Truncated
 	}
 
-	values, _ := p.ToArray()
-	if len(values) == 0 {
+	if len(p.Values) == 0 {
 		return nil, p.Truncated
 	}
 
-	p.filteredEnvs = make([]string, len(values))
+	p.filteredEnvs = make([]string, 0, len(p.Values))
 
-	var i int
-	for _, value := range values {
-		kv := strings.SplitN(value, "=", 2)
-		if len(kv) != 2 {
-			continue
-		}
-
-		if envsWithValue[kv[0]] {
-			p.filteredEnvs[i] = value
+	for _, value := range p.Values {
+		k, _, found := strings.Cut(value, "=")
+		if found {
+			if envsWithValue[k] {
+				p.filteredEnvs = append(p.filteredEnvs, value)
+			} else {
+				p.filteredEnvs = append(p.filteredEnvs, k)
+			}
 		} else {
-			p.filteredEnvs[i] = kv[0]
+			p.filteredEnvs = append(p.filteredEnvs, value)
 		}
-		i++
 	}
 
 	return p.filteredEnvs, p.Truncated
@@ -358,15 +193,12 @@ func (p *EnvsEntry) toMap() {
 		return
 	}
 
-	values, _ := p.ToArray()
-	p.kv = make(map[string]string, len(values))
+	p.kv = make(map[string]string, len(p.Values))
 
-	for _, value := range values {
-		kv := strings.SplitN(value, "=", 2)
-		k := kv[0]
-
-		if len(kv) == 2 {
-			p.kv[k] = kv[1]
+	for _, value := range p.Values {
+		k, v, found := strings.Cut(value, "=")
+		if found {
+			p.kv[k] = v
 		}
 	}
 }
@@ -385,8 +217,5 @@ func (p *EnvsEntry) Equals(o *EnvsEntry) bool {
 		return false
 	}
 
-	pa, _ := p.ToArray()
-	oa, _ := o.ToArray()
-
-	return stringArraysEqual(pa, oa)
+	return slices.Equal(p.Values, o.Values)
 }

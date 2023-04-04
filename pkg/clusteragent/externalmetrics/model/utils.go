@@ -40,7 +40,7 @@ var templatedTags = map[string]tagGetter{
 		if err != nil {
 			return "", err
 		}
-		return clustername.GetClusterName(ctx, hname), nil
+		return clustername.GetClusterNameTagValue(ctx, hname), nil
 	},
 }
 

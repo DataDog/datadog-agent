@@ -469,6 +469,10 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 							Kind: workloadmeta.KindKubernetesPod,
 							ID:   "foouid",
 						},
+						EntityMeta: workloadmeta.EntityMeta{
+							Name:      "foo",
+							Namespace: "default",
+						},
 						KubeServices: []string{"svc1", "svc2"},
 						NamespaceLabels: map[string]string{
 							"label": "value",
@@ -507,6 +511,10 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 							Kind: workloadmeta.KindKubernetesPod,
 							ID:   "foouid",
 						},
+						EntityMeta: workloadmeta.EntityMeta{
+							Name:      "foo",
+							Namespace: "default",
+						},
 						KubeServices: []string{"svc1", "svc2"},
 					},
 				},
@@ -531,6 +539,10 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 						EntityID: workloadmeta.EntityID{
 							Kind: workloadmeta.KindKubernetesPod,
 							ID:   "foouid",
+						},
+						EntityMeta: workloadmeta.EntityMeta{
+							Name:      "foo",
+							Namespace: "default",
 						},
 						KubeServices: []string{},
 					},

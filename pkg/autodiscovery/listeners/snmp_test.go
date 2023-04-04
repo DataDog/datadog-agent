@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -163,6 +164,14 @@ func TestExtraConfig(t *testing.T) {
 		Retries:      2,
 		OidBatchSize: 10,
 		Namespace:    "my-ns",
+		InterfaceConfigs: map[string][]snmpintegration.InterfaceConfig{
+			"192.168.0.1": {{
+				MatchField: "name",
+				MatchValue: "eth0",
+				InSpeed:    25,
+				OutSpeed:   10,
+			}},
+		},
 	}
 
 	svc := SNMPService{
@@ -210,6 +219,20 @@ func TestExtraConfig(t *testing.T) {
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "false", info)
 
+	info, err = svc.GetExtraConfig("collect_topology")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "false", info)
+
+	svc.config.CollectTopology = true
+	info, err = svc.GetExtraConfig("collect_topology")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "true", info)
+
+	svc.config.CollectTopology = false
+	info, err = svc.GetExtraConfig("collect_topology")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "false", info)
+
 	info, err = svc.GetExtraConfig("min_collection_interval")
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "0", info)
@@ -227,6 +250,20 @@ func TestExtraConfig(t *testing.T) {
 	info, err = svc.GetExtraConfig("namespace")
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "my-ns", info)
+
+	info, err = svc.GetExtraConfig("interface_configs")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, `[{"match_field":"name","match_value":"eth0","in_speed":25,"out_speed":10}]`, info)
+
+	svc = SNMPService{
+		adIdentifier: "snmp",
+		entityID:     "id",
+		deviceIP:     "192.168.0.99", // without matching interface_configs
+		config:       snmpConfig,
+	}
+	info, err = svc.GetExtraConfig("interface_configs")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, ``, info)
 }
 
 func TestExtraConfigExtraTags(t *testing.T) {

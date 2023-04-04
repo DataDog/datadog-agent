@@ -6,11 +6,11 @@
 package proxy
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -30,7 +30,7 @@ func (tp *testProcessorResponseValid) OnInvokeStart(startDetails *invocationlife
 	if startDetails.StartTime.IsZero() {
 		panic("isZero")
 	}
-	if !strings.HasSuffix(startDetails.InvokeEventRawPayload, "ok") {
+	if !bytes.HasSuffix(startDetails.InvokeEventRawPayload, []byte("ok")) {
 		panic("payload")
 	}
 }
@@ -50,7 +50,7 @@ func (tp *testProcessorResponseError) OnInvokeStart(startDetails *invocationlife
 	if startDetails.StartTime.IsZero() {
 		panic("isZero")
 	}
-	if !strings.HasSuffix(startDetails.InvokeEventRawPayload, "ok") {
+	if !bytes.HasSuffix(startDetails.InvokeEventRawPayload, []byte("ok")) {
 		panic("payload")
 	}
 }
@@ -63,16 +63,6 @@ func (tp *testProcessorResponseError) OnInvokeEnd(endDetails *invocationlifecycl
 
 func (tp *testProcessorResponseError) GetExecutionInfo() *invocationlifecycle.ExecutionStartInfo {
 	return nil
-}
-
-func TestStartTrue(t *testing.T) {
-	os.Setenv("DD_EXPERIMENTAL_ENABLE_PROXY", "true")
-	defer os.Unsetenv("DD_EXPERIMENTAL_ENABLE_PROXY")
-	assert.True(t, Start("127.0.0.1:7000", "127.0.0.1:7001", &testProcessorResponseValid{}))
-}
-
-func TestStartFalse(t *testing.T) {
-	assert.False(t, Start("127.0.0.1:5000", "127.0.0.1:5001", &testProcessorResponseValid{}))
 }
 
 func TestProxyResponseValid(t *testing.T) {
@@ -88,8 +78,7 @@ func TestProxyResponseValid(t *testing.T) {
 	ts.Start()
 	defer ts.Close()
 
-	os.Setenv("DD_EXPERIMENTAL_ENABLE_PROXY", "true")
-	defer os.Unsetenv("DD_EXPERIMENTAL_ENABLE_PROXY")
+	t.Setenv("DD_EXPERIMENTAL_ENABLE_PROXY", "true")
 
 	go setup("127.0.0.1:5000", "127.0.0.1:5001", &testProcessorResponseValid{})
 	time.Sleep(100 * time.Millisecond)
@@ -116,8 +105,7 @@ func TestProxyResponseError(t *testing.T) {
 	ts.Start()
 	defer ts.Close()
 
-	os.Setenv("DD_EXPERIMENTAL_ENABLE_PROXY", "true")
-	defer os.Unsetenv("DD_EXPERIMENTAL_ENABLE_PROXY")
+	t.Setenv("DD_EXPERIMENTAL_ENABLE_PROXY", "true")
 
 	go setup("127.0.0.1:6000", "127.0.0.1:6001", &testProcessorResponseError{})
 	time.Sleep(100 * time.Millisecond)

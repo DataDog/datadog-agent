@@ -22,14 +22,13 @@ spec:
       name: datadog
       annotations:
         container.apparmor.security.beta.kubernetes.io/system-probe: unconfined
-        container.seccomp.security.alpha.kubernetes.io/system-probe: localhost/system-probe
     spec:
       securityContext:
         runAsUser: 0
       hostPID: true
       containers:
         - name: agent
-          image: "gcr.io/datadoghq/agent:7.36.1"
+          image: "gcr.io/datadoghq/agent:7.43.0"
           imagePullPolicy: IfNotPresent
           command: ["agent", "run"]
           resources: {}
@@ -46,12 +45,14 @@ spec:
                 secretKeyRef:
                   name: "datadog"
                   key: api-key
+            - name: DD_AUTH_TOKEN_FILE_PATH
+              value: /etc/datadog-agent/auth/token
+            - name: KUBERNETES
+              value: "yes"
             - name: DD_KUBERNETES_KUBELET_HOST
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
-            - name: KUBERNETES
-              value: "yes"
             - name: DD_LOG_LEVEL
               value: "INFO"
             - name: DD_DOGSTATSD_PORT
@@ -83,6 +84,8 @@ spec:
               value: "/var/run/datadog/dsd.socket"
             - name: DD_EXTRA_CONFIG_PROVIDERS
               value: "clusterchecks endpointschecks"
+            - name: DD_IGNORE_AUTOCONF
+              value: "kubernetes_state"
             - name: DD_EXPVAR_PORT
               value: "6000"
           volumeMounts:
@@ -95,8 +98,15 @@ spec:
             - name: tmpdir
               mountPath: /tmp
               readOnly: false
+            - name: os-release-file
+              mountPath: /host/etc/os-release
+              mountPropagation: None
+              readOnly: true
             - name: config
               mountPath: /etc/datadog-agent
+            - name: auth-token
+              mountPath: /etc/datadog-agent/auth
+              readOnly: false
             - name: runtimesocketdir
               mountPath: /host/var/run
               mountPropagation: None
@@ -138,9 +148,9 @@ spec:
             successThreshold: 1
             timeoutSeconds: 5
         - name: process-agent
-          image: "gcr.io/datadoghq/agent:7.36.1"
+          image: "gcr.io/datadoghq/agent:7.43.0"
           imagePullPolicy: IfNotPresent
-          command: ["process-agent", "-config=/etc/datadog-agent/datadog.yaml"]
+          command: ["process-agent", "--cfgpath=/etc/datadog-agent/datadog.yaml"]
           resources: {}
           env:
             # Needs to be removed when Agent N-2 is built with Golang 1.17
@@ -151,12 +161,14 @@ spec:
                 secretKeyRef:
                   name: "datadog"
                   key: api-key
+            - name: DD_AUTH_TOKEN_FILE_PATH
+              value: /etc/datadog-agent/auth/token
+            - name: KUBERNETES
+              value: "yes"
             - name: DD_KUBERNETES_KUBELET_HOST
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
-            - name: KUBERNETES
-              value: "yes"
             - name: DD_CLUSTER_AGENT_ENABLED
               value: "true"
             - name: DD_CLUSTER_AGENT_KUBERNETES_SERVICE_NAME
@@ -167,7 +179,7 @@ spec:
                   name: datadog-cluster-agent
                   key: token
             - name: DD_PROCESS_AGENT_DISCOVERY_ENABLED
-              value: "false"
+              value: "true"
             - name: DD_LOG_LEVEL
               value: "INFO"
             - name: DD_SYSTEM_PROBE_ENABLED
@@ -179,11 +191,18 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /etc/datadog-agent
+            - name: auth-token
+              mountPath: /etc/datadog-agent/auth
+              readOnly: true
             - name: logdatadog
               mountPath: /var/log/datadog
             - name: tmpdir
               mountPath: /tmp
               readOnly: false
+            - name: os-release-file
+              mountPath: /host/etc/os-release
+              mountPropagation: None
+              readOnly: true
             - name: runtimesocketdir
               mountPath: /host/var/run
               mountPropagation: None
@@ -209,7 +228,7 @@ spec:
               mountPath: /etc/datadog-agent/system-probe.yaml
               subPath: system-probe.yaml
         - name: system-probe
-          image: "gcr.io/datadoghq/agent:7.36.1"
+          image: "gcr.io/datadoghq/agent:7.43.0"
           imagePullPolicy: IfNotPresent
           securityContext:
             capabilities:
@@ -222,7 +241,11 @@ spec:
                 - NET_RAW
                 - IPC_LOCK
                 - CHOWN
+                - DAC_READ_SEARCH
             privileged: false
+            seccompProfile:
+              type: Localhost
+              localhostProfile: system-probe
           command: ["/opt/datadog-agent/embedded/bin/system-probe", "--config=/etc/datadog-agent/system-probe.yaml"]
           env:
             # Needs to be removed when Agent N-2 is built with Golang 1.17
@@ -233,16 +256,21 @@ spec:
                 secretKeyRef:
                   name: "datadog"
                   key: api-key
+            - name: DD_AUTH_TOKEN_FILE_PATH
+              value: /etc/datadog-agent/auth/token
+            - name: KUBERNETES
+              value: "yes"
             - name: DD_KUBERNETES_KUBELET_HOST
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
-            - name: KUBERNETES
-              value: "yes"
             - name: DD_LOG_LEVEL
               value: "INFO"
           resources: {}
           volumeMounts:
+            - name: auth-token
+              mountPath: /etc/datadog-agent/auth
+              readOnly: true
             - name: logdatadog
               mountPath: /var/log/datadog
             - name: tmpdir
@@ -262,24 +290,21 @@ spec:
               mountPath: /host/proc
               mountPropagation: None
               readOnly: true
-            - name: etc-os-release
+            - name: os-release-file
               mountPath: /host/etc/os-release
               mountPropagation: None
               readOnly: true
             - name: etc-redhat-release
               mountPath: /host/etc/redhat-release
-              mountPropagation: None
               readOnly: true
             - name: etc-fedora-release
               mountPath: /host/etc/fedora-release
-              mountPropagation: None
               readOnly: true
             - name: etc-lsb-release
               mountPath: /host/etc/lsb-release
-              mountPropagation: None
               readOnly: true
         - name: security-agent
-          image: "gcr.io/datadoghq/agent:7.36.1"
+          image: "gcr.io/datadoghq/agent:7.43.0"
           imagePullPolicy: IfNotPresent
           securityContext:
             capabilities:
@@ -295,20 +320,14 @@ spec:
                 secretKeyRef:
                   name: "datadog"
                   key: api-key
+            - name: DD_AUTH_TOKEN_FILE_PATH
+              value: /etc/datadog-agent/auth/token
+            - name: KUBERNETES
+              value: "yes"
             - name: DD_KUBERNETES_KUBELET_HOST
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
-            - name: KUBERNETES
-              value: "yes"
-            - name: DD_LOG_LEVEL
-              value: "INFO"
-            - name: DD_COMPLIANCE_CONFIG_ENABLED
-              value: "true"
-            - name: DD_COMPLIANCE_CONFIG_CHECK_INTERVAL
-              value: "20m"
-            - name: HOST_ROOT
-              value: /host/root
             - name: DD_CLUSTER_AGENT_ENABLED
               value: "true"
             - name: DD_CLUSTER_AGENT_KUBERNETES_SERVICE_NAME
@@ -318,23 +337,28 @@ spec:
                 secretKeyRef:
                   name: datadog-cluster-agent
                   key: token
+            - name: DD_LOG_LEVEL
+              value: "INFO"
+            - name: DD_COMPLIANCE_CONFIG_ENABLED
+              value: "true"
+            - name: DD_COMPLIANCE_CONFIG_CHECK_INTERVAL
+              value: "20m"
+            - name: HOST_ROOT
+              value: /host/root
             - name: DD_RUNTIME_SECURITY_CONFIG_ENABLED
               value: "true"
-            - name: DD_RUNTIME_SECURITY_CONFIG_FIM_ENABLED
-              value: "false"
             - name: DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR
               value: "/etc/datadog-agent/runtime-security.d"
             - name: DD_RUNTIME_SECURITY_CONFIG_SOCKET
               value: /var/run/sysprobe/runtime-security.sock
-            - name: DD_RUNTIME_SECURITY_CONFIG_SYSCALL_MONITOR_ENABLED
-              value: "false"
-            - name: DD_RUNTIME_SECURITY_CONFIG_NETWORK_ENABLED
-              value: "false"
             - name: DD_DOGSTATSD_SOCKET
               value: "/var/run/datadog/dsd.socket"
           volumeMounts:
             - name: config
               mountPath: /etc/datadog-agent
+            - name: auth-token
+              mountPath: /etc/datadog-agent/auth
+              readOnly: true
             - name: logdatadog
               mountPath: /var/log/datadog
             - name: tmpdir
@@ -342,6 +366,10 @@ spec:
               readOnly: false
             - name: dsdsocket
               mountPath: /var/run/datadog
+              readOnly: true
+            - name: os-release-file
+              mountPath: /host/etc/os-release
+              mountPropagation: None
               readOnly: true
             - name: runtimesocketdir
               mountPath: /host/var/run
@@ -370,7 +398,7 @@ spec:
               subPath: system-probe.yaml
       initContainers:
         - name: init-volume
-          image: "gcr.io/datadoghq/agent:7.36.1"
+          image: "gcr.io/datadoghq/agent:7.43.0"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -380,7 +408,7 @@ spec:
               mountPath: /opt/datadog-agent
           resources: {}
         - name: init-config
-          image: "gcr.io/datadoghq/agent:7.36.1"
+          image: "gcr.io/datadoghq/agent:7.43.0"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -410,15 +438,18 @@ spec:
                 secretKeyRef:
                   name: "datadog"
                   key: api-key
+            - name: DD_AUTH_TOKEN_FILE_PATH
+              value: /etc/datadog-agent/auth/token
+            - name: KUBERNETES
+              value: "yes"
             - name: DD_KUBERNETES_KUBELET_HOST
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
-            - name: KUBERNETES
-              value: "yes"
           resources: {}
         - name: seccomp-setup
-          image: "gcr.io/datadoghq/agent:7.36.1"
+          image: "gcr.io/datadoghq/agent:7.43.0"
+          imagePullPolicy: IfNotPresent
           command:
             - cp
             - /etc/config/system-probe-seccomp.json
@@ -431,6 +462,8 @@ spec:
               mountPropagation: None
           resources: {}
       volumes:
+        - name: auth-token
+          emptyDir: {}
         - name: installinfo
           configMap:
             name: datadog-installinfo
@@ -448,7 +481,7 @@ spec:
           name: cgroups
         - hostPath:
             path: /etc/os-release
-          name: etc-os-release
+          name: os-release-file
         - hostPath:
             path: /etc/redhat-release
           name: etc-redhat-release

@@ -9,11 +9,13 @@
 package orchestrator
 
 import (
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/discovery"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -28,12 +30,16 @@ const (
 // CollectorBundle is a container for a group of collectors. It provides a way
 // to easily run them all.
 type CollectorBundle struct {
-	check            *OrchestratorCheck
-	collectors       []collectors.Collector
-	extraSyncTimeout time.Duration
-	inventory        *inventory.CollectorInventory
-	stopCh           chan struct{}
-	runCfg           *collectors.CollectorRunConfig
+	check               *OrchestratorCheck
+	collectors          []collectors.Collector
+	discoverCollectors  bool
+	extraSyncTimeout    time.Duration
+	inventory           *inventory.CollectorInventory
+	stopCh              chan struct{}
+	runCfg              *collectors.CollectorRunConfig
+	manifestBuffer      *ManifestBuffer
+	crdDiscovery        *discovery.DiscoveryCollector
+	activatedCollectors map[string]struct{}
 }
 
 // NewCollectorBundle creates a new bundle from the check configuration.
@@ -48,15 +54,19 @@ type CollectorBundle struct {
 // marked as stable.
 func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 	bundle := &CollectorBundle{
-		check:     chk,
-		inventory: inventory.NewCollectorInventory(),
+		discoverCollectors: chk.orchestratorConfig.CollectorDiscoveryEnabled,
+		check:              chk,
+		inventory:          inventory.NewCollectorInventory(),
 		runCfg: &collectors.CollectorRunConfig{
 			APIClient:   chk.apiClient,
 			ClusterID:   chk.clusterID,
 			Config:      chk.orchestratorConfig,
 			MsgGroupRef: chk.groupID,
 		},
-		stopCh: make(chan struct{}),
+		stopCh:              make(chan struct{}),
+		manifestBuffer:      NewManifestBuffer(chk),
+		crdDiscovery:        discovery.NewDiscoveryCollectorForInventory(),
+		activatedCollectors: map[string]struct{}{},
 	}
 
 	bundle.prepare()
@@ -72,25 +82,150 @@ func (cb *CollectorBundle) prepare() {
 
 // prepareCollectors initializes the bundle collector list.
 func (cb *CollectorBundle) prepareCollectors() {
-	// No collector configured in the check configuration.
-	// Use the list of stable collectors as the default.
-	if len(cb.check.instance.Collectors) == 0 {
-		cb.collectors = cb.inventory.StableCollectors()
+	// we still need to collect non crd resources except if otherwise configured
+	if ok := cb.importCRDCollectorsFromCheckConfig(); ok {
+		if cb.skipImportingDefaultCollectors() {
+			return
+		}
+	}
+
+	if ok := cb.importCollectorsFromCheckConfig(); ok {
+		return
+	}
+	if ok := cb.importCollectorsFromDiscovery(); ok {
 		return
 	}
 
-	// Collectors configured in the check configuration.
-	// Build the custom list of collectors.
-	for _, name := range cb.check.instance.Collectors {
-		if collector, err := cb.inventory.CollectorByName(name); err == nil {
-			if !collector.Metadata().IsStable {
-				_ = cb.check.Warnf("Using unstable collector: %s", name)
-			}
-			cb.collectors = append(cb.collectors, collector)
-		} else {
-			_ = cb.check.Warnf("Unsupported collector: %s", name)
+	cb.importCollectorsFromInventory()
+
+	return
+}
+
+// skipImportingDefaultCollectors skips importing the default collectors if the collector list is explicitly set to an
+// empty string. Example:
+/*
+init_config:
+instances:
+  - collectors: []
+    crd_collectors:
+      - datadoghq.com/v1alpha1/datadogmetrics
+*/
+func (cb *CollectorBundle) skipImportingDefaultCollectors() bool {
+	return cb.check.instance.Collectors != nil && len(cb.check.instance.Collectors) == 0
+}
+
+// addCollectorFromConfig appends a collector to the bundle based on the
+// collector name specified in the check configuration.
+//
+// ## Normal Groups
+// The following configuration keys are accepted:
+//   - <collector_name> (e.g "cronjobs")
+//   - <apigroup_and_version>/<collector_name> (e.g. "batch/v1/cronjobs")
+//
+// ## CRDs
+// The following configuration keys are accepted:
+//   - <apigroup_and_version>/<collector_name> (e.g. "batch/v1/cronjobs")
+func (cb *CollectorBundle) addCollectorFromConfig(collectorName string, isCRD bool) {
+	var (
+		collector collectors.Collector
+		err       error
+	)
+
+	if isCRD {
+		idx := strings.LastIndex(collectorName, "/")
+		if idx == -1 {
+			_ = cb.check.Warnf("Unsupported crd collector definition: %s. Definition needs to be of <apigroup_and_version>/<collector_name> (e.g. \"batch/v1/cronjobs\")", collectorName)
+			return
 		}
+		groupVersion := collectorName[:idx]
+		resource := collectorName[idx+1:]
+		if c, _ := cb.inventory.CollectorForVersion(resource, groupVersion); c != nil {
+			_ = cb.check.Warnf("Ignoring CRD collector %s: use builtin collection instead", collectorName)
+
+			return
+		}
+		collector, err = cb.crdDiscovery.VerifyForInventory(resource, groupVersion)
+	} else if idx := strings.LastIndex(collectorName, "/"); idx != -1 {
+		groupVersion := collectorName[:idx]
+		name := collectorName[idx+1:]
+		collector, err = cb.inventory.CollectorForVersion(name, groupVersion)
+	} else {
+		collector, err = cb.inventory.CollectorForDefaultVersion(collectorName)
 	}
+
+	if err != nil {
+		_ = cb.check.Warnf("Unsupported collector: %s", collectorName)
+		return
+	}
+
+	// this is to stop multiple crds and/or people setting resources as custom resources which we already collect
+	// I am using the fullName for now on purpose in case we have the same resource across 2 different groups setup
+	if _, ok := cb.activatedCollectors[collector.Metadata().FullName()]; ok {
+		_ = cb.check.Warnf("collector %s has already been added", collectorName) // Before using unstable info
+		return
+	}
+
+	if !collector.Metadata().IsStable && !isCRD {
+		_ = cb.check.Warnf("Using unstable collector: %s", collector.Metadata().FullName())
+	}
+
+	cb.activatedCollectors[collector.Metadata().FullName()] = struct{}{}
+	cb.collectors = append(cb.collectors, collector)
+}
+
+// importCollectorsFromCheckConfig tries to fill the bundle with the list of
+// collectors specified in the orchestrator check configuration. Returns true if
+// at least one collector was set, false otherwise.
+func (cb *CollectorBundle) importCollectorsFromCheckConfig() bool {
+	if len(cb.check.instance.Collectors) == 0 {
+		return false
+	}
+	for _, c := range cb.check.instance.Collectors {
+		cb.addCollectorFromConfig(c, false)
+	}
+	return true
+}
+
+// importCRDCollectorsFromCheckConfig tries to fill the crd bundle with the list of
+// collectors specified in the orchestrator crd check configuration. Returns true if
+// at least one collector was set, false otherwise.
+func (cb *CollectorBundle) importCRDCollectorsFromCheckConfig() bool {
+	if len(cb.check.instance.CRDCollectors) == 0 {
+		return false
+	}
+	for _, c := range cb.check.instance.CRDCollectors {
+		cb.addCollectorFromConfig(c, true)
+	}
+	return true
+}
+
+// importCollectorsFromDiscovery tries to fill the bundle with the list of
+// collectors discovered through resources available from the API server.
+// Returns true if at least one collector was set, false otherwise.
+func (cb *CollectorBundle) importCollectorsFromDiscovery() bool {
+	if !cb.discoverCollectors {
+		return false
+	}
+
+	collectors, err := discovery.NewAPIServerDiscoveryProvider().Discover(cb.inventory)
+	if err != nil {
+		_ = cb.check.Warnf("Collector discovery failed: %s", err)
+		return false
+	}
+	if len(collectors) == 0 {
+		_ = cb.check.Warnf("Collector discovery returned no collector")
+		return false
+	}
+
+	cb.collectors = append(cb.collectors, collectors...)
+
+	return true
+}
+
+// importCollectorsFromInventory fills the bundle with the list of
+// stable collectors with default versions.
+func (cb *CollectorBundle) importCollectorsFromInventory() {
+	cb.collectors = cb.inventory.StableCollectors()
 }
 
 // prepareExtraSyncTimeout initializes the bundle extra sync timeout.
@@ -115,10 +250,11 @@ func (cb *CollectorBundle) Initialize() error {
 	// informerSynced is a helper map which makes sure that we don't initialize the same informer twice.
 	// i.e. the cluster and nodes resources share the same informer and using both can lead to a race condition activating both concurrently.
 	informerSynced := map[cache.SharedInformer]struct{}{}
+
 	for _, collector := range cb.collectors {
 		collector.Init(cb.runCfg)
 		if !collector.IsAvailable() {
-			_ = cb.check.Warnf("Collector %q is unavailable, skipping it", collector.Metadata().Name)
+			_ = cb.check.Warnf("Collector %q is unavailable, skipping it", collector.Metadata().FullName())
 			continue
 		}
 
@@ -127,7 +263,7 @@ func (cb *CollectorBundle) Initialize() error {
 		informer := collector.Informer()
 
 		if _, found := informerSynced[informer]; !found {
-			informersToSync[apiserver.InformerName(collector.Metadata().Name)] = informer
+			informersToSync[apiserver.InformerName(collector.Metadata().FullName())] = informer
 			informerSynced[informer] = struct{}{}
 			// we run each enabled informer individually, because starting them through the factory
 			// would prevent us from restarting them again if the check is unscheduled/rescheduled
@@ -147,22 +283,38 @@ func (cb *CollectorBundle) Initialize() error {
 
 // Run is used to sequentially run all collectors in the bundle.
 func (cb *CollectorBundle) Run(sender aggregator.Sender) {
+
+	// Start a thread to buffer manifests and kill it when the check is finished.
+	if cb.runCfg.Config.IsManifestCollectionEnabled && cb.manifestBuffer.Cfg.BufferedManifestEnabled {
+		cb.manifestBuffer.Start(sender)
+		defer cb.manifestBuffer.Stop()
+	}
+
 	for _, collector := range cb.collectors {
 		runStartTime := time.Now()
 
 		result, err := collector.Run(cb.runCfg)
 		if err != nil {
-			_ = cb.check.Warnf("Collector %s failed to run: %s", collector.Metadata().Name, err.Error())
+			_ = cb.check.Warnf("Collector %s failed to run: %s", collector.Metadata().FullName(), err.Error())
 			continue
 		}
 
 		runDuration := time.Since(runStartTime)
-		log.Debugf("Collector %s run stats: listed=%d processed=%d messages=%d duration=%s", collector.Metadata().Name, result.ResourcesListed, result.ResourcesProcessed, len(result.Result.MetadataMessages), runDuration)
+		log.Debugf("Collector %s run stats: listed=%d processed=%d messages=%d duration=%s", collector.Metadata().FullName(), result.ResourcesListed, result.ResourcesProcessed, len(result.Result.MetadataMessages), runDuration)
 
-		orchestrator.SetCacheStats(result.ResourcesListed, len(result.Result.MetadataMessages), collector.Metadata().NodeType)
-		sender.OrchestratorMetadata(result.Result.MetadataMessages, cb.check.clusterID, int(collector.Metadata().NodeType))
+		nt := collector.Metadata().NodeType
+		orchestrator.SetCacheStats(result.ResourcesListed, len(result.Result.MetadataMessages), nt)
+
+		if collector.Metadata().IsMetadataProducer { // for CR and CRD we don't have metadata but only manifests
+			sender.OrchestratorMetadata(result.Result.MetadataMessages, cb.check.clusterID, int(nt))
+		}
+
 		if cb.runCfg.Config.IsManifestCollectionEnabled {
-			sender.OrchestratorManifest(result.Result.ManifestMessages, cb.check.clusterID)
+			if cb.manifestBuffer.Cfg.BufferedManifestEnabled && collector.Metadata().SupportsManifestBuffering {
+				BufferManifestProcessResult(result.Result.ManifestMessages, cb.manifestBuffer)
+			} else {
+				sender.OrchestratorManifest(result.Result.ManifestMessages, cb.check.clusterID)
+			}
 		}
 	}
 }

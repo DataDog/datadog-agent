@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build windows && npm
+// +build windows,npm
+
 package dns
 
 /*
@@ -16,10 +19,9 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/windows"
-
-	"github.com/DataDog/datadog-agent/pkg/network/driver"
 )
 
 const (

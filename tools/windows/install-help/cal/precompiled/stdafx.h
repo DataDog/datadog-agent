@@ -35,6 +35,7 @@
 // TODO: reference additional headers your program requires here
 #include "../Error.h"
 #include "../customaction.h"
+#include "../PropertyView.h"
 #include "../customactiondata.h"
 #include "../ddreg.h"
 #include "../resource.h"

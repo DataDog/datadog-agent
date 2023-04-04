@@ -17,14 +17,14 @@ import (
 var logsScheduler *channel.Scheduler
 
 // SetupLogAgent sets up the logs agent to handle messages on the given channel.
-func SetupLogAgent(logChannel chan *config.ChannelMessage) {
+func SetupLogAgent(logChannel chan *config.ChannelMessage, sourceName string, source string) {
 	agent, err := logs.StartServerless()
 	if err != nil {
 		log.Error("Could not start an instance of the Logs Agent:", err)
 		return
 	}
 
-	logsScheduler = channel.NewScheduler("AWS Logs", "lambda", logChannel, nil)
+	logsScheduler = channel.NewScheduler(sourceName, source, logChannel)
 	agent.AddScheduler(logsScheduler)
 }
 
@@ -36,4 +36,11 @@ func SetLogsTags(tags []string) {
 	if logsScheduler != nil {
 		logsScheduler.SetLogsTags(tags)
 	}
+}
+
+func GetLogsTags() []string {
+	if logsScheduler != nil {
+		return logsScheduler.GetLogsTags()
+	}
+	return nil
 }

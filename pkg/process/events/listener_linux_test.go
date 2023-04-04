@@ -18,27 +18,27 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/proto/api/mocks"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
-	"github.com/DataDog/datadog-agent/pkg/security/api"
-	"github.com/DataDog/datadog-agent/pkg/security/api/mocks"
 )
 
 // TestProcessEventFiltering asserts that sysProbeListener collects only expected events and drops everything else
 func TestProcessEventFiltering(t *testing.T) {
-	rawEvents := make([]*model.ProcessMonitoringEvent, 0)
+	rawEvents := make([]*model.ProcessEvent, 0)
 	handlers := make([]EventHandler, 0)
 
 	// The listener should drop unexpected events and not call the EventHandler for it
-	rawEvents = append(rawEvents, model.ProcessEventToProcessMonitoringEvent(model.NewMockedForkEvent(time.Now(), 23, "/usr/bin/ls", []string{"ls", "-lah"})))
+	rawEvents = append(rawEvents, model.NewMockedForkEvent(time.Now(), 23, "/usr/bin/ls", []string{"ls", "-lah"}))
 
 	// Verify that expected events are correctly consumed
-	rawEvents = append(rawEvents, model.ProcessEventToProcessMonitoringEvent(model.NewMockedExecEvent(time.Now(), 23, "/usr/bin/ls", []string{"ls", "-lah"})))
+	rawEvents = append(rawEvents, model.NewMockedExecEvent(time.Now(), 23, "/usr/bin/ls", []string{"ls", "-lah"}))
 	handlers = append(handlers, func(e *model.ProcessEvent) {
 		require.Equal(t, model.Exec, e.EventType)
 		require.Equal(t, uint32(23), e.Pid)
 	})
 
-	rawEvents = append(rawEvents, model.ProcessEventToProcessMonitoringEvent(model.NewMockedExitEvent(time.Now(), 23, "/usr/bin/ls", []string{"ls", "-lah"}, 0)))
+	rawEvents = append(rawEvents, model.NewMockedExitEvent(time.Now(), 23, "/usr/bin/ls", []string{"ls", "-lah"}, 0))
 	handlers = append(handlers, func(e *model.ProcessEvent) {
 		require.Equal(t, model.Exit, e.EventType)
 		require.Equal(t, uint32(23), e.Pid)
@@ -66,9 +66,9 @@ func TestProcessEventFiltering(t *testing.T) {
 func TestProcessEventHandling(t *testing.T) {
 	ctx := context.Background()
 
-	client := mocks.NewSecurityModuleClient(t)
-	stream := mocks.NewSecurityModule_GetProcessEventsClient(t)
-	client.On("GetProcessEvents", ctx, &api.GetProcessEventParams{}).Return(stream, nil)
+	client := mocks.NewEventMonitoringModuleClient(t)
+	stream := mocks.NewEventMonitoringModule_GetProcessEventsClient(t)
+	client.On("GetProcessEvents", ctx, &api.GetProcessEventParams{TimeoutSeconds: 1}).Return(stream, nil)
 
 	events := make([]*model.ProcessEvent, 0)
 	events = append(events, model.NewMockedExecEvent(time.Now().Add(-10*time.Second), 32, "/usr/bin/ls", []string{"ls", "-lah"}))
@@ -77,11 +77,10 @@ func TestProcessEventHandling(t *testing.T) {
 	events = append(events, model.NewMockedExitEvent(time.Now().Add(-5*time.Second), 32, "/usr/bin/ls", []string{"ls", "invalid-path"}, 2))
 
 	for _, e := range events {
-		sysEvent := model.ProcessEventToProcessMonitoringEvent(e)
-		data, err := sysEvent.MarshalMsg(nil)
+		data, err := e.MarshalMsg(nil)
 		require.NoError(t, err)
 
-		stream.On("Recv").Once().Return(&api.SecurityProcessEventMessage{Data: data}, nil)
+		stream.On("Recv").Once().Return(&api.ProcessEventMessage{Data: data}, nil)
 	}
 	stream.On("Recv").Return(nil, io.EOF)
 
@@ -92,7 +91,7 @@ func TestProcessEventHandling(t *testing.T) {
 			t.Error("should not have received more process events")
 		}
 
-		model.AssertProcessEvents(t, events[i], e)
+		AssertProcessEvents(t, events[i], e)
 		// all message have been consumed
 		if i == len(events)-1 {
 			close(rcvMessage)
@@ -115,26 +114,26 @@ func TestProcessEventHandling(t *testing.T) {
 func TestSecurityModuleClientReconnect(t *testing.T) {
 	ctx := context.Background()
 
-	client := mocks.NewSecurityModuleClient(t)
-	stream := mocks.NewSecurityModule_GetProcessEventsClient(t)
+	client := mocks.NewEventMonitoringModuleClient(t)
+	stream := mocks.NewEventMonitoringModule_GetProcessEventsClient(t)
 
-	l, err := NewSysProbeListener(nil, client, func(e *model.ProcessEvent) { return })
+	l, err := NewSysProbeListener(nil, client, func(e *model.ProcessEvent) {})
 	require.NoError(t, err)
 
 	l.retryInterval = 10 * time.Millisecond // force a fast retry for tests
 	require.NoError(t, err)
 
 	// Simulate that the event listener starts connected to the SecurityModule server
-	client.On("GetProcessEvents", ctx, &api.GetProcessEventParams{}).Return(stream, nil).Once()
+	client.On("GetProcessEvents", ctx, &api.GetProcessEventParams{TimeoutSeconds: 1}).Return(stream, nil).Once()
 	stream.On("Recv").Return(nil, io.EOF)
 
 	// Then disconnects from it
 	drop := make(chan time.Time)
-	client.On("GetProcessEvents", ctx, &api.GetProcessEventParams{}).Return(stream, errors.New("server not available")).WaitUntil(drop).Once()
+	client.On("GetProcessEvents", ctx, &api.GetProcessEventParams{TimeoutSeconds: 1}).Return(stream, errors.New("server not available")).WaitUntil(drop).Once()
 
 	// And reconnects
 	reconnect := make(chan time.Time)
-	client.On("GetProcessEvents", ctx, &api.GetProcessEventParams{}).Return(stream, nil).WaitUntil(reconnect)
+	client.On("GetProcessEvents", ctx, &api.GetProcessEventParams{TimeoutSeconds: 1}).Return(stream, nil).WaitUntil(reconnect)
 
 	l.Run()
 	assert.Eventually(t, func() bool { return l.connected.Load() == true }, 2*time.Second, 20*time.Millisecond,

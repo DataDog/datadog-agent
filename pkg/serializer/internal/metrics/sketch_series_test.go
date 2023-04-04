@@ -11,7 +11,7 @@ package metrics
 import (
 	"bytes"
 	"compress/zlib"
-	"io/ioutil"
+	"io"
 	"testing"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
@@ -84,17 +84,26 @@ func TestSketchSeriesListMarshal(t *testing.T) {
 	}
 }
 
+func TestSketchSeriesSplitEmptyPayload(t *testing.T) {
+	sl := SketchSeriesList{SketchesSource: metrics.NewSketchesSourceTest()}
+	pieces, err := sl.SplitPayload(10)
+	require.Len(t, pieces, 0)
+	require.Nil(t, err)
+}
+
 func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 
 	sl := SketchSeriesList{SketchesSource: metrics.NewSketchesSourceTest()}
 	payload, _ := sl.Marshal()
-	payloads, err := sl.MarshalSplitCompress(marshaler.DefaultBufferContext())
+	payloads, err := sl.MarshalSplitCompress(marshaler.NewBufferContext())
 
 	assert.Nil(t, err)
 
-	reader := bytes.NewReader(*payloads[0])
+	firstPayload := payloads[0]
+	assert.Equal(t, 0, firstPayload.GetPointCount())
+	reader := bytes.NewReader(firstPayload.GetContent())
 	r, _ := zlib.NewReader(reader)
-	decompressed, _ := ioutil.ReadAll(r)
+	decompressed, _ := io.ReadAll(r)
 	r.Close()
 
 	// Check that we encoded the protobuf correctly
@@ -120,13 +129,15 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 	})
 
 	serializer := SketchSeriesList{SketchesSource: sl}
-	payloads, err := serializer.MarshalSplitCompress(marshaler.DefaultBufferContext())
+	payloads, err := serializer.MarshalSplitCompress(marshaler.NewBufferContext())
 
 	assert.Nil(t, err)
 
-	reader := bytes.NewReader(*payloads[0])
+	firstPayload := payloads[0]
+	require.Equal(t, 0, firstPayload.GetPointCount())
+	reader := bytes.NewReader(firstPayload.GetContent())
 	r, _ := zlib.NewReader(reader)
-	decompressed, _ := ioutil.ReadAll(r)
+	decompressed, _ := io.ReadAll(r)
 	r.Close()
 
 	pl := new(gogen.SketchPayload)
@@ -149,12 +160,14 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 	payload, _ := serializer1.Marshal()
 	sl.Reset()
 	serializer2 := SketchSeriesList{SketchesSource: sl}
-	payloads, err := serializer2.MarshalSplitCompress(marshaler.DefaultBufferContext())
+	payloads, err := serializer2.MarshalSplitCompress(marshaler.NewBufferContext())
 	require.NoError(t, err)
 
-	reader := bytes.NewReader(*payloads[0])
+	firstPayload := payloads[0]
+	assert.Equal(t, 11, firstPayload.GetPointCount())
+	reader := bytes.NewReader(firstPayload.GetContent())
 	r, _ := zlib.NewReader(reader)
-	decompressed, _ := ioutil.ReadAll(r)
+	decompressed, _ := io.ReadAll(r)
 	r.Close()
 
 	// Check that we encoded the protobuf correctly
@@ -190,20 +203,23 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 
 	sl := metrics.NewSketchesSourceTest()
 
+	expectedPointCount := 0
 	for i := 0; i < 20; i++ {
 		sl.Append(Makeseries(i))
+		expectedPointCount += i + 5
 	}
 
 	serializer := SketchSeriesList{SketchesSource: sl}
-	payloads, err := serializer.MarshalSplitCompress(marshaler.DefaultBufferContext())
+	payloads, err := serializer.MarshalSplitCompress(marshaler.NewBufferContext())
 	assert.Nil(t, err)
 
 	recoveredSketches := []gogen.SketchPayload{}
 	recoveredCount := 0
+	pointCount := 0
 	for _, pld := range payloads {
-		reader := bytes.NewReader(*pld)
+		reader := bytes.NewReader(pld.GetContent())
 		r, _ := zlib.NewReader(reader)
-		decompressed, _ := ioutil.ReadAll(r)
+		decompressed, _ := io.ReadAll(r)
 		r.Close()
 
 		pl := new(gogen.SketchPayload)
@@ -212,8 +228,9 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 		}
 		recoveredSketches = append(recoveredSketches, *pl)
 		recoveredCount += len(pl.Sketches)
+		pointCount += pld.GetPointCount()
 	}
-
+	assert.Equal(t, expectedPointCount, pointCount)
 	assert.Equal(t, recoveredCount, int(sl.Count()))
 	assert.Greater(t, len(recoveredSketches), 1)
 

@@ -8,21 +8,15 @@ package hostname
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
-	"runtime"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
-	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
-	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,11 +24,12 @@ import (
 var (
 	isFargateInstance = fargate.IsFargateInstance
 	ec2GetInstanceID  = ec2.GetInstanceID
-	isContainerized   = config.IsContainerized
+	isContainerized   = config.IsContainerized //nolint:unused
 	gceGetHostname    = gce.GetHostname
 	azureGetHostname  = azure.GetHostname
 	osHostname        = os.Hostname
 	fqdnHostname      = getSystemFQDN
+	osHostnameUsable  = isOSHostnameUsable
 )
 
 // Data contains hostname and the hostname provider
@@ -60,7 +55,7 @@ func fromHostnameFile(ctx context.Context, _ string) (string, error) {
 		return "", fmt.Errorf("'hostname_file' configuration is not enabled")
 	}
 
-	fileContent, err := ioutil.ReadFile(hostnameFilepath)
+	fileContent, err := os.ReadFile(hostnameFilepath)
 	if err != nil {
 		return "", fmt.Errorf("Could not read hostname from %s: %v", hostnameFilepath, err)
 	}
@@ -75,9 +70,9 @@ func fromHostnameFile(ctx context.Context, _ string) (string, error) {
 	return hostname, nil
 }
 
-func fromFargate(ctx context.Context, _ string) (string, error) {
+func fromFargate(_ context.Context, _ string) (string, error) {
 	// If we're running on fargate we strip the hostname
-	if isFargateInstance(ctx) {
+	if isFargateInstance() {
 		return "", nil
 	}
 	return "", fmt.Errorf("agent is not runnning on Fargate")
@@ -91,46 +86,8 @@ func fromAzure(ctx context.Context, currentHostname string) (string, error) {
 	return azureGetHostname(ctx)
 }
 
-// isOSHostnameUsable returns `false` if it has the certainty that the agent is running
-// in a non-root UTS namespace because in that case, the OS hostname characterizes the
-// identity of the agent container and not the one of the nodes it is running on.
-// There can be some cases where the agent is running in a non-root UTS namespace that are
-// not detected by this function (systemd-nspawn containers, manual `unshare -u`…)
-// In those uncertain cases, it returns `true`.
-func isOSHostnameUsable(ctx context.Context) (osHostnameUsable bool) {
-	// If the agent is not containerized, just skip all this detection logic
-	if !isContainerized() {
-		return true
-	}
-
-	// TODO: Revisit when we introduce support for Windows privileged containers
-	if runtime.GOOS == "windows" {
-		return false
-	}
-
-	// Check UTS namespace from docker
-	utsMode, err := docker.GetAgentUTSMode(ctx)
-	if err == nil && (utsMode != containers.HostUTSMode && utsMode != containers.UnknownUTSMode) {
-		log.Debug("Agent is running in a docker container without host UTS mode: OS-provided hostnames cannot be used for hostname resolution.")
-		return false
-	}
-
-	// Check hostNetwork from kubernetes
-	// because kubernetes sets UTS namespace to host if and only if hostNetwork = true:
-	// https://github.com/kubernetes/kubernetes/blob/cf16e4988f58a5b816385898271e70c3346b9651/pkg/kubelet/dockershim/security_context.go#L203-L205
-	if config.IsFeaturePresent(config.Kubernetes) {
-		hostNetwork, err := kubelet.IsAgentKubeHostNetwork()
-		if err == nil && !hostNetwork {
-			log.Debug("Agent is running in a POD without hostNetwork: OS-provided hostnames cannot be used for hostname resolution.")
-			return false
-		}
-	}
-
-	return true
-}
-
 func fromFQDN(ctx context.Context, _ string) (string, error) {
-	if !isOSHostnameUsable(ctx) {
+	if !osHostnameUsable(ctx) {
 		return "", fmt.Errorf("FQDN hostname is not usable")
 	}
 
@@ -145,7 +102,7 @@ func fromFQDN(ctx context.Context, _ string) (string, error) {
 }
 
 func fromOS(ctx context.Context, currentHostname string) (string, error) {
-	if isOSHostnameUsable(ctx) {
+	if osHostnameUsable(ctx) {
 		if currentHostname == "" {
 			return osHostname()
 		}
@@ -172,11 +129,16 @@ func fromEC2(ctx context.Context, currentHostname string) (string, error) {
 
 	prioritizeEC2Hostname := config.Datadog.GetBool("ec2_prioritize_instance_id_as_hostname")
 
+	log.Debugf("Detected a default EC2 hostname: %v", ec2.IsDefaultHostname(currentHostname))
+	log.Debugf("ec2_prioritize_instance_id_as_hostname is set to %v", prioritizeEC2Hostname)
+
 	// We use the instance id if we're on an ECS cluster or we're on EC2 and the hostname is one of the default ones
 	// or ec2_prioritize_instance_id_as_hostname is set to true
-	if ecs.IsECSInstance() || ec2.IsDefaultHostname(currentHostname) || prioritizeEC2Hostname {
+	if config.IsFeaturePresent(config.ECSEC2) || ec2.IsDefaultHostname(currentHostname) || prioritizeEC2Hostname {
+		log.Debugf("Trying to fetch hostname from EC2 metadata")
 		return getValidEC2Hostname(ctx)
 	} else if ec2.IsWindowsDefaultHostname(currentHostname) {
+		log.Debugf("Default EC2 Windows hostname detected")
 		// Display a message when enabling `ec2_use_windows_prefix_detection` would make the hostname resolution change.
 
 		// As we are in the else clause `ec2.IsDefaultHostname(currentHostname)` is false. If

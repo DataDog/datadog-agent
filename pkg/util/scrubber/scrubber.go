@@ -6,7 +6,7 @@
 // Package scrubber implements support for cleaning sensitive information out of strings
 // and files.
 //
-// Compatibility
+// # Compatibility
 //
 // This module's API is not yet stable, and may change incompatibly from version to version.
 package scrubber
@@ -17,13 +17,19 @@ import (
 	"io"
 	"os"
 	"regexp"
-	"strings"
 )
 
 // Replacer represents a replacement of sensitive information with a "clean" version.
 type Replacer struct {
 	// Regex must match the sensitive information
 	Regex *regexp.Regexp
+	// YAMLKeyRegex matches the key of sensitive information in a dict/map. This is used when iterating over a
+	// map[string]interface{} to scrub data for all matching key before being serialized.
+	YAMLKeyRegex *regexp.Regexp
+	// ProcessValue is a callback to be executed when YAMLKeyRegex matches the key of a map/dict in a YAML object. The
+	// value is passed to the function and replaced by the returned interface. This is useful to produce custom
+	// scrubbing. Example: keeping the last 5 digit of an api key.
+	ProcessValue func(data interface{}) interface{}
 	// Hints, if given, are strings which must also be present in the text for the regexp to match.
 	// Especially in single-line replacers, this can be used to limit the contexts where an otherwise
 	// very broad Regex is actually replaced.
@@ -98,25 +104,35 @@ func (c *Scrubber) ScrubFile(filePath string) ([]byte, error) {
 		return nil, err
 	}
 	defer file.Close()
-	return c.scrubReader(file)
+
+	var sizeHint int
+	stats, err := file.Stat()
+	if err == nil {
+		sizeHint = int(stats.Size())
+	}
+
+	return c.scrubReader(file, sizeHint)
 }
 
 // ScrubBytes scrubs credentials from slice of bytes
 func (c *Scrubber) ScrubBytes(file []byte) ([]byte, error) {
 	r := bytes.NewReader(file)
-	return c.scrubReader(r)
+	return c.scrubReader(r, r.Len())
 }
 
 // ScrubLine scrubs credentials from a single line of text.  It can be safely
-// applied to URLs or to strings containing URLs.  It does not run multi-line
+// applied to URLs or to strings containing URLs. It does not run multi-line
 // replacers, and should not be used on multi-line inputs.
 func (c *Scrubber) ScrubLine(message string) string {
 	return string(c.scrub([]byte(message), c.singleLineReplacers))
 }
 
 // scrubReader applies the cleaning algorithm to a Reader
-func (c *Scrubber) scrubReader(file io.Reader) ([]byte, error) {
-	var cleanedFile []byte
+func (c *Scrubber) scrubReader(file io.Reader, sizeHint int) ([]byte, error) {
+	var cleanedBuffer bytes.Buffer
+	if sizeHint > 0 {
+		cleanedBuffer.Grow(sizeHint)
+	}
 
 	scanner := bufio.NewScanner(file)
 
@@ -126,14 +142,14 @@ func (c *Scrubber) scrubReader(file io.Reader) ([]byte, error) {
 	for scanner.Scan() {
 		b := scanner.Bytes()
 		if blankRegex.Match(b) {
-			cleanedFile = append(cleanedFile, byte('\n'))
+			cleanedBuffer.WriteRune('\n')
 		} else if !commentRegex.Match(b) {
 			b = c.scrub(b, c.singleLineReplacers)
 			if !first {
-				cleanedFile = append(cleanedFile, byte('\n'))
+				cleanedBuffer.WriteRune('\n')
 			}
 
-			cleanedFile = append(cleanedFile, b...)
+			cleanedBuffer.Write(b)
 			first = false
 		}
 	}
@@ -143,7 +159,7 @@ func (c *Scrubber) scrubReader(file io.Reader) ([]byte, error) {
 	}
 
 	// Then we apply multiline replacers on the cleaned file
-	cleanedFile = c.scrub(cleanedFile, c.multiLineReplacers)
+	cleanedFile := c.scrub(cleanedBuffer.Bytes(), c.multiLineReplacers)
 
 	return cleanedFile, nil
 }
@@ -151,9 +167,14 @@ func (c *Scrubber) scrubReader(file io.Reader) ([]byte, error) {
 // scrub applies the given replacers to the given data.
 func (c *Scrubber) scrub(data []byte, replacers []Replacer) []byte {
 	for _, repl := range replacers {
+		if repl.Regex == nil {
+			// ignoring YAML only replacers
+			continue
+		}
+
 		containsHint := false
 		for _, hint := range repl.Hints {
-			if strings.Contains(string(data), hint) {
+			if bytes.Contains(data, []byte(hint)) {
 				containsHint = true
 				break
 			}

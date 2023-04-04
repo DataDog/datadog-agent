@@ -59,6 +59,17 @@ func fakePodWithContainer(name string, containers ...corev1.Container) *corev1.P
 	}
 }
 
+func fakePodWithInitContainer(name string, containers ...corev1.Container) *corev1.Pod {
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: corev1.PodSpec{
+			InitContainers: containers,
+		},
+	}
+}
+
 func withLabels(pod *corev1.Pod, labels map[string]string) *corev1.Pod {
 	pod.Labels = labels
 	return pod
@@ -75,23 +86,33 @@ func fakePodWithLabel(k, v string) *corev1.Pod {
 }
 
 func fakePodWithAnnotation(k, v string) *corev1.Pod {
-	return &corev1.Pod{
+	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod",
 			Annotations: map[string]string{
 				k: v,
 			},
 		},
 	}
+	return withContainer(pod, "-container")
 }
 
 func fakePodWithEnv(name, env string) *corev1.Pod {
 	return fakePodWithContainer(name, corev1.Container{Name: name + "-container", Env: []corev1.EnvVar{fakeEnv(env)}})
 }
 
-func fakePodWithVolume(podName, volumeName string) *corev1.Pod {
+func fakePodWithEnvValue(name, envKey, envVal string) *corev1.Pod {
+	return fakePodWithContainer(name, corev1.Container{Name: name + "-container", Env: []corev1.EnvVar{fakeEnvWithValue(envKey, envVal)}})
+}
+
+func fakePodWithEnvFieldRefValue(name, envKey, path string) *corev1.Pod {
+	return fakePodWithContainer(name, corev1.Container{Name: name + "-container", Env: []corev1.EnvVar{fakeEnvWithFieldRefValue(envKey, path)}})
+}
+
+func fakePodWithVolume(podName, volumeName, mountPath string) *corev1.Pod {
 	pod := fakePod(podName)
 	pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{Name: volumeName})
-	pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{Name: volumeName})
+	pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{Name: volumeName, MountPath: mountPath})
 	return pod
 }
 
@@ -99,6 +120,7 @@ func fakePod(name string) *corev1.Pod {
 	return fakePodWithContainer(name, corev1.Container{Name: name + "-container"})
 }
 
-func boolPointer(b bool) *bool {
-	return &b
+func withContainer(pod *corev1.Pod, nameSuffix string) *corev1.Pod {
+	pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{Name: pod.Name + nameSuffix})
+	return pod
 }

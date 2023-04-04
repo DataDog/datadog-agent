@@ -12,7 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"path"
@@ -100,7 +100,7 @@ func (c *Client) get(ctx context.Context, path string, v interface{}) error {
 
 	if resp.StatusCode != http.StatusOK {
 		var msg string
-		if buf, err := ioutil.ReadAll(resp.Body); err == nil {
+		if buf, err := io.ReadAll(resp.Body); err == nil {
 			msg = string(buf)
 		}
 		return fmt.Errorf("Unexpected HTTP status code in metadata v2 reply: [%s]: %d - %s", url, resp.StatusCode, msg)

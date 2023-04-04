@@ -11,12 +11,13 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
@@ -36,14 +37,13 @@ type Endpoint struct {
 // TelemetryEndpointPrefix specifies the prefix of the telemetry endpoint URL.
 const TelemetryEndpointPrefix = "https://instrumentation-telemetry-intake."
 
+// App Services env var
+const azureAppServices = "DD_AZURE_APP_SERVICES"
+
 // OTLP holds the configuration for the OpenTelemetry receiver.
 type OTLP struct {
 	// BindHost specifies the host to bind the receiver to.
 	BindHost string `mapstructure:"-"`
-
-	// HTTPPort specifies the port to use for the plain HTTP receiver.
-	// If unset (or 0), the receiver will be off.
-	HTTPPort int `mapstructure:"http_port"`
 
 	// GRPCPort specifies the port to use for the plain HTTP receiver.
 	// If unset (or 0), the receiver will be off.
@@ -53,7 +53,14 @@ type OTLP struct {
 	// automatically map Datadog Span Operation Names to an updated value. All entries should be key/value pairs.
 	SpanNameRemappings map[string]string `mapstructure:"span_name_remappings"`
 
-	// SpanNameAsResourceName uses the OTLP span name as the Datadog resource name.
+	// SpanNameAsResourceName specifies whether the OpenTelemetry span's name should be
+	// used as the Datadog span's operation name. By default (when this is false), the
+	// operation name is deduced from a combination between the instrumentation scope
+	// name and the span kind.
+	//
+	// For context, the OpenTelemetry 'Span Name' is equivalent to the Datadog 'resource name'.
+	// The Datadog Span's Operation Name equivalent in OpenTelemetry does not exist, but the span's
+	// kind comes close.
 	SpanNameAsResourceName bool `mapstructure:"span_name_as_resource_name"`
 
 	// MaxRequestBytes specifies the maximum number of bytes that will be read
@@ -61,10 +68,18 @@ type OTLP struct {
 	MaxRequestBytes int64 `mapstructure:"-"`
 
 	// UsePreviewHostnameLogic specifies wether to use the 'preview' OpenTelemetry attributes to hostname rules,
-	// controlled in the Datadog exporter by the `exporter.datadog.hostname.preview` feature flag.
+	// controlled in the Datadog exporter by the `exporter.datadog.hostname.preview` feature gate.
 	// The 'preview' rules change the canonical hostname chosen in cloud providers to be consistent with the
 	// one sent by Datadog cloud integrations.
+	//
+	// Deprecated: Field UsePreviewHostnameLogic is not used.
 	UsePreviewHostnameLogic bool `mapstructure:"-"`
+
+	// ProbabilisticSampling specifies the percentage of traces to ingest. Exceptions are made for errors
+	// and rare traces (outliers) if "RareSamplerEnabled" is true. Invalid values are equivalent to 100.
+	// If spans have the "sampling.priority" attribute set, probabilistic sampling is skipped and the user's
+	// decision is followed.
+	ProbabilisticSampling float64
 }
 
 // ObfuscationConfig holds the configuration for obfuscating sensitive data
@@ -102,27 +117,15 @@ type ObfuscationConfig struct {
 	CreditCards CreditCardsConfig `mapstructure:"credit_cards"`
 }
 
-// AppSecConfig ...
-type AppSecConfig struct {
-	// Enabled reports whether AppSec is enabled.
-	Enabled bool
-	// MaxPayloadSize ...
-	MaxPayloadSize int64
-	// APIKey ...
-	APIKey string
-	// DDURL ...
-	DDURL string
-}
-
 // Export returns an obfuscate.Config matching o.
-func (o *ObfuscationConfig) Export() obfuscate.Config {
+func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 	return obfuscate.Config{
 		SQL: obfuscate.SQLConfig{
-			TableNames:       features.Has("table_names"),
-			ReplaceDigits:    features.Has("quantize_sql_tables") || features.Has("replace_sql_digits"),
-			KeepSQLAlias:     features.Has("keep_sql_alias"),
-			DollarQuotedFunc: features.Has("dollar_quoted_func"),
-			Cache:            features.Has("sql_cache"),
+			TableNames:       conf.HasFeature("table_names"),
+			ReplaceDigits:    conf.HasFeature("quantize_sql_tables") || conf.HasFeature("replace_sql_digits"),
+			KeepSQLAlias:     conf.HasFeature("keep_sql_alias"),
+			DollarQuotedFunc: conf.HasFeature("dollar_quoted_func"),
+			Cache:            conf.HasFeature("sql_cache"),
 		},
 		ES: obfuscate.JSONConfig{
 			Enabled:            o.ES.Enabled,
@@ -265,7 +268,9 @@ type EVPProxy struct {
 	// DDURL is the Datadog site to forward payloads to (defaults to the Site setting if not set).
 	DDURL string
 	// APIKey is the main API Key (defaults to the main API key).
-	APIKey string
+	APIKey string `json:"-"` // Never marshal this field
+	// ApplicationKey to be used for requests with the X-Datadog-NeedsAppKey set (defaults to the top-level Application Key).
+	ApplicationKey string `json:"-"` // Never marshal this field
 	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
 	AdditionalEndpoints map[string][]string
 	// MaxPayloadSize indicates the size at which payloads will be rejected, in bytes.
@@ -277,7 +282,7 @@ type DebuggerProxyConfig struct {
 	// DDURL ...
 	DDURL string
 	// APIKey ...
-	APIKey string
+	APIKey string `json:"-"` // Never marshal this field
 }
 
 // AgentConfig handles the interpretation of the configuration (with default
@@ -286,6 +291,8 @@ type DebuggerProxyConfig struct {
 // It is exposed with expvar, so make sure to exclude any sensible field
 // from JSON encoding. Use New() to create an instance.
 type AgentConfig struct {
+	Features map[string]struct{}
+
 	Enabled      bool
 	AgentVersion string
 	GitCommit    string
@@ -316,8 +323,8 @@ type AgentConfig struct {
 	MaxEPS          float64
 	MaxRemoteTPS    float64
 
-	// Rare Sampler configuation
-	RareSamplerDisabled       bool
+	// Rare Sampler configuration
+	RareSamplerEnabled        bool
 	RareSamplerTPS            int
 	RareSamplerCooldownPeriod time.Duration
 	RareSamplerCardinality    int
@@ -343,6 +350,7 @@ type AgentConfig struct {
 	ConnectionResetInterval time.Duration // frequency at which outgoing connections are reset. 0 means no reset is performed
 
 	// internal telemetry
+	StatsdEnabled  bool
 	StatsdHost     string
 	StatsdPort     int
 	StatsdPipeName string // for Windows Pipes
@@ -381,6 +389,9 @@ type AgentConfig struct {
 	// Obfuscation holds sensitive data obufscator's configuration.
 	Obfuscation *ObfuscationConfig
 
+	// MaxResourceLen the maximum length the resource can have
+	MaxResourceLen int
+
 	// RequireTags specifies a list of tags which must be present on the root span in order for a trace to be accepted.
 	RequireTags []*Tag
 
@@ -395,9 +406,6 @@ type AgentConfig struct {
 
 	// Telemetry settings
 	TelemetryConfig *TelemetryConfig
-
-	// AppSec contains AppSec configuration.
-	AppSec AppSecConfig
 
 	// EVPProxy contains the settings for the EVPProxy proxy.
 	EVPProxy EVPProxy
@@ -414,10 +422,19 @@ type AgentConfig struct {
 	MaxCatalogEntries int
 
 	// RemoteSamplingClient retrieves sampling updates from the remote config backend
-	RemoteSamplingClient RemoteClient
+	RemoteSamplingClient RemoteClient `json:"-"`
 
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
+
+	// ContainerProcRoot is the root dir for `proc` info
+	ContainerProcRoot string
+
+	// Azure App Services
+	InAzureAppServices bool
+
+	// DebugServerPort defines the port used by the debug server
+	DebugServerPort int
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -451,14 +468,14 @@ func New() *AgentConfig {
 		MaxEPS:          200,
 		MaxRemoteTPS:    100,
 
-		RareSamplerDisabled:       false,
+		RareSamplerEnabled:        false,
 		RareSamplerTPS:            5,
 		RareSamplerCooldownPeriod: 5 * time.Minute,
 		RareSamplerCardinality:    200,
 
 		ReceiverHost:           "localhost",
 		ReceiverPort:           8126,
-		MaxRequestBytes:        50 * 1024 * 1024, // 50MB
+		MaxRequestBytes:        25 * 1024 * 1024, // 25MB
 		PipeBufferSize:         1_000_000,
 		PipeSecurityDescriptor: "D:AI(A;;GA;;;WD)",
 		GUIPort:                "5002",
@@ -467,8 +484,9 @@ func New() *AgentConfig {
 		TraceWriter:             new(WriterConfig),
 		ConnectionResetInterval: 0, // disabled
 
-		StatsdHost: "localhost",
-		StatsdPort: 8125,
+		StatsdHost:    "localhost",
+		StatsdPort:    8125,
+		StatsdEnabled: true,
 
 		LogThrottling: true,
 
@@ -480,6 +498,7 @@ func New() *AgentConfig {
 		AnalyzedRateByServiceLegacy: make(map[string]float64),
 		AnalyzedSpansByService:      make(map[string]map[string]float64),
 		Obfuscation:                 &ObfuscationConfig{},
+		MaxResourceLen:              5000,
 
 		GlobalTags: make(map[string]string),
 
@@ -489,14 +508,14 @@ func New() *AgentConfig {
 		TelemetryConfig: &TelemetryConfig{
 			Endpoints: []*Endpoint{{Host: TelemetryEndpointPrefix + "datadoghq.com"}},
 		},
-		AppSec: AppSecConfig{
-			Enabled:        true,
-			MaxPayloadSize: 5 * 1024 * 1024,
-		},
 		EVPProxy: EVPProxy{
 			Enabled:        true,
 			MaxPayloadSize: 5 * 1024 * 1024,
 		},
+
+		InAzureAppServices: inAzureAppServices(os.Getenv),
+
+		Features: make(map[string]struct{}),
 	}
 }
 
@@ -541,4 +560,26 @@ func (c *AgentConfig) NewHTTPTransport() *http.Transport {
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 	return transport
+}
+
+func (c *AgentConfig) HasFeature(feat string) bool {
+	_, ok := c.Features[feat]
+	return ok
+}
+
+func (c *AgentConfig) AllFeatures() []string {
+	feats := []string{}
+	for feat := range c.Features {
+		feats = append(feats, feat)
+	}
+	return feats
+}
+
+func inAzureAppServices(getenv func(string) string) bool {
+	str := getenv(azureAppServices)
+	if val, err := strconv.ParseBool(str); err == nil {
+		return val
+	} else {
+		return false
+	}
 }

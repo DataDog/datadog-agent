@@ -6,6 +6,8 @@
 package rules
 
 import (
+	"errors"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
@@ -14,7 +16,11 @@ type Approvers map[eval.Field]FilterValues
 
 // isAnApprover returns whether the given value is an approver for the given rule
 func isAnApprover(event eval.Event, ctx *eval.Context, rule *Rule, field eval.Field, value interface{}) (bool, error) {
+	var readOnlyError *eval.ErrFieldReadOnly
 	if err := event.SetFieldValue(field, value); err != nil {
+		if errors.As(err, &readOnlyError) {
+			return false, nil
+		}
 		return false, err
 	}
 	origResult, err := rule.PartialEval(ctx, field)
@@ -28,6 +34,9 @@ func isAnApprover(event eval.Event, ctx *eval.Context, rule *Rule, field eval.Fi
 	}
 
 	if err := event.SetFieldValue(field, notValue); err != nil {
+		if errors.As(err, &readOnlyError) {
+			return false, nil
+		}
 		return false, err
 	}
 	notResult, err := rule.PartialEval(ctx, field)
@@ -35,11 +44,7 @@ func isAnApprover(event eval.Event, ctx *eval.Context, rule *Rule, field eval.Fi
 		return false, err
 	}
 
-	if origResult && !notResult {
-		return true, nil
-	}
-
-	return false, nil
+	return origResult && !notResult, nil
 }
 
 func bitmaskCombinations(bitmasks []int) []int {
@@ -47,8 +52,9 @@ func bitmaskCombinations(bitmasks []int) []int {
 		return nil
 	}
 
-	var result []int
-	for i := 0; i < (1 << len(bitmasks)); i++ {
+	combinationCount := 1 << len(bitmasks)
+	result := make([]int, 0, combinationCount)
+	for i := 0; i < combinationCount; i++ {
 		var mask int
 		for j, value := range bitmasks {
 			if (i & (1 << j)) > 0 {
@@ -65,7 +71,7 @@ func bitmaskCombinations(bitmasks []int) []int {
 func GetApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) (Approvers, error) {
 	approvers := make(Approvers)
 
-	ctx := eval.NewContext(event.GetPointer())
+	ctx := eval.NewContext(event)
 
 	// for each rule we should at least find one approver otherwise we will return no approver for the field
 	for _, rule := range rules {

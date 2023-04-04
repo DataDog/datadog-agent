@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"math/rand"
 	"net/http"
@@ -24,11 +23,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 )
 
 // newSenders returns a list of senders based on the given agent configuration, using climit
 // as the maximum number of concurrent outgoing connections, writing to path.
-func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, qsize int) []*sender {
+func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, qsize int, telemetryCollector telemetry.TelemetryCollector) []*sender {
 	if e := cfg.Endpoints; len(e) == 0 || e[0].Host == "" || e[0].APIKey == "" {
 		panic(errors.New("config was not properly validated"))
 	}
@@ -38,6 +38,7 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 	for i, endpoint := range cfg.Endpoints {
 		url, err := url.Parse(endpoint.Host + path)
 		if err != nil {
+			telemetryCollector.SendStartupError(telemetry.InvalidIntakeEndpoint, err)
 			log.Criticalf("Invalid host endpoint: %q", endpoint.Host)
 			os.Exit(1)
 		}
@@ -345,7 +346,7 @@ func (s *sender) do(req *http.Request) error {
 	// From https://golang.org/pkg/net/http/#Response:
 	// The default HTTP client's Transport may not reuse HTTP/1.x "keep-alive"
 	// TCP connections if the Body is not read to completion and closed.
-	if _, err := io.Copy(ioutil.Discard, resp.Body); err != nil {
+	if _, err := io.Copy(io.Discard, resp.Body); err != nil {
 		log.Debugf("Error discarding request body: %v", err)
 	}
 	resp.Body.Close()
@@ -476,7 +477,9 @@ const (
 
 // backoffDuration returns the backoff duration necessary for the given attempt.
 // The formula is "Full Jitter":
-//   random_between(0, min(cap, base * 2 ** attempt))
+//
+//	random_between(0, min(cap, base * 2 ** attempt))
+//
 // https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
 var backoffDuration = func(attempt int) time.Duration {
 	if attempt == 0 {

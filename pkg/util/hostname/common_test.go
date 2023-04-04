@@ -8,7 +8,6 @@ package hostname
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -43,10 +42,10 @@ func TestFromConfigInvalid(t *testing.T) {
 
 func setupHostnameFile(t *testing.T, content string) {
 	dir := t.TempDir()
-	destFile, err := ioutil.TempFile(dir, "test-hostname-file-config-")
+	destFile, err := os.CreateTemp(dir, "test-hostname-file-config-")
 	require.NoError(t, err, "Could not create tmp file: %s", err)
 
-	err = ioutil.WriteFile(destFile.Name(), []byte(content), os.ModePerm)
+	err = os.WriteFile(destFile.Name(), []byte(content), os.ModePerm)
 	require.NoError(t, err, "Could not write to tmp file %s: %s", destFile.Name(), err)
 
 	config.Mock(t)
@@ -91,12 +90,12 @@ func TestFromHostnameFileInvalid(t *testing.T) {
 func TestFromFargate(t *testing.T) {
 	defer func() { isFargateInstance = fargate.IsFargateInstance }()
 
-	isFargateInstance = func(context.Context) bool { return true }
+	isFargateInstance = func() bool { return true }
 	hostname, err := fromFargate(context.TODO(), "")
 	require.NoError(t, err)
 	assert.Equal(t, "", hostname)
 
-	isFargateInstance = func(context.Context) bool { return false }
+	isFargateInstance = func() bool { return false }
 	_, err = fromFargate(context.TODO(), "")
 	assert.Error(t, err)
 }
@@ -104,12 +103,12 @@ func TestFromFargate(t *testing.T) {
 // fromFQDN
 
 func TestFromFQDN(t *testing.T) {
-	// making isOSHostnameUsable return true
 	defer func() {
-		isContainerized = config.IsContainerized
+		// making isOSHostnameUsable return true
+		osHostnameUsable = isOSHostnameUsable
 		fqdnHostname = getSystemFQDN
 	}()
-	isContainerized = func() bool { return false }
+	osHostnameUsable = func(ctx context.Context) bool { return true }
 	fqdnHostname = func() (string, error) { return "fqdn-hostname", nil }
 
 	config.Mock(t)
@@ -128,9 +127,11 @@ func TestFromFQDN(t *testing.T) {
 // fromOS
 
 func TestFromOS(t *testing.T) {
-	// making isOSHostnameUsable return true
-	defer func() { isContainerized = config.IsContainerized }()
-	isContainerized = func() bool { return false }
+	defer func() {
+		// making isOSHostnameUsable return true
+		osHostnameUsable = isOSHostnameUsable
+	}()
+	osHostnameUsable = func(ctx context.Context) bool { return true }
 	expected, _ := os.Hostname()
 
 	hostname, err := fromOS(context.TODO(), "")

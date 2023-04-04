@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<WixLocalization Culture="en-us" xmlns="http://schemas.microsoft.com/wix/2006/localization">
+	<String Id="WelcomeDlgTitle">{\WixUI_Font_Bigger}Welcome to the [ProductName] Setup Wizard</String>
+	<String Id="WelcomeDlgDescription">{\WixUI_Font_Normal}The Setup Wizard will install [ProductName] on your computer. Click Next to continue or Cancel to exit the Setup Wizard</String>
+
+	<!-- Override to make font white -->
+	<String Id="BrowseDlgTitle">{\WixUI_Font_Title_White}Change destination folder</String>
+	<String Id="BrowseDlgDescription">{\WixUI_Font_Normal_White}Browse to the destination folder</String>
+	<String Id="CustomizeDlgTitle" Overridable="yes">{\WixUI_Font_Title_White}Custom Setup</String>
+	<String Id="CustomizeDlgDescription" Overridable="yes">{\WixUI_Font_Normal_White}Select the way you want features to be installed.</String>
+	<String Id="DiskCostDlgTitle">{\WixUI_Font_Title_White}Disk Space Requirements</String>
+	<String Id="DiskCostDlgDescription">{\WixUI_Font_Normal_White}The disk space required for the installation of the selected features.</String>
+	<String Id="InstallDirDlgTitle">{\WixUI_Font_Title_White}Destination Folder</String>
+	<String Id="InstallDirDlgDescription">{\WixUI_Font_Normal_White}Click Next to install to the default folder or click Change to choose another.</String>
+	<String Id="LicenseAgreementDlgTitle">{\WixUI_Font_Title_White}End-User License Agreement</String>
+	<String Id="LicenseAgreementDlgDescription">{\WixUI_Font_Normal_White}Please read the following license agreement carefully</String>
+	<String Id="MaintenanceTypeDlgTitle">{\WixUI_Font_Title_White}Change, repair, or remove installation</String>
+	<String Id="MaintenanceTypeDlgDescription">{\WixUI_Font_Normal_White}Select the operation you wish to perform.</String>
+	<String Id="ProgressDlgTitleChanging">{\WixUI_Font_Title_White}Changing [ProductName]</String>
+	<String Id="ProgressDlgTitleInstalling">{\WixUI_Font_Title_White}Installing [ProductName]</String>
+	<String Id="ProgressDlgTitleRepairing">{\WixUI_Font_Title_White}Repairing [ProductName]</String>
+	<String Id="ProgressDlgTitleRemoving">{\WixUI_Font_Title_White}Removing [ProductName]</String>
+	<String Id="VerifyReadyDlgChangeTitle">{\WixUI_Font_Title_White}Ready to change [ProductName]</String>
+	<String Id="VerifyReadyDlgInstallTitle">{\WixUI_Font_Title_White}Ready to install [ProductName]</String>
+	<String Id="VerifyReadyDlgRepairTitle">{\WixUI_Font_Title_White}Ready to repair [ProductName]</String>
+	<String Id="VerifyReadyDlgRemoveTitle">{\WixUI_Font_Title_White}Ready to remove [ProductName]</String>
+	<String Id="VerifyReadyDlgUpdateTitle">{\WixUI_Font_Title_White}Ready to update [ProductName]</String>
+
+	<String Id="FeatureMainName">Agent</String>
+	<String Id="LaunchAgentManager"> Launch Datadog Agent Manager</String>
+
+	<!-- these strings for the api key dialog -->
+	<String Id ="ApiKeyDialog_Title" Overridable="yes" Localizable="yes">[ProductName] Setup</String>
+	<String Id ="ApiKeyDialogDescription" Overridable="yes" Localizable="yes">{\WixUI_Font_Normal_White}Enter the API Key</String>
+	<String Id ="ApiKeyDialogTitle"  Overridable="yes" Localizable="yes">{\WixUI_Font_Title_White}Datadog API Key</String>
+	<String Id ="ApiKeyDialogKeyLabel" Overridable="yes" Localizable="yes">Please enter the Datadog API Key:</String>
+	<String Id ="ApiKeySampleKey" Overridable="yes" Localizable="yes"></String>
+
+	<!-- these strings for the  site dialog -->
+	<String Id ="SiteDialog_Title" Overridable="yes" Localizable="yes">[ProductName] Setup</String>
+	<String Id ="SiteDialogDescription" Overridable="yes" Localizable="yes">{\WixUI_Font_Normal_White}Select the Datadog Region</String>
+	<String Id ="SiteDialogTitle"  Overridable="yes" Localizable="yes">{\WixUI_Font_Title_White}Datadog Region </String>
+	<String Id ="SiteDialogKeyLabel" Overridable="yes" Localizable="yes">Which Datadog region do you want the Agent to send data to?</String>
+	<String Id ="SiteSampleKey" Overridable="yes" Localizable="yes"></String>
+
+	<!-- these strings for the agent user dialog -->
+	<String Id ="DDAgentUserDialog_Title" Overridable="yes" Localizable="yes">[ProductName] Setup</String>
+	<String Id ="DDAgentUserDialogDescription" Overridable="yes" Localizable="yes">{\WixUI_Font_Normal_White}Enter the agent user account</String>
+	<String Id ="DDAgentUserDialogTitle"  Overridable="yes" Localizable="yes">{\WixUI_Font_Title_White}Datadog Agent User Account</String>
+	<String Id ="DDAgentUserDialogUserNameLabel" Overridable="yes" Localizable="yes">Please enter the username (leave blank to use ddagentuser):</String>
+	<String Id ="DDAgentUserDialogPasswordLabel" Overridable="yes" Localizable="yes">Please enter the password (leave blank to let the installer decide):</String>
+
+	<!-- these strings for the FatalError dialog -->
+	<String Id ="FatalErrorDialog_ViewLog" Overridable="yes" Localizable="yes">View Log</String>
+	<String Id ="FatalErrorDialog_SendFlare" Overridable="yes" Localizable="yes">Send Flare</String>
+	<String Id ="FatalErrorDialog_ViewLogDescription" Overridable="yes" Localizable="yes">Detailed information on the error can be found in the installation log file. Click the View Log button to view the installation log. Click the Send Flare button to send a diagnostic report of this error to Datadog.</String>
+
+	<!-- these strings for the send flare dialog -->
+	<String Id ="SendFlareDialog_Title" Overridable="yes" Localizable="yes">[ProductName] Setup</String>
+	<String Id ="SendFlareDialogDescription" Overridable="yes" Localizable="yes">{\WixUI_Font_Normal_White}Send a diagnostic report of this installation error to Datadog.</String>
+	<String Id ="SendFlareDialogTitle"  Overridable="yes" Localizable="yes">{\WixUI_Font_Title_White}Datadog Flare </String>
+	<String Id ="SendFlareDialogKeyLabel" Overridable="yes" Localizable="yes">Clicking on the Send Flare button will send a diagnostic report to Datadog, including the install logs.</String>
+	<String Id ="SendFlareHelpText" Overridable="yes" Localizable="yes">Submit your email address in the text box below for a follow-up from Datadog support. (Optional)</String>
+
+	<!-- these strings for the error modal dialog -->
+	<String Id ="ErrorModalDialog_Title" Overridable="yes" Localizable="yes">[ProductName] Setup</String>
+
+	<String Id="MsiRMFilesInUse_Title" Overridable="yes">[ProductName] Setup</String>
+	<String Id="MsiRMFilesInUseExit" Overridable="yes">E&amp;xit</String>
+	<String Id="MsiRMFilesInUseBannerBitmap" Overridable="yes">WixUI_Bmp_Banner</String>
+	<String Id="MsiRMFilesInUseText" Overridable="yes">The following applications are using files that need to be updated by this setup. Close these applications and then click &amp;Retry to continue setup or Exit to exit it.</String>
+	<String Id="MsiRMFilesInUseDescription" Overridable="yes">{\WixUI_Font_Normal_White}Some files that need to be updated are currently in use.</String>
+	<String Id="MsiRMFilesInUseTitle" Overridable="yes">{\WixUI_Font_Title_White}Files in Use</String>
+</WixLocalization>

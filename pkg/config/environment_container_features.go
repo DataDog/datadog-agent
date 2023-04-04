@@ -15,6 +15,8 @@ const (
 	Cri Feature = "cri"
 	// Kubernetes environment
 	Kubernetes Feature = "kubernetes"
+	// ECSEC2 environment
+	ECSEC2 Feature = "ecsec2"
 	// ECSFargate environment
 	ECSFargate Feature = "ecsfargate"
 	// EKSFargate environment

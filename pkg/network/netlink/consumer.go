@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && !android
-// +build linux,!android
+//go:build linux
+// +build linux
 
 package netlink
 
@@ -21,6 +21,7 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -98,6 +99,8 @@ type Consumer struct {
 
 	// for testing purposes
 	recvLoopRunning *atomic.Bool
+
+	rootNetNs netns.NsHandle
 }
 
 // Event encapsulates the result of a single netlink.Con.Receive() call
@@ -122,23 +125,29 @@ func (e *Event) Done() {
 
 // NewConsumer creates a new Conntrack event consumer.
 // targetRateLimit represents the maximum number of netlink messages per second that can be read off the socket
-func NewConsumer(procRoot string, targetRateLimit int, listenAllNamespaces bool) *Consumer {
+func NewConsumer(cfg *config.Config) (*Consumer, error) {
+	ns, err := cfg.GetRootNetNs()
+	if err != nil {
+		return nil, err
+	}
+
 	c := &Consumer{
-		procRoot:            procRoot,
+		procRoot:            cfg.ProcRoot,
 		pool:                newBufferPool(),
-		targetRateLimit:     targetRateLimit,
-		breaker:             NewCircuitBreaker(int64(targetRateLimit)),
+		targetRateLimit:     cfg.ConntrackRateLimit,
+		breaker:             NewCircuitBreaker(int64(cfg.ConntrackRateLimit), cfg.ConntrackRateLimitInterval),
 		netlinkSeqNumber:    1,
-		listenAllNamespaces: listenAllNamespaces,
+		listenAllNamespaces: cfg.EnableConntrackAllNamespaces,
 		enobufs:             atomic.NewInt64(0),
 		throttles:           atomic.NewInt64(0),
 		samplingPct:         atomic.NewInt64(0),
 		readErrors:          atomic.NewInt64(0),
 		msgErrors:           atomic.NewInt64(0),
 		recvLoopRunning:     atomic.NewBool(false),
+		rootNetNs:           ns,
 	}
 
-	return c
+	return c, nil
 }
 
 // Events returns a channel of Event objects (wrapping netlink messages) which receives
@@ -235,14 +244,13 @@ func (c *Consumer) DumpTable(family uint8) (<-chan Event, error) {
 		}
 	}
 
-	rootNS, err := util.GetRootNetNamespace(c.procRoot)
-	if err != nil {
-		return nil, fmt.Errorf("error dumping conntrack table, could not get root namespace: %w", err)
-	}
+	var conn *netlink.Conn
+	err = util.WithNS(c.rootNetNs, func() error {
+		conn, err = netlink.Dial(unix.AF_UNSPEC, &netlink.Config{})
+		return err
+	})
 
-	conn, err := netlink.Dial(unix.AF_UNSPEC, &netlink.Config{NetNS: int(rootNS)})
 	if err != nil {
-		rootNS.Close()
 		return nil, fmt.Errorf("error dumping conntrack table, could not open netlink socket: %w", err)
 	}
 
@@ -256,17 +264,16 @@ func (c *Consumer) DumpTable(family uint8) (<-chan Event, error) {
 
 			close(output)
 
-			_ = rootNS.Close()
 			_ = conn.Close()
 		}()
 
 		// root ns first
-		if err := c.dumpTable(family, output, rootNS); err != nil {
+		if err := c.dumpTable(family, output, c.rootNetNs); err != nil {
 			log.Errorf("error dumping conntrack table for root namespace, some NAT info may be missing: %s", err)
 		}
 
 		for _, ns := range nss {
-			if rootNS.Equal(ns) {
+			if c.rootNetNs.Equal(ns) {
 				// we've already dumped the table for the root ns above
 				continue
 			}
@@ -286,11 +293,11 @@ func (c *Consumer) DumpTable(family uint8) (<-chan Event, error) {
 }
 
 func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle) error {
-	return util.WithNS(c.procRoot, ns, func() error {
+	return util.WithNS(ns, func() error {
 
 		log.Tracef("dumping table for ns %s family %d", ns, family)
 
-		sock, err := NewSocket()
+		sock, err := NewSocket(ns)
 		if err != nil {
 			return fmt.Errorf("could not open netlink socket for net ns %d: %w", int(ns), err)
 		}
@@ -299,6 +306,7 @@ func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle)
 
 		defer func() {
 			_ = conn.Close()
+			c.socket = nil
 		}()
 
 		req := netlink.Message{
@@ -345,14 +353,8 @@ func (c *Consumer) DumpAndDiscardTable(family uint8) (<-chan bool, error) {
 		}
 	}
 
-	rootNS, err := util.GetRootNetNamespace(c.procRoot)
+	conn, err := netlink.Dial(unix.AF_UNSPEC, &netlink.Config{NetNS: int(c.rootNetNs)})
 	if err != nil {
-		return nil, fmt.Errorf("error dumping conntrack table, could not get root namespace: %w", err)
-	}
-
-	conn, err := netlink.Dial(unix.AF_UNSPEC, &netlink.Config{NetNS: int(rootNS)})
-	if err != nil {
-		rootNS.Close()
 		return nil, fmt.Errorf("error dumping conntrack table, could not open netlink socket: %w", err)
 	}
 
@@ -360,12 +362,12 @@ func (c *Consumer) DumpAndDiscardTable(family uint8) (<-chan bool, error) {
 
 	go func() {
 		// root ns first
-		if err := c.dumpAndDiscardTable(family, rootNS); err != nil {
+		if err := c.dumpAndDiscardTable(family, c.rootNetNs); err != nil {
 			log.Errorf("error dumping conntrack table for root namespace, some NAT info may be missing: %s", err)
 		}
 
 		for _, ns := range nss {
-			if rootNS.Equal(ns) {
+			if c.rootNetNs.Equal(ns) {
 				// we've already dumped the table for the root ns above
 				continue
 			}
@@ -386,7 +388,6 @@ func (c *Consumer) DumpAndDiscardTable(family uint8) (<-chan bool, error) {
 
 		close(done)
 
-		_ = rootNS.Close()
 		_ = conn.Close()
 	}()
 
@@ -394,11 +395,11 @@ func (c *Consumer) DumpAndDiscardTable(family uint8) (<-chan bool, error) {
 }
 
 func (c *Consumer) dumpAndDiscardTable(family uint8, ns netns.NsHandle) error {
-	return util.WithNS(c.procRoot, ns, func() error {
+	return util.WithNS(ns, func() error {
 
 		log.Tracef("dumping table for ns %s family %d", ns, family)
 
-		sock, err := NewSocket()
+		sock, err := NewSocket(ns)
 		if err != nil {
 			return fmt.Errorf("could not open netlink socket for net ns %d: %w", int(ns), err)
 		}
@@ -407,6 +408,7 @@ func (c *Consumer) dumpAndDiscardTable(family uint8, ns netns.NsHandle) error {
 
 		defer func() {
 			_ = conn.Close()
+			c.socket = nil
 		}()
 
 		req := netlink.Message{
@@ -449,15 +451,12 @@ func (c *Consumer) Stop() {
 		c.conn.Close()
 	}
 	c.breaker.Stop()
+	c.rootNetNs.Close()
 }
 
 func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
-	err := util.WithRootNS(c.procRoot, func() error {
-		var err error
-		c.socket, err = NewSocket()
-		return err
-	})
-
+	var err error
+	c.socket, err = NewSocket(c.rootNetNs)
 	if err != nil {
 		return err
 	}
@@ -568,7 +567,7 @@ ReadLoop:
 // receive netlink messages and discard them immediately
 func (c *Consumer) receiveAndDiscard() {
 	for {
-		done, err := c.socket.ReceiveAndDiscard()
+		done, _, err := c.socket.ReceiveAndDiscard()
 		if err != nil {
 			log.Tracef("consumer netlink socket error: %s", err)
 			switch socketError(err) {
@@ -614,6 +613,7 @@ func (c *Consumer) throttle(numMessages int) error {
 	// Close current socket
 	c.conn.Close()
 	c.conn = nil
+	c.socket = nil
 
 	if pre315Kernel {
 		// we cannot recreate the socket and set a bpf filter on

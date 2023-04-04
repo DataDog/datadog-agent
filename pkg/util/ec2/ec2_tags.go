@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -29,6 +30,17 @@ var (
 	instanceIdentityURL = "http://169.254.169.254/latest/dynamic/instance-identity/document/"
 	tagsCacheKey        = cache.BuildAgentKey("ec2", "GetTags")
 )
+
+func isTagExcluded(tag string) bool {
+	if excludedTags := config.Datadog.GetStringSlice("exclude_ec2_tags"); excludedTags != nil {
+		for _, excludedTag := range excludedTags {
+			if tag == excludedTag {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 func fetchEc2Tags(ctx context.Context) ([]string, error) {
 	if config.Datadog.GetBool("collect_ec2_tags_use_imds") {
@@ -66,6 +78,10 @@ func fetchEc2TagsFromIMDS(ctx context.Context) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
+		if isTagExcluded(key) {
+			continue
+		}
+
 		tags = append(tags, fmt.Sprintf("%s:%s", key, val))
 	}
 
@@ -112,6 +128,13 @@ func getTagsWithCreds(ctx context.Context, instanceIdentity *ec2Identity, awsCre
 	}
 
 	connection := ec2.New(awsSess)
+
+	// We want to use 'ec2_metadata_timeout' here instead of current context. 'ctx' comes from the agent main and will
+	// only be canceled if the agent is stopped. The default timeout for the AWS SDK is 1 minutes (20s timeout with
+	// 3 retries). Since we call getTagsWithCreds twice in a row, it can be a 2 minutes latency.
+	ctx, cancel := context.WithTimeout(ctx, config.Datadog.GetDuration("ec2_metadata_timeout")*time.Millisecond)
+	defer cancel()
+
 	ec2Tags, err := connection.DescribeTagsWithContext(ctx,
 		&ec2.DescribeTagsInput{
 			Filters: []*ec2.Filter{{
@@ -129,6 +152,9 @@ func getTagsWithCreds(ctx context.Context, instanceIdentity *ec2Identity, awsCre
 
 	tags := []string{}
 	for _, tag := range ec2Tags.Tags {
+		if isTagExcluded(*tag.Key) {
+			continue
+		}
 		tags = append(tags, fmt.Sprintf("%s:%s", *tag.Key, *tag.Value))
 	}
 	return tags, nil

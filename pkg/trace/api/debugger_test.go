@@ -6,7 +6,7 @@
 package api
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -18,7 +18,7 @@ import (
 
 func TestDebuggerProxy(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		slurp, err := ioutil.ReadAll(req.Body)
+		slurp, err := io.ReadAll(req.Body)
 		_ = req.Body.Close()
 		if err != nil {
 			t.Fatal(err)
@@ -49,7 +49,7 @@ func TestDebuggerProxy(t *testing.T) {
 	c := &traceconfig.AgentConfig{}
 	newDebuggerProxy(c, u, "123", "key:val").ServeHTTP(rec, req)
 	result := rec.Result()
-	slurp, err := ioutil.ReadAll(result.Body)
+	slurp, err := io.ReadAll(result.Body)
 	result.Body.Close()
 	if err != nil {
 		t.Fatal(err)
@@ -129,7 +129,7 @@ func TestDebuggerProxyHandler(t *testing.T) {
 		if res.StatusCode != http.StatusInternalServerError {
 			t.Fatalf("invalid response: %s", res.Status)
 		}
-		slurp, err := ioutil.ReadAll(res.Body)
+		slurp, err := io.ReadAll(res.Body)
 		res.Body.Close()
 		if err != nil {
 			t.Fatal(err)

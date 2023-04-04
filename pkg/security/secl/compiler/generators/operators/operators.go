@@ -50,6 +50,18 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 	isDc := isArithmDeterministic(a, b, state)
 	{{ end }}
 
+	if a.Field != "" {
+		if err := state.UpdateFieldValues(a.Field, FieldValue{Value: b.Value, Type: {{ .ValueType }}}); err != nil {
+			return nil, err
+		}
+	}
+
+	if b.Field != "" {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: a.Value, Type: {{ .ValueType }}}); err != nil {
+			return nil, err
+		}
+	}
+
 	{{ if eq .ValueType "BitmaskValueType" }}
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		return nil, errors.New("full dynamic bitmask operation not supported")
@@ -109,12 +121,6 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 	if a.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.Value
 
-		if a.Field != "" {
-			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: {{ .ValueType }}}); err != nil {
-				return nil, err
-			}
-		}
-
 		{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
 			if state.field != "" {
 				if !a.IsDeterministicFor(state.field) && !a.IsStatic() {
@@ -141,12 +147,6 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 	}
 
 	ea, eb := a.Value, b.EvalFnc
-
-	if b.Field != "" {
-		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: {{ .ValueType }}}); err != nil {
-			return nil, err
-		}
-	}
 
 	{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
 		if state.field != "" {
@@ -182,6 +182,20 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 	{{ else }}
 	isDc := isArithmDeterministic(a, b, state)
 	{{ end }}
+
+	if a.Field != "" {
+		for _, value := range b.Values {
+			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if b.Field != "" {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: a.Value, Type: ScalarValueType}); err != nil {
+			return nil, err
+		}
+	}
 
 	arrayOp := func(a {{ .ArrayType }}, b []{{ .ArrayType }}) bool {
 		for _, v := range b {
@@ -219,14 +233,6 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 	if a.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.Values
 
-		if a.Field != "" {
-			for _, value := range eb {
-				if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
-					return nil, err
-				}
-			}
-		}
-
 		evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
 			return arrayOp(ea(ctx), eb)
 		}
@@ -239,12 +245,6 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 	}
 
 	ea, eb := a.Value, b.EvalFnc
-
-	if b.Field != "" {
-		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
-			return nil, err
-		}
-	}
 
 	evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
 		return arrayOp(ea, eb(ctx))
@@ -281,26 +281,6 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 		ArrayOperators []Operator
 	}{
 		Operators: []Operator{
-			{
-				FuncName:       "Or",
-				Arg1Type:       "BoolEvaluator",
-				Arg2Type:       "BoolEvaluator",
-				FuncReturnType: "BoolEvaluator",
-				EvalReturnType: "bool",
-				Op:             stdCompare("||"),
-				ValueType:      "ScalarValueType",
-				Commutative:    true,
-			},
-			{
-				FuncName:       "And",
-				Arg1Type:       "BoolEvaluator",
-				Arg2Type:       "BoolEvaluator",
-				FuncReturnType: "BoolEvaluator",
-				EvalReturnType: "bool",
-				Op:             stdCompare("&&"),
-				ValueType:      "ScalarValueType",
-				Commutative:    true,
-			},
 			{
 				FuncName:       "IntEquals",
 				Arg1Type:       "IntEvaluator",

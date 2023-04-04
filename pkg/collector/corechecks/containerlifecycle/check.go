@@ -7,7 +7,6 @@ package containerlifecycle
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	yaml "gopkg.in/yaml.v2"
@@ -15,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -32,8 +30,8 @@ func init() {
 
 // Config holds the container_lifecycle check configuration
 type Config struct {
-	chunkSize    int `yaml:"chunk_size"`
-	pollInterval int `yaml:"poll_interval_seconds"`
+	ChunkSize    int `yaml:"chunk_size"`
+	PollInterval int `yaml:"poll_interval_seconds"`
 }
 
 // Parse parses the container_lifecycle check config and set default values
@@ -51,14 +49,10 @@ type Check struct {
 }
 
 // Configure parses the check configuration and initializes the container_lifecycle check
-func (c *Check) Configure(config, initConfig integration.Data, source string) error {
-	if !ddConfig.Datadog.GetBool("container_lifecycle.enabled") {
-		return errors.New("collection of container lifecycle events is disabled")
-	}
-
+func (c *Check) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	var err error
 
-	err = c.CommonConfigure(initConfig, config, source)
+	err = c.CommonConfigure(integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -73,15 +67,15 @@ func (c *Check) Configure(config, initConfig integration.Data, source string) er
 		return err
 	}
 
-	if c.instance.chunkSize <= 0 || c.instance.chunkSize > maxChunkSize {
-		c.instance.chunkSize = maxChunkSize
+	if c.instance.ChunkSize <= 0 || c.instance.ChunkSize > maxChunkSize {
+		c.instance.ChunkSize = maxChunkSize
 	}
 
-	if c.instance.pollInterval <= 0 {
-		c.instance.pollInterval = defaultPollInterval
+	if c.instance.PollInterval <= 0 {
+		c.instance.PollInterval = defaultPollInterval
 	}
 
-	c.processor = newProcessor(sender, c.instance.chunkSize)
+	c.processor = newProcessor(sender, c.instance.ChunkSize, c.workloadmetaStore)
 
 	return nil
 }
@@ -111,7 +105,7 @@ func (c *Check) Run() error {
 		),
 	)
 
-	pollInterval := time.Duration(c.instance.pollInterval) * time.Second
+	pollInterval := time.Duration(c.instance.PollInterval) * time.Second
 
 	processorCtx, stopProcessor := context.WithCancel(context.Background())
 	c.processor.start(processorCtx, pollInterval)

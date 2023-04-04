@@ -17,8 +17,3 @@ import (
 func GetHostname(ctx context.Context) (string, error) {
 	return "", fmt.Errorf("kubelet hostname provider is not enabled")
 }
-
-// IsAgentKubeHostNetwork returns true if the agent is running on a POD with hostNetwork
-func IsAgentKubeHostNetwork() (bool, error) {
-	return true, nil
-}

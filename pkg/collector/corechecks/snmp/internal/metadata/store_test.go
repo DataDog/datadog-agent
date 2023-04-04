@@ -49,6 +49,7 @@ func TestStore_Column(t *testing.T) {
 	store.AddColumnValue("interface.admin_status", "2", valuestore.ResultValue{Value: float64(2)})
 	store.AddColumnValue("interface.admin_status", "3", valuestore.ResultValue{Value: float64(2)})
 	store.AddColumnValue("interface.oper_status", "3", valuestore.ResultValue{Value: float64(2)})
+	store.AddColumnValue("interface.mac_address", "1", valuestore.ResultValue{Value: []byte{1, 2, 3, 4, 5, 6}})
 	store.AddColumnValue("interface.invalid_value_type", "3", valuestore.ResultValue{Value: byte(1)})
 
 	// test GetColumnAsString
@@ -72,6 +73,11 @@ func TestStore_Column(t *testing.T) {
 	assert.ElementsMatch(t, []string{"1", "2", "3"}, store.GetColumnIndexes("interface.admin_status"))
 	assert.Equal(t, []string{"3"}, store.GetColumnIndexes("interface.oper_status"))
 	assert.Equal(t, []string(nil), store.GetColumnIndexes("interface.does_not_exist"))
+
+	// test GetColumnAsByteArray
+	assert.Equal(t, []byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6}, store.GetColumnAsByteArray("interface.mac_address", "1"))
+	assert.Equal(t, []byte(nil), store.GetColumnAsByteArray("interface.mac_address", "2"))
+	assert.Equal(t, []byte(nil), store.GetColumnAsByteArray("interface.does_not_exist", "1"))
 }
 
 func TestStore_IDTags(t *testing.T) {

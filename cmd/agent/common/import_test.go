@@ -6,7 +6,7 @@
 package common
 
 import (
-	"io/ioutil"
+	"os"
 	"path"
 	"strconv"
 	"strings"
@@ -109,7 +109,7 @@ type paramMatcher struct {
 }
 
 func validateSelectedParameters(t *testing.T, migratedConfigFile, oldConfigFile string) {
-	migratedBytes, err := ioutil.ReadFile(migratedConfigFile)
+	migratedBytes, err := os.ReadFile(migratedConfigFile)
 	require.NoError(t, err, "Failed to read"+migratedConfigFile)
 	migratedConf := make(map[string]interface{})
 	yaml.Unmarshal(migratedBytes, migratedConf)
@@ -172,12 +172,12 @@ func toInt(val interface{}) interface{} {
 }
 
 func assertYAMLEquality(t *testing.T, f1, f2 string) {
-	f1Bytes, err := ioutil.ReadFile(f1)
+	f1Bytes, err := os.ReadFile(f1)
 	require.NoError(t, err, "Failed to read "+f1)
 	migratedContent := make(map[string]interface{})
 	yaml.Unmarshal(f1Bytes, migratedContent)
 
-	f2Bytes, err := ioutil.ReadFile(f2)
+	f2Bytes, err := os.ReadFile(f2)
 	require.NoError(t, err, "Failed to read "+f2)
 	expectedContent := make(map[string]interface{})
 	yaml.Unmarshal(f2Bytes, expectedContent)

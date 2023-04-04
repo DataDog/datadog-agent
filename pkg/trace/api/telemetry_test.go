@@ -6,7 +6,7 @@
 package api
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -24,7 +24,7 @@ import (
 // response OK.
 func assertingServer(t *testing.T, onReq func(req *http.Request, reqBody []byte) error) *httptest.Server {
 	return httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		body, err := ioutil.ReadAll(req.Body)
+		body, err := io.ReadAll(req.Body)
 		assert.NoError(t, err)
 		assert.NoError(t, onReq(req, body))
 		_, err = w.Write([]byte("OK"))
@@ -42,7 +42,7 @@ func newRequestRecorder(t *testing.T) (req *http.Request, rec *httptest.Response
 
 func recordedResponse(t *testing.T, rec *httptest.ResponseRecorder) string {
 	resp := rec.Result()
-	responseBody, err := ioutil.ReadAll(resp.Body)
+	responseBody, err := io.ReadAll(resp.Body)
 	resp.Body.Close()
 	assert.NoError(t, err)
 
@@ -58,6 +58,7 @@ func TestTelemetryBasicProxyRequest(t *testing.T) {
 		assert.Equal("test_apikey", req.Header.Get("DD-API-KEY"))
 		assert.Equal("test_hostname", req.Header.Get("DD-Agent-Hostname"))
 		assert.Equal("test_env", req.Header.Get("DD-Agent-Env"))
+		assert.Equal("test_ARN", req.Header.Get("DD-Function-ARN"))
 		assert.Equal("/path", req.URL.Path)
 		assert.Equal("", req.Header.Get("User-Agent"))
 		assert.Regexp(regexp.MustCompile("trace-agent.*"), req.Header.Get("Via"))
@@ -77,6 +78,7 @@ func TestTelemetryBasicProxyRequest(t *testing.T) {
 	cfg.Hostname = "test_hostname"
 	cfg.SkipSSLValidation = true
 	cfg.DefaultEnv = "test_env"
+	cfg.GlobalTags[functionARNKey] = "test_ARN"
 	recv := newTestReceiverFromConfig(cfg)
 	recv.buildMux().ServeHTTP(rec, req)
 
@@ -96,6 +98,7 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 		assert.Equal("test_apikey_1", req.Header.Get("DD-API-KEY"))
 		assert.Equal("test_hostname", req.Header.Get("DD-Agent-Hostname"))
 		assert.Equal("test_env", req.Header.Get("DD-Agent-Env"))
+		assert.Equal("test_ARN", req.Header.Get("DD-Function-ARN"))
 
 		endpointCalled.Add(2)
 		return nil
@@ -107,6 +110,7 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 		assert.Equal("test_apikey_2", req.Header.Get("DD-API-KEY"))
 		assert.Equal("test_hostname", req.Header.Get("DD-Agent-Hostname"))
 		assert.Equal("test_env", req.Header.Get("DD-Agent-Env"))
+		assert.Equal("test_ARN", req.Header.Get("DD-Function-ARN"))
 
 		endpointCalled.Add(3)
 		return nil
@@ -128,6 +132,7 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 	cfg.Hostname = "test_hostname"
 	cfg.SkipSSLValidation = true
 	cfg.DefaultEnv = "test_env"
+	cfg.GlobalTags[functionARNKey] = "test_ARN"
 
 	req, rec := newRequestRecorder(t)
 	recv := newTestReceiverFromConfig(cfg)

@@ -15,21 +15,18 @@ var mkdirProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/vfs_mkdir",
 			EBPFFuncName: "kprobe_vfs_mkdir",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/do_mkdirat",
 			EBPFFuncName: "kprobe_do_mkdirat",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kretprobe/do_mkdirat",
 			EBPFFuncName: "kretprobe_do_mkdirat",
 		},
 	},

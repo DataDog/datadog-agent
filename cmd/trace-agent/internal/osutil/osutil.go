@@ -21,7 +21,7 @@ func Exists(path string) bool {
 
 // Exit prints the message and exits the program with status code 1.
 func Exit(msg string) {
-	if flags.Info || flags.Version {
+	if toStdOut() {
 		fmt.Println(msg)
 	} else {
 		log.Error(msg)
@@ -32,7 +32,7 @@ func Exit(msg string) {
 
 // Exitf prints the formatted text and exits the program with status code 1.
 func Exitf(format string, args ...interface{}) {
-	if flags.Info || flags.Version {
+	if toStdOut() {
 		fmt.Printf(format, args...)
 		fmt.Println("")
 	} else {
@@ -40,4 +40,11 @@ func Exitf(format string, args ...interface{}) {
 		log.Flush()
 	}
 	os.Exit(1)
+}
+
+// toStdOut returns whether errors should be written to stdout.
+// Returns true if the agent's info or version commands are invoked,
+// or if the logger hasn't been set up yet (typically on startup).
+func toStdOut() bool {
+	return flags.Info || flags.Version || !log.IsSet()
 }

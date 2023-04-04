@@ -32,5 +32,5 @@ func inactivityEventLog(duration time.Duration) {
 		return
 	}
 	defer elog.Close()
-	elog.Warning(msgSysprobeRestartInactivity, duration.String())
+	_ = elog.Warning(msgSysprobeRestartInactivity, duration.String())
 }

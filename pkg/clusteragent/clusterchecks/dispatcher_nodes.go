@@ -66,6 +66,7 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 	}
 
 	// Node-agent needs to pull updated configs
+	log.Infof("Node %s needs to poll config, cluster config version: %d, node config version: %d", nodeName, node.lastConfigChange, status.LastChange)
 	return false, nil
 }
 

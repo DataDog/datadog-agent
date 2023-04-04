@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/gohai/network"
 	"github.com/DataDog/gohai/platform"
 
+	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -40,7 +41,6 @@ type HostMetadata struct {
 	KernelRelease   string `json:"kernel_release"`
 	KernelVersion   string `json:"kernel_version"`
 	OS              string `json:"os"`
-	PythonVersion   string `json:"python_version"`
 	CPUArchitecture string `json:"cpu_architecture"`
 
 	// from gohai/memory
@@ -53,9 +53,16 @@ type HostMetadata struct {
 	MacAddress  string `json:"mac_address"`
 
 	// from the agent itself
-	AgentVersion  string `json:"agent_version"`
-	CloudProvider string `json:"cloud_provider"`
-	OsVersion     string `json:"os_version"`
+	AgentVersion        string `json:"agent_version"`
+	CloudProvider       string `json:"cloud_provider"`
+	CloudProviderSource string `json:"cloud_provider_source"`
+	OsVersion           string `json:"os_version"`
+
+	// From file system
+	HypervisorGuestUUID string `json:"hypervisor_guest_uuid"`
+	DmiProductUUID      string `json:"dmi_product_uuid"`
+	DmiBoardAssetTag    string `json:"dmi_board_asset_tag"`
+	DmiBoardVendor      string `json:"dmi_board_vendor"`
 }
 
 // For now we simply logs warnings from gohai.
@@ -63,6 +70,18 @@ func logWarnings(warnings []string) {
 	for _, w := range warnings {
 		logInfof("gohai: %s", w)
 	}
+}
+
+func fetchFromMetadata(key string, metadata AgentMetadata) string {
+	if value, ok := metadata[key]; ok {
+		if stringValue, ok := value.(string); ok {
+			return stringValue
+		}
+		logErrorf("'%s' is not a string in metadata cache", key) //nolint:errcheck
+		return ""
+	}
+	logInfof("'%s' not found in metadata cache", key)
+	return ""
 }
 
 // getHostMetadata returns the metadata show in the 'host' table
@@ -96,7 +115,6 @@ func getHostMetadata() *HostMetadata {
 		metadata.KernelRelease = platformInfo.KernelRelease
 		metadata.KernelVersion = platformInfo.KernelVersion
 		metadata.OS = platformInfo.OS
-		metadata.PythonVersion = platformInfo.PythonVersion
 		metadata.CPUArchitecture = platformInfo.HardwarePlatform
 	}
 
@@ -123,24 +141,14 @@ func getHostMetadata() *HostMetadata {
 
 	metadata.AgentVersion = version.AgentVersion
 
-	if value, ok := agentMetadata[string(AgentCloudProvider)]; ok {
-		if stringValue, ok := value.(string); ok {
-			metadata.CloudProvider = stringValue
-		} else {
-			logErrorf("cloud provider is not a string in agent metadata cache") //nolint:errcheck
-		}
-	} else {
-		logInfof("cloud provider not found in agent metadata cache")
-	}
+	metadata.CloudProvider = fetchFromMetadata(string(HostCloudProvider), agentMetadata)
+	metadata.CloudProviderSource = fetchFromMetadata(string(HostCloudProviderSource), hostMetadata)
+	metadata.OsVersion = fetchFromMetadata(string(HostOSVersion), hostMetadata)
 
-	if value, ok := hostMetadata[string(HostOSVersion)]; ok {
-		if stringValue, ok := value.(string); ok {
-			metadata.OsVersion = stringValue
-		} else {
-			logErrorf("OS version is not a string in host metadata cache") //nolint:errcheck
-		}
-	} else {
-		logErrorf("OS version not found in agent metadata cache") //nolint:errcheck
-	}
+	metadata.HypervisorGuestUUID = dmi.GetHypervisorUUID()
+	metadata.DmiProductUUID = dmi.GetProductUUID()
+	metadata.DmiBoardAssetTag = dmi.GetBoardAssetTag()
+	metadata.DmiBoardVendor = dmi.GetBoardVendor()
+
 	return metadata
 }

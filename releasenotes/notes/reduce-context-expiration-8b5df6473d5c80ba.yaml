@@ -1,0 +1,5 @@
+enhancements:
+  - |
+    DogStatsD caches metric metadata for shorter periods of time,
+    reducing memory usage when tags or metrics received are different
+    across subsequent aggregation intervals.

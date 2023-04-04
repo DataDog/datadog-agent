@@ -8,7 +8,6 @@ package event
 import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 // Processor is responsible for all the logic surrounding extraction and sampling of APM events from processed traces.
@@ -23,11 +22,11 @@ type Processor struct {
 // will be tried in the provided order, with the first one returning an event stopping the chain.
 //
 // All extracted APM events are then submitted to sampling. This sampling is 2-fold:
-// * A first sampling step is done based on the extraction sampling rate returned by an Extractor. If an Extractor
-//   returns an event accompanied with a 0.1 extraction rate, then there's a 90% chance that this event will get
-//   discarded.
-// * A max events per second maxEPSSampler is applied to all non-PriorityUserKeep events that survived the first step
-//   and will ensure that, in average, the total rate of events returned by the processor is not bigger than maxEPS.
+//   - A first sampling step is done based on the extraction sampling rate returned by an Extractor. If an Extractor
+//     returns an event accompanied with a 0.1 extraction rate, then there's a 90% chance that this event will get
+//     discarded.
+//   - A max events per second maxEPSSampler is applied to all non-PriorityUserKeep events that survived the first step
+//     and will ensure that, in average, the total rate of events returned by the processor is not bigger than maxEPS.
 func NewProcessor(extractors []Extractor, maxEPS float64) *Processor {
 	return newProcessor(extractors, newMaxEPSSampler(maxEPS))
 }
@@ -67,25 +66,24 @@ func (p *Processor) Process(root *pb.Span, t *pb.TraceChunk) (numEvents, numExtr
 		}
 
 		numExtracted++
-		if _, ok := traceutil.GetMetric(span, sampler.KeySpanSamplingMechanism); !ok {
-			sampled, epsRate := p.maxEPSSample(span, priority)
-			if !sampled {
-				continue
-			}
-			// event analytics tags shouldn't be set on sampled single spans
-			sampler.SetMaxEPSRate(span, epsRate)
-			sampler.SetClientRate(span, clientSampleRate)
-			sampler.SetPreSampleRate(span, preSampleRate)
-			sampler.SetEventExtractionRate(span, extractionRate)
-			sampler.SetAnalyzedSpan(span)
+
+		sampled, epsRate := p.maxEPSSample(span, priority)
+		if !sampled {
+			continue
 		}
+		// event analytics tags shouldn't be set on sampled single spans
+		sampler.SetMaxEPSRate(span, epsRate)
+		sampler.SetClientRate(span, clientSampleRate)
+		sampler.SetPreSampleRate(span, preSampleRate)
+		sampler.SetEventExtractionRate(span, extractionRate)
+		sampler.SetAnalyzedSpan(span)
 		if t.DroppedTrace {
 			events = append(events, span)
 		}
 		numEvents++
 	}
 	if t.DroppedTrace {
-		// we are not keeping anything out of this trace, except the events and sampled single spans
+		// we are not keeping anything out of this trace, except the events
 		t.Spans = events
 	}
 	return numEvents, numExtracted

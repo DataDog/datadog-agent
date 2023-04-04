@@ -6,7 +6,7 @@
 package scrubber
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -69,7 +69,7 @@ func TestSkipComments(t *testing.T) {
 func TestCleanFile(t *testing.T) {
 	dir := t.TempDir()
 	filename := filepath.Join(dir, "test.yml")
-	ioutil.WriteFile(filename, []byte("a line with foo\n\na line with bar"), 0666)
+	os.WriteFile(filename, []byte("a line with foo\n\na line with bar"), 0666)
 
 	scrubber := New()
 	scrubber.AddReplacer(SingleLine, Replacer{

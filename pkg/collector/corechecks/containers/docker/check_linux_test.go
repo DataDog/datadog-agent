@@ -16,11 +16,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 func TestDockerNetworkExtension(t *testing.T) {
@@ -106,43 +106,43 @@ func TestDockerNetworkExtension(t *testing.T) {
 	// container4 is a normal docker container connected to 2 networks 0 linked to PID 200
 	container1 := generic.CreateContainerMeta("docker", "kube-host-network")
 	mockCollector.SetContainerEntry(container1.ID, mock.ContainerEntry{
-		ContainerStats: &provider.ContainerStats{
-			PID: &provider.ContainerPIDStats{
+		ContainerStats: &metrics.ContainerStats{
+			PID: &metrics.ContainerPIDStats{
 				PIDs: []int{100},
 			},
 		},
-		NetworkStats: &provider.ContainerNetworkStats{
-			Interfaces: map[string]provider.InterfaceNetStats{
+		NetworkStats: &metrics.ContainerNetworkStats{
+			Interfaces: map[string]metrics.InterfaceNetStats{
 				"eth0": {
-					BytesSent:   pointer.Float64Ptr(1),
-					BytesRcvd:   pointer.Float64Ptr(1),
-					PacketsSent: pointer.Float64Ptr(1),
-					PacketsRcvd: pointer.Float64Ptr(1),
+					BytesSent:   pointer.Ptr(1.0),
+					BytesRcvd:   pointer.Ptr(1.0),
+					PacketsSent: pointer.Ptr(1.0),
+					PacketsRcvd: pointer.Ptr(1.0),
 				},
 				"docker0": {
-					BytesSent:   pointer.Float64Ptr(2),
-					BytesRcvd:   pointer.Float64Ptr(2),
-					PacketsSent: pointer.Float64Ptr(2),
-					PacketsRcvd: pointer.Float64Ptr(2),
+					BytesSent:   pointer.Ptr(2.0),
+					BytesRcvd:   pointer.Ptr(2.0),
+					PacketsSent: pointer.Ptr(2.0),
+					PacketsRcvd: pointer.Ptr(2.0),
 				},
 				"cbr0": {
-					BytesSent:   pointer.Float64Ptr(3),
-					BytesRcvd:   pointer.Float64Ptr(3),
-					PacketsSent: pointer.Float64Ptr(3),
-					PacketsRcvd: pointer.Float64Ptr(3),
+					BytesSent:   pointer.Ptr(3.0),
+					BytesRcvd:   pointer.Ptr(3.0),
+					PacketsSent: pointer.Ptr(3.0),
+					PacketsRcvd: pointer.Ptr(3.0),
 				},
 				"vethc71e3170": {
-					BytesSent:   pointer.Float64Ptr(4),
-					BytesRcvd:   pointer.Float64Ptr(4),
-					PacketsSent: pointer.Float64Ptr(4),
-					PacketsRcvd: pointer.Float64Ptr(4),
+					BytesSent:   pointer.Ptr(4.0),
+					BytesRcvd:   pointer.Ptr(4.0),
+					PacketsSent: pointer.Ptr(4.0),
+					PacketsRcvd: pointer.Ptr(4.0),
 				},
 			},
 		},
 	})
 	container1RawDocker := dockerTypes.Container{
 		ID:    "kube-host-network",
-		State: containers.ContainerRunningState,
+		State: string(workloadmeta.ContainerStatusRunning),
 		HostConfig: struct {
 			NetworkMode string "json:\",omitempty\""
 		}{NetworkMode: "host"},
@@ -158,25 +158,25 @@ func TestDockerNetworkExtension(t *testing.T) {
 
 	container2 := generic.CreateContainerMeta("docker", "kube-app")
 	mockCollector.SetContainerEntry(container2.ID, mock.ContainerEntry{
-		ContainerStats: &provider.ContainerStats{
-			PID: &provider.ContainerPIDStats{
+		ContainerStats: &metrics.ContainerStats{
+			PID: &metrics.ContainerPIDStats{
 				PIDs: []int{101},
 			},
 		},
-		NetworkStats: &provider.ContainerNetworkStats{
-			Interfaces: map[string]provider.InterfaceNetStats{
+		NetworkStats: &metrics.ContainerNetworkStats{
+			Interfaces: map[string]metrics.InterfaceNetStats{
 				"eth0": {
-					BytesSent:   pointer.Float64Ptr(5),
-					BytesRcvd:   pointer.Float64Ptr(5),
-					PacketsSent: pointer.Float64Ptr(5),
-					PacketsRcvd: pointer.Float64Ptr(5),
+					BytesSent:   pointer.Ptr(5.0),
+					BytesRcvd:   pointer.Ptr(5.0),
+					PacketsSent: pointer.Ptr(5.0),
+					PacketsRcvd: pointer.Ptr(5.0),
 				},
 			},
 		},
 	})
 	container2RawDocker := dockerTypes.Container{
 		ID:    "kube-app",
-		State: containers.ContainerRunningState,
+		State: string(workloadmeta.ContainerStatusRunning),
 		HostConfig: struct {
 			NetworkMode string "json:\",omitempty\""
 		}{NetworkMode: "container:kube-app-pause"},
@@ -188,7 +188,7 @@ func TestDockerNetworkExtension(t *testing.T) {
 	// Container3 is only raw as it's excluded (pause container)
 	container3RawDocker := dockerTypes.Container{
 		ID:    "kube-app-pause",
-		State: containers.ContainerRunningState,
+		State: string(workloadmeta.ContainerStatusRunning),
 		HostConfig: struct {
 			NetworkMode string "json:\",omitempty\""
 		}{NetworkMode: "none"},
@@ -204,31 +204,31 @@ func TestDockerNetworkExtension(t *testing.T) {
 
 	container4 := generic.CreateContainerMeta("docker", "docker-app")
 	mockCollector.SetContainerEntry(container4.ID, mock.ContainerEntry{
-		ContainerStats: &provider.ContainerStats{
-			PID: &provider.ContainerPIDStats{
+		ContainerStats: &metrics.ContainerStats{
+			PID: &metrics.ContainerPIDStats{
 				PIDs: []int{200},
 			},
 		},
-		NetworkStats: &provider.ContainerNetworkStats{
-			Interfaces: map[string]provider.InterfaceNetStats{
+		NetworkStats: &metrics.ContainerNetworkStats{
+			Interfaces: map[string]metrics.InterfaceNetStats{
 				"eth0": {
-					BytesSent:   pointer.Float64Ptr(6),
-					BytesRcvd:   pointer.Float64Ptr(6),
-					PacketsSent: pointer.Float64Ptr(6),
-					PacketsRcvd: pointer.Float64Ptr(6),
+					BytesSent:   pointer.Ptr(6.0),
+					BytesRcvd:   pointer.Ptr(6.0),
+					PacketsSent: pointer.Ptr(6.0),
+					PacketsRcvd: pointer.Ptr(6.0),
 				},
 				"eth1": {
-					BytesSent:   pointer.Float64Ptr(7),
-					BytesRcvd:   pointer.Float64Ptr(7),
-					PacketsSent: pointer.Float64Ptr(7),
-					PacketsRcvd: pointer.Float64Ptr(7),
+					BytesSent:   pointer.Ptr(7.0),
+					BytesRcvd:   pointer.Ptr(7.0),
+					PacketsSent: pointer.Ptr(7.0),
+					PacketsRcvd: pointer.Ptr(7.0),
 				},
 			},
 		},
 	})
 	container4RawDocker := dockerTypes.Container{
 		ID:    "docker-app",
-		State: containers.ContainerRunningState,
+		State: string(workloadmeta.ContainerStatusRunning),
 		HostConfig: struct {
 			NetworkMode string "json:\",omitempty\""
 		}{NetworkMode: "ubuntu_default"},
@@ -300,7 +300,7 @@ func TestNetworkCustomOnFailure(t *testing.T) {
 		Labels: map[string]string{
 			"io.kubernetes.pod.namespace": "kubens",
 		},
-		State:      containers.ContainerRunningState,
+		State:      string(workloadmeta.ContainerStatusRunning),
 		SizeRw:     100,
 		SizeRootFs: 200,
 	})

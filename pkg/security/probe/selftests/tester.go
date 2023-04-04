@@ -17,10 +17,12 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -86,7 +88,7 @@ func (t *SelfTester) GetStatus() *api.SelfTestsStatus {
 }
 
 // LoadPolicies implements the PolicyProvider interface
-func (t *SelfTester) LoadPolicies(filters []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
+func (t *SelfTester) LoadPolicies(macroFilters []rules.MacroFilter, ruleFilters []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
 	p := &rules.Policy{
 		Name:    policyName,
 		Source:  policySource,
@@ -191,14 +193,14 @@ type selfTestEvent struct {
 }
 
 // IsExpectedEvent sends an event to the tester
-func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event) bool {
+func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event, p *probe.Probe) bool {
 	if t.waitingForEvent.Load() && rule.Definition.Policy.Source == policySource {
-		ev, ok := event.(*probe.Event)
+		ev, ok := event.(*model.Event)
 		if !ok {
 			return true
 		}
 
-		s := probe.NewEventSerializer(ev)
+		s := serializers.NewEventSerializer(ev, p.GetResolvers())
 		if s == nil || s.FileEventSerializer == nil {
 			return true
 		}

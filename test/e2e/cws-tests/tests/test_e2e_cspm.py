@@ -18,8 +18,7 @@ def expect_findings(test_case, findings, expected_findings):
                     found = True
                     break
 
-            if not found:
-                test_case.assert_(found, f"unexpected finding {finding} for rule {rule_id}")
+            test_case.assertTrue(found, f"unexpected finding {finding} for rule {rule_id}")
             del findings_by_rule[rule_id]
 
     for rule_id, rule_findings in findings_by_rule.items():

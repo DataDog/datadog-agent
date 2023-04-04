@@ -20,6 +20,13 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// NewClusterRoleCollectorVersions builds the group of collector versions.
+func NewClusterRoleCollectorVersions() collectors.CollectorVersions {
+	return collectors.NewCollectorVersions(
+		NewClusterRoleCollector(),
+	)
+}
+
 // ClusterRoleCollector is a collector for Kubernetes ClusterRoles.
 type ClusterRoleCollector struct {
 	informer  rbacv1Informers.ClusterRoleInformer
@@ -33,9 +40,14 @@ type ClusterRoleCollector struct {
 func NewClusterRoleCollector() *ClusterRoleCollector {
 	return &ClusterRoleCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: true,
-			Name:     "clusterroles",
-			NodeType: orchestrator.K8sClusterRole,
+			IsDefaultVersion:          true,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "clusterroles",
+			NodeType:                  orchestrator.K8sClusterRole,
+			Version:                   "rbac.authorization.k8s.io/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.ClusterRoleHandlers)),
 	}
@@ -67,13 +79,7 @@ func (c *ClusterRoleCollector) Run(rcfg *collectors.CollectorRunConfig) (*collec
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := &processors.ProcessorContext{
-		APIClient:  rcfg.APIClient,
-		Cfg:        rcfg.Config,
-		ClusterID:  rcfg.ClusterID,
-		MsgGroupID: rcfg.MsgGroupRef.Inc(),
-		NodeType:   c.metadata.NodeType,
-	}
+	ctx := collectors.NewProcessorContext(rcfg, c.metadata)
 
 	processResult, processed := c.processor.Process(ctx, list)
 

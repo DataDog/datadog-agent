@@ -12,9 +12,9 @@ import (
 
 	"github.com/gosnmp/gosnmp"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 )
 
 // IsEnabled returns whether SNMP trap collection is enabled in the Agent configuration.
@@ -90,7 +90,7 @@ func ReadConfig(agentHostname string) (*Config, error) {
 	if c.Namespace == "" {
 		c.Namespace = config.Datadog.GetString("network_devices.namespace")
 	}
-	c.Namespace, err = common.NormalizeNamespace(c.Namespace)
+	c.Namespace, err = utils.NormalizeNamespace(c.Namespace)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load config: %w", err)
 	}

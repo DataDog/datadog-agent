@@ -53,7 +53,7 @@ const (
 	a7TagReady     = "ready"
 	a7TagNotReady  = "not_ready"
 	a7TagUnknown   = "unknown"
-	a7TagPython3   = "python3" //Already running on python3, linting is disabled
+	a7TagPython3   = "python3" // Already running on python3, linting is disabled
 )
 
 func init() {
@@ -108,6 +108,8 @@ func (cl *PythonCheckLoader) Load(config integration.Config, instance integratio
 	}
 
 	moduleName := config.Name
+	// FastDigest is used as check id calculation does not account for tags order
+	configDigest := config.FastDigest()
 
 	// Lock the GIL
 	glock, err := newStickyLock()
@@ -200,7 +202,7 @@ func (cl *PythonCheckLoader) Load(config integration.Config, instance integratio
 	}
 
 	// The GIL should be unlocked at this point, `check.Configure` uses its own stickyLock and stickyLocks must not be nested
-	if err := c.Configure(instance, config.InitConfig, config.Source); err != nil {
+	if err := c.Configure(configDigest, instance, config.InitConfig, config.Source); err != nil {
 		C.rtloader_decref(rtloader, checkClass)
 		C.rtloader_decref(rtloader, checkModule)
 
@@ -268,7 +270,6 @@ func expvarPy3Warnings() interface{} {
 // reportPy3Warnings runs the a7 linter and exports the result in both expvar
 // and the aggregator (as extra series)
 func reportPy3Warnings(checkName string, checkFilePath string) {
-
 	// check if the check has already been linted
 	py3LintedLock.Lock()
 	_, found := py3Linted[checkName]

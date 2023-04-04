@@ -20,6 +20,13 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// NewPersistentVolumeCollectorVersions builds the group of collector versions.
+func NewPersistentVolumeCollectorVersions() collectors.CollectorVersions {
+	return collectors.NewCollectorVersions(
+		NewPersistentVolumeCollector(),
+	)
+}
+
 // PersistentVolumeCollector is a collector for Kubernetes PersistentVolumes.
 type PersistentVolumeCollector struct {
 	informer  corev1Informers.PersistentVolumeInformer
@@ -33,9 +40,14 @@ type PersistentVolumeCollector struct {
 func NewPersistentVolumeCollector() *PersistentVolumeCollector {
 	return &PersistentVolumeCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: true,
-			Name:     "persistentvolumes",
-			NodeType: orchestrator.K8sPersistentVolume,
+			IsDefaultVersion:          true,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "persistentvolumes",
+			NodeType:                  orchestrator.K8sPersistentVolume,
+			Version:                   "v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.PersistentVolumeHandlers)),
 	}
@@ -67,13 +79,7 @@ func (c *PersistentVolumeCollector) Run(rcfg *collectors.CollectorRunConfig) (*c
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := &processors.ProcessorContext{
-		APIClient:  rcfg.APIClient,
-		Cfg:        rcfg.Config,
-		ClusterID:  rcfg.ClusterID,
-		MsgGroupID: rcfg.MsgGroupRef.Inc(),
-		NodeType:   c.metadata.NodeType,
-	}
+	ctx := collectors.NewProcessorContext(rcfg, c.metadata)
 
 	processResult, processed := c.processor.Process(ctx, list)
 

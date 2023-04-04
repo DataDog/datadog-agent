@@ -35,23 +35,23 @@ var (
 	descPodDisruptionBudgetLabelsHelp          = "Kubernetes labels converted to Prometheus labels."
 )
 
-// NewPodDisruptionBudgetFactory returns a new PodDisruptionBudgets metric family generator factory.
-func NewPodDisruptionBudgetFactory() customresource.RegistryFactory {
-	return &pdbFactory{}
+// NewPodDisruptionBudgetV1Beta1Factory returns a new PodDisruptionBudgets metric family generator factory.
+func NewPodDisruptionBudgetV1Beta1Factory() customresource.RegistryFactory {
+	return &pdbv1beta1Factory{}
 }
 
-type pdbFactory struct{}
+type pdbv1beta1Factory struct{}
 
-func (f *pdbFactory) Name() string {
+func (f *pdbv1beta1Factory) Name() string {
 	return "poddisruptionbudgets"
 }
 
 // CreateClient is not implemented
-func (f *pdbFactory) CreateClient(cfg *rest.Config) (interface{}, error) {
+func (f *pdbv1beta1Factory) CreateClient(cfg *rest.Config) (interface{}, error) {
 	panic("not implemented")
 }
 
-func (f *pdbFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
+func (f *pdbv1beta1Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
 		*generator.NewFamilyGenerator(
 			descPodDisruptionBudgetAnnotationsName,
@@ -186,11 +186,11 @@ func (f *pdbFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsLis
 	}
 }
 
-func (f *pdbFactory) ExpectedType() interface{} {
+func (f *pdbv1beta1Factory) ExpectedType() interface{} {
 	return &policyv1beta1.PodDisruptionBudget{}
 }
 
-func (f *pdbFactory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
+func (f *pdbv1beta1Factory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
 	client := customResourceClient.(kubernetes.Interface)
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {

@@ -6,9 +6,11 @@
 package state
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"testing"
 
+	"github.com/secure-systems-lab/go-securesystemslib/cjson"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,7 +26,15 @@ func TestNewRepositoryWithMalformedRoot(t *testing.T) {
 	assert.Error(t, err, "Creating a repository with a malformed base root should result in an error per TUF spec")
 }
 
-func TestEmptyUpdate(t *testing.T) {
+func TestNewUnverifiedRepository(t *testing.T) {
+	repository, err := NewUnverifiedRepository()
+	assert.NotNil(t, repository, "Creating an unverified repository should always succeed")
+	assert.Nil(t, err, "Creating an unverified repository should always succeed with no error")
+}
+
+// TestEmptyUpdateZeroTypes makes sure that a properly initialized, but otherwise empty,
+// `Update` won't cause an error, crash the Update process, and also results in unchanged state.
+func TestEmptyUpdateZeroTypes(t *testing.T) {
 	ta := newTestArtifacts()
 
 	emptyUpdate := Update{
@@ -37,12 +47,75 @@ func TestEmptyUpdate(t *testing.T) {
 	r := ta.repository
 
 	updatedProducts, err := r.Update(emptyUpdate)
-	assert.NotNil(t, err)
+	assert.Nil(t, err)
 	assert.Equal(t, 0, len(updatedProducts), "An empty update shouldn't indicate any updated products")
 	assert.Equal(t, 0, len(r.APMConfigs()), "An empty update shoudldn't add any APM configs")
 	assert.Equal(t, 0, len(r.CWSDDConfigs()), "An empty update shouldn't add any CWSDD configs")
 
-	state, err := ta.repository.CurrentState()
+	state, err := r.CurrentState()
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(state.Configs))
+	assert.Equal(t, 0, len(state.CachedFiles))
+	assert.EqualValues(t, 0, state.TargetsVersion)
+	assert.EqualValues(t, 1, state.RootsVersion)
+	assert.Nil(t, state.OpaqueBackendState)
+
+	// Do the same with the unverified repository, there should be no functional difference.
+	r = ta.unverifiedRepository
+
+	updatedProducts, err = r.Update(emptyUpdate)
+	assert.Nil(t, err)
+	assert.Equal(t, 0, len(updatedProducts), "An empty update shouldn't indicate any updated products")
+	assert.Equal(t, 0, len(r.APMConfigs()), "An empty update shoudldn't add any APM configs")
+	assert.Equal(t, 0, len(r.CWSDDConfigs()), "An empty update shouldn't add any CWSDD configs")
+
+	state, err = r.CurrentState()
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(state.Configs))
+	assert.Equal(t, 0, len(state.CachedFiles))
+	assert.EqualValues(t, 0, state.TargetsVersion)
+	assert.EqualValues(t, 1, state.RootsVersion)
+	assert.Nil(t, state.OpaqueBackendState)
+}
+
+// TestEmptyUpdateNilTypes makes sure that a completely uninitialized `Update` field won't
+// cause an error, crash the Update process, and also results in unchanged state.
+func TestEmptyUpdateNilTypes(t *testing.T) {
+	ta := newTestArtifacts()
+
+	emptyUpdate := Update{
+		TUFRoots:      nil,
+		TUFTargets:    nil,
+		TargetFiles:   nil,
+		ClientConfigs: nil,
+	}
+
+	r := ta.repository
+
+	updatedProducts, err := r.Update(emptyUpdate)
+	assert.Nil(t, err)
+	assert.Equal(t, 0, len(updatedProducts), "An empty update shouldn't indicate any updated products")
+	assert.Equal(t, 0, len(r.APMConfigs()), "An empty update shoudldn't add any APM configs")
+	assert.Equal(t, 0, len(r.CWSDDConfigs()), "An empty update shouldn't add any CWSDD configs")
+
+	state, err := r.CurrentState()
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(state.Configs))
+	assert.Equal(t, 0, len(state.CachedFiles))
+	assert.EqualValues(t, 0, state.TargetsVersion)
+	assert.EqualValues(t, 1, state.RootsVersion)
+	assert.Nil(t, state.OpaqueBackendState)
+
+	// Do the same with the unverified repository, there should be no functional difference.
+	r = ta.unverifiedRepository
+
+	updatedProducts, err = r.Update(emptyUpdate)
+	assert.Nil(t, err)
+	assert.Equal(t, 0, len(updatedProducts), "An empty update shouldn't indicate any updated products")
+	assert.Equal(t, 0, len(r.APMConfigs()), "An empty update shoudldn't add any APM configs")
+	assert.Equal(t, 0, len(r.CWSDDConfigs()), "An empty update shouldn't add any CWSDD configs")
+
+	state, err = r.CurrentState()
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(state.Configs))
 	assert.Equal(t, 0, len(state.CachedFiles))
@@ -64,15 +137,18 @@ func TestUpdateNewConfig(t *testing.T) {
 		TargetFiles:   map[string][]byte{path: data},
 		ClientConfigs: []string{path},
 	}
-	updatedProducts, err := ta.repository.Update(update)
+
+	r := ta.repository
+
+	updatedProducts, err := r.Update(update)
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(updatedProducts))
 	assert.Contains(t, updatedProducts, ProductCWSDD)
 
-	assert.Equal(t, 0, len(ta.repository.APMConfigs()))
-	assert.Equal(t, 1, len(ta.repository.CWSDDConfigs()))
+	assert.Equal(t, 0, len(r.APMConfigs()))
+	assert.Equal(t, 1, len(r.CWSDDConfigs()))
 
-	storedFile, ok := ta.repository.CWSDDConfigs()[path]
+	storedFile, ok := r.CWSDDConfigs()[path]
 	assert.True(t, ok)
 	assert.Equal(t, file, storedFile.Config)
 	assert.EqualValues(t, 1, storedFile.Metadata.Version)
@@ -81,7 +157,7 @@ func TestUpdateNewConfig(t *testing.T) {
 	assert.Equal(t, ProductCWSDD, storedFile.Metadata.Product)
 	assert.EqualValues(t, len(data), storedFile.Metadata.RawLength)
 
-	state, err := ta.repository.CurrentState()
+	state, err := r.CurrentState()
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(state.Configs))
 	assert.Equal(t, 1, len(state.CachedFiles))
@@ -93,6 +169,42 @@ func TestUpdateNewConfig(t *testing.T) {
 	assert.Equal(t, "test", configState.ID)
 	assert.EqualValues(t, 1, configState.Version)
 	cached := state.CachedFiles[0]
+	assert.Equal(t, path, cached.Path)
+	assert.EqualValues(t, len(data), cached.Length)
+	assertHashesEqual(t, hashes, cached.Hashes)
+
+	// Do the same with the unverified repository, there should be no functional difference
+	r = ta.unverifiedRepository
+
+	updatedProducts, err = r.Update(update)
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(updatedProducts))
+	assert.Contains(t, updatedProducts, ProductCWSDD)
+
+	assert.Equal(t, 0, len(r.APMConfigs()))
+	assert.Equal(t, 1, len(r.CWSDDConfigs()))
+
+	storedFile, ok = r.CWSDDConfigs()[path]
+	assert.True(t, ok)
+	assert.Equal(t, file, storedFile.Config)
+	assert.EqualValues(t, 1, storedFile.Metadata.Version)
+	assert.Equal(t, "test", storedFile.Metadata.ID)
+	assertHashesEqual(t, hashes, storedFile.Metadata.Hashes)
+	assert.Equal(t, ProductCWSDD, storedFile.Metadata.Product)
+	assert.EqualValues(t, len(data), storedFile.Metadata.RawLength)
+
+	state, err = r.CurrentState()
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(state.Configs))
+	assert.Equal(t, 1, len(state.CachedFiles))
+	assert.EqualValues(t, 1, state.TargetsVersion)
+	assert.EqualValues(t, 1, state.RootsVersion)
+	assert.Equal(t, testOpaqueBackendStateContents, state.OpaqueBackendState)
+	configState = state.Configs[0]
+	assert.Equal(t, ProductCWSDD, configState.Product)
+	assert.Equal(t, "test", configState.ID)
+	assert.EqualValues(t, 1, configState.Version)
+	cached = state.CachedFiles[0]
 	assert.Equal(t, path, cached.Path)
 	assert.EqualValues(t, len(data), cached.Length)
 	assertHashesEqual(t, hashes, cached.Hashes)
@@ -113,6 +225,8 @@ func TestUpdateNewConfigThenRemove(t *testing.T) {
 	}
 	_, err := ta.repository.Update(update)
 	assert.Nil(t, err)
+	_, err = ta.unverifiedRepository.Update(update)
+	assert.Nil(t, err)
 
 	// We test this exact update in another test, so we'll just carry on here.
 	// TODO: Make it possible to create the repository at this valid state just to
@@ -127,13 +241,31 @@ func TestUpdateNewConfigThenRemove(t *testing.T) {
 		TargetFiles:   make(map[string][]byte),
 		ClientConfigs: make([]string, 0),
 	}
-	updatedProducts, err := ta.repository.Update(removalUpdate)
+
+	r := ta.repository
+	updatedProducts, err := r.Update(removalUpdate)
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(updatedProducts))
-	assert.Equal(t, 0, len(ta.repository.APMConfigs()))
-	assert.Equal(t, 0, len(ta.repository.CWSDDConfigs()))
+	assert.Equal(t, 0, len(r.APMConfigs()))
+	assert.Equal(t, 0, len(r.CWSDDConfigs()))
 
-	state, err := ta.repository.CurrentState()
+	state, err := r.CurrentState()
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(state.Configs))
+	assert.Equal(t, 0, len(state.CachedFiles))
+	assert.EqualValues(t, 2, state.TargetsVersion)
+	assert.EqualValues(t, 1, state.RootsVersion)
+	assert.Equal(t, testOpaqueBackendStateContents, state.OpaqueBackendState)
+
+	// Do the same with the unverified repository, it should be functionally identical
+	r = ta.unverifiedRepository
+	updatedProducts, err = r.Update(removalUpdate)
+	assert.Nil(t, err)
+	assert.Equal(t, 0, len(updatedProducts))
+	assert.Equal(t, 0, len(r.APMConfigs()))
+	assert.Equal(t, 0, len(r.CWSDDConfigs()))
+
+	state, err = r.CurrentState()
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(state.Configs))
 	assert.Equal(t, 0, len(state.CachedFiles))
@@ -156,6 +288,8 @@ func TestUpdateNewConfigThenModify(t *testing.T) {
 	}
 	_, err := ta.repository.Update(update)
 	assert.Nil(t, err)
+	_, err = ta.unverifiedRepository.Update(update)
+	assert.Nil(t, err)
 
 	file = []byte("updated file")
 	path, hashes, data := addCWSDDFile("test", 2, file, ta.targets)
@@ -167,15 +301,17 @@ func TestUpdateNewConfigThenModify(t *testing.T) {
 		TargetFiles:   map[string][]byte{path: data},
 		ClientConfigs: []string{path},
 	}
-	updatedProducts, err := ta.repository.Update(update)
+
+	r := ta.repository
+	updatedProducts, err := r.Update(update)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(updatedProducts))
 	assert.Contains(t, updatedProducts, ProductCWSDD)
 
-	assert.Equal(t, 0, len(ta.repository.APMConfigs()))
-	assert.Equal(t, 1, len(ta.repository.CWSDDConfigs()))
+	assert.Equal(t, 0, len(r.APMConfigs()))
+	assert.Equal(t, 1, len(r.CWSDDConfigs()))
 
-	storedFile, ok := ta.repository.CWSDDConfigs()[path]
+	storedFile, ok := r.CWSDDConfigs()[path]
 	assert.True(t, ok)
 	assert.Equal(t, file, storedFile.Config)
 	assert.EqualValues(t, 2, storedFile.Metadata.Version)
@@ -184,7 +320,7 @@ func TestUpdateNewConfigThenModify(t *testing.T) {
 	assert.Equal(t, ProductCWSDD, storedFile.Metadata.Product)
 	assert.EqualValues(t, len(data), storedFile.Metadata.RawLength)
 
-	state, err := ta.repository.CurrentState()
+	state, err := r.CurrentState()
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(state.Configs))
 	assert.Equal(t, 1, len(state.CachedFiles))
@@ -200,6 +336,40 @@ func TestUpdateNewConfigThenModify(t *testing.T) {
 	assert.EqualValues(t, len(data), cached.Length)
 	assertHashesEqual(t, hashes, cached.Hashes)
 
+	// Do the same with the unverified repository, it should be functionally identical
+	r = ta.unverifiedRepository
+	updatedProducts, err = r.Update(update)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(updatedProducts))
+	assert.Contains(t, updatedProducts, ProductCWSDD)
+
+	assert.Equal(t, 0, len(r.APMConfigs()))
+	assert.Equal(t, 1, len(r.CWSDDConfigs()))
+
+	storedFile, ok = r.CWSDDConfigs()[path]
+	assert.True(t, ok)
+	assert.Equal(t, file, storedFile.Config)
+	assert.EqualValues(t, 2, storedFile.Metadata.Version)
+	assert.Equal(t, "test", storedFile.Metadata.ID)
+	assertHashesEqual(t, hashes, storedFile.Metadata.Hashes)
+	assert.Equal(t, ProductCWSDD, storedFile.Metadata.Product)
+	assert.EqualValues(t, len(data), storedFile.Metadata.RawLength)
+
+	state, err = r.CurrentState()
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(state.Configs))
+	assert.Equal(t, 1, len(state.CachedFiles))
+	assert.EqualValues(t, 2, state.TargetsVersion)
+	assert.EqualValues(t, 1, state.RootsVersion)
+	assert.Equal(t, testOpaqueBackendStateContents, state.OpaqueBackendState)
+	configState = state.Configs[0]
+	assert.Equal(t, ProductCWSDD, configState.Product)
+	assert.Equal(t, "test", configState.ID)
+	assert.EqualValues(t, 2, configState.Version)
+	cached = state.CachedFiles[0]
+	assert.Equal(t, path, cached.Path)
+	assert.EqualValues(t, len(data), cached.Length)
+	assertHashesEqual(t, hashes, cached.Hashes)
 }
 
 func TestUpdateWithIncorrectlySignedTargets(t *testing.T) {
@@ -227,6 +397,19 @@ func TestUpdateWithIncorrectlySignedTargets(t *testing.T) {
 	assert.EqualValues(t, 0, state.TargetsVersion)
 	assert.EqualValues(t, 1, state.RootsVersion)
 	assert.Nil(t, state.OpaqueBackendState)
+
+	// The unverified repository shouldn't reject this on account of the targets signature because
+	// it shouldn't even look at that.
+	updatedProducts, err = ta.unverifiedRepository.Update(update)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(updatedProducts))
+	state, err = ta.unverifiedRepository.CurrentState()
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(state.Configs))
+	assert.Equal(t, 1, len(state.CachedFiles))
+	assert.EqualValues(t, 1, state.TargetsVersion)
+	assert.EqualValues(t, 1, state.RootsVersion)
+	assert.Equal(t, testOpaqueBackendStateContents, state.OpaqueBackendState)
 }
 
 func TestUpdateWithMalformedTargets(t *testing.T) {
@@ -240,11 +423,27 @@ func TestUpdateWithMalformedTargets(t *testing.T) {
 		TargetFiles:   map[string][]byte{path: data},
 		ClientConfigs: []string{path},
 	}
-	updatedProducts, err := ta.repository.Update(update)
+	r := ta.repository
+	updatedProducts, err := r.Update(update)
 	assert.Error(t, err)
 	assert.Equal(t, 0, len(updatedProducts))
 
-	state, err := ta.repository.CurrentState()
+	state, err := r.CurrentState()
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(state.Configs))
+	assert.Equal(t, 0, len(state.CachedFiles))
+	assert.EqualValues(t, 0, state.TargetsVersion)
+	assert.EqualValues(t, 1, state.RootsVersion)
+	assert.Nil(t, state.OpaqueBackendState)
+
+	// The unverified repository should still reject this update because it'll fail to parse the
+	// targets file as its structurally invalid.
+	r = ta.unverifiedRepository
+	updatedProducts, err = r.Update(update)
+	assert.Error(t, err)
+	assert.Equal(t, 0, len(updatedProducts))
+
+	state, err = r.CurrentState()
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(state.Configs))
 	assert.Equal(t, 0, len(state.CachedFiles))
@@ -276,6 +475,21 @@ func TestUpdateWithMalformedExtraRoot(t *testing.T) {
 	assert.EqualValues(t, 0, state.TargetsVersion)
 	assert.EqualValues(t, 1, state.RootsVersion)
 	assert.Nil(t, state.OpaqueBackendState)
+
+	// The unverified repository should still reject this update because it'll fail to parse the
+	// root file as its structurally invalid and won't be able to extract the version
+	r := ta.unverifiedRepository
+	updatedProducts, err = r.Update(update)
+	assert.Error(t, err)
+	assert.Equal(t, 0, len(updatedProducts))
+
+	state, err = r.CurrentState()
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(state.Configs))
+	assert.Equal(t, 0, len(state.CachedFiles))
+	assert.EqualValues(t, 0, state.TargetsVersion)
+	assert.EqualValues(t, 1, state.RootsVersion)
+	assert.Nil(t, state.OpaqueBackendState)
 }
 
 func TestUpdateWithNewRoot(t *testing.T) {
@@ -296,15 +510,16 @@ func TestUpdateWithNewRoot(t *testing.T) {
 		TargetFiles:   map[string][]byte{path: data},
 		ClientConfigs: []string{path},
 	}
-	updatedProducts, err := ta.repository.Update(update)
+	r := ta.repository
+	updatedProducts, err := r.Update(update)
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(updatedProducts))
 	assert.Contains(t, updatedProducts, ProductCWSDD)
 
-	assert.Equal(t, 0, len(ta.repository.APMConfigs()))
-	assert.Equal(t, 1, len(ta.repository.CWSDDConfigs()))
+	assert.Equal(t, 0, len(r.APMConfigs()))
+	assert.Equal(t, 1, len(r.CWSDDConfigs()))
 
-	storedFile, ok := ta.repository.CWSDDConfigs()[path]
+	storedFile, ok := r.CWSDDConfigs()[path]
 	assert.True(t, ok)
 	assert.Equal(t, file, storedFile.Config)
 	assert.EqualValues(t, 1, storedFile.Metadata.Version)
@@ -313,7 +528,7 @@ func TestUpdateWithNewRoot(t *testing.T) {
 	assert.Equal(t, ProductCWSDD, storedFile.Metadata.Product)
 	assert.EqualValues(t, len(data), storedFile.Metadata.RawLength)
 
-	state, err := ta.repository.CurrentState()
+	state, err := r.CurrentState()
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(state.Configs))
 	assert.Equal(t, 1, len(state.CachedFiles))
@@ -325,6 +540,42 @@ func TestUpdateWithNewRoot(t *testing.T) {
 	assert.Equal(t, "test", configState.ID)
 	assert.EqualValues(t, 1, configState.Version)
 	cached := state.CachedFiles[0]
+	assert.Equal(t, path, cached.Path)
+	assert.EqualValues(t, len(data), cached.Length)
+	assertHashesEqual(t, hashes, cached.Hashes)
+
+	// Do the same with the unverified repository, it should behave the same and store the latest root
+	// version
+	r = ta.unverifiedRepository
+	updatedProducts, err = r.Update(update)
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(updatedProducts))
+	assert.Contains(t, updatedProducts, ProductCWSDD)
+
+	assert.Equal(t, 0, len(r.APMConfigs()))
+	assert.Equal(t, 1, len(r.CWSDDConfigs()))
+
+	storedFile, ok = r.CWSDDConfigs()[path]
+	assert.True(t, ok)
+	assert.Equal(t, file, storedFile.Config)
+	assert.EqualValues(t, 1, storedFile.Metadata.Version)
+	assert.Equal(t, "test", storedFile.Metadata.ID)
+	assertHashesEqual(t, hashes, storedFile.Metadata.Hashes)
+	assert.Equal(t, ProductCWSDD, storedFile.Metadata.Product)
+	assert.EqualValues(t, len(data), storedFile.Metadata.RawLength)
+
+	state, err = r.CurrentState()
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(state.Configs))
+	assert.Equal(t, 1, len(state.CachedFiles))
+	assert.EqualValues(t, 1, state.TargetsVersion)
+	assert.EqualValues(t, 2, state.RootsVersion)
+	assert.Equal(t, testOpaqueBackendStateContents, state.OpaqueBackendState)
+	configState = state.Configs[0]
+	assert.Equal(t, ProductCWSDD, configState.Product)
+	assert.Equal(t, "test", configState.ID)
+	assert.EqualValues(t, 1, configState.Version)
+	cached = state.CachedFiles[0]
 	assert.Equal(t, path, cached.Path)
 	assert.EqualValues(t, len(data), cached.Length)
 	assertHashesEqual(t, hashes, cached.Hashes)
@@ -344,13 +595,30 @@ func TestClientOnlyTakesActionOnFilesInClientConfig(t *testing.T) {
 		ClientConfigs: make([]string, 0),
 	}
 
-	updatedProducts, err := ta.repository.Update(update)
+	r := ta.repository
+	updatedProducts, err := r.Update(update)
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(updatedProducts))
-	assert.Equal(t, 0, len(ta.repository.APMConfigs()))
-	assert.Equal(t, 0, len(ta.repository.CWSDDConfigs()))
+	assert.Equal(t, 0, len(r.APMConfigs()))
+	assert.Equal(t, 0, len(r.CWSDDConfigs()))
 
-	state, err := ta.repository.CurrentState()
+	state, err := r.CurrentState()
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(state.Configs))
+	assert.Equal(t, 0, len(state.CachedFiles))
+	assert.EqualValues(t, 1, state.TargetsVersion)
+	assert.EqualValues(t, 1, state.RootsVersion)
+	assert.Equal(t, testOpaqueBackendStateContents, state.OpaqueBackendState)
+
+	// Do the same with the unverified repository, it should be functionally identical
+	r = ta.unverifiedRepository
+	updatedProducts, err = r.Update(update)
+	assert.Nil(t, err)
+	assert.Equal(t, 0, len(updatedProducts))
+	assert.Equal(t, 0, len(r.APMConfigs()))
+	assert.Equal(t, 0, len(r.CWSDDConfigs()))
+
+	state, err = r.CurrentState()
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(state.Configs))
 	assert.Equal(t, 0, len(state.CachedFiles))
@@ -366,25 +634,26 @@ func TestUpdateWithTwoProducts(t *testing.T) {
 	fileAPM := newAPMSamplingFile()
 
 	path, hashes, data := addCWSDDFile("test", 1, file, ta.targets)
-	pathAPM, hashesAPM, dataAPM := addAPMSamplingFile("testAPM", 3, fileAPM, ta.targets)
+	pathAPM, hashesAPM := addAPMSamplingFile("testAPM", 3, fileAPM, ta.targets)
 	b := signTargets(ta.key, ta.targets)
 
 	update := Update{
 		TUFRoots:      make([][]byte, 0),
 		TUFTargets:    b,
-		TargetFiles:   map[string][]byte{path: data, pathAPM: dataAPM},
+		TargetFiles:   map[string][]byte{path: data, pathAPM: fileAPM},
 		ClientConfigs: []string{path, pathAPM},
 	}
-	updatedProducts, err := ta.repository.Update(update)
+	r := ta.repository
+	updatedProducts, err := r.Update(update)
 	assert.Nil(t, err)
 	assert.Equal(t, 2, len(updatedProducts))
 	assert.Contains(t, updatedProducts, ProductCWSDD)
 	assert.Contains(t, updatedProducts, ProductAPMSampling)
 
-	assert.Equal(t, 1, len(ta.repository.APMConfigs()))
-	assert.Equal(t, 1, len(ta.repository.CWSDDConfigs()))
+	assert.Equal(t, 1, len(r.APMConfigs()))
+	assert.Equal(t, 1, len(r.CWSDDConfigs()))
 
-	storedFile, ok := ta.repository.CWSDDConfigs()[path]
+	storedFile, ok := r.CWSDDConfigs()[path]
 	assert.True(t, ok)
 	assert.Equal(t, file, storedFile.Config)
 	assert.EqualValues(t, 1, storedFile.Metadata.Version)
@@ -393,22 +662,45 @@ func TestUpdateWithTwoProducts(t *testing.T) {
 	assert.Equal(t, ProductCWSDD, storedFile.Metadata.Product)
 	assert.EqualValues(t, len(data), storedFile.Metadata.RawLength)
 
-	storedFileAPM, ok := ta.repository.APMConfigs()[pathAPM]
+	storedFileAPM, ok := r.APMConfigs()[pathAPM]
 	assert.True(t, ok)
 	assert.Equal(t, fileAPM, storedFileAPM.Config)
 	assert.EqualValues(t, 3, storedFileAPM.Metadata.Version)
 	assert.Equal(t, "testAPM", storedFileAPM.Metadata.ID)
 	assertHashesEqual(t, hashesAPM, storedFileAPM.Metadata.Hashes)
 	assert.Equal(t, ProductAPMSampling, storedFileAPM.Metadata.Product)
-	assert.EqualValues(t, len(dataAPM), storedFileAPM.Metadata.RawLength)
+	assert.EqualValues(t, len(fileAPM), storedFileAPM.Metadata.RawLength)
 
-	state, err := ta.repository.CurrentState()
+	// Do the same for the unverified repository, it should be functionally identical
+	r = ta.unverifiedRepository
+	updatedProducts, err = r.Update(update)
 	assert.Nil(t, err)
-	assert.Equal(t, 2, len(state.Configs))
-	assert.Equal(t, 2, len(state.CachedFiles))
-	assert.EqualValues(t, 1, state.TargetsVersion)
-	assert.EqualValues(t, 1, state.RootsVersion)
-	assert.Equal(t, testOpaqueBackendStateContents, state.OpaqueBackendState)
+	assert.Equal(t, 2, len(updatedProducts))
+	assert.Contains(t, updatedProducts, ProductCWSDD)
+	assert.Contains(t, updatedProducts, ProductAPMSampling)
+
+	assert.Equal(t, 1, len(r.APMConfigs()))
+	assert.Equal(t, 1, len(r.CWSDDConfigs()))
+
+	storedFile, ok = r.CWSDDConfigs()[path]
+	assert.True(t, ok)
+	assert.Equal(t, file, storedFile.Config)
+	assert.EqualValues(t, 1, storedFile.Metadata.Version)
+	assert.Equal(t, "test", storedFile.Metadata.ID)
+	assertHashesEqual(t, hashes, storedFile.Metadata.Hashes)
+	assert.Equal(t, ProductCWSDD, storedFile.Metadata.Product)
+	assert.EqualValues(t, len(data), storedFile.Metadata.RawLength)
+
+	storedFileAPM, ok = r.APMConfigs()[pathAPM]
+	assert.True(t, ok)
+	assert.Equal(t, fileAPM, storedFileAPM.Config)
+	assert.EqualValues(t, 3, storedFileAPM.Metadata.Version)
+	assert.Equal(t, "testAPM", storedFileAPM.Metadata.ID)
+	assertHashesEqual(t, hashesAPM, storedFileAPM.Metadata.Hashes)
+	assert.Equal(t, ProductAPMSampling, storedFileAPM.Metadata.Product)
+	assert.EqualValues(t, len(fileAPM), storedFileAPM.Metadata.RawLength)
+
+	// Check the config state and the cached files of both repositories //
 
 	expectedConfigStateCWSDD := ConfigState{
 		Product: ProductCWSDD,
@@ -420,9 +712,6 @@ func TestUpdateWithTwoProducts(t *testing.T) {
 		ID:      "testAPM",
 		Version: 3,
 	}
-	assert.Contains(t, state.Configs, expectedConfigStateCWSDD)
-	assert.Contains(t, state.Configs, expectedConfigStateAPM)
-
 	expectedCachedFileCWSDD := CachedFile{
 		Path:   path,
 		Length: uint64(len(data)),
@@ -430,16 +719,57 @@ func TestUpdateWithTwoProducts(t *testing.T) {
 	}
 	expectedCachedFileAPMSampling := CachedFile{
 		Path:   pathAPM,
-		Length: uint64(len(dataAPM)),
+		Length: uint64(len(fileAPM)),
 		Hashes: convertGoTufHashes(hashesAPM),
 	}
+
+	r = ta.repository
+	state, err := r.CurrentState()
+	assert.Nil(t, err)
+	assert.Equal(t, 2, len(state.Configs))
+	assert.Equal(t, 2, len(state.CachedFiles))
+	assert.EqualValues(t, 1, state.TargetsVersion)
+	assert.EqualValues(t, 1, state.RootsVersion)
+	assert.Equal(t, testOpaqueBackendStateContents, state.OpaqueBackendState)
+	assert.Contains(t, state.Configs, expectedConfigStateCWSDD)
+	assert.Contains(t, state.Configs, expectedConfigStateAPM)
 	assert.Contains(t, state.CachedFiles, expectedCachedFileCWSDD)
 	assert.Contains(t, state.CachedFiles, expectedCachedFileAPMSampling)
+
+	r = ta.unverifiedRepository
+	state, err = r.CurrentState()
+	assert.Nil(t, err)
+	assert.Equal(t, 2, len(state.Configs))
+	assert.Equal(t, 2, len(state.CachedFiles))
+	assert.EqualValues(t, 1, state.TargetsVersion)
+	assert.EqualValues(t, 1, state.RootsVersion)
+	assert.Equal(t, testOpaqueBackendStateContents, state.OpaqueBackendState)
+	assert.Contains(t, state.Configs, expectedConfigStateCWSDD)
+	assert.Contains(t, state.Configs, expectedConfigStateAPM)
+	assert.Contains(t, state.CachedFiles, expectedCachedFileCWSDD)
+	assert.Contains(t, state.CachedFiles, expectedCachedFileAPMSampling)
+}
+
+func createRawTestData(targetFileBase string, targetsPayload string) []byte {
+	payload := base64.StdEncoding.EncodeToString([]byte(targetsPayload))
+	targets := make(map[string]interface{})
+	if err := json.Unmarshal([]byte(targetFileBase), &targets); err != nil {
+		panic(err)
+	}
+
+	targets["targets"] = payload
+	marshalled, err := cjson.EncodeCanonical(targets)
+	if err != nil {
+		panic(err)
+	}
+	return marshalled
 }
 
 // These tests involve generated JSON responses that the remote config service would send. They
 // were primarily created to assist tracer teams with unit tests around TUF integrity checks,
 // but they apply to agent clients as well, so we include them here as an extra layer of protection.
+//
+// These should only be done against the verified version of the repository.
 func TestPreGeneratedIntegrityChecks(t *testing.T) {
 	testRoot := []byte(`{"signed":{"_type":"root","spec_version":"1.0","version":1,"expires":"2032-05-29T12:49:41.030418-04:00","keys":{"ed7672c9a24abda78872ee32ee71c7cb1d5235e8db4ecbf1ca28b9c50eb75d9e":{"keytype":"ed25519","scheme":"ed25519","keyid_hash_algorithms":["sha256","sha512"],"keyval":{"public":"7d3102e39abe71044d207550bda239c71380d013ec5a115f79f51622630054e6"}}},"roles":{"root":{"keyids":["ed7672c9a24abda78872ee32ee71c7cb1d5235e8db4ecbf1ca28b9c50eb75d9e"],"threshold":1},"snapshot":{"keyids":["ed7672c9a24abda78872ee32ee71c7cb1d5235e8db4ecbf1ca28b9c50eb75d9e"],"threshold":1},"targets":{"keyids":["ed7672c9a24abda78872ee32ee71c7cb1d5235e8db4ecbf1ca28b9c50eb75d9e"],"threshold":1},"timestsmp":{"keyids":["ed7672c9a24abda78872ee32ee71c7cb1d5235e8db4ecbf1ca28b9c50eb75d9e"],"threshold":1}},"consistent_snapshot":true},"signatures":[{"keyid":"ed7672c9a24abda78872ee32ee71c7cb1d5235e8db4ecbf1ca28b9c50eb75d9e","sig":"d7e24828d1d3104e48911860a13dd6ad3f4f96d45a9ea28c4a0f04dbd3ca6c205ed406523c6c4cacfb7ebba68f7e122e42746d1c1a83ffa89c8bccb6f7af5e06"}]}`)
 
@@ -459,12 +789,34 @@ func TestPreGeneratedIntegrityChecks(t *testing.T) {
 	}
 
 	tests := []testData{
-		{description: "valid", isError: false, rawUpdate: []byte(`{"targets":"eyJzaWduZWQiOnsiX3R5cGUiOiJ0YXJnZXRzIiwic3BlY192ZXJzaW9uIjoiMS4wIiwidmVyc2lvbiI6MSwiZXhwaXJlcyI6IjIwMjItMTAtMjdUMTY6NTM6NTdaIiwidGFyZ2V0cyI6eyJkYXRhZG9nLzIvRkVBVFVSRVMvRkVBVFVSRVMtYmFzZS9jb25maWciOnsibGVuZ3RoIjo0NywiaGFzaGVzIjp7InNoYTI1NiI6IjkyMjFkZmQ5ZjYwODQxNTEzMTNlM2U0OTIwMTIxYWU4NDM2MTRjMzI4ZTQ2MzBlYTM3MWJhNjZlMmYxNWEwYTYifSwiY3VzdG9tIjp7InYiOjF9fX0sImN1c3RvbSI6eyJvcGFxdWVfYmFja2VuZF9zdGF0ZSI6ImV5Sm1iMjhpT2lBaVltRnlJbjA9In19LCJzaWduYXR1cmVzIjpbeyJrZXlpZCI6ImVkNzY3MmM5YTI0YWJkYTc4ODcyZWUzMmVlNzFjN2NiMWQ1MjM1ZThkYjRlY2JmMWNhMjhiOWM1MGViNzVkOWUiLCJzaWciOiJkNzQ4YjYzOTg5NTNiOGIwOWY3OTczMGI2Yjk3OTZkNWM2N2YyMmI2N2NkMTc4MjJmNjI2Mjk4ZjU1MjQ5ZWM5NGJkOGE2MmNiMjIwYTI0YmRiYTJiY2RhZTNjYTBkNGQ4ZDhhOTFjY2Q2NTcxY2E2MTc1MDlkNDJiNTMyNjYwMyJ9XX0=","target_files":[{"path":"datadog/2/FEATURES/FEATURES-base/config","raw":"ewogICAgImFzbSI6IHsKICAgICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KfQo="}],"client_configs":["datadog/2/FEATURES/FEATURES-base/config"]}`)},
-		{description: "invalid tuf targets signature", isError: true, rawUpdate: []byte(`{"targets":"eyJzaWduZWQiOnsiX3R5cGUiOiJ0YXJnZXRzIiwic3BlY192ZXJzaW9uIjoiMS4wIiwidmVyc2lvbiI6OTk5LCJleHBpcmVzIjoiMjAyMi0xMC0yN1QxNjo1Mzo1N1oiLCJ0YXJnZXRzIjp7ImRhdGFkb2cvMi9GRUFUVVJFUy9GRUFUVVJFUy1iYXNlL2NvbmZpZyI6eyJsZW5ndGgiOjQ3LCJoYXNoZXMiOnsic2hhMjU2IjoiOTIyMWRmZDlmNjA4NDE1MTMxM2UzZTQ5MjAxMjFhZTg0MzYxNGMzMjhlNDYzMGVhMzcxYmE2NmUyZjE1YTBhNiJ9LCJjdXN0b20iOnsidiI6MX19fSwiY3VzdG9tIjp7Im9wYXF1ZV9iYWNrZW5kX3N0YXRlIjoiZXlKbWIyOGlPaUFpWW1GeUluMD0ifX0sInNpZ25hdHVyZXMiOlt7ImtleWlkIjoiZWQ3NjcyYzlhMjRhYmRhNzg4NzJlZTMyZWU3MWM3Y2IxZDUyMzVlOGRiNGVjYmYxY2EyOGI5YzUwZWI3NWQ5ZSIsInNpZyI6ImQ3NDhiNjM5ODk1M2I4YjA5Zjc5NzMwYjZiOTc5NmQ1YzY3ZjIyYjY3Y2QxNzgyMmY2MjYyOThmNTUyNDllYzk0YmQ4YTYyY2IyMjBhMjRiZGJhMmJjZGFlM2NhMGQ0ZDhkOGE5MWNjZDY1NzFjYTYxNzUwOWQ0MmI1MzI2NjAzIn1dfQ==","target_files":[{"path":"datadog/2/FEATURES/FEATURES-base/config","raw":"ewogICAgImFzbSI6IHsKICAgICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KfQo="}],"client_configs":["datadog/2/FEATURES/FEATURES-base/config"]}`)},
-		{description: "tuf targets signed with invalid key", isError: true, rawUpdate: []byte(`{"targets":"eyJzaWduZWQiOnsiX3R5cGUiOiJ0YXJnZXRzIiwic3BlY192ZXJzaW9uIjoiMS4wIiwidmVyc2lvbiI6MSwiZXhwaXJlcyI6IjIwMjItMTAtMjdUMTY6NTM6NTdaIiwidGFyZ2V0cyI6eyJkYXRhZG9nLzIvRkVBVFVSRVMvRkVBVFVSRVMtYmFzZS9jb25maWciOnsibGVuZ3RoIjo0NywiaGFzaGVzIjp7InNoYTI1NiI6IjkyMjFkZmQ5ZjYwODQxNTEzMTNlM2U0OTIwMTIxYWU4NDM2MTRjMzI4ZTQ2MzBlYTM3MWJhNjZlMmYxNWEwYTYifSwiY3VzdG9tIjp7InYiOjF9fX0sImN1c3RvbSI6eyJvcGFxdWVfYmFja2VuZF9zdGF0ZSI6ImV5Sm1iMjhpT2lBaVltRnlJbjA9In19LCJzaWduYXR1cmVzIjpbeyJrZXlpZCI6IjE0NGQ4YTc3ZDUyOWVjYzNhYWE1ODgyZmU2YjEyYzI4ZjZkZmViZTliNjI4MWYyN2VkYjA5YmVhMDFhNmJiYWEiLCJzaWciOiIzMWNmZjIyNTJmNDFkZGZmZDBjYzBlYzhmNTY3NjdmZTRkODY2NjFjYjRkZGY5N2E3MjNkMDhlMjk0MjBmMzlmMzMyZTVjYjJiNDZhZTRjZjRmZjQwMjI1NTE1NjZhYTY4NzRlNTY4YmIwODg5M2JiMWIxMzUyMWMyMzdmZDAwZSJ9XX0=","target_files":[{"path":"datadog/2/FEATURES/FEATURES-base/config","raw":"ewogICAgImFzbSI6IHsKICAgICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KfQo="}],"client_configs":["datadog/2/FEATURES/FEATURES-base/config"]}`)},
-		{description: "missing target file in tuf targets", isError: true, rawUpdate: []byte(`{"targets":"eyJzaWduZWQiOnsiX3R5cGUiOiJ0YXJnZXRzIiwic3BlY192ZXJzaW9uIjoiMS4wIiwidmVyc2lvbiI6MSwiZXhwaXJlcyI6IjIwMjItMTAtMjdUMTY6NTM6NTdaIiwidGFyZ2V0cyI6e30sImN1c3RvbSI6eyJvcGFxdWVfYmFja2VuZF9zdGF0ZSI6ImV5Sm1iMjhpT2lBaVltRnlJbjA9In19LCJzaWduYXR1cmVzIjpbeyJrZXlpZCI6ImVkNzY3MmM5YTI0YWJkYTc4ODcyZWUzMmVlNzFjN2NiMWQ1MjM1ZThkYjRlY2JmMWNhMjhiOWM1MGViNzVkOWUiLCJzaWciOiI5MDE5MWIzNDcyYjBlMzRiMjVjZmY5ZjRiYTAwNDc5ZjAxZmNhYzU5MmMwNjBlZmNhZGY1NTc1YzFhYTNkNDU0NGJkNGM2Y2UxNTZlYzMyNTg4Y2UxY2E1MTk1MmUwODhkNTQ2NTVlOTI2MDgzYzRmY2ZjNTlmMTMyOGIyNzIwYiJ9XX0=","target_files":[{"path":"datadog/2/FEATURES/FEATURES-base/config","raw":"ewogICAgImFzbSI6IHsKICAgICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KfQo="}],"client_configs":["datadog/2/FEATURES/FEATURES-base/config"]}`)},
-		{description: "target file hash incorrect in tuf targets", isError: true, rawUpdate: []byte(`{"targets":"eyJzaWduZWQiOnsiX3R5cGUiOiJ0YXJnZXRzIiwic3BlY192ZXJzaW9uIjoiMS4wIiwidmVyc2lvbiI6MSwiZXhwaXJlcyI6IjIwMjItMTAtMjdUMTY6NTM6NTdaIiwidGFyZ2V0cyI6eyJkYXRhZG9nLzIvRkVBVFVSRVMvRkVBVFVSRVMtYmFzZS9jb25maWciOnsibGVuZ3RoIjo0NywiaGFzaGVzIjp7InNoYTI1NiI6IjY2NjE2YjY1Njg2MTczNjgifSwiY3VzdG9tIjp7InYiOjF9fX0sImN1c3RvbSI6eyJvcGFxdWVfYmFja2VuZF9zdGF0ZSI6ImV5Sm1iMjhpT2lBaVltRnlJbjA9In19LCJzaWduYXR1cmVzIjpbeyJrZXlpZCI6ImVkNzY3MmM5YTI0YWJkYTc4ODcyZWUzMmVlNzFjN2NiMWQ1MjM1ZThkYjRlY2JmMWNhMjhiOWM1MGViNzVkOWUiLCJzaWciOiI5ZjM4NTY5YTgwNjAxZTMzMTdmZDc4ZjJhNTY0MzM1Yzg2YjVhOWJkNzQyNDgxNzhmYmJkMmU4YTRlYmM4OTM0M2Y2YTVjMTMxN2NiZjg0NDE1ZGQ2ZjBiNTkxN2YyMThmZjllOWQ0ZTk5NTZiMmQ3NjAzMDkwNDQzMjVkODgwNCJ9XX0=","target_files":[{"path":"datadog/2/FEATURES/FEATURES-base/config","raw":"ewogICAgImFzbSI6IHsKICAgICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KfQo="}],"client_configs":["datadog/2/FEATURES/FEATURES-base/config"]}`)},
-		{description: "target file length incorrect in tuf targets", isError: true, rawUpdate: []byte(`{"targets":"eyJzaWduZWQiOnsiX3R5cGUiOiJ0YXJnZXRzIiwic3BlY192ZXJzaW9uIjoiMS4wIiwidmVyc2lvbiI6MSwiZXhwaXJlcyI6IjIwMjItMTAtMjdUMTY6NTM6NTdaIiwidGFyZ2V0cyI6eyJkYXRhZG9nLzIvRkVBVFVSRVMvRkVBVFVSRVMtYmFzZS9jb25maWciOnsibGVuZ3RoIjo5OTksImhhc2hlcyI6eyJzaGEyNTYiOiI2NjYxNmI2NTY4NjE3MzY4In0sImN1c3RvbSI6eyJ2IjoxfX19LCJjdXN0b20iOnsib3BhcXVlX2JhY2tlbmRfc3RhdGUiOiJleUptYjI4aU9pQWlZbUZ5SW4wPSJ9fSwic2lnbmF0dXJlcyI6W3sia2V5aWQiOiJlZDc2NzJjOWEyNGFiZGE3ODg3MmVlMzJlZTcxYzdjYjFkNTIzNWU4ZGI0ZWNiZjFjYTI4YjljNTBlYjc1ZDllIiwic2lnIjoiMjRmMTA2MTA3Y2ViMWIyZGVlYjdmMTJjMGVlY2JhZjk4N2RhZDUzZTZhMDlmMjA4YWNlYTM5Y2VhZDljMDE1M2UzYzkyOTM5YjY5OWE4MTBiZjVmMzEwMTE2ZTgzNDUzNTU1ZTUxY2I0ODJiZTk0YmQ0NjBiNzc5ZGVhZDgwMDIifV19","target_files":[{"path":"datadog/2/FEATURES/FEATURES-base/config","raw":"ewogICAgImFzbSI6IHsKICAgICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KfQo="}],"client_configs":["datadog/2/FEATURES/FEATURES-base/config"]}`)},
+
+		{description: "valid", isError: false, rawUpdate: createRawTestData(
+			`{"target_files":[{"path":"datadog/2/ASM_FEATURES/ASM_FEATURES-base/config","raw":"ewogICAgImFzbSI6IHsKICAgICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KfQo="}],"client_configs":["datadog/2/ASM_FEATURES/ASM_FEATURES-base/config"]}`,
+			`{"signed":{"_type":"targets","custom":{"opaque_backend_state":"eyJmb28iOiAiYmFyIn0="},"expires":"2032-10-24T15:10:45.097315-04:00","spec_version":"1.0","targets":{"datadog/2/ASM_FEATURES/ASM_FEATURES-base/config":{"custom":{"v":1},"hashes":{"sha256":"9221dfd9f6084151313e3e4920121ae843614c328e4630ea371ba66e2f15a0a6"},"length":47}},"version":1},"signatures":[{"keyid":"ed7672c9a24abda78872ee32ee71c7cb1d5235e8db4ecbf1ca28b9c50eb75d9e","sig":"8cf4603262262fb06146868ccf46092e120a82ce5c45fbfd8dd52aae807fe3d0450cac8459c32cd2848951a0482341b04818e4bc062d0614f05621db950b3c0b"}]}`),
+		},
+
+		{description: "invalid tuf targets signature", isError: true, rawUpdate: createRawTestData(
+			`{"target_files":[{"path":"datadog/2/ASM_FEATURES/ASM_FEATURES-base/config","raw":"ewogICAgImFzbSI6IHsKICAgICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KfQo="}],"client_configs":["datadog/2/ASM_FEATURES/ASM_FEATURES-base/config"]}`,
+			`{"signed":{"_type":"targets","spec_version":"1.0","version":999,"expires":"2032-10-24T15:10:45.097315-04:00","targets":{"datadog/2/ASM_FEATURES/ASM_FEATURES-base/config":{"length":47,"hashes":{"sha256":"9221dfd9f6084151313e3e4920121ae843614c328e4630ea371ba66e2f15a0a6"},"custom":{"v":1}}},"custom":{"opaque_backend_state":"eyJmb28iOiAiYmFyIn0="}},"signatures":[{"keyid":"ed7672c9a24abda78872ee32ee71c7cb1d5235e8db4ecbf1ca28b9c50eb75d9e","sig":"8cf4603262262fb06146868ccf46092e120a82ce5c45fbfd8dd52aae807fe3d0450cac8459c32cd2848951a0482341b04818e4bc062d0614f05621db950b3c0b"}]}`),
+		},
+
+		{description: "tuf targets signed with invalid key", isError: true, rawUpdate: createRawTestData(
+			`{"target_files":[{"path":"datadog/2/ASM_FEATURES/ASM_FEATURES-base/config","raw":"ewogICAgImFzbSI6IHsKICAgICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KfQo="}],"client_configs":["datadog/2/ASM_FEATURES/ASM_FEATURES-base/config"]}`,
+			`{"signed":{"_type":"targets","custom":{"opaque_backend_state":"eyJmb28iOiAiYmFyIn0="},"expires":"2032-10-24T15:10:45.097315-04:00","spec_version":"1.0","targets":{},"version":1},"signatures":[{"keyid":"ed7672c9a24abda78872ee32ee71c7cb1d5235e8db4ecbf1ca28b9c50eb75d9e","sig":"ef3cfcf821f6c191232f2b0af5931a15ac91d363c781d1195feaf11f1b50a2343c708e2c9bfe64d56415240c12a9afcbd2f556d3a9f479e94efc4516d5934907"}]}`),
+		},
+
+		{description: "missing target file in tuf targets", isError: true, rawUpdate: createRawTestData(
+			`{"target_files":[{"path":"datadog/2/ASM_FEATURES/ASM_FEATURES-base/config","raw":"ewogICAgImFzbSI6IHsKICAgICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KfQo="}],"client_configs":["datadog/2/ASM_FEATURES/ASM_FEATURES-base/config"]}`,
+			`{"signed":{"_type":"targets","custom":{"opaque_backend_state":"eyJmb28iOiAiYmFyIn0="},"expires":"2032-10-24T15:10:45.097315-04:00","spec_version":"1.0","targets":{},"version":1},"signatures":[{"keyid":"ed7672c9a24abda78872ee32ee71c7cb1d5235e8db4ecbf1ca28b9c50eb75d9e","sig":"ef3cfcf821f6c191232f2b0af5931a15ac91d363c781d1195feaf11f1b50a2343c708e2c9bfe64d56415240c12a9afcbd2f556d3a9f479e94efc4516d5934907"}]}`,
+		)},
+		{description: "target file hash incorrect in tuf targets", isError: true, rawUpdate: createRawTestData(
+			`{"target_files":[{"path":"datadog/2/ASM_FEATURES/ASM_FEATURES-base/config","raw":"ewogICAgImFzbSI6IHsKICAgICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KfQo="}],"client_configs":["datadog/2/ASM_FEATURES/ASM_FEATURES-base/config"]}`,
+			`{"signed":{"_type":"targets","custom":{"opaque_backend_state":"eyJmb28iOiAiYmFyIn0="},"expires":"2032-10-24T15:10:45.097315-04:00","spec_version":"1.0","targets":{"datadog/2/ASM_FEATURES/ASM_FEATURES-base/config":{"custom":{"v":1},"hashes":{"sha256":"66616b6568617368"},"length":47}},"version":1},"signatures":[{"keyid":"ed7672c9a24abda78872ee32ee71c7cb1d5235e8db4ecbf1ca28b9c50eb75d9e","sig":"a323d0f5535b3a309273b5a3df70f36bfa3e0e74acf98307148dc41f6cc02982654b48c7264e64ab2649acde732f5808ec74f37feba6410310b0a5d40dc5250c"}]}`,
+		)},
+		{description: "target file length incorrect in tuf targets", isError: true, rawUpdate: createRawTestData(
+			`{"target_files":[{"path":"datadog/2/ASM_FEATURES/ASM_FEATURES-base/config","raw":"ewogICAgImFzbSI6IHsKICAgICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KfQo="}],"client_configs":["datadog/2/ASM_FEATURES/ASM_FEATURES-base/config"]}`,
+			`{"signed":{"_type":"targets","custom":{"opaque_backend_state":"eyJmb28iOiAiYmFyIn0="},"expires":"2032-10-24T15:10:45.097315-04:00","spec_version":"1.0","targets":{"datadog/2/ASM_FEATURES/ASM_FEATURES-base/config":{"custom":{"v":1},"hashes":{"sha256":"66616b6568617368"},"length":999}},"version":1},"signatures":[{"keyid":"ed7672c9a24abda78872ee32ee71c7cb1d5235e8db4ecbf1ca28b9c50eb75d9e","sig":"664dd2dfc841717a66101cddff1123f142bed3200790724a3b16eb016ef7944a139f61ce9a3833a525b823ae093f9bb986aae84d23feb1d855644d265b349d0e"}]}`,
+		)},
 	}
 
 	for _, test := range tests {

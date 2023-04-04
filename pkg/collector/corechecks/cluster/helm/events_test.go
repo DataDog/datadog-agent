@@ -37,7 +37,7 @@ func TestAddEventForNewRelease(t *testing.T) {
 		Namespace: "default",
 	}
 
-	events.addEventForNewRelease(&rel, k8sSecrets)
+	events.addEventForNewRelease(&rel, testTags())
 
 	// Test new release with revision 1.
 	storedEvent := events.events[0]
@@ -52,14 +52,15 @@ func TestAddEventForNewRelease(t *testing.T) {
 			SourceTypeName: "helm",
 			EventType:      "helm",
 			AggregationKey: "helm_release:default/my_datadog",
-			Tags:           tagsForMetricsAndEvents(&rel, k8sSecrets, true),
+			Tags:           testTags(),
+			AlertType:      coreMetrics.EventAlertTypeInfo,
 		},
 		storedEvent,
 	)
 
 	// Test release with upgraded revision (Notice that the text of the events is different).
 	rel.Version = 2
-	events.addEventForNewRelease(&rel, k8sSecrets)
+	events.addEventForNewRelease(&rel, testTags())
 	storedEvent = events.events[1]
 	storedEvent.Ts = 0 // Can't control it, so don't check.
 	assert.Equal(
@@ -72,7 +73,8 @@ func TestAddEventForNewRelease(t *testing.T) {
 			SourceTypeName: "helm",
 			EventType:      "helm",
 			AggregationKey: "helm_release:default/my_datadog",
-			Tags:           tagsForMetricsAndEvents(&rel, k8sSecrets, true),
+			Tags:           testTags(),
+			AlertType:      coreMetrics.EventAlertTypeInfo,
 		},
 		storedEvent,
 	)
@@ -97,7 +99,7 @@ func TestAddEventForDeletedRelease(t *testing.T) {
 		Namespace: "default",
 	}
 
-	events.addEventForDeletedRelease(&rel, k8sSecrets)
+	events.addEventForDeletedRelease(&rel, testTags())
 
 	storedEvent := events.events[0]
 	storedEvent.Ts = 0 // Can't control it, so don't check.
@@ -111,7 +113,8 @@ func TestAddEventForDeletedRelease(t *testing.T) {
 			SourceTypeName: "helm",
 			EventType:      "helm",
 			AggregationKey: "helm_release:default/my_datadog",
-			Tags:           tagsForMetricsAndEvents(&rel, k8sSecrets, false),
+			Tags:           testTags(),
+			AlertType:      coreMetrics.EventAlertTypeInfo,
 		},
 		storedEvent,
 	)
@@ -150,6 +153,22 @@ func TestAddEventForUpdatedRelease(t *testing.T) {
 		Namespace: "default",
 	}
 
+	exampleReleaseWithNonFailedStatus := release{
+		Name: "my_datadog",
+		Info: &info{
+			Status: "uninstalling",
+		},
+		Chart: &chart{
+			Metadata: &metadata{
+				Name:       "datadog",
+				Version:    "2.30.5",
+				AppVersion: "7",
+			},
+		},
+		Version:   1,
+		Namespace: "default",
+	}
+
 	releaseWithoutInfo := release{
 		Name: "my_datadog",
 		Info: nil,
@@ -171,7 +190,7 @@ func TestAddEventForUpdatedRelease(t *testing.T) {
 		expectedEvent  *coreMetrics.Event
 	}{
 		{
-			name:           "The status changed",
+			name:           "The status changed to \"failed\"",
 			oldRelease:     &exampleRelease,
 			updatedRelease: &exampleReleaseWithFailedStatus,
 			expectedEvent: &coreMetrics.Event{
@@ -182,7 +201,24 @@ func TestAddEventForUpdatedRelease(t *testing.T) {
 				SourceTypeName: "helm",
 				EventType:      "helm",
 				AggregationKey: "helm_release:default/my_datadog",
-				Tags:           tagsForMetricsAndEvents(&exampleReleaseWithFailedStatus, k8sSecrets, true),
+				Tags:           testTags(),
+				AlertType:      coreMetrics.EventAlertTypeError, // Because the new status is "failed"
+			},
+		},
+		{
+			name:           "The status changed and it is not \"failed\"",
+			oldRelease:     &exampleRelease,
+			updatedRelease: &exampleReleaseWithNonFailedStatus,
+			expectedEvent: &coreMetrics.Event{
+				Title:          "Event on Helm release",
+				Text:           "Helm release \"my_datadog\" (revision 1) in \"default\" namespace changed its status from \"deployed\" to \"uninstalling\".",
+				Ts:             0,
+				Priority:       coreMetrics.EventPriorityNormal,
+				SourceTypeName: "helm",
+				EventType:      "helm",
+				AggregationKey: "helm_release:default/my_datadog",
+				Tags:           testTags(),
+				AlertType:      coreMetrics.EventAlertTypeInfo, // Because the new status is not "failed"
 			},
 		},
 		{
@@ -209,7 +245,7 @@ func TestAddEventForUpdatedRelease(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			events := eventsManager{}
 
-			events.addEventForUpdatedRelease(test.oldRelease, test.updatedRelease, k8sSecrets)
+			events.addEventForUpdatedRelease(test.oldRelease, test.updatedRelease, testTags())
 
 			if test.expectedEvent == nil {
 				assert.Empty(t, events.events)
@@ -241,7 +277,7 @@ func TestSendEvents(t *testing.T) {
 		Namespace: "default",
 	}
 
-	events.addEventForNewRelease(&rel, k8sSecrets)
+	events.addEventForNewRelease(&rel, testTags())
 
 	sender := mocksender.NewMockSender("1")
 	sender.SetupAcceptAll()
@@ -257,8 +293,13 @@ func TestSendEvents(t *testing.T) {
 			SourceTypeName: "helm",
 			EventType:      "helm",
 			AggregationKey: "helm_release:default/my_datadog",
-			Tags:           tagsForMetricsAndEvents(&rel, k8sSecrets, true),
+			Tags:           testTags(),
+			AlertType:      coreMetrics.EventAlertTypeInfo,
 		},
 		10*time.Second,
 	)
+}
+
+func testTags() []string {
+	return []string{"helm_release:my_datadog"}
 }

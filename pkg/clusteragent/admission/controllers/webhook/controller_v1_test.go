@@ -28,9 +28,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 )
 
-var (
-	v1Cfg = NewConfig(true, false)
-)
+var v1Cfg = NewConfig(true, false)
 
 func TestSecretNotFoundV1(t *testing.T) {
 	f := newFixtureV1(t)
@@ -41,9 +39,10 @@ func TestSecretNotFoundV1(t *testing.T) {
 		t.Fatal("Webhook shouldn't be created")
 	}
 
-	if c.queue.Len() != 0 {
-		t.Fatal("Work queue isn't empty")
-	}
+	// The queue might not be closed yet because it's done asynchronously
+	assert.Eventually(t, func() bool {
+		return c.queue.Len() == 0
+	}, 1*time.Second, 5*time.Millisecond, "Work queue isn't empty")
 }
 
 func TestCreateWebhookV1(t *testing.T) {
@@ -122,7 +121,7 @@ func TestUpdateOutdatedWebhookV1(t *testing.T) {
 
 func TestAdmissionControllerFailureModeIgnore(t *testing.T) {
 	f := newFixtureV1(t)
-	c := f.run(t)
+	c, _ := f.createController()
 	c.config = NewConfig(true, false)
 
 	holdValue := config.Datadog.Get("admission_controller.failure_policy")
@@ -158,7 +157,7 @@ func TestAdmissionControllerFailureModeFail(t *testing.T) {
 	defer config.Datadog.Set("admission_controller.failure_policy", holdValue)
 
 	f := newFixtureV1(t)
-	c := f.run(t)
+	c, _ := f.createController()
 
 	config.Datadog.Set("admission_controller.failure_policy", "Fail")
 	c.config = NewConfig(true, false)
@@ -610,19 +609,24 @@ func newFixtureV1(t *testing.T) *fixtureV1 {
 	return f
 }
 
-func (f *fixtureV1) run(t *testing.T) *ControllerV1 {
-	stopCh := make(chan struct{})
-	defer close(stopCh)
-
+func (f *fixtureV1) createController() (*ControllerV1, informers.SharedInformerFactory) {
 	factory := informers.NewSharedInformerFactory(f.client, time.Duration(0))
-	c := NewControllerV1(
+
+	return NewControllerV1(
 		f.client,
 		factory.Core().V1().Secrets(),
 		factory.Admissionregistration().V1().MutatingWebhookConfigurations(),
 		func() bool { return true },
 		make(chan struct{}),
 		v1Cfg,
-	)
+	), factory
+}
+
+func (f *fixtureV1) run(t *testing.T) *ControllerV1 {
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+
+	c, factory := f.createController()
 
 	factory.Start(stopCh)
 	go c.Run(stopCh)
@@ -654,7 +658,7 @@ func validateV1(w *admiv1.MutatingWebhookConfiguration, s *corev1.Secret) error 
 
 func TestAdmissionControllerReinvocationPolicyV1(t *testing.T) {
 	f := newFixtureV1(t)
-	c := f.run(t)
+	c, _ := f.createController()
 	c.config = NewConfig(true, false)
 
 	defaultValue := config.Datadog.Get("admission_controller.reinvocation_policy")

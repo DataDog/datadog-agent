@@ -21,8 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -75,12 +73,7 @@ func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
 
 // NewAutoConfigNoStart creates an AutoConfig instance.
 func NewAutoConfigNoStart(scheduler *scheduler.MetaScheduler) *AutoConfig {
-	var cfgMgr configManager
-	if util.CcaInAD() {
-		cfgMgr = newReconcilingConfigManager()
-	} else {
-		cfgMgr = newSimpleConfigManager()
-	}
+	cfgMgr := newReconcilingConfigManager()
 	ac := &AutoConfig{
 		configPollers:      make([]*configPoller, 0, 9),
 		listenerCandidates: make(map[string]*listenerCandidate),
@@ -181,6 +174,10 @@ func (ac *AutoConfig) Stop() {
 // Agent lifetime.
 // If the config provider is polled, the routine is scheduled right away
 func (ac *AutoConfig) AddConfigProvider(provider providers.ConfigProvider, shouldPoll bool, pollInterval time.Duration) {
+	if shouldPoll && pollInterval <= 0 {
+		log.Warnf("Polling interval <= 0 for AD provider: %s, deactivating polling", provider.String())
+		shouldPoll = false
+	}
 	cp := newConfigPoller(provider, shouldPoll, pollInterval)
 
 	ac.m.Lock()
@@ -419,18 +416,6 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Servi
 	}
 
 	changes := ac.cfgMgr.processNewService(ADIdentifiers, svc)
-
-	if !util.CcaInAD() {
-		// schedule a "service config" for logs-agent's benefit
-		changes.ScheduleConfig(integration.Config{
-			LogsConfig:      integration.Data{},
-			ServiceID:       svc.GetServiceID(),
-			TaggerEntity:    svc.GetTaggerEntity(),
-			MetricsExcluded: svc.HasFilter(containers.MetricsFilter),
-			LogsExcluded:    svc.HasFilter(containers.LogsFilter),
-		})
-	}
-
 	ac.applyChanges(changes)
 }
 
@@ -439,18 +424,6 @@ func (ac *AutoConfig) processDelService(ctx context.Context, svc listeners.Servi
 	ac.store.removeServiceForEntity(svc.GetServiceID())
 	changes := ac.cfgMgr.processDelService(ctx, svc)
 	ac.store.removeTagsHashForService(svc.GetTaggerEntity())
-
-	if !util.CcaInAD() {
-		// unschedule the "service config"
-		changes.UnscheduleConfig(integration.Config{
-			LogsConfig:      integration.Data{},
-			ServiceID:       svc.GetServiceID(),
-			TaggerEntity:    svc.GetTaggerEntity(),
-			MetricsExcluded: svc.HasFilter(containers.MetricsFilter),
-			LogsExcluded:    svc.HasFilter(containers.LogsFilter),
-		})
-	}
-
 	ac.applyChanges(changes)
 }
 

@@ -1,14 +1,15 @@
 ---
 include:
+  - /.gitlab/shared.yml
   - /.gitlab/maintenance_jobs.yml
   - /.gitlab/deps_build.yml
+  - /.gitlab/package_deps_build.yml
   - /.gitlab/deps_fetch.yml
   - /.gitlab/source_test.yml
   - /.gitlab/source_test_junit_upload.yml
   - /.gitlab/binary_build.yml
   - /.gitlab/integration_test.yml
   - /.gitlab/package_build.yml
-  - /.gitlab/internal_deploy.yml
   - /.gitlab/kitchen_deploy.yml
   - /.gitlab/kitchen_testing.yml
   - /.gitlab/pkg_metrics.yml
@@ -21,13 +22,15 @@ include:
   - /.gitlab/deploy_dca.yml
   - /.gitlab/choco_build.yml
   - /.gitlab/choco_deploy.yml
-  - /.gitlab/deploy_invalidate.yml
   - /.gitlab/internal_image_deploy.yml
   - /.gitlab/trigger_release.yml
   - /.gitlab/e2e.yml
+  - /.gitlab/fakeintake.yml
   - /.gitlab/kitchen_cleanup.yml
   - /.gitlab/functional_test.yml
   - /.gitlab/functional_test_cleanup.yml
+  - /.gitlab/functional_test_junit_upload.yml
+  - /.gitlab/internal_kubernetes_deploy.yml
   - /.gitlab/notify.yml
   # FIXME: our current Gitlab version doesn't support importing a file more than once
   # For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
@@ -35,6 +38,7 @@ include:
   - /.gitlab/kitchen_common/cleanup.yml
   - /.gitlab/kitchen_common/testing.yml
   - /.gitlab/docker_common/publish_job_templates.yml
+  - /.gitlab/benchmarks/benchmarks.yml
 
 default:
   retry:
@@ -45,10 +49,6 @@ default:
       - unknown_failure
       - api_failure
 
-workflow:
-  rules:
-    - if: $CI_COMMIT_TAG == null || $DEPLOY_AGENT == "true"
-
 stages:
   - maintenance_jobs
   - deps_build
@@ -56,9 +56,11 @@ stages:
   - source_test
   - source_test_junit_upload
   - binary_build
+  - package_deps_build
+  - kernel_matrix_testing
   - integration_test
+  - benchmarks
   - package_build
-  - internal_deploy
   - kitchen_deploy
   - kitchen_testing
   - pkg_metrics
@@ -71,21 +73,19 @@ stages:
   - deploy_dca
   - choco_build
   - choco_deploy
-  - deploy_invalidate
   - internal_image_deploy
   - trigger_release
   - e2e
   - kitchen_cleanup
   - functional_test
   - functional_test_cleanup
+  - functional_test_junit_upload
+  - internal_kubernetes_deploy
   - notify
 
 variables:
   #Do not change this - must be the repository name for Kubernetes runners to work
   KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: "datadog-agent"
-  # The SRC_PATH is in the GOPATH of the builders which
-  # currently is /go
-  SRC_PATH: /go/src/github.com/DataDog/datadog-agent
   # Directory in which we execute the omnibus build.
   # For an unknown reason, it does not go well with
   # a ruby dependency if we build directly into $CI_PROJECT_DIR/.omnibus
@@ -112,14 +112,12 @@ variables:
   MACOS_S3_BUCKET: dd-agent-macostesting
   WIN_S3_BUCKET: dd-agent-mstesting
   PROCESS_S3_BUCKET: datad0g-process-agent
-  ANDROID_S3_BUCKET: dd-agent-androidtesting
   BUCKET_BRANCH: nightly  # path inside the staging s3 buckets to release to: 'nightly', 'oldnightly', 'beta' or 'stable'
   DEB_TESTING_S3_BUCKET: apttesting.datad0g.com
   RPM_TESTING_S3_BUCKET: yumtesting.datad0g.com
   WINDOWS_TESTING_S3_BUCKET_A6: pipelines/A6/$CI_PIPELINE_ID
   WINDOWS_TESTING_S3_BUCKET_A7: pipelines/A7/$CI_PIPELINE_ID
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
-  ANDROID_BUILDS_S3_BUCKET: $ANDROID_S3_BUCKET/builds
   DEB_RPM_TESTING_BUCKET_BRANCH: testing  # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
   DD_REPO_BRANCH_NAME: $CI_COMMIT_REF_NAME
   S3_CP_OPTIONS: --only-show-errors --region us-east-1 --sse AES256
@@ -134,20 +132,31 @@ variables:
   USE_S3_CACHING: --omnibus-s3-cache
   ## comment out the line below to disable integration wheels cache
   INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
+  S3_DD_AGENT_OMNIBUS_LLVM_URI: s3://dd-agent-omnibus/llvm
+  S3_DD_AGENT_OMNIBUS_BTFS_URI: s3://dd-agent-omnibus/btfs
   GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
-  DATADOG_AGENT_BUILDIMAGES: v9051033-460a3e8
-  DATADOG_AGENT_BUILDERS: v8333476-cd1c34b
-  DATADOG_AGENT_WINBUILDIMAGES: v9051033-460a3e8
-  DATADOG_AGENT_ARMBUILDIMAGES: v9051033-460a3e8
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v8364396-f91ff4f
-  DATADOG_AGENT_NIKOS_BUILDIMAGES:  v8364396-f91ff4f
+
+  # Build images versions
+  # To use images from datadog-agent-buildimages dev branches, set the corresponding
+  # SUFFIX variable to _test_only
+  DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_BUILDIMAGES: v14189740-26a2d48
+  DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_WINBUILDIMAGES: v14002862-b2bcfc9
+  DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_ARMBUILDIMAGES: v14002862-b2bcfc9
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v14002862-b2bcfc9
+  DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v14002862-b2bcfc9
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v14002862-b2bcfc9
+  DATADOG_AGENT_BUILDERS: v9930706-ef9d493
+
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
-  DOCKER_X64_BUILDER: v2718644-9ce6565-18.09.6-py3
-  NIKOS_INSTALL_DIR: /opt/datadog-agent/embedded/nikos
-  NIKOS_EMBEDDED_PATH: /opt/datadog-agent/embedded/nikos/embedded
   DEB_GPG_KEY_ID: ad9589b7
   DEB_GPG_KEY_NAME: "Datadog, Inc. Master key"
   DEB_GPG_KEY_SSM_NAME: ci.datadog-agent.deb_signing_private_key_${DEB_GPG_KEY_ID}
@@ -161,6 +170,13 @@ variables:
   DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
   DOCKER_REGISTRY_URL: docker.io
   KITCHEN_INFRASTRUCTURE_FLAKES_RETRY: 2
+  ARTIFACTORY_USERNAME: datadog-agent
+  ARTIFACTORY_TOKEN_SSM_NAME: ci.datadog-agent.artifactory_token
+  ARTIFACTORY_BYPASS_SSM_NAME: ci.datadog-agent.artifactory_bypass
+  ARTIFACTORY_URL: datadog.jfrog.io
+  ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
+  ARTIFACTORY_PYPI_PATH: artifactory/api/pypi/agent-pypi/simple
+  CLANG_LLVM_VER: 12.0.1
 
 #
 # Condition mixins for simplification of rules
@@ -203,6 +219,11 @@ variables:
 
 .if_not_stable_repo_branch: &if_not_stable_repo_branch
   if: $BUCKET_BRANCH != "stable"
+
+# CI_PIPELINE_SOURCE can be set to "trigger" or "pipeline" depending on how the trigger was done.
+# See https://docs.gitlab.com/ee/ci/triggers/index.html#configure-cicd-jobs-to-run-in-triggered-pipelines.
+.if_triggered_pipeline: &if_triggered_pipeline
+  if: $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "pipeline"
 
 # Rule to trigger all builds conditionally.
 # By default:
@@ -248,6 +269,34 @@ variables:
 # to explicitly add it.
 .if_deploy_on_rc_tag_on_beta_repo_branch: &if_rc_tag_on_beta_repo_branch
   if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+
+#
+# Workflow rules
+# Rules used to define whether a pipeline should run, and with which variables
+#
+
+workflow:
+  rules:
+    - <<: *if_triggered_pipeline
+      variables:
+        USE_CACHING_PROXY_PYTHON: "false"
+        USE_CACHING_PROXY_RUBY: "false"
+    - <<: *if_main_branch
+      variables:
+        USE_CACHING_PROXY_PYTHON: "true"
+        USE_CACHING_PROXY_RUBY: "true"
+    - <<: *if_release_branch
+      variables:
+        USE_CACHING_PROXY_PYTHON: "true"
+        USE_CACHING_PROXY_RUBY: "true"
+    - <<: *if_deploy
+      variables:
+        USE_CACHING_PROXY_PYTHON: "false"
+        USE_CACHING_PROXY_RUBY: "false"
+    - if: $CI_COMMIT_TAG == null
+      variables:
+        USE_CACHING_PROXY_PYTHON: "false"
+        USE_CACHING_PROXY_RUBY: "false"
 
 #
 # List of rule blocks used in the pipeline
@@ -579,6 +628,19 @@ variables:
     when: manual
     allow_failure: true
 
+# This rule will add the job as manual when running on beta deploy branch
+# and will add it as a regular automatically running job when running
+# on stable deploy branch.
+.on_deploy_stable_or_beta_manual_auto_on_stable:
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: never
+  - <<: *if_not_deploy
+    when: never
+  - <<: *if_not_stable_repo_branch
+    when: manual
+    allow_failure: true
+  - when: on_success
+
 .on_deploy_stable_repo_branch_a7_manual:
   - <<: *if_not_version_7
     when: never
@@ -611,18 +673,13 @@ variables:
   - <<: *if_main_branch
   - <<: *if_release_branch
 
-.on_main_or_release_branch_or_deploy:
+.on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy
+    when: always
   - <<: *if_main_branch
+    when: always
   - <<: *if_release_branch
-
-.on_main_or_release_branch_or_deploy_failure:
-  - <<: *if_deploy
-    when: on_failure
-  - <<: *if_main_branch
-    when: on_failure
-  - <<: *if_release_branch
-    when: on_failure
+    when: always
 
 .on_all_builds:
   - <<: *if_run_all_builds
@@ -708,10 +765,15 @@ variables:
     variables:
       KITCHEN_OSVERS: $DEFAULT_KITCHEN_OSVERS
 
+.on_main_or_testing_cleanup:
+  - <<: *if_main_branch
+  - <<: *if_testing_cleanup
+
 .on_testing_cleanup:
   - <<: *if_testing_cleanup
 
 .on_security_agent_changes_or_manual:
+  - <<: *if_main_branch
   - changes:
       - pkg/ebpf/**/*
       - pkg/security/**/*
@@ -720,18 +782,21 @@ variables:
       - test/kitchen/test/integration/security-agent-stress/**/*
       - .gitlab/functional_test/security_agent.yml
     when: on_success
-    allow_failure: true
   - when: manual
     allow_failure: true
 
 .on_system_probe_changes_or_manual:
   - changes:
+      - pkg/collector/corechecks/ebpf/**/*
       - pkg/ebpf/**/*
       - pkg/network/**/*
+      - pkg/util/kernel/**/*
       - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
       - test/kitchen/test/integration/system-probe-test/**/*
       - test/kitchen/test/integration/win-sysprobe-test/**/*
       - .gitlab/functional_test/system_probe.yml
+      - test/new-e2e/system-probe/**/*
+      - test/new-e2e/scenarios/system-probe/**/*
     when: on_success
   - when: manual
     allow_failure: true
@@ -745,4 +810,12 @@ variables:
     when: never
   - <<: *if_kitchen
     when: manual
+    allow_failure: true
+
+.on_trace_agent_changes_or_manual:
+  - changes:
+      - pkg/trace/**/*
+      - .gitlab/benchmarks/*
+    when: on_success
+  - when: manual
     allow_failure: true

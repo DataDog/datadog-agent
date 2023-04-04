@@ -39,6 +39,10 @@ import (
 
 const setupTimeout = time.Second * 10
 
+func init() {
+	config.DetectFeatures()
+}
+
 type apiserverSuite struct {
 	suite.Suite
 	kubeConfigPath string

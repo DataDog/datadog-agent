@@ -20,6 +20,13 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// NewNodeCollectorVersions builds the group of collector versions.
+func NewNodeCollectorVersions() collectors.CollectorVersions {
+	return collectors.NewCollectorVersions(
+		NewNodeCollector(),
+	)
+}
+
 // NodeCollector is a collector for Kubernetes Nodes.
 type NodeCollector struct {
 	informer  corev1Informers.NodeInformer
@@ -32,9 +39,14 @@ type NodeCollector struct {
 func NewNodeCollector() *NodeCollector {
 	return &NodeCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: true,
-			Name:     "nodes",
-			NodeType: orchestrator.K8sNode,
+			IsDefaultVersion:          true,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "nodes",
+			NodeType:                  orchestrator.K8sNode,
+			Version:                   "v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.NodeHandlers)),
 	}
@@ -66,13 +78,7 @@ func (c *NodeCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Co
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := &processors.ProcessorContext{
-		APIClient:  rcfg.APIClient,
-		Cfg:        rcfg.Config,
-		ClusterID:  rcfg.ClusterID,
-		MsgGroupID: rcfg.MsgGroupRef.Inc(),
-		NodeType:   c.metadata.NodeType,
-	}
+	ctx := collectors.NewProcessorContext(rcfg, c.metadata)
 
 	processResult, processed := c.processor.Process(ctx, list)
 

@@ -33,26 +33,26 @@ func TestProcessQueues(t *testing.T) {
 		},
 		{
 			name: "one container",
-			containersQueue: &queue{data: []model.EventsPayload{
+			containersQueue: &queue{data: []*model.EventsPayload{
 				{Version: "v1", Events: modelEvents("cont1")},
 			}},
 			podsQueue: &queue{},
 			wantFunc: func(t *testing.T, s *mocksender.MockSender) {
-				s.AssertNumberOfCalls(t, "ContainerLifecycleEvent", 1)
+				s.AssertNumberOfCalls(t, "EventPlatformEvent", 1)
 			},
 		},
 		{
 			name: "multiple chunks per types",
-			containersQueue: &queue{data: []model.EventsPayload{
+			containersQueue: &queue{data: []*model.EventsPayload{
 				{Version: "v1", Events: modelEvents("cont1", "cont2")},
 				{Version: "v1", Events: modelEvents("cont3")},
 			}},
-			podsQueue: &queue{data: []model.EventsPayload{
+			podsQueue: &queue{data: []*model.EventsPayload{
 				{Version: "v1", Events: modelEvents("pod1", "pod2")},
 				{Version: "v1", Events: modelEvents("pod3")},
 			}},
 			wantFunc: func(t *testing.T, s *mocksender.MockSender) {
-				s.AssertNumberOfCalls(t, "ContainerLifecycleEvent", 2)
+				s.AssertNumberOfCalls(t, "EventPlatformEvent", 4)
 			},
 		},
 	}
@@ -64,14 +64,13 @@ func TestProcessQueues(t *testing.T) {
 			}
 
 			sender := mocksender.NewMockSender(check.ID(tt.name))
-			sender.On("ContainerLifecycleEvent", mock.Anything, mock.Anything).Return()
+			sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 			p.sender = sender
 
 			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			cancel() // To force the flush in p.processQueues
 
-			go p.processQueues(ctx, 500*time.Millisecond)
-			time.Sleep(1 * time.Second)
+			p.processQueues(ctx, 500*time.Millisecond)
 
 			tt.wantFunc(t, sender)
 		})

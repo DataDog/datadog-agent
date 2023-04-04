@@ -11,8 +11,7 @@ from .flavor import AgentFlavor
 from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
 
 BIN_DIR = os.path.join(".", "bin", "process-agent")
-BIN_PATH = os.path.join(BIN_DIR, bin_name("process-agent", android=False))
-GIMME_ENV_VARS = ['GOROOT', 'PATH']
+BIN_PATH = os.path.join(BIN_DIR, bin_name("process-agent"))
 
 
 @task
@@ -65,11 +64,6 @@ def build(
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
     build_tags = get_build_tags(build_include, build_exclude)
-
-    ## secrets is not supported on windows because the process agent still runs as
-    ## root.  No matter what `get_default_build_tags()` returns, take secrets out.
-    if sys.platform == 'win32' and "secrets" in build_tags:
-        build_tags.remove("secrets")
 
     # TODO static option
     cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
@@ -128,9 +122,13 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
             core_agent_dest = "/dev/null"
 
         ctx.run(f"cp pkg/ebpf/bytecode/build/*.o {docker_context}")
+        ctx.run(f"mkdir {docker_context}/co-re")
+        ctx.run(f"cp pkg/ebpf/bytecode/build/co-re/*.o {docker_context}/co-re/")
         ctx.run(f"cp pkg/ebpf/bytecode/build/runtime/*.c {docker_context}")
+        ctx.run(f"chmod 0444 {docker_context}/*.o {docker_context}/*.c {docker_context}/co-re/*.o")
         ctx.run(f"cp /opt/datadog-agent/embedded/bin/clang-bpf {docker_context}")
         ctx.run(f"cp /opt/datadog-agent/embedded/bin/llc-bpf {docker_context}")
+        ctx.run(f"cp pkg/network/java/agent-usm.jar {docker_context}")
 
         with ctx.cd(docker_context):
             # --pull in the build will force docker to grab the latest base image
@@ -158,7 +156,12 @@ def gen_mocks(ctx):
     Generate mocks
     """
 
-    interfaces = {"./pkg/process/procutil": ["Probe"]}
+    interfaces = {
+        "./pkg/process/runner": ["Submitter"],
+        "./pkg/process/checks": ["Check", "CheckWithRealTime"],
+        "./pkg/process/net": ["SysProbeUtil"],
+        "./pkg/process/procutil": ["Probe"],
+    }
 
     for path, names in interfaces.items():
         interface_regex = "|".join(f"^{i}\\$" for i in names)

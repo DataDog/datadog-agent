@@ -68,6 +68,11 @@ func PatternMatches(pattern string, str string, caseInsensitive bool) bool {
 	for len(pattern) > 0 {
 		star, segment, nextIndex := nextSegment(pattern)
 		if star {
+			// there is no pattern to match after the last star
+			if len(segment) == 0 {
+				return true
+			}
+
 			index := index(str, segment, caseInsensitive)
 			if index == -1 {
 				return false
@@ -81,5 +86,7 @@ func PatternMatches(pattern string, str string, caseInsensitive bool) bool {
 		}
 		pattern = pattern[nextIndex:]
 	}
-	return true
+
+	// return false if there is still some str to match
+	return len(str) == 0
 }

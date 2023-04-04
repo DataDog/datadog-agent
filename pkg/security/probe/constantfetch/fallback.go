@@ -12,6 +12,7 @@ import (
 	"errors"
 	"os"
 	"runtime"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 )
@@ -38,66 +39,92 @@ func (f *FallbackConstantFetcher) String() string {
 func (f *FallbackConstantFetcher) appendRequest(id string) {
 	var value = ErrorSentinel
 	switch id {
-	case "sizeof_inode":
+	case SizeOfInode:
 		value = getSizeOfStructInode(f.kernelVersion)
-	case "sb_magic_offset":
+	case OffsetNameSuperBlockStructSMagic:
 		value = getSuperBlockMagicOffset(f.kernelVersion)
-	case "tty_offset":
+	case OffsetNameSignalStructStructTTY:
 		value = getSignalTTYOffset(f.kernelVersion)
-	case "tty_name_offset":
+	case OffsetNameTTYStructStructName:
 		value = getTTYNameOffset(f.kernelVersion)
-	case "creds_uid_offset":
+	case OffsetNameCredStructUID:
 		value = getCredsUIDOffset(f.kernelVersion)
-	case "bpf_map_id_offset":
+	case OffsetNameBPFMapStructID:
 		value = getBpfMapIDOffset(f.kernelVersion)
-	case "bpf_map_name_offset":
+	case OffsetNameBPFMapStructName:
 		value = getBpfMapNameOffset(f.kernelVersion)
-	case "bpf_map_type_offset":
+	case OffsetNameBPFMapStructMapType:
 		value = getBpfMapTypeOffset(f.kernelVersion)
-	case "bpf_prog_aux_offset":
+	case OffsetNameBPFProgStructAux:
 		value = getBpfProgAuxOffset(f.kernelVersion)
-	case "bpf_prog_tag_offset":
+	case OffsetNameBPFProgStructTag:
 		value = getBpfProgTagOffset(f.kernelVersion)
-	case "bpf_prog_type_offset":
+	case OffsetNameBPFProgStructType:
 		value = getBpfProgTypeOffset(f.kernelVersion)
-	case "bpf_prog_attach_type_offset":
+	case OffsetNameBPFProgStructExpectedAttachType:
 		value = getBpfProgAttachTypeOffset(f.kernelVersion)
-	case "bpf_prog_aux_id_offset":
+	case OffsetNameBPFProgAuxStructID:
 		value = getBpfProgAuxIDOffset(f.kernelVersion)
-	case "bpf_prog_aux_name_offset":
+	case OffsetNameBPFProgAuxStructName:
 		value = getBpfProgAuxNameOffset(f.kernelVersion)
-	case "pid_level_offset":
+	case OffsetNamePIDStructLevel:
 		value = getPIDLevelOffset(f.kernelVersion)
-	case "pid_numbers_offset":
+	case OffsetNamePIDStructNumbers:
 		value = getPIDNumbersOffset(f.kernelVersion)
-	case "sizeof_upid":
+	case SizeOfUPID:
 		value = getSizeOfUpid(f.kernelVersion)
-	case "dentry_sb_offset":
+	case OffsetNameTaskStructPID:
+		value = getTaskStructPIDOffset(f.kernelVersion)
+	case OffsetNameTaskStructPIDLink:
+		value = getTaskStructPIDLinkOffset(f.kernelVersion)
+	case OffsetNamePIDLinkStructPID:
+		value = getPIDLinkPIDOffset(f.kernelVersion)
+	case OffsetNameDentryStructDSB:
 		value = getDentrySuperBlockOffset(f.kernelVersion)
-	case "pipe_inode_info_bufs_offset":
+	case OffsetNamePipeInodeInfoStructBufs:
 		value = getPipeInodeInfoBufsOffset(f.kernelVersion)
-	case "net_device_ifindex_offset":
+	case OffsetNamePipeInodeInfoStructNrbufs:
+		value = getPipeInodeInfoStructNrbufs(f.kernelVersion)
+	case OffsetNamePipeInodeInfoStructCurbuf:
+		value = getPipeInodeInfoStructCurbuf(f.kernelVersion)
+	case OffsetNamePipeInodeInfoStructBuffers:
+		value = getPipeInodeInfoStructBuffers(f.kernelVersion)
+	case OffsetNamePipeInodeInfoStructHead:
+		value = getPipeInodeInfoStructHead(f.kernelVersion)
+	case OffsetNamePipeInodeInfoStructRingsize:
+		value = getPipeInodeInfoStructRingsize(f.kernelVersion)
+	case OffsetNameNetDeviceStructIfIndex:
 		value = getNetDeviceIfindexOffset(f.kernelVersion)
-	case "net_ns_offset":
+	case OffsetNameNetStructNS:
 		value = getNetNSOffset(f.kernelVersion)
-	case "net_proc_inum_offset":
+	case OffsetNameNetStructProcInum:
 		value = getNetProcINumOffset(f.kernelVersion)
-	case "sock_common_skc_net_offset":
+	case OffsetNameSockCommonStructSKCNet:
 		value = getSockCommonSKCNetOffset(f.kernelVersion)
-	case "socket_sock_offset":
+	case OffsetNameSocketStructSK:
 		value = getSocketSockOffset(f.kernelVersion)
-	case "nf_conn_ct_net_offset":
+	case OffsetNameNFConnStructCTNet:
 		value = getNFConnCTNetOffset(f.kernelVersion)
-	case "sock_common_skc_family_offset":
+	case OffsetNameSockCommonStructSKCFamily:
 		value = getSockCommonSKCFamilyOffset(f.kernelVersion)
-	case "flowi4_saddr_offset":
+	case OffsetNameFlowI4StructSADDR:
 		value = getFlowi4SAddrOffset(f.kernelVersion)
-	case "flowi6_saddr_offset":
+	case OffsetNameFlowI6StructSADDR:
 		value = getFlowi6SAddrOffset(f.kernelVersion)
-	case "flowi4_uli_offset":
+	case OffsetNameFlowI4StructULI:
 		value = getFlowi4ULIOffset(f.kernelVersion)
-	case "flowi6_uli_offset":
+	case OffsetNameFlowI6StructULI:
 		value = getFlowi6ULIOffset(f.kernelVersion)
+	case OffsetNameLinuxBinprmStructFile:
+		value = getBinPrmFileFieldOffset(f.kernelVersion)
+	case OffsetNameIoKiocbStructCtx:
+		value = getIoKcbCtxOffset(f.kernelVersion)
+	case OffsetNameLinuxBinprmP:
+		value = getLinuxBinPrmPOffset(f.kernelVersion)
+	case OffsetNameLinuxBinprmArgc:
+		value = getLinuxBinPrmArgcOffset(f.kernelVersion)
+	case OffsetNameLinuxBinprmEnvc:
+		value = getLinuxBinPrmEnvcOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -152,6 +179,8 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 		sizeOf = 584
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
 		sizeOf = 584
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_15, kernel.Kernel5_16):
+		sizeOf = 616
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_16):
 		if ubuntuAbiVersionCheck(kv, increaseSizeAbiMinVersion) {
 			sizeOf = 608
@@ -528,6 +557,70 @@ func getPipeInodeInfoBufsOffset(kv *kernel.Version) uint64 {
 	return offset
 }
 
+func getPipeInodeInfoStructNrbufs(kv *kernel.Version) uint64 {
+	offset := ErrorSentinel
+	if kv.HaveLegacyPipeInodeInfoStruct() {
+		offset = 56
+		switch {
+		case kv.IsDebianKernel() && strings.Contains(kv.UnameRelease, "-rt-"):
+			offset = 104
+		case kv.Code < kernel.Kernel4_10:
+			offset = 64
+		}
+	}
+	return offset
+}
+
+func getPipeInodeInfoStructCurbuf(kv *kernel.Version) uint64 {
+	offset := ErrorSentinel
+	if kv.HaveLegacyPipeInodeInfoStruct() {
+		offset = 60
+		switch {
+		case kv.IsDebianKernel() && strings.Contains(kv.UnameRelease, "-rt-"):
+			offset = 108
+		case kv.Code < kernel.Kernel4_10:
+			offset = 68
+		}
+	}
+	return offset
+}
+
+func getPipeInodeInfoStructBuffers(kv *kernel.Version) uint64 {
+	offset := ErrorSentinel
+	if kv.HaveLegacyPipeInodeInfoStruct() {
+		offset = 64
+		switch {
+		case kv.IsDebianKernel() && strings.Contains(kv.UnameRelease, "-rt-"):
+			offset = 112
+		case kv.Code < kernel.Kernel4_10:
+			offset = 72
+		}
+	}
+	return offset
+}
+
+func getPipeInodeInfoStructHead(kv *kernel.Version) uint64 {
+	offset := ErrorSentinel
+	if !kv.HaveLegacyPipeInodeInfoStruct() {
+		offset = 80
+		if kv.IsDebianKernel() && strings.Contains(kv.UnameRelease, "-rt-") {
+			offset = 168
+		}
+	}
+	return offset
+}
+
+func getPipeInodeInfoStructRingsize(kv *kernel.Version) uint64 {
+	offset := ErrorSentinel
+	if !kv.HaveLegacyPipeInodeInfoStruct() {
+		offset = 92
+		if kv.IsDebianKernel() && strings.Contains(kv.UnameRelease, "-rt-") {
+			offset = 180
+		}
+	}
+	return offset
+}
+
 func getNetDeviceIfindexOffset(kv *kernel.Version) uint64 {
 	offset := uint64(260)
 
@@ -641,6 +734,8 @@ func getFlowi4SAddrOffset(kv *kernel.Version) uint64 {
 		offset = 20
 	case kv.IsRH8Kernel():
 		offset = 56
+	case kv.IsOracleUEKKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		offset = 56
 
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
 		offset = 32
@@ -675,4 +770,120 @@ func ubuntuAbiVersionCheck(kv *kernel.Version, minAbiPerFlavor map[string]int) b
 	}
 
 	return ukv.Abi >= minAbi
+}
+
+// getBinPrmFileFieldOffset returns the offset of the file field in the linux_binprm struct depending on the kernel version that the system probe is running on. Only used if runtime compilation, btf co-re, btfhub, offset-guesser all fail to yield an offset value.
+func getBinPrmFileFieldOffset(kv *kernel.Version) uint64 {
+	if kv.IsRH8Kernel() {
+		return 296
+	}
+
+	if kv.IsRH7Kernel() || kv.Code < kernel.Kernel5_0 {
+		return 168
+	}
+
+	if kv.Code >= kernel.Kernel5_0 && kv.Code < kernel.Kernel5_2 {
+		// `unsigned long argmin` is introduced in v5.0-rc1
+		return 176
+	}
+
+	if kv.Code >= kernel.Kernel5_2 && kv.Code < kernel.Kernel5_8 {
+		// `char buf[BINPRM_BUF_SIZE]` is removed in v5.2-rc1
+		return 48
+	}
+
+	// `struct file *executable` and `struct file *interpreter` are introduced in v5.8-rc1
+	return 64
+}
+
+func getIoKcbCtxOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsOracleUEKKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		return 80
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		return 96
+	default:
+		return 80
+	}
+}
+
+func getLinuxBinPrmPOffset(kv *kernel.Version) uint64 {
+	offset := uint64(152)
+
+	switch {
+	case kv.Code >= kernel.Kernel5_2:
+		offset = 24
+	case kv.IsRH8Kernel():
+		fallthrough
+	case kv.IsAmazonLinuxKernel() && kv.Code == kernel.Kernel4_14 &&
+		(kv.Code.Patch() == uint8(146) || kv.Code.Patch() == uint8(152) || kv.Code.Patch() == uint8(154) ||
+			kv.Code.Patch() == uint8(158) || kv.Code.Patch() == uint8(200) || kv.Code.Patch() == uint8(203)):
+		offset = 280
+	}
+
+	return offset
+}
+
+func getLinuxBinPrmArgcOffset(kv *kernel.Version) uint64 {
+	offset := uint64(192)
+
+	switch {
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel5_0):
+		offset = 192
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_2):
+		offset = 200
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_2, kernel.Kernel5_8):
+		offset = 72
+	case kv.Code >= kernel.Kernel5_8:
+		offset = 88
+	case kv.IsRH8Kernel():
+		fallthrough
+	case kv.IsAmazonLinuxKernel() && kv.Code == kernel.Kernel4_14 &&
+		(kv.Code.Patch() == uint8(146) || kv.Code.Patch() == uint8(152) || kv.Code.Patch() == uint8(154) ||
+			kv.Code.Patch() == uint8(158) || kv.Code.Patch() == uint8(200) || kv.Code.Patch() == uint8(203)):
+		offset = 320
+	}
+
+	return offset
+}
+
+func getLinuxBinPrmEnvcOffset(kv *kernel.Version) uint64 {
+	offset := uint64(196)
+
+	switch {
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel5_0):
+		offset = 196
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_2):
+		offset = 204
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_2, kernel.Kernel5_8):
+		offset = 76
+	case kv.Code >= kernel.Kernel5_8:
+		offset = 92
+	case kv.IsRH8Kernel():
+		fallthrough
+	case kv.IsAmazonLinuxKernel() && kv.Code == kernel.Kernel4_14 &&
+		(kv.Code.Patch() == uint8(146) || kv.Code.Patch() == uint8(152) || kv.Code.Patch() == uint8(154) ||
+			kv.Code.Patch() == uint8(158) || kv.Code.Patch() == uint8(200) || kv.Code.Patch() == uint8(203)):
+		offset = 324
+	}
+
+	return offset
+}
+
+func getTaskStructPIDOffset(kv *kernel.Version) uint64 {
+	// do not use fallback for offsets inside task_struct
+	return ErrorSentinel
+}
+
+func getTaskStructPIDLinkOffset(kv *kernel.Version) uint64 {
+	// do not use fallback for offsets inside task_struct
+	return ErrorSentinel
+}
+
+func getPIDLinkPIDOffset(kv *kernel.Version) uint64 {
+	offset := ErrorSentinel
+	if kv.HavePIDLinkStruct() {
+		offset = uint64(16)
+	}
+	return offset
 }

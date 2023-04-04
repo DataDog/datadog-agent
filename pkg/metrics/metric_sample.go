@@ -76,6 +76,9 @@ type MetricSampleContext interface {
 
 	// GetMetricType returns the metric type for this metric.  This is used for telemetry.
 	GetMetricType() MetricType
+
+	// IsNoIndex returns true if the metric must not be indexed.
+	IsNoIndex() bool
 }
 
 // MetricSample represents a raw metric sample
@@ -92,6 +95,7 @@ type MetricSample struct {
 	OriginFromUDS    string
 	OriginFromClient string
 	Cardinality      string
+	NoIndex          bool
 }
 
 // Implement the MetricSampleContext interface
@@ -124,4 +128,9 @@ func (m *MetricSample) Copy() *MetricSample {
 	dst.Tags = make([]string, len(m.Tags))
 	copy(dst.Tags, m.Tags)
 	return dst
+}
+
+// IsNoIndex returns true if the metric must not be indexed.
+func (m *MetricSample) IsNoIndex() bool {
+	return m.NoIndex
 }

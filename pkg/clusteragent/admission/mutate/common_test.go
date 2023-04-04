@@ -9,11 +9,17 @@
 package mutate
 
 import (
+	"encoding/json"
+	"os"
 	"reflect"
 	"testing"
 
+	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/stretchr/testify/assert"
+	admiv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 )
 
 func Test_contains(t *testing.T) {
@@ -120,6 +126,19 @@ func Test_injectEnv(t *testing.T) {
 			},
 			injected: true,
 		},
+		{
+			name: "init containers",
+			args: args{
+				pod: fakePodWithInitContainer("foo-pod", fakeContainer("foo-init-container")),
+				env: fakeEnv("inject-me"),
+			},
+			wantPodFunc: func() corev1.Pod {
+				pod := fakePodWithInitContainer("foo-pod", fakeContainer("foo-init-container"))
+				pod.Spec.InitContainers[0].Env = append([]corev1.EnvVar{fakeEnv("inject-me")}, pod.Spec.InitContainers[0].Env...)
+				return *pod
+			},
+			injected: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -157,16 +176,96 @@ func Test_injectVolume(t *testing.T) {
 		{
 			name: "volume exists",
 			args: args{
-				pod:         fakePodWithVolume("podfoo", "volumefoo"),
+				pod:         fakePodWithVolume("podfoo", "volumefoo", "/foo"),
 				volume:      corev1.Volume{Name: "volumefoo"},
 				volumeMount: corev1.VolumeMount{Name: "volumefoo"},
 			},
 			injected: false,
+		},
+		{
+			name: "volume mount exists",
+			args: args{
+				pod:         fakePodWithVolume("podfoo", "volumefoo", "/foo"),
+				volume:      corev1.Volume{Name: "differentName"},
+				volumeMount: corev1.VolumeMount{Name: "volumefoo"},
+			},
+			injected: false,
+		},
+		{
+			name: "mount path exists in one container",
+			args: args{
+				pod:         withContainer(fakePodWithVolume("podfoo", "volumefoo", "/foo"), "second-container"),
+				volume:      corev1.Volume{Name: "differentName"},
+				volumeMount: corev1.VolumeMount{Name: "volumefoo"},
+			},
+			injected: true,
+		},
+		{
+			name: "mount path exists",
+			args: args{
+				pod:         fakePodWithVolume("podfoo", "volumefoo", "/foo"),
+				volume:      corev1.Volume{Name: "differentName"},
+				volumeMount: corev1.VolumeMount{Name: "differentName", MountPath: "/foo"},
+			},
+			injected: false,
+		},
+		{
+			name: "mount path exists in one container",
+			args: args{
+				pod:         withContainer(fakePodWithVolume("podfoo", "volumefoo", "/foo"), "-second-container"),
+				volume:      corev1.Volume{Name: "differentName"},
+				volumeMount: corev1.VolumeMount{Name: "differentName", MountPath: "/foo"},
+			},
+			injected: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.injected, injectVolume(tt.args.pod, tt.args.volume, tt.args.volumeMount))
 		})
+	}
+}
+
+func TestJSONPatchCorrectness(t *testing.T) {
+	pod := fakePodWithContainer("foo", fakeContainer("container"))
+	withLabels(pod, map[string]string{admCommon.EnabledLabelKey: "true"})
+	podJSON, err := json.Marshal(pod)
+	assert.NoError(t, err)
+
+	jsonPatch, err := mutate(podJSON, "bar", injectConfig, nil)
+	assert.NoError(t, err)
+
+	expected, err := os.ReadFile("./testdata/expected_jsonpatch.json")
+	assert.NoError(t, err)
+	assert.JSONEq(t, string(expected), string(jsonPatch))
+}
+
+func BenchmarkJSONPatch(b *testing.B) {
+	scheme := runtime.NewScheme()
+	_ = admiv1.AddToScheme(scheme)
+	decoder := serializer.NewCodecFactory(scheme).UniversalDeserializer()
+
+	content, err := os.ReadFile("./testdata/large_pod.json")
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	obj, _, err := decoder.Decode(content, nil, nil)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	podJSON := obj.(*admiv1.AdmissionReview).Request.Object.Raw
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		jsonPatch, err := mutate(podJSON, "foobar-bax", injectConfig, nil)
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		if len(jsonPatch) < 100 {
+			b.Fatal("Empty JSONPatch")
+		}
 	}
 }

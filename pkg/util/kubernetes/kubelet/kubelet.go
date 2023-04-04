@@ -380,20 +380,6 @@ func (ku *KubeUtil) GetRawMetrics(ctx context.Context) ([]byte, error) {
 	return data, nil
 }
 
-// IsAgentHostNetwork returns whether the agent is running inside a container with `hostNetwork` or not
-func (ku *KubeUtil) IsAgentHostNetwork(ctx context.Context, agentContainerID string) (bool, error) {
-	if agentContainerID == "" {
-		return false, fmt.Errorf("unable to determine self container id")
-	}
-
-	pod, err := ku.GetPodForContainerID(ctx, agentContainerID)
-	if err != nil {
-		return false, err
-	}
-
-	return pod.Spec.HostNetwork, nil
-}
-
 // IsPodReady return a bool if the Pod is ready
 func IsPodReady(pod *Pod) bool {
 	// static pods are always reported as Pending, so we make an exception there

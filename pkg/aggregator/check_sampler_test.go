@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/quantile"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
 )
 
 func generateContextKey(sample metrics.MetricSampleContext) ckey.ContextKey {

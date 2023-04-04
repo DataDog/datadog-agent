@@ -18,7 +18,7 @@ type TestCheck struct {
 	check.StubCheck
 }
 
-func (c *TestCheck) Configure(data integration.Data, initData integration.Data, source string) error {
+func (c *TestCheck) Configure(integrationConfigDigest uint64, data integration.Data, initData integration.Data, source string) error {
 	if string(data) == "err" {
 		return fmt.Errorf("testError")
 	}
@@ -54,7 +54,6 @@ func TestLoad(t *testing.T) {
 	l, _ := NewGoCheckLoader()
 
 	_, err := l.Load(cc, i[0])
-
 	if err != nil {
 		t.Fatalf("Expected nil error, found: %v", err)
 	}

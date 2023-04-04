@@ -13,7 +13,7 @@ import (
 
 var (
 	// errorConstants are the supported error constants
-	// generate_constants:Error Constants,Error Constants are the supported error constants.
+	// generate_constants:Error constants,Error constants are the supported error constants.
 	errorConstants = map[string]int{
 		"E2BIG":           -int(syscall.E2BIG),
 		"EACCES":          -int(syscall.EACCES),

@@ -26,6 +26,15 @@ UINT WINAPI MsiGetPropertyW(MSIHANDLE hInstall,
     return ERROR_INVALID_FUNCTION;
 }
 
+class TextPropertyView : public StaticPropertyView
+{
+  public:
+    TextPropertyView::TextPropertyView(std::wstring &data)
+    {
+        parseKeyValueString(data, this->values);
+    }
+};
+
 int wmain(int argc, wchar_t **argv)
 {
     hDllModule = GetModuleHandle(NULL);
@@ -33,9 +42,20 @@ int wmain(int argc, wchar_t **argv)
     std::wstring defaultData;
     parseArgs(argc - 1, &(argv[1]), defaultData);
     wprintf(L"%s\n", defaultData.c_str());
-    CustomActionData data;
-    data.init(defaultData);
-    doFinalizeInstall(data);
+    std::optional<CustomActionData> data;
+
+    try
+    {
+        auto propertyView = std::make_shared<TextPropertyView>(defaultData);
+        data.emplace(propertyView);
+    }
+    catch (std::exception &)
+    {
+        wprintf(L"Failed to load property data");
+        return EXIT_FAILURE;
+    }
+
+    doFinalizeInstall(data.value());
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu

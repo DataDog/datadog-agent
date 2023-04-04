@@ -52,8 +52,8 @@ func (c *fhCheck) Run() error {
 }
 
 // The check doesn't need configuration
-func (c *fhCheck) Configure(data integration.Data, initConfig integration.Data, source string) (err error) {
-	if err := c.CommonConfigure(initConfig, data, source); err != nil {
+func (c *fhCheck) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) (err error) {
+	if err := c.CommonConfigure(integrationConfigDigest, initConfig, data, source); err != nil {
 		return err
 	}
 

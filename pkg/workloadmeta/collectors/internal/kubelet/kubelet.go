@@ -107,10 +107,16 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 		containerSpecs = append(containerSpecs, pod.Spec.InitContainers...)
 		containerSpecs = append(containerSpecs, pod.Spec.Containers...)
 
+		podId := workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   podMeta.UID,
+		}
+
 		podContainers, containerEvents := c.parsePodContainers(
 			pod,
 			containerSpecs,
 			pod.Status.GetAllContainers(),
+			&podId,
 		)
 
 		podOwners := pod.Owners()
@@ -124,10 +130,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 		}
 
 		entity := &workloadmeta.KubernetesPod{
-			EntityID: workloadmeta.EntityID{
-				Kind: workloadmeta.KindKubernetesPod,
-				ID:   podMeta.UID,
-			},
+			EntityID: podId,
 			EntityMeta: workloadmeta.EntityMeta{
 				Name:        podMeta.Name,
 				Namespace:   podMeta.Namespace,
@@ -159,6 +162,7 @@ func (c *collector) parsePodContainers(
 	pod *kubelet.Pod,
 	containerSpecs []kubelet.ContainerSpec,
 	containerStatuses []kubelet.ContainerStatus,
+	parent *workloadmeta.EntityID,
 ) ([]workloadmeta.OrchestratorContainer, []workloadmeta.CollectorEvent) {
 	podContainers := make([]workloadmeta.OrchestratorContainer, 0, len(containerStatuses))
 	events := make([]workloadmeta.CollectorEvent, 0, len(containerStatuses))
@@ -176,7 +180,16 @@ func (c *collector) parsePodContainers(
 
 		image, err := workloadmeta.NewContainerImage(container.Image)
 		if err != nil {
-			log.Warnf("cannot split image name %q: %s", container.Image, err)
+			if err == containers.ErrImageIsSha256 {
+				// try the resolved image ID if the image name in the container
+				// status is a SHA256. this seems to happen sometimes when
+				// pinning the image to a SHA256
+				image, err = workloadmeta.NewContainerImage(container.ImageID)
+			}
+
+			if err != nil {
+				log.Debugf("cannot split image name %q nor %q: %s", container.Image, container.ImageID, err)
+			}
 		}
 
 		image.ID = container.ImageID
@@ -244,6 +257,7 @@ func (c *collector) parsePodContainers(
 				Ports:   ports,
 				Runtime: workloadmeta.ContainerRuntime(runtime),
 				State:   containerState,
+				Owner:   parent,
 			},
 		})
 	}
@@ -272,6 +286,10 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 	// done by the kubelet.
 
 	for _, e := range envSpec {
+		if !containers.EnvVarFilterFromConfig().IsIncluded(e.Name) {
+			continue
+		}
+
 		runtimeVal := e.Value
 		if runtimeVal != "" {
 			runtimeVal = expansion.Expand(runtimeVal, mappingFunc)
@@ -285,6 +303,7 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 
 func (c *collector) parseExpires(expiredIDs []string) []workloadmeta.CollectorEvent {
 	events := make([]workloadmeta.CollectorEvent, 0, len(expiredIDs))
+	podTerminatedTime := time.Now()
 
 	for _, expiredID := range expiredIDs {
 		prefix, id := containers.SplitEntityName(expiredID)
@@ -297,6 +316,7 @@ func (c *collector) parseExpires(expiredIDs []string) []workloadmeta.CollectorEv
 					Kind: workloadmeta.KindKubernetesPod,
 					ID:   id,
 				},
+				FinishedAt: podTerminatedTime,
 			}
 		} else {
 			entity = &workloadmeta.Container{

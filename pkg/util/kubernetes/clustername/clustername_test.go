@@ -7,7 +7,6 @@ package clustername
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,27 +17,29 @@ import (
 func TestGetClusterName(t *testing.T) {
 	ctx := context.Background()
 	mockConfig := config.Mock(t)
+	config.SetDetectedFeatures(config.FeatureMap{config.Kubernetes: struct{}{}})
+	defer config.SetDetectedFeatures(nil)
 	data := newClusterNameData()
 
-	var testClusterName = "laika"
+	testClusterName := "laika"
 	mockConfig.Set("cluster_name", testClusterName)
 	defer mockConfig.Set("cluster_name", nil)
 
 	assert.Equal(t, testClusterName, getClusterName(ctx, data, "hostname"))
 
 	// Test caching and reset
-	var newClusterName = "youri"
+	newClusterName := "youri"
 	mockConfig.Set("cluster_name", newClusterName)
 	assert.Equal(t, testClusterName, getClusterName(ctx, data, "hostname"))
 	freshData := newClusterNameData()
 	assert.Equal(t, newClusterName, getClusterName(ctx, freshData, "hostname"))
 
-	var dotClusterName = "aclusternamewitha.dot"
+	dotClusterName := "aclusternamewitha.dot"
 	mockConfig.Set("cluster_name", dotClusterName)
 	data = newClusterNameData()
 	assert.Equal(t, dotClusterName, getClusterName(ctx, data, "hostname"))
 
-	var dotsClusterName = "a.cluster.name.with.dots"
+	dotsClusterName := "a.cluster.name.with.dots"
 	mockConfig.Set("cluster_name", dotsClusterName)
 	data = newClusterNameData()
 	assert.Equal(t, dotsClusterName, getClusterName(ctx, data, "hostname"))
@@ -75,20 +76,20 @@ func TestGetClusterID(t *testing.T) {
 	assert.NotNil(t, err)
 
 	// too short
-	os.Setenv(clusterIDEnv, "foo")
+	t.Setenv(clusterIDEnv, "foo")
 	cid, err = GetClusterID()
 	assert.Empty(t, cid)
 	assert.NotNil(t, err)
 
 	// too long
-	os.Setenv(clusterIDEnv, "d801b2b1-4811-11ea-8618-121d4d0938a44444444")
+	t.Setenv(clusterIDEnv, "d801b2b1-4811-11ea-8618-121d4d0938a44444444")
 	cid, err = GetClusterID()
 	assert.Empty(t, cid)
 	assert.NotNil(t, err)
 
 	// just right
 	testID := "d801b2b1-4811-11ea-8618-121d4d0938a3"
-	os.Setenv(clusterIDEnv, testID)
+	t.Setenv(clusterIDEnv, testID)
 	cid, err = GetClusterID()
 	assert.Equal(t, testID, cid)
 	assert.Nil(t, err)

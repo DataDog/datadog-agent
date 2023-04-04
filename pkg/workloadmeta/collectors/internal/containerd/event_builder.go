@@ -70,7 +70,7 @@ func createSetEvent(container containerd.Container, namespace string, containerd
 		return workloadmeta.CollectorEvent{}, errNoContainer
 	}
 
-	entity, err := buildWorkloadMetaContainer(container, containerdClient)
+	entity, err := buildWorkloadMetaContainer(namespace, container, containerdClient)
 	if err != nil {
 		return workloadmeta.CollectorEvent{}, fmt.Errorf("could not fetch info for container %s: %s", container.ID(), err)
 	}

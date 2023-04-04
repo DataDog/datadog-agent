@@ -412,12 +412,24 @@ func (s *SNMPService) GetExtraConfig(key string) (string, error) {
 		return s.config.Namespace, nil
 	case "collect_device_metadata":
 		return strconv.FormatBool(s.config.CollectDeviceMetadata), nil
+	case "collect_topology":
+		return strconv.FormatBool(s.config.CollectTopology), nil
 	case "use_device_id_as_hostname":
 		return strconv.FormatBool(s.config.UseDeviceIDAsHostname), nil
 	case "tags":
 		return convertToCommaSepTags(s.config.Tags), nil
 	case "min_collection_interval":
 		return fmt.Sprintf("%d", s.config.MinCollectionInterval), nil
+	case "interface_configs":
+		ifConfigs := s.config.InterfaceConfigs[s.deviceIP]
+		if len(ifConfigs) == 0 {
+			return "", nil
+		}
+		ifConfigsJson, err := json.Marshal(ifConfigs)
+		if err != nil {
+			return "", fmt.Errorf("error marshalling interface_configs: %s", err)
+		}
+		return string(ifConfigsJson), nil
 	}
 	return "", ErrNotSupported
 }

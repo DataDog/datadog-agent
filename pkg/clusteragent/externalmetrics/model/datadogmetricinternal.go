@@ -11,6 +11,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
@@ -26,6 +27,7 @@ import (
 // exported for testing purposes
 const (
 	DatadogMetricErrorConditionReason string = "Unable to fetch data from Datadog"
+	alwaysActiveAnnotation            string = "external-metrics.datadoghq.com/always-active"
 )
 
 // DatadogMetricInternal is a flatten, easier to use, representation of `DatadogMetric` CRD
@@ -35,6 +37,7 @@ type DatadogMetricInternal struct {
 	resolvedQuery        *string
 	Valid                bool
 	Active               bool
+	AlwaysActive         bool
 	Deleted              bool
 	Autogen              bool
 	ExternalMetricName   string
@@ -43,6 +46,7 @@ type DatadogMetricInternal struct {
 	UpdateTime           time.Time
 	Error                error
 	MaxAge               time.Duration
+	TimeWindow           time.Duration
 }
 
 // NewDatadogMetricInternal returns a `DatadogMetricInternal` object from a `DatadogMetric` CRD Object
@@ -53,10 +57,12 @@ func NewDatadogMetricInternal(id string, datadogMetric datadoghq.DatadogMetric) 
 		query:                datadogMetric.Spec.Query,
 		Valid:                false,
 		Active:               false,
+		AlwaysActive:         hasForceActiveAnnotation(datadogMetric),
 		Deleted:              false,
 		Autogen:              false,
 		AutoscalerReferences: datadogMetric.Status.AutoscalerReferences,
 		MaxAge:               datadogMetric.Spec.MaxAge.Duration,
+		TimeWindow:           datadogMetric.Spec.TimeWindow.Duration,
 	}
 
 	if len(datadogMetric.Spec.ExternalMetricName) > 0 {
@@ -98,6 +104,18 @@ func NewDatadogMetricInternal(id string, datadogMetric datadoghq.DatadogMetric) 
 	return internal
 }
 
+func hasForceActiveAnnotation(metric datadoghq.DatadogMetric) bool {
+	if value, found := metric.Annotations[alwaysActiveAnnotation]; found {
+		enabled, err := strconv.ParseBool(value)
+		if err != nil {
+			log.Debugf("Unable to parse value from %s annotation: '%s'", alwaysActiveAnnotation, value)
+			return false
+		}
+		return enabled
+	}
+	return false
+}
+
 // NewDatadogMetricInternalFromExternalMetric returns a `DatadogMetricInternal` object
 // that is auto-generated from a standard ExternalMetric query (non-DatadogMetric reference)
 func NewDatadogMetricInternalFromExternalMetric(id, query, metricName, autoscalerReference string) DatadogMetricInternal {
@@ -106,6 +124,7 @@ func NewDatadogMetricInternalFromExternalMetric(id, query, metricName, autoscale
 		query:                query,
 		Valid:                false,
 		Active:               true,
+		AlwaysActive:         false,
 		Deleted:              false,
 		Autogen:              true,
 		ExternalMetricName:   metricName,
@@ -114,7 +133,7 @@ func NewDatadogMetricInternalFromExternalMetric(id, query, metricName, autoscale
 	}
 }
 
-// Query returns the query that should be used to fetch metrics
+// query returns the query that should be used to fetch metrics
 func (d *DatadogMetricInternal) Query() string {
 	if d.resolvedQuery != nil {
 		return *d.resolvedQuery
@@ -127,13 +146,26 @@ func (d *DatadogMetricInternal) RawQuery() string {
 	return d.query
 }
 
-// UpdateFrom updates the `DatadogMetricInternal` from `DatadogMetric` Spec
-func (d *DatadogMetricInternal) UpdateFrom(currentSpec datadoghq.DatadogMetricSpec) {
+// UpdateFrom updates the `DatadogMetricInternal` from `DatadogMetric`
+func (d *DatadogMetricInternal) UpdateFrom(current datadoghq.DatadogMetric) {
+	currentSpec := current.Spec
+
 	if d.shouldResolveQuery(currentSpec) {
 		d.resolveQuery(currentSpec.Query)
 	}
 	d.query = currentSpec.Query
 	d.MaxAge = currentSpec.MaxAge.Duration
+	d.TimeWindow = currentSpec.TimeWindow.Duration
+	d.AlwaysActive = hasForceActiveAnnotation(current)
+}
+
+// GetTimeWindow gets the time window for the metric, if unset defaults to max age.
+func (d *DatadogMetricInternal) GetTimeWindow() time.Duration {
+	timeWindow := d.TimeWindow
+	if timeWindow == 0 {
+		timeWindow = d.MaxAge
+	}
+	return timeWindow
 }
 
 // shouldResolveQuery returns whether we should try to resolve a new query

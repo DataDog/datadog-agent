@@ -19,18 +19,19 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	easyjson "github.com/mailru/easyjson"
+	jwriter "github.com/mailru/easyjson/jwriter"
 	"go.uber.org/atomic"
 	"golang.org/x/time/rate"
 
-	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -46,22 +47,21 @@ type pendingMsg struct {
 // APIServer represents a gRPC server in charge of receiving events sent by
 // the runtime security system-probe module and forwards them to Datadog
 type APIServer struct {
-	msgs                 chan *api.SecurityEventMessage
-	processMsgs          chan *api.SecurityProcessEventMessage
-	activityDumps        chan *api.ActivityDumpStreamMessage
-	expiredEventsLock    sync.RWMutex
-	expiredEvents        map[rules.RuleID]*atomic.Int64
-	expiredProcessEvents *atomic.Int64
-	expiredDumpsLock     sync.RWMutex
-	expiredDumps         *atomic.Int64
-	rate                 *Limiter
-	statsdClient         statsd.ClientInterface
-	probe                *sprobe.Probe
-	queueLock            sync.Mutex
-	queue                []*pendingMsg
-	retention            time.Duration
-	cfg                  *config.Config
-	module               *Module
+	api.UnimplementedSecurityModuleServer
+	msgs              chan *api.SecurityEventMessage
+	activityDumps     chan *api.ActivityDumpStreamMessage
+	expiredEventsLock sync.RWMutex
+	expiredEvents     map[rules.RuleID]*atomic.Int64
+	expiredDumpsLock  sync.RWMutex
+	expiredDumps      *atomic.Int64
+	rate              *Limiter
+	statsdClient      statsd.ClientInterface
+	probe             *sprobe.Probe
+	queueLock         sync.Mutex
+	queue             []*pendingMsg
+	retention         time.Duration
+	cfg               *config.RuntimeSecurityConfig
+	cwsConsumer       *CWSConsumer
 }
 
 // GetActivityDumpStream waits for activity dumps and forwards them to the stream
@@ -132,38 +132,6 @@ LOOP:
 	return nil
 }
 
-// GetProcessEvents sends process events through a gRPC stream
-func (a *APIServer) GetProcessEvents(params *api.GetProcessEventParams, stream api.SecurityModule_GetProcessEventsServer) error {
-	// Read 10 security events per call
-	msgs := 10
-LOOP:
-	for {
-		// Read on message
-		select {
-		case msg := <-a.processMsgs:
-			if err := stream.Send(msg); err != nil {
-				return err
-			}
-			msgs--
-		case <-time.After(time.Second):
-			break LOOP
-		}
-
-		// Stop the loop when 10 messages were retrieved
-		if msgs <= 0 {
-			break
-		}
-	}
-
-	return nil
-}
-
-// Event is the interface that an event must implement to be sent to the backend
-type Event interface {
-	GetTags() []string
-	GetType() string
-}
-
 // RuleEvent is a wrapper used to send an event to the backend
 type RuleEvent struct {
 	RuleID string `json:"rule_id"`
@@ -176,7 +144,7 @@ func (a *APIServer) DumpDiscarders(ctx context.Context, params *api.DumpDiscarde
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("Discarder dump file path: %s", filePath)
+	seclog.Infof("Discarder dump file path: %s", filePath)
 
 	return &api.DumpDiscardersMessage{DumpFilename: filePath}, nil
 }
@@ -270,7 +238,7 @@ func (a *APIServer) GetStatus(ctx context.Context, params *api.GetStatusParams) 
 				Values:   constants,
 			},
 		},
-		SelfTests: a.module.selfTester.GetStatus(),
+		SelfTests: a.cwsConsumer.selfTester.GetStatus(),
 	}
 
 	envErrors := a.probe.VerifyEnvironment()
@@ -394,8 +362,9 @@ func (a *APIServer) Start(ctx context.Context) {
 func (a *APIServer) GetConfig(ctx context.Context, params *api.GetConfigParams) (*api.SecurityConfigMessage, error) {
 	if a.cfg != nil {
 		return &api.SecurityConfigMessage{
-			FIMEnabled:     a.cfg.FIMEnabled,
-			RuntimeEnabled: a.cfg.RuntimeEnabled,
+			FIMEnabled:          a.cfg.FIMEnabled,
+			RuntimeEnabled:      a.cfg.RuntimeEnabled,
+			ActivityDumpEnabled: a.probe.IsActivityDumpEnabled(),
 		}, nil
 	}
 	return &api.SecurityConfigMessage{}, nil
@@ -403,18 +372,18 @@ func (a *APIServer) GetConfig(ctx context.Context, params *api.GetConfigParams) 
 
 // RunSelfTest runs self test and then reload the current policies
 func (a *APIServer) RunSelfTest(ctx context.Context, params *api.RunSelfTestParams) (*api.SecuritySelfTestResultMessage, error) {
-	if a.module == nil {
+	if a.cwsConsumer == nil {
 		return nil, errors.New("failed to found module in APIServer")
 	}
 
-	if a.module.selfTester == nil {
+	if a.cwsConsumer.selfTester == nil {
 		return &api.SecuritySelfTestResultMessage{
 			Ok:    false,
 			Error: "self-tests are disabled",
 		}, nil
 	}
 
-	if err := a.module.RunSelfTest(false); err != nil {
+	if _, err := a.cwsConsumer.RunSelfTest(false); err != nil {
 		return &api.SecuritySelfTestResultMessage{
 			Ok:    false,
 			Error: err.Error(),
@@ -445,15 +414,15 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 		ruleEvent.AgentContext.PolicyVersion = policy.Version
 	}
 
-	probeJSON, err := json.Marshal(event)
+	probeJSON, err := marshalEvent(event, a.probe)
 	if err != nil {
-		log.Errorf("failed to marshal event: %v", err)
+		seclog.Errorf("failed to marshal event: %v", err)
 		return
 	}
 
 	ruleEventJSON, err := easyjson.Marshal(ruleEvent)
 	if err != nil {
-		log.Errorf("failed to marshal event context: %v", err)
+		seclog.Errorf("failed to marshal event context: %v", err)
 		return
 	}
 
@@ -481,6 +450,22 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 	}
 
 	a.enqueue(msg)
+}
+
+func marshalEvent(event Event, probe *sprobe.Probe) ([]byte, error) {
+	if ev, ok := event.(*model.Event); ok {
+		return serializers.MarshalEvent(ev, probe.GetResolvers())
+	}
+
+	if m, ok := event.(easyjson.Marshaler); ok {
+		w := &jwriter.Writer{
+			Flags: jwriter.NilSliceAsEmpty | jwriter.NilMapAsEmpty,
+		}
+		m.MarshalEasyJSON(w)
+		return w.BuildBytes()
+	}
+
+	return json.Marshal(event)
 }
 
 // expireEvent updates the count of expired messages for the appropriate rule
@@ -529,18 +514,12 @@ func (a *APIServer) SendStats() error {
 			}
 		}
 	}
-
-	if count := a.expiredProcessEvents.Swap(0); count > 0 {
-		if err := a.statsdClient.Count(metrics.MetricProcessEventsServerExpired, count, []string{}, 1.0); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
 // ReloadPolicies reloads the policies
 func (a *APIServer) ReloadPolicies(ctx context.Context, params *api.ReloadPoliciesParams) (*api.ReloadPoliciesResultMessage, error) {
-	if err := a.module.ReloadPolicies(); err != nil {
+	if err := a.cwsConsumer.ReloadPolicies(); err != nil {
 		return nil, err
 	}
 	return &api.ReloadPoliciesResultMessage{}, nil
@@ -557,47 +536,18 @@ func (a *APIServer) Apply(ruleIDs []rules.RuleID) {
 	}
 }
 
-// SendProcessEvent forwards collected process events to the processMsgs channel so they can be consumed next time GetProcessEvents
-// is called
-func (a *APIServer) SendProcessEvent(data []byte) {
-	m := &api.SecurityProcessEventMessage{
-		Data: data,
-	}
-
-	select {
-	case a.processMsgs <- m:
-		break
-	default:
-		// The channel is full, expire the oldest event
-		<-a.processMsgs
-		a.expiredProcessEvents.Inc()
-		// Try to send the event again
-		select {
-		case a.processMsgs <- m:
-			break
-		default:
-			// looks like the process msgs channel is full again, expire the current event
-			a.expiredProcessEvents.Inc()
-			break
-		}
-		break
-	}
-}
-
 // NewAPIServer returns a new gRPC event server
-func NewAPIServer(cfg *config.Config, probe *sprobe.Probe, client statsd.ClientInterface) *APIServer {
+func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, client statsd.ClientInterface) *APIServer {
 	es := &APIServer{
-		msgs:                 make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
-		processMsgs:          make(chan *api.SecurityProcessEventMessage, cfg.EventServerBurst*3),
-		activityDumps:        make(chan *api.ActivityDumpStreamMessage, probes.MaxTracedCgroupsCount*2),
-		expiredEvents:        make(map[rules.RuleID]*atomic.Int64),
-		expiredProcessEvents: atomic.NewInt64(0),
-		expiredDumps:         atomic.NewInt64(0),
-		rate:                 NewLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
-		statsdClient:         client,
-		probe:                probe,
-		retention:            time.Duration(cfg.EventServerRetention) * time.Second,
-		cfg:                  cfg,
+		msgs:          make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
+		activityDumps: make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
+		expiredEvents: make(map[rules.RuleID]*atomic.Int64),
+		expiredDumps:  atomic.NewInt64(0),
+		rate:          NewLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
+		statsdClient:  client,
+		probe:         probe,
+		retention:     time.Duration(cfg.EventServerRetention) * time.Second,
+		cfg:           cfg,
 	}
 	return es
 }

@@ -109,7 +109,7 @@
         Directory="AGENT"
         Execute="immediate"
         Return="asyncNoWait"
-        ExeCommand="&quot;[AGENT]ddtray.exe&quot; &quot;-launch-gui&quot;" />
+        ExeCommand="&quot;[AGENT]ddtray.exe&quot; &quot;--launch-gui&quot;" />
 
 
     <!-- Delete application when uninstalling -->
@@ -291,7 +291,7 @@
                   Name="Datadog Agent Manager"
                   Description="Manage your Datadog Agent"
                   Target="[AGENT]ddtray.exe"
-                  Arguments= "&quot;-launch-gui&quot;"
+                  Arguments= "&quot;--launch-gui&quot;"
                   WorkingDirectory="AGENT"/>
 
         <RemoveFolder Id="ApplicationProgramsFolder" On="uninstall"/>
@@ -412,7 +412,7 @@
     </Feature>
 
     <!-- UI Stuff: 100% Omnibus Generated -->
-    <Icon Id="project.ico" SourceFile="Resources\assets\project_16x16.ico"/>
+    <Icon Id="project.ico" SourceFile="Resources\assets\project.ico"/>
     <Property Id="ARPPRODUCTICON" Value="project.ico" />
     <Property Id="ARPHELPLINK" Value="https://datadoghq.com/" />
     <!--

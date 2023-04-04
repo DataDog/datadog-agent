@@ -24,8 +24,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
@@ -60,10 +60,10 @@ func (f *forwarderBenchStub) reset() {
 	f.receivedBytes = 0
 }
 
-func (f *forwarderBenchStub) computeStats(payloads forwarder.Payloads) {
+func (f *forwarderBenchStub) computeStats(payloads transaction.BytesPayloads) {
 	for _, payload := range payloads {
 		f.received++
-		f.receivedBytes += uint64(len(*payload))
+		f.receivedBytes += uint64(len(payload.GetContent()))
 	}
 }
 
@@ -75,31 +75,31 @@ func (f *forwarderBenchStub) Stop() {
 	return
 }
 
-func (f *forwarderBenchStub) SubmitV1Series(payloads forwarder.Payloads, extraHeaders http.Header) error {
+func (f *forwarderBenchStub) SubmitV1Series(payloads transaction.BytesPayloads, extraHeaders http.Header) error {
 	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitV1Intake(payloads forwarder.Payloads, extraHeaders http.Header, priority forwarder.TransactionPriority) error {
+func (f *forwarderBenchStub) SubmitV1Intake(payloads transaction.BytesPayloads, extraHeaders http.Header, priority forwarder.TransactionPriority) error {
 	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitV1CheckRuns(payloads forwarder.Payloads, extraHeaders http.Header) error {
+func (f *forwarderBenchStub) SubmitV1CheckRuns(payloads transaction.BytesPayloads, extraHeaders http.Header) error {
 	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitSeries(payloads forwarder.Payloads, extraHeaders http.Header) error {
+func (f *forwarderBenchStub) SubmitSeries(payloads transaction.BytesPayloads, extraHeaders http.Header) error {
 	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitSketchSeries(payloads forwarder.Payloads, extraHeaders http.Header) error {
+func (f *forwarderBenchStub) SubmitSketchSeries(payloads transaction.BytesPayloads, extraHeaders http.Header) error {
 	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitHostMetadata(payloads forwarder.Payloads, extraHeaders http.Header) error {
+func (f *forwarderBenchStub) SubmitHostMetadata(payloads transaction.BytesPayloads, extraHeaders http.Header) error {
 	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitMetadata(payloads forwarder.Payloads, extraHeaders http.Header, priority forwarder.TransactionPriority) error {
+func (f *forwarderBenchStub) SubmitMetadata(payloads transaction.BytesPayloads, extraHeaders http.Header, priority forwarder.TransactionPriority) error {
 	f.computeStats(payloads)
 	return nil
 }
@@ -218,7 +218,7 @@ func main() {
 	mockConfig.Set("dogstatsd_stats_enable", true)
 	mockConfig.Set("dogstatsd_stats_buffer", 100)
 	s := serializer.NewSerializer(f, nil)
-	aggr := aggregator.InitAggregator(s, nil, "localhost")
+	aggr := aggregator.NewBufferedAggregator(s, nil, "localhost", aggregator.DefaultFlushInterval)
 	statsd, err := dogstatsd.NewServer(aggr.GetBufferedChannels(), false)
 	if err != nil {
 		log.Errorf("Problem allocating dogstatsd server: %s", err)

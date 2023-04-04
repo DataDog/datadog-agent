@@ -16,6 +16,7 @@ import (
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -33,23 +34,24 @@ var (
 	// EventsPerfRingBufferSize is the buffer size of the perf buffers used for events.
 	// PLEASE NOTE: for the perf ring buffer usage metrics to be accurate, the provided value must have the
 	// following form: (1 + 2^n) * pages. Checkout https://github.com/DataDog/ebpf for more.
-	EventsPerfRingBufferSize = 257 * os.Getpagesize()
-	// defaultEventsRingBufferSize is the default buffer size of the ring buffers for events.
-	// Must be a power of 2 and a multiple of the page size
-	defaultEventsRingBufferSize uint32
+	EventsPerfRingBufferSize = 256 * os.Getpagesize()
 )
 
-func init() {
+// computeDefaultEventsRingBufferSize is the default buffer size of the ring buffers for events.
+// Must be a power of 2 and a multiple of the page size
+func computeDefaultEventsRingBufferSize() uint32 {
 	numCPU, err := utils.NumCPU()
 	if err != nil {
 		numCPU = 1
 	}
 
-	if numCPU < 64 {
-		defaultEventsRingBufferSize = uint32(64 * 256 * os.Getpagesize())
-	} else {
-		defaultEventsRingBufferSize = uint32(128 * 256 * os.Getpagesize())
+	if numCPU <= 16 {
+		return uint32(8 * 256 * os.Getpagesize())
+	} else if numCPU <= 64 {
+		return uint32(16 * 256 * os.Getpagesize())
 	}
+
+	return uint32(32 * 256 * os.Getpagesize())
 }
 
 // AllProbes returns the list of all the probes of the runtime security module
@@ -67,6 +69,7 @@ func AllProbes() []*manager.Probe {
 	allProbes = append(allProbes, getRenameProbes()...)
 	allProbes = append(allProbes, getRmdirProbe()...)
 	allProbes = append(allProbes, sharedProbes...)
+	allProbes = append(allProbes, iouringProbes...)
 	allProbes = append(allProbes, getUnlinkProbes()...)
 	allProbes = append(allProbes, getXattrProbes()...)
 	allProbes = append(allProbes, getIoctlProbes()...)
@@ -89,7 +92,6 @@ func AllProbes() []*manager.Probe {
 		&manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFSection:  "tracepoint/raw_syscalls/sys_exit",
 				EBPFFuncName: "sys_exit",
 			},
 		},
@@ -97,7 +99,6 @@ func AllProbes() []*manager.Probe {
 		&manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFSection:  "kprobe/security_inode_getattr",
 				EBPFFuncName: "kprobe_security_inode_getattr",
 			},
 		},
@@ -115,7 +116,7 @@ func AllMaps() []*manager.Map {
 		{Name: "filter_policy"},
 		{Name: "inode_discarders"},
 		{Name: "pid_discarders"},
-		{Name: "discarder_revisions"},
+		{Name: "inode_discarder_revisions"},
 		{Name: "basename_approvers"},
 		// Dentry resolver table
 		{Name: "pathnames"},
@@ -123,7 +124,6 @@ func AllMaps() []*manager.Map {
 		{Name: "exec_file_cache"},
 		// Open tables
 		{Name: "open_flags_approvers"},
-		{Name: "io_uring_req_pid"},
 		// Exec tables
 		{Name: "proc_cache"},
 		{Name: "pid_cache"},
@@ -131,17 +131,10 @@ func AllMaps() []*manager.Map {
 		// SELinux tables
 		{Name: "selinux_write_buffer"},
 		{Name: "selinux_enforce_status"},
-		// Flushing discarders boolean
-		{Name: "flushing_discarders"},
 		// Enabled event mask
 		{Name: "enabled_events"},
 	}
 }
-
-const (
-	// MaxTracedCgroupsCount hard limit for the count of traced cgroups
-	MaxTracedCgroupsCount = 128
-)
 
 func getMaxEntries(numCPU int, min int, max int) uint32 {
 	maxEntries := int(math.Min(float64(max), float64(min*numCPU)/4))
@@ -153,10 +146,7 @@ func getMaxEntries(numCPU int, min int, max int) uint32 {
 }
 
 // AllMapSpecEditors returns the list of map editors
-func AllMapSpecEditors(numCPU int, cgroupWaitListSize int, supportMmapableMaps, useRingBuffers bool, ringBufferSize uint32) map[string]manager.MapSpecEditor {
-	if cgroupWaitListSize <= 0 || cgroupWaitListSize > MaxTracedCgroupsCount {
-		cgroupWaitListSize = MaxTracedCgroupsCount
-	}
+func AllMapSpecEditors(numCPU int, tracedCgroupSize int, supportMmapableMaps, useRingBuffers bool, ringBufferSize uint32) map[string]manager.MapSpecEditor {
 	editors := map[string]manager.MapSpecEditor{
 		"proc_cache": {
 			MaxEntries: getMaxEntries(numCPU, minProcEntries, maxProcEntries),
@@ -170,15 +160,27 @@ func AllMapSpecEditors(numCPU int, cgroupWaitListSize int, supportMmapableMaps, 
 			MaxEntries: getMaxEntries(numCPU, minPathnamesEntries, maxPathnamesEntries),
 			EditorFlag: manager.EditMaxEntries,
 		},
-		"traced_cgroups": {
-			MaxEntries: MaxTracedCgroupsCount,
+		"activity_dumps_config": {
+			MaxEntries: model.MaxTracedCgroupsCount,
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"activity_dump_rate_limiters": {
+			MaxEntries: model.MaxTracedCgroupsCount,
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"cgroup_wait_list": {
-			MaxEntries: uint32(cgroupWaitListSize),
+			MaxEntries: model.MaxTracedCgroupsCount,
 			EditorFlag: manager.EditMaxEntries,
 		},
 	}
+
+	if tracedCgroupSize > 0 {
+		editors["traced_cgroups"] = manager.MapSpecEditor{
+			MaxEntries: uint32(tracedCgroupSize),
+			EditorFlag: manager.EditMaxEntries,
+		}
+	}
+
 	if supportMmapableMaps {
 		editors["dr_erpc_buffer"] = manager.MapSpecEditor{
 			Flags:      unix.BPF_F_MMAPABLE,
@@ -187,12 +189,12 @@ func AllMapSpecEditors(numCPU int, cgroupWaitListSize int, supportMmapableMaps, 
 	}
 	if useRingBuffers {
 		if ringBufferSize == 0 {
-			ringBufferSize = defaultEventsRingBufferSize
+			ringBufferSize = computeDefaultEventsRingBufferSize()
 		}
 		editors["events"] = manager.MapSpecEditor{
 			MaxEntries: ringBufferSize,
 			Type:       ebpf.RingBuf,
-			EditorFlag: manager.EditType | manager.EditMaxEntries,
+			EditorFlag: manager.EditMaxEntries | manager.EditType | manager.EditKeyValue,
 		}
 	}
 	return editors
@@ -243,5 +245,12 @@ func AllBPFProbeWriteUserProgramFunctions() []string {
 func GetPerfBufferStatisticsMaps() map[string]string {
 	return map[string]string{
 		"events": "events_stats",
+	}
+}
+
+// GetRingBufferStatisticsMaps returns the list of maps used to monitor the performances of each ring buffer
+func GetRingBufferStatisticsMaps() map[string]string {
+	return map[string]string{
+		"events": "events_ringbuf_stats",
 	}
 }

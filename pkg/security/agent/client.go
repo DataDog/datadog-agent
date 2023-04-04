@@ -14,7 +14,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 )
 
 // RuntimeSecurityClient is used to send request to security module
@@ -54,9 +54,11 @@ func (c *RuntimeSecurityClient) ListActivityDumps() (*api.ActivityDumpListMessag
 }
 
 // StopActivityDump stops an active dump if it exists
-func (c *RuntimeSecurityClient) StopActivityDump(comm string) (*api.ActivityDumpStopMessage, error) {
+func (c *RuntimeSecurityClient) StopActivityDump(name, containerid, comm string) (*api.ActivityDumpStopMessage, error) {
 	return c.apiClient.StopActivityDump(context.Background(), &api.ActivityDumpStopParams{
-		Comm: comm,
+		Comm:        comm,
+		Name:        name,
+		ContainerID: containerid,
 	})
 }
 

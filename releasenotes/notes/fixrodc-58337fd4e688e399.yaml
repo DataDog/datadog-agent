@@ -11,4 +11,3 @@ fixes:
   - |
     On Windows, properly installs on Read Only Domain Controller.
     Adds rights to domain-created user in local GPOs.
-other:

@@ -25,25 +25,25 @@ import (
 
 var descJobLabelsDefaultLabels = []string{"namespace", "job_name"}
 
-// NewJobFactory returns a new Job metric family generator factory.
-func NewJobFactory() customresource.RegistryFactory {
-	return &jobFactory{}
+// NewExtendedJobFactory returns a new Job metric family generator factory.
+func NewExtendedJobFactory() customresource.RegistryFactory {
+	return &extendedJobFactory{}
 }
 
-type jobFactory struct{}
+type extendedJobFactory struct{}
 
 // Name is the name of the factory
-func (f *jobFactory) Name() string {
+func (f *extendedJobFactory) Name() string {
 	return "jobs_extended"
 }
 
 // CreateClient is not implemented
-func (f *jobFactory) CreateClient(cfg *rest.Config) (interface{}, error) {
+func (f *extendedJobFactory) CreateClient(cfg *rest.Config) (interface{}, error) {
 	panic("not implemented")
 }
 
 // MetricFamilyGenerators returns the extended job metric family generators
-func (f *jobFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
+func (f *extendedJobFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
 		*generator.NewFamilyGenerator(
 			"kube_job_duration",
@@ -93,12 +93,12 @@ func wrapJobFunc(f func(*batchv1.Job) *metric.Family) func(interface{}) *metric.
 }
 
 // ExpectedType returns the type expected by the factory
-func (f *jobFactory) ExpectedType() interface{} {
+func (f *extendedJobFactory) ExpectedType() interface{} {
 	return &batchv1.Job{}
 }
 
 // ListWatch returns a ListerWatcher for batchv1.Job
-func (f *jobFactory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
+func (f *extendedJobFactory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
 	client := customResourceClient.(kubernetes.Interface)
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {

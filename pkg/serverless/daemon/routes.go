@@ -7,7 +7,7 @@ package daemon
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"time"
@@ -15,8 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-const localTestEnvVar = "DD_LOCAL_TEST"
 
 // Hello is a route called by the Datadog Lambda Library when it starts.
 // It is used to detect the Datadog Lambda Library in the environment.
@@ -37,7 +35,7 @@ type Flush struct {
 
 func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.Flush route.")
-	if len(os.Getenv(localTestEnvVar)) > 0 {
+	if len(os.Getenv(LocalTestEnvVar)) > 0 {
 		// used only for testing purpose as the Logs API is not supported by the Lambda Emulator
 		// thus we canot get the REPORT log line telling that the invocation is finished
 		f.daemon.HandleRuntimeDone()
@@ -53,7 +51,7 @@ type StartInvocation struct {
 func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.StartInvocation route.")
 	startTime := time.Now()
-	reqBody, err := ioutil.ReadAll(r.Body)
+	reqBody, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Error("Could not read StartInvocation request body")
 		http.Error(w, "Could not read StartInvocation request body", 400)
@@ -66,7 +64,7 @@ func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	startDetails := &invocationlifecycle.InvocationStartDetails{
 		StartTime:             startTime,
-		InvokeEventRawPayload: string(reqBody),
+		InvokeEventRawPayload: reqBody,
 		InvokeEventHeaders:    lambdaInvokeContext,
 		InvokedFunctionARN:    s.daemon.ExecutionContext.GetCurrentState().ARN,
 	}
@@ -92,7 +90,7 @@ func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.EndInvocation route.")
 	endTime := time.Now()
 	ecs := e.daemon.ExecutionContext.GetCurrentState()
-	responseBody, err := ioutil.ReadAll(r.Body)
+	responseBody, err := io.ReadAll(r.Body)
 	if err != nil {
 		err := log.Error("Could not read EndInvocation request body")
 		http.Error(w, err.Error(), 400)
@@ -102,7 +100,7 @@ func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		EndTime:            endTime,
 		IsError:            r.Header.Get(invocationlifecycle.InvocationErrorHeader) == "true",
 		RequestID:          ecs.LastRequestID,
-		ResponseRawPayload: string(responseBody),
+		ResponseRawPayload: responseBody,
 	}
 	executionContext := e.daemon.InvocationProcessor.GetExecutionInfo()
 	if executionContext.TraceID == 0 {

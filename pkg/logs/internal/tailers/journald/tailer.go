@@ -23,21 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Journal interfacae to wrap the functions defined in sdjournal.
-type Journal interface {
-	AddMatch(match string) error
-	AddDisjunction() error
-	SeekTail() error
-	SeekHead() error
-	Wait(timeout time.Duration) int
-	SeekCursor(cursor string) error
-	NextSkip(skip uint64) (uint64, error)
-	Close() error
-	Next() (uint64, error)
-	GetEntry() (*sdjournal.JournalEntry, error)
-	GetCursor() (string, error)
-}
-
 // defaultWaitDuration represents the delay before which we try to collect a new log from the journal
 const (
 	defaultWaitDuration    = 1 * time.Second
@@ -80,17 +65,17 @@ func (t *Tailer) Start(cursor string) error {
 		return err
 	}
 	t.source.Status.Success()
-	t.source.AddInput(t.journalPath())
-	log.Info("Start tailing journal ", t.journalPath())
+	t.source.AddInput(t.Identifier())
+	log.Info("Start tailing journal ", t.journalPath(), " with id: ", t.Identifier())
 	go t.tail()
 	return nil
 }
 
 // Stop stops the tailer
 func (t *Tailer) Stop() {
-	log.Info("Stop tailing journal ", t.journalPath())
+	log.Info("Stop tailing journal ", t.journalPath(), " with id: ", t.Identifier())
 	t.stop <- struct{}{}
-	t.source.RemoveInput(t.journalPath())
+	t.source.RemoveInput(t.Identifier())
 	<-t.done
 }
 
@@ -289,20 +274,20 @@ func (t *Tailer) toMessage(entry *sdjournal.JournalEntry) *message.Message {
 // getContent returns all the fields of the entry as a json-string,
 // remapping "MESSAGE" into "message" and bundling all the other keys in a "journald" attribute.
 // ex:
-// * journal-entry:
-//  {
-//    "MESSAGE": "foo",
-//    "_SYSTEMD_UNIT": "foo",
-//    ...
-//  }
-// * message-content:
-//  {
-//    "message": "foo",
-//    "journald": {
-//      "_SYSTEMD_UNIT": "foo",
-//      ...
-//    }
-//  }
+//   - journal-entry:
+//     {
+//     "MESSAGE": "foo",
+//     "_SYSTEMD_UNIT": "foo",
+//     ...
+//     }
+//   - message-content:
+//     {
+//     "message": "foo",
+//     "journald": {
+//     "_SYSTEMD_UNIT": "foo",
+//     ...
+//     }
+//     }
 func (t *Tailer) getContent(entry *sdjournal.JournalEntry) []byte {
 	payload := make(map[string]interface{})
 	fields := entry.Fields
@@ -407,7 +392,18 @@ const journaldIntegration = "journald"
 
 // Identifier returns the unique identifier of the current journal being tailed.
 func (t *Tailer) Identifier() string {
-	return journaldIntegration + ":" + t.journalPath()
+	return Identifier(t.source.Config)
+}
+
+// Identifier returns the unique identifier of the current journald config
+func Identifier(config *config.LogsConfig) string {
+	id := "default"
+	if config.ConfigId != "" {
+		id = config.ConfigId
+	} else if config.Path != "" {
+		id = config.Path
+	}
+	return journaldIntegration + ":" + id
 }
 
 // journalPath returns the path of the journal

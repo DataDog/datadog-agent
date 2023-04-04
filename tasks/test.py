@@ -5,10 +5,14 @@ High level testing tasks
 # Recent versions of Python should be able to use dict and list directly in type hints,
 # so we only need to check that we don't run this code with old Python versions.
 
+import abc
+import json
 import operator
 import os
+import platform
 import re
 import sys
+from collections import defaultdict
 from contextlib import contextmanager
 from typing import Dict, List
 
@@ -20,15 +24,17 @@ from .build_tags import compute_build_tags_for_flavor
 from .cluster_agent import integration_tests as dca_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
 from .flavor import AgentFlavor
-from .go import golangci_lint
+from .go import run_golangci_lint
+from .libs.common.color import color_message
 from .libs.copyright import CopyrightLinter
-from .libs.junit_upload import add_flavor_to_junitxml, junit_upload_from_tgz, produce_junit_tar
+from .libs.junit_upload import add_flavor_to_junitxml, junit_upload_from_tgz, produce_junit_tar, repack_macos_junit_tar
 from .modules import DEFAULT_MODULES, GoModule
 from .trace_agent import integration_tests as trace_integration_tests
 from .utils import DEFAULT_BRANCH, get_build_flags
 
 PROFILE_COV = "profile.cov"
-GO_TEST_RESULT_TMP_JSON = 'tmp.json'
+GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
+UNIT_TEST_FILE_FORMAT = re.compile(r'[^a-zA-Z0-9_\-]')
 
 
 class TestProfiler:
@@ -118,25 +124,170 @@ def install_tools(ctx):
                     ctx.run(f"go install {tool}")
 
 
+@task
+def invoke_unit_tests(ctx):
+    """
+    Run the unit tests on the invoke tasks
+    """
+    for _, _, files in os.walk("tasks/unit-tests/"):
+        for file in files:
+            if file[-3:] == ".py" and file != "__init__.py" and not bool(UNIT_TEST_FILE_FORMAT.search(file[:-3])):
+                ctx.run(f"python3 -m tasks.unit-tests.{file[:-3]}")
+
+
+def test_core(
+    modules: List[GoModule],
+    flavor: AgentFlavor,
+    module_class: GoModule,
+    operation_name: str,
+    command,
+    skip_module_class=False,
+):
+    """
+    Run the command function on each module of the modules list.
+    """
+    modules_results = []
+    print(f"--- Flavor {flavor.name}: {operation_name}")
+    for module in modules:
+        module_result = None
+        if not skip_module_class:
+            module_result = module_class(path=module.full_path())
+        print(f"----- Module '{module.full_path()}'")
+        if not module.condition():
+            print("----- Skipped")
+            continue
+
+        command(modules_results, module, module_result)
+    return modules_results
+
+
 def lint_flavor(
     ctx, modules: List[GoModule], flavor: AgentFlavor, build_tags: List[str], arch: str, rtloader_root: bool
 ):
     """
     Runs linters for given flavor, build tags, and modules.
     """
-    # For now we only run golangci_lint on Unix as the Windows env needs more work
-    if sys.platform != 'win32':
-        print(f"--- Flavor {flavor.name}: golangci_lint")
-        for module in modules:
-            print(f"----- Module '{module.full_path()}'")
-            if not module.condition():
-                print("----- Skipped")
-                continue
 
-            with ctx.cd(module.full_path()):
-                golangci_lint(
-                    ctx, targets=module.targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch
-                )
+    def command(module_results, module, module_result):
+        with ctx.cd(module.full_path()):
+            lint_results = run_golangci_lint(
+                ctx, targets=module.targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch
+            )
+            for lint_result in lint_results:
+                module_result.lint_outputs.append(lint_result)
+                if lint_result.exited != 0:
+                    module_result.failed = True
+        module_results.append(module_result)
+
+    return test_core(modules, flavor, ModuleLintResult, "golangci_lint", command)
+
+
+class ModuleResult(abc.ABC):
+    def __init__(self, path):
+        # The full path of the module
+        self.path = path
+        # Whether the command failed for that module
+        self.failed = False
+        # String for representing the result type in printed output
+        self.result_type = "generic"
+
+    def failure_string(self, flavor):
+        return color_message(f"{self.result_type} for module {self.path} failed ({flavor.name} flavor)\n", "red")
+
+    @abc.abstractmethod
+    def get_failure(self, flavor):  # noqa: U100
+        """
+        Return a tuple with two elements:
+        * bool value - True if the result is failed, False otherwise
+        * str value - human-readable failure representation (if failed), empty string otherwise
+        """
+        pass
+
+
+class ModuleLintResult(ModuleResult):
+    def __init__(self, path):
+        super().__init__(path)
+        self.result_type = "Linters"
+        # Results of failed lint calls
+        self.lint_outputs = []
+
+    def get_failure(self, flavor):
+        failure_string = ""
+
+        if self.failed:
+            failure_string = self.failure_string(flavor)
+            failure_string += "Linter failures:\n"
+            for lint_output in self.lint_outputs:
+                if lint_output.exited != 0:
+                    failure_string = f"{failure_string}{lint_output.stdout}\n" if lint_output.stdout else failure_string
+                    failure_string = f"{failure_string}{lint_output.stderr}\n" if lint_output.stderr else failure_string
+
+        return self.failed, failure_string
+
+
+class ModuleTestResult(ModuleResult):
+    def __init__(self, path):
+        super().__init__(path)
+        self.result_type = "Tests"
+        # Path to the result.json file output by gotestsum (should always be present)
+        self.result_json_path = None
+        # Path to the junit file output by gotestsum (only present if specified in inv test)
+        self.junit_file_path = None
+
+    def get_failure(self, flavor):
+        failure_string = ""
+
+        if self.failed:
+            failure_string = self.failure_string(flavor)
+            failed_packages = set()
+            failed_tests = defaultdict(set)
+
+            # TODO(AP-1959): this logic is now repreated, with some variations, in three places:
+            # here, in system-probe.py, and in libs/pipeline_notifications.py
+            # We should have some common result.json parsing lib.
+            with open(self.result_json_path, encoding="utf-8") as tf:
+                for line in tf:
+                    json_test = json.loads(line.strip())
+                    # This logic assumes that the lines in result.json are "in order", i.e. that retries
+                    # are logged after the initial test run.
+
+                    # The line is a "Package" line, but not a "Test" line.
+                    # We take these into account, because in some cases (panics, race conditions),
+                    # individual test failures are not reported, only a package-level failure is.
+                    if 'Package' in json_test and 'Test' not in json_test:
+                        package = json_test['Package']
+                        action = json_test["Action"]
+
+                        if action == "fail":
+                            failed_packages.add(package)
+                        elif action == "pass" and package in failed_tests.keys():
+                            # The package was retried and fully succeeded, removing from the list of packages to report
+                            failed_packages.remove(package)
+
+                    # The line is a "Test" line.
+                    elif 'Package' in json_test and 'Test' in json_test:
+                        name = json_test['Test']
+                        package = json_test['Package']
+                        action = json_test["Action"]
+                        if action == "fail":
+                            failed_tests[package].add(name)
+                        elif action == "pass" and name in failed_tests.get(package, set()):
+                            # The test was retried and succeeded, removing from the list of tests to report
+                            failed_tests[package].remove(name)
+
+            if failed_packages:
+                failure_string += "Test failures:\n"
+                for package in sorted(failed_packages):
+                    tests = failed_tests.get(package, set())
+                    if not tests:
+                        failure_string += f"- {package} package failed due to panic / race condition\n"
+                    else:
+                        for name in sorted(tests):
+                            failure_string += f"- {package} {name}\n"
+            else:
+                failure_string += "The test command failed, but no test failures detected in the result json."
+
+        return self.failed, failure_string
 
 
 def test_flavor(
@@ -154,12 +305,7 @@ def test_flavor(
     """
     Runs unit tests for given flavor, build tags, and modules.
     """
-    print(f"--- Flavor {flavor.name}: unit tests")
-
-    failed_modules = []
-    junit_files = []
-
-    args["go_build_tags"] = " ".join(build_tags + ["test"])
+    args["go_build_tags"] = " ".join(build_tags)
 
     junit_file_flag = ""
     junit_file = f"junit-out-{flavor.name}.xml"
@@ -167,12 +313,7 @@ def test_flavor(
         junit_file_flag = "--junitfile " + junit_file
     args["junit_file_flag"] = junit_file_flag
 
-    for module in modules:
-        print(f"----- Module '{module.full_path()}'")
-        if not module.condition():
-            print("----- Skipped")
-            continue
-
+    def command(test_results, module, module_result):
         with ctx.cd(module.full_path()):
             res = ctx.run(
                 cmd.format(
@@ -183,21 +324,93 @@ def test_flavor(
                 warn=True,
             )
 
+        module_result.result_json_path = os.path.join(module.full_path(), GO_TEST_RESULT_TMP_JSON)
+
         if res.exited is None or res.exited > 0:
-            failed_modules.append(module.full_path())
+            module_result.failed = True
 
         if save_result_json:
-            with open(save_result_json, 'ab') as json_file, open(
-                os.path.join(module.full_path(), GO_TEST_RESULT_TMP_JSON), 'rb'
-            ) as module_file:
+            with open(save_result_json, 'ab') as json_file, open(module_result.result_json_path, 'rb') as module_file:
                 json_file.write(module_file.read())
 
         if junit_tar:
-            junit_file_path = os.path.join(module.full_path(), junit_file)
-            add_flavor_to_junitxml(junit_file_path, flavor)
-            junit_files.append(junit_file_path)
+            module_result.junit_file_path = os.path.join(module.full_path(), junit_file)
+            add_flavor_to_junitxml(module_result.junit_file_path, flavor)
 
-    return junit_files, failed_modules
+        test_results.append(module_result)
+
+    return test_core(modules, flavor, ModuleTestResult, "unit tests", command)
+
+
+def coverage_flavor(
+    ctx,
+    flavor: AgentFlavor,
+    modules: List[GoModule],
+):
+    """
+    Prints the code coverage of all modules for the given flavor.
+    This expects that the coverage files have already been generated by
+    inv test --coverage.
+    """
+
+    def command(_empty_result, module, _module_result):
+        with ctx.cd(module.full_path()):
+            ctx.run(f"go tool cover -func {PROFILE_COV}", warn=True)
+
+    return test_core(modules, flavor, None, "code coverage", command, skip_module_class=True)
+
+
+def codecov_flavor(
+    ctx,
+    flavor: AgentFlavor,
+    modules: List[GoModule],
+):
+    """
+    Uploads coverage data of all modules for the given flavor.
+    This expects that the coverage files have already been generated by
+    inv test --coverage.
+    """
+
+    def command(_empty_result, module, _module_result):
+        # Codecov flags are limited to 45 characters
+        tag = f"{platform.system()}-{flavor.name}-{module.codecov_path()}"
+        if len(tag) > 45:
+            # Best-effort attempt to get a unique and legible tag name
+            tag = f"{platform.system()[:1]}-{flavor.name}-{module.codecov_path()}"[:45]
+
+        # The codecov command has to be run from the root of the repository, otherwise
+        # codecov gets confused and merges the roots of all modules, resulting in a
+        # nonsensical directory tree in the codecov app
+        path = os.path.normpath(os.path.join(module.path, PROFILE_COV))
+        ctx.run(f"codecov -f {path} -F {tag}", warn=True)
+
+    return test_core(modules, flavor, None, "codecov upload", command, skip_module_class=True)
+
+
+def process_input_args(input_module, input_targets, input_flavors):
+    """
+    Takes the input module, targets and flavors arguments from inv test and inv codecov,
+    sets default values for them & casts them to the expected types.
+    """
+    if isinstance(input_module, str):
+        # when this function is called from the command line, targets are passed
+        # as comma separated tokens in a string
+        if isinstance(input_targets, str):
+            modules = [GoModule(input_module, targets=input_targets.split(','))]
+        else:
+            modules = [m for m in DEFAULT_MODULES.values() if m.path == input_module]
+    elif isinstance(input_targets, str):
+        modules = [GoModule(".", targets=input_targets.split(','))]
+    else:
+        print("Using default modules and targets")
+        modules = DEFAULT_MODULES.values()
+
+    if not input_flavors:
+        flavors = [AgentFlavor.base]
+    else:
+        flavors = [AgentFlavor[f] for f in input_flavors]
+
+    return modules, flavors
 
 
 @task(iterable=['flavors'])
@@ -207,6 +420,7 @@ def test(
     targets=None,
     flavors=None,
     coverage=False,
+    print_coverage=False,
     build_include=None,
     build_exclude=None,
     verbose=False,
@@ -243,25 +457,15 @@ def test(
     """
     # Process input arguments
 
-    if isinstance(module, str):
-        # when this function is called from the command line, targets are passed
-        # as comma separated tokens in a string
-        if isinstance(targets, str):
-            modules = [GoModule(module, targets=targets.split(','))]
-        else:
-            modules = [m for m in DEFAULT_MODULES.values() if m.path == module]
-    elif isinstance(targets, str):
-        modules = [GoModule(".", targets=targets.split(','))]
-    else:
-        print("Using default modules and targets")
-        modules = DEFAULT_MODULES.values()
+    modules, flavors = process_input_args(module, targets, flavors)
 
-    if not flavors:
-        flavors = [AgentFlavor.base]
-    else:
-        flavors = [AgentFlavor[f] for f in flavors]
-
-    flavors_build_tags = {
+    linter_tags = {
+        f: compute_build_tags_for_flavor(
+            flavor=f, build="lint", arch=arch, build_include=build_include, build_exclude=build_exclude
+        )
+        for f in flavors
+    }
+    unit_tests_tags = {
         f: compute_build_tags_for_flavor(
             flavor=f, build="unit-tests", arch=arch, build_include=build_include, build_exclude=build_exclude
         )
@@ -269,21 +473,17 @@ def test(
     }
 
     timeout = int(timeout)
+    modules_results_per_flavor = {flavor: {"test": [], "lint": []} for flavor in flavors}
 
     # Lint
 
     if skip_linters:
         print("--- [skipping Go linters]")
     else:
-        for flavor, build_tags in flavors_build_tags.items():
-            lint_flavor(
+        for flavor, build_tags in linter_tags.items():
+            modules_results_per_flavor[flavor]["lint"] = lint_flavor(
                 ctx, modules=modules, flavor=flavor, build_tags=build_tags, arch=arch, rtloader_root=rtloader_root
             )
-
-    # Test preparation
-
-    with open(PROFILE_COV, "w") as f_cov:
-        f_cov.write("mode: count")
 
     ldflags, gcflags, env = get_build_flags(
         ctx,
@@ -353,16 +553,14 @@ def test(
         "timeout": timeout,
         "verbose": '-v' if verbose else '',
         "nocache": nocache,
-        "json_flag": f'--jsonfile "{GO_TEST_RESULT_TMP_JSON}" ' if save_result_json else "",
+        # Used to print failed tests at the end of the go test command
+        "json_flag": f'--jsonfile "{GO_TEST_RESULT_TMP_JSON}" ',
         "rerun_fails": f"--rerun-fails={rerun_fails}" if rerun_fails else "",
     }
 
     # Test
-
-    failed_modules = {}
-    junit_files = []
-    for flavor, build_tags in flavors_build_tags.items():
-        junit_files_for_flavor, failed_modules_for_flavor = test_flavor(
+    for flavor, build_tags in unit_tests_tags.items():
+        modules_results_per_flavor[flavor]["test"] = test_flavor(
             ctx,
             flavor=flavor,
             build_tags=build_tags,
@@ -375,33 +573,52 @@ def test(
             test_profiler=test_profiler,
         )
 
-        if failed_modules_for_flavor:
-            failed_modules[flavor] = failed_modules_for_flavor
-        if junit_files_for_flavor:
-            junit_files.extend(junit_files_for_flavor)
-
     # Output
-
     if junit_tar:
+        junit_files = []
+        for flavor in flavors:
+            for module_test_result in modules_results_per_flavor[flavor]["test"]:
+                if module_test_result.junit_file_path:
+                    junit_files.append(module_test_result.junit_file_path)
+
         produce_junit_tar(junit_files, junit_tar)
 
-    if failed_modules:
-        failure_string = '\n'.join(
-            [
-                f"{', '.join(failed_modules_for_flavor)} ({flavor.name} flavor)"
-                for flavor, failed_modules_for_flavor in failed_modules.items()
-            ]
-        )
-        # Exit if any of the modules failed
-        raise Exit(code=1, message=f"Unit tests failed in the following modules:\n{failure_string}")
+    if coverage and print_coverage:
+        for flavor in flavors:
+            coverage_flavor(ctx, flavor, modules)
 
-    if coverage:
-        print("\n--- Test coverage:")
-        ctx.run(f"go tool cover -func {PROFILE_COV}")
-
+    # FIXME(AP-1958): this prints nothing in CI. Commenting out the print line
+    # in the meantime to avoid confusion
     if profile:
-        print("\n--- Top 15 packages sorted by run time:")
+        # print("\n--- Top 15 packages sorted by run time:")
         test_profiler.print_sorted(15)
+
+    should_fail = False
+    for flavor in flavors:
+        for module_results in modules_results_per_flavor[flavor].values():
+            for module_result in module_results:
+                if module_result is not None:
+                    failed, failure_string = module_result.get_failure(flavor)
+                    should_fail = should_fail or failed
+                    if failed:
+                        print(failure_string)
+
+    if should_fail:
+        # Exit if any of the modules failed
+        raise Exit(code=1)
+
+
+@task(iterable=['flavors'])
+def codecov(
+    ctx,
+    module=None,
+    targets=None,
+    flavors=None,
+):
+    modules, flavors = process_input_args(module, targets, flavors)
+
+    for flavor in flavors:
+        codecov_flavor(ctx, flavor, modules)
 
 
 @task
@@ -553,7 +770,10 @@ def lint_filenames(ctx):
     # Maximum length supported by the win32 API
     max_length = 255
     for file in files:
-        if not file.startswith('test/kitchen/') and prefix_length + len(file) > max_length:
+        if (
+            not file.startswith(('test/kitchen/', 'tools/windows/DatadogAgentInstaller'))
+            and prefix_length + len(file) > max_length
+        ):
             print(f"Error: path {file} is too long ({prefix_length + len(file) - max_length} characters too many)")
             failure = True
 
@@ -657,3 +877,12 @@ def junit_upload(_, tgz_path):
     """
 
     junit_upload_from_tgz(tgz_path)
+
+
+@task
+def junit_macos_repack(_, infile, outfile):
+    """
+    Repacks JUnit tgz file from macOS Github Action run, so it would
+    containt correct job name and job URL.
+    """
+    repack_macos_junit_tar(infile, outfile)

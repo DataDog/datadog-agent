@@ -52,6 +52,7 @@ func setupAPM(config Config) {
 	config.SetKnown("apm_config.bucket_size_seconds")
 	config.SetKnown("apm_config.watchdog_check_delay")
 	config.SetKnown("apm_config.sync_flushing")
+	config.SetKnown("apm_config.features")
 
 	bindVectorOptions(config, Traces)
 
@@ -75,7 +76,8 @@ func setupAPM(config Config) {
 	config.BindEnv("apm_config.max_events_per_second", "DD_APM_MAX_EPS", "DD_MAX_EPS")
 	config.BindEnv("apm_config.max_traces_per_second", "DD_APM_MAX_TPS", "DD_MAX_TPS")
 	config.BindEnv("apm_config.errors_per_second", "DD_APM_ERROR_TPS")
-	config.BindEnv("apm_config.disable_rare_sampler", "DD_APM_DISABLE_RARE_SAMPLER")
+	config.BindEnv("apm_config.enable_rare_sampler", "DD_APM_ENABLE_RARE_SAMPLER")
+	config.BindEnv("apm_config.disable_rare_sampler", "DD_APM_DISABLE_RARE_SAMPLER") //Deprecated
 	config.BindEnv("apm_config.max_remote_traces_per_second", "DD_APM_MAX_REMOTE_TPS")
 
 	config.BindEnv("apm_config.max_memory", "DD_APM_MAX_MEMORY")
@@ -104,6 +106,9 @@ func setupAPM(config Config) {
 	config.BindEnv("apm_config.telemetry.additional_endpoints", "DD_APM_TELEMETRY_ADDITIONAL_ENDPOINTS")
 	config.BindEnv("apm_config.obfuscation.credit_cards.enabled", "DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED")
 	config.BindEnv("apm_config.obfuscation.credit_cards.luhn", "DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN")
+	config.BindEnvAndSetDefault("apm_config.debug.port", 5012, "DD_APM_DEBUG_PORT")
+	config.BindEnv("apm_config.features", "DD_APM_FEATURES")
+	config.SetEnvKeyTransformer("apm_config.features", parseKVList("apm_config.features"))
 
 	config.SetEnvKeyTransformer("apm_config.ignore_resources", func(in string) interface{} {
 		r, err := splitCSVString(in, ',')

@@ -46,8 +46,15 @@ func isFlowClosed(flags uint32) bool {
 	return (flags & driver.FlowClosedMask) == driver.FlowClosedMask
 }
 
-func isTCPFlowEstablished(flags uint32) bool {
-	return (flags & driver.TCPFlowEstablishedMask) == driver.TCPFlowEstablishedMask
+func isTCPFlowEstablished(flow *driver.PerFlowData) bool {
+	//return (flags & driver.TCPFlowEstablishedMask) == driver.TCPFlowEstablishedMask
+	tcpdata := flow.TCPFlow()
+	if nil != tcpdata {
+		if tcpdata.ConnectionStatus == driver.TcpStatusEstablished {
+			return true
+		}
+	}
+	return false
 }
 
 func convertV4Addr(addr [16]uint8) util.Address {
@@ -107,7 +114,7 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 	cs.Family = family
 	cs.Direction = connDirection(flow.Flags)
 	cs.SPortIsEphemeral = IsPortInEphemeralRange(cs.Family, cs.Type, cs.SPort)
-
+	cs.Cookie = uint32(flow.FlowHandle)
 	if connectionType == TCP {
 		tf := flow.TCPFlow()
 		if tf != nil {
@@ -116,11 +123,52 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 			cs.RTTVar = uint32(tf.RttVariance)
 		}
 
-		if isTCPFlowEstablished(flow.Flags) {
+		if isTCPFlowEstablished(flow) {
 			cs.Monotonic.TCPEstablished = 1
 		}
 		if isFlowClosed(flow.Flags) {
 			cs.Monotonic.TCPClosed = 1
+		}
+
+		if flow.ClassificationStatus == driver.ClassificationClassified {
+			switch crq := flow.ClassifyRequest; {
+			default:
+				// this is unexpected.  The various case statements should
+				// encompass all of the available values.
+
+			case crq == driver.ClassificationRequestUnclassified:
+				// do nothing because it may be classified in the response if
+				// the request portion of the flow was missed.
+
+			case crq >= driver.ClassificationRequestHTTPUnknown && crq < driver.ClassificationRequestHTTPLast:
+				cs.Protocol = ProtocolHTTP
+			case crq == driver.ClassificationRequestHTTP2:
+				cs.Protocol = ProtocolHTTP2
+			case crq == driver.ClassificationRequestTLS:
+				cs.Protocol = ProtocolTLS
+			}
+
+			switch crsp := flow.ClassifyResponse; {
+			default:
+				// this is unexpected.  The various case statements should
+				// encompass all of the available values.
+
+			case crsp == driver.ClassificationRequestUnclassified:
+				// do nothing because it will have been classified in the request
+
+			case crsp == driver.ClassificationResponseHTTP:
+				if flow.HttpUpgradeToH2Accepted == 1 {
+					cs.Protocol = ProtocolHTTP2
+				} else {
+					// could have missed the request.  Most likely this is just
+					// resetting the existing value
+					cs.Protocol = ProtocolHTTP
+				}
+			}
+		} else {
+			// one of
+			// ClassificationUnableInsufficientData, ClassificationUnknown, ClassificationUnclassified
+			cs.Protocol = ProtocolUnknown
 		}
 	}
 }

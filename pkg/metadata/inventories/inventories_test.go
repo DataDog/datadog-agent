@@ -64,17 +64,15 @@ func waitForCalledSignal(calledSignal chan interface{}) bool {
 }
 
 func TestRemoveCheckMetadata(t *testing.T) {
-	ctx := context.Background()
 	defer func() { clearMetadata() }()
 
 	SetCheckMetadata("check1", "check_provided_key1", 123)
 	SetCheckMetadata("check2", "check_provided_key1", 123)
+
 	RemoveCheckMetadata("check1")
 
-	p := GetPayload(ctx, "testHostname", nil, true)
-	checks := *p.CheckMetadata
-	assert.Len(t, checks, 1)
-	assert.Len(t, checks["check2"], 1)
+	assert.Len(t, checkMetadata, 1)
+	assert.Contains(t, checkMetadata, "check2")
 }
 
 type mockCollector struct {
@@ -159,9 +157,10 @@ func TestGetPayload(t *testing.T) {
 	}}
 
 	SetAgentMetadata("test", true)
+
 	SetCheckMetadata("check1_instance1", "check_provided_key1", 123)
 	SetCheckMetadata("check1_instance1", "check_provided_key2", "Hi")
-	SetCheckMetadata("non_running_checkid", "check_provided_key1", "this_should_be_kept")
+	SetCheckMetadata("non_running_checkid", "check_provided_key1", "this_should_not_be_kept")
 
 	p := GetPayload(ctx, "testHostname", coll, true)
 
@@ -172,7 +171,7 @@ func TestGetPayload(t *testing.T) {
 	assert.Equal(t, true, agentMetadata["test"])
 
 	checkMeta := *p.CheckMetadata
-	assert.Len(t, checkMeta, 3)
+	assert.Len(t, checkMeta, 2)           // 'non_running_checkid' should have been cleaned
 	assert.Len(t, checkMeta["check1"], 2) // check1 has two instances
 
 	check1Instance1 := *checkMeta["check1"][0]
@@ -200,8 +199,7 @@ func TestGetPayload(t *testing.T) {
 	startNow = startNow.Add(1000 * time.Second)
 	SetCheckMetadata("check1_instance1", "check_provided_key1", 456)
 
-	resetFunc := setupHostMetadataMock()
-	defer resetFunc()
+	setupHostMetadataMock(t)
 
 	p = GetPayload(ctx, "testHostname", coll, true)
 
@@ -219,7 +217,7 @@ func TestGetPayload(t *testing.T) {
 	delete(agentMetadata, "full_configuration")
 
 	checkMeta = *p.CheckMetadata
-	assert.Len(t, checkMeta, 3)
+	assert.Len(t, checkMeta, 2)
 	check1Instance1 = *checkMeta["check1"][0]
 	assert.Equal(t, "check1_instance1", check1Instance1["config.hash"])
 	assert.Equal(t, "provider1", check1Instance1["config.provider"])
@@ -267,16 +265,6 @@ func TestGetPayload(t *testing.T) {
 					"init_config": "",
 					"instance_config": "{}"
 				}
-			],
-			"non_running_checkid":
-			[
-				{
-					"check_provided_key1": "this_should_be_kept",
-					"config.hash": "non_running_checkid",
-					"config.provider": "",
-					"init_config": "",
-					"instance_config": ""
-				}
 			]
 		},
 		"agent_metadata":
@@ -299,7 +287,6 @@ func TestGetPayload(t *testing.T) {
 			"kernel_release": "5.17.0-1-amd64",
 			"kernel_version": "Debian_5.17.3-1",
 			"os": "GNU/Linux",
-			"python_version": "3.10.4",
 			"cpu_architecture": "unknown",
 			"memory_total_kb": 1205632,
 			"memory_swap_total_kb": 1205632,
@@ -308,7 +295,12 @@ func TestGetPayload(t *testing.T) {
 			"mac_address": "00:0c:29:b6:d2:32",
 			"agent_version": "%v",
 			"cloud_provider": "some_cloud_provider",
-			"os_version": "testOS"
+			"cloud_provider_source": "",
+			"os_version": "testOS",
+			"hypervisor_guest_uuid": "hypervisorUUID",
+			"dmi_product_uuid": "dmiUUID",
+			"dmi_board_asset_tag": "boardTag",
+			"dmi_board_vendor": "boardVendor"
 		}
 	}`
 	jsonString = fmt.Sprintf(jsonString, startNow.UnixNano(), version.AgentVersion)

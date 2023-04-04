@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
-	"unsafe"
 )
 
 var (
@@ -82,6 +81,7 @@ type StringVariable struct {
 // GetEvaluator returns the variable SECL evaluator
 func (s *StringVariable) GetEvaluator() interface{} {
 	return &StringEvaluator{
+		ValueType: VariableValueType,
 		EvalFnc: func(ctx *Context) string {
 			return s.strFnc(ctx)
 		},
@@ -269,6 +269,7 @@ type MutableStringVariable struct {
 // GetEvaluator returns the variable SECL evaluator
 func (m *MutableStringVariable) GetEvaluator() interface{} {
 	return &StringEvaluator{
+		ValueType: VariableValueType,
 		EvalFnc: func(ctx *Context) string {
 			return m.Value
 		},
@@ -386,7 +387,7 @@ func NewMutableIntArrayVariable() *MutableIntArrayVariable {
 }
 
 // Scoper maps a variable to the entity its scoped to
-type Scoper func(ctx *Context) unsafe.Pointer
+type Scoper[T any] func(ctx *Context) T
 
 // GlobalVariables holds a set of global variables
 type GlobalVariables struct{}
@@ -468,14 +469,13 @@ func (v *Variables) Set(name string, value interface{}) bool {
 }
 
 // ScopedVariables holds a set of scoped variables
-type ScopedVariables struct {
-	scoper         Scoper
-	onNewVariables func(_ unsafe.Pointer)
-	vars           map[unsafe.Pointer]*Variables
+type ScopedVariables[T comparable] struct {
+	scoper Scoper[T]
+	vars   map[T]*Variables
 }
 
 // GetVariable returns new variable of the type of the specified value
-func (v *ScopedVariables) GetVariable(name string, value interface{}) (VariableValue, error) {
+func (v *ScopedVariables[T]) GetVariable(name string, value interface{}) (VariableValue, error) {
 	getVariables := func(ctx *Context) *Variables {
 		return v.vars[v.scoper(ctx)]
 	}
@@ -486,9 +486,6 @@ func (v *ScopedVariables) GetVariable(name string, value interface{}) (VariableV
 		if vars == nil {
 			vars = &Variables{}
 			v.vars[key] = vars
-			if v.onNewVariables != nil {
-				v.onNewVariables(key)
-			}
 		}
 		vars.Set(name, value)
 		return nil
@@ -536,16 +533,10 @@ func (v *ScopedVariables) GetVariable(name string, value interface{}) (VariableV
 	}
 }
 
-// ReleaseVariable releases a scoped variable
-func (v *ScopedVariables) ReleaseVariable(key unsafe.Pointer) {
-	delete(v.vars, key)
-}
-
 // NewScopedVariables returns a new set of scope variables
-func NewScopedVariables(scoper Scoper, onNewVariables func(unsafe.Pointer)) *ScopedVariables {
-	return &ScopedVariables{
-		scoper:         scoper,
-		onNewVariables: onNewVariables,
-		vars:           make(map[unsafe.Pointer]*Variables),
+func NewScopedVariables[T comparable](scoper Scoper[T]) *ScopedVariables[T] {
+	return &ScopedVariables[T]{
+		scoper: scoper,
+		vars:   make(map[T]*Variables),
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -19,47 +20,55 @@ import (
 // the samples that the TimeSamplers should have received.
 type TestAgentDemultiplexer struct {
 	*AgentDemultiplexer
-	receivedSamples []metrics.MetricSample
-	lateMetrics     []metrics.MetricSample
+	aggregatedSamples []metrics.MetricSample
+	noAggSamples      []metrics.MetricSample
 	sync.Mutex
+
+	events        chan []*metrics.Event
+	serviceChecks chan []*metrics.ServiceCheck
 }
 
-// AddTimeSampleBatch implements a noop timesampler, appending the samples in an internal slice.
-func (a *TestAgentDemultiplexer) AddTimeSampleBatch(shard TimeSamplerID, samples metrics.MetricSampleBatch) {
+// AggregateSamples implements a noop timesampler, appending the samples in an internal slice.
+func (a *TestAgentDemultiplexer) AggregateSamples(shard TimeSamplerID, samples metrics.MetricSampleBatch) {
 	a.Lock()
-	a.receivedSamples = append(a.receivedSamples, samples...)
+	a.aggregatedSamples = append(a.aggregatedSamples, samples...)
 	a.Unlock()
+}
+
+// AggregateSample implements a noop timesampler, appending the sample in an internal slice.
+func (a *TestAgentDemultiplexer) AggregateSample(sample metrics.MetricSample) {
+	a.Lock()
+	a.aggregatedSamples = append(a.aggregatedSamples, sample)
+	a.Unlock()
+}
+
+// GetEventPlatformForwarder returns a event platform forwarder
+func (a *TestAgentDemultiplexer) GetEventPlatformForwarder() (epforwarder.EventPlatformForwarder, error) {
+	return a.aggregator.GetEventPlatformForwarder()
 }
 
 // GetEventsAndServiceChecksChannels returneds underlying events and service checks channels.
 func (a *TestAgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*metrics.Event, chan []*metrics.ServiceCheck) {
-	return a.aggregator.GetBufferedChannels()
+	return a.events, a.serviceChecks
 }
 
-// AddTimeSample implements a noop timesampler, appending the sample in an internal slice.
-func (a *TestAgentDemultiplexer) AddTimeSample(sample metrics.MetricSample) {
-	a.Lock()
-	a.receivedSamples = append(a.receivedSamples, sample)
-	a.Unlock()
-}
-
-// AddLateMetrics implements a fake no aggregation pipeline ingestion part,
+// SendSamplesWithoutAggregation implements a fake no aggregation pipeline ingestion part,
 // there will be NO AUTOMATIC FLUSH as it could exist in the real implementation
 // Use Reset() to clean the buffer.
-func (a *TestAgentDemultiplexer) AddLateMetrics(metrics metrics.MetricSampleBatch) {
+func (a *TestAgentDemultiplexer) SendSamplesWithoutAggregation(metrics metrics.MetricSampleBatch) {
 	a.Lock()
-	a.lateMetrics = append(a.lateMetrics, metrics...)
+	a.noAggSamples = append(a.noAggSamples, metrics...)
 	a.Unlock()
 }
 
 func (a *TestAgentDemultiplexer) samples() (ontime []metrics.MetricSample, timed []metrics.MetricSample) {
 	a.Lock()
-	ontime = make([]metrics.MetricSample, len(a.receivedSamples))
-	timed = make([]metrics.MetricSample, len(a.lateMetrics))
-	for i, s := range a.receivedSamples {
+	ontime = make([]metrics.MetricSample, len(a.aggregatedSamples))
+	timed = make([]metrics.MetricSample, len(a.noAggSamples))
+	for i, s := range a.aggregatedSamples {
 		ontime[i] = s
 	}
-	for i, s := range a.lateMetrics {
+	for i, s := range a.noAggSamples {
 		timed[i] = s
 	}
 	a.Unlock()
@@ -70,6 +79,24 @@ func (a *TestAgentDemultiplexer) samples() (ontime []metrics.MetricSample, timed
 // Note that it returns as soon as something is avaible in either the live
 // metrics buffer or the late metrics one.
 func (a *TestAgentDemultiplexer) WaitForSamples(timeout time.Duration) (ontime []metrics.MetricSample, timed []metrics.MetricSample) {
+	return a.waitForSamples(timeout, func(ontime, timed []metrics.MetricSample) bool {
+		return len(ontime) > 0 || len(timed) > 0
+	})
+}
+
+// WaitForNumberOfSamples returns the samples received by the demultiplexer.
+// Note that it waits until at least the requested number of samples are
+// available in both the live metrics buffer and the late metrics one.
+func (a *TestAgentDemultiplexer) WaitForNumberOfSamples(ontimeCount, timedCount int, timeout time.Duration) (ontime []metrics.MetricSample, timed []metrics.MetricSample) {
+	return a.waitForSamples(timeout, func(ontime, timed []metrics.MetricSample) bool {
+		return (len(ontime) >= ontimeCount || ontimeCount == 0) &&
+			(len(timed) >= timedCount || timedCount == 0)
+	})
+}
+
+// waitForSamples returns the samples received by the demultiplexer.
+// It returns once the given foundFunc returns true or the timeout is reached.
+func (a *TestAgentDemultiplexer) waitForSamples(timeout time.Duration, foundFunc func([]metrics.MetricSample, []metrics.MetricSample) bool) (ontime []metrics.MetricSample, timed []metrics.MetricSample) {
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 	timeoutOn := time.Now().Add(timeout)
@@ -84,7 +111,7 @@ func (a *TestAgentDemultiplexer) WaitForSamples(timeout time.Duration) (ontime [
 				return ontime, timed
 			}
 
-			if len(ontime) > 0 || len(timed) > 0 {
+			if foundFunc(ontime, timed) {
 				return ontime, timed
 			}
 		case <-time.After(timeout):
@@ -122,9 +149,20 @@ func (a *TestAgentDemultiplexer) WaitEventPlatformEvents(eventType string, minEv
 // Reset resets the internal samples slice.
 func (a *TestAgentDemultiplexer) Reset() {
 	a.Lock()
-	a.receivedSamples = a.receivedSamples[0:0]
-	a.lateMetrics = a.lateMetrics[0:0]
+	a.aggregatedSamples = a.aggregatedSamples[0:0]
+	a.noAggSamples = a.noAggSamples[0:0]
 	a.Unlock()
+}
+
+// InitTestAgentDemultiplexerWithFlushInterval inits a TestAgentDemultiplexer with the given options.
+func InitTestAgentDemultiplexerWithOpts(opts AgentDemultiplexerOptions) *TestAgentDemultiplexer {
+	demux := InitAndStartAgentDemultiplexer(opts, "hostname")
+	testAgent := TestAgentDemultiplexer{
+		AgentDemultiplexer: demux,
+		events:             make(chan []*metrics.Event),
+		serviceChecks:      make(chan []*metrics.ServiceCheck),
+	}
+	return &testAgent
 }
 
 // InitTestAgentDemultiplexerWithFlushInterval inits a TestAgentDemultiplexer with the given flush interval.
@@ -133,11 +171,7 @@ func InitTestAgentDemultiplexerWithFlushInterval(flushInterval time.Duration) *T
 	opts.FlushInterval = flushInterval
 	opts.DontStartForwarders = true
 	opts.UseNoopEventPlatformForwarder = true
-	demux := InitAndStartAgentDemultiplexer(opts, "hostname")
-	testAgent := TestAgentDemultiplexer{
-		AgentDemultiplexer: demux,
-	}
-	return &testAgent
+	return InitTestAgentDemultiplexerWithOpts(opts)
 }
 
 // InitTestAgentDemultiplexer inits a TestAgentDemultiplexer with a long flush interval.

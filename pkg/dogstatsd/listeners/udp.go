@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -40,11 +40,11 @@ type UDPListener struct {
 	packetsBuffer   *packets.Buffer
 	packetAssembler *packets.Assembler
 	buffer          []byte
-	trafficCapture  *replay.TrafficCapture // Currently ignored
+	trafficCapture  replay.Component // Currently ignored
 }
 
 // NewUDPListener returns an idle UDP Statsd listener
-func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, capture *replay.TrafficCapture) (*UDPListener, error) {
+func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, capture replay.Component) (*UDPListener, error) {
 	var err error
 	var url string
 

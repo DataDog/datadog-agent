@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/golang-lru/simplelru"
+	"github.com/vishvananda/netns"
 	"go.uber.org/atomic"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -30,6 +31,7 @@ const maxSubnetCacheSize = 1024
 
 type gatewayLookup struct {
 	procRoot            string
+	rootNetNs           netns.NsHandle
 	routeCache          network.RouteCache
 	subnetCache         *simplelru.LRU // interface index to subnet cache
 	subnetForHwAddrFunc func(net.HardwareAddr) (network.Subnet, error)
@@ -62,8 +64,15 @@ func newGatewayLookup(config *config.Config) *gatewayLookup {
 		return nil
 	}
 
+	ns, err := config.GetRootNetNs()
+	if err != nil {
+		log.Errorf("could not create gateway lookup: %s", err)
+		return nil
+	}
+
 	gl := &gatewayLookup{
 		procRoot:            config.ProcRoot,
+		rootNetNs:           ns,
 		subnetForHwAddrFunc: ec2SubnetForHardwareAddr,
 		subnetCacheSize:     atomic.NewUint64(0),
 		subnetCacheMisses:   atomic.NewUint64(0),
@@ -72,7 +81,7 @@ func newGatewayLookup(config *config.Config) *gatewayLookup {
 		subnetLookupErrors:  atomic.NewUint64(0),
 	}
 
-	router, err := network.NewNetlinkRouter(config.ProcRoot)
+	router, err := network.NewNetlinkRouter(config)
 	if err != nil {
 		log.Errorf("could not create gateway lookup: %s", err)
 		return nil
@@ -114,7 +123,7 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 
 		var s network.Subnet
 		var err error
-		err = util.WithRootNS(g.procRoot, func() error {
+		err = util.WithNS(g.rootNetNs, func() error {
 			var ifi *net.Interface
 			ifi, err = net.InterfaceByIndex(r.IfIndex)
 			if err != nil {
@@ -181,6 +190,12 @@ func (g *gatewayLookup) GetStats() map[string]interface{} {
 	report := atomicstats.Report(g)
 	report["route_cache"] = g.routeCache.GetStats()
 	return report
+}
+
+func (g *gatewayLookup) Close() {
+	g.rootNetNs.Close()
+	g.routeCache.Close()
+	g.purge()
 }
 
 func (g *gatewayLookup) purge() {

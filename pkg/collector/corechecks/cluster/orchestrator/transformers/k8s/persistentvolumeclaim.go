@@ -10,6 +10,7 @@ package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 
 	corev1 "k8s.io/api/core/v1"
 )
@@ -30,6 +31,7 @@ func ExtractPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) *model.Pers
 	}
 	extractSpec(pvc, message)
 	extractStatus(pvc, message)
+	message.Tags = append(message.Tags, transformers.RetrieveUnifiedServiceTags(pvc.ObjectMeta.Labels)...)
 
 	return message
 }

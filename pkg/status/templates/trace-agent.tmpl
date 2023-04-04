@@ -35,7 +35,7 @@ APM Agent
       WARNING: {{ . }}
       {{end}}
     {{- end}}
-    {{range $key, $value := .ratebyservice -}}
+    {{range $key, $value := .ratebyservice_filtered -}}
     {{- if eq $key "service:,env:" -}}
     Default priority sampling rate: {{percent $value}}%
     {{- else}}

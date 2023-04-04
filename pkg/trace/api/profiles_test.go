@@ -8,7 +8,7 @@ package api
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -34,7 +34,7 @@ func makeURLs(t *testing.T, ss ...string) []*url.URL {
 
 func TestProfileProxy(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		slurp, err := ioutil.ReadAll(req.Body)
+		slurp, err := io.ReadAll(req.Body)
 		req.Body.Close()
 		if err != nil {
 			t.Fatal(err)
@@ -65,7 +65,7 @@ func TestProfileProxy(t *testing.T) {
 	c := &config.AgentConfig{}
 	newProfileProxy(c, []*url.URL{u}, []string{"123"}, "key:val").ServeHTTP(rec, req)
 	result := rec.Result()
-	slurp, err := ioutil.ReadAll(result.Body)
+	slurp, err := io.ReadAll(result.Body)
 	result.Body.Close()
 	if err != nil {
 		t.Fatal(err)
@@ -235,7 +235,7 @@ func TestProfileProxyHandler(t *testing.T) {
 		if res.StatusCode != http.StatusInternalServerError {
 			t.Fatalf("invalid response: %s", res.Status)
 		}
-		slurp, err := ioutil.ReadAll(res.Body)
+		slurp, err := io.ReadAll(res.Body)
 		res.Body.Close()
 		if err != nil {
 			t.Fatal(err)

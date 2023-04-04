@@ -3,11 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+// +build test
+
 package collector
 
 import (
 	"sort"
-	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -15,6 +17,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/internal/middleware"
 )
 
 // FIXTURE
@@ -109,7 +112,7 @@ func (suite *CollectorTestSuite) TestRunCheck() {
 	assert.NotNil(suite.T(), id)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), 1, len(suite.c.checks))
-	assert.Equal(suite.T(), ch, suite.c.checks["TestCheck"])
+	assert.Equal(suite.T(), ch, suite.c.checks["TestCheck"].Inner())
 
 	// schedule the same check twice
 	_, err = suite.c.RunCheck(ch)
@@ -147,7 +150,7 @@ func (suite *CollectorTestSuite) TestGet() {
 	_, found := suite.c.get("bar")
 	assert.False(suite.T(), found)
 
-	suite.c.checks["bar"] = NewCheck()
+	suite.c.checks["bar"] = middleware.NewCheckWrapper(NewCheck())
 	_, found = suite.c.get("foo")
 	assert.False(suite.T(), found)
 	c, found := suite.c.get("bar")
@@ -235,8 +238,4 @@ func (suite *CollectorTestSuite) TestReloadAllCheckInstances() {
 	assert.Equal(suite.T(), killed, []check.ID{"baz", "qux"})
 
 	assert.Zero(suite.T(), len(suite.c.checks))
-}
-
-func TestCollectorSuite(t *testing.T) {
-	suite.Run(t, new(CollectorTestSuite))
 }

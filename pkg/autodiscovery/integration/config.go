@@ -7,7 +7,6 @@ package integration
 
 import (
 	"fmt"
-	"hash/fnv"
 	"sort"
 	"strconv"
 	"strings"
@@ -18,6 +17,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
+)
+
+const (
+	// Used in unit tests
+	FakeConfigHash = 1
 )
 
 // Data contains YAML code
@@ -354,8 +358,12 @@ func (c *Data) SetField(key string, value interface{}) error {
 // The ClusterCheck field is intentionally left out to keep a stable digest
 // between the cluster-agent and the node-agents
 func (c *Config) Digest() string {
-	h := fnv.New64()
-	h.Write([]byte(c.Name)) //nolint:errcheck
+	return strconv.FormatUint(c.IntDigest(), 16)
+}
+
+func (c *Config) IntDigest() uint64 {
+	h := murmur3.New64()
+	_, _ = h.Write([]byte(c.Name))
 	for _, i := range c.Instances {
 		inst := RawMap{}
 		err := yaml.Unmarshal(i, &inst)
@@ -383,18 +391,18 @@ func (c *Config) Digest() string {
 			log.Debugf("Error while calculating config digest for %s, skipping: %v", c.Name, err)
 			continue
 		}
-		h.Write(out) //nolint:errcheck
+		_, _ = h.Write(out)
 	}
-	h.Write([]byte(c.InitConfig)) //nolint:errcheck
+	_, _ = h.Write([]byte(c.InitConfig))
 	for _, i := range c.ADIdentifiers {
-		h.Write([]byte(i)) //nolint:errcheck
+		_, _ = h.Write([]byte(i))
 	}
-	h.Write([]byte(c.NodeName))                                    //nolint:errcheck
-	h.Write([]byte(c.LogsConfig))                                  //nolint:errcheck
-	h.Write([]byte(c.ServiceID))                                   //nolint:errcheck
-	h.Write([]byte(strconv.FormatBool(c.IgnoreAutodiscoveryTags))) //nolint:errcheck
+	_, _ = h.Write([]byte(c.NodeName))
+	_, _ = h.Write([]byte(c.LogsConfig))
+	_, _ = h.Write([]byte(c.ServiceID))
+	_, _ = h.Write([]byte(strconv.FormatBool(c.IgnoreAutodiscoveryTags)))
 
-	return strconv.FormatUint(h.Sum64(), 16)
+	return h.Sum64()
 }
 
 // FastDigest returns an hash value representing the data stored in this configuration.

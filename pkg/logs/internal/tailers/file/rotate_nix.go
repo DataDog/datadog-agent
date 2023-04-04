@@ -12,6 +12,7 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // DidRotate returns true if the file has been log-rotated.
@@ -37,8 +38,17 @@ func (t *Tailer) DidRotate() (bool, error) {
 		return true, nil
 	}
 
+	lastReadOffset := t.lastReadOffset.Load()
+	fileSize := fi1.Size()
+
 	recreated := !os.SameFile(fi1, fi2)
-	truncated := fi1.Size() < t.lastReadOffset.Load()
+	truncated := fileSize < lastReadOffset
+
+	if recreated {
+		log.Debugf("File rotation detected due to recreation, f1: %+v, f2: %+v", fi1, fi2)
+	} else if truncated {
+		log.Debugf("File rotation detected due to size change, lastReadOffset=%d, fileSize=%d", lastReadOffset, fileSize)
+	}
 
 	return recreated || truncated, nil
 }

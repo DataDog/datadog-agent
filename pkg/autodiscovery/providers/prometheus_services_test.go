@@ -182,7 +182,7 @@ func TestPrometheusServicesCollect(t *testing.T) {
 			},
 		},
 		{
-			name:   "collect services and endpoints",
+			name:   "collect only endpoints",
 			checks: []*types.PrometheusCheck{types.DefaultPrometheusCheck},
 			services: []*v1.Service{
 				{
@@ -232,17 +232,6 @@ func TestPrometheusServicesCollect(t *testing.T) {
 			expectConfigs: []integration.Config{
 				{
 					Name:       "openmetrics",
-					InitConfig: integration.Data("{}"),
-					Instances: []integration.Data{
-						integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:1234/mewtrix"}`),
-					},
-					ADIdentifiers: []string{"kube_service://ns/svc"},
-					Provider:      "prometheus-services",
-					ClusterCheck:  true,
-					Source:        "prometheus_services:kube_service://ns/svc",
-				},
-				{
-					Name:       "openmetrics",
 					ServiceID:  "kube_endpoint_uid://ns/svc/10.0.0.1",
 					InitConfig: integration.Data("{}"),
 					Instances: []integration.Data{
@@ -284,7 +273,7 @@ func TestPrometheusServicesCollect(t *testing.T) {
 			}
 
 			for _, check := range test.checks {
-				check.Init()
+				check.Init(2)
 			}
 
 			p := newPromServicesProvider(test.checks, api, test.collectEndpoints)
@@ -328,7 +317,7 @@ func TestPrometheusServicesInvalidateIfChanged(t *testing.T) {
 
 	checks := []*types.PrometheusCheck{types.DefaultPrometheusCheck}
 	for _, check := range checks {
-		check.Init()
+		check.Init(0)
 	}
 
 	tests := []struct {
@@ -452,7 +441,7 @@ func TestPrometheusServicesInvalidateIfChangedEndpoints(t *testing.T) {
 
 	checks := []*types.PrometheusCheck{types.DefaultPrometheusCheck}
 	for _, check := range checks {
-		check.Init()
+		check.Init(0)
 	}
 
 	node := "node1"

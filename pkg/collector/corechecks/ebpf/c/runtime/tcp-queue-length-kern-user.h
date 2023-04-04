@@ -1,7 +1,7 @@
 #ifndef TCP_QUEUE_LENGTH_KERN_USER_H
 #define TCP_QUEUE_LENGTH_KERN_USER_H
 
-#include <linux/types.h>
+#include "ktypes.h"
 
 struct stats_key {
     char cgroup_name[129];

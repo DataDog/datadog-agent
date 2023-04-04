@@ -84,6 +84,7 @@ func (s *Server) Start() error {
 
 	tlsConfig := tls.Config{
 		Certificates: []tls.Certificate{rootTLSCert},
+		MinVersion:   tls.VersionTLS13,
 	}
 
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib

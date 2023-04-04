@@ -9,7 +9,6 @@ package common
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -72,7 +71,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	}
 
 	// move existing config files to the new configuration directory
-	files, err := ioutil.ReadDir(filepath.Join(oldConfigDir, "conf.d"))
+	files, err := os.ReadDir(filepath.Join(oldConfigDir, "conf.d"))
 	if err != nil {
 		if os.IsNotExist(err) {
 			fmt.Fprintln(color.Output,
@@ -146,7 +145,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	// dump the current configuration to datadog.yaml
 	// file permissions will be used only to create the file if doesn't exist,
 	// please note on Windows such permissions have no effect.
-	if err = ioutil.WriteFile(datadogYamlPath, b, 0640); err != nil {
+	if err = os.WriteFile(datadogYamlPath, b, 0640); err != nil {
 		return fmt.Errorf("unable to write config to %s: %v", datadogYamlPath, err)
 	}
 
@@ -160,7 +159,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	)
 
 	// move existing config templates to the new auto_conf directory
-	autoConfFiles, err := ioutil.ReadDir(filepath.Join(oldConfigDir, "conf.d", "auto_conf"))
+	autoConfFiles, err := os.ReadDir(filepath.Join(oldConfigDir, "conf.d", "auto_conf"))
 	if err != nil {
 		if os.IsNotExist(err) {
 			fmt.Fprintln(color.Output,
@@ -187,13 +186,13 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 		}
 
 		// Transform if needed AD configuration
-		input, err := ioutil.ReadFile(dst)
+		input, err := os.ReadFile(dst)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "unable to open %s", dst)
 			continue
 		}
 		output := strings.Replace(string(input), "docker_images:", "ad_identifiers:", 1)
-		err = ioutil.WriteFile(dst, []byte(output), 0640)
+		err = os.WriteFile(dst, []byte(output), 0640)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "unable to write %s", dst)
 			continue
@@ -241,7 +240,7 @@ func copyFile(src, dst string, overwrite bool, transformations []TransformationF
 		return err
 	}
 
-	data, err := ioutil.ReadFile(src)
+	data, err := os.ReadFile(src)
 	if err != nil {
 		return fmt.Errorf("unable to read file %s : %s", src, err)
 	}
@@ -253,7 +252,7 @@ func copyFile(src, dst string, overwrite bool, transformations []TransformationF
 		}
 	}
 
-	ioutil.WriteFile(dst, data, 0640) //nolint:errcheck
+	os.WriteFile(dst, data, 0640) //nolint:errcheck
 
 	ddGroup, errGroup := user.LookupGroup("dd-agent")
 	ddUser, errUser := user.LookupId("dd-agent")

@@ -1,7 +1,9 @@
 #ifndef __TRACER_BPF_H
 #define __TRACER_BPF_H
 
-#include <linux/types.h>
+#include "ktypes.h"
+
+#include "protocols/classification/defs.h"
 
 #define bool _Bool
 #define true 1
@@ -28,9 +30,21 @@ typedef struct {
     __u64 recv_bytes;
     __u64 timestamp;
     __u32 flags;
-    __u8 direction;
+    // "cookie" that uniquely identifies
+    // a conn_stas_ts_t. This is used
+    // in user space to distinguish between
+    // stats for two or more connections that
+    // may share the same conn_tuple_t (this can
+    // happen when we're aggregating connections).
+    // This is not the same as a TCP cookie or
+    // the cookie in struct sock in the kernel
+    __u32 cookie;
     __u64 sent_packets;
     __u64 recv_packets;
+    __u8 direction;
+    protocol_t protocol;
+    // keep the conn_tags u8 to keep the struct slim
+    __u8 conn_tags;
 } conn_stats_ts_t;
 
 // Connection flags
@@ -91,6 +105,7 @@ typedef struct {
 #define TCP_FLAGS_OFFSET 13
 #define TCPHDR_FIN 0x01
 #define TCPHDR_RST 0x04
+#define TCPHDR_ACK 0x10
 
 // skb_info_t embeds a conn_tuple_t extracted from the skb object as well as
 // some ancillary data such as the data offset (the byte offset pointing to
@@ -122,17 +137,25 @@ typedef struct {
 
 // Telemetry names
 typedef struct {
+    __u64 tcp_failed_connect;
     __u64 tcp_sent_miscounts;
     __u64 missed_tcp_close;
     __u64 missed_udp_close;
     __u64 udp_sends_processed;
     __u64 udp_sends_missed;
-    __u64 conn_stats_max_entries_hit;
+    __u64 udp_dropped_conns;
 } telemetry_t;
 
 typedef struct {
-    __u16 port;
+    struct sockaddr *addr;
+    struct sock *sk;
 } bind_syscall_args_t;
+
+typedef struct {
+    struct sock *sk;
+    int segs;
+    __u32 retrans_out_pre;
+} tcp_retransmit_skb_args_t;
 
 typedef struct {
     __u32 netns;

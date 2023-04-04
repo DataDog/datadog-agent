@@ -18,32 +18,53 @@ from .modules import DEFAULT_MODULES, generate_dummy_package
 from .utils import get_build_flags
 
 
+def run_golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="test", arch="x64", concurrency=None):
+    if isinstance(targets, str):
+        # when this function is called from the command line, targets are passed
+        # as comma separated tokens in a string
+        targets = targets.split(',')
+
+    tags = build_tags or get_default_build_tags(build=build, arch=arch)
+    if not isinstance(tags, list):
+        tags = [tags]
+
+    _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
+    # we split targets to avoid going over the memory limit from circleCI
+    results = []
+    for target in targets:
+        print(f"running golangci on {target}")
+        concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
+        tags_arg = " ".join(tags)
+        result = ctx.run(
+            f'golangci-lint run --timeout 20m0s {concurrency_arg} --build-tags "{tags_arg}" {target}/...',
+            env=env,
+            warn=True,
+        )
+        results.append(result)
+
+    return results
+
+
 @task
-def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, arch="x64"):
+def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="test", arch="x64", concurrency=None):
     """
     Run golangci-lint on targets using .golangci.yml configuration.
 
     Example invocation:
         inv golangci-lint --targets=./pkg/collector/check,./pkg/aggregator
     """
-    if isinstance(targets, str):
-        # when this function is called from the command line, targets are passed
-        # as comma separated tokens in a string
-        targets = targets.split(',')
+    results = run_golangci_lint(ctx, targets, rtloader_root, build_tags, build, arch, concurrency)
 
-    tags = build_tags or get_default_build_tags(build="test", arch=arch)
-    _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
-    # we split targets to avoid going over the memory limit from circleCI
-    for target in targets:
-        print(f"running golangci on {target}")
-        ctx.run(
-            f"golangci-lint run --timeout 15m0s --build-tags '{' '.join(tags)}' {target}/...",
-            env=env,
-        )
+    should_fail = False
+    for result in results:
+        # golangci exits with status 1 when it finds an issue
+        if result.exited != 0:
+            should_fail = True
 
-    # golangci exits with status 1 when it finds an issue, if we're here
-    # everything went smooth
-    print("golangci-lint found no issues")
+    if should_fail:
+        raise Exit(code=1)
+    else:
+        print("golangci-lint found no issues")
 
 
 @task
@@ -260,3 +281,19 @@ def tidy_all(ctx):
     for mod in DEFAULT_MODULES.values():
         with ctx.cd(mod.full_path()):
             ctx.run("go mod tidy -compat=1.17")
+
+
+@task
+def check_go_version(ctx):
+    go_version_output = ctx.run('go version')
+    # result is like "go version go1.19.7 linux/amd64"
+    running_go_version = go_version_output.stdout.split(' ')[2]
+
+    with open(".go-version") as f:
+        dot_go_version = f.read()
+        dot_go_version = dot_go_version.strip()
+        if not dot_go_version.startswith("go"):
+            dot_go_version = f"go{dot_go_version}"
+
+    if dot_go_version != running_go_version:
+        raise Exit(message=f"Expected {dot_go_version} (from `.go-version`), but running {running_go_version}")

@@ -171,10 +171,15 @@ UINT doFinalizeInstall(CustomActionData &data)
     // new installation or an upgrade, and what steps need to be taken
     ddUserExists = data.DoesUserExist();
 
-    if (!canInstall(data.GetTargetMachine()->IsDomainController(), ddUserExists, ddServiceExists, data, bResetPassword))
+    if (!canInstall(data, bResetPassword, NULL))
     {
         er = ERROR_INSTALL_FAILURE;
         goto LExit;
+    }
+
+    if (data.value(propertyDDAgentUserPassword, providedPassword))
+    {
+        passToUse = providedPassword.c_str();
     }
 
     // ok.  If we get here, we should be in a sane state (all installation conditions met)
@@ -186,11 +191,7 @@ UINT doFinalizeInstall(CustomActionData &data)
         // generate one
         passbuflen = MAX_PASS_LEN + 2;
 
-        if (data.value(propertyDDAgentUserPassword, providedPassword))
-        {
-            passToUse = providedPassword.c_str();
-        }
-        else
+        if (!data.value(propertyDDAgentUserPassword, providedPassword))
         {
             passbuf = new wchar_t[passbuflen];
             if (!generatePassword(passbuf, passbuflen))

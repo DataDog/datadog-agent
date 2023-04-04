@@ -10,6 +10,7 @@ package ksm
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -200,6 +201,7 @@ func TestProcessMetrics(t *testing.T) {
 								"label_app_kubernetes_io_component":  "db",
 								"label_app_kubernetes_io_part_of":    "my-app",
 								"label_app_kubernetes_io_managed_by": "helm",
+								"label_helm_sh_chart":                "mysql-2.35.6",
 							},
 						},
 					},
@@ -219,6 +221,7 @@ func TestProcessMetrics(t *testing.T) {
 						"kube_app_component:db",
 						"kube_app_part_of:my-app",
 						"kube_app_managed_by:helm",
+						"helm_chart:mysql-2.35.6",
 					},
 					hostname: "",
 				},
@@ -533,16 +536,17 @@ func TestProcessMetrics(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), test.config)
-		mocked := mocksender.NewMockSender(kubeStateMetricsSCheck.ID())
+		kubeStateMetricsCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), test.config)
+		mocked := mocksender.NewMockSender(kubeStateMetricsCheck.ID())
 		mocked.SetupAcceptAll()
 
-		kubeStateMetricsSCheck.metricTransformers = test.metricTransformers
-		labelJoiner := newLabelJoiner(test.config.LabelJoins)
+		kubeStateMetricsCheck.metricTransformers = test.metricTransformers
+		kubeStateMetricsCheck.processLabelJoins()
+		labelJoiner := newLabelJoiner(test.config.labelJoins)
 		for _, metricFam := range test.metricsToGet {
 			labelJoiner.insertFamily(metricFam)
 		}
-		kubeStateMetricsSCheck.processMetrics(mocked, test.metricsToProcess, labelJoiner, time.Now())
+		kubeStateMetricsCheck.processMetrics(mocked, test.metricsToProcess, labelJoiner, time.Now())
 		t.Run(test.name, func(t *testing.T) {
 			for _, expectMetric := range test.expected {
 				mocked.AssertMetric(t, "Gauge", expectMetric.name, expectMetric.val, expectMetric.hostname, expectMetric.tags)
@@ -828,10 +832,10 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 		{
 			name: "join labels, multiple match",
 			config: &KSMConfig{
-				LabelJoins: map[string]*JoinsConfig{
+				labelJoins: map[string]*joinsConfig{
 					"foo": {
-						LabelsToMatch: []string{"foo_label", "bar_label"},
-						LabelsToGet:   []string{"baz_label"},
+						labelsToMatch: []string{"foo_label", "bar_label"},
+						labelsToGet:   map[string]string{"baz_label": "baz_tag"},
 					},
 				},
 			},
@@ -844,16 +848,16 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 					},
 				},
 			},
-			wantTags:     []string{"foo_label:foo_value", "bar_label:bar_value", "baz_label:baz_value"},
+			wantTags:     []string{"foo_label:foo_value", "bar_label:bar_value", "baz_tag:baz_value"},
 			wantHostname: "",
 		},
 		{
 			name: "join labels, multiple get",
 			config: &KSMConfig{
-				LabelJoins: map[string]*JoinsConfig{
+				labelJoins: map[string]*joinsConfig{
 					"foo": {
-						LabelsToMatch: []string{"foo_label"},
-						LabelsToGet:   []string{"bar_label", "baz_label"},
+						labelsToMatch: []string{"foo_label"},
+						labelsToGet:   map[string]string{"bar_label": "bar_tag", "baz_label": "baz_tag"},
 					},
 				},
 			},
@@ -866,16 +870,16 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 					},
 				},
 			},
-			wantTags:     []string{"foo_label:foo_value", "bar_label:bar_value", "baz_label:baz_value"},
+			wantTags:     []string{"foo_label:foo_value", "bar_tag:bar_value", "baz_tag:baz_value"},
 			wantHostname: "",
 		},
 		{
 			name: "no label match",
 			config: &KSMConfig{
-				LabelJoins: map[string]*JoinsConfig{
+				labelJoins: map[string]*joinsConfig{
 					"foo": {
-						LabelsToMatch: []string{"foo_label"},
-						LabelsToGet:   []string{"bar_label"},
+						labelsToMatch: []string{"foo_label"},
+						labelsToGet:   map[string]string{"bar_label": "bar_tag"},
 					},
 				},
 			},
@@ -894,10 +898,10 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 		{
 			name: "no metric name match",
 			config: &KSMConfig{
-				LabelJoins: map[string]*JoinsConfig{
+				labelJoins: map[string]*joinsConfig{
 					"foo": {
-						LabelsToMatch: []string{"foo_label"},
-						LabelsToGet:   []string{"bar_label"},
+						labelsToMatch: []string{"foo_label"},
+						labelsToGet:   map[string]string{"bar_label": "bar_tag"},
 					},
 				},
 			},
@@ -916,14 +920,14 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 		{
 			name: "join labels, multiple metric match",
 			config: &KSMConfig{
-				LabelJoins: map[string]*JoinsConfig{
+				labelJoins: map[string]*joinsConfig{
 					"foo": {
-						LabelsToMatch: []string{"foo_label", "bar_label"},
-						LabelsToGet:   []string{"baz_label"},
+						labelsToMatch: []string{"foo_label", "bar_label"},
+						labelsToGet:   map[string]string{"baz_label": "baz_tag"},
 					},
 					"bar": {
-						LabelsToMatch: []string{"bar_label"},
-						LabelsToGet:   []string{"baf_label"},
+						labelsToMatch: []string{"bar_label"},
+						labelsToGet:   map[string]string{"baf_label": "baf_tag"},
 					},
 				},
 			},
@@ -940,16 +944,16 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 					},
 				},
 			},
-			wantTags:     []string{"foo_label:foo_value", "bar_label:bar_value", "baz_label:baz_value", "baf_label:baf_value"},
+			wantTags:     []string{"foo_label:foo_value", "bar_label:bar_value", "baz_tag:baz_value", "baf_tag:baf_value"},
 			wantHostname: "",
 		},
 		{
 			name: "join all labels",
 			config: &KSMConfig{
-				LabelJoins: map[string]*JoinsConfig{
+				labelJoins: map[string]*joinsConfig{
 					"foo": {
-						LabelsToMatch: []string{"foo_label"},
-						GetAllLabels:  true,
+						labelsToMatch: []string{"foo_label"},
+						getAllLabels:  true,
 					},
 				},
 			},
@@ -988,10 +992,10 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 		{
 			name: "hostname from label joins",
 			config: &KSMConfig{
-				LabelJoins: map[string]*JoinsConfig{
+				labelJoins: map[string]*joinsConfig{
 					"foo": {
-						LabelsToMatch: []string{"foo_label"},
-						LabelsToGet:   []string{"bar_label", "node"},
+						labelsToMatch: []string{"foo_label"},
+						labelsToGet:   map[string]string{"bar_label": "bar_tag", "node": "node"},
 					},
 				},
 			},
@@ -1004,7 +1008,7 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 					},
 				},
 			},
-			wantTags:     []string{"foo_label:foo_value", "bar_label:bar_value", "node:foo"},
+			wantTags:     []string{"foo_label:foo_value", "bar_tag:bar_value", "node:foo"},
 			wantHostname: "foo",
 		},
 		{
@@ -1020,10 +1024,10 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 		{
 			name: "cluster name appended to hostname from label joins",
 			config: &KSMConfig{
-				LabelJoins: map[string]*JoinsConfig{
+				labelJoins: map[string]*joinsConfig{
 					"foo": {
-						LabelsToMatch: []string{"foo_label"},
-						LabelsToGet:   []string{"bar_label", "node"},
+						labelsToMatch: []string{"foo_label"},
+						labelsToGet:   map[string]string{"bar_label": "bar_tag", "node": "node"},
 					},
 				},
 			},
@@ -1037,16 +1041,16 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 				},
 				clusterName: "bar",
 			},
-			wantTags:     []string{"foo_label:foo_value", "bar_label:bar_value", "node:foo"},
+			wantTags:     []string{"foo_label:foo_value", "bar_tag:bar_value", "node:foo"},
 			wantHostname: "foo-bar",
 		},
 		{
 			name: "created_by_kind/created_by_name",
 			config: &KSMConfig{
-				LabelJoins: map[string]*JoinsConfig{
+				labelJoins: map[string]*joinsConfig{
 					"foo": {
-						LabelsToMatch: []string{"foo_label"},
-						LabelsToGet:   []string{"created_by_kind", "created_by_name"},
+						labelsToMatch: []string{"foo_label"},
+						labelsToGet:   map[string]string{"created_by_kind": "created_by_kind", "created_by_name": "created_by_name"},
 					},
 				},
 			},
@@ -1065,10 +1069,10 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 		{
 			name: "owner_kind/owner_name",
 			config: &KSMConfig{
-				LabelJoins: map[string]*JoinsConfig{
+				labelJoins: map[string]*joinsConfig{
 					"foo": {
-						LabelsToMatch: []string{"foo_label"},
-						LabelsToGet:   []string{"owner_kind", "owner_name"},
+						labelsToMatch: []string{"foo_label"},
+						labelsToGet:   map[string]string{"owner_kind": "owner_kind", "owner_name": "owner_name"},
 					},
 				},
 			},
@@ -1099,8 +1103,8 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), tt.config)
-			kubeStateMetricsSCheck.clusterName = tt.args.clusterName
-			labelJoiner := newLabelJoiner(tt.config.LabelJoins)
+			kubeStateMetricsSCheck.clusterNameRFC1123 = tt.args.clusterName
+			labelJoiner := newLabelJoiner(tt.config.labelJoins)
 			for _, metricFam := range tt.args.metricsToGet {
 				labelJoiner.insertFamily(metricFam)
 			}
@@ -1116,56 +1120,48 @@ func TestKSMCheck_processLabelsAsTags(t *testing.T) {
 	tests := []struct {
 		name           string
 		config         *KSMConfig
-		expectedJoins  map[string]*JoinsConfig
+		expectedJoins  map[string]*joinsConfig
 		expectedMapper map[string]string
 	}{
 		{
 			name: "Initially empty",
 			config: &KSMConfig{
-				LabelJoins:   map[string]*JoinsConfig{},
+				labelJoins:   map[string]*joinsConfig{},
 				LabelsMapper: map[string]string{},
 				LabelsAsTags: map[string]map[string]string{
 					"pod": {"my_pod_label": "my_pod_tag"},
 				},
 			},
-			expectedJoins: map[string]*JoinsConfig{
+			expectedJoins: map[string]*joinsConfig{
 				"kube_pod_labels": {
-					LabelsToMatch: []string{"pod", "namespace"},
-					LabelsToGet:   []string{"label_my_pod_label"},
+					labelsToMatch: []string{"pod", "namespace"},
+					labelsToGet:   map[string]string{"label_my_pod_label": "my_pod_tag"},
 				},
-			},
-			expectedMapper: map[string]string{
-				"label_my_pod_label": "my_pod_tag",
 			},
 		},
 		{
 			name: "Already initialized",
 			config: &KSMConfig{
-				LabelJoins: map[string]*JoinsConfig{
+				labelJoins: map[string]*joinsConfig{
 					"kube_pod_labels": {
-						LabelsToMatch: []string{"pod", "namespace"},
-						LabelsToGet:   []string{"standard_pod_label"},
+						labelsToMatch: []string{"pod", "namespace"},
+						labelsToGet:   map[string]string{"standard_pod_label": "standard_pod_tag"},
 					},
 				},
-				LabelsMapper: map[string]string{},
 				LabelsAsTags: map[string]map[string]string{
 					"pod":  {"my_pod_label": "my_pod_tag"},
 					"node": {"my_node_label": "my_node_tag"},
 				},
 			},
-			expectedJoins: map[string]*JoinsConfig{
+			expectedJoins: map[string]*joinsConfig{
 				"kube_pod_labels": {
-					LabelsToMatch: []string{"pod", "namespace"},
-					LabelsToGet:   []string{"standard_pod_label", "label_my_pod_label"},
+					labelsToMatch: []string{"pod", "namespace"},
+					labelsToGet:   map[string]string{"standard_pod_label": "standard_pod_tag", "label_my_pod_label": "my_pod_tag"},
 				},
 				"kube_node_labels": {
-					LabelsToMatch: []string{"node"},
-					LabelsToGet:   []string{"label_my_node_label"},
+					labelsToMatch: []string{"node"},
+					labelsToGet:   map[string]string{"label_my_node_label": "my_node_tag"},
 				},
-			},
-			expectedMapper: map[string]string{
-				"label_my_pod_label":  "my_pod_tag",
-				"label_my_node_label": "my_node_tag",
 			},
 		},
 	}
@@ -1173,8 +1169,7 @@ func TestKSMCheck_processLabelsAsTags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			k := &KSMCheck{instance: tt.config}
 			k.processLabelsAsTags()
-			assert.Equal(t, tt.expectedJoins, k.instance.LabelJoins)
-			assert.Equal(t, tt.expectedMapper, k.instance.LabelsMapper)
+			assert.Equal(t, tt.expectedJoins, k.instance.labelJoins)
 		})
 	}
 }
@@ -1216,6 +1211,53 @@ func TestKSMCheck_mergeLabelsMapper(t *testing.T) {
 			k := &KSMCheck{instance: tt.config}
 			k.mergeLabelsMapper(tt.extra)
 			assert.True(t, reflect.DeepEqual(tt.expected, k.instance.LabelsMapper))
+		})
+	}
+}
+
+func TestKSMCheck_mergeAnnotationsAsTags(t *testing.T) {
+	tests := []struct {
+		name     string
+		conf     map[string]map[string]string
+		extra    map[string]map[string]string
+		expected map[string]map[string]string
+	}{
+		{
+			name:     "nominal",
+			conf:     make(map[string]map[string]string),
+			extra:    defaultAnnotationsAsTags(),
+			expected: defaultAnnotationsAsTags(),
+		},
+		{
+			name:     "nil conf",
+			conf:     nil,
+			extra:    defaultAnnotationsAsTags(),
+			expected: defaultAnnotationsAsTags(),
+		},
+		{
+			name:     "collision",
+			conf:     map[string]map[string]string{"pod": {"common_key": "in_val"}},
+			extra:    map[string]map[string]string{"pod": {"common_key": "extra_val", "foo": "bar"}},
+			expected: map[string]map[string]string{"pod": {"common_key": "in_val", "foo": "bar"}},
+		},
+		{
+			name:     "no collision",
+			conf:     map[string]map[string]string{"pod": {"common_key": "in_val"}},
+			extra:    map[string]map[string]string{"deployment": {"common_key": "extra_val", "foo": "bar"}},
+			expected: map[string]map[string]string{"pod": {"common_key": "in_val"}, "deployment": {"common_key": "extra_val", "foo": "bar"}},
+		},
+		{
+			name:     "nil extra",
+			conf:     map[string]map[string]string{"pod": {"common_key": "in_val"}},
+			extra:    nil,
+			expected: map[string]map[string]string{"pod": {"common_key": "in_val"}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			k := &KSMCheck{instance: &KSMConfig{AnnotationsAsTags: tt.conf}}
+			k.mergeAnnotationsAsTags(tt.extra)
+			assert.True(t, reflect.DeepEqual(tt.expected, k.instance.AnnotationsAsTags))
 		})
 	}
 }
@@ -1339,31 +1381,27 @@ func lenMetrics(metricsToProcess map[string][]ksmstore.DDMetricsFam) int {
 }
 
 func TestKSMCheckInitTags(t *testing.T) {
-	mockConfig := config.Mock(t)
 	type fields struct {
 		instance    *KSMConfig
 		clusterName string
 	}
 	tests := []struct {
-		name      string
-		loadFunc  func()
-		resetFunc func()
-		fields    fields
-		expected  []string
+		name         string
+		tagsInConfig []string
+		fields       fields
+		expected     []string
 	}{
 		{
-			name:      "with check tags",
-			loadFunc:  func() {},
-			resetFunc: func() {},
+			name:         "with check tags",
+			tagsInConfig: nil,
 			fields: fields{
 				instance: &KSMConfig{Tags: []string{"check:tag1", "check:tag2"}},
 			},
 			expected: []string{"check:tag1", "check:tag2"},
 		},
 		{
-			name:      "with cluster name",
-			loadFunc:  func() {},
-			resetFunc: func() {},
+			name:         "with cluster name",
+			tagsInConfig: nil,
 			fields: fields{
 				instance:    &KSMConfig{},
 				clusterName: "clustername",
@@ -1371,16 +1409,14 @@ func TestKSMCheckInitTags(t *testing.T) {
 			expected: []string{"kube_cluster_name:clustername"},
 		},
 		{
-			name:      "with global tags",
-			loadFunc:  func() { mockConfig.Set("tags", []string{"global:tag1", "global:tag2"}) },
-			resetFunc: func() { mockConfig.Set("tags", []string{}) },
-			fields:    fields{instance: &KSMConfig{}},
-			expected:  []string{"global:tag1", "global:tag2"},
+			name:         "with global tags",
+			tagsInConfig: []string{"global:tag1", "global:tag2"},
+			fields:       fields{instance: &KSMConfig{}},
+			expected:     []string{"global:tag1", "global:tag2"},
 		},
 		{
-			name:      "with everything",
-			loadFunc:  func() { mockConfig.Set("tags", []string{"global:tag1", "global:tag2"}) },
-			resetFunc: func() { mockConfig.Set("tags", []string{}) },
+			name:         "with everything",
+			tagsInConfig: []string{"global:tag1", "global:tag2"},
 			fields: fields{
 				instance:    &KSMConfig{Tags: []string{"check:tag1", "check:tag2"}},
 				clusterName: "clustername",
@@ -1388,9 +1424,8 @@ func TestKSMCheckInitTags(t *testing.T) {
 			expected: []string{"check:tag1", "check:tag2", "kube_cluster_name:clustername", "global:tag1", "global:tag2"},
 		},
 		{
-			name:      "with disable_global_tags",
-			loadFunc:  func() { mockConfig.Set("tags", []string{"global:tag1", "global:tag2"}) },
-			resetFunc: func() { mockConfig.Set("tags", []string{}) },
+			name:         "with disable_global_tags",
+			tagsInConfig: []string{"global:tag1", "global:tag2"},
 			fields: fields{
 				instance:    &KSMConfig{Tags: []string{"check:tag1", "check:tag2"}, DisableGlobalTags: true},
 				clusterName: "clustername",
@@ -1398,17 +1433,20 @@ func TestKSMCheckInitTags(t *testing.T) {
 			expected: []string{"check:tag1", "check:tag2", "kube_cluster_name:clustername"},
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			conf := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+			conf.Set("tags", tt.tagsInConfig)
+
 			k := &KSMCheck{
-				instance:    tt.fields.instance,
-				clusterName: tt.fields.clusterName,
+				instance:            tt.fields.instance,
+				clusterNameTagValue: tt.fields.clusterName,
+				agentConfig:         conf,
 			}
 
-			tt.loadFunc()
 			k.initTags()
 			assert.ElementsMatch(t, tt.expected, k.instance.Tags)
-			tt.resetFunc()
 		})
 	}
 }

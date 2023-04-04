@@ -10,7 +10,6 @@ package security
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -24,7 +23,7 @@ import (
 func initMockConf(t *testing.T) string {
 	testDir := t.TempDir()
 
-	f, err := ioutil.TempFile(testDir, "fake-datadog-yaml-")
+	f, err := os.CreateTemp(testDir, "fake-datadog-yaml-")
 	require.Nil(t, err, fmt.Errorf("%v", err))
 	t.Cleanup(func() {
 		f.Close()

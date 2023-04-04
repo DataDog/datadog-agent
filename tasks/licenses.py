@@ -19,6 +19,7 @@ COPYRIGHT_LOCATIONS = [
     'LICENSE.md',
     'LICENSE.txt',
     'License.txt',
+    'license.txt',
     'COPYING',
     'NOTICE',
     'README',
@@ -196,7 +197,7 @@ def find_copyright_for(package, overrides, ctx):
 
     for filename in COPYRIGHT_LOCATIONS:
         filename = os.path.join(pkgdir, filename)
-        if os.path.exists(filename):
+        if os.path.isfile(filename):
             for line in open(filename, encoding="utf-8"):
                 mo = COPYRIGHT_RE.search(line)
                 if not mo:

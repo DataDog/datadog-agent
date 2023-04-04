@@ -19,7 +19,7 @@ import (
 // See possible types here: https://github.com/gosnmp/gosnmp/blob/master/helper.go#L59-L271
 //
 // - gosnmp.Opaque: No support for gosnmp.Opaque since the type is processed recursively and never returned:
-//   is never returned https://github.com/gosnmp/gosnmp/blob/dc320dac5b53d95a366733fd95fb5851f2099387/helper.go#L195-L205
+// is never returned https://github.com/gosnmp/gosnmp/blob/dc320dac5b53d95a366733fd95fb5851f2099387/helper.go#L195-L205
 // - gosnmp.Boolean: seems not exist anymore and not handled by gosnmp
 func GetResultValueFromPDU(pduVariable gosnmp.SnmpPDU) (string, ResultValue, error) {
 	name := strings.TrimLeft(pduVariable.Name, ".") // remove leading dot

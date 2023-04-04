@@ -19,45 +19,27 @@ const (
 	OTLPTagCardinalityKey     = OTLPMetrics + ".tag_cardinality"
 	OTLPDebugKey              = "debug"
 	OTLPDebug                 = OTLPSection + "." + OTLPDebugKey
-	OTLPDebugLogLevel         = OTLPDebug + ".loglevel"
 )
-
-// Following consts define log level of the logging exporter.
-// see: https://github.com/open-telemetry/opentelemetry-collector/blob/6fb884b2dbdc37ef2e1aea924040822ce38584bd/exporter/loggingexporter/config.go#L27-L28
-const (
-	OTLPDebugLogLevelDisabled = "disabled"
-	OTLPDebugLogLevelDebug    = "debug"
-	OTLPDebugLogLevelInfo     = "info"
-	OTLPDebugLogLevelWarn     = "warn"
-	OTLPDebugLogLevelError    = "error"
-)
-
-// OTLPDebugLogLevelMap TODO <agent-core>
-var OTLPDebugLogLevelMap = map[string]struct{}{
-	OTLPDebugLogLevelDisabled: {},
-	OTLPDebugLogLevelDebug:    {},
-	OTLPDebugLogLevelInfo:     {},
-	OTLPDebugLogLevelWarn:     {},
-	OTLPDebugLogLevelError:    {},
-}
 
 // SetupOTLP related configuration.
 func SetupOTLP(config Config) {
 	config.BindEnvAndSetDefault(OTLPTracePort, 5003)
 	config.BindEnvAndSetDefault(OTLPMetricsEnabled, true)
 	config.BindEnvAndSetDefault(OTLPTracesEnabled, true)
-	config.BindEnvAndSetDefault(OTLPDebugLogLevel, "info")
 
 	// NOTE: This only partially works.
 	// The environment variable is also manually checked in pkg/otlp/config.go
 	config.BindEnvAndSetDefault(OTLPTagCardinalityKey, "low", "DD_OTLP_TAG_CARDINALITY")
 
 	config.SetKnown(OTLPMetrics)
-	// Set all subkeys of otlp.metrics as known
+	// Set all subkeys of otlp_config.metrics as known
 	config.SetKnown(OTLPMetrics + ".*")
 	config.SetKnown(OTLPReceiverSection)
-	// Set all subkeys of otlp.receiver as known
+	// Set all subkeys of otlp_config.receiver as known
 	config.SetKnown(OTLPReceiverSection + ".*")
+	config.SetKnown(OTLPDebug)
+	// Set all subkeys of otlp_config.debug as known
+	config.SetKnown(OTLPDebug + ".*")
 
 	// set environment variables for selected fields
 	setupOTLPEnvironmentVariables(config)
@@ -80,9 +62,10 @@ func setupOTLPEnvironmentVariables(config Config) {
 	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.write_buffer_size")
 	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.include_metadata")
 
-	// Traces settingds
+	// Traces settings
 	config.BindEnvAndSetDefault("otlp_config.traces.span_name_remappings", map[string]string{})
 	config.BindEnv("otlp_config.traces.span_name_as_resource_name")
+	config.BindEnvAndSetDefault("otlp_config.traces.probabilistic_sampler.sampling_percentage", 100.)
 
 	// HTTP settings
 	config.BindEnv(OTLPSection + ".receiver.protocols.http.endpoint")
@@ -97,9 +80,11 @@ func setupOTLPEnvironmentVariables(config Config) {
 	config.BindEnv(OTLPSection + ".metrics.tag_cardinality")
 	config.BindEnv(OTLPSection + ".metrics.histograms.mode")
 	config.BindEnv(OTLPSection + ".metrics.histograms.send_count_sum_metrics")
+	config.BindEnv(OTLPSection + ".metrics.histograms.send_aggregation_metrics")
 	config.BindEnv(OTLPSection + ".metrics.sums.cumulative_monotonic_mode")
 	config.BindEnv(OTLPSection + ".metrics.summaries.mode")
 
-	// Debug setting
-	config.BindEnv(OTLPSection + ".debug.loglevel")
+	// Debug settings
+	config.BindEnv(OTLPSection + ".debug.loglevel") // Deprecated
+	config.BindEnv(OTLPSection + ".debug.verbosity")
 }

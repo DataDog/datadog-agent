@@ -10,24 +10,29 @@ package processors
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	jsoniter "github.com/json-iterator/go"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	jsoniter "github.com/json-iterator/go"
-	"k8s.io/apimachinery/pkg/types"
 )
+
+// Marshal message to JSON.
+// We need to enforce order consistency on underlying maps as
+// the standard library does.
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 // ProcessorContext holds resource processing attributes
 type ProcessorContext struct {
-	APIClient  *apiserver.APIClient
-	Cfg        *config.OrchestratorConfig
-	ClusterID  string
-	HostName   string
-	MsgGroupID int32
-	NodeType   orchestrator.NodeType
+	APIClient          *apiserver.APIClient
+	Cfg                *config.OrchestratorConfig
+	ClusterID          string
+	HostName           string
+	MsgGroupID         int32
+	NodeType           orchestrator.NodeType
+	ApiGroupVersionTag string
 }
 
 // Handlers is the interface that is to be implemented for every resource type
@@ -54,7 +59,11 @@ type Handlers interface {
 	// processing loop moves on to the next resource.
 	BuildMessageBody(ctx *ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody
 
-	// ExtractResource is used to build the a resource model from the raw
+	// BuildManifestMessageBody is used to build a message containing a chunk of
+	// resource manifests of a certain size.
+	BuildManifestMessageBody(ctx *ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody
+
+	// ExtractResource is used to build a resource model from the raw
 	// resource representation.
 	ExtractResource(ctx *ProcessorContext, resource interface{}) (resourceModel interface{})
 
@@ -63,7 +72,7 @@ type Handlers interface {
 	ResourceList(ctx *ProcessorContext, list interface{}) (resources []interface{})
 
 	// ResourceUID returns the resource UID.
-	ResourceUID(ctx *ProcessorContext, resource, resourceModel interface{}) types.UID
+	ResourceUID(ctx *ProcessorContext, resource interface{}) types.UID
 
 	// ResourceVersion returns the resource Version.
 	ResourceVersion(ctx *ProcessorContext, resource, resourceModel interface{}) string
@@ -125,7 +134,7 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 		}
 
 		// Cache check
-		resourceUID := p.h.ResourceUID(ctx, resource, resourceMetadataModel)
+		resourceUID := p.h.ResourceUID(ctx, resource)
 		resourceVersion := p.h.ResourceVersion(ctx, resource, resourceMetadataModel)
 
 		if orchestrator.SkipKubernetesResource(resourceUID, resourceVersion, ctx.NodeType) {
@@ -141,15 +150,18 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 		p.h.ScrubBeforeMarshalling(ctx, resource)
 
 		// Marshal the resource to generate the YAML field.
-		yaml, err := jsoniter.Marshal(resource)
+		yaml, err := json.Marshal(resource)
 		if err != nil {
 			log.Warnf(newMarshallingError(err).Error())
 			continue
 		}
 
-		// Execute code after marshalling.
-		if skip := p.h.AfterMarshalling(ctx, resource, resourceMetadataModel, yaml); skip {
-			continue
+		// Stop sending yaml if manifest collecion is enabled
+		if !ctx.Cfg.IsManifestCollectionEnabled {
+			// Execute code after marshalling.
+			if skip := p.h.AfterMarshalling(ctx, resource, resourceMetadataModel, yaml); skip {
+				continue
+			}
 		}
 
 		resourceMetadataModels = append(resourceMetadataModels, resourceMetadataModel)
@@ -164,52 +176,42 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 			ContentType:     "json",
 		})
 	}
-	// Split messages in chunks
-	chunkCount := orchestrator.GroupSize(len(resourceMetadataModels), ctx.Cfg.MaxPerMessage)
 
-	// chunk orchestrator metadata and manifest
-	metadataChunks := chunkResources(resourceMetadataModels, chunkCount, ctx.Cfg.MaxPerMessage)
-	manifestChunks := chunkResources(resourceManifestModels, chunkCount, ctx.Cfg.MaxPerMessage)
-
-	metadataMessages := make([]model.MessageBody, 0, chunkCount)
-	manifestMessages := make([]model.MessageBody, 0, chunkCount)
-	for i := 0; i < chunkCount; i++ {
-		metadataMessages = append(metadataMessages, p.h.BuildMessageBody(ctx, metadataChunks[i], chunkCount))
-		manifestMessages = append(manifestMessages, buildManifestMessageBody(ctx.Cfg.KubeClusterName, ctx.ClusterID, ctx.MsgGroupID, manifestChunks[i], chunkCount))
-	}
 	processResult = ProcessResult{
-		MetadataMessages: metadataMessages,
-		ManifestMessages: manifestMessages,
+		MetadataMessages: ChunkMetadata(ctx, p, resourceMetadataModels, resourceManifestModels),
+		ManifestMessages: ChunkManifest(ctx, p.h.BuildManifestMessageBody, resourceManifestModels),
 	}
+
 	return processResult, len(resourceMetadataModels)
 }
 
-// chunkResources splits messages into groups of messages called chunks, knowing
-// the expected chunk count and size.
-func chunkResources(resources []interface{}, chunkCount, chunkSize int) [][]interface{} {
-	chunks := make([][]interface{}, 0, chunkCount)
+// ChunkManifest is to chunk Manifest payloads
+func ChunkManifest(ctx *ProcessorContext, buildManifestBody func(ctx *ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody, resourceManifestModels []interface{}) []model.MessageBody {
+	// Chunking resources based on the serialized size of their manifest and maximum messages number
+	// Chunk manifest messages and use itself as weight indicator
+	chunks := chunkOrchestratorPayloadsBySizeAndWeight(resourceManifestModels, resourceManifestModels, ctx.Cfg.MaxPerMessage, ctx.Cfg.MaxWeightPerMessageBytes)
 
-	for counter := 1; counter <= chunkCount; counter++ {
-		chunkStart, chunkEnd := orchestrator.ChunkRange(len(resources), chunkCount, chunkSize, counter)
-		chunks = append(chunks, resources[chunkStart:chunkEnd])
+	chunkCount := len(chunks)
+	manifestMessages := make([]model.MessageBody, 0, chunkCount)
+
+	for i := 0; i < chunkCount; i++ {
+		manifestMessages = append(manifestMessages, buildManifestBody(ctx, chunks[i], chunkCount))
 	}
 
-	return chunks
+	return manifestMessages
 }
 
-// build orchestrator manifest message
-func buildManifestMessageBody(kubeClusterName, clusterID string, msgGroupID int32, resourceManifests []interface{}, groupSize int) model.MessageBody {
-	manifests := make([]*model.Manifest, 0, len(resourceManifests))
+// ChunkMetadata is to chunk Metadata payloads
+func ChunkMetadata(ctx *ProcessorContext, p *Processor, resourceMetadataModels, resourceManifestModels []interface{}) []model.MessageBody {
+	// Chunking resources based on the serialized size of their manifest and maximum messages number
+	// Chunk metadata messages and use resourceManifestModels as weight indicator
+	chunks := chunkOrchestratorPayloadsBySizeAndWeight(resourceMetadataModels, resourceManifestModels, ctx.Cfg.MaxPerMessage, ctx.Cfg.MaxWeightPerMessageBytes)
 
-	for _, m := range resourceManifests {
-		manifests = append(manifests, m.(*model.Manifest))
+	chunkCount := len(chunks)
+	metadataMessages := make([]model.MessageBody, 0, chunkCount)
+	for i := 0; i < chunkCount; i++ {
+		metadataMessages = append(metadataMessages, p.h.BuildMessageBody(ctx, chunks[i], chunkCount))
 	}
 
-	return &model.CollectorManifest{
-		ClusterName: kubeClusterName,
-		ClusterId:   clusterID,
-		Manifests:   manifests,
-		GroupId:     msgGroupID,
-		GroupSize:   int32(groupSize),
-	}
+	return metadataMessages
 }

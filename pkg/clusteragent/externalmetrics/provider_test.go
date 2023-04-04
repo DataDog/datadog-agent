@@ -175,7 +175,7 @@ func TestGetExternalMetrics(t *testing.T) {
 			},
 			queryMetricName:         "datadogmetric@metric1",
 			expectedExternalMetrics: nil,
-			expectedError:           fmt.Errorf("ExternalMetric does not follow DatadogMetric format"),
+			expectedError:           fmt.Errorf("ExternalMetric does not follow DatadogMetric format: datadogmetric@metric1"),
 		},
 		{
 			desc: "Test ExternalMetric does not use DatadogMetric format",
@@ -209,9 +209,11 @@ func TestListAllExternalMetrics(t *testing.T) {
 
 	fixtures := []providerFixture{
 		{
-			desc:                       "Test no metrics in store",
-			storeContent:               []ddmWithQuery{},
-			expectedExternalMetricInfo: []provider.ExternalMetricInfo{},
+			desc:         "Test no metrics in store (send fake metric back)",
+			storeContent: []ddmWithQuery{},
+			expectedExternalMetricInfo: []provider.ExternalMetricInfo{
+				fakeExternalMetric,
+			},
 		},
 		{
 			desc: "Test with metrics in store",

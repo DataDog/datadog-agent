@@ -6,6 +6,8 @@
 package testutil
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 )
@@ -48,4 +50,42 @@ func RandomBucket(n int) pb.ClientStatsBucket {
 	}
 
 	return BucketWithSpans(spans)
+}
+
+// StatsPayloadSample returns a populated client stats payload
+func StatsPayloadSample() pb.ClientStatsPayload {
+	bucket := func(start, duration uint64) pb.ClientStatsBucket {
+		return pb.ClientStatsBucket{
+			Start:    start,
+			Duration: duration,
+			Stats: []pb.ClientGroupedStats{
+				{
+					Name:     "name",
+					Service:  "service",
+					Resource: "/asd/r",
+					Hits:     2,
+					Errors:   440,
+					Duration: 123,
+				},
+			},
+		}
+	}
+	return pb.ClientStatsPayload{
+		Hostname: "h",
+		Env:      "env",
+		Version:  "1.2",
+		Stats: []pb.ClientStatsBucket{
+			bucket(1, 10),
+			bucket(500, 100342),
+		},
+	}
+}
+
+// WithStatsClient replaces the global metrics.StatsClient with c. It also returns
+// a function for restoring the original client.
+func WithStatsClient(c metrics.StatsClient) func() {
+	old := metrics.Client
+	timing.Stop() // https://github.com/DataDog/datadog-agent/issues/13934
+	metrics.Client = c
+	return func() { metrics.Client = old }
 }

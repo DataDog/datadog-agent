@@ -11,6 +11,9 @@ import (
 	"runtime"
 	"testing"
 
+	"golang.org/x/exp/slices"
+
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 
 	"github.com/stretchr/testify/assert"
@@ -44,6 +47,7 @@ func TestBeautifyKey(t *testing.T) {
 			Dest:   util.AddressFromNetIP(net.ParseIP("2001:db8::2:1")),
 			SPort:  4444,
 			DPort:  8888,
+			Cookie: 1,
 		},
 		{
 			Pid:       32065,
@@ -54,6 +58,7 @@ func TestBeautifyKey(t *testing.T) {
 			Dest:      util.AddressFromString("130.211.21.187"),
 			SPort:     52012,
 			DPort:     443,
+			Cookie:    2,
 		},
 	} {
 		bk := c.ByteKey(buf)
@@ -118,6 +123,7 @@ func TestConnStatsByteKey(t *testing.T) {
 		assert.NotEqual(t, keyA, keyB)
 	}
 }
+
 func TestByteKeyNAT(t *testing.T) {
 	buf := make([]byte, ConnectionByteKeyMaxLen)
 	for _, test := range []struct {
@@ -237,6 +243,96 @@ func TestIsExpired(t *testing.T) {
 	} {
 		assert.Equal(t, tc.expected, tc.stats.IsExpired(tc.latestTime, timeout))
 	}
+}
+
+func TestKeyTuplesFromConn(t *testing.T) {
+	sourceAddress := util.AddressFromString("1.2.3.4")
+	sourcePort := uint16(1234)
+	destinationAddress := util.AddressFromString("5.6.7.8")
+	destinationPort := uint16(5678)
+
+	connectionStats := ConnectionStats{
+		Source: sourceAddress,
+		SPort:  sourcePort,
+		Dest:   destinationAddress,
+		DPort:  destinationPort,
+	}
+	keyTuples := HTTPKeyTuplesFromConn(connectionStats)
+
+	assert.Len(t, keyTuples, 2, "Expected different number of key tuples")
+	assert.True(t, slices.ContainsFunc(keyTuples, func(keyTuple http.KeyTuple) bool {
+		sourceAddressLow, sourceAddressHigh := util.ToLowHigh(sourceAddress)
+		destinationAddressLow, destinationAddressHigh := util.ToLowHigh(destinationAddress)
+		return (keyTuple.SrcIPLow == sourceAddressLow) && (keyTuple.SrcIPHigh == sourceAddressHigh) &&
+			(keyTuple.DstIPLow == destinationAddressLow) && (keyTuple.DstIPHigh == destinationAddressHigh) &&
+			(keyTuple.SrcPort == sourcePort) && (keyTuple.DstPort == destinationPort)
+	}), "Missing original connection")
+	assert.True(t, slices.ContainsFunc(keyTuples, func(keyTuple http.KeyTuple) bool {
+		sourceAddressLow, sourceAddressHigh := util.ToLowHigh(sourceAddress)
+		destinationAddressLow, destinationAddressHigh := util.ToLowHigh(destinationAddress)
+		return (keyTuple.SrcIPLow == destinationAddressLow) && (keyTuple.SrcIPHigh == destinationAddressHigh) &&
+			(keyTuple.DstIPLow == sourceAddressLow) && (keyTuple.DstIPHigh == sourceAddressHigh) &&
+			(keyTuple.SrcPort == destinationPort) && (keyTuple.DstPort == sourcePort)
+	}), "Missing flipped connection")
+}
+
+func TestKeyTuplesFromConnNAT(t *testing.T) {
+	sourceAddress := util.AddressFromString("1.2.3.4")
+	sourcePort := uint16(1234)
+	destinationAddress := util.AddressFromString("5.6.7.8")
+	destinationPort := uint16(5678)
+
+	natSourceAddress := util.AddressFromString("10.20.30.40")
+	natSourcePort := uint16(4321)
+	natDestinationAddress := util.AddressFromString("50.60.70.80")
+	natDestinationPort := uint16(8765)
+
+	connectionStats := ConnectionStats{
+		Source: sourceAddress,
+		Dest:   destinationAddress,
+		SPort:  sourcePort,
+		DPort:  destinationPort,
+		IPTranslation: &IPTranslation{
+			ReplSrcIP:   natSourceAddress,
+			ReplDstIP:   natDestinationAddress,
+			ReplSrcPort: natSourcePort,
+			ReplDstPort: natDestinationPort,
+		},
+	}
+	keyTuples := HTTPKeyTuplesFromConn(connectionStats)
+
+	// Expecting 2 non NAT'd keys and 2 NAT'd keys
+	assert.Len(t, keyTuples, 4, "Expected different number of key tuples")
+
+	assert.True(t, slices.ContainsFunc(keyTuples, func(keyTuple http.KeyTuple) bool {
+		sourceAddressLow, sourceAddressHigh := util.ToLowHigh(sourceAddress)
+		destinationAddressLow, destinationAddressHigh := util.ToLowHigh(destinationAddress)
+		return (keyTuple.SrcIPLow == sourceAddressLow) && (keyTuple.SrcIPHigh == sourceAddressHigh) &&
+			(keyTuple.DstIPLow == destinationAddressLow) && (keyTuple.DstIPHigh == destinationAddressHigh) &&
+			(keyTuple.SrcPort == sourcePort) && (keyTuple.DstPort == destinationPort)
+	}), "Missing original connection")
+	assert.True(t, slices.ContainsFunc(keyTuples, func(keyTuple http.KeyTuple) bool {
+		sourceAddressLow, sourceAddressHigh := util.ToLowHigh(sourceAddress)
+		destinationAddressLow, destinationAddressHigh := util.ToLowHigh(destinationAddress)
+		return (keyTuple.SrcIPLow == destinationAddressLow) && (keyTuple.SrcIPHigh == destinationAddressHigh) &&
+			(keyTuple.DstIPLow == sourceAddressLow) && (keyTuple.DstIPHigh == sourceAddressHigh) &&
+			(keyTuple.SrcPort == destinationPort) && (keyTuple.DstPort == sourcePort)
+	}), "Missing flipped connection")
+
+	assert.True(t, slices.ContainsFunc(keyTuples, func(keyTuple http.KeyTuple) bool {
+		sourceAddressLow, sourceAddressHigh := util.ToLowHigh(natSourceAddress)
+		destinationAddressLow, destinationAddressHigh := util.ToLowHigh(natDestinationAddress)
+		return (keyTuple.SrcIPLow == sourceAddressLow) && (keyTuple.SrcIPHigh == sourceAddressHigh) &&
+			(keyTuple.DstIPLow == destinationAddressLow) && (keyTuple.DstIPHigh == destinationAddressHigh) &&
+			(keyTuple.SrcPort == natSourcePort) && (keyTuple.DstPort == natDestinationPort)
+	}), "Missing NAT'd connection")
+	assert.True(t, slices.ContainsFunc(keyTuples, func(keyTuple http.KeyTuple) bool {
+		sourceAddressLow, sourceAddressHigh := util.ToLowHigh(natSourceAddress)
+		destinationAddressLow, destinationAddressHigh := util.ToLowHigh(natDestinationAddress)
+		return (keyTuple.SrcIPLow == destinationAddressLow) && (keyTuple.SrcIPHigh == destinationAddressHigh) &&
+			(keyTuple.DstIPLow == sourceAddressLow) && (keyTuple.DstIPHigh == sourceAddressHigh) &&
+			(keyTuple.SrcPort == natDestinationPort) && (keyTuple.DstPort == natSourcePort)
+	}), "Missing flipped NAT'd connection")
 }
 
 func BenchmarkByteKey(b *testing.B) {

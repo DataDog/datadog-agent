@@ -9,7 +9,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
 	"os"
 )
 
@@ -28,7 +27,7 @@ func IsServiceAccountTokenAvailable() bool {
 
 // GetBearerToken reads the serviceaccount token
 func GetBearerToken(authTokenPath string) (string, error) {
-	token, err := ioutil.ReadFile(authTokenPath)
+	token, err := os.ReadFile(authTokenPath)
 	if err != nil {
 		return "", fmt.Errorf("could not read token from %s: %s", authTokenPath, err)
 	}
@@ -47,7 +46,7 @@ func GetCertificates(certFilePath, keyFilePath string) ([]tls.Certificate, error
 
 // GetCertificateAuthority loads the issuing certificate authority
 func GetCertificateAuthority(certPath string) (*x509.CertPool, error) {
-	caCert, err := ioutil.ReadFile(certPath)
+	caCert, err := os.ReadFile(certPath)
 	if err != nil {
 		return nil, err
 	}

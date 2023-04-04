@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Go PDH checks now all use the PdhAddEnglishCounter API to
+    ensure proper localization support.

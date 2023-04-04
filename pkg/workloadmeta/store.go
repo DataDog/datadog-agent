@@ -7,6 +7,7 @@ package workloadmeta
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"sync"
 	"time"
@@ -16,18 +17,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta/telemetry"
+	"github.com/cenkalti/backoff"
 )
 
 var (
 	globalStore Store
-	initOnce    sync.Once
 )
 
 const (
-	retryCollectorInterval = 30 * time.Second
-	pullCollectorInterval  = 5 * time.Second
-	eventBundleChTimeout   = 1 * time.Second
-	eventChBufferSize      = 50
+	retryCollectorInitialInterval = 1 * time.Second
+	retryCollectorMaxInterval     = 30 * time.Second
+	pullCollectorInterval         = 5 * time.Second
+	maxCollectorPullTime          = 1 * time.Minute
+	eventBundleChTimeout          = 1 * time.Second
+	eventChBufferSize             = 50
 )
 
 type subscriber struct {
@@ -52,6 +55,9 @@ type store struct {
 	collectors   map[string]Collector
 
 	eventCh chan []CollectorEvent
+
+	ongoingPullsMut sync.Mutex
+	ongoingPulls    map[string]time.Time // collector ID => time when last pull started
 }
 
 var _ Store = &store{}
@@ -59,21 +65,22 @@ var _ Store = &store{}
 // NewStore creates a new workload metadata store, building a new instance of
 // each collector in the catalog. Call Start to start the store and its
 // collectors.
-func NewStore(catalog map[string]collectorFactory) Store {
+func NewStore(catalog CollectorCatalog) Store {
 	return newStore(catalog)
 }
 
-func newStore(catalog map[string]collectorFactory) *store {
+func newStore(catalog CollectorCatalog) *store {
 	candidates := make(map[string]Collector)
 	for id, c := range catalog {
 		candidates[id] = c()
 	}
 
 	return &store{
-		store:      make(map[Kind]map[string]*cachedEntity),
-		candidates: candidates,
-		collectors: make(map[string]Collector),
-		eventCh:    make(chan []CollectorEvent, eventChBufferSize),
+		store:        make(map[Kind]map[string]*cachedEntity),
+		candidates:   candidates,
+		collectors:   make(map[string]Collector),
+		eventCh:      make(chan []CollectorEvent, eventChBufferSize),
+		ongoingPulls: make(map[string]time.Time),
 	}
 }
 
@@ -100,40 +107,22 @@ func (s *store) Start(ctx context.Context) {
 	}()
 
 	go func() {
-		retryTicker := time.NewTicker(retryCollectorInterval)
 		pullTicker := time.NewTicker(pullCollectorInterval)
 		health := health.RegisterLiveness("workloadmeta-puller")
-		pullCtx, pullCancel := context.WithTimeout(ctx, pullCollectorInterval)
 
 		// Start a pull immediately to fill the store without waiting for the
 		// next tick.
-		s.pull(pullCtx)
+		s.pull(ctx)
 
 		for {
 			select {
 			case <-health.C:
 
 			case <-pullTicker.C:
-				// pullCtx will always be expired at this point
-				// if pullTicker has the same duration as
-				// pullCtx, so we cancel just as good practice
-				pullCancel()
-
-				pullCtx, pullCancel = context.WithTimeout(ctx, pullCollectorInterval)
-				s.pull(pullCtx)
-
-			case <-retryTicker.C:
-				stop := s.startCandidates(ctx)
-
-				if stop {
-					retryTicker.Stop()
-				}
+				s.pull(ctx)
 
 			case <-ctx.Done():
-				retryTicker.Stop()
 				pullTicker.Stop()
-
-				pullCancel()
 
 				err := health.Deregister()
 				if err != nil {
@@ -149,14 +138,19 @@ func (s *store) Start(ctx context.Context) {
 		}
 	}()
 
-	s.startCandidates(ctx)
+	go func() {
+		if err := s.startCandidatesWithRetry(ctx); err != nil {
+			log.Errorf("error starting collectors: %s", err)
+		}
+	}()
 
 	log.Info("workloadmeta store initialized successfully")
 }
 
 // Subscribe returns a channel where workload metadata events will be streamed
 // as they happen. On first subscription, it will also generate an EventTypeSet
-// event for each entity present in the store that matches filter.
+// event for each entity present in the store that matches filter, unless the
+// filter type is EventTypeUnset.
 func (s *store) Subscribe(name string, priority SubscriberPriority, filter *Filter) chan EventBundle {
 	// ch needs to be buffered since we'll send it events before the
 	// subscriber has the chance to start receiving from it. if it's
@@ -177,33 +171,35 @@ func (s *store) Subscribe(name string, priority SubscriberPriority, filter *Filt
 	s.storeMut.RLock()
 	defer s.storeMut.RUnlock()
 
-	for kind, entitiesOfKind := range s.store {
-		if !sub.filter.MatchKind(kind) {
-			continue
-		}
+	if filter == nil || (filter != nil && filter.EventType() != EventTypeUnset) {
+		for kind, entitiesOfKind := range s.store {
+			if !sub.filter.MatchKind(kind) {
+				continue
+			}
 
-		for _, cachedEntity := range entitiesOfKind {
-			entity := cachedEntity.get(sub.filter.Source())
-			if entity != nil {
-				events = append(events, Event{
-					Type:   EventTypeSet,
-					Entity: entity,
-				})
+			for _, cachedEntity := range entitiesOfKind {
+				entity := cachedEntity.get(sub.filter.Source())
+				if entity != nil {
+					events = append(events, Event{
+						Type:   EventTypeSet,
+						Entity: entity,
+					})
+				}
 			}
 		}
+
+		// sort events by kind and ID for deterministic ordering
+		sort.Slice(events, func(i, j int) bool {
+			a := events[i].Entity.GetID()
+			b := events[j].Entity.GetID()
+
+			if a.Kind != b.Kind {
+				return a.Kind < b.Kind
+			}
+
+			return a.ID < b.ID
+		})
 	}
-
-	// sort events by kind and ID for deterministic ordering
-	sort.Slice(events, func(i, j int) bool {
-		a := events[i].Entity.GetID()
-		b := events[j].Entity.GetID()
-
-		if a.Kind != b.Kind {
-			return a.Kind < b.Kind
-		}
-
-		return a.ID < b.ID
-	})
 
 	// notifyChannel should not wait when doing the first subscription, as
 	// the subscriber is not ready to receive events yet
@@ -308,11 +304,95 @@ func (s *store) GetECSTask(id string) (*ECSTask, error) {
 	return entity.(*ECSTask), nil
 }
 
+// ListImages implements Store#ListImages
+func (s *store) ListImages() []*ContainerImageMetadata {
+	entities := s.listEntitiesByKind(KindContainerImageMetadata)
+
+	images := make([]*ContainerImageMetadata, 0, len(entities))
+	for _, entity := range entities {
+		image := entity.(*ContainerImageMetadata)
+		images = append(images, image)
+	}
+
+	return images
+}
+
+// GetImage implements Store#GetImage
+func (s *store) GetImage(id string) (*ContainerImageMetadata, error) {
+	entity, err := s.getEntityByKind(KindContainerImageMetadata, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*ContainerImageMetadata), nil
+}
+
 // Notify implements Store#Notify
 func (s *store) Notify(events []CollectorEvent) {
 	if len(events) > 0 {
 		s.eventCh <- events
 	}
+}
+
+// Reset implements Store#Reset
+func (s *store) Reset(newEntities []Entity, source Source) {
+	s.storeMut.RLock()
+	defer s.storeMut.RUnlock()
+
+	var events []CollectorEvent
+
+	// Create a "set" event for each entity that need to be in the store.
+	// The store will takes care of not sending events for entities that already
+	// exist and haven't changed.
+	for _, newEntity := range newEntities {
+		events = append(events, CollectorEvent{
+			Type:   EventTypeSet,
+			Source: source,
+			Entity: newEntity,
+		})
+	}
+
+	// Create an "unset" event for each entity that needs to be deleted
+	newEntitiesByKindAndID := classifyByKindAndID(newEntities)
+	for kind, storedEntitiesOfKind := range s.store {
+		initialEntitiesOfKind, found := newEntitiesByKindAndID[kind]
+		if !found {
+			initialEntitiesOfKind = make(map[string]Entity)
+		}
+
+		for ID, storedEntity := range storedEntitiesOfKind {
+			if _, found = initialEntitiesOfKind[ID]; !found {
+				events = append(events, CollectorEvent{
+					Type:   EventTypeUnset,
+					Source: source,
+					Entity: storedEntity.cached,
+				})
+			}
+		}
+	}
+
+	s.Notify(events)
+}
+
+func (s *store) startCandidatesWithRetry(ctx context.Context) error {
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = retryCollectorInitialInterval
+	expBackoff.MaxInterval = retryCollectorMaxInterval
+	expBackoff.MaxElapsedTime = 0 // Don't stop trying
+
+	return backoff.Retry(func() error {
+		select {
+		case <-ctx.Done():
+			return &backoff.PermanentError{Err: fmt.Errorf("stopped before all collectors were able to start")}
+		default:
+		}
+
+		if s.startCandidates(ctx) {
+			return nil
+		}
+
+		return fmt.Errorf("some collectors failed to start. Will retry")
+	}, expBackoff)
 }
 
 func (s *store) startCandidates(ctx context.Context) bool {
@@ -351,14 +431,40 @@ func (s *store) pull(ctx context.Context) {
 	defer s.collectorMut.RUnlock()
 
 	for id, c := range s.collectors {
+		s.ongoingPullsMut.Lock()
+		ongoingPullStartTime := s.ongoingPulls[id]
+		alreadyRunning := !ongoingPullStartTime.IsZero()
+		if alreadyRunning {
+			timeRunning := time.Now().Sub(ongoingPullStartTime)
+			if timeRunning > maxCollectorPullTime {
+				log.Errorf("collector %q has been running for too long (%d seconds)", id, timeRunning/time.Second)
+			} else {
+				log.Debugf("collector %q is still running. Will not pull again for now", id)
+			}
+			s.ongoingPullsMut.Unlock()
+			continue
+		} else {
+			s.ongoingPulls[id] = time.Now()
+			s.ongoingPullsMut.Unlock()
+		}
+
 		// Run each pull in its own separate goroutine to reduce
 		// latency and unlock the main goroutine to do other work.
 		go func(id string, c Collector) {
-			err := c.Pull(ctx)
+			pullCtx, pullCancel := context.WithTimeout(ctx, maxCollectorPullTime)
+			defer pullCancel()
+
+			err := c.Pull(pullCtx)
 			if err != nil {
 				log.Warnf("error pulling from collector %q: %s", id, err.Error())
 				telemetry.PullErrors.Inc(id)
 			}
+
+			s.ongoingPullsMut.Lock()
+			pullDuration := time.Now().Sub(s.ongoingPulls[id])
+			telemetry.PullDuration.Observe(pullDuration.Seconds(), id)
+			s.ongoingPulls[id] = time.Time{}
+			s.ongoingPullsMut.Unlock()
 		}(id, c)
 	}
 }
@@ -496,13 +602,13 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 }
 
 func (s *store) getEntityByKind(kind Kind, id string) (Entity, error) {
+	s.storeMut.RLock()
+	defer s.storeMut.RUnlock()
+
 	entitiesOfKind, ok := s.store[kind]
 	if !ok {
 		return nil, errors.NewNotFound(string(kind))
 	}
-
-	s.storeMut.RLock()
-	defer s.storeMut.RUnlock()
 
 	entity, ok := entitiesOfKind[id]
 	if !ok {
@@ -558,21 +664,45 @@ func notifyChannel(name string, ch chan EventBundle, events []Event, wait bool) 
 			timer.Stop()
 			telemetry.NotificationsSent.Inc(name, telemetry.StatusSuccess)
 		case <-timer.C:
-			log.Warnf("collector %q did not close the event bundle channel in time, continuing with downstream collectors. bundle dump: %+v", name, bundle)
+			log.Warnf("collector %q did not close the event bundle channel in time, continuing with downstream collectors. bundle size: %d", name, len(bundle.Events))
 			telemetry.NotificationsSent.Inc(name, telemetry.StatusError)
 		}
 	}
 }
 
-// GetGlobalStore returns a global instance of the workloadmeta store,
-// creating one if it doesn't exist. Start() needs to be called before any data
-// collection happens.
-func GetGlobalStore() Store {
-	initOnce.Do(func() {
-		if globalStore == nil {
-			globalStore = NewStore(collectorCatalog)
-		}
-	})
+func classifyByKindAndID(entities []Entity) map[Kind]map[string]Entity {
+	res := make(map[Kind]map[string]Entity)
 
+	for _, entity := range entities {
+		kind := entity.GetID().Kind
+		entityID := entity.GetID().ID
+
+		_, found := res[kind]
+		if !found {
+			res[kind] = make(map[string]Entity)
+		}
+		res[kind][entityID] = entity
+	}
+
+	return res
+}
+
+// CreateGlobalStore creates a workloadmeta store, sets it as the default
+// global one, and returns it. Start() needs to be called before any data
+// collection happens.
+func CreateGlobalStore(catalog CollectorCatalog) Store {
+	if globalStore != nil {
+		panic("global workloadmeta store already set, should only happen once")
+	}
+
+	globalStore = NewStore(catalog)
+
+	return globalStore
+}
+
+// GetGlobalStore returns a global instance of the workloadmeta store. It does
+// not create one if it's not already set (see CreateGlobalStore) and returns
+// nil in that case.
+func GetGlobalStore() Store {
 	return globalStore
 }

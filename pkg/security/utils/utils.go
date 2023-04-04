@@ -6,7 +6,7 @@
 package utils
 
 import (
-	"github.com/Masterminds/semver"
+	"github.com/Masterminds/semver/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/version"
 )

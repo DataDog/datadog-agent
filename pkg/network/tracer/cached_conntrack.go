@@ -12,12 +12,13 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"os"
 	"sync"
 
 	"github.com/golang/groupcache/lru"
+	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
-	"inet.af/netaddr"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
@@ -29,11 +30,11 @@ type cachedConntrack struct {
 	sync.Mutex
 	procRoot         string
 	cache            *lru.Cache
-	conntrackCreator func(int) (netlink.Conntrack, error)
+	conntrackCreator func(netns.NsHandle) (netlink.Conntrack, error)
 	closed           bool
 }
 
-func newCachedConntrack(procRoot string, conntrackCreator func(int) (netlink.Conntrack, error), size int) *cachedConntrack {
+func newCachedConntrack(procRoot string, conntrackCreator func(netns.NsHandle) (netlink.Conntrack, error), size int) *cachedConntrack {
 	cache := &cachedConntrack{
 		procRoot:         procRoot,
 		conntrackCreator: conntrackCreator,
@@ -64,11 +65,11 @@ func (cache *cachedConntrack) Exists(c *network.ConnectionStats) (bool, error) {
 	return cache.exists(c, c.NetNS, int(c.Pid))
 }
 
-func ipFromAddr(a util.Address) netaddr.IP {
+func ipFromAddr(a util.Address) netip.Addr {
 	if a.Len() == net.IPv6len {
-		return netaddr.IPFrom16(*(*[16]byte)(a.Bytes()))
+		return netip.AddrFrom16(*(*[16]byte)(a.Bytes()))
 	}
-	return netaddr.IPFrom4(*(*[4]byte)(a.Bytes()))
+	return netip.AddrFrom4(*(*[4]byte)(a.Bytes()))
 }
 
 func (cache *cachedConntrack) exists(c *network.ConnectionStats, netns uint32, pid int) (bool, error) {
@@ -88,8 +89,8 @@ func (cache *cachedConntrack) exists(c *network.ConnectionStats, netns uint32, p
 
 	conn := netlink.Con{
 		Origin: netlink.ConTuple{
-			Src:   netaddr.IPPortFrom(ipFromAddr(c.Source), c.SPort),
-			Dst:   netaddr.IPPortFrom(ipFromAddr(c.Dest), c.DPort),
+			Src:   netip.AddrPortFrom(ipFromAddr(c.Source), c.SPort),
+			Dst:   netip.AddrPortFrom(ipFromAddr(c.Dest), c.DPort),
 			Proto: protoNumber,
 		},
 	}
@@ -148,7 +149,7 @@ func (cache *cachedConntrack) ensureConntrack(ino uint64, pid int) (netlink.Conn
 	}
 	defer ns.Close()
 
-	ctrk, err := cache.conntrackCreator(int(ns))
+	ctrk, err := cache.conntrackCreator(ns)
 	if err != nil {
 		log.Errorf("could not create conntrack object for net ns %d: %s", ino, err)
 		return nil, err

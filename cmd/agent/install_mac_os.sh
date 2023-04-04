@@ -5,7 +5,7 @@
 
 # Datadog Agent install script for macOS.
 set -e
-install_script_version=1.0.0
+install_script_version=1.1.0
 dmg_file=/tmp/datadog-agent.dmg
 dmg_base_url="https://s3.amazonaws.com/dd-agent"
 etc_dir=/opt/datadog-agent/etc
@@ -13,6 +13,10 @@ log_dir=/opt/datadog-agent/logs
 run_dir=/opt/datadog-agent/run
 service_name="com.datadoghq.agent"
 systemwide_servicefile_name="/Library/LaunchDaemons/${service_name}.plist"
+
+if [ -n "$DD_REPO_URL" ]; then
+    dmg_base_url=$DD_REPO_URL
+fi
 
 upgrade=
 if [ -n "$DD_UPGRADE" ]; then
@@ -35,6 +39,35 @@ site=
 if [ -n "$DD_SITE" ]; then
     site=$DD_SITE
 fi
+
+if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
+  # Examples:
+  #  - 20   = defaults to highest patch version x.20.2
+  #  - 20.0 = sets explicit patch version x.20.0
+  # Note: Specifying an invalid minor version will terminate the script.
+  agent_minor_version=${DD_AGENT_MINOR_VERSION}
+  # Handle pre-release versions like "35.0~rc.5" -> "35.0" or "27.1~viper~conflict~fix" -> "27.1"   
+  clean_agent_minor_version=$(echo "${DD_AGENT_MINOR_VERSION}" | sed -E 's/-.*//g')
+  # remove the patch version if the minor version includes it (eg: 33.1 -> 33)
+  agent_minor_version_without_patch="${clean_agent_minor_version%.*}"
+  if [ "$clean_agent_minor_version" != "$agent_minor_version_without_patch" ]; then
+      agent_patch_version="${clean_agent_minor_version#*.}"
+  fi
+fi
+
+function find_latest_patch_version_for() {
+    major_minor="$1"
+    patch_versions=$(curl "https://s3.amazonaws.com/dd-agent?prefix=datadog-agent-${major_minor}." 2>/dev/null | grep -o "datadog-agent-${major_minor}.[0-9]*-1.dmg")
+    if [ -z "$patch_versions" ]; then
+        echo "-1"
+    fi
+    # first `cut` extracts patch version and `-1`, e.g. 2-1
+    # second `cut` removes the `-1`, e.g. 2
+    # then we sort numerically in reverse order
+    # and finally take the first (== the latest) patch version
+    latest_patch=$(echo "$patch_versions" | cut -d. -f3 | cut -d- -f1 | sort -rn | head -n 1)
+    echo "$latest_patch"
+}
 
 systemdaemon_install=false
 systemdaemon_user_group=
@@ -72,7 +105,11 @@ if [ -n "$DD_SYSTEMDAEMON_INSTALL" ]; then
     fi
 fi
 
-agent_major_version=6
+macos_full_version=$(sw_vers -productVersion)
+macos_major_version=$(echo "${macos_full_version}" | cut -d '.' -f 1)
+macos_minor_version=$(echo "${macos_full_version}" | cut -d '.' -f 2)
+
+agent_major_version=7
 if [ -n "$DD_AGENT_MAJOR_VERSION" ]; then
   if [ "$DD_AGENT_MAJOR_VERSION" != "6" ] && [ "$DD_AGENT_MAJOR_VERSION" != "7" ]; then
     echo "DD_AGENT_MAJOR_VERSION must be either 6 or 7. Current value: $DD_AGENT_MAJOR_VERSION"
@@ -80,14 +117,62 @@ if [ -n "$DD_AGENT_MAJOR_VERSION" ]; then
   fi
   agent_major_version=$DD_AGENT_MAJOR_VERSION
 else
-  echo -e "\033[33mWarning: DD_AGENT_MAJOR_VERSION not set. Installing Agent version 6 by default.\033[0m"
+  echo -e "\033[33mWarning: DD_AGENT_MAJOR_VERSION not set. Installing Agent version 7 by default.\033[0m"
 fi
 
-dmg_remote_file="datadogagent.dmg"
-if [ "$agent_major_version" = "7" ]; then
-    dmg_remote_file="datadog-agent-7-latest.dmg"
+dmg_version=
+if [ "${macos_major_version}" -lt 10 ] || { [ "${macos_major_version}" -eq 10 ] && [ "${macos_minor_version}" -lt 12 ]; }; then
+    echo -e "\033[31mDatadog Agent doesn't support macOS < 10.12.\033[0m\n"
+    exit 1
+elif [ "${macos_major_version}" -eq 10 ] && [ "${macos_minor_version}" -eq 12 ]; then
+    if [ -n "${clean_agent_minor_version}" ]; then
+        if [ "${agent_minor_version_without_patch}" -gt 34 ]; then
+            echo -e "\033[31mmacOS 10.12 only supports Datadog Agent $agent_major_version up to $agent_major_version.34.\033[0m\n"
+            exit 1;
+        fi
+    else
+        echo -e "\033[33mWarning: Agent ${agent_major_version}.34.0 is the last supported version for macOS 10.12. Selecting it for installation.\033[0m"
+        agent_minor_version_without_patch=34
+        agent_patch_version=0
+    fi
+elif [ "${macos_major_version}" -eq 10 ] && [ "${macos_minor_version}" -eq 13 ]; then
+    if [ -n "${clean_agent_minor_version}" ]; then
+        if [ "${agent_minor_version_without_patch}" -gt 38 ]; then
+            echo -e "\033[31mmacOS 10.13 only supports Datadog Agent $agent_major_version up to $agent_major_version.38.\033[0m\n"
+            exit 1;
+        fi
+    else
+        echo -e "\033[33mWarning: Agent ${agent_major_version}.38.2 is the last supported version for macOS 10.13. Selecting it for installation.\033[0m"
+        agent_minor_version_without_patch=38
+        agent_patch_version=2
+    fi
+else
+    if [ "${agent_major_version}" -eq 6 ]; then
+        echo -e "\033[31mThe latest Agent 6 is no longer built for for macOS $macos_full_version. Please invoke again with DD_AGENT_MAJOR_VERSION=7\033[0m\n"
+        exit 1
+    else
+        if [ -z "${agent_minor_version}" ]; then
+            dmg_version="7-latest"
+        fi
+    fi
 fi
-dmg_url="$dmg_base_url/$dmg_remote_file"
+
+if [ -z "$dmg_version" ]; then
+    if [ -z "$agent_patch_version" ]; then
+        agent_patch_version=$(find_latest_patch_version_for "${agent_major_version}.${agent_minor_version_without_patch}")
+        if [ -z "$agent_patch_version" ] || [ "$agent_patch_version" -lt 0 ]; then
+            echo -e "\033[33mWarning: Failed to obtain latest patch version for Agent ${agent_major_version}.${agent_minor_version_without_patch}. Defaulting to '0'.\033[0m"
+            agent_patch_version=0
+        fi
+    fi
+    # Check if the version is a classic release version or a pre-release version
+    if [ "$agent_minor_version" = "$clean_agent_minor_version" ];then
+        dmg_version="${agent_major_version}.${agent_minor_version_without_patch}.${agent_patch_version}-1"
+    else
+        dmg_version="${agent_major_version}.${agent_minor_version}-1"
+    fi
+fi
+dmg_url="$dmg_base_url/datadog-agent-${dmg_version}.dmg"
 
 if [ "$upgrade" ]; then
     if [ ! -f $etc_dir/datadog.conf ]; then
@@ -183,10 +268,17 @@ cmd_agent="$cmd_real_user /opt/datadog-agent/bin/agent/agent"
 
 cmd_launchctl="$cmd_real_user launchctl"
 
-function new_config() {
+function sed_inplace_arg() {
     # Check for vanilla OS X sed or GNU sed
-    i_cmd="-i ''"
-    if [ "$(sed --version 2>/dev/null | grep -c "GNU")" -ne 0 ]; then i_cmd="-i"; fi
+    if [ "$(sed --version 2>/dev/null | grep -c "GNU")" -ne 0 ]; then
+        echo "-i"
+    fi
+
+    echo "-i ''"
+}
+
+function new_config() {
+    i_cmd="$(sed_inplace_arg)"
     $sudo_cmd sh -c "sed $i_cmd 's/api_key:.*/api_key: $apikey/' \"$etc_dir/datadog.yaml\""
     if [ "$site" ]; then
         $sudo_cmd sh -c "sed $i_cmd 's/# site:.*/site: $site/' \"$etc_dir/datadog.yaml\""
@@ -218,16 +310,18 @@ function plist_modify_user_group() {
     done
 
     ## to insert user/group into the xml file, we'll find the last "</dict>" occurrence and insert before it
+    i_cmd="$(sed_inplace_arg)"
     closing_dict_line=$($sudo_cmd cat "$plist_file" | grep -n "</dict>" | tail -1 | cut -f1 -d:)
-    # there's no way to do in-place sed without a backup file on an arbitrary MacOS version
-    $sudo_cmd sed -i .backup -e "${closing_dict_line},${closing_dict_line}s|</dict>|<key>$user_parameter</key><string>$user_value</string>\n</dict>|" -e "${closing_dict_line},${closing_dict_line}s|</dict>|<key>$group_parameter</key><string>$group_value</string>\n</dict>|" "$plist_file"
-    $sudo_cmd rm "${plist_file}.backup"
+    $sudo_cmd sh -c "sed $i_cmd -e \"${closing_dict_line},${closing_dict_line}s|</dict>|<key>$user_parameter</key><string>$user_value</string>\n</dict>|\" -e \"${closing_dict_line},${closing_dict_line}s|</dict>|<key>$group_parameter</key><string>$group_value</string>\n</dict>|\" \"$plist_file\""
 }
 
 # # Install the agent
 printf "\033[34m\n* Downloading datadog-agent\n\033[0m"
 rm -f $dmg_file
-curl --fail --progress-bar $dmg_url > $dmg_file
+if ! curl --fail --progress-bar "$dmg_url" > $dmg_file; then
+    printf "\033[31mCouldn't download the installer for macOS Agent version ${dmg_version}.\033[0m\n"
+    exit 1;
+fi
 printf "\033[34m\n* Installing datadog-agent, you might be asked for your sudo password...\n\033[0m"
 $sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null 2>&1 || true
 printf "\033[34m\n    - Mounting the DMG installer...\n\033[0m"

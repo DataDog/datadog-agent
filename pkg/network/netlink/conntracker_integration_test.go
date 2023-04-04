@@ -11,7 +11,6 @@ package netlink
 import (
 	"encoding/binary"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"testing"
@@ -22,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
@@ -79,7 +79,7 @@ func TestMessageDump(t *testing.T) {
 
 	testutil.SetupDNAT(t)
 
-	f, err := ioutil.TempFile("", "message_dump")
+	f, err := os.CreateTemp("", "message_dump")
 	require.NoError(t, err)
 	defer os.Remove(f.Name())
 	defer f.Close()
@@ -92,7 +92,7 @@ func TestMessageDump6(t *testing.T) {
 
 	testutil.SetupDNAT6(t)
 
-	f, err := ioutil.TempFile("", "message_dump6")
+	f, err := os.CreateTemp("", "message_dump6")
 	require.NoError(t, err)
 	defer os.Remove(f.Name())
 	defer f.Close()
@@ -101,7 +101,17 @@ func TestMessageDump6(t *testing.T) {
 }
 
 func testMessageDump(t *testing.T, f *os.File, serverIP, clientIP net.IP) {
-	consumer := NewConsumer("/proc", 500, false)
+	consumer, err := NewConsumer(
+		&config.Config{
+			Config: ebpf.Config{
+				ProcRoot: "/proc",
+			},
+			ConntrackRateLimit:           500,
+			ConntrackRateLimitInterval:   time.Second,
+			EnableRootNetNs:              true,
+			EnableConntrackAllNamespaces: false,
+		})
+	require.NoError(t, err)
 	events, err := consumer.Events()
 	require.NoError(t, err)
 
@@ -141,7 +151,7 @@ func skipUnless(t *testing.T, requiredArg string) {
 
 	t.Skip(
 		fmt.Sprintf(
-			"skipped %s. you can enable it by using running tests with `-args %s`.\n",
+			"skipped %s. you can enable it by using running tests with `-args %s`",
 			t.Name(),
 			requiredArg,
 		),

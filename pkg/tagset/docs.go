@@ -13,12 +13,12 @@
 // The package otherwise presents a fairly abstract API that allows performance
 // optimizations without changing semantics.
 //
-// Accumulators
+// # Accumulators
 //
 // HashlessTagsAccumulator and HashingTagsAccumulator both allow building tagsets bit-by-bit, by
 // appending new tags.
 //
-// HashedTags
+// # HashedTags
 //
 // The HashedTags type represents an _immutable_ set of tags and associated hashes.
 // It is the primary data structure used to represent a set of tags.

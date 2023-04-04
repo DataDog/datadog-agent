@@ -12,9 +12,9 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -54,7 +54,7 @@ func TestGetSecurityCreds(t *testing.T) {
 			io.WriteString(w, "test-role")
 		} else if r.URL.Path == "/iam/security-credentials/test-role" {
 			w.Header().Set("Content-Type", "text/plain")
-			content, err := ioutil.ReadFile("payloads/security_cred.json")
+			content, err := os.ReadFile("payloads/security_cred.json")
 			require.Nil(t, err, fmt.Sprintf("failed to load json in payloads/security_cred.json: %v", err))
 			io.WriteString(w, string(content))
 		} else {
@@ -77,7 +77,7 @@ func TestGetInstanceIdentity(t *testing.T) {
 	ctx := context.Background()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
-		content, err := ioutil.ReadFile("payloads/instance_indentity.json")
+		content, err := os.ReadFile("payloads/instance_indentity.json")
 		require.Nil(t, err, fmt.Sprintf("failed to load json in payloads/instance_indentity.json: %v", err))
 		io.WriteString(w, string(content))
 	}))
@@ -98,11 +98,13 @@ func TestFetchEc2TagsFromIMDS(t *testing.T) {
 		w.Header().Set("Content-Type", "text/plain")
 		switch r.RequestURI {
 		case "/tags/instance":
-			io.WriteString(w, "Name\nPurpose") // no trailing newline
+			io.WriteString(w, "Name\nPurpose\nExcludedTag") // no trailing newline
 		case "/tags/instance/Name":
 			io.WriteString(w, "some-vm")
 		case "/tags/instance/Purpose":
 			io.WriteString(w, "mining")
+		case "/tags/instance/ExcludedTag":
+			io.WriteString(w, "testing")
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -111,6 +113,9 @@ func TestFetchEc2TagsFromIMDS(t *testing.T) {
 	metadataURL = ts.URL
 	config.Datadog.Set("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
+
+	confMock := config.Mock(t)
+	confMock.Set("exclude_ec2_tags", []string{"ExcludedTag", "OtherExcludedTag2"})
 
 	tags, err := fetchEc2TagsFromIMDS(ctx)
 	require.Nil(t, err)
@@ -135,12 +140,10 @@ func TestFetchEc2TagsFromIMDSError(t *testing.T) {
 }
 
 func mockFetchTagsSuccess(ctx context.Context) ([]string, error) {
-	fmt.Printf("mockFetchTagsSuccess !!!!!!!!\n")
 	return []string{"tag1", "tag2"}, nil
 }
 
 func mockFetchTagsFailure(ctx context.Context) ([]string, error) {
-	fmt.Printf("mockFetchTagsFailure !!!!!!!!\n")
 	return nil, fmt.Errorf("could not fetch tags")
 }
 

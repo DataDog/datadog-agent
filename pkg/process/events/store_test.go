@@ -181,7 +181,7 @@ func TestRingStoreWithDroppedData(t *testing.T) {
 	// Assert that the expected events have been dropped
 	require.Equal(t, len(expectedDrops), len(droppedEvents))
 	for i := range droppedEvents {
-		model.AssertProcessEvents(t, expectedDrops[i], droppedEvents[i])
+		AssertProcessEvents(t, expectedDrops[i], droppedEvents[i])
 	}
 
 	data, err := s.Pull(ctx, timeout)

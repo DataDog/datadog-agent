@@ -6,6 +6,10 @@
 package inferredspan
 
 import (
+	"crypto/rand"
+	"math"
+	"math/big"
+	"os"
 	"strings"
 	"time"
 
@@ -74,7 +78,7 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 	}
 
 	// filter out DD_TAGS & DD_EXTRA_TAGS
-	ddTags := config.GetConfiguredTags(false)
+	ddTags := config.GetGlobalConfiguredTags(false)
 	for _, tag := range ddTags {
 		tagParts := strings.SplitN(tag, ":", 2)
 		if len(tagParts) != 2 {
@@ -133,13 +137,27 @@ func (inferredSpan *InferredSpan) CompleteInferredSpan(
 	})
 }
 
+// GenerateSpanId creates a secure random span id in specific scenarios, otherwise return a pseudo random id
+func GenerateSpanId() uint64 {
+	isSnapStart := os.Getenv(tags.InitType) == tags.SnapStartValue
+	if isSnapStart {
+		max := new(big.Int).SetUint64(math.MaxUint64)
+		if randId, err := rand.Int(rand.Reader, max); err != nil {
+			log.Debugf("Failed to generate a secure random span id: %v", err)
+		} else {
+			return randId.Uint64()
+		}
+	}
+	return random.Random.Uint64()
+}
+
 // generateInferredSpan declares and initializes a new inferred span
 // with the SpanID and TraceID
 func (inferredSpan *InferredSpan) generateInferredSpan(startTime time.Time) {
 
 	inferredSpan.CurrentInvocationStartTime = startTime
 	inferredSpan.Span = &pb.Span{
-		SpanID: random.Random.Uint64(),
+		SpanID: GenerateSpanId(),
 	}
 	log.Debugf("Generated new Inferred span: %+v", inferredSpan)
 }

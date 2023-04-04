@@ -14,7 +14,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 )
 
 // The "release" struct and the related ones, are a simplified version of the
@@ -27,11 +27,14 @@ import (
 // Helm lib is still worth it.
 
 type release struct {
-	Name      string `json:"name,omitempty"`
-	Info      *info  `json:"info,omitempty"`
-	Chart     *chart `json:"chart,omitempty"`
-	Version   int    `json:"version,omitempty"`
-	Namespace string `json:"namespace,omitempty"`
+	Name  string `json:"name,omitempty"`
+	Info  *info  `json:"info,omitempty"`
+	Chart *chart `json:"chart,omitempty"`
+	// Config is the set of extra Values added to the chart.
+	// These values override the default values inside of the chart.
+	Config    map[string]interface{} `json:"config,omitempty"`
+	Version   int                    `json:"version,omitempty"`
+	Namespace string                 `json:"namespace,omitempty"`
 }
 
 type namespacedName string
@@ -51,6 +54,8 @@ type info struct {
 
 type chart struct {
 	Metadata *metadata `json:"metadata"`
+	// Values are default config for this chart.
+	Values map[string]interface{} `json:"values"`
 }
 
 type metadata struct {
@@ -75,7 +80,10 @@ func decodeRelease(data string) (*release, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	if len(b) < 4 {
+		// Avoid panic if b[0:3] cannot be accessed
+		return nil, fmt.Errorf("The byte array is too short (expected at least 4 characters, got %s instead): it cannot contain a Helm release", fmt.Sprint(len(b)))
+	}
 	// For backwards compatibility with releases that were stored before
 	// compression was introduced we skip decompression if the
 	// gzip magic header is not found
@@ -85,7 +93,7 @@ func decodeRelease(data string) (*release, error) {
 			return nil, err
 		}
 		defer r.Close()
-		b2, err := ioutil.ReadAll(r)
+		b2, err := io.ReadAll(r)
 		if err != nil {
 			return nil, err
 		}
@@ -98,4 +106,25 @@ func decodeRelease(data string) (*release, error) {
 		return nil, err
 	}
 	return &rls, nil
+}
+
+// getConfigValue returns the string value of a config param provided as a
+// dot-separated key (for example "agents.image.tag"). It returns an error if
+// the config param is not set.
+func (rel *release) getConfigValue(dotSeparatedKey string) (string, error) {
+	// We need to check rel.Config overrides what's set in rel.Chart.Values, so
+	// we need to check rel.Config first.
+	value, err := getValue(rel.Config, dotSeparatedKey)
+	if err != nil {
+		if rel.Chart == nil {
+			return "", fmt.Errorf("not found")
+		}
+
+		value, err = getValue(rel.Chart.Values, dotSeparatedKey)
+		if err != nil {
+			return "", fmt.Errorf("not found")
+		}
+	}
+
+	return value, nil
 }

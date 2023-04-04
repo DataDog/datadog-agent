@@ -11,7 +11,6 @@
 package legacy
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -68,14 +67,16 @@ instances:
   tags:
   - tag:value
   - value
+  capped_metrics:
+    docker.cpu.system: 1000
+    docker.cpu.user: 1000
   collect_events: false
+  unbundle_events: false
   filtered_event_types:
   - top
   - exec_start
   - exec_create
-  capped_metrics:
-    docker.cpu.system: 1000
-    docker.cpu.user: 1000
+  collected_event_types: []
 `
 )
 
@@ -85,14 +86,14 @@ func TestConvertDocker(t *testing.T) {
 	src := filepath.Join(dir, "docker_daemon.yaml")
 	dst := filepath.Join(dir, "docker.yaml")
 
-	err := ioutil.WriteFile(src, []byte(dockerDaemonLegacyConf), 0640)
+	err := os.WriteFile(src, []byte(dockerDaemonLegacyConf), 0640)
 	require.Nil(t, err)
 
 	configConverter := config.NewConfigConverter()
 	err = ImportDockerConf(src, dst, true, configConverter)
 	require.Nil(t, err)
 
-	newConf, err := ioutil.ReadFile(filepath.Join(dir, "docker.yaml"))
+	newConf, err := os.ReadFile(filepath.Join(dir, "docker.yaml"))
 	require.Nil(t, err)
 
 	assert.Equal(t, dockerNewConf, string(newConf))

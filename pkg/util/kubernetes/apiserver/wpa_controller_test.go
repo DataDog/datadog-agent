@@ -44,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
@@ -213,7 +214,7 @@ func newFakeWatermarkPodAutoscaler(name, ns string, uid types.UID, metricName st
 		},
 	}
 
-	if err := UnstructuredFromWPA(wpa, obj); err != nil {
+	if err := UnstructuredFromAutoscaler(wpa, obj); err != nil {
 		panic("Failed to construct unstructured WPA")
 	}
 
@@ -239,7 +240,7 @@ func TestWPAController(t *testing.T) {
 				makePoints(penTime, 14.123),
 				makePoints(0, 25.12),
 			},
-			Scope: makePtr("foo:bar"),
+			Scope: pointer.Ptr("foo:bar"),
 		},
 		{
 			Metric: &metricName,
@@ -248,7 +249,7 @@ func TestWPAController(t *testing.T) {
 				makePoints(penTime, 1.01),
 				makePoints(0, 0.902),
 			},
-			Scope: makePtr("dcos_version:2.1.9"),
+			Scope: pointer.Ptr("dcos_version:2.1.9"),
 		},
 	}
 	d := &fakeDatadogClient{
@@ -375,7 +376,7 @@ func TestWPAController(t *testing.T) {
 				makePoints(penTime, 1.01),
 				makePoints(0, 0.902),
 			},
-			Scope: makePtr("dcos_version:2.1.9"),
+			Scope: pointer.Ptr("dcos_version:2.1.9"),
 		},
 	}
 

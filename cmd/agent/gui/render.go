@@ -40,7 +40,9 @@ type Data struct {
 func renderStatus(rawData []byte, request string) (string, error) {
 	var b = new(bytes.Buffer)
 	stats := make(map[string]interface{})
-	json.Unmarshal(rawData, &stats) //nolint:errcheck
+	if err := json.Unmarshal(rawData, &stats); err != nil {
+		return "", err
+	}
 
 	data := Data{Stats: stats}
 	e := fillTemplate(b, data, request+"Status")
@@ -55,7 +57,9 @@ func renderRunningChecks() (string, error) {
 
 	runnerStatsJSON := []byte(expvar.Get("runner").String())
 	runnerStats := make(map[string]interface{})
-	json.Unmarshal(runnerStatsJSON, &runnerStats) //nolint:errcheck
+	if err := json.Unmarshal(runnerStatsJSON, &runnerStats); err != nil {
+		return "", err
+	}
 	loaderErrs := collector.GetLoaderErrors()
 	configErrs := autodiscovery.GetConfigErrors()
 

@@ -12,39 +12,33 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path"
-	"strings"
 	"syscall"
 	"testing"
-	"unsafe"
 
-	"github.com/avast/retry-go"
+	"github.com/avast/retry-go/v4"
 	"github.com/freddierice/go-losetup"
 )
 
 type testDrive struct {
-	file       *os.File
-	dev        *losetup.Device
-	mountPoint string
+	file  *os.File
+	dev   *losetup.Device
+	mount *testMount
 }
 
 func (td *testDrive) Root() string {
-	return td.mountPoint
+	return td.mount.target
 }
 
-func (td *testDrive) Path(filename ...string) (string, unsafe.Pointer, error) {
-	components := []string{td.mountPoint}
-	components = append(components, filename...)
-	path := path.Join(components...)
-	filenamePtr, err := syscall.BytePtrFromString(path)
-	if err != nil {
-		return "", nil, err
-	}
-	return path, unsafe.Pointer(filenamePtr), nil
+func (td *testDrive) FSType() string {
+	return td.mount.fstype
 }
 
-func newTestDrive(tb testing.TB, fsType string, mountOpts []string) (*testDrive, error) {
-	return newTestDriveWithMountPoint(tb, fsType, mountOpts, "")
+func (td *testDrive) Path(filename ...string) string {
+	return td.mount.path(filename...)
+}
+
+func newTestDrive(tb testing.TB, fsType string, mountOpts []string, mountPoint string) (*testDrive, error) {
+	return newTestDriveWithMountPoint(tb, fsType, mountOpts, mountPoint)
 }
 
 func newTestDriveWithMountPoint(tb testing.TB, fsType string, mountOpts []string, mountPoint string) (*testDrive, error) {
@@ -78,9 +72,9 @@ func newTestDriveWithMountPoint(tb testing.TB, fsType string, mountOpts []string
 			return nil, fmt.Errorf("failed to create testdrive loop device: %w", err)
 		}
 
-		if len(mountOpts) == 0 {
-			mountOpts = append(mountOpts, "auto")
-		}
+		// if len(mountOpts) == 0 {
+		// 	mountOpts = append(mountOpts, "auto")
+		// }
 
 		mkfsCmd := exec.Command("/sbin/mkfs."+fsType, dev.Path())
 		if err := mkfsCmd.Run(); err != nil {
@@ -97,9 +91,14 @@ func newTestDriveWithMountPoint(tb testing.TB, fsType string, mountOpts []string
 		devPath = "none"
 	}
 
-	mountCmd := exec.Command("mount", "-t", fsType, "-o", strings.Join(mountOpts, ","), devPath, mountPoint)
+	mount := newTestMount(
+		mountPoint,
+		withSource(devPath),
+		withFSType(fsType),
+		withMountOpts(mountOpts...),
+	)
 
-	if err := mountCmd.Run(); err != nil {
+	if err := mount.mount(); err != nil {
 		if loopback != nil {
 			_ = loopback.Detach()
 		}
@@ -109,25 +108,24 @@ func newTestDriveWithMountPoint(tb testing.TB, fsType string, mountOpts []string
 	}
 
 	return &testDrive{
-		file:       backingFile,
-		dev:        loopback,
-		mountPoint: mountPoint,
+		file:  backingFile,
+		dev:   loopback,
+		mount: mount,
 	}, nil
 }
 
 func (td *testDrive) lsof() string {
-	lsofCmd := exec.Command("lsof", td.mountPoint)
+	lsofCmd := exec.Command("lsof", td.Root())
 	output, _ := lsofCmd.CombinedOutput()
 	return string(output)
 }
 
-func (td *testDrive) Unmount() error {
-	unmountCmd := exec.Command("umount", "-f", td.mountPoint)
-	return unmountCmd.Run()
+func (td *testDrive) unmount() error {
+	return td.mount.unmount(syscall.MNT_FORCE)
 }
 
 func (td *testDrive) Close() {
-	if err := td.Unmount(); err != nil {
+	if err := td.unmount(); err != nil {
 		fmt.Printf("failed to unmount test drive: %s (lsof: %s)", err, td.lsof())
 	}
 	if td.dev != nil {
@@ -139,5 +137,5 @@ func (td *testDrive) Close() {
 		}
 	}
 	os.Remove(td.file.Name())
-	os.Remove(td.mountPoint)
+	os.RemoveAll(td.Root())
 }

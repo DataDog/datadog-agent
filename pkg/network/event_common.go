@@ -14,8 +14,16 @@ import (
 	"github.com/dustin/go-humanize"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
-	"github.com/DataDog/datadog-agent/pkg/network/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+)
+
+const (
+	// 100Gbps * 30s = 375GB
+	maxByteCountChange uint64 = 375 << 30
+	// use typical small MTU size, 1300, to get max packet count
+	maxPacketCountChange uint64 = maxByteCountChange / 1300
 )
 
 // ConnectionType will be either TCP or UDP
@@ -121,7 +129,12 @@ type Connections struct {
 	DNS                         map[util.Address][]dns.Hostname
 	ConnTelemetry               map[ConnTelemetryType]int64
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
+	KernelHeaderFetchResult     int32
+	CORETelemetryByAsset        map[string]int32
+	PrebuiltAssets              []string
 	HTTP                        map[http.Key]*http.RequestStats
+	HTTP2                       map[http.Key]*http.RequestStats
+	Kafka                       map[kafka.Key]*kafka.RequestStat
 	DNSStats                    dns.StatsByKeyByNameByType
 }
 
@@ -146,8 +159,6 @@ const (
 	ConntrackSamplingPercent        ConnTelemetryType = "conntrack_sampling_percent"
 	NPMDriverFlowsMissedMaxExceeded ConnTelemetryType = "driver_flows_missed_max_exceeded"
 	MonotonicDNSPacketsDropped      ConnTelemetryType = "dns_packets_dropped"
-	HTTPRequestsDropped             ConnTelemetryType = "http_requests_dropped"
-	HTTPRequestsMissed              ConnTelemetryType = "http_requests_missed"
 )
 
 //revive:enable
@@ -160,8 +171,6 @@ var (
 		ConntrackSamplingPercent,
 		DNSStatsDropped,
 		NPMDriverFlowsMissedMaxExceeded,
-		HTTPRequestsDropped,
-		HTTPRequestsMissed,
 	}
 
 	// MonotonicConnTelemetryTypes lists all the possible monotonic telemetry which can be bundled
@@ -185,7 +194,6 @@ var (
 type RuntimeCompilationTelemetry struct {
 	RuntimeCompilationEnabled  bool
 	RuntimeCompilationResult   int32
-	KernelHeaderFetchResult    int32
 	RuntimeCompilationDuration int64
 }
 
@@ -206,6 +214,11 @@ type StatCounters struct {
 	TCPClosed      uint32
 }
 
+// IsZero returns whether all the stat counter values are zeroes
+func (s StatCounters) IsZero() bool {
+	return s == StatCounters{}
+}
+
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
 type ConnectionStats struct {
 	Source util.Address
@@ -215,7 +228,10 @@ type ConnectionStats struct {
 	Via           *Via
 
 	Monotonic StatCounters
-	Last      StatCounters
+
+	Last StatCounters
+
+	Cookie uint32
 
 	// Last time the stats for this connection were updated
 	LastUpdateEpoch uint64
@@ -232,10 +248,15 @@ type ConnectionStats struct {
 	Family           ConnectionFamily
 	Direction        ConnectionDirection
 	SPortIsEphemeral EphemeralPortType
-	Tags             uint64
+	StaticTags       uint64
+	Tags             map[string]struct{}
 
 	IntraHost bool
 	IsAssured bool
+
+	ContainerID *string
+
+	Protocol ProtocolType
 }
 
 // Via has info about the routing decision for a flow
@@ -268,8 +289,9 @@ func (c ConnectionStats) IsExpired(now uint64, timeout uint64) bool {
 // ByteKey returns a unique key for this connection represented as a byte slice
 // It's as following:
 //
-//     4B      2B      2B     .5B     .5B      4/16B        4/16B   = 17/41B
-//    32b     16b     16b      4b      4b     32/128b      32/128b
+//	 4B      2B      2B     .5B     .5B      4/16B        4/16B   = 17/41B
+//	32b     16b     16b      4b      4b     32/128b      32/128b
+//
 // |  PID  | SPORT | DPORT | Family | Type |  SrcAddr  |  DestAddr
 func (c ConnectionStats) ByteKey(buf []byte) []byte {
 	return generateConnectionKey(c, buf, false)
@@ -314,7 +336,7 @@ func BeautifyKey(key string) string {
 	family := (raw[8] >> 4) & 0xf
 	typ := raw[8] & 0xf
 
-	// Finally source addr, dest addr
+	// source addr, dest addr
 	addrSize := 4
 	if ConnectionFamily(family) == AFINET6 {
 		addrSize = 16
@@ -356,12 +378,18 @@ func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname
 
 	if c.Type == TCP {
 		str += fmt.Sprintf(
-			", %d retransmits (+%d), RTT %s (± %s)",
+			", %d retransmits (+%d), RTT %s (± %s), %d established (+%d), %d closed (+%d)",
 			c.Monotonic.Retransmits, c.Last.Retransmits,
 			time.Duration(c.RTT)*time.Microsecond,
 			time.Duration(c.RTTVar)*time.Microsecond,
+			c.Monotonic.TCPEstablished, c.Last.TCPEstablished,
+			c.Monotonic.TCPClosed, c.Last.TCPClosed,
 		)
 	}
+
+	str += fmt.Sprintf(", last update epoch: %d, cookie: %d", c.LastUpdateEpoch, c.Cookie)
+	str += fmt.Sprintf(", protocol: %v", c.Protocol)
+	str += fmt.Sprintf(", netns: %d", c.NetNS)
 
 	return str
 }
@@ -380,22 +408,56 @@ func printAddress(address util.Address, names []dns.Hostname) string {
 	return b.String()
 }
 
-// HTTPKeyTupleFromConn build the key for the http map based on whether the local or remote side is http.
-func HTTPKeyTupleFromConn(c ConnectionStats) http.KeyTuple {
-	// Retrieve translated addresses
-	laddr, lport := GetNATLocalAddress(c)
-	raddr, rport := GetNATRemoteAddress(c)
+// HTTPKeyTuplesFromConn constructs HTTP key tuples using the underlying raw connection stats object, which is produced by the tracer.
+// Each ConnectionStats object contains both the source and destination addresses, as well as an IPTranslation object that stores the original addresses in the event that the connection is NAT'd.
+// This function generates all relevant combinations of connection keys: [(source, dest), (dest, source), (NAT'd source, NAT'd dest), (NAT'd dest, NAT'd source)].
+// This is necessary to handle all possible scenarios for connections originating from the USM HTTP module (i.e., whether they are NAT'd or not, and whether they use TLS or plain HTTP).
+func HTTPKeyTuplesFromConn(connectionStats ConnectionStats) []http.KeyTuple {
 
-	// HTTP data is always indexed as (client, server), so we account for that when generating the
-	// the lookup key using the port range heuristic.
-	// In the rare cases where both ports are within the same range we ensure that sport < dport
-	// to mimic the normalization heuristic done in the eBPF side (see `port_range.h`)
-	if (IsEphemeralPort(int(lport)) && !IsEphemeralPort(int(rport))) ||
-		(IsEphemeralPort(int(lport)) == IsEphemeralPort(int(rport)) && lport < rport) {
-		return http.NewKeyTuple(laddr, raddr, lport, rport)
+	// HTTP data is always indexed as (client, server), but we don't know which is the remote
+	// and which is the local address. To account for this, we'll construct 2 possible
+	// http keys and check for both of them in our http aggregations map.
+	httpKeyTuples := []http.KeyTuple{
+		http.NewKeyTuple(connectionStats.Source, connectionStats.Dest, connectionStats.SPort, connectionStats.DPort),
+		http.NewKeyTuple(connectionStats.Dest, connectionStats.Source, connectionStats.DPort, connectionStats.SPort),
 	}
 
-	return http.NewKeyTuple(raddr, laddr, rport, lport)
+	// if IPTranslation is not nil, at least one of the sides has a translation, thus we need to add translated addresses.
+	if connectionStats.IPTranslation != nil {
+		localAddress, localPort := GetNATLocalAddress(connectionStats)
+		remoteAddress, remotePort := GetNATRemoteAddress(connectionStats)
+		httpKeyTuples = append(httpKeyTuples,
+			http.NewKeyTuple(localAddress, remoteAddress, localPort, remotePort),
+			http.NewKeyTuple(remoteAddress, localAddress, remotePort, localPort))
+	}
+
+	return httpKeyTuples
+}
+
+// KafkaKeyTuplesFromConn constructs Kafka key tuples using the underlying raw connection stats object, which is produced by the tracer.
+// Each ConnectionStats object contains both the source and destination addresses, as well as an IPTranslation object that stores the original addresses in the event that the connection is NAT'd.
+// This function generates all relevant combinations of connection keys: [(source, dest), (dest, source), (NAT'd source, NAT'd dest), (NAT'd dest, NAT'd source)].
+// This is necessary to handle all possible scenarios for connections originating from the Kafka module (i.e., whether they are NAT'd or not, and whether they use TLS or plain Kafka).
+func KafkaKeyTuplesFromConn(connectionStats ConnectionStats) []kafka.KeyTuple {
+
+	// Kafka data is always indexed as (client, server), but we don't know which is the remote
+	// and which is the local address. To account for this, we'll construct 2 possible
+	// kafka keys and check for both of them in our kafka aggregations map.
+	kafkaKeyTuples := []kafka.KeyTuple{
+		kafka.NewKeyTuple(connectionStats.Source, connectionStats.Dest, connectionStats.SPort, connectionStats.DPort),
+		kafka.NewKeyTuple(connectionStats.Dest, connectionStats.Source, connectionStats.DPort, connectionStats.SPort),
+	}
+
+	// if IPTranslation is not nil, at least one of the sides has a translation, thus we need to add translated addresses.
+	if connectionStats.IPTranslation != nil {
+		localAddress, localPort := GetNATLocalAddress(connectionStats)
+		remoteAddress, remotePort := GetNATRemoteAddress(connectionStats)
+		kafkaKeyTuples = append(kafkaKeyTuples,
+			kafka.NewKeyTuple(localAddress, remoteAddress, localPort, remotePort),
+			kafka.NewKeyTuple(remoteAddress, localAddress, remotePort, localPort))
+	}
+
+	return kafkaKeyTuples
 }
 
 func generateConnectionKey(c ConnectionStats, buf []byte, useNAT bool) []byte {
@@ -419,5 +481,58 @@ func generateConnectionKey(c ConnectionStats, buf []byte, useNAT bool) []byte {
 
 	n += laddr.WriteTo(buf[n:]) // 4 or 16 bytes
 	n += raddr.WriteTo(buf[n:]) // 4 or 16 bytes
+
 	return buf[:n]
+}
+
+// Add returns s+other
+func (s StatCounters) Add(other StatCounters) StatCounters {
+	return StatCounters{
+		RecvBytes:      s.RecvBytes + other.RecvBytes,
+		RecvPackets:    s.RecvPackets + other.RecvPackets,
+		Retransmits:    s.Retransmits + other.Retransmits,
+		SentBytes:      s.SentBytes + other.SentBytes,
+		SentPackets:    s.SentPackets + other.SentPackets,
+		TCPClosed:      s.TCPClosed + other.TCPClosed,
+		TCPEstablished: s.TCPEstablished + other.TCPEstablished,
+	}
+}
+
+func maxUint64(a, b uint64) uint64 {
+	if a > b {
+		return a
+	}
+
+	return b
+}
+
+func maxUint32(a, b uint32) uint32 {
+	if a > b {
+		return a
+	}
+
+	return b
+}
+
+// Max returns max(s, other)
+func (s StatCounters) Max(other StatCounters) StatCounters {
+	return StatCounters{
+		RecvBytes:      maxUint64(s.RecvBytes, other.RecvBytes),
+		RecvPackets:    maxUint64(s.RecvPackets, other.RecvPackets),
+		Retransmits:    maxUint32(s.Retransmits, other.Retransmits),
+		SentBytes:      maxUint64(s.SentBytes, other.SentBytes),
+		SentPackets:    maxUint64(s.SentPackets, other.SentPackets),
+		TCPClosed:      maxUint32(s.TCPClosed, other.TCPClosed),
+		TCPEstablished: maxUint32(s.TCPEstablished, other.TCPEstablished),
+	}
+}
+
+// isUnderflow checks if a metric has "underflowed", i.e.
+// the most recent value is less than what was seen
+// previously. We distinguish between an "underflow" and
+// an integer overflow if the change is greater than
+// some preset max value; if the change is greater, then
+// its an underflow
+func isUnderflow(previous, current, maxChange uint64) bool {
+	return current < previous && (current-previous) > maxChange
 }

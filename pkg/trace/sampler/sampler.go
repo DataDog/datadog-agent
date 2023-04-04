@@ -10,6 +10,7 @@ import (
 	"math"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 const (
@@ -201,4 +202,31 @@ func setMetric(s *pb.Span, key string, val float64) {
 		s.Metrics = make(map[string]float64)
 	}
 	s.Metrics[key] = val
+}
+
+// ApplySpanSampling searches chunk for spans that have a span sampling tag set.
+// If it finds such spans, then it replaces chunk's spans with only those spans,
+// and sets the chunk's sampling priority to "user keep." Tracers that wish to
+// keep certain spans even when the trace is dropped will set the appropriate
+// tags on the spans to be kept.
+// ApplySpanSampling returns whether any changes were actually made.
+// Do not call ApplySpanSampling on a chunk that the other samplers have
+// decided to keep. Doing so might wrongfully remove spans from a kept trace.
+func ApplySpanSampling(chunk *pb.TraceChunk) bool {
+	var sampledSpans []*pb.Span
+	for _, span := range chunk.Spans {
+		if _, ok := traceutil.GetMetric(span, KeySpanSamplingMechanism); ok {
+			// Keep only those spans that have a span sampling tag.
+			sampledSpans = append(sampledSpans, span)
+		}
+	}
+	if sampledSpans == nil {
+		// No span sampling tags → no span sampling.
+		return false
+	}
+
+	chunk.Spans = sampledSpans
+	chunk.Priority = int32(PriorityUserKeep)
+	chunk.DroppedTrace = false
+	return true
 }

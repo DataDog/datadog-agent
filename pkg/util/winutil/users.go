@@ -8,6 +8,7 @@
 package winutil
 
 import (
+	"fmt"
 	"syscall"
 
 	"golang.org/x/sys/windows"
@@ -39,4 +40,23 @@ func GetSidFromUser() (*windows.SID, error) {
 	}
 
 	return windows.StringToSid(sidString)
+}
+
+// Returns true is a user is a member of the Administrator's group
+// TODO: Microsoft does not recommend using this function, instead CheckTokenMembership should be used.
+// https://learn.microsoft.com/en-us/windows/win32/api/shlobj_core/nf-shlobj_core-isuseranadmin
+func IsUserAnAdmin() (bool, error) {
+	shell32 := windows.NewLazySystemDLL("Shell32.dll")
+	defer windows.FreeLibrary(windows.Handle(shell32.Handle()))
+
+	isUserAnAdminProc := shell32.NewProc("IsUserAnAdmin")
+	ret, _, winError := isUserAnAdminProc.Call()
+
+	if winError != windows.NTE_OP_OK {
+		return false, fmt.Errorf("IsUserAnAdmin returns error code %d", winError)
+	}
+	if ret == 0 {
+		return false, nil
+	}
+	return true, nil
 }

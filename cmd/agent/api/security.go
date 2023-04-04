@@ -6,25 +6,14 @@
 package api
 
 import (
-	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
 	"net/http"
 
-	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-)
-
-type contextKey int
-
-const (
-	contextKeyTokenInfoID contextKey = iota
 )
 
 var (
@@ -46,7 +35,7 @@ func validateToken(next http.Handler) http.Handler {
 
 // parseToken parses the token and validate it for our gRPC API, it returns an empty
 // struct and an error or nil
-func parseToken(token string) (struct{}, error) {
+func parseToken(token string) (interface{}, error) {
 	if token != util.GetAuthToken() {
 		return struct{}{}, errors.New("Invalid session token")
 	}
@@ -55,25 +44,6 @@ func parseToken(token string) (struct{}, error) {
 	// to the context, but we could potentially add some custom
 	// type.
 	return struct{}{}, nil
-}
-
-//grpcAuth is a middleware (interceptor) that extracts and verifies token from header
-func grpcAuth(ctx context.Context) (context.Context, error) {
-
-	token, err := grpc_auth.AuthFromMD(ctx, "Bearer")
-	if err != nil {
-		return nil, err
-	}
-
-	tokenInfo, err := parseToken(token)
-	if err != nil {
-		return nil, status.Errorf(codes.Unauthenticated, "invalid auth token: %v", err)
-	}
-
-	// do we need this at all?
-	newCtx := context.WithValue(ctx, contextKeyTokenInfoID, tokenInfo)
-
-	return newCtx, nil
 }
 
 func buildSelfSignedKeyPair() ([]byte, []byte) {

@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
 var currentStats = map[string]disk.IOCountersStat{
@@ -83,9 +84,8 @@ func TestIncrementWithOverflow(t *testing.T) {
 }
 
 func TestIoStatsOverflow(t *testing.T) {
-
 	ioCheck := new(IOCheck)
-	ioCheck.Configure(nil, nil, "test")
+	ioCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
 	ioCheck.stats = lastStats
 	ioCheck.ts = 1000
 	ioCounters = func(names ...string) (map[string]disk.IOCountersStat, error) {

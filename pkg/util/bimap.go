@@ -10,7 +10,7 @@ import (
 	"reflect"
 )
 
-//BiMap provides a bidirectional map of keys and values.
+// BiMap provides a bidirectional map of keys and values.
 type BiMap struct {
 	key2Val reflect.Value
 	val2Key reflect.Value
@@ -18,7 +18,7 @@ type BiMap struct {
 	valType reflect.Type
 }
 
-//NewBiMap instantiates BiMap
+// NewBiMap instantiates BiMap
 func NewBiMap(k, v interface{}) *BiMap {
 	ktype := reflect.TypeOf(k)
 	vtype := reflect.TypeOf(v)
@@ -31,7 +31,7 @@ func NewBiMap(k, v interface{}) *BiMap {
 	return bimap
 }
 
-//GetKV gets value provided the key.
+// GetKV gets value provided the key.
 func (b *BiMap) GetKV(key interface{}) (interface{}, error) {
 	keyType := reflect.TypeOf(key)
 	if b.keyType != keyType {
@@ -46,7 +46,7 @@ func (b *BiMap) GetKV(key interface{}) (interface{}, error) {
 	return nil, errors.New("no value found in lookup for key provided")
 }
 
-//GetKVReverse gets key provided the value.
+// GetKVReverse gets key provided the value.
 func (b *BiMap) GetKVReverse(key interface{}) (interface{}, error) {
 	keyType := reflect.TypeOf(key)
 	if b.valType != keyType {
@@ -61,8 +61,11 @@ func (b *BiMap) GetKVReverse(key interface{}) (interface{}, error) {
 	return nil, errors.New("no key found in reverse lookup for value provided")
 }
 
-/*GetKVBimap looks for the provided key both for keys and values in the map.
-  The first occurrence will be returned.*/
+/*
+GetKVBimap looks for the provided key both for keys and values in the map.
+
+	The first occurrence will be returned.
+*/
 func (b *BiMap) GetKVBimap(key interface{}) (interface{}, error) {
 	keyType := reflect.TypeOf(key)
 	if b.keyType != keyType && b.valType != keyType {
@@ -86,7 +89,7 @@ func (b *BiMap) GetKVBimap(key interface{}) (interface{}, error) {
 	return nil, nil
 }
 
-//AddKV adds value `v` to map the map indexed with key `k`.
+// AddKV adds value `v` to map the map indexed with key `k`.
 func (b *BiMap) AddKV(k, v interface{}) error {
 	keyType := reflect.TypeOf(k)
 	valType := reflect.TypeOf(v)
@@ -100,7 +103,7 @@ func (b *BiMap) AddKV(k, v interface{}) error {
 	return nil
 }
 
-//Keys returns a slice with all keys in the map.
+// Keys returns a slice with all keys in the map.
 func (b *BiMap) Keys() []interface{} {
 	keys := b.key2Val.MapKeys()
 
@@ -112,7 +115,7 @@ func (b *BiMap) Keys() []interface{} {
 	return ks
 }
 
-//Values returns a slice with all values in the map.
+// Values returns a slice with all values in the map.
 func (b *BiMap) Values() []interface{} {
 	vals := b.val2Key.MapKeys()
 

@@ -45,6 +45,7 @@ type LogsConfig struct {
 	ExcludePaths []string `mapstructure:"exclude_paths" json:"exclude_paths"`   // File
 	TailingMode  string   `mapstructure:"start_position" json:"start_position"` // File
 
+	ConfigId           string   `mapstructure:"config_id" json:"config_id"`                   // Journald
 	IncludeSystemUnits []string `mapstructure:"include_units" json:"include_units"`           // Journald
 	ExcludeSystemUnits []string `mapstructure:"exclude_units" json:"exclude_units"`           // Journald
 	IncludeUserUnits   []string `mapstructure:"include_user_units" json:"include_user_units"` // Journald

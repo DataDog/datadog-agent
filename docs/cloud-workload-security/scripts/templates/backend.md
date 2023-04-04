@@ -1,5 +1,5 @@
 ---
-title: Cloud Workload Security (CWS) Events
+title: Cloud Workload Security (CWS) Events Formats
 kind: documentation
 description: JSON schema documentation of the CWS backend event
 disable_edit: true
@@ -56,5 +56,5 @@ CWS logs have the following JSON schema:
 
 {% endfor %}
 
-[1]: /security_platform/cloud_workload_security/
-[2]: /security_platform/cloud_workload_security/agent_expressions
+[1]: /security/cloud_workload_security/
+[2]: /security/cloud_workload_security/agent_expressions

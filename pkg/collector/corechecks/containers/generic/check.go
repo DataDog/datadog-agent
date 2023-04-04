@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 )
 
 const (
@@ -50,8 +50,8 @@ func ContainerCheckFactory() check.Check {
 }
 
 // Configure parses the check configuration and init the check
-func (c *ContainerCheck) Configure(config, initConfig integration.Data, source string) error {
-	err := c.CommonConfigure(initConfig, config, source)
+func (c *ContainerCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+	err := c.CommonConfigure(integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
 	}

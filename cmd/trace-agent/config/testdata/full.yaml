@@ -20,6 +20,8 @@ otlp_config:
       "with.dots": "in.side"
       "and:colons": "in:values"
     span_name_as_resource_name: true
+    probabilistic_sampler:
+      sampling_percentage: 88.4
 apm_config:
   enabled: false
   log_file: abc

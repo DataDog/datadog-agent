@@ -10,10 +10,10 @@ import (
 	"encoding/json"
 	"expvar"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -27,6 +27,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
 
+var clearAddEp = map[string][]string{
+	"ep": {"aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb"},
+}
+
+var scrubbedAddEp = map[string][]string{
+	"ep": {"***************************abbbb", "***********************************abbbb"},
+}
+
 type testServerHandler struct {
 	t *testing.T
 }
@@ -34,7 +42,7 @@ type testServerHandler struct {
 func (h *testServerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	json, err := ioutil.ReadFile("./testdata/okay.json")
+	json, err := os.ReadFile("./testdata/okay.json")
 	if err != nil {
 		h.t.Errorf("error loading json file: %v", err)
 	}
@@ -66,7 +74,7 @@ type testServerWarningHandler struct {
 func (h *testServerWarningHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	json, err := ioutil.ReadFile("./testdata/warning.json")
+	json, err := os.ReadFile("./testdata/warning.json")
 	if err != nil {
 		h.t.Errorf("error loading json file: %v", err)
 	}
@@ -124,6 +132,11 @@ func testInit(t *testing.T) *config.AgentConfig {
 	conf.Endpoints = append(conf.Endpoints, &config.Endpoint{Host: "ABC", APIKey: "key2"})
 	conf.TelemetryConfig.Endpoints[0].APIKey = "key1"
 	conf.Proxy = nil
+	conf.EVPProxy.APIKey = "evp_api_key"
+	conf.EVPProxy.ApplicationKey = "evp_app_key"
+	conf.EVPProxy.AdditionalEndpoints = clearAddEp
+	conf.ProfilingProxy.AdditionalEndpoints = clearAddEp
+	conf.DebuggerProxy.APIKey = "debugger_proxy_key"
 	assert.NotNil(conf)
 
 	err := InitInfo(conf)
@@ -149,7 +162,7 @@ func TestInfo(t *testing.T) {
 	assert.Equal(2, len(hostPort))
 	port, err := strconv.Atoi(hostPort[1])
 	assert.NoError(err)
-	conf.ReceiverPort = port
+	conf.DebugServerPort = port
 
 	var buf bytes.Buffer
 	err = Info(&buf, conf)
@@ -157,7 +170,7 @@ func TestInfo(t *testing.T) {
 	info := buf.String()
 	assert.NotEmpty(info)
 	t.Logf("Info:\n%s\n", info)
-	expectedInfo, err := ioutil.ReadFile("./testdata/okay.info")
+	expectedInfo, err := os.ReadFile("./testdata/okay.info")
 	re := regexp.MustCompile(`\r\n`)
 	expectedInfoString := re.ReplaceAllString(string(expectedInfo), "\n")
 	assert.NoError(err)
@@ -194,14 +207,14 @@ func TestWarning(t *testing.T) {
 	assert.Equal(2, len(hostPort))
 	port, err := strconv.Atoi(hostPort[1])
 	assert.NoError(err)
-	conf.ReceiverPort = port
+	conf.DebugServerPort = port
 
 	var buf bytes.Buffer
 	err = Info(&buf, conf)
 	assert.NoError(err)
 	info := buf.String()
 
-	expectedWarning, err := ioutil.ReadFile("./testdata/warning.info")
+	expectedWarning, err := os.ReadFile("./testdata/warning.info")
 	re := regexp.MustCompile(`\r\n`)
 	expectedWarningString := re.ReplaceAllString(string(expectedWarning), "\n")
 	assert.NoError(err)
@@ -228,7 +241,7 @@ func TestNotRunning(t *testing.T) {
 	assert.Equal(2, len(hostPort))
 	port, err := strconv.Atoi(hostPort[1])
 	assert.NoError(err)
-	conf.ReceiverPort = port
+	conf.DebugServerPort = port
 
 	var buf bytes.Buffer
 	err = Info(&buf, conf)
@@ -245,7 +258,7 @@ func TestNotRunning(t *testing.T) {
 	assert.Equal(len(lines[1]), len(lines[0]))
 	assert.Equal(len(lines[1]), len(lines[2]))
 	assert.Equal("", lines[3])
-	assert.Equal(fmt.Sprintf("  Not running (port %d)", port), lines[4])
+	assert.Equal(fmt.Sprintf("  Not running or unreachable on 127.0.0.1:%d", port), lines[4])
 	assert.Equal("", lines[5])
 	assert.Equal("", lines[6])
 }
@@ -267,7 +280,7 @@ func TestError(t *testing.T) {
 	assert.Equal(2, len(hostPort))
 	port, err := strconv.Atoi(hostPort[1])
 	assert.NoError(err)
-	conf.ReceiverPort = port
+	conf.DebugServerPort = port
 
 	var buf bytes.Buffer
 	err = Info(&buf, conf)
@@ -285,7 +298,7 @@ func TestError(t *testing.T) {
 	assert.Equal(len(lines[1]), len(lines[2]))
 	assert.Equal("", lines[3])
 	assert.Regexp(regexp.MustCompile(`^  Error: .*$`), lines[4])
-	assert.Equal(fmt.Sprintf("  URL: http://localhost:%d/debug/vars", port), lines[5])
+	assert.Equal(fmt.Sprintf("  URL: http://127.0.0.1:%d/debug/vars", port), lines[5])
 	assert.Equal("", lines[6])
 	assert.Equal("", lines[7])
 }
@@ -376,6 +389,17 @@ func TestInfoConfig(t *testing.T) {
 		assert.Equal("", e.APIKey, "API Keys should *NEVER* be exported")
 		conf.TelemetryConfig.Endpoints[i].APIKey = "" // make conf equal to confCopy to assert equality of other fields
 	}
+	assert.Equal("", confCopy.EVPProxy.APIKey, "EVP API Key should *NEVER* be exported")
+	conf.EVPProxy.APIKey = ""
+	assert.Equal("", confCopy.EVPProxy.ApplicationKey, "EVP APP Key should *NEVER* be exported")
+	conf.EVPProxy.ApplicationKey = ""
+	assert.Equal("", confCopy.DebuggerProxy.APIKey, "Debugger Proxy API Key should *NEVER* be exported")
+	conf.DebuggerProxy.APIKey = ""
+
+	// Any key-like data should scrubbed
+	conf.EVPProxy.AdditionalEndpoints = scrubbedAddEp
+	conf.ProfilingProxy.AdditionalEndpoints = scrubbedAddEp
+
 	conf.ContainerTags = nil
 
 	assert.Equal(*conf, confCopy) // ensure all fields have been exported then parsed correctly
@@ -515,4 +539,18 @@ func TestPublishRateLimiterStats(t *testing.T) {
 			"RecentTracesSeen":    3.0,
 			"RecentTracesDropped": 4.0,
 		})
+}
+
+func TestScrubCreds(t *testing.T) {
+	assert := assert.New(t)
+	conf := testInit(t)
+	assert.NotNil(conf)
+
+	confExpvar := expvar.Get("config").String()
+	var got config.AgentConfig
+	err := json.Unmarshal([]byte(confExpvar), &got)
+	assert.NoError(err)
+
+	assert.EqualValues(got.EVPProxy.AdditionalEndpoints, scrubbedAddEp)
+	assert.EqualValues(got.ProfilingProxy.AdditionalEndpoints, scrubbedAddEp)
 }

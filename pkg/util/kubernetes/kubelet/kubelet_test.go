@@ -14,7 +14,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -61,7 +60,7 @@ func newDummyKubelet(podListJSONPath string) (*dummyKubelet, error) {
 func (d *dummyKubelet) loadPodList(podListJSONPath string) error {
 	d.Lock()
 	defer d.Unlock()
-	podList, err := ioutil.ReadFile(podListJSONPath)
+	podList, err := os.ReadFile(podListJSONPath)
 	if err != nil {
 		return err
 	}
@@ -131,12 +130,12 @@ func (d *dummyKubelet) StartTLS() (*httptest.Server, int, error) {
 	if len(ts.TLS.Certificates) != 1 {
 		return ts, 0, fmt.Errorf("unexpected number of testing certificates: 1 != %d", len(ts.TLS.Certificates))
 	}
-	certOut, err := ioutil.TempFile("", "kubelet-test-cert-")
+	certOut, err := os.CreateTemp("", "kubelet-test-cert-")
 	d.testingCertificate = certOut.Name()
 	if err != nil {
 		return ts, 0, err
 	}
-	keyOut, err := ioutil.TempFile("", "kubelet-test-key-")
+	keyOut, err := os.CreateTemp("", "kubelet-test-key-")
 	d.testingPrivateKey = keyOut.Name()
 	if err != nil {
 		return ts, 0, err
@@ -461,9 +460,13 @@ func (suite *KubeletTestSuite) TestGetPodWaitForContainer() {
 	require.NoError(suite.T(), err)
 	require.NotNil(suite.T(), pod)
 	assert.Equal(suite.T(), "kube-proxy-rnd5q", pod.Metadata.Name)
-	requestsMutex.Lock()
-	assert.Equal(suite.T(), 5, requests)
-	requestsMutex.Unlock()
+
+	// Needed because requests are handled in a separate goroutine
+	assert.Eventually(suite.T(), func() bool {
+		requestsMutex.Lock()
+		defer requestsMutex.Unlock()
+		return requests == 5
+	}, 1*time.Second, 5*time.Millisecond, "Did not get the expected number of requests")
 }
 
 func (suite *KubeletTestSuite) TestGetPodDontWaitForContainer() {
@@ -499,9 +502,13 @@ func (suite *KubeletTestSuite) TestGetPodDontWaitForContainer() {
 	// We should fail after two requests only (initial + nocache)
 	_, err = kubeutil.GetPodForContainerID(ctx, "docker://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6")
 	require.Error(suite.T(), err)
-	requestsMutex.Lock()
-	assert.Equal(suite.T(), 2, requests)
-	requestsMutex.Unlock()
+
+	// Needed because requests are handled in a separate goroutine
+	assert.Eventually(suite.T(), func() bool {
+		requestsMutex.Lock()
+		defer requestsMutex.Unlock()
+		return requests == 2
+	}, 1*time.Second, 5*time.Millisecond, "Did not get the expected number of requests")
 }
 
 func (suite *KubeletTestSuite) TestKubeletInitFailOnToken() {

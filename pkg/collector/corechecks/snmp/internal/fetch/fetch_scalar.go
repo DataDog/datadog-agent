@@ -59,7 +59,7 @@ func retryFailedScalarOids(sess session.Session, results *gosnmp.SnmpPacket, val
 	retryOids := make(map[string]string)
 	for _, variable := range results.Variables {
 		oid := strings.TrimLeft(variable.Name, ".")
-		if (variable.Type == gosnmp.NoSuchObject || variable.Type == gosnmp.NoSuchInstance) && !strings.HasSuffix(oid, ".0") {
+		if (variable.Type == gosnmp.NoSuchObject || variable.Type == gosnmp.NoSuchInstance || variable.Type == gosnmp.Null) && !strings.HasSuffix(oid, ".0") {
 			retryOids[oid] = oid + ".0"
 		}
 	}

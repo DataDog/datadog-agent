@@ -17,10 +17,10 @@ static __always_inline void normalize_tuple(conn_tuple_t *t) {
         return;
     }
 
-    if ((!is_ephemeral_port(t->sport) && is_ephemeral_port(t->dport)) || t->sport > t->dport) {
+    if ((!is_ephemeral_port(t->sport) && is_ephemeral_port(t->dport)) || t->dport > t->sport) {
         // flip the tuple if:
         // 1) the tuple is currently in the (server, client) format;
-        // 2) unlikely: if both ports are in the same range we ensure that sport < dport to make
+        // 2) unlikely: if both ports are in the same range we ensure that sport > dport to make
         // this function return a deterministic result for a given pair of ports;
         flip_tuple(t);
     }

@@ -12,21 +12,13 @@ import (
 	"testing"
 	"time"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/gopsutil/cpu"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/process/config"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
-
-func makeContainer(id string) *model.Container {
-	return &model.Container{
-		Id: id,
-	}
-}
 
 //nolint:deadcode,unused
 func procsToHash(procs []*procutil.Process) (procsByPid map[int32]*procutil.Process) {
@@ -82,7 +74,6 @@ func makeProcessModel(t *testing.T, process *procutil.Process) *model.Process {
 		},
 		CreateTime: process.Stats.CreateTime,
 		IoStat:     &model.IOStat{},
-		Networks:   &model.ProcessNetworks{},
 	}
 }
 
@@ -103,48 +94,11 @@ func makeProcessStatModels(t *testing.T, processes ...*procutil.Process) []*mode
 				SystemPct: float32(cpu.SystemPct),
 				TotalPct:  float32(cpu.UserPct + cpu.SystemPct),
 			},
-			IoStat:   &model.IOStat{},
-			Networks: &model.ProcessNetworks{},
+			IoStat: &model.IOStat{},
 		})
 	}
 
 	return models
-}
-
-//nolint:deadcode,unused
-// procMsgsVerification takes raw containers and processes and make sure the chunked messages have all data, and each chunk has the correct grouping
-func procMsgsVerification(t *testing.T, msgs []model.MessageBody, rawContainers []*containers.Container, rawProcesses []*procutil.Process, maxSize int, cfg *config.AgentConfig) {
-	actualProcs := 0
-	for _, msg := range msgs {
-		payload := msg.(*model.CollectorProc)
-
-		if len(payload.Containers) > 0 {
-			// assume no blacklist involved
-			assert.Equal(t, len(rawContainers), len(payload.Containers))
-
-			procsByPid := make(map[int32]struct{}, len(payload.Processes))
-			for _, p := range payload.Processes {
-				procsByPid[p.Pid] = struct{}{}
-			}
-
-			// make sure all containerized processes are in the payload
-			containeredProcs := 0
-			for _, ctr := range rawContainers {
-				for _, pid := range ctr.Pids {
-					assert.Contains(t, procsByPid, pid)
-					containeredProcs++
-				}
-			}
-			assert.Equal(t, len(payload.Processes), containeredProcs)
-
-			actualProcs += containeredProcs
-		} else {
-			assert.True(t, len(payload.Processes) <= maxSize)
-			actualProcs += len(payload.Processes)
-		}
-		assert.Equal(t, cfg.ContainerHostType, payload.ContainerHostType)
-	}
-	assert.Equal(t, len(rawProcesses), actualProcs)
 }
 
 func TestPercentCalculation(t *testing.T) {

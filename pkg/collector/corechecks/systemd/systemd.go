@@ -364,7 +364,7 @@ func (c *SystemdCheck) submitBasicUnitMetrics(sender aggregator.Sender, conn *db
 
 	unitProperties, err := c.stats.GetUnitTypeProperties(conn, unit.Name, dbusTypeMap[typeUnit])
 	if err != nil {
-		log.Warnf("Error getting unit unitProperties: %s", unit.Name)
+		log.Warnf("Error getting unit unitProperties: %s: %v", unit.Name, err)
 		return
 	}
 	activeEnterTimestamp, err := getPropertyUint64(unitProperties, "ActiveEnterTimestamp")
@@ -520,12 +520,12 @@ func isValidServiceCheckStatus(serviceCheckStatus string) bool {
 }
 
 // Configure configures the systemd checks
-func (c *SystemdCheck) Configure(rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
+func (c *SystemdCheck) Configure(integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
 	// Make sure check id is different for each different config
 	// Must be called before CommonConfigure that uses checkID
-	c.BuildID(rawInstance, rawInitConfig)
+	c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)
 
-	err := c.CommonConfigure(rawInitConfig, rawInstance, source)
+	err := c.CommonConfigure(integrationConfigDigest, rawInitConfig, rawInstance, source)
 	if err != nil {
 		return err
 	}

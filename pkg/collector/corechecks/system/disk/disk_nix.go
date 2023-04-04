@@ -131,7 +131,6 @@ func (c *Check) sendPartitionMetrics(sender aggregator.Sender, usage *disk.Usage
 	sender.Gauge(fmt.Sprintf(inodeMetric, "free"), float64(usage.InodesFree), "", tags)
 	// FIXME(8.x): use percent, a lot more logical than in_use
 	sender.Gauge(fmt.Sprintf(inodeMetric, "in_use"), usage.InodesUsedPercent/100, "", tags)
-
 }
 
 func (c *Check) sendDiskMetrics(sender aggregator.Sender, ioCounter disk.IOCountersStat, tags []string) {
@@ -143,8 +142,8 @@ func (c *Check) sendDiskMetrics(sender aggregator.Sender, ioCounter disk.IOCount
 }
 
 // Configure the disk check
-func (c *Check) Configure(data integration.Data, initConfig integration.Data, source string) error {
-	err := c.CommonConfigure(initConfig, data, source)
+func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+	err := c.CommonConfigure(integrationConfigDigest, initConfig, data, source)
 	if err != nil {
 		return err
 	}

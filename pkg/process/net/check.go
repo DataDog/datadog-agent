@@ -11,7 +11,7 @@ package net
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -38,7 +38,7 @@ func (r *RemoteSysProbeUtil) GetCheck(module sysconfig.ModuleName) (interface{},
 		return nil, fmt.Errorf("conn request failed: socket %s, url %s, status code: %d", r.path, fmt.Sprintf(checksURL, module), resp.StatusCode)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}

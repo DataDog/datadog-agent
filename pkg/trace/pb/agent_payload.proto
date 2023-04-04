@@ -22,4 +22,6 @@ message AgentPayload {
         double targetTPS = 8;
         // errorTPS holds `ErrorTPS` value in AgentConfig.
         double errorTPS = 9;
+        // rareSamplerEnabled holds `RareSamplerEnabled` value in AgentConfig
+        bool rareSamplerEnabled = 10;
 }

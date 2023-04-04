@@ -19,7 +19,6 @@ import (
 
 var (
 	diskSamples = []disk.PartitionStat{
-
 		{
 			Device:     "/dev/sda2",
 			Mountpoint: "/",
@@ -46,7 +45,8 @@ var (
 			InodesFree:        0,
 			InodesUsedPercent: 0,
 		},
-		"/": {Path: "/",
+		"/": {
+			Path:              "/",
 			Fstype:            "ext2/ext3",
 			Total:             52045545472,
 			Free:              39085445120,
@@ -94,7 +94,7 @@ func TestDiskCheck(t *testing.T) {
 	diskUsage = diskUsageSampler
 	ioCounters = diskIoSampler
 	diskCheck := new(Check)
-	diskCheck.Configure(nil, nil, "test")
+	diskCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
 
 	mock := mocksender.NewMockSender(diskCheck.ID())
 
@@ -141,7 +141,7 @@ func TestDiskCheckExcludedDiskFilsystem(t *testing.T) {
 	diskUsage = diskUsageSampler
 	ioCounters = diskIoSampler
 	diskCheck := new(Check)
-	diskCheck.Configure(nil, nil, "test")
+	diskCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
 
 	diskCheck.cfg.excludedFilesystems = []string{"vfat"}
 	diskCheck.cfg.excludedDisks = []string{"/dev/sda2"}
@@ -173,7 +173,7 @@ func TestDiskCheckExcludedRe(t *testing.T) {
 	diskUsage = diskUsageSampler
 	ioCounters = diskIoSampler
 	diskCheck := new(Check)
-	diskCheck.Configure(nil, nil, "test")
+	diskCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
 
 	diskCheck.cfg.excludedMountpointRe = regexp.MustCompile("/boot/efi")
 	diskCheck.cfg.excludedDiskRe = regexp.MustCompile("/dev/sda2")
@@ -208,7 +208,7 @@ func TestDiskCheckTags(t *testing.T) {
 
 	config := integration.Data([]byte("use_mount: true\ntag_by_filesystem: true\nall_partitions: true\ndevice_tag_re:\n  /boot/efi: role:esp\n  /dev/sda2: device_type:sata,disk_size:large"))
 
-	diskCheck.Configure(config, nil, "test")
+	diskCheck.Configure(integration.FakeConfigHash, config, nil, "test")
 
 	mock := mocksender.NewMockSender(diskCheck.ID())
 

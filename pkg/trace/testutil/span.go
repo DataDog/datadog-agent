@@ -167,7 +167,7 @@ var metas = map[string][]string{
 	},
 }
 
-var metrics = []string{
+var spanMetrics = []string{
 	"rowcount",
 	"size",
 	"payloads",
@@ -225,7 +225,13 @@ func int32RandomChoice(s []int32) int32 {
 }
 
 func stringRandomChoice(s []string) string {
-	return randomChoice(stringSlice(s)).(string)
+	got := randomChoice(stringSlice(s)).(string)
+	runes := []rune(got)
+	rand.Shuffle(len(runes), func(x, y int) {
+		// Add more randomization by shuffling the characters
+		runes[x], runes[y] = runes[y], runes[x]
+	})
+	return string(runes)
 }
 
 // RandomSpanDuration generates a random span duration
@@ -294,9 +300,9 @@ func RandomSpanMetrics() map[string]float64 {
 	res := make(map[string]float64)
 
 	// choose some keys
-	n := rand.Intn(len(metrics))
+	n := rand.Intn(len(spanMetrics))
 	for _, i := range rand.Perm(n) {
-		res[metrics[i]] = rand.Float64()
+		res[spanMetrics[i]] = rand.Float64()
 	}
 
 	return res

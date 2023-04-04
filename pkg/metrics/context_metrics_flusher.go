@@ -45,7 +45,7 @@ func (f *ContextMetricsFlusher) FlushAndClear(callback func([]*Serie)) map[ckey.
 	errors := make(map[ckey.ContextKey][]error)
 	var series []*Serie
 
-	var contextMetricsCollection []ContextMetrics
+	contextMetricsCollection := make([]ContextMetrics, 0, len(f.metrics))
 	for _, m := range f.metrics {
 		contextMetricsCollection = append(contextMetricsCollection, m.contextMetrics)
 	}

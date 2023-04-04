@@ -13,10 +13,12 @@ import (
 	"github.com/richardartoul/molecule"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // A SketchSeriesList implements marshaler.Marshaler
@@ -48,12 +50,12 @@ func init() {
 // compressed protobuf marshaled gogen.SketchPayload objects. gogen.SketchPayload is not directly marshaled - instead
 // it's contents are marshaled individually, packed with the appropriate protobuf metadata, and compressed in stream.
 // The resulting payloads (when decompressed) are binary equal to the result of marshaling the whole object at once.
-func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
+func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferContext) (transaction.BytesPayloads, error) {
 	var err error
 	var compressor *stream.Compressor
 	buf := bufferContext.PrecompressionBuf
 	ps := molecule.NewProtoStream(buf)
-	payloads := []*[]byte{}
+	payloads := transaction.BytesPayloads{}
 
 	// constants for the protobuf data we will be writing, taken from
 	// https://github.com/DataDog/agent-payload/v5/blob/a2cd634bc9c088865b75c6410335270e6d780416/proto/metrics/agent_payload.proto#L47-L81
@@ -103,13 +105,14 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 		footer = buf.Bytes()
 	}
 
+	pointCount := 0
 	// Prepare to write the next payload
 	startPayload := func() error {
 		var err error
 
 		bufferContext.CompressorInput.Reset()
 		bufferContext.CompressorOutput.Reset()
-
+		pointCount = 0
 		compressor, err = stream.NewCompressor(
 			bufferContext.CompressorInput, bufferContext.CompressorOutput,
 			maxPayloadSize, maxUncompressedSize,
@@ -128,7 +131,7 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 			return err
 		}
 
-		payloads = append(payloads, &payload)
+		payloads = append(payloads, transaction.NewBytesPayload(payload, pointCount))
 
 		return nil
 	}
@@ -250,24 +253,29 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 				// Unexpected error bail out
 				expvarsUnexpectedItemDrops.Add(1)
 				tlmUnexpectedItemDrops.Inc()
+				log.Debugf("Unexpected error trying to addItem to new payload after previous payload filled up: %v", err)
 				return nil, err
 			}
+			pointCount += len(ss.Points)
 		case stream.ErrItemTooBig:
 			// Item was too big, drop it
 			expvarsItemTooBig.Add(1)
 			tlmItemTooBig.Add(1)
 		case nil:
+			pointCount += len(ss.Points)
 			continue
 		default:
 			// Unexpected error bail out
 			expvarsUnexpectedItemDrops.Add(1)
 			tlmUnexpectedItemDrops.Inc()
+			log.Debugf("Unexpected error: %v", err)
 			return nil, err
 		}
 	}
 
 	err = finishPayload()
 	if err != nil {
+		log.Debugf("Failed to finish payload with err %v", err)
 		return nil, err
 	}
 
@@ -315,6 +323,9 @@ func (sl SketchSeriesList) SplitPayload(times int) ([]marshaler.AbstractMarshale
 	for sl.MoveNext() {
 		ss := sl.Current()
 		sketches = append(sketches, ss)
+	}
+	if len(sketches) == 0 {
+		return []marshaler.AbstractMarshaler{}, nil
 	}
 	return sketches.SplitPayload(times)
 }

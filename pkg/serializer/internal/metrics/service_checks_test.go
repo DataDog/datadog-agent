@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build zlib
-// +build zlib
+//go:build zlib && test
+// +build zlib,test
 
 package metrics
 
@@ -12,7 +12,7 @@ import (
 	"bytes"
 	"compress/zlib"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"strings"
 	"testing"
 
@@ -78,12 +78,12 @@ func createServiceCheck(checkName string) *metrics.ServiceCheck {
 
 func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler) [][]byte {
 	builder := stream.NewJSONPayloadBuilder(true)
-	payloads, err := builder.Build(m)
+	payloads, err := stream.BuildJSONPayload(builder, m)
 	assert.NoError(t, err)
 	var uncompressedPayloads [][]byte
 
 	for _, compressedPayload := range payloads {
-		payload, err := decompressPayload(*compressedPayload)
+		payload, err := decompressPayload(compressedPayload.GetContent())
 		assert.NoError(t, err)
 
 		uncompressedPayloads = append(uncompressedPayloads, payload)
@@ -161,7 +161,7 @@ func decompressPayload(payload []byte) ([]byte, error) {
 	}
 	defer r.Close()
 
-	dst, err := ioutil.ReadAll(r)
+	dst, err := io.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +175,7 @@ func benchmarkJSONPayloadBuilderServiceCheck(b *testing.B, numberOfItem int) {
 	b.ResetTimer()
 
 	for n := 0; n < b.N; n++ {
-		payloadBuilder.Build(serviceChecks)
+		stream.BuildJSONPayload(payloadBuilder, serviceChecks)
 	}
 }
 

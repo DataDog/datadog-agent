@@ -21,7 +21,7 @@ import (
 // Currently, host namespace inode number are hardcoded, which can be used to detect
 // if we're running in host namespace or not (does not work when running in DinD)
 const (
-	hostCgroupNamespaceInode = 0xEFFFFFFB
+	hostUTSNamespecInode = 0xEFFFFFFE
 )
 
 var (
@@ -56,8 +56,8 @@ func IsProcessHostNetwork(procPath string, namespaceID uint64) *bool {
 	return &res
 }
 
-// IsProcessHostCgroupNamespace compares namespaceID with known, harcoded host PID Namespace inode
+// IsProcessHostUTSNamespace compares namespaceID with known, harcoded host PID Namespace inode
 // Keeps same signature as `IsProcessHostNetwork` as we may need to change implementation depending on Kernel evolution
-func IsProcessHostCgroupNamespace(procPath string, namespaceID uint64) *bool {
-	return pointer.BoolPtr(namespaceID == hostCgroupNamespaceInode)
+func IsProcessHostUTSNamespace(procPath string, namespaceID uint64) *bool {
+	return pointer.Ptr(namespaceID == hostUTSNamespecInode)
 }

@@ -144,9 +144,9 @@ func GetEventType(payload map[string]interface{}) AWSEventType {
 }
 
 // Unmarshal unmarshals a payload string into a generic interface
-func Unmarshal(payload string) (map[string]interface{}, error) {
+func Unmarshal(payload []byte) (map[string]interface{}, error) {
 	jsonPayload := make(map[string]interface{})
-	if err := jsonEncoder.Unmarshal([]byte(payload), &jsonPayload); err != nil {
+	if err := jsonEncoder.Unmarshal(payload, &jsonPayload); err != nil {
 		return nil, err
 	}
 	return jsonPayload, nil

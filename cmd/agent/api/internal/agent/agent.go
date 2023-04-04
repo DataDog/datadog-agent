@@ -12,7 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"sort"
@@ -24,10 +24,13 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
+	"github.com/DataDog/datadog-agent/comp/core/flare"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	dogstatsdDebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
-	"github.com/DataDog/datadog-agent/pkg/flare"
+	pkgflare "github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
@@ -37,28 +40,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
-type contextKey struct {
-	key string
-}
-
-// ConnContextKey key to reference the http connection from the request context
-var ConnContextKey = &contextKey{"http-connection"}
-
 // SetupHandlers adds the specific handlers for /agent endpoints
-func SetupHandlers(r *mux.Router) *mux.Router {
+func SetupHandlers(r *mux.Router, flare flare.Component, server dogstatsdServer.Component, serverDebug dogstatsdDebug.Component) *mux.Router {
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
-	r.HandleFunc("/flare", makeFlare).Methods("POST")
+	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, flare) }).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
 	r.HandleFunc("/stream-logs", streamLogs).Methods("POST")
-	r.HandleFunc("/dogstatsd-stats", getDogstatsdStats).Methods("GET")
 	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusGetterHandler).Methods("GET")
@@ -66,15 +62,19 @@ func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
 	r.HandleFunc("/gui/csrf-token", getCSRFToken).Methods("GET")
 	r.HandleFunc("/config-check", getConfigCheck).Methods("GET")
-	r.HandleFunc("/config", settingshttp.Server.GetFull("")).Methods("GET")
+	r.HandleFunc("/config", settingshttp.Server.GetFullDatadogConfig("")).Methods("GET")
 	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
-	r.HandleFunc("/workload-list/short", getShortWorkloadList).Methods("GET")
-	r.HandleFunc("/workload-list/verbose", getVerboseWorkloadList).Methods("GET")
+	r.HandleFunc("/workload-list", getWorkloadList).Methods("GET")
 	r.HandleFunc("/secrets", secretInfo).Methods("GET")
 	r.HandleFunc("/metadata/{payload}", metadataPayload).Methods("GET")
+
+	// Some agent subcommands do not provide these dependencies (such as JMX)
+	if server != nil && serverDebug != nil {
+		r.HandleFunc("/dogstatsd-stats", func(w http.ResponseWriter, r *http.Request) { getDogstatsdStats(w, r, server, serverDebug) }).Methods("GET")
+	}
 
 	return r
 }
@@ -103,11 +103,11 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-func makeFlare(w http.ResponseWriter, r *http.Request) {
-	var profile flare.ProfileData
+func makeFlare(w http.ResponseWriter, r *http.Request, flare flare.Component) {
+	var profile pkgflare.ProfileData
 
 	if r.Body != http.NoBody {
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
 			return
@@ -131,8 +131,18 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 	if jmxLogFile == "" {
 		jmxLogFile = common.DefaultJmxLogFile
 	}
+
+	// If we're not in an FX app we fallback to pkgflare implementation. Once all app have been migrated to flare we
+	// could remove this.
+	var filePath string
+	var err error
 	log.Infof("Making a flare")
-	filePath, err := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, profile, nil)
+	if flare != nil {
+		filePath, err = flare.Create(false, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, profile, nil)
+	} else {
+		filePath, err = pkgflare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, profile, nil)
+	}
+
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)
@@ -225,7 +235,7 @@ func streamLogs(w http.ResponseWriter, r *http.Request) {
 	var filters diagnostic.Filters
 
 	if r.Body != http.NoBody {
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
 			return
@@ -261,7 +271,7 @@ func streamLogs(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getDogstatsdStats(w http.ResponseWriter, r *http.Request) {
+func getDogstatsdStats(w http.ResponseWriter, r *http.Request, dogstatsdServer dogstatsdServer.Component, serverDebug dogstatsdDebug.Component) {
 	log.Info("Got a request for the Dogstatsd stats.")
 
 	if !config.Datadog.GetBool("use_dogstatsd") {
@@ -289,13 +299,13 @@ func getDogstatsdStats(w http.ResponseWriter, r *http.Request) {
 	// Weird state that should not happen: dogstatsd is enabled
 	// but the server has not been successfully initialized.
 	// Return no data.
-	if common.DSD == nil {
+	if !dogstatsdServer.IsRunning() {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{}`))
 		return
 	}
 
-	jsonStats, err := common.DSD.GetJSONDebugStats()
+	jsonStats, err := serverDebug.GetJSONDebugStats()
 	if err != nil {
 		setJSONError(w, log.Errorf("Error getting marshalled Dogstatsd stats: %s", err), 500)
 		return
@@ -376,15 +386,15 @@ func getTaggerList(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonTags)
 }
 
-func getVerboseWorkloadList(w http.ResponseWriter, r *http.Request) {
-	workloadList(w, true)
-}
+func getWorkloadList(w http.ResponseWriter, r *http.Request) {
+	verbose := false
+	params := r.URL.Query()
+	if v, ok := params["verbose"]; ok {
+		if len(v) >= 1 && v[0] == "true" {
+			verbose = true
+		}
+	}
 
-func getShortWorkloadList(w http.ResponseWriter, r *http.Request) {
-	workloadList(w, false)
-}
-
-func workloadList(w http.ResponseWriter, verbose bool) {
 	response := workloadmeta.GetGlobalStore().Dump(verbose)
 	jsonDump, err := json.Marshal(response)
 	if err != nil {
@@ -396,18 +406,7 @@ func workloadList(w http.ResponseWriter, verbose bool) {
 }
 
 func secretInfo(w http.ResponseWriter, r *http.Request) {
-	info, err := secrets.GetDebugInfo()
-	if err != nil {
-		setJSONError(w, err, 500)
-		return
-	}
-
-	jsonInfo, err := json.Marshal(info)
-	if err != nil {
-		setJSONError(w, log.Errorf("Unable to marshal secrets info response: %s", err), 500)
-		return
-	}
-	w.Write(jsonInfo)
+	secrets.GetDebugInfo(w)
 }
 
 func metadataPayload(w http.ResponseWriter, r *http.Request) {
@@ -463,5 +462,5 @@ func max(a, b int) int {
 
 // GetConnection returns the connection for the request
 func GetConnection(r *http.Request) net.Conn {
-	return r.Context().Value(ConnContextKey).(net.Conn)
+	return r.Context().Value(grpc.ConnContextKey).(net.Conn)
 }

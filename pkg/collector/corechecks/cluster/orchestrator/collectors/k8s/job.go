@@ -20,6 +20,13 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// NewJobCollectorVersions builds the group of collector versions.
+func NewJobCollectorVersions() collectors.CollectorVersions {
+	return collectors.NewCollectorVersions(
+		NewJobCollector(),
+	)
+}
+
 // JobCollector is a collector for Kubernetes Jobs.
 type JobCollector struct {
 	informer  batchv1Informers.JobInformer
@@ -32,9 +39,14 @@ type JobCollector struct {
 func NewJobCollector() *JobCollector {
 	return &JobCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: true,
-			Name:     "jobs",
-			NodeType: orchestrator.K8sJob,
+			IsDefaultVersion:          true,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "jobs",
+			NodeType:                  orchestrator.K8sJob,
+			Version:                   "batch/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.JobHandlers)),
 	}
@@ -66,13 +78,7 @@ func (c *JobCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Col
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := &processors.ProcessorContext{
-		APIClient:  rcfg.APIClient,
-		Cfg:        rcfg.Config,
-		ClusterID:  rcfg.ClusterID,
-		MsgGroupID: rcfg.MsgGroupRef.Inc(),
-		NodeType:   c.metadata.NodeType,
-	}
+	ctx := collectors.NewProcessorContext(rcfg, c.metadata)
 
 	processResult, processed := c.processor.Process(ctx, list)
 

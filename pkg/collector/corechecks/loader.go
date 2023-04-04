@@ -68,7 +68,7 @@ func (gl *GoCheckLoader) Load(config integration.Config, instance integration.Da
 	}
 
 	c = factory()
-	if err := c.Configure(instance, config.InitConfig, config.Source); err != nil {
+	if err := c.Configure(config.FastDigest(), instance, config.InitConfig, config.Source); err != nil {
 		log.Errorf("core.loader: could not configure check %s: %s", c, err)
 		msg := fmt.Sprintf("Could not configure check %s: %s", c, err)
 		return c, fmt.Errorf(msg)

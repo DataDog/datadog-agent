@@ -6,8 +6,11 @@
 package checkconfig
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
+
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 )
 
 // StringArray is list of string with a yaml un-marshaller that support both array and string.
@@ -21,7 +24,11 @@ type Number int
 // Boolean can unmarshal yaml string or bool value
 type Boolean bool
 
-//UnmarshalYAML unmarshalls StringArray
+// InterfaceConfigs can unmarshal yaml []snmpintegration.InterfaceConfig or interface configs in json format
+// Example of interface configs in json format: `[{"match_field":"name","match_value":"eth0","in_speed":25,"out_speed":10}]`
+type InterfaceConfigs []snmpintegration.InterfaceConfig
+
+// UnmarshalYAML unmarshalls StringArray
 func (a *StringArray) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var multi []string
 	err := unmarshal(&multi)
@@ -38,7 +45,7 @@ func (a *StringArray) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-//UnmarshalYAML unmarshalls Number
+// UnmarshalYAML unmarshalls Number
 func (n *Number) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var integer int
 	err := unmarshal(&integer)
@@ -59,7 +66,7 @@ func (n *Number) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-//UnmarshalYAML unmarshalls Boolean
+// UnmarshalYAML unmarshalls Boolean
 func (b *Boolean) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var value bool
 	err := unmarshal(&value)
@@ -85,7 +92,7 @@ func (b *Boolean) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-//UnmarshalYAML unmarshalls MetricTagConfigList
+// UnmarshalYAML unmarshalls MetricTagConfigList
 func (mtcl *MetricTagConfigList) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var multi []MetricTagConfig
 	err := unmarshal(&multi)
@@ -101,5 +108,27 @@ func (mtcl *MetricTagConfigList) UnmarshalYAML(unmarshal func(interface{}) error
 		}
 	}
 	*mtcl = multi
+	return nil
+}
+
+// UnmarshalYAML unmarshalls InterfaceConfigs
+func (ic *InterfaceConfigs) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var ifConfigs []snmpintegration.InterfaceConfig
+	err := unmarshal(&ifConfigs)
+	if err != nil {
+		var ifConfigJson string
+		err := unmarshal(&ifConfigJson)
+		if err != nil {
+			return fmt.Errorf("cannot unmarshall to string: %s", err)
+		}
+		if ifConfigJson == "" {
+			return nil
+		}
+		err = json.Unmarshal([]byte(ifConfigJson), &ifConfigs)
+		if err != nil {
+			return fmt.Errorf("cannot unmarshall json to []snmpintegration.InterfaceConfig: %s", err)
+		}
+	}
+	*ic = ifConfigs
 	return nil
 }

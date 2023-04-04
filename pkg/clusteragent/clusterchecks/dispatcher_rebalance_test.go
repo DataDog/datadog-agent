@@ -371,7 +371,8 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 			},
-		}, {
+		},
+		{
 			in: map[string]*nodeStore{
 				"A": {
 					clcRunnerStats: types.CLCRunnersStats{
@@ -717,7 +718,8 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 			},
-		}, {
+		},
+		{
 			in: map[string]*nodeStore{
 				"A": {
 					clcRunnerStats: types.CLCRunnersStats{
@@ -746,7 +748,8 @@ func TestRebalance(t *testing.T) {
 					clcRunnerStats: types.CLCRunnersStats{},
 				},
 			},
-		}, {
+		},
+		{
 			in: map[string]*nodeStore{
 				"A": {
 					clcRunnerStats: types.CLCRunnersStats{
@@ -787,7 +790,8 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 			},
-		}, {
+		},
+		{
 			in: map[string]*nodeStore{
 				"A": {
 					clcRunnerStats: types.CLCRunnersStats{},
@@ -832,7 +836,8 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 			},
-		}, {
+		},
+		{
 			in: map[string]*nodeStore{
 				"A": {
 					clcRunnerStats: types.CLCRunnersStats{},
@@ -976,7 +981,8 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 			},
-		}, {
+		},
+		{
 			in: map[string]*nodeStore{
 				"A": {
 					clcRunnerStats: types.CLCRunnersStats{},
@@ -1418,7 +1424,7 @@ func TestMoveCheck(t *testing.T) {
 			dispatcher := newDispatcher()
 
 			// setup check id
-			id := check.BuildID(tc.check.config.Name, tc.check.config.Instances[0], tc.check.config.InitConfig)
+			id := check.BuildID(tc.check.config.Name, tc.check.config.FastDigest(), tc.check.config.Instances[0], tc.check.config.InitConfig)
 
 			// prepare store
 			dispatcher.store.active = true

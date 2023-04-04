@@ -110,7 +110,7 @@ func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 		configMap.ObjectMeta.Namespace,
 		configMap.ObjectMeta.Name,
 		le.coreClient,
-		nil, // relying on CM so unnecessary.
+		le.coordClient,
 		resourceLockConfig,
 	)
 	if err != nil {

@@ -37,23 +37,23 @@ var (
 	descCronJobLabelsDefaultLabels = []string{"namespace", "cronjob"}
 )
 
-// NewCronJobFactory returns a new CronJob metric family generator factory.
-func NewCronJobFactory() customresource.RegistryFactory {
-	return &cronjobFactory{}
+// NewCronJobV1Beta1Factory returns a new CronJob metric family generator factory.
+func NewCronJobV1Beta1Factory() customresource.RegistryFactory {
+	return &cronjobv1beta1Factory{}
 }
 
-type cronjobFactory struct{}
+type cronjobv1beta1Factory struct{}
 
-func (f *cronjobFactory) Name() string {
+func (f *cronjobv1beta1Factory) Name() string {
 	return "cronjobs"
 }
 
 // CreateClient is not implemented
-func (f *cronjobFactory) CreateClient(cfg *rest.Config) (interface{}, error) {
+func (f *cronjobv1beta1Factory) CreateClient(cfg *rest.Config) (interface{}, error) {
 	panic("not implemented")
 }
 
-func (f *cronjobFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
+func (f *cronjobv1beta1Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
 		*generator.NewFamilyGenerator(
 			descCronJobAnnotationsName,
@@ -304,11 +304,11 @@ func wrapCronJobFunc(f func(*batchv1beta1.CronJob) *metric.Family) func(interfac
 	}
 }
 
-func (f *cronjobFactory) ExpectedType() interface{} {
+func (f *cronjobv1beta1Factory) ExpectedType() interface{} {
 	return &batchv1beta1.CronJob{}
 }
 
-func (f *cronjobFactory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
+func (f *cronjobv1beta1Factory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
 	client := customResourceClient.(kubernetes.Interface)
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {

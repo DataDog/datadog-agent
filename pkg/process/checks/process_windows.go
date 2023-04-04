@@ -23,10 +23,6 @@ var (
 	numCPU = runtime.NumCPU
 )
 
-func init() {
-	defaultWindowsProbe = procutil.NewWindowsToolhelpProbe()
-}
-
 func formatUser(fp *procutil.Process) *model.ProcessUser {
 	return &model.ProcessUser{
 		Name: fp.Username,

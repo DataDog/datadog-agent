@@ -10,9 +10,7 @@ package tests
 
 import (
 	"fmt"
-	"io"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"syscall"
@@ -21,6 +19,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -45,7 +44,7 @@ func openTestFile(test *testModule, testFile string, flags int) (int, error) {
 	return int(fd), nil
 }
 
-func TestOpenBasenameApproverFilter(t *testing.T) {
+func TestFilterOpenBasenameApprover(t *testing.T) {
 	// generate a basename up to the current limit of the agent
 	var basename string
 	for i := 0; i < model.MaxSegmentLength; i++ {
@@ -100,7 +99,7 @@ func TestOpenBasenameApproverFilter(t *testing.T) {
 	}
 }
 
-func TestOpenLeafDiscarderFilter(t *testing.T) {
+func TestFilterOpenLeafDiscarder(t *testing.T) {
 	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
 	// a discarder is created).
 	rule := &rules.RuleDefinition{
@@ -134,12 +133,11 @@ func TestOpenLeafDiscarderFilter(t *testing.T) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(d *testDiscarder) bool {
-		e := d.event.(*probe.Event)
-		if e == nil || (e != nil && e.GetEventType() != model.FileOpenEventType) {
+	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+		if event == nil || (eventType != "open") {
 			return false
 		}
-		v, _ := e.GetFieldValue("open.file.path")
+		v, _ := event.GetFieldValue("open.file.path")
 		return v == testFile
 	}); err != nil {
 		inode := getInode(t, testFile)
@@ -159,7 +157,85 @@ func TestOpenLeafDiscarderFilter(t *testing.T) {
 	}
 }
 
-func testOpenParentDiscarderFilter(t *testing.T, parents ...string) {
+// This test is basically the same as TestFilterOpenLeafDiscarder but activity dumps are enabled.
+// This means that the event is actually forwarded to user space, but the rule should not be evaluated
+func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
+	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
+	// a discarder is created).
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `open.filename =~ "{{.Root}}/no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{enableActivityDump: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	var fd int
+	var testFile string
+
+	testFile, _, err = test.Path("test-obc-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile)
+
+	outputDir := t.TempDir()
+	_, err = test.StartActivityDumpComm("testsuite", outputDir, []string{"protobuf"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer func() {
+		if err := test.StopActivityDump("", "", "testsuite"); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	if err := test.GetEventDiscarder(t, func() error {
+		// The policy file inode is likely to be reused by the kernel after deletion. On deletion, the inode discarder will
+		// be marked as retained in kernel space and will therefore no longer discard events. By waiting for the discard
+		// retention period to expire, we're making sure that a newly created discarder will properly take effect.
+		time.Sleep(probe.DiscardRetention)
+
+		fd, err = openTestFile(test, testFile, syscall.O_CREAT|syscall.O_SYNC)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd)
+	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+		e := event.(*model.Event)
+		if e == nil || (e != nil && e.GetEventType() != model.FileOpenEventType) {
+			return false
+		}
+		v, _ := e.GetFieldValue("open.file.path")
+		return v == testFile
+	}); err != nil {
+		inode := getInode(t, testFile)
+		parentInode := getInode(t, path.Dir(testFile))
+
+		t.Fatalf("event inode: %d, parent inode: %d, error: %v", inode, parentInode, err)
+	}
+
+	// Check that we get a probe event "saved by activity dumps"
+	if err := test.GetProbeEvent(func() error {
+		fd, err = openTestFile(test, testFile, syscall.O_CREAT|syscall.O_SYNC)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd)
+	}, func(event *model.Event) bool {
+		return event.GetType() == "open" &&
+			event.IsSavedByActivityDumps() &&
+			event.Open.File.Inode == getInode(t, testFile)
+	}, 3*time.Second); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func testFilterOpenParentDiscarder(t *testing.T, parents ...string) {
 	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
 	// a discarder is created).
 	rule := &rules.RuleDefinition{
@@ -193,12 +269,11 @@ func testOpenParentDiscarderFilter(t *testing.T, parents ...string) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(d *testDiscarder) bool {
-		e := d.event.(*probe.Event)
-		if e == nil || (e != nil && e.GetEventType() != model.FileOpenEventType) {
+	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+		if event == nil || (eventType != "open") {
 			return false
 		}
-		v, _ := e.GetFieldValue("open.file.path")
+		v, _ := event.GetFieldValue("open.file.path")
 		return v == testFile
 	}); err != nil {
 		inode := getInode(t, testFile)
@@ -224,15 +299,15 @@ func testOpenParentDiscarderFilter(t *testing.T, parents ...string) {
 	}
 }
 
-func TestOpenParentDiscarderFilter(t *testing.T) {
-	testOpenParentDiscarderFilter(t, "parent")
+func TestFilterOpenParentDiscarder(t *testing.T) {
+	testFilterOpenParentDiscarder(t, "parent")
 }
 
-func TestOpenGrandParentDiscarderFilter(t *testing.T) {
-	testOpenParentDiscarderFilter(t, "grandparent", "parent")
+func TestFilterOpenGrandParentDiscarder(t *testing.T) {
+	testFilterOpenParentDiscarder(t, "grandparent", "parent")
 }
 
-func TestDiscarderFilterMask(t *testing.T) {
+func TestFilterDiscarderMask(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_mask_open_rule",
@@ -265,7 +340,7 @@ func TestDiscarderFilterMask(t *testing.T) {
 
 			testFile, testFilePtr, err = test.CreateWithOptions("test-mask", 98, 99, 0o447)
 			return err
-		}, func(event *probe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_mask_open_rule")
 		})
 
@@ -298,13 +373,177 @@ func TestDiscarderFilterMask(t *testing.T) {
 				return err
 			}
 			return f.Close()
-		}, func(event *probe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_mask_open_rule")
 		})
 	}))
 }
 
-func TestOpenFlagsApproverFilter(t *testing.T) {
+func TestFilterRenameFileDiscarder(t *testing.T) {
+	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
+	// a discarder is created).
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `open.filename =~ "{{.Root}}/a*/test"`,
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	var fd int
+	var testFile string
+
+	testFile, _, err = test.Path("b123/test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile)
+
+	if err := test.GetEventDiscarder(t, func() error {
+		// The policy file inode is likely to be reused by the kernel after deletion. On deletion, the inode discarder will
+		// be marked as retained in kernel space and will therefore no longer discard events. By waiting for the discard
+		// retention period to expire, we're making sure that a newly created discarder will properly take effect.
+		time.Sleep(probe.DiscardRetention)
+
+		fd, err = openTestFile(test, testFile, syscall.O_CREAT|syscall.O_SYNC)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd)
+	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+		if event == nil || (eventType != "open") {
+			return false
+		}
+		v, _ := event.GetFieldValue("open.file.path")
+		return v == testFile
+	}); err != nil {
+		inode := getInode(t, testFile)
+		parentInode := getInode(t, path.Dir(testFile))
+
+		t.Fatalf("event inode: %d, parent inode: %d, error: %v", inode, parentInode, err)
+	}
+
+	if err := waitForOpenProbeEvent(test, func() error {
+		fd, err = openTestFile(test, testFile, syscall.O_CREAT|syscall.O_SYNC)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd)
+	}, testFile); err == nil {
+		t.Fatal("shouldn't get an event")
+	}
+
+	// rename the parent folder so that the discarder inode remains the same but now the rule should match
+	newFile, _, err := test.Path("a123/test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(newFile)
+
+	if err := os.MkdirAll(filepath.Dir(newFile), 0777); err != nil {
+		t.Fatal(err)
+	}
+
+	// the next event on the file should now match the rule thus we should get an event, the inode should not anymore be discarded
+	if err := os.Rename(testFile, newFile); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := waitForOpenProbeEvent(test, func() error {
+		fd, err = openTestFile(test, newFile, syscall.O_CREAT|syscall.O_SYNC)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd)
+	}, newFile); err != nil {
+		t.Fatal("should get an event")
+	}
+}
+
+func TestFilterRenameFolderDiscarder(t *testing.T) {
+	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
+	// a discarder is created).
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `open.filename =~ "{{.Root}}/a*/test"`,
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	var fd int
+	var testFile string
+
+	testFile, _, err = test.Path("b123/test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile)
+
+	if err := test.GetEventDiscarder(t, func() error {
+		// The policy file inode is likely to be reused by the kernel after deletion. On deletion, the inode discarder will
+		// be marked as retained in kernel space and will therefore no longer discard events. By waiting for the discard
+		// retention period to expire, we're making sure that a newly created discarder will properly take effect.
+		time.Sleep(probe.DiscardRetention)
+
+		fd, err = openTestFile(test, testFile, syscall.O_CREAT|syscall.O_SYNC)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd)
+	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+		if event == nil || (eventType != "open") {
+			return false
+		}
+		v, _ := event.GetFieldValue("open.file.path")
+		return v == testFile
+	}); err != nil {
+		inode := getInode(t, testFile)
+		parentInode := getInode(t, path.Dir(testFile))
+
+		t.Fatalf("event inode: %d, parent inode: %d, error: %v", inode, parentInode, err)
+	}
+
+	if err := waitForOpenProbeEvent(test, func() error {
+		fd, err = openTestFile(test, testFile, syscall.O_CREAT|syscall.O_SYNC)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd)
+	}, testFile); err == nil {
+		t.Fatal("shouldn't get an event")
+	}
+
+	// rename the parent folder so that the discarder inode remains the same but now the rule should match
+	newFile, _, err := test.Path("a123/test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(newFile)
+
+	// the next event on the file should now match the rule thus we should get an event, the inode should not anymore be discarded
+	if err := os.Rename(filepath.Dir(testFile), filepath.Dir(newFile)); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := waitForOpenProbeEvent(test, func() error {
+		fd, err = openTestFile(test, newFile, syscall.O_CREAT|syscall.O_SYNC)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd)
+	}, newFile); err != nil {
+		t.Fatal("should get an event")
+	}
+}
+
+func TestFilterOpenFlagsApprover(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.flags & (O_SYNC | O_NOCTTY) > 0`,
@@ -357,71 +596,7 @@ func TestOpenFlagsApproverFilter(t *testing.T) {
 	}
 }
 
-func TestOpenProcessPidDiscarder(t *testing.T) {
-	rule := &rules.RuleDefinition{
-		ID:         "test_rule",
-		Expression: `open.file.path == "{{.Root}}/test-oba-1" && process.file.path == "/bin/aaa"`,
-	}
-
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer test.Close()
-
-	testFile, _, err := test.Path("test-oba-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(testFile)
-
-	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	args := []string{"multi-open", testFile, testFile}
-
-	cmd := exec.Command(syscallTester, args...)
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer stdin.Close()
-
-	if err := cmd.Start(); err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if err := cmd.Wait(); err != nil {
-			t.Fatal(err)
-		}
-	}()
-
-	if err := test.GetEventDiscarder(t, func() error {
-		time.Sleep(probe.DiscardRetention)
-		_, err := io.WriteString(stdin, "\n")
-		return err
-	}, func(d *testDiscarder) bool {
-		e := d.event.(*probe.Event)
-		if e == nil || (e != nil && e.GetEventType() != model.FileOpenEventType) {
-			return false
-		}
-		v, _ := e.GetFieldValue("open.file.path")
-		return v == testFile
-	}); err != nil {
-		t.Error(err)
-	}
-
-	if err := waitForOpenProbeEvent(test, func() error {
-		_, err := io.WriteString(stdin, "\n")
-		return err
-	}, testFile); err == nil {
-		t.Fatalf("shouldn't get an event")
-	}
-}
-
-func TestDiscarderRetentionFilter(t *testing.T) {
+func TestFilterDiscarderRetention(t *testing.T) {
 	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
 	// a discarder is created).
 	rule := &rules.RuleDefinition{
@@ -429,7 +604,7 @@ func TestDiscarderRetentionFilter(t *testing.T) {
 		Expression: `open.file.path =~ "{{.Root}}/no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
 	}
 
-	testDrive, err := newTestDrive(t, "xfs", nil)
+	testDrive, err := newTestDrive(t, "xfs", nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -461,8 +636,8 @@ func TestDiscarderRetentionFilter(t *testing.T) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(d *testDiscarder) bool {
-		e := d.event.(*probe.Event)
+	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+		e := event.(*model.Event)
 		if e == nil || (e != nil && e.GetEventType() != model.FileOpenEventType) {
 			return false
 		}

@@ -10,14 +10,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"strconv"
 	"strings"
 
-	"github.com/theupdateframework/go-tuf/client"
-	"github.com/theupdateframework/go-tuf/data"
-	"github.com/theupdateframework/go-tuf/util"
-	"github.com/theupdateframework/go-tuf/verify"
+	"github.com/DataDog/go-tuf/client"
+	"github.com/DataDog/go-tuf/data"
+	"github.com/DataDog/go-tuf/util"
+	"github.com/DataDog/go-tuf/verify"
 )
 
 type tufRootsClient struct {
@@ -130,7 +129,7 @@ func (s *rootClientRemoteStore) GetMeta(name string) (stream io.ReadCloser, size
 			return nil, 0, err
 		}
 		if parsedRoot.Version == metaPath.version {
-			return ioutil.NopCloser(bytes.NewReader(root)), int64(len(root)), nil
+			return io.NopCloser(bytes.NewReader(root)), int64(len(root)), nil
 		}
 	}
 	return nil, 0, client.ErrNotFound{File: name}
@@ -208,4 +207,27 @@ func unsafeUnmarshalRoot(raw []byte) (*data.Root, error) {
 		return nil, err
 	}
 	return &root, err
+}
+
+func unsafeUnmarshalTargets(raw []byte) (*data.Targets, error) {
+	var signedTargets data.Signed
+	err := json.Unmarshal(raw, &signedTargets)
+	if err != nil {
+		return nil, err
+	}
+	var targets data.Targets
+	err = json.Unmarshal(signedTargets.Signed, &targets)
+	if err != nil {
+		return nil, err
+	}
+	return &targets, err
+}
+
+func extractRootVersion(raw []byte) (int64, error) {
+	root, err := unsafeUnmarshalRoot(raw)
+	if err != nil {
+		return 0, err
+	}
+
+	return root.Version, nil
 }

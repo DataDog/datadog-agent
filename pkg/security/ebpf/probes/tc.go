@@ -18,23 +18,19 @@ var tcProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "classifier/ingress",
 			EBPFFuncName: "classifier_ingress",
 		},
 		NetworkDirection: manager.Ingress,
 		TCFilterProtocol: unix.ETH_P_ALL,
-		TCFilterPrio:     1,
 		KeepProgramSpec:  true,
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "classifier/egress",
 			EBPFFuncName: "classifier_egress",
 		},
 		NetworkDirection: manager.Egress,
 		TCFilterProtocol: unix.ETH_P_ALL,
-		TCFilterPrio:     1,
 		KeepProgramSpec:  true,
 	},
 }
@@ -54,6 +50,15 @@ func GetAllTCProgramFunctions() []string {
 	for _, tcProbe := range GetTCProbes() {
 		output = append(output, tcProbe.EBPFFuncName)
 	}
+
+	for _, flowProbe := range getFlowProbes() {
+		output = append(output, flowProbe.EBPFFuncName)
+	}
+
+	for _, netDeviceProbe := range getNetDeviceProbes() {
+		output = append(output, netDeviceProbe.EBPFFuncName)
+	}
+
 	return output
 }
 
@@ -63,7 +68,6 @@ func getTCTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "classifier_router",
 			Key:           TCDNSRequestKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "classifier/dns_request",
 				EBPFFuncName: "classifier_dns_request",
 			},
 		},
@@ -71,7 +75,6 @@ func getTCTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "classifier_router",
 			Key:           TCDNSRequestParserKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "classifier/dns_request_parser",
 				EBPFFuncName: "classifier_dns_request_parser",
 			},
 		},

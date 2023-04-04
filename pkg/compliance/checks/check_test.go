@@ -130,11 +130,12 @@ func TestCheckRun(t *testing.T) {
 			env.On("Hostname").Return(resourceID)
 			env.On("IsLeader").Return(true)
 			env.On("Reporter").Return(reporter)
+			env.On("StatsdClient").Return(nil)
 			reporter.On("Report", mock.MatchedBy(func(e *event.Event) bool {
 				e.ExpireAt = time.Time{}
 				return cmp.Equal(e, test.expectEvent)
 			})).Maybe()
-			checkable.On("check", check).Return(test.checkReports)
+			checkable.On("Check", check).Return(test.checkReports)
 
 			err := check.Run()
 			assert.Equal(test.expectErr, err)

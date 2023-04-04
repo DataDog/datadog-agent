@@ -19,8 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
 )
 
 func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
@@ -33,7 +33,7 @@ func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
 }
 
 func testTimeSampler() *TimeSampler {
-	sampler := NewTimeSampler(TimeSamplerID(0), 10, tags.NewStore(false, "test"))
+	sampler := NewTimeSampler(TimeSamplerID(0), 10, tags.NewStore(false, "test"), "host")
 	return sampler
 }
 
@@ -270,7 +270,7 @@ func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
 	// Counter2 should still report
 	assert.Equal(t, 1, len(series))
 	assert.Equal(t, 1, len(sampler.counterLastSampledByContext))
-	assert.Equal(t, 2, len(sampler.contextResolver.resolver.contextsByKey))
+	assert.Equal(t, 1, len(sampler.contextResolver.resolver.contextsByKey))
 
 	series, _ = flushSerie(sampler, 1800.0)
 	// Everything stopped reporting and is expired

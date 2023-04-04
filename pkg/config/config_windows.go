@@ -17,10 +17,9 @@ var (
 	defaultConfdPath            = "c:\\programdata\\datadog\\conf.d"
 	defaultAdditionalChecksPath = "c:\\programdata\\datadog\\checks.d"
 	defaultRunPath              = "c:\\programdata\\datadog\\run"
-	defaultSyslogURI            = ""
 	defaultGuiPort              = 5002
-	// defaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
-	defaultSecurityAgentLogFile = "c:\\programdata\\datadog\\logs\\security-agent.log"
+	// DefaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
+	DefaultSecurityAgentLogFile = "c:\\programdata\\datadog\\logs\\security-agent.log"
 	// DefaultProcessAgentLogFile is the default process-agent log file
 	DefaultProcessAgentLogFile = "C:\\ProgramData\\Datadog\\logs\\process-agent.log"
 
@@ -40,7 +39,7 @@ func osinit() {
 		defaultConfdPath = filepath.Join(pd, "conf.d")
 		defaultAdditionalChecksPath = filepath.Join(pd, "checks.d")
 		defaultRunPath = filepath.Join(pd, "run")
-		defaultSecurityAgentLogFile = filepath.Join(pd, "logs", "security-agent.log")
+		DefaultSecurityAgentLogFile = filepath.Join(pd, "logs", "security-agent.log")
 		defaultSystemProbeLogFilePath = filepath.Join(pd, "logs", "system-probe.log")
 		DefaultProcessAgentLogFile = filepath.Join(pd, "logs", "process-agent.log")
 	} else {
@@ -55,6 +54,3 @@ func osinit() {
 		}
 	}
 }
-
-// NewAssetFs  Should never be called on non-android
-func setAssetFs(config Config) {}

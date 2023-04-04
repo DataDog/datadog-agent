@@ -28,6 +28,9 @@ import (
 	coreMetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
+var testTimeout = 10 * time.Second
+var testTicker = 5 * time.Millisecond
+
 func TestRun(t *testing.T) {
 	releases := []release{
 		{
@@ -82,6 +85,44 @@ func TestRun(t *testing.T) {
 			Version:   1,
 			Namespace: "default",
 		},
+		{
+			// Release with escapable version
+			Name: "foo",
+			Info: &info{
+				Status: "deployed",
+			},
+			Chart: &chart{
+				Metadata: &metadata{
+					Name:       "foo",
+					Version:    "2+30+5",
+					AppVersion: "7",
+				},
+			},
+			Version:   1,
+			Namespace: "default",
+		},
+		{
+			// Release with helm values set
+			Name: "with_helm_values",
+			Info: &info{
+				Status: "deployed",
+			},
+			Config: map[string]interface{}{
+				"option": "2",
+			},
+			Chart: &chart{
+				Metadata: &metadata{
+					Name:       "with_helm_values",
+					Version:    "1.0.0",
+					AppVersion: "1",
+				},
+				Values: map[string]interface{}{
+					"option": 1,
+				},
+			},
+			Version:   1,
+			Namespace: "default",
+		},
 	}
 
 	// Same order as "releases" array
@@ -111,6 +152,7 @@ func TestRun(t *testing.T) {
 			"helm_status:deployed",
 			"helm_chart_version:2.30.5",
 			"helm_app_version:7",
+			"helm_chart:datadog-2.30.5",
 		},
 		{
 			"helm_release:my_app",
@@ -121,6 +163,7 @@ func TestRun(t *testing.T) {
 			"helm_status:deployed",
 			"helm_chart_version:1.1.0",
 			"helm_app_version:1",
+			"helm_chart:some_app-1.1.0",
 		},
 		{
 			"helm_release:release_without_chart",
@@ -137,6 +180,30 @@ func TestRun(t *testing.T) {
 			"helm_revision:1",
 			"helm_chart_version:2.0.0",
 			"helm_app_version:1",
+			"helm_chart:example_app-2.0.0",
+		},
+		{
+			"helm_release:foo",
+			"helm_chart_name:foo",
+			"kube_namespace:default",
+			"helm_namespace:default",
+			"helm_revision:1",
+			"helm_status:deployed",
+			"helm_chart_version:2+30+5",
+			"helm_app_version:7",
+			"helm_chart:foo-2_30_5",
+		},
+		{
+			"helm_release:with_helm_values",
+			"helm_chart_name:with_helm_values",
+			"kube_namespace:default",
+			"helm_namespace:default",
+			"helm_revision:1",
+			"helm_status:deployed",
+			"helm_chart_version:1.0.0",
+			"helm_app_version:1",
+			"helm_chart:with_helm_values-1.0.0",
+			"option_value:2", // Because "HelmValuesAsTags" is set with "option" => "option_value" in the test check
 		},
 	}
 
@@ -185,9 +252,6 @@ func TestRun(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			stopCh := make(chan struct{})
-			defer close(stopCh)
-
 			var kubeObjects []runtime.Object
 			for _, secret := range test.secrets {
 				kubeObjects = append(kubeObjects, secret)
@@ -199,6 +263,10 @@ func TestRun(t *testing.T) {
 			check := factory().(*HelmCheck)
 			check.runLeaderElection = false
 
+			check.instance.HelmValuesAsTags = map[string]string{
+				"option": "option_value",
+			}
+
 			check.informerFactory = informers.NewSharedInformerFactory(
 				fake.NewSimpleClientset(kubeObjects...),
 				time.Minute,
@@ -207,7 +275,17 @@ func TestRun(t *testing.T) {
 			mockedSender := mocksender.NewMockSender(checkName)
 			mockedSender.SetupAcceptAll()
 
+			// The informers are set up in the first run, but the first metrics
+			// are not necessarily emitted in the first run. It depends on
+			// whether the check had time to process the events.
 			err := check.Run()
+			assert.NoError(t, err)
+
+			assert.Eventually(t, func() bool { // Wait until the events are processed
+				return len(check.store.getAll(k8sSecrets))+len(check.store.getAll(k8sConfigmaps)) == len(test.expectedTags)
+			}, testTimeout, testTicker)
+
+			err = check.Run()
 			assert.NoError(t, err)
 
 			for _, tags := range test.expectedTags {
@@ -239,6 +317,8 @@ func TestRun_withCollectEvents(t *testing.T) {
 		Namespace: "default",
 	}
 
+	eventsAllowedDelta := 10 * time.Second
+
 	secret, err := secretForRelease(&rel, time.Now().Add(10))
 	assert.NoError(t, err)
 
@@ -248,18 +328,24 @@ func TestRun_withCollectEvents(t *testing.T) {
 	mockedSender := mocksender.NewMockSender(checkName)
 	mockedSender.SetupAcceptAll()
 
+	// First run to set up the informers.
+	err = check.Run()
+	assert.NoError(t, err)
+
 	// Create a new release and check that it creates the appropriate event.
 	_, err = k8sClient.CoreV1().Secrets("default").Create(context.TODO(), secret, metav1.CreateOptions{})
 	assert.NoError(t, err)
-	assert.Eventually(t, func() bool {
-		err = check.Run()
-		assert.NoError(t, err)
-		return mockedSender.AssertEvent(
-			t,
-			eventForRelease(&rel, k8sSecrets, "New Helm release \"my_datadog\" has been deployed in \"default\" namespace. Its status is \"deployed\".", false),
-			10*time.Second,
-		)
-	}, 5*time.Second, time.Millisecond*100)
+	assert.Eventually(t, func() bool { // Wait until the create event has been processed
+		return len(check.store.getAll(k8sSecrets)) == 1
+	}, testTimeout, testTicker)
+	err = check.Run()
+	assert.NoError(t, err)
+	expectedTags := check.allTags(&rel, k8sSecrets, true)
+	mockedSender.AssertEvent(
+		t,
+		eventForRelease(&rel, "New Helm release \"my_datadog\" has been deployed in \"default\" namespace. Its status is \"deployed\".", expectedTags),
+		eventsAllowedDelta,
+	)
 
 	// Upgrade the release and check that it creates the appropriate event.
 	upgradedRel := rel
@@ -268,15 +354,17 @@ func TestRun_withCollectEvents(t *testing.T) {
 	assert.NoError(t, err)
 	_, err = k8sClient.CoreV1().Secrets("default").Create(context.TODO(), secretUpgradedRel, metav1.CreateOptions{})
 	assert.NoError(t, err)
-	assert.Eventually(t, func() bool {
-		err = check.Run()
-		assert.NoError(t, err)
-		return mockedSender.AssertEvent(
-			t,
-			eventForRelease(&rel, k8sSecrets, "Helm release \"my_datadog\" in \"default\" namespace upgraded to revision 2. Its status is \"deployed\".", false),
-			10*time.Second,
-		)
-	}, 5*time.Second, time.Millisecond*100)
+	assert.Eventually(t, func() bool { // Wait until the create event has been processed (revision 2 created)
+		return check.store.get("default/my_datadog", 2, k8sSecrets) != nil
+	}, testTimeout, testTicker)
+	err = check.Run()
+	assert.NoError(t, err)
+	expectedTags = check.allTags(&rel, k8sSecrets, true)
+	mockedSender.AssertEvent(
+		t,
+		eventForRelease(&rel, "Helm release \"my_datadog\" in \"default\" namespace upgraded to revision 2. Its status is \"deployed\".", expectedTags),
+		eventsAllowedDelta,
+	)
 
 	// Delete the release (all revisions) and check that it creates the
 	// appropriate event.
@@ -284,15 +372,15 @@ func TestRun_withCollectEvents(t *testing.T) {
 	assert.NoError(t, err)
 	err = k8sClient.CoreV1().Secrets("default").Delete(context.TODO(), rel.Name+".2", metav1.DeleteOptions{})
 	assert.NoError(t, err)
-	assert.Eventually(t, func() bool {
-		err = check.Run()
-		assert.NoError(t, err)
-		return mockedSender.AssertEvent(
-			t,
-			eventForRelease(&rel, k8sSecrets, "Helm release \"my_datadog\" in \"default\" namespace has been deleted.", true),
-			10*time.Second,
-		)
-	}, 5*time.Second, time.Millisecond*100)
+	assert.Eventually(t, func() bool { // Wait until the delete events have been processed (store should be empty)
+		return len(check.store.getAll(k8sSecrets)) == 0
+	}, testTimeout, testTicker)
+	expectedTags = check.allTags(&rel, k8sSecrets, false)
+	mockedSender.AssertEvent(
+		t,
+		eventForRelease(&rel, "Helm release \"my_datadog\" in \"default\" namespace has been deleted.", expectedTags),
+		eventsAllowedDelta,
+	)
 }
 
 func TestRun_skipEventForExistingRelease(t *testing.T) {
@@ -454,7 +542,7 @@ func TestRun_ServiceCheck(t *testing.T) {
 			check.runLeaderElection = false
 
 			for _, rel := range releases {
-				check.store.add(rel, test.storage)
+				check.store.add(rel, test.storage, commonTags(rel, test.storage), check.tagsForMetricsAndEvents(rel, true))
 			}
 
 			mockedSender := mocksender.NewMockSender(checkName)

@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -94,8 +95,8 @@ func TestAgentPayloadVersion(t *testing.T) {
 }
 
 var (
-	jsonPayloads     = forwarder.Payloads{}
-	protobufPayloads = forwarder.Payloads{}
+	jsonPayloads     = transaction.BytesPayloads{}
+	protobufPayloads = transaction.BytesPayloads{}
 	jsonHeader       = []byte("{")
 	jsonFooter       = []byte("}")
 	jsonItem         = []byte("TO JSON")
@@ -112,13 +113,13 @@ type testPayload struct{}
 
 func (p *testPayload) MarshalJSON() ([]byte, error) { return jsonString, nil }
 func (p *testPayload) Marshal() ([]byte, error)     { return protobufString, nil }
-func (p *testPayload) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
-	payloads := forwarder.Payloads{}
+func (p *testPayload) MarshalSplitCompress(bufferContext *marshaler.BufferContext) (transaction.BytesPayloads, error) {
+	payloads := transaction.BytesPayloads{}
 	payload, err := compression.Compress(protobufString)
 	if err != nil {
 		return nil, err
 	}
-	payloads = append(payloads, &payload)
+	payloads = append(payloads, transaction.NewBytesPayloadWithoutMetaData(payload))
 	return payloads, nil
 }
 func (p *testPayload) SplitPayload(int) ([]marshaler.AbstractMarshaler, error) {
@@ -162,8 +163,8 @@ func (p *testErrorPayload) WriteItem(stream *jsoniter.Stream, i int) error {
 func (p *testErrorPayload) Len() int                  { return 1 }
 func (p *testErrorPayload) DescribeItem(i int) string { return "description" }
 
-func mkPayloads(payload []byte, compress bool) (forwarder.Payloads, error) {
-	payloads := forwarder.Payloads{}
+func mkPayloads(payload []byte, compress bool) (transaction.BytesPayloads, error) {
+	payloads := transaction.BytesPayloads{}
 	var err error
 	if compress {
 		payload, err = compression.Compress(payload)
@@ -171,29 +172,39 @@ func mkPayloads(payload []byte, compress bool) (forwarder.Payloads, error) {
 			return nil, err
 		}
 	}
-	payloads = append(payloads, &payload)
+	payloads = append(payloads, transaction.NewBytesPayloadWithoutMetaData(payload))
 	return payloads, nil
 }
 
 func createJSONPayloadMatcher(prefix string) interface{} {
-	return mock.MatchedBy(func(payloads forwarder.Payloads) bool {
-		for _, compressedPayload := range payloads {
-			if payload, err := compression.Decompress(*compressedPayload); err != nil {
-				return false
-			} else {
-				if strings.HasPrefix(string(payload), prefix) {
-					return true
-				}
+	return mock.MatchedBy(func(payloads transaction.BytesPayloads) bool {
+		return doPayloadsMatch(payloads, prefix)
+	})
+}
+
+func doPayloadsMatch(payloads transaction.BytesPayloads, prefix string) bool {
+	for _, compressedPayload := range payloads {
+		if payload, err := compression.Decompress(compressedPayload.GetContent()); err != nil {
+			return false
+		} else {
+			if strings.HasPrefix(string(payload), prefix) {
+				return true
 			}
 		}
-		return false
+	}
+	return false
+}
+
+func createJSONBytesPayloadMatcher(prefix string) interface{} {
+	return mock.MatchedBy(func(bytesPayloads transaction.BytesPayloads) bool {
+		return doPayloadsMatch(bytesPayloads, prefix)
 	})
 }
 
 func createProtoPayloadMatcher(content []byte) interface{} {
-	return mock.MatchedBy(func(payloads forwarder.Payloads) bool {
+	return mock.MatchedBy(func(payloads transaction.BytesPayloads) bool {
 		for _, compressedPayload := range payloads {
-			if payload, err := compression.Decompress(*compressedPayload); err != nil {
+			if payload, err := compression.Decompress(compressedPayload.GetContent()); err != nil {
 				return false
 			} else {
 				if reflect.DeepEqual(content, payload) {
@@ -213,7 +224,7 @@ func TestSendV1Events(t *testing.T) {
 	matcher := createJSONPayloadMatcher(`{"apiKey":"","events":{},"internalHostname"`)
 	f.On("SubmitV1Intake", matcher, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
-	s := NewSerializer(f, nil, nil)
+	s := NewSerializer(f, nil)
 	err := s.SendEvents([]*metrics.Event{})
 	require.Nil(t, err)
 	f.AssertExpectations(t)
@@ -231,11 +242,11 @@ func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
 	defer config.Datadog.Set("enable_events_stream_payload_serialization", nil)
 	f := &forwarder.MockedForwarder{}
 
-	s := NewSerializer(f, nil, nil)
+	s := NewSerializer(f, nil)
 
 	events := metrics.Events{&metrics.Event{SourceTypeName: "source1"}, &metrics.Event{SourceTypeName: "source2"}, &metrics.Event{SourceTypeName: "source3"}}
 	payloadsCountMatcher := func(payloadCount int) interface{} {
-		return mock.MatchedBy(func(payloads forwarder.Payloads) bool {
+		return mock.MatchedBy(func(payloads transaction.BytesPayloads) bool {
 			return len(payloads) == payloadCount
 		})
 	}
@@ -261,7 +272,7 @@ func TestSendV1ServiceChecks(t *testing.T) {
 	config.Datadog.Set("enable_service_checks_stream_payload_serialization", false)
 	defer config.Datadog.Set("enable_service_checks_stream_payload_serialization", nil)
 
-	s := NewSerializer(f, nil, nil)
+	s := NewSerializer(f, nil)
 	err := s.SendServiceChecks(metrics.ServiceChecks{&metrics.ServiceCheck{}})
 	require.Nil(t, err)
 	f.AssertExpectations(t)
@@ -269,13 +280,15 @@ func TestSendV1ServiceChecks(t *testing.T) {
 
 func TestSendV1Series(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
-	matcher := createJSONPayloadMatcher(`{"series":[]}`)
+	matcher := createJSONBytesPayloadMatcher(`{"series":[]}`)
 
 	f.On("SubmitV1Series", matcher, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 	config.Datadog.Set("enable_stream_payload_serialization", false)
 	defer config.Datadog.Set("enable_stream_payload_serialization", nil)
+	config.Datadog.Set("use_v2_api.series", false)
+	defer config.Datadog.Set("use_v2_api.series", true)
 
-	s := NewSerializer(f, nil, nil)
+	s := NewSerializer(f, nil)
 
 	err := s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{}))
 	require.Nil(t, err)
@@ -286,10 +299,9 @@ func TestSendSeries(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	matcher := createProtoPayloadMatcher([]byte{0xa, 0xa, 0xa, 0x6, 0xa, 0x4, 0x68, 0x6f, 0x73, 0x74, 0x28, 0x3})
 	f.On("SubmitSeries", matcher, protobufExtraHeadersWithCompression).Return(nil).Times(1)
-	config.Datadog.Set("use_v2_api.series", true)
-	defer config.Datadog.Set("use_v2_api.series", false)
+	config.Datadog.Set("use_v2_api.series", true) // default value, but just to be sure
 
-	s := NewSerializer(f, nil, nil)
+	s := NewSerializer(f, nil)
 
 	err := s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{&metrics.Serie{}}))
 	require.Nil(t, err)
@@ -302,7 +314,7 @@ func TestSendSketch(t *testing.T) {
 	matcher := createProtoPayloadMatcher([]byte{18, 0})
 	f.On("SubmitSketchSeries", matcher, protobufExtraHeadersWithCompression).Return(nil).Times(1)
 
-	s := NewSerializer(f, nil, nil)
+	s := NewSerializer(f, nil)
 	err := s.SendSketch(metrics.NewSketchesSourceTest())
 	require.Nil(t, err)
 	f.AssertExpectations(t)
@@ -312,7 +324,7 @@ func TestSendMetadata(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitMetadata", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
-	s := NewSerializer(f, nil, nil)
+	s := NewSerializer(f, nil)
 
 	payload := &testPayload{}
 	err := s.SendMetadata(payload)
@@ -335,7 +347,7 @@ func TestSendProcessesMetadata(t *testing.T) {
 	payloads, _ := mkPayloads(payload, true)
 	f.On("SubmitV1Intake", payloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
-	s := NewSerializer(f, nil, nil)
+	s := NewSerializer(f, nil)
 
 	err := s.SendProcessesMetadata("test")
 	require.Nil(t, err)
@@ -370,7 +382,7 @@ func TestSendWithDisabledKind(t *testing.T) {
 	}()
 
 	f := &forwarder.MockedForwarder{}
-	s := NewSerializer(f, nil, nil)
+	s := NewSerializer(f, nil)
 
 	payload := &testPayload{}
 

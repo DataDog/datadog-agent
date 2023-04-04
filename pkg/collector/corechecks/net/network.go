@@ -235,7 +235,6 @@ func submitConnectionsMetrics(sender aggregator.Sender, protocolName string, sta
 }
 
 func netstatTCPExtCounters() (map[string]int64, error) {
-
 	f, err := os.Open("/proc/net/netstat")
 	if err != nil {
 		return nil, err
@@ -280,8 +279,8 @@ func netstatTCPExtCounters() (map[string]int64, error) {
 }
 
 // Configure configures the network checks
-func (c *NetworkCheck) Configure(rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
-	err := c.CommonConfigure(rawInitConfig, rawInstance, source)
+func (c *NetworkCheck) Configure(integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
+	err := c.CommonConfigure(integrationConfigDigest, rawInitConfig, rawInstance, source)
 	if err != nil {
 		return err
 	}

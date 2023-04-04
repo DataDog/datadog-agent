@@ -3,10 +3,10 @@ from test_builder import Platform
 
 def confDir(config):
     if config.platform == Platform.linux:
-        return "in `/etc/datadog/conf.d/qa.d/conf.yaml`"
+        return "in `/etc/datadog-agent/conf.d/qa.d/conf.yaml`"
 
     if config.platform == Platform.mac:
-        return "in `~/.datadog-agent/conf.d/conf.d/qa.d/conf.yaml`"
+        return "in `~/.datadog-agent/conf.d/qa.d/conf.yaml`"
 
     if config.platform == Platform.windows:
         return "in `C:\\programdata\\datadog\\conf.d\\qa.d\\conf.yaml` (you may need to enable showing hidden files to see `c:\\programdata`):"

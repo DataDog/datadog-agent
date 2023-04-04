@@ -58,9 +58,8 @@ func (h *AutoscalersController) RunWPA(stopCh <-chan struct{}, wpaClient dynamic
 	if !cache.WaitForCacheSync(stopCh, h.wpaListerSynced) {
 		return
 	}
-	// TODO remove go routine here ?
-	go wait.Until(h.workerWPA, time.Second, stopCh)
-	<-stopCh
+
+	wait.Until(h.workerWPA, time.Second, stopCh)
 }
 
 type checkAPI func() error
@@ -248,7 +247,7 @@ func (h *AutoscalersController) updateWPAutoscaler(old, obj interface{}) {
 		return
 	}
 
-	if !autoscalers.WPAutoscalerMetricsUpdate(newAutoscaler, oldAutoscaler) {
+	if !autoscalers.AutoscalerMetricsUpdate(newAutoscaler.GetObjectMeta(), oldAutoscaler.GetObjectMeta()) {
 		log.Tracef("Update received for the %s/%s, without a relevant change to the configuration", newAutoscaler.Namespace, newAutoscaler.Name)
 		return
 	}

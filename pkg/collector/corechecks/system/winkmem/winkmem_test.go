@@ -13,12 +13,12 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
 func TestWinKMem(t *testing.T) {
-
 	kcheck := new(KMemCheck)
-	kcheck.Configure(nil, nil, "test")
+	kcheck.Configure(integration.FakeConfigHash, nil, nil, "test")
 
 	m := mocksender.NewMockSender(kcheck.ID())
 

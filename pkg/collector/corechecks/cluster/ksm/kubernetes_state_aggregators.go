@@ -208,8 +208,8 @@ func (a *lastCronJobAggregator) flush(sender aggregator.Sender, k *KSMCheck, lab
 	for cronjob, state := range a.accumulator {
 		hostname, tags := k.hostnameAndTags(
 			map[string]string{
-				"namespace":    cronjob.namespace,
-				"kube_cronjob": cronjob.name,
+				"namespace": cronjob.namespace,
+				"cronjob":   cronjob.name,
 			},
 			labelJoiner,
 			nil,

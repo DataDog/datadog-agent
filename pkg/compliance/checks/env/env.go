@@ -8,6 +8,7 @@ package env
 import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // Env provides environment methods for compliance checks execution
@@ -15,6 +16,7 @@ type Env interface {
 	Clients
 	Configuration
 	RegoConfiguration
+	StatsdClient() statsd.ClientInterface
 	Reporter() event.Reporter
 }
 
@@ -41,5 +43,4 @@ type Configuration interface {
 	RelativeToHostRoot(path string) string
 	EvaluateFromCache(e eval.Evaluatable) (interface{}, error)
 	IsLeader() bool
-	NodeLabels() map[string]string
 }

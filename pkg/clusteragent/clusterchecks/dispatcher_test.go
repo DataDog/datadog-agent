@@ -212,7 +212,7 @@ func TestProcessNodeStatus(t *testing.T) {
 	assert.False(t, upToDate)
 
 	// Give changes
-	node1.lastConfigChange = timestampNow()
+	node1.lastConfigChange = timestampNowNano()
 	node1.heartbeat = node1.heartbeat - 50
 	status2 := types.NodeStatus{LastChange: node1.lastConfigChange - 2}
 	upToDate, err = dispatcher.processNodeStatus("node1", "10.0.0.1", status2)
@@ -300,7 +300,8 @@ func TestRescheduleDanglingFromExpiredNodes(t *testing.T) {
 	// Register a node with a correct status & schedule a Check
 	dispatcher.processNodeStatus("nodeA", "10.0.0.1", types.NodeStatus{})
 	dispatcher.Schedule([]integration.Config{
-		generateIntegration("A")})
+		generateIntegration("A"),
+	})
 
 	// Ensure it's dispatch correctly
 	allConfigs, err := dispatcher.getAllConfigs()
@@ -430,6 +431,9 @@ func TestReset(t *testing.T) {
 }
 
 func TestPatchConfiguration(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{config.Kubernetes: struct{}{}})
+	defer config.SetDetectedFeatures(config.FeatureMap{})
+
 	checkConfig := integration.Config{
 		Name:          "test",
 		ADIdentifiers: []string{"redis"},
@@ -466,6 +470,9 @@ func TestPatchConfiguration(t *testing.T) {
 }
 
 func TestPatchEndpointsConfiguration(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{config.Kubernetes: struct{}{}})
+	defer config.SetDetectedFeatures(config.FeatureMap{})
+
 	checkConfig := integration.Config{
 		Name:          "test",
 		ADIdentifiers: []string{"redis"},
@@ -497,6 +504,9 @@ func TestPatchEndpointsConfiguration(t *testing.T) {
 }
 
 func TestExtraTags(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{config.Kubernetes: struct{}{}})
+	defer config.SetDetectedFeatures(config.FeatureMap{})
+
 	for _, tc := range []struct {
 		extraTagsConfig   []string
 		clusterNameConfig string

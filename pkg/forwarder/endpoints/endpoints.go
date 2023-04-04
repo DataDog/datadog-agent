@@ -54,6 +54,4 @@ var (
 	OrchestratorEndpoint = transaction.Endpoint{Route: "/api/v2/orch", Name: "orchestrator"}
 	// OrchestratorManifestEndpoint is a v2 endpoint used to send orchestrator manifests
 	OrchestratorManifestEndpoint = transaction.Endpoint{Route: "/api/v2/orchmanif", Name: "orchmanifest"}
-	// ContainerLifecycleEndpoint is an event platform endpoint used to send container lifecycle events
-	ContainerLifecycleEndpoint = transaction.Endpoint{Route: "/api/v2/contlcycle", Name: "contlcycle"}
 )

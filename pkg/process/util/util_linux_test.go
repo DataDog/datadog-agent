@@ -23,12 +23,7 @@ func TestGetRootNSPID(t *testing.T) {
 	})
 
 	t.Run("HOST_PROC set but not available", func(t *testing.T) {
-		prev := os.Getenv("HOST_PROC")
-		t.Cleanup(func() {
-			os.Setenv("HOST_PROC", prev)
-		})
-
-		os.Setenv("HOST_PROC", "/foo/bar")
+		t.Setenv("HOST_PROC", "/foo/bar")
 		pid, err := GetRootNSPID()
 		assert.NotNil(t, err)
 		assert.Equal(t, 0, pid)

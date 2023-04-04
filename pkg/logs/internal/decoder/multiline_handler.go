@@ -143,7 +143,7 @@ func (h *MultiLineHandler) sendBuffer() {
 	if len(content) > 0 || h.linesLen > 0 {
 		if h.linesCombined > 0 {
 			// -1 to ignore the line matching the pattern. This leave a count of only combined lines.
-			linesCombined := int32(h.linesCombined - 1)
+			linesCombined := int64(h.linesCombined - 1)
 			h.linesCombinedInfo.Add(linesCombined)
 			if h.telemetryEnabled {
 				telemetry.GetStatsTelemetryProvider().Count(linesCombinedTelemetryMetricName, float64(linesCombined), []string{})

@@ -12,7 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"io/ioutil"
+	"io"
 	"mime"
 	"net"
 	"net/http"
@@ -222,7 +222,7 @@ func authorizePOST(w http.ResponseWriter, r *http.Request, next http.HandlerFunc
 // Helper function which unmarshals a POST requests data into a Payload object
 func parseBody(r *http.Request) (Payload, error) {
 	var p Payload
-	body, e := ioutil.ReadAll(r.Body)
+	body, e := io.ReadAll(r.Body)
 	if e != nil {
 		return p, e
 	}

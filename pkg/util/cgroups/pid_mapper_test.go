@@ -9,7 +9,6 @@
 package cgroups
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -108,8 +107,8 @@ func TestProcPidMapperCgroupV1(t *testing.T) {
 		path:       "kubepods/burstable/pod15513b48-e7a5-48fc-b9e3-92f713f36504/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f",
 		pidMapper:  pidMapperV1,
 	}
-	assert.NoError(t, ioutil.WriteFile(filepath.Join(fakeFsPath, "/proc/420/cgroup"), []byte(cgroupV1ProcCgroup), 0o640))
-	assert.NoError(t, ioutil.WriteFile(filepath.Join(fakeFsPath, "/proc/421/cgroup"), []byte(cgroupV1ProcCgroup), 0o640))
+	assert.NoError(t, os.WriteFile(filepath.Join(fakeFsPath, "/proc/420/cgroup"), []byte(cgroupV1ProcCgroup), 0o640))
+	assert.NoError(t, os.WriteFile(filepath.Join(fakeFsPath, "/proc/421/cgroup"), []byte(cgroupV1ProcCgroup), 0o640))
 
 	pids, err := cgCgroupV1.GetPIDs(0)
 	assert.NoError(t, err)
@@ -120,7 +119,7 @@ func TestProcPidMapperCgroupV1(t *testing.T) {
 		path:       "docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015e",
 		pidMapper:  pidMapperV1,
 	}
-	assert.NoError(t, ioutil.WriteFile(filepath.Join(fakeFsPath, "/proc/430/cgroup"), []byte(dindProcCgroup), 0o640))
+	assert.NoError(t, os.WriteFile(filepath.Join(fakeFsPath, "/proc/430/cgroup"), []byte(dindProcCgroup), 0o640))
 
 	pids, err = cgDindv1.GetPIDs(0)
 	assert.NoError(t, err)
@@ -154,8 +153,8 @@ func TestProcPidMapperCgroupV2(t *testing.T) {
 			readerFilter:     ContainerFilter,
 		},
 	}
-	assert.NoError(t, ioutil.WriteFile(filepath.Join(fakeFsPath, "/proc/420/cgroup"), []byte(cgroupV2ProcCgroup), 0o640))
-	assert.NoError(t, ioutil.WriteFile(filepath.Join(fakeFsPath, "/proc/430/cgroup"), []byte(cgroupV2ProcCgroupNoHost), 0o640))
+	assert.NoError(t, os.WriteFile(filepath.Join(fakeFsPath, "/proc/420/cgroup"), []byte(cgroupV2ProcCgroup), 0o640))
+	assert.NoError(t, os.WriteFile(filepath.Join(fakeFsPath, "/proc/430/cgroup"), []byte(cgroupV2ProcCgroupNoHost), 0o640))
 
 	pids, err := cgFooV2.GetPIDs(0)
 	assert.NoError(t, err)

@@ -7,7 +7,7 @@ package api
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -21,7 +21,7 @@ import (
 
 func TestPipelineStatsProxy(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		slurp, err := ioutil.ReadAll(req.Body)
+		slurp, err := io.ReadAll(req.Body)
 		req.Body.Close()
 		if err != nil {
 			t.Fatal(err)
@@ -50,9 +50,9 @@ func TestPipelineStatsProxy(t *testing.T) {
 	}
 	rec := httptest.NewRecorder()
 	c := &config.AgentConfig{}
-	newPipelineStatsProxy(c, u, "123", "key:val").ServeHTTP(rec, req)
+	newPipelineStatsProxy(c, []*url.URL{u}, []string{"123"}, "key:val").ServeHTTP(rec, req)
 	result := rec.Result()
-	slurp, err := ioutil.ReadAll(result.Body)
+	slurp, err := io.ReadAll(result.Body)
 	result.Body.Close()
 	if err != nil {
 		t.Fatal(err)
@@ -64,11 +64,21 @@ func TestPipelineStatsProxy(t *testing.T) {
 
 func TestPipelineStatsEndpoint(t *testing.T) {
 	var cfg config.AgentConfig
-	cfg.Endpoints = []*config.Endpoint{{Host: "https://trace.agent.datadoghq.com", APIKey: "test_api_key"}}
-	url, key, err := pipelineStatsEndpoint(&cfg)
+	cfg.Endpoints = []*config.Endpoint{
+		{Host: "https://trace.agent.datadoghq.com", APIKey: "test_api_key"},
+		{Host: "https://trace.agent.datadoghq.eu", APIKey: "test_api_key_2"},
+	}
+	urls, keys, err := pipelineStatsEndpoints(&cfg)
 	assert.NoError(t, err)
-	assert.Equal(t, url.String(), "https://trace.agent.datadoghq.com/api/v0.1/pipeline_stats")
-	assert.Equal(t, key, "test_api_key")
+	assert.Equal(t, urls[0].String(), "https://trace.agent.datadoghq.com/api/v0.1/pipeline_stats")
+	assert.Equal(t, urls[1].String(), "https://trace.agent.datadoghq.eu/api/v0.1/pipeline_stats")
+	assert.Equal(t, keys, []string{"test_api_key", "test_api_key_2"})
+
+	cfg.Endpoints = []*config.Endpoint{{Host: "trace.agent.datadoghq.com", APIKey: "test_api_key"}}
+	urls, keys, err = pipelineStatsEndpoints(&cfg)
+	assert.NoError(t, err)
+	assert.Equal(t, urls[0].String(), "trace.agent.datadoghq.com/api/v0.1/pipeline_stats")
+	assert.Equal(t, keys[0], "test_api_key")
 }
 
 func TestPipelineStatsProxyHandler(t *testing.T) {
@@ -160,7 +170,7 @@ func TestPipelineStatsProxyHandler(t *testing.T) {
 			t.Fatalf("invalid response: %s", res.Status)
 		}
 		res.Body.Close()
-		slurp, err := ioutil.ReadAll(res.Body)
+		slurp, err := io.ReadAll(res.Body)
 		if err != nil {
 			t.Fatal(err)
 		}

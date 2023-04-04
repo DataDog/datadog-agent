@@ -9,7 +9,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 )
 
@@ -55,7 +54,7 @@ func DoGet(c *http.Client, url string, conn ShouldCloseConnection) (body []byte,
 	if e != nil {
 		return body, e
 	}
-	body, e = ioutil.ReadAll(r.Body)
+	body, e = io.ReadAll(r.Body)
 	r.Body.Close()
 	if e != nil {
 		return body, e
@@ -80,7 +79,7 @@ func DoPost(c *http.Client, url string, contentType string, body io.Reader) (res
 	if e != nil {
 		return resp, e
 	}
-	resp, e = ioutil.ReadAll(r.Body)
+	resp, e = io.ReadAll(r.Body)
 	r.Body.Close()
 	if e != nil {
 		return resp, e

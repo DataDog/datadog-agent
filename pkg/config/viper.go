@@ -55,6 +55,16 @@ func (c *safeConfig) SetKnown(key string) {
 	c.Viper.SetKnown(key)
 }
 
+// IsKnown adds a key to the set of known valid config keys
+func (c *safeConfig) IsKnown(key string) bool {
+	c.Lock()
+	defer c.Unlock()
+
+	keys := c.Viper.GetKnownKeys()
+	_, ok := keys[key]
+	return ok
+}
+
 // GetKnownKeys returns all the keys that meet at least one of these criteria:
 // 1) have a default, 2) have an environment variable binded or 3) have been SetKnown()
 func (c *safeConfig) GetKnownKeys() map[string]interface{} {
@@ -110,6 +120,12 @@ func (c *safeConfig) IsSectionSet(section string) bool {
 	// Is none of the keys are set, the section is still considered as set
 	// if it has been explicitly set in the config.
 	return c.IsSet(section)
+}
+
+func (c *safeConfig) AllKeys() []string {
+	c.RLock()
+	defer c.RUnlock()
+	return c.Viper.AllKeys()
 }
 
 // Get wraps Viper for concurrent access
@@ -473,4 +489,20 @@ func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) 
 	config.SetEnvKeyReplacer(envKeyReplacer)
 	config.SetTypeByDefaultValue(true)
 	return &config
+}
+
+// CopyConfig copies the internal config to the current config. This should only be used in tests as replacing
+// the global config reference is unsafe.
+func (c *safeConfig) CopyConfig(cfg Config) {
+	c.Lock()
+	defer c.Unlock()
+
+	if cfg, ok := cfg.(*safeConfig); ok {
+		c.Viper = cfg.Viper
+		c.envPrefix = cfg.envPrefix
+		c.envKeyReplacer = cfg.envKeyReplacer
+		c.configEnvVars = cfg.configEnvVars
+		return
+	}
+	panic("Replacement config must be an instance of safeConfig")
 }

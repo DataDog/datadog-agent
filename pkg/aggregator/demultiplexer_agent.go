@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/containerlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -25,9 +24,11 @@ import (
 type DemultiplexerWithAggregator interface {
 	Demultiplexer
 	Aggregator() *BufferedAggregator
-	// AddCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
-	AddCheckSample(sample metrics.MetricSample)
+	// AggregateCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
+	AggregateCheckSample(sample metrics.MetricSample)
 	Options() AgentDemultiplexerOptions
+	GetEventPlatformForwarder() (epforwarder.EventPlatformForwarder, error)
+	GetEventsAndServiceChecksChannels() (chan []*metrics.Event, chan []*metrics.ServiceCheck)
 }
 
 // AgentDemultiplexer is the demultiplexer implementation for the main Agent.
@@ -54,14 +55,13 @@ type AgentDemultiplexer struct {
 
 // AgentDemultiplexerOptions are the options used to initialize a Demultiplexer.
 type AgentDemultiplexerOptions struct {
-	SharedForwarderOptions         *forwarder.Options
-	UseNoopForwarder               bool
-	UseNoopEventPlatformForwarder  bool
-	UseNoopOrchestratorForwarder   bool
-	UseEventPlatformForwarder      bool
-	UseOrchestratorForwarder       bool
-	UseContainerLifecycleForwarder bool
-	FlushInterval                  time.Duration
+	SharedForwarderOptions        *forwarder.Options
+	UseNoopForwarder              bool
+	UseNoopEventPlatformForwarder bool
+	UseNoopOrchestratorForwarder  bool
+	UseEventPlatformForwarder     bool
+	UseOrchestratorForwarder      bool
+	FlushInterval                 time.Duration
 
 	EnableNoAggregationPipeline bool
 
@@ -75,15 +75,15 @@ func DefaultAgentDemultiplexerOptions(options *forwarder.Options) AgentDemultipl
 	}
 
 	return AgentDemultiplexerOptions{
-		SharedForwarderOptions:         options,
-		FlushInterval:                  DefaultFlushInterval,
-		UseEventPlatformForwarder:      true,
-		UseOrchestratorForwarder:       true,
-		UseNoopForwarder:               false,
-		UseNoopEventPlatformForwarder:  false,
-		UseNoopOrchestratorForwarder:   false,
-		UseContainerLifecycleForwarder: false,
-		EnableNoAggregationPipeline:    config.Datadog.GetBool("dogstatsd_no_aggregation_pipeline"),
+		SharedForwarderOptions:        options,
+		FlushInterval:                 DefaultFlushInterval,
+		UseEventPlatformForwarder:     true,
+		UseOrchestratorForwarder:      true,
+		UseNoopForwarder:              false,
+		UseNoopEventPlatformForwarder: false,
+		UseNoopOrchestratorForwarder:  false,
+		// the different agents/binaries enable it on a per-need basis
+		EnableNoAggregationPipeline: false,
 	}
 }
 
@@ -155,12 +155,6 @@ func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) 
 		eventPlatformForwarder = epforwarder.NewEventPlatformForwarder()
 	}
 
-	// setup the container lifecycle events forwarder
-	var containerLifecycleForwarder *forwarder.DefaultForwarder
-	if options.UseContainerLifecycleForwarder {
-		containerLifecycleForwarder = containerlifecycle.NewForwarder()
-	}
-
 	var sharedForwarder forwarder.Forwarder
 	if options.UseNoopForwarder {
 		sharedForwarder = forwarder.NoopForwarder{}
@@ -168,15 +162,20 @@ func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) 
 		sharedForwarder = forwarder.NewDefaultForwarder(options.SharedForwarderOptions)
 	}
 
+	if config.Datadog.GetBool("telemetry.enabled") && config.Datadog.GetBool("telemetry.dogstatsd_origin") && !config.Datadog.GetBool("aggregator_use_tags_store") {
+		log.Warn("DogStatsD origin telemetry is not supported when aggregator_use_tags_store is disabled.")
+		config.Datadog.Set("telemetry.dogstatsd_origin", false)
+	}
+
 	// prepare the serializer
 	// ----------------------
 
-	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, containerLifecycleForwarder)
+	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder)
 
 	// prepare the embedded aggregator
 	// --
 
-	agg := InitAggregatorWithFlushInterval(sharedSerializer, eventPlatformForwarder, hostname, options.FlushInterval)
+	agg := NewBufferedAggregator(sharedSerializer, eventPlatformForwarder, hostname, options.FlushInterval)
 
 	// statsd samplers
 	// ---------------
@@ -192,7 +191,7 @@ func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) 
 	for i := 0; i < statsdPipelinesCount; i++ {
 		// the sampler
 		tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
-		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore)
+		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, agg.hostname)
 
 		// its worker (process loop + flush/serialization mechanism)
 
@@ -203,7 +202,7 @@ func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) 
 	var noAggWorker *noAggregationStreamWorker
 	var noAggSerializer serializer.MetricSerializer
 	if options.EnableNoAggregationPipeline {
-		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, containerLifecycleForwarder)
+		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder)
 		noAggWorker = newNoAggregationStreamWorker(
 			config.Datadog.GetInt("dogstatsd_no_aggregation_pipeline_batch_size"),
 			noAggSerializer,
@@ -225,10 +224,9 @@ func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) 
 		dataOutputs: dataOutputs{
 
 			forwarders: forwarders{
-				shared:             sharedForwarder,
-				orchestrator:       orchestratorForwarder,
-				eventPlatform:      eventPlatformForwarder,
-				containerLifecycle: containerLifecycleForwarder,
+				shared:        sharedForwarder,
+				orchestrator:  orchestratorForwarder,
+				eventPlatform: eventPlatformForwarder,
 			},
 
 			sharedSerializer: sharedSerializer,
@@ -254,11 +252,11 @@ func (d *AgentDemultiplexer) Options() AgentDemultiplexerOptions {
 	return d.options
 }
 
-// AddAgentStartupTelemetry adds a startup event and count (in a time sampler)
+// AddAgentStartupTelemetry adds a startup event and count (in a DSD time sampler)
 // to be sent on the next flush.
 func (d *AgentDemultiplexer) AddAgentStartupTelemetry(agentVersion string) {
 	if agentVersion != "" {
-		d.AddTimeSample(metrics.MetricSample{
+		d.AggregateSample(metrics.MetricSample{
 			Name:       fmt.Sprintf("datadog.%s.started", d.aggregator.agentName),
 			Value:      1,
 			Tags:       d.aggregator.tags(true),
@@ -315,10 +313,6 @@ func (d *AgentDemultiplexer) Run() {
 			log.Debug("not starting the shared forwarder")
 		}
 		log.Debug("Forwarders started")
-	}
-
-	if d.options.UseContainerLifecycleForwarder {
-		d.aggregator.contLcycleDequeueOnce.Do(func() { go d.aggregator.dequeueContainerLifecycleEvents() })
 	}
 
 	for _, w := range d.statsd.workers {
@@ -528,14 +522,19 @@ func (d *AgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*metric
 	return d.aggregator.GetBufferedChannels()
 }
 
-// AddLateMetrics buffers a bunch of late metrics. This data will be directly
+// GetEventPlatformForwarder returns underlying events and service checks channels.
+func (d *AgentDemultiplexer) GetEventPlatformForwarder() (epforwarder.EventPlatformForwarder, error) {
+	return d.aggregator.GetEventPlatformForwarder()
+}
+
+// SendSamplesWithoutAggregation buffers a bunch of metrics with timestamp. This data will be directly
 // transmitted "as-is" (i.e. no aggregation, no sampling) to the serializer.
-func (d *AgentDemultiplexer) AddLateMetrics(samples metrics.MetricSampleBatch) {
+func (d *AgentDemultiplexer) SendSamplesWithoutAggregation(samples metrics.MetricSampleBatch) {
 	// safe-guard: if for some reasons we are receiving some metrics here despite
 	// having the no-aggregation pipeline disabled, they are redirected to the first
 	// time sampler.
 	if !d.options.EnableNoAggregationPipeline {
-		d.AddTimeSampleBatch(TimeSamplerID(0), samples)
+		d.AggregateSamples(TimeSamplerID(0), samples)
 		return
 	}
 
@@ -543,9 +542,9 @@ func (d *AgentDemultiplexer) AddLateMetrics(samples metrics.MetricSampleBatch) {
 	d.statsd.noAggStreamWorker.addSamples(samples)
 }
 
-// AddTimeSampleBatch adds a batch of MetricSample into the given time sampler shard.
-// If you have to submit a single metric sample see `AddTimeSample`.
-func (d *AgentDemultiplexer) AddTimeSampleBatch(shard TimeSamplerID, samples metrics.MetricSampleBatch) {
+// AggregateSamples adds a batch of MetricSample into the given DogStatsD time sampler shard.
+// If you have to submit a single metric sample see `AggregateSample`.
+func (d *AgentDemultiplexer) AggregateSamples(shard TimeSamplerID, samples metrics.MetricSampleBatch) {
 	// distribute the samples on the different statsd samplers using a channel
 	// (in the time sampler implementation) for latency reasons:
 	// its buffering + the fact that it is another goroutine processing the samples,
@@ -554,15 +553,15 @@ func (d *AgentDemultiplexer) AddTimeSampleBatch(shard TimeSamplerID, samples met
 	d.statsd.workers[shard].samplesChan <- samples
 }
 
-// AddTimeSample adds a MetricSample in the first time sampler.
-func (d *AgentDemultiplexer) AddTimeSample(sample metrics.MetricSample) {
+// AggregateSample adds a MetricSample in the first DogStatsD time sampler.
+func (d *AgentDemultiplexer) AggregateSample(sample metrics.MetricSample) {
 	batch := d.GetMetricSamplePool().GetBatch()
 	batch[0] = sample
 	d.statsd.workers[0].samplesChan <- batch[:1]
 }
 
-// AddCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
-func (d *AgentDemultiplexer) AddCheckSample(sample metrics.MetricSample) {
+// AggregateCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
+func (d *AgentDemultiplexer) AggregateCheckSample(sample metrics.MetricSample) {
 	panic("not implemented yet.")
 }
 

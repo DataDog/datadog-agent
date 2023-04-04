@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -28,7 +28,8 @@ func (l *MockContainerAccessor) ListRunning() []*workloadmeta.Container {
 func CreateTestProcessor(listerContainers []*workloadmeta.Container,
 	metricsContainers map[string]mock.ContainerEntry,
 	metricsAdapter MetricsAdapter,
-	containerFilter ContainerFilter) (*mocksender.MockSender, *Processor, ContainerAccessor) {
+	containerFilter ContainerFilter,
+) (*mocksender.MockSender, *Processor, ContainerAccessor) {
 	mockProvider := mock.NewMetricsProvider()
 	mockCollector := mock.NewCollector("testCollector")
 	for _, runtime := range provider.AllLinuxRuntimes {
@@ -66,8 +67,9 @@ func CreateContainerMeta(runtime, cID string) *workloadmeta.Container {
 		},
 		Runtime: workloadmeta.ContainerRuntime(runtime),
 		State: workloadmeta.ContainerState{
-			Running:   true,
-			StartedAt: time.Now(),
+			Running: true,
+			// Put the creation date in the past as, on Windows, the timer resolution may generate a 0 elapsed.
+			StartedAt: time.Now().Add(-2 * time.Second),
 		},
 	}
 }

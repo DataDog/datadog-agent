@@ -85,10 +85,18 @@ const (
 	VethPairEventType
 	// BindEventType Bind event
 	BindEventType
+	// UnshareMountNsEventType is sent when a new mount is created from a mount namespace copy
+	UnshareMountNsEventType
 	// SyscallsEventType Syscalls event
 	SyscallsEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
+
+	// FirstEventType is the first valid event type
+	FirstEventType = FileOpenEventType
+
+	// LastEventType is the last valid event type
+	LastEventType = SyscallsEventType
 
 	// FirstDiscarderEventType first event that accepts discarders
 	FirstDiscarderEventType = FileOpenEventType
@@ -188,6 +196,8 @@ func (t EventType) String() string {
 		return "veth_pair"
 	case BindEventType:
 		return "bind"
+	case UnshareMountNsEventType:
+		return "unshare_mntns"
 	case SyscallsEventType:
 		return "syscalls"
 
@@ -212,6 +222,7 @@ func (t EventType) String() string {
 
 // ParseEvalEventType convert a eval.EventType (string) to its uint64 representation
 // the current algorithm is not efficient but allows us to reduce the number of conversion functions
+//
 //nolint:deadcode,unused
 func ParseEvalEventType(eventType eval.EventType) EventType {
 	for i := uint64(0); i != uint64(MaxAllEventType); i++ {

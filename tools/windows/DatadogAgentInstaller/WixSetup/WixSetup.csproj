@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net472</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <RootNamespace>$(MSBuildProjectName.Replace(" ", "_").Replace("-", "_"))</RootNamespace>
+    <Platforms>x64</Platforms>
+  </PropertyGroup>
+  <PropertyGroup>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Remove="*.msi" />
+    <None Remove="*.exe" />
+    <None Remove="*.wxs" />
+    <None Remove="*.wixpdb" />
+    <None Remove="*.wixobj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="LZMA-SDK" Version="22.1.1" />
+    <PackageReference Include="NineDigit.WixSharpExtensions" Version="1.0.14" />
+    <PackageReference Include="SharpZipLib" Version="1.3.3" />
+    <PackageReference Include="WixSharp.bin" Version="1.20.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\CustomActions\CustomActions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="System.Windows.Forms" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="wix\" />
+  </ItemGroup>
+</Project>

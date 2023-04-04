@@ -8,13 +8,13 @@ package status
 import (
 	"expvar"
 	"strings"
-	"time"
 
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 // Builder is used to build the status.
@@ -42,13 +42,14 @@ func NewBuilder(isRunning *atomic.Bool, endpoints *config.Endpoints, sources *so
 // BuildStatus returns the status of the logs-agent.
 func (b *Builder) BuildStatus() Status {
 	return Status{
-		IsRunning:     b.getIsRunning(),
-		Endpoints:     b.getEndpoints(),
-		Integrations:  b.getIntegrations(),
-		StatusMetrics: b.getMetricsStatus(),
-		Warnings:      b.getWarnings(),
-		Errors:        b.getErrors(),
-		UseHTTP:       b.getUseHTTP(),
+		IsRunning:        b.getIsRunning(),
+		Endpoints:        b.getEndpoints(),
+		Integrations:     b.getIntegrations(),
+		StatusMetrics:    b.getMetricsStatus(),
+		ProcessFileStats: b.getProcessFileStats(),
+		Warnings:         b.getWarnings(),
+		Errors:           b.getErrors(),
+		UseHTTP:          b.getUseHTTP(),
 	}
 }
 
@@ -86,17 +87,12 @@ func (b *Builder) getIntegrations() []Integration {
 		var sources []Source
 		for _, source := range logSources {
 			sources = append(sources, Source{
-				BytesRead:          source.BytesRead.Load(),
-				AllTimeAvgLatency:  source.LatencyStats.AllTimeAvg() / int64(time.Millisecond),
-				AllTimePeakLatency: source.LatencyStats.AllTimePeak() / int64(time.Millisecond),
-				RecentAvgLatency:   source.LatencyStats.MovingAvg() / int64(time.Millisecond),
-				RecentPeakLatency:  source.LatencyStats.MovingPeak() / int64(time.Millisecond),
-				Type:               source.Config.Type,
-				Configuration:      b.toDictionary(source.Config),
-				Status:             b.toString(source.Status),
-				Inputs:             source.GetInputs(),
-				Messages:           source.Messages.GetMessages(),
-				Info:               source.GetInfoStatus(),
+				Type:          source.Config.Type,
+				Configuration: b.toDictionary(source.Config),
+				Status:        b.toString(source.Status),
+				Inputs:        source.GetInputs(),
+				Messages:      source.Messages.GetMessages(),
+				Info:          source.GetInfoStatus(),
 			})
 		}
 		integrations = append(integrations, Integration{
@@ -179,4 +175,16 @@ func (b *Builder) getMetricsStatus() map[string]int64 {
 	metrics["BytesSent"] = b.logsExpVars.Get("BytesSent").(*expvar.Int).Value()
 	metrics["EncodedBytesSent"] = b.logsExpVars.Get("EncodedBytesSent").(*expvar.Int).Value()
 	return metrics
+}
+
+func (b *Builder) getProcessFileStats() map[string]uint64 {
+	stats := make(map[string]uint64)
+	fs, err := util.GetProcessFileStats()
+	if err != nil {
+		return stats
+	}
+
+	stats["CoreAgentProcessOpenFiles"] = fs.AgentOpenFiles
+	stats["OSFileLimit"] = fs.OsFileLimit
+	return stats
 }

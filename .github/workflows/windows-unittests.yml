@@ -1,11 +1,19 @@
 name: "Windows unit tests"
 
 on:
-  - pull_request
+  push:
+    branches:
+      - main
+      - 7.[0-9][0-9].x
+  pull_request:
+
+concurrency: 
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
   windows-unit-tests:
-    runs-on: windows-2019 # https://github.com/actions/virtual-environments/blob/main/images/win/Windows2019-Readme.md
+    runs-on: windows-2022 # https://github.com/actions/virtual-environments/blob/main/images/win/Windows2019-Readme.md
     steps:
       - name: Set git to use LF # needed so gofmt doesn't think every file needs reformatting
         run: |
@@ -13,19 +21,19 @@ jobs:
           git config --global core.eol lf
 
       - name: Checkout datadog-agent repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0 #needed for 'git describe' to work
 
       - name: Install python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: '3.8.10'
 
       - name: Install go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
-          go-version: '1.17.11'
+          go-version-file: '.go-version'
 
       - name: Set up runner
         run: |
@@ -52,4 +60,4 @@ jobs:
           # FIXME: skipping rtloader tests because they fail with a DLL-not-found error
           # inv -e rtloader.test
           inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --profile --python-home-3=$pythonLocation
-          codecov -f profile.cov -F windows
+          inv -e codecov

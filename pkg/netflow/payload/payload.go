@@ -14,7 +14,7 @@ type Device struct {
 // Endpoint contains source or destination endpoint details
 type Endpoint struct {
 	IP   string `json:"ip"`
-	Port uint32 `json:"port"`
+	Port string `json:"port"` // Port number can be zero/positive or `*` (ephemeral port)
 	Mac  string `json:"mac"`
 	Mask string `json:"mask"`
 }

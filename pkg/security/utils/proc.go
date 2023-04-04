@@ -17,6 +17,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/DataDog/gopsutil/process"
 
@@ -36,10 +37,42 @@ func Getpid() int32 {
 
 var networkNamespacePattern = regexp.MustCompile(`net:\[(\d+)\]`)
 
+// NetNSPath represents a network namespace path
+type NetNSPath struct {
+	mu         sync.Mutex
+	pid        uint32
+	cachedPath string
+}
+
+// NetNSPathFromPid returns a new NetNSPath from the given Pid
+func NetNSPathFromPid(pid uint32) *NetNSPath {
+	return &NetNSPath{
+		pid: pid,
+	}
+}
+
+// NetNSPathFromPath returns a new NetNSPath from the given path
+func NetNSPathFromPath(path string) *NetNSPath {
+	return &NetNSPath{
+		cachedPath: path,
+	}
+}
+
+// GetPath returns the path for the given network namespace
+func (path *NetNSPath) GetPath() string {
+	path.mu.Lock()
+	defer path.mu.Unlock()
+
+	if path.cachedPath == "" {
+		path.cachedPath = filepath.Join(util.HostProc(), fmt.Sprintf("%d/ns/net", path.pid))
+	}
+	return path.cachedPath
+}
+
 // GetProcessNetworkNamespace returns the network namespace of a pid after parsing /proc/[pid]/ns/net
-func GetProcessNetworkNamespace(nsPath string) (uint32, error) {
+func (path *NetNSPath) GetProcessNetworkNamespace() (uint32, error) {
 	// open netns
-	f, err := os.Open(nsPath)
+	f, err := os.Open(path.GetPath())
 	if err != nil {
 		return 0, err
 	}
@@ -64,32 +97,32 @@ func GetProcessNetworkNamespace(nsPath string) (uint32, error) {
 
 // CgroupTaskPath returns the path to the cgroup file of a pid in /proc
 func CgroupTaskPath(tgid, pid uint32) string {
-	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/task/%d/cgroup", tgid, pid))
+	return util.HostProc(strconv.FormatUint(uint64(tgid), 10), "task", strconv.FormatUint(uint64(pid), 10), "cgroup")
 }
 
 // ProcExePath returns the path to the exe file of a pid in /proc
 func ProcExePath(pid int32) string {
-	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/exe", pid))
-}
-
-// NetNSPathFromPid returns the path to the net ns file of a pid in /proc
-func NetNSPathFromPid(pid uint32) string {
-	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/ns/net", pid))
+	return util.HostProc(strconv.FormatUint(uint64(pid), 10), "exe")
 }
 
 // StatusPath returns the path to the status file of a pid in /proc
 func StatusPath(pid int32) string {
-	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/status", pid))
+	return util.HostProc(strconv.FormatInt(int64(pid), 10), "status")
+}
+
+// ProcRootPath returns the path to the root directory of a pid in /proc
+func ProcRootPath(pid int32) string {
+	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/root", pid))
 }
 
 // ModulesPath returns the path to the modules file in /proc
 func ModulesPath() string {
-	return filepath.Join(util.HostProc(), "modules")
+	return util.HostProc("modules")
 }
 
 // RootPath returns the path to the root folder of a pid in /proc
 func RootPath(pid int32) string {
-	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/root", pid))
+	return util.HostProc(strconv.FormatInt(int64(pid), 10), "root")
 }
 
 // CapEffCapEprm returns the effective and permitted kernel capabilities of a process
@@ -101,12 +134,12 @@ func CapEffCapEprm(pid int32) (uint64, uint64, error) {
 	}
 	lines := strings.Split(string(contents), "\n")
 	for _, line := range lines {
-		tabParts := strings.SplitN(line, "\t", 2)
-		if len(tabParts) < 2 {
+		capKind, value, found := strings.Cut(line, "\t")
+		if !found {
 			continue
 		}
-		value := tabParts[1]
-		switch strings.TrimRight(tabParts[0], ":") {
+
+		switch strings.TrimRight(capKind, ":") {
 		case "CapEff":
 			capEff, err = strconv.ParseUint(value, 16, 64)
 			if err != nil {
@@ -244,7 +277,10 @@ func EnvVars(pid int32) ([]string, error) {
 
 	var envs []string
 	for scanner.Scan() {
-		envs = append(envs, scanner.Text())
+		text := scanner.Text()
+		if len(text) > 0 {
+			envs = append(envs, text)
+		}
 	}
 
 	return envs, nil
@@ -312,7 +348,7 @@ func FetchLoadedModules() (map[string]ProcFSModule, error) {
 			}
 		}
 
-		newModule.Address, err = strconv.ParseInt(strings.Trim(split[5], "0x"), 16, 64)
+		newModule.Address, err = strconv.ParseInt(strings.TrimPrefix(split[5], "0x"), 16, 64)
 		if err != nil {
 			// set to 0 by default
 			newModule.Address = 0

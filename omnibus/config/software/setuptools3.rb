@@ -1,14 +1,17 @@
 name "setuptools3"
-default_version "40.9.0"
+
+# The version of setuptools used must be at least equal to the one bundled with the Python version we use
+# Python 3.8.16 bundles setuptools 56.0.0
+default_version "66.1.1"
 
 skip_transitive_dependency_licensing true
 
-dependency "python3"
+dependency "pip3"
 
 relative_path "setuptools-#{version}"
 
 source :url => "https://github.com/pypa/setuptools/archive/v#{version}.tar.gz",
-       :sha256 => "9ef6623c057d6e46ada8156bb48dc72ef6dbe721768720cc66966cca4097061c",
+       :sha256 => "081209b1c080b30ca78013dde35600a3070508fcce745a939498f4d76e05b6a6",
        :extract => :seven_zip
 
 build do
@@ -16,15 +19,12 @@ build do
   license "Python-2.0"
 
   if ohai["platform"] == "windows"
-    python_bin = "#{windows_safe_path(python_3_embedded)}\\python.exe"
-    python_prefix = "#{windows_safe_path(python_3_embedded)}"
+    python = "#{windows_safe_path(python_3_embedded)}\\python.exe"
   else
-    python_bin = "#{install_dir}/embedded/bin/python3"
-    python_prefix = "#{install_dir}/embedded"
+    python = "#{install_dir}/embedded/bin/python3"
   end
 
-  command "#{python_bin} bootstrap.py"
-  command "#{python_bin} setup.py install --prefix=#{python_prefix}"
+  command "#{python} -m pip install ."
 
   if ohai["platform"] != "windows"
     block do

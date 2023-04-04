@@ -66,8 +66,7 @@ func TestHostname(t *testing.T) {
 	t.Run("from-config", testHostname([]byte(`hostname: asdq`), "asdq"))
 
 	t.Run("env", func(t *testing.T) {
-		os.Setenv("DD_HOSTNAME", "my-env-host")
-		defer os.Unsetenv("DD_HOSTNAME")
+		t.Setenv("DD_HOSTNAME", "my-env-host")
 		testHostname([]byte(`hostname: my-host`), "my-env-host")(t)
 	})
 
