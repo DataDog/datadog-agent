@@ -123,6 +123,7 @@ func TestSendApiKeyToShellError(t *testing.T) {
 
 func TestDDApiKey(t *testing.T) {
 	t.Setenv("DD_API_KEY", "abc")
+	assert.True(t, hasApiKey())
 }
 
 func TestHasDDApiKeySecretArn(t *testing.T) {
