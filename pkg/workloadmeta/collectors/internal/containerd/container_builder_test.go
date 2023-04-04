@@ -64,7 +64,7 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 	assert.NoError(t, err)
 
 	container := mockedContainer{
-		fake.mockedContainer
+		fake.mockedContainer,
 		mockID: func() string {
 			return containerID
 		},
