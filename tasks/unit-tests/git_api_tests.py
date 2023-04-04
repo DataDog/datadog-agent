@@ -11,20 +11,22 @@ from ..libs.common.gitlab import Gitlab, get_gitlab_token
 from ..libs.common.remote_api import APIError
 from ..libs.version import Version
 
-class MockResponse:
-        def __init__(self, content, status_code):
-            self.content = content
-            self.json_data = content
-            self.status_code = status_code
 
-        def json(self):
-            return self.content
+class MockResponse:
+    def __init__(self, content, status_code):
+        self.content = content
+        self.json_data = content
+        self.status_code = status_code
+
+    def json(self):
+        return self.content
 
 
 #################### FAIL REQUEST  #####################
 
+
 def fail_not_found_request(*_args, **_kwargs):
-    return MockResponse([],404)
+    return MockResponse([], 404)
 
 
 ##################### MOCKED GITLAB #####################
@@ -150,7 +152,6 @@ class TestStatusCode5XX(unittest.TestCase):
         if not failed:
             Exit("GithubAPI was expected to fail !")
 
-
     @mock.patch('requests.get', side_effect=SideEffect(mocked_502_gitlab_requests, mocked_gitlab_project_request))
     def test_gitlab_one_fail_one_success(self, _):
         project_name = "DataDog/datadog-agent"
@@ -186,7 +187,7 @@ class TestStatusCode5XX(unittest.TestCase):
             failed = True
         if not failed:
             Exit("GitlabAPI was expected to fail")
-    
+
     @mock.patch('requests.get', side_effect=SideEffect(fail_not_found_request, mocked_gitlab_project_request))
     def test_gitlab_real_fail(self, _):
         failed = False
@@ -281,7 +282,7 @@ class TestStatusCode5XX(unittest.TestCase):
             failed = True
         if not failed:
             Exit("Github Workflow API was expected to fail !")
-    
+
     @mock.patch('requests.get', side_effect=SideEffect(fail_not_found_request, mocked_github_workflow_requests))
     def test_githubapi_real_fail(self, _):
         failed = False
