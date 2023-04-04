@@ -420,6 +420,15 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	if k := "apm_config.debugger_additional_endpoints"; coreconfig.Datadog.IsSet(k) {
 		c.DebuggerProxy.AdditionalEndpoints = coreconfig.Datadog.GetStringMapStringSlice(k)
 	}
+	if k := "apm_config.symdb_dd_url"; coreconfig.Datadog.IsSet(k) {
+		c.SymDBProxy.DDURL = coreconfig.Datadog.GetString(k)
+	}
+	if k := "apm_config.symdb_api_key"; coreconfig.Datadog.IsSet(k) {
+		c.SymDBProxy.APIKey = coreconfig.Datadog.GetString(k)
+	}
+	if k := "apm_config.symdb_additional_endpoints"; coreconfig.Datadog.IsSet(k) {
+		c.SymDBProxy.AdditionalEndpoints = coreconfig.Datadog.GetStringMapStringSlice(k)
+	}
 	if k := "evp_proxy_config.enabled"; coreconfig.Datadog.IsSet(k) {
 		c.EVPProxy.Enabled = coreconfig.Datadog.GetBool(k)
 	}
