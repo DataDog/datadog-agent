@@ -31,7 +31,7 @@
 
 .retrieve_test_dockers:
   - mkdir -p $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/dockers
-  - mv $KITCHEN_DOCKERS $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/dockers
+  - mv $KITCHEN_DOCKERS/* $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/dockers
 
 .retrieve_minimized_btfs:
   - $S3_CP_CMD $S3_ARTIFACTS_URI/minimized-btfs-${ARCH}.tar.xz /tmp/minimized-btfs.tar.xz
@@ -77,6 +77,7 @@ kitchen_test_system_probe_linux_x64_ec2:
     KITCHEN_EC2_INSTANCE_TYPE: "t2.xlarge"
     KITCHEN_CI_MOUNT_PATH: "/mnt/ci"
     KITCHEN_CI_ROOT_PATH: "/tmp/ci"
+    KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers-$ARCH
   before_script:
     - !reference [.retrieve_test_dockers]
     - !reference [.retrieve_minimized_btfs]
