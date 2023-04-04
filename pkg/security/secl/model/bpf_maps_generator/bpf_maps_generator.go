@@ -10,12 +10,12 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"strings"
 )
 
 func main() {
 	prebuiltPath := "pkg/ebpf/bytecode/build/runtime/runtime-security.c"
-	matcher := regexp.MustCompile(`BPF_(.*?)_MAP\((.*?),.*?\)`)
+	mapMatcher := regexp.MustCompile(`BPF_(.*?)_MAP\((.*?),.*?\)`)
+	defineMatcher := regexp.MustCompile(`\s*#define BPF`)
 
 	f, err := os.Open(prebuiltPath)
 	if err != nil {
@@ -27,11 +27,11 @@ func main() {
 
 	for scanner.Scan() {
 		line := scanner.Text()
-		if strings.HasPrefix(line, "#define BPF") {
+		if defineMatcher.MatchString(line) {
 			continue
 		}
 
-		submatches := matcher.FindAllStringSubmatch(line, -1)
+		submatches := mapMatcher.FindAllStringSubmatch(line, -1)
 		for _, submatch := range submatches {
 			kind := submatch[1]
 			name := submatch[2]
