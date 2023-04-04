@@ -110,8 +110,6 @@ func TestSendAPIKeyToShellSuccess(t *testing.T) {
 	port := testutil.FreeTCPPort(t)
 	hostAndPort := fmt.Sprintf("%s%d", "localhost:", port)
 	listen, err := net.Listen("tcp", hostAndPort)
-	txtport := fmt.Sprint(port)
-	fmt.Println(txtport)
 	t.Setenv("DD_SERVERLESS_SHELL_PORT", fmt.Sprint(port))
 	if err != nil {
 		assert.Fail(t, "could not open tcp server")
