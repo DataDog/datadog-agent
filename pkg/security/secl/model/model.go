@@ -150,6 +150,14 @@ type ContainerContext struct {
 	Tags      []string `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
 }
 
+// SecurityProfileContext holds the security context of the profile
+type SecurityProfileContext struct {
+	Name    string   `field:"name"`    // SECLDoc[name] Definition:`Name of the security profile`
+	Status  string   `field:"status"`  // SECLDoc[status] Definition:`Status of the security profile`
+	Version string   `field:"version"` // SECLDoc[version] Definition:`Version of the security profile`
+	Tags    []string `field:"tags"`    // SECLDoc[tags] Definition:`Tags of the security profile`
+}
+
 // Event represents an event sent from the kernel
 // genaccessors
 type Event struct {
@@ -162,12 +170,13 @@ type Event struct {
 	Rules        []*MatchedRule `field:"-"`
 
 	// context shared with all events
-	ProcessCacheEntry *ProcessCacheEntry `field:"-" json:"-"`
-	PIDContext        PIDContext         `field:"-" json:"-"`
-	SpanContext       SpanContext        `field:"-" json:"-"`
-	ProcessContext    *ProcessContext    `field:"process" event:"*"`
-	ContainerContext  ContainerContext   `field:"container"`
-	NetworkContext    NetworkContext     `field:"network"`
+	ProcessCacheEntry      *ProcessCacheEntry     `field:"-" json:"-"`
+	PIDContext             PIDContext             `field:"-" json:"-"`
+	SpanContext            SpanContext            `field:"-" json:"-"`
+	ProcessContext         *ProcessContext        `field:"process" event:"*"`
+	ContainerContext       ContainerContext       `field:"container"`
+	NetworkContext         NetworkContext         `field:"network"`
+	SecurityProfileContext SecurityProfileContext `field:"-"`
 
 	// fim events
 	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file’s permissions were changed
@@ -192,6 +201,9 @@ type Event struct {
 	Signal   SignalEvent   `field:"signal" event:"signal"` // [7.35] [Process] A signal was sent
 	Exit     ExitEvent     `field:"exit" event:"exit"`     // [7.38] [Process] A process was terminated
 	Syscalls SyscallsEvent `field:"-"`
+
+	// anomaly detection related events
+	AnomalyDetectionSyscallEvent AnomalyDetectionSyscallEvent `field:"-"`
 
 	// kernel events
 	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
@@ -1042,6 +1054,11 @@ type SyscallsEvent struct {
 }
 
 const PathKeySize = 16
+
+// AnomalyDetectionSyscallEvent represents an anomaly detection for a syscall event
+type AnomalyDetectionSyscallEvent struct {
+	SyscallID Syscall
+}
 
 // PathKey identifies an entry in the dentry cache
 type PathKey struct {
