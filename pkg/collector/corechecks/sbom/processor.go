@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -24,6 +25,7 @@ import (
 )
 
 var /* const */ (
+	envVarEnv   = ddConfig.Datadog.GetString("env")
 	sourceAgent = "agent"
 )
 
@@ -41,6 +43,7 @@ func newProcessor(workloadmetaStore workloadmeta.Store, sender aggregator.Sender
 				Version:  1,
 				Source:   &sourceAgent,
 				Entities: entities,
+				DdEnv:    &envVarEnv,
 			})
 			if err != nil {
 				log.Errorf("Unable to encode message: %+v", err)
