@@ -275,6 +275,8 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 	}
 
 	options.MapEditors[probes.SockByPidFDMap] = o.sockFDMap
+
+	options.ConstantEditors = append(options.ConstantEditors, manager.ConstantEditor{Name: "ssl_async_handshake_window", Value: uint64(o.cfg.SSLAsyncHandshakeWindow)})
 }
 
 func (o *sslProgram) Start() {
