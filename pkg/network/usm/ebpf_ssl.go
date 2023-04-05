@@ -281,6 +281,11 @@ func (o *sslProgram) Start() {
 	// Setup shared library watcher and configure the appropriate callbacks
 	o.watcher = newSOWatcher(o.perfHandler,
 		soRule{
+			re:           regexp.MustCompile(`libnetty_tcnative_linux_.*.so`),
+			registerCB:   addHooks(o.manager, openSSLProbes),
+			unregisterCB: removeHooks(o.manager, openSSLProbes),
+		},
+		soRule{
 			re:           regexp.MustCompile(`libssl.so`),
 			registerCB:   addHooks(o.manager, openSSLProbes),
 			unregisterCB: removeHooks(o.manager, openSSLProbes),
