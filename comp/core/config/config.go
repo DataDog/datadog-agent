@@ -77,7 +77,11 @@ func newMock(deps mockDependencies, t testing.TB) Component {
 
 	if deps.Params.ConfigYaml != "" {
 		config.Datadog.SetConfigType("yaml")
-		config.Datadog.ReadConfig(strings.NewReader(deps.Params.ConfigYaml))
+		err := config.Datadog.ReadConfig(strings.NewReader(deps.Params.ConfigYaml))
+		if err != nil {
+			// The YAML was invalid, fail initialization of the mock config.
+			return nil
+		}
 	}
 
 	// Overrides are explicit and will take precedence over any other
