@@ -33,7 +33,7 @@ const (
 	// ResolveParentOp resolves the parent of the provide path key
 	ResolveParentOp
 	// RegisterSpanTLSOP is used for span TLS registration
-	RegisterSpanTLSOP //nolint:deadcode,unused
+	RegisterSpanTLSOP
 	// ExpireInodeDiscarderOp is used to expire an inode discarder
 	ExpireInodeDiscarderOp
 	// ExpirePidDiscarderOp is used to expire a pid discarder

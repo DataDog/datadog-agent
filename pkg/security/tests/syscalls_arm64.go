@@ -8,5 +8,4 @@
 
 package tests
 
-//nolint:unused
 var supportedSyscalls = map[string]uintptr{}
