@@ -19,10 +19,10 @@ static __always_inline u32 get_netns(void *p_net) {
 #ifdef CONFIG_NET_NS
     struct net *ns = NULL;
     bpf_probe_read_kernel_with_telemetry(&ns, sizeof(ns), p_net);
-#if defined(_LINUX_NS_COMMON_H)
-    BPF_CORE_READ_INTO(&net_ns_inum, ns, ns.inum);
+#ifdef _LINUX_NS_COMMON_H
+    bpf_probe_read_kernel_with_telemetry(&net_ns_inum, sizeof(net_ns_inum), &ns->ns.inum);
 #else
-    BPF_CORE_READ_INTO(&net_ns_inum, ns, proc_inum);
+    bpf_probe_read_kernel_with_telemetry(&net_ns_inum, sizeof(net_ns_inum), &ns->proc_inum);
 #endif
 #endif
     return net_ns_inum;

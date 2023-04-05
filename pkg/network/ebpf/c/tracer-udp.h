@@ -289,7 +289,7 @@ int kretprobe__udp_destroy_sock(struct pt_regs *ctx) {
 #if !defined(COMPILE_RUNTIME) || defined(FEATURE_IPV6_ENABLED)
 
 static __always_inline void fl6_saddr(struct flowi6 *fl6, u64 *addr_h, u64 *addr_l) {
-    if (!addr_h || !addr_l) {
+    if (!fl6 || !addr_h || !addr_l) {
         return;
     }
 
@@ -303,7 +303,7 @@ static __always_inline void fl6_saddr(struct flowi6 *fl6, u64 *addr_h, u64 *addr
 }
 
 static __always_inline void fl6_daddr(struct flowi6 *fl6, u64 *addr_h, u64 *addr_l) {
-    if (!addr_h || !addr_l) {
+    if (!fl6 || !addr_h || !addr_l) {
         return;
     }
 
@@ -352,13 +352,13 @@ static __always_inline int handle_ip6_skb(struct sock *sk, size_t size, struct f
         }
 #endif
         fl6_saddr(fl6, &t.saddr_h, &t.saddr_l);
-        fl6_daddr(fl6, &t.daddr_h, &t.daddr_l);
-
         if (!(t.saddr_h || t.saddr_l)) {
             log_debug("ERR(fl6): src addr not set src_l:%d,src_h:%d\n", t.saddr_l, t.saddr_h);
             increment_telemetry_count(udp_send_missed);
             return 0;
         }
+
+        fl6_daddr(fl6, &t.daddr_h, &t.daddr_l);
         if (!(t.daddr_h || t.daddr_l)) {
             log_debug("ERR(fl6): dst addr not set dst_l:%d,dst_h:%d\n", t.daddr_l, t.daddr_h);
             increment_telemetry_count(udp_send_missed);
