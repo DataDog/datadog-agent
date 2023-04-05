@@ -182,7 +182,7 @@ void CustomActionData::setClosedSourceConfig()
         }
     }
     // check the ADDLOCAL flag
-    if(false == setEnabledFlag)
+    if(!setEnabledFlag)
     {
         if(this->_propertyView->value(L"ADDLOCAL", addlocal)) 
         {
@@ -211,7 +211,7 @@ void CustomActionData::setClosedSourceConfig()
             }
         }
     }
-    if(false == setEnabledFlag)
+    if (!setEnabledFlag)
     {
         std::wstring npmProperty;
         if (this->_propertyView->value(L"NPM", npmProperty))
@@ -228,7 +228,8 @@ void CustomActionData::setClosedSourceConfig()
             }
         }
     }
-    if(false == setEnabledFlag)
+
+    if (!setEnabledFlag)
     {
         
         if (this->_propertyView->value(L"CLOSEDSOURCE", csProperty))
@@ -241,7 +242,8 @@ void CustomActionData::setClosedSourceConfig()
             newEnabledFlag = _wcsicmp(csProperty.c_str(), L"0") != 0;
         }
     }
-    if( false == setEnabledFlag)
+
+    if (!setEnabledFlag)
     {
         WcaLog(LOGMSG_STANDARD, "Unable to determine closed source status; setting to disabled");
         newEnabledFlag = false;
