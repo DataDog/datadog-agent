@@ -14,8 +14,8 @@ const (
 	defaultRunPath              = "/opt/datadog-agent/run"
 	defaultSyslogURI            = "unixgram:///dev/log"
 	defaultGuiPort              = -1
-	// defaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
-	defaultSecurityAgentLogFile = "/var/log/datadog/security-agent.log"
+	// DefaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
+	DefaultSecurityAgentLogFile = "/var/log/datadog/security-agent.log"
 	// DefaultProcessAgentLogFile is the default process-agent log file
 	DefaultProcessAgentLogFile = "/var/log/datadog/process-agent.log"
 

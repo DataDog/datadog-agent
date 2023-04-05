@@ -23,6 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
+//go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=epforwarder_mockgen.go
+
 const (
 	eventTypeDBMSamples  = "dbm-samples"
 	eventTypeDBMMetrics  = "dbm-metrics"
@@ -36,11 +38,16 @@ const (
 
 	// EventTypeNetworkDevicesNetFlow is the event type for network devices NetFlow data
 	EventTypeNetworkDevicesNetFlow = "network-devices-netflow"
+
+	EventTypeContainerLifecycle = "container-lifecycle"
+	EventTypeContainerImages    = "container-images"
+	EventTypeContainerSBOM      = "container-sbom"
 )
 
 var passthroughPipelineDescs = []passthroughPipelineDesc{
 	{
 		eventType:              eventTypeDBMSamples,
+		contentType:            http.JSONContentType,
 		endpointsConfigPrefix:  "database_monitoring.samples.",
 		hostnameEndpointPrefix: "dbm-metrics-intake.",
 		intakeTrackType:        "databasequery",
@@ -52,6 +59,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 	},
 	{
 		eventType:              eventTypeDBMMetrics,
+		contentType:            http.JSONContentType,
 		endpointsConfigPrefix:  "database_monitoring.metrics.",
 		hostnameEndpointPrefix: "dbm-metrics-intake.",
 		intakeTrackType:        "dbmmetrics",
@@ -63,6 +71,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 	},
 	{
 		eventType:              eventTypeDBMActivity,
+		contentType:            http.JSONContentType,
 		endpointsConfigPrefix:  "database_monitoring.activity.",
 		hostnameEndpointPrefix: "dbm-metrics-intake.",
 		intakeTrackType:        "dbmactivity",
@@ -74,6 +83,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 	},
 	{
 		eventType:                     EventTypeNetworkDevicesMetadata,
+		contentType:                   http.JSONContentType,
 		endpointsConfigPrefix:         "network_devices.metadata.",
 		hostnameEndpointPrefix:        "ndm-intake.",
 		intakeTrackType:               "ndm",
@@ -84,6 +94,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 	},
 	{
 		eventType:                     EventTypeSnmpTraps,
+		contentType:                   http.JSONContentType,
 		endpointsConfigPrefix:         "network_devices.snmp_traps.forwarder.",
 		hostnameEndpointPrefix:        "snmp-traps-intake.",
 		intakeTrackType:               "ndmtraps",
@@ -94,6 +105,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 	},
 	{
 		eventType:                     EventTypeNetworkDevicesNetFlow,
+		contentType:                   http.JSONContentType,
 		endpointsConfigPrefix:         "network_devices.netflow.forwarder.",
 		hostnameEndpointPrefix:        "ndmflow-intake.",
 		intakeTrackType:               "ndmflow",
@@ -113,11 +125,45 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		//   by aggregator.
 		defaultInputChanSize: 10000,
 	},
+	{
+		eventType:                     EventTypeContainerLifecycle,
+		contentType:                   http.ProtobufContentType,
+		endpointsConfigPrefix:         "container_lifecycle.",
+		hostnameEndpointPrefix:        "contlcycle-intake.",
+		intakeTrackType:               "contlcycle",
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
+		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
+	},
+	{
+		eventType:                     EventTypeContainerImages,
+		contentType:                   http.ProtobufContentType,
+		endpointsConfigPrefix:         "container_image.",
+		hostnameEndpointPrefix:        "contimage-intake.",
+		intakeTrackType:               "contimage",
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
+		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
+	},
+	{
+		eventType:                     EventTypeContainerSBOM,
+		contentType:                   http.ProtobufContentType,
+		endpointsConfigPrefix:         "sbom.",
+		hostnameEndpointPrefix:        "sbom-intake.",
+		intakeTrackType:               "sbom",
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
+		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
+	},
 }
 
 // An EventPlatformForwarder forwards Messages to a destination based on their event type
 type EventPlatformForwarder interface {
 	SendEventPlatformEvent(e *message.Message, eventType string) error
+	SendEventPlatformEventBlocking(e *message.Message, eventType string) error
 	Purge() map[string][]*message.Message
 	Start()
 	Stop()
@@ -129,6 +175,8 @@ type defaultEventPlatformForwarder struct {
 	destinationsCtx *client.DestinationsContext
 }
 
+// SendEventPlatformEvent sends messages to the event platform intake.
+// SendEventPlatformEvent will drop messages and return an error if the input channel is already full.
 func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Message, eventType string) error {
 	p, ok := s.pipelines[eventType]
 	if !ok {
@@ -140,6 +188,17 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 	default:
 		return fmt.Errorf("event platform forwarder pipeline channel is full for eventType=%s. Channel capacity is %d. consider increasing batch_max_concurrent_send", eventType, cap(p.in))
 	}
+}
+
+// SendEventPlatformEventBlocking sends messages to the event platform intake.
+// SendEventPlatformEventBlocking will block if the input channel is already full.
+func (s *defaultEventPlatformForwarder) SendEventPlatformEventBlocking(e *message.Message, eventType string) error {
+	p, ok := s.pipelines[eventType]
+	if !ok {
+		return fmt.Errorf("unknown eventType=%s", eventType)
+	}
+	p.in <- e
+	return nil
 }
 
 func purgeChan(in chan *message.Message) (result []*message.Message) {
@@ -198,7 +257,8 @@ type passthroughPipeline struct {
 }
 
 type passthroughPipelineDesc struct {
-	eventType string
+	eventType   string
+	contentType string
 	// intakeTrackType is the track type to use for the v2 intake api. When blank, v1 is used instead.
 	intakeTrackType               config.IntakeTrackType
 	endpointsConfigPrefix         string
@@ -236,12 +296,12 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	reliable := []client.Destination{}
 	for i, endpoint := range endpoints.GetReliableEndpoints() {
 		telemetryName := fmt.Sprintf("%s_%d_reliable_%d", desc.eventType, pipelineID, i)
-		reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, true, telemetryName))
+		reliable = append(reliable, http.NewDestination(endpoint, desc.contentType, destinationsContext, endpoints.BatchMaxConcurrentSend, true, telemetryName))
 	}
 	additionals := []client.Destination{}
 	for i, endpoint := range endpoints.GetUnReliableEndpoints() {
 		telemetryName := fmt.Sprintf("%s_%d_unreliable_%d", desc.eventType, pipelineID, i)
-		additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, telemetryName))
+		additionals = append(additionals, http.NewDestination(endpoint, desc.contentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, telemetryName))
 	}
 	destinations := client.NewDestinations(reliable, additionals)
 	inputChan := make(chan *message.Message, endpoints.InputChanSize)
@@ -254,6 +314,7 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 
 	strategy := sender.NewBatchStrategy(inputChan,
 		senderInput,
+		make(chan struct{}),
 		sender.ArraySerializer,
 		endpoints.BatchWait,
 		endpoints.BatchMaxSize,

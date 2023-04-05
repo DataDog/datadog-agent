@@ -50,7 +50,7 @@ var containerEventActions = []string{
 var imageEventActions = []string{
 	ImageEventActionPull,
 	ImageEventActionDelete,
-	ImageEventActionDelete,
+	ImageEventActionTag,
 	ImageEventActionUntag,
 }
 
@@ -84,7 +84,6 @@ type eventSubscriber struct {
 	name                string
 	containerEventsChan chan *ContainerEvent
 	imageEventsChan     chan *ImageEvent
-	errorChan           chan error
 	cancelChan          chan struct{}
 	filter              *containers.Filter
 }

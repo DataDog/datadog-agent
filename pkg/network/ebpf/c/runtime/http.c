@@ -17,6 +17,7 @@
 #include "protocols/classification/dispatcher-helpers.h"
 #include "protocols/http/http.h"
 #include "protocols/http/buffer.h"
+#include "protocols/http2/decoding.h"
 #include "protocols/tls/https.h"
 #include "protocols/tls/go-tls-types.h"
 #include "protocols/tls/go-tls-goid.h"
@@ -24,6 +25,7 @@
 #include "protocols/tls/go-tls-conn.h"
 #include "protocols/tls/tags-types.h"
 #include "protocols/tls/java-tls-erpc.h"
+#include "protocols/kafka/kafka-parsing.h"
 
 #define SO_SUFFIX_SIZE 3
 
@@ -34,23 +36,11 @@ int socket__protocol_dispatcher(struct __sk_buff *skb) {
     return 0;
 }
 
-SEC("socket/http_filter")
-int socket__http_filter(struct __sk_buff *skb) {
-    skb_info_t skb_info;
-    http_transaction_t http;
-    bpf_memset(&http, 0, sizeof(http));
-
-    if (!read_conn_tuple_skb(skb, &skb_info, &http.tup)) {
-        return 0;
-    }
-
-    if (!http_allow_packet(&http, skb, &skb_info)) {
-        return 0;
-    }
-    normalize_tuple(&http.tup);
-
-    read_into_buffer_skb((char *)http.request_fragment, skb, &skb_info);
-    http_process(&http, &skb_info, NO_TAGS);
+// This entry point is needed to bypass a memory limit on socket filters
+// See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Known-issues
+SEC("socket/protocol_dispatcher_kafka")
+int socket__protocol_dispatcher_kafka(struct __sk_buff *skb) {
+    dispatch_kafka(skb);
     return 0;
 }
 
@@ -69,6 +59,8 @@ int tracepoint__net__netif_receive_skb(struct pt_regs* ctx) {
     // flush batch to userspace
     // because perf events can't be sent from socket filter programs
     http_batch_flush(ctx);
+    http2_batch_flush(ctx);
+    kafka_batch_flush(ctx);
     return 0;
 }
 
@@ -687,37 +679,41 @@ int uprobe__crypto_tls_Conn_Write__return(struct pt_regs *ctx) {
     go_tls_function_args_key_t call_key = {0};
     call_key.pid = pid;
 
+    if (read_goroutine_id(ctx, &od->goroutine_id, &call_key.goroutine_id)) {
+        log_debug("[go-tls-write-return] failed reading go routine id for pid %d\n", pid);
+        return 0;
+    }
+
     uint64_t bytes_written = 0;
     if (read_location(ctx, &od->write_return_bytes, sizeof(bytes_written), &bytes_written)) {
+        bpf_map_delete_elem(&go_tls_write_args, &call_key);
         log_debug("[go-tls-write-return] failed reading write return bytes location for pid %d\n", pid);
         return 0;
     }
 
     if (bytes_written <= 0) {
+        bpf_map_delete_elem(&go_tls_write_args, &call_key);
         log_debug("[go-tls-write-return] write returned non-positive for amount of bytes written for pid: %d\n", pid);
         return 0;
     }
 
     uint64_t err_ptr = 0;
     if (read_location(ctx, &od->write_return_error, sizeof(err_ptr), &err_ptr)) {
+        bpf_map_delete_elem(&go_tls_write_args, &call_key);
         log_debug("[go-tls-write-return] failed reading write return error location for pid %d\n", pid);
         return 0;
     }
 
     // check if err != nil
     if (err_ptr != 0) {
+        bpf_map_delete_elem(&go_tls_write_args, &call_key);
         log_debug("[go-tls-write-return] error in write for pid %d: data will be ignored\n", pid);
         return 0;
     }
 
-    if (read_goroutine_id(ctx, &od->goroutine_id, &call_key.goroutine_id)) {
-        log_debug("[go-tls-write-return] failed reading go routine id for pid %d\n", pid);
-        return 0;
-    }
-
-
     go_tls_write_args_data_t *call_data_ptr = bpf_map_lookup_elem(&go_tls_write_args, &call_key);
     if (call_data_ptr == NULL) {
+        bpf_map_delete_elem(&go_tls_write_args, &call_key);
         log_debug("[go-tls-write-return] no write information in write-return for pid %d\n", pid);
         return 0;
     }
@@ -785,23 +781,6 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
     // Read the PID and goroutine ID to make the partial call key
     go_tls_function_args_key_t call_key = {0};
     call_key.pid = pid;
-
-    uint64_t bytes_read = 0;
-    if (read_location(ctx, &od->read_return_bytes, sizeof(bytes_read), &bytes_read)) {
-        log_debug("[go-tls-read-return] failed reading return bytes location for pid %d\n", pid);
-        return 0;
-    }
-
-    if (bytes_read <= 0) {
-        log_debug("[go-tls-read-return] read returned non-positive for amount of bytes read for pid: %d\n", pid);
-        return 0;
-    }
-
-    // Errors like "EOF" of "unexpected EOF" can be treated as no error by the hooked program.
-    // Therefore, if we choose to ignore data if read had returned these errors we may have accuracy issues.
-    // For now for success validation we chose to check only the amount of bytes read
-    // and make sure it's greater than zero.
-
     if (read_goroutine_id(ctx, &od->goroutine_id, &call_key.goroutine_id)) {
         log_debug("[go-tls-read-return] failed reading go routine id for pid %d\n", pid);
         return 0;
@@ -810,6 +789,23 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
     go_tls_read_args_data_t* call_data_ptr = bpf_map_lookup_elem(&go_tls_read_args, &call_key);
     if (call_data_ptr == NULL) {
         log_debug("[go-tls-read-return] no read information in read-return for pid %d\n", pid);
+        return 0;
+    }
+
+    uint64_t bytes_read = 0;
+    if (read_location(ctx, &od->read_return_bytes, sizeof(bytes_read), &bytes_read)) {
+        log_debug("[go-tls-read-return] failed reading return bytes location for pid %d\n", pid);
+        bpf_map_delete_elem(&go_tls_read_args, &call_key);
+        return 0;
+    }
+
+    // Errors like "EOF" of "unexpected EOF" can be treated as no error by the hooked program.
+    // Therefore, if we choose to ignore data if read had returned these errors we may have accuracy issues.
+    // For now for success validation we chose to check only the amount of bytes read
+    // and make sure it's greater than zero.
+    if (bytes_read <= 0) {
+        log_debug("[go-tls-read-return] read returned non-positive for amount of bytes read for pid: %d\n", pid);
+        bpf_map_delete_elem(&go_tls_read_args, &call_key);
         return 0;
     }
 
@@ -835,6 +831,14 @@ int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
     if (od == NULL) {
         log_debug("[go-tls-close] no offsets data in map for pid %d\n", pid_tgid >> 32);
         return 0;
+    }
+
+    // Read the PID and goroutine ID to make the partial call key
+    go_tls_function_args_key_t call_key = {0};
+    call_key.pid = pid_tgid >> 32;
+    if (read_goroutine_id(ctx, &od->goroutine_id, &call_key.goroutine_id) == 0) {
+        bpf_map_delete_elem(&go_tls_read_args, &call_key);
+        bpf_map_delete_elem(&go_tls_write_args, &call_key);
     }
 
     void* conn_pointer = NULL;

@@ -6,21 +6,18 @@
 package gotls
 
 import (
-	"regexp"
-	"testing"
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
+	"regexp"
+	"testing"
 )
 
-func RunGoHTTPSServer(t *testing.T, serverPort string) {
+func RunServer(t *testing.T, serverPort string) bool {
 	env := []string{
 		"HTTPS_PORT=" + serverPort,
 	}
 
 	t.Helper()
 	dir, _ := testutil.CurDir()
-	protocolsUtils.RunDockerServer(t, "https-gotls", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile("go-httpbin listening on https://0.0.0.0:8080"), protocolsUtils.DefaultTimeout)
-	time.Sleep(time.Second * 3)
+	return protocolsUtils.RunDockerServer(t, "https-gotls", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile("go-httpbin listening on https://0.0.0.0:8080"), protocolsUtils.DefaultTimeout)
 }

@@ -6,7 +6,6 @@
 package sbom
 
 import (
-	"errors"
 	"time"
 
 	yaml "gopkg.in/yaml.v2"
@@ -14,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -103,10 +101,6 @@ func CheckFactory() check.Check {
 
 // Configure parses the check configuration and initializes the sbom check
 func (c *Check) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
-	if !ddConfig.Datadog.GetBool("sbom.enabled") {
-		return errors.New("collection of SBOM is disabled")
-	}
-
 	if err := c.CommonConfigure(integrationConfigDigest, initConfig, config, source); err != nil {
 		return err
 	}
@@ -120,7 +114,7 @@ func (c *Check) Configure(integrationConfigDigest uint64, config, initConfig int
 		return err
 	}
 
-	c.processor = newProcessor(sender, c.instance.ChunkSize, time.Duration(c.instance.NewSBOMMaxLatencySeconds)*time.Second)
+	c.processor = newProcessor(c.workloadmetaStore, sender, c.instance.ChunkSize, time.Duration(c.instance.NewSBOMMaxLatencySeconds)*time.Second)
 
 	return nil
 }
@@ -134,9 +128,12 @@ func (c *Check) Run() error {
 		checkName,
 		workloadmeta.NormalPriority,
 		workloadmeta.NewFilter(
-			[]workloadmeta.Kind{workloadmeta.KindContainerImageMetadata},
+			[]workloadmeta.Kind{
+				workloadmeta.KindContainerImageMetadata,
+				workloadmeta.KindContainer,
+			},
 			workloadmeta.SourceAll,
-			workloadmeta.EventTypeSet, // We don’t care about SBOM removal because we just have to wait for them to expire on BE side once we stopped refreshing them periodically.
+			workloadmeta.EventTypeAll,
 		),
 	)
 

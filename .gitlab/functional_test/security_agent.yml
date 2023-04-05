@@ -83,6 +83,8 @@ kitchen_test_security_agent_arm64:
   variables:
     KITCHEN_ARCH: arm64
     KITCHEN_EC2_INSTANCE_TYPE: "t4g.xlarge"
+    KITCHEN_CI_MOUNT_PATH: "/mnt/ci"
+    KITCHEN_CI_ROOT_PATH: "/tmp/ci"
   before_script:
     - pushd $DD_AGENT_TESTING_DIR
     - tasks/kitchen_setup.sh
@@ -102,7 +104,9 @@ kitchen_test_security_agent_amazonlinux_x64:
   needs: [ "tests_ebpf_x64", "prepare_ebpf_functional_tests_x64" ]
   variables:
     KITCHEN_ARCH: x86_64
-    KITCHEN_EC2_INSTANCE_TYPE: "t3.medium"
+    KITCHEN_EC2_INSTANCE_TYPE: "[t3.medium, t2.xlarge, t3.xlarge]"
+    KITCHEN_CI_MOUNT_PATH: "/mnt/ci"
+    KITCHEN_CI_ROOT_PATH: "/tmp/ci"
   before_script:
     - pushd $DD_AGENT_TESTING_DIR
     - tasks/kitchen_setup.sh

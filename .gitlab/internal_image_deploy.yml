@@ -11,10 +11,10 @@ docker_trigger_internal:
       artifacts: false
     - job: docker_build_agent7_jmx_arm64
       artifacts: false
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   variables:
-    IMAGE_VERSION: tmpl-v6
+    IMAGE_VERSION: tmpl-v7
     IMAGE_NAME: datadog-agent
     RELEASE_TAG: ${CI_COMMIT_REF_SLUG}-jmx
     BUILD_TAG: ${CI_COMMIT_REF_SLUG}-jmx
@@ -38,10 +38,10 @@ docker_trigger_cluster_agent_internal:
       artifacts: false
     - job: docker_build_cluster_agent_arm64
       artifacts: false
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   variables:
-    IMAGE_VERSION: tmpl-v2
+    IMAGE_VERSION: tmpl-v3
     IMAGE_NAME: datadog-cluster-agent
     RELEASE_TAG: ${CI_COMMIT_REF_SLUG}
     BUILD_TAG: ${CI_COMMIT_REF_SLUG}

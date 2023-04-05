@@ -65,23 +65,26 @@ func modelConnections(conns *network.Connections) *model.Connections {
 		agentCfg = &model.AgentConfiguration{
 			NpmEnabled: config.SystemProbe.GetBool("network_config.enabled"),
 			UsmEnabled: config.SystemProbe.GetBool("service_monitoring_config.enabled"),
+			DsmEnabled: config.SystemProbe.GetBool("data_streams_config.enabled"),
 		}
 	})
 
 	agentConns := make([]*model.Connection, len(conns.Conns))
 	routeIndex := make(map[string]RouteIdx)
 	httpEncoder := newHTTPEncoder(conns)
+	kafkaEncoder := newKafkaEncoder(conns)
+	http2Encoder := newHTTP2Encoder(conns)
 	ipc := make(ipCache, len(conns.Conns)/2)
 	dnsFormatter := newDNSFormatter(conns, ipc)
 	tagsSet := network.NewTagsSet()
 
 	for i, conn := range conns.Conns {
-		agentConns[i] = FormatConnection(conn, routeIndex, httpEncoder, dnsFormatter, ipc, tagsSet)
+		agentConns[i] = FormatConnection(conn, routeIndex, httpEncoder, http2Encoder, kafkaEncoder, dnsFormatter, ipc, tagsSet)
 	}
 
 	if httpEncoder != nil && httpEncoder.orphanEntries > 0 {
 		log.Debugf(
-			"detected orphan http aggreggations. this can be either caused by conntrack sampling or missed tcp close events. count=%d",
+			"detected orphan http aggregations. this may be caused by conntrack sampling or missed tcp close events. count=%d",
 			httpEncoder.orphanEntries,
 		)
 
@@ -91,6 +94,34 @@ func modelConnections(conns *network.Connections) *model.Connections {
 			telemetry.OptExpvar,
 			telemetry.OptStatsd,
 		).Add(int64(httpEncoder.orphanEntries))
+	}
+
+	if http2Encoder != nil && http2Encoder.orphanEntries > 0 {
+		log.Debugf(
+			"detected orphan http2 aggregations. this may be caused by conntrack sampling or missed tcp close events. count=%d",
+			http2Encoder.orphanEntries,
+		)
+
+		telemetry.NewMetric(
+			"usm.http2.orphan_aggregations",
+			telemetry.OptMonotonic,
+			telemetry.OptExpvar,
+			telemetry.OptStatsd,
+		).Add(int64(http2Encoder.orphanEntries))
+	}
+
+	if kafkaEncoder != nil && kafkaEncoder.orphanEntries > 0 {
+		log.Debugf(
+			"detected orphan kafka aggregations. this may be caused by conntrack sampling or missed tcp close events. count=%d",
+			kafkaEncoder.orphanEntries,
+		)
+
+		telemetry.NewMetric(
+			"usm.kafka.orphan_aggregations",
+			telemetry.OptMonotonic,
+			telemetry.OptExpvar,
+			telemetry.OptStatsd,
+		).Add(int64(kafkaEncoder.orphanEntries))
 	}
 
 	routes := make([]*model.Route, len(routeIndex))
@@ -107,6 +138,7 @@ func modelConnections(conns *network.Connections) *model.Connections {
 	payload.CompilationTelemetryByAsset = FormatCompilationTelemetry(conns.CompilationTelemetryByAsset)
 	payload.KernelHeaderFetchResult = model.KernelHeaderFetchResult(conns.KernelHeaderFetchResult)
 	payload.CORETelemetryByAsset = FormatCORETelemetry(conns.CORETelemetryByAsset)
+	payload.PrebuiltEBPFAssets = conns.PrebuiltAssets
 	payload.Routes = routes
 	payload.Tags = tagsSet.GetStrings()
 

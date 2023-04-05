@@ -43,6 +43,8 @@ typedef struct {
     __u64 recv_packets;
     __u8 direction;
     protocol_t protocol;
+    // keep the conn_tags u8 to keep the struct slim
+    __u8 conn_tags;
 } conn_stats_ts_t;
 
 // Connection flags
@@ -148,6 +150,12 @@ typedef struct {
     struct sockaddr *addr;
     struct sock *sk;
 } bind_syscall_args_t;
+
+typedef struct {
+    struct sock *sk;
+    int segs;
+    __u32 retrans_out_pre;
+} tcp_retransmit_skb_args_t;
 
 typedef struct {
     __u32 netns;

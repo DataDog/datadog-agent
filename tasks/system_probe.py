@@ -18,6 +18,7 @@ from invoke.exceptions import Exit
 from .build_tags import get_default_build_tags
 from .libs.common.color import color_message
 from .libs.ninja_syntax import NinjaWriter
+from .test import environ
 from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
@@ -26,7 +27,7 @@ BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
 BPF_TAG = "linux_bpf"
 BUNDLE_TAG = "ebpf_bindata"
 NPM_TAG = "npm"
-DNF_TAG = "dnf"
+SBOM_TAG = "trivy"
 
 KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "kitchen"))
 KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-system-probe-check", "files", "default", "tests")
@@ -137,6 +138,7 @@ def ninja_ebpf_co_re_program(nw, infile, outfile, variables=None):
 
 def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
     security_agent_c_dir = os.path.join("pkg", "security", "ebpf", "c")
+    security_agent_prebuilt_dir_include = os.path.join(security_agent_c_dir, "include")
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
 
     kernel_headers = get_linux_header_dirs(
@@ -144,7 +146,7 @@ def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
     )
     kheaders = " ".join(f"-isystem{d}" for d in kernel_headers)
     debugdef = "-DDEBUG=1" if debug else ""
-    security_flags = f"-I{security_agent_c_dir} {debugdef}"
+    security_flags = f"-g -I{security_agent_prebuilt_dir_include} {debugdef}"
 
     outfiles = []
 
@@ -210,7 +212,7 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
     network_flags = "-Ipkg/network/ebpf/c -g"
-    network_programs = ["dns", "offset-guess", "tracer", "http", "usm_events_test"]
+    network_programs = ["dns", "offset-guess", "tracer", "http", "usm_events_test", "conntrack"]
     network_co_re_programs = ["co-re/tracer-fentry", "runtime/http"]
 
     for prog in network_programs:
@@ -249,6 +251,7 @@ def ninja_runtime_compilation_files(nw):
         "pkg/network/protocols/http/compile.go": "http",
         "pkg/network/tracer/compile.go": "conntrack",
         "pkg/network/tracer/connection/kprobe/compile.go": "tracer",
+        "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
         "pkg/security/ebpf/compile.go": "runtime-security",
     }
 
@@ -293,8 +296,7 @@ def ninja_cgo_type_files(nw, windows):
     else:
         go_platform = "linux"
         def_files = {
-            "pkg/network/ebpf/offsetguess_types.go": ["pkg/network/ebpf/c/prebuilt/offset-guess.h"],
-            "pkg/network/ebpf/conntrack_types.go": ["pkg/network/ebpf/c/runtime/conntrack-types.h"],
+            "pkg/network/ebpf/conntrack_types.go": ["pkg/network/ebpf/c/conntrack-types.h"],
             "pkg/network/ebpf/tuple_types.go": ["pkg/network/ebpf/c/tracer.h"],
             "pkg/network/ebpf/kprobe_types.go": [
                 "pkg/network/ebpf/c/tracer.h",
@@ -311,8 +313,19 @@ def ninja_cgo_type_files(nw, windows):
                 "pkg/network/ebpf/c/protocols/http/types.h",
                 "pkg/network/ebpf/c/protocols/classification/defs.h",
             ],
+            "pkg/network/protocols/http/http2_types.go": [
+                "pkg/network/ebpf/c/tracer.h",
+                "pkg/network/ebpf/c/protocols/http2/decoding-defs.h",
+            ],
+            "pkg/network/protocols/kafka/kafka_types.go": [
+                "pkg/network/ebpf/c/tracer.h",
+                "pkg/network/ebpf/c/protocols/kafka/types.h",
+            ],
             "pkg/network/telemetry/telemetry_types.go": [
                 "pkg/ebpf/c/telemetry_types.h",
+            ],
+            "pkg/network/tracer/offsetguess/offsetguess_types.go": [
+                "pkg/network/ebpf/c/prebuilt/offset-guess.h",
             ],
             "pkg/network/protocols/events/types.go": [
                 "pkg/network/ebpf/c/protocols/events-types.h",
@@ -395,13 +408,13 @@ def build(
     go_mod="mod",
     windows=is_windows,
     arch=CURRENT_ARCH,
-    nikos_embedded_path=None,
     bundle_ebpf=False,
     kernel_release=None,
     debug=False,
     strip_object_files=False,
     strip_binary=False,
     with_unit_test=False,
+    sbom=True,
 ):
     """
     Build the system-probe
@@ -421,13 +434,13 @@ def build(
         ctx,
         major_version=major_version,
         python_runtimes=python_runtimes,
-        nikos_embedded_path=nikos_embedded_path,
         bundle_ebpf=bundle_ebpf,
         arch=arch,
         go_mod=go_mod,
         race=race,
         incremental_build=incremental_build,
         strip_binary=strip_binary,
+        sbom=sbom,
     )
 
 
@@ -453,22 +466,21 @@ def build_sysprobe_binary(
     python_runtimes='3',
     go_mod="mod",
     arch=CURRENT_ARCH,
-    nikos_embedded_path=None,
     bundle_ebpf=False,
     strip_binary=False,
+    sbom=True,
 ):
     ldflags, gcflags, env = get_build_flags(
         ctx,
         major_version=major_version,
         python_runtimes=python_runtimes,
-        nikos_embedded_path=nikos_embedded_path,
     )
 
     build_tags = get_default_build_tags(build="system-probe", arch=arch)
     if bundle_ebpf:
         build_tags.append(BUNDLE_TAG)
-    if nikos_embedded_path:
-        build_tags.append(DNF_TAG)
+    if sbom:
+        build_tags.append(SBOM_TAG)
 
     if strip_binary:
         ldflags += ' -s -w'
@@ -663,18 +675,19 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False):
 
 
 @task
-def kitchen_test(ctx, target=None, provider="virtualbox"):
+def kitchen_test(ctx, target=None, provider=None):
     """
-    Run tests (locally) using chef kitchen against an array of different platforms.
+    Run tests (locally with vagrant) using chef kitchen against an array of different platforms.
     * Make sure to run `inv -e system-probe.kitchen-prepare` using the agent-development VM;
     * Then we recommend to run `inv -e system-probe.kitchen-test` directly from your (macOS) machine;
     """
 
-    vagrant_arch = ""
     if CURRENT_ARCH == "x64":
         vagrant_arch = "x86_64"
+        provider = provider or "virtualbox"
     elif CURRENT_ARCH == "arm64":
         vagrant_arch = "arm64"
+        provider = provider or "parallels"
     else:
         raise Exit(f"Unsupported vagrant arch for {CURRENT_ARCH}", code=1)
 
@@ -693,9 +706,18 @@ def kitchen_test(ctx, target=None, provider="virtualbox"):
         )
         raise Exit(code=1)
 
+    args = [
+        f"--platform {images[target]}",
+        f"--osversions {target}",
+        "--provider vagrant",
+        "--testfiles system-probe-test",
+        f"--platformfile {platform_file}",
+        f"--arch {vagrant_arch}",
+    ]
+
     with ctx.cd(KITCHEN_DIR):
         ctx.run(
-            f"inv kitchen.genconfig --platform {images[target]} --osversions {target} --provider vagrant --testfiles system-probe-test --platformfile {platform_file} --arch {vagrant_arch}",
+            f"inv kitchen.genconfig {' '.join(args)}",
             env={"KITCHEN_VAGRANT_PROVIDER": provider},
         )
         ctx.run("kitchen test")
@@ -703,14 +725,23 @@ def kitchen_test(ctx, target=None, provider="virtualbox"):
 
 @task
 def kitchen_genconfig(
-    ctx, ssh_key, platform, osversions, image_size=None, provider="azure", arch=None, azure_sub_id=None
+    ctx,
+    ssh_key,
+    platform,
+    osversions,
+    image_size=None,
+    provider="azure",
+    arch=None,
+    azure_sub_id=None,
+    ec2_device_name="/dev/sda1",
+    mount_path="/mnt/ci",
 ):
     if not arch:
         arch = CURRENT_ARCH
 
-    if arch == "x64":
+    if arch_mapping[arch] == "x64":
         arch = "x86_64"
-    elif arch == "arm64":
+    elif arch_mapping[arch] == "arm64":
         arch = "arm64"
     else:
         raise Exit("unsupported arch specified")
@@ -722,16 +753,32 @@ def kitchen_genconfig(
         raise Exit("azure subscription id must be specified with --azure-sub-id")
 
     env = {
-        "KITCHEN_RSA_SSH_KEY_PATH": ssh_key,
+        "KITCHEN_CI_MOUNT_PATH": mount_path,
+        "KITCHEN_CI_ROOT_PATH": "/tmp/ci",
     }
-    if azure_sub_id:
-        env["AZURE_SUBSCRIPTION_ID"] = azure_sub_id
+    if provider == "azure":
+        env["KITCHEN_RSA_SSH_KEY_PATH"] = ssh_key
+        if azure_sub_id:
+            env["AZURE_SUBSCRIPTION_ID"] = azure_sub_id
+    elif provider == "ec2":
+        env["KITCHEN_EC2_SSH_KEY_PATH"] = ssh_key
+        env["KITCHEN_EC2_DEVICE_NAME"] = ec2_device_name
+
+    args = [
+        f"--platform={platform}",
+        f"--osversions={osversions}",
+        f"--provider={provider}",
+        f"--arch={arch}",
+        f"--imagesize={image_size}",
+        "--testfiles=system-probe-test",
+        "--platformfile=platforms.json",
+    ]
 
     env["KITCHEN_ARCH"] = arch
     env["KITCHEN_PLATFORM"] = platform
     with ctx.cd(KITCHEN_DIR):
         ctx.run(
-            f"inv -e kitchen.genconfig --platform={platform} --osversions={osversions} --provider={provider} --arch={arch} --imagesize={image_size} --testfiles=system-probe-test --platformfile=platforms.json",
+            f"inv -e kitchen.genconfig {' '.join(args)}",
             env=env,
         )
 
@@ -1003,6 +1050,8 @@ def run_ninja(
     if task:
         ctx.run(f"ninja {explain_opt} -f {nf_path} -t {task}")
     else:
+        with open("compile_commands.json", "w") as compiledb:
+            ctx.run(f"ninja -f {nf_path} -t compdb {target}", out_stream=compiledb)
         ctx.run(f"ninja {explain_opt} -f {nf_path} {target}")
 
 
@@ -1324,6 +1373,36 @@ def generate_minimized_btfs(
 
 
 @task
+def generate_event_monitor_proto(ctx):
+    with tempfile.TemporaryDirectory() as temp_gobin:
+        with environ({"GOBIN": temp_gobin}):
+            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1")
+            ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.4.0")
+            ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2.0")
+
+            plugin_opts = " ".join(
+                [
+                    f"--plugin protoc-gen-go=\"{temp_gobin}/protoc-gen-go\"",
+                    f"--plugin protoc-gen-go-grpc=\"{temp_gobin}/protoc-gen-go-grpc\"",
+                    f"--plugin protoc-gen-go-vtproto=\"{temp_gobin}/protoc-gen-go-vtproto\"",
+                ]
+            )
+
+            ctx.run(
+                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/eventmonitor/proto/api/api.proto"
+            )
+
+    for path in glob.glob("pkg/eventmonitor/**/*.pb.go", recursive=True):
+        print(f"replacing protoc version in {path}")
+        with open(path) as f:
+            content = f.read()
+
+        replaced_content = re.sub(r"\/\/\s*protoc\s*v\d+\.\d+\.\d+", "//  protoc", content)
+        with open(path, "w") as f:
+            f.write(replaced_content)
+
+
+@task
 def print_failed_tests(_, output_dir):
     fail_count = 0
     for testjson_tgz in glob.glob(f"{output_dir}/**/testjson.tar.gz"):
@@ -1371,10 +1450,39 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
             images.add(docker_compose["services"][component]["image"])
 
     # Java tests have dynamic images in docker-compose.yml
-    for image in ["openjdk:21-oraclelinux8", "openjdk:15-oraclelinux8", "openjdk:8u151-jre"]:
+    for image in ["openjdk:21-oraclelinux8", "openjdk:15-oraclelinux8", "openjdk:8u151-jre", "menci/archlinuxarm:base"]:
         images.add(image)
 
     for image in images:
         output_path = image.translate(str.maketrans('', '', string.punctuation))
         ctx.run(f"docker pull --platform linux/{arch} {image}")
         ctx.run(f"docker save {image} > {os.path.join(output_dir, output_path)}.tar")
+
+
+@task
+def test_microvms(
+    ctx,
+    security_groups=None,
+    subnets=None,
+    instance_type_x86=None,
+    instance_type_arm=None,
+    x86_ami_id=None,
+    arm_ami_id=None,
+    destroy=False,
+    upload_dependencies=False,
+):
+    args = [
+        f"--sgs {security_groups}" if security_groups is not None else "",
+        f"--subnets {subnets}" if subnets is not None else "",
+        f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 is not None else "",
+        f"--instance-type-arm {instance_type_arm}" if instance_type_arm is not None else "",
+        f"--x86-ami-id {x86_ami_id}" if x86_ami_id is not None else "",
+        f"--arm-ami-id {arm_ami_id}" if arm_ami_id is not None else "",
+        "--destroy" if destroy else "",
+        "--upload-dependencies" if upload_dependencies else "",
+    ]
+
+    go_args = ' '.join(filter(lambda x: x != "", args))
+    ctx.run(
+        f"cd ./test/new-e2e && go run ./scenarios/system-probe/main.go --name usama-saqib-test {go_args} --shutdown-period 720",
+    )

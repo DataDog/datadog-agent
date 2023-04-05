@@ -67,7 +67,7 @@ gopkg.in/inf.v0: "Copyright (c) 2012 Péter Surányi. Portions Copyright (c) 200
 google.golang.org/api/*: Copyright (c) 2011 Google Inc. All rights reserved.
 
 # See https://github.com/openshift/api/blob/master/quota/OWNERS
-github.com/openshift/api/quota: Copyright 2020 Red Hat, Inc.
+github.com/openshift/api: Copyright 2020 Red Hat, Inc.
 
 # https://datadoghq.atlassian.net/browse/AC-1296
 github.com/DataDog/mmh3: Copyright (c) 2017 Datadog, Inc.
@@ -92,6 +92,12 @@ github.com/outcaste-io/ristretto:
  - "Copyright 2019 Dgraph Labs, Inc. and Contributors"
  - "Copyright 2020 Dgraph Labs, Inc. and Contributors"
  - "Copyright 2021 Dgraph Labs, Inc. and Contributors"
+ - "Copyright 2020 The LevelDB-Go and Pebble Authors. All rights reserved."
+ - "Copyright (c) 2014 Andreas Briese, eduToolbox@Bri-C GmbH, Sarstedt"
+ - "Copyright (c) 2019 Ewan Chou"
+github.com/dgraph-io/ristretto:
+ - "Copyright 2019 Dgraph Labs, Inc. and Contributors"
+ - "Copyright 2020 Dgraph Labs, Inc. and Contributors"
  - "Copyright 2020 The LevelDB-Go and Pebble Authors. All rights reserved."
  - "Copyright (c) 2014 Andreas Briese, eduToolbox@Bri-C GmbH, Sarstedt"
  - "Copyright (c) 2019 Ewan Chou"
@@ -128,6 +134,13 @@ github.com/google/go-containerregistry:
 github.com/google/licenseclassifier/v2:
  - "Copyright 2017 Google LLC All Rights Reserved."
  - "Copyright 2020 Google LLC All Rights Reserved."
+github.com/dgraph-io/badger:
+ - "Copyright 2013 The LevelDB-Go Authors. All rights reserved."
+ - "Copyright 2017 Dgraph Labs, Inc. and Contributors"
+ - "Copyright 2018 Dgraph Labs, Inc. and Contributors"
+ - "Copyright 2019 Dgraph Labs, Inc. and Contributors"
+ - "Copyright 2020 Dgraph Labs, Inc. and Contributors"
+ - "Copyright 2021 Dgraph Labs, Inc. and Contributors"
 
 # These have large AUTHORS/CONTRIBUTORS files but attribute copyright as a group
 github.com/aptly-dev/aptly: Copyright 2013-2015 aptly authors. All rights reserved.
@@ -169,3 +182,23 @@ github.com/aquasecurity/go-npm-version: Copyright (c) 2020 Teppei Fukuda (knqyf2
 github.com/aquasecurity/go-pep440-version: Copyright (c) 2020 Teppei Fukuda (knqyf263)
 github.com/aquasecurity/go-version: Copyright (c) 2020 Teppei Fukuda (knqyf263)
 github.com/spdx/tools-golang: Copyright (c) 2018 The Authors
+github.com/google/flatbuffers: Copyright (c) 2014 Google
+
+# FIXME(AP-2060): inv generate-licenses and inv lint-licenses can generate invalid csv
+# while parsing some files. For instance, in the README.md of github.com/klauspost/compress/s2,
+# there is an example section which contains:
+#    // We are only interested in the contents.
+#    // Assume that files start with "// Copyright (c) 2023".
+#    // Search for the longest match for that.
+#    // This may save a few bytes.
+#    dict := s2.MakeDict(insp.Content(), []byte("// Copyright (c) 2023"))
+# This causes the tasks to add 'Copyright (c) 2023". | Copyright (c) 2023"))' to the copyright
+# information for that file, resulting in an invalid csv (due to the quotes).
+# Until this is fixed, override the copyright value to avoid parsing these files.
+github.com/klauspost/compress/s2:
+  - "Copyright (c) 2011 The Snappy-Go Authors. All rights reserved"
+  - "Copyright (c) 2012 The Go Authors. All rights reserved"
+  - "Copyright (c) 2015 Klaus Post"
+  - "Copyright (c) 2019 Klaus Post. All rights reserved"
+  - "Copyright 2016 The filepathx Authors"
+  - "Copyright 2016-2017 The New York Times Company"

@@ -11,9 +11,9 @@
              Text="!(loc.DDAgentUserDialogUserNameLabel)" />
     <Control Id="UserNameFromDefault" Type="Edit" Height="15" Width="320" X="25" Y="86"
              Property="DDAGENTUSER_NAME" />
-    <Control Id="EnterPassword" Type="Text" Height="15" Width="320" X="25" Y="118"
+    <Control Id="EnterPassword" Type="Text" Height="30" Width="320" X="25" Y="118"
              Text="!(loc.DDAgentUserDialogPasswordLabel)" />
-    <Control Id="PasswordFromDefault" Type="Edit" Height="15" Width="320" X="25" Y="134"
+    <Control Id="PasswordFromDefault" Type="Edit" Height="15" Width="320" X="25" Y="149"
              Password="yes"
              Property="DDAGENTUSER_PASSWORD" />
 
