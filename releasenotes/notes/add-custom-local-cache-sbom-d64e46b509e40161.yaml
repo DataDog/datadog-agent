@@ -1,6 +1,6 @@
 enhancements:
   - |
-    * Add new custom lru cache for Trivy backed by BoltDB and parametrized by:
+    * Add new custom LRU cache for Trivy backed by BoltDB and parametrized by:
       - ``container_image_collection.sbom.use_custom_cache``: Enables the custom cache.
       - ``container_image_collection.sbom.custom_cache_max_disk_size``: Maximum total size of the cached objects.
       - ``container_image_collection.sbom.custom_cache_max_cache_entries``: Maximum number of cached objects.
