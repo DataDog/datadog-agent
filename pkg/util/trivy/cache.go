@@ -15,14 +15,24 @@ import (
 	"github.com/aquasecurity/trivy/pkg/utils"
 )
 
+// telemetryTick is the frequency at which the cache usage metrics are collected.
 var telemetryTick = 1 * time.Minute
 
-type CacheProvider func() (cache.Cache, error)
+// CacheProvider describe a function that provides a type implementing the trivy cache interface
+// and a cache cleaner
+type CacheProvider func() (cache.Cache, CacheCleaner, error)
 
-func NewBoltCache(cacheDir string) (cache.Cache, error) {
+// NewBoltCache is a CacheProvider. It returns a BoltDB cache provided by Trivy and an empty cleaner.
+func NewBoltCache(cacheDir string) (cache.Cache, CacheCleaner, error) {
 	if cacheDir == "" {
 		cacheDir = utils.DefaultCacheDir()
 	}
-
-	return cache.NewFSCache(cacheDir)
+	cache, err := cache.NewFSCache(cacheDir)
+	return cache, &StubCacheCleaner{}, err
 }
+
+// StubCacheCleaner is a stub
+type StubCacheCleaner struct{}
+
+// Clean does nothing
+func (c *StubCacheCleaner) Clean() error { return nil }

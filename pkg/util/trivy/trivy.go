@@ -55,13 +55,14 @@ type CollectorConfig struct {
 
 // Collector uses trivy to generate a SBOM
 type collector struct {
-	config     CollectorConfig
-	cache      cache.Cache
-	applier    local.Applier
-	detector   local.OspkgDetector
-	dbConfig   db.Config
-	vulnClient vulnerability.Client
-	marshaler  *cyclonedx.Marshaler
+	config       CollectorConfig
+	cache        cache.Cache
+	cacheCleaner CacheCleaner
+	applier      local.Applier
+	detector     local.OspkgDetector
+	dbConfig     db.Config
+	vulnClient   vulnerability.Client
+	marshaler    *cyclonedx.Marshaler
 }
 
 // DefaultCollectorConfig returns a default collector configuration
@@ -88,9 +89,9 @@ func DefaultCollectorConfig(enabledAnalyzers []string, cacheLocation string) Col
 	return collectorConfig
 }
 
-func cacheProvider(cacheLocation string) func() (cache.Cache, error) {
+func cacheProvider(cacheLocation string) func() (cache.Cache, CacheCleaner, error) {
 
-	return func() (cache.Cache, error) {
+	return func() (cache.Cache, CacheCleaner, error) {
 		return NewBoltCache(cacheLocation)
 	}
 }
@@ -128,19 +129,20 @@ func DefaultDisabledHandlers() []ftypes.HandlerType {
 
 func NewCollector(collectorConfig CollectorConfig) (Collector, error) {
 	dbConfig := db.Config{}
-	fanalCache, err := collectorConfig.CacheProvider()
+	fanalCache, cacheCleaner, err := collectorConfig.CacheProvider()
 	if err != nil {
 		return nil, err
 	}
 
 	return &collector{
-		config:     collectorConfig,
-		cache:      fanalCache,
-		applier:    applier.NewApplier(fanalCache),
-		detector:   ospkg.Detector{},
-		dbConfig:   dbConfig,
-		vulnClient: vulnerability.NewClient(dbConfig),
-		marshaler:  cyclonedx.NewMarshaler(""),
+		config:       collectorConfig,
+		cache:        fanalCache,
+		cacheCleaner: cacheCleaner,
+		applier:      applier.NewApplier(fanalCache),
+		detector:     ospkg.Detector{},
+		dbConfig:     dbConfig,
+		vulnClient:   vulnerability.NewClient(dbConfig),
+		marshaler:    cyclonedx.NewMarshaler(""),
 	}, nil
 }
 
@@ -152,6 +154,10 @@ func (c *collector) Close() error {
 	}
 
 	return c.cache.Close()
+}
+
+func (c *collector) GetCacheCleaner() CacheCleaner {
+	return c.cacheCleaner
 }
 
 func (c *collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (Report, error) {
