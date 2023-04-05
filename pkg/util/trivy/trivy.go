@@ -234,6 +234,11 @@ func (c *collector) ScanFilesystem(ctx context.Context, path string) (Report, er
 }
 
 func (c *collector) scan(ctx context.Context, artifact artifact.Artifact) (Report, error) {
+	artifactReference, err := artifact.Inspect(ctx) // called by the scanner as well
+	if err != nil {
+		return nil, err
+	}
+
 	s := scanner.NewScanner(local.NewScanner(c.applier, c.detector, c.vulnClient), artifact)
 	trivyReport, err := s.ScanArtifact(ctx, types.ScanOptions{
 		VulnType:            []string{},
@@ -246,7 +251,9 @@ func (c *collector) scan(ctx context.Context, artifact artifact.Artifact) (Repor
 	}
 
 	return &TrivyReport{
-		Report:    trivyReport,
-		marshaler: c.marshaler,
+		Report:     trivyReport,
+		marshaler:  c.marshaler,
+		artifactID: artifactReference.ID,
+		blobIDs:    artifactReference.BlobIDs,
 	}, nil
 }
