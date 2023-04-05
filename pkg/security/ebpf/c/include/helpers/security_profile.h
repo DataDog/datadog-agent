@@ -14,7 +14,8 @@ __attribute__((always_inline)) void evaluate_security_profile_syscalls(void *arg
     }
 
     // lookup the syscalls in this profile
-    struct security_profile_syscalls_t *syscalls = bpf_map_lookup_elem(&security_profile_syscalls, &profile->cookie);
+    u64 cookie = profile->cookie;
+    struct security_profile_syscalls_t *syscalls = bpf_map_lookup_elem(&security_profile_syscalls, &cookie);
     if (syscalls == NULL) {
         // should never happen, ignore
         return;
