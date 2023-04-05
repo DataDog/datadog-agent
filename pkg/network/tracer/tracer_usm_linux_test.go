@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/DataDog/gopsutil/host"
+	"github.com/cihub/seelog"
 	krpretty "github.com/kr/pretty"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -47,6 +48,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func httpSupported() bool {
