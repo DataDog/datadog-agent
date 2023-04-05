@@ -352,7 +352,7 @@ func quircksWaitLib(hostlibPath string) error {
 			}
 			if s.Size() != libSize || s.Size() == 0 {
 				libSize = s.Size()
-				time.Sleep(time.Millisecond)
+				time.Sleep(5 * time.Millisecond)
 				continue
 			}
 			sizeOK = true
