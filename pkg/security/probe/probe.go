@@ -849,7 +849,8 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		}
 	case model.AnomalyDetectionSyscallEventType:
 		if _, err = event.AnomalyDetectionSyscallEvent.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode anomaly detection for syscall event: %s (offset %d, len %d)", err)
+			seclog.Errorf("failed to decode anomaly detection for syscall event: %s (offset %d, len %d)", err, offset, len(data))
+			return
 		}
 	default:
 		seclog.Errorf("unsupported event type %d", eventType)
