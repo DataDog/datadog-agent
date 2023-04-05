@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package apiserver initalizes the api server that powers many subcommands.
+// Package apiserver initializes the api server that powers many subcommands.
 package apiserver
 
 import (

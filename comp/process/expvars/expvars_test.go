@@ -29,6 +29,7 @@ func TestExpvarServer(t *testing.T) {
 
 	assert.Eventually(t, func() bool {
 		res, err := http.Get("http://localhost:6062/debug/vars")
+		defer res.Body.Close()
 		if err != nil {
 			return false
 		}
@@ -48,6 +49,7 @@ func TestTelemetry(t *testing.T) {
 
 	assert.Eventually(t, func() bool {
 		res, err := http.Get("http://localhost:6062/telemetry")
+		defer res.Body.Close()
 		if err != nil {
 			return false
 		}

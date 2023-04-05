@@ -20,10 +20,9 @@ import (
 func TestLifecycle(t *testing.T) {
 	_ = fxutil.Test[Component](t, fx.Options(Module, log.MockModule))
 
-	var res *http.Response
 	assert.Eventually(t, func() bool {
-		var err error
-		res, err = http.Get("http://localhost:6162/config")
+		res, err := http.Get("http://localhost:6162/config")
+		defer res.Body.Close()
 		if err != nil {
 			return false
 		}

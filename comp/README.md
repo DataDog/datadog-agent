@@ -57,7 +57,7 @@ Package process implements the "process" bundle, providing components for the Pr
 
 ### [comp/process/apiserver](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process/apiserver)
 
-Package apiserver initalizes the api server that powers many subcommands.
+Package apiserver initializes the api server that powers many subcommands.
 
 ### [comp/process/connectionscheck](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process/connectionscheck)
 
