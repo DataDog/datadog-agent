@@ -431,6 +431,7 @@ func TestProcessEvents(t *testing.T) {
 					Version:  1,
 					Source:   &sourceAgent,
 					Entities: []*model.SBOMEntity{expectedSBOM},
+					DdEnv:    &envVarEnv,
 				})
 				assert.Nil(t, err)
 				sender.AssertEventPlatformEvent(t, encoded, epforwarder.EventTypeContainerSBOM)

@@ -123,11 +123,6 @@
           "property_doc_link": "common-process-container-id-doc"
         },
         {
-          "name": "process.ancestors.cookie",
-          "definition": "Cookie of the process",
-          "property_doc_link": "common-process-cookie-doc"
-        },
-        {
           "name": "process.ancestors.created_at",
           "definition": "Timestamp of the creation of the process",
           "property_doc_link": "common-process-created_at-doc"
@@ -478,11 +473,6 @@
           "property_doc_link": "common-process-container-id-doc"
         },
         {
-          "name": "process.cookie",
-          "definition": "Cookie of the process",
-          "property_doc_link": "common-process-cookie-doc"
-        },
-        {
           "name": "process.created_at",
           "definition": "Timestamp of the creation of the process",
           "property_doc_link": "common-process-created_at-doc"
@@ -801,11 +791,6 @@
           "name": "process.parent.container.id",
           "definition": "Container ID",
           "property_doc_link": "common-process-container-id-doc"
-        },
-        {
-          "name": "process.parent.cookie",
-          "definition": "Cookie of the process",
-          "property_doc_link": "common-process-cookie-doc"
         },
         {
           "name": "process.parent.created_at",
@@ -1591,11 +1576,6 @@
           "property_doc_link": "common-process-container-id-doc"
         },
         {
-          "name": "exec.cookie",
-          "definition": "Cookie of the process",
-          "property_doc_link": "common-process-cookie-doc"
-        },
-        {
           "name": "exec.created_at",
           "definition": "Timestamp of the creation of the process",
           "property_doc_link": "common-process-created_at-doc"
@@ -1963,11 +1943,6 @@
           "name": "exit.container.id",
           "definition": "Container ID",
           "property_doc_link": "common-process-container-id-doc"
-        },
-        {
-          "name": "exit.cookie",
-          "definition": "Cookie of the process",
-          "property_doc_link": "common-process-cookie-doc"
         },
         {
           "name": "exit.created_at",
@@ -3072,11 +3047,6 @@
           "property_doc_link": "common-process-container-id-doc"
         },
         {
-          "name": "ptrace.tracee.ancestors.cookie",
-          "definition": "Cookie of the process",
-          "property_doc_link": "common-process-cookie-doc"
-        },
-        {
           "name": "ptrace.tracee.ancestors.created_at",
           "definition": "Timestamp of the creation of the process",
           "property_doc_link": "common-process-created_at-doc"
@@ -3427,11 +3397,6 @@
           "property_doc_link": "common-process-container-id-doc"
         },
         {
-          "name": "ptrace.tracee.cookie",
-          "definition": "Cookie of the process",
-          "property_doc_link": "common-process-cookie-doc"
-        },
-        {
           "name": "ptrace.tracee.created_at",
           "definition": "Timestamp of the creation of the process",
           "property_doc_link": "common-process-created_at-doc"
@@ -3750,11 +3715,6 @@
           "name": "ptrace.tracee.parent.container.id",
           "definition": "Container ID",
           "property_doc_link": "common-process-container-id-doc"
-        },
-        {
-          "name": "ptrace.tracee.parent.cookie",
-          "definition": "Cookie of the process",
-          "property_doc_link": "common-process-cookie-doc"
         },
         {
           "name": "ptrace.tracee.parent.created_at",
@@ -4814,11 +4774,6 @@
           "property_doc_link": "common-process-container-id-doc"
         },
         {
-          "name": "signal.target.ancestors.cookie",
-          "definition": "Cookie of the process",
-          "property_doc_link": "common-process-cookie-doc"
-        },
-        {
           "name": "signal.target.ancestors.created_at",
           "definition": "Timestamp of the creation of the process",
           "property_doc_link": "common-process-created_at-doc"
@@ -5169,11 +5124,6 @@
           "property_doc_link": "common-process-container-id-doc"
         },
         {
-          "name": "signal.target.cookie",
-          "definition": "Cookie of the process",
-          "property_doc_link": "common-process-cookie-doc"
-        },
-        {
           "name": "signal.target.created_at",
           "definition": "Timestamp of the creation of the process",
           "property_doc_link": "common-process-created_at-doc"
@@ -5492,11 +5442,6 @@
           "name": "signal.target.parent.container.id",
           "definition": "Container ID",
           "property_doc_link": "common-process-container-id-doc"
-        },
-        {
-          "name": "signal.target.parent.cookie",
-          "definition": "Cookie of the process",
-          "property_doc_link": "common-process-cookie-doc"
         },
         {
           "name": "signal.target.parent.created_at",
@@ -6474,28 +6419,6 @@
       "link": "common-process-container-id-doc",
       "type": "string",
       "definition": "Container ID",
-      "prefixes": [
-        "exec",
-        "exit",
-        "process",
-        "process.ancestors",
-        "process.parent",
-        "ptrace.tracee",
-        "ptrace.tracee.ancestors",
-        "ptrace.tracee.parent",
-        "signal.target",
-        "signal.target.ancestors",
-        "signal.target.parent"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "*.cookie",
-      "link": "common-process-cookie-doc",
-      "type": "int",
-      "definition": "Cookie of the process",
       "prefixes": [
         "exec",
         "exit",

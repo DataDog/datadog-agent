@@ -269,7 +269,7 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 			}
 			t.Logf("HTTP stat didn't match criteria %v tags 0x%x\n", key, statsTags)
 			for _, c := range payload.Conns {
-				possibleKeyTuples := network.HTTPKeyTuplesFromConn(c)
+				possibleKeyTuples := network.ConnectionKeysFromConnectionStats(c)
 				t.Logf("conn sport %d dport %d tags %x staticTags %x connKey [%v] or [%v]\n", c.SPort, c.DPort, c.Tags, c.StaticTags, possibleKeyTuples[0], possibleKeyTuples[1])
 			}
 		}
@@ -654,7 +654,7 @@ func TestJavaInjection(t *testing.T) {
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
-				javatestutil.RunJavaVersion(t, "openjdk:8u151-jre", "JustWait")
+				require.True(t, javatestutil.RunJavaVersion(t, "openjdk:8u151-jre", "JustWait"), "Failed running Java version")
 			},
 			validation: commonValidation,
 			teardown:   commonTearDown,
@@ -679,7 +679,7 @@ func TestJavaInjection(t *testing.T) {
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
-				javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait")
+				require.True(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait"), "Failed running Java version")
 				var fake testing.T
 				require.Falsef(t, javatestutil.RunJavaVersion(&fake, "openjdk:21-oraclelinux8", "AnotherWait"), "AnotherWait should not be attached")
 			},
@@ -704,7 +704,7 @@ func TestJavaInjection(t *testing.T) {
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
-				javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "AnotherWait")
+				require.True(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "AnotherWait"), "Failed running Java version")
 				var fake testing.T
 				require.Falsef(t, javatestutil.RunJavaVersion(&fake, "openjdk:21-oraclelinux8", "JustWait"), "JustWait should not be attached")
 			},
@@ -727,7 +727,7 @@ func TestJavaInjection(t *testing.T) {
 				cfg.JavaAgentBlockRegex = ".*AnotherWait.*"
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait")
+				require.True(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait"), "Failed running Java version")
 				var fake testing.T
 				require.Falsef(t, javatestutil.RunJavaVersion(&fake, "openjdk:21-oraclelinux8", "AnotherWait"), "AnotherWait should not be attached")
 			},
@@ -750,7 +750,7 @@ func TestJavaInjection(t *testing.T) {
 				cfg.JavaAgentBlockRegex = ".*JustWait.*"
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait")
+				require.True(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait"), "Failed running Java version")
 			},
 			validation: commonValidation,
 			teardown:   commonTearDown,
@@ -764,7 +764,7 @@ func TestJavaInjection(t *testing.T) {
 				cfg.CollectTCPConns = true
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://httpbin.org/anything/java-tls-request", regexp.MustCompile("Response code = .*"))
+				require.True(t, javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://httpbin.org/anything/java-tls-request", regexp.MustCompile("Response code = .*")), "Failed running Java version")
 			},
 			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
 				// Iterate through active connections until we find connection created above

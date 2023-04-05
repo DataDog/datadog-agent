@@ -57,6 +57,7 @@ stages:
   - source_test_junit_upload
   - binary_build
   - package_deps_build
+  - kernel_matrix_testing
   - integration_test
   - benchmarks
   - package_build
@@ -175,7 +176,6 @@ variables:
   ARTIFACTORY_URL: datadog.jfrog.io
   ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
   ARTIFACTORY_PYPI_PATH: artifactory/api/pypi/agent-pypi/simple
-  USE_CACHING_PROXY_RUBY: "false"
   CLANG_LLVM_VER: 12.0.1
 
 #
@@ -219,6 +219,11 @@ variables:
 
 .if_not_stable_repo_branch: &if_not_stable_repo_branch
   if: $BUCKET_BRANCH != "stable"
+
+# CI_PIPELINE_SOURCE can be set to "trigger" or "pipeline" depending on how the trigger was done.
+# See https://docs.gitlab.com/ee/ci/triggers/index.html#configure-cicd-jobs-to-run-in-triggered-pipelines.
+.if_triggered_pipeline: &if_triggered_pipeline
+  if: $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "pipeline"
 
 # Rule to trigger all builds conditionally.
 # By default:
@@ -272,18 +277,26 @@ variables:
 
 workflow:
   rules:
+    - <<: *if_triggered_pipeline
+      variables:
+        USE_CACHING_PROXY_PYTHON: "false"
+        USE_CACHING_PROXY_RUBY: "false"
     - <<: *if_main_branch
       variables:
-        USE_CACHING_PROXY_PYTHON: "false"
+        USE_CACHING_PROXY_PYTHON: "true"
+        USE_CACHING_PROXY_RUBY: "true"
     - <<: *if_release_branch
       variables:
-        USE_CACHING_PROXY_PYTHON: "false"
+        USE_CACHING_PROXY_PYTHON: "true"
+        USE_CACHING_PROXY_RUBY: "true"
     - <<: *if_deploy
       variables:
         USE_CACHING_PROXY_PYTHON: "false"
+        USE_CACHING_PROXY_RUBY: "false"
     - if: $CI_COMMIT_TAG == null
       variables:
         USE_CACHING_PROXY_PYTHON: "false"
+        USE_CACHING_PROXY_RUBY: "false"
 
 #
 # List of rule blocks used in the pipeline
@@ -782,6 +795,8 @@ workflow:
       - test/kitchen/test/integration/system-probe-test/**/*
       - test/kitchen/test/integration/win-sysprobe-test/**/*
       - .gitlab/functional_test/system_probe.yml
+      - test/new-e2e/system-probe/**/*
+      - test/new-e2e/scenarios/system-probe/**/*
     when: on_success
   - when: manual
     allow_failure: true
