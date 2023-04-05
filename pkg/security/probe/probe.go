@@ -849,7 +849,8 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		}
 	case model.AnomalyDetectionSyscallEventType:
 		if _, err = event.AnomalyDetectionSyscallEvent.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode anomaly detection for syscall event: %s (offset %d, len %d)", err)
+			seclog.Errorf("failed to decode anomaly detection for syscall event: %s (offset %d, len %d)", err, offset, len(data))
+			return
 		}
 	default:
 		seclog.Errorf("unsupported event type %d", eventType)
@@ -1221,7 +1222,9 @@ func (p *Probe) setupNewTCClassifier(device model.NetDevice) error {
 	netns := p.resolvers.NamespaceResolver.ResolveNetworkNamespace(device.NetNS)
 	if netns != nil {
 		handle, err = netns.GetNamespaceHandleDup()
-		defer handle.Close() // nolint:errcheck,staticcheck
+	}
+	if err != nil {
+		defer handle.Close()
 	}
 	if netns == nil || err != nil || handle == nil {
 		// queue network device so that a TC classifier can be added later
