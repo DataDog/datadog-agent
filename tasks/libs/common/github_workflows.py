@@ -1,9 +1,8 @@
 import json
 import os
-import time
 
 from .githubapp import GithubApp, GithubAppException
-from .remote_api import APIError, RemoteAPI
+from .remote_api import RemoteAPI
 
 __all__ = ["GithubWorkflows", "GithubException", "get_github_app_token"]
 
@@ -103,25 +102,16 @@ class GithubWorkflows(RemoteAPI):
         headers["Authorization"] = f"token {self.api_token}"
         headers["Accept"] = "application/vnd.github.v3+json"
 
-        for retry_count in range(self.requests_500_retry_count):  # Retry up to 5 times
-            try:
-                return self.request(
-                    path=path,
-                    headers=headers,
-                    data=data,
-                    json_input=False,
-                    json_output=json_output,
-                    raw_output=raw_output,
-                    stream_output=False,
-                    method=method,
-                )
-            except APIError as e:
-                if 500 <= e.status_code < 600:
-                    # We wait progressively more at each retry in case of overloaded servers
-                    time.sleep(self.requests_sleep_time + retry_count * self.requests_sleep_time)
-                else:
-                    raise e
-        raise GithubException(f"Failed while making HTTP request: {method} {url}")
+        return self.request(
+            path=path,
+            headers=headers,
+            data=data,
+            json_input=False,
+            json_output=json_output,
+            raw_output=raw_output,
+            stream_output=False,
+            method=method,
+        )
 
 
 def get_github_app_token():

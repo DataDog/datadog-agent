@@ -1,5 +1,6 @@
 import errno
 import re
+import time
 
 from invoke.exceptions import Exit
 
@@ -61,24 +62,30 @@ class RemoteAPI(object):
         try:
             # If json_input is true, we specifically want to send data using the json
             # parameter of requests.post / requests.put
-            if method == "PUT":
-                if json_input:
-                    r = requests.put(url, headers=headers, json=data, stream=stream_output)
+            for retry_count in range(self.requests_500_retry_count):
+                if method == "PUT":
+                    if json_input:
+                        r = requests.put(url, headers=headers, json=data, stream=stream_output)
+                    else:
+                        r = requests.put(url, headers=headers, data=data, stream=stream_output)
+                elif method == "DELETE":
+                    r = requests.delete(url, headers=headers, stream=stream_output)
+                elif data or method == "POST":
+                    if json_input:
+                        r = requests.post(url, headers=headers, json=data, stream=stream_output)
+                    else:
+                        r = requests.post(url, headers=headers, data=data, stream=stream_output)
                 else:
-                    r = requests.put(url, headers=headers, data=data, stream=stream_output)
-            elif method == "DELETE":
-                r = requests.delete(url, headers=headers, stream=stream_output)
-            elif data or method == "POST":
-                if json_input:
-                    r = requests.post(url, headers=headers, json=data, stream=stream_output)
+                    r = requests.get(url, headers=headers, stream=stream_output)
+                if r.status_code >= 400:
+                    if r.status_code == 401:
+                        print(self.authorization_error_message)
+                    elif 500 <= r.status_code < 600:
+                        time.sleep(self.requests_sleep_time + retry_count * self.requests_sleep_time)
+                        continue
+                    raise APIError(r, self.api_name)
                 else:
-                    r = requests.post(url, headers=headers, data=data, stream=stream_output)
-            else:
-                r = requests.get(url, headers=headers, stream=stream_output)
-            if r.status_code >= 400:
-                if r.status_code == 401:
-                    print(self.authorization_error_message)
-                raise APIError(r, self.api_name)
+                    break
         except requests.exceptions.Timeout:
             print(f"Connection to {self.api_name} ({url}) timed out.")
             raise Exit(code=1)
