@@ -107,9 +107,7 @@ func TestExtractRegionFromMalformedPrefixSecretsManagerArnPrefix(t *testing.T) {
 
 func TestSendAPIKeyToShellSuccess(t *testing.T) {
 	listen, err := net.Listen("tcp", "localhost:0")
-	if err != nil {
-		assert.Fail(t, "could not open tcp server")
-	}
+	assert.NoError(t, err)
 	defer listen.Close()
 	port := listen.Addr().(*net.TCPAddr).Port
 	t.Setenv("DD_SERVERLESS_SHELL_PORT", fmt.Sprint(port))
