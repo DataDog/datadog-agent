@@ -16,6 +16,8 @@ import (
 	"github.com/aquasecurity/trivy/pkg/fanal/cache"
 	"github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/aquasecurity/trivy/pkg/utils"
+
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 // telemetryTick is the frequency at which the cache usage metrics are collected.
@@ -54,11 +56,51 @@ type Cache interface {
 	Set(key string, value []byte) error
 	// Get returns the value associated with the given key. It returns an error if the key was not found.
 	Get(key string) ([]byte, error)
+	// Keys returns the cached keys. Required for the cache cleaning logic.
+	Keys() []string
 }
 
 // TrivyCache holds a generic Cache and implements cache.Cache from Trivy.
 type TrivyCache struct {
 	Cache Cache
+}
+
+// TrivyCacheCleaner is a cache cleaner for TrivyCache instances
+type TrivyCacheCleaner struct {
+	target *TrivyCache
+}
+
+// NewTrivyCacheCleaner creates a new instance of TrivyCacheCleaner and returns a pointer to it.
+func NewTrivyCacheCleaner(target *TrivyCache) *TrivyCacheCleaner {
+	return &TrivyCacheCleaner{
+		target: target,
+	}
+}
+
+// Clean lists images from the workloadmeta, gets the list of currently used artifactIDs and blobIDs and
+// removes all the others from the cache.
+func (c *TrivyCacheCleaner) Clean() error {
+	toKeep := make(map[string]struct{})
+	for _, imageMetadata := range workloadmeta.GetGlobalStore().ListImages() {
+		if imageMetadata.SBOM == nil {
+			continue
+		}
+		toKeep[imageMetadata.SBOM.ArtifactID] = struct{}{}
+		for _, blobID := range imageMetadata.SBOM.BlobIDs {
+			toKeep[blobID] = struct{}{}
+		}
+	}
+	var toRemove []string
+	for _, key := range c.target.Cache.Keys() {
+		if _, ok := toKeep[key]; !ok {
+			toRemove = append(toRemove, key)
+		}
+	}
+
+	if err := c.target.Cache.Remove(toRemove); err != nil {
+		return err
+	}
+	return nil
 }
 
 // cachedObject describe an object that can be stored with TrivyCache
