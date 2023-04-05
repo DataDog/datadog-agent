@@ -20,7 +20,7 @@ type platformObjectRecord struct {
 	startLogItem    startLogItem     // present in LogTypePlatformStart only
 	runtimeDoneItem runtimeDoneItem  // present in LogTypePlatformRuntimeDone only
 	reportLogItem   reportLogMetrics // present in LogTypePlatformReport only
-	status          string
+	status          string           // recordStatus is the status of either an init or invocation phase
 }
 
 // reportLogMetrics contains metrics found in a LogTypePlatformReport log
@@ -74,6 +74,9 @@ const (
 	logTypePlatformRuntimeDone = "platform.runtimeDone"
 	// logTypePlatformInitReport is received when init finishes
 	logTypePlatformInitReport = "platform.initReport"
+
+	// errorStatus indicates the function has errored out
+	errorStatus string = "error"
 )
 
 // UnmarshalJSON unmarshals the given bytes in a LogMessage object.
