@@ -12,6 +12,7 @@ import (
 	"encoding/binary"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,7 +25,7 @@ func TestIsLocalhost(t *testing.T) {
 		// the isLocalhost function checks only the srcip, but set them both
 		{
 			key: Key{
-				KeyTuple: KeyTuple{
+				ConnectionKey: types.ConnectionKey{
 					SrcIPHigh: 0,
 					SrcIPLow:  uint64(binary.LittleEndian.Uint32([]uint8{127, 0, 0, 1})),
 					DstIPHigh: 0,
@@ -35,7 +36,7 @@ func TestIsLocalhost(t *testing.T) {
 		},
 		{
 			key: Key{
-				KeyTuple: KeyTuple{
+				ConnectionKey: types.ConnectionKey{
 					SrcIPHigh: 0,
 					SrcIPLow:  uint64(binary.LittleEndian.Uint32([]uint8{192, 168, 1, 1})),
 					DstIPHigh: 0,
@@ -46,7 +47,7 @@ func TestIsLocalhost(t *testing.T) {
 		},
 		{
 			key: Key{
-				KeyTuple: KeyTuple{
+				ConnectionKey: types.ConnectionKey{
 					SrcIPHigh: 0,
 					SrcIPLow:  binary.LittleEndian.Uint64([]uint8{0, 0, 0, 0, 0, 0, 0, 1}),
 					DstIPHigh: 0,
@@ -57,7 +58,7 @@ func TestIsLocalhost(t *testing.T) {
 		},
 		{
 			key: Key{
-				KeyTuple: KeyTuple{
+				ConnectionKey: types.ConnectionKey{
 					SrcIPHigh: binary.LittleEndian.Uint64([]uint8{0xf, 0xe, 0x8, 0, 0, 0, 0, 0}),
 					SrcIPLow:  binary.LittleEndian.Uint64([]uint8{0x1, 0x9, 0x3, 0xe, 0x4, 0xc, 0xd, 0x6, 0xf, 0xf, 0xa, 0x4}),
 					DstIPHigh: binary.LittleEndian.Uint64([]uint8{0xf, 0xe, 0x8, 0, 0, 0, 0, 0}),
