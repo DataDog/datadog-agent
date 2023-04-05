@@ -22,10 +22,10 @@ func TestLifecycle(t *testing.T) {
 
 	assert.Eventually(t, func() bool {
 		res, err := http.Get("http://localhost:6162/config")
-		defer res.Body.Close()
 		if err != nil {
 			return false
 		}
+		defer res.Body.Close()
 
 		return res.StatusCode == http.StatusOK
 	}, 5*time.Second, time.Second)
