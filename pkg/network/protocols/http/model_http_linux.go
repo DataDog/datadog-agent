@@ -13,6 +13,8 @@ import (
 	"encoding/hex"
 	"strconv"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
 // Path returns the URL from the request fragment captured in eBPF with
@@ -59,8 +61,8 @@ func (tx *ebpfHttpTx) Incomplete() bool {
 	return tx.Request_started == 0 || tx.Response_status_code == 0
 }
 
-func (tx *ebpfHttpTx) ConnTuple() KeyTuple {
-	return KeyTuple{
+func (tx *ebpfHttpTx) ConnTuple() types.ConnectionKey {
+	return types.ConnectionKey{
 		SrcIPHigh: tx.Tup.Saddr_h,
 		SrcIPLow:  tx.Tup.Saddr_l,
 		DstIPHigh: tx.Tup.Daddr_h,

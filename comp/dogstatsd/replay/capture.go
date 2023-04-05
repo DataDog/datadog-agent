@@ -99,6 +99,9 @@ func (tc *trafficCapture) Start(p string, d time.Duration, compressed bool) (str
 func (tc *trafficCapture) Stop() {
 	tc.Lock()
 	defer tc.Unlock()
+	if tc.writer == nil {
+		return
+	}
 
 	tc.writer.StopCapture()
 }

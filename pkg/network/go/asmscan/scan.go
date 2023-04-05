@@ -19,7 +19,7 @@ import (
 // The callback should return a slice of indices into the buffer
 // that point to positions within the larger binary.
 // These positions will then be adjusted based on the offset of the text section
-// to provide the same positiions as PC positions,
+// to provide the same positions as PC positions,
 // which will be returned from the outer function.
 //
 // lowPC, highPC forms an interval that contains all machine code bytes
