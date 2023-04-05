@@ -201,56 +201,34 @@ func (s *Socket) ReceiveAndDiscard() (bool, uint32, error) {
 // ReceiveInto reads one or more netlink.Messages off the socket
 func (s *Socket) ReceiveInto(b []byte) ([]netlink.Message, uint32, error) {
 	var netns uint32
-	var ret []netlink.Message
-	for {
-		n, oobn, err := s.recvmsg()
-		if err != nil {
-			return nil, 0, os.NewSyscallError("recvmsg", err)
-		}
+	n, oobn, err := s.recvmsg()
+	if err != nil {
+		return nil, 0, os.NewSyscallError("recvmsg", err)
+	}
 
-		n = nlmsgAlign(n)
-		// If we cannot fit the date into the supplied buffer,  we allocate a slice
-		// with enough capacity. This should happen very rarely.
-		if n > len(b) {
-			b = make([]byte, n)
-		}
-		copy(b, s.recvbuf[:n])
+	n = nlmsgAlign(n)
+	// If we cannot fit the date into the supplied buffer,  we allocate a slice
+	// with enough capacity. This should happen very rarely.
+	if n > len(b) {
+		b = make([]byte, n)
+	}
+	copy(b, s.recvbuf[:n])
 
-		msgs, err := ParseNetlinkMessage(b[:n])
+	msgs, err := ParseNetlinkMessage(b[:n])
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if oobn > 0 && netns == 0 {
+		scms, err := unix.ParseSocketControlMessage(s.oobbuf[:oobn])
 		if err != nil {
 			return nil, 0, err
 		}
 
-		var multi bool
-		for _, m := range msgs {
-			if err := checkMessage(m); err != nil {
-				return nil, 0, err
-			}
-
-			if m.Header.Flags&netlink.Multi == 0 {
-				continue
-			}
-
-			multi = m.Header.Type != netlink.Done
-		}
-
-		ret = append(ret, msgs...)
-
-		if oobn > 0 && netns == 0 {
-			scms, err := unix.ParseSocketControlMessage(s.oobbuf[:oobn])
-			if err != nil {
-				return nil, 0, err
-			}
-
-			netns = parseNetNS(scms)
-		}
-
-		if !multi {
-			break
-		}
+		netns = parseNetNS(scms)
 	}
 
-	return ret, netns, nil
+	return msgs, netns, nil
 }
 
 // ParseNetlinkMessage parses b as an array of netlink messages and
