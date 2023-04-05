@@ -219,7 +219,7 @@ func (s *Socket) ReceiveInto(b []byte) ([]netlink.Message, uint32, error) {
 		return nil, 0, err
 	}
 
-	if oobn > 0 && netns == 0 {
+	if oobn > 0 {
 		scms, err := unix.ParseSocketControlMessage(s.oobbuf[:oobn])
 		if err != nil {
 			return nil, 0, err
