@@ -33,6 +33,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
+	semconv117 "go.opentelemetry.io/collector/semconv/v1.17.0"
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -180,7 +181,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 		rattr[k] = v.AsString()
 		return true
 	})
-	src, srcok := attributes.SourceFromAttributes(attr, o.conf.OTLPReceiver.UsePreviewHostnameLogic)
+	src, srcok := attributes.SourceFromAttrs(attr)
 	hostFromMap := func(m map[string]string, key string) {
 		// hostFromMap sets the hostname to m[key] if it is set.
 		if v, ok := m[key]; ok {
@@ -196,10 +197,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	if lang == "" {
 		lang = fastHeaderGet(httpHeader, header.Lang)
 	}
-	containerID := rattr[string(semconv.AttributeContainerID)]
-	if containerID == "" {
-		containerID = rattr[string(semconv.AttributeK8SPodUID)]
-	}
+	containerID := getFirstFromMap(rattr, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
 	if containerID == "" {
 		containerID = o.cidProvider.GetContainerID(ctx, httpHeader)
 	}
@@ -241,12 +239,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 			}
 			if containerID == "" {
 				// no cid at resource level, grab what we can
-				if v := ddspan.Meta[string(semconv.AttributeK8SPodUID)]; v != "" {
-					containerID = v
-				}
-				if v := ddspan.Meta[string(semconv.AttributeContainerID)]; v != "" {
-					containerID = v
-				}
+				containerID = getFirstFromMap(ddspan.Meta, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
 			}
 			if p, ok := ddspan.Metrics["_sampling_priority_v1"]; ok {
 				priorityByID[traceID] = sampler.SamplingPriority(p)
@@ -585,25 +578,34 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 func resourceFromTags(meta map[string]string) string {
 	if m := meta[string(semconv.AttributeHTTPMethod)]; m != "" {
 		// use the HTTP method + route (if available)
-		if route := meta[string(semconv.AttributeHTTPRoute)]; route != "" {
-			return m + " " + route
-		} else if route := meta["grpc.path"]; route != "" {
+		if route := getFirstFromMap(meta, semconv.AttributeHTTPRoute, "grpc.path"); route != "" {
 			return m + " " + route
 		}
 		return m
 	} else if m := meta[string(semconv.AttributeMessagingOperation)]; m != "" {
 		// use the messaging operation
-		if dest := meta[string(semconv.AttributeMessagingDestination)]; dest != "" {
+		if dest := getFirstFromMap(meta, semconv.AttributeMessagingDestination, semconv117.AttributeMessagingDestinationName); dest != "" {
 			return m + " " + dest
 		}
 		return m
 	} else if m := meta[string(semconv.AttributeRPCMethod)]; m != "" {
 		// use the RPC method
 		if svc := meta[string(semconv.AttributeRPCService)]; svc != "" {
-			// ...and service if availabl
+			// ...and service if available
 			return m + " " + svc
 		}
 		return m
+	}
+	return ""
+}
+
+// getFirstFromMap checks each key in the given keys in the map and returns the first value whose
+// key matches, or an empty string if none matches.
+func getFirstFromMap(m map[string]string, keys ...string) string {
+	for _, key := range keys {
+		if val := m[key]; val != "" {
+			return val
+		}
 	}
 	return ""
 }

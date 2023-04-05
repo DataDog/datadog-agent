@@ -600,7 +600,7 @@ metric_tags:
 			},
 		},
 		{
-			name: "mapping does not exist",
+			name: "index mapping does not exist",
 			// language=yaml
 			rawMetricConfig: []byte(`
 table:
@@ -663,6 +663,106 @@ metric_tags:
 			expectedLogs: []logCount{
 				{"[DEBUG] getTagsFromMetricTagConfigList: error getting tags. index `100` not found in indexes `[1]`", 1},
 			},
+		},
+		{
+			name: "tag value mapping",
+			// language=yaml
+			rawMetricConfig: []byte(`
+table:
+  OID: 1.3.6.1.2.1.2.2
+  name: ifTable
+symbols:
+  - OID: 1.3.6.1.2.1.2.2.1.10
+    name: ifInOctets
+metric_tags:
+  - tag: if_type
+    column:
+      OID: 1.3.6.1.2.1.2.2.1.3
+      name: ifType
+    mapping:
+      1: other
+      2: regular1822
+      3: hdh1822
+      4: ddn-x25
+      29: ultra
+`),
+			fullIndex: "1",
+			values: &valuestore.ResultValueStore{
+				ColumnValues: map[string]map[string]valuestore.ResultValue{
+					"1.3.6.1.2.1.2.2.1.3": {
+						"1": valuestore.ResultValue{
+							Value: float64(2),
+						},
+					},
+				},
+			},
+			expectedTags: []string{"if_type:regular1822"},
+		},
+		{
+			name: "tag value mapping does not exist",
+			// language=yaml
+			rawMetricConfig: []byte(`
+table:
+  OID: 1.3.6.1.2.1.2.2
+  name: ifTable
+symbols:
+  - OID: 1.3.6.1.2.1.2.2.1.10
+    name: ifInOctets
+metric_tags:
+  - tag: if_type
+    column:
+      OID: 1.3.6.1.2.1.2.2.1.3
+      name: ifType
+    mapping:
+      1: other
+      2: regular1822
+      3: hdh1822
+      4: ddn-x25
+      29: ultra
+`),
+			fullIndex: "1",
+			values: &valuestore.ResultValueStore{
+				ColumnValues: map[string]map[string]valuestore.ResultValue{
+					"1.3.6.1.2.1.2.2.1.3": {
+						"1": valuestore.ResultValue{
+							Value: float64(5),
+						},
+					},
+				},
+			},
+			expectedTags: []string(nil),
+			expectedLogs: []logCount{
+				{"[DEBUG] GetTags: error getting tags. mapping for `5` does not exist.", 1},
+			},
+		},
+		{
+			name: "empty tag value mapping",
+			// language=yaml
+			rawMetricConfig: []byte(`
+table:
+  OID: 1.3.6.1.2.1.2.2
+  name: ifTable
+symbols:
+  - OID: 1.3.6.1.2.1.2.2.1.10
+    name: ifInOctets
+metric_tags:
+  - tag: if_type
+    column:
+      OID: 1.3.6.1.2.1.2.2.1.3
+      name: ifType
+    mapping:
+`),
+			fullIndex: "1",
+			values: &valuestore.ResultValueStore{
+				ColumnValues: map[string]map[string]valuestore.ResultValue{
+					"1.3.6.1.2.1.2.2.1.3": {
+						"1": valuestore.ResultValue{
+							Value: float64(7),
+						},
+					},
+				},
+			},
+			expectedTags: []string{"if_type:7"},
 		},
 	}
 	for _, tt := range tests {

@@ -96,7 +96,7 @@ remove_version_history()
 
 remove_sysprobe_files()
 {
-    for file in run/runtime-security-registry.json run/sysprobe.sock run/system-probe.pid
+    for file in run/runtime-security-registry.json run/sysprobe.sock run/event-monitor.sock run/runtime-security.sock run/system-probe.pid
     do
         if [ -e "$INSTALL_DIR/$file" ]; then
             rm "$INSTALL_DIR/$file" || true

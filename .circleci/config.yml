@@ -229,6 +229,15 @@ jobs:
           name: run component linting
           command: inv -e lint-components
 
+  codeowner_linting:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: run CODEOWNER linting
+          command: inv -e github.lint-codeowner
+
   docker_tests:
     <<: *job_template
     steps:
@@ -329,6 +338,9 @@ workflows:
           requires:
             - dependencies
       - component_linting:
+          requires:
+            - dependencies
+      - codeowner_linting:
           requires:
             - dependencies
       - docker_tests:

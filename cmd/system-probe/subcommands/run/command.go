@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/common"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -65,7 +64,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(config.NewAgentParamsWithoutSecrets("", config.WithConfigMissingOK(true))),
-				fx.Supply(sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.ConfFilePath))),
+				fx.Supply(sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfig.WithConfigLoadSecrets(true))),
 				fx.Supply(log.LogForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 				config.Module,
 				sysprobeconfig.Module,
@@ -89,6 +88,9 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 
 	// prepare go runtime
 	ddruntime.SetMaxProcs()
+	if err := ddruntime.SetGoMemLimit(ddconfig.IsContainerized()); err != nil {
+		log.Debugf("Couldn't set Go memory limit: %s", err)
+	}
 
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
@@ -145,7 +147,7 @@ func StartSystemProbeWithDefaults() error {
 		},
 		// no config file path specification in this situation
 		fx.Supply(config.NewAgentParamsWithoutSecrets("", config.WithConfigMissingOK(true))),
-		fx.Supply(sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(""))),
+		fx.Supply(sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(""), sysprobeconfig.WithConfigLoadSecrets(true))),
 		fx.Supply(log.LogForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 		config.Module,
 		sysprobeconfig.Module,
@@ -173,18 +175,6 @@ func startSystemProbe(cliParams *cliParams, log log.Component, sysprobeconfig sy
 
 	if err := util.SetupCoreDump(sysprobeconfig); err != nil {
 		log.Warnf("cannot setup core dumps: %s, core dumps might not be available after a crash", err)
-	}
-
-	if sysprobeconfig.GetBool("system_probe_config.memory_controller.enabled") {
-		memoryPressureLevels := sysprobeconfig.GetStringMapString("system_probe_config.memory_controller.pressure_levels")
-		memoryThresholds := sysprobeconfig.GetStringMapString("system_probe_config.memory_controller.thresholds")
-		hierarchy := sysprobeconfig.GetString("system_probe_config.memory_controller.hierarchy")
-		common.MemoryMonitor, err = utils.NewMemoryMonitor(hierarchy, ddconfig.IsContainerized(), memoryPressureLevels, memoryThresholds)
-		if err != nil {
-			log.Warnf("cannot set up memory controller: %s", err)
-		} else {
-			common.MemoryMonitor.Start()
-		}
 	}
 
 	if err := initRuntimeSettings(); err != nil {
@@ -244,9 +234,7 @@ func stopSystemProbe(cliParams *cliParams) {
 		}
 	}
 	profiling.Stop()
-	if common.MemoryMonitor != nil {
-		common.MemoryMonitor.Stop()
-	}
+
 	_ = os.Remove(cliParams.pidfilePath)
 
 	// gracefully shut down any component

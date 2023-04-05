@@ -1,6 +1,8 @@
 FROM ubuntu:22.04 AS baseimage
 LABEL baseimage.os "ubuntu jammy LTS"
 LABEL baseimage.name "ubuntu:22.04"
+# Can be used by Dependabot
+LABEL org.opencontainers.image.source "https://github.com/DataDog/datadog-agent"
 
 ARG CIBUILD
 # NOTE about APT mirrorlists:
@@ -50,7 +52,7 @@ RUN S6ARCH=$([ "$TARGETARCH" = "amd64" ] && echo "amd64" || echo "aarch64") && c
 COPY s6.$TARGETARCH.sha256 /output/s6.$TARGETARCH.sha256
 # To calculate S6_SHA256SUM for a specific version, run:
 # curl -L https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-<arch>.tar.gz | sha256sum
-RUN echo "$(cat /output/s6.$TARGETARCH.sha256) /output/s6.tgz" | sha256sum -c -
+RUN echo "$(cat /output/s6.$TARGETARCH.sha256) /output/s6.tgz" | sha256sum -c - && rm -f /output/s6.$TARGETARCH.sha256
 
 # Extract and cleanup:
 #   - unused systemd unit

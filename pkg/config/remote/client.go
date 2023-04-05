@@ -60,6 +60,7 @@ type Client struct {
 	products     []string
 
 	clusterName string
+	clusterID   string
 
 	pollInterval      time.Duration
 	lastUpdateError   error
@@ -166,12 +167,18 @@ func newClient(agentName string, updater ConfigUpdater, doTufVerification bool, 
 	// If we're the cluster agent, we want to report our cluster name and cluster ID in order to allow products
 	// relying on remote config to identify this RC client to be able to write predicates for config routing
 	clusterName := ""
+	clusterID := ""
 	if flavor.GetFlavor() == flavor.ClusterAgent {
 		hname, err := hostname.Get(context.TODO())
 		if err != nil {
 			log.Warnf("Error while getting hostname, needed for retrieving cluster-name: cluster-name won't be set for remote-config")
 		} else {
 			clusterName = clustername.GetClusterName(context.TODO(), hname)
+		}
+
+		clusterID, err = clustername.GetClusterID()
+		if err != nil {
+			log.Warnf("Error retrieving cluster ID: cluster-id won't be set for remote-config")
 		}
 	}
 
@@ -185,6 +192,7 @@ func newClient(agentName string, updater ConfigUpdater, doTufVerification bool, 
 		agentName:           agentName,
 		agentVersion:        agentVersion,
 		clusterName:         clusterName,
+		clusterID:           clusterID,
 		products:            data.ProductListToString(products),
 		state:               repository,
 		pollInterval:        pollInterval,
@@ -419,6 +427,7 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 				Name:        c.agentName,
 				Version:     c.agentVersion,
 				ClusterName: c.clusterName,
+				ClusterId:   c.clusterID,
 			},
 		},
 		CachedTargetFiles: pbCachedFiles,

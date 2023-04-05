@@ -35,7 +35,7 @@ func TestNetworkProcessEventMonitoring(t *testing.T) {
 
 			cfg, err := New("")
 			require.NoError(t, err)
-			assert.Equal(t, te.enabled, cfg.ModuleIsEnabled(SecurityRuntimeModule))
+			assert.Equal(t, te.enabled, cfg.ModuleIsEnabled(EventMonitorModule))
 		})
 	}
 

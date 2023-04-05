@@ -35,12 +35,12 @@ import (
 	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/encoding/protojson"
 
+	adproto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
-	adproto "github.com/DataDog/datadog-agent/pkg/security/proto/security_profile/v1"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -127,6 +127,11 @@ type ActivityDump struct {
 	// Dump metadata
 	Metadata
 
+	// Used to store the global list of DNS names contained in this dump
+	// this is a hack used to provide this global list to the backend in the JSON header
+	// instead of in the protobuf payload.
+	DNSNames *utils.StringKeys `json:"dns_names"`
+
 	// Load config
 	LoadConfig       *model.ActivityDumpLoadConfig `json:"-"`
 	LoadConfigCookie uint32                        `json:"-"`
@@ -161,6 +166,8 @@ func NewEmptyActivityDump() *ActivityDump {
 		bindFamilyDrop:     atomic.NewUint64(0),
 		pathMergedCount:    atomic.NewUint64(0),
 		StorageRequests:    make(map[config.StorageFormat][]config.StorageRequest),
+
+		DNSNames: utils.NewStringKeys(nil),
 	}
 
 	// generate counters
@@ -188,20 +195,20 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 		Name:              fmt.Sprintf("activity-dump-%s", utils.RandString(10)),
 		ProtobufVersion:   ProtobufVersion,
 		Start:             now,
-		End:               now.Add(adm.config.ActivityDumpCgroupDumpTimeout),
+		End:               now.Add(adm.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout),
 		Arch:              probes.RuntimeArch,
 	}
 	ad.Host = adm.hostname
 	ad.Source = ActivityDumpSource
 	ad.adm = adm
-	ad.shouldMergePaths = adm.config.ActivityDumpPathMergeEnabled
+	ad.shouldMergePaths = adm.config.RuntimeSecurity.ActivityDumpPathMergeEnabled
 
 	// set load configuration to initial defaults
 	ad.LoadConfig = NewActivityDumpLoadConfig(
-		adm.config.ActivityDumpTracedEventTypes,
-		adm.config.ActivityDumpCgroupDumpTimeout,
-		adm.config.ActivityDumpCgroupWaitListTimeout,
-		adm.config.ActivityDumpRateLimiter,
+		adm.config.RuntimeSecurity.ActivityDumpTracedEventTypes,
+		adm.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout,
+		adm.config.RuntimeSecurity.ActivityDumpCgroupWaitListTimeout,
+		adm.config.RuntimeSecurity.ActivityDumpRateLimiter,
 		now,
 		adm.timeResolver,
 	)
@@ -257,6 +264,7 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 		startTime,
 		nil,
 	)
+	ad.DNSNames = utils.NewStringKeys(msg.GetDNSNames())
 
 	// parse requests from message
 	for _, request := range msg.GetStorage() {
@@ -331,7 +339,7 @@ func (ad *ActivityDump) AddStorageRequest(request config.StorageRequest) {
 }
 
 func (ad *ActivityDump) checkInMemorySize() {
-	if ad.computeInMemorySize() < int64(ad.adm.config.ActivityDumpMaxDumpSize()) {
+	if ad.computeInMemorySize() < int64(ad.adm.config.RuntimeSecurity.ActivityDumpMaxDumpSize()) {
 		return
 	}
 
@@ -937,6 +945,7 @@ func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage
 			Size:              ad.Metadata.Size,
 			Arch:              ad.Metadata.Arch,
 		},
+		DNSNames: ad.DNSNames.Keys(),
 	}
 }
 
@@ -1046,6 +1055,11 @@ func (ad *ActivityDump) Unzip(inputFile string, ext string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("couldn't unzip %s: %w", inputFile, err)
 	}
+
+	if err = outputFile.Close(); err != nil {
+		return "", fmt.Errorf("could not close file [%s]: %w", outputFile.Name(), err)
+	}
+
 	return strings.TrimSuffix(inputFile, ext), nil
 }
 
@@ -1096,7 +1110,7 @@ func (ad *ActivityDump) DecodeProtobuf(reader io.Reader) error {
 		return fmt.Errorf("couldn't open activity dump file: %w", err)
 	}
 
-	inter := &adproto.ActivityDump{}
+	inter := &adproto.SecDump{}
 	if err := inter.UnmarshalVT(raw); err != nil {
 		return fmt.Errorf("couldn't decode protobuf activity dump file: %w", err)
 	}
@@ -1479,6 +1493,8 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 
 // InsertDNSEvent inserts
 func (ad *ActivityDump) InsertDNSEvent(pan *ProcessActivityNode, evt *model.DNSEvent, rules []*model.MatchedRule) bool {
+	ad.insertDNSNameToHackyBackendList(evt.Name)
+
 	if dnsNode, ok := pan.DNSNames[evt.Name]; ok {
 		dnsNode.MatchedRules = model.AppendMatchedRule(dnsNode.MatchedRules, rules)
 		// look for the DNS request type
@@ -1494,6 +1510,14 @@ func (ad *ActivityDump) InsertDNSEvent(pan *ProcessActivityNode, evt *model.DNSE
 	}
 	pan.DNSNames[evt.Name] = NewDNSNode(evt, &ad.nodeStats, rules)
 	return true
+}
+
+func (ad *ActivityDump) insertDNSNameToHackyBackendList(name string) {
+	if name == "" {
+		return
+	}
+
+	ad.DNSNames.Insert(name)
 }
 
 // InsertBindEvent inserts a bind event to the activity dump

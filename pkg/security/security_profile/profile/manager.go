@@ -17,9 +17,9 @@ import (
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 
+	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	proto "github.com/DataDog/datadog-agent/pkg/security/proto/security_profile/v1"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -27,7 +27,6 @@ import (
 
 // SecurityProfileManager is used to manage Security Profiles
 type SecurityProfileManager struct {
-	config         *config.Config
 	statsdClient   statsd.ClientInterface
 	cgroupResolver *cgroup.Resolver
 	providers      []Provider
@@ -46,21 +45,20 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 	var providers []Provider
 
 	// instantiate directory provider
-	if len(config.SecurityProfileDir) != 0 {
-		dirProvider, err := NewDirectoryProvider(config.SecurityProfileDir, config.SecurityProfileWatchDir)
+	if len(config.RuntimeSecurity.SecurityProfileDir) != 0 {
+		dirProvider, err := NewDirectoryProvider(config.RuntimeSecurity.SecurityProfileDir, config.RuntimeSecurity.SecurityProfileWatchDir)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't instantiate a new security profile directory provider: %w", err)
 		}
 		providers = append(providers, dirProvider)
 	}
 
-	profileCache, err := simplelru.NewLRU[cgroupModel.WorkloadSelector, *SecurityProfile](config.SecurityProfileCacheSize, nil)
+	profileCache, err := simplelru.NewLRU[cgroupModel.WorkloadSelector, *SecurityProfile](config.RuntimeSecurity.SecurityProfileCacheSize, nil)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create security profile cache: %w", err)
 	}
 
 	m := &SecurityProfileManager{
-		config:         config,
 		statsdClient:   statsdClient,
 		providers:      providers,
 		cgroupResolver: cgroupResolver,

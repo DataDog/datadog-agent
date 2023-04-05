@@ -1,0 +1,162 @@
+.pull_test_dockers:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64:$DATADOG_AGENT_BUILDIMAGES
+  needs: []
+  tags: ["runner:docker"]
+  rules:
+    !reference [ .on_system_probe_changes_or_manual ]
+  stage: kernel_matrix_testing
+  script:
+    # DockerHub login for build to limit rate limit when pulling base images
+    - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
+    # Pull base images
+    - mkdir $KITCHEN_DOCKERS
+    - inv -e system-probe.save-test-dockers --output-dir $KITCHEN_DOCKERS --arch $ARCH
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - $KITCHEN_DOCKERS
+  variables:
+    KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers-$ARCH
+
+pull_test_dockers_x64:
+  extends: .pull_test_dockers
+  variables:
+    ARCH: amd64
+
+pull_test_dockers_arm64:
+  extends: .pull_test_dockers
+  variables:
+    ARCH: arm64
+
+.package_dependencies:
+  stage: kernel_matrix_testing
+  rules:
+    !reference [.on_system_probe_changes_or_manual]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
+  tags: ["runner:main"]
+  script:
+    # Build dependencies directory
+    - mkdir -p $DEPENDENCIES
+    - pushd $DEPENDENCIES
+    # copy clang and llc bins
+    - mkdir -p $EMBEDDED_BIN
+    - cp $CLANG_BPF $EMBEDDED_BIN
+    - cp $LLC_BPF $EMBEDDED_BIN
+    - mkdir -p $EMBEDDED_INC
+    # download and copy btf files
+    - mkdir -p $BTF_DIR
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/minimized-btfs-${ARCH}.tar.xz $BTF_DIR/minimized-btfs.tar.xz
+    # copy gotestsum and test2json
+    - mkdir -p $GO_BIN
+    - cp $GOTESTSUM $GO_BIN
+    - cp $TEST2JSON $GO_BIN
+    - mkdir junit
+    - mkdir testjson
+    - mkdir pkgjson
+   # copy over docker images
+    - cp -R $KITCHEN_DOCKERS $DEPENDENCIES/kitchen-docker
+    # copy system probe tests
+    - mkdir -p $SYSTEM_PROBE_TESTS
+    - cp -R $KITCHEN_TESTS $SYSTEM_PROBE_TESTS
+    - popd
+    # package all the dependencies
+    - ls -la $DEPENDENCIES
+    - pushd $DD_AGENT_TESTING_DIR/$ARCH
+    - tar czvf ../$ARCHIVE_NAME dependencies
+    - popd
+  artifacts:
+    when: always
+    paths:
+      - $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME
+  variables:
+    DEPENDENCIES: $DD_AGENT_TESTING_DIR/$ARCH/dependencies
+    CLANG_BPF: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/clang-bpf
+    LLC_BPF: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/llc-bpf
+    GO_BIN: go/bin
+    GOTESTSUM: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/gotestsum
+    TEST2JSON: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/test2json
+    EMBEDDED_BIN: opt/datadog-agent/embedded/bin
+    EMBEDDED_INC: opt/datadog-agent/embedded/include
+    BTF_DIR: system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf
+    KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers-$ARCH
+    SYSTEM_PROBE_TESTS: system-probe-tests
+    KITCHEN_TESTS: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/tests/pkg
+
+package_dependencies_x64:
+  extends:
+    - .package_dependencies
+  needs: ["prepare_ebpf_functional_tests_x64", "tests_ebpf_x64", "pull_test_dockers_x64", "generate_minimized_btfs_x64"]
+  variables:
+    ARCHIVE_NAME: dependencies-x86_64.tar.gz
+    ARCH: amd64
+
+package_dependencies_arm64:
+  extends:
+    - .package_dependencies
+  needs: ["prepare_ebpf_functional_tests_arm64", "tests_ebpf_arm64", "pull_test_dockers_arm64", "generate_minimized_btfs_arm64"]
+  variables:
+    ARCHIVE_NAME: dependencies-arm64.tar.gz
+    ARCH: arm64
+
+
+kernel_matrix_testing_setup_env:
+  extends:
+    - .kitchen_ec2_location_us_east_1
+  stage: kernel_matrix_testing
+  rules:
+    !reference [.manual]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  needs: ["go_deps", "go_tools_deps"]
+  tags: ["runner:main"]
+  variables:
+    EC2_X86_INSTANCE_TYPE: "i3.metal"
+    EC2_ARM_INSTANCE_TYPE: "m6g.metal"
+    X86_AMI_ID: "ami-0f50812e4388946ff"
+    ARM_AMI_ID: "ami-0d0b8e440bb126e28"
+    AWS_REGION: us-east-1
+    LibvirtSSHKeyX86: $CI_PROJECT_DIR/libvirt_rsa-x86
+    LibvirtSSHKeyARM: $CI_PROJECT_DIR/libvirt_rsa-arm
+    STACK_DIR: $CI_PROJECT_DIR/stack.dir
+  script:
+    - echo s3://dd-ci-datadog-agent-omnibus-cache-build-stable/kernel-matrix-testing/$CI_PIPELINE_ID/$CI_JOB_ID/pulumi > $STACK_DIR
+    - pulumi login $(cat $STACK_DIR | tr -d '\n')
+    - inv -e system-probe.test-microvms --security-groups=$KITCHEN_EC2_SG_IDS --subnets=$KITCHEN_EC2_SUBNET --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID
+    - pulumi logout
+  artifacts:
+    when: always
+    paths:
+      - $LibvirtSSHKeyX86
+      - $LibvirtSSHKeyX86.pub
+      - $LibvirtSSHKeyARM
+      - $LibvirtSSHKeyARM.pub
+      - $STACK_DIR
+
+kernel_matrix_testing_upload_deps:
+  extends:
+    - .kitchen_ec2_location_us_east_1
+  stage: kernel_matrix_testing
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  needs: ["kernel_matrix_testing_setup_env", "package_dependencies_x64", "package_dependencies_arm64"]
+  tags: ["runner:main"]
+  variables:
+    ARCH: x86_64
+    EC2_INSTANCE_TYPE: "z1d.metal"
+    AWS_REGION: us-east-1
+    LibvirtSSHKeyX86: $CI_PROJECT_DIR/libvirt_rsa-x86
+    LibvirtSSHKeyARM: $CI_PROJECT_DIR/libvirt_rsa-arm
+    STACK_DIR: $CI_PROJECT_DIR/stack.dir
+  script:
+    - pulumi login $(cat $STACK_DIR | tr -d '\n')
+    - inv -e system-probe.test-microvms --security-groups=$KITCHEN_EC2_SG_IDS --subnets=$KITCHEN_EC2_SUBNET --instance-type-x86=$EC2_INSTANCE_TYPE --upload-dependencies
+    - pulumi logout
+  artifacts:
+    when: always
+    paths:
+      - $LibvirtSSHKeyX86
+      - $LibvirtSSHKeyX86.pub
+      - $LibvirtSSHKeyARM
+      - $LibvirtSSHKeyARM.pub
+      - $STACK_DIR
+
+

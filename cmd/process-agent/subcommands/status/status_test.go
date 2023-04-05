@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	ddstatus "github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 func fakeStatusServer(t *testing.T, stats util.Status) *httptest.Server {
@@ -60,7 +61,7 @@ func TestStatus(t *testing.T) {
 
 	// Build the actual status
 	var statusBuilder strings.Builder
-	getAndWriteStatus(server.URL, &statusBuilder, util.OverrideTime(testTime))
+	getAndWriteStatus(log.NoopLogger, server.URL, &statusBuilder, util.OverrideTime(testTime))
 
 	assert.Equal(t, expectedOutput, statusBuilder.String())
 }
@@ -75,7 +76,7 @@ func TestNotRunning(t *testing.T) {
 	statusURL := fmt.Sprintf("http://%s/agent/status", addressPort)
 
 	var b strings.Builder
-	getAndWriteStatus(statusURL, &b)
+	getAndWriteStatus(log.NoopLogger, statusURL, &b)
 
 	assert.Equal(t, notRunning, b.String())
 }
@@ -90,7 +91,7 @@ func TestError(t *testing.T) {
 	var errText, expectedErrText strings.Builder
 	url, err := getStatusURL()
 	assert.Equal(t, "", url)
-	writeError(&errText, err)
+	writeError(log.NoopLogger, &errText, err)
 
 	tpl, err := template.New("").Parse(errorMessage)
 	require.NoError(t, err)

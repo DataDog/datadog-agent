@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const (
@@ -34,25 +35,29 @@ const (
 	tcpSetState = "tcp_set_state"
 
 	// tcpRecvMsgReturn traces the return value for the tcp_recvmsg() system call
-	tcpRecvMsgReturn = "tcp_recvmsg_exit"
+	tcpRecvMsgReturn        = "tcp_recvmsg_exit"
+	tcpRecvMsgPre5190Return = "tcp_recvmsg_exit_pre_5_19_0"
 	// tcpClose traces the tcp_close() system call
 	tcpClose = "tcp_close"
 	// tcpCloseReturn traces the return of tcp_close() system call
 	tcpCloseReturn = "tcp_close_exit"
 
 	// We use the following two probes for UDP
-	udpRecvMsg         = "udp_recvmsg"
-	udpRecvMsgReturn   = "udp_recvmsg_exit"
-	udpSendMsgReturn   = "udp_sendmsg_exit"
-	udpSendSkb         = "kprobe__udp_send_skb"
-	udpv6RecvMsg       = "udpv6_recvmsg"
-	udpv6RecvMsgReturn = "udpv6_recvmsg_exit"
-	udpv6SendMsgReturn = "udpv6_sendmsg_exit"
-	udpv6SendSkb       = "kprobe__udp_v6_send_skb"
+	udpRecvMsg              = "udp_recvmsg"
+	udpRecvMsgReturn        = "udp_recvmsg_exit"
+	udpRecvMsgPre5190Return = "udp_recvmsg_exit_pre_5_19_0"
+	udpSendMsgReturn        = "udp_sendmsg_exit"
+	udpSendSkb              = "kprobe__udp_send_skb"
 
 	skbFreeDatagramLocked   = "skb_free_datagram_locked"
 	__skbFreeDatagramLocked = "__skb_free_datagram_locked"
 	skbConsumeUdp           = "skb_consume_udp"
+
+	udpv6RecvMsg              = "udpv6_recvmsg"
+	udpv6RecvMsgReturn        = "udpv6_recvmsg_exit"
+	udpv6RecvMsgPre5190Return = "udpv6_recvmsg_exit_pre_5_19_0"
+	udpv6SendMsgReturn        = "udpv6_sendmsg_exit"
+	udpv6SendSkb              = "kprobe__udp_v6_send_skb"
 
 	// udpDestroySock traces the udp_destroy_sock() function
 	udpDestroySock = "udp_destroy_sock"
@@ -77,35 +82,38 @@ const (
 )
 
 var programs = map[string]struct{}{
-	inet6BindRet:            {},
-	inetBindRet:             {},
-	inetCskAcceptReturn:     {},
-	inetCskListenStop:       {},
-	sockFDLookupRet:         {}, // TODO: not available on certain kernels, will have to one or more hooks to get equivalent functionality; affects HTTPS monitoring (OpenSSL/GnuTLS/GoTLS)
-	tcpRecvMsgReturn:        {},
-	tcpClose:                {},
-	tcpCloseReturn:          {},
-	tcpConnect:              {},
-	tcpFinishConnect:        {},
-	tcpRetransmit:           {},
-	tcpRetransmitRet:        {},
-	tcpSendMsgReturn:        {},
-	tcpSendPageReturn:       {},
-	tcpSetState:             {},
-	udpDestroySock:          {},
-	udpDestroySockReturn:    {},
-	udpRecvMsg:              {},
-	udpRecvMsgReturn:        {},
-	udpSendMsgReturn:        {},
-	udpSendPageReturn:       {},
-	udpSendSkb:              {},
-	udpv6RecvMsg:            {},
-	udpv6RecvMsgReturn:      {},
-	udpv6SendMsgReturn:      {},
-	udpv6SendSkb:            {},
-	skbFreeDatagramLocked:   {},
-	__skbFreeDatagramLocked: {},
-	skbConsumeUdp:           {},
+	inet6BindRet:              {},
+	inetBindRet:               {},
+	inetCskAcceptReturn:       {},
+	inetCskListenStop:         {},
+	sockFDLookupRet:           {}, // TODO: not available on certain kernels, will have to one or more hooks to get equivalent functionality; affects HTTPS monitoring (OpenSSL/GnuTLS/GoTLS)
+	tcpRecvMsgReturn:          {},
+	tcpClose:                  {},
+	tcpCloseReturn:            {},
+	tcpConnect:                {},
+	tcpFinishConnect:          {},
+	tcpRetransmit:             {},
+	tcpRetransmitRet:          {},
+	tcpSendMsgReturn:          {},
+	tcpSendPageReturn:         {},
+	tcpSetState:               {},
+	udpDestroySock:            {},
+	udpDestroySockReturn:      {},
+	udpRecvMsg:                {},
+	udpRecvMsgReturn:          {},
+	udpSendMsgReturn:          {},
+	udpSendPageReturn:         {},
+	udpSendSkb:                {},
+	udpv6RecvMsg:              {},
+	udpv6RecvMsgReturn:        {},
+	udpv6SendMsgReturn:        {},
+	udpv6SendSkb:              {},
+	skbFreeDatagramLocked:     {},
+	__skbFreeDatagramLocked:   {},
+	skbConsumeUdp:             {},
+	tcpRecvMsgPre5190Return:   {},
+	udpRecvMsgPre5190Return:   {},
+	udpv6RecvMsgPre5190Return: {},
 }
 
 func enableProgram(enabled map[string]struct{}, name string) {
@@ -117,10 +125,16 @@ func enableProgram(enabled map[string]struct{}, name string) {
 // enabledPrograms returns a map of probes that are enabled per config settings.
 func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 	enabled := make(map[string]struct{}, 0)
+	kv5190 := kernel.VersionCode(5, 19, 0)
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return nil, err
+	}
+
 	if c.CollectTCPConns {
 		enableProgram(enabled, tcpSendMsgReturn)
 		enableProgram(enabled, tcpSendPageReturn)
-		enableProgram(enabled, tcpRecvMsgReturn)
+		enableProgram(enabled, selectVersionBasedProbe(kv, tcpRecvMsgReturn, tcpRecvMsgPre5190Return, kv5190))
 		enableProgram(enabled, tcpClose)
 		enableProgram(enabled, tcpCloseReturn)
 		enableProgram(enabled, tcpConnect)
@@ -145,7 +159,7 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, udpDestroySock)
 		enableProgram(enabled, udpDestroySockReturn)
 		enableProgram(enabled, udpRecvMsg)
-		enableProgram(enabled, udpRecvMsgReturn)
+		enableProgram(enabled, selectVersionBasedProbe(kv, udpRecvMsgReturn, udpRecvMsgPre5190Return, kv5190))
 		enableProgram(enabled, udpSendMsgReturn)
 		enableProgram(enabled, udpSendSkb)
 		enableProgram(enabled, udpSendPageReturn)
@@ -153,7 +167,7 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		if c.CollectIPv6Conns {
 			enableProgram(enabled, inet6BindRet)
 			enableProgram(enabled, udpv6RecvMsg)
-			enableProgram(enabled, udpv6RecvMsgReturn)
+			enableProgram(enabled, selectVersionBasedProbe(kv, udpv6RecvMsgReturn, udpv6RecvMsgPre5190Return, kv5190))
 			enableProgram(enabled, udpv6SendMsgReturn)
 			enableProgram(enabled, udpv6SendSkb)
 		}
@@ -174,4 +188,11 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 	}
 
 	return enabled, nil
+}
+
+func selectVersionBasedProbe(kv kernel.Version, dfault string, versioned string, reqVer kernel.Version) string {
+	if kv < reqVer {
+		return versioned
+	}
+	return dfault
 }

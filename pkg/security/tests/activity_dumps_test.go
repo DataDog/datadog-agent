@@ -29,7 +29,7 @@ const dedicatedADNodeForTestsEnv = "DEDICATED_ACTIVITY_DUMP_NODE"
 
 var expectedFormats = []string{"json", "protobuf"}
 
-const testActivityDumpRateLimiter = 20
+const testActivityDumpRateLimiter = 200
 const testActivityDumpTracedCgroupsCount = 3
 const testActivityDumpCgroupDumpTimeout = 11 // probe.MinDumpTimeout(10) + 5
 var testActivityDumpTracedEventTypes = []string{"exec", "open", "syscalls", "dns", "bind"}
@@ -74,6 +74,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		defer dockerInstance.stop()
 
+		time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
 		cmd := dockerInstance.Command(syscallTester, []string{"sleep", "1"}, []string{})
 		_, err = cmd.CombinedOutput()
 		if err != nil {
@@ -153,6 +154,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		defer dockerInstance.stop()
 
+		time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
 		cmd := dockerInstance.Command(syscallTester, []string{"bind", "AF_INET", "any", "tcp"}, []string{})
 		_, err = cmd.CombinedOutput()
 		if err != nil {
@@ -197,6 +199,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		defer dockerInstance.stop()
 
+		time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
 		cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
 		_, err = cmd.CombinedOutput()
 		if err != nil {
@@ -235,6 +238,7 @@ func TestActivityDumps(t *testing.T) {
 		temp, _ := os.CreateTemp(test.st.Root(), "ad-test-create")
 		os.Remove(temp.Name()) // next touch command have to create the file
 
+		time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
 		cmd := dockerInstance.Command("touch", []string{temp.Name()}, []string{})
 		_, err = cmd.CombinedOutput()
 		if err != nil {
@@ -277,6 +281,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		defer dockerInstance.stop()
 
+		time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
 		cmd := dockerInstance.Command(syscallTester, []string{"bind", "AF_INET", "any", "tcp"}, []string{})
 		_, err = cmd.CombinedOutput()
 		if err != nil {
@@ -332,6 +337,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		args := []string{"sleep", "2", ";", "open"}
 		args = append(args, files...)
+		time.Sleep(time.Second * 1) // to ensure we did not get ratelimited before starting
 		cmd := dockerInstance.Command(syscallTester, args, []string{})
 		_, err = cmd.CombinedOutput()
 		if err != nil {
@@ -502,6 +508,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 		defer dockerInstance.stop()
 
 		filePath := filepath.Join(test.st.Root(), "tag-open")
+		time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
 		cmd := dockerInstance.Command("touch", []string{filePath}, []string{})
 		_, err = cmd.CombinedOutput()
 		if err != nil {
@@ -551,6 +558,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 		}
 		defer dockerInstance.stop()
 
+		time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
 		cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
 		_, err = cmd.CombinedOutput()
 		if err != nil {
@@ -591,6 +599,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 		}
 		defer dockerInstance.stop()
 
+		time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
 		cmd := dockerInstance.Command(syscallTester, []string{"bind", "AF_INET", "any", "tcp"}, []string{})
 		_, err = cmd.CombinedOutput()
 		if err != nil {
@@ -636,6 +645,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 		}
 		defer dockerInstance.stop()
 
+		time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
 		cmd := dockerInstance.Command(syscallTester, []string{"sleep", "1"}, []string{})
 		_, err = cmd.CombinedOutput()
 		if err != nil {

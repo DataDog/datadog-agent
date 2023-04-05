@@ -60,6 +60,7 @@ const (
 	OpenSSL ConnTag = C.LIBSSL
 	Go      ConnTag = C.GO
 	Java    ConnTag = C.JAVA_TLS
+	TLS     ConnTag = C.CONN_TLS
 )
 
 var (
@@ -68,5 +69,6 @@ var (
 		OpenSSL: "tls.library:openssl",
 		Go:      "tls.library:go",
 		Java:    "tls.library:java",
+		TLS:     "tls.connection:encrypted",
 	}
 )

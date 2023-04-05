@@ -10,8 +10,8 @@ package listeners
 import (
 	"errors"
 
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 )
 
 // NamedPipeListener implements the StatsdListener interface for named pipe protocol.
@@ -19,7 +19,7 @@ type NamedPipeListener struct{}
 
 // NewNamedPipeListener returns an named pipe Statsd listener
 func NewNamedPipeListener(pipeName string, packetOut chan packets.Packets,
-	sharedPacketPoolManager *packets.PoolManager, capture *replay.TrafficCapture) (*NamedPipeListener, error) {
+	sharedPacketPoolManager *packets.PoolManager, capture replay.Component) (*NamedPipeListener, error) {
 
 	return nil, errors.New("named pipe is only supported on Windows")
 }
