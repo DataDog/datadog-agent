@@ -1,0 +1,3 @@
+/home/nplanel/go/src/github.com/DataDog/datadog-agent/pkg/network/java/testdata/netty/src/main/java/com/datadoghq/NettyClientHandler.java
+/home/nplanel/go/src/github.com/DataDog/datadog-agent/pkg/network/java/testdata/netty/src/main/java/com/datadoghq/NettyClientInitializer.java
+/home/nplanel/go/src/github.com/DataDog/datadog-agent/pkg/network/java/testdata/netty/src/main/java/com/datadoghq/NettyClient.java

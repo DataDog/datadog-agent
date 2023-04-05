@@ -917,7 +917,7 @@ func (s *USMSuite) TestJavaInjection() {
 			},
 		},
 		{
-			name: "java_jdk_client_netty_httpbin_host_java15",
+			name: "java_jdk_client_netty_openssl_httpbin_host_java15",
 			context: testContext{
 				extras: make(map[string]interface{}),
 			},
@@ -925,33 +925,47 @@ func (s *USMSuite) TestJavaInjection() {
 				cfg.JavaDir = legacyJavaDir
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "-cp /v/target/dependency/*:/v/target/NettyClient-1.jar -Dio.netty.native.deleteLibAfterLoading=false com.datadoghq.NettyClient", regexp.MustCompile("END OF CONTENT"))
+				javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "-cp /v/netty/target/dependency/*:/v/netty/target/NettyClient-1.jar -Dio.netty.native.deleteLibAfterLoading=false com.datadoghq.NettyClient sslengine=openssl", regexp.MustCompile("END OF CONTENT"))
 			},
 			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
 				// Iterate through active connections until we find connection created above
 				require.Eventuallyf(t, func() bool {
 					payload := getConnections(t, tr)
-					for _, c := range payload.Conns {
-						if c.DPort == 443 {
-							t.Logf("== conn %s pid %d", c.Dest, c.Pid)
-						}
-					}
 					for key := range payload.HTTP {
-						t.Logf("=== path %+#v", key.Path)
 						if key.Path.Content == "/anything/get/java-netty-test" {
 							return true
 						}
 					}
-
+					return false
+				}, 4*time.Second, time.Second, "couldn't find http connection matching: %s", "https://httpbin.org/anything/get/java-netty-test")
+			},
+		},
+		{
+			name: "java_jdk_client_netty_openssl_refcnt_httpbin_host_java15",
+			context: testContext{
+				extras: make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				cfg.JavaDir = legacyJavaDir
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "-cp /v/netty/target/dependency/*:/v/netty/target/NettyClient-1.jar -Dio.netty.native.deleteLibAfterLoading=false com.datadoghq.NettyClient sslengine=openssl_refcnt", regexp.MustCompile("END OF CONTENT"))
+			},
+			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+				// Iterate through active connections until we find connection created above
+				require.Eventuallyf(t, func() bool {
+					payload := getConnections(t, tr)
+					for key := range payload.HTTP {
+						if key.Path.Content == "/anything/get/java-netty-test" {
+							return true
+						}
+					}
 					return false
 				}, 4*time.Second, time.Second, "couldn't find http connection matching: %s", "https://httpbin.org/anything/get/java-netty-test")
 			},
 		},
 	}
 	for _, tt := range tests {
-		if tt.name != "java_jdk_client_netty_httpbin_host_java15" {
-			continue
-		}
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.teardown != nil {
 				t.Cleanup(func() {
