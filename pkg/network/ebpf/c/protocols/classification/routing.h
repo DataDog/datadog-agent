@@ -5,8 +5,29 @@
 #include "protocols/classification/defs.h"
 #include "protocols/classification/stack-helpers.h"
 
+// TODO: Move this forward to avoid conflicts with other eBPF programs
 #define LAYER_CACHE_CB_OFFSET 0
 #define PROGRAM_CACHE_CB_OFFSET 3
+
+#define LAYER_ENTRYPOINT(program)                             \
+    do {                                                        \
+        if (current_program == CLASSIFICATION_PROG_UNKNOWN) {   \
+            return program;                                     \
+        }                                                       \
+    } while(0)
+
+#define LAYER_TRANSITION(a, b)                \
+    do {                                        \
+        if (current_program == a) {             \
+            return b;                           \
+        }                                       \
+    } while(0)
+
+#define LAYER_END(layer_mask)                           \
+    do {                                                \
+        current_program = CLASSIFICATION_PROG_UNKNOWN;  \
+        *known_layers |= layer_mask;                    \
+    } while(0)
 
 // The purpose of caching all known (classified) layers and the current program in the skb->cb
 // field is to avoid one eBPF map lookup per tail call
@@ -44,49 +65,29 @@ static __always_inline void __init_layer_cache(struct __sk_buff *skb, protocol_s
 // not the application layer protocol is known at the time of the call. When a
 // certain protocol layer is known, the function "skips" to the entry-point of
 // the next layer and so forth.
-// TODO: maybe come-up with a macro to define these switch statements in a more
-// friendly way?
 static __always_inline classification_prog_t __get_next_program(struct __sk_buff *skb) {
-    u16 known_layers = *__get_layer_cache(skb);
+    u16 *known_layers = __get_layer_cache(skb);
     classification_prog_t current_program = *__get_program_cache(skb);
 
-    if (known_layers&LAYER_APPLICATION_BIT) {
+    if (*known_layers&LAYER_APPLICATION_BIT) {
         goto api;
     }
-    // add application-layer program routing here
-    switch(current_program) {
-    case CLASSIFICATION_QUEUES_PROG:
-        return CLASSIFICATION_DBS_PROG;
-    case CLASSIFICATION_DBS_PROG:
-        // proceed to next layer
-        break;
-    default:
-        // add here the entry-point of the application layer
-        return CLASSIFICATION_QUEUES_PROG;
-    }
 
+    // Add Application-layer routing here
+    LAYER_ENTRYPOINT(CLASSIFICATION_QUEUES_PROG);
+    LAYER_TRANSITION(CLASSIFICATION_QUEUES_PROG, CLASSIFICATION_DBS_PROG);
+    LAYER_END(LAYER_APPLICATION_BIT);
  api:
-    if (known_layers&LAYER_API_BIT) {
+    if (*known_layers&LAYER_API_BIT) {
         goto encryption;
     }
-    // add api-layer program routing here
-    switch(current_program) {
-    default:
-        // add here the entry-point of the api layer
-        break;
-    }
+
+    // Add API-layer routing here
+    LAYER_END(LAYER_API_BIT);
 
  encryption:
-    if (known_layers&LAYER_ENCRYPTION_BIT) {
-        return CLASSIFICATION_PROG_UNKNOWN;
-    }
-    // add encryption-layer program routing here
-    switch(current_program) {
-    default:
-        // add here the entry-point of the encryption layer
-        break;
-    }
-
+    // Add Encryption-layer routing here
+    LAYER_END(LAYER_ENCRYPTION_BIT);
     return CLASSIFICATION_PROG_UNKNOWN;
 }
 
@@ -94,6 +95,7 @@ static __always_inline void classification_next_program(struct __sk_buff *skb) {
     classification_prog_t next_program = __get_next_program(skb);
     if (next_program == CLASSIFICATION_PROG_UNKNOWN) {
         log_debug("classification tail-call: skb=%llu tail-end\n", skb);
+        return;
     }
 
     // update the program "cache"
