@@ -564,6 +564,12 @@ api_key:
   #
   # local_address: localhost
 
+  ## @param https - boolean - optional - default: true
+  ## @env DD_FIPS_HTTPS - boolean - optional - default: true
+  ## Use HTTPS when communicating with the FIPS proxy
+  #
+  # https: true
+
   ## @param port_range_start - integer - optional - default: 3833
   ## @env DD_FIPS_LOCAL_PORT_RANGE_START - integer - optional - default: 3833
   ## The FIPS proxy will bind a range of consecutive ports, each dedicated to a specific product (Metrics, Logs, APM.
