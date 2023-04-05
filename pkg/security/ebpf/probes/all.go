@@ -194,7 +194,7 @@ func AllMapSpecEditors(numCPU int, tracedCgroupSize int, supportMmapableMaps, us
 		editors["events"] = manager.MapSpecEditor{
 			MaxEntries: ringBufferSize,
 			Type:       ebpf.RingBuf,
-			EditorFlag: manager.EditType | manager.EditMaxEntries,
+			EditorFlag: manager.EditMaxEntries | manager.EditType | manager.EditKeyValue,
 		}
 	}
 	return editors
