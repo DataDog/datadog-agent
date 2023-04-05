@@ -420,6 +420,7 @@ func TestProcessMessageShouldProcessLogTypeFunctionOutOfMemory(t *testing.T) {
 	received, timed := demux.WaitForNumberOfSamples(2, 0, 100*time.Millisecond)
 	assert.Len(t, received, 2)
 	assert.Len(t, timed, 0)
+	assert.Equal(t, lc.errorStatus, "out_of_memory")
 	assert.Equal(t, serverlessMetrics.OutOfMemoryMetric, received[0].Name)
 	assert.Equal(t, serverlessMetrics.ErrorsMetric, received[1].Name)
 }
@@ -459,6 +460,7 @@ func TestProcessMessageShouldProcessLogTypePlatformReportOutOfMemory(t *testing.
 	received, timed := demux.WaitForNumberOfSamples(2, 0, 100*time.Millisecond)
 	assert.Len(t, received, 8)
 	assert.Len(t, timed, 0)
+	assert.Equal(t, lc.errorStatus, "out_of_memory")
 	assert.Equal(t, serverlessMetrics.OutOfMemoryMetric, received[6].Name)
 	assert.Equal(t, serverlessMetrics.ErrorsMetric, received[7].Name)
 }
