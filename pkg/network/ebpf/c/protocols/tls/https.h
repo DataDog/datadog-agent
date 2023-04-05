@@ -66,7 +66,10 @@ static __always_inline void https_finish(conn_tuple_t *t) {
     http_process(&http, &skb_info, NO_TAGS);
 }
 
-static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgid) {
+// is_ssl_sock_exist_from_ssl_ctx check if a ssl socket is associated with the context
+// If not we try to hook the connection that will be called on the same pid/thread within 500us window (see map_ssl_ctx_to_sock())
+// This should be done only on write API call as this will trigger tcp_sendmsg()
+static __always_inline bool is_ssl_sock_exist_from_ssl_ctx(void *ssl_ctx, u64 pid_tgid) {
     ssl_sock_t *ssl_sock = bpf_map_lookup_elem(&ssl_sock_by_ctx, &ssl_ctx);
     if (ssl_sock == NULL) {
         // Best-effort fallback mechanism to guess the socket address without
@@ -80,7 +83,19 @@ static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgi
         // then followed by the execution of tcp_sendmsg within the same CPU
         // context. This is not necessarily true for all cases (such as when
         // using the async SSL API) but seems to work on most-cases.
-        bpf_map_update_with_telemetry(ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
+        ssl_handshake_args_t args = {
+            .ctx = ssl_ctx,
+            .timestamp = bpf_ktime_get_ns(),
+        };
+        bpf_map_update_with_telemetry(ssl_ctx_by_pid_tgid, &pid_tgid, &args, BPF_ANY);
+        return false;
+    }
+    return true;
+}
+
+static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgid) {
+    ssl_sock_t *ssl_sock = bpf_map_lookup_elem(&ssl_sock_by_ctx, &ssl_ctx);
+    if (ssl_sock == NULL) {
         return NULL;
     }
 
@@ -130,10 +145,16 @@ static __always_inline void init_ssl_sock(void *ssl_ctx, u32 socket_fd) {
 
 static __always_inline void map_ssl_ctx_to_sock(struct sock *skp) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    void **ssl_ctx_map_val = bpf_map_lookup_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
-    if (ssl_ctx_map_val == NULL) {
+    ssl_handshake_args_t *args = bpf_map_lookup_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
+    if (args == NULL) {
         return;
     }
+    if (args->timestamp > 0) {
+        if ((bpf_ktime_get_ns() - args->timestamp) > 500000) { // 500us
+            return;
+        }
+    }
+    void *ssl_ctx = args->ctx;
     bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
 
     ssl_sock_t ssl_sock = {};
@@ -145,7 +166,6 @@ static __always_inline void map_ssl_ctx_to_sock(struct sock *skp) {
     normalize_tuple(&ssl_sock.tup);
 
     // copy map value to stack. required for older kernels
-    void *ssl_ctx = *ssl_ctx_map_val;
     bpf_map_update_with_telemetry(ssl_sock_by_ctx, &ssl_ctx, &ssl_sock, BPF_ANY);
 }
 

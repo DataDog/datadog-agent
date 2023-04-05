@@ -58,6 +58,11 @@ typedef struct {
 // OpenSSL types
 typedef struct {
     void *ctx;
+    __u64 timestamp;
+} ssl_handshake_args_t;
+
+typedef struct {
+    void *ctx;
     void *buf;
 } ssl_read_args_t;
 

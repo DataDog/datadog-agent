@@ -54,8 +54,10 @@ SEC("uprobe/SSL_do_handshake")
 int uprobe__SSL_do_handshake(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
+    ssl_handshake_args_t args = { 0 };
+    args.ctx = ssl_ctx;
     log_debug("uprobe/SSL_do_handshake: pid_tgid=%llx ssl_ctx=%llx\n", pid_tgid, ssl_ctx);
-    bpf_map_update_with_telemetry(ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
+    bpf_map_update_with_telemetry(ssl_ctx_by_pid_tgid, &pid_tgid, &args, BPF_ANY);
     return 0;
 }
 
@@ -71,8 +73,10 @@ SEC("uprobe/SSL_connect")
 int uprobe__SSL_connect(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
+    ssl_handshake_args_t args = { 0 };
+    args.ctx = ssl_ctx;
     log_debug("uprobe/SSL_connect: pid_tgid=%llx ssl_ctx=%llx\n", pid_tgid, ssl_ctx);
-    bpf_map_update_with_telemetry(ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
+    bpf_map_update_with_telemetry(ssl_ctx_by_pid_tgid, &pid_tgid, &args, BPF_ANY);
     return 0;
 }
 
@@ -202,6 +206,9 @@ int uretprobe__SSL_write(struct pt_regs* ctx) {
         return 0;
     }
 
+    if (!is_ssl_sock_exist_from_ssl_ctx(args->ctx, pid_tgid)) {
+        goto cleanup;
+    }
     conn_tuple_t *t = tup_from_ssl_ctx(args->ctx, pid_tgid);
     if (t == NULL) {
         goto cleanup;
@@ -305,6 +312,9 @@ int uretprobe__SSL_write_ex(struct pt_regs* ctx) {
         goto cleanup;
     }
 
+    if (!is_ssl_sock_exist_from_ssl_ctx(args->ctx, pid_tgid)) {
+        goto cleanup;
+    }
     conn_tuple_t *conn_tuple = tup_from_ssl_ctx(args->ctx, pid_tgid);
     if (conn_tuple == NULL) {
         goto cleanup;
@@ -338,7 +348,9 @@ SEC("uprobe/gnutls_handshake")
 int uprobe__gnutls_handshake(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
-    bpf_map_update_with_telemetry(ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
+    ssl_handshake_args_t args = { 0 };
+    args.ctx = ssl_ctx;
+    bpf_map_update_with_telemetry(ssl_ctx_by_pid_tgid, &pid_tgid, &args, BPF_ANY);
     return 0;
 }
 
@@ -466,6 +478,9 @@ int uretprobe__gnutls_record_send(struct pt_regs *ctx) {
         return 0;
     }
 
+    if (!is_ssl_sock_exist_from_ssl_ctx(args->ctx, pid_tgid)) {
+        goto cleanup;
+    }
     conn_tuple_t *t = tup_from_ssl_ctx(args->ctx, pid_tgid);
     if (t == NULL) {
         goto cleanup;

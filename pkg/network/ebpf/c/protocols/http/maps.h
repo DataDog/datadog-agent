@@ -24,7 +24,7 @@ BPF_LRU_MAP(bio_new_socket_args, __u64, __u32, 1024)
 
 BPF_LRU_MAP(fd_by_ssl_bio, __u32, void *, 1024)
 
-BPF_LRU_MAP(ssl_ctx_by_pid_tgid, __u64, void *, 1024)
+BPF_LRU_MAP(ssl_ctx_by_pid_tgid, __u64, ssl_handshake_args_t, 1024)
 
 BPF_LRU_MAP(open_at_args, __u64, lib_path_t, 1024)
 
