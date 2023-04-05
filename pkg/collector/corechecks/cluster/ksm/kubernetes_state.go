@@ -468,6 +468,7 @@ func (k *KSMCheck) Run() error {
 	for _, stores := range k.allStores {
 		for _, store := range stores {
 			metrics := store.(*ksmstore.MetricsStore).Push(k.familyFilter, k.metricFilter)
+			log.Tracef("Metrics are %s", metrics)
 			labelJoiner.insertFamilies(metrics)
 		}
 	}
@@ -496,8 +497,11 @@ func (k *KSMCheck) Cancel() {
 func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][]ksmstore.DDMetricsFam, labelJoiner *labelJoiner, now time.Time) {
 	for _, metricsList := range metrics {
 		for _, metricFamily := range metricsList {
+			log.Tracef("Checking metricFamily %s", metricFamily)
 			// First check for aggregator, because the check use _labels metrics to aggregate values.
 			if aggregator, found := k.metricAggregators[metricFamily.Name]; found {
+				log.Tracef("Found aggregator for %s", metricFamily.Name)
+				log.Tracef("Aggregator is %s", aggregator)
 				for _, m := range metricFamily.ListMetrics {
 					aggregator.accumulate(m)
 				}
@@ -505,6 +509,7 @@ func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][
 				// So, let’s continue the processing.
 			}
 			if transform, found := k.metricTransformers[metricFamily.Name]; found {
+				log.Tracef("Found transformer for %s", metricFamily.Name)
 				lMapperOverride := labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
 					hostname, tags := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
@@ -513,6 +518,7 @@ func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][
 				continue
 			}
 			if ddname, found := k.metricNamesMapper[metricFamily.Name]; found {
+				log.Tracef("Found metricNamesMapper for %s", metricFamily.Name)
 				lMapperOverride := labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
 					hostname, tags := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
@@ -521,6 +527,7 @@ func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][
 				continue
 			}
 			if _, found := k.metricAggregators[metricFamily.Name]; found {
+				log.Tracef("Found aggregator for %s", metricFamily.Name)
 				continue
 			}
 			if k.metadataMetricsRegex.MatchString(metricFamily.Name) {
