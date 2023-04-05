@@ -279,7 +279,10 @@ func NewPersistentCache(
 func (c *PersistentCache) Contains(key string) bool {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
-	return c.lruCache.Contains(key)
+	// using lruCache.Get moves the key to the head of the evictList
+	// it is necessary to avoid evicting a key after calling MissingBlobs
+	_, ok := c.lruCache.Get(key)
+	return ok
 }
 
 // Keys returns all the keys stored in the lru cache.
