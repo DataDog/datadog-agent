@@ -64,6 +64,11 @@ func (maybeVTCodec) Name() string {
 	return codecName
 }
 
+// RegistermaybeVTCodec is populated by the build command
+var RegistermaybeVTCodec string
+
 func init() {
-	encoding.RegisterCodec(maybeVTCodec{})
+	if RegistermaybeVTCodec == "true" {
+		encoding.RegisterCodec(maybeVTCodec{})
+	}
 }
