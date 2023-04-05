@@ -451,9 +451,11 @@ func (nr *Resolver) flushNetworkNamespace(netns *NetworkNamespace) {
 	}
 
 	// close network namespace handle to release the namespace
-	err = netns.close()
-	if err != nil {
-		seclog.Warnf("could not close file [%s]: %s", netns.handle.Name(), err)
+	if netns.hasValidHandle() {
+		err = netns.close()
+		if err != nil {
+			seclog.Warnf("could not close file [%s]: %s", netns.handle.Name(), err)
+		}
 	}
 
 	// remove all references to this network namespace from the manager

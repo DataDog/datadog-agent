@@ -45,12 +45,22 @@ type SNMPConfig struct {
 	NetAddress string `yaml:"network_address"`
 }
 
+// set default values used by the agent
+func SetDefault(sc *SNMPConfig) {
+	sc.Port = 161
+	sc.Version = "2"
+	sc.Timeout = 2
+	sc.Retries = 3
+
+}
+
 func ParseConfigSnmp(c integration.Config) []SNMPConfig {
 	//an array containing all the snmp instances
 	snmpconfigs := []SNMPConfig{}
 
 	for _, inst := range c.Instances {
 		instance := SNMPConfig{}
+		SetDefault(&instance)
 		err := yaml.Unmarshal(inst, &instance)
 		if err != nil {
 			fmt.Printf("unable to get snmp config: %v", err)
@@ -73,6 +83,7 @@ func parseConfigSnmpMain() ([]SNMPConfig, error) {
 	}
 	for c := range configs {
 		snmpconfig := SNMPConfig{}
+		SetDefault(&snmpconfig)
 
 		snmpconfig.NetAddress = configs[c].Network
 		snmpconfig.Port = configs[c].Port

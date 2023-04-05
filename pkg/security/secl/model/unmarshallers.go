@@ -1063,3 +1063,13 @@ func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 	return 64, nil
 }
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *AnomalyDetectionSyscallEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 8 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.SyscallID = Syscall(ByteOrder.Uint64(data[0:8]))
+	return 8, nil
+}
