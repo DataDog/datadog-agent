@@ -9,6 +9,7 @@
 package containerd
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/oci"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/assert"
 
@@ -25,20 +27,27 @@ import (
 
 type mockedContainer struct {
 	containerd.Container
-	mockID func() string
+	mockID    func() string
+	mockImage func() (containerd.Image, error)
 }
 
 func (m *mockedContainer) ID() string {
 	return m.mockID()
 }
 
-type mockedImage struct {
-	containerd.Image
-	mockName func() string
+// Image is from the containerd.Container interface
+func (m *mockedContainer) Image(context.Context) (containerd.Image, error) {
+	return m.mockImage()
 }
 
-func (m *mockedImage) Name() string {
-	return m.mockName()
+type mockedImage struct {
+	containerd.Image
+	mockName   func() string
+	mockConfig func() (ocispec.Descriptor, error)
+}
+
+func (m *mockedImage) Config(ctx context.Context) (ocispec.Descriptor, error) {
+	return m.mockConfig()
 }
 
 func TestBuildWorkloadMetaContainer(t *testing.T) {
@@ -63,10 +72,17 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 	createdAt, err := time.Parse("2006-01-02", "2021-10-11")
 	assert.NoError(t, err)
 
+	image := &mockedImage{
+		mockConfig: func() (ocispec.Descriptor, error) {
+			return ocispec.Descriptor{Digest: "my_image_id"}, nil
+		},
+	}
 	container := mockedContainer{
-		fake.mockedContainer,
 		mockID: func() string {
 			return containerID
+		},
+		mockImage: func() (containerd.Image, error) {
+			return image, nil
 		},
 	}
 
@@ -106,6 +122,7 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 			Name:      "datadog/agent",
 			ShortName: "agent",
 			Tag:       "7",
+			ID:        "my_image_id",
 		},
 		EnvVars: envVars,
 		Ports:   nil, // Not available
