@@ -81,7 +81,10 @@ class RemoteAPI(object):
                     if r.status_code == 401:
                         print(self.authorization_error_message)
                     elif 500 <= r.status_code < 600:
-                        time.sleep(self.requests_sleep_time + retry_count * self.requests_sleep_time)
+                        sleep_time = self.requests_sleep_time + retry_count * self.requests_sleep_time
+                        if sleep_time > 0:
+                            print(f"Request failed with error {r.status_code}, retrying in {sleep_time} seconds (retry {retry_count}/{self.requests_500_retry_count}")
+                        time.sleep(sleep_time)
                         continue
                     raise APIError(r, self.api_name)
                 else:
