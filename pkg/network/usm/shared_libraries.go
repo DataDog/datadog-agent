@@ -343,7 +343,6 @@ func quircksWaitLib(hostlibPath string) error {
 		}
 		time.Sleep(time.Millisecond)
 		libSize := s.Size()
-		sizeOK := false
 		end := time.Now().Add(100 * time.Millisecond)
 		for !time.Now().After(end) {
 			s, err = os.Stat(hostlibPath)
@@ -355,12 +354,9 @@ func quircksWaitLib(hostlibPath string) error {
 				time.Sleep(5 * time.Millisecond)
 				continue
 			}
-			sizeOK = true
-			break
+			return nil
 		}
-		if !sizeOK {
-			return fmt.Errorf("timeout current size %d", libSize)
-		}
+		return fmt.Errorf("timeout current size %d", libSize)
 	}
 	return nil
 }
