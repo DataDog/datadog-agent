@@ -594,7 +594,7 @@ api_key:
     ## @env DD_OBSERVABILITY_PIPELINES_WORKER_METRICS_URL - string - optional - default: ""
     ## URL endpoint for the Observability Pipelines Worker to send metrics to
     #
-    # endpoint: "http//127.0.0.1:8080"
+    # url: "http//127.0.0.1:8080"
 
   ## @param  logs - custom object - optional
   ## Specific configurations for logs
@@ -611,7 +611,7 @@ api_key:
     ## @env DD_OBSERVABILITY_PIPELINES_WORKER_LOGS_URL - string - optional - default: ""
     ## URL endpoint for the Observability Pipelines Worker to send logs to
     #
-    # endpoint: "http//127.0.0.1:8080"
+    # url: "http//127.0.0.1:8080"
 
   ## @param  traces - custom object - optional
   ## Specific configurations for traces
@@ -628,7 +628,7 @@ api_key:
     ## @env DD_OBSERVABILITY_PIPELINES_WORKER_TRACES_URL - string - optional - default: ""
     ## URL endpoint for the Observability Pipelines Worker to send traces to
     #
-    # endpoint: "http//127.0.0.1:8080"
+    # url: "http//127.0.0.1:8080"
 
 {{ end }}
 {{- if .Agent }}
