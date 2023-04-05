@@ -800,9 +800,9 @@ service_monitoring_config:
 	t.Run("default value", func(t *testing.T) {
 		newConfig(t)
 		cfg := New()
-		assert.Equal(t, uint64(defaultSSLAsyncHandshakeWindow), cfg.SSLAsyncHandshakeWindow)
+		assert.Equal(t, uint64(500000), cfg.SSLAsyncHandshakeWindow)
 		cfg = configurationFromYAML(t, ``)
-		assert.Equal(t, uint64(defaultSSLAsyncHandshakeWindow), cfg.SSLAsyncHandshakeWindow)
+		assert.Equal(t, uint64(500000), cfg.SSLAsyncHandshakeWindow)
 	})
 }
 
