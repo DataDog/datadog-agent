@@ -43,6 +43,8 @@ type TestEnv struct {
 	StackOutput      auto.UpResult
 }
 
+const SSHKeyName = "datadog-agent-kitchen"
+
 var (
 	CustomAMIWorkingDir = filepath.Join("/", "home", "kernel-version-testing")
 	vmConfig            = filepath.Join(".", "system-probe", "config", "vmconfig.json")
@@ -52,7 +54,7 @@ var (
 	sshKeyX86            = os.Getenv("LibvirtSSHKeyX86")
 	sshKeyArm            = os.Getenv("LibvirtSSHKeyARM")
 
-	SSHKeyFile   = filepath.Join(CI_PROJECT_DIR, "aws-ssh-key")
+	SSHKeyFile   = filepath.Join(CI_PROJECT_DIR, fmt.Sprintf("%s.pem", SSHKeyName))
 	stackOutputs = filepath.Join(CI_PROJECT_DIR, "stack.outputs")
 )
 
@@ -97,7 +99,7 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 	config := runner.ConfigMap{
 		"ddinfra:aws/defaultARMInstanceType":     auto.ConfigValue{Value: armInstanceType},
 		"ddinfra:aws/defaultInstanceType":        auto.ConfigValue{Value: x86InstanceType},
-		"ddinfra:aws/defaultKeyPairName":         auto.ConfigValue{Value: "datadog-agent-kitchen"},
+		"ddinfra:aws/defaultKeyPairName":         auto.ConfigValue{Value: SSHKeyName},
 		"ddinfra:aws/defaultPrivateKeyPath":      auto.ConfigValue{Value: SSHKeyFile},
 		"ddinfra:aws/defaultSecurityGroups":      auto.ConfigValue{Value: securityGroups},
 		"ddinfra:aws/defaultSubnets":             auto.ConfigValue{Value: subnets},
