@@ -26,12 +26,17 @@ const (
 	defaultCacheMaxCycles = 25
 )
 
+type DataScrubberPattern struct {
+	FastCheck string
+	Re        *regexp.Regexp
+}
+
 // DataScrubber allows the agent to disallow-list cmdline arguments that match
 // a list of predefined and custom words
 type DataScrubber struct {
 	Enabled           bool
 	StripAllArguments bool
-	SensitivePatterns []*regexp.Regexp
+	SensitivePatterns []DataScrubberPattern
 	seenProcess       map[string]struct{}
 	scrubbedCmdlines  map[string][]string
 	cacheCycles       uint32 // used to control the cache age
@@ -41,9 +46,10 @@ type DataScrubber struct {
 // NewDefaultDataScrubber creates a DataScrubber with the default behavior: enabled
 // and matching the default sensitive words
 func NewDefaultDataScrubber() *DataScrubber {
+	regexps := CompileStringsToRegex(defaultSensitiveWords)
 	newDataScrubber := &DataScrubber{
 		Enabled:           true,
-		SensitivePatterns: CompileStringsToRegex(defaultSensitiveWords),
+		SensitivePatterns: regexpsToPatterns(regexps),
 		seenProcess:       make(map[string]struct{}),
 		scrubbedCmdlines:  make(map[string][]string),
 		cacheCycles:       0,
@@ -162,9 +168,9 @@ func (ds *DataScrubber) ScrubCommand(cmdline []string) ([]string, bool) {
 	rawCmdline := strings.Join(cmdline, " ")
 	changed := false
 	for _, pattern := range ds.SensitivePatterns {
-		if pattern.MatchString(rawCmdline) {
+		if pattern.Re.MatchString(rawCmdline) {
 			changed = true
-			rawCmdline = pattern.ReplaceAllString(rawCmdline, "${key}${delimiter}********")
+			rawCmdline = pattern.Re.ReplaceAllString(rawCmdline, "${key}${delimiter}********")
 		}
 	}
 
@@ -187,5 +193,15 @@ func (ds *DataScrubber) stripArguments(cmdline []string) []string {
 // AddCustomSensitiveWords adds custom sensitive words on the DataScrubber object
 func (ds *DataScrubber) AddCustomSensitiveWords(words []string) {
 	newPatterns := CompileStringsToRegex(words)
-	ds.SensitivePatterns = append(ds.SensitivePatterns, newPatterns...)
+	ds.SensitivePatterns = append(ds.SensitivePatterns, regexpsToPatterns(newPatterns)...)
+}
+
+func regexpsToPatterns(regexps []*regexp.Regexp) []DataScrubberPattern {
+	patterns := make([]DataScrubberPattern, 0, len(regexps))
+	for _, r := range regexps {
+		patterns = append(patterns, DataScrubberPattern{
+			Re: r,
+		})
+	}
+	return patterns
 }
