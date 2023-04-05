@@ -124,7 +124,7 @@ kernel_matrix_testing_setup_env:
     # The ssh key is created by the pulumi scenario, to be used for creating
     # instances in the build-stable account. We reuse this file to ssh into
     # the instances in subsequent jobs.
-    AWS_SSH_KEY: $CI_PROJECT_DIR/datadog-agent-kitchen
+    AWS_SSH_KEY: $CI_PROJECT_DIR/datadog-agent-kitchen.pem
   script:
     - echo s3://dd-ci-datadog-agent-omnibus-cache-build-stable/kernel-matrix-testing/$CI_PIPELINE_ID/$CI_JOB_ID/pulumi > $STACK_DIR
     - pulumi login $(cat $STACK_DIR | tr -d '\n')
@@ -177,7 +177,7 @@ kernel_matrix_testing_run_tests:
   needs: ["kernel_matrix_testing_upload_deps", "kernel_matrix_testing_setup_env"]
   tags: ["runner:main"]
   variables:
-    AWS_SSH_KEY: $CI_PROJECT_DIR/datadog-agent-kitchen
+    AWS_SSH_KEY: $CI_PROJECT_DIR/datadog-agent-kitchen.pem
   script:
     - INSTANCE_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-instance-ip | cut -d ' ' -f 2)
     - MICRO_VM_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-$TAG | cut -d ' ' -f 2)
