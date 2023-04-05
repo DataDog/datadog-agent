@@ -6,7 +6,6 @@
 package config
 
 import (
-	"os"
 	"strings"
 	"testing"
 
@@ -29,6 +28,12 @@ type dependencies struct {
 	fx.In
 
 	Params Params
+}
+
+type mockDependencies struct {
+	fx.In
+
+	Params MockParams
 }
 
 func newConfig(deps dependencies) (Component, error) {
@@ -61,36 +66,28 @@ func (c *cfg) Warnings() *config.Warnings {
 	return c.warnings
 }
 
-func newMock(deps dependencies, t testing.TB) Component {
-	old := config.Datadog
-	config.Datadog = config.NewConfig("mock", "XXXX", strings.NewReplacer())
+func newMock(deps mockDependencies, t testing.TB) Component {
+	backupConfig := config.NewConfig("", "", strings.NewReplacer())
+	backupConfig.CopyConfig(config.Datadog)
+
+	config.Datadog.CopyConfig(config.NewConfig("mock", "XXXX", strings.NewReplacer()))
+
+	// call InitConfig to set defaults.
+	config.InitConfig(config.Datadog)
+
+	// Overrides are explicit and will take precedence over any other
+	// setting
+	for k, v := range deps.Params.Overrides {
+		config.Datadog.Set(k, v)
+	}
+
 	c := &cfg{
 		Config:   config.Datadog,
 		warnings: &config.Warnings{},
 	}
 
-	// call InitConfig to set defaults.
-	config.InitConfig(config.Datadog)
-
-	// Viper's `GetXxx` methods read environment variables at the time they are
-	// called, if those names were passed explicitly to BindEnv*(), so we must
-	// also strip all `DD_` environment variables for the duration of the test.
-	oldEnv := os.Environ()
-	for _, kv := range oldEnv {
-		if strings.HasPrefix(kv, "DD_") {
-			kvslice := strings.SplitN(kv, "=", 2)
-			os.Unsetenv(kvslice[0])
-		}
-	}
-	t.Cleanup(func() {
-		for _, kv := range oldEnv {
-			kvslice := strings.SplitN(kv, "=", 2)
-			os.Setenv(kvslice[0], kvslice[1])
-		}
-	})
-
 	// swap the existing config back at the end of the test.
-	t.Cleanup(func() { config.Datadog = old })
+	t.Cleanup(func() { config.Datadog.CopyConfig(backupConfig) })
 
 	return c
 }

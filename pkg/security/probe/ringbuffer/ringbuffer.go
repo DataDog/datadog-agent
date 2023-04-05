@@ -14,7 +14,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/reorderer"
 )
 
@@ -29,7 +29,7 @@ type RingBuffer struct {
 func (rb *RingBuffer) Init(mgr *manager.Manager, config *config.Config) error {
 	var ok bool
 	if rb.ringBuffer, ok = mgr.GetRingBuffer("events"); !ok {
-		return errors.New("couldn't find events perf map")
+		return errors.New("couldn't find events ring buffer")
 	}
 
 	rb.ringBuffer.RingBufferOptions = manager.RingBufferOptions{

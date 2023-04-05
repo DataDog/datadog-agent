@@ -10,7 +10,9 @@ package main
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"gotest.tools/assert"
+	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
+	"github.com/spf13/cast"
+	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
@@ -35,4 +37,19 @@ func TestProxyLoaded(t *testing.T) {
 	proxyHttpsConfig := config.Datadog.GetString("proxy.https")
 	assert.Equal(t, proxyHttp, proxyHttpConfig)
 	assert.Equal(t, proxyHttps, proxyHttpsConfig)
+}
+
+func TestTagsSetup(t *testing.T) {
+	ddTagsEnv := "key1:value1 key2:value2 key3:value3:4"
+	ddExtraTagsEnv := "key22:value22 key23:value23"
+	t.Setenv("DD_TAGS", ddTagsEnv)
+	t.Setenv("DD_EXTRA_TAGS", ddExtraTagsEnv)
+	ddTags := cast.ToStringSlice(ddTagsEnv)
+	ddExtraTags := cast.ToStringSlice(ddExtraTagsEnv)
+
+	allTags := append(ddTags, ddExtraTags...)
+
+	_, _, _, metricAgent := setup()
+	assert.Subset(t, metricAgent.GetExtraTags(), allTags)
+	assert.Subset(t, logs.GetLogsTags(), allTags)
 }

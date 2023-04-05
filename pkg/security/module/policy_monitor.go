@@ -10,13 +10,11 @@ package module
 import (
 	"context"
 	"fmt"
+	"github.com/hashicorp/go-multierror"
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/hashicorp/go-multierror"
-
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -24,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -99,7 +98,7 @@ func (p *PolicyMonitor) Start(ctx context.Context) {
 					tags := []string{
 						"rule_id:" + id,
 						fmt.Sprintf("status:%v", status),
-						dogstatsd.CardinalityTagPrefix + collectors.LowCardinalityString,
+						dogstatsdServer.CardinalityTagPrefix + collectors.LowCardinalityString,
 					}
 
 					if err := p.statsdClient.Gauge(metrics.MetricRulesStatus, 1, tags, 1.0); err != nil {
@@ -141,11 +140,12 @@ func ReportRuleSetLoaded(sender EventSender, statsdClient statsd.ClientInterface
 // RuleLoaded defines a loaded rule
 // easyjson:json
 type RuleState struct {
-	ID         string `json:"id"`
-	Version    string `json:"version,omitempty"`
-	Expression string `json:"expression"`
-	Status     string `json:"status"`
-	Message    string `json:"message,omitempty"`
+	ID         string            `json:"id"`
+	Version    string            `json:"version,omitempty"`
+	Expression string            `json:"expression"`
+	Status     string            `json:"status"`
+	Message    string            `json:"message,omitempty"`
+	Tags       map[string]string `json:"tags,omitempty"`
 }
 
 // PolicyState is used to report policy was loaded
@@ -160,8 +160,8 @@ type PolicyState struct {
 // RulesetLoadedEvent is used to report that a new ruleset was loaded
 // easyjson:json
 type RulesetLoadedEvent struct {
-	Timestamp time.Time      `json:"date"`
-	Policies  []*PolicyState `json:"policies"`
+	events.CustomEventCommonFields
+	Policies []*PolicyState `json:"policies"`
 }
 
 func PolicyStateFromRuleDefinition(def *rules.RuleDefinition) *PolicyState {
@@ -179,6 +179,7 @@ func RuleStateFromDefinition(def *rules.RuleDefinition, status string, message s
 		Expression: def.Expression,
 		Status:     status,
 		Message:    message,
+		Tags:       def.Tags,
 	}
 }
 
@@ -222,8 +223,11 @@ func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rul
 		policies = append(policies, policy)
 	}
 
-	return events.NewCustomRule(events.RulesetLoadedRuleID), events.NewCustomEvent(model.CustomRulesetLoadedEventType, RulesetLoadedEvent{
-		Timestamp: time.Now(),
-		Policies:  policies,
-	})
+	evt := RulesetLoadedEvent{
+		Policies: policies,
+	}
+	evt.FillCustomEventCommonFields()
+
+	return events.NewCustomRule(events.RulesetLoadedRuleID),
+		events.NewCustomEvent(model.CustomRulesetLoadedEventType, evt)
 }

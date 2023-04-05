@@ -8,7 +8,9 @@
 
 package tracer
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestProtocolClassification(t *testing.T) {
 	cfg := testConfig()
@@ -16,6 +18,25 @@ func TestProtocolClassification(t *testing.T) {
 		t.Skip("Classification is not supported")
 	}
 	t.Run("without nat", func(t *testing.T) {
-		testProtocolClassification(t, cfg, "localhost", "127.0.0.1", "127.0.0.1")
+		testProtocolClassification(t, nil, "localhost", "127.0.0.1", "127.0.0.1")
 	})
+}
+
+func testProtocolClassificationInner(t *testing.T, params protocolClassificationAttributes, _ *Tracer) {
+	if params.skipCallback != nil {
+		params.skipCallback(t, params.context)
+	}
+
+	if params.teardown != nil {
+		t.Cleanup(func() {
+			params.teardown(t, params.context)
+		})
+	}
+	if params.preTracerSetup != nil {
+		params.preTracerSetup(t, params.context)
+	}
+	cfg := testConfig()
+	tr := setupTracer(t, cfg)
+	params.postTracerSetup(t, params.context)
+	params.validation(t, params.context, tr)
 }

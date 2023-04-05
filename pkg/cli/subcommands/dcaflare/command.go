@@ -7,6 +7,7 @@ package dcaflare
 import (
 	"bytes"
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -114,7 +115,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 
 	fmt.Fprintln(color.Output, fmt.Sprintf("%s is going to be uploaded to Datadog", color.YellowString(filePath)))
 	if !cliParams.send {
-		confirmation := input.AskForConfirmation("Are you sure you want to upload a flare? [Y/N]")
+		confirmation := input.AskForConfirmation("Are you sure you want to upload a flare? [y/N]")
 		if !confirmation {
 			fmt.Fprintln(color.Output, fmt.Sprintf("Aborting. (You can still use %s)", color.YellowString(filePath)))
 			return nil

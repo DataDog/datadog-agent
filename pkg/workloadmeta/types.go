@@ -383,7 +383,7 @@ func (o OrchestratorContainer) String(_ bool) string {
 type Container struct {
 	EntityID
 	EntityMeta
-	// EnvVars are limited to variabels included in pkg/util/containers/env_vars_filter.go
+	// EnvVars are limited to variables included in pkg/util/containers/env_vars_filter.go
 	EnvVars    map[string]string
 	Hostname   string
 	Image      ContainerImage
@@ -393,8 +393,9 @@ type Container struct {
 	Runtime    ContainerRuntime
 	State      ContainerState
 	// CollectorTags represent tags coming from the collector itself
-	// and that it would impossible to compute later on
+	// and that it would be impossible to compute later on
 	CollectorTags []string
+	Owner         *EntityID
 }
 
 // GetID implements Entity#GetID.
@@ -474,6 +475,7 @@ type KubernetesPod struct {
 	QOSClass                   string
 	KubeServices               []string
 	NamespaceLabels            map[string]string
+	FinishedAt                 time.Time
 }
 
 // GetID implements Entity#GetID.
@@ -531,6 +533,9 @@ func (p KubernetesPod) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "PVCs:", sliceToString(p.PersistentVolumeClaimNames))
 		_, _ = fmt.Fprintln(&sb, "Kube Services:", sliceToString(p.KubeServices))
 		_, _ = fmt.Fprintln(&sb, "Namespace Labels:", mapToString(p.NamespaceLabels))
+		if !p.FinishedAt.IsZero() {
+			_, _ = fmt.Fprintln(&sb, "Finished At:", p.FinishedAt)
+		}
 	}
 
 	return sb.String()

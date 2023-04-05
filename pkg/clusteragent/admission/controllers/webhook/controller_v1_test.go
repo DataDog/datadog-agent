@@ -39,9 +39,10 @@ func TestSecretNotFoundV1(t *testing.T) {
 		t.Fatal("Webhook shouldn't be created")
 	}
 
-	if c.queue.Len() != 0 {
-		t.Fatal("Work queue isn't empty")
-	}
+	// The queue might not be closed yet because it's done asynchronously
+	assert.Eventually(t, func() bool {
+		return c.queue.Len() == 0
+	}, 1*time.Second, 5*time.Millisecond, "Work queue isn't empty")
 }
 
 func TestCreateWebhookV1(t *testing.T) {
