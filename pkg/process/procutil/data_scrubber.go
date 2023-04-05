@@ -205,6 +205,10 @@ func (ds *DataScrubber) AddCustomSensitiveWords(words []string) {
 	ds.SensitivePatterns = append(ds.SensitivePatterns, newPatterns...)
 }
 
+// wordToFastChecker returns a string that can be used to do a first fast lookup before doing the full
+// regex search
+// for example `wordToFastChecker("*aa*bbb*") = "bbb"`
+// if no string is found, it returns ""
 func wordToFastChecker(word string) string {
 	bestLen := 0
 	best := ""
