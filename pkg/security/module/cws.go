@@ -140,7 +140,6 @@ func (c *CWSConsumer) Start() error {
 	}
 
 	// start api server
-	api.RegisterVTCodec()
 	c.apiServer.Start(c.ctx)
 
 	// monitor policies

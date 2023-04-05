@@ -23,8 +23,8 @@ import (
 
 const codecName = "proto"
 
-// MaybeVTCodec represents a codec able to encode and decode vt enabled proto messages
-type MaybeVTCodec struct{}
+// maybeVTCodec represents a codec able to encode and decode vt enabled proto messages
+type maybeVTCodec struct{}
 
 type vtprotoMessage interface {
 	MarshalVT() ([]byte, error)
@@ -32,7 +32,7 @@ type vtprotoMessage interface {
 }
 
 // Marshal encodes the protobuf message to a byte array
-func (MaybeVTCodec) Marshal(v interface{}) ([]byte, error) {
+func (maybeVTCodec) Marshal(v interface{}) ([]byte, error) {
 	vt, ok := v.(vtprotoMessage)
 	if ok {
 		return vt.MarshalVT()
@@ -46,7 +46,7 @@ func (MaybeVTCodec) Marshal(v interface{}) ([]byte, error) {
 }
 
 // Unmarshal decodes the byte array to the provided value
-func (MaybeVTCodec) Unmarshal(data []byte, v interface{}) error {
+func (maybeVTCodec) Unmarshal(data []byte, v interface{}) error {
 	vt, ok := v.(vtprotoMessage)
 	if ok {
 		return vt.UnmarshalVT(data)
@@ -60,10 +60,10 @@ func (MaybeVTCodec) Unmarshal(data []byte, v interface{}) error {
 }
 
 // Name returns the name of the codec
-func (MaybeVTCodec) Name() string {
+func (maybeVTCodec) Name() string {
 	return codecName
 }
 
-func RegisterVTCodec() {
-	encoding.RegisterCodec(MaybeVTCodec{})
+func init() {
+	encoding.RegisterCodec(maybeVTCodec{})
 }
