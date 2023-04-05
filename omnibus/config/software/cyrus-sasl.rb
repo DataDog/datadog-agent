@@ -1,7 +1,9 @@
 name "cyrus-sasl"
 default_version "2.1.28"
 
-dependency "gdbm"
+# test if lmdb can replace gdbm
+# dependency "gdbm"
+dependency "lmdb"
 
 if redhat?
     dependency "e2fsprogs"
@@ -23,8 +25,7 @@ build do
 
   configure_command = ["./configure",
                         "--prefix=#{install_dir}/embedded",
-                        "--with-gdbm=#{install_dir}/embedded",
-                        "--with-dblib=gdbm"]
+                        "--with-dblib=lmdb"]
 
   if osx?
     # https://github.com/Homebrew/homebrew-core/blob/e2071268473bcddaf72f8e3f7aa4153a18d1ccfa/Formula/cyrus-sasl.rb
