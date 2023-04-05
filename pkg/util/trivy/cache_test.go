@@ -22,9 +22,8 @@ import (
 )
 
 var (
-	defaultCacheSize  = 100
-	defaultDiskSize   = 1000000
-	defaultGcInterval = 1000 * time.Minute
+	defaultCacheSize = 100
+	defaultDiskSize  = 1000000
 )
 
 func TestCustomBoltCache_Artifacts(t *testing.T) {
@@ -301,7 +300,7 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 	// Create a goroutine that calls cacheCleaner.Clean every 500ms
 	go func() {
 		cleanTicker := time.NewTicker(500 * time.Millisecond)
-		for _ = range cleanTicker.C {
+		for range cleanTicker.C {
 			cacheCleaner.Clean()
 		}
 	}()

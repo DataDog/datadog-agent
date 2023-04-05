@@ -266,7 +266,7 @@ func NewPersistentCache(
 	go func() {
 		ticker := time.NewTicker(telemetryTick)
 		for {
-			for _ = range ticker.C {
+			for range ticker.C {
 				persistentCache.collectTelemetry()
 			}
 		}
@@ -490,7 +490,7 @@ func (c *PersistentCache) addCurrentCachedObjectTotalSize(val int) {
 	telemetry.SBOMCachedObjectSize.Add(float64(val))
 }
 
-// subCurrentCachedObjectTotalSize substract val to the current cached object total size.
+// subCurrentCachedObjectTotalSize subtract val to the current cached object total size.
 func (c *PersistentCache) subCurrentCachedObjectTotalSize(val int) {
 	c.currentCachedObjectTotalSize -= val
 	telemetry.SBOMCachedObjectSize.Sub(float64(val))
