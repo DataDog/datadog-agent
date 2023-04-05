@@ -92,7 +92,7 @@ func buildMessage(logline *config.ChannelMessage, origin *message.Origin) *messa
 	}
 
 	if logline.Lambda != nil {
-		return message.NewMessageFromLambda(logline.Content, origin, status, logline.Timestamp, logline.Lambda.ARN, logline.Lambda.RequestID, time.Now().UnixNano())
+		return message.NewMessageFromLambda(logline.Content, origin, status, logline.Timestamp, logline.Lambda.ARN, logline.Lambda.RequestID, logline.Lambda.ErrorStatus, time.Now().UnixNano())
 	}
 	return message.NewMessage(logline.Content, origin, status, time.Now().UnixNano())
 }

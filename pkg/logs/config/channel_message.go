@@ -21,19 +21,20 @@ type ChannelMessage struct {
 
 // Lambda is a struct storing information about the Lambda function and function execution.
 type Lambda struct {
-	ARN          string
-	RequestID    string
-	FunctionName string
+	ARN         string
+	RequestID   string
+	ErrorStatus string
 }
 
 // NewChannelMessageFromLambda construts a message with content and with the given timestamp and Lambda metadata
-func NewChannelMessageFromLambda(content []byte, utcTime time.Time, ARN, reqID string) *ChannelMessage {
+func NewChannelMessageFromLambda(content []byte, utcTime time.Time, ARN, reqID string, errorStatus string) *ChannelMessage {
 	return &ChannelMessage{
 		Content:   content,
 		Timestamp: utcTime,
 		Lambda: &Lambda{
-			ARN:       ARN,
-			RequestID: reqID,
+			ARN:         ARN,
+			RequestID:   reqID,
+			ErrorStatus: errorStatus,
 		},
 	}
 }

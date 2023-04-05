@@ -37,8 +37,9 @@ type jsonServerlessMessage struct {
 }
 
 type jsonServerlessLambda struct {
-	ARN       string `json:"arn"`
-	RequestID string `json:"request_id,omitempty"`
+	ARN         string `json:"arn"`
+	RequestID   string `json:"request_id,omitempty"`
+	ErrorStatus string `json:"error_status,omitempty"`
 }
 
 // Encode encodes a message into a JSON byte array.
@@ -52,8 +53,9 @@ func (j *jsonServerlessEncoder) Encode(msg *message.Message, redactedMsg []byte)
 	var lambdaPart *jsonServerlessLambda
 	if l := msg.Lambda; l != nil {
 		lambdaPart = &jsonServerlessLambda{
-			ARN:       l.ARN,
-			RequestID: l.RequestID,
+			ARN:         l.ARN,
+			RequestID:   l.RequestID,
+			ErrorStatus: l.ErrorStatus,
 		}
 	}
 

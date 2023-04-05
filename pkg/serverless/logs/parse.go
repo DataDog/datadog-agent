@@ -77,6 +77,8 @@ const (
 
 	// errorStatus indicates the function has errored out
 	errorStatus string = "error"
+	// timeoutStatus indicates the function has hit its timeout limit
+	timeoutStatus string = "timeout"
 )
 
 // UnmarshalJSON unmarshals the given bytes in a LogMessage object.

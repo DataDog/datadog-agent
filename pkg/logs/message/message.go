@@ -41,8 +41,9 @@ type Message struct {
 
 // Lambda is a struct storing information about the Lambda function and function execution.
 type Lambda struct {
-	ARN       string
-	RequestID string
+	ARN         string
+	RequestID   string
+	ErrorStatus string
 }
 
 // NewMessageWithSource constructs message with content, status and log source.
@@ -61,7 +62,7 @@ func NewMessage(content []byte, origin *Origin, status string, ingestionTimestam
 }
 
 // NewMessageFromLambda construts a message with content, status, origin and with the given timestamp and Lambda metadata
-func NewMessageFromLambda(content []byte, origin *Origin, status string, utcTime time.Time, ARN, reqID string, ingestionTimestamp int64) *Message {
+func NewMessageFromLambda(content []byte, origin *Origin, status string, utcTime time.Time, ARN, reqID string, errorStatus string, ingestionTimestamp int64) *Message {
 	return &Message{
 		Content:            content,
 		Origin:             origin,
@@ -69,8 +70,9 @@ func NewMessageFromLambda(content []byte, origin *Origin, status string, utcTime
 		IngestionTimestamp: ingestionTimestamp,
 		Timestamp:          utcTime,
 		Lambda: &Lambda{
-			ARN:       ARN,
-			RequestID: reqID,
+			ARN:         ARN,
+			RequestID:   reqID,
+			ErrorStatus: errorStatus,
 		},
 	}
 }

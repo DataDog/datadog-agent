@@ -38,6 +38,7 @@ type LambdaLogsCollector struct {
 	lastRequestID          string
 	coldstartRequestID     string
 	lastOOMRequestID       string
+	errorStatus            string
 	out                    chan<- *logConfig.ChannelMessage
 	demux                  aggregator.Demultiplexer
 	extraTags              *Tags
@@ -157,9 +158,9 @@ func (lc *LambdaLogsCollector) processLogMessages(messages []LambdaLogAPIMessage
 				continue
 			}
 			if message.objectRecord.requestID != "" {
-				lc.out <- logConfig.NewChannelMessageFromLambda([]byte(message.stringRecord), message.time, lc.arn, message.objectRecord.requestID)
+				lc.out <- logConfig.NewChannelMessageFromLambda([]byte(message.stringRecord), message.time, lc.arn, message.objectRecord.requestID, lc.errorStatus)
 			} else {
-				lc.out <- logConfig.NewChannelMessageFromLambda([]byte(message.stringRecord), message.time, lc.arn, lc.lastRequestID)
+				lc.out <- logConfig.NewChannelMessageFromLambda([]byte(message.stringRecord), message.time, lc.arn, lc.lastRequestID, lc.errorStatus)
 			}
 		}
 	}
@@ -215,6 +216,9 @@ func (lc *LambdaLogsCollector) processMessage(
 				Demux:            lc.demux,
 			}
 
+			if status == timeoutStatus {
+				lc.errorStatus = "timeout"
+			}
 			if status == errorStatus && lc.lastOOMRequestID != message.objectRecord.requestID && reportOutOfMemory {
 				outOfMemoryRequestId = message.objectRecord.requestID
 			}
@@ -237,6 +241,8 @@ func (lc *LambdaLogsCollector) processMessage(
 		}
 		if outOfMemoryRequestId != "" {
 			lc.lastOOMRequestID = outOfMemoryRequestId
+			lc.errorStatus = "out_of_memory"
+
 			lc.executionContext.UpdateOutOfMemoryRequestID(lc.lastOOMRequestID)
 			serverlessMetrics.GenerateOutOfMemoryEnhancedMetrics(message.time, tags, lc.demux)
 		}
