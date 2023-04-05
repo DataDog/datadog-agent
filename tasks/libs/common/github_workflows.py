@@ -96,8 +96,6 @@ class GithubWorkflows(RemoteAPI):
         Adds "Authorization: token {self.api_token}" and "Accept: application/vnd.github.v3+json"
         to the headers to be able to authenticate ourselves to GitHub.
         """
-        url = self.BASE_URL + path
-
         headers = dict(headers or [])
         headers["Authorization"] = f"token {self.api_token}"
         headers["Accept"] = "application/vnd.github.v3+json"
