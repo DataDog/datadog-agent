@@ -8,9 +8,9 @@ package apiserver
 import (
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -18,10 +18,16 @@ import (
 )
 
 func TestLifecycle(t *testing.T) {
-	fxutil.Test(t, fx.Options(Module, log.MockModule), func(Component) {
-		res, err := http.Get("http://localhost:6162/config")
-		require.NoError(t, err)
+	_ = fxutil.Test[Component](t, fx.Options(Module, log.MockModule))
 
-		assert.Equal(t, http.StatusOK, res.StatusCode)
-	})
+	var res *http.Response
+	assert.Eventually(t, func() bool {
+		var err error
+		res, err = http.Get("http://localhost:6162/config")
+		if err != nil {
+			return false
+		}
+
+		return res.StatusCode == http.StatusOK
+	}, 5*time.Second, time.Second)
 }

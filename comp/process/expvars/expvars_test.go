@@ -8,9 +8,9 @@ package expvars
 import (
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -19,31 +19,39 @@ import (
 )
 
 func TestExpvarServer(t *testing.T) {
-	fxutil.Test(t, fx.Options(
+	_ = fxutil.Test[Component](t, fx.Options(
 		fx.Supply(core.BundleParams{}),
 
 		Module,
 		hostinfo.MockModule,
 		core.MockBundle,
-	), func(Component) {
-		res, err := http.Get("http://localhost:6062/debug/vars")
-		require.NoError(t, err)
+	))
 
-		assert.Equal(t, http.StatusOK, res.StatusCode)
-	})
+	assert.Eventually(t, func() bool {
+		res, err := http.Get("http://localhost:6062/debug/vars")
+		if err != nil {
+			return false
+		}
+
+		return res.StatusCode == http.StatusOK
+	}, 5*time.Second, time.Second)
 }
 
 func TestTelemetry(t *testing.T) {
-	fxutil.Test(t, fx.Options(
+	_ = fxutil.Test[Component](t, fx.Options(
 		fx.Supply(core.BundleParams{}),
 
 		Module,
 		hostinfo.MockModule,
 		core.MockBundle,
-	), func(Component) {
-		res, err := http.Get("http://localhost:6062/telemetry")
-		require.NoError(t, err)
+	))
 
-		assert.Equal(t, http.StatusOK, res.StatusCode)
-	})
+	assert.Eventually(t, func() bool {
+		res, err := http.Get("http://localhost:6062/telemetry")
+		if err != nil {
+			return false
+		}
+
+		return res.StatusCode == http.StatusOK
+	}, 5*time.Second, time.Second)
 }
