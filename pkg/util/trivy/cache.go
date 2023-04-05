@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build trivy
+// +build trivy
+
 package trivy
 
 import (
@@ -25,26 +28,27 @@ import (
 var telemetryTick = 1 * time.Minute
 
 // CacheProvider describe a function that provides a type implementing the trivy cache interface
-type CacheProvider func() (cache.Cache, error)
+// and a cache cleaner
+type CacheProvider func() (cache.Cache, CacheCleaner, error)
 
-// NewBoltCache is a CacheProvider. It returns a BoltDB cache provided by Trivy.
-func NewBoltCache(cacheDir string) (cache.Cache, error) {
+// NewBoltCache is a CacheProvider. It returns a BoltDB cache provided by Trivy and an empty cleaner.
+func NewBoltCache(cacheDir string) (cache.Cache, CacheCleaner, error) {
 	if cacheDir == "" {
 		cacheDir = utils.DefaultCacheDir()
 	}
-
-	return cache.NewFSCache(cacheDir)
+	cache, err := cache.NewFSCache(cacheDir)
+	return cache, &EmptyCleaner{}, err
 }
 
 // NewCustomBoltCache is a CacheProvider. It returns a custom implementation of a BoltDB cache using an LRU algorithm with a
-// maximum number of cache entries, maximum disk size and garbage collection of unused images.
-func NewCustomBoltCache(cacheDir string, maxCacheEntries int, maxDiskSize int) (cache.Cache, error) {
+// maximum number of cache entries, maximum disk size and garbage collection of unused images with its custom cleaner.
+func NewCustomBoltCache(cacheDir string, maxCacheEntries int, maxDiskSize int) (cache.Cache, CacheCleaner, error) {
 	if cacheDir == "" {
 		cacheDir = utils.DefaultCacheDir()
 	}
 	db, err := NewBoltDB(cacheDir)
 	if err != nil {
-		return nil, err
+		return nil, &EmptyCleaner{}, err
 	}
 	cache, err := NewPersistentCache(
 		maxCacheEntries,
@@ -52,11 +56,9 @@ func NewCustomBoltCache(cacheDir string, maxCacheEntries int, maxDiskSize int) (
 		db,
 	)
 	if err != nil {
-		return nil, err
+		return nil, &EmptyCleaner{}, err
 	}
-	return &TrivyCache{
-		Cache: cache,
-	}, nil
+	return &TrivyCache{Cache: cache}, NewPersistentCacheCleaner(cache), nil
 }
 
 // Cache describes an interface for a key-value cache.
@@ -173,15 +175,15 @@ func (c *TrivyCache) GetBlob(id string) (types.BlobInfo, error) {
 	return trivyCacheGet[types.BlobInfo](c, id)
 }
 
-// CacheCleaner periodically removes unused entries from the cache and collects telemetry.
-// It holds a ticket for garbage collection and another for collecting telemetry.
-type CacheCleaner struct {
-	target *PersistentCache
-}
+// EmptyCleaner is a stub
+type EmptyCleaner struct{}
+
+// Clean does nothing
+func (c *EmptyCleaner) Clean() error { return nil }
 
 // Clean lists images from the workloadmeta, gets the list of currently used artifactIDs and blobIDs and
 // removes all the others from the cache.
-func (c *CacheCleaner) Clean() {
+func (c *PersistentCacheCleaner) Clean() error {
 	toKeep := make(map[string]struct{})
 	for _, imageMetadata := range workloadmeta.GetGlobalStore().ListImages() {
 		if imageMetadata.SBOM == nil {
@@ -199,16 +201,20 @@ func (c *CacheCleaner) Clean() {
 		}
 	}
 
-	err := c.target.Remove(toRemove)
-	if err != nil {
-		// will always be triggered if the database is closed
-		log.Errorf("error cleaning the database: %v", err)
+	if err := c.target.Remove(toRemove); err != nil {
+		return err
 	}
+	return nil
 }
 
-// NewCacheCleaner creates a new instance of CacheCleaner and returns a pointer to it.
-func NewCacheCleaner(target *PersistentCache) *CacheCleaner {
-	return &CacheCleaner{
+// PersistentCacheCleaner is a cache cleaner for PersistentCache instances
+type PersistentCacheCleaner struct {
+	target *PersistentCache
+}
+
+// NewPersistentCacheCleaner creates a new instance of PersistentCacheCleaner and returns a pointer to it.
+func NewPersistentCacheCleaner(target *PersistentCache) *PersistentCacheCleaner {
+	return &PersistentCacheCleaner{
 		target: target,
 	}
 }

@@ -101,7 +101,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 		cleanTicker := time.NewTicker(config.Datadog.GetDuration("container_image_collection.sbom.custom_cache_gc_interval"))
 		for {
 			select {
-			case im <- imagesToScanCh:
+			case image := <-imagesToScanCh:
 				scanContext, cancel := context.WithTimeout(ctx, scanningTimeout())
 				if err := c.extractBOMWithTrivy(scanContext, image); err != nil {
 					log.Warnf("Error extracting SBOM for image: namespace=%s name=%s, err: %s", image.Namespace, image.Name, err)
@@ -109,9 +109,9 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 				cancel()
 
 				time.Sleep(timeBetweenScans())
-			case cleanTicker.C:
-				if c.trivyClient.CacheCleaner {
-					c.trivyClient.CacheCleaner.Clean()
+			case _ = <-cleanTicker.C:
+				if err := c.trivyClient.GetCacheCleaner().Clean(); err != nil {
+					log.Warnf("Error cleaning SBOM cache: %v", err)
 				}
 			}
 		}
