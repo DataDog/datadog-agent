@@ -46,10 +46,10 @@ type DataScrubber struct {
 // NewDefaultDataScrubber creates a DataScrubber with the default behavior: enabled
 // and matching the default sensitive words
 func NewDefaultDataScrubber() *DataScrubber {
-	regexps := CompileStringsToRegex(defaultSensitiveWords)
+	patterns := CompileStringsToRegex(defaultSensitiveWords)
 	newDataScrubber := &DataScrubber{
 		Enabled:           true,
-		SensitivePatterns: regexpsToPatterns(regexps),
+		SensitivePatterns: patterns,
 		seenProcess:       make(map[string]struct{}),
 		scrubbedCmdlines:  make(map[string][]string),
 		cacheCycles:       0,
@@ -62,8 +62,8 @@ func NewDefaultDataScrubber() *DataScrubber {
 // CompileStringsToRegex compile each word in the slice into a regex pattern to match
 // against the cmdline arguments
 // The word must contain only word characters ([a-zA-z0-9_]) or wildcards *
-func CompileStringsToRegex(words []string) []*regexp.Regexp {
-	compiledRegexps := make([]*regexp.Regexp, 0, len(words))
+func CompileStringsToRegex(words []string) []DataScrubberPattern {
+	compiledRegexps := make([]DataScrubberPattern, 0, len(words))
 	forbiddenSymbols := regexp.MustCompile("[^a-zA-Z0-9_*]")
 
 	for _, word := range words {
@@ -105,7 +105,10 @@ func CompileStringsToRegex(words []string) []*regexp.Regexp {
 		pattern := "(?P<key>( +| -{1,2})(?i)" + enhancedWord.String() + ")(?P<delimiter> +|=|:)(?P<value>[^\\s]*)"
 		r, err := regexp.Compile(pattern)
 		if err == nil {
-			compiledRegexps = append(compiledRegexps, r)
+			compiledRegexps = append(compiledRegexps, DataScrubberPattern{
+				FastCheck: wordToFastChecker(word),
+				Re:        r,
+			})
 		} else {
 			log.Warnf("data scrubber: %s skipped. It couldn't be compiled into a regex expression", word)
 		}
@@ -166,8 +169,14 @@ func (ds *DataScrubber) IncrementCacheAge() {
 func (ds *DataScrubber) ScrubCommand(cmdline []string) ([]string, bool) {
 	newCmdline := cmdline
 	rawCmdline := strings.Join(cmdline, " ")
+	lowerCaseCmdline := strings.ToLower(rawCmdline)
 	changed := false
 	for _, pattern := range ds.SensitivePatterns {
+		// fast check with direct pattern
+		if !strings.Contains(lowerCaseCmdline, pattern.FastCheck) {
+			continue
+		}
+
 		if pattern.Re.MatchString(rawCmdline) {
 			changed = true
 			rawCmdline = pattern.Re.ReplaceAllString(rawCmdline, "${key}${delimiter}********")
@@ -193,15 +202,19 @@ func (ds *DataScrubber) stripArguments(cmdline []string) []string {
 // AddCustomSensitiveWords adds custom sensitive words on the DataScrubber object
 func (ds *DataScrubber) AddCustomSensitiveWords(words []string) {
 	newPatterns := CompileStringsToRegex(words)
-	ds.SensitivePatterns = append(ds.SensitivePatterns, regexpsToPatterns(newPatterns)...)
+	ds.SensitivePatterns = append(ds.SensitivePatterns, newPatterns...)
 }
 
-func regexpsToPatterns(regexps []*regexp.Regexp) []DataScrubberPattern {
-	patterns := make([]DataScrubberPattern, 0, len(regexps))
-	for _, r := range regexps {
-		patterns = append(patterns, DataScrubberPattern{
-			Re: r,
-		})
+func wordToFastChecker(word string) string {
+	bestLen := 0
+	best := ""
+
+	for _, sub := range strings.Split(word, "*") {
+		if len(sub) > bestLen {
+			bestLen = len(sub)
+			best = sub
+		}
 	}
-	return patterns
+
+	return strings.ToLower(best)
 }
