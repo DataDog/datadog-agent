@@ -922,6 +922,7 @@ func (s *USMSuite) TestJavaInjection() {
 				extras: make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
+				log.SetupLogger(seelog.Default, "debug")
 				cfg.JavaDir = legacyJavaDir
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
@@ -946,6 +947,7 @@ func (s *USMSuite) TestJavaInjection() {
 				extras: make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
+				log.SetupLogger(seelog.Default, "debug")
 				cfg.JavaDir = legacyJavaDir
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {

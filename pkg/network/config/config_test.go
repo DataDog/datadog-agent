@@ -785,7 +785,7 @@ func TestSSLAsyncHandshakeWindow(t *testing.T) {
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_SSL_ASYNC_HANDSHAKE_WINDOW", "5000")
 
 		cfg := New()
-		assert.Equal(t, 5000, cfg.SSLAsyncHandshakeWindow)
+		assert.Equal(t, uint64(5000), cfg.SSLAsyncHandshakeWindow)
 	})
 
 	t.Run("value set through yaml", func(t *testing.T) {
@@ -795,15 +795,15 @@ service_monitoring_config:
   ssl_async_handshake_window: 30000
 `)
 
-		assert.Equal(t, 30000, cfg.SSLAsyncHandshakeWindow)
+		assert.Equal(t, uint64(30000), cfg.SSLAsyncHandshakeWindow)
 	})
 	t.Run("default value", func(t *testing.T) {
 		newConfig(t)
 		cfg := New()
-		assert.Equal(t, defaultSSLAsyncHandshakeWindow, cfg.SSLAsyncHandshakeWindow)
-		cfg := configurationFromYAML(t, ``)
-		assert.Equal(t, defaultSSLAsyncHandshakeWindow,cfg.SSLAsyncHandshakeWindow)
-	}
+		assert.Equal(t, uint64(defaultSSLAsyncHandshakeWindow), cfg.SSLAsyncHandshakeWindow)
+		cfg = configurationFromYAML(t, ``)
+		assert.Equal(t, uint64(defaultSSLAsyncHandshakeWindow), cfg.SSLAsyncHandshakeWindow)
+	})
 }
 
 func TestMaxKafkaStatsBuffered(t *testing.T) {
