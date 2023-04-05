@@ -178,6 +178,50 @@ var TopologyMetadataConfig = MetadataConfig{
 			},
 		},
 	},
+	"cdp_remote": {
+		Fields: map[string]MetadataField{
+			"device_desc": {
+				Symbol: SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.5",
+					Name: "cdpCacheVersion",
+				},
+			},
+			"device_id": {
+				Symbol: SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.6",
+					Name: "cdpCacheDeviceId",
+				},
+			},
+			"interface_id": {
+				Symbol: SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.7",
+					Name: "cdpCacheDevicePort",
+				},
+			},
+			"device_name": {
+				Symbol: SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.17",
+					Name: "cdpCacheSysName",
+				},
+			},
+			"device_address_type": {
+				Symbol: SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.19",
+					Name: "cdpCachePrimaryMgmtAddrType",
+				},
+			},
+			"device_address": {
+				Symbol: SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.20",
+					Name: "cdpCachePrimaryMgmtAddr",
+				},
+			},
+			// TODO: Add
+			//   - 1.3.6.1.4.1.9.9.23.1.2.1.1.4 cdpCacheAddress
+			//   - 1.3.6.1.4.1.9.9.23.1.2.1.1.22  cdpCacheSecondaryMgmtAddrType
+			// as backup when cdpCachePrimaryMgmtAddr is not present or cdpCachePrimaryMgmtAddrType is not ip(1)
+		},
+	},
 }
 
 // MetadataConfig holds configs per resource type

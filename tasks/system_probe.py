@@ -138,14 +138,15 @@ def ninja_ebpf_co_re_program(nw, infile, outfile, variables=None):
 
 def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
     security_agent_c_dir = os.path.join("pkg", "security", "ebpf", "c")
+    security_agent_prebuilt_dir_include = os.path.join(security_agent_c_dir, "include")
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
 
     kernel_headers = get_linux_header_dirs(
         kernel_release=kernel_release, minimal_kernel_release=CWS_PREBUILT_MINIMUM_KERNEL_VERSION
     )
     kheaders = " ".join(f"-isystem{d}" for d in kernel_headers)
-    debugdef = "-DDEBUG=1 -g" if debug else ""
-    security_flags = f"-I{security_agent_c_dir} {debugdef}"
+    debugdef = "-DDEBUG=1" if debug else ""
+    security_flags = f"-g -I{security_agent_prebuilt_dir_include} {debugdef}"
 
     outfiles = []
 
@@ -1449,10 +1450,39 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
             images.add(docker_compose["services"][component]["image"])
 
     # Java tests have dynamic images in docker-compose.yml
-    for image in ["openjdk:21-oraclelinux8", "openjdk:15-oraclelinux8", "openjdk:8u151-jre"]:
+    for image in ["openjdk:21-oraclelinux8", "openjdk:15-oraclelinux8", "openjdk:8u151-jre", "menci/archlinuxarm:base"]:
         images.add(image)
 
     for image in images:
         output_path = image.translate(str.maketrans('', '', string.punctuation))
         ctx.run(f"docker pull --platform linux/{arch} {image}")
         ctx.run(f"docker save {image} > {os.path.join(output_dir, output_path)}.tar")
+
+
+@task
+def test_microvms(
+    ctx,
+    security_groups=None,
+    subnets=None,
+    instance_type_x86=None,
+    instance_type_arm=None,
+    x86_ami_id=None,
+    arm_ami_id=None,
+    destroy=False,
+    upload_dependencies=False,
+):
+    args = [
+        f"--sgs {security_groups}" if security_groups is not None else "",
+        f"--subnets {subnets}" if subnets is not None else "",
+        f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 is not None else "",
+        f"--instance-type-arm {instance_type_arm}" if instance_type_arm is not None else "",
+        f"--x86-ami-id {x86_ami_id}" if x86_ami_id is not None else "",
+        f"--arm-ami-id {arm_ami_id}" if arm_ami_id is not None else "",
+        "--destroy" if destroy else "",
+        "--upload-dependencies" if upload_dependencies else "",
+    ]
+
+    go_args = ' '.join(filter(lambda x: x != "", args))
+    ctx.run(
+        f"cd ./test/new-e2e && go run ./scenarios/system-probe/main.go --name usama-saqib-test {go_args} --shutdown-period 720",
+    )

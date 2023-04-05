@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -311,6 +312,8 @@ func (p *Probe) Setup() error {
 	if err := p.Manager.Start(); err != nil {
 		return err
 	}
+
+	p.applyDefaultFilterPolicies()
 
 	return p.monitor.Start(p.ctx, &p.wg)
 }
@@ -844,6 +847,11 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode syscalls event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case model.AnomalyDetectionSyscallEventType:
+		if _, err = event.AnomalyDetectionSyscallEvent.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode anomaly detection for syscall event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	default:
 		seclog.Errorf("unsupported event type %d", eventType)
 		return
@@ -864,6 +872,16 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	}
 
 	p.DispatchEvent(event)
+
+	// anomaly detection events
+	if model.IsAnomalyDetectionEvent(event.GetType()) {
+		p.monitor.securityProfileManager.FillProfileContextFromContainerID(event.ProcessContext.ContainerID, &event.SecurityProfileContext)
+
+		p.DispatchCustomEvent(
+			events.NewCustomRule(events.AnomalyDetectionRuleID),
+			events.NewCustomEvent(event.GetEventType(), serializers.NewEventSerializer(event, p.resolvers)),
+		)
+	}
 
 	// flush exited process
 	p.resolvers.ProcessResolver.DequeueExited()
@@ -1124,8 +1142,11 @@ func (p *Probe) DumpDiscarders() (string, error) {
 	if err := encoder.Encode(dump); err != nil {
 		return "", err
 	}
-
-	return fp.Name(), nil
+	err = fp.Close()
+	if err != nil {
+		return "", fmt.Errorf("could not close file [%s]: %w", fp.Name(), err)
+	}
+	return fp.Name(), err
 }
 
 // FlushDiscarders invalidates all the discarders
@@ -1202,13 +1223,24 @@ func (p *Probe) setupNewTCClassifier(device model.NetDevice) error {
 	if netns != nil {
 		handle, err = netns.GetNamespaceHandleDup()
 	}
+	if err != nil {
+		defer handle.Close()
+	}
 	if netns == nil || err != nil || handle == nil {
 		// queue network device so that a TC classifier can be added later
 		p.resolvers.NamespaceResolver.QueueNetworkDevice(device)
 		return QueuedNetworkDeviceError{msg: fmt.Sprintf("device %s is queued until %d is resolved", device.Name, device.NetNS)}
 	}
-	defer handle.Close()
-	return p.resolvers.TCResolver.SetupNewTCClassifierWithNetNSHandle(device, handle, p.Manager)
+	err = p.resolvers.TCResolver.SetupNewTCClassifierWithNetNSHandle(device, handle, p.Manager)
+	if err != nil {
+		return err
+	}
+	if handle != nil {
+		if err := handle.Close(); err != nil {
+			return fmt.Errorf("could not close file [%s]: %w", handle.Name(), err)
+		}
+	}
+	return err
 }
 
 // FlushNetworkNamespace removes all references and stops all TC programs in the provided network namespace. This method
@@ -1247,6 +1279,28 @@ func (p *Probe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	}
 
 	return nil
+}
+
+func (p *Probe) applyDefaultFilterPolicies() {
+	if !p.Config.Probe.EnableKernelFilters {
+		seclog.Warnf("Forcing in-kernel filter policy to `pass`: filtering not enabled")
+	}
+
+	for eventType := model.FirstEventType; eventType <= model.LastEventType; eventType++ {
+		var mode kfilters.PolicyMode
+
+		if !p.Config.Probe.EnableKernelFilters {
+			mode = kfilters.PolicyModeNoFilter
+		} else if len(p.eventHandlers[eventType]) > 0 {
+			mode = kfilters.PolicyModeAccept
+		} else {
+			mode = kfilters.PolicyModeDeny
+		}
+
+		if err := p.ApplyFilterPolicy(eventType.String(), mode, math.MaxUint8); err != nil {
+			seclog.Debugf("unable to apply to filter policy `%s` for `%s`", eventType, mode)
+		}
+	}
 }
 
 // ApplyRuleSet setup the filters for the provided set of rules and returns the policy report.
@@ -1338,11 +1392,8 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		useMmapableMaps,
 		useRingBuffers,
 		uint32(p.Config.Probe.EventStreamBufferSize),
+		p.Config.RuntimeSecurity.SecurityProfileMaxCount,
 	)
-
-	if !p.Config.Probe.EnableKernelFilters {
-		seclog.Warnf("Forcing in-kernel filter policy to `pass`: filtering not enabled")
-	}
 
 	if config.RuntimeSecurity.ActivityDumpEnabled {
 		for _, e := range config.RuntimeSecurity.ActivityDumpTracedEventTypes {
@@ -1425,6 +1476,10 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		manager.ConstantEditor{
 			Name:  "syscall_monitor_event_period",
 			Value: uint64(config.RuntimeSecurity.ActivityDumpSyscallMonitorPeriod.Nanoseconds()),
+		},
+		manager.ConstantEditor{
+			Name:  "send_signal",
+			Value: isBPFSendSignalHelperAvailable(p.kernelVersion),
 		},
 	)
 
@@ -1546,6 +1601,14 @@ func getDoForkInput(kernelVersion *kernel.Version) uint64 {
 		return doForkStructInput
 	}
 	return doForkListInput
+}
+
+// isBPFSendSignalHelperAvailable returns true if the bpf_send_signal helper is available in the current kernel
+func isBPFSendSignalHelperAvailable(kernelVersion *kernel.Version) uint64 {
+	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel5_3 {
+		return uint64(1)
+	}
+	return uint64(0)
 }
 
 // getCGroupWriteConstants returns the value of the constant used to determine how cgroups should be captured in kernel

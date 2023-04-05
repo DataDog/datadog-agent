@@ -804,15 +804,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "exec.cookie":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ev := ctx.Event.(*Event)
-				return int(ev.Exec.Process.Cookie)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "exec.created_at":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -1567,15 +1558,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				return ev.Exit.Process.ContainerID
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "exit.cookie":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ev := ctx.Event.(*Event)
-				return int(ev.Exit.Process.Cookie)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3747,26 +3729,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
-	case "process.ancestors.cookie":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if result, ok := ctx.IntCache[field]; ok {
-					return result
-				}
-				var results []int
-				iterator := &ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Cookie)
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.IntCache[field] = results
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
 	case "process.ancestors.created_at":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -5263,15 +5225,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "process.cookie":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ev := ctx.Event.(*Event)
-				return int(ev.ProcessContext.Process.Cookie)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "process.created_at":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -5984,18 +5937,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					return ""
 				}
 				return ev.ProcessContext.Parent.ContainerID
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.cookie":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
-					return 0
-				}
-				return int(ev.ProcessContext.Parent.Cookie)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -7092,26 +7033,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 				ctx.StringCache[field] = results
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
-	case "ptrace.tracee.ancestors.cookie":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if result, ok := ctx.IntCache[field]; ok {
-					return result
-				}
-				var results []int
-				iterator := &ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Cookie)
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -8612,15 +8533,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "ptrace.tracee.cookie":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ev := ctx.Event.(*Event)
-				return int(ev.PTrace.Tracee.Process.Cookie)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "ptrace.tracee.created_at":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -9333,18 +9245,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					return ""
 				}
 				return ev.PTrace.Tracee.Parent.ContainerID
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.cookie":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ev := ctx.Event.(*Event)
-				if !ev.PTrace.Tracee.HasParent() {
-					return 0
-				}
-				return int(ev.PTrace.Tracee.Parent.Cookie)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -11536,26 +11436,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
-	case "signal.target.ancestors.cookie":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if result, ok := ctx.IntCache[field]; ok {
-					return result
-				}
-				var results []int
-				iterator := &ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Cookie)
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.IntCache[field] = results
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
 	case "signal.target.ancestors.created_at":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -13052,15 +12932,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "signal.target.cookie":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ev := ctx.Event.(*Event)
-				return int(ev.Signal.Target.Process.Cookie)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "signal.target.created_at":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -13773,18 +13644,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					return ""
 				}
 				return ev.Signal.Target.Parent.ContainerID
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.cookie":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ev := ctx.Event.(*Event)
-				if !ev.Signal.Target.HasParent() {
-					return 0
-				}
-				return int(ev.Signal.Target.Parent.Cookie)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -15354,7 +15213,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.cap_permitted",
 		"exec.comm",
 		"exec.container.id",
-		"exec.cookie",
 		"exec.created_at",
 		"exec.egid",
 		"exec.egroup",
@@ -15427,7 +15285,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.code",
 		"exit.comm",
 		"exit.container.id",
-		"exit.cookie",
 		"exit.created_at",
 		"exit.egid",
 		"exit.egroup",
@@ -15641,7 +15498,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.cap_permitted",
 		"process.ancestors.comm",
 		"process.ancestors.container.id",
-		"process.ancestors.cookie",
 		"process.ancestors.created_at",
 		"process.ancestors.egid",
 		"process.ancestors.egroup",
@@ -15712,7 +15568,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.cap_permitted",
 		"process.comm",
 		"process.container.id",
-		"process.cookie",
 		"process.created_at",
 		"process.egid",
 		"process.egroup",
@@ -15777,7 +15632,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.cap_permitted",
 		"process.parent.comm",
 		"process.parent.container.id",
-		"process.parent.cookie",
 		"process.parent.created_at",
 		"process.parent.egid",
 		"process.parent.egroup",
@@ -15856,7 +15710,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.cap_permitted",
 		"ptrace.tracee.ancestors.comm",
 		"ptrace.tracee.ancestors.container.id",
-		"ptrace.tracee.ancestors.cookie",
 		"ptrace.tracee.ancestors.created_at",
 		"ptrace.tracee.ancestors.egid",
 		"ptrace.tracee.ancestors.egroup",
@@ -15927,7 +15780,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.cap_permitted",
 		"ptrace.tracee.comm",
 		"ptrace.tracee.container.id",
-		"ptrace.tracee.cookie",
 		"ptrace.tracee.created_at",
 		"ptrace.tracee.egid",
 		"ptrace.tracee.egroup",
@@ -15992,7 +15844,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.parent.cap_permitted",
 		"ptrace.tracee.parent.comm",
 		"ptrace.tracee.parent.container.id",
-		"ptrace.tracee.parent.cookie",
 		"ptrace.tracee.parent.created_at",
 		"ptrace.tracee.parent.egid",
 		"ptrace.tracee.parent.egroup",
@@ -16190,7 +16041,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.cap_permitted",
 		"signal.target.ancestors.comm",
 		"signal.target.ancestors.container.id",
-		"signal.target.ancestors.cookie",
 		"signal.target.ancestors.created_at",
 		"signal.target.ancestors.egid",
 		"signal.target.ancestors.egroup",
@@ -16261,7 +16111,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.cap_permitted",
 		"signal.target.comm",
 		"signal.target.container.id",
-		"signal.target.cookie",
 		"signal.target.created_at",
 		"signal.target.egid",
 		"signal.target.egroup",
@@ -16326,7 +16175,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.parent.cap_permitted",
 		"signal.target.parent.comm",
 		"signal.target.parent.container.id",
-		"signal.target.parent.cookie",
 		"signal.target.parent.created_at",
 		"signal.target.parent.egid",
 		"signal.target.parent.egroup",
@@ -16631,8 +16479,6 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.Exec.Process.Comm, nil
 	case "exec.container.id":
 		return ev.Exec.Process.ContainerID, nil
-	case "exec.cookie":
-		return int(ev.Exec.Process.Cookie), nil
 	case "exec.created_at":
 		return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exec.Process)), nil
 	case "exec.egid":
@@ -16777,8 +16623,6 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.Exit.Process.Comm, nil
 	case "exit.container.id":
 		return ev.Exit.Process.ContainerID, nil
-	case "exit.cookie":
-		return int(ev.Exit.Process.Cookie), nil
 	case "exit.created_at":
 		return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exit.Process)), nil
 	case "exit.egid":
@@ -17301,18 +17145,6 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
 			result := element.ProcessContext.Process.ContainerID
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "process.ancestors.cookie":
-		var values []int
-		ctx := eval.NewContext(ev)
-		iterator := &ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Cookie)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -18057,8 +17889,6 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.ProcessContext.Process.Comm, nil
 	case "process.container.id":
 		return ev.ProcessContext.Process.ContainerID, nil
-	case "process.cookie":
-		return int(ev.ProcessContext.Process.Cookie), nil
 	case "process.created_at":
 		return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.ProcessContext.Process)), nil
 	case "process.egid":
@@ -18187,8 +18017,6 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.ProcessContext.Parent.Comm, nil
 	case "process.parent.container.id":
 		return ev.ProcessContext.Parent.ContainerID, nil
-	case "process.parent.cookie":
-		return int(ev.ProcessContext.Parent.Cookie), nil
 	case "process.parent.created_at":
 		return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.ProcessContext.Parent)), nil
 	case "process.parent.egid":
@@ -18441,18 +18269,6 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
 			result := element.ProcessContext.Process.ContainerID
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "ptrace.tracee.ancestors.cookie":
-		var values []int
-		ctx := eval.NewContext(ev)
-		iterator := &ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Cookie)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -19197,8 +19013,6 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.PTrace.Tracee.Process.Comm, nil
 	case "ptrace.tracee.container.id":
 		return ev.PTrace.Tracee.Process.ContainerID, nil
-	case "ptrace.tracee.cookie":
-		return int(ev.PTrace.Tracee.Process.Cookie), nil
 	case "ptrace.tracee.created_at":
 		return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.PTrace.Tracee.Process)), nil
 	case "ptrace.tracee.egid":
@@ -19327,8 +19141,6 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.PTrace.Tracee.Parent.Comm, nil
 	case "ptrace.tracee.parent.container.id":
 		return ev.PTrace.Tracee.Parent.ContainerID, nil
-	case "ptrace.tracee.parent.cookie":
-		return int(ev.PTrace.Tracee.Parent.Cookie), nil
 	case "ptrace.tracee.parent.created_at":
 		return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.PTrace.Tracee.Parent)), nil
 	case "ptrace.tracee.parent.egid":
@@ -19819,18 +19631,6 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
 			result := element.ProcessContext.Process.ContainerID
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "signal.target.ancestors.cookie":
-		var values []int
-		ctx := eval.NewContext(ev)
-		iterator := &ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Cookie)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -20575,8 +20375,6 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.Signal.Target.Process.Comm, nil
 	case "signal.target.container.id":
 		return ev.Signal.Target.Process.ContainerID, nil
-	case "signal.target.cookie":
-		return int(ev.Signal.Target.Process.Cookie), nil
 	case "signal.target.created_at":
 		return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.Signal.Target.Process)), nil
 	case "signal.target.egid":
@@ -20705,8 +20503,6 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.Signal.Target.Parent.Comm, nil
 	case "signal.target.parent.container.id":
 		return ev.Signal.Target.Parent.ContainerID, nil
-	case "signal.target.parent.cookie":
-		return int(ev.Signal.Target.Parent.Cookie), nil
 	case "signal.target.parent.created_at":
 		return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Signal.Target.Parent)), nil
 	case "signal.target.parent.egid":
@@ -21140,8 +20936,6 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exec", nil
 	case "exec.container.id":
 		return "exec", nil
-	case "exec.cookie":
-		return "exec", nil
 	case "exec.created_at":
 		return "exec", nil
 	case "exec.egid":
@@ -21285,8 +21079,6 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "exit.comm":
 		return "exit", nil
 	case "exit.container.id":
-		return "exit", nil
-	case "exit.cookie":
 		return "exit", nil
 	case "exit.created_at":
 		return "exit", nil
@@ -21714,8 +21506,6 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.ancestors.container.id":
 		return "*", nil
-	case "process.ancestors.cookie":
-		return "*", nil
 	case "process.ancestors.created_at":
 		return "*", nil
 	case "process.ancestors.egid":
@@ -21856,8 +21646,6 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.container.id":
 		return "*", nil
-	case "process.cookie":
-		return "*", nil
 	case "process.created_at":
 		return "*", nil
 	case "process.egid":
@@ -21985,8 +21773,6 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.parent.comm":
 		return "*", nil
 	case "process.parent.container.id":
-		return "*", nil
-	case "process.parent.cookie":
 		return "*", nil
 	case "process.parent.created_at":
 		return "*", nil
@@ -22144,8 +21930,6 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.container.id":
 		return "ptrace", nil
-	case "ptrace.tracee.ancestors.cookie":
-		return "ptrace", nil
 	case "ptrace.tracee.ancestors.created_at":
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.egid":
@@ -22286,8 +22070,6 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "ptrace", nil
 	case "ptrace.tracee.container.id":
 		return "ptrace", nil
-	case "ptrace.tracee.cookie":
-		return "ptrace", nil
 	case "ptrace.tracee.created_at":
 		return "ptrace", nil
 	case "ptrace.tracee.egid":
@@ -22415,8 +22197,6 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "ptrace.tracee.parent.comm":
 		return "ptrace", nil
 	case "ptrace.tracee.parent.container.id":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.cookie":
 		return "ptrace", nil
 	case "ptrace.tracee.parent.created_at":
 		return "ptrace", nil
@@ -22812,8 +22592,6 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "signal", nil
 	case "signal.target.ancestors.container.id":
 		return "signal", nil
-	case "signal.target.ancestors.cookie":
-		return "signal", nil
 	case "signal.target.ancestors.created_at":
 		return "signal", nil
 	case "signal.target.ancestors.egid":
@@ -22954,8 +22732,6 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "signal", nil
 	case "signal.target.container.id":
 		return "signal", nil
-	case "signal.target.cookie":
-		return "signal", nil
 	case "signal.target.created_at":
 		return "signal", nil
 	case "signal.target.egid":
@@ -23083,8 +22859,6 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "signal.target.parent.comm":
 		return "signal", nil
 	case "signal.target.parent.container.id":
-		return "signal", nil
-	case "signal.target.parent.cookie":
 		return "signal", nil
 	case "signal.target.parent.created_at":
 		return "signal", nil
@@ -23519,8 +23293,6 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "exec.container.id":
 		return reflect.String, nil
-	case "exec.cookie":
-		return reflect.Int, nil
 	case "exec.created_at":
 		return reflect.Int, nil
 	case "exec.egid":
@@ -23665,8 +23437,6 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "exit.container.id":
 		return reflect.String, nil
-	case "exit.cookie":
-		return reflect.Int, nil
 	case "exit.created_at":
 		return reflect.Int, nil
 	case "exit.egid":
@@ -24093,8 +23863,6 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "process.ancestors.container.id":
 		return reflect.String, nil
-	case "process.ancestors.cookie":
-		return reflect.Int, nil
 	case "process.ancestors.created_at":
 		return reflect.Int, nil
 	case "process.ancestors.egid":
@@ -24235,8 +24003,6 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "process.container.id":
 		return reflect.String, nil
-	case "process.cookie":
-		return reflect.Int, nil
 	case "process.created_at":
 		return reflect.Int, nil
 	case "process.egid":
@@ -24365,8 +24131,6 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "process.parent.container.id":
 		return reflect.String, nil
-	case "process.parent.cookie":
-		return reflect.Int, nil
 	case "process.parent.created_at":
 		return reflect.Int, nil
 	case "process.parent.egid":
@@ -24523,8 +24287,6 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "ptrace.tracee.ancestors.container.id":
 		return reflect.String, nil
-	case "ptrace.tracee.ancestors.cookie":
-		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.created_at":
 		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.egid":
@@ -24665,8 +24427,6 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "ptrace.tracee.container.id":
 		return reflect.String, nil
-	case "ptrace.tracee.cookie":
-		return reflect.Int, nil
 	case "ptrace.tracee.created_at":
 		return reflect.Int, nil
 	case "ptrace.tracee.egid":
@@ -24795,8 +24555,6 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "ptrace.tracee.parent.container.id":
 		return reflect.String, nil
-	case "ptrace.tracee.parent.cookie":
-		return reflect.Int, nil
 	case "ptrace.tracee.parent.created_at":
 		return reflect.Int, nil
 	case "ptrace.tracee.parent.egid":
@@ -25191,8 +24949,6 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "signal.target.ancestors.container.id":
 		return reflect.String, nil
-	case "signal.target.ancestors.cookie":
-		return reflect.Int, nil
 	case "signal.target.ancestors.created_at":
 		return reflect.Int, nil
 	case "signal.target.ancestors.egid":
@@ -25333,8 +25089,6 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "signal.target.container.id":
 		return reflect.String, nil
-	case "signal.target.cookie":
-		return reflect.Int, nil
 	case "signal.target.created_at":
 		return reflect.Int, nil
 	case "signal.target.egid":
@@ -25463,8 +25217,6 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "signal.target.parent.container.id":
 		return reflect.String, nil
-	case "signal.target.parent.cookie":
-		return reflect.Int, nil
 	case "signal.target.parent.created_at":
 		return reflect.Int, nil
 	case "signal.target.parent.egid":
@@ -26330,16 +26082,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Exec.Process.ContainerID = rv
 		return nil
-	case "exec.cookie":
-		if ev.Exec.Process == nil {
-			ev.Exec.Process = &Process{}
-		}
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Cookie"}
-		}
-		ev.Exec.Process.Cookie = uint32(rv)
-		return nil
 	case "exec.created_at":
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
@@ -27048,16 +26790,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.ContainerID"}
 		}
 		ev.Exit.Process.ContainerID = rv
-		return nil
-	case "exit.cookie":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Cookie"}
-		}
-		ev.Exit.Process.Cookie = uint32(rv)
 		return nil
 	case "exit.created_at":
 		if ev.Exit.Process == nil {
@@ -28725,19 +28457,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.ProcessContext.Ancestor.ProcessContext.Process.ContainerID = rv
 		return nil
-	case "process.ancestors.cookie":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
-		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
-		}
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Cookie"}
-		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.Cookie = uint32(rv)
-		return nil
 	case "process.ancestors.created_at":
 		if ev.ProcessContext == nil {
 			ev.ProcessContext = &ProcessContext{}
@@ -29613,16 +29332,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.ProcessContext.Process.ContainerID = rv
 		return nil
-	case "process.cookie":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
-		}
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Cookie"}
-		}
-		ev.ProcessContext.Process.Cookie = uint32(rv)
-		return nil
 	case "process.created_at":
 		if ev.ProcessContext == nil {
 			ev.ProcessContext = &ProcessContext{}
@@ -30287,19 +29996,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.ContainerID"}
 		}
 		ev.ProcessContext.Parent.ContainerID = rv
-		return nil
-	case "process.parent.cookie":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
-		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
-		}
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Cookie"}
-		}
-		ev.ProcessContext.Parent.Cookie = uint32(rv)
 		return nil
 	case "process.parent.created_at":
 		if ev.ProcessContext == nil {
@@ -31280,19 +30976,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.ContainerID = rv
 		return nil
-	case "ptrace.tracee.ancestors.cookie":
-		if ev.PTrace.Tracee == nil {
-			ev.PTrace.Tracee = &ProcessContext{}
-		}
-		if ev.PTrace.Tracee.Ancestor == nil {
-			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
-		}
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Cookie"}
-		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Cookie = uint32(rv)
-		return nil
 	case "ptrace.tracee.ancestors.created_at":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -32168,16 +31851,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.PTrace.Tracee.Process.ContainerID = rv
 		return nil
-	case "ptrace.tracee.cookie":
-		if ev.PTrace.Tracee == nil {
-			ev.PTrace.Tracee = &ProcessContext{}
-		}
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Cookie"}
-		}
-		ev.PTrace.Tracee.Process.Cookie = uint32(rv)
-		return nil
 	case "ptrace.tracee.created_at":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -32842,19 +32515,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.ContainerID"}
 		}
 		ev.PTrace.Tracee.Parent.ContainerID = rv
-		return nil
-	case "ptrace.tracee.parent.cookie":
-		if ev.PTrace.Tracee == nil {
-			ev.PTrace.Tracee = &ProcessContext{}
-		}
-		if ev.PTrace.Tracee.Parent == nil {
-			ev.PTrace.Tracee.Parent = &Process{}
-		}
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Cookie"}
-		}
-		ev.PTrace.Tracee.Parent.Cookie = uint32(rv)
 		return nil
 	case "ptrace.tracee.parent.created_at":
 		if ev.PTrace.Tracee == nil {
@@ -34618,19 +34278,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Signal.Target.Ancestor.ProcessContext.Process.ContainerID = rv
 		return nil
-	case "signal.target.ancestors.cookie":
-		if ev.Signal.Target == nil {
-			ev.Signal.Target = &ProcessContext{}
-		}
-		if ev.Signal.Target.Ancestor == nil {
-			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
-		}
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Cookie"}
-		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.Cookie = uint32(rv)
-		return nil
 	case "signal.target.ancestors.created_at":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -35506,16 +35153,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Signal.Target.Process.ContainerID = rv
 		return nil
-	case "signal.target.cookie":
-		if ev.Signal.Target == nil {
-			ev.Signal.Target = &ProcessContext{}
-		}
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Cookie"}
-		}
-		ev.Signal.Target.Process.Cookie = uint32(rv)
-		return nil
 	case "signal.target.created_at":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -36180,19 +35817,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.ContainerID"}
 		}
 		ev.Signal.Target.Parent.ContainerID = rv
-		return nil
-	case "signal.target.parent.cookie":
-		if ev.Signal.Target == nil {
-			ev.Signal.Target = &ProcessContext{}
-		}
-		if ev.Signal.Target.Parent == nil {
-			ev.Signal.Target.Parent = &Process{}
-		}
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Cookie"}
-		}
-		ev.Signal.Target.Parent.Cookie = uint32(rv)
 		return nil
 	case "signal.target.parent.created_at":
 		if ev.Signal.Target == nil {
