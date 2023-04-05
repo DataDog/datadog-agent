@@ -23,7 +23,7 @@
 
 
 .deploy_containers-a7_external:
-  extends: .deploy_containers-a7_base
+  extends: .deploy_containers-a7-base
   parallel:
     matrix:
       - JMX:
