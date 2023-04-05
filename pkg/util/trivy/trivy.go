@@ -15,6 +15,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	containerdUtil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -80,7 +81,7 @@ func DefaultCollectorConfig(enabledAnalyzers []string, cacheLocation string) Col
 		ClearCacheOnClose: true,
 	}
 
-	collectorConfig.CacheProvider = cacheProvider(cacheLocation)
+	collectorConfig.CacheProvider = cacheProvider(cacheLocation, config.Datadog.GetBool("container_image_collection.sbom.use_custom_cache"))
 
 	if len(enabledAnalyzers) == 1 && enabledAnalyzers[0] == OSAnalyzers {
 		collectorConfig.ArtifactOption.OnlyDirs = []string{"etc", "var/lib/dpkg", "var/lib/rpm", "lib/apk"}
@@ -89,7 +90,16 @@ func DefaultCollectorConfig(enabledAnalyzers []string, cacheLocation string) Col
 	return collectorConfig
 }
 
-func cacheProvider(cacheLocation string) func() (cache.Cache, CacheCleaner, error) {
+func cacheProvider(cacheLocation string, useCustomCache bool) func() (cache.Cache, CacheCleaner, error) {
+	if useCustomCache {
+		return func() (cache.Cache, CacheCleaner, error) {
+			return NewCustomBoltCache(
+				cacheLocation,
+				config.Datadog.GetInt("container_image_collection.sbom.custom_cache_max_cache_entries"),
+				config.Datadog.GetInt("container_image_collection.sbom.custom_cache_max_disk_size"),
+			)
+		}
+	}
 
 	return func() (cache.Cache, CacheCleaner, error) {
 		return NewBoltCache(cacheLocation)
