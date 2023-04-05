@@ -78,7 +78,6 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 		},
 	}
 	container := mockedContainer{
-		fake.mockedContainer,
 		mockID: func() string {
 			return containerID
 		},
