@@ -125,8 +125,8 @@ func (m *forwardingTransport) RoundTrip(req *http.Request) (rres *http.Response,
 	return rres, rerr
 }
 
-// newMeasuringMultiTransport creates a MultiTransport wrapped in a MeasuringTransport.
-func newMeasuringMultiTransport(
+// newMeasuringForwardingTransport creates a forwardingTransport wrapped in a measuringTransport.
+func newMeasuringForwardingTransport(
 	rt http.RoundTripper,
 	mainEndpoint *url.URL,
 	mainEndpointKey string,
