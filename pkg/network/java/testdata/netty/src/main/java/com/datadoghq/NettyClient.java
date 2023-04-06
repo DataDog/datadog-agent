@@ -78,6 +78,13 @@ public final class NettyClient {
             sslCtx = null;
         }
 
+        // wait time here as hooking the libnetty_tcnative.so could be slow on some platform
+        try {
+            Thread.sleep(3*1000);
+        } catch (Exception ex) {
+            System.out.println(ex);
+        }
+
         // Configure the client.
         EventLoopGroup group = new NioEventLoopGroup();
         try {
