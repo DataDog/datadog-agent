@@ -313,7 +313,7 @@ func completeReqRespTracking(eventInfo *etw.DDEtwEventInfo, httpConnLink *HttpCo
 	}
 
 	// Time
-	httpConnLink.http.Txn.ResponseLastSeen = winutil.FileTimeToUnixTimeNs(uint64(eventInfo.Event.TimeStamp))
+	httpConnLink.http.Txn.ResponseLastSeen = winutil.FileTimeToUnixNano(uint64(eventInfo.Event.TimeStamp))
 
 	// Clean it up related containers
 	cleanupActivityIdViaConnOpen(connOpen, eventInfo.Event.ActivityId)
@@ -490,7 +490,7 @@ func httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo *etw.DDEtwEventInfo
 	}
 
 	// Time
-	connOpen.conn.connected = winutil.FileTimeToUnixTimeNs(uint64(eventInfo.Event.TimeStamp))
+	connOpen.conn.connected = winutil.FileTimeToUnixNano(uint64(eventInfo.Event.TimeStamp))
 
 	// Http back links (to cleanup on closure)
 	connOpen.httpPendingBackLinks = make(map[etw.DDGUID]struct{}, 10)
@@ -525,7 +525,7 @@ func httpCallbackOnHTTPConnectionTraceTaskConnClose(eventInfo *etw.DDEtwEventInf
 		completedRequestCount++
 
 		// move it to close connection
-		connOpen.conn.disconnected = winutil.FileTimeToUnixTimeNs(uint64(eventInfo.Event.TimeStamp))
+		connOpen.conn.disconnected = winutil.FileTimeToUnixNano(uint64(eventInfo.Event.TimeStamp))
 
 		// Clean pending http2openConn
 		for httpReqRespActivityId := range connOpen.httpPendingBackLinks {
@@ -595,7 +595,7 @@ func httpCallbackOnHTTPRequestTraceTaskRecvReq(eventInfo *etw.DDEtwEventInfo) {
 	reqRespAndLink := &HttpConnLink{}
 	reqRespAndLink.connActivityId = eventInfo.Event.ActivityId
 	reqRespAndLink.http.Txn.Tup = connOpen.conn.tup
-	reqRespAndLink.http.Txn.RequestStarted = winutil.FileTimeToUnixTimeNs(uint64(eventInfo.Event.TimeStamp))
+	reqRespAndLink.http.Txn.RequestStarted = winutil.FileTimeToUnixNano(uint64(eventInfo.Event.TimeStamp))
 
 	// Save Req/Resp Conn Link and back reference to it
 	http2openConn[*eventInfo.RelatedActivityId] = reqRespAndLink

@@ -13,14 +13,12 @@ package winutil
 // 11644473600s * 1000ms/s * 1000us/ms * 10 intervals/us
 const EPOCH_DIFFERENCE_SECS uint64 = 116444736000000000
 
-// FileTimeToUnixTime translates FileTime to a golang time. Same as in standard packages.
-// // From GetUnixTimestamp() datadog-windows-filter\ddfilter\http\http_callbacks.c
-// returns timestamp in ns since unix epoch
-func FileTimeToUnixTimeNs(ft uint64) uint64 {
+// FileTimeToUnixNano translates Windows FileTime to nanoseconds since Unix epoch
+func FileTimeToUnixNano(ft uint64) uint64 {
 	return (ft - EPOCH_DIFFERENCE_SECS) * 100
 }
 
-// returns time in seconds since unix epoch
-func FileTimeToUnixTimeS(ft uint64) uint64 {
+// FileTimeToUnix translates Windows FileTime to seconds since Unix epoch
+func FileTimeToUnix(ft uint64) uint64 {
 	return (ft - EPOCH_DIFFERENCE_SECS) / 10000000
 }
