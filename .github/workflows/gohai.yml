@@ -1,8 +1,16 @@
 name: "Gohai Test"
 
-on: [push, pull_request]
+# Only run the tests if pkg/gohai was changed
+on:
+  push:
+    paths:
+      - 'pkg/gohai/**'
+  pull_request:
+    paths:
+      - 'pkg/gohai/**'
+
 jobs:
-  test:
+  gohai_test:
     strategy:
       matrix:
         os: [ubuntu-20.04, ubuntu-latest, macos-11, macos-latest, windows-2019, windows-latest]
