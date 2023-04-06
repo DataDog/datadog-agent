@@ -18,6 +18,7 @@ import (
 	fmt "fmt"
 
 	"google.golang.org/grpc/encoding"
+	_ "google.golang.org/grpc/encoding/proto" // for default proto registration purposes
 	"google.golang.org/protobuf/proto"
 )
 
