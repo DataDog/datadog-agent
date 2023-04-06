@@ -1,4 +1,0 @@
----
-security:
-  - |
-    Fixes cwe 703. Handle the return value of Close() for writable files in `pkg/network/protocols`
