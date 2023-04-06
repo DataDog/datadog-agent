@@ -168,7 +168,6 @@ type Event struct {
 	TimestampRaw uint64         `field:"-" json:"-"`
 	Timestamp    time.Time      `field:"-"` // Timestamp of the event
 	Rules        []*MatchedRule `field:"-"`
-	// TODO (celia): Add handling for special rule sets
 
 	// context shared with all events
 	ProcessCacheEntry      *ProcessCacheEntry     `field:"-" json:"-"`
