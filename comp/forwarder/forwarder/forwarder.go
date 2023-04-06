@@ -17,5 +17,8 @@ type dependencies struct {
 }
 
 func newForwarder(dep dependencies) Component {
+	if dep.Params.UseNoopForwarder {
+		return forwarder.NoopForwarder{}
+	}
 	return forwarder.NewDefaultForwarder(dep.Params.Options)
 }

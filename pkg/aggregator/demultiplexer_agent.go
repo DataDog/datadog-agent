@@ -54,7 +54,6 @@ type AgentDemultiplexer struct {
 
 // AgentDemultiplexerOptions are the options used to initialize a Demultiplexer.
 type AgentDemultiplexerOptions struct {
-	UseNoopForwarder              bool
 	UseNoopEventPlatformForwarder bool
 	UseNoopOrchestratorForwarder  bool
 	UseEventPlatformForwarder     bool
@@ -72,7 +71,6 @@ func DefaultAgentDemultiplexerOptions() AgentDemultiplexerOptions {
 		FlushInterval:                 DefaultFlushInterval,
 		UseEventPlatformForwarder:     true,
 		UseOrchestratorForwarder:      true,
-		UseNoopForwarder:              false,
 		UseNoopEventPlatformForwarder: false,
 		UseNoopOrchestratorForwarder:  false,
 		// the different agents/binaries enable it on a per-need basis
@@ -139,11 +137,7 @@ func initAndStartAgentDemultiplexerWithForwarder(sharedForwarder forwarder.Forwa
 func initAgentDemultiplexer(sharedForwarder forwarder.Forwarder, sharedForwarderOptions *forwarder.Options, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
 	// Temporary code removed in a later commit. Either `sharedForwarder` or `sharedForwarderOptions` is required.
 	if sharedForwarder == nil {
-		if options.UseNoopForwarder {
-			sharedForwarder = forwarder.NoopForwarder{}
-		} else {
-			sharedForwarder = forwarder.NewDefaultForwarder(sharedForwarderOptions)
-		}
+		sharedForwarder = forwarder.NewDefaultForwarder(sharedForwarderOptions)
 	}
 
 	// prepare the multiple forwarders

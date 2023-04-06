@@ -164,7 +164,7 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 
 	opts := demuxTestOptions()
 	opts.FlushInterval = time.Hour
-	demux := initAgentDemultiplexer(forwarder.NewOptions(nil), opts, "")
+	demux := initAgentDemultiplexer(nil, forwarder.NewOptions(nil), opts, "")
 	demux.Aggregator().tlmContainerTagsEnabled = false
 	require.NotNil(demux)
 	require.NotNil(demux.aggregator)

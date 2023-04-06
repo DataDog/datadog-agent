@@ -8,6 +8,7 @@ package forwarder
 import "github.com/DataDog/datadog-agent/pkg/forwarder"
 
 type Params struct {
+	UseNoopForwarder bool
 	// TODO: (components) When the code of the forwarder will be
 	// in /comp/forwarder move the content of forwarder.Options inside this struct.
 	Options *forwarder.Options
