@@ -28,6 +28,7 @@ namespace CustomActions.Tests.UserCustomActions
 
             Test.Properties.Should()
                 .Contain("DDAGENTUSER_FOUND", "false").And
+                .Contain(kvp => kvp.Key == "DDAGENTUSER_SID" && string.IsNullOrEmpty(kvp.Value)).And
                 .Contain("DDAGENTUSER_PROCESSED_NAME", "ddagentuser").And
                 .Contain("DDAGENTUSER_PROCESSED_DOMAIN", Environment.MachineName).And
                 .Contain("DDAGENTUSER_PROCESSED_FQ_NAME", $"{Environment.MachineName}\\ddagentuser").And
@@ -49,6 +50,7 @@ namespace CustomActions.Tests.UserCustomActions
 
             Test.Properties.Should()
                 .Contain("DDAGENTUSER_FOUND", "false").And
+                .Contain(kvp => kvp.Key == "DDAGENTUSER_SID" && string.IsNullOrEmpty(kvp.Value)).And
                 .Contain("DDAGENTUSER_PROCESSED_NAME", "ddagentuser").And
                 .Contain("DDAGENTUSER_PROCESSED_DOMAIN", Environment.MachineName).And
                 .Contain("DDAGENTUSER_PROCESSED_FQ_NAME", $"{Environment.MachineName}\\ddagentuser").And
@@ -96,10 +98,8 @@ namespace CustomActions.Tests.UserCustomActions
                 .Contain("DDAGENTUSER_PROCESSED_NAME", "SYSTEM").And
                 .Contain("DDAGENTUSER_PROCESSED_DOMAIN", "NT AUTHORITY").And
                 .Contain("DDAGENTUSER_PROCESSED_FQ_NAME", "NT AUTHORITY\\SYSTEM").And
-                .NotContainKey("DDAGENTUSER_RESET_PASSWORD").And
-                .Contain(kvp => kvp.Key == "DDAGENTUSER_PROCESSED_PASSWORD" &&
-                                // !! The password should be null
-                                string.IsNullOrEmpty(kvp.Value));
+                .Contain(kvp => kvp.Key == "DDAGENTUSER_RESET_PASSWORD" && string.IsNullOrEmpty(kvp.Value)).And
+                .Contain(kvp => kvp.Key == "DDAGENTUSER_PROCESSED_PASSWORD" && string.IsNullOrEmpty(kvp.Value));
         }
 
         [Theory]
