@@ -1,11 +1,11 @@
 ---
-deploy_packages_windows-7:
+deploy_packages_windows-x64-7:
   rules:
     !reference [.on_deploy_a7]
   stage: deploy7
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main"]
-  dependencies: ["windows_msi_and_bosh_zip_x64-a7"]
+  needs: ["windows_msi_and_bosh_zip_x64-a7"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
@@ -25,7 +25,7 @@ deploy_staging_windows_tags-7:
   stage: deploy7
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main"]
-  dependencies: ["windows_msi_and_bosh_zip_x64-a7", "windows_zip_agent_binaries_x64-a7"]
+  needs: ["windows_msi_and_bosh_zip_x64-a7", "windows_zip_agent_binaries_x64-a7"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
