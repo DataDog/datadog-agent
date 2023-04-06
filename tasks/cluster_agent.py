@@ -6,6 +6,7 @@ import glob
 import os
 import platform
 import shutil
+import sys
 import tempfile
 
 from invoke import task
@@ -90,6 +91,9 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     """
     Run integration tests for cluster-agent
     """
+    if sys.platform == 'win32':
+        raise Exit(message='cluster-agent integration tests are not supported on Windows', code=0)
+
     if install_deps:
         deps(ctx)
 

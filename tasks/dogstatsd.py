@@ -253,6 +253,9 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     """
     Run integration tests for dogstatsd
     """
+    if sys.platform == 'win32':
+        raise Exit(message='dogstatsd integration tests are not supported on Windows', code=0)
+
     if install_deps:
         deps(ctx)
 
