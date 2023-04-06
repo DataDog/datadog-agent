@@ -229,20 +229,29 @@ func (a *lastCronJobAggregator) flush(sender aggregator.Sender, k *KSMCheck, lab
 	a.accumulator = make(map[cronJob]cronJobState)
 }
 
+func defaultMetricAggregatorsWithExtraCounts(secretCountEnabled bool, configmapCountEnabled bool) map[string]metricAggregator {
+	aggregators := defaultMetricAggregators()
+	if secretCountEnabled {
+		aggregators["kube_secret_info"] = newCountObjectsAggregator(
+			"secrets.count",
+			"kube_secret_info",
+			[]string{"namespace"},
+		)
+	}
+	if configmapCountEnabled {
+		aggregators["kube_configmap_info"] = newCountObjectsAggregator(
+			"configmap.count",
+			"kube_configmap_info",
+			[]string{"namespace"},
+		)
+	}
+	return aggregators
+}
+
 func defaultMetricAggregators() map[string]metricAggregator {
 	cronJobAggregator := newLastCronJobAggregator()
 
 	return map[string]metricAggregator{
-		"kube_secret_info": newCountObjectsAggregator(
-			"secrets.count",
-			"kube_secret_info",
-			[]string{"namespace"},
-		),
-		"kube_configmap_info": newCountObjectsAggregator(
-			"configmap.count",
-			"kube_configmap_info",
-			[]string{"namespace"},
-		),
 		"kube_persistentvolume_status_phase": newSumValuesAggregator(
 			"persistentvolumes.by_phase",
 			"kube_persistentvolume_status_phase",

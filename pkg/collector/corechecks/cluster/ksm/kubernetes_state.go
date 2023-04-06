@@ -136,6 +136,12 @@ type KSMConfig struct {
 	// Can be useful when running the check as cluster check
 	LeaderSkip bool `yaml:"skip_leader_election"`
 
+	//EnableConfigMapCount allows for enabling or disabling the kubernetes_state.configmap.count metric
+	EnableConfigMapCount bool `yaml:"enable_configmap_count"`
+
+	//EnableSecretCount allows for enabling or disabling the kubernetes_state.secret.count metric
+	EnableSecretCount bool `yaml:"enable_secret_count"`
+
 	// Private field containing the label joins configuration built from `LabelJoins`, `LabelsAsTags` and `AnnotationsAsTags`.
 	labelJoins map[string]*joinsConfig
 }
@@ -834,7 +840,7 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig) *KSMCheck {
 		telemetry:          newTelemetryCache(),
 		isCLCRunner:        config.IsCLCRunner(),
 		metricNamesMapper:  defaultMetricNamesMapper(),
-		metricAggregators:  defaultMetricAggregators(),
+		metricAggregators:  defaultMetricAggregatorsWithExtraCounts(instance.EnableSecretCount, instance.EnableConfigMapCount),
 		metricTransformers: defaultMetricTransformers(),
 
 		// metadata metrics are useful for label joins
