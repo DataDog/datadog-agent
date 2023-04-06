@@ -1,8 +1,8 @@
 name "lmdb"
-default_version "0.9.22"
+default_version "0.9.29"
 
 source :url => "https://github.com/LMDB/lmdb/archive/LMDB_#{version}.tar.gz",
-       :md5 => "64c6132f481281b7b2ad746ecbfb8423",
+       :sha256 => "22054926b426c66d8f2bc22071365df6e35f3aacf19ad943bc6167d4cae3bebb",
        :extract => :seven_zip
 
 relative_path "lmdb-#{version}"
