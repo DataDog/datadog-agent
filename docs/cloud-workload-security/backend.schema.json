@@ -557,6 +557,9 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "argsTruncated": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false,

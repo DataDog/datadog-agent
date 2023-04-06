@@ -478,6 +478,7 @@ type ModuleEventSerializer struct {
 	// indicates if a module was loaded from memory, as opposed to a file
 	LoadedFromMemory *bool    `json:"loaded_from_memory,omitempty"`
 	Argv             []string `json:"argv,omitempty"`
+	ArgsTruncated    *bool    `json:"argsTruncated,omitempty"`
 }
 
 // SpliceEventSerializer serializes a splice event to JSON
@@ -896,10 +897,12 @@ func newPTraceEventSerializer(e *model.Event, resolvers *resolvers.Resolvers) *P
 
 func newLoadModuleEventSerializer(e *model.Event) *ModuleEventSerializer {
 	loadedFromMemory := e.LoadModule.LoadedFromMemory
+	argsTruncated := e.LoadModule.ArgsTruncated
 	return &ModuleEventSerializer{
 		Name:             e.LoadModule.Name,
 		LoadedFromMemory: &loadedFromMemory,
 		Argv:             e.FieldHandlers.ResolveModuleArgv(e, &e.LoadModule),
+		ArgsTruncated:    &argsTruncated,
 	}
 }
 

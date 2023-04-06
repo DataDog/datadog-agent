@@ -803,6 +803,9 @@ func (e *LoadModuleEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.Args, err = UnmarshalString(data[read:read+128], 128)
 	read += 128
 
+	e.ArgsTruncated = ByteOrder.Uint32(data[read:read+4]) == uint32(1)
+	read += 4
+
 	if err != nil {
 		return 0, err
 	}

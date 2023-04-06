@@ -2166,6 +2166,16 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecuritySerializers16(
 				}
 				in.Delim(']')
 			}
+		case "argsTruncated":
+			if in.IsNull() {
+				in.Skip()
+				out.ArgsTruncated = nil
+			} else {
+				if out.ArgsTruncated == nil {
+					out.ArgsTruncated = new(bool)
+				}
+				*out.ArgsTruncated = bool(in.Bool())
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -2203,6 +2213,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecuritySerializers16(
 			}
 			out.RawByte(']')
 		}
+	}
+	if in.ArgsTruncated != nil {
+		const prefix string = ",\"argsTruncated\":"
+		out.RawString(prefix)
+		out.Bool(bool(*in.ArgsTruncated))
 	}
 	out.RawByte('}')
 }

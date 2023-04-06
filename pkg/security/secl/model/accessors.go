@@ -2575,7 +2575,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.LoadModule.Args
+				return ev.FieldHandlers.ResolveModuleArgs(ev, &ev.LoadModule)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "load_module.args_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ev := ctx.Event.(*Event)
+				return ev.LoadModule.ArgsTruncated
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -15403,6 +15412,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"link.file.user",
 		"link.retval",
 		"load_module.args",
+		"load_module.args_truncated",
 		"load_module.argv",
 		"load_module.file.change_time",
 		"load_module.file.filesystem",
@@ -16842,7 +16852,9 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "link.retval":
 		return int(ev.Link.SyscallEvent.Retval), nil
 	case "load_module.args":
-		return ev.LoadModule.Args, nil
+		return ev.FieldHandlers.ResolveModuleArgs(ev, &ev.LoadModule), nil
+	case "load_module.args_truncated":
+		return ev.LoadModule.ArgsTruncated, nil
 	case "load_module.argv":
 		return ev.FieldHandlers.ResolveModuleArgv(ev, &ev.LoadModule), nil
 	case "load_module.file.change_time":
@@ -21304,6 +21316,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "link", nil
 	case "load_module.args":
 		return "load_module", nil
+	case "load_module.args_truncated":
+		return "load_module", nil
 	case "load_module.argv":
 		return "load_module", nil
 	case "load_module.file.change_time":
@@ -23665,6 +23679,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "load_module.args":
 		return reflect.String, nil
+	case "load_module.args_truncated":
+		return reflect.Bool, nil
 	case "load_module.argv":
 		return reflect.String, nil
 	case "load_module.file.change_time":
@@ -27668,6 +27684,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "LoadModule.Args"}
 		}
 		ev.LoadModule.Args = rv
+		return nil
+	case "load_module.args_truncated":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.ArgsTruncated"}
+		}
+		ev.LoadModule.ArgsTruncated = rv
 		return nil
 	case "load_module.argv":
 		switch rv := value.(type) {
