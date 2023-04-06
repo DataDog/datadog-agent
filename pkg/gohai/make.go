@@ -1,3 +1,4 @@
+//go:build ignore
 // +build ignore
 
 // Builds Gohai with version information
