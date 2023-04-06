@@ -47,7 +47,7 @@ func (r *HTTPReceiver) debuggerProxyHandler() http.Handler {
 		apiKey = strings.TrimSpace(k)
 	}
 	transport := newMeasuringForwardingTransport(
-		r.conf.NewHTTPTransport(), target, apiKey, r.conf.DebuggerProxy.AdditionalEndpoints, "datadog.trace_agent.debugger.", []string{})
+		r.conf.NewHTTPTransport(), target, apiKey, r.conf.DebuggerProxy.AdditionalEndpoints, "datadog.trace_agent.debugger", []string{})
 	return newDebuggerProxy(r.conf, transport, tags)
 }
 
