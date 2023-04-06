@@ -81,6 +81,15 @@ tests_flavor_iot_deb-x64:
     CONDA_ENV: ddpy3
     FLAVORS: '--flavors iot'
 
+lint_flavor_iot_deb-x64:
+  extends:
+    - .linux_lint
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main"]
+  needs: ["go_deps", "go_tools_deps"]
+  variables:
+    FLAVORS: '--flavors iot'
+
 tests_flavor_dogstatsd_deb-x64:
   extends:
     - .rtloader_tests
@@ -91,6 +100,15 @@ tests_flavor_dogstatsd_deb-x64:
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
+    FLAVORS: '--flavors dogstatsd'
+
+lint_flavor_dogstatsd_deb-x64:
+  extends:
+    - .linux_lint
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main"]
+  needs: ["go_deps", "go_tools_deps"]
+  variables:
     FLAVORS: '--flavors dogstatsd'
 
 # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
