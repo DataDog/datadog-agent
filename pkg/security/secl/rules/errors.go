@@ -27,7 +27,7 @@ var (
 	// ErrRuleWithMultipleEvents is returned when multiple event type were inferred from the rule
 	ErrRuleWithMultipleEvents = errors.New("rule with multiple events is not supported")
 
-	// ErrDefinitionIDConflict is returned when mlultiple rule use the same ID
+	// ErrDefinitionIDConflict is returned when multiple rules use the same ID
 	ErrDefinitionIDConflict = errors.New("multiple definition with the same ID")
 
 	// ErrInternalIDConflict is returned when a user defined rule use an internal ID
