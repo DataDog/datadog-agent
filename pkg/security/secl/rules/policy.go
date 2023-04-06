@@ -14,6 +14,11 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+const (
+	DefaultRuleSetName     = "default"
+	ThreatScoreRuleSetName = "threat_score"
+)
+
 // PolicyDef represents a policy file definition
 type PolicyDef struct {
 	Version string             `yaml:"version"`
@@ -23,11 +28,12 @@ type PolicyDef struct {
 
 // Policy represents a policy file which is composed of a list of rules and macros
 type Policy struct {
-	Name    string
-	Source  string
-	Version string
-	Rules   []*RuleDefinition
-	Macros  []*MacroDefinition
+	Name         string
+	Source       string
+	Version      string
+	Rules        []*RuleDefinition
+	Macros       []*MacroDefinition
+	SpecialRules map[string][]*RuleDefinition
 }
 
 // AddMacro add a macro to the policy
@@ -35,10 +41,16 @@ func (p *Policy) AddMacro(def *MacroDefinition) {
 	p.Macros = append(p.Macros, def)
 }
 
-// AddRule add a rule to the policy
+// AddRule adds a rule to the policy
 func (p *Policy) AddRule(def *RuleDefinition) {
 	def.Policy = p
 	p.Rules = append(p.Rules, def)
+}
+
+// AddThreatScoreRule adds a threat score rule to the policy
+func (p *Policy) AddThreatScoreRule(def *RuleDefinition) {
+	def.Policy = p
+	p.SpecialRules[ThreatScoreRuleSetName] = append(p.SpecialRules[ThreatScoreRuleSetName], def)
 }
 
 func parsePolicyDef(name string, source string, def *PolicyDef, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, error) {
@@ -49,6 +61,7 @@ func parsePolicyDef(name string, source string, def *PolicyDef, macroFilters []M
 		Source:  source,
 		Version: def.Version,
 	}
+	policy.SpecialRules = make(map[string][]*RuleDefinition)
 
 MACROS:
 	for _, macroDef := range def.Macros {
@@ -79,6 +92,10 @@ MACROS:
 		err            error
 	}
 
+	//var threatScoreRules []struct {
+	//	ruleDefinition *RuleDefinition
+	//}
+
 RULES:
 	for _, ruleDef := range def.Rules {
 		// set the policy so that when we parse the errors we can get the policy associated
@@ -89,6 +106,12 @@ RULES:
 			if err != nil {
 				errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: err})
 			}
+			//// TODO: Convert filter to threat score tag only, not general tag
+			//if _, ok := filter.(*RuleTagFilter); ok && isRuleAccepted {
+			//	threatScoreRules = append(threatScoreRules, struct {
+			//		ruleDefinition *RuleDefinition
+			//	}{ruleDefinition: ruleDef})
+			//}
 			if !isRuleAccepted {
 				// we do not fail directly because one of the rules with the same id can load properly
 				if _, ok := filter.(*AgentVersionFilter); ok {
@@ -121,11 +144,16 @@ RULES:
 			continue
 		}
 
-		policy.AddRule(ruleDef)
+		if ok, val := ruleDef.GetTag("ruleset"); ok && val == ThreatScoreRuleSetName {
+			policy.AddThreatScoreRule(ruleDef)
+		} else {
+			policy.AddRule(ruleDef)
+		}
 	}
 
 LOOP:
 	for _, s := range skipped {
+		// For every skipped rule, if it doesn't match an ID of a policy rule, add an error.
 		for _, r := range policy.Rules {
 			if s.ruleDefinition.ID == r.ID {
 				continue LOOP
