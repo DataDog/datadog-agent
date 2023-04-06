@@ -196,6 +196,7 @@
 /pkg/dogstatsd/                         @DataDog/agent-metrics-logs
 /pkg/errors/                            @DataDog/agent-shared-components
 /pkg/forwarder/                         @DataDog/agent-metrics-logs @DataDog/agent-shared-components
+/pkg/gohai                              @DataDog/agent-shared-components
 /pkg/jmxfetch/                          @DataDog/agent-metrics-logs
 /pkg/metadata/                          @DataDog/agent-shared-components
 /pkg/metrics/                           @DataDog/agent-metrics-logs
