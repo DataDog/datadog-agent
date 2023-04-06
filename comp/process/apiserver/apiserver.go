@@ -7,17 +7,24 @@ package apiserver
 
 import (
 	"context"
+	"errors"
+	"net/http"
+	"time"
 
+	"github.com/gorilla/mux"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 )
 
 var _ Component = (*apiserver)(nil)
 
-type apiserver struct{}
+type apiserver struct {
+	server *http.Server
+}
 
 type dependencies struct {
 	fx.In
@@ -30,18 +37,41 @@ type dependencies struct {
 func newApiServer(deps dependencies) Component {
 	initRuntimeSettings(deps.Log)
 
+	r := mux.NewRouter()
+	api.SetupAPIServerHandlers(r) // Set up routes
+
+	addr, err := ddconfig.GetProcessAPIAddressPort()
+	if err != nil {
+		return err
+	}
+	deps.Log.Infof("API server listening on %s", addr)
+	timeout := time.Duration(ddconfig.Datadog.GetInt("server_timeout")) * time.Second
+
+	apiserver := &apiserver{
+		server: &http.Server{
+			Handler:      r,
+			Addr:         addr,
+			ReadTimeout:  timeout,
+			WriteTimeout: timeout,
+			IdleTimeout:  timeout,
+		},
+	}
+
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			err := api.StartServer()
-			if err != nil {
-				return err
-			}
+			go func() {
+				err := apiserver.server.ListenAndServe()
+				if err != nil && !errors.Is(err, http.ErrServerClosed) {
+					_ = deps.Log.Error(err)
+				}
+			}()
 
 			return nil
 		},
+		OnStop: apiserver.server.Shutdown,
 	})
 
-	return &apiserver{}
+	return apiserver
 }
 
 // initRuntimeSettings registers settings to be added to the runtime config.
