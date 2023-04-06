@@ -352,11 +352,11 @@ func TestSite(t *testing.T) {
 		file string
 		url  string
 	}{
-		"default":  {"./testdata/site_default.yaml", "https://trace.agent.datadoghq.com"},
-		"eu":       {"./testdata/site_eu.yaml", "https://trace.agent.datadoghq.eu"},
-		"url":      {"./testdata/site_url.yaml", "some.other.datadoghq.eu"},
-		"override": {"./testdata/site_override.yaml", "some.other.datadoghq.eu"},
-		"vector":   {"./testdata/vector_override.yaml", "https://vector.domain.tld:8443"},
+		"default":                        {"./testdata/site_default.yaml", "https://trace.agent.datadoghq.com"},
+		"eu":                             {"./testdata/site_eu.yaml", "https://trace.agent.datadoghq.eu"},
+		"url":                            {"./testdata/site_url.yaml", "some.other.datadoghq.eu"},
+		"override":                       {"./testdata/site_override.yaml", "some.other.datadoghq.eu"},
+		"observability_pipelines_worker": {"./testdata/observability_pipelines_worker_override.yaml", "https://observability_pipelines_worker.domain.tld:8443"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			defer cleanConfig()()

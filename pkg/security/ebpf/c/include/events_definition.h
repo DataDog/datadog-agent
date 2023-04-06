@@ -285,7 +285,10 @@ struct syscall_monitor_event_t {
     struct span_context_t span;
     struct container_context_t container;
 
-    struct syscall_monitor_entry_t syscalls;
+    union {
+        struct syscall_monitor_entry_t syscalls;
+        long syscall_id;
+    } syscall_data;
 };
 
 struct rename_event_t {

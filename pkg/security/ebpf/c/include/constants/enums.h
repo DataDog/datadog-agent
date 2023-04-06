@@ -44,6 +44,7 @@ enum event_type {
     EVENT_BIND,
     EVENT_UNSHARE_MNTNS,
     EVENT_SYSCALLS,
+    EVENT_ANOMALY_DETECTION_SYSCALL,
     EVENT_MAX, // has to be the last one
 
     EVENT_ALL = 0xffffffff // used as a mask for all the events
@@ -180,6 +181,12 @@ enum selinux_event_kind_t {
     SELINUX_BOOL_CHANGE_EVENT_KIND,
     SELINUX_STATUS_CHANGE_EVENT_KIND,
     SELINUX_BOOL_COMMIT_EVENT_KIND,
+};
+
+enum security_profile_state {
+    SECURITY_PROFILE_UNKNOWN,
+    SECURITY_PROFILE_ALERT,
+    SECURITY_PROFILE_KILL,
 };
 
 #endif
