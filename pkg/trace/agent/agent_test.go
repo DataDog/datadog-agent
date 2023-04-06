@@ -1025,18 +1025,16 @@ func TestSample(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			before := new(pb.TraceChunk) // make sure tt.trace.TraceChunk never changes
 			*before = *tt.trace.TraceChunk
-			chunkCopy := new(pb.TraceChunk)
-			*chunkCopy = *tt.trace.TraceChunk
-			_, keep := a.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), chunkCopy, tt.trace)
+			_, keep, sampled := a.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
 			assert.Equal(t, tt.keep, keep)
-			assert.Equal(t, tt.dropped, chunkCopy.DroppedTrace)
+			assert.Equal(t, tt.dropped, sampled.TraceChunk.DroppedTrace)
 			assert.Equal(t, before, tt.trace.TraceChunk) // make sure tt.trace.TraceChunk didn't change
 			cfg.Features["error_rare_sample_tracer_drop"] = struct{}{}
 			defer delete(cfg.Features, "error_rare_sample_tracer_drop")
-			_, keep = a.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), chunkCopy, tt.trace)
+			_, keep, sampled = a.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
 			assert.Equal(t, tt.keepWithFeature, keep)
 			assert.Equal(t, before, tt.trace.TraceChunk) // make sure tt.trace.TraceChunk didn't change
-			assert.Equal(t, tt.dropped, chunkCopy.DroppedTrace)
+			assert.Equal(t, tt.dropped, sampled.TraceChunk.DroppedTrace)
 		})
 	}
 }
@@ -1255,8 +1253,11 @@ Loop:
 		root := spans[0]
 		chunk := testutil.TraceChunkWithSpans(spans)
 		chunk.Priority = int32(priority)
-
-		numEvents, _ := processor.Process(root, chunk)
+		pt := &traceutil.ProcessedTrace{
+			TraceChunk: chunk,
+			Root:       root,
+		}
+		numEvents, _ := processor.Process(pt)
 		totalSampled += int(numEvents)
 
 		<-eventTicker.C
@@ -1662,11 +1663,9 @@ func TestSampleWithPriorityNone(t *testing.T) {
 	}
 	before := new(pb.TraceChunk)
 	*before = *pt.TraceChunk
-	chunkCopy := new(pb.TraceChunk)
-	*chunkCopy = *pt.TraceChunk
-	numEvents, keep := agnt.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), chunkCopy, pt)
+	numEvents, keep, sampled := agnt.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), &pt)
 	assert.True(t, keep) // Score Sampler should keep the trace.
-	assert.False(t, chunkCopy.DroppedTrace)
+	assert.False(t, sampled.TraceChunk.DroppedTrace)
 	assert.Equal(t, before, pt.TraceChunk)
 	assert.EqualValues(t, numEvents, 0)
 }

@@ -327,10 +327,17 @@ func (a *Agent) Process(p *api.Payload) {
 			// numEvents doesn't need to be updated since single spans are not
 			// used with App Analytics, e.g. aren't tagged with _dd.analyzed,
 			// so no spans are counted as events in the trace. It will remain zero.
-			keep, sampled = sampler.ApplySpanSampling(pt)
+			//
+			// Trace sampling wants to drop the chunk but let's check single span sampling first!
+			var ssSampled *traceutil.ProcessedTrace
+			if keep, ssSampled = sampler.ApplySpanSampling(pt); keep {
+				// Span sampling has kept some spans -> update the "sampled" chunk.
+				sampled = ssSampled
+			}
 		}
 		if !keep && numEvents == 0 {
 			// The entire trace was dropped and no analyzed spans were kept.
+			// Single span sampling didn't keep any spans either.
 			p.RemoveChunk(i)
 			continue
 		}
@@ -497,7 +504,7 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt *traceutil.Processed
 		}
 	}
 
-	sampled := a.runSamplers(now, pt, hasPriority)
+	sampled := a.runSamplers(now, *pt, hasPriority)
 	pt.TraceChunk.DroppedTrace = !sampled
 	numEvents, numExtracted := a.EventProcessor.Process(pt)
 
