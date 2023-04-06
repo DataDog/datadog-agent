@@ -7,6 +7,7 @@ package expvars
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -53,13 +54,14 @@ func newExpvarServer(deps dependencies) (Component, error) {
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
 			go func() {
-				_ = expvarServer.ListenAndServe()
+				err := expvarServer.ListenAndServe()
+				if err != nil && !errors.Is(err, http.ErrServerClosed) {
+					_ = deps.Log.Error(err)
+				}
 			}()
 			return nil
 		},
-		OnStop: func(ctx context.Context) error {
-			return expvarServer.Shutdown(ctx)
-		},
+		OnStop: expvarServer.Shutdown,
 	})
 	return expvarServer, nil
 }
