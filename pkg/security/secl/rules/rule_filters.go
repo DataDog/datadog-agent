@@ -30,9 +30,24 @@ type RuleIDFilter struct {
 	ID string
 }
 
+// RuleTagFilter defines a tag-based filter
+type RuleTagFilter struct {
+	// TODO: How about non string tag values?
+	tag map[string]string
+}
+
 // IsRuleAccepted checks whether the rule is accepted
 func (r *RuleIDFilter) IsRuleAccepted(rule *RuleDefinition) (bool, error) {
 	return r.ID == rule.ID, nil
+}
+
+// IsRuleThreatScore checks whether the rule is tagged as a threat-scored rule, which are to be handled in the context of security dumps and not regular rule-matching
+func (r *RuleTagFilter) IsRuleAccepted(rule *RuleDefinition) (bool, error) {
+	if ok, val := rule.GetTag("ruleset"); ok && val == "threat_score" {
+		return true, nil
+	}
+
+	return false, nil
 }
 
 // AgentVersionFilter defines a agent version filter

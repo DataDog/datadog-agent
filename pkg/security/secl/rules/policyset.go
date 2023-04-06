@@ -19,8 +19,6 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 		ruleIndex  = make(map[string]*RuleDefinition)
 	)
 
-	// TODO(Celia): Handle specialRules here
-
 	parsingContext := ast.NewParsingContext()
 
 	policies, err := loader.LoadPolicies(opts)
