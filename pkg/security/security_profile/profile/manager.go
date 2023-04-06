@@ -24,6 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	timeResolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
@@ -102,6 +103,15 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 		providers = append(providers, dirProvider)
 	}
 
+	// instantiate remote-config provider
+	if config.RuntimeSecurity.RemoteConfigurationEnabled && config.RuntimeSecurity.SecurityProfileRCEnabled {
+		rcProvider, err := rconfig.NewRCProfileProvider()
+		if err != nil {
+			return nil, fmt.Errorf("couldn't instantiate a new security profile remote-config provider: %w", err)
+		}
+		providers = append(providers, rcProvider)
+	}
+
 	profileCache, err := simplelru.NewLRU[cgroupModel.WorkloadSelector, *SecurityProfile](config.RuntimeSecurity.SecurityProfileCacheSize, nil)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create security profile cache: %w", err)
@@ -152,7 +162,6 @@ func (m *SecurityProfileManager) Start(ctx context.Context) {
 	for _, p := range m.providers {
 		if err := p.Start(ctx); err != nil {
 			seclog.Errorf("couldn't start profile provider: %v", err)
-			return
 		}
 	}
 

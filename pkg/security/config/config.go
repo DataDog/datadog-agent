@@ -124,6 +124,8 @@ type RuntimeSecurityConfig struct {
 	SecurityProfileCacheSize int
 	// SecurityProfileMaxCount defines the maximum number of Security Profiles that may be evaluated concurrently
 	SecurityProfileMaxCount int
+	// SecurityProfileRCEnabled defines if remote-configuration is enabled
+	SecurityProfileRCEnabled bool
 
 	// AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
 	AnomalyDetectionEventTypes []model.EventType
@@ -236,6 +238,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SecurityProfileWatchDir:  coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.watch_dir"),
 		SecurityProfileCacheSize: coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.cache_size"),
 		SecurityProfileMaxCount:  coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.max_count"),
+		SecurityProfileRCEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.remote_configuration.enabled"),
 
 		// anomaly detection
 		AnomalyDetectionEventTypes:                   model.ParseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
