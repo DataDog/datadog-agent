@@ -1,4 +1,0 @@
----
-security:
-  - |
-    Fixes CWE 703. Handles the return value of Close() for writable files in tools/dep_tree_resolver/go-deps.go. 
