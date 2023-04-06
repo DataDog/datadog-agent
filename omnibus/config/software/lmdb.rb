@@ -17,7 +17,7 @@ build do
     }
 
     command "make", :env => env
-    command "sed -i 's| liblmdb.a||' Makefile" :env => env
+    command "sed -i 's| liblmdb.a||' Makefile", :env => env
     command "make install", :env => env
 
 end
