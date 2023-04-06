@@ -466,7 +466,7 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 	a.ClientStatsAggregator.In <- a.processStats(in, lang, tracerVersion)
 }
 
-func isManualUserDrop(priority sampler.SamplingPriority, pt traceutil.ProcessedTrace) bool {
+func isManualUserDrop(priority sampler.SamplingPriority, pt *traceutil.ProcessedTrace) bool {
 	if priority != sampler.PriorityUserDrop {
 		return false
 	}
@@ -498,9 +498,7 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt *traceutil.Processed
 	}
 
 	sampled := a.runSamplers(now, pt, hasPriority)
-	if !sampled {
-		pt.TraceChunk.DroppedTrace = true
-	}
+	pt.TraceChunk.DroppedTrace = !sampled
 	numEvents, numExtracted := a.EventProcessor.Process(pt)
 
 	ts.EventsExtracted.Add(numExtracted)

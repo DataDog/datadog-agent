@@ -51,7 +51,7 @@ func (p *Processor) Stop() {
 
 // Process takes a processed trace, extracts events from it and samples them, returning a collection of
 // sampled events along with the total count of extracted events.
-func (p *Processor) Process(pt traceutil.ProcessedTrace) (numEvents, numExtracted int64) {
+func (p *Processor) Process(pt *traceutil.ProcessedTrace) (numEvents, numExtracted int64) {
 	clientSampleRate := sampler.GetClientRate(pt.Root)
 	preSampleRate := sampler.GetPreSampleRate(pt.Root)
 	priority := sampler.SamplingPriority(pt.TraceChunk.Priority)
