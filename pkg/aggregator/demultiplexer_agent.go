@@ -112,10 +112,20 @@ type dataOutputs struct {
 // in goroutines. As of today, only the embedded BufferedAggregator needs a separate goroutine.
 // In the future, goroutines will be started for the event platform forwarder and/or orchestrator forwarder.
 func InitAndStartAgentDemultiplexer(sharedForwarderOptions *forwarder.Options, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
+	return initAndStartAgentDemultiplexerWithForwarder(nil, sharedForwarderOptions, options, hostname)
+}
+
+func InitAndStartAgentDemultiplexerWithForwarder(sharedForwarder forwarder.Forwarder, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
+	// Note: InitAndStartAgentDemultiplexer is removed in a later commit. Having both InitAndStartAgentDemultiplexerWithForwarder and InitAndStartAgentDemultiplexer
+	// allows a smooth transition.
+	return initAndStartAgentDemultiplexerWithForwarder(sharedForwarder, nil, options, hostname)
+}
+
+func initAndStartAgentDemultiplexerWithForwarder(sharedForwarder forwarder.Forwarder, sharedForwarderOptions *forwarder.Options, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
 	demultiplexerInstanceMu.Lock()
 	defer demultiplexerInstanceMu.Unlock()
 
-	demux := initAgentDemultiplexer(sharedForwarderOptions, options, hostname)
+	demux := initAgentDemultiplexer(sharedForwarder, sharedForwarderOptions, options, hostname)
 
 	if demultiplexerInstance != nil {
 		log.Warn("A DemultiplexerInstance is already existing but InitAndStartAgentDemultiplexer has been called again. Current instance will be overridden")
@@ -126,7 +136,15 @@ func InitAndStartAgentDemultiplexer(sharedForwarderOptions *forwarder.Options, o
 	return demux
 }
 
-func initAgentDemultiplexer(sharedForwarderOptions *forwarder.Options, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
+func initAgentDemultiplexer(sharedForwarder forwarder.Forwarder, sharedForwarderOptions *forwarder.Options, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
+	// Temporary code removed in a later commit. Either `sharedForwarder` or `sharedForwarderOptions` is required.
+	if sharedForwarder == nil {
+		if options.UseNoopForwarder {
+			sharedForwarder = forwarder.NoopForwarder{}
+		} else {
+			sharedForwarder = forwarder.NewDefaultForwarder(sharedForwarderOptions)
+		}
+	}
 
 	// prepare the multiple forwarders
 	// -------------------------------
@@ -146,13 +164,6 @@ func initAgentDemultiplexer(sharedForwarderOptions *forwarder.Options, options A
 		eventPlatformForwarder = epforwarder.NewNoopEventPlatformForwarder()
 	} else if options.UseEventPlatformForwarder {
 		eventPlatformForwarder = epforwarder.NewEventPlatformForwarder()
-	}
-
-	var sharedForwarder forwarder.Forwarder
-	if options.UseNoopForwarder {
-		sharedForwarder = forwarder.NoopForwarder{}
-	} else {
-		sharedForwarder = forwarder.NewDefaultForwarder(sharedForwarderOptions)
 	}
 
 	if config.Datadog.GetBool("telemetry.enabled") && config.Datadog.GetBool("telemetry.dogstatsd_origin") && !config.Datadog.GetBool("aggregator_use_tags_store") {
