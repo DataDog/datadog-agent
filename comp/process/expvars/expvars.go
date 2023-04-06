@@ -41,15 +41,15 @@ type dependencies struct {
 }
 
 func newExpvarServer(deps dependencies) (Component, error) {
-	expvarPort := getExpvarPort(deps)
-	expvarServer := &http.Server{Addr: fmt.Sprintf("localhost:%d", expvarPort), Handler: http.DefaultServeMux}
-
 	// Initialize status
 	err := initStatus(deps)
 	if err != nil {
 		_ = deps.Log.Critical("Failed to initialize status server:", err)
 		return nil, err
 	}
+
+	expvarPort := getExpvarPort(deps)
+	expvarServer := &http.Server{Addr: fmt.Sprintf("localhost:%d", expvarPort), Handler: http.DefaultServeMux}
 
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {

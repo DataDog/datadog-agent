@@ -14,6 +14,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -41,6 +42,9 @@ func TestExpvarServer(t *testing.T) {
 func TestTelemetry(t *testing.T) {
 	_ = fxutil.Test[Component](t, fx.Options(
 		fx.Supply(core.BundleParams{}),
+		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
+			"telemetry.enabled": true,
+		}}),
 
 		Module,
 		hostinfo.MockModule,
