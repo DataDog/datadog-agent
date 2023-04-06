@@ -1,7 +1,14 @@
+Currently supported configurations
+------------------------
+- multi-tenant (no legacy architecture)
+- single node instance (no RAC and Exadata)
+- requires SYSDBA in CDB for setup (no RDS)
+- tested with Oracle releases: 19c and 21c
+
 Database
 --------
 
-Connect as sysdba to the monitored database and execute the following sql script in the monitored database:
+Connect as sysdba to the monitored CDB database and execute the following sql script in the monitored database:
 
 https://github.com/DataDog/datadog-agent/blob/nenad.noveljic/dbm-oracle-beta-7.43.x/pkg/collector/corechecks/oracle/sql/setup.sql
 
