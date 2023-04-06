@@ -578,6 +578,64 @@ api_key:
   #
   # port_range_start: 3833
 
+## @param observability_pipelines_worker - custom object - optional
+## Configuration for forwarding telemetry to an Observability Pipelines Worker instead of Datadog.
+## https://www.datadoghq.com/product/observability-pipelines/
+## Note: This config is interchangeable with `vector`
+#
+# observability_pipelines_worker:
+
+  ## @param  metrics - custom object - optional
+  ## Specific configurations for metrics
+  #
+  # metrics:
+  
+    ## @param enabled - boolean - optional - default: false
+    ## @env DD_OBSERVABILITY_PIPELINES_WORKER_METRICS_ENABLED - boolean - optional - default: false
+    ## Enables forwarding of metrics to an Observability Pipelines Worker
+    #
+    # enabled: false
+
+    ## @param url - string - optional - default: ""
+    ## @env DD_OBSERVABILITY_PIPELINES_WORKER_METRICS_URL - string - optional - default: ""
+    ## URL endpoint for the Observability Pipelines Worker to send metrics to
+    #
+    # url: "http//127.0.0.1:8080"
+
+  ## @param  logs - custom object - optional
+  ## Specific configurations for logs
+  #
+  # logs:
+  
+    ## @param enabled - boolean - optional - default: false
+    ## @env DD_OBSERVABILITY_PIPELINES_WORKER_LOGS_ENABLED - boolean - optional - default: false
+    ## Enables forwarding of logs to an Observability Pipelines Worker
+    #
+    # enabled: false
+
+    ## @param url - string - optional - default: ""
+    ## @env DD_OBSERVABILITY_PIPELINES_WORKER_LOGS_URL - string - optional - default: ""
+    ## URL endpoint for the Observability Pipelines Worker to send logs to
+    #
+    # url: "http//127.0.0.1:8080"
+
+  ## @param  traces - custom object - optional
+  ## Specific configurations for traces
+  #
+  # traces:
+  
+    ## @param enabled - boolean - optional - default: false
+    ## @env DD_OBSERVABILITY_PIPELINES_WORKER_TRACES_ENABLED - boolean - optional - default: false
+    ## Enables forwarding of traces to an Observability Pipelines Worker
+    #
+    # enabled: false
+
+    ## @param url - string - optional - default: ""
+    ## @env DD_OBSERVABILITY_PIPELINES_WORKER_TRACES_URL - string - optional - default: ""
+    ## URL endpoint for the Observability Pipelines Worker to send traces to
+    #
+    # url: "http//127.0.0.1:8080"
+
 {{ end }}
 {{- if .Agent }}
 {{- if .Python }}
