@@ -28,6 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	forwarderBundle "github.com/DataDog/datadog-agent/comp/forwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
@@ -42,7 +44,7 @@ import (
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	forwarderpkg "github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -81,6 +83,17 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:    log.LogForDaemon(command.LoggerName, "log_file", common.DefaultDCALogFile),
 				}),
 				core.Bundle,
+				forwarderBundle.Bundle,
+				fx.Provide(func(_ config.Component) forwarder.Params { // make sure config is ready
+					// setup the forwarder
+					keysPerDomain, err := pkgconfig.GetMultipleEndpoints()
+					if err != nil {
+						pkglog.Error("Misconfiguration of agent endpoints: ", err)
+					}
+					forwarderOpts := forwarderpkg.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomain))
+					forwarderOpts.DisableAPIKeyChecking = true
+					return forwarder.Params{Options: forwarderOpts}
+				}),
 			)
 		},
 	}
@@ -88,7 +101,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd}
 }
 
-func start(log log.Component, config config.Component, cliParams *command.GlobalParams) error {
+func start(log log.Component, config config.Component, forwarder forwarder.Component, cliParams *command.GlobalParams) error {
 	stopCh := make(chan struct{})
 
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
@@ -177,21 +190,13 @@ func start(log log.Component, config config.Component, cliParams *command.Global
 
 	pkglog.Infof("Hostname is: %s", hname)
 
-	// setup the forwarder
-	keysPerDomain, err := pkgconfig.GetMultipleEndpoints()
-	if err != nil {
-		pkglog.Error("Misconfiguration of agent endpoints: ", err)
-	}
-
 	// If a cluster-agent looses the connectivity to DataDog, we still want it to remain ready so that its endpoint remains in the service because:
 	// * It is still able to serve metrics to the WPA controller and
 	// * The metrics reported are reported as stale so that there is no "lie" about the accuracy of the reported metrics.
 	// Serving stale data is better than serving no data at all.
-	forwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomain))
-	forwarderOpts.DisableAPIKeyChecking = true
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.UseEventPlatformForwarder = false
-	demux := aggregator.InitAndStartAgentDemultiplexer(forwarderOpts, opts, hname)
+	demux := aggregator.InitAndStartAgentDemultiplexerWithForwarder(forwarder, opts, hname)
 	demux.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
 	le, err := leaderelection.GetLeaderEngine()
