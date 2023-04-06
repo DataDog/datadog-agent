@@ -890,7 +890,9 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.cws.SetRulesetLoadedCallback(func(rs []*rules.RuleSet, err *multierror.Error) {
 			ruleSetloadedErr = err
 			log.Infof("Adding test module as listener")
-			rs[0].AddListener(testMod)
+			for _, ruleSet := range rs {
+				ruleSet.AddListener(testMod)
+			}
 		})
 	}
 

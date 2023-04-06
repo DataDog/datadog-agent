@@ -49,24 +49,25 @@ type CWSConsumer struct {
 	statsdClient statsd.ClientInterface
 
 	// internals
-	wg               sync.WaitGroup
-	ctx              context.Context
-	cancelFnc        context.CancelFunc
-	currentRuleSet   *atomic.Value
-	reloading        *atomic.Bool
-	apiServer        *APIServer
-	rateLimiter      *RateLimiter
-	sigupChan        chan os.Signal
-	rulesLoaded      func(rs []*rules.RuleSet, err *multierror.Error)
-	policiesVersions []string
-	policyProviders  []rules.PolicyProvider
-	policyLoader     *rules.PolicyLoader
-	policyOpts       rules.PolicyLoaderOpts
-	selfTester       *selftests.SelfTester
-	policyMonitor    *PolicyMonitor
-	sendStatsChan    chan chan bool
-	eventSender      EventSender
-	grpcServer       *GRPCServer
+	wg                        sync.WaitGroup
+	ctx                       context.Context
+	cancelFnc                 context.CancelFunc
+	currentRuleSet            *atomic.Value
+	currentThreatScoreRuleSet *atomic.Value
+	reloading                 *atomic.Bool
+	apiServer                 *APIServer
+	rateLimiter               *RateLimiter
+	sigupChan                 chan os.Signal
+	rulesLoaded               func(rs []*rules.RuleSet, err *multierror.Error)
+	policiesVersions          []string
+	policyProviders           []rules.PolicyProvider
+	policyLoader              *rules.PolicyLoader
+	policyOpts                rules.PolicyLoaderOpts
+	selfTester                *selftests.SelfTester
+	policyMonitor             *PolicyMonitor
+	sendStatsChan             chan chan bool
+	eventSender               EventSender
+	grpcServer                *GRPCServer
 }
 
 // Init initializes the module with options
@@ -84,17 +85,18 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, config *config.RuntimeSecuri
 		probe:        evm.Probe,
 		statsdClient: evm.StatsdClient,
 		// internals
-		ctx:            ctx,
-		cancelFnc:      cancelFnc,
-		currentRuleSet: new(atomic.Value),
-		reloading:      atomic.NewBool(false),
-		apiServer:      NewAPIServer(config, evm.Probe, evm.StatsdClient),
-		rateLimiter:    NewRateLimiter(evm.StatsdClient),
-		sigupChan:      make(chan os.Signal, 1),
-		selfTester:     selfTester,
-		policyMonitor:  NewPolicyMonitor(evm.StatsdClient),
-		sendStatsChan:  make(chan chan bool, 1),
-		grpcServer:     NewGRPCServer(config.SocketPath),
+		ctx:                       ctx,
+		cancelFnc:                 cancelFnc,
+		currentRuleSet:            new(atomic.Value),
+		currentThreatScoreRuleSet: new(atomic.Value),
+		reloading:                 atomic.NewBool(false),
+		apiServer:                 NewAPIServer(config, evm.Probe, evm.StatsdClient),
+		rateLimiter:               NewRateLimiter(evm.StatsdClient),
+		sigupChan:                 make(chan os.Signal, 1),
+		selfTester:                selfTester,
+		policyMonitor:             NewPolicyMonitor(evm.StatsdClient),
+		sendStatsChan:             make(chan chan bool, 1),
+		grpcServer:                NewGRPCServer(config.SocketPath),
 	}
 	c.apiServer.cwsConsumer = c
 
@@ -341,6 +343,7 @@ func (c *CWSConsumer) LoadPolicies(policyProviders []rules.PolicyProvider, sendL
 	c.policiesVersions = getPoliciesVersions(ruleSet)
 	c.policyProviders = policyProviders
 	c.currentRuleSet.Store(ruleSet)
+	c.currentThreatScoreRuleSet.Store(threatScoreRuleSet)
 
 	// notify listeners
 	if c.rulesLoaded != nil {
@@ -428,6 +431,10 @@ func (c *CWSConsumer) HandleEvent(event *model.Event) {
 		if (event.SecurityProfileContext.Status.IsEnabled(model.AutoSuppression) && event.IsInProfile()) || !ruleSet.Evaluate(event) {
 			ruleSet.EvaluateDiscarders(event)
 		}
+	}
+
+	if threatScoreRuleSet := c.GetThreatScoreRuleSet(); threatScoreRuleSet != nil {
+		threatScoreRuleSet.Evaluate(event)
 	}
 }
 
@@ -548,6 +555,14 @@ func (c *CWSConsumer) statsSender() {
 func (c *CWSConsumer) GetRuleSet() (rs *rules.RuleSet) {
 	if ruleSet := c.currentRuleSet.Load(); ruleSet != nil {
 		return ruleSet.(*rules.RuleSet)
+	}
+	return nil
+}
+
+// GetThreatScoreRuleSet returns the set of loaded rules
+func (c *CWSConsumer) GetThreatScoreRuleSet() (rs *rules.RuleSet) {
+	if threatScoreRuleSet := c.currentThreatScoreRuleSet.Load(); threatScoreRuleSet != nil {
+		return threatScoreRuleSet.(*rules.RuleSet)
 	}
 	return nil
 }
