@@ -61,7 +61,13 @@ func newExpvarServer(deps dependencies) (Component, error) {
 			}()
 			return nil
 		},
-		OnStop: expvarServer.Shutdown,
+		OnStop: func(ctx context.Context) error {
+			err := expvarServer.Shutdown(ctx)
+			if err != nil {
+				_ = deps.Log.Error("Failed to properly shutdown expvar server:", err)
+			}
+			return nil
+		},
 	})
 	return expvarServer, nil
 }

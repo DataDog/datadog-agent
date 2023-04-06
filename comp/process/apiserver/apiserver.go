@@ -68,7 +68,14 @@ func newApiServer(deps dependencies) Component {
 
 			return nil
 		},
-		OnStop: apiserver.server.Shutdown,
+		OnStop: func(ctx context.Context) error {
+			err := apiserver.server.Shutdown(ctx)
+			if err != nil {
+				_ = deps.Log.Error("Failed to properly shutdown api server:", err)
+			}
+
+			return nil
+		},
 	})
 
 	return apiserver
