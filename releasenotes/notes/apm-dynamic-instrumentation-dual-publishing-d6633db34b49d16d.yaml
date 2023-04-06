@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    APM: Dynamic instrumentation logs and snapshots can now be shipped to multiple datadog logs intakes.
+    APM: Dynamic instrumentation logs and snapshots can now be shipped to multiple Datadog logs intakes.
