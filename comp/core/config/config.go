@@ -66,7 +66,7 @@ func (c *cfg) Warnings() *config.Warnings {
 	return c.warnings
 }
 
-func newMock(deps mockDependencies, t testing.TB) Component {
+func newMock(deps mockDependencies, t testing.TB) (Component, error) {
 	backupConfig := config.NewConfig("", "", strings.NewReplacer())
 	backupConfig.CopyConfig(config.Datadog)
 
@@ -80,7 +80,7 @@ func newMock(deps mockDependencies, t testing.TB) Component {
 		err := config.Datadog.ReadConfig(strings.NewReader(deps.Params.ConfigYaml))
 		if err != nil {
 			// The YAML was invalid, fail initialization of the mock config.
-			return nil
+			return nil, err
 		}
 	}
 
@@ -98,5 +98,5 @@ func newMock(deps mockDependencies, t testing.TB) Component {
 	// swap the existing config back at the end of the test.
 	t.Cleanup(func() { config.Datadog.CopyConfig(backupConfig) })
 
-	return c
+	return c, nil
 }
