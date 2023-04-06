@@ -892,10 +892,20 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
     """
     Run all the available integration tests
     """
-    agent_integration_tests(ctx, install_deps, race, remote_docker)
-    dsd_integration_tests(ctx, install_deps, race, remote_docker)
-    dca_integration_tests(ctx, install_deps, race, remote_docker)
-    trace_integration_tests(ctx, install_deps, race)
+    tests = [
+        lambda: agent_integration_tests(ctx, install_deps, race, remote_docker),
+        lambda: dsd_integration_tests(ctx, install_deps, race, remote_docker),
+        lambda: dca_integration_tests(ctx, install_deps, race, remote_docker),
+        lambda: trace_integration_tests(ctx, install_deps, race),
+    ]
+    for t in tests:
+        try:
+            t()
+        except Exit as e:
+            if e.code != 0:
+                raise
+            else:
+                print(e.message)
 
 
 @task

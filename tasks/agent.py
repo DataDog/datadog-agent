@@ -327,6 +327,36 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     if install_deps:
         deps(ctx)
 
+    if sys.platform == 'win32':
+        return _windows_integration_tests(ctx, race=race, go_mod=go_mod, arch=arch)
+    else:
+        # TODO: See if these will function on Windows
+        return _linux_integration_tests(ctx, race=race, remote_docker=remote_docker, go_mod=go_mod, arch=arch)
+
+
+def _windows_integration_tests(ctx, race=False, go_mod="mod", arch="x64"):
+    test_args = {
+        "go_mod": go_mod,
+        "go_build_tags": " ".join(get_default_build_tags(build="test", arch=arch)),
+        "race_opt": "-race" if race else "",
+        "exec_opts": "",
+    }
+
+    go_cmd = 'go test -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)  # noqa: FS002
+
+    tests = [
+        {
+            # Run eventlog tests with the Windows API, which depend on the EventLog service
+            'prefix': './pkg/util/winutil/eventlog/...',
+            'extra_args': '-evtapi Windows',
+        }
+    ]
+
+    for test in tests:
+        ctx.run(f"{go_cmd} {test['prefix']} {test['extra_args']}")
+
+
+def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", arch="x64"):
     test_args = {
         "go_mod": go_mod,
         "go_build_tags": " ".join(get_default_build_tags(build="test", arch=arch)),
