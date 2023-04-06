@@ -327,20 +327,14 @@ func (c *CWSConsumer) LoadPolicies(policyProviders []rules.PolicyProvider, sendL
 	// load policies
 	c.policyLoader.SetProviders(policyProviders)
 
+	policySet := c.probe.NewPolicySet(c.getEventTypeEnabled())
 	// standard ruleset
-	ruleSet := c.probe.NewRuleSet(c.getEventTypeEnabled())
+	ruleSet := policySet.RuleSets[rules.DefaultRuleSetName]
+	threatScoreRuleSet := policySet.RuleSets[rules.ThreatScoreRuleSetName]
 
-	threatScoreRuleSet := c.probe.NewThreatScoreRuleSet(c.getEventTypeEnabled())
-
-	// TODO: Load Policies once
-	loadErrs := ruleSet.LoadPolicies(c.policyLoader, c.policyOpts)
+	loadErrs := policySet.LoadPolicies(c.policyLoader, c.policyOpts)
 	if loadErrs.ErrorOrNil() != nil {
 		logLoadingErrors("error while loading policies: %+v", loadErrs)
-	}
-
-	threatScoreLoadErrs := threatScoreRuleSet.LoadPolicies(c.policyLoader, c.policyOpts)
-	if threatScoreLoadErrs.ErrorOrNil() != nil {
-		logLoadingErrors("error while loading policies: %+v", threatScoreLoadErrs)
 	}
 
 	// update current policies related module attributes
@@ -384,7 +378,7 @@ func (c *CWSConsumer) LoadPolicies(policyProviders []rules.PolicyProvider, sendL
 	if sendLoadedReport {
 		ReportRuleSetLoaded(c.eventSender, c.statsdClient, ruleSet, loadErrs)
 		ReportRuleSetLoaded(c.eventSender, c.statsdClient, threatScoreRuleSet, loadErrs)
-		c.policyMonitor.AddPolicies(ruleSet.GetPolicies(), loadErrs)
+		c.policyMonitor.AddPolicies(policySet.GetPolicies(), loadErrs)
 	}
 
 	return nil
