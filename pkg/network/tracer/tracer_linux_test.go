@@ -1717,7 +1717,7 @@ func TestTCPDirectionWithPreexistingConnection(t *testing.T) {
 		})
 
 		return len(origConn) == 1
-	}, 3*time.Second, 500*time.Millisecond, "timed out waiting for original conneection")
+	}, 3*time.Second, 500*time.Millisecond, "timed out waiting for original connection")
 
 	require.Equal(t, network.INCOMING, origConn[0].Direction, "original server<->client connection should have incoming direction")
 }
