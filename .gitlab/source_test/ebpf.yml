@@ -23,6 +23,7 @@
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/oom-kill.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/oom-kill.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tcp-queue-length.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/tcp-queue-length.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tracer-fentry.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/tracer-fentry.o
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tracer.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/tracer.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/tracer.c $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer.c
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/http.c $CI_PROJECT_DIR/.tmp/binary-ebpf/http.c
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/runtime-security.c $CI_PROJECT_DIR/.tmp/binary-ebpf/runtime-security.c
@@ -124,4 +125,3 @@ tests_windows_sysprobe_x64:
   variables:
     PYTHON_RUNTIMES: 3
     ARCH: "x64"
-
