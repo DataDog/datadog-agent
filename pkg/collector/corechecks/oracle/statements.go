@@ -494,7 +494,10 @@ func (c *Check) StatementMetrics() (int, error) {
 
 	log.Tracef("Query metrics payload %s", strings.ReplaceAll(string(payloadBytes), "@", "XX"))
 
-	sender.EventPlatformEvent(string(payloadBytes), "dbm-metrics")
+	//3.43
+	//sender.EventPlatformEvent(string(payloadBytes), "dbm-metrics")
+	sender.EventPlatformEvent(payloadBytes, "dbm-metrics")
+
 	sender.Gauge("dd.oracle.statements_metrics.sql_text_errors", float64(SQLTextErrors), c.hostname, c.tags)
 	sender.Gauge("dd.oracle.statements_metrics.time_ms", float64(time.Since(start).Milliseconds()), c.hostname, c.tags)
 	sender.Commit()
