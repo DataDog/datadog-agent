@@ -83,7 +83,7 @@ func (f *crdFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsLis
 			}),
 		),
 		*generator.NewFamilyGenerator(
-			"kube_customresourcedefinition_condition",
+			"kube_customresourcedefinition_status_condition",
 			"The condition of this custom resource definition.",
 			metric.Gauge,
 			"",
