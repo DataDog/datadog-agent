@@ -6,6 +6,7 @@ import hashlib
 import json
 import re
 import sys
+import time
 from collections import OrderedDict
 from datetime import date
 from time import sleep
@@ -349,12 +350,18 @@ def _stringify_config(config_dict):
     return {key: str(value) for key, value in config_dict.items()}
 
 
-def _query_github_api(auth_token, url):
+def _query_github_api(auth_token, url, retry_number=5, sleep_time=1):
     import requests
 
     # Basic auth doesn't seem to work with private repos, so we use token auth here
     headers = {"Authorization": f"token {auth_token}"}
-    response = requests.get(url, headers=headers)
+    for retry_count in range(retry_number):
+        response = requests.get(url, headers=headers)
+        if 500 <= response.status_code < 600:
+            # We wait progressively more at each retry in case of overloaded servers
+            time.sleep(sleep_time + sleep_time * retry_count)
+        else:
+            break
     return response
 
 
@@ -377,7 +384,13 @@ def build_compatible_version_re(allowed_major_versions, minor_version):
 
 
 def _get_highest_repo_version(
-    auth, repo, version_prefix, version_re, allowed_major_versions=None, max_version: Version = None
+    auth,
+    repo,
+    version_prefix,
+    version_re,
+    allowed_major_versions=None,
+    max_version: Version = None,
+    request_retry_sleep_time=1,
 ):
     # If allowed_major_versions is not specified, search for all versions by using an empty
     # major version prefix.
@@ -389,7 +402,7 @@ def _get_highest_repo_version(
     for major_version in allowed_major_versions:
         url = f"https://api.github.com/repos/DataDog/{repo}/git/matching-refs/tags/{version_prefix}{major_version}"
 
-        tags = _query_github_api(auth, url).json()
+        tags = _query_github_api(auth, url, sleep_time=request_retry_sleep_time).json()
 
         for tag in tags:
             match = version_re.search(tag["ref"])
@@ -1302,7 +1315,6 @@ def build_rc(ctx, major_versions="6,7", patch_version=False):
 
 @task(help={'key': "Path to the release.json key, separated with double colons, eg. 'last_stable::6'"})
 def get_release_json_value(_, key):
-
     release_json = _load_release_json()
 
     path = key.split('::')
