@@ -57,7 +57,7 @@ type CWSConsumer struct {
 	apiServer        *APIServer
 	rateLimiter      *RateLimiter
 	sigupChan        chan os.Signal
-	rulesLoaded      func(rs *rules.RuleSet, err *multierror.Error)
+	rulesLoaded      func(rs []*rules.RuleSet, err *multierror.Error)
 	policiesVersions []string
 	policyProviders  []rules.PolicyProvider
 	policyLoader     *rules.PolicyLoader
@@ -331,9 +331,17 @@ func (c *CWSConsumer) LoadPolicies(policyProviders []rules.PolicyProvider, sendL
 	// standard ruleset
 	ruleSet := c.probe.NewRuleSet(c.getEventTypeEnabled())
 
+	threatScoreRuleSet := c.probe.NewThreatScoreRuleSet(c.getEventTypeEnabled())
+
+	// TODO: Load Policies once
 	loadErrs := ruleSet.LoadPolicies(c.policyLoader, c.policyOpts)
 	if loadErrs.ErrorOrNil() != nil {
 		logLoadingErrors("error while loading policies: %+v", loadErrs)
+	}
+
+	threatScoreLoadErrs := threatScoreRuleSet.LoadPolicies(c.policyLoader, c.policyOpts)
+	if threatScoreLoadErrs.ErrorOrNil() != nil {
+		logLoadingErrors("error while loading policies: %+v", threatScoreLoadErrs)
 	}
 
 	// update current policies related module attributes
@@ -343,31 +351,40 @@ func (c *CWSConsumer) LoadPolicies(policyProviders []rules.PolicyProvider, sendL
 
 	// notify listeners
 	if c.rulesLoaded != nil {
-		c.rulesLoaded(ruleSet, loadErrs)
+		c.rulesLoaded([]*rules.RuleSet{ruleSet, threatScoreRuleSet}, loadErrs)
 	}
 
 	// add module as listener for ruleset events
 	ruleSet.AddListener(c)
+	threatScoreRuleSet.AddListener(c)
 
 	// analyze the ruleset, push default policies in the kernel and generate the policy report
-	report, err := c.probe.ApplyRuleSet(ruleSet)
+	report, err := c.probe.ApplyRuleSet(ruleSet, false)
 	if err != nil {
 		return err
 	}
 	c.displayApplyRuleSetReport(report)
 
+	threatScoreRuleSetReport, err := c.probe.ApplyRuleSet(threatScoreRuleSet, true)
+	if err != nil {
+		return err
+	}
+	c.displayApplyRuleSetReport(threatScoreRuleSetReport)
+
 	// set the rate limiters
 	c.rateLimiter.Apply(ruleSet, events.AllCustomRuleIDs())
+	c.rateLimiter.Apply(threatScoreRuleSet, events.AllCustomRuleIDs())
 
 	// full list of IDs, user rules + custom
 	var ruleIDs []rules.RuleID
-	ruleIDs = append(ruleIDs, ruleSet.ListRuleIDs()...)
+	ruleIDs = append(append(ruleIDs, ruleSet.ListRuleIDs()...), threatScoreRuleSet.ListRuleIDs()...)
 	ruleIDs = append(ruleIDs, events.AllCustomRuleIDs()...)
 
 	c.apiServer.Apply(ruleIDs)
 
 	if sendLoadedReport {
 		ReportRuleSetLoaded(c.eventSender, c.statsdClient, ruleSet, loadErrs)
+		ReportRuleSetLoaded(c.eventSender, c.statsdClient, threatScoreRuleSet, loadErrs)
 		c.policyMonitor.AddPolicies(ruleSet.GetPolicies(), loadErrs)
 	}
 
@@ -541,7 +558,7 @@ func (c *CWSConsumer) GetRuleSet() (rs *rules.RuleSet) {
 }
 
 // SetRulesetLoadedCallback allows setting a callback called when a rule set is loaded
-func (c *CWSConsumer) SetRulesetLoadedCallback(cb func(rs *rules.RuleSet, err *multierror.Error)) {
+func (c *CWSConsumer) SetRulesetLoadedCallback(cb func(rs []*rules.RuleSet, err *multierror.Error)) {
 	c.rulesLoaded = cb
 }
 

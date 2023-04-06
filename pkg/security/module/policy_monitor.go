@@ -130,6 +130,7 @@ type RuleSetLoadedReport struct {
 func ReportRuleSetLoaded(sender EventSender, statsdClient statsd.ClientInterface, ruleSet *rules.RuleSet, err *multierror.Error) {
 	rule, event := NewRuleSetLoadedEvent(ruleSet, err)
 
+	// TODO(celia): Create new metric for threat score rules
 	if err := statsdClient.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
 		log.Error(fmt.Errorf("failed to send ruleset_loaded metric: %w", err))
 	}
