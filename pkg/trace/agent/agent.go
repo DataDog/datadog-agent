@@ -317,31 +317,30 @@ func (a *Agent) Process(p *api.Payload) {
 			p.TracerPayload.AppVersion = traceutil.GetAppVersion(root, chunk)
 		}
 
-		// pt.TraceChunk MUST NOT be modified during sampling, since this
-		// entire chunk is used for stats calculation after the main loop.
 		pt := processedTrace(p, chunk, root)
 		if !p.ClientComputedStats {
-			statsInput.Traces = append(statsInput.Traces, pt)
+			statsInput.Traces = append(statsInput.Traces, *pt.Clone())
 		}
 
-		numEvents, keep := a.sample(now, ts, chunk, pt)
+		numEvents, keep, sampled := a.sample(now, ts, pt)
 		if !keep {
 			// numEvents doesn't need to be updated since single spans are not
 			// used with App Analytics, e.g. aren't tagged with _dd.analyzed,
 			// so no spans are counted as events in the trace. It will remain zero.
-			keep = sampler.ApplySpanSampling(chunk)
+			keep, sampled = sampler.ApplySpanSampling(pt)
 		}
 		if !keep && numEvents == 0 {
 			// The entire trace was dropped and no analyzed spans were kept.
 			p.RemoveChunk(i)
 			continue
 		}
+		p.ReplaceChunk(i, sampled.TraceChunk)
 
-		if !chunk.DroppedTrace {
-			ss.SpanCount += int64(len(chunk.Spans))
+		if !sampled.TraceChunk.DroppedTrace {
+			ss.SpanCount += int64(len(sampled.TraceChunk.Spans))
 		}
 		ss.EventCount += numEvents
-		ss.Size += chunk.Msgsize()
+		ss.Size += sampled.TraceChunk.Msgsize()
 		i++
 
 		if ss.Size > writer.MaxPayloadSize {
@@ -364,13 +363,9 @@ func (a *Agent) Process(p *api.Payload) {
 }
 
 // processedTrace creates a ProcessedTrace based on the provided chunk and root.
-// It makes a deep copy of the provided chunk to ensure that any subsequent changes
-// to the original chunk will not affect the TraceChunk of the ProcessedTrace.
-func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span) traceutil.ProcessedTrace {
-	ptChunk := new(pb.TraceChunk)
-	*ptChunk = *chunk
-	return traceutil.ProcessedTrace{
-		TraceChunk:             ptChunk,
+func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span) *traceutil.ProcessedTrace {
+	return &traceutil.ProcessedTrace{
+		TraceChunk:             chunk,
 		Root:                   root,
 		AppVersion:             p.TracerPayload.AppVersion,
 		TracerEnv:              p.TracerPayload.Env,
@@ -483,7 +478,8 @@ func isManualUserDrop(priority sampler.SamplingPriority, pt traceutil.ProcessedT
 }
 
 // sample reports the number of events found in pt and whether the chunk should be kept as a trace.
-func (a *Agent) sample(now time.Time, ts *info.TagStats, chunk *pb.TraceChunk, pt traceutil.ProcessedTrace) (numEvents int64, keep bool) {
+func (a *Agent) sample(now time.Time, ts *info.TagStats, pt *traceutil.ProcessedTrace) (numEvents int64, keep bool, retPt *traceutil.ProcessedTrace) {
+	pt = pt.Clone()
 	priority, hasPriority := sampler.GetSamplingPriority(pt.TraceChunk)
 
 	if hasPriority {
@@ -493,24 +489,24 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, chunk *pb.TraceChunk, p
 	}
 	if a.conf.HasFeature("error_rare_sample_tracer_drop") {
 		if isManualUserDrop(priority, pt) {
-			return 0, false
+			return 0, false, pt
 		}
 	} else { // This path to be deleted once manualUserDrop detection is available on all tracers for P < 1.
 		if priority < 0 {
-			return 0, false
+			return 0, false, pt
 		}
 	}
 
 	sampled := a.runSamplers(now, pt, hasPriority)
 	if !sampled {
-		chunk.DroppedTrace = true
+		pt.TraceChunk.DroppedTrace = true
 	}
-	numEvents, numExtracted := a.EventProcessor.Process(pt.Root, chunk)
+	numEvents, numExtracted := a.EventProcessor.Process(pt)
 
 	ts.EventsExtracted.Add(numExtracted)
 	ts.EventsSampled.Add(numEvents)
 
-	return numEvents, sampled
+	return numEvents, sampled, pt
 }
 
 // runSamplers runs all the agent's samplers on pt and returns the sampling decision

@@ -18,3 +18,15 @@ type ProcessedTrace struct {
 	TracerHostname         string
 	ClientDroppedP0sWeight float64
 }
+
+func (p *ProcessedTrace) Clone() *ProcessedTrace {
+	pClone := new(ProcessedTrace)
+	*pClone = *p
+	c := new(pb.TraceChunk)
+	*c = *p.TraceChunk
+	pClone.TraceChunk = c
+	r := new(pb.Span)
+	*r = *p.Root
+	pClone.Root = r
+	return pClone
+}
