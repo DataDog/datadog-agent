@@ -17,7 +17,7 @@ func init() {
 }
 
 // SetFeatures automatically remove feature flags through t.Cleanup
-func SetFeatures(t *testing.T, features ...Feature) {
+func SetFeatures(t testing.TB, features ...Feature) {
 	SetFeaturesNoCleanup(features...)
 	t.Cleanup(ClearFeatures)
 }

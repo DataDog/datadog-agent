@@ -58,10 +58,17 @@ func TestMain(m *testing.M) {
 	if cfg.EnableRuntimeCompiler {
 		fmt.Println("RUNTIME COMPILER ENABLED")
 	}
+
 	os.Exit(m.Run())
 }
 
 func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
+	if fentryTests := os.Getenv("NETWORK_TRACER_FENTRY_TESTS"); fentryTests == "true" {
+		ddconfig.SetFeatures(t, ddconfig.ECSFargate)
+		// protocol classification not yet supported on fargate
+		cfg.ProtocolClassificationEnabled = false
+	}
+
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
@@ -1424,10 +1431,6 @@ func testConfig() *config.Config {
 	cfg := config.New()
 	if os.Getenv("BPF_DEBUG") != "" {
 		cfg.BPFDebug = true
-	}
-	if ddconfig.IsECSFargate() {
-		// protocol classification not yet supported on fargate
-		cfg.ProtocolClassificationEnabled = false
 	}
 	return cfg
 }
