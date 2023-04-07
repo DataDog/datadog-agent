@@ -561,7 +561,7 @@ func httpCallbackOnHTTPRequestTraceTaskRecvReq(eventInfo *etw.DDEtwEventInfo) {
 	// 	{
 	// 		0:  uint64_t requestId;
 	// 		8:  uint64_t connectionId;
-	//      16: uint32_t remoteAddrLength;
+	//      16: uint32_t remoteAddrLength; (or maybe uint16_t, see warning below)
 	//      20: uint16_t remoteSinFamily;
 	//      22: uint16_t remotePort;
 	// 		24: uint32_t remoteIpAddress;
@@ -571,12 +571,36 @@ func httpCallbackOnHTTPRequestTraceTaskRecvReq(eventInfo *etw.DDEtwEventInfo) {
 	// userData := goBytes(unsafe.Pointer(eventInfo.Event.UserData), C.int(eventInfo.Event.UserDataLength))
 
 	// Check for size
-	if eventInfo.Event.UserDataLength < 36 {
-		parsingErrorCount++
-		log.Errorf("*** Error: ActivityId:%v. User data length for EVENT_PARAM_HttpService_HTTPRequestTraceTaskRecvReq_IP4 is too small %v\n\n",
-			etw.FormatGuid(eventInfo.Event.ActivityId), uintptr(eventInfo.Event.UserDataLength))
-		return
-	}
+	/*
+			 * WARNING
+			 *
+			 * the format of the UserData structure seemed to magically change for Server 2022
+			 * So the expected UserDataLength is 34 (or 44 for ipv6) for 22, and 36/46 for <= 2019
+			 *
+			 * since we don't use the UserData in this callback, it is safe to skip the previously
+			 * implemented length check.
+			 *
+			 * however, the _warning_ is that if you wish to _use_ the UserData structure, it must
+			 * be specially parsed depending on OS version to figure out which byte-packing MS used.
+			 *
+			 * Specifically, the remoteAddrLength member of the userdata structure went from
+			 * 32 bits to 16 bits.  Which is fine, because it's a small number (16 for ipv6).  But
+			 * the parsing becomes wonky.
+			 *
+			 * Suggested check
+			 remoteAddrLengthAs32 := binary.LittleEndian.Uint32(userData[16:20])
+			 var remoteAddrLengthAs16 uint16
+			 parseStart := 20
+			 if remoteAddrLengthAs32 > 16 {
+				// the remoteAddrLength is packed as a 16 bit int
+				remoteAddrLengthAs16 = binary.LittleEndian.Uint16((userData[16:18]))
+				parseStart = 18
+			 }
+		     remoteSinFamily := binary.LittleEndian.Uint16[parseStart:parseStart + 2]
+			 remoteSinPort := binary.LittleEndian.Uint16[parseStart + 2:parseStart + 4]
+
+			 * etc....
+	*/
 
 	// related activityid
 	if eventInfo.RelatedActivityId == nil {
