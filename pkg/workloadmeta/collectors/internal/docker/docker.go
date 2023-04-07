@@ -37,7 +37,6 @@ const (
 )
 
 type resolveHook func(ctx context.Context, co types.ContainerJSON) (string, error)
-type resolveContainerListWithFilter func(ctx context.Context, options types.ContainerListOptions, filter *containers.Filter) ([]types.Container, error)
 
 type collector struct {
 	store workloadmeta.Store
@@ -259,7 +258,7 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 				Name:   strings.TrimPrefix(container.Name, "/"),
 				Labels: container.Config.Labels,
 			},
-			Image:   extractImage(ctx, container, c.dockerUtil.ResolveImageNameFromContainer, c.dockerUtil.RawContainerListWithFilter),
+			Image:   extractImage(ctx, container, c.dockerUtil.ResolveImageNameFromContainer),
 			EnvVars: extractEnvVars(container.Config.Env),
 			Ports:   extractPorts(container),
 			Runtime: workloadmeta.ContainerRuntimeDocker,
@@ -304,7 +303,7 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 	return event, nil
 }
 
-func extractImage(ctx context.Context, container types.ContainerJSON, resolve resolveHook, resolveContainersList resolveContainerListWithFilter) workloadmeta.ContainerImage {
+func extractImage(ctx context.Context, container types.ContainerJSON, resolve resolveHook) workloadmeta.ContainerImage {
 	imageSpec := container.Config.Image
 	image := workloadmeta.ContainerImage{
 		RawName: imageSpec,
