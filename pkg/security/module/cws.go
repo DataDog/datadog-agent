@@ -332,7 +332,7 @@ func (c *CWSConsumer) LoadPolicies(policyProviders []rules.PolicyProvider, sendL
 
 	policySet := c.probe.NewPolicySet(c.getEventTypeEnabled())
 	// standard ruleset
-	ruleSet := policySet.RuleSets[rules.DefaultRuleSetName]
+	ruleSet := policySet.RuleSets[rules.ProbeEvaluationRuleSetName]
 	threatScoreRuleSet := policySet.RuleSets[rules.ThreatScoreRuleSetName]
 
 	loadErrs := policySet.LoadPolicies(c.policyLoader, c.policyOpts)
