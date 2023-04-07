@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
@@ -45,7 +44,7 @@ func initSender(id check.ID, defaultHostname string) (s senderWithChans) {
 func testDemux() *AgentDemultiplexer {
 	opts := DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	demux := initAgentDemultiplexer(forwarder.NewOptions(nil), opts, defaultHostname)
+	demux := initAgentDemultiplexer(NewForwarderTest(), opts, defaultHostname)
 	return demux
 }
 

@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+// +build test
+
 package aggregator
 
 import (
@@ -164,7 +167,7 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 
 	opts := demuxTestOptions()
 	opts.FlushInterval = time.Hour
-	demux := initAgentDemultiplexer(nil, forwarder.NewOptions(nil), opts, "")
+	demux := initAgentDemultiplexer(NewForwarderTest(), opts, "")
 	demux.Aggregator().tlmContainerTagsEnabled = false
 	require.NotNil(demux)
 	require.NotNil(demux.aggregator)

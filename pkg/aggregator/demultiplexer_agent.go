@@ -110,20 +110,23 @@ type dataOutputs struct {
 // in goroutines. As of today, only the embedded BufferedAggregator needs a separate goroutine.
 // In the future, goroutines will be started for the event platform forwarder and/or orchestrator forwarder.
 func InitAndStartAgentDemultiplexer(sharedForwarderOptions *forwarder.Options, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
-	return initAndStartAgentDemultiplexerWithForwarder(nil, sharedForwarderOptions, options, hostname)
+	// Temporary code removed in a later commit. Either `sharedForwarder` or `sharedForwarderOptions` is required.
+
+	sharedForwarder := forwarder.NewDefaultForwarder(sharedForwarderOptions)
+	return initAndStartAgentDemultiplexer(sharedForwarder, options, hostname)
 }
 
 func InitAndStartAgentDemultiplexerWithForwarder(sharedForwarder forwarder.Forwarder, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
 	// Note: InitAndStartAgentDemultiplexer is removed in a later commit. Having both InitAndStartAgentDemultiplexerWithForwarder and InitAndStartAgentDemultiplexer
 	// allows a smooth transition.
-	return initAndStartAgentDemultiplexerWithForwarder(sharedForwarder, nil, options, hostname)
+	return initAndStartAgentDemultiplexer(sharedForwarder, options, hostname)
 }
 
-func initAndStartAgentDemultiplexerWithForwarder(sharedForwarder forwarder.Forwarder, sharedForwarderOptions *forwarder.Options, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
+func initAndStartAgentDemultiplexer(sharedForwarder forwarder.Forwarder, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
 	demultiplexerInstanceMu.Lock()
 	defer demultiplexerInstanceMu.Unlock()
 
-	demux := initAgentDemultiplexer(sharedForwarder, sharedForwarderOptions, options, hostname)
+	demux := initAgentDemultiplexer(sharedForwarder, options, hostname)
 
 	if demultiplexerInstance != nil {
 		log.Warn("A DemultiplexerInstance is already existing but InitAndStartAgentDemultiplexer has been called again. Current instance will be overridden")
@@ -134,12 +137,7 @@ func initAndStartAgentDemultiplexerWithForwarder(sharedForwarder forwarder.Forwa
 	return demux
 }
 
-func initAgentDemultiplexer(sharedForwarder forwarder.Forwarder, sharedForwarderOptions *forwarder.Options, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
-	// Temporary code removed in a later commit. Either `sharedForwarder` or `sharedForwarderOptions` is required.
-	if sharedForwarder == nil {
-		sharedForwarder = forwarder.NewDefaultForwarder(sharedForwarderOptions)
-	}
-
+func initAgentDemultiplexer(sharedForwarder forwarder.Forwarder, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
 	// prepare the multiple forwarders
 	// -------------------------------
 
