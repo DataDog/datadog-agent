@@ -87,3 +87,38 @@ func TestBPFEventMap(t *testing.T) {
 		})
 	})
 }
+
+func TestBPFCwsMapConstant(t *testing.T) {
+	checkKernelCompatibility(t, "< 4.15 kernels", func(kv *kernel.Version) bool {
+		return !kv.IsRH7Kernel() && kv.Code < kernel.Kernel4_15
+	})
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_map_create",
+			Expression: `bpf.cmd == BPF_MAP_CREATE && bpf.map.name in CWS_MAP_NAMES && process.file.name == "syscall_go_tester"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("map_lookup", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			return runSyscallTesterFunc(t, syscallTester, "-load-bpf")
+		}, func(event *model.Event, r *rules.Rule) {
+			assert.Equal(t, "bpf", event.GetType(), "wrong event type")
+			assert.Equal(t, uint32(model.BpfMapTypeArray), event.BPF.Map.Type, "wrong map type")
+
+			test.validateBPFSchema(t, event)
+		})
+	})
+}
