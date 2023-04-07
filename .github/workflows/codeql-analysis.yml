@@ -36,7 +36,7 @@ jobs:
           echo "CGO_LDFLAGS= -L${GITHUB_WORKSPACE}/rtloader/build/rtloader -ldl " >> $GITHUB_ENV
           echo "CGO_CFLAGS= -I${GITHUB_WORKSPACE}/rtloader/include  -I${GITHUB_WORKSPACE}/rtloader/common " >> $GITHUB_ENV
 
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@v4
         with:
           go-version-file: '.go-version'
 

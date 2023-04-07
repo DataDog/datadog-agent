@@ -27,7 +27,7 @@ jobs:
           cache: 'pip'
 
       - name: Install go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version-file: '.go-version'
 
