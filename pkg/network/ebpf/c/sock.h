@@ -67,9 +67,6 @@ static __always_inline struct sock * socket_sk(struct socket *sock) {
 }
 
 static __always_inline void get_tcp_segment_counts(struct sock* skp, __u32* packets_in, __u32* packets_out) {
-    if (!packets_in || !packets_out) {
-        return;
-    }
 #ifdef COMPILE_PREBUILT
     // counting segments/packets not currently supported on prebuilt
     // to implement, would need to do the offset-guess on the following
@@ -147,10 +144,6 @@ static __always_inline u32 read_daddr_v4(struct sock *skp) {
 }
 
 static __always_inline void read_saddr_v6(struct sock *skp, u64 *addr_h, u64 *addr_l) {
-    if (!addr_h || !addr_l) {
-        return;
-    }
-
     struct in6_addr in6 = {};
 #ifdef COMPILE_PREBUILT
     bpf_probe_read_kernel_with_telemetry(&in6, sizeof(in6), ((char*)skp) + offset_daddr_ipv6() + 2 * sizeof(u64));
@@ -161,10 +154,6 @@ static __always_inline void read_saddr_v6(struct sock *skp, u64 *addr_h, u64 *ad
 }
 
 static __always_inline void read_daddr_v6(struct sock *skp, u64 *addr_h, u64 *addr_l) {
-    if (!addr_h || !addr_l) {
-        return;
-    }
-
     struct in6_addr in6 = {};
 #ifdef COMPILE_PREBUILT
     bpf_probe_read_kernel_with_telemetry(&in6, sizeof(in6), ((char*)skp) + offset_daddr_ipv6());
