@@ -484,9 +484,9 @@ func (fh *FieldHandlers) ResolveModuleArgv(ev *model.Event, module *model.LoadMo
 // ResolveModuleArgs resolves the correct args if the arguments were truncated, if not return module.Args
 func (fh *FieldHandlers) ResolveModuleArgs(ev *model.Event, module *model.LoadModuleEvent) string {
 	if module.ArgsTruncated {
-		args_tmp := strings.Split(module.Args, " ")
-		args_tmp = args_tmp[:len(args_tmp)-1]
-		return strings.Join(args_tmp, " ")
+		argsTmp := strings.Split(module.Args, " ")
+		argsTmp = argsTmp[:len(argsTmp)-1]
+		return strings.Join(argsTmp, " ")
 	}
 	return module.Args
 }

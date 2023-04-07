@@ -53,16 +53,16 @@ int __attribute__((always_inline)) trace_kernel_file(struct pt_regs *ctx, struct
 SEC("kprobe/parse_args")
 int kprobe_parse_args(struct pt_regs *ctx){
     char *args = (char *) PT_REGS_PARM2(ctx);
-    u32 isTruncated = 0;
+    u32 is_truncated = 0;
     struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
     if (!syscall) {
         return 0;
     }
     int len = bpf_probe_read_str(&syscall->init_module.args, sizeof(syscall->init_module.args)+1, args);
-    if (len==129){
-        isTruncated = 1;
+    if (len==129) {
+        is_truncated = 1;
     }
-    bpf_probe_read(&syscall->init_module.argsTruncated,sizeof(syscall->init_module.argsTruncated),&isTruncated);
+    syscall->init_module.args_truncated = is_truncated;
     return 0;
 }
 
@@ -113,7 +113,7 @@ int __attribute__((always_inline)) trace_init_module_ret(void *ctx, int retval, 
     };
     
     bpf_probe_read_str(&event.args, sizeof(event.args), &syscall->init_module.args);
-    bpf_probe_read(&event.argsTruncated, sizeof(event.argsTruncated), &syscall->init_module.argsTruncated);
+    event.args_truncated = syscall->init_module.args_truncated;
 
     if (!modname) {
         bpf_probe_read_str(&event.name, sizeof(event.name), &syscall->init_module.name[0]);
