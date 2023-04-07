@@ -16,7 +16,6 @@ import (
 
 func TestProcessEventsCheckEnabled(t *testing.T) {
 	scfg := &sysconfig.Config{}
-	setFeatures(t)
 
 	t.Run("default", func(t *testing.T) {
 		config.Mock(t)

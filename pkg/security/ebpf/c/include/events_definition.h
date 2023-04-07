@@ -194,6 +194,8 @@ struct init_module_event_t {
 
     struct file_t file;
     char name[MODULE_NAME_LEN];
+    char args[128];
+    u32 args_truncated;
     u32 loaded_from_memory;
     u32 padding;
 };

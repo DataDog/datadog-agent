@@ -28,6 +28,7 @@ namespace CustomActions.Tests.UserCustomActions
 
             Test.Properties.Should()
                 .Contain("DDAGENTUSER_FOUND", "false").And
+                .Contain(kvp => kvp.Key == "DDAGENTUSER_SID" && string.IsNullOrEmpty(kvp.Value)).And
                 .Contain("DDAGENTUSER_PROCESSED_NAME", "ddagentuser").And
                 .Contain("DDAGENTUSER_PROCESSED_DOMAIN", Environment.MachineName).And
                 .Contain("DDAGENTUSER_PROCESSED_FQ_NAME", $"{Environment.MachineName}\\ddagentuser").And
@@ -52,6 +53,7 @@ namespace CustomActions.Tests.UserCustomActions
 
             Test.Properties.Should()
                 .Contain("DDAGENTUSER_FOUND", "true").And
+                .Contain(kvp => kvp.Key == "DDAGENTUSER_SID" && !string.IsNullOrEmpty(kvp.Value)).And
                 .Contain("DDAGENTUSER_PROCESSED_NAME", "ddagentuser").And
                 .Contain("DDAGENTUSER_PROCESSED_DOMAIN", Environment.MachineName).And
                 .Contain("DDAGENTUSER_PROCESSED_FQ_NAME", $"{Environment.MachineName}\\ddagentuser").And
@@ -79,10 +81,11 @@ namespace CustomActions.Tests.UserCustomActions
 
             Test.Properties.Should()
                 .Contain("DDAGENTUSER_FOUND", "true").And
+                .Contain(kvp => kvp.Key == "DDAGENTUSER_SID" && !string.IsNullOrEmpty(kvp.Value)).And
                 .Contain("DDAGENTUSER_PROCESSED_NAME", ddAgentUserName).And
                 .Contain("DDAGENTUSER_PROCESSED_DOMAIN", Domain).And
                 .Contain("DDAGENTUSER_PROCESSED_FQ_NAME", $"{Domain}\\{ddAgentUserName}").And
-                .NotContainKey("DDAGENTUSER_RESET_PASSWORD").And
+                .Contain(kvp => kvp.Key == "DDAGENTUSER_RESET_PASSWORD" && string.IsNullOrEmpty(kvp.Value)).And
                 .Contain(kvp => kvp.Key == "DDAGENTUSER_PROCESSED_PASSWORD" && kvp.Value == ddAgentUserPassword);
         }
 
@@ -106,7 +109,7 @@ namespace CustomActions.Tests.UserCustomActions
 
             Test.Properties.Should()
                 .OnlyContain(kvp => (kvp.Key == "DDAGENTUSER_FOUND" && kvp.Value == "true") ||
-                                    kvp.Key == "DDAGENTUSER_SID");
+                                    (kvp.Key == "DDAGENTUSER_SID" && !string.IsNullOrEmpty(kvp.Value)));
         }
 
         /// <summary>
@@ -125,7 +128,8 @@ namespace CustomActions.Tests.UserCustomActions
                 .Be(ActionResult.Failure);
 
             Test.Properties.Should()
-                .OnlyContain(kvp => kvp.Key == "DDAGENTUSER_FOUND" && kvp.Value == "false");
+                .OnlyContain(kvp => (kvp.Key == "DDAGENTUSER_FOUND" && kvp.Value == "false") ||
+                                    (kvp.Key == "DDAGENTUSER_SID" && string.IsNullOrEmpty(kvp.Value)));
         }
 
         [Theory]
@@ -144,6 +148,7 @@ namespace CustomActions.Tests.UserCustomActions
 
             Test.Properties.Should()
                 .Contain("DDAGENTUSER_FOUND", "false").And
+                .Contain(kvp => kvp.Key == "DDAGENTUSER_SID" && string.IsNullOrEmpty(kvp.Value)).And
                 .Contain("DDAGENTUSER_PROCESSED_NAME", ddAgentUserName).And
                 .Contain("DDAGENTUSER_PROCESSED_DOMAIN", Environment.MachineName).And
                 .Contain("DDAGENTUSER_PROCESSED_FQ_NAME", $"{Environment.MachineName}\\{ddAgentUserName}").And
@@ -167,6 +172,7 @@ namespace CustomActions.Tests.UserCustomActions
 
             Test.Properties.Should()
                 .Contain("DDAGENTUSER_FOUND", "false").And
+                .Contain(kvp => kvp.Key == "DDAGENTUSER_SID" && string.IsNullOrEmpty(kvp.Value)).And
                 .Contain("DDAGENTUSER_PROCESSED_NAME", ddAgentUserName).And
                 .Contain("DDAGENTUSER_PROCESSED_DOMAIN", Environment.MachineName).And
                 .Contain("DDAGENTUSER_PROCESSED_FQ_NAME", $"{Environment.MachineName}\\{ddAgentUserName}").And

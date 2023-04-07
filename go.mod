@@ -489,7 +489,7 @@ require (
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20220101234140-673ab2c3ae75 // indirect
 	github.com/tmthrgd/go-hex v0.0.0-20190904060850-447a3041c3bc // indirect
 	github.com/twitchtv/twirp v8.1.2+incompatible // indirect
-	github.com/twmb/franz-go v1.13.1
+	github.com/twmb/franz-go v1.13.2
 	github.com/twmb/franz-go/pkg/kadm v1.8.0
 	github.com/twmb/franz-go/pkg/kmsg v1.4.0 // indirect
 	github.com/ugorji/go/codec v1.2.7 // indirect

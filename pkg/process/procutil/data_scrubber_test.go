@@ -420,6 +420,51 @@ func TestScrubWithCache(t *testing.T) {
 	assert.Equal(t, sensible, len(scrubber.scrubbedCmdlines))
 }
 
+func TestWordToFastChecker(t *testing.T) {
+	testEntries := []struct{ in, out string }{
+		{
+			in:  "",
+			out: "",
+		},
+		{
+			in:  "*aa*bbbb*",
+			out: "bbbb",
+		},
+		{
+			in:  "*",
+			out: "",
+		},
+		{
+			in:  "***",
+			out: "",
+		},
+		{
+			in:  "*aa**bbbb*",
+			out: "bbbb",
+		},
+		{
+			in:  "*a",
+			out: "a",
+		},
+		{
+			in:  "a*",
+			out: "a",
+		},
+		{
+			in:  "a",
+			out: "a",
+		},
+		{
+			in:  "*aa**bbbb*cc",
+			out: "bbbb",
+		},
+	}
+
+	for _, entry := range testEntries {
+		assert.Equal(t, wordToFastChecker(entry.in), entry.out)
+	}
+}
+
 func BenchmarkRegexMatching1(b *testing.B)    { benchmarkRegexMatching(1, b) }
 func BenchmarkRegexMatching10(b *testing.B)   { benchmarkRegexMatching(10, b) }
 func BenchmarkRegexMatching100(b *testing.B)  { benchmarkRegexMatching(100, b) }
