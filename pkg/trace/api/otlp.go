@@ -473,6 +473,25 @@ func setMetricOTLP(s *pb.Span, k string, v float64) {
 	}
 }
 
+// Default keys used to find a value for _dd.peer.service.source, applied in the order defined below.
+var peerServiceDefaults = []string{
+	// Always use peer.service when it's present
+	semconv.AttributePeerService,
+	// Service-to-service gRPC scenario
+	semconv.AttributeRPCService,
+	// Database
+	semconv.AttributeDBSystem,
+	"db.instance",
+	// Service-to-service HTTP scenario & server-based data streams
+	// Also fallback in case the above attributes are not present
+	semconv.AttributeNetPeerName,
+	// Serverless Database
+	semconv.AttributeAWSDynamoDBTableNames,
+	// Blob storage
+	"bucket.name",
+	semconv.AttributeFaaSDocumentCollection,
+}
+
 // convertSpan converts the span in to a Datadog span, and uses the rattr resource tags and the lib instrumentation
 // library attributes to further augment it.
 func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.InstrumentationScope, in ptrace.Span) *pb.Span {
@@ -490,6 +509,7 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		setMetaOTLP(span, k, v)
 	}
 	setMetaOTLP(span, "otel.trace_id", hex.EncodeToString(traceID[:]))
+	setMetaOTLP(span, "span.kind", spanKindName(in.Kind()))
 	if _, ok := span.Meta["version"]; !ok {
 		if ver := rattr[string(semconv.AttributeServiceVersion)]; ver != "" {
 			setMetaOTLP(span, "version", ver)
@@ -500,11 +520,6 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	}
 	if in.Links().Len() > 0 {
 		setMetaOTLP(span, "_dd.span_links", marshalLinks(in.Links()))
-	}
-	if svc, ok := in.Attributes().Get(semconv.AttributePeerService); ok {
-		// the span attribute "peer.service" takes precedence over any resource attributes,
-		// in the same way that "service.name" does as part of setMetaOTLP
-		span.Service = svc.Str()
 	}
 	in.Attributes().Range(func(k string, v pcommon.Value) bool {
 		switch v.Type() {
@@ -517,6 +532,9 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		}
 		return true
 	})
+	if svc := getFirstFromMap(span.Meta, peerServiceDefaults...); svc != "" {
+		setMetaOTLP(span, "_dd.peer.service.source", svc)
+	}
 	for k, v := range attributes.ContainerTagFromAttributes(span.Meta) {
 		if _, ok := span.Meta[k]; !ok {
 			// overwrite only if it does not exist
