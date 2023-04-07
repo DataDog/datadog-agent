@@ -6,6 +6,7 @@ High level testing tasks
 # so we only need to check that we don't run this code with old Python versions.
 
 import abc
+import datetime
 import json
 import operator
 import os
@@ -167,11 +168,16 @@ class ModuleResult(abc.ABC):
         self.path = path
         # Whether the command failed for that module
         self.failed = False
+        # Duration of the command on the module
+        self.duration = None
         # String for representing the result type in printed output
         self.result_type = "generic"
 
     def failure_string(self, flavor):
         return color_message(f"{self.result_type} for module {self.path} failed ({flavor.name} flavor)\n", "red")
+
+    def get_timing(self, flavor):
+        return f"{self.result_type} for module {self.path} duration ({flavor.name} flavor): {self.duration}\n"
 
     @abc.abstractmethod
     def get_failure(self, flavor):  # noqa: U100
@@ -278,9 +284,13 @@ def lint_flavor(
 
     def command(module_results, module, module_result):
         with ctx.cd(module.full_path()):
+            start_time = datetime.datetime.now()
             lint_results = run_golangci_lint(
                 ctx, targets=module.targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch
             )
+            end_time = datetime.datetime.now()
+
+            module_result.duration = end_time - start_time
             for lint_result in lint_results:
                 module_result.lint_outputs.append(lint_result)
                 if lint_result.exited != 0:
@@ -315,6 +325,7 @@ def test_flavor(
 
     def command(test_results, module, module_result):
         with ctx.cd(module.full_path()):
+            start_time = datetime.datetime.now()
             res = ctx.run(
                 cmd.format(
                     packages=' '.join(f"{t}/..." if not t.endswith("/...") else t for t in module.targets), **args
@@ -323,8 +334,10 @@ def test_flavor(
                 out_stream=test_profiler,
                 warn=True,
             )
+            end_time = datetime.datetime.now()
 
         module_result.result_json_path = os.path.join(module.full_path(), GO_TEST_RESULT_TMP_JSON)
+        module_result.duration = end_time - start_time
 
         if res.exited is None or res.exited > 0:
             module_result.failed = True
@@ -423,9 +436,18 @@ def process_module_results(module_results: Dict[str, Dict[str, List[ModuleResult
         }
     }
 
-    Prints failures, and returns False if at least one module failed in one phase.
+    Prints durations & failures, and returns False if at least one module failed in one phase.
     """
 
+    # Print durations
+    print("Step durations:")
+    for phase in module_results.keys():
+        for flavor in module_results[phase].keys():
+            for module_result in module_results[phase][flavor]:
+                if module_result is not None:
+                    print(module_result.get_timing(flavor))
+
+    # Print failures
     success = True
     for phase in module_results.keys():
         for flavor in module_results[phase].keys():
@@ -655,7 +677,6 @@ def run_lint_go(
     }
 
     # Lint
-
     modules_lint_results_per_flavor = {flavor: [] for flavor in flavors}
 
     for flavor, build_tags in linter_tags.items():
