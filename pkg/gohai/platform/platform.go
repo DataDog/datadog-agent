@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/gohai/utils"
 )
 
-func (self *Platform) Collect() (result interface{}, err error) {
+func (platform *Platform) Collect() (result interface{}, err error) {
 	result, _, err = getPlatformInfo()
 	return
 }

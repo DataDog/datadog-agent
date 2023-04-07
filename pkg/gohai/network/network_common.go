@@ -27,11 +27,11 @@ type Network struct {
 
 const name = "network"
 
-func (self *Network) Name() string {
+func (network *Network) Name() string {
 	return name
 }
 
-func (self *Network) Collect() (result interface{}, err error) {
+func (network *Network) Collect() (result interface{}, err error) {
 	result, err = getNetworkInfo()
 	if err != nil {
 		return

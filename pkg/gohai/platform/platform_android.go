@@ -8,7 +8,7 @@
 
 package platform
 
-func (self *Platform) Collect() (interface{}, error) {
+func (platform *Platform) Collect() (interface{}, error) {
 	return nil, nil
 }
 

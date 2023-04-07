@@ -38,6 +38,6 @@ type Platform struct {
 
 const name = "platform"
 
-func (self *Platform) Name() string {
+func (platform *Platform) Name() string {
 	return name
 }

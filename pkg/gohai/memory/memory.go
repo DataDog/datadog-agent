@@ -15,11 +15,11 @@ type Memory struct {
 
 const name = "memory"
 
-func (self *Memory) Name() string {
+func (memory *Memory) Name() string {
 	return name
 }
 
-func (self *Memory) Collect() (result interface{}, err error) {
+func (memory *Memory) Collect() (result interface{}, err error) {
 	result, err = getMemoryInfo()
 	return
 }

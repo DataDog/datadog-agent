@@ -48,11 +48,11 @@ type Cpu struct {
 
 const name = "cpu"
 
-func (self *Cpu) Name() string {
+func (cpu *Cpu) Name() string {
 	return name
 }
 
-func (self *Cpu) Collect() (result interface{}, err error) {
+func (cpu *Cpu) Collect() (result interface{}, err error) {
 	result, err = getCpuInfo()
 	return
 }
