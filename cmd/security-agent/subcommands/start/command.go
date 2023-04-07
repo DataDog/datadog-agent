@@ -224,7 +224,7 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, f
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.UseEventPlatformForwarder = false
 	opts.UseOrchestratorForwarder = false
-	demux := aggregator.InitAndStartAgentDemultiplexerWithForwarder(forwarder, opts, hostnameDetected)
+	demux := aggregator.InitAndStartAgentDemultiplexer(forwarder, opts, hostnameDetected)
 	demux.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Security Agent", version.AgentVersion))
 
 	stopper = startstop.NewSerialStopper()

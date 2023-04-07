@@ -196,7 +196,7 @@ func start(log log.Component, config config.Component, forwarder forwarder.Compo
 	// Serving stale data is better than serving no data at all.
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.UseEventPlatformForwarder = false
-	demux := aggregator.InitAndStartAgentDemultiplexerWithForwarder(forwarder, opts, hname)
+	demux := aggregator.InitAndStartAgentDemultiplexer(forwarder, opts, hname)
 	demux.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
 	le, err := leaderelection.GetLeaderEngine()

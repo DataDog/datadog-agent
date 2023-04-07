@@ -194,7 +194,7 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 	opts.FlushInterval = 0
 	opts.UseNoopEventPlatformForwarder = true
 	opts.UseNoopOrchestratorForwarder = true
-	demux := aggregator.InitAndStartAgentDemultiplexerWithForwarder(forwarder, opts, hostnameDetected)
+	demux := aggregator.InitAndStartAgentDemultiplexer(forwarder, opts, hostnameDetected)
 
 	common.LoadComponents(context.Background(), pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())

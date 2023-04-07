@@ -434,7 +434,7 @@ func startAgent(
 
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.EnableNoAggregationPipeline = pkgconfig.Datadog.GetBool("dogstatsd_no_aggregation_pipeline")
-	demux = aggregator.InitAndStartAgentDemultiplexerWithForwarder(sharedForwarder, opts, hostnameDetected)
+	demux = aggregator.InitAndStartAgentDemultiplexer(sharedForwarder, opts, hostnameDetected)
 
 	// Setup stats telemetry handler
 	if sender, err := demux.GetDefaultSender(); err == nil {

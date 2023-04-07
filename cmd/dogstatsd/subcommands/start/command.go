@@ -209,7 +209,7 @@ func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component
 		hname = ""
 	}
 	log.Debugf("Using hostname: %s", hname)
-	demux := aggregator.InitAndStartAgentDemultiplexerWithForwarder(forwarder, opts, hname)
+	demux := aggregator.InitAndStartAgentDemultiplexer(forwarder, opts, hname)
 	demux.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// setup the metadata collector

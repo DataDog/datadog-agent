@@ -106,23 +106,15 @@ type dataOutputs struct {
 	noAggSerializer  serializer.MetricSerializer
 }
 
-// InitAndStartAgentDemultiplexerTest creates a new Demultiplexer and runs what's necessary
+func InitAndStartAgentDemultiplexerTest(options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
+	sharedForwarder := forwarder.NewDefaultForwarder(forwarder.NewOptions(nil))
+	return InitAndStartAgentDemultiplexer(sharedForwarder, options, hostname)
+}
+
+// InitAndStartAgentDemultiplexer creates a new Demultiplexer and runs what's necessary
 // in goroutines. As of today, only the embedded BufferedAggregator needs a separate goroutine.
 // In the future, goroutines will be started for the event platform forwarder and/or orchestrator forwarder.
-func InitAndStartAgentDemultiplexerTest(options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
-	// Temporary code removed in a later commit. Either `sharedForwarder` or `sharedForwarderOptions` is required.
-
-	sharedForwarder := forwarder.NewDefaultForwarder(forwarder.NewOptions(nil))
-	return initAndStartAgentDemultiplexer(sharedForwarder, options, hostname)
-}
-
-func InitAndStartAgentDemultiplexerWithForwarder(sharedForwarder forwarder.Forwarder, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
-	// Note: InitAndStartAgentDemultiplexerTest is removed in a later commit. Having both InitAndStartAgentDemultiplexerWithForwarder and InitAndStartAgentDemultiplexerTest
-	// allows a smooth transition.
-	return initAndStartAgentDemultiplexer(sharedForwarder, options, hostname)
-}
-
-func initAndStartAgentDemultiplexer(sharedForwarder forwarder.Forwarder, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
+func InitAndStartAgentDemultiplexer(sharedForwarder forwarder.Forwarder, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
 	demultiplexerInstanceMu.Lock()
 	defer demultiplexerInstanceMu.Unlock()
 
