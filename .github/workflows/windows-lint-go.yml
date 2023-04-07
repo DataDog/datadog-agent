@@ -1,4 +1,4 @@
-name: "Windows unit tests"
+name: "Windows Go linters"
 
 on:
   push:
@@ -12,8 +12,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  windows-unit-tests:
-    runs-on: windows-2022 # https://github.com/actions/virtual-environments/blob/main/images/win/Windows2019-Readme.md
+  windows-lint-go:
+    runs-on: windows-2019 # https://github.com/actions/virtual-environments/blob/main/images/win/Windows2019-Readme.md
     steps:
       - name: Checkout datadog-agent repository
         uses: actions/checkout@v3
@@ -40,11 +40,8 @@ jobs:
           If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
           inv -e deps
           If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
-          # create 'ddagentuser' user to test the secrets feature on windows
-          $Password = ConvertTo-SecureString "dummyPW_:-gch6Rejae9" -AsPlainText -Force
-          New-LocalUser -Name "ddagentuser" -Description "Test user for the secrets feature on windows." -Password $Password
 
-      - name: Run tests
+      - name: Run go linters
         shell: bash # using bash so we don't have to check $lastExitCode all the time
         run: |
           export PATH="/c/msys64/mingw64/bin:/c/msys64/usr/bin/:$PATH" # prepend msys, otherwise make from mingw gets used
@@ -52,7 +49,4 @@ jobs:
           inv -e rtloader.make
           inv -e rtloader.format --raise-if-changed
           inv -e rtloader.install
-          # FIXME: skipping rtloader tests because they fail with a DLL-not-found error
-          # inv -e rtloader.test
-          inv -e test --skip-linters --rerun-fails=2 --python-runtimes 3 --coverage --profile --python-home-3=$pythonLocation
-          inv -e codecov
+          inv -e lint-go

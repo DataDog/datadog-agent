@@ -14,7 +14,7 @@ mkdir \dev\go\src\github.com\DataDog\datadog-agent
 cd \dev\go\src\github.com\DataDog\datadog-agent
 xcopy /e/s/h/q c:\mnt\*.*
 
-Powershell -C "c:\mnt\tasks\winbuildscripts\unittests.ps1"
+Powershell -C "c:\mnt\tasks\winbuildscripts\lint.ps1"
 
 goto :EOF
 
