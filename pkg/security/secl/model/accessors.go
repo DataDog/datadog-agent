@@ -2571,6 +2571,33 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "load_module.args":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveModuleArgs(ev, &ev.LoadModule)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "load_module.args_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ev := ctx.Event.(*Event)
+				return ev.LoadModule.ArgsTruncated
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "load_module.argv":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveModuleArgv(ev, &ev.LoadModule)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "load_module.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -15384,6 +15411,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"link.file.uid",
 		"link.file.user",
 		"link.retval",
+		"load_module.args",
+		"load_module.args_truncated",
+		"load_module.argv",
 		"load_module.file.change_time",
 		"load_module.file.filesystem",
 		"load_module.file.gid",
@@ -16821,6 +16851,12 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Link.Source.FileFields), nil
 	case "link.retval":
 		return int(ev.Link.SyscallEvent.Retval), nil
+	case "load_module.args":
+		return ev.FieldHandlers.ResolveModuleArgs(ev, &ev.LoadModule), nil
+	case "load_module.args_truncated":
+		return ev.LoadModule.ArgsTruncated, nil
+	case "load_module.argv":
+		return ev.FieldHandlers.ResolveModuleArgv(ev, &ev.LoadModule), nil
 	case "load_module.file.change_time":
 		return int(ev.LoadModule.File.FileFields.CTime), nil
 	case "load_module.file.filesystem":
@@ -21278,6 +21314,12 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "link", nil
 	case "link.retval":
 		return "link", nil
+	case "load_module.args":
+		return "load_module", nil
+	case "load_module.args_truncated":
+		return "load_module", nil
+	case "load_module.argv":
+		return "load_module", nil
 	case "load_module.file.change_time":
 		return "load_module", nil
 	case "load_module.file.filesystem":
@@ -23635,6 +23677,12 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "link.retval":
 		return reflect.Int, nil
+	case "load_module.args":
+		return reflect.String, nil
+	case "load_module.args_truncated":
+		return reflect.Bool, nil
+	case "load_module.argv":
+		return reflect.String, nil
 	case "load_module.file.change_time":
 		return reflect.Int, nil
 	case "load_module.file.filesystem":
@@ -27629,6 +27677,30 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Link.SyscallEvent.Retval"}
 		}
 		ev.Link.SyscallEvent.Retval = int64(rv)
+		return nil
+	case "load_module.args":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.Args"}
+		}
+		ev.LoadModule.Args = rv
+		return nil
+	case "load_module.args_truncated":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.ArgsTruncated"}
+		}
+		ev.LoadModule.ArgsTruncated = rv
+		return nil
+	case "load_module.argv":
+		switch rv := value.(type) {
+		case string:
+			ev.LoadModule.Argv = append(ev.LoadModule.Argv, rv)
+		case []string:
+			ev.LoadModule.Argv = append(ev.LoadModule.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.Argv"}
+		}
 		return nil
 	case "load_module.file.change_time":
 		rv, ok := value.(int)
