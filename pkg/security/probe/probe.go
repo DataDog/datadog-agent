@@ -364,28 +364,16 @@ func (p *Probe) AddCustomEventHandler(eventType model.EventType, handler CustomE
 
 func (p *Probe) SendAnomalyDetection(event *model.Event) {
 	evtType := event.GetEventType()
-	if evtType != model.FileOpenEventType &&
-		evtType != model.DNSEventType &&
-		evtType != model.BindEventType &&
+	if evtType != model.DNSEventType &&
 		evtType != model.ExecEventType {
-		return // at least, fork and exit
-	}
-
-	if evtType == model.FileOpenEventType && !p.Config.RuntimeSecurity.SecurityProfileFilesBestEffort {
-		return
+		return // at least, files, bind, fork and exit
 	}
 
 	// TODO: delete debug logs
 	switch event.GetEventType() {
-	case model.FileOpenEventType:
-		fmt.Printf("FILE Event not found in profile -> generate anomaly detection ! %s @ %+v for %s\n",
-			event.ProcessContext.Comm, event.GetEventType().String(), event.Open.File.PathnameStr)
 	case model.DNSEventType:
 		fmt.Printf("DNS Event not found in profile -> generate anomaly detection ! %s @ %+v for %s (%d)\n",
 			event.ProcessContext.Comm, event.GetEventType().String(), event.DNS.Name, event.DNS.Type)
-	case model.BindEventType:
-		fmt.Printf("BIND Event not found in profile -> generate anomaly detection ! %s @ %+v\n",
-			event.ProcessContext.Comm, event.GetEventType().String())
 	case model.ExecEventType:
 		fmt.Printf("EXEC Event not found in profile -> generate anomaly detection ! %s @ %+v\n",
 			event.ProcessContext.Comm, event.GetEventType().String())
