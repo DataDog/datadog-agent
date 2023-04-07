@@ -216,7 +216,7 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
 
     for prog in network_programs:
         infile = os.path.join(network_c_dir, f"{prog}.c")
-        outfile = os.path.join(build_dir, f"{prog}.o")
+        outfile = os.path.join(build_dir, f"{os.path.basename(prog)}.o")
         ninja_network_ebpf_program(nw, infile, outfile, network_flags)
 
     for prog_path in network_co_re_programs:
