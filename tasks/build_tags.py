@@ -40,7 +40,6 @@ ALL_TAGS = {
     "secrets",
     "systemd",
     "trivy",
-    "vtprotocodec",  # used by system-probe to gate the registration of the vtprotobuf gRPC codec
     "zk",
     "zlib",
     "test",  # used for unit-tests
@@ -118,7 +117,7 @@ PROCESS_AGENT_HEROKU_TAGS = PROCESS_AGENT_TAGS.difference(
 SECURITY_AGENT_TAGS = {"netcgo", "secrets", "docker", "containerd", "kubeapiserver", "kubelet", "podman", "zlib"}
 
 # SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
-SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"clusterchecks", "linux_bpf", "npm", "vtprotocodec"}).difference(
+SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"clusterchecks", "linux_bpf", "npm"}).difference(
     {"python", "trivy"}
 )
 
