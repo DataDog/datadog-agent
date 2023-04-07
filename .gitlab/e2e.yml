@@ -82,10 +82,10 @@ k8s-e2e-cws-dev:
 k8s-e2e-cws-main:
   extends: .k8s_e2e_template
   rules:
-    !reference [.on_main_a7]
-  needs:
-    - dca_dev_master
-    - dev_master-a7
+    !reference [.on_main]
+  # needs:
+  #   - dev_master-a6
+  #   - dev_master-a7
   retry: 1
   script:
     - !reference [.k8s-e2e-cws-cspm-init]
@@ -103,10 +103,10 @@ k8s-e2e-cspm-dev:
 k8s-e2e-cspm-main:
   extends: .k8s_e2e_template
   rules:
-    !reference [.on_main_a7]
-  needs:
-    - dca_dev_master
-    - dev_master-a7
+    !reference [.on_main]
+  # needs:
+  #   - dev_master-a6
+  #   - dev_master-a7
   retry: 1
   script:
     - !reference [.k8s-e2e-cws-cspm-init]
