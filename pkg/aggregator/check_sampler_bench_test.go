@@ -23,7 +23,8 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	forwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(map[string][]string{"hello": {"world"}}))
 	options := DefaultAgentDemultiplexerOptions()
 	options.DontStartForwarders = true
-	demux := InitAndStartAgentDemultiplexer(forwarderOpts, options, "hostname")
+	sharedForwarder := forwarder.NewDefaultForwarder(forwarderOpts)
+	demux := InitAndStartAgentDemultiplexerWithForwarder(sharedForwarder, options, "hostname")
 	defer demux.Stop(true)
 
 	checkSampler := newCheckSampler(1, true, 1000, tags.NewStore(true, "bench"))

@@ -106,18 +106,18 @@ type dataOutputs struct {
 	noAggSerializer  serializer.MetricSerializer
 }
 
-// InitAndStartAgentDemultiplexer creates a new Demultiplexer and runs what's necessary
+// InitAndStartAgentDemultiplexerTest creates a new Demultiplexer and runs what's necessary
 // in goroutines. As of today, only the embedded BufferedAggregator needs a separate goroutine.
 // In the future, goroutines will be started for the event platform forwarder and/or orchestrator forwarder.
-func InitAndStartAgentDemultiplexer(sharedForwarderOptions *forwarder.Options, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
+func InitAndStartAgentDemultiplexerTest(options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
 	// Temporary code removed in a later commit. Either `sharedForwarder` or `sharedForwarderOptions` is required.
 
-	sharedForwarder := forwarder.NewDefaultForwarder(sharedForwarderOptions)
+	sharedForwarder := forwarder.NewDefaultForwarder(forwarder.NewOptions(nil))
 	return initAndStartAgentDemultiplexer(sharedForwarder, options, hostname)
 }
 
 func InitAndStartAgentDemultiplexerWithForwarder(sharedForwarder forwarder.Forwarder, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
-	// Note: InitAndStartAgentDemultiplexer is removed in a later commit. Having both InitAndStartAgentDemultiplexerWithForwarder and InitAndStartAgentDemultiplexer
+	// Note: InitAndStartAgentDemultiplexerTest is removed in a later commit. Having both InitAndStartAgentDemultiplexerWithForwarder and InitAndStartAgentDemultiplexerTest
 	// allows a smooth transition.
 	return initAndStartAgentDemultiplexer(sharedForwarder, options, hostname)
 }
@@ -129,7 +129,7 @@ func initAndStartAgentDemultiplexer(sharedForwarder forwarder.Forwarder, options
 	demux := initAgentDemultiplexer(sharedForwarder, options, hostname)
 
 	if demultiplexerInstance != nil {
-		log.Warn("A DemultiplexerInstance is already existing but InitAndStartAgentDemultiplexer has been called again. Current instance will be overridden")
+		log.Warn("A DemultiplexerInstance is already existing but InitAndStartAgentDemultiplexerTest has been called again. Current instance will be overridden")
 	}
 	demultiplexerInstance = demux
 

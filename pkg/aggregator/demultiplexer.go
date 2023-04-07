@@ -19,7 +19,7 @@ import (
 )
 
 // DemultiplexerInstance is a shared global demultiplexer instance.
-// Initialized by InitAndStartAgentDemultiplexer or InitAndStartServerlessDemultiplexer,
+// Initialized by InitAndStartAgentDemultiplexerTest or InitAndStartServerlessDemultiplexer,
 // could be nil otherwise.
 //
 // The plan is to deprecated this global instance at some point.

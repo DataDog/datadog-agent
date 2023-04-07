@@ -24,7 +24,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -48,7 +47,7 @@ func initF() {
 	opts := DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = 1 * time.Hour
 	opts.DontStartForwarders = true
-	demux := InitAndStartAgentDemultiplexer(forwarder.NewOptions(nil), opts, defaultHostname)
+	demux := InitAndStartAgentDemultiplexerTest(opts, defaultHostname)
 
 	demux.Aggregator().tlmContainerTagsEnabled = false // do not use a ContainerImpl
 	recurrentSeries = metrics.Series{}
@@ -105,7 +104,7 @@ func TestDeregisterCheckSampler(t *testing.T) {
 	// -
 
 	opts := demuxTestOptions()
-	demux := InitAndStartAgentDemultiplexer(forwarder.NewOptions(nil), opts, defaultHostname)
+	demux := InitAndStartAgentDemultiplexerTest(opts, defaultHostname)
 	defer demux.Stop(false)
 
 	agg := demux.Aggregator()
@@ -283,7 +282,7 @@ func TestSeriesTooManyTags(t *testing.T) {
 		return func(t *testing.T) {
 			s := &MockSerializerIterableSerie{}
 			opts := demuxTestOptions()
-			demux := InitAndStartAgentDemultiplexer(forwarder.NewOptions(nil), opts, "")
+			demux := InitAndStartAgentDemultiplexerTest(opts, "")
 			demux.sharedSerializer = s
 			demux.aggregator.serializer = s
 
@@ -346,7 +345,7 @@ func TestDistributionsTooManyTags(t *testing.T) {
 		return func(t *testing.T) {
 			s := &MockSerializerIterableSerie{}
 			opts := demuxTestOptions()
-			demux := InitAndStartAgentDemultiplexer(forwarder.NewOptions(nil), opts, "")
+			demux := InitAndStartAgentDemultiplexerTest(opts, "")
 			demux.sharedSerializer = s
 			demux.aggregator.serializer = s
 
@@ -400,7 +399,7 @@ func TestRecurrentSeries(t *testing.T) {
 
 	s := &MockSerializerIterableSerie{}
 	opts := demuxTestOptions()
-	demux := InitAndStartAgentDemultiplexer(forwarder.NewOptions(nil), opts, "")
+	demux := InitAndStartAgentDemultiplexerTest(opts, "")
 	demux.aggregator.serializer = s
 	demux.sharedSerializer = s
 
@@ -584,7 +583,7 @@ func TestTimeSamplerFlush(t *testing.T) {
 	s := &MockSerializerIterableSerie{}
 	s.On("SendServiceChecks", mock.Anything).Return(nil)
 	opts := demuxTestOptions()
-	demux := InitAndStartAgentDemultiplexer(forwarder.NewOptions(nil), opts, "")
+	demux := InitAndStartAgentDemultiplexerTest(opts, "")
 	demux.aggregator.serializer = s
 	demux.sharedSerializer = s
 	expectedSeries := flushSomeSamples(demux)

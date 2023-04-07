@@ -18,7 +18,6 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -34,7 +33,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	demux := aggregator.InitAndStartAgentDemultiplexer(forwarder.NewOptions(nil), opts, "hostname")
+	demux := aggregator.InitAndStartAgentDemultiplexerTest(opts, "hostname")
 
 	deps := fxutil.Test[testDeps](t, fx.Options(
 		core.MockBundle,

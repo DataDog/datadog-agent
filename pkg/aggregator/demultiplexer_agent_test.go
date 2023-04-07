@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/stretchr/testify/require"
 )
@@ -95,7 +94,7 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 
 func TestDemuxNoAggOptionIsDisabledByDefault(t *testing.T) {
 	opts := demuxTestOptions()
-	demux := InitAndStartAgentDemultiplexer(forwarder.NewOptions(nil), opts, "")
+	demux := InitAndStartAgentDemultiplexerTest(opts, "")
 	require.False(t, demux.Options().EnableNoAggregationPipeline, "the no aggregation pipeline should be disabled by default")
 	demux.Stop(false)
 }

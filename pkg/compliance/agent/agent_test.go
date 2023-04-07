@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 
@@ -98,7 +97,7 @@ func TestRunK8s(t *testing.T) {
 
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	aggregator.InitAndStartAgentDemultiplexer(forwarder.NewOptions(nil), opts, "foo")
+	aggregator.InitAndStartAgentDemultiplexerTest(opts, "foo")
 
 	e := enterTempEnv(t, true)
 	defer e.leave()
@@ -174,7 +173,7 @@ func TestRunDocker(t *testing.T) {
 
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	aggregator.InitAndStartAgentDemultiplexer(forwarder.NewOptions(nil), opts, "foo")
+	aggregator.InitAndStartAgentDemultiplexerTest(opts, "foo")
 
 	e := enterTempEnv(t, false)
 	defer e.leave()
@@ -267,7 +266,7 @@ func TestRunChecks(t *testing.T) {
 
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	aggregator.InitAndStartAgentDemultiplexer(forwarder.NewOptions(nil), opts, "foo")
+	aggregator.InitAndStartAgentDemultiplexerTest(opts, "foo")
 
 	e := enterTempEnv(t, false)
 	defer e.leave()
