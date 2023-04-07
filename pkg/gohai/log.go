@@ -1,3 +1,8 @@
+// This file is licensed under the MIT License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>
+// Copyright 2014-present Datadog, Inc.
+
 package main
 
 import (
@@ -21,7 +26,7 @@ type StdErrReceiver struct{}
 
 // Implement seelog.CustomReceiver to log to stderr instead of stdout
 func (sr *StdErrReceiver) ReceiveMessage(message string, level log.LogLevel, context log.LogContextInterface) error {
-	fmt.Fprintf(os.Stderr, message)
+	fmt.Fprint(os.Stderr, message)
 	return nil
 }
 
