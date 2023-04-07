@@ -363,9 +363,15 @@ func (p *Probe) AddCustomEventHandler(eventType model.EventType, handler CustomE
 
 func (p *Probe) SendAnomalyDetection(event *model.Event) {
 	evtType := event.GetEventType()
-	if evtType != model.DNSEventType &&
+	if evtType != model.FileOpenEventType &&
+		evtType != model.DNSEventType &&
+		evtType != model.BindEventType &&
 		evtType != model.ExecEventType {
-		return // at least, files, bind, fork and exit
+		return // at least, fork and exit
+	}
+
+	if evtType == model.FileOpenEventType && !p.Config.RuntimeSecurity.SecurityProfileFilesBestEffort {
+		return
 	}
 
 	p.DispatchCustomEvent(

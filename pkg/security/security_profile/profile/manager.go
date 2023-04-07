@@ -511,15 +511,16 @@ func (m *SecurityProfileManager) unlinkProfile(profile *SecurityProfile, workloa
 }
 
 func (m *SecurityProfileManager) LookupEventOnProfiles(event *model.Event) {
-	evtType := event.GetEventType()
-	if evtType == model.SyscallsEventType || // syscall matching for anomaly detection is already done kernel side
-		evtType == model.FileOpenEventType || evtType == model.BindEventType { // disabled for now
-		return
+	if event.GetEventType() == model.SyscallsEventType {
+		return // syscall matching for anomaly detection is already done kernel side
 	}
 
 	event.FieldHandlers.ResolveContainerID(event, &event.ContainerContext)
 	event.FieldHandlers.ResolveContainerTags(event, &event.ContainerContext)
 	if event.ContainerContext.ID == "" || len(event.ContainerContext.Tags) == 0 {
+		return
+	}
+	if event.GetEventType() == model.FileOpenEventType && !m.config.RuntimeSecurity.SecurityProfileFilesBestEffort {
 		return
 	}
 
@@ -536,7 +537,7 @@ func (m *SecurityProfileManager) LookupEventOnProfiles(event *model.Event) {
 	}
 	profile := m.GetProfile(selector)
 	if profile == nil || profile.Status == 0 {
-		m.eventFilteringNoProfile[evtType].Inc()
+		m.eventFilteringNoProfile[event.GetEventType()].Inc()
 		return
 	}
 
@@ -546,25 +547,35 @@ func (m *SecurityProfileManager) LookupEventOnProfiles(event *model.Event) {
 
 	processNodes := profile.findProfileProcessNodes(event.ProcessContext)
 	if len(processNodes) == 0 {
-		m.eventFilteringAbsent[evtType].Inc()
+		m.eventFilteringAbsent[event.GetEventType()].Inc()
 		return
 	}
 
-	switch evtType {
+	switch event.GetEventType() {
 	// for fork/exec/exit events, as we already found some nodes, no need to investigate further
 	case model.ForkEventType, model.ExecEventType, model.ExitEventType:
 		event.AddToFlags(model.EventFlagsSecurityProfileFoundAndPresent)
 
+	case model.FileOpenEventType:
+		if findFileInNodes(processNodes, event) {
+			event.AddToFlags(model.EventFlagsSecurityProfileFoundAndPresent)
+			fmt.Printf("FILE Event found in profile -> discarded\n")
+		}
 	case model.DNSEventType:
 		if findDNSInNodes(processNodes, event) {
 			event.AddToFlags(model.EventFlagsSecurityProfileFoundAndPresent)
 		}
+	case model.BindEventType:
+		if findBindInNodes(processNodes, event) {
+			event.AddToFlags(model.EventFlagsSecurityProfileFoundAndPresent)
+			fmt.Printf("BIND Event found in profile -> discarded\n")
+		}
 	}
 
 	if event.IsSecurityProfileFoundAndPresent() {
-		m.eventFilteringPresent[evtType].Inc()
+		m.eventFilteringPresent[event.GetEventType()].Inc()
 	} else {
-		m.eventFilteringAbsent[evtType].Inc()
+		m.eventFilteringAbsent[event.GetEventType()].Inc()
 	}
 	return
 }
