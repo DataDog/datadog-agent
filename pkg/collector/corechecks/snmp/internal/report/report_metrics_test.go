@@ -313,11 +313,16 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 		count int
 	}
 	tests := []struct {
-		name         string
-		metrics      []checkconfig.MetricsConfig
-		values       *valuestore.ResultValueStore
-		tags         []string
-		expectedLogs []logCount
+		name               string
+		metrics            []checkconfig.MetricsConfig
+		values             *valuestore.ResultValueStore
+		tags               []string
+		expectedMethod     string
+		expectedMetricName string
+		expectedValue      float64
+		expectedTags       []string
+		expectedSubMetrics int
+		expectedLogs       []logCount
 	}{
 		{
 			name: "report scalar error",
@@ -328,6 +333,37 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 			expectedLogs: []logCount{
 				{"[DEBUG] reportScalarMetrics: report scalar: error getting scalar value: value for Scalar OID `1.2.3.4.5` not found in results", 1},
 			},
+		},
+		{
+			name: "report constant",
+			metrics: []checkconfig.MetricsConfig{
+				{Symbols: []checkconfig.SymbolConfig{{Name: "constantMetric", SendAsConstant: true}}, MetricTags: checkconfig.MetricTagConfigList{
+					{
+						Tag:    "status",
+						Column: checkconfig.SymbolConfig{Name: "status", OID: "1.2.3.4"},
+					},
+				}},
+			},
+			values: &valuestore.ResultValueStore{
+				ColumnValues: map[string]map[string]valuestore.ResultValue{
+					"1.2.3.4": {
+						"5.6.7": valuestore.ResultValue{
+							Value: float64(1),
+						},
+						"5.6.8": valuestore.ResultValue{
+							Value: float64(2),
+						},
+						"5.6.9": valuestore.ResultValue{
+							Value: float64(1),
+						},
+					},
+				},
+			},
+			expectedMethod:     "Gauge",
+			expectedMetricName: "snmp.constantMetric",
+			expectedValue:      float64(1),
+			expectedTags:       []string{"status:1"},
+			expectedSubMetrics: 3,
 		},
 	}
 	for _, tt := range tests {
@@ -345,6 +381,11 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 			metricSender := MetricSender{sender: mockSender}
 
 			metricSender.ReportMetrics(tt.metrics, tt.values, tt.tags)
+
+			assert.Equal(t, tt.expectedSubMetrics, metricSender.submittedMetrics)
+			if tt.expectedMethod != "" {
+				mockSender.AssertCalled(t, tt.expectedMethod, tt.expectedMetricName, tt.expectedValue, "", tt.expectedTags)
+			}
 
 			w.Flush()
 			logs := b.String()

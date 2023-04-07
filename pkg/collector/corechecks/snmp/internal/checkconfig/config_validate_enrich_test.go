@@ -112,7 +112,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 			},
 			expectedErrors: []string{
 				"symbol name missing: name=`` oid=`1.2`",
-				"symbol oid missing: name=`abc` oid=``",
+				"symbol oid or send_as_one missing: name=`abc` oid=``",
 			},
 		},
 		{
@@ -158,7 +158,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				"column symbols [{1.2 abc  <nil>   <nil> 0 }] doesn't have a 'metric_tags' section",
+				"column symbols [{1.2 abc  <nil>   <nil> 0  false}] doesn't have a 'metric_tags' section",
 			},
 		},
 		{

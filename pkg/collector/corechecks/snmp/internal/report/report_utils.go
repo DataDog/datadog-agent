@@ -170,3 +170,26 @@ func getInterfaceConfig(interfaceConfigs []snmpintegration.InterfaceConfig, inde
 	}
 	return snmpintegration.InterfaceConfig{}, fmt.Errorf("no matching interface found for index=%s, tags=%s", index, tags)
 }
+
+// getAllTagsContexts retrieve all tags contexts using the metric config and values
+func getConstantMetricValues(mtcl checkconfig.MetricTagConfigList, values *valuestore.ResultValueStore) map[string]valuestore.ResultValue {
+	constantValues := make(map[string]valuestore.ResultValue)
+	for _, metricTag := range mtcl {
+		if metricTag.Column.OID != "" {
+			columnValues, err := getColumnValueFromSymbol(values, metricTag.Column)
+			if err != nil {
+				log.Debugf("error getting column value: %v", err)
+				continue
+			}
+			for index, _ := range columnValues {
+				if _, ok := constantValues[index]; ok {
+					continue
+				}
+				constantValues[index] = valuestore.ResultValue{
+					Value: float64(1),
+				}
+			}
+		}
+	}
+	return constantValues
+}
