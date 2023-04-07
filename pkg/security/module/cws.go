@@ -350,7 +350,7 @@ func (c *CWSConsumer) LoadPolicies(policyProviders []rules.PolicyProvider, sendL
 		c.rulesLoaded([]*rules.RuleSet{ruleSet, threatScoreRuleSet}, loadErrs)
 	}
 
-	// add module as listener for ruleset events
+	// add module as listener for rule match callback
 	ruleSet.AddListener(c)
 	threatScoreRuleSet.AddListener(c)
 
@@ -361,15 +361,8 @@ func (c *CWSConsumer) LoadPolicies(policyProviders []rules.PolicyProvider, sendL
 	}
 	c.displayApplyRuleSetReport(report)
 
-	threatScoreRuleSetReport, err := c.probe.ApplyRuleSet(threatScoreRuleSet, true)
-	if err != nil {
-		return err
-	}
-	c.displayApplyRuleSetReport(threatScoreRuleSetReport)
-
 	// set the rate limiters
 	c.rateLimiter.Apply(ruleSet, events.AllCustomRuleIDs())
-	c.rateLimiter.Apply(threatScoreRuleSet, events.AllCustomRuleIDs())
 
 	// full list of IDs, user rules + custom
 	var ruleIDs []rules.RuleID
@@ -380,7 +373,6 @@ func (c *CWSConsumer) LoadPolicies(policyProviders []rules.PolicyProvider, sendL
 
 	if sendLoadedReport {
 		ReportRuleSetLoaded(c.eventSender, c.statsdClient, ruleSet, loadErrs)
-		ReportRuleSetLoaded(c.eventSender, c.statsdClient, threatScoreRuleSet, loadErrs)
 		c.policyMonitor.AddPolicies(policySet.GetPolicies(), loadErrs)
 	}
 
