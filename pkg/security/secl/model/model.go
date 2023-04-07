@@ -302,6 +302,11 @@ func (e *Event) AddToFlags(flag uint32) {
 	e.Flags |= flag
 }
 
+// RemoveFromFlags remove a flag to the event
+func (e *Event) RemoveFromFlags(flag uint32) {
+	e.Flags ^= flag
+}
+
 // HaveMatchedAProfile returns true if we found a profile for that event
 func (e *Event) HaveMatchedAProfile() bool {
 	return e.SecurityProfileContext.Name != ""

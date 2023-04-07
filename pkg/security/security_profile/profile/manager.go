@@ -513,7 +513,8 @@ func (m *SecurityProfileManager) unlinkProfile(profile *SecurityProfile, workloa
 func (m *SecurityProfileManager) LookupEventOnProfiles(event *model.Event) {
 	evtType := event.GetEventType()
 	if evtType == model.SyscallsEventType || // syscall matching for anomaly detection is already done kernel side
-		evtType == model.FileOpenEventType || evtType == model.BindEventType { // disabled for now
+		evtType == model.FileOpenEventType || evtType == model.BindEventType || // disabled for now
+		evtType == model.ForkEventType || evtType == model.ExitEventType { // no interest in fork/exit events
 		return
 	}
 
@@ -539,6 +540,7 @@ func (m *SecurityProfileManager) LookupEventOnProfiles(event *model.Event) {
 		m.eventFilteringNoProfile[evtType].Inc()
 		return
 	}
+	event.AddToFlags(model.EventFlagsSecurityProfileFoundAndAbsent)
 
 	FillProfileContextFromProfile(&event.SecurityProfileContext, profile)
 	event.AnomalyDetectionEnabled = profile.Status.IsEnabled(AnomalyDetection)
@@ -552,11 +554,13 @@ func (m *SecurityProfileManager) LookupEventOnProfiles(event *model.Event) {
 
 	switch evtType {
 	// for fork/exec/exit events, as we already found some nodes, no need to investigate further
-	case model.ForkEventType, model.ExecEventType, model.ExitEventType:
+	case model.ExecEventType:
+		event.RemoveFromFlags(model.EventFlagsSecurityProfileFoundAndAbsent)
 		event.AddToFlags(model.EventFlagsSecurityProfileFoundAndPresent)
 
 	case model.DNSEventType:
 		if findDNSInNodes(processNodes, event) {
+			event.RemoveFromFlags(model.EventFlagsSecurityProfileFoundAndAbsent)
 			event.AddToFlags(model.EventFlagsSecurityProfileFoundAndPresent)
 		}
 	}
