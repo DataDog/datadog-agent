@@ -22,7 +22,7 @@ var cpuMap = map[string]string{
 	"machdep.cpu.stepping":     "stepping",
 }
 
-func getCpuInfo() (cpuInfo map[string]string, err error) {
+func getCPUInfo() (cpuInfo map[string]string, err error) {
 
 	cpuInfo = make(map[string]string)
 

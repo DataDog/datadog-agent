@@ -23,22 +23,22 @@ import (
 // nodeNRegex recognizes directories named `nodeNN`
 var nodeNRegex = regexp.MustCompile("^node[0-9]+$")
 
-func getCpuInfo() (cpuInfo map[string]string, err error) {
+func getCPUInfo() (cpuInfo map[string]string, err error) {
 	cpuInfo = make(map[string]string)
 
-	procCpu, err := readProcCpuInfo()
+	procCPU, err := readProcCPUInfo()
 	if err != nil {
 		return nil, err
 	}
 
 	// we blithely assume that many of the CPU characteristics are the same for
 	// all CPUs, so we can just use the first.
-	firstCpu := procCpu[0]
+	firstCPU := procCPU[0]
 
 	// determine vendor and model from CPU implementer / part
-	if cpuVariantStr, ok := firstCpu["CPU implementer"]; ok {
+	if cpuVariantStr, ok := firstCPU["CPU implementer"]; ok {
 		if cpuVariant, err := strconv.ParseUint(cpuVariantStr, 0, 64); err == nil {
-			if cpuPartStr, ok := firstCpu["CPU part"]; ok {
+			if cpuPartStr, ok := firstCPU["CPU part"]; ok {
 				if cpuPart, err := strconv.ParseUint(cpuPartStr, 0, 64); err == nil {
 					cpuInfo["model"] = cpuPartStr
 					if impl, ok := hwVariant[cpuVariant]; ok {
@@ -61,9 +61,9 @@ func getCpuInfo() (cpuInfo map[string]string, err error) {
 	cpuInfo["family"] = "none"
 
 	// 'lscpu' represents the stepping as an rXpY string
-	if cpuVariantStr, ok := firstCpu["CPU variant"]; ok {
+	if cpuVariantStr, ok := firstCPU["CPU variant"]; ok {
 		if cpuVariant, err := strconv.ParseUint(cpuVariantStr, 0, 64); err == nil {
-			if cpuRevisionStr, ok := firstCpu["CPU revision"]; ok {
+			if cpuRevisionStr, ok := firstCPU["CPU revision"]; ok {
 				if cpuRevision, err := strconv.ParseUint(cpuRevisionStr, 0, 64); err == nil {
 					cpuInfo["stepping"] = fmt.Sprintf("r%dp%d", cpuVariant, cpuRevision)
 				}
@@ -75,24 +75,24 @@ func getCpuInfo() (cpuInfo map[string]string, err error) {
 	cores := map[uint64]struct{}{}
 	packages := map[uint64]struct{}{}
 	cacheSizes := map[uint64]uint64{}
-	for _, stanza := range procCpu {
+	for _, stanza := range procCPU {
 		procID, err := strconv.ParseUint(stanza["processor"], 0, 64)
 		if err != nil {
 			continue
 		}
 
-		if coreID, ok := sysCpuInt(fmt.Sprintf("cpu%d/topology/core_id", procID)); ok {
+		if coreID, ok := sysCPUInt(fmt.Sprintf("cpu%d/topology/core_id", procID)); ok {
 			cores[coreID] = struct{}{}
 		}
 
-		if pkgID, ok := sysCpuInt(fmt.Sprintf("cpu%d/topology/physical_package_id", procID)); ok {
+		if pkgID, ok := sysCPUInt(fmt.Sprintf("cpu%d/topology/physical_package_id", procID)); ok {
 			packages[pkgID] = struct{}{}
 		}
 
 		// iterate over each cache this CPU can use
 		i := 0
 		for {
-			if sharedList, ok := sysCpuList(fmt.Sprintf("cpu%d/cache/index%d/shared_cpu_list", procID, i)); ok {
+			if sharedList, ok := sysCPUList(fmt.Sprintf("cpu%d/cache/index%d/shared_cpu_list", procID, i)); ok {
 				// we are scanning CPUs in order, so only count this cache if it's not shared with a
 				// CPU that has already been scanned
 				shared := false
@@ -104,8 +104,8 @@ func getCpuInfo() (cpuInfo map[string]string, err error) {
 				}
 
 				if !shared {
-					if level, ok := sysCpuInt(fmt.Sprintf("cpu%d/cache/index%d/level", procID, i)); ok {
-						if size, ok := sysCpuSize(fmt.Sprintf("cpu%d/cache/index%d/size", procID, i)); ok {
+					if level, ok := sysCPUInt(fmt.Sprintf("cpu%d/cache/index%d/level", procID, i)); ok {
+						if size, ok := sysCPUSize(fmt.Sprintf("cpu%d/cache/index%d/size", procID, i)); ok {
 							cacheSizes[level] += size
 						}
 					}
@@ -118,7 +118,7 @@ func getCpuInfo() (cpuInfo map[string]string, err error) {
 	}
 	cpuInfo["cpu_pkgs"] = strconv.Itoa(len(packages))
 	cpuInfo["cpu_cores"] = strconv.Itoa(len(cores))
-	cpuInfo["cpu_logical_processors"] = strconv.Itoa(len(procCpu))
+	cpuInfo["cpu_logical_processors"] = strconv.Itoa(len(procCPU))
 	cpuInfo["cache_size_l1"] = strconv.FormatUint(cacheSizes[1], 10)
 	cpuInfo["cache_size_l2"] = strconv.FormatUint(cacheSizes[2], 10)
 	cpuInfo["cache_size_l3"] = strconv.FormatUint(cacheSizes[3], 10)

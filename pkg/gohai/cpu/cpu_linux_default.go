@@ -33,7 +33,7 @@ var perPhysicalProcValues = []string{
 	"cpu_logical_processors",
 }
 
-func getCpuInfo() (cpuInfo map[string]string, err error) {
+func getCPUInfo() (cpuInfo map[string]string, err error) {
 	lines, err := readProcFile()
 	if err != nil {
 		return

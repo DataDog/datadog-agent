@@ -16,7 +16,7 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
-var getCpuInfo = GetCpuInfo
+var getCPUInfo = GetCPUInfo
 
 // Values that need to be multiplied by the number of physical processors
 var perPhysicalProcValues = []string{
@@ -147,8 +147,8 @@ func getSystemInfo() (si SYSTEM_INFO) {
 	return
 }
 
-// GetCpuInfo returns map of interesting bits of information about the CPU
-func GetCpuInfo() (cpuInfo map[string]string, err error) {
+// GetCPUInfo returns map of interesting bits of information about the CPU
+func GetCPUInfo() (cpuInfo map[string]string, err error) {
 
 	cpuInfo = make(map[string]string)
 

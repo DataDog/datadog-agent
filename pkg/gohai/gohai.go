@@ -34,7 +34,7 @@ type Collector interface {
 type SelectedCollectors map[string]struct{}
 
 var collectors = []Collector{
-	&cpu.Cpu{},
+	&cpu.CPU{},
 	&filesystem.FileSystem{},
 	&memory.Memory{},
 	&network.Network{},

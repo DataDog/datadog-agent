@@ -67,8 +67,8 @@ type gohaiPayload struct {
 			Name        string   `json:"name"`
 			Ipv4Network string   `json:"ipv4-network"`
 		} `json:"interfaces"`
-		Ipaddress   string `json:"ipaddress"`
-		Ipaddressv6 string `json:"ipaddressv6"`
+		IPAddress   string `json:"ipaddress"`
+		IPAddressv6 string `json:"ipaddressv6"`
 		Macaddress  string `json:"macaddress"`
 	} `json:"network"`
 	Platform struct {
@@ -93,11 +93,11 @@ func TestGohaiSerialization(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	gohaiJson, err := json.Marshal(gohai)
+	gohaiJSON, err := json.Marshal(gohai)
 	assert.NoError(t, err)
 
 	var payload gohaiPayload
-	assert.NoError(t, json.Unmarshal(gohaiJson, &payload))
+	assert.NoError(t, json.Unmarshal(gohaiJSON, &payload))
 
 	assert.NotEmpty(t, payload.CPU.CPUCores)
 	assert.NotEmpty(t, payload.CPU.CPULogicalProcessors)
@@ -159,10 +159,10 @@ func TestGohaiSerialization(t *testing.T) {
 			}
 		}
 	}
-	assert.NotEmpty(t, payload.Network.Ipaddress)
-	assert.NotNil(t, net.ParseIP(payload.Network.Ipaddress))
-	// Ipaddressv6 *can* be empty
-	// assert.NotEmpty(t, payload.Network.Ipaddressv6)
+	assert.NotEmpty(t, payload.Network.IPAddress)
+	assert.NotNil(t, net.ParseIP(payload.Network.IPAddress))
+	// IPAddressv6 *can* be empty
+	// assert.NotEmpty(t, payload.Network.IPAddressv6)
 	assert.NotEmpty(t, payload.Network.Macaddress)
 
 	assert.NotEmpty(t, payload.Platform.Gooarch)

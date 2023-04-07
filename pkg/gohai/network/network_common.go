@@ -14,10 +14,10 @@ import (
 
 // Network holds network metadata about the host
 type Network struct {
-	// IpAddress is the ipv4 address for the host
-	IpAddress string
-	// IpAddressv6 is the ipv6 address for the host
-	IpAddressv6 string
+	// IPAddress is the ipv4 address for the host
+	IPAddress string
+	// IPAddressv6 is the ipv6 address for the host
+	IPAddressv6 string
 	// MacAddress is the macaddress for the host
 	MacAddress string
 
@@ -58,8 +58,8 @@ func Get() (*Network, []string, error) {
 	}
 
 	return &Network{
-		IpAddress:   utils.GetStringInterface(networkInfo, "ipaddress"),
-		IpAddressv6: utils.GetStringInterface(networkInfo, "ipaddressv6"),
+		IPAddress:   utils.GetStringInterface(networkInfo, "ipaddress"),
+		IPAddressv6: utils.GetStringInterface(networkInfo, "ipaddressv6"),
 		MacAddress:  utils.GetStringInterface(networkInfo, "macaddress"),
 	}, nil, nil
 }
@@ -153,9 +153,9 @@ func externalIpv6Address() (string, error) {
 	return "", nil
 }
 
-type IpAddress struct{}
+type IPAddress struct{}
 
-func externalIpAddress() (string, error) {
+func externalIPAddress() (string, error) {
 	ifaces, err := net.Interfaces()
 
 	if err != nil {
