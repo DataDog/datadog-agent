@@ -80,6 +80,8 @@ func calculatePct(deltaProc, deltaTime, numCPU float64) float32 {
 	pct := overalPct * numCPU
 
 	// Clamp to 0 below if we get a negative value
+	// CPU time counters in /proc/ used to determine process execution time may potentially be decremented, leading to a negative deltaProc
+	// Avoid reporting negative CPU percentages when this occurs
 	pct = math.Max(pct, 0.0)
 	return float32(pct)
 }

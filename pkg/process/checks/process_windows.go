@@ -63,6 +63,8 @@ func calculatePct(deltaProc, deltaTime, numCPU float64) float32 {
 	}
 
 	// Clamp to 0 below if we get a negative value
+	// deltaTime is approximated using the system time on Windows, and can turn negative when NTP clock synchronization occurs or the system time is manually reset
+	// Avoid reporting negative CPU percentages when this occurs
 	overalPct = math.Max(overalPct, 0.0)
 	return float32(overalPct)
 }
