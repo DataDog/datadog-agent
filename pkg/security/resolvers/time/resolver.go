@@ -11,6 +11,8 @@ package time
 import (
 	"time"
 
+	_ "unsafe"
+
 	"github.com/DataDog/gopsutil/host"
 )
 
