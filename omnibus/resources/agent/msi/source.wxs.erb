@@ -79,7 +79,7 @@
     <Property Id="APIKEY" Hidden="yes" />
     <Property Id="SITE" Value="datadoghq.com" />
     <Property Id="FinalizeInstall" Hidden="yes" />
-    <Property Id="CLOSEDSOURCEACCEPTED" /> <!-- this key is set by the approval dialog-->
+    <Property Id="ALLOWCLOSEDSOURCE" /> <!-- this key is set by the approval dialog-->
      <PropertyRef Id="WIX_ACCOUNT_ADMINISTRATORS" />
      <PropertyRef Id="WIX_ACCOUNT_LOCALSYSTEM" />
      <PropertyRef Id="WIX_ACCOUNT_USERS" />
@@ -97,6 +97,14 @@
     <SetProperty Id="PROJECTLOCATIONONCMDLINESLASH" Value="[PROJECTLOCATION]\" Before="AppSearch">PROJECTLOCATION </SetProperty>
     <SetProperty Id="CONFDIRONCOMMANDLINE" Value="[APPLICATIONDATADIRECTORY]" Before="AppSearch">APPLICATIONDATADIRECTORY </SetProperty>
     <SetProperty Id="CONFDIRONCOMMANDLINESLASH" Value="[APPLICATIONDATADIRECTORY]\" Before="AppSearch">APPLICATIONDATADIRECTORY </SetProperty>
+
+    <SetProperty Id="PREALLOWCLOSEDSOURCE" Value="1" Before="CostFinalize">
+      <![CDATA[
+      (ALLOWCLOSEDSOURCE AND ALLOWCLOSEDSOURCE = "1") or
+      (DD_CLOSEDSOURCE_REGVALUE AND DD_CLOSEDSOURCE_REGVALUE = "#1") or
+      (DD_FILTER_INSTALLED AND DD_FILTER_INSTALLED = "#3") 
+      ]]>
+    </SetProperty>
 
     <!--
       The following property is set to either C:\ProgramData\Datadog or to the value of [APPLICATIONDATADIRECTORY]
@@ -213,6 +221,17 @@
                       Type="raw"
                       Id="DDFILTERINSTALLED_REGSEARCH"
                       Name="Start" />
+    </Property>
+
+    <!-- get the current state of the closed source flag from the registry.
+         used to prepopulate the dialog
+         -->
+    <Property Id="DD_CLOSEDSOURCE_REGVALUE">
+      <RegistrySearch Key="SOFTWARE\Datadog\Datadog Agent"
+                      Root="HKLM"
+                      Type="raw"
+                      Id="CLOSEDSOURCEVALUE_REGSEARCH"
+                      Name="AllowClosedSource" />
     </Property>
     
     

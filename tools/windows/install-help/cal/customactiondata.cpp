@@ -128,7 +128,7 @@ void CustomActionData::setClosedSourceConfig()
     std::wstring addlocal;
     std::wstring npm;
     std::wstring csProperty;
-    DWORD closedSource;
+    DWORD closedSource = (DWORD)-1;
 
     ddRegKey cskey;
     bool newEnabledFlag = false;
@@ -138,49 +138,16 @@ void CustomActionData::setClosedSourceConfig()
     {
         if ( closedSource == 1 )
         {
-            WcaLog(LOGMSG_STANDARD, "Closed source already marked accepted; leaving setting as enabled");
-            return;
+            WcaLog(LOGMSG_STANDARD, "Closed source already marked accepted");
         }
         if ( closedSource == 0 )
         {
-            WcaLog(LOGMSG_STANDARD, "Closed source already marked disabled; leaving setting as disabled");
-            return;
+            WcaLog(LOGMSG_STANDARD, "Closed source already marked disabled");
         }
         // else what do we do here?
     }
 
-    // check to see if previously installed.
-    if (this->_propertyView->value(L"DDNPM_INSTALLED", npmAlreadyInstalled))
-    {
-        // because of the way WiX gets it's properties, if it's there, the
-        // string will be either #?3 (? is either + or -) for DEMAND_START
-        // and #?4 for DISABLED.  If it's installed but enabled, but the
-        // reg key wasn't already set, it was previously installed via the
-        // NPM feature so we should retain it.
-        //
-        // docs say "optionally followed by + or -". Empirically it's `#3`.  But
-        // if the char `3` appears at all then we know.
-        if(npmAlreadyInstalled.length() >= 2) 
-        {
-            if (npmAlreadyInstalled.find_first_of(L'3') != std::wstring::npos)
-            {
-                WcaLog(LOGMSG_STANDARD, "NPM driver previously set to enabled; enabling closed source flag");
-                newEnabledFlag = true;
-                setEnabledFlag = true;
-            }
-            else if(npmAlreadyInstalled.find_first_of(L'4') != std::wstring::npos)
-            {
-                WcaLog(LOGMSG_STANDARD, "NPM driver previously set to disabled; disabling closed source flag");
-                newEnabledFlag = false;
-                setEnabledFlag = true;
-            }
-            else 
-            {
-                WcaLog(LOGMSG_STANDARD, "Unexpected driver install state %S", npmAlreadyInstalled.c_str());
-                // keep looking
-            }
-        }
-    }
+   
     // check the ADDLOCAL flag
     if(!setEnabledFlag)
     {
@@ -234,11 +201,60 @@ void CustomActionData::setClosedSourceConfig()
             newEnabledFlag = _wcsicmp(csProperty.c_str(), L"0") != 0;
         }
     }
+     // check to see if previously installed.
+    if(!setEnabledFlag)
+    {
+        if (this->_propertyView->value(L"DDNPM_INSTALLED", npmAlreadyInstalled))
+        {
+            // because of the way WiX gets it's properties, if it's there, the
+            // string will be either #?3 (? is either + or -) for DEMAND_START
+            // and #?4 for DISABLED.  If it's installed but enabled, but the
+            // reg key wasn't already set, it was previously installed via the
+            // NPM feature so we should retain it.
+            //
+            // docs say "optionally followed by + or -". Empirically it's `#3`.  But
+            // if the char `3` appears at all then we know.
+            if(npmAlreadyInstalled.length() >= 2) 
+            {
+                if (npmAlreadyInstalled.find_first_of(L'3') != std::wstring::npos)
+                {
+                    WcaLog(LOGMSG_STANDARD, "NPM driver previously set to enabled; enabling closed source flag");
+                    newEnabledFlag = true;
+                    setEnabledFlag = true;
+                }
+                else if(npmAlreadyInstalled.find_first_of(L'4') != std::wstring::npos)
+                {
+                    WcaLog(LOGMSG_STANDARD, "NPM driver previously set to disabled; disabling closed source flag");
+                    newEnabledFlag = false;
+                    setEnabledFlag = true;
+                }
+                else 
+                {
+                    WcaLog(LOGMSG_STANDARD, "Unexpected driver install state %S", npmAlreadyInstalled.c_str());
+                    // keep looking
+                }
+            }
+        }
+    }
 
     if (!setEnabledFlag)
     {
-        WcaLog(LOGMSG_STANDARD, "Unable to determine closed source status; setting to disabled");
-        newEnabledFlag = false;
+        // ok, we haven't figured out anything yet.  See if it was previously set
+        switch(closedSource)
+        {
+            default:
+                WcaLog(LOGMSG_STANDARD, "Unable to determine closed source status; setting to disabled");
+                newEnabledFlag = false;
+                break;
+            case 0:
+                WcaLog(LOGMSG_STANDARD, "Closed source flag set to zero, and not overridden.  Maintaining that setting");
+                newEnabledFlag = false;
+                break;
+            case 1:
+                WcaLog(LOGMSG_STANDARD, "Closed source flag set to one, and not overridden.  Maintaining that setting");
+                newEnabledFlag = true;
+                break;
+        }
     }
     closedSource = newEnabledFlag ? 1 : 0;
     cskey.setDWORDValue(keyClosedSourceEnabled.c_str(), closedSource);
