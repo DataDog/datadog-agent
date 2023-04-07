@@ -847,6 +847,11 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode syscalls event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case model.AnomalyDetectionSyscallEventType:
+		if _, err = event.AnomalyDetectionSyscallEvent.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode anomaly detection for syscall event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	default:
 		seclog.Errorf("unsupported event type %d", eventType)
 		return
@@ -867,6 +872,16 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	}
 
 	p.DispatchEvent(event)
+
+	// anomaly detection events
+	if model.IsAnomalyDetectionEvent(event.GetType()) {
+		p.monitor.securityProfileManager.FillProfileContextFromContainerID(event.ProcessContext.ContainerID, &event.SecurityProfileContext)
+
+		p.DispatchCustomEvent(
+			events.NewCustomRule(events.AnomalyDetectionRuleID),
+			events.NewCustomEvent(event.GetEventType(), serializers.NewEventSerializer(event, p.resolvers)),
+		)
+	}
 
 	// flush exited process
 	p.resolvers.ProcessResolver.DequeueExited()
@@ -1207,6 +1222,8 @@ func (p *Probe) setupNewTCClassifier(device model.NetDevice) error {
 	netns := p.resolvers.NamespaceResolver.ResolveNetworkNamespace(device.NetNS)
 	if netns != nil {
 		handle, err = netns.GetNamespaceHandleDup()
+	}
+	if err != nil {
 		defer handle.Close()
 	}
 	if netns == nil || err != nil || handle == nil {
@@ -1375,6 +1392,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		useMmapableMaps,
 		useRingBuffers,
 		uint32(p.Config.Probe.EventStreamBufferSize),
+		p.Config.RuntimeSecurity.SecurityProfileMaxCount,
 	)
 
 	if config.RuntimeSecurity.ActivityDumpEnabled {
@@ -1458,6 +1476,10 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		manager.ConstantEditor{
 			Name:  "syscall_monitor_event_period",
 			Value: uint64(config.RuntimeSecurity.ActivityDumpSyscallMonitorPeriod.Nanoseconds()),
+		},
+		manager.ConstantEditor{
+			Name:  "send_signal",
+			Value: isBPFSendSignalHelperAvailable(p.kernelVersion),
 		},
 	)
 
@@ -1579,6 +1601,14 @@ func getDoForkInput(kernelVersion *kernel.Version) uint64 {
 		return doForkStructInput
 	}
 	return doForkListInput
+}
+
+// isBPFSendSignalHelperAvailable returns true if the bpf_send_signal helper is available in the current kernel
+func isBPFSendSignalHelperAvailable(kernelVersion *kernel.Version) uint64 {
+	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel5_3 {
+		return uint64(1)
+	}
+	return uint64(0)
 }
 
 // getCGroupWriteConstants returns the value of the constant used to determine how cgroups should be captured in kernel

@@ -352,11 +352,11 @@ func TestSite(t *testing.T) {
 		file string
 		url  string
 	}{
-		"default":  {"./testdata/site_default.yaml", "https://trace.agent.datadoghq.com"},
-		"eu":       {"./testdata/site_eu.yaml", "https://trace.agent.datadoghq.eu"},
-		"url":      {"./testdata/site_url.yaml", "some.other.datadoghq.eu"},
-		"override": {"./testdata/site_override.yaml", "some.other.datadoghq.eu"},
-		"vector":   {"./testdata/vector_override.yaml", "https://vector.domain.tld:8443"},
+		"default":                        {"./testdata/site_default.yaml", "https://trace.agent.datadoghq.com"},
+		"eu":                             {"./testdata/site_eu.yaml", "https://trace.agent.datadoghq.eu"},
+		"url":                            {"./testdata/site_url.yaml", "some.other.datadoghq.eu"},
+		"override":                       {"./testdata/site_override.yaml", "some.other.datadoghq.eu"},
+		"observability_pipelines_worker": {"./testdata/observability_pipelines_worker_override.yaml", "https://observability_pipelines_worker.domain.tld:8443"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			defer cleanConfig()()
@@ -1092,5 +1092,49 @@ func TestSetMaxMemCPU(t *testing.T) {
 		setMaxMemCPU(c, true)
 		assert.Equal(t, 0.3, c.MaxCPU)
 		assert.Equal(t, 300.0, c.MaxMemory)
+	})
+}
+
+func TestPeerServiceAggregation(t *testing.T) {
+	t.Run("disabled", func(t *testing.T) {
+		defer cleanConfig()
+		cfg := config.New()
+		err := applyDatadogConfig(cfg)
+
+		assert := assert.New(t)
+		assert.NoError(err)
+		assert.False(cfg.PeerServiceAggregation)
+	})
+	t.Run("enabled", func(t *testing.T) {
+		defer cleanConfig()
+		coreconfig.Datadog.Set("apm_config.peer_service_aggregation", true)
+		cfg := config.New()
+		err := applyDatadogConfig(cfg)
+
+		assert := assert.New(t)
+		assert.NoError(err)
+		assert.True(cfg.PeerServiceAggregation)
+	})
+}
+
+func TestComputeStatsBySpanKind(t *testing.T) {
+	t.Run("disabled", func(t *testing.T) {
+		defer cleanConfig()
+		cfg := config.New()
+		err := applyDatadogConfig(cfg)
+
+		assert := assert.New(t)
+		assert.NoError(err)
+		assert.False(cfg.ComputeStatsBySpanKind)
+	})
+	t.Run("enabled", func(t *testing.T) {
+		defer cleanConfig()
+		coreconfig.Datadog.Set("apm_config.compute_stats_by_span_kind", true)
+		cfg := config.New()
+		err := applyDatadogConfig(cfg)
+
+		assert := assert.New(t)
+		assert.NoError(err)
+		assert.True(cfg.ComputeStatsBySpanKind)
 	})
 }
