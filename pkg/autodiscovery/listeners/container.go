@@ -119,6 +119,19 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 			}
 			svc.hosts = map[string]string{"pod": pod.IP}
 			svc.ready = pod.Ready
+
+			svc.metricsExcluded = l.IsExcluded(
+				containers.MetricsFilter,
+				container.Name,
+				containerImg.RawName,
+				"",
+			) || containers.IsExcludedByAnnotation(containers.MetricsFilter, pod.Annotations, container.Name)
+			svc.logsExcluded = l.IsExcluded(
+				containers.LogsFilter,
+				container.Name,
+				containerImg.RawName,
+				"",
+			) || containers.IsExcludedByAnnotation(containers.LogsFilter, pod.Annotations, container.Name)
 		} else {
 			log.Debugf("container %q belongs to a pod but was not found: %s", container.ID, err)
 		}

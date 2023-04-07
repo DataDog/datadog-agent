@@ -70,7 +70,8 @@ const (
 	kubeNamespaceFilterPrefix = `kube_namespace:`
 
 	// filter based on AD annotations
-	kubeAutodiscoveryAnnotation = "ad.datadoghq.com/%s.%sexclude"
+	kubeAutodiscoveryAnnotation          = "ad.datadoghq.com/%sexclude"
+	kubeAutodiscoveryContainerAnnotation = "ad.datadoghq.com/%s.%sexclude"
 )
 
 // FilterType indicates the container filter type
@@ -382,7 +383,16 @@ func IsExcludedByAnnotation(ft FilterType, annotations map[string]string, contai
 
 func isExcludedByAnnotation(annotations map[string]string, containerName string, excludePrefix string) bool {
 	var e bool
-	exclude, found := annotations[fmt.Sprintf(kubeAutodiscoveryAnnotation, containerName, excludePrefix)]
+	// try container-less annotations first
+	exclude, found := annotations[fmt.Sprintf(kubeAutodiscoveryAnnotation, excludePrefix)]
+	if found {
+		if e, _ = strconv.ParseBool(exclude); e {
+			return true
+		}
+	}
+
+	// Check if excluded at container level
+	exclude, found = annotations[fmt.Sprintf(kubeAutodiscoveryContainerAnnotation, containerName, excludePrefix)]
 	if found {
 		e, _ = strconv.ParseBool(exclude)
 	}
