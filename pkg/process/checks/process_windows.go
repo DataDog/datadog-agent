@@ -9,6 +9,7 @@
 package checks
 
 import (
+	"math"
 	"runtime"
 
 	"github.com/DataDog/gopsutil/cpu"
@@ -60,5 +61,8 @@ func calculatePct(deltaProc, deltaTime, numCPU float64) float32 {
 	if overalPct > (numCPU * 100) {
 		overalPct = numCPU * 100
 	}
+
+	// Clamp to 0 below if we get a negative value
+	overalPct = math.Max(overalPct, 0.0)
 	return float32(overalPct)
 }
