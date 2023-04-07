@@ -713,6 +713,7 @@ A new kernel module was loaded
 | Property | Definition |
 | -------- | ------------- |
 | [`load_module.args`](#load_module-args-doc) | Parameters (as a string) of the new kernel module |
+| [`load_module.args_truncated`](#load_module-args_truncated-doc) | Indicates if the arguments were truncated or not |
 | [`load_module.argv`](#load_module-argv-doc) | Parameters (as an array) of the new kernel module |
 | [`load_module.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
 | [`load_module.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
@@ -2377,6 +2378,13 @@ Definition: Exit code of the process or number of the signal that caused the pro
 Type: string
 
 Definition: Parameters (as a string) of the new kernel module
+
+
+
+### `load_module.args_truncated` {#load_module-args_truncated-doc}
+Type: bool
+
+Definition: Indicates if the arguments were truncated or not
 
 
 
