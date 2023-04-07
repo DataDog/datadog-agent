@@ -9,11 +9,9 @@
 package time
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/DataDog/gopsutil/host"
-	"golang.org/x/sys/unix"
 )
 
 // Resolver converts kernel monotonic timestamps to absolute times
@@ -34,13 +32,12 @@ func NewResolver() (*Resolver, error) {
 	return &tr, nil
 }
 
+//go:noescape
+//go:linkname nanotime runtime.nanotime
+func nanotime() int64
+
 func (tr *Resolver) getUptimeOffset() (time.Duration, error) {
-	upTime := new(unix.Timespec)
-	err := unix.ClockGettime(unix.CLOCK_MONOTONIC, upTime)
-	if err != nil {
-		return 0, fmt.Errorf("couldn't get system up time: %w", err)
-	}
-	return time.Since(tr.bootTime) - time.Duration(upTime.Nano()), nil
+	return time.Since(tr.bootTime) - time.Duration(nanotime()), nil
 }
 
 // ResolveMonotonicTimestamp converts a kernel monotonic timestamp to an absolute time
