@@ -50,6 +50,8 @@ const (
 	Invoke RuntimeEvent = "INVOKE"
 	// Shutdown event
 	Shutdown RuntimeEvent = "SHUTDOWN"
+	// Failure event
+	Failure RuntimeEvent = "FAILURE"
 
 	// Timeout is one of the possible ShutdownReasons
 	Timeout ShutdownReason = "timeout"
@@ -127,7 +129,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 	if payload.EventType == Invoke {
 		functionArn := removeQualifierFromArn(payload.InvokedFunctionArn)
 		callInvocationHandler(daemon, functionArn, payload.DeadlineMs, safetyBufferTimeout, payload.RequestID, handleInvocation)
-	} else if payload.EventType == Shutdown {
+	} else if payload.EventType == Shutdown || payload.EventType == Failure {
 		log.Debug("Received shutdown event. Reason: " + payload.ShutdownReason)
 		isTimeout := strings.ToLower(payload.ShutdownReason.String()) == Timeout.String()
 		if isTimeout {
@@ -136,6 +138,10 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 			metricTags = tags.AddInitTypeTag(metricTags)
 			metrics.SendTimeoutEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
 			metrics.SendErrorsEnhancedMetric(metricTags, time.Now(), daemon.MetricAgent.Demux)
+		}
+		err := daemon.ExecutionContext.SaveCurrentExecutionContext()
+		if err != nil {
+			log.Warnf("Unable to save the current state. Failed with: %s", err)
 		}
 		daemon.Stop()
 		stopCh <- struct{}{}
@@ -154,10 +160,6 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 	select {
 	case <-ctx.Done():
 		log.Debug("Timeout detected, finishing the current invocation now to allow receiving the SHUTDOWN event")
-		err := daemon.ExecutionContext.SaveCurrentExecutionContext()
-		if err != nil {
-			log.Warnf("Unable to save the current state. Failed with: %s", err)
-		}
 		// Tell the Daemon that the runtime is done (even though it isn't, because it's timing out) so that we can receive the SHUTDOWN event
 		daemon.TellDaemonRuntimeDone()
 		return

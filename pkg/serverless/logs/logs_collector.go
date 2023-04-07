@@ -37,7 +37,7 @@ type LambdaLogsCollector struct {
 	In                     chan []LambdaLogAPIMessage
 	lastRequestID          string
 	coldstartRequestID     string
-	outOfMemory            bool
+	lastOOMRequestID       string
 	out                    chan<- *logConfig.ChannelMessage
 	demux                  aggregator.Demultiplexer
 	extraTags              *Tags
@@ -87,19 +87,13 @@ func (lc *LambdaLogsCollector) Start() {
 		lc.arn = state.ARN
 		lc.lastRequestID = state.LastRequestID
 		lc.coldstartRequestID = state.ColdstartRequestID
+		lc.lastOOMRequestID = state.LastOOMRequestID
 		lc.invocationStartTime = state.StartTime
 		lc.invocationEndTime = state.EndTime
 
 		go func() {
 			for messages := range lc.In {
 				lc.processLogMessages(messages)
-			}
-			// Store the execution context if an out of memory is detected
-			if lc.outOfMemory {
-				err := lc.executionContext.SaveCurrentExecutionContext()
-				if err != nil {
-					log.Warnf("Unable to save the current state. Failed with: %s", err)
-				}
 			}
 		}()
 	})
@@ -195,23 +189,34 @@ func (lc *LambdaLogsCollector) processMessage(
 
 	if lc.enhancedMetricsEnabled {
 		tags := tags.AddColdStartTag(lc.extraTags.Tags, lc.lastRequestID == lc.coldstartRequestID)
-		if message.logType == logTypeFunction && !lc.outOfMemory {
-			if lc.outOfMemory = serverlessMetrics.ContainsOutOfMemoryLog(message.stringRecord); lc.outOfMemory {
-				serverlessMetrics.GenerateEnhancedMetricsFromFunctionLog(message.time, tags, lc.demux)
+		outOfMemoryRequestId := ""
+
+		if message.logType == logTypeFunction {
+			if lc.lastOOMRequestID != lc.lastRequestID && serverlessMetrics.ContainsOutOfMemoryLog(message.stringRecord) {
+				outOfMemoryRequestId = lc.lastRequestID
 			}
 		}
 		if message.logType == logTypePlatformReport {
+			memorySize := message.objectRecord.reportLogItem.memorySizeMB
+			memoryUsed := message.objectRecord.reportLogItem.maxMemoryUsedMB
+			status := message.objectRecord.status
+			reportOutOfMemory := memoryUsed > 0 && memoryUsed >= memorySize
+
 			args := serverlessMetrics.GenerateEnhancedMetricsFromReportLogArgs{
 				InitDurationMs:   message.objectRecord.reportLogItem.initDurationMs,
 				DurationMs:       message.objectRecord.reportLogItem.durationMs,
 				BilledDurationMs: message.objectRecord.reportLogItem.billedDurationMs,
-				MemorySizeMb:     message.objectRecord.reportLogItem.memorySizeMB,
-				MaxMemoryUsedMb:  message.objectRecord.reportLogItem.maxMemoryUsedMB,
+				MemorySizeMb:     memorySize,
+				MaxMemoryUsedMb:  memoryUsed,
 				RuntimeStart:     lc.invocationStartTime,
 				RuntimeEnd:       lc.invocationEndTime,
 				T:                message.time,
 				Tags:             tags,
 				Demux:            lc.demux,
+			}
+
+			if status == errorStatus && lc.lastOOMRequestID != message.objectRecord.requestID && reportOutOfMemory {
+				outOfMemoryRequestId = message.objectRecord.requestID
 			}
 			serverlessMetrics.GenerateEnhancedMetricsFromReportLog(args)
 			message.stringRecord = createStringRecordForReportLog(lc.invocationStartTime, lc.invocationEndTime, message)
@@ -229,6 +234,11 @@ func (lc *LambdaLogsCollector) processMessage(
 				})
 			lc.invocationEndTime = message.time
 			lc.executionContext.UpdateEndTime(message.time)
+		}
+		if outOfMemoryRequestId != "" {
+			lc.lastOOMRequestID = outOfMemoryRequestId
+			lc.executionContext.UpdateOutOfMemoryRequestID(lc.lastOOMRequestID)
+			serverlessMetrics.GenerateOutOfMemoryEnhancedMetrics(message.time, tags, lc.demux)
 		}
 	}
 
