@@ -90,6 +90,9 @@ func DefaultCollectorConfig(enabledAnalyzers []string, cacheLocation string) Col
 		collectorConfig.ArtifactOption.OnlyDirs = []string{"etc", "var/lib/dpkg", "var/lib/rpm", "lib/apk"}
 	}
 
+	collectorConfig.CheckDiskUsage = config.Datadog.GetBool("container_image_collection.sbom.check_disk_usage")
+	collectorConfig.MinAvailableDisk = uint64(config.Datadog.GetSizeInBytes("container_image_collection.sbom.min_available_disk"))
+
 	return collectorConfig
 }
 
