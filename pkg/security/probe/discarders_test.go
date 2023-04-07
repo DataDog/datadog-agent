@@ -377,7 +377,7 @@ func TestIsDiscarderOverride(t *testing.T) {
 	event.SetFieldValue("unlink.file.path", "/var/log/httpd")
 	event.SetFieldValue("process.file.path", "/bin/touch")
 
-	if rs.Evaluate(event) {
+	if !rs.Evaluate(event) {
 		rs.PushDiscarders(event)
 	}
 
@@ -387,7 +387,7 @@ func TestIsDiscarderOverride(t *testing.T) {
 
 	event.SetFieldValue("process.file.path", "/bin/cat")
 
-	if rs.Evaluate(event) {
+	if !rs.Evaluate(event) {
 		rs.PushDiscarders(event)
 	}
 

@@ -138,10 +138,10 @@ func TestRuleSetDiscarders(t *testing.T) {
 	ev2.SetFieldValue("mkdir.mode", 0777)
 	ev2.SetFieldValue("process.uid", 0)
 
-	if rs.Evaluate(ev1) {
+	if !rs.Evaluate(ev1) {
 		rs.PushDiscarders(ev1)
 	}
-	if rs.Evaluate(ev2) {
+	if !rs.Evaluate(ev2) {
 		rs.PushDiscarders(ev2)
 	}
 
