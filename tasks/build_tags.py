@@ -40,6 +40,7 @@ ALL_TAGS = {
     "secrets",
     "systemd",
     "trivy",
+    "vtprotocodec", # used by system-probe to gate the registration of the vtprotobuf gRPC codec
     "zk",
     "zlib",
     "test",  # used for unit-tests
