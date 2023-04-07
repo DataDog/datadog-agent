@@ -201,7 +201,7 @@ func (d *DockerCheck) runDockerCustom(sender aggregator.Sender, du docker.Client
 		// Resolve container image, if possible
 		resolvedImageName, err := du.ResolveImageName(context.TODO(), rawContainer.ImageID)
 		if err != nil {
-			log.Tracef("Unable to resolve ImageID '%s' to an image name, will use: %s: %s", rawContainer.ImageID, rawContainer.Image, err)
+			log.Tracef("Unable to resolve ImageID %q to an image name, will use %q: %s", rawContainer.ImageID, rawContainer.Image, err)
 			resolvedImageName = rawContainer.Image
 		}
 
