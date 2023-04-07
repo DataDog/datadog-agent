@@ -107,11 +107,6 @@ type dataOutputs struct {
 	noAggSerializer  serializer.MetricSerializer
 }
 
-func InitAndStartAgentDemultiplexerTest(options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
-	sharedForwarder := forwarder.NewDefaultForwarder(forwarder.NewOptions(nil))
-	return InitAndStartAgentDemultiplexer(sharedForwarder, options, hostname)
-}
-
 // InitAndStartAgentDemultiplexer creates a new Demultiplexer and runs what's necessary
 // in goroutines. As of today, only the embedded BufferedAggregator needs a separate goroutine.
 // In the future, goroutines will be started for the event platform forwarder and/or orchestrator forwarder.
@@ -122,7 +117,7 @@ func InitAndStartAgentDemultiplexer(sharedForwarder forwarder.Forwarder, options
 	demux := initAgentDemultiplexer(sharedForwarder, options, hostname)
 
 	if demultiplexerInstance != nil {
-		log.Warn("A DemultiplexerInstance is already existing but InitAndStartAgentDemultiplexerTest has been called again. Current instance will be overridden")
+		log.Warn("A DemultiplexerInstance is already existing but InitAndStartAgentDemultiplexer has been called again. Current instance will be overridden")
 	}
 	demultiplexerInstance = demux
 

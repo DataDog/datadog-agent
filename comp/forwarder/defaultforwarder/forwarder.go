@@ -22,3 +22,7 @@ func newForwarder(dep dependencies) Component {
 	}
 	return forwarder.NewDefaultForwarder(dep.Params.Options)
 }
+
+func newMockForwarder() Component {
+	return forwarder.NewDefaultForwarder(forwarder.NewOptions(nil))
+}
