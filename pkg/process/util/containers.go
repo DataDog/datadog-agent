@@ -106,6 +106,12 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 			continue
 		}
 
+		if container.Owner != nil && container.Owner.Kind == workloadmeta.KindKubernetesPod {
+			if pod, err := p.metadataStore.GetKubernetesPod(container.Owner.ID); err == nil && containers.IsExcludedByAnnotation(containers.GlobalFilter, pod.Annotations, container.Name) {
+				continue
+			}
+		}
+
 		if container.Runtime == workloadmeta.ContainerRuntimeGarden && len(container.CollectorTags) == 0 {
 			log.Debugf("No tags found for garden container: %s, skipping", container.ID)
 			continue

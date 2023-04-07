@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -67,6 +68,9 @@ const (
 	imageFilterPrefix         = `image:`
 	nameFilterPrefix          = `name:`
 	kubeNamespaceFilterPrefix = `kube_namespace:`
+
+	// filter based on AD annotations
+	kubeAutodiscoveryAnnotation = "ad.datadoghq.com/%s.%sexclude"
 )
 
 // FilterType indicates the container filter type
@@ -308,7 +312,8 @@ func NewAutodiscoveryFilter(filter FilterType) (*Filter, error) {
 }
 
 // IsExcluded returns a bool indicating if the container should be excluded
-// based on the filters in the containerFilter instance.
+// based on the filters in the containerFilter instance. Consider also using
+// IsExcludedByAnnotation in parallel with this check.
 // Note: exclude filters are not applied to empty container names, empty
 // images and empty namespaces.
 func (cf Filter) IsExcluded(containerName, containerImage, podNamespace string) bool {
@@ -359,4 +364,27 @@ func (cf Filter) IsExcluded(containerName, containerImage, podNamespace string) 
 	}
 
 	return false
+}
+
+// IsExcludedByAnnotation identifies whether a container should be excluded
+// based on the contents of the supplied annotations.
+func IsExcludedByAnnotation(ft FilterType, annotations map[string]string, containerName string) bool {
+	switch ft {
+	case GlobalFilter:
+		return isExcludedByAnnotation(annotations, containerName, "")
+	case MetricsFilter:
+		return isExcludedByAnnotation(annotations, containerName, "metrics_")
+	case LogsFilter:
+		return isExcludedByAnnotation(annotations, containerName, "logs_")
+	}
+	return false
+}
+
+func isExcludedByAnnotation(annotations map[string]string, containerName string, excludePrefix string) bool {
+	var e bool
+	exclude, found := annotations[fmt.Sprintf(kubeAutodiscoveryAnnotation, containerName, excludePrefix)]
+	if found {
+		e, _ = strconv.ParseBool(exclude)
+	}
+	return e
 }

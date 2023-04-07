@@ -113,6 +113,10 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 	if findKubernetesInLabels(container.Labels) {
 		pod, err := l.Store().GetKubernetesPodForContainer(container.ID)
 		if err == nil {
+			if containers.IsExcludedByAnnotation(containers.GlobalFilter, pod.Annotations, container.Name) {
+				log.Debugf("container %s filtered out: name %q image %q", container.ID, container.Name, containerImg.RawName)
+				return
+			}
 			svc.hosts = map[string]string{"pod": pod.IP}
 			svc.ready = pod.Ready
 		} else {
