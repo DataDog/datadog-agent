@@ -574,7 +574,7 @@ CWS logs have the following JSON schema:
                     },
                     "type": "array"
                 },
-                "argsTruncated": {
+                "args_truncated": {
                     "type": "boolean"
                 }
             },
@@ -2140,7 +2140,7 @@ CWS logs have the following JSON schema:
             },
             "type": "array"
         },
-        "argsTruncated": {
+        "args_truncated": {
             "type": "boolean"
         }
     },

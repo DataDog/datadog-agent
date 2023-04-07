@@ -478,7 +478,7 @@ type ModuleEventSerializer struct {
 	// indicates if a module was loaded from memory, as opposed to a file
 	LoadedFromMemory *bool    `json:"loaded_from_memory,omitempty"`
 	Argv             []string `json:"argv,omitempty"`
-	ArgsTruncated    *bool    `json:"argsTruncated,omitempty"`
+	ArgsTruncated    *bool    `json:"args_truncated,omitempty"`
 }
 
 // SpliceEventSerializer serializes a splice event to JSON

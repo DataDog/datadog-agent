@@ -2166,7 +2166,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecuritySerializers16(
 				}
 				in.Delim(']')
 			}
-		case "argsTruncated":
+		case "args_truncated":
 			if in.IsNull() {
 				in.Skip()
 				out.ArgsTruncated = nil
@@ -2215,7 +2215,7 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecuritySerializers16(
 		}
 	}
 	if in.ArgsTruncated != nil {
-		const prefix string = ",\"argsTruncated\":"
+		const prefix string = ",\"args_truncated\":"
 		out.RawString(prefix)
 		out.Bool(bool(*in.ArgsTruncated))
 	}

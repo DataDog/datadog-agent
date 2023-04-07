@@ -558,7 +558,7 @@
           },
           "type": "array"
         },
-        "argsTruncated": {
+        "args_truncated": {
           "type": "boolean"
         }
       },
