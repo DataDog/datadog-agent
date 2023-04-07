@@ -60,6 +60,8 @@ var bpfMapNames = []string{
 	"exec_file_cache",
 	"syscall_monitor",
 	"syscall_table",
+	"security_profil",
+	"security_profil",
 	"cgroup_tracing_",
 	"discarder_stats",
 	"discarder_stats",
