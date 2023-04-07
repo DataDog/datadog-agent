@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package forwarder implements a component to send payloads to the backend
-package forwarder
+// Package defaultForwarder implements a component to send payloads to the backend
+package defaultforwarder
 
 import (
 	"go.uber.org/fx"

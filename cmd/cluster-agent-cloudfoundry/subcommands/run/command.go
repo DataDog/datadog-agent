@@ -19,8 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	forwarderbundle "github.com/DataDog/datadog-agent/comp/forwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/forwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
@@ -59,8 +59,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:    log.LogForDaemon(command.LoggerName, "log_file", common.DefaultDCALogFile),
 				}),
 				core.Bundle,
-				forwarderbundle.Bundle,
-				fx.Provide(forwarder.NewParamsWithResolvers),
+				forwarder.Bundle,
+				fx.Provide(defaultforwarder.NewParamsWithResolvers),
 			)
 		},
 	}
@@ -68,7 +68,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd}
 }
 
-func run(log log.Component, config config.Component, forwarder forwarder.Component, cliParams *command.GlobalParams) error {
+func run(log log.Component, config config.Component, forwarder defaultforwarder.Component, cliParams *command.GlobalParams) error {
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
 	defer mainCtxCancel() // Calling cancel twice is safe
 

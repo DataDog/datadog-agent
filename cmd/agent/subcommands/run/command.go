@@ -40,8 +40,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsdDebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
-	forwarderBundle "github.com/DataDog/datadog-agent/comp/forwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/forwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
@@ -159,7 +159,7 @@ func run(log log.Component,
 	server dogstatsdServer.Component,
 	capture replay.Component,
 	serverDebug dogstatsdDebug.Component,
-	forwarder forwarder.Component,
+	forwarder defaultforwarder.Component,
 	cliParams *cliParams,
 ) error {
 	defer func() {
@@ -223,7 +223,7 @@ func StartAgentWithDefaults() (dogstatsdServer.Component, error) {
 		server dogstatsdServer.Component,
 		serverDebug dogstatsdDebug.Component,
 		capture replay.Component,
-		forwarder forwarder.Component,
+		forwarder defaultforwarder.Component,
 	) error {
 		dsdServer = server
 
@@ -251,9 +251,9 @@ func getSharedFxOption() fx.Option {
 		fx.Supply(dogstatsdServer.Params{
 			Serverless: false,
 		}),
-		forwarderBundle.Bundle,
-		fx.Provide(func(config config.Component, log log.Component) forwarder.Params {
-			params := forwarder.NewParams(config, log)
+		forwarder.Bundle,
+		fx.Provide(func(config config.Component, log log.Component) defaultforwarder.Params {
+			params := defaultforwarder.NewParams(config, log)
 			// Enable core agent specific features like persistence-to-disk
 			params.Options.EnabledFeatures = pkgforwarder.SetFeature(params.Options.EnabledFeatures, pkgforwarder.CoreFeatures)
 			return params
@@ -270,7 +270,7 @@ func startAgent(
 	server dogstatsdServer.Component,
 	capture replay.Component,
 	serverDebug dogstatsdDebug.Component,
-	sharedForwarder forwarder.Component) error {
+	sharedForwarder defaultforwarder.Component) error {
 
 	var err error
 

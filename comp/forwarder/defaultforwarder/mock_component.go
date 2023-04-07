@@ -6,7 +6,7 @@
 //go:build test
 // +build test
 
-package forwarder
+package defaultforwarder
 
 import (
 	"go.uber.org/fx"

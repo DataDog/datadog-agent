@@ -20,8 +20,8 @@ import (
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	forwarderBundle "github.com/DataDog/datadog-agent/comp/forwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/forwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -99,12 +99,12 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			Serverless: false,
 		}),
 		dogstatsd.Bundle,
-		forwarderBundle.Bundle,
-		fx.Provide(forwarder.NewParams),
+		forwarder.Bundle,
+		fx.Provide(defaultforwarder.NewParams),
 	)
 }
 
-func start(cliParams *CLIParams, config config.Component, params *Params, server dogstatsdServer.Component, forwarder forwarder.Component) error {
+func start(cliParams *CLIParams, config config.Component, params *Params, server dogstatsdServer.Component, forwarder defaultforwarder.Component) error {
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -127,7 +127,7 @@ func start(cliParams *CLIParams, config config.Component, params *Params, server
 	return nil
 }
 
-func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component, params *Params, components *DogstatsdComponents, forwarder forwarder.Component) (err error) {
+func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component, params *Params, components *DogstatsdComponents, forwarder defaultforwarder.Component) (err error) {
 	if len(cliParams.confPath) == 0 {
 		log.Infof("Config will be read from env variables")
 	}

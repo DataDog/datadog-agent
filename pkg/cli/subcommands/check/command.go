@@ -29,8 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	forwarderBundle "github.com/DataDog/datadog-agent/comp/forwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/forwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -115,8 +115,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 					LogParams:            log.LogForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle,
-				forwarderBundle.Bundle,
-				fx.Supply(forwarder.Params{UseNoopForwarder: true}),
+				forwarder.Bundle,
+				fx.Supply(defaultforwarder.Params{UseNoopForwarder: true}),
 			)
 		},
 	}
@@ -157,7 +157,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func run(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, forwarder forwarder.Component, cliParams *cliParams) error {
+func run(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, forwarder defaultforwarder.Component, cliParams *cliParams) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
 	if cliParams.generateIntegrationTraces {

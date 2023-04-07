@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package forwarder
+package defaultforwarder
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"

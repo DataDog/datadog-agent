@@ -31,8 +31,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	forwarderbundle "github.com/DataDog/datadog-agent/comp/forwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/forwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -75,8 +75,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:    log.LogForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),
 				}),
 				core.Bundle,
-				forwarderbundle.Bundle,
-				fx.Provide(forwarder.NewParamsWithResolvers),
+				forwarder.Bundle,
+				fx.Provide(defaultforwarder.NewParamsWithResolvers),
 			)
 		},
 	}
@@ -86,7 +86,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd}
 }
 
-func start(log log.Component, config config.Component, forwarder forwarder.Component, params *cliParams) error {
+func start(log log.Component, config config.Component, forwarder defaultforwarder.Component, params *cliParams) error {
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
 	defer StopAgent(cancel, log)
@@ -144,7 +144,7 @@ var errAllComponentsDisabled = errors.New("all security-agent component are disa
 var errNoAPIKeyConfigured = errors.New("no API key configured")
 
 // RunAgent initialized resources and starts API server
-func RunAgent(ctx context.Context, log log.Component, config config.Component, forwarder forwarder.Component, pidfilePath string) (err error) {
+func RunAgent(ctx context.Context, log log.Component, config config.Component, forwarder defaultforwarder.Component, pidfilePath string) (err error) {
 	if err := util.SetupCoreDump(config); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
