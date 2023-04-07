@@ -313,8 +313,10 @@ type AgentConfig struct {
 	Endpoints []*Endpoint
 
 	// Concentrator
-	BucketInterval   time.Duration // the size of our pre-aggregation per bucket
-	ExtraAggregators []string
+	BucketInterval         time.Duration // the size of our pre-aggregation per bucket
+	ExtraAggregators       []string      // DEPRECATED
+	PeerServiceAggregation bool          // enables/disables stats aggregation for peer.service, used by Concentrator and ClientStatsAggregator
+	ComputeStatsBySpanKind bool          // enables/disables the computing of stats based on a span's `span.kind` field
 
 	// Sampler configuration
 	ExtraSampleRate float64

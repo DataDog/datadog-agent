@@ -24,9 +24,6 @@ import (
 )
 
 func TestGetHostname(t *testing.T) {
-	config.SetDetectedFeatures(config.FeatureMap{})
-	defer config.SetDetectedFeatures(nil)
-
 	ctx := context.Background()
 	h, err := getHostname(ctx, config.Datadog.GetString("process_config.dd_agent_bin"), 0)
 	assert.Nil(t, err)
@@ -83,9 +80,6 @@ func TestGetHostnameFromCmd(t *testing.T) {
 }
 
 func TestInvalidHostname(t *testing.T) {
-	config.SetDetectedFeatures(config.FeatureMap{})
-	defer config.SetDetectedFeatures(nil)
-
 	// Lower the GRPC timeout, otherwise the test will time out in CI
 	config.Datadog.Set("process_config.grpc_connection_timeout_secs", 1)
 	config.Datadog.Set("hostname", "localhost")

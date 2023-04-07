@@ -120,12 +120,12 @@ func HasFeature(features, flag Features) bool { return features&flag != 0 }
 // NewOptions creates new Options with default values
 func NewOptions(keysPerDomain map[string][]string) *Options {
 	resolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
-	vectorMetricsURL, err := config.GetVectorURL(config.Metrics)
+	vectorMetricsURL, err := config.GetObsPipelineURL(config.Metrics)
 	if err != nil {
-		log.Error("Misconfiguration of agent vector endpoint for metrics: ", err)
+		log.Error("Misconfiguration of agent observability_pipelines_worker endpoint for metrics: ", err)
 	}
 	if r, ok := resolvers[config.GetMainInfraEndpoint()]; ok && vectorMetricsURL != "" {
-		log.Debugf("Configuring forwarder to send metrics to vector: %s", vectorMetricsURL)
+		log.Debugf("Configuring forwarder to send metrics to observability_pipelines_worker: %s", vectorMetricsURL)
 		resolvers[config.GetMainInfraEndpoint()] = resolver.NewDomainResolverWithMetricToVector(
 			r.GetBaseDomain(),
 			r.GetAPIKeys(),

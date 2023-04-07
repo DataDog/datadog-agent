@@ -167,6 +167,8 @@ struct syscall_cache_t {
             struct dentry *dentry;
             char name[MODULE_NAME_LEN];
             u32 loaded_from_memory;
+            char args[128];
+            u32 args_truncated;
         } init_module;
 
         struct {

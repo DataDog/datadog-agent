@@ -7,8 +7,8 @@
 package command
 
 import (
-	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -37,7 +37,12 @@ func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
 
 	// AgentCmd is the root command
 	agentCmd := &cobra.Command{
-		Use:   fmt.Sprintf("%s [command]", os.Args[0]),
+		// cobra will tokenize the "Use" string by space, and take the first one so there's no need to pass anything
+		// besides the filename of the executable.
+		// Not even '[command]' is respected - try using their example "add [-F file | -D dir]... [-f format] profile"
+		// and it will still come out as "add [command]" in the help output.
+		// If the file name contains a space, this will break - but this is not the case for the Agent executable.
+		Use:   filepath.Base(os.Args[0]),
 		Short: "Datadog Agent at your service.",
 		Long: `
 The Datadog Agent faithfully collects events and metrics and brings them

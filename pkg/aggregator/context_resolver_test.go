@@ -103,6 +103,7 @@ func testTrackContext(t *testing.T, store *tags.Store) {
 	_, ok := contextResolver.contextsByKey[unknownContextKey]
 	assert.False(t, ok)
 }
+
 func TestTrackContext(t *testing.T) {
 	testWithTagsStore(t, testTrackContext)
 }
@@ -147,6 +148,7 @@ func testExpireContexts(t *testing.T, store *tags.Store) {
 	_, ok = contextResolver.resolver.contextsByKey[contextKey2]
 	assert.True(t, ok)
 }
+
 func TestExpireContexts(t *testing.T) {
 	testWithTagsStore(t, testExpireContexts)
 }
@@ -212,6 +214,7 @@ func testExpireContextsWithKeep(t *testing.T, store *tags.Store) {
 	assert.False(t, ok1)
 	assert.True(t, ok2)
 }
+
 func TestExpireContextsWithKeep(t *testing.T) {
 	testWithTagsStore(t, testExpireContextsWithKeep)
 }
@@ -239,6 +242,7 @@ func testCountBasedExpireContexts(t *testing.T, store *tags.Store) {
 	require.Len(t, contextResolver.expireContexts(), 0)
 	require.Len(t, contextResolver.resolver.contextsByKey, 0)
 }
+
 func TestCountBasedExpireContexts(t *testing.T) {
 	testWithTagsStore(t, testCountBasedExpireContexts)
 }
@@ -254,6 +258,7 @@ func testTagDeduplication(t *testing.T, store *tags.Store) {
 	assert.Equal(t, resolver.contextsByKey[ckey].Tags().Len(), 1)
 	metrics.AssertCompositeTagsEqual(t, resolver.contextsByKey[ckey].Tags(), tagset.CompositeTagsFromSlice([]string{"bar"}))
 }
+
 func TestTagDeduplication(t *testing.T) {
 	testWithTagsStore(t, testTagDeduplication)
 }
