@@ -187,50 +187,6 @@ func (p *SecurityProfile) findProfileProcessNodes(pc *model.ProcessContext) []*d
 	})
 }
 
-func findFileInNode(node *dump.ProcessActivityNode, file *model.FileEvent) bool {
-	childs := node.Files
-	var child *dump.FileActivityNode = nil
-	var ok bool
-	currentPath := file.PathnameStr
-	for {
-		parent, nextParentIndex := dump.ExtractFirstParent(currentPath)
-		if nextParentIndex == 0 {
-			if child != nil && child.Name == file.BasenameStr {
-				// TODO: redo match mode/flags, once stored values are working as expected
-				// return uint32(file.Flags) == child.Open.Flags&uint32(file.Flags) &&
-				// 	uint32(file.Mode) == child.Open.Mode&uint32(file.Mode)
-				return true
-			} else {
-				return false
-			}
-		}
-		child, ok = childs[parent] // TODO: handle patterns
-		if !ok {
-			return false
-		}
-		childs = child.Children
-		currentPath = currentPath[nextParentIndex:]
-	}
-	return false
-}
-
-func findFileInNodes(nodes []*dump.ProcessActivityNode, event *model.Event) bool {
-	fileEvent := &event.Open.File
-	if fileEvent.PathnameStr == "" {
-		event.FieldHandlers.ResolveFilePath(event, fileEvent)
-	}
-	if event.PathResolutionError != nil {
-		return false
-	}
-
-	for _, node := range nodes {
-		if findFileInNode(node, fileEvent) {
-			return true
-		}
-	}
-	return false
-}
-
 func findDNSInNodes(nodes []*dump.ProcessActivityNode, event *model.Event) bool {
 	for _, node := range nodes {
 		dnsNode, ok := node.DNSNames[event.DNS.Name]
@@ -240,27 +196,6 @@ func findDNSInNodes(nodes []*dump.ProcessActivityNode, event *model.Event) bool 
 		for _, req := range dnsNode.Requests {
 			if req.Type == event.DNS.Type {
 				return true
-			}
-		}
-	}
-	return false
-}
-
-func findBindInNodes(nodes []*dump.ProcessActivityNode, event *model.Event) bool {
-	evtFamily := model.AddressFamily(event.Bind.AddrFamily).String()
-	evtIP := event.Bind.Addr.IPNet.IP.String()
-	evtPort := event.Bind.Addr.Port
-
-	for _, node := range nodes {
-		for _, socket := range node.Sockets {
-			if socket.Family != evtFamily {
-				continue
-			}
-
-			for _, bind := range socket.Bind {
-				if bind.Port == evtPort && bind.IP == evtIP {
-					return true
-				}
 			}
 		}
 	}
