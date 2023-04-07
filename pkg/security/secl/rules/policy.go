@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	DefaultRuleSetName     = "default"
-	ThreatScoreRuleSetName = "threat_score"
+	ProbeEvaluationRuleSetName = "probe_evaluation"
+	ThreatScoreRuleSetName     = "threat_score"
 )
 
 // PolicyDef represents a policy file definition

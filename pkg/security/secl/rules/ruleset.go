@@ -157,6 +157,7 @@ type RuleSetListener interface {
 // RuleSet holds a list of rules, grouped in bucket. An event can be evaluated
 // against it. If the rule matches, the listeners for this rule set are notified
 type RuleSet struct {
+	name             string
 	opts             *Opts
 	evalOpts         *eval.Opts
 	eventRuleBuckets map[eval.EventType]*RuleBucket
