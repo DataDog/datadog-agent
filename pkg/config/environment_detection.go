@@ -36,9 +36,10 @@ func (fm FeatureMap) String() string {
 }
 
 var (
-	knownFeatures    = make(FeatureMap)
-	detectedFeatures FeatureMap
-	featureLock      sync.RWMutex
+	knownFeatures                  = make(FeatureMap)
+	detectedFeatures               FeatureMap
+	featureLock                    sync.RWMutex
+	detectionAlwaysDisabledInTests bool
 )
 
 // GetDetectedFeatures returns all detected features (detection only performed once)
@@ -94,9 +95,14 @@ func IsAutoconfigEnabled() bool {
 // DetectFeatures runs the feature detection.
 // We guarantee that Datadog configuration is entirely loaded (env + YAML)
 // before this function is called
-func DetectFeatures() {
+func detectFeatures() {
 	featureLock.Lock()
 	defer featureLock.Unlock()
+
+	// Detection should not run in unit tests to avoid overriding features based on runner environment
+	if detectionAlwaysDisabledInTests {
+		return
+	}
 
 	newFeatures := make(FeatureMap)
 	if IsAutoconfigEnabled() {
