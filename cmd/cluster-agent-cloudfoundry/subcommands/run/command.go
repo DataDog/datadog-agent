@@ -27,8 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/resolver"
-	forwarderpkg "github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -62,15 +60,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				core.Bundle,
 				forwarderbundle.Bundle,
-				fx.Provide(func(_ config.Component, log log.Component) forwarder.Params { // make sure config is ready
-					keysPerDomain, err := pkgconfig.GetMultipleEndpoints()
-					if err != nil {
-						log.Error("Misconfiguration of agent endpoints: ", err)
-					}
-
-					forwarderOpts := forwarderpkg.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomain))
-					return forwarder.Params{Options: forwarderOpts}
-				}),
+				fx.Provide(forwarder.NewParamsWithResolvers),
 			)
 		},
 	}

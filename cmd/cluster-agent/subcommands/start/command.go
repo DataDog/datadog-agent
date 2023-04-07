@@ -42,9 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
-	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
-	forwarderpkg "github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -84,15 +82,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				core.Bundle,
 				forwarderBundle.Bundle,
-				fx.Provide(func(_ config.Component) forwarder.Params { // make sure config is ready
-					// setup the forwarder
-					keysPerDomain, err := pkgconfig.GetMultipleEndpoints()
-					if err != nil {
-						pkglog.Error("Misconfiguration of agent endpoints: ", err)
-					}
-					forwarderOpts := forwarderpkg.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomain))
-					forwarderOpts.DisableAPIKeyChecking = true
-					return forwarder.Params{Options: forwarderOpts}
+				fx.Provide(func(config config.Component, log log.Component) forwarder.Params {
+					params := forwarder.NewParamsWithResolvers(config, log)
+					params.Options.DisableAPIKeyChecking = true
+					return params
 				}),
 			)
 		},

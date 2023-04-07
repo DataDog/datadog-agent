@@ -252,22 +252,14 @@ func getSharedFxOption() fx.Option {
 			Serverless: false,
 		}),
 		forwarderBundle.Bundle,
-		fx.Provide(createForwarderOptions),
+		fx.Provide(func(config config.Component, log log.Component) forwarder.Params {
+			params := forwarder.NewParams(config, log)
+			// Enable core agent specific features like persistence-to-disk
+			params.Options.EnabledFeatures = pkgforwarder.SetFeature(params.Options.EnabledFeatures, pkgforwarder.CoreFeatures)
+			return params
+		}),
 		dogstatsd.Bundle,
 	)
-}
-
-func createForwarderOptions(_ config.Component) forwarder.Params {
-	// Take the config as parameter to make sure the config is ready
-	keysPerDomain, err := pkgconfig.GetMultipleEndpoints()
-	if err != nil {
-		pkglog.Error("Misconfiguration of agent endpoints: ", err)
-	}
-
-	forwarderOpts := pkgforwarder.NewOptions(keysPerDomain)
-	// Enable core agent specific features like persistence-to-disk
-	forwarderOpts.EnabledFeatures = pkgforwarder.SetFeature(forwarderOpts.EnabledFeatures, pkgforwarder.CoreFeatures)
-	return forwarder.Params{Options: forwarderOpts}
 }
 
 // startAgent Initializes the agent process

@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	forwarderpkg "github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -101,15 +100,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		}),
 		dogstatsd.Bundle,
 		forwarderBundle.Bundle,
-		fx.Provide(func(_ config.Component) forwarder.Params { // make sure config is ready
-			// setup the demultiplexer
-			keysPerDomain, err := pkgconfig.GetMultipleEndpoints()
-			if err != nil {
-				log.Error("Misconfiguration of agent endpoints: ", err)
-			}
-			forwarderOpts := forwarderpkg.NewOptions(keysPerDomain)
-			return forwarder.Params{Options: forwarderOpts}
-		}),
+		fx.Provide(forwarder.NewParams),
 	)
 }
 
