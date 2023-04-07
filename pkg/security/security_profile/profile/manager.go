@@ -552,20 +552,12 @@ func (m *SecurityProfileManager) LookupEventOnProfiles(event *model.Event) {
 
 	switch evtType {
 	// for fork/exec/exit events, as we already found some nodes, no need to investigate further
-	case model.ForkEventType:
+	case model.ForkEventType, model.ExecEventType, model.ExitEventType:
 		event.AddToFlags(model.EventFlagsSecurityProfileFoundAndPresent)
-		fmt.Printf("FORK Event found in profile -> discarded\n")
-	case model.ExecEventType:
-		event.AddToFlags(model.EventFlagsSecurityProfileFoundAndPresent)
-		fmt.Printf("EXEC Event found in profile -> discarded\n")
-	case model.ExitEventType:
-		event.AddToFlags(model.EventFlagsSecurityProfileFoundAndPresent)
-		fmt.Printf("EXIT Event found in profile -> discarded\n")
 
 	case model.DNSEventType:
 		if findDNSInNodes(processNodes, event) {
 			event.AddToFlags(model.EventFlagsSecurityProfileFoundAndPresent)
-			fmt.Printf("DNS Event found in profile -> discarded\n")
 		}
 	}
 

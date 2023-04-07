@@ -369,16 +369,6 @@ func (p *Probe) SendAnomalyDetection(event *model.Event) {
 		return // at least, files, bind, fork and exit
 	}
 
-	// TODO: delete debug logs
-	switch event.GetEventType() {
-	case model.DNSEventType:
-		fmt.Printf("DNS Event not found in profile -> generate anomaly detection ! %s @ %+v for %s (%d)\n",
-			event.ProcessContext.Comm, event.GetEventType().String(), event.DNS.Name, event.DNS.Type)
-	case model.ExecEventType:
-		fmt.Printf("EXEC Event not found in profile -> generate anomaly detection ! %s @ %+v\n",
-			event.ProcessContext.Comm, event.GetEventType().String())
-	}
-
 	p.DispatchCustomEvent(
 		events.NewCustomRule(events.AnomalyDetectionRuleID),
 		events.NewCustomEvent(event.GetEventType(), serializers.NewEventSerializer(event, p.resolvers)),
