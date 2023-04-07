@@ -1672,7 +1672,6 @@ func TestTCPDirectionWithPreexistingConnection(t *testing.T) {
 	server := NewTCPServer(func(c net.Conn) {
 		t.Logf("received connection from %s", c.RemoteAddr())
 		_, err := bufio.NewReader(c).ReadBytes('\n')
-		c.Close()
 		if err == nil {
 			wg.Done()
 		}
@@ -1684,7 +1683,7 @@ func TestTCPDirectionWithPreexistingConnection(t *testing.T) {
 	// create an initial client connection to the server
 	c, err := net.DialTimeout("tcp", server.address, 5*time.Second)
 	require.NoError(t, err)
-	defer c.Close()
+	t.Cleanup(func() { c.Close() })
 
 	// start tracer so it dumps port bindings
 	cfg := testConfig()
@@ -1707,13 +1706,18 @@ func TestTCPDirectionWithPreexistingConnection(t *testing.T) {
 	require.NoError(t, err)
 	wg.Wait()
 
+	var origConn []network.ConnectionStats
 	// the original connection should still be incoming for the server
-	conns := getConnections(t, tr)
-	origConn := searchConnections(conns, func(cs network.ConnectionStats) bool {
-		return fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == server.address &&
-			fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == c.LocalAddr().String()
-	})
-	require.Len(t, origConn, 1)
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		origConn = searchConnections(conns, func(cs network.ConnectionStats) bool {
+			return fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == server.address &&
+				fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == c.LocalAddr().String()
+		})
+
+		return len(origConn) == 1
+	}, 3*time.Second, 500*time.Millisecond, "timed out waiting for original connection")
+
 	require.Equal(t, network.INCOMING, origConn[0].Direction, "original server<->client connection should have incoming direction")
 }
 

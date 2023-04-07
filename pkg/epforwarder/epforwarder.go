@@ -23,6 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
+//go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=epforwarder_mockgen.go
+
 const (
 	eventTypeDBMSamples  = "dbm-samples"
 	eventTypeDBMMetrics  = "dbm-metrics"
@@ -161,6 +163,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 // An EventPlatformForwarder forwards Messages to a destination based on their event type
 type EventPlatformForwarder interface {
 	SendEventPlatformEvent(e *message.Message, eventType string) error
+	SendEventPlatformEventBlocking(e *message.Message, eventType string) error
 	Purge() map[string][]*message.Message
 	Start()
 	Stop()
@@ -172,6 +175,8 @@ type defaultEventPlatformForwarder struct {
 	destinationsCtx *client.DestinationsContext
 }
 
+// SendEventPlatformEvent sends messages to the event platform intake.
+// SendEventPlatformEvent will drop messages and return an error if the input channel is already full.
 func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Message, eventType string) error {
 	p, ok := s.pipelines[eventType]
 	if !ok {
@@ -183,6 +188,17 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 	default:
 		return fmt.Errorf("event platform forwarder pipeline channel is full for eventType=%s. Channel capacity is %d. consider increasing batch_max_concurrent_send", eventType, cap(p.in))
 	}
+}
+
+// SendEventPlatformEventBlocking sends messages to the event platform intake.
+// SendEventPlatformEventBlocking will block if the input channel is already full.
+func (s *defaultEventPlatformForwarder) SendEventPlatformEventBlocking(e *message.Message, eventType string) error {
+	p, ok := s.pipelines[eventType]
+	if !ok {
+		return fmt.Errorf("unknown eventType=%s", eventType)
+	}
+	p.in <- e
+	return nil
 }
 
 func purgeChan(in chan *message.Message) (result []*message.Message) {

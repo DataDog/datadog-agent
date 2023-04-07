@@ -16,7 +16,7 @@
 // depending on the kernel version p_net may be a struct net** or possible_net_t*
 static __always_inline u32 get_netns(void *p_net) {
     u32 net_ns_inum = 0;
-#if defined(CONFIG_NET_NS)
+#ifdef CONFIG_NET_NS
     struct net *ns = NULL;
     bpf_probe_read_kernel_with_telemetry(&ns, sizeof(ns), p_net);
 #ifdef _LINUX_NS_COMMON_H

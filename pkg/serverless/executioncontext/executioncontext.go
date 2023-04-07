@@ -22,6 +22,7 @@ type ExecutionContext struct {
 	lastRequestID      string
 	coldstartRequestID string
 	lastLogRequestID   string
+	lastOOMRequestID   string
 	coldstart          bool
 	startTime          time.Time
 	endTime            time.Time
@@ -35,6 +36,7 @@ type State struct {
 	LastRequestID      string
 	ColdstartRequestID string
 	LastLogRequestID   string
+	LastOOMRequestID   string
 	Coldstart          bool
 	StartTime          time.Time
 	EndTime            time.Time
@@ -49,6 +51,7 @@ func (ec *ExecutionContext) GetCurrentState() State {
 		LastRequestID:      ec.lastRequestID,
 		ColdstartRequestID: ec.coldstartRequestID,
 		LastLogRequestID:   ec.lastLogRequestID,
+		LastOOMRequestID:   ec.lastOOMRequestID,
 		Coldstart:          ec.coldstart,
 		StartTime:          ec.startTime,
 		EndTime:            ec.endTime,
@@ -89,6 +92,14 @@ func (ec *ExecutionContext) UpdateEndTime(time time.Time) {
 	ec.m.Lock()
 	defer ec.m.Unlock()
 	ec.endTime = time
+}
+
+// UpdateOutOfMemoryRequestID updates the execution context with the request ID if an
+// out of memory is detected either in the function or platform.report logs
+func (ec *ExecutionContext) UpdateOutOfMemoryRequestID(requestId string) {
+	ec.m.Lock()
+	defer ec.m.Unlock()
+	ec.lastOOMRequestID = requestId
 }
 
 // getPersistedStateFilePath returns the full path and filename of the
@@ -133,6 +144,7 @@ func (ec *ExecutionContext) RestoreCurrentStateFromFile() error {
 	ec.arn = restoredExecutionContextState.ARN
 	ec.lastRequestID = restoredExecutionContextState.LastRequestID
 	ec.lastLogRequestID = restoredExecutionContextState.LastLogRequestID
+	ec.lastOOMRequestID = restoredExecutionContextState.LastOOMRequestID
 	ec.coldstartRequestID = restoredExecutionContextState.ColdstartRequestID
 	ec.startTime = restoredExecutionContextState.StartTime
 	ec.endTime = restoredExecutionContextState.EndTime

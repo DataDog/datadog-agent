@@ -14,6 +14,7 @@ from . import (
     customaction,
     docker,
     dogstatsd,
+    epforwarder,
     github,
     msi,
     package,
@@ -56,6 +57,7 @@ from .test import (
     junit_upload,
     lint_copyrights,
     lint_filenames,
+    lint_go,
     lint_milestone,
     lint_python,
     lint_releasenote,
@@ -85,6 +87,7 @@ ns.add_task(lint_releasenote)
 ns.add_task(lint_milestone)
 ns.add_task(lint_filenames)
 ns.add_task(lint_python)
+ns.add_task(lint_go)
 ns.add_task(audit_tag_impact)
 ns.add_task(print_default_build_tags)
 ns.add_task(e2e_tests)
@@ -110,6 +113,7 @@ ns.add_collection(bench)
 ns.add_collection(trace_agent)
 ns.add_collection(docker)
 ns.add_collection(dogstatsd)
+ns.add_collection(epforwarder)
 ns.add_collection(msi)
 ns.add_collection(github)
 ns.add_collection(package)

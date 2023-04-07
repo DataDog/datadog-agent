@@ -18,6 +18,7 @@ import (
 	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
+	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
 func requestLatency(responseLastSeen uint64, requestStarted uint64) float64 {
@@ -69,8 +70,8 @@ func (tx *WinHttpTransaction) RequestLatency() float64 {
 	return requestLatency(tx.Txn.ResponseLastSeen, tx.Txn.RequestStarted)
 }
 
-func (tx *WinHttpTransaction) ConnTuple() KeyTuple {
-	return KeyTuple{
+func (tx *WinHttpTransaction) ConnTuple() types.ConnectionKey {
+	return types.ConnectionKey{
 		SrcIPHigh: srcIPHigh(&tx.Txn.Tup),
 		SrcIPLow:  srcIPLow(&tx.Txn.Tup),
 		DstIPHigh: dstIPHigh(&tx.Txn.Tup),
@@ -100,7 +101,6 @@ func (tx *WinHttpTransaction) DynamicTags() []string {
 			fmt.Sprintf("http.iis.app_pool:%v", tx.AppPool),
 			fmt.Sprintf("http.iis.site:%v", tx.SiteID),
 			fmt.Sprintf("http.iis.sitename:%v", tx.SiteName),
-			fmt.Sprintf("service:%v", tx.AppPool),
 		}
 	}
 	return nil

@@ -4,6 +4,7 @@
 #include "bpf_builtins.h"
 #include "bpf_core_read.h"
 #include "defs.h"
+
 #include "tracer.h"
 #include "tracer-maps.h"
 #include "tracer-telemetry.h"
@@ -12,6 +13,7 @@
 #include "protocols/classification/tracer-maps.h"
 #include "protocols/tls/tags-types.h"
 #include "ip.h"
+#include "skb.h"
 
 #ifdef COMPILE_PREBUILT
 static __always_inline __u64 offset_rtt();
@@ -258,6 +260,33 @@ static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u
         stats.state_transitions = (1 << state);
     }
     update_tcp_stats(t, stats);
+}
+
+static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buff *skb, int len) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    udp_recv_sock_t *st = bpf_map_lookup_elem(&udp_recv_sock, &pid_tgid);
+    if (!st) { // no entry means a peek
+        return 0;
+    }
+
+    if (len < 0) {
+        // peeking or an error happened
+        return 0;
+    }
+    conn_tuple_t t;
+    bpf_memset(&t, 0, sizeof(conn_tuple_t));
+    int data_len = sk_buff_to_tuple(skb, &t);
+    if (data_len <= 0) {
+        log_debug("ERR(skb_consume_udp): error reading tuple ret=%d\n", data_len);
+        return 0;
+    }
+    // we are receiving, so we want the daddr to become the laddr
+    flip_tuple(&t);
+
+    log_debug("skb_consume_udp: bytes=%d\n", data_len);
+    t.pid = pid_tgid >> 32;
+    t.netns = get_netns_from_sock(sk);
+    return handle_message(&t, 0, data_len, CONN_DIRECTION_UNKNOWN, 0, 1, PACKET_COUNT_INCREMENT, sk);
 }
 
 #endif // __TRACER_STATS_H

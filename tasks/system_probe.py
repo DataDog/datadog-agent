@@ -15,7 +15,7 @@ from subprocess import check_output
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import get_default_build_tags
+from .build_tags import UNIT_TEST_TAGS, get_default_build_tags
 from .libs.common.color import color_message
 from .libs.ninja_syntax import NinjaWriter
 from .test import environ
@@ -138,14 +138,15 @@ def ninja_ebpf_co_re_program(nw, infile, outfile, variables=None):
 
 def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
     security_agent_c_dir = os.path.join("pkg", "security", "ebpf", "c")
+    security_agent_prebuilt_dir_include = os.path.join(security_agent_c_dir, "include")
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
 
     kernel_headers = get_linux_header_dirs(
         kernel_release=kernel_release, minimal_kernel_release=CWS_PREBUILT_MINIMUM_KERNEL_VERSION
     )
     kheaders = " ".join(f"-isystem{d}" for d in kernel_headers)
-    debugdef = "-DDEBUG=1 -g" if debug else ""
-    security_flags = f"-I{security_agent_c_dir} {debugdef}"
+    debugdef = "-DDEBUG=1" if debug else ""
+    security_flags = f"-g -I{security_agent_prebuilt_dir_include} {debugdef}"
 
     outfiles = []
 
@@ -208,15 +209,14 @@ def ninja_network_ebpf_co_re_program(nw, infile, outfile, flags):
 def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
     network_bpf_dir = os.path.join("pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
-    network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
     network_flags = "-Ipkg/network/ebpf/c -g"
-    network_programs = ["dns", "offset-guess", "tracer", "http", "usm_events_test", "conntrack"]
-    network_co_re_programs = ["co-re/tracer", "co-re/tracer-fentry", "runtime/http"]
+    network_programs = ["prebuilt/dns", "prebuilt/offset-guess", "tracer", "prebuilt/http", "prebuilt/usm_events_test", "prebuilt/conntrack"]
+    network_co_re_programs = ["tracer", "co-re/tracer-fentry", "runtime/http"]
 
     for prog in network_programs:
-        infile = os.path.join(network_prebuilt_dir, f"{prog}.c")
-        outfile = os.path.join(build_dir, f"{prog}.o")
+        infile = os.path.join(network_c_dir, f"{prog}.c")
+        outfile = os.path.join(build_dir, f"{os.path.basename(prog)}.o")
         ninja_network_ebpf_program(nw, infile, outfile, network_flags)
 
     for prog_path in network_co_re_programs:
@@ -541,6 +541,7 @@ def test(
         )
 
     build_tags = [NPM_TAG]
+    build_tags.extend(UNIT_TEST_TAGS)
     if not windows:
         build_tags.append(BPF_TAG)
         if bundle_ebpf:

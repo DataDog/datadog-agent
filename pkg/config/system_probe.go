@@ -297,6 +297,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.dir", DefaultSecurityProfilesDir)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.watch_dir", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.cache_size", 10)
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.max_count", 400)
 }
 
 func join(pieces ...string) string {

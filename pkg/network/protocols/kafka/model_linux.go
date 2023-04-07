@@ -8,8 +8,10 @@
 
 package kafka
 
-func (tx *EbpfKafkaTx) ConnTuple() KeyTuple {
-	return KeyTuple{
+import "github.com/DataDog/datadog-agent/pkg/network/types"
+
+func (tx *EbpfKafkaTx) ConnTuple() types.ConnectionKey {
+	return types.ConnectionKey{
 		SrcIPHigh: tx.Tup.Saddr_h,
 		SrcIPLow:  tx.Tup.Saddr_l,
 		DstIPHigh: tx.Tup.Daddr_h,
