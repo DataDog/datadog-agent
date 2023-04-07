@@ -12,6 +12,9 @@
 // This implementation is based on
 // https://github.com/vitessio/vitess/blob/main/go/vt/servenv/grpc_codec.go
 
+//go:build vtprotocodec
+// +build vtprotocodec
+
 package api
 
 import (
@@ -65,11 +68,6 @@ func (maybeVTCodec) Name() string {
 	return codecName
 }
 
-// RegisterMaybeVTCodec is populated by the build command
-var RegisterMaybeVTCodec string
-
 func init() {
-	if RegisterMaybeVTCodec == "true" {
-		encoding.RegisterCodec(maybeVTCodec{})
-	}
+	encoding.RegisterCodec(maybeVTCodec{})
 }
