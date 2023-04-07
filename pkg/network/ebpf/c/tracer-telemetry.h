@@ -2,6 +2,12 @@
 #define __TRACER_TELEMETRY_H
 
 #include "ktypes.h"
+
+#if defined(COMPILE_RUNTIME) || defined(COMPILE_PREBUILT)
+#include <linux/socket.h>
+#include <uapi/linux/in.h>
+#endif
+
 #include "bpf_endian.h"
 
 #include "ip.h"
