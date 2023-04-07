@@ -67,7 +67,7 @@ func NewEvalOpts(eventTypeEnabled map[eval.EventType]bool) (*Opts, *eval.Opts) {
 			"process": func() VariableProvider {
 				return eval.NewScopedVariables(func(ctx *eval.Context) *model.ProcessContext {
 					return ctx.Event.(*model.Event).ProcessContext
-				}, nil)
+				})
 			},
 		})
 

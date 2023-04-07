@@ -6,6 +6,7 @@
 package stats
 
 import (
+	"strings"
 	"sync"
 	"time"
 
@@ -37,14 +38,16 @@ type Concentrator struct {
 	// It means that we can compute stats only for the last `bufferLen * bsize` and that we
 	// wait such time before flushing the stats.
 	// This only applies to past buckets. Stats buckets in the future are allowed with no restriction.
-	bufferLen     int
-	exit          chan struct{}
-	exitWG        sync.WaitGroup
-	buckets       map[int64]*RawBucket // buckets used to aggregate stats per timestamp
-	mu            sync.Mutex
-	agentEnv      string
-	agentHostname string
-	agentVersion  string
+	bufferLen              int
+	exit                   chan struct{}
+	exitWG                 sync.WaitGroup
+	buckets                map[int64]*RawBucket // buckets used to aggregate stats per timestamp
+	mu                     sync.Mutex
+	agentEnv               string
+	agentHostname          string
+	agentVersion           string
+	peerSvcAggregation     bool // flag to enable peer.service aggregation
+	computeStatsBySpanKind bool // flag to enable computation of stats through checking the span.kind field
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
@@ -57,13 +60,15 @@ func NewConcentrator(conf *config.AgentConfig, out chan pb.StatsPayload, now tim
 		// override buckets which could have been sent before an Agent restart.
 		oldestTs: alignTs(now.UnixNano(), bsize),
 		// TODO: Move to configuration.
-		bufferLen:     defaultBufferLen,
-		In:            make(chan Input, 100),
-		Out:           out,
-		exit:          make(chan struct{}),
-		agentEnv:      conf.DefaultEnv,
-		agentHostname: conf.Hostname,
-		agentVersion:  conf.AgentVersion,
+		bufferLen:              defaultBufferLen,
+		In:                     make(chan Input, 100),
+		Out:                    out,
+		exit:                   make(chan struct{}),
+		agentEnv:               conf.DefaultEnv,
+		agentHostname:          conf.Hostname,
+		agentVersion:           conf.AgentVersion,
+		peerSvcAggregation:     conf.PeerServiceAggregation,
+		computeStatsBySpanKind: conf.ComputeStatsBySpanKind,
 	}
 	return &c
 }
@@ -111,6 +116,17 @@ func (c *Concentrator) Run() {
 func (c *Concentrator) Stop() {
 	close(c.exit)
 	c.exitWG.Wait()
+}
+
+// computeStatsForSpanKind returns true if the span.kind value makes the span eligible for stats computation.
+func computeStatsForSpanKind(s *pb.Span) bool {
+	k := strings.ToLower(s.Meta["span.kind"])
+	switch k {
+	case "server", "consumer", "client", "producer":
+		return true
+	default:
+		return false
+	}
 }
 
 // Input specifies a set of traces originating from a certain payload.
@@ -165,7 +181,11 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 	}
 	for _, s := range pt.TraceChunk.Spans {
 		isTop := traceutil.HasTopLevel(s)
-		if !(isTop || traceutil.IsMeasured(s)) || traceutil.IsPartialSnapshot(s) {
+		eligibleSpanKind := c.computeStatsBySpanKind && computeStatsForSpanKind(s)
+		if !(isTop || traceutil.IsMeasured(s) || eligibleSpanKind) {
+			continue
+		}
+		if traceutil.IsPartialSnapshot(s) {
 			continue
 		}
 		end := s.Start + s.Duration
@@ -181,7 +201,7 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 			b = NewRawBucket(uint64(btime), uint64(c.bsize))
 			c.buckets[btime] = b
 		}
-		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey)
+		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey, c.peerSvcAggregation)
 	}
 }
 

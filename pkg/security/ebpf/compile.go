@@ -9,15 +9,17 @@
 package ebpf
 
 import (
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // TODO change probe.c path to runtime-compilation specific version
-//go:generate go run ../../ebpf/include_headers.go ./c/prebuilt/probe.c ../../ebpf/bytecode/build/runtime/runtime-security.c ./c ../../ebpf/c
+//go:generate go run ../../ebpf/include_headers.go ./c/prebuilt/probe.c ../../ebpf/bytecode/build/runtime/runtime-security.c ./c/include ../../ebpf/c
 //go:generate go run ../../ebpf/bytecode/runtime/integrity.go ../../ebpf/bytecode/build/runtime/runtime-security.c ../../ebpf/bytecode/runtime/runtime-security.go runtime
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/model/bpf_maps_generator -runtime-path ../../ebpf/bytecode/build/runtime/runtime-security.c -output ../../security/secl/model/consts_map_names.go -pkg-name model
 
 func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper, useRingBuffer bool, client statsd.ClientInterface) (bytecode.AssetReader, error) {
 	var cflags []string
@@ -35,6 +37,8 @@ func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper, useRin
 	if useRingBuffer {
 		cflags = append(cflags, "-DUSE_RING_BUFFER=1")
 	}
+
+	cflags = append(cflags, "-g")
 
 	return runtime.RuntimeSecurity.Compile(&config.Config, cflags, client)
 }

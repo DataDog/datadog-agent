@@ -75,6 +75,8 @@
 /.gitlab/functional_test/system_probe.yml            @DataDog/ebpf-platform @DataDog/agent-platform
 /.gitlab/functional_test_cleanup.yml                 @DataDog/agent-security @DataDog/ebpf-platform @DataDog/agent-platform
 
+/.gitlab/kernel_version_testing                      @DataDog/ebpf-platform
+
 /.gitlab/container_build/                            @DataDog/container-integrations @DataDog/agent-platform
 /.gitlab/container_build/docker_windows_agent6.yml   @DataDog/agent-platform @DataDog/windows-agent
 /.gitlab/container_build/docker_windows_agent7.yml   @DataDog/agent-platform @DataDog/windows-agent
@@ -187,9 +189,12 @@
 
 # pkg
 /pkg/                                   @DataDog/agent-shared-components
+/pkg/api/                               @DataDog/agent-shared-components
 /pkg/aggregator/                        @DataDog/agent-metrics-logs
 /pkg/collector/                         @DataDog/agent-metrics-logs
+/pkg/cli/                               @DataDog/agent-shared-components
 /pkg/dogstatsd/                         @DataDog/agent-metrics-logs
+/pkg/errors/                            @DataDog/agent-shared-components
 /pkg/forwarder/                         @DataDog/agent-metrics-logs @DataDog/agent-shared-components
 /pkg/jmxfetch/                          @DataDog/agent-metrics-logs
 /pkg/metadata/                          @DataDog/agent-shared-components
@@ -244,6 +249,7 @@
 /pkg/config/system_probe.go             @DataDog/ebpf-platform
 /pkg/config/remote/                     @DataDog/remote-config
 /pkg/config/remote/service/meta/        @DataDog/remote-config @DataDog/software-integrity-and-trust
+/pkg/containerlifecycle/                @Datadog/container-integrations
 /pkg/diagnose/                          @Datadog/container-integrations
 /pkg/diagnose/connectivity/             @DataDog/agent-shared-components
 /pkg/eventmonitor/                      @DataDog/ebpf-platform @DataDog/agent-security
@@ -259,6 +265,7 @@
 /pkg/serializer/                        @DataDog/agent-metrics-logs
 /pkg/tagger/                            @DataDog/container-integrations
 /pkg/tagset/                            @DataDog/agent-shared-components
+/pkg/util/                              @DataDog/agent-shared-components
 /pkg/util/aggregatingqueue              @DataDog/container-integrations
 /pkg/util/cloudproviders/cloudfoundry/  @DataDog/platform-integrations
 /pkg/util/clusteragent/                 @DataDog/container-integrations

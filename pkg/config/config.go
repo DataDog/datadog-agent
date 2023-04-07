@@ -306,6 +306,7 @@ func InitConfig(config Config) {
 	config.BindEnv("remote_configuration.refresh_interval")
 	config.BindEnvAndSetDefault("remote_configuration.max_backoff_interval", 5*time.Minute)
 	config.BindEnvAndSetDefault("remote_configuration.clients.ttl_seconds", 30*time.Second)
+	config.BindEnvAndSetDefault("remote_configuration.clients.cache_bypass_limit", 5)
 	// Remote config products
 	config.BindEnvAndSetDefault("remote_configuration.apm_sampling.enabled", true)
 
@@ -630,6 +631,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("containerd_exclude_namespaces", []string{"moby"})
 	config.BindEnvAndSetDefault("container_env_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("container_labels_as_tags", map[string]string{})
+
+	// Podman
+	config.BindEnvAndSetDefault("podman_db_path", "/var/lib/containers/storage/libpod/bolt_state.db")
 
 	// Kubernetes
 	config.BindEnvAndSetDefault("kubernetes_kubelet_host", "")
@@ -1474,7 +1478,7 @@ func LoadDatadogCustomWithKnownEnvVars(config Config, origin string, loadSecret 
 	defer func() {
 		// Environment feature detection needs to run before applying override funcs
 		// as it may provide such overrides
-		DetectFeatures()
+		detectFeatures()
 		applyOverrideFuncs(config)
 	}()
 
@@ -2107,23 +2111,36 @@ func GetGlobalConfiguredTags(includeDogstatsd bool) []string {
 }
 
 func bindVectorOptions(config Config, datatype DataType) {
+	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.enabled", datatype), false)
+	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.url", datatype), "")
+
 	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.enabled", datatype), false)
 	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.url", datatype), "")
 }
 
-// GetVectorURL returns the URL under the 'vector.' prefix for the given datatype
-func GetVectorURL(datatype DataType) (string, error) {
-	if Datadog.GetBool(fmt.Sprintf("vector.%s.enabled", datatype)) {
-		vectorURL := Datadog.GetString(fmt.Sprintf("vector.%s.url", datatype))
-		if vectorURL == "" {
-			log.Errorf("vector.%s.enabled is set to true, but vector.%s.url is empty", datatype, datatype)
+// GetObsPipelineURL returns the URL under the 'observability_pipelines_worker.' prefix for the given datatype
+func GetObsPipelineURL(datatype DataType) (string, error) {
+	if Datadog.GetBool(fmt.Sprintf("observability_pipelines_worker.%s.enabled", datatype)) {
+		return getObsPipelineURLForPrefix(datatype, "observability_pipelines_worker")
+	} else if Datadog.GetBool(fmt.Sprintf("vector.%s.enabled", datatype)) {
+		// Fallback to the `vector` config if observability_pipelines_worker is not set.
+		return getObsPipelineURLForPrefix(datatype, "vector")
+	}
+	return "", nil
+}
+
+func getObsPipelineURLForPrefix(datatype DataType, prefix string) (string, error) {
+	if Datadog.GetBool(fmt.Sprintf("%s.%s.enabled", prefix, datatype)) {
+		pipelineURL := Datadog.GetString(fmt.Sprintf("%s.%s.url", prefix, datatype))
+		if pipelineURL == "" {
+			log.Errorf("%s.%s.enabled is set to true, but %s.%s.url is empty", prefix, datatype, prefix, datatype)
 			return "", nil
 		}
-		_, err := url.Parse(vectorURL)
+		_, err := url.Parse(pipelineURL)
 		if err != nil {
-			return "", fmt.Errorf("could not parse vector %s endpoint: %s", datatype, err)
+			return "", fmt.Errorf("could not parse %s %s endpoint: %s", prefix, datatype, err)
 		}
-		return vectorURL, nil
+		return pipelineURL, nil
 	}
 	return "", nil
 }

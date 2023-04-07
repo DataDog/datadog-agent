@@ -27,6 +27,7 @@ type DemultiplexerWithAggregator interface {
 	// AggregateCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
 	AggregateCheckSample(sample metrics.MetricSample)
 	Options() AgentDemultiplexerOptions
+	GetEventPlatformForwarder() (epforwarder.EventPlatformForwarder, error)
 	GetEventsAndServiceChecksChannels() (chan []*metrics.Event, chan []*metrics.ServiceCheck)
 }
 
@@ -508,6 +509,11 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 // GetEventsAndServiceChecksChannels returneds underlying events and service checks channels.
 func (d *AgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*metrics.Event, chan []*metrics.ServiceCheck) {
 	return d.aggregator.GetBufferedChannels()
+}
+
+// GetEventPlatformForwarder returns underlying events and service checks channels.
+func (d *AgentDemultiplexer) GetEventPlatformForwarder() (epforwarder.EventPlatformForwarder, error) {
+	return d.aggregator.GetEventPlatformForwarder()
 }
 
 // SendSamplesWithoutAggregation buffers a bunch of metrics with timestamp. This data will be directly

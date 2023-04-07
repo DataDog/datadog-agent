@@ -29,6 +29,8 @@ const (
 	AbnormalPathRuleID = "abnormal_path"
 	// SelfTestRuleID is the rule ID for the self_test events
 	SelfTestRuleID = "self_test"
+	// AnomalyDetectionRuleID is the rule ID for anomaly_detection events
+	AnomalyDetectionRuleID = "anomaly_detection"
 )
 
 type CustomEventCommonFields struct {
@@ -57,6 +59,7 @@ func AllCustomRuleIDs() []string {
 		NoisyProcessRuleID,
 		AbnormalPathRuleID,
 		SelfTestRuleID,
+		AnomalyDetectionRuleID,
 	}
 }
 
