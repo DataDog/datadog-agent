@@ -35,26 +35,27 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 		return workloadmeta.Container{}, err
 	}
 
-	image, err := workloadmeta.NewContainerImage(info.Image)
-	if err != nil {
-		log.Debugf("cannot split image name %q: %s", info.Image, err)
-	}
-
 	// Prepare context
 	ctx := context.Background()
 	ctx = namespaces.WithNamespace(ctx, namespace)
 
 	// Get image id from container's image config
+	var imageID string
 	img, err := container.Image(ctx)
 	if err != nil {
-		log.Debugf("cannot get container %s's image: %v", container.ID(), err)
+		log.Warnf("cannot get container %s's image: %v", container.ID(), err)
 	} else {
 		imgConfig, err := img.Config(ctx)
 		if err != nil {
-			log.Debugf("cannot get container %s's image's config: %v", container.ID(), err)
+			log.Warnf("cannot get container %s's image's config: %v", container.ID(), err)
 		} else {
-			image.ID = imgConfig.Digest.String()
+			imageID = imgConfig.Digest.String()
 		}
+	}
+
+	image, err := workloadmeta.NewContainerImage(imageID, info.Image)
+	if err != nil {
+		log.Debugf("cannot split image name %q: %s", info.Image, err)
 	}
 
 	status, err := containerdClient.Status(namespace, container)

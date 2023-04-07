@@ -105,13 +105,10 @@ func convertToEvent(container *podman.Container) workloadmeta.CollectorEvent {
 		log.Warnf("Could not get env vars for container %s", containerID)
 	}
 
-	image, err := workloadmeta.NewContainerImage(container.Config.RawImageName)
+	image, err := workloadmeta.NewContainerImage(container.Config.ContainerRootFSConfig.RootfsImageID, container.Config.RawImageName)
 	if err != nil {
 		log.Warnf("Could not get image for container %s", containerID)
 	}
-
-	// Add imageID to image
-	image.ID = container.Config.ContainerRootFSConfig.RootfsImageID
 
 	var ports []workloadmeta.ContainerPort
 	for _, portMapping := range container.Config.PortMappings {
