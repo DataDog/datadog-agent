@@ -127,8 +127,8 @@ type RuleSetLoadedReport struct {
 }
 
 // ReportRuleSetLoaded reports to Datadog that new ruleset was loaded
-func ReportRuleSetLoaded(sender EventSender, statsdClient statsd.ClientInterface, ruleSet *rules.RuleSet, err *multierror.Error) {
-	rule, event := NewRuleSetLoadedEvent(ruleSet, err)
+func ReportRuleSetLoaded(sender EventSender, statsdClient statsd.ClientInterface, ruleSets map[string]*rules.RuleSet, err *multierror.Error) {
+	rule, event := NewRuleSetLoadedEvent(ruleSets, err)
 
 	// TODO(celia): Create new metric for threat score rules
 	if err := statsdClient.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
@@ -184,37 +184,39 @@ func RuleStateFromDefinition(def *rules.RuleDefinition, status string, message s
 	}
 }
 
-// NewRuleSetLoadedEvent returns the rule and a populated custom event for a new_rules_loaded event
-func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rule, *events.CustomEvent) {
+// NewRuleSetLoadedEvent returns the rule (e.g. ruleset_loaded) and a populated custom event for a new_rules_loaded event
+func NewRuleSetLoadedEvent(ruleSets map[string]*rules.RuleSet, err *multierror.Error) (*rules.Rule, *events.CustomEvent) {
 	mp := make(map[string]*PolicyState)
 
 	var policyState *PolicyState
 	var exists bool
 
-	for _, rule := range rs.GetRules() {
-		ruleDef := rule.Definition
-		policyName := ruleDef.Policy.Name
+	for _, rs := range ruleSets {
+		for _, rule := range rs.GetRules() {
+			ruleDef := rule.Definition
+			policyName := ruleDef.Policy.Name
 
-		if policyState, exists = mp[policyName]; !exists {
-			policyState = PolicyStateFromRuleDefinition(ruleDef)
-			mp[policyName] = policyState
+			if policyState, exists = mp[policyName]; !exists {
+				policyState = PolicyStateFromRuleDefinition(ruleDef)
+				mp[policyName] = policyState
+			}
+			policyState.Rules = append(policyState.Rules, RuleStateFromDefinition(ruleDef, "loaded", ""))
 		}
-		policyState.Rules = append(policyState.Rules, RuleStateFromDefinition(ruleDef, "loaded", ""))
-	}
 
-	// rules ignored due to errors
-	if err != nil && err.Errors != nil {
-		for _, err := range err.Errors {
-			if rerr, ok := err.(*rules.ErrRuleLoad); ok {
-				policyName := rerr.Definition.Policy.Name
+		// rules ignored due to errors
+		if err != nil && err.Errors != nil {
+			for _, err := range err.Errors {
+				if rerr, ok := err.(*rules.ErrRuleLoad); ok {
+					policyName := rerr.Definition.Policy.Name
 
-				if _, exists := mp[policyName]; !exists {
-					policyState = PolicyStateFromRuleDefinition(rerr.Definition)
-					mp[policyName] = policyState
-				} else {
-					policyState = mp[policyName]
+					if _, exists := mp[policyName]; !exists {
+						policyState = PolicyStateFromRuleDefinition(rerr.Definition)
+						mp[policyName] = policyState
+					} else {
+						policyState = mp[policyName]
+					}
+					policyState.Rules = append(policyState.Rules, RuleStateFromDefinition(rerr.Definition, string(rerr.Type()), rerr.Err.Error()))
 				}
-				policyState.Rules = append(policyState.Rules, RuleStateFromDefinition(rerr.Definition, string(rerr.Type()), rerr.Err.Error()))
 			}
 		}
 	}
