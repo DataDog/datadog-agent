@@ -158,10 +158,7 @@ func (c *collector) parseTaskContainers(
 
 		seen[entityID] = struct{}{}
 
-		image, err := workloadmeta.NewContainerImage(container.Image)
-
-		// Add imageID to image
-		image.ID = container.ImageID
+		image, err := workloadmeta.NewContainerImage(container.ImageID, container.Image)
 
 		if err != nil {
 			log.Debugf("cannot split image name %q: %s", container.Image, err)

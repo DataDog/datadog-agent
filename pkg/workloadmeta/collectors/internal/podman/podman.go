@@ -111,8 +111,7 @@ func convertToEvent(container *podman.Container) workloadmeta.CollectorEvent {
 	}
 
 	// Add imageID to image
-	imageID := container.Config.ContainerRootFSConfig.RootfsImageID
-	image.ID = imageID
+	image.ID = container.Config.ContainerRootFSConfig.RootfsImageID
 
 	var ports []workloadmeta.ContainerPort
 	for _, portMapping := range container.Config.PortMappings {
