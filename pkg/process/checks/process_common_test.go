@@ -120,7 +120,7 @@ func TestPercentCalculation(t *testing.T) {
 		assert.True(t, floatEquals(calculatePct(1.09, 8.08, 8), 107.920792))
 	} else {
 		// on Windows, CPU utilization is not multiplied by number of cores
-		assert.True(t, floatEquals(calculatePct(100, 200, 2), 500))
+		assert.True(t, floatEquals(calculatePct(100, 200, 2), 50))
 		assert.True(t, floatEquals(calculatePct(0.04, 8.08, 8), 0.4950495))
 		assert.True(t, floatEquals(calculatePct(1.09, 8.08, 8), 13.490099))
 	}
