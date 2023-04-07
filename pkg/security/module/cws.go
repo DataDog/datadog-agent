@@ -329,51 +329,52 @@ func (c *CWSConsumer) LoadPolicies(policyProviders []rules.PolicyProvider, sendL
 	// load policies
 	c.policyLoader.SetProviders(policyProviders)
 
-	policySet := c.probe.NewPolicySet(c.getEventTypeEnabled())
-	// standard ruleset
-	ruleSet := policySet.RuleSets[rules.ProbeEvaluationRuleSetName]
-	threatScoreRuleSet := policySet.RuleSets[rules.ThreatScoreRuleSetName]
+	evaluationSet := c.probe.EvaluationSet(c.getEventTypeEnabled())
+	probeEvaluationRuleSet := evaluationSet.RuleSets[rules.ProbeEvaluationRuleSetName]
+	threatScoreRuleSet := evaluationSet.RuleSets[rules.ThreatScoreRuleSetName]
 
-	loadErrs := policySet.LoadPolicies(c.policyLoader, c.policyOpts)
+	loadErrs := evaluationSet.LoadPolicies(c.policyLoader, c.policyOpts)
 	if loadErrs.ErrorOrNil() != nil {
 		logLoadingErrors("error while loading policies: %+v", loadErrs)
 	}
 
 	// update current policies related module attributes
-	c.policiesVersions = getPoliciesVersions(ruleSet)
+	c.policiesVersions = getPoliciesVersions(probeEvaluationRuleSet)
 	c.policyProviders = policyProviders
-	c.currentRuleSet.Store(ruleSet)
+	c.currentRuleSet.Store(probeEvaluationRuleSet)
 	c.currentThreatScoreRuleSet.Store(threatScoreRuleSet)
 
 	// notify listeners
 	if c.rulesLoaded != nil {
-		c.rulesLoaded([]*rules.RuleSet{ruleSet, threatScoreRuleSet}, loadErrs)
+		c.rulesLoaded([]*rules.RuleSet{probeEvaluationRuleSet, threatScoreRuleSet}, loadErrs)
 	}
 
 	// add module as listener for rule match callback
-	ruleSet.AddListener(c)
-	threatScoreRuleSet.AddListener(c)
+	for _, rs := range evaluationSet.RuleSets {
+		rs.AddListener(c)
+	}
 
-	// analyze the ruleset, push default policies in the kernel and generate the policy report
-	report, err := c.probe.ApplyRuleSet(ruleSet, false)
+	// analyze the ruleset, push probe evaluation rule sets to the kernel and generate the policy report
+	report, err := c.probe.ApplyRuleSet(probeEvaluationRuleSet, false)
 	if err != nil {
 		return err
 	}
 	c.displayApplyRuleSetReport(report)
 
-	// set the rate limiters
-	c.rateLimiter.Apply(ruleSet, events.AllCustomRuleIDs())
+	// set the rate limiters on sending events to the backend
+	c.rateLimiter.Apply(probeEvaluationRuleSet, events.AllCustomRuleIDs())
 
 	// full list of IDs, user rules + custom
 	var ruleIDs []rules.RuleID
-	ruleIDs = append(append(ruleIDs, ruleSet.ListRuleIDs()...), threatScoreRuleSet.ListRuleIDs()...)
+	ruleIDs = append(ruleIDs, probeEvaluationRuleSet.ListRuleIDs()...)
+	ruleIDs = append(ruleIDs, threatScoreRuleSet.ListRuleIDs()...)
 	ruleIDs = append(ruleIDs, events.AllCustomRuleIDs()...)
 
 	c.apiServer.Apply(ruleIDs)
 
 	if sendLoadedReport {
-		ReportRuleSetLoaded(c.eventSender, c.statsdClient, ruleSet, loadErrs)
-		c.policyMonitor.AddPolicies(policySet.GetPolicies(), loadErrs)
+		ReportRuleSetLoaded(c.eventSender, c.statsdClient, evaluationSet.RuleSets, loadErrs)
+		c.policyMonitor.AddPolicies(evaluationSet.GetPolicies(), loadErrs)
 	}
 
 	return nil
