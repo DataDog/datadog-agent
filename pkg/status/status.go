@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
@@ -278,7 +279,7 @@ func getPartialConfig() map[string]string {
 }
 
 func getEndpointsInfos() (map[string]interface{}, error) {
-	endpoints, err := config.GetMultipleEndpoints()
+	endpoints, err := utils.GetMultipleEndpoints(config.Datadog)
 	if err != nil {
 		return nil, err
 	}
