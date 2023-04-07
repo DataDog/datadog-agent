@@ -378,7 +378,7 @@ func TestIsDiscarderOverride(t *testing.T) {
 	event.SetFieldValue("process.file.path", "/bin/touch")
 
 	if !rs.Evaluate(event) {
-		rs.PushDiscarders(event)
+		rs.EvaluateDiscarders(event)
 	}
 
 	if listener.fields["process.file.path"] > 0 {
@@ -388,7 +388,7 @@ func TestIsDiscarderOverride(t *testing.T) {
 	event.SetFieldValue("process.file.path", "/bin/cat")
 
 	if !rs.Evaluate(event) {
-		rs.PushDiscarders(event)
+		rs.EvaluateDiscarders(event)
 	}
 
 	if listener.fields["process.file.path"] == 0 {

@@ -548,7 +548,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 				rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
 			}
 
-			rs.NotifyRuleMatch(rule, event) // threatscore tagging
+			rs.NotifyRuleMatch(rule, event)
 			result = true
 
 			if err := rs.runRuleActions(ctx, rule); err != nil {
@@ -560,8 +560,8 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	return result
 }
 
-// PushDiscarders pushes the discarders for the given event if any
-func (rs *RuleSet) PushDiscarders(event eval.Event) {
+// EvaluateDiscarders evaluates the discarders for the given event if any
+func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 	ctx := rs.pool.Get(event)
 	defer rs.pool.Put(ctx)
 

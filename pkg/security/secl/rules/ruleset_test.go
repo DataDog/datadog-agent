@@ -139,10 +139,10 @@ func TestRuleSetDiscarders(t *testing.T) {
 	ev2.SetFieldValue("process.uid", 0)
 
 	if !rs.Evaluate(ev1) {
-		rs.PushDiscarders(ev1)
+		rs.EvaluateDiscarders(ev1)
 	}
 	if !rs.Evaluate(ev2) {
-		rs.PushDiscarders(ev2)
+		rs.EvaluateDiscarders(ev2)
 	}
 
 	expected := map[string]testFieldValues{
