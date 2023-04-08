@@ -36,16 +36,14 @@ func TestPerfBatchManagerExtract(t *testing.T) {
 		batch.C0.Tup.Pid = 1
 		batch.C1.Tup.Pid = 2
 		batch.C2.Tup.Pid = 3
-		batch.C3.Tup.Pid = 4
 
 		buffer := network.NewConnectionBuffer(256, 256)
 		manager.ExtractBatchInto(buffer, batch, 0)
 		conns := buffer.Connections()
-		assert.Len(t, conns, 4)
+		assert.Len(t, conns, 3)
 		assert.Equal(t, uint32(1), conns[0].Pid)
 		assert.Equal(t, uint32(2), conns[1].Pid)
 		assert.Equal(t, uint32(3), conns[2].Pid)
-		assert.Equal(t, uint32(4), conns[3].Pid)
 	})
 
 	t.Run("partial flush", func(t *testing.T) {
@@ -56,18 +54,17 @@ func TestPerfBatchManagerExtract(t *testing.T) {
 		batch.C0.Tup.Pid = 1
 		batch.C1.Tup.Pid = 2
 		batch.C2.Tup.Pid = 3
-		batch.C3.Tup.Pid = 4
 
 		// Simulate a partial flush
 		manager.stateByCPU[0].processed = map[uint64]batchState{
-			0: {offset: 3},
+			0: {offset: 2},
 		}
 
 		buffer := network.NewConnectionBuffer(256, 256)
 		manager.ExtractBatchInto(buffer, batch, 0)
 		conns := buffer.Connections()
 		assert.Len(t, conns, 1)
-		assert.Equal(t, uint32(4), conns[0].Pid)
+		assert.Equal(t, uint32(3), conns[0].Pid)
 	})
 }
 

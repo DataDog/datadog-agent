@@ -60,10 +60,10 @@ static __always_inline void classify_protocol_for_dispatcher(protocol_t *protoco
 }
 
 static __always_inline void update_dispatcher_connection_protocol(conn_tuple_t* skb_tup, protocol_t cur_fragment_protocol) {
-    bpf_map_update_with_telemetry(dispatcher_connection_protocol, skb_tup, &cur_fragment_protocol, BPF_NOEXIST);
+    bpf_map_update_with_telemetry(connection_protocol, skb_tup, &cur_fragment_protocol, BPF_NOEXIST);
     conn_tuple_t inverse_skb_conn_tup = *skb_tup;
     flip_tuple(&inverse_skb_conn_tup);
-    bpf_map_update_with_telemetry(dispatcher_connection_protocol, &inverse_skb_conn_tup, &cur_fragment_protocol, BPF_NOEXIST);
+    bpf_map_update_with_telemetry(connection_protocol, &inverse_skb_conn_tup, &cur_fragment_protocol, BPF_NOEXIST);
 }
 
 // A shared implementation for the runtime & prebuilt socket filter that classifies & dispatches the protocols of the connections.
@@ -89,7 +89,7 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
 
     protocol_t cur_fragment_protocol = PROTOCOL_UNKNOWN;
     // TODO: Share with protocol classification
-    protocol_t *cur_fragment_protocol_ptr = bpf_map_lookup_elem(&dispatcher_connection_protocol, &skb_tup);
+    protocol_t *cur_fragment_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, &skb_tup);
     if (cur_fragment_protocol_ptr == NULL) {
         log_debug("[protocol_dispatcher_entrypoint]: %p was not classified\n", skb);
         char request_fragment[CLASSIFICATION_MAX_BUFFER];

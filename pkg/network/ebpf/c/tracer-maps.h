@@ -54,6 +54,12 @@ BPF_HASH_MAP(udp_sendpage_args, __u64, struct sock *, 1024)
  */
 BPF_HASH_MAP(tcp_recvmsg_args, __u64, struct sock *, 1024)
 
+/*
+ * Map to hold conn_tuple_t parameter for tcp_close calls
+ * to be used in kretprobe/tcp_close.
+ */
+BPF_HASH_MAP(tcp_close_args, __u64, conn_tuple_t, 1024)
+
 /* This map is used to match the kprobe & kretprobe of udp_recvmsg */
 /* This is a key/value store with the keys being a pid
  * and the values being a udp_recv_sock_t

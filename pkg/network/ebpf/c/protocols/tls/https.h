@@ -38,21 +38,21 @@ static __always_inline void https_process(conn_tuple_t *t, void *buffer, size_t 
     bpf_memcpy(&http.tup, t, sizeof(conn_tuple_t));
     read_into_buffer(http.request_fragment, buffer, len);
 
-    protocol_t *cur_fragment_protocol_ptr = bpf_map_lookup_elem(&dispatcher_connection_protocol, &http.tup);
+    protocol_t *cur_fragment_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, &http.tup);
     if (cur_fragment_protocol_ptr == NULL) {
         protocol_t cur_fragment_protocol = PROTOCOL_UNKNOWN;
         conn_tuple_t inverse_conn_tup = http.tup;
         flip_tuple(&inverse_conn_tup);
 
-        cur_fragment_protocol_ptr = bpf_map_lookup_elem(&dispatcher_connection_protocol, &inverse_conn_tup);
+        cur_fragment_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, &inverse_conn_tup);
 
         // try classifying the protocol if no prior identification exists
         if (cur_fragment_protocol_ptr == NULL) {
             classify_protocol_for_dispatcher(&cur_fragment_protocol, &http.tup, http.request_fragment, len);
             // If there has been a change in the classification, save the new protocol.
             if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
-                bpf_map_update_with_telemetry(dispatcher_connection_protocol, &http.tup, &cur_fragment_protocol, BPF_NOEXIST);
-                bpf_map_update_with_telemetry(dispatcher_connection_protocol, &inverse_conn_tup, &cur_fragment_protocol, BPF_NOEXIST);
+                bpf_map_update_with_telemetry(connection_protocol, &http.tup, &cur_fragment_protocol, BPF_NOEXIST);
+                bpf_map_update_with_telemetry(connection_protocol, &inverse_conn_tup, &cur_fragment_protocol, BPF_NOEXIST);
             }
         }
     }

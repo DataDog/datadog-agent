@@ -585,7 +585,7 @@ func TestGRPCScenarios(t *testing.T) {
 					t.Skip("Skipping test due to known issue")
 				}
 
-				monitor, err := http.NewMonitor(cfg, nil, nil, nil)
+				monitor, err := http.NewMonitor(cfg, nil, nil, nil, nil)
 				require.NoError(t, err)
 				require.NoError(t, monitor.Start())
 				defer monitor.Stop()

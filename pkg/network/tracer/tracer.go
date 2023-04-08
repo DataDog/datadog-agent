@@ -863,8 +863,9 @@ func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error)
 func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *telemetry.EBPFTelemetry, offsets []manager.ConstantEditor) *http.Monitor {
 	// Shared with the HTTP program
 	sockFDMap := tracer.GetMap(probes.SockByPidFDMap)
+	classificationMap := tracer.GetMap(probes.ConnectionProtocolMap)
 
-	monitor, err := http.NewMonitor(c, offsets, sockFDMap, bpfTelemetry)
+	monitor, err := http.NewMonitor(c, offsets, classificationMap, sockFDMap, bpfTelemetry)
 	if err != nil {
 		log.Error(err)
 		return nil

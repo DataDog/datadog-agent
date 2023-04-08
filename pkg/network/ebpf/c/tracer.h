@@ -120,7 +120,7 @@ typedef struct {
 
 // Must match the number of conn_t objects embedded in the batch_t struct
 #ifndef CONN_CLOSED_BATCH_SIZE
-#define CONN_CLOSED_BATCH_SIZE 4
+#define CONN_CLOSED_BATCH_SIZE 3
 #endif
 
 // This struct is meant to be used as a container for batching
@@ -130,7 +130,6 @@ typedef struct {
     conn_t c0;
     conn_t c1;
     conn_t c2;
-    conn_t c3;
     __u16 len;
     __u64 id;
 } batch_t;

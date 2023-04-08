@@ -145,9 +145,6 @@ func (p *perfBatchManager) extractBatchInto(buffer *network.ConnectionBuffer, b 
 		case 2:
 			ct = b.C2
 			break
-		case 3:
-			ct = b.C3
-			break
 		default:
 			panic("batch size is out of sync")
 		}

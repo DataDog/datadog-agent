@@ -3,6 +3,8 @@
 
 #include "map-defs.h"
 
+#include "protocols/classification/shared-tracer-maps.h"
+
 // Maps skb connection tuple to socket connection tuple.
 // On ingress, skb connection tuple is pre NAT, and socket connection tuple is post NAT, and on egress, the opposite.
 // We track the lifecycle of socket using tracepoint net/net_dev_queue.
@@ -12,10 +14,6 @@
 // To overcome those problems, we save two maps that translates from conn tuple of sk_buff to conn tuple of sock* and vice
 // versa (the vice versa is used for cleanup purposes).
 BPF_HASH_MAP(conn_tuple_to_socket_skb_conn_tuple, conn_tuple_t, conn_tuple_t, 0)
-
-// Maps a connection tuple to its classified protocol. Used to reduce redundant classification procedures on the same
-// connection. Assumption: each connection has a single protocol.
-BPF_HASH_MAP(connection_protocol, conn_tuple_t, protocol_t, 0)
 
 // Maps a connection tuple to its classified TLS protocol on socket layer only.
 BPF_HASH_MAP(tls_connection, conn_tuple_t, bool, 0)
