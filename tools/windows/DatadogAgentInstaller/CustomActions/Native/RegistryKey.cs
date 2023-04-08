@@ -19,7 +19,7 @@ namespace Datadog.CustomActions.Native
 
         public object GetValue(string name)
         {
-            return _key.GetValue(name);
+            return _key?.GetValue(name);
         }
 
         public void Dispose()
