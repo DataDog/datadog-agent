@@ -24,13 +24,17 @@ SELECT
     s.ksuseunm as osuser,
     s.ksusepid as process,
     s.ksusemnm as machine,
-    s.ksusemnp as PORT,
+    s.ksusemnp as port,
     s.ksusepnm as program,
     DECODE(BITAND(s.ksuseflg, 19), 17, 'BACKGROUND', 1, 'USER', 2, 'RECURSIVE', '?') as type,
     s.ksusesqi as sql_id,
     sq.force_matching_signature as force_matching_signature,
     s.ksusesph as sql_plan_hash_value,
     s.ksusesesta as sql_exec_start,
+    s.ksusepsi as prev_sql_id,
+    s.ksusepha as prev_sql_plan_hash_value,
+    s.ksusepesta as prev_sql_exec_start,
+    sq_prev.force_matching_signature as prev_force_matching_signature,
     s.ksuseapp as module,
     s.ksuseact as action,
     s.ksusecli as client_info,
@@ -69,6 +73,7 @@ SELECT
     c.name as pdb_name,
     sq.sql_text as sql_text,
     sq.sql_fulltext as sql_fulltext,
+    prev_sq.sql_fulltext as prev_sql_fulltex /*,
     sq.parse_calls,
     sq.disk_reads,
     sq.direct_writes,
@@ -103,13 +108,16 @@ SELECT
     sq.physical_write_bytes,
     sq.io_cell_uncompressed_bytes,
     sq.io_cell_offload_returned_bytes,
-    sq.avoided_executions
+    sq.avoided_executions,*/
+    comm.command_name
   FROM
     x$ksuse s,
     x$kslwt w, 
     x$ksled e,
     v$sqlstats sq,
-    v$containers c
+    v$sqlstats sq_prev,
+    v$containers c,
+    v$sqlcommand comm
   WHERE
     BITAND(s.ksspaflg, 1) != 0
     AND BITAND(s.ksuseflg, 1) != 0
@@ -118,7 +126,10 @@ SELECT
     AND w.kslwtevt = e.indx
     AND s.ksusesqi = sq.sql_id(+)
     AND s.ksusesph = sq.plan_hash_value(+)
+    AND s.ksusepsi = sq_prev.sql_id(+)
+    AND s.ksusepha = sq_prev.plan_hash_value(+)
     AND s.con_id = c.con_id(+)
+    AND s.ksuudoct = comm.command_type
 ;
 
 GRANT SELECT ON dd_session TO c##datadog ;
