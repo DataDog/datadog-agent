@@ -1038,22 +1038,17 @@ func TestTLSClassification(t *testing.T) {
 		t.Skip("TLS classification platform not supported")
 	}
 
-	// testContext shares the context of a given test.
-	// It contains common variable used by all tests, and allows extending the context dynamically by setting more
-	type testContext struct{}
 	type tlsTest struct {
 		name            string
-		context         testContext
-		preTracerSetup  func(t *testing.T, ctx testContext)
-		postTracerSetup func(t *testing.T, ctx testContext)
-		validation      func(t *testing.T, ctx testContext, tr *Tracer)
-		teardown        func(t *testing.T, ctx testContext)
+		postTracerSetup func(t *testing.T)
+		validation      func(t *testing.T, tr *Tracer)
 	}
-	tests := []tlsTest{}
-	for _, tlsVersion := range []string{"-tls1", "-tls1_1", "-tls1_2", "-tls1_3"} {
+	scenarios := []string{"-tls1", "-tls1_1", "-tls1_2", "-tls1_3"}
+	tests := make([]tlsTest, 0, len(scenarios))
+	for _, tlsVersion := range scenarios {
 		tests = append(tests, tlsTest{
 			name: "TLS" + tlsVersion + "_docker",
-			postTracerSetup: func(t *testing.T, ctx testContext) {
+			postTracerSetup: func(t *testing.T) {
 				clientSuccess := false
 				var wg sync.WaitGroup
 				wg.Add(1)
@@ -1068,7 +1063,7 @@ func TestTLSClassification(t *testing.T) {
 					t.Fatalf("openssl client failed")
 				}
 			},
-			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+			validation: func(t *testing.T, tr *Tracer) {
 				// Iterate through active connections until we find connection created above
 				require.Eventuallyf(t, func() bool {
 					payload := getConnections(t, tr)
@@ -1085,20 +1080,12 @@ func TestTLSClassification(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.teardown != nil {
-				t.Cleanup(func() {
-					tt.teardown(t, tt.context)
-				})
-			}
-			if tt.preTracerSetup != nil {
-				tt.preTracerSetup(t, tt.context)
-			}
 			tr := setupTracer(t, cfg)
 			if tr.ebpfTracer.Type() == connection.EBPFFentry {
 				t.Skip("protocol classification not supported for fentry tracer")
 			}
-			tt.postTracerSetup(t, tt.context)
-			tt.validation(t, tt.context, tr)
+			tt.postTracerSetup(t)
+			tt.validation(t, tr)
 		})
 	}
 }
