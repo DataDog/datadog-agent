@@ -735,7 +735,7 @@ func TestJavaInjection(t *testing.T) {
 			teardown:   commonTearDown,
 		},
 		{
-			name: "java_hotspot_injection_21_allowhigherpriority",
+			name: "java_hotspot_injection_21_allow_higher_priority",
 			context: testContext{
 				extras: make(map[string]interface{}),
 			},
@@ -757,7 +757,7 @@ func TestJavaInjection(t *testing.T) {
 		},
 		{
 			// Test the java jdk client https request is working
-			name: "java_jdk_client_httpbin_docker_withTLSClassificaiton_java15",
+			name: "java_jdk_client_httpbin_docker_withTLSClassification_java15",
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				cfg.JavaDir = legacyJavaDir
 				cfg.ProtocolClassificationEnabled = true
@@ -1078,7 +1078,7 @@ func TestTLSClassification(t *testing.T) {
 						}
 					}
 					return false
-				}, 4*time.Second, time.Second, "couldn't find TLS connection matching: dstport 44330")
+				}, 4*time.Second, time.Second, "couldn't find TLS connection matching: dst port 44330")
 			},
 		})
 	}
