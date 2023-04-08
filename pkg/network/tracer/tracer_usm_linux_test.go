@@ -1039,7 +1039,6 @@ func TestTLSClassification(t *testing.T) {
 	}
 
 	tr := setupTracer(t, cfg)
-	require.NoError(t, tr.ebpfTracer.Pause(), "disable probes - before pre tracer")
 
 	type tlsTest struct {
 		name            string
