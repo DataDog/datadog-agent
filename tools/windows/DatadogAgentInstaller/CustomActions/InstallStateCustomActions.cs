@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using System.ServiceProcess;
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
