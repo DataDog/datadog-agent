@@ -1038,6 +1038,9 @@ func TestTLSClassification(t *testing.T) {
 		t.Skip("TLS classification platform not supported")
 	}
 
+	tr := setupTracer(t, cfg)
+	require.NoError(t, tr.ebpfTracer.Pause(), "disable probes - before pre tracer")
+
 	type tlsTest struct {
 		name            string
 		postTracerSetup func(t *testing.T)
@@ -1080,11 +1083,17 @@ func TestTLSClassification(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tr := setupTracer(t, cfg)
 			if tr.ebpfTracer.Type() == connection.EBPFFentry {
 				t.Skip("protocol classification not supported for fentry tracer")
 			}
+			t.Cleanup(func() { tr.removeClient(clientID) })
+			t.Cleanup(func() { tr.ebpfTracer.Pause() })
+
+			tr.removeClient(clientID)
+			initTracerState(t, tr)
+			require.NoError(t, tr.ebpfTracer.Resume(), "enable probes - before post tracer")
 			tt.postTracerSetup(t)
+			require.NoError(t, tr.ebpfTracer.Pause(), "disable probes - after post tracer")
 			tt.validation(t, tr)
 		})
 	}
