@@ -1028,6 +1028,11 @@ func testHTTPsGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Conf
 	checkRequests(t, tr, expectedOccurrences, reqs)
 }
 
+type tlsTestCommand struct {
+	version        string
+	openSSLCommand string
+}
+
 // TLS classification tests
 func TestTLSClassification(t *testing.T) {
 	cfg := testConfig()
@@ -1045,11 +1050,28 @@ func TestTLSClassification(t *testing.T) {
 		postTracerSetup func(t *testing.T)
 		validation      func(t *testing.T, tr *Tracer)
 	}
-	scenarios := []string{"-tls1", "-tls1_1", "-tls1_2", "-tls1_3"}
+	scenarios := []tlsTestCommand{
+		{
+			version:        "1.0",
+			openSSLCommand: "-tls1",
+		},
+		{
+			version:        "1.1",
+			openSSLCommand: "-tls1_1",
+		},
+		{
+			version:        "1.2",
+			openSSLCommand: "-tls1_2",
+		},
+		{
+			version:        "1.3",
+			openSSLCommand: "-tls1_3",
+		},
+	}
 	tests := make([]tlsTest, 0, len(scenarios))
-	for _, tlsVersion := range scenarios {
+	for _, scenario := range scenarios {
 		tests = append(tests, tlsTest{
-			name: "TLS" + tlsVersion + "_docker",
+			name: "TLS-" + scenario.version + "_docker",
 			postTracerSetup: func(t *testing.T) {
 				clientSuccess := false
 				var wg sync.WaitGroup
@@ -1057,7 +1079,7 @@ func TestTLSClassification(t *testing.T) {
 				go func() {
 					defer wg.Done()
 					time.Sleep(5 * time.Second)
-					clientSuccess = prototls.RunClientOpenssl(t, "localhost", "44330", tlsVersion)
+					clientSuccess = prototls.RunClientOpenssl(t, "localhost", "44330", scenario.openSSLCommand)
 				}()
 				prototls.RunServerOpenssl(t, "44330", "-www")
 				wg.Wait()
@@ -1086,7 +1108,7 @@ func TestTLSClassification(t *testing.T) {
 				t.Skip("protocol classification not supported for fentry tracer")
 			}
 			t.Cleanup(func() { tr.removeClient(clientID) })
-			t.Cleanup(func() { tr.ebpfTracer.Pause() })
+			t.Cleanup(func() { _ = tr.ebpfTracer.Pause() })
 
 			tr.removeClient(clientID)
 			initTracerState(t, tr)
