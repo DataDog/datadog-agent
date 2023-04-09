@@ -11,6 +11,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -19,6 +20,9 @@ type httpEncoder struct {
 	aggregations   map[types.ConnectionKey]*aggregationWrapper
 	staticTags     map[types.ConnectionKey]uint64
 	dynamicTagsSet map[types.ConnectionKey]map[string]struct{}
+
+	dataPool  []model.HTTPStats_Data
+	poolIndex int
 
 	orphanEntries int
 }
@@ -85,7 +89,6 @@ func newHTTPEncoder(payload *network.Connections) *httpEncoder {
 	// this allows us to skip encoding orphan HTTP objects that can't be matched to a connection
 	for _, conn := range payload.Conns {
 		for _, key := range network.ConnectionKeysFromConnectionStats(conn) {
-			log.Tracef("Payload has a connection %v and was converted to http key %v", conn, key)
 			encoder.aggregations[key] = nil
 		}
 	}
@@ -109,10 +112,14 @@ func (e *httpEncoder) GetHTTPAggregationsAndTags(c network.ConnectionStats) (*mo
 }
 
 func (e *httpEncoder) buildAggregations(payload *network.Connections) {
-	aggrSize := make(map[types.ConnectionKey]int)
-	for key := range payload.HTTP {
+	aggrSize := make(map[types.ConnectionKey]int, len(payload.HTTP))
+	dataPoolSize := 0
+	for key, stat := range payload.HTTP {
 		aggrSize[key.ConnectionKey]++
+		dataPoolSize += len(stat.Data)
 	}
+
+	e.dataPool = make([]model.HTTPStats_Data, dataPoolSize)
 
 	for key, stats := range payload.HTTP {
 		aggregation, ok := e.aggregations[key.ConnectionKey]
@@ -136,17 +143,13 @@ func (e *httpEncoder) buildAggregations(payload *network.Connections) {
 			Path:              key.Path.Content,
 			FullPath:          key.Path.FullPath,
 			Method:            model.HTTPMethod(key.Method),
-			StatsByStatusCode: make(map[int32]*model.HTTPStats_Data, len(stats.Data)),
+			StatsByStatusCode: e.getDataMap(stats.Data),
 		}
 
 		staticTags := e.staticTags[key.ConnectionKey]
 		var dynamicTags map[string]struct{}
 		for status, s := range stats.Data {
-			data, ok := ms.StatsByStatusCode[int32(status)]
-			if !ok {
-				ms.StatsByStatusCode[int32(status)] = &model.HTTPStats_Data{}
-				data = ms.StatsByStatusCode[int32(status)]
-			}
+			data := ms.StatsByStatusCode[int32(status)]
 			data.Count = uint32(s.Count)
 
 			if latencies := s.Latencies; latencies != nil {
@@ -175,4 +178,13 @@ func (e *httpEncoder) buildAggregations(payload *network.Connections) {
 
 		aggregation.EndpointAggregations = append(aggregation.EndpointAggregations, ms)
 	}
+}
+
+func (e *httpEncoder) getDataMap(stats map[uint16]*http.RequestStat) map[int32]*model.HTTPStats_Data {
+	res := make(map[int32]*model.HTTPStats_Data, len(stats))
+	for key := range stats {
+		res[int32(key)] = &e.dataPool[e.poolIndex]
+		e.poolIndex++
+	}
+	return res
 }
