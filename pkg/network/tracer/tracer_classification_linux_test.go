@@ -19,7 +19,7 @@ func testProtocolClassificationInner(t *testing.T, params protocolClassification
 		params.skipCallback(t, params.context)
 	}
 	t.Cleanup(func() { tr.removeClient(clientID) })
-	t.Cleanup(func() { tr.ebpfTracer.Pause() })
+	t.Cleanup(func() { tr.ebpfTracer.Disable() })
 
 	if params.teardown != nil {
 		t.Cleanup(func() {
@@ -27,16 +27,16 @@ func testProtocolClassificationInner(t *testing.T, params protocolClassification
 		})
 	}
 
-	require.NoError(t, tr.ebpfTracer.Pause(), "disable probes - before pre tracer")
+	require.NoError(t, tr.ebpfTracer.Disable(), "disable probes - before pre tracer")
 	if params.preTracerSetup != nil {
 		params.preTracerSetup(t, params.context)
 	}
 
 	tr.removeClient(clientID)
 	initTracerState(t, tr)
-	require.NoError(t, tr.ebpfTracer.Resume(), "enable probes - before post tracer")
+	require.NoError(t, tr.ebpfTracer.Enable(), "enable probes - before post tracer")
 	params.postTracerSetup(t, params.context)
-	require.NoError(t, tr.ebpfTracer.Pause(), "disable probes - after post tracer")
+	require.NoError(t, tr.ebpfTracer.Disable(), "disable probes - after post tracer")
 
 	params.validation(t, params.context, tr)
 }

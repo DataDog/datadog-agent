@@ -67,8 +67,8 @@ type Tracer interface {
 	// Type returns the type of the underlying ebpf tracer that is currently loaded
 	Type() TracerType
 
-	Pause() error
-	Resume() error
+	Disable() error
+	Enable() error
 }
 
 const (
@@ -230,13 +230,13 @@ func (t *tracer) Start(callback func([]network.ConnectionStats)) (err error) {
 	return nil
 }
 
-func (t *tracer) Pause() error {
+func (t *tracer) Disable() error {
 	// add small delay for socket filters to properly detach
 	time.Sleep(1 * time.Millisecond)
 	return t.m.Pause()
 }
 
-func (t *tracer) Resume() error {
+func (t *tracer) Enable() error {
 	err := t.m.Resume()
 	// add small delay for socket filters to properly attach
 	time.Sleep(1 * time.Millisecond)

@@ -508,7 +508,7 @@ func testProtocolClassificationMapCleanup(t *testing.T, tr *Tracer, clientHost, 
 		if tr.ebpfTracer.Type() == connection.EBPFFentry {
 			t.Skip("protocol classification not supported for fentry tracer")
 		}
-		t.Cleanup(func() { tr.ebpfTracer.Pause() })
+		t.Cleanup(func() { tr.ebpfTracer.Disable() })
 
 		dialer := &net.Dialer{
 			LocalAddr: &net.TCPAddr{
@@ -529,7 +529,7 @@ func testProtocolClassificationMapCleanup(t *testing.T, tr *Tracer, clientHost, 
 		}
 
 		initTracerState(t, tr)
-		require.NoError(t, tr.ebpfTracer.Resume())
+		require.NoError(t, tr.ebpfTracer.Enable())
 
 		HTTPServer := NewTCPServerOnAddress(serverHost, func(c net.Conn) {
 			r := bufio.NewReader(c)
