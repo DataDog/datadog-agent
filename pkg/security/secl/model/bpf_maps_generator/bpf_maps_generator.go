@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"sort"
 	"text/template"
 )
 
@@ -82,6 +83,11 @@ func main() {
 		panic(err)
 	}
 
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Name < entries[j].Name
+	})
+	entries = dedup(entries)
+
 	tmpl, err := template.New("bpf_maps").Parse(templateSrc)
 	if err != nil {
 		panic(err)
@@ -107,4 +113,16 @@ func main() {
 	if err := cmd.Run(); err != nil {
 		panic(err)
 	}
+}
+
+func dedup(entries []mapEntry) []mapEntry {
+	res := make([]mapEntry, 0, len(entries))
+
+	for _, entry := range entries {
+		if len(res) == 0 || res[len(res)-1] != entry {
+			res = append(res, entry)
+		}
+	}
+
+	return res
 }
