@@ -8,7 +8,6 @@ package tls
 import (
 	"regexp"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
@@ -24,7 +23,7 @@ func RunServerOpenssl(t *testing.T, serverPort string, args ...string) bool {
 
 	t.Helper()
 	dir, _ := testutil.CurDir()
-	return protocolsUtils.RunDockerServer(t, "openssl-server", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile("exited with code"), 30*time.Second)
+	return protocolsUtils.RunDockerServer(t, "openssl-server", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile("exited with code"), protocolsUtils.DefaultTimeout)
 }
 
 func RunClientOpenssl(t *testing.T, addr string, port string, args string) bool {
