@@ -9,6 +9,7 @@ import (
 	"bufio"
 	_ "embed"
 	"flag"
+	"fmt"
 	"os"
 	"os/exec"
 	"regexp"
@@ -86,6 +87,7 @@ func main() {
 	sort.Slice(entries, func(i, j int) bool {
 		return entries[i].Name < entries[j].Name
 	})
+	checkDuplicated(entries)
 
 	tmpl, err := template.New("bpf_maps").Parse(templateSrc)
 	if err != nil {
@@ -111,5 +113,16 @@ func main() {
 	cmd := exec.Command("gofmt", "-s", "-w", outputPath)
 	if err := cmd.Run(); err != nil {
 		panic(err)
+	}
+}
+
+func checkDuplicated(entries []mapEntry) {
+	trimmedNames := make(map[string]bool, len(entries))
+
+	for _, entry := range entries {
+		if trimmedNames[entry.TrimmedName] {
+			fmt.Printf("CWS warning: the trimmed map name `%s`(`%s`) is not unique\n", entry.TrimmedName, entry.Name)
+		}
+		trimmedNames[entry.TrimmedName] = true
 	}
 }
