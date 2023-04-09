@@ -31,7 +31,6 @@ func initManager(mgr *manager.Manager, config *config.Config, closedHandler *ebp
 		{Name: "pending_bind"},
 		{Name: probes.TelemetryMap},
 		{Name: probes.SockByPidFDMap},
-		{Name: probes.ConnectionProtocolMap},
 		{Name: probes.PidFDBySockMap},
 		{Name: probes.MapErrTelemetryMap},
 		{Name: probes.HelperErrTelemetryMap},

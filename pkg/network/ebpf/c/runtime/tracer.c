@@ -219,12 +219,16 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
 
     cleanup_conn(&t, sk);
 
-    bpf_map_update_with_telemetry(tcp_close_args, &pid_tgid, &t, BPF_ANY);
+    // If protocol classification is disabled, then we don't have kretprobe__tcp_close_clean_protocols hook
+    // so, there is no one to use the map and clean it.
+    if (is_protocol_classification_supported()) {
+        bpf_map_update_with_telemetry(tcp_close_args, &pid_tgid, &t, BPF_ANY);
+    }
     return 0;
 }
 
 SEC("kretprobe/tcp_close")
-int kretprobe__tcp_close(struct pt_regs *ctx) {
+int kretprobe__tcp_close_clean_protocols(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
     conn_tuple_t *tup_ptr = (conn_tuple_t*) bpf_map_lookup_elem(&tcp_close_args, &pid_tgid);
@@ -232,6 +236,14 @@ int kretprobe__tcp_close(struct pt_regs *ctx) {
         clean_protocol_classification(tup_ptr);
         bpf_map_delete_elem(&tcp_close_args, &pid_tgid);
     }
+
+    bpf_tail_call_compat(ctx, &tcp_close_progs, 0);
+
+    return 0;
+}
+
+SEC("kretprobe/tcp_close")
+int kretprobe__tcp_close_flush(struct pt_regs *ctx) {
     flush_conn_close_if_full(ctx);
     return 0;
 }

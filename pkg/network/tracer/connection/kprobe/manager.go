@@ -39,7 +39,8 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.TCPReadSock,
 	probes.TCPReadSockReturn,
 	probes.TCPClose,
-	probes.TCPCloseReturn,
+	probes.TCPCloseCleanProtocolsReturn,
+	probes.TCPCloseFlushReturn,
 	probes.TCPConnect,
 	probes.TCPFinishConnect,
 	probes.TCPSetState,
@@ -91,6 +92,7 @@ func initManager(mgr *manager.Manager, config *config.Config, closedHandler *ebp
 		{Name: probes.HelperErrTelemetryMap},
 		{Name: probes.TcpRecvMsgArgsMap},
 		{Name: probes.ClassificationProgsMap},
+		{Name: probes.TCPCloseProgsMap},
 	}
 	mgr.PerfMaps = []*manager.PerfMap{
 		{

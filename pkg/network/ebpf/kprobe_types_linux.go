@@ -43,6 +43,7 @@ type Batch struct {
 	C0  Conn
 	C1  Conn
 	C2  Conn
+	C3  Conn
 	Len uint16
 	Id  uint64
 }
@@ -92,8 +93,8 @@ const (
 	Assured ConnFlags = 0x4
 )
 
-const BatchSize = 0x3
-const SizeofBatch = 0x178
+const BatchSize = 0x4
+const SizeofBatch = 0x1f0
 
 type ClassificationProgram = uint32
 

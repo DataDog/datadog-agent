@@ -83,9 +83,9 @@
                                                                                         \
         /* this will copy the given event into an eBPF map entry representing the
            current active batch */                                                      \
-        if (!__enqueue_event((void *)batch, event, sizeof(value))) {                    \
+        if (!__enqueue_event((void *)batch, event, sizeof(value)))                      \
             return;                                                                     \
-        }                                                                               \
+                                                                                        \
         /* annotate batch with metadata used by userspace */                            \
         batch->cap = batch_size;                                                        \
         batch->event_size = sizeof(value);                                              \
