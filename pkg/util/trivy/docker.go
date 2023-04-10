@@ -41,7 +41,7 @@ func convertDockerImage(ctx context.Context, client client.ImageAPIClient, imgMe
 		return nil, cleanup, xerrors.Errorf("unable to get history (%s): %w", imageID, err)
 	}
 
-	f, err := os.CreateTemp("", "fanal-*")
+	f, err := os.CreateTemp("", "fanal-docker-*")
 	if err != nil {
 		return nil, cleanup, xerrors.Errorf("failed to create a temporary file")
 	}
