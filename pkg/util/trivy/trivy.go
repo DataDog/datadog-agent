@@ -176,6 +176,12 @@ func (c *collector) Close() error {
 }
 
 func (c *collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata) (Report, error) {
+	sbomAttempts.Inc(sourceDocker, typeDaemon)
+	if err := c.hasDiskSpace(); err != nil {
+		sbomFailures.Inc(sourceDocker, typeDaemon, reasonDiskSpace)
+		return nil, fmt.Errorf("error checking current disk usage, err: %w", err)
+	}
+
 	cli, err := c.config.DockerAccessor()
 	if err != nil {
 		return nil, fmt.Errorf("unable to access docker client, err: %w", err)

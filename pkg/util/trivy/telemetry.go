@@ -13,6 +13,7 @@ import "github.com/DataDog/datadog-agent/pkg/telemetry"
 const (
 	subsystem        = "trivy"
 	sourceContainerd = "containerd"
+	sourceDocker     = "docker"
 	typeDaemon       = "daemon"
 	typeFilesystem   = "filesystem"
 	reasonDiskSpace  = "disk_space"
