@@ -23,8 +23,8 @@ build do
     # command "mkdir #{install_dir}/embedded/lib/liblmdb"
 
     # We have to manually move the files into the correct directories because the Makefile for lmdb hardcodes the install directory to `/usr/local`, although we need this to be `#{install_dir}/embedded`
-    command "cp lmdb-LMDB_#{version}/libraries/liblmdb/liblmdb.a #{install_dir}/embedded/lib/"
-    command "cp lmdb-LMDB_#{version}/libraries/liblmdb/lmdb.h #{install_dir}/embedded/include/"
-    command "cp lmdb-LMDB_#{version}/libraries/liblmdb/mdb_stat lmdb-LMDB_#{version}/libraries/liblmdb/mdb_copy lmdb-LMDB_#{version}/libraries/liblmdb/mdb_dump lmdb-LMDB_#{version}/libraries/liblmdb/mdb_load #{install_dir}/embedded/bin/"
+    command "cp /omnibus/src/lmdb/libraries/liblmdb/liblmdb.a #{install_dir}/embedded/lib/"
+    command "cp /omnibus/src/lmdb/libraries/liblmdb/lmdb.h #{install_dir}/embedded/include/"
+    command "cp /omnibus/src/lmdb/libraries/liblmdb/mdb_stat /omnibus/src/lmdb/libraries/liblmdb/mdb_copy /omnibus/src/lmdb/libraries/liblmdb/mdb_dump /omnibus/src/lmdb/libraries/liblmdb/mdb_load #{install_dir}/embedded/bin/"
 
 end
