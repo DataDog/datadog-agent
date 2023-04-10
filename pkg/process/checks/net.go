@@ -39,16 +39,19 @@ var (
 )
 
 // NewConnectionsCheck returns an instance of the ConnectionsCheck.
-func NewConnectionsCheck(config config.ConfigReader, syscfg *sysconfig.Config) *ConnectionsCheck {
+func NewConnectionsCheck(config, syspobeYamlConfig config.ConfigReader, syscfg *sysconfig.Config) *ConnectionsCheck {
 	return &ConnectionsCheck{
-		config: config,
-		syscfg: syscfg,
+		config:             config,
+		syscfg:             syscfg,
+		sysprobeYamlConfig: syspobeYamlConfig,
 	}
 }
 
 // ConnectionsCheck collects statistics about live TCP and UDP connections.
 type ConnectionsCheck struct {
-	syscfg *sysconfig.Config
+	syscfg             *sysconfig.Config
+	sysprobeYamlConfig config.ConfigReader
+	config             config.ConfigReader
 
 	hostInfo               *HostInfo
 	maxConnsPerMessage     int
@@ -61,7 +64,6 @@ type ConnectionsCheck struct {
 	processData      *ProcessData
 
 	processConnRatesTransmitter subscriptions.Transmitter[ProcessConnRates]
-	config                      config.ConfigReader
 }
 
 // ProcessConnRates describes connection rates for processes
@@ -98,7 +100,7 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo) erro
 	c.networkID = networkID
 	c.processData = NewProcessData(c.config)
 	c.dockerFilter = parser.NewDockerProxy()
-	c.serviceExtractor = parser.NewServiceExtractor(config.SystemProbe)
+	c.serviceExtractor = parser.NewServiceExtractor(c.sysprobeYamlConfig)
 	c.processData.Register(c.dockerFilter)
 	c.processData.Register(c.serviceExtractor)
 

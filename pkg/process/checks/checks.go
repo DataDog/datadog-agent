@@ -98,12 +98,12 @@ func (p CombinedRunResult) RealtimePayloads() []model.MessageBody {
 // All is a list of all runnable checks. Putting a check in here does not guarantee it will be run,
 // it just guarantees that the collector will be able to find the check.
 // If you want to add a check you MUST register it here.
-func All(config ddconfig.ConfigReaderWriter, syscfg *sysconfig.Config) []Check {
+func All(config, sysprobeYamlCfg ddconfig.ConfigReaderWriter, syscfg *sysconfig.Config) []Check {
 	return []Check{
 		NewProcessCheck(config),
 		NewContainerCheck(config),
 		NewRTContainerCheck(config),
-		NewConnectionsCheck(config, syscfg),
+		NewConnectionsCheck(config, sysprobeYamlCfg, syscfg),
 		NewPodCheck(),
 		NewProcessDiscoveryCheck(config),
 		NewProcessEventsCheck(config),

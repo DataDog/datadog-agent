@@ -11,7 +11,6 @@ package checks
 import (
 	"testing"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
@@ -28,7 +27,7 @@ func TestPodCheck(t *testing.T) {
 		cfg.Set("orchestrator_explorer.enabled", true)
 		cfg.Set("cluster_name", "test")
 
-		enabledChecks := getEnabledChecks(cfg, &sysconfig.Config{})
+		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t))
 		assertContainsCheck(t, enabledChecks, PodCheckName)
 	})
 
@@ -39,7 +38,7 @@ func TestPodCheck(t *testing.T) {
 		cfg := config.Mock(t)
 		cfg.Set("orchestrator_explorer.enabled", false)
 
-		enabledChecks := getEnabledChecks(cfg, &sysconfig.Config{})
+		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t))
 		assertNotContainsCheck(t, enabledChecks, PodCheckName)
 	})
 }
