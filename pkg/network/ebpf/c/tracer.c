@@ -7,7 +7,9 @@
 #include "bpf_tracing.h"
 #include "bpf_endian.h"
 
+#ifdef COMPILE_PREBUILT
 #include "prebuilt/offsets.h"
+#endif
 #include "port.h"
 #include "skb.h"
 #include "sockfd.h"
