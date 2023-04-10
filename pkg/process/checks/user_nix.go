@@ -19,17 +19,18 @@ import (
 
 type LookupIdProbe struct {
 	config config.ConfigReader
-	log    *log.DatadogLogger
 
 	formatUserCache *cache.Cache
 	lookupId        func(uid string) (*user.User, error)
 }
 
 func NewLookupIdProbe(coreConfig config.ConfigReader) *LookupIdProbe {
+	if coreConfig.GetBool("process_config.cache_lookupid") {
+		log.Debug("Using cached calls to `user.LookupID`")
+	}
 	return &LookupIdProbe{
 		// Inject global logger and config to make it easy to use components
 		config: coreConfig,
-		log:    log.Logger,
 
 		formatUserCache: cache.New(time.Hour, time.Hour), // Used by lookupIdWithCache
 		lookupId:        user.LookupId,
