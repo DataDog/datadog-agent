@@ -8,6 +8,8 @@
 ---
 enhancements:
   - |
-    Support setting _dd.peer.service.source in OTLP ingest endpoint.
-    Stop overriding service with peer.service. 
-    Set OTLP span kind as Datadog span meta tag span.kind.
+    OTLP ingestion: Support setting peer service to trace stats exported by the Agent.
+  - |
+    OTLP ingestion: Stop overriding service with ``peer.service``.
+  - |
+    OTLP ingestion: Set OTLP span kind as Datadog span meta tag ``span.kind``.
