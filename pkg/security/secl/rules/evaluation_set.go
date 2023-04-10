@@ -22,7 +22,10 @@ type EvaluationSet struct {
 func NewEvaluationSet(defaultRS *RuleSet, threatScoreRS *RuleSet) *EvaluationSet {
 	ruleSets := make(map[string]*RuleSet)
 	ruleSets[ProbeEvaluationRuleSetName] = defaultRS
-	ruleSets[ThreatScoreRuleSetName] = threatScoreRS
+
+	if threatScoreRS != nil {
+		ruleSets[ThreatScoreRuleSetName] = threatScoreRS
+	}
 
 	return &EvaluationSet{RuleSets: ruleSets}
 }
