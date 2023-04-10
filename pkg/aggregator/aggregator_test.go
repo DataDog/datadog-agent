@@ -32,11 +32,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-var checkID1 check.ID = "1"
-var checkID2 check.ID = "2"
+var (
+	checkID1 check.ID = "1"
+	checkID2 check.ID = "2"
+)
 
 const defaultHostname = "hostname"
-const altDefaultHostname = "althostname"
 
 func init() {
 	initF()
@@ -588,7 +589,6 @@ func TestTimeSamplerFlush(t *testing.T) {
 	demux.sharedSerializer = s
 	expectedSeries := flushSomeSamples(demux)
 	assertSeriesEqual(t, s.series, expectedSeries)
-	s.AssertExpectations(t)
 }
 
 // The implementation of MockSerializer.SendIterableSeries uses `s.Called(series).Error(0)`.

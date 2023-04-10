@@ -35,24 +35,23 @@ var (
 	// PLEASE NOTE: for the perf ring buffer usage metrics to be accurate, the provided value must have the
 	// following form: (1 + 2^n) * pages. Checkout https://github.com/DataDog/ebpf for more.
 	EventsPerfRingBufferSize = 256 * os.Getpagesize()
-	// defaultEventsRingBufferSize is the default buffer size of the ring buffers for events.
-	// Must be a power of 2 and a multiple of the page size
-	defaultEventsRingBufferSize uint32
 )
 
-func init() {
+// computeDefaultEventsRingBufferSize is the default buffer size of the ring buffers for events.
+// Must be a power of 2 and a multiple of the page size
+func computeDefaultEventsRingBufferSize() uint32 {
 	numCPU, err := utils.NumCPU()
 	if err != nil {
 		numCPU = 1
 	}
 
 	if numCPU <= 16 {
-		defaultEventsRingBufferSize = uint32(8 * 256 * os.Getpagesize())
+		return uint32(8 * 256 * os.Getpagesize())
 	} else if numCPU <= 64 {
-		defaultEventsRingBufferSize = uint32(16 * 256 * os.Getpagesize())
-	} else {
-		defaultEventsRingBufferSize = uint32(32 * 256 * os.Getpagesize())
+		return uint32(16 * 256 * os.Getpagesize())
 	}
+
+	return uint32(32 * 256 * os.Getpagesize())
 }
 
 // AllProbes returns the list of all the probes of the runtime security module
@@ -147,7 +146,7 @@ func getMaxEntries(numCPU int, min int, max int) uint32 {
 }
 
 // AllMapSpecEditors returns the list of map editors
-func AllMapSpecEditors(numCPU int, tracedCgroupSize int, supportMmapableMaps, useRingBuffers bool, ringBufferSize uint32) map[string]manager.MapSpecEditor {
+func AllMapSpecEditors(numCPU int, tracedCgroupSize int, supportMmapableMaps, useRingBuffers bool, ringBufferSize uint32, securityProfileMaxCount int) map[string]manager.MapSpecEditor {
 	editors := map[string]manager.MapSpecEditor{
 		"proc_cache": {
 			MaxEntries: getMaxEntries(numCPU, minProcEntries, maxProcEntries),
@@ -173,6 +172,14 @@ func AllMapSpecEditors(numCPU int, tracedCgroupSize int, supportMmapableMaps, us
 			MaxEntries: model.MaxTracedCgroupsCount,
 			EditorFlag: manager.EditMaxEntries,
 		},
+		"security_profiles": {
+			MaxEntries: uint32(securityProfileMaxCount),
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"security_profile_syscalls": {
+			MaxEntries: uint32(securityProfileMaxCount),
+			EditorFlag: manager.EditMaxEntries,
+		},
 	}
 
 	if tracedCgroupSize > 0 {
@@ -190,12 +197,12 @@ func AllMapSpecEditors(numCPU int, tracedCgroupSize int, supportMmapableMaps, us
 	}
 	if useRingBuffers {
 		if ringBufferSize == 0 {
-			ringBufferSize = defaultEventsRingBufferSize
+			ringBufferSize = computeDefaultEventsRingBufferSize()
 		}
 		editors["events"] = manager.MapSpecEditor{
 			MaxEntries: ringBufferSize,
 			Type:       ebpf.RingBuf,
-			EditorFlag: manager.EditType | manager.EditMaxEntries,
+			EditorFlag: manager.EditMaxEntries | manager.EditType | manager.EditKeyValue,
 		}
 	}
 	return editors

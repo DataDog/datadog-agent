@@ -13,7 +13,9 @@ import (
 	"go.uber.org/fx"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck"
+	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck"
 	"github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/comp/process/types"
@@ -23,18 +25,15 @@ import (
 )
 
 func TestRunnerLifecycle(t *testing.T) {
-	fxutil.Test(t, fx.Options(
-		fx.Supply(
-			&checks.HostInfo{},
-			&sysconfig.Config{},
-		),
+	_ = fxutil.Test[Component](t, fx.Options(
+		fx.Supply(core.BundleParams{}),
 
 		Module,
 		submitter.MockModule,
 		processcheck.Module,
-	), func(runner Component) {
-		// Start and stop the component
-	})
+		hostinfo.MockModule,
+		core.MockBundle,
+	))
 }
 
 func TestRunnerRealtime(t *testing.T) {
@@ -44,32 +43,30 @@ func TestRunnerRealtime(t *testing.T) {
 		mockConfig := config.Mock(t)
 		mockConfig.Set("process_config.disable_realtime_checks", false)
 
-		fxutil.Test(t, fx.Options(
-			fx.Supply(
-				&checks.HostInfo{},
-				&sysconfig.Config{},
-			),
-
+		r := fxutil.Test[Component](t, fx.Options(
 			fx.Provide(
 				// Cast `chan types.RTResponse` to `<-chan types.RTResponse`.
 				// We can't use `fx.As` because `<-chan types.RTResponse` is not an interface.
 				func() <-chan types.RTResponse { return rtChan },
 			),
 
+			fx.Supply(core.BundleParams{}),
+
 			Module,
 			submitter.MockModule,
 			processcheck.Module,
-		), func(r Component) {
-			rtChan <- types.RTResponse{
-				{
-					ActiveClients: 1,
-					Interval:      10,
-				},
-			}
-			assert.Eventually(t, func() bool {
-				return r.(*runner).IsRealtimeEnabled()
-			}, 1*time.Second, 10*time.Millisecond)
-		})
+			hostinfo.MockModule,
+			core.MockBundle,
+		))
+		rtChan <- types.RTResponse{
+			{
+				ActiveClients: 1,
+				Interval:      10,
+			},
+		}
+		assert.Eventually(t, func() bool {
+			return r.(*runner).IsRealtimeEnabled()
+		}, 1*time.Second, 10*time.Millisecond)
 	})
 
 	t.Run("rt disallowed", func(t *testing.T) {
@@ -79,7 +76,7 @@ func TestRunnerRealtime(t *testing.T) {
 		mockConfig := config.Mock(t)
 		mockConfig.Set("process_config.disable_realtime_checks", true)
 
-		fxutil.Test(t, fx.Options(
+		r := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(
 				&checks.HostInfo{},
 				&sysconfig.Config{},
@@ -91,48 +88,51 @@ func TestRunnerRealtime(t *testing.T) {
 				func() <-chan types.RTResponse { return rtChan },
 			),
 
+			fx.Supply(core.BundleParams{}),
+
 			Module,
 			submitter.MockModule,
 			processcheck.Module,
-		), func(r Component) {
-			rtChan <- types.RTResponse{
-				{
-					ActiveClients: 1,
-					Interval:      10,
-				},
-			}
-			assert.Never(t, func() bool {
-				return r.(*runner).IsRealtimeEnabled()
-			}, 1*time.Second, 10*time.Millisecond)
-		})
+			hostinfo.MockModule,
+			core.MockBundle,
+		))
+		rtChan <- types.RTResponse{
+			{
+				ActiveClients: 1,
+				Interval:      10,
+			},
+		}
+		assert.Never(t, func() bool {
+			return r.(*runner).IsRealtimeEnabled()
+		}, 1*time.Second, 10*time.Millisecond)
 	})
 }
 
 func TestProvidedChecks(t *testing.T) {
-	config.SetDetectedFeatures(config.FeatureMap{config.Docker: {}})
-	t.Cleanup(func() { config.SetDetectedFeatures(nil) })
+	config.SetFeatures(t, config.Docker)
 
-	fxutil.Test(t, fx.Options(
+	r := fxutil.Test[Component](t, fx.Options(
 		fx.Supply(
-			&checks.HostInfo{},
-			&sysconfig.Config{},
+			core.BundleParams{},
 		),
 
 		Module,
 		submitter.MockModule,
+		hostinfo.MockModule,
 
 		// Checks
 		processcheck.MockModule,
 		containercheck.MockModule,
-	), func(r Component) {
-		providedChecks := r.GetProvidedChecks()
 
-		var checkNames []string
-		for _, check := range providedChecks {
-			checkNames = append(checkNames, check.Object().Name())
-		}
-		t.Log("Provided Checks:", checkNames)
+		core.MockBundle,
+	))
+	providedChecks := r.GetProvidedChecks()
 
-		assert.Len(t, providedChecks, 2)
-	})
+	var checkNames []string
+	for _, check := range providedChecks {
+		checkNames = append(checkNames, check.Object().Name())
+	}
+	t.Log("Provided Checks:", checkNames)
+
+	assert.Len(t, providedChecks, 2)
 }

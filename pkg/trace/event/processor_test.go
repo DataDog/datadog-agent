@@ -85,7 +85,7 @@ func TestProcessor(t *testing.T) {
 			testSampler := &MockEventSampler{Rate: test.samplerRate}
 			p := newProcessor(extractors, testSampler)
 
-			testSpans := createTestSpans("test", "test")
+			testSpans := createNTestSpans(10000, "test", "test")
 			numSpans := len(testSpans)
 			testChunk := testutil.TraceChunkWithSpans(testSpans)
 			root := testSpans[0]

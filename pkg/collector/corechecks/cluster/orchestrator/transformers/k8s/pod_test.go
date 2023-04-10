@@ -218,7 +218,7 @@ func TestExtractPod(t *testing.T) {
 						LastTransitionTime: timestamp.Unix(),
 					},
 				},
-				Tags: []string{"pod_condition_ready:true", "pod_condition_podscheduled:true"},
+				Tags: []string{"kube_condition_ready:true", "kube_condition_podscheduled:true"},
 			},
 		},
 		"empty pod": {input: v1.Pod{}, expected: model.Pod{Metadata: &model.Metadata{}}},
@@ -299,7 +299,7 @@ func TestExtractPod(t *testing.T) {
 						Status: "True",
 					},
 				},
-				Tags: []string{"pod_condition_ready:true"},
+				Tags: []string{"kube_condition_ready:true"},
 			},
 		},
 		"partial pod with init container": {
@@ -397,7 +397,7 @@ func TestExtractPod(t *testing.T) {
 						Status: "True",
 					},
 				},
-				Tags:     []string{"pod_condition_ready:true"},
+				Tags:     []string{"kube_condition_ready:true"},
 				QOSClass: "BestEffort",
 			},
 		},
@@ -480,7 +480,7 @@ func TestExtractPod(t *testing.T) {
 						Status: "True",
 					},
 				},
-				Tags: []string{"pod_condition_ready:true"},
+				Tags: []string{"kube_condition_ready:true"},
 			},
 		},
 	}
@@ -730,10 +730,10 @@ func TestExtractPodConditions(t *testing.T) {
 		},
 	}
 	expectedTags := []string{
-		"pod_condition_initialized:true",
-		"pod_condition_podscheduled:true",
-		"pod_condition_containersready:false",
-		"pod_condition_ready:unknown",
+		"kube_condition_initialized:true",
+		"kube_condition_podscheduled:true",
+		"kube_condition_containersready:false",
+		"kube_condition_ready:unknown",
 	}
 
 	conditions, conditionTags := extractPodConditions(p)

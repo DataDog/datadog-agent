@@ -95,8 +95,11 @@ func (s *onDiskRetryQueue) Store(transactions []transaction.Transaction) error {
 		_ = os.Remove(file.Name())
 		return err
 	}
-	defer file.Close()
-
+	err = file.Close()
+	if err != nil {
+		_ = os.Remove(file.Name())
+		return err
+	}
 	s.currentSizeInBytes += bufferSize
 	s.filenames = append(s.filenames, file.Name())
 	s.telemetry.setFileSize(bufferSize)

@@ -9,7 +9,6 @@ package secret
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -20,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -85,11 +83,6 @@ func showSecretInfo(config config.Component) error {
 		return fmt.Errorf("Could not reach agent: %v\nMake sure the agent is running before requesting the runtime configuration and contact support if you continue having issues", err)
 	}
 
-	info := &secrets.SecretInfo{}
-	err = json.Unmarshal(r, info)
-	if err != nil {
-		return fmt.Errorf("Could not Unmarshal agent answer: %s", r)
-	}
-	info.Print(os.Stdout)
+	fmt.Println(string(r))
 	return nil
 }

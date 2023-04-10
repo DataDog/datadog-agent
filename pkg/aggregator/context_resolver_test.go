@@ -103,6 +103,7 @@ func testTrackContext(t *testing.T, store *tags.Store) {
 	_, ok := contextResolver.contextsByKey[unknownContextKey]
 	assert.False(t, ok)
 }
+
 func TestTrackContext(t *testing.T) {
 	testWithTagsStore(t, testTrackContext)
 }
@@ -147,6 +148,7 @@ func testExpireContexts(t *testing.T, store *tags.Store) {
 	_, ok = contextResolver.resolver.contextsByKey[contextKey2]
 	assert.True(t, ok)
 }
+
 func TestExpireContexts(t *testing.T) {
 	testWithTagsStore(t, testExpireContexts)
 }
@@ -212,6 +214,7 @@ func testExpireContextsWithKeep(t *testing.T, store *tags.Store) {
 	assert.False(t, ok1)
 	assert.True(t, ok2)
 }
+
 func TestExpireContextsWithKeep(t *testing.T) {
 	testWithTagsStore(t, testExpireContextsWithKeep)
 }
@@ -239,6 +242,7 @@ func testCountBasedExpireContexts(t *testing.T, store *tags.Store) {
 	require.Len(t, contextResolver.expireContexts(), 0)
 	require.Len(t, contextResolver.resolver.contextsByKey, 0)
 }
+
 func TestCountBasedExpireContexts(t *testing.T) {
 	testWithTagsStore(t, testCountBasedExpireContexts)
 }
@@ -254,6 +258,7 @@ func testTagDeduplication(t *testing.T, store *tags.Store) {
 	assert.Equal(t, resolver.contextsByKey[ckey].Tags().Len(), 1)
 	metrics.AssertCompositeTagsEqual(t, resolver.contextsByKey[ckey].Tags(), tagset.CompositeTagsFromSlice([]string{"bar"}))
 }
+
 func TestTagDeduplication(t *testing.T) {
 	testWithTagsStore(t, testTagDeduplication)
 }
@@ -265,15 +270,15 @@ func (s *mockSink) Append(ms *metrics.Serie) {
 }
 
 type mockSample struct {
-	name string
+	name       string
 	taggerTags []string
 	metricTags []string
 }
 
-func (s *mockSample) GetName() string { return s.name }
-func (s *mockSample) GetHost() string { return "noop" }
+func (s *mockSample) GetName() string                   { return s.name }
+func (s *mockSample) GetHost() string                   { return "noop" }
 func (s *mockSample) GetMetricType() metrics.MetricType { return metrics.GaugeType }
-func (s *mockSample) IsNoIndex() bool { return false }
+func (s *mockSample) IsNoIndex() bool                   { return false }
 func (s *mockSample) GetTags(tb, mb tagset.TagsAccumulator) {
 	tb.Append(s.taggerTags...)
 	mb.Append(s.metricTags...)
@@ -291,22 +296,22 @@ func TestOriginTelemetry(t *testing.T) {
 	r.sendOriginTelemetry(ts, &sink, "test", []string{"test"})
 
 	assert.ElementsMatch(t, sink, []*metrics.Serie{{
-		Name: "datadog.agent.aggregator.dogstatsd_contexts_by_origin",
-		Host: "test",
-		Tags: tagset.NewCompositeTags([]string{"test"}, []string{"foo"}),
-		MType: metrics.APIGaugeType,
-		Points: []metrics.Point{{Ts: ts, Value: 2.0 }},
+		Name:   "datadog.agent.aggregator.dogstatsd_contexts_by_origin",
+		Host:   "test",
+		Tags:   tagset.NewCompositeTags([]string{"test"}, []string{"foo"}),
+		MType:  metrics.APIGaugeType,
+		Points: []metrics.Point{{Ts: ts, Value: 2.0}},
 	}, {
-		Name: "datadog.agent.aggregator.dogstatsd_contexts_by_origin",
-		Host: "test",
-		Tags: tagset.NewCompositeTags([]string{"test"}, []string{"bar"}),
-		MType: metrics.APIGaugeType,
-		Points: []metrics.Point{{Ts: ts, Value: 2.0 }},
+		Name:   "datadog.agent.aggregator.dogstatsd_contexts_by_origin",
+		Host:   "test",
+		Tags:   tagset.NewCompositeTags([]string{"test"}, []string{"bar"}),
+		MType:  metrics.APIGaugeType,
+		Points: []metrics.Point{{Ts: ts, Value: 2.0}},
 	}, {
-		Name: "datadog.agent.aggregator.dogstatsd_contexts_by_origin",
-		Host: "test",
-		Tags: tagset.NewCompositeTags([]string{"test"}, []string{"baz"}),
-		MType: metrics.APIGaugeType,
-		Points: []metrics.Point{{Ts: ts, Value: 1.0 }},
+		Name:   "datadog.agent.aggregator.dogstatsd_contexts_by_origin",
+		Host:   "test",
+		Tags:   tagset.NewCompositeTags([]string{"test"}, []string{"baz"}),
+		MType:  metrics.APIGaugeType,
+		Points: []metrics.Point{{Ts: ts, Value: 1.0}},
 	}})
 }

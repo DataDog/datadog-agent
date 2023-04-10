@@ -134,9 +134,10 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		c.StatsdPort = coreconfig.Datadog.GetInt("dogstatsd_port")
 	}
 
-	if coreconfig.Datadog.GetBool("vector.traces.enabled") {
-		if host := coreconfig.Datadog.GetString("vector.traces.url"); host == "" {
-			log.Error("vector.traces.enabled but vector.traces.url is empty.")
+	obsPipelineEnabled, prefix := isObsPipelineEnabled()
+	if obsPipelineEnabled {
+		if host := coreconfig.Datadog.GetString(fmt.Sprintf("%s.traces.url", prefix)); host == "" {
+			log.Errorf("%s.traces.enabled but %s.traces.url is empty.", prefix, prefix)
 		} else {
 			c.Endpoints[0].Host = host
 		}
@@ -193,6 +194,8 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	if coreconfig.Datadog.IsSet("apm_config.connection_limit") {
 		c.ConnectionLimit = coreconfig.Datadog.GetInt("apm_config.connection_limit")
 	}
+	c.PeerServiceAggregation = coreconfig.Datadog.GetBool("apm_config.peer_service_aggregation")
+	c.ComputeStatsBySpanKind = coreconfig.Datadog.GetBool("apm_config.compute_stats_by_span_kind")
 	if coreconfig.Datadog.IsSet("apm_config.extra_sample_rate") {
 		c.ExtraSampleRate = coreconfig.Datadog.GetFloat64("apm_config.extra_sample_rate")
 	}
@@ -278,13 +281,12 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		grpcPort = coreconfig.Datadog.GetInt(coreconfig.OTLPTracePort)
 	}
 	c.OTLPReceiver = &config.OTLP{
-		BindHost:                c.ReceiverHost,
-		GRPCPort:                grpcPort,
-		UsePreviewHostnameLogic: true,
-		MaxRequestBytes:         c.MaxRequestBytes,
-		SpanNameRemappings:      coreconfig.Datadog.GetStringMapString("otlp_config.traces.span_name_remappings"),
-		SpanNameAsResourceName:  coreconfig.Datadog.GetBool("otlp_config.traces.span_name_as_resource_name"),
-		ProbabilisticSampling:   coreconfig.Datadog.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
+		BindHost:               c.ReceiverHost,
+		GRPCPort:               grpcPort,
+		MaxRequestBytes:        c.MaxRequestBytes,
+		SpanNameRemappings:     coreconfig.Datadog.GetStringMapString("otlp_config.traces.span_name_remappings"),
+		SpanNameAsResourceName: coreconfig.Datadog.GetBool("otlp_config.traces.span_name_as_resource_name"),
+		ProbabilisticSampling:  coreconfig.Datadog.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
 	}
 
 	if coreconfig.Datadog.GetBool("apm_config.telemetry.enabled") {
@@ -687,4 +689,14 @@ func setMaxMemCPU(c *config.AgentConfig, isContainerized bool) {
 		log.Debug("Running in a container and apm_config.max_memory is not set, setting it to 0")
 		c.MaxMemory = 0
 	}
+}
+
+func isObsPipelineEnabled() (bool, string) {
+	if coreconfig.Datadog.GetBool("observability_pipelines_worker.traces.enabled") {
+		return true, "observability_pipelines_worker"
+	}
+	if coreconfig.Datadog.GetBool("vector.traces.enabled") {
+		return true, "vector"
+	}
+	return false, "observability_pipelines_worker"
 }

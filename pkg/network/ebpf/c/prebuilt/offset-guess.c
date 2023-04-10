@@ -17,7 +17,7 @@ static const __u8 SIZEOF_DADDR = sizeof_member(tracer_status_t, daddr);
 static const __u8 SIZEOF_FAMILY = sizeof_member(tracer_status_t, family);
 static const __u8 SIZEOF_SPORT = sizeof_member(tracer_status_t, sport);
 static const __u8 SIZEOF_DPORT = sizeof_member(tracer_status_t, dport);
-static const __u8 SIZEOF_NETNS = sizeof((void*)0);
+static const __u8 SIZEOF_NETNS = sizeof((void*)0); // possible_net_t*
 static const __u8 SIZEOF_NETNS_INO = sizeof_member(tracer_status_t, netns);
 static const __u8 SIZEOF_RTT = sizeof_member(tracer_status_t, rtt);
 static const __u8 SIZEOF_RTT_VAR = sizeof_member(tracer_status_t, rtt_var);
@@ -30,10 +30,15 @@ static const __u8 SIZEOF_SADDR_FL6 = sizeof_member(tracer_status_t, saddr_fl6) /
 static const __u8 SIZEOF_DADDR_FL6 = sizeof_member(tracer_status_t, daddr_fl6) / 4;
 static const __u8 SIZEOF_SPORT_FL6 = sizeof_member(tracer_status_t, sport_fl6);
 static const __u8 SIZEOF_DPORT_FL6 = sizeof_member(tracer_status_t, dport_fl6);
-static const __u8 SIZEOF_SOCKET_SK = sizeof((void*)0);
-static const __u8 SIZEOF_SK_BUFF_SOCK = sizeof((void*)0);
+static const __u8 SIZEOF_SOCKET_SK = sizeof((void*)0); // char*
+static const __u8 SIZEOF_SK_BUFF_SOCK = sizeof((void*)0); // char*
 static const __u8 SIZEOF_SK_BUFF_TRANSPORT_HEADER = sizeof_member(tracer_status_t, transport_header);
-static const __u8 SIZEOF_SK_BUFF_HEAD = sizeof((void*)0);
+static const __u8 SIZEOF_SK_BUFF_HEAD = sizeof((void*)0); // char*
+
+static const __u8 SIZEOF_CT_TUPLE_ORIGIN = sizeof_member(conntrack_status_t, saddr);
+static const __u8 SIZEOF_CT_TUPLE_REPLY = sizeof_member(conntrack_status_t, saddr);
+static const __u8 SIZEOF_CT_STATUS = sizeof_member(conntrack_status_t, status);
+static const __u8 SIZEOF_CT_NET = sizeof((void*)0); // possible_net_t*
 
 // aligned_offset returns an offset that when added to
 // p, would produce an address that is mod size (aligned).
@@ -62,6 +67,7 @@ static __always_inline u64 aligned_offset(void *p, u64 offset, uintptr_t size) {
 BPF_HASH_MAP(connectsock_ipv6, __u64, void*, 1024)
 
 BPF_HASH_MAP(tracer_status, __u64, tracer_status_t, 1)
+BPF_HASH_MAP(conntrack_status, __u64, conntrack_status_t, 1)
 
 static __always_inline bool proc_t_comm_equals(proc_t a, proc_t b) {
     for (int i = 0; i < TASK_COMM_LEN; i++) {
@@ -85,7 +91,7 @@ static __always_inline bool check_family(struct sock* sk, tracer_status_t* statu
 static __always_inline int guess_offsets(tracer_status_t* status, char* subject) {
     u64 zero = 0;
 
-    if (status->state != TRACER_STATE_CHECKING) {
+    if (status->state != STATE_CHECKING) {
         return 1;
     }
 
@@ -102,7 +108,7 @@ static __always_inline int guess_offsets(tracer_status_t* status, char* subject)
     tracer_status_t new_status = {};
     // Copy values from status to new_status
     bpf_probe_read_kernel(&new_status, sizeof(tracer_status_t), status);
-    new_status.state = TRACER_STATE_CHECKED;
+    new_status.state = STATE_CHECKED;
     new_status.err = 0;
     bpf_probe_read_kernel(&new_status.proc.comm, sizeof(proc.comm), proc.comm);
 
@@ -179,6 +185,7 @@ static __always_inline int guess_offsets(tracer_status_t* status, char* subject)
             new_status.err = 1;
             break;
         }
+        //log_debug("netns: off=%u ino=%u val=%u\n", status->offset_netns, status->offset_ino, possible_netns);
         new_status.netns = possible_netns;
         break;
     case GUESS_RTT:
@@ -206,8 +213,8 @@ static __always_inline int guess_offsets(tracer_status_t* status, char* subject)
         break;
     case GUESS_SK_BUFF_SOCK:
         // Note that in this line we're essentially dereferencing a pointer
-        // subject initially points to a (struct socket*), and we're trying to guess the offset of
-        // (struct socket*)->sk which points to a (struct sock*) object.
+        // subject initially points to a (struct sk_buff*), and we're trying to guess the offset of
+        // (struct sk_buff*)->sk which points to a (struct sock*) object.
         new_status.offset_sk_buff_sock = aligned_offset(subject, status->offset_sk_buff_sock, SIZEOF_SK_BUFF_SOCK);
         bpf_probe_read_kernel(&subject, sizeof(subject), subject + new_status.offset_sk_buff_sock);
         bpf_probe_read_kernel(&new_status.sport_via_sk_via_sk_buf, sizeof(new_status.sport_via_sk_via_sk_buf), subject + new_status.offset_sport);
@@ -369,10 +376,89 @@ int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
         return 0;
     }
 
-    void* skb = (void*)ctx->skb;
-    guess_offsets(status, (char*)skb);
+    guess_offsets(status, ctx->skb);
     return 0;
 }
+
+static __always_inline int guess_conntrack_offsets(conntrack_status_t* status, char* subject) {
+    u64 zero = 0;
+
+    if (status->state != STATE_CHECKING) {
+        return 1;
+    }
+
+    // Only traffic for the expected process name. Extraneous connections from other processes must be ignored here.
+    // Userland must take care to generate connections from the correct thread. In Golang, this can be achieved
+    // with runtime.LockOSThread.
+    proc_t proc = {};
+    bpf_get_current_comm(&proc.comm, sizeof(proc.comm));
+
+    if (!proc_t_comm_equals(status->proc, proc)) {
+        return 0;
+    }
+
+    conntrack_status_t new_status = {};
+    // Copy values from status to new_status
+    bpf_probe_read_kernel(&new_status, sizeof(conntrack_status_t), status);
+    new_status.state = STATE_CHECKED;
+    bpf_probe_read_kernel(&new_status.proc.comm, sizeof(proc.comm), proc.comm);
+
+    possible_net_t* possible_ct_net = NULL;
+    u32 possible_netns = 0;
+    switch (status->what) {
+    case GUESS_CT_TUPLE_ORIGIN:
+        new_status.offset_origin = aligned_offset(subject, status->offset_origin, SIZEOF_CT_TUPLE_ORIGIN);
+        bpf_probe_read_kernel(&new_status.saddr, sizeof(new_status.saddr), subject + new_status.offset_origin);
+        break;
+    case GUESS_CT_TUPLE_REPLY:
+        new_status.offset_reply = aligned_offset(subject, status->offset_reply, SIZEOF_CT_TUPLE_REPLY);
+        bpf_probe_read_kernel(&new_status.saddr, sizeof(new_status.saddr), subject + new_status.offset_reply);
+        break;
+    case GUESS_CT_STATUS:
+        new_status.offset_status = aligned_offset(subject, status->offset_status, SIZEOF_CT_STATUS);
+        bpf_probe_read_kernel(&new_status.status, sizeof(new_status.status), subject + new_status.offset_status);
+        break;
+    case GUESS_CT_NET:
+        new_status.offset_netns = aligned_offset(subject, status->offset_netns, SIZEOF_CT_NET);
+        bpf_probe_read_kernel(&possible_ct_net, sizeof(possible_net_t*), subject + new_status.offset_netns);
+        bpf_probe_read_kernel(&possible_netns, sizeof(possible_netns), ((char*)possible_ct_net) + status->offset_ino);
+        new_status.netns = possible_netns;
+        break;
+    default:
+        // not for us
+        return 0;
+    }
+
+    bpf_map_update_elem(&conntrack_status, &zero, &new_status, BPF_ANY);
+
+    return 0;
+}
+
+static __always_inline bool is_ct_event(u64 what) {
+    switch (what) {
+    case GUESS_CT_TUPLE_ORIGIN:
+    case GUESS_CT_TUPLE_REPLY:
+    case GUESS_CT_STATUS:
+    case GUESS_CT_NET:
+        return true;
+    default:
+        return false;
+    }
+}
+
+SEC("kprobe/__nf_conntrack_hash_insert")
+int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
+    u64 zero = 0;
+    conntrack_status_t* status = bpf_map_lookup_elem(&conntrack_status, &zero);
+    if (status == NULL || !is_ct_event(status->what)) {
+        return 0;
+    }
+
+    void *ct = (void*)PT_REGS_PARM1(ctx);
+    guess_conntrack_offsets(status, (char*)ct);
+    return 0;
+}
+
 
 // This number will be interpreted by elf-loader to set the current running kernel version
 __u32 _version SEC("version") = 0xFFFFFFFE; // NOLINT(bugprone-reserved-identifier)

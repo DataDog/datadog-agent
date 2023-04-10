@@ -77,8 +77,9 @@ func TestLocateECSHTTPFail(t *testing.T) {
 }
 
 func TestGetAgentV1ContainerURLs(t *testing.T) {
-	ctx := context.Background()
+	config.SetFeatures(t, config.Docker)
 
+	ctx := context.Background()
 	config.Datadog.SetDefault("ecs_agent_container_name", "ecs-agent-custom")
 	defer config.Datadog.SetDefault("ecs_agent_container_name", "ecs-agent")
 

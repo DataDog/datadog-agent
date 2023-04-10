@@ -44,90 +44,6 @@ int socket__protocol_dispatcher_kafka(struct __sk_buff *skb) {
     return 0;
 }
 
-SEC("socket/http_filter")
-int socket__http_filter(struct __sk_buff *skb) {
-    skb_info_t skb_info;
-    http_transaction_t http;
-    bpf_memset(&http, 0, sizeof(http));
-
-    if (!read_conn_tuple_skb(skb, &skb_info, &http.tup)) {
-        return 0;
-    }
-
-    if (!http_allow_packet(&http, skb, &skb_info)) {
-        return 0;
-    }
-    normalize_tuple(&http.tup);
-
-    read_into_buffer_skb((char *)http.request_fragment, skb, &skb_info);
-    http_process(&http, &skb_info, NO_TAGS);
-    return 0;
-}
-
-SEC("socket/http2_filter")
-int socket__http2_filter(struct __sk_buff *skb) {
-    const __u32 zero = 0;
-    http2_iterations_key_t iterations_key;
-    bpf_memset(&iterations_key, 0, sizeof(http2_iterations_key_t));
-    if (!read_conn_tuple_skb(skb, &iterations_key.skb_info, &iterations_key.tup)) {
-        return 0;
-    }
-
-    // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
-    // processing into multiple tail calls, where each tail call process a single frame. We must have context when
-    // we are processing the frames, for example, to know how many bytes have we read in the packet, or it we reached
-    // to the maximum number of frames we can process. For that we are checking if the iteration context already exists.
-    // If not, creating a new one to be used for further processing
-    http2_tail_call_state_t *tail_call_state = bpf_map_lookup_elem(&http2_iterations, &iterations_key);
-    if (tail_call_state == NULL) {
-        http2_tail_call_state_t iteration_value = {};
-        bpf_map_update_with_telemetry(http2_iterations, &iterations_key, &iteration_value, BPF_NOEXIST);
-        tail_call_state = bpf_map_lookup_elem(&http2_iterations, &iterations_key);
-        if (tail_call_state == NULL) {
-            return 0;
-        }
-    }
-
-    // If we detected a tcp termination we should stop processing the packet, and clear its dynamic table by deleting the counter.
-    if (is_tcp_termination(&iterations_key.skb_info)) {
-        bpf_map_delete_elem(&http2_dynamic_counter_table, &iterations_key.tup);
-        goto delete_iteration;
-    }
-
-    http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_ctx_heap, &zero);
-    if (http2_ctx == NULL) {
-        goto delete_iteration;
-    }
-
-    // create the http2 ctx for the current http2 frame.
-    bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
-    http2_ctx->http2_stream_key.tup = iterations_key.tup;
-    normalize_tuple(&http2_ctx->http2_stream_key.tup);
-    http2_ctx->dynamic_index.tup = iterations_key.tup;
-    iterations_key.skb_info.data_off += tail_call_state->offset;
-
-    // perform the http2 decoding part.
-    __u32 read_size = http2_entrypoint(skb, &iterations_key, http2_ctx);
-    if (read_size <= 0 || read_size == -1) {
-        goto delete_iteration;
-    }
-    if (iterations_key.skb_info.data_off + read_size >= skb->len) {
-        goto delete_iteration;
-    }
-
-    // update the tail calls state when the http2 decoding part was completed successfully.
-    tail_call_state->iteration += 1;
-    tail_call_state->offset += read_size;
-    if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS) {
-        bpf_tail_call_compat(skb, &protocols_progs, PROTOCOL_HTTP2);
-    }
-
-delete_iteration:
-    bpf_map_delete_elem(&http2_iterations, &iterations_key);
-
-    return 0;
-}
-
 SEC("kprobe/tcp_sendmsg")
 int BPF_KPROBE(kprobe__tcp_sendmsg, struct sock *sk) {
     log_debug("kprobe/tcp_sendmsg: sk=%llx\n", sk);
@@ -763,37 +679,41 @@ int uprobe__crypto_tls_Conn_Write__return(struct pt_regs *ctx) {
     go_tls_function_args_key_t call_key = {0};
     call_key.pid = pid;
 
+    if (read_goroutine_id(ctx, &od->goroutine_id, &call_key.goroutine_id)) {
+        log_debug("[go-tls-write-return] failed reading go routine id for pid %d\n", pid);
+        return 0;
+    }
+
     uint64_t bytes_written = 0;
     if (read_location(ctx, &od->write_return_bytes, sizeof(bytes_written), &bytes_written)) {
+        bpf_map_delete_elem(&go_tls_write_args, &call_key);
         log_debug("[go-tls-write-return] failed reading write return bytes location for pid %d\n", pid);
         return 0;
     }
 
     if (bytes_written <= 0) {
+        bpf_map_delete_elem(&go_tls_write_args, &call_key);
         log_debug("[go-tls-write-return] write returned non-positive for amount of bytes written for pid: %d\n", pid);
         return 0;
     }
 
     uint64_t err_ptr = 0;
     if (read_location(ctx, &od->write_return_error, sizeof(err_ptr), &err_ptr)) {
+        bpf_map_delete_elem(&go_tls_write_args, &call_key);
         log_debug("[go-tls-write-return] failed reading write return error location for pid %d\n", pid);
         return 0;
     }
 
     // check if err != nil
     if (err_ptr != 0) {
+        bpf_map_delete_elem(&go_tls_write_args, &call_key);
         log_debug("[go-tls-write-return] error in write for pid %d: data will be ignored\n", pid);
         return 0;
     }
 
-    if (read_goroutine_id(ctx, &od->goroutine_id, &call_key.goroutine_id)) {
-        log_debug("[go-tls-write-return] failed reading go routine id for pid %d\n", pid);
-        return 0;
-    }
-
-
     go_tls_write_args_data_t *call_data_ptr = bpf_map_lookup_elem(&go_tls_write_args, &call_key);
     if (call_data_ptr == NULL) {
+        bpf_map_delete_elem(&go_tls_write_args, &call_key);
         log_debug("[go-tls-write-return] no write information in write-return for pid %d\n", pid);
         return 0;
     }
@@ -861,23 +781,6 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
     // Read the PID and goroutine ID to make the partial call key
     go_tls_function_args_key_t call_key = {0};
     call_key.pid = pid;
-
-    uint64_t bytes_read = 0;
-    if (read_location(ctx, &od->read_return_bytes, sizeof(bytes_read), &bytes_read)) {
-        log_debug("[go-tls-read-return] failed reading return bytes location for pid %d\n", pid);
-        return 0;
-    }
-
-    if (bytes_read <= 0) {
-        log_debug("[go-tls-read-return] read returned non-positive for amount of bytes read for pid: %d\n", pid);
-        return 0;
-    }
-
-    // Errors like "EOF" of "unexpected EOF" can be treated as no error by the hooked program.
-    // Therefore, if we choose to ignore data if read had returned these errors we may have accuracy issues.
-    // For now for success validation we chose to check only the amount of bytes read
-    // and make sure it's greater than zero.
-
     if (read_goroutine_id(ctx, &od->goroutine_id, &call_key.goroutine_id)) {
         log_debug("[go-tls-read-return] failed reading go routine id for pid %d\n", pid);
         return 0;
@@ -886,6 +789,23 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
     go_tls_read_args_data_t* call_data_ptr = bpf_map_lookup_elem(&go_tls_read_args, &call_key);
     if (call_data_ptr == NULL) {
         log_debug("[go-tls-read-return] no read information in read-return for pid %d\n", pid);
+        return 0;
+    }
+
+    uint64_t bytes_read = 0;
+    if (read_location(ctx, &od->read_return_bytes, sizeof(bytes_read), &bytes_read)) {
+        log_debug("[go-tls-read-return] failed reading return bytes location for pid %d\n", pid);
+        bpf_map_delete_elem(&go_tls_read_args, &call_key);
+        return 0;
+    }
+
+    // Errors like "EOF" of "unexpected EOF" can be treated as no error by the hooked program.
+    // Therefore, if we choose to ignore data if read had returned these errors we may have accuracy issues.
+    // For now for success validation we chose to check only the amount of bytes read
+    // and make sure it's greater than zero.
+    if (bytes_read <= 0) {
+        log_debug("[go-tls-read-return] read returned non-positive for amount of bytes read for pid: %d\n", pid);
+        bpf_map_delete_elem(&go_tls_read_args, &call_key);
         return 0;
     }
 
@@ -911,6 +831,14 @@ int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
     if (od == NULL) {
         log_debug("[go-tls-close] no offsets data in map for pid %d\n", pid_tgid >> 32);
         return 0;
+    }
+
+    // Read the PID and goroutine ID to make the partial call key
+    go_tls_function_args_key_t call_key = {0};
+    call_key.pid = pid_tgid >> 32;
+    if (read_goroutine_id(ctx, &od->goroutine_id, &call_key.goroutine_id) == 0) {
+        bpf_map_delete_elem(&go_tls_read_args, &call_key);
+        bpf_map_delete_elem(&go_tls_write_args, &call_key);
     }
 
     void* conn_pointer = NULL;

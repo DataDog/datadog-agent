@@ -44,7 +44,7 @@ func TestSuiteKube(t *testing.T) {
 	s := &testSuite{}
 
 	// Env detection
-	config.SetFeature(config.Kubernetes)
+	config.SetFeatures(t, config.Kubernetes)
 
 	// Start compose stack
 	compose, err := initAPIServerCompose()

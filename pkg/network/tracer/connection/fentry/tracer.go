@@ -54,7 +54,7 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 		}
 
 		telemetryMapKeys := errtelemetry.BuildTelemetryKeys(m)
-		mgrOpts.ConstantEditors = append(mgrOpts.ConstantEditors, telemetryMapKeys...)
+		o.ConstantEditors = append(o.ConstantEditors, telemetryMapKeys...)
 
 		// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 		for _, p := range m.Probes {

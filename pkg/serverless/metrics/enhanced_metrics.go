@@ -121,8 +121,8 @@ func ContainsOutOfMemoryLog(logString string) bool {
 	return false
 }
 
-// GenerateEnhancedMetricsFromFunctionLog generates enhanced metrics specific to an out of memory from a LogTypeFunction message
-func GenerateEnhancedMetricsFromFunctionLog(time time.Time, tags []string, demux aggregator.Demultiplexer) {
+// GenerateOutOfMemoryEnhancedMetrics generates enhanced metrics specific to an out of memory error
+func GenerateOutOfMemoryEnhancedMetrics(time time.Time, tags []string, demux aggregator.Demultiplexer) {
 	SendOutOfMemoryEnhancedMetric(tags, time, demux)
 	SendErrorsEnhancedMetric(tags, time, demux)
 }

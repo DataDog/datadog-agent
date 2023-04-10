@@ -74,9 +74,6 @@ type Forwarder interface {
 	SubmitConnectionChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
 	SubmitOrchestratorChecks(payload transaction.BytesPayloads, extra http.Header, payloadType int) (chan Response, error)
 	SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
-	SubmitContainerLifecycleEvents(payload transaction.BytesPayloads, extra http.Header) error
-	SubmitContainerImages(payload transaction.BytesPayloads, extra http.Header) error
-	SubmitSBOM(payload transaction.BytesPayloads, extra http.Header) error
 }
 
 // Compile-time check to ensure that DefaultForwarder implements the Forwarder interface
@@ -123,12 +120,12 @@ func HasFeature(features, flag Features) bool { return features&flag != 0 }
 // NewOptions creates new Options with default values
 func NewOptions(keysPerDomain map[string][]string) *Options {
 	resolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
-	vectorMetricsURL, err := config.GetVectorURL(config.Metrics)
+	vectorMetricsURL, err := config.GetObsPipelineURL(config.Metrics)
 	if err != nil {
-		log.Error("Misconfiguration of agent vector endpoint for metrics: ", err)
+		log.Error("Misconfiguration of agent observability_pipelines_worker endpoint for metrics: ", err)
 	}
 	if r, ok := resolvers[config.GetMainInfraEndpoint()]; ok && vectorMetricsURL != "" {
-		log.Debugf("Configuring forwarder to send metrics to vector: %s", vectorMetricsURL)
+		log.Debugf("Configuring forwarder to send metrics to observability_pipelines_worker: %s", vectorMetricsURL)
 		resolvers[config.GetMainInfraEndpoint()] = resolver.NewDomainResolverWithMetricToVector(
 			r.GetBaseDomain(),
 			r.GetAPIKeys(),
@@ -632,24 +629,6 @@ func (f *DefaultForwarder) SubmitOrchestratorChecks(payload transaction.BytesPay
 func (f *DefaultForwarder) SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
 	transactionsOrchestratorManifest.Add(1)
 	return f.submitProcessLikePayload(endpoints.OrchestratorManifestEndpoint, payload, extra, true)
-}
-
-// SubmitContainerLifecycleEvents sends container lifecycle events
-func (f *DefaultForwarder) SubmitContainerLifecycleEvents(payload transaction.BytesPayloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(endpoints.ContainerLifecycleEndpoint, payload, extra)
-	return f.sendHTTPTransactions(transactions)
-}
-
-// SubmitContainerImages sends container image
-func (f *DefaultForwarder) SubmitContainerImages(payload transaction.BytesPayloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(endpoints.ContainerImageEndpoint, payload, extra)
-	return f.sendHTTPTransactions(transactions)
-}
-
-// SubmitSBOM sends SBOM
-func (f *DefaultForwarder) SubmitSBOM(payload transaction.BytesPayloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(endpoints.SBOMEndpoint, payload, extra)
-	return f.sendHTTPTransactions(transactions)
 }
 
 func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, payload transaction.BytesPayloads, extra http.Header, retryable bool) (chan Response, error) {

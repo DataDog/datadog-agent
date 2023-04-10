@@ -17,8 +17,7 @@ import (
 func TestGetClusterName(t *testing.T) {
 	ctx := context.Background()
 	mockConfig := config.Mock(t)
-	config.SetFeature(config.Kubernetes)
-	defer config.ClearFeatures()
+	config.SetFeatures(t, config.Kubernetes)
 	data := newClusterNameData()
 
 	testClusterName := "laika"

@@ -105,7 +105,7 @@ func TestKafkaProtocolParsing(t *testing.T) {
 		defer client.Client.Close()
 		for k, value := range ctx.extras {
 			if strings.HasPrefix(k, "topic_name") {
-				require.NoError(t, client.DeleteTopic(value.(string)))
+				_ = client.DeleteTopic(value.(string))
 			}
 		}
 	}
@@ -487,5 +487,5 @@ func loadKafkaBinary(t *testing.T, debug bool, binaryType BinaryType) {
 		cfg.EnableCORE = true
 	}
 
-	newHTTPWithKafkaMonitor(t, getDefaultTestConfiguration())
+	newHTTPWithKafkaMonitor(t, cfg)
 }

@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/datadog-agent-runner-circle:go1196
+      - image: datadog/datadog-agent-runner-circle:go1197
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -100,14 +100,14 @@ jobs:
 
   unit_tests:
     <<: *job_template
-    resource_class: xlarge
+    resource_class: large
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - run:
           name: run unit tests
           no_output_timeout: 20m
-          command: inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --cpus 3
+          command: inv -e test --skip-linters --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --cpus 3
       - run:
           name: upload code coverage results
           # Never fail on coverage upload
@@ -149,6 +149,17 @@ jobs:
       - run:
           command: inv -e lint-milestone
           name: run PR check for milestone assignment
+
+  go_linting:
+    <<: *job_template
+    resource_class: xlarge
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: run go linters
+          no_output_timeout: 20m
+          command: inv -e lint-go
 
   licenses_linting:
     <<: *job_template
@@ -217,6 +228,15 @@ jobs:
       - run:
           name: run component linting
           command: inv -e lint-components
+
+  codeowner_linting:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: run CODEOWNER linting
+          command: inv -e github.lint-codeowner
 
   docker_tests:
     <<: *job_template
@@ -299,6 +319,9 @@ workflows:
                 - main
           requires:
             - dependencies
+      - go_linting:
+          requires:
+            - dependencies
       - licenses_linting:
           requires:
             - dependencies
@@ -315,6 +338,9 @@ workflows:
           requires:
             - dependencies
       - component_linting:
+          requires:
+            - dependencies
+      - codeowner_linting:
           requires:
             - dependencies
       - docker_tests:

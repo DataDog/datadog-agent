@@ -231,6 +231,17 @@ func TestSiteEnvVar(t *testing.T) {
 	assert.Equal(t, "https://external-agent.datadoghq.eu", externalAgentURL)
 }
 
+func TestDefaultTraceManagedServicesEnvVarValue(t *testing.T) {
+	testConfig := setupConfFromYAML("")
+	assert.Equal(t, true, testConfig.Get("serverless.trace_managed_services"))
+}
+
+func TestExplicitFalseTraceManagedServicesEnvVar(t *testing.T) {
+	t.Setenv("DD_TRACE_MANAGED_SERVICES", "false")
+	testConfig := setupConfFromYAML("")
+	assert.Equal(t, false, testConfig.Get("serverless.trace_managed_services"))
+}
+
 func TestDDHostnameFileEnvVar(t *testing.T) {
 	t.Setenv("DD_API_KEY", "fakeapikey")
 	t.Setenv("DD_HOSTNAME_FILE", "somefile")
@@ -1286,4 +1297,63 @@ fips:
 	testConfig := setupConfFromYAML(datadogYaml)
 	err := setupFipsEndpoints(testConfig)
 	require.Error(t, err)
+}
+
+func TestEnablePeerServiceStatsAggregationYAML(t *testing.T) {
+	datadogYaml := `
+apm_config:
+  peer_service_stats_aggregation: true
+`
+	testConfig := setupConfFromYAML(datadogYaml)
+	err := setupFipsEndpoints(testConfig)
+	require.NoError(t, err)
+	require.True(t, testConfig.GetBool("apm_config.peer_service_stats_aggregation"))
+
+	datadogYaml = `
+apm_config:
+  peer_service_stats_aggregation: false
+`
+	testConfig = setupConfFromYAML(datadogYaml)
+	err = setupFipsEndpoints(testConfig)
+	require.NoError(t, err)
+	require.False(t, testConfig.GetBool("apm_config.peer_service_stats_aggregation"))
+}
+
+func TestEnablePeerServiceStatsAggregationEnv(t *testing.T) {
+	t.Setenv("DD_APM_PEER_SERVICE_STATS_AGGREGATION", "true")
+	testConfig := setupConfFromYAML("")
+	require.True(t, testConfig.GetBool("apm_config.peer_service_stats_aggregation"))
+	t.Setenv("DD_APM_PEER_SERVICE_STATS_AGGREGATION", "false")
+	testConfig = setupConfFromYAML("")
+	require.False(t, testConfig.GetBool("apm_config.peer_service_stats_aggregation"))
+}
+
+func TestEnableStatsComputationBySpanKindYAML(t *testing.T) {
+	datadogYaml := `
+apm_config:
+  compute_stats_by_span_kind: false
+`
+	testConfig := setupConfFromYAML(datadogYaml)
+	err := setupFipsEndpoints(testConfig)
+	require.NoError(t, err)
+	require.False(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
+
+	datadogYaml = `
+apm_config:
+  compute_stats_by_span_kind: true
+`
+	testConfig = setupConfFromYAML(datadogYaml)
+	err = setupFipsEndpoints(testConfig)
+	require.NoError(t, err)
+	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
+
+}
+
+func TestComputeStatsBySpanKindEnv(t *testing.T) {
+	t.Setenv("DD_APM_COMPUTE_STATS_BY_SPAN_KIND", "false")
+	testConfig := setupConfFromYAML("")
+	require.False(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
+	t.Setenv("DD_APM_COMPUTE_STATS_BY_SPAN_KIND", "true")
+	testConfig = setupConfFromYAML("")
+	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
 }
