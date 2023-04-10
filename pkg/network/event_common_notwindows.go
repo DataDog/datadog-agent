@@ -21,11 +21,11 @@ import (
 // This is necessary to handle all possible scenarios for connections originating from the USM module (i.e., whether they are NAT'd or not, and whether they use TLS).
 func ConnectionKeysFromConnectionStats(connectionStats ConnectionStats) []types.ConnectionKey {
 	hasTranslation := connectionStats.IPTranslation != nil
-	factor := 1
+	connectionKeysCount := 2
 	if hasTranslation {
-		factor = 2
+		connectionKeysCount = 4
 	}
-	connectionKeys := make([]types.ConnectionKey, 2*factor)
+	connectionKeys := make([]types.ConnectionKey, connectionKeysCount)
 	// USM data is always indexed as (client, server), but we don't know which is the remote
 	// and which is the local address. To account for this, we'll construct 2 possible
 	// connection keys and check for both of them in the aggregations map.
@@ -33,7 +33,7 @@ func ConnectionKeysFromConnectionStats(connectionStats ConnectionStats) []types.
 	connectionKeys[1] = types.NewConnectionKey(connectionStats.Dest, connectionStats.Source, connectionStats.DPort, connectionStats.SPort)
 
 	// if IPTranslation is not nil, at least one of the sides has a translation, thus we need to add translated addresses.
-	if connectionStats.IPTranslation != nil {
+	if hasTranslation {
 		localAddress, localPort := GetNATLocalAddress(connectionStats)
 		remoteAddress, remotePort := GetNATRemoteAddress(connectionStats)
 		connectionKeys[2] = types.NewConnectionKey(localAddress, remoteAddress, localPort, remotePort)

@@ -371,12 +371,12 @@ func generateBenchMarkPayload(sourcePortsMax, destPortsMax uint16) network.Conne
 		HTTP: make(map[http.Key]*http.RequestStats),
 	}
 
-	httpStats1 := http.NewRequestStats(false)
-	httpStats1.AddRequest(100, 10, 0, nil)
-	httpStats1.AddRequest(200, 10, 0, nil)
-	httpStats1.AddRequest(300, 10, 0, nil)
-	httpStats1.AddRequest(400, 10, 0, nil)
-	httpStats1.AddRequest(500, 10, 0, nil)
+	httpStats := http.NewRequestStats(false)
+	httpStats.AddRequest(100, 10, 0, nil)
+	httpStats.AddRequest(200, 10, 0, nil)
+	httpStats.AddRequest(300, 10, 0, nil)
+	httpStats.AddRequest(400, 10, 0, nil)
+	httpStats.AddRequest(500, 10, 0, nil)
 
 	for sport := uint16(0); sport < sourcePortsMax; sport++ {
 		for dport := uint16(0); dport < destPortsMax; dport++ {
@@ -403,15 +403,15 @@ func generateBenchMarkPayload(sourcePortsMax, destPortsMax uint16) network.Conne
 				fmt.Sprintf("/api/%d-%d", sport+1, dport+1),
 				true,
 				http.MethodGet,
-			)] = httpStats1
+			)] = httpStats
 		}
 	}
 
 	return payload
 }
 
-func BenchmarkHTTPEncoder100Requests(b *testing.B) {
-	payload := generateBenchMarkPayload(10, 10)
+func commonBenchmarkHTTPEncoder(b *testing.B, numberOfPorts uint16) {
+	payload := generateBenchMarkPayload(numberOfPorts, numberOfPorts)
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
@@ -419,11 +419,10 @@ func BenchmarkHTTPEncoder100Requests(b *testing.B) {
 	}
 }
 
+func BenchmarkHTTPEncoder100Requests(b *testing.B) {
+	commonBenchmarkHTTPEncoder(b, 10)
+}
+
 func BenchmarkHTTPEncoder10000Requests(b *testing.B) {
-	payload := generateBenchMarkPayload(100, 100)
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		newHTTPEncoder(&payload)
-	}
+	commonBenchmarkHTTPEncoder(b, 100)
 }
