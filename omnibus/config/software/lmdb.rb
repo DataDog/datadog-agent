@@ -16,6 +16,7 @@ build do
         "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
     }
 
+    command "./configure --prefix=#{install_dir}/embedded", :env => env
     # https://www.linuxfromscratch.org/blfs/view/8.3/server/lmdb.html
     command "make", :env => env
     command "sed -i 's| liblmdb.a||' Makefile", :env => env
