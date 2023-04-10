@@ -214,6 +214,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	}
 	tracesByID := make(map[uint64]pb.Trace)
 	priorityByID := make(map[uint64]sampler.SamplingPriority)
+	ctags := make(map[string]string)
 	var spancount int64
 	for i := 0; i < rspans.ScopeSpans().Len(); i++ {
 		libspans := rspans.ScopeSpans().At(i)
@@ -225,7 +226,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 			if tracesByID[traceID] == nil {
 				tracesByID[traceID] = pb.Trace{}
 			}
-			ddspan := o.convertSpan(rattr, lib, span)
+			ddspan := o.convertSpan(rattr, lib, span, ctags)
 			if !srcok {
 				// if we didn't find a hostname at the resource level
 				// try and see if the span has a hostname set
@@ -282,17 +283,19 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 		LanguageVersion: tagstats.LangVersion,
 		TracerVersion:   tagstats.TracerVersion,
 	}
-	if ctags := getContainerTags(o.conf.ContainerTags, containerID); ctags != "" {
-		p.TracerPayload.Tags = map[string]string{
-			tagContainersTags: ctags,
-		}
+	payloadTags := flatten(ctags)
+	if tags := getContainerTags(o.conf.ContainerTags, containerID); tags != "" {
+		appendTags(payloadTags, tags)
 	} else {
 		// we couldn't obtain any container tags
 		if src.Kind == source.AWSECSFargateKind {
 			// but we have some information from the source provider that we can add
-			p.TracerPayload.Tags = map[string]string{
-				tagContainersTags: src.Tag(),
-			}
+			appendTags(payloadTags, src.Tag())
+		}
+	}
+	if payloadTags.Len() > 0 {
+		p.TracerPayload.Tags = map[string]string{
+			tagContainersTags: payloadTags.String(),
 		}
 	}
 	select {
@@ -302,6 +305,26 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 		log.Warn("Payload in channel full. Dropped 1 payload.")
 	}
 	return src
+}
+
+func appendTags(str *strings.Builder, tags string) {
+	if str.Len() > 0 {
+		str.WriteByte(',')
+	}
+	str.WriteString(tags)
+}
+
+func flatten(m map[string]string) *strings.Builder {
+	var str strings.Builder
+	for k, v := range m {
+		if str.Len() > 0 {
+			str.WriteByte(',')
+		}
+		str.WriteString(k)
+		str.WriteString(":")
+		str.WriteString(v)
+	}
+	return &str
 }
 
 // createChunks creates a set of pb.TraceChunk's based on two maps:
@@ -494,7 +517,9 @@ var peerServiceDefaults = []string{
 
 // convertSpan converts the span in to a Datadog span, and uses the rattr resource tags and the lib instrumentation
 // library attributes to further augment it.
-func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.InstrumentationScope, in ptrace.Span) *pb.Span {
+//
+// ctags will be used to write container tags to. Existing ones are not overridden.
+func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.InstrumentationScope, in ptrace.Span, ctags map[string]string) *pb.Span {
 	traceID := [16]byte(in.TraceID())
 	span := &pb.Span{
 		TraceID:  traceIDToUint64(traceID),
@@ -539,6 +564,9 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		if _, ok := span.Meta[k]; !ok {
 			// overwrite only if it does not exist
 			setMetaOTLP(span, k, v)
+		}
+		if _, ok := ctags[k]; !ok {
+			ctags[k] = v
 		}
 	}
 	if _, ok := span.Meta["env"]; !ok {
