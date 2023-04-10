@@ -13,6 +13,7 @@ import (
 	"net"
 )
 
-func listenPipe(_, _ string, _ int) (net.Listener, error) {
+// listenPipe return a nil-listener and an error on non-Windows operating systems; replaced in tests.
+var listenPipe = func(_, _ string, _ int) (net.Listener, error) {
 	return nil, errors.New("Windows named pipes are only supported on Windows operating systems")
 }

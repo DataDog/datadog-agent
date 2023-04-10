@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -22,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
@@ -140,6 +142,79 @@ func TestListenTCP(t *testing.T) {
 		_, ok := ln.(*rateLimitedListener)
 		assert.True(t, ok)
 	})
+}
+
+func TestHTTPReceiverStart(t *testing.T) {
+	var logs bytes.Buffer
+	old := log.SetLogger(log.NewBufferLogger(&logs))
+	defer log.SetLogger(old)
+
+	// ensure the test runs on all operating systems by defining the Windows Pipes listener.
+	defer func(old func(_, _ string, _ int) (net.Listener, error)) { listenPipe = old }(listenPipe)
+	listenPipe = func(_, _ string, _ int) (net.Listener, error) { return net.Listen("tcp", ":0") }
+
+	for _, tt := range []struct {
+		port         int      // receiver port to configure the test with
+		socket, pipe string   // socket & windows pipe to configure the test with
+		out          []string // expected log output (uses strings.Contains)
+	}{
+		{
+			out: []string{"HTTP Server is off: all listeners are disabled"},
+		},
+		{
+			socket: "/tmp/agent.sock",
+			out: []string{
+				"HTTP receiver disabled by config (apm_config.receiver_port: 0)",
+				"Listening for traces at unix:///tmp/agent.sock",
+			},
+		},
+		{
+			pipe: "\\c\\agent.pipe",
+			out: []string{
+				"HTTP receiver disabled by config (apm_config.receiver_port: 0)",
+				`Listening for traces on Windows pipe "\\\\.\\pipe\\\\c\\agent.pipe". Security descriptor is "D:AI(A;;GA;;;WD)"`,
+			},
+		},
+		{
+			socket: "/tmp/agent.sock",
+			pipe:   "\\c\\agent.pipe",
+			out: []string{
+				"HTTP receiver disabled by config (apm_config.receiver_port: 0)",
+				`Listening for traces on Windows pipe "\\\\.\\pipe\\\\c\\agent.pipe". Security descriptor is "D:AI(A;;GA;;;WD)"`,
+				"Listening for traces at unix:///tmp/agent.sock",
+			},
+		},
+		{
+			port:   8129,
+			socket: "/tmp/agent.sock",
+			pipe:   "\\c\\agent.pipe",
+			out: []string{
+				"Listening for traces at http://localhost:8129",
+				`Listening for traces on Windows pipe "\\\\.\\pipe\\\\c\\agent.pipe". Security descriptor is "D:AI(A;;GA;;;WD)"`,
+				"Listening for traces at unix:///tmp/agent.sock",
+			},
+		},
+		{
+			port: 8129,
+			out: []string{
+				"Listening for traces at http://localhost:8129",
+			},
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			logs.Reset()
+			cfg := config.New()
+			cfg.ReceiverPort = tt.port
+			cfg.ReceiverSocket = tt.socket
+			cfg.WindowsPipeName = tt.pipe
+			r := newTestReceiverFromConfig(cfg)
+			r.Start()
+			r.Stop()
+			for _, l := range tt.out {
+				assert.Contains(t, logs.String(), l)
+			}
+		})
+	}
 }
 
 func TestTracesDecodeMakingHugeAllocation(t *testing.T) {
