@@ -15,3 +15,9 @@ func convertField(s *uint64, t **float64) {
 		*t = pointer.Ptr(float64(*s))
 	}
 }
+
+func convertFieldAndUnit(s *uint64, t **float64, multiplier float64) {
+	if s != nil {
+		*t = pointer.Ptr(float64(*s) * multiplier)
+	}
+}

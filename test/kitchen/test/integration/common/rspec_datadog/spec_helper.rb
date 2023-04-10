@@ -468,6 +468,10 @@ shared_examples_for 'Agent uninstall' do
   it_behaves_like 'an Agent that is removed'
 end
 
+def is_ng_installer()
+  parse_dna().fetch('dd-agent-rspec').fetch('ng_installer')
+end
+
 shared_examples_for "an installed Agent" do
   wait_until_service_started get_service_name("datadog-agent")
 

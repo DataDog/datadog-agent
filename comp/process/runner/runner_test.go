@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/processcheck"
 	"github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/comp/process/types"
-	"github.com/DataDog/datadog-agent/comp/process/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -32,8 +31,6 @@ type testDeps struct {
 
 func TestRunnerLifecycle(t *testing.T) {
 	_ = fxutil.Test[Component](t, fx.Options(
-		utils.DisableContainerFeatures,
-
 		fx.Supply(core.BundleParams{}),
 
 		Module,
@@ -57,8 +54,6 @@ func TestRunnerRealtime(t *testing.T) {
 				// We can't use `fx.As` because `<-chan types.RTResponse` is not an interface.
 				func() <-chan types.RTResponse { return rtChan },
 			),
-
-			utils.DisableContainerFeatures,
 
 			fx.Supply(core.BundleParams{}),
 
@@ -98,8 +93,6 @@ func TestRunnerRealtime(t *testing.T) {
 				func() <-chan types.RTResponse { return rtChan },
 			),
 
-			utils.DisableContainerFeatures,
-
 			fx.Supply(core.BundleParams{}),
 
 			Module,
@@ -121,8 +114,7 @@ func TestRunnerRealtime(t *testing.T) {
 }
 
 func TestProvidedChecks(t *testing.T) {
-	config.SetDetectedFeatures(config.FeatureMap{config.Docker: {}})
-	t.Cleanup(func() { config.SetDetectedFeatures(nil) })
+	config.SetFeatures(t, config.Docker)
 
 	r := fxutil.Test[Component](t, fx.Options(
 		fx.Supply(

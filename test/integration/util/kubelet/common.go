@@ -14,7 +14,6 @@ import (
 	"path"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
@@ -22,10 +21,6 @@ const (
 	emptyPodList = `{"kind":"PodList","apiVersion":"v1","metadata":{},"items":null}
 `
 )
-
-func init() {
-	config.DetectFeatures()
-}
 
 // initInsecureKubelet create a standalone kubelet open to http and https calls
 func initInsecureKubelet() (*utils.ComposeConf, error) {

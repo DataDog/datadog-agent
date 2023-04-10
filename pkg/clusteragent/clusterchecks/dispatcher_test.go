@@ -431,8 +431,7 @@ func TestReset(t *testing.T) {
 }
 
 func TestPatchConfiguration(t *testing.T) {
-	config.SetDetectedFeatures(config.FeatureMap{config.Kubernetes: struct{}{}})
-	defer config.SetDetectedFeatures(config.FeatureMap{})
+	config.SetFeatures(t, config.Kubernetes)
 
 	checkConfig := integration.Config{
 		Name:          "test",
@@ -470,8 +469,7 @@ func TestPatchConfiguration(t *testing.T) {
 }
 
 func TestPatchEndpointsConfiguration(t *testing.T) {
-	config.SetDetectedFeatures(config.FeatureMap{config.Kubernetes: struct{}{}})
-	defer config.SetDetectedFeatures(config.FeatureMap{})
+	config.SetFeatures(t, config.Kubernetes)
 
 	checkConfig := integration.Config{
 		Name:          "test",
@@ -504,8 +502,7 @@ func TestPatchEndpointsConfiguration(t *testing.T) {
 }
 
 func TestExtraTags(t *testing.T) {
-	config.SetDetectedFeatures(config.FeatureMap{config.Kubernetes: struct{}{}})
-	defer config.SetDetectedFeatures(config.FeatureMap{})
+	config.SetFeatures(t, config.Kubernetes)
 
 	for _, tc := range []struct {
 		extraTagsConfig   []string
