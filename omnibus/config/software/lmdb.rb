@@ -22,11 +22,11 @@ build do
     # command "make install", :env => env
 
     # We have to manually move the files into the correct directories because the Makefile for lmdb hardcodes the install directory to `/usr/local`, although we need this to be `#{install_dir}/embedded`
-    copy "liblmdb.a" "#{install_dir}/embedded/lib/"
-    copy "lmdb.h" "#{install_dir}/embedded/include/"
-    copy "mdb_stat" "#{install_dir}/embedded/bin/"
-    copy "mdb_copy" "#{install_dir}/embedded/bin/"
-    copy "mdb_dump" "#{install_dir}/embedded/bin/"
-    copy "mdb_load" "#{install_dir}/embedded/bin/"
+    copy "liblmdb.a", "#{install_dir}/embedded/lib/"
+    copy "lmdb.h", "#{install_dir}/embedded/include/"
+    copy "mdb_stat", "#{install_dir}/embedded/bin/"
+    copy "mdb_copy", "#{install_dir}/embedded/bin/"
+    copy "mdb_dump", "#{install_dir}/embedded/bin/"
+    copy "mdb_load", "#{install_dir}/embedded/bin/"
 
 end
