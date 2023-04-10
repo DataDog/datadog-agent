@@ -84,6 +84,15 @@ single-machine-performance-regression_detector:
     # space characters. This avoids
     # https://gitlab.com/gitlab-org/gitlab/-/issues/217231.
     - cat outputs/report.md | sed "s/^\$/$(echo -ne '\uFEFF\u00A0\u200B')/g"
+    # Add janky means of installing PR commenter borrowed from 
+    # https://github.com/DataDog/dogweb/blob/45d7fcf035d0d515ebd901919099d4c8bfa82829/docker/docker-builder/Dockerfile#L69-L77
+    - apt-get update
+    - apt-get install -y curl
+    - curl -OL https://s3.amazonaws.com/dd-package-public/dd-package.deb
+    - dpkg -i dd-package.deb
+    - rm dd-package.deb
+    - apt-get update
+    - dd-package --bucket binaries.ddbuild.io devtools/pr-commenter --distribution "20.04"
     # Post HTML report to GitHub
     - cat outputs/report.html | /usr/local/bin/pr-commenter --for-repo="$CI_PROJECT_NAME" --for-pr="$CI_COMMIT_REF_NAME"
     # Finally, exit 1 if the job signals a regression else 0.
