@@ -11,54 +11,33 @@ package checks
 import (
 	"os/user"
 	"strconv"
-	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/gopsutil/cpu"
 
-	"github.com/patrickmn/go-cache"
-
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 var (
 	// overridden in tests
 	hostCPUCount = system.HostCPUCount
-
-	formatUserCache = cache.New(time.Hour, time.Hour) // Used by lookupIdWithCache
-	userLookupFunc  = user.LookupId                   // Overridden in tests
 )
 
-func lookupIdWithCache(uid string) (*user.User, error) {
-	result, ok := formatUserCache.Get(uid)
-	if !ok {
-		var err error
-		u, err := userLookupFunc(uid)
-		if err == nil {
-			formatUserCache.SetDefault(uid, u)
-		} else {
-			formatUserCache.SetDefault(uid, err)
-		}
-		return u, err
-	}
-
-	switch v := result.(type) {
-	case *user.User:
-		return v, nil
-	case error:
-		return nil, v
-	default:
-		return nil, log.Error("Unknown value cached in formatUserCache for uid:", uid)
-	}
-}
-
-func formatUser(fp *procutil.Process) *model.ProcessUser {
+func formatUser(fp *procutil.Process, uidProbe *LookupIdProbe) *model.ProcessUser {
 	var username string
 	var uid, gid int32
 	if len(fp.Uids) > 0 {
-		u, err := lookupIdWithCache(strconv.Itoa(int(fp.Uids[0])))
+		var (
+			u   *user.User
+			err error
+		)
+		if uidProbe == nil {
+			// If the probe is nil, skip it and just call `LookupId` directly
+			u, err = user.LookupId(strconv.Itoa(int(fp.Uids[0])))
+		} else {
+			u, err = uidProbe.LookupId(strconv.Itoa(int(fp.Uids[0])))
+		}
 		if err == nil {
 			username = u.Username
 		}
