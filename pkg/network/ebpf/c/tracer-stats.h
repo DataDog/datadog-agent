@@ -289,4 +289,19 @@ static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buf
     return handle_message(&t, 0, data_len, CONN_DIRECTION_UNKNOWN, 0, 1, PACKET_COUNT_INCREMENT, sk);
 }
 
+int __always_inline handle_tcp_recv(u64 pid_tgid, struct sock *skp, int recv) {
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
+        return 0;
+    }
+
+    handle_tcp_stats(&t, skp, 0);
+
+    __u32 packets_in = 0;
+    __u32 packets_out = 0;
+    get_tcp_segment_counts(skp, &packets_in, &packets_out);
+
+    return handle_message(&t, 0, recv, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, skp);
+}
+
 #endif // __TRACER_STATS_H

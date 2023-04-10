@@ -7,21 +7,6 @@
 #include "tracer-maps.h"
 #include "sock.h"
 
-int __always_inline handle_tcp_recv(u64 pid_tgid, struct sock *skp, int recv) {
-    conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
-        return 0;
-    }
-
-    handle_tcp_stats(&t, skp, 0);
-
-    __u32 packets_in = 0;
-    __u32 packets_out = 0;
-    get_tcp_segment_counts(skp, &packets_in, &packets_out);
-
-    return handle_message(&t, 0, recv, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, skp);
-}
-
 SEC("kprobe/tcp_recvmsg")
 int kprobe__tcp_recvmsg(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();

@@ -6,7 +6,6 @@
 #include "tracer.h"
 #include "tracer-events.h"
 #include "tracer-maps.h"
-#include "tcp-recv.h"
 #include "tracer-stats.h"
 #include "tracer-telemetry.h"
 #include "sockfd.h"
