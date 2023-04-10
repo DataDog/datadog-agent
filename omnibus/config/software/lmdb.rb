@@ -8,8 +8,8 @@ source :url => "https://github.com/LMDB/lmdb/archive/LMDB_#{version}.tar.gz",
 relative_path "libraries/liblmdb"
 
 build do
-    license ""
-    license_file ""
+    license "OpenLDAP Public License"
+    license_file "https://raw.githubusercontent.com/LMDB/lmdb/LMDB_#{version}/libraries/liblmdb/COPYRIGHT"
     env = {
         "LDFLAGS" => "-L#{install_dir}/embedded/lib -I#{install_dir}/embedded/include",
         "CFLAGS" => "-L#{install_dir}/embedded/lib -I#{install_dir}/embedded/include",
