@@ -24,11 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-type testDeps struct {
-	fx.In
-	Runner Component
-}
-
 func TestRunnerLifecycle(t *testing.T) {
 	_ = fxutil.Test[Component](t, fx.Options(
 		fx.Supply(core.BundleParams{}),

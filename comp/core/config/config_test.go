@@ -17,11 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-type testDeps struct {
-	fx.In
-	Config Component
-}
-
 func TestRealConfig(t *testing.T) {
 	// point the ConfFilePath to a valid, but empty config file so that it does
 	// not use the config file on the developer's system

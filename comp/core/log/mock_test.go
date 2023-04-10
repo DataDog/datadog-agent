@@ -14,11 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-type testDeps struct {
-	fx.In
-	Log Component
-}
-
 func TestMockLogging(t *testing.T) {
 	log := fxutil.Test[Component](t, fx.Options(
 		fx.Supply(Params{}),
