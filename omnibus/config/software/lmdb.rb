@@ -5,7 +5,7 @@ source :url => "https://github.com/LMDB/lmdb/archive/LMDB_#{version}.tar.gz",
        :sha256 => "22054926b426c66d8f2bc22071365df6e35f3aacf19ad943bc6167d4cae3bebb",
        :extract => :seven_zip
 
-relative_path "libraries/liblmdb"
+relative_path "lmdb-LMDB_#{version}/libraries/liblmdb"
 
 build do
     license "OpenLDAP Public License"
