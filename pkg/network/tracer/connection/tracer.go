@@ -233,11 +233,11 @@ func (t *tracer) Start(callback func([]network.ConnectionStats)) (err error) {
 func (t *tracer) Disable() error {
 	// add small delay for socket filters to properly detach
 	time.Sleep(1 * time.Millisecond)
-	return t.m.Pause()
+	return t.m.Disable()
 }
 
 func (t *tracer) Enable() error {
-	err := t.m.Resume()
+	err := t.m.Enable()
 	// add small delay for socket filters to properly attach
 	time.Sleep(1 * time.Millisecond)
 	return err
