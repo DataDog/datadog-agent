@@ -9,7 +9,11 @@
 package k8s
 
 import (
+	"fmt"
+	"strings"
+
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 
 	v1 "k8s.io/api/apps/v1"
@@ -47,8 +51,41 @@ func ExtractStatefulSet(sts *v1.StatefulSet) *model.StatefulSet {
 		statefulSet.Spec.Selectors = extractLabelSelector(sts.Spec.Selector)
 	}
 
+	if len(sts.Status.Conditions) > 0 {
+		sConditions, conditionTags := extractStatefulSetConditions(sts)
+		statefulSet.Conditions = sConditions
+		statefulSet.Tags = append(statefulSet.Tags, conditionTags...)
+	}
+
 	statefulSet.Spec.ResourceRequirements = ExtractPodTemplateResourceRequirements(sts.Spec.Template)
 	statefulSet.Tags = append(statefulSet.Tags, transformers.RetrieveUnifiedServiceTags(sts.ObjectMeta.Labels)...)
 
 	return &statefulSet
+}
+
+// extractStatefulSetConditions iterates over stateful conditions and returns:
+// - the payload representation of those conditions
+// - the list of tags that will enable pod filtering by condition
+func extractStatefulSetConditions(s *v1.StatefulSet) ([]*model.StatefulSetCondition, []string) {
+	conditions := make([]*model.StatefulSetCondition, 0, len(s.Status.Conditions))
+	conditionTags := make([]string, 0, len(s.Status.Conditions))
+
+	for _, condition := range s.Status.Conditions {
+		c := &model.StatefulSetCondition{
+			Message: condition.Message,
+			Reason:  condition.Reason,
+			Status:  string(condition.Status),
+			Type:    string(condition.Type),
+		}
+		if !condition.LastTransitionTime.IsZero() {
+			c.LastTransitionTime = condition.LastTransitionTime.Unix()
+		}
+
+		conditions = append(conditions, c)
+
+		conditionTag := fmt.Sprintf("kube_condition_%s:%s", strings.ToLower(string(condition.Type)), strings.ToLower(string(condition.Status)))
+		conditionTags = append(conditionTags, conditionTag)
+	}
+
+	return conditions, conditionTags
 }

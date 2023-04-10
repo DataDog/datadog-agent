@@ -9,9 +9,13 @@
 package k8s
 
 import (
+	"fmt"
+	"strings"
+
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 )
 
 // ExtractNamespace returns the protobuf model corresponding to a Kubernetes Namespace resource.
@@ -21,6 +25,11 @@ func ExtractNamespace(ns *corev1.Namespace) *model.Namespace {
 		// status value based on https://github.com/kubernetes/kubernetes/blob/1e12d92a5179dbfeb455c79dbf9120c8536e5f9c/pkg/printers/internalversion/printers.go#L1350
 		Status:           string(ns.Status.Phase),
 		ConditionMessage: getNamespaceConditionMessage(ns),
+	}
+	if len(ns.Status.Conditions) > 0 {
+		namespaceConditions, conditionTags := extractNamespaceConditions(ns)
+		n.Conditions = namespaceConditions
+		n.Tags = append(n.Tags, conditionTags...)
 	}
 
 	n.Tags = append(n.Tags, transformers.RetrieveUnifiedServiceTags(ns.ObjectMeta.Labels)...)
@@ -58,4 +67,31 @@ func getNamespaceConditionMessage(n *corev1.Namespace) string {
 		}
 	}
 	return ""
+}
+
+// extractNamespaceConditions iterates over namespace conditions and returns:
+// - the payload representation of those conditions
+// - the list of tags that will enable pod filtering by condition
+func extractNamespaceConditions(n *corev1.Namespace) ([]*model.NamespaceCondition, []string) {
+	conditions := make([]*model.NamespaceCondition, 0, len(n.Status.Conditions))
+	conditionTags := make([]string, 0, len(n.Status.Conditions))
+
+	for _, condition := range n.Status.Conditions {
+		c := &model.NamespaceCondition{
+			Message: condition.Message,
+			Reason:  condition.Reason,
+			Status:  string(condition.Status),
+			Type:    string(condition.Type),
+		}
+		if !condition.LastTransitionTime.IsZero() {
+			c.LastTransitionTime = condition.LastTransitionTime.Unix()
+		}
+
+		conditions = append(conditions, c)
+
+		conditionTag := fmt.Sprintf("kube_condition_%s:%s", strings.ToLower(string(condition.Type)), strings.ToLower(string(condition.Status)))
+		conditionTags = append(conditionTags, conditionTag)
+	}
+
+	return conditions, conditionTags
 }

@@ -273,9 +273,9 @@ func convertResourceRequirements(rq corev1.ResourceRequirements, containerName s
 // extractPodConditions iterates over pod conditions and returns:
 // - the payload representation of those conditions
 // - the list of tags that will enable pod filtering by condition
-func extractPodConditions(p *corev1.Pod) (conditions []*model.PodCondition, conditionTags []string) {
-	conditions = make([]*model.PodCondition, 0, len(p.Status.Conditions))
-	conditionTags = make([]string, 0, len(p.Status.Conditions))
+func extractPodConditions(p *corev1.Pod) ([]*model.PodCondition, []string) {
+	conditions := make([]*model.PodCondition, 0, len(p.Status.Conditions))
+	conditionTags := make([]string, 0, len(p.Status.Conditions))
 
 	for _, condition := range p.Status.Conditions {
 		c := &model.PodCondition{
@@ -297,7 +297,7 @@ func extractPodConditions(p *corev1.Pod) (conditions []*model.PodCondition, cond
 		conditionTags = append(conditionTags, conditionTag)
 	}
 
-	return
+	return conditions, conditionTags
 }
 
 // getConditionMessage loops through the pod conditions, and reports the message of the first one

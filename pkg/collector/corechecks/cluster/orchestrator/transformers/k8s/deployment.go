@@ -9,7 +9,11 @@
 package k8s
 
 import (
+	"fmt"
+	"strings"
+
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -49,6 +53,12 @@ func ExtractDeployment(d *appsv1.Deployment) *model.Deployment {
 	deploy.UnavailableReplicas = d.Status.UnavailableReplicas
 	deploy.ConditionMessage = extractDeploymentConditionMessage(d.Status.Conditions)
 
+	if len(d.Status.Conditions) > 0 {
+		deployConditions, conditionTags := extractDeploymentConditions(d)
+		deploy.Conditions = deployConditions
+		deploy.Tags = append(deploy.Tags, conditionTags...)
+	}
+
 	deploy.ResourceRequirements = ExtractPodTemplateResourceRequirements(d.Spec.Template)
 	deploy.Tags = append(deploy.Tags, transformers.RetrieveUnifiedServiceTags(d.ObjectMeta.Labels)...)
 
@@ -80,4 +90,31 @@ func extractDeploymentConditionMessage(conditions []appsv1.DeploymentCondition) 
 		}
 	}
 	return ""
+}
+
+// extractDeploymentConditions iterates over deployment conditions and returns:
+// - the payload representation of those conditions
+// - the list of tags that will enable pod filtering by condition
+func extractDeploymentConditions(p *appsv1.Deployment) ([]*model.DeploymentCondition, []string) {
+	conditions := make([]*model.DeploymentCondition, 0, len(p.Status.Conditions))
+	conditionTags := make([]string, 0, len(p.Status.Conditions))
+
+	for _, condition := range p.Status.Conditions {
+		c := &model.DeploymentCondition{
+			Message: condition.Message,
+			Reason:  condition.Reason,
+			Status:  string(condition.Status),
+			Type:    string(condition.Type),
+		}
+		if !condition.LastTransitionTime.IsZero() {
+			c.LastTransitionTime = condition.LastTransitionTime.Unix()
+		}
+
+		conditions = append(conditions, c)
+
+		conditionTag := fmt.Sprintf("kube_condition_%s:%s", strings.ToLower(string(condition.Type)), strings.ToLower(string(condition.Status)))
+		conditionTags = append(conditionTags, conditionTag)
+	}
+
+	return conditions, conditionTags
 }

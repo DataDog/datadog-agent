@@ -12,9 +12,8 @@ import (
 	"fmt"
 	"strings"
 
-	appsv1 "k8s.io/api/apps/v1"
-
 	model "github.com/DataDog/agent-payload/v5/process"
+	appsv1 "k8s.io/api/apps/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 )
@@ -54,8 +53,8 @@ func ExtractDaemonSet(ds *appsv1.DaemonSet) *model.DaemonSet {
 	}
 
 	if len(ds.Status.Conditions) > 0 {
-		podConditions, conditionTags := extractDaemonSetConditions(ds)
-		daemonSet.Conditions = podConditions
+		dsConditions, conditionTags := extractDaemonSetConditions(ds)
+		daemonSet.Conditions = dsConditions
 		daemonSet.Tags = append(daemonSet.Tags, conditionTags...)
 	}
 
@@ -68,9 +67,9 @@ func ExtractDaemonSet(ds *appsv1.DaemonSet) *model.DaemonSet {
 // extractDaemonSetConditions iterates over daemonset conditions and returns:
 // - the payload representation of those conditions
 // - the list of tags that will enable pod filtering by condition
-func extractDaemonSetConditions(p *appsv1.DaemonSet) (conditions []*model.DaemonSetCondition, conditionTags []string) {
-	conditions = make([]*model.DaemonSetCondition, 0, len(p.Status.Conditions))
-	conditionTags = make([]string, 0, len(p.Status.Conditions))
+func extractDaemonSetConditions(p *appsv1.DaemonSet) ([]*model.DaemonSetCondition, []string) {
+	conditions := make([]*model.DaemonSetCondition, 0, len(p.Status.Conditions))
+	conditionTags := make([]string, 0, len(p.Status.Conditions))
 
 	for _, condition := range p.Status.Conditions {
 		c := &model.DaemonSetCondition{
@@ -89,5 +88,5 @@ func extractDaemonSetConditions(p *appsv1.DaemonSet) (conditions []*model.Daemon
 		conditionTags = append(conditionTags, conditionTag)
 	}
 
-	return
+	return conditions, conditionTags
 }
