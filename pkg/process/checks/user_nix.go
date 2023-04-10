@@ -20,8 +20,8 @@ import (
 type LookupIdProbe struct {
 	config config.ConfigReader
 
-	formatUserCache *cache.Cache
-	lookupId        func(uid string) (*user.User, error)
+	lookupIdCache *cache.Cache
+	lookupId      func(uid string) (*user.User, error)
 }
 
 func NewLookupIdProbe(coreConfig config.ConfigReader) *LookupIdProbe {
@@ -32,20 +32,20 @@ func NewLookupIdProbe(coreConfig config.ConfigReader) *LookupIdProbe {
 		// Inject global logger and config to make it easy to use components
 		config: coreConfig,
 
-		formatUserCache: cache.New(time.Hour, time.Hour), // Used by lookupIdWithCache
-		lookupId:        user.LookupId,
+		lookupIdCache: cache.New(time.Hour, time.Hour), // Used by lookupIdWithCache
+		lookupId:      user.LookupId,
 	}
 }
 
 func (p *LookupIdProbe) lookupIdWithCache(uid string) (*user.User, error) {
-	result, ok := p.formatUserCache.Get(uid)
+	result, ok := p.lookupIdCache.Get(uid)
 	if !ok {
 		var err error
 		u, err := p.lookupId(uid)
 		if err == nil {
-			p.formatUserCache.SetDefault(uid, u)
+			p.lookupIdCache.SetDefault(uid, u)
 		} else {
-			p.formatUserCache.SetDefault(uid, err)
+			p.lookupIdCache.SetDefault(uid, err)
 		}
 		return u, err
 	}
@@ -56,7 +56,7 @@ func (p *LookupIdProbe) lookupIdWithCache(uid string) (*user.User, error) {
 	case error:
 		return nil, v
 	default:
-		return nil, log.Error("Unknown value cached in formatUserCache for uid:", uid)
+		return nil, log.Error("Unknown value cached in lookupIdCache for uid:", uid)
 	}
 }
 

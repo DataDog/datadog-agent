@@ -82,7 +82,7 @@ func TestLookupUserWithId(t *testing.T) {
 			}
 
 			checkResult(p.LookupId(testUID))
-			checkCacheResult(p.formatUserCache.Get(testUID))
+			checkCacheResult(p.lookupIdCache.Get(testUID))
 			checkResult(p.LookupId(testUID))
 		})
 	}
@@ -99,7 +99,7 @@ func TestLookupIdConfigSetting(t *testing.T) {
 		p.lookupId = testLookupIdFunc
 
 		_, _ = p.LookupId("1234") // testLookupIdFunc should be called and "1234" added to the cache
-		u, ok := p.formatUserCache.Get("1234")
+		u, ok := p.lookupIdCache.Get("1234")
 		assert.Equal(t, "jojo", u.(*user.User).Name)
 		assert.True(t, ok)
 	})
@@ -112,7 +112,7 @@ func TestLookupIdConfigSetting(t *testing.T) {
 		p.lookupId = testLookupIdFunc
 
 		_, _ = p.LookupId("1234")
-		_, ok := p.formatUserCache.Get("1234")
+		_, ok := p.lookupIdCache.Get("1234")
 		assert.False(t, ok)
 	})
 }
