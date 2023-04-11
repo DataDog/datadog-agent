@@ -6,8 +6,8 @@ default_version "2.1.28"
 dependency "lmdb"
 
 if redhat?
-    dependency "libcom_err"
-    # dependency "e2fsprogs"
+    #dependency "libcom_err"
+    dependency "e2fsprogs"
 end
 
 source :url => "https://github.com/cyrusimap/cyrus-sasl/releases/download/cyrus-sasl-#{version}/cyrus-sasl-#{version}.tar.gz",

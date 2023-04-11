@@ -19,14 +19,14 @@ build do
     # # https://www.linuxfromscratch.org/blfs/view/8.3/server/lmdb.html
     command "make", :env => env
     command "sed -i 's| liblmdb.a||' Makefile", :env => env
-    # command "make install", :env => env
 
     # We have to manually move the files into the correct directories because the Makefile for lmdb hardcodes the install directory to `/usr/local`, although we need this to be `#{install_dir}/embedded`
-    copy "liblmdb.a", "#{install_dir}/embedded/lib/"
-    copy "lmdb.h", "#{install_dir}/embedded/include/"
-    copy "mdb_stat", "#{install_dir}/embedded/bin/"
-    copy "mdb_copy", "#{install_dir}/embedded/bin/"
-    copy "mdb_dump", "#{install_dir}/embedded/bin/"
-    copy "mdb_load", "#{install_dir}/embedded/bin/"
+    copy "liblmdb.a", "#{install_dir}/embedded/lib/liblmdb.a"
+    copy "liblmdb.so", "#{install_dir}/embedded/lib/liblmdb.so"
+    copy "lmdb.h", "#{install_dir}/embedded/include/lmdb.h"
+    copy "mdb_stat", "#{install_dir}/embedded/bin/mdb_stat"
+    copy "mdb_copy", "#{install_dir}/embedded/bin/mdb_copy"
+    copy "mdb_dump", "#{install_dir}/embedded/bin/mdb_dump"
+    copy "mdb_load", "#{install_dir}/embedded/bin/mdb_load"
 
 end
