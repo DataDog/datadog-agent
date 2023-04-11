@@ -35,7 +35,7 @@ var bpfMapNames = []string{
 	"fd_link_pid",
 	"filter_policy",
 	"flow_pid",
-	"inode_discarder",
+	"inode_disc_revi",
 	"inode_discarder",
 	"io_uring_ctx_pi",
 	"is_discarded_by",

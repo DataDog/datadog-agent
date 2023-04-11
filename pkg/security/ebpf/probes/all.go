@@ -176,7 +176,7 @@ func AllMapSpecEditors(numCPU int, tracedCgroupSize int, supportMmapableMaps, us
 			MaxEntries: uint32(securityProfileMaxCount),
 			EditorFlag: manager.EditMaxEntries,
 		},
-		"security_profile_syscalls": {
+		"secprofs_syscalls": {
 			MaxEntries: uint32(securityProfileMaxCount),
 			EditorFlag: manager.EditMaxEntries,
 		},
