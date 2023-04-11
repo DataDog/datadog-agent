@@ -97,6 +97,10 @@ func extractJobConditions(p *batchv1.Job) ([]*model.JobCondition, []string) {
 			c.LastTransitionTime = condition.LastTransitionTime.Unix()
 		}
 
+		if !condition.LastProbeTime.IsZero() {
+			c.LastProbeTime = condition.LastProbeTime.Unix()
+		}
+
 		conditions = append(conditions, c)
 
 		conditionTag := fmt.Sprintf("kube_condition_%s:%s", strings.ToLower(string(condition.Type)), strings.ToLower(string(condition.Status)))

@@ -110,6 +110,10 @@ func extractDeploymentConditions(p *appsv1.Deployment) ([]*model.DeploymentCondi
 			c.LastTransitionTime = condition.LastTransitionTime.Unix()
 		}
 
+		if !condition.LastUpdateTime.IsZero() {
+			c.LastUpdateTime = condition.LastUpdateTime.Unix()
+		}
+
 		conditions = append(conditions, c)
 
 		conditionTag := fmt.Sprintf("kube_condition_%s:%s", strings.ToLower(string(condition.Type)), strings.ToLower(string(condition.Status)))
