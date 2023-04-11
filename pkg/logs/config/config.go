@@ -110,7 +110,7 @@ func BuildEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix string,
 		log.Warnf("Use of illegal configuration parameter, if you need to send your logs to a proxy, "+
 			"please use '%s' and '%s' instead", logsConfig.getConfigKey("logs_dd_url"), logsConfig.getConfigKey("logs_no_ssl"))
 	}
-	if logsConfig.isForceHTTPUse() || logsConfig.vectorEnabled() || (bool(httpConnectivity) && !(logsConfig.isForceTCPUse() || logsConfig.isSocks5ProxySet() || logsConfig.hasAdditionalEndpoints())) {
+	if logsConfig.isForceHTTPUse() || logsConfig.obsPipelineWorkerEnabled() || (bool(httpConnectivity) && !(logsConfig.isForceTCPUse() || logsConfig.isSocks5ProxySet() || logsConfig.hasAdditionalEndpoints())) {
 		return BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
 	}
 	log.Warnf("You are currently sending Logs to Datadog through TCP (either because %s or %s is set or the HTTP connectivity test has failed) "+
@@ -217,7 +217,7 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 		main.Version = EPIntakeVersion1
 	}
 
-	if vectorURL, vectorURLDefined := logsConfig.getVectorURL(); logsConfig.vectorEnabled() && vectorURLDefined {
+	if vectorURL, vectorURLDefined := logsConfig.getObsPipelineURL(); logsConfig.obsPipelineWorkerEnabled() && vectorURLDefined {
 		if strings.HasPrefix(vectorURL, "https://") || strings.HasPrefix(vectorURL, "http://") {
 			u, err := url.Parse(vectorURL)
 			if err != nil {

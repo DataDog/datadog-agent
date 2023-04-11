@@ -52,7 +52,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.44.0-rc.4
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v0.7.1-0.20230215125730-2ba58ce29d56
-	github.com/DataDog/ebpf-manager v0.2.7
+	github.com/DataDog/ebpf-manager v0.2.8-0.20230331131947-0cbd4db2728c
 	github.com/DataDog/go-libddwaf v0.0.0-20221118110754-0372d7c76b8a
 	github.com/DataDog/go-tuf v0.3.0--fix-localmeta-fork
 	github.com/DataDog/gohai v0.0.0-20221116153829-5d479901d2e9
@@ -67,7 +67,7 @@ require (
 	github.com/DataDog/zstd v1.5.2
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f
 	github.com/Masterminds/semver v1.5.0
-	github.com/Masterminds/semver/v3 v3.2.0
+	github.com/Masterminds/semver/v3 v3.2.1
 	github.com/Masterminds/sprig/v3 v3.2.3
 	github.com/Microsoft/go-winio v0.6.0
 	github.com/Microsoft/hcsshim v0.9.7
@@ -152,7 +152,7 @@ require (
 	github.com/netsampler/goflow2 v1.1.1-0.20220825033856-d6caeaacddbb
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852
-	github.com/open-policy-agent/opa v0.50.2
+	github.com/open-policy-agent/opa v0.51.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.71.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.0-rc2
@@ -176,7 +176,7 @@ require (
 	github.com/smira/go-xz v0.0.0-20220607140411-c2a07d4bedda
 	github.com/spf13/afero v1.9.3
 	github.com/spf13/cast v1.5.0
-	github.com/spf13/cobra v1.6.1
+	github.com/spf13/cobra v1.7.0
 	github.com/spf13/pflag v1.0.5
 	github.com/streadway/amqp v1.0.0
 	github.com/stretchr/testify v1.8.2
@@ -204,7 +204,7 @@ require (
 	go.opentelemetry.io/collector/processor/batchprocessor v0.71.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.71.0
 	go.uber.org/atomic v1.10.0
-	go.uber.org/automaxprocs v1.5.1
+	go.uber.org/automaxprocs v1.5.2
 	go.uber.org/dig v1.15.0
 	go.uber.org/fx v1.18.2
 	go.uber.org/multierr v1.10.0
@@ -212,15 +212,15 @@ require (
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
 	golang.org/x/arch v0.3.0
 	golang.org/x/exp v0.0.0-20230202163644-54bba9f4231b
-	golang.org/x/net v0.8.0
+	golang.org/x/net v0.9.0
 	golang.org/x/sync v0.1.0
-	golang.org/x/sys v0.6.0
-	golang.org/x/text v0.8.0
+	golang.org/x/sys v0.7.0
+	golang.org/x/text v0.9.0
 	golang.org/x/time v0.3.0
-	golang.org/x/tools v0.7.0
+	golang.org/x/tools v0.8.0
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	google.golang.org/genproto v0.0.0-20230320184635-7606e756e683
-	google.golang.org/grpc v1.53.0
+	google.golang.org/grpc v1.54.0
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 	google.golang.org/protobuf v1.30.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.37.0
@@ -351,7 +351,7 @@ require (
 	github.com/go-git/go-git/v5 v5.4.2 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
-	github.com/go-logr/logr v1.2.3 // indirect
+	github.com/go-logr/logr v1.2.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/analysis v0.21.4 // indirect
 	github.com/go-openapi/errors v0.20.3 // indirect
@@ -393,7 +393,7 @@ require (
 	github.com/ianlancetaylor/cgosymbolizer v0.0.0-20221208003206-eaf69f594683
 	github.com/ianlancetaylor/demangle v0.0.0-20200824232613-28f6c0f3b639 // indirect
 	github.com/in-toto/in-toto-golang v0.5.0 // indirect
-	github.com/inconshreveable/mousetrap v1.0.1 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/itchyny/timefmt-go v0.1.5 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
@@ -489,7 +489,7 @@ require (
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20220101234140-673ab2c3ae75 // indirect
 	github.com/tmthrgd/go-hex v0.0.0-20190904060850-447a3041c3bc // indirect
 	github.com/twitchtv/twirp v8.1.2+incompatible // indirect
-	github.com/twmb/franz-go v1.13.1
+	github.com/twmb/franz-go v1.13.2
 	github.com/twmb/franz-go/pkg/kadm v1.8.0
 	github.com/twmb/franz-go/pkg/kmsg v1.4.0 // indirect
 	github.com/ugorji/go/codec v1.2.7 // indirect
@@ -534,9 +534,9 @@ require (
 	go.opentelemetry.io/otel/trace v1.14.0 // indirect
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
 	golang.org/x/crypto v0.7.0 // indirect
-	golang.org/x/mod v0.9.0 // indirect
+	golang.org/x/mod v0.10.0 // indirect
 	golang.org/x/oauth2 v0.6.0 // indirect
-	golang.org/x/term v0.6.0 // indirect
+	golang.org/x/term v0.7.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	gonum.org/v1/gonum v0.12.0 // indirect
 	google.golang.org/api v0.114.0 // indirect
