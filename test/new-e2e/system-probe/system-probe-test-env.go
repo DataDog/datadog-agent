@@ -54,7 +54,7 @@ var (
 	sshKeyX86            = os.Getenv("LibvirtSSHKeyX86")
 	sshKeyArm            = os.Getenv("LibvirtSSHKeyARM")
 
-	SSHKeyFile   = filepath.Join(CI_PROJECT_DIR, fmt.Sprintf("%s.pem", SSHKeyName))
+	SSHKeyFile   = filepath.Join(CI_PROJECT_DIR, SSHKeyName)
 	stackOutputs = filepath.Join(CI_PROJECT_DIR, "stack.outputs")
 )
 
