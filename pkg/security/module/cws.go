@@ -19,8 +19,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
-
 	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
 
@@ -29,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/selftests"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
@@ -39,6 +38,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/v5/statsd"
+)
+
+const (
+	ProbeEvaluationRuleSetName = "probe_evaluation"
+	ThreatScoreRuleSetName     = "ruleset:threat_score"
 )
 
 // CWSConsumer represents the system-probe module for the runtime security agent
@@ -58,7 +62,7 @@ type CWSConsumer struct {
 	apiServer                 *APIServer
 	rateLimiter               *RateLimiter
 	sigupChan                 chan os.Signal
-	rulesLoaded               func(rs []*rules.RuleSet, err *multierror.Error)
+	rulesLoaded               func(es *rules.EvaluationSet, err *multierror.Error)
 	policiesVersions          []string
 	policyProviders           []rules.PolicyProvider
 	policyLoader              *rules.PolicyLoader
@@ -166,6 +170,7 @@ func (c *CWSConsumer) Start() error {
 		seclog.Errorf("failed to parse agent version: %v", err)
 	}
 
+	// Set up rule filters
 	var macroFilters []rules.MacroFilter
 	var ruleFilters []rules.RuleFilter
 
@@ -183,8 +188,14 @@ func (c *CWSConsumer) Start() error {
 	}
 	ruleFilterModel := NewRuleFilterModel(kv)
 	seclRuleFilter := rules.NewSECLRuleFilter(ruleFilterModel)
+	threatScoreRuleTagFilter, err := rules.NewRuleTagFilter(map[string]string{"ruleset": "threat_score"})
+	if err != nil {
+		seclog.Errorf("failed to create rule tag filter filter: %v", err)
+	}
+
 	macroFilters = append(macroFilters, seclRuleFilter)
 	ruleFilters = append(ruleFilters, seclRuleFilter)
+	ruleFilters = append(ruleFilters, threatScoreRuleTagFilter)
 
 	c.policyOpts = rules.PolicyLoaderOpts{
 		MacroFilters: macroFilters,
@@ -292,17 +303,19 @@ func (c *CWSConsumer) getEventTypeEnabled() map[eval.EventType]bool {
 	return enabled
 }
 
-func getPoliciesVersions(rs *rules.RuleSet) []string {
+func getPoliciesVersions(es *rules.EvaluationSet) []string {
 	var versions []string
 
 	cache := make(map[string]bool)
-	for _, rule := range rs.GetRules() {
-		version := rule.Definition.Policy.Version
+	for _, rs := range es.RuleSets {
+		for _, rule := range rs.GetRules() {
+			version := rule.Definition.Policy.Version
 
-		if _, exists := cache[version]; !exists {
-			cache[version] = true
+			if _, exists := cache[version]; !exists {
+				cache[version] = true
 
-			versions = append(versions, version)
+				versions = append(versions, version)
+			}
 		}
 	}
 
@@ -329,9 +342,7 @@ func (c *CWSConsumer) LoadPolicies(policyProviders []rules.PolicyProvider, sendL
 	// load policies
 	c.policyLoader.SetProviders(policyProviders)
 
-	evaluationSet := c.probe.EvaluationSet(c.getEventTypeEnabled())
-	probeEvaluationRuleSet := evaluationSet.RuleSets[rules.ProbeEvaluationRuleSetName]
-	threatScoreRuleSet := evaluationSet.RuleSets[rules.ThreatScoreRuleSetName]
+	evaluationSet := c.probe.EvaluationSet(c.getEventTypeEnabled(), []string{ProbeEvaluationRuleSetName, ThreatScoreRuleSetName})
 
 	loadErrs := evaluationSet.LoadPolicies(c.policyLoader, c.policyOpts)
 	if loadErrs.ErrorOrNil() != nil {
@@ -339,14 +350,12 @@ func (c *CWSConsumer) LoadPolicies(policyProviders []rules.PolicyProvider, sendL
 	}
 
 	// update current policies related module attributes
-	c.policiesVersions = getPoliciesVersions(probeEvaluationRuleSet)
+	c.policiesVersions = getPoliciesVersions(evaluationSet)
 	c.policyProviders = policyProviders
-	c.currentRuleSet.Store(probeEvaluationRuleSet)
-	c.currentThreatScoreRuleSet.Store(threatScoreRuleSet)
 
 	// notify listeners
 	if c.rulesLoaded != nil {
-		c.rulesLoaded([]*rules.RuleSet{probeEvaluationRuleSet, threatScoreRuleSet}, loadErrs)
+		c.rulesLoaded(evaluationSet, loadErrs)
 	}
 
 	// add module as listener for rule match callback
@@ -354,21 +363,39 @@ func (c *CWSConsumer) LoadPolicies(policyProviders []rules.PolicyProvider, sendL
 		rs.AddListener(c)
 	}
 
-	// analyze the ruleset, push probe evaluation rule sets to the kernel and generate the policy report
-	report, err := c.probe.ApplyRuleSet(probeEvaluationRuleSet, false)
-	if err != nil {
-		return err
-	}
-	c.displayApplyRuleSetReport(report)
-
-	// set the rate limiters on sending events to the backend
-	c.rateLimiter.Apply(probeEvaluationRuleSet, events.AllCustomRuleIDs())
-
 	// full list of IDs, user rules + custom
 	var ruleIDs []rules.RuleID
-	ruleIDs = append(ruleIDs, probeEvaluationRuleSet.ListRuleIDs()...)
-	ruleIDs = append(ruleIDs, threatScoreRuleSet.ListRuleIDs()...)
 	ruleIDs = append(ruleIDs, events.AllCustomRuleIDs()...)
+
+	var probeEvaluationRuleSet, threatScoreRuleSet *rules.RuleSet
+	if _, ok := evaluationSet.RuleSets[ProbeEvaluationRuleSetName]; ok {
+		probeEvaluationRuleSet = evaluationSet.RuleSets[ProbeEvaluationRuleSetName]
+	}
+	if _, ok := evaluationSet.RuleSets[ThreatScoreRuleSetName]; ok {
+		threatScoreRuleSet = evaluationSet.RuleSets[ThreatScoreRuleSetName]
+	}
+
+	if threatScoreRuleSet != nil {
+		c.currentThreatScoreRuleSet.Store(threatScoreRuleSet)
+		ruleIDs = append(ruleIDs, threatScoreRuleSet.ListRuleIDs()...)
+	}
+
+	if probeEvaluationRuleSet != nil {
+		ruleIDs = append(ruleIDs, probeEvaluationRuleSet.ListRuleIDs()...)
+
+		c.currentRuleSet.Store(probeEvaluationRuleSet)
+
+		// analyze the ruleset, push probe evaluation rule sets to the kernel and generate the policy report
+		report, err := c.probe.ApplyRuleSet(probeEvaluationRuleSet, false)
+		if err != nil {
+			return err
+		}
+		c.displayApplyRuleSetReport(report)
+
+		// set the rate limiters on sending events to the backend
+		c.rateLimiter.Apply(probeEvaluationRuleSet, events.AllCustomRuleIDs())
+
+	}
 
 	c.apiServer.Apply(ruleIDs)
 
@@ -561,7 +588,7 @@ func (c *CWSConsumer) GetThreatScoreRuleSet() (rs *rules.RuleSet) {
 }
 
 // SetRulesetLoadedCallback allows setting a callback called when a rule set is loaded
-func (c *CWSConsumer) SetRulesetLoadedCallback(cb func(rs []*rules.RuleSet, err *multierror.Error)) {
+func (c *CWSConsumer) SetRulesetLoadedCallback(cb func(es *rules.EvaluationSet, err *multierror.Error)) {
 	c.rulesLoaded = cb
 }
 

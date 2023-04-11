@@ -87,7 +87,7 @@ func newRuleSet() *RuleSet {
 
 func newEvaluationSet() *EvaluationSet {
 	rs := newRuleSet()
-	return NewEvaluationSet(rs, nil)
+	return NewEvaluationSet([]*RuleSet{rs})
 }
 
 func TestRuleBuckets(t *testing.T) {

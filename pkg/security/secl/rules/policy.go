@@ -8,15 +8,11 @@ package rules
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"
 	"github.com/hashicorp/go-multierror"
 	"gopkg.in/yaml.v2"
-)
-
-const (
-	ProbeEvaluationRuleSetName = "probe_evaluation"
-	ThreatScoreRuleSetName     = "threat_score"
 )
 
 // PolicyDef represents a policy file definition
@@ -28,12 +24,12 @@ type PolicyDef struct {
 
 // Policy represents a policy file which is composed of a list of rules and macros
 type Policy struct {
-	Name         string
-	Source       string
-	Version      string
-	Rules        []*RuleDefinition
-	Macros       []*MacroDefinition
-	SpecialRules map[string][]*RuleDefinition
+	Name        string
+	Source      string
+	Version     string
+	Rules       []*RuleDefinition
+	Macros      []*MacroDefinition
+	TaggedRules map[string][]*RuleDefinition
 }
 
 // AddMacro add a macro to the policy
@@ -47,10 +43,24 @@ func (p *Policy) AddRule(def *RuleDefinition) {
 	p.Rules = append(p.Rules, def)
 }
 
-// AddThreatScoreRule adds a threat score rule to the policy
-func (p *Policy) AddThreatScoreRule(def *RuleDefinition) {
+// AddTaggedRule adds a threat score rule to the policy
+func (p *Policy) AddTaggedRule(def *RuleDefinition) {
 	def.Policy = p
-	p.SpecialRules[ThreatScoreRuleSetName] = append(p.SpecialRules[ThreatScoreRuleSetName], def)
+
+	normalizedTags := normalizeTags(def.Tags)
+	for key, val := range normalizedTags {
+		policyRuleListKey := key + ":" + val
+		p.TaggedRules[policyRuleListKey] = append(p.TaggedRules[policyRuleListKey], def)
+	}
+}
+
+func normalizeTags(tags map[string]string) map[string]string {
+	normalizedTags := make(map[string]string)
+	for key, val := range tags {
+		normalizedTags[strings.TrimSpace(strings.ToLower(key))] = strings.TrimSpace(strings.ToLower(val))
+	}
+
+	return normalizedTags
 }
 
 func parsePolicyDef(name string, source string, def *PolicyDef, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, error) {
@@ -61,7 +71,7 @@ func parsePolicyDef(name string, source string, def *PolicyDef, macroFilters []M
 		Source:  source,
 		Version: def.Version,
 	}
-	policy.SpecialRules = make(map[string][]*RuleDefinition)
+	policy.TaggedRules = make(map[string][]*RuleDefinition)
 
 MACROS:
 	for _, macroDef := range def.Macros {
@@ -92,26 +102,22 @@ MACROS:
 		err            error
 	}
 
-	//var threatScoreRules []struct {
-	//	ruleDefinition *RuleDefinition
-	//}
-
 RULES:
 	for _, ruleDef := range def.Rules {
 		// set the policy so that when we parse the errors we can get the policy associated
 		ruleDef.Policy = policy
+		isTagged := false
 
 		for _, filter := range ruleFilters {
 			isRuleAccepted, err := filter.IsRuleAccepted(ruleDef)
 			if err != nil {
 				errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: err})
 			}
-			//// TODO: Convert filter to threat score tag only, not general tag
-			//if _, ok := filter.(*RuleTagFilter); ok && isRuleAccepted {
-			//	threatScoreRules = append(threatScoreRules, struct {
-			//		ruleDefinition *RuleDefinition
-			//	}{ruleDefinition: ruleDef})
-			//}
+			var isTagFilter bool
+			if _, isTagFilter = filter.(*RuleTagFilter); isTagFilter && isRuleAccepted {
+				isTagged = true
+				break
+			}
 			if !isRuleAccepted {
 				// we do not fail directly because one of the rules with the same id can load properly
 				if _, ok := filter.(*AgentVersionFilter); ok {
@@ -144,11 +150,11 @@ RULES:
 			continue
 		}
 
-		if ok, val := ruleDef.GetTag("ruleset"); ok && val == ThreatScoreRuleSetName {
-			policy.AddThreatScoreRule(ruleDef)
-		} else {
-			policy.AddRule(ruleDef)
+		if isTagged {
+			policy.AddTaggedRule(ruleDef)
 		}
+
+		policy.AddRule(ruleDef)
 	}
 
 LOOP:

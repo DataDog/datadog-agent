@@ -8,6 +8,7 @@ package rules
 import (
 	"errors"
 	"fmt"
+	"github.com/spf13/cast"
 	"reflect"
 	"sync"
 	"time"
@@ -27,9 +28,10 @@ type CombinePolicy = string
 
 // Combine policies
 const (
-	NoPolicy       CombinePolicy = ""
-	MergePolicy    CombinePolicy = "merge"
-	OverridePolicy CombinePolicy = "override"
+	NoPolicy                   CombinePolicy = ""
+	MergePolicy                CombinePolicy = "merge"
+	OverridePolicy             CombinePolicy = "override"
+	ProbeEvaluationRuleSetName               = "probe_evaluation"
 )
 
 // MacroDefinition holds the definition of a macro
@@ -84,7 +86,7 @@ type RuleDefinition struct {
 	Policy                 *Policy
 }
 
-// GetTags returns the tags associated to a rule
+// GetTag returns the tag associated with a rule
 func (rd *RuleDefinition) GetTag(tagKey string) (bool, string) {
 	tagValue, ok := rd.Tags[tagKey]
 	if ok {
@@ -157,7 +159,6 @@ type RuleSetListener interface {
 // RuleSet holds a list of rules, grouped in bucket. An event can be evaluated
 // against it. If the rule matches, the listeners for this rule set are notified
 type RuleSet struct {
-	name             string
 	opts             *Opts
 	evalOpts         *eval.Opts
 	eventRuleBuckets map[eval.EventType]*RuleBucket
@@ -256,6 +257,115 @@ func (rs *RuleSet) AddRules(parsingContext *ast.ParsingContext, rules []*RuleDef
 	}
 
 	return result
+}
+
+func (rs *RuleSet) validatePolicyRules(policyRules []*RuleDefinition) *multierror.Error {
+	var errs *multierror.Error
+
+	for _, rule := range policyRules {
+		for _, action := range rule.Actions {
+			if err := action.Check(); err != nil {
+				errs = multierror.Append(errs, fmt.Errorf("invalid action: %w", err))
+				continue
+			}
+
+			if action.Set != nil {
+				varName := action.Set.Name
+				if action.Set.Scope != "" {
+					varName = string(action.Set.Scope) + "." + varName
+				}
+
+				if _, err := rs.eventCtor().GetFieldValue(varName); err == nil {
+					errs = multierror.Append(errs, fmt.Errorf("variable '%s' conflicts with field", varName))
+					continue
+				}
+
+				if _, found := rs.evalOpts.Constants[varName]; found {
+					errs = multierror.Append(errs, fmt.Errorf("variable '%s' conflicts with constant", varName))
+					continue
+				}
+
+				var variableValue interface{}
+
+				if action.Set.Value != nil {
+					switch value := action.Set.Value.(type) {
+					case int:
+						action.Set.Value = []int{value}
+					case string:
+						action.Set.Value = []string{value}
+					case []interface{}:
+						if len(value) == 0 {
+							errs = multierror.Append(errs, fmt.Errorf("unable to infer item type for '%s'", action.Set.Name))
+							continue
+						}
+
+						switch arrayType := value[0].(type) {
+						case int:
+							action.Set.Value = cast.ToIntSlice(value)
+						case string:
+							action.Set.Value = cast.ToStringSlice(value)
+						default:
+							errs = multierror.Append(errs, fmt.Errorf("unsupported item type '%s' for array '%s'", reflect.TypeOf(arrayType), action.Set.Name))
+							continue
+						}
+					}
+
+					variableValue = action.Set.Value
+				} else if action.Set.Field != "" {
+					kind, err := rs.eventCtor().GetFieldType(action.Set.Field)
+					if err != nil {
+						errs = multierror.Append(errs, fmt.Errorf("failed to get field '%s': %w", action.Set.Field, err))
+						continue
+					}
+
+					switch kind {
+					case reflect.String:
+						variableValue = []string{}
+					case reflect.Int:
+						variableValue = []int{}
+					case reflect.Bool:
+						variableValue = false
+					default:
+						errs = multierror.Append(errs, fmt.Errorf("unsupported field type '%s' for variable '%s'", kind, action.Set.Name))
+						continue
+					}
+				}
+
+				var variable eval.VariableValue
+				var variableProvider VariableProvider
+
+				if action.Set.Scope != "" {
+					stateScopeBuilder := rs.opts.StateScopes[action.Set.Scope]
+					if stateScopeBuilder == nil {
+						errs = multierror.Append(errs, fmt.Errorf("invalid scope '%s'", action.Set.Scope))
+						continue
+					}
+
+					if _, found := rs.scopedVariables[action.Set.Scope]; !found {
+						rs.scopedVariables[action.Set.Scope] = stateScopeBuilder()
+					}
+
+					variableProvider = rs.scopedVariables[action.Set.Scope]
+				} else {
+					variableProvider = &rs.globalVariables
+				}
+
+				variable, err := variableProvider.GetVariable(action.Set.Name, variableValue)
+				if err != nil {
+					errs = multierror.Append(errs, fmt.Errorf("invalid type '%s' for variable '%s': %w", reflect.TypeOf(action.Set.Value), action.Set.Name, err))
+					continue
+				}
+
+				if existingVariable := rs.evalOpts.VariableStore.Get(varName); existingVariable != nil && reflect.TypeOf(variable) != reflect.TypeOf(existingVariable) {
+					errs = multierror.Append(errs, fmt.Errorf("conflicting types for variable '%s'", varName))
+					continue
+				}
+
+				rs.evalOpts.VariableStore.Add(varName, variable)
+			}
+		}
+	}
+	return errs
 }
 
 // ListFields returns all the fields accessed by all rules of this rule set
@@ -634,6 +744,10 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalO
 
 	if evalOpts.VariableStore == nil {
 		evalOpts.WithVariableStore(&eval.VariableStore{})
+	}
+
+	if opts.Name == "" {
+		opts.WithName(ProbeEvaluationRuleSetName)
 	}
 
 	return &RuleSet{

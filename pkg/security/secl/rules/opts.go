@@ -21,11 +21,18 @@ type VariableProviderFactory func() VariableProvider
 
 // Opts defines rules set options
 type Opts struct {
+	Name                string
 	SupportedDiscarders map[eval.Field]bool
 	ReservedRuleIDs     []RuleID
 	EventTypeEnabled    map[eval.EventType]bool
 	StateScopes         map[Scope]VariableProviderFactory
 	Logger              log.Logger
+}
+
+// WithName sets the name of the rule set
+func (o *Opts) WithName(name string) *Opts {
+	o.Name = name
+	return o
 }
 
 // WithSupportedDiscarders set supported discarders

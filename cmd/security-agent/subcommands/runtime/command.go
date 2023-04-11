@@ -471,7 +471,7 @@ func checkPoliciesInner(policiesDir string) error {
 	loader := rules.NewPolicyLoader(provider)
 
 	ruleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, ruleOpts, evalOpts)
-	evaluationSet := rules.NewEvaluationSet(ruleSet, nil)
+	evaluationSet := rules.NewEvaluationSet([]*rules.RuleSet{ruleSet})
 	if err := evaluationSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
 		return err
 	}
@@ -582,7 +582,7 @@ func evalRule(log log.Component, config config.Component, evalArgs *evalCliParam
 	loader := rules.NewPolicyLoader(provider)
 
 	ruleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, ruleOpts, evalOpts)
-	evaluationSet := rules.NewEvaluationSet(ruleSet, nil)
+	evaluationSet := rules.NewEvaluationSet([]*rules.RuleSet{ruleSet})
 	if err := evaluationSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
 		return err
 	}
