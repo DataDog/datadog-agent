@@ -373,7 +373,7 @@ func (p *Probe) SendAnomalyDetection(event *model.Event) {
 		events.NewCustomRule(events.AnomalyDetectionRuleID),
 		events.NewCustomEvent(event.GetEventType(), p.EventMarshallerCtor(event)),
 	)
-	p.anomalyDetectionSent[model.ExecEventType].Inc()
+	p.anomalyDetectionSent[evtType].Inc()
 }
 
 // DispatchEvent sends an event to the probe event handler
@@ -921,11 +921,11 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	// anomaly detection events
 	if model.IsAnomalyDetectionEvent(event.GetType()) {
 		p.monitor.securityProfileManager.FillProfileContextFromContainerID(event.ProcessContext.ContainerID, &event.SecurityProfileContext)
-
 		p.DispatchCustomEvent(
 			events.NewCustomRule(events.AnomalyDetectionRuleID),
 			events.NewCustomEvent(event.GetEventType(), p.EventMarshallerCtor(event)),
 		)
+		p.anomalyDetectionSent[event.GetEventType()].Inc()
 	}
 
 	// flush exited process
