@@ -30,7 +30,7 @@ build do
 
   copy "lib/libcom_err.a", "#{install_dir}/embedded/lib/"
 
-  copy "lib/pkgconfig/com_err.pc", "#{install_dir}/embedded/lib/pkgconfig/com_err.pc"
+  copy "lib/et/com_err.pc", "#{install_dir}/embedded/lib/"
 
   copy "lib/et/comm_err.h", "#{install_dir}/embedded/include/"
   
