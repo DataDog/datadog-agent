@@ -7,11 +7,13 @@ package config
 
 import (
 	"net"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -193,7 +195,26 @@ func setupProcesses(config Config) {
 
 	processesAddOverrideOnce.Do(func() {
 		AddOverrideFunc(loadProcessTransforms)
+		setHostMountEnv()
 	})
+}
+
+// setHostMountEnv sets HOST_PROC and HOST_SYS mounts if applicable in containerized environments
+// This is used to set `/proc` and `/sys` directories when it is impossible to mount directories from the host.
+func setHostMountEnv() {
+	// Set default values for proc/sys paths if unset.
+	// Don't set this is /host is not mounted to use context within container.
+	// Generally only applicable for container-only cases like Fargate.
+	if !IsContainerized() || !util.PathExists("/host") {
+		return
+	}
+
+	if v := os.Getenv("HOST_PROC"); v == "" {
+		os.Setenv("HOST_PROC", "/host/proc")
+	}
+	if v := os.Getenv("HOST_SYS"); v == "" {
+		os.Setenv("HOST_SYS", "/host/sys")
+	}
 }
 
 // loadProcessTransforms loads transforms associated with process config settings.

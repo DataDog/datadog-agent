@@ -7,7 +7,6 @@
 package command
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -118,8 +117,6 @@ func MakeCommand(subcommandFactories []SubcommandFactory, winParams bool, rootCm
 
 // BootstrapConfig is a helper for process-agent config initialization (until we further refactor to use components)
 func BootstrapConfig(path string, oneshotCommand bool) error {
-	setHostMountEnv()
-
 	if err := loadConfigIfExists(path); err != nil {
 		return err
 	}
@@ -157,23 +154,6 @@ func BootstrapConfig(path string, oneshotCommand bool) error {
 		logToConsole,
 		logAsJSON,
 	)
-}
-
-// setHostMountEnv sets HOST_PROC and HOST_SYS mounts if applicable in containerized environments
-func setHostMountEnv() {
-	// Set default values for proc/sys paths if unset.
-	// Don't set this is /host is not mounted to use context within container.
-	// Generally only applicable for container-only cases like Fargate.
-	if !config.IsContainerized() || !util.PathExists("/host") {
-		return
-	}
-
-	if v := os.Getenv("HOST_PROC"); v == "" {
-		os.Setenv("HOST_PROC", "/host/proc")
-	}
-	if v := os.Getenv("HOST_SYS"); v == "" {
-		os.Setenv("HOST_SYS", "/host/sys")
-	}
 }
 
 // loadConfigIfExists takes a path to either a directory containing datadog.yaml or a direct path to a datadog.yaml file
