@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
+	easyjson "github.com/mailru/easyjson"
 	"github.com/moby/sys/mountinfo"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
@@ -430,6 +431,12 @@ func (p *Probe) zeroEvent() *model.Event {
 	*p.event = eventZero
 	p.event.FieldHandlers = p.fieldHandlers
 	return p.event
+}
+
+func (p *Probe) EventMarshallerCtor(event *model.Event) func() easyjson.Marshaler {
+	return func() easyjson.Marshaler {
+		return serializers.NewEventSerializer(event, p.resolvers)
+	}
 }
 
 func (p *Probe) unmarshalContexts(data []byte, event *model.Event) (int, error) {
@@ -879,7 +886,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 		p.DispatchCustomEvent(
 			events.NewCustomRule(events.AnomalyDetectionRuleID),
-			events.NewCustomEvent(event.GetEventType(), serializers.NewEventSerializer(event, p.resolvers)),
+			events.NewCustomEvent(event.GetEventType(), p.EventMarshallerCtor(event)),
 		)
 	}
 
