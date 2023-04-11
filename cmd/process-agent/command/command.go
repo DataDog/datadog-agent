@@ -8,8 +8,6 @@ package command
 
 import (
 	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -21,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const LoggerName config.LoggerName = "PROCESS"
@@ -116,49 +113,6 @@ func MakeCommand(subcommandFactories []SubcommandFactory, winParams bool, rootCm
 	return rootCmd
 }
 
-// BootstrapConfig is a helper for process-agent config initialization (until we further refactor to use components)
-func BootstrapConfig(path string, oneshotCommand bool) error {
-	setHostMountEnv()
-
-	if err := loadConfigIfExists(path); err != nil {
-		return err
-	}
-
-	// Resolve any secrets
-	if err := config.ResolveSecrets(config.Datadog, filepath.Base(path)); err != nil {
-		return err
-	}
-
-	var (
-		logFile      string
-		syslogURI    string
-		syslogRFC    = false
-		logToConsole = true
-		logAsJSON    = false
-	)
-
-	if !oneshotCommand {
-		syslogURI = config.GetSyslogURI()
-		syslogRFC = config.Datadog.GetBool("syslog_rfc")
-		logToConsole = config.Datadog.GetBool("log_to_console")
-		logAsJSON = config.Datadog.GetBool("log_format_json")
-
-		if !config.Datadog.GetBool("disable_file_logging") {
-			logFile = config.Datadog.GetString("process_config.log_file")
-		}
-	}
-
-	return config.SetupLogger(
-		LoggerName,
-		config.Datadog.GetString("log_level"),
-		logFile,
-		syslogURI,
-		syslogRFC,
-		logToConsole,
-		logAsJSON,
-	)
-}
-
 // setHostMountEnv sets HOST_PROC and HOST_SYS mounts if applicable in containerized environments
 func setHostMountEnv() {
 	// Set default values for proc/sys paths if unset.
@@ -174,27 +128,6 @@ func setHostMountEnv() {
 	if v := os.Getenv("HOST_SYS"); v == "" {
 		os.Setenv("HOST_SYS", "/host/sys")
 	}
-}
-
-// loadConfigIfExists takes a path to either a directory containing datadog.yaml or a direct path to a datadog.yaml file
-// and loads it into ddconfig.Datadog. It does this silently, and does not produce any logs.
-func loadConfigIfExists(path string) error {
-	if path == "" {
-		return nil
-	}
-
-	if !util.PathExists(path) {
-		log.Infof("No config exists at %s, ignoring...", path)
-		return nil
-	}
-
-	config.Datadog.AddConfigPath(path)
-	if strings.HasSuffix(path, ".yaml") { // If they set a config file directly, let's try to honor that
-		config.Datadog.SetConfigFile(path)
-	}
-
-	_, err := config.LoadWithoutSecret()
-	return err
 }
 
 func GetCoreBundleParamsForOneShot(globalParams *GlobalParams) core.BundleParams {
