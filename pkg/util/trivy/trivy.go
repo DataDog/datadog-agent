@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	containerdUtil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -52,7 +53,7 @@ type CollectorConfig struct {
 	ArtifactOption     artifact.Option
 	CacheProvider      CacheProvider
 	ClearCacheOnClose  bool
-	ContainerdAccessor func() (ContainerdClient, error)
+	ContainerdAccessor func() (containerdUtil.ContainerdItf, error)
 	DockerAccessor     func() (client.ImageAPIClient, error)
 	CheckDiskUsage     bool
 	MinAvailableDisk   uint64
