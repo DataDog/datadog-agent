@@ -67,7 +67,7 @@ require (
 	github.com/DataDog/zstd v1.5.2
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f
 	github.com/Masterminds/semver v1.5.0
-	github.com/Masterminds/semver/v3 v3.2.0
+	github.com/Masterminds/semver/v3 v3.2.1
 	github.com/Masterminds/sprig/v3 v3.2.3
 	github.com/Microsoft/go-winio v0.6.0
 	github.com/Microsoft/hcsshim v0.9.7
@@ -168,7 +168,7 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/samber/lo v1.37.0
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
-	github.com/secure-systems-lab/go-securesystemslib v0.4.0
+	github.com/secure-systems-lab/go-securesystemslib v0.5.0
 	github.com/shirou/gopsutil/v3 v3.23.2
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
 	github.com/sirupsen/logrus v1.9.0
@@ -176,7 +176,7 @@ require (
 	github.com/smira/go-xz v0.0.0-20220607140411-c2a07d4bedda
 	github.com/spf13/afero v1.9.3
 	github.com/spf13/cast v1.5.0
-	github.com/spf13/cobra v1.6.1
+	github.com/spf13/cobra v1.7.0
 	github.com/spf13/pflag v1.0.5
 	github.com/streadway/amqp v1.0.0
 	github.com/stretchr/testify v1.8.2
@@ -212,12 +212,12 @@ require (
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
 	golang.org/x/arch v0.3.0
 	golang.org/x/exp v0.0.0-20230202163644-54bba9f4231b
-	golang.org/x/net v0.8.0
+	golang.org/x/net v0.9.0
 	golang.org/x/sync v0.1.0
-	golang.org/x/sys v0.6.0
-	golang.org/x/text v0.8.0
+	golang.org/x/sys v0.7.0
+	golang.org/x/text v0.9.0
 	golang.org/x/time v0.3.0
-	golang.org/x/tools v0.7.0
+	golang.org/x/tools v0.8.0
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	google.golang.org/genproto v0.0.0-20230320184635-7606e756e683
 	google.golang.org/grpc v1.54.0
@@ -392,8 +392,8 @@ require (
 	github.com/iancoleman/orderedmap v0.0.0-20190318233801-ac98e3ecb4b0 // indirect
 	github.com/ianlancetaylor/cgosymbolizer v0.0.0-20221208003206-eaf69f594683
 	github.com/ianlancetaylor/demangle v0.0.0-20200824232613-28f6c0f3b639 // indirect
-	github.com/in-toto/in-toto-golang v0.5.0 // indirect
-	github.com/inconshreveable/mousetrap v1.0.1 // indirect
+	github.com/in-toto/in-toto-golang v0.7.1 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/itchyny/timefmt-go v0.1.5 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
@@ -534,9 +534,9 @@ require (
 	go.opentelemetry.io/otel/trace v1.14.0 // indirect
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
 	golang.org/x/crypto v0.7.0 // indirect
-	golang.org/x/mod v0.9.0 // indirect
+	golang.org/x/mod v0.10.0 // indirect
 	golang.org/x/oauth2 v0.6.0 // indirect
-	golang.org/x/term v0.6.0 // indirect
+	golang.org/x/term v0.7.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	gonum.org/v1/gonum v0.12.0 // indirect
 	google.golang.org/api v0.114.0 // indirect
