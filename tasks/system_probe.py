@@ -219,7 +219,7 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
         "prebuilt/usm_events_test",
         "prebuilt/conntrack",
     ]
-    network_co_re_programs = ["co-re/tracer-fentry", "runtime/http"]
+    network_co_re_programs = ["tracer", "co-re/tracer-fentry", "runtime/http"]
 
     for prog in network_programs:
         infile = os.path.join(network_c_dir, f"{prog}.c")
