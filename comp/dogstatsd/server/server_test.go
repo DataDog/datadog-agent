@@ -70,6 +70,17 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 	))
 }
 
+func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
+	return fxutil.Test[serverDeps](t, fx.Options(
+		core.MockBundle,
+		serverDebug.MockModule,
+		fx.Replace(configComponent.MockParams{ConfigYaml: yaml}),
+		fx.Supply(Params{Serverless: false}),
+		replay.MockModule,
+		Module,
+	))
+}
+
 func TestNewServer(t *testing.T) {
 	cfg := make(map[string]interface{})
 
@@ -160,7 +171,7 @@ func TestUDPReceive(t *testing.T) {
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
 
-	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_port"))
+	url := fmt.Sprintf("127.0.0.1:%d", deps.Config.GetInt("dogstatsd_port"))
 	conn, err := net.Dial("udp", url)
 	require.NoError(t, err, "cannot connect to DSD socket")
 	defer conn.Close()
@@ -429,6 +440,11 @@ func TestUDPForward(t *testing.T) {
 	cfg["statsd_forward_port"] = fport
 	cfg["statsd_forward_host"] = "127.0.0.1"
 
+	// Setup dogstatsd server
+	port, err := getAvailableUDPPort()
+	require.NoError(t, err)
+	cfg["dogstatsd_port"] = port
+
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
 	addr := fmt.Sprintf("127.0.0.1:%d", fport)
@@ -437,17 +453,12 @@ func TestUDPForward(t *testing.T) {
 
 	defer pc.Close()
 
-	// Setup dogstatsd server
-	port, err := getAvailableUDPPort()
-	require.NoError(t, err)
-	config.Datadog.SetDefault("dogstatsd_port", port)
-
 	demux := mockDemultiplexer()
 	defer demux.Stop(false)
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
 
-	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_port"))
+	url := fmt.Sprintf("127.0.0.1:%d", deps.Config.GetInt("dogstatsd_port"))
 	conn, err := net.Dial("udp", url)
 	require.NoError(t, err, "cannot connect to DSD socket")
 	defer conn.Close()
@@ -482,7 +493,7 @@ func TestHistToDist(t *testing.T) {
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
 
-	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_port"))
+	url := fmt.Sprintf("127.0.0.1:%d", deps.Config.GetInt("dogstatsd_port"))
 	conn, err := net.Dial("udp", url)
 	require.NoError(t, err, "cannot connect to DSD socket")
 	defer conn.Close()
@@ -622,7 +633,7 @@ func TestExtraTags(t *testing.T) {
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
 
-	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_port"))
+	url := fmt.Sprintf("127.0.0.1:%d", deps.Config.GetInt("dogstatsd_port"))
 	conn, err := net.Dial("udp", url)
 	require.NoError(t, err, "cannot connect to DSD socket")
 	defer conn.Close()
@@ -656,7 +667,7 @@ func TestStaticTags(t *testing.T) {
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
 
-	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_port"))
+	url := fmt.Sprintf("127.0.0.1:%d", deps.Config.GetInt("dogstatsd_port"))
 	conn, err := net.Dial("udp", url)
 	require.NoError(t, err, "cannot connect to DSD socket")
 	defer conn.Close()
@@ -680,19 +691,17 @@ func TestStaticTags(t *testing.T) {
 }
 
 func TestNoMappingsConfig(t *testing.T) {
-	deps := fulfillDeps(t)
-	s := deps.Server.(*server)
-
 	datadogYaml := ``
-	samples := []metrics.MetricSample{}
 
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
-	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	config.Datadog.SetConfigType("yaml")
-	err = config.Datadog.ReadConfig(strings.NewReader(datadogYaml))
-	require.NoError(t, err)
+	deps := fulfillDepsWithConfigYaml(t, datadogYaml)
+	s := deps.Server.(*server)
+	cw := deps.Config.(config.ConfigWriter)
+	cw.Set("dogstatsd_port", port)
+
+	samples := []metrics.MetricSample{}
 
 	demux := mockDemultiplexer()
 	defer demux.Stop(false)
@@ -700,7 +709,7 @@ func TestNoMappingsConfig(t *testing.T) {
 
 	assert.Nil(t, s.mapper)
 
-	parser := newParser(newFloat64ListPool())
+	parser := newParser(deps.Config, newFloat64ListPool())
 	samples, err = s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", false)
 	assert.NoError(t, err)
 	assert.Len(t, samples, 1)
@@ -799,31 +808,25 @@ dogstatsd_mapper_profiles:
 	samples := []metrics.MetricSample{}
 	for _, scenario := range scenarios {
 		t.Run(scenario.name, func(t *testing.T) {
-			cfg := make(map[string]interface{})
-
 			port, err := getAvailableUDPPort()
 			require.NoError(t, err, "Case `%s` failed. getAvailableUDPPort should not return error %v", scenario.name, err)
-			cfg["dogstatsd_port"] = port
 
-			deps := fulfillDepsWithConfigOverride(t, cfg)
-			c := deps.Config.(config.Config)
-
-			c.SetConfigType("yaml")
-			err = c.ReadConfig(strings.NewReader(scenario.config))
-			assert.NoError(t, err, "Case `%s` failed. ReadConfig should not return error %v", scenario.name, err)
+			deps := fulfillDepsWithConfigYaml(t, scenario.config)
 
 			s := deps.Server.(*server)
+			cw := deps.Config.(config.ConfigReaderWriter)
+
+			cw.Set("dogstatsd_port", port)
 
 			demux := mockDemultiplexer()
 			defer demux.Stop(false)
 			requireStart(t, s, demux)
-			require.NoError(t, err, "Case `%s` failed. Start should not return error %v", scenario.name, err)
 
-			assert.Equal(t, config.Datadog.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize, "Case `%s` failed. cache_size `%s` should be `%s`", scenario.name, config.Datadog.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize)
+			assert.Equal(t, deps.Config.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize, "Case `%s` failed. cache_size `%s` should be `%s`", scenario.name, deps.Config.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize)
 
 			var actualSamples []MetricSample
 			for _, p := range scenario.packets {
-				parser := newParser(newFloat64ListPool())
+				parser := newParser(deps.Config, newFloat64ListPool())
 				samples, err := s.parseMetricMessage(samples, parser, []byte(p), "", false)
 				assert.NoError(t, err, "Case `%s` failed. parseMetricMessage should not return error %v", err)
 				for _, sample := range samples {
@@ -900,7 +903,7 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 		assert.Len(s.cachedOriginCounters, 0, "this cache must be empty")
 		assert.Len(s.cachedOrder, 0, "this cache list must be empty")
 
-		parser := newParser(newFloat64ListPool())
+		parser := newParser(deps.Config, newFloat64ListPool())
 		samples := []metrics.MetricSample{}
 		samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "container_id://test_container", false)
 		assert.NoError(err)
@@ -975,7 +978,7 @@ func testContainerIDParsing(t *testing.T, cfg map[string]interface{}) {
 	requireStart(t, s, mockDemultiplexer())
 	s.Stop()
 
-	parser := newParser(newFloat64ListPool())
+	parser := newParser(deps.Config, newFloat64ListPool())
 	parser.dsdOriginEnabled = true
 
 	// Metric
@@ -1017,7 +1020,7 @@ func testOriginOptout(t *testing.T, cfg map[string]interface{}, enabled bool) {
 	requireStart(t, s, mockDemultiplexer())
 	s.Stop()
 
-	parser := newParser(newFloat64ListPool())
+	parser := newParser(deps.Config, newFloat64ListPool())
 	parser.dsdOriginEnabled = true
 
 	// Metric
