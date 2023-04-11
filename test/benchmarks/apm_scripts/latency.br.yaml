@@ -1,24 +1,20 @@
 setup:
   workdir: /tmp/benchmarks/
   steps:
+  - run: |
+      WORKDIR=$(pwd)/$RANDOM
+      mkdir -p $WORKDIR
+      echo "WORKDIR=$WORKDIR" >> $R_PASS_ENV
+  - store_git_repository_root_in_env: REPOSITORY_ROOT
   - unpack_oci_artifact: registry.ddbuild.io/apm-reliability-environment/trace-agent-payloads:latest
     dest: payloads
-  - run: |
-      mkdir -p $ARTIFACTS_DIR
-      cp $R_ROOT_DIR/k6/*.js ./
-      echo "K6_ROOT=$(pwd)" >> $R_PASS_ENV
-  - workdir: $REPOSITORY_ROOT
-    env:
-      BRANCH_DIR: dev/br-main
-    run: |
-      mkdir $BRANCH_DIR -p
-      git --work-tree=$BRANCH_DIR checkout origin/main -- .
-      cd $BRANCH_DIR
-      echo "MAIN_BRANCH_ROOT=$(pwd)" >> $R_PASS_ENV
+  - create_git_worktree_at: ${REPOSITORY_ROOT}/dev/br-main
+    branch: origin/main
+    store_path_in_env: MAIN_BRANCH_DIR
+  - workdir: $ARTIFACTS_DIR
+    run: pwd;sleep 100; rm * || true 
 env:
   ARTIFACTS_DIR: "${ARTIFACTS_DIR:-/tmp/benchmarks/artifacts/v3}"
-  REPOSITORY_ROOT: $R_ROOT_DIR/../../..
-  #MAIN_BRANCH_ROOT: $REPOSITORY_ROOT/br_main_branch # TODO: recursive resolution is not working as expected yet
   LENGHT_OF_RUN: 60s
   CI_JOB_ID: ${CI_JOB_ID:-42}
   CI_COMMIT_REF_NAME: "${CI_COMMIT_REF_NAME:-localtest}"
@@ -31,6 +27,14 @@ env:
   K6_STATSD_ADDR: $STATSD_URL
 configurations: 
   - name: k6_basic
+    workdir: $WORKDIR
+    setup: 
+      steps:
+      - unpack_oci_artifact: registry.ddbuild.io/apm-reliability-environment/trace-agent-payloads:latest
+        dest: payloads
+      - run: |
+          cp $R_ROOT_DIR/k6/*.js ./
+          echo "K6_ROOT=$(pwd)" >> $R_PASS_ENV
     env: 
       MAIN_BRANCH_RESULT: $ARTIFACTS_DIR/main.json
       PR_BRANCH_RESULT: $ARTIFACTS_DIR/pr.json
@@ -38,30 +42,31 @@ configurations:
       - name: branch-agent
         services:
           - name: "trace-agent-current"
+            workdir: $REPOSITORY_ROOT
+            startup_probe:
+              url: http://localhost:8126/info
+              period_secs: 1
             assign_cpus: 8
             run: |
-              cd $REPOSITORY_ROOT
-              killall trace-agent || true
-              go run ./cmd/trace-agent -config ./cfg.yaml
+              killall trace-agent
+              exec go run ./cmd/trace-agent -config ./cfg.yaml
         execute:
           assign_cpus: 2
           workdir: $ARTIFACTS_DIR
           script: |
-            pwd
-            k6 run \
+            exec k6 run \
             --duration $LENGHT_OF_RUN \
             --no-usage-report \
             --tag test_run_id=${R_EXPERIMENT_NAME} \
             --tag ci_job_id=$CI_JOB_ID \
-            --out csv=${R_EXPERIMENT_NAME}.csv \
             --out json="${R_EXPERIMENT_NAME}.json" \
-            $K6_ROOT/hmm.js
+            $K6_ROOT/basic.js
         teardown:
           steps:
           - sdk_image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:latest
             workdir: $ARTIFACTS_DIR
             run_with_sdk: |
-              benchmark_analyzer convert \
+              exec benchmark_analyzer convert \
                 --framework=K6 \
                 --outpath="${PR_BRANCH_RESULT}" \
                 "${R_EXPERIMENT_NAME}.json"
@@ -69,18 +74,20 @@ configurations:
       - name: trace-agent-master
         services:
           - name: "trace-agent-master"
+            workdir: $MAIN_BRANCH_DIR
+            startup_probe:
+              url: http://localhost:8126/info
+              period_secs: 1
             assign_cpus: 8
             run: |
-              #TODO: add support for workdir in services
-              cd $MAIN_BRANCH_ROOT 
-              killall trace-agent || true
-              go run ./cmd/trace-agent -config ./cfg.yaml
+              killall trace-agent
+              exec go run ./cmd/trace-agent -config ./cfg.yaml
             
         execute:
           assign_cpus: 2
           workdir: $ARTIFACTS_DIR
           script: |
-            k6 run \
+            exec k6 run \
             --duration $LENGHT_OF_RUN \
             --no-usage-report \
             --tag test_run_id=${R_EXPERIMENT_NAME} \
@@ -103,7 +110,7 @@ configurations:
         workdir: $ARTIFACTS_DIR
         run_with_sdk: |
           mkdir reports -p 
-          benchmark_analyzer compare pairwise \
+          exec benchmark_analyzer compare pairwise \
             --outpath reports/report.md \
             --framework=K6 \
             --format md $MAIN_BRANCH_RESULT $PR_BRANCH_RESULT
@@ -111,11 +118,8 @@ configurations:
         workdir: $ARTIFACTS_DIR
         run_with_sdk: |
           mkdir reports -p 
-          benchmark_analyzer compare pairwise \
+          exec benchmark_analyzer compare pairwise \
             --outpath reports/report_full.html \
             --framework=K6 \
             --format html $MAIN_BRANCH_RESULT $PR_BRANCH_RESULT
-teardown:
-  steps:
-    - run: killall trace-agent
 

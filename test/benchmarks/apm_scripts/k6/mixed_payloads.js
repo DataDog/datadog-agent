@@ -34,14 +34,30 @@ function wait_for_trace_agent_to_startup() {
 }
 
 export const options = {
-  executor: 'constant-arrival-rate',
-  env: {
-    PAYLOAD_NAME: "10traces210spans"
+  scenarios: {
+    "10traces210spans": {
+      exec: 'req_v04',
+      executor: 'constant-arrival-rate',
+      env: {
+        PAYLOAD_NAME: "10traces210spans"
+      },
+      rate: 1000,
+      timeUnit: '1s',
+      duration: '60s',
+      preAllocatedVUs: 5,
+    },
+    "3885traces3891spans": {
+      exec: 'req_v04',
+      executor: 'constant-arrival-rate',
+      env: {
+        PAYLOAD_NAME: "3885traces3891spans"
+      },
+      rate: 10,
+      timeUnit: '1s',
+      duration: '60s',
+      preAllocatedVUs: 5,
+    },
   },
-  rate: 1000,
-  timeUnit: '1s',
-  duration: '60s',
-  preAllocatedVUs: 5,
 };
 
 export function setup() {
@@ -63,8 +79,5 @@ export function req_v05 () {
 }
 
 export default function () {
-  const res = http.post(v04_url, payloads["10traces210spans"], msgpack_headers);
-  check(res, {
-    'is status 200': (r) => r.status === 200,
-  });
+
 }
