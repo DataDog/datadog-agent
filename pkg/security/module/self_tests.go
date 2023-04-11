@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
+	easyjson "github.com/mailru/easyjson"
 )
 
 // SelfTestEvent is used to report a self test result
@@ -29,10 +30,12 @@ type SelfTestEvent struct {
 
 // NewSelfTestEvent returns the rule and the result of the self test
 func NewSelfTestEvent(success []string, fails []string) (*rules.Rule, *events.CustomEvent) {
-	return events.NewCustomRule(events.SelfTestRuleID), events.NewCustomEvent(model.CustomSelfTestEventType, SelfTestEvent{
-		Timestamp: time.Now(),
-		Success:   success,
-		Fails:     fails,
+	return events.NewCustomRule(events.SelfTestRuleID), events.NewCustomEvent(model.CustomSelfTestEventType, func() easyjson.Marshaler {
+		return SelfTestEvent{
+			Timestamp: time.Now(),
+			Success:   success,
+			Fails:     fails,
+		}
 	})
 }
 

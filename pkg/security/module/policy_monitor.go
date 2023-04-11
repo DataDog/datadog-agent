@@ -14,9 +14,11 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/hashicorp/go-multierror"
 
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
+	"github.com/hashicorp/go-multierror"
+	easyjson "github.com/mailru/easyjson"
+
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -222,8 +224,10 @@ func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rul
 		policies = append(policies, policy)
 	}
 
-	return events.NewCustomRule(events.RulesetLoadedRuleID), events.NewCustomEvent(model.CustomRulesetLoadedEventType, RulesetLoadedEvent{
-		Timestamp: time.Now(),
-		Policies:  policies,
+	return events.NewCustomRule(events.RulesetLoadedRuleID), events.NewCustomEvent(model.CustomRulesetLoadedEventType, func() easyjson.Marshaler {
+		return RulesetLoadedEvent{
+			Timestamp: time.Now(),
+			Policies:  policies,
+		}
 	})
 }

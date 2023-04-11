@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+	easyjson "github.com/mailru/easyjson"
 )
 
 // EventLostRead is the event used to report lost events detected from user space
@@ -30,11 +31,13 @@ type EventLostRead struct {
 
 // NewEventLostReadEvent returns the rule and a populated custom event for a lost_events_read event
 func NewEventLostReadEvent(mapName string, lost float64) (*rules.Rule, *events.CustomEvent) {
-	return events.NewCustomRule(events.LostEventsRuleID), events.NewCustomEvent(model.CustomLostReadEventType, EventLostRead{
+	evt := EventLostRead{
 		Name:      mapName,
 		Lost:      lost,
 		Timestamp: time.Now(),
-	})
+	}
+
+	return events.NewCustomRule(events.LostEventsRuleID), events.NewCustomEvent(model.CustomLostReadEventType, func() easyjson.Marshaler { return evt })
 }
 
 // EventLostWrite is the event used to report lost events detected from kernel space
@@ -47,11 +50,13 @@ type EventLostWrite struct {
 
 // NewEventLostWriteEvent returns the rule and a populated custom event for a lost_events_write event
 func NewEventLostWriteEvent(mapName string, perEventPerCPU map[string]uint64) (*rules.Rule, *events.CustomEvent) {
-	return events.NewCustomRule(events.LostEventsRuleID), events.NewCustomEvent(model.CustomLostWriteEventType, EventLostWrite{
+	evt := EventLostWrite{
 		Name:      mapName,
 		Lost:      perEventPerCPU,
 		Timestamp: time.Now(),
-	})
+	}
+
+	return events.NewCustomRule(events.LostEventsRuleID), events.NewCustomEvent(model.CustomLostWriteEventType, func() easyjson.Marshaler { return evt })
 }
 
 // NoisyProcessEvent is used to report that a noisy process was temporarily discarded
@@ -75,14 +80,16 @@ func NewNoisyProcessEvent(count uint64,
 	comm string,
 	timestamp time.Time) (*rules.Rule, *events.CustomEvent) {
 
-	return events.NewCustomRule(events.NoisyProcessRuleID), events.NewCustomEvent(model.CustomNoisyProcessEventType, NoisyProcessEvent{
-		Timestamp:      timestamp,
-		Count:          count,
-		Threshold:      threshold,
-		ControlPeriod:  controlPeriod,
-		DiscardedUntil: discardedUntil,
-		Pid:            pid,
-		Comm:           comm,
+	return events.NewCustomRule(events.NoisyProcessRuleID), events.NewCustomEvent(model.CustomNoisyProcessEventType, func() easyjson.Marshaler {
+		return NoisyProcessEvent{
+			Timestamp:      timestamp,
+			Count:          count,
+			Threshold:      threshold,
+			ControlPeriod:  controlPeriod,
+			DiscardedUntil: discardedUntil,
+			Pid:            pid,
+			Comm:           comm,
+		}
 	})
 }
 
@@ -105,9 +112,13 @@ type AbnormalPathEvent struct {
 
 // NewAbnormalPathEvent returns the rule and a populated custom event for a abnormal_path event
 func NewAbnormalPathEvent(event *model.Event, probe *Probe, pathResolutionError error) (*rules.Rule, *events.CustomEvent) {
-	return events.NewCustomRule(events.AbnormalPathRuleID), events.NewCustomEvent(resolutionErrorToEventType(event.PathResolutionError), AbnormalPathEvent{
-		Timestamp:           event.FieldHandlers.ResolveEventTimestamp(event),
-		Event:               serializers.NewEventSerializer(event, probe.resolvers),
-		PathResolutionError: pathResolutionError.Error(),
-	})
+	marshalerCtor := func() easyjson.Marshaler {
+		return AbnormalPathEvent{
+			Timestamp:           event.FieldHandlers.ResolveEventTimestamp(event),
+			Event:               serializers.NewEventSerializer(event, probe.resolvers),
+			PathResolutionError: pathResolutionError.Error(),
+		}
+	}
+
+	return events.NewCustomRule(events.AbnormalPathRuleID), events.NewCustomEvent(resolutionErrorToEventType(event.PathResolutionError), marshalerCtor)
 }
