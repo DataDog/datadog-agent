@@ -106,7 +106,7 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 			continue
 		}
 
-		if container.Owner != nil && container.Owner.Kind == workloadmeta.KindKubernetesPod {
+		if container.IsOwnedByPod() {
 			if pod, err := p.metadataStore.GetKubernetesPod(container.Owner.ID); err == nil && containers.IsExcludedByAnnotation(containers.GlobalFilter, pod.Annotations, container.Name) {
 				continue
 			}
