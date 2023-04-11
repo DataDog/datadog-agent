@@ -57,7 +57,7 @@ var bpfMapNames = []string{
 	"proc_cache",
 	"process_event_g",
 	"register_netdev",
-	"security_profil",
+	"secprofs_syscal",
 	"security_profil",
 	"selinux_enforce",
 	"selinux_write_b",
