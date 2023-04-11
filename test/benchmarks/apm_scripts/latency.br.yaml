@@ -1,6 +1,6 @@
 setup:
   workdir: /tmp/benchmarks/
-  steps:
+  steps: 
   - run: |
       WORKDIR=$(pwd)/$RANDOM
       mkdir -p $WORKDIR
@@ -8,10 +8,10 @@ setup:
   - unpack_oci_artifact: registry.ddbuild.io/apm-reliability-environment/trace-agent-payloads:latest
     dest: payloads
   - create_git_worktree_at: ${R_REPOSITORY_ROOT}/dev/br-main
-    branch: origin/main
-    store_path_in_env: MAIN_BRANCH_DIR
+    branch: "origin/main"
+    store_path_in_env: "MAIN_BRANCH_DIR"
   - workdir: $ARTIFACTS_DIR
-    run: pwd;sleep 100; rm * || true 
+    run: rm * || true 
 env:
   ARTIFACTS_DIR: "${ARTIFACTS_DIR:-/tmp/benchmarks/artifacts/v3}"
   LENGHT_OF_RUN: 60s
@@ -41,14 +41,14 @@ configurations:
       - name: branch-agent
         services:
           - name: "trace-agent-current"
-            workdir: $REPOSITORY_ROOT
+            workdir: $R_REPOSITORY_ROOT
             startup_probe:
               url: http://localhost:8126/info
-              period_secs: 1
+              period_secs: 2
             assign_cpus: 8
             run: |
-              killall trace-agent
-              exec go run ./cmd/trace-agent -config ./cfg.yaml
+              killall trace-agent || true
+              go run ./cmd/trace-agent -config ./cfg.yaml
         execute:
           assign_cpus: 2
           workdir: $ARTIFACTS_DIR
