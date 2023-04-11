@@ -611,7 +611,7 @@ replace (
 	// k8s.io/apiserver depends on a very old version of the opentelemetry modules,
 	// so we created a fork that removed the dependency entirely. This can be
 	// removed once k8s.io uses opentelemetry 1.0 or newer (0.26)
-	k8s.io/apiserver => github.com/juliogreff/apiserver v0.23.6-0.20220531090536-be42650a25e5
+	k8s.io/apiserver => github.com/DataDog/kubernetes-apiserver v0.0.0-20220531090536-be42650a25e5
 	k8s.io/client-go => k8s.io/client-go v0.23.15
 	k8s.io/component-base => k8s.io/component-base v0.23.15
 	k8s.io/cri-api => k8s.io/cri-api v0.23.15

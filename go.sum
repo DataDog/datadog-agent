@@ -155,6 +155,8 @@ github.com/DataDog/gopsutil v1.2.2 h1:8lmthwyyCXa1NKiYcHlrtl9AAFdfbNI2gPcioCJcBP
 github.com/DataDog/gopsutil v1.2.2/go.mod h1:glkxNt/qRu9lnpmUEQwOIAXW+COWDTBOTEAHqbgBPts=
 github.com/DataDog/gostackparse v0.5.0 h1:jb72P6GFHPHz2W0onsN51cS3FkaMDcjb0QzgxxA4gDk=
 github.com/DataDog/gostackparse v0.5.0/go.mod h1:lTfqcJKqS9KnXQGnyQMCugq3u1FP6UZMfWR0aitKFMM=
+github.com/DataDog/kubernetes-apiserver v0.0.0-20220531090536-be42650a25e5 h1:PBwb0W9mfK88g4z+KTKGnJzi25litsg5eVqDcXfdGus=
+github.com/DataDog/kubernetes-apiserver v0.0.0-20220531090536-be42650a25e5/go.mod h1:N08z57XwD9yMwxPK3MD8oHtm63ogVSFXyoKOOrHathU=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYxD74QmMw0/3CqSKhEr6teh0ncQ=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
 github.com/DataDog/netlink v1.0.1-0.20220504230202-f7323aba1f6c h1:w4mZkX45/iUyef4qUp+ryZ4ItuhmIpT6tWeZ0vBdvfo=
@@ -1191,8 +1193,6 @@ github.com/jtolds/gls v4.20.0+incompatible h1:xdiiI2gbIgH/gLH7ADydsJ1uDOEzR8yvV7
 github.com/jtolds/gls v4.20.0+incompatible/go.mod h1:QJZ7F/aHp+rZTRtaJ1ow/lLfFfVYBRgL+9YlvaHOwJU=
 github.com/julienschmidt/httprouter v1.2.0/go.mod h1:SYymIcj16QtmaHHD7aYtjjsJG7VTCxuUUipMqKk8s4w=
 github.com/julienschmidt/httprouter v1.3.0/go.mod h1:JR6WtHb+2LUe8TCKY3cZOxFyyO8IZAc4RVcycCCAKdM=
-github.com/juliogreff/apiserver v0.23.6-0.20220531090536-be42650a25e5 h1:BXRtRw8fOU+OGw7iertQUrpXtdda1UVbawurjZN/lic=
-github.com/juliogreff/apiserver v0.23.6-0.20220531090536-be42650a25e5/go.mod h1:N08z57XwD9yMwxPK3MD8oHtm63ogVSFXyoKOOrHathU=
 github.com/justincormack/go-memfd v0.0.0-20170219213707-6e4af0518993 h1:YnMJVKw7M5rE15UsVY7w2cnxcnArci7v1g3butq0YbI=
 github.com/justincormack/go-memfd v0.0.0-20170219213707-6e4af0518993/go.mod h1:VYi8SD2j14Nh9hNT7l57A00YUx/tMxY6pPA1IGljdrg=
 github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 h1:iQTw/8FWTuc7uiaSepXwyf3o52HaUYcV+Tu66S3F5GA=
