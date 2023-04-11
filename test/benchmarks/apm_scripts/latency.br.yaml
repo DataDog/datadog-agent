@@ -5,10 +5,9 @@ setup:
       WORKDIR=$(pwd)/$RANDOM
       mkdir -p $WORKDIR
       echo "WORKDIR=$WORKDIR" >> $R_PASS_ENV
-  - store_git_repository_root_in_env: REPOSITORY_ROOT
   - unpack_oci_artifact: registry.ddbuild.io/apm-reliability-environment/trace-agent-payloads:latest
     dest: payloads
-  - create_git_worktree_at: ${REPOSITORY_ROOT}/dev/br-main
+  - create_git_worktree_at: ${R_REPOSITORY_ROOT}/dev/br-main
     branch: origin/main
     store_path_in_env: MAIN_BRANCH_DIR
   - workdir: $ARTIFACTS_DIR
