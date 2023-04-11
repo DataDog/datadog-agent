@@ -29,7 +29,7 @@ func mockDemultiplexerWithFlushInterval(d time.Duration) aggregator.Demultiplexe
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = d
 	opts.DontStartForwarders = true
-	forwarder := forwarder.NewDefaultForwarder(forwarder.NewOptions(nil))
+	forwarder := forwarder.NewDefaultForwarder(config.Datadog, forwarder.NewOptions(config.Datadog, nil))
 	demux := aggregator.InitAndStartAgentDemultiplexer(forwarder, opts, "hostname")
 	return demux
 }

@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 var (
@@ -45,7 +46,7 @@ func TestSendHTTPRequestToEndpoint(t *testing.T) {
 	}))
 	defer ts1.Close()
 
-	client := defaultforwarder.NewHTTPClient()
+	client := defaultforwarder.NewHTTPClient(config.Datadog)
 
 	// With the correct API Key, it should be a 200
 	statusCodeWithKey, responseBodyWithKey, errWithKey := sendHTTPRequestToEndpoint(context.Background(), color.Output, client, ts1.URL, endpointInfoTest, apiKey1)

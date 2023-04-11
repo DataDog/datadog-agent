@@ -166,8 +166,6 @@ const (
 
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.
 type HTTPTransaction struct {
-	config config.Component
-
 	// Domain represents the domain target by the HTTPTransaction.
 	Domain string
 	// Endpoint is the API Endpoint used by the HTTPTransaction.
@@ -203,7 +201,7 @@ type TransactionsSerializer interface {
 
 // Transaction represents the task to process for a Worker.
 type Transaction interface {
-	Process(ctx context.Context, client *http.Client) error
+	Process(ctx context.Context, config config.Component, client *http.Client) error
 	GetCreatedAt() time.Time
 	GetTarget() string
 	GetPriority() Priority
@@ -219,9 +217,8 @@ type Transaction interface {
 }
 
 // NewHTTPTransaction returns a new HTTPTransaction.
-func NewHTTPTransaction(config config.Component) *HTTPTransaction {
+func NewHTTPTransaction() *HTTPTransaction {
 	tr := &HTTPTransaction{
-		config:         config,
 		CreatedAt:      time.Now(),
 		ErrorCount:     0,
 		Retryable:      true,
@@ -277,10 +274,10 @@ func (t *HTTPTransaction) GetPointCount() int {
 }
 
 // Process sends the Payload of the transaction to the right Endpoint and Domain.
-func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) error {
+func (t *HTTPTransaction) Process(ctx context.Context, config config.Component, client *http.Client) error {
 	t.AttemptHandler(t)
 
-	statusCode, body, err := t.internalProcess(ctx, client)
+	statusCode, body, err := t.internalProcess(ctx, config, client)
 
 	if err == nil || !t.Retryable {
 		t.CompletionHandler(t, statusCode, body, err)
@@ -297,7 +294,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 
 // internalProcess does the  work of actually sending the http request to the specified domain
 // This will return  (http status code, response body, error).
-func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Client) (int, []byte, error) {
+func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Component, client *http.Client) (int, []byte, error) {
 	reader := bytes.NewReader(t.Payload.GetContent())
 	url := t.Domain + t.Endpoint.Route
 	transactionEndpointName := t.GetEndpointName()
@@ -374,7 +371,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 	transactionsSuccessBytesByEndpoint.Add(transactionEndpointName, int64(t.GetPayloadSize()))
 	transactionsSuccess.Add(1)
 
-	loggingFrequency := t.config.GetInt64("logging_frequency")
+	loggingFrequency := config.GetInt64("logging_frequency")
 
 	if transactionsSuccess.Value() == 1 {
 		log.Infof("Successfully posted payload to %q, the agent will only log transaction success every %d transactions", logURL, loggingFrequency)

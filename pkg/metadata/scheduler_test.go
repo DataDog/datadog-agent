@@ -12,8 +12,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -58,7 +61,7 @@ func TestNewScheduler(t *testing.T) {
 
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule)
+	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
 	demux := aggregator.InitAndStartAgentDemultiplexer(forwarder, opts, "hostname")
 	c := NewScheduler(demux)
 
@@ -198,7 +201,7 @@ func TestTriggerAndResetCollectorTimer(t *testing.T) {
 func buildDemultiplexer() aggregator.Demultiplexer {
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	forwarder := forwarder.NewDefaultForwarder(forwarder.NewOptions(nil))
+	forwarder := forwarder.NewDefaultForwarder(pkgconfig.Datadog, forwarder.NewOptions(pkgconfig.Datadog, nil))
 	demux := aggregator.InitAndStartAgentDemultiplexer(forwarder, opts, "hostname")
 	return demux
 }

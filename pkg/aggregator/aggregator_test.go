@@ -18,13 +18,10 @@ import (
 	"time"
 
 	// 3p
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
-
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -32,6 +29,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -50,7 +50,7 @@ func initF() {
 	opts := DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = 1 * time.Hour
 	opts.DontStartForwarders = true
-	forwarder := defaultforwarder.NewDefaultForwarder(defaultforwarder.NewOptions(nil))
+	forwarder := defaultforwarder.NewDefaultForwarder(pkgconfig.Datadog, defaultforwarder.NewOptions(pkgconfig.Datadog, nil))
 	demux := InitAndStartAgentDemultiplexer(forwarder, opts, defaultHostname)
 
 	demux.Aggregator().tlmContainerTagsEnabled = false // do not use a ContainerImpl
@@ -108,7 +108,7 @@ func TestDeregisterCheckSampler(t *testing.T) {
 	// -
 
 	opts := demuxTestOptions()
-	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule)
+	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
 	demux := InitAndStartAgentDemultiplexer(forwarder, opts, defaultHostname)
 	defer demux.Stop(false)
 
@@ -287,7 +287,7 @@ func TestSeriesTooManyTags(t *testing.T) {
 		return func(t *testing.T) {
 			s := &MockSerializerIterableSerie{}
 			opts := demuxTestOptions()
-			forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule)
+			forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
 			demux := InitAndStartAgentDemultiplexer(forwarder, opts, "")
 			demux.sharedSerializer = s
 			demux.aggregator.serializer = s
@@ -351,7 +351,7 @@ func TestDistributionsTooManyTags(t *testing.T) {
 		return func(t *testing.T) {
 			s := &MockSerializerIterableSerie{}
 			opts := demuxTestOptions()
-			forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule)
+			forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
 			demux := InitAndStartAgentDemultiplexer(forwarder, opts, "")
 			demux.sharedSerializer = s
 			demux.aggregator.serializer = s
@@ -406,7 +406,7 @@ func TestRecurrentSeries(t *testing.T) {
 
 	s := &MockSerializerIterableSerie{}
 	opts := demuxTestOptions()
-	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule)
+	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
 	demux := InitAndStartAgentDemultiplexer(forwarder, opts, "")
 	demux.aggregator.serializer = s
 	demux.sharedSerializer = s
@@ -573,8 +573,8 @@ func TestTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			defer config.Datadog.Set("basic_telemetry_add_container_tags", nil)
-			config.Datadog.Set("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
+			defer pkgconfig.Datadog.Set("basic_telemetry_add_container_tags", nil)
+			pkgconfig.Datadog.Set("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
 			agg := NewBufferedAggregator(nil, nil, tt.hostname, time.Second)
 			agg.agentTags = tt.agentTags
 			agg.globalTags = tt.globalTags
@@ -584,14 +584,14 @@ func TestTags(t *testing.T) {
 }
 
 func TestTimeSamplerFlush(t *testing.T) {
-	pc := config.Datadog.GetInt("dogstatsd_pipeline_count")
-	config.Datadog.Set("dogstatsd_pipeline_count", 1)
-	defer config.Datadog.Set("dogstatsd_pipeline_count", pc)
+	pc := pkgconfig.Datadog.GetInt("dogstatsd_pipeline_count")
+	pkgconfig.Datadog.Set("dogstatsd_pipeline_count", 1)
+	defer pkgconfig.Datadog.Set("dogstatsd_pipeline_count", pc)
 
 	s := &MockSerializerIterableSerie{}
 	s.On("SendServiceChecks", mock.Anything).Return(nil)
 	opts := demuxTestOptions()
-	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule)
+	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
 	demux := InitAndStartAgentDemultiplexer(forwarder, opts, "")
 	demux.aggregator.serializer = s
 	demux.sharedSerializer = s

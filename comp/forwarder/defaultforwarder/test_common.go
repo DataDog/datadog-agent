@@ -15,6 +15,7 @@ import (
 
 	"github.com/stretchr/testify/mock"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 )
 
@@ -43,7 +44,7 @@ func (t *testTransaction) GetCreatedAt() time.Time {
 	return t.Called().Get(0).(time.Time)
 }
 
-func (t *testTransaction) Process(_ context.Context, client *http.Client) error {
+func (t *testTransaction) Process(_ context.Context, _ config.Component, client *http.Client) error {
 	defer func() { t.processed <- true }()
 	// we always ignore the context to ease mocking
 	if !t.assertClient {
