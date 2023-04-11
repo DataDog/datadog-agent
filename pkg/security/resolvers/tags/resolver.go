@@ -103,23 +103,27 @@ func NewResolver(config *config.Config) *Resolver {
 
 // Resolove image_id
 func (t *Resolver) ImageIDResolver(containerID string) string {
-	var imageID string
-	var imageName string
 	m := workloadmeta.GetGlobalStore()
 
-	// Get imageID from container with ID == containerID
-	containers := m.ListContainersWithFilter(workloadmeta.GetRunningContainers)
-	for _, container := range containers {
-		if container.ID == containerID {
-			imageID = container.Image.ID
-			imageName = container.Image.Name
-		}
+	// Get imageID from container so that we can get the image Metadata
+	container, err := m.GetContainer(containerID)
+	if err != nil {
+		log.Errorf("unable to get container %s: %s", containerID, err)
+
 	}
 
-	// Build new imageId (repo + @sha256:XXX)
-	// To get repo, check repoDigests first,
-	// If empty, check repoTags
+	imageID := container.Image.ID
+	imageName := container.Image.Name
+
+	// Build new imageId (repo + @sha256:XXX) or (name + @sha256:XXX) if repo is empty
+	// To get repo, check repoDigests first. If empty, check repoTags
 	imageMetadata, err := m.GetImage(imageID)
+
+	// If the 'sha256:' prefix is missing, add it
+	if !strings.HasPrefix(imageID, "sha256:") {
+		imageID = "sha256:" + imageID
+	}
+
 	if err != nil {
 		log.Errorf("unable get image metadata for %s: %s", imageID, err)
 	} else {
