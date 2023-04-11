@@ -1195,9 +1195,7 @@ func (pan *ProcessActivityNode) scrubAndReleaseArgsEnvs(resolver *sprocess.Resol
 
 // Matches return true if the process fields used to generate the dump are identical with the provided ProcessCacheEntry
 func (pan *ProcessActivityNode) Matches(entry *model.Process, matchArgs bool) bool {
-	if pan.Process.Comm == entry.Comm && pan.Process.FileEvent.PathnameStr == entry.FileEvent.PathnameStr &&
-		pan.Process.Credentials == entry.Credentials {
-
+	if pan.Process.FileEvent.PathnameStr == entry.FileEvent.PathnameStr {
 		if matchArgs {
 			var panArgs, entryArgs []string
 			if pan.Process.ArgsEntry != nil {
