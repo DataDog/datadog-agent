@@ -50,7 +50,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Store) error {
 		return dderrors.NewDisabled(componentName, "Podman not detected")
 	}
 
-	c.client = podman.NewDBClient(podman.DefaultDBPath)
+	c.client = podman.NewDBClient(config.Datadog.GetString("podman_db_path"))
 	c.store = store
 
 	return nil

@@ -69,7 +69,6 @@ func TestGetStatus(t *testing.T) {
 	// Feature detection needs to run before host methods are called. During runtime, feature detection happens
 	// when the datadog.yaml file is loaded
 	ddconfig.Mock(t)
-	ddconfig.DetectFeatures()
 
 	hostnameData, err := hostname.GetWithProvider(context.Background())
 	var metadata *host.Payload

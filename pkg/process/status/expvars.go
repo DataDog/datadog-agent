@@ -10,12 +10,15 @@ package status
 import (
 	"bufio"
 	"expvar"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
 	"time"
 
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 
 	"go.uber.org/atomic"
 
@@ -246,7 +249,7 @@ type StatusInfo struct {
 	SystemProbeProcessModuleEnabled bool                   `json:"system_probe_process_module_enabled"`
 }
 
-func InitInfo(hostname string, processModuleEnabled bool, eps []apicfg.Endpoint) {
+func InitExpvars(config ddconfig.ConfigReader, hostname string, processModuleEnabled bool, eps []apicfg.Endpoint) {
 	infoOnce.Do(func() {
 		expvar.NewString("host").Set(hostname)
 		expvar.NewInt("pid").Set(int64(os.Getpid()))
@@ -273,4 +276,9 @@ func InitInfo(hostname string, processModuleEnabled bool, eps []apicfg.Endpoint)
 		expvar.Publish("drop_check_payloads", expvar.Func(publishDropCheckPayloads))
 		expvar.Publish("system_probe_process_module_enabled", publishBool(processModuleEnabled))
 	})
+
+	// Run a profile & telemetry server.
+	if config.GetBool("telemetry.enabled") {
+		http.Handle("/telemetry", telemetry.Handler())
+	}
 }

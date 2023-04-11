@@ -3,11 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+package {{ .PackageName }}
 
-// SetDetectedFeatures - for tests to enable features
-func SetDetectedFeatures(features FeatureMap) {
-	featureLock.Lock()
-	defer featureLock.Unlock()
-	detectedFeatures = features
+var bpfMapNames = []string{
+{{- range .Entries }}
+    "{{ .TrimmedName }}",
+{{- end }}
 }

@@ -39,18 +39,36 @@ func TestPatchDeployment(t *testing.T) {
 		isLeader:  func() bool { return true },
 	}
 
-	// Apply first patch
+	// Create request skeleton
 	req := PatchRequest{
 		ID:        "id",
-		Revision:  123,
-		Action:    EnableConfig,
 		K8sTarget: K8sTarget{Kind: KindDeployment, Namespace: ns, Name: name},
 		LibConfig: common.LibConfig{Language: "java", Version: "latest"},
 	}
+
+	// Stage the patch
+	req.Action = StageConfig
+	req.Revision = 12
 	require.NoError(t, p.patchDeployment(req))
 
 	// Check the patch
 	got, err := client.AppsV1().Deployments(ns).Get(context.TODO(), name, metav1.GetOptions{})
+	require.NoError(t, err)
+	require.NotContains(t, got.Spec.Template.Labels, "admission.datadoghq.com/enabled")
+	require.NotContains(t, got.Spec.Template.Annotations, "admission.datadoghq.com/java-lib.version")
+	require.NotContains(t, got.Spec.Template.Annotations, "admission.datadoghq.com/java-lib.config.v1")
+	require.NotContains(t, got.Spec.Template.Annotations, "admission.datadoghq.com/rc.id")
+	require.NotContains(t, got.Spec.Template.Annotations, "admission.datadoghq.com/rc.rev")
+	require.Equal(t, got.Annotations["admission.datadoghq.com/rc.id"], "id")
+	require.Equal(t, got.Annotations["admission.datadoghq.com/rc.rev"], "12")
+
+	// Apply the patch
+	req.Action = EnableConfig
+	req.Revision = 123
+	require.NoError(t, p.patchDeployment(req))
+
+	// Check the patch
+	got, err = client.AppsV1().Deployments(ns).Get(context.TODO(), name, metav1.GetOptions{})
 	require.NoError(t, err)
 	require.Equal(t, got.Spec.Template.Labels["admission.datadoghq.com/enabled"], "true")
 	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/java-lib.version"], "latest")
@@ -92,4 +110,21 @@ func TestPatchDeployment(t *testing.T) {
 	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/rc.rev"], "12345")
 	require.Equal(t, got.Annotations["admission.datadoghq.com/rc.id"], "id")
 	require.Equal(t, got.Annotations["admission.datadoghq.com/rc.rev"], "12345")
+
+	// Stage a new patch with a new config
+	req.Action = StageConfig
+	req.Revision = 123456
+	req.LibConfig = common.LibConfig{Language: "java", Version: "v1", TracingTags: []string{"foo:bar"}}
+	require.NoError(t, p.patchDeployment(req))
+
+	// Check the new patch, only the deployment annotations should be updated
+	got, err = client.AppsV1().Deployments(ns).Get(context.TODO(), name, metav1.GetOptions{})
+	require.NoError(t, err)
+	require.Equal(t, got.Spec.Template.Labels["admission.datadoghq.com/enabled"], "true")
+	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/java-lib.version"], "latest")
+	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/java-lib.config.v1"], `{"library_language":"java","library_version":"latest","tracing_tags":["k1:v1","k2:v2"]}`)
+	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/rc.id"], "id")
+	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/rc.rev"], "12345")
+	require.Equal(t, got.Annotations["admission.datadoghq.com/rc.id"], "id")
+	require.Equal(t, got.Annotations["admission.datadoghq.com/rc.rev"], "123456")
 }

@@ -57,6 +57,7 @@ from .test import (
     junit_upload,
     lint_copyrights,
     lint_filenames,
+    lint_go,
     lint_milestone,
     lint_python,
     lint_releasenote,
@@ -86,6 +87,7 @@ ns.add_task(lint_releasenote)
 ns.add_task(lint_milestone)
 ns.add_task(lint_filenames)
 ns.add_task(lint_python)
+ns.add_task(lint_go)
 ns.add_task(audit_tag_impact)
 ns.add_task(print_default_build_tags)
 ns.add_task(e2e_tests)

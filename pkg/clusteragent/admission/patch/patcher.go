@@ -77,8 +77,11 @@ func (p *patcher) patchDeployment(req PatchRequest) error {
 		log.Infof("Remote Config ID %q with revision %q has already been applied to object %s, skipping", req.ID, revision, req.K8sTarget)
 		return nil
 	}
-	log.Infof("Applying Remote Config ID %q with revision %q to object %s", req.ID, revision, req.K8sTarget)
+	log.Infof("Applying Remote Config ID %q with revision %q and action %q to object %s", req.ID, revision, req.Action, req.K8sTarget)
 	switch req.Action {
+	case StageConfig:
+		// Consume the config without triggering a rolling update.
+		log.Debugf("Remote Config ID %q with revision %q has a \"stage\" action. The pod template won't be patched, only the deployment annotations", req.ID, revision)
 	case EnableConfig:
 		if err := enableConfig(deploy, req); err != nil {
 			return err
@@ -90,8 +93,6 @@ func (p *patcher) patchDeployment(req PatchRequest) error {
 	}
 	deploy.Annotations[k8sutil.RcIDAnnotKey] = req.ID
 	deploy.Annotations[k8sutil.RcRevisionAnnotKey] = revision
-	deploy.Spec.Template.Annotations[k8sutil.RcIDAnnotKey] = req.ID
-	deploy.Spec.Template.Annotations[k8sutil.RcRevisionAnnotKey] = fmt.Sprint(req.Revision)
 	newObj, err := json.Marshal(deploy)
 	if err != nil {
 		return fmt.Errorf("failed to encode object: %v", err)
@@ -124,6 +125,8 @@ func enableConfig(deploy *corev1.Deployment, req PatchRequest) error {
 	}
 	configAnnotKey := fmt.Sprintf(common.LibConfigV1AnnotKeyFormat, req.LibConfig.Language)
 	deploy.Spec.Template.Annotations[configAnnotKey] = string(conf)
+	deploy.Spec.Template.Annotations[k8sutil.RcIDAnnotKey] = req.ID
+	deploy.Spec.Template.Annotations[k8sutil.RcRevisionAnnotKey] = fmt.Sprint(req.Revision)
 	return nil
 }
 
@@ -139,4 +142,6 @@ func disableConfig(deploy *corev1.Deployment, req PatchRequest) {
 	delete(deploy.Spec.Template.Annotations, versionAnnotKey)
 	configAnnotKey := fmt.Sprintf(common.LibConfigV1AnnotKeyFormat, req.LibConfig.Language)
 	delete(deploy.Spec.Template.Annotations, configAnnotKey)
+	deploy.Spec.Template.Annotations[k8sutil.RcIDAnnotKey] = req.ID
+	deploy.Spec.Template.Annotations[k8sutil.RcRevisionAnnotKey] = fmt.Sprint(req.Revision)
 }
