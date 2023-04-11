@@ -523,16 +523,26 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	defer rs.pool.Put(ctx)
 
 	eventType := event.GetType()
+	if eventType == "open" {
+		fmt.Printf("event type: %+v\n", eventType)
+	}
 
 	result := false
 	bucket, exists := rs.eventRuleBuckets[eventType]
+	if eventType == "open" {
+		fmt.Printf("bucket: %+v\n")
+	}
 	if !exists {
+		if eventType == "open" {
+			fmt.Printf("does not exist\n")
+		}
 		return result
 	}
 
 	// Since logger is an interface this call cannot be inlined, requiring to pass the trace call arguments
 	// through the heap. To improve this situation we first check if we actually need to call the function.
 	if rs.logger.IsTracing() {
+		fmt.Printf("Evaluating event of type `%s` against set of %d rules", eventType, len(bucket.rules))
 		rs.logger.Tracef("Evaluating event of type `%s` against set of %d rules", eventType, len(bucket.rules))
 	}
 
@@ -540,6 +550,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 		if rule.GetEvaluator().Eval(ctx) {
 
 			if rs.logger.IsTracing() {
+				fmt.Printf("Rule `%s` matches with event `%s`\n", rule.ID, event)
 				rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
 			}
 

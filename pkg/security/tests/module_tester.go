@@ -937,6 +937,8 @@ func (tm *testModule) HandleEvent(event *model.Event) {
 	tm.eventHandlers.RLock()
 	defer tm.eventHandlers.RUnlock()
 
+	//fmt.Printf("handling event in module_tester:%+v\n", event.GetEventType())
+
 	if tm.eventHandlers.onProbeEvent != nil {
 		tm.eventHandlers.onProbeEvent(event)
 	}

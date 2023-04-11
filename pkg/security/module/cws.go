@@ -416,16 +416,31 @@ func (c *CWSConsumer) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, f
 
 // HandleEvent is called by the probe when an event arrives from the kernel
 func (c *CWSConsumer) HandleEvent(event *model.Event) {
+
+	eventType := event.GetEventType().String()
+	if eventType == "open" {
+		fmt.Printf("handling event in CWSConsumer: %s | Sample: %v | Saved: %v\n", eventType, event.Flags&model.EventFlagsActivityDumpSample, event.Flags&model.EventFlagsSavedByAD)
+	}
+
 	// if the event should have been discarded in kernel space, we don't need to evaluate it
 	if event.IsSavedByActivityDumps() {
+		if eventType == "open" {
+			fmt.Printf("saved by activity dumps\n")
+		}
 		return
 	}
 
 	if ruleSet := c.GetRuleSet(); ruleSet != nil {
+		if eventType == "open" {
+			fmt.Printf("evaluating against standard score rules\n")
+		}
 		ruleSet.Evaluate(event)
 	}
 
 	if threatScoreRuleSet := c.GetThreatScoreRuleSet(); threatScoreRuleSet != nil {
+		if eventType == "open" {
+			fmt.Printf("evaluating against threat score rules\n")
+		}
 		threatScoreRuleSet.Evaluate(event)
 	}
 }
@@ -447,6 +462,7 @@ func (c *CWSConsumer) RuleMatch(rule *rules.Rule, event eval.Event) {
 		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Definition.ID, rule.Definition.Version, rule.Definition.Tags, rule.Definition.Policy.Name, rule.Definition.Policy.Version))
 	}
 	if ok, val := rule.Definition.GetTag("ruleset"); ok && val == "threat_score" {
+		fmt.Printf("threat score rule matched: %+v\n", rule.Definition.Expression)
 		return // if the triggered rule is only meant to tag secdumps, dont send it
 	}
 
