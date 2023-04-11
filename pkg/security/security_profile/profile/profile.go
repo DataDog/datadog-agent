@@ -171,6 +171,9 @@ func (p *SecurityProfile) findProfileProcessNodes(pc *model.ProcessContext) []*d
 	}
 
 	parent := pc.GetNextAncestorBinary()
+	if parent != nil && !dump.IsValidRootNode(&parent.ProcessContext) {
+		parent = nil
+	}
 	return ProcessActivityTreeWalk(p.ProcessActivityTree, func(node *ProcessActivityNodeAndParent) bool {
 		// check process
 		if !node.node.Matches(&pc.Process, false) {
