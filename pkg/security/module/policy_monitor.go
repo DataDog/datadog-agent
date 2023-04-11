@@ -10,9 +10,11 @@ package module
 import (
 	"context"
 	"fmt"
-	"github.com/hashicorp/go-multierror"
 	"sync"
 	"time"
+
+	"github.com/hashicorp/go-multierror"
+	easyjson "github.com/mailru/easyjson"
 
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -229,5 +231,5 @@ func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rul
 	evt.FillCustomEventCommonFields()
 
 	return events.NewCustomRule(events.RulesetLoadedRuleID),
-		events.NewCustomEvent(model.CustomRulesetLoadedEventType, evt)
+		events.NewCustomEvent(model.CustomRulesetLoadedEventType, func() easyjson.Marshaler { return evt })
 }
