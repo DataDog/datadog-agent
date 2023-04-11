@@ -118,15 +118,13 @@ func (t *Resolver) ImageIDResolver(containerID string) string {
 	// Build new imageId (repo + @sha256:XXX) or (name + @sha256:XXX) if repo is empty
 	// To get repo, check repoDigests first. If empty, check repoTags
 	imageMetadata, err := m.GetImage(imageID)
-
-	// If the 'sha256:' prefix is missing, add it
-	if !strings.HasPrefix(imageID, "sha256:") {
-		imageID = "sha256:" + imageID
-	}
-
 	if err != nil {
 		log.Errorf("unable get image metadata for %s: %s", imageID, err)
 	} else {
+		// If the 'sha256:' prefix is missing, add it
+		if !strings.HasPrefix(imageID, "sha256:") {
+			imageID = "sha256:" + imageID
+		}
 		repoDigests := imageMetadata.RepoDigests
 		repoTags := imageMetadata.RepoTags
 		if len(repoDigests) != 0 {
