@@ -7,8 +7,6 @@
 package command
 
 import (
-	"os"
-
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
@@ -18,7 +16,6 @@ import (
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 const LoggerName config.LoggerName = "PROCESS"
@@ -111,23 +108,6 @@ func MakeCommand(subcommandFactories []SubcommandFactory, winParams bool, rootCm
 	}
 
 	return rootCmd
-}
-
-// setHostMountEnv sets HOST_PROC and HOST_SYS mounts if applicable in containerized environments
-func setHostMountEnv() {
-	// Set default values for proc/sys paths if unset.
-	// Don't set this is /host is not mounted to use context within container.
-	// Generally only applicable for container-only cases like Fargate.
-	if !config.IsContainerized() || !util.PathExists("/host") {
-		return
-	}
-
-	if v := os.Getenv("HOST_PROC"); v == "" {
-		os.Setenv("HOST_PROC", "/host/proc")
-	}
-	if v := os.Getenv("HOST_SYS"); v == "" {
-		os.Setenv("HOST_SYS", "/host/sys")
-	}
 }
 
 func GetCoreBundleParamsForOneShot(globalParams *GlobalParams) core.BundleParams {
