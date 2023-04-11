@@ -174,7 +174,7 @@ require (
 	github.com/sirupsen/logrus v1.9.0
 	github.com/skydive-project/go-debouncer v1.0.0
 	github.com/smira/go-xz v0.0.0-20220607140411-c2a07d4bedda
-	github.com/spf13/afero v1.9.3
+	github.com/spf13/afero v1.9.5
 	github.com/spf13/cast v1.5.0
 	github.com/spf13/cobra v1.7.0
 	github.com/spf13/pflag v1.0.5
