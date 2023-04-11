@@ -3,28 +3,32 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package common
+package path
 
 import (
 	"path/filepath"
+
+	"github.com/DataDog/datadog-agent/pkg/util/executable"
 )
 
 const (
 	// DefaultConfPath points to the folder containing datadog.yaml
-	DefaultConfPath = "/usr/local/etc/datadog-agent"
+	DefaultConfPath = "/opt/datadog-agent/etc"
 	// DefaultLogFile points to the log file that will be used if not configured
-	DefaultLogFile = "/var/log/datadog/agent.log"
+	DefaultLogFile = "/opt/datadog-agent/logs/agent.log"
 	// DefaultDCALogFile points to the log file that will be used if not configured
-	DefaultDCALogFile = "/var/log/datadog/cluster-agent.log"
+	DefaultDCALogFile = "/opt/datadog-agent/logs/cluster-agent.log"
 	//DefaultJmxLogFile points to the jmx fetch log file that will be used if not configured
-	DefaultJmxLogFile = "/var/log/datadog/jmxfetch.log"
+	DefaultJmxLogFile = "/opt/datadog-agent/logs/jmxfetch.log"
 	// DefaultCheckFlareDirectory a flare friendly location for checks to be written
-	DefaultCheckFlareDirectory = "/var/log/datadog/checks/"
+	DefaultCheckFlareDirectory = "/opt/datadog-agent/logs/checks/"
 	// DefaultJMXFlareDirectory a flare friendly location for jmx command logs to be written
-	DefaultJMXFlareDirectory = "/var/log/datadog/jmxinfo/"
+	DefaultJMXFlareDirectory = "/opt/datadog-agent/logs/jmxinfo/"
 )
 
 var (
+	_here, _ = executable.Folder()
+
 	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
 	PyChecksPath = filepath.Join(_here, "..", "..", "checks.d")
 	// DistPath holds the path to the folder containing distribution files

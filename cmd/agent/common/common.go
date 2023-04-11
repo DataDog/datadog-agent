@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector"
@@ -53,9 +54,9 @@ var (
 func GetPythonPaths() []string {
 	// wheels install in default site - already in sys.path; takes precedence over any additional location
 	return []string{
-		GetDistPath(),                                  // common modules are shipped in the dist path directly or under the "checks/" sub-dir
-		PyChecksPath,                                   // integrations-core legacy checks
-		filepath.Join(GetDistPath(), "checks.d"),       // custom checks in the "checks.d/" sub-dir of the dist path
+		path.GetDistPath(), // common modules are shipped in the dist path directly or under the "checks/" sub-dir
+		path.PyChecksPath,  // integrations-core legacy checks
+		filepath.Join(path.GetDistPath(), "checks.d"),  // custom checks in the "checks.d/" sub-dir of the dist path
 		config.Datadog.GetString("additional_checksd"), // custom checks, least precedent check location
 	}
 }
