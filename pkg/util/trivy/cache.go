@@ -27,7 +27,7 @@ import (
 // telemetryTick is the frequency at which the cache usage metrics are collected.
 var telemetryTick = 1 * time.Minute
 
-// CacheProvider describe a function that provides a type implementing the trivy cache interface
+// CacheProvider describes a function that provides a type implementing the trivy cache interface
 // and a cache cleaner
 type CacheProvider func() (cache.Cache, CacheCleaner, error)
 
@@ -129,7 +129,7 @@ func (c *TrivyCacheCleaner) Clean() error {
 	return nil
 }
 
-// cachedObject describe an object that can be stored with TrivyCache
+// cachedObject describes an object that can be stored with TrivyCache
 type cachedObject interface {
 	types.ArtifactInfo | types.BlobInfo
 }
@@ -156,7 +156,7 @@ func trivyCacheGet[T cachedObject](cache *TrivyCache, id string) (T, error) {
 	var empty T
 
 	if err != nil {
-		return empty, fmt.Errorf("error getting object with ID %q from Badger cache: %w", id, err)
+		return empty, fmt.Errorf("error getting object with ID %q from cache: %w", id, err)
 	}
 
 	var res T
