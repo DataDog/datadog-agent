@@ -408,7 +408,6 @@ func (adm *ActivityDumpManager) DumpActivity(params *api.ActivityDumpParams) (*a
 	defer adm.Unlock()
 
 	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
-		fmt.Printf("handling ad req: %s\n", ad.Metadata.Comm)
 		ad.Metadata.Comm = params.GetComm()
 		ad.Metadata.DifferentiateArgs = params.GetDifferentiateArgs()
 		ad.SetTimeout(time.Duration(params.Timeout) * time.Minute)
@@ -513,7 +512,6 @@ func (adm *ActivityDumpManager) StopActivityDump(params *api.ActivityDumpStopPar
 
 // ProcessEvent processes a new event and insert it in an activity dump if applicable
 func (adm *ActivityDumpManager) ProcessEvent(event *model.Event) {
-	fmt.Printf("processing new event for ad: %s | Sample: %v | Saved: %v\n", event.GetEventType().String(), event.Flags&model.EventFlagsActivityDumpSample, event.Flags&model.EventFlagsSavedByAD)
 	// is this event sampled for activity dumps ?
 	if !event.IsActivityDumpSample() {
 		return

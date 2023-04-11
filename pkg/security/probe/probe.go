@@ -1447,7 +1447,6 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	)
 
 	if config.RuntimeSecurity.ActivityDumpEnabled {
-		fmt.Printf("config.RuntimeSecurity.ActivityDumpTracedEventTypes: %+v\n", config.RuntimeSecurity.ActivityDumpTracedEventTypes)
 		for _, e := range config.RuntimeSecurity.ActivityDumpTracedEventTypes {
 			if e == model.SyscallsEventType {
 				// Add syscall monitor probes
