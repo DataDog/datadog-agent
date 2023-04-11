@@ -95,7 +95,7 @@ single-machine-performance-regression_detector:
     # Install `wheel` and some other build-related packages so `dd-package` doesn't just throw an `invalid command 'bdist_wheel'`
     # error when installing `pr-commenter`. Use more recent pip for its dependency resolver.
     - apt-get install -y python3-venv python3-pip  # `venv` and `pip` should already be installed, but don't leave it to chance
-    - python3 -m pip install pip==23.0.1 setuptools=67.0.1 wheel==0.40.0
+    - python3 -m pip install pip==23.0.1 setuptools==67.6.1 wheel==0.40.0
     - dd-package --bucket binaries.ddbuild.io --package devtools/pr-commenter
     # Post HTML report to GitHub
     - cat outputs/report.html | /usr/local/bin/pr-commenter --for-repo="$CI_PROJECT_NAME" --for-pr="$CI_COMMIT_REF_NAME"
