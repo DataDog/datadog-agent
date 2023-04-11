@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
@@ -25,9 +26,9 @@ type SyncForwarder struct {
 }
 
 // NewSyncForwarder returns a new synchronous forwarder.
-func NewSyncForwarder(domainResolvers map[string]resolver.DomainResolver, timeout time.Duration) *SyncForwarder {
+func NewSyncForwarder(config config.Component, domainResolvers map[string]resolver.DomainResolver, timeout time.Duration) *SyncForwarder {
 	return &SyncForwarder{
-		defaultForwarder: NewDefaultForwarder(NewOptionsWithResolvers(domainResolvers)),
+		defaultForwarder: NewDefaultForwarder(config, NewOptionsWithResolvers(config, domainResolvers)),
 		client: &http.Client{
 			Timeout:   timeout,
 			Transport: utilhttp.CreateHTTPTransport(),

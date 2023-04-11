@@ -16,10 +16,11 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
@@ -118,57 +119,57 @@ func ToggleFeature(features, flag Features) Features { return features ^ flag }
 func HasFeature(features, flag Features) bool { return features&flag != 0 }
 
 // NewOptions creates new Options with default values
-func NewOptions(keysPerDomain map[string][]string) *Options {
+func NewOptions(config config.Component, keysPerDomain map[string][]string) *Options {
 	resolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
-	vectorMetricsURL, err := config.GetObsPipelineURL(config.Metrics)
+	vectorMetricsURL, err := pkgconfig.GetObsPipelineURL(pkgconfig.Metrics)
 	if err != nil {
 		log.Error("Misconfiguration of agent observability_pipelines_worker endpoint for metrics: ", err)
 	}
-	if r, ok := resolvers[config.GetMainInfraEndpoint()]; ok && vectorMetricsURL != "" {
+	if r, ok := resolvers[pkgconfig.GetMainInfraEndpoint()]; ok && vectorMetricsURL != "" {
 		log.Debugf("Configuring forwarder to send metrics to observability_pipelines_worker: %s", vectorMetricsURL)
-		resolvers[config.GetMainInfraEndpoint()] = resolver.NewDomainResolverWithMetricToVector(
+		resolvers[pkgconfig.GetMainInfraEndpoint()] = resolver.NewDomainResolverWithMetricToVector(
 			r.GetBaseDomain(),
 			r.GetAPIKeys(),
 			vectorMetricsURL,
 		)
 	}
-	return NewOptionsWithResolvers(resolvers)
+	return NewOptionsWithResolvers(config, resolvers)
 }
 
 // NewOptionsWithResolvers creates new Options with default values
-func NewOptionsWithResolvers(domainResolvers map[string]resolver.DomainResolver) *Options {
-	validationInterval := config.Datadog.GetInt("forwarder_apikey_validation_interval")
+func NewOptionsWithResolvers(config config.Component, domainResolvers map[string]resolver.DomainResolver) *Options {
+	validationInterval := config.GetInt("forwarder_apikey_validation_interval")
 	if validationInterval <= 0 {
 		log.Warnf(
 			"'forwarder_apikey_validation_interval' set to invalid value (%d), defaulting to %d minute(s)",
 			validationInterval,
-			config.DefaultAPIKeyValidationInterval,
+			pkgconfig.DefaultAPIKeyValidationInterval,
 		)
-		validationInterval = config.DefaultAPIKeyValidationInterval
+		validationInterval = pkgconfig.DefaultAPIKeyValidationInterval
 	}
 
 	const forwarderRetryQueueMaxSizeKey = "forwarder_retry_queue_max_size"
 	const forwarderRetryQueuePayloadsMaxSizeKey = "forwarder_retry_queue_payloads_max_size"
 
 	retryQueuePayloadsTotalMaxSize := 15 * 1024 * 1024
-	if config.Datadog.IsSet(forwarderRetryQueuePayloadsMaxSizeKey) {
-		retryQueuePayloadsTotalMaxSize = config.Datadog.GetInt(forwarderRetryQueuePayloadsMaxSizeKey)
+	if config.IsSet(forwarderRetryQueuePayloadsMaxSizeKey) {
+		retryQueuePayloadsTotalMaxSize = config.GetInt(forwarderRetryQueuePayloadsMaxSizeKey)
 	}
 
 	option := &Options{
-		NumberOfWorkers:                config.Datadog.GetInt("forwarder_num_workers"),
+		NumberOfWorkers:                config.GetInt("forwarder_num_workers"),
 		DisableAPIKeyChecking:          false,
 		RetryQueuePayloadsTotalMaxSize: retryQueuePayloadsTotalMaxSize,
 		APIKeyValidationInterval:       time.Duration(validationInterval) * time.Minute,
 		DomainResolvers:                domainResolvers,
-		ConnectionResetInterval:        time.Duration(config.Datadog.GetInt("forwarder_connection_reset_interval")) * time.Second,
+		ConnectionResetInterval:        time.Duration(config.GetInt("forwarder_connection_reset_interval")) * time.Second,
 	}
 
-	if config.Datadog.IsSet(forwarderRetryQueueMaxSizeKey) {
-		if config.Datadog.IsSet(forwarderRetryQueuePayloadsMaxSizeKey) {
+	if config.IsSet(forwarderRetryQueueMaxSizeKey) {
+		if config.IsSet(forwarderRetryQueuePayloadsMaxSizeKey) {
 			log.Warnf("'%v' is set, but as this setting is deprecated, '%v' is used instead.", forwarderRetryQueueMaxSizeKey, forwarderRetryQueuePayloadsMaxSizeKey)
 		} else {
-			forwarderRetryQueueMaxSize := config.Datadog.GetInt(forwarderRetryQueueMaxSizeKey)
+			forwarderRetryQueueMaxSize := config.GetInt(forwarderRetryQueueMaxSizeKey)
 			option.setRetryQueuePayloadsTotalMaxSizeFromQueueMax(forwarderRetryQueueMaxSize)
 			log.Warnf("'%v = %v' is used, but this setting is deprecated. '%v = %v' (%v * 2MB) is used instead as the maximum payload size is 2MB.",
 				forwarderRetryQueueMaxSizeKey,
@@ -191,6 +192,8 @@ func (o *Options) setRetryQueuePayloadsTotalMaxSizeFromQueueMax(v int) {
 
 // DefaultForwarder is the default implementation of the Forwarder.
 type DefaultForwarder struct {
+	config config.Component
+
 	// NumberOfWorkers Number of concurrent HTTP request made by the DefaultForwarder (default 4).
 	NumberOfWorkers int
 
@@ -208,9 +211,10 @@ type DefaultForwarder struct {
 }
 
 // NewDefaultForwarder returns a new DefaultForwarder.
-func NewDefaultForwarder(options *Options) *DefaultForwarder {
+func NewDefaultForwarder(config config.Component, options *Options) *DefaultForwarder {
 	agentName := getAgentName(options)
 	f := &DefaultForwarder{
+		config:           config,
 		NumberOfWorkers:  options.NumberOfWorkers,
 		domainForwarders: map[string]*domainForwarder{},
 		domainResolvers:  map[string]resolver.DomainResolver{},
@@ -224,18 +228,18 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		agentName:         agentName,
 	}
 	var optionalRemovalPolicy *retry.FileRemovalPolicy
-	storageMaxSize := config.Datadog.GetInt64("forwarder_storage_max_size_in_bytes")
+	storageMaxSize := config.GetInt64("forwarder_storage_max_size_in_bytes")
 	var diskUsageLimit *retry.DiskUsageLimit
 
 	// Disk Persistence is a core-only feature for now.
 	if storageMaxSize == 0 {
 		log.Infof("Retry queue storage on disk is disabled")
 	} else if agentName != "" {
-		storagePath := config.Datadog.GetString("forwarder_storage_path")
+		storagePath := config.GetString("forwarder_storage_path")
 		if storagePath == "" {
-			storagePath = path.Join(config.Datadog.GetString("run_path"), "transactions_to_retry")
+			storagePath = path.Join(config.GetString("run_path"), "transactions_to_retry")
 		}
-		outdatedFileInDays := config.Datadog.GetInt("forwarder_outdated_file_in_days")
+		outdatedFileInDays := config.GetInt("forwarder_outdated_file_in_days")
 		var err error
 
 		storagePath = path.Join(storagePath, agentName)
@@ -250,19 +254,19 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 			log.Debugf("Outdated files removed: %v", strings.Join(filesRemoved, ", "))
 		}
 
-		diskRatio := config.Datadog.GetFloat64("forwarder_storage_max_disk_ratio")
+		diskRatio := config.GetFloat64("forwarder_storage_max_disk_ratio")
 		diskUsageLimit = retry.NewDiskUsageLimit(storagePath, filesystem.NewDisk(), storageMaxSize, diskRatio)
 
 	} else {
 		log.Infof("Retry queue storage on disk is disabled because the feature is unavailable for this process.")
 	}
 
-	flushToDiskMemRatio := config.Datadog.GetFloat64("forwarder_flush_to_disk_mem_ratio")
+	flushToDiskMemRatio := config.GetFloat64("forwarder_flush_to_disk_mem_ratio")
 	domainForwarderSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}
 	transactionContainerSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: false}
 
 	for domain, resolver := range options.DomainResolvers {
-		domain, _ := config.AddAgentVersionToDomain(domain, "app")
+		domain, _ := pkgconfig.AddAgentVersionToDomain(domain, "app")
 		resolver.SetBaseDomain(domain)
 		if resolver.GetAPIKeys() == nil || len(resolver.GetAPIKeys()) == 0 {
 			log.Errorf("No API keys for domain '%s', dropping domain ", domain)
@@ -287,6 +291,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 				pointCountTelemetry)
 			f.domainResolvers[domain] = resolver
 			fwd := newDomainForwarder(
+				config,
 				domain,
 				transactionContainer,
 				options.NumberOfWorkers,
@@ -301,7 +306,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		}
 	}
 
-	timeInterval := config.Datadog.GetInt("forwarder_retry_queue_capacity_time_interval_sec")
+	timeInterval := config.GetInt("forwarder_retry_queue_capacity_time_interval_sec")
 	if f.agentName != "" {
 		f.queueDurationCapacity = retry.NewQueueDurationCapacity(
 			time.Duration(timeInterval)*time.Second,
@@ -373,7 +378,7 @@ func (f *DefaultForwarder) Stop() {
 
 	f.internalState.Store(Stopped)
 
-	purgeTimeout := config.Datadog.GetDuration("forwarder_stop_timeout") * time.Second
+	purgeTimeout := f.config.GetDuration("forwarder_stop_timeout") * time.Second
 	if purgeTimeout > 0 {
 		var wg sync.WaitGroup
 
@@ -424,12 +429,12 @@ func (f *DefaultForwarder) createHTTPTransactions(endpoint transaction.Endpoint,
 
 func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.Endpoint, payloads transaction.BytesPayloads, extra http.Header, priority transaction.Priority, storableOnDisk bool) []*transaction.HTTPTransaction {
 	transactions := make([]*transaction.HTTPTransaction, 0, len(payloads)*len(f.domainForwarders))
-	allowArbitraryTags := config.Datadog.GetBool("allow_arbitrary_tags")
+	allowArbitraryTags := f.config.GetBool("allow_arbitrary_tags")
 
 	for _, payload := range payloads {
 		for domain, dr := range f.domainResolvers {
 			for _, apiKey := range dr.GetAPIKeys() {
-				t := transaction.NewHTTPTransaction()
+				t := transaction.NewHTTPTransaction(f.config)
 				t.Domain, _ = dr.Resolve(endpoint)
 				t.Endpoint = endpoint
 				t.Payload = payload
@@ -465,7 +470,7 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTP
 	if f.internalState.Load() == Stopped {
 		return fmt.Errorf("the forwarder is not started")
 	}
-	if config.Datadog.GetBool("telemetry.enabled") {
+	if f.config.GetBool("telemetry.enabled") {
 		f.retryQueueDurationCapacityMutex.Lock()
 		defer f.retryQueueDurationCapacityMutex.Unlock()
 
@@ -618,7 +623,7 @@ func (f *DefaultForwarder) SubmitOrchestratorChecks(payload transaction.BytesPay
 	bumpOrchestratorPayload(payloadType)
 
 	endpoint := endpoints.OrchestratorEndpoint
-	if config.Datadog.IsSet("orchestrator_explorer.use_legacy_endpoint") {
+	if f.config.IsSet("orchestrator_explorer.use_legacy_endpoint") {
 		endpoint = endpoints.LegacyOrchestratorEndpoint
 	}
 

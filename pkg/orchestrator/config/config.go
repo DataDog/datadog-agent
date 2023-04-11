@@ -171,10 +171,10 @@ func NewOrchestratorForwarder() forwarder.Forwarder {
 		log.Errorf("Error loading the orchestrator config: %s", err)
 	}
 	keysPerDomain := apicfg.KeysPerDomains(orchestratorCfg.OrchestratorEndpoints)
-	orchestratorForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomain))
+	orchestratorForwarderOpts := forwarder.NewOptionsWithResolvers(config.Datadog, resolver.NewSingleDomainResolvers(keysPerDomain))
 	orchestratorForwarderOpts.DisableAPIKeyChecking = true
 
-	return forwarder.NewDefaultForwarder(orchestratorForwarderOpts)
+	return forwarder.NewDefaultForwarder(config.Datadog, orchestratorForwarderOpts)
 }
 
 func setBoundedConfigIntValue(configKey string, upperBound int, setter func(v int)) {

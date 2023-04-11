@@ -55,6 +55,8 @@ type ConfigReader interface {
 	// IsSectionSet checks if a given section is set by checking if any of
 	// its subkeys is set.
 	IsSectionSet(section string) bool
+
+	Warnings() *Warnings
 }
 
 type ConfigWriter interface {

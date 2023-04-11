@@ -17,7 +17,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -166,6 +166,8 @@ const (
 
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.
 type HTTPTransaction struct {
+	config config.Component
+
 	// Domain represents the domain target by the HTTPTransaction.
 	Domain string
 	// Endpoint is the API Endpoint used by the HTTPTransaction.
@@ -217,8 +219,9 @@ type Transaction interface {
 }
 
 // NewHTTPTransaction returns a new HTTPTransaction.
-func NewHTTPTransaction() *HTTPTransaction {
+func NewHTTPTransaction(config config.Component) *HTTPTransaction {
 	tr := &HTTPTransaction{
+		config:         config,
 		CreatedAt:      time.Now(),
 		ErrorCount:     0,
 		Retryable:      true,
@@ -371,7 +374,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 	transactionsSuccessBytesByEndpoint.Add(transactionEndpointName, int64(t.GetPayloadSize()))
 	transactionsSuccess.Add(1)
 
-	loggingFrequency := config.Datadog.GetInt64("logging_frequency")
+	loggingFrequency := t.config.GetInt64("logging_frequency")
 
 	if transactionsSuccess.Value() == 1 {
 		log.Infof("Successfully posted payload to %q, the agent will only log transaction success every %d transactions", logURL, loggingFrequency)

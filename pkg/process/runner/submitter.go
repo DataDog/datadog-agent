@@ -18,6 +18,7 @@ import (
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/comp/process/types"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
@@ -122,30 +123,30 @@ func NewSubmitter(hostname string) (*CheckSubmitter, error) {
 	if err != nil {
 		return nil, err
 	}
-	processForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(processAPIEndpoints)))
+	processForwarderOpts := forwarder.NewOptionsWithResolvers(config.Datadog, resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(processAPIEndpoints)))
 	processForwarderOpts.DisableAPIKeyChecking = true
 	processForwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
-	processForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
+	processForwarder := forwarder.NewDefaultForwarder(config.Datadog, processForwarderOpts)
 
 	// rt forwarder reuses processForwarder's config
-	rtProcessForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
+	rtProcessForwarder := forwarder.NewDefaultForwarder(config.Datadog, processForwarderOpts)
 
 	// connections forwarder reuses processForwarder's config
-	connectionsForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
+	connectionsForwarder := forwarder.NewDefaultForwarder(config.Datadog, processForwarderOpts)
 
-	podForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(orchestrator.OrchestratorEndpoints)))
+	podForwarderOpts := forwarder.NewOptionsWithResolvers(config.Datadog, resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(orchestrator.OrchestratorEndpoints)))
 	podForwarderOpts.DisableAPIKeyChecking = true
 	podForwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
-	podForwarder := forwarder.NewDefaultForwarder(podForwarderOpts)
+	podForwarder := forwarder.NewDefaultForwarder(config.Datadog, podForwarderOpts)
 
 	processEventsAPIEndpoints, err := getEventsAPIEndpoints()
 	if err != nil {
 		return nil, err
 	}
-	eventForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(processEventsAPIEndpoints)))
+	eventForwarderOpts := forwarder.NewOptionsWithResolvers(config.Datadog, resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(processEventsAPIEndpoints)))
 	eventForwarderOpts.DisableAPIKeyChecking = true
 	eventForwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
-	eventForwarder := forwarder.NewDefaultForwarder(eventForwarderOpts)
+	eventForwarder := forwarder.NewDefaultForwarder(config.Datadog, eventForwarderOpts)
 
 	printStartMessage(hostname, processAPIEndpoints, processEventsAPIEndpoints, orchestrator.OrchestratorEndpoints)
 	return &CheckSubmitter{

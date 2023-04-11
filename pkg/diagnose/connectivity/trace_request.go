@@ -39,7 +39,7 @@ func RunDatadogConnectivityDiagnose(writer io.Writer, noTrace bool) error {
 
 	domainResolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
 
-	client := forwarder.NewHTTPClient()
+	client := forwarder.NewHTTPClient(config.Datadog)
 
 	// Send requests to all endpoints for all domains
 	fmt.Fprintln(writer, "\n================ Starting connectivity diagnosis ================")

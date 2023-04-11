@@ -9,7 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -25,32 +26,32 @@ type blockedEndpoints struct {
 	m                sync.RWMutex
 }
 
-func newBlockedEndpoints() *blockedEndpoints {
-	backoffFactor := config.Datadog.GetFloat64("forwarder_backoff_factor")
+func newBlockedEndpoints(config config.Component) *blockedEndpoints {
+	backoffFactor := config.GetFloat64("forwarder_backoff_factor")
 	if backoffFactor < 2 {
 		log.Warnf("Configured forwarder_backoff_factor (%v) is less than 2; 2 will be used", backoffFactor)
 		backoffFactor = 2
 	}
 
-	backoffBase := config.Datadog.GetFloat64("forwarder_backoff_base")
+	backoffBase := config.GetFloat64("forwarder_backoff_base")
 	if backoffBase <= 0 {
 		log.Warnf("Configured forwarder_backoff_base (%v) is not positive; 2 will be used", backoffBase)
 		backoffBase = 2
 	}
 
-	backoffMax := config.Datadog.GetFloat64("forwarder_backoff_max")
+	backoffMax := config.GetFloat64("forwarder_backoff_max")
 	if backoffMax <= 0 {
 		log.Warnf("Configured forwarder_backoff_max (%v) is not positive; 64 seconds will be used", backoffMax)
 		backoffMax = 64
 	}
 
-	recInterval := config.Datadog.GetInt("forwarder_recovery_interval")
+	recInterval := config.GetInt("forwarder_recovery_interval")
 	if recInterval <= 0 {
-		log.Warnf("Configured forwarder_recovery_interval (%v) is not positive; %v will be used", recInterval, config.DefaultForwarderRecoveryInterval)
-		recInterval = config.DefaultForwarderRecoveryInterval
+		log.Warnf("Configured forwarder_recovery_interval (%v) is not positive; %v will be used", recInterval, pkgconfig.DefaultForwarderRecoveryInterval)
+		recInterval = pkgconfig.DefaultForwarderRecoveryInterval
 	}
 
-	recoveryReset := config.Datadog.GetBool("forwarder_recovery_reset")
+	recoveryReset := config.GetBool("forwarder_recovery_reset")
 
 	return &blockedEndpoints{
 		errorPerEndpoint: make(map[string]*block),

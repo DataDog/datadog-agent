@@ -12,9 +12,9 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -26,6 +26,7 @@ var (
 // HTTP and retrying them if needed. One domainForwarder is created per HTTP
 // backend.
 type domainForwarder struct {
+	config                    config.Component
 	isRetrying                *atomic.Bool
 	domain                    string
 	numberOfWorkers           int
@@ -45,6 +46,7 @@ type domainForwarder struct {
 }
 
 func newDomainForwarder(
+	config config.Component,
 	domain string,
 	retryQueue *retry.TransactionRetryQueue,
 	numberOfWorkers int,
@@ -52,13 +54,14 @@ func newDomainForwarder(
 	transactionPrioritySorter retry.TransactionPrioritySorter,
 	pointCountTelemetry *retry.PointCountTelemetry) *domainForwarder {
 	return &domainForwarder{
+		config:                    config,
 		isRetrying:                atomic.NewBool(false),
 		domain:                    domain,
 		numberOfWorkers:           numberOfWorkers,
 		retryQueue:                retryQueue,
 		connectionResetInterval:   connectionResetInterval,
 		internalState:             Stopped,
-		blockedList:               newBlockedEndpoints(),
+		blockedList:               newBlockedEndpoints(config),
 		transactionPrioritySorter: transactionPrioritySorter,
 		pointCountTelemetry:       pointCountTelemetry,
 	}
@@ -175,9 +178,9 @@ func (f *domainForwarder) scheduleConnectionResets() {
 }
 
 func (f *domainForwarder) init() {
-	highPrioBuffSize := config.Datadog.GetInt("forwarder_high_prio_buffer_size")
-	lowPrioBuffSize := config.Datadog.GetInt("forwarder_low_prio_buffer_size")
-	requeuedTransactionBuffSize := config.Datadog.GetInt("forwarder_requeue_buffer_size")
+	highPrioBuffSize := f.config.GetInt("forwarder_high_prio_buffer_size")
+	lowPrioBuffSize := f.config.GetInt("forwarder_low_prio_buffer_size")
+	requeuedTransactionBuffSize := f.config.GetInt("forwarder_requeue_buffer_size")
 
 	f.highPrio = make(chan transaction.Transaction, highPrioBuffSize)
 	f.lowPrio = make(chan transaction.Transaction, lowPrioBuffSize)
@@ -201,7 +204,7 @@ func (f *domainForwarder) Start() error {
 	f.init()
 
 	for i := 0; i < f.numberOfWorkers; i++ {
-		w := NewWorker(f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList, f.pointCountTelemetry)
+		w := NewWorker(f.config, f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList, f.pointCountTelemetry)
 		w.Start()
 		f.workers = append(f.workers, w)
 	}
