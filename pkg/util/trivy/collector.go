@@ -17,13 +17,12 @@ import (
 // Report interface
 type Report interface {
 	ToCycloneDX() (*cyclonedxgo.BOM, error)
-	GetArtifactID() string
-	GetBlobIDs() []string
 }
 
 // CacheCleaner interface
 type CacheCleaner interface {
 	Clean() error
+	setKeysForEntity(entity string, cachedKeys []string)
 }
 
 // Collector interface

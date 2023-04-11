@@ -19,19 +19,7 @@ import (
 // TrivyReport describes a trivy report along with its marshaler
 type TrivyReport struct {
 	types.Report
-	marshaler  *cyclonedx.Marshaler
-	artifactID string   // Required for cache cleaning
-	blobIDs    []string // Required for cache cleaning
-}
-
-// GetArtifactID returns the artifactID associated to the given image
-func (r *TrivyReport) GetArtifactID() string {
-	return r.artifactID
-}
-
-// GetBlobIDs returns the blobs associated to the given image
-func (r *TrivyReport) GetBlobIDs() []string {
-	return r.blobIDs
+	marshaler *cyclonedx.Marshaler
 }
 
 // ToCycloneDX returns the report as a CycloneDX SBOM

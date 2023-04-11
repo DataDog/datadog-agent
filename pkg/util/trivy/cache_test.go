@@ -264,20 +264,12 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 			Kind: workloadmeta.KindContainerImageMetadata,
 			ID:   "image1",
 		},
-		SBOM: &workloadmeta.SBOM{
-			ArtifactID: "key1",
-			BlobIDs:    []string{"blob1", "blob"},
-		},
 	}
 
 	image2 := &workloadmeta.ContainerImageMetadata{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainerImageMetadata,
 			ID:   "image2",
-		},
-		SBOM: &workloadmeta.SBOM{
-			ArtifactID: "key2",
-			BlobIDs:    []string{"blob2", "blob"},
 		},
 	}
 
@@ -297,6 +289,11 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 		require.NoError(t, cache.Close())
 	}()
 
+	// link image1 to artifact key1, an owned blob and a shared blob
+	cacheCleaner.setKeysForEntity("image1", []string{"key1", "blob1", "sharedBlob"})
+	// link image2 to artifact key2, an owned blob and a shared blob
+	cacheCleaner.setKeysForEntity("image2", []string{"key2", "blob2", "sharedBlob"})
+
 	// Create a goroutine that calls cacheCleaner.Clean every 500ms
 	go func() {
 		cleanTicker := time.NewTicker(500 * time.Millisecond)
@@ -312,7 +309,7 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 	err = cache.PutArtifact("key2", newTestArtifactInfo())
 	require.NoError(t, err)
 
-	err = cache.PutBlob("blob", newTestBlobInfo())
+	err = cache.PutBlob("sharedBlob", newTestBlobInfo())
 	require.NoError(t, err)
 
 	err = cache.PutBlob("blob1", newTestBlobInfo())
@@ -333,7 +330,7 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, newTestArtifactInfo(), artifact)
 
-	blob, err := cache.GetBlob("blob")
+	blob, err := cache.GetBlob("sharedBlob")
 	require.NoError(t, err)
 	require.Equal(t, newTestBlobInfo(), blob)
 
@@ -362,7 +359,7 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, newTestArtifactInfo(), artifact)
 
-	blob, err = cache.GetBlob("blob")
+	blob, err = cache.GetBlob("sharedBlob")
 	require.NoError(t, err)
 	require.Equal(t, newTestBlobInfo(), blob)
 

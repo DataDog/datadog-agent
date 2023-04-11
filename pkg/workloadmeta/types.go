@@ -654,8 +654,6 @@ type SBOM struct {
 	CycloneDXBOM       *cyclonedx.BOM
 	GenerationTime     time.Time
 	GenerationDuration time.Duration
-	ArtifactID         string   // Required for cache cleaning
-	BlobIDs            []string // Required for cache cleaning
 }
 
 // GetID implements Entity#GetID.

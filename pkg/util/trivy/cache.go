@@ -68,6 +68,12 @@ type StubCacheCleaner struct{}
 // Clean does nothing
 func (c *StubCacheCleaner) Clean() error { return nil }
 
+// setKeysForEntity does nothing
+func (c *StubCacheCleaner) setKeysForEntity(entity string, keys []string) {}
+
+// GetKeysForEntity does nothing
+func (c *StubCacheCleaner) GetKeysForEntity(entity string) []string { return nil }
+
 // Cache describes an interface for a key-value cache.
 type Cache interface {
 	// Clear removes all entries from the cache and closes it.
@@ -91,31 +97,30 @@ type TrivyCache struct {
 	Cache Cache
 }
 
-// TrivyCacheCleaner is a cache cleaner for TrivyCache instances
+// TrivyCacheCleaner is a cache cleaner for a TrivyCache instance. It holds a map
+// that keeps track of all the entities using a given key.
 type TrivyCacheCleaner struct {
-	target *TrivyCache
+	cachedKeysForEntity map[string][]string
+	target              *TrivyCache
 }
 
 // NewTrivyCacheCleaner creates a new instance of TrivyCacheCleaner and returns a pointer to it.
 func NewTrivyCacheCleaner(target *TrivyCache) *TrivyCacheCleaner {
 	return &TrivyCacheCleaner{
-		target: target,
+		cachedKeysForEntity: make(map[string][]string),
+		target:              target,
 	}
 }
 
-// Clean lists images from the workloadmeta, gets the list of currently used artifactIDs and blobIDs and
-// removes all the others from the cache.
+// Clean implements CacheCleaner#Clean. It removes unused cached entries from the cache.
 func (c *TrivyCacheCleaner) Clean() error {
 	toKeep := make(map[string]struct{})
 	for _, imageMetadata := range workloadmeta.GetGlobalStore().ListImages() {
-		if imageMetadata.SBOM == nil {
-			continue
-		}
-		toKeep[imageMetadata.SBOM.ArtifactID] = struct{}{}
-		for _, blobID := range imageMetadata.SBOM.BlobIDs {
-			toKeep[blobID] = struct{}{}
+		for _, key := range c.cachedKeysForEntity[imageMetadata.EntityID.ID] {
+			toKeep[key] = struct{}{}
 		}
 	}
+
 	var toRemove []string
 	for _, key := range c.target.Cache.Keys() {
 		if _, ok := toKeep[key]; !ok {
@@ -127,6 +132,11 @@ func (c *TrivyCacheCleaner) Clean() error {
 		return err
 	}
 	return nil
+}
+
+// setKeysForEntity implements CacheCleaner#setKeysForEntity.
+func (c *TrivyCacheCleaner) setKeysForEntity(entity string, cachedKeys []string) {
+	c.cachedKeysForEntity[entity] = cachedKeys
 }
 
 // cachedObject describes an object that can be stored with TrivyCache

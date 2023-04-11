@@ -189,7 +189,7 @@ func (c *collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadme
 		return nil, fmt.Errorf("unable to create artifact from image, err: %w", err)
 	}
 
-	bom, err := c.scan(ctx, imageArtifact)
+	bom, err := c.scan(ctx, imageArtifact, imgMeta)
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}
@@ -232,16 +232,16 @@ func (c *collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMe
 		}
 	}()
 
-	return c.ScanFilesystem(ctx, imagePath)
+	return c.scanFilesystem(ctx, imagePath, imgMeta)
 }
 
-func (c *collector) ScanFilesystem(ctx context.Context, path string) (Report, error) {
+func (c *collector) scanFilesystem(ctx context.Context, path string, imgMeta *workloadmeta.ContainerImageMetadata) (Report, error) {
 	fsArtifact, err := local2.NewArtifact(path, c.cache, c.config.ArtifactOption)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create artifact from fs, err: %w", err)
 	}
 
-	bom, err := c.scan(ctx, fsArtifact)
+	bom, err := c.scan(ctx, fsArtifact, imgMeta)
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}
@@ -249,12 +249,18 @@ func (c *collector) ScanFilesystem(ctx context.Context, path string) (Report, er
 	return bom, nil
 }
 
-func (c *collector) scan(ctx context.Context, artifact artifact.Artifact) (Report, error) {
+func (c *collector) ScanFilesystem(ctx context.Context, path string) (Report, error) {
+	return c.scanFilesystem(ctx, path, nil)
+}
+
+func (c *collector) scan(ctx context.Context, artifact artifact.Artifact, imgMeta *workloadmeta.ContainerImageMetadata) (Report, error) {
 	artifactReference, err := artifact.Inspect(ctx) // called by the scanner as well
 	if err != nil {
 		return nil, err
 	}
-
+	if imgMeta != nil {
+		c.cacheCleaner.setKeysForEntity(imgMeta.EntityID.ID, append(artifactReference.BlobIDs, artifactReference.ID))
+	}
 	s := scanner.NewScanner(local.NewScanner(c.applier, c.detector, c.vulnClient), artifact)
 	trivyReport, err := s.ScanArtifact(ctx, types.ScanOptions{
 		VulnType:            []string{},
@@ -267,9 +273,7 @@ func (c *collector) scan(ctx context.Context, artifact artifact.Artifact) (Repor
 	}
 
 	return &TrivyReport{
-		Report:     trivyReport,
-		marshaler:  c.marshaler,
-		artifactID: artifactReference.ID,
-		blobIDs:    artifactReference.BlobIDs,
+		Report:    trivyReport,
+		marshaler: c.marshaler,
 	}, nil
 }
