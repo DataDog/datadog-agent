@@ -173,6 +173,9 @@ func TestRunK8s(t *testing.T) {
 }
 
 func TestRunDocker(t *testing.T) {
+	// Prevent config.IsKubernetes() from returning true on CI Kubernetes workers
+	os.Unsetenv("KUBERNETES_SERVICE_PORT")
+
 	assert := assert.New(t)
 
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
