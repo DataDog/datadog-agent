@@ -1277,6 +1277,7 @@ core,github.com/sirupsen/logrus,MIT,Copyright (c) 2014 Simon Eskildsen
 core,github.com/skydive-project/go-debouncer,Apache-2.0,"Copyright (C) 2018 Red Hat, Inc."
 core,github.com/smira/go-ftp-protocol/protocol,MIT,Copyright (c) 2014 Andrey Smirnov
 core,github.com/smira/go-xz,MIT,Copyright (c) 2015 Andrey Smirnov
+core,github.com/spaolacci/murmur3,BSD-3-Clause,"Copyright 2013, Sébastien Paolacci"
 core,github.com/spdx/tools-golang/jsonloader,Apache-2.0,Copyright (c) 2018 The Authors
 core,github.com/spdx/tools-golang/jsonloader/parser2v2,Apache-2.0,Copyright (c) 2018 The Authors
 core,github.com/spdx/tools-golang/jsonsaver,Apache-2.0,Copyright (c) 2018 The Authors
@@ -1613,7 +1614,9 @@ core,go.uber.org/zap/internal/color,MIT,"Copyright (c) 2016-2017 Uber Technologi
 core,go.uber.org/zap/internal/exit,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
 core,go.uber.org/zap/zapcore,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
 core,go.uber.org/zap/zapgrpc,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
+core,go4.org/intern,BSD-3-Clause,"Copyright (c) 2020, Brad Fitzpatrick"
 core,go4.org/netipx,BSD-3-Clause,Alex Willmer <alex@moreati.org.uk> | Copyright (c) 2020 The Inet.af AUTHORS. All rights reserved | Matt Layher <mdlayher@gmail.com> | Tailscale Inc. | Tobias Klauser <tklauser@distanz.ch>
+core,go4.org/unsafe/assume-no-moving-gc,BSD-3-Clause,"Copyright (c) 2020, Brad Fitzpatrick"
 core,golang.org/x/arch/arm64/arm64asm,BSD-3-Clause,Copyright (c) 2015 The Go Authors. All rights reserved
 core,golang.org/x/arch/x86/x86asm,BSD-3-Clause,Copyright (c) 2015 The Go Authors. All rights reserved
 core,golang.org/x/crypto/argon2,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
@@ -1892,12 +1895,27 @@ core,google.golang.org/protobuf/types/known/timestamppb,BSD-3-Clause,Copyright (
 core,google.golang.org/protobuf/types/known/wrapperspb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/types/pluginpb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,gopkg.in/DataDog/dd-trace-go.v1/ddtrace,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/dyngo,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/dyngo/instrumentation,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/dyngo/instrumentation/grpcsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/dyngo/instrumentation/httpsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/dyngo/instrumentation/sharedsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/globalconfig,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/log,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/osinfo,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/remoteconfig,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/samplernames,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/telemetry,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/traceprof,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/version,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/profiler,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/profiler/internal,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/profiler/internal/fastdelta,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/profiler/internal/immutable,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/profiler/internal/pproflite,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/profiler/internal/pprofutils,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/Knetic/govaluate.v3,MIT,"Copyright (c) 2014-2016 George Lester | abrander (panic-finding testing tool) | benpaxton (fix for missing type checks during literal elide process) | bgaifullin (lifting restriction on complex/struct types) | dpaolella (exposure of variables used in an expression) | iasci (ternary operator) | oxtoacart (parameter structures, deferred parameter retrieval) | prashantv (optimization of bools) | vjeantet (regex support) | wmiller848 (bitwise operators) | xfennec (fix for dates being parsed in the current Location)"
 core,gopkg.in/cheggaaa/pb.v1,BSD-3-Clause,"Copyright (c) 2012-2015, Sergey Cherepanov"
@@ -1908,6 +1926,7 @@ core,gopkg.in/warnings.v0,BSD-2-Clause,Copyright (c) 2016 Péter Surányi
 core,gopkg.in/yaml.v2,Apache-2.0,Copyright 2011-2016 Canonical Ltd
 core,gopkg.in/yaml.v3,MIT,Copyright (c) 2006-2010 Kirill Simonov | Copyright 2011-2016 Canonical Ltd
 core,gopkg.in/zorkian/go-datadog-api.v2,BSD-3-Clause,Copyright (c) 2013 by authors and contributors | Copyright 2013-2019 by authors and contributors
+core,inet.af/netaddr,BSD-3-Clause,Alex Willmer <alex@moreati.org.uk> | Copyright (c) 2020 The Inet.af AUTHORS. All rights reserved | Matt Layher <mdlayher@gmail.com> | Tailscale Inc. | Tobias Klauser <tklauser@distanz.ch>
 core,k8s.io/api/admission/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/admission/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/admissionregistration/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
