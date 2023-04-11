@@ -886,7 +886,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 		p.DispatchCustomEvent(
 			events.NewCustomRule(events.AnomalyDetectionRuleID),
-			events.NewCustomEvent(event.GetEventType(), p.EventMarshallerCtor(event)),
+			events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtor(event)),
 		)
 	}
 
