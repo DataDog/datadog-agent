@@ -141,10 +141,6 @@ github.com/DataDog/datadog-go/v5 v5.1.1 h1:JLZ6s2K1pG2h9GkvEvMdEGqMDyVLEAccdX5Tl
 github.com/DataDog/datadog-go/v5 v5.1.1/go.mod h1:KhiYb2Badlv9/rofz+OznKoEF5XKTonWyhx5K83AP8E=
 github.com/DataDog/datadog-operator v0.7.1-0.20230215125730-2ba58ce29d56 h1:uj+2t8VpFSgnRucSTr3fG3atc1I6j6fgSw8+nCxnwOs=
 github.com/DataDog/datadog-operator v0.7.1-0.20230215125730-2ba58ce29d56/go.mod h1:3XBfwfK0wBBcs7L+10JI79pg6vYdbOwY3oj+O4Omi6c=
-github.com/DataDog/ebpf-manager v0.2.8-0.20230331131947-0cbd4db2728c h1:tX6ul0I7xhlzihcBU/ivz1cr50VzqVl8qDRtSqVB4F8=
-github.com/DataDog/ebpf-manager v0.2.8-0.20230331131947-0cbd4db2728c/go.mod h1:QNbbXqQdl1RDRDna/vSHzhpTNXTnqxxJRVXdeANgCUA=
-github.com/DataDog/ebpf-manager v0.2.8-0.20230410121706-8e0db9485857 h1:OVuK9OloJaW/oCNNU5d45/BwxFrQ7Xjwj/KvLq8lD8g=
-github.com/DataDog/ebpf-manager v0.2.8-0.20230410121706-8e0db9485857/go.mod h1:QNbbXqQdl1RDRDna/vSHzhpTNXTnqxxJRVXdeANgCUA=
 github.com/DataDog/ebpf-manager v0.2.8-0.20230410141852-96d25f45fcef h1:9FZu3wcetVD6BBOnZTYbM/Npx06anTQZb3J70Cs7kag=
 github.com/DataDog/ebpf-manager v0.2.8-0.20230410141852-96d25f45fcef/go.mod h1:QNbbXqQdl1RDRDna/vSHzhpTNXTnqxxJRVXdeANgCUA=
 github.com/DataDog/extendeddaemonset v0.9.0-rc.2 h1:uTE/QEU0oYtHnebKSMbxap7XMG5603WQxNP/UX63E7k=
@@ -919,7 +915,6 @@ github.com/gobuffalo/packr/v2 v2.2.0/go.mod h1:CaAwI0GPIAv+5wKLtv8Afwl+Cm78K/I/V
 github.com/gobuffalo/syncx v0.0.0-20190224160051-33c29581e754/go.mod h1:HhnNqWY95UYwwW3uSASeV7vtgYkT2t16hJgV3AEPUpw=
 github.com/gobwas/glob v0.2.3 h1:A4xDbljILXROh+kObIiy5kIaPYD8e96x1tgBhUI5J+Y=
 github.com/gobwas/glob v0.2.3/go.mod h1:d3Ez4x06l9bZtSvzIay5+Yzi0fmZzPgnTbPcKjJAkT8=
-github.com/goccy/go-yaml v1.8.1 h1:JuZRFlqLM5cWF6A+waL8AKVuCcqvKOuhJtUQI+L3ez0=
 github.com/goccy/go-yaml v1.8.2 h1:gDYrSN12XK/wQTFjxWIgcIqjNCV/Zb5V09M7cq+dbCs=
 github.com/gocql/gocql v0.0.0-20220224095938-0eacd3183625/go.mod h1:3gM2c4D3AnkISwBxGnMMsS8Oy4y2lhbPRsH4xnJrHG8=
 github.com/godbus/dbus v0.0.0-20151105175453-c7fdd8b5cd55/go.mod h1:/YcGZj5zSblfDWMMoOzV4fas9FZnQYTkDnsGvmh2Grw=
@@ -1323,7 +1318,6 @@ github.com/jmespath/go-jmespath v0.4.0 h1:BEgLn5cpjn8UN1mAw4NjwDrS35OdebyEtFe+9Y
 github.com/jmespath/go-jmespath v0.4.0/go.mod h1:T8mJZnbsbmF+m6zOOFylbeCJqk5+pHWvzYPziyZiYoo=
 github.com/jmespath/go-jmespath/internal/testify v1.5.1 h1:shLQSRRSCCPj3f2gpwzGwWFoC7ycTf1rcQZHOlsJ6N8=
 github.com/jmespath/go-jmespath/internal/testify v1.5.1/go.mod h1:L3OGu8Wl2/fWfCI6z80xFu9LTZmf1ZRjMHUOPmWr69U=
-github.com/jmoiron/sqlx v1.2.0 h1:41Ip0zITnmWNR/vHV+S4m+VoUivnWY5E4OJfLZjCJMA=
 github.com/jmoiron/sqlx v1.2.0/go.mod h1:1FEQNm3xlJgrMD+FBdI9+xvCksHtbpVBBw5dYhBSsks=
 github.com/jmoiron/sqlx v1.3.5 h1:vFFPA71p1o5gAeqtEAwLU4dnX2napprKtHr7PYIcN3g=
 github.com/joefitzgerald/rainbow-reporter v0.1.0/go.mod h1:481CNgqmVHQZzdIbN52CupLJyoVwB10FQ/IQlF1pdL8=
@@ -3028,7 +3022,6 @@ k8s.io/apimachinery v0.23.15 h1:IyYaHIVN2OL1QKXXye0IWNI/EpOBicMVRkj34rIdyPk=
 k8s.io/apimachinery v0.23.15/go.mod h1:mbefzm1H5rPdyibAc8rmzLAbr/oG60tDHQFj0FTqrZU=
 k8s.io/autoscaler/vertical-pod-autoscaler v0.12.0 h1:cy8LoXSl5GkTNJDTx3ZCS143f9Ai7gqnGkoUxPlGSmI=
 k8s.io/autoscaler/vertical-pod-autoscaler v0.12.0/go.mod h1:LraL5kR2xX7jb4VMCG6/tUH4I75uRHlnzC0VWQHcyWk=
-k8s.io/cli-runtime v0.23.5 h1:Z7XUpGoJZYZB2uNjQfJjMbyDKyVkoBGye62Ap0sWQHY=
 k8s.io/cli-runtime v0.25.3 h1:Zs7P7l7db/5J+KDePOVtDlArAa9pZXaDinGWGZl0aM8=
 k8s.io/client-go v0.23.15 h1:raIR9U0gmZwX2kkwR4PtLghcNfYTiB9QYdodlycmT1s=
 k8s.io/client-go v0.23.15/go.mod h1:ar8V/vcyQD28dkxGURvv2JTteCUL9PMW5DZXpNrJBTY=
@@ -3117,9 +3110,7 @@ sigs.k8s.io/custom-metrics-apiserver v1.23.0/go.mod h1:fh9GeIlqMqo3xs7OUL7kUPdaC
 sigs.k8s.io/json v0.0.0-20211020170558-c049b76a60c6/go.mod h1:p4QtZmO4uMYipTQNzagwnNoseA6OxSUutVw05NhYDRs=
 sigs.k8s.io/json v0.0.0-20220713155537-f223a00ba0e2 h1:iXTIw73aPyC+oRdyqqvVJuloN1p0AC/kzH07hu3NE+k=
 sigs.k8s.io/json v0.0.0-20220713155537-f223a00ba0e2/go.mod h1:B8JuhiUyNFVKdsE8h686QcCxMaH6HrOAZj4vswFpcB0=
-sigs.k8s.io/kustomize/api v0.10.1 h1:KgU7hfYoscuqag84kxtzKdEC3mKMb99DPI3a0eaV1d0=
 sigs.k8s.io/kustomize/api v0.12.1 h1:7YM7gW3kYBwtKvoY216ZzY+8hM+lV53LUayghNRJ0vM=
-sigs.k8s.io/kustomize/kyaml v0.13.0 h1:9c+ETyNfSrVhxvphs+K2dzT3dh5oVPPEqPOE/cUpScY=
 sigs.k8s.io/kustomize/kyaml v0.13.9 h1:Qz53EAaFFANyNgyOEJbT/yoIHygK40/ZcvU3rgry2Tk=
 sigs.k8s.io/structured-merge-diff/v4 v4.0.2/go.mod h1:bJZC9H9iH24zzfZ/41RGcq60oK1F7G282QMXDPYydCw=
 sigs.k8s.io/structured-merge-diff/v4 v4.2.1/go.mod h1:j/nl6xW8vLS49O8YvXW1ocPhZawJtm+Yrr7PPRQ0Vg4=

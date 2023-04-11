@@ -566,11 +566,15 @@ require (
 	sigs.k8s.io/yaml v1.3.0
 )
 
-require github.com/mrtkmynsndev/grpc-tls-go v0.0.0-20220216110245-c1c225d57270
+require (
+	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
+	github.com/mrtkmynsndev/grpc-tls-go v0.0.0-20220216110245-c1c225d57270
+)
 
 require (
 	github.com/cloudflare/circl v1.1.0 // indirect
 	github.com/rs/zerolog v1.29.0 // indirect
+	github.com/sigstore/rekor v1.0.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 )
 
