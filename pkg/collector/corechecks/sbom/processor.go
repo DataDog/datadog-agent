@@ -50,7 +50,7 @@ type processor struct {
 }
 
 func newProcessor(workloadmetaStore workloadmeta.Store, sender aggregator.Sender, maxNbItem int, maxRetentionTime time.Duration) (*processor, error) {
-	enabledAnalyzers := ddConfig.Datadog.GetStringSlice("sbom.analyzers")
+	hostScanOpts := sbom.ScanOptionsFromConfig(ddConfig.Datadog, false)
 	sbomScanner := sbomscanner.GetGlobalScanner()
 	if sbomScanner == nil {
 		return nil, errors.New("failed to get global SBOM scanner")
@@ -76,10 +76,8 @@ func newProcessor(workloadmetaStore workloadmeta.Store, sender aggregator.Sender
 		imageRepoDigests:  make(map[string]string),
 		imageUsers:        make(map[string]map[string]struct{}),
 		sbomScanner:       sbomScanner,
-		hostScanOpts: sbom.ScanOptions{
-			Analyzers: enabledAnalyzers,
-		},
-		hostname: hostname,
+		hostScanOpts:      hostScanOpts,
+		hostname:          hostname,
 	}, nil
 }
 

@@ -35,14 +35,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 		return nil
 	}
 
-	var err error
-	enabledAnalyzers := config.Datadog.GetStringSlice("container_image_collection.sbom.analyzers")
-	c.scanOptions = sbom.ScanOptions{
-		Analyzers: enabledAnalyzers,
-		Timeout:   scanningTimeout(),
-		WaitAfter: timeBetweenScans(),
-	}
-
+	c.scanOptions = sbom.ScanOptionsFromConfig(config.Datadog, true)
 	c.sbomScanner = scanner.GetGlobalScanner()
 	if c.sbomScanner == nil {
 		return fmt.Errorf("error retrieving global SBOM scanner")
@@ -78,12 +71,9 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 						continue
 					}
 
-					scanContext, cancel := context.WithTimeout(ctx, scanningTimeout())
-					if err := c.extractBOMWithTrivy(scanContext, image); err != nil {
+					if err := c.extractBOMWithTrivy(ctx, image); err != nil {
 						log.Warnf("Error extracting SBOM for image: namespace=%s name=%s, err: %s", image.Namespace, image.Name, err)
 					}
-
-					cancel()
 				}
 			}
 		}
@@ -133,12 +123,4 @@ func (c *collector) extractBOMWithTrivy(ctx context.Context, storedImage *worklo
 	}()
 
 	return nil
-}
-
-func scanningTimeout() time.Duration {
-	return time.Duration(config.Datadog.GetInt("container_image_collection.sbom.scan_timeout")) * time.Second
-}
-
-func timeBetweenScans() time.Duration {
-	return time.Duration(config.Datadog.GetInt("container_image_collection.sbom.scan_interval")) * time.Second
 }

@@ -11,7 +11,6 @@ package containerd
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
@@ -30,23 +29,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 		return nil
 	}
 
-	var err error
-	enabledAnalyzers := config.Datadog.GetStringSlice("container_image_collection.sbom.analyzers")
-	if len(enabledAnalyzers) == 0 {
-		enabledAnalyzers = config.Datadog.GetStringSlice("sbom.analyzers")
-	}
-
-	checkDiskUsage := config.Datadog.GetBool("container_image_collection.sbom.check_disk_usage")
-	minAvailableDisk := uint64(config.Datadog.GetSizeInBytes("container_image_collection.sbom.min_available_disk"))
-
-	c.scanOptions = sbom.ScanOptions{
-		Analyzers:        enabledAnalyzers,
-		Timeout:          scanningTimeout(),
-		WaitAfter:        timeBetweenScans(),
-		CheckDiskUsage:   checkDiskUsage,
-		MinAvailableDisk: minAvailableDisk,
-	}
-
+	c.scanOptions = sbom.ScanOptionsFromConfig(config.Datadog, true)
 	c.sbomScanner = scanner.GetGlobalScanner()
 	if c.sbomScanner == nil {
 		return fmt.Errorf("error retrieving global SBOM scanner")
@@ -82,12 +65,9 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 						continue
 					}
 
-					scanContext, cancel := context.WithTimeout(ctx, scanningTimeout())
-					if err := c.extractBOMWithTrivy(scanContext, image); err != nil {
+					if err := c.extractBOMWithTrivy(ctx, image); err != nil {
 						log.Warnf("Error extracting SBOM for image: namespace=%s name=%s, err: %s", image.Namespace, image.Name, err)
 					}
-
-					cancel()
 				}
 			}
 		}
@@ -138,12 +118,4 @@ func (c *collector) extractBOMWithTrivy(ctx context.Context, storedImage *worklo
 	}()
 
 	return nil
-}
-
-func scanningTimeout() time.Duration {
-	return time.Duration(config.Datadog.GetInt("container_image_collection.sbom.scan_timeout")) * time.Second
-}
-
-func timeBetweenScans() time.Duration {
-	return time.Duration(config.Datadog.GetInt("container_image_collection.sbom.scan_interval")) * time.Second
 }
