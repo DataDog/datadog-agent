@@ -287,8 +287,8 @@ func NewPersistentCache(
 
 // Contains implements Cache#Contains. It only performs an in-memory check.
 func (c *PersistentCache) Contains(key string) bool {
-	c.mutex.RLock()
-	defer c.mutex.RUnlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	// using lruCache.Get moves the key to the head of the evictList
 	// it is necessary to avoid evicting a key after calling MissingBlobs
 	_, ok := c.lruCache.Get(key)
