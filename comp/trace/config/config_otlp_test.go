@@ -21,17 +21,16 @@ import (
 
 func TestFullYamlConfigWithOTLP(t *testing.T) {
 
-	fxutil.Test(t, fx.Options(
+	config := fxutil.Test[Component](t, fx.Options(
 		fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 		corecomp.MockModule,
 		fx.Supply(Params{}),
 		MockModule,
-	), func(config Component) {
-		cfg := config.Object()
+	))
+	cfg := config.Object()
 
-		require.NotNil(t, cfg)
+	require.NotNil(t, cfg)
 
-		assert.Equal(t, "0.0.0.0", cfg.OTLPReceiver.BindHost)
-		assert.Equal(t, 50053, cfg.OTLPReceiver.GRPCPort)
-	})
+	assert.Equal(t, "0.0.0.0", cfg.OTLPReceiver.BindHost)
+	assert.Equal(t, 50053, cfg.OTLPReceiver.GRPCPort)
 }

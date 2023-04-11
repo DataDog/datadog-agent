@@ -85,20 +85,19 @@ func TestSplitTag(t *testing.T) {
 func TestTelemetryEndpointsConfig(t *testing.T) {
 
 	t.Run("default", func(t *testing.T) {
-		fxutil.Test(t, fx.Options(
+		config := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.Params{}),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(config Component) {
-			// underlying config
-			cfg := config.Object()
-			require.NotNil(t, cfg)
+		))
+		// underlying config
+		cfg := config.Object()
+		require.NotNil(t, cfg)
 
-			assert.True(t, cfg.TelemetryConfig.Enabled)
-			assert.Len(t, cfg.TelemetryConfig.Endpoints, 1)
-			assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com", cfg.TelemetryConfig.Endpoints[0].Host)
-		})
+		assert.True(t, cfg.TelemetryConfig.Enabled)
+		assert.Len(t, cfg.TelemetryConfig.Endpoints, 1)
+		assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com", cfg.TelemetryConfig.Endpoints[0].Host)
 	})
 
 	t.Run("dd_url", func(t *testing.T) {
@@ -107,20 +106,19 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 			"apm_config.telemetry.dd_url": "http://example.com/",
 		}
 
-		fxutil.Test(t, fx.Options(
+		config := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewParams("", corecomp.WithOverrides(overrides))),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(config Component) {
-			// underlying config
-			cfg := config.Object()
-			require.NotNil(t, cfg)
+		))
+		// underlying config
+		cfg := config.Object()
+		require.NotNil(t, cfg)
 
-			assert.True(t, cfg.TelemetryConfig.Enabled)
-			assert.Len(t, cfg.TelemetryConfig.Endpoints, 1)
-			assert.Equal(t, "http://example.com/", cfg.TelemetryConfig.Endpoints[0].Host)
-		})
+		assert.True(t, cfg.TelemetryConfig.Enabled)
+		assert.Len(t, cfg.TelemetryConfig.Endpoints, 1)
+		assert.Equal(t, "http://example.com/", cfg.TelemetryConfig.Endpoints[0].Host)
 	})
 
 	t.Run("dd_url-malformed", func(t *testing.T) {
@@ -129,20 +127,20 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 			"apm_config.telemetry.dd_url": "111://abc.com",
 		}
 
-		fxutil.Test(t, fx.Options(
+		config := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewParams("", corecomp.WithOverrides(overrides))),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(config Component) {
-			// underlying config
-			cfg := config.Object()
-			require.NotNil(t, cfg)
+		))
 
-			assert.True(t, cfg.TelemetryConfig.Enabled)
-			assert.Len(t, cfg.TelemetryConfig.Endpoints, 1)
-			assert.Equal(t, cfg.TelemetryConfig.Endpoints[0].Host, "111://abc.com")
-		})
+		// underlying config
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+
+		assert.True(t, cfg.TelemetryConfig.Enabled)
+		assert.Len(t, cfg.TelemetryConfig.Endpoints, 1)
+		assert.Equal(t, cfg.TelemetryConfig.Endpoints[0].Host, "111://abc.com")
 	})
 
 	t.Run("site", func(t *testing.T) {
@@ -151,20 +149,19 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 			"site": "new_site.example.com",
 		}
 
-		fxutil.Test(t, fx.Options(
+		config := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewParams("", corecomp.WithOverrides(overrides))),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(config Component) {
-			// underlying config
-			cfg := config.Object()
-			require.NotNil(t, cfg)
+		))
+		// underlying config
+		cfg := config.Object()
+		require.NotNil(t, cfg)
 
-			assert.True(t, cfg.TelemetryConfig.Enabled)
-			assert.Len(t, cfg.TelemetryConfig.Endpoints, 1)
-			assert.Equal(t, "https://instrumentation-telemetry-intake.new_site.example.com", cfg.TelemetryConfig.Endpoints[0].Host)
-		})
+		assert.True(t, cfg.TelemetryConfig.Enabled)
+		assert.Len(t, cfg.TelemetryConfig.Endpoints, 1)
+		assert.Equal(t, "https://instrumentation-telemetry-intake.new_site.example.com", cfg.TelemetryConfig.Endpoints[0].Host)
 	})
 
 	t.Run("additional-hosts", func(t *testing.T) {
@@ -177,25 +174,24 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 			"apm_config.telemetry.additional_endpoints": additionalEndpoints,
 		}
 
-		fxutil.Test(t, fx.Options(
+		config := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewParams("", corecomp.WithOverrides(overrides))),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(config Component) {
-			// underlying config
-			cfg := config.Object()
-			require.NotNil(t, cfg)
+		))
+		// underlying config
+		cfg := config.Object()
+		require.NotNil(t, cfg)
 
-			assert.True(t, cfg.TelemetryConfig.Enabled)
-			assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com", cfg.TelemetryConfig.Endpoints[0].Host)
+		assert.True(t, cfg.TelemetryConfig.Enabled)
+		assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com", cfg.TelemetryConfig.Endpoints[0].Host)
 
-			assert.Len(t, cfg.TelemetryConfig.Endpoints, 3)
-			for _, endpoint := range cfg.TelemetryConfig.Endpoints[1:] {
-				assert.NotNil(t, additionalEndpoints[endpoint.Host])
-				assert.Equal(t, endpoint.APIKey, additionalEndpoints[endpoint.Host])
-			}
-		})
+		assert.Len(t, cfg.TelemetryConfig.Endpoints, 3)
+		for _, endpoint := range cfg.TelemetryConfig.Endpoints[1:] {
+			assert.NotNil(t, additionalEndpoints[endpoint.Host])
+			assert.Equal(t, endpoint.APIKey, additionalEndpoints[endpoint.Host])
+		}
 	})
 
 	t.Run("keep-malformed", func(t *testing.T) {
@@ -208,25 +204,24 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 			"apm_config.telemetry.additional_endpoints": additionalEndpoints,
 		}
 
-		fxutil.Test(t, fx.Options(
+		config := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewParams("", corecomp.WithOverrides(overrides))),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(config Component) {
-			// underlying config
-			cfg := config.Object()
-			require.NotNil(t, cfg)
+		))
+		// underlying config
+		cfg := config.Object()
+		require.NotNil(t, cfg)
 
-			assert.True(t, cfg.TelemetryConfig.Enabled)
-			assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com", cfg.TelemetryConfig.Endpoints[0].Host)
+		assert.True(t, cfg.TelemetryConfig.Enabled)
+		assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com", cfg.TelemetryConfig.Endpoints[0].Host)
 
-			assert.Len(t, cfg.TelemetryConfig.Endpoints, 3)
-			for _, endpoint := range cfg.TelemetryConfig.Endpoints[1:] {
-				assert.NotNil(t, additionalEndpoints[endpoint.Host])
-				assert.Equal(t, endpoint.APIKey, additionalEndpoints[endpoint.Host])
-			}
-		})
+		assert.Len(t, cfg.TelemetryConfig.Endpoints, 3)
+		for _, endpoint := range cfg.TelemetryConfig.Endpoints[1:] {
+			assert.NotNil(t, additionalEndpoints[endpoint.Host])
+			assert.Equal(t, endpoint.APIKey, additionalEndpoints[endpoint.Host])
+		}
 	})
 }
 
@@ -274,64 +269,61 @@ func TestConfigHostname(t *testing.T) {
 			t.Skip()
 		}
 
-		fxutil.Test(t, fx.Options(
+		config := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/site_override.yaml")),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(config Component) {
-			cfg := config.Object()
+		))
+		cfg := config.Object()
 
-			require.NotNil(t, cfg)
-			assert.Equal(t, host, cfg.Hostname)
-		})
+		require.NotNil(t, cfg)
+		assert.Equal(t, host, cfg.Hostname)
 	})
 
 	t.Run("file", func(t *testing.T) {
 
-		fxutil.Test(t, fx.Options(
+		config := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(config Component) {
-			cfg := config.Object()
+		))
 
-			require.NotNil(t, cfg)
-			assert.Equal(t, "mymachine", cfg.Hostname)
-		})
+		cfg := config.Object()
+
+		require.NotNil(t, cfg)
+		assert.Equal(t, "mymachine", cfg.Hostname)
 	})
 
 	t.Run("env", func(t *testing.T) {
 		t.Setenv("XXXX_HOSTNAME", "onlyenv")
 
-		fxutil.Test(t, fx.Options(
+		config := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/site_override.yaml")),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(config Component) {
-			cfg := config.Object()
+		))
+		cfg := config.Object()
 
-			require.NotNil(t, cfg)
-			assert.Equal(t, "onlyenv", cfg.Hostname)
-		})
+		require.NotNil(t, cfg)
+		assert.Equal(t, "onlyenv", cfg.Hostname)
 	})
 
 	t.Run("file+env", func(t *testing.T) {
 		t.Setenv("XXXX_HOSTNAME", "envoverride")
 
-		fxutil.Test(t, fx.Options(
+		config := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(config Component) {
-			cfg := config.Object()
+		))
+		cfg := config.Object()
 
-			require.NotNil(t, cfg)
-			assert.Equal(t, "envoverride", cfg.Hostname)
-		})
+		require.NotNil(t, cfg)
+		assert.Equal(t, "envoverride", cfg.Hostname)
 	})
 
 	t.Run("serverless", func(t *testing.T) {
@@ -339,17 +331,16 @@ func TestConfigHostname(t *testing.T) {
 			"serverless.enabled": true,
 		}
 
-		fxutil.Test(t, fx.Options(
+		config := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/site_default.yaml", corecomp.WithOverrides(overrides))),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(config Component) {
-			cfg := config.Object()
+		))
+		cfg := config.Object()
 
-			require.NotNil(t, cfg)
-			assert.Equal(t, "", cfg.Hostname)
-		})
+		require.NotNil(t, cfg)
+		assert.Equal(t, "", cfg.Hostname)
 	})
 
 	t.Run("external", func(t *testing.T) {
@@ -396,20 +387,19 @@ func TestConfigHostname(t *testing.T) {
 			bin := makeProgram("host.name", 0)
 			defer os.Remove(bin)
 
-			fxutil.Test(t, fx.Options(
+			config := fxutil.Test[Component](t, fx.Options(
 				fx.Supply(corecomp.NewParams("")),
 				corecomp.MockModule,
 				fx.Supply(Params{}),
 				MockModule,
-			), func(config Component) {
-				// underlying config
-				cfg := config.Object()
-				require.NotNil(t, cfg)
+			))
+			// underlying config
+			cfg := config.Object()
+			require.NotNil(t, cfg)
 
-				cfg.DDAgentBin = bin
-				assert.NoError(t, acquireHostnameFallback(cfg))
-				assert.Equal(t, cfg.Hostname, "host.name")
-			})
+			cfg.DDAgentBin = bin
+			assert.NoError(t, acquireHostnameFallback(cfg))
+			assert.Equal(t, cfg.Hostname, "host.name")
 
 		})
 
@@ -417,81 +407,78 @@ func TestConfigHostname(t *testing.T) {
 			bin := makeProgram("", 0)
 			defer os.Remove(bin)
 
-			fxutil.Test(t, fx.Options(
+			config := fxutil.Test[Component](t, fx.Options(
 				fx.Supply(corecomp.NewParams("")),
 				corecomp.MockModule,
 				fx.Supply(Params{}),
 				MockModule,
-			), func(config Component) {
-				// underlying config
-				cfg := config.Object()
-				require.NotNil(t, cfg)
+			))
+			// underlying config
+			cfg := config.Object()
+			require.NotNil(t, cfg)
 
-				cfg.DDAgentBin = bin
-				assert.NoError(t, acquireHostnameFallback(cfg))
-				assert.Empty(t, cfg.Hostname)
-			})
+			cfg.DDAgentBin = bin
+			assert.NoError(t, acquireHostnameFallback(cfg))
+			assert.Empty(t, cfg.Hostname)
 		})
 
 		t.Run("empty+disallowed", func(t *testing.T) {
 			bin := makeProgram("", 0)
 			defer os.Remove(bin)
 
-			fxutil.Test(t, fx.Options(
+			config := fxutil.Test[Component](t, fx.Options(
 				fx.Supply(corecomp.NewParams("")),
 				corecomp.MockModule,
 				fx.Supply(Params{}),
 				MockModule,
-			), func(config Component) {
-				// underlying config
-				cfg := config.Object()
-				require.NotNil(t, cfg)
+			))
 
-				cfg.DDAgentBin = bin
-				cfg.Features = map[string]struct{}{"disable_empty_hostname": {}}
-				assert.NoError(t, acquireHostnameFallback(cfg))
-				assert.Equal(t, "fallback.host", cfg.Hostname)
-			})
+			// underlying config
+			cfg := config.Object()
+			require.NotNil(t, cfg)
+
+			cfg.DDAgentBin = bin
+			cfg.Features = map[string]struct{}{"disable_empty_hostname": {}}
+			assert.NoError(t, acquireHostnameFallback(cfg))
+			assert.Equal(t, "fallback.host", cfg.Hostname)
 		})
 
 		t.Run("fallback1", func(t *testing.T) {
 			bin := makeProgram("", 1)
 			defer os.Remove(bin)
 
-			fxutil.Test(t, fx.Options(
+			config := fxutil.Test[Component](t, fx.Options(
 				fx.Supply(corecomp.NewParams("")),
 				corecomp.MockModule,
 				fx.Supply(Params{}),
 				MockModule,
-			), func(config Component) {
-				// underlying config
-				cfg := config.Object()
-				require.NotNil(t, cfg)
+			))
+			// underlying config
+			cfg := config.Object()
+			require.NotNil(t, cfg)
 
-				cfg.DDAgentBin = bin
-				assert.NoError(t, acquireHostnameFallback(cfg))
-				assert.Equal(t, cfg.Hostname, "fallback.host")
-			})
+			cfg.DDAgentBin = bin
+			assert.NoError(t, acquireHostnameFallback(cfg))
+			assert.Equal(t, cfg.Hostname, "fallback.host")
 		})
 
 		t.Run("fallback2", func(t *testing.T) {
 			bin := makeProgram("some text", 1)
 			defer os.Remove(bin)
 
-			fxutil.Test(t, fx.Options(
+			config := fxutil.Test[Component](t, fx.Options(
 				fx.Supply(corecomp.NewParams("")),
 				corecomp.MockModule,
 				fx.Supply(Params{}),
 				MockModule,
-			), func(config Component) {
-				// underlying config
-				cfg := config.Object()
-				require.NotNil(t, cfg)
+			))
+			// underlying config
+			cfg := config.Object()
+			require.NotNil(t, cfg)
 
-				cfg.DDAgentBin = bin
-				assert.NoError(t, acquireHostnameFallback(cfg))
-				assert.Equal(t, cfg.Hostname, "fallback.host")
-			})
+			cfg.DDAgentBin = bin
+			assert.NoError(t, acquireHostnameFallback(cfg))
+			assert.Equal(t, cfg.Hostname, "fallback.host")
 		})
 	})
 }
@@ -509,205 +496,199 @@ func TestSite(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 
-			fxutil.Test(t, fx.Options(
+			config := fxutil.Test[Component](t, fx.Options(
 				fx.Supply(corecomp.NewAgentParamsWithSecrets(tt.file)),
 				corecomp.MockModule,
 				fx.Supply(Params{}),
 				MockModule,
-			), func(config Component) {
-				cfg := config.Object()
+			))
+			cfg := config.Object()
 
-				require.NotNil(t, cfg)
-				assert.Equal(t, tt.url, cfg.Endpoints[0].Host)
-			})
+			require.NotNil(t, cfg)
+			assert.Equal(t, tt.url, cfg.Endpoints[0].Host)
 		})
 	}
 }
 
 func TestDefaultConfig(t *testing.T) {
 
-	fxutil.Test(t, fx.Options(
+	config := fxutil.Test[Component](t, fx.Options(
 		fx.Supply(corecomp.Params{}),
 		corecomp.MockModule,
 		fx.Supply(Params{}),
 		MockModule,
-	), func(config Component) {
-		cfg := config.Object()
+	))
+	cfg := config.Object()
 
-		require.NotNil(t, cfg)
+	require.NotNil(t, cfg)
 
-		// assert that some sane defaults are set
-		assert.Equal(t, "localhost", cfg.ReceiverHost)
-		assert.Equal(t, 8126, cfg.ReceiverPort)
+	// assert that some sane defaults are set
+	assert.Equal(t, "localhost", cfg.ReceiverHost)
+	assert.Equal(t, 8126, cfg.ReceiverPort)
 
-		assert.Equal(t, "localhost", cfg.StatsdHost)
-		assert.Equal(t, 8125, cfg.StatsdPort)
-		assert.Equal(t, true, cfg.StatsdEnabled)
+	assert.Equal(t, "localhost", cfg.StatsdHost)
+	assert.Equal(t, 8125, cfg.StatsdPort)
+	assert.Equal(t, true, cfg.StatsdEnabled)
 
-		assert.Equal(t, true, cfg.Enabled)
-	})
+	assert.Equal(t, true, cfg.Enabled)
 
 }
 
 func TestNoAPMConfig(t *testing.T) {
 
-	fxutil.Test(t, fx.Options(
+	config := fxutil.Test[Component](t, fx.Options(
 		fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/no_apm_config.yaml")),
 		corecomp.MockModule,
 		fx.Supply(Params{}),
 		MockModule,
-	), func(config Component) {
-		cfg := config.Object()
+	))
+	cfg := config.Object()
 
-		require.NotNil(t, cfg)
+	require.NotNil(t, cfg)
 
-		assert.Equal(t, "thingo", cfg.Hostname)
-		assert.Equal(t, "apikey_12", cfg.Endpoints[0].APIKey)
-		assert.Equal(t, "0.0.0.0", cfg.ReceiverHost)
-		assert.Equal(t, 28125, cfg.StatsdPort)
-	})
+	assert.Equal(t, "thingo", cfg.Hostname)
+	assert.Equal(t, "apikey_12", cfg.Endpoints[0].APIKey)
+	assert.Equal(t, "0.0.0.0", cfg.ReceiverHost)
+	assert.Equal(t, 28125, cfg.StatsdPort)
 }
 
 func TestFullYamlConfig(t *testing.T) {
 
-	fxutil.Test(t, fx.Options(
+	config := fxutil.Test[Component](t, fx.Options(
 		fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 		corecomp.MockModule,
 		fx.Supply(Params{}),
 		MockModule,
-	), func(config Component) {
-		cfg := config.Object()
+	))
+	cfg := config.Object()
 
-		require.NotNil(t, cfg)
-		req, err := http.NewRequest(http.MethodGet, "https://someplace.test", nil)
-		assert.NoError(t, err)
-		proxyURL, err := cfg.Proxy(req)
-		assert.NoError(t, err)
-		assert.Equal(t, "proxy_for_https:1234", proxyURL.Host)
+	require.NotNil(t, cfg)
+	req, err := http.NewRequest(http.MethodGet, "https://someplace.test", nil)
+	assert.NoError(t, err)
+	proxyURL, err := cfg.Proxy(req)
+	assert.NoError(t, err)
+	assert.Equal(t, "proxy_for_https:1234", proxyURL.Host)
 
-		assert.Equal(t, "mymachine", cfg.Hostname)
-		assert.Equal(t, "https://user:password@proxy_for_https:1234", cfg.ProxyURL.String())
-		assert.True(t, cfg.SkipSSLValidation)
-		assert.Equal(t, 18125, cfg.StatsdPort)
-		assert.False(t, cfg.Enabled)
-		assert.Equal(t, "abc", cfg.LogFilePath)
-		assert.Equal(t, "test", cfg.DefaultEnv)
-		assert.Equal(t, 123, cfg.ConnectionLimit)
-		assert.Equal(t, 18126, cfg.ReceiverPort)
-		assert.Equal(t, 0.5, cfg.ExtraSampleRate)
-		assert.Equal(t, 5.0, cfg.TargetTPS)
-		assert.Equal(t, 50.0, cfg.MaxEPS)
-		assert.Equal(t, 0.5, cfg.MaxCPU)
-		assert.EqualValues(t, 123.4, cfg.MaxMemory)
-		assert.Equal(t, "0.0.0.0", cfg.ReceiverHost)
-		assert.True(t, cfg.LogThrottling)
-		assert.True(t, cfg.OTLPReceiver.SpanNameAsResourceName)
-		assert.Equal(t, map[string]string{"a": "b", "and:colons": "in:values", "c": "d", "with.dots": "in.side"}, cfg.OTLPReceiver.SpanNameRemappings)
+	assert.Equal(t, "mymachine", cfg.Hostname)
+	assert.Equal(t, "https://user:password@proxy_for_https:1234", cfg.ProxyURL.String())
+	assert.True(t, cfg.SkipSSLValidation)
+	assert.Equal(t, 18125, cfg.StatsdPort)
+	assert.False(t, cfg.Enabled)
+	assert.Equal(t, "abc", cfg.LogFilePath)
+	assert.Equal(t, "test", cfg.DefaultEnv)
+	assert.Equal(t, 123, cfg.ConnectionLimit)
+	assert.Equal(t, 18126, cfg.ReceiverPort)
+	assert.Equal(t, 0.5, cfg.ExtraSampleRate)
+	assert.Equal(t, 5.0, cfg.TargetTPS)
+	assert.Equal(t, 50.0, cfg.MaxEPS)
+	assert.Equal(t, 0.5, cfg.MaxCPU)
+	assert.EqualValues(t, 123.4, cfg.MaxMemory)
+	assert.Equal(t, "0.0.0.0", cfg.ReceiverHost)
+	assert.True(t, cfg.LogThrottling)
+	assert.True(t, cfg.OTLPReceiver.SpanNameAsResourceName)
+	assert.Equal(t, map[string]string{"a": "b", "and:colons": "in:values", "c": "d", "with.dots": "in.side"}, cfg.OTLPReceiver.SpanNameRemappings)
 
-		noProxy := true
-		if _, ok := os.LookupEnv("NO_PROXY"); ok {
-			// Happens in CircleCI: if the environment variable is set,
-			// it will overwrite our loaded configuration and will cause
-			// this test to fail.
-			noProxy = false
-		}
-		assert.ElementsMatch(t, []*traceconfig.Endpoint{
-			{Host: "https://datadog.unittests", APIKey: "api_key_test"},
-			{Host: "https://my1.endpoint.com", APIKey: "apikey1"},
-			{Host: "https://my1.endpoint.com", APIKey: "apikey2"},
-			{Host: "https://my2.endpoint.eu", APIKey: "apikey3", NoProxy: noProxy},
-			{Host: "https://my2.endpoint.eu", APIKey: "apikey4", NoProxy: noProxy},
-			{Host: "https://my2.endpoint.eu", APIKey: "apikey5", NoProxy: noProxy},
-		}, cfg.Endpoints)
+	noProxy := true
+	if _, ok := os.LookupEnv("NO_PROXY"); ok {
+		// Happens in CircleCI: if the environment variable is set,
+		// it will overwrite our loaded configuration and will cause
+		// this test to fail.
+		noProxy = false
+	}
+	assert.ElementsMatch(t, []*traceconfig.Endpoint{
+		{Host: "https://datadog.unittests", APIKey: "api_key_test"},
+		{Host: "https://my1.endpoint.com", APIKey: "apikey1"},
+		{Host: "https://my1.endpoint.com", APIKey: "apikey2"},
+		{Host: "https://my2.endpoint.eu", APIKey: "apikey3", NoProxy: noProxy},
+		{Host: "https://my2.endpoint.eu", APIKey: "apikey4", NoProxy: noProxy},
+		{Host: "https://my2.endpoint.eu", APIKey: "apikey5", NoProxy: noProxy},
+	}, cfg.Endpoints)
 
-		assert.ElementsMatch(t, []*traceconfig.Tag{{K: "env", V: "prod"}, {K: "db", V: "mongodb"}}, cfg.RequireTags)
-		assert.ElementsMatch(t, []*traceconfig.Tag{{K: "outcome", V: "success"}}, cfg.RejectTags)
+	assert.ElementsMatch(t, []*traceconfig.Tag{{K: "env", V: "prod"}, {K: "db", V: "mongodb"}}, cfg.RequireTags)
+	assert.ElementsMatch(t, []*traceconfig.Tag{{K: "outcome", V: "success"}}, cfg.RejectTags)
 
-		assert.ElementsMatch(t, []*traceconfig.ReplaceRule{
-			{
-				Name:    "http.method",
-				Pattern: "\\?.*$",
-				Repl:    "GET",
-				Re:      regexp.MustCompile("\\?.*$"),
-			},
-			{
-				Name:    "http.url",
-				Pattern: "\\?.*$",
-				Repl:    "!",
-				Re:      regexp.MustCompile("\\?.*$"),
-			},
-			{
-				Name:    "error.stack",
-				Pattern: "(?s).*",
-				Repl:    "?",
-				Re:      regexp.MustCompile("(?s).*"),
-			},
-		}, cfg.ReplaceTags)
+	assert.ElementsMatch(t, []*traceconfig.ReplaceRule{
+		{
+			Name:    "http.method",
+			Pattern: "\\?.*$",
+			Repl:    "GET",
+			Re:      regexp.MustCompile("\\?.*$"),
+		},
+		{
+			Name:    "http.url",
+			Pattern: "\\?.*$",
+			Repl:    "!",
+			Re:      regexp.MustCompile("\\?.*$"),
+		},
+		{
+			Name:    "error.stack",
+			Pattern: "(?s).*",
+			Repl:    "?",
+			Re:      regexp.MustCompile("(?s).*"),
+		},
+	}, cfg.ReplaceTags)
 
-		assert.EqualValues(t, []string{"/health", "/500"}, cfg.Ignore["resource"])
+	assert.EqualValues(t, []string{"/health", "/500"}, cfg.Ignore["resource"])
 
-		o := cfg.Obfuscation
-		assert.NotNil(t, o)
-		assert.True(t, o.ES.Enabled)
-		assert.EqualValues(t, []string{"user_id", "category_id"}, o.ES.KeepValues)
-		assert.True(t, o.Mongo.Enabled)
-		assert.EqualValues(t, []string{"uid", "cat_id"}, o.Mongo.KeepValues)
-		assert.True(t, o.HTTP.RemoveQueryString)
-		assert.True(t, o.HTTP.RemovePathDigits)
-		assert.True(t, o.RemoveStackTraces)
-		assert.True(t, o.Redis.Enabled)
-		assert.True(t, o.Memcached.Enabled)
-		assert.True(t, o.CreditCards.Enabled)
-		assert.True(t, o.CreditCards.Luhn)
-
-	})
+	o := cfg.Obfuscation
+	assert.NotNil(t, o)
+	assert.True(t, o.ES.Enabled)
+	assert.EqualValues(t, []string{"user_id", "category_id"}, o.ES.KeepValues)
+	assert.True(t, o.Mongo.Enabled)
+	assert.EqualValues(t, []string{"uid", "cat_id"}, o.Mongo.KeepValues)
+	assert.True(t, o.HTTP.RemoveQueryString)
+	assert.True(t, o.HTTP.RemovePathDigits)
+	assert.True(t, o.RemoveStackTraces)
+	assert.True(t, o.Redis.Enabled)
+	assert.True(t, o.Memcached.Enabled)
+	assert.True(t, o.CreditCards.Enabled)
+	assert.True(t, o.CreditCards.Luhn)
 
 }
 
 func TestUndocumentedYamlConfig(t *testing.T) {
 
-	fxutil.Test(t, fx.Options(
+	config := fxutil.Test[Component](t, fx.Options(
 		fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/undocumented.yaml")),
 		corecomp.MockModule,
 		fx.Supply(Params{}),
 		MockModule,
-	), func(config Component) {
-		cfg := config.Object()
+	))
+	cfg := config.Object()
 
-		require.NotNil(t, cfg)
+	require.NotNil(t, cfg)
 
-		assert.Equal(t, "/path/to/bin", cfg.DDAgentBin)
-		assert.Equal(t, "thing", cfg.Hostname)
-		assert.Equal(t, "apikey_12", cfg.Endpoints[0].APIKey)
-		assert.Equal(t, 0.33, cfg.ExtraSampleRate)
-		assert.Equal(t, 100.0, cfg.TargetTPS)
-		assert.Equal(t, 37.0, cfg.ErrorTPS)
-		assert.Equal(t, true, cfg.RareSamplerEnabled)
-		assert.Equal(t, 127.0, cfg.MaxRemoteTPS)
-		assert.Equal(t, 1000.0, cfg.MaxEPS)
-		assert.Equal(t, 25, cfg.ReceiverPort)
-		assert.Equal(t, 120*time.Second, cfg.ConnectionResetInterval)
-		// watchdog
-		assert.Equal(t, 0.07, cfg.MaxCPU)
-		assert.Equal(t, 30e6, cfg.MaxMemory)
+	assert.Equal(t, "/path/to/bin", cfg.DDAgentBin)
+	assert.Equal(t, "thing", cfg.Hostname)
+	assert.Equal(t, "apikey_12", cfg.Endpoints[0].APIKey)
+	assert.Equal(t, 0.33, cfg.ExtraSampleRate)
+	assert.Equal(t, 100.0, cfg.TargetTPS)
+	assert.Equal(t, 37.0, cfg.ErrorTPS)
+	assert.Equal(t, true, cfg.RareSamplerEnabled)
+	assert.Equal(t, 127.0, cfg.MaxRemoteTPS)
+	assert.Equal(t, 1000.0, cfg.MaxEPS)
+	assert.Equal(t, 25, cfg.ReceiverPort)
+	assert.Equal(t, 120*time.Second, cfg.ConnectionResetInterval)
+	// watchdog
+	assert.Equal(t, 0.07, cfg.MaxCPU)
+	assert.Equal(t, 30e6, cfg.MaxMemory)
 
-		// Assert Trace Writer
-		assert.Equal(t, 1, cfg.TraceWriter.ConnectionLimit)
-		assert.Equal(t, 2, cfg.TraceWriter.QueueSize)
-		assert.Equal(t, 5, cfg.StatsWriter.ConnectionLimit)
-		assert.Equal(t, 6, cfg.StatsWriter.QueueSize)
-		// analysis legacy
-		assert.Equal(t, 1.0, cfg.AnalyzedRateByServiceLegacy["db"])
-		assert.Equal(t, 0.9, cfg.AnalyzedRateByServiceLegacy["web"])
-		assert.Equal(t, 0.5, cfg.AnalyzedRateByServiceLegacy["index"])
-		// analysis
-		assert.Len(t, cfg.AnalyzedSpansByService, 2)
-		assert.Len(t, cfg.AnalyzedSpansByService["web"], 2)
-		assert.Len(t, cfg.AnalyzedSpansByService["db"], 1)
-		assert.Equal(t, 0.8, cfg.AnalyzedSpansByService["web"]["request"])
-		assert.Equal(t, 0.9, cfg.AnalyzedSpansByService["web"]["django.request"])
-		assert.Equal(t, 0.05, cfg.AnalyzedSpansByService["db"]["intake"])
-	})
+	// Assert Trace Writer
+	assert.Equal(t, 1, cfg.TraceWriter.ConnectionLimit)
+	assert.Equal(t, 2, cfg.TraceWriter.QueueSize)
+	assert.Equal(t, 5, cfg.StatsWriter.ConnectionLimit)
+	assert.Equal(t, 6, cfg.StatsWriter.QueueSize)
+	// analysis legacy
+	assert.Equal(t, 1.0, cfg.AnalyzedRateByServiceLegacy["db"])
+	assert.Equal(t, 0.9, cfg.AnalyzedRateByServiceLegacy["web"])
+	assert.Equal(t, 0.5, cfg.AnalyzedRateByServiceLegacy["index"])
+	// analysis
+	assert.Len(t, cfg.AnalyzedSpansByService, 2)
+	assert.Len(t, cfg.AnalyzedSpansByService["web"], 2)
+	assert.Len(t, cfg.AnalyzedSpansByService["db"], 1)
+	assert.Equal(t, 0.8, cfg.AnalyzedSpansByService["web"]["request"])
+	assert.Equal(t, 0.9, cfg.AnalyzedSpansByService["web"]["django.request"])
+	assert.Equal(t, 0.05, cfg.AnalyzedSpansByService["db"]["intake"])
 
 }
 
@@ -729,18 +710,17 @@ func TestNormalizeEnvFromDDEnv(t *testing.T) {
 		t.Run("", func(t *testing.T) {
 			t.Setenv("XXXX_ENV", in)
 
-			fxutil.Test(t, fx.Options(
+			config := fxutil.Test[Component](t, fx.Options(
 				fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/no_apm_config.yaml")),
 				corecomp.MockModule,
 				fx.Supply(Params{}),
 				MockModule,
-			), func(config Component) {
-				cfg := config.Object()
+			))
+			cfg := config.Object()
 
-				assert.NotNil(t, cfg)
+			assert.NotNil(t, cfg)
 
-				assert.Equal(t, out, cfg.DefaultEnv)
-			})
+			assert.Equal(t, out, cfg.DefaultEnv)
 		})
 	}
 }
@@ -756,18 +736,17 @@ func TestNormalizeEnvFromDDTags(t *testing.T) {
 		t.Run("", func(t *testing.T) {
 			t.Setenv("XXXX_TAGS", in)
 
-			fxutil.Test(t, fx.Options(
+			config := fxutil.Test[Component](t, fx.Options(
 				fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/no_apm_config.yaml")),
 				corecomp.MockModule,
 				fx.Supply(Params{}),
 				MockModule,
-			), func(config Component) {
-				cfg := config.Object()
+			))
+			cfg := config.Object()
 
-				assert.NotNil(t, cfg)
+			assert.NotNil(t, cfg)
 
-				assert.Equal(t, out, cfg.DefaultEnv)
-			})
+			assert.Equal(t, out, cfg.DefaultEnv)
 		})
 	}
 }
@@ -784,17 +763,17 @@ func TestNormalizeEnvFromConfig(t *testing.T) {
 	} {
 		t.Run("", func(t *testing.T) {
 
-			fxutil.Test(t, fx.Options(
+			config := fxutil.Test[Component](t, fx.Options(
 				fx.Supply(corecomp.NewAgentParamsWithSecrets(cfgFile)),
 				corecomp.MockModule,
 				fx.Supply(Params{}),
 				MockModule,
-			), func(config Component) {
-				cfg := config.Object()
+			))
 
-				assert.NotNil(t, cfg)
-				assert.Equal(t, "staging", cfg.DefaultEnv)
-			})
+			cfg := config.Object()
+
+			assert.NotNil(t, cfg)
+			assert.Equal(t, "staging", cfg.DefaultEnv)
 		})
 	}
 }
@@ -815,21 +794,21 @@ func TestLoadEnv(t *testing.T) {
 			t.Setenv(tt.envOld, "1,2,3")
 			t.Setenv(tt.envNew, "4,5,6")
 
-			fxutil.Test(t, fx.Options(
+			config := fxutil.Test[Component](t, fx.Options(
 				fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 				corecomp.MockModule,
 				fx.Supply(Params{}),
 				MockModule,
-			), func(config Component) {
-				cfg := config.Object()
+			))
 
-				assert.NotNil(t, cfg)
-				if tt.envNew == "DD_APM_IGNORE_RESOURCES" {
-					assert.Equal(t, []string{"4", "5", "6"}, coreconfig.Datadog.GetStringSlice(tt.key))
-				} else {
-					assert.Equal(t, "4,5,6", coreconfig.Datadog.GetString(tt.key))
-				}
-			})
+			cfg := config.Object()
+
+			assert.NotNil(t, cfg)
+			if tt.envNew == "DD_APM_IGNORE_RESOURCES" {
+				assert.Equal(t, []string{"4", "5", "6"}, coreconfig.Datadog.GetStringSlice(tt.key))
+			} else {
+				assert.Equal(t, "4,5,6", coreconfig.Datadog.GetString(tt.key))
+			}
 		}
 	})
 
@@ -837,17 +816,16 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "123")
 
-		fxutil.Test(t, fx.Options(
+		config := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(config Component) {
-			cfg := config.Object()
+		))
+		cfg := config.Object()
 
-			assert.NotNil(t, cfg)
-			assert.Equal(t, "123", cfg.Endpoints[0].APIKey)
-		})
+		assert.NotNil(t, cfg)
+		assert.Equal(t, "123", cfg.Endpoints[0].APIKey)
 	})
 
 	env = "XXXX_SITE"
@@ -855,113 +833,106 @@ func TestLoadEnv(t *testing.T) {
 		os.Setenv(env, "my-site.com")
 		defer os.Unsetenv(env)
 
-		fxutil.Test(t, fx.Options(
+		config := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/site_default.yaml")),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(config Component) {
-			cfg := config.Object()
+		))
+		cfg := config.Object()
 
-			assert.NotNil(t, cfg)
-			assert.Equal(t, apiEndpointPrefix+"my-site.com", cfg.Endpoints[0].Host)
-		})
+		assert.NotNil(t, cfg)
+		assert.Equal(t, apiEndpointPrefix+"my-site.com", cfg.Endpoints[0].Host)
 	})
 
 	env = "DD_APM_ENABLED"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
-		fxutil.Test(t, fx.Options(
+		config := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(config Component) {
-			cfg := config.Object()
+		))
+		cfg := config.Object()
 
-			assert.NotNil(t, cfg)
-			assert.True(t, cfg.Enabled)
-		})
+		assert.NotNil(t, cfg)
+		assert.True(t, cfg.Enabled)
 	})
 
 	env = "DD_APM_DD_URL"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "my-site.com")
-		fxutil.Test(t, fx.Options(
+		config := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(config Component) {
-			cfg := config.Object()
+		))
+		cfg := config.Object()
 
-			assert.NotNil(t, cfg)
-			assert.Equal(t, "my-site.com", cfg.Endpoints[0].Host)
-		})
+		assert.NotNil(t, cfg)
+		assert.Equal(t, "my-site.com", cfg.Endpoints[0].Host)
 	})
 
 	env = "HTTPS_PROXY"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "my-proxy.url")
-		fxutil.Test(t, fx.Options(
+		config := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(config Component) {
-			cfg := config.Object()
+		))
+		cfg := config.Object()
 
-			assert.NotNil(t, cfg)
-			assert.Equal(t, "my-proxy.url", cfg.ProxyURL.String())
-		})
+		assert.NotNil(t, cfg)
+		assert.Equal(t, "my-proxy.url", cfg.ProxyURL.String())
 	})
 
 	env = "DD_PROXY_HTTPS"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "my-proxy.url")
-		fxutil.Test(t, fx.Options(
+		config := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(config Component) {
-			cfg := config.Object()
+		))
+		cfg := config.Object()
 
-			assert.NotNil(t, cfg)
-			assert.Equal(t, "my-proxy.url", cfg.ProxyURL.String())
-		})
+		assert.NotNil(t, cfg)
+		assert.Equal(t, "my-proxy.url", cfg.ProxyURL.String())
 	})
 
 	env = "XXXX_HOSTNAME"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "local.host")
-		fxutil.Test(t, fx.Options(
+		config := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(config Component) {
-			cfg := config.Object()
+		))
+		cfg := config.Object()
 
-			assert.NotNil(t, cfg)
-			assert.Equal(t, "local.host", cfg.Hostname)
-		})
+		assert.NotNil(t, cfg)
+		assert.Equal(t, "local.host", cfg.Hostname)
 	})
 
 	env = "XXXX_BIND_HOST"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "bindhost.com")
-		fxutil.Test(t, fx.Options(
+		config := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(config Component) {
-			cfg := config.Object()
+		))
+		cfg := config.Object()
 
-			assert.NotNil(t, cfg)
-			assert.Equal(t, "bindhost.com", cfg.StatsdHost)
-		})
+		assert.NotNil(t, cfg)
+		assert.Equal(t, "bindhost.com", cfg.StatsdHost)
 	})
 
 	for _, envKey := range []string{
@@ -971,17 +942,16 @@ func TestLoadEnv(t *testing.T) {
 		t.Run(envKey, func(t *testing.T) {
 			t.Setenv(envKey, "1234")
 
-			fxutil.Test(t, fx.Options(
+			config := fxutil.Test[Component](t, fx.Options(
 				fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 				corecomp.MockModule,
 				fx.Supply(Params{}),
 				MockModule,
-			), func(config Component) {
-				cfg := config.Object()
+			))
+			cfg := config.Object()
 
-				assert.NotNil(t, cfg)
-				assert.Equal(t, 1234, cfg.ReceiverPort)
-			})
+			assert.NotNil(t, cfg)
+			assert.Equal(t, 1234, cfg.ReceiverPort)
 		})
 	}
 
@@ -989,34 +959,32 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "4321")
 
-		fxutil.Test(t, fx.Options(
+		config := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(config Component) {
-			cfg := config.Object()
+		))
+		cfg := config.Object()
 
-			assert.NotNil(t, cfg)
-			assert.Equal(t, 4321, cfg.StatsdPort)
-		})
+		assert.NotNil(t, cfg)
+		assert.Equal(t, 4321, cfg.StatsdPort)
 	})
 
 	env = "DD_APM_NON_LOCAL_TRAFFIC"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
 
-		fxutil.Test(t, fx.Options(
+		config := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/undocumented.yaml")),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(config Component) {
-			cfg := config.Object()
+		))
+		cfg := config.Object()
 
-			assert.NotNil(t, cfg)
-			assert.Equal(t, "0.0.0.0", cfg.ReceiverHost)
-		})
+		assert.NotNil(t, cfg)
+		assert.Equal(t, "0.0.0.0", cfg.ReceiverHost)
 	})
 
 	for _, envKey := range []string{
@@ -1026,17 +994,16 @@ func TestLoadEnv(t *testing.T) {
 		t.Run(envKey, func(t *testing.T) {
 			t.Setenv(envKey, "1,2,3")
 
-			fxutil.Test(t, fx.Options(
+			config := fxutil.Test[Component](t, fx.Options(
 				fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 				corecomp.MockModule,
 				fx.Supply(Params{}),
 				MockModule,
-			), func(config Component) {
-				cfg := config.Object()
+			))
+			cfg := config.Object()
 
-				assert.NotNil(t, cfg)
-				assert.Equal(t, []string{"1", "2", "3"}, cfg.Ignore["resource"])
-			})
+			assert.NotNil(t, cfg)
+			assert.Equal(t, []string{"1", "2", "3"}, cfg.Ignore["resource"])
 		})
 	}
 
@@ -1045,139 +1012,135 @@ func TestLoadEnv(t *testing.T) {
 
 		t.Setenv(env, "web|http.request=1,db|sql.query=0.5")
 
-		fxutil.Test(t, fx.Options(
+		config := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(config Component) {
-			cfg := config.Object()
+		))
 
-			assert.NotNil(t, cfg)
-			assert.Equal(t, map[string]map[string]float64{
-				"web": {"http.request": 1},
-				"db":  {"sql.query": 0.5},
-			}, cfg.AnalyzedSpansByService)
-		})
+		cfg := config.Object()
+
+		assert.NotNil(t, cfg)
+		assert.Equal(t, map[string]map[string]float64{
+			"web": {"http.request": 1},
+			"db":  {"sql.query": 0.5},
+		}, cfg.AnalyzedSpansByService)
 	})
 
 	env = "DD_APM_REPLACE_TAGS"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `[{"name":"name1", "pattern":"pattern1"}, {"name":"name2","pattern":"pattern2","repl":"replace2"}]`)
 
-		fxutil.Test(t, fx.Options(
+		c := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(c Component) {
-			cfg := c.Object()
+		))
 
-			assert.NotNil(t, cfg)
+		cfg := c.Object()
 
-			rule1 := &config.ReplaceRule{
-				Name:    "name1",
-				Pattern: "pattern1",
-				Repl:    "",
-			}
-			rule2 := &config.ReplaceRule{
-				Name:    "name2",
-				Pattern: "pattern2",
-				Repl:    "replace2",
-			}
-			compileReplaceRules([]*config.ReplaceRule{rule1, rule2})
-			assert.Contains(t, cfg.ReplaceTags, rule1)
-			assert.Contains(t, cfg.ReplaceTags, rule2)
-		})
+		assert.NotNil(t, cfg)
+
+		rule1 := &config.ReplaceRule{
+			Name:    "name1",
+			Pattern: "pattern1",
+			Repl:    "",
+		}
+		rule2 := &config.ReplaceRule{
+			Name:    "name2",
+			Pattern: "pattern2",
+			Repl:    "replace2",
+		}
+		compileReplaceRules([]*config.ReplaceRule{rule1, rule2})
+		assert.Contains(t, cfg.ReplaceTags, rule1)
+		assert.Contains(t, cfg.ReplaceTags, rule2)
 	})
 
 	env = "DD_APM_FILTER_TAGS_REQUIRE"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `important1 important2:value1`)
 
-		fxutil.Test(t, fx.Options(
+		c := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(c Component) {
-			cfg := c.Object()
+		))
 
-			assert.NotNil(t, cfg)
+		cfg := c.Object()
 
-			assert.Equal(t, cfg.RequireTags, []*config.Tag{{K: "important1", V: ""}, {K: "important2", V: "value1"}})
-		})
+		assert.NotNil(t, cfg)
+
+		assert.Equal(t, cfg.RequireTags, []*config.Tag{{K: "important1", V: ""}, {K: "important2", V: "value1"}})
 	})
 
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `["important1:value with a space"]`)
 
-		fxutil.Test(t, fx.Options(
+		c := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(c Component) {
-			cfg := c.Object()
+		))
+		cfg := c.Object()
 
-			assert.NotNil(t, cfg)
+		assert.NotNil(t, cfg)
 
-			assert.Equal(t, cfg.RequireTags, []*config.Tag{{K: "important1", V: "value with a space"}})
-		})
+		assert.Equal(t, cfg.RequireTags, []*config.Tag{{K: "important1", V: "value with a space"}})
 	})
 
 	env = "DD_APM_FILTER_TAGS_REJECT"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `bad1:value1`)
 
-		fxutil.Test(t, fx.Options(
+		c := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(c Component) {
-			cfg := c.Object()
+		))
+		cfg := c.Object()
 
-			assert.NotNil(t, cfg)
+		assert.NotNil(t, cfg)
 
-			assert.Equal(t, cfg.RejectTags, []*config.Tag{{K: "bad1", V: "value1"}})
-		})
+		assert.Equal(t, cfg.RejectTags, []*config.Tag{{K: "bad1", V: "value1"}})
 	})
 
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `["bad1:value with a space"]`)
 
-		fxutil.Test(t, fx.Options(
+		c := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(c Component) {
-			cfg := c.Object()
+		))
+		cfg := c.Object()
 
-			assert.NotNil(t, cfg)
+		assert.NotNil(t, cfg)
 
-			assert.Equal(t, cfg.RejectTags, []*config.Tag{{K: "bad1", V: "value with a space"}})
-		})
+		assert.Equal(t, cfg.RejectTags, []*config.Tag{{K: "bad1", V: "value with a space"}})
 	})
 
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `["bad1:value with a space","bad2:value with spaces"]`)
 
-		fxutil.Test(t, fx.Options(
+		c := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(c Component) {
-			cfg := c.Object()
+		))
+		cfg := c.Object()
 
-			assert.NotNil(t, cfg)
+		assert.NotNil(t, cfg)
 
-			assert.Equal(t, cfg.RejectTags, []*config.Tag{
-				{K: "bad1", V: "value with a space"},
-				{K: "bad2", V: "value with spaces"},
-			})
+		assert.Equal(t, cfg.RejectTags, []*config.Tag{
+			{K: "bad1", V: "value with a space"},
+			{K: "bad2", V: "value with spaces"},
 		})
 	})
 
@@ -1188,17 +1151,16 @@ func TestLoadEnv(t *testing.T) {
 		t.Run(envKey, func(t *testing.T) {
 			t.Setenv(envKey, "50")
 
-			fxutil.Test(t, fx.Options(
+			c := fxutil.Test[Component](t, fx.Options(
 				fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 				corecomp.MockModule,
 				fx.Supply(Params{}),
 				MockModule,
-			), func(c Component) {
-				cfg := c.Object()
+			))
+			cfg := c.Object()
 
-				assert.NotNil(t, cfg)
-				assert.Equal(t, 50, cfg.ConnectionLimit)
-			})
+			assert.NotNil(t, cfg)
+			assert.Equal(t, 50, cfg.ConnectionLimit)
 		})
 	}
 
@@ -1209,17 +1171,16 @@ func TestLoadEnv(t *testing.T) {
 		t.Run(envKey, func(t *testing.T) {
 			t.Setenv(envKey, "6")
 
-			fxutil.Test(t, fx.Options(
+			c := fxutil.Test[Component](t, fx.Options(
 				fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 				corecomp.MockModule,
 				fx.Supply(Params{}),
 				MockModule,
-			), func(c Component) {
-				cfg := c.Object()
+			))
+			cfg := c.Object()
 
-				assert.NotNil(t, cfg)
-				assert.Equal(t, 6., cfg.TargetTPS)
-			})
+			assert.NotNil(t, cfg)
+			assert.Equal(t, 6., cfg.TargetTPS)
 		})
 	}
 
@@ -1229,17 +1190,16 @@ func TestLoadEnv(t *testing.T) {
 		t.Run(envKey, func(t *testing.T) {
 			t.Setenv(envKey, "12")
 
-			fxutil.Test(t, fx.Options(
+			c := fxutil.Test[Component](t, fx.Options(
 				fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 				corecomp.MockModule,
 				fx.Supply(Params{}),
 				MockModule,
-			), func(c Component) {
-				cfg := c.Object()
+			))
+			cfg := c.Object()
 
-				assert.NotNil(t, cfg)
-				assert.Equal(t, 12., cfg.ErrorTPS)
-			})
+			assert.NotNil(t, cfg)
+			assert.Equal(t, 12., cfg.ErrorTPS)
 		})
 	}
 
@@ -1249,17 +1209,16 @@ func TestLoadEnv(t *testing.T) {
 		t.Run(envKey, func(t *testing.T) {
 			t.Setenv(envKey, "true")
 
-			fxutil.Test(t, fx.Options(
+			c := fxutil.Test[Component](t, fx.Options(
 				fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 				corecomp.MockModule,
 				fx.Supply(Params{}),
 				MockModule,
-			), func(c Component) {
-				cfg := c.Object()
+			))
+			cfg := c.Object()
 
-				assert.NotNil(t, cfg)
-				assert.Equal(t, true, cfg.RareSamplerEnabled)
-			})
+			assert.NotNil(t, cfg)
+			assert.Equal(t, true, cfg.RareSamplerEnabled)
 		})
 	}
 
@@ -1269,17 +1228,16 @@ func TestLoadEnv(t *testing.T) {
 	} {
 		t.Run(envKey, func(t *testing.T) {
 			t.Setenv(envKey, "7")
-			fxutil.Test(t, fx.Options(
+			c := fxutil.Test[Component](t, fx.Options(
 				fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 				corecomp.MockModule,
 				fx.Supply(Params{}),
 				MockModule,
-			), func(c Component) {
-				cfg := c.Object()
+			))
+			cfg := c.Object()
 
-				assert.NotNil(t, cfg)
-				assert.Equal(t, 7., cfg.MaxEPS)
-			})
+			assert.NotNil(t, cfg)
+			assert.Equal(t, 7., cfg.MaxEPS)
 		})
 	}
 
@@ -1287,152 +1245,144 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "337.41")
 
-		fxutil.Test(t, fx.Options(
+		c := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(c Component) {
-			cfg := c.Object()
+		))
+		cfg := c.Object()
 
-			assert.NotNil(t, cfg)
-			assert.Equal(t, 337.41, cfg.MaxRemoteTPS)
-		})
+		assert.NotNil(t, cfg)
+		assert.Equal(t, 337.41, cfg.MaxRemoteTPS)
 	})
 
 	env = "DD_APM_ADDITIONAL_ENDPOINTS"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `{"url1": ["key1", "key2"], "url2": ["key3"]}`)
 
-		fxutil.Test(t, fx.Options(
+		c := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(c Component) {
-			cfg := c.Object()
+		))
+		cfg := c.Object()
 
-			assert.NotNil(t, cfg)
+		assert.NotNil(t, cfg)
 
-			assert.Contains(t, cfg.Endpoints, &config.Endpoint{APIKey: "key1", Host: "url1"})
-			assert.Contains(t, cfg.Endpoints, &config.Endpoint{APIKey: "key2", Host: "url1"})
-			assert.Contains(t, cfg.Endpoints, &config.Endpoint{APIKey: "key3", Host: "url2"})
-		})
+		assert.Contains(t, cfg.Endpoints, &config.Endpoint{APIKey: "key1", Host: "url1"})
+		assert.Contains(t, cfg.Endpoints, &config.Endpoint{APIKey: "key2", Host: "url1"})
+		assert.Contains(t, cfg.Endpoints, &config.Endpoint{APIKey: "key3", Host: "url2"})
 	})
 
 	env = "DD_APM_PROFILING_DD_URL"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "my-site.com")
 
-		fxutil.Test(t, fx.Options(
+		c := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(c Component) {
-			cfg := c.Object()
+		))
+		cfg := c.Object()
 
-			assert.NotNil(t, cfg)
+		assert.NotNil(t, cfg)
 
-			assert.Equal(t, "my-site.com", coreconfig.Datadog.GetString("apm_config.profiling_dd_url"))
-		})
+		assert.Equal(t, "my-site.com", coreconfig.Datadog.GetString("apm_config.profiling_dd_url"))
 	})
 
 	env = "DD_APM_DEBUGGER_DD_URL"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "my-site.com")
 
-		fxutil.Test(t, fx.Options(
+		c := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(c Component) {
-			cfg := c.Object()
+		))
+		cfg := c.Object()
 
-			assert.NotNil(t, cfg)
+		assert.NotNil(t, cfg)
 
-			assert.Equal(t, "my-site.com", coreconfig.Datadog.GetString("apm_config.debugger_dd_url"))
-		})
+		assert.Equal(t, "my-site.com", coreconfig.Datadog.GetString("apm_config.debugger_dd_url"))
 	})
 
 	env = "DD_APM_DEBUGGER_API_KEY"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "my-key")
 
-		fxutil.Test(t, fx.Options(
+		c := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(c Component) {
-			cfg := c.Object()
+		))
+		cfg := c.Object()
 
-			assert.NotNil(t, cfg)
+		assert.NotNil(t, cfg)
 
-			assert.Equal(t, "my-key", coreconfig.Datadog.GetString("apm_config.debugger_api_key"))
-		})
+		assert.Equal(t, "my-key", coreconfig.Datadog.GetString("apm_config.debugger_api_key"))
 	})
 
 	env = "DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "false")
 
-		fxutil.Test(t, fx.Options(
+		c := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(c Component) {
-			cfg := c.Object()
+		))
+		cfg := c.Object()
 
-			assert.NotNil(t, cfg)
+		assert.NotNil(t, cfg)
 
-			assert.False(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.credit_cards.enabled"))
-		})
+		assert.False(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.credit_cards.enabled"))
 	})
 
 	env = "DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "false")
 
-		fxutil.Test(t, fx.Options(
+		c := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(c Component) {
-			cfg := c.Object()
+		))
+		cfg := c.Object()
 
-			assert.NotNil(t, cfg)
+		assert.NotNil(t, cfg)
 
-			assert.False(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.credit_cards.luhn"))
-		})
+		assert.False(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.credit_cards.luhn"))
 	})
 
 	env = "DD_APM_PROFILING_ADDITIONAL_ENDPOINTS"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `{"url1": ["key1", "key2"], "url2": ["key3"]}`)
 
-		fxutil.Test(t, fx.Options(
+		c := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(c Component) {
-			cfg := c.Object()
+		))
+		cfg := c.Object()
 
-			assert.NotNil(t, cfg)
+		assert.NotNil(t, cfg)
 
-			expected := map[string][]string{
-				"url1": {"key1", "key2"},
-				"url2": {"key3"},
-			}
-			actual := coreconfig.Datadog.GetStringMapStringSlice(("apm_config.profiling_additional_endpoints"))
-			if !reflect.DeepEqual(actual, expected) {
-				t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
-			}
-		})
+		expected := map[string][]string{
+			"url1": {"key1", "key2"},
+			"url2": {"key3"},
+		}
+		actual := coreconfig.Datadog.GetStringMapStringSlice(("apm_config.profiling_additional_endpoints"))
+		if !reflect.DeepEqual(actual, expected) {
+			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
+		}
 	})
 }
 
@@ -1466,23 +1416,22 @@ func TestFargateConfig(t *testing.T) {
 		t.Run("", func(t *testing.T) {
 			t.Setenv(data.envKey, data.envValue)
 
-			fxutil.Test(t, fx.Options(
+			c := fxutil.Test[Component](t, fx.Options(
 				fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/no_apm_config.yaml")),
 				corecomp.MockModule,
 				fx.Supply(Params{}),
 				MockModule,
-			), func(c Component) {
-				cfg := c.Object()
+			))
+			cfg := c.Object()
 
-				assert.NotNil(t, cfg)
+			assert.NotNil(t, cfg)
 
-				if runtime.GOOS == "darwin" {
-					assert.Equal(t, config.OrchestratorUnknown, cfg.FargateOrchestrator)
-				} else {
-					assert.Equal(t, data.orchestrator, cfg.FargateOrchestrator)
-				}
+			if runtime.GOOS == "darwin" {
+				assert.Equal(t, config.OrchestratorUnknown, cfg.FargateOrchestrator)
+			} else {
+				assert.Equal(t, data.orchestrator, cfg.FargateOrchestrator)
+			}
 
-			})
 		})
 	}
 }
@@ -1490,38 +1439,36 @@ func TestFargateConfig(t *testing.T) {
 func TestSetMaxMemCPU(t *testing.T) {
 	t.Run("default, non-containerized", func(t *testing.T) {
 
-		fxutil.Test(t, fx.Options(
+		config := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.Params{}),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(config Component) {
-			cfg := config.Object()
+		))
+		cfg := config.Object()
 
-			require.NotNil(t, cfg)
+		require.NotNil(t, cfg)
 
-			config.SetMaxMemCPU(false)
-			assert.Equal(t, 0.5, cfg.MaxCPU)
-			assert.Equal(t, 5e8, cfg.MaxMemory)
-		})
+		config.SetMaxMemCPU(false)
+		assert.Equal(t, 0.5, cfg.MaxCPU)
+		assert.Equal(t, 5e8, cfg.MaxMemory)
 	})
 
 	t.Run("default, containerized", func(t *testing.T) {
 
-		fxutil.Test(t, fx.Options(
+		config := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.Params{}),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(config Component) {
-			cfg := config.Object()
+		))
+		cfg := config.Object()
 
-			require.NotNil(t, cfg)
+		require.NotNil(t, cfg)
 
-			config.SetMaxMemCPU(true)
-			assert.Equal(t, 0.0, cfg.MaxCPU)
-			assert.Equal(t, 0.0, cfg.MaxMemory)
-		})
+		config.SetMaxMemCPU(true)
+		assert.Equal(t, 0.0, cfg.MaxCPU)
+		assert.Equal(t, 0.0, cfg.MaxMemory)
 	})
 
 	t.Run("limits set, non-containerized", func(t *testing.T) {
@@ -1531,20 +1478,19 @@ func TestSetMaxMemCPU(t *testing.T) {
 			"apm_config.max_memory":      "200",
 		}
 
-		fxutil.Test(t, fx.Options(
+		config := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewParams("", corecomp.WithOverrides(overrides))),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(config Component) {
-			// underlying config
-			cfg := config.Object()
-			require.NotNil(t, cfg)
+		))
+		// underlying config
+		cfg := config.Object()
+		require.NotNil(t, cfg)
 
-			config.SetMaxMemCPU(false)
-			assert.Equal(t, 0.2, cfg.MaxCPU)
-			assert.Equal(t, 200.0, cfg.MaxMemory)
-		})
+		config.SetMaxMemCPU(false)
+		assert.Equal(t, 0.2, cfg.MaxCPU)
+		assert.Equal(t, 200.0, cfg.MaxMemory)
 	})
 
 	t.Run("limits set, containerized", func(t *testing.T) {
@@ -1554,20 +1500,19 @@ func TestSetMaxMemCPU(t *testing.T) {
 			"apm_config.max_memory":      "300",
 		}
 
-		fxutil.Test(t, fx.Options(
+		config := fxutil.Test[Component](t, fx.Options(
 			fx.Supply(corecomp.NewParams("", corecomp.WithOverrides(overrides))),
 			corecomp.MockModule,
 			fx.Supply(Params{}),
 			MockModule,
-		), func(config Component) {
-			// underlying config
-			cfg := config.Object()
-			require.NotNil(t, cfg)
+		))
+		// underlying config
+		cfg := config.Object()
+		require.NotNil(t, cfg)
 
-			config.SetMaxMemCPU(true)
-			assert.Equal(t, 0.3, cfg.MaxCPU)
-			assert.Equal(t, 300.0, cfg.MaxMemory)
-		})
+		config.SetMaxMemCPU(true)
+		assert.Equal(t, 0.3, cfg.MaxCPU)
+		assert.Equal(t, 300.0, cfg.MaxMemory)
 	})
 }
 
@@ -1578,26 +1523,25 @@ func TestMockConfig(t *testing.T) {
 	os.Setenv("DD_SITE", "datadoghq.eu")
 	defer func() { os.Unsetenv("DD_SITE") }()
 
-	fxutil.Test(t, fx.Options(
+	config := fxutil.Test[Component](t, fx.Options(
 		fx.Supply(corecomp.Params{}),
 		corecomp.MockModule,
 		fx.Supply(Params{}),
 		MockModule,
-	), func(config Component) {
-		// underlying config
-		cfg := config.Object()
-		require.NotNil(t, cfg)
+	))
+	// underlying config
+	cfg := config.Object()
+	require.NotNil(t, cfg)
 
-		// values aren't set from env..
-		assert.NotEqual(t, "foo", cfg.Hostname)
-		assert.NotEqual(t, "datadoghq.eu", cfg.Site)
+	// values aren't set from env..
+	assert.NotEqual(t, "foo", cfg.Hostname)
+	assert.NotEqual(t, "datadoghq.eu", cfg.Site)
 
-		// but defaults are set
-		assert.Equal(t, true, cfg.Enabled)
-		assert.Equal(t, "datadoghq.com", cfg.Site)
+	// but defaults are set
+	assert.Equal(t, true, cfg.Enabled)
+	assert.Equal(t, "datadoghq.com", cfg.Site)
 
-		// but can be set by the mock
-		// config.(Mock).Set("app_key", "newvalue")
-		// require.Equal(t, "newvalue", config.GetString("app_key"))
-	})
+	// but can be set by the mock
+	// config.(Mock).Set("app_key", "newvalue")
+	// require.Equal(t, "newvalue", config.GetString("app_key"))
 }

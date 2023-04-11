@@ -37,7 +37,7 @@ func TestBundle(t *testing.T) {
 	os.Setenv("DD_DD_URL", "https://example.com")
 	defer func() { os.Unsetenv("DD_DD_URL") }()
 
-	fxutil.Test(t, fx.Options(
+	config := fxutil.Test[config.Component](t, fx.Options(
 		// instantiate all of the core components, since this is not done
 		// automatically.
 		fx.Invoke(func(r config.Component) {}),
@@ -47,9 +47,8 @@ func TestBundle(t *testing.T) {
 		fx.Supply(config.NewParams()),
 		fx.Supply(coreconfig.Params{}),
 		MockBundle,
-	), func(config config.Component) {
-		cfg := config.Object()
+	))
+	cfg := config.Object()
 
-		require.NotNil(t, cfg)
-	})
+	require.NotNil(t, cfg)
 }
