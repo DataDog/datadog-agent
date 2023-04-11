@@ -26,9 +26,9 @@ build do
   command "make install", :env => env
 
   # Move libcom_err files directly
-  copy "libcom_err.a" "#{install_dir}/embedded/lib/"
-  copy "et/comm_err.h" "#{install_dir}/embedded/include/"
-  copy "bin/compile_et" "#{install_dir}/embedded/bin/"
+  copy "libcom_err.a", "#{install_dir}/embedded/lib/"
+  copy "et/comm_err.h", "#{install_dir}/embedded/include/"
+  copy "bin/compile_et", "#{install_dir}/embedded/bin/"
 
   # Remove the temp_dir
   command "rm -rf #{install_dir}/embedded/temp_dir"
