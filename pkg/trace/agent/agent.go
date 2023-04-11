@@ -485,6 +485,8 @@ func isManualUserDrop(priority sampler.SamplingPriority, pt *traceutil.Processed
 }
 
 // sample reports the number of events found in pt and whether the chunk should be kept as a trace.
+// sample does a semi-deep copy of pt to avoid making accidental changes to which spans are in the trace.
+// But any changes made directly to the spans, such as setting tags, etc. is not allowed.
 func (a *Agent) sample(now time.Time, ts *info.TagStats, pt *traceutil.ProcessedTrace) (numEvents int64, keep bool, retPt *traceutil.ProcessedTrace) {
 	pt = pt.Clone()
 	priority, hasPriority := sampler.GetSamplingPriority(pt.TraceChunk)
