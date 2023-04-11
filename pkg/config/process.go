@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -205,7 +204,7 @@ func setHostMountEnv() {
 	// Set default values for proc/sys paths if unset.
 	// Don't set this is /host is not mounted to use context within container.
 	// Generally only applicable for container-only cases like Fargate.
-	if !IsContainerized() || !util.PathExists("/host") {
+	if !IsContainerized() || !pathExists("/host") {
 		return
 	}
 
