@@ -328,6 +328,7 @@ func (c *PersistentCache) removeOldest() error {
 		evicted += len(value)
 		return nil
 	}); err != nil {
+		_ = c.addKeyInMemory(key)
 		return err
 	}
 
@@ -345,12 +346,8 @@ func (c *PersistentCache) RemoveOldest() error {
 
 // reduceSize reduces the size of the cache to the target size by evicting the oldest items.
 func (c *PersistentCache) reduceSize(target int) error {
-	if c.currentCachedObjectTotalSize <= target {
-		return nil
-	}
-
-	prev := c.currentCachedObjectTotalSize
 	for c.currentCachedObjectTotalSize > target {
+		prev := c.currentCachedObjectTotalSize
 		err := c.removeOldest()
 		if err != nil {
 			return err
