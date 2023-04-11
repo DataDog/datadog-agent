@@ -125,6 +125,8 @@ spec:
               systemProbe:
                 logLevel: TRACE
                 env:
+                  - name: DD_REMOTE_CONFIGURATION_ENABLED
+                    value: "{{inputs.parameters.remote_configuration_enabled}}"
                   - name:  DD_RUNTIME_SECURITY_CONFIG_LOG_PATTERNS
                     value: "module.APIServer.*"
                   - name: DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR
