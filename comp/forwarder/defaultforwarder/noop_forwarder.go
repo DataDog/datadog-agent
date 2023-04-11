@@ -3,12 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package forwarder
+package defaultforwarder
 
 import (
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 )
 
 // NoopForwarder is a Forwarder doing nothing and not returning any responses.

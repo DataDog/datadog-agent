@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 )
 
 func TestQueueDurationCapacityMemOnly(t *testing.T) {
