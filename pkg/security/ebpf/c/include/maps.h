@@ -69,8 +69,8 @@ BPF_LRU_MAP(security_profile_syscalls, u64, struct security_profile_syscalls_t, 
 BPF_LRU_MAP_FLAGS(tasks_in_coredump, u64, u8, 64, BPF_F_NO_COMMON_LRU)
 
 BPF_PERCPU_ARRAY_MAP(cgroup_tracing_event_gen, u32, struct cgroup_tracing_event_t, 1)
-BPF_PERCPU_ARRAY_MAP(discarder_stats_fb, u32, struct discarder_stats_t, EVENT_LAST_DISCARDER)
-BPF_PERCPU_ARRAY_MAP(discarder_stats_bb, u32, struct discarder_stats_t, EVENT_LAST_DISCARDER)
+BPF_PERCPU_ARRAY_MAP(fb_discarder_stats, u32, struct discarder_stats_t, EVENT_LAST_DISCARDER)
+BPF_PERCPU_ARRAY_MAP(bb_discarder_stats, u32, struct discarder_stats_t, EVENT_LAST_DISCARDER)
 BPF_PERCPU_ARRAY_MAP(str_array_buffers, u32, struct str_array_buffer_t, 1)
 BPF_PERCPU_ARRAY_MAP(process_event_gen, u32, struct process_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(dr_erpc_stats_fb, u32, struct dr_erpc_stats_t, 6)

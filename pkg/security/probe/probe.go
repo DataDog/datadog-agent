@@ -1100,12 +1100,12 @@ func (p *Probe) GetDiscarders() (*DiscardersDump, error) {
 		return nil, err
 	}
 
-	statsFB, err := managerhelper.Map(p.Manager, "discarder_stats_fb")
+	statsFB, err := managerhelper.Map(p.Manager, "fb_discarder_stats")
 	if err != nil {
 		return nil, err
 	}
 
-	statsBB, err := managerhelper.Map(p.Manager, "discarder_stats_bb")
+	statsBB, err := managerhelper.Map(p.Manager, "bb_discarder_stats")
 	if err != nil {
 		return nil, err
 	}
