@@ -41,8 +41,8 @@ import (
 )
 
 const (
-	ProbeEvaluationRuleSetName = "probe_evaluation"
-	ThreatScoreRuleSetName     = "ruleset:threat_score"
+	ProbeEvaluationRuleSetTag = "probe_evaluation"
+	ThreatScoreRuleSetTag     = "ruleset:threat_score"
 )
 
 // CWSConsumer represents the system-probe module for the runtime security agent
@@ -342,7 +342,7 @@ func (c *CWSConsumer) LoadPolicies(policyProviders []rules.PolicyProvider, sendL
 	// load policies
 	c.policyLoader.SetProviders(policyProviders)
 
-	evaluationSet := c.probe.EvaluationSet(c.getEventTypeEnabled(), []string{ProbeEvaluationRuleSetName, ThreatScoreRuleSetName})
+	evaluationSet := c.probe.EvaluationSet(c.getEventTypeEnabled(), []string{ProbeEvaluationRuleSetTag, ThreatScoreRuleSetTag})
 
 	loadErrs := evaluationSet.LoadPolicies(c.policyLoader, c.policyOpts)
 	if loadErrs.ErrorOrNil() != nil {
@@ -368,11 +368,11 @@ func (c *CWSConsumer) LoadPolicies(policyProviders []rules.PolicyProvider, sendL
 	ruleIDs = append(ruleIDs, events.AllCustomRuleIDs()...)
 
 	var probeEvaluationRuleSet, threatScoreRuleSet *rules.RuleSet
-	if _, ok := evaluationSet.RuleSets[ProbeEvaluationRuleSetName]; ok {
-		probeEvaluationRuleSet = evaluationSet.RuleSets[ProbeEvaluationRuleSetName]
+	if _, ok := evaluationSet.RuleSets[ProbeEvaluationRuleSetTag]; ok {
+		probeEvaluationRuleSet = evaluationSet.RuleSets[ProbeEvaluationRuleSetTag]
 	}
-	if _, ok := evaluationSet.RuleSets[ThreatScoreRuleSetName]; ok {
-		threatScoreRuleSet = evaluationSet.RuleSets[ThreatScoreRuleSetName]
+	if _, ok := evaluationSet.RuleSets[ThreatScoreRuleSetTag]; ok {
+		threatScoreRuleSet = evaluationSet.RuleSets[ThreatScoreRuleSetTag]
 	}
 
 	if threatScoreRuleSet != nil {

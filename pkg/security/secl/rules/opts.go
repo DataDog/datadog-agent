@@ -21,7 +21,7 @@ type VariableProviderFactory func() VariableProvider
 
 // Opts defines rules set options
 type Opts struct {
-	Name                string
+	Tag                 eval.NormalizedRuleTag
 	SupportedDiscarders map[eval.Field]bool
 	ReservedRuleIDs     []RuleID
 	EventTypeEnabled    map[eval.EventType]bool
@@ -29,9 +29,9 @@ type Opts struct {
 	Logger              log.Logger
 }
 
-// WithName sets the name of the rule set
-func (o *Opts) WithName(name string) *Opts {
-	o.Name = name
+// WithTag sets the name of the rule set
+func (o *Opts) WithTag(tag eval.NormalizedRuleTag) *Opts {
+	o.Tag = tag
 	return o
 }
 

@@ -21,7 +21,7 @@ func NewEvaluationSet(ruleSetsToInclude []*RuleSet) *EvaluationSet {
 
 	for _, ruleSet := range ruleSetsToInclude {
 		if ruleSet != nil {
-			ruleSets[ruleSet.opts.Name] = ruleSet
+			ruleSets[ruleSet.opts.Tag] = ruleSet
 		}
 	}
 
@@ -101,14 +101,14 @@ func (es *EvaluationSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpt
 	}
 
 	allRuleLists := make(map[string][]*RuleDefinition)
-	allRuleLists[ProbeEvaluationRuleSetName] = probeEvaluationRules
+	allRuleLists[ProbeEvaluationRuleSetTag] = probeEvaluationRules
 	for tags, ruleList := range taggedRules {
 		allRuleLists[tags] = ruleList
 	}
 
-	for ruleSetName, rs := range es.RuleSets {
+	for ruleSetTag, rs := range es.RuleSets {
 		for ruleListName, ruleList := range allRuleLists {
-			if ruleListName == ruleSetName {
+			if ruleListName == ruleSetTag {
 				// Add the macros to the ruleset and generate macros evaluators
 				if err := rs.AddMacros(parsingContext, allMacros); err.ErrorOrNil() != nil {
 					errs = multierror.Append(errs, err)
@@ -126,9 +126,9 @@ func (es *EvaluationSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpt
 		}
 	}
 
-	for ruleSetName, ruleSet := range es.RuleSets {
+	for ruleSetTag, ruleSet := range es.RuleSets {
 		if ruleSet == nil {
-			delete(es.RuleSets, ruleSetName)
+			delete(es.RuleSets, ruleSetTag)
 		}
 	}
 

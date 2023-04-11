@@ -76,9 +76,9 @@ func TestMacroMerge(t *testing.T) {
 		t.Error(err)
 	}
 
-	macro := evaluationSet.RuleSets[ProbeEvaluationRuleSetName].evalOpts.MacroStore.Get("test_macro")
+	macro := evaluationSet.RuleSets[ProbeEvaluationRuleSetTag].evalOpts.MacroStore.Get("test_macro")
 	if macro == nil {
-		t.Fatalf("failed to find test_macro in ruleset: %+v", evaluationSet.RuleSets[ProbeEvaluationRuleSetName].evalOpts.MacroStore.List())
+		t.Fatalf("failed to find test_macro in ruleset: %+v", evaluationSet.RuleSets[ProbeEvaluationRuleSetTag].evalOpts.MacroStore.List())
 	}
 
 	testPolicy2.Macros[0].Combine = ""
@@ -129,7 +129,7 @@ func TestRuleMerge(t *testing.T) {
 		t.Error(err)
 	}
 
-	rule := evaluationSet.RuleSets[ProbeEvaluationRuleSetName].GetRules()["test_rule"]
+	rule := evaluationSet.RuleSets[ProbeEvaluationRuleSetTag].GetRules()["test_rule"]
 	if rule == nil {
 		t.Fatal("failed to find test_rule in ruleset")
 	}
@@ -247,7 +247,7 @@ func TestActionSetVariable(t *testing.T) {
 		t.Error(err)
 	}
 
-	rule := evaluationSet.RuleSets[ProbeEvaluationRuleSetName].GetRules()["test_rule"]
+	rule := evaluationSet.RuleSets[ProbeEvaluationRuleSetTag].GetRules()["test_rule"]
 	if rule == nil {
 		t.Fatal("failed to find test_rule in ruleset")
 	}
@@ -257,18 +257,18 @@ func TestActionSetVariable(t *testing.T) {
 	event.SetFieldValue("open.file.path", "/tmp/test2")
 	event.SetFieldValue("open.flags", syscall.O_RDONLY)
 
-	if evaluationSet.RuleSets[ProbeEvaluationRuleSetName].Evaluate(event) {
+	if evaluationSet.RuleSets[ProbeEvaluationRuleSetTag].Evaluate(event) {
 		t.Errorf("Expected event to match no rule")
 	}
 
 	event.SetFieldValue("open.file.path", "/tmp/test")
 
-	if !evaluationSet.RuleSets[ProbeEvaluationRuleSetName].Evaluate(event) {
+	if !evaluationSet.RuleSets[ProbeEvaluationRuleSetTag].Evaluate(event) {
 		t.Errorf("Expected event to match rule")
 	}
 
 	event.SetFieldValue("open.file.path", "/tmp/test2")
-	if !evaluationSet.RuleSets[ProbeEvaluationRuleSetName].Evaluate(event) {
+	if !evaluationSet.RuleSets[ProbeEvaluationRuleSetTag].Evaluate(event) {
 		t.Errorf("Expected event to match rule")
 	}
 }
@@ -329,7 +329,7 @@ func loadPolicy(t *testing.T, testPolicy *PolicyDef, policyOpts PolicyLoaderOpts
 	loader := NewPolicyLoader(provider)
 
 	evaluationSet := newEvaluationSet()
-	return evaluationSet.RuleSets[ProbeEvaluationRuleSetName], evaluationSet.LoadPolicies(loader, policyOpts)
+	return evaluationSet.RuleSets[ProbeEvaluationRuleSetTag], evaluationSet.LoadPolicies(loader, policyOpts)
 }
 
 func TestRuleErrorLoading(t *testing.T) {

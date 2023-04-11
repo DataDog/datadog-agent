@@ -28,10 +28,10 @@ type CombinePolicy = string
 
 // Combine policies
 const (
-	NoPolicy                   CombinePolicy = ""
-	MergePolicy                CombinePolicy = "merge"
-	OverridePolicy             CombinePolicy = "override"
-	ProbeEvaluationRuleSetName               = "probe_evaluation"
+	NoPolicy                  CombinePolicy = ""
+	MergePolicy               CombinePolicy = "merge"
+	OverridePolicy            CombinePolicy = "override"
+	ProbeEvaluationRuleSetTag               = "probe_evaluation"
 )
 
 // MacroDefinition holds the definition of a macro
@@ -746,8 +746,8 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalO
 		evalOpts.WithVariableStore(&eval.VariableStore{})
 	}
 
-	if opts.Name == "" {
-		opts.WithName(ProbeEvaluationRuleSetName)
+	if opts.Tag == "" {
+		opts.WithTag(ProbeEvaluationRuleSetTag)
 	}
 
 	return &RuleSet{
