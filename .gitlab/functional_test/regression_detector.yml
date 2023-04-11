@@ -92,7 +92,7 @@ single-machine-performance-regression_detector:
     - dpkg -i dd-package.deb
     - rm dd-package.deb
     - apt-get update
-    - dd-package --bucket binaries.ddbuild.io devtools/pr-commenter --distribution "20.04"
+    - dd-package --bucket binaries.ddbuild.io --package devtools/pr-commenter --distribution "20.04"
     # Post HTML report to GitHub
     - cat outputs/report.html | /usr/local/bin/pr-commenter --for-repo="$CI_PROJECT_NAME" --for-pr="$CI_COMMIT_REF_NAME"
     # Finally, exit 1 if the job signals a regression else 0.
