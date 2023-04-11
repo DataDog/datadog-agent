@@ -121,7 +121,7 @@ func checkDuplicated(entries []mapEntry) {
 
 	for _, entry := range entries {
 		if trimmedNames[entry.TrimmedName] {
-			fmt.Printf("CWS warning: the trimmed map name `%s`(`%s`) is not unique\n", entry.TrimmedName, entry.Name)
+			panic(fmt.Sprintf("CWS warning: the trimmed map name `%s`(`%s`) is not unique", entry.TrimmedName, entry.Name))
 		}
 		trimmedNames[entry.TrimmedName] = true
 	}
