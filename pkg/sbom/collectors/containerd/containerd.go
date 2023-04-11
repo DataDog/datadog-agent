@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	collectorName      = "containerd-collector"
+	collectorName      = "containerd"
 	scanFilesystemType = "filesystem"
 	scanDaemonType     = "daemon"
 )

@@ -30,9 +30,10 @@ func init() {
 
 // Config holds the container_image check configuration
 type Config struct {
-	ChunkSize                int `yaml:"chunk_size"`
-	NewSBOMMaxLatencySeconds int `yaml:"new_sbom_max_latency_seconds"`
-	PeriodicRefreshSeconds   int `yaml:"periodic_refresh_seconds"`
+	ChunkSize                       int `yaml:"chunk_size"`
+	NewSBOMMaxLatencySeconds        int `yaml:"new_sbom_max_latency_seconds"`
+	ContainerPeriodicRefreshSeconds int `yaml:"periodic_refresh_seconds"`
+	HostPeriodicRefreshSeconds      int `yaml:"host_periodic_refresh_seconds"`
 }
 
 type configValueRange struct {
@@ -54,10 +55,16 @@ var /* const */ (
 		default_: 30,  // 30 s
 	}
 
-	periodicRefreshSecondsValueRange = &configValueRange{
+	containerPeriodicRefreshSecondsValueRange = &configValueRange{
 		min:      60,     // 1 min
 		max:      604800, // 1 week
 		default_: 3600,   // 1h
+	}
+
+	hostPeriodicRefreshSecondsValueRange = &configValueRange{
+		min:      60,        // 1 min
+		max:      604800,    // 1 week
+		default_: 3600 * 24, // 1h
 	}
 )
 
@@ -78,7 +85,8 @@ func (c *Config) Parse(data []byte) error {
 
 	validateValue(&c.ChunkSize, chunkSizeValueRange)
 	validateValue(&c.NewSBOMMaxLatencySeconds, newSBOMMaxLatencySecondsValueRange)
-	validateValue(&c.PeriodicRefreshSeconds, periodicRefreshSecondsValueRange)
+	validateValue(&c.ContainerPeriodicRefreshSeconds, containerPeriodicRefreshSecondsValueRange)
+	validateValue(&c.HostPeriodicRefreshSeconds, hostPeriodicRefreshSecondsValueRange)
 
 	return nil
 }
@@ -146,15 +154,19 @@ func (c *Check) Run() error {
 	// Trigger an initial scan on host
 	c.processor.processHostRefresh()
 
-	periodicRefreshTicker := time.NewTicker(time.Duration(c.instance.PeriodicRefreshSeconds) * time.Second)
-	defer periodicRefreshTicker.Stop()
+	containerPeriodicRefreshTicker := time.NewTicker(time.Duration(c.instance.ContainerPeriodicRefreshSeconds) * time.Second)
+	defer containerPeriodicRefreshTicker.Stop()
+
+	hostPeriodicRefreshTicker := time.NewTicker(time.Duration(c.instance.HostPeriodicRefreshSeconds) * time.Second)
+	defer hostPeriodicRefreshTicker.Stop()
 
 	for {
 		select {
 		case eventBundle := <-imgEventsCh:
 			c.processor.processContainerImagesEvents(eventBundle)
-		case <-periodicRefreshTicker.C:
+		case <-containerPeriodicRefreshTicker.C:
 			c.processor.processContainerImagesRefresh(c.workloadmetaStore.ListImages())
+		case <-hostPeriodicRefreshTicker.C:
 			c.processor.processHostRefresh()
 		case <-c.stopCh:
 			c.processor.stop()

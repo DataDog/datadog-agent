@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	collectorName = "host-collector"
+	collectorName = "host"
 )
 
 type ScanRequest struct {

@@ -10,8 +10,7 @@ import (
 )
 
 const (
-	subsystem        = "trivy"
-	sourceContainerd = "containerd"
+	subsystem = "trivy"
 )
 
 var (
