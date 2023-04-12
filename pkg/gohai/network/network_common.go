@@ -9,7 +9,7 @@ import (
 	"errors"
 	"net"
 
-	"github.com/DataDog/gohai/utils"
+	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 )
 
 // Network holds network metadata about the host

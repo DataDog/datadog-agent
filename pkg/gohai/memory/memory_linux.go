@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/gohai/utils"
+	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 )
 
 var memMap = map[string]string{

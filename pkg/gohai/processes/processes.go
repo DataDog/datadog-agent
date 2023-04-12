@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/gohai/processes/gops"
+	"github.com/DataDog/datadog-agent/pkg/gohai/processes/gops"
 )
 
 // ProcessField is an untyped representation of a process group,
