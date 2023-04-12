@@ -288,7 +288,7 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store, interf
 	return links
 }
 
-func buildNetworkTopologyMetadataWithLLDP(deviceID string, store *metadata.Store, interfaces []metadata.InterfaceMetadata) []metadata.TopologyLinkMetadata {
+func buildNetworkTopologyMetadataWithLLDP(deviceID string, store *metadata.Store, interfaces []devicemetadata.InterfaceMetadata) []devicemetadata.TopologyLinkMetadata {
 	interfaceIndexByIDType := buildInterfaceIndexByIDType(interfaces)
 
 	remManAddrByLLDPRemIndex := getRemManIPAddrByLLDPRemIndex(store.GetColumnIndexes("lldp_remote_management.interface_id_type"))
@@ -361,14 +361,14 @@ func buildNetworkTopologyMetadataWithLLDP(deviceID string, store *metadata.Store
 	}
 	return links
 }
-func buildNetworkTopologyMetadataWithCDP(deviceID string, store *metadata.Store, interfaces []metadata.InterfaceMetadata) []metadata.TopologyLinkMetadata {
+func buildNetworkTopologyMetadataWithCDP(deviceID string, store *metadata.Store, interfaces []devicemetadata.InterfaceMetadata) []devicemetadata.TopologyLinkMetadata {
 	indexes := store.GetColumnIndexes("cdp_remote.interface_id") // using `cdp_remote.interface_id` to get indexes since it's expected to be always present
 	if len(indexes) == 0 {
 		log.Debugf("Unable to build links metadata: no cdp_remote indexes found")
 		return nil
 	}
 	sort.Strings(indexes)
-	var links []metadata.TopologyLinkMetadata
+	var links []devicemetadata.TopologyLinkMetadata
 	for _, strIndex := range indexes {
 		indexElems := strings.Split(strIndex, ".")
 
@@ -388,30 +388,30 @@ func buildNetworkTopologyMetadataWithCDP(deviceID string, store *metadata.Store,
 		// remEntryUniqueID: The combination of cdpCacheIfIndex and cdpCacheDeviceIndex is expected to be unique for each entry in cdpCacheTable
 		remEntryUniqueID := cdpCacheIfIndex + "." + cdpCacheDeviceIndex
 
-		newLink := metadata.TopologyLinkMetadata{
+		newLink := devicemetadata.TopologyLinkMetadata{
 			ID:         deviceID + ":" + remEntryUniqueID,
 			SourceType: topologyLinkSourceTypeCDP,
-			Remote: &metadata.TopologyLinkSide{
-				Device: &metadata.TopologyLinkDevice{
+			Remote: &devicemetadata.TopologyLinkSide{
+				Device: &devicemetadata.TopologyLinkDevice{
 					Name:        store.GetColumnAsString("cdp_remote.device_name", strIndex),
 					Description: store.GetColumnAsString("cdp_remote.device_desc", strIndex),
 					ID:          store.GetColumnAsString("cdp_remote.device_id", strIndex),
 					IDType:      "",
 					IPAddress:   remoteDeviceAddress,
 				},
-				Interface: &metadata.TopologyLinkInterface{
+				Interface: &devicemetadata.TopologyLinkInterface{
 					ID:          store.GetColumnAsString("cdp_remote.interface_id", strIndex),
-					IDType:      metadata.IDTypeInterfaceName,
+					IDType:      devicemetadata.IDTypeInterfaceName,
 					Description: "",
 				},
 			},
-			Local: &metadata.TopologyLinkSide{
-				Interface: &metadata.TopologyLinkInterface{
+			Local: &devicemetadata.TopologyLinkSide{
+				Interface: &devicemetadata.TopologyLinkInterface{
 					DDID:   resolvedLocalInterfaceID,
 					ID:     "",
 					IDType: "",
 				},
-				Device: &metadata.TopologyLinkDevice{
+				Device: &devicemetadata.TopologyLinkDevice{
 					DDID: deviceID,
 				},
 			},
