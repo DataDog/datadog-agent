@@ -115,8 +115,8 @@ func (m *forwardingTransport) RoundTrip(req *http.Request) (rres *http.Response,
 			if i == 0 {
 				// given the way we construct the list of targets the main endpoint
 				// will be the first one called, we return its response and error
-				rres, rerr = m.rt.RoundTrip(newreq) //nolint:bodyclose
-				// Ignoring bodyclose here because it looks like a false positive.
+				rres, rerr = m.rt.RoundTrip(newreq)
+				rres.Body.Close()
 				return
 			}
 			if resp, err := m.rt.RoundTrip(newreq); err == nil {
@@ -130,6 +130,7 @@ func (m *forwardingTransport) RoundTrip(req *http.Request) (rres *http.Response,
 		}(i, u)
 	}
 	wg.Wait()
+
 	return rres, rerr
 }
 
