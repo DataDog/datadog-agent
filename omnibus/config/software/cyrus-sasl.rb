@@ -2,8 +2,8 @@ name "cyrus-sasl"
 default_version "2.1.28"
 
 # test if lmdb can replace gdbm
-dependency "gdbm"
-#dependency "lmdb"
+#dependency "gdbm"
+dependency "lmdb"
 
 if redhat?
     dependency "libcom_err"

@@ -18,7 +18,12 @@ build do
 
     # # https://www.linuxfromscratch.org/blfs/view/8.3/server/lmdb.html
     command "make", :env => env
-    command "sed -i 's| liblmdb.a||' Makefile", :env => env
+    if mac_os_x?
+        # MacOS' sed requires `-i ''` rather than just `-i`
+        command "sed -i '' 's| liblmdb.a||' Makefile", :env => env
+    else
+        command "sed -i 's| liblmdb.a||' Makefile", :env => env
+    end
 
     # We have to manually move the files into the correct directories because the Makefile for lmdb hardcodes the install directory to `/usr/local`, although we need this to be `#{install_dir}/embedded`
     copy "liblmdb.a", "#{install_dir}/embedded/lib/liblmdb.a"
