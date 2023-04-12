@@ -283,6 +283,8 @@ type DebuggerProxyConfig struct {
 	DDURL string
 	// APIKey ...
 	APIKey string `json:"-"` // Never marshal this field
+	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
+	AdditionalEndpoints map[string][]string `json:"-"` // Never marshal this field
 }
 
 // AgentConfig handles the interpretation of the configuration (with default
