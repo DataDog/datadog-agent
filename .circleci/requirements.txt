@@ -1,5 +1,5 @@
 black==22.10.0
-# Codecov was deprecated on Feb 1, 2022 and disappeared from PyPi on Apr 12, 2023.
+# The Codecov Python uploader was deprecated on Feb 1, 2022 and disappeared from PyPi on Apr 12, 2023.
 # codecov==2.1.12
 flake8-bugbear==22.10.27
 flake8-comprehensions==3.10.1
