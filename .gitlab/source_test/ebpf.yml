@@ -40,7 +40,7 @@
   script:
     - inv -e install-tools
     - inv -e system-probe.object-files
-    - invoke -e golangci-lint --build system-probe --concurrency 4 ./pkg
+    - invoke -e golangci-lint --build system-probe-unit-tests --concurrency 4 ./pkg
     - invoke -e security-agent.run-ebpf-unit-tests --verbose
     - invoke -e golangci-lint --targets=./pkg/security/tests --concurrency 4 --build-tags="functionaltests stresstests trivy containerd linux_bpf ebpf_bindata" --arch=$TASK_ARCH
 

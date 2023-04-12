@@ -70,9 +70,9 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 		return nil, fmt.Errorf("security_profiles map not found")
 	}
 
-	securityProfileSyscallsMap, ok, _ := manager.GetMap("security_profile_syscalls")
+	securityProfileSyscallsMap, ok, _ := manager.GetMap("secprofs_syscalls")
 	if !ok {
-		return nil, fmt.Errorf("security_profile_syscalls map not found")
+		return nil, fmt.Errorf("secprofs_syscalls map not found")
 	}
 
 	m := &SecurityProfileManager{

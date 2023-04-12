@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+	easyjson "github.com/mailru/easyjson"
 )
 
 // EventLostRead is the event used to report lost events detected from user space
@@ -113,13 +114,17 @@ type AbnormalPathEvent struct {
 
 // NewAbnormalPathEvent returns the rule and a populated custom event for a abnormal_path event
 func NewAbnormalPathEvent(event *model.Event, probe *Probe, pathResolutionError error) (*rules.Rule, *events.CustomEvent) {
-	evt := AbnormalPathEvent{
-		Event:               serializers.NewEventSerializer(event, probe.resolvers),
-		PathResolutionError: pathResolutionError.Error(),
-	}
-	evt.FillCustomEventCommonFields()
-	// Overwrite common timestamp with event timestamp
-	evt.Timestamp = event.FieldHandlers.ResolveEventTimestamp(event)
+	marshalerCtor := func() easyjson.Marshaler {
+		evt := AbnormalPathEvent{
+			Event:               serializers.NewEventSerializer(event, probe.resolvers),
+			PathResolutionError: pathResolutionError.Error(),
+		}
+		evt.FillCustomEventCommonFields()
+		// Overwrite common timestamp with event timestamp
+		evt.Timestamp = event.FieldHandlers.ResolveEventTimestamp(event)
 
-	return events.NewCustomRule(events.AbnormalPathRuleID), events.NewCustomEvent(resolutionErrorToEventType(event.PathResolutionError), evt)
+		return evt
+	}
+
+	return events.NewCustomRule(events.AbnormalPathRuleID), events.NewCustomEventLazy(resolutionErrorToEventType(event.PathResolutionError), marshalerCtor)
 }

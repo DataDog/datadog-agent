@@ -275,10 +275,10 @@ func InitExpvars(config ddconfig.ConfigReader, hostname string, processModuleEna
 		expvar.Publish("endpoints", expvar.Func(publishEndpoints(eps)))
 		expvar.Publish("drop_check_payloads", expvar.Func(publishDropCheckPayloads))
 		expvar.Publish("system_probe_process_module_enabled", publishBool(processModuleEnabled))
-
-		// Run a profile & telemetry server.
-		if config.GetBool("telemetry.enabled") {
-			http.Handle("/telemetry", telemetry.Handler())
-		}
 	})
+
+	// Run a profile & telemetry server.
+	if config.GetBool("telemetry.enabled") {
+		http.Handle("/telemetry", telemetry.Handler())
+	}
 }
