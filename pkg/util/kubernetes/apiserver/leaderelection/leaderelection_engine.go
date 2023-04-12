@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"strconv"
 
+	coordinationv1 "k8s.io/api/coordination/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -25,34 +26,80 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func (le *LeaderEngine) getCurrentLeader() (string, *v1.ConfigMap, error) {
+func (le *LeaderEngine) getCurrentLeaderLease() (string, error) {
+	lease, err := le.coordClient.Leases(le.LeaderNamespace).Get(context.TODO(), le.LeaseName, metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+
+	val, found := lease.Annotations[rl.LeaderElectionRecordAnnotationKey]
+	if !found {
+		log.Debugf("The lease/%s in the namespace %s doesn't have the annotation %q: no one is leading yet", le.LeaseName, le.LeaderNamespace, rl.LeaderElectionRecordAnnotationKey)
+		return "", nil
+	}
+
+	electionRecord := rl.LeaderElectionRecord{}
+	if err := json.Unmarshal([]byte(val), &electionRecord); err != nil {
+		return "", err
+	}
+	return electionRecord.HolderIdentity, err
+
+}
+
+func (le *LeaderEngine) getCurrentLeaderConfigMap() (string, error) {
 	configMap, err := le.coreClient.ConfigMaps(le.LeaderNamespace).Get(context.TODO(), le.LeaseName, metav1.GetOptions{})
 	if err != nil {
-		return "", nil, err
+		return "", err
 	}
 
 	val, found := configMap.Annotations[rl.LeaderElectionRecordAnnotationKey]
 	if !found {
 		log.Debugf("The configmap/%s in the namespace %s doesn't have the annotation %q: no one is leading yet", le.LeaseName, le.LeaderNamespace, rl.LeaderElectionRecordAnnotationKey)
-		return "", configMap, nil
+		return "", nil
 	}
 
 	electionRecord := rl.LeaderElectionRecord{}
 	if err := json.Unmarshal([]byte(val), &electionRecord); err != nil {
-		return "", nil, err
+		return "", err
 	}
-	return electionRecord.HolderIdentity, configMap, err
+	return electionRecord.HolderIdentity, err
 }
 
-// newElection creates an election.
-// If `namespace`/`election` does not exist, it is created.
-func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
-	// We first want to check if the ConfigMap the Leader Election is based on exists.
-	_, err := le.coreClient.ConfigMaps(le.LeaderNamespace).Get(context.TODO(), le.LeaseName, metav1.GetOptions{})
+func (le *LeaderEngine) getCurrentLeader() (string, error) {
+	if le.lockType == rl.LeasesResourceLock {
+		return le.getCurrentLeaderLease()
+	} else {
+		return le.getCurrentLeaderConfigMap()
+	}
+}
 
+func (le *LeaderEngine) CreateLeaderTokenIfNotExists() error {
+	if le.lockType == rl.LeasesResourceLock {
+		_, err := le.coordClient.Leases(le.LeaderNamespace).Get(context.TODO(), le.LeaseName, metav1.GetOptions{})
+
+		if err != nil {
+			if errors.IsNotFound(err) == false {
+				return err
+			}
+
+			_, err = le.coordClient.Leases(le.LeaderNamespace).Create(context.TODO(), &coordinationv1.Lease{
+				TypeMeta: metav1.TypeMeta{
+					Kind: "Lease",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      le.LeaseName,
+					Namespace: le.LeaderNamespace,
+				},
+			}, metav1.CreateOptions{})
+			if err != nil && !errors.IsConflict(err) {
+				return err
+			}
+		}
+	}
+	_, err := le.coreClient.ConfigMaps(le.LeaderNamespace).Get(context.TODO(), le.LeaseName, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) == false {
-			return nil, err
+			return err
 		}
 
 		_, err = le.coreClient.ConfigMaps(le.LeaderNamespace).Create(context.TODO(), &v1.ConfigMap{
@@ -64,11 +111,21 @@ func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 			},
 		}, metav1.CreateOptions{})
 		if err != nil && !errors.IsConflict(err) {
-			return nil, err
+			return err
 		}
 	}
+	return err
+}
 
-	currentLeader, configMap, err := le.getCurrentLeader()
+// newElection creates an election.
+// If `namespace`/`election` does not exist, it is created.
+func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
+	// We first want to check if the ConfigMap the Leader Election is based on exists.
+	if err := le.CreateLeaderTokenIfNotExists(); err != nil {
+		return nil, err
+	}
+
+	currentLeader, err := le.getCurrentLeader()
 	if err != nil {
 		return nil, err
 	}
@@ -106,9 +163,9 @@ func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 	}
 
 	leaderElectorInterface, err := rl.New(
-		rl.ConfigMapsResourceLock,
-		configMap.ObjectMeta.Namespace,
-		configMap.ObjectMeta.Name,
+		le.lockType,
+		le.LeaderNamespace,
+		le.LeaseName,
 		le.coreClient,
 		le.coordClient,
 		resourceLockConfig,

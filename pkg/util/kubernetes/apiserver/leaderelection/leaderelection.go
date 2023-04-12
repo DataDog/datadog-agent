@@ -16,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	coordinationv1 "k8s.io/client-go/kubernetes/typed/coordination/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -58,6 +57,7 @@ type LeaderEngine struct {
 	ServiceName         string
 	leaderIdentityMutex sync.RWMutex
 	leaderElector       *leaderelection.LeaderElector
+	lockType            string
 
 	// leaderIdentity is the HolderIdentity of the current leader.
 	leaderIdentity string
@@ -138,14 +138,14 @@ func (le *LeaderEngine) init() error {
 	}
 
 	le.coreClient = apiClient.Cl.CoreV1()
-	// Will be required once we migrate to Kubernetes deps >= 0.24
-	le.coordClient = nil
+	le.coordClient = apiClient.Cl.CoordinationV1()
 
-	// check if we can get ConfigMap.
-	_, err = le.coreClient.ConfigMaps(le.LeaderNamespace).Get(context.TODO(), le.LeaseName, metav1.GetOptions{})
-	if err != nil && errors.IsNotFound(err) == false {
-		log.Errorf("Cannot retrieve ConfigMap from the %s namespace: %s", le.LeaderNamespace, err)
-		return err
+	discoverClient := apiClient.DiscoveryCl
+	if _, err := discoverClient.ServerResourcesForGroupVersion("coordination.k8s.io/v1"); err != nil {
+		le.lockType = rl.LeasesResourceLock
+	} else {
+		// for kubernetes <= 1.13
+		le.lockType = rl.ConfigMapsResourceLock
 	}
 
 	le.leaderElector, err = le.newElection()
