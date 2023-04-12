@@ -188,8 +188,8 @@ func init() {
 	core.RegisterCheck(common.IntegrationNameScheduler, oracleFactory)
 }
 
-// func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string, forceMatchingSignature uint64, SQLID string) (common.ObfuscatedStatement, error) {
-func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string, forceMatchingSignature string, SQLID string) (common.ObfuscatedStatement, error) {
+// func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string, forceMatchingSignature string, SQLID string) (common.ObfuscatedStatement, error) {
+func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string) (common.ObfuscatedStatement, error) {
 	obfuscatedStatement, err := o.ObfuscateSQLString(statement)
 	if err == nil {
 		return common.ObfuscatedStatement{
@@ -200,16 +200,9 @@ func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string
 			Comments:       obfuscatedStatement.Metadata.Comments,
 		}, nil
 	} else {
-		//obfuscationError := fmt.Sprintf("force_matching_signature: %d", forceMatchingSignature)
-		obfuscationError := fmt.Sprintf("force_matching_signature: %s", forceMatchingSignature)
-		if SQLID != "" {
-			obfuscationError = obfuscationError + fmt.Sprintf(", SQL_ID: %s", SQLID)
-		}
-
 		if c.config.InstanceConfig.LogUnobfuscatedQueries {
-			log.Error(obfuscationError + fmt.Sprintf(" SQL: %s", statement))
+			log.Error(fmt.Sprintf("Obfuscation error for SQL: %s", statement))
 		}
-
 		return common.ObfuscatedStatement{Statement: statement}, err
 	}
 }

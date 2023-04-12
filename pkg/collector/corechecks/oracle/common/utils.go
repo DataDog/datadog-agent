@@ -8,12 +8,14 @@ package common
 import (
 	"hash/fnv"
 	"strconv"
+
+	"github.com/twmb/murmur3"
 )
 
 func GetQuerySignature(statement string) string {
 	h := fnv.New64a()
 	h.Write([]byte(statement))
-	return strconv.FormatUint(h.Sum64(), 10)
+	return strconv.FormatUint(murmur3.Sum64([]byte(statement)), 16)
 }
 
 type ObfuscatedStatement struct {

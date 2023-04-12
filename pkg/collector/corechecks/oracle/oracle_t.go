@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	go_ora "github.com/sijms/go-ora/v2"
 
 	_ "github.com/godror/godror"
@@ -292,4 +293,21 @@ func TestSQLXIn(t *testing.T) {
 		assert.Equal(t, retValue, result, driver)
 	}
 
+}
+
+func TestObfuscator(t *testing.T) {
+	obfuscatorOptions := obfuscate.SQLConfig{}
+	obfuscatorOptions.DBMS = common.IntegrationName
+	obfuscatorOptions.TableNames = true
+	obfuscatorOptions.CollectCommands = true
+	obfuscatorOptions.CollectComments = true
+
+	o := obfuscate.NewObfuscator(obfuscate.Config{SQL: obfuscatorOptions})
+	for _, statement := range []string{
+		`UPDATE /* comment */ SET t n=1`,
+		`SELECT /* comment */ from dual`} {
+		obfuscatedStatement, err := o.ObfuscateSQLString(statement)
+		assert.NoError(t, err, "obfuscator error")
+		assert.NotContains(t, obfuscatedStatement.Query, "comment", "comment wasn't removed by the obfuscator")
+	}
 }

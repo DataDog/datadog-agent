@@ -24,18 +24,27 @@ SELECT
     s.ksuseunm as osuser,
     s.ksusepid as process,
     s.ksusemnm as machine,
-    s.ksusemnp as PORT,
+    s.ksusemnp as port,
     s.ksusepnm as program,
     DECODE(BITAND(s.ksuseflg, 19), 17, 'BACKGROUND', 1, 'USER', 2, 'RECURSIVE', '?') as type,
     s.ksusesqi as sql_id,
     sq.force_matching_signature as force_matching_signature,
     s.ksusesph as sql_plan_hash_value,
     s.ksusesesta as sql_exec_start,
+    s.ksusesql as sql_address,
+    CASE WHEN BITAND(s.ksusstmbv, POWER(2, 04)) = POWER(2, 04) THEN 'Y' ELSE 'N' END as in_parse,
+    CASE WHEN BITAND(s.ksusstmbv, POWER(2, 07)) = POWER(2, 07) THEN 'Y' ELSE 'N' END as in_hard_parse,
+    s.ksusepsi as prev_sql_id,
+    s.ksusepha as prev_sql_plan_hash_value,
+    s.ksusepesta as prev_sql_exec_start,
+    sq_prev.force_matching_signature as prev_force_matching_signature,
+    s.ksusepsq as prev_sql_address,
     s.ksuseapp as module,
     s.ksuseact as action,
     s.ksusecli as client_info,
     s.ksuseltm as logon_time,
     s.ksuseclid as client_identifier,
+    s.ksusstmbv as op_flags,
     decode(s.ksuseblocker, 
         4294967295, 'UNKNOWN', 4294967294, 'UNKNOWN', 4294967293, 'UNKNOWN', 4294967292, 'NO HOLDER', 4294967291, 'NOT IN WAIT', 
         'VALID'
@@ -69,47 +78,16 @@ SELECT
     c.name as pdb_name,
     sq.sql_text as sql_text,
     sq.sql_fulltext as sql_fulltext,
-    sq.parse_calls,
-    sq.disk_reads,
-    sq.direct_writes,
-    sq.direct_reads,
-    sq.buffer_gets,
-    sq.rows_processed,
-    sq.serializable_aborts,
-    sq.fetches,
-    sq.executions,
-    sq.end_of_fetch_count,
-    sq.loads,
-    sq.version_count,
-    sq.invalidations,
-    sq.px_servers_executions,
-    sq.cpu_time,
-    sq.elapsed_time,
-    sq.avg_hard_parse_time,
-    sq.application_wait_time,
-    sq.concurrency_wait_time,
-    sq.cluster_wait_time,
-    sq.user_io_wait_time,
-    sq.plsql_exec_time,
-    sq.java_exec_time,
-    sq.sorts,
-    sq.sharable_mem,
-    sq.typecheck_mem,
-    sq.io_cell_offload_eligible_bytes,
-    sq.io_interconnect_bytes,
-    sq.physical_read_requests,
-    sq.physical_read_bytes,
-    sq.physical_write_requests,
-    sq.physical_write_bytes,
-    sq.io_cell_uncompressed_bytes,
-    sq.io_cell_offload_returned_bytes,
-    sq.avoided_executions
+    sq_prev.sql_fulltext as prev_sql_fulltext,
+    comm.command_name
   FROM
     x$ksuse s,
     x$kslwt w, 
     x$ksled e,
     v$sqlstats sq,
-    v$containers c
+    v$sqlstats sq_prev,
+    v$containers c,
+    v$sqlcommand comm
   WHERE
     BITAND(s.ksspaflg, 1) != 0
     AND BITAND(s.ksuseflg, 1) != 0
@@ -118,7 +96,10 @@ SELECT
     AND w.kslwtevt = e.indx
     AND s.ksusesqi = sq.sql_id(+)
     AND s.ksusesph = sq.plan_hash_value(+)
+    AND s.ksusepsi = sq_prev.sql_id(+)
+    AND s.ksusepha = sq_prev.plan_hash_value(+)
     AND s.con_id = c.con_id(+)
+    AND s.ksuudoct = comm.command_type(+)
 ;
 
 GRANT SELECT ON dd_session TO c##datadog ;
