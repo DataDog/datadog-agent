@@ -130,7 +130,7 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 	for _, flow := range flows {
 		ipAddress := common.IPBytesToString(flow.DeviceAddr)
 		if ipAddress == "" || strings.HasPrefix(ipAddress, "?") {
-			// TODO: test me
+			log.Errorf("Invalid exporter Addr: %s", ipAddress)
 			continue
 		}
 		key := flow.Namespace + "|" + ipAddress
