@@ -75,6 +75,11 @@ func processValueUsingSymbolConfig(value valuestore.ResultValue, symbol checkcon
 			return valuestore.ResultValue{}, err
 		}
 	}
+
+	constantValue := symbol.ConstantValue
+	if constantValue != "" {
+		value = valuestore.ResultValue{Value: constantValue}
+	}
 	return value, nil
 }
 

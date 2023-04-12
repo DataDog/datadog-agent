@@ -179,11 +179,6 @@ func (ms *MetricSender) sendMetric(metricSample MetricSample) {
 		forcedType = "gauge"
 	}
 
-	constantValue := metricSample.symbol.ConstantValue
-	if constantValue != "" {
-		metricSample.value = valuestore.ResultValue{Value: constantValue}
-	}
-
 	floatValue, err := metricSample.value.ToFloat64()
 	if err != nil {
 		log.Debugf("metric `%s`: failed to convert to float64: %s", metricFullName, err)
