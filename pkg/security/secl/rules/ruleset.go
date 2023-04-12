@@ -191,6 +191,11 @@ func (rs *RuleSet) GetRules() map[eval.RuleID]*Rule {
 	return rs.rules
 }
 
+// GetTag gets the tag of the rule set, which is usually the tag of the rules that belong in this rule set
+func (rs *RuleSet) GetTag() eval.NormalizedRuleTag {
+	return rs.opts.Tag
+}
+
 // ListMacroIDs returns the list of MacroIDs from the ruleset
 func (rs *RuleSet) ListMacroIDs() []MacroID {
 	var ids []string

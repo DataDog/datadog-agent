@@ -29,7 +29,7 @@ type Opts struct {
 	Logger              log.Logger
 }
 
-// WithTag sets the name of the rule set
+// WithTag sets the tag of the rule set, usually the tag of the rules that belong in this rule set
 func (o *Opts) WithTag(tag eval.NormalizedRuleTag) *Opts {
 	o.Tag = tag
 	return o

@@ -114,11 +114,15 @@ RULES:
 			if err != nil {
 				errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: err})
 			}
+
 			var isTagFilter bool
 			if _, isTagFilter = filter.(*RuleTagFilter); isTagFilter && isRuleAccepted {
 				isTagged = true
-				break
+				continue
+			} else if isTagFilter && !isRuleAccepted {
+				continue
 			}
+
 			if !isRuleAccepted {
 				// we do not fail directly because one of the rules with the same id can load properly
 				if _, ok := filter.(*AgentVersionFilter); ok {
@@ -153,9 +157,9 @@ RULES:
 
 		if isTagged {
 			policy.AddTaggedRule(ruleDef)
+		} else {
+			policy.AddRule(ruleDef)
 		}
-
-		policy.AddRule(ruleDef)
 	}
 
 LOOP:

@@ -1234,21 +1234,22 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 
 // EvaluationSet returns a new evaluation set
 func (p *Probe) EvaluationSet(eventTypeEnabled map[eval.EventType]bool, ruleSetTags []eval.NormalizedRuleTag) *rules.EvaluationSet {
-	ruleOpts, evalOpts := rules.NewEvalOpts(eventTypeEnabled)
-
-	ruleOpts.WithLogger(seclog.DefaultLogger)
-	ruleOpts.WithSupportedDiscarders(SupportedDiscarders)
-	ruleOpts.WithReservedRuleIDs(events.AllCustomRuleIDs())
-
-	eventCtor := func() eval.Event {
-		return &model.Event{
-			FieldHandlers: p.fieldHandlers,
-		}
-	}
-
 	var ruleSetsToInclude []*rules.RuleSet
 	for _, ruleSetTag := range ruleSetTags {
-		ruleSetsToInclude = append(ruleSetsToInclude, rules.NewRuleSet(NewModel(p), eventCtor, ruleOpts.WithTag(ruleSetTag), evalOpts))
+		ruleOpts, evalOpts := rules.NewEvalOpts(eventTypeEnabled)
+
+		ruleOpts.WithLogger(seclog.DefaultLogger)
+		ruleOpts.WithSupportedDiscarders(SupportedDiscarders)
+		ruleOpts.WithReservedRuleIDs(events.AllCustomRuleIDs())
+
+		eventCtor := func() eval.Event {
+			return &model.Event{
+				FieldHandlers: p.fieldHandlers,
+			}
+		}
+
+		rs := rules.NewRuleSet(NewModel(p), eventCtor, ruleOpts.WithTag(ruleSetTag), evalOpts)
+		ruleSetsToInclude = append(ruleSetsToInclude, rs)
 	}
 
 	return rules.NewEvaluationSet(ruleSetsToInclude)
