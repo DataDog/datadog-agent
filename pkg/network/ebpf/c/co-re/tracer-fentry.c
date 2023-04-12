@@ -523,8 +523,6 @@ int BPF_PROG(udp_destroy_sock_exit, struct sock *sk) {
     return 0;
 }
 
-//region sys_exit_bind
-
 static __always_inline int sys_exit_bind(struct socket *sock, struct sockaddr *addr, int rc) {
     if (rc != 0) {
         return 0;
@@ -624,8 +622,6 @@ int BPF_PROG(sockfd_lookup_light_exit, int fd, int *err, int *fput_needed, struc
 
     return 0;
 }
-
-//endregion
 
 // This number will be interpreted by elf-loader to set the current running kernel version
 __u32 _version SEC("version") = 0xFFFFFFFE; // NOLINT(bugprone-reserved-identifier)
