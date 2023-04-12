@@ -4,7 +4,7 @@ on:
   pull_request:
 
 env:
-  SIZE_ALLOWANCE: 1000000  # 1 MB
+  SIZE_ALLOWANCE: fromJSON(1000000)  # 1 MB
 
 jobs:
   comment:
@@ -15,6 +15,12 @@ jobs:
         with:
           path: go/src/github.com/DataDog/datadog-agent
 
+      - name: Checkout datadog-agent base branch
+        run: |
+          cd go/src/github.com/DataDog/datadog-agent
+          git fetch origin $GITHUB_BASE_REF --depth 1
+          git checkout $GITHUB_BASE_REF
+
       - name: Checkout the datadog-lambda-extension repository
         uses: actions/checkout@v3
         with:
@@ -24,25 +30,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
-      - name: Current binary size and dependencies
-        id: current
-        run: |
-          cd go/src/github.com/DataDog/datadog-lambda-extension
-
-          OUTPUT=$(./scripts/visualize_size.sh size)
-          echo "binary size after merging this pull request will be $OUTPUT"
-          echo "result=$OUTPUT" >> $GITHUB_OUTPUT
-
-          echo "deps<<EOF" >> $GITHUB_OUTPUT
-          ./scripts/visualize_size.sh list_symbols | awk '{print $2}' | head -n 100 >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Checkout datadog-agent main
-        run: |
-          cd go/src/github.com/DataDog/datadog-agent
-          git fetch origin $GITHUB_BASE_REF --depth 1
-          git checkout origin/$GITHUB_BASE_REF
-
       - name: Previous binary size and dependencies
         id: previous
         run: |
@@ -50,6 +37,25 @@ jobs:
 
           OUTPUT=$(./scripts/visualize_size.sh size)
           echo "binary size before merging this pull request is $OUTPUT"
+          echo "result=$OUTPUT" >> $GITHUB_OUTPUT
+
+          echo "deps<<EOF" >> $GITHUB_OUTPUT
+          ./scripts/visualize_size.sh list_symbols | awk '{print $2}' | head -n 100 >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Checkout datadog-agent pr branch
+        run: |
+          cd go/src/github.com/DataDog/datadog-agent
+          git fetch origin $GITHUB_SHA --depth 1
+          git checkout $GITHUB_SHA
+
+      - name: Current binary size and dependencies
+        id: current
+        run: |
+          cd go/src/github.com/DataDog/datadog-lambda-extension
+
+          OUTPUT=$(./scripts/visualize_size.sh size)
+          echo "binary size after merging this pull request will be $OUTPUT"
           echo "result=$OUTPUT" >> $GITHUB_OUTPUT
 
           echo "deps<<EOF" >> $GITHUB_OUTPUT
@@ -65,6 +71,17 @@ jobs:
           OUTPUT=$(( $OUTPUT / 100000 ))
           echo "coldstart=$OUTPUT" >> $GITHUB_OUTPUT
 
+      ### Steps below only run if size diff > SIZE_ALLOWANCE ###
+
+      - name: Install graphviz
+        uses: ts-graphviz/setup-graphviz@v1
+        if: steps.compare.outputs.diff > env.SIZE_ALLOWANCE
+
+      - name: Install digraph
+        if: steps.compare.outputs.diff > env.SIZE_ALLOWANCE
+        run: |
+          GOPATH=$(pwd)/go go install golang.org/x/tools/cmd/digraph@latest
+
       - name: List new dependencies
         id: deps
         if: steps.compare.outputs.diff > env.SIZE_ALLOWANCE
@@ -77,23 +94,45 @@ jobs:
           done
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Post comment
+      - name: Create dependency graphs
         if: steps.compare.outputs.diff > env.SIZE_ALLOWANCE
+        run: |
+          export PATH=$(pwd)/go/bin:$PATH
+          cd go/src/github.com/DataDog/datadog-lambda-extension
+          mkdir graphs
+          for dep in $(echo "${{ steps.deps.outputs.deps }}"); do
+            PACKAGE=$dep ./scripts/visualize_size.sh graph
+            mv .layers/output.svg graphs/$(echo $dep | tr '/' '-').svg
+          done
+
+      - name: Archive dependency graphs
+        uses: actions/upload-artifact@v3
+        if: steps.compare.outputs.diff > env.SIZE_ALLOWANCE
+        with:
+          name: dependency-graphs
+          path: go/src/github.com/DataDog/datadog-lambda-extension/graphs
+
+      - name: Post comment
         uses: marocchino/sticky-pull-request-comment@v2.5.0
+        if: steps.compare.outputs.diff > env.SIZE_ALLOWANCE
         with:
           hide_and_recreate: true
           hide_classify: "RESOLVED"
           message: |
             :warning::rotating_light: Warning, this pull request increases the binary size of serverless extension by ${{ steps.compare.outputs.diff }} bytes. Each MB of binary size increase means about 10ms of additional cold start time, so this pull request would increase cold start time by ${{ steps.compare.outputs.coldstart }}ms.
 
+            If you have questions, we are happy to help, come visit us in the [#serverless](https://dd.slack.com/archives/CBWDFKWV8) slack channel and provide a link to this comment.
+
             <details>
-            <summary>New dependencies added</summary>
+            <summary>Debug info</summary>
+
+            These dependencies were added to the serverless extension by this pull request:
 
             ```
             ${{ steps.deps.outputs.deps }}
             ```
-            </details>
+
+            View dependency graphs for each added dependency in the [artifacts section](https://github.com/DataDog/datadog-agent/actions/runs/${{ github.run_id }}#artifacts) of the github action.
 
             We suggest you consider adding the `!serverless` build tag to remove any new dependencies not needed in the serverless extension.
-
-            If you have questions, we are happy to help, come visit us in the [#serverless](https://dd.slack.com/archives/CBWDFKWV8) slack channel and provide a link to this comment.
+            </details>

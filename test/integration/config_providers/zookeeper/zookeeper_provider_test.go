@@ -84,8 +84,6 @@ func NewZkTestSuite(zkVersion, containerName string) *ZkTestSuite {
 func (suite *ZkTestSuite) SetupSuite() {
 	var err error
 
-	config.DetectFeatures()
-
 	suite.compose = &utils.ComposeConf{
 		ProjectName: "zk",
 		FilePath:    "testdata/zk.compose",

@@ -7,6 +7,7 @@ package report
 
 import (
 	json "encoding/json"
+	"net"
 	"sort"
 	"strconv"
 	"strings"
@@ -27,6 +28,9 @@ import (
 
 const interfaceStatusMetric = "snmp.interface.status"
 const topologyLinkSourceTypeLLDP = "lldp"
+const topologyLinkSourceTypeCDP = "cdp"
+const ciscoNetworkProtocolIPv4 = "1"
+const ciscoNetworkProtocolIPv6 = "20"
 
 // ReportNetworkDeviceMetadata reports device metadata
 func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus devicemetadata.DeviceStatus) {
@@ -35,13 +39,13 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 
 	metadataStore := buildMetadataStore(config.Metadata, store)
 
-	device := buildNetworkDeviceMetadata(config.DeviceID, config.DeviceIDTags, config, metadataStore, tags, deviceStatus)
+	devices := []devicemetadata.DeviceMetadata{buildNetworkDeviceMetadata(config.DeviceID, config.DeviceIDTags, config, metadataStore, tags, deviceStatus)}
 
 	interfaces := buildNetworkInterfacesMetadata(config.DeviceID, metadataStore)
 	ipAddresses := buildNetworkIPAddressesMetadata(config.DeviceID, metadataStore)
 	topologyLinks := buildNetworkTopologyMetadata(config.DeviceID, metadataStore, interfaces)
 
-	metadataPayloads := batchPayloads(config.Namespace, config.ResolvedSubnetName, collectTime, devicemetadata.PayloadMetadataBatchSize, device, interfaces, ipAddresses, topologyLinks)
+	metadataPayloads := devicemetadata.BatchPayloads(config.Namespace, config.ResolvedSubnetName, collectTime, devicemetadata.PayloadMetadataBatchSize, devices, interfaces, ipAddresses, topologyLinks)
 
 	for _, payload := range metadataPayloads {
 		payloadBytes, err := json.Marshal(payload)
@@ -277,6 +281,14 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store, interf
 		return nil
 	}
 
+	links := buildNetworkTopologyMetadataWithLLDP(deviceID, store, interfaces)
+	if len(links) == 0 {
+		links = buildNetworkTopologyMetadataWithCDP(deviceID, store, interfaces)
+	}
+	return links
+}
+
+func buildNetworkTopologyMetadataWithLLDP(deviceID string, store *metadata.Store, interfaces []metadata.InterfaceMetadata) []metadata.TopologyLinkMetadata {
 	interfaceIndexByIDType := buildInterfaceIndexByIDType(interfaces)
 
 	remManAddrByLLDPRemIndex := getRemManIPAddrByLLDPRemIndex(store.GetColumnIndexes("lldp_remote_management.interface_id_type"))
@@ -348,6 +360,77 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store, interf
 		links = append(links, newLink)
 	}
 	return links
+}
+func buildNetworkTopologyMetadataWithCDP(deviceID string, store *metadata.Store, interfaces []metadata.InterfaceMetadata) []metadata.TopologyLinkMetadata {
+	indexes := store.GetColumnIndexes("cdp_remote.interface_id") // using `cdp_remote.interface_id` to get indexes since it's expected to be always present
+	if len(indexes) == 0 {
+		log.Debugf("Unable to build links metadata: no cdp_remote indexes found")
+		return nil
+	}
+	sort.Strings(indexes)
+	var links []metadata.TopologyLinkMetadata
+	for _, strIndex := range indexes {
+		indexElems := strings.Split(strIndex, ".")
+
+		// The cdpCacheEntry index is composed of 2 elements separated by `.`: cdpCacheIfIndex, cdpCacheDeviceIndex
+		if len(indexElems) != 2 {
+			log.Debugf("Expected 2 index elements, but got %d, index=`%s`", len(indexElems), strIndex)
+			continue
+		}
+
+		cdpCacheIfIndex := indexElems[0]
+		cdpCacheDeviceIndex := indexElems[1]
+
+		remoteDeviceAddress := getRemDeviceAddressByCDPRemIndex(store, strIndex)
+
+		resolvedLocalInterfaceID := deviceID + ":" + cdpCacheIfIndex
+
+		// remEntryUniqueID: The combination of cdpCacheIfIndex and cdpCacheDeviceIndex is expected to be unique for each entry in cdpCacheTable
+		remEntryUniqueID := cdpCacheIfIndex + "." + cdpCacheDeviceIndex
+
+		newLink := metadata.TopologyLinkMetadata{
+			ID:         deviceID + ":" + remEntryUniqueID,
+			SourceType: topologyLinkSourceTypeCDP,
+			Remote: &metadata.TopologyLinkSide{
+				Device: &metadata.TopologyLinkDevice{
+					Name:        store.GetColumnAsString("cdp_remote.device_name", strIndex),
+					Description: store.GetColumnAsString("cdp_remote.device_desc", strIndex),
+					ID:          store.GetColumnAsString("cdp_remote.device_id", strIndex),
+					IDType:      "",
+					IPAddress:   remoteDeviceAddress,
+				},
+				Interface: &metadata.TopologyLinkInterface{
+					ID:          store.GetColumnAsString("cdp_remote.interface_id", strIndex),
+					IDType:      metadata.IDTypeInterfaceName,
+					Description: "",
+				},
+			},
+			Local: &metadata.TopologyLinkSide{
+				Interface: &metadata.TopologyLinkInterface{
+					DDID:   resolvedLocalInterfaceID,
+					ID:     "",
+					IDType: "",
+				},
+				Device: &metadata.TopologyLinkDevice{
+					DDID: deviceID,
+				},
+			},
+		}
+		links = append(links, newLink)
+	}
+	return links
+}
+
+func getRemDeviceAddressByCDPRemIndex(store *metadata.Store, strIndex string) string {
+	remoteDeviceAddressType := store.GetColumnAsString("cdp_remote.device_address_type", strIndex)
+	if remoteDeviceAddressType == ciscoNetworkProtocolIPv4 || remoteDeviceAddressType == ciscoNetworkProtocolIPv6 {
+		return net.IP(store.GetColumnAsByteArray("cdp_remote.device_address", strIndex)).String()
+	} else {
+		// TODO: use cdpCacheSecondaryMgmtAddrType or cdpCacheAddress in this case
+		return "" // Note if this is the case this won't pass the backend check and will generate the error
+		// "deviceIP cannot be empty (except when interface id_type is mac_address)"
+	}
+
 }
 
 func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]map[string][]int32, localInterfaceIDType string, localInterfaceID string) string {
@@ -445,63 +528,4 @@ func formatID(idType string, store *metadata.Store, field string, strIndex strin
 		remoteDeviceID = store.GetColumnAsString(field, strIndex)
 	}
 	return remoteDeviceID
-}
-
-func batchPayloads(namespace string, subnet string, collectTime time.Time, batchSize int, device devicemetadata.DeviceMetadata, interfaces []devicemetadata.InterfaceMetadata, ipAddresses []devicemetadata.IPAddressMetadata, topologyLinks []devicemetadata.TopologyLinkMetadata) []devicemetadata.NetworkDevicesMetadata {
-	var payloads []devicemetadata.NetworkDevicesMetadata
-	var resourceCount int
-	payload := devicemetadata.NetworkDevicesMetadata{
-		Devices: []devicemetadata.DeviceMetadata{
-			device,
-		},
-		Subnet:           subnet,
-		Namespace:        namespace,
-		CollectTimestamp: collectTime.Unix(),
-	}
-	resourceCount++
-
-	for _, interfaceMetadata := range interfaces {
-		if resourceCount == batchSize {
-			payloads = append(payloads, payload)
-			payload = devicemetadata.NetworkDevicesMetadata{
-				Subnet:           subnet,
-				Namespace:        namespace,
-				CollectTimestamp: collectTime.Unix(),
-			}
-			resourceCount = 0
-		}
-		resourceCount++
-		payload.Interfaces = append(payload.Interfaces, interfaceMetadata)
-	}
-
-	for _, ipAddress := range ipAddresses {
-		if resourceCount == batchSize {
-			payloads = append(payloads, payload)
-			payload = devicemetadata.NetworkDevicesMetadata{
-				Subnet:           subnet,
-				Namespace:        namespace,
-				CollectTimestamp: collectTime.Unix(),
-			}
-			resourceCount = 0
-		}
-		resourceCount++
-		payload.IPAddresses = append(payload.IPAddresses, ipAddress)
-	}
-
-	for _, linkMetadata := range topologyLinks {
-		if resourceCount == batchSize {
-			payloads = append(payloads, payload)
-			payload = devicemetadata.NetworkDevicesMetadata{ // TODO: Avoid duplication
-				Subnet:           subnet,
-				Namespace:        namespace,
-				CollectTimestamp: collectTime.Unix(),
-			}
-			resourceCount = 0
-		}
-		resourceCount++
-		payload.Links = append(payload.Links, linkMetadata)
-	}
-
-	payloads = append(payloads, payload)
-	return payloads
 }

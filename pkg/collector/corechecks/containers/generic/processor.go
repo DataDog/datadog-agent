@@ -149,6 +149,7 @@ func (p *Processor) processContainer(sender aggregator.Sender, tags []string, co
 		p.sendMetric(sender.Rate, "container.cpu.system", containerStats.CPU.System, tags)
 		p.sendMetric(sender.Rate, "container.cpu.throttled", containerStats.CPU.ThrottledTime, tags)
 		p.sendMetric(sender.Rate, "container.cpu.throttled.periods", containerStats.CPU.ThrottledPeriods, tags)
+		p.sendMetric(sender.Rate, "container.cpu.partial_stall", containerStats.CPU.PartialStallTime, tags)
 		// Convert CPU Limit to nanoseconds to allow easy percentage computation in the App.
 		if containerStats.CPU.Limit != nil {
 			p.sendMetric(sender.Gauge, "container.cpu.limit", pointer.Ptr(*containerStats.CPU.Limit*float64(time.Second/100)), tags)
@@ -167,6 +168,7 @@ func (p *Processor) processContainer(sender aggregator.Sender, tags []string, co
 		p.sendMetric(sender.Gauge, "container.memory.working_set", containerStats.Memory.PrivateWorkingSet, tags)
 		p.sendMetric(sender.Gauge, "container.memory.commit", containerStats.Memory.CommitBytes, tags)
 		p.sendMetric(sender.Gauge, "container.memory.commit.peak", containerStats.Memory.CommitPeakBytes, tags)
+		p.sendMetric(sender.Rate, "container.memory.partial_stall", containerStats.Memory.PartialStallTime, tags)
 	}
 
 	if containerStats.IO != nil {
@@ -184,6 +186,8 @@ func (p *Processor) processContainer(sender aggregator.Sender, tags []string, co
 			p.sendMetric(sender.Rate, "container.io.write", containerStats.IO.WriteBytes, tags)
 			p.sendMetric(sender.Rate, "container.io.write.operations", containerStats.IO.WriteOperations, tags)
 		}
+
+		p.sendMetric(sender.Rate, "container.io.partial_stall", containerStats.IO.PartialStallTime, tags)
 	}
 
 	if containerStats.PID != nil {

@@ -25,7 +25,9 @@ type IDType string
 
 const (
 	// IDTypeMacAddress represent mac address in `00:00:00:00:00:00` format
-	IDTypeMacAddress = "mac_address"
+	IDTypeMacAddress     = "mac_address"
+	IDTypeInterfaceName  = "interface_name"
+	IDTypeInterfaceAlias = "interface_alias"
 )
 
 // NetworkDevicesMetadata contains network devices metadata

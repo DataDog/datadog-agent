@@ -17,6 +17,7 @@ import (
 
 	"github.com/cihub/seelog"
 	"github.com/gogo/protobuf/proto"
+	"github.com/golang/mock/gomock"
 	"github.com/prometheus/client_golang/prometheus"
 	promClient "github.com/prometheus/client_model/go"
 
@@ -25,6 +26,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
@@ -32,24 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
 	"github.com/DataDog/datadog-agent/pkg/netflow/testutil"
 )
-
-func waitForFlowsToBeFlushed(aggregator *FlowAggregator, timeoutDuration time.Duration, minEvents uint64) error {
-	timeout := time.After(timeoutDuration)
-	tick := time.Tick(500 * time.Millisecond)
-	// Keep trying until we're timed out or got a result or got an error
-	for {
-		select {
-		// Got a timeout! fail with a timeout error
-		case <-timeout:
-			return fmt.Errorf("timeout error waiting for events")
-		// Got a tick, we should check on doSomething()
-		case <-tick:
-			if aggregator.flushedFlowCount.Load() >= minEvents {
-				return nil
-			}
-		}
-	}
-}
 
 func TestAggregator(t *testing.T) {
 	stoppedMu := sync.RWMutex{} // Mutex needed to avoid race condition in test
@@ -91,19 +76,7 @@ func TestAggregator(t *testing.T) {
 		TCPFlags:       19,
 		EtherType:      uint32(0x0800),
 	}
-
-	aggregator := NewFlowAggregator(sender, &conf, "my-hostname")
-	aggregator.flushFlowsToSendInterval = 1 * time.Second
-	inChan := aggregator.GetFlowInChan()
-
-	expectStartExisted := false
-	go func() {
-		aggregator.Start()
-		stoppedMu.Lock()
-		expectStartExisted = true
-		stoppedMu.Unlock()
-	}()
-	inChan <- flow
+	epForwarder := epforwarder.NewMockEventPlatformForwarder(gomock.NewController(t))
 
 	// language=json
 	event := []byte(`
@@ -158,10 +131,47 @@ func TestAggregator(t *testing.T) {
 	err := json.Compact(compactEvent, event)
 	assert.NoError(t, err)
 
-	err = waitForFlowsToBeFlushed(aggregator, 10*time.Second, 1)
+	// language=json
+	metadataEvent := []byte(fmt.Sprintf(`
+{
+  "netflow_exporters":[
+    {
+      "ip_address":"127.0.0.1",
+      "namespace":"my-ns",
+      "flow_type":"netflow9"
+    }
+  ],
+  "collect_timestamp": 1550505606
+}
+`))
+	compactMetadataEvent := new(bytes.Buffer)
+	err = json.Compact(compactMetadataEvent, metadataEvent)
 	assert.NoError(t, err)
 
-	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-netflow")
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(&message.Message{Content: compactEvent.Bytes()}, "network-devices-netflow").Return(nil).Times(1)
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(&message.Message{Content: compactMetadataEvent.Bytes()}, "network-devices-metadata").Return(nil).Times(1)
+
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
+	aggregator.flushFlowsToSendInterval = 1 * time.Second
+	aggregator.timeNowFunction = func() time.Time {
+		t, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
+		return t
+	}
+	inChan := aggregator.GetFlowInChan()
+
+	expectStartExisted := false
+	go func() {
+		aggregator.Start()
+		stoppedMu.Lock()
+		expectStartExisted = true
+		stoppedMu.Unlock()
+	}()
+	inChan <- flow
+
+	netflowEvents, err := WaitForFlowsToBeFlushed(aggregator, 10*time.Second, 1)
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(1), netflowEvents)
+
 	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.flows_flushed", 1, "", nil)
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.aggregator.flows_received", 1, "", nil)
 	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.flows_contexts", 1, "", nil)
@@ -199,7 +209,6 @@ func TestAggregator_withMockPayload(t *testing.T) {
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 	conf := config.NetflowConfig{
 		StopTimeout:                            10,
@@ -216,13 +225,15 @@ func TestAggregator_withMockPayload(t *testing.T) {
 			},
 		},
 	}
+	now := time.Now()
 
-	aggregator := NewFlowAggregator(sender, &conf, "my-hostname")
+	ctrl := gomock.NewController(t)
+	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
+
+	testutil.ExpectNetflow5Payloads(t, epForwarder, now, "my-hostname", 6)
+
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
 	aggregator.flushFlowsToSendInterval = 1 * time.Second
-	aggregator.timeNowFunction = func() time.Time {
-		t, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
-		return t
-	}
 
 	stoppedFlushLoop := make(chan struct{})
 	stoppedRun := make(chan struct{})
@@ -239,86 +250,15 @@ func TestAggregator_withMockPayload(t *testing.T) {
 	assert.NoError(t, err)
 
 	time.Sleep(100 * time.Millisecond) // wait to make sure goflow listener is started before sending
-	now := time.Now()
+
 	mockNetflowPayload := testutil.GenerateNetflow5Packet(now, 6)
 	err = testutil.SendUDPPacket(port, testutil.BuildNetFlow5Payload(mockNetflowPayload))
 	require.NoError(t, err, "error sending udp packet")
 
-	// language=json
-	event := []byte(fmt.Sprintf(`
-{
-    "type": "netflow5",
-    "sampling_rate": 0,
-    "direction": "ingress",
-    "start": %d,
-    "end": %d,
-    "bytes": 194,
-    "packets": 10,
-    "ether_type": "IPv4",
-    "ip_protocol": "TCP",
-    "device": {
-        "ip": "127.0.0.1",
-        "namespace": "default"
-    },
-    "source": {
-        "ip": "10.0.0.1",
-        "port": "50000",
-        "mac": "00:00:00:00:00:00",
-        "mask": "0.0.0.0/0"
-    },
-    "destination": {
-        "ip": "20.0.0.1",
-        "port": "8080",
-        "mac": "00:00:00:00:00:00",
-        "mask": "0.0.0.0/0"
-    },
-    "ingress": {
-        "interface": {
-            "index": 1
-        }
-    },
-    "egress": {
-        "interface": {
-            "index": 7
-        }
-    },
-    "host": "my-hostname",
-    "tcp_flags": [
-        "SYN",
-        "RST",
-        "ACK"
-    ],
-    "next_hop": {
-        "ip": "0.0.0.0"
-    }
-}
-`, now.Unix(), now.Unix()))
-	compactEvent := new(bytes.Buffer)
-	err = json.Compact(compactEvent, event)
+	netflowEvents, err := WaitForFlowsToBeFlushed(aggregator, 3*time.Second, 6)
 	assert.NoError(t, err)
+	assert.Equal(t, uint64(6), netflowEvents)
 
-	// language=json
-	metadataEvent := []byte(fmt.Sprintf(`
-{
-  "netflow_exporters":[
-    {
-      "ip_address":"127.0.0.1",
-      "namespace":"default",
-      "flow_type":"netflow5"
-    }
-  ],
-  "collect_timestamp": 1550505606
-}
-`))
-	compactMetadataEvent := new(bytes.Buffer)
-	err = json.Compact(compactMetadataEvent, metadataEvent)
-	assert.NoError(t, err)
-
-	err = waitForFlowsToBeFlushed(aggregator, 3*time.Second, 1)
-	assert.NoError(t, err)
-
-	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-netflow")
-	sender.AssertEventPlatformEvent(t, compactMetadataEvent.Bytes(), "network-devices-metadata")
 	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.flows_flushed", 6, "", nil)
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.aggregator.flows_received", 6, "", nil)
 	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.flows_contexts", 6, "", nil)
@@ -369,7 +309,11 @@ func TestFlowAggregator_flush_submitCollectorMetrics_error(t *testing.T) {
 			},
 		},
 	}
-	aggregator := NewFlowAggregator(sender, &conf, "my-hostname")
+
+	ctrl := gomock.NewController(t)
+	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
+
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
 	aggregator.goflowPrometheusGatherer = prometheus.GathererFunc(func() ([]*promClient.MetricFamily, error) {
 		return nil, fmt.Errorf("some prometheus gatherer error")
 	})
@@ -404,7 +348,11 @@ func TestFlowAggregator_submitCollectorMetrics(t *testing.T) {
 			},
 		},
 	}
-	aggregator := NewFlowAggregator(sender, &conf, "my-hostname")
+
+	ctrl := gomock.NewController(t)
+	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
+
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
 	aggregator.goflowPrometheusGatherer = prometheus.GathererFunc(func() ([]*promClient.MetricFamily, error) {
 		return []*promClient.MetricFamily{
 			{
@@ -475,7 +423,11 @@ func TestFlowAggregator_submitCollectorMetrics_error(t *testing.T) {
 			},
 		},
 	}
-	aggregator := NewFlowAggregator(sender, &conf, "my-hostname")
+
+	ctrl := gomock.NewController(t)
+	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
+
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
 	aggregator.goflowPrometheusGatherer = prometheus.GathererFunc(func() ([]*promClient.MetricFamily, error) {
 		return nil, fmt.Errorf("some prometheus gatherer error")
 	})
