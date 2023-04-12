@@ -62,6 +62,7 @@ type eventRecord struct {
 	Type     uint
 	Category uint
 	EventID  uint
+	UserSID  *windows.SID
 	Strings  []string
 	RawData  []uint8
 	EventLog string
@@ -104,11 +105,14 @@ func newSubscription(channel string, query string) *subscription {
 	return &s
 }
 
-func newEventRecord(Type uint, category uint, eventID uint, eventLog string, strings []string, data []uint8) *eventRecord {
+func newEventRecord(Type uint, category uint, eventID uint, userSID *windows.SID, eventLog string, strings []string, data []uint8) *eventRecord {
 	var e eventRecord
 	e.Type = Type
 	e.Category = category
 	e.EventID = eventID
+	if userSID != nil {
+		e.UserSID, _ = userSID.Copy()
+	}
 	e.Strings = strings
 	e.RawData = data
 	e.EventLog = eventLog
@@ -190,6 +194,7 @@ func (e *eventLog) reportEvent(
 	Type uint,
 	Category uint,
 	EventID uint,
+	UserSID *windows.SID,
 	Strings []string,
 	RawData []uint8) *eventRecord {
 
@@ -197,6 +202,7 @@ func (e *eventLog) reportEvent(
 		Type,
 		Category,
 		EventID,
+		UserSID,
 		e.name,
 		Strings,
 		RawData)

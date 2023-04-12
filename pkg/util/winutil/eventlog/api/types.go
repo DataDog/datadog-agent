@@ -181,6 +181,7 @@ type API interface {
 		Type uint,
 		Category uint,
 		EventID uint,
+		UserSID *windows.SID,
 		Strings []string,
 		RawData []uint8) error
 }
@@ -200,6 +201,9 @@ type EvtVariantValues interface {
 
 	// Returns unix timestamp in seconds
 	Time(uint) (int64, error)
+
+	// Returns a SID
+	SID(uint) (*windows.SID, error)
 
 	// Returns the EVT_VARIANT_TYPE of the element at index
 	Type(uint) (uint, error)

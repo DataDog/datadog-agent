@@ -78,10 +78,13 @@ func (api *API) GenerateEvents(sourceName string, numEvents uint) error {
 		return fmt.Errorf("Event source %v does not exist", sourceName)
 	}
 
+	// Use LocalSystem for the SID
+	sid, _ := windows.CreateWellKnownSid(windows.WinLocalSystemSid)
+
 	// Add junk events
 	for i := uint(0); i < numEvents; i += 1 {
 		_ = eventLog.reportEvent(api, windows.EVENTLOG_INFORMATION_TYPE,
-			0, 1000, []string{"teststring1", "teststring2"}, []uint8("AABBCCDD"))
+			0, 1000, sid, []string{"teststring1", "teststring2"}, []uint8("AABBCCDD"))
 	}
 
 	return nil

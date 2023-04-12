@@ -11,6 +11,8 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
+
+	"golang.org/x/sys/windows"
 )
 
 type Reporter interface {
@@ -44,6 +46,7 @@ func (r *reporter) ReportEvent(
 	Type uint,
 	Category uint,
 	EventID uint,
+	UserSID *windows.SID,
 	Strings []string,
 	RawData []uint8) error {
 	return r.eventLogAPI.ReportEvent(
@@ -51,6 +54,7 @@ func (r *reporter) ReportEvent(
 		Type,
 		Category,
 		EventID,
+		UserSID,
 		Strings,
 		RawData)
 }

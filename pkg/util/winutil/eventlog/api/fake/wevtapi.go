@@ -241,6 +241,7 @@ func (api *API) ReportEvent(
 	Type uint,
 	Category uint,
 	EventID uint,
+	UserSID *windows.SID,
 	Strings []string,
 	RawData []uint8) error {
 
@@ -255,6 +256,7 @@ func (api *API) ReportEvent(
 		Type,
 		Category,
 		EventID,
+		UserSID,
 		Strings,
 		RawData)
 
