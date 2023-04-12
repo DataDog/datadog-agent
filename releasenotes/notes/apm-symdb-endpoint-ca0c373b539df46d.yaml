@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    APM: Added a new endpoint in the trace-agent api `/symdb/v1/input` that acts as a reverse proxy forwarding requests to a specific event platform intake. The feature using this is currently in development.
+    APM: Added a new endpoint in the trace-agent api `/symdb/v1/input` that acts as a reverse proxy forwarding requests to Datadog. The feature using this is currently in development.
