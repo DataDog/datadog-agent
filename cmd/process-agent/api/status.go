@@ -32,7 +32,7 @@ func statusHandler(deps APIServerDeps, w http.ResponseWriter, _ *http.Request) {
 	}
 	expvarEndpoint := fmt.Sprintf("http://%s:%d/debug/vars", ipcAddr, port)
 
-	agentStatus, err := util.GetStatus(expvarEndpoint)
+	agentStatus, err := util.GetStatus(deps.Config, expvarEndpoint)
 	if err != nil {
 		_ = deps.Log.Warn("failed to get status from agent:", err)
 		writeError(err, http.StatusInternalServerError, w)
