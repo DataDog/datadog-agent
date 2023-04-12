@@ -35,6 +35,7 @@ const (
 // script that will stay up after sending packets.
 func testUDSOriginDetection(t *testing.T) {
 	mockConfig := config.Mock(nil)
+	config.SetFeatures(t, config.Docker)
 
 	// Detect whether we are containerised and set the socket path accordingly
 	var socketVolume string
@@ -52,9 +53,6 @@ func testUDSOriginDetection(t *testing.T) {
 	socketPath := filepath.Join(dir, "dsd.socket")
 	mockConfig.Set("dogstatsd_socket", socketPath)
 	mockConfig.Set("dogstatsd_origin_detection", true)
-
-	// Env dectection
-	config.DetectFeatures()
 
 	// Start DSD
 	packetsChannel := make(chan packets.Packets)

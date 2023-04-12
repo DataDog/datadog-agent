@@ -42,6 +42,12 @@ var moduleProbes = []*manager.Probe{
 			EBPFFuncName: "module_load",
 		},
 	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFFuncName: "kprobe_parse_args",
+		},
+	},
 }
 
 func getModuleProbes() []*manager.Probe {

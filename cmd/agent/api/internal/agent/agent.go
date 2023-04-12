@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	dogstatsdDebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
@@ -47,14 +48,13 @@ import (
 )
 
 // SetupHandlers adds the specific handlers for /agent endpoints
-func SetupHandlers(r *mux.Router, flare flare.Component, server dogstatsdServer.Component) *mux.Router {
+func SetupHandlers(r *mux.Router, flare flare.Component, server dogstatsdServer.Component, serverDebug dogstatsdDebug.Component) *mux.Router {
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, flare) }).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
 	r.HandleFunc("/stream-logs", streamLogs).Methods("POST")
-	r.HandleFunc("/dogstatsd-stats", func(w http.ResponseWriter, r *http.Request) { getDogstatsdStats(w, r, server) }).Methods("GET")
 	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusGetterHandler).Methods("GET")
@@ -70,6 +70,11 @@ func SetupHandlers(r *mux.Router, flare flare.Component, server dogstatsdServer.
 	r.HandleFunc("/workload-list", getWorkloadList).Methods("GET")
 	r.HandleFunc("/secrets", secretInfo).Methods("GET")
 	r.HandleFunc("/metadata/{payload}", metadataPayload).Methods("GET")
+
+	// Some agent subcommands do not provide these dependencies (such as JMX)
+	if server != nil && serverDebug != nil {
+		r.HandleFunc("/dogstatsd-stats", func(w http.ResponseWriter, r *http.Request) { getDogstatsdStats(w, r, server, serverDebug) }).Methods("GET")
+	}
 
 	return r
 }
@@ -266,7 +271,7 @@ func streamLogs(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getDogstatsdStats(w http.ResponseWriter, r *http.Request, dogstatsdServer dogstatsdServer.Component) {
+func getDogstatsdStats(w http.ResponseWriter, r *http.Request, dogstatsdServer dogstatsdServer.Component, serverDebug dogstatsdDebug.Component) {
 	log.Info("Got a request for the Dogstatsd stats.")
 
 	if !config.Datadog.GetBool("use_dogstatsd") {
@@ -300,7 +305,7 @@ func getDogstatsdStats(w http.ResponseWriter, r *http.Request, dogstatsdServer d
 		return
 	}
 
-	jsonStats, err := dogstatsdServer.GetJSONDebugStats()
+	jsonStats, err := serverDebug.GetJSONDebugStats()
 	if err != nil {
 		setJSONError(w, log.Errorf("Error getting marshalled Dogstatsd stats: %s", err), 500)
 		return
@@ -401,18 +406,7 @@ func getWorkloadList(w http.ResponseWriter, r *http.Request) {
 }
 
 func secretInfo(w http.ResponseWriter, r *http.Request) {
-	info, err := secrets.GetDebugInfo()
-	if err != nil {
-		setJSONError(w, err, 500)
-		return
-	}
-
-	jsonInfo, err := json.Marshal(info)
-	if err != nil {
-		setJSONError(w, log.Errorf("Unable to marshal secrets info response: %s", err), 500)
-		return
-	}
-	w.Write(jsonInfo)
+	secrets.GetDebugInfo(w)
 }
 
 func metadataPayload(w http.ResponseWriter, r *http.Request) {

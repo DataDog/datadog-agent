@@ -50,6 +50,13 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 )
 
+var kv470 kernel.Version = kernel.VersionCode(4, 7, 0)
+var kv kernel.Version
+
+func init() {
+	kv, _ = kernel.HostVersion()
+}
+
 func doDNSQuery(t *testing.T, domain string, serverIP string) (*net.UDPAddr, *net.UDPAddr) {
 	dnsServerAddr := &net.UDPAddr{IP: net.ParseIP(serverIP), Port: 53}
 	queryMsg := new(dns.Msg)
@@ -579,6 +586,7 @@ func TestGatewayLookupEnabled(t *testing.T) {
 	tr, err := newTracer(cfg)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
+	t.Cleanup(tr.Stop)
 	require.NotNil(t, tr.gwLookup)
 
 	tr.gwLookup.subnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
@@ -593,7 +601,6 @@ func TestGatewayLookupEnabled(t *testing.T) {
 	}
 
 	require.NoError(t, tr.start(), "could not start tracer")
-	defer tr.Stop()
 
 	initTracerState(t, tr)
 
@@ -627,6 +634,7 @@ func TestGatewayLookupSubnetLookupError(t *testing.T) {
 	tr, err := newTracer(cfg)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
+	t.Cleanup(tr.Stop)
 	require.NotNil(t, tr.gwLookup)
 
 	ifi := ipRouteGet(t, "", "8.8.8.8", nil)
@@ -640,7 +648,6 @@ func TestGatewayLookupSubnetLookupError(t *testing.T) {
 
 	tr.gwLookup.purge()
 	require.NoError(t, tr.start(), "failed to start tracer")
-	defer tr.Stop()
 
 	initTracerState(t, tr)
 
@@ -681,6 +688,7 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 	tr, err := newTracer(cfg)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
+	t.Cleanup(tr.Stop)
 	require.NotNil(t, tr.gwLookup)
 
 	// setup two network namespaces
@@ -736,7 +744,6 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 	}
 
 	require.NoError(t, tr.start(), "could not start tracer")
-	defer tr.Stop()
 
 	test1Ns, err := vnetns.GetFromName("test1")
 	require.NoError(t, err)
@@ -1086,8 +1093,8 @@ func TestUDPPeekCount(t *testing.T) {
 
 func TestUDPPythonReusePort(t *testing.T) {
 	cfg := testConfig()
-	if !cfg.EnableRuntimeCompiler {
-		t.Skip("reuseport only supported on runtime compilation")
+	if isPrebuilt(cfg) && kv < kv470 {
+		t.Skip("reuseport not supported on prebuilt")
 	}
 
 	cfg.TCPConnTimeout = 3 * time.Second
@@ -1174,7 +1181,7 @@ func TestUDPReusePort(t *testing.T) {
 
 func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 	cfg := testConfig()
-	if isPrebuilt(cfg) {
+	if isPrebuilt(cfg) && kv < kv470 {
 		t.Skip("reuseport not supported on prebuilt")
 	}
 
@@ -1426,7 +1433,7 @@ func TestSendfileRegression(t *testing.T) {
 				testSendfileServer(t, c.(*net.TCPConn), network.TCP, family, func() int64 { return rcvd })
 			})
 			t.Run("UDP", func(t *testing.T) {
-				if isPrebuilt(cfg) {
+				if isPrebuilt(cfg) && kv < kv470 {
 					t.Skip("UDP will fail with prebuilt tracer")
 				}
 
@@ -1664,7 +1671,6 @@ func TestTCPDirectionWithPreexistingConnection(t *testing.T) {
 	server := NewTCPServer(func(c net.Conn) {
 		t.Logf("received connection from %s", c.RemoteAddr())
 		_, err := bufio.NewReader(c).ReadBytes('\n')
-		c.Close()
 		if err == nil {
 			wg.Done()
 		}
@@ -1676,7 +1682,7 @@ func TestTCPDirectionWithPreexistingConnection(t *testing.T) {
 	// create an initial client connection to the server
 	c, err := net.DialTimeout("tcp", server.address, 5*time.Second)
 	require.NoError(t, err)
-	defer c.Close()
+	t.Cleanup(func() { c.Close() })
 
 	// start tracer so it dumps port bindings
 	cfg := testConfig()
@@ -1699,13 +1705,18 @@ func TestTCPDirectionWithPreexistingConnection(t *testing.T) {
 	require.NoError(t, err)
 	wg.Wait()
 
+	var origConn []network.ConnectionStats
 	// the original connection should still be incoming for the server
-	conns := getConnections(t, tr)
-	origConn := searchConnections(conns, func(cs network.ConnectionStats) bool {
-		return fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == server.address &&
-			fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == c.LocalAddr().String()
-	})
-	require.Len(t, origConn, 1)
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		origConn = searchConnections(conns, func(cs network.ConnectionStats) bool {
+			return fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == server.address &&
+				fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == c.LocalAddr().String()
+		})
+
+		return len(origConn) == 1
+	}, 3*time.Second, 500*time.Millisecond, "timed out waiting for original connection")
+
 	require.Equal(t, network.INCOMING, origConn[0].Direction, "original server<->client connection should have incoming direction")
 }
 

@@ -344,6 +344,54 @@ func TestFilter(t *testing.T) {
 	}
 }
 
+func TestIsExcludedByAnnotation(t *testing.T) {
+	containerExcludeName := "foo"
+	containerIncludeName := "bar"
+	containerNoMentionName := "other"
+	annotations := map[string]string{
+		fmt.Sprintf("ad.datadoghq.com/%s.exclude", containerExcludeName):         `true`,
+		fmt.Sprintf("ad.datadoghq.com/%s.metrics_exclude", containerExcludeName): `true`,
+		fmt.Sprintf("ad.datadoghq.com/%s.logs_exclude", containerExcludeName):    `true`,
+		fmt.Sprintf("ad.datadoghq.com/%s.exclude", containerIncludeName):         `false`,
+		fmt.Sprintf("ad.datadoghq.com/%s.metrics_exclude", containerIncludeName): `false`,
+		fmt.Sprintf("ad.datadoghq.com/%s.logs_exclude", containerIncludeName):    `false`,
+	}
+
+	containerlessAnnotations := map[string]string{
+		"ad.datadoghq.com/exclude":         `true`,
+		"ad.datadoghq.com/metrics_exclude": `true`,
+		"ad.datadoghq.com/logs_exclude":    `true`,
+	}
+
+	// Container-specific annotations
+	assert.True(t, IsExcludedByAnnotation(GlobalFilter, annotations, containerExcludeName))
+	assert.True(t, IsExcludedByAnnotation(MetricsFilter, annotations, containerExcludeName))
+	assert.True(t, IsExcludedByAnnotation(LogsFilter, annotations, containerExcludeName))
+
+	assert.False(t, IsExcludedByAnnotation(GlobalFilter, annotations, containerIncludeName))
+	assert.False(t, IsExcludedByAnnotation(MetricsFilter, annotations, containerIncludeName))
+	assert.False(t, IsExcludedByAnnotation(LogsFilter, annotations, containerIncludeName))
+
+	assert.False(t, IsExcludedByAnnotation(GlobalFilter, annotations, containerNoMentionName))
+	assert.False(t, IsExcludedByAnnotation(MetricsFilter, annotations, containerNoMentionName))
+	assert.False(t, IsExcludedByAnnotation(LogsFilter, annotations, containerNoMentionName))
+
+	// Container-less annotations
+	assert.True(t, IsExcludedByAnnotation(GlobalFilter, containerlessAnnotations, containerExcludeName))
+	assert.True(t, IsExcludedByAnnotation(MetricsFilter, containerlessAnnotations, containerExcludeName))
+	assert.True(t, IsExcludedByAnnotation(LogsFilter, containerlessAnnotations, containerExcludeName))
+
+	assert.True(t, IsExcludedByAnnotation(GlobalFilter, containerlessAnnotations, containerIncludeName))
+	assert.True(t, IsExcludedByAnnotation(MetricsFilter, containerlessAnnotations, containerIncludeName))
+	assert.True(t, IsExcludedByAnnotation(LogsFilter, containerlessAnnotations, containerIncludeName))
+
+	assert.True(t, IsExcludedByAnnotation(GlobalFilter, containerlessAnnotations, containerNoMentionName))
+	assert.True(t, IsExcludedByAnnotation(MetricsFilter, containerlessAnnotations, containerNoMentionName))
+	assert.True(t, IsExcludedByAnnotation(LogsFilter, containerlessAnnotations, containerNoMentionName))
+
+	assert.False(t, IsExcludedByAnnotation(GlobalFilter, nil, containerExcludeName))
+}
+
 func TestNewMetricFilterFromConfig(t *testing.T) {
 	config.Datadog.SetDefault("exclude_pause_container", true)
 	config.Datadog.SetDefault("ac_include", []string{"image:apache.*"})

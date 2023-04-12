@@ -34,18 +34,8 @@ func getEnabledChecks(scfg *sysconfig.Config) []string {
 	return enabledChecks
 }
 
-func setFeatures(t *testing.T, features ...config.Feature) {
-	t.Cleanup(func() { config.SetDetectedFeatures(nil) })
-	featuresToEnable := make(config.FeatureMap, len(features))
-	for _, feature := range features {
-		featuresToEnable[feature] = struct{}{}
-	}
-	config.SetDetectedFeatures(featuresToEnable)
-}
-
 func TestProcessDiscovery(t *testing.T) {
 	scfg := &sysconfig.Config{}
-	setFeatures(t)
 
 	// Make sure the process_discovery check can be enabled
 	t.Run("enabled", func(t *testing.T) {
@@ -75,7 +65,6 @@ func TestProcessDiscovery(t *testing.T) {
 
 func TestProcessCheck(t *testing.T) {
 	cfg := config.Mock(t)
-	setFeatures(t)
 
 	scfg, err := sysconfig.New("")
 	assert.NoError(t, err)
@@ -97,7 +86,6 @@ func TestProcessCheck(t *testing.T) {
 func TestConnectionsCheck(t *testing.T) {
 	syscfg := config.MockSystemProbe(t)
 	syscfg.Set("system_probe_config.enabled", true)
-	setFeatures(t)
 
 	t.Run("enabled", func(t *testing.T) {
 		syscfg.Set("network_config.enabled", true)

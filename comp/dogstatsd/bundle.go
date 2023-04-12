@@ -6,7 +6,9 @@
 package dogstatsd
 
 import (
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -14,10 +16,14 @@ import (
 
 // Bundle defines the fx options for this bundle.
 var Bundle = fxutil.Bundle(
+	serverDebug.Module,
+	replay.Module,
 	server.Module,
 )
 
 // MockBundle defines the mock fx options for this bundle.
 var MockBundle = fxutil.Bundle(
+	serverDebug.MockModule,
 	server.MockModule,
+	replay.Module,
 )

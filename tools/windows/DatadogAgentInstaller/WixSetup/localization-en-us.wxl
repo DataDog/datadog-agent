@@ -16,6 +16,7 @@
 	<String Id="LicenseAgreementDlgDescription">{\WixUI_Font_Normal_White}Please read the following license agreement carefully</String>
 	<String Id="MaintenanceTypeDlgTitle">{\WixUI_Font_Title_White}Change, repair, or remove installation</String>
 	<String Id="MaintenanceTypeDlgDescription">{\WixUI_Font_Normal_White}Select the operation you wish to perform.</String>
+	<String Id="ProgressDlgTitleChanging">{\WixUI_Font_Title_White}Changing [ProductName]</String>
 	<String Id="ProgressDlgTitleInstalling">{\WixUI_Font_Title_White}Installing [ProductName]</String>
 	<String Id="ProgressDlgTitleRepairing">{\WixUI_Font_Title_White}Repairing [ProductName]</String>
 	<String Id="ProgressDlgTitleRemoving">{\WixUI_Font_Title_White}Removing [ProductName]</String>
@@ -47,7 +48,7 @@
 	<String Id ="DDAgentUserDialogDescription" Overridable="yes" Localizable="yes">{\WixUI_Font_Normal_White}Enter the agent user account</String>
 	<String Id ="DDAgentUserDialogTitle"  Overridable="yes" Localizable="yes">{\WixUI_Font_Title_White}Datadog Agent User Account</String>
 	<String Id ="DDAgentUserDialogUserNameLabel" Overridable="yes" Localizable="yes">Please enter the username (leave blank to use ddagentuser):</String>
-	<String Id ="DDAgentUserDialogPasswordLabel" Overridable="yes" Localizable="yes">Please enter the password (leave blank to use random password):</String>
+	<String Id ="DDAgentUserDialogPasswordLabel" Overridable="yes" Localizable="yes">Please enter the password (leave blank to let the installer decide):</String>
 
 	<!-- these strings for the FatalError dialog -->
 	<String Id ="FatalErrorDialog_ViewLog" Overridable="yes" Localizable="yes">View Log</String>
@@ -60,6 +61,9 @@
 	<String Id ="SendFlareDialogTitle"  Overridable="yes" Localizable="yes">{\WixUI_Font_Title_White}Datadog Flare </String>
 	<String Id ="SendFlareDialogKeyLabel" Overridable="yes" Localizable="yes">Clicking on the Send Flare button will send a diagnostic report to Datadog, including the install logs.</String>
 	<String Id ="SendFlareHelpText" Overridable="yes" Localizable="yes">Submit your email address in the text box below for a follow-up from Datadog support. (Optional)</String>
+
+	<!-- these strings for the error modal dialog -->
+	<String Id ="ErrorModalDialog_Title" Overridable="yes" Localizable="yes">[ProductName] Setup</String>
 
 	<String Id="MsiRMFilesInUse_Title" Overridable="yes">[ProductName] Setup</String>
 	<String Id="MsiRMFilesInUseExit" Overridable="yes">E&amp;xit</String>

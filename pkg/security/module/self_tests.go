@@ -9,7 +9,6 @@ package module
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -22,18 +21,21 @@ import (
 // SelfTestEvent is used to report a self test result
 // easyjson:json
 type SelfTestEvent struct {
-	Timestamp time.Time `json:"date"`
-	Success   []string  `json:"succeeded_tests"`
-	Fails     []string  `json:"failed_tests"`
+	events.CustomEventCommonFields
+	Success []string `json:"succeeded_tests"`
+	Fails   []string `json:"failed_tests"`
 }
 
 // NewSelfTestEvent returns the rule and the result of the self test
 func NewSelfTestEvent(success []string, fails []string) (*rules.Rule, *events.CustomEvent) {
-	return events.NewCustomRule(events.SelfTestRuleID), events.NewCustomEvent(model.CustomSelfTestEventType, SelfTestEvent{
-		Timestamp: time.Now(),
-		Success:   success,
-		Fails:     fails,
-	})
+	evt := SelfTestEvent{
+		Success: success,
+		Fails:   fails,
+	}
+	evt.FillCustomEventCommonFields()
+
+	return events.NewCustomRule(events.SelfTestRuleID),
+		events.NewCustomEvent(model.CustomSelfTestEventType, evt)
 }
 
 // ReportSelfTest reports to Datadog that a self test was performed

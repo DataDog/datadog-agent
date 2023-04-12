@@ -9,7 +9,7 @@
 package dump
 
 import (
-	proto "github.com/DataDog/datadog-agent/pkg/security/proto/security_profile/v1"
+	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 )
 
 // ActivityDumpToSecurityProfileProto serializes an Activity Dump to a Security Profile protobuf representation
@@ -19,7 +19,7 @@ func ActivityDumpToSecurityProfileProto(input *ActivityDump) *proto.SecurityProf
 	}
 
 	output := proto.SecurityProfile{
-		Status:   1,
+		Status:   2,
 		Version:  "1",
 		Metadata: adMetadataToProto(&input.Metadata),
 		Syscalls: input.computeSyscallsList(),

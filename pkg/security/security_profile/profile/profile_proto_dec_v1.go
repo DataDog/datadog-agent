@@ -9,7 +9,7 @@
 package profile
 
 import (
-	proto "github.com/DataDog/datadog-agent/pkg/security/proto/security_profile/v1"
+	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 )
 
@@ -18,11 +18,11 @@ func protoToSecurityProfile(output *SecurityProfile, input *proto.SecurityProfil
 		return
 	}
 
-	output.Status = input.Status
+	output.Status = Status(input.Status)
 	output.Version = input.Version
 	output.Metadata = dump.ProtoMetadataToMetadata(input.Metadata)
 
-	output.Tags = make([]string, len(output.Tags))
+	output.Tags = make([]string, len(input.Tags))
 	copy(output.Tags, input.Tags)
 
 	output.Syscalls = make([]uint32, len(input.Syscalls))

@@ -105,7 +105,7 @@ func setup() error {
 	if err != nil {
 		return err
 	}
-	config.DetectFeatures()
+	config.SetFeaturesNoCleanup(config.Docker)
 
 	store := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
 	store.Start(context.Background())

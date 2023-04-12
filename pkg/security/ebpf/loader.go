@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"

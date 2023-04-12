@@ -70,6 +70,8 @@ const (
 	// TCPRecvMsgPre410 traces the tcp_recvmsg() system call on kernels prior to 4.1.0. This is created because
 	// we need to load a different kprobe implementation
 	TCPRecvMsgPre410 ProbeFuncName = "kprobe__tcp_recvmsg__pre_4_1_0"
+	// TCPRecvMsgPre5190 traces the tcp_recvmsg() system call on kernels prior to 5.19.0
+	TCPRecvMsgPre5190 ProbeFuncName = "kprobe__tcp_recvmsg__pre_5_19_0"
 	// TCPRecvMsgReturn traces the return for the tcp_recvmsg() kernel function
 	TCPRecvMsgReturn ProbeFuncName = "kretprobe__tcp_recvmsg"
 	// TCPReadSock traces the tcp_read_sock() kernel function
@@ -97,17 +99,29 @@ const (
 
 	// UDPRecvMsg traces the udp_recvmsg() system call
 	UDPRecvMsg ProbeFuncName = "kprobe__udp_recvmsg"
+	// UDPRecvMsgPre470 traces the udp_recvmsg() system call on kernels prior to 4.7.0
+	UDPRecvMsgPre470 ProbeFuncName = "kprobe__udp_recvmsg_pre_4_7_0"
 	// UDPRecvMsgPre410 traces the udp_recvmsg() system call on kernels prior to 4.1.0
 	UDPRecvMsgPre410 ProbeFuncName = "kprobe__udp_recvmsg_pre_4_1_0"
+	// UDPRecvMsgPre5190 traces the udp_recvmsg() system call on kernels prior to 5.19.0
+	UDPRecvMsgPre5190 ProbeFuncName = "kprobe__udp_recvmsg_pre_5_19_0"
 	// UDPRecvMsgReturn traces the return value for the udp_recvmsg() system call
 	UDPRecvMsgReturn ProbeFuncName = "kretprobe__udp_recvmsg"
+	// UDPRecvMsgReturnPre470 traces the return value for the udp_recvmsg() system call prior to 4.7.0
+	UDPRecvMsgReturnPre470 ProbeFuncName = "kretprobe__udp_recvmsg_pre_4_7_0"
 
 	// UDPv6RecvMsg traces the udpv6_recvmsg() system call
 	UDPv6RecvMsg ProbeFuncName = "kprobe__udpv6_recvmsg"
+	// UDPv6RecvMsgPre470 traces the udpv6_recvmsg() system call on kernels prior to 4.7.0
+	UDPv6RecvMsgPre470 ProbeFuncName = "kprobe__udpv6_recvmsg_pre_4_7_0"
 	// UDPv6RecvMsgPre410 traces the udpv6_recvmsg() system call on kernels prior to 4.1.0
 	UDPv6RecvMsgPre410 ProbeFuncName = "kprobe__udpv6_recvmsg_pre_4_1_0"
+	// UDPv6RecvMsgPre5190 traces the udpv6_recvmsg() system call on kernels prior to 5.19.0
+	UDPv6RecvMsgPre5190 ProbeFuncName = "kprobe__udpv6_recvmsg_pre_5_19_0"
 	// UDPv6RecvMsgReturn traces the return value for the udpv6_recvmsg() system call
 	UDPv6RecvMsgReturn ProbeFuncName = "kretprobe__udpv6_recvmsg"
+	// UDPv6RecvMsgReturnPre470 traces the return value for the udpv6_recvmsg() system call prior to 4.7.0
+	UDPv6RecvMsgReturnPre470 ProbeFuncName = "kretprobe__udpv6_recvmsg_pre_4_7_0"
 
 	// SKBConsumeUDP traces skb_consume_udp()
 	SKBConsumeUDP ProbeFuncName = "kprobe__skb_consume_udp"
@@ -188,6 +202,7 @@ const (
 	KafkaClientIDBufMap               BPFMapName = "kafka_client_id"
 	KafkaTopicNameBufMap              BPFMapName = "kafka_topic_name"
 	ConnectionProtocolMap             BPFMapName = "connection_protocol"
+	TLSConnectionMap                  BPFMapName = "tls_connection"
 	ConnectionTupleToSocketSKBConnMap BPFMapName = "conn_tuple_to_socket_skb_conn_tuple"
 	ClassificationProgsMap            BPFMapName = "classification_progs"
 	StaticTableMap                    BPFMapName = "http2_static_table"

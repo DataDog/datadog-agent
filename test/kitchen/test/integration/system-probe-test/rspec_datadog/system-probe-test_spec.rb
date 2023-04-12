@@ -159,12 +159,12 @@ describe "system-probe" do
 
   context "fentry" do
     env = {
-      "ECS_FARGATE"=>"true",
+      "NETWORK_TRACER_FENTRY_TESTS"=>"true",
       "DD_ENABLE_CO_RE"=>"true",
       "DD_ENABLE_RUNTIME_COMPILER"=>"false",
       "DD_ALLOW_RUNTIME_COMPILED_FALLBACK"=>"false"
     }
-    if platform == "amzn-2" and arch == "x86_64" and release.start_with?("5.10.")
+    if osname == "amzn-2" and arch == "x86_64" and release.start_with?("5.10.")
       include_examples "passes", "fentry", env, skip_prebuilt_tests, false
     end
   end

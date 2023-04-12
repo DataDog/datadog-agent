@@ -13,17 +13,17 @@ import (
 
 	"golang.org/x/text/runes"
 
-	adproto "github.com/DataDog/datadog-agent/pkg/security/proto/security_profile/v1"
+	adproto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-func activityDumpToProto(ad *ActivityDump) *adproto.ActivityDump {
+func activityDumpToProto(ad *ActivityDump) *adproto.SecDump {
 	if ad == nil {
 		return nil
 	}
 
-	pad := adproto.ActivityDumpFromVTPool()
-	*pad = adproto.ActivityDump{
+	pad := adproto.SecDumpFromVTPool()
+	*pad = adproto.SecDump{
 		Host:    ad.Host,
 		Service: ad.Service,
 		Source:  ad.Source,

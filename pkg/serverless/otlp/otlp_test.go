@@ -21,7 +21,6 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -58,7 +57,6 @@ func TestServerlessOTLPAgentReceivesTraces(t *testing.T) {
 	t.Setenv("DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT", grpcEndpoint)
 
 	// setup metric agent
-	config.DetectFeatures()
 	metricAgent := &metrics.ServerlessMetricAgent{}
 	metricAgent.Start(5*time.Second, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	defer metricAgent.Stop()

@@ -49,6 +49,9 @@
 `kubernetes_state.deployment.replicas_available`
 : The number of available replicas per deployment. Tags:`kube_deployment` `kube_namespace` (`env` `service` `version` from standard labels).
 
+`kubernetes_state.deployment.replicas_ready	`
+: The number of ready replicas per deployment. Tags:`kube_deployment` `kube_namespace` (`env` `service` `version` from standard labels).
+
 `kubernetes_state.deployment.replicas_unavailable`
 : The number of unavailable replicas per deployment. Tags:`kube_deployment` `kube_namespace` (`env` `service` `version` from standard labels).
 
@@ -156,6 +159,12 @@
 
 `kubernetes_state.container.status_report.count.terminated`
 : Describes the reason the container is currently in terminated state. Tags:`kube_namespace` `pod_name` `kube_container_name` `reason` (`env` `service` `version` from standard labels).
+
+`kubernetes_state.crd.count`
+: Number of custom resource definition. Tags: `kube_namespace`.
+
+`kubernetes_state.crd.condition`
+: The condition of this custom resource definition. Tags:`kube_namespace` `customresourcedefinition` `condition` `status`.
 
 `kubernetes_state.pod.ready`
 : Describes whether the pod is ready to serve requests. Tags:`node` `kube_namespace` `pod_name` `condition` (`env` `service` `version` from standard labels).
@@ -279,6 +288,9 @@
 
 `kubernetes_state.hpa.spec_target_metric`
 : The metric specifications used by this autoscaler when calculating the desired replica count. Tags:`kube_namespace` `horizontalpodautoscaler` `metric_name` `metric_target_type`.
+
+`kubernetes_state.hpa.status_target_metric`
+: The current metric status used by this autoscaler when calculating the desired replica count. Tags:`kube_namespace` `horizontalpodautoscaler` `metric_name` `metric_target_type`.	
 
 `kubernetes_state.vpa.count`
 : Number of vertical pod autoscaler. Tags: `kube_namespace`.

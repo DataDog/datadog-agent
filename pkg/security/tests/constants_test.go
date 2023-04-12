@@ -26,10 +26,19 @@ var BTFHubVsRcPossiblyMissingConstants = []string{
 
 var RCVsFallbackPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameIoKiocbStructCtx,
+	constantfetch.OffsetNameTaskStructPID,
+	constantfetch.OffsetNameTaskStructPIDLink,
 }
 
 var BTFHubVsFallbackPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameNFConnStructCTNet,
+	constantfetch.OffsetNameTaskStructPID,
+	constantfetch.OffsetNameTaskStructPIDLink,
+}
+
+var BTFVsFallbackPossiblyMissingConstants = []string{
+	constantfetch.OffsetNameTaskStructPID,
+	constantfetch.OffsetNameTaskStructPIDLink,
 }
 
 func TestOctogonConstants(t *testing.T) {
@@ -48,7 +57,7 @@ func TestOctogonConstants(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	config, err := genTestConfig(dir, testOpts{}, "")
+	_, secconfig, err := genTestConfigs(dir, testOpts{}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +68,7 @@ func TestOctogonConstants(t *testing.T) {
 		})
 
 		fallbackFetcher := constantfetch.NewFallbackConstantFetcher(kv)
-		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&config.Config, nil)
+		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&secconfig.Probe.Config, nil)
 
 		assertConstantsEqual(t, rcFetcher, fallbackFetcher, kv, RCVsFallbackPossiblyMissingConstants)
 	})
@@ -77,7 +86,7 @@ func TestOctogonConstants(t *testing.T) {
 			t.Skip("btfhub has no constant for this OS")
 		}
 
-		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&config.Config, nil)
+		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&secconfig.Probe.Config, nil)
 
 		assertConstantsEqual(t, rcFetcher, btfhubFetcher, kv, BTFHubVsRcPossiblyMissingConstants)
 	})
@@ -104,7 +113,7 @@ func TestOctogonConstants(t *testing.T) {
 
 		fallbackFetcher := constantfetch.NewFallbackConstantFetcher(kv)
 
-		assertConstantsEqual(t, btfFetcher, fallbackFetcher, kv, nil)
+		assertConstantsEqual(t, btfFetcher, fallbackFetcher, kv, BTFVsFallbackPossiblyMissingConstants)
 	})
 
 	t.Run("guesser-vs-rc", func(t *testing.T) {
@@ -112,8 +121,8 @@ func TestOctogonConstants(t *testing.T) {
 			return kv.IsSLESKernel()
 		})
 
-		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&config.Config, nil)
-		ogFetcher := constantfetch.NewOffsetGuesserFetcher(config)
+		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&secconfig.Probe.Config, nil)
+		ogFetcher := constantfetch.NewOffsetGuesserFetcher(secconfig.Probe, kv)
 
 		assertConstantContains(t, rcFetcher, ogFetcher, kv)
 	})
@@ -172,6 +181,10 @@ func assertConstantContains(t *testing.T, champion, challenger constantfetch.Con
 	championConstants, challengerConstants, err := getFighterConstants(champion, challenger, kv)
 	if err != nil {
 		t.Error(err)
+	}
+
+	if len(challengerConstants) == 0 {
+		t.Errorf("challenger %s has no constant\n", challenger)
 	}
 
 	for k, v := range challengerConstants {
