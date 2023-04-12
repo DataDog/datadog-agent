@@ -7,8 +7,6 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"net/http"
 	_ "net/http/pprof"
 	"os"
 
@@ -17,31 +15,26 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/cmd/manager"
-	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/subcommands"
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/process"
+	"github.com/DataDog/datadog-agent/comp/process/apiserver"
+	"github.com/DataDog/datadog-agent/comp/process/expvars"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/profiler"
 	runnerComp "github.com/DataDog/datadog-agent/comp/process/runner"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
-	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	"github.com/DataDog/datadog-agent/pkg/process/runner"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
-	"github.com/DataDog/datadog-agent/pkg/process/status"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	ddutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -135,7 +128,13 @@ func runApp(exit chan struct{}, globalParams *command.GlobalParams) error {
 		fx.Invoke(initMisc),
 
 		// Invoke the components that we want to start
-		fx.Invoke(func(runnerComp.Component, profiler.Component) {}),
+		fx.Invoke(func(
+			runnerComp.Component,
+			profiler.Component,
+			expvars.Component,
+			apiserver.Component,
+		) {
+		}),
 	)
 
 	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
@@ -185,26 +184,6 @@ func cleanupAndExitHandler(globalParams *command.GlobalParams) func(int) {
 	}
 }
 
-// initRuntimeSettings registers settings to be added to the runtime config.
-func initRuntimeSettings() {
-	// NOTE: Any settings you want to register should simply be added here
-	processRuntimeSettings := []settings.RuntimeSetting{
-		settings.LogLevelRuntimeSetting{},
-		settings.RuntimeMutexProfileFraction{},
-		settings.RuntimeBlockProfileRate{},
-		settings.ProfilingGoroutines{},
-		settings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "process-agent"},
-	}
-
-	// Before we begin listening, register runtime settings
-	for _, setting := range processRuntimeSettings {
-		err := settings.RegisterRuntimeSetting(setting)
-		if err != nil {
-			_ = log.Warnf("Cannot initialize the runtime setting %s: %v", setting.Name(), err)
-		}
-	}
-}
-
 type miscDeps struct {
 	fx.In
 	Lc fx.Lifecycle
@@ -215,10 +194,8 @@ type miscDeps struct {
 }
 
 // initMisc initializes modules that cannot, or have not yet been componetized.
-// Todo: (Components) WorkloadMeta, remoteTagger, telemetry Server, expvars, api server
+// Todo: (Components) WorkloadMeta, remoteTagger, statsd
 func initMisc(deps miscDeps) error {
-	initRuntimeSettings()
-
 	if err := statsd.Configure(ddconfig.GetBindHost(), deps.Config.GetInt("dogstatsd_port")); err != nil {
 		_ = log.Criticalf("Error configuring statsd: %s", err)
 		return err
@@ -251,20 +228,6 @@ func initMisc(deps miscDeps) error {
 	}
 	tagger.SetDefaultTagger(t)
 
-	// Run a profile & telemetry server.
-	if deps.Config.GetBool("telemetry.enabled") {
-		http.Handle("/telemetry", telemetry.Handler())
-	}
-
-	expvarPort := getExpvarPort(deps.Config)
-	expvarServer := &http.Server{Addr: fmt.Sprintf("localhost:%d", expvarPort), Handler: http.DefaultServeMux}
-
-	// Initialize status
-	err := initStatus(deps.HostInfo.Object(), deps.Syscfg)
-	if err != nil {
-		log.Critical("Failed to initialize status:", err)
-	}
-
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
 			store.Start(ctx)
@@ -274,19 +237,9 @@ func initMisc(deps miscDeps) error {
 				_ = log.Errorf("failed to start the tagger: %s", err)
 			}
 
-			go func() {
-				_ = expvarServer.ListenAndServe()
-			}()
-
-			// Run API server
-			err = api.StartServer()
-			if err != nil {
-				_ = log.Error(err)
-			}
-
 			err = manager.ConfigureAutoExit(ctx, deps.Config)
 			if err != nil {
-				_ = log.Criticalf("Unable to deps.Configure auto-exit, err: %w", err)
+				_ = log.Criticalf("Unable to configure auto-exit, err: %w", err)
 				return err
 			}
 
@@ -299,43 +252,9 @@ func initMisc(deps miscDeps) error {
 				return err
 			}
 
-			if err := expvarServer.Shutdown(ctx); err != nil {
-				log.Errorf("Error shutting down expvar server on port %v: %v", getExpvarPort(deps.Config), err)
-			}
-
 			return nil
 		},
 	})
 
 	return nil
-}
-
-func initStatus(hostInfo *checks.HostInfo, syscfg sysprobeconfig.Component) error {
-	// update docker socket path in info
-	dockerSock, err := util.GetDockerSocketPath()
-	if err != nil {
-		log.Debugf("Docker is not available on this host")
-	}
-	status.UpdateDockerSocket(dockerSock)
-
-	// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
-	_, processModuleEnabled := syscfg.Object().EnabledModules[sysconfig.ProcessModule]
-	eps, err := runner.GetAPIEndpoints()
-	if err != nil {
-		log.Criticalf("Failed to initialize Api Endpoints: %s", err.Error())
-	}
-	status.InitInfo(hostInfo.HostName, processModuleEnabled, eps)
-	if err != nil {
-		_ = log.Criticalf("Error initializing info: %s", err)
-	}
-	return nil
-}
-
-func getExpvarPort(config ddconfig.ConfigReader) int {
-	expVarPort := config.GetInt("process_config.expvar_port")
-	if expVarPort <= 0 {
-		log.Warnf("Invalid process_config.expvar_port -- %d, using default port %d", expVarPort, ddconfig.DefaultProcessExpVarPort)
-		expVarPort = ddconfig.DefaultProcessExpVarPort
-	}
-	return expVarPort
 }

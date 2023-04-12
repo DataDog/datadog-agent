@@ -72,6 +72,24 @@ func NormalizeService(svc string, lang string) (string, error) {
 	return s, err
 }
 
+// NormalizePeerService normalizes a span's peer.service and returns an error describing the reason
+// (if any) why the name was modified.
+func NormalizePeerService(svc string) (string, error) {
+	if svc == "" {
+		return "", nil
+	}
+	var err error
+	if len(svc) > MaxServiceLen {
+		svc = TruncateUTF8(svc, MaxServiceLen)
+		err = ErrTooLong
+	}
+	s := NormalizeTag(svc)
+	if s == "" {
+		return "", ErrInvalid
+	}
+	return s, err
+}
+
 // fallbackServiceNames is a cache of default service names to use
 // when the span's service is unset or invalid.
 var fallbackServiceNames sync.Map

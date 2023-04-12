@@ -81,6 +81,11 @@ func CreatePerformanceProfile(prefix, debugURL string, cpusec int, target *Profi
 			URL:  debugURL + "/heap",
 		},
 		{
+			// A sampling of all past memory allocations
+			Name: prefix + "-allocs.pprof",
+			URL:  debugURL + "/allocs",
+		},
+		{
 			// mutex profile
 			Name: prefix + "-mutex.pprof",
 			URL:  debugURL + "/mutex",

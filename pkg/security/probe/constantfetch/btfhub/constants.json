@@ -1,5 +1,5 @@
 {
-	"commit": "7016d7e6f89150ae68be8c74bd8821a1c2b62545",
+	"commit": "2da074c38130d43ad67a287ee6f29200de7a9917",
 	"constants": [
 		{
 			"binprm_file_offset": 168,
@@ -11925,6 +11925,13 @@
 			"distrib": "ol",
 			"version": "7",
 			"arch": "arm64",
+			"uname_release": "4.14.35-2047.523.4.2.el7uek.aarch64",
+			"cindex": 77
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "arm64",
 			"uname_release": "4.14.35-2047.523.4.el7uek.aarch64",
 			"cindex": 77
 		},
@@ -11947,6 +11954,13 @@
 			"version": "7",
 			"arch": "arm64",
 			"uname_release": "4.14.35-2047.524.3.el7uek.aarch64",
+			"cindex": 77
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "arm64",
+			"uname_release": "4.14.35-2047.524.4.el7uek.aarch64",
 			"cindex": 77
 		},
 		{
@@ -16615,6 +16629,13 @@
 			"distrib": "ol",
 			"version": "7",
 			"arch": "x86_64",
+			"uname_release": "4.14.35-2047.523.4.2.el7uek.x86_64",
+			"cindex": 85
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
 			"uname_release": "4.14.35-2047.523.4.el7uek.x86_64",
 			"cindex": 85
 		},
@@ -16637,6 +16658,13 @@
 			"version": "7",
 			"arch": "x86_64",
 			"uname_release": "4.14.35-2047.524.3.el7uek.x86_64",
+			"cindex": 85
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "4.14.35-2047.524.4.el7uek.x86_64",
 			"cindex": 85
 		},
 		{
@@ -25491,6 +25519,13 @@
 			"distrib": "ubuntu",
 			"version": "18.04",
 			"arch": "arm64",
+			"uname_release": "4.15.0-1153-aws",
+			"cindex": 129
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "arm64",
 			"uname_release": "4.15.0-117-generic",
 			"cindex": 96
 		},
@@ -25870,6 +25905,13 @@
 			"version": "18.04",
 			"arch": "arm64",
 			"uname_release": "4.15.0-206-generic",
+			"cindex": 129
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "arm64",
+			"uname_release": "4.15.0-208-generic",
 			"cindex": 129
 		},
 		{
@@ -28781,6 +28823,13 @@
 			"distrib": "ubuntu",
 			"version": "18.04",
 			"arch": "x86_64",
+			"uname_release": "4.15.0-1147-gcp",
+			"cindex": 115
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
 			"uname_release": "4.15.0-1148-aws",
 			"cindex": 115
 		},
@@ -28825,6 +28874,13 @@
 			"arch": "x86_64",
 			"uname_release": "4.15.0-1151-azure",
 			"cindex": 140
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-1153-aws",
+			"cindex": 115
 		},
 		{
 			"distrib": "ubuntu",
@@ -29251,6 +29307,13 @@
 			"version": "18.04",
 			"arch": "x86_64",
 			"uname_release": "4.15.0-206-generic",
+			"cindex": 115
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-208-generic",
 			"cindex": 115
 		},
 		{

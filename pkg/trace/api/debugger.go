@@ -14,11 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/google/uuid"
 )
 
 const (
@@ -46,9 +44,11 @@ func (r *HTTPReceiver) debuggerProxyHandler() http.Handler {
 	}
 	apiKey := r.conf.APIKey()
 	if k := r.conf.DebuggerProxy.APIKey; k != "" {
-		apiKey = k
+		apiKey = strings.TrimSpace(k)
 	}
-	return newDebuggerProxy(r.conf, target, strings.TrimSpace(apiKey), tags)
+	transport := newMeasuringForwardingTransport(
+		r.conf.NewHTTPTransport(), target, apiKey, r.conf.DebuggerProxy.AdditionalEndpoints, "datadog.trace_agent.debugger", []string{})
+	return newDebuggerProxy(r.conf, transport, tags)
 }
 
 // debuggerErrorHandler always returns http.StatusInternalServerError with a clarifying message.
@@ -60,49 +60,32 @@ func debuggerErrorHandler(err error) http.Handler {
 }
 
 // newDebuggerProxy returns a new httputil.ReverseProxy proxying and augmenting requests with headers containing the tags.
-func newDebuggerProxy(conf *config.AgentConfig, target *url.URL, key string, tags string) *httputil.ReverseProxy {
-	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
+func newDebuggerProxy(conf *config.AgentConfig, transport http.RoundTripper, tags string) *httputil.ReverseProxy {
 	cidProvider := NewIDProvider(conf.ContainerProcRoot)
-	director := func(req *http.Request) {
-		ddtags := tags
-		containerID := cidProvider.GetContainerID(req.Context(), req.Header)
-		if ct := getContainerTags(conf.ContainerTags, containerID); ct != "" {
-			ddtags = fmt.Sprintf("%s,%s", ddtags, ct)
-		}
-		q := req.URL.Query()
-		if qtags := q.Get("ddtags"); qtags != "" {
-			ddtags = fmt.Sprintf("%s,%s", ddtags, qtags)
-		}
-		q.Set("ddtags", ddtags)
-		newTarget := *target
-		newTarget.RawQuery = q.Encode()
-		req.Header.Set("DD-API-KEY", key)
+	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
+	return &httputil.ReverseProxy{
+		Director:  getDirector(tags, cidProvider, conf.ContainerTags),
+		ErrorLog:  stdlog.New(logger, "debugger.Proxy: ", 0),
+		Transport: transport,
+	}
+}
+
+func getDirector(tags string, cidProvider IDProvider, containerTags func(string) ([]string, error)) func(*http.Request) {
+	return func(req *http.Request) {
 		req.Header.Set("DD-REQUEST-ID", uuid.New().String())
 		req.Header.Set("DD-EVP-ORIGIN", "agent-debugger")
-		req.URL = &newTarget
-		req.Host = target.Host
-	}
-	return &httputil.ReverseProxy{
-		Director:  director,
-		ErrorLog:  stdlog.New(logger, "debugger.Proxy: ", 0),
-		Transport: &measuringDebuggerTransport{conf.NewHTTPTransport()},
-	}
-}
-
-// measuringDebuggerTransport sends HTTP requests to a defined target url. It also sets the API keys in the headers.
-type measuringDebuggerTransport struct {
-	rt http.RoundTripper
-}
-
-func (m *measuringDebuggerTransport) RoundTrip(req *http.Request) (res *http.Response, err error) {
-	defer func(start time.Time) {
-		var tags []string
-		metrics.Count("datadog.trace_agent.debugger.proxy_request", 1, tags, 1)
-		metrics.Timing("datadog.trace_agent.debugger.proxy_request_duration_ms", time.Since(start), tags, 1)
-		if err != nil {
-			tags := append(tags, fmt.Sprintf("error:%s", fmt.Sprintf("%T", err)))
-			metrics.Count("datadog.trace_agent.debugger.proxy_request_error", 1, tags, 1)
+		q := req.URL.Query()
+		containerID := cidProvider.GetContainerID(req.Context(), req.Header)
+		if ctags := getContainerTags(containerTags, containerID); ctags != "" {
+			tags = fmt.Sprintf("%s,%s", tags, ctags)
 		}
-	}(time.Now())
-	return m.rt.RoundTrip(req)
+		if htags := req.Header.Get("X-Datadog-Additional-Tags"); htags != "" {
+			tags = fmt.Sprintf("%s,%s", tags, htags)
+		}
+		if qtags := q.Get("ddtags"); qtags != "" {
+			tags = fmt.Sprintf("%s,%s", tags, qtags)
+		}
+		q.Set("ddtags", tags)
+		req.URL.RawQuery = q.Encode()
+	}
 }

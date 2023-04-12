@@ -113,8 +113,25 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 	if findKubernetesInLabels(container.Labels) {
 		pod, err := l.Store().GetKubernetesPodForContainer(container.ID)
 		if err == nil {
+			if containers.IsExcludedByAnnotation(containers.GlobalFilter, pod.Annotations, container.Name) {
+				log.Debugf("container %s filtered out: name %q image %q", container.ID, container.Name, containerImg.RawName)
+				return
+			}
 			svc.hosts = map[string]string{"pod": pod.IP}
 			svc.ready = pod.Ready
+
+			svc.metricsExcluded = l.IsExcluded(
+				containers.MetricsFilter,
+				container.Name,
+				containerImg.RawName,
+				"",
+			) || containers.IsExcludedByAnnotation(containers.MetricsFilter, pod.Annotations, container.Name)
+			svc.logsExcluded = l.IsExcluded(
+				containers.LogsFilter,
+				container.Name,
+				containerImg.RawName,
+				"",
+			) || containers.IsExcludedByAnnotation(containers.LogsFilter, pod.Annotations, container.Name)
 		} else {
 			log.Debugf("container %q belongs to a pod but was not found: %s", container.ID, err)
 		}

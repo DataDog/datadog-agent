@@ -116,7 +116,7 @@ func AllMaps() []*manager.Map {
 		{Name: "filter_policy"},
 		{Name: "inode_discarders"},
 		{Name: "pid_discarders"},
-		{Name: "inode_discarder_revisions"},
+		{Name: "inode_disc_revisions"},
 		{Name: "basename_approvers"},
 		// Dentry resolver table
 		{Name: "pathnames"},
@@ -146,7 +146,7 @@ func getMaxEntries(numCPU int, min int, max int) uint32 {
 }
 
 // AllMapSpecEditors returns the list of map editors
-func AllMapSpecEditors(numCPU int, tracedCgroupSize int, supportMmapableMaps, useRingBuffers bool, ringBufferSize uint32) map[string]manager.MapSpecEditor {
+func AllMapSpecEditors(numCPU int, tracedCgroupSize int, supportMmapableMaps, useRingBuffers bool, ringBufferSize uint32, securityProfileMaxCount int) map[string]manager.MapSpecEditor {
 	editors := map[string]manager.MapSpecEditor{
 		"proc_cache": {
 			MaxEntries: getMaxEntries(numCPU, minProcEntries, maxProcEntries),
@@ -172,6 +172,14 @@ func AllMapSpecEditors(numCPU int, tracedCgroupSize int, supportMmapableMaps, us
 			MaxEntries: model.MaxTracedCgroupsCount,
 			EditorFlag: manager.EditMaxEntries,
 		},
+		"security_profiles": {
+			MaxEntries: uint32(securityProfileMaxCount),
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"secprofs_syscalls": {
+			MaxEntries: uint32(securityProfileMaxCount),
+			EditorFlag: manager.EditMaxEntries,
+		},
 	}
 
 	if tracedCgroupSize > 0 {
@@ -194,7 +202,7 @@ func AllMapSpecEditors(numCPU int, tracedCgroupSize int, supportMmapableMaps, us
 		editors["events"] = manager.MapSpecEditor{
 			MaxEntries: ringBufferSize,
 			Type:       ebpf.RingBuf,
-			EditorFlag: manager.EditType | manager.EditMaxEntries,
+			EditorFlag: manager.EditMaxEntries | manager.EditType | manager.EditKeyValue,
 		}
 	}
 	return editors

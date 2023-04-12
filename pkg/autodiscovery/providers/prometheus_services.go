@@ -24,6 +24,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	infov1 "k8s.io/client-go/informers/core/v1"
 	listersv1 "k8s.io/client-go/listers/core/v1"
@@ -82,7 +83,7 @@ func NewPrometheusServicesConfigProvider(*config.ConfigurationProviders) (Config
 
 	collectEndpoints := config.Datadog.GetBool("prometheus_scrape.service_endpoints")
 	if collectEndpoints {
-		endpointsInformer := ac.InformerFactory.Core().V1().Endpoints()
+		endpointsInformer = ac.InformerFactory.Core().V1().Endpoints()
 		if endpointsInformer == nil {
 			return nil, errors.New("cannot get endpoints informer")
 		}
@@ -149,6 +150,10 @@ func (p *PrometheusServicesConfigProvider) Collect(ctx context.Context) ([]integ
 			} else {
 				ep, err := p.api.GetEndpoints(svc.GetNamespace(), svc.GetName())
 				if err != nil {
+					// This can happen if we encounter an headless service.
+					if k8serrors.IsNotFound(err) {
+						continue
+					}
 					return nil, err
 				}
 

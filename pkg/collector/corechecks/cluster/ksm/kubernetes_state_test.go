@@ -1164,11 +1164,63 @@ func TestKSMCheck_processLabelsAsTags(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "With labels in CamelCase",
+			// KSM converts labels to snake case.
+			config: &KSMConfig{
+				labelJoins:   map[string]*joinsConfig{},
+				LabelsMapper: map[string]string{},
+				LabelsAsTags: map[string]map[string]string{
+					"pod": {"my_podLabel": "my_pod_tag"}, // CamelCase
+				},
+			},
+			expectedJoins: map[string]*joinsConfig{
+				"kube_pod_labels": {
+					labelsToMatch: []string{"pod", "namespace"},
+					labelsToGet:   map[string]string{"label_my_pod_label": "my_pod_tag"}, // snake_case
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			k := &KSMCheck{instance: tt.config}
 			k.processLabelsAsTags()
+			assert.Equal(t, tt.expectedJoins, k.instance.labelJoins)
+		})
+	}
+}
+
+func TestKSMCheck_processAnnotationsAsTags(t *testing.T) {
+	tests := []struct {
+		name           string
+		config         *KSMConfig
+		expectedJoins  map[string]*joinsConfig
+		expectedMapper map[string]string
+	}{
+		{
+			name: "With labels in CamelCase",
+			// KSM converts labels that contains annotations to snake case.
+			config: &KSMConfig{
+				labelJoins:   map[string]*joinsConfig{},
+				LabelsMapper: map[string]string{},
+				AnnotationsAsTags: map[string]map[string]string{
+					"pod": {"my_podAnnotation": "my_pod_annotation"}, // CamelCase
+				},
+			},
+			expectedJoins: map[string]*joinsConfig{
+				"kube_pod_annotations": {
+					labelsToMatch: []string{"pod", "namespace"},
+					labelsToGet:   map[string]string{"annotation_my_pod_annotation": "my_pod_annotation"}, // snake_case
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			k := &KSMCheck{instance: tt.config}
+			k.processAnnotationsAsTags()
 			assert.Equal(t, tt.expectedJoins, k.instance.labelJoins)
 		})
 	}

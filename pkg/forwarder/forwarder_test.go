@@ -242,7 +242,7 @@ func TestCreateHTTPTransactionsWithDifferentResolvers(t *testing.T) {
 func TestCreateHTTPTransactionsWithOverrides(t *testing.T) {
 	resolvers := make(map[string]resolver.DomainResolver)
 	r := resolver.NewMultiDomainResolver(testDomain, []string{"api-key-1"})
-	r.RegisterAlternateDestination("vector.tld", "diverted", resolver.Vector)
+	r.RegisterAlternateDestination("observability_pipelines_worker.tld", "diverted", resolver.Vector)
 	resolvers[testDomain] = r
 	forwarder := NewDefaultForwarder(NewOptionsWithResolvers(resolvers))
 
@@ -263,7 +263,7 @@ func TestCreateHTTPTransactionsWithOverrides(t *testing.T) {
 	require.Len(t, transactions, 1, "should contain 1 transaction, contains %d", len(transactions))
 
 	assert.Equal(t, transactions[0].Endpoint.Route, "/api/foo")
-	assert.Equal(t, transactions[0].Domain, "vector.tld")
+	assert.Equal(t, transactions[0].Domain, "observability_pipelines_worker.tld")
 }
 
 func TestArbitraryTagsHTTPHeader(t *testing.T) {
