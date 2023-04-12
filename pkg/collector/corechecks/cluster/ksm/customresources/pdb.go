@@ -14,6 +14,7 @@ package customresources
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -36,11 +37,15 @@ var (
 )
 
 // NewPodDisruptionBudgetV1Beta1Factory returns a new PodDisruptionBudgets metric family generator factory.
-func NewPodDisruptionBudgetV1Beta1Factory() customresource.RegistryFactory {
-	return &pdbv1beta1Factory{}
+func NewPodDisruptionBudgetV1Beta1Factory(client *apiserver.APIClient) customresource.RegistryFactory {
+	return &pdbv1beta1Factory{
+		client: client.Cl,
+	}
 }
 
-type pdbv1beta1Factory struct{}
+type pdbv1beta1Factory struct {
+	client interface{}
+}
 
 func (f *pdbv1beta1Factory) Name() string {
 	return "poddisruptionbudgets"
@@ -48,7 +53,7 @@ func (f *pdbv1beta1Factory) Name() string {
 
 // CreateClient is not implemented
 func (f *pdbv1beta1Factory) CreateClient(cfg *rest.Config) (interface{}, error) {
-	panic("not implemented")
+	return f.client, nil
 }
 
 func (f *pdbv1beta1Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
