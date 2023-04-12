@@ -442,6 +442,10 @@ func (c *CWSConsumer) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, f
 
 // HandleEvent is called by the probe when an event arrives from the kernel
 func (c *CWSConsumer) HandleEvent(event *model.Event) {
+	if threatScoreRuleSet := c.GetThreatScoreRuleSet(); threatScoreRuleSet != nil {
+		threatScoreRuleSet.Evaluate(event)
+	}
+
 	// if the event should have been discarded in kernel space, we don't need to evaluate it
 	if event.IsSavedByActivityDumps() {
 		return
@@ -451,10 +455,6 @@ func (c *CWSConsumer) HandleEvent(event *model.Event) {
 		if (event.SecurityProfileContext.Status.IsEnabled(model.AutoSuppression) && event.IsInProfile()) || !ruleSet.Evaluate(event) {
 			ruleSet.EvaluateDiscarders(event)
 		}
-	}
-
-	if threatScoreRuleSet := c.GetThreatScoreRuleSet(); threatScoreRuleSet != nil {
-		threatScoreRuleSet.Evaluate(event)
 	}
 }
 
