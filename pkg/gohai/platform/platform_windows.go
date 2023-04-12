@@ -41,7 +41,7 @@ var (
 	ntdll                              = windows.NewLazyDLL("Ntdll.dll")
 	procRtlGetVersion                  = ntdll.NewProc("RtlGetVersion")
 	winbrand                           = windows.NewLazyDLL("winbrand.dll")
-	ERROR_SUCESS         syscall.Errno = 0
+	ERROR_SUCCESS        syscall.Errno = 0
 )
 
 const (
@@ -113,7 +113,7 @@ func fetchOsDescription() (string, error) {
 			magicString := utf16.Encode([]rune("%WINDOWS_LONG%" + "\x00"))
 			os, _, err := procBrandingFormatString.Call(uintptr(unsafe.Pointer(&magicString[0])))
 			defer syscall.LocalFree(syscall.Handle(os))
-			if err == ERROR_SUCESS {
+			if err == ERROR_SUCCESS {
 				return windows.UTF16PtrToString((*uint16)(unsafe.Pointer(os))), nil
 			}
 		}
