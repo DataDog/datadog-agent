@@ -20,17 +20,22 @@ import (
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var descJobLabelsDefaultLabels = []string{"namespace", "job_name"}
 
 // NewExtendedJobFactory returns a new Job metric family generator factory.
-func NewExtendedJobFactory() customresource.RegistryFactory {
-	return &extendedJobFactory{}
+func NewExtendedJobFactory(client *apiserver.APIClient) customresource.RegistryFactory {
+	return &extendedJobFactory{
+		client: client.Cl,
+	}
 }
 
-type extendedJobFactory struct{}
+type extendedJobFactory struct {
+	client interface{}
+}
 
 // Name is the name of the factory
 func (f *extendedJobFactory) Name() string {
@@ -39,7 +44,7 @@ func (f *extendedJobFactory) Name() string {
 
 // CreateClient is not implemented
 func (f *extendedJobFactory) CreateClient(cfg *rest.Config) (interface{}, error) {
-	panic("not implemented")
+	return f.client, nil
 }
 
 // MetricFamilyGenerators returns the extended job metric family generators

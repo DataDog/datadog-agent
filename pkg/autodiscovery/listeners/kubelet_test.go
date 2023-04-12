@@ -125,10 +125,20 @@ func TestKubeletCreateContainerService(t *testing.T) {
 				fmt.Sprintf("ad.datadoghq.com/%s.check.id", containerName): `customid`,
 				fmt.Sprintf("ad.datadoghq.com/%s.instances", "customid"):   `[{}]`,
 				fmt.Sprintf("ad.datadoghq.com/%s.check_names", "customid"): `["customcheck"]`,
+				fmt.Sprintf("ad.datadoghq.com/%s.exclude", containerName):  `false`,
 			},
 		},
 		IP: "127.0.0.1",
 	}
+
+	podWithExcludeAnnotation := podWithAnnotations.DeepCopy().(*workloadmeta.KubernetesPod)
+	podWithExcludeAnnotation.Annotations[fmt.Sprintf("ad.datadoghq.com/%s.exclude", containerName)] = `true`
+
+	podWithMetricsExcludeAnnotation := podWithAnnotations.DeepCopy().(*workloadmeta.KubernetesPod)
+	podWithMetricsExcludeAnnotation.Annotations[fmt.Sprintf("ad.datadoghq.com/%s.metrics_exclude", containerName)] = `true`
+
+	podWithLogsExcludeAnnotation := podWithAnnotations.DeepCopy().(*workloadmeta.KubernetesPod)
+	podWithLogsExcludeAnnotation.Annotations[fmt.Sprintf("ad.datadoghq.com/%s.logs_exclude", containerName)] = `true`
 
 	containerEntityID := workloadmeta.EntityID{
 		Kind: workloadmeta.KindContainer,
@@ -404,6 +414,85 @@ func TestKubeletCreateContainerService(t *testing.T) {
 							"pod_name":  podName,
 							"pod_uid":   podID,
 						},
+					},
+				},
+			},
+		},
+		{
+			name: "pod with global exclude annotation does not get collected",
+			pod:  podWithExcludeAnnotation,
+			podContainer: &workloadmeta.OrchestratorContainer{
+				ID:    containerID,
+				Name:  containerName,
+				Image: basicImage,
+			},
+			container:        customIDsContainer,
+			expectedServices: map[string]wlmListenerSvc{},
+		},
+		{
+			name: "pod with custom check names and metrics exclude annotation has metrics excluded set",
+			pod:  podWithMetricsExcludeAnnotation,
+			podContainer: &workloadmeta.OrchestratorContainer{
+				ID:    containerID,
+				Name:  containerName,
+				Image: basicImage,
+			},
+			container: customIDsContainer,
+			expectedServices: map[string]wlmListenerSvc{
+				"container://foobarquux": {
+					parent: "kubernetes_pod://foobar",
+					service: &service{
+						entity: customIDsContainer,
+						adIdentifiers: []string{
+							"customid",
+							"docker://foobarquux",
+							"foobar",
+						},
+						hosts: map[string]string{
+							"pod": "127.0.0.1",
+						},
+						ports:      []ContainerPort{},
+						checkNames: []string{"customcheck"},
+						extraConfig: map[string]string{
+							"namespace": podNamespace,
+							"pod_name":  podName,
+							"pod_uid":   podID,
+						},
+						metricsExcluded: true,
+					},
+				},
+			},
+		},
+		{
+			name: "pod with custom check names and logs exclude annotation has logs excluded set",
+			pod:  podWithLogsExcludeAnnotation,
+			podContainer: &workloadmeta.OrchestratorContainer{
+				ID:    containerID,
+				Name:  containerName,
+				Image: basicImage,
+			},
+			container: customIDsContainer,
+			expectedServices: map[string]wlmListenerSvc{
+				"container://foobarquux": {
+					parent: "kubernetes_pod://foobar",
+					service: &service{
+						entity: customIDsContainer,
+						adIdentifiers: []string{
+							"customid",
+							"docker://foobarquux",
+							"foobar",
+						},
+						hosts: map[string]string{
+							"pod": "127.0.0.1",
+						},
+						ports:      []ContainerPort{},
+						checkNames: []string{"customcheck"},
+						extraConfig: map[string]string{
+							"namespace": podNamespace,
+							"pod_name":  podName,
+							"pod_uid":   podID,
+						},
+						logsExcluded: true,
 					},
 				},
 			},

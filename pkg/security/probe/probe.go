@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
+	easyjson "github.com/mailru/easyjson"
 	"github.com/moby/sys/mountinfo"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
@@ -430,6 +431,12 @@ func (p *Probe) zeroEvent() *model.Event {
 	*p.event = eventZero
 	p.event.FieldHandlers = p.fieldHandlers
 	return p.event
+}
+
+func (p *Probe) EventMarshallerCtor(event *model.Event) func() easyjson.Marshaler {
+	return func() easyjson.Marshaler {
+		return serializers.NewEventSerializer(event, p.resolvers)
+	}
 }
 
 func (p *Probe) unmarshalContexts(data []byte, event *model.Event) (int, error) {
@@ -879,7 +886,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 		p.DispatchCustomEvent(
 			events.NewCustomRule(events.AnomalyDetectionRuleID),
-			events.NewCustomEvent(event.GetEventType(), serializers.NewEventSerializer(event, p.resolvers)),
+			events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtor(event)),
 		)
 	}
 
@@ -1100,12 +1107,12 @@ func (p *Probe) GetDiscarders() (*DiscardersDump, error) {
 		return nil, err
 	}
 
-	statsFB, err := managerhelper.Map(p.Manager, "discarder_stats_fb")
+	statsFB, err := managerhelper.Map(p.Manager, "fb_discarder_stats")
 	if err != nil {
 		return nil, err
 	}
 
-	statsBB, err := managerhelper.Map(p.Manager, "discarder_stats_bb")
+	statsBB, err := managerhelper.Map(p.Manager, "bb_discarder_stats")
 	if err != nil {
 		return nil, err
 	}
@@ -1480,6 +1487,10 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		manager.ConstantEditor{
 			Name:  "send_signal",
 			Value: isBPFSendSignalHelperAvailable(p.kernelVersion),
+		},
+		manager.ConstantEditor{
+			Name:  "anomaly_syscalls",
+			Value: utils.BoolTouint64(p.Config.RuntimeSecurity.AnomalyDetectionSyscallsEnabled),
 		},
 	)
 

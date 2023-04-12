@@ -928,8 +928,6 @@ int kretprobe__udp_destroy_sock(struct pt_regs *ctx) {
     return 0;
 }
 
-//region sys_enter_bind
-
 static __always_inline int sys_enter_bind(struct socket *sock, struct sockaddr *addr) {
     __u64 tid = bpf_get_current_pid_tgid();
 
@@ -975,10 +973,6 @@ int kprobe__inet6_bind(struct pt_regs *ctx) {
     log_debug("kprobe/inet6_bind: sock=%llx, umyaddr=%x\n", sock, addr);
     return sys_enter_bind(sock, addr);
 }
-
-//endregion
-
-//region sys_exit_bind
 
 static __always_inline int sys_exit_bind(__s64 ret) {
     __u64 tid = bpf_get_current_pid_tgid();

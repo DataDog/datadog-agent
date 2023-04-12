@@ -735,7 +735,7 @@ func TestJavaInjection(t *testing.T) {
 			teardown:   commonTearDown,
 		},
 		{
-			name: "java_hotspot_injection_21_allowhigherpriority",
+			name: "java_hotspot_injection_21_allow_higher_priority",
 			context: testContext{
 				extras: make(map[string]interface{}),
 			},
@@ -757,7 +757,7 @@ func TestJavaInjection(t *testing.T) {
 		},
 		{
 			// Test the java jdk client https request is working
-			name: "java_jdk_client_httpbin_docker_withTLSClassificaiton_java15",
+			name: "java_jdk_client_httpbin_docker_withTLSClassification_java15",
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				cfg.JavaDir = legacyJavaDir
 				cfg.ProtocolClassificationEnabled = true
@@ -1028,6 +1028,11 @@ func testHTTPsGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Conf
 	checkRequests(t, tr, expectedOccurrences, reqs)
 }
 
+type tlsTestCommand struct {
+	version        string
+	openSSLCommand string
+}
+
 // TLS classification tests
 func TestTLSClassification(t *testing.T) {
 	cfg := testConfig()
@@ -1038,29 +1043,43 @@ func TestTLSClassification(t *testing.T) {
 		t.Skip("TLS classification platform not supported")
 	}
 
-	// testContext shares the context of a given test.
-	// It contains common variable used by all tests, and allows extending the context dynamically by setting more
-	type testContext struct{}
+	tr := setupTracer(t, cfg)
+
 	type tlsTest struct {
 		name            string
-		context         testContext
-		preTracerSetup  func(t *testing.T, ctx testContext)
-		postTracerSetup func(t *testing.T, ctx testContext)
-		validation      func(t *testing.T, ctx testContext, tr *Tracer)
-		teardown        func(t *testing.T, ctx testContext)
+		postTracerSetup func(t *testing.T)
+		validation      func(t *testing.T, tr *Tracer)
 	}
-	tests := []tlsTest{}
-	for _, tlsVersion := range []string{"-tls1", "-tls1_1", "-tls1_2", "-tls1_3"} {
+	scenarios := []tlsTestCommand{
+		{
+			version:        "1.0",
+			openSSLCommand: "-tls1",
+		},
+		{
+			version:        "1.1",
+			openSSLCommand: "-tls1_1",
+		},
+		{
+			version:        "1.2",
+			openSSLCommand: "-tls1_2",
+		},
+		{
+			version:        "1.3",
+			openSSLCommand: "-tls1_3",
+		},
+	}
+	tests := make([]tlsTest, 0, len(scenarios))
+	for _, scenario := range scenarios {
 		tests = append(tests, tlsTest{
-			name: "TLS" + tlsVersion + "_docker",
-			postTracerSetup: func(t *testing.T, ctx testContext) {
+			name: "TLS-" + scenario.version + "_docker",
+			postTracerSetup: func(t *testing.T) {
 				clientSuccess := false
 				var wg sync.WaitGroup
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
 					time.Sleep(5 * time.Second)
-					clientSuccess = prototls.RunClientOpenssl(t, "localhost", "44330", tlsVersion)
+					clientSuccess = prototls.RunClientOpenssl(t, "localhost", "44330", scenario.openSSLCommand)
 				}()
 				prototls.RunServerOpenssl(t, "44330", "-www")
 				wg.Wait()
@@ -1068,7 +1087,7 @@ func TestTLSClassification(t *testing.T) {
 					t.Fatalf("openssl client failed")
 				}
 			},
-			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+			validation: func(t *testing.T, tr *Tracer) {
 				// Iterate through active connections until we find connection created above
 				require.Eventuallyf(t, func() bool {
 					payload := getConnections(t, tr)
@@ -1078,27 +1097,25 @@ func TestTLSClassification(t *testing.T) {
 						}
 					}
 					return false
-				}, 4*time.Second, time.Second, "couldn't find TLS connection matching: dstport 44330")
+				}, 4*time.Second, time.Second, "couldn't find TLS connection matching: dst port 44330")
 			},
 		})
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.teardown != nil {
-				t.Cleanup(func() {
-					tt.teardown(t, tt.context)
-				})
-			}
-			if tt.preTracerSetup != nil {
-				tt.preTracerSetup(t, tt.context)
-			}
-			tr := setupTracer(t, cfg)
 			if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
 				t.Skip("protocol classification not supported for fentry tracer")
 			}
-			tt.postTracerSetup(t, tt.context)
-			tt.validation(t, tt.context, tr)
+			t.Cleanup(func() { tr.removeClient(clientID) })
+			t.Cleanup(func() { _ = tr.ebpfTracer.Pause() })
+
+			tr.removeClient(clientID)
+			initTracerState(t, tr)
+			require.NoError(t, tr.ebpfTracer.Resume(), "enable probes - before post tracer")
+			tt.postTracerSetup(t)
+			require.NoError(t, tr.ebpfTracer.Pause(), "disable probes - after post tracer")
+			tt.validation(t, tr)
 		})
 	}
 }
