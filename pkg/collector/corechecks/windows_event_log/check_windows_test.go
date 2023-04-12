@@ -9,7 +9,6 @@ package evtlog
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -273,7 +272,7 @@ query: |
 	nomatchstring := "should not match"
 	s.sender.On("Commit").Return().Once()
 	s.sender.On("Event", mock.MatchedBy(func(e metrics.Event) bool {
-		return strings.Contains(e.Text, matchstring)
+		return assert.Contains(s.T(), e.Text, matchstring, "reported events should match the query")
 	})).Once()
 
 	// Generate an event the query should match on (EventID=1000)
@@ -284,6 +283,59 @@ query: |
 	check.Run()
 
 	s.sender.AssertExpectations(s.T())
+}
+
+// Tests that the tag_event_id configuration option results in an event_id tag
+func (s *GetEventsTestSuite) TestGetEventsWithTagEventID() {
+	tests := []struct {
+		name     string
+		confval  bool
+		tag      string
+		event_id uint
+	}{
+		{"disabled", false, "", 1000},
+		{"enabled", true, "event_id:1000", 1000},
+	}
+
+	reporter, err := evtreporter.New(s.eventSource, s.ti.API())
+	require.NoError(s.T(), err)
+	defer reporter.Close()
+
+	for _, tc := range tests {
+		s.Run(tc.name, func() {
+			defer resetSender(s.sender)
+
+
+			instanceConfig := []byte(fmt.Sprintf(`
+path: %s
+start: now
+tag_event_id: %t
+`,
+				s.channelPath, tc.confval))
+
+			check, err := s.newCheck(instanceConfig, nil)
+			require.NoError(s.T(), err)
+			defer check.Cancel()
+
+			s.sender.On("Commit").Return().Once()
+			s.sender.On("Event", mock.MatchedBy(func(e metrics.Event) bool {
+				if tc.confval {
+					return assert.Contains(s.T(), e.Tags, tc.tag, "Tags should contain the event id")
+				}
+				res := true
+				for _, tag := range e.Tags {
+					res = res && assert.NotContains(s.T(), tag, "event_id", "Tags should not contain the event id")
+				}
+				return res
+			})).Once()
+
+			err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, tc.event_id, []string{"teststring"}, nil)
+
+			check.Run()
+
+			s.sender.AssertExpectations(s.T())
+		})
+	}
 }
 
 func BenchmarkGetEvents(b *testing.B) {

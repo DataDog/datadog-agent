@@ -60,6 +60,7 @@ type instanceConfig struct {
 	Bookmark_frequency int    `yaml:"bookmark_frequency"`
 	Legacy_mode        bool   `yaml:"legacy_mode"`
 	Event_priority     string `yaml:"event_priority"`
+	Tag_event_id       bool   `yaml:"tag_event_id"`
 }
 
 type initConfig struct {
@@ -177,7 +178,17 @@ func (c *Check) renderEventValues(winevent *evtapi.EventRecord, ddevent *metrics
 	// formatted message
 	err = c.renderEventMessage(providerName, winevent, ddevent)
 	if err != nil {
+		// TODO: continue?
 		return err
+	}
+
+	// Optional: Tag EventID
+	if c.config.instance.Tag_event_id {
+		eventid, err := vals.UInt(evtapi.EvtSystemEventID)
+		if err == nil {
+			tag := fmt.Sprintf("event_id:%d", eventid)
+			ddevent.Tags = append(ddevent.Tags, tag)
+		}
 	}
 
 	return nil
