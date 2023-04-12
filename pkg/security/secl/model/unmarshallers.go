@@ -789,16 +789,30 @@ func (e *LoadModuleEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 
-	if len(data)-read < 60 {
+	if len(data)-read < 188 {
 		return 0, ErrNotEnoughData
 	}
 
 	e.Name, err = UnmarshalString(data[read:read+56], 56)
+	read += 56
+
 	if err != nil {
 		return 0, err
 	}
-	e.LoadedFromMemory = ByteOrder.Uint32(data[read+56:read+60]) == uint32(1)
-	return read + 60, nil
+
+	e.Args, err = UnmarshalString(data[read:read+128], 128)
+	read += 128
+
+	e.ArgsTruncated = ByteOrder.Uint32(data[read:read+4]) == uint32(1)
+	read += 4
+
+	if err != nil {
+		return 0, err
+	}
+	e.LoadedFromMemory = ByteOrder.Uint32(data[read:read+4]) == uint32(1)
+	read += 4
+
+	return read, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -1062,4 +1076,14 @@ func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
 		}
 	}
 	return 64, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *AnomalyDetectionSyscallEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 8 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.SyscallID = Syscall(ByteOrder.Uint64(data[0:8]))
+	return 8, nil
 }

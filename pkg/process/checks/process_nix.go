@@ -9,6 +9,7 @@
 package checks
 
 import (
+	"math"
 	"os/user"
 	"strconv"
 
@@ -76,5 +77,11 @@ func calculatePct(deltaProc, deltaTime, numCPU float64) float32 {
 	}
 
 	// In order to emulate top we multiply utilization by # of CPUs so a busy loop would be 100%.
-	return float32(overalPct * numCPU)
+	pct := overalPct * numCPU
+
+	// Clamp to 0 below if we get a negative value
+	// CPU time counters in /proc/ used to determine process execution time may potentially be decremented, leading to a negative deltaProc
+	// Avoid reporting negative CPU percentages when this occurs
+	pct = math.Max(pct, 0.0)
+	return float32(pct)
 }

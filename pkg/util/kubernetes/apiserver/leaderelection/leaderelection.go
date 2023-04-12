@@ -145,7 +145,7 @@ func (le *LeaderEngine) init() error {
 		le.lockType = rl.LeasesResourceLock
 	} else {
 		// for kubernetes <= 1.13
-		le.lockType = rl.ConfigMapsResourceLock
+		le.lockType = "ok" // rl.ConfigMapsLeasesResourceLock
 	}
 
 	le.leaderElector, err = le.newElection()

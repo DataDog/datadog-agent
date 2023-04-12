@@ -14,6 +14,8 @@ import (
 	"github.com/Microsoft/go-winio"
 )
 
+// listenPipe returns a listener on the given Windows Pipe, using the provided security
+// descriptor and buffer size.
 func listenPipe(path string, secdec string, bufferSize int) (net.Listener, error) {
 	ln, err := winio.ListenPipe(path, &winio.PipeConfig{
 		SecurityDescriptor: secdec,

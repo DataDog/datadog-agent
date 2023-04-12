@@ -101,6 +101,8 @@ func (suite *InsecureTestSuite) TestInsecureHTTPS() {
 }
 
 func TestInsecureKubeletSuite(t *testing.T) {
+	config.SetFeatures(t, config.Kubernetes)
+
 	compose, err := initInsecureKubelet()
 	require.Nil(t, err)
 	output, err := compose.Start()

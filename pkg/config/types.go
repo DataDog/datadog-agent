@@ -15,6 +15,13 @@ import (
 	"github.com/spf13/pflag"
 )
 
+// Proxy represents the configuration for proxies in the agent
+type Proxy struct {
+	HTTP    string   `mapstructure:"http"`
+	HTTPS   string   `mapstructure:"https"`
+	NoProxy []string `mapstructure:"no_proxy"`
+}
+
 // ConfigReader is a subset of Config that only allows reading of configuration
 type ConfigReader interface {
 	Get(key string) interface{}
@@ -32,6 +39,7 @@ type ConfigReader interface {
 	GetStringMapString(key string) map[string]string
 	GetStringMapStringSlice(key string) map[string][]string
 	GetSizeInBytes(key string) uint
+	GetProxies() *Proxy
 
 	ConfigFileUsed() string
 

@@ -33,7 +33,7 @@ type dependencies struct {
 type mockDependencies struct {
 	fx.In
 
-	Params Params
+	Params MockParams
 }
 
 func newConfig(deps dependencies) (Component, error) {
@@ -66,7 +66,7 @@ func (c *cfg) Warnings() *config.Warnings {
 	return c.warnings
 }
 
-func newMock(deps mockDependencies, t testing.TB) Component {
+func newMock(deps mockDependencies, t testing.TB) (Component, error) {
 	backupConfig := config.NewConfig("", "", strings.NewReplacer())
 	backupConfig.CopyConfig(config.Datadog)
 
@@ -75,9 +75,18 @@ func newMock(deps mockDependencies, t testing.TB) Component {
 	// call InitConfig to set defaults.
 	config.InitConfig(config.Datadog)
 
+	if deps.Params.ConfigYaml != "" {
+		config.Datadog.SetConfigType("yaml")
+		err := config.Datadog.ReadConfig(strings.NewReader(deps.Params.ConfigYaml))
+		if err != nil {
+			// The YAML was invalid, fail initialization of the mock config.
+			return nil, err
+		}
+	}
+
 	// Overrides are explicit and will take precedence over any other
 	// setting
-	for k, v := range deps.Params.overrides {
+	for k, v := range deps.Params.Overrides {
 		config.Datadog.Set(k, v)
 	}
 
@@ -89,5 +98,5 @@ func newMock(deps mockDependencies, t testing.TB) Component {
 	// swap the existing config back at the end of the test.
 	t.Cleanup(func() { config.Datadog.CopyConfig(backupConfig) })
 
-	return c
+	return c, nil
 }

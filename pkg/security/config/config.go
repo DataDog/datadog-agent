@@ -124,6 +124,11 @@ type RuntimeSecurityConfig struct {
 	SecurityProfileWatchDir bool
 	// SecurityProfileCacheSize defines the count of Security Profiles held in cache
 	SecurityProfileCacheSize int
+	// SecurityProfileMaxCount defines the maximum number of Security Profiles that may be evaluated concurrently
+	SecurityProfileMaxCount int
+
+	// AnomalyDetectionSyscallsEnabled enable anomaly detection for syscalls
+	AnomalyDetectionSyscallsEnabled bool
 
 	// SBOMResolverEnabled defines if the SBOM resolver should be enabled
 	SBOMResolverEnabled bool
@@ -220,6 +225,10 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SecurityProfileDir:       coreconfig.SystemProbe.GetString("runtime_security_config.security_profile.dir"),
 		SecurityProfileWatchDir:  coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.watch_dir"),
 		SecurityProfileCacheSize: coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.cache_size"),
+		SecurityProfileMaxCount:  coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.max_count"),
+
+		// anomaly detection
+		AnomalyDetectionSyscallsEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.syscalls.enabled"),
 	}
 
 	if err := rsConfig.sanitize(); err != nil {

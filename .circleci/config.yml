@@ -107,14 +107,18 @@ jobs:
       - run:
           name: run unit tests
           no_output_timeout: 20m
-          command: inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --cpus 3
-      - run:
-          name: upload code coverage results
-          # Never fail on coverage upload
-          command: inv -e codecov || true
+          command: inv -e test --skip-linters --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --cpus 8
+      # Codecov upload is failing in CircleCI with a "Please upload with the Codecov repository upload token to resolve issue" error.
+      # Public repositories don't need to use a token, it's a known issue often breaking Codecov, see  https://github.com/codecov/codecov-action/issues/837
+      # Adding a token would fix it but Datadog OAuth doesn't allow us to get a token, so we're disabling it for now.
+      # - run:
+      #     name: upload code coverage results
+      #     # Never fail on coverage upload
+      #     command: inv -e codecov || true
 
   integration_tests:
     <<: *job_template
+    resource_class: large
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
@@ -149,6 +153,17 @@ jobs:
       - run:
           command: inv -e lint-milestone
           name: run PR check for milestone assignment
+
+  go_linting:
+    <<: *job_template
+    resource_class: xlarge
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: run go linters
+          no_output_timeout: 20m
+          command: inv -e lint-go
 
   licenses_linting:
     <<: *job_template
@@ -306,6 +321,9 @@ workflows:
             branches:
               ignore:
                 - main
+          requires:
+            - dependencies
+      - go_linting:
           requires:
             - dependencies
       - licenses_linting:

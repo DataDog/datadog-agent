@@ -350,8 +350,7 @@ func TestRTProcMessageNotRetried(t *testing.T) {
 func TestSendPodMessageSendManifestPayload(t *testing.T) {
 	clusterID, check := getPodCheckMessage(t)
 
-	ddconfig.SetDetectedFeatures(ddconfig.FeatureMap{ddconfig.Kubernetes: {}})
-	defer ddconfig.SetDetectedFeatures(nil)
+	ddconfig.SetFeatures(t, ddconfig.Kubernetes)
 
 	ddcfg := ddconfig.Mock(t)
 	ddcfg.Set("orchestrator_explorer.enabled", true)
@@ -366,27 +365,23 @@ func TestSendPodMessageSendManifestPayload(t *testing.T) {
 func TestSendPodMessageNotSendManifestPayload(t *testing.T) {
 	clusterID, check := getPodCheckMessage(t)
 
-	ddconfig.SetDetectedFeatures(ddconfig.FeatureMap{ddconfig.Kubernetes: {}})
-	defer ddconfig.SetDetectedFeatures(nil)
+	ddconfig.SetFeatures(t, ddconfig.Kubernetes)
 
 	ddcfg := ddconfig.Mock(t)
 	ddcfg.Set("orchestrator_explorer.enabled", true)
 	ddcfg.Set("orchestrator_explorer.manifest_collection.enabled", false)
 
 	runCollectorTest(t, check, &endpointConfig{}, ddconfig.Mock(t), func(c *CheckRunner, ep *mockEndpoint) {
-
 		testPodMessageMetadata(t, clusterID, c, ep)
 		select {
 		case q := <-ep.Requests:
 			t.Fatalf("should not have received manifest payload %+v", q)
 		case <-time.After(1 * time.Second):
 		}
-
 	})
 }
 
 func getPodCheckMessage(t *testing.T) (string, checks.Check) {
-
 	clusterID := "d801b2b1-4811-11ea-8618-121d4d0938a3"
 
 	t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", clusterID)
