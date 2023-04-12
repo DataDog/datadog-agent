@@ -20,6 +20,7 @@ type platformObjectRecord struct {
 	startLogItem    startLogItem     // present in LogTypePlatformStart only
 	runtimeDoneItem runtimeDoneItem  // present in LogTypePlatformRuntimeDone only
 	reportLogItem   reportLogMetrics // present in LogTypePlatformReport only
+	status          string           // recordStatus is the status of either an init or invocation phase
 }
 
 // reportLogMetrics contains metrics found in a LogTypePlatformReport log
@@ -73,6 +74,9 @@ const (
 	logTypePlatformRuntimeDone = "platform.runtimeDone"
 	// logTypePlatformInitReport is received when init finishes
 	logTypePlatformInitReport = "platform.initReport"
+
+	// errorStatus indicates the function has errored out
+	errorStatus string = "error"
 )
 
 // UnmarshalJSON unmarshals the given bytes in a LogMessage object.
@@ -164,6 +168,9 @@ func (l *LambdaLogAPIMessage) handlePlatformStart(objectRecord map[string]interf
 }
 
 func (l *LambdaLogAPIMessage) handlePlatformReport(objectRecord map[string]interface{}) {
+	if status, ok := objectRecord["status"].(string); ok {
+		l.objectRecord.status = status
+	}
 	metrics, ok := objectRecord["metrics"].(map[string]interface{})
 	if !ok {
 		log.Error("LogMessage.UnmarshalJSON: can't read the metrics object")

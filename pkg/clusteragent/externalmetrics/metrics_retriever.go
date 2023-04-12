@@ -106,6 +106,7 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 
 			if queryResult.Valid {
 				datadogMetricFromStore.Value = queryResult.Value
+				datadogMetricFromStore.DataTime = time.Unix(queryResult.Timestamp, 0).UTC()
 
 				// If we get a valid but old metric, flag it as invalid
 				maxAge := datadogMetric.MaxAge
@@ -116,16 +117,13 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 				if time.Duration(currentTime.Unix()-queryResult.Timestamp)*time.Second <= maxAge {
 					datadogMetricFromStore.Valid = true
 					datadogMetricFromStore.Error = nil
-					datadogMetricFromStore.UpdateTime = time.Unix(queryResult.Timestamp, 0).UTC()
 				} else {
 					datadogMetricFromStore.Valid = false
 					datadogMetricFromStore.Error = fmt.Errorf(invalidMetricOutdatedErrorMessage, query)
-					datadogMetricFromStore.UpdateTime = currentTime
 				}
 			} else {
 				datadogMetricFromStore.Valid = false
 				datadogMetricFromStore.Error = fmt.Errorf(invalidMetricErrorMessage, queryResult.Error, query)
-				datadogMetricFromStore.UpdateTime = currentTime
 			}
 		} else {
 			datadogMetricFromStore.Valid = false
@@ -136,8 +134,8 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 				// if no global error.
 				datadogMetricFromStore.Error = log.Errorf(invalidMetricNotFoundErrorMessage, query)
 			}
-			datadogMetricFromStore.UpdateTime = currentTime
 		}
+		datadogMetricFromStore.UpdateTime = currentTime
 
 		mr.store.UnlockSet(datadogMetric.ID, *datadogMetricFromStore, metricRetrieverStoreID)
 	}

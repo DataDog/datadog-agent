@@ -48,6 +48,9 @@ func BPFLoad() error {
 			{
 				Name: "cache",
 			},
+			{
+				Name: "is_discarded_by_inode_gen",
+			},
 		},
 	}
 	defer func() {

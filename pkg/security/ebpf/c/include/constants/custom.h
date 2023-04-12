@@ -151,4 +151,10 @@ static __attribute__((always_inline)) u64 get_syscall_monitor_event_period() {
     return syscall_monitor_event_period;
 }
 
+static __attribute__((always_inline)) u64 is_send_signal_available() {
+    u64 send_signal;
+    LOAD_CONSTANT("send_signal", send_signal);
+    return send_signal;
+};
+
 #endif
