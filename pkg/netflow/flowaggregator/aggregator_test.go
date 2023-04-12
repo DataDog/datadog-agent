@@ -518,8 +518,8 @@ func TestFlowAggregator_sendExporterMetadata_multiplePayloads(t *testing.T) {
 		}
 		payloadBytes, err := json.Marshal(payload)
 		require.NoError(t, err)
+
 		m := &message.Message{Content: payloadBytes}
-		log.Errorf("expected: %s", string(payloadBytes))
 		epForwarder.EXPECT().SendEventPlatformEventBlocking(m, "network-devices-metadata").Return(nil).Times(1)
 	}
 	aggregator.sendExporterMetadata(flows, now)
