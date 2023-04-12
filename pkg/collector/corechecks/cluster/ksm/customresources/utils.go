@@ -1,3 +1,6 @@
+//go:build kubeapiserver
+// +build kubeapiserver
+
 /*
 Copyright 2018 The Kubernetes Authors All rights reserved.
 
