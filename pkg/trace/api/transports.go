@@ -119,13 +119,14 @@ func (m *forwardingTransport) RoundTrip(req *http.Request) (rres *http.Response,
 				rres.Body.Close()
 				return
 			}
-			if resp, err := m.rt.RoundTrip(newreq); err == nil {
+			resp, err := m.rt.RoundTrip(newreq)
+			if err == nil {
 				// we discard responses for all subsequent requests
 				io.Copy(io.Discard, resp.Body) //nolint:errcheck
-				resp.Body.Close()
 			} else {
 				log.Error(err)
 			}
+			resp.Body.Close()
 
 		}(i, u)
 	}
