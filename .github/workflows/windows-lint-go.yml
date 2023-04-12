@@ -34,7 +34,9 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop';
           # install dependencies
-          python -m pip install codecov -r requirements.txt
+          # Codecov was deprecated on Feb 1, 2022 and disappeared from PyPi on Apr 12, 2023.
+          # python -m pip install codecov
+          python -m pip install -r requirements.txt
           If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
           inv -e install-tools
           If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
