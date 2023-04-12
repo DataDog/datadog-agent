@@ -420,6 +420,11 @@ func InitConfig(config Config) {
 			config.SetDefault("procfs_path", "/proc")
 			config.SetDefault("container_proc_root", "/proc")
 		}
+		if pathExists("/host/sys") {
+			if v := os.Getenv("HOST_SYS"); v == "" {
+				os.Setenv("HOST_SYS", "/host/sys")
+			}
+		}
 		if pathExists("/host/sys/fs/cgroup/") {
 			config.SetDefault("container_cgroup_root", "/host/sys/fs/cgroup/")
 		} else {
