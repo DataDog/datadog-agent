@@ -9,6 +9,7 @@ package evtlog
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -118,6 +119,7 @@ func countEvents(check *Check, senderEventCall *mock.Call, numEvents uint) uint 
 	return eventsCollected
 }
 
+// Test that a simple check config can collect events
 func (s *GetEventsTestSuite) TestGetEvents() {
 	// Put events in the log
 	err := s.ti.GenerateEvents(s.eventSource, s.numEvents)
@@ -142,6 +144,7 @@ start: old
 	s.sender.AssertExpectations(s.T())
 }
 
+// Test that event record levels are correctly converted to Datadog Event Alerty Types
 func (s *GetEventsTestSuite) TestLevels() {
 	tests := []struct {
 		name        string
@@ -190,6 +193,7 @@ start: now
 	}
 }
 
+// Test that the event_priority configuration value is correctly applied to the Datadog Event Priority
 func (s *GetEventsTestSuite) TestPriority() {
 	tests := []struct {
 		name          string
@@ -240,6 +244,46 @@ start: now
 			s.sender.AssertExpectations(s.T())
 		})
 	}
+}
+
+// Tests that the Event Query configuration value succesfully filters event records
+func (s *GetEventsTestSuite) TestGetEventsWithQuery() {
+	reporter, err := evtreporter.New(s.eventSource, s.ti.API())
+	require.NoError(s.T(), err)
+	defer reporter.Close()
+
+	// Query for EventID=1000
+	instanceConfig := []byte(fmt.Sprintf(`
+path: %s
+start: now
+query: |
+  <QueryList>
+    <Query Id="0" Path="%s">
+      <Select Path="%s">*[System[(EventID=1000)]]</Select>
+    </Query>
+  </QueryList>
+`,
+		s.channelPath, s.channelPath, s.channelPath))
+
+	check, err := s.newCheck(instanceConfig, nil)
+	require.NoError(s.T(), err)
+	defer check.Cancel()
+
+	matchstring := "match this string"
+	nomatchstring := "should not match"
+	s.sender.On("Commit").Return().Once()
+	s.sender.On("Event", mock.MatchedBy(func(e metrics.Event) bool {
+		return strings.Contains(e.Text, matchstring)
+	})).Once()
+
+	// Generate an event the query should match on (EventID=1000)
+	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 1000, []string{matchstring}, nil)
+	// Generate an event the query should not match on (EventID!=1000)
+	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 999, []string{nomatchstring}, nil)
+
+	check.Run()
+
+	s.sender.AssertExpectations(s.T())
 }
 
 func BenchmarkGetEvents(b *testing.B) {
