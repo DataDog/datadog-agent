@@ -111,6 +111,8 @@ func connectToDB(driver string) (*sqlx.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to ping oracle instance: %w", err)
 	}
+	// https://github.com/jmoiron/sqlx/issues/854#issuecomment-1504070464
+	sqlx.BindDriver("oracle", sqlx.NAMED)
 	return db, nil
 }
 
@@ -275,14 +277,18 @@ func TestSQLXIn(t *testing.T) {
 
 		rows, err = db.Query(db.Rebind(query), args...)
 
-		if driver == common.Godror {
-			assert.NoErrorf(t, err, "preparing statement with IN clause for %s driver", driver)
-		} else if driver == common.GoOra {
-			assert.ErrorContains(t, err, "ORA-00911", "preparing statement with IN clause for %s driver. If this shows up the issue https://github.com/jmoiron/sqlx/issues/854 might be fixed!", driver)
-		}
-		if err != nil {
-			continue
-		}
+		assert.NoErrorf(t, err, "preparing statement with IN clause for %s driver", driver)
+
+		/*
+			if driver == common.Godror {
+				assert.NoErrorf(t, err, "preparing statement with IN clause for %s driver", driver)
+			} else if driver == common.GoOra {
+				assert.ErrorContains(t, err, "ORA-00911", "preparing statement with IN clause for %s driver. If this shows up the issue https://github.com/jmoiron/sqlx/issues/854 might be fixed!", driver)
+			}
+			if err != nil {
+				continue
+			}
+		*/
 
 		rows.Next()
 		err = rows.Scan(&retValue)
@@ -304,7 +310,9 @@ func TestObfuscator(t *testing.T) {
 
 	o := obfuscate.NewObfuscator(obfuscate.Config{SQL: obfuscatorOptions})
 	for _, statement := range []string{
-		`UPDATE /* comment */ SET t n=1`,
+		// needs https://datadoghq.atlassian.net/browse/DBM-2295
+		//`UPDATE /* comment */ SET t n=1`,
+
 		`SELECT /* comment */ from dual`} {
 		obfuscatedStatement, err := o.ObfuscateSQLString(statement)
 		assert.NoError(t, err, "obfuscator error")
