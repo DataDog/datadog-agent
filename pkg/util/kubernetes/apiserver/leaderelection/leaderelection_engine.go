@@ -32,17 +32,14 @@ func (le *LeaderEngine) getCurrentLeaderLease() (string, error) {
 		return "", err
 	}
 
-	val, found := lease.Annotations[rl.LeaderElectionRecordAnnotationKey]
-	if !found {
-		log.Debugf("The lease/%s in the namespace %s doesn't have the annotation %q: no one is leading yet", le.LeaseName, le.LeaderNamespace, rl.LeaderElectionRecordAnnotationKey)
+	// leases do not store the leader election data in annotations but directly in the specs
+	leader := lease.Spec.HolderIdentity
+	if leader == nil {
+		log.Debugf("The lease/%s in the namespace %s doesn't have the field leader in its spec: no one is leading yet", le.LeaseName, le.LeaderNamespace)
 		return "", nil
 	}
 
-	electionRecord := rl.LeaderElectionRecord{}
-	if err := json.Unmarshal([]byte(val), &electionRecord); err != nil {
-		return "", err
-	}
-	return electionRecord.HolderIdentity, err
+	return *leader, err
 
 }
 
