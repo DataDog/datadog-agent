@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
@@ -37,15 +36,16 @@ const ACTIVITY_QUERY = `SELECT /* DD_ACTIVITY_SAMPLING */
 	status,
     osuser,
     process, 
-    machine, 
-    program ,
+    machine,
+	--port,
+    program,
     type,
     sql_id,
 	force_matching_signature,
     sql_plan_hash_value,
     sql_exec_start,
 	sql_address,
-	in_parse,
+	op_flags,
 	prev_sql_id,
 	prev_force_matching_signature,
     prev_sql_plan_hash_value,
@@ -172,7 +172,6 @@ type OracleActivityRowDB struct {
 	SQLPlanHashValue           *uint64        `db:"SQL_PLAN_HASH_VALUE"`
 	SQLExecStart               sql.NullString `db:"SQL_EXEC_START"`
 	SQLAddress                 sql.NullString `db:"SQL_ADDRESS"`
-	InParse                    string         `db:"IN_PARSE"`
 	PrevSQLID                  sql.NullString `db:"PREV_SQL_ID"`
 	PrevForceMatchingSignature *string        `db:"PREV_FORCE_MATCHING_SIGNATURE"`
 	PrevSQLPlanHashValue       *uint64        `db:"PREV_SQL_PLAN_HASH_VALUE"`
@@ -183,6 +182,7 @@ type OracleActivityRowDB struct {
 	ClientInfo                 sql.NullString `db:"CLIENT_INFO"`
 	LogonTime                  sql.NullString `db:"LOGON_TIME"`
 	ClientIdentifier           sql.NullString `db:"CLIENT_IDENTIFIER"`
+	OpFlags                    uint64         `db:"OP_FLAGS"`
 	BlockingInstance           *uint64        `db:"BLOCKING_INSTANCE"`
 	BlockingSession            *uint64        `db:"BLOCKING_SESSION"`
 	FinalBlockingInstance      *uint64        `db:"FINAL_BLOCKING_INSTANCE"`
@@ -191,13 +191,12 @@ type OracleActivityRowDB struct {
 	WaitEventGroup             sql.NullString `db:"WAIT_CLASS"`
 	WaitTimeMicro              *uint64        `db:"WAIT_TIME_MICRO"`
 	Statement                  sql.NullString `db:"SQL_FULLTEXT"`
-	//SQLFullText                sql.NullString `db:"SQL_FULLTEXT"`
-	PrevSQLFullText sql.NullString `db:"PREV_SQL_FULLTEXT"`
-	PdbName         sql.NullString `db:"PDB_NAME"`
-	CommandName     sql.NullString `db:"COMMAND_NAME"`
+	PrevSQLFullText            sql.NullString `db:"PREV_SQL_FULLTEXT"`
+	PdbName                    sql.NullString `db:"PDB_NAME"`
+	CommandName                sql.NullString `db:"COMMAND_NAME"`
 }
 
-func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, SQLPlanHashValue *uint64, SQLExecStart sql.NullString, SQLAddress sql.NullString) (OracleSQLRow, error) {
+func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, SQLPlanHashValue *uint64, SQLExecStart sql.NullString) (OracleSQLRow, error) {
 	SQLRow := OracleSQLRow{}
 	if SQLID.Valid {
 		SQLRow.SQLID = SQLID.String
@@ -243,13 +242,9 @@ func (c *Check) SampleSession() error {
 		return fmt.Errorf("failed to collect session sampling activity: %w", err)
 	}
 
-	log.Tracef("activity db rows %w\n", sessionSamples)
-
 	o := obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})
 	for _, sample := range sessionSamples {
 		var sessionRow OracleActivityRow
-
-		log.Tracef("activity sql full %v \n", sample.Statement)
 
 		sessionRow.Now = sample.Now
 		sessionRow.SessionID = sample.SessionID
@@ -287,31 +282,23 @@ func (c *Check) SampleSession() error {
 		if sample.CommandName.Valid {
 			commandName = sample.CommandName.String
 		}
-
-		var parsing bool
-		if sample.InParse == "Y" {
-			parsing = true
-		} else {
-			parsing = false
-		}
-
 		previousSQL := false
-		sqlCurrentSQL, err := c.getSQLRow(sample.SQLID, sample.ForceMatchingSignature, sample.SQLPlanHashValue, sample.SQLExecStart, sample.SQLAddress)
+		sqlCurrentSQL, err := c.getSQLRow(sample.SQLID, sample.ForceMatchingSignature, sample.SQLPlanHashValue, sample.SQLExecStart)
 		if err != nil {
 			log.Errorf("error getting SQL row %s", err)
 		}
+
+		var sqlPrevSQL OracleSQLRow
 		if sqlCurrentSQL.SQLID != "" {
 			sessionRow.OracleSQLRow = sqlCurrentSQL
 		} else {
-			if !parsing {
-				sqlPrevSQL, err := c.getSQLRow(sample.PrevSQLID, sample.PrevForceMatchingSignature, sample.PrevSQLPlanHashValue, sample.PrevSQLExecStart, sample.PrevSQLAddress)
-				if err != nil {
-					log.Errorf("error getting SQL row %s", err)
-				}
-				if sqlPrevSQL.SQLID != "" {
-					sessionRow.OracleSQLRow = sqlPrevSQL
-					previousSQL = true
-				}
+			sqlPrevSQL, err = c.getSQLRow(sample.PrevSQLID, sample.PrevForceMatchingSignature, sample.PrevSQLPlanHashValue, sample.PrevSQLExecStart)
+			if err != nil {
+				log.Errorf("error getting SQL row %s", err)
+			}
+			if sqlPrevSQL.SQLID != "" {
+				sessionRow.OracleSQLRow = sqlPrevSQL
+				previousSQL = true
 			}
 		}
 
@@ -354,21 +341,36 @@ func (c *Check) SampleSession() error {
 
 		statement := ""
 		obfuscate := true
-
 		if sample.Statement.Valid && sample.Statement.String != "" && !previousSQL {
 			statement = sample.Statement.String
-		} else if parsing {
-			statement = "PARSING"
+		} else if previousSQL {
+			if sample.PrevSQLFullText.Valid && sample.PrevSQLFullText.String != "" {
+				statement = sample.PrevSQLFullText.String
+			} else {
+				/* The case where we got the previous sql but not the text. Happens when
+				 * a cursor with a short living explain plan was evicted from the shared pool.
+				 * We'll search for the text of a different cursor of the same SQL.
+				 */
+				err = c.db.Get(&statement, "SELECT sql_fulltext FROM v$sqlstats WHERE sql_id = :1 AND rownum=1", sqlPrevSQL.SQLID)
+				if err != nil {
+					log.Errorf("sql_text for the previous statement: %s", err)
+				}
+			}
+		} else if (sample.OpFlags & 8) == 8 {
+			statement = "LOG ON/LOG OFF"
 			obfuscate = false
-		} else if sample.PrevSQLFullText.Valid && sample.PrevSQLFullText.String != "" && previousSQL {
-			statement = sample.PrevSQLFullText.String
 		} else if commandName != "" {
 			statement = commandName
 			obfuscate = false
 		} else if sessionType == "BACKGROUND" {
 			statement = program
 			// The program name can contain an IP address
-			obfuscate = true
+			obfuscate = false
+		} else if sample.Module.Valid && sample.Module.String == "DBMS_SCHEDULER" {
+			statement = sample.Module.String
+			obfuscate = false
+		} else {
+			log.Warnf("activity sql text empty for %#v \n", sample)
 		}
 		if statement != "" && obfuscate {
 			obfuscatedStatement, err := c.GetObfuscatedStatement(o, statement)
@@ -411,7 +413,7 @@ func (c *Check) SampleSession() error {
 		return err
 	}
 
-	log.Tracef("Activity payload %s", strings.ReplaceAll(string(payloadBytes), "@", "XX"))
+	//log.Tracef("Activity payload %s", strings.ReplaceAll(string(payloadBytes), "@", "XX"))
 
 	sender, err := c.GetSender()
 	if err != nil {

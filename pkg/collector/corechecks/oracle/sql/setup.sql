@@ -33,6 +33,7 @@ SELECT
     s.ksusesesta as sql_exec_start,
     s.ksusesql as sql_address,
     CASE WHEN BITAND(s.ksusstmbv, POWER(2, 04)) = POWER(2, 04) THEN 'Y' ELSE 'N' END as in_parse,
+    CASE WHEN BITAND(s.ksusstmbv, POWER(2, 07)) = POWER(2, 07) THEN 'Y' ELSE 'N' END as in_hard_parse,
     s.ksusepsi as prev_sql_id,
     s.ksusepha as prev_sql_plan_hash_value,
     s.ksusepesta as prev_sql_exec_start,
@@ -43,6 +44,7 @@ SELECT
     s.ksusecli as client_info,
     s.ksuseltm as logon_time,
     s.ksuseclid as client_identifier,
+    s.ksusstmbv as op_flags,
     decode(s.ksuseblocker, 
         4294967295, 'UNKNOWN', 4294967294, 'UNKNOWN', 4294967293, 'UNKNOWN', 4294967292, 'NO HOLDER', 4294967291, 'NOT IN WAIT', 
         'VALID'
