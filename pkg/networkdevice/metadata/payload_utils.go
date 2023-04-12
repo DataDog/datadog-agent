@@ -11,14 +11,11 @@ func BatchPayloads(namespace string,
 	ipAddresses []IPAddressMetadata,
 	topologyLinks []TopologyLinkMetadata,
 ) []NetworkDevicesMetadata {
+
 	var payloads []NetworkDevicesMetadata
 	var resourceCount int
 
-	curPayload := NetworkDevicesMetadata{
-		Subnet:           subnet,
-		Namespace:        namespace,
-		CollectTimestamp: collectTime.Unix(),
-	}
+	curPayload := newNetworkDevicesMetadata(namespace, subnet, collectTime)
 
 	for _, deviceMetadata := range devices {
 		payloads, curPayload, resourceCount = appendToPayloads(namespace, subnet, collectTime, batchSize, resourceCount, payloads, curPayload)
@@ -43,14 +40,19 @@ func BatchPayloads(namespace string,
 	return payloads
 }
 
+func newNetworkDevicesMetadata(namespace string, subnet string, collectTime time.Time) NetworkDevicesMetadata {
+	return NetworkDevicesMetadata{
+		Subnet:           subnet,
+		Namespace:        namespace,
+		CollectTimestamp: collectTime.Unix(),
+	}
+}
+
 func appendToPayloads(namespace string, subnet string, collectTime time.Time, batchSize int, resourceCount int, payloads []NetworkDevicesMetadata, payload NetworkDevicesMetadata) ([]NetworkDevicesMetadata, NetworkDevicesMetadata, int) {
-	if resourceCount != 0 && resourceCount%batchSize == 0 {
+	if resourceCount == batchSize {
 		payloads = append(payloads, payload)
-		payload = NetworkDevicesMetadata{
-			Subnet:           subnet,
-			Namespace:        namespace,
-			CollectTimestamp: collectTime.Unix(),
-		}
+		payload = newNetworkDevicesMetadata(namespace, subnet, collectTime)
+		resourceCount = 0
 	}
 	resourceCount++
 	return payloads, payload, resourceCount
