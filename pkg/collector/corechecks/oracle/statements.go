@@ -432,7 +432,8 @@ func (c *Check) StatementMetrics() (int, error) {
 			sender.Histogram("dd.oracle.statements_metrics.sql_text_length", float64(len(SQLStatement)), c.hostname, c.tags)
 
 			queryRow := QueryRow{}
-			obfuscatedStatement, err := c.GetObfuscatedStatement(o, SQLStatement, statementMetricRow.ForceMatchingSignature, statementMetricRow.SQLID)
+			//obfuscatedStatement, err := c.GetObfuscatedStatement(o, SQLStatement, statementMetricRow.ForceMatchingSignature, statementMetricRow.SQLID)
+			obfuscatedStatement, err := c.GetObfuscatedStatement(o, SQLStatement)
 			SQLStatement = obfuscatedStatement.Statement
 			if err == nil {
 				queryRow.QuerySignature = obfuscatedStatement.QuerySignature

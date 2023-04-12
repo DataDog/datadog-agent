@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
@@ -37,13 +36,21 @@ const ACTIVITY_QUERY = `SELECT /* DD_ACTIVITY_SAMPLING */
 	status,
     osuser,
     process, 
-    machine, 
-    program ,
+    machine,
+	--port,
+    program,
     type,
     sql_id,
 	force_matching_signature,
     sql_plan_hash_value,
     sql_exec_start,
+	sql_address,
+	op_flags,
+	prev_sql_id,
+	prev_force_matching_signature,
+    prev_sql_plan_hash_value,
+    prev_sql_exec_start,
+	prev_sql_address,
     module,
     action,
     client_info,
@@ -80,8 +87,10 @@ const ACTIVITY_QUERY = `SELECT /* DD_ACTIVITY_SAMPLING */
 		'CPU'
 	END wait_class,
 	wait_time_micro,
-	sql_text,
-	pdb_name
+	sql_fulltext,
+	prev_sql_fulltext,
+	pdb_name,
+	command_name
 FROM sys.dd_session
 WHERE 
 	( sql_text NOT LIKE '%DD_ACTIVITY_SAMPLING%' OR sql_text is NULL ) 
@@ -107,23 +116,26 @@ type Metadata struct {
 	DDAgentVersion string  `json:"ddagentversion,omitempty"`
 }
 
-type OracleActivityRow struct {
-	Now                    string `json:"now"`
-	SessionID              uint64 `json:"sid,omitempty"`
-	SessionSerial          uint64 `json:"serial,omitempty"`
-	User                   string `json:"user,omitempty"`
-	Status                 string `json:"status"`
-	OsUser                 string `json:"os_user,omitempty"`
-	Process                string `json:"process,omitempty"`
-	Client                 string `json:"client,omitempty"`
-	Port                   uint64 `json:"port,omitempty"`
-	Program                string `json:"program,omitempty"`
-	Type                   string `json:"type,omitempty"`
+type OracleSQLRow struct {
 	SQLID                  string `json:"sql_id,omitempty"`
 	ForceMatchingSignature uint64 `json:"force_matching_signature,omitempty"`
-	//ForceMatchingSignature string `json:"force_matching_signature,omitempty"`
-	SQLPlanHashValue      uint64 `json:"sql_plan_hash_value,omitempty"`
-	SQLExecStart          string `json:"sql_exec_start,omitempty"`
+	SQLPlanHashValue       uint64 `json:"sql_plan_hash_value,omitempty"`
+	SQLExecStart           string `json:"sql_exec_start,omitempty"`
+}
+
+type OracleActivityRow struct {
+	Now           string `json:"now"`
+	SessionID     uint64 `json:"sid,omitempty"`
+	SessionSerial uint64 `json:"serial,omitempty"`
+	User          string `json:"user,omitempty"`
+	Status        string `json:"status"`
+	OsUser        string `json:"os_user,omitempty"`
+	Process       string `json:"process,omitempty"`
+	Client        string `json:"client,omitempty"`
+	Port          uint64 `json:"port,omitempty"`
+	Program       string `json:"program,omitempty"`
+	Type          string `json:"type,omitempty"`
+	OracleSQLRow
 	Module                string `json:"module,omitempty"`
 	Action                string `json:"action,omitempty"`
 	ClientInfo            string `json:"client_info,omitempty"`
@@ -144,40 +156,83 @@ type OracleActivityRow struct {
 }
 
 type OracleActivityRowDB struct {
-	Now           string         `db:"NOW"`
-	SessionID     uint64         `db:"SID"`
-	SessionSerial uint64         `db:"SERIAL#"`
-	User          sql.NullString `db:"USERNAME"`
-	Status        string         `db:"STATUS"`
-	OsUser        sql.NullString `db:"OSUSER"`
-	Process       sql.NullString `db:"PROCESS"`
-	Client        sql.NullString `db:"MACHINE"`
-	Port          sql.NullInt64  `db:"PORT"`
-	Program       sql.NullString `db:"PROGRAM"`
-	Type          sql.NullString `db:"TYPE"`
-	SQLID         sql.NullString `db:"SQL_ID"`
-	//ForceMatchingSignature *uint64        `db:"FORCE_MATCHING_SIGNATURE"`
-	ForceMatchingSignature *string        `db:"FORCE_MATCHING_SIGNATURE"`
-	SQLPlanHashValue       *uint64        `db:"SQL_PLAN_HASH_VALUE"`
-	SQLExecStart           sql.NullString `db:"SQL_EXEC_START"`
-	Module                 sql.NullString `db:"MODULE"`
-	Action                 sql.NullString `db:"ACTION"`
-	ClientInfo             sql.NullString `db:"CLIENT_INFO"`
-	LogonTime              sql.NullString `db:"LOGON_TIME"`
-	ClientIdentifier       sql.NullString `db:"CLIENT_IDENTIFIER"`
-	BlockingInstance       *uint64        `db:"BLOCKING_INSTANCE"`
-	BlockingSession        *uint64        `db:"BLOCKING_SESSION"`
-	FinalBlockingInstance  *uint64        `db:"FINAL_BLOCKING_INSTANCE"`
-	FinalBlockingSession   *uint64        `db:"FINAL_BLOCKING_SESSION"`
-	WaitEvent              sql.NullString `db:"EVENT"`
-	WaitEventGroup         sql.NullString `db:"WAIT_CLASS"`
-	WaitTimeMicro          *uint64        `db:"WAIT_TIME_MICRO"`
-	Statement              sql.NullString `db:"SQL_TEXT"`
-	PdbName                sql.NullString `db:"PDB_NAME"`
+	Now                        string         `db:"NOW"`
+	SessionID                  uint64         `db:"SID"`
+	SessionSerial              uint64         `db:"SERIAL#"`
+	User                       sql.NullString `db:"USERNAME"`
+	Status                     string         `db:"STATUS"`
+	OsUser                     sql.NullString `db:"OSUSER"`
+	Process                    sql.NullString `db:"PROCESS"`
+	Client                     sql.NullString `db:"MACHINE"`
+	Port                       sql.NullInt64  `db:"PORT"`
+	Program                    sql.NullString `db:"PROGRAM"`
+	Type                       sql.NullString `db:"TYPE"`
+	SQLID                      sql.NullString `db:"SQL_ID"`
+	ForceMatchingSignature     *string        `db:"FORCE_MATCHING_SIGNATURE"`
+	SQLPlanHashValue           *uint64        `db:"SQL_PLAN_HASH_VALUE"`
+	SQLExecStart               sql.NullString `db:"SQL_EXEC_START"`
+	SQLAddress                 sql.NullString `db:"SQL_ADDRESS"`
+	PrevSQLID                  sql.NullString `db:"PREV_SQL_ID"`
+	PrevForceMatchingSignature *string        `db:"PREV_FORCE_MATCHING_SIGNATURE"`
+	PrevSQLPlanHashValue       *uint64        `db:"PREV_SQL_PLAN_HASH_VALUE"`
+	PrevSQLExecStart           sql.NullString `db:"PREV_SQL_EXEC_START"`
+	PrevSQLAddress             sql.NullString `db:"PREV_SQL_ADDRESS"`
+	Module                     sql.NullString `db:"MODULE"`
+	Action                     sql.NullString `db:"ACTION"`
+	ClientInfo                 sql.NullString `db:"CLIENT_INFO"`
+	LogonTime                  sql.NullString `db:"LOGON_TIME"`
+	ClientIdentifier           sql.NullString `db:"CLIENT_IDENTIFIER"`
+	OpFlags                    uint64         `db:"OP_FLAGS"`
+	BlockingInstance           *uint64        `db:"BLOCKING_INSTANCE"`
+	BlockingSession            *uint64        `db:"BLOCKING_SESSION"`
+	FinalBlockingInstance      *uint64        `db:"FINAL_BLOCKING_INSTANCE"`
+	FinalBlockingSession       *uint64        `db:"FINAL_BLOCKING_SESSION"`
+	WaitEvent                  sql.NullString `db:"EVENT"`
+	WaitEventGroup             sql.NullString `db:"WAIT_CLASS"`
+	WaitTimeMicro              *uint64        `db:"WAIT_TIME_MICRO"`
+	Statement                  sql.NullString `db:"SQL_FULLTEXT"`
+	PrevSQLFullText            sql.NullString `db:"PREV_SQL_FULLTEXT"`
+	PdbName                    sql.NullString `db:"PDB_NAME"`
+	CommandName                sql.NullString `db:"COMMAND_NAME"`
+}
+
+func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, SQLPlanHashValue *uint64, SQLExecStart sql.NullString) (OracleSQLRow, error) {
+	SQLRow := OracleSQLRow{}
+	if SQLID.Valid {
+		SQLRow.SQLID = SQLID.String
+		c.statementsFilter.SQLIDs[SQLID.String] = 1
+	} else {
+		SQLRow.SQLID = ""
+		return SQLRow, nil
+	}
+	if forceMatchingSignature != nil {
+		forceMatchingSignatureUint64, err := strconv.ParseUint(*forceMatchingSignature, 10, 64)
+		if err != nil {
+			return SQLRow, fmt.Errorf("failed converting force_matching_signature to uint64 %w", err)
+		}
+		SQLRow.ForceMatchingSignature = forceMatchingSignatureUint64
+		c.statementsFilter.ForceMatchingSignatures[*forceMatchingSignature] = 1
+	} else {
+		SQLRow.ForceMatchingSignature = 0
+	}
+	if SQLPlanHashValue != nil {
+		SQLRow.SQLPlanHashValue = *SQLPlanHashValue
+	}
+	if SQLExecStart.Valid {
+		SQLRow.SQLExecStart = SQLExecStart.String
+	}
+	return SQLRow, nil
 }
 
 func (c *Check) SampleSession() error {
 	start := time.Now()
+
+	if c.statementsFilter.SQLIDs == nil {
+		c.statementsFilter.SQLIDs = make(map[string]int)
+	}
+	if c.statementsFilter.ForceMatchingSignatures == nil {
+		c.statementsFilter.ForceMatchingSignatures = make(map[string]int)
+	}
 
 	var sessionRows []OracleActivityRow
 	sessionSamples := []OracleActivityRowDB{}
@@ -187,16 +242,10 @@ func (c *Check) SampleSession() error {
 		return fmt.Errorf("failed to collect session sampling activity: %w", err)
 	}
 
-	log.Tracef("activity query returned %d rows\n", len(sessionSamples))
-
-	//forceMatchingSignatures := make(map[uint64]int)
-	forceMatchingSignatures := make(map[string]int)
-	SQLIDs := make(map[string]int)
-
 	o := obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})
 	for _, sample := range sessionSamples {
 		var sessionRow OracleActivityRow
-		forceMatchingSignature := ""
+
 		sessionRow.Now = sample.Now
 		sessionRow.SessionID = sample.SessionID
 		sessionRow.SessionSerial = sample.SessionSerial
@@ -216,42 +265,43 @@ func (c *Check) SampleSession() error {
 		if sample.Port.Valid {
 			sessionRow.Port = uint64(sample.Port.Int64)
 		}
+
+		program := ""
 		if sample.Program.Valid {
 			sessionRow.Program = sample.Program.String
+			program = sample.Program.String
 		}
+
+		sessionType := ""
 		if sample.Type.Valid {
 			sessionRow.Type = sample.Type.String
+			sessionType = sample.Type.String
 		}
-		if sample.SQLID.Valid {
-			sessionRow.SQLID = sample.SQLID.String
-		} else {
-			sessionRow.SQLID = ""
-		}
-		if sample.ForceMatchingSignature != nil {
-			//sessionRow.ForceMatchingSignature = *sample.ForceMatchingSignature
-			forceMatchingSignature = *sample.ForceMatchingSignature
-			if err != nil {
-				return fmt.Errorf("failed converting force_matching_signature to uint64 %w", err)
-			}
-			sessionRow.ForceMatchingSignature, err = strconv.ParseUint(forceMatchingSignature, 10, 64)
-			//forceMatchingSignatures[sessionRow.ForceMatchingSignature] = 1
-			forceMatchingSignatures[*sample.ForceMatchingSignature] = 1
-			//if sessionRow.ForceMatchingSignature == 0 && sample.SQLID.Valid {
-			//if sessionRow.ForceMatchingSignature == "" && sample.SQLID.Valid {
-			if *sample.ForceMatchingSignature == "" && sample.SQLID.Valid {
-				SQLIDs[sessionRow.SQLID] = 1
-			}
 
+		commandName := ""
+		if sample.CommandName.Valid {
+			commandName = sample.CommandName.String
+		}
+		previousSQL := false
+		sqlCurrentSQL, err := c.getSQLRow(sample.SQLID, sample.ForceMatchingSignature, sample.SQLPlanHashValue, sample.SQLExecStart)
+		if err != nil {
+			log.Errorf("error getting SQL row %s", err)
+		}
+
+		var sqlPrevSQL OracleSQLRow
+		if sqlCurrentSQL.SQLID != "" {
+			sessionRow.OracleSQLRow = sqlCurrentSQL
 		} else {
-			sessionRow.ForceMatchingSignature = 0
-			//sessionRow.ForceMatchingSignature = ""
+			sqlPrevSQL, err = c.getSQLRow(sample.PrevSQLID, sample.PrevForceMatchingSignature, sample.PrevSQLPlanHashValue, sample.PrevSQLExecStart)
+			if err != nil {
+				log.Errorf("error getting SQL row %s", err)
+			}
+			if sqlPrevSQL.SQLID != "" {
+				sessionRow.OracleSQLRow = sqlPrevSQL
+				previousSQL = true
+			}
 		}
-		if sample.SQLPlanHashValue != nil {
-			sessionRow.SQLPlanHashValue = *sample.SQLPlanHashValue
-		}
-		if sample.SQLExecStart.Valid {
-			sessionRow.SQLExecStart = sample.SQLExecStart.String
-		}
+
 		if sample.Module.Valid {
 			sessionRow.Module = sample.Module.String
 		}
@@ -288,8 +338,42 @@ func (c *Check) SampleSession() error {
 		if sample.WaitTimeMicro != nil {
 			sessionRow.WaitTimeMicro = *sample.WaitTimeMicro
 		}
-		if sample.Statement.Valid {
-			obfuscatedStatement, err := c.GetObfuscatedStatement(o, sample.Statement.String, forceMatchingSignature, sessionRow.SQLID)
+
+		statement := ""
+		obfuscate := true
+		if sample.Statement.Valid && sample.Statement.String != "" && !previousSQL {
+			statement = sample.Statement.String
+		} else if previousSQL {
+			if sample.PrevSQLFullText.Valid && sample.PrevSQLFullText.String != "" {
+				statement = sample.PrevSQLFullText.String
+			} else {
+				/* The case where we got the previous sql but not the text. Happens when
+				 * a cursor with a short living explain plan was evicted from the shared pool.
+				 * We'll search for the text of a different cursor of the same SQL.
+				 */
+				err = c.db.Get(&statement, "SELECT sql_fulltext FROM v$sqlstats WHERE sql_id = :1 AND rownum=1", sqlPrevSQL.SQLID)
+				if err != nil {
+					log.Errorf("sql_text for the previous statement: %s", err)
+				}
+			}
+		} else if (sample.OpFlags & 8) == 8 {
+			statement = "LOG ON/LOG OFF"
+			obfuscate = false
+		} else if commandName != "" {
+			statement = commandName
+			obfuscate = false
+		} else if sessionType == "BACKGROUND" {
+			statement = program
+			// The program name can contain an IP address
+			obfuscate = false
+		} else if sample.Module.Valid && sample.Module.String == "DBMS_SCHEDULER" {
+			statement = sample.Module.String
+			obfuscate = false
+		} else {
+			log.Warnf("activity sql text empty for %#v \n", sample)
+		}
+		if statement != "" && obfuscate {
+			obfuscatedStatement, err := c.GetObfuscatedStatement(o, statement)
 			sessionRow.Statement = obfuscatedStatement.Statement
 			if err == nil {
 				sessionRow.Commands = obfuscatedStatement.Commands
@@ -297,7 +381,11 @@ func (c *Check) SampleSession() error {
 				sessionRow.Comments = obfuscatedStatement.Comments
 				sessionRow.QuerySignature = obfuscatedStatement.QuerySignature
 			}
+		} else {
+			sessionRow.Statement = statement
+			sessionRow.QuerySignature = common.GetQuerySignature(statement)
 		}
+
 		if sample.PdbName.Valid {
 			sessionRow.PdbName = sample.PdbName.String
 		}
@@ -325,7 +413,7 @@ func (c *Check) SampleSession() error {
 		return err
 	}
 
-	log.Tracef("Activity payload %s", strings.ReplaceAll(string(payloadBytes), "@", "XX"))
+	//log.Tracef("Activity payload %s", strings.ReplaceAll(string(payloadBytes), "@", "XX"))
 
 	sender, err := c.GetSender()
 	if err != nil {
@@ -336,9 +424,6 @@ func (c *Check) SampleSession() error {
 	sender.Count("dd.oracle.activity.samples_count", float64(len(sessionRows)), c.hostname, c.tags)
 	sender.Gauge("dd.oracle.activity.time_ms", float64(time.Since(start).Milliseconds()), c.hostname, c.tags)
 	sender.Commit()
-
-	c.statementsFilter.SQLIDs = SQLIDs
-	c.statementsFilter.ForceMatchingSignatures = forceMatchingSignatures
 
 	return nil
 }
