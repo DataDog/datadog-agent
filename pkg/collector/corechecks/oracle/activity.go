@@ -44,11 +44,13 @@ const ACTIVITY_QUERY = `SELECT /* DD_ACTIVITY_SAMPLING */
 	force_matching_signature,
     sql_plan_hash_value,
     sql_exec_start,
+	sql_address,
 	in_parse,
 	prev_sql_id,
 	prev_force_matching_signature,
     prev_sql_plan_hash_value,
     prev_sql_exec_start,
+	prev_sql_address,
     module,
     action,
     client_info,
@@ -98,70 +100,6 @@ WHERE
 	)
 	AND status = 'ACTIVE'`
 
-const ACTIVITY_QUERY_VSQL = `SELECT /* DD_ACTIVITY_SAMPLING */
-SYSDATE as now,
-sid,
-serial#,
-username,
-status,
-osuser,
-process, 
-machine, 
-program ,
-type,
-sql_id,
-force_matching_signature,
-sql_plan_hash_value,
-sql_exec_start,
-in_parse,
-module,
-action,
-client_info,
-logon_time,
-client_identifier,
-CASE WHEN blocking_session_status = 'VALID' THEN
-  blocking_instance
-ELSE
-  null
-END blocking_instance,
-CASE WHEN blocking_session_status = 'VALID' THEN
-	blocking_session
-ELSE
-	null
-END blocking_session,
-CASE WHEN final_blocking_session_status = 'VALID' THEN
-	final_blocking_instance
-ELSE
-	null
-END final_blocking_instance,
-CASE WHEN final_blocking_session_status = 'VALID' THEN
-	final_blocking_session
-ELSE
-	null
-END final_blocking_session,
-CASE WHEN state = 'WAITING' THEN
-	event
-ELSE
-	'CPU'
-END event,
-CASE WHEN state = 'WAITING' THEN
-	wait_class
-ELSE
-	'CPU'
-END wait_class,
-wait_time_micro,
-sql_fulltext,
-pdb_name,
-command_name
-FROM sys.dd_session_vsql
-WHERE 
-( sql_text NOT LIKE '%DD_ACTIVITY_SAMPLING%' OR sql_text is NULL ) 
-AND (
-	NOT (state = 'WAITING' AND wait_class = 'Idle')
-	OR state = 'WAITING' AND event = 'fbar timer' AND type = 'USER'
-)
-AND status = 'ACTIVE'`
-
 type RowMetadata struct {
 	Commands       []string `json:"dd_commands,omitempty"`
 	Tables         []string `json:"dd_tables,omitempty"`
@@ -181,9 +119,8 @@ type Metadata struct {
 type OracleSQLRow struct {
 	SQLID                  string `json:"sql_id,omitempty"`
 	ForceMatchingSignature uint64 `json:"force_matching_signature,omitempty"`
-	//ForceMatchingSignature string `json:"force_matching_signature,omitempty"`
-	SQLPlanHashValue uint64 `json:"sql_plan_hash_value,omitempty"`
-	SQLExecStart     string `json:"sql_exec_start,omitempty"`
+	SQLPlanHashValue       uint64 `json:"sql_plan_hash_value,omitempty"`
+	SQLExecStart           string `json:"sql_exec_start,omitempty"`
 }
 
 type OracleActivityRow struct {
@@ -234,11 +171,13 @@ type OracleActivityRowDB struct {
 	ForceMatchingSignature     *string        `db:"FORCE_MATCHING_SIGNATURE"`
 	SQLPlanHashValue           *uint64        `db:"SQL_PLAN_HASH_VALUE"`
 	SQLExecStart               sql.NullString `db:"SQL_EXEC_START"`
+	SQLAddress                 sql.NullString `db:"SQL_ADDRESS"`
 	InParse                    string         `db:"IN_PARSE"`
 	PrevSQLID                  sql.NullString `db:"PREV_SQL_ID"`
 	PrevForceMatchingSignature *string        `db:"PREV_FORCE_MATCHING_SIGNATURE"`
 	PrevSQLPlanHashValue       *uint64        `db:"PREV_SQL_PLAN_HASH_VALUE"`
 	PrevSQLExecStart           sql.NullString `db:"PREV_SQL_EXEC_START"`
+	PrevSQLAddress             sql.NullString `db:"PREV_SQL_ADDRESS"`
 	Module                     sql.NullString `db:"MODULE"`
 	Action                     sql.NullString `db:"ACTION"`
 	ClientInfo                 sql.NullString `db:"CLIENT_INFO"`
@@ -252,12 +191,13 @@ type OracleActivityRowDB struct {
 	WaitEventGroup             sql.NullString `db:"WAIT_CLASS"`
 	WaitTimeMicro              *uint64        `db:"WAIT_TIME_MICRO"`
 	Statement                  sql.NullString `db:"SQL_FULLTEXT"`
-	PrevSQLFullText            sql.NullString `db:"PREV_SQL_FULLTEXT"`
-	PdbName                    sql.NullString `db:"PDB_NAME"`
-	CommandName                sql.NullString `db:"COMMAND_NAME"`
+	//SQLFullText                sql.NullString `db:"SQL_FULLTEXT"`
+	PrevSQLFullText sql.NullString `db:"PREV_SQL_FULLTEXT"`
+	PdbName         sql.NullString `db:"PDB_NAME"`
+	CommandName     sql.NullString `db:"COMMAND_NAME"`
 }
 
-func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, SQLPlanHashValue *uint64, SQLExecStart sql.NullString) (OracleSQLRow, error) {
+func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, SQLPlanHashValue *uint64, SQLExecStart sql.NullString, SQLAddress sql.NullString) (OracleSQLRow, error) {
 	SQLRow := OracleSQLRow{}
 	if SQLID.Valid {
 		SQLRow.SQLID = SQLID.String
@@ -356,7 +296,7 @@ func (c *Check) SampleSession() error {
 		}
 
 		previousSQL := false
-		sqlCurrentSQL, err := c.getSQLRow(sample.SQLID, sample.ForceMatchingSignature, sample.SQLPlanHashValue, sample.SQLExecStart)
+		sqlCurrentSQL, err := c.getSQLRow(sample.SQLID, sample.ForceMatchingSignature, sample.SQLPlanHashValue, sample.SQLExecStart, sample.SQLAddress)
 		if err != nil {
 			log.Errorf("error getting SQL row %s", err)
 		}
@@ -364,7 +304,7 @@ func (c *Check) SampleSession() error {
 			sessionRow.OracleSQLRow = sqlCurrentSQL
 		} else {
 			if !parsing {
-				sqlPrevSQL, err := c.getSQLRow(sample.PrevSQLID, sample.PrevForceMatchingSignature, sample.PrevSQLPlanHashValue, sample.PrevSQLExecStart)
+				sqlPrevSQL, err := c.getSQLRow(sample.PrevSQLID, sample.PrevForceMatchingSignature, sample.PrevSQLPlanHashValue, sample.PrevSQLExecStart, sample.PrevSQLAddress)
 				if err != nil {
 					log.Errorf("error getting SQL row %s", err)
 				}
