@@ -66,7 +66,7 @@ func TestAggregator(t *testing.T) {
 	flow := &common.Flow{
 		Namespace:      "my-ns",
 		FlowType:       common.TypeNetFlow9,
-		DeviceAddr:     []byte{127, 0, 0, 1},
+		ExporterAddr:   []byte{127, 0, 0, 1},
 		StartTimestamp: 1234568,
 		EndTimestamp:   1234569,
 		Bytes:          20,
