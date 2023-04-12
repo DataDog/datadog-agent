@@ -135,11 +135,14 @@ func (ti *WindowsAPITester) GenerateEvents(channelName string, numEvents uint) e
 	//nolint:errcheck
 	defer ti.eventlogapi.DeregisterEventSource(sourceHandle)
 
+	// Use LocalSystem for the SID
+	sid, _ := windows.CreateWellKnownSid(windows.WinLocalSystemSid)
+
 	for i := uint(0); i < numEvents; i += 1 {
 		err := ti.eventlogapi.ReportEvent(
 			sourceHandle,
 			windows.EVENTLOG_INFORMATION_TYPE,
-			0, 1000, []string{"teststring"}, nil)
+			0, 1000, sid, []string{"teststring"}, nil)
 		if err != nil {
 			return err
 		}

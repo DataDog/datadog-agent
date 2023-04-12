@@ -280,6 +280,7 @@ func (api *API) ReportEvent(
 	Type uint,
 	Category uint,
 	EventID uint,
+	UserSID *windows.SID,
 	Strings []string,
 	RawData []uint8) error {
 
@@ -305,7 +306,8 @@ func (api *API) ReportEvent(
 		uintptr(Type),
 		uintptr(Category),
 		uintptr(EventID),
-		uintptr(0), // userSid
+		// This is how Golang zsyscall_windows.go passes *windows.SID to syscalls
+		uintptr(unsafe.Pointer(UserSID)),
 		uintptr(len(strings)),
 		uintptr(len(RawData)),
 		// TODO: use unsafe.SliceData in go1.20

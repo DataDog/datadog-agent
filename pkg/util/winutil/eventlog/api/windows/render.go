@@ -83,6 +83,24 @@ func (v *evtVariantValues) Time(index uint) (int64, error) {
 	return 0, fmt.Errorf("invalid type %#x", t)
 }
 
+// Returns a *SID
+func (v *evtVariantValues) SID(index uint) (*windows.SID, error) {
+	value, err := v.item(index)
+	if err != nil {
+		return nil, err
+	}
+	t := C.EVT_VARIANT_TYPE_MASK & value.Type
+	if t == evtapi.EvtVarTypeSid {
+		orig_sid := (*windows.SID)(C.dataptr(value))
+		s, err := orig_sid.Copy()
+		if err != nil {
+			return nil, err
+		}
+		return s, err
+	}
+	return nil, fmt.Errorf("invalid type %#x", t)
+}
+
 // Get a EVT_VARIANT* to an element in the array of structs
 func (v *evtVariantValues) item(index uint) (*C.EVT_VARIANT, error) {
 	if index >= v.count {
