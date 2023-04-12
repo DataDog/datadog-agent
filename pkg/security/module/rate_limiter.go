@@ -10,8 +10,6 @@ package module
 
 import (
 	"fmt"
-	"os"
-	"strconv"
 	"sync"
 	"time"
 
@@ -93,15 +91,6 @@ func (rl *RateLimiter) Apply(ruleSet *rules.RuleSet, customRuleIDs []eval.RuleID
 
 	// override if there is more specific defs
 	applyBaseLimitersFromDefault(newLimiters)
-
-	// For test purpose only. TODO: remove this block
-	envADRate := os.Getenv("DD_ANOMALY_DETECTION_RATE") // in number of events per min
-	if envADRate != "" {
-		ADRate, err := strconv.Atoi(envADRate)
-		if err == nil && ADRate > 0 && ADRate < 60*100 {
-			newLimiters[events.AnomalyDetectionRuleID] = NewLimiter(rate.Every(time.Minute)*rate.Limit(ADRate), 1)
-		}
-	}
 
 	for id, rule := range ruleSet.GetRules() {
 		if rule.Definition.Every != 0 {
