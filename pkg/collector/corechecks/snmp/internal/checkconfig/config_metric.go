@@ -26,6 +26,8 @@ type SymbolConfig struct {
 
 	ScaleFactor float64 `yaml:"scale_factor"`
 	Format      string  `yaml:"format"`
+
+	ConstantValue string `yaml:"constant_value"`
 }
 
 // MetricTagConfig holds metric tag info

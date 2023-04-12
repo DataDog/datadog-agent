@@ -80,6 +80,20 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 			expectedError: "",
 		},
 		{
+			name:   "OK match pattern all replace with constant value",
+			values: mockValues,
+			symbol: checkconfig.SymbolConfig{
+				OID:                  "1.2.3.4",
+				Name:                 "mySymbol",
+				MatchPatternCompiled: regexp.MustCompile(".*"),
+				MatchValue:           "1",
+			},
+			expectedValue: valuestore.ResultValue{
+				Value: "1",
+			},
+			expectedError: "",
+		},
+		{
 			name:   "Error match pattern does not match",
 			values: mockValues,
 			symbol: checkconfig.SymbolConfig{
