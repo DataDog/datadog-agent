@@ -683,7 +683,7 @@ func TestFlowAggregator_sendExporterMetadata_multipleNamespaces(t *testing.T) {
 
 	now := time.Unix(1681295467, 0)
 	flows := []*common.Flow{
-		&common.Flow{
+		{
 			Namespace:      "my-ns1",
 			FlowType:       common.TypeNetFlow9,
 			DeviceAddr:     []byte{127, 0, 0, 11},
@@ -699,7 +699,7 @@ func TestFlowAggregator_sendExporterMetadata_multipleNamespaces(t *testing.T) {
 			TCPFlags:       19,
 			EtherType:      uint32(0x0800),
 		},
-		&common.Flow{
+		{
 			Namespace:      "my-ns2",
 			FlowType:       common.TypeNetFlow9,
 			DeviceAddr:     []byte{127, 0, 0, 12},
