@@ -9,7 +9,9 @@ import (
 func Test_batchPayloads(t *testing.T) {
 	collectTime := common.MockTimeNow()
 	deviceID := "123"
-	device := DeviceMetadata{ID: deviceID}
+	devices := []DeviceMetadata{
+		{ID: deviceID},
+	}
 
 	var interfaces []InterfaceMetadata
 	for i := 0; i < 350; i++ {
@@ -26,14 +28,14 @@ func Test_batchPayloads(t *testing.T) {
 			Remote: &TopologyLinkSide{Interface: &TopologyLinkInterface{ID: "b"}},
 		})
 	}
-	payloads := BatchPayloads("my-ns", "127.0.0.0/30", collectTime, 100, device, interfaces, ipAddresses, topologyLinks)
+	payloads := BatchPayloads("my-ns", "127.0.0.0/30", collectTime, 100, devices, interfaces, ipAddresses, topologyLinks)
 
 	assert.Equal(t, 6, len(payloads))
 
 	assert.Equal(t, "my-ns", payloads[0].Namespace)
 	assert.Equal(t, "127.0.0.0/30", payloads[0].Subnet)
 	assert.Equal(t, int64(946684800), payloads[0].CollectTimestamp)
-	assert.Equal(t, []DeviceMetadata{device}, payloads[0].Devices)
+	assert.Equal(t, devices, payloads[0].Devices)
 	assert.Equal(t, 99, len(payloads[0].Interfaces))
 	assert.Equal(t, interfaces[0:99], payloads[0].Interfaces)
 

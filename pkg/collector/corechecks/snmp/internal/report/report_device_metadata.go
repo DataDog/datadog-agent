@@ -35,13 +35,13 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 
 	metadataStore := buildMetadataStore(config.Metadata, store)
 
-	device := buildNetworkDeviceMetadata(config.DeviceID, config.DeviceIDTags, config, metadataStore, tags, deviceStatus)
+	devices := []devicemetadata.DeviceMetadata{buildNetworkDeviceMetadata(config.DeviceID, config.DeviceIDTags, config, metadataStore, tags, deviceStatus)}
 
 	interfaces := buildNetworkInterfacesMetadata(config.DeviceID, metadataStore)
 	ipAddresses := buildNetworkIPAddressesMetadata(config.DeviceID, metadataStore)
 	topologyLinks := buildNetworkTopologyMetadata(config.DeviceID, metadataStore, interfaces)
 
-	metadataPayloads := devicemetadata.BatchPayloads(config.Namespace, config.ResolvedSubnetName, collectTime, devicemetadata.PayloadMetadataBatchSize, device, interfaces, ipAddresses, topologyLinks)
+	metadataPayloads := devicemetadata.BatchPayloads(config.Namespace, config.ResolvedSubnetName, collectTime, devicemetadata.PayloadMetadataBatchSize, devices, interfaces, ipAddresses, topologyLinks)
 
 	for _, payload := range metadataPayloads {
 		payloadBytes, err := json.Marshal(payload)

@@ -6,65 +6,52 @@ func BatchPayloads(namespace string,
 	subnet string,
 	collectTime time.Time,
 	batchSize int,
-	device DeviceMetadata,
+	devices []DeviceMetadata,
 	interfaces []InterfaceMetadata,
 	ipAddresses []IPAddressMetadata,
 	topologyLinks []TopologyLinkMetadata,
 ) []NetworkDevicesMetadata {
 	var payloads []NetworkDevicesMetadata
 	var resourceCount int
-	payload := NetworkDevicesMetadata{
-		Devices: []DeviceMetadata{
-			device,
-		},
+
+	curPayload := NetworkDevicesMetadata{
 		Subnet:           subnet,
 		Namespace:        namespace,
 		CollectTimestamp: collectTime.Unix(),
 	}
-	resourceCount++
+
+	for _, deviceMetadata := range devices {
+		payloads, curPayload, resourceCount = appendToPayloads(namespace, subnet, collectTime, batchSize, resourceCount, payloads, curPayload)
+		curPayload.Devices = append(curPayload.Devices, deviceMetadata)
+	}
 
 	for _, interfaceMetadata := range interfaces {
-		if resourceCount == batchSize {
-			payloads = append(payloads, payload)
-			payload = NetworkDevicesMetadata{
-				Subnet:           subnet,
-				Namespace:        namespace,
-				CollectTimestamp: collectTime.Unix(),
-			}
-			resourceCount = 0
-		}
-		resourceCount++
-		payload.Interfaces = append(payload.Interfaces, interfaceMetadata)
+		payloads, curPayload, resourceCount = appendToPayloads(namespace, subnet, collectTime, batchSize, resourceCount, payloads, curPayload)
+		curPayload.Interfaces = append(curPayload.Interfaces, interfaceMetadata)
 	}
 
 	for _, ipAddress := range ipAddresses {
-		if resourceCount == batchSize {
-			payloads = append(payloads, payload)
-			payload = NetworkDevicesMetadata{
-				Subnet:           subnet,
-				Namespace:        namespace,
-				CollectTimestamp: collectTime.Unix(),
-			}
-			resourceCount = 0
-		}
-		resourceCount++
-		payload.IPAddresses = append(payload.IPAddresses, ipAddress)
+		payloads, curPayload, resourceCount = appendToPayloads(namespace, subnet, collectTime, batchSize, resourceCount, payloads, curPayload)
+		curPayload.IPAddresses = append(curPayload.IPAddresses, ipAddress)
 	}
 
 	for _, linkMetadata := range topologyLinks {
-		if resourceCount == batchSize {
-			payloads = append(payloads, payload)
-			payload = NetworkDevicesMetadata{ // TODO: Avoid duplication
-				Subnet:           subnet,
-				Namespace:        namespace,
-				CollectTimestamp: collectTime.Unix(),
-			}
-			resourceCount = 0
-		}
-		resourceCount++
-		payload.Links = append(payload.Links, linkMetadata)
+		payloads, curPayload, resourceCount = appendToPayloads(namespace, subnet, collectTime, batchSize, resourceCount, payloads, curPayload)
+		curPayload.Links = append(curPayload.Links, linkMetadata)
 	}
-
-	payloads = append(payloads, payload)
+	payloads = append(payloads, curPayload)
 	return payloads
+}
+
+func appendToPayloads(namespace string, subnet string, collectTime time.Time, batchSize int, resourceCount int, payloads []NetworkDevicesMetadata, payload NetworkDevicesMetadata) ([]NetworkDevicesMetadata, NetworkDevicesMetadata, int) {
+	if resourceCount != 0 && resourceCount%batchSize == 0 {
+		payloads = append(payloads, payload)
+		payload = NetworkDevicesMetadata{
+			Subnet:           subnet,
+			Namespace:        namespace,
+			CollectTimestamp: collectTime.Unix(),
+		}
+	}
+	resourceCount++
+	return payloads, payload, resourceCount
 }
