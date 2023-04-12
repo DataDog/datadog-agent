@@ -171,7 +171,7 @@ func getInterfaceConfig(interfaceConfigs []snmpintegration.InterfaceConfig, inde
 	return snmpintegration.InterfaceConfig{}, fmt.Errorf("no matching interface found for index=%s, tags=%s", index, tags)
 }
 
-// getAllTagsContexts retrieve all tags contexts using the metric config and values
+// getConstantMetricValues retrieve all metric tags indexes and set their value as 1
 func getConstantMetricValues(mtcl checkconfig.MetricTagConfigList, values *valuestore.ResultValueStore) map[string]valuestore.ResultValue {
 	constantValues := make(map[string]valuestore.ResultValue)
 	for _, metricTag := range mtcl {
