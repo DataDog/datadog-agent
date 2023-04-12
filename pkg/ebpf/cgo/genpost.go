@@ -24,7 +24,7 @@ func main() {
 
 	// Convert [160]int8 to [160]byte in http_transaction_t members to simplify
 	// conversion to string; see golang.org/issue/20753
-	convertHTTPTransactionRegex := regexp.MustCompile(`(Request_fragment)(\s+)\[(\d+)\]u?int8`)
+	convertHTTPTransactionRegex := regexp.MustCompile(`(Request_fragment|Topic_name)(\s+)\[(\d+)\]u?int8`)
 	b = convertHTTPTransactionRegex.ReplaceAll(b, []byte("$1$2[$3]byte"))
 
 	// Convert [120]int8 to [120]byte in lib_path_t members to simplify
