@@ -177,9 +177,6 @@ func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integratio
 	c.checkInterval = float64(c.config.InitConfig.MinCollectionInterval)
 	c.tags = c.config.Tags
 
-	c.statementsFilter.SQLIDs = make(map[string]int)
-	c.statementsFilter.ForceMatchingSignatures = make(map[string]int)
-
 	return nil
 }
 
