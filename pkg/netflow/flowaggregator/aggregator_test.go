@@ -140,6 +140,7 @@ func TestAggregator(t *testing.T) {
   "namespace":"my-ns",
   "netflow_exporters":[
     {
+      "id": "my-ns:127.0.0.1",
       "ip_address":"127.0.0.1",
       "flow_type":"netflow9"
     }
@@ -241,6 +242,7 @@ func TestAggregator_withMockPayload(t *testing.T) {
   "namespace":"default",
   "netflow_exporters":[
     {
+      "id": "default:127.0.0.1",
       "ip_address":"127.0.0.1",
       "flow_type":"netflow5"
     }
@@ -511,6 +513,7 @@ func TestFlowAggregator_sendExporterMetadata_multiplePayloads(t *testing.T) {
 	var payload1NetflowExporters []metadata.NetflowExporter
 	for i := 1; i <= 100; i++ {
 		payload1NetflowExporters = append(payload1NetflowExporters, metadata.NetflowExporter{
+			ID:        "my-ns:127.0.0." + strconv.Itoa(i),
 			IPAddress: "127.0.0." + strconv.Itoa(i),
 			FlowType:  "netflow9",
 		})
@@ -518,6 +521,7 @@ func TestFlowAggregator_sendExporterMetadata_multiplePayloads(t *testing.T) {
 	var payload2NetflowExporters []metadata.NetflowExporter
 	for i := 101; i <= 200; i++ {
 		payload2NetflowExporters = append(payload2NetflowExporters, metadata.NetflowExporter{
+			ID:        "my-ns:127.0.0." + strconv.Itoa(i),
 			IPAddress: "127.0.0." + strconv.Itoa(i),
 			FlowType:  "netflow9",
 		})
@@ -525,6 +529,7 @@ func TestFlowAggregator_sendExporterMetadata_multiplePayloads(t *testing.T) {
 	var payload3NetflowExporters []metadata.NetflowExporter
 	for i := 201; i <= 250; i++ {
 		payload3NetflowExporters = append(payload3NetflowExporters, metadata.NetflowExporter{
+			ID:        "my-ns:127.0.0." + strconv.Itoa(i),
 			IPAddress: "127.0.0." + strconv.Itoa(i),
 			FlowType:  "netflow9",
 		})
@@ -641,6 +646,7 @@ func TestFlowAggregator_sendExporterMetadata_invalidIPIgnored(t *testing.T) {
   "namespace":"my-ns",
   "netflow_exporters":[
     {
+      "id": "my-ns:127.0.0.10",
       "ip_address":"127.0.0.10",
       "flow_type":"netflow9"
     }
@@ -723,6 +729,7 @@ func TestFlowAggregator_sendExporterMetadata_multipleNamespaces(t *testing.T) {
   "namespace":"my-ns1",
   "netflow_exporters":[
     {
+      "id": "my-ns1:127.0.0.11",
       "ip_address":"127.0.0.11",
       "flow_type":"netflow9"
     }
@@ -741,6 +748,7 @@ func TestFlowAggregator_sendExporterMetadata_multipleNamespaces(t *testing.T) {
   "namespace":"my-ns2",
   "netflow_exporters":[
     {
+      "id": "my-ns2:127.0.0.12",
       "ip_address":"127.0.0.12",
       "flow_type":"netflow9"
     }

@@ -125,33 +125,35 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
 }
 
 func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime time.Time) {
-	// exporterMap structure: map[NAMESPACE]map[EXPORTER_IP]metadata.NetflowExporter
+	// exporterMap structure: map[NAMESPACE]map[EXPORTER_ID]metadata.NetflowExporter
 	exporterMap := make(map[string]map[string]metadata.NetflowExporter)
 
-	// orderedExporters is used to build predictable metadata payload (consistent batches and orders)
-	// orderedExporters structure: map[NAMESPACE]EXPORTER_IP
-	orderedExporters := make(map[string][]string)
+	// orderedExporterIDs is used to build predictable metadata payload (consistent batches and orders)
+	// orderedExporterIDs structure: map[NAMESPACE]EXPORTER_ID
+	orderedExporterIDs := make(map[string][]string)
 
 	for _, flow := range flows {
-		exporterIp := common.IPBytesToString(flow.DeviceAddr)
-		if exporterIp == "" || strings.HasPrefix(exporterIp, "?") {
-			log.Errorf("Invalid exporter Addr: %s", exporterIp)
+		exporterIpAddress := common.IPBytesToString(flow.DeviceAddr)
+		if exporterIpAddress == "" || strings.HasPrefix(exporterIpAddress, "?") {
+			log.Errorf("Invalid exporter Addr: %s", exporterIpAddress)
 			continue
 		}
+		exporterID := flow.Namespace + ":" + exporterIpAddress
 		if _, ok := exporterMap[flow.Namespace]; !ok {
 			exporterMap[flow.Namespace] = make(map[string]metadata.NetflowExporter)
 		}
-		if _, ok := exporterMap[flow.Namespace][exporterIp]; ok {
-			// exporterIp already in map, no need to reprocess it
+		if _, ok := exporterMap[flow.Namespace][exporterID]; ok {
+			// this exporter is already in the map, no need to reprocess it
 			continue
 		}
-		exporterMap[flow.Namespace][exporterIp] = metadata.NetflowExporter{
-			IPAddress: exporterIp,
+		exporterMap[flow.Namespace][exporterID] = metadata.NetflowExporter{
+			ID:        exporterID,
+			IPAddress: exporterIpAddress,
 			FlowType:  string(flow.FlowType),
 		}
-		orderedExporters[flow.Namespace] = append(orderedExporters[flow.Namespace], exporterIp)
+		orderedExporterIDs[flow.Namespace] = append(orderedExporterIDs[flow.Namespace], exporterID)
 	}
-	for namespace, ips := range orderedExporters {
+	for namespace, ips := range orderedExporterIDs {
 		var netflowExporters []metadata.NetflowExporter
 		for _, exporterIp := range ips {
 			netflowExporters = append(netflowExporters, exporterMap[namespace][exporterIp])

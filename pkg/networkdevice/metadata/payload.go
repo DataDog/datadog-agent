@@ -119,6 +119,7 @@ type TopologyLinkMetadata struct {
 
 // NetflowExporter contains netflow exporters info
 type NetflowExporter struct {
+	ID        string `json:"id"`
 	IPAddress string `json:"ip_address"`
 	FlowType  string `json:"flow_type"`
 }
