@@ -122,8 +122,8 @@ func fetchOsDescription() (string, error) {
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
 		registryHive,
 		registry.QUERY_VALUE)
-	defer k.Close()
 	if err == nil {
+		defer k.Close()
 		os, _, err := k.GetStringValue(productNameKey)
 		if err == nil {
 			return os, nil
@@ -145,25 +145,27 @@ func fetchWindowsVersion() (major uint64, minor uint64, build uint64, err error)
 		regkey, err = registry.OpenKey(registry.LOCAL_MACHINE,
 			registryHive,
 			registry.QUERY_VALUE)
-		defer regkey.Close()
 		if err != nil {
-			major, _, err = regkey.GetIntegerValue(majorKey)
-			if err != nil {
-				return
-			}
-
-			minor, _, err = regkey.GetIntegerValue(minorKey)
-			if err != nil {
-				return
-			}
-
-			var regbuild string
-			regbuild, _, err = regkey.GetStringValue(buildNumberKey)
-			if err != nil {
-				return
-			}
-			build, err = strconv.ParseUint(regbuild, 10, 0)
+			return
 		}
+
+		defer regkey.Close()
+		major, _, err = regkey.GetIntegerValue(majorKey)
+		if err != nil {
+			return
+		}
+
+		minor, _, err = regkey.GetIntegerValue(minorKey)
+		if err != nil {
+			return
+		}
+
+		var regbuild string
+		regbuild, _, err = regkey.GetStringValue(buildNumberKey)
+		if err != nil {
+			return
+		}
+		build, err = strconv.ParseUint(regbuild, 10, 0)
 	}
 	return
 }
@@ -180,11 +182,16 @@ func GetArchInfo() (systemInfo map[string]string, err error) {
 		systemInfo["machine"] = runtime.GOARCH
 	}
 
-	systemInfo["os"], err = fetchOsDescription()
+	os, osErr := fetchOsDescription()
+	if osErr == nil {
+		systemInfo["os"] = os
+	}
 
-	maj, min, bld, err := fetchWindowsVersion()
-	verstring := fmt.Sprintf("%d.%d.%d", maj, min, bld)
-	systemInfo["kernel_release"] = verstring
+	maj, min, bld, versionErr := fetchWindowsVersion()
+	if versionErr == nil {
+		verstring := fmt.Sprintf("%d.%d.%d", maj, min, bld)
+		systemInfo["kernel_release"] = verstring
+	}
 
 	systemInfo["kernel_name"] = "Windows"
 

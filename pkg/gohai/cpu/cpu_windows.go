@@ -149,7 +149,6 @@ func getSystemInfo() (si SYSTEM_INFO) {
 
 // GetCPUInfo returns map of interesting bits of information about the CPU
 func GetCPUInfo() (cpuInfo map[string]string, err error) {
-
 	cpuInfo = make(map[string]string)
 
 	cpus, _ := computeCoresAndProcessors()
@@ -158,23 +157,33 @@ func GetCPUInfo() (cpuInfo map[string]string, err error) {
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
 		registryHive,
 		registry.QUERY_VALUE)
-	defer k.Close()
-	dw, _, err := k.GetIntegerValue("~MHz")
-	cpuInfo["mhz"] = strconv.Itoa(int(dw))
+	if err == nil {
+		defer k.Close()
+		dw, _, err := k.GetIntegerValue("~MHz")
+		if err == nil {
+			cpuInfo["mhz"] = strconv.Itoa(int(dw))
+		}
 
-	s, _, err := k.GetStringValue("ProcessorNameString")
-	cpuInfo["model_name"] = s
+		s, _, err := k.GetStringValue("ProcessorNameString")
+		if err == nil {
+			cpuInfo["model_name"] = s
+		}
+
+		s, _, err = k.GetStringValue("VendorIdentifier")
+		if err == nil {
+			cpuInfo["vendor_id"] = s
+		}
+
+		s, _, err = k.GetStringValue("Identifier")
+		if err == nil {
+			cpuInfo["family"] = extract(s, "Family")
+		}
+	}
 
 	cpuInfo["cpu_pkgs"] = strconv.Itoa(cpus.pkgcount)
 	cpuInfo["cpu_numa_nodes"] = strconv.Itoa(cpus.numaNodeCount)
 	cpuInfo["cpu_cores"] = strconv.Itoa(cpus.corecount)
 	cpuInfo["cpu_logical_processors"] = strconv.Itoa(cpus.logicalcount)
-
-	s, _, err = k.GetStringValue("VendorIdentifier")
-	cpuInfo["vendor_id"] = s
-
-	s, _, err = k.GetStringValue("Identifier")
-	cpuInfo["family"] = extract(s, "Family")
 
 	cpuInfo["model"] = strconv.Itoa(int((si.wProcessorRevision >> 8) & 0xFF))
 	cpuInfo["stepping"] = strconv.Itoa(int(si.wProcessorRevision & 0xFF))
