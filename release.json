@@ -6,7 +6,7 @@
     },
     "nightly": {
         "INTEGRATIONS_CORE_VERSION": "master",
-        "OMNIBUS_SOFTWARE_VERSION": "florentclarret/bump-gdbm",
+        "OMNIBUS_SOFTWARE_VERSION": "master",
         "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
         "JMXFETCH_VERSION": "0.47.5",
         "JMXFETCH_HASH": "ed514b6a1aedcc22005a7b70c5cf55f7abf4b8909c3a45ea325834c87e1fee48",
@@ -18,7 +18,7 @@
     },
     "nightly-a7": {
         "INTEGRATIONS_CORE_VERSION": "master",
-        "OMNIBUS_SOFTWARE_VERSION": "florentclarret/bump-gdbm",
+        "OMNIBUS_SOFTWARE_VERSION": "master",
         "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
         "JMXFETCH_VERSION": "0.47.5",
         "JMXFETCH_HASH": "ed514b6a1aedcc22005a7b70c5cf55f7abf4b8909c3a45ea325834c87e1fee48",
