@@ -57,5 +57,5 @@ jobs:
           # FIXME: skipping rtloader tests because they fail with a DLL-not-found error
           # inv -e rtloader.test
           inv -e test --skip-linters --rerun-fails=2 --python-runtimes 3 --coverage --profile --python-home-3=$pythonLocation
-          # Codecov was deprecated on Feb 1, 2022 and disappeared from PyPi on Apr 12, 2023.
+          # The Codecov Python uploader was deprecated on Feb 1, 2022 and disappeared from PyPi on Apr 12, 2023.
           # inv -e codecov
