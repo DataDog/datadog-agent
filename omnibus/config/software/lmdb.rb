@@ -16,7 +16,7 @@ build do
         "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
     }
 
-    # # https://www.linuxfromscratch.org/blfs/view/8.3/server/lmdb.html
+    # https://www.linuxfromscratch.org/blfs/view/8.3/server/lmdb.html
     command "make", :env => env
     if mac_os_x?
         # MacOS' sed requires `-i ''` rather than just `-i`
