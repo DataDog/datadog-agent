@@ -361,11 +361,11 @@ func (c *Check) SampleSession() error {
 			obfuscate = false
 		} else if commandName != "" {
 			statement = commandName
-			obfuscate = false
+			//obfuscate = false
 		} else if sessionType == "BACKGROUND" {
 			statement = program
 			// The program name can contain an IP address
-			obfuscate = false
+			//obfuscate = false
 		} else if sample.Module.Valid && sample.Module.String == "DBMS_SCHEDULER" {
 			statement = sample.Module.String
 			obfuscate = false
