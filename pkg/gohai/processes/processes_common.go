@@ -11,6 +11,7 @@ var options struct {
 	limit int
 }
 
+// Processes is the Collector type of the processes package.
 type Processes struct{}
 
 const name = "processes"
@@ -19,10 +20,14 @@ func init() {
 	flag.IntVar(&options.limit, name+"-limit", 20, "Number of process groups to return")
 }
 
+// Name returns the name of the package
 func (processes *Processes) Name() string {
 	return name
 }
 
+// Collect collects the processes information.
+// Returns an object which can be converted to a JSON or an error if nothing could be collected.
+// Tries to collect as much information as possible.
 func (processes *Processes) Collect() (result interface{}, err error) {
 	// even if getProcesses returns nil, simply assigning to result
 	// will have a non-nil return, because it has a valid inner

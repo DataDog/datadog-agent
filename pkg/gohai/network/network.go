@@ -3,6 +3,7 @@
 // Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>
 // Copyright 2014-present Datadog, Inc.
 
+// Package network regroups collecting information about the network interfaces
 package network
 
 func getNetworkInfo() (networkInfo map[string]interface{}, err error) {

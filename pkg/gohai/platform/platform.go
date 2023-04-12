@@ -15,6 +15,9 @@ import (
 	"github.com/DataDog/gohai/utils"
 )
 
+// Collect collects the Platform information.
+// Returns an object which can be converted to a JSON or an error if nothing could be collected.
+// Tries to collect as much information as possible.
 func (platform *Platform) Collect() (result interface{}, err error) {
 	result, _, err = getPlatformInfo()
 	return

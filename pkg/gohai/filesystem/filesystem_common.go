@@ -5,14 +5,19 @@
 
 package filesystem
 
+// FileSystem is the Collector type of the filesystem package.
 type FileSystem struct{}
 
 const name = "filesystem"
 
+// Name returns the name of the package
 func (fs *FileSystem) Name() string {
 	return name
 }
 
+// Collect collects the filesystem information.
+// Returns an object which can be converted to a JSON or an error if nothing could be collected.
+// Tries to collect as much information as possible.
 func (fs *FileSystem) Collect() (result interface{}, err error) {
 	result, err = getFileSystemInfo()
 	return

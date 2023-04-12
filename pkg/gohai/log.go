@@ -22,20 +22,33 @@ const baseStdErrLogConfig = `<seelog minlevel="loglevel">
 	</formats>
 </seelog>`
 
+// StdErrReceiver is a dummy receiver used to log to stderr instead of stdout.
+// See seelog.CustomReceiver.
 type StdErrReceiver struct{}
 
-// Implement seelog.CustomReceiver to log to stderr instead of stdout
+// ReceiveMessage is called when the custom receiver gets seelog message from
+// a parent dispatcher.
+// See seelog.CustomReceiver.
 func (sr *StdErrReceiver) ReceiveMessage(message string, level log.LogLevel, context log.LogContextInterface) error {
 	fmt.Fprint(os.Stderr, message)
 	return nil
 }
 
+// AfterParse is called immediately after your custom receiver is instantiated by
+// the xml config parser.
+// See seelog.CustomReceiver.
 func (sr *StdErrReceiver) AfterParse(initArgs log.CustomReceiverInitArgs) error {
 	return nil
 }
 
+// Flush is called when the custom receiver gets a 'flush' directive from a
+// parent receiver.
+// See seelog.CustomReceiver.
 func (sr *StdErrReceiver) Flush() {}
 
+// Close is called when the custom receiver gets a 'close' directive from a
+// parent receiver.
+// See seelog.CustomReceiver.
 func (sr *StdErrReceiver) Close() error {
 	return nil
 }

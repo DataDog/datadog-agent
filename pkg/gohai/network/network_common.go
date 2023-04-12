@@ -27,10 +27,14 @@ type Network struct {
 
 const name = "network"
 
+// Name returns the name of the package
 func (network *Network) Name() string {
 	return name
 }
 
+// Collect collects the Network information.
+// Returns an object which can be converted to a JSON or an error if nothing could be collected.
+// Tries to collect as much information as possible.
 func (network *Network) Collect() (result interface{}, err error) {
 	result, err = getNetworkInfo()
 	if err != nil {
@@ -109,8 +113,6 @@ func getMultiNetworkInfo() (multiNetworkInfo []map[string]interface{}, err error
 	return multiNetworkInfo, err
 }
 
-type Ipv6Address struct{}
-
 func externalIpv6Address() (string, error) {
 	ifaces, err := net.Interfaces()
 
@@ -153,8 +155,6 @@ func externalIpv6Address() (string, error) {
 	return "", nil
 }
 
-type IPAddress struct{}
-
 func externalIPAddress() (string, error) {
 	ifaces, err := net.Interfaces()
 
@@ -192,8 +192,6 @@ func externalIPAddress() (string, error) {
 	}
 	return "", errors.New("not connected to the network")
 }
-
-type MacAddress struct{}
 
 func macAddress() (string, error) {
 	ifaces, err := net.Interfaces()

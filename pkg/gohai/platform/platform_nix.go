@@ -15,7 +15,7 @@ import (
 	"strings"
 )
 
-// GetArchInfo() returns basic host architecture information
+// GetArchInfo returns basic host architecture information
 func GetArchInfo() (archInfo map[string]string, err error) {
 	archInfo = map[string]string{}
 

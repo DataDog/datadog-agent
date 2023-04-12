@@ -3,6 +3,7 @@
 // Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>
 // Copyright 2014-present Datadog, Inc.
 
+// Package platform regroups collecting information about the platform
 package platform
 
 // Platform holds metadata about the host
@@ -38,6 +39,7 @@ type Platform struct {
 
 const name = "platform"
 
+// Name returns the name of the package
 func (platform *Platform) Name() string {
 	return name
 }
