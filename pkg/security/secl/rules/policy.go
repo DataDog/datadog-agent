@@ -7,6 +7,7 @@ package rules
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"io"
 	"strings"
 
@@ -29,7 +30,7 @@ type Policy struct {
 	Version     string
 	Rules       []*RuleDefinition
 	Macros      []*MacroDefinition
-	TaggedRules map[string][]*RuleDefinition
+	TaggedRules map[eval.NormalizedRuleTag][]*RuleDefinition
 }
 
 // AddMacro add a macro to the policy
@@ -71,7 +72,7 @@ func parsePolicyDef(name string, source string, def *PolicyDef, macroFilters []M
 		Source:  source,
 		Version: def.Version,
 	}
-	policy.TaggedRules = make(map[string][]*RuleDefinition)
+	policy.TaggedRules = make(map[eval.NormalizedRuleTag][]*RuleDefinition)
 
 MACROS:
 	for _, macroDef := range def.Macros {

@@ -190,7 +190,7 @@ func (c *CWSConsumer) Start() error {
 	seclRuleFilter := rules.NewSECLRuleFilter(ruleFilterModel)
 	threatScoreRuleTagFilter, err := rules.NewRuleTagFilter(map[string]string{"ruleset": "threat_score"})
 	if err != nil {
-		seclog.Errorf("failed to create rule tag filter filter: %v", err)
+		seclog.Errorf("failed to create rule tag filter: %v", err)
 	}
 
 	macroFilters = append(macroFilters, seclRuleFilter)
@@ -386,7 +386,7 @@ func (c *CWSConsumer) LoadPolicies(policyProviders []rules.PolicyProvider, sendL
 		c.currentRuleSet.Store(probeEvaluationRuleSet)
 
 		// analyze the ruleset, push probe evaluation rule sets to the kernel and generate the policy report
-		report, err := c.probe.ApplyRuleSet(probeEvaluationRuleSet, false)
+		report, err := c.probe.ApplyRuleSet(probeEvaluationRuleSet)
 		if err != nil {
 			return err
 		}

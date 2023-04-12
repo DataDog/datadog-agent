@@ -1233,7 +1233,7 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 }
 
 // EvaluationSet returns a new evaluation set
-func (p *Probe) EvaluationSet(eventTypeEnabled map[eval.EventType]bool, ruleSetTags []string) *rules.EvaluationSet {
+func (p *Probe) EvaluationSet(eventTypeEnabled map[eval.EventType]bool, ruleSetTags []eval.NormalizedRuleTag) *rules.EvaluationSet {
 	ruleOpts, evalOpts := rules.NewEvalOpts(eventTypeEnabled)
 
 	ruleOpts.WithLogger(seclog.DefaultLogger)
@@ -1353,7 +1353,7 @@ func (p *Probe) applyDefaultFilterPolicies() {
 }
 
 // ApplyRuleSet setup the filters for the provided set of rules and returns the policy report.
-func (p *Probe) ApplyRuleSet(rs *rules.RuleSet, isThreatScore bool) (*kfilters.ApplyRuleSetReport, error) {
+func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
 	ars, err := kfilters.NewApplyRuleSetReport(p.Config.Probe, rs)
 	if err != nil {
 		return nil, err

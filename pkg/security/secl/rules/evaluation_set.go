@@ -12,7 +12,7 @@ import (
 )
 
 type EvaluationSet struct {
-	RuleSets map[string]*RuleSet
+	RuleSets map[eval.NormalizedRuleTag]*RuleSet
 }
 
 // NewEvaluationSet returns a new policy set for the specified data model
