@@ -9,7 +9,7 @@ Database
 --------
 Connect as sysdba to the monitored CDB database and execute the following sql script in the monitored database:
 
-https://github.com/DataDog/datadog-agent/blob/nenad.noveljic/dbm-oracle-beta-7.43.x/pkg/collector/corechecks/oracle/sql/setup.sql
+https://github.com/DataDog/datadog-agent/blob/main/pkg/collector/corechecks/oracle/sql/setup.sql
 
 The script will ask for password and create the monitoring account. If the account already exists, the CREATE USER command will fail, but the other commands will execute successfully.
 
