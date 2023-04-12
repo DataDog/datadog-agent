@@ -6,12 +6,8 @@
 package server
 
 import (
-	"strings"
 	"testing"
 	"time"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -67,7 +63,7 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 
 	b.RunParallel(func(pb *testing.PB) {
 		batcher := newBatcher(demux.AgentDemultiplexer)
-		parser := newParser(newFloat64ListPool())
+		parser := newParser(deps.Config, newFloat64ListPool())
 		packet := packets.Packet{
 			Contents: rawPacket,
 			Origin:   packets.NoOrigin,
@@ -113,7 +109,7 @@ func BenchmarkPbarseMetricMessage(b *testing.B) {
 	}()
 	defer close(done)
 
-	parser := newParser(newFloat64ListPool())
+	parser := newParser(deps.Config, newFloat64ListPool())
 	message := []byte("daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2")
 
 	b.RunParallel(func(pb *testing.PB) {
@@ -142,19 +138,13 @@ dogstatsd_mapper_profiles:
          foo: "$1"
          bar: "$2"
 `
-	config.Datadog.SetConfigType("yaml")
-	err := config.Datadog.ReadConfig(strings.NewReader(datadogYaml))
-	assert.NoError(b, err)
 
-	BenchmarkMapperControl(b)
+	benchmarkMapperControl(b, datadogYaml)
 }
 
-func BenchmarkMapperControl(b *testing.B) {
-	deps := fulfillDeps(b)
+func benchmarkMapperControl(b *testing.B, yaml string) {
+	deps := fulfillDepsWithConfigYaml(b, yaml)
 	s := deps.Server.(*server)
-	port, err := getAvailableUDPPort()
-	require.NoError(b, err)
-	config.Datadog.SetDefault("dogstatsd_port", port)
 
 	// our logger will log dogstatsd packet by default if nothing is setup
 	config.SetupLogger("", "off", "", "", false, true, false)
@@ -173,7 +163,7 @@ func BenchmarkMapperControl(b *testing.B) {
 	defer close(done)
 
 	batcher := newBatcher(demux.AgentDemultiplexer)
-	parser := newParser(newFloat64ListPool())
+	parser := newParser(deps.Config, newFloat64ListPool())
 
 	samples := make([]metrics.MetricSample, 0, 512)
 	for n := 0; n < b.N; n++ {

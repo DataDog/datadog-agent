@@ -15,6 +15,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/pkg/errors"
 	"github.com/robfig/cron/v3"
 	batchv1beta1 "k8s.io/api/batch/v1beta1"
@@ -38,11 +39,15 @@ var (
 )
 
 // NewCronJobV1Beta1Factory returns a new CronJob metric family generator factory.
-func NewCronJobV1Beta1Factory() customresource.RegistryFactory {
-	return &cronjobv1beta1Factory{}
+func NewCronJobV1Beta1Factory(client *apiserver.APIClient) customresource.RegistryFactory {
+	return &cronjobv1beta1Factory{
+		client: client.Cl,
+	}
 }
 
-type cronjobv1beta1Factory struct{}
+type cronjobv1beta1Factory struct {
+	client interface{}
+}
 
 func (f *cronjobv1beta1Factory) Name() string {
 	return "cronjobs"
@@ -50,7 +55,7 @@ func (f *cronjobv1beta1Factory) Name() string {
 
 // CreateClient is not implemented
 func (f *cronjobv1beta1Factory) CreateClient(cfg *rest.Config) (interface{}, error) {
-	panic("not implemented")
+	return f.client, nil
 }
 
 func (f *cronjobv1beta1Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {

@@ -8,6 +8,7 @@ package customresources
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	v1 "k8s.io/api/core/v1"
@@ -31,11 +32,15 @@ const (
 var descPodLabelsDefaultLabels = []string{"namespace", "pod", "uid"}
 
 // NewExtendedPodFactory returns a new Pod metric family generator factory.
-func NewExtendedPodFactory() customresource.RegistryFactory {
-	return &extendedPodFactory{}
+func NewExtendedPodFactory(client *apiserver.APIClient) customresource.RegistryFactory {
+	return &extendedPodFactory{
+		client: client.Cl,
+	}
 }
 
-type extendedPodFactory struct{}
+type extendedPodFactory struct {
+	client interface{}
+}
 
 // Name is the name of the factory
 func (f *extendedPodFactory) Name() string {
@@ -44,7 +49,7 @@ func (f *extendedPodFactory) Name() string {
 
 // CreateClient is not implemented
 func (f *extendedPodFactory) CreateClient(cfg *rest.Config) (interface{}, error) {
-	panic("not implemented")
+	return f.client, nil
 }
 
 // MetricFamilyGenerators returns the extended pod metric family generators

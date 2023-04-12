@@ -160,6 +160,12 @@
 `kubernetes_state.container.status_report.count.terminated`
 : Describes the reason the container is currently in terminated state. Tags:`kube_namespace` `pod_name` `kube_container_name` `reason` (`env` `service` `version` from standard labels).
 
+`kubernetes_state.crd.count`
+: Number of custom resource definition. Tags: `kube_namespace`.
+
+`kubernetes_state.crd.condition`
+: The condition of this custom resource definition. Tags:`kube_namespace` `customresourcedefinition` `condition` `status`.
+
 `kubernetes_state.pod.ready`
 : Describes whether the pod is ready to serve requests. Tags:`node` `kube_namespace` `pod_name` `condition` (`env` `service` `version` from standard labels).
 
