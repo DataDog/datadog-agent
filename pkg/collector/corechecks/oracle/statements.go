@@ -432,7 +432,8 @@ func (c *Check) StatementMetrics() (int, error) {
 			sender.Histogram("dd.oracle.statements_metrics.sql_text_length", float64(len(SQLStatement)), c.hostname, c.tags)
 
 			queryRow := QueryRow{}
-			obfuscatedStatement, err := c.GetObfuscatedStatement(o, SQLStatement, statementMetricRow.ForceMatchingSignature, statementMetricRow.SQLID)
+			//obfuscatedStatement, err := c.GetObfuscatedStatement(o, SQLStatement, statementMetricRow.ForceMatchingSignature, statementMetricRow.SQLID)
+			obfuscatedStatement, err := c.GetObfuscatedStatement(o, SQLStatement)
 			SQLStatement = obfuscatedStatement.Statement
 			if err == nil {
 				queryRow.QuerySignature = obfuscatedStatement.QuerySignature
@@ -494,10 +495,7 @@ func (c *Check) StatementMetrics() (int, error) {
 
 	log.Tracef("Query metrics payload %s", strings.ReplaceAll(string(payloadBytes), "@", "XX"))
 
-	//3.43
-	//sender.EventPlatformEvent(string(payloadBytes), "dbm-metrics")
 	sender.EventPlatformEvent(payloadBytes, "dbm-metrics")
-
 	sender.Gauge("dd.oracle.statements_metrics.sql_text_errors", float64(SQLTextErrors), c.hostname, c.tags)
 	sender.Gauge("dd.oracle.statements_metrics.time_ms", float64(time.Since(start).Milliseconds()), c.hostname, c.tags)
 	sender.Commit()
