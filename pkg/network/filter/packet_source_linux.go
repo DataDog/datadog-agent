@@ -33,10 +33,10 @@ var packetSourceTelemetry = struct {
 	captured  *telemetry.StatCounterWrapper
 	dropped   *telemetry.StatCounterWrapper
 }{
-	telemetry.NewStatCounterWrapper(telemetryModuleName, "polls", []string{}, "Counter measuring the number of polled packets"),
-	telemetry.NewStatCounterWrapper(telemetryModuleName, "processed", []string{}, "Counter measuring the number of processed packets"),
-	telemetry.NewStatCounterWrapper(telemetryModuleName, "captured", []string{}, "Counter measuring the number of captured packets"),
-	telemetry.NewStatCounterWrapper(telemetryModuleName, "dropped", []string{}, "Counter measuring the number of dropped packets"),
+	telemetry.NewStatCounterWrapper(telemetryModuleName, "polled_packets", []string{}, "Counter measuring the number of polled packets"),
+	telemetry.NewStatCounterWrapper(telemetryModuleName, "processed_packets", []string{}, "Counter measuring the number of processed packets"),
+	telemetry.NewStatCounterWrapper(telemetryModuleName, "captured_packets", []string{}, "Counter measuring the number of captured packets"),
+	telemetry.NewStatCounterWrapper(telemetryModuleName, "dropped_packets", []string{}, "Counter measuring the number of dropped packets"),
 }
 
 // AFPacketSource provides a RAW_SOCKET attached to an eBPF SOCKET_FILTER

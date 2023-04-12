@@ -43,10 +43,10 @@ var stateTelemetry = struct {
 	nettelemetry.NewStatCounterWrapper(stateModuleName, "stats_cookie_collisions", []string{}, "Counter measuring the number of stats cookie collisions"),
 	nettelemetry.NewStatCounterWrapper(stateModuleName, "time_sync_collisions", []string{}, "Counter measuring the number of time sync collisions"),
 	nettelemetry.NewStatCounterWrapper(stateModuleName, "dns_stats_dropped", []string{}, "Counter measuring the number of DNS stats dropped"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "http_stats_dropped", []string{}, "Counter measuring the number of http stats"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "http2_stats_dropped", []string{}, "Counter measuring the number of http2 stats"),
+	nettelemetry.NewStatCounterWrapper(stateModuleName, "http_stats_dropped", []string{}, "Counter measuring the number of http stats dropped"),
+	nettelemetry.NewStatCounterWrapper(stateModuleName, "http2_stats_dropped", []string{}, "Counter measuring the number of http2 stats dropped"),
 	nettelemetry.NewStatCounterWrapper(stateModuleName, "kafka_stats_dropped", []string{}, "Counter measuring the number of kafka stats dropped"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "dns_pid_collisions", []string{}, "Gauge measuring the number of DNS PID collisions"),
+	nettelemetry.NewStatCounterWrapper(stateModuleName, "dns_pid_collisions", []string{}, "Counter measuring the number of DNS PID collisions"),
 }
 
 const (

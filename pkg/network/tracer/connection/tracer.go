@@ -116,7 +116,7 @@ type tracer struct {
 
 	ebpfTracerType TracerType
 
-	exit chan struct{}
+	exitTelemetry chan struct{}
 }
 
 // NewTracer creates a new tracer
@@ -188,7 +188,7 @@ func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTel
 		removeTuple:    &netebpf.ConnTuple{},
 		closeTracer:    closeTracerFn,
 		ebpfTracerType: tracerType,
-		exit:           make(chan struct{}),
+		exitTelemetry:  make(chan struct{}),
 	}
 
 	tr.conns, _, err = m.GetMap(probes.ConnMap)
@@ -262,7 +262,7 @@ func (t *tracer) Stop() {
 			t.closeTracer()
 		}
 	})
-	close(t.exit)
+	close(t.exitTelemetry)
 }
 
 func (t *tracer) GetMap(name string) *ebpf.Map {
@@ -414,7 +414,7 @@ func (t *tracer) RefreshProbeTelemetry() {
 		select {
 		case <-ticker.C:
 			t.refreshProbeTelemetry()
-		case <-t.exit:
+		case <-t.exitTelemetry:
 			return
 		}
 	}

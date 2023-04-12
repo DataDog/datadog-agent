@@ -98,7 +98,7 @@ type Tracer struct {
 
 	timeResolver *TimeResolver
 
-	exit chan struct{}
+	exitTelemetry chan struct{}
 }
 
 // NewTracer creates a Tracer
@@ -213,7 +213,7 @@ func newTracer(config *config.Config) (*Tracer, error) {
 		ebpfTracer:                 ebpfTracer,
 		bpfTelemetry:               bpfTelemetry,
 		lastCheck:                  atomic.NewInt64(time.Now().Unix()),
-		exit:                       make(chan struct{}),
+		exitTelemetry:              make(chan struct{}),
 	}
 
 	if config.EnableProcessEventMonitoring {
@@ -241,7 +241,7 @@ func newTracer(config *config.Config) (*Tracer, error) {
 			select {
 			case <-ticker.C:
 				ddebpf.GetProbeStats()
-			case <-tr.exit:
+			case <-tr.exitTelemetry:
 				return
 			}
 		}
@@ -407,7 +407,7 @@ func (t *Tracer) Stop() {
 	t.httpMonitor.Stop()
 	t.conntracker.Close()
 	t.processCache.Stop()
-	close(t.exit)
+	close(t.exitTelemetry)
 }
 
 // GetActiveConnections returns the delta for connection info from the last time it was called with the same clientID
