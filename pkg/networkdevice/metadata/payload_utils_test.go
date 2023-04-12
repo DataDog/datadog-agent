@@ -33,7 +33,7 @@ func Test_batchPayloads(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		netflowExporters = append(netflowExporters, NetflowExporter{
 			IPAddress: fmt.Sprintf("1.2.3.%d", i),
-			Namespace: "default",
+			FlowType:  "netflow5",
 		})
 	}
 	payloads := BatchPayloads("my-ns", "127.0.0.0/30", collectTime, 100, devices, interfaces, ipAddresses, topologyLinks, netflowExporters)
