@@ -34,7 +34,7 @@ build do
 
   copy "lib/et/com_err.h", "#{install_dir}/embedded/include/"
   
-  copy "bin/compile_et", "#{install_dir}/embedded/bin/"
+  copy "lib/et/compile_et", "#{install_dir}/embedded/bin/"
 
   # Remove the temp_dir
   command "rm -rf #{install_dir}/embedded/temp_dir"
