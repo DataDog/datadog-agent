@@ -32,7 +32,7 @@ build do
 
   copy "lib/et/com_err.pc", "#{install_dir}/embedded/lib/"
 
-  copy "lib/et/comm_err.h", "#{install_dir}/embedded/include/"
+  copy "lib/et/com_err.h", "#{install_dir}/embedded/include/"
   
   copy "bin/compile_et", "#{install_dir}/embedded/bin/"
 
