@@ -125,43 +125,45 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
 }
 
 func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime time.Time) {
-	exporterMap := make(map[string]metadata.NetflowExporter)
-	var orderedExportersKeys []string
+	// exporterMap structure: map[NAMESPACE]map[EXPORTER_IP]metadata.NetflowExporter
+	exporterMap := make(map[string]map[string]metadata.NetflowExporter)
+	// orderedExportersKeys structure: map[NAMESPACE]EXPORTER_IP
+	orderedExportersKeys := make(map[string][]string)
 	for _, flow := range flows {
 		ipAddress := common.IPBytesToString(flow.DeviceAddr)
 		if ipAddress == "" || strings.HasPrefix(ipAddress, "?") {
 			log.Errorf("Invalid exporter Addr: %s", ipAddress)
 			continue
 		}
-		key := flow.Namespace + "|" + ipAddress
-		if _, ok := exporterMap[key]; ok {
+		if _, ok := exporterMap[flow.Namespace]; !ok {
+			exporterMap[flow.Namespace] = make(map[string]metadata.NetflowExporter)
+		}
+		if _, ok := exporterMap[flow.Namespace][ipAddress]; ok {
 			continue
 		}
-		exporterMap[key] = metadata.NetflowExporter{
+		exporterMap[flow.Namespace][ipAddress] = metadata.NetflowExporter{
 			IPAddress: ipAddress,
-			Namespace: flow.Namespace,
 			FlowType:  string(flow.FlowType),
 		}
-		orderedExportersKeys = append(orderedExportersKeys, key)
+		orderedExportersKeys[flow.Namespace] = append(orderedExportersKeys[flow.Namespace], ipAddress)
 	}
-	if len(exporterMap) == 0 {
-		return
-	}
-	var exporters []metadata.NetflowExporter
-	for _, exporterKey := range orderedExportersKeys {
-		exporters = append(exporters, exporterMap[exporterKey])
-	}
-	metadataPayloads := metadata.BatchPayloads("", "", flushTime, metadata.PayloadMetadataBatchSize, nil, nil, nil, nil, exporters)
-	for _, payload := range metadataPayloads {
-		payloadBytes, err := json.Marshal(payload)
-		if err != nil {
-			log.Errorf("Error marshalling device metadata: %s", err)
-			return
+	for namespace, ips := range orderedExportersKeys {
+		var exporters []metadata.NetflowExporter
+		for _, exporterIp := range ips {
+			exporters = append(exporters, exporterMap[namespace][exporterIp])
 		}
-		m := &message.Message{Content: payloadBytes}
-		err = agg.epForwarder.SendEventPlatformEventBlocking(m, epforwarder.EventTypeNetworkDevicesMetadata)
-		if err != nil {
-			log.Errorf("Error sending event platform event for netflow exporter metadata: %s", err)
+		metadataPayloads := metadata.BatchPayloads(namespace, "", flushTime, metadata.PayloadMetadataBatchSize, nil, nil, nil, nil, exporters)
+		for _, payload := range metadataPayloads {
+			payloadBytes, err := json.Marshal(payload)
+			if err != nil {
+				log.Errorf("Error marshalling device metadata: %s", err)
+				return
+			}
+			m := &message.Message{Content: payloadBytes}
+			err = agg.epForwarder.SendEventPlatformEventBlocking(m, epforwarder.EventTypeNetworkDevicesMetadata)
+			if err != nil {
+				log.Errorf("Error sending event platform event for netflow exporter metadata: %s", err)
+			}
 		}
 	}
 }
