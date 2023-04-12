@@ -23,7 +23,9 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
+	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	fakeworkloadmeta "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
@@ -390,6 +392,13 @@ func TestProcessEvents(t *testing.T) {
 				},
 			},
 		},
+	}
+
+	cfg := config.Mock(nil)
+	cfg.Set("sbom.enabled", true)
+	_, err := sbomscanner.CreateGlobalScanner(cfg)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	for _, test := range tests {
