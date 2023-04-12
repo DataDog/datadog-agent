@@ -32,7 +32,7 @@ const (
 	defaultSystemProbeJavaDir = "/opt/datadog-agent/embedded/share/system-probe/java"
 
 	// defaultServiceMonitoringJavaAgentArgs is default arguments that are passing to the injected java USM agent
-	defaultServiceMonitoringJavaAgentArgs = "dd.appsec.enabled=false dd.trace.enabled=false dd.usm.enabled=true"
+	defaultServiceMonitoringJavaAgentArgs = "dd.appsec.enabled=false,dd.trace.enabled=false,dd.usm.enabled=true"
 
 	// defaultRuntimeCompilerOutputDir is the default path for output from the system-probe runtime compiler
 	defaultRuntimeCompilerOutputDir = "/var/tmp/datadog-agent/system-probe/build"
