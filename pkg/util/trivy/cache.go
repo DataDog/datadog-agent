@@ -90,6 +90,8 @@ type Cache interface {
 	Get(key string) ([]byte, error)
 	// Keys returns the cached keys. Required for the cache cleaning logic.
 	Keys() []string
+	// Len returns the length of the cache. Required for the cache cleaning logic.
+	Len() int
 }
 
 // TrivyCache holds a generic Cache and implements cache.Cache from Trivy.
@@ -114,14 +116,16 @@ func NewTrivyCacheCleaner(target *TrivyCache) *TrivyCacheCleaner {
 
 // Clean implements CacheCleaner#Clean. It removes unused cached entries from the cache.
 func (c *TrivyCacheCleaner) Clean() error {
-	toKeep := make(map[string]struct{})
-	for _, imageMetadata := range workloadmeta.GetGlobalStore().ListImages() {
+	images := workloadmeta.GetGlobalStore().ListImages()
+
+	toKeep := make(map[string]struct{}, len(images))
+	for _, imageMetadata := range images {
 		for _, key := range c.cachedKeysForEntity[imageMetadata.EntityID.ID] {
 			toKeep[key] = struct{}{}
 		}
 	}
 
-	var toRemove []string
+	toRemove := make([]string, 0, c.target.Cache.Len())
 	for _, key := range c.target.Cache.Keys() {
 		if _, ok := toKeep[key]; !ok {
 			toRemove = append(toRemove, key)
