@@ -129,6 +129,10 @@ func TestExtractDeployment(t *testing.T) {
 						Message: `ReplicaSet "orchestrator-intake-6d65b45d4d" has timed out progressing.`,
 					},
 				},
+				Tags: []string{
+					"kube_condition_available:false",
+					"kube_condition_progressing:false",
+				},
 			},
 		},
 		"empty deploy": {input: appsv1.Deployment{}, expected: model.Deployment{Metadata: &model.Metadata{}, ReplicasDesired: 1}},

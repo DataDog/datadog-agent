@@ -195,6 +195,24 @@ func TestExtractVerticalPodAutoscaler(t *testing.T) {
 						},
 					},
 				},
+				Conditions: []*model.VerticalPodAutoscalerCondition{
+					{
+						Type:               string(v1.RecommendationProvided),
+						Status:             string(corev1.ConditionTrue),
+						LastTransitionTime: exampleTime.Unix(),
+					},
+					{
+						Type:               string(v1.NoPodsMatched),
+						Status:             string(corev1.ConditionTrue),
+						LastTransitionTime: exampleTime.Unix(),
+						Reason:             "NoPodsMatched",
+						Message:            "No pods match this VPA object",
+					},
+				},
+				Tags: []string{
+					"kube_condition_recommendationprovided:true",
+					"kube_condition_nopodsmatched:true",
+				},
 			},
 		},
 		"minimum-required": {
