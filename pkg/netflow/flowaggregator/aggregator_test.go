@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -29,6 +30,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/netflow/config"
@@ -437,4 +440,87 @@ func TestFlowAggregator_submitCollectorMetrics_error(t *testing.T) {
 
 	// 3/ Assert
 	assert.EqualError(t, err, "some prometheus gatherer error")
+}
+
+func TestFlowAggregator_sendExporterMetadata_multiplePayloads(t *testing.T) {
+	sender := mocksender.NewMockSender("")
+	conf := config.NetflowConfig{
+		StopTimeout:                            10,
+		AggregatorBufferSize:                   20,
+		AggregatorFlushInterval:                1,
+		AggregatorPortRollupThreshold:          10,
+		AggregatorRollupTrackerRefreshInterval: 3600,
+		Listeners: []config.ListenerConfig{
+			{
+				FlowType: common.TypeNetFlow9,
+				BindHost: "127.0.0.1",
+				Port:     uint16(1234),
+				Workers:  10,
+			},
+		},
+	}
+
+	ctrl := gomock.NewController(t)
+	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
+
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
+
+	var flows []*common.Flow
+	for i := 1; i <= 250; i++ {
+		flows = append(flows, &common.Flow{
+			Namespace:      "my-ns" + strconv.Itoa(i),
+			FlowType:       common.TypeNetFlow9,
+			DeviceAddr:     []byte{127, 0, 0, byte(i)},
+			StartTimestamp: 1234568,
+			EndTimestamp:   1234569,
+			Bytes:          20,
+			Packets:        4,
+			SrcAddr:        []byte{10, 10, 10, 10},
+			DstAddr:        []byte{10, 10, 10, 20},
+			IPProtocol:     uint32(6),
+			SrcPort:        2000,
+			DstPort:        80,
+			TCPFlags:       19,
+			EtherType:      uint32(0x0800),
+		})
+	}
+	now := time.Unix(1681295467, 0)
+	var payload1NetflowExporters []metadata.NetflowExporter
+	for i := 1; i <= 100; i++ {
+		payload1NetflowExporters = append(payload1NetflowExporters, metadata.NetflowExporter{
+			IPAddress: "127.0.0." + strconv.Itoa(i),
+			Namespace: "my-ns" + strconv.Itoa(i),
+			FlowType:  "netflow9",
+		})
+	}
+	var payload2NetflowExporters []metadata.NetflowExporter
+	for i := 101; i <= 200; i++ {
+		payload2NetflowExporters = append(payload2NetflowExporters, metadata.NetflowExporter{
+			IPAddress: "127.0.0." + strconv.Itoa(i),
+			Namespace: "my-ns" + strconv.Itoa(i),
+			FlowType:  "netflow9",
+		})
+	}
+	var payload3NetflowExporters []metadata.NetflowExporter
+	for i := 201; i <= 250; i++ {
+		payload3NetflowExporters = append(payload3NetflowExporters, metadata.NetflowExporter{
+			IPAddress: "127.0.0." + strconv.Itoa(i),
+			Namespace: "my-ns" + strconv.Itoa(i),
+			FlowType:  "netflow9",
+		})
+	}
+	for _, exporters := range [][]metadata.NetflowExporter{payload1NetflowExporters, payload2NetflowExporters, payload3NetflowExporters} {
+		payload := metadata.NetworkDevicesMetadata{
+			Subnet:           "",
+			Namespace:        "",
+			CollectTimestamp: now.Unix(),
+			NetflowExporters: exporters,
+		}
+		payloadBytes, err := json.Marshal(payload)
+		require.NoError(t, err)
+		m := &message.Message{Content: payloadBytes}
+		log.Errorf("expected: %s", string(payloadBytes))
+		epForwarder.EXPECT().SendEventPlatformEventBlocking(m, "network-devices-metadata").Return(nil).Times(1)
+	}
+	aggregator.sendExporterMetadata(flows, now)
 }

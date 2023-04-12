@@ -126,6 +126,7 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
 
 func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime time.Time) {
 	exporterMap := make(map[string]metadata.NetflowExporter)
+	var orderedExportersKeys []string
 	for _, flow := range flows {
 		ipAddress := common.IPBytesToString(flow.DeviceAddr)
 		if ipAddress == "" || strings.HasPrefix(ipAddress, "?") {
@@ -141,26 +142,29 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 			Namespace: flow.Namespace,
 			FlowType:  string(flow.FlowType),
 		}
+		orderedExportersKeys = append(orderedExportersKeys, key)
 	}
 	if len(exporterMap) == 0 {
 		return
 	}
 	var exporters []metadata.NetflowExporter
-	for _, exporter := range exporterMap {
-		exporters = append(exporters, exporter)
+	for _, exporterKey := range orderedExportersKeys {
+		exporters = append(exporters, exporterMap[exporterKey])
 	}
-	payload := metadata.NetworkDevicesMetadata{
-		CollectTimestamp: flushTime.Unix(),
-		NetflowExporters: exporters,
+	metadataPayloads := metadata.BatchPayloads("", "", flushTime, metadata.PayloadMetadataBatchSize, nil, nil, nil, nil, exporters)
+	for _, payload := range metadataPayloads {
+		payloadBytes, err := json.Marshal(payload)
+		if err != nil {
+			log.Errorf("Error marshalling device metadata: %s", err)
+			return
+		}
+		m := &message.Message{Content: payloadBytes}
+		log.Errorf("actual: %s", string(payloadBytes))
+		err = agg.epForwarder.SendEventPlatformEventBlocking(m, epforwarder.EventTypeNetworkDevicesMetadata)
+		if err != nil {
+			log.Errorf("Error sending event platform event for netflow exporter metadata: %s", err)
+		}
 	}
-	payloadBytes, err := json.Marshal(payload)
-	if err != nil {
-		log.Errorf("Error marshalling netflow exporter metadata: %s", err)
-		return
-	}
-	log.Debugf("NetFlow exporters metadata: %s", string(payloadBytes))
-	m := &message.Message{Content: payloadBytes}
-	agg.epForwarder.SendEventPlatformEventBlocking(m, epforwarder.EventTypeNetworkDevicesMetadata)
 }
 
 func (agg *FlowAggregator) flushLoop() {
