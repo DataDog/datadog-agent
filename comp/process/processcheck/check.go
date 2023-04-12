@@ -8,6 +8,7 @@ package processcheck
 import (
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 )
@@ -25,7 +26,13 @@ type result struct {
 	Component Component
 }
 
-func newCheck() result {
+type dependencies struct {
+	fx.In
+
+	Config config.Component
+}
+
+func newCheck(dependencies) result {
 	c := &check{
 		processCheck: checks.NewProcessCheck(),
 	}
