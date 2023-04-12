@@ -235,8 +235,31 @@ func TestAggregator_withMockPayload(t *testing.T) {
 
 	testutil.ExpectNetflow5Payloads(t, epForwarder, now, "my-hostname", 6)
 
+	// language=json
+	metadataEvent := []byte(fmt.Sprintf(`
+{
+  "namespace":"default",
+  "netflow_exporters":[
+    {
+      "ip_address":"127.0.0.1",
+      "flow_type":"netflow5"
+    }
+  ],
+  "collect_timestamp": 1550505606
+}
+`))
+	compactMetadataEvent := new(bytes.Buffer)
+	err := json.Compact(compactMetadataEvent, metadataEvent)
+	require.NoError(t, err)
+
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(&message.Message{Content: compactMetadataEvent.Bytes()}, "network-devices-metadata").Return(nil).Times(1)
+
 	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
 	aggregator.flushFlowsToSendInterval = 1 * time.Second
+	aggregator.timeNowFunction = func() time.Time {
+		t, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
+		return t
+	}
 
 	stoppedFlushLoop := make(chan struct{})
 	stoppedRun := make(chan struct{})
@@ -578,7 +601,7 @@ func TestFlowAggregator_sendExporterMetadata_invalidIPIgnored(t *testing.T) {
 
 	now := time.Unix(1681295467, 0)
 	flows := []*common.Flow{
-		&common.Flow{
+		{
 			Namespace:      "my-ns",
 			FlowType:       common.TypeNetFlow9,
 			DeviceAddr:     []byte{99}, // INVALID ADDR
@@ -594,7 +617,7 @@ func TestFlowAggregator_sendExporterMetadata_invalidIPIgnored(t *testing.T) {
 			TCPFlags:       19,
 			EtherType:      uint32(0x0800),
 		},
-		&common.Flow{
+		{
 			Namespace:      "my-ns",
 			FlowType:       common.TypeNetFlow9,
 			DeviceAddr:     []byte{127, 0, 0, 10},

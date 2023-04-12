@@ -127,8 +127,11 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
 func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime time.Time) {
 	// exporterMap structure: map[NAMESPACE]map[EXPORTER_IP]metadata.NetflowExporter
 	exporterMap := make(map[string]map[string]metadata.NetflowExporter)
-	// orderedExportersKeys structure: map[NAMESPACE]EXPORTER_IP
-	orderedExportersKeys := make(map[string][]string)
+
+	// orderedExporters is used to build predictable metadata payload (consistent batches and orders)
+	// orderedExporters structure: map[NAMESPACE]EXPORTER_IP
+	orderedExporters := make(map[string][]string)
+
 	for _, flow := range flows {
 		ipAddress := common.IPBytesToString(flow.DeviceAddr)
 		if ipAddress == "" || strings.HasPrefix(ipAddress, "?") {
@@ -145,9 +148,9 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 			IPAddress: ipAddress,
 			FlowType:  string(flow.FlowType),
 		}
-		orderedExportersKeys[flow.Namespace] = append(orderedExportersKeys[flow.Namespace], ipAddress)
+		orderedExporters[flow.Namespace] = append(orderedExporters[flow.Namespace], ipAddress)
 	}
-	for namespace, ips := range orderedExportersKeys {
+	for namespace, ips := range orderedExporters {
 		var exporters []metadata.NetflowExporter
 		for _, exporterIp := range ips {
 			exporters = append(exporters, exporterMap[namespace][exporterIp])
