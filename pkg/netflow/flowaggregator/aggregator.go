@@ -133,34 +133,35 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 	orderedExporters := make(map[string][]string)
 
 	for _, flow := range flows {
-		ipAddress := common.IPBytesToString(flow.DeviceAddr)
-		if ipAddress == "" || strings.HasPrefix(ipAddress, "?") {
-			log.Errorf("Invalid exporter Addr: %s", ipAddress)
+		exporterIp := common.IPBytesToString(flow.DeviceAddr)
+		if exporterIp == "" || strings.HasPrefix(exporterIp, "?") {
+			log.Errorf("Invalid exporter Addr: %s", exporterIp)
 			continue
 		}
 		if _, ok := exporterMap[flow.Namespace]; !ok {
 			exporterMap[flow.Namespace] = make(map[string]metadata.NetflowExporter)
 		}
-		if _, ok := exporterMap[flow.Namespace][ipAddress]; ok {
+		if _, ok := exporterMap[flow.Namespace][exporterIp]; ok {
+			// exporterIp already in map, no need to reprocess it
 			continue
 		}
-		exporterMap[flow.Namespace][ipAddress] = metadata.NetflowExporter{
-			IPAddress: ipAddress,
+		exporterMap[flow.Namespace][exporterIp] = metadata.NetflowExporter{
+			IPAddress: exporterIp,
 			FlowType:  string(flow.FlowType),
 		}
-		orderedExporters[flow.Namespace] = append(orderedExporters[flow.Namespace], ipAddress)
+		orderedExporters[flow.Namespace] = append(orderedExporters[flow.Namespace], exporterIp)
 	}
 	for namespace, ips := range orderedExporters {
-		var exporters []metadata.NetflowExporter
+		var netflowExporters []metadata.NetflowExporter
 		for _, exporterIp := range ips {
-			exporters = append(exporters, exporterMap[namespace][exporterIp])
+			netflowExporters = append(netflowExporters, exporterMap[namespace][exporterIp])
 		}
-		metadataPayloads := metadata.BatchPayloads(namespace, "", flushTime, metadata.PayloadMetadataBatchSize, nil, nil, nil, nil, exporters)
+		metadataPayloads := metadata.BatchPayloads(namespace, "", flushTime, metadata.PayloadMetadataBatchSize, nil, nil, nil, nil, netflowExporters)
 		for _, payload := range metadataPayloads {
 			payloadBytes, err := json.Marshal(payload)
 			if err != nil {
 				log.Errorf("Error marshalling device metadata: %s", err)
-				return
+				continue
 			}
 			m := &message.Message{Content: payloadBytes}
 			err = agg.epForwarder.SendEventPlatformEventBlocking(m, epforwarder.EventTypeNetworkDevicesMetadata)
