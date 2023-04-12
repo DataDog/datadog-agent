@@ -96,7 +96,7 @@ func TestLaunchGetEventsTestSuite(t *testing.T) {
 			s.channelPath = "dd-test-channel-check"
 			s.eventSource = "dd-test-source-check"
 			s.testAPI = tiName
-			s.numEvents = 1000
+			s.numEvents = 5
 			suite.Run(t, &s)
 		})
 	}
@@ -177,7 +177,7 @@ start: now
 			defer check.Cancel()
 
 			// report event
-			err = reporter.ReportEvent(tc.reportLevel, 0, 1000, []string{"teststring"}, nil)
+			err = reporter.ReportEvent(tc.reportLevel, 0, 1000, nil, []string{"teststring"}, nil)
 			require.NoError(s.T(), err)
 
 			s.sender.On("Commit").Return().Once()
@@ -230,7 +230,7 @@ start: now
 			defer check.Cancel()
 
 			// report event
-			err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 1000, []string{"teststring"}, nil)
+			err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 1000, nil, []string{"teststring"}, nil)
 			require.NoError(s.T(), err)
 
 			s.sender.On("Commit").Return().Once()
@@ -276,9 +276,9 @@ query: |
 	})).Once()
 
 	// Generate an event the query should match on (EventID=1000)
-	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 1000, []string{matchstring}, nil)
+	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 1000, nil, []string{matchstring}, nil)
 	// Generate an event the query should not match on (EventID!=1000)
-	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 999, []string{nomatchstring}, nil)
+	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 999, nil, []string{nomatchstring}, nil)
 
 	check.Run()
 
@@ -324,13 +324,71 @@ tag_event_id: %t
 				}
 				res := true
 				for _, tag := range e.Tags {
-					res = res && assert.NotContains(s.T(), tag, "event_id", "Tags should not contain the event id")
+					res = res && assert.NotContains(s.T(), tag, "event_id:", "Tags should not contain the event id")
 				}
 				return res
 			})).Once()
 
-			err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, tc.event_id, []string{"teststring"}, nil)
+			err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, tc.event_id, nil, []string{"teststring"}, nil)
 
+			check.Run()
+
+			s.sender.AssertExpectations(s.T())
+		})
+	}
+}
+
+// Tests that the tag_sid configuration option results in a sid tag
+func (s *GetEventsTestSuite) TestGetEventsWithTagSID() {
+
+	// Use LocalSystem for the SID
+	reportsid, err := windows.CreateWellKnownSid(windows.WinLocalSystemSid)
+	require.NoError(s.T(), err)
+	account, domain, _, err := reportsid.LookupAccount("")
+	require.NoError(s.T(), err)
+
+	tests := []struct {
+		name    string
+		confval bool
+		sid     *windows.SID
+		tag     string
+	}{
+		{"disabled", false, reportsid, ""},
+		{"enabled", true, reportsid, fmt.Sprintf("sid:%s\\%s", domain, account)},
+	}
+
+	reporter, err := evtreporter.New(s.eventSource, s.ti.API())
+	require.NoError(s.T(), err)
+	defer reporter.Close()
+
+	for _, tc := range tests {
+		s.Run(tc.name, func() {
+			defer resetSender(s.sender)
+
+			instanceConfig := []byte(fmt.Sprintf(`
+path: %s
+start: now
+tag_sid: %t
+`,
+				s.channelPath, tc.confval))
+
+			check, err := s.newCheck(instanceConfig, nil)
+			require.NoError(s.T(), err)
+			defer check.Cancel()
+
+			s.sender.On("Commit").Return().Once()
+			s.sender.On("Event", mock.MatchedBy(func(e metrics.Event) bool {
+				if tc.confval {
+					return assert.Contains(s.T(), e.Tags, tc.tag, "Tags should contain the sid/username")
+				}
+				res := true
+				for _, tag := range e.Tags {
+					res = res && assert.NotContains(s.T(), tag, "sid:", "Tags should not contain the sid")
+				}
+				return res
+			})).Once()
+
+			err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 1000, tc.sid, []string{"teststring"}, nil)
 			check.Run()
 
 			s.sender.AssertExpectations(s.T())

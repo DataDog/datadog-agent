@@ -61,6 +61,7 @@ type instanceConfig struct {
 	Legacy_mode        bool   `yaml:"legacy_mode"`
 	Event_priority     string `yaml:"event_priority"`
 	Tag_event_id       bool   `yaml:"tag_event_id"`
+	Tag_sid            bool   `yaml:"tag_sid"`
 }
 
 type initConfig struct {
@@ -191,6 +192,18 @@ func (c *Check) renderEventValues(winevent *evtapi.EventRecord, ddevent *metrics
 		}
 	}
 
+	// Optional: Tag SID
+	if c.config.instance.Tag_sid {
+		sid, err := vals.SID(evtapi.EvtSystemUserID)
+		if err == nil {
+			account, domain, _, err := sid.LookupAccount("")
+			if err == nil {
+				tag := fmt.Sprintf("sid:%s\\%s", domain, account)
+				ddevent.Tags = append(ddevent.Tags, tag)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -225,6 +238,8 @@ func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data,
 	c.config.instance.Query = "*"
 	c.config.instance.Start = "now"
 	c.config.instance.Event_priority = "normal"
+	c.config.instance.Tag_event_id = false
+	c.config.instance.Tag_sid = false
 
 	// Parse config
 	err = yaml.Unmarshal(data, &c.config.instance)
