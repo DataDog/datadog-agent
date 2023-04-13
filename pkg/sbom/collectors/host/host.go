@@ -35,6 +35,10 @@ func (r *ScanRequest) Type() string {
 	return sbom.ScanFilesystemType
 }
 
+func (r *ScanRequest) ID() string {
+	return r.Path
+}
+
 type HostCollector struct {
 	trivyCollector *trivy.Collector
 }

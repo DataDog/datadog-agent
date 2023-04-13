@@ -46,6 +46,10 @@ func (r *ScanRequest) Type() string {
 	}
 }
 
+func (r *ScanRequest) ID() string {
+	return r.ImageMeta.ID
+}
+
 type ContainerdCollector struct {
 	trivyCollector *trivy.Collector
 }

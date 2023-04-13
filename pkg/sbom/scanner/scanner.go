@@ -116,7 +116,7 @@ func (s *Scanner) start(ctx context.Context) {
 				cancel()
 				if err != nil {
 					telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "scan")
-					log.Errorf("An error occurred while generating SBOM: %s", err)
+					log.Errorf("An error occurred while generating SBOM for '%s': %s", request.ID(), err)
 					continue
 				}
 
@@ -129,7 +129,7 @@ func (s *Scanner) start(ctx context.Context) {
 					Duration:  generationDuration,
 				}:
 				default:
-					log.Errorf("Failed to push scanner result into channel")
+					log.Errorf("Failed to push scanner result for '%s' into channel", request.ID())
 				}
 
 				if request.opts.WaitAfter != 0 {

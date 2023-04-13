@@ -31,6 +31,7 @@ type ScanOptions struct {
 type ScanRequest interface {
 	Collector() string
 	Type() string
+	ID() string
 }
 
 type ScanResult struct {
