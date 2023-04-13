@@ -28,4 +28,7 @@ build do
   command "make", :env => env
   command "make install", :env => env
 
+  delete "#{install_dir}/embedded/lib/librdkafka.a"
+  delete "#{install_dir}/embedded/lib/librdkafka-static.a"
+
 end
