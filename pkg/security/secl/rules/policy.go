@@ -8,12 +8,10 @@ package rules
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"io"
-	"strings"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"
 	"github.com/hashicorp/go-multierror"
 	"gopkg.in/yaml.v2"
+	"io"
 )
 
 // PolicyDef represents a policy file definition
@@ -51,15 +49,6 @@ func (p *Policy) AddTaggedRule(def *RuleDefinition) {
 	ruleSetTagValue := def.Tags[RuleSetTagKey]
 
 	p.RuleSetTaggedRules[ruleSetTagValue] = append(p.RuleSetTaggedRules[ruleSetTagValue], def)
-}
-
-func normalizeTags(tags map[string]string) map[string]string {
-	normalizedTags := make(map[string]string)
-	for key, val := range tags {
-		normalizedTags[strings.TrimSpace(strings.ToLower(key))] = strings.TrimSpace(strings.ToLower(val))
-	}
-
-	return normalizedTags
 }
 
 func parsePolicyDef(name string, source string, def *PolicyDef, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, error) {
