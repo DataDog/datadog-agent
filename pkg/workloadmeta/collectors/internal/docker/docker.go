@@ -353,7 +353,7 @@ func extractImage(ctx context.Context, container types.ContainerJSON, resolve re
 	image.Registry = registry
 	image.ShortName = shortName
 	image.Tag = tag
-
+	image.ID = container.Image
 	return image
 }
 
