@@ -14,7 +14,7 @@ int kprobe__tcp_recvmsg(struct pt_regs *ctx) {
     struct sock *skp = (struct sock*)PT_REGS_PARM2(ctx);
     int flags = (int)PT_REGS_PARM6(ctx);
 #elif defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0)
-    struct sock *skp = (struct sock*)PT_REGS_PARM1(ctx);s
+    struct sock *skp = (struct sock*)PT_REGS_PARM1(ctx);
     int flags = (int)PT_REGS_PARM5(ctx);
 #else
     struct sock *skp = (struct sock*)PT_REGS_PARM1(ctx);
