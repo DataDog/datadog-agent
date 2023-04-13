@@ -32,8 +32,8 @@ const (
 
 // NetworkDevicesMetadata contains network devices metadata
 type NetworkDevicesMetadata struct {
-	Subnet           string                 `json:"subnet,omitempty"`
-	Namespace        string                 `json:"namespace,omitempty"`
+	Subnet           string                 `json:"subnet"`
+	Namespace        string                 `json:"namespace"`
 	Devices          []DeviceMetadata       `json:"devices,omitempty"`
 	Interfaces       []InterfaceMetadata    `json:"interfaces,omitempty"`
 	IPAddresses      []IPAddressMetadata    `json:"ip_addresses,omitempty"`
