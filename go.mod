@@ -239,6 +239,7 @@ require (
 	k8s.io/cri-api v0.25.5 // Cannot be upgraded to 0.26 without lossing CRI API v1alpha2
 	k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4 // Min version that includes fix for Windows Nano
 	k8s.io/klog/v2 v2.80.1
+	k8s.io/kube-aggregator v0.23.5
 	k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280
 	k8s.io/kube-state-metrics/v2 v2.7.0
 	k8s.io/kubelet v0.25.5
@@ -568,10 +569,7 @@ require (
 	sigs.k8s.io/yaml v1.3.0
 )
 
-require (
-	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
-	k8s.io/kube-aggregator v0.23.5
-)
+require github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 
 require (
 	github.com/cloudflare/circl v1.1.0 // indirect

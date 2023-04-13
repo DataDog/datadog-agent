@@ -43,7 +43,6 @@ type apiserviceFactory struct {
 	client interface{}
 }
 
-// CreateClient is not implemented
 func (f *apiserviceFactory) CreateClient(cfg *rest.Config) (interface{}, error) {
 	return f.client, nil
 }
