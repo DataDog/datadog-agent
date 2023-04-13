@@ -2495,6 +2495,11 @@ core,k8s.io/klog/v2/internal/clock,Apache-2.0,Copyright 2014 The Kubernetes Auth
 core,k8s.io/klog/v2/internal/dbg,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/klog/v2/internal/serialize,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/klog/v2/internal/severity,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/kube-aggregator/pkg/apis/apiregistration,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/kube-aggregator/pkg/apis/apiregistration/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/scheme,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/cmd/openapi-gen,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/cmd/openapi-gen/args,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/builder,Apache-2.0,Copyright 2014 The Kubernetes Authors.
