@@ -39,6 +39,10 @@ func (r *ScanRequest) Type() string {
 	return "daemon"
 }
 
+func (r *ScanRequest) ID() string {
+	return r.ImageMeta.ID
+}
+
 type Collector struct {
 	trivyCollector *trivy.Collector
 }
