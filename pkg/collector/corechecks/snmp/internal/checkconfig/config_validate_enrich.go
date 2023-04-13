@@ -132,7 +132,7 @@ func validateEnrichSymbol(symbol *SymbolConfig, symbolContext SymbolContext) []s
 		errors = append(errors, fmt.Sprintf("symbol name missing: name=`%s` oid=`%s`", symbol.Name, symbol.OID))
 	}
 	if symbol.OID == "" {
-		if symbolContext == ColumnSymbol && !symbol.SendAsConstant {
+		if symbolContext == ColumnSymbol && !symbol.ConstantValueOne {
 			errors = append(errors, fmt.Sprintf("symbol oid or send_as_one missing: name=`%s` oid=`%s`", symbol.Name, symbol.OID))
 		} else if symbolContext != ColumnSymbol {
 			errors = append(errors, fmt.Sprintf("symbol oid missing: name=`%s` oid=`%s`", symbol.Name, symbol.OID))

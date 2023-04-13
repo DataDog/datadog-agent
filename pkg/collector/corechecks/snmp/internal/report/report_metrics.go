@@ -124,7 +124,7 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConf
 	for _, symbol := range metricConfig.Symbols {
 		var metricValues map[string]valuestore.ResultValue
 
-		if symbol.SendAsConstant {
+		if symbol.ConstantValueOne {
 			metricValues = getConstantMetricValues(metricConfig.MetricTags, values)
 		} else {
 			var err error
