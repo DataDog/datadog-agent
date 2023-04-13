@@ -93,12 +93,14 @@ single-machine-performance-regression_detector:
     - rm dd-package.deb
     - apt-get update
     - dd-package --bucket binaries.ddbuild.io --package devtools/dd-package-dev
+    # Kludge from https://gitlab.com/gitlab-org/gitlab-runner/-/issues/4645#note_287636439 to avoid
+    # doubled output
     - echo ""
-    - echo "======================= NOTE TO MAINTAINERS ====================================="
-    - echo "| Ignore bdist_wheel build error raised when installing 'devtools/pr-commenter' |"
-    - echo "| This error is known behavior, and you should see a successful install         |"
-    - echo "| beneath the error message in the GitLab CI logs                               |"
-    - echo "================================================================================="
+    - "####################### NOTE TO MAINTAINERS #####################################"
+    - "# Ignore bdist_wheel build error raised when installing 'devtools/pr-commenter' #"
+    - "# This error is known behavior, and you should see a successful install         #"
+    - "# beneath the error message in the GitLab CI logs                               #"
+    - "#################################################################################"
     - echo ""
     - dd-package --bucket binaries.ddbuild.io --package devtools/pr-commenter
     # Post HTML report to GitHub
