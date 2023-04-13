@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	collectorName = "docker-collector"
+	collectorName = "docker"
 )
 
 type ScanRequest struct {
