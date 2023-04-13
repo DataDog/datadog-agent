@@ -9,9 +9,12 @@
 package k8s
 
 import (
+	"time"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
@@ -20,6 +23,7 @@ import (
 
 func TestExtractDaemonset(t *testing.T) {
 	testIntOrStr := intstr.FromString("1%")
+	timestamp := metav1.NewTime(time.Date(2014, time.January, 15, 0, 0, 0, 0, time.UTC)) // 1389744000
 
 	tests := map[string]struct {
 		input    v1.DaemonSet
@@ -52,6 +56,15 @@ func TestExtractDaemonset(t *testing.T) {
 					},
 				},
 				Status: v1.DaemonSetStatus{
+					Conditions: []v1.DaemonSetCondition{
+						{
+							Type:               "Test",
+							Status:             corev1.ConditionFalse,
+							LastTransitionTime: timestamp,
+							Reason:             "test reason",
+							Message:            "test message",
+						},
+					},
 					CurrentNumberScheduled: 1,
 					NumberReady:            1,
 				},
@@ -60,6 +73,16 @@ func TestExtractDaemonset(t *testing.T) {
 					Name:      "daemonset",
 					Namespace: "namespace",
 				},
+				Conditions: []*model.DaemonSetCondition{
+					{
+						Type:               "Test",
+						Status:             string(corev1.ConditionFalse),
+						LastTransitionTime: timestamp.Unix(),
+						Reason:             "test reason",
+						Message:            "test message",
+					},
+				},
+				Tags: []string{"kube_condition_test:false"},
 				Spec: &model.DaemonSetSpec{
 					DeploymentStrategy: "RollingUpdate",
 					MaxUnavailable:     "1%",
