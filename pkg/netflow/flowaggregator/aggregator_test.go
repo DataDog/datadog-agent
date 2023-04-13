@@ -796,7 +796,7 @@ func TestFlowAggregator_sendExporterMetadata_singleExporterIpWithMultipleFlowTyp
 		{
 			Namespace:      "my-ns1",
 			FlowType:       common.TypeNetFlow9,
-			DeviceAddr:     []byte{127, 0, 0, 11},
+			ExporterAddr:   []byte{127, 0, 0, 11},
 			StartTimestamp: 1234568,
 			EndTimestamp:   1234569,
 			Bytes:          20,
@@ -812,7 +812,7 @@ func TestFlowAggregator_sendExporterMetadata_singleExporterIpWithMultipleFlowTyp
 		{
 			Namespace:      "my-ns1",
 			FlowType:       common.TypeNetFlow5,
-			DeviceAddr:     []byte{127, 0, 0, 11},
+			ExporterAddr:   []byte{127, 0, 0, 11},
 			StartTimestamp: 1234568,
 			EndTimestamp:   1234569,
 			Bytes:          20,
