@@ -153,10 +153,10 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 		}
 		orderedExporterIDs[flow.Namespace] = append(orderedExporterIDs[flow.Namespace], exporterID)
 	}
-	for namespace, ips := range orderedExporterIDs {
+	for namespace, ids := range orderedExporterIDs {
 		var netflowExporters []metadata.NetflowExporter
-		for _, exporterIp := range ips {
-			netflowExporters = append(netflowExporters, exporterMap[namespace][exporterIp])
+		for _, exporterId := range ids {
+			netflowExporters = append(netflowExporters, exporterMap[namespace][exporterId])
 		}
 		metadataPayloads := metadata.BatchPayloads(namespace, "", flushTime, metadata.PayloadMetadataBatchSize, nil, nil, nil, nil, netflowExporters)
 		for _, payload := range metadataPayloads {
