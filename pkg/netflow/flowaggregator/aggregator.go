@@ -129,7 +129,7 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 	exporterMap := make(map[string]map[string]metadata.NetflowExporter)
 
 	// orderedExporterIDs is used to build predictable metadata payload (consistent batches and orders)
-	// orderedExporterIDs structure: map[NAMESPACE]EXPORTER_ID
+	// orderedExporterIDs structure: map[NAMESPACE][]EXPORTER_ID
 	orderedExporterIDs := make(map[string][]string)
 
 	for _, flow := range flows {
@@ -138,7 +138,7 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 			log.Errorf("Invalid exporter Addr: %s", exporterIpAddress)
 			continue
 		}
-		exporterID := flow.Namespace + ":" + exporterIpAddress
+		exporterID := flow.Namespace + ":" + exporterIpAddress + ":" + string(flow.FlowType)
 		if _, ok := exporterMap[flow.Namespace]; !ok {
 			exporterMap[flow.Namespace] = make(map[string]metadata.NetflowExporter)
 		}
@@ -153,10 +153,10 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 		}
 		orderedExporterIDs[flow.Namespace] = append(orderedExporterIDs[flow.Namespace], exporterID)
 	}
-	for namespace, ips := range orderedExporterIDs {
+	for namespace, ids := range orderedExporterIDs {
 		var netflowExporters []metadata.NetflowExporter
-		for _, exporterIp := range ips {
-			netflowExporters = append(netflowExporters, exporterMap[namespace][exporterIp])
+		for _, exporterId := range ids {
+			netflowExporters = append(netflowExporters, exporterMap[namespace][exporterId])
 		}
 		metadataPayloads := metadata.BatchPayloads(namespace, "", flushTime, metadata.PayloadMetadataBatchSize, nil, nil, nil, nil, netflowExporters)
 		for _, payload := range metadataPayloads {
