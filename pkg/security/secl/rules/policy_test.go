@@ -71,7 +71,7 @@ func TestMacroMerge(t *testing.T) {
 	}
 	loader := NewPolicyLoader(provider)
 
-	evaluationSet := newEvaluationSet()
+	evaluationSet, _ := newEvaluationSet()
 	if errs := evaluationSet.LoadPolicies(loader, PolicyLoaderOpts{}); errs.ErrorOrNil() != nil {
 		t.Error(err)
 	}
@@ -124,7 +124,7 @@ func TestRuleMerge(t *testing.T) {
 	}
 	loader := NewPolicyLoader(provider)
 
-	evaluationSet := newEvaluationSet()
+	evaluationSet, _ := newEvaluationSet()
 	if errs := evaluationSet.LoadPolicies(loader, PolicyLoaderOpts{}); errs.ErrorOrNil() != nil {
 		t.Error(err)
 	}
@@ -242,7 +242,7 @@ func TestActionSetVariable(t *testing.T) {
 	}
 	loader := NewPolicyLoader(provider)
 
-	evaluationSet := newEvaluationSet()
+	evaluationSet, _ := newEvaluationSet()
 	if errs := evaluationSet.LoadPolicies(loader, PolicyLoaderOpts{}); errs.ErrorOrNil() != nil {
 		t.Error(err)
 	}
@@ -308,7 +308,7 @@ func TestActionSetVariableConflict(t *testing.T) {
 	}
 	loader := NewPolicyLoader(provider)
 
-	evaluationSet := newEvaluationSet()
+	evaluationSet, _ := newEvaluationSet()
 	if errs := evaluationSet.LoadPolicies(loader, PolicyLoaderOpts{}); errs.ErrorOrNil() == nil {
 		t.Error("expected policy to fail to load")
 	}
@@ -328,7 +328,7 @@ func loadPolicy(t *testing.T, testPolicy *PolicyDef, policyOpts PolicyLoaderOpts
 
 	loader := NewPolicyLoader(provider)
 
-	evaluationSet := newEvaluationSet()
+	evaluationSet, _ := newEvaluationSet()
 	return evaluationSet.RuleSets[DefaultRuleSetTagValue], evaluationSet.LoadPolicies(loader, policyOpts)
 }
 

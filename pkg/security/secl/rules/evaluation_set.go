@@ -6,6 +6,7 @@
 package rules
 
 import (
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/hashicorp/go-multierror"
@@ -16,16 +17,22 @@ type EvaluationSet struct {
 }
 
 // NewEvaluationSet returns a new policy set for the specified data model
-func NewEvaluationSet(ruleSetsToInclude []*RuleSet) *EvaluationSet {
+func NewEvaluationSet(ruleSetsToInclude []*RuleSet) (*EvaluationSet, error) {
 	ruleSets := make(map[string]*RuleSet)
+
+	if len(ruleSetsToInclude) == 0 {
+		return nil, fmt.Errorf("no rule sets provided to include in an evaluation set")
+	}
 
 	for _, ruleSet := range ruleSetsToInclude {
 		if ruleSet != nil {
 			ruleSets[ruleSet.GetRuleSetTag()] = ruleSet
+		} else {
+			return nil, fmt.Errorf("nil rule set with tag value %s provided include in an evaluation set", ruleSet.GetRuleSetTag())
 		}
 	}
 
-	return &EvaluationSet{RuleSets: ruleSets}
+	return &EvaluationSet{RuleSets: ruleSets}, nil
 }
 
 // GetPolicies returns the policies

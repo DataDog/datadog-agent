@@ -342,7 +342,10 @@ func (c *CWSConsumer) LoadPolicies(policyProviders []rules.PolicyProvider, sendL
 	// load policies
 	c.policyLoader.SetProviders(policyProviders)
 
-	evaluationSet := c.probe.NewEvaluationSet(c.getEventTypeEnabled(), []string{ProbeEvaluationRuleSetTagValue, ThreatScoreRuleSetTagValue})
+	evaluationSet, err := c.probe.NewEvaluationSet(c.getEventTypeEnabled(), []string{ProbeEvaluationRuleSetTagValue, ThreatScoreRuleSetTagValue})
+	if err != nil {
+		return err
+	}
 
 	loadErrs := evaluationSet.LoadPolicies(c.policyLoader, c.policyOpts)
 	if loadErrs.ErrorOrNil() != nil {

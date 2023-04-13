@@ -85,7 +85,7 @@ func newRuleSet() *RuleSet {
 	return NewRuleSet(&model.Model{}, model.NewDefaultEvent, ruleOpts, evalOpts)
 }
 
-func newEvaluationSet() *EvaluationSet {
+func newEvaluationSet() (*EvaluationSet, error) {
 	rs := newRuleSet()
 	return NewEvaluationSet([]*RuleSet{rs})
 }
