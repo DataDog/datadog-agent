@@ -62,12 +62,12 @@ func (c *collector) Pull(ctx context.Context) error {
 		return err
 	}
 
-	c.store.Notify(c.parseTask(ctx, task))
+	c.store.Notify(c.parseTask(task))
 
 	return nil
 }
 
-func (c *collector) parseTask(ctx context.Context, task *v2.Task) []workloadmeta.CollectorEvent {
+func (c *collector) parseTask(task *v2.Task) []workloadmeta.CollectorEvent {
 	events := []workloadmeta.CollectorEvent{}
 	seen := make(map[workloadmeta.EntityID]struct{})
 
@@ -158,7 +158,8 @@ func (c *collector) parseTaskContainers(
 
 		seen[entityID] = struct{}{}
 
-		image, err := workloadmeta.NewContainerImage(container.Image)
+		image, err := workloadmeta.NewContainerImage(container.ImageID, container.Image)
+
 		if err != nil {
 			log.Debugf("cannot split image name %q: %s", container.Image, err)
 		}

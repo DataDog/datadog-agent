@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
 // ensureKeys takes 2 maps, expect and result, and ensures that the set of keys in expect and
@@ -244,17 +243,18 @@ func TestInfoHandler(t *testing.T) {
 			Host:    "https://target-intake.datadoghq.com",
 			NoProxy: true,
 		}},
-		BucketInterval:   time.Second,
-		ExtraAggregators: []string{"agg:val"},
-		ExtraSampleRate:  2.4,
-		TargetTPS:        11,
-		MaxEPS:           12,
-		ReceiverHost:     "localhost",
-		ReceiverPort:     8111,
-		ReceiverSocket:   "/sock/path",
-		ConnectionLimit:  12,
-		ReceiverTimeout:  100,
-		MaxRequestBytes:  123,
+		BucketInterval:         time.Second,
+		ExtraAggregators:       []string{"agg:val"},
+		PeerServiceAggregation: true,
+		ExtraSampleRate:        2.4,
+		TargetTPS:              11,
+		MaxEPS:                 12,
+		ReceiverHost:           "localhost",
+		ReceiverPort:           8111,
+		ReceiverSocket:         "/sock/path",
+		ConnectionLimit:        12,
+		ReceiverTimeout:        100,
+		MaxRequestBytes:        123,
 		StatsWriter: &config.WriterConfig{
 			ConnectionLimit:    20,
 			QueueSize:          12,
@@ -290,6 +290,7 @@ func TestInfoHandler(t *testing.T) {
 				},
 			},
 		},
+		Features: map[string]struct{}{"feature_flag": {}},
 	}
 
 	expectedKeys := map[string]interface{}{
@@ -330,7 +331,6 @@ func TestInfoHandler(t *testing.T) {
 	}
 
 	rcv := newTestReceiverFromConfig(conf)
-	defer testutil.WithFeatures("feature_flag")()
 	_, h := rcv.makeInfoHandler()
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/info", nil)

@@ -9,20 +9,27 @@ import (
 	"fmt"
 	"time"
 
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
 // NewProcessDiscoveryCheck returns an instance of the ProcessDiscoveryCheck.
-func NewProcessDiscoveryCheck() Check {
-	return &ProcessDiscoveryCheck{}
+func NewProcessDiscoveryCheck(config ddconfig.ConfigReader) *ProcessDiscoveryCheck {
+	return &ProcessDiscoveryCheck{
+		config: config,
+	}
 }
 
 // ProcessDiscoveryCheck is a check that gathers basic process metadata.
 // It uses its own ProcessDiscovery payload.
 // The goal of this check is to collect information about possible integrations that may be enabled by the end user.
 type ProcessDiscoveryCheck struct {
+	config ddconfig.ConfigReader
+
 	probe      procutil.Probe
 	info       *HostInfo
 	initCalled bool
@@ -34,16 +41,25 @@ type ProcessDiscoveryCheck struct {
 func (d *ProcessDiscoveryCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
 	d.info = info
 	d.initCalled = true
-	d.probe = newProcessProbe(procutil.WithPermission(syscfg.ProcessModuleEnabled))
+	d.probe = newProcessProbe(d.config, procutil.WithPermission(syscfg.ProcessModuleEnabled))
 
-	d.maxBatchSize = getMaxBatchSize()
+	d.maxBatchSize = getMaxBatchSize(d.config)
 	return nil
 }
 
 // IsEnabled returns true if the check is enabled by configuration
 func (d *ProcessDiscoveryCheck) IsEnabled() bool {
-	// TODO - move config check logic here
-	return true
+	// The Process and Process Discovery checks are mutually exclusive
+	if d.config.GetBool("process_config.process_collection.enabled") {
+		return false
+	}
+
+	if ddconfig.IsECSFargate() {
+		log.Debug("Process discovery is not supported on ECS Fargate")
+		return false
+	}
+
+	return d.config.GetBool("process_config.process_discovery.enabled")
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions

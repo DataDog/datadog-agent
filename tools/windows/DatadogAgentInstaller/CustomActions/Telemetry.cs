@@ -3,6 +3,7 @@ using Microsoft.Deployment.WindowsInstaller;
 using System.Collections.Generic;
 using System.Reflection;
 using Datadog.CustomActions.Extensions;
+using Datadog.CustomActions.Interfaces;
 
 namespace Datadog.CustomActions
 {
@@ -29,6 +30,11 @@ namespace Datadog.CustomActions
         public void ReportTelemetry(string eventName)
         {
             var apikey = _session.Property("APIKEY");
+            if (string.IsNullOrEmpty(apikey))
+            {
+                _session.Log("API key empty, not reporting telemetry");
+                return;
+            }
             var site = _session.Property("SITE");
             if (string.IsNullOrEmpty(site))
             {
@@ -68,7 +74,8 @@ namespace Datadog.CustomActions
             }
             catch (Exception e)
             {
-                session.Log($"Error sending telemetry: {e}");
+                // No need for full stack trace here.
+                session.Log($"Error sending telemetry: {e.Message}");
                 return ActionResult.Failure;
             }
             return ActionResult.Success;

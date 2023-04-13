@@ -6,6 +6,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"os/signal"
 	"strconv"
@@ -116,6 +117,21 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	outputDatadogEnvVariablesForDebugging()
 
+	if !hasApiKey() {
+		log.Errorf("Can't start the Datadog extension as no API has been detected")
+		// we still need to register the extension but let's return after (no-op)
+		id, registrationError := registration.RegisterExtension(os.Getenv(runtimeAPIEnvVar), extensionRegistrationRoute, extensionRegistrationTimeout)
+		if registrationError != nil {
+			log.Errorf("Can't register as a serverless agent: %s", registrationError)
+		}
+		ctx := context.Background()
+		processError := registration.NoOpProcessEvent(ctx, id)
+		if processError != nil {
+			log.Errorf("Can't process events: %s", processError)
+		}
+		return nil, nil
+	}
+
 	// immediately starts the communication server
 	serverlessDaemon = daemon.StartDaemon(httpServerAddr)
 	err = serverlessDaemon.ExecutionContext.RestoreCurrentStateFromFile()
@@ -186,7 +202,6 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		// we're not reporting the error to AWS because we don't want the function
 		// execution to be stopped. TODO(remy): discuss with AWS if there is way
 		// of reporting non-critical init errors.
-		// serverless.ReportInitError(serverlessID, serverless.FatalNoAPIKey)
 		log.Error("No API key configured")
 	}
 	config.Datadog.SetConfigFile(datadogConfigPath)
@@ -238,7 +253,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 			return
 		}
 		log.Debug("Enabling telemetry collection HTTP route")
-		logRegistrationURL := registration.BuildURL(os.Getenv(runtimeAPIEnvVar), logsAPIRegistrationRoute)
+		logRegistrationURL := registration.BuildURL(logsAPIRegistrationRoute)
 		logRegistrationError := registration.EnableTelemetryCollection(
 			registration.EnableTelemetryCollectionArgs{
 				ID:                  serverlessID,
@@ -261,15 +276,20 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	// start appsec
 	var (
-		appsecSubProcessor   *httpsec.InvocationSubProcessor
+		appsecSubProcessor   invocationlifecycle.InvocationSubProcessor
 		appsecProxyProcessor *httpsec.ProxyLifecycleProcessor
 	)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		appsecSubProcessor, appsecProxyProcessor, err = appsec.New()
+		subProcessor, proxySubProcessor, err := appsec.New()
 		if err != nil {
 			log.Error("appsec: could not start: ", err)
+		}
+		if subProcessor != nil {
+			appsecSubProcessor = subProcessor
+		} else if proxySubProcessor != nil {
+			appsecProxyProcessor = proxySubProcessor
 		}
 	}()
 

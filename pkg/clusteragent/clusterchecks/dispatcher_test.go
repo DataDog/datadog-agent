@@ -431,6 +431,8 @@ func TestReset(t *testing.T) {
 }
 
 func TestPatchConfiguration(t *testing.T) {
+	config.SetFeatures(t, config.Kubernetes)
+
 	checkConfig := integration.Config{
 		Name:          "test",
 		ADIdentifiers: []string{"redis"},
@@ -467,6 +469,8 @@ func TestPatchConfiguration(t *testing.T) {
 }
 
 func TestPatchEndpointsConfiguration(t *testing.T) {
+	config.SetFeatures(t, config.Kubernetes)
+
 	checkConfig := integration.Config{
 		Name:          "test",
 		ADIdentifiers: []string{"redis"},
@@ -498,6 +502,8 @@ func TestPatchEndpointsConfiguration(t *testing.T) {
 }
 
 func TestExtraTags(t *testing.T) {
+	config.SetFeatures(t, config.Kubernetes)
+
 	for _, tc := range []struct {
 		extraTagsConfig   []string
 		clusterNameConfig string

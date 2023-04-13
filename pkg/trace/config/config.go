@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
@@ -69,9 +68,11 @@ type OTLP struct {
 	MaxRequestBytes int64 `mapstructure:"-"`
 
 	// UsePreviewHostnameLogic specifies wether to use the 'preview' OpenTelemetry attributes to hostname rules,
-	// controlled in the Datadog exporter by the `exporter.datadog.hostname.preview` feature flag.
+	// controlled in the Datadog exporter by the `exporter.datadog.hostname.preview` feature gate.
 	// The 'preview' rules change the canonical hostname chosen in cloud providers to be consistent with the
 	// one sent by Datadog cloud integrations.
+	//
+	// Deprecated: Field UsePreviewHostnameLogic is not used.
 	UsePreviewHostnameLogic bool `mapstructure:"-"`
 
 	// ProbabilisticSampling specifies the percentage of traces to ingest. Exceptions are made for errors
@@ -117,14 +118,14 @@ type ObfuscationConfig struct {
 }
 
 // Export returns an obfuscate.Config matching o.
-func (o *ObfuscationConfig) Export() obfuscate.Config {
+func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 	return obfuscate.Config{
 		SQL: obfuscate.SQLConfig{
-			TableNames:       features.Has("table_names"),
-			ReplaceDigits:    features.Has("quantize_sql_tables") || features.Has("replace_sql_digits"),
-			KeepSQLAlias:     features.Has("keep_sql_alias"),
-			DollarQuotedFunc: features.Has("dollar_quoted_func"),
-			Cache:            features.Has("sql_cache"),
+			TableNames:       conf.HasFeature("table_names"),
+			ReplaceDigits:    conf.HasFeature("quantize_sql_tables") || conf.HasFeature("replace_sql_digits"),
+			KeepSQLAlias:     conf.HasFeature("keep_sql_alias"),
+			DollarQuotedFunc: conf.HasFeature("dollar_quoted_func"),
+			Cache:            conf.HasFeature("sql_cache"),
 		},
 		ES: obfuscate.JSONConfig{
 			Enabled:            o.ES.Enabled,
@@ -282,6 +283,18 @@ type DebuggerProxyConfig struct {
 	DDURL string
 	// APIKey ...
 	APIKey string `json:"-"` // Never marshal this field
+	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
+	AdditionalEndpoints map[string][]string `json:"-"` // Never marshal this field
+}
+
+// SymDBProxyConfig ...
+type SymDBProxyConfig struct {
+	// DDURL ...
+	DDURL string
+	// APIKey ...
+	APIKey string `json:"-"` // Never marshal this field
+	// AdditionalEndpoints is a map of additional Datadog endpoints to API keys.
+	AdditionalEndpoints map[string][]string `json:"-"` // Never marshal this field
 }
 
 // AgentConfig handles the interpretation of the configuration (with default
@@ -290,6 +303,8 @@ type DebuggerProxyConfig struct {
 // It is exposed with expvar, so make sure to exclude any sensible field
 // from JSON encoding. Use New() to create an instance.
 type AgentConfig struct {
+	Features map[string]struct{}
+
 	Enabled      bool
 	AgentVersion string
 	GitCommit    string
@@ -310,8 +325,10 @@ type AgentConfig struct {
 	Endpoints []*Endpoint
 
 	// Concentrator
-	BucketInterval   time.Duration // the size of our pre-aggregation per bucket
-	ExtraAggregators []string
+	BucketInterval         time.Duration // the size of our pre-aggregation per bucket
+	ExtraAggregators       []string      // DEPRECATED
+	PeerServiceAggregation bool          // enables/disables stats aggregation for peer.service, used by Concentrator and ClientStatsAggregator
+	ComputeStatsBySpanKind bool          // enables/disables the computing of stats based on a span's `span.kind` field
 
 	// Sampler configuration
 	ExtraSampleRate float64
@@ -386,6 +403,9 @@ type AgentConfig struct {
 	// Obfuscation holds sensitive data obufscator's configuration.
 	Obfuscation *ObfuscationConfig
 
+	// MaxResourceLen the maximum length the resource can have
+	MaxResourceLen int
+
 	// RequireTags specifies a list of tags which must be present on the root span in order for a trace to be accepted.
 	RequireTags []*Tag
 
@@ -406,6 +426,9 @@ type AgentConfig struct {
 
 	// DebuggerProxy contains the settings for the Live Debugger proxy.
 	DebuggerProxy DebuggerProxyConfig
+
+	// SymDBProxy contains the settings for the Symbol Database proxy.
+	SymDBProxy SymDBProxyConfig
 
 	// Proxy specifies a function to return a proxy for a given Request.
 	// See (net/http.Transport).Proxy for more details.
@@ -492,6 +515,7 @@ func New() *AgentConfig {
 		AnalyzedRateByServiceLegacy: make(map[string]float64),
 		AnalyzedSpansByService:      make(map[string]map[string]float64),
 		Obfuscation:                 &ObfuscationConfig{},
+		MaxResourceLen:              5000,
 
 		GlobalTags: make(map[string]string),
 
@@ -507,6 +531,8 @@ func New() *AgentConfig {
 		},
 
 		InAzureAppServices: inAzureAppServices(os.Getenv),
+
+		Features: make(map[string]struct{}),
 	}
 }
 
@@ -551,6 +577,19 @@ func (c *AgentConfig) NewHTTPTransport() *http.Transport {
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 	return transport
+}
+
+func (c *AgentConfig) HasFeature(feat string) bool {
+	_, ok := c.Features[feat]
+	return ok
+}
+
+func (c *AgentConfig) AllFeatures() []string {
+	feats := []string{}
+	for feat := range c.Features {
+		feats = append(feats, feat)
+	}
+	return feats
 }
 
 func inAzureAppServices(getenv func(string) string) bool {

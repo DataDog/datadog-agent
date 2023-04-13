@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
@@ -91,6 +92,9 @@ type APIClient struct {
 
 	// Cl holds the main kubernetes client
 	Cl kubernetes.Interface
+
+	// CRDClient holds the extension kubernetes client
+	CRDClient clientset.Interface
 
 	// DynamicCl holds a dynamic kubernetes client
 	DynamicCl dynamic.Interface
@@ -191,6 +195,9 @@ func getClientConfig(timeout time.Duration) (*rest.Config, error) {
 	}
 
 	clientConfig.Timeout = timeout
+	clientConfig.Wrap(func(rt http.RoundTripper) http.RoundTripper {
+		return NewCustomRoundTripper(rt)
+	})
 
 	return clientConfig, nil
 }
@@ -328,6 +335,12 @@ func (c *APIClient) connect() error {
 	c.VPAClient, err = getKubeVPAClient(time.Duration(c.timeoutSeconds) * time.Second)
 	if err != nil {
 		log.Infof("Could not get apiserver vpa client: %v", err)
+		return err
+	}
+
+	c.CRDClient, err = getCRDClient(time.Duration(c.timeoutSeconds) * time.Second)
+	if err != nil {
+		log.Infof("Could not get apiserver CRDClient client: %v", err)
 		return err
 	}
 

@@ -86,11 +86,11 @@ func TestGetExternalMetrics(t *testing.T) {
 			storeContent: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "ns/metric0",
-						UpdateTime: defaultUpdateTime,
-						Valid:      true,
-						Error:      nil,
-						Value:      42.0,
+						ID:       "ns/metric0",
+						DataTime: defaultUpdateTime,
+						Valid:    true,
+						Error:    nil,
+						Value:    42.0,
 					},
 					query: "query-metric0",
 				},
@@ -110,11 +110,11 @@ func TestGetExternalMetrics(t *testing.T) {
 			storeContent: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "ns/metric0",
-						UpdateTime: defaultUpdateTime,
-						Valid:      false,
-						Error:      fmt.Errorf("Some error"),
-						Value:      42.0,
+						ID:       "ns/metric0",
+						DataTime: defaultUpdateTime,
+						Valid:    false,
+						Error:    fmt.Errorf("Some error"),
+						Value:    42.0,
 					},
 					query: "query-metric0",
 				},
@@ -128,11 +128,11 @@ func TestGetExternalMetrics(t *testing.T) {
 			storeContent: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "ns/metric0",
-						UpdateTime: defaultUpdateTime,
-						Valid:      true,
-						Error:      nil,
-						Value:      42.0,
+						ID:       "ns/metric0",
+						DataTime: defaultUpdateTime,
+						Valid:    true,
+						Error:    nil,
+						Value:    42.0,
 					},
 					query: "query-metric0",
 				},
@@ -146,11 +146,11 @@ func TestGetExternalMetrics(t *testing.T) {
 			storeContent: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "ns/metric0",
-						UpdateTime: defaultUpdateTime,
-						Valid:      true,
-						Error:      nil,
-						Value:      42.0,
+						ID:       "ns/metric0",
+						DataTime: defaultUpdateTime,
+						Valid:    true,
+						Error:    nil,
+						Value:    42.0,
 					},
 					query: "query-metric0",
 				},
@@ -164,11 +164,11 @@ func TestGetExternalMetrics(t *testing.T) {
 			storeContent: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "ns/metric0",
-						UpdateTime: defaultUpdateTime,
-						Valid:      true,
-						Error:      nil,
-						Value:      42.0,
+						ID:       "ns/metric0",
+						DataTime: defaultUpdateTime,
+						Valid:    true,
+						Error:    nil,
+						Value:    42.0,
 					},
 					query: "query-metric0",
 				},
@@ -182,11 +182,11 @@ func TestGetExternalMetrics(t *testing.T) {
 			storeContent: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "ns/metric0",
-						UpdateTime: defaultUpdateTime,
-						Valid:      true,
-						Error:      nil,
-						Value:      42.0,
+						ID:       "ns/metric0",
+						DataTime: defaultUpdateTime,
+						Valid:    true,
+						Error:    nil,
+						Value:    42.0,
 					},
 					query: "query-metric0",
 				},
@@ -209,37 +209,39 @@ func TestListAllExternalMetrics(t *testing.T) {
 
 	fixtures := []providerFixture{
 		{
-			desc:                       "Test no metrics in store",
-			storeContent:               []ddmWithQuery{},
-			expectedExternalMetricInfo: []provider.ExternalMetricInfo{},
+			desc:         "Test no metrics in store (send fake metric back)",
+			storeContent: []ddmWithQuery{},
+			expectedExternalMetricInfo: []provider.ExternalMetricInfo{
+				fakeExternalMetric,
+			},
 		},
 		{
 			desc: "Test with metrics in store",
 			storeContent: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "ns/metric0",
-						UpdateTime: defaultUpdateTime,
-						Valid:      true,
-						Error:      nil,
-						Value:      42.0,
+						ID:       "ns/metric0",
+						DataTime: defaultUpdateTime,
+						Valid:    true,
+						Error:    nil,
+						Value:    42.0,
 					},
 					query: "query-metric0",
 				},
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "ns/metric1",
-						UpdateTime: defaultUpdateTime,
-						Valid:      false,
-						Error:      nil,
-						Value:      42.0,
+						ID:       "ns/metric1",
+						DataTime: defaultUpdateTime,
+						Valid:    false,
+						Error:    nil,
+						Value:    42.0,
 					},
 					query: "query-metric1",
 				},
 				{
 					ddm: model.DatadogMetricInternal{
 						ID:                 "autogen-foo",
-						UpdateTime:         defaultUpdateTime,
+						DataTime:           defaultUpdateTime,
 						ExternalMetricName: "metric2",
 						Autogen:            true,
 						Valid:              false,
@@ -251,7 +253,7 @@ func TestListAllExternalMetrics(t *testing.T) {
 				{
 					ddm: model.DatadogMetricInternal{
 						ID:                 "autogen-bar",
-						UpdateTime:         defaultUpdateTime,
+						DataTime:           defaultUpdateTime,
 						ExternalMetricName: "metric2",
 						Autogen:            true,
 						Valid:              false,

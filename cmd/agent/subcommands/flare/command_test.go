@@ -37,7 +37,7 @@ func TestReadProfileData(t *testing.T) {
 	mockConfig := config.Mock(t)
 	mockConfig.Set("expvar_port", "1001")
 	mockConfig.Set("apm_config.enabled", true)
-	mockConfig.Set("apm_config.receiver_port", "1002")
+	mockConfig.Set("apm_config.debug.port", "1002")
 	mockConfig.Set("apm_config.receiver_timeout", "10")
 	mockConfig.Set("process_config.expvar_port", "1003")
 
@@ -78,7 +78,7 @@ func TestReadProfileDataErrors(t *testing.T) {
 	mockConfig := config.Mock(t)
 	mockConfig.Set("expvar_port", "1001")
 	mockConfig.Set("apm_config.enabled", true)
-	mockConfig.Set("apm_config.receiver_port", "1002")
+	mockConfig.Set("apm_config.debug.port", "1002")
 	mockConfig.Set("apm_config.receiver_timeout", "10")
 	mockConfig.Set("process_config.expvar_port", "1003")
 

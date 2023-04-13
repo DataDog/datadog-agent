@@ -20,24 +20,27 @@ type event interface {
 	withSource(string)
 	withContainerExitCode(*int32)
 	withContainerExitTimestamp(*int64)
-	toPayloadModel() (model.EventsPayload, error)
+	withPodExitTimestamp(*int64)
+	withOwnerType(string)
+	withOwnerID(string)
+	toPayloadModel() (*model.EventsPayload, error)
 	toEventModel() (*model.Event, error)
 }
 
 type eventTransformer struct {
-	tpl          model.EventsPayload
 	objectKind   string
 	objectID     string
 	eventType    string
 	source       string
 	contExitCode *int32
 	contExitTS   *int64
+	podExitTS    *int64
+	ownerType    string
+	ownerID      string
 }
 
 func newEvent() event {
-	return &eventTransformer{
-		tpl: model.EventsPayload{Version: types.PayloadV1},
-	}
+	return &eventTransformer{}
 }
 
 func (e *eventTransformer) withObjectKind(kind string) {
@@ -64,18 +67,30 @@ func (e *eventTransformer) withContainerExitTimestamp(exitTS *int64) {
 	e.contExitTS = exitTS
 }
 
-func (e *eventTransformer) toPayloadModel() (model.EventsPayload, error) {
-	payload := e.tpl
-	kind, err := e.kind()
+func (e *eventTransformer) withPodExitTimestamp(exitTS *int64) {
+	e.podExitTS = exitTS
+}
+
+func (e *eventTransformer) withOwnerType(t string) {
+	e.ownerType = t
+}
+
+func (e *eventTransformer) withOwnerID(id string) {
+	e.ownerID = id
+}
+
+func (e *eventTransformer) toPayloadModel() (*model.EventsPayload, error) {
+	payload := &model.EventsPayload{Version: types.PayloadV1}
+	kind, err := e.kind(e.objectKind)
 	if err != nil {
-		return model.EventsPayload{}, err
+		return nil, err
 	}
 
 	payload.ObjectKind = kind
 
 	event, err := e.toEventModel()
 	if err != nil {
-		return model.EventsPayload{}, err
+		return nil, err
 	}
 
 	payload.Events = []*model.Event{event}
@@ -108,11 +123,24 @@ func (e *eventTransformer) toEventModel() (*model.Event, error) {
 			container.OptionalExitTimestamp = &model.ContainerEvent_ExitTimestamp{ExitTimestamp: *e.contExitTS}
 		}
 
+		if e.ownerID != "" && e.ownerType != "" {
+			if ownerType, err := e.kind(e.ownerType); err == nil {
+				container.Owner = &model.ContainerEvent_Owner{
+					OwnerType: ownerType,
+					OwnerUID:  e.ownerID,
+				}
+			}
+		}
+
 		event.TypedEvent = &model.Event_Container{Container: container}
 	case types.ObjectKindPod:
 		pod := &model.PodEvent{
 			PodUID: e.objectID,
 			Source: e.source,
+		}
+
+		if e.podExitTS != nil {
+			pod.ExitTimestamp = e.podExitTS
 		}
 
 		event.TypedEvent = &model.Event_Pod{Pod: pod}
@@ -132,12 +160,12 @@ func (e *eventTransformer) evType() (model.Event_EventType, error) {
 	}
 }
 
-func (e *eventTransformer) kind() (model.EventsPayload_ObjectKind, error) {
-	switch e.objectKind {
+func (e *eventTransformer) kind(kind string) (model.ObjectKind, error) {
+	switch kind {
 	case types.ObjectKindContainer:
-		return model.EventsPayload_Container, nil
+		return model.ObjectKind_Container, nil
 	case types.ObjectKindPod:
-		return model.EventsPayload_Pod, nil
+		return model.ObjectKind_Pod, nil
 	default:
 		return -1, fmt.Errorf("unknown object kind %q", e.objectKind)
 	}

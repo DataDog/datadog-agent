@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -24,7 +23,6 @@ import (
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 )
 
 func TestMain(m *testing.M) {
@@ -326,10 +324,7 @@ func TestConfigHostname(t *testing.T) {
 		})
 
 		t.Run("empty+disallowed", func(t *testing.T) {
-			features.Set("disable_empty_hostname")
-			defer func() { features.Set(os.Getenv("DD_APM_FEATURES")) }()
-
-			cfg := config.AgentConfig{DDAgentBin: makeProgram("", 0)}
+			cfg := config.AgentConfig{DDAgentBin: makeProgram("", 0), Features: map[string]struct{}{"disable_empty_hostname": {}}}
 			defer os.Remove(cfg.DDAgentBin)
 			assert.NoError(t, acquireHostnameFallback(&cfg))
 			assert.Equal(t, "fallback.host", cfg.Hostname)
@@ -356,11 +351,11 @@ func TestSite(t *testing.T) {
 		file string
 		url  string
 	}{
-		"default":  {"./testdata/site_default.yaml", "https://trace.agent.datadoghq.com"},
-		"eu":       {"./testdata/site_eu.yaml", "https://trace.agent.datadoghq.eu"},
-		"url":      {"./testdata/site_url.yaml", "some.other.datadoghq.eu"},
-		"override": {"./testdata/site_override.yaml", "some.other.datadoghq.eu"},
-		"vector":   {"./testdata/vector_override.yaml", "https://vector.domain.tld:8443"},
+		"default":                        {"./testdata/site_default.yaml", "https://trace.agent.datadoghq.com"},
+		"eu":                             {"./testdata/site_eu.yaml", "https://trace.agent.datadoghq.eu"},
+		"url":                            {"./testdata/site_url.yaml", "some.other.datadoghq.eu"},
+		"override":                       {"./testdata/site_override.yaml", "some.other.datadoghq.eu"},
+		"observability_pipelines_worker": {"./testdata/observability_pipelines_worker_override.yaml", "https://observability_pipelines_worker.domain.tld:8443"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			defer cleanConfig()()
@@ -976,6 +971,60 @@ func TestLoadEnv(t *testing.T) {
 		assert.Equal("my-key", coreconfig.Datadog.GetString("apm_config.debugger_api_key"))
 	})
 
+	env = "DD_APM_DEBUGGER_ADDITIONAL_ENDPOINTS"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, `{"url1": ["key1", "key2"], "url2": ["key3"]}`)
+		_, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		expected := map[string][]string{
+			"url1": {"key1", "key2"},
+			"url2": {"key3"},
+		}
+		actual := coreconfig.Datadog.GetStringMapStringSlice(("apm_config.debugger_additional_endpoints"))
+		if !reflect.DeepEqual(actual, expected) {
+			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
+		}
+	})
+
+	env = "DD_APM_SYMDB_DD_URL"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, "my-site.com")
+		_, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.Equal("my-site.com", coreconfig.Datadog.GetString("apm_config.symdb_dd_url"))
+	})
+
+	env = "DD_APM_SYMDB_API_KEY"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, "my-key")
+		_, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.Equal("my-key", coreconfig.Datadog.GetString("apm_config.symdb_api_key"))
+	})
+
+	env = "DD_APM_SYMDB_ADDITIONAL_ENDPOINTS"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, `{"url1": ["key1", "key2"], "url2": ["key3"]}`)
+		_, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		expected := map[string][]string{
+			"url1": {"key1", "key2"},
+			"url2": {"key3"},
+		}
+		actual := coreconfig.Datadog.GetStringMapStringSlice(("apm_config.symdb_additional_endpoints"))
+		if !reflect.DeepEqual(actual, expected) {
+			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
+		}
+	})
+
 	env = "DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED"
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
@@ -1017,42 +1066,30 @@ func TestLoadEnv(t *testing.T) {
 func TestFargateConfig(t *testing.T) {
 	assert := assert.New(t)
 	type testData struct {
-		name         string
-		envKey       string
-		envValue     string
-		orchestrator config.FargateOrchestratorName
+		features             []coreconfig.Feature
+		expectedOrchestrator config.FargateOrchestratorName
 	}
 	for _, data := range []testData{
 		{
-			name:         "ecs_fargate",
-			envKey:       "ECS_FARGATE",
-			envValue:     "true",
-			orchestrator: config.OrchestratorECS,
+			features:             []coreconfig.Feature{coreconfig.ECSFargate},
+			expectedOrchestrator: config.OrchestratorECS,
 		},
 		{
-			name:         "eks_fargate",
-			envKey:       "DD_EKS_FARGATE",
-			envValue:     "true",
-			orchestrator: config.OrchestratorEKS,
+			features:             []coreconfig.Feature{coreconfig.EKSFargate},
+			expectedOrchestrator: config.OrchestratorEKS,
 		},
 		{
-			name:         "unknown",
-			envKey:       "ECS_FARGATE",
-			envValue:     "",
-			orchestrator: config.OrchestratorUnknown,
+			features:             []coreconfig.Feature{},
+			expectedOrchestrator: config.OrchestratorUnknown,
 		},
 	} {
 		t.Run("", func(t *testing.T) {
 			defer cleanConfig()()
-			t.Setenv(data.envKey, data.envValue)
+			coreconfig.SetFeatures(t, data.features...)
 			cfg, err := LoadConfigFile("./testdata/no_apm_config.yaml")
 			assert.NoError(err)
 
-			if runtime.GOOS == "darwin" {
-				assert.Equal(config.OrchestratorUnknown, cfg.FargateOrchestrator)
-			} else {
-				assert.Equal(data.orchestrator, cfg.FargateOrchestrator)
-			}
+			assert.Equal(data.expectedOrchestrator, cfg.FargateOrchestrator)
 		})
 	}
 }
@@ -1096,5 +1133,49 @@ func TestSetMaxMemCPU(t *testing.T) {
 		setMaxMemCPU(c, true)
 		assert.Equal(t, 0.3, c.MaxCPU)
 		assert.Equal(t, 300.0, c.MaxMemory)
+	})
+}
+
+func TestPeerServiceAggregation(t *testing.T) {
+	t.Run("disabled", func(t *testing.T) {
+		defer cleanConfig()
+		cfg := config.New()
+		err := applyDatadogConfig(cfg)
+
+		assert := assert.New(t)
+		assert.NoError(err)
+		assert.False(cfg.PeerServiceAggregation)
+	})
+	t.Run("enabled", func(t *testing.T) {
+		defer cleanConfig()
+		coreconfig.Datadog.Set("apm_config.peer_service_aggregation", true)
+		cfg := config.New()
+		err := applyDatadogConfig(cfg)
+
+		assert := assert.New(t)
+		assert.NoError(err)
+		assert.True(cfg.PeerServiceAggregation)
+	})
+}
+
+func TestComputeStatsBySpanKind(t *testing.T) {
+	t.Run("disabled", func(t *testing.T) {
+		defer cleanConfig()
+		cfg := config.New()
+		err := applyDatadogConfig(cfg)
+
+		assert := assert.New(t)
+		assert.NoError(err)
+		assert.False(cfg.ComputeStatsBySpanKind)
+	})
+	t.Run("enabled", func(t *testing.T) {
+		defer cleanConfig()
+		coreconfig.Datadog.Set("apm_config.compute_stats_by_span_kind", true)
+		cfg := config.New()
+		err := applyDatadogConfig(cfg)
+
+		assert := assert.New(t)
+		assert.NoError(err)
+		assert.True(cfg.ComputeStatsBySpanKind)
 	})
 }

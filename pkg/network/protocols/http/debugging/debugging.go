@@ -74,7 +74,6 @@ func HTTP(stats map[http.Key]*http.RequestStats, dns map[util.Address][]dns.Host
 
 		all = append(all, debug)
 	}
-
 	return all
 }
 

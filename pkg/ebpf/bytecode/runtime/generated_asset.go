@@ -10,6 +10,7 @@ package runtime
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -65,14 +66,28 @@ func (a *generatedAsset) Compile(config *ebpf.Config, inputCode string, addition
 
 	outputDir := config.RuntimeCompilerOutputDir
 
-	inputReader := strings.NewReader(inputCode)
 	inputHash, err := sha256hex([]byte(inputCode))
 	if err != nil {
 		a.tm.compilationResult = inputHashError
 		return nil, fmt.Errorf("error hashing input: %w", err)
 	}
 
-	out, result, err := compileToObjectFile(inputReader, outputDir, a.filename, inputHash, additionalFlags, kernelHeaders)
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return nil, fmt.Errorf("unable to create compiler output directory %s: %w", outputDir, err)
+	}
+
+	inputReader := strings.NewReader(inputCode)
+	protectedFile, err := createProtectedFile(fmt.Sprintf("%s-%s", a.filename, inputHash), outputDir, inputReader)
+	if err != nil {
+		return nil, fmt.Errorf("error creating protected file: %w", err)
+	}
+	defer func() {
+		if err := protectedFile.Close(); err != nil {
+			log.Debugf("error closing protected file %s: %s", protectedFile.Name(), err)
+		}
+	}()
+
+	out, result, err := compileToObjectFile(protectedFile.Name(), outputDir, a.filename, inputHash, additionalFlags, kernelHeaders)
 	a.tm.compilationResult = result
 
 	return out, err

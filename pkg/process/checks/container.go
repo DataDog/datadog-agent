@@ -12,6 +12,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
@@ -23,13 +24,17 @@ const (
 )
 
 // NewContainerCheck returns an instance of the ContainerCheck.
-func NewContainerCheck() Check {
-	return &ContainerCheck{}
+func NewContainerCheck(config ddconfig.ConfigReader) *ContainerCheck {
+	return &ContainerCheck{
+		config: config,
+	}
 }
 
 // ContainerCheck is a check that returns container metadata and stats.
 type ContainerCheck struct {
 	sync.Mutex
+
+	config ddconfig.ConfigReader
 
 	hostInfo          *HostInfo
 	containerProvider util.ContainerProvider
@@ -53,14 +58,14 @@ func (c *ContainerCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
 	c.networkID = networkID
 
 	c.containerFailedLogLimit = util.NewLogLimit(10, time.Minute*10)
-	c.maxBatchSize = getMaxBatchSize()
+	c.maxBatchSize = getMaxBatchSize(c.config)
 	return nil
 }
 
 // IsEnabled returns true if the check is enabled by configuration
+// Keep in mind that ContainerRTCheck.IsEnabled should only be enabled if the `ContainerCheck` is enabled
 func (c *ContainerCheck) IsEnabled() bool {
-	// TODO - move config check logic here
-	return true
+	return canEnableContainerChecks(c.config, true)
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions

@@ -9,9 +9,12 @@
 package externalmetrics
 
 import (
+	"time"
+
 	corev1 "k8s.io/api/core/v1"
 
 	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
@@ -25,6 +28,15 @@ const (
 var (
 	ddmTelemetry = telemetry.NewGaugeWithOpts("external_metrics", "datadog_metrics",
 		[]string{"namespace", "name", "valid", le.JoinLeaderLabel}, "The label valid is true if the DatadogMetric CR is valid, false otherwise",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+
+	requestsTelemetry = telemetry.NewGaugeWithOpts("external_metrics", "api_requests",
+		[]string{"namespace", "handler", "in_error"}, "Count of API Requests received",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+
+	elapsedTelemetry = telemetry.NewHistogramWithOpts("external_metrics", "api_elapsed",
+		[]string{"namespace", "handler", "in_error"}, "Count of API Requests received",
+		prometheus.DefBuckets,
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 )
 
@@ -55,4 +67,15 @@ func isDatadogMetricValid(ddm *datadoghq.DatadogMetric) bool {
 	}
 
 	return false
+}
+
+func setQueryTelemtry(handler, namespace string, startTime time.Time, err error) {
+	// Handle telemtry
+	inErrror := "false"
+	if err != nil {
+		inErrror = "true"
+	}
+
+	requestsTelemetry.Inc(namespace, handler, inErrror)
+	elapsedTelemetry.Observe(float64(time.Since(startTime)), namespace, handler, inErrror)
 }

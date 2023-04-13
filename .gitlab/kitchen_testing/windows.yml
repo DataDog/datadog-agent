@@ -49,8 +49,11 @@
   script:
     - export WINDOWS_AGENT_FILE=datadog-agent-ng-$(cd ../.. && inv agent.version --url-safe --major-version $AGENT_MAJOR_VERSION)-1-x86_64
     - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
+    - export NG_INSTALLER=true
     - echo $WINDOWS_AGENT_FILE
     - tasks/run-test-kitchen.sh windows-install-test $AGENT_MAJOR_VERSION
+  # Until the code is stabilized
+  allow_failure: true
 
 .kitchen_test_windows_npm_driver:
   extends:

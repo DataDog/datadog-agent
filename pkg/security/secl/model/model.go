@@ -145,8 +145,54 @@ type ChownEvent struct {
 
 // ContainerContext holds the container context of an event
 type ContainerContext struct {
-	ID   string   `field:"id,handler:ResolveContainerID"`                              // SECLDoc[id] Definition:`ID of the container`
-	Tags []string `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
+	ID        string   `field:"id,handler:ResolveContainerID"`                              // SECLDoc[id] Definition:`ID of the container`
+	CreatedAt uint64   `field:"created_at,handler:ResolveContainerCreatedAt"`               // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
+	Tags      []string `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
+}
+
+type Status uint32
+
+const (
+	// AnomalyDetection will trigger alerts each time an event is not part of the profile
+	AnomalyDetection Status = 1 << iota
+	// AutoSuppression will suppress any signal to events present on the profile
+	AutoSuppression
+	// WorkloadHardening will kill the process that triggered anomaly detection
+	WorkloadHardening
+)
+
+func (s Status) IsEnabled(option Status) bool {
+	return (s & option) != 0
+}
+
+func (s Status) String() string {
+	var options []string
+	if s.IsEnabled(AnomalyDetection) {
+		options = append(options, "anomaly_detection")
+	}
+	if s.IsEnabled(AutoSuppression) {
+		options = append(options, "auto_suppression")
+	}
+	if s.IsEnabled(WorkloadHardening) {
+		options = append(options, "workload_hardening")
+	}
+
+	var res string
+	for _, option := range options {
+		if len(res) > 0 {
+			res += ","
+		}
+		res += option
+	}
+	return res
+}
+
+// SecurityProfileContext holds the security context of the profile
+type SecurityProfileContext struct {
+	Name    string   `field:"name"`    // SECLDoc[name] Definition:`Name of the security profile`
+	Status  Status   `field:"status"`  // SECLDoc[status] Definition:`Status of the security profile`
+	Version string   `field:"version"` // SECLDoc[version] Definition:`Version of the security profile`
+	Tags    []string `field:"tags"`    // SECLDoc[tags] Definition:`Tags of the security profile`
 }
 
 // Event represents an event sent from the kernel
@@ -161,12 +207,13 @@ type Event struct {
 	Rules        []*MatchedRule `field:"-"`
 
 	// context shared with all events
-	ProcessCacheEntry *ProcessCacheEntry `field:"-" json:"-"`
-	PIDContext        PIDContext         `field:"-" json:"-"`
-	SpanContext       SpanContext        `field:"-" json:"-"`
-	ProcessContext    *ProcessContext    `field:"process" event:"*"`
-	ContainerContext  ContainerContext   `field:"container"`
-	NetworkContext    NetworkContext     `field:"network"`
+	ProcessCacheEntry      *ProcessCacheEntry     `field:"-" json:"-"`
+	PIDContext             PIDContext             `field:"-" json:"-"`
+	SpanContext            SpanContext            `field:"-" json:"-"`
+	ProcessContext         *ProcessContext        `field:"process" event:"*"`
+	ContainerContext       ContainerContext       `field:"container"`
+	NetworkContext         NetworkContext         `field:"network"`
+	SecurityProfileContext SecurityProfileContext `field:"-"`
 
 	// fim events
 	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file’s permissions were changed
@@ -191,6 +238,9 @@ type Event struct {
 	Signal   SignalEvent   `field:"signal" event:"signal"` // [7.35] [Process] A signal was sent
 	Exit     ExitEvent     `field:"exit" event:"exit"`     // [7.38] [Process] A process was terminated
 	Syscalls SyscallsEvent `field:"-"`
+
+	// anomaly detection related events
+	AnomalyDetectionSyscallEvent AnomalyDetectionSyscallEvent `field:"-"`
 
 	// kernel events
 	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
@@ -272,6 +322,26 @@ func (e *Event) IsActivityDumpSample() bool {
 	return e.Flags&EventFlagsActivityDumpSample > 0
 }
 
+// IsInProfile return true if the event was fount in the profile
+func (e *Event) IsInProfile() bool {
+	return e.Flags&EventFlagsSecurityProfileInProfile > 0
+}
+
+// AddToFlags adds a flag to the event
+func (e *Event) AddToFlags(flag uint32) {
+	e.Flags |= flag
+}
+
+// RemoveFromFlags remove a flag to the event
+func (e *Event) RemoveFromFlags(flag uint32) {
+	e.Flags ^= flag
+}
+
+// HasProfile returns true if we found a profile for that event
+func (e *Event) HasProfile() bool {
+	return e.SecurityProfileContext.Name != ""
+}
+
 // GetType returns the event type
 func (e *Event) GetType() string {
 	return EventType(e.Type).String()
@@ -333,15 +403,17 @@ func (ev *Event) GetProcessServiceTag() string {
 type MatchedRule struct {
 	RuleID        string
 	RuleVersion   string
+	RuleTags      map[string]string
 	PolicyName    string
 	PolicyVersion string
 }
 
 // NewMatchedRule return a new MatchedRule instance
-func NewMatchedRule(ruleID, ruleVersion, policyName, policyVersion string) *MatchedRule {
+func NewMatchedRule(ruleID, ruleVersion string, ruleTags map[string]string, policyName, policyVersion string) *MatchedRule {
 	return &MatchedRule{
 		RuleID:        ruleID,
 		RuleVersion:   ruleVersion,
+		RuleTags:      ruleTags,
 		PolicyName:    policyName,
 		PolicyVersion: policyVersion,
 	}
@@ -448,8 +520,7 @@ type Process struct {
 
 	FileEvent FileEvent `field:"file,check:IsNotKworker"`
 
-	ContainerID   string   `field:"container.id"` // SECLDoc[container.id] Definition:`Container ID`
-	ContainerTags []string `field:"-"`
+	ContainerID string `field:"container.id"` // SECLDoc[container.id] Definition:`Container ID`
 
 	SpanID  uint64 `field:"-"`
 	TraceID uint64 `field:"-"`
@@ -465,8 +536,8 @@ type Process struct {
 
 	CreatedAt uint64 `field:"created_at,handler:ResolveProcessCreatedAt"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the process`
 
-	Cookie uint32 `field:"cookie"` // SECLDoc[cookie] Definition:`Cookie of the process`
-	PPid   uint32 `field:"ppid"`   // SECLDoc[ppid] Definition:`Parent process ID`
+	Cookie uint32 `field:"-"`
+	PPid   uint32 `field:"ppid"` // SECLDoc[ppid] Definition:`Parent process ID`
 
 	// credentials_t section of pid_cache_t
 	Credentials ``
@@ -564,6 +635,10 @@ type FileEvent struct {
 	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem"`                                          // SECLDoc[filesystem] Definition:`File's filesystem`
 
 	PathResolutionError error `field:"-" json:"-"`
+
+	PkgName       string `field:"package.name,handler:ResolvePackageName"`                    // SECLDoc[package.name] Definition:`[Experimental] Name of the package that provided this file`
+	PkgVersion    string `field:"package.version,handler:ResolvePackageVersion"`              // SECLDoc[package.version] Definition:`[Experimental] Full version of the package that provided this file`
+	PkgSrcVersion string `field:"package.source_version,handler:ResolvePackageSourceVersion"` // SECLDoc[package.source_version] Definition:`[Experimental] Full version of the source package of the package that provided this file`
 
 	// used to mark as already resolved, can be used in case of empty path
 	IsPathnameStrResolved bool `field:"-" json:"-"`
@@ -704,8 +779,8 @@ type ProcessCacheEntry struct {
 	releaseCb func()                     `field:"-" json:"-"`
 }
 
-// IsContainerInit returns whether this is the entrypoint of the container
-func (pc *ProcessCacheEntry) IsContainerInit() bool {
+// IsContainerRoot returns whether this is a top level process in the container ID
+func (pc *ProcessCacheEntry) IsContainerRoot() bool {
 	return pc.ContainerID != "" && pc.Ancestor != nil && pc.Ancestor.ContainerID == ""
 }
 
@@ -905,9 +980,12 @@ type MProtectEvent struct {
 type LoadModuleEvent struct {
 	SyscallEvent
 
-	File             FileEvent `field:"file"`               // Path to the kernel module file
-	LoadedFromMemory bool      `field:"loaded_from_memory"` // SECLDoc[loaded_from_memory] Definition:`Indicates if the kernel module was loaded from memory`
-	Name             string    `field:"name"`               // SECLDoc[name] Definition:`Name of the new kernel module`
+	File             FileEvent `field:"file"`                           // Path to the kernel module file
+	LoadedFromMemory bool      `field:"loaded_from_memory"`             // SECLDoc[loaded_from_memory] Definition:`Indicates if the kernel module was loaded from memory`
+	Name             string    `field:"name"`                           // SECLDoc[name] Definition:`Name of the new kernel module`
+	Args             string    `field:"args,handler:ResolveModuleArgs"` // SECLDoc[args] Definition:`Parameters (as a string) of the new kernel module`
+	Argv             []string  `field:"argv,handler:ResolveModuleArgv"` // SECLDoc[argv] Definition:`Parameters (as an array) of the new kernel module`
+	ArgsTruncated    bool      `field:"args_truncated"`                 // SECLDoc[args_truncated] Definition:`Indicates if the arguments were truncated or not`
 }
 
 // UnloadModuleEvent represents an unload_module event
@@ -1035,6 +1113,13 @@ type SyscallsEvent struct {
 	Syscalls []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
 }
 
+const PathKeySize = 16
+
+// AnomalyDetectionSyscallEvent represents an anomaly detection for a syscall event
+type AnomalyDetectionSyscallEvent struct {
+	SyscallID Syscall
+}
+
 // PathKey identifies an entry in the dentry cache
 type PathKey struct {
 	Inode   uint64 `field:"inode"`    // SECLDoc[inode] Definition:`Inode of the file`
@@ -1065,6 +1150,38 @@ func (p *PathKey) MarshalBinary() ([]byte, error) {
 
 	buff := make([]byte, 16)
 	p.Write(buff)
+
+	return buff, nil
+}
+
+// PathLeafSize defines path_leaf struct size
+const PathLeafSize = PathKeySize + MaxSegmentLength + 1 + 2 + 6 // path_key + name + len + padding
+
+// PathLeaf is the go representation of the eBPF path_leaf_t structure
+type PathLeaf struct {
+	Parent PathKey
+	Name   [MaxSegmentLength + 1]byte
+	Len    uint16
+}
+
+// GetName returns the path value as a string
+func (pl *PathLeaf) GetName() string {
+	return NullTerminatedString(pl.Name[:])
+}
+
+// GetName returns the path value as a string
+func (pl *PathLeaf) SetName(name string) {
+	copy(pl.Name[:], []byte(name))
+	pl.Len = uint16(len(name) + 1)
+}
+
+// MarshalBinary returns the binary representation of a path key
+func (pl *PathLeaf) MarshalBinary() ([]byte, error) {
+	buff := make([]byte, PathLeafSize)
+
+	pl.Parent.Write(buff)
+	copy(buff[16:], pl.Name[:])
+	ByteOrder.PutUint16(buff[16+len(pl.Name):], pl.Len)
 
 	return buff, nil
 }

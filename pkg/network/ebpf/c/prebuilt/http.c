@@ -20,37 +20,25 @@
 #include "protocols/classification/dispatcher-helpers.h"
 #include "protocols/http/http.h"
 #include "protocols/http/buffer.h"
+#include "protocols/http2/decoding.h"
 #include "protocols/tls/https.h"
 #include "protocols/tls/tags-types.h"
 #include "protocols/tls/java-tls-erpc.h"
+#include "protocols/kafka/kafka-parsing.h"
 
 #define SO_SUFFIX_SIZE 3
 
-// This entry point is needed to bypass a memory limit on socket filters
-// See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Known-issues
 SEC("socket/protocol_dispatcher")
 int socket__protocol_dispatcher(struct __sk_buff *skb) {
     protocol_dispatcher_entrypoint(skb);
     return 0;
 }
 
-SEC("socket/http_filter")
-int socket__http_filter(struct __sk_buff* skb) {
-    skb_info_t skb_info;
-    http_transaction_t http;
-    bpf_memset(&http, 0, sizeof(http));
-
-    if (!read_conn_tuple_skb(skb, &skb_info, &http.tup)) {
-        return 0;
-    }
-
-    if (!http_allow_packet(&http, skb, &skb_info)) {
-        return 0;
-    }
-    normalize_tuple(&http.tup);
-
-    read_into_buffer_skb((char *)http.request_fragment, skb, &skb_info);
-    http_process(&http, &skb_info, NO_TAGS);
+// This entry point is needed to bypass a memory limit on socket filters
+// See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Known-issues
+SEC("socket/protocol_dispatcher_kafka")
+int socket__protocol_dispatcher_kafka(struct __sk_buff *skb) {
+    dispatch_kafka(skb);
     return 0;
 }
 
@@ -68,6 +56,8 @@ int tracepoint__net__netif_receive_skb(struct pt_regs* ctx) {
     // flush batch to userspace
     // because perf events can't be sent from socket filter programs
     http_batch_flush(ctx);
+    http2_batch_flush(ctx);
+    kafka_batch_flush(ctx);
     return 0;
 }
 

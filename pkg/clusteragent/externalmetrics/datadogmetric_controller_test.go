@@ -81,6 +81,7 @@ func (f *fixture) newController(leader bool) (*DatadogMetricController, dynamici
 }
 
 func (f *fixture) runControllerSync(leader bool, datadogMetricID string, expectedError error) {
+	f.t.Helper()
 	controller, informer := f.newController(leader)
 	stopCh := make(chan struct{})
 	defer close(stopCh)
@@ -182,10 +183,8 @@ func TestLeaderHandlingNewMetric(t *testing.T) {
 				LastUpdateTime:     updateTimeKube,
 			},
 			{
-				Type:               datadoghq.DatadogMetricConditionTypeUpdated,
-				Status:             corev1.ConditionTrue,
-				LastTransitionTime: updateTimeKube,
-				LastUpdateTime:     updateTimeKube,
+				Type:   datadoghq.DatadogMetricConditionTypeUpdated,
+				Status: corev1.ConditionTrue,
 			},
 			{
 				Type:               datadoghq.DatadogMetricConditionTypeError,
@@ -214,6 +213,7 @@ func TestLeaderUpdateFromStoreInitialUpdate(t *testing.T) {
 		Valid:      true,
 		Value:      2332548489456.557505560,
 		UpdateTime: updateTime,
+		DataTime:   updateTime,
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query0")
@@ -297,6 +297,7 @@ func TestLeaderUpdateFromStoreAfterInitial(t *testing.T) {
 		Valid:      true,
 		Value:      10.0,
 		UpdateTime: updateTime,
+		DataTime:   updateTime,
 		Error:      fmt.Errorf("Error from backend while fetching metric"),
 	}
 	ddm.SetQueries("metric query0")
@@ -381,6 +382,7 @@ func TestLeaderNoUpdate(t *testing.T) {
 		Valid:      true,
 		Value:      10.0,
 		UpdateTime: updateTime,
+		DataTime:   updateTime,
 		Error:      fmt.Errorf("Error from backend while fetching metric"),
 	}
 	ddm.SetQueries("metric query0")
@@ -402,6 +404,7 @@ func TestCreateDatadogMetric(t *testing.T) {
 		ExternalMetricName: "name1",
 		Value:              20.0,
 		UpdateTime:         updateTime,
+		DataTime:           updateTime,
 		Error:              nil,
 	}
 	ddm.SetQueries("metric query0")
@@ -414,6 +417,7 @@ func TestCreateDatadogMetric(t *testing.T) {
 		Autogen:    false,
 		Value:      20.0,
 		UpdateTime: updateTime,
+		DataTime:   updateTime,
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query1")
@@ -422,10 +426,11 @@ func TestCreateDatadogMetric(t *testing.T) {
 	ddm = model.DatadogMetricInternal{
 		ID:         "default/dd-metric-1",
 		Valid:      true,
-		Deleted:    false,
-		Autogen:    false,
+		Deleted:    true,
+		Autogen:    true,
 		Value:      20.0,
 		UpdateTime: updateTime,
+		DataTime:   updateTime,
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query1")
@@ -438,6 +443,7 @@ func TestCreateDatadogMetric(t *testing.T) {
 		Autogen:    true,
 		Value:      20.0,
 		UpdateTime: updateTime,
+		DataTime:   updateTime,
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query2")
@@ -477,12 +483,16 @@ func TestCreateDatadogMetric(t *testing.T) {
 	f.expectCreateDatadogMetricAction(expectedDatadogMetric)
 	f.runControllerSync(true, "default/dd-metric-0", nil)
 
-	// Test creating non autogen DatadogMetric
+	// Test that autogen missing in Kubernetes with `Deleted` flag is not created
 	f.actions = nil
-	f.runControllerSync(true, "default/dd-metric-1", fmt.Errorf("Attempt to create DatadogMetric that was not auto-generated - not creating, DatadogMetric: %v", f.store.Get("default/dd-metric-1")))
+	f.runControllerSync(true, "default/dd-metric-1", nil)
+	assert.Empty(t, f.actions)
+	assert.Nil(t, f.store.Get("default/dd-metric-1"))
 
 	// Test create autogen without ExternalMetricName
+	f.actions = nil
 	f.runControllerSync(true, "default/dd-metric-2", fmt.Errorf("Unable to create autogen DatadogMetric default/dd-metric-2 without ExternalMetricName"))
+	assert.Empty(t, f.actions)
 }
 
 // Scenario: Test DatadogMetric is deleted if something from store is flagged as deleted and object exists in K8S
@@ -495,7 +505,7 @@ func TestLeaderDeleteExisting(t *testing.T) {
 		Value: "20",
 		Conditions: []datadoghq.DatadogMetricCondition{
 			{
-				Type:               datadoghq.DatadogMetricConditionTypeValid,
+				Type:               datadoghq.DatadogMetricConditionTypeActive,
 				Status:             corev1.ConditionTrue,
 				LastTransitionTime: prevUpdateTimeKube,
 				LastUpdateTime:     prevUpdateTimeKube,
@@ -524,7 +534,7 @@ func TestLeaderDeleteExisting(t *testing.T) {
 		Value: "20",
 		Conditions: []datadoghq.DatadogMetricCondition{
 			{
-				Type:               datadoghq.DatadogMetricConditionTypeValid,
+				Type:               datadoghq.DatadogMetricConditionTypeActive,
 				Status:             corev1.ConditionTrue,
 				LastTransitionTime: prevUpdateTimeKube,
 				LastUpdateTime:     prevUpdateTimeKube,
@@ -560,6 +570,7 @@ func TestLeaderDeleteExisting(t *testing.T) {
 		Autogen:    true,
 		Value:      20.0,
 		UpdateTime: prevUpdateTime.UTC(),
+		DataTime:   prevUpdateTime.UTC(),
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query0")
@@ -572,6 +583,7 @@ func TestLeaderDeleteExisting(t *testing.T) {
 		Autogen:    false,
 		Value:      20.0,
 		UpdateTime: prevUpdateTime.UTC(),
+		DataTime:   prevUpdateTime.UTC(),
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query1")
@@ -588,14 +600,16 @@ func TestLeaderDeleteExisting(t *testing.T) {
 		Autogen:    true,
 		Value:      20.0,
 		UpdateTime: prevUpdateTime.UTC(),
+		DataTime:   prevUpdateTime.UTC(),
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query0")
 	assert.Equal(t, &ddm, f.store.Get("default/dd-metric-0"))
 
-	// Test that we get an error trying to delete a not Autogen DatadogMetric
+	// Test that `Deleted` attribute is not considered on non-Autogen DDM
 	f.actions = nil
-	f.runControllerSync(true, "default/dd-metric-1", fmt.Errorf("Attempt to delete DatadogMetric that was not auto-generated - not deleting, DatadogMetric: %v", f.store.Get("default/dd-metric-1")))
+	f.runControllerSync(true, "default/dd-metric-1", nil)
+	assert.Empty(t, f.actions)
 }
 
 // Scenario: Object has already been deleted, controller should clean up internal store
@@ -609,6 +623,7 @@ func TestLeaderDeleteCleanup(t *testing.T) {
 		Deleted:    true,
 		Value:      20.0,
 		UpdateTime: updateTime,
+		DataTime:   updateTime,
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query0")
@@ -640,7 +655,7 @@ func TestFollower(t *testing.T) {
 		Value: "10",
 		Conditions: []datadoghq.DatadogMetricCondition{
 			{
-				Type:               datadoghq.DatadogMetricConditionTypeValid,
+				Type:               datadoghq.DatadogMetricConditionTypeActive,
 				Status:             corev1.ConditionTrue,
 				LastTransitionTime: prevUpdateTimeKube,
 				LastUpdateTime:     prevUpdateTimeKube,
@@ -669,7 +684,7 @@ func TestFollower(t *testing.T) {
 		Value: "10",
 		Conditions: []datadoghq.DatadogMetricCondition{
 			{
-				Type:               datadoghq.DatadogMetricConditionTypeValid,
+				Type:               datadoghq.DatadogMetricConditionTypeActive,
 				Status:             corev1.ConditionTrue,
 				LastTransitionTime: prevUpdateTimeKube,
 				LastUpdateTime:     prevUpdateTimeKube,
@@ -704,8 +719,10 @@ func TestFollower(t *testing.T) {
 	ddm := model.DatadogMetricInternal{
 		ID:         "default/dd-metric-0",
 		Valid:      true,
+		Active:     true,
 		Value:      20.0,
 		UpdateTime: kubernetes.TimeWithoutWall(updateTime),
+		DataTime:   kubernetes.TimeWithoutWall(updateTime),
 		Error:      fmt.Errorf("Error from backend while fetching metric"),
 	}
 	ddm.SetQueries("metric query0")
@@ -718,8 +735,10 @@ func TestFollower(t *testing.T) {
 	ddm = model.DatadogMetricInternal{
 		ID:         "default/dd-metric-0",
 		Valid:      true,
+		Active:     true,
 		Value:      10.0,
 		UpdateTime: kubernetes.TimeWithoutWall(prevUpdateTime.UTC()),
+		DataTime:   kubernetes.TimeWithoutWall(prevUpdateTime.UTC()),
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query0")
@@ -731,10 +750,12 @@ func TestFollower(t *testing.T) {
 	ddm = model.DatadogMetricInternal{
 		ID:                 "default/autogen-1",
 		Valid:              true,
+		Active:             true,
 		Autogen:            true,
 		ExternalMetricName: "dd-metric-1",
 		Value:              10.0,
 		UpdateTime:         kubernetes.TimeWithoutWall(prevUpdateTime.UTC()),
+		DataTime:           kubernetes.TimeWithoutWall(prevUpdateTime.UTC()),
 		Error:              nil,
 	}
 	ddm.SetQueries("metric query1")

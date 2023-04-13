@@ -17,6 +17,7 @@ import (
 
 	payload "github.com/DataDog/agent-payload/v5/process"
 
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/events"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
@@ -24,13 +25,17 @@ import (
 )
 
 // NewProcessEventsCheck returns an instance of the ProcessEventsCheck.
-func NewProcessEventsCheck() Check {
-	return &ProcessEventsCheck{}
+func NewProcessEventsCheck(config ddconfig.ConfigReader) *ProcessEventsCheck {
+	return &ProcessEventsCheck{
+		config: config,
+	}
 }
 
 // ProcessEventsCheck collects process lifecycle events such as exec and exit signals
 type ProcessEventsCheck struct {
 	initMutex sync.Mutex
+
+	config ddconfig.ConfigReader
 
 	store    events.Store
 	listener *events.SysProbeListener
@@ -50,9 +55,9 @@ func (e *ProcessEventsCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
 
 	log.Info("Initializing process_events check")
 	e.hostInfo = info
-	e.maxBatchSize = getMaxBatchSize()
+	e.maxBatchSize = getMaxBatchSize(e.config)
 
-	store, err := events.NewRingStore(statsd.Client)
+	store, err := events.NewRingStore(e.config, statsd.Client)
 	if err != nil {
 		log.Errorf("RingStore can't be created: %v", err)
 		return err
@@ -82,8 +87,7 @@ func (e *ProcessEventsCheck) start() {
 
 // IsEnabled returns true if the check is enabled by configuration
 func (e *ProcessEventsCheck) IsEnabled() bool {
-	// TODO - move config check logic here
-	return true
+	return e.config.GetBool("process_config.event_collection.enabled")
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions

@@ -3,10 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+//go:build trivy
+// +build trivy
+
 package sbom
 
 import (
-	"errors"
 	"time"
 
 	yaml "gopkg.in/yaml.v2"
@@ -14,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -29,9 +30,10 @@ func init() {
 
 // Config holds the container_image check configuration
 type Config struct {
-	ChunkSize                int `yaml:"chunk_size"`
-	NewSBOMMaxLatencySeconds int `yaml:"new_sbom_max_latency_seconds"`
-	PeriodicRefreshSeconds   int `yaml:"periodic_refresh_seconds"`
+	ChunkSize                       int `yaml:"chunk_size"`
+	NewSBOMMaxLatencySeconds        int `yaml:"new_sbom_max_latency_seconds"`
+	ContainerPeriodicRefreshSeconds int `yaml:"periodic_refresh_seconds"`
+	HostPeriodicRefreshSeconds      int `yaml:"host_periodic_refresh_seconds"`
 }
 
 type configValueRange struct {
@@ -53,10 +55,16 @@ var /* const */ (
 		default_: 30,  // 30 s
 	}
 
-	periodicRefreshSecondsValueRange = &configValueRange{
+	containerPeriodicRefreshSecondsValueRange = &configValueRange{
 		min:      60,     // 1 min
 		max:      604800, // 1 week
 		default_: 3600,   // 1h
+	}
+
+	hostPeriodicRefreshSecondsValueRange = &configValueRange{
+		min:      60,        // 1 min
+		max:      604800,    // 1 week
+		default_: 3600 * 24, // 1h
 	}
 )
 
@@ -77,7 +85,8 @@ func (c *Config) Parse(data []byte) error {
 
 	validateValue(&c.ChunkSize, chunkSizeValueRange)
 	validateValue(&c.NewSBOMMaxLatencySeconds, newSBOMMaxLatencySecondsValueRange)
-	validateValue(&c.PeriodicRefreshSeconds, periodicRefreshSecondsValueRange)
+	validateValue(&c.ContainerPeriodicRefreshSeconds, containerPeriodicRefreshSecondsValueRange)
+	validateValue(&c.HostPeriodicRefreshSeconds, hostPeriodicRefreshSecondsValueRange)
 
 	return nil
 }
@@ -103,10 +112,6 @@ func CheckFactory() check.Check {
 
 // Configure parses the check configuration and initializes the sbom check
 func (c *Check) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
-	if !ddConfig.Datadog.GetBool("sbom.enabled") {
-		return errors.New("collection of SBOM is disabled")
-	}
-
 	if err := c.CommonConfigure(integrationConfigDigest, initConfig, config, source); err != nil {
 		return err
 	}
@@ -120,7 +125,10 @@ func (c *Check) Configure(integrationConfigDigest uint64, config, initConfig int
 		return err
 	}
 
-	c.processor = newProcessor(sender, c.instance.ChunkSize, time.Duration(c.instance.NewSBOMMaxLatencySeconds)*time.Second)
+	c.processor, err = newProcessor(c.workloadmetaStore, sender, c.instance.ChunkSize, time.Duration(c.instance.NewSBOMMaxLatencySeconds)*time.Second)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -134,20 +142,32 @@ func (c *Check) Run() error {
 		checkName,
 		workloadmeta.NormalPriority,
 		workloadmeta.NewFilter(
-			[]workloadmeta.Kind{workloadmeta.KindContainerImageMetadata},
+			[]workloadmeta.Kind{
+				workloadmeta.KindContainerImageMetadata,
+				workloadmeta.KindContainer,
+			},
 			workloadmeta.SourceAll,
-			workloadmeta.EventTypeSet, // We don’t care about SBOM removal because we just have to wait for them to expire on BE side once we stopped refreshing them periodically.
+			workloadmeta.EventTypeAll,
 		),
 	)
 
-	imgRefreshTicker := time.NewTicker(time.Duration(c.instance.PeriodicRefreshSeconds) * time.Second)
+	// Trigger an initial scan on host
+	c.processor.processHostRefresh()
+
+	containerPeriodicRefreshTicker := time.NewTicker(time.Duration(c.instance.ContainerPeriodicRefreshSeconds) * time.Second)
+	defer containerPeriodicRefreshTicker.Stop()
+
+	hostPeriodicRefreshTicker := time.NewTicker(time.Duration(c.instance.HostPeriodicRefreshSeconds) * time.Second)
+	defer hostPeriodicRefreshTicker.Stop()
 
 	for {
 		select {
 		case eventBundle := <-imgEventsCh:
-			c.processor.processEvents(eventBundle)
-		case <-imgRefreshTicker.C:
-			c.processor.processRefresh(c.workloadmetaStore.ListImages())
+			c.processor.processContainerImagesEvents(eventBundle)
+		case <-containerPeriodicRefreshTicker.C:
+			c.processor.processContainerImagesRefresh(c.workloadmetaStore.ListImages())
+		case <-hostPeriodicRefreshTicker.C:
+			c.processor.processHostRefresh()
 		case <-c.stopCh:
 			c.processor.stop()
 			return nil

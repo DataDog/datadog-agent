@@ -6,13 +6,11 @@
 package serverless
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -26,9 +24,6 @@ import (
 )
 
 const (
-	routeEventNext string = "/2020-01-01/extension/event/next"
-	routeInitError string = "/2020-01-01/extension/init/error"
-
 	headerExtID      string = "Lambda-Extension-Identifier"
 	headerExtErrType string = "Lambda-Extension-Function-Error-Type"
 
@@ -55,6 +50,8 @@ const (
 	Invoke RuntimeEvent = "INVOKE"
 	// Shutdown event
 	Shutdown RuntimeEvent = "SHUTDOWN"
+	// Failure event
+	Failure RuntimeEvent = "FAILURE"
 
 	// Timeout is one of the possible ShutdownReasons
 	Timeout ShutdownReason = "timeout"
@@ -97,43 +94,6 @@ type FlushableAgent interface {
 	Flush()
 }
 
-// ReportInitError reports an init error to the environment.
-func ReportInitError(id registration.ID, errorEnum ErrorEnum) error {
-	var err error
-	var content []byte
-	var request *http.Request
-	var response *http.Response
-
-	if content, err = json.Marshal(map[string]string{
-		"error": string(errorEnum),
-	}); err != nil {
-		return fmt.Errorf("ReportInitError: can't write the payload: %s", err)
-	}
-
-	if request, err = http.NewRequest(http.MethodPost, buildURL(routeInitError), bytes.NewBuffer(content)); err != nil {
-		return fmt.Errorf("ReportInitError: can't create the POST request: %s", err)
-	}
-
-	request.Header.Set(headerExtID, id.String())
-	request.Header.Set(headerExtErrType, FatalConnectFailed.String())
-
-	client := &http.Client{
-		Transport: &http.Transport{IdleConnTimeout: requestTimeout},
-		Timeout:   requestTimeout,
-	}
-
-	if response, err = client.Do(request); err != nil {
-		return fmt.Errorf("ReportInitError: while POST init error route: %s", err)
-	}
-
-	defer response.Body.Close()
-	if response.StatusCode >= 300 {
-		return fmt.Errorf("ReportInitError: received an HTTP %s", response.Status)
-	}
-
-	return nil
-}
-
 // WaitForNextInvocation makes a blocking HTTP call to receive the next event from AWS.
 // Note that for now, we only subscribe to INVOKE and SHUTDOWN events.
 // Write into stopCh to stop the main thread of the running program.
@@ -142,7 +102,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 	var request *http.Request
 	var response *http.Response
 
-	if request, err = http.NewRequest(http.MethodGet, buildURL(routeEventNext), nil); err != nil {
+	if request, err = http.NewRequest(http.MethodGet, registration.NextUrl(), nil); err != nil {
 		return fmt.Errorf("WaitForNextInvocation: can't create the GET request: %v", err)
 	}
 	request.Header.Set(headerExtID, id.String())
@@ -169,7 +129,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 	if payload.EventType == Invoke {
 		functionArn := removeQualifierFromArn(payload.InvokedFunctionArn)
 		callInvocationHandler(daemon, functionArn, payload.DeadlineMs, safetyBufferTimeout, payload.RequestID, handleInvocation)
-	} else if payload.EventType == Shutdown {
+	} else if payload.EventType == Shutdown || payload.EventType == Failure {
 		log.Debug("Received shutdown event. Reason: " + payload.ShutdownReason)
 		isTimeout := strings.ToLower(payload.ShutdownReason.String()) == Timeout.String()
 		if isTimeout {
@@ -178,6 +138,10 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 			metricTags = tags.AddInitTypeTag(metricTags)
 			metrics.SendTimeoutEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
 			metrics.SendErrorsEnhancedMetric(metricTags, time.Now(), daemon.MetricAgent.Demux)
+		}
+		err := daemon.ExecutionContext.SaveCurrentExecutionContext()
+		if err != nil {
+			log.Warnf("Unable to save the current state. Failed with: %s", err)
 		}
 		daemon.Stop()
 		stopCh <- struct{}{}
@@ -196,10 +160,6 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 	select {
 	case <-ctx.Done():
 		log.Debug("Timeout detected, finishing the current invocation now to allow receiving the SHUTDOWN event")
-		err := daemon.ExecutionContext.SaveCurrentExecutionContext()
-		if err != nil {
-			log.Warnf("Unable to save the current state. Failed with: %s", err)
-		}
 		// Tell the Daemon that the runtime is done (even though it isn't, because it's timing out) so that we can receive the SHUTDOWN event
 		daemon.TellDaemonRuntimeDone()
 		return
@@ -237,14 +197,6 @@ func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, 
 
 	daemon.WaitForDaemon()
 	doneChannel <- true
-}
-
-func buildURL(route string) string {
-	prefix := os.Getenv("AWS_LAMBDA_RUNTIME_API")
-	if len(prefix) == 0 {
-		return fmt.Sprintf("http://localhost:9001%s", route)
-	}
-	return fmt.Sprintf("http://%s%s", prefix, route)
 }
 
 func computeTimeout(now time.Time, deadlineMs int64, safetyBuffer time.Duration) time.Duration {

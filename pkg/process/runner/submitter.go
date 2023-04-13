@@ -15,11 +15,13 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
@@ -73,14 +75,14 @@ type CheckSubmitter struct {
 	rtNotifierChan chan types.RTResponse
 }
 
-func NewSubmitter(hostname string) (*CheckSubmitter, error) {
-	queueBytes := ddconfig.Datadog.GetInt("process_config.process_queue_bytes")
+func NewSubmitter(cfg ddconfig.ConfigReader, hostname string) (*CheckSubmitter, error) {
+	queueBytes := cfg.GetInt("process_config.process_queue_bytes")
 	if queueBytes <= 0 {
 		log.Warnf("Invalid queue bytes size: %d. Using default value: %d", queueBytes, ddconfig.DefaultProcessQueueBytes)
 		queueBytes = ddconfig.DefaultProcessQueueBytes
 	}
 
-	queueSize := ddconfig.Datadog.GetInt("process_config.queue_size")
+	queueSize := cfg.GetInt("process_config.queue_size")
 	if queueSize <= 0 {
 		log.Warnf("Invalid check queue size: %d. Using default value: %d", queueSize, ddconfig.DefaultProcessQueueSize)
 		queueSize = ddconfig.DefaultProcessQueueSize
@@ -88,7 +90,7 @@ func NewSubmitter(hostname string) (*CheckSubmitter, error) {
 	processResults := api.NewWeightedQueue(queueSize, int64(queueBytes))
 	log.Debugf("Creating process check queue with max_size=%d and max_weight=%d", processResults.MaxSize(), processResults.MaxWeight())
 
-	rtQueueSize := ddconfig.Datadog.GetInt("process_config.rt_queue_size")
+	rtQueueSize := cfg.GetInt("process_config.rt_queue_size")
 	if rtQueueSize <= 0 {
 		log.Warnf("Invalid rt check queue size: %d. Using default value: %d", rtQueueSize, ddconfig.DefaultProcessRTQueueSize)
 		rtQueueSize = ddconfig.DefaultProcessRTQueueSize
@@ -110,14 +112,14 @@ func NewSubmitter(hostname string) (*CheckSubmitter, error) {
 	eventResults := api.NewWeightedQueue(queueSize, int64(queueBytes))
 	log.Debugf("Creating event check queue with max_size=%d and max_weight=%d", eventResults.MaxSize(), eventResults.MaxWeight())
 
-	dropCheckPayloads := ddconfig.Datadog.GetStringSlice("process_config.drop_check_payloads")
+	dropCheckPayloads := cfg.GetStringSlice("process_config.drop_check_payloads")
 	if len(dropCheckPayloads) > 0 {
 		log.Debugf("Dropping payloads from checks: %v", dropCheckPayloads)
 	}
 	status.UpdateDropCheckPayloads(dropCheckPayloads)
 
 	// Forwarder initialization
-	processAPIEndpoints, err := GetAPIEndpoints()
+	processAPIEndpoints, err := GetAPIEndpoints(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +139,7 @@ func NewSubmitter(hostname string) (*CheckSubmitter, error) {
 	podForwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
 	podForwarder := forwarder.NewDefaultForwarder(podForwarderOpts)
 
-	processEventsAPIEndpoints, err := getEventsAPIEndpoints()
+	processEventsAPIEndpoints, err := getEventsAPIEndpoints(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -302,11 +304,15 @@ func (s *CheckSubmitter) Start() error {
 }
 
 func (s *CheckSubmitter) Stop() {
+	close(s.exit)
+
 	s.processResults.Stop()
 	s.rtProcessResults.Stop()
 	s.connectionsResults.Stop()
 	s.podResults.Stop()
 	s.eventResults.Stop()
+
+	s.wg.Wait()
 
 	s.processForwarder.Stop()
 	s.rtProcessForwarder.Stop()
@@ -314,8 +320,6 @@ func (s *CheckSubmitter) Stop() {
 	s.podForwarder.Stop()
 	s.eventForwarder.Stop()
 
-	close(s.exit)
-	s.wg.Wait()
 	close(s.rtNotifierChan)
 }
 
@@ -361,7 +365,7 @@ func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue, fwd forward
 				responses, err = fwd.SubmitConnectionChecks(forwarderPayload, payload.headers)
 			// Pod check metadata
 			case checks.PodCheckName:
-				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(model.K8SResource_POD))
+				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
 			// Pod check manifest data
 			case checks.PodCheckManifestName:
 				responses, err = fwd.SubmitOrchestratorManifests(forwarderPayload, payload.headers)

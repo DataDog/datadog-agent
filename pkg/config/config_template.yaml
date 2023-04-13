@@ -522,6 +522,120 @@ api_key:
   #
   # validation_period: 60
 
+
+## @param fips - custom object - optional
+## [BETA] Enter specific configurations for using the FIPS proxy.
+## Uncomment this parameter and the one below to enable them.
+#
+# fips:
+
+  ## @param enabled - boolean - optional - default: false
+  ## @env DD_FIPS_ENABLED - boolean - optional - default: false
+  ## This feature is in BETA.
+  ##
+  ## Enable the use of the FIPS proxy to send data to the DataDog backend. Enabling this will force all outgoing traffic
+  ## from the Agent to the local proxy.
+  ## It's important to note that enabling this will not make the Datadog Agent FIPS compliant, but will force all outgoing
+  ## traffic to a local FIPS compliant proxy. The FIPS proxy need to be installed locally in addition to the agent.
+  ##
+  ## When setting this to true the following settings would be overridden, ignoring the values from the
+  ## configuration:
+  ## - dd_url
+  ## - apm_config.apm_dd_url
+  ## - apm_config.profiling_dd_url
+  ## - apm_config.telemetry.dd_url
+  ## - process_config.process_dd_url
+  ## - logs_config.use_http
+  ## - logs_config.logs_no_ssl
+  ## - logs_config.logs_dd_url
+  ## - database_monitoring.metrics.dd_url
+  ## - database_monitoring.activity.dd_url
+  ## - database_monitoring.samples.dd_url
+  ## - network_devices.metadata.dd_url
+  #
+  ## The agent will also ignore 'proxy.*' settings and environment variables related to proxy (HTTP_PROXY, HTTPS_PROXY,
+  ## DD_PROXY_HTTP and DD_PROXY_HTTPS).
+  #
+  # enabled: false
+
+  ## @param local_address - string - optional - default: localhost
+  ## @env DD_FIPS_LOCAL_ADDRESS - string - optional - default: localhost
+  ## The local address that the FIPS proxy will bind ports on.
+  #
+  # local_address: localhost
+
+  ## @param https - boolean - optional - default: true
+  ## @env DD_FIPS_HTTPS - boolean - optional - default: true
+  ## Use HTTPS when communicating with the FIPS proxy.
+  #
+  # https: true
+
+  ## @param port_range_start - integer - optional - default: 9803
+  ## @env DD_FIPS_LOCAL_PORT_RANGE_START - integer - optional - default: 9803
+  ## The FIPS proxy will bind a range of consecutive ports, each dedicated to a specific product (Metrics, Logs, APM.
+  ## Database monitoring, ...). 'port_range_start' is the first port in this range. The Agent will automatically assign
+  ## the right port to the right product based on this information.
+  #
+  # port_range_start: 3833
+
+## @param observability_pipelines_worker - custom object - optional
+## Configuration for forwarding telemetry to an Observability Pipelines Worker instead of Datadog.
+## https://www.datadoghq.com/product/observability-pipelines/
+## Note: This config is interchangeable with `vector`
+#
+# observability_pipelines_worker:
+
+  ## @param  metrics - custom object - optional
+  ## Specific configurations for metrics
+  #
+  # metrics:
+  
+    ## @param enabled - boolean - optional - default: false
+    ## @env DD_OBSERVABILITY_PIPELINES_WORKER_METRICS_ENABLED - boolean - optional - default: false
+    ## Enables forwarding of metrics to an Observability Pipelines Worker
+    #
+    # enabled: false
+
+    ## @param url - string - optional - default: ""
+    ## @env DD_OBSERVABILITY_PIPELINES_WORKER_METRICS_URL - string - optional - default: ""
+    ## URL endpoint for the Observability Pipelines Worker to send metrics to
+    #
+    # url: "http//127.0.0.1:8080"
+
+  ## @param  logs - custom object - optional
+  ## Specific configurations for logs
+  #
+  # logs:
+  
+    ## @param enabled - boolean - optional - default: false
+    ## @env DD_OBSERVABILITY_PIPELINES_WORKER_LOGS_ENABLED - boolean - optional - default: false
+    ## Enables forwarding of logs to an Observability Pipelines Worker
+    #
+    # enabled: false
+
+    ## @param url - string - optional - default: ""
+    ## @env DD_OBSERVABILITY_PIPELINES_WORKER_LOGS_URL - string - optional - default: ""
+    ## URL endpoint for the Observability Pipelines Worker to send logs to
+    #
+    # url: "http//127.0.0.1:8080"
+
+  ## @param  traces - custom object - optional
+  ## Specific configurations for traces
+  #
+  # traces:
+  
+    ## @param enabled - boolean - optional - default: false
+    ## @env DD_OBSERVABILITY_PIPELINES_WORKER_TRACES_ENABLED - boolean - optional - default: false
+    ## Enables forwarding of traces to an Observability Pipelines Worker
+    #
+    # enabled: false
+
+    ## @param url - string - optional - default: ""
+    ## @env DD_OBSERVABILITY_PIPELINES_WORKER_TRACES_URL - string - optional - default: ""
+    ## URL endpoint for the Observability Pipelines Worker to send traces to
+    #
+    # url: "http//127.0.0.1:8080"
+
 {{ end }}
 {{- if .Agent }}
 {{- if .Python }}
@@ -574,6 +688,8 @@ api_key:
 ## Default is:
 ##  * Windows & macOS : `5002`
 ##  * Linux: `-1`
+## On Linux, to be able to edit the configuration from the GUI
+## you need to give write access on this file to the dd-agent user.
 ##
 #
 # GUI_port: <GUI_PORT>
@@ -710,6 +826,14 @@ api_key:
 ## Disable fetching secrets for check configurations
 #
 # secret_backend_skip_checks: false
+#
+
+## @param secret_backend_remove_trailing_line_break - boolean - optional - default: false
+## @env DD_SECRET_BACKEND_REMOVE_TRAILING_LINE_BREAK - boolean - optional - default: false
+## Remove trailing line breaks from secrets returned by the secret_backend_command. Some secret management tools automatically
+## add a line break when exporting secrets through files.
+#
+# secret_backend_remove_trailing_line_break: false
 
 ## @param snmp_listener - custom object - optional
 ## Creates and schedules a listener to automatically discover your SNMP devices.
@@ -859,6 +983,15 @@ api_key:
     #
     # context_name: <CONTEXT_NAME>
 
+    ## @param tags - list of strings - optional
+    ## A list of tags to attach to every metric and service check of all devices discovered in the subnet.
+    ##
+    ## Learn more about tagging at https://docs.datadoghq.com/tagging
+    #
+    # tags:
+    #   - <KEY_1>:<VALUE_1>
+    #   - <KEY_2>:<VALUE_2>
+
     ## @param ad_identifier - string - optional - default: snmp
     ## A unique identifier to attach to devices from that subnetwork.
     ## When configuring the SNMP integration in snmp.d/auto_conf.yaml,
@@ -895,6 +1028,31 @@ api_key:
     #
     # oid_batch_size: 5
 
+    ## @param interface_configs - map - optional
+    ## This option is used to override interface inbound/outbound speed.
+    ## Example:
+    ## interface_configs:
+    ##   "10.0.0.1":              # target device IP address
+    ##     - match_field: "name"  # (required) the field to match, can be `name` (interface name) or `index` (ifIndex)
+    ##       match_value: "eth0"  # (required) the value to match
+    ##       in_speed: 50         # (optional) inbound speed value in bits per sec, no value or 0 means no override
+    ##       out_speed: 25        # (optional) outbound speed value in bits per sec, no value or 0 means no override
+    #
+    # interface_config:
+    #   "10.0.0.1":
+    #     - match_field: name
+    #       match_value: eth0
+    #       in_speed: 50
+    #       out_speed: 25
+    #     - match_field: index
+    #       match_value: '10'
+    #       in_speed: 50
+    #       out_speed: 25
+    #   "10.0.0.2":
+    #     - match_field: name
+    #       match_value: eth3
+    #       in_speed: 50
+    #       out_speed: 25
 
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
@@ -1197,6 +1355,32 @@ api_key:
   #
   # connection_limit: 2000
 
+  ## @param compute_stats_by_span_kind - bool - default: false
+  ## @env DD_APM_COMPUTE_STATS_BY_SPAN_KIND - bool - default: false
+  ## Enables an additional stats computation check on spans to see they have an eligible `span.kind` (server, consumer, client, producer).
+  ## If enabled, a span with an eligible `span.kind` will have stats computed. If disabled, only top-level and measured spans will have stats computed.
+  ## NOTE: For stats computed from OTel traces, only top-level spans are considered when this option is off.
+  ## If you are sending OTel traces and want stats on non-top-level spans, this flag will need to be enabled.
+  # compute_stats_by_span_kind: false
+
+  ## @param peer_service_aggregation - bool - default: false
+  ## @env DD_APM_PEER_SERVICE_AGGREGATION - bool - default: false
+  ## Enables `peer.service` aggregation in the agent. If disabled, aggregated trace stats will not include `peer.service` as a dimension.
+  ## For the best experience with `peer.service`, it is recommended to also enable `compute_stats_by_span_kind`.
+  ## If enabling both causes the Agent to consume too many resources, try disabling `compute_stats_by_span_kind` first.
+  ## If the overhead remains high, it will be due to a high cardinality of `peer.service` values from the traces. You may need to check your instrumentation.
+  ## NOTE: If you are using an OTel tracer it's best to have both enabled because client/producer spans with a `peer.service` value
+  ## may not be marked by the Agent as top-level spans.
+  # peer_service_aggregation: false
+
+  ## @param features - list of strings - optional
+  ## @env DD_APM_FEATURES - comma separated list of strings - optional
+  ## Configure additional beta APM features.
+  ## The list of items available under apm_config.features is not guaranteed to persist across versions;
+  ## a feature may eventually be promoted to its own configuration option on the agent, or dropped entirely.
+  #
+  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache"]
+
   {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
   ## Enter specific configurations for internal profiling.
@@ -1479,39 +1663,6 @@ api_key:
     ## Enable internal profiling for the System Probe process.
     #
     # enabled: false
-
-  ## @param memory_controller - custom object - optional
-  ## Cgroup memory controller for internal memory profiling.
-  ##
-  ## memory_controller:
-  #
-    ## @param enabled - boolean - optional - default: false
-    ## Enable cgroup memory controller.
-    #
-    # enabled: false
-    #
-    ## @param thresholds - map of strings - optional
-    ## Thresholds and the respective active actions to trigger when
-    ## memory usage is above the specified threshold.
-    ## Threshold can be either an absolute value - such as 500MB or 2GB -
-    ## or a percentage of the cgroup allocated memory such as 50%.
-    ## The action can be:
-    ## - gc: to trigger the Go garbage collector
-    ## - profile: to generate a system-probe memory profile in /tmp
-    ## - log: to simply log that the threshold was reached
-    #
-    # thresholds:
-    #   500MB: gc
-    #   50%: profile
-
-    ## @param pressure_levels - map of strings - optional
-    ## Pressure levels and the respective active actions to trigger when
-    ## memory usage reaches the specified level.
-    ## The pressure level is 'low', 'medium' or 'critical'.
-    ## The actions are the same for thresholds (see above).
-    #
-    # pressure_levels:
-    #   medium: gc
 {{ end }}
 
 {{- if .NetworkModule }}
@@ -1537,6 +1688,20 @@ api_key:
 # service_monitoring_config:
 ## @param enabled - boolean - optional - default: false
 ## Set to true to enable the Universal Service Monitoring Module of the System Probe
+#
+# enabled: false
+
+{{ end -}}
+
+{{- if .DataStreamsModule }}
+
+#############################################
+## System Probe Data Streams Configuration ##
+#############################################
+
+# data_streams_config:
+## @param enabled - boolean - optional - default: false
+## Set to true to enable the Data Streams Module of the System Probe
 #
 # enabled: false
 
@@ -2290,6 +2455,11 @@ api_key:
   #
   # listen_address: /var/vcap/data/garden/garden.sock
 
+## @param podman_db_path - string - optional - default: /var/lib/containers/storage/libpod/bolt_state.db
+## Settings for Podman DB that Datadog Agent collects container metrics.
+#
+# podman_db_path: /var/lib/containers/storage/libpod/bolt_state.db
+
 {{ end -}}
 {{- if .ClusterAgent }}
 
@@ -2594,6 +2764,28 @@ api_key:
   ## See https://docs.microsoft.com/en-us/azure/aks/faq#can-i-use-admission-controller-webhooks-on-aks
   #
   # add_aks_selectors: false
+
+  ## @param auto_instrumentation - custom object - optional
+  ## Library injection parameters.
+  #
+  # auto_instrumentation:
+
+    ## @param init_resources - custom object - optional
+    ## CPU and Memory resources of the init containers.
+    #
+    # init_resources:
+
+      ## @param cpu - string - optional
+      ## @env DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_RESOURCES_CPU - string - optional
+      ## Configures the CPU request and limit for the init containers.
+      #
+      # cpu:
+
+      ## @param memory - string - optional
+      ## @env DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_RESOURCES_MEMORY - string - optional
+      ## Configures the memory request and limit for the init containers.
+      #
+      # memory:
 {{ end -}}
 {{- if .DockerTagging }}
 
@@ -3040,6 +3232,14 @@ api_key:
 #
 # disable_cluster_name_tag_key: false
 
+## @param kubernetes_ad_tags_disabled -- list of strings - optional
+## @env DD_KUBERNETES_AD_TAGS_DISABLED -- list of strings - optional
+## Can only be set to a single valid value: [ "kube_service" ]
+## in order to not attach the kube_service tag on ready pods
+#
+# kubernetes_ad_tags_disabled:
+#   - kube_service
+
 {{ end -}}
 {{- if .PrometheusScrape }}
 ## @param prometheus_scrape - custom object - optional
@@ -3416,11 +3616,18 @@ api_key:
       #
       # mode: distributions
 
+      ## Deprecated - use `send_aggregation_metrics` instead. This flag will override `send_aggregation_metrics` if both are set.
       ## @param send_count_sum_metrics - boolean - optional - default: false
       ## @env DD_OTLP_CONFIG_METRICS_HISTOGRAMS_SEND_COUNT_SUM_METRICS - boolean - optional - default: false
-      ## Whether to report sum and count as separate histogram metrics.
+      ## Whether to report sum, count, min, and max as separate histogram metrics.
       #
       # send_count_sum_metrics: false
+
+      ## @param send_aggregation_metrics - boolean - optional - default: false
+      ## @env DD_OTLP_CONFIG_METRICS_HISTOGRAMS_SEND_AGGREGATION_METRICS - boolean - optional - default: false
+      ## Whether to report sum, count, min, and max as separate histogram metrics.
+      #
+      # send_aggregation_metrics: false
 
     ## @param sums - custom object - optional
     ## Configuration for OTLP Sums.

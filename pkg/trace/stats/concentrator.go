@@ -6,11 +6,11 @@
 package stats
 
 import (
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -38,14 +38,16 @@ type Concentrator struct {
 	// It means that we can compute stats only for the last `bufferLen * bsize` and that we
 	// wait such time before flushing the stats.
 	// This only applies to past buckets. Stats buckets in the future are allowed with no restriction.
-	bufferLen     int
-	exit          chan struct{}
-	exitWG        sync.WaitGroup
-	buckets       map[int64]*RawBucket // buckets used to aggregate stats per timestamp
-	mu            sync.Mutex
-	agentEnv      string
-	agentHostname string
-	agentVersion  string
+	bufferLen              int
+	exit                   chan struct{}
+	exitWG                 sync.WaitGroup
+	buckets                map[int64]*RawBucket // buckets used to aggregate stats per timestamp
+	mu                     sync.Mutex
+	agentEnv               string
+	agentHostname          string
+	agentVersion           string
+	peerSvcAggregation     bool // flag to enable peer.service aggregation
+	computeStatsBySpanKind bool // flag to enable computation of stats through checking the span.kind field
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
@@ -58,13 +60,15 @@ func NewConcentrator(conf *config.AgentConfig, out chan pb.StatsPayload, now tim
 		// override buckets which could have been sent before an Agent restart.
 		oldestTs: alignTs(now.UnixNano(), bsize),
 		// TODO: Move to configuration.
-		bufferLen:     defaultBufferLen,
-		In:            make(chan Input, 100),
-		Out:           out,
-		exit:          make(chan struct{}),
-		agentEnv:      conf.DefaultEnv,
-		agentHostname: conf.Hostname,
-		agentVersion:  conf.AgentVersion,
+		bufferLen:              defaultBufferLen,
+		In:                     make(chan Input, 100),
+		Out:                    out,
+		exit:                   make(chan struct{}),
+		agentEnv:               conf.DefaultEnv,
+		agentHostname:          conf.Hostname,
+		agentVersion:           conf.AgentVersion,
+		peerSvcAggregation:     conf.PeerServiceAggregation,
+		computeStatsBySpanKind: conf.ComputeStatsBySpanKind,
 	}
 	return &c
 }
@@ -114,6 +118,17 @@ func (c *Concentrator) Stop() {
 	c.exitWG.Wait()
 }
 
+// computeStatsForSpanKind returns true if the span.kind value makes the span eligible for stats computation.
+func computeStatsForSpanKind(s *pb.Span) bool {
+	k := strings.ToLower(s.Meta["span.kind"])
+	switch k {
+	case "server", "consumer", "client", "producer":
+		return true
+	default:
+		return false
+	}
+}
+
 // Input specifies a set of traces originating from a certain payload.
 type Input struct {
 	Traces      []traceutil.ProcessedTrace
@@ -126,8 +141,10 @@ func NewStatsInput(numChunks int, containerID string, clientComputedStats bool, 
 		return Input{}
 	}
 	in := Input{Traces: make([]traceutil.ProcessedTrace, 0, numChunks)}
-	enableContainers := features.Has("enable_cid_stats") || (conf.FargateOrchestrator != config.OrchestratorUnknown)
-	if enableContainers && !features.Has("disable_cid_stats") {
+	_, enabledCIDStats := conf.Features["enable_cid_stats"]
+	_, disabledCIDStats := conf.Features["disable_cid_stats"]
+	enableContainers := enabledCIDStats || (conf.FargateOrchestrator != config.OrchestratorUnknown)
+	if enableContainers && !disabledCIDStats {
 		// only allow the ContainerID stats dimension if we're in a Fargate instance or it's
 		// been explicitly enabled and it's not prohibited by the disable_cid_stats feature flag.
 		in.ContainerID = containerID
@@ -164,7 +181,11 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 	}
 	for _, s := range pt.TraceChunk.Spans {
 		isTop := traceutil.HasTopLevel(s)
-		if !(isTop || traceutil.IsMeasured(s)) || traceutil.IsPartialSnapshot(s) {
+		eligibleSpanKind := c.computeStatsBySpanKind && computeStatsForSpanKind(s)
+		if !(isTop || traceutil.IsMeasured(s) || eligibleSpanKind) {
+			continue
+		}
+		if traceutil.IsPartialSnapshot(s) {
 			continue
 		}
 		end := s.Start + s.Duration
@@ -180,7 +201,7 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 			b = NewRawBucket(uint64(btime), uint64(c.bsize))
 			c.buckets[btime] = b
 		}
-		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey)
+		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey, c.peerSvcAggregation)
 	}
 }
 

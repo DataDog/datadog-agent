@@ -9,13 +9,17 @@
 package containerd
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/errdefs"
+	"github.com/containerd/containerd/namespaces"
 
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -31,17 +35,23 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 		return workloadmeta.Container{}, err
 	}
 
-	spec, err := containerdClient.Spec(namespace, container)
-	if err != nil {
-		return workloadmeta.Container{}, err
+	// Prepare context
+	ctx := context.Background()
+	ctx = namespaces.WithNamespace(ctx, namespace)
+
+	// Get image id from container's image config
+	var imageID string
+	if img, err := container.Image(ctx); err != nil {
+		log.Warnf("cannot get container %s's image: %v", container.ID(), err)
+	} else {
+		if imgConfig, err := img.Config(ctx); err != nil {
+			log.Warnf("cannot get container %s's image's config: %v", container.ID(), err)
+		} else {
+			imageID = imgConfig.Digest.String()
+		}
 	}
 
-	envs, err := cutil.EnvVarsFromSpec(spec)
-	if err != nil {
-		return workloadmeta.Container{}, err
-	}
-
-	image, err := workloadmeta.NewContainerImage(info.Image)
+	image, err := workloadmeta.NewContainerImage(imageID, info.Image)
 	if err != nil {
 		log.Debugf("cannot split image name %q: %s", info.Image, err)
 	}
@@ -70,7 +80,7 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 
 	// Some attributes in workloadmeta.Container cannot be fetched from
 	// containerd. I've marked those as "Not available".
-	return workloadmeta.Container{
+	workloadContainer := workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainer,
 			ID:   container.ID(),
@@ -80,7 +90,6 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 			Labels: info.Labels,
 		},
 		Image:   image,
-		EnvVars: envs,
 		Ports:   nil, // Not available
 		Runtime: workloadmeta.ContainerRuntimeContainerd,
 		State: workloadmeta.ContainerState{
@@ -91,9 +100,30 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 			FinishedAt: time.Time{},    // Not available
 		},
 		NetworkIPs: networkIPs,
-		Hostname:   spec.Hostname,
 		PID:        0, // Not available
-	}, nil
+	}
+
+	// Spec retrieval is slow if large due to JSON parsing
+	spec, err := containerdClient.Spec(namespace, info, cutil.DefaultAllowedSpecMaxSize)
+	if err == nil {
+		if spec == nil {
+			return workloadmeta.Container{}, fmt.Errorf("retrieved empty spec for container id: %s", info.ID)
+		}
+
+		envs, err := cutil.EnvVarsFromSpec(spec, containers.EnvVarFilterFromConfig().IsIncluded)
+		if err != nil {
+			return workloadmeta.Container{}, err
+		}
+
+		workloadContainer.EnvVars = envs
+		workloadContainer.Hostname = spec.Hostname
+	} else if errors.Is(err, cutil.ErrSpecTooLarge) {
+		log.Warnf("Skipping parsing of container spec for container id: %s, spec is bigger than: %d", info.ID, cutil.DefaultAllowedSpecMaxSize)
+	} else {
+		return workloadmeta.Container{}, err
+	}
+
+	return workloadContainer, nil
 }
 
 func extractStatus(status containerd.ProcessStatus) workloadmeta.ContainerStatus {

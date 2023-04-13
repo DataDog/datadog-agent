@@ -50,6 +50,8 @@ func FormatConnection(
 	conn network.ConnectionStats,
 	routes map[string]RouteIdx,
 	httpEncoder *httpEncoder,
+	http2Encoder *http2Encoder,
+	kafkaEncoder *kafkaEncoder,
 	dnsFormatter *dnsFormatter,
 	ipc ipCache,
 	tagsSet *network.TagsSet,
@@ -86,6 +88,16 @@ func FormatConnection(
 	httpStats, staticTags, dynamicTags := httpEncoder.GetHTTPAggregationsAndTags(conn)
 	if httpStats != nil {
 		c.HttpAggregations, _ = proto.Marshal(httpStats)
+	}
+
+	httpStats2, _, _ := http2Encoder.GetHTTP2AggregationsAndTags(conn)
+	if httpStats2 != nil {
+		c.Http2Aggregations, _ = proto.Marshal(httpStats2)
+	}
+
+	kafkaStats := kafkaEncoder.GetKafkaAggregations(conn)
+	if kafkaStats != nil {
+		c.DataStreamsAggregations, _ = proto.Marshal(kafkaStats)
 	}
 
 	conn.StaticTags |= staticTags
@@ -295,28 +307,16 @@ func unsafeStringSlice(key string) []byte {
 //				model.ProtocolType_protocolHTTP2,
 //			},
 //		}
-//
-// Additionnally, if the staticTags contains TLS tags, the TLS protocol is added
-// to the protocol stack, giving an output like this:
-//
-//	&model.ProtocolStack{
-//			Stack: []model.ProtocolType{
-//				model.ProtocolType_protocolTLS,
-//				model.ProtocolType_protocolHTTP2,
-//			},
-//		}
 func formatProtocol(protocol network.ProtocolType, staticTags uint64) *model.ProtocolStack {
-	stack := make([]model.ProtocolType, 0, 1)
-	if network.IsTLSTag(staticTags) {
-		stack = append(stack, model.ProtocolType(network.ProtocolTLS))
-	}
-
 	if protocol == network.ProtocolUnclassified {
 		protocol = network.ProtocolUnknown
 	}
-	stack = append(stack, model.ProtocolType(protocol))
 
+	stack := []model.ProtocolType{}
+	if network.IsTLSTag(staticTags) {
+		stack = append(stack, model.ProtocolType(network.ProtocolTLS))
+	}
 	return &model.ProtocolStack{
-		Stack: stack,
+		Stack: append(stack, model.ProtocolType(protocol)),
 	}
 }

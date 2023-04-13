@@ -117,7 +117,7 @@ func (l *KubeletListener) createContainerService(
 		containerName,
 		containerImg.RawName,
 		pod.Namespace,
-	) {
+	) || containers.IsExcludedByAnnotation(containers.GlobalFilter, pod.Annotations, containerName) {
 		log.Debugf("container %s filtered out: name %q image %q namespace %q", container.ID, containerName, containerImg.RawName, pod.Namespace)
 		return
 	}
@@ -166,13 +166,13 @@ func (l *KubeletListener) createContainerService(
 			containerName,
 			containerImg.RawName,
 			pod.Namespace,
-		) || !container.State.Running,
+		) || !container.State.Running || containers.IsExcludedByAnnotation(containers.MetricsFilter, pod.Annotations, containerName),
 		logsExcluded: l.IsExcluded(
 			containers.LogsFilter,
 			containerName,
 			containerImg.RawName,
 			pod.Namespace,
-		),
+		) || containers.IsExcludedByAnnotation(containers.LogsFilter, pod.Annotations, containerName),
 	}
 
 	adIdentifier := containerName

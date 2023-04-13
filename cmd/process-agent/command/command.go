@@ -7,20 +7,24 @@
 package command
 
 import (
-	"os"
-	"path/filepath"
-	"strings"
-
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
+	"github.com/DataDog/datadog-agent/comp/core"
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const LoggerName config.LoggerName = "PROCESS"
+
+// DaemonLogParams are the log params should be given to the `core.BundleParams` for when the process agent is running as a daemon
+var DaemonLogParams = logComponent.LogForDaemon(string(LoggerName), "process_config.log_file", config.DefaultProcessAgentLogFile)
+
+// OneShotLogParams are the log params that are given to commands
+var OneShotLogParams = logComponent.LogForOneShot(string(LoggerName), "info", true)
 
 // GlobalParams contains the values of agent-global Cobra flags.
 //
@@ -37,9 +41,6 @@ type GlobalParams struct {
 
 	// PidFilePath specifies the path to the pid file
 	PidFilePath string
-
-	// Info
-	Info bool
 
 	// WinParams provides windows specific options
 	WinParams WinParams
@@ -78,7 +79,6 @@ func MakeCommand(subcommandFactories []SubcommandFactory, winParams bool, rootCm
 	}
 
 	rootCmd.PersistentFlags().StringVarP(&globalParams.PidFilePath, "pid", "p", "", "Path to set pidfile for process")
-	rootCmd.PersistentFlags().BoolVarP(&globalParams.Info, "info", "i", false, "Show info about running process agent and exit")
 	rootCmd.PersistentFlags().BoolP("version", "v", false, "[deprecated] Print the version and exit")
 	rootCmd.PersistentFlags().String("check", "",
 		"[deprecated] Run a specific check and print the results. Choose from: process, rtprocess, container, rtcontainer, connections, process_discovery")
@@ -110,83 +110,10 @@ func MakeCommand(subcommandFactories []SubcommandFactory, winParams bool, rootCm
 	return rootCmd
 }
 
-// BootstrapConfig is a helper for process-agent config initialization (until we further refactor to use components)
-func BootstrapConfig(path string, oneshotCommand bool) error {
-	setHostMountEnv()
-
-	if err := loadConfigIfExists(path); err != nil {
-		return err
+func GetCoreBundleParamsForOneShot(globalParams *GlobalParams) core.BundleParams {
+	return core.BundleParams{
+		ConfigParams:         configComponent.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
+		SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
+		LogParams:            logComponent.LogForOneShot(string(LoggerName), "info", true),
 	}
-
-	// Resolve any secrets
-	if err := config.ResolveSecrets(config.Datadog, filepath.Base(path)); err != nil {
-		return err
-	}
-
-	var (
-		logFile      string
-		syslogURI    string
-		syslogRFC    = false
-		logToConsole = true
-		logAsJSON    = false
-	)
-
-	if !oneshotCommand {
-		syslogURI = config.GetSyslogURI()
-		syslogRFC = config.Datadog.GetBool("syslog_rfc")
-		logToConsole = config.Datadog.GetBool("log_to_console")
-		logAsJSON = config.Datadog.GetBool("log_format_json")
-
-		if !config.Datadog.GetBool("disable_file_logging") {
-			logFile = config.Datadog.GetString("process_config.log_file")
-		}
-	}
-
-	return config.SetupLogger(
-		LoggerName,
-		config.Datadog.GetString("log_level"),
-		logFile,
-		syslogURI,
-		syslogRFC,
-		logToConsole,
-		logAsJSON,
-	)
-}
-
-// setHostMountEnv sets HOST_PROC and HOST_SYS mounts if applicable in containerized environments
-func setHostMountEnv() {
-	// Set default values for proc/sys paths if unset.
-	// Don't set this is /host is not mounted to use context within container.
-	// Generally only applicable for container-only cases like Fargate.
-	if !config.IsContainerized() || !util.PathExists("/host") {
-		return
-	}
-
-	if v := os.Getenv("HOST_PROC"); v == "" {
-		os.Setenv("HOST_PROC", "/host/proc")
-	}
-	if v := os.Getenv("HOST_SYS"); v == "" {
-		os.Setenv("HOST_SYS", "/host/sys")
-	}
-}
-
-// loadConfigIfExists takes a path to either a directory containing datadog.yaml or a direct path to a datadog.yaml file
-// and loads it into ddconfig.Datadog. It does this silently, and does not produce any logs.
-func loadConfigIfExists(path string) error {
-	if path == "" {
-		return nil
-	}
-
-	if !util.PathExists(path) {
-		log.Infof("No config exists at %s, ignoring...", path)
-		return nil
-	}
-
-	config.Datadog.AddConfigPath(path)
-	if strings.HasSuffix(path, ".yaml") { // If they set a config file directly, let's try to honor that
-		config.Datadog.SetConfigFile(path)
-	}
-
-	_, err := config.LoadWithoutSecret()
-	return err
 }

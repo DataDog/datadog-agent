@@ -31,6 +31,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"time"
 
 	bolt "go.etcd.io/bbolt"
 
@@ -38,12 +40,11 @@ import (
 )
 
 const (
-	// DefaultDBPath is the default path of podman's state database
-	DefaultDBPath = "/var/lib/containers/storage/libpod/bolt_state.db"
-	ctrName       = "ctr"
-	allCtrsName   = "all-ctrs"
-	configName    = "config"
-	stateName     = "state"
+	ctrName     = "ctr"
+	allCtrsName = "all-ctrs"
+	configName  = "config"
+	stateName   = "state"
+	openTimeout = 30 * time.Second
 )
 
 var (
@@ -58,13 +59,8 @@ type DBClient struct {
 	DBPath string
 }
 
-// NewDBClient returns a DB client that uses the DB stored in dbPath. If dbPath
-// is empty, it uses the default path.
+// NewDBClient returns a DB client that uses the DB stored in dbPath.
 func NewDBClient(dbPath string) *DBClient {
-	if dbPath == "" {
-		dbPath = DefaultDBPath
-	}
-
 	return &DBClient{
 		DBPath: dbPath,
 	}
@@ -139,10 +135,21 @@ func (client *DBClient) GetAllContainers() ([]Container, error) {
 	return res, nil
 }
 
+// Note: original function comes from https://github.com/containers/podman/blob/v3.4.1/libpod/boltdb_state_internal.go
+// It was adapted as we don't need to write any information to the DB.
 func (client *DBClient) getDBCon() (*bolt.DB, error) {
-	db, err := bolt.Open(client.DBPath, 0600, nil)
+	dbOptions := bolt.DefaultOptions
+	dbOptions.ReadOnly = true
+	dbOptions.Timeout = openTimeout
+
+	// Using a custom `OpenFile` to remove the O_CREATE option as we never want to create a file
+	dbOptions.OpenFile = func(name string, flag int, perm os.FileMode) (*os.File, error) {
+		return os.OpenFile(name, flag&^os.O_CREATE, perm)
+	}
+
+	db, err := bolt.Open(client.DBPath, 0o0, dbOptions)
 	if err != nil {
-		return nil, fmt.Errorf("error opening database %s", client.DBPath)
+		return nil, fmt.Errorf("error opening database %s, err: %w", client.DBPath, err)
 	}
 
 	return db, nil

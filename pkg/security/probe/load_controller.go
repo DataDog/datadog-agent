@@ -51,7 +51,7 @@ type LoadController struct {
 
 // NewLoadController instantiates a new load controller
 func NewLoadController(probe *Probe) (*LoadController, error) {
-	lru, err := simplelru.NewLRU[eventCounterLRUKey, *atomic.Uint64](probe.Config.PIDCacheSize, nil)
+	lru, err := simplelru.NewLRU[eventCounterLRUKey, *atomic.Uint64](probe.Config.Probe.PIDCacheSize, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -63,9 +63,9 @@ func NewLoadController(probe *Probe) (*LoadController, error) {
 		eventsCounters:     lru,
 		pidDiscardersCount: atomic.NewInt64(0),
 
-		EventsCountThreshold: probe.Config.LoadControllerEventsCountThreshold,
-		DiscarderTimeout:     probe.Config.LoadControllerDiscarderTimeout,
-		ControllerPeriod:     probe.Config.LoadControllerControlPeriod,
+		EventsCountThreshold: probe.Config.Probe.LoadControllerEventsCountThreshold,
+		DiscarderTimeout:     probe.Config.Probe.LoadControllerDiscarderTimeout,
+		ControllerPeriod:     probe.Config.Probe.LoadControllerControlPeriod,
 
 		NoisyProcessCustomEventRate: rate.NewLimiter(rate.Every(time.Second), defaultRateLimit),
 	}

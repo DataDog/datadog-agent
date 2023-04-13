@@ -24,7 +24,7 @@ func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {
 	reportLogTime := time.Now()
 	isOOM := ContainsOutOfMemoryLog("JavaScript heap out of memory")
 	if isOOM {
-		GenerateEnhancedMetricsFromFunctionLog(reportLogTime, tags, demux)
+		GenerateOutOfMemoryEnhancedMetrics(reportLogTime, tags, demux)
 	}
 
 	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(2, 0, 100*time.Millisecond)
@@ -54,7 +54,7 @@ func TestGenerateEnhancedMetricsFromFunctionLogNoMetric(t *testing.T) {
 	tags := []string{"functionname:test-function"}
 	isOOM := ContainsOutOfMemoryLog("Task timed out after 30.03 seconds")
 	if isOOM {
-		GenerateEnhancedMetricsFromFunctionLog(time.Now(), tags, demux)
+		GenerateOutOfMemoryEnhancedMetrics(time.Now(), tags, demux)
 	}
 
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)

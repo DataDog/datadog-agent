@@ -264,6 +264,11 @@ func (rs *RuleSet) AddRules(parsingContext *ast.ParsingContext, rules []*RuleDef
 	return result
 }
 
+// ListFields returns all the fields accessed by all rules of this rule set
+func (rs *RuleSet) ListFields() []string {
+	return rs.fields
+}
+
 // GetRuleEventType return the rule EventType. Currently rules support only one eventType
 func GetRuleEventType(rule *eval.Rule) (eval.EventType, error) {
 	eventTypes, err := rule.GetEventTypes()
@@ -524,11 +529,9 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	defer rs.pool.Put(ctx)
 
 	eventType := event.GetType()
-
-	result := false
 	bucket, exists := rs.eventRuleBuckets[eventType]
 	if !exists {
-		return result
+		return false
 	}
 
 	// Since logger is an interface this call cannot be inlined, requiring to pass the trace call arguments
@@ -537,6 +540,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 		rs.logger.Tracef("Evaluating event of type `%s` against set of %d rules", eventType, len(bucket.rules))
 	}
 
+	result := false
 	for _, rule := range bucket.rules {
 		if rule.GetEvaluator().Eval(ctx) {
 
@@ -553,25 +557,35 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 		}
 	}
 
-	if !result {
-		if rs.logger.IsTracing() {
-			rs.logger.Tracef("Looking for discarders for event of type `%s`", eventType)
-		}
+	return result
+}
 
-		for _, field := range bucket.fields {
-			if rs.opts.SupportedDiscarders != nil {
-				if _, exists := rs.opts.SupportedDiscarders[field]; !exists {
-					continue
-				}
-			}
+// EvaluateDiscarders evaluates the discarders for the given event if any
+func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
+	ctx := rs.pool.Get(event)
+	defer rs.pool.Put(ctx)
 
-			if isDiscarder, _ := IsDiscarder(ctx, field, bucket.rules); isDiscarder {
-				rs.NotifyDiscarderFound(event, field, eventType)
-			}
-		}
+	eventType := event.GetType()
+	bucket, exists := rs.eventRuleBuckets[eventType]
+	if !exists {
+		return
 	}
 
-	return result
+	if rs.logger.IsTracing() {
+		rs.logger.Tracef("Looking for discarders for event of type `%s`", eventType)
+	}
+
+	for _, field := range bucket.fields {
+		if rs.opts.SupportedDiscarders != nil {
+			if _, exists := rs.opts.SupportedDiscarders[field]; !exists {
+				continue
+			}
+		}
+
+		if isDiscarder, _ := IsDiscarder(ctx, field, bucket.rules); isDiscarder {
+			rs.NotifyDiscarderFound(event, field, eventType)
+		}
+	}
 }
 
 // GetEventTypes returns all the event types handled by the ruleset

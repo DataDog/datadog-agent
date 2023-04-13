@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
+// +build kubeapiserver
+
 package customresources
 
 // This file has most of its logic copied from the KSM hpa metric family
@@ -14,6 +17,7 @@ package customresources
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	autoscaling "k8s.io/api/autoscaling/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -53,11 +57,15 @@ var (
 
 // NewHorizontalPodAutoscalerV2Factory returns a new HorizontalPodAutoscaler
 // metric family generator factory.
-func NewHorizontalPodAutoscalerV2Factory() customresource.RegistryFactory {
-	return &hpav2Factory{}
+func NewHorizontalPodAutoscalerV2Factory(client *apiserver.APIClient) customresource.RegistryFactory {
+	return &hpav2Factory{
+		client: client.Cl,
+	}
 }
 
-type hpav2Factory struct{}
+type hpav2Factory struct {
+	client interface{}
+}
 
 func (f *hpav2Factory) Name() string {
 	return "horizontalpodautoscalers"
@@ -65,7 +73,7 @@ func (f *hpav2Factory) Name() string {
 
 // CreateClient is not implemented
 func (f *hpav2Factory) CreateClient(cfg *rest.Config) (interface{}, error) {
-	panic("not implemented")
+	return f.client, nil
 }
 
 func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
@@ -216,6 +224,61 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 			}),
 		),
 		*generator.NewFamilyGenerator(
+			"kube_horizontalpodautoscaler_status_target_metric",
+			"The current metric status used by this autoscaler when calculating the desired replica count.",
+			metric.Gauge,
+			"",
+			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
+				ms := make([]*metric.Metric, 0, len(a.Status.CurrentMetrics))
+				for _, m := range a.Status.CurrentMetrics {
+					var metricName string
+					var currentMetric autoscaling.MetricValueStatus
+					// The variable maps the type of metric to the corresponding value
+					metricMap := make(map[metricTargetType]float64)
+
+					switch m.Type {
+					case autoscaling.ObjectMetricSourceType:
+						metricName = m.Object.Metric.Name
+						currentMetric = m.Object.Current
+					case autoscaling.PodsMetricSourceType:
+						metricName = m.Pods.Metric.Name
+						currentMetric = m.Pods.Current
+					case autoscaling.ResourceMetricSourceType:
+						metricName = string(m.Resource.Name)
+						currentMetric = m.Resource.Current
+					case autoscaling.ContainerResourceMetricSourceType:
+						metricName = string(m.ContainerResource.Name)
+						currentMetric = m.ContainerResource.Current
+					case autoscaling.ExternalMetricSourceType:
+						metricName = m.External.Metric.Name
+						currentMetric = m.External.Current
+					default:
+						// Skip unsupported metric type
+						continue
+					}
+
+					if currentMetric.Value != nil {
+						metricMap[value] = float64(currentMetric.Value.MilliValue()) / 1000
+					}
+					if currentMetric.AverageValue != nil {
+						metricMap[average] = float64(currentMetric.AverageValue.MilliValue()) / 1000
+					}
+					if currentMetric.AverageUtilization != nil {
+						metricMap[utilization] = float64(*currentMetric.AverageUtilization)
+					}
+
+					for metricTypeIndex, metricValue := range metricMap {
+						ms = append(ms, &metric.Metric{
+							LabelKeys:   targetMetricLabels,
+							LabelValues: []string{metricName, metricTypeIndex.String()},
+							Value:       metricValue,
+						})
+					}
+				}
+				return &metric.Family{Metrics: ms}
+			}),
+		),
+		*generator.NewFamilyGenerator(
 			"kube_horizontalpodautoscaler_status_desired_replicas",
 			"Desired number of replicas of pods managed by this autoscaler.",
 			metric.Gauge,
@@ -272,10 +335,10 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 			metric.Gauge,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
-				ms := make([]*metric.Metric, 0, len(a.Status.Conditions)*len(conditionStatuses))
+				ms := make([]*metric.Metric, 0, len(a.Status.Conditions)*len(conditionStatusesV1))
 
 				for _, c := range a.Status.Conditions {
-					metrics := addConditionMetrics(c.Status)
+					metrics := addConditionMetricsV1(c.Status)
 
 					for _, m := range metrics {
 						metric := m

@@ -129,9 +129,6 @@ func TestSubmitIfStopped(t *testing.T) {
 	assert.NotNil(t, forwarder.SubmitSeries(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitV1Intake(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitV1CheckRuns(nil, make(http.Header)))
-	assert.NotNil(t, forwarder.SubmitContainerLifecycleEvents(nil, make(http.Header)))
-	assert.NotNil(t, forwarder.SubmitContainerImages(nil, make(http.Header)))
-	assert.NotNil(t, forwarder.SubmitSBOM(nil, make(http.Header)))
 }
 
 func TestCreateHTTPTransactions(t *testing.T) {
@@ -245,7 +242,7 @@ func TestCreateHTTPTransactionsWithDifferentResolvers(t *testing.T) {
 func TestCreateHTTPTransactionsWithOverrides(t *testing.T) {
 	resolvers := make(map[string]resolver.DomainResolver)
 	r := resolver.NewMultiDomainResolver(testDomain, []string{"api-key-1"})
-	r.RegisterAlternateDestination("vector.tld", "diverted", resolver.Vector)
+	r.RegisterAlternateDestination("observability_pipelines_worker.tld", "diverted", resolver.Vector)
 	resolvers[testDomain] = r
 	forwarder := NewDefaultForwarder(NewOptionsWithResolvers(resolvers))
 
@@ -266,7 +263,7 @@ func TestCreateHTTPTransactionsWithOverrides(t *testing.T) {
 	require.Len(t, transactions, 1, "should contain 1 transaction, contains %d", len(transactions))
 
 	assert.Equal(t, transactions[0].Endpoint.Route, "/api/foo")
-	assert.Equal(t, transactions[0].Domain, "vector.tld")
+	assert.Equal(t, transactions[0].Domain, "observability_pipelines_worker.tld")
 }
 
 func TestArbitraryTagsHTTPHeader(t *testing.T) {
@@ -385,15 +382,6 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	numReqs += 4
 
 	assert.Nil(t, f.SubmitMetadata(payload, headers))
-	numReqs += 4
-
-	assert.Nil(t, f.SubmitContainerLifecycleEvents(payload, headers))
-	numReqs += 4
-
-	assert.Nil(t, f.SubmitContainerImages(payload, headers))
-	numReqs += 4
-
-	assert.Nil(t, f.SubmitSBOM(payload, headers))
 	numReqs += 4
 
 	// let's wait a second for every channel communication to trigger

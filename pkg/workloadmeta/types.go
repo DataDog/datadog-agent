@@ -277,9 +277,10 @@ type ContainerImage struct {
 	Tag       string
 }
 
-// NewContainerImage builds a ContainerImage from an image name
-func NewContainerImage(imageName string) (ContainerImage, error) {
+// NewContainerImage builds a ContainerImage from an image name and its id
+func NewContainerImage(imageID string, imageName string) (ContainerImage, error) {
 	image := ContainerImage{
+		ID:      imageID,
 		RawName: imageName,
 		Name:    imageName,
 	}
@@ -383,6 +384,7 @@ func (o OrchestratorContainer) String(_ bool) string {
 type Container struct {
 	EntityID
 	EntityMeta
+	// EnvVars are limited to variables included in pkg/util/containers/env_vars_filter.go
 	EnvVars    map[string]string
 	Hostname   string
 	Image      ContainerImage
@@ -392,8 +394,9 @@ type Container struct {
 	Runtime    ContainerRuntime
 	State      ContainerState
 	// CollectorTags represent tags coming from the collector itself
-	// and that it would impossible to compute later on
+	// and that it would be impossible to compute later on
 	CollectorTags []string
+	Owner         *EntityID
 }
 
 // GetID implements Entity#GetID.
@@ -451,6 +454,11 @@ func (c Container) String(verbose bool) string {
 	return sb.String()
 }
 
+// IsOwnedByPod checks if a container's Owner is a KindKubernetesPod
+func (c *Container) IsOwnedByPod() bool {
+	return c.Owner != nil && c.Owner.Kind == KindKubernetesPod
+}
+
 var _ Entity = &Container{}
 
 // ContainerFilterFunc is a function used to filter containers.
@@ -473,6 +481,7 @@ type KubernetesPod struct {
 	QOSClass                   string
 	KubeServices               []string
 	NamespaceLabels            map[string]string
+	FinishedAt                 time.Time
 }
 
 // GetID implements Entity#GetID.
@@ -530,6 +539,9 @@ func (p KubernetesPod) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "PVCs:", sliceToString(p.PersistentVolumeClaimNames))
 		_, _ = fmt.Fprintln(&sb, "Kube Services:", sliceToString(p.KubeServices))
 		_, _ = fmt.Fprintln(&sb, "Namespace Labels:", mapToString(p.NamespaceLabels))
+		if !p.FinishedAt.IsZero() {
+			_, _ = fmt.Fprintln(&sb, "Finished At:", p.FinishedAt)
+		}
 	}
 
 	return sb.String()

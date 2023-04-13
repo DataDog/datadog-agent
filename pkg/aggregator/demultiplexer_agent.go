@@ -12,12 +12,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/containerimage"
-	"github.com/DataDog/datadog-agent/pkg/containerlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -30,6 +27,7 @@ type DemultiplexerWithAggregator interface {
 	// AggregateCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
 	AggregateCheckSample(sample metrics.MetricSample)
 	Options() AgentDemultiplexerOptions
+	GetEventPlatformForwarder() (epforwarder.EventPlatformForwarder, error)
 	GetEventsAndServiceChecksChannels() (chan []*metrics.Event, chan []*metrics.ServiceCheck)
 }
 
@@ -57,16 +55,11 @@ type AgentDemultiplexer struct {
 
 // AgentDemultiplexerOptions are the options used to initialize a Demultiplexer.
 type AgentDemultiplexerOptions struct {
-	SharedForwarderOptions         *forwarder.Options
-	UseNoopForwarder               bool
-	UseNoopEventPlatformForwarder  bool
-	UseNoopOrchestratorForwarder   bool
-	UseEventPlatformForwarder      bool
-	UseOrchestratorForwarder       bool
-	UseContainerLifecycleForwarder bool
-	UseContainerImageForwarder     bool
-	UseSBOMForwarder               bool
-	FlushInterval                  time.Duration
+	UseNoopEventPlatformForwarder bool
+	UseNoopOrchestratorForwarder  bool
+	UseEventPlatformForwarder     bool
+	UseOrchestratorForwarder      bool
+	FlushInterval                 time.Duration
 
 	EnableNoAggregationPipeline bool
 
@@ -74,22 +67,13 @@ type AgentDemultiplexerOptions struct {
 }
 
 // DefaultAgentDemultiplexerOptions returns the default options to initialize an AgentDemultiplexer.
-func DefaultAgentDemultiplexerOptions(options *forwarder.Options) AgentDemultiplexerOptions {
-	if options == nil {
-		options = forwarder.NewOptions(nil)
-	}
-
+func DefaultAgentDemultiplexerOptions() AgentDemultiplexerOptions {
 	return AgentDemultiplexerOptions{
-		SharedForwarderOptions:         options,
-		FlushInterval:                  DefaultFlushInterval,
-		UseEventPlatformForwarder:      true,
-		UseOrchestratorForwarder:       true,
-		UseNoopForwarder:               false,
-		UseNoopEventPlatformForwarder:  false,
-		UseNoopOrchestratorForwarder:   false,
-		UseContainerLifecycleForwarder: false,
-		UseContainerImageForwarder:     false,
-		UseSBOMForwarder:               false,
+		FlushInterval:                 DefaultFlushInterval,
+		UseEventPlatformForwarder:     true,
+		UseOrchestratorForwarder:      true,
+		UseNoopEventPlatformForwarder: false,
+		UseNoopOrchestratorForwarder:  false,
 		// the different agents/binaries enable it on a per-need basis
 		EnableNoAggregationPipeline: false,
 	}
@@ -115,8 +99,6 @@ type forwarders struct {
 	orchestrator       forwarder.Forwarder
 	eventPlatform      epforwarder.EventPlatformForwarder
 	containerLifecycle *forwarder.DefaultForwarder
-	containerImage     *forwarder.DefaultForwarder
-	sbom               *forwarder.DefaultForwarder
 }
 
 type dataOutputs struct {
@@ -125,17 +107,22 @@ type dataOutputs struct {
 	noAggSerializer  serializer.MetricSerializer
 }
 
+func InitAndStartAgentDemultiplexerTest(options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
+	sharedForwarder := forwarder.NewDefaultForwarder(forwarder.NewOptions(nil))
+	return InitAndStartAgentDemultiplexer(sharedForwarder, options, hostname)
+}
+
 // InitAndStartAgentDemultiplexer creates a new Demultiplexer and runs what's necessary
 // in goroutines. As of today, only the embedded BufferedAggregator needs a separate goroutine.
 // In the future, goroutines will be started for the event platform forwarder and/or orchestrator forwarder.
-func InitAndStartAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
+func InitAndStartAgentDemultiplexer(sharedForwarder forwarder.Forwarder, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
 	demultiplexerInstanceMu.Lock()
 	defer demultiplexerInstanceMu.Unlock()
 
-	demux := initAgentDemultiplexer(options, hostname)
+	demux := initAgentDemultiplexer(sharedForwarder, options, hostname)
 
 	if demultiplexerInstance != nil {
-		log.Warn("A DemultiplexerInstance is already existing but InitAndStartAgentDemultiplexer has been called again. Current instance will be overridden")
+		log.Warn("A DemultiplexerInstance is already existing but InitAndStartAgentDemultiplexerTest has been called again. Current instance will be overridden")
 	}
 	demultiplexerInstance = demux
 
@@ -143,8 +130,7 @@ func InitAndStartAgentDemultiplexer(options AgentDemultiplexerOptions, hostname 
 	return demux
 }
 
-func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
-
+func initAgentDemultiplexer(sharedForwarder forwarder.Forwarder, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
 	// prepare the multiple forwarders
 	// -------------------------------
 
@@ -165,31 +151,6 @@ func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) 
 		eventPlatformForwarder = epforwarder.NewEventPlatformForwarder()
 	}
 
-	// setup the container lifecycle events forwarder
-	var containerLifecycleForwarder *forwarder.DefaultForwarder
-	if options.UseContainerLifecycleForwarder {
-		containerLifecycleForwarder = containerlifecycle.NewForwarder()
-	}
-
-	// setup the container image forwarder
-	var containerImageForwarder *forwarder.DefaultForwarder
-	if options.UseContainerImageForwarder {
-		containerImageForwarder = containerimage.NewForwarder()
-	}
-
-	// setup the SBOM forwarder
-	var sbomForwarder *forwarder.DefaultForwarder
-	if options.UseSBOMForwarder {
-		sbomForwarder = sbom.NewForwarder()
-	}
-
-	var sharedForwarder forwarder.Forwarder
-	if options.UseNoopForwarder {
-		sharedForwarder = forwarder.NoopForwarder{}
-	} else {
-		sharedForwarder = forwarder.NewDefaultForwarder(options.SharedForwarderOptions)
-	}
-
 	if config.Datadog.GetBool("telemetry.enabled") && config.Datadog.GetBool("telemetry.dogstatsd_origin") && !config.Datadog.GetBool("aggregator_use_tags_store") {
 		log.Warn("DogStatsD origin telemetry is not supported when aggregator_use_tags_store is disabled.")
 		config.Datadog.Set("telemetry.dogstatsd_origin", false)
@@ -198,7 +159,7 @@ func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) 
 	// prepare the serializer
 	// ----------------------
 
-	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, containerLifecycleForwarder, containerImageForwarder, sbomForwarder)
+	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder)
 
 	// prepare the embedded aggregator
 	// --
@@ -230,7 +191,7 @@ func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) 
 	var noAggWorker *noAggregationStreamWorker
 	var noAggSerializer serializer.MetricSerializer
 	if options.EnableNoAggregationPipeline {
-		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, containerLifecycleForwarder, containerImageForwarder, sbomForwarder)
+		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder)
 		noAggWorker = newNoAggregationStreamWorker(
 			config.Datadog.GetInt("dogstatsd_no_aggregation_pipeline_batch_size"),
 			noAggSerializer,
@@ -252,12 +213,9 @@ func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) 
 		dataOutputs: dataOutputs{
 
 			forwarders: forwarders{
-				shared:             sharedForwarder,
-				orchestrator:       orchestratorForwarder,
-				eventPlatform:      eventPlatformForwarder,
-				containerLifecycle: containerLifecycleForwarder,
-				containerImage:     containerImageForwarder,
-				sbom:               sbomForwarder,
+				shared:        sharedForwarder,
+				orchestrator:  orchestratorForwarder,
+				eventPlatform: eventPlatformForwarder,
 			},
 
 			sharedSerializer: sharedSerializer,
@@ -337,24 +295,6 @@ func (d *AgentDemultiplexer) Run() {
 			log.Debug("not starting the container lifecycle forwarder")
 		}
 
-		// container image forwarder
-		if d.forwarders.containerImage != nil {
-			if err := d.forwarders.containerImage.Start(); err != nil {
-				log.Errorf("error starting container image forwarder: %v", err)
-			}
-		} else {
-			log.Debug("not starting the container image forwarder")
-		}
-
-		// sbom forwarder
-		if d.forwarders.sbom != nil {
-			if err := d.forwarders.sbom.Start(); err != nil {
-				log.Errorf("error starting SBOM forwarder: %v", err)
-			}
-		} else {
-			log.Debug("not starting the SBOM forwarder")
-		}
-
 		// shared forwarder
 		if d.forwarders.shared != nil {
 			d.forwarders.shared.Start() //nolint:errcheck
@@ -362,18 +302,6 @@ func (d *AgentDemultiplexer) Run() {
 			log.Debug("not starting the shared forwarder")
 		}
 		log.Debug("Forwarders started")
-	}
-
-	if d.options.UseContainerLifecycleForwarder {
-		d.aggregator.contLcycleDequeueOnce.Do(func() { go d.aggregator.dequeueContainerLifecycleEvents() })
-	}
-
-	if d.options.UseContainerImageForwarder {
-		d.aggregator.contImageDequeueOnce.Do(func() { go d.aggregator.dequeueContainerImages() })
-	}
-
-	if d.options.UseSBOMForwarder {
-		d.aggregator.sbomDequeueOnce.Do(func() { go d.aggregator.dequeueSBOM() })
 	}
 
 	for _, w := range d.statsd.workers {
@@ -470,14 +398,6 @@ func (d *AgentDemultiplexer) Stop(flush bool) {
 		if d.dataOutputs.forwarders.containerLifecycle != nil {
 			d.dataOutputs.forwarders.containerLifecycle.Stop()
 			d.dataOutputs.forwarders.containerLifecycle = nil
-		}
-		if d.dataOutputs.forwarders.containerImage != nil {
-			d.dataOutputs.forwarders.containerImage.Stop()
-			d.dataOutputs.forwarders.containerImage = nil
-		}
-		if d.dataOutputs.forwarders.sbom != nil {
-			d.dataOutputs.forwarders.sbom.Stop()
-			d.dataOutputs.forwarders.sbom = nil
 		}
 		if d.dataOutputs.forwarders.shared != nil {
 			d.dataOutputs.forwarders.shared.Stop()
@@ -589,6 +509,11 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 // GetEventsAndServiceChecksChannels returneds underlying events and service checks channels.
 func (d *AgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*metrics.Event, chan []*metrics.ServiceCheck) {
 	return d.aggregator.GetBufferedChannels()
+}
+
+// GetEventPlatformForwarder returns underlying events and service checks channels.
+func (d *AgentDemultiplexer) GetEventPlatformForwarder() (epforwarder.EventPlatformForwarder, error) {
+	return d.aggregator.GetEventPlatformForwarder()
 }
 
 // SendSamplesWithoutAggregation buffers a bunch of metrics with timestamp. This data will be directly

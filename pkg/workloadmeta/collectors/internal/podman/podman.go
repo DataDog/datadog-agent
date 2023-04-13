@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/podman"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -49,7 +50,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Store) error {
 		return dderrors.NewDisabled(componentName, "Podman not detected")
 	}
 
-	c.client = podman.NewDBClient(podman.DefaultDBPath)
+	c.client = podman.NewDBClient(config.Datadog.GetString("podman_db_path"))
 	c.store = store
 
 	return nil
@@ -104,7 +105,7 @@ func convertToEvent(container *podman.Container) workloadmeta.CollectorEvent {
 		log.Warnf("Could not get env vars for container %s", containerID)
 	}
 
-	image, err := workloadmeta.NewContainerImage(container.Config.RawImageName)
+	image, err := workloadmeta.NewContainerImage(container.Config.ContainerRootFSConfig.RootfsImageID, container.Config.RawImageName)
 	if err != nil {
 		log.Warnf("Could not get image for container %s", containerID)
 	}
@@ -213,7 +214,9 @@ func envVars(container *podman.Container) (map[string]string, error) {
 			return nil, errors.New("unexpected environment variable format")
 		}
 
-		res[envSplit[0]] = envSplit[1]
+		if containers.EnvVarFilterFromConfig().IsIncluded(envSplit[0]) {
+			res[envSplit[0]] = envSplit[1]
+		}
 	}
 
 	return res, nil

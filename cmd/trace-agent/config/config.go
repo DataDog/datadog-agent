@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -81,7 +80,7 @@ func prepareConfig(path string) (*config.AgentConfig, error) {
 	}
 	orch := fargate.GetOrchestrator() // Needs to be after loading config, because it relies on feature auto-detection
 	cfg.FargateOrchestrator = config.FargateOrchestratorName(orch)
-	if p := coreconfig.GetProxies(); p != nil {
+	if p := coreconfig.Datadog.GetProxies(); p != nil {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p)
 	}
 	cfg.ConfigPath = path
@@ -135,9 +134,10 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		c.StatsdPort = coreconfig.Datadog.GetInt("dogstatsd_port")
 	}
 
-	if coreconfig.Datadog.GetBool("vector.traces.enabled") {
-		if host := coreconfig.Datadog.GetString("vector.traces.url"); host == "" {
-			log.Error("vector.traces.enabled but vector.traces.url is empty.")
+	obsPipelineEnabled, prefix := isObsPipelineEnabled()
+	if obsPipelineEnabled {
+		if host := coreconfig.Datadog.GetString(fmt.Sprintf("%s.traces.url", prefix)); host == "" {
+			log.Errorf("%s.traces.enabled but %s.traces.url is empty.", prefix, prefix)
 		} else {
 			c.Endpoints[0].Host = host
 		}
@@ -194,6 +194,8 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	if coreconfig.Datadog.IsSet("apm_config.connection_limit") {
 		c.ConnectionLimit = coreconfig.Datadog.GetInt("apm_config.connection_limit")
 	}
+	c.PeerServiceAggregation = coreconfig.Datadog.GetBool("apm_config.peer_service_aggregation")
+	c.ComputeStatsBySpanKind = coreconfig.Datadog.GetBool("apm_config.compute_stats_by_span_kind")
 	if coreconfig.Datadog.IsSet("apm_config.extra_sample_rate") {
 		c.ExtraSampleRate = coreconfig.Datadog.GetFloat64("apm_config.extra_sample_rate")
 	}
@@ -221,6 +223,16 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 
 	if coreconfig.Datadog.IsSet("apm_config.max_remote_traces_per_second") {
 		c.MaxRemoteTPS = coreconfig.Datadog.GetFloat64("apm_config.max_remote_traces_per_second")
+	}
+	if k := "apm_config.features"; coreconfig.Datadog.IsSet(k) {
+		feats := coreconfig.Datadog.GetStringSlice(k)
+		for _, f := range feats {
+			c.Features[f] = struct{}{}
+		}
+		if c.HasFeature("big_resource") {
+			c.MaxResourceLen = 15_000
+		}
+		log.Debug("Found APM feature flags: %v", c.Features)
 	}
 
 	if k := "apm_config.ignore_resources"; coreconfig.Datadog.IsSet(k) {
@@ -269,13 +281,12 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		grpcPort = coreconfig.Datadog.GetInt(coreconfig.OTLPTracePort)
 	}
 	c.OTLPReceiver = &config.OTLP{
-		BindHost:                c.ReceiverHost,
-		GRPCPort:                grpcPort,
-		UsePreviewHostnameLogic: true,
-		MaxRequestBytes:         c.MaxRequestBytes,
-		SpanNameRemappings:      coreconfig.Datadog.GetStringMapString("otlp_config.traces.span_name_remappings"),
-		SpanNameAsResourceName:  coreconfig.Datadog.GetBool("otlp_config.traces.span_name_as_resource_name"),
-		ProbabilisticSampling:   coreconfig.Datadog.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
+		BindHost:               c.ReceiverHost,
+		GRPCPort:               grpcPort,
+		MaxRequestBytes:        c.MaxRequestBytes,
+		SpanNameRemappings:     coreconfig.Datadog.GetStringMapString("otlp_config.traces.span_name_remappings"),
+		SpanNameAsResourceName: coreconfig.Datadog.GetBool("otlp_config.traces.span_name_as_resource_name"),
+		ProbabilisticSampling:  coreconfig.Datadog.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
 	}
 
 	if coreconfig.Datadog.GetBool("apm_config.telemetry.enabled") {
@@ -405,6 +416,18 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	}
 	if k := "apm_config.debugger_api_key"; coreconfig.Datadog.IsSet(k) {
 		c.DebuggerProxy.APIKey = coreconfig.Datadog.GetString(k)
+	}
+	if k := "apm_config.debugger_additional_endpoints"; coreconfig.Datadog.IsSet(k) {
+		c.DebuggerProxy.AdditionalEndpoints = coreconfig.Datadog.GetStringMapStringSlice(k)
+	}
+	if k := "apm_config.symdb_dd_url"; coreconfig.Datadog.IsSet(k) {
+		c.SymDBProxy.DDURL = coreconfig.Datadog.GetString(k)
+	}
+	if k := "apm_config.symdb_api_key"; coreconfig.Datadog.IsSet(k) {
+		c.SymDBProxy.APIKey = coreconfig.Datadog.GetString(k)
+	}
+	if k := "apm_config.symdb_additional_endpoints"; coreconfig.Datadog.IsSet(k) {
+		c.SymDBProxy.AdditionalEndpoints = coreconfig.Datadog.GetStringMapStringSlice(k)
 	}
 	if k := "evp_proxy_config.enabled"; coreconfig.Datadog.IsSet(k) {
 		c.EVPProxy.Enabled = coreconfig.Datadog.GetBool(k)
@@ -586,7 +609,7 @@ func acquireHostname(c *config.AgentConfig) error {
 	if err != nil {
 		return err
 	}
-	if features.Has("disable_empty_hostname") && reply.Hostname == "" {
+	if c.HasFeature("disable_empty_hostname") && reply.Hostname == "" {
 		log.Debugf("Acquired empty hostname from gRPC but it's disallowed.")
 		return errors.New("empty hostname disallowed")
 	}
@@ -605,7 +628,7 @@ func acquireHostnameFallback(c *config.AgentConfig) error {
 	cmd.Stdout = &out
 	err := cmd.Run()
 	c.Hostname = strings.TrimSpace(out.String())
-	if emptyDisallowed := features.Has("disable_empty_hostname") && c.Hostname == ""; err != nil || emptyDisallowed {
+	if emptyDisallowed := c.HasFeature("disable_empty_hostname") && c.Hostname == ""; err != nil || emptyDisallowed {
 		if emptyDisallowed {
 			log.Debugf("Core agent returned empty hostname but is disallowed by disable_empty_hostname feature flag. Falling back to os.Hostname.")
 		}
@@ -678,4 +701,14 @@ func setMaxMemCPU(c *config.AgentConfig, isContainerized bool) {
 		log.Debug("Running in a container and apm_config.max_memory is not set, setting it to 0")
 		c.MaxMemory = 0
 	}
+}
+
+func isObsPipelineEnabled() (bool, string) {
+	if coreconfig.Datadog.GetBool("observability_pipelines_worker.traces.enabled") {
+		return true, "observability_pipelines_worker"
+	}
+	if coreconfig.Datadog.GetBool("vector.traces.enabled") {
+		return true, "vector"
+	}
+	return false, "observability_pipelines_worker"
 }

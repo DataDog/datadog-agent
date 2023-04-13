@@ -18,9 +18,8 @@
   script:
     - !reference [.retrieve_linux_go_tools_deps]
     - inv -e install-tools
-    - python3 -m tasks.release_tests
-    - python3 -m tasks.libs.version_tests
-    - inv -e test $FLAVORS --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --cpus 4 $EXTRA_OPTS --save-result-json test_output.json --junit-tar "junit-${CI_JOB_NAME}.tgz"
+    - inv -e invoke-unit-tests
+    - inv -e test $FLAVORS --skip-linters --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --cpus 4 $EXTRA_OPTS --save-result-json test_output.json --junit-tar "junit-${CI_JOB_NAME}.tgz"
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -28,11 +27,24 @@
       - test_output.json
       - junit-*.tgz
 
+.linux_lint:
+  stage: source_test
+  variables:
+    FLAVORS: '--flavors base'
+  script:
+    - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
+    - source /root/.bashrc && conda activate ddpy3
+    - inv -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev --python-runtimes "3"
+    - inv -e rtloader.install
+    - inv -e install-tools
+    - inv -e lint-go $FLAVORS $EXTRA_OPTS
+
 tests_deb-x64-py2:
   extends: .rtloader_tests
   rules:
     !reference [.on_a6]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   needs: ["go_deps"]
   variables:
@@ -43,18 +55,25 @@ tests_deb-x64-py3:
   extends:
     - .rtloader_tests
     - .linux_tests
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   needs: ["go_deps", "go_tools_deps"]
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
 
+lint_deb-x64:
+  extends:
+    - .linux_lint
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main"]
+  needs: ["go_deps", "go_tools_deps"]
+
 tests_flavor_iot_deb-x64:
   extends:
     - .rtloader_tests
     - .linux_tests
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   needs: ["go_deps", "go_tools_deps"]
   variables:
@@ -62,16 +81,34 @@ tests_flavor_iot_deb-x64:
     CONDA_ENV: ddpy3
     FLAVORS: '--flavors iot'
 
+lint_flavor_iot_deb-x64:
+  extends:
+    - .linux_lint
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main"]
+  needs: ["go_deps", "go_tools_deps"]
+  variables:
+    FLAVORS: '--flavors iot'
+
 tests_flavor_dogstatsd_deb-x64:
   extends:
     - .rtloader_tests
     - .linux_tests
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   needs: ["go_deps", "go_tools_deps"]
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
+    FLAVORS: '--flavors dogstatsd'
+
+lint_flavor_dogstatsd_deb-x64:
+  extends:
+    - .linux_lint
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main"]
+  needs: ["go_deps", "go_tools_deps"]
+  variables:
     FLAVORS: '--flavors dogstatsd'
 
 # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
@@ -81,7 +118,7 @@ tests_rpm-x64-py2:
   extends: .rtloader_tests
   rules:
     !reference [.on_a6]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64_testing:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64_testing$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   needs: ["go_deps"]
   variables:
@@ -93,7 +130,7 @@ tests_rpm-x64-py3:
   extends:
     - .rtloader_tests
     - .linux_tests
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64_testing:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64_testing$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   needs: ["go_deps", "go_tools_deps"]
   variables:
@@ -101,11 +138,20 @@ tests_rpm-x64-py3:
     CONDA_ENV: ddpy3
     EXTRA_OPTS: '--build-exclude=systemd'
 
+lint_rpm-x64:
+  extends:
+    - .linux_lint
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main"]
+  needs: ["go_deps", "go_tools_deps"]
+  variables:
+    EXTRA_OPTS: '--build-exclude=systemd'
+
 tests_deb-arm64-py2:
   extends: .rtloader_tests
   rules:
     !reference [.on_a6]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   needs: ["go_deps"]
   variables:
@@ -117,17 +163,24 @@ tests_deb-arm64-py3:
     - .rtloader_tests
     - .linux_tests
   needs: ["go_deps", "go_tools_deps"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
 
+lint_deb-arm64:
+  extends:
+    - .linux_lint
+  needs: ["go_deps", "go_tools_deps"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
+
 tests_rpm-arm64-py2:
   extends: .rtloader_tests
   rules:
     !reference [.on_a6]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   needs: ["go_deps"]
   variables:
@@ -138,17 +191,24 @@ tests_rpm-arm64-py3:
   extends:
     - .rtloader_tests
     - .linux_tests
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   needs: ["go_deps", "go_tools_deps"]
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
 
+lint_rpm-arm64:
+  extends:
+    - .linux_lint
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
+  needs: ["go_deps", "go_tools_deps"]
+
 # Check consistency of go.mod file with project imports
 go_mod_tidy_check:
   stage: source_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   needs: ["go_deps"]
   before_script:

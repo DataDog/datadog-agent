@@ -128,34 +128,6 @@ func (s *store) setTagsHashForService(serviceEntity string, hash string) {
 	s.serviceToTagsHash[serviceEntity] = hash
 }
 
-// setLoadedConfig stores a resolved config by its digest
-func (s *store) setLoadedConfig(config integration.Config) {
-	s.m.Lock()
-	defer s.m.Unlock()
-	s.loadedConfigs[config.Digest()] = config
-}
-
-// removeLoadedConfig removes a loaded config by its digest, returning true if it was found.
-func (s *store) removeLoadedConfig(config integration.Config) bool {
-	s.m.Lock()
-	defer s.m.Unlock()
-	digest := config.Digest()
-	if _, found := s.loadedConfigs[digest]; found {
-		delete(s.loadedConfigs, digest)
-		return true
-	}
-	return false
-}
-
-// mapOverLoadedConfigs calls the given function with the map of all
-// loaded configs.  This is done with the config store locked, so
-// callers should perform minimal work within f.
-func (s *store) mapOverLoadedConfigs(f func(map[string]integration.Config)) {
-	s.m.RLock()
-	defer s.m.RUnlock()
-	f(s.loadedConfigs)
-}
-
 // setJMXMetricsForConfigName stores the jmx metrics config for a config name
 func (s *store) setJMXMetricsForConfigName(config string, metrics integration.Data) {
 	s.m.Lock()
@@ -184,12 +156,6 @@ func (s *store) setServiceForEntity(svc listeners.Service, entity string) {
 	s.m.Lock()
 	defer s.m.Unlock()
 	s.entityToService[entity] = svc
-}
-
-func (s *store) getServiceForEntity(entity string) listeners.Service {
-	s.m.Lock()
-	defer s.m.Unlock()
-	return s.entityToService[entity]
 }
 
 func (s *store) removeServiceForEntity(entity string) {

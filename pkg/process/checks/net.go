@@ -13,6 +13,8 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -37,12 +39,20 @@ var (
 )
 
 // NewConnectionsCheck returns an instance of the ConnectionsCheck.
-func NewConnectionsCheck() Check {
-	return &ConnectionsCheck{}
+func NewConnectionsCheck(config, sysprobeYamlConfig config.ConfigReader, syscfg *sysconfig.Config) *ConnectionsCheck {
+	return &ConnectionsCheck{
+		config:             config,
+		syscfg:             syscfg,
+		sysprobeYamlConfig: sysprobeYamlConfig,
+	}
 }
 
 // ConnectionsCheck collects statistics about live TCP and UDP connections.
 type ConnectionsCheck struct {
+	syscfg             *sysconfig.Config
+	sysprobeYamlConfig config.ConfigReader
+	config             config.ConfigReader
+
 	hostInfo               *HostInfo
 	maxConnsPerMessage     int
 	tracerClientID         string
@@ -88,9 +98,9 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo) erro
 		log.Infof("no network ID detected: %s", err)
 	}
 	c.networkID = networkID
-	c.processData = NewProcessData()
+	c.processData = NewProcessData(c.config)
 	c.dockerFilter = parser.NewDockerProxy()
-	c.serviceExtractor = parser.NewServiceExtractor()
+	c.serviceExtractor = parser.NewServiceExtractor(c.sysprobeYamlConfig)
 	c.processData.Register(c.dockerFilter)
 	c.processData.Register(c.serviceExtractor)
 
@@ -99,8 +109,8 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo) erro
 
 // IsEnabled returns true if the check is enabled by configuration
 func (c *ConnectionsCheck) IsEnabled() bool {
-	// TODO - move config check logic here
-	return true
+	_, npmModuleEnabled := c.syscfg.EnabledModules[sysconfig.NetworkTracerModule]
+	return npmModuleEnabled && c.syscfg.Enabled
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions
@@ -144,12 +154,12 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	// Resolve the Raddr side of connections for local containers
 	LocalResolver.Resolve(conns)
 
-	c.notifyProcessConnRates(conns)
+	c.notifyProcessConnRates(c.config, conns)
 
 	log.Debugf("collected connections in %s", time.Since(start))
 
 	groupID := nextGroupID()
-	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
+	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
 	return StandardRunResult(messages), nil
 }
 
@@ -167,12 +177,12 @@ func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 	return tu.GetConnections(c.tracerClientID)
 }
 
-func (c *ConnectionsCheck) notifyProcessConnRates(conns *model.Connections) {
+func (c *ConnectionsCheck) notifyProcessConnRates(config config.ConfigReader, conns *model.Connections) {
 	if len(c.processConnRatesTransmitter.Chs) == 0 {
 		return
 	}
 
-	connCheckIntervalS := int(GetInterval(ConnectionsCheckName) / time.Second)
+	connCheckIntervalS := int(GetInterval(config, ConnectionsCheckName) / time.Second)
 
 	connRates := make(ProcessConnRates)
 	for _, c := range conns.Conns {
@@ -287,6 +297,7 @@ func batchConnections(
 	compilationTelemetry map[string]*model.RuntimeCompilationTelemetry,
 	kernelHeaderFetchResult model.KernelHeaderFetchResult,
 	coreTelemetry map[string]model.COREResult,
+	prebuiltAssets []string,
 	domains []string,
 	routes []*model.Route,
 	tags []string,
@@ -339,7 +350,7 @@ func batchConnections(
 
 			// tags remap
 			serviceCtx := serviceExtractor.GetServiceContext(c.Pid)
-			tagsStr := convertAndEnrichWithServiceCtx(tags, c.Tags, serviceCtx)
+			tagsStr := convertAndEnrichWithServiceCtx(tags, c.Tags, serviceCtx...)
 
 			if len(tagsStr) > 0 {
 				c.Tags = nil
@@ -424,6 +435,7 @@ func batchConnections(
 			cc.CompilationTelemetryByAsset = compilationTelemetry
 			cc.KernelHeaderFetchResult = kernelHeaderFetchResult
 			cc.CORETelemetryByAsset = coreTelemetry
+			cc.PrebuiltEBPFAssets = prebuiltAssets
 		}
 		batches = append(batches, cc)
 
@@ -448,14 +460,17 @@ func groupSize(total, maxBatchSize int) int32 {
 }
 
 // converts the tags based on the tagOffsets for encoding. It also enriches it with service context if any
-func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceCtx string) []string {
-	tagCount := len(tagOffsets) + len(serviceCtx)
+func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceCtxs ...string) []string {
+	tagCount := len(tagOffsets) + len(serviceCtxs)
 	tagsStr := make([]string, 0, tagCount)
 	for _, t := range tagOffsets {
 		tagsStr = append(tagsStr, tags[t])
 	}
-	if serviceCtx != "" {
-		tagsStr = append(tagsStr, serviceCtx)
+
+	for _, serviceCtx := range serviceCtxs {
+		if serviceCtx != "" {
+			tagsStr = append(tagsStr, serviceCtx)
+		}
 	}
 
 	return tagsStr

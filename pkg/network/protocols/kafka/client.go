@@ -14,6 +14,10 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
+const (
+	defaultTimeout = time.Second * 10
+)
+
 type Options struct {
 	ServerAddress string
 	Dialer        *net.Dialer
@@ -35,7 +39,7 @@ func NewClient(opts Options) (*Client, error) {
 		return nil, err
 	}
 
-	ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	ctxTimeout, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 	if err := client.Ping(ctxTimeout); err != nil {
 		return nil, err
@@ -48,7 +52,7 @@ func NewClient(opts Options) (*Client, error) {
 
 func (c *Client) CreateTopic(topicName string) error {
 	adminClient := kadm.NewClient(c.Client)
-	ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	ctxTimeout, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 	_, err := adminClient.CreateTopics(ctxTimeout, 1, 1, nil, topicName)
 	return err
@@ -56,7 +60,7 @@ func (c *Client) CreateTopic(topicName string) error {
 
 func (c *Client) DeleteTopic(topicName string) error {
 	adminClient := kadm.NewClient(c.Client)
-	ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	ctxTimeout, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 	_, err := adminClient.DeleteTopics(ctxTimeout, topicName)
 	return err

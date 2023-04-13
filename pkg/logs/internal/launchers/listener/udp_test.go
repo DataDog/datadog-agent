@@ -38,3 +38,10 @@ func TestUDPShouldReceiveMessage(t *testing.T) {
 
 	listener.Stop()
 }
+
+func TestUDPShouldStopWhenNotStarted(t *testing.T) {
+	pp := mock.NewMockProvider()
+	listener := NewUDPListener(pp, sources.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), 9000)
+	// Don't call start, this is similar to if `startNewTailer` fails when start is called (such as if the port is already in use)
+	listener.Stop()
+}

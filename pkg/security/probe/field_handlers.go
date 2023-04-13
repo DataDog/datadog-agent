@@ -15,7 +15,10 @@ import (
 	"syscall"
 	"time"
 
+	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
+
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/args"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -123,6 +126,18 @@ func (fh *FieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerC
 	return e.ID
 }
 
+// ResolveContainerCreatedAt resolves the container creation time of the event
+func (fh *FieldHandlers) ResolveContainerCreatedAt(ev *model.Event, e *model.ContainerContext) int {
+	if e.CreatedAt == 0 {
+		if entry, _ := fh.ResolveProcessCacheEntry(ev); entry != nil && entry.ContainerID != "" {
+			if cgroup, _ := fh.resolvers.CGroupResolver.GetWorkload(entry.ContainerID); cgroup != nil {
+				e.CreatedAt = cgroup.CreationTime
+			}
+		}
+	}
+	return int(e.CreatedAt)
+}
+
 // ResolveContainerTags resolves the container tags of the event
 func (fh *FieldHandlers) ResolveContainerTags(ev *model.Event, e *model.ContainerContext) []string {
 	if len(e.Tags) == 0 && e.ID != "" {
@@ -170,7 +185,7 @@ func (fh *FieldHandlers) ResolveProcessArgs(ev *model.Event, process *model.Proc
 
 // ResolveProcessArgv resolves the args of the event as an array
 func (fh *FieldHandlers) ResolveProcessArgv(ev *model.Event, process *model.Process) []string {
-	argv, _ := fh.resolvers.ProcessResolver.GetProcessArgv(process)
+	argv, _ := sprocess.GetProcessArgv(process)
 	return argv
 }
 
@@ -182,65 +197,18 @@ func (fh *FieldHandlers) ResolveProcessEnvp(ev *model.Event, process *model.Proc
 
 // ResolveProcessArgsTruncated returns whether the args are truncated
 func (fh *FieldHandlers) ResolveProcessArgsTruncated(ev *model.Event, process *model.Process) bool {
-	_, truncated := fh.resolvers.ProcessResolver.GetProcessArgv(process)
+	_, truncated := sprocess.GetProcessArgv(process)
 	return truncated
 }
 
 // ResolveProcessArgsFlags resolves the arguments flags of the event
 func (fh *FieldHandlers) ResolveProcessArgsFlags(ev *model.Event, process *model.Process) (flags []string) {
-	for _, arg := range fh.ResolveProcessArgv(ev, process) {
-		if len(arg) > 1 && arg[0] == '-' {
-			isFlag := true
-			name := arg[1:]
-			if len(name) >= 1 && name[0] == '-' {
-				name = name[1:]
-				isFlag = false
-			}
-
-			isOption := false
-			for _, r := range name {
-				isFlag = isFlag && model.IsAlphaNumeric(r)
-				isOption = isOption || r == '='
-			}
-
-			if len(name) > 0 {
-				if isFlag {
-					for _, r := range name {
-						flags = append(flags, string(r))
-					}
-				}
-				if !isOption && len(name) > 1 {
-					flags = append(flags, name)
-				}
-			}
-		}
-	}
-	return
+	return args.ParseProcessFlags(fh.ResolveProcessArgv(ev, process))
 }
 
 // ResolveProcessArgsOptions resolves the arguments options of the event
 func (fh *FieldHandlers) ResolveProcessArgsOptions(ev *model.Event, process *model.Process) (options []string) {
-	args := fh.ResolveProcessArgv(ev, process)
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
-		if len(arg) > 1 && arg[0] == '-' {
-			name := arg[1:]
-			if len(name) >= 1 && name[0] == '-' {
-				name = name[1:]
-			}
-			if len(name) > 0 && model.IsAlphaNumeric(rune(name[0])) {
-				if index := strings.IndexRune(name, '='); index == -1 {
-					if i < len(args)-1 && (len(args[i+1]) == 0 || args[i+1][0] != '-') {
-						options = append(options, name+"="+args[i+1])
-						i++
-					}
-				} else {
-					options = append(options, name)
-				}
-			}
-		}
-	}
-	return
+	return args.ParseProcessOptions(fh.ResolveProcessArgv(ev, process))
 }
 
 // ResolveProcessEnvsTruncated returns whether the envs are truncated
@@ -447,4 +415,80 @@ func (fh *FieldHandlers) ResolveEventTimestamp(ev *model.Event) time.Time {
 func (fh *FieldHandlers) ResolveAsync(ev *model.Event) bool {
 	ev.Async = ev.Flags&model.EventFlagsAsync > 0
 	return ev.Async
+}
+
+// ResolvePackageName resolves the name of the package providing this file
+func (fh *FieldHandlers) ResolvePackageName(ev *model.Event, f *model.FileEvent) string {
+	if f.PkgName == "" {
+		// Force the resolution of file path to be able to map to a package provided file
+		if fh.ResolveFilePath(ev, f) == "" {
+			return ""
+		}
+
+		if fh.resolvers.SBOMResolver == nil {
+			return ""
+		}
+
+		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessCacheEntry.ContainerID, f); pkg != nil {
+			f.PkgName = pkg.Name
+		}
+	}
+	return f.PkgName
+}
+
+// ResolvePackageVersion resolves the version of the package providing this file
+func (fh *FieldHandlers) ResolvePackageVersion(ev *model.Event, f *model.FileEvent) string {
+	if f.PkgVersion == "" {
+		// Force the resolution of file path to be able to map to a package provided file
+		if fh.ResolveFilePath(ev, f) == "" {
+			return ""
+		}
+
+		if fh.resolvers.SBOMResolver == nil {
+			return ""
+		}
+
+		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessCacheEntry.ContainerID, f); pkg != nil {
+			f.PkgVersion = pkg.Version
+		}
+	}
+	return f.PkgVersion
+}
+
+// ResolvePackageSourceVersion resolves the version of the source package of the package providing this file
+func (fh *FieldHandlers) ResolvePackageSourceVersion(ev *model.Event, f *model.FileEvent) string {
+	if f.PkgSrcVersion == "" {
+		// Force the resolution of file path to be able to map to a package provided file
+		if fh.ResolveFilePath(ev, f) == "" {
+			return ""
+		}
+
+		if fh.resolvers.SBOMResolver == nil {
+			return ""
+		}
+
+		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessCacheEntry.ContainerID, f); pkg != nil {
+			f.PkgSrcVersion = pkg.SrcVersion
+		}
+	}
+	return f.PkgSrcVersion
+}
+
+// ResolveModuleArgv resolves the args of the event as an array
+func (fh *FieldHandlers) ResolveModuleArgv(ev *model.Event, module *model.LoadModuleEvent) []string {
+	module.Argv = strings.Split(module.Args, " ")
+	if module.ArgsTruncated {
+		module.Argv = module.Argv[:len(module.Argv)-1]
+	}
+	return module.Argv
+}
+
+// ResolveModuleArgs resolves the correct args if the arguments were truncated, if not return module.Args
+func (fh *FieldHandlers) ResolveModuleArgs(ev *model.Event, module *model.LoadModuleEvent) string {
+	if module.ArgsTruncated {
+		argsTmp := strings.Split(module.Args, " ")
+		argsTmp = argsTmp[:len(argsTmp)-1]
+		return strings.Join(argsTmp, " ")
+	}
+	return module.Args
 }

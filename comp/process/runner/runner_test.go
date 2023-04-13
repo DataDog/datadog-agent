@@ -10,67 +10,52 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"go.uber.org/fx"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/process/containercheck"
+	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
+	"github.com/DataDog/datadog-agent/comp/process/processcheck"
 	"github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/comp/process/types"
-	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	checkMocks "github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func newMockCheck(t testing.TB, name string) *checkMocks.Check {
-	// TODO: Change this to use check component once checks are migrated
-	mockCheck := checkMocks.NewCheck(t)
-	mockCheck.On("Init", mock.Anything, mock.Anything).Return(nil)
-	mockCheck.On("Name").Return(name)
-	mockCheck.On("SupportsRunOptions").Return(false)
-	mockCheck.On("Realtime").Return(false)
-	mockCheck.On("Cleanup")
-	mockCheck.On("Run", mock.Anything, mock.Anything).Return(&checks.StandardRunResult{}, nil)
-	mockCheck.On("ShouldSaveLastRun").Return(false)
-	return mockCheck
-}
-
 func TestRunnerLifecycle(t *testing.T) {
-	fxutil.Test(t, fx.Options(
-		fx.Supply(
-			&checks.HostInfo{},
-			&sysconfig.Config{},
-			[]checks.Check{
-				newMockCheck(t, "process"),
-			},
-		),
+	_ = fxutil.Test[Component](t, fx.Options(
+		fx.Supply(core.BundleParams{}),
 
 		Module,
 		submitter.MockModule,
-	), func(runner Component) {
-		// Start and stop the component
-	})
+		processcheck.Module,
+		hostinfo.MockModule,
+		core.MockBundle,
+	))
 }
 
 func TestRunnerRealtime(t *testing.T) {
-	rtChan := make(chan types.RTResponse)
-	fxutil.Test(t, fx.Options(
-		fx.Supply(
-			&checks.HostInfo{},
-			&sysconfig.Config{},
-			[]checks.Check{
-				newMockCheck(t, "process"),
-			},
-		),
+	t.Run("rt allowed", func(t *testing.T) {
+		rtChan := make(chan types.RTResponse)
 
-		fx.Provide(
-			// Cast `chan types.RTResponse` to `<-chan types.RTResponse`.
-			// We can't use `fx.As` because `<-chan types.RTResponse` is not an interface.
-			func() <-chan types.RTResponse { return rtChan },
-		),
+		r := fxutil.Test[Component](t, fx.Options(
+			fx.Provide(
+				// Cast `chan types.RTResponse` to `<-chan types.RTResponse`.
+				// We can't use `fx.As` because `<-chan types.RTResponse` is not an interface.
+				func() <-chan types.RTResponse { return rtChan },
+			),
 
-		Module,
-		submitter.MockModule,
-	), func(r Component) {
+			fx.Supply(core.BundleParams{}),
+			fx.Replace(config.MockParams{Overrides: map[string]interface{}{
+				"process_config.disable_realtime_checks": false,
+			}}),
+
+			Module,
+			submitter.MockModule,
+			processcheck.Module,
+			hostinfo.MockModule,
+			core.MockBundle,
+		))
 		rtChan <- types.RTResponse{
 			{
 				ActiveClients: 1,
@@ -81,4 +66,65 @@ func TestRunnerRealtime(t *testing.T) {
 			return r.(*runner).IsRealtimeEnabled()
 		}, 1*time.Second, 10*time.Millisecond)
 	})
+
+	t.Run("rt disallowed", func(t *testing.T) {
+		// Buffer the channel because the runner will never consume from it, otherwise we will deadlock
+		rtChan := make(chan types.RTResponse, 1)
+
+		r := fxutil.Test[Component](t, fx.Options(
+			fx.Supply(core.BundleParams{}),
+			fx.Replace(config.MockParams{Overrides: map[string]interface{}{
+				"process_config.disable_realtime_checks": true,
+			}}),
+
+			fx.Provide(
+				// Cast `chan types.RTResponse` to `<-chan types.RTResponse`.
+				// We can't use `fx.As` because `<-chan types.RTResponse` is not an interface.
+				func() <-chan types.RTResponse { return rtChan },
+			),
+
+			Module,
+			submitter.MockModule,
+			processcheck.Module,
+			hostinfo.MockModule,
+			core.MockBundle,
+		))
+
+		rtChan <- types.RTResponse{
+			{
+				ActiveClients: 1,
+				Interval:      10,
+			},
+		}
+		assert.Never(t, func() bool {
+			return r.(*runner).IsRealtimeEnabled()
+		}, 1*time.Second, 10*time.Millisecond)
+	})
+}
+
+func TestProvidedChecks(t *testing.T) {
+	r := fxutil.Test[Component](t, fx.Options(
+		fx.Supply(
+			core.BundleParams{},
+		),
+
+		Module,
+		submitter.MockModule,
+		hostinfo.MockModule,
+
+		// Checks
+		processcheck.MockModule,
+		containercheck.MockModule,
+
+		core.MockBundle,
+	))
+	providedChecks := r.GetProvidedChecks()
+
+	var checkNames []string
+	for _, check := range providedChecks {
+		checkNames = append(checkNames, check.Object().Name())
+	}
+	t.Log("Provided Checks:", checkNames)
+
+	assert.Len(t, providedChecks, 2)
 }

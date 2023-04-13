@@ -44,8 +44,10 @@ type DatadogMetricInternal struct {
 	Value                float64
 	AutoscalerReferences string
 	UpdateTime           time.Time
+	DataTime             time.Time
 	Error                error
 	MaxAge               time.Duration
+	TimeWindow           time.Duration
 }
 
 // NewDatadogMetricInternal returns a `DatadogMetricInternal` object from a `DatadogMetric` CRD Object
@@ -61,6 +63,7 @@ func NewDatadogMetricInternal(id string, datadogMetric datadoghq.DatadogMetric) 
 		Autogen:              false,
 		AutoscalerReferences: datadogMetric.Status.AutoscalerReferences,
 		MaxAge:               datadogMetric.Spec.MaxAge.Duration,
+		TimeWindow:           datadogMetric.Spec.TimeWindow.Duration,
 	}
 
 	if len(datadogMetric.Spec.ExternalMetricName) > 0 {
@@ -74,8 +77,9 @@ func NewDatadogMetricInternal(id string, datadogMetric datadoghq.DatadogMetric) 
 			internal.Valid = true
 		case condition.Type == datadoghq.DatadogMetricConditionTypeActive && condition.Status == corev1.ConditionTrue:
 			internal.Active = true
-		case condition.Type == datadoghq.DatadogMetricConditionTypeUpdated && condition.Status == corev1.ConditionTrue:
 			internal.UpdateTime = condition.LastUpdateTime.UTC()
+		case condition.Type == datadoghq.DatadogMetricConditionTypeUpdated && condition.Status == corev1.ConditionTrue:
+			internal.DataTime = condition.LastUpdateTime.UTC()
 		case condition.Type == datadoghq.DatadogMetricConditionTypeError && condition.Status == corev1.ConditionTrue:
 			internal.Error = errors.New(condition.Message)
 		}
@@ -131,7 +135,7 @@ func NewDatadogMetricInternalFromExternalMetric(id, query, metricName, autoscale
 	}
 }
 
-// Query returns the query that should be used to fetch metrics
+// query returns the query that should be used to fetch metrics
 func (d *DatadogMetricInternal) Query() string {
 	if d.resolvedQuery != nil {
 		return *d.resolvedQuery
@@ -153,7 +157,17 @@ func (d *DatadogMetricInternal) UpdateFrom(current datadoghq.DatadogMetric) {
 	}
 	d.query = currentSpec.Query
 	d.MaxAge = currentSpec.MaxAge.Duration
+	d.TimeWindow = currentSpec.TimeWindow.Duration
 	d.AlwaysActive = hasForceActiveAnnotation(current)
+}
+
+// GetTimeWindow gets the time window for the metric, if unset defaults to max age.
+func (d *DatadogMetricInternal) GetTimeWindow() time.Duration {
+	timeWindow := d.TimeWindow
+	if timeWindow == 0 {
+		timeWindow = d.MaxAge
+	}
+	return timeWindow
 }
 
 // shouldResolveQuery returns whether we should try to resolve a new query
@@ -164,8 +178,9 @@ func (d *DatadogMetricInternal) shouldResolveQuery(spec datadoghq.DatadogMetricS
 // IsNewerThan returns true if the current `DatadogMetricInternal` has been updated more recently than `DatadogMetric` Status
 func (d *DatadogMetricInternal) IsNewerThan(currentStatus datadoghq.DatadogMetricStatus) bool {
 	for _, condition := range currentStatus.Conditions {
-		if condition.Type == datadoghq.DatadogMetricConditionTypeUpdated {
-			if condition.Status == corev1.ConditionTrue && condition.LastUpdateTime.UTC().Unix() >= d.UpdateTime.UTC().Unix() {
+		// Any condition can be used, except DatadogMetricConditionTypeUpdated as this one is updated with `DataTime` instead
+		if condition.Type == datadoghq.DatadogMetricConditionTypeActive {
+			if condition.LastUpdateTime.UTC().Unix() >= d.UpdateTime.UTC().Unix() {
 				return false
 			}
 			break
@@ -181,8 +196,11 @@ func (d *DatadogMetricInternal) HasBeenUpdatedFor(duration time.Duration) bool {
 }
 
 // BuildStatus generates a new status for `DatadogMetric` based on current status and information from `DatadogMetricInternal`
+// The updated condition refers to the Value update time (datapoint timestamp from Datadog API).
 func (d *DatadogMetricInternal) BuildStatus(currentStatus *datadoghq.DatadogMetricStatus) *datadoghq.DatadogMetricStatus {
 	updateTime := metav1.NewTime(d.UpdateTime)
+	dataTime := metav1.NewTime(d.DataTime)
+
 	existingConditions := map[datadoghq.DatadogMetricConditionType]*datadoghq.DatadogMetricCondition{
 		datadoghq.DatadogMetricConditionTypeActive:  nil,
 		datadoghq.DatadogMetricConditionTypeValid:   nil,
@@ -201,7 +219,7 @@ func (d *DatadogMetricInternal) BuildStatus(currentStatus *datadoghq.DatadogMetr
 
 	activeCondition := d.newCondition(d.Active, updateTime, datadoghq.DatadogMetricConditionTypeActive, existingConditions[datadoghq.DatadogMetricConditionTypeActive])
 	validCondition := d.newCondition(d.Valid, updateTime, datadoghq.DatadogMetricConditionTypeValid, existingConditions[datadoghq.DatadogMetricConditionTypeValid])
-	updatedCondition := d.newCondition(true, updateTime, datadoghq.DatadogMetricConditionTypeUpdated, existingConditions[datadoghq.DatadogMetricConditionTypeUpdated])
+	updatedCondition := d.newCondition(true, dataTime, datadoghq.DatadogMetricConditionTypeUpdated, existingConditions[datadoghq.DatadogMetricConditionTypeUpdated])
 	errorCondition := d.newCondition(d.Error != nil, updateTime, datadoghq.DatadogMetricConditionTypeError, existingConditions[datadoghq.DatadogMetricConditionTypeError])
 	if d.Error != nil {
 		errorCondition.Reason = DatadogMetricErrorConditionReason
@@ -232,7 +250,7 @@ func (d *DatadogMetricInternal) ToExternalMetricFormat(externalMetricName string
 		MetricName:   externalMetricName,
 		MetricLabels: nil,
 		Value:        quantity,
-		Timestamp:    metav1.NewTime(d.UpdateTime),
+		Timestamp:    metav1.NewTime(d.DataTime),
 	}, nil
 }
 

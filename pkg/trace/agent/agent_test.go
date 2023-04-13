@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -38,7 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 
-	"google.golang.org/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -595,8 +594,8 @@ func TestConcentratorInput(t *testing.T) {
 
 	for _, tc := range tts {
 		t.Run(tc.name, func(t *testing.T) {
-			defer testutil.WithFeatures(tc.features)()
 			cfg := config.New()
+			cfg.Features[tc.features] = struct{}{}
 			cfg.Endpoints[0].APIKey = "test"
 			if tc.withFargate {
 				cfg.FargateOrchestrator = config.OrchestratorECS
@@ -697,7 +696,7 @@ func TestClientComputedTopLevel(t *testing.T) {
 }
 
 func TestFilteredByTags(t *testing.T) {
-	for _, tt := range []*struct {
+	for _, tt := range []struct {
 		require []*config.Tag
 		reject  []*config.Tag
 		span    pb.Span
@@ -948,7 +947,7 @@ func TestSampling(t *testing.T) {
 }
 
 func TestSample(t *testing.T) {
-	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 10}
+	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 1000, Features: make(map[string]struct{})}
 	a := &Agent{
 		NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
 		ErrorsSampler:     sampler.NewErrorsSampler(cfg),
@@ -957,13 +956,13 @@ func TestSample(t *testing.T) {
 		EventProcessor:    newEventProcessor(cfg),
 		conf:              cfg,
 	}
-	genSpan := func(decisionMaker string, priority sampler.SamplingPriority) traceutil.ProcessedTrace {
+	genSpan := func(decisionMaker string, priority sampler.SamplingPriority, err int32) traceutil.ProcessedTrace {
 		root := &pb.Span{
 			Service:  "serv1",
 			Start:    time.Now().UnixNano(),
 			Duration: (100 * time.Millisecond).Nanoseconds(),
 			Metrics:  map[string]float64{"_top_level": 1},
-			Error:    1,
+			Error:    err, // If 1, the Error Sampler will keep the trace, if 0, it will not be sampled
 			Meta:     map[string]string{},
 		}
 		if decisionMaker != "" {
@@ -974,45 +973,68 @@ func TestSample(t *testing.T) {
 		return pt
 	}
 	tests := map[string]struct {
-		trace              traceutil.ProcessedTrace
-		sampledNoFeature   bool
-		sampledWithFeature bool
+		trace           traceutil.ProcessedTrace
+		keep            bool
+		keepWithFeature bool
+		dropped         bool // whether the trace was dropped by sampling
 	}{
 		"userdrop-error-no-dm-sampled": {
-			trace:              genSpan("", sampler.PriorityUserDrop),
-			sampledNoFeature:   false,
-			sampledWithFeature: true,
+			trace:           genSpan("", sampler.PriorityUserDrop, 1),
+			keep:            false,
+			keepWithFeature: true,
+			dropped:         false,
 		},
 		"userdrop-error-manual-dm-unsampled": {
-			trace:              genSpan("-4", sampler.PriorityUserDrop),
-			sampledNoFeature:   false,
-			sampledWithFeature: false,
+			trace:           genSpan("-4", sampler.PriorityUserDrop, 1),
+			keep:            false,
+			keepWithFeature: false,
+			dropped:         false,
 		},
 		"userdrop-error-agent-dm-sampled": {
-			trace:              genSpan("-1", sampler.PriorityUserDrop),
-			sampledNoFeature:   false,
-			sampledWithFeature: true,
+			trace:           genSpan("-1", sampler.PriorityUserDrop, 1),
+			keep:            false,
+			keepWithFeature: true,
+			dropped:         false,
 		},
 		"userkeep-error-no-dm-sampled": {
-			trace:              genSpan("", sampler.PriorityUserKeep),
-			sampledNoFeature:   true,
-			sampledWithFeature: true,
+			trace:           genSpan("", sampler.PriorityUserKeep, 1),
+			keep:            true,
+			keepWithFeature: true,
+			dropped:         false,
 		},
 		"userkeep-error-agent-dm-sampled": {
-			trace:              genSpan("-1", sampler.PriorityUserKeep),
-			sampledNoFeature:   true,
-			sampledWithFeature: true,
+			trace:           genSpan("-1", sampler.PriorityUserKeep, 1),
+			keep:            true,
+			keepWithFeature: true,
+			dropped:         false,
+		},
+		"autodrop-sampled": {
+			trace:           genSpan("", sampler.PriorityAutoDrop, 1),
+			keep:            true,
+			keepWithFeature: true,
+			dropped:         false,
+		},
+		"autodrop-not-sampled": {
+			trace:           genSpan("", sampler.PriorityAutoDrop, 0),
+			keep:            false,
+			keepWithFeature: false,
+			dropped:         true,
 		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			_, keep, _ := a.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), tt.trace)
-			assert.Equal(t, tt.sampledNoFeature, keep)
-
-			features.Set("error_rare_sample_tracer_drop")
-			defer features.Set("")
-			_, keep, _ = a.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), tt.trace)
-			assert.Equal(t, tt.sampledWithFeature, keep)
+			before := new(pb.TraceChunk) // make sure tt.trace.TraceChunk never changes
+			*before = *tt.trace.TraceChunk
+			_, keep, sampled := a.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
+			assert.Equal(t, tt.keep, keep)
+			assert.Equal(t, tt.dropped, sampled.TraceChunk.DroppedTrace)
+			assert.Equal(t, before, tt.trace.TraceChunk) // make sure tt.trace.TraceChunk didn't change
+			cfg.Features["error_rare_sample_tracer_drop"] = struct{}{}
+			defer delete(cfg.Features, "error_rare_sample_tracer_drop")
+			_, keep, sampled = a.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
+			assert.Equal(t, tt.keepWithFeature, keep)
+			assert.Equal(t, before, tt.trace.TraceChunk) // make sure tt.trace.TraceChunk didn't change
+			assert.Equal(t, tt.dropped, sampled.TraceChunk.DroppedTrace)
 		})
 	}
 }
@@ -1231,8 +1253,11 @@ Loop:
 		root := spans[0]
 		chunk := testutil.TraceChunkWithSpans(spans)
 		chunk.Priority = int32(priority)
-
-		numEvents, _ := processor.Process(root, chunk)
+		pt := &traceutil.ProcessedTrace{
+			TraceChunk: chunk,
+			Root:       root,
+		}
+		numEvents, _ := processor.Process(pt)
 		totalSampled += int(numEvents)
 
 		<-eventTicker.C
@@ -1299,8 +1324,9 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 // Mimics behaviour of agent Process function
 func formatTrace(t pb.Trace) pb.Trace {
 	for _, span := range t {
-		(&Agent{obfuscator: obfuscate.NewObfuscator(obfuscate.Config{})}).obfuscateSpan(span)
-		Truncate(span)
+		a := &Agent{obfuscator: obfuscate.NewObfuscator(obfuscate.Config{}), conf: config.New()}
+		a.obfuscateSpan(span)
+		a.Truncate(span)
 	}
 	return t
 }
@@ -1530,7 +1556,7 @@ func TestConvertStats(t *testing.T) {
 		Blacklister: filters.NewBlacklister([]string{"blocked_resource"}),
 		obfuscator:  obfuscate.NewObfuscator(obfuscate.Config{}),
 		Replacer:    filters.NewReplacer([]*config.ReplaceRule{{Name: "http.status_code", Pattern: "400", Re: regexp.MustCompile("400"), Repl: "200"}}),
-		conf:        &config.AgentConfig{DefaultEnv: "agent_env", Hostname: "agent_hostname"},
+		conf:        &config.AgentConfig{DefaultEnv: "agent_env", Hostname: "agent_hostname", MaxResourceLen: 5000},
 	}
 	for _, testCase := range testCases {
 		out := a.processStats(testCase.in, testCase.lang, testCase.tracerVersion)
@@ -1631,11 +1657,16 @@ func TestSampleWithPriorityNone(t *testing.T) {
 	defer cancel()
 
 	span := testutil.RandomSpan()
-	numEvents, keep, _ := agnt.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), traceutil.ProcessedTrace{
+	pt := traceutil.ProcessedTrace{
 		TraceChunk: testutil.TraceChunkWithSpan(span),
 		Root:       span,
-	})
+	}
+	before := new(pb.TraceChunk)
+	*before = *pt.TraceChunk
+	numEvents, keep, sampled := agnt.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), &pt)
 	assert.True(t, keep) // Score Sampler should keep the trace.
+	assert.False(t, sampled.TraceChunk.DroppedTrace)
+	assert.Equal(t, before, pt.TraceChunk)
 	assert.EqualValues(t, numEvents, 0)
 }
 
@@ -1934,8 +1965,9 @@ func TestSpanSampling(t *testing.T) {
 			})
 			assert.Len(t, traceAgent.TraceWriter.In, 1)
 			sampledChunks := <-traceAgent.TraceWriter.In
-			chunks := sampledChunks.TracerPayload.Chunks
-			tc.checks(t, tc.payload, chunks)
+			tc.checks(t, tc.payload, sampledChunks.TracerPayload.Chunks)
+			stats := <-traceAgent.Concentrator.In
+			assert.Equal(t, len(tc.payload.Chunks[0].Spans), len(stats.Traces[0].TraceChunk.Spans))
 		})
 	}
 }

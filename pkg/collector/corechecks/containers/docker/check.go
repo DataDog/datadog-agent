@@ -201,7 +201,7 @@ func (d *DockerCheck) runDockerCustom(sender aggregator.Sender, du docker.Client
 		// Resolve container image, if possible
 		resolvedImageName, err := du.ResolveImageName(context.TODO(), rawContainer.ImageID)
 		if err != nil {
-			log.Tracef("Unable to resolve ImageID '%s' to an image name, will use: %s", rawContainer.ImageID, rawContainer.Image)
+			log.Debugf("Unable to resolve ImageID %q to an image name, will use %q: %s", rawContainer.ImageID, rawContainer.Image, err)
 			resolvedImageName = rawContainer.Image
 		}
 
@@ -217,7 +217,7 @@ func (d *DockerCheck) runDockerCustom(sender aggregator.Sender, du docker.Client
 
 		tags, err := getImageTagsFromContainer(taggerEntityID, resolvedImageName, isContainerExcluded || !isContainerRunning)
 		if err != nil {
-			log.Warnf("Unable to fetch tags for container: %s, err: %v", rawContainer.ImageID, err)
+			log.Debugf("Unable to fetch tags for image: %s, err: %v", rawContainer.ImageID, err)
 		} else {
 			sort.Strings(tags)
 			key := strings.Join(tags, "|")

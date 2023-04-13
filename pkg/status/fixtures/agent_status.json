@@ -631,7 +631,7 @@
 					 "SpanNameRemappings":{
 							
 					 },
-					 "UsePreviewHostnameLogic":true
+					 "UsePreviewHostnameLogic":false
 				},
 				"Obfuscation":{
 					 "CreditCards":{
