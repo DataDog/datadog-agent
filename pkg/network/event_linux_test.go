@@ -9,9 +9,6 @@
 package network
 
 import (
-	"fmt"
-	"net"
-	"runtime"
 	"testing"
 
 	"golang.org/x/exp/slices"
