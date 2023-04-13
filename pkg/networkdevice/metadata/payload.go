@@ -32,7 +32,7 @@ const (
 
 // NetworkDevicesMetadata contains network devices metadata
 type NetworkDevicesMetadata struct {
-	Subnet           string                 `json:"subnet"`
+	Subnet           string                 `json:"subnet,omitempty"`
 	Namespace        string                 `json:"namespace"`
 	Devices          []DeviceMetadata       `json:"devices,omitempty"`
 	Interfaces       []InterfaceMetadata    `json:"interfaces,omitempty"`
@@ -119,7 +119,7 @@ type TopologyLinkMetadata struct {
 
 // NetflowExporter contains netflow exporters info
 type NetflowExporter struct {
-	ID        string `json:"id"`
+	ID        string `json:"id"` // used by backend as unique id (e.g. in cache)
 	IPAddress string `json:"ip_address"`
 	FlowType  string `json:"flow_type"`
 }
