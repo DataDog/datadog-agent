@@ -182,6 +182,7 @@
 /comp @DataDog/agent-shared-components
 /comp/core @DataDog/agent-shared-components
 /comp/dogstatsd @DataDog/agent-metrics-logs
+/comp/forwarder @DataDog/agent-shared-components
 /comp/process @DataDog/processes
 /comp/systray @DataDog/windows-agent
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
@@ -329,6 +330,7 @@
 /pkg/kubestatemetrics                   @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
 /pkg/netflow/                           @DataDog/network-device-monitoring
+/pkg/networkdevice/                     @DataDog/network-device-monitoring
 /pkg/snmp/                              @DataDog/network-device-monitoring
 /pkg/workloadmeta/                      @DataDog/container-integrations
 /pkg/workloadmeta/collectors/internal/cloudfoundry @DataDog/platform-integrations

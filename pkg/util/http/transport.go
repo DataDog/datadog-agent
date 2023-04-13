@@ -127,7 +127,7 @@ func CreateHTTPTransport() *http.Transport {
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 
-	if proxies := config.GetProxies(); proxies != nil {
+	if proxies := config.Datadog.GetProxies(); proxies != nil {
 		transport.Proxy = GetProxyTransportFunc(proxies)
 	}
 
