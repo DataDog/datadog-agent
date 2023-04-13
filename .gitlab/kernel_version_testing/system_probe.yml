@@ -182,8 +182,8 @@ kernel_matrix_testing_run_tests:
     - INSTANCE_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-instance-ip | cut -d ' ' -f 2)
     - MICRO_VM_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-$TAG | cut -d ' ' -f 2)
     - chmod 400 $AWS_SSH_KEY
-    - ssh -vvv -o StrictHostKeyChecking=no -i $AWS_SSH_KEY ubuntu@$INSTANCE_IP 'whoami'
-    - ssh -vvv -o StrictHostKeyChecking=no -i $AWS_SSH_KEY ubuntu@$INSTANCE_IP "sudo ssh -i /home/kernel-version-testing/rootfs/ddvm_rsa root@${MICRO_VM_IP} ls -la /opt/kernel-version-testing"
+    - ssh -vvv -o BatchMode=yes -o StrictHostKeyChecking=no -i $AWS_SSH_KEY ubuntu@$INSTANCE_IP 'whoami'
+    - ssh -vvv -o BatchMode=yes -o StrictHostKeyChecking=no -i $AWS_SSH_KEY ubuntu@$INSTANCE_IP "sudo ssh -i /home/kernel-version-testing/rootfs/ddvm_rsa root@${MICRO_VM_IP} ls -la /opt/kernel-version-testing"
   parallel:
     matrix:
       - TAG: ["4.18", "5.4", "5.15"]
