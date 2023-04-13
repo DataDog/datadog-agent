@@ -23,7 +23,7 @@ func TestConvertParseDistributionServerless(t *testing.T) {
 
 	assert.Equal(t, "", defaultHostname, "In serverless mode, the hostname returned should be an empty string")
 	assert.NoError(t, err)
-	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:3.5|d"), enrichConfig{})
+	parsed, err := parseAndEnrichSingleMetricMessage(t, []byte("daemon:3.5|d"), enrichConfig{})
 
 	assert.NoError(t, err)
 

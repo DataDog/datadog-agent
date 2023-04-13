@@ -10,9 +10,11 @@ package module
 import (
 	"context"
 	"fmt"
-	"github.com/hashicorp/go-multierror"
 	"sync"
 	"time"
+
+	"github.com/hashicorp/go-multierror"
+	easyjson "github.com/mailru/easyjson"
 
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -140,11 +142,12 @@ func ReportRuleSetLoaded(sender EventSender, statsdClient statsd.ClientInterface
 // RuleLoaded defines a loaded rule
 // easyjson:json
 type RuleState struct {
-	ID         string `json:"id"`
-	Version    string `json:"version,omitempty"`
-	Expression string `json:"expression"`
-	Status     string `json:"status"`
-	Message    string `json:"message,omitempty"`
+	ID         string            `json:"id"`
+	Version    string            `json:"version,omitempty"`
+	Expression string            `json:"expression"`
+	Status     string            `json:"status"`
+	Message    string            `json:"message,omitempty"`
+	Tags       map[string]string `json:"tags,omitempty"`
 }
 
 // PolicyState is used to report policy was loaded
@@ -178,6 +181,7 @@ func RuleStateFromDefinition(def *rules.RuleDefinition, status string, message s
 		Expression: def.Expression,
 		Status:     status,
 		Message:    message,
+		Tags:       def.Tags,
 	}
 }
 
@@ -227,5 +231,5 @@ func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rul
 	evt.FillCustomEventCommonFields()
 
 	return events.NewCustomRule(events.RulesetLoadedRuleID),
-		events.NewCustomEvent(model.CustomRulesetLoadedEventType, evt)
+		events.NewCustomEvent(model.CustomRulesetLoadedEventType, func() easyjson.Marshaler { return evt })
 }

@@ -28,7 +28,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.Set("process_config.process_collection.enabled", false)
 		cfg.Set("process_config.container_collection.enabled", true)
 		cfg.Set("process_config.disable_realtime_checks", false)
-		setFeatures(t, config.Docker)
+		config.SetFeatures(t, config.Docker)
 
 		enabledChecks := getEnabledChecks(scfg)
 		assertContainsCheck(t, enabledChecks, ContainerCheckName)
@@ -42,7 +42,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.Set("process_config.process_collection.enabled", false)
 		cfg.Set("process_config.container_collection.enabled", true)
 		cfg.Set("process_config.disable_realtime_checks", true)
-		setFeatures(t, config.Docker)
+		config.SetFeatures(t, config.Docker)
 
 		enabledChecks := getEnabledChecks(scfg)
 		assertContainsCheck(t, enabledChecks, ContainerCheckName)
@@ -54,7 +54,6 @@ func TestContainerCheck(t *testing.T) {
 		cfg := config.Mock(t)
 		cfg.Set("process_config.process_collection.enabled", false)
 		cfg.Set("process_config.container_collection.enabled", true)
-		setFeatures(t)
 
 		enabledChecks := getEnabledChecks(scfg)
 
@@ -67,7 +66,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg := config.Mock(t)
 		cfg.Set("process_config.process_collection.enabled", true)
 		cfg.Set("process_config.container_collection.enabled", true)
-		setFeatures(t, config.Docker)
+		config.SetFeatures(t, config.Docker)
 
 		enabledChecks := getEnabledChecks(scfg)
 		assertContainsCheck(t, enabledChecks, ProcessCheckName)
@@ -101,7 +100,7 @@ func TestDisableRealTime(t *testing.T) {
 			mockConfig := config.Mock(t)
 			mockConfig.Set("process_config.disable_realtime_checks", tc.disableRealtime)
 			mockConfig.Set("process_config.process_discovery.enabled", false) // Not an RT check so we don't care
-			setFeatures(t, config.Docker)
+			config.SetFeatures(t, config.Docker)
 
 			enabledChecks := getEnabledChecks(&sysconfig.Config{})
 			assert.EqualValues(tc.expectedChecks, enabledChecks)

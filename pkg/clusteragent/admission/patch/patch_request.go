@@ -27,6 +27,8 @@ const (
 type Action string
 
 const (
+	// StageConfig instructs the patcher to process the configuration without triggering a rolling update
+	StageConfig Action = "stage"
 	// EnableConfig instructs the patcher to apply the patch request
 	EnableConfig Action = "enable"
 	// DisableConfig instructs the patcher to disable library injection

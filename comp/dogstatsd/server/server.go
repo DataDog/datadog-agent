@@ -403,6 +403,9 @@ func (s *server) Start(demultiplexer aggregator.Demultiplexer) error {
 }
 
 func (s *server) Stop() {
+	if !s.IsRunning() {
+		return
+	}
 	close(s.stopChan)
 	for _, l := range s.listeners {
 		l.Stop()

@@ -12,7 +12,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/exporter/exportertest"
@@ -29,9 +28,6 @@ func TestNewFactory(t *testing.T) {
 }
 
 func TestNewMetricsExporter(t *testing.T) {
-	config.SetDetectedFeatures(config.FeatureMap{})
-	defer config.SetDetectedFeatures(nil)
-
 	factory := NewFactory(&serializer.MockSerializer{})
 	cfg := factory.CreateDefaultConfig()
 	set := exportertest.NewNopCreateSettings()
@@ -41,9 +37,6 @@ func TestNewMetricsExporter(t *testing.T) {
 }
 
 func TestNewMetricsExporterInvalid(t *testing.T) {
-	config.SetDetectedFeatures(config.FeatureMap{})
-	defer config.SetDetectedFeatures(nil)
-
 	factory := NewFactory(&serializer.MockSerializer{})
 	cfg := factory.CreateDefaultConfig()
 

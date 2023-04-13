@@ -86,7 +86,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	}
 	snmpWalkCmd := &cobra.Command{
 		Use:   "walk <IP Address>[:Port] [OID] [OPTIONS]",
-		Short: "Perform a snmpwalk",
+		Short: "Perform a snmpwalk, if only a valid IP address is provided with the oid then the agent default snmp config will be used",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.args = args

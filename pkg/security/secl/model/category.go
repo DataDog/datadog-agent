@@ -5,7 +5,11 @@
 
 package model
 
-import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+import (
+	"golang.org/x/exp/slices"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+)
 
 // EventCategory category type
 type EventCategory = string
@@ -35,7 +39,7 @@ func GetAllCategories() []EventCategory {
 // GetEventTypeCategory returns the category for the given event type
 func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 	switch eventType {
-	case "exec", "signal", "exit", "fork":
+	case "exec", "signal", "exit", "fork", "anomaly_detection_syscall":
 		return ProcessCategory
 	case "bpf", "selinux", "mmap", "mprotect", "ptrace", "load_module", "unload_module", "bind":
 		// TODO(will): "bind" is in this category because answering "NetworkCategory" would insert a network section in the serializer.
@@ -67,4 +71,11 @@ func GetEventTypePerCategory() map[EventCategory][]eval.EventType {
 	}
 
 	return categories
+}
+
+// IsAnomalyDetectionEvent returns true for the event types that have a security profile context
+func IsAnomalyDetectionEvent(eventyType eval.EventType) bool {
+	return slices.Contains([]eval.EventType{
+		"anomaly_detection_syscall",
+	}, eventyType)
 }

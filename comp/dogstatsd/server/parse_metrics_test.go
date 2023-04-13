@@ -9,20 +9,26 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 )
 
-func parseMetricSample(rawSample []byte) (dogstatsdMetricSample, error) {
-	parser := newParser(newFloat64ListPool())
+func parseMetricSample(t *testing.T, overrides map[string]any, rawSample []byte) (dogstatsdMetricSample, error) {
+	cfg := fxutil.Test[config.Component](t, fx.Options(
+		config.MockModule,
+		fx.Replace(config.MockParams{Overrides: overrides}),
+	))
+	parser := newParser(cfg, newFloat64ListPool())
 	return parser.parseMetricSample(rawSample)
 }
 
 const epsilon = 0.00001
 
 func TestParseGauge(t *testing.T) {
-	sample, err := parseMetricSample([]byte("daemon:666|g"))
+	sample, err := parseMetricSample(t, make(map[string]any), []byte("daemon:666|g"))
 
 	assert.NoError(t, err)
 
@@ -37,7 +43,7 @@ func TestParseGauge(t *testing.T) {
 }
 
 func TestParseGaugeMultiple(t *testing.T) {
-	sample, err := parseMetricSample([]byte("daemon:666:777|g"))
+	sample, err := parseMetricSample(t, make(map[string]any), []byte("daemon:666:777|g"))
 
 	assert.NoError(t, err)
 
@@ -52,7 +58,7 @@ func TestParseGaugeMultiple(t *testing.T) {
 }
 
 func TestParseCounter(t *testing.T) {
-	sample, err := parseMetricSample([]byte("daemon:21|c"))
+	sample, err := parseMetricSample(t, make(map[string]any), []byte("daemon:21|c"))
 
 	assert.NoError(t, err)
 
@@ -66,7 +72,7 @@ func TestParseCounter(t *testing.T) {
 }
 
 func TestParseCounterMultiple(t *testing.T) {
-	sample, err := parseMetricSample([]byte("daemon:666:777|c"))
+	sample, err := parseMetricSample(t, make(map[string]any), []byte("daemon:666:777|c"))
 
 	assert.NoError(t, err)
 
@@ -81,7 +87,7 @@ func TestParseCounterMultiple(t *testing.T) {
 }
 
 func TestParseCounterWithTags(t *testing.T) {
-	sample, err := parseMetricSample([]byte("custom_counter:1|c|#protocol:http,bench"))
+	sample, err := parseMetricSample(t, make(map[string]any), []byte("custom_counter:1|c|#protocol:http,bench"))
 
 	assert.NoError(t, err)
 
@@ -97,7 +103,7 @@ func TestParseCounterWithTags(t *testing.T) {
 }
 
 func TestParseHistogram(t *testing.T) {
-	sample, err := parseMetricSample([]byte("daemon:21|h"))
+	sample, err := parseMetricSample(t, make(map[string]any), []byte("daemon:21|h"))
 
 	assert.NoError(t, err)
 
@@ -111,7 +117,7 @@ func TestParseHistogram(t *testing.T) {
 }
 
 func TestParseHistogramrMultiple(t *testing.T) {
-	sample, err := parseMetricSample([]byte("daemon:21:22|h"))
+	sample, err := parseMetricSample(t, make(map[string]any), []byte("daemon:21:22|h"))
 
 	assert.NoError(t, err)
 
@@ -126,7 +132,7 @@ func TestParseHistogramrMultiple(t *testing.T) {
 }
 
 func TestParseTimer(t *testing.T) {
-	sample, err := parseMetricSample([]byte("daemon:21|ms"))
+	sample, err := parseMetricSample(t, make(map[string]any), []byte("daemon:21|ms"))
 
 	assert.NoError(t, err)
 
@@ -140,7 +146,7 @@ func TestParseTimer(t *testing.T) {
 }
 
 func TestParseTimerMultiple(t *testing.T) {
-	sample, err := parseMetricSample([]byte("daemon:21:22|ms"))
+	sample, err := parseMetricSample(t, make(map[string]any), []byte("daemon:21:22|ms"))
 
 	assert.NoError(t, err)
 
@@ -155,7 +161,7 @@ func TestParseTimerMultiple(t *testing.T) {
 }
 
 func TestParseSet(t *testing.T) {
-	sample, err := parseMetricSample([]byte("daemon:abc|s"))
+	sample, err := parseMetricSample(t, make(map[string]any), []byte("daemon:abc|s"))
 
 	assert.NoError(t, err)
 
@@ -170,7 +176,7 @@ func TestParseSet(t *testing.T) {
 func TestParseSetMultiple(t *testing.T) {
 	// multiple values are not supported for set. ':' can be part of the
 	// set value for backward compatibility
-	sample, err := parseMetricSample([]byte("daemon:abc:def|s"))
+	sample, err := parseMetricSample(t, make(map[string]any), []byte("daemon:abc:def|s"))
 
 	assert.NoError(t, err)
 
@@ -183,7 +189,7 @@ func TestParseSetMultiple(t *testing.T) {
 }
 
 func TestSampleDistribution(t *testing.T) {
-	sample, err := parseMetricSample([]byte("daemon:3.5|d"))
+	sample, err := parseMetricSample(t, make(map[string]any), []byte("daemon:3.5|d"))
 
 	assert.NoError(t, err)
 
@@ -196,7 +202,7 @@ func TestSampleDistribution(t *testing.T) {
 }
 
 func TestParseDistributionMultiple(t *testing.T) {
-	sample, err := parseMetricSample([]byte("daemon:3.5:4.5|d"))
+	sample, err := parseMetricSample(t, make(map[string]any), []byte("daemon:3.5:4.5|d"))
 
 	assert.NoError(t, err)
 
@@ -210,7 +216,7 @@ func TestParseDistributionMultiple(t *testing.T) {
 }
 
 func TestParseSetUnicode(t *testing.T) {
-	sample, err := parseMetricSample([]byte("daemon:♬†øU†øU¥ºuT0♪|s"))
+	sample, err := parseMetricSample(t, make(map[string]any), []byte("daemon:♬†øU†øU¥ºuT0♪|s"))
 
 	assert.NoError(t, err)
 
@@ -223,7 +229,7 @@ func TestParseSetUnicode(t *testing.T) {
 }
 
 func TestParseGaugeWithTags(t *testing.T) {
-	sample, err := parseMetricSample([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
+	sample, err := parseMetricSample(t, make(map[string]any), []byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
 
 	assert.NoError(t, err)
 
@@ -239,7 +245,7 @@ func TestParseGaugeWithTags(t *testing.T) {
 }
 
 func TestParseGaugeWithNoTags(t *testing.T) {
-	sample, err := parseMetricSample([]byte("daemon:666|g"))
+	sample, err := parseMetricSample(t, make(map[string]any), []byte("daemon:666|g"))
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", sample.name)
@@ -252,7 +258,7 @@ func TestParseGaugeWithNoTags(t *testing.T) {
 }
 
 func TestParseGaugeWithSampleRate(t *testing.T) {
-	sample, err := parseMetricSample([]byte("daemon:666|g|@0.21"))
+	sample, err := parseMetricSample(t, make(map[string]any), []byte("daemon:666|g|@0.21"))
 
 	assert.NoError(t, err)
 
@@ -266,7 +272,7 @@ func TestParseGaugeWithSampleRate(t *testing.T) {
 }
 
 func TestParseGaugeWithPoundOnly(t *testing.T) {
-	sample, err := parseMetricSample([]byte("daemon:666|g|#"))
+	sample, err := parseMetricSample(t, make(map[string]any), []byte("daemon:666|g|#"))
 
 	assert.NoError(t, err)
 
@@ -280,7 +286,7 @@ func TestParseGaugeWithPoundOnly(t *testing.T) {
 }
 
 func TestParseGaugeWithUnicode(t *testing.T) {
-	sample, err := parseMetricSample([]byte("♬†øU†øU¥ºuT0♪:666|g|#intitulé:T0µ"))
+	sample, err := parseMetricSample(t, make(map[string]any), []byte("♬†øU†øU¥ºuT0♪:666|g|#intitulé:T0µ"))
 
 	assert.NoError(t, err)
 
@@ -296,46 +302,47 @@ func TestParseGaugeWithUnicode(t *testing.T) {
 
 func TestParseMetricError(t *testing.T) {
 	// not enough information
-	_, err := parseMetricSample([]byte("daemon:666"))
+	_, err := parseMetricSample(t, make(map[string]any), []byte("daemon:666"))
 	assert.Error(t, err)
 
-	_, err = parseMetricSample([]byte("daemon:666|"))
+	_, err = parseMetricSample(t, make(map[string]any), []byte("daemon:666|"))
 	assert.Error(t, err)
 
-	_, err = parseMetricSample([]byte("daemon:|g"))
+	_, err = parseMetricSample(t, make(map[string]any), []byte("daemon:|g"))
 	assert.Error(t, err)
 
-	_, err = parseMetricSample([]byte(":666|g"))
+	_, err = parseMetricSample(t, make(map[string]any), []byte(":666|g"))
 	assert.Error(t, err)
 
-	_, err = parseMetricSample([]byte("abc666|g"))
+	_, err = parseMetricSample(t, make(map[string]any), []byte("abc666|g"))
 	assert.Error(t, err)
 
 	// unknown metadata prefix
-	_, err = parseMetricSample([]byte("daemon:666|g|m:test"))
+	_, err = parseMetricSample(t, make(map[string]any), []byte("daemon:666|g|m:test"))
 	assert.NoError(t, err)
 
 	// invalid value
-	_, err = parseMetricSample([]byte("daemon:abc|g"))
+	_, err = parseMetricSample(t, make(map[string]any), []byte("daemon:abc|g"))
 	assert.Error(t, err)
 
 	// invalid metric type
-	_, err = parseMetricSample([]byte("daemon:666|unknown"))
+	_, err = parseMetricSample(t, make(map[string]any), []byte("daemon:666|unknown"))
 	assert.Error(t, err)
 
 	// invalid sample rate
-	_, err = parseMetricSample([]byte("daemon:666|g|@abc"))
+	_, err = parseMetricSample(t, make(map[string]any), []byte("daemon:666|g|@abc"))
 	assert.Error(t, err)
 }
 
 func TestParseGaugeWithTimestamp(t *testing.T) {
 	// disable the no agg pipeline
 
-	config.Datadog.Set("dogstatsd_no_aggregation_pipeline", false)
+	cfg := map[string]any{}
+	cfg["dogstatsd_no_aggregation_pipeline"] = false
 
 	// no timestamp should be read when the no agg pipeline is off
 
-	sample, err := parseMetricSample([]byte("metric:1234|g|#onetag|T1657100430"))
+	sample, err := parseMetricSample(t, cfg, []byte("metric:1234|g|#onetag|T1657100430"))
 
 	assert.NoError(t, err)
 
@@ -350,11 +357,11 @@ func TestParseGaugeWithTimestamp(t *testing.T) {
 
 	// re-enable the no aggregation pipeline
 
-	config.Datadog.Set("dogstatsd_no_aggregation_pipeline", true)
+	cfg["dogstatsd_no_aggregation_pipeline"] = true
 
 	// with tags and timestamp
 
-	sample, err = parseMetricSample([]byte("metric:1234|g|#onetag|T1657100430"))
+	sample, err = parseMetricSample(t, cfg, []byte("metric:1234|g|#onetag|T1657100430"))
 
 	assert.NoError(t, err)
 
@@ -369,7 +376,7 @@ func TestParseGaugeWithTimestamp(t *testing.T) {
 
 	// with weird tags field and timestamp
 
-	sample, err = parseMetricSample([]byte("metric:1234|g|#|T1657100430"))
+	sample, err = parseMetricSample(t, make(map[string]any), []byte("metric:1234|g|#|T1657100430"))
 
 	assert.NoError(t, err)
 
@@ -383,7 +390,7 @@ func TestParseGaugeWithTimestamp(t *testing.T) {
 
 	// with sample rate and timestamp
 
-	sample, err = parseMetricSample([]byte("metric:1234|g|@0.21|T1657100440"))
+	sample, err = parseMetricSample(t, make(map[string]any), []byte("metric:1234|g|@0.21|T1657100440"))
 
 	assert.NoError(t, err)
 
@@ -397,7 +404,7 @@ func TestParseGaugeWithTimestamp(t *testing.T) {
 
 	// with tags, sample rate and timestamp
 
-	sample, err = parseMetricSample([]byte("metric:1234|g|#thereisatag|@0.21|T1657100440"))
+	sample, err = parseMetricSample(t, make(map[string]any), []byte("metric:1234|g|#thereisatag|@0.21|T1657100440"))
 
 	assert.NoError(t, err)
 
@@ -412,7 +419,7 @@ func TestParseGaugeWithTimestamp(t *testing.T) {
 
 	// varying the order of the tags, sample rate and timestamp entries
 
-	sample, err = parseMetricSample([]byte("metric:1234|g|#thereisatag|T1657100540|@0.21"))
+	sample, err = parseMetricSample(t, make(map[string]any), []byte("metric:1234|g|#thereisatag|T1657100540|@0.21"))
 
 	assert.NoError(t, err)
 
@@ -425,7 +432,7 @@ func TestParseGaugeWithTimestamp(t *testing.T) {
 	assert.InEpsilon(t, 0.21, sample.sampleRate, epsilon)
 	assert.Equal(t, sample.ts, time.Unix(1657100540, 0))
 
-	sample, err = parseMetricSample([]byte("metric:1234|g|@0.21|T1657100540|#thereisatag"))
+	sample, err = parseMetricSample(t, make(map[string]any), []byte("metric:1234|g|@0.21|T1657100540|#thereisatag"))
 
 	assert.NoError(t, err)
 
@@ -438,7 +445,7 @@ func TestParseGaugeWithTimestamp(t *testing.T) {
 	assert.InEpsilon(t, 0.21, sample.sampleRate, epsilon)
 	assert.Equal(t, sample.ts, time.Unix(1657100540, 0))
 
-	sample, err = parseMetricSample([]byte("metric:1234|g|T1657100540|@0.25|#atag"))
+	sample, err = parseMetricSample(t, make(map[string]any), []byte("metric:1234|g|T1657100540|@0.25|#atag"))
 
 	assert.NoError(t, err)
 
@@ -451,7 +458,7 @@ func TestParseGaugeWithTimestamp(t *testing.T) {
 	assert.InEpsilon(t, 0.25, sample.sampleRate, epsilon)
 	assert.Equal(t, sample.ts, time.Unix(1657100540, 0))
 
-	sample, err = parseMetricSample([]byte("metric:1234|g|T1657100540|#atag|@0.25"))
+	sample, err = parseMetricSample(t, make(map[string]any), []byte("metric:1234|g|T1657100540|#atag|@0.25"))
 
 	assert.NoError(t, err)
 
@@ -468,25 +475,25 @@ func TestParseGaugeWithTimestamp(t *testing.T) {
 func TestParseGaugeTimestampMalformed(t *testing.T) {
 	// enable the no aggregation pipeline
 
-	config.Datadog.Set("dogstatsd_no_aggregation_pipeline", true)
-	defer config.Datadog.Set("dogstatsd_no_aggregation_pipeline", false)
+	cfg := map[string]any{}
+	cfg["dogstatsd_no_aggregation_pipeline"] = true
 
 	// bad value
-	_, err := parseMetricSample([]byte("metric:1234|g|#onetag|TABCD"))
+	_, err := parseMetricSample(t, cfg, []byte("metric:1234|g|#onetag|TABCD"))
 	assert.Error(t, err)
 
 	// no value
-	_, err = parseMetricSample([]byte("metric:1234|g|#onetag|T"))
+	_, err = parseMetricSample(t, cfg, []byte("metric:1234|g|#onetag|T"))
 	assert.Error(t, err)
 
 	// negative value
-	_, err = parseMetricSample([]byte("metric:1234|g|#onetag|T-102348932"))
+	_, err = parseMetricSample(t, cfg, []byte("metric:1234|g|#onetag|T-102348932"))
 	assert.Error(t, err)
 }
 
 func TestParseManyPipes(t *testing.T) {
 	t.Run("Sample rate and container ID (4 pipes)", func(t *testing.T) {
-		sample, err := parseMetricSample([]byte("example.metric:2.39283|d|@1.000000|#environment:dev|c:2a25f7fc8fbf573d62053d7263dd2d440c07b6ab4d2b107e50b0d4df1f2ee15f"))
+		sample, err := parseMetricSample(t, make(map[string]any), []byte("example.metric:2.39283|d|@1.000000|#environment:dev|c:2a25f7fc8fbf573d62053d7263dd2d440c07b6ab4d2b107e50b0d4df1f2ee15f"))
 
 		require.NoError(t, err)
 
@@ -500,10 +507,10 @@ func TestParseManyPipes(t *testing.T) {
 	})
 
 	t.Run("Sample rate and container ID and timestamp (5 pipes)", func(t *testing.T) {
-		config.Datadog.Set("dogstatsd_no_aggregation_pipeline", true)
-		defer config.Datadog.Set("dogstatsd_no_aggregation_pipeline", false)
+		cfg := map[string]any{}
+		cfg["dogstatsd_no_aggregation_pipeline"] = true
 
-		sample, err := parseMetricSample([]byte("example.metric:2.39283|d|T1657100540|@1.000000|#environment:dev|c:2a25f7fc8fbf573d62053d7263dd2d440c07b6ab4d2b107e50b0d4df1f2ee15f"))
+		sample, err := parseMetricSample(t, cfg, []byte("example.metric:2.39283|d|T1657100540|@1.000000|#environment:dev|c:2a25f7fc8fbf573d62053d7263dd2d440c07b6ab4d2b107e50b0d4df1f2ee15f"))
 
 		require.NoError(t, err)
 
@@ -518,10 +525,11 @@ func TestParseManyPipes(t *testing.T) {
 	})
 
 	t.Run("Sample rate and container ID and timestamp and future extension (6 pipes)", func(t *testing.T) {
-		config.Datadog.Set("dogstatsd_no_aggregation_pipeline", true)
-		defer config.Datadog.Set("dogstatsd_no_aggregation_pipeline", false)
 
-		sample, err := parseMetricSample([]byte("example.metric:2.39283|d|T1657100540|@1.000000|#environment:dev|c:2a25f7fc8fbf573d62053d7263dd2d440c07b6ab4d2b107e50b0d4df1f2ee15f|f:wowthisisacoolfeature"))
+		cfg := map[string]any{}
+		cfg["dogstatsd_no_aggregation_pipeline"] = true
+
+		sample, err := parseMetricSample(t, cfg, []byte("example.metric:2.39283|d|T1657100540|@1.000000|#environment:dev|c:2a25f7fc8fbf573d62053d7263dd2d440c07b6ab4d2b107e50b0d4df1f2ee15f|f:wowthisisacoolfeature"))
 
 		require.NoError(t, err)
 
@@ -536,10 +544,10 @@ func TestParseManyPipes(t *testing.T) {
 	})
 
 	t.Run("Sample rate and container ID and timestamp and 2 future extensions (7 pipes)", func(t *testing.T) {
-		config.Datadog.Set("dogstatsd_no_aggregation_pipeline", true)
-		defer config.Datadog.Set("dogstatsd_no_aggregation_pipeline", false)
+		cfg := map[string]any{}
+		cfg["dogstatsd_no_aggregation_pipeline"] = true
 
-		sample, err := parseMetricSample([]byte("example.metric:2.39283|d|T1657100540|@1.000000|#environment:dev|c:2a25f7fc8fbf573d62053d7263dd2d440c07b6ab4d2b107e50b0d4df1f2ee15f|f:wowthisisacoolfeature|f2:omgthisoneiscooler"))
+		sample, err := parseMetricSample(t, cfg, []byte("example.metric:2.39283|d|T1657100540|@1.000000|#environment:dev|c:2a25f7fc8fbf573d62053d7263dd2d440c07b6ab4d2b107e50b0d4df1f2ee15f|f:wowthisisacoolfeature|f2:omgthisoneiscooler"))
 
 		require.NoError(t, err)
 

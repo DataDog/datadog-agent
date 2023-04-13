@@ -17,8 +17,7 @@ import (
 )
 
 func TestPodCheck(t *testing.T) {
-	config.SetDetectedFeatures(config.FeatureMap{config.Kubernetes: {}})
-	defer config.SetDetectedFeatures(nil)
+	config.SetFeatures(t, config.Kubernetes)
 
 	t.Run("enabled", func(t *testing.T) {
 		// Resets the cluster name so that it isn't cached during the call to `getEnabledChecks()`
