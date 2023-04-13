@@ -9,18 +9,18 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 
 	"github.com/cihub/seelog"
-	"golang.org/x/sys/windows/registry"
 )
 
 func init() {
-	pd, err := winutil.GetProgramDataDir()
+	_, err := winutil.GetProgramDataDir()
 	if err != nil {
-		winutil.LogEventViewer(config.ServiceName, 0x8000000F, DefaultConfPath)
+		winutil.LogEventViewer(config.ServiceName, 0x8000000F, path.DefaultConfPath)
 	}
 }
 
@@ -39,12 +39,12 @@ func EnableLoggingToFile() {
 // CheckAndUpgradeConfig checks to see if there's an old datadog.conf, and if
 // datadog.yaml is either missing or incomplete (no API key).  If so, upgrade it
 func CheckAndUpgradeConfig() error {
-	datadogConfPath := filepath.Join(DefaultConfPath, "datadog.conf")
+	datadogConfPath := filepath.Join(path.DefaultConfPath, "datadog.conf")
 	if _, err := os.Stat(datadogConfPath); os.IsNotExist(err) {
 		log.Debug("Previous config file not found, not upgrading")
 		return nil
 	}
-	config.Datadog.AddConfigPath(DefaultConfPath)
+	config.Datadog.AddConfigPath(path.DefaultConfPath)
 	_, err := config.Load()
 	if err == nil {
 		// was able to read config, check for api key
@@ -53,5 +53,5 @@ func CheckAndUpgradeConfig() error {
 			return nil
 		}
 	}
-	return ImportConfig(DefaultConfPath, DefaultConfPath, false)
+	return ImportConfig(path.DefaultConfPath, path.DefaultConfPath, false)
 }

@@ -16,12 +16,10 @@ import (
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/gogo/protobuf/proto"
@@ -566,8 +564,7 @@ func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *end
 	c, err := NewRunnerWithChecks([]checks.Check{check}, true, nil)
 	check.Init(nil, hostInfo)
 	assert.NoError(t, err)
-	config := fxutil.Test[config.Component](t, config.MockModule)
-	c.Submitter, err = NewSubmitter(config, hostInfo.HostName)
+	c.Submitter, err = NewSubmitter(mockConfig, hostInfo.HostName)
 	require.NoError(t, err)
 
 	err = c.Submitter.Start()
