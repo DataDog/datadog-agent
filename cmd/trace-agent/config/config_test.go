@@ -971,6 +971,23 @@ func TestLoadEnv(t *testing.T) {
 		assert.Equal("my-key", coreconfig.Datadog.GetString("apm_config.debugger_api_key"))
 	})
 
+	env = "DD_APM_DEBUGGER_ADDITIONAL_ENDPOINTS"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, `{"url1": ["key1", "key2"], "url2": ["key3"]}`)
+		_, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		expected := map[string][]string{
+			"url1": {"key1", "key2"},
+			"url2": {"key3"},
+		}
+		actual := coreconfig.Datadog.GetStringMapStringSlice(("apm_config.debugger_additional_endpoints"))
+		if !reflect.DeepEqual(actual, expected) {
+			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
+		}
+	})
+
 	env = "DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED"
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()

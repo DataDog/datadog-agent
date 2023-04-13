@@ -68,7 +68,7 @@ def get_rtloader_paths(embedded_path=None, rtloader_root=None):
 
         for libdir in ["lib", "lib64", "build/rtloader"]:
             if os.path.exists(os.path.join(base_path, libdir, RTLOADER_LIB_NAME)):
-                rtloader_lib.append(os.path.join(embedded_path, libdir))
+                rtloader_lib.append(os.path.join(base_path, libdir))
 
         header_path = os.path.join(base_path, "include")
         if not rtloader_headers and os.path.exists(os.path.join(header_path, RTLOADER_HEADER_NAME)):

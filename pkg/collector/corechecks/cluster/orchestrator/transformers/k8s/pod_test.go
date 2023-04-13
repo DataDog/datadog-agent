@@ -29,7 +29,7 @@ func getTemplateWithResourceRequirements() v1.PodTemplateSpec {
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{
 				{
-					Name: "aContainer",
+					Name: "container-1",
 					Resources: v1.ResourceRequirements{
 						Limits:   map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: parseLimits},
 						Requests: map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: parseRequests},
@@ -38,7 +38,7 @@ func getTemplateWithResourceRequirements() v1.PodTemplateSpec {
 			},
 			InitContainers: []v1.Container{
 				{
-					Name: "aContainer",
+					Name: "container-2",
 					Resources: v1.ResourceRequirements{
 						Limits:   map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: parseLimits},
 						Requests: map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: parseRequests},
@@ -56,12 +56,12 @@ func getExpectedModelResourceRequirements() []*model.ResourceRequirements {
 		{
 			Limits:   map[string]int64{v1.ResourceMemory.String(): parseLimits.Value()},
 			Requests: map[string]int64{v1.ResourceMemory.String(): parseRequests.Value()},
-			Name:     "aContainer",
+			Name:     "container-1",
 			Type:     model.ResourceRequirementsType_container,
 		}, {
 			Limits:   map[string]int64{v1.ResourceMemory.String(): parseLimits.Value()},
 			Requests: map[string]int64{v1.ResourceMemory.String(): parseRequests.Value()},
-			Name:     "aContainer",
+			Name:     "container-2",
 			Type:     model.ResourceRequirementsType_initContainer,
 		},
 	}
@@ -95,9 +95,9 @@ func TestExtractPod(t *testing.T) {
 					},
 					ContainerStatuses: []v1.ContainerStatus{
 						{
-							Name:         "fooName",
-							Image:        "fooImage",
-							ContainerID:  "docker://fooID",
+							Name:         "container-1",
+							Image:        "container-1-image",
+							ContainerID:  "docker://1",
 							RestartCount: 13,
 							State: v1.ContainerState{
 								Running: &v1.ContainerStateRunning{
@@ -106,9 +106,9 @@ func TestExtractPod(t *testing.T) {
 							},
 						},
 						{
-							Name:         "barName",
-							Image:        "barImage",
-							ContainerID:  "docker://barID",
+							Name:         "container-2",
+							Image:        "container-2-image",
+							ContainerID:  "docker://2",
 							RestartCount: 10,
 							State: v1.ContainerState{
 								Waiting: &v1.ContainerStateWaiting{
@@ -118,9 +118,9 @@ func TestExtractPod(t *testing.T) {
 							},
 						},
 						{
-							Name:         "bazName",
-							Image:        "bazImage",
-							ContainerID:  "docker://bazID",
+							Name:         "container-3",
+							Image:        "container-3-image",
+							ContainerID:  "docker://3",
 							RestartCount: 19,
 							State: v1.ContainerState{
 								Terminated: &v1.ContainerStateTerminated{
@@ -155,8 +155,12 @@ func TestExtractPod(t *testing.T) {
 					ResourceVersion: "1234",
 				},
 				Spec: v1.PodSpec{
-					NodeName:          "node",
-					Containers:        []v1.Container{{}, {}},
+					NodeName: "node",
+					Containers: []v1.Container{
+						{Name: "container-1"},
+						{Name: "container-2"},
+						{Name: "container-3"},
+					},
 					PriorityClassName: "high-priority",
 				},
 			}, expected: model.Pod{
@@ -189,22 +193,22 @@ func TestExtractPod(t *testing.T) {
 					{
 						State:        "Running",
 						RestartCount: 13,
-						Name:         "fooName",
-						ContainerID:  "docker://fooID",
+						Name:         "container-1",
+						ContainerID:  "docker://1",
 					},
 					{
 						State:        "Waiting",
 						Message:      "chillin testin",
 						RestartCount: 10,
-						Name:         "barName",
-						ContainerID:  "docker://barID",
+						Name:         "container-2",
+						ContainerID:  "docker://2",
 					},
 					{
 						State:        "Terminated",
 						Message:      "CLB PLS (exit: -1)",
 						RestartCount: 19,
-						Name:         "bazName",
-						ContainerID:  "docker://bazID",
+						Name:         "container-3",
+						ContainerID:  "docker://3",
 					},
 				},
 				Conditions: []*model.PodCondition{
@@ -219,6 +223,26 @@ func TestExtractPod(t *testing.T) {
 					},
 				},
 				Tags: []string{"kube_condition_ready:true", "kube_condition_podscheduled:true"},
+				ResourceRequirements: []*model.ResourceRequirements{
+					{
+						Limits:   map[string]int64{},
+						Requests: map[string]int64{},
+						Name:     "container-1",
+						Type:     model.ResourceRequirementsType_container,
+					},
+					{
+						Limits:   map[string]int64{},
+						Requests: map[string]int64{},
+						Name:     "container-2",
+						Type:     model.ResourceRequirementsType_container,
+					},
+					{
+						Limits:   map[string]int64{},
+						Requests: map[string]int64{},
+						Name:     "container-3",
+						Type:     model.ResourceRequirementsType_container,
+					},
+				},
 			},
 		},
 		"empty pod": {input: v1.Pod{}, expected: model.Pod{Metadata: &model.Metadata{}}},
@@ -233,14 +257,14 @@ func TestExtractPod(t *testing.T) {
 					},
 					ContainerStatuses: []v1.ContainerStatus{
 						{
-							Name:        "fooName",
-							Image:       "fooImage",
-							ContainerID: "docker://fooID",
+							Name:        "container-1",
+							Image:       "container-1-image",
+							ContainerID: "docker://1",
 						},
 						{
-							Name:         "barName",
-							Image:        "barImage",
-							ContainerID:  "docker://barID",
+							Name:         "container-2",
+							Image:        "container-2-image",
+							ContainerID:  "docker://2",
 							RestartCount: 10,
 							State: v1.ContainerState{
 								Waiting: &v1.ContainerStateWaiting{
@@ -250,7 +274,7 @@ func TestExtractPod(t *testing.T) {
 							},
 						},
 						{
-							Name: "bazName",
+							Name: "container-3",
 						},
 					},
 					QOSClass: v1.PodQOSBurstable,
@@ -279,18 +303,18 @@ func TestExtractPod(t *testing.T) {
 				QOSClass:     "Burstable",
 				ContainerStatuses: []*model.ContainerStatus{
 					{
-						Name:        "fooName",
-						ContainerID: "docker://fooID",
+						Name:        "container-1",
+						ContainerID: "docker://1",
 					},
 					{
 						State:        "Waiting",
 						Message:      "chillin testin",
 						RestartCount: 10,
-						Name:         "barName",
-						ContainerID:  "docker://barID",
+						Name:         "container-2",
+						ContainerID:  "docker://2",
 					},
 					{
-						Name: "bazName",
+						Name: "container-3",
 					},
 				},
 				Conditions: []*model.PodCondition{
@@ -324,14 +348,14 @@ func TestExtractPod(t *testing.T) {
 					},
 					ContainerStatuses: []v1.ContainerStatus{
 						{
-							Name:        "fooName",
-							Image:       "fooImage",
-							ContainerID: "docker://fooID",
+							Name:        "container-1",
+							Image:       "container-1-image",
+							ContainerID: "docker://1",
 						},
 						{
-							Name:         "barName",
-							Image:        "barImage",
-							ContainerID:  "docker://barID",
+							Name:         "container-2",
+							Image:        "container-2-image",
+							ContainerID:  "docker://2",
 							RestartCount: 10,
 							State: v1.ContainerState{
 								Waiting: &v1.ContainerStateWaiting{
@@ -341,7 +365,7 @@ func TestExtractPod(t *testing.T) {
 							},
 						},
 						{
-							Name: "bazName",
+							Name: "container-3",
 						},
 					},
 					QOSClass: v1.PodQOSBestEffort,
@@ -377,18 +401,18 @@ func TestExtractPod(t *testing.T) {
 				},
 				ContainerStatuses: []*model.ContainerStatus{
 					{
-						Name:        "fooName",
-						ContainerID: "docker://fooID",
+						Name:        "container-1",
+						ContainerID: "docker://1",
 					},
 					{
 						State:        "Waiting",
 						Message:      "chillin testin",
 						RestartCount: 10,
-						Name:         "barName",
-						ContainerID:  "docker://barID",
+						Name:         "container-2",
+						ContainerID:  "docker://2",
 					},
 					{
-						Name: "bazName",
+						Name: "container-3",
 					},
 				},
 				Conditions: []*model.PodCondition{
@@ -423,9 +447,9 @@ func TestExtractPod(t *testing.T) {
 					},
 					ContainerStatuses: []v1.ContainerStatus{
 						{
-							Name:         "barName",
-							Image:        "barImage",
-							ContainerID:  "docker://barID",
+							Name:         "container-2",
+							Image:        "container-2-image",
+							ContainerID:  "docker://2",
 							RestartCount: 10,
 							State: v1.ContainerState{
 								Waiting: &v1.ContainerStateWaiting{
@@ -462,8 +486,8 @@ func TestExtractPod(t *testing.T) {
 						State:        "Waiting",
 						Message:      "chillin testin",
 						RestartCount: 10,
-						Name:         "barName",
-						ContainerID:  "docker://barID",
+						Name:         "container-2",
+						ContainerID:  "docker://2",
 					},
 				},
 				ResourceRequirements: []*model.ResourceRequirements{
@@ -500,7 +524,12 @@ func TestConvertResourceRequirements(t *testing.T) {
 			input: v1.Container{
 				Name: "test",
 			},
-			expected: nil,
+			expected: &model.ResourceRequirements{
+				Limits:   map[string]int64{},
+				Requests: map[string]int64{},
+				Name:     "test",
+				Type:     model.ResourceRequirementsType_container,
+			},
 		},
 		"0 ResourceRequirement explicitly set": {
 			input: v1.Container{

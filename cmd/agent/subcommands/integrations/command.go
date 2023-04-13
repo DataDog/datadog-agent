@@ -545,7 +545,7 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 	downloaderCmd.Env = environ
 
 	// Proxy support
-	proxies := pkgconfig.GetProxies()
+	proxies := pkgconfig.Datadog.GetProxies()
 	if proxies != nil {
 		downloaderCmd.Env = append(downloaderCmd.Env,
 			fmt.Sprintf("HTTP_PROXY=%s", proxies.HTTP),
