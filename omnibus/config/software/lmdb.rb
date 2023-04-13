@@ -26,7 +26,6 @@ build do
     end
 
     # We have to manually move the files into the correct directories because the Makefile for lmdb hardcodes the install directory to `/usr/local`, although we need this to be `#{install_dir}/embedded`
-    copy "liblmdb.a", "#{install_dir}/embedded/lib/liblmdb.a"
     copy "liblmdb.so", "#{install_dir}/embedded/lib/liblmdb.so"
     copy "lmdb.h", "#{install_dir}/embedded/include/lmdb.h"
     copy "mdb_stat", "#{install_dir}/embedded/bin/mdb_stat"
