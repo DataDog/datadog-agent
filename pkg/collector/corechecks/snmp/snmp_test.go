@@ -44,13 +44,13 @@ func demuxOpts() aggregator.AgentDemultiplexerOptions {
 }
 
 func Test_Run_simpleCase(t *testing.T) {
+	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
 	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
 	chk := Check{sessionFactory: sessionFactory}
-	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
 	aggregator.InitAndStartAgentDemultiplexer(forwarder, demuxOpts(), "")
 
 	// language=yaml
