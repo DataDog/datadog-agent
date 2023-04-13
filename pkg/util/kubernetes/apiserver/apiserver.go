@@ -319,8 +319,6 @@ func getCRDInformerFactory() (externalversions.SharedInformerFactory, error) {
 	return externalversions.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second), nil
 }
 
-// func getAPISInformerFactory()
-
 func getInformerFactoryWithOption(options ...informers.SharedInformerOption) (informers.SharedInformerFactory, error) {
 	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
 	client, err := GetKubeClient(0) // No timeout for the Informers, to allow long watch.
