@@ -263,16 +263,17 @@ static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u
 }
 
 static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buff *skb, int len) {
+    if (len < 0) {
+        // peeking or an error happened
+        return 0;
+    }
+
     u64 pid_tgid = bpf_get_current_pid_tgid();
     udp_recv_sock_t *st = bpf_map_lookup_elem(&udp_recv_sock, &pid_tgid);
     if (!st) { // no entry means a peek
         return 0;
     }
 
-    if (len < 0) {
-        // peeking or an error happened
-        return 0;
-    }
     conn_tuple_t t;
     bpf_memset(&t, 0, sizeof(conn_tuple_t));
     int data_len = sk_buff_to_tuple(skb, &t);
@@ -289,7 +290,7 @@ static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buf
     return handle_message(&t, 0, data_len, CONN_DIRECTION_UNKNOWN, 0, 1, PACKET_COUNT_INCREMENT, sk);
 }
 
-int __always_inline handle_tcp_recv(u64 pid_tgid, struct sock *skp, int recv) {
+static __always_inline int handle_tcp_recv(u64 pid_tgid, struct sock *skp, int recv) {
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
