@@ -150,14 +150,49 @@ type ContainerContext struct {
 	Tags      []string `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
 }
 
+type Status uint32
+
+const (
+	// AnomalyDetection will trigger alerts each time an event is not part of the profile
+	AnomalyDetection Status = 1 << iota
+	// AutoSuppression will suppress any signal to events present on the profile
+	AutoSuppression
+	// WorkloadHardening will kill the process that triggered anomaly detection
+	WorkloadHardening
+)
+
+func (s Status) IsEnabled(option Status) bool {
+	return (s & option) != 0
+}
+
+func (s Status) String() string {
+	var options []string
+	if s.IsEnabled(AnomalyDetection) {
+		options = append(options, "anomaly_detection")
+	}
+	if s.IsEnabled(AutoSuppression) {
+		options = append(options, "auto_suppression")
+	}
+	if s.IsEnabled(WorkloadHardening) {
+		options = append(options, "workload_hardening")
+	}
+
+	var res string
+	for _, option := range options {
+		if len(res) > 0 {
+			res += ","
+		}
+		res += option
+	}
+	return res
+}
+
 // SecurityProfileContext holds the security context of the profile
 type SecurityProfileContext struct {
-	Name                    string   `field:"name"`    // SECLDoc[name] Definition:`Name of the security profile`
-	Status                  string   `field:"status"`  // SECLDoc[status] Definition:`Status of the security profile`
-	Version                 string   `field:"version"` // SECLDoc[version] Definition:`Version of the security profile`
-	Tags                    []string `field:"tags"`    // SECLDoc[tags] Definition:`Tags of the security profile`
-	AnomalyDetectionEnabled bool     `field:"-"`
-	AutoSuppressionEnabled  bool     `field:"-"`
+	Name    string   `field:"name"`    // SECLDoc[name] Definition:`Name of the security profile`
+	Status  Status   `field:"status"`  // SECLDoc[status] Definition:`Status of the security profile`
+	Version string   `field:"version"` // SECLDoc[version] Definition:`Version of the security profile`
+	Tags    []string `field:"tags"`    // SECLDoc[tags] Definition:`Tags of the security profile`
 }
 
 // Event represents an event sent from the kernel

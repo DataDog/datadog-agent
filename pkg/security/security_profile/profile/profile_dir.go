@@ -24,6 +24,7 @@ import (
 
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -236,7 +237,7 @@ func (dp *DirectoryProvider) loadProfile(profilePath string) error {
 	// update profile mapping
 	if existingProfile, ok := dp.profileMapping[workloadSelector]; ok {
 		if existingProfile.version >= profile.Version {
-			seclog.Warnf("ignoring %s (version: %v status: %s): a more recent version of this profile already exists (existing version is %v)", profilePath, profile.Version, Status(profile.Status), existingProfile.version)
+			seclog.Warnf("ignoring %s (version: %v status: %s): a more recent version of this profile already exists (existing version is %v)", profilePath, profile.Version, model.Status(profile.Status), existingProfile.version)
 			return nil
 		}
 	}
@@ -245,7 +246,7 @@ func (dp *DirectoryProvider) loadProfile(profilePath string) error {
 		version: profile.Version,
 	}
 
-	seclog.Debugf("security profile %s (version: %s status: %s) loaded from file system", workloadSelector, profile.Version, Status(profile.Status))
+	seclog.Debugf("security profile %s (version: %s status: %s) loaded from file system", workloadSelector, profile.Version, model.Status(profile.Status))
 
 	if dp.onNewProfileCallback == nil {
 		return nil

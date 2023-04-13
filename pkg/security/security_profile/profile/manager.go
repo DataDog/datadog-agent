@@ -257,7 +257,7 @@ func (m *SecurityProfileManager) FillProfileContextFromContainerID(id string, ct
 				ctx.Name = profile.Metadata.Name
 				ctx.Version = profile.Version
 				ctx.Tags = profile.Tags
-				ctx.Status = profile.Status.String()
+				ctx.Status = profile.Status
 			}
 			instance.Unlock()
 		}
@@ -275,9 +275,7 @@ func FillProfileContextFromProfile(ctx *model.SecurityProfileContext, profile *S
 	ctx.Name = profile.Metadata.Name
 	ctx.Version = profile.Version
 	ctx.Tags = profile.Tags
-	ctx.Status = profile.Status.String()
-	ctx.AnomalyDetectionEnabled = profile.Status.IsEnabled(AnomalyDetection)
-	ctx.AutoSuppressionEnabled = profile.Status.IsEnabled(AutoSuppression)
+	ctx.Status = profile.Status
 }
 
 // OnCGroupDeletedEvent is used to handle a CGroupDeleted event

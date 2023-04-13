@@ -398,7 +398,7 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 		handler.HandleEvent(event)
 	}
 
-	if event.SecurityProfileContext.AnomalyDetectionEnabled && event.IsSecurityProfileFoundAndAbsent() && event.GetEventType() != model.SyscallsEventType {
+	if event.SecurityProfileContext.Status.IsEnabled(model.AnomalyDetection) && event.IsSecurityProfileFoundAndAbsent() && event.GetEventType() != model.SyscallsEventType {
 		p.SendAnomalyDetection(event)
 	}
 

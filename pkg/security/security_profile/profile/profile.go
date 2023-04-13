@@ -17,43 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
-type Status uint32
-
-const (
-	// AnomalyDetection will trigger alerts each time an event is not part of the profile
-	AnomalyDetection Status = 1 << iota
-	// AutoSuppression will suppress any signal to events present on the profile
-	AutoSuppression
-	// WorkloadHardening will kill the process that triggered anomaly detection
-	WorkloadHardening
-)
-
-func (s Status) IsEnabled(option Status) bool {
-	return (s & option) != 0
-}
-
-func (s Status) String() string {
-	var options []string
-	if s.IsEnabled(AnomalyDetection) {
-		options = append(options, "anomaly_detection")
-	}
-	if s.IsEnabled(AutoSuppression) {
-		options = append(options, "auto_suppression")
-	}
-	if s.IsEnabled(WorkloadHardening) {
-		options = append(options, "workload_hardening")
-	}
-
-	var res string
-	for _, option := range options {
-		if len(res) > 0 {
-			res += ","
-		}
-		res += option
-	}
-	return res
-}
-
 // SecurityProfile defines a security profile
 type SecurityProfile struct {
 	sync.Mutex
@@ -65,7 +28,7 @@ type SecurityProfile struct {
 	Instances []*cgroupModel.CacheEntry
 
 	// Status is the status of the profile
-	Status Status
+	Status model.Status
 
 	// Version is the version of a Security Profile
 	Version string

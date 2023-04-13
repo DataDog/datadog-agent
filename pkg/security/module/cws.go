@@ -415,7 +415,7 @@ func (c *CWSConsumer) HandleEvent(event *model.Event) {
 	}
 
 	if ruleSet := c.GetRuleSet(); ruleSet != nil {
-		if (event.SecurityProfileContext.AutoSuppressionEnabled && event.IsSecurityProfileFoundAndPresent()) || !ruleSet.Evaluate(event) {
+		if (event.SecurityProfileContext.Status.IsEnabled(model.AutoSuppression) && event.IsSecurityProfileFoundAndPresent()) || !ruleSet.Evaluate(event) {
 			ruleSet.EvaluateDiscarders(event)
 		}
 	}
