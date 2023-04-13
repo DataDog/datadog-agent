@@ -374,9 +374,7 @@ func startAgent(
 	}
 
 	// create and setup the Autoconfig instance
-	if err := common.LoadComponents(common.MainCtx, pkgconfig.Datadog.GetString("confd_path")); err != nil {
-		return err
-	}
+	common.LoadComponents(common.MainCtx, pkgconfig.Datadog.GetString("confd_path"))
 
 	// start the cloudfoundry container tagger
 	if pkgconfig.IsFeaturePresent(pkgconfig.CloudFoundry) && !pkgconfig.Datadog.GetBool("cloud_foundry_buildpack") {

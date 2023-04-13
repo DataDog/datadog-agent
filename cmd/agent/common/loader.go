@@ -26,7 +26,7 @@ import (
 
 // LoadComponents configures several common Agent components:
 // tagger, collector, scheduler and autodiscovery
-func LoadComponents(ctx context.Context, confdPath string) error {
+func LoadComponents(ctx context.Context, confdPath string) {
 	var catalog workloadmeta.CollectorCatalog
 	if flavor.GetFlavor() == flavor.ClusterAgent {
 		catalog = workloadmeta.ClusterAgentCatalog
@@ -39,7 +39,7 @@ func LoadComponents(ctx context.Context, confdPath string) error {
 
 	sbomScanner, err := scanner.CreateGlobalScanner(config.Datadog)
 	if err != nil {
-		return err
+		log.Errorf("failed to create SBOM scanner: %s", err)
 	} else if sbomScanner != nil {
 		sbomScanner.Start(ctx)
 	}
@@ -80,5 +80,4 @@ func LoadComponents(ctx context.Context, confdPath string) error {
 	// setup autodiscovery. must be done after the tagger is initialized
 	// because of subscription to metadata store.
 	AC = setupAutoDiscovery(confSearchPaths, scheduler.NewMetaScheduler())
-	return nil
 }

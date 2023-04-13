@@ -193,9 +193,7 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 	opts.UseNoopOrchestratorForwarder = true
 	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostnameDetected)
 
-	if err := common.LoadComponents(context.Background(), pkgconfig.Datadog.GetString("confd_path")); err != nil {
-		return err
-	}
+	common.LoadComponents(context.Background(), pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to

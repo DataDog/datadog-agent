@@ -245,9 +245,7 @@ func start(log log.Component, config config.Component, cliParams *command.Global
 	// don't import cmd/agent
 
 	// create and setup the Autoconfig instance
-	if err := common.LoadComponents(mainCtx, pkgconfig.Datadog.GetString("confd_path")); err != nil {
-		return err
-	}
+	common.LoadComponents(mainCtx, pkgconfig.Datadog.GetString("confd_path"))
 
 	// Set up check collector
 	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll), true)
