@@ -7,4 +7,4 @@
 # Each section note must be formatted as reStructuredText.
 ---
 enhancements:
-  - Collect conditions for a variety of kubernetes resources
+  - Collect conditions for a variety of Kubernetes resources.
