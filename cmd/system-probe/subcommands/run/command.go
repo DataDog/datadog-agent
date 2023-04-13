@@ -19,7 +19,6 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
@@ -66,7 +65,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(config.NewAgentParamsWithoutSecrets("", config.WithConfigMissingOK(true))),
 				fx.Supply(sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfig.WithConfigLoadSecrets(true))),
-				fx.Supply(log.LogForDaemon("SYS-PROBE", "log_file", path.DefaultLogFile)),
+				fx.Supply(log.LogForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 				config.Module,
 				sysprobeconfig.Module,
 				// use system-probe config instead of agent config for logging
@@ -149,7 +148,7 @@ func StartSystemProbeWithDefaults() error {
 		// no config file path specification in this situation
 		fx.Supply(config.NewAgentParamsWithoutSecrets("", config.WithConfigMissingOK(true))),
 		fx.Supply(sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(""), sysprobeconfig.WithConfigLoadSecrets(true))),
-		fx.Supply(log.LogForDaemon("SYS-PROBE", "log_file", path.DefaultLogFile)),
+		fx.Supply(log.LogForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 		config.Module,
 		sysprobeconfig.Module,
 		// use system-probe config instead of agent config for logging
