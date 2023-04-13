@@ -6,6 +6,8 @@
 package encoding
 
 import (
+	"sync"
+
 	"github.com/gogo/protobuf/proto"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -16,13 +18,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+var (
+	httpStatsDataPool = sync.Pool{
+		New: func() any {
+			return new(model.HTTPStats_Data)
+		},
+	}
+
+	httpStatsPool = sync.Pool{
+		New: func() any {
+			return new(model.HTTPStats)
+		},
+	}
+)
+
 type httpEncoder struct {
 	aggregations   map[types.ConnectionKey]*aggregationWrapper
 	staticTags     map[types.ConnectionKey]uint64
 	dynamicTagsSet map[types.ConnectionKey]map[string]struct{}
-
-	dataPool  []model.HTTPStats_Data
-	poolIndex int
 
 	orphanEntries int
 }
@@ -113,13 +126,9 @@ func (e *httpEncoder) GetHTTPAggregationsAndTags(c network.ConnectionStats) (*mo
 
 func (e *httpEncoder) buildAggregations(payload *network.Connections) {
 	aggrSize := make(map[types.ConnectionKey]int, len(payload.HTTP))
-	dataPoolSize := 0
-	for key, stat := range payload.HTTP {
+	for key := range payload.HTTP {
 		aggrSize[key.ConnectionKey]++
-		dataPoolSize += len(stat.Data)
 	}
-
-	e.dataPool = make([]model.HTTPStats_Data, dataPoolSize)
 
 	for key, stats := range payload.HTTP {
 		aggregation, ok := e.aggregations[key.ConnectionKey]
@@ -139,12 +148,11 @@ func (e *httpEncoder) buildAggregations(payload *network.Connections) {
 			e.aggregations[key.ConnectionKey] = aggregation
 		}
 
-		ms := &model.HTTPStats{
-			Path:              key.Path.Content,
-			FullPath:          key.Path.FullPath,
-			Method:            model.HTTPMethod(key.Method),
-			StatsByStatusCode: e.getDataMap(stats.Data),
-		}
+		ms := httpStatsPool.Get().(*model.HTTPStats)
+		ms.Path = key.Path.Content
+		ms.FullPath = key.Path.FullPath
+		ms.Method = model.HTTPMethod(key.Method)
+		ms.StatsByStatusCode = e.getDataMap(stats.Data)
 
 		staticTags := e.staticTags[key.ConnectionKey]
 		var dynamicTags map[string]struct{}
@@ -183,8 +191,26 @@ func (e *httpEncoder) buildAggregations(payload *network.Connections) {
 func (e *httpEncoder) getDataMap(stats map[uint16]*http.RequestStat) map[int32]*model.HTTPStats_Data {
 	res := make(map[int32]*model.HTTPStats_Data, len(stats))
 	for key := range stats {
-		res[int32(key)] = &e.dataPool[e.poolIndex]
-		e.poolIndex++
+		res[int32(key)] = httpStatsDataPool.Get().(*model.HTTPStats_Data)
 	}
 	return res
+}
+
+func (e *httpEncoder) Close() {
+	if e == nil {
+		return
+	}
+	for _, elem := range e.aggregations {
+		if elem == nil {
+			continue
+		}
+		for _, entry := range elem.EndpointAggregations {
+			for _, value := range entry.StatsByStatusCode {
+				httpStatsDataPool.Put(value)
+			}
+			httpStatsPool.Put(entry)
+		}
+	}
+
+	e.aggregations = nil
 }

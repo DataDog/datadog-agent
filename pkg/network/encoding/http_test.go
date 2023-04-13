@@ -6,6 +6,7 @@
 package encoding
 
 import (
+	"fmt"
 	"runtime"
 	"testing"
 
@@ -415,7 +416,8 @@ func commonBenchmarkHTTPEncoder(b *testing.B, numberOfPorts uint16) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		newHTTPEncoder(&payload)
+		h := newHTTPEncoder(&payload)
+		h.Close()
 	}
 }
 
