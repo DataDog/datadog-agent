@@ -182,6 +182,24 @@ func TestChkRun(t *testing.T) {
 			assert.Equal(t, 0, retValue, "Testing IN slice uint64 overflow with driver %s. If this failed, the uint64 overflow problem might have been resolved.", driver)
 		}
 
+		//In Rebind with a large uint64 value
+		query, args, err := sqlx.In("SELECT COUNT(*) FROM v$sqlstats WHERE force_matching_signature IN (?)", slice)
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		rows, err := chk.db.Query(chk.db.Rebind(query), args...)
+
+		assert.NoErrorf(t, err, "preparing statement with IN clause for %s driver", driver)
+
+		rows.Next()
+		err = rows.Scan(&retValue)
+		rows.Close()
+		if err != nil {
+			log.Fatalf("scan error %s", err)
+		}
+		assert.Equal(t, retValue, 1, driver)
+
 	}
 }
 

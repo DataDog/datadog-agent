@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
@@ -37,7 +38,7 @@ const ACTIVITY_QUERY = `SELECT /* DD_ACTIVITY_SAMPLING */
     osuser,
     process, 
     machine,
-	--port,
+	port,
     program,
     type,
     sql_id,
@@ -413,7 +414,7 @@ func (c *Check) SampleSession() error {
 		return err
 	}
 
-	//log.Tracef("Activity payload %s", strings.ReplaceAll(string(payloadBytes), "@", "XX"))
+	log.Tracef("Activity payload %s", strings.ReplaceAll(string(payloadBytes), "@", "XX"))
 
 	sender, err := c.GetSender()
 	if err != nil {
