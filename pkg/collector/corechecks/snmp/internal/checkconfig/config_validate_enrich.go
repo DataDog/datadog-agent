@@ -154,6 +154,9 @@ func validateEnrichSymbol(symbol *SymbolConfig, symbolContext SymbolContext) []s
 			symbol.MatchPatternCompiled = pattern
 		}
 	}
+	if symbolContext != ColumnSymbol && symbol.ConstantValueOne {
+		errors = append(errors, fmt.Sprintf("`constant_value_one` cannot be used outside of tables"))
+	}
 	return errors
 }
 func validateEnrichMetricTag(metricTag *MetricTagConfig) []string {
