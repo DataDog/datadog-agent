@@ -168,20 +168,6 @@ func TestGetWorkloadList(t *testing.T) {
 	assert.Contains(t, string(content), "Name: init-config ID: 4e0ffee5d6")
 }
 
-func TestPerformanceProfile(t *testing.T) {
-	testProfile := ProfileData{
-		"first":  []byte("data1"),
-		"second": []byte("data2"),
-		"third":  []byte("data3"),
-	}
-	mock := flarehelpers.NewFlareBuilderMock(t)
-	getPerformanceProfile(mock.Fb, testProfile)
-
-	mock.AssertFileContent("data1", "profiles", "first")
-	mock.AssertFileContent("data2", "profiles", "second")
-	mock.AssertFileContent("data3", "profiles", "third")
-}
-
 func TestVersionHistory(t *testing.T) {
 	srcDir := createTestFile(t, "version-history.json")
 
