@@ -37,6 +37,7 @@ import (
 	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/vulnerability"
 	"github.com/containerd/containerd"
+	"github.com/docker/docker/client"
 )
 
 const (
@@ -201,6 +202,18 @@ func (c *Collector) Close() error {
 	return c.cache.Close()
 }
 
+func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, client client.ImageAPIClient, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+	fanalImage, cleanup, err := convertDockerImage(ctx, client, imgMeta)
+	if cleanup != nil {
+		defer cleanup()
+	}
+	if err != nil {
+		return nil, fmt.Errorf("unable to convert docker image, err: %w", err)
+	}
+
+	return c.scanImage(ctx, fanalImage, scanOptions)
+}
+
 func (c *Collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image, client cutil.ContainerdItf, scanOptions sbom.ScanOptions) (sbom.Report, error) {
 	fanalImage, cleanup, err := convertContainerdImage(ctx, client.RawClient(), imgMeta, img)
 	if cleanup != nil {
@@ -210,17 +223,7 @@ func (c *Collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadme
 		return nil, fmt.Errorf("unable to convert containerd image, err: %w", err)
 	}
 
-	imageArtifact, err := image2.NewArtifact(fanalImage, c.cache, getDefaultArtifactOption(scanOptions.Analyzers, ""))
-	if err != nil {
-		return nil, fmt.Errorf("unable to create artifact from image, err: %w", err)
-	}
-
-	bom, err := c.scan(ctx, imageArtifact)
-	if err != nil {
-		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
-	}
-
-	return bom, nil
+	return c.scanImage(ctx, fanalImage, scanOptions)
 }
 
 func (c *Collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image, client cutil.ContainerdItf, scanOptions sbom.ScanOptions) (sbom.Report, error) {
@@ -286,4 +289,18 @@ func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact) (sbom.
 		Report:    trivyReport,
 		marshaler: c.marshaler,
 	}, nil
+}
+
+func (c *Collector) scanImage(ctx context.Context, fanalImage ftypes.Image, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+	imageArtifact, err := image2.NewArtifact(fanalImage, c.cache, getDefaultArtifactOption(scanOptions.Analyzers, ""))
+	if err != nil {
+		return nil, fmt.Errorf("unable to create artifact from image, err: %w", err)
+	}
+
+	bom, err := c.scan(ctx, imageArtifact)
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
+	}
+
+	return bom, nil
 }
