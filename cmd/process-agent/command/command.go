@@ -113,14 +113,6 @@ func MakeCommand(subcommandFactories []SubcommandFactory, winParams bool, rootCm
 	return rootCmd
 }
 
-func GetCoreBundleParamsForOneShot(globalParams *GlobalParams) core.BundleParams {
-	return core.BundleParams{
-		ConfigParams:         configComponent.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
-		SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-		LogParams:            logComponent.LogForOneShot(string(LoggerName), "info", true),
-	}
-}
-
 // SetHostMountEnv sets HOST_PROC and HOST_SYS mounts if applicable in containerized environments
 func SetHostMountEnv(logger logComponent.Component) {
 	// Set default values for proc/sys paths if unset.
@@ -145,5 +137,12 @@ func SetHostMountEnv(logger logComponent.Component) {
 		} else {
 			logger.Debug("Set `HOST_SYS` environment variable")
 		}
+	}
+}
+func GetCoreBundleParamsForOneShot(globalParams *GlobalParams) core.BundleParams {
+	return core.BundleParams{
+		ConfigParams:         configComponent.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
+		SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
+		LogParams:            logComponent.LogForOneShot(string(LoggerName), "info", true),
 	}
 }

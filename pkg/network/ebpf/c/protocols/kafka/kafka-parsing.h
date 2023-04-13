@@ -175,6 +175,7 @@ static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction
     bpf_memset(kafka_transaction->base.topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE);
     parser_read_into_buffer_topic_name((char *)kafka_transaction->base.topic_name, skb, offset);
     offset += topic_name_size;
+    kafka_transaction->base.topic_name_size = topic_name_size;
 
     CHECK_STRING_COMPOSED_OF_ASCII_FOR_PARSING(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_size, kafka_transaction->base.topic_name);
 

@@ -14,11 +14,13 @@ var (
 	logger Logger = NoopLogger
 )
 
-// SetLogger sets l as the default Logger.
-func SetLogger(l Logger) {
+// SetLogger sets l as the default Logger and returns the old logger.
+func SetLogger(l Logger) Logger {
 	mu.Lock()
+	oldlogger := logger
 	logger = l
 	mu.Unlock()
+	return oldlogger
 }
 
 // IsSet returns whether the logger has been set up.

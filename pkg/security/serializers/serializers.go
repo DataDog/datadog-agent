@@ -574,7 +574,7 @@ func newSecurityProfileContextSerializer(e *model.SecurityProfileContext) *Secur
 	return &SecurityProfileContextSerializer{
 		Name:    e.Name,
 		Version: e.Version,
-		Status:  e.Status,
+		Status:  e.Status.String(),
 		Tags:    tags,
 	}
 }

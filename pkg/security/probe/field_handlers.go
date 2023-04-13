@@ -15,6 +15,8 @@ import (
 	"syscall"
 	"time"
 
+	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
+
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/args"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -183,7 +185,7 @@ func (fh *FieldHandlers) ResolveProcessArgs(ev *model.Event, process *model.Proc
 
 // ResolveProcessArgv resolves the args of the event as an array
 func (fh *FieldHandlers) ResolveProcessArgv(ev *model.Event, process *model.Process) []string {
-	argv, _ := fh.resolvers.ProcessResolver.GetProcessArgv(process)
+	argv, _ := sprocess.GetProcessArgv(process)
 	return argv
 }
 
@@ -195,7 +197,7 @@ func (fh *FieldHandlers) ResolveProcessEnvp(ev *model.Event, process *model.Proc
 
 // ResolveProcessArgsTruncated returns whether the args are truncated
 func (fh *FieldHandlers) ResolveProcessArgsTruncated(ev *model.Event, process *model.Process) bool {
-	_, truncated := fh.resolvers.ProcessResolver.GetProcessArgv(process)
+	_, truncated := sprocess.GetProcessArgv(process)
 	return truncated
 }
 

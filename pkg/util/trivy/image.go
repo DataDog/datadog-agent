@@ -14,12 +14,14 @@ import (
 	"context"
 	"io"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
 	fimage "github.com/aquasecurity/trivy/pkg/fanal/image"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	dimage "github.com/docker/docker/api/types/image"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	"github.com/samber/lo"
@@ -224,6 +226,62 @@ func (img *image) imageConfig(config *container.Config) v1.Config {
 	}
 
 	return c
+}
+
+func configHistory(dhistory []dimage.HistoryResponseItem) []v1.History {
+	// Fill only required metadata
+	var history []v1.History
+
+	for i := len(dhistory) - 1; i >= 0; i-- {
+		h := dhistory[i]
+		history = append(history, v1.History{
+			Created: v1.Time{
+				Time: time.Unix(h.Created, 0).UTC(),
+			},
+			CreatedBy:  h.CreatedBy,
+			Comment:    h.Comment,
+			EmptyLayer: emptyLayer(h),
+		})
+	}
+	return history
+}
+
+func emptyLayer(history dimage.HistoryResponseItem) bool {
+	if history.Size != 0 {
+		return false
+	}
+	createdBy := strings.TrimSpace(strings.TrimPrefix(history.CreatedBy, "/bin/sh -c #(nop)"))
+	// This logic is taken from https://github.com/moby/buildkit/blob/2942d13ff489a2a49082c99e6104517e357e53ad/frontend/dockerfile/dockerfile2llb/convert.go
+	if strings.HasPrefix(createdBy, "ENV") ||
+		strings.HasPrefix(createdBy, "MAINTAINER") ||
+		strings.HasPrefix(createdBy, "LABEL") ||
+		strings.HasPrefix(createdBy, "CMD") ||
+		strings.HasPrefix(createdBy, "ENTRYPOINT") ||
+		strings.HasPrefix(createdBy, "HEALTHCHECK") ||
+		strings.HasPrefix(createdBy, "EXPOSE") ||
+		strings.HasPrefix(createdBy, "USER") ||
+		strings.HasPrefix(createdBy, "VOLUME") ||
+		strings.HasPrefix(createdBy, "STOPSIGNAL") ||
+		strings.HasPrefix(createdBy, "SHELL") ||
+		strings.HasPrefix(createdBy, "ARG") {
+		return true
+	}
+	// buildkit layers with "WORKDIR /" command are empty,
+	if strings.HasPrefix(history.Comment, "buildkit.dockerfile") {
+		if createdBy == "WORKDIR /" {
+			return true
+		}
+	} else if strings.HasPrefix(createdBy, "WORKDIR") { // layers build with docker and podman, WORKDIR command is always empty layer.
+		return true
+	}
+	// The following instructions could reach here:
+	//     - "ADD"
+	//     - "COPY"
+	//     - "RUN"
+	//         - "RUN" may not include even 'RUN' prefix
+	//            e.g. '/bin/sh -c mkdir test '
+	//     - "WORKDIR", which doesn't meet the above conditions
+	return false
 }
 
 func (img *image) Name() string {

@@ -219,12 +219,12 @@ func TestProcessCheckWithRealtime(t *testing.T) {
 }
 
 func TestOnlyEnvConfigArgsScrubbingEnabled(t *testing.T) {
-	_ = ddconfig.Mock(t)
+	cfg := ddconfig.Mock(t)
 
 	t.Setenv("DD_CUSTOM_SENSITIVE_WORDS", "*password*,consul_token,*api_key")
 
 	scrubber := procutil.NewDefaultDataScrubber()
-	initScrubber(scrubber)
+	initScrubber(cfg, scrubber)
 
 	assert.True(t, scrubber.Enabled)
 
@@ -245,13 +245,13 @@ func TestOnlyEnvConfigArgsScrubbingEnabled(t *testing.T) {
 }
 
 func TestOnlyEnvConfigArgsScrubbingDisabled(t *testing.T) {
-	_ = ddconfig.Mock(t)
+	cfg := ddconfig.Mock(t)
 
 	t.Setenv("DD_SCRUB_ARGS", "false")
 	t.Setenv("DD_CUSTOM_SENSITIVE_WORDS", "*password*,consul_token,*api_key")
 
 	scrubber := procutil.NewDefaultDataScrubber()
-	initScrubber(scrubber)
+	initScrubber(cfg, scrubber)
 
 	assert.False(t, scrubber.Enabled)
 
@@ -410,8 +410,7 @@ func TestProcessWithNoCommandline(t *testing.T) {
 
 	var disallowList []*regexp.Regexp
 
-	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil,
-		syst2, syst1, lastRun, nil)
+	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, nil)
 	assert.Len(t, procs, 1)
 
 	require.Len(t, procs[""], 1)

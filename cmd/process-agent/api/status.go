@@ -12,43 +12,42 @@ import (
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func statusHandler(w http.ResponseWriter, _ *http.Request) {
-	log.Info("Got a request for the status. Making status.")
+func statusHandler(deps APIServerDeps, w http.ResponseWriter, _ *http.Request) {
+	deps.Log.Info("Got a request for the status. Making status.")
 
 	// Get expVar server address
 	ipcAddr, err := ddconfig.GetIPCAddress()
 	if err != nil {
 		writeError(err, http.StatusInternalServerError, w)
-		_ = log.Warn("config error:", err)
+		_ = deps.Log.Warn("config error:", err)
 		return
 	}
 
-	port := ddconfig.Datadog.GetInt("process_config.expvar_port")
+	port := deps.Config.GetInt("process_config.expvar_port")
 	if port <= 0 {
-		_ = log.Warnf("Invalid process_config.expvar_port -- %d, using default port %d\n", port, ddconfig.DefaultProcessExpVarPort)
+		_ = deps.Log.Warnf("Invalid process_config.expvar_port -- %d, using default port %d\n", port, ddconfig.DefaultProcessExpVarPort)
 		port = ddconfig.DefaultProcessExpVarPort
 	}
 	expvarEndpoint := fmt.Sprintf("http://%s:%d/debug/vars", ipcAddr, port)
 
-	agentStatus, err := util.GetStatus(expvarEndpoint)
+	agentStatus, err := util.GetStatus(deps.Config, expvarEndpoint)
 	if err != nil {
-		_ = log.Warn("failed to get status from agent:", err)
+		_ = deps.Log.Warn("failed to get status from agent:", err)
 		writeError(err, http.StatusInternalServerError, w)
 		return
 	}
 
 	b, err := json.Marshal(agentStatus)
 	if err != nil {
-		_ = log.Warn("failed to serialize status response from agent:", err)
+		_ = deps.Log.Warn("failed to serialize status response from agent:", err)
 		writeError(err, http.StatusInternalServerError, w)
 		return
 	}
 
 	_, err = w.Write(b)
 	if err != nil {
-		_ = log.Warn("received response from agent but failed write it to client:", err)
+		_ = deps.Log.Warn("received response from agent but failed write it to client:", err)
 	}
 }
