@@ -15,9 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
+	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta/telemetry"
 )
 
 const (
@@ -95,11 +95,11 @@ func (s *Scanner) start(ctx context.Context) {
 					return
 				}
 
-				sbomAttempts.Inc(request.Collector(), request.Type())
+				telemetry.SBOMFailures.Inc(request.Collector(), request.Type())
 
 				collector := request.collector
 				if err := s.enoughDiskSpace(request.opts); err != nil {
-					sbomFailures.Inc(request.Collector(), request.Type(), "disk_space")
+					telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "disk_space")
 					log.Errorf("An error occurred while checking current disk usage: %s", err)
 					continue
 				}
@@ -115,7 +115,7 @@ func (s *Scanner) start(ctx context.Context) {
 				generationDuration := time.Since(createdAt)
 				cancel()
 				if err != nil {
-					sbomFailures.Inc(request.Collector(), request.Type(), "scan")
+					telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "scan")
 					log.Errorf("An error occurred while generating SBOM: %s", err)
 					continue
 				}
