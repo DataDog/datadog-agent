@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -35,6 +36,7 @@ type scanRequest struct {
 }
 
 type Scanner struct {
+	startOnce sync.Once
 	running   bool
 	scanQueue chan scanRequest
 	disk      filesystem.Disk
@@ -72,7 +74,7 @@ func (s *Scanner) enoughDiskSpace(opts sbom.ScanOptions) error {
 	return nil
 }
 
-func (s *Scanner) Start(ctx context.Context) {
+func (s *Scanner) start(ctx context.Context) {
 	if s.running {
 		return
 	}
@@ -141,6 +143,12 @@ func (s *Scanner) Start(ctx context.Context) {
 			}
 		}
 	}()
+}
+
+func (s *Scanner) Start(ctx context.Context) {
+	s.startOnce.Do(func() {
+		s.start(ctx)
+	})
 }
 
 // NewScanner creates a new SBOM scanner. Call Start to start the store and its
