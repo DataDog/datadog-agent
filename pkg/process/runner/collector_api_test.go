@@ -571,7 +571,7 @@ func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *end
 	c, err := NewRunnerWithChecks(mockConfig, []checks.Check{check}, true, nil)
 	check.Init(nil, hostInfo)
 	assert.NoError(t, err)
-	c.Submitter, err = NewSubmitter(mockConfig, mockConfig, hostInfo.HostName)
+	c.Submitter, err = NewSubmitter(mockConfig, hostInfo.HostName)
 	require.NoError(t, err)
 
 	err = c.Submitter.Start()

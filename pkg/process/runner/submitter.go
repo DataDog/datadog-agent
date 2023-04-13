@@ -119,7 +119,7 @@ func NewSubmitter(config config.Component, hostname string) (*CheckSubmitter, er
 	status.UpdateDropCheckPayloads(dropCheckPayloads)
 
 	// Forwarder initialization
-	processAPIEndpoints, err := GetAPIEndpoints(cfg)
+	processAPIEndpoints, err := GetAPIEndpoints(config)
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +139,7 @@ func NewSubmitter(config config.Component, hostname string) (*CheckSubmitter, er
 	podForwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
 	podForwarder := forwarder.NewDefaultForwarder(config, podForwarderOpts)
 
-	processEventsAPIEndpoints, err := getEventsAPIEndpoints(cfg)
+	processEventsAPIEndpoints, err := getEventsAPIEndpoints(config)
 	if err != nil {
 		return nil, err
 	}
