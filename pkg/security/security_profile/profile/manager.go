@@ -48,7 +48,6 @@ type SecurityProfileManager struct {
 	cacheHit         *atomic.Uint64
 	cacheMiss        *atomic.Uint64
 
-	eventFilteringLookUp    *atomic.Uint64
 	eventFilteringNoProfile map[model.EventType]*atomic.Uint64
 	eventFilteringAbsent    map[model.EventType]*atomic.Uint64
 	eventFilteringPresent   map[model.EventType]*atomic.Uint64
@@ -94,7 +93,6 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 		pendingCache:               profileCache,
 		cacheHit:                   atomic.NewUint64(0),
 		cacheMiss:                  atomic.NewUint64(0),
-		eventFilteringLookUp:       atomic.NewUint64(0),
 		eventFilteringNoProfile:    make(map[model.EventType]*atomic.Uint64),
 		eventFilteringAbsent:       make(map[model.EventType]*atomic.Uint64),
 		eventFilteringPresent:      make(map[model.EventType]*atomic.Uint64),
@@ -418,12 +416,6 @@ func (m *SecurityProfileManager) SendStats() error {
 		}
 	}
 
-	if val := int64(m.eventFilteringLookUp.Swap(0)); val > 0 {
-		if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFilteringLookup, val, []string{}, 1.0); err != nil {
-			return fmt.Errorf("couldn't send MetricSecurityProfileEventFilteringLookup: %w", err)
-		}
-	}
-
 	for evtType, count := range m.eventFilteringNoProfile {
 		tags := []string{fmt.Sprintf("event_type:%s", evtType)}
 		if value := count.Swap(0); value > 0 {
@@ -434,7 +426,7 @@ func (m *SecurityProfileManager) SendStats() error {
 	}
 
 	for evtType, count := range m.eventFilteringAbsent {
-		tags := []string{fmt.Sprintf("event_type:%s", evtType), "present_in_profile:no"}
+		tags := []string{fmt.Sprintf("event_type:%s", evtType), "in_profile:false"}
 		if value := count.Swap(0); value > 0 {
 			if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFiltering, int64(value), tags, 1.0); err != nil {
 				return fmt.Errorf("couldn't send MetricSecurityProfileEventFiltering metric: %w", err)
@@ -443,7 +435,7 @@ func (m *SecurityProfileManager) SendStats() error {
 	}
 
 	for evtType, count := range m.eventFilteringPresent {
-		tags := []string{fmt.Sprintf("event_type:%s", evtType), "present_in_profile:yes"}
+		tags := []string{fmt.Sprintf("event_type:%s", evtType), "in_profile:true"}
 		if value := count.Swap(0); value > 0 {
 			if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFiltering, int64(value), tags, 1.0); err != nil {
 				return fmt.Errorf("couldn't send MetricSecurityProfileEventFiltering metric: %w", err)
@@ -523,8 +515,6 @@ func (m *SecurityProfileManager) LookupEventOnProfiles(event *model.Event) {
 	if event.ContainerContext.ID == "" || len(event.ContainerContext.Tags) == 0 {
 		return
 	}
-
-	m.eventFilteringLookUp.Inc()
 
 	// if time.Now()-event.ContainerContext.CreatedAt < time.Second*30 {
 	// 	// TODO: put the event in a cache to be pop back after x sec to have a chance to
