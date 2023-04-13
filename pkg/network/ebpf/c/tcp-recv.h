@@ -12,13 +12,13 @@ SEC("kprobe/tcp_recvmsg")
 int kprobe__tcp_recvmsg(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
 #if defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
-    struct sock *skp = (void*)PT_REGS_PARM2(ctx);
+    struct sock *skp = (struct sock*)PT_REGS_PARM2(ctx);
     int flags = (int)PT_REGS_PARM6(ctx);
 #elif defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0)
-    struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
+    struct sock *skp = (struct sock*)PT_REGS_PARM1(ctx);s
     int flags = (int)PT_REGS_PARM5(ctx);
 #else
-    struct sock *skp = (void*)PT_REGS_PARM1(ctx);
+    struct sock *skp = (struct sock*)PT_REGS_PARM1(ctx);
     int flags = (int)PT_REGS_PARM4(ctx);
 #endif
     if (flags & MSG_PEEK) {
@@ -52,7 +52,7 @@ int kprobe__tcp_recvmsg__pre_4_1_0(struct pt_regs* ctx) {
         return 0;
     }
 
-    struct sock *skp = (void*)PT_REGS_PARM2(ctx);
+    struct sock *skp = (struct sock*)PT_REGS_PARM2(ctx);
     bpf_map_update_with_telemetry(tcp_recvmsg_args, &pid_tgid, &skp, BPF_ANY);
     return 0;
 }
@@ -84,8 +84,7 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
 SEC("kprobe/tcp_read_sock")
 int kprobe__tcp_read_sock(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    void *parm1 = (void*)PT_REGS_PARM1(ctx);
-    struct sock* skp = parm1;
+    struct sock* skp = (struct sock*)PT_REGS_PARM1(ctx);
     // we reuse tcp_recvmsg_args here since there is no overlap
     // between the tcp_recvmsg and tcp_read_sock paths
     bpf_map_update_with_telemetry(tcp_recvmsg_args, &pid_tgid, &skp, BPF_ANY);
