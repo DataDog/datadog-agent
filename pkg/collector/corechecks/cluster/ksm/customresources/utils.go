@@ -1,3 +1,6 @@
+//go:build kubeapiserver
+// +build kubeapiserver
+
 /*
 Copyright 2018 The Kubernetes Authors All rights reserved.
 
@@ -24,6 +27,7 @@ import (
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
+	extension "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 )
@@ -170,16 +174,21 @@ func mergeKeyValues(keyValues ...[]string) (keys, values []string) {
 }
 
 var (
-	conditionStatuses = []v1.ConditionStatus{v1.ConditionTrue, v1.ConditionFalse, v1.ConditionUnknown}
+	conditionStatusesV1          = []v1.ConditionStatus{v1.ConditionTrue, v1.ConditionFalse, v1.ConditionUnknown}
+	conditionStatusesExtensionV1 = []extension.ConditionStatus{extension.ConditionTrue, extension.ConditionFalse, extension.ConditionUnknown}
 )
+
+type ConditionStatus interface {
+	v1.ConditionStatus | extension.ConditionStatus
+}
 
 // addConditionMetrics generates one metric for each possible condition
 // status. For this function to work properly, the last label in the metric
 // description must be the condition.
-func addConditionMetrics(cs v1.ConditionStatus) []*metric.Metric {
-	ms := make([]*metric.Metric, len(conditionStatuses))
+func addConditionMetrics[T ConditionStatus](cs T, statuses []T) []*metric.Metric {
+	ms := make([]*metric.Metric, len(statuses))
 
-	for i, status := range conditionStatuses {
+	for i, status := range statuses {
 		ms[i] = &metric.Metric{
 			LabelValues: []string{strings.ToLower(string(status))},
 			Value:       boolFloat64(cs == status),
@@ -187,4 +196,12 @@ func addConditionMetrics(cs v1.ConditionStatus) []*metric.Metric {
 	}
 
 	return ms
+}
+
+func addConditionMetricsV1(cs v1.ConditionStatus) []*metric.Metric {
+	return addConditionMetrics(cs, conditionStatusesV1)
+}
+
+func addConditionMetricsExtensionV1(cs extension.ConditionStatus) []*metric.Metric {
+	return addConditionMetrics(cs, conditionStatusesExtensionV1)
 }

@@ -106,8 +106,6 @@ func TestInject(t *testing.T) {
 	}
 	t.Log(javaVersion)
 
-	// flush the caches to slow start java
-	testutil.RunCommand("sudo sysctl -w vm.drop_caches=3")
 	t.Run("host", func(t *testing.T) {
 		testInject(t, "")
 	})
@@ -115,8 +113,6 @@ func TestInject(t *testing.T) {
 		t.Fatal("host failed")
 	}
 
-	// flush the caches to slow start java
-	testutil.RunCommand("sudo sysctl -w vm.drop_caches=3")
 	t.Run("PIDnamespace", func(t *testing.T) {
 		p := "unshare -p --fork "
 		_, err = testutil.RunCommand(p + "id")

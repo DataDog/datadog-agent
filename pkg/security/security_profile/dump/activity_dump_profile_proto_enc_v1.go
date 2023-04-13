@@ -19,7 +19,7 @@ func ActivityDumpToSecurityProfileProto(input *ActivityDump) *proto.SecurityProf
 	}
 
 	output := proto.SecurityProfile{
-		Status:   2,
+		Status:   3, // AnomalyDetection + AutoSuppression
 		Version:  "1",
 		Metadata: adMetadataToProto(&input.Metadata),
 		Syscalls: input.computeSyscallsList(),
