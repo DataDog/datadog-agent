@@ -71,12 +71,12 @@ func (c *Check) Run() error {
 		if err != nil {
 			return err
 		}
-		if c.config.QueryMetrics {
-			_, err = c.StatementMetrics()
-			if err != nil {
-				return err
-			}
+
+		_, err = c.StatementMetrics()
+		if err != nil {
+			return err
 		}
+
 	}
 
 	return nil
@@ -98,6 +98,8 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		} else {
 			oracleDriver = "oracle"
 			connStr = go_ora.BuildUrl(c.config.Server, c.config.Port, c.config.ServiceName, c.config.Username, c.config.Password, map[string]string{})
+			// https://github.com/jmoiron/sqlx/issues/854#issuecomment-1504070464
+			sqlx.BindDriver("oracle", sqlx.NAMED)
 		}
 	}
 	c.driver = oracleDriver

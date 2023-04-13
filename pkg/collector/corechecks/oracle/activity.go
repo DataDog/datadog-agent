@@ -38,7 +38,7 @@ const ACTIVITY_QUERY = `SELECT /* DD_ACTIVITY_SAMPLING */
     osuser,
     process, 
     machine,
-	port,
+--	port,
     program,
     type,
     sql_id,

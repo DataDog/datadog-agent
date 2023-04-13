@@ -240,7 +240,6 @@ func GetStatementsMetricsForKeys[K comparable](c *Check, keyName string, whereCl
 			for i := range keysSlice {
 				convertedSlice[i] = K(keysSlice[i])
 			}
-			fmt.Printf("converted slice %+v \n", convertedSlice)
 			err := db.Select(&statementMetrics, statements_metrics_query, convertedSlice...)
 			if err != nil {
 				return nil, fmt.Errorf("error executing statement metrics query: %w %s", err, statements_metrics_query)
