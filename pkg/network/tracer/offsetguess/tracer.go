@@ -466,7 +466,7 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 	case GuessSocketSK:
 		if t.status.Sport_via_sk == htons(expected.sport) && t.status.Dport_via_sk == htons(expected.dport) {
 			// if we are on kernel version < 4.7, net_dev_queue tracepoint will not be activated, and thus we should skip
-			// the guessing for `struct sk-buff`
+			// the guessing for `struct sk_buff`
 			next := GuessSKBuffSock
 			kv, err := kernel.HostVersion()
 			if err != nil {
