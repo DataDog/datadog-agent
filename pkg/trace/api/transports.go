@@ -113,9 +113,11 @@ func (m *forwardingTransport) RoundTrip(req *http.Request) (rres *http.Response,
 			newreq.Body = io.NopCloser(bytes.NewReader(slurp))
 			setTarget(newreq, u, m.keys[i])
 			if i == 0 {
-				// given the way we construct the list of targets the main endpoint
-				// will be the first one called, we return its response and error
-				rres, rerr = m.rt.RoundTrip(newreq)
+				// Given the way we construct the list of targets the main endpoint
+				// will be the first one called, we return its response and error.
+				// Ignoring bodyclose lint here because of a bug in the linter:
+				// https://github.com/timakin/bodyclose/issues/30.
+				rres, rerr = m.rt.RoundTrip(newreq) //nolint:bodyclose
 				rres.Body.Close()
 				return
 			}
