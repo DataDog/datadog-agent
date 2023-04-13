@@ -31,6 +31,9 @@ const defaultTracesConfig string = `
 receivers:
   otlp:
 
+processors:
+  batch:
+
 exporters:
   otlp:
     tls:
