@@ -18,7 +18,9 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     fill_container_context(proc_cache_entry, &event.container);
 
     // check if this workload has a security profile
-    evaluate_security_profile_syscalls(args, &event, args->id);
+    if (is_anomaly_syscalls_enabled()) {
+        evaluate_security_profile_syscalls(args, &event, args->id);
+    }
 
     // check if we are monitoring the syscalls of the current process
     char comm[TASK_COMM_LEN];

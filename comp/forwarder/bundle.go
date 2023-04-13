@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: Agent Shared components
+// team: agent-shared-components
 
 // Bundle defines the fx options for this bundle.
 var Bundle = fxutil.Bundle(

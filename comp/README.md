@@ -49,6 +49,16 @@ Package server implements a component to run the dogstatsd server
 
 Package serverDebug implements a component to run the dogstatsd server debug
 
+## [comp/forwarder](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/forwarder) (Component Bundle)
+
+*Datadog Team*: agent-shared-components
+
+Package forwarder implements the "forwarder" bundle
+
+### [comp/forwarder/defaultforwarder](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/forwarder/defaultforwarder)
+
+Package defaultForwarder implements a component to send payloads to the backend
+
 ## [comp/process](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process) (Component Bundle)
 
 *Datadog Team*: processes
