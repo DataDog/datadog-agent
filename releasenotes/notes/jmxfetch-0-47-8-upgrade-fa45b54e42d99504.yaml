@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    Upgraded JMXFetch to ``0.47.6`` which has improvements aimed
+    Upgraded JMXFetch to ``0.47.8`` which has improvements aimed
     to help large metric collections drop fewer payloads.
