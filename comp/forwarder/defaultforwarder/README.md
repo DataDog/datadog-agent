@@ -18,7 +18,7 @@ KeysPerDomains := map[string][]string{
 }
 
 forwarder := forwarder.NewForwarder(KeysPerDomains)
-forwarder.NumberOfWorkers = 1 // default: config.Datadog.GetInt("forwarder_num_workers")
+forwarder.NumberOfWorkers = 1 // default: config.GetInt("forwarder_num_workers")
 forwarder.Start()
 
 // ...

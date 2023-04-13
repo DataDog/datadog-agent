@@ -13,6 +13,7 @@ import (
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // NewMockSender initiates the aggregator and returns a
@@ -23,7 +24,7 @@ func NewMockSender(id check.ID) *MockSender {
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = 1 * time.Hour
 	opts.DontStartForwarders = true
-	sharedForwarder := forwarder.NewDefaultForwarder(forwarder.NewOptions(nil))
+	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, forwarder.NewOptions(config.Datadog, nil))
 	aggregator.InitAndStartAgentDemultiplexer(sharedForwarder, opts, "")
 
 	SetSender(mockSender, id)

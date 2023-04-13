@@ -482,6 +482,10 @@ func (c *safeConfig) BindEnvAndSetDefault(key string, val interface{}, env ...st
 	c.BindEnv(append([]string{key}, env...)...) //nolint:errcheck
 }
 
+func (c *safeConfig) Warnings() *Warnings {
+	return nil
+}
+
 // NewConfig returns a new Config object.
 func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) Config {
 	config := safeConfig{

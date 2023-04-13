@@ -12,17 +12,18 @@ import (
 	"net/http/httptrace"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Worker consumes Transaction (aka transactions) from the Forwarder and
 // processes them. If the transaction fails to be processed the Worker will send
 // it back to the Forwarder to be retried later.
 type Worker struct {
+	config config.Component
+
 	// Client the http client used to processed transactions.
 	Client *http.Client
 	// HighPrio is the channel used to receive high priority transaction from the Forwarder.
@@ -47,30 +48,32 @@ type PointSuccessfullySent interface {
 // NewWorker returns a new worker to consume Transaction from inputChan
 // and push back erroneous ones into requeueChan.
 func NewWorker(
+	config config.Component,
 	highPrioChan <-chan transaction.Transaction,
 	lowPrioChan <-chan transaction.Transaction,
 	requeueChan chan<- transaction.Transaction,
 	blocked *blockedEndpoints,
 	pointSuccessfullySent PointSuccessfullySent) *Worker {
 	return &Worker{
+		config:                config,
 		HighPrio:              highPrioChan,
 		LowPrio:               lowPrioChan,
 		RequeueChan:           requeueChan,
 		resetConnectionChan:   make(chan struct{}, 1),
 		stopChan:              make(chan struct{}),
 		stopped:               make(chan struct{}),
-		Client:                NewHTTPClient(),
+		Client:                NewHTTPClient(config),
 		blockedList:           blocked,
 		pointSuccessfullySent: pointSuccessfullySent,
 	}
 }
 
 // NewHTTPClient creates a new http.Client
-func NewHTTPClient() *http.Client {
+func NewHTTPClient(config config.Component) *http.Client {
 	transport := httputils.CreateHTTPTransport()
 
 	return &http.Client{
-		Timeout:   config.Datadog.GetDuration("forwarder_timeout") * time.Second,
+		Timeout:   config.GetDuration("forwarder_timeout") * time.Second,
 		Transport: transport,
 	}
 }
@@ -202,5 +205,5 @@ func (w *Worker) process(ctx context.Context, t transaction.Transaction) {
 func (w *Worker) resetConnections() {
 	log.Debug("Resetting worker's connections")
 	w.Client.CloseIdleConnections()
-	w.Client = NewHTTPClient()
+	w.Client = NewHTTPClient(w.config)
 }
