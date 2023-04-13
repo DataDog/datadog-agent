@@ -8,18 +8,19 @@
 
 package network
 
-import "github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+import (
+	"github.com/DataDog/datadog-agent/pkg/network/types"
+)
 
-// HTTPKeyTuplesFromConn build the key for the http map based on whether the local or remote side is http.
-func HTTPKeyTuplesFromConn(c ConnectionStats) []http.KeyTuple {
+// ConnectionKeysFromConnectionStats constructs connection key using the underlying raw connection stats object, which is produced by the tracer.
+func ConnectionKeysFromConnectionStats(connectionStats ConnectionStats) []types.ConnectionKey {
 
-	laddr := c.Source
-	lport := c.SPort
-	raddr := c.Dest
-	rport := c.DPort
-
-	return []http.KeyTuple{
-		http.NewKeyTuple(laddr, raddr, lport, rport),
+	// USM data is always indexed as (client, server), but we don't know which is the remote
+	// and which is the local address. To account for this, we'll construct 2 possible
+	// connection keys and check for both of them in the aggregations map.
+	connectionKeys := []types.ConnectionKey{
+		types.NewConnectionKey(connectionStats.Source, connectionStats.Dest, connectionStats.SPort, connectionStats.DPort),
 	}
 
+	return connectionKeys
 }
