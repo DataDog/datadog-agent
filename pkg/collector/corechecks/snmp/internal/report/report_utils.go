@@ -181,7 +181,7 @@ func getConstantMetricValues(mtcl checkconfig.MetricTagConfigList, values *value
 				log.Debugf("error getting column value: %v", err)
 				continue
 			}
-			for index, _ := range columnValues {
+			for index := range columnValues {
 				if _, ok := constantValues[index]; ok {
 					continue
 				}
