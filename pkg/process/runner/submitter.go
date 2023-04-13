@@ -15,10 +15,10 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/comp/process/types"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
@@ -75,14 +75,14 @@ type CheckSubmitter struct {
 	rtNotifierChan chan types.RTResponse
 }
 
-func NewSubmitter(hostname string) (*CheckSubmitter, error) {
-	queueBytes := ddconfig.Datadog.GetInt("process_config.process_queue_bytes")
+func NewSubmitter(config config.Component, hostname string) (*CheckSubmitter, error) {
+	queueBytes := config.GetInt("process_config.process_queue_bytes")
 	if queueBytes <= 0 {
 		log.Warnf("Invalid queue bytes size: %d. Using default value: %d", queueBytes, ddconfig.DefaultProcessQueueBytes)
 		queueBytes = ddconfig.DefaultProcessQueueBytes
 	}
 
-	queueSize := ddconfig.Datadog.GetInt("process_config.queue_size")
+	queueSize := config.GetInt("process_config.queue_size")
 	if queueSize <= 0 {
 		log.Warnf("Invalid check queue size: %d. Using default value: %d", queueSize, ddconfig.DefaultProcessQueueSize)
 		queueSize = ddconfig.DefaultProcessQueueSize
@@ -90,7 +90,7 @@ func NewSubmitter(hostname string) (*CheckSubmitter, error) {
 	processResults := api.NewWeightedQueue(queueSize, int64(queueBytes))
 	log.Debugf("Creating process check queue with max_size=%d and max_weight=%d", processResults.MaxSize(), processResults.MaxWeight())
 
-	rtQueueSize := ddconfig.Datadog.GetInt("process_config.rt_queue_size")
+	rtQueueSize := config.GetInt("process_config.rt_queue_size")
 	if rtQueueSize <= 0 {
 		log.Warnf("Invalid rt check queue size: %d. Using default value: %d", rtQueueSize, ddconfig.DefaultProcessRTQueueSize)
 		rtQueueSize = ddconfig.DefaultProcessRTQueueSize
@@ -112,7 +112,7 @@ func NewSubmitter(hostname string) (*CheckSubmitter, error) {
 	eventResults := api.NewWeightedQueue(queueSize, int64(queueBytes))
 	log.Debugf("Creating event check queue with max_size=%d and max_weight=%d", eventResults.MaxSize(), eventResults.MaxWeight())
 
-	dropCheckPayloads := ddconfig.Datadog.GetStringSlice("process_config.drop_check_payloads")
+	dropCheckPayloads := config.GetStringSlice("process_config.drop_check_payloads")
 	if len(dropCheckPayloads) > 0 {
 		log.Debugf("Dropping payloads from checks: %v", dropCheckPayloads)
 	}
@@ -123,30 +123,30 @@ func NewSubmitter(hostname string) (*CheckSubmitter, error) {
 	if err != nil {
 		return nil, err
 	}
-	processForwarderOpts := forwarder.NewOptionsWithResolvers(config.Datadog, resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(processAPIEndpoints)))
+	processForwarderOpts := forwarder.NewOptionsWithResolvers(config, resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(processAPIEndpoints)))
 	processForwarderOpts.DisableAPIKeyChecking = true
 	processForwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
-	processForwarder := forwarder.NewDefaultForwarder(config.Datadog, processForwarderOpts)
+	processForwarder := forwarder.NewDefaultForwarder(config, processForwarderOpts)
 
 	// rt forwarder reuses processForwarder's config
-	rtProcessForwarder := forwarder.NewDefaultForwarder(config.Datadog, processForwarderOpts)
+	rtProcessForwarder := forwarder.NewDefaultForwarder(config, processForwarderOpts)
 
 	// connections forwarder reuses processForwarder's config
-	connectionsForwarder := forwarder.NewDefaultForwarder(config.Datadog, processForwarderOpts)
+	connectionsForwarder := forwarder.NewDefaultForwarder(config, processForwarderOpts)
 
-	podForwarderOpts := forwarder.NewOptionsWithResolvers(config.Datadog, resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(orchestrator.OrchestratorEndpoints)))
+	podForwarderOpts := forwarder.NewOptionsWithResolvers(config, resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(orchestrator.OrchestratorEndpoints)))
 	podForwarderOpts.DisableAPIKeyChecking = true
 	podForwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
-	podForwarder := forwarder.NewDefaultForwarder(config.Datadog, podForwarderOpts)
+	podForwarder := forwarder.NewDefaultForwarder(config, podForwarderOpts)
 
 	processEventsAPIEndpoints, err := getEventsAPIEndpoints()
 	if err != nil {
 		return nil, err
 	}
-	eventForwarderOpts := forwarder.NewOptionsWithResolvers(config.Datadog, resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(processEventsAPIEndpoints)))
+	eventForwarderOpts := forwarder.NewOptionsWithResolvers(config, resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(processEventsAPIEndpoints)))
 	eventForwarderOpts.DisableAPIKeyChecking = true
 	eventForwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
-	eventForwarder := forwarder.NewDefaultForwarder(config.Datadog, eventForwarderOpts)
+	eventForwarder := forwarder.NewDefaultForwarder(config, eventForwarderOpts)
 
 	printStartMessage(hostname, processAPIEndpoints, processEventsAPIEndpoints, orchestrator.OrchestratorEndpoints)
 	return &CheckSubmitter{
