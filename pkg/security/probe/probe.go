@@ -398,12 +398,12 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 		handler.HandleEvent(event)
 	}
 
-	if event.SecurityProfileContext.Status.IsEnabled(model.AnomalyDetection) && event.IsSecurityProfileFoundAndAbsent() && event.GetEventType() != model.SyscallsEventType {
+	if event.SecurityProfileContext.Status.IsEnabled(model.AnomalyDetection) && !event.IsInProfile() && event.GetEventType() != model.SyscallsEventType {
 		p.SendAnomalyDetection(event)
 	}
 
 	// if a profile is already present for this event, dont even try to add it to a dump
-	if !event.HaveMatchedAProfile() {
+	if !event.MatchedProfile() {
 		// Process after evaluation because some monitors need the DentryResolver to have been called first.
 		p.monitor.ProcessEvent(event)
 	}

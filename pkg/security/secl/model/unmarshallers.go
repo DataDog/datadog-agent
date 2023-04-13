@@ -21,10 +21,8 @@ const (
 	EventFlagsSavedByAD
 	// EventFlagsActivityDumpSample an AD sample
 	EventFlagsActivityDumpSample
-	// EventFlagsSecurityProfileFoundAndAbsent if the event don't exists in the secprofile
-	EventFlagsSecurityProfileFoundAndAbsent
-	// EventFlagsSecurityProfileFoundAndPresent if the event exists in the secprofile
-	EventFlagsSecurityProfileFoundAndPresent
+	// InProfile true if the event was found in a profile
+	EventFlagsSecurityProfileInProfile
 )
 
 func validateReadSize(size, read int) (int, error) {

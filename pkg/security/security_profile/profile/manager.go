@@ -530,7 +530,6 @@ func (m *SecurityProfileManager) LookupEventOnProfiles(event *model.Event) {
 		m.eventFilteringNoProfile[evtType].Inc()
 		return
 	}
-	event.AddToFlags(model.EventFlagsSecurityProfileFoundAndAbsent)
 
 	FillProfileContextFromProfile(&event.SecurityProfileContext, profile)
 
@@ -543,17 +542,15 @@ func (m *SecurityProfileManager) LookupEventOnProfiles(event *model.Event) {
 	switch evtType {
 	// for fork/exec/exit events, as we already found some nodes, no need to investigate further
 	case model.ExecEventType:
-		event.RemoveFromFlags(model.EventFlagsSecurityProfileFoundAndAbsent)
-		event.AddToFlags(model.EventFlagsSecurityProfileFoundAndPresent)
+		event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
 
 	case model.DNSEventType:
 		if findDNSInNodes(processNodes, event) {
-			event.RemoveFromFlags(model.EventFlagsSecurityProfileFoundAndAbsent)
-			event.AddToFlags(model.EventFlagsSecurityProfileFoundAndPresent)
+			event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
 		}
 	}
 
-	if event.IsSecurityProfileFoundAndPresent() {
+	if event.IsInProfile() {
 		m.eventFilteringPresent[evtType].Inc()
 	} else {
 		m.eventFilteringAbsent[evtType].Inc()

@@ -322,14 +322,9 @@ func (e *Event) IsActivityDumpSample() bool {
 	return e.Flags&EventFlagsActivityDumpSample > 0
 }
 
-// IsSecurityProfileFoundAndAbsent return true if the corresponding flag is set
-func (e *Event) IsSecurityProfileFoundAndAbsent() bool {
-	return e.Flags&EventFlagsSecurityProfileFoundAndAbsent > 0
-}
-
-// IsSecurityProfileFoundAndPresent return true if the corresponding flag is set
-func (e *Event) IsSecurityProfileFoundAndPresent() bool {
-	return e.Flags&EventFlagsSecurityProfileFoundAndPresent > 0
+// IsInProfile return true if the event was fount in the profile
+func (e *Event) IsInProfile() bool {
+	return e.Flags&EventFlagsSecurityProfileInProfile > 0
 }
 
 // AddToFlags adds a flag to the event
@@ -342,8 +337,8 @@ func (e *Event) RemoveFromFlags(flag uint32) {
 	e.Flags ^= flag
 }
 
-// HaveMatchedAProfile returns true if we found a profile for that event
-func (e *Event) HaveMatchedAProfile() bool {
+// MatchedProfile returns true if we found a profile for that event
+func (e *Event) MatchedProfile() bool {
 	return e.SecurityProfileContext.Name != ""
 }
 
