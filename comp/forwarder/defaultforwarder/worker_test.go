@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestNewWorker(t *testing.T) {
@@ -26,7 +27,8 @@ func TestNewWorker(t *testing.T) {
 	lowPrio := make(chan transaction.Transaction)
 	requeue := make(chan transaction.Transaction)
 
-	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints(), &PointSuccessfullySentMock{})
+	mockConfig := pkgconfig.Mock(t)
+	w := NewWorker(mockConfig, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig), &PointSuccessfullySentMock{})
 	assert.NotNil(t, w)
 	assert.Equal(t, w.Client.Timeout, config.Datadog.GetDuration("forwarder_timeout")*time.Second)
 }
@@ -38,9 +40,7 @@ func TestNewNoSSLWorker(t *testing.T) {
 
 	mockConfig := config.Mock(t)
 	mockConfig.Set("skip_ssl_validation", true)
-	defer mockConfig.Set("skip_ssl_validation", false)
-
-	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints(), &PointSuccessfullySentMock{})
+	w := NewWorker(mockConfig, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig), &PointSuccessfullySentMock{})
 	assert.True(t, w.Client.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
 }
 
@@ -49,7 +49,8 @@ func TestWorkerStart(t *testing.T) {
 	lowPrio := make(chan transaction.Transaction)
 	requeue := make(chan transaction.Transaction, 1)
 	sender := &PointSuccessfullySentMock{}
-	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints(), sender)
+	mockConfig := pkgconfig.Mock(t)
+	w := NewWorker(mockConfig, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig), sender)
 
 	mock := newTestTransaction()
 	mock.pointCount = 1
@@ -84,7 +85,8 @@ func TestWorkerRetry(t *testing.T) {
 	highPrio := make(chan transaction.Transaction)
 	lowPrio := make(chan transaction.Transaction)
 	requeue := make(chan transaction.Transaction, 1)
-	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints(), &PointSuccessfullySentMock{})
+	mockConfig := pkgconfig.Mock(t)
+	w := NewWorker(mockConfig, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig), &PointSuccessfullySentMock{})
 
 	mock := newTestTransaction()
 	mock.On("Process", w.Client).Return(fmt.Errorf("some kind of error")).Times(1)
@@ -105,7 +107,8 @@ func TestWorkerRetryBlockedTransaction(t *testing.T) {
 	highPrio := make(chan transaction.Transaction)
 	lowPrio := make(chan transaction.Transaction)
 	requeue := make(chan transaction.Transaction, 1)
-	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints(), &PointSuccessfullySentMock{})
+	mockConfig := pkgconfig.Mock(t)
+	w := NewWorker(mockConfig, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig), &PointSuccessfullySentMock{})
 
 	mock := newTestTransaction()
 	mock.On("GetTarget").Return("error_url").Times(1)
@@ -126,7 +129,8 @@ func TestWorkerResetConnections(t *testing.T) {
 	highPrio := make(chan transaction.Transaction)
 	lowPrio := make(chan transaction.Transaction)
 	requeue := make(chan transaction.Transaction, 1)
-	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints(), &PointSuccessfullySentMock{})
+	mockConfig := pkgconfig.Mock(t)
+	w := NewWorker(mockConfig, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig), &PointSuccessfullySentMock{})
 
 	mock := newTestTransaction()
 	mock.On("Process", w.Client).Return(nil).Times(1)
@@ -169,7 +173,8 @@ func TestWorkerPurgeOnStop(t *testing.T) {
 	highPrio := make(chan transaction.Transaction, 1)
 	lowPrio := make(chan transaction.Transaction, 1)
 	requeue := make(chan transaction.Transaction, 1)
-	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints(), &PointSuccessfullySentMock{})
+	mockConfig := pkgconfig.Mock(t)
+	w := NewWorker(mockConfig, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig), &PointSuccessfullySentMock{})
 	// making stopChan non blocking on insert and closing stopped channel
 	// to avoid blocking in the Stop method since we don't actually start
 	// the workder

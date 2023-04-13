@@ -23,73 +23,64 @@ func init() {
 
 func TestMinBackoffFactorValid(t *testing.T) {
 	mockConfig := config.Mock(t)
-	e := newBlockedEndpoints()
+	e := newBlockedEndpoints(mockConfig)
 
 	// Verify default
 	defaultValue := e.backoffPolicy.MinBackoffFactor
 	assert.Equal(t, float64(2), defaultValue)
 
-	// Reset original value when finished
-	defer mockConfig.Set("forwarder_backoff_factor", defaultValue)
-
 	// Verify configuration updates global var
 	mockConfig.Set("forwarder_backoff_factor", 4)
-	e = newBlockedEndpoints()
+	e = newBlockedEndpoints(mockConfig)
 	assert.Equal(t, float64(4), e.backoffPolicy.MinBackoffFactor)
 
 	// Verify invalid values recover gracefully
 	mockConfig.Set("forwarder_backoff_factor", 1.5)
-	e = newBlockedEndpoints()
+	e = newBlockedEndpoints(mockConfig)
 	assert.Equal(t, defaultValue, e.backoffPolicy.MinBackoffFactor)
 }
 
 func TestBaseBackoffTimeValid(t *testing.T) {
 	mockConfig := config.Mock(t)
-	e := newBlockedEndpoints()
+	e := newBlockedEndpoints(mockConfig)
 
 	// Verify default
 	defaultValue := e.backoffPolicy.BaseBackoffTime
 	assert.Equal(t, float64(2), defaultValue)
 
-	// Reset original value when finished
-	defer mockConfig.Set("forwarder_backoff_base", defaultValue)
-
 	// Verify configuration updates global var
 	mockConfig.Set("forwarder_backoff_base", 4)
-	e = newBlockedEndpoints()
+	e = newBlockedEndpoints(mockConfig)
 	assert.Equal(t, float64(4), e.backoffPolicy.BaseBackoffTime)
 
 	// Verify invalid values recover gracefully
 	mockConfig.Set("forwarder_backoff_base", 0)
-	e = newBlockedEndpoints()
+	e = newBlockedEndpoints(mockConfig)
 	assert.Equal(t, defaultValue, e.backoffPolicy.BaseBackoffTime)
 }
 
 func TestMaxBackoffTimeValid(t *testing.T) {
 	mockConfig := config.Mock(t)
-	e := newBlockedEndpoints()
+	e := newBlockedEndpoints(mockConfig)
 
 	// Verify default
 	defaultValue := e.backoffPolicy.MaxBackoffTime
 	assert.Equal(t, float64(64), defaultValue)
 
-	// Reset original value when finished
-	defer mockConfig.Set("forwarder_backoff_max", defaultValue)
-
 	// Verify configuration updates global var
 	mockConfig.Set("forwarder_backoff_max", 128)
-	e = newBlockedEndpoints()
+	e = newBlockedEndpoints(mockConfig)
 	assert.Equal(t, float64(128), e.backoffPolicy.MaxBackoffTime)
 
 	// Verify invalid values recover gracefully
 	mockConfig.Set("forwarder_backoff_max", 0)
-	e = newBlockedEndpoints()
+	e = newBlockedEndpoints(mockConfig)
 	assert.Equal(t, defaultValue, e.backoffPolicy.MaxBackoffTime)
 }
 
 func TestRecoveryIntervalValid(t *testing.T) {
 	mockConfig := config.Mock(t)
-	e := newBlockedEndpoints()
+	e := newBlockedEndpoints(mockConfig)
 
 	// Verify default
 	defaultValue := e.backoffPolicy.RecoveryInterval
@@ -97,29 +88,26 @@ func TestRecoveryIntervalValid(t *testing.T) {
 	assert.Equal(t, 2, defaultValue)
 	assert.Equal(t, false, recoveryReset)
 
-	// Reset original values when finished
-	defer mockConfig.Set("forwarder_recovery_reset", recoveryReset)
-	defer mockConfig.Set("forwarder_recovery_interval", defaultValue)
-
 	// Verify configuration updates global var
 	mockConfig.Set("forwarder_recovery_interval", 1)
-	e = newBlockedEndpoints()
+	e = newBlockedEndpoints(mockConfig)
 	assert.Equal(t, 1, e.backoffPolicy.RecoveryInterval)
 
 	// Verify invalid values recover gracefully
 	mockConfig.Set("forwarder_recovery_interval", 0)
-	e = newBlockedEndpoints()
+	e = newBlockedEndpoints(mockConfig)
 	assert.Equal(t, defaultValue, e.backoffPolicy.RecoveryInterval)
 
 	// Verify reset error count
 	mockConfig.Set("forwarder_recovery_reset", true)
-	e = newBlockedEndpoints()
+	e = newBlockedEndpoints(mockConfig)
 	assert.Equal(t, e.backoffPolicy.MaxErrors, e.backoffPolicy.RecoveryInterval)
 }
 
 // Test we increase delay on average
 func TestGetBackoffDurationIncrease(t *testing.T) {
-	e := newBlockedEndpoints()
+	mockConfig := config.Mock(t)
+	e := newBlockedEndpoints(mockConfig)
 	previousBackoffDuration := time.Duration(0) * time.Second
 	backoffIncrease := 0
 	backoffDecrease := 0
@@ -145,14 +133,16 @@ func TestGetBackoffDurationIncrease(t *testing.T) {
 }
 
 func TestMaxGetBackoffDuration(t *testing.T) {
-	e := newBlockedEndpoints()
+	mockConfig := config.Mock(t)
+	e := newBlockedEndpoints(mockConfig)
 	backoffDuration := e.getBackoffDuration(100)
 
 	assert.Equal(t, time.Duration(e.backoffPolicy.MaxBackoffTime)*time.Second, backoffDuration)
 }
 
 func TestMaxErrors(t *testing.T) {
-	e := newBlockedEndpoints()
+	mockConfig := config.Mock(t)
+	e := newBlockedEndpoints(mockConfig)
 	previousBackoffDuration := time.Duration(0) * time.Second
 	attempts := 0
 
@@ -173,7 +163,8 @@ func TestMaxErrors(t *testing.T) {
 }
 
 func TestBlock(t *testing.T) {
-	e := newBlockedEndpoints()
+	mockConfig := config.Mock(t)
+	e := newBlockedEndpoints(mockConfig)
 
 	e.close("test")
 	now := time.Now()
@@ -183,7 +174,8 @@ func TestBlock(t *testing.T) {
 }
 
 func TestMaxBlock(t *testing.T) {
-	e := newBlockedEndpoints()
+	mockConfig := config.Mock(t)
+	e := newBlockedEndpoints(mockConfig)
 	e.close("test")
 	e.errorPerEndpoint["test"].nbError = 1000000
 
@@ -199,7 +191,8 @@ func TestMaxBlock(t *testing.T) {
 }
 
 func TestUnblock(t *testing.T) {
-	e := newBlockedEndpoints()
+	mockConfig := config.Mock(t)
+	e := newBlockedEndpoints(mockConfig)
 
 	e.close("test")
 	require.Contains(t, e.errorPerEndpoint, "test")
@@ -213,7 +206,8 @@ func TestUnblock(t *testing.T) {
 }
 
 func TestMaxUnblock(t *testing.T) {
-	e := newBlockedEndpoints()
+	mockConfig := config.Mock(t)
+	e := newBlockedEndpoints(mockConfig)
 
 	e.close("test")
 	e.recover("test")
@@ -226,7 +220,8 @@ func TestMaxUnblock(t *testing.T) {
 }
 
 func TestUnblockUnknown(t *testing.T) {
-	e := newBlockedEndpoints()
+	mockConfig := config.Mock(t)
+	e := newBlockedEndpoints(mockConfig)
 
 	e.recover("test")
 	assert.Contains(t, e.errorPerEndpoint, "test")
@@ -234,7 +229,8 @@ func TestUnblockUnknown(t *testing.T) {
 }
 
 func TestIsBlock(t *testing.T) {
-	e := newBlockedEndpoints()
+	mockConfig := config.Mock(t)
+	e := newBlockedEndpoints(mockConfig)
 
 	assert.False(t, e.isBlock("test"))
 
@@ -246,7 +242,8 @@ func TestIsBlock(t *testing.T) {
 }
 
 func TestIsBlockTiming(t *testing.T) {
-	e := newBlockedEndpoints()
+	mockConfig := config.Mock(t)
+	e := newBlockedEndpoints(mockConfig)
 
 	// setting an old close
 	e.errorPerEndpoint["test"] = &block{nbError: 1, until: time.Now().Add(-30 * time.Second)}
@@ -258,7 +255,8 @@ func TestIsBlockTiming(t *testing.T) {
 }
 
 func TestIsblockUnknown(t *testing.T) {
-	e := newBlockedEndpoints()
+	mockConfig := config.Mock(t)
+	e := newBlockedEndpoints(mockConfig)
 
 	assert.False(t, e.isBlock("test"))
 }

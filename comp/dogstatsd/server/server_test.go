@@ -167,7 +167,7 @@ func TestUDPReceive(t *testing.T) {
 	opts.UseNoopEventPlatformForwarder = true
 	opts.EnableNoAggregationPipeline = true
 
-	demux := aggregator.InitTestAgentDemultiplexerWithOpts(defaultforwarder.NewOptions(nil), opts)
+	demux := aggregator.InitTestAgentDemultiplexerWithOpts(defaultforwarder.NewOptions(config.Datadog, nil), opts)
 	defer demux.Stop(false)
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()

@@ -12,7 +12,7 @@ import (
 
 type dependencies struct {
 	fx.In
-	config config.Component
+	Config config.Component
 	Params Params
 }
 
@@ -20,7 +20,7 @@ func newForwarder(dep dependencies) Component {
 	if dep.Params.UseNoopForwarder {
 		return NoopForwarder{}
 	}
-	return NewDefaultForwarder(dep.config, dep.Params.Options)
+	return NewDefaultForwarder(dep.Config, dep.Params.Options)
 }
 
 func newMockForwarder(config config.Component) Component {

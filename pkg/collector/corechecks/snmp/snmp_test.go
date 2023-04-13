@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -49,7 +50,7 @@ func Test_Run_simpleCase(t *testing.T) {
 		return sess, nil
 	}
 	chk := Check{sessionFactory: sessionFactory}
-	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule)
+	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
 	aggregator.InitAndStartAgentDemultiplexer(forwarder, demuxOpts(), "")
 
 	// language=yaml
@@ -328,7 +329,7 @@ func Test_Run_customIfSpeed(t *testing.T) {
 	}
 	chk := Check{sessionFactory: sessionFactory}
 
-	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule)
+	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
 	aggregator.InitAndStartAgentDemultiplexer(forwarder, demuxOpts(), "")
 
 	// language=yaml
@@ -535,7 +536,7 @@ metrics:
 func TestProfile(t *testing.T) {
 	timeNow = common.MockTimeNow
 
-	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule)
+	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
 	aggregator.InitAndStartAgentDemultiplexer(forwarder, demuxOpts(), "")
 
 	checkconfig.SetConfdPathAndCleanProfiles()
@@ -1185,7 +1186,7 @@ namespace: '%s'
 			sender := new(mocksender.MockSender)
 
 			if !tt.disableAggregator {
-				forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule)
+				forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
 				aggregator.InitAndStartAgentDemultiplexer(forwarder, demuxOpts(), "")
 			}
 
@@ -1265,7 +1266,7 @@ metrics:
 func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {
 	timeNow = common.MockTimeNow
 
-	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule)
+	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
 	aggregator.InitAndStartAgentDemultiplexer(forwarder, demuxOpts(), "")
 	checkconfig.SetConfdPathAndCleanProfiles()
 
@@ -1556,7 +1557,7 @@ tags:
 
 func TestReportDeviceMetadataWithFetchError(t *testing.T) {
 	timeNow = common.MockTimeNow
-	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule)
+	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
 	aggregator.InitAndStartAgentDemultiplexer(forwarder, demuxOpts(), "")
 
 	checkconfig.SetConfdPathAndCleanProfiles()
@@ -1652,7 +1653,7 @@ func TestDiscovery(t *testing.T) {
 		return sess, nil
 	}
 	chk := Check{sessionFactory: sessionFactory}
-	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule)
+	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
 	aggregator.InitAndStartAgentDemultiplexer(forwarder, demuxOpts(), "")
 
 	// language=yaml
@@ -1984,7 +1985,7 @@ func TestDiscovery_CheckError(t *testing.T) {
 		return sess, nil
 	}
 	chk := Check{sessionFactory: sessionFactory, workerRunDeviceCheckErrors: atomic.NewUint64(0)}
-	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule)
+	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
 	aggregator.InitAndStartAgentDemultiplexer(forwarder, demuxOpts(), "")
 
 	// language=yaml
@@ -2061,7 +2062,7 @@ func TestDeviceIDAsHostname(t *testing.T) {
 		return sess, nil
 	}
 	chk := Check{sessionFactory: sessionFactory}
-	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule)
+	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
 	aggregator.InitAndStartAgentDemultiplexer(forwarder, demuxOpts(), "")
 
 	// language=yaml
@@ -2251,7 +2252,7 @@ func TestDiscoveryDeviceIDAsHostname(t *testing.T) {
 	}
 	chk := Check{sessionFactory: sessionFactory}
 
-	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule)
+	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
 	aggregator.InitAndStartAgentDemultiplexer(forwarder, demuxOpts(), "")
 
 	// language=yaml
@@ -2453,7 +2454,7 @@ func TestCheckCancel(t *testing.T) {
 	}
 	chk := Check{sessionFactory: sessionFactory}
 
-	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule)
+	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
 	aggregator.InitAndStartAgentDemultiplexer(forwarder, demuxOpts(), "")
 
 	// language=yaml

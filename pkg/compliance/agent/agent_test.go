@@ -14,13 +14,14 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
@@ -99,7 +100,7 @@ func TestRunK8s(t *testing.T) {
 
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule)
+	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
 	aggregator.InitAndStartAgentDemultiplexer(forwarder, opts, "foo")
 
 	e := enterTempEnv(t, true)
@@ -144,7 +145,7 @@ func TestRunK8s(t *testing.T) {
 		reporter,
 		scheduler,
 		e.dir,
-		&config.Endpoints{},
+		&pkgconfig.Endpoints{},
 		checks.WithHostname("the-host"),
 		checks.WithHostRootMount(e.dir),
 		checks.WithKubernetesClient(kubeClient, "kube_system_uuid"),
@@ -176,7 +177,7 @@ func TestRunDocker(t *testing.T) {
 
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule)
+	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
 	aggregator.InitAndStartAgentDemultiplexer(forwarder, opts, "foo")
 
 	e := enterTempEnv(t, false)
@@ -238,7 +239,7 @@ func TestRunDocker(t *testing.T) {
 		reporter,
 		scheduler,
 		e.dir,
-		&config.Endpoints{},
+		&pkgconfig.Endpoints{},
 		checks.WithHostname("the-host"),
 		checks.WithHostRootMount(e.dir),
 		checks.WithDockerClient(dockerClient),
@@ -270,7 +271,7 @@ func TestRunChecks(t *testing.T) {
 
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule)
+	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
 	aggregator.InitAndStartAgentDemultiplexer(forwarder, opts, "foo")
 
 	e := enterTempEnv(t, false)

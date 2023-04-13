@@ -16,13 +16,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestNewDomainForwarder(t *testing.T) {
-	forwarder := newDomainForwarderForTest(120 * time.Second)
+	mockConfig := pkgconfig.Mock(t)
+	forwarder := newDomainForwarderForTest(mockConfig, 120*time.Second)
 
 	assert.NotNil(t, forwarder)
 	assert.Equal(t, 1, forwarder.numberOfWorkers)
@@ -39,7 +41,8 @@ func TestNewDomainForwarder(t *testing.T) {
 }
 
 func TestDomainForwarderStart(t *testing.T) {
-	forwarder := newDomainForwarderForTest(0)
+	mockConfig := pkgconfig.Mock(t)
+	forwarder := newDomainForwarderForTest(mockConfig, 0)
 	err := forwarder.Start()
 
 	assert.Nil(t, err)
@@ -58,14 +61,16 @@ func TestDomainForwarderStart(t *testing.T) {
 }
 
 func TestDomainForwarderInit(t *testing.T) {
-	forwarder := newDomainForwarderForTest(0)
+	mockConfig := pkgconfig.Mock(t)
+	forwarder := newDomainForwarderForTest(mockConfig, 0)
 	forwarder.init()
 	assert.Len(t, forwarder.workers, 0)
 	requireLenForwarderRetryQueue(t, forwarder, 0)
 }
 
 func TestDomainForwarderStop(t *testing.T) {
-	forwarder := newDomainForwarderForTest(0)
+	mockConfig := pkgconfig.Mock(t)
+	forwarder := newDomainForwarderForTest(mockConfig, 0)
 	forwarder.Stop(false) // this should be a noop
 	forwarder.Start()
 	assert.Equal(t, Started, forwarder.State())
@@ -76,7 +81,8 @@ func TestDomainForwarderStop(t *testing.T) {
 }
 
 func TestDomainForwarderStop_WithConnectionReset(t *testing.T) {
-	forwarder := newDomainForwarderForTest(120 * time.Second)
+	mockConfig := pkgconfig.Mock(t)
+	forwarder := newDomainForwarderForTest(mockConfig, 120*time.Second)
 	forwarder.Stop(false) // this should be a noop
 	forwarder.Start()
 	assert.Equal(t, Started, forwarder.State())
@@ -87,7 +93,8 @@ func TestDomainForwarderStop_WithConnectionReset(t *testing.T) {
 }
 
 func TestDomainForwarderSendHTTPTransactions(t *testing.T) {
-	forwarder := newDomainForwarderForTest(0)
+	mockConfig := pkgconfig.Mock(t)
+	forwarder := newDomainForwarderForTest(mockConfig, 0)
 	tr := newTestTransactionDomainForwarder()
 
 	// fw is stopped, we should get an error
@@ -107,7 +114,8 @@ func TestDomainForwarderSendHTTPTransactions(t *testing.T) {
 }
 
 func TestRequeueTransaction(t *testing.T) {
-	forwarder := newDomainForwarderForTest(0)
+	mockConfig := pkgconfig.Mock(t)
+	forwarder := newDomainForwarderForTest(mockConfig, 0)
 	tr := transaction.NewHTTPTransaction()
 	requireLenForwarderRetryQueue(t, forwarder, 0)
 	forwarder.requeueTransaction(tr)
@@ -115,7 +123,8 @@ func TestRequeueTransaction(t *testing.T) {
 }
 
 func TestRetryTransactions(t *testing.T) {
-	forwarder := newDomainForwarderForTest(0)
+	mockConfig := pkgconfig.Mock(t)
+	forwarder := newDomainForwarderForTest(mockConfig, 0)
 	forwarder.init()
 
 	// Default value should be 0
@@ -148,7 +157,8 @@ func TestRetryTransactions(t *testing.T) {
 }
 
 func TestForwarderRetry(t *testing.T) {
-	forwarder := newDomainForwarderForTest(0)
+	mockConfig := pkgconfig.Mock(t)
+	forwarder := newDomainForwarderForTest(mockConfig, 0)
 	forwarder.Start()
 	defer forwarder.Stop(false)
 
@@ -182,7 +192,8 @@ func TestForwarderRetry(t *testing.T) {
 }
 
 func TestForwarderRetryLifo(t *testing.T) {
-	forwarder := newDomainForwarderForTest(0)
+	mockConfig := pkgconfig.Mock(t)
+	forwarder := newDomainForwarderForTest(mockConfig, 0)
 	forwarder.init()
 
 	transaction1 := newTestTransactionDomainForwarder()
@@ -211,7 +222,8 @@ func TestForwarderRetryLifo(t *testing.T) {
 }
 
 func TestForwarderRetryLimitQueue(t *testing.T) {
-	forwarder := newDomainForwarderForTest(0)
+	mockConfig := pkgconfig.Mock(t)
+	forwarder := newDomainForwarderForTest(mockConfig, 0)
 	forwarder.init()
 	forwarder.blockedList.close("blocked")
 	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Minute)
@@ -255,7 +267,8 @@ func TestDomainForwarderRetryQueueAllPayloadsMaxSize(t *testing.T) {
 		0,
 		telemetry,
 		retry.NewPointCountTelemetryMock())
-	forwarder := newDomainForwarder("test", transactionRetryQueue, 0, 10, transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}, retry.NewPointCountTelemetry("domain", nil))
+	mockConfig := pkgconfig.Mock(t)
+	forwarder := newDomainForwarder(mockConfig, "test", transactionRetryQueue, 0, 10, transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}, retry.NewPointCountTelemetry("domain", nil))
 	forwarder.blockedList.close("blocked")
 	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Minute)
 
@@ -281,7 +294,8 @@ func TestDomainForwarderRetryQueueAllPayloadsMaxSize(t *testing.T) {
 
 func TestDomainForwarderInitConfigs(t *testing.T) {
 	// Test default values
-	forwarder := newDomainForwarderForTest(0)
+	mockConfig := pkgconfig.Mock(t)
+	forwarder := newDomainForwarderForTest(mockConfig, 0)
 	forwarder.init()
 	assert.Equal(t, 100, cap(forwarder.highPrio))
 	assert.Equal(t, 100, cap(forwarder.lowPrio))
@@ -293,18 +307,18 @@ forwarder_high_prio_buffer_size: 1100
 forwarder_low_prio_buffer_size: 1200
 forwarder_requeue_buffer_size: 1300
 `
-	config.Datadog.SetConfigType("yaml")
-	err := config.Datadog.ReadConfig(bytes.NewBuffer([]byte(datadogYaml)))
+	pkgconfig.Datadog.SetConfigType("yaml")
+	err := pkgconfig.Datadog.ReadConfig(bytes.NewBuffer([]byte(datadogYaml)))
 	assert.NoError(t, err)
 
-	forwarder = newDomainForwarderForTest(0)
+	forwarder = newDomainForwarderForTest(mockConfig, 0)
 	forwarder.init()
 	assert.Equal(t, 1100, cap(forwarder.highPrio))
 	assert.Equal(t, 1200, cap(forwarder.lowPrio))
 	assert.Equal(t, 1300, cap(forwarder.requeuedTransaction))
 }
 
-func newDomainForwarderForTest(connectionResetInterval time.Duration) *domainForwarder {
+func newDomainForwarderForTest(config config.Component, connectionResetInterval time.Duration) *domainForwarder {
 	sorter := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}
 	telemetry := retry.NewTransactionRetryQueueTelemetry("domain")
 	transactionRetryQueue := retry.NewTransactionRetryQueue(
@@ -315,7 +329,7 @@ func newDomainForwarderForTest(connectionResetInterval time.Duration) *domainFor
 		telemetry,
 		retry.NewPointCountTelemetryMock())
 
-	return newDomainForwarder("test", transactionRetryQueue, 1, connectionResetInterval, sorter, retry.NewPointCountTelemetry("domain", nil))
+	return newDomainForwarder(config, "test", transactionRetryQueue, 1, connectionResetInterval, sorter, retry.NewPointCountTelemetry("domain", nil))
 }
 
 func requireLenForwarderRetryQueue(t *testing.T, forwarder *domainForwarder, expectedValue int) {

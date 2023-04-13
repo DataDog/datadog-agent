@@ -434,7 +434,7 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 	for _, payload := range payloads {
 		for domain, dr := range f.domainResolvers {
 			for _, apiKey := range dr.GetAPIKeys() {
-				t := transaction.NewHTTPTransaction(f.config)
+				t := transaction.NewHTTPTransaction()
 				t.Domain, _ = dr.Resolve(endpoint)
 				t.Endpoint = endpoint
 				t.Payload = payload
