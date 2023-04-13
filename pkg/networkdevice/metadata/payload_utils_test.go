@@ -7,10 +7,12 @@ package metadata
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 )
 
 func Test_batchPayloads(t *testing.T) {

@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -103,25 +104,36 @@ func (m *forwardingTransport) RoundTrip(req *http.Request) (rres *http.Response,
 		return nil, err
 	}
 
+	var wg sync.WaitGroup
+	wg.Add(len(m.targets))
 	for i, u := range m.targets {
-		newreq := req.Clone(req.Context())
-		newreq.Body = io.NopCloser(bytes.NewReader(slurp))
-		setTarget(newreq, u, m.keys[i])
-		if i == 0 {
-			// given the way we construct the list of targets the main endpoint
-			// will be the first one called, we return its response and error
-			rres, rerr = m.rt.RoundTrip(newreq)
-			continue
-		}
-
-		if resp, err := m.rt.RoundTrip(newreq); err == nil {
-			// we discard responses for all subsequent requests
-			io.Copy(io.Discard, resp.Body) //nolint:errcheck
+		go func(i int, u *url.URL) {
+			defer wg.Done()
+			newreq := req.Clone(req.Context())
+			newreq.Body = io.NopCloser(bytes.NewReader(slurp))
+			setTarget(newreq, u, m.keys[i])
+			if i == 0 {
+				// Given the way we construct the list of targets the main endpoint
+				// will be the first one called, we return its response and error.
+				// Ignoring bodyclose lint here because of a bug in the linter:
+				// https://github.com/timakin/bodyclose/issues/30.
+				rres, rerr = m.rt.RoundTrip(newreq) //nolint:bodyclose
+				rres.Body.Close()
+				return
+			}
+			resp, err := m.rt.RoundTrip(newreq)
+			if err == nil {
+				// we discard responses for all subsequent requests
+				io.Copy(io.Discard, resp.Body) //nolint:errcheck
+			} else {
+				log.Error(err)
+			}
 			resp.Body.Close()
-		} else {
-			log.Error(err)
-		}
+
+		}(i, u)
 	}
+	wg.Wait()
+
 	return rres, rerr
 }
 

@@ -1488,6 +1488,10 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 			Name:  "send_signal",
 			Value: isBPFSendSignalHelperAvailable(p.kernelVersion),
 		},
+		manager.ConstantEditor{
+			Name:  "anomaly_syscalls",
+			Value: utils.BoolTouint64(p.Config.RuntimeSecurity.AnomalyDetectionSyscallsEnabled),
+		},
 	)
 
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
