@@ -152,24 +152,24 @@ type ContainerContext struct {
 
 // SecurityProfileContext holds the security context of the profile
 type SecurityProfileContext struct {
-	Name    string   `field:"name"`    // SECLDoc[name] Definition:`Name of the security profile`
-	Status  string   `field:"status"`  // SECLDoc[status] Definition:`Status of the security profile`
-	Version string   `field:"version"` // SECLDoc[version] Definition:`Version of the security profile`
-	Tags    []string `field:"tags"`    // SECLDoc[tags] Definition:`Tags of the security profile`
+	Name                    string   `field:"name"`    // SECLDoc[name] Definition:`Name of the security profile`
+	Status                  string   `field:"status"`  // SECLDoc[status] Definition:`Status of the security profile`
+	Version                 string   `field:"version"` // SECLDoc[version] Definition:`Version of the security profile`
+	Tags                    []string `field:"tags"`    // SECLDoc[tags] Definition:`Tags of the security profile`
+	AnomalyDetectionEnabled bool     `field:"-"`
+	AutoSuppressionEnabled  bool     `field:"-"`
 }
 
 // Event represents an event sent from the kernel
 // genaccessors
 type Event struct {
-	ID                      string         `field:"-" json:"-"`
-	Type                    uint32         `field:"-"`
-	Flags                   uint32         `field:"-"`
-	Async                   bool           `field:"async,handler:ResolveAsync" event:"*"` // SECLDoc[async] Definition:`True if the syscall was asynchronous`
-	TimestampRaw            uint64         `field:"-" json:"-"`
-	Timestamp               time.Time      `field:"-"` // Timestamp of the event
-	Rules                   []*MatchedRule `field:"-"`
-	AnomalyDetectionEnabled bool           `field:"-"`
-	AutoSuppressionEnabled  bool           `field:"-"`
+	ID           string         `field:"-" json:"-"`
+	Type         uint32         `field:"-"`
+	Flags        uint32         `field:"-"`
+	Async        bool           `field:"async,handler:ResolveAsync" event:"*"` // SECLDoc[async] Definition:`True if the syscall was asynchronous`
+	TimestampRaw uint64         `field:"-" json:"-"`
+	Timestamp    time.Time      `field:"-"` // Timestamp of the event
+	Rules        []*MatchedRule `field:"-"`
 
 	// context shared with all events
 	ProcessCacheEntry      *ProcessCacheEntry     `field:"-" json:"-"`

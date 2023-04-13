@@ -276,6 +276,8 @@ func FillProfileContextFromProfile(ctx *model.SecurityProfileContext, profile *S
 	ctx.Version = profile.Version
 	ctx.Tags = profile.Tags
 	ctx.Status = profile.Status.String()
+	ctx.AnomalyDetectionEnabled = profile.Status.IsEnabled(AnomalyDetection)
+	ctx.AutoSuppressionEnabled = profile.Status.IsEnabled(AutoSuppression)
 }
 
 // OnCGroupDeletedEvent is used to handle a CGroupDeleted event
@@ -543,8 +545,6 @@ func (m *SecurityProfileManager) LookupEventOnProfiles(event *model.Event) {
 	event.AddToFlags(model.EventFlagsSecurityProfileFoundAndAbsent)
 
 	FillProfileContextFromProfile(&event.SecurityProfileContext, profile)
-	event.AnomalyDetectionEnabled = profile.Status.IsEnabled(AnomalyDetection)
-	event.AutoSuppressionEnabled = profile.Status.IsEnabled(AutoSuppression)
 
 	processNodes := profile.findProfileProcessNodes(event.ProcessContext)
 	if len(processNodes) == 0 {
