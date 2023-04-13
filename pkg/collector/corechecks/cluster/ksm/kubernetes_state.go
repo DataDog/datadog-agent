@@ -60,8 +60,6 @@ var extendedCollectors = map[string]string{
 	"pods":  "pods_extended",
 }
 
-var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
-
 // KSMConfig contains the check config parameters
 type KSMConfig struct {
 	// Collectors defines the resource type collectors.
@@ -350,6 +348,7 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 	factories := []customresource.RegistryFactory{
 		customresources.NewExtendedJobFactory(c),
 		customresources.NewCustomResourceDefinitionFactory(c),
+		customresources.NewAPIServiceFactory(c),
 		customresources.NewExtendedNodeFactory(c),
 		customresources.NewExtendedPodFactory(c),
 	}
@@ -712,9 +711,7 @@ func (k *KSMCheck) processLabelsOrAnnotationsAsTags(what string, configStuffAsTa
 	for resourceKind, labelsMapper := range configStuffAsTags {
 		labels := make(map[string]string)
 		for label, tag := range labelsMapper {
-			// KSM converts labels to snake case.
-			// Ref: https://github.com/kubernetes/kube-state-metrics/blob/v2.2.2/internal/store/utils.go#L133
-			label = what + "_" + toSnakeCase(labelRegexp.ReplaceAllString(label, "_"))
+			label = what + "_" + labelRegexp.ReplaceAllString(label, "_")
 			labels[label] = tag
 		}
 
@@ -964,9 +961,4 @@ func labelsMapperOverride(metricName string) map[string]string {
 		}
 	}
 	return nil
-}
-
-func toSnakeCase(s string) string {
-	snake := matchAllCap.ReplaceAllString(s, "${1}_${2}")
-	return strings.ToLower(snake)
 }

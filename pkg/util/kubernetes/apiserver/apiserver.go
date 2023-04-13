@@ -31,6 +31,9 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	apiregistrationclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1"
+
+	// apiregistrationv1 "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1"
 
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -95,6 +98,9 @@ type APIClient struct {
 
 	// CRDClient holds the extension kubernetes client
 	CRDClient clientset.Interface
+
+	// APISClient holds the APIService kubernetes client
+	APISClient apiregistrationclient.ApiregistrationV1Interface
 
 	// DynamicCl holds a dynamic kubernetes client
 	DynamicCl dynamic.Interface
@@ -232,6 +238,14 @@ func getCRDClient(timeout time.Duration) (*clientset.Clientset, error) {
 	return clientset.NewForConfig(clientConfig)
 }
 
+func getAPISClient(timeout time.Duration) (*apiregistrationclient.ApiregistrationV1Client, error) {
+	clientConfig, err := getClientConfig(timeout)
+	if err != nil {
+		return nil, err
+	}
+	return apiregistrationclient.NewForConfig(clientConfig)
+}
+
 func getKubeDiscoveryClient(timeout time.Duration) (discovery.DiscoveryInterface, error) {
 	clientConfig, err := getClientConfig(timeout)
 	if err != nil {
@@ -308,6 +322,8 @@ func getCRDInformerFactory() (externalversions.SharedInformerFactory, error) {
 	return externalversions.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second), nil
 }
 
+// func getAPISInformerFactory()
+
 func getInformerFactoryWithOption(options ...informers.SharedInformerOption) (informers.SharedInformerFactory, error) {
 	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
 	client, err := GetKubeClient(0) // No timeout for the Informers, to allow long watch.
@@ -341,6 +357,12 @@ func (c *APIClient) connect() error {
 	c.CRDClient, err = getCRDClient(time.Duration(c.timeoutSeconds) * time.Second)
 	if err != nil {
 		log.Infof("Could not get apiserver CRDClient client: %v", err)
+		return err
+	}
+
+	c.APISClient, err = getAPISClient(time.Duration(c.timeoutSeconds) * time.Second)
+	if err != nil {
+		log.Infof("Could not get apiserver APISClient client: %v", err)
 		return err
 	}
 

@@ -4,6 +4,12 @@
 
 ### Metrics
 
+`kubernetes_state.apiservice.count`
+: Number of Kubernetes API services.
+
+`kubernetes_state.apiservice.condition`
+: The condition of this API service. Tags:`apiservice` `condition` `status`.
+
 `kubernetes_state.daemonset.count`
 : Number of DaemonSets. Tags:`kube_namespace`.
 
@@ -48,9 +54,6 @@
 
 `kubernetes_state.deployment.replicas_available`
 : The number of available replicas per deployment. Tags:`kube_deployment` `kube_namespace` (`env` `service` `version` from standard labels).
-
-`kubernetes_state.deployment.replicas_ready	`
-: The number of ready replicas per deployment. Tags:`kube_deployment` `kube_namespace` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.deployment.replicas_unavailable`
 : The number of unavailable replicas per deployment. Tags:`kube_deployment` `kube_namespace` (`env` `service` `version` from standard labels).
@@ -288,9 +291,6 @@
 
 `kubernetes_state.hpa.spec_target_metric`
 : The metric specifications used by this autoscaler when calculating the desired replica count. Tags:`kube_namespace` `horizontalpodautoscaler` `metric_name` `metric_target_type`.
-
-`kubernetes_state.hpa.status_target_metric`
-: The current metric status used by this autoscaler when calculating the desired replica count. Tags:`kube_namespace` `horizontalpodautoscaler` `metric_name` `metric_target_type`.	
 
 `kubernetes_state.vpa.count`
 : Number of vertical pod autoscaler. Tags: `kube_namespace`.
