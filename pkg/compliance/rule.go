@@ -31,6 +31,17 @@ type RegoRule struct {
 	Findings   string      `yaml:"findings,omitempty"`
 }
 
+// HasResourceKind returns whether or the rule has a dependence on a least
+// one resource with the given type.
+func (r *RegoRule) HasResourceKind(resourceKind ResourceKind) bool {
+	for _, input := range r.Inputs {
+		if input.Kind() == resourceKind {
+			return true
+		}
+	}
+	return false
+}
+
 // ResourceCount returns the count of resources
 func (r *RegoRule) ResourceCount() int {
 	return len(r.Inputs)

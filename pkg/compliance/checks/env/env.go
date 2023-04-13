@@ -43,4 +43,5 @@ type Configuration interface {
 	RelativeToHostRoot(path string) string
 	EvaluateFromCache(e eval.Evaluatable) (interface{}, error)
 	IsLeader() bool
+	ConfigDir() string
 }

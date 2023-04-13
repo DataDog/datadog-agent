@@ -34,6 +34,8 @@ const (
 	KindConstants = ResourceKind("constants")
 	// KindCustom is used for a Custom check
 	KindCustom = ResourceKind("custom")
+	// KindXccdf is used for a XCCDF check
+	KindXccdf = ResourceKind("xccdf")
 )
 
 // ResourceCommon describes the base fields of resource types
@@ -47,6 +49,7 @@ type ResourceCommon struct {
 	KubeApiserver *KubernetesResource `yaml:"kubeApiserver,omitempty"`
 	Constants     *ConstantsResource  `yaml:"constants,omitempty"`
 	Custom        *Custom             `yaml:"custom,omitempty"`
+	Xccdf         *Xccdf              `yaml:"xccdf,omitempty"`
 }
 
 // RegoInput describes supported resource types observed by a Rego Rule
@@ -90,6 +93,8 @@ func (r *ResourceCommon) Kind() ResourceKind {
 		return KindConstants
 	case r.Custom != nil:
 		return KindCustom
+	case r.Xccdf != nil:
+		return KindXccdf
 	default:
 		return KindInvalid
 	}
@@ -289,4 +294,11 @@ type ConstantsResource struct {
 type Custom struct {
 	Name      string            `yaml:"name"`
 	Variables map[string]string `yaml:"variables,omitempty"`
+}
+
+// Xccdf describe a XCCDF based benchmark
+type Xccdf struct {
+	Name    string `yaml:"name"`
+	Profile string `yaml:"profile"`
+	Rule    string `yaml:"rule"`
 }

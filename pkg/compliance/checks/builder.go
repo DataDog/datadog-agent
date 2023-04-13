@@ -95,6 +95,14 @@ func WithHostname(hostname string) BuilderOption {
 	}
 }
 
+// WithConfigDir configures the configuration directory
+func WithConfigDir(configDir string) BuilderOption {
+	return func(b *builder) error {
+		b.configDir = configDir
+		return nil
+	}
+}
+
 // WithHostRootMount defines host root filesystem mount location
 func WithHostRootMount(hostRootMount string) BuilderOption {
 	return func(b *builder) error {
@@ -302,6 +310,7 @@ type builder struct {
 	hostname     string
 	pathMapper   *fileutils.PathMapper
 	etcGroupPath string
+	configDir    string
 
 	suiteMatcher SuiteMatcher
 	ruleMatcher  RuleMatcher
@@ -430,6 +439,11 @@ func (b *builder) StatsdClient() statsd.ClientInterface {
 }
 
 func (b *builder) checkFromRegoRule(meta *compliance.SuiteMeta, rule *compliance.RegoRule) (compliance.Check, error) {
+	// skip rules with Xccdf input if compliance_config.xccdf.enabled is no optin
+	if !config.Datadog.GetBool("compliance_config.xccdf.enabled") && rule.HasResourceKind(compliance.KindXccdf) {
+		return nil, ErrRuleDoesNotApply
+	}
+
 	ruleScope, err := getRuleScope(meta, rule.Scope)
 	if err != nil {
 		return nil, err
@@ -538,6 +552,10 @@ func (b *builder) ShouldSkipRegoEval() bool {
 
 func (b *builder) Hostname() string {
 	return b.hostname
+}
+
+func (b *builder) ConfigDir() string {
+	return b.configDir
 }
 
 func (b *builder) EtcGroupPath() string {

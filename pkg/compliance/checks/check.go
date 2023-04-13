@@ -27,6 +27,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/group"
 	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/kubeapiserver"
 	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/process"
+	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/xccdf"
 )
 
 // eventNotify is a callback invoked when a compliance check reported an event
