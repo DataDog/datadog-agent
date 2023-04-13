@@ -236,6 +236,7 @@ func (m *Monitor) Start() error {
 		return err
 	}
 
+	// Need to explicitly save the error in `err` so the defer function could save the startup error.
 	if m.httpTLSEnabled {
 		err = m.processMonitor.Initialize()
 	}
