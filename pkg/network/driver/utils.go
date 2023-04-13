@@ -111,6 +111,7 @@ func stopDriverService(driverServiceName string, disable bool) (err error) {
 
 	// RUNNING, so stop it
 	if status.State == windows.SERVICE_RUNNING {
+		log.Infof("Stopping %s service via SCM", driverServiceName)
 		err := winutil.StopService(driverServiceName)
 		if err != nil {
 			return fmt.Errorf("Unable to stop service: %v", err)
@@ -120,6 +121,7 @@ func stopDriverService(driverServiceName string, disable bool) (err error) {
 	// if needed, disable it too
 	if disable {
 		noChange := uint32(windows.SERVICE_NO_CHANGE)
+		log.Infof("Setting %s service to disabled", driverServiceName)
 		err := windows.ChangeServiceConfig(service.Handle, noChange, windows.SERVICE_DISABLED, noChange, nil, nil, nil, nil, nil, nil, nil)
 		if err != nil {
 			return fmt.Errorf("Unable to update config: %v", err)
