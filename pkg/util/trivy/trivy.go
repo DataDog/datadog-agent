@@ -83,8 +83,6 @@ func getDefaultArtifactOption(enabledAnalyzers []string, root string) artifact.O
 	if len(enabledAnalyzers) == 1 && enabledAnalyzers[0] == OSAnalyzers {
 		option.OnlyDirs = []string{"etc", "var/lib/dpkg", "var/lib/rpm", "lib/apk"}
 		if root != "" {
-			option.Slow = false
-
 			// OnlyDirs is handled differently for image than for filesystem.
 			// This needs to be fixed properly but in the meantime, use absolute
 			// paths for fs and relative paths for images.
