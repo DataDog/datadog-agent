@@ -9,6 +9,7 @@ single-machine-performance-regression_detector:
     expire_in: 1 weeks
     paths:
       - submission_metadata
+      - outputs/report.html
   variables:
     SMP_VERSION: 0.7.3
     LADING_VERSION: 0.13.0
@@ -84,28 +85,21 @@ single-machine-performance-regression_detector:
     # space characters. This avoids
     # https://gitlab.com/gitlab-org/gitlab/-/issues/217231.
     - cat outputs/report.md | sed "s/^\$/$(echo -ne '\uFEFF\u00A0\u200B')/g"
-    # Add janky means of installing PR commenter borrowed from 
-    # https://github.com/DataDog/dogweb/blob/45d7fcf035d0d515ebd901919099d4c8bfa82829/docker/docker-builder/Dockerfile#L69-L77
-    - apt-get update
-    - apt-get install -y curl
-    - curl -OL https://s3.amazonaws.com/dd-package-public/dd-package.deb
-    - dpkg -i dd-package.deb
-    - rm dd-package.deb
-    - apt-get update
-    - dd-package --bucket binaries.ddbuild.io --package devtools/dd-package-dev
-    # Kludge from https://gitlab.com/gitlab-org/gitlab-runner/-/issues/4645#note_287636439 to avoid
-    # doubled output
-    - echo ""
-    - "####################### NOTE TO MAINTAINERS #####################################"
-    - "# Ignore bdist_wheel build error raised when installing 'devtools/pr-commenter' #"
-    - "# This error is known behavior, and you should see a successful install         #"
-    - "# beneath the error message in the GitLab CI logs                               #"
-    - "#################################################################################"
-    - echo ""
-    - dd-package --bucket binaries.ddbuild.io --package devtools/pr-commenter
-    # Post HTML report to GitHub
-    - cat outputs/report.html | /usr/local/bin/pr-commenter --for-pr="$CI_COMMIT_REF_NAME"
     # Finally, exit 1 if the job signals a regression else 0.
     - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --aws-named-profile ${AWS_NAMED_PROFILE}
             job result
             --submission-metadata submission_metadata
+
+single-machine-performance-regression_detector-pr-comment:
+  stage: notify
+  needs: ["single-machine-performance-regression_detector"]
+  when: always
+  image:
+    name: registry.ddbuild.io/pr-commenter:2
+    entrypoint: [""]
+  tags: ["arch:amd64"]
+  except: ["main"]
+  script:
+    - touch outputs/report.html
+    - pr-commenter --for-pr="$CI_COMMIT_REF_NAME" -infile outputs/report.html
+  
