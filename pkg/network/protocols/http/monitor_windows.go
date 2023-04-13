@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -124,39 +123,11 @@ func (m *WindowsMonitor) GetHTTPStats() map[Key]*RequestStats {
 	defer m.mux.Unlock()
 
 	stats := m.statkeeper.GetAndResetAllStats()
-	removeDuplicates(stats)
+	//removeDuplicates(stats)
 
 	m.telemetry.log()
 
 	return stats
-}
-
-func removeDuplicates(stats map[Key]*RequestStats) {
-	// With localhost traffic, the driver will create a flow for both endpoints. Both
-	// these flows will be normalized so that source=client and dest=server, which
-	// results in 2 identical http transactions being sent up to userspace & processed.
-	// To fix this, we'll find all localhost keys and half their transaction counts.
-
-	for k, v := range stats {
-		if isLocalhost(k) {
-			v.HalfAllCounts()
-		}
-	}
-}
-
-func isLocalhost(k Key) bool {
-	var sAddr util.Address
-	// this little hack is because ipv6 loopback (::1) has the property of having
-	// the top 64 bits be zero (just like an ipv4).  Could just skip the call to
-	// IsLoopback() below, but leaving it to allow the underlying library to do
-	// the check as originally desired.
-	if k.SrcIPHigh == 0 && k.SrcIPLow != uint64(0x0100000000000000) {
-		sAddr = util.V4Address(uint32(k.SrcIPLow))
-	} else {
-		sAddr = util.V6Address(k.SrcIPLow, k.SrcIPHigh)
-	}
-
-	return sAddr.IsLoopback()
 }
 
 // GetStats gets driver stats related to the HTTP handle

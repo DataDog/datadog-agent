@@ -650,7 +650,7 @@ func TestJavaInjection(t *testing.T) {
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
 
 				ctx.extras["testfile"] = createJavaTempFile(t, testdataDir)
-				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
+				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
@@ -670,7 +670,7 @@ func TestJavaInjection(t *testing.T) {
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
 
 				ctx.extras["testfile"] = createJavaTempFile(t, testdataDir)
-				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
+				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
 
 				// testing allow/block list, as Allow list have higher priority
 				// this test will pass normally
@@ -696,7 +696,7 @@ func TestJavaInjection(t *testing.T) {
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
 
 				ctx.extras["testfile"] = createJavaTempFile(t, testdataDir)
-				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
+				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
 
 				// block the agent attachment
 				cfg.JavaAgentAllowRegex = ""
@@ -720,7 +720,7 @@ func TestJavaInjection(t *testing.T) {
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
 
 				ctx.extras["testfile"] = createJavaTempFile(t, testdataDir)
-				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
+				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
 
 				// block the agent attachment
 				cfg.JavaAgentAllowRegex = ".*JustWait.*"
@@ -743,7 +743,7 @@ func TestJavaInjection(t *testing.T) {
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
 
 				ctx.extras["testfile"] = createJavaTempFile(t, testdataDir)
-				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
+				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
 
 				// allow has a higher priority
 				cfg.JavaAgentAllowRegex = ".*JustWait.*"
