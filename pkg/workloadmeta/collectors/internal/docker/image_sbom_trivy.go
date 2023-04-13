@@ -3,22 +3,28 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build containerd && trivy
-// +build containerd,trivy
+//go:build docker && trivy
+// +build docker,trivy
 
-package containerd
+package docker
 
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
-	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/containerd"
+	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/docker"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
+	dutil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
+
+func imageMetadataCollectionIsEnabled() bool {
+	return config.Datadog.GetBool("container_image_collection.metadata.enabled")
+}
 
 func sbomCollectionIsEnabled() bool {
 	return imageMetadataCollectionIsEnabled() && config.Datadog.GetBool("container_image_collection.sbom.enabled")
@@ -77,19 +83,13 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 }
 
 func (c *collector) extractBOMWithTrivy(ctx context.Context, storedImage *workloadmeta.ContainerImageMetadata) error {
-	containerdImage, err := c.containerdClient.Image(storedImage.Namespace, storedImage.Name)
-	if err != nil {
-		return err
-	}
-
-	scanRequest := &containerd.ScanRequest{
-		Image:          containerdImage,
-		ImageMeta:      storedImage,
-		FromFilesystem: config.Datadog.GetBool("container_image_collection.sbom.use_mount"),
+	scanRequest := &docker.ScanRequest{
+		ImageMeta:    storedImage,
+		DockerClient: c.dockerUtil.RawClient(),
 	}
 
 	ch := make(chan sbom.ScanResult, 1)
-	if err = c.sbomScanner.Scan(scanRequest, c.scanOptions, ch); err != nil {
+	if err := c.sbomScanner.Scan(scanRequest, c.scanOptions, ch); err != nil {
 		return err
 	}
 
@@ -103,7 +103,7 @@ func (c *collector) extractBOMWithTrivy(ctx context.Context, storedImage *worklo
 				return
 			}
 
-			sbom := workloadmeta.SBOM{
+			sbom := &workloadmeta.SBOM{
 				CycloneDXBOM:       bom,
 				GenerationTime:     result.CreatedAt,
 				GenerationDuration: result.Duration,
@@ -111,7 +111,12 @@ func (c *collector) extractBOMWithTrivy(ctx context.Context, storedImage *worklo
 
 			// Updating workloadmeta entities directly is not thread-safe, that's why we
 			// generate an update event here instead.
-			if err := c.handleImageCreateOrUpdate(ctx, storedImage.Namespace, storedImage.Name, &sbom); err != nil {
+			event := &dutil.ImageEvent{
+				ImageID:   storedImage.ID,
+				Action:    dutil.ImageEventActionSbom,
+				Timestamp: time.Now(),
+			}
+			if err := c.handleImageEvent(ctx, event, sbom); err != nil {
 				log.Warnf("Error extracting SBOM for image: namespace=%s name=%s, err: %s", storedImage.Namespace, storedImage.Name, err)
 			}
 		}
