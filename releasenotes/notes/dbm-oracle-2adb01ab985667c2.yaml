@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Oracle DBM monitoring with activity sampling.
+    Oracle DBM monitoring with activity sampling. The collected samples form the foundation for database load profiling. With Datadog GUI, samples can be aggregated and filtered to identify bottlenecks.
