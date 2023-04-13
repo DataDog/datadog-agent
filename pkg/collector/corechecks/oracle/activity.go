@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
@@ -37,7 +38,7 @@ const ACTIVITY_QUERY = `SELECT /* DD_ACTIVITY_SAMPLING */
     osuser,
     process, 
     machine,
-	--port,
+--	port,
     program,
     type,
     sql_id,
@@ -361,11 +362,11 @@ func (c *Check) SampleSession() error {
 			obfuscate = false
 		} else if commandName != "" {
 			statement = commandName
-			obfuscate = false
+			//obfuscate = false
 		} else if sessionType == "BACKGROUND" {
 			statement = program
 			// The program name can contain an IP address
-			obfuscate = false
+			//obfuscate = false
 		} else if sample.Module.Valid && sample.Module.String == "DBMS_SCHEDULER" {
 			statement = sample.Module.String
 			obfuscate = false
@@ -413,14 +414,14 @@ func (c *Check) SampleSession() error {
 		return err
 	}
 
-	//log.Tracef("Activity payload %s", strings.ReplaceAll(string(payloadBytes), "@", "XX"))
+	log.Tracef("Activity payload %s", strings.ReplaceAll(string(payloadBytes), "@", "XX"))
 
 	sender, err := c.GetSender()
 	if err != nil {
 		log.Errorf("GetSender SampleSession %s", string(payloadBytes))
 		return err
 	}
-	sender.EventPlatformEvent(payloadBytes, "dbm-activity")
+	sender.EventPlatformEvent(string(payloadBytes), "dbm-activity")
 	sender.Count("dd.oracle.activity.samples_count", float64(len(sessionRows)), c.hostname, c.tags)
 	sender.Gauge("dd.oracle.activity.time_ms", float64(time.Since(start).Milliseconds()), c.hostname, c.tags)
 	sender.Commit()

@@ -240,7 +240,6 @@ func GetStatementsMetricsForKeys[K comparable](c *Check, keyName string, whereCl
 			for i := range keysSlice {
 				convertedSlice[i] = K(keysSlice[i])
 			}
-			fmt.Printf("converted slice %+v \n", convertedSlice)
 			err := db.Select(&statementMetrics, statements_metrics_query, convertedSlice...)
 			if err != nil {
 				return nil, fmt.Errorf("error executing statement metrics query: %w %s", err, statements_metrics_query)
@@ -495,7 +494,7 @@ func (c *Check) StatementMetrics() (int, error) {
 
 	log.Tracef("Query metrics payload %s", strings.ReplaceAll(string(payloadBytes), "@", "XX"))
 
-	sender.EventPlatformEvent(payloadBytes, "dbm-metrics")
+	sender.EventPlatformEvent(string(payloadBytes), "dbm-metrics")
 	sender.Gauge("dd.oracle.statements_metrics.sql_text_errors", float64(SQLTextErrors), c.hostname, c.tags)
 	sender.Gauge("dd.oracle.statements_metrics.time_ms", float64(time.Since(start).Milliseconds()), c.hostname, c.tags)
 	sender.Commit()
