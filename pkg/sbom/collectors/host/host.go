@@ -32,7 +32,7 @@ func (r *ScanRequest) Collector() string {
 }
 
 func (r *ScanRequest) Type() string {
-	return "filesystem"
+	return sbom.ScanFilesystemType
 }
 
 type HostCollector struct {

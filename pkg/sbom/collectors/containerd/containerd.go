@@ -24,9 +24,7 @@ import (
 )
 
 const (
-	collectorName      = "containerd"
-	scanFilesystemType = "filesystem"
-	scanDaemonType     = "daemon"
+	collectorName = "containerd"
 )
 
 type ScanRequest struct {
@@ -42,9 +40,9 @@ func (r *ScanRequest) Collector() string {
 
 func (r *ScanRequest) Type() string {
 	if r.FromFilesystem {
-		return scanFilesystemType
+		return sbom.ScanFilesystemType
 	} else {
-		return scanDaemonType
+		return sbom.ScanDaemonType
 	}
 }
 

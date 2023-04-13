@@ -11,6 +11,11 @@ import (
 	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
 )
 
+const (
+	ScanFilesystemType = "filesystem"
+	ScanDaemonType     = "daemon"
+)
+
 type Report interface {
 	ToCycloneDX() (*cyclonedxgo.BOM, error)
 }
