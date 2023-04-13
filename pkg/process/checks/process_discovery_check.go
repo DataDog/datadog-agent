@@ -18,9 +18,10 @@ import (
 )
 
 // NewProcessDiscoveryCheck returns an instance of the ProcessDiscoveryCheck.
-func NewProcessDiscoveryCheck() *ProcessDiscoveryCheck {
+func NewProcessDiscoveryCheck(config ddconfig.ConfigReader) *ProcessDiscoveryCheck {
 	return &ProcessDiscoveryCheck{
-		userProbe: NewLookupIdProbe(ddconfig.Datadog),
+		config:    config,
+		userProbe: NewLookupIdProbe(config),
 	}
 }
 
@@ -28,6 +29,8 @@ func NewProcessDiscoveryCheck() *ProcessDiscoveryCheck {
 // It uses its own ProcessDiscovery payload.
 // The goal of this check is to collect information about possible integrations that may be enabled by the end user.
 type ProcessDiscoveryCheck struct {
+	config ddconfig.ConfigReader
+
 	probe      procutil.Probe
 	userProbe  *LookupIdProbe
 	info       *HostInfo
@@ -40,16 +43,16 @@ type ProcessDiscoveryCheck struct {
 func (d *ProcessDiscoveryCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
 	d.info = info
 	d.initCalled = true
-	d.probe = newProcessProbe(procutil.WithPermission(syscfg.ProcessModuleEnabled))
+	d.probe = newProcessProbe(d.config, procutil.WithPermission(syscfg.ProcessModuleEnabled))
 
-	d.maxBatchSize = getMaxBatchSize()
+	d.maxBatchSize = getMaxBatchSize(d.config)
 	return nil
 }
 
 // IsEnabled returns true if the check is enabled by configuration
 func (d *ProcessDiscoveryCheck) IsEnabled() bool {
 	// The Process and Process Discovery checks are mutually exclusive
-	if ddconfig.Datadog.GetBool("process_config.process_collection.enabled") {
+	if d.config.GetBool("process_config.process_collection.enabled") {
 		return false
 	}
 
@@ -58,7 +61,7 @@ func (d *ProcessDiscoveryCheck) IsEnabled() bool {
 		return false
 	}
 
-	return ddconfig.Datadog.GetBool("process_config.process_discovery.enabled")
+	return d.config.GetBool("process_config.process_discovery.enabled")
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions

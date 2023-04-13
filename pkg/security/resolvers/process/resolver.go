@@ -852,7 +852,7 @@ func (p *Resolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 }
 
 // GetProcessArgv returns the args of the event as an array
-func (p *Resolver) GetProcessArgv(pr *model.Process) ([]string, bool) {
+func GetProcessArgv(pr *model.Process) ([]string, bool) {
 	if pr.ArgsEntry == nil {
 		return nil, false
 	}
@@ -885,7 +885,7 @@ func (p *Resolver) GetProcessScrubbedArgv(pr *model.Process) ([]string, bool) {
 		return pr.ScrubbedArgv, pr.ScrubbedArgsTruncated
 	}
 
-	argv, truncated := p.GetProcessArgv(pr)
+	argv, truncated := GetProcessArgv(pr)
 
 	if p.scrubber != nil {
 		argv, _ = p.scrubber.ScrubCommand(argv)

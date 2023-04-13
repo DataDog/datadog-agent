@@ -19,6 +19,12 @@ type check struct {
 	processCheck *checks.ProcessCheck
 }
 
+type dependencies struct {
+	fx.In
+
+	Config config.Component
+}
+
 type result struct {
 	fx.Out
 
@@ -26,15 +32,9 @@ type result struct {
 	Component Component
 }
 
-type dependencies struct {
-	fx.In
-
-	Config config.Component
-}
-
-func newCheck(dependencies) result {
+func newCheck(deps dependencies) result {
 	c := &check{
-		processCheck: checks.NewProcessCheck(),
+		processCheck: checks.NewProcessCheck(deps.Config),
 	}
 	return result{
 		Check: types.ProvidesCheck{
