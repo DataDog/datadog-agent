@@ -116,8 +116,8 @@ func MakeCommand(subcommandFactories []SubcommandFactory, winParams bool, rootCm
 // SetHostMountEnv sets HOST_PROC and HOST_SYS mounts if applicable in containerized environments
 func SetHostMountEnv(logger logComponent.Component) {
 	// Set default values for proc/sys paths if unset.
-	// Don't set this is /host is not mounted to use context within container.
 	// Generally only applicable for container-only cases like Fargate.
+	// This is primarily used by gopsutil to correlate cpu metrics with host processes
 	if !config.IsContainerized() || !util.PathExists("/host") {
 		return
 	}
@@ -139,6 +139,7 @@ func SetHostMountEnv(logger logComponent.Component) {
 		}
 	}
 }
+
 func GetCoreBundleParamsForOneShot(globalParams *GlobalParams) core.BundleParams {
 	return core.BundleParams{
 		ConfigParams:         configComponent.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
