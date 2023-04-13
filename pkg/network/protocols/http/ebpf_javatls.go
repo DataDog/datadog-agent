@@ -199,7 +199,7 @@ func newJavaProcess(pid uint32) {
 	if javaUSMAgentDebug {
 		allArgs = append(allArgs, "dd.trace.debug=true")
 	}
-	args := strings.Join(allArgs, " ")
+	args := strings.Join(allArgs, ",")
 	if err := java.InjectAgent(int(pid), javaUSMAgentJarPath, args); err != nil {
 		log.Error(err)
 	}
