@@ -8,6 +8,7 @@ package path
 import (
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 

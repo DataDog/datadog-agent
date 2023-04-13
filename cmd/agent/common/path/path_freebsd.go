@@ -7,6 +7,8 @@ package path
 
 import (
 	"path/filepath"
+
+	"github.com/DataDog/datadog-agent/pkg/util/executable"
 )
 
 const (
