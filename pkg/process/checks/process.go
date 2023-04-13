@@ -38,8 +38,8 @@ const (
 // NewProcessCehck returns an instance of the ProcessCheck.
 func NewProcessCheck(config ddconfig.ConfigReader) *ProcessCheck {
 	return &ProcessCheck{
-		config:   config,
-		scrubber: procutil.NewDefaultDataScrubber(),
+		config:        config,
+		scrubber:      procutil.NewDefaultDataScrubber(),
 		lookupIdProbe: NewLookupIdProbe(config),
 	}
 }
