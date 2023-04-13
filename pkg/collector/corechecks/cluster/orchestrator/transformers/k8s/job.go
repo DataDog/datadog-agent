@@ -9,9 +9,6 @@
 package k8s
 
 import (
-	"fmt"
-	"strings"
-
 	model "github.com/DataDog/agent-payload/v5/process"
 	batchv1 "k8s.io/api/batch/v1"
 
@@ -103,7 +100,7 @@ func extractJobConditions(p *batchv1.Job) ([]*model.JobCondition, []string) {
 
 		conditions = append(conditions, c)
 
-		conditionTag := fmt.Sprintf("kube_condition_%s:%s", strings.ToLower(string(condition.Type)), strings.ToLower(string(condition.Status)))
+		conditionTag := createConditionTag(string(condition.Type), string(condition.Status))
 		conditionTags = append(conditionTags, conditionTag)
 	}
 

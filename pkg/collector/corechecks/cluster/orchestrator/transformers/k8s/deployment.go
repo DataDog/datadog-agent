@@ -9,9 +9,6 @@
 package k8s
 
 import (
-	"fmt"
-	"strings"
-
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
@@ -116,7 +113,7 @@ func extractDeploymentConditions(p *appsv1.Deployment) ([]*model.DeploymentCondi
 
 		conditions = append(conditions, c)
 
-		conditionTag := fmt.Sprintf("kube_condition_%s:%s", strings.ToLower(string(condition.Type)), strings.ToLower(string(condition.Status)))
+		conditionTag := createConditionTag(string(condition.Type), string(condition.Status))
 		conditionTags = append(conditionTags, conditionTag)
 	}
 

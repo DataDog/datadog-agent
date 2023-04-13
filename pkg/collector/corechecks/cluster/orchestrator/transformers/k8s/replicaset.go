@@ -9,9 +9,6 @@
 package k8s
 
 import (
-	"fmt"
-	"strings"
-
 	model "github.com/DataDog/agent-payload/v5/process"
 	appsv1 "k8s.io/api/apps/v1"
 
@@ -71,7 +68,7 @@ func extractReplicaSetConditions(p *appsv1.ReplicaSet) ([]*model.ReplicaSetCondi
 
 		conditions = append(conditions, c)
 
-		conditionTag := fmt.Sprintf("kube_condition_%s:%s", strings.ToLower(string(condition.Type)), strings.ToLower(string(condition.Status)))
+		conditionTag := createConditionTag(string(condition.Type), string(condition.Status))
 		conditionTags = append(conditionTags, conditionTag)
 	}
 

@@ -13,7 +13,6 @@ import (
 	"hash/fnv"
 	"sort"
 	"strconv"
-	"strings"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
@@ -295,7 +294,7 @@ func extractPodConditions(p *corev1.Pod) ([]*model.PodCondition, []string) {
 
 		conditions = append(conditions, c)
 
-		conditionTag := fmt.Sprintf("kube_condition_%s:%s", strings.ToLower(string(condition.Type)), strings.ToLower(string(condition.Status)))
+		conditionTag := createConditionTag(string(condition.Type), string(condition.Status))
 		conditionTags = append(conditionTags, conditionTag)
 	}
 

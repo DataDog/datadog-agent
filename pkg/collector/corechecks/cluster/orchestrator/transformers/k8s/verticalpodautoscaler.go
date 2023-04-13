@@ -9,9 +9,6 @@
 package k8s
 
 import (
-	"fmt"
-	"strings"
-
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1"
 
@@ -204,7 +201,7 @@ func extractVerticalPodAutoscalerConditions(p *v1.VerticalPodAutoscaler) ([]*mod
 
 		conditions = append(conditions, c)
 
-		conditionTag := fmt.Sprintf("kube_condition_%s:%s", strings.ToLower(string(condition.Type)), strings.ToLower(string(condition.Status)))
+		conditionTag := createConditionTag(string(condition.Type), string(condition.Status))
 		conditionTags = append(conditionTags, conditionTag)
 	}
 

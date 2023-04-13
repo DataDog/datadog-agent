@@ -9,6 +9,9 @@
 package k8s
 
 import (
+	"fmt"
+	"strings"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -69,4 +72,9 @@ func extractLabelSelector(ls *metav1.LabelSelector) []*model.LabelSelectorRequir
 	}
 
 	return labelSelectors
+}
+
+// createConditionTag returns tags in a standard format for conditions
+func createConditionTag(conditionType string, conditionStatus string) string {
+	return fmt.Sprintf("kube_condition_%s:%s", strings.ToLower(conditionType), strings.ToLower(conditionStatus))
 }
