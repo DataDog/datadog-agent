@@ -335,9 +335,9 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 			},
 		},
 		{
-			name: "report constant",
+			name: "report constant metric",
 			metrics: []checkconfig.MetricsConfig{
-				{Symbols: []checkconfig.SymbolConfig{{Name: "constantMetric", SendAsConstant: true}}, MetricTags: checkconfig.MetricTagConfigList{
+				{Symbols: []checkconfig.SymbolConfig{{Name: "constantMetric", ConstantValueOne: true}}, MetricTags: checkconfig.MetricTagConfigList{
 					{
 						Tag:    "status",
 						Column: checkconfig.SymbolConfig{Name: "status", OID: "1.2.3.4"},
