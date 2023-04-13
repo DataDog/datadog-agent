@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	scanTimeout = time.Second * 30
+	defaultScanTimeout = time.Second * 30
 )
 
 var (
@@ -100,6 +100,11 @@ func (s *Scanner) Start(ctx context.Context) {
 					sbomFailures.Inc(request.Collector(), request.Type(), "disk_space")
 					log.Errorf("An error occurred while checking current disk usage: %s", err)
 					continue
+				}
+
+				scanTimeout := request.opts.Timeout
+				if scanTimeout == 0 {
+					scanTimeout = defaultScanTimeout
 				}
 
 				scanContext, cancel := context.WithTimeout(ctx, scanTimeout)
