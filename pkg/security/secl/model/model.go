@@ -337,8 +337,8 @@ func (e *Event) RemoveFromFlags(flag uint32) {
 	e.Flags ^= flag
 }
 
-// MatchedProfile returns true if we found a profile for that event
-func (e *Event) MatchedProfile() bool {
+// HasProfile returns true if we found a profile for that event
+func (e *Event) HasProfile() bool {
 	return e.SecurityProfileContext.Name != ""
 }
 

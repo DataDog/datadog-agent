@@ -403,7 +403,7 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 	}
 
 	// if a profile is already present for this event, dont even try to add it to a dump
-	if !event.MatchedProfile() {
+	if !event.HasProfile() {
 		// Process after evaluation because some monitors need the DentryResolver to have been called first.
 		p.monitor.ProcessEvent(event)
 	}
