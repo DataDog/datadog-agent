@@ -13,7 +13,8 @@ concurrency:
 
 jobs:
   windows-unit-tests:
-    runs-on: windows-2022 # https://github.com/actions/virtual-environments/blob/main/images/win/Windows2019-Readme.md
+    # https://github.com/actions/virtual-environments/blob/main/images/win/Windows2019-Readme.md
+    runs-on: windows-2019
     steps:
       - name: Checkout datadog-agent repository
         uses: actions/checkout@v3
