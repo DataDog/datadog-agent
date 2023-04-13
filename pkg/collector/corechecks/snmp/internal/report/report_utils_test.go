@@ -903,3 +903,168 @@ func Test_getInterfaceConfig(t *testing.T) {
 		})
 	}
 }
+
+func Test_getContantMetricValues(t *testing.T) {
+	type logCount struct {
+		log   string
+		count int
+	}
+	tests := []struct {
+		name           string
+		metricTags     checkconfig.MetricTagConfigList
+		values         *valuestore.ResultValueStore
+		expectedValues map[string]valuestore.ResultValue
+		expectedLogs   []logCount
+	}{
+		{
+			name: "One metric tag",
+			metricTags: checkconfig.MetricTagConfigList{{
+				Column: checkconfig.SymbolConfig{
+					OID:  "1.2.3",
+					Name: "value",
+				},
+				Tag: "my_tag",
+			}},
+			values: &valuestore.ResultValueStore{ColumnValues: map[string]map[string]valuestore.ResultValue{
+				"1.2.3": {
+					"1": {
+						Value: float64(10),
+					},
+					"2": {
+						Value: float64(5),
+					},
+				},
+			}},
+			expectedValues: map[string]valuestore.ResultValue{
+				"1": {
+					Value: float64(1),
+				},
+				"2": {
+					Value: float64(1),
+				},
+			},
+		},
+		{
+			name: "Two metric tags",
+			metricTags: checkconfig.MetricTagConfigList{{
+				Column: checkconfig.SymbolConfig{
+					OID:  "1.2.3",
+					Name: "value",
+				},
+				Tag: "my_first_tag",
+			},
+				{
+					Column: checkconfig.SymbolConfig{
+						OID:  "1.2.4",
+						Name: "value",
+					},
+					Tag: "my_second_tag",
+				}},
+			values: &valuestore.ResultValueStore{ColumnValues: map[string]map[string]valuestore.ResultValue{
+				"1.2.3": {
+					"1": {
+						Value: float64(10),
+					},
+				},
+				"1.2.4": {
+					"2": {
+						Value: float64(5),
+					},
+				},
+			}},
+			expectedValues: map[string]valuestore.ResultValue{
+				"1": {
+					Value: float64(1),
+				},
+				"2": {
+					Value: float64(1),
+				},
+			},
+		},
+		{
+			name: "Two metric tags with index overlap",
+			metricTags: checkconfig.MetricTagConfigList{{
+				Column: checkconfig.SymbolConfig{
+					OID:  "1.2.3",
+					Name: "value",
+				},
+				Tag: "my_first_tag",
+			},
+				{
+					Column: checkconfig.SymbolConfig{
+						OID:  "1.2.4",
+						Name: "value",
+					},
+					Tag: "my_second_tag",
+				}},
+			values: &valuestore.ResultValueStore{ColumnValues: map[string]map[string]valuestore.ResultValue{
+				"1.2.3": {
+					"1": {
+						Value: float64(10),
+					},
+					"2": {
+						Value: float64(5),
+					},
+				},
+				"1.2.4": {
+					"1": {
+						Value: float64(10),
+					},
+					"2": {
+						Value: float64(5),
+					},
+				},
+			}},
+			expectedValues: map[string]valuestore.ResultValue{
+				"1": {
+					Value: float64(1),
+				},
+				"2": {
+					Value: float64(1),
+				},
+			},
+		},
+		{
+			name: "Value not found",
+			metricTags: checkconfig.MetricTagConfigList{{
+				Column: checkconfig.SymbolConfig{
+					OID:  "1.2.3",
+					Name: "value",
+				},
+				Tag: "my_tag",
+			}},
+			values:         &valuestore.ResultValueStore{},
+			expectedValues: map[string]valuestore.ResultValue{},
+			expectedLogs: []logCount{
+				{"error getting column value", 1},
+			},
+		},
+		{
+			name:           "No metric tags",
+			metricTags:     checkconfig.MetricTagConfigList{},
+			values:         &valuestore.ResultValueStore{},
+			expectedValues: map[string]valuestore.ResultValue{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var b bytes.Buffer
+			w := bufio.NewWriter(&b)
+
+			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+			assert.Nil(t, err)
+			log.SetupLogger(l, "debug")
+
+			values := getConstantMetricValues(tt.metricTags, tt.values)
+
+			assert.Equal(t, tt.expectedValues, values)
+
+			w.Flush()
+			logs := b.String()
+
+			for _, aLogCount := range tt.expectedLogs {
+				assert.Equal(t, aLogCount.count, strings.Count(logs, aLogCount.log), logs)
+			}
+		})
+	}
+}
