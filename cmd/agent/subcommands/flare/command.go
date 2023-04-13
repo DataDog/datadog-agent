@@ -78,6 +78,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 					LogParams:            log.LogForOneShot(command.LoggerName, "off", false),
 				}),
+				fx.Supply(flare.NewLocalParams(
+					commonpath.GetDistPath(),
+					commonpath.PyChecksPath,
+					commonpath.DefaultLogFile,
+					commonpath.DefaultJmxLogFile,
+				)),
 				flare.Module,
 				core.Bundle,
 			)
