@@ -175,6 +175,10 @@ func getInterfaceConfig(interfaceConfigs []snmpintegration.InterfaceConfig, inde
 func getConstantMetricValues(mtcl checkconfig.MetricTagConfigList, values *valuestore.ResultValueStore) map[string]valuestore.ResultValue {
 	constantValues := make(map[string]valuestore.ResultValue)
 	for _, metricTag := range mtcl {
+		if len(metricTag.IndexTransform) > 0 {
+			// If index transform is set, indexes are from another table, we don't want to collect them
+			continue
+		}
 		if metricTag.Column.OID != "" {
 			columnValues, err := getColumnValueFromSymbol(values, metricTag.Column)
 			if err != nil {

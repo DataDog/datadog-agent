@@ -1025,6 +1025,44 @@ func Test_getContantMetricValues(t *testing.T) {
 			},
 		},
 		{
+			name: "Should ignore metric tags with index transform",
+			metricTags: checkconfig.MetricTagConfigList{{
+				Column: checkconfig.SymbolConfig{
+					OID:  "1.2.3",
+					Name: "value",
+				},
+				Tag: "my_first_tag",
+			},
+				{
+					Column: checkconfig.SymbolConfig{
+						OID:  "1.2.4",
+						Name: "value",
+					},
+					IndexTransform: []checkconfig.MetricIndexTransform{
+						{Start: 0,
+							End: 1,
+						}},
+					Tag: "my_second_tag",
+				}},
+			values: &valuestore.ResultValueStore{ColumnValues: map[string]map[string]valuestore.ResultValue{
+				"1.2.3": {
+					"1": {
+						Value: float64(10),
+					},
+				},
+				"1.2.4": {
+					"2": {
+						Value: float64(5),
+					},
+				},
+			}},
+			expectedValues: map[string]valuestore.ResultValue{
+				"1": {
+					Value: float64(1),
+				},
+			},
+		},
+		{
 			name: "Value not found",
 			metricTags: checkconfig.MetricTagConfigList{{
 				Column: checkconfig.SymbolConfig{
