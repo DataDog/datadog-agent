@@ -207,8 +207,8 @@ require (
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.75.0
 	go.uber.org/atomic v1.10.0
 	go.uber.org/automaxprocs v1.5.2
-	go.uber.org/dig v1.15.0
-	go.uber.org/fx v1.18.2
+	go.uber.org/dig v1.16.1
+	go.uber.org/fx v1.19.2
 	go.uber.org/multierr v1.11.0
 	go.uber.org/zap v1.24.0
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
