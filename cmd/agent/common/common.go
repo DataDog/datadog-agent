@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
-	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -44,9 +43,6 @@ var (
 
 	// MainCtxCancel cancels the main agent context
 	MainCtxCancel context.CancelFunc
-
-	// utility variables
-	_here, _ = executable.Folder()
 )
 
 // GetPythonPaths returns the paths (in order of precedence) from where the agent

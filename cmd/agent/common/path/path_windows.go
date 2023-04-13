@@ -6,18 +6,17 @@
 package path
 
 import (
-	"os"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 
-	"github.com/cihub/seelog"
 	"golang.org/x/sys/windows/registry"
 )
 
 var (
+	// utility variables
+	_here, _ = executable.Folder()
 	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
 	PyChecksPath = filepath.Join(_here, "..", "checks.d")
 	distPath     string
