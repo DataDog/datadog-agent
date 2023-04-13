@@ -14,21 +14,12 @@ concurrency:
 jobs:
   windows-unit-tests:
     runs-on: windows-2022 # https://github.com/actions/virtual-environments/blob/main/images/win/Windows2019-Readme.md
+    container: datadog/agent-buildimages-windows_x64:1809
     steps:
       - name: Checkout datadog-agent repository
         uses: actions/checkout@v3
         with:
           fetch-depth: 0 #needed for 'git describe' to work
-
-      - name: Install python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.8.10'
-
-      - name: Install go
-        uses: actions/setup-go@v3
-        with:
-          go-version-file: '.go-version'
 
       - name: Set up runner
         run: |
