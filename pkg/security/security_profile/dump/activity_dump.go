@@ -742,13 +742,13 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 }
 
 // FindMatchingNodes return the matching nodes of requested comm
-func (ad *ActivityDump) FindMatchingNodes(comm string) []*ProcessActivityNode {
+func (ad *ActivityDump) FindMatchingNodes(basename string) []*ProcessActivityNode {
 	ad.Lock()
 	defer ad.Unlock()
 
 	var res []*ProcessActivityNode
 	for _, node := range ad.ProcessActivityTree {
-		if node.Process.Comm == comm {
+		if node.Process.FileEvent.BasenameStr == basename {
 			res = append(res, node)
 		}
 	}
