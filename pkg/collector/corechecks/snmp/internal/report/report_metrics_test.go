@@ -312,17 +312,19 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 		log   string
 		count int
 	}
+	type expectedMetric struct {
+		method string
+		name   string
+		value  float64
+		tags   []string
+	}
 	tests := []struct {
-		name               string
-		metrics            []checkconfig.MetricsConfig
-		values             *valuestore.ResultValueStore
-		tags               []string
-		expectedMethod     string
-		expectedMetricName string
-		expectedValue      float64
-		expectedTags       []string
-		expectedSubMetrics int
-		expectedLogs       []logCount
+		name            string
+		metrics         []checkconfig.MetricsConfig
+		values          *valuestore.ResultValueStore
+		tags            []string
+		expectedMetrics []expectedMetric
+		expectedLogs    []logCount
 	}{
 		{
 			name: "report scalar error",
@@ -354,16 +356,31 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 							Value: float64(2),
 						},
 						"5.6.9": valuestore.ResultValue{
-							Value: float64(1),
+							Value: float64(3),
 						},
 					},
 				},
 			},
-			expectedMethod:     "Gauge",
-			expectedMetricName: "snmp.constantMetric",
-			expectedValue:      float64(1),
-			expectedTags:       []string{"status:1"},
-			expectedSubMetrics: 3,
+			expectedMetrics: []expectedMetric{
+				{
+					method: "Gauge",
+					name:   "snmp.constantMetric",
+					value:  float64(1),
+					tags:   []string{"status:1"},
+				},
+				{
+					method: "Gauge",
+					name:   "snmp.constantMetric",
+					value:  float64(1),
+					tags:   []string{"status:2"},
+				},
+				{
+					method: "Gauge",
+					name:   "snmp.constantMetric",
+					value:  float64(1),
+					tags:   []string{"status:3"},
+				},
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -382,9 +399,9 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 
 			metricSender.ReportMetrics(tt.metrics, tt.values, tt.tags)
 
-			assert.Equal(t, tt.expectedSubMetrics, metricSender.submittedMetrics)
-			if tt.expectedMethod != "" {
-				mockSender.AssertCalled(t, tt.expectedMethod, tt.expectedMetricName, tt.expectedValue, "", tt.expectedTags)
+			assert.Equal(t, len(tt.expectedMetrics), metricSender.submittedMetrics)
+			for _, expectedMetric := range tt.expectedMetrics {
+				mockSender.AssertCalled(t, expectedMetric.method, expectedMetric.name, expectedMetric.value, "", expectedMetric.tags)
 			}
 
 			w.Flush()
