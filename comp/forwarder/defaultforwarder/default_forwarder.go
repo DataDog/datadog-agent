@@ -211,6 +211,7 @@ type DefaultForwarder struct {
 }
 
 // NewDefaultForwarder returns a new DefaultForwarder.
+// TODO: (components) Remove this method and other exported methods in comp/forwarder.
 func NewDefaultForwarder(config config.Component, options *Options) *DefaultForwarder {
 	agentName := getAgentName(options)
 	f := &DefaultForwarder{
