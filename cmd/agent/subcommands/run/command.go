@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
+	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	global "github.com/DataDog/datadog-agent/cmd/agent/dogstatsd"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
@@ -125,7 +126,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Supply(core.BundleParams{
 				ConfigParams:         config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
 				SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-				LogParams:            log.LogForDaemon("CORE", "log_file", common.DefaultLogFile),
+				LogParams:            log.LogForDaemon("CORE", "log_file", path.DefaultLogFile),
 			}),
 			getSharedFxOption(),
 		)
@@ -233,7 +234,7 @@ func StartAgentWithDefaults() (dogstatsdServer.Component, error) {
 		fx.Supply(core.BundleParams{
 			ConfigParams:         config.NewAgentParamsWithSecrets(""),
 			SysprobeConfigParams: sysprobeconfig.NewParams(),
-			LogParams:            log.LogForDaemon("CORE", "log_file", common.DefaultLogFile),
+			LogParams:            log.LogForDaemon("CORE", "log_file", path.DefaultLogFile),
 		}),
 		getSharedFxOption(),
 	)
@@ -281,7 +282,7 @@ func startAgent(
 	syslogURI := pkgconfig.GetSyslogURI()
 	jmxLogFile := pkgconfig.Datadog.GetString("jmx_log_file")
 	if jmxLogFile == "" {
-		jmxLogFile = common.DefaultJmxLogFile
+		jmxLogFile = path.DefaultJmxLogFile
 	}
 
 	if pkgconfig.Datadog.GetBool("disable_file_logging") {

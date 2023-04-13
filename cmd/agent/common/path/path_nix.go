@@ -3,7 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package common
+//go:build netbsd || openbsd || solaris || dragonfly || linux
+// +build netbsd openbsd solaris dragonfly linux
+
+package path
 
 import (
 	"path/filepath"
@@ -11,17 +14,17 @@ import (
 
 const (
 	// DefaultConfPath points to the folder containing datadog.yaml
-	DefaultConfPath = "/opt/datadog-agent/etc"
+	DefaultConfPath = "/etc/datadog-agent"
 	// DefaultLogFile points to the log file that will be used if not configured
-	DefaultLogFile = "/opt/datadog-agent/logs/agent.log"
+	DefaultLogFile = "/var/log/datadog/agent.log"
 	// DefaultDCALogFile points to the log file that will be used if not configured
-	DefaultDCALogFile = "/opt/datadog-agent/logs/cluster-agent.log"
-	//DefaultJmxLogFile points to the jmx fetch log file that will be used if not configured
-	DefaultJmxLogFile = "/opt/datadog-agent/logs/jmxfetch.log"
+	DefaultDCALogFile = "/var/log/datadog/cluster-agent.log"
+	// DefaultJmxLogFile points to the jmx fetch log file that will be used if not configured
+	DefaultJmxLogFile = "/var/log/datadog/jmxfetch.log"
 	// DefaultCheckFlareDirectory a flare friendly location for checks to be written
-	DefaultCheckFlareDirectory = "/opt/datadog-agent/logs/checks/"
+	DefaultCheckFlareDirectory = "/var/log/datadog/checks/"
 	// DefaultJMXFlareDirectory a flare friendly location for jmx command logs to be written
-	DefaultJMXFlareDirectory = "/opt/datadog-agent/logs/jmxinfo/"
+	DefaultJMXFlareDirectory = "/var/log/datadog/jmxinfo/"
 )
 
 var (
