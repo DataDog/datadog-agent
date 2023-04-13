@@ -10,9 +10,9 @@ import (
 
 	"github.com/stretchr/testify/mock"
 
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 )
 
 // NewMockSender initiates the aggregator and returns a

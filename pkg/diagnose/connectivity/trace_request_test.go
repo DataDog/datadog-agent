@@ -14,8 +14,8 @@ import (
 	"github.com/fatih/color"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
-	"github.com/DataDog/datadog-agent/pkg/forwarder/endpoints"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 )
 
 var (
@@ -45,7 +45,7 @@ func TestSendHTTPRequestToEndpoint(t *testing.T) {
 	}))
 	defer ts1.Close()
 
-	client := forwarder.NewHTTPClient()
+	client := defaultforwarder.NewHTTPClient()
 
 	// With the correct API Key, it should be a 200
 	statusCodeWithKey, responseBodyWithKey, errWithKey := sendHTTPRequestToEndpoint(context.Background(), color.Output, client, ts1.URL, endpointInfoTest, apiKey1)

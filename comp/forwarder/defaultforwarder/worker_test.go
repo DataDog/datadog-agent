@@ -6,7 +6,7 @@
 //go:build test
 // +build test
 
-package forwarder
+package defaultforwarder
 
 import (
 	"fmt"
@@ -17,8 +17,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 )
 
 func TestNewWorker(t *testing.T) {

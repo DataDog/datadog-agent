@@ -9,7 +9,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 )
 
 // QueueDurationCapacity provides a method to know how much data (express as a duration)

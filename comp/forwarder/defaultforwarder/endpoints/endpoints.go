@@ -7,7 +7,7 @@
 // Datadog using the right request path for a given type of data.
 package endpoints
 
-import "github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
+import "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 
 var (
 	// V1SeriesEndpoint is a v1 endpoint used to send series

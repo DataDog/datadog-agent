@@ -6,7 +6,7 @@
 //go:build test
 // +build test
 
-package forwarder
+package defaultforwarder
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 
 	"github.com/stretchr/testify/mock"
 
-	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 )
 
 type testTransaction struct {

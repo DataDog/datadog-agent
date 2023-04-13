@@ -6,7 +6,6 @@
 package defaultforwarder
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"go.uber.org/fx"
 )
 
@@ -18,11 +17,11 @@ type dependencies struct {
 
 func newForwarder(dep dependencies) Component {
 	if dep.Params.UseNoopForwarder {
-		return forwarder.NoopForwarder{}
+		return NoopForwarder{}
 	}
-	return forwarder.NewDefaultForwarder(dep.Params.Options)
+	return NewDefaultForwarder(dep.Params.Options)
 }
 
 func newMockForwarder() Component {
-	return forwarder.NewDefaultForwarder(forwarder.NewOptions(nil))
+	return NewDefaultForwarder(NewOptions(nil))
 }

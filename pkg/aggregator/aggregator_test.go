@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -51,7 +50,7 @@ func initF() {
 	opts := DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = 1 * time.Hour
 	opts.DontStartForwarders = true
-	forwarder := forwarder.NewDefaultForwarder(forwarder.NewOptions(nil))
+	forwarder := defaultforwarder.NewDefaultForwarder(defaultforwarder.NewOptions(nil))
 	demux := InitAndStartAgentDemultiplexer(forwarder, opts, defaultHostname)
 
 	demux.Aggregator().tlmContainerTagsEnabled = false // do not use a ContainerImpl
