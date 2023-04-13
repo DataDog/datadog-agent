@@ -22,15 +22,10 @@ func main() {
 
 	b = removeAbsolutePath(b, runtime.GOOS)
 
-	// Convert [160]int8 to [160]byte in http_transaction_t members to simplify
+	// Convert []int8 to []byte in multiple generated fields from the kernel, to simplify
 	// conversion to string; see golang.org/issue/20753
-	convertHTTPTransactionRegex := regexp.MustCompile(`(Request_fragment|Topic_name)(\s+)\[(\d+)\]u?int8`)
-	b = convertHTTPTransactionRegex.ReplaceAll(b, []byte("$1$2[$3]byte"))
-
-	// Convert [120]int8 to [120]byte in lib_path_t members to simplify
-	// conversion to string; see golang.org/issue/20753
-	convertLibraryRegex := regexp.MustCompile(`(Buf)(\s+)\[(\d+)\]u?int8`)
-	b = convertLibraryRegex.ReplaceAll(b, []byte("$1$2[$3]byte"))
+	convertInt8ArrayToByteArrayRegex := regexp.MustCompile(`(Request_fragment|Topic_name|Buf)(\s+)\[(\d+)\]u?int8`)
+	b = convertInt8ArrayToByteArrayRegex.ReplaceAll(b, []byte("$1$2[$3]byte"))
 
 	b, err = format.Source(b)
 	if err != nil {
