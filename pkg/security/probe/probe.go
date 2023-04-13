@@ -1232,10 +1232,10 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 	return debug
 }
 
-// EvaluationSet returns a new evaluation set
-func (p *Probe) EvaluationSet(eventTypeEnabled map[eval.EventType]bool, ruleSetTags []eval.NormalizedRuleTag) *rules.EvaluationSet {
+// NewEvaluationSet returns a new evaluation set with rule sets tagged by the passed-in tag values for the "ruleset" tag key
+func (p *Probe) NewEvaluationSet(eventTypeEnabled map[eval.EventType]bool, ruleSetTagValues []string) *rules.EvaluationSet {
 	var ruleSetsToInclude []*rules.RuleSet
-	for _, ruleSetTag := range ruleSetTags {
+	for _, ruleSetTagValue := range ruleSetTagValues {
 		ruleOpts, evalOpts := rules.NewEvalOpts(eventTypeEnabled)
 
 		ruleOpts.WithLogger(seclog.DefaultLogger)
@@ -1248,7 +1248,7 @@ func (p *Probe) EvaluationSet(eventTypeEnabled map[eval.EventType]bool, ruleSetT
 			}
 		}
 
-		rs := rules.NewRuleSet(NewModel(p), eventCtor, ruleOpts.WithTag(ruleSetTag), evalOpts)
+		rs := rules.NewRuleSet(NewModel(p), eventCtor, ruleOpts.WithRuleSetTag(ruleSetTagValue), evalOpts)
 		ruleSetsToInclude = append(ruleSetsToInclude, rs)
 	}
 

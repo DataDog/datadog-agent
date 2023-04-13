@@ -28,10 +28,11 @@ type CombinePolicy = string
 
 // Combine policies
 const (
-	NoPolicy                  CombinePolicy = ""
-	MergePolicy               CombinePolicy = "merge"
-	OverridePolicy            CombinePolicy = "override"
-	ProbeEvaluationRuleSetTag               = "probe_evaluation"
+	NoPolicy               CombinePolicy = ""
+	MergePolicy            CombinePolicy = "merge"
+	OverridePolicy         CombinePolicy = "override"
+	RuleSetTagKey                        = "ruleset"
+	DefaultRuleSetTagValue               = "probe_evaluation"
 )
 
 // MacroDefinition holds the definition of a macro
@@ -86,13 +87,13 @@ type RuleDefinition struct {
 	Policy                 *Policy
 }
 
-// GetTag returns the tag associated with a rule
-func (rd *RuleDefinition) GetTag(tagKey string) (bool, string) {
+// GetTag returns the tag value associated with a tag key
+func (rd *RuleDefinition) GetTag(tagKey string) (string, bool) {
 	tagValue, ok := rd.Tags[tagKey]
 	if ok {
-		return true, tagValue
+		return tagValue, true
 	}
-	return false, ""
+	return "", false
 }
 
 // MergeWith merges rule rd2 into rd
@@ -191,9 +192,9 @@ func (rs *RuleSet) GetRules() map[eval.RuleID]*Rule {
 	return rs.rules
 }
 
-// GetTag gets the tag of the rule set, which is usually the tag of the rules that belong in this rule set
-func (rs *RuleSet) GetTag() eval.NormalizedRuleTag {
-	return rs.opts.Tag
+// GetRuleSetTag gets the value of the "ruleset" tag, which is the tag of the rules that belong in this rule set
+func (rs *RuleSet) GetRuleSetTag() eval.RuleSetTagValue {
+	return rs.opts.RuleSetTag[RuleSetTagKey]
 }
 
 // ListMacroIDs returns the list of MacroIDs from the ruleset
@@ -749,10 +750,6 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalO
 
 	if evalOpts.VariableStore == nil {
 		evalOpts.WithVariableStore(&eval.VariableStore{})
-	}
-
-	if opts.Tag == "" {
-		opts.WithTag(ProbeEvaluationRuleSetTag)
 	}
 
 	return &RuleSet{

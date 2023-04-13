@@ -25,12 +25,12 @@ type PolicyDef struct {
 
 // Policy represents a policy file which is composed of a list of rules and macros
 type Policy struct {
-	Name        string
-	Source      string
-	Version     string
-	Rules       []*RuleDefinition
-	Macros      []*MacroDefinition
-	TaggedRules map[eval.NormalizedRuleTag][]*RuleDefinition
+	Name               string
+	Source             string
+	Version            string
+	Rules              []*RuleDefinition
+	Macros             []*MacroDefinition
+	RuleSetTaggedRules map[eval.RuleSetTagValue][]*RuleDefinition
 }
 
 // AddMacro add a macro to the policy
@@ -48,11 +48,9 @@ func (p *Policy) AddRule(def *RuleDefinition) {
 func (p *Policy) AddTaggedRule(def *RuleDefinition) {
 	def.Policy = p
 
-	normalizedTags := normalizeTags(def.Tags)
-	for key, val := range normalizedTags {
-		policyRuleListKey := key + ":" + val
-		p.TaggedRules[policyRuleListKey] = append(p.TaggedRules[policyRuleListKey], def)
-	}
+	ruleSetTagValue := def.Tags[RuleSetTagKey]
+
+	p.RuleSetTaggedRules[ruleSetTagValue] = append(p.RuleSetTaggedRules[ruleSetTagValue], def)
 }
 
 func normalizeTags(tags map[string]string) map[string]string {
@@ -72,7 +70,7 @@ func parsePolicyDef(name string, source string, def *PolicyDef, macroFilters []M
 		Source:  source,
 		Version: def.Version,
 	}
-	policy.TaggedRules = make(map[eval.NormalizedRuleTag][]*RuleDefinition)
+	policy.RuleSetTaggedRules = make(map[eval.RuleSetTagValue][]*RuleDefinition)
 
 MACROS:
 	for _, macroDef := range def.Macros {
@@ -107,7 +105,7 @@ RULES:
 	for _, ruleDef := range def.Rules {
 		// set the policy so that when we parse the errors we can get the policy associated
 		ruleDef.Policy = policy
-		isTagged := false
+		hasRuleSetTag := false
 
 		for _, filter := range ruleFilters {
 			isRuleAccepted, err := filter.IsRuleAccepted(ruleDef)
@@ -117,7 +115,7 @@ RULES:
 
 			var isTagFilter bool
 			if _, isTagFilter = filter.(*RuleTagFilter); isTagFilter && isRuleAccepted {
-				isTagged = true
+				hasRuleSetTag = true
 				continue
 			} else if isTagFilter && !isRuleAccepted {
 				continue
@@ -155,7 +153,7 @@ RULES:
 			continue
 		}
 
-		if isTagged {
+		if hasRuleSetTag {
 			policy.AddTaggedRule(ruleDef)
 		} else {
 			policy.AddRule(ruleDef)
