@@ -22,14 +22,7 @@ func (tx *EbpfKafkaTx) ConnTuple() types.ConnectionKey {
 }
 
 func (tx *EbpfKafkaTx) TopicName() string {
-	topicNameAsByteArray := make([]byte, 0, len(tx.Topic_name))
-	for _, integer := range tx.Topic_name {
-		if integer == 0 {
-			break
-		}
-		topicNameAsByteArray = append(topicNameAsByteArray, byte(integer))
-	}
-	return string(topicNameAsByteArray)
+	return string(tx.Topic_name[:tx.Topic_name_size])
 }
 
 func (tx *EbpfKafkaTx) APIKey() uint16 {

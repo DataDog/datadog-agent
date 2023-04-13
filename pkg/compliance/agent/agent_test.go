@@ -95,9 +95,9 @@ func eventMatcher(m eventMatch) interface{} {
 func TestRunK8s(t *testing.T) {
 	assert := assert.New(t)
 
-	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	aggregator.InitAndStartAgentDemultiplexer(opts, "foo")
+	aggregator.InitAndStartAgentDemultiplexerTest(opts, "foo")
 
 	e := enterTempEnv(t, true)
 	defer e.leave()
@@ -171,9 +171,9 @@ func TestRunK8s(t *testing.T) {
 func TestRunDocker(t *testing.T) {
 	assert := assert.New(t)
 
-	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	aggregator.InitAndStartAgentDemultiplexer(opts, "foo")
+	aggregator.InitAndStartAgentDemultiplexerTest(opts, "foo")
 
 	e := enterTempEnv(t, false)
 	defer e.leave()
@@ -264,9 +264,9 @@ func TestRunDocker(t *testing.T) {
 func TestRunChecks(t *testing.T) {
 	assert := assert.New(t)
 
-	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	aggregator.InitAndStartAgentDemultiplexer(opts, "foo")
+	aggregator.InitAndStartAgentDemultiplexerTest(opts, "foo")
 
 	e := enterTempEnv(t, false)
 	defer e.leave()
