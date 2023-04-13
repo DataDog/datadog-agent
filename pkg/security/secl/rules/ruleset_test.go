@@ -85,11 +85,6 @@ func newRuleSet() *RuleSet {
 	return NewRuleSet(&model.Model{}, model.NewDefaultEvent, ruleOpts, evalOpts)
 }
 
-func newEvaluationSet() (*EvaluationSet, error) {
-	rs := newRuleSet()
-	return NewEvaluationSet([]*RuleSet{rs})
-}
-
 func TestRuleBuckets(t *testing.T) {
 	exprs := []string{
 		`(open.filename =~ "/sbin/*" || open.filename =~ "/usr/sbin/*") && process.uid != 0 && open.flags & O_CREAT > 0`,
