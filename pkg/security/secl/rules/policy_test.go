@@ -9,6 +9,7 @@
 package rules
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -71,7 +72,7 @@ func TestMacroMerge(t *testing.T) {
 	}
 	loader := NewPolicyLoader(provider)
 
-	evaluationSet, _ := newEvaluationSet()
+	evaluationSet, _ := newEvaluationSet([]eval.RuleSetTagValue{DefaultRuleSetTagValue})
 	if errs := evaluationSet.LoadPolicies(loader, PolicyLoaderOpts{}); errs.ErrorOrNil() != nil {
 		t.Error(err)
 	}
@@ -124,7 +125,7 @@ func TestRuleMerge(t *testing.T) {
 	}
 	loader := NewPolicyLoader(provider)
 
-	evaluationSet, _ := newEvaluationSet()
+	evaluationSet, _ := newEvaluationSet([]eval.RuleSetTagValue{DefaultRuleSetTagValue})
 	if errs := evaluationSet.LoadPolicies(loader, PolicyLoaderOpts{}); errs.ErrorOrNil() != nil {
 		t.Error(err)
 	}
@@ -242,7 +243,7 @@ func TestActionSetVariable(t *testing.T) {
 	}
 	loader := NewPolicyLoader(provider)
 
-	evaluationSet, _ := newEvaluationSet()
+	evaluationSet, _ := newEvaluationSet([]eval.RuleSetTagValue{DefaultRuleSetTagValue})
 	if errs := evaluationSet.LoadPolicies(loader, PolicyLoaderOpts{}); errs.ErrorOrNil() != nil {
 		t.Error(err)
 	}
@@ -308,28 +309,10 @@ func TestActionSetVariableConflict(t *testing.T) {
 	}
 	loader := NewPolicyLoader(provider)
 
-	evaluationSet, _ := newEvaluationSet()
+	evaluationSet, _ := newEvaluationSet([]eval.RuleSetTagValue{DefaultRuleSetTagValue})
 	if errs := evaluationSet.LoadPolicies(loader, PolicyLoaderOpts{}); errs.ErrorOrNil() == nil {
 		t.Error("expected policy to fail to load")
 	}
-}
-
-func loadPolicy(t *testing.T, testPolicy *PolicyDef, policyOpts PolicyLoaderOpts) (*RuleSet, *multierror.Error) {
-	tmpDir := t.TempDir()
-
-	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
-		t.Fatal(err)
-	}
-
-	provider, err := NewPoliciesDirProvider(tmpDir, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	loader := NewPolicyLoader(provider)
-
-	evaluationSet, _ := newEvaluationSet()
-	return evaluationSet.RuleSets[DefaultRuleSetTagValue], evaluationSet.LoadPolicies(loader, policyOpts)
 }
 
 func TestRuleErrorLoading(t *testing.T) {
@@ -350,7 +333,8 @@ func TestRuleErrorLoading(t *testing.T) {
 		},
 	}
 
-	rs, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
+	es, err := loadPolicyIntoProbeEvaluationRuleSet(t, testPolicy, PolicyLoaderOpts{})
+	rs := es.RuleSets[DefaultRuleSetTagValue]
 	assert.NotNil(t, err)
 	assert.Len(t, err.Errors, 2)
 	assert.ErrorContains(t, err.Errors[0], "rule `testA` error: multiple definition with the same ID")
@@ -488,7 +472,9 @@ func TestRuleAgentConstraint(t *testing.T) {
 		},
 	}
 
-	rs, err := loadPolicy(t, testPolicy, policyOpts)
+	es, err := loadPolicyIntoProbeEvaluationRuleSet(t, testPolicy, policyOpts)
+	rs := es.RuleSets[DefaultRuleSetTagValue]
+
 	for _, err := range err.(*multierror.Error).Errors {
 		if rerr, ok := err.(*ErrRuleLoad); ok {
 			if rerr.Definition.ID != "basic" && rerr.Definition.ID != "range_not" {
@@ -524,7 +510,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			}},
 		}
 
-		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+		if _, err := loadPolicyIntoProbeEvaluationRuleSet(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("policy should fail to load")
 		} else {
 			t.Log(err)
@@ -549,7 +535,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			}},
 		}
 
-		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+		if _, err := loadPolicyIntoProbeEvaluationRuleSet(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
 			t.Log(err)
@@ -574,7 +560,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			}},
 		}
 
-		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+		if _, err := loadPolicyIntoProbeEvaluationRuleSet(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
 			t.Log(err)
@@ -595,7 +581,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			}},
 		}
 
-		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+		if _, err := loadPolicyIntoProbeEvaluationRuleSet(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
 			t.Log(err)
@@ -627,7 +613,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			}},
 		}
 
-		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+		if _, err := loadPolicyIntoProbeEvaluationRuleSet(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
 			t.Log(err)
@@ -658,7 +644,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			}},
 		}
 
-		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+		if _, err := loadPolicyIntoProbeEvaluationRuleSet(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
 			t.Log(err)
@@ -690,7 +676,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			}},
 		}
 
-		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+		if _, err := loadPolicyIntoProbeEvaluationRuleSet(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
 			t.Log(err)
