@@ -556,23 +556,8 @@ workflow:
       DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
       IMG_REGISTRIES: internal-aws-ddbuild
 
-.on_deploy_a7_internal_manual:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_not_deploy
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: never
-  - when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: ci/datadog-agent/agent-release
-      CLUSTER_AGENT_REPOSITORY: ci/datadog-agent/cluster-agent-release
-      DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
-      IMG_REGISTRIES: internal-aws-ddbuild
-
-# Same as on_deploy_a7_internal_manual, except the job would not run on pipelines
-# using beta branch, it would only run for the final release.
+# Same as on_deploy_a7_manual_final, except the job is used to publish images
+# to our internal registries.
 .on_deploy_a7_internal_manual_final:
   - <<: *if_not_version_7
     when: never
