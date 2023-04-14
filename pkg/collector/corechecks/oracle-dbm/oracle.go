@@ -128,7 +128,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		} else {
 			c.dbHostname = dbHostname
 		}
-		c.tags = append(c.tags, fmt.Sprintf("dbhost:%s", c.dbHostname), fmt.Sprintf("oracle_version:%s", c.dbVersion))
+		c.tags = append(c.tags, fmt.Sprintf("host:%s", c.dbHostname), fmt.Sprintf("oracle_version:%s", c.dbVersion))
 	}
 
 	return db, nil
