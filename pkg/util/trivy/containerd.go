@@ -147,13 +147,17 @@ func inspect(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, 
 	for k := range imgConfig.Config.ExposedPorts {
 		portSet[nat.Port(k)] = struct{}{}
 	}
+	created := ""
+	if lastHistory.Created != nil {
+		created = lastHistory.Created.Format(time.RFC3339Nano)
+	}
 
 	return api.ImageInspect{
 		ID:          imgConfigDesc.Digest.String(),
 		RepoTags:    imgMeta.RepoTags,
 		RepoDigests: imgMeta.RepoDigests,
 		Comment:     lastHistory.Comment,
-		Created:     lastHistory.Created.Format(time.RFC3339Nano),
+		Created:     created,
 		Author:      lastHistory.Author,
 		Config: &container.Config{
 			User:         imgConfig.Config.User,
