@@ -17,8 +17,7 @@ import (
 func TestGetClusterName(t *testing.T) {
 	ctx := context.Background()
 	mockConfig := config.Mock(t)
-	config.SetDetectedFeatures(config.FeatureMap{config.Kubernetes: struct{}{}})
-	defer config.SetDetectedFeatures(nil)
+	config.SetFeatures(t, config.Kubernetes)
 	data := newClusterNameData()
 
 	testClusterName := "laika"

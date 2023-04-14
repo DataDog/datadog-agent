@@ -21,8 +21,8 @@ import (
 	"github.com/dgraph-io/badger/v3"
 	"github.com/hashicorp/go-multierror"
 
+	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta/telemetry"
 )
 
 var garbageCollectionTick = 10 * time.Minute

@@ -157,4 +157,10 @@ static __attribute__((always_inline)) u64 is_send_signal_available() {
     return send_signal;
 };
 
+static __attribute__((always_inline)) u64 is_anomaly_syscalls_enabled() {
+    u64 anomaly;
+    LOAD_CONSTANT("anomaly_syscalls", anomaly);
+    return anomaly;
+};
+
 #endif

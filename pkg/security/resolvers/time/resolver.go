@@ -9,11 +9,11 @@
 package time
 
 import (
-	"fmt"
 	"time"
 
+	_ "unsafe"
+
 	"github.com/DataDog/gopsutil/host"
-	"golang.org/x/sys/unix"
 )
 
 // Resolver converts kernel monotonic timestamps to absolute times
@@ -34,20 +34,18 @@ func NewResolver() (*Resolver, error) {
 	return &tr, nil
 }
 
-func (tr *Resolver) getUptimeOffset() (time.Duration, error) {
-	upTime := new(unix.Timespec)
-	err := unix.ClockGettime(unix.CLOCK_MONOTONIC, upTime)
-	if err != nil {
-		return 0, fmt.Errorf("couldn't get system up time: %w", err)
-	}
-	return time.Since(tr.bootTime) - time.Duration(upTime.Nano()), nil
+//go:noescape
+//go:linkname nanotime runtime.nanotime
+func nanotime() int64
+
+func (tr *Resolver) getUptimeOffset() time.Duration {
+	return time.Since(tr.bootTime) - time.Duration(nanotime())
 }
 
 // ResolveMonotonicTimestamp converts a kernel monotonic timestamp to an absolute time
 func (tr *Resolver) ResolveMonotonicTimestamp(timestamp uint64) time.Time {
 	if timestamp > 0 {
-		// ignore uptime resolution failure: default back to previous behavior
-		offset, _ := tr.getUptimeOffset()
+		offset := tr.getUptimeOffset()
 		return tr.bootTime.Add(time.Duration(timestamp) + offset)
 	}
 	return time.Time{}
@@ -56,8 +54,7 @@ func (tr *Resolver) ResolveMonotonicTimestamp(timestamp uint64) time.Time {
 // ApplyBootTime return the time re-aligned from the boot time
 func (tr *Resolver) ApplyBootTime(timestamp time.Time) time.Time {
 	if !timestamp.IsZero() {
-		// ignore uptime resolution failure: default back to previous behavior
-		offset, _ := tr.getUptimeOffset()
+		offset := tr.getUptimeOffset()
 		return timestamp.Add(time.Duration(tr.bootTime.UnixNano()) + offset)
 	}
 	return time.Time{}
@@ -66,8 +63,7 @@ func (tr *Resolver) ApplyBootTime(timestamp time.Time) time.Time {
 // ComputeMonotonicTimestamp converts an absolute time to a kernel monotonic timestamp
 func (tr *Resolver) ComputeMonotonicTimestamp(timestamp time.Time) int64 {
 	if !timestamp.IsZero() {
-		// ignore uptime resolution failure: default back to previous behavior
-		offset, _ := tr.getUptimeOffset()
+		offset := tr.getUptimeOffset()
 		return timestamp.Sub(tr.bootTime.Add(offset)).Nanoseconds()
 	}
 	return 0

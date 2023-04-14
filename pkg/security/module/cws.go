@@ -140,7 +140,6 @@ func (c *CWSConsumer) Start() error {
 	}
 
 	// start api server
-	api.RegisterVTCodec()
 	c.apiServer.Start(c.ctx)
 
 	// monitor policies
@@ -176,11 +175,7 @@ func (c *CWSConsumer) Start() error {
 		ruleFilters = append(ruleFilters, agentVersionFilter)
 	}
 
-	kv, err := c.probe.GetKernelVersion()
-	if err != nil {
-		seclog.Errorf("failed to create rule filter model: %v", err)
-	}
-	ruleFilterModel := NewRuleFilterModel(kv)
+	ruleFilterModel := NewRuleFilterModel()
 	seclRuleFilter := rules.NewSECLRuleFilter(ruleFilterModel)
 	macroFilters = append(macroFilters, seclRuleFilter)
 	ruleFilters = append(ruleFilters, seclRuleFilter)
@@ -415,7 +410,9 @@ func (c *CWSConsumer) HandleEvent(event *model.Event) {
 	}
 
 	if ruleSet := c.GetRuleSet(); ruleSet != nil {
-		ruleSet.Evaluate(event)
+		if (event.SecurityProfileContext.Status.IsEnabled(model.AutoSuppression) && event.IsInProfile()) || !ruleSet.Evaluate(event) {
+			ruleSet.EvaluateDiscarders(event)
+		}
 	}
 }
 

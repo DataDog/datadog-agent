@@ -16,15 +16,14 @@ import (
 	"sync"
 	"time"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
-
 	"go.uber.org/atomic"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -275,10 +274,10 @@ func InitExpvars(config ddconfig.ConfigReader, hostname string, processModuleEna
 		expvar.Publish("endpoints", expvar.Func(publishEndpoints(eps)))
 		expvar.Publish("drop_check_payloads", expvar.Func(publishDropCheckPayloads))
 		expvar.Publish("system_probe_process_module_enabled", publishBool(processModuleEnabled))
-
-		// Run a profile & telemetry server.
-		if config.GetBool("telemetry.enabled") {
-			http.Handle("/telemetry", telemetry.Handler())
-		}
 	})
+
+	// Run a profile & telemetry server.
+	if config.GetBool("telemetry.enabled") {
+		http.Handle("/telemetry", telemetry.Handler())
+	}
 }

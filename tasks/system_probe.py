@@ -15,7 +15,7 @@ from subprocess import check_output
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import get_default_build_tags
+from .build_tags import UNIT_TEST_TAGS, get_default_build_tags
 from .libs.common.color import color_message
 from .libs.ninja_syntax import NinjaWriter
 from .test import environ
@@ -542,6 +542,7 @@ def test(
         )
 
     build_tags = [NPM_TAG]
+    build_tags.extend(UNIT_TEST_TAGS)
     if not windows:
         build_tags.append(BPF_TAG)
         if bundle_ebpf:

@@ -106,7 +106,7 @@ func (t *TCPQueueLengthCheck) Run() error {
 	for k, v := range stats {
 		containerID, err := cgroups.ContainerFilter("", k)
 		if err != nil || containerID == "" {
-			log.Warnf("Unable to extract containerID from cgroup name: %s, err: %v", k, err)
+			log.Debugf("Unable to extract containerID from cgroup name: %s, err: %v", k, err)
 			continue
 		}
 

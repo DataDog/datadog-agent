@@ -55,8 +55,6 @@ type AgentDemultiplexer struct {
 
 // AgentDemultiplexerOptions are the options used to initialize a Demultiplexer.
 type AgentDemultiplexerOptions struct {
-	SharedForwarderOptions        *forwarder.Options
-	UseNoopForwarder              bool
 	UseNoopEventPlatformForwarder bool
 	UseNoopOrchestratorForwarder  bool
 	UseEventPlatformForwarder     bool
@@ -69,17 +67,11 @@ type AgentDemultiplexerOptions struct {
 }
 
 // DefaultAgentDemultiplexerOptions returns the default options to initialize an AgentDemultiplexer.
-func DefaultAgentDemultiplexerOptions(options *forwarder.Options) AgentDemultiplexerOptions {
-	if options == nil {
-		options = forwarder.NewOptions(nil)
-	}
-
+func DefaultAgentDemultiplexerOptions() AgentDemultiplexerOptions {
 	return AgentDemultiplexerOptions{
-		SharedForwarderOptions:        options,
 		FlushInterval:                 DefaultFlushInterval,
 		UseEventPlatformForwarder:     true,
 		UseOrchestratorForwarder:      true,
-		UseNoopForwarder:              false,
 		UseNoopEventPlatformForwarder: false,
 		UseNoopOrchestratorForwarder:  false,
 		// the different agents/binaries enable it on a per-need basis
@@ -115,17 +107,22 @@ type dataOutputs struct {
 	noAggSerializer  serializer.MetricSerializer
 }
 
+func InitAndStartAgentDemultiplexerTest(options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
+	sharedForwarder := forwarder.NewDefaultForwarder(forwarder.NewOptions(nil))
+	return InitAndStartAgentDemultiplexer(sharedForwarder, options, hostname)
+}
+
 // InitAndStartAgentDemultiplexer creates a new Demultiplexer and runs what's necessary
 // in goroutines. As of today, only the embedded BufferedAggregator needs a separate goroutine.
 // In the future, goroutines will be started for the event platform forwarder and/or orchestrator forwarder.
-func InitAndStartAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
+func InitAndStartAgentDemultiplexer(sharedForwarder forwarder.Forwarder, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
 	demultiplexerInstanceMu.Lock()
 	defer demultiplexerInstanceMu.Unlock()
 
-	demux := initAgentDemultiplexer(options, hostname)
+	demux := initAgentDemultiplexer(sharedForwarder, options, hostname)
 
 	if demultiplexerInstance != nil {
-		log.Warn("A DemultiplexerInstance is already existing but InitAndStartAgentDemultiplexer has been called again. Current instance will be overridden")
+		log.Warn("A DemultiplexerInstance is already existing but InitAndStartAgentDemultiplexerTest has been called again. Current instance will be overridden")
 	}
 	demultiplexerInstance = demux
 
@@ -133,8 +130,7 @@ func InitAndStartAgentDemultiplexer(options AgentDemultiplexerOptions, hostname 
 	return demux
 }
 
-func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
-
+func initAgentDemultiplexer(sharedForwarder forwarder.Forwarder, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
 	// prepare the multiple forwarders
 	// -------------------------------
 
@@ -153,13 +149,6 @@ func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) 
 		eventPlatformForwarder = epforwarder.NewNoopEventPlatformForwarder()
 	} else if options.UseEventPlatformForwarder {
 		eventPlatformForwarder = epforwarder.NewEventPlatformForwarder()
-	}
-
-	var sharedForwarder forwarder.Forwarder
-	if options.UseNoopForwarder {
-		sharedForwarder = forwarder.NoopForwarder{}
-	} else {
-		sharedForwarder = forwarder.NewDefaultForwarder(options.SharedForwarderOptions)
 	}
 
 	if config.Datadog.GetBool("telemetry.enabled") && config.Datadog.GetBool("telemetry.dogstatsd_origin") && !config.Datadog.GetBool("aggregator_use_tags_store") {

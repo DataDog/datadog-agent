@@ -15,7 +15,6 @@ import (
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
-	"github.com/DataDog/datadog-agent/comp/process/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -31,8 +30,6 @@ func TestBundleDependencies(t *testing.T) {
 
 			mockCoreBundleParams,
 		),
-
-		utils.DisableContainerFeatures,
 
 		// Start the runner
 		fx.Invoke(func(r runner.Component) {}),
@@ -68,9 +65,6 @@ func TestBundleOneShot(t *testing.T) {
 
 			mockCoreBundleParams,
 		),
-
-		utils.DisableContainerFeatures,
-
 		Bundle,
 	)
 	require.NoError(t, err)

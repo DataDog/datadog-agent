@@ -12,7 +12,7 @@ BPF_ARRAY_MAP(enabled_events, u64, 1)
 BPF_ARRAY_MAP(buffer_selector, u32, 3)
 BPF_ARRAY_MAP(dr_erpc_state, struct dr_erpc_state_t, 1)
 BPF_ARRAY_MAP(dr_erpc_buffer, char[DR_ERPC_BUFFER_LENGTH*2], 1)
-BPF_ARRAY_MAP(inode_discarder_revisions, u32, REVISION_ARRAY_SIZE)
+BPF_ARRAY_MAP(inode_disc_revisions, u32, REVISION_ARRAY_SIZE)
 BPF_ARRAY_MAP(discarders_revision, u32, 1)
 BPF_ARRAY_MAP(filter_policy, struct policy_t, EVENT_MAX)
 BPF_ARRAY_MAP(mmap_flags_approvers, u32, 1)
@@ -64,13 +64,13 @@ BPF_LRU_MAP(exec_file_cache, u64, struct file_t, 4096)
 BPF_LRU_MAP(syscall_monitor, u32, struct syscall_monitor_entry_t, 2048)
 BPF_LRU_MAP(syscall_table, struct syscall_table_key_t, u8, 50)
 BPF_LRU_MAP(security_profiles, struct container_context_t, struct security_profile_t, 1) // max entries will be overriden at runtime
-BPF_LRU_MAP(security_profile_syscalls, u64, struct security_profile_syscalls_t, 1) // max entries will be overriden at runtime
+BPF_LRU_MAP(secprofs_syscalls, u64, struct security_profile_syscalls_t, 1) // max entries will be overriden at runtime
 
 BPF_LRU_MAP_FLAGS(tasks_in_coredump, u64, u8, 64, BPF_F_NO_COMMON_LRU)
 
 BPF_PERCPU_ARRAY_MAP(cgroup_tracing_event_gen, u32, struct cgroup_tracing_event_t, 1)
-BPF_PERCPU_ARRAY_MAP(discarder_stats_fb, u32, struct discarder_stats_t, EVENT_LAST_DISCARDER)
-BPF_PERCPU_ARRAY_MAP(discarder_stats_bb, u32, struct discarder_stats_t, EVENT_LAST_DISCARDER)
+BPF_PERCPU_ARRAY_MAP(fb_discarder_stats, u32, struct discarder_stats_t, EVENT_LAST_DISCARDER)
+BPF_PERCPU_ARRAY_MAP(bb_discarder_stats, u32, struct discarder_stats_t, EVENT_LAST_DISCARDER)
 BPF_PERCPU_ARRAY_MAP(str_array_buffers, u32, struct str_array_buffer_t, 1)
 BPF_PERCPU_ARRAY_MAP(process_event_gen, u32, struct process_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(dr_erpc_stats_fb, u32, struct dr_erpc_stats_t, 6)

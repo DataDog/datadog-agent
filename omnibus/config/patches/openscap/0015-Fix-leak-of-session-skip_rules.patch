@@ -1,0 +1,26 @@
+From 7cf99d81283ea5bc30c63e7eae01ceccb82caa62 Mon Sep 17 00:00:00 2001
+From: David du Colombier <djc@datadoghq.com>
+Date: Fri, 17 Feb 2023 09:59:22 +0100
+Subject: [PATCH 15/22] Fix leak of session->skip_rules
+
+The list skip_rules is allocated in xccdf_session_new_from_source,
+but was not freed in xccdf_session_free.
+---
+ src/XCCDF/xccdf_session.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/XCCDF/xccdf_session.c b/src/XCCDF/xccdf_session.c
+index 0e5407f78..54b2bd07a 100644
+--- a/src/XCCDF/xccdf_session.c
++++ b/src/XCCDF/xccdf_session.c
+@@ -358,6 +358,7 @@ void xccdf_session_free(struct xccdf_session *session)
+ 	oscap_htable_free(session->oval.arf_report_mapping, (oscap_destruct_func) free);
+ 	oscap_signature_ctx_free(session->signature_ctx);
+ 	oscap_list_free(session->rules, (oscap_destruct_func) free);
++	oscap_list_free(session->skip_rules, (oscap_destruct_func) free);
+ 	free(session);
+ }
+ 
+-- 
+2.34.1
+
