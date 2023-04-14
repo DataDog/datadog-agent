@@ -402,8 +402,11 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 		p.SendAnomalyDetection(event)
 	}
 
-	// Process after evaluation because some monitors need the DentryResolver to have been called first.
-	p.monitor.ProcessEvent(event)
+	// if a profile is already present for this event, dont even try to add it to a dump
+	if !event.HasProfile() {
+		// Process after evaluation because some monitors need the DentryResolver to have been called first.
+		p.monitor.ProcessEvent(event)
+	}
 }
 
 // DispatchCustomEvent sends a custom event to the probe event handler
