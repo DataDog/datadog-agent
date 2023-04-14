@@ -113,7 +113,6 @@ func (t *Resolver) ImageIDResolver(containerID string) string {
 	container, err := m.GetContainer(containerID)
 	if err != nil {
 		log.Errorf("unable to get container %s: %s", containerID, err)
-
 	}
 
 	imageID := container.Image.ID
