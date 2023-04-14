@@ -6,16 +6,10 @@
   stage: trigger_release
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs:
-    - deploy_packages_deb-6
-    - deploy_packages_rpm-6
-    - deploy_packages_suse_rpm-6
-    - deploy_packages_windows-6
-    - deploy_packages_deb-7
-    - deploy_packages_rpm-7
-    - deploy_packages_suse_rpm-7
-    - deploy_packages_dmg-a7
-    - deploy_packages_windows-7
+  # We don't directly depend/need the package deploy jobs, because
+  # that would make us deploy even when there are kitchen failures etc
+  # We only want to allow automatically triggering agent-release-manangement
+  # pipelines when everything goes well
   variables:
     ACTION: promote
     BUILD_PIPELINE_ID: $CI_PIPELINE_ID

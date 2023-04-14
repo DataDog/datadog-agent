@@ -17,6 +17,7 @@ include:
   - /.gitlab/container_scan.yml
   - /.gitlab/check_deploy.yml
   - /.gitlab/dev_container_deploy.yml
+  - /.gitlab/deploy_common.yml
   - /.gitlab/deploy_6.yml
   - /.gitlab/deploy_7.yml
   - /.gitlab/deploy_dca.yml
