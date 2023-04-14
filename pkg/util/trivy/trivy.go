@@ -166,8 +166,9 @@ func NewCollector(cfg config.Config) (*Collector, error) {
 		return nil, err
 	}
 
-	cleanTicker := time.NewTicker(cfg.GetDuration("sbom.cache_clean_interval"))
 	go func() {
+	    cleanTicker := time.NewTicker(cfg.GetDuration("sbom.cache_clean_interval"))
+	    defer cleanTicker.Close()
 		// Cache can not be cleaned concurrently with a scan
 		for range cleanTicker.C {
 			if err = cacheCleaner.Clean(); err != nil {
