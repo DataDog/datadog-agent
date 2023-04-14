@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -97,18 +96,18 @@ func NewSuite[Env any](stackName string, stackDef *StackDefinition[Env], options
 // return an error in order to write a single line for
 // `suite.Run(t, &vmSuite{Suite: e2e.NewSuite(...)})`
 func (suite *Suite[Env]) SetupSuite() {
-	require := require.New(suite.T())
-
 	// Check if the Env type is correct otherwise raises an error before creating the env.
 	err := client.CheckEnvStructValid[Env]()
-	require.NoError(err)
+	suite.Require().NoError(err)
 
-	env, _, upResult, err := createEnv(suite, suite.stackDef)
-	require.NoError(err)
+	if suite.stackDef != nil {
+		env, upResult, err := createEnv(suite, suite.stackDef)
+		suite.Require().NoError(err)
 
-	suite.Env = env
-	err = client.CallStackInitializers(&suite.auth, env, upResult)
-	require.NoError(err)
+		suite.Env = env
+		err = client.CallStackInitializers(&suite.auth, env, upResult)
+		suite.Require().NoError(err)
+	}
 }
 
 // HandleStats method is run after all the tests in the suite have been run.
@@ -136,19 +135,27 @@ func (suite *Suite[Env]) HandleStats(string, stats *suite.SuiteInformation) {
 	}
 }
 
-func createEnv[Env any](suite *Suite[Env], stackDef *StackDefinition[Env]) (*Env, *auto.Stack, auto.UpResult, error) {
+func createEnv[Env any](suite *Suite[Env], stackDef *StackDefinition[Env]) (*Env, auto.UpResult, error) {
 	var env *Env
 	ctx := context.Background()
 
-	stack, stackOutput, err := infra.GetStackManager().GetStack(
+	_, stackOutput, err := infra.GetStackManager().GetStack(
 		ctx,
 		suite.stackName,
-		suite.stackDef.ConfigMap,
+		stackDef.ConfigMap,
 		func(ctx *pulumi.Context) error {
 			var err error
 			env, err = stackDef.EnvFactory(ctx)
 			return err
 		}, false)
 
-	return env, stack, stackOutput, err
+	return env, stackOutput, err
+}
+
+func (suite *Suite[Env]) UpdateEnv(stackDef StackDefinition[Env]) {
+	env, upResult, err := createEnv(suite, &stackDef)
+	suite.Require().NoError(err)
+	suite.Env = env
+	err = client.CallStackInitializers(&suite.auth, env, upResult)
+	suite.Require().NoError(err)
 }
