@@ -19,9 +19,10 @@ namespace WixSetup.Datadog
 
         public ManagedAction WriteConfig { get; }
 
-        public ManagedAction ReadRegistryProperties { get; }
+        public ManagedAction ReadInstallState { get; }
 
         public ManagedAction ProcessDdAgentUserCredentials { get; }
+
         public ManagedAction ProcessDdAgentUserCredentialsUI { get; }
 
         public ManagedAction PrepareDecompressPythonDistributions { get; }
@@ -62,11 +63,11 @@ namespace WixSetup.Datadog
         /// </remarks>
         public AgentCustomActions()
         {
-            ReadRegistryProperties = new CustomAction<RegistryCustomActions>(
-                new Id(nameof(ReadRegistryProperties)),
-                RegistryCustomActions.ReadRegistryProperties,
+            ReadInstallState = new CustomAction<InstallStateCustomActions>(
+                new Id(nameof(ReadInstallState)),
+                InstallStateCustomActions.ReadInstallState,
                 Return.ignore,
-                // AppSearch is when RegistrySearch is run, so that will overwrite
+                // AppSearch is when ReadInstallState is run, so that will overwrite
                 // any command line values.
                 // Prefer using our CA over RegistrySearch.
                 // It is executed on the Welcome screen of the installer.
@@ -81,7 +82,8 @@ namespace WixSetup.Datadog
             {
                 // Ensure we only run in one sequence
                 Execute = Execute.firstSequence
-            };
+            }
+            .SetProperties("ALLOWCLOSEDSOURCE=[ALLOWCLOSEDSOURCE]");
 
             // We need to explicitly set the ID since that we are going to reference before the Build* call.
             // See <see cref="WixSharp.WixEntity.Id" /> for more information.
@@ -136,22 +138,21 @@ namespace WixSetup.Datadog
                 new Id(nameof(EnsureNpmServiceDepdendency)),
                 ServiceCustomAction.EnsureNpmServiceDependency,
                 Return.check,
-                When.Before,
+                When.After,
                 Step.InstallServices,
                 Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
             )
             {
                 Execute = Execute.deferred,
                 Impersonate = false
-            }
-            .SetProperties("ADDLOCAL=[ADDLOCAL]");
+            };
 
             WriteConfig = new CustomAction<ConfigCustomActions>(
                 new Id(nameof(WriteConfig)),
                 ConfigCustomActions.WriteConfig,
                 Return.check,
-                When.After,
-                new Step(EnsureNpmServiceDepdendency.Id),
+                When.Before,
+                Step.InstallServices,
                 Conditions.FirstInstall
             )
             {
@@ -162,7 +163,6 @@ namespace WixSetup.Datadog
                 "APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
                 "PROJECTLOCATION=[PROJECTLOCATION], " +
                 "SYSPROBE_PRESENT=[SYSPROBE_PRESENT], " +
-                "ADDLOCAL=[ADDLOCAL], " +
                 "APIKEY=[APIKEY], " +
                 "TAGS=[TAGS], " +
                 "HOSTNAME=[HOSTNAME], " +
@@ -210,7 +210,7 @@ namespace WixSetup.Datadog
                 Return.check,
                 When.After,
                 new Step(CleanupOnRollback.Id),
-                Conditions.FirstInstall | Conditions.Upgrading
+                Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
             )
             {
                 Execute = Execute.deferred,
@@ -224,7 +224,7 @@ namespace WixSetup.Datadog
                 Return.ignore,
                 When.Before,
                 new Step(DecompressPythonDistributions.Id),
-                Conditions.FirstInstall | Conditions.Upgrading,
+                Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance,
                 Sequence.InstallExecuteSequence
             )
             {

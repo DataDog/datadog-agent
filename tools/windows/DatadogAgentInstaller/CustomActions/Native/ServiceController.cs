@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.ServiceProcess;
@@ -10,6 +11,18 @@ namespace Datadog.CustomActions.Native
 {
     class ServiceController : IServiceController
     {
+        public IReadOnlyList<IWindowsService> Services
+        {
+            get
+            {
+                return System.ServiceProcess
+                    .ServiceController
+                    .GetServices()
+                    .Select(svc => new WindowsService(svc))
+                    .ToList();
+            }
+        }
+
         public Tuple<string,string>[] GetServiceNames()
         {
             return System.ServiceProcess.ServiceController.GetServices()
