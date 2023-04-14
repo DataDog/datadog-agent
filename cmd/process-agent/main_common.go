@@ -142,7 +142,7 @@ func runApp(exit chan struct{}, globalParams *command.GlobalParams) error {
 	)
 
 	if err := app.Err(); err != nil {
-		fmt.Println("Failed to initalize the process agent: ", fxutil.UnwrapIfErrArgumentsFailed(err))
+		fmt.Println("Failed to initialize the process agent: ", fxutil.UnwrapIfErrArgumentsFailed(err))
 		return err
 	}
 
