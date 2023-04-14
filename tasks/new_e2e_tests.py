@@ -23,7 +23,7 @@ from .test import test_flavor
         'configparams': 'Set overrides for ConfigMap parameters (same as -c option in test-infra-definitions)',
     },
 )
-def run(ctx, profile="", tags=[], targets=[], configparams=[], verbose=True, cache=False, junit_tar=""): # noqa: B006
+def run(ctx, profile="", tags=[], targets=[], configparams=[], verbose=True, cache=False, junit_tar=""):  # noqa: B006
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
     """
