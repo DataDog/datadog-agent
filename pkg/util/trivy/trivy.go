@@ -264,7 +264,7 @@ func (c *Collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMe
 	return c.scanFilesystem(ctx, imagePath, imgMeta, scanOptions)
 }
 
-func (c *Collector) scanFilesystem(ctx context.Context, path string, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (Report, error) {
+func (c *Collector) scanFilesystem(ctx context.Context, path string, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
 	fsArtifact, err := local2.NewArtifact(path, c.cache, getDefaultArtifactOption(scanOptions.Analyzers, path))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create artifact from fs, err: %w", err)
@@ -278,11 +278,11 @@ func (c *Collector) scanFilesystem(ctx context.Context, path string, imgMeta *wo
 	return bom, nil
 }
 
-func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions sbom.ScanOptions) (Report, error) {
+func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions sbom.ScanOptions) (sbom.Report, error) {
 	return c.scanFilesystem(ctx, path, nil, scanOptions)
 }
 
-func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, imgMeta *workloadmeta.ContainerImageMetadata) (Report, error) {
+func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, imgMeta *workloadmeta.ContainerImageMetadata) (sbom.Report, error) {
 	artifactReference, err := artifact.Inspect(ctx) // called by the scanner as well
 	if err != nil {
 		return nil, err

@@ -62,6 +62,12 @@ func NewBoltCache(cacheDir string) (cache.Cache, CacheCleaner, error) {
 	return cache, &StubCacheCleaner{}, err
 }
 
+// CacheCleaner interface
+type CacheCleaner interface {
+	Clean() error
+	setKeysForEntity(entity string, cachedKeys []string)
+}
+
 // StubCacheCleaner is a stub
 type StubCacheCleaner struct{}
 
