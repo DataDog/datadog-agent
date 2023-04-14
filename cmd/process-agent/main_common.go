@@ -111,8 +111,10 @@ func runApp(exit chan struct{}, globalParams *command.GlobalParams) error {
 				SysprobeConfigParams: sysprobeconfig.NewParams(
 					sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath),
 				),
-				ConfigParams: config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
-				LogParams:    command.DaemonLogParams,
+				ConfigParams: config.NewAgentParamsWithSecrets(globalParams.ConfFilePath,
+					config.WithConfigMissingOK(true),
+				),
+				LogParams: command.DaemonLogParams,
 			},
 		),
 		// Populate dependencies required for initialization in this function.
