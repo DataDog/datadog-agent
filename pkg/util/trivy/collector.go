@@ -19,8 +19,15 @@ type Report interface {
 	ToCycloneDX() (*cyclonedxgo.BOM, error)
 }
 
+// CacheCleaner interface
+type CacheCleaner interface {
+	Clean() error
+	setKeysForEntity(entity string, cachedKeys []string)
+}
+
 // Collector interface
 type Collector interface {
+	GetCacheCleaner() CacheCleaner
 	ScanContainerdImage(ctx context.Context, imageMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (Report, error)
 	ScanContainerdImageFromFilesystem(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (Report, error)
 	ScanFilesystem(ctx context.Context, path string) (Report, error)
