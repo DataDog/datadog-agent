@@ -19,9 +19,14 @@ import (
 
 func newEvaluationSet(tagValues []eval.RuleSetTagValue) (*EvaluationSet, error) {
 	var ruleSetsToInclude []*RuleSet
-	for _, tagValue := range tagValues {
+	if len(tagValues) > 0 {
+		for _, tagValue := range tagValues {
+			rs := newRuleSet()
+			rs.setRuleSetTagValue(tagValue)
+			ruleSetsToInclude = append(ruleSetsToInclude, rs)
+		}
+	} else {
 		rs := newRuleSet()
-		rs.SetRuleSetTagValue(tagValue)
 		ruleSetsToInclude = append(ruleSetsToInclude, rs)
 	}
 
@@ -42,7 +47,7 @@ func loadPolicyIntoProbeEvaluationRuleSet(t *testing.T, testPolicy *PolicyDef, p
 
 	loader := NewPolicyLoader(provider)
 
-	evaluationSet, _ := newEvaluationSet([]eval.RuleSetTagValue{DefaultRuleSetTagValue})
+	evaluationSet, _ := newEvaluationSet([]eval.RuleSetTagValue{})
 	return evaluationSet, evaluationSet.LoadPolicies(loader, policyOpts)
 }
 
@@ -104,8 +109,7 @@ func TestEvaluationSet_LoadPolicies(t *testing.T) {
 		},
 	}
 
-	threatScoreRuleTagFilter, _ := NewRuleTagFilter(map[string]string{"ruleset": "threat_score"})
-	policyLoaderOpts := PolicyLoaderOpts{RuleFilters: []RuleFilter{threatScoreRuleTagFilter}}
+	policyLoaderOpts := PolicyLoaderOpts{}
 	loader, es := loadPolicySetup(t, testPolicy, []eval.RuleSetTagValue{"threat_score"})
 
 	type args struct {
@@ -148,7 +152,7 @@ func TestEvaluationSet_LoadPolicies(t *testing.T) {
 func TestNewEvaluationSet(t *testing.T) {
 	ruleSet := newRuleSet()
 	ruleSetWithThreatScoreTag := newRuleSet()
-	ruleSetWithThreatScoreTag.SetRuleSetTagValue("threat_score")
+	ruleSetWithThreatScoreTag.setRuleSetTagValue("threat_score")
 
 	type args struct {
 		ruleSetsToInclude []*RuleSet
