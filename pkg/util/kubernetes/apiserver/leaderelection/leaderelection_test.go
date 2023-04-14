@@ -167,30 +167,32 @@ func TestNewLeaseAcquiring_Lease(t *testing.T) {
 
 func TestSubscribe(t *testing.T) {
 	const leaseName = "datadog-leader-election"
-	client := fake.NewSimpleClientset()
 	for nb, tc := range []struct {
 		name         string
 		lockType     string
-		getTokenFunc func() error
+		getTokenFunc func(client *fake.Clientset) error
 	}{
 		{
 			"subscribe_config_map",
 			rl.ConfigMapsLeasesResourceLock,
-			func() error {
+			func(client *fake.Clientset) error {
 				_, err := client.CoreV1().ConfigMaps("default").Get(context.TODO(), leaseName, metav1.GetOptions{})
+				t.Logf("2 %v", err)
 				return err
 			},
 		},
 		{
 			"subscribe_lease",
 			rl.LeasesResourceLock,
-			func() error {
+			func(client *fake.Clientset) error {
 				_, err := client.CoordinationV1().Leases("default").Get(context.TODO(), leaseName, metav1.GetOptions{})
+				t.Logf("2 %v", err)
 				return err
 			},
 		},
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.name), func(t *testing.T) {
+			client := fake.NewSimpleClientset()
 			le := &LeaderEngine{
 				HolderIdentity:  "foo",
 				LeaseName:       leaseName,
@@ -206,7 +208,7 @@ func TestSubscribe(t *testing.T) {
 			notif2 := le.Subscribe()
 			require.Len(t, le.subscribers, 2)
 
-			err := tc.getTokenFunc()
+			err := tc.getTokenFunc(client)
 			require.True(t, errors.IsNotFound(err))
 
 			le.leaderElector, err = le.newElection()
