@@ -13,6 +13,8 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 )
 
 // ErrDriverNotInitialized is returned when you attempt to use the driver without calling Init
@@ -84,6 +86,8 @@ func (d *driver) isNeeded() bool {
 
 func (d *driver) start() error {
 	if !d.allowed {
+		log.Warnf("Unable to load network component because the closed source consent is denied.")
+		log.Warnf("To change this, run the \"agent.exe closedsourceconsent set true\" command from an elevated shell.")
 		return ErrClosedSourceNotAllowed
 	}
 	if refs := d.inuse.Inc(); refs == 1 {
