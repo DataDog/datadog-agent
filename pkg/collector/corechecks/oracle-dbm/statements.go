@@ -481,9 +481,8 @@ func (c *Check) StatementMetrics() (int, error) {
 		MinCollectionInterval: c.checkInterval,
 		Tags:                  c.tags,
 		AgentVersion:          c.agentVersion,
-		//AgentHostname:         c.hostname,
-		OracleRows:    oracleRows,
-		OracleVersion: c.dbVersion,
+		OracleRows:            oracleRows,
+		OracleVersion:         c.dbVersion,
 	}
 
 	payloadBytes, err := json.Marshal(payload)
