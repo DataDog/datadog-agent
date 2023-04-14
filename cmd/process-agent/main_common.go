@@ -124,6 +124,9 @@ func runApp(exit chan struct{}, globalParams *command.GlobalParams) error {
 		// Allows for debug logging of fx components if the `TRACE_FX` environment variable is set
 		fxutil.FxLoggingOption(),
 
+		// Set `HOST_PROC` and `HOST_SYS` environment variables
+		fx.Invoke(command.SetHostMountEnv),
+
 		// Initialize components not manged by fx
 		fx.Invoke(initMisc),
 

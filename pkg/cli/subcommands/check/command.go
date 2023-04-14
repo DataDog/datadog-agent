@@ -25,6 +25,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -534,11 +535,11 @@ func runCheck(cliParams *cliParams, c check.Check, demux aggregator.Demultiplexe
 }
 
 func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
-	_ = os.Mkdir(common.DefaultCheckFlareDirectory, os.ModeDir)
+	_ = os.Mkdir(path.DefaultCheckFlareDirectory, os.ModeDir)
 
 	// Windows cannot accept ":" in file names
 	filenameSafeTimeStamp := strings.ReplaceAll(time.Now().UTC().Format(time.RFC3339), ":", "-")
-	flarePath := filepath.Join(common.DefaultCheckFlareDirectory, "check_"+checkName+"_"+filenameSafeTimeStamp+".log")
+	flarePath := filepath.Join(path.DefaultCheckFlareDirectory, "check_"+checkName+"_"+filenameSafeTimeStamp+".log")
 
 	scrubbed, err := scrubber.ScrubBytes(checkFileOutput.Bytes())
 	if err != nil {

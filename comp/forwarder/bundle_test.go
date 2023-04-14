@@ -8,6 +8,7 @@ package forwarder
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -17,8 +18,10 @@ func TestBundleDependencies(t *testing.T) {
 	require.NoError(t, fx.ValidateApp(
 		// instantiate all of the forwarder components, since this is not done
 		// automatically.
-		fx.Invoke(func(defaultforwarder.Component) {}),
 		fx.Supply(defaultforwarder.Params{}),
+		config.Module,
+		fx.Supply(config.Params{}),
+		fx.Invoke(func(defaultforwarder.Component) {}),
 		Bundle,
 	))
 }

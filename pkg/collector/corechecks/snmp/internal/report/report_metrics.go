@@ -122,9 +122,17 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConf
 	rowTagsCache := make(map[string][]string)
 	samples := map[string]map[string]MetricSample{}
 	for _, symbol := range metricConfig.Symbols {
-		metricValues, err := getColumnValueFromSymbol(values, symbol)
-		if err != nil {
-			continue
+		var metricValues map[string]valuestore.ResultValue
+
+		if symbol.ConstantValueOne {
+			metricValues = getConstantMetricValues(metricConfig.MetricTags, values)
+		} else {
+			var err error
+			metricValues, err = getColumnValueFromSymbol(values, symbol)
+			if err != nil {
+				log.Debugf("report column: error getting column value: %v", err)
+				continue
+			}
 		}
 		for fullIndex, value := range metricValues {
 			// cache row tags by fullIndex to avoid rebuilding it for every column rows

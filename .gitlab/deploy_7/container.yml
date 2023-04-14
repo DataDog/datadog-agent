@@ -20,6 +20,10 @@
     - export IMG_WINDOWS_SOURCES="${IMG_BASE_SRC}-7${JMX}-win1809${SERVERCORE}-amd64,${IMG_BASE_SRC}-7${JMX}-winltsc2022${SERVERCORE}-amd64"
     - if [[ "$SERVERCORE" == "-servercore" ]]; then export IMG_SOURCES="${IMG_WINDOWS_SOURCES}"; else export IMG_SOURCES="${IMG_LINUX_SOURCES},${IMG_WINDOWS_SOURCES}"; fi
     - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}${SERVERCORE}${JMX}"
+
+
+.deploy_containers-a7_external:
+  extends: .deploy_containers-a7-base
   parallel:
     matrix:
       - JMX:
@@ -31,13 +35,13 @@
 
 
 deploy_containers-a7:
-  extends: .deploy_containers-a7-base
+  extends: .deploy_containers-a7_external
   rules:
     !reference [.on_deploy_a7_manual_auto_on_rc]
 
 
 deploy_containers-a7-rc:
-  extends: .deploy_containers-a7-base
+  extends: .deploy_containers-a7_external
   rules:
     !reference [.on_deploy_a7_rc]
   variables:
@@ -54,6 +58,22 @@ deploy_containers-dogstatsd:
     - export VERSION="$(inv -e agent.version --major-version 7 --url-safe)"
     - export IMG_SOURCES="${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64"
     - export IMG_DESTINATIONS="${DSD_REPOSITORY}:${VERSION}"
+
+
+deploy_containers-a7_internal:
+  extends: .deploy_containers-a7-base
+  rules:
+    !reference [.on_deploy_a7_internal_manual_final]
+  variables:
+    JMX: "-jmx"
+
+
+deploy_containers-a7_internal-rc:
+  extends: .deploy_containers-a7-base
+  rules:
+    !reference [.on_deploy_a7_internal_rc]
+  variables:
+    VERSION: 7-rc
 
 
 #
@@ -80,6 +100,20 @@ deploy_containers_latest-a7:
       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx"
         IMG_SOURCES: "%BASE%-win1809-servercore-amd64,%BASE%-winltsc2022-servercore-amd64"
         IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-servercore-jmx,${AGENT_REPOSITORY}:latest-servercore-jmx
+
+
+deploy_containers_latest-a7_internal:
+  extends: .docker_publish_job_definition
+  stage: deploy7
+  rules:
+    !reference [.on_deploy_a7_internal_manual_final]
+  dependencies: []
+  parallel:
+    matrix:
+      - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx"
+        IMG_SOURCES: "%BASE%-amd64,%BASE%-arm64,%BASE%-win1809-amd64,%BASE%-winltsc2022-amd64"
+        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-jmx
+
 
 deploy_containers_latest-dogstatsd:
   extends: .docker_publish_job_definition

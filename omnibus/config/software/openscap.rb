@@ -57,6 +57,8 @@ build do
   patch source: "shadow-chroot.patch", env: env # handle shadow probe in offline mode
   patch source: "fsdev-ignore-host.patch", env: env # ignore /host directory in fsdev probe
 
+  patch source: "oscap-io.patch", env: env # add new oscap-io tool
+
   env["CC"] = "/opt/gcc-#{ENV['GCC_VERSION']}/bin/gcc"
   env["CXX"] = "/opt/gcc-#{ENV['GCC_VERSION']}/bin/g++"
   env["CXXFLAGS"] += " -static-libstdc++ -std=c++11 -DDPKG_DATADIR=/usr/share/dpkg"

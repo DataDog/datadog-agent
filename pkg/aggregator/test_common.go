@@ -9,8 +9,9 @@
 package aggregator
 
 import (
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // PeekSender returns a Sender with passed ID or an error if the sender is not registered
@@ -18,6 +19,6 @@ func (s *senders) PeekSender(cid check.ID) (Sender, error) {
 	return s.senderPool.getSender(cid)
 }
 
-func NewForwarderTest() forwarder.Forwarder {
-	return forwarder.NewDefaultForwarder(forwarder.NewOptions(nil))
+func NewForwarderTest() defaultforwarder.Forwarder {
+	return defaultforwarder.NewDefaultForwarder(config.Datadog, defaultforwarder.NewOptions(config.Datadog, nil))
 }

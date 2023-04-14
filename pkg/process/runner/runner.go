@@ -17,9 +17,9 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/status"
@@ -465,7 +465,7 @@ func getContainerCount(mb model.MessageBody) int {
 	return 0
 }
 
-func readResponseStatuses(checkName string, responses <-chan forwarder.Response) []*model.CollectorStatus {
+func readResponseStatuses(checkName string, responses <-chan defaultforwarder.Response) []*model.CollectorStatus {
 	var statuses []*model.CollectorStatus
 
 	for response := range responses {
