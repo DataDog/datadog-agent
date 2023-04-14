@@ -132,6 +132,7 @@ kernel_matrix_testing_setup_env:
     - cat $CI_PROJECT_DIR/stack.outputs
     - pulumi logout
     - sha256sum $AWS_SSH_KEY
+    - echo "" >> $AWS_SSH_KEY
     - chmod 600 $AWS_SSH_KEY
     - INSTANCE_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep x86_64-instance-ip | cut -d ' ' -f 2)
     - ssh -vvv -o StrictHostKeyChecking=no -i $AWS_SSH_KEY ubuntu@$INSTANCE_IP 'whoami'
