@@ -14,6 +14,8 @@ source :url => "https://github.com/cyrusimap/cyrus-sasl/releases/download/cyrus-
 relative_path "cyrus-sasl-#{version}"
 
 build do
+  license "Carnegie Mellon University license"
+  license_file "https://raw.githubusercontent.com/cyrusimap/cyrus-sasl/master/COPYING"
 
   env = {
     "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
