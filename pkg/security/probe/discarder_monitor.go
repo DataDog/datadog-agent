@@ -94,13 +94,13 @@ func NewDiscarderMonitor(manager *manager.Manager, statsdClient statsd.ClientInt
 		numCPU:       numCPU,
 	}
 
-	statsFB, err := managerhelper.Map(manager, "discarder_stats_fb")
+	statsFB, err := managerhelper.Map(manager, "fb_discarder_stats")
 	if err != nil {
 		return nil, err
 	}
 	d.stats[0] = statsFB
 
-	statsBB, err := managerhelper.Map(manager, "discarder_stats_bb")
+	statsBB, err := managerhelper.Map(manager, "bb_discarder_stats")
 	if err != nil {
 		return nil, err
 	}

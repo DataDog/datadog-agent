@@ -93,7 +93,7 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 	// TODO: do not interface directly with pkg/config
 	orch := fargate.GetOrchestrator() // Needs to be after loading config, because it relies on feature auto-detection
 	cfg.FargateOrchestrator = config.FargateOrchestratorName(orch)
-	if p := coreconfig.GetProxies(); p != nil {
+	if p := coreconfig.Datadog.GetProxies(); p != nil {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p)
 	}
 	coreConfigObject := c.Object()
@@ -438,6 +438,15 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if k := "apm_config.debugger_additional_endpoints"; core.IsSet(k) {
 		c.DebuggerProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
+	}
+	if k := "apm_config.symdb_dd_url"; core.IsSet(k) {
+		c.SymDBProxy.DDURL = core.GetString(k)
+	}
+	if k := "apm_config.symdb_api_key"; core.IsSet(k) {
+		c.SymDBProxy.APIKey = core.GetString(k)
+	}
+	if k := "apm_config.symdb_additional_endpoints"; core.IsSet(k) {
+		c.SymDBProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
 	}
 	if k := "evp_proxy_config.enabled"; core.IsSet(k) {
 		c.EVPProxy.Enabled = core.GetBool(k)

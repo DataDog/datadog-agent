@@ -584,6 +584,7 @@ core,github.com/containerd/containerd/api/types,Apache-2.0,"Copyright 2012-2015 
 core,github.com/containerd/containerd/api/types/task,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/archive,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/archive/compression,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/archive/tarheader,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/cio,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/containers,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/content,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
@@ -843,7 +844,28 @@ core,github.com/gobwas/glob/syntax/ast,MIT,Copyright (c) 2016 Sergey Kamardin
 core,github.com/gobwas/glob/syntax/lexer,MIT,Copyright (c) 2016 Sergey Kamardin
 core,github.com/gobwas/glob/util/runes,MIT,Copyright (c) 2016 Sergey Kamardin
 core,github.com/gobwas/glob/util/strings,MIT,Copyright (c) 2016 Sergey Kamardin
+core,github.com/gocomply/scap/pkg/bz2,CC0-1.0,"Copyright and | Copyright and Related | Copyright and Related Rights (defined below) upon the creator | Copyright and Related Rights and associated claims and causes | Copyright and Related Rights in the | Copyright and Related Rights in the Work | Copyright and Related Rights in the Work, voluntarily | Copyright and Related Rights include, but are not | Copyright and Related Rights. A Work made available under CC0 may be | copyright and related or neighboring rights (""Copyright and"
+core,github.com/gocomply/scap/pkg/scap/constants,CC0-1.0,"Copyright and | Copyright and Related | Copyright and Related Rights (defined below) upon the creator | Copyright and Related Rights and associated claims and causes | Copyright and Related Rights in the | Copyright and Related Rights in the Work | Copyright and Related Rights in the Work, voluntarily | Copyright and Related Rights include, but are not | Copyright and Related Rights. A Work made available under CC0 may be | copyright and related or neighboring rights (""Copyright and"
+core,github.com/gocomply/scap/pkg/scap/models/cdf,CC0-1.0,"Copyright and | Copyright and Related | Copyright and Related Rights (defined below) upon the creator | Copyright and Related Rights and associated claims and causes | Copyright and Related Rights in the | Copyright and Related Rights in the Work | Copyright and Related Rights in the Work, voluntarily | Copyright and Related Rights include, but are not | Copyright and Related Rights. A Work made available under CC0 may be | copyright and related or neighboring rights (""Copyright and"
+core,github.com/gocomply/scap/pkg/scap/models/cpe,CC0-1.0,"Copyright and | Copyright and Related | Copyright and Related Rights (defined below) upon the creator | Copyright and Related Rights and associated claims and causes | Copyright and Related Rights in the | Copyright and Related Rights in the Work | Copyright and Related Rights in the Work, voluntarily | Copyright and Related Rights include, but are not | Copyright and Related Rights. A Work made available under CC0 may be | copyright and related or neighboring rights (""Copyright and"
+core,github.com/gocomply/scap/pkg/scap/models/cpe_dict,CC0-1.0,"Copyright and | Copyright and Related | Copyright and Related Rights (defined below) upon the creator | Copyright and Related Rights and associated claims and causes | Copyright and Related Rights in the | Copyright and Related Rights in the Work | Copyright and Related Rights in the Work, voluntarily | Copyright and Related Rights include, but are not | Copyright and Related Rights. A Work made available under CC0 may be | copyright and related or neighboring rights (""Copyright and"
+core,github.com/gocomply/scap/pkg/scap/models/ds,CC0-1.0,"Copyright and | Copyright and Related | Copyright and Related Rights (defined below) upon the creator | Copyright and Related Rights and associated claims and causes | Copyright and Related Rights in the | Copyright and Related Rights in the Work | Copyright and Related Rights in the Work, voluntarily | Copyright and Related Rights include, but are not | Copyright and Related Rights. A Work made available under CC0 may be | copyright and related or neighboring rights (""Copyright and"
+core,github.com/gocomply/scap/pkg/scap/models/er,CC0-1.0,"Copyright and | Copyright and Related | Copyright and Related Rights (defined below) upon the creator | Copyright and Related Rights and associated claims and causes | Copyright and Related Rights in the | Copyright and Related Rights in the Work | Copyright and Related Rights in the Work, voluntarily | Copyright and Related Rights include, but are not | Copyright and Related Rights. A Work made available under CC0 may be | copyright and related or neighboring rights (""Copyright and"
+core,github.com/gocomply/scap/pkg/scap/models/inter,CC0-1.0,"Copyright and | Copyright and Related | Copyright and Related Rights (defined below) upon the creator | Copyright and Related Rights and associated claims and causes | Copyright and Related Rights in the | Copyright and Related Rights in the Work | Copyright and Related Rights in the Work, voluntarily | Copyright and Related Rights include, but are not | Copyright and Related Rights. A Work made available under CC0 may be | copyright and related or neighboring rights (""Copyright and"
+core,github.com/gocomply/scap/pkg/scap/models/oval,CC0-1.0,"Copyright and | Copyright and Related | Copyright and Related Rights (defined below) upon the creator | Copyright and Related Rights and associated claims and causes | Copyright and Related Rights in the | Copyright and Related Rights in the Work | Copyright and Related Rights in the Work, voluntarily | Copyright and Related Rights include, but are not | Copyright and Related Rights. A Work made available under CC0 may be | copyright and related or neighboring rights (""Copyright and"
+core,github.com/gocomply/scap/pkg/scap/models/oval_def,CC0-1.0,"Copyright and | Copyright and Related | Copyright and Related Rights (defined below) upon the creator | Copyright and Related Rights and associated claims and causes | Copyright and Related Rights in the | Copyright and Related Rights in the Work | Copyright and Related Rights in the Work, voluntarily | Copyright and Related Rights include, but are not | Copyright and Related Rights. A Work made available under CC0 may be | copyright and related or neighboring rights (""Copyright and"
+core,github.com/gocomply/scap/pkg/scap/models/oval_res,CC0-1.0,"Copyright and | Copyright and Related | Copyright and Related Rights (defined below) upon the creator | Copyright and Related Rights and associated claims and causes | Copyright and Related Rights in the | Copyright and Related Rights in the Work | Copyright and Related Rights in the Work, voluntarily | Copyright and Related Rights include, but are not | Copyright and Related Rights. A Work made available under CC0 may be | copyright and related or neighboring rights (""Copyright and"
+core,github.com/gocomply/scap/pkg/scap/models/oval_sc,CC0-1.0,"Copyright and | Copyright and Related | Copyright and Related Rights (defined below) upon the creator | Copyright and Related Rights and associated claims and causes | Copyright and Related Rights in the | Copyright and Related Rights in the Work | Copyright and Related Rights in the Work, voluntarily | Copyright and Related Rights include, but are not | Copyright and Related Rights. A Work made available under CC0 may be | copyright and related or neighboring rights (""Copyright and"
+core,github.com/gocomply/scap/pkg/scap/models/xml_dsig,CC0-1.0,"Copyright and | Copyright and Related | Copyright and Related Rights (defined below) upon the creator | Copyright and Related Rights and associated claims and causes | Copyright and Related Rights in the | Copyright and Related Rights in the Work | Copyright and Related Rights in the Work, voluntarily | Copyright and Related Rights include, but are not | Copyright and Related Rights. A Work made available under CC0 may be | copyright and related or neighboring rights (""Copyright and"
+core,github.com/gocomply/scap/pkg/scap/scap_document,CC0-1.0,"Copyright and | Copyright and Related | Copyright and Related Rights (defined below) upon the creator | Copyright and Related Rights and associated claims and causes | Copyright and Related Rights in the | Copyright and Related Rights in the Work | Copyright and Related Rights in the Work, voluntarily | Copyright and Related Rights include, but are not | Copyright and Related Rights. A Work made available under CC0 may be | copyright and related or neighboring rights (""Copyright and"
 core,github.com/godbus/dbus,BSD-2-Clause,"Copyright (c) 2013, Georg Reinke (<guelfey at gmail dot com>), Google"
+core,github.com/godror/godror,Apache-2.0,"Alberto Andria <alberto.andria@mercadolibre.com> | Andy Garfield <andyjgarfield@gmail.com> | Anthony Tuininga <anthony.tuininga@oracle.com> | Cemre MENGU <cemre.mengu@ttgint.com> | Chris Duncan <veqryn@hotmail.com> | Christopher Jones <christopher.jones@oracle.com> | Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2015 go-logfmt | Copyright (c) 2016, 2018 Oracle and/or its affiliates.  All rights reserved | Copyright (c) 2017 The Go Authors. All rights reserved | Copyright 2017, 2020 Tamás Gulácsi | David Garcia <david.garcia.alvarez@beeva.com> | Gerasimos (Makis) Maropoulos <kataras2006@hotmail.com> | Harris <mike.harris@cerner.com> | Ivan Markin <nogoegst@users.noreply.github.com> | Ivan Pedersen <ivan@alpe.se> | Kurt K <44790488+kurt-google@users.noreply.github.com> | Michael Kenney <mkenney@webbedlam.com> | Mislav Kasner <mislav.kasner@aduro.hr> | Noval Agung Prayogo <novalagung@users.noreply.github.com> | Ricardo Vegas <rvegas@users.noreply.github.com> | Robin van Duiven <robin@aqua-it.com> | Ryan Bastic <ryan@gooddoglabs.com> | Saimon <semyuon@gmail.com> | Sudarshan Soma <sudarshan.ss.s@oracle.com> | Tamás Gulácsi <T.Gulacsi@unosoft.hu> | Tomoya AMACHI <tomoya.amachi@gmail.com> | Walter Alves Wanderley <walter.wanderley@serpro.gov.br> | ricardojesus.vegas <ricardojesus.vegas@bbva.com> | ubinix-warun <warun@ubinix.com> | zhuqiuzhi <zhuqiuzhi91@gmail.com>"
+core,github.com/godror/godror/dsn,Apache-2.0,"Alberto Andria <alberto.andria@mercadolibre.com> | Andy Garfield <andyjgarfield@gmail.com> | Anthony Tuininga <anthony.tuininga@oracle.com> | Cemre MENGU <cemre.mengu@ttgint.com> | Chris Duncan <veqryn@hotmail.com> | Christopher Jones <christopher.jones@oracle.com> | Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2015 go-logfmt | Copyright (c) 2016, 2018 Oracle and/or its affiliates.  All rights reserved | Copyright (c) 2017 The Go Authors. All rights reserved | Copyright 2017, 2020 Tamás Gulácsi | David Garcia <david.garcia.alvarez@beeva.com> | Gerasimos (Makis) Maropoulos <kataras2006@hotmail.com> | Harris <mike.harris@cerner.com> | Ivan Markin <nogoegst@users.noreply.github.com> | Ivan Pedersen <ivan@alpe.se> | Kurt K <44790488+kurt-google@users.noreply.github.com> | Michael Kenney <mkenney@webbedlam.com> | Mislav Kasner <mislav.kasner@aduro.hr> | Noval Agung Prayogo <novalagung@users.noreply.github.com> | Ricardo Vegas <rvegas@users.noreply.github.com> | Robin van Duiven <robin@aqua-it.com> | Ryan Bastic <ryan@gooddoglabs.com> | Saimon <semyuon@gmail.com> | Sudarshan Soma <sudarshan.ss.s@oracle.com> | Tamás Gulácsi <T.Gulacsi@unosoft.hu> | Tomoya AMACHI <tomoya.amachi@gmail.com> | Walter Alves Wanderley <walter.wanderley@serpro.gov.br> | ricardojesus.vegas <ricardojesus.vegas@bbva.com> | ubinix-warun <warun@ubinix.com> | zhuqiuzhi <zhuqiuzhi91@gmail.com>"
+core,github.com/godror/godror/odpi/embed,Apache-2.0,"Alberto Andria <alberto.andria@mercadolibre.com> | Andy Garfield <andyjgarfield@gmail.com> | Anthony Tuininga <anthony.tuininga@oracle.com> | Cemre MENGU <cemre.mengu@ttgint.com> | Chris Duncan <veqryn@hotmail.com> | Christopher Jones <christopher.jones@oracle.com> | Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2015 go-logfmt | Copyright (c) 2016, 2018 Oracle and/or its affiliates.  All rights reserved | Copyright (c) 2016, 2022 Oracle and/or its affiliates | Copyright (c) 2017 The Go Authors. All rights reserved | Copyright 2017, 2020 Tamás Gulácsi | David Garcia <david.garcia.alvarez@beeva.com> | Gerasimos (Makis) Maropoulos <kataras2006@hotmail.com> | Harris <mike.harris@cerner.com> | Ivan Markin <nogoegst@users.noreply.github.com> | Ivan Pedersen <ivan@alpe.se> | Kurt K <44790488+kurt-google@users.noreply.github.com> | Michael Kenney <mkenney@webbedlam.com> | Mislav Kasner <mislav.kasner@aduro.hr> | Noval Agung Prayogo <novalagung@users.noreply.github.com> | Ricardo Vegas <rvegas@users.noreply.github.com> | Robin van Duiven <robin@aqua-it.com> | Ryan Bastic <ryan@gooddoglabs.com> | Saimon <semyuon@gmail.com> | Sudarshan Soma <sudarshan.ss.s@oracle.com> | Tamás Gulácsi <T.Gulacsi@unosoft.hu> | Tomoya AMACHI <tomoya.amachi@gmail.com> | Walter Alves Wanderley <walter.wanderley@serpro.gov.br> | ricardojesus.vegas <ricardojesus.vegas@bbva.com> | ubinix-warun <warun@ubinix.com> | zhuqiuzhi <zhuqiuzhi91@gmail.com>"
+core,github.com/godror/godror/odpi/include,Apache-2.0,"Alberto Andria <alberto.andria@mercadolibre.com> | Andy Garfield <andyjgarfield@gmail.com> | Anthony Tuininga <anthony.tuininga@oracle.com> | Cemre MENGU <cemre.mengu@ttgint.com> | Chris Duncan <veqryn@hotmail.com> | Christopher Jones <christopher.jones@oracle.com> | Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2015 go-logfmt | Copyright (c) 2016, 2018 Oracle and/or its affiliates.  All rights reserved | Copyright (c) 2016, 2022 Oracle and/or its affiliates | Copyright (c) 2017 The Go Authors. All rights reserved | Copyright 2017, 2020 Tamás Gulácsi | David Garcia <david.garcia.alvarez@beeva.com> | Gerasimos (Makis) Maropoulos <kataras2006@hotmail.com> | Harris <mike.harris@cerner.com> | Ivan Markin <nogoegst@users.noreply.github.com> | Ivan Pedersen <ivan@alpe.se> | Kurt K <44790488+kurt-google@users.noreply.github.com> | Michael Kenney <mkenney@webbedlam.com> | Mislav Kasner <mislav.kasner@aduro.hr> | Noval Agung Prayogo <novalagung@users.noreply.github.com> | Ricardo Vegas <rvegas@users.noreply.github.com> | Robin van Duiven <robin@aqua-it.com> | Ryan Bastic <ryan@gooddoglabs.com> | Saimon <semyuon@gmail.com> | Sudarshan Soma <sudarshan.ss.s@oracle.com> | Tamás Gulácsi <T.Gulacsi@unosoft.hu> | Tomoya AMACHI <tomoya.amachi@gmail.com> | Walter Alves Wanderley <walter.wanderley@serpro.gov.br> | ricardojesus.vegas <ricardojesus.vegas@bbva.com> | ubinix-warun <warun@ubinix.com> | zhuqiuzhi <zhuqiuzhi91@gmail.com>"
+core,github.com/godror/godror/odpi/src,Apache-2.0,"Alberto Andria <alberto.andria@mercadolibre.com> | Andy Garfield <andyjgarfield@gmail.com> | Anthony Tuininga <anthony.tuininga@oracle.com> | Cemre MENGU <cemre.mengu@ttgint.com> | Chris Duncan <veqryn@hotmail.com> | Christopher Jones <christopher.jones@oracle.com> | Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2015 go-logfmt | Copyright (c) 2016, 2018 Oracle and/or its affiliates.  All rights reserved | Copyright (c) 2016, 2022 Oracle and/or its affiliates | Copyright (c) 2017 The Go Authors. All rights reserved | Copyright 2017, 2020 Tamás Gulácsi | David Garcia <david.garcia.alvarez@beeva.com> | Gerasimos (Makis) Maropoulos <kataras2006@hotmail.com> | Harris <mike.harris@cerner.com> | Ivan Markin <nogoegst@users.noreply.github.com> | Ivan Pedersen <ivan@alpe.se> | Kurt K <44790488+kurt-google@users.noreply.github.com> | Michael Kenney <mkenney@webbedlam.com> | Mislav Kasner <mislav.kasner@aduro.hr> | Noval Agung Prayogo <novalagung@users.noreply.github.com> | Ricardo Vegas <rvegas@users.noreply.github.com> | Robin van Duiven <robin@aqua-it.com> | Ryan Bastic <ryan@gooddoglabs.com> | Saimon <semyuon@gmail.com> | Sudarshan Soma <sudarshan.ss.s@oracle.com> | Tamás Gulácsi <T.Gulacsi@unosoft.hu> | Tomoya AMACHI <tomoya.amachi@gmail.com> | Walter Alves Wanderley <walter.wanderley@serpro.gov.br> | ricardojesus.vegas <ricardojesus.vegas@bbva.com> | ubinix-warun <warun@ubinix.com> | zhuqiuzhi <zhuqiuzhi91@gmail.com>"
+core,github.com/godror/knownpb/internal,Apache-2.0,"Copyright 2014, 2021 Tamás Gulácsi"
+core,github.com/godror/knownpb/timestamppb,Apache-2.0,"Copyright 2019, 2021 Tamás Gulácsi"
 core,github.com/gogo/googleapis/google/rpc,Apache-2.0,"Copyright 2015, Google Inc | Copyright 2018, GoGo Authors"
 core,github.com/gogo/protobuf/gogoproto,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved. | Copyright 2010 The Go Authors.  All rights reserved."
 core,github.com/gogo/protobuf/jsonpb,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved. | Copyright 2010 The Go Authors.  All rights reserved."
@@ -1003,6 +1025,8 @@ core,github.com/jbenet/go-context/io,MIT,Copyright (c) 2014 Juan Batiz-Benet
 core,github.com/jinzhu/inflection,MIT,Copyright (c) 2015 - Jinzhu
 core,github.com/jlaffaye/ftp,ISC,"Copyright (c) 2011-2013, Julien Laffaye <jlaffaye@FreeBSD.org>"
 core,github.com/jmespath/go-jmespath,Apache-2.0,Copyright 2015 James Saryerwinnie
+core,github.com/jmoiron/sqlx,MIT,"Copyright (c) 2013, Jason Moiron"
+core,github.com/jmoiron/sqlx/reflectx,MIT,"Copyright (c) 2013, Jason Moiron"
 core,github.com/josharian/intern,MIT,Copyright (c) 2019 Josh Bleecher Snyder
 core,github.com/josharian/native,MIT,Copyright 2020 Josh Bleecher Snyder
 core,github.com/json-iterator/go,MIT,Copyright (c) 2016 json-iterator
@@ -1273,10 +1297,19 @@ core,github.com/sigstore/rekor/pkg/generated/client/index,Apache-2.0,Copyright 2
 core,github.com/sigstore/rekor/pkg/generated/client/pubkey,Apache-2.0,Copyright 2021 The Sigstore Authors
 core,github.com/sigstore/rekor/pkg/generated/client/tlog,Apache-2.0,Copyright 2021 The Sigstore Authors
 core,github.com/sigstore/rekor/pkg/generated/models,Apache-2.0,Copyright 2021 The Sigstore Authors
+core,github.com/sijms/go-ora/v2,MIT,Copyright (c) 2020 Samy Sultan
+core,github.com/sijms/go-ora/v2/advanced_nego,MIT,Copyright (c) 2020 Samy Sultan
+core,github.com/sijms/go-ora/v2/advanced_nego/ntlmssp,MIT,Copyright (c) 2020 Samy Sultan
+core,github.com/sijms/go-ora/v2/converters,MIT,Copyright (c) 2020 Samy Sultan
+core,github.com/sijms/go-ora/v2/network,MIT,Copyright (c) 2020 Samy Sultan
+core,github.com/sijms/go-ora/v2/network/security,MIT,Copyright (c) 2020 Samy Sultan
+core,github.com/sijms/go-ora/v2/network/security/md4,MIT,Copyright (c) 2020 Samy Sultan
+core,github.com/sijms/go-ora/v2/trace,MIT,Copyright (c) 2020 Samy Sultan
 core,github.com/sirupsen/logrus,MIT,Copyright (c) 2014 Simon Eskildsen
 core,github.com/skydive-project/go-debouncer,Apache-2.0,"Copyright (C) 2018 Red Hat, Inc."
 core,github.com/smira/go-ftp-protocol/protocol,MIT,Copyright (c) 2014 Andrey Smirnov
 core,github.com/smira/go-xz,MIT,Copyright (c) 2015 Andrey Smirnov
+core,github.com/spaolacci/murmur3,BSD-3-Clause,"Copyright 2013, Sébastien Paolacci"
 core,github.com/spdx/tools-golang/jsonloader,Apache-2.0,Copyright (c) 2018 The Authors
 core,github.com/spdx/tools-golang/jsonloader/parser2v2,Apache-2.0,Copyright (c) 2018 The Authors
 core,github.com/spdx/tools-golang/jsonsaver,Apache-2.0,Copyright (c) 2018 The Authors
@@ -1541,6 +1574,7 @@ core,go.opentelemetry.io/collector/service/extensions,Apache-2.0,Copyright The O
 core,go.opentelemetry.io/collector/service/internal/capabilityconsumer,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/components,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/fanoutconsumer,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/service/internal/graph,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/proctelemetry,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/runtimeinfo,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/zpages,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1568,7 +1602,6 @@ core,go.opentelemetry.io/otel/metric,Apache-2.0,Copyright The OpenTelemetry Auth
 core,go.opentelemetry.io/otel/metric/global,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/metric/instrument,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/metric/internal/global,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/otel/metric/unit,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/propagation,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/instrumentation,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/internal,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1613,7 +1646,9 @@ core,go.uber.org/zap/internal/color,MIT,"Copyright (c) 2016-2017 Uber Technologi
 core,go.uber.org/zap/internal/exit,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
 core,go.uber.org/zap/zapcore,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
 core,go.uber.org/zap/zapgrpc,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
+core,go4.org/intern,BSD-3-Clause,"Copyright (c) 2020, Brad Fitzpatrick"
 core,go4.org/netipx,BSD-3-Clause,Alex Willmer <alex@moreati.org.uk> | Copyright (c) 2020 The Inet.af AUTHORS. All rights reserved | Matt Layher <mdlayher@gmail.com> | Tailscale Inc. | Tobias Klauser <tklauser@distanz.ch>
+core,go4.org/unsafe/assume-no-moving-gc,BSD-3-Clause,"Copyright (c) 2020, Brad Fitzpatrick"
 core,golang.org/x/arch/arm64/arm64asm,BSD-3-Clause,Copyright (c) 2015 The Go Authors. All rights reserved
 core,golang.org/x/arch/x86/x86asm,BSD-3-Clause,Copyright (c) 2015 The Go Authors. All rights reserved
 core,golang.org/x/crypto/argon2,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
@@ -1892,12 +1927,27 @@ core,google.golang.org/protobuf/types/known/timestamppb,BSD-3-Clause,Copyright (
 core,google.golang.org/protobuf/types/known/wrapperspb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/types/pluginpb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,gopkg.in/DataDog/dd-trace-go.v1/ddtrace,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/dyngo,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/dyngo/instrumentation,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/dyngo/instrumentation/grpcsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/dyngo/instrumentation/httpsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/dyngo/instrumentation/sharedsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/globalconfig,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/log,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/osinfo,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/remoteconfig,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/samplernames,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/telemetry,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/traceprof,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/version,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/profiler,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/profiler/internal,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/profiler/internal/fastdelta,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/profiler/internal/immutable,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/profiler/internal/pproflite,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/profiler/internal/pprofutils,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/Knetic/govaluate.v3,MIT,"Copyright (c) 2014-2016 George Lester | abrander (panic-finding testing tool) | benpaxton (fix for missing type checks during literal elide process) | bgaifullin (lifting restriction on complex/struct types) | dpaolella (exposure of variables used in an expression) | iasci (ternary operator) | oxtoacart (parameter structures, deferred parameter retrieval) | prashantv (optimization of bools) | vjeantet (regex support) | wmiller848 (bitwise operators) | xfennec (fix for dates being parsed in the current Location)"
 core,gopkg.in/cheggaaa/pb.v1,BSD-3-Clause,"Copyright (c) 2012-2015, Sergey Cherepanov"
@@ -1908,6 +1958,7 @@ core,gopkg.in/warnings.v0,BSD-2-Clause,Copyright (c) 2016 Péter Surányi
 core,gopkg.in/yaml.v2,Apache-2.0,Copyright 2011-2016 Canonical Ltd
 core,gopkg.in/yaml.v3,MIT,Copyright (c) 2006-2010 Kirill Simonov | Copyright 2011-2016 Canonical Ltd
 core,gopkg.in/zorkian/go-datadog-api.v2,BSD-3-Clause,Copyright (c) 2013 by authors and contributors | Copyright 2013-2019 by authors and contributors
+core,inet.af/netaddr,BSD-3-Clause,Alex Willmer <alex@moreati.org.uk> | Copyright (c) 2020 The Inet.af AUTHORS. All rights reserved | Matt Layher <mdlayher@gmail.com> | Tailscale Inc. | Tobias Klauser <tklauser@distanz.ch>
 core,k8s.io/api/admission/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/admission/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/admissionregistration/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -2476,6 +2527,11 @@ core,k8s.io/klog/v2/internal/clock,Apache-2.0,Copyright 2014 The Kubernetes Auth
 core,k8s.io/klog/v2/internal/dbg,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/klog/v2/internal/serialize,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/klog/v2/internal/severity,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/kube-aggregator/pkg/apis/apiregistration,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/kube-aggregator/pkg/apis/apiregistration/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/scheme,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/cmd/openapi-gen,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/cmd/openapi-gen/args,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/builder,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -2523,7 +2579,6 @@ core,k8s.io/utils/lru,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/utils/net,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/utils/path,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/utils/pointer,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/utils/temp,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/utils/trace,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,lukechampine.com/uint128,MIT,Copyright (c) 2019 Luke Champine
 core,mellium.im/sasl,BSD-2-Clause,Copyright © 2014 The Mellium Contributors

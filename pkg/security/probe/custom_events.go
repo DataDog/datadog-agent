@@ -37,7 +37,7 @@ func NewEventLostReadEvent(mapName string, lost float64) (*rules.Rule, *events.C
 	}
 	evt.FillCustomEventCommonFields()
 
-	return events.NewCustomRule(events.LostEventsRuleID), events.NewCustomEvent(model.CustomLostReadEventType, func() easyjson.Marshaler { return evt })
+	return events.NewCustomRule(events.LostEventsRuleID), events.NewCustomEvent(model.CustomLostReadEventType, evt)
 }
 
 // EventLostWrite is the event used to report lost events detected from kernel space
@@ -56,7 +56,7 @@ func NewEventLostWriteEvent(mapName string, perEventPerCPU map[string]uint64) (*
 	}
 	evt.FillCustomEventCommonFields()
 
-	return events.NewCustomRule(events.LostEventsRuleID), events.NewCustomEvent(model.CustomLostWriteEventType, func() easyjson.Marshaler { return evt })
+	return events.NewCustomRule(events.LostEventsRuleID), events.NewCustomEvent(model.CustomLostWriteEventType, evt)
 }
 
 // NoisyProcessEvent is used to report that a noisy process was temporarily discarded
@@ -92,7 +92,7 @@ func NewNoisyProcessEvent(count uint64,
 	// Overwrite common timestamp
 	evt.Timestamp = timestamp
 
-	return events.NewCustomRule(events.NoisyProcessRuleID), events.NewCustomEvent(model.CustomNoisyProcessEventType, func() easyjson.Marshaler { return evt })
+	return events.NewCustomRule(events.NoisyProcessRuleID), events.NewCustomEvent(model.CustomNoisyProcessEventType, evt)
 }
 
 func resolutionErrorToEventType(err error) model.EventType {
@@ -126,5 +126,5 @@ func NewAbnormalPathEvent(event *model.Event, probe *Probe, pathResolutionError 
 		return evt
 	}
 
-	return events.NewCustomRule(events.AbnormalPathRuleID), events.NewCustomEvent(resolutionErrorToEventType(event.PathResolutionError), marshalerCtor)
+	return events.NewCustomRule(events.AbnormalPathRuleID), events.NewCustomEventLazy(resolutionErrorToEventType(event.PathResolutionError), marshalerCtor)
 }

@@ -20,6 +20,7 @@ import (
 	"github.com/containerd/containerd/oci"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/assert"
 
@@ -31,9 +32,18 @@ func TestBuildCollectorEvent(t *testing.T) {
 	containerID := "10"
 	namespace := "test_namespace"
 
+	image := &mockedImage{
+		mockConfig: func() (ocispec.Descriptor, error) {
+			return ocispec.Descriptor{Digest: "my_image_id"}, nil
+		},
+	}
+
 	container := mockedContainer{
 		mockID: func() string {
 			return containerID
+		},
+		mockImage: func() (containerd.Image, error) {
+			return image, nil
 		},
 	}
 

@@ -277,9 +277,10 @@ type ContainerImage struct {
 	Tag       string
 }
 
-// NewContainerImage builds a ContainerImage from an image name
-func NewContainerImage(imageName string) (ContainerImage, error) {
+// NewContainerImage builds a ContainerImage from an image name and its id
+func NewContainerImage(imageID string, imageName string) (ContainerImage, error) {
 	image := ContainerImage{
+		ID:      imageID,
 		RawName: imageName,
 		Name:    imageName,
 	}
@@ -451,6 +452,11 @@ func (c Container) String(verbose bool) string {
 	}
 
 	return sb.String()
+}
+
+// IsOwnedByPod checks if a container's Owner is a KindKubernetesPod
+func (c *Container) IsOwnedByPod() bool {
+	return c.Owner != nil && c.Owner.Kind == KindKubernetesPod
 }
 
 var _ Entity = &Container{}

@@ -10,6 +10,7 @@ package profile
 
 import (
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 )
 
@@ -18,7 +19,7 @@ func protoToSecurityProfile(output *SecurityProfile, input *proto.SecurityProfil
 		return
 	}
 
-	output.Status = Status(input.Status)
+	output.Status = model.Status(input.Status)
 	output.Version = input.Version
 	output.Metadata = dump.ProtoMetadataToMetadata(input.Metadata)
 

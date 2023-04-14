@@ -1,11 +1,11 @@
 ---
-deploy_packages_windows-6:
+deploy_packages_windows-x64-6:
   rules:
     !reference [.on_deploy_a6]
   stage: deploy6
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main"]
-  dependencies: ["windows_msi_x64-a6"]
+  needs: ["windows_msi_x64-a6"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:

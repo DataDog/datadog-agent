@@ -14,6 +14,8 @@ dependency "python3" if with_python_runtime? "3"
 dependency "libarchive" if windows?
 dependency "yaml-cpp" if windows?
 
+dependency "openscap" if linux? and !arm7l?
+
 source path: '..'
 relative_path 'src/github.com/DataDog/datadog-agent'
 
@@ -41,7 +43,7 @@ build do
         "Python2_ROOT_DIR" => "#{install_dir}/embedded",
         "Python3_ROOT_DIR" => "#{install_dir}/embedded",
         "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
-        "CGO_CFLAGS" => "-I#{install_dir}/embedded/include",
+        "CGO_CFLAGS" => "-I. -I#{install_dir}/embedded/include",
         "CGO_LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
     }
     major_version_arg = "$MAJOR_VERSION"
