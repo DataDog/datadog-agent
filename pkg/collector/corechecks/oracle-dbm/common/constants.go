@@ -7,6 +7,11 @@ package common
 
 // IntegrationName is the name of the integration.
 const IntegrationName = "oracle"
+
+/* We are temporarily using the name `oracle-dbm` to avoid scheduling clashes with the existing Oracle integration
+ * functionality written in Python. We will change this back to `oracle` once we migrated this functionality
+ * here.
+ */
 const IntegrationNameScheduler = "oracle-dbm"
 
 const Godror = "godror"
