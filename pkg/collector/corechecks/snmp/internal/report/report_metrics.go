@@ -130,6 +130,7 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConf
 			var err error
 			metricValues, err = getColumnValueFromSymbol(values, symbol)
 			if err != nil {
+				log.Debugf("report column: error getting column value: %v", err)
 				continue
 			}
 		}
