@@ -18,7 +18,7 @@ func ConvertFlow(srcFlow *flowpb.FlowMessage, namespace string) *common.Flow {
 		FlowType:        convertFlowType(srcFlow.Type),
 		SamplingRate:    srcFlow.SamplingRate,
 		Direction:       srcFlow.FlowDirection,
-		DeviceAddr:      srcFlow.SamplerAddress, // Sampler is renamed to Device since it's a device in most cases
+		ExporterAddr:    srcFlow.SamplerAddress, // Sampler is renamed to Exporter since it's a more commonly used
 		StartTimestamp:  srcFlow.TimeFlowStart,
 		EndTimestamp:    srcFlow.TimeFlowEnd,
 		Bytes:           srcFlow.Bytes,

@@ -39,7 +39,7 @@
 	<!-- these strings for the  site dialog -->
 	<String Id ="SiteDialog_Title" Overridable="yes" Localizable="yes">[ProductName] Setup</String>
 	<String Id ="SiteDialogDescription" Overridable="yes" Localizable="yes">{\WixUI_Font_Normal_White}Select the Datadog Region</String>
-	<String Id ="SiteDialogTitle"  Overridable="yes" Localizable="yes">{\WixUI_Font_Title_White}Datadog Region </String>
+	<String Id ="SiteDialogTitle"  Overridable="yes" Localizable="yes">{\WixUI_Font_Title_White}Datadog Region</String>
 	<String Id ="SiteDialogKeyLabel" Overridable="yes" Localizable="yes">Which Datadog region do you want the Agent to send data to?</String>
 	<String Id ="SiteSampleKey" Overridable="yes" Localizable="yes"></String>
 
@@ -58,7 +58,7 @@
 	<!-- these strings for the send flare dialog -->
 	<String Id ="SendFlareDialog_Title" Overridable="yes" Localizable="yes">[ProductName] Setup</String>
 	<String Id ="SendFlareDialogDescription" Overridable="yes" Localizable="yes">{\WixUI_Font_Normal_White}Send a diagnostic report of this installation error to Datadog.</String>
-	<String Id ="SendFlareDialogTitle"  Overridable="yes" Localizable="yes">{\WixUI_Font_Title_White}Datadog Flare </String>
+	<String Id ="SendFlareDialogTitle"  Overridable="yes" Localizable="yes">{\WixUI_Font_Title_White}Datadog Flare</String>
 	<String Id ="SendFlareDialogKeyLabel" Overridable="yes" Localizable="yes">Clicking on the Send Flare button will send a diagnostic report to Datadog, including the install logs.</String>
 	<String Id ="SendFlareHelpText" Overridable="yes" Localizable="yes">Submit your email address in the text box below for a follow-up from Datadog support. (Optional)</String>
 
@@ -71,4 +71,12 @@
 	<String Id="MsiRMFilesInUseText" Overridable="yes">The following applications are using files that need to be updated by this setup. Close these applications and then click &amp;Retry to continue setup or Exit to exit it.</String>
 	<String Id="MsiRMFilesInUseDescription" Overridable="yes">{\WixUI_Font_Normal_White}Some files that need to be updated are currently in use.</String>
 	<String Id="MsiRMFilesInUseTitle" Overridable="yes">{\WixUI_Font_Title_White}Files in Use</String>
+
+	<!-- these strings for the closed source dialog -->
+	<String Id ="ClosedSourceDialog_Title">[ProductName] Setup</String>
+	<String Id ="ClosedSrcDialogTitle" >{\WixUI_Font_Title_White}Datadog Open Source</String>
+	<String Id ="ClosedSrcDescription">{\WixUI_Font_Normal_White}Accept components which are not open source.</String>
+
+	<String Id ="ClosedSrcKeyLabel">Enable components which are not open source. This option must be enabled for the NPM product to function.</String>
+	<String Id ="ClosedSrcAcceptedCheckText">Enable components which are not open source.</String>
 </WixLocalization>

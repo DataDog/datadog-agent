@@ -78,24 +78,29 @@ func (s *Scanner) start(ctx context.Context) {
 	if s.running {
 		return
 	}
-
 	go func() {
+		cleanTicker := time.NewTicker(config.Datadog.GetDuration("sbom.cache_clean_interval"))
+		defer cleanTicker.Stop()
 		s.running = true
 		defer func() { s.running = false }()
-
 		for {
 			select {
 			// We don't want to keep scanning if image channel is not empty but context is expired
 			case <-ctx.Done():
 				return
-
+			case <-cleanTicker.C:
+				for _, collector := range collectors.Collectors {
+					if err := collector.CleanCache(); err != nil {
+						log.Warnf("could not clean SBOM cache: %v", err)
+					}
+				}
 			case request, ok := <-s.scanQueue:
 				// Channel has been closed we should exit
 				if !ok {
 					return
 				}
 
-				telemetry.SBOMFailures.Inc(request.Collector(), request.Type())
+				telemetry.SBOMAttempts.Inc(request.Collector(), request.Type())
 
 				collector := request.collector
 				if err := s.enoughDiskSpace(request.opts); err != nil {
@@ -164,7 +169,7 @@ func NewScanner(cfg config.Config) *Scanner {
 // global one, and returns it. Start() needs to be called before any data
 // collection happens.
 func CreateGlobalScanner(cfg config.Config) (*Scanner, error) {
-	if !cfg.GetBool("sbom.enabled") && !cfg.GetBool("container_image_collection.sbom.enabled") {
+	if !cfg.GetBool("sbom.enabled") && !cfg.GetBool("container_image_collection.sbom.enabled") && !cfg.GetBool("runtime_security_config.sbom.enabled") {
 		return nil, nil
 	}
 

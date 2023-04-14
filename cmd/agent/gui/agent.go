@@ -18,7 +18,7 @@ import (
 	"github.com/gorilla/mux"
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -102,7 +102,7 @@ func getLog(w http.ResponseWriter, r *http.Request) {
 
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {
-		logFile = common.DefaultLogFile
+		logFile = path.DefaultLogFile
 	}
 
 	logFileContents, e := os.ReadFile(logFile)
@@ -143,14 +143,14 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {
-		logFile = common.DefaultLogFile
+		logFile = path.DefaultLogFile
 	}
 	jmxLogFile := config.Datadog.GetString("jmx_log_file")
 	if jmxLogFile == "" {
-		jmxLogFile = common.DefaultJmxLogFile
+		jmxLogFile = path.DefaultJmxLogFile
 	}
 
-	filePath, e := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, nil, nil)
+	filePath, e := flare.CreateArchive(false, path.GetDistPath(), path.PyChecksPath, []string{logFile, jmxLogFile}, nil, nil)
 	if e != nil {
 		w.Write([]byte("Error creating flare zipfile: " + e.Error()))
 		log.Errorf("Error creating flare zipfile: " + e.Error())
