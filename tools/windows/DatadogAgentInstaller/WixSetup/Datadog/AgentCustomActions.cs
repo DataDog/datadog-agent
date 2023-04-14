@@ -145,8 +145,7 @@ namespace WixSetup.Datadog
             {
                 Execute = Execute.deferred,
                 Impersonate = false
-            }
-            .SetProperties("ADDLOCAL=[ADDLOCAL]");
+            };
 
             WriteConfig = new CustomAction<ConfigCustomActions>(
                 new Id(nameof(WriteConfig)),
@@ -164,7 +163,6 @@ namespace WixSetup.Datadog
                 "APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
                 "PROJECTLOCATION=[PROJECTLOCATION], " +
                 "SYSPROBE_PRESENT=[SYSPROBE_PRESENT], " +
-                "ADDLOCAL=[ADDLOCAL], " +
                 "APIKEY=[APIKEY], " +
                 "TAGS=[TAGS], " +
                 "HOSTNAME=[HOSTNAME], " +

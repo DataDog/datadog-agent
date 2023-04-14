@@ -51,28 +51,15 @@ namespace Datadog.CustomActions
         {
             try
             {
-                var addLocal = session.Property("ADDLOCAL").ToUpper();
-                session.Log($"ADDLOCAL={addLocal}");
                 using var systemProbeDef = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\datadog-system-probe", true);
                 if (systemProbeDef != null)
                 {
-                    if (string.IsNullOrEmpty(addLocal))
+                    // Remove the dependency between "datadog-system-probe" and "ddnpm" services since
+                    // the "datadogagent" service now takes care of starting the "ddnpm" service.
+                    systemProbeDef.SetValue("DependOnService", new[]
                     {
-                        systemProbeDef.SetValue("DependOnService", new[]
-                        {
-                            Constants.AgentServiceName
-                        }, RegistryValueKind.MultiString);
-
-                    }
-                    else if (addLocal.Contains("NPM") ||
-                             addLocal.Contains("ALL"))
-                    {
-                        systemProbeDef.SetValue("DependOnService", new[]
-                        {
-                            Constants.AgentServiceName,
-                            Constants.NpmServiceName
-                        }, RegistryValueKind.MultiString);
-                    }
+                        Constants.AgentServiceName
+                    }, RegistryValueKind.MultiString);
                 }
                 else
                 {
