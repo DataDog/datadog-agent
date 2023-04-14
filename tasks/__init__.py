@@ -17,6 +17,7 @@ from . import (
     epforwarder,
     github,
     msi,
+    new_e2e_tests,
     package,
     pipeline,
     process_agent,
@@ -29,7 +30,6 @@ from . import (
     systray,
     trace_agent,
     vscode,
-    new_e2e_tests,
 )
 from .build_tags import audit_tag_impact, print_default_build_tags
 from .components import lint_components
