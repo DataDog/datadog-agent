@@ -1,0 +1,5 @@
+
+---
+upgrade:
+  - |
+    Tags in activity dumps now have an additional field called "image_id". It is constrcuted as such: "repo+@+sha256:XXX"
