@@ -81,7 +81,6 @@ func (s *Scanner) start(ctx context.Context) {
 	go func() {
 		cleanTicker := time.NewTicker(config.Datadog.GetDuration("sbom.cache_clean_interval"))
 		defer cleanTicker.Stop()
-	go func() {
 		s.running = true
 		defer func() { s.running = false }()
 		for {
