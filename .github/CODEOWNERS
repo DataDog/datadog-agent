@@ -247,7 +247,7 @@
 /pkg/config/environment*.go             @DataDog/container-integrations @DataDog/container-app
 /pkg/config/log*.go                     @Datadog/agent-platform
 /pkg/config/process*.go                 @DataDog/processes
-/pkg/config/system_probe.go             @DataDog/ebpf-platform
+/pkg/config/system_probe.go             @DataDog/ebpf-platform @DataDog/agent-security
 /pkg/config/remote/                     @DataDog/remote-config
 /pkg/config/remote/service/meta/        @DataDog/remote-config @DataDog/software-integrity-and-trust
 /pkg/containerlifecycle/                @Datadog/container-integrations
