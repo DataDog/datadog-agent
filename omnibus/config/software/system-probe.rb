@@ -16,8 +16,6 @@ build do
   mkdir "#{install_dir}/embedded/share/system-probe/ebpf/co-re"
   mkdir "#{install_dir}/embedded/share/system-probe/ebpf/co-re/btf"
   mkdir "#{install_dir}/embedded/share/system-probe/java"
-  mkdir "#{install_dir}/embedded/nikos/embedded/bin"
-  mkdir "#{install_dir}/embedded/nikos/embedded/lib"
 
   copy 'pkg/network/java/agent-usm.jar', "#{install_dir}/embedded/share/system-probe/java/"
 
@@ -31,6 +29,8 @@ build do
     copy "#{ENV['SYSTEM_PROBE_BIN']}/tracer-debug.o", "#{install_dir}/embedded/share/system-probe/ebpf/"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/offset-guess.o", "#{install_dir}/embedded/share/system-probe/ebpf/"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/offset-guess-debug.o", "#{install_dir}/embedded/share/system-probe/ebpf/"
+    copy "#{ENV['SYSTEM_PROBE_BIN']}/conntrack.o", "#{install_dir}/embedded/share/system-probe/ebpf/"
+    copy "#{ENV['SYSTEM_PROBE_BIN']}/conntrack-debug.o", "#{install_dir}/embedded/share/system-probe/ebpf/"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/runtime-security.o", "#{install_dir}/embedded/share/system-probe/ebpf/"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/runtime-security-syscall-wrapper.o", "#{install_dir}/embedded/share/system-probe/ebpf/"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/runtime-security-offset-guesser.o", "#{install_dir}/embedded/share/system-probe/ebpf/"
@@ -50,26 +50,4 @@ build do
   end
 
   copy 'pkg/ebpf/c/COPYING', "#{install_dir}/embedded/share/system-probe/ebpf/"
-
-  if ENV.has_key?('NIKOS_PATH') and not ENV['NIKOS_PATH'].empty?
-    copy "#{ENV['NIKOS_PATH']}/bin/gpg", "#{install_dir}/embedded/nikos/embedded/bin/"
-    copy "#{ENV['NIKOS_PATH']}/lib/rpm", "#{install_dir}/embedded/nikos/embedded/lib/"
-    delete "#{install_dir}/embedded/nikos/embedded/lib/rpm/debugedit"
-    delete "#{install_dir}/embedded/nikos/embedded/lib/rpm/elfdeps"
-    delete "#{install_dir}/embedded/nikos/embedded/lib/rpm/rpmdeps"
-    delete "#{install_dir}/embedded/nikos/embedded/lib/rpm/sepdebugcrcfix"
-    copy "#{ENV['NIKOS_PATH']}/lib/libreadline.so", "#{install_dir}/embedded/nikos/embedded/lib/"
-    copy "#{ENV['NIKOS_PATH']}/lib/libreadline.so.8", "#{install_dir}/embedded/nikos/embedded/lib/"
-    copy "#{ENV['NIKOS_PATH']}/lib/libreadline.so.8.0", "#{install_dir}/embedded/nikos/embedded/lib/"
-    copy "#{ENV['NIKOS_PATH']}/lib/libncursesw.so", "#{install_dir}/embedded/nikos/embedded/lib/"
-    copy "#{ENV['NIKOS_PATH']}/lib/libncursesw.so.5", "#{install_dir}/embedded/nikos/embedded/lib/"
-    copy "#{ENV['NIKOS_PATH']}/lib/libncursesw.so.5.9", "#{install_dir}/embedded/nikos/embedded/lib/"
-    copy "#{ENV['NIKOS_PATH']}/lib/libtinfow.so", "#{install_dir}/embedded/nikos/embedded/lib/"
-    copy "#{ENV['NIKOS_PATH']}/lib/libtinfow.so.5", "#{install_dir}/embedded/nikos/embedded/lib/"
-    copy "#{ENV['NIKOS_PATH']}/lib/libtinfow.so.5.9", "#{install_dir}/embedded/nikos/embedded/lib/"
-    copy "#{ENV['NIKOS_PATH']}/lib/libtinfo.so", "#{install_dir}/embedded/nikos/embedded/lib/"
-    copy "#{ENV['NIKOS_PATH']}/lib/libtinfo.so.5", "#{install_dir}/embedded/nikos/embedded/lib/"
-    copy "#{ENV['NIKOS_PATH']}/lib/libtinfo.so.5.9", "#{install_dir}/embedded/nikos/embedded/lib/"
-    copy "#{ENV['NIKOS_PATH']}/ssl", "#{install_dir}/embedded/nikos/embedded/"
-  end
 end

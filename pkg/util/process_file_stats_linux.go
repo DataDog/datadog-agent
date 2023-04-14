@@ -22,20 +22,20 @@ func GetProcessFileStats() (*ProcessFileStats, error) {
 	// Creating a new process.Process type based on Agent PID
 	p, err := process.NewProcess(int32(os.Getpid()))
 	if err != nil {
-		log.Errorf("Failed to retrieve agent process: %s. Process ID: %v", err, int32(os.Getpid()))
+		log.Debugf("Failed to retrieve agent process: %s. Process ID: %v", err, int32(os.Getpid()))
 		return &stats, err
 	}
 
 	// Retrieving type []RlimitStat from struct process.Process p
 	rs, err := p.RlimitUsage(true)
 	if err != nil {
-		log.Errorf("Failed to retrieve type RlimitStat: %s", err)
+		log.Debugf("Failed to retrieve type RlimitStat: %s", err)
 		return &stats, err
 	}
 
 	// Retrieving how many file handles the Core Agent process has open and the file limit set on the OS level
-	stats.AgentOpenFiles = float64(rs[process.RLIMIT_NOFILE].Used)
-	stats.OsFileLimit = float64(rs[process.RLIMIT_NOFILE].Soft)
+	stats.AgentOpenFiles = rs[process.RLIMIT_NOFILE].Used
+	stats.OsFileLimit = rs[process.RLIMIT_NOFILE].Soft
 
 	return &stats, nil
 }

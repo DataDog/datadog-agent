@@ -34,9 +34,8 @@ _Pragma( STRINGIFY(unroll(max_buffer_size)) )                                   
 
 SEC("socket/kafka_filter")
 int socket__kafka_filter(struct __sk_buff* skb) {
+    const u32 zero = 0;
     skb_info_t skb_info;
-    bpf_memset(&skb_info, 0, sizeof(skb_info));
-    u32 zero = 0;
     kafka_transaction_t *kafka = bpf_map_lookup_elem(&kafka_heap, &zero);
     if (kafka == NULL) {
         log_debug("socket__kafka_filter: kafka_transaction state is NULL\n");
@@ -44,9 +43,11 @@ int socket__kafka_filter(struct __sk_buff* skb) {
     }
     bpf_memset(kafka, 0, sizeof(kafka_transaction_t));
 
-    if (!read_conn_tuple_skb(skb, &skb_info, &kafka->base.tup)) {
+    if (!fetch_dispatching_arguments(&kafka->base.tup, &skb_info)) {
+        log_debug("socket__kafka_filter failed to fetch arguments for tail call\n");
         return 0;
     }
+
     if (!kafka_allow_packet(kafka, skb, &skb_info)) {
         return 0;
     }
@@ -174,6 +175,7 @@ static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction
     bpf_memset(kafka_transaction->base.topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE);
     parser_read_into_buffer_topic_name((char *)kafka_transaction->base.topic_name, skb, offset);
     offset += topic_name_size;
+    kafka_transaction->base.topic_name_size = topic_name_size;
 
     CHECK_STRING_COMPOSED_OF_ASCII_FOR_PARSING(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_size, kafka_transaction->base.topic_name);
 

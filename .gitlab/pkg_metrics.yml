@@ -256,11 +256,11 @@ check_pkg_size-amd64-a6:
     FLAVORS: "datadog-agent"
     ARCH: "amd64"
   before_script:
-    # FIXME: ["datadog-agent"]="25000000" should be replaced by "15000000"
-    # "25000000" is needed as of now because of a large bump in size in system-probe in 7.35
+    # FIXME: ["datadog-agent"]="60000000" should be replaced by "50000000"
+    # "60000000" is needed as of now because of a large bump in size of the agent package in 7.45
     - |
         declare -Ar max_sizes=(
-            ["datadog-agent"]="50000000"
+            ["datadog-agent"]="60000000"
         )
 
 check_pkg_size-arm64-a6:
@@ -275,11 +275,11 @@ check_pkg_size-arm64-a6:
     FLAVORS: "datadog-agent"
     ARCH: "arm64"
   before_script:
-    # FIXME: ["datadog-agent"]="25000000" should be replaced by "15000000"
-    # "25000000" is needed as of now because of a large bump in size in system-probe in 7.35
+    # FIXME: ["datadog-agent"]="60000000" should be replaced by "50000000"
+    # "60000000" is needed as of now because of a large bump in size of the agent package in 7.45
     - |
         declare -Ar max_sizes=(
-            ["datadog-agent"]="50000000"
+            ["datadog-agent"]="60000000"
         )
 
 check_pkg_size-amd64-a7:
@@ -302,16 +302,15 @@ check_pkg_size-amd64-a7:
     FLAVORS: "datadog-agent datadog-iot-agent datadog-dogstatsd datadog-heroku-agent"
     ARCH: "amd64"
   before_script:
-    # FIXME: ["datadog-agent"]="25000000" and ["datadog-heroku-agent"]="25000000" should
-    # be replaced by "15000000"
-    # "25000000" is needed as of now because of a large bump in size in system-probe in 7.35
-    # If this happens often we could exclude system-probe from the heroku build, it's not used.
+    # FIXME: ["datadog-agent"]="60000000" and ["datadog-heroku-agent"]="60000000" should
+    # be replaced by "50000000"
+    # "60000000" is needed as of now because of a large bump in size of the agent package in 7.45
     - |
         declare -Ar max_sizes=(
-            ["datadog-agent"]="50000000"
+            ["datadog-agent"]="60000000"
             ["datadog-iot-agent"]="10000000"
             ["datadog-dogstatsd"]="10000000"
-            ["datadog-heroku-agent"]="50000000"
+            ["datadog-heroku-agent"]="60000000"
         )
 
 check_pkg_size-arm64-a7:
@@ -329,13 +328,11 @@ check_pkg_size-arm64-a7:
     FLAVORS: "datadog-agent datadog-iot-agent datadog-dogstatsd"
     ARCH: "arm64"
   before_script:
-    # FIXME: ["datadog-agent"]="25000000" and ["datadog-heroku-agent"]="25000000" should
-    # be replaced by "15000000"
-    # "25000000" is needed as of now because of a large bump in size in system-probe in 7.35
-    # If this happens often we could exclude system-probe from the heroku build, it's not used.
+    # FIXME: ["datadog-agent"]="60000000" should be replaced by "50000000"
+    # "60000000" is needed as of now because of a large bump in size of the agent package in 7.45
     - |
         declare -Ar max_sizes=(
-            ["datadog-agent"]="50000000"
+            ["datadog-agent"]="60000000"
             ["datadog-iot-agent"]="10000000"
             ["datadog-dogstatsd"]="10000000"
         )

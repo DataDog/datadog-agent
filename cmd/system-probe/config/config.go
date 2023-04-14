@@ -28,6 +28,7 @@ const (
 	spNS      = Namespace
 	smNS      = "service_monitoring_config"
 	dsmNS     = "data_streams_config"
+	diNS      = "dynamic_instrumentation"
 
 	defaultConnsMessageBatchSize = 600
 	maxConnsMessageBatchSize     = 1000
@@ -35,11 +36,13 @@ const (
 
 // system-probe module names
 const (
-	NetworkTracerModule        ModuleName = "network_tracer"
-	OOMKillProbeModule         ModuleName = "oom_kill_probe"
-	TCPQueueLengthTracerModule ModuleName = "tcp_queue_length_tracer"
-	SecurityRuntimeModule      ModuleName = "security_runtime"
-	ProcessModule              ModuleName = "process"
+	NetworkTracerModule          ModuleName = "network_tracer"
+	OOMKillProbeModule           ModuleName = "oom_kill_probe"
+	TCPQueueLengthTracerModule   ModuleName = "tcp_queue_length_tracer"
+	SecurityRuntimeModule        ModuleName = "security_runtime"
+	ProcessModule                ModuleName = "process"
+	EventMonitorModule           ModuleName = "event_monitor"
+	DynamicInstrumentationModule ModuleName = "dynamic_instrumentation"
 )
 
 func key(pieces ...string) string {
@@ -88,8 +91,10 @@ func newSysprobeConfig(configPath string, loadSecrets bool) (*Config, error) {
 		if strings.HasSuffix(configPath, ".yaml") {
 			aconfig.SystemProbe.SetConfigFile(configPath)
 		}
+	} else {
+		// only add default if a custom configPath was not supplied
+		aconfig.SystemProbe.AddConfigPath(defaultConfigDir)
 	}
-	aconfig.SystemProbe.AddConfigPath(defaultConfigDir)
 	// load the configuration
 	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", loadSecrets, aconfig.Datadog.GetEnvVars())
 	if err != nil {
@@ -174,10 +179,14 @@ func load() (*Config, error) {
 		cfg.GetBool("runtime_security_config.fim_enabled") ||
 		cfg.GetBool("event_monitoring_config.process.enabled") ||
 		(c.ModuleIsEnabled(NetworkTracerModule) && cfg.GetBool("event_monitoring_config.network_process.enabled")) {
-		c.EnabledModules[SecurityRuntimeModule] = struct{}{}
+		c.EnabledModules[EventMonitorModule] = struct{}{}
 	}
 	if cfg.GetBool(key(spNS, "process_config.enabled")) {
 		c.EnabledModules[ProcessModule] = struct{}{}
+	}
+
+	if cfg.GetBool(key(diNS, "enabled")) {
+		c.EnabledModules[DynamicInstrumentationModule] = struct{}{}
 	}
 
 	if len(c.EnabledModules) > 0 {

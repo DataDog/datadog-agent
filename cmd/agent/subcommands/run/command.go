@@ -37,7 +37,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	dogstatsdDebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	"github.com/DataDog/datadog-agent/comp/forwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
@@ -45,7 +49,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	pkgforwarder "github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
@@ -82,6 +86,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/nvidia/jetson"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/sbom"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu"
@@ -123,12 +128,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 				LogParams:            log.LogForDaemon("CORE", "log_file", common.DefaultLogFile),
 			}),
-			flare.Module,
-			core.Bundle,
-			fx.Supply(dogstatsdServer.Params{
-				Serverless: false,
-			}),
-			dogstatsd.Bundle,
+			getSharedFxOption(),
 		)
 	}
 
@@ -153,7 +153,16 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // run starts the main loop.
 //
 // This is exported because it also used from the deprecated `agent start` command.
-func run(log log.Component, config config.Component, flare flare.Component, sysprobeconfig sysprobeconfig.Component, server dogstatsdServer.Component, cliParams *cliParams) error {
+func run(log log.Component,
+	config config.Component,
+	flare flare.Component,
+	sysprobeconfig sysprobeconfig.Component,
+	server dogstatsdServer.Component,
+	capture replay.Component,
+	serverDebug dogstatsdDebug.Component,
+	forwarder defaultforwarder.Component,
+	cliParams *cliParams,
+) error {
 	defer func() {
 		stopAgent(cliParams, server)
 	}()
@@ -194,7 +203,7 @@ func run(log log.Component, config config.Component, flare flare.Component, sysp
 		}
 	}()
 
-	if err := startAgent(cliParams, flare, sysprobeconfig, server); err != nil {
+	if err := startAgent(cliParams, flare, sysprobeconfig, server, capture, serverDebug, forwarder); err != nil {
 		return err
 	}
 
@@ -208,9 +217,18 @@ func run(log log.Component, config config.Component, flare flare.Component, sysp
 func StartAgentWithDefaults() (dogstatsdServer.Component, error) {
 	var dsdServer dogstatsdServer.Component
 	// run startAgent in an app, so that the log and config components get initialized
-	err := fxutil.OneShot(func(log log.Component, config config.Component, flare flare.Component, sysprobeconfig sysprobeconfig.Component, server dogstatsdServer.Component) error {
+	err := fxutil.OneShot(func(log log.Component,
+		config config.Component,
+		flare flare.Component,
+		sysprobeconfig sysprobeconfig.Component,
+		server dogstatsdServer.Component,
+		serverDebug dogstatsdDebug.Component,
+		capture replay.Component,
+		forwarder defaultforwarder.Component,
+	) error {
 		dsdServer = server
-		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, flare, sysprobeconfig, server)
+
+		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, flare, sysprobeconfig, server, capture, serverDebug, forwarder)
 	},
 		// no config file path specification in this situation
 		fx.Supply(core.BundleParams{
@@ -218,12 +236,7 @@ func StartAgentWithDefaults() (dogstatsdServer.Component, error) {
 			SysprobeConfigParams: sysprobeconfig.NewParams(),
 			LogParams:            log.LogForDaemon("CORE", "log_file", common.DefaultLogFile),
 		}),
-		flare.Module,
-		core.Bundle,
-		fx.Supply(dogstatsdServer.Params{
-			Serverless: false,
-		}),
-		dogstatsd.Bundle,
+		getSharedFxOption(),
 	)
 
 	if err != nil {
@@ -232,8 +245,34 @@ func StartAgentWithDefaults() (dogstatsdServer.Component, error) {
 	return dsdServer, nil
 }
 
+func getSharedFxOption() fx.Option {
+	return fx.Options(
+		flare.Module,
+		core.Bundle,
+		fx.Supply(dogstatsdServer.Params{
+			Serverless: false,
+		}),
+		forwarder.Bundle,
+		fx.Provide(func(config config.Component, log log.Component) defaultforwarder.Params {
+			params := defaultforwarder.NewParams(config, log)
+			// Enable core agent specific features like persistence-to-disk
+			params.Options.EnabledFeatures = pkgforwarder.SetFeature(params.Options.EnabledFeatures, pkgforwarder.CoreFeatures)
+			return params
+		}),
+		dogstatsd.Bundle,
+	)
+}
+
 // startAgent Initializes the agent process
-func startAgent(cliParams *cliParams, flare flare.Component, sysprobeconfig sysprobeconfig.Component, server dogstatsdServer.Component) error {
+func startAgent(
+	cliParams *cliParams,
+	flare flare.Component,
+	sysprobeconfig sysprobeconfig.Component,
+	server dogstatsdServer.Component,
+	capture replay.Component,
+	serverDebug dogstatsdDebug.Component,
+	sharedForwarder defaultforwarder.Component) error {
+
 	var err error
 
 	// Main context passed to components
@@ -280,7 +319,7 @@ func startAgent(cliParams *cliParams, flare flare.Component, sysprobeconfig sysp
 	}
 
 	// init settings that can be changed at runtime
-	if err := initRuntimeSettings(server); err != nil {
+	if err := initRuntimeSettings(serverDebug); err != nil {
 		pkglog.Warnf("Can't initiliaze the runtime settings: %v", err)
 	}
 
@@ -364,7 +403,7 @@ func startAgent(cliParams *cliParams, flare flare.Component, sysprobeconfig sysp
 	}
 
 	// start the cmd HTTP server
-	if err = api.StartServer(configService, flare, server); err != nil {
+	if err = api.StartServer(configService, flare, server, capture, serverDebug); err != nil {
 		return pkglog.Errorf("Error while starting api server, exiting: %v", err)
 	}
 
@@ -386,21 +425,9 @@ func startAgent(cliParams *cliParams, flare flare.Component, sysprobeconfig sysp
 		pkglog.Errorf("Error while starting GUI: %v", err)
 	}
 
-	// setup the forwarder
-	keysPerDomain, err := pkgconfig.GetMultipleEndpoints()
-	if err != nil {
-		pkglog.Error("Misconfiguration of agent endpoints: ", err)
-	}
-
-	forwarderOpts := forwarder.NewOptions(keysPerDomain)
-	// Enable core agent specific features like persistence-to-disk
-	forwarderOpts.EnabledFeatures = forwarder.SetFeature(forwarderOpts.EnabledFeatures, forwarder.CoreFeatures)
-	opts := aggregator.DefaultAgentDemultiplexerOptions(forwarderOpts)
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.EnableNoAggregationPipeline = pkgconfig.Datadog.GetBool("dogstatsd_no_aggregation_pipeline")
-	opts.UseContainerLifecycleForwarder = pkgconfig.Datadog.GetBool("container_lifecycle.enabled")
-	opts.UseContainerImageForwarder = pkgconfig.Datadog.GetBool("container_image.enabled")
-	opts.UseSBOMForwarder = pkgconfig.Datadog.GetBool("sbom.enabled")
-	demux = aggregator.InitAndStartAgentDemultiplexer(opts, hostnameDetected)
+	demux = aggregator.InitAndStartAgentDemultiplexer(sharedForwarder, opts, hostnameDetected)
 
 	// Setup stats telemetry handler
 	if sender, err := demux.GetDefaultSender(); err == nil {
@@ -467,14 +494,8 @@ func startAgent(cliParams *cliParams, flare flare.Component, sysprobeconfig sysp
 	// This must happen after LoadComponents is set up (via common.LoadComponents).
 	// netflow.StartServer uses AgentDemultiplexer, that uses ContextResolver, that uses the tagger (initialized by LoadComponents)
 	if netflow.IsEnabled() {
-		sender, err := demux.GetDefaultSender()
-		if err != nil {
-			pkglog.Errorf("Failed to get default sender for NetFlow server: %s", err)
-		} else {
-			err = netflow.StartServer(sender)
-			if err != nil {
-				pkglog.Errorf("Failed to start NetFlow server: %s", err)
-			}
+		if err = netflow.StartServer(demux); err != nil {
+			pkglog.Errorf("Failed to start NetFlow server: %s", err)
 		}
 	}
 

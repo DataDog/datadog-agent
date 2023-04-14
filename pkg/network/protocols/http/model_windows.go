@@ -18,6 +18,7 @@ import (
 	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
+	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
 func requestLatency(responseLastSeen uint64, requestStarted uint64) float64 {
@@ -45,19 +46,19 @@ func ipHigh(isIp4 bool, addr [16]uint8) uint64 {
 }
 
 func srcIPLow(tup *driver.ConnTupleType) uint64 {
-	return ipLow(isIPV4(tup), tup.CliAddr)
+	return ipLow(isIPV4(tup), tup.LocalAddr)
 }
 
 func srcIPHigh(tup *driver.ConnTupleType) uint64 {
-	return ipHigh(isIPV4(tup), tup.CliAddr)
+	return ipHigh(isIPV4(tup), tup.LocalAddr)
 }
 
 func dstIPLow(tup *driver.ConnTupleType) uint64 {
-	return ipLow(isIPV4(tup), tup.SrvAddr)
+	return ipLow(isIPV4(tup), tup.RemoteAddr)
 }
 
 func dstIPHigh(tup *driver.ConnTupleType) uint64 {
-	return ipHigh(isIPV4(tup), tup.SrvAddr)
+	return ipHigh(isIPV4(tup), tup.RemoteAddr)
 }
 
 // --------------------------
@@ -69,14 +70,14 @@ func (tx *WinHttpTransaction) RequestLatency() float64 {
 	return requestLatency(tx.Txn.ResponseLastSeen, tx.Txn.RequestStarted)
 }
 
-func (tx *WinHttpTransaction) ConnTuple() KeyTuple {
-	return KeyTuple{
+func (tx *WinHttpTransaction) ConnTuple() types.ConnectionKey {
+	return types.ConnectionKey{
 		SrcIPHigh: srcIPHigh(&tx.Txn.Tup),
 		SrcIPLow:  srcIPLow(&tx.Txn.Tup),
 		DstIPHigh: dstIPHigh(&tx.Txn.Tup),
 		DstIPLow:  dstIPLow(&tx.Txn.Tup),
-		SrcPort:   tx.Txn.Tup.CliPort,
-		DstPort:   tx.Txn.Tup.SrvPort,
+		SrcPort:   tx.Txn.Tup.LocalPort,
+		DstPort:   tx.Txn.Tup.RemotePort,
 	}
 }
 
@@ -100,7 +101,6 @@ func (tx *WinHttpTransaction) DynamicTags() []string {
 			fmt.Sprintf("http.iis.app_pool:%v", tx.AppPool),
 			fmt.Sprintf("http.iis.site:%v", tx.SiteID),
 			fmt.Sprintf("http.iis.sitename:%v", tx.SiteName),
-			fmt.Sprintf("service:%v", tx.AppPool),
 		}
 	}
 	return nil

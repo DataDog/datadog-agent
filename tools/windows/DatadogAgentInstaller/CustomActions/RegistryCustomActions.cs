@@ -105,6 +105,7 @@ namespace Datadog.CustomActions
                         session.Log("WindowsBuild not found");
                     }
                 }
+
             }
             catch (Exception e)
             {

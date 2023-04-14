@@ -9,6 +9,8 @@
 package model
 
 import (
+	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
@@ -23,9 +25,32 @@ type WorkloadSelector struct {
 	Tag   string
 }
 
+// NewWorkloadSelector returns an initialized instance of a WorkloadSelector
+func NewWorkloadSelector(image string, tag string) (WorkloadSelector, error) {
+	if image == "" {
+		return WorkloadSelector{}, errors.New("no image name provided")
+	} else if tag == "" {
+		tag = "latest"
+	}
+	return WorkloadSelector{
+		Image: image,
+		Tag:   tag,
+	}, nil
+}
+
 // IsEmpty returns true if the selector is set
 func (ws *WorkloadSelector) IsEmpty() bool {
 	return len(ws.Tag) != 0 && len(ws.Image) != 0
+}
+
+// Match returns true if the input selector matches the current selector
+func (ws *WorkloadSelector) Match(selector WorkloadSelector) bool {
+	return ws.Image == selector.Image && ws.Tag == selector.Tag
+}
+
+// String returns a string representation of a workload selector
+func (ws WorkloadSelector) String() string {
+	return fmt.Sprintf("[image_name:%s image_tag:%s]", ws.Image, ws.Tag)
 }
 
 // CacheEntry cgroup resolver cache entry

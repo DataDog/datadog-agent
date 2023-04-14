@@ -1,0 +1,11 @@
+--- a/src/Makefile
++++ b/src/Makefile
+@@ -91,7 +91,7 @@
+ 	install -m 755 $(LIBSO) $(DESTDIR)$(SHLIBDIR)
+ 	test -d $(DESTDIR)$(LIBDIR)/pkgconfig || install -m 755 -d $(DESTDIR)$(LIBDIR)/pkgconfig
+ 	install -m 644 $(LIBPC) $(DESTDIR)$(LIBDIR)/pkgconfig
+-	$(LN) -sf --relative $(DESTDIR)$(SHLIBDIR)/$(LIBSO) $(DESTDIR)$(LIBDIR)/$(TARGET)
++	$(LN) -sf $(DESTDIR)$(SHLIBDIR)/$(LIBSO) $(DESTDIR)$(LIBDIR)/$(TARGET)
+ 
+ relabel:
+ 	/sbin/restorecon $(DESTDIR)$(SHLIBDIR)/$(LIBSO)

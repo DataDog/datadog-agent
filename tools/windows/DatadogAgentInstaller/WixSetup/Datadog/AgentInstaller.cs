@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Xml.Linq;
@@ -169,6 +168,9 @@ namespace WixSetup.Datadog
                     ),
                     new Dir("logs")
                 );
+
+            project.SetNetFxPrerequisite(Condition.Net45_Installed, "This application requires the .Net Framework 4.5, or later to be installed.");
+
             // NineDigit.WixSharpExtensions SetProductInfo prohibits setting the revision, so we must do it here instead.
             // The revision is ignored by WiX during upgrades, so it is only useful for documentation purposes.
             project.Version = _agentVersion.Version;

@@ -127,7 +127,7 @@ func CreateHTTPTransport() *http.Transport {
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 
-	if proxies := config.GetProxies(); proxies != nil {
+	if proxies := config.Datadog.GetProxies(); proxies != nil {
 		transport.Proxy = GetProxyTransportFunc(proxies)
 	}
 
@@ -155,7 +155,7 @@ func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error
 			// check no_proxy list first
 			for _, host := range p.NoProxy {
 				if r.URL.Host == host {
-					log.Debugf("URL match no_proxy list item '%s': not using any proxy", host)
+					log.Debugf("URL '%s' matches no_proxy list item '%s': not using any proxy", r.URL, host)
 					return nil, nil
 				}
 			}

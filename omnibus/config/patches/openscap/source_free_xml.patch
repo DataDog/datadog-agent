@@ -1,0 +1,46 @@
+--- a/src/XCCDF/xccdf_session.c
++++ b/src/XCCDF/xccdf_session.c
+@@ -716,6 +734,7 @@ int xccdf_session_load(struct xccdf_session *session)
+ 			return ret;
+ 		}
+ 	}
++	oscap_source_free_xmlDoc(session->source);
+ 	return xccdf_session_load_tailoring(session);
+ }
+ 
+--- a/src/source/oscap_source.c
++++ b/src/source/oscap_source.c
+@@ -153,6 +153,16 @@ void oscap_source_free(struct oscap_source *source)
+ 	}
+ }
+ 
++void oscap_source_free_xmlDoc(struct oscap_source *source)
++{
++	if (source != NULL) {
++		if (source->xml.doc != NULL) {
++			xmlFreeDoc(source->xml.doc);
++			source->xml.doc = NULL;
++		}
++	}
++}
++
+ /**
+  * Returns human readable description of oscap_source origin
+  */
+diff --git a/src/source/public/oscap_source.h b/src/source/public/oscap_source.h
+index 5c9f6472e..bef28767b 100644
+--- a/src/source/public/oscap_source.h
++++ b/src/source/public/oscap_source.h
+@@ -95,6 +95,12 @@ OSCAP_API struct oscap_source *oscap_source_clone(struct oscap_source *old);
+  */
+ OSCAP_API void oscap_source_free(struct oscap_source *source);
+ 
++/**
++ * Dispose oscap_source xmlDoc structure.
++ * @param source Resource to dispose xmlDoc structure from
++ */
++OSCAP_API void oscap_source_free_xmlDoc(struct oscap_source *source);
++
+ /**
+  * Get filepath of the given resource
+  * @memberof oscap_source

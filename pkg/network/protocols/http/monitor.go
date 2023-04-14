@@ -55,7 +55,8 @@ type Monitor struct {
 	http2Statkeeper *httpStatKeeper
 	processMonitor  *monitor.ProcessMonitor
 
-	http2Enabled bool
+	http2Enabled   bool
+	httpTLSEnabled bool
 
 	// Kafka related
 	kafkaEnabled    bool
@@ -160,6 +161,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		processMonitor:  processMonitor,
 		http2Enabled:    c.EnableHTTP2Monitoring,
 		http2Statkeeper: http2Statkeeper,
+		httpTLSEnabled:  c.EnableHTTPSMonitoring,
 	}
 
 	if c.EnableKafkaMonitoring {
@@ -235,7 +237,9 @@ func (m *Monitor) Start() error {
 	}
 
 	// Need to explicitly save the error in `err` so the defer function could save the startup error.
-	err = m.processMonitor.Initialize()
+	if m.httpTLSEnabled {
+		err = m.processMonitor.Initialize()
+	}
 	return err
 }
 
@@ -335,7 +339,7 @@ func (m *Monitor) DumpMaps(maps ...string) (string, error) {
 
 // createStaticTable creates a static table for http2 monitor.
 func (m *Monitor) createStaticTable(mgr *ebpfProgram) error {
-	staticTable, _, _ := mgr.GetMap(string(probes.StaticTableMap))
+	staticTable, _, _ := mgr.GetMap(probes.StaticTableMap)
 	if staticTable == nil {
 		return errors.New("http2 static table is null")
 	}

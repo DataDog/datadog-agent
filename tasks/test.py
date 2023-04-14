@@ -34,6 +34,7 @@ from .utils import DEFAULT_BRANCH, get_build_flags
 
 PROFILE_COV = "profile.cov"
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
+UNIT_TEST_FILE_FORMAT = re.compile(r'[^a-zA-Z0-9_\-]')
 
 
 class TestProfiler:
@@ -123,37 +124,41 @@ def install_tools(ctx):
                     ctx.run(f"go install {tool}")
 
 
-# TODO(AP-1879): The following four functions all do something similar: they run a given command on a list of modules
-# This could be refactored in a core function that does the loop on modules and returns failures, and
-# wrapper functions that craft the command to run and process the results and errors.
+@task
+def invoke_unit_tests(ctx):
+    """
+    Run the unit tests on the invoke tasks
+    """
+    for _, _, files in os.walk("tasks/unit-tests/"):
+        for file in files:
+            if file[-3:] == ".py" and file != "__init__.py" and not bool(UNIT_TEST_FILE_FORMAT.search(file[:-3])):
+                ctx.run(f"python3 -m tasks.unit-tests.{file[:-3]}", env={"GITLAB_TOKEN": "fake_token"})
 
 
-def lint_flavor(
-    ctx, modules: List[GoModule], flavor: AgentFlavor, build_tags: List[str], arch: str, rtloader_root: bool
+def test_core(
+    modules: List[GoModule],
+    flavor: AgentFlavor,
+    module_class: GoModule,
+    operation_name: str,
+    command,
+    skip_module_class=False,
 ):
     """
-    Runs linters for given flavor, build tags, and modules.
+    Run the command function on each module of the modules list.
     """
-    modules_lint_results = []
-    print(f"--- Flavor {flavor.name}: golangci_lint")
+    modules_results = []
+    print(f"--- Flavor {flavor.name}: {operation_name}")
     for module in modules:
-        module_lint_result = ModuleLintResult(path=module.full_path())
+        module_result = None
+        if not skip_module_class:
+            module_result = module_class(path=module.full_path())
         print(f"----- Module '{module.full_path()}'")
         if not module.condition():
             print("----- Skipped")
             continue
 
-        with ctx.cd(module.full_path()):
-            lint_results = run_golangci_lint(
-                ctx, targets=module.targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch
-            )
-            for lint_result in lint_results:
-                module_lint_result.lint_outputs.append(lint_result)
-                if lint_result.exited != 0:
-                    module_lint_result.failed = True
-        modules_lint_results.append(module_lint_result)
-
-    return modules_lint_results
+        command(modules_results, module, module_result)
+    return modules_results
 
 
 class ModuleResult(abc.ABC):
@@ -264,6 +269,27 @@ class ModuleTestResult(ModuleResult):
         return self.failed, failure_string
 
 
+def lint_flavor(
+    ctx, modules: List[GoModule], flavor: AgentFlavor, build_tags: List[str], arch: str, rtloader_root: bool
+):
+    """
+    Runs linters for given flavor, build tags, and modules.
+    """
+
+    def command(module_results, module, module_result):
+        with ctx.cd(module.full_path()):
+            lint_results = run_golangci_lint(
+                ctx, targets=module.targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch
+            )
+            for lint_result in lint_results:
+                module_result.lint_outputs.append(lint_result)
+                if lint_result.exited != 0:
+                    module_result.failed = True
+        module_results.append(module_result)
+
+    return test_core(modules, flavor, ModuleLintResult, "golangci_lint", command)
+
+
 def test_flavor(
     ctx,
     flavor: AgentFlavor,
@@ -279,10 +305,6 @@ def test_flavor(
     """
     Runs unit tests for given flavor, build tags, and modules.
     """
-    print(f"--- Flavor {flavor.name}: unit tests")
-
-    modules_test_results = []
-
     args["go_build_tags"] = " ".join(build_tags)
 
     junit_file_flag = ""
@@ -291,14 +313,7 @@ def test_flavor(
         junit_file_flag = "--junitfile " + junit_file
     args["junit_file_flag"] = junit_file_flag
 
-    for module in modules:
-        module_test_result = ModuleTestResult(path=module.full_path())
-
-        print(f"----- Module '{module.full_path()}'")
-        if not module.condition():
-            print("----- Skipped")
-            continue
-
+    def command(test_results, module, module_result):
         with ctx.cd(module.full_path()):
             res = ctx.run(
                 cmd.format(
@@ -309,24 +324,22 @@ def test_flavor(
                 warn=True,
             )
 
-        module_test_result.result_json_path = os.path.join(module.full_path(), GO_TEST_RESULT_TMP_JSON)
+        module_result.result_json_path = os.path.join(module.full_path(), GO_TEST_RESULT_TMP_JSON)
 
         if res.exited is None or res.exited > 0:
-            module_test_result.failed = True
+            module_result.failed = True
 
         if save_result_json:
-            with open(save_result_json, 'ab') as json_file, open(
-                module_test_result.result_json_path, 'rb'
-            ) as module_file:
+            with open(save_result_json, 'ab') as json_file, open(module_result.result_json_path, 'rb') as module_file:
                 json_file.write(module_file.read())
 
         if junit_tar:
-            module_test_result.junit_file_path = os.path.join(module.full_path(), junit_file)
-            add_flavor_to_junitxml(module_test_result.junit_file_path, flavor)
+            module_result.junit_file_path = os.path.join(module.full_path(), junit_file)
+            add_flavor_to_junitxml(module_result.junit_file_path, flavor)
 
-        modules_test_results.append(module_test_result)
+        test_results.append(module_result)
 
-    return modules_test_results
+    return test_core(modules, flavor, ModuleTestResult, "unit tests", command)
 
 
 def coverage_flavor(
@@ -339,16 +352,12 @@ def coverage_flavor(
     This expects that the coverage files have already been generated by
     inv test --coverage.
     """
-    print(f"--- Flavor {flavor.name}: code coverage")
 
-    for module in modules:
-        print(f"----- Module '{module.full_path()}'")
-        if not module.condition():
-            print("----- Skipped")
-            continue
-
+    def command(_empty_result, module, _module_result):
         with ctx.cd(module.full_path()):
             ctx.run(f"go tool cover -func {PROFILE_COV}", warn=True)
+
+    return test_core(modules, flavor, None, "code coverage", command, skip_module_class=True)
 
 
 def codecov_flavor(
@@ -361,14 +370,8 @@ def codecov_flavor(
     This expects that the coverage files have already been generated by
     inv test --coverage.
     """
-    print(f"--- Flavor {flavor.name}: codecov upload")
 
-    for module in modules:
-        print(f"----- Module '{module.full_path()}'")
-        if not module.condition():
-            print("----- Skipped")
-            continue
-
+    def command(_empty_result, module, _module_result):
         # Codecov flags are limited to 45 characters
         tag = f"{platform.system()}-{flavor.name}-{module.codecov_path()}"
         if len(tag) > 45:
@@ -380,6 +383,8 @@ def codecov_flavor(
         # nonsensical directory tree in the codecov app
         path = os.path.normpath(os.path.join(module.path, PROFILE_COV))
         ctx.run(f"codecov -f {path} -F {tag}", warn=True)
+
+    return test_core(modules, flavor, None, "codecov upload", command, skip_module_class=True)
 
 
 def process_input_args(input_module, input_targets, input_flavors):
@@ -406,6 +411,32 @@ def process_input_args(input_module, input_targets, input_flavors):
         flavors = [AgentFlavor[f] for f in input_flavors]
 
     return modules, flavors
+
+
+def process_module_results(module_results: Dict[str, Dict[str, List[ModuleResult]]]):
+    """
+    Expects results in the format:
+    {
+        "phase1": {
+            "flavor1": [module_result1, module_result2],
+            "flavor2": [module_result3, module_result4],
+        }
+    }
+
+    Prints failures, and returns False if at least one module failed in one phase.
+    """
+
+    success = True
+    for phase in module_results.keys():
+        for flavor in module_results[phase].keys():
+            for module_result in module_results[phase][flavor]:
+                if module_result is not None:
+                    module_failed, failure_string = module_result.get_failure(flavor)
+                    success = success and (not module_failed)
+                    if module_failed:
+                        print(failure_string)
+
+    return success
 
 
 @task(iterable=['flavors'])
@@ -437,7 +468,7 @@ def test(
     junit_tar="",
 ):
     """
-    Run all the tools and tests on the given module and targets.
+    Run go tests on the given module and targets.
 
     A module should be provided as the path to one of the go modules in the repository.
 
@@ -446,20 +477,33 @@ def test(
 
     If no module or target is set the tests are run against all modules and targets.
 
+    Also runs linters on the same modules / targets, except if the --skip-linters option is passed.
+
     Example invokation:
         inv test --targets=./pkg/collector/check,./pkg/aggregator --race
         inv test --module=. --race
     """
+
+    # Format:
+    # {
+    #     "phase1": {
+    #         "flavor1": [module_result1, module_result2],
+    #         "flavor2": [module_result3, module_result4],
+    #     }
+    # }
+    modules_results_per_phase = defaultdict(dict)
+
+    # Run linters first
+
+    if not skip_linters:
+        modules_results_per_phase["lint"] = run_lint_go(
+            ctx, module, targets, flavors, build_include, build_exclude, rtloader_root, arch
+        )
+
     # Process input arguments
 
     modules, flavors = process_input_args(module, targets, flavors)
 
-    linter_tags = {
-        f: compute_build_tags_for_flavor(
-            flavor=f, build="lint", arch=arch, build_include=build_include, build_exclude=build_exclude
-        )
-        for f in flavors
-    }
     unit_tests_tags = {
         f: compute_build_tags_for_flavor(
             flavor=f, build="unit-tests", arch=arch, build_include=build_include, build_exclude=build_exclude
@@ -468,17 +512,8 @@ def test(
     }
 
     timeout = int(timeout)
-    modules_results_per_flavor = {flavor: {"test": [], "lint": []} for flavor in flavors}
 
     # Lint
-
-    if skip_linters:
-        print("--- [skipping Go linters]")
-    else:
-        for flavor, build_tags in linter_tags.items():
-            modules_results_per_flavor[flavor]["lint"] = lint_flavor(
-                ctx, modules=modules, flavor=flavor, build_tags=build_tags, arch=arch, rtloader_root=rtloader_root
-            )
 
     ldflags, gcflags, env = get_build_flags(
         ctx,
@@ -555,7 +590,7 @@ def test(
 
     # Test
     for flavor, build_tags in unit_tests_tags.items():
-        modules_results_per_flavor[flavor]["test"] = test_flavor(
+        modules_results_per_phase["test"][flavor] = test_flavor(
             ctx,
             flavor=flavor,
             build_tags=build_tags,
@@ -571,8 +606,8 @@ def test(
     # Output
     if junit_tar:
         junit_files = []
-        for flavor in flavors:
-            for module_test_result in modules_results_per_flavor[flavor]["test"]:
+        for flavor in modules_results_per_phase["test"].keys():
+            for module_test_result in modules_results_per_phase["test"][flavor]:
                 if module_test_result.junit_file_path:
                     junit_files.append(module_test_result.junit_file_path)
 
@@ -588,18 +623,94 @@ def test(
         # print("\n--- Top 15 packages sorted by run time:")
         test_profiler.print_sorted(15)
 
-    should_fail = False
-    for flavor in flavors:
-        for module_results in modules_results_per_flavor[flavor].values():
-            for module_result in module_results:
-                if module_result is not None:
-                    failed, failure_string = module_result.get_failure(flavor)
-                    should_fail = should_fail or failed
-                    if failed:
-                        print(failure_string)
+    success = process_module_results(modules_results_per_phase)
 
-    if should_fail:
-        # Exit if any of the modules failed
+    if success:
+        if skip_linters:
+            print(color_message("All tests passed", "green"))
+        else:
+            print(color_message("All tests and linters passed", "green"))
+    else:
+        # Exit if any of the modules failed on any phase
+        raise Exit(code=1)
+
+
+def run_lint_go(
+    ctx,
+    module=None,
+    targets=None,
+    flavors=None,
+    build_include=None,
+    build_exclude=None,
+    rtloader_root=None,
+    arch="x64",
+):
+    modules, flavors = process_input_args(module, targets, flavors)
+
+    linter_tags = {
+        f: compute_build_tags_for_flavor(
+            flavor=f, build="lint", arch=arch, build_include=build_include, build_exclude=build_exclude
+        )
+        for f in flavors
+    }
+
+    # Lint
+
+    modules_lint_results_per_flavor = {flavor: [] for flavor in flavors}
+
+    for flavor, build_tags in linter_tags.items():
+        modules_lint_results_per_flavor[flavor] = lint_flavor(
+            ctx, modules=modules, flavor=flavor, build_tags=build_tags, arch=arch, rtloader_root=rtloader_root
+        )
+
+    return modules_lint_results_per_flavor
+
+
+@task(iterable=['flavors'])
+def lint_go(
+    ctx,
+    module=None,
+    targets=None,
+    flavors=None,
+    build_include=None,
+    build_exclude=None,
+    rtloader_root=None,
+    arch="x64",
+):
+    """
+    Run go linters on the given module and targets.
+
+    A module should be provided as the path to one of the go modules in the repository.
+
+    Targets should be provided as a comma-separated list of relative paths within the given module.
+    If targets are provided but no module is set, the main module (".") is used.
+
+    If no module or target is set the tests are run against all modules and targets.
+
+    Example invokation:
+        inv lint-go --targets=./pkg/collector/check,./pkg/aggregator
+        inv lint-go --module=.
+    """
+
+    # Format:
+    # {
+    #     "phase1": {
+    #         "flavor1": [module_result1, module_result2],
+    #         "flavor2": [module_result3, module_result4],
+    #     }
+    # }
+    modules_results_per_phase = defaultdict(dict)
+
+    modules_results_per_phase["lint"] = run_lint_go(
+        ctx, module, targets, flavors, build_include, build_exclude, rtloader_root, arch
+    )
+
+    success = process_module_results(modules_results_per_phase)
+
+    if success:
+        print(color_message("All linters passed", "green"))
+    else:
+        # Exit if any of the modules failed on any phase
         raise Exit(code=1)
 
 

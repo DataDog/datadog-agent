@@ -22,7 +22,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/mholt/archiver/v3"
 	"golang.org/x/exp/maps"
@@ -137,13 +136,6 @@ func GetKernelHeaders(opts KernelHeaderOptions, client statsd.ClientInterface) [
 	}
 
 	headers, result, err := HeaderProvider.getKernelHeaders(hv)
-	if result == downloadFailure {
-		// Download failures can be due to intermittent issues. To mitigate this, if a download
-		// failure occurs we will wait a moment and retry the download one time.
-		log.Infof("%s. Waiting 5 seconds and retrying kernel header download.", err)
-		time.Sleep(5 * time.Second)
-		headers, result, err = HeaderProvider.downloadHeaders(hv)
-	}
 	if client != nil {
 		submitTelemetry(result, client)
 	}
@@ -473,7 +465,7 @@ func submitTelemetry(result headerFetchResult, client statsd.ClientInterface) {
 		fmt.Sprintf("reason:%s", model.KernelHeaderFetchResult(result).String()),
 	)
 
-	if err := client.Count("datadog.system_probe.kernel_header_fetch.attempted", 1.0, khdTags, 1); err != nil {
+	if err := client.Count("datadog.system_probe.kernel_header_fetch.attempted", 1.0, khdTags, 1); err != nil && !errors.Is(err, statsd.ErrNoClient) {
 		log.Warnf("error submitting kernel header downloading metric to statsd: %s", err)
 	}
 }

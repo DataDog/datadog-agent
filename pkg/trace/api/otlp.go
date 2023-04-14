@@ -33,6 +33,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
+	semconv117 "go.opentelemetry.io/collector/semconv/v1.17.0"
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -180,7 +181,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 		rattr[k] = v.AsString()
 		return true
 	})
-	src, srcok := attributes.SourceFromAttributes(attr, o.conf.OTLPReceiver.UsePreviewHostnameLogic)
+	src, srcok := attributes.SourceFromAttrs(attr)
 	hostFromMap := func(m map[string]string, key string) {
 		// hostFromMap sets the hostname to m[key] if it is set.
 		if v, ok := m[key]; ok {
@@ -196,10 +197,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	if lang == "" {
 		lang = fastHeaderGet(httpHeader, header.Lang)
 	}
-	containerID := rattr[string(semconv.AttributeContainerID)]
-	if containerID == "" {
-		containerID = rattr[string(semconv.AttributeK8SPodUID)]
-	}
+	containerID := getFirstFromMap(rattr, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
 	if containerID == "" {
 		containerID = o.cidProvider.GetContainerID(ctx, httpHeader)
 	}
@@ -216,6 +214,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	}
 	tracesByID := make(map[uint64]pb.Trace)
 	priorityByID := make(map[uint64]sampler.SamplingPriority)
+	ctags := make(map[string]string)
 	var spancount int64
 	for i := 0; i < rspans.ScopeSpans().Len(); i++ {
 		libspans := rspans.ScopeSpans().At(i)
@@ -227,7 +226,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 			if tracesByID[traceID] == nil {
 				tracesByID[traceID] = pb.Trace{}
 			}
-			ddspan := o.convertSpan(rattr, lib, span)
+			ddspan := o.convertSpan(rattr, lib, span, ctags)
 			if !srcok {
 				// if we didn't find a hostname at the resource level
 				// try and see if the span has a hostname set
@@ -241,12 +240,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 			}
 			if containerID == "" {
 				// no cid at resource level, grab what we can
-				if v := ddspan.Meta[string(semconv.AttributeK8SPodUID)]; v != "" {
-					containerID = v
-				}
-				if v := ddspan.Meta[string(semconv.AttributeContainerID)]; v != "" {
-					containerID = v
-				}
+				containerID = getFirstFromMap(ddspan.Meta, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
 			}
 			if p, ok := ddspan.Metrics["_sampling_priority_v1"]; ok {
 				priorityByID[traceID] = sampler.SamplingPriority(p)
@@ -289,17 +283,19 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 		LanguageVersion: tagstats.LangVersion,
 		TracerVersion:   tagstats.TracerVersion,
 	}
-	if ctags := getContainerTags(o.conf.ContainerTags, containerID); ctags != "" {
-		p.TracerPayload.Tags = map[string]string{
-			tagContainersTags: ctags,
-		}
+	payloadTags := flatten(ctags)
+	if tags := getContainerTags(o.conf.ContainerTags, containerID); tags != "" {
+		appendTags(payloadTags, tags)
 	} else {
 		// we couldn't obtain any container tags
 		if src.Kind == source.AWSECSFargateKind {
 			// but we have some information from the source provider that we can add
-			p.TracerPayload.Tags = map[string]string{
-				tagContainersTags: src.Tag(),
-			}
+			appendTags(payloadTags, src.Tag())
+		}
+	}
+	if payloadTags.Len() > 0 {
+		p.TracerPayload.Tags = map[string]string{
+			tagContainersTags: payloadTags.String(),
 		}
 	}
 	select {
@@ -309,6 +305,26 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 		log.Warn("Payload in channel full. Dropped 1 payload.")
 	}
 	return src
+}
+
+func appendTags(str *strings.Builder, tags string) {
+	if str.Len() > 0 {
+		str.WriteByte(',')
+	}
+	str.WriteString(tags)
+}
+
+func flatten(m map[string]string) *strings.Builder {
+	var str strings.Builder
+	for k, v := range m {
+		if str.Len() > 0 {
+			str.WriteByte(',')
+		}
+		str.WriteString(k)
+		str.WriteString(":")
+		str.WriteString(v)
+	}
+	return &str
 }
 
 // createChunks creates a set of pb.TraceChunk's based on two maps:
@@ -398,6 +414,54 @@ func marshalEvents(events ptrace.SpanEventSlice) string {
 	return str.String()
 }
 
+// marshalLinks marshals span links into JSON.
+func marshalLinks(links ptrace.SpanLinkSlice) string {
+	var str strings.Builder
+	str.WriteString("[")
+	for i := 0; i < links.Len(); i++ {
+		l := links.At(i)
+		if i > 0 {
+			str.WriteString(",")
+		}
+		t := l.TraceID()
+		str.WriteString(`{"trace_id":"`)
+		str.WriteString(hex.EncodeToString(t[:]))
+		s := l.SpanID()
+		str.WriteString(`","span_id":"`)
+		str.WriteString(hex.EncodeToString(s[:]))
+		str.WriteString(`"`)
+		if ts := l.TraceState().AsRaw(); len(ts) > 0 {
+			str.WriteString(`,"trace_state":"`)
+			str.WriteString(ts)
+			str.WriteString(`"`)
+		}
+		if l.Attributes().Len() > 0 {
+			str.WriteString(`,"attributes":{`)
+			var b bool
+			l.Attributes().Range(func(k string, v pcommon.Value) bool {
+				if b {
+					str.WriteString(",")
+				}
+				b = true
+				str.WriteString(`"`)
+				str.WriteString(k)
+				str.WriteString(`":"`)
+				str.WriteString(v.AsString())
+				str.WriteString(`"`)
+				return true
+			})
+			str.WriteString("}")
+		}
+		if l.DroppedAttributesCount() > 0 {
+			str.WriteString(`,"dropped_attributes_count":`)
+			str.WriteString(strconv.FormatUint(uint64(l.DroppedAttributesCount()), 10))
+		}
+		str.WriteString("}")
+	}
+	str.WriteString("]")
+	return str.String()
+}
+
 // setMetaOTLP sets the k/v OTLP attribute pair as a tag on span s.
 func setMetaOTLP(s *pb.Span, k, v string) {
 	switch k {
@@ -434,7 +498,9 @@ func setMetricOTLP(s *pb.Span, k string, v float64) {
 
 // convertSpan converts the span in to a Datadog span, and uses the rattr resource tags and the lib instrumentation
 // library attributes to further augment it.
-func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.InstrumentationScope, in ptrace.Span) *pb.Span {
+//
+// ctags will be used to write container tags to. Existing ones are not overridden.
+func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.InstrumentationScope, in ptrace.Span, ctags map[string]string) *pb.Span {
 	traceID := [16]byte(in.TraceID())
 	span := &pb.Span{
 		TraceID:  traceIDToUint64(traceID),
@@ -457,6 +523,9 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	if in.Events().Len() > 0 {
 		setMetaOTLP(span, "events", marshalEvents(in.Events()))
 	}
+	if in.Links().Len() > 0 {
+		setMetaOTLP(span, "_dd.span_links", marshalLinks(in.Links()))
+	}
 	if svc, ok := in.Attributes().Get(semconv.AttributePeerService); ok {
 		// the span attribute "peer.service" takes precedence over any resource attributes,
 		// in the same way that "service.name" does as part of setMetaOTLP
@@ -477,6 +546,9 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		if _, ok := span.Meta[k]; !ok {
 			// overwrite only if it does not exist
 			setMetaOTLP(span, k, v)
+		}
+		if _, ok := ctags[k]; !ok {
+			ctags[k] = v
 		}
 	}
 	if _, ok := span.Meta["env"]; !ok {
@@ -534,25 +606,34 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 func resourceFromTags(meta map[string]string) string {
 	if m := meta[string(semconv.AttributeHTTPMethod)]; m != "" {
 		// use the HTTP method + route (if available)
-		if route := meta[string(semconv.AttributeHTTPRoute)]; route != "" {
-			return m + " " + route
-		} else if route := meta["grpc.path"]; route != "" {
+		if route := getFirstFromMap(meta, semconv.AttributeHTTPRoute, "grpc.path"); route != "" {
 			return m + " " + route
 		}
 		return m
 	} else if m := meta[string(semconv.AttributeMessagingOperation)]; m != "" {
 		// use the messaging operation
-		if dest := meta[string(semconv.AttributeMessagingDestination)]; dest != "" {
+		if dest := getFirstFromMap(meta, semconv.AttributeMessagingDestination, semconv117.AttributeMessagingDestinationName); dest != "" {
 			return m + " " + dest
 		}
 		return m
 	} else if m := meta[string(semconv.AttributeRPCMethod)]; m != "" {
 		// use the RPC method
 		if svc := meta[string(semconv.AttributeRPCService)]; svc != "" {
-			// ...and service if availabl
+			// ...and service if available
 			return m + " " + svc
 		}
 		return m
+	}
+	return ""
+}
+
+// getFirstFromMap checks each key in the given keys in the map and returns the first value whose
+// key matches, or an empty string if none matches.
+func getFirstFromMap(m map[string]string, keys ...string) string {
+	for _, key := range keys {
+		if val := m[key]; val != "" {
+			return val
+		}
 	}
 	return ""
 }

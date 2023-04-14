@@ -15,7 +15,7 @@ func TestFlow_AggregationHash(t *testing.T) {
 	allHash := make(map[uint64]bool)
 	origFlow := Flow{
 		Namespace:      "default",
-		DeviceAddr:     []byte{127, 0, 0, 1},
+		ExporterAddr:   []byte{127, 0, 0, 1},
 		SrcAddr:        []byte{1, 2, 3, 4},
 		DstAddr:        []byte{2, 3, 4, 5},
 		IPProtocol:     6,
@@ -34,7 +34,7 @@ func TestFlow_AggregationHash(t *testing.T) {
 	allHash[flow.AggregationHash()] = true
 
 	flow = origFlow
-	flow.DeviceAddr = []byte{127, 0, 0, 2}
+	flow.ExporterAddr = []byte{127, 0, 0, 2}
 	assert.NotEqual(t, origHash, flow.AggregationHash())
 	allHash[flow.AggregationHash()] = true
 
@@ -92,7 +92,7 @@ func TestFlow_AggregationHash(t *testing.T) {
 func TestFlow_IsEqualFlowContext(t *testing.T) {
 	origFlow := Flow{
 		Namespace:      "default",
-		DeviceAddr:     []byte{127, 0, 0, 1},
+		ExporterAddr:   []byte{127, 0, 0, 1},
 		SrcAddr:        []byte{1, 2, 3, 4},
 		DstAddr:        []byte{2, 3, 4, 5},
 		IPProtocol:     6,
@@ -105,7 +105,7 @@ func TestFlow_IsEqualFlowContext(t *testing.T) {
 
 	otherFlow := Flow{
 		Namespace:      "default",
-		DeviceAddr:     []byte{127, 0, 0, 1},
+		ExporterAddr:   []byte{127, 0, 0, 1},
 		SrcAddr:        []byte{1, 2, 3, 4},
 		DstAddr:        []byte{2, 3, 4, 5},
 		IPProtocol:     6,
@@ -123,7 +123,7 @@ func TestFlow_IsEqualFlowContext(t *testing.T) {
 	assert.False(t, IsEqualFlowContext(origFlow, flow))
 
 	flow = origFlow
-	flow.DeviceAddr = []byte{127, 0, 0, 2}
+	flow.ExporterAddr = []byte{127, 0, 0, 2}
 	assert.False(t, IsEqualFlowContext(origFlow, flow))
 
 	flow = origFlow

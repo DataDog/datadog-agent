@@ -39,11 +39,12 @@ type ClientStatsAggregator struct {
 	out     chan pb.StatsPayload
 	buckets map[int64]*bucket // buckets used to aggregate client stats
 
-	flushTicker   *time.Ticker
-	oldestTs      time.Time
-	agentEnv      string
-	agentHostname string
-	agentVersion  string
+	flushTicker        *time.Ticker
+	oldestTs           time.Time
+	agentEnv           string
+	agentHostname      string
+	agentVersion       string
+	peerSvcAggregation bool // flag to enable peer.service aggregation
 
 	exit chan struct{}
 	done chan struct{}
@@ -51,18 +52,20 @@ type ClientStatsAggregator struct {
 
 // NewClientStatsAggregator initializes a new aggregator ready to be started
 func NewClientStatsAggregator(conf *config.AgentConfig, out chan pb.StatsPayload) *ClientStatsAggregator {
-	return &ClientStatsAggregator{
-		flushTicker:   time.NewTicker(time.Second),
-		In:            make(chan pb.ClientStatsPayload, 10),
-		buckets:       make(map[int64]*bucket, 20),
-		out:           out,
-		agentEnv:      conf.DefaultEnv,
-		agentHostname: conf.Hostname,
-		agentVersion:  conf.AgentVersion,
-		oldestTs:      alignAggTs(time.Now().Add(bucketDuration - oldestBucketStart)),
-		exit:          make(chan struct{}),
-		done:          make(chan struct{}),
+	c := &ClientStatsAggregator{
+		flushTicker:        time.NewTicker(time.Second),
+		In:                 make(chan pb.ClientStatsPayload, 10),
+		buckets:            make(map[int64]*bucket, 20),
+		out:                out,
+		agentEnv:           conf.DefaultEnv,
+		agentHostname:      conf.Hostname,
+		agentVersion:       conf.AgentVersion,
+		peerSvcAggregation: conf.PeerServiceAggregation,
+		oldestTs:           alignAggTs(time.Now().Add(bucketDuration - oldestBucketStart)),
+		exit:               make(chan struct{}),
+		done:               make(chan struct{}),
 	}
+	return c
 }
 
 // Start starts the aggregator.
@@ -135,7 +138,7 @@ func (a *ClientStatsAggregator) add(now time.Time, p pb.ClientStatsPayload) {
 			a.buckets[ts.Unix()] = b
 		}
 		p.Stats = []pb.ClientStatsBucket{clientBucket}
-		a.flush(b.add(p))
+		a.flush(b.add(p, a.peerSvcAggregation))
 	}
 }
 
@@ -173,7 +176,7 @@ type bucket struct {
 	agg map[PayloadAggregationKey]map[BucketsAggregationKey]*aggregatedCounts
 }
 
-func (b *bucket) add(p pb.ClientStatsPayload) []pb.ClientStatsPayload {
+func (b *bucket) add(p pb.ClientStatsPayload, enablePeerSvcAgg bool) []pb.ClientStatsPayload {
 	b.n++
 	if b.n == 1 {
 		b.first = p
@@ -184,15 +187,15 @@ func (b *bucket) add(p pb.ClientStatsPayload) []pb.ClientStatsPayload {
 		first := b.first
 		b.first = pb.ClientStatsPayload{}
 		b.agg = make(map[PayloadAggregationKey]map[BucketsAggregationKey]*aggregatedCounts, 2)
-		b.aggregateCounts(first)
-		b.aggregateCounts(p)
+		b.aggregateCounts(first, enablePeerSvcAgg)
+		b.aggregateCounts(p, enablePeerSvcAgg)
 		return []pb.ClientStatsPayload{trimCounts(first), trimCounts(p)}
 	}
-	b.aggregateCounts(p)
+	b.aggregateCounts(p, enablePeerSvcAgg)
 	return []pb.ClientStatsPayload{trimCounts(p)}
 }
 
-func (b *bucket) aggregateCounts(p pb.ClientStatsPayload) {
+func (b *bucket) aggregateCounts(p pb.ClientStatsPayload, enablePeerSvcAgg bool) {
 	payloadAggKey := newPayloadAggregationKey(p.Env, p.Hostname, p.Version, p.ContainerID)
 	payloadAgg, ok := b.agg[payloadAggKey]
 	if !ok {
@@ -205,7 +208,7 @@ func (b *bucket) aggregateCounts(p pb.ClientStatsPayload) {
 	}
 	for _, s := range p.Stats {
 		for _, sb := range s.Stats {
-			aggKey := newBucketAggregationKey(sb)
+			aggKey := newBucketAggregationKey(sb, enablePeerSvcAgg)
 			agg, ok := payloadAgg[aggKey]
 			if !ok {
 				agg = &aggregatedCounts{}
@@ -232,6 +235,7 @@ func (b *bucket) aggregationToPayloads() []pb.ClientStatsPayload {
 		for aggrKey, counts := range aggrCounts {
 			stats = append(stats, pb.ClientGroupedStats{
 				Service:        aggrKey.Service,
+				PeerService:    aggrKey.PeerService,
 				Name:           aggrKey.Name,
 				Resource:       aggrKey.Resource,
 				HTTPStatusCode: aggrKey.StatusCode,
@@ -263,8 +267,8 @@ func newPayloadAggregationKey(env, hostname, version, cid string) PayloadAggrega
 	return PayloadAggregationKey{Env: env, Hostname: hostname, Version: version, ContainerID: cid}
 }
 
-func newBucketAggregationKey(b pb.ClientGroupedStats) BucketsAggregationKey {
-	return BucketsAggregationKey{
+func newBucketAggregationKey(b pb.ClientGroupedStats, enablePeerSvcAgg bool) BucketsAggregationKey {
+	k := BucketsAggregationKey{
 		Service:    b.Service,
 		Name:       b.Name,
 		Resource:   b.Resource,
@@ -272,6 +276,10 @@ func newBucketAggregationKey(b pb.ClientGroupedStats) BucketsAggregationKey {
 		Synthetics: b.Synthetics,
 		StatusCode: b.HTTPStatusCode,
 	}
+	if enablePeerSvcAgg {
+		k.PeerService = b.PeerService
+	}
+	return k
 }
 
 func trimCounts(p pb.ClientStatsPayload) pb.ClientStatsPayload {

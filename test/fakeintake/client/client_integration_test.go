@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/server"
+	"github.com/benbjohnson/clock"
 	"github.com/cenkalti/backoff"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,6 +21,7 @@ import (
 
 var (
 	isLocalRun = false
+	mockClock  = clock.NewMock()
 )
 
 func TestIntegrationClient(t *testing.T) {
@@ -46,7 +48,7 @@ func TestIntegrationClient(t *testing.T) {
 
 	t.Run("should get all available payloads from a server on a given endpoint", func(t *testing.T) {
 		ready := make(chan bool, 1)
-		fi := server.NewServer(server.WithReadyChannel(ready))
+		fi := server.NewServer(server.WithReadyChannel(ready), server.WithClock(mockClock))
 		fi.Start()
 		defer fi.Stop()
 		isReady := <-ready
@@ -68,6 +70,8 @@ func TestIntegrationClient(t *testing.T) {
 		payloads, err := client.getFakePayloads(testEndpoint)
 		assert.NoError(t, err, "Error getting payloads")
 		assert.Equal(t, 1, len(payloads))
-		assert.Equal(t, "totoro|5|tag:valid,owner:pducolin", string(payloads[0]))
+		assert.Equal(t, "totoro|5|tag:valid,owner:pducolin", string(payloads[0].Data))
+		assert.Equal(t, "", payloads[0].Encoding)
+		assert.Equal(t, mockClock.Now(), payloads[0].Timestamp)
 	})
 }

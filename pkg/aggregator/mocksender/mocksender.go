@@ -19,10 +19,10 @@ import (
 func NewMockSender(id check.ID) *MockSender {
 	mockSender := new(MockSender)
 
-	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = 1 * time.Hour
 	opts.DontStartForwarders = true
-	aggregator.InitAndStartAgentDemultiplexer(opts, "")
+	aggregator.InitAndStartAgentDemultiplexerTest(opts, "")
 
 	SetSender(mockSender, id)
 
@@ -65,7 +65,9 @@ func (m *MockSender) SetupAcceptAll() {
 		mock.AnythingOfType("string"),                     // message
 	).Return()
 	m.On("Event", mock.AnythingOfType("metrics.Event")).Return()
-	m.On("EventPlatformEvent", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return()
+	// The second argument should have been `mock.AnythingOfType("[]byte")` instead of `mock.AnythingOfType("[]uint8")`
+	// See https://github.com/stretchr/testify/issues/387
+	m.On("EventPlatformEvent", mock.AnythingOfType("[]uint8"), mock.AnythingOfType("string")).Return()
 	m.On("HistogramBucket",
 		mock.AnythingOfType("string"),   // metric name
 		mock.AnythingOfType("int64"),    // value

@@ -19,8 +19,9 @@ var All = []module.Factory{
 	NetworkTracer,
 	TCPQueueLength,
 	OOMKillProbe,
-	SecurityRuntime,
+	EventMonitor,
 	Process,
+	DynamicInstrumentation,
 }
 
 func inactivityEventLog(duration time.Duration) {

@@ -3,25 +3,39 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+//go:build trivy
+// +build trivy
+
 package sbom
 
 import (
+	"errors"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
+	"github.com/DataDog/datadog-agent/pkg/sbom"
+	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
+	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/DataDog/agent-payload/v5/sbom"
 	model "github.com/DataDog/agent-payload/v5/sbom"
+
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var /* const */ (
+	envVarEnv   = ddConfig.Datadog.GetString("env")
 	sourceAgent = "agent"
 )
 
@@ -30,26 +44,44 @@ type processor struct {
 	workloadmetaStore workloadmeta.Store
 	imageRepoDigests  map[string]string              // Map where keys are image repo digest and values are image ID
 	imageUsers        map[string]map[string]struct{} // Map where keys are image repo digest and values are set of container IDs
+	sbomScanner       *sbomscanner.Scanner
+	hostScanOpts      sbom.ScanOptions
+	hostname          string
 }
 
-func newProcessor(workloadmetaStore workloadmeta.Store, sender aggregator.Sender, maxNbItem int, maxRetentionTime time.Duration) *processor {
+func newProcessor(workloadmetaStore workloadmeta.Store, sender aggregator.Sender, maxNbItem int, maxRetentionTime time.Duration) (*processor, error) {
+	hostScanOpts := sbom.ScanOptionsFromConfig(ddConfig.Datadog, false)
+	sbomScanner := sbomscanner.GetGlobalScanner()
+	if sbomScanner == nil {
+		return nil, errors.New("failed to get global SBOM scanner")
+	}
+	hostname, _ := utils.GetHostname()
+
 	return &processor{
 		queue: queue.NewQueue(maxNbItem, maxRetentionTime, func(entities []*model.SBOMEntity) {
-			sender.SBOM([]sbom.SBOMPayload{
-				{
-					Version:  1,
-					Source:   &sourceAgent,
-					Entities: entities,
-				},
+			encoded, err := proto.Marshal(&model.SBOMPayload{
+				Version:  1,
+				Source:   &sourceAgent,
+				Entities: entities,
+				DdEnv:    &envVarEnv,
 			})
+			if err != nil {
+				log.Errorf("Unable to encode message: %+v", err)
+				return
+			}
+
+			sender.EventPlatformEvent(encoded, epforwarder.EventTypeContainerSBOM)
 		}),
 		workloadmetaStore: workloadmetaStore,
 		imageRepoDigests:  make(map[string]string),
 		imageUsers:        make(map[string]map[string]struct{}),
-	}
+		sbomScanner:       sbomScanner,
+		hostScanOpts:      hostScanOpts,
+		hostname:          hostname,
+	}, nil
 }
 
-func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
+func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBundle) {
 	close(evBundle.Ch)
 
 	log.Tracef("Processing %d events", len(evBundle.Events))
@@ -60,7 +92,7 @@ func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
 			switch event.Type {
 			case workloadmeta.EventTypeSet:
 				p.registerImage(event.Entity.(*workloadmeta.ContainerImageMetadata))
-				p.processSBOM(event.Entity.(*workloadmeta.ContainerImageMetadata))
+				p.processImageSBOM(event.Entity.(*workloadmeta.ContainerImageMetadata))
 			case workloadmeta.EventTypeUnset:
 				p.unregisterImage(event.Entity.(*workloadmeta.ContainerImageMetadata))
 				// Let the SBOM expire on back-end side
@@ -113,7 +145,7 @@ func (p *processor) registerContainer(ctr *workloadmeta.Container) {
 		if img, err := p.workloadmetaStore.GetImage(imgID); err != nil {
 			log.Infof("Couldn’t find image %s in workloadmeta whereas it’s used by container %s: %v", imgID, ctrID, err)
 		} else {
-			p.processSBOM(img)
+			p.processImageSBOM(img)
 		}
 	}
 }
@@ -128,14 +160,50 @@ func (p *processor) unregisterContainer(ctr *workloadmeta.Container) {
 	}
 }
 
-func (p *processor) processRefresh(allImages []*workloadmeta.ContainerImageMetadata) {
+func (p *processor) processContainerImagesRefresh(allImages []*workloadmeta.ContainerImageMetadata) {
 	// So far, the check is refreshing all the images every 5 minutes all together.
 	for _, img := range allImages {
-		p.processSBOM(img)
+		p.processImageSBOM(img)
 	}
 }
 
-func (p *processor) processSBOM(img *workloadmeta.ContainerImageMetadata) {
+func (p *processor) processHostRefresh() {
+	log.Debugf("Triggering host SBOM refresh")
+
+	ch := make(chan sbom.ScanResult, 1)
+	scanRequest := &host.ScanRequest{Path: "/"}
+	if hostRoot := os.Getenv("HOST_ROOT"); config.IsContainerized() && hostRoot != "" {
+		scanRequest.Path = hostRoot
+	}
+
+	if err := p.sbomScanner.Scan(scanRequest, p.hostScanOpts, ch); err != nil {
+		log.Errorf("Failed to generate SBOM for host: %s", err)
+	}
+
+	go func() {
+		result := <-ch
+		log.Debugf("Successfully generated SBOM for host: %v, %v", result.CreatedAt, result.Duration)
+
+		bom, err := result.Report.ToCycloneDX()
+		if err != nil {
+			log.Errorf("Failed to extract SBOM from report: %s", err)
+			return
+		}
+
+		p.queue <- &model.SBOMEntity{
+			Type:               model.SBOMSourceType_HOST_FILE_SYSTEM,
+			Id:                 p.hostname,
+			GeneratedAt:        timestamppb.New(result.CreatedAt),
+			InUse:              true,
+			GenerationDuration: convertDuration(result.Duration),
+			Sbom: &model.SBOMEntity_Cyclonedx{
+				Cyclonedx: convertBOM(bom),
+			},
+		}
+	}()
+}
+
+func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 	if img.SBOM == nil || img.SBOM.CycloneDXBOM == nil {
 		return
 	}
@@ -207,7 +275,7 @@ func (p *processor) processSBOM(img *workloadmeta.ContainerImageMetadata) {
 			RepoTags:           repoTags,
 			InUse:              inUse,
 			GenerationDuration: convertDuration(img.SBOM.GenerationDuration),
-			Sbom: &sbom.SBOMEntity_Cyclonedx{
+			Sbom: &model.SBOMEntity_Cyclonedx{
 				Cyclonedx: convertBOM(img.SBOM.CycloneDXBOM),
 			},
 		}

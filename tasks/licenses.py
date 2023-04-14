@@ -19,6 +19,7 @@ COPYRIGHT_LOCATIONS = [
     'LICENSE.md',
     'LICENSE.txt',
     'License.txt',
+    'license.txt',
     'COPYING',
     'NOTICE',
     'README',
@@ -83,6 +84,7 @@ def licenses_csv(licenses):
         copyright = ' | '.join(sorted(lic['copyright']))
         # quote for inclusion in CSV, if necessary
         if ',' in copyright:
+            copyright = copyright.replace('"', '""')
             copyright = f'"{copyright}"'
         return copyright
 

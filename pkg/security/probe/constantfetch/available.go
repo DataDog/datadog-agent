@@ -11,8 +11,8 @@ package constantfetch
 import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
@@ -36,7 +36,7 @@ func GetAvailableConstantFetchers(config *config.Config, kv *kernel.Version, sta
 		fetchers = append(fetchers, btfhubFetcher)
 	}
 
-	OffsetGuesserFetcher := NewOffsetGuesserFetcher(config)
+	OffsetGuesserFetcher := NewOffsetGuesserFetcher(config, kv)
 	fetchers = append(fetchers, OffsetGuesserFetcher)
 
 	fallbackConstantFetcher := NewFallbackConstantFetcher(kv)

@@ -29,6 +29,10 @@ type safeConfig struct {
 	envPrefix      string
 	envKeyReplacer *strings.Replacer
 
+	// Proxy settings
+	proxiesOnce sync.Once
+	proxies     *Proxy
+
 	// configEnvVars is the set of env vars that are consulted for
 	// configuration values.
 	configEnvVars map[string]struct{}
@@ -489,4 +493,40 @@ func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) 
 	config.SetEnvKeyReplacer(envKeyReplacer)
 	config.SetTypeByDefaultValue(true)
 	return &config
+}
+
+// CopyConfig copies the internal config to the current config. This should only be used in tests as replacing
+// the global config reference is unsafe.
+func (c *safeConfig) CopyConfig(cfg Config) {
+	c.Lock()
+	defer c.Unlock()
+
+	if cfg, ok := cfg.(*safeConfig); ok {
+		c.Viper = cfg.Viper
+		c.envPrefix = cfg.envPrefix
+		c.envKeyReplacer = cfg.envKeyReplacer
+		c.configEnvVars = cfg.configEnvVars
+		return
+	}
+	panic("Replacement config must be an instance of safeConfig")
+}
+
+// GetProxies returns the proxy settings from the configuration
+func (c *safeConfig) GetProxies() *Proxy {
+	c.proxiesOnce.Do(func() {
+		if c.GetBool("fips.enabled") {
+			return
+		}
+		if !c.IsSet("proxy.http") && !c.IsSet("proxy.https") && !c.IsSet("proxy.no_proxy") {
+			return
+		}
+		p := &Proxy{
+			HTTP:    c.GetString("proxy.http"),
+			HTTPS:   c.GetString("proxy.https"),
+			NoProxy: c.GetStringSlice("proxy.no_proxy"),
+		}
+
+		c.proxies = p
+	})
+	return c.proxies
 }

@@ -138,8 +138,12 @@ func TestRuleSetDiscarders(t *testing.T) {
 	ev2.SetFieldValue("mkdir.mode", 0777)
 	ev2.SetFieldValue("process.uid", 0)
 
-	rs.Evaluate(ev1)
-	rs.Evaluate(ev2)
+	if !rs.Evaluate(ev1) {
+		rs.EvaluateDiscarders(ev1)
+	}
+	if !rs.Evaluate(ev2) {
+		rs.EvaluateDiscarders(ev2)
+	}
 
 	expected := map[string]testFieldValues{
 		"open": {

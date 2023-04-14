@@ -35,8 +35,24 @@ func TestNetworkProcessEventMonitoring(t *testing.T) {
 
 			cfg, err := New("")
 			require.NoError(t, err)
-			assert.Equal(t, te.enabled, cfg.ModuleIsEnabled(SecurityRuntimeModule))
+			assert.Equal(t, te.enabled, cfg.ModuleIsEnabled(EventMonitorModule))
 		})
 	}
+
+}
+
+func TestDynamicInstrumentation(t *testing.T) {
+	newConfig(t)
+	os.Setenv("DD_DYNAMIC_INSTRUMENTATION_ENABLED", "true")
+	defer os.Unsetenv("DD_DYNAMIC_INSTRUMENTATION_ENABLED")
+
+	cfg, err := New("")
+	require.NoError(t, err)
+	assert.Equal(t, true, cfg.ModuleIsEnabled(DynamicInstrumentationModule))
+
+	os.Unsetenv("DD_DYNAMIC_INSTRUMENTATION_ENABLED")
+	cfg, err = New("")
+	require.NoError(t, err)
+	assert.Equal(t, false, cfg.ModuleIsEnabled(DynamicInstrumentationModule))
 
 }

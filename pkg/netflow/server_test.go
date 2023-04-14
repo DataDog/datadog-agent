@@ -6,21 +6,20 @@
 package netflow
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-
-	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
+	"github.com/DataDog/datadog-agent/pkg/netflow/flowaggregator"
+	"github.com/DataDog/datadog-agent/pkg/netflow/testutil"
 )
 
 func TestNewNetflowServer(t *testing.T) {
@@ -38,6 +37,7 @@ network_devices:
         port: %d # default 2055 for netflow
 `, port)))
 	require.NoError(t, err)
+	config.Datadog.Set("hostname", "my-hostname")
 
 	// Setup NetFlow Server
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(1 * time.Millisecond)
@@ -46,58 +46,49 @@ network_devices:
 	sender, err := demux.GetDefaultSender()
 	require.NoError(t, err, "cannot get default sender")
 
-	server, err := NewNetflowServer(sender)
+	ctrl := gomock.NewController(t)
+	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
+	server, err := NewNetflowServer(sender, epForwarder)
 	require.NoError(t, err, "cannot start Netflow Server")
 	assert.NotNil(t, server)
 
 	// Send netflowV5Data twice to test aggregator
 	// Flows will have 2x bytes/packets after aggregation
 	time.Sleep(100 * time.Millisecond) // wait to make sure goflow listener is started before sending
-	err = goflowlib.SendUDPPacket(port, goflowlib.MockNetflowV5Data)
+
+	now := time.Unix(1494505756, 0)
+	mockNetflowPayload := testutil.GenerateNetflow5Packet(now, 6)
+	err = testutil.SendUDPPacket(port, testutil.BuildNetFlow5Payload(mockNetflowPayload))
 	require.NoError(t, err, "error sending udp packet")
 
-	// Get Event Platform Events
-	netflowEvents, err := demux.WaitEventPlatformEvents(epforwarder.EventTypeNetworkDevicesNetFlow, 6, 15*time.Second)
-	require.NoError(t, err, "error waiting event platform events")
-	assert.Equal(t, 6, len(netflowEvents))
+	testutil.ExpectNetflow5Payloads(t, epForwarder, now, "my-hostname", 6)
 
-	actualFlow, err := findEventBySourceDest(netflowEvents, "10.129.2.1", "10.128.2.119")
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), "network-devices-metadata").Return(nil).Times(1)
+
+	netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(server.flowAgg, 15*time.Second, 6)
+	assert.Equal(t, uint64(6), netflowEvents)
 	assert.NoError(t, err)
-
-	assert.Equal(t, "netflow5", actualFlow.FlowType)
-	assert.Equal(t, uint64(0), actualFlow.SamplingRate)
-	assert.Equal(t, "ingress", actualFlow.Direction)
-	assert.Equal(t, uint64(1540209168), actualFlow.Start)
-	assert.Equal(t, uint64(1540209169), actualFlow.End)
-	assert.Equal(t, uint64(194), actualFlow.Bytes)
-	assert.Equal(t, "IPv4", actualFlow.EtherType)
-	assert.Equal(t, "TCP", actualFlow.IPProtocol)
-	assert.Equal(t, "127.0.0.1", actualFlow.Device.IP)
-	assert.Equal(t, "10.129.2.1", actualFlow.Source.IP)
-	assert.Equal(t, "49452", actualFlow.Source.Port)
-	assert.Equal(t, "00:00:00:00:00:00", actualFlow.Source.Mac)
-	assert.Equal(t, "0.0.0.0/0", actualFlow.Source.Mask)
-	assert.Equal(t, "10.128.2.119", actualFlow.Destination.IP)
-	assert.Equal(t, "8080", actualFlow.Destination.Port)
-	assert.Equal(t, "00:00:00:00:00:00", actualFlow.Destination.Mac)
-	assert.Equal(t, "0.0.0.0/0", actualFlow.Destination.Mask)
-	assert.Equal(t, uint32(1), actualFlow.Ingress.Interface.Index)
-	assert.Equal(t, uint32(7), actualFlow.Egress.Interface.Index)
-	assert.Equal(t, "default", actualFlow.Device.Namespace)
-	hostnameDetected, _ := hostname.Get(context.TODO())
-	assert.Equal(t, hostnameDetected, actualFlow.Host)
-	assert.ElementsMatch(t, []string{"SYN", "RST", "ACK"}, actualFlow.TCPFlags)
-	assert.Equal(t, "0.0.0.0", actualFlow.NextHop.IP)
 }
 
 func TestStartServerAndStopServer(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
 	defer demux.Stop(false)
 
-	sender, err := demux.GetDefaultSender()
-	require.NoError(t, err, "cannot get default sender")
+	port := uint16(52056)
+	config.Datadog.SetConfigType("yaml")
+	err := config.Datadog.MergeConfigOverride(strings.NewReader(fmt.Sprintf(`
+network_devices:
+  netflow:
+    enabled: true
+    listeners:
+      - flow_type: netflow5
+        bind_host: 127.0.0.1
+        port: %d
+`, port)))
+	require.NoError(t, err)
+	config.Datadog.Set("hostname", "my-hostname")
 
-	err = StartServer(sender)
+	err = StartServer(demux)
 	require.NoError(t, err)
 	require.NotNil(t, serverInstance)
 
@@ -140,7 +131,7 @@ network_devices:
 	sender, err := demux.GetDefaultSender()
 	require.NoError(t, err, "cannot get default sender")
 
-	server, err := NewNetflowServer(sender)
+	server, err := NewNetflowServer(sender, nil)
 	require.NoError(t, err, "cannot start Netflow Server")
 	assert.NotNil(t, server)
 

@@ -10,7 +10,6 @@ include:
   - /.gitlab/binary_build.yml
   - /.gitlab/integration_test.yml
   - /.gitlab/package_build.yml
-  - /.gitlab/internal_deploy.yml
   - /.gitlab/kitchen_deploy.yml
   - /.gitlab/kitchen_testing.yml
   - /.gitlab/pkg_metrics.yml
@@ -18,6 +17,7 @@ include:
   - /.gitlab/container_scan.yml
   - /.gitlab/check_deploy.yml
   - /.gitlab/dev_container_deploy.yml
+  - /.gitlab/deploy_common.yml
   - /.gitlab/deploy_6.yml
   - /.gitlab/deploy_7.yml
   - /.gitlab/deploy_dca.yml
@@ -58,10 +58,10 @@ stages:
   - source_test_junit_upload
   - binary_build
   - package_deps_build
+  - kernel_matrix_testing
   - integration_test
   - benchmarks
   - package_build
-  - internal_deploy
   - kitchen_deploy
   - kitchen_testing
   - pkg_metrics
@@ -144,9 +144,9 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v14002862-b2bcfc9
+  DATADOG_AGENT_BUILDIMAGES: v14189740-26a2d48
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v14002862-b2bcfc9
+  DATADOG_AGENT_WINBUILDIMAGES: v14652025-95c0add
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
   DATADOG_AGENT_ARMBUILDIMAGES: v14002862-b2bcfc9
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
@@ -158,8 +158,6 @@ variables:
   DATADOG_AGENT_BUILDERS: v9930706-ef9d493
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
-  NIKOS_INSTALL_DIR: /opt/datadog-agent/embedded/nikos
-  NIKOS_EMBEDDED_PATH: /opt/datadog-agent/embedded/nikos/embedded
   DEB_GPG_KEY_ID: ad9589b7
   DEB_GPG_KEY_NAME: "Datadog, Inc. Master key"
   DEB_GPG_KEY_SSM_NAME: ci.datadog-agent.deb_signing_private_key_${DEB_GPG_KEY_ID}
@@ -175,10 +173,10 @@ variables:
   KITCHEN_INFRASTRUCTURE_FLAKES_RETRY: 2
   ARTIFACTORY_USERNAME: datadog-agent
   ARTIFACTORY_TOKEN_SSM_NAME: ci.datadog-agent.artifactory_token
+  ARTIFACTORY_BYPASS_SSM_NAME: ci.datadog-agent.artifactory_bypass
   ARTIFACTORY_URL: datadog.jfrog.io
   ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
   ARTIFACTORY_PYPI_PATH: artifactory/api/pypi/agent-pypi/simple
-  USE_CACHING_PROXY_RUBY: "false"
   CLANG_LLVM_VER: 12.0.1
 
 #
@@ -222,6 +220,11 @@ variables:
 
 .if_not_stable_repo_branch: &if_not_stable_repo_branch
   if: $BUCKET_BRANCH != "stable"
+
+# CI_PIPELINE_SOURCE can be set to "trigger" or "pipeline" depending on how the trigger was done.
+# See https://docs.gitlab.com/ee/ci/triggers/index.html#configure-cicd-jobs-to-run-in-triggered-pipelines.
+.if_triggered_pipeline: &if_triggered_pipeline
+  if: $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "pipeline"
 
 # Rule to trigger all builds conditionally.
 # By default:
@@ -275,18 +278,26 @@ variables:
 
 workflow:
   rules:
+    - <<: *if_triggered_pipeline
+      variables:
+        USE_CACHING_PROXY_PYTHON: "false"
+        USE_CACHING_PROXY_RUBY: "false"
     - <<: *if_main_branch
       variables:
-        USE_CACHING_PROXY_PYTHON: "false"
+        USE_CACHING_PROXY_PYTHON: "true"
+        USE_CACHING_PROXY_RUBY: "true"
     - <<: *if_release_branch
       variables:
-        USE_CACHING_PROXY_PYTHON: "false"
+        USE_CACHING_PROXY_PYTHON: "true"
+        USE_CACHING_PROXY_RUBY: "true"
     - <<: *if_deploy
       variables:
         USE_CACHING_PROXY_PYTHON: "false"
+        USE_CACHING_PROXY_RUBY: "false"
     - if: $CI_COMMIT_TAG == null
       variables:
         USE_CACHING_PROXY_PYTHON: "false"
+        USE_CACHING_PROXY_RUBY: "false"
 
 #
 # List of rule blocks used in the pipeline
@@ -785,6 +796,8 @@ workflow:
       - test/kitchen/test/integration/system-probe-test/**/*
       - test/kitchen/test/integration/win-sysprobe-test/**/*
       - .gitlab/functional_test/system_probe.yml
+      - test/new-e2e/system-probe/**/*
+      - test/new-e2e/scenarios/system-probe/**/*
     when: on_success
   - when: manual
     allow_failure: true

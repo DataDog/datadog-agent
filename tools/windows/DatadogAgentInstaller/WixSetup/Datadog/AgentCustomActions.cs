@@ -130,7 +130,7 @@ namespace WixSetup.Datadog
                 Impersonate = false
             }
             .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
-            .HideTarget(true);
+            .HideTarget(true); ;
 
             EnsureNpmServiceDepdendency = new CustomAction<ServiceCustomAction>(
                 new Id(nameof(EnsureNpmServiceDepdendency)),
@@ -353,6 +353,7 @@ namespace WixSetup.Datadog
                 When.After,
                 Step.InstallServices,
                 Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+
             )
             {
                 Execute = Execute.deferred,

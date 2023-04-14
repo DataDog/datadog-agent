@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/cihub/seelog"
 	"github.com/gogo/protobuf/proto"
+	"github.com/golang/mock/gomock"
 	"github.com/prometheus/client_golang/prometheus"
 	promClient "github.com/prometheus/client_model/go"
 
@@ -24,31 +26,18 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
+
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/netflow/config"
 	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
+	"github.com/DataDog/datadog-agent/pkg/netflow/testutil"
 )
-
-func waitForFlowsToBeFlushed(aggregator *FlowAggregator, timeoutDuration time.Duration, minEvents uint64) error {
-	timeout := time.After(timeoutDuration)
-	tick := time.Tick(500 * time.Millisecond)
-	// Keep trying until we're timed out or got a result or got an error
-	for {
-		select {
-		// Got a timeout! fail with a timeout error
-		case <-timeout:
-			return fmt.Errorf("timeout error waiting for events")
-		// Got a tick, we should check on doSomething()
-		case <-tick:
-			if aggregator.flushedFlowCount.Load() >= minEvents {
-				return nil
-			}
-		}
-	}
-}
 
 func TestAggregator(t *testing.T) {
 	stoppedMu := sync.RWMutex{} // Mutex needed to avoid race condition in test
@@ -77,7 +66,7 @@ func TestAggregator(t *testing.T) {
 	flow := &common.Flow{
 		Namespace:      "my-ns",
 		FlowType:       common.TypeNetFlow9,
-		DeviceAddr:     []byte{127, 0, 0, 1},
+		ExporterAddr:   []byte{127, 0, 0, 1},
 		StartTimestamp: 1234568,
 		EndTimestamp:   1234569,
 		Bytes:          20,
@@ -90,19 +79,7 @@ func TestAggregator(t *testing.T) {
 		TCPFlags:       19,
 		EtherType:      uint32(0x0800),
 	}
-
-	aggregator := NewFlowAggregator(sender, &conf, "my-hostname")
-	aggregator.flushFlowsToSendInterval = 1 * time.Second
-	inChan := aggregator.GetFlowInChan()
-
-	expectStartExisted := false
-	go func() {
-		aggregator.Start()
-		stoppedMu.Lock()
-		expectStartExisted = true
-		stoppedMu.Unlock()
-	}()
-	inChan <- flow
+	epForwarder := epforwarder.NewMockEventPlatformForwarder(gomock.NewController(t))
 
 	// language=json
 	event := []byte(`
@@ -117,8 +94,10 @@ func TestAggregator(t *testing.T) {
   "ether_type": "IPv4",
   "ip_protocol": "TCP",
   "device": {
-    "ip": "127.0.0.1",
     "namespace": "my-ns"
+  },
+  "exporter": {
+    "ip": "127.0.0.1"
   },
   "source": {
     "ip": "10.10.10.10",
@@ -157,10 +136,48 @@ func TestAggregator(t *testing.T) {
 	err := json.Compact(compactEvent, event)
 	assert.NoError(t, err)
 
-	err = waitForFlowsToBeFlushed(aggregator, 10*time.Second, 1)
+	// language=json
+	metadataEvent := []byte(fmt.Sprintf(`
+{
+  "namespace":"my-ns",
+  "netflow_exporters":[
+    {
+      "id": "my-ns:127.0.0.1:netflow9",
+      "ip_address":"127.0.0.1",
+      "flow_type":"netflow9"
+    }
+  ],
+  "collect_timestamp": 1550505606
+}
+`))
+	compactMetadataEvent := new(bytes.Buffer)
+	err = json.Compact(compactMetadataEvent, metadataEvent)
 	assert.NoError(t, err)
 
-	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-netflow")
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(&message.Message{Content: compactEvent.Bytes()}, "network-devices-netflow").Return(nil).Times(1)
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(&message.Message{Content: compactMetadataEvent.Bytes()}, "network-devices-metadata").Return(nil).Times(1)
+
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
+	aggregator.flushFlowsToSendInterval = 1 * time.Second
+	aggregator.timeNowFunction = func() time.Time {
+		t, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
+		return t
+	}
+	inChan := aggregator.GetFlowInChan()
+
+	expectStartExisted := false
+	go func() {
+		aggregator.Start()
+		stoppedMu.Lock()
+		expectStartExisted = true
+		stoppedMu.Unlock()
+	}()
+	inChan <- flow
+
+	netflowEvents, err := WaitForFlowsToBeFlushed(aggregator, 10*time.Second, 1)
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(1), netflowEvents)
+
 	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.flows_flushed", 1, "", nil)
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.aggregator.flows_received", 1, "", nil)
 	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.flows_contexts", 1, "", nil)
@@ -198,7 +215,6 @@ func TestAggregator_withMockPayload(t *testing.T) {
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 	conf := config.NetflowConfig{
 		StopTimeout:                            10,
@@ -215,9 +231,39 @@ func TestAggregator_withMockPayload(t *testing.T) {
 			},
 		},
 	}
+	now := time.Now()
 
-	aggregator := NewFlowAggregator(sender, &conf, "my-hostname")
+	ctrl := gomock.NewController(t)
+	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
+
+	testutil.ExpectNetflow5Payloads(t, epForwarder, now, "my-hostname", 6)
+
+	// language=json
+	metadataEvent := []byte(fmt.Sprintf(`
+{
+  "namespace":"default",
+  "netflow_exporters":[
+    {
+      "id": "default:127.0.0.1:netflow5",
+      "ip_address":"127.0.0.1",
+      "flow_type":"netflow5"
+    }
+  ],
+  "collect_timestamp": 1550505606
+}
+`))
+	compactMetadataEvent := new(bytes.Buffer)
+	err := json.Compact(compactMetadataEvent, metadataEvent)
+	require.NoError(t, err)
+
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(&message.Message{Content: compactMetadataEvent.Bytes()}, "network-devices-metadata").Return(nil).Times(1)
+
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
 	aggregator.flushFlowsToSendInterval = 1 * time.Second
+	aggregator.timeNowFunction = func() time.Time {
+		t, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
+		return t
+	}
 
 	stoppedFlushLoop := make(chan struct{})
 	stoppedRun := make(chan struct{})
@@ -234,72 +280,20 @@ func TestAggregator_withMockPayload(t *testing.T) {
 	assert.NoError(t, err)
 
 	time.Sleep(100 * time.Millisecond) // wait to make sure goflow listener is started before sending
-	err = goflowlib.SendUDPPacket(port, goflowlib.MockNetflowV5Data)
+
+	mockNetflowPayload := testutil.GenerateNetflow5Packet(now, 6)
+	err = testutil.SendUDPPacket(port, testutil.BuildNetFlow5Payload(mockNetflowPayload))
 	require.NoError(t, err, "error sending udp packet")
 
-	// language=json
-	event := []byte(`
-{
-    "type": "netflow5",
-    "sampling_rate": 0,
-    "direction": "ingress",
-    "start": 1540209169,
-    "end": 1540209169,
-    "bytes": 590,
-    "packets": 5,
-    "ether_type": "IPv4",
-    "ip_protocol": "TCP",
-    "device": {
-        "ip": "127.0.0.1",
-        "namespace": "default"
-    },
-    "source": {
-        "ip": "10.128.2.121",
-        "port": "8080",
-        "mac": "00:00:00:00:00:00",
-        "mask": "0.0.0.0/0"
-    },
-    "destination": {
-        "ip": "10.128.2.1",
-        "port": "47384",
-        "mac": "00:00:00:00:00:00",
-        "mask": "0.0.0.0/0"
-    },
-    "ingress": {
-        "interface": {
-            "index": 9
-        }
-    },
-    "egress": {
-        "interface": {
-            "index": 2
-        }
-    },
-    "host": "my-hostname",
-    "tcp_flags": [
-        "FIN",
-        "SYN",
-        "PSH",
-        "ACK"
-    ],
-    "next_hop": {
-        "ip": "0.0.0.0"
-    }
-}
-`)
-	compactEvent := new(bytes.Buffer)
-	err = json.Compact(compactEvent, event)
+	netflowEvents, err := WaitForFlowsToBeFlushed(aggregator, 3*time.Second, 6)
 	assert.NoError(t, err)
+	assert.Equal(t, uint64(6), netflowEvents)
 
-	err = waitForFlowsToBeFlushed(aggregator, 3*time.Second, 1)
-	assert.NoError(t, err)
-
-	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-netflow")
 	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.flows_flushed", 6, "", nil)
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.aggregator.flows_received", 6, "", nil)
 	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.flows_contexts", 6, "", nil)
-	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.port_rollup.current_store_size", 10, "", nil)
-	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.port_rollup.new_store_size", 10, "", nil)
+	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.port_rollup.current_store_size", 12, "", nil)
+	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.port_rollup.new_store_size", 12, "", nil)
 	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.input_buffer.capacity", 20, "", nil)
 	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.input_buffer.length", 0, "", nil)
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.decoder.messages", 1, "", []string{"collector_type:netflow5", "worker:0"})
@@ -345,7 +339,11 @@ func TestFlowAggregator_flush_submitCollectorMetrics_error(t *testing.T) {
 			},
 		},
 	}
-	aggregator := NewFlowAggregator(sender, &conf, "my-hostname")
+
+	ctrl := gomock.NewController(t)
+	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
+
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
 	aggregator.goflowPrometheusGatherer = prometheus.GathererFunc(func() ([]*promClient.MetricFamily, error) {
 		return nil, fmt.Errorf("some prometheus gatherer error")
 	})
@@ -380,7 +378,11 @@ func TestFlowAggregator_submitCollectorMetrics(t *testing.T) {
 			},
 		},
 	}
-	aggregator := NewFlowAggregator(sender, &conf, "my-hostname")
+
+	ctrl := gomock.NewController(t)
+	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
+
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
 	aggregator.goflowPrometheusGatherer = prometheus.GathererFunc(func() ([]*promClient.MetricFamily, error) {
 		return []*promClient.MetricFamily{
 			{
@@ -451,7 +453,11 @@ func TestFlowAggregator_submitCollectorMetrics_error(t *testing.T) {
 			},
 		},
 	}
-	aggregator := NewFlowAggregator(sender, &conf, "my-hostname")
+
+	ctrl := gomock.NewController(t)
+	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
+
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
 	aggregator.goflowPrometheusGatherer = prometheus.GathererFunc(func() ([]*promClient.MetricFamily, error) {
 		return nil, fmt.Errorf("some prometheus gatherer error")
 	})
@@ -461,4 +467,390 @@ func TestFlowAggregator_submitCollectorMetrics_error(t *testing.T) {
 
 	// 3/ Assert
 	assert.EqualError(t, err, "some prometheus gatherer error")
+}
+
+func TestFlowAggregator_sendExporterMetadata_multiplePayloads(t *testing.T) {
+	sender := mocksender.NewMockSender("")
+	conf := config.NetflowConfig{
+		StopTimeout:                            10,
+		AggregatorBufferSize:                   20,
+		AggregatorFlushInterval:                1,
+		AggregatorPortRollupThreshold:          10,
+		AggregatorRollupTrackerRefreshInterval: 3600,
+		Listeners: []config.ListenerConfig{
+			{
+				FlowType: common.TypeNetFlow9,
+				BindHost: "127.0.0.1",
+				Port:     uint16(1234),
+				Workers:  10,
+			},
+		},
+	}
+
+	ctrl := gomock.NewController(t)
+	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
+
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
+
+	var flows []*common.Flow
+	for i := 1; i <= 250; i++ {
+		flows = append(flows, &common.Flow{
+			Namespace:      "my-ns",
+			FlowType:       common.TypeNetFlow9,
+			ExporterAddr:   []byte{127, 0, 0, byte(i)},
+			StartTimestamp: 1234568,
+			EndTimestamp:   1234569,
+			Bytes:          20,
+			Packets:        4,
+			SrcAddr:        []byte{10, 10, 10, 10},
+			DstAddr:        []byte{10, 10, 10, 20},
+			IPProtocol:     uint32(6),
+			SrcPort:        2000,
+			DstPort:        80,
+			TCPFlags:       19,
+			EtherType:      uint32(0x0800),
+		})
+	}
+	now := time.Unix(1681295467, 0)
+	var payload1NetflowExporters []metadata.NetflowExporter
+	for i := 1; i <= 100; i++ {
+		payload1NetflowExporters = append(payload1NetflowExporters, metadata.NetflowExporter{
+			ID:        fmt.Sprintf("my-ns:127.0.0.%d:netflow9", i),
+			IPAddress: "127.0.0." + strconv.Itoa(i),
+			FlowType:  "netflow9",
+		})
+	}
+	var payload2NetflowExporters []metadata.NetflowExporter
+	for i := 101; i <= 200; i++ {
+		payload2NetflowExporters = append(payload2NetflowExporters, metadata.NetflowExporter{
+			ID:        fmt.Sprintf("my-ns:127.0.0.%d:netflow9", i),
+			IPAddress: "127.0.0." + strconv.Itoa(i),
+			FlowType:  "netflow9",
+		})
+	}
+	var payload3NetflowExporters []metadata.NetflowExporter
+	for i := 201; i <= 250; i++ {
+		payload3NetflowExporters = append(payload3NetflowExporters, metadata.NetflowExporter{
+			ID:        fmt.Sprintf("my-ns:127.0.0.%d:netflow9", i),
+			IPAddress: "127.0.0." + strconv.Itoa(i),
+			FlowType:  "netflow9",
+		})
+	}
+	for _, exporters := range [][]metadata.NetflowExporter{payload1NetflowExporters, payload2NetflowExporters, payload3NetflowExporters} {
+		payload := metadata.NetworkDevicesMetadata{
+			Subnet:           "",
+			Namespace:        "my-ns",
+			CollectTimestamp: now.Unix(),
+			NetflowExporters: exporters,
+		}
+		payloadBytes, err := json.Marshal(payload)
+		require.NoError(t, err)
+
+		m := &message.Message{Content: payloadBytes}
+		epForwarder.EXPECT().SendEventPlatformEventBlocking(m, "network-devices-metadata").Return(nil).Times(1)
+	}
+	aggregator.sendExporterMetadata(flows, now)
+}
+
+func TestFlowAggregator_sendExporterMetadata_noPayloads(t *testing.T) {
+	sender := mocksender.NewMockSender("")
+	conf := config.NetflowConfig{
+		StopTimeout:                            10,
+		AggregatorBufferSize:                   20,
+		AggregatorFlushInterval:                1,
+		AggregatorPortRollupThreshold:          10,
+		AggregatorRollupTrackerRefreshInterval: 3600,
+		Listeners: []config.ListenerConfig{
+			{
+				FlowType: common.TypeNetFlow9,
+				BindHost: "127.0.0.1",
+				Port:     uint16(1234),
+				Workers:  10,
+			},
+		},
+	}
+
+	ctrl := gomock.NewController(t)
+	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
+
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
+
+	var flows []*common.Flow
+	now := time.Unix(1681295467, 0)
+
+	// call sendExporterMetadata does not trigger any call to epForwarder.SendEventPlatformEventBlocking(...)
+	aggregator.sendExporterMetadata(flows, now)
+}
+
+func TestFlowAggregator_sendExporterMetadata_invalidIPIgnored(t *testing.T) {
+	sender := mocksender.NewMockSender("")
+	conf := config.NetflowConfig{
+		StopTimeout:                            10,
+		AggregatorBufferSize:                   20,
+		AggregatorFlushInterval:                1,
+		AggregatorPortRollupThreshold:          10,
+		AggregatorRollupTrackerRefreshInterval: 3600,
+		Listeners: []config.ListenerConfig{
+			{
+				FlowType:  common.TypeNetFlow9,
+				BindHost:  "127.0.0.1",
+				Port:      uint16(1234),
+				Workers:   10,
+				Namespace: "my-ns",
+			},
+		},
+	}
+
+	ctrl := gomock.NewController(t)
+	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
+
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
+
+	now := time.Unix(1681295467, 0)
+	flows := []*common.Flow{
+		{
+			Namespace:      "my-ns",
+			FlowType:       common.TypeNetFlow9,
+			ExporterAddr:   []byte{99}, // INVALID ADDR
+			StartTimestamp: 1234568,
+			EndTimestamp:   1234569,
+			Bytes:          20,
+			Packets:        4,
+			SrcAddr:        []byte{10, 10, 10, 10},
+			DstAddr:        []byte{10, 10, 10, 20},
+			IPProtocol:     uint32(6),
+			SrcPort:        2000,
+			DstPort:        80,
+			TCPFlags:       19,
+			EtherType:      uint32(0x0800),
+		},
+		{
+			Namespace:      "my-ns",
+			FlowType:       common.TypeNetFlow9,
+			ExporterAddr:   []byte{127, 0, 0, 10},
+			StartTimestamp: 1234568,
+			EndTimestamp:   1234569,
+			Bytes:          20,
+			Packets:        4,
+			SrcAddr:        []byte{10, 10, 10, 10},
+			DstAddr:        []byte{10, 10, 10, 20},
+			IPProtocol:     uint32(6),
+			SrcPort:        2000,
+			DstPort:        80,
+			TCPFlags:       19,
+			EtherType:      uint32(0x0800),
+		},
+	}
+
+	// language=json
+	metadataEvent := []byte(fmt.Sprintf(`
+{
+  "namespace":"my-ns",
+  "netflow_exporters":[
+    {
+      "id": "my-ns:127.0.0.10:netflow9",
+      "ip_address":"127.0.0.10",
+      "flow_type":"netflow9"
+    }
+  ],
+  "collect_timestamp": 1681295467
+}
+`))
+	compactMetadataEvent := new(bytes.Buffer)
+	err := json.Compact(compactMetadataEvent, metadataEvent)
+	assert.NoError(t, err)
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(&message.Message{Content: compactMetadataEvent.Bytes()}, "network-devices-metadata").Return(nil).Times(1)
+
+	// call sendExporterMetadata does not trigger any call to epForwarder.SendEventPlatformEventBlocking(...)
+	aggregator.sendExporterMetadata(flows, now)
+}
+
+func TestFlowAggregator_sendExporterMetadata_multipleNamespaces(t *testing.T) {
+	sender := mocksender.NewMockSender("")
+	conf := config.NetflowConfig{
+		StopTimeout:                            10,
+		AggregatorBufferSize:                   20,
+		AggregatorFlushInterval:                1,
+		AggregatorPortRollupThreshold:          10,
+		AggregatorRollupTrackerRefreshInterval: 3600,
+		Listeners: []config.ListenerConfig{
+			{
+				FlowType:  common.TypeNetFlow9,
+				BindHost:  "127.0.0.1",
+				Port:      uint16(1234),
+				Workers:   10,
+				Namespace: "my-ns",
+			},
+		},
+	}
+
+	ctrl := gomock.NewController(t)
+	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
+
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
+
+	now := time.Unix(1681295467, 0)
+	flows := []*common.Flow{
+		{
+			Namespace:      "my-ns1",
+			FlowType:       common.TypeNetFlow9,
+			ExporterAddr:   []byte{127, 0, 0, 11},
+			StartTimestamp: 1234568,
+			EndTimestamp:   1234569,
+			Bytes:          20,
+			Packets:        4,
+			SrcAddr:        []byte{10, 10, 10, 10},
+			DstAddr:        []byte{10, 10, 10, 20},
+			IPProtocol:     uint32(6),
+			SrcPort:        2000,
+			DstPort:        80,
+			TCPFlags:       19,
+			EtherType:      uint32(0x0800),
+		},
+		{
+			Namespace:      "my-ns2",
+			FlowType:       common.TypeNetFlow9,
+			ExporterAddr:   []byte{127, 0, 0, 12},
+			StartTimestamp: 1234568,
+			EndTimestamp:   1234569,
+			Bytes:          20,
+			Packets:        4,
+			SrcAddr:        []byte{10, 10, 10, 10},
+			DstAddr:        []byte{10, 10, 10, 20},
+			IPProtocol:     uint32(6),
+			SrcPort:        2000,
+			DstPort:        80,
+			TCPFlags:       19,
+			EtherType:      uint32(0x0800),
+		},
+	}
+
+	// language=json
+	metadataEvent := []byte(fmt.Sprintf(`
+{
+  "namespace":"my-ns1",
+  "netflow_exporters":[
+    {
+      "id": "my-ns1:127.0.0.11:netflow9",
+      "ip_address":"127.0.0.11",
+      "flow_type":"netflow9"
+    }
+  ],
+  "collect_timestamp": 1681295467
+}
+`))
+	compactMetadataEvent := new(bytes.Buffer)
+	err := json.Compact(compactMetadataEvent, metadataEvent)
+	assert.NoError(t, err)
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(&message.Message{Content: compactMetadataEvent.Bytes()}, "network-devices-metadata").Return(nil).Times(1)
+
+	// language=json
+	metadataEvent2 := []byte(fmt.Sprintf(`
+{
+  "namespace":"my-ns2",
+  "netflow_exporters":[
+    {
+      "id": "my-ns2:127.0.0.12:netflow9",
+      "ip_address":"127.0.0.12",
+      "flow_type":"netflow9"
+    }
+  ],
+  "collect_timestamp": 1681295467
+}
+`))
+	compactMetadataEvent2 := new(bytes.Buffer)
+	err = json.Compact(compactMetadataEvent2, metadataEvent2)
+	assert.NoError(t, err)
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(&message.Message{Content: compactMetadataEvent2.Bytes()}, "network-devices-metadata").Return(nil).Times(1)
+
+	// call sendExporterMetadata does not trigger any call to epForwarder.SendEventPlatformEventBlocking(...)
+	aggregator.sendExporterMetadata(flows, now)
+}
+
+func TestFlowAggregator_sendExporterMetadata_singleExporterIpWithMultipleFlowTypes(t *testing.T) {
+	sender := mocksender.NewMockSender("")
+	conf := config.NetflowConfig{
+		StopTimeout:                            10,
+		AggregatorBufferSize:                   20,
+		AggregatorFlushInterval:                1,
+		AggregatorPortRollupThreshold:          10,
+		AggregatorRollupTrackerRefreshInterval: 3600,
+		Listeners: []config.ListenerConfig{
+			{
+				FlowType:  common.TypeNetFlow9,
+				BindHost:  "127.0.0.1",
+				Port:      uint16(1234),
+				Workers:   10,
+				Namespace: "my-ns",
+			},
+		},
+	}
+
+	ctrl := gomock.NewController(t)
+	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
+
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
+
+	now := time.Unix(1681295467, 0)
+	flows := []*common.Flow{
+		{
+			Namespace:      "my-ns1",
+			FlowType:       common.TypeNetFlow9,
+			ExporterAddr:   []byte{127, 0, 0, 11},
+			StartTimestamp: 1234568,
+			EndTimestamp:   1234569,
+			Bytes:          20,
+			Packets:        4,
+			SrcAddr:        []byte{10, 10, 10, 10},
+			DstAddr:        []byte{10, 10, 10, 20},
+			IPProtocol:     uint32(6),
+			SrcPort:        2000,
+			DstPort:        80,
+			TCPFlags:       19,
+			EtherType:      uint32(0x0800),
+		},
+		{
+			Namespace:      "my-ns1",
+			FlowType:       common.TypeNetFlow5,
+			ExporterAddr:   []byte{127, 0, 0, 11},
+			StartTimestamp: 1234568,
+			EndTimestamp:   1234569,
+			Bytes:          20,
+			Packets:        4,
+			SrcAddr:        []byte{10, 10, 10, 10},
+			DstAddr:        []byte{10, 10, 10, 20},
+			IPProtocol:     uint32(6),
+			SrcPort:        2000,
+			DstPort:        80,
+			TCPFlags:       19,
+			EtherType:      uint32(0x0800),
+		},
+	}
+
+	// language=json
+	metadataEvent := []byte(fmt.Sprintf(`
+{
+  "namespace":"my-ns1",
+  "netflow_exporters":[
+    {
+      "id": "my-ns1:127.0.0.11:netflow9",
+      "ip_address":"127.0.0.11",
+      "flow_type":"netflow9"
+    },
+    {
+      "id": "my-ns1:127.0.0.11:netflow5",
+      "ip_address":"127.0.0.11",
+      "flow_type":"netflow5"
+    }
+  ],
+  "collect_timestamp": 1681295467
+}
+`))
+	compactMetadataEvent := new(bytes.Buffer)
+	err := json.Compact(compactMetadataEvent, metadataEvent)
+	assert.NoError(t, err)
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(&message.Message{Content: compactMetadataEvent.Bytes()}, "network-devices-metadata").Return(nil).Times(1)
+
+	// call sendExporterMetadata does not trigger any call to epForwarder.SendEventPlatformEventBlocking(...)
+	aggregator.sendExporterMetadata(flows, now)
 }

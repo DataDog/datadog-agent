@@ -412,6 +412,51 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 				{"error converting value", 1},
 			},
 		},
+		{
+			name: "tag value mapping",
+			metricsTags: []checkconfig.MetricTagConfig{
+				{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol", Mapping: map[string]string{"1": "one", "2": "two"}},
+			},
+			values: &valuestore.ResultValueStore{
+				ScalarValues: valuestore.ScalarResultValuesType{
+					"1.2.3": valuestore.ResultValue{
+						Value: float64(2),
+					},
+				},
+			},
+			expectedTags: []string{"my_symbol:two"},
+			expectedLogs: []logCount{},
+		},
+		{
+			name: "invalid tag value mapping",
+			metricsTags: []checkconfig.MetricTagConfig{
+				{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol", Mapping: map[string]string{"1": "one", "2": "two"}},
+			},
+			values: &valuestore.ResultValueStore{
+				ScalarValues: valuestore.ScalarResultValuesType{
+					"1.2.3": valuestore.ResultValue{
+						Value: float64(3),
+					},
+				},
+			},
+			expectedTags: []string(nil),
+			expectedLogs: []logCount{{"error getting tags", 1}},
+		},
+		{
+			name: "empty tag value mapping",
+			metricsTags: []checkconfig.MetricTagConfig{
+				{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol", Mapping: map[string]string{}},
+			},
+			values: &valuestore.ResultValueStore{
+				ScalarValues: valuestore.ScalarResultValuesType{
+					"1.2.3": valuestore.ResultValue{
+						Value: float64(3),
+					},
+				},
+			},
+			expectedTags: []string{"my_symbol:3"},
+			expectedLogs: []logCount{},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

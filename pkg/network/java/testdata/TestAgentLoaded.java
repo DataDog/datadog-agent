@@ -11,12 +11,11 @@ import java.io.FileOutputStream;
 public class TestAgentLoaded {
 
     public static void agentmain(String agentArgs, Instrumentation inst) {
-        System.out.println("loading TestAgentLoaded.agentmain("+agentArgs+")");
         try {
             // parsing the argument like agent-usm.jar
             if (agentArgs != ""){
-                //split arguments by space character
-                String[] args = agentArgs.split(" ");
+                //split arguments by comma character
+                String[] args = agentArgs.split(",");
                 for (String arg : args){
                     //we only parse the arguments of the form "arg=value" (e.g: dd.debug.enabled=true)
                     String[] keyValTuple = arg.split("=");
@@ -28,7 +27,8 @@ public class TestAgentLoaded {
             }
         } catch (Exception ex) {
             System.out.println(ex);
+        } finally {
+            System.out.println("loading TestAgentLoaded.agentmain("+agentArgs+")");
         }
     }
-    
 }

@@ -16,7 +16,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/content"
@@ -32,6 +31,8 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/samber/lo"
 	"golang.org/x/xerrors"
+
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 // Code ported from https://github.com/aquasecurity/trivy/blob/2206e008ea6e5f4e5c1aa7bc8fc77dae7041de6a/pkg/fanal/image/daemon/containerd.go
