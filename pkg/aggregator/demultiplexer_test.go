@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+// +build test
+
 package aggregator
 
 import (
@@ -17,7 +20,7 @@ import (
 )
 
 func demuxTestOptions() AgentDemultiplexerOptions {
-	opts := DefaultAgentDemultiplexerOptions(nil)
+	opts := DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = time.Hour
 	opts.DontStartForwarders = true
 	return opts
@@ -32,7 +35,7 @@ func TestDemuxIsSetAsGlobalInstance(t *testing.T) {
 	require := require.New(t)
 
 	opts := demuxTestOptions()
-	demux := InitAndStartAgentDemultiplexer(opts, "")
+	demux := InitAndStartAgentDemultiplexerTest(opts, "")
 
 	require.NotNil(demux)
 	require.NotNil(demux.aggregator)
@@ -48,7 +51,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	// forwarders since we're not in a cluster-agent environment
 
 	opts := demuxTestOptions()
-	demux := InitAndStartAgentDemultiplexer(opts, "")
+	demux := InitAndStartAgentDemultiplexerTest(opts, "")
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
 	require.Nil(demux.forwarders.orchestrator)
@@ -59,7 +62,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 
 	opts = demuxTestOptions()
 	opts.UseEventPlatformForwarder = false
-	demux = InitAndStartAgentDemultiplexer(opts, "")
+	demux = InitAndStartAgentDemultiplexerTest(opts, "")
 	require.NotNil(demux)
 	require.Nil(demux.forwarders.eventPlatform)
 	require.Nil(demux.forwarders.orchestrator)
@@ -70,7 +73,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 
 	opts = demuxTestOptions()
 	opts.UseNoopEventPlatformForwarder = true
-	demux = InitAndStartAgentDemultiplexer(opts, "")
+	demux = InitAndStartAgentDemultiplexerTest(opts, "")
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
 	require.Nil(demux.forwarders.orchestrator)
@@ -95,7 +98,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	// needed feature above, we should have an orchestrator forwarder instantiated now
 
 	opts = demuxTestOptions()
-	demux = InitAndStartAgentDemultiplexer(opts, "")
+	demux = InitAndStartAgentDemultiplexerTest(opts, "")
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
 	if orchestratorEnabled() {
@@ -110,7 +113,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 
 	opts = demuxTestOptions()
 	opts.UseOrchestratorForwarder = false
-	demux = InitAndStartAgentDemultiplexer(opts, "")
+	demux = InitAndStartAgentDemultiplexerTest(opts, "")
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
 	require.Nil(demux.forwarders.orchestrator)
@@ -121,7 +124,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 
 	opts = demuxTestOptions()
 	opts.UseNoopOrchestratorForwarder = true
-	demux = InitAndStartAgentDemultiplexer(opts, "")
+	demux = InitAndStartAgentDemultiplexerTest(opts, "")
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
 	require.NotNil(demux.forwarders.orchestrator)
@@ -133,7 +136,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	config.Datadog.Set("orchestrator_explorer.enabled", false)
 
 	opts = demuxTestOptions()
-	demux = InitAndStartAgentDemultiplexer(opts, "")
+	demux = InitAndStartAgentDemultiplexerTest(opts, "")
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
 	require.Nil(demux.forwarders.orchestrator)
@@ -148,7 +151,7 @@ func TestDemuxSerializerCreated(t *testing.T) {
 	// forwarders since we're not in a cluster-agent environment
 
 	opts := demuxTestOptions()
-	demux := InitAndStartAgentDemultiplexer(opts, "")
+	demux := InitAndStartAgentDemultiplexerTest(opts, "")
 	require.NotNil(demux)
 	require.NotNil(demux.sharedSerializer)
 	demux.Stop(false)
@@ -163,7 +166,7 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 
 	opts := demuxTestOptions()
 	opts.FlushInterval = time.Hour
-	demux := initAgentDemultiplexer(opts, "")
+	demux := initAgentDemultiplexer(NewForwarderTest(), opts, "")
 	demux.Aggregator().tlmContainerTagsEnabled = false
 	require.NotNil(demux)
 	require.NotNil(demux.aggregator)

@@ -49,11 +49,25 @@ Package server implements a component to run the dogstatsd server
 
 Package serverDebug implements a component to run the dogstatsd server debug
 
+## [comp/forwarder](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/forwarder) (Component Bundle)
+
+*Datadog Team*: agent-shared-components
+
+Package forwarder implements the "forwarder" bundle
+
+### [comp/forwarder/defaultforwarder](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/forwarder/defaultforwarder)
+
+Package defaultForwarder implements a component to send payloads to the backend
+
 ## [comp/process](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process) (Component Bundle)
 
 *Datadog Team*: processes
 
 Package process implements the "process" bundle, providing components for the Process Agent
+
+### [comp/process/apiserver](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process/apiserver)
+
+Package apiserver initializes the api server that powers many subcommands.
 
 ### [comp/process/connectionscheck](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process/connectionscheck)
 
@@ -62,6 +76,10 @@ Package connectionscheck implements a component to handle Connections data colle
 ### [comp/process/containercheck](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process/containercheck)
 
 Package containercheck implements a component to handle Container data collection in the Process Agent.
+
+### [comp/process/expvars](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process/expvars)
+
+Package expvars initializes the expvar server of the process agent.
 
 ### [comp/process/hostinfo](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process/hostinfo)
 

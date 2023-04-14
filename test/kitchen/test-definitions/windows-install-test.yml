@@ -180,6 +180,7 @@ suites:
           WIXFAILWHENDEFERRED=1
       dd-agent-rspec:
         skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
+        ng_installer: &ng_installer <%= ENV['NG_INSTALLER'] || false %>
 
   - name: win-alt-dir
     run_list:

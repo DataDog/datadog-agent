@@ -15,6 +15,8 @@ import (
 	"syscall"
 	"time"
 
+	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
+
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/args"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -183,7 +185,7 @@ func (fh *FieldHandlers) ResolveProcessArgs(ev *model.Event, process *model.Proc
 
 // ResolveProcessArgv resolves the args of the event as an array
 func (fh *FieldHandlers) ResolveProcessArgv(ev *model.Event, process *model.Process) []string {
-	argv, _ := fh.resolvers.ProcessResolver.GetProcessArgv(process)
+	argv, _ := sprocess.GetProcessArgv(process)
 	return argv
 }
 
@@ -195,7 +197,7 @@ func (fh *FieldHandlers) ResolveProcessEnvp(ev *model.Event, process *model.Proc
 
 // ResolveProcessArgsTruncated returns whether the args are truncated
 func (fh *FieldHandlers) ResolveProcessArgsTruncated(ev *model.Event, process *model.Process) bool {
-	_, truncated := fh.resolvers.ProcessResolver.GetProcessArgv(process)
+	_, truncated := sprocess.GetProcessArgv(process)
 	return truncated
 }
 
@@ -470,4 +472,23 @@ func (fh *FieldHandlers) ResolvePackageSourceVersion(ev *model.Event, f *model.F
 		}
 	}
 	return f.PkgSrcVersion
+}
+
+// ResolveModuleArgv resolves the args of the event as an array
+func (fh *FieldHandlers) ResolveModuleArgv(ev *model.Event, module *model.LoadModuleEvent) []string {
+	module.Argv = strings.Split(module.Args, " ")
+	if module.ArgsTruncated {
+		module.Argv = module.Argv[:len(module.Argv)-1]
+	}
+	return module.Argv
+}
+
+// ResolveModuleArgs resolves the correct args if the arguments were truncated, if not return module.Args
+func (fh *FieldHandlers) ResolveModuleArgs(ev *model.Event, module *model.LoadModuleEvent) string {
+	if module.ArgsTruncated {
+		argsTmp := strings.Split(module.Args, " ")
+		argsTmp = argsTmp[:len(argsTmp)-1]
+		return strings.Join(argsTmp, " ")
+	}
+	return module.Args
 }

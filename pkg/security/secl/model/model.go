@@ -150,10 +150,47 @@ type ContainerContext struct {
 	Tags      []string `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
 }
 
+type Status uint32
+
+const (
+	// AnomalyDetection will trigger alerts each time an event is not part of the profile
+	AnomalyDetection Status = 1 << iota
+	// AutoSuppression will suppress any signal to events present on the profile
+	AutoSuppression
+	// WorkloadHardening will kill the process that triggered anomaly detection
+	WorkloadHardening
+)
+
+func (s Status) IsEnabled(option Status) bool {
+	return (s & option) != 0
+}
+
+func (s Status) String() string {
+	var options []string
+	if s.IsEnabled(AnomalyDetection) {
+		options = append(options, "anomaly_detection")
+	}
+	if s.IsEnabled(AutoSuppression) {
+		options = append(options, "auto_suppression")
+	}
+	if s.IsEnabled(WorkloadHardening) {
+		options = append(options, "workload_hardening")
+	}
+
+	var res string
+	for _, option := range options {
+		if len(res) > 0 {
+			res += ","
+		}
+		res += option
+	}
+	return res
+}
+
 // SecurityProfileContext holds the security context of the profile
 type SecurityProfileContext struct {
 	Name    string   `field:"name"`    // SECLDoc[name] Definition:`Name of the security profile`
-	Status  string   `field:"status"`  // SECLDoc[status] Definition:`Status of the security profile`
+	Status  Status   `field:"status"`  // SECLDoc[status] Definition:`Status of the security profile`
 	Version string   `field:"version"` // SECLDoc[version] Definition:`Version of the security profile`
 	Tags    []string `field:"tags"`    // SECLDoc[tags] Definition:`Tags of the security profile`
 }
@@ -283,6 +320,26 @@ func (e *Event) IsSavedByActivityDumps() bool {
 // IsSavedByActivityDumps return whether AD sample
 func (e *Event) IsActivityDumpSample() bool {
 	return e.Flags&EventFlagsActivityDumpSample > 0
+}
+
+// IsInProfile return true if the event was fount in the profile
+func (e *Event) IsInProfile() bool {
+	return e.Flags&EventFlagsSecurityProfileInProfile > 0
+}
+
+// AddToFlags adds a flag to the event
+func (e *Event) AddToFlags(flag uint32) {
+	e.Flags |= flag
+}
+
+// RemoveFromFlags remove a flag to the event
+func (e *Event) RemoveFromFlags(flag uint32) {
+	e.Flags ^= flag
+}
+
+// HasProfile returns true if we found a profile for that event
+func (e *Event) HasProfile() bool {
+	return e.SecurityProfileContext.Name != ""
 }
 
 // GetType returns the event type
@@ -923,9 +980,12 @@ type MProtectEvent struct {
 type LoadModuleEvent struct {
 	SyscallEvent
 
-	File             FileEvent `field:"file"`               // Path to the kernel module file
-	LoadedFromMemory bool      `field:"loaded_from_memory"` // SECLDoc[loaded_from_memory] Definition:`Indicates if the kernel module was loaded from memory`
-	Name             string    `field:"name"`               // SECLDoc[name] Definition:`Name of the new kernel module`
+	File             FileEvent `field:"file"`                           // Path to the kernel module file
+	LoadedFromMemory bool      `field:"loaded_from_memory"`             // SECLDoc[loaded_from_memory] Definition:`Indicates if the kernel module was loaded from memory`
+	Name             string    `field:"name"`                           // SECLDoc[name] Definition:`Name of the new kernel module`
+	Args             string    `field:"args,handler:ResolveModuleArgs"` // SECLDoc[args] Definition:`Parameters (as a string) of the new kernel module`
+	Argv             []string  `field:"argv,handler:ResolveModuleArgv"` // SECLDoc[argv] Definition:`Parameters (as an array) of the new kernel module`
+	ArgsTruncated    bool      `field:"args_truncated"`                 // SECLDoc[args_truncated] Definition:`Indicates if the arguments were truncated or not`
 }
 
 // UnloadModuleEvent represents an unload_module event

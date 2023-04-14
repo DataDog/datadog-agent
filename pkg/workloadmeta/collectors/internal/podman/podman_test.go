@@ -75,6 +75,9 @@ func TestPull(t *testing.T) {
 						"label-b": "value-b",
 					},
 				},
+				ContainerRootFSConfig: podman.ContainerRootFSConfig{
+					RootfsImageID: "my_image_id_1",
+				},
 			},
 			State: &podman.ContainerState{
 				State:       podman.ContainerStateRunning,
@@ -123,6 +126,9 @@ func TestPull(t *testing.T) {
 						"label-a-dev": "value-a-dev",
 						"label-b-dev": "value-b-dev",
 					},
+				},
+				ContainerRootFSConfig: podman.ContainerRootFSConfig{
+					RootfsImageID: "my_image_id_2",
 				},
 			},
 			State: &podman.ContainerState{
@@ -176,6 +182,7 @@ func TestPull(t *testing.T) {
 					Registry:  "docker.io",
 					ShortName: "agent",
 					Tag:       "latest",
+					ID:        "my_image_id_1",
 				},
 				NetworkIPs: map[string]string{
 					"podman": "10.88.0.13",
@@ -224,6 +231,7 @@ func TestPull(t *testing.T) {
 					Registry:  "docker.io",
 					ShortName: "agent-dev",
 					Tag:       "latest",
+					ID:        "my_image_id_2",
 				},
 				NetworkIPs: map[string]string{
 					"podman": "10.88.0.14",

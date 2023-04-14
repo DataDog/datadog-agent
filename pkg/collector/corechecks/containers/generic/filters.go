@@ -51,6 +51,13 @@ func (f LegacyContainerFilter) IsExcluded(container *workloadmeta.Container) boo
 		return false
 	}
 
+	if container.IsOwnedByPod() {
+		pod, _ := workloadmeta.GetGlobalStore().GetKubernetesPod(container.Owner.ID)
+		if containers.IsExcludedByAnnotation(containers.GlobalFilter, pod.Annotations, container.Name) {
+			return true
+		}
+	}
+
 	return f.OldFilter.IsExcluded(container.Name, container.Image.Name, container.Labels[kubernetes.CriContainerNamespaceLabel])
 }
 

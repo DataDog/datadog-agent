@@ -152,7 +152,7 @@ function loadStatus(page) {
 
   sendMessage("agent/status/" + page, "", "post",
   function(data, status, xhr){
-      $("#" + page + "_status").html(data);
+      $("#" + page + "_status").html(DOMPurify.sanitize(data));
 
       // Get the trace-agent status
       sendMessage("agent/getConfig/apm_config.receiver_port", "", "GET",
@@ -206,7 +206,7 @@ function loadLog(){
                       '<option value="recent_first" selected>Most recent first</option>' +
                       '<option value="old_first">Oldest first</option>' +
                     '</select></div>' +
-                    '<div class="log_data">' + data + ' </div>');
+                    '<div class="log_data">' + DOMPurify.sanitize(data) + ' </div>');
     $("#log_view_type").change(changeLogView);
   }, function(){
     $('#logs').html("<span class='center'>An error occurred.</span>");
@@ -261,7 +261,7 @@ function loadMore() {
   data = data.substring(0, i);
 
   // Add the next 150 lines
-  $(".log_data").html(data + trimData(extraDataGlobal));
+  $(".log_data").html(DOMPurify.sanitize(data + trimData(extraDataGlobal)));
 }
 
 
@@ -324,7 +324,7 @@ function loadCheckConfigFiles() {
 
   sendMessage("checks/listConfigs", "", "post",
   function(data, status, xhr){
-    if (typeof(data) == "string") return $("#checks_description").html(data);
+    if (typeof(data) == "string") return $("#checks_description").html(DOMPurify.sanitize(data));
     $("#checks_description").html("Select a check to configure.");
 
     data.sort();
@@ -335,6 +335,7 @@ function loadCheckConfigFiles() {
           item.endsWith("metrics.yaml")||
           item.endsWith("auto_conf.yaml")) return;
 
+      item = DOMPurify.sanitize(item)
       $(".list").append('<a href="javascript:void(0)" onclick="showCheckConfig(\''
                         + item  + '\')" class="check">' +  item + '</a>');
     });
@@ -372,7 +373,7 @@ function loadNewChecks() {
     // Get a list of all the check (.py) files
     sendMessage("checks/listChecks", "", "post",
     function(data, status, xhr){
-      if (typeof(data) == "string") return $("#checks_description").html(data);
+      if (typeof(data) == "string") return $("#checks_description").html(DOMPurify.sanitize(data));
 
       $("#checks_description").html("Select a check to add.");
       data.sort();
@@ -390,7 +391,7 @@ function loadNewChecks() {
         if (enabledChecks.indexOf(checkName) != -1) return;
 
         $(".list").append('<a href="javascript:void(0)" onclick="addCheck(\'' +
-                          checkName + '\')" class="check">' +  item + '</a>');
+                          DOMPurify.sanitize(checkName) + '\')" class="check">' +  DOMPurify.sanitize(item) + '</a>');
       });
       // Add current item highlighting
       $(".check").click(function(){
@@ -473,7 +474,7 @@ function saveCheckSettings(editor) {
     } else {
       $("#save_check").append('<i class="fa fa-times fa-lg unsuccessful"></i>');
       $(".unsuccessful").delay(3000).fadeOut("slow");
-      $("#checks_description").html(data);
+      $("#checks_description").html(DOMPurify.sanitize(data));
     }
   }, function() {
     $("#checks_description").html("An error occurred.");
@@ -507,7 +508,7 @@ function disableCheckSettings(editor) {
     } else {
       $("#disable_check").append('<i class="fa fa-times fa-lg unsuccessful"></i>');
       $(".unsuccessful").delay(3000).fadeOut("slow");
-      $("#checks_description").html(data);
+      $("#checks_description").html(DOMPurify.sanitize(data));
     }
   }, function() {
     $("#checks_description").html("An error occurred.");
@@ -524,7 +525,7 @@ function reloadCheck() {
   // Test it once with new configuration
   sendMessage("checks/run/" + checkName + "/once", "", "post",
   function(data, status, xhr){
-    $("#manage_checks").append("<div class='popup'>" + data["html"] + "<div class='exit'>x</div></div>");
+    $("#manage_checks").append("<div class='popup'>" + DOMPurify.sanitize(data["html"]) + "<div class='exit'>x</div></div>");
     $(".exit").click(function() {
       $(".popup").remove();
       $(".exit").remove();
@@ -608,7 +609,7 @@ function createNewConfigFile(checkName, data) {
     sendMessage("checks/setConfig/" + checkName + ".d/conf.yaml", JSON.stringify({config: settings}), "post",
     function(data, status, xhr) {
       if (data != "Success") {
-        $("#checks_description").html(data);
+        $("#checks_description").html(DOMPurify.sanitize(data));
         $("#add_check").append('<i class="fa fa-times fa-lg unsuccessful"></i>');
         $(".unsuccessful").delay(3000).fadeOut("slow");
         $("#add_check").css("pointer-events", "auto");
@@ -636,7 +637,7 @@ function addNewCheck(editor, name) {
   sendMessage("checks/setConfig/" + name + ".d/conf.yaml", JSON.stringify({config: settings}), "post",
   function(data, status, xhr) {
     if (data != "Success") {
-      $("#checks_description").html(data);
+      $("#checks_description").html(DOMPurify.sanitize(data));
       $("#add_check").append('<i class="fa fa-times fa-lg unsuccessful"></i>');
       $(".unsuccessful").delay(3000).fadeOut("slow");
       $("#add_check").css("pointer-events", "auto");
@@ -696,7 +697,7 @@ function seeRunningChecks() {
 
   sendMessage("checks/running", "", "post",
   function(data, status, xhr){
-    $("#running_checks").html(data);
+    $("#running_checks").html(DOMPurify.sanitize(data));
   }, function() {
     $("#running_checks").html("An error occurred.");
   });
@@ -732,7 +733,7 @@ function submitFlare() {
     $("#ticket_num").val("");
     $("#email").val("");
     $(".flare_input").css("display", "none");
-    $("#flare_description").html(data);
+    $("#flare_description").html(DOMPurify.sanitize(data));
   }, function(){
     $('#flare_response').html("<span class='center'>An error occurred.</span>");
   });
@@ -770,7 +771,7 @@ function restartAgent() {
 
       if (data != "Success") {
         $("#general_status").css("display", "block");
-        $('#general_status').html("<span class='center'>Error restarting agent: " + data + "</span>");
+        $('#general_status').html("<span class='center'>Error restarting agent: " + DOMPurify.sanitize(data) + "</span>");
       } else loadStatus("general");
     }, 10000);
   }, function() {

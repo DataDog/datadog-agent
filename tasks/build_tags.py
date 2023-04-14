@@ -165,9 +165,10 @@ build_tags = {
         "process-agent": PROCESS_AGENT_TAGS,
         "security-agent": SECURITY_AGENT_TAGS,
         "system-probe": SYSTEM_PROBE_TAGS,
+        "system-probe-unit-tests": SYSTEM_PROBE_TAGS.union(UNIT_TEST_TAGS),
         "trace-agent": TRACE_AGENT_TAGS,
         # Test setups
-        "test": AGENT_TEST_TAGS,
+        "test": AGENT_TEST_TAGS.union(UNIT_TEST_TAGS),
         "lint": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS).union(UNIT_TEST_TAGS),
         "unit-tests": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS).union(UNIT_TEST_TAGS),
     },

@@ -80,6 +80,8 @@ type ContainerdUtil struct {
 	connectionTimeout time.Duration
 }
 
+type ContainerdAccessor func() (ContainerdItf, error)
+
 // NewContainerdUtil creates the Containerd util containing the Containerd client and implementing the ContainerdItf
 // Errors are handled in the retrier.
 func NewContainerdUtil() (ContainerdItf, error) {

@@ -567,6 +567,15 @@ CWS logs have the following JSON schema:
                 "loaded_from_memory": {
                     "type": "boolean",
                     "description": "indicates if a module was loaded from memory, as opposed to a file"
+                },
+                "argv": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array"
+                },
+                "args_truncated": {
+                    "type": "boolean"
                 }
             },
             "additionalProperties": false,
@@ -2124,6 +2133,15 @@ CWS logs have the following JSON schema:
         "loaded_from_memory": {
             "type": "boolean",
             "description": "indicates if a module was loaded from memory, as opposed to a file"
+        },
+        "argv": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array"
+        },
+        "args_truncated": {
+            "type": "boolean"
         }
     },
     "additionalProperties": false,

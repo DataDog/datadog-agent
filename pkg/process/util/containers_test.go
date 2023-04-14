@@ -52,6 +52,7 @@ func TestGetContainers(t *testing.T) {
 	// cID4 missing tags
 	// cID5 garden container full stats
 	// cID6 garden container missing tags
+	// cID7 container from pod with exclude annotation
 
 	// cID1 full stats
 	cID1Metrics := mock.GetFullSampleContainerEntry()
@@ -227,6 +228,64 @@ func TestGetContainers(t *testing.T) {
 			StartedAt: testTime,
 		},
 	})
+
+	// cID7 container from pod with exclude annotation
+	cID7Metrics := mock.GetFullSampleContainerEntry()
+	cID7Metrics.ContainerStats.Timestamp = testTime
+	cID7Metrics.NetworkStats.Timestamp = testTime
+	cID7Metrics.ContainerStats.PID.PIDs = []int{1, 2, 3}
+	metricsCollector.SetContainerEntry("cID7", cID7Metrics)
+	metadataProvider.SetEntity(&workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   "pod7",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "foobar-pod7",
+			Namespace: "default",
+			Annotations: map[string]string{
+				fmt.Sprintf("ad.datadoghq.com/container7.exclude"): `true`,
+			},
+		},
+		IP: "127.0.0.1",
+	})
+	metadataProvider.SetEntity(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "cID7",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "container7",
+			Namespace: "foo",
+		},
+		NetworkIPs: map[string]string{
+			"net1": "10.0.0.1",
+			"net2": "192.168.0.1",
+		},
+		Ports: []workloadmeta.ContainerPort{
+			{
+				Port:     420,
+				Protocol: "tcp",
+			},
+		},
+		Image: workloadmeta.ContainerImage{
+			ID:   "somesha",
+			Name: "myapp/foo",
+		},
+		Runtime: workloadmeta.ContainerRuntimeContainerd,
+		State: workloadmeta.ContainerState{
+			Running:   true,
+			Status:    workloadmeta.ContainerStatusRunning,
+			Health:    workloadmeta.ContainerHealthHealthy,
+			CreatedAt: testTime.Add(-10 * time.Minute),
+			StartedAt: testTime,
+		},
+		Owner: &workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   "pod7",
+		},
+	})
+	fakeTagger.SetTags(containers.BuildTaggerEntityName("cID7"), "fake", []string{"low:common"}, []string{"orch:orch7"}, []string{"id:container7"}, nil)
 
 	//
 	// Running and checking

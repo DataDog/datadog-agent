@@ -32,8 +32,7 @@ func (m *kubeUtilMock) GetNodename(ctx context.Context) (string, error) {
 }
 
 func TestHostnameProvider(t *testing.T) {
-	config.SetDetectedFeatures(config.FeatureMap{config.Kubernetes: struct{}{}})
-	defer config.SetDetectedFeatures(nil)
+	config.SetFeatures(t, config.Kubernetes)
 
 	ctx := context.Background()
 	mockConfig := config.Mock(t)
@@ -66,8 +65,7 @@ func TestHostnameProvider(t *testing.T) {
 }
 
 func TestHostnameProviderInvalid(t *testing.T) {
-	config.SetDetectedFeatures(config.FeatureMap{config.Kubernetes: struct{}{}})
-	defer config.SetDetectedFeatures(nil)
+	config.SetFeatures(t, config.Kubernetes)
 
 	ctx := context.Background()
 	mockConfig := config.Mock(t)
@@ -106,7 +104,8 @@ func Test_makeClusterNameRFC1123Compliant(t *testing.T) {
 			name:        "valid clustername",
 			clusterName: "cluster-name",
 			want:        "cluster-name",
-		}, {
+		},
+		{
 			name:        "invalid clustername underscore",
 			clusterName: "cluster_name",
 			want:        "cluster-name",

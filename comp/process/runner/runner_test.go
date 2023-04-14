@@ -12,23 +12,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck"
 	"github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/comp/process/types"
-	"github.com/DataDog/datadog-agent/comp/process/utils"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestRunnerLifecycle(t *testing.T) {
 	_ = fxutil.Test[Component](t, fx.Options(
-		utils.DisableContainerFeatures,
-
 		fx.Supply(core.BundleParams{}),
 
 		Module,
@@ -43,9 +38,6 @@ func TestRunnerRealtime(t *testing.T) {
 	t.Run("rt allowed", func(t *testing.T) {
 		rtChan := make(chan types.RTResponse)
 
-		mockConfig := config.Mock(t)
-		mockConfig.Set("process_config.disable_realtime_checks", false)
-
 		r := fxutil.Test[Component](t, fx.Options(
 			fx.Provide(
 				// Cast `chan types.RTResponse` to `<-chan types.RTResponse`.
@@ -53,9 +45,10 @@ func TestRunnerRealtime(t *testing.T) {
 				func() <-chan types.RTResponse { return rtChan },
 			),
 
-			utils.DisableContainerFeatures,
-
 			fx.Supply(core.BundleParams{}),
+			fx.Replace(config.MockParams{Overrides: map[string]interface{}{
+				"process_config.disable_realtime_checks": false,
+			}}),
 
 			Module,
 			submitter.MockModule,
@@ -78,14 +71,11 @@ func TestRunnerRealtime(t *testing.T) {
 		// Buffer the channel because the runner will never consume from it, otherwise we will deadlock
 		rtChan := make(chan types.RTResponse, 1)
 
-		mockConfig := config.Mock(t)
-		mockConfig.Set("process_config.disable_realtime_checks", true)
-
 		r := fxutil.Test[Component](t, fx.Options(
-			fx.Supply(
-				&checks.HostInfo{},
-				&sysconfig.Config{},
-			),
+			fx.Supply(core.BundleParams{}),
+			fx.Replace(config.MockParams{Overrides: map[string]interface{}{
+				"process_config.disable_realtime_checks": true,
+			}}),
 
 			fx.Provide(
 				// Cast `chan types.RTResponse` to `<-chan types.RTResponse`.
@@ -93,16 +83,13 @@ func TestRunnerRealtime(t *testing.T) {
 				func() <-chan types.RTResponse { return rtChan },
 			),
 
-			utils.DisableContainerFeatures,
-
-			fx.Supply(core.BundleParams{}),
-
 			Module,
 			submitter.MockModule,
 			processcheck.Module,
 			hostinfo.MockModule,
 			core.MockBundle,
 		))
+
 		rtChan <- types.RTResponse{
 			{
 				ActiveClients: 1,
@@ -116,9 +103,6 @@ func TestRunnerRealtime(t *testing.T) {
 }
 
 func TestProvidedChecks(t *testing.T) {
-	config.SetDetectedFeatures(config.FeatureMap{config.Docker: {}})
-	t.Cleanup(func() { config.SetDetectedFeatures(nil) })
-
 	r := fxutil.Test[Component](t, fx.Options(
 		fx.Supply(
 			core.BundleParams{},

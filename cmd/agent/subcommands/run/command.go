@@ -40,6 +40,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsdDebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	"github.com/DataDog/datadog-agent/comp/forwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
@@ -47,7 +49,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	pkgforwarder "github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
@@ -126,12 +128,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 				LogParams:            log.LogForDaemon("CORE", "log_file", common.DefaultLogFile),
 			}),
-			flare.Module,
-			core.Bundle,
-			fx.Supply(dogstatsdServer.Params{
-				Serverless: false,
-			}),
-			dogstatsd.Bundle,
+			getSharedFxOption(),
 		)
 	}
 
@@ -163,7 +160,9 @@ func run(log log.Component,
 	server dogstatsdServer.Component,
 	capture replay.Component,
 	serverDebug dogstatsdDebug.Component,
-	cliParams *cliParams) error {
+	forwarder defaultforwarder.Component,
+	cliParams *cliParams,
+) error {
 	defer func() {
 		stopAgent(cliParams, server)
 	}()
@@ -204,7 +203,7 @@ func run(log log.Component,
 		}
 	}()
 
-	if err := startAgent(cliParams, flare, sysprobeconfig, server, capture, serverDebug); err != nil {
+	if err := startAgent(cliParams, flare, sysprobeconfig, server, capture, serverDebug, forwarder); err != nil {
 		return err
 	}
 
@@ -225,9 +224,11 @@ func StartAgentWithDefaults() (dogstatsdServer.Component, error) {
 		server dogstatsdServer.Component,
 		serverDebug dogstatsdDebug.Component,
 		capture replay.Component,
+		forwarder defaultforwarder.Component,
 	) error {
 		dsdServer = server
-		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, flare, sysprobeconfig, server, capture, serverDebug)
+
+		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, flare, sysprobeconfig, server, capture, serverDebug, forwarder)
 	},
 		// no config file path specification in this situation
 		fx.Supply(core.BundleParams{
@@ -235,18 +236,31 @@ func StartAgentWithDefaults() (dogstatsdServer.Component, error) {
 			SysprobeConfigParams: sysprobeconfig.NewParams(),
 			LogParams:            log.LogForDaemon("CORE", "log_file", common.DefaultLogFile),
 		}),
-		flare.Module,
-		core.Bundle,
-		fx.Supply(dogstatsdServer.Params{
-			Serverless: false,
-		}),
-		dogstatsd.Bundle,
+		getSharedFxOption(),
 	)
 
 	if err != nil {
 		return nil, err
 	}
 	return dsdServer, nil
+}
+
+func getSharedFxOption() fx.Option {
+	return fx.Options(
+		flare.Module,
+		core.Bundle,
+		fx.Supply(dogstatsdServer.Params{
+			Serverless: false,
+		}),
+		forwarder.Bundle,
+		fx.Provide(func(config config.Component, log log.Component) defaultforwarder.Params {
+			params := defaultforwarder.NewParams(config, log)
+			// Enable core agent specific features like persistence-to-disk
+			params.Options.EnabledFeatures = pkgforwarder.SetFeature(params.Options.EnabledFeatures, pkgforwarder.CoreFeatures)
+			return params
+		}),
+		dogstatsd.Bundle,
+	)
 }
 
 // startAgent Initializes the agent process
@@ -256,7 +270,8 @@ func startAgent(
 	sysprobeconfig sysprobeconfig.Component,
 	server dogstatsdServer.Component,
 	capture replay.Component,
-	serverDebug dogstatsdDebug.Component) error {
+	serverDebug dogstatsdDebug.Component,
+	sharedForwarder defaultforwarder.Component) error {
 
 	var err error
 
@@ -410,18 +425,9 @@ func startAgent(
 		pkglog.Errorf("Error while starting GUI: %v", err)
 	}
 
-	// setup the forwarder
-	keysPerDomain, err := pkgconfig.GetMultipleEndpoints()
-	if err != nil {
-		pkglog.Error("Misconfiguration of agent endpoints: ", err)
-	}
-
-	forwarderOpts := forwarder.NewOptions(keysPerDomain)
-	// Enable core agent specific features like persistence-to-disk
-	forwarderOpts.EnabledFeatures = forwarder.SetFeature(forwarderOpts.EnabledFeatures, forwarder.CoreFeatures)
-	opts := aggregator.DefaultAgentDemultiplexerOptions(forwarderOpts)
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.EnableNoAggregationPipeline = pkgconfig.Datadog.GetBool("dogstatsd_no_aggregation_pipeline")
-	demux = aggregator.InitAndStartAgentDemultiplexer(opts, hostnameDetected)
+	demux = aggregator.InitAndStartAgentDemultiplexer(sharedForwarder, opts, hostnameDetected)
 
 	// Setup stats telemetry handler
 	if sender, err := demux.GetDefaultSender(); err == nil {

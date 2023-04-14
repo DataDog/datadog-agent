@@ -17,6 +17,7 @@ from . import (
     epforwarder,
     github,
     msi,
+    new_e2e_tests,
     package,
     pipeline,
     process_agent,
@@ -57,6 +58,7 @@ from .test import (
     junit_upload,
     lint_copyrights,
     lint_filenames,
+    lint_go,
     lint_milestone,
     lint_python,
     lint_releasenote,
@@ -86,6 +88,7 @@ ns.add_task(lint_releasenote)
 ns.add_task(lint_milestone)
 ns.add_task(lint_filenames)
 ns.add_task(lint_python)
+ns.add_task(lint_go)
 ns.add_task(audit_tag_impact)
 ns.add_task(print_default_build_tags)
 ns.add_task(e2e_tests)
@@ -125,6 +128,7 @@ ns.add_collection(system_probe)
 ns.add_collection(process_agent)
 ns.add_collection(security_agent)
 ns.add_collection(vscode)
+ns.add_collection(new_e2e_tests)
 ns.configure(
     {
         'run': {
