@@ -14,7 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -61,7 +60,6 @@ type CollectorConfig struct {
 
 // Collector uses trivy to generate a SBOM
 type Collector struct {
-	mutex        sync.Mutex
 	config       CollectorConfig
 	cache        cache.Cache
 	cacheCleaner CacheCleaner
@@ -167,22 +165,18 @@ func NewCollector(cfg config.Config) (*Collector, error) {
 	if err != nil {
 		return nil, err
 	}
-	mutex := sync.Mutex{}
 
 	cleanTicker := time.NewTicker(cfg.GetDuration("sbom.cache_clean_interval"))
 	go func() {
 		// Cache can not be cleaned concurrently with a scan
 		for _ = range cleanTicker.C {
-			mutex.Lock()
 			if err = cacheCleaner.Clean(); err != nil {
 				log.Warnf("Error cleaning SBOM cache: %v", err)
 			}
-			mutex.Unlock()
 		}
 	}()
 
 	return &Collector{
-		mutex:        mutex,
 		config:       config,
 		cache:        fanalCache,
 		cacheCleaner: cacheCleaner,
@@ -223,8 +217,6 @@ func (c *Collector) GetCacheCleaner() CacheCleaner {
 }
 
 func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, client client.ImageAPIClient, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
 	fanalImage, cleanup, err := convertDockerImage(ctx, client, imgMeta)
 	if cleanup != nil {
 		defer cleanup()
@@ -238,8 +230,6 @@ func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.C
 }
 
 func (c *Collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image, client cutil.ContainerdItf, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
 	fanalImage, cleanup, err := convertContainerdImage(ctx, client.RawClient(), imgMeta, img)
 	if cleanup != nil {
 		defer cleanup()
@@ -252,8 +242,6 @@ func (c *Collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadme
 }
 
 func (c *Collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image, client cutil.ContainerdItf, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
 	imagePath, err := os.MkdirTemp(os.TempDir(), fmt.Sprintf("containerd-image-*"))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create temp dir, err: %w", err)
@@ -301,8 +289,6 @@ func (c *Collector) scanFilesystem(ctx context.Context, path string, imgMeta *wo
 }
 
 func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
 	return c.scanFilesystem(ctx, path, nil, scanOptions)
 }
 
