@@ -201,3 +201,6 @@ tools/windows/DatadogAgentInstaller/WixSetup/cabcache/
 
 # e2e test intake generated binary
 test/fakeintake/build/*
+
+# dev container
+.devcontainer/
