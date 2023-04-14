@@ -155,6 +155,7 @@ type OracleActivityRow struct {
 	QuerySignature        string `json:"query_signature,omitempty"`
 	CommandName           string `json:"command_name,omitempty"`
 	PreviousSQL           bool   `json:"previous_sql,omitempty"`
+	OpFlags               uint64 `json:"op_flags,omitempty"`
 	RowMetadata
 }
 
@@ -343,6 +344,7 @@ func (c *Check) SampleSession() error {
 		if sample.WaitTimeMicro != nil {
 			sessionRow.WaitTimeMicro = *sample.WaitTimeMicro
 		}
+		sessionRow.OpFlags = sample.OpFlags
 
 		statement := ""
 		obfuscate := true
