@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 // Tagger defines a Tagger for the Tags Resolver
@@ -73,6 +72,12 @@ func (t *DefaultResolver) Resolve(id string) []string {
 	return tags
 }
 
+// ResolveImageMetadata returns the tags for the given container id
+func (t *Resolver) ResolveImageMetadata(id string) []string {
+	tags, _ := t.tagger.Tag("container_image_metadata://"+id, collectors.OrchestratorCardinality)
+	return tags
+}
+
 // ResolveWithErr returns the tags for the given id
 func (t *DefaultResolver) ResolveWithErr(id string) ([]string, error) {
 	return t.tagger.Tag("container_id://"+id, collectors.OrchestratorCardinality)
@@ -81,6 +86,11 @@ func (t *DefaultResolver) ResolveWithErr(id string) ([]string, error) {
 // GetValue return the tag value for the given id and tag name
 func (t *DefaultResolver) GetValue(id string, tag string) string {
 	return utils.GetTagValue(tag, t.Resolve(id))
+}
+
+// GetValue return the tag value for the given id and tag name
+func (t *Resolver) GetValueForImage(id string, tag string) string {
+	return utils.GetTagValue(tag, t.ResolveImageMetadata(id))
 }
 
 // Stop the resolver
@@ -106,40 +116,36 @@ func NewResolver(config *config.Config) Resolver {
 }
 
 // Resolove image_id
-func (t *Resolver) ResolveImageID(containerID string) (string, error) {
-	m := workloadmeta.GetGlobalStore()
+func (t *Resolver) ResolveImageID(containerID string) string {
+	// tags, _ := t.tagger.Tag("container_id://"+id, collectors.OrchestratorCardinality)
+	imageID := t.GetValue(containerID, "image_id")
+	imageName := t.GetValueForImage(imageID, "image_name")
+	repoDigests := strings.Split(t.GetValueForImage(imageID, "image_repo_digests"), ",")
+	repoTags := strings.Split(t.GetValueForImage(imageID, "image_repo_tags"), ",")
 
-	// Get imageID from container so that we can get the image Metadata
-	container, err := m.GetContainer(containerID)
-	if err != nil {
-		log.Errorf("unable to get container %s: %s", containerID, err)
-		return "", err
+	// If the 'sha256:' prefix is missing, add it
+	if !strings.HasPrefix(imageID, "sha256:") {
+		imageID = "sha256:" + imageID
 	}
-
-	imageID := container.Image.ID
-	imageName := container.Image.Name
 
 	// Build new imageId (repo + @sha256:XXX) or (name + @sha256:XXX) if repo is empty
 	// To get repo, check repoDigests first. If empty, check repoTags
-	imageMetadata, err := m.GetImage(imageID)
-	if err != nil {
-		log.Errorf("unable get image metadata for %s: %s", imageID, err)
-	} else {
-		// If the 'sha256:' prefix is missing, add it
-		if !strings.HasPrefix(imageID, "sha256:") {
-			imageID = "sha256:" + imageID
-		}
-		repoDigests := imageMetadata.RepoDigests
-		repoTags := imageMetadata.RepoTags
-		if len(repoDigests) != 0 {
-			repo := strings.SplitN(repoDigests[0], "@sha256:", 2)[0]
-			return repo + "@" + imageID, nil
-		}
-		if len(repoTags) != 0 {
-			repo := strings.SplitN(repoDigests[0], ":", 2)[0]
-			return repo + "@" + imageID, nil
+	if len(repoDigests) != 0 {
+		repo := strings.SplitN(repoDigests[0], "@sha256:", 2)[0]
+		if len(repo) != 0 {
+			return repo + "@" + imageID
 		}
 	}
-	// If repo is empty or if could not find it, return imageName+@+imageID
-	return imageName + "@" + imageID, nil
+	if len(repoTags) != 0 {
+		repo := strings.SplitN(repoDigests[0], ":", 2)[0]
+		if len(repo) != 0 {
+			return repo + "@" + imageID
+		}
+	}
+
+	if len(imageName) != 0 {
+		return imageName + "@" + imageName
+	}
+	// If no repo and no image name
+	return imageID
 }

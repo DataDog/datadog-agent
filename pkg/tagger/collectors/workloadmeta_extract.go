@@ -185,6 +185,7 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*TagInf
 	tags.AddLow("image_name", image.Name)
 	tags.AddLow("short_image", image.ShortName)
 	tags.AddLow("image_tag", image.Tag)
+	tags.AddLow("image_id", image.ID)
 
 	if container.Runtime == workloadmeta.ContainerRuntimeDocker {
 		if image.Tag != "" {
@@ -231,6 +232,8 @@ func (c *WorkloadMetaCollector) handleContainerImage(ev workloadmeta.Event) []*T
 
 	tags := utils.NewTagList()
 	tags.AddLow("image_name", image.Name)
+	tags.AddLow("image_repo_tags", strings.Join(image.RepoTags, ","))
+	tags.AddLow("image_repo_digests", strings.Join(image.RepoDigests, ","))
 
 	// In containerd some images are created without a repo digest, and it's
 	// also possible to remove repo digests manually.

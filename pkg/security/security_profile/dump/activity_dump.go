@@ -460,12 +460,14 @@ func (ad *ActivityDump) finalize(releaseTracedCgroupSpot bool) {
 		ad.Tags = append(ad.Tags, "container_id:"+ad.ContainerID)
 	}
 
-	// Add image_id in tags
-	image_id, err := ad.adm.tagsResolvers.ResolveImageID(ad.ContainerID)
-	if err != nil {
-		seclog.Errorf("Coud not get image_id : %s", err)
+	// Replace existing image_id with the format we want
+	imageID := ad.adm.tagsResolvers.ResolveImageID(ad.ContainerID)
+
+	for i, elem := range ad.Tags {
+		if strings.HasPrefix(elem, "image_id:") {
+			ad.Tags[i] = "image_id:" + imageID
+		}
 	}
-	ad.Tags = append(ad.Tags, "image_id:"+image_id)
 
 	// scrub processes and retain args envs now
 	ad.ActivityTree.ScrubProcessArgsEnvs(ad.adm.processResolver)
