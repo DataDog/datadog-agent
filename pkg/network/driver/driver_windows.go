@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 )
 
 // ErrDriverNotInitialized is returned when you attempt to use the driver without calling Init
