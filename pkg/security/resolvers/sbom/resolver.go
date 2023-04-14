@@ -10,6 +10,7 @@ package sbom
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -117,7 +118,6 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 	if sbomScanner == nil {
 		return nil, errors.New("sbom is disabled")
 	}
-	sbomScanner.Start(context.Background())
 
 	sbomsCache, err := simplelru.NewLRU[string, *SBOM](c.SBOMResolverWorkloadsCacheSize, nil)
 	if err != nil {
@@ -171,6 +171,8 @@ func (r *Resolver) prepareContextTags() {
 
 // Start starts the goroutine of the SBOM resolver
 func (r *Resolver) Start(ctx context.Context) {
+	r.sbomScanner.Start(ctx)
+
 	go func() {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
