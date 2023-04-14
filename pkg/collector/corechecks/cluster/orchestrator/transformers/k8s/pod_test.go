@@ -223,8 +223,6 @@ func TestExtractPod(t *testing.T) {
 					},
 				},
 				Tags: []string{"kube_condition_ready:true", "kube_condition_podscheduled:true"},
-<<<<<<< HEAD
-=======
 				ResourceRequirements: []*model.ResourceRequirements{
 					{
 						Limits:   map[string]int64{},
@@ -245,7 +243,6 @@ func TestExtractPod(t *testing.T) {
 						Type:     model.ResourceRequirementsType_container,
 					},
 				},
->>>>>>> main
 			},
 		},
 		"empty pod": {input: v1.Pod{}, expected: model.Pod{Metadata: &model.Metadata{}}},
