@@ -116,7 +116,7 @@ func AllMaps() []*manager.Map {
 		{Name: "filter_policy"},
 		{Name: "inode_discarders"},
 		{Name: "pid_discarders"},
-		{Name: "inode_discarder_revisions"},
+		{Name: "inode_disc_revisions"},
 		{Name: "basename_approvers"},
 		// Dentry resolver table
 		{Name: "pathnames"},
@@ -176,7 +176,7 @@ func AllMapSpecEditors(numCPU int, tracedCgroupSize int, supportMmapableMaps, us
 			MaxEntries: uint32(securityProfileMaxCount),
 			EditorFlag: manager.EditMaxEntries,
 		},
-		"security_profile_syscalls": {
+		"secprofs_syscalls": {
 			MaxEntries: uint32(securityProfileMaxCount),
 			EditorFlag: manager.EditMaxEntries,
 		},

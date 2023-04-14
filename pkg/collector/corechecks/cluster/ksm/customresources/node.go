@@ -3,11 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
+// +build kubeapiserver
+
 package customresources
 
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -24,11 +28,15 @@ import (
 var descNodeLabelsDefaultLabels = []string{"node"}
 
 // NewExtendedNodeFactory returns a new Node metric family generator factory.
-func NewExtendedNodeFactory() customresource.RegistryFactory {
-	return &extendedNodeFactory{}
+func NewExtendedNodeFactory(client *apiserver.APIClient) customresource.RegistryFactory {
+	return &extendedNodeFactory{
+		client: client.Cl,
+	}
 }
 
-type extendedNodeFactory struct{}
+type extendedNodeFactory struct {
+	client interface{}
+}
 
 // Name is the name of the factory
 func (f *extendedNodeFactory) Name() string {
@@ -37,7 +45,7 @@ func (f *extendedNodeFactory) Name() string {
 
 // CreateClient is not implemented
 func (f *extendedNodeFactory) CreateClient(cfg *rest.Config) (interface{}, error) {
-	panic("not implemented")
+	return f.client, nil
 }
 
 // MetricFamilyGenerators returns the extended node metric family generators

@@ -91,7 +91,7 @@ func initStatus(deps dependencies) error {
 
 	// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
 	_, processModuleEnabled := deps.SysProbeConfig.Object().EnabledModules[sysconfig.ProcessModule]
-	eps, err := runner.GetAPIEndpoints()
+	eps, err := runner.GetAPIEndpoints(deps.Config)
 	if err != nil {
 		_ = deps.Log.Criticalf("Failed to initialize Api Endpoints: %s", err.Error())
 	}

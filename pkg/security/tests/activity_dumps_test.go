@@ -213,7 +213,8 @@ func TestActivityDumps(t *testing.T) {
 		}
 
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.FindMatchingNodes("nslookup")
+			// searching busybox instead of nslookup because we test on a busybox based alpine
+			nodes := ad.FindMatchingNodes("busybox")
 			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
 			}
@@ -253,7 +254,8 @@ func TestActivityDumps(t *testing.T) {
 
 		tempPathParts := strings.Split(temp.Name(), "/")
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.FindMatchingNodes("touch")
+			// searching busybox instead of touch because we test on a busybox based alpine
+			nodes := ad.FindMatchingNodes("busybox")
 			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
 			}
@@ -523,7 +525,8 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 
 		tempPathParts := strings.Split(filePath, "/")
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.FindMatchingNodes("touch")
+			// searching busybox instead of touch because we test on a busybox based alpine
+			nodes := ad.FindMatchingNodes("busybox")
 			if nodes == nil || len(nodes) != 1 {
 				t.Fatal("Uniq node not found in activity dump")
 			}
@@ -572,7 +575,8 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 		}
 
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.FindMatchingNodes("nslookup")
+			// searching busybox instead of nslookup because we test on a busybox based alpine
+			nodes := ad.FindMatchingNodes("busybox")
 			if nodes == nil || len(nodes) != 1 {
 				t.Fatal("Uniq node not found in activity dump")
 			}

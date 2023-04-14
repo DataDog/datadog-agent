@@ -16,11 +16,13 @@ import (
 
 const (
 	// EventFlagsAsync async event
-	EventFlagsAsync = 1 << 0
+	EventFlagsAsync = 1 << iota
 	// EventFlagsSavedByAD saved by ad
-	EventFlagsSavedByAD = 1 << 1
+	EventFlagsSavedByAD
 	// EventFlagsActivityDumpSample an AD sample
-	EventFlagsActivityDumpSample = 1 << 2
+	EventFlagsActivityDumpSample
+	// InProfile true if the event was found in a profile
+	EventFlagsSecurityProfileInProfile
 )
 
 func validateReadSize(size, read int) (int, error) {

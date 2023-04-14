@@ -1,0 +1,13 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 71e114470..ff1ceba0d 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -235,7 +235,7 @@ add_subdirectory(apt-pkg)
+ add_subdirectory(apt-private)
+ add_subdirectory(cmdline)
+ add_subdirectory(completions)
+-add_subdirectory(doc)
++#add_subdirectory(doc)
+ add_subdirectory(dselect)
+ add_subdirectory(ftparchive)
+ add_subdirectory(methods)

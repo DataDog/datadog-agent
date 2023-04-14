@@ -178,21 +178,19 @@ func (c *collector) parsePodContainers(
 		var env map[string]string
 		var ports []workloadmeta.ContainerPort
 
-		image, err := workloadmeta.NewContainerImage(container.Image)
+		image, err := workloadmeta.NewContainerImage(container.ImageID, container.Image)
 		if err != nil {
 			if err == containers.ErrImageIsSha256 {
 				// try the resolved image ID if the image name in the container
 				// status is a SHA256. this seems to happen sometimes when
 				// pinning the image to a SHA256
-				image, err = workloadmeta.NewContainerImage(container.ImageID)
+				image, err = workloadmeta.NewContainerImage(container.ImageID, container.ImageID)
 			}
 
 			if err != nil {
 				log.Debugf("cannot split image name %q nor %q: %s", container.Image, container.ImageID, err)
 			}
 		}
-
-		image.ID = container.ImageID
 
 		runtime, containerID := containers.SplitEntityName(container.ID)
 		podContainer := workloadmeta.OrchestratorContainer{
@@ -204,12 +202,10 @@ func (c *collector) parsePodContainers(
 		if containerSpec != nil {
 			env = extractEnvFromSpec(containerSpec.Env)
 
-			podContainer.Image, err = workloadmeta.NewContainerImage(containerSpec.Image)
+			podContainer.Image, err = workloadmeta.NewContainerImage(container.ImageID, containerSpec.Image)
 			if err != nil {
 				log.Debugf("cannot split image name %q: %s", containerSpec.Image, err)
 			}
-
-			podContainer.Image.ID = container.ImageID
 
 			ports = make([]workloadmeta.ContainerPort, 0, len(containerSpec.Ports))
 			for _, port := range containerSpec.Ports {
