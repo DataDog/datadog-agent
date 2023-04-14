@@ -164,7 +164,7 @@ func NewScanner(cfg config.Config) *Scanner {
 // global one, and returns it. Start() needs to be called before any data
 // collection happens.
 func CreateGlobalScanner(cfg config.Config) (*Scanner, error) {
-	if !cfg.GetBool("sbom.enabled") && !cfg.GetBool("container_image_collection.sbom.enabled") {
+	if !cfg.GetBool("sbom.enabled") && !cfg.GetBool("container_image_collection.sbom.enabled") && !cfg.GetBool("runtime_security_config.sbom.enabled") {
 		return nil, nil
 	}
 
