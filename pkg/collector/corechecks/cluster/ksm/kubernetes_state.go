@@ -241,18 +241,6 @@ func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig 
 		collectors = options.DefaultResources.AsSlice()
 	}
 
-	// Enable exposing resource labels explicitly for kube_<resource>_labels metadata metrics.
-	// Equivalent to configuring --metric-labels-allowlist.
-	allowedLabels := map[string][]string{}
-	for _, collector := range collectors {
-		// Any label can be used for label joins.
-		allowedLabels[collector] = []string{"*"}
-	}
-
-	if err = builder.WithAllowLabels(allowedLabels); err != nil {
-		return err
-	}
-
 	// Enable exposing resource annotations explicitly for kube_<resource>_annotations metadata metrics.
 	// Equivalent to configuring --metric-annotations-allowlist.
 	allowedAnnotations := map[string][]string{}
@@ -272,7 +260,6 @@ func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig 
 	}
 
 	builder.WithNamespaces(namespaces)
-
 	allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(collectors))
 	if err != nil {
 		return err
@@ -317,6 +304,19 @@ func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig 
 	builder.WithGenerateCustomResourceStoresFunc(builder.GenerateCustomResourceStoresFunc)
 	builder.WithCustomResourceStoreFactories(cr.factories...)
 	builder.WithCustomResourceClients(cr.clients)
+
+	// Enable exposing resource labels explicitly for kube_<resource>_labels metadata metrics.
+	// Equivalent to configuring --metric-labels-allowlist.
+	allowedLabels := map[string][]string{}
+	for _, collector := range collectors {
+		// Any label can be used for label joins.
+		allowedLabels[collector] = []string{"*"}
+	}
+
+	if err = builder.WithAllowLabels(allowedLabels); err != nil {
+		return err
+	}
+
 	if err := builder.WithEnabledResources(cr.collectors); err != nil {
 		return err
 	}
@@ -348,16 +348,19 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 
 	// extended resource collectors always have a factory registered
 	factories := []customresource.RegistryFactory{
-		customresources.NewExtendedJobFactory(),
-		customresources.NewExtendedNodeFactory(),
-		customresources.NewExtendedPodFactory(),
+		customresources.NewExtendedJobFactory(c),
+		customresources.NewCustomResourceDefinitionFactory(c),
+		customresources.NewAPIServiceFactory(c),
+		customresources.NewExtendedNodeFactory(c),
+		customresources.NewExtendedPodFactory(c),
 	}
 
 	factories = manageResourcesReplacement(c, factories)
 
 	clients := make(map[string]interface{}, len(factories))
 	for _, f := range factories {
-		clients[f.Name()] = c.Cl
+		client, _ := f.CreateClient(nil)
+		clients[f.Name()] = client
 	}
 
 	return customResources{
@@ -387,7 +390,7 @@ func manageResourcesReplacement(c *apiserver.APIClient, factories []customresour
 	// backwards/forwards compatibility resource factories are only
 	// registered if they're needed, otherwise they'd overwrite the default
 	// ones that ship with ksm
-	resourceReplacements := map[string]map[string]func() customresource.RegistryFactory{
+	resourceReplacements := map[string]map[string]func(c *apiserver.APIClient) customresource.RegistryFactory{
 		// support for older k8s versions where the resources are no
 		// longer supported in KSM
 		"batch/v1": {
@@ -420,7 +423,7 @@ func manageResourcesReplacement(c *apiserver.APIClient, factories []customresour
 
 	for _, resourceReplacement := range resourceReplacements {
 		for _, factory := range resourceReplacement {
-			factories = append(factories, factory())
+			factories = append(factories, factory(c))
 		}
 	}
 

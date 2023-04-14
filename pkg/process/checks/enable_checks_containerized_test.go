@@ -12,7 +12,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -20,8 +19,6 @@ import (
 // we must make sure that the build tags in this file match.
 
 func TestContainerCheck(t *testing.T) {
-	scfg := &sysconfig.Config{}
-
 	// Make sure the container check can be enabled if the process check is disabled
 	t.Run("containers enabled; rt enabled", func(t *testing.T) {
 		cfg := config.Mock(t)
@@ -30,7 +27,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.Set("process_config.disable_realtime_checks", false)
 		config.SetFeatures(t, config.Docker)
 
-		enabledChecks := getEnabledChecks(scfg)
+		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t))
 		assertContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertContainsCheck(t, enabledChecks, RTContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, ProcessCheckName)
@@ -44,7 +41,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.Set("process_config.disable_realtime_checks", true)
 		config.SetFeatures(t, config.Docker)
 
-		enabledChecks := getEnabledChecks(scfg)
+		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t))
 		assertContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, RTContainerCheckName)
 	})
@@ -55,7 +52,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.Set("process_config.process_collection.enabled", false)
 		cfg.Set("process_config.container_collection.enabled", true)
 
-		enabledChecks := getEnabledChecks(scfg)
+		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t))
 
 		assertNotContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, RTContainerCheckName)
@@ -68,7 +65,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.Set("process_config.container_collection.enabled", true)
 		config.SetFeatures(t, config.Docker)
 
-		enabledChecks := getEnabledChecks(scfg)
+		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t))
 		assertContainsCheck(t, enabledChecks, ProcessCheckName)
 		assertNotContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, RTContainerCheckName)
@@ -102,7 +99,7 @@ func TestDisableRealTime(t *testing.T) {
 			mockConfig.Set("process_config.process_discovery.enabled", false) // Not an RT check so we don't care
 			config.SetFeatures(t, config.Docker)
 
-			enabledChecks := getEnabledChecks(&sysconfig.Config{})
+			enabledChecks := getEnabledChecks(t, mockConfig, config.MockSystemProbe(t))
 			assert.EqualValues(tc.expectedChecks, enabledChecks)
 		})
 	}

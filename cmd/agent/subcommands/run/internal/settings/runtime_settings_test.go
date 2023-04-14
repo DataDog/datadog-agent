@@ -31,9 +31,9 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 	assert := assert.New(t)
 	var err error
 
-	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	demux := aggregator.InitAndStartAgentDemultiplexer(opts, "hostname")
+	demux := aggregator.InitAndStartAgentDemultiplexerTest(opts, "hostname")
 
 	deps := fxutil.Test[testDeps](t, fx.Options(
 		core.MockBundle,

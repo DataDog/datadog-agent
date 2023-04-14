@@ -1,0 +1,23 @@
+commit 4df9d2d2880a5731a603863d93c00522dce7851d
+Author: David du Colombier <djc@datadoghq.com>
+Date:   Mon Feb 20 18:18:54 2023 +0100
+
+    Fix leak of component_colls in _oval_component_evaluate_CONCAT
+    
+    component_colls are allocated in _oval_component_evaluate_CONCAT,
+    but were not freed when not_finished is null.
+
+diff --git a/src/OVAL/oval_component.c b/src/OVAL/oval_component.c
+index 95004bd80..420de1529 100644
+--- a/src/OVAL/oval_component.c
++++ b/src/OVAL/oval_component.c
+@@ -1665,6 +1665,9 @@ static oval_syschar_collection_flag_t _oval_component_evaluate_CONCAT(oval_argu_
+ 		free(counts);
+ 		free(texts);
+ 		free(values);
++	} else {
++		for (idx0 = 0; idx0 < len_subcomps; ++idx0)
++			oval_collection_free_items(component_colls[idx0], (oscap_destruct_func) oval_value_free);
+ 	}
+ 	free(component_colls);
+ 	oval_component_iterator_free(subcomps);

@@ -203,7 +203,7 @@ func IsOrchestratorEnabled() (bool, string) {
 	if enabled {
 		// Set clustername
 		hname, _ := hostname.Get(context.TODO())
-		clusterName = clustername.GetClusterName(context.TODO(), hname)
+		clusterName = clustername.GetRFC1123CompliantClusterName(context.TODO(), hname)
 	}
 	return enabled, clusterName
 }
