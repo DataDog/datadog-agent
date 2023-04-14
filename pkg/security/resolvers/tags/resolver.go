@@ -144,7 +144,7 @@ func (t *Resolver) ResolveImageID(containerID string) string {
 	}
 
 	if len(imageName) != 0 {
-		return imageName + "@" + imageName
+		return imageName + "@" + imageID
 	}
 	// If no repo and no image name
 	return imageID
