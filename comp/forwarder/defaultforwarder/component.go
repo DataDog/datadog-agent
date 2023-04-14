@@ -9,7 +9,6 @@ package defaultforwarder
 import (
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -19,10 +18,20 @@ import (
 type Component interface {
 	// TODO: (components) When the code of the forwarder will be
 	// in /comp/forwarder move the content of forwarder.Forwarder inside this interface.
-	forwarder.Forwarder
+	Forwarder
 }
 
 // Module defines the fx options for this component.
 var Module = fxutil.Component(
 	fx.Provide(newForwarder),
+)
+
+// Mock implements mock-specific methods.
+type Mock interface {
+	Component
+}
+
+// MockModule defines the fx options for the mock component.
+var MockModule = fxutil.Component(
+	fx.Provide(newMockForwarder),
 )

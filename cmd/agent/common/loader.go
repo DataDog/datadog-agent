@@ -9,6 +9,7 @@ import (
 	"context"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -73,7 +74,7 @@ func LoadComponents(ctx context.Context, confdPath string) {
 	// setup autodiscovery
 	confSearchPaths := []string{
 		confdPath,
-		filepath.Join(GetDistPath(), "conf.d"),
+		filepath.Join(path.GetDistPath(), "conf.d"),
 		"",
 	}
 
