@@ -421,7 +421,7 @@ func (c *Check) SampleSession() error {
 		log.Errorf("GetSender SampleSession %s", string(payloadBytes))
 		return err
 	}
-	sender.EventPlatformEvent(string(payloadBytes), "dbm-activity")
+	sender.EventPlatformEvent(payloadBytes, "dbm-activity")
 	sender.Count("dd.oracle.activity.samples_count", float64(len(sessionRows)), c.hostname, c.tags)
 	sender.Gauge("dd.oracle.activity.time_ms", float64(time.Since(start).Milliseconds()), c.hostname, c.tags)
 	sender.Commit()
