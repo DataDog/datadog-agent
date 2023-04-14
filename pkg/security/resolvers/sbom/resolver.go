@@ -114,6 +114,10 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 	if err != nil {
 		return nil, err
 	}
+	if sbomScanner == nil {
+		return nil, errors.New("sbom is disabled")
+	}
+	sbomScanner.Start(context.Background())
 
 	sbomsCache, err := simplelru.NewLRU[string, *SBOM](c.SBOMResolverWorkloadsCacheSize, nil)
 	if err != nil {
