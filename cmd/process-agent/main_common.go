@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
@@ -106,7 +105,6 @@ func runApp(exit chan struct{}, globalParams *command.GlobalParams) error {
 		Checks []types.CheckComponent `group:"check"`
 		Syscfg sysprobeconfig.Component
 		Config config.Component
-		Logger logComponent.Component
 	}
 	app := fx.New(
 		fx.Supply(
