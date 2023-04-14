@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -127,9 +128,9 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {
-		logFile = common.DefaultDCALogFile
+		logFile = path.DefaultDCALogFile
 	}
-	filePath, err := flare.CreateDCAArchive(false, common.GetDistPath(), logFile)
+	filePath, err := flare.CreateDCAArchive(false, path.GetDistPath(), logFile)
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)

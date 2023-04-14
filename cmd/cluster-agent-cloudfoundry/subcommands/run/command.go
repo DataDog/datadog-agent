@@ -13,6 +13,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent-cloudfoundry/command"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
 	dcav1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
@@ -56,7 +57,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(globalParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath, config.WithConfigLoadSecrets(true)),
-					LogParams:    log.LogForDaemon(command.LoggerName, "log_file", common.DefaultDCALogFile),
+					LogParams:    log.LogForDaemon(command.LoggerName, "log_file", path.DefaultDCALogFile),
 				}),
 				core.Bundle,
 				forwarder.Bundle,
