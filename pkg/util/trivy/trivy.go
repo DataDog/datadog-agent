@@ -60,13 +60,14 @@ type CollectorConfig struct {
 
 // Collector uses trivy to generate a SBOM
 type Collector struct {
-	config     CollectorConfig
-	cache      cache.Cache
-	applier    local.Applier
-	detector   local.OspkgDetector
-	dbConfig   db.Config
-	vulnClient vulnerability.Client
-	marshaler  *cyclonedx.Marshaler
+	config       CollectorConfig
+	cache        cache.Cache
+	cacheCleaner CacheCleaner
+	applier      local.Applier
+	detector     local.OspkgDetector
+	dbConfig     db.Config
+	vulnClient   vulnerability.Client
+	marshaler    *cyclonedx.Marshaler
 }
 
 var globalCollector *Collector
@@ -103,27 +104,25 @@ func DefaultCollectorConfig(cacheLocation string) CollectorConfig {
 		ClearCacheOnClose: true,
 	}
 
-	collectorConfig.CacheProvider = cacheProvider(cacheLocation, false)
+	collectorConfig.CacheProvider = cacheProvider(cacheLocation, config.Datadog.GetBool("sbom.use_custom_cache"))
 
 	return collectorConfig
 }
 
-func cacheProvider(cacheLocation string, useBadgerDB bool) func() (cache.Cache, error) {
-	if useBadgerDB {
-		return func() (cache.Cache, error) {
-			return NewBadgerCache(cacheLocation, cacheTTL())
+func cacheProvider(cacheLocation string, useCustomCache bool) func() (cache.Cache, CacheCleaner, error) {
+	if useCustomCache {
+		return func() (cache.Cache, CacheCleaner, error) {
+			return NewCustomBoltCache(
+				cacheLocation,
+				config.Datadog.GetInt("sbom.custom_cache_max_cache_entries"),
+				config.Datadog.GetInt("sbom.custom_cache_max_disk_size"),
+			)
 		}
 	}
 
-	// Leaving this here for now, just in case Badger does not work well for us
-	// and we need to switch back to Bolt DB.
-	return func() (cache.Cache, error) {
+	return func() (cache.Cache, CacheCleaner, error) {
 		return NewBoltCache(cacheLocation)
 	}
-}
-
-func cacheTTL() time.Duration {
-	return time.Duration(config.Datadog.GetInt("sbom.cache_ttl")) * time.Second
 }
 
 func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
@@ -162,23 +161,34 @@ func NewCollector(cfg config.Config) (*Collector, error) {
 	config.ClearCacheOnClose = cfg.GetBool("sbom.clear_cache_on_exit")
 
 	dbConfig := db.Config{}
-	fanalCache, err := config.CacheProvider()
+	fanalCache, cacheCleaner, err := config.CacheProvider()
 	if err != nil {
 		return nil, err
 	}
 
+	cleanTicker := time.NewTicker(cfg.GetDuration("sbom.cache_clean_interval"))
+	go func() {
+		// Cache can not be cleaned concurrently with a scan
+		for range cleanTicker.C {
+			if err = cacheCleaner.Clean(); err != nil {
+				log.Warnf("Error cleaning SBOM cache: %v", err)
+			}
+		}
+	}()
+
 	return &Collector{
-		config:     config,
-		cache:      fanalCache,
-		applier:    applier.NewApplier(fanalCache),
-		detector:   ospkg.Detector{},
-		dbConfig:   dbConfig,
-		vulnClient: vulnerability.NewClient(dbConfig),
-		marshaler:  cyclonedx.NewMarshaler(""),
+		config:       config,
+		cache:        fanalCache,
+		cacheCleaner: cacheCleaner,
+		applier:      applier.NewApplier(fanalCache),
+		detector:     ospkg.Detector{},
+		dbConfig:     dbConfig,
+		vulnClient:   vulnerability.NewClient(dbConfig),
+		marshaler:    cyclonedx.NewMarshaler(""),
 	}, nil
 }
 
-func GetGlobalCollector(cfg config.Config) (*Collector, error) {
+func GetGlobalCollector(_ config.Config) (*Collector, error) {
 	if globalCollector != nil {
 		return globalCollector, nil
 	}
@@ -202,16 +212,21 @@ func (c *Collector) Close() error {
 	return c.cache.Close()
 }
 
+func (c *Collector) GetCacheCleaner() CacheCleaner {
+	return c.cacheCleaner
+}
+
 func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, client client.ImageAPIClient, scanOptions sbom.ScanOptions) (sbom.Report, error) {
 	fanalImage, cleanup, err := convertDockerImage(ctx, client, imgMeta)
 	if cleanup != nil {
 		defer cleanup()
 	}
+
 	if err != nil {
 		return nil, fmt.Errorf("unable to convert docker image, err: %w", err)
 	}
 
-	return c.scanImage(ctx, fanalImage, scanOptions)
+	return c.scanImage(ctx, fanalImage, imgMeta, scanOptions)
 }
 
 func (c *Collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image, client cutil.ContainerdItf, scanOptions sbom.ScanOptions) (sbom.Report, error) {
@@ -223,7 +238,7 @@ func (c *Collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadme
 		return nil, fmt.Errorf("unable to convert containerd image, err: %w", err)
 	}
 
-	return c.scanImage(ctx, fanalImage, scanOptions)
+	return c.scanImage(ctx, fanalImage, imgMeta, scanOptions)
 }
 
 func (c *Collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image, client cutil.ContainerdItf, scanOptions sbom.ScanOptions) (sbom.Report, error) {
@@ -256,16 +271,16 @@ func (c *Collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMe
 		}
 	}()
 
-	return c.ScanFilesystem(ctx, imagePath, scanOptions)
+	return c.scanFilesystem(ctx, imagePath, imgMeta, scanOptions)
 }
 
-func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+func (c *Collector) scanFilesystem(ctx context.Context, path string, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
 	fsArtifact, err := local2.NewArtifact(path, c.cache, getDefaultArtifactOption(scanOptions.Analyzers, path))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create artifact from fs, err: %w", err)
 	}
 
-	bom, err := c.scan(ctx, fsArtifact)
+	bom, err := c.scan(ctx, fsArtifact, imgMeta)
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}
@@ -273,7 +288,18 @@ func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions
 	return bom, nil
 }
 
-func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact) (sbom.Report, error) {
+func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+	return c.scanFilesystem(ctx, path, nil, scanOptions)
+}
+
+func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, imgMeta *workloadmeta.ContainerImageMetadata) (sbom.Report, error) {
+	artifactReference, err := artifact.Inspect(ctx) // called by the scanner as well
+	if err != nil {
+		return nil, err
+	}
+	if imgMeta != nil {
+		c.cacheCleaner.setKeysForEntity(imgMeta.EntityID.ID, append(artifactReference.BlobIDs, artifactReference.ID))
+	}
 	s := scanner.NewScanner(local.NewScanner(c.applier, c.detector, c.vulnClient), artifact)
 	trivyReport, err := s.ScanArtifact(ctx, types.ScanOptions{
 		VulnType:            []string{},
@@ -291,13 +317,13 @@ func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact) (sbom.
 	}, nil
 }
 
-func (c *Collector) scanImage(ctx context.Context, fanalImage ftypes.Image, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+func (c *Collector) scanImage(ctx context.Context, fanalImage ftypes.Image, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
 	imageArtifact, err := image2.NewArtifact(fanalImage, c.cache, getDefaultArtifactOption(scanOptions.Analyzers, ""))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create artifact from image, err: %w", err)
 	}
 
-	bom, err := c.scan(ctx, imageArtifact)
+	bom, err := c.scan(ctx, imageArtifact, imgMeta)
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}
