@@ -131,7 +131,6 @@ type RuleSetLoadedReport struct {
 func ReportRuleSetLoaded(sender EventSender, statsdClient statsd.ClientInterface, ruleSets map[string]*rules.RuleSet, err *multierror.Error) {
 	rule, event := NewRuleSetLoadedEvent(ruleSets, err)
 
-	// TODO(celia): Create new metric for threat score rules
 	if err := statsdClient.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
 		log.Error(fmt.Errorf("failed to send ruleset_loaded metric: %w", err))
 	}
@@ -203,21 +202,21 @@ func NewRuleSetLoadedEvent(ruleSets map[string]*rules.RuleSet, err *multierror.E
 			}
 			policyState.Rules = append(policyState.Rules, RuleStateFromDefinition(ruleDef, "loaded", ""))
 		}
+	}
 
-		// rules ignored due to errors
-		if err != nil && err.Errors != nil {
-			for _, err := range err.Errors {
-				if rerr, ok := err.(*rules.ErrRuleLoad); ok {
-					policyName := rerr.Definition.Policy.Name
+	// rules ignored due to errors
+	if err != nil && err.Errors != nil {
+		for _, err := range err.Errors {
+			if rerr, ok := err.(*rules.ErrRuleLoad); ok {
+				policyName := rerr.Definition.Policy.Name
 
-					if _, exists := mp[policyName]; !exists {
-						policyState = PolicyStateFromRuleDefinition(rerr.Definition)
-						mp[policyName] = policyState
-					} else {
-						policyState = mp[policyName]
-					}
-					policyState.Rules = append(policyState.Rules, RuleStateFromDefinition(rerr.Definition, string(rerr.Type()), rerr.Err.Error()))
+				if _, exists := mp[policyName]; !exists {
+					policyState = PolicyStateFromRuleDefinition(rerr.Definition)
+					mp[policyName] = policyState
+				} else {
+					policyState = mp[policyName]
 				}
+				policyState.Rules = append(policyState.Rules, RuleStateFromDefinition(rerr.Definition, string(rerr.Type()), rerr.Err.Error()))
 			}
 		}
 	}
