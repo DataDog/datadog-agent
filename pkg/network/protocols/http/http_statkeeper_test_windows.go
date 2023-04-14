@@ -26,12 +26,12 @@ func generateIPv4HTTPTransaction(source util.Address, dest util.Address, sourceP
 	tx.Txn.ResponseStatusCode = uint16(code)
 	tx.RequestFragment = []byte(reqFragment)
 
-	source.WriteTo(tx.Txn.Tup.CliAddr[:])
+	source.WriteTo(tx.Txn.Tup.RemoteAddr[:])
 
-	tx.Txn.Tup.CliPort = uint16(sourcePort)
+	tx.Txn.Tup.RemotePort = uint16(sourcePort)
 
-	dest.WriteTo(tx.Txn.Tup.SrvAddr[:])
-	tx.Txn.Tup.SrvPort = uint16(destPort)
+	dest.WriteTo(tx.Txn.Tup.LocalAddr[:])
+	tx.Txn.Tup.LocalPort = uint16(destPort)
 
 	return &tx
 }

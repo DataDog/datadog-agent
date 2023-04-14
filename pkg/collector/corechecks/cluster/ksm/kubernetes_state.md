@@ -4,6 +4,12 @@
 
 ### Metrics
 
+`kubernetes_state.apiservice.count`
+: Number of Kubernetes API services.
+
+`kubernetes_state.apiservice.condition`
+: The condition of this API service. Tags:`apiservice` `condition` `status`.
+
 `kubernetes_state.daemonset.count`
 : Number of DaemonSets. Tags:`kube_namespace`.
 
@@ -290,7 +296,7 @@
 : The metric specifications used by this autoscaler when calculating the desired replica count. Tags:`kube_namespace` `horizontalpodautoscaler` `metric_name` `metric_target_type`.
 
 `kubernetes_state.hpa.status_target_metric`
-: The current metric status used by this autoscaler when calculating the desired replica count. Tags:`kube_namespace` `horizontalpodautoscaler` `metric_name` `metric_target_type`.	
+: The current metric status used by this autoscaler when calculating the desired replica count. Tags:`kube_namespace` `horizontalpodautoscaler` `metric_name` `metric_target_type`.
 
 `kubernetes_state.vpa.count`
 : Number of vertical pod autoscaler. Tags: `kube_namespace`.
