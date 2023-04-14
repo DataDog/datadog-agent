@@ -13,8 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/config"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -123,8 +123,8 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to query db name: %w", err)
 		}
+		c.tags = append(c.tags, fmt.Sprintf("cdb:%s", c.cdbName))
 	}
-	c.tags = append(c.tags, fmt.Sprintf("cdb:%s", c.cdbName))
 
 	if c.dbHostname == "" || c.dbVersion == "" {
 		row := db.QueryRow("SELECT host_name, version FROM v$instance")
@@ -138,8 +138,8 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		} else {
 			c.dbHostname = dbHostname
 		}
+		c.tags = append(c.tags, fmt.Sprintf("dbhost:%s", c.dbHostname))
 	}
-	c.tags = append(c.tags, fmt.Sprintf("dbhost:%s", c.dbHostname))
 
 	return db, nil
 }

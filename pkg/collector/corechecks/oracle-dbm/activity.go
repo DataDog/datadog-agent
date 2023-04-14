@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -147,12 +147,15 @@ type OracleActivityRow struct {
 	FinalBlockingInstance uint64 `json:"final_blocking_instance,omitempty"`
 	FinalBlockingSession  uint64 `json:"final_blocking_session,omitempty"`
 	WaitEvent             string `json:"wait_event,omitempty"`
-	WaitEventGroup        string `json:"wait_event_group,omitempty"`
+	WaitEventClass        string `json:"wait_event_class,omitempty"`
 	WaitTimeMicro         uint64 `json:"wait_time_micro,omitempty"`
 	Statement             string `json:"statement,omitempty"`
 	PdbName               string `json:"pdb_name,omitempty"`
 	CdbName               string `json:"cdb_name,omitempty"`
 	QuerySignature        string `json:"query_signature,omitempty"`
+	CommandName           string `json:"command_name,omitempty"`
+	PreviousSQL           bool   `json:"previous_sql,omitempty"`
+	OpFlags               uint64 `json:"op_flags,omitempty"`
 	RowMetadata
 }
 
@@ -189,7 +192,7 @@ type OracleActivityRowDB struct {
 	FinalBlockingInstance      *uint64        `db:"FINAL_BLOCKING_INSTANCE"`
 	FinalBlockingSession       *uint64        `db:"FINAL_BLOCKING_SESSION"`
 	WaitEvent                  sql.NullString `db:"EVENT"`
-	WaitEventGroup             sql.NullString `db:"WAIT_CLASS"`
+	WaitEventClass             sql.NullString `db:"WAIT_CLASS"`
 	WaitTimeMicro              *uint64        `db:"WAIT_TIME_MICRO"`
 	Statement                  sql.NullString `db:"SQL_FULLTEXT"`
 	PrevSQLFullText            sql.NullString `db:"PREV_SQL_FULLTEXT"`
@@ -283,6 +286,7 @@ func (c *Check) SampleSession() error {
 		if sample.CommandName.Valid {
 			commandName = sample.CommandName.String
 		}
+		sessionRow.CommandName = commandName
 		previousSQL := false
 		sqlCurrentSQL, err := c.getSQLRow(sample.SQLID, sample.ForceMatchingSignature, sample.SQLPlanHashValue, sample.SQLExecStart)
 		if err != nil {
@@ -302,6 +306,7 @@ func (c *Check) SampleSession() error {
 				previousSQL = true
 			}
 		}
+		sessionRow.PreviousSQL = previousSQL
 
 		if sample.Module.Valid {
 			sessionRow.Module = sample.Module.String
@@ -333,12 +338,13 @@ func (c *Check) SampleSession() error {
 		if sample.WaitEvent.Valid {
 			sessionRow.WaitEvent = sample.WaitEvent.String
 		}
-		if sample.WaitEventGroup.Valid {
-			sessionRow.WaitEventGroup = sample.WaitEventGroup.String
+		if sample.WaitEventClass.Valid {
+			sessionRow.WaitEventClass = sample.WaitEventClass.String
 		}
 		if sample.WaitTimeMicro != nil {
 			sessionRow.WaitTimeMicro = *sample.WaitTimeMicro
 		}
+		sessionRow.OpFlags = sample.OpFlags
 
 		statement := ""
 		obfuscate := true
@@ -393,7 +399,7 @@ func (c *Check) SampleSession() error {
 		sessionRow.CdbName = c.cdbName
 		sessionRows = append(sessionRows, sessionRow)
 	}
-	o.Stop()
+	defer o.Stop()
 
 	payload := ActivitySnapshot{
 		Metadata: Metadata{
@@ -421,7 +427,7 @@ func (c *Check) SampleSession() error {
 		log.Errorf("GetSender SampleSession %s", string(payloadBytes))
 		return err
 	}
-	sender.EventPlatformEvent(payloadBytes, "dbm-activity")
+	sender.EventPlatformEvent(string(payloadBytes), "dbm-activity")
 	sender.Count("dd.oracle.activity.samples_count", float64(len(sessionRows)), c.hostname, c.tags)
 	sender.Gauge("dd.oracle.activity.time_ms", float64(time.Since(start).Milliseconds()), c.hostname, c.tags)
 	sender.Commit()
