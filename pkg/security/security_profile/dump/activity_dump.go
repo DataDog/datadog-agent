@@ -539,7 +539,10 @@ func (ad *ActivityDump) finalize(releaseTracedCgroupSpot bool) {
 	}
 
 	// Add image_id in tags
-	image_id := ad.adm.tagsResolvers.ImageIDResolver(ad.ContainerID)
+	image_id, err := ad.adm.tagsResolvers.ResolveImageID(ad.ContainerID)
+	if err != nil {
+		seclog.Errorf("Coud not get image_id : %s", err)
+	}
 	ad.Tags = append(ad.Tags, "image_id:"+image_id)
 
 	// scrub processes and retain args envs now

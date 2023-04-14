@@ -102,13 +102,14 @@ func NewResolver(config *config.Config) *Resolver {
 }
 
 // Resolove image_id
-func (t *Resolver) ImageIDResolver(containerID string) string {
+func (t *Resolver) ResolveImageID(containerID string) (string, error) {
 	m := workloadmeta.GetGlobalStore()
 
 	// Get imageID from container so that we can get the image Metadata
 	container, err := m.GetContainer(containerID)
 	if err != nil {
 		log.Errorf("unable to get container %s: %s", containerID, err)
+		return "", err
 	}
 
 	imageID := container.Image.ID
@@ -128,13 +129,13 @@ func (t *Resolver) ImageIDResolver(containerID string) string {
 		repoTags := imageMetadata.RepoTags
 		if len(repoDigests) != 0 {
 			repo := strings.SplitN(repoDigests[0], "@sha256:", 2)[0]
-			return repo + "@" + imageID
+			return repo + "@" + imageID, nil
 		}
 		if len(repoTags) != 0 {
 			repo := strings.SplitN(repoDigests[0], ":", 2)[0]
-			return repo + "@" + imageID
+			return repo + "@" + imageID, nil
 		}
 	}
 	// If repo is empty or if could not find it, return imageName+@+imageID
-	return imageName + "@" + imageID
+	return imageName + "@" + imageID, nil
 }
