@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 )
 
 const (
@@ -79,26 +78,20 @@ func (s *Scanner) start(ctx context.Context) {
 	if s.running {
 		return
 	}
-
+	cleanTicker := time.NewTicker(config.Datadog.GetDuration("sbom.cache_clean_interval"))
 	go func() {
 		s.running = true
 		defer func() { s.running = false }()
-		cleanTicker := time.NewTicker(config.Datadog.GetDuration("sbom.cache_clean_interval"))
 		for {
 			select {
 			// We don't want to keep scanning if image channel is not empty but context is expired
 			case <-ctx.Done():
 				return
-			// Cache can not be cleaned concurrently with a scan
-			case _ = <-cleanTicker.C:
-				cacheCleaner, err := trivy.GetGlobalCollector(config.Datadog)
-				if err != nil {
-					log.Warnf("error cleaning SBOM cache: can not retrieve the GlobalCollector: %v", err)
-					continue
-				}
-
-				if err = cacheCleaner.GetCacheCleaner().Clean(); err != nil {
-					log.Warnf("Error cleaning SBOM cache: %v", err)
+			case <-cleanTicker.C:
+				for _, collector := range collectors.Collectors {
+					if err := collector.CleanCache(); err != nil {
+						log.Warnf("could not clean SBOM cache: %v", err)
+					}
 				}
 			case request, ok := <-s.scanQueue:
 				// Channel has been closed we should exit
