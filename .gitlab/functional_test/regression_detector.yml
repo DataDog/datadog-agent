@@ -11,7 +11,7 @@ single-machine-performance-regression_detector:
       - submission_metadata
   variables:
     SMP_VERSION: 0.7.3
-    LADING_VERSION: 0.13.0
+    LADING_VERSION: 0.14.0
     TOTAL_SAMPLES: 600
     WARMUP_SECONDS: 45
     REPLICAS: 10
@@ -84,7 +84,7 @@ single-machine-performance-regression_detector:
     # space characters. This avoids
     # https://gitlab.com/gitlab-org/gitlab/-/issues/217231.
     - cat outputs/report.md | sed "s/^\$/$(echo -ne '\uFEFF\u00A0\u200B')/g"
-    # Add janky means of installing PR commenter borrowed from 
+    # Add janky means of installing PR commenter borrowed from
     # https://github.com/DataDog/dogweb/blob/45d7fcf035d0d515ebd901919099d4c8bfa82829/docker/docker-builder/Dockerfile#L69-L77
     - apt-get update
     - apt-get install -y curl
