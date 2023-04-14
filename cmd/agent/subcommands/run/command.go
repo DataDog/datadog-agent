@@ -86,6 +86,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/nvidia/jetson"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/sbom"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu"
