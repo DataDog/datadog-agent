@@ -32,7 +32,6 @@ func TestFormatTLSProtocols(t *testing.T) {
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
 					model.ProtocolType_protocolTLS,
-					model.ProtocolType_protocolUnknown,
 				},
 			},
 		},

@@ -31,19 +31,16 @@ import (
 //			},
 //		}
 func formatProtocolStack(originalStack protocols.Stack, staticTags uint64) *model.ProtocolStack {
-	stack := make([]model.ProtocolType, 0, 1)
-	if network.IsTLSTag(staticTags) {
+	var stack []model.ProtocolType
+
+	if network.IsTLSTag(staticTags) || originalStack.Encryption == protocols.TLS {
 		stack = append(stack, formatProtocol(protocols.TLS))
 	}
-
 	if originalStack.Application != protocols.Unknown {
 		stack = append(stack, formatProtocol(originalStack.Application))
 	}
 	if originalStack.Api != protocols.Unknown {
 		stack = append(stack, formatProtocol(originalStack.Api))
-	}
-	if originalStack.Encryption != protocols.Unknown {
-		stack = append(stack, formatProtocol(originalStack.Encryption))
 	}
 
 	return &model.ProtocolStack{

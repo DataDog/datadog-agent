@@ -551,6 +551,7 @@ func TestHTTP2SerializationWithLocalhostTraffic(t *testing.T) {
 	t.Run("status class", func(t *testing.T) {
 		testHTTP2SerializationWithLocalhostTraffic(t, false)
 	})
+
 }
 
 func testHTTP2SerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCode bool) {
@@ -612,14 +613,14 @@ func testHTTP2SerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusC
 				Raddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				Http2Aggregations: http2OutBlob,
 				RouteIdx:          -1,
-				Protocol:          formatProtocol(network.ProtocolUnknown, 0),
+				Protocol:          formatProtocolStack(protocols.Stack{}, 0),
 			},
 			{
 				Laddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				Raddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
 				Http2Aggregations: http2OutBlob,
 				RouteIdx:          -1,
-				Protocol:          formatProtocol(network.ProtocolUnknown, 0),
+				Protocol:          formatProtocolStack(protocols.Stack{}, 0),
 			},
 		},
 		AgentConfiguration: &model.AgentConfiguration{
