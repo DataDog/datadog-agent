@@ -20,7 +20,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	global "github.com/DataDog/datadog-agent/cmd/agent/dogstatsd"
 	api "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -172,7 +172,7 @@ func (j *JMXFetch) setDefaults() {
 func (j *JMXFetch) Start(manage bool) error {
 	j.setDefaults()
 
-	classpath := filepath.Join(common.GetDistPath(), "jmx", jmxJarName)
+	classpath := filepath.Join(path.GetDistPath(), "jmx", jmxJarName)
 	if j.JavaToolsJarPath != "" {
 		classpath = fmt.Sprintf("%s%s%s", j.JavaToolsJarPath, string(os.PathListSeparator), classpath)
 	}
@@ -275,6 +275,18 @@ func (j *JMXFetch) Start(manage bool) error {
 
 	if config.Datadog.GetBool("jmx_statsd_telemetry_enabled") {
 		subprocessArgs = append(subprocessArgs, "--statsd_telemetry")
+	}
+
+	if config.Datadog.GetBool("jmx_statsd_client_use_non_blocking") {
+		subprocessArgs = append(subprocessArgs, "--statsd_nonblocking")
+	}
+
+	if bufSize := config.Datadog.GetInt("jmx_statsd_client_buffer_size"); bufSize != 0 {
+		subprocessArgs = append(subprocessArgs, "--statsd_buffer_size", fmt.Sprintf("%d", bufSize))
+	}
+
+	if socketTimeout := config.Datadog.GetInt("jmx_statsd_client_socket_timeout"); socketTimeout != 0 {
+		subprocessArgs = append(subprocessArgs, "--statsd_socket_timeout", fmt.Sprintf("%d", socketTimeout))
 	}
 
 	if config.Datadog.GetBool("log_format_rfc3339") {

@@ -20,9 +20,9 @@ import (
 
 	"github.com/fatih/color"
 
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -39,7 +39,7 @@ func RunDatadogConnectivityDiagnose(writer io.Writer, noTrace bool) error {
 
 	domainResolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
 
-	client := forwarder.NewHTTPClient()
+	client := forwarder.NewHTTPClient(config.Datadog)
 
 	// Send requests to all endpoints for all domains
 	fmt.Fprintln(writer, "\n================ Starting connectivity diagnosis ================")

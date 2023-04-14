@@ -95,7 +95,7 @@ func (s *Scanner) start(ctx context.Context) {
 					return
 				}
 
-				telemetry.SBOMFailures.Inc(request.Collector(), request.Type())
+				telemetry.SBOMAttempts.Inc(request.Collector(), request.Type())
 
 				collector := request.collector
 				if err := s.enoughDiskSpace(request.opts); err != nil {
@@ -164,7 +164,7 @@ func NewScanner(cfg config.Config) *Scanner {
 // global one, and returns it. Start() needs to be called before any data
 // collection happens.
 func CreateGlobalScanner(cfg config.Config) (*Scanner, error) {
-	if !cfg.GetBool("sbom.enabled") && !cfg.GetBool("container_image_collection.sbom.enabled") {
+	if !cfg.GetBool("sbom.enabled") && !cfg.GetBool("container_image_collection.sbom.enabled") && !cfg.GetBool("runtime_security_config.sbom.enabled") {
 		return nil, nil
 	}
 

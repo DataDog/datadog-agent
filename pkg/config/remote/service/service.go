@@ -292,6 +292,7 @@ func (s *Service) refresh() error {
 	}
 	orgUUID, err := s.uptane.StoredOrgUUID()
 	if err != nil {
+		s.Unlock()
 		return err
 	}
 

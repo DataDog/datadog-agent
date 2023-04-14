@@ -13,9 +13,10 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -164,7 +165,8 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 }
 
 func TestCollectorMessagesToCheckResult(t *testing.T) {
-	submitter, err := NewSubmitter(ddconfig.Mock(t), testHostName)
+	config := fxutil.Test[config.Component](t, config.MockModule)
+	submitter, err := NewSubmitter(config, testHostName)
 	assert.NoError(t, err)
 
 	now := time.Now()
@@ -282,7 +284,8 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 }
 
 func Test_getRequestID(t *testing.T) {
-	s, err := NewSubmitter(ddconfig.Mock(t), testHostName)
+	config := fxutil.Test[config.Component](t, config.MockModule)
+	s, err := NewSubmitter(config, testHostName)
 	assert.NoError(t, err)
 
 	fixedDate1 := time.Date(2022, 9, 1, 0, 0, 1, 0, time.Local)

@@ -1,76 +1,117 @@
 ---
-deploy_packages_deb-7:
-  rules:
-    !reference [.on_deploy_a7]
-  stage: deploy7
-  resource_group: deb_bucket
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main"]
-  dependencies:
-    - agent_deb-x64-a7
-    - agent_deb-arm64-a7
-    - agent_heroku_deb-x64-a7
-    - iot_agent_deb-x64
-    - iot_agent_deb-arm64
-    - iot_agent_deb-armhf
-    - dogstatsd_deb-x64
-    - dogstatsd_deb-arm64
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
-  script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "*_7.*amd64.deb" $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/deb/amd64/ || true
-    - $S3_CP_CMD --recursive --exclude "*" --include "*_7.*arm64.deb" $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/deb/arm64/ || true
-    - $S3_CP_CMD --recursive --exclude "*" --include "*_7.*armhf.deb" $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/deb/armhf/ || true
+deploy_packages_deb-x64-7:
+  extends: .deploy_packages_deb-7
+  needs: [ agent_deb-x64-a7 ]
+  variables:
+    PACKAGE_ARCH: amd64
 
-deploy_packages_rpm-7:
-  rules:
-    !reference [.on_deploy_a7]
-  stage: deploy7
-  resource_group: rpm_bucket
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main"]
-  dependencies:
-    - agent_rpm-x64-a7
-    - agent_rpm-arm64-a7
-    - iot_agent_rpm-x64
-    - iot_agent_rpm-arm64
-    - iot_agent_rpm-armhf
-    - dogstatsd_rpm-x64
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
-  script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "*-7.*x86_64.rpm" $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/rpm/x86_64/ || true
-    - $S3_CP_CMD --recursive --exclude "*" --include "*-7.*aarch64.rpm" $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/rpm/aarch64/ || true
-    - $S3_CP_CMD --recursive --exclude "*" --include "*-7.*armv7hl.rpm" $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/rpm/armv7hl/ || true
+deploy_packages_deb-arm64-7:
+  extends: .deploy_packages_deb-7
+  needs: [ agent_deb-arm64-a7 ]
+  variables:
+    PACKAGE_ARCH: arm64
 
-deploy_packages_suse_rpm-7:
-  rules:
-    !reference [.on_deploy_a7]
-  stage: deploy7
-  resource_group: suse_bucket
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main"]
-  dependencies:
-    - agent_suse-x64-a7
-    - dogstatsd_suse-x64
-    - iot_agent_suse-x64
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR_SUSE
-  script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "*-7.*x86_64.rpm" $OMNIBUS_PACKAGE_DIR_SUSE $S3_RELEASE_ARTIFACTS_URI/suse_rpm/x86_64/ || true
+deploy_packages_heroku_deb-x64-7:
+  extends: .deploy_packages_deb-7
+  needs: [ agent_heroku_deb-x64-a7 ]
+  variables:
+    PACKAGE_ARCH: amd64
 
-deploy_packages_dmg-a7:
+deploy_packages_iot_deb-x64-7:
+  extends: .deploy_packages_deb-7
+  needs: [ iot_agent_deb-x64 ]
+  variables:
+    PACKAGE_ARCH: amd64
+
+deploy_packages_iot_deb-arm64-7:
+  extends: .deploy_packages_deb-7
+  needs: [ iot_agent_deb-arm64 ]
+  variables:
+    PACKAGE_ARCH: arm64
+
+deploy_packages_iot_deb-armhf-7:
+  extends: .deploy_packages_deb-7
+  needs: [ iot_agent_deb-armhf ]
+  variables:
+    PACKAGE_ARCH: armhf
+
+deploy_packages_dogstatsd_deb-x64-7:
+  extends: .deploy_packages_deb-7
+  needs: [ dogstatsd_deb-x64 ]
+  variables:
+    PACKAGE_ARCH: amd64
+
+deploy_packages_dogstatsd_deb-arm64-7:
+  extends: .deploy_packages_deb-7
+  needs: [ dogstatsd_deb-arm64 ]
+  variables:
+    PACKAGE_ARCH: arm64
+
+deploy_packages_rpm-x64-7:
+  extends: .deploy_packages_rpm-7
+  needs: [ agent_rpm-x64-a7 ]
+  variables:
+    PACKAGE_ARCH: x86_64
+
+deploy_packages_rpm-arm64-7:
+  extends: .deploy_packages_rpm-7
+  needs: [ agent_rpm-arm64-a7 ]
+  variables:
+    PACKAGE_ARCH: aarch64
+
+deploy_packages_iot_rpm-x64-7:
+  extends: .deploy_packages_rpm-7
+  needs: [ iot_agent_rpm-x64 ]
+  variables:
+    PACKAGE_ARCH: x86_64
+
+deploy_packages_iot_rpm-arm64-7:
+  extends: .deploy_packages_rpm-7
+  needs: [ iot_agent_rpm-arm64 ]
+  variables:
+    PACKAGE_ARCH: aarch64
+
+deploy_packages_iot_rpm-armhf-7:
+  extends: .deploy_packages_rpm-7
+  needs: [ iot_agent_rpm-armhf ]
+  variables:
+    PACKAGE_ARCH: armv7hl
+
+deploy_packages_dogstatsd_rpm-x64-7:
+  extends: .deploy_packages_rpm-7
+  needs: [ dogstatsd_rpm-x64 ]
+  variables:
+    PACKAGE_ARCH: x86_64
+
+deploy_packages_suse_rpm-x64-7:
+  extends: .deploy_packages_suse_rpm-7
+  needs: [ agent_suse-x64-a7 ]
+  variables:
+    PACKAGE_ARCH: x86_64
+
+deploy_packages_iot_suse_rpm-x64-7:
+  extends: .deploy_packages_suse_rpm-7
+  needs: [ iot_agent_suse-x64 ]
+  variables:
+    PACKAGE_ARCH: x86_64
+
+deploy_packages_dogstatsd_suse_rpm-x64-7:
+  extends: .deploy_packages_suse_rpm-7
+  needs: [ dogstatsd_suse-x64 ]
+  variables:
+    PACKAGE_ARCH: x86_64
+
+deploy_packages_dmg-x64-a7:
   rules:
     !reference [.on_deploy_a7]
   stage: deploy7
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main"]
-  dependencies: ["agent_dmg-x64-a7"]
+  needs: ["agent_dmg-x64-a7"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
     - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7*.dmg" $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/dmg/x86_64/ || true
-
 
 # deploy dogstatsd x64, non-static binary to staging bucket
 deploy_staging_dsd:
