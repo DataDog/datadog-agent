@@ -83,7 +83,7 @@ func (s *Scanner) start(ctx context.Context) {
 	go func() {
 		s.running = true
 		defer func() { s.running = false }()
-		cleanTicker := time.NewTicker(config.Datadog.GetDuration("container_image_collection.sbom.cache_clean_interval"))
+		cleanTicker := time.NewTicker(config.Datadog.GetDuration("sbom.cache_clean_interval"))
 		for {
 			select {
 			// We don't want to keep scanning if image channel is not empty but context is expired

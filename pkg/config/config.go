@@ -1094,7 +1094,12 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("sbom.analyzers", []string{"os"})
 	config.BindEnvAndSetDefault("sbom.cache_directory", defaultRunPath)
 	config.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
-	config.BindEnvAndSetDefault("sbom.cache_ttl", 60*60) // Integer seconds. Only used with Badger
+	config.BindEnvAndSetDefault("sbom.use_custom_cache", false)
+	config.BindEnvAndSetDefault("sbom.custom_cache_max_disk_size", 1000*1000*10) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
+	config.BindEnvAndSetDefault("sbom.custom_cache_max_cache_entries", 1000)     // used by custom cache keys stored in memory
+	config.BindEnvAndSetDefault("sbom.cache_clean_interval", "30m")              // used by custom cache.
+	config.BindEnvAndSetDefault("sbom.check_disk_usage", true)
+	config.BindEnvAndSetDefault("sbom.min_available_disk", "1Gb")
 
 	// Orchestrator Explorer - process agent
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
@@ -1122,14 +1127,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("container_image_collection.sbom.scan_interval", 0)    // Integer seconds
 	config.BindEnvAndSetDefault("container_image_collection.sbom.scan_timeout", 10*60) // Integer seconds
 	config.BindEnvAndSetDefault("container_image_collection.sbom.analyzers", []string{"os"})
-	config.BindEnvAndSetDefault("container_image_collection.sbom.cache_directory", "")
-	config.BindEnvAndSetDefault("container_image_collection.sbom.clear_cache_on_exit", false)
-	config.BindEnvAndSetDefault("container_image_collection.sbom.use_custom_cache", false)
-	config.BindEnvAndSetDefault("container_image_collection.sbom.custom_cache_max_disk_size", 1000*1000*10) // max disk space used by cached objects. Not equal to max disk usage
-	config.BindEnvAndSetDefault("container_image_collection.sbom.custom_cache_max_cache_entries", 1000)     // keys stored in memory
-	config.BindEnvAndSetDefault("container_image_collection.sbom.cache_clean_interval", "30m")              // only useful for custom cache
-	config.BindEnvAndSetDefault("container_image_collection.sbom.check_disk_usage", true)
-	config.BindEnvAndSetDefault("container_image_collection.sbom.min_available_disk", "1Gb")
 
 	// Datadog security agent (common)
 	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
