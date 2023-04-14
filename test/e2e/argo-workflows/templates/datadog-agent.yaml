@@ -58,6 +58,8 @@ spec:
             env:
               - name: DD_HOSTNAME
                 value: k8s-e2e-tests-control-plane
+            remoteConfiguration:
+              enabled: {{inputs.parameters.remote_configuration_enabled}}
             leaderElection: true
             logs:
               enabled: true
@@ -120,13 +122,9 @@ spec:
                 env:
                   - name:  DD_USE_V2_API_SERIES
                     value: "false"
-                  - name: DD_REMOTE_CONFIGURATION_ENABLED
-                    value: "{{inputs.parameters.remote_configuration_enabled}}"
               systemProbe:
                 logLevel: TRACE
                 env:
-                  - name: DD_REMOTE_CONFIGURATION_ENABLED
-                    value: "{{inputs.parameters.remote_configuration_enabled}}"
                   - name:  DD_RUNTIME_SECURITY_CONFIG_LOG_PATTERNS
                     value: "module.APIServer.*"
                   - name: DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR
