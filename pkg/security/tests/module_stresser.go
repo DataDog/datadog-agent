@@ -12,7 +12,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"runtime"
 	"runtime/pprof"
