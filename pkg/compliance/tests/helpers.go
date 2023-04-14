@@ -141,6 +141,7 @@ func (c *assertedRule) WriteFile(t *testing.T, name, data string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer f.Close()
 	if _, err := f.WriteString(data); err != nil {
 		t.Fatal(err)
 	}
