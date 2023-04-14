@@ -8,10 +8,6 @@
 
 package network
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/network/types"
-)
-
 // Sub returns s-other.
 //
 // This implementation is different from the implementation on

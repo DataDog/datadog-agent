@@ -12,9 +12,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
-
 // this file is here because Windows has its own ConnectionKeysFromConnectionStats.
-// however, putting this in `_linux.go`
+// however, putting this in `_linux.go` broke the mac build ?
+
 // ConnectionKeysFromConnectionStats constructs connection key using the underlying raw connection stats object, which is produced by the tracer.
 // Each ConnectionStats object contains both the source and destination addresses, as well as an IPTranslation object that stores the original addresses in the event that the connection is NAT'd.
 // This function generates all relevant combinations of connection keys: [(source, dest), (dest, source), (NAT'd source, NAT'd dest), (NAT'd dest, NAT'd source)].
