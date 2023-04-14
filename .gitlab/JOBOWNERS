@@ -55,7 +55,7 @@ internal_kubernetes_deploy*            @DataDog/container-integrations
 deploy_containers*                     @DataDog/container-integrations
 
 # Functional test
-kitchen_*_system_probe*                        @DataDog/ebpf-platform
+kitchen_*_network*                             @DataDog/ebpf-platform
 kitchen_*_security_agent*                      @DataDog/agent-security
 kitchen_*_process_agent*                       @DataDog/processes
 pull_test_dockers*                             @DataDog/universal-service-monitoring
