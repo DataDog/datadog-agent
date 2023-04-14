@@ -11,21 +11,22 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     struct syscall_monitor_entry_t zero = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = pid_tgid >> 32;
-
     u64 now = bpf_ktime_get_ns();
     struct syscall_monitor_event_t event = {};
-    struct proc_cache_t *proc_cache_entry = fill_process_context(&event.process);
-    fill_container_context(proc_cache_entry, &event.container);
 
     // check if this workload has a security profile
     if (is_anomaly_syscalls_enabled()) {
         evaluate_security_profile_syscalls(args, &event, args->id);
     }
 
-    // check if we are monitoring the syscalls of the current process
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, TASK_COMM_LEN);
-    if (!should_trace_new_process(args, now, pid, event.container.container_id, comm)) {
+    // are we dumping the syscalls of this process ?
+    struct activity_dump_config *config = lookup_or_delete_traced_pid(pid, now, NULL);
+    if (config) {
+        if (!mask_has_event(config->event_mask, EVENT_SYSCALLS)) {
+            // we're not tracing syscalls, ignore
+            return 0;
+        }
+    } else {
         // we're not tracing this process, ignore
         return 0;
     }
@@ -85,6 +86,9 @@ shoud_send_event:
         // regardless if we successfully send the event, update the "last_sent" field to avoid spamming the perf map
         entry->last_sent = now;
         entry->dirty = 0;
+
+        struct proc_cache_t *proc_cache_entry = fill_process_context(&event.process);
+        fill_container_context(proc_cache_entry, &event.container);
 
         // remove last_sent and dirty from the event size, we don't care about these fields
         send_event_with_size_ptr(args, EVENT_SYSCALLS, &event, offsetof(struct syscall_monitor_event_t, syscall_data) + SYSCALL_ENCODING_TABLE_SIZE);
