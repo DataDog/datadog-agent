@@ -247,6 +247,7 @@ func (c *Check) SampleSession() error {
 	}
 
 	o := obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})
+	defer o.Stop()
 	for _, sample := range sessionSamples {
 		var sessionRow OracleActivityRow
 
@@ -399,7 +400,6 @@ func (c *Check) SampleSession() error {
 		sessionRow.CdbName = c.cdbName
 		sessionRows = append(sessionRows, sessionRow)
 	}
-	defer o.Stop()
 
 	payload := ActivitySnapshot{
 		Metadata: Metadata{
@@ -428,8 +428,8 @@ func (c *Check) SampleSession() error {
 		return err
 	}
 	sender.EventPlatformEvent(payloadBytes, "dbm-activity")
-	sender.Count("dd.oracle.activity.samples_count", float64(len(sessionRows)), c.hostname, c.tags)
-	sender.Gauge("dd.oracle.activity.time_ms", float64(time.Since(start).Milliseconds()), c.hostname, c.tags)
+	sender.Count("dd.oracle.activity.samples_count", float64(len(sessionRows)), "", c.tags)
+	sender.Gauge("dd.oracle.activity.time_ms", float64(time.Since(start).Milliseconds()), "", c.tags)
 	sender.Commit()
 
 	return nil
