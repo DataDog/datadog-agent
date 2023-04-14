@@ -1043,7 +1043,7 @@ func (p *Probe) validEventTypeForConfig(eventType string) bool {
 	return true
 }
 
-// updateProbes applies the loaded set of rules and returns a report of the applied approvers for it. TODO(Celia): I don't think it returns a report of approvers anymore
+// updateProbes applies the loaded set of rules
 func (p *Probe) updateProbes(ruleEventTypes []eval.EventType) error {
 	// event types enabled either by event handlers or by rules
 	eventTypes := append([]eval.EventType{}, defaultEventTypes...)
@@ -1239,8 +1239,10 @@ func (p *Probe) NewEvaluationSet(eventTypeEnabled map[eval.EventType]bool, ruleS
 		ruleOpts, evalOpts := rules.NewEvalOpts(eventTypeEnabled)
 
 		ruleOpts.WithLogger(seclog.DefaultLogger)
-		ruleOpts.WithSupportedDiscarders(SupportedDiscarders)
 		ruleOpts.WithReservedRuleIDs(events.AllCustomRuleIDs())
+		if ruleSetTagValue == rules.DefaultRuleSetTagValue {
+			ruleOpts.WithSupportedDiscarders(SupportedDiscarders)
+		}
 
 		eventCtor := func() eval.Event {
 			return &model.Event{

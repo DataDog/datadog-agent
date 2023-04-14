@@ -28,11 +28,15 @@ type CombinePolicy = string
 
 // Combine policies
 const (
-	NoPolicy               CombinePolicy = ""
-	MergePolicy            CombinePolicy = "merge"
-	OverridePolicy         CombinePolicy = "override"
-	RuleSetTagKey                        = "ruleset"
-	DefaultRuleSetTagValue               = "probe_evaluation"
+	NoPolicy       CombinePolicy = ""
+	MergePolicy    CombinePolicy = "merge"
+	OverridePolicy CombinePolicy = "override"
+)
+
+// Ruleset loading operations
+const (
+	RuleSetTagKey          = "ruleset"
+	DefaultRuleSetTagValue = "probe_evaluation"
 )
 
 // MacroDefinition holds the definition of a macro
@@ -197,19 +201,6 @@ func (rs *RuleSet) GetRuleSetTag() eval.RuleSetTagValue {
 	return rs.opts.RuleSetTag[RuleSetTagKey]
 }
 
-// SetRuleSetTag sets the value of the "ruleset" tag, which is the tag of the rules that belong in this rule set
-func (rs *RuleSet) SetRuleSetTagValue(value eval.RuleSetTagValue) error {
-	if len(rs.GetRules()) > 0 {
-		return ErrCannotChangeTagAfterLoading
-	}
-	if _, ok := rs.opts.RuleSetTag[RuleSetTagKey]; !ok {
-		rs.opts.RuleSetTag = map[string]eval.RuleSetTagValue{RuleSetTagKey: ""}
-	}
-	rs.opts.RuleSetTag[RuleSetTagKey] = value
-
-	return nil
-}
-
 // ListMacroIDs returns the list of MacroIDs from the ruleset
 func (rs *RuleSet) ListMacroIDs() []MacroID {
 	var ids []string
@@ -278,7 +269,7 @@ func (rs *RuleSet) AddRules(parsingContext *ast.ParsingContext, rules []*RuleDef
 	return result
 }
 
-func (rs *RuleSet) validatePolicyRules(policyRules []*RuleDefinition) *multierror.Error {
+func (rs *RuleSet) populateFieldsWithRuleActionsData(policyRules []*RuleDefinition) *multierror.Error {
 	var errs *multierror.Error
 
 	for _, rule := range policyRules {
