@@ -665,6 +665,7 @@ func TestHandleContainer(t *testing.T) {
 						"image_name:datadog/agent",
 						"image_tag:latest",
 						"short_image:agent",
+						"image_id:datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
 					}, standardTags...),
 					StandardTags: standardTags,
 				},
@@ -1093,6 +1094,8 @@ func TestHandleContainerImage(t *testing.T) {
 						"service:datadog-agent",
 						"short_image:agent",
 						"version:8.0.0",
+						"image_repo_tags:datadog/agent:7.41.1-rc.1,gcr.io/datadoghq/agent:7-rc,gcr.io/datadoghq/agent:7.41.1-rc.1,public.ecr.aws/datadog/agent:7-rc,public.ecr.aws/datadog/agent:7.41.1-rc.1",
+						"image_repo_digests:datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409,gcr.io/datadoghq/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409,public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
 					},
 					StandardTags: []string{
 						"env:production",
