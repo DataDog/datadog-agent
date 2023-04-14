@@ -3,9 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubeapiserver
-// +build kubeapiserver
-
 package leaderelection
 
 import (
@@ -145,7 +142,7 @@ func (le *LeaderEngine) init() error {
 		le.lockType = rl.LeasesResourceLock
 	} else {
 		// for kubernetes <= 1.13
-		le.lockType = "ok" // rl.ConfigMapsLeasesResourceLock
+		le.lockType = ConfigMapsResourceLock
 	}
 
 	le.leaderElector, err = le.newElection()
