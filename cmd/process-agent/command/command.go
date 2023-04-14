@@ -7,6 +7,8 @@
 package command
 
 import (
+	"os"
+
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
@@ -16,6 +18,7 @@ import (
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 const LoggerName config.LoggerName = "PROCESS"
@@ -108,6 +111,33 @@ func MakeCommand(subcommandFactories []SubcommandFactory, winParams bool, rootCm
 	}
 
 	return rootCmd
+}
+
+// SetHostMountEnv sets HOST_PROC and HOST_SYS mounts if applicable in containerized environments
+func SetHostMountEnv(logger logComponent.Component) {
+	// Set default values for proc/sys paths if unset.
+	// Generally only applicable for container-only cases like Fargate.
+	// This is primarily used by gopsutil to correlate cpu metrics with host processes
+	if !config.IsContainerized() || !util.PathExists("/host") {
+		return
+	}
+
+	if v := os.Getenv("HOST_PROC"); v == "" {
+		err := os.Setenv("HOST_PROC", "/host/proc")
+		if err != nil {
+			_ = logger.Error("Failed to set `HOST_PROC` environment variable")
+		} else {
+			logger.Debug("Set `HOST_PROC` environment variable")
+		}
+	}
+	if v := os.Getenv("HOST_SYS"); v == "" {
+		err := os.Setenv("HOST_SYS", "/host/sys")
+		if err != nil {
+			_ = logger.Error("Failed to set `HOST_SYS` environment variable")
+		} else {
+			logger.Debug("Set `HOST_SYS` environment variable")
+		}
+	}
 }
 
 func GetCoreBundleParamsForOneShot(globalParams *GlobalParams) core.BundleParams {
