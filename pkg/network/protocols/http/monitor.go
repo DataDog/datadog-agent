@@ -249,7 +249,7 @@ func (m *Monitor) GetUSMStats() map[string]interface{} {
 	}
 
 	if m != nil {
-		response["last_check"] = m.httpTelemetry.lastCheck
+		response["last_check"] = m.httpTelemetry.lastCheck.Load()
 	}
 	return response
 }

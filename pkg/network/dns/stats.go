@@ -70,9 +70,10 @@ type dnsStatKeeper struct {
 	exit               chan struct{}
 	maxSize            int // maximum size of the state map
 	deleteCount        int
+	processedStats     int64
 	lastProcessedStats int64
-	maxStats           int64
 	lastDroppedStats   int64
+	maxStats           int64
 }
 
 func newDNSStatkeeper(timeout time.Duration, maxStats int64) *dnsStatKeeper {
@@ -138,7 +139,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 	}
 	stats, ok := allStats[start.question]
 	if !ok {
-		if statsTelemetry.processedStats.Load() >= d.maxStats {
+		if d.processedStats >= d.maxStats {
 			statsTelemetry.droppedStats.Inc()
 			return
 		}
@@ -146,11 +147,12 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 	}
 	byqtype, ok := stats[start.qtype]
 	if !ok {
-		if statsTelemetry.processedStats.Load() >= d.maxStats {
+		if d.processedStats >= d.maxStats {
 			statsTelemetry.droppedStats.Inc()
 			return
 		}
 		byqtype.CountByRcode = make(map[uint32]uint32)
+		d.processedStats++
 		statsTelemetry.processedStats.Inc()
 	}
 
@@ -175,13 +177,11 @@ func (d *dnsStatKeeper) GetAndResetAllStats() StatsByKeyByNameByType {
 	defer d.mux.Unlock()
 	ret := d.stats // No deep copy needed since `d.stats` gets reset
 	d.stats = make(StatsByKeyByNameByType)
-	processedStats := statsTelemetry.processedStats.Load()
 	droppedStats := statsTelemetry.droppedStats.Load()
-	log.Debugf("[DNS Stats] Number of processed stats: %d, Number of dropped stats: %d", processedStats, droppedStats)
-	d.lastProcessedStats = processedStats
+	log.Debugf("[DNS Stats] Number of processed stats: %d, Number of dropped stats: %d", d.processedStats-d.lastProcessedStats, droppedStats-d.lastDroppedStats)
+	d.lastProcessedStats = d.processedStats
 	d.lastDroppedStats = droppedStats
-	statsTelemetry.droppedStats.Delete()
-	statsTelemetry.processedStats.Delete()
+	d.processedStats = 0
 	return ret
 }
 

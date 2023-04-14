@@ -55,15 +55,15 @@ var defaultBuckets = []float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000}
 var conntrackerTelemetry = struct {
 	getsDuration        telemetry.Histogram
 	unregistersDuration telemetry.Histogram
-	getsTotal           telemetry.Gauge
+	getsTotal           telemetry.Counter
 	registersTotal      telemetry.Gauge
-	unregistersTotal    telemetry.Gauge
+	unregistersTotal    telemetry.Counter
 }{
 	telemetry.NewHistogram(ebpfConntrackerModuleName, "gets_duration_nanoseconds", []string{}, "Histogram measuring the time spent retrieving connection tuples from the EBPF map", defaultBuckets),
 	telemetry.NewHistogram(ebpfConntrackerModuleName, "unregisters_duration_nanoseconds", []string{}, "Histogram measuring the time spent deleting connection tuples from the EBPF map", defaultBuckets),
-	telemetry.NewGauge(ebpfConntrackerModuleName, "gets_total", []string{}, "Gauge measuring the total number of attempts to get connection tuples from the EBPF map"),
+	telemetry.NewCounter(ebpfConntrackerModuleName, "gets_total", []string{}, "Counter measuring the total number of attempts to get connection tuples from the EBPF map"),
 	telemetry.NewGauge(ebpfConntrackerModuleName, "registers_total", []string{}, "Gauge measuring the total number of attempts to update/create connection tuples in the EBPF map"),
-	telemetry.NewGauge(ebpfConntrackerModuleName, "unregisters_total", []string{}, "Gauge measuring the total number of attempts to delete connection tuples from the EBPF map"),
+	telemetry.NewCounter(ebpfConntrackerModuleName, "unregisters_total", []string{}, "Counter measuring the total number of attempts to delete connection tuples from the EBPF map"),
 }
 
 type ebpfConntracker struct {

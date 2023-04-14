@@ -25,14 +25,14 @@ var cacheTelemetry = struct {
 	lookups   *nettelemetry.StatCounterWrapper
 	resolved  *nettelemetry.StatCounterWrapper
 	added     *nettelemetry.StatCounterWrapper
-	expired   *nettelemetry.StatGaugeWrapper
+	expired   *nettelemetry.StatCounterWrapper
 	oversized *nettelemetry.StatCounterWrapper
 }{
 	nettelemetry.NewStatGaugeWrapper(dnsCacheModuleName, "size", []string{}, "Gauge measuring the current size of the DNS cache"),
 	nettelemetry.NewStatCounterWrapper(dnsCacheModuleName, "lookups", []string{}, "Counter measuring the number of lookups to the DNS cache"),
 	nettelemetry.NewStatCounterWrapper(dnsCacheModuleName, "hits", []string{}, "Counter measuring the number of successful lookups to the DNS cache"),
 	nettelemetry.NewStatCounterWrapper(dnsCacheModuleName, "added", []string{}, "Counter measuring the number of additions to the DNS cache"),
-	nettelemetry.NewStatGaugeWrapper(dnsCacheModuleName, "expired", []string{}, "Gauge measuring the number of failed lookups to the DNS cache"),
+	nettelemetry.NewStatCounterWrapper(dnsCacheModuleName, "expired", []string{}, "Counter measuring the number of failed lookups to the DNS cache"),
 	nettelemetry.NewStatCounterWrapper(dnsCacheModuleName, "oversized", []string{}, "Counter measuring the number of lookups to the DNS cache that reached the max domains per IP limit"),
 }
 
@@ -96,7 +96,7 @@ func (c *reverseDNSCache) Add(translation *translation) bool {
 	}
 
 	// Update cache length for telemetry purposes
-	cacheTelemetry.length.Set(int64((len(c.data))))
+	cacheTelemetry.length.Set(int64(len(c.data)))
 
 	return true
 }
@@ -185,7 +185,7 @@ func (c *reverseDNSCache) Expire(now time.Time) {
 	total := len(c.data)
 	c.mux.Unlock()
 
-	cacheTelemetry.expired.Set(int64(expired))
+	cacheTelemetry.expired.Add(int64(expired))
 	cacheTelemetry.length.Set(int64(total))
 	log.Debugf(
 		"dns entries expired. took=%s total=%d expired=%d\n",

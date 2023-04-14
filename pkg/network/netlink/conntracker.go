@@ -78,9 +78,9 @@ var conntrackerTelemetry = struct {
 	getsDuration        telemetry.Histogram
 	registersDuration   telemetry.Histogram
 	unregistersDuration telemetry.Histogram
-	getsTotal           telemetry.Gauge
-	registersTotal      telemetry.Gauge
-	unregistersTotal    telemetry.Gauge
+	getsTotal           telemetry.Counter
+	registersTotal      telemetry.Counter
+	unregistersTotal    telemetry.Counter
 	evictsTotal         telemetry.Counter
 	registersDropped    telemetry.Counter
 	stateSize           telemetry.Gauge
@@ -89,13 +89,13 @@ var conntrackerTelemetry = struct {
 	telemetry.NewHistogram(telemetryModuleName, "gets_duration_nanoseconds", []string{}, "Histogram measuring the time spent retrieving connection tuples in the map", defaultBuckets),
 	telemetry.NewHistogram(telemetryModuleName, "registers_duration_nanoseconds", []string{}, "Histogram measuring the time spent updating/creating connection tuples in the map", defaultBuckets),
 	telemetry.NewHistogram(telemetryModuleName, "unregisters_duration_nanoseconds", []string{}, "Histogram measuring the time spent removing connection tuples from the map", defaultBuckets),
-	telemetry.NewGauge(telemetryModuleName, "gets_total", []string{}, "Gauge measuring the total number of attempts to get connection tuples from the map"),
-	telemetry.NewGauge(telemetryModuleName, "registers_total", []string{}, "Gauge measuring the total number of attempts to update/create connection tuples in the map"),
-	telemetry.NewGauge(telemetryModuleName, "unregisters_total", []string{}, "Gauge measuring the total number of attempts to delete connection tuples from the map"),
+	telemetry.NewCounter(telemetryModuleName, "gets_total", []string{}, "Counter measuring the total number of attempts to get connection tuples from the map"),
+	telemetry.NewCounter(telemetryModuleName, "registers_total", []string{}, "Counter measuring the total number of attempts to update/create connection tuples in the map"),
+	telemetry.NewCounter(telemetryModuleName, "unregisters_total", []string{}, "Counter measuring the total number of attempts to delete connection tuples from the map"),
 	telemetry.NewCounter(telemetryModuleName, "evicts_total", []string{}, "Counter measuring the number of evictions from the conntrack cache"),
 	telemetry.NewCounter(telemetryModuleName, "registers_dropped", []string{}, "Counter measuring the number of skipped registers due to a non-NAT connection"),
-	telemetry.NewGauge(telemetryModuleName, "state_size", []string{}, "Counter measuring the current size of the conntrack cache"),
-	telemetry.NewGauge(telemetryModuleName, "orphan_size", []string{}, "Counter measuring the number of orphaned items in the conntrack cache"),
+	telemetry.NewGauge(telemetryModuleName, "state_size", []string{}, "Gauge measuring the current size of the conntrack cache"),
+	telemetry.NewGauge(telemetryModuleName, "orphan_size", []string{}, "Gauge measuring the number of orphaned items in the conntrack cache"),
 }
 
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size

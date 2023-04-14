@@ -131,7 +131,7 @@ func TestDNSCacheTelemetry(t *testing.T) {
 	cacheTelemetry.resolved.Delete()
 	cacheTelemetry.length.Set(0)
 	cacheTelemetry.added.Delete()
-	cacheTelemetry.expired.Set(0)
+	cacheTelemetry.expired.Delete()
 	cacheTelemetry.oversized.Delete()
 	ttl := 100 * time.Millisecond
 	cache := newReverseDNSCache(1000, disableAutomaticExpiration)
