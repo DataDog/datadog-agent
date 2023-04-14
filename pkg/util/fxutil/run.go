@@ -23,7 +23,7 @@ func Run(opts ...fx.Option) error {
 	defer cancel()
 
 	if err := app.Start(startCtx); err != nil {
-		return unwrapIfErrArgumentsFailed(err)
+		return UnwrapIfErrArgumentsFailed(err)
 	}
 
 	_ = <-app.Done()
