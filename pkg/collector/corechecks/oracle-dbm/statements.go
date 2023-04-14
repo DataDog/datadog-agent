@@ -282,7 +282,7 @@ func (c *Check) StatementMetrics() (int, error) {
 		statementMetricsAll = append(statementMetricsAll, statementMetrics...)
 		log.Tracef("all collected metrics: %+v", statementMetricsAll)
 		SQLCount = len(statementMetricsAll)
-		sender.Count("dd.oracle.statements_metrics.sql_count", float64(SQLCount), c.hostname, c.tags)
+		sender.Count("dd.oracle.statements_metrics.sql_count", float64(SQLCount), "", c.tags)
 
 		newCache := make(map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB)
 		if c.statementMetricsMonotonicCountsPrevious == nil {
@@ -428,7 +428,7 @@ func (c *Check) StatementMetrics() (int, error) {
 				continue
 			}
 			SQLStatement = cols[0].(string)
-			sender.Histogram("dd.oracle.statements_metrics.sql_text_length", float64(len(SQLStatement)), c.hostname, c.tags)
+			sender.Histogram("dd.oracle.statements_metrics.sql_text_length", float64(len(SQLStatement)), "", c.tags)
 
 			queryRow := QueryRow{}
 			//obfuscatedStatement, err := c.GetObfuscatedStatement(o, SQLStatement, statementMetricRow.ForceMatchingSignature, statementMetricRow.SQLID)
@@ -481,9 +481,9 @@ func (c *Check) StatementMetrics() (int, error) {
 		MinCollectionInterval: c.checkInterval,
 		Tags:                  c.tags,
 		AgentVersion:          c.agentVersion,
-		AgentHostname:         c.hostname,
-		OracleRows:            oracleRows,
-		OracleVersion:         c.dbVersion,
+		//AgentHostname:         c.hostname,
+		OracleRows:    oracleRows,
+		OracleVersion: c.dbVersion,
 	}
 
 	payloadBytes, err := json.Marshal(payload)
@@ -495,8 +495,8 @@ func (c *Check) StatementMetrics() (int, error) {
 	log.Tracef("Query metrics payload %s", strings.ReplaceAll(string(payloadBytes), "@", "XX"))
 
 	sender.EventPlatformEvent(string(payloadBytes), "dbm-metrics")
-	sender.Gauge("dd.oracle.statements_metrics.sql_text_errors", float64(SQLTextErrors), c.hostname, c.tags)
-	sender.Gauge("dd.oracle.statements_metrics.time_ms", float64(time.Since(start).Milliseconds()), c.hostname, c.tags)
+	sender.Gauge("dd.oracle.statements_metrics.sql_text_errors", float64(SQLTextErrors), "", c.tags)
+	sender.Gauge("dd.oracle.statements_metrics.time_ms", float64(time.Since(start).Milliseconds()), "", c.tags)
 	sender.Commit()
 
 	return SQLCount, nil

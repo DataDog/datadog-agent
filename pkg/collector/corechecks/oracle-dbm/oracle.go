@@ -7,7 +7,6 @@ package oracle
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -34,7 +33,6 @@ type Check struct {
 	core.CheckBase
 	config                                  *config.CheckConfig
 	db                                      *sqlx.DB
-	hostname                                string
 	dbmEnabled                              bool
 	agentVersion                            string
 	checkInterval                           float64
@@ -56,14 +54,6 @@ func (c *Check) Run() error {
 			return err
 		}
 		c.db = db
-	}
-
-	if c.hostname == "" {
-		hostname, err := os.Hostname()
-		if err != nil {
-			return fmt.Errorf("failed to get hostname: %w", err)
-		}
-		c.hostname = hostname
 	}
 
 	if c.dbmEnabled {
