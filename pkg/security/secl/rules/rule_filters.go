@@ -35,39 +35,6 @@ func (r *RuleIDFilter) IsRuleAccepted(rule *RuleDefinition) (bool, error) {
 	return r.ID == rule.ID, nil
 }
 
-// RuleTagFilter defines a tag-based filter
-type RuleTagFilter struct {
-	key   string
-	value string
-}
-
-// NewRuleTagFilter returns a new rule tag based rule filter
-func NewRuleTagFilter(tagToFilterOn map[string]string) (*RuleTagFilter, error) {
-	if len(tagToFilterOn) != 1 {
-		return nil, fmt.Errorf("each tag filter can only filter on one key value pair")
-	}
-
-	for key, val := range tagToFilterOn {
-		return &RuleTagFilter{
-			key:   key,
-			value: val,
-		}, nil
-	}
-
-	return nil, nil
-}
-
-// IsRuleAccepted checks whether the rule is tagged as a threat-scored rule, which are to be handled in the context of security dumps and not regular rule-matching
-func (r *RuleTagFilter) IsRuleAccepted(rule *RuleDefinition) (bool, error) {
-	for ruleTagKey, ruleTagVal := range rule.Tags {
-		if ruleTagKey == r.key && ruleTagVal == r.value {
-			return true, nil
-		}
-	}
-
-	return false, nil
-}
-
 // AgentVersionFilter defines a agent version filter
 type AgentVersionFilter struct {
 	version *semver.Version
