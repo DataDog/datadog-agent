@@ -95,7 +95,7 @@ func (s *Scanner) start(ctx context.Context) {
 					return
 				}
 
-				telemetry.SBOMFailures.Inc(request.Collector(), request.Type())
+				telemetry.SBOMAttempts.Inc(request.Collector(), request.Type())
 
 				collector := request.collector
 				if err := s.enoughDiskSpace(request.opts); err != nil {
