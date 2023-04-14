@@ -37,7 +37,7 @@ func Init() error {
 }
 
 // HandlerFunc is the prototype for an event handler callback for process events
-type HandlerFunc func(*model.ProcessCacheEntry)
+type HandlerFunc func(event *model.ROEvent)
 
 // RegisterHandler registers a handler function for getting process events
 func RegisterHandler(handler HandlerFunc) {
@@ -47,11 +47,22 @@ func RegisterHandler(handler HandlerFunc) {
 
 type eventHandlerWrapper struct{}
 
-func (h *eventHandlerWrapper) HandleEvent(ev *model.Event) {
+func (h *eventHandlerWrapper) ResolveEvent(ev *model.Event) {
+	m := theMonitor.Load()
+	if m != nil {
+		m.(*eventMonitor).ResolveEvent(ev)
+	}
+}
+
+func (h *eventHandlerWrapper) HandleEvent(ev *model.ROEvent) {
 	m := theMonitor.Load()
 	if m != nil {
 		m.(*eventMonitor).HandleEvent(ev)
 	}
+}
+
+func (h *eventHandlerWrapper) Priority() int {
+	return sprobe.LowPriority
 }
 
 func (h *eventHandlerWrapper) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
@@ -78,15 +89,16 @@ func newEventMonitor() (*eventMonitor, error) {
 	return &eventMonitor{}, nil
 }
 
-func (e *eventMonitor) HandleEvent(ev *model.Event) {
+func (e *eventMonitor) ResolveEvent(ev *model.Event) {
 	if ev.Type == uint32(model.ExitEventType) {
 		return
 	}
 
 	_ = ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.ProcessContext.Process)
+}
 
-	entry, ok := ev.ResolveProcessCacheEntry()
-	if !ok {
+func (e *eventMonitor) HandleEvent(ev *model.ROEvent) {
+	if ev.Type() == uint32(model.ExitEventType) {
 		return
 	}
 
@@ -94,9 +106,8 @@ func (e *eventMonitor) HandleEvent(ev *model.Event) {
 	defer e.Unlock()
 
 	for _, h := range e.handlers {
-		h(entry)
+		h(ev)
 	}
-
 }
 
 func (e *eventMonitor) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {

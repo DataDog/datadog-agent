@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"sync"
 	"time"
 
@@ -59,10 +60,17 @@ import (
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-// EventHandler represents an handler for the events sent by the probe
+// EventHandler represents a handler for the events sent by the probe
 type EventHandler interface {
-	HandleEvent(event *model.Event)
+	Priority() int
+	ResolveEvent(event *model.Event)
+	HandleEvent(event *model.ROEvent)
 }
+
+const (
+	HighPriority = 0
+	LowPriority  = 1
+)
 
 // CustomEventHandler represents an handler for the custom events sent by the probe
 type CustomEventHandler interface {
@@ -342,7 +350,15 @@ func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler)
 		return errors.New("unsupported event type")
 	}
 
-	p.eventHandlers[eventType] = append(p.eventHandlers[eventType], handler)
+	// Store the event handlers in priority order
+	// TODO: this is probably not necessary if we are going to handle the events asynchronously,
+	// but could be worth including if we continue to handle them synchronously
+	handlers := append(p.eventHandlers[eventType], handler)
+	sort.Slice(handlers, func(l, r int) bool {
+		return handlers[l].Priority() < handlers[r].Priority()
+	})
+
+	p.eventHandlers[eventType] = handlers
 
 	return nil
 }
@@ -365,14 +381,22 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 		return eventJSON, event.GetEventType(), err
 	})
 
-	// send wildcard first
+	// first we must synchronously ensure the event is fully resolved
 	for _, handler := range p.eventHandlers[model.UnknownEventType] {
-		handler.HandleEvent(event)
+		handler.ResolveEvent(event)
+	}
+	for _, handler := range p.eventHandlers[event.GetEventType()] {
+		handler.ResolveEvent(event)
 	}
 
-	// send specific event
+	// then, handlers can be given a read-only copy of the event to continue processing asynchronously
+	roEvent := event.GetReadOnly()
+	// send wildcard first
+	for _, handler := range p.eventHandlers[model.UnknownEventType] {
+		go handler.HandleEvent(roEvent)
+	}
 	for _, handler := range p.eventHandlers[event.GetEventType()] {
-		handler.HandleEvent(event)
+		go handler.HandleEvent(roEvent)
 	}
 
 	// Process after evaluation because some monitors need the DentryResolver to have been called first.

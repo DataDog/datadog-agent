@@ -342,6 +342,101 @@ func (ev *Event) GetProcessServiceTag() string {
 	return ev.FieldHandlers.GetProcessServiceTag(ev)
 }
 
+func (ev *Event) GetReadOnly() *ROEvent {
+	entry, _ := ev.ResolveProcessCacheEntry()
+	if entry == nil {
+		return nil
+	}
+
+	return &ROEvent{
+		event:      ev,
+		eventEntry: entry,
+	}
+}
+
+type ROEvent struct {
+	event      *Event
+	eventEntry *ProcessCacheEntry
+}
+
+func (ro *ROEvent) Type() uint32 {
+	return ro.event.Type
+}
+
+func (ro *ROEvent) EventType() string {
+	return ro.event.GetEventType().String()
+}
+
+func (ro *ROEvent) Timestamp() time.Time {
+	return ro.event.Timestamp
+}
+
+func (ro *ROEvent) Pid() uint32 {
+	return ro.eventEntry.Pid
+}
+
+func (ro *ROEvent) ContainerID() string {
+	return ro.eventEntry.ContainerID
+}
+
+func (ro *ROEvent) PPid() uint32 {
+	return ro.eventEntry.PPid
+}
+
+func (ro *ROEvent) UID() uint32 {
+	return ro.eventEntry.UID
+}
+
+func (ro *ROEvent) GID() uint32 {
+	return ro.eventEntry.GID
+}
+
+func (ro *ROEvent) User() string {
+	return ro.eventEntry.User
+}
+
+func (ro *ROEvent) Group() string {
+	return ro.eventEntry.Group
+}
+
+func (ro *ROEvent) Pathname() string {
+	return ro.eventEntry.FileEvent.PathnameStr // FileEvent is not a pointer, so it can be directly accessed
+}
+
+func (ro *ROEvent) ForkTime() time.Time {
+	return ro.eventEntry.ForkTime
+}
+
+func (ro *ROEvent) ExecTime() time.Time {
+	return ro.eventEntry.ExecTime
+}
+
+func (ro *ROEvent) ExitTime() time.Time {
+	return ro.eventEntry.ExitTime
+}
+
+func (ro *ROEvent) Args() []string {
+	if ro.eventEntry.ArgsEntry == nil {
+		return []string{}
+	}
+	return ro.eventEntry.ArgsEntry.Values
+}
+
+func (ro *ROEvent) Envs() []string {
+	if ro.eventEntry.EnvsEntry == nil {
+		return []string{}
+	}
+	return ro.eventEntry.EnvsEntry.Values
+}
+
+func (ro *ROEvent) ExitCode() uint32 {
+	return ro.event.Exit.Code
+}
+
+func (ro *ROEvent) IsSavedByActivityDumps() bool {
+	return ro.event.IsSavedByActivityDumps()
+}
+
 // MatchedRules contains the identification of one rule that has match
 type MatchedRule struct {
 	RuleID        string

@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -78,39 +79,31 @@ func (p *ProcessConsumer) SendStats() {
 	}
 }
 
-// HandleEvent implement the event monitor EventHandler interface
-func (p *ProcessConsumer) HandleEvent(event *smodel.Event) {
+// ResolveEvent implements the event monitor EventHandler interface
+func (p *ProcessConsumer) ResolveEvent(event *smodel.Event) {
 	// Force resolution of all event fields before exposing it through the API server
 	event.ResolveFields()
 	event.ResolveEventTimestamp()
+}
 
-	entry, _ := event.ResolveProcessCacheEntry()
-	if entry == nil {
-		return
-	}
-
-	var cmdline []string
-	if entry.ArgsEntry != nil {
-		// ignore if the args have been truncated
-		cmdline = entry.ArgsEntry.Values
-	}
-
+// HandleEvent implement the event monitor EventHandler interface
+func (p *ProcessConsumer) HandleEvent(event *smodel.ROEvent) {
 	e := &model.ProcessEvent{
-		EventType:      model.NewEventType(event.GetEventType().String()),
-		CollectionTime: event.Timestamp,
-		Pid:            entry.Pid,
-		ContainerID:    entry.ContainerID,
-		Ppid:           entry.PPid,
-		UID:            entry.UID,
-		GID:            entry.GID,
-		Username:       entry.User,
-		Group:          entry.Group,
-		Exe:            entry.FileEvent.PathnameStr, // FileEvent is not a pointer, so it can be directly accessed
-		Cmdline:        cmdline,
-		ForkTime:       entry.ForkTime,
-		ExecTime:       entry.ExecTime,
-		ExitTime:       entry.ExitTime,
-		ExitCode:       event.Exit.Code,
+		EventType:      model.NewEventType(event.EventType()),
+		CollectionTime: event.Timestamp(),
+		Pid:            event.Pid(),
+		ContainerID:    event.ContainerID(),
+		Ppid:           event.PPid(),
+		UID:            event.UID(),
+		GID:            event.GID(),
+		Username:       event.User(),
+		Group:          event.Group(),
+		Exe:            event.Pathname(), // FileEvent is not a pointer, so it can be directly accessed
+		Cmdline:        event.Args(),
+		ForkTime:       event.ForkTime(),
+		ExecTime:       event.ExecTime(),
+		ExitTime:       event.ExitTime(),
+		ExitCode:       event.ExitCode(),
 	}
 
 	data, err := e.MarshalMsg(nil)
@@ -141,6 +134,10 @@ func (p *ProcessConsumer) HandleEvent(event *smodel.Event) {
 		}
 		break
 	}
+}
+
+func (p *ProcessConsumer) Priority() int {
+	return probe.LowPriority
 }
 
 // GetProcessEvents sends process events through a gRPC stream

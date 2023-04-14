@@ -124,7 +124,7 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 	return pc, nil
 }
 
-func (pc *processCache) handleProcessEvent(entry *smodel.ProcessCacheEntry) {
+func (pc *processCache) handleProcessEvent(event *smodel.ROEvent) {
 
 	select {
 	case <-pc.stopped:
@@ -132,7 +132,7 @@ func (pc *processCache) handleProcessEvent(entry *smodel.ProcessCacheEntry) {
 	default:
 	}
 
-	p := pc.processEvent(entry)
+	p := pc.processEvent(event)
 	if p == nil {
 		pc.stats.eventsSkipped.Add(1)
 		return
@@ -146,37 +146,36 @@ func (pc *processCache) handleProcessEvent(entry *smodel.ProcessCacheEntry) {
 	}
 }
 
-func (pc *processCache) processEvent(entry *smodel.ProcessCacheEntry) *process {
+func (pc *processCache) processEvent(event *smodel.ROEvent) *process {
 	var envs map[string]string
-	if entry.EnvsEntry != nil {
-		for _, v := range entry.EnvsEntry.Values {
-			k, v, _ := strings.Cut(v, "=")
-			if len(pc.filteredEnvs) > 0 {
-				if _, found := pc.filteredEnvs[k]; !found {
-					continue
-				}
-			}
 
-			if envs == nil {
-				envs = make(map[string]string)
+	for _, v := range event.Envs() {
+		k, v, _ := strings.Cut(v, "=")
+		if len(pc.filteredEnvs) > 0 {
+			if _, found := pc.filteredEnvs[k]; !found {
+				continue
 			}
-			envs[k] = v
+		}
 
-			if len(pc.filteredEnvs) > 0 && len(pc.filteredEnvs) == len(envs) {
-				break
-			}
+		if envs == nil {
+			envs = make(map[string]string)
+		}
+		envs[k] = v
+
+		if len(pc.filteredEnvs) > 0 && len(pc.filteredEnvs) == len(envs) {
+			break
 		}
 	}
 
-	if len(envs) == 0 && len(pc.filteredEnvs) > 0 && entry.ContainerID == "" {
+	if len(envs) == 0 && len(pc.filteredEnvs) > 0 && event.ContainerID() == "" {
 		return nil
 	}
 
 	return &process{
-		Pid:         entry.Pid,
+		Pid:         event.Pid(),
 		Envs:        envs,
-		ContainerID: entry.ContainerID,
-		StartTime:   entry.ExecTime.UnixNano(),
+		ContainerID: event.ContainerID(),
+		StartTime:   event.ExecTime().UnixNano(),
 	}
 }
 

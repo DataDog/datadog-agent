@@ -407,15 +407,23 @@ func (c *CWSConsumer) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, f
 	c.probe.OnNewDiscarder(rs, event.(*model.Event), field, eventType)
 }
 
+func (c *CWSConsumer) Priority() int {
+	return probe.HighPriority
+}
+
+// ResolveEvent is called by the probe when an event arrives from the kernel
+func (c *CWSConsumer) ResolveEvent(_ *model.Event) {}
+
 // HandleEvent is called by the probe when an event arrives from the kernel
-func (c *CWSConsumer) HandleEvent(event *model.Event) {
+func (c *CWSConsumer) HandleEvent(event *model.ROEvent) {
 	// if the event should have been discarded in kernel space, we don't need to evaluate it
 	if event.IsSavedByActivityDumps() {
 		return
 	}
 
 	if ruleSet := c.GetRuleSet(); ruleSet != nil {
-		ruleSet.Evaluate(event)
+		// TODO: need to make ROEvent implemenet the eval.Event interface for this to work
+		//ruleSet.Evaluate(event)
 	}
 }
 
