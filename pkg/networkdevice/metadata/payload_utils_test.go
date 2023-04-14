@@ -6,10 +6,13 @@
 package metadata
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
+	"fmt"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 )
 
 func Test_batchPayloads(t *testing.T) {
@@ -34,9 +37,16 @@ func Test_batchPayloads(t *testing.T) {
 			Remote: &TopologyLinkSide{Interface: &TopologyLinkInterface{ID: "b"}},
 		})
 	}
-	payloads := BatchPayloads("my-ns", "127.0.0.0/30", collectTime, 100, devices, interfaces, ipAddresses, topologyLinks)
+	var netflowExporters []NetflowExporter
+	for i := 0; i < 100; i++ {
+		netflowExporters = append(netflowExporters, NetflowExporter{
+			IPAddress: fmt.Sprintf("1.2.3.%d", i),
+			FlowType:  "netflow5",
+		})
+	}
+	payloads := BatchPayloads("my-ns", "127.0.0.0/30", collectTime, 100, devices, interfaces, ipAddresses, topologyLinks, netflowExporters)
 
-	require.Len(t, payloads, 6)
+	require.Len(t, payloads, 7)
 
 	assert.Equal(t, "my-ns", payloads[0].Namespace)
 	assert.Equal(t, "127.0.0.0/30", payloads[0].Subnet)
@@ -71,4 +81,11 @@ func Test_batchPayloads(t *testing.T) {
 	assert.Len(t, payloads[5].Interfaces, 0)
 	assert.Len(t, payloads[5].Links, 51)
 	assert.Equal(t, topologyLinks[49:100], payloads[5].Links)
+	assert.Equal(t, netflowExporters[:49], payloads[5].NetflowExporters)
+
+	assert.Equal(t, 0, len(payloads[6].Devices))
+	assert.Equal(t, 0, len(payloads[6].Interfaces))
+	assert.Equal(t, 0, len(payloads[6].Links))
+	assert.Equal(t, 51, len(payloads[6].NetflowExporters))
+	assert.Equal(t, netflowExporters[49:100], payloads[6].NetflowExporters)
 }

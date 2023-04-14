@@ -15,6 +15,7 @@ func BatchPayloads(namespace string,
 	interfaces []InterfaceMetadata,
 	ipAddresses []IPAddressMetadata,
 	topologyLinks []TopologyLinkMetadata,
+	netflowExporters []NetflowExporter,
 ) []NetworkDevicesMetadata {
 
 	var payloads []NetworkDevicesMetadata
@@ -40,6 +41,10 @@ func BatchPayloads(namespace string,
 	for _, linkMetadata := range topologyLinks {
 		payloads, curPayload, resourceCount = appendToPayloads(namespace, subnet, collectTime, batchSize, resourceCount, payloads, curPayload)
 		curPayload.Links = append(curPayload.Links, linkMetadata)
+	}
+	for _, netflowExporter := range netflowExporters {
+		payloads, curPayload, resourceCount = appendToPayloads(namespace, subnet, collectTime, batchSize, resourceCount, payloads, curPayload)
+		curPayload.NetflowExporters = append(curPayload.NetflowExporters, netflowExporter)
 	}
 	payloads = append(payloads, curPayload)
 	return payloads
