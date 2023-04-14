@@ -22,8 +22,11 @@ import (
 func TestFullYamlConfigWithOTLP(t *testing.T) {
 
 	config := fxutil.Test[Component](t, fx.Options(
-		fx.Supply(corecomp.NewAgentParamsWithSecrets("./testdata/full.yaml")),
 		corecomp.MockModule,
+		fx.Replace(corecomp.MockParams{
+			Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+			SetupConfig: true,
+		}),
 		fx.Supply(Params{}),
 		MockModule,
 	))

@@ -141,19 +141,20 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if len(c.Endpoints) == 0 {
 		c.Endpoints = []*config.Endpoint{{}}
 	}
-	if coreconfig.Datadog.IsSet("api_key") {
+	if core.IsSet("api_key") {
 		c.Endpoints[0].APIKey = coreconfig.SanitizeAPIKey(coreconfig.Datadog.GetString("api_key"))
 	}
-	if coreconfig.Datadog.IsSet("hostname") {
+	if core.IsSet("hostname") {
 		c.Hostname = core.GetString("hostname")
 	}
-	if coreconfig.Datadog.IsSet("dogstatsd_port") {
+	if core.IsSet("dogstatsd_port") {
 		c.StatsdPort = core.GetInt("dogstatsd_port")
 	}
 
-	if core.GetBool("vector.traces.enabled") {
-		if host := core.GetString("vector.traces.url"); host == "" {
-			log.Error("vector.traces.enabled but vector.traces.url is empty.")
+	obsPipelineEnabled, prefix := isObsPipelineEnabled(core)
+	if obsPipelineEnabled {
+		if host := core.GetString(fmt.Sprintf("%s.traces.url", prefix)); host == "" {
+			log.Errorf("%s.traces.enabled but %s.traces.url is empty.", prefix, prefix)
 		} else {
 			c.Endpoints[0].Host = host
 		}
@@ -210,6 +211,8 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if core.IsSet("apm_config.connection_limit") {
 		c.ConnectionLimit = core.GetInt("apm_config.connection_limit")
 	}
+	c.PeerServiceAggregation = core.GetBool("apm_config.peer_service_aggregation")
+	c.ComputeStatsBySpanKind = core.GetBool("apm_config.compute_stats_by_span_kind")
 	if core.IsSet("apm_config.extra_sample_rate") {
 		c.ExtraSampleRate = core.GetFloat64("apm_config.extra_sample_rate")
 	}
@@ -238,8 +241,8 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if core.IsSet("apm_config.max_remote_traces_per_second") {
 		c.MaxRemoteTPS = core.GetFloat64("apm_config.max_remote_traces_per_second")
 	}
-	if k := "apm_config.features"; coreconfig.Datadog.IsSet(k) {
-		feats := coreconfig.Datadog.GetStringSlice(k)
+	if k := "apm_config.features"; core.IsSet(k) {
+		feats := core.GetStringSlice(k)
 		for _, f := range feats {
 			c.Features[f] = struct{}{}
 		}
@@ -301,8 +304,8 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		UsePreviewHostnameLogic: true,
 		MaxRequestBytes:         c.MaxRequestBytes,
 		SpanNameRemappings:      coreconfig.Datadog.GetStringMapString("otlp_config.traces.span_name_remappings"),
-		SpanNameAsResourceName:  coreconfig.Datadog.GetBool("otlp_config.traces.span_name_as_resource_name"),
-		ProbabilisticSampling:   coreconfig.Datadog.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
+		SpanNameAsResourceName:  core.GetBool("otlp_config.traces.span_name_as_resource_name"),
+		ProbabilisticSampling:   core.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
 	}
 
 	if core.GetBool("apm_config.telemetry.enabled") {
@@ -433,6 +436,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if k := "apm_config.debugger_api_key"; core.IsSet(k) {
 		c.DebuggerProxy.APIKey = core.GetString(k)
 	}
+	if k := "apm_config.debugger_additional_endpoints"; core.IsSet(k) {
+		c.DebuggerProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
+	}
 	if k := "evp_proxy_config.enabled"; core.IsSet(k) {
 		c.EVPProxy.Enabled = core.GetBool(k)
 	}
@@ -454,7 +460,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if k := "evp_proxy_config.max_payload_size"; core.IsSet(k) {
 		c.EVPProxy.MaxPayloadSize = core.GetInt64(k)
 	}
-	c.DebugServerPort = coreconfig.Datadog.GetInt("apm_config.debug.port")
+	c.DebugServerPort = core.GetInt("apm_config.debug.port")
 	return nil
 }
 
@@ -464,7 +470,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 func loadDeprecatedValues(c *config.AgentConfig) error {
 	cfg := coreconfig.Datadog
 	if cfg.IsSet("apm_config.api_key") {
-		c.Endpoints[0].APIKey = coreconfig.SanitizeAPIKey(coreconfig.Datadog.GetString("apm_config.api_key"))
+		c.Endpoints[0].APIKey = coreconfig.SanitizeAPIKey(cfg.GetString("apm_config.api_key"))
 	}
 	if cfg.IsSet("apm_config.log_throttling") {
 		c.LogThrottling = cfg.GetBool("apm_config.log_throttling")
@@ -655,4 +661,14 @@ func acquireHostnameFallback(c *config.AgentConfig) error {
 	}
 	log.Debugf("Acquired hostname from core agent (%s): %q.", c.DDAgentBin, c.Hostname)
 	return nil
+}
+
+func isObsPipelineEnabled(core corecompcfg.Component) (bool, string) {
+	if core.GetBool("observability_pipelines_worker.traces.enabled") {
+		return true, "observability_pipelines_worker"
+	}
+	if core.GetBool("vector.traces.enabled") {
+		return true, "vector"
+	}
+	return false, "observability_pipelines_worker"
 }

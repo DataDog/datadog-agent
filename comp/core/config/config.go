@@ -24,10 +24,29 @@ type cfg struct {
 	warnings *config.Warnings
 }
 
+type configDependencies interface {
+	getParams() *Params
+}
+
 type dependencies struct {
 	fx.In
 
 	Params Params
+}
+
+func (d dependencies) getParams() *Params {
+	return &d.Params
+}
+
+type mockDependencies struct {
+	fx.In
+
+	Params MockParams
+}
+
+func (m mockDependencies) getParams() *Params {
+	p := m.Params.Params
+	return &p
 }
 
 func newConfig(deps dependencies) (Component, error) {
@@ -53,12 +72,6 @@ func newConfig(deps dependencies) (Component, error) {
 		}
 	}
 
-	// Overrides are explicit and will take precedence over any other
-	// setting: used in testing
-	for k, v := range deps.Params.overrides {
-		config.Datadog.Set(k, v)
-	}
-
 	return &cfg{Config: config.Datadog, warnings: warnings}, nil
 }
 
@@ -72,7 +85,7 @@ func (c *cfg) Object() config.ConfigReader {
 
 // newMock exported mock builder to allow modifying mocks that might be
 // supplied in tests and used for dep injection.
-func newMock(deps dependencies, t testing.TB) Component {
+func newMock(deps mockDependencies, t testing.TB) (Component, error) {
 	backupConfig := config.NewConfig("", "", strings.NewReplacer())
 	backupConfig.CopyConfig(config.Datadog)
 
@@ -80,22 +93,33 @@ func newMock(deps dependencies, t testing.TB) Component {
 
 	// call InitConfig to set defaults.
 	config.InitConfig(config.Datadog)
-
-	// Overrides are explicit and will take precedence over any other
-	// setting
-	for k, v := range deps.Params.overrides {
-		config.Datadog.Set(k, v)
-	}
-
 	c := &cfg{
 		Config: config.Datadog,
 	}
 
-	warnings, _ := setupConfig(deps)
-	c.warnings = warnings
+	if !deps.Params.SetupConfig {
+
+		if deps.Params.ConfFilePath != "" {
+			config.Datadog.SetConfigType("yaml")
+			err := config.Datadog.ReadConfig(strings.NewReader(deps.Params.ConfFilePath))
+			if err != nil {
+				// The YAML was invalid, fail initialization of the mock config.
+				return nil, err
+			}
+		}
+	} else {
+		warnings, _ := setupConfig(deps)
+		c.warnings = warnings
+	}
+
+	// Overrides are explicit and will take precedence over any other
+	// setting
+	for k, v := range deps.Params.Overrides {
+		config.Datadog.Set(k, v)
+	}
 
 	// swap the existing config back at the end of the test.
 	t.Cleanup(func() { config.Datadog.CopyConfig(backupConfig) })
 
-	return c
+	return c, nil
 }

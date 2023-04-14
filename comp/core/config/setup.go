@@ -18,12 +18,15 @@ import (
 )
 
 // setupConfig is copied from cmd/agent/common/helpers.go.
-func setupConfig(deps dependencies) (*config.Warnings, error) {
-	confFilePath := deps.Params.confFilePath
-	configName := deps.Params.configName
-	withoutSecrets := !deps.Params.configLoadSecrets
-	failOnMissingFile := !deps.Params.configMissingOK
-	defaultConfPath := deps.Params.defaultConfPath
+func setupConfig(deps configDependencies) (*config.Warnings, error) {
+	p := deps.getParams()
+	fmt.Printf("these are the params: %v", p)
+
+	confFilePath := p.ConfFilePath
+	configName := p.configName
+	withoutSecrets := !p.configLoadSecrets
+	failOnMissingFile := !p.configMissingOK
+	defaultConfPath := p.defaultConfPath
 
 	if configName != "" {
 		config.Datadog.SetConfigName(configName)

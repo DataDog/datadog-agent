@@ -74,7 +74,9 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 	return fxutil.Test[serverDeps](t, fx.Options(
 		core.MockBundle,
 		serverDebug.MockModule,
-		fx.Replace(configComponent.MockParams{ConfigYaml: yaml}),
+		fx.Replace(configComponent.MockParams{
+			Params: configComponent.Params{ConfFilePath: yaml},
+		}),
 		fx.Supply(Params{Serverless: false}),
 		replay.MockModule,
 		Module,

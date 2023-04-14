@@ -7,9 +7,9 @@ package config
 
 // Params defines the parameters for the config component.
 type Params struct {
-	// confFilePath is the path at which to look for configuration, usually
+	// ConfFilePath is the path at which to look for configuration, usually
 	// given by the --cfgpath command-line flag.
-	confFilePath string
+	ConfFilePath string
 
 	// configName is the root of the name of the configuration file.  The
 	// comp/core/config component will search for a file with this name
@@ -40,10 +40,6 @@ type Params struct {
 	// defaultConfPath determines the default configuration path.
 	// if defaultConfPath is empty, then no default configuration path is used.
 	defaultConfPath string
-
-	// overrides is a parameter used for testing only, so that certain configuration
-	// keys may be easily overridden
-	overrides map[string]interface{}
 }
 
 // NewParams creates a new instance of Params
@@ -69,7 +65,7 @@ func NewAgentParamsWithoutSecrets(confFilePath string, options ...func(*Params))
 
 func newAgentParams(confFilePath string, configLoadSecrets bool, options ...func(*Params)) Params {
 	params := NewParams(DefaultConfPath, options...)
-	params.confFilePath = confFilePath
+	params.ConfFilePath = confFilePath
 	params.configLoadSecrets = configLoadSecrets
 	return params
 }
@@ -80,7 +76,7 @@ func NewSecurityAgentParams(securityAgentConfigFilePaths []string, options ...fu
 
 	// By default, we load datadog.yaml and then merge security-agent.yaml
 	if len(securityAgentConfigFilePaths) > 0 {
-		params.confFilePath = securityAgentConfigFilePaths[0]                  // Default: datadog.yaml
+		params.ConfFilePath = securityAgentConfigFilePaths[0]                  // Default: datadog.yaml
 		params.securityAgentConfigFilePaths = securityAgentConfigFilePaths[1:] // Default: security-agent.yaml
 	}
 	params.configLoadSecurityAgent = true
@@ -92,7 +88,7 @@ func NewSecurityAgentParams(securityAgentConfigFilePaths []string, options ...fu
 
 func NewClusterAgentParams(configFilePath string, options ...func(*Params)) Params {
 	params := NewParams(DefaultConfPath, options...)
-	params.confFilePath = configFilePath
+	params.ConfFilePath = configFilePath
 	params.configName = "datadog-cluster"
 	return params
 }
@@ -106,12 +102,6 @@ func WithConfigName(name string) func(*Params) {
 func WithConfigMissingOK(v bool) func(*Params) {
 	return func(b *Params) {
 		b.configMissingOK = v
-	}
-}
-
-func WithOverrides(overrides map[string]interface{}) func(*Params) {
-	return func(b *Params) {
-		b.overrides = overrides
 	}
 }
 
@@ -135,7 +125,7 @@ func WithConfigLoadSecurityAgent(configLoadSecurityAgent bool) func(*Params) {
 
 func WithConfFilePath(confFilePath string) func(*Params) {
 	return func(b *Params) {
-		b.confFilePath = confFilePath
+		b.ConfFilePath = confFilePath
 	}
 }
 
@@ -157,4 +147,19 @@ func (p Params) ConfigLoadSecrets() bool {
 // file does not exist.
 func (p Params) ConfigMissingOK() bool {
 	return p.configMissingOK
+}
+
+// MockParams defines the parameter for the mock config.
+// It is designed to be used with `fx.Replace` which replaces the default
+// empty value of `MockParams`.
+//
+//	fx.Replace(configComponent.MockParams{Overrides: overrides})
+type MockParams struct {
+	Params
+
+	// Overrides is a parameter used to override values of the config
+	Overrides map[string]interface{}
+
+	// SetupConfig sets up the config as if it weren't a mock; essentially a full init
+	SetupConfig bool
 }
