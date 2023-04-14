@@ -32,7 +32,7 @@ Logs Agent
 
 {{- if .process_file_stats }}
   {{- range $metric_name, $metric_value := .process_file_stats }}
-    {{$metric_name}}: {{$metric_value}}
+    {{$metric_name}}: {{printf "%.0f" $metric_value}}
   {{- end}}
 {{- end}}
 

@@ -9,38 +9,44 @@
 package secrets
 
 import (
+	_ "embed"
 	"fmt"
 	"os/user"
 	"strconv"
 	"syscall"
 )
 
-func (info *SecretInfo) populateRights() {
-	err := checkRights(info.ExecutablePath, secretBackendCommandAllowGroupExec)
-	if err != nil {
-		info.Rights = fmt.Sprintf("Error: %s", err)
-	} else {
-		info.Rights = fmt.Sprintf("OK, the executable has the correct rights")
-	}
+//go:embed info_nix.tmpl
+var permissionsDetailsTemplate string
 
+type permissionsDetails struct {
+	FileMode string
+	Owner    string
+	Group    string
+}
+
+func getExecutablePermissions() (interface{}, error) {
 	var stat syscall.Stat_t
 	if err := syscall.Stat(secretBackendCommand, &stat); err != nil {
-		info.RightDetails = fmt.Sprintf("Could not stat %s: %s", secretBackendCommand, err)
-	} else {
-		info.RightDetails = fmt.Sprintf("file mode: %o", stat.Mode)
+		return nil, fmt.Errorf("Could not stat %s: %s", secretBackendCommand, err)
+	}
+
+	details := permissionsDetails{
+		FileMode: fmt.Sprintf("%o", stat.Mode),
 	}
 
 	owner, err := user.LookupId(strconv.Itoa(int(stat.Uid)))
 	if err != nil {
-		info.UnixOwner = fmt.Sprintf("could not fetch name for UID %d: %s", stat.Uid, err)
+		details.Owner = fmt.Sprintf("could not fetch name for UID %d: %s", stat.Uid, err)
 	} else {
-		info.UnixOwner = owner.Username
+		details.Owner = owner.Username
 	}
 
 	group, err := user.LookupGroupId(strconv.Itoa(int(stat.Gid)))
 	if err != nil {
-		info.UnixGroup = fmt.Sprintf("could not fetch name for GID %d: %s", stat.Gid, err)
+		details.Group = fmt.Sprintf("could not fetch name for GID %d: %s\n", stat.Gid, err)
 	} else {
-		info.UnixGroup = group.Name
+		details.Group = group.Name
 	}
+	return details, nil
 }

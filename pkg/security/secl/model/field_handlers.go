@@ -346,6 +346,8 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.LoadModule.File)
 		_ = ev.FieldHandlers.ResolvePackageVersion(ev, &ev.LoadModule.File)
 		_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.LoadModule.File)
+		_ = ev.FieldHandlers.ResolveModuleArgs(ev, &ev.LoadModule)
+		_ = ev.FieldHandlers.ResolveModuleArgv(ev, &ev.LoadModule)
 	case "mkdir":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Mkdir.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Mkdir.File.FileFields)
@@ -772,6 +774,8 @@ type FieldHandlers interface {
 	ResolveFileFieldsUser(ev *Event, e *FileFields) string
 	ResolveFileFilesystem(ev *Event, e *FileEvent) string
 	ResolveFilePath(ev *Event, e *FileEvent) string
+	ResolveModuleArgs(ev *Event, e *LoadModuleEvent) string
+	ResolveModuleArgv(ev *Event, e *LoadModuleEvent) []string
 	ResolveMountPointPath(ev *Event, e *MountEvent) string
 	ResolveMountSourcePath(ev *Event, e *MountEvent) string
 	ResolveNetworkDeviceIfName(ev *Event, e *NetworkDeviceContext) string
@@ -832,6 +836,12 @@ func (dfh *DefaultFieldHandlers) ResolveFileFilesystem(ev *Event, e *FileEvent) 
 }
 func (dfh *DefaultFieldHandlers) ResolveFilePath(ev *Event, e *FileEvent) string {
 	return e.PathnameStr
+}
+func (dfh *DefaultFieldHandlers) ResolveModuleArgs(ev *Event, e *LoadModuleEvent) string {
+	return e.Args
+}
+func (dfh *DefaultFieldHandlers) ResolveModuleArgv(ev *Event, e *LoadModuleEvent) []string {
+	return e.Argv
 }
 func (dfh *DefaultFieldHandlers) ResolveMountPointPath(ev *Event, e *MountEvent) string {
 	return e.MountPointPath

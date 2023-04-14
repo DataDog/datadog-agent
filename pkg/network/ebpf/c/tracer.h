@@ -42,6 +42,8 @@ typedef struct {
     __u64 sent_packets;
     __u64 recv_packets;
     __u8 direction;
+    // keep the conn_tags u8 to keep the struct slim
+    __u8 conn_tags;
     protocol_stack_t protocol_stack;
 } conn_stats_ts_t;
 

@@ -37,15 +37,27 @@ component temporarily wraps pkg/config.
 
 
 
+### [comp/dogstatsd/replay](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/dogstatsd/replay)
+
+Package server implements a component to run the dogstatsd capture/replay
+
 ### [comp/dogstatsd/server](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/dogstatsd/server)
 
 Package server implements a component to run the dogstatsd server
+
+### [comp/dogstatsd/serverDebug](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/dogstatsd/serverDebug)
+
+Package serverDebug implements a component to run the dogstatsd server debug
 
 ## [comp/process](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process) (Component Bundle)
 
 *Datadog Team*: processes
 
 Package process implements the "process" bundle, providing components for the Process Agent
+
+### [comp/process/apiserver](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process/apiserver)
+
+Package apiserver initializes the api server that powers many subcommands.
 
 ### [comp/process/connectionscheck](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process/connectionscheck)
 
@@ -54,6 +66,14 @@ Package connectionscheck implements a component to handle Connections data colle
 ### [comp/process/containercheck](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process/containercheck)
 
 Package containercheck implements a component to handle Container data collection in the Process Agent.
+
+### [comp/process/expvars](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process/expvars)
+
+Package expvars initializes the expvar server of the process agent.
+
+### [comp/process/hostinfo](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process/hostinfo)
+
+Package hostinfo wraps the hostinfo inside a component. This is useful because it is relied on by other components.
 
 ### [comp/process/podcheck](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process/podcheck)
 
@@ -70,6 +90,10 @@ Package processdiscoverycheck implements a component to handle Process Discovery
 ### [comp/process/processeventscheck](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process/processeventscheck)
 
 Package processeventscheck implements a component to handle Process Events data collection in the Process Agent.
+
+### [comp/process/profiler](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process/profiler)
+
+Package profiler implements a component to handle starting and stopping the internal profiler.
 
 ### [comp/process/rtcontainercheck](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process/rtcontainercheck)
 

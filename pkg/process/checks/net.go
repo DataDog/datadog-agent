@@ -154,7 +154,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	log.Debugf("collected connections in %s", time.Since(start))
 
 	groupID := nextGroupID()
-	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
+	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
 	return StandardRunResult(messages), nil
 }
 
@@ -292,6 +292,7 @@ func batchConnections(
 	compilationTelemetry map[string]*model.RuntimeCompilationTelemetry,
 	kernelHeaderFetchResult model.KernelHeaderFetchResult,
 	coreTelemetry map[string]model.COREResult,
+	prebuiltAssets []string,
 	domains []string,
 	routes []*model.Route,
 	tags []string,
@@ -429,6 +430,7 @@ func batchConnections(
 			cc.CompilationTelemetryByAsset = compilationTelemetry
 			cc.KernelHeaderFetchResult = kernelHeaderFetchResult
 			cc.CORETelemetryByAsset = coreTelemetry
+			cc.PrebuiltEBPFAssets = prebuiltAssets
 		}
 		batches = append(batches, cc)
 

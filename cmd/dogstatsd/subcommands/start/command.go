@@ -197,7 +197,6 @@ func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component
 	opts := aggregator.DefaultAgentDemultiplexerOptions(forwarderOpts)
 	opts.UseOrchestratorForwarder = false
 	opts.UseEventPlatformForwarder = false
-	opts.UseContainerLifecycleForwarder = false
 	opts.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
 	hname, err := hostname.Get(context.TODO())
 	if err != nil {

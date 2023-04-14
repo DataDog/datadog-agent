@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -93,7 +92,6 @@ type Resolver struct {
 	sbomsCacheLock sync.RWMutex
 	sbomsCache     *simplelru.LRU[string, *SBOM]
 	scannerChan    chan *SBOM
-	config         *config.Config
 	statsdClient   statsd.ClientInterface
 	trivyScanner   trivy.Collector
 
@@ -109,7 +107,7 @@ type Resolver struct {
 }
 
 // NewSBOMResolver returns a new instance of Resolver
-func NewSBOMResolver(c *config.Config, tagsResolver *tags.Resolver, statsdClient statsd.ClientInterface) (*Resolver, error) {
+func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface) (*Resolver, error) {
 	tmpDir, err := temp.CreateTempDir("sbom-resolver")
 	if err != nil {
 		return nil, err
@@ -129,7 +127,6 @@ func NewSBOMResolver(c *config.Config, tagsResolver *tags.Resolver, statsdClient
 	}
 
 	resolver := &Resolver{
-		config:                c,
 		statsdClient:          statsdClient,
 		sboms:                 make(map[string]*SBOM),
 		sbomsCache:            sbomsCache,
@@ -176,10 +173,6 @@ func (r *Resolver) prepareContextTags() {
 
 // Start starts the goroutine of the SBOM resolver
 func (r *Resolver) Start(ctx context.Context) {
-	if !r.config.SBOMResolverEnabled {
-		return
-	}
-
 	go func() {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
@@ -289,38 +282,9 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 	return nil
 }
 
-// RefreshSBOM analyzes the file system of a sbom to refresh its SBOM.
-func (r *Resolver) RefreshSBOM(id string, cgroup *cgroupModel.CacheEntry) error {
-	if !r.config.SBOMResolverEnabled {
-		return nil
-	}
-
-	r.sbomsLock.Lock()
-	defer r.sbomsLock.Unlock()
-	sbom, ok := r.sboms[id]
-	if !ok {
-		var err error
-		sbom, err = r.newWorkloadEntry(id, cgroup)
-		if err != nil {
-			return err
-		}
-	}
-
-	// push sbom to the scanner chan
-	select {
-	case r.scannerChan <- sbom:
-	default:
-	}
-	return nil
-}
-
 // ResolvePackage returns the Package that owns the provided file. Make sure the internal fields of "file" are properly
 // resolved.
 func (r *Resolver) ResolvePackage(containerID string, file *model.FileEvent) *Package {
-	if !r.config.SBOMResolverEnabled {
-		return nil
-	}
-
 	r.sbomsLock.RLock()
 	defer r.sbomsLock.RUnlock()
 	sbom, ok := r.sboms[containerID]
@@ -391,10 +355,6 @@ func (r *Resolver) OnWorkloadSelectorResolvedEvent(sbom *cgroupModel.CacheEntry)
 
 // Retain increments the reference counter of the SBOM of a sbom
 func (r *Resolver) Retain(id string, cgroup *cgroupModel.CacheEntry) {
-	if !r.config.SBOMResolverEnabled {
-		return
-	}
-
 	r.sbomsLock.Lock()
 	defer r.sbomsLock.Unlock()
 
@@ -429,10 +389,6 @@ func (r *Resolver) OnCGroupDeletedEvent(sbom *cgroupModel.CacheEntry) {
 
 // Delete removes the SBOM of the provided cgroup
 func (r *Resolver) Delete(id string) {
-	if !r.config.SBOMResolverEnabled {
-		return
-	}
-
 	sbom := r.GetWorkload(id)
 	if sbom == nil {
 		return

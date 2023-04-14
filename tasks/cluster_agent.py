@@ -19,7 +19,7 @@ from .utils import load_release_versions
 BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")
 AGENT_TAG = "datadog/cluster_agent:master"
 POLICIES_REPO = "https://github.com/DataDog/security-agent-policies.git"
-CONTAINER_PLATFORM_MAPPING = {"aarch64": "arm64", "amd64": "amd64"}
+CONTAINER_PLATFORM_MAPPING = {"aarch64": "arm64", "amd64": "amd64", "x86_64": "amd64"}
 
 
 @task
@@ -93,7 +93,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
         deps(ctx)
 
     # We need docker for the kubeapiserver integration tests
-    tags = get_default_build_tags(build="cluster-agent") + ["docker"]
+    tags = get_default_build_tags(build="cluster-agent") + ["docker", "test"]
 
     go_build_tags = " ".join(get_build_tags(tags, []))
     race_opt = "-race" if race else ""

@@ -196,6 +196,9 @@ type Config struct {
 	// default is true
 	EnableConntrackAllNamespaces bool
 
+	// EnableEbpfConntracker enables the ebpf based network conntracker. Used only for testing at the moment
+	EnableEbpfConntracker bool
+
 	// ClosedChannelSize specifies the size for closed channel for the tracer
 	ClosedChannelSize int
 
@@ -307,6 +310,7 @@ func New() *Config {
 		EnableConntrackAllNamespaces: cfg.GetBool(join(spNS, "enable_conntrack_all_namespaces")),
 		IgnoreConntrackInitFailure:   cfg.GetBool(join(netNS, "ignore_conntrack_init_failure")),
 		ConntrackInitTimeout:         cfg.GetDuration(join(netNS, "conntrack_init_timeout")),
+		EnableEbpfConntracker:        true,
 
 		EnableGatewayLookup: cfg.GetBool(join(netNS, "enable_gateway_lookup")),
 

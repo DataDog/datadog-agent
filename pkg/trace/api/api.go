@@ -137,8 +137,11 @@ func replyWithVersion(hash string, version string, h http.Handler) http.Handler 
 
 // Start starts doing the HTTP server and is ready to receive traces
 func (r *HTTPReceiver) Start() {
-	if r.conf.ReceiverPort == 0 {
-		log.Debug("HTTP receiver disabled by config (apm_config.receiver_port: 0).")
+	if r.conf.ReceiverPort == 0 &&
+		r.conf.ReceiverSocket == "" &&
+		r.conf.WindowsPipeName == "" {
+		// none of the HTTP listeners are enabled; exit early
+		log.Debug("HTTP Server is off: all listeners are disabled.")
 		return
 	}
 
@@ -155,20 +158,24 @@ func (r *HTTPReceiver) Start() {
 		ConnContext:  connContext,
 	}
 
-	addr := net.JoinHostPort(r.conf.ReceiverHost, strconv.Itoa(r.conf.ReceiverPort))
-	ln, err := r.listenTCP(addr)
-	if err != nil {
-		r.telemetryCollector.SendStartupError(telemetry.CantStartHttpServer, err)
-		killProcess("Error creating tcp listener: %v", err)
-	}
-	go func() {
-		defer watchdog.LogOnPanic()
-		if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
-			log.Errorf("Could not start HTTP server: %v. HTTP receiver disabled.", err)
+	if r.conf.ReceiverPort > 0 {
+		addr := net.JoinHostPort(r.conf.ReceiverHost, strconv.Itoa(r.conf.ReceiverPort))
+		ln, err := r.listenTCP(addr)
+		if err != nil {
 			r.telemetryCollector.SendStartupError(telemetry.CantStartHttpServer, err)
+			killProcess("Error creating tcp listener: %v", err)
 		}
-	}()
-	log.Infof("Listening for traces at http://%s", addr)
+		go func() {
+			defer watchdog.LogOnPanic()
+			if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
+				log.Errorf("Could not start HTTP server: %v. HTTP receiver disabled.", err)
+				r.telemetryCollector.SendStartupError(telemetry.CantStartHttpServer, err)
+			}
+		}()
+		log.Infof("Listening for traces at http://%s", addr)
+	} else {
+		log.Debug("HTTP receiver disabled by config (apm_config.receiver_port: 0).")
+	}
 
 	if path := r.conf.ReceiverSocket; path != "" {
 		ln, err := r.listenUnix(path)
@@ -202,7 +209,7 @@ func (r *HTTPReceiver) Start() {
 				r.telemetryCollector.SendStartupError(telemetry.CantStartWindowsPipeServer, err)
 			}
 		}()
-		log.Infof("Listening for traces on Windowes pipe %q. Security descriptor is %q", pipepath, secdec)
+		log.Infof("Listening for traces on Windows pipe %q. Security descriptor is %q", pipepath, secdec)
 	}
 
 	go r.RateLimiter.Run()
@@ -337,7 +344,7 @@ func (r *HTTPReceiver) tagStats(v Version, httpHeader http.Header) *info.TagStat
 func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats, cIDProvider IDProvider) (tp *pb.TracerPayload, ranHook bool, err error) {
 	switch v {
 	case v01:
-		var spans []*pb.Span
+		var spans []pb.Span
 		if err = json.NewDecoder(req.Body).Decode(&spans); err != nil {
 			return nil, false, err
 		}
@@ -733,11 +740,11 @@ func decodeRequest(req *http.Request, dest *pb.Traces) (ranHook bool, err error)
 	}
 }
 
-func traceChunksFromSpans(spans []*pb.Span) []*pb.TraceChunk {
+func traceChunksFromSpans(spans []pb.Span) []*pb.TraceChunk {
 	traceChunks := []*pb.TraceChunk{}
 	byID := make(map[uint64][]*pb.Span)
 	for _, s := range spans {
-		byID[s.TraceID] = append(byID[s.TraceID], s)
+		byID[s.TraceID] = append(byID[s.TraceID], &s)
 	}
 	for _, t := range byID {
 		traceChunks = append(traceChunks, &pb.TraceChunk{

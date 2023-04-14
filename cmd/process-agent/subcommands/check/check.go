@@ -20,6 +20,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	processComponent "github.com/DataDog/datadog-agent/comp/process"
+	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
+	"github.com/DataDog/datadog-agent/comp/process/types"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -28,7 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -40,6 +45,18 @@ type cliParams struct {
 	checkName       string
 	checkOutputJSON bool
 	waitInterval    time.Duration
+}
+
+type dependencies struct {
+	fx.In
+
+	CliParams *cliParams
+
+	Config   config.Component
+	Syscfg   sysprobeconfig.Component
+	Log      log.Component
+	Hostinfo hostinfo.Component
+	Checks   []types.CheckComponent `group:"check"`
 }
 
 func nextGroupID() func() int32 {
@@ -63,8 +80,18 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.checkName = args[0]
+
+			bundleParams := command.GetCoreBundleParamsForOneShot(globalParams)
+
+			// Disable logging if `--json` is specified. This way the check command will output proper json.
+			if cliParams.checkOutputJSON {
+				bundleParams.LogParams = log.LogForOneShot(string(command.LoggerName), "off", true)
+			}
+
 			return fxutil.OneShot(runCheckCmd,
-				fx.Supply(cliParams),
+				fx.Supply(cliParams, bundleParams),
+
+				processComponent.Bundle,
 			)
 		},
 		SilenceUsage: true,
@@ -76,35 +103,18 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{checkCmd}
 }
 
-func runCheckCmd(cliParams *cliParams) error {
-	// Override the log_to_console setting if `--json` is specified. This way the check command will output proper json.
-	if cliParams.checkOutputJSON {
-		ddconfig.Datadog.Set("log_to_console", false)
-	}
-
-	// Override the disable_file_logging setting so that the check command doesn't dump so much noise into the log file.
-	ddconfig.Datadog.Set("disable_file_logging", true)
-
-	if err := command.BootstrapConfig(cliParams.GlobalParams.ConfFilePath, true); err != nil {
-		return log.Criticalf("Error parsing config: %s", err)
-	}
-
-	// For system probe, there is an additional config file that is shared with the system-probe
-	syscfg, err := sysconfig.New(cliParams.SysProbeConfFilePath)
-	if err != nil {
-		return log.Critical(err)
-	}
-
+func runCheckCmd(deps dependencies) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// Now that the logger is configured log host info
 	hostStatus := host.GetStatusInformation()
-	log.Infof("running on platform: %s", hostStatus.Platform)
+	deps.Log.Infof("running on platform: %s", hostStatus.Platform)
 	agentVersion, _ := version.Agent()
-	log.Infof("running version: %s", agentVersion.GetNumberAndPre())
+	deps.Log.Infof("running version: %s", agentVersion.GetNumberAndPre())
 
 	// Start workload metadata store before tagger (used for containerCollection)
+	// TODO: (Components) Add to dependencies once workloadmeta is migrated to components
 	var workloadmetaCollectors workloadmeta.CollectorCatalog
 	if ddconfig.Datadog.GetBool("process_config.remote_workloadmeta") {
 		workloadmetaCollectors = workloadmeta.RemoteCatalog
@@ -115,11 +125,12 @@ func runCheckCmd(cliParams *cliParams) error {
 	store.Start(ctx)
 
 	// Tagger must be initialized after agent config has been setup
+	// TODO: (Components) Add to dependencies once tagger is migrated to components
 	var t tagger.Tagger
-	if ddconfig.Datadog.GetBool("process_config.remote_tagger") {
+	if deps.Config.GetBool("process_config.remote_tagger") {
 		options, err := remote.NodeAgentOptions()
 		if err != nil {
-			log.Errorf("unable to configure the remote tagger: %s", err)
+			_ = deps.Log.Errorf("unable to configure the remote tagger: %s", err)
 		} else {
 			t = remote.NewTagger(options)
 		}
@@ -128,16 +139,11 @@ func runCheckCmd(cliParams *cliParams) error {
 	}
 
 	tagger.SetDefaultTagger(t)
-	err = tagger.Init(ctx)
+	err := tagger.Init(ctx)
 	if err != nil {
-		log.Errorf("failed to start the tagger: %s", err)
+		_ = deps.Log.Errorf("failed to start the tagger: %s", err)
 	}
 	defer tagger.Stop() //nolint:errcheck
-
-	hostInfo, err := checks.CollectHostInfo()
-	if err != nil {
-		log.Errorf("failed to collect system info: %s", err)
-	}
 
 	cleanups := make([]func(), 0)
 	defer func() {
@@ -147,35 +153,35 @@ func runCheckCmd(cliParams *cliParams) error {
 	}()
 
 	// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
-	_, processModuleEnabled := syscfg.EnabledModules[sysconfig.ProcessModule]
+	_, processModuleEnabled := deps.Syscfg.Object().EnabledModules[sysconfig.ProcessModule]
 
 	if processModuleEnabled {
-		net.SetSystemProbePath(syscfg.SocketAddress)
+		net.SetSystemProbePath(deps.Syscfg.Object().SocketAddress)
 	}
 
-	// TODO: Remove dependency on syscfg once runCheckCmd is migrated to components
-	all := checks.All(syscfg)
-	names := make([]string, 0, len(all))
-	for _, ch := range all {
+	names := make([]string, 0, len(deps.Checks))
+	for _, checkComponent := range deps.Checks {
+		ch := checkComponent.Object()
+
 		names = append(names, ch.Name())
 
 		cfg := &checks.SysProbeConfig{
-			MaxConnsPerMessage:   syscfg.MaxConnsPerMessage,
-			SystemProbeAddress:   syscfg.SocketAddress,
+			MaxConnsPerMessage:   deps.Syscfg.Object().MaxConnsPerMessage,
+			SystemProbeAddress:   deps.Syscfg.Object().SocketAddress,
 			ProcessModuleEnabled: processModuleEnabled,
 		}
 
-		if !matchingCheck(cliParams.checkName, ch) {
+		if !matchingCheck(deps.CliParams.checkName, ch) {
 			continue
 		}
 
-		if err = ch.Init(cfg, hostInfo); err != nil {
+		if err = ch.Init(cfg, deps.Hostinfo.Object()); err != nil {
 			return err
 		}
 		cleanups = append(cleanups, ch.Cleanup)
-		return runCheck(cliParams, ch)
+		return runCheck(deps.Log, deps.CliParams, ch)
 	}
-	return log.Errorf("invalid check '%s', choose from: %v", cliParams.checkName, names)
+	return deps.Log.Errorf("invalid check '%s', choose from: %v", deps.CliParams.checkName, names)
 }
 
 func matchingCheck(checkName string, ch checks.Check) bool {
@@ -188,7 +194,7 @@ func matchingCheck(checkName string, ch checks.Check) bool {
 	return ch.Name() == checkName
 }
 
-func runCheck(cliParams *cliParams, ch checks.Check) error {
+func runCheck(log log.Component, cliParams *cliParams, ch checks.Check) error {
 	nextGroupID := nextGroupID()
 
 	options := &checks.RunOptions{

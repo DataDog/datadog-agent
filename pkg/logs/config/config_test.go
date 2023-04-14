@@ -584,8 +584,8 @@ func getTestEndpoints(e Endpoint) *Endpoints {
 }
 func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHttpOverride() {
 	suite.config.Set("api_key", "123")
-	suite.config.Set("vector.logs.enabled", true)
-	suite.config.Set("vector.logs.url", "http://vector.host:8080/")
+	suite.config.Set("observability_pipelines_worker.logs.enabled", true)
+	suite.config.Set("observability_pipelines_worker.logs.url", "http://vector.host:8080/")
 	endpoints, err := BuildHTTPEndpointsWithVectorOverride("test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8080, false))
@@ -595,8 +595,8 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHttpOverride() {
 
 func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHttpsOverride() {
 	suite.config.Set("api_key", "123")
-	suite.config.Set("vector.logs.enabled", true)
-	suite.config.Set("vector.logs.url", "https://vector.host:8443/")
+	suite.config.Set("observability_pipelines_worker.logs.enabled", true)
+	suite.config.Set("observability_pipelines_worker.logs.url", "https://vector.host:8443/")
 	endpoints, err := BuildHTTPEndpointsWithVectorOverride("test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8443, true))
@@ -606,11 +606,11 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHttpsOverride() {
 
 func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHostAndPortOverride() {
 	suite.config.Set("api_key", "123")
-	suite.config.Set("vector.logs.enabled", true)
-	suite.config.Set("vector.logs.url", "vector.host:8443")
+	suite.config.Set("observability_pipelines_worker.logs.enabled", true)
+	suite.config.Set("observability_pipelines_worker.logs.url", "observability_pipelines_worker.host:8443")
 	endpoints, err := BuildHTTPEndpointsWithVectorOverride("test-track", "test-proto", "test-source")
 	suite.Nil(err)
-	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8443, true))
+	expectedEndpoints := getTestEndpoints(getTestEndpoint("observability_pipelines_worker.host", 8443, true))
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)
 }
@@ -618,11 +618,11 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHostAndPortOverride() 
 func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHostAndPortNoSSLOverride() {
 	suite.config.Set("api_key", "123")
 	suite.config.Set("logs_config.logs_no_ssl", true)
-	suite.config.Set("vector.logs.enabled", true)
-	suite.config.Set("vector.logs.url", "vector.host:8443")
+	suite.config.Set("observability_pipelines_worker.logs.enabled", true)
+	suite.config.Set("observability_pipelines_worker.logs.url", "observability_pipelines_worker.host:8443")
 	endpoints, err := BuildHTTPEndpointsWithVectorOverride("test-track", "test-proto", "test-source")
 	suite.Nil(err)
-	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8443, false))
+	expectedEndpoints := getTestEndpoints(getTestEndpoint("observability_pipelines_worker.host", 8443, false))
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)
 }
@@ -630,8 +630,8 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHostAndPortNoSSLOverri
 func (suite *ConfigTestSuite) TestBuildEndpointsWithoutVector() {
 	suite.config.Set("api_key", "123")
 	suite.config.Set("logs_config.logs_no_ssl", true)
-	suite.config.Set("vector.logs.enabled", true)
-	suite.config.Set("vector.logs.url", "vector.host:8443")
+	suite.config.Set("observability_pipelines_worker.logs.enabled", true)
+	suite.config.Set("observability_pipelines_worker.logs.url", "observability_pipelines_worker.host:8443")
 	endpoints, err := BuildHTTPEndpoints("test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	expectedEndpoints := getTestEndpoints(getTestEndpoint("agent-http-intake.logs.datadoghq.com", 0, true))

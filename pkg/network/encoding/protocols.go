@@ -36,11 +36,15 @@ func formatProtocolStack(originalStack protocols.Stack, staticTags uint64) *mode
 		stack = append(stack, formatProtocol(protocols.TLS))
 	}
 
-	stack = append(stack, formatProtocol(originalStack.Application))
-
-	// TODO: decide how we want to encode the case where multiple layers are unknown
-	// stack = append(stack, formatProtocol(originalStack.Api))
-	// stack = append(stack, formatProtocol(originalStack.Encryption))
+	if originalStack.Application != protocols.Unknown {
+		stack = append(stack, formatProtocol(originalStack.Application))
+	}
+	if originalStack.Api != protocols.Unknown {
+		stack = append(stack, formatProtocol(originalStack.Api))
+	}
+	if originalStack.Encryption != protocols.Unknown {
+		stack = append(stack, formatProtocol(originalStack.Encryption))
+	}
 
 	return &model.ProtocolStack{
 		Stack: stack,

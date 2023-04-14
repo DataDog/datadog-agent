@@ -21,9 +21,10 @@
 #include "protocols/mysql/helpers.h"
 #include "protocols/redis/helpers.h"
 #include "protocols/postgres/helpers.h"
+#include "protocols/tls/tls.h"
 
 // Checks if a given buffer is http, http2, gRPC.
-static __always_inline protocol_t classify_http_protocols(const char *buf, __u32 size) {
+static __always_inline protocol_t classify_applayer_protocols(const char *buf, __u32 size) {
     if (is_http(buf, size)) {
         return PROTOCOL_HTTP;
     }
@@ -113,12 +114,24 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
+    if (is_fully_classified(protocol_stack)) {
+        return;
+    }
+
+    const char *buffer = &(usm_ctx->buffer.data[0]);
+    // TLS classification
+    if (is_tls(buffer, usm_ctx->buffer.size)) {
+        set_protocol_stack(skb, protocol_stack, PROTOCOL_TLS);
+        mark_as_fully_classified(protocol_stack);
+        return;
+    }
+
+    // If application-layer is known we don't bother to check for HTTP protocols and skip to the next layers
     if (protocol_layer_known(protocol_stack, LAYER_APPLICATION)) {
         goto next_program;
     }
 
-    const char *buffer = &(usm_ctx->buffer.data[0]);
-    protocol_t cur_fragment_protocol = classify_http_protocols(buffer, usm_ctx->buffer.size);
+    protocol_t cur_fragment_protocol = classify_applayer_protocols(buffer, usm_ctx->buffer.size);
     set_protocol_stack(skb, protocol_stack, cur_fragment_protocol);
     if (cur_fragment_protocol) {
         // this is mostly an optmization *for now* since we won't be classifying
@@ -135,7 +148,6 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_queues
     if (!usm_ctx) {
         return;
     }
-
     const char *buffer = &(usm_ctx->buffer.data[0]);
     protocol_t cur_fragment_protocol = classify_queue_protocols(skb, &usm_ctx->skb_info, buffer, usm_ctx->buffer.size);
     if (!cur_fragment_protocol) {
@@ -169,9 +181,9 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_dbs(st
     if (!protocol_stack) {
         return;
     }
+
     set_protocol_stack(skb, protocol_stack, cur_fragment_protocol);
     mark_as_fully_classified(protocol_stack);
-
  next_program:
     classification_next_program(skb);
 }

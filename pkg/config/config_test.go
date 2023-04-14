@@ -8,8 +8,10 @@ package config
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -36,17 +38,17 @@ func setupConfFromYAML(yamlConfig string) Config {
 	return conf
 }
 
-func unsetEnvForTest(env string) (reset func()) {
+func unsetEnvForTest(t *testing.T, env string) {
 	oldValue, ok := os.LookupEnv(env)
 	os.Unsetenv(env)
 
-	return func() {
+	t.Cleanup(func() {
 		if !ok {
 			os.Unsetenv(env)
 		} else {
 			os.Setenv(env, oldValue)
 		}
-	}
+	})
 }
 
 func TestDefaults(t *testing.T) {
@@ -82,7 +84,7 @@ api_key: fakeapikey
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 	assert.Equal(t, "https://external-agent.datadoghq.com", externalAgentURL)
 }
@@ -103,7 +105,7 @@ api_key: fakeapikey
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 	assert.Equal(t, "https://external-agent.datadoghq.eu", externalAgentURL)
 }
@@ -226,9 +228,20 @@ func TestSiteEnvVar(t *testing.T) {
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 	assert.Equal(t, "https://external-agent.datadoghq.eu", externalAgentURL)
+}
+
+func TestDefaultTraceManagedServicesEnvVarValue(t *testing.T) {
+	testConfig := setupConfFromYAML("")
+	assert.Equal(t, true, testConfig.Get("serverless.trace_managed_services"))
+}
+
+func TestExplicitFalseTraceManagedServicesEnvVar(t *testing.T) {
+	t.Setenv("DD_TRACE_MANAGED_SERVICES", "false")
+	testConfig := setupConfFromYAML("")
+	assert.Equal(t, false, testConfig.Get("serverless.trace_managed_services"))
 }
 
 func TestDDHostnameFileEnvVar(t *testing.T) {
@@ -255,7 +268,7 @@ func TestDDURLEnvVar(t *testing.T) {
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 	assert.Equal(t, "https://custom.external-agent.datadoghq.com", externalAgentURL)
 }
@@ -276,7 +289,7 @@ func TestDDDDURLEnvVar(t *testing.T) {
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 	assert.Equal(t, "https://custom.external-agent.datadoghq.com", externalAgentURL)
 }
@@ -301,7 +314,7 @@ func TestDDURLAndDDDDURLEnvVar(t *testing.T) {
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 	assert.Equal(t, "https://custom.external-agent.datadoghq.com", externalAgentURL)
 }
@@ -326,7 +339,7 @@ external_config:
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 	assert.Equal(t, "https://external-agent.datadoghq.com", externalAgentURL)
 }
@@ -350,7 +363,7 @@ external_config:
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 	assert.Equal(t, "https://custom.external-agent.datadoghq.eu", externalAgentURL)
 }
@@ -382,7 +395,7 @@ additional_endpoints:
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 }
 
@@ -403,7 +416,7 @@ func TestGetMultipleEndpointsEnvVar(t *testing.T) {
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 }
 
@@ -437,7 +450,7 @@ additional_endpoints:
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 }
 
@@ -469,7 +482,7 @@ additional_endpoints:
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 }
 
@@ -489,7 +502,7 @@ api_key: fakeapikey
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 }
 
@@ -521,7 +534,7 @@ additional_endpoints:
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 }
 
@@ -555,7 +568,7 @@ additional_endpoints:
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 }
 
@@ -677,207 +690,225 @@ func TestEnvNestedConfig(t *testing.T) {
 	assert.Equal(t, "baz", config.GetString("foo.bar.nested"))
 }
 
-func TestLoadProxyFromStdEnvNoValue(t *testing.T) {
-	config := setupConf()
+func TestProxy(t *testing.T) {
+	type testCase struct {
+		name                  string
+		setup                 func(t *testing.T, config Config)
+		tests                 func(t *testing.T, config Config)
+		proxyForCloudMetadata bool
+	}
 
-	resetEnv := unsetEnvForTest("NO_PROXY") // CircleCI sets NO_PROXY, so unset it for this test
-	defer resetEnv()
+	expectedProxy := &Proxy{
+		HTTP:    "http_url",
+		HTTPS:   "https_url",
+		NoProxy: []string{"a", "b", "c"}}
 
-	LoadProxyFromEnv(config)
-	assert.Nil(t, config.Get("proxy"))
-
-	proxies := GetProxies()
-	require.Nil(t, proxies)
-}
-
-func TestLoadProxyConfOnly(t *testing.T) {
-	config := setupConf()
-
-	// check value loaded before aren't overwrite when no env variables are set
-	p := &Proxy{HTTP: "test", HTTPS: "test2", NoProxy: []string{"a", "b", "c"}}
-	config.Set("proxy", p)
-	// Don't include cloud metadata URL's in no_proxy
-	config.Set("use_proxy_for_cloud_metadata", true)
-
-	resetEnv := unsetEnvForTest("NO_PROXY") // CircleCI sets NO_PROXY, so unset it for this test
-	defer resetEnv()
-
-	LoadProxyFromEnv(config)
-	proxies := GetProxies()
-	assert.Equal(t, p, proxies)
-}
-
-func TestLoadProxyStdEnvOnly(t *testing.T) {
-	config := setupConf()
-
-	// Don't include cloud metadata URL's in no_proxy
-	config.Set("use_proxy_for_cloud_metadata", true)
-
-	// uppercase
-	t.Setenv("HTTP_PROXY", "http_url")
-	t.Setenv("HTTPS_PROXY", "https_url")
-	t.Setenv("NO_PROXY", "a,b,c") // comma-separated list
-
-	LoadProxyFromEnv(config)
-
-	proxies := GetProxies()
-	assert.Equal(t,
-		&Proxy{
-			HTTP:    "http_url",
-			HTTPS:   "https_url",
-			NoProxy: []string{"a", "b", "c"}},
-		proxies)
-
-	os.Unsetenv("NO_PROXY")
-	os.Unsetenv("HTTPS_PROXY")
-	os.Unsetenv("HTTP_PROXY")
-	config.Set("proxy", nil)
-
-	// lowercase
-	t.Setenv("http_proxy", "http_url2")
-	t.Setenv("https_proxy", "https_url2")
-	t.Setenv("no_proxy", "1,2,3") // comma-separated list
-
-	LoadProxyFromEnv(config)
-	proxies = GetProxies()
-	assert.Equal(t,
-		&Proxy{
-			HTTP:    "http_url2",
-			HTTPS:   "https_url2",
-			NoProxy: []string{"1", "2", "3"}},
-		proxies)
-}
-
-func TestLoadProxyDDSpecificEnvOnly(t *testing.T) {
-	config := setupConf()
-	// Don't include cloud metadata URL's in no_proxy
-	config.Set("use_proxy_for_cloud_metadata", true)
-
-	t.Setenv("DD_PROXY_HTTP", "http_url")
-	t.Setenv("DD_PROXY_HTTPS", "https_url")
-	t.Setenv("DD_PROXY_NO_PROXY", "a b c") // space-separated list
-
-	LoadProxyFromEnv(config)
-
-	proxies := GetProxies()
-	assert.Equal(t,
-		&Proxy{
-			HTTP:    "http_url",
-			HTTPS:   "https_url",
-			NoProxy: []string{"a", "b", "c"}},
-		proxies)
-}
-
-func TestLoadProxyDDSpecificEnvPrecedenceOverStdEnv(t *testing.T) {
-	config := setupConf()
-	// Don't include cloud metadata URL's in no_proxy
-	config.Set("use_proxy_for_cloud_metadata", true)
-
-	t.Setenv("DD_PROXY_HTTP", "dd_http_url")
-	t.Setenv("DD_PROXY_HTTPS", "dd_https_url")
-	t.Setenv("DD_PROXY_NO_PROXY", "a b c")
-	t.Setenv("HTTP_PROXY", "env_http_url")
-	t.Setenv("HTTPS_PROXY", "env_https_url")
-	t.Setenv("NO_PROXY", "d,e,f")
-
-	LoadProxyFromEnv(config)
-
-	proxies := GetProxies()
-	assert.Equal(t,
-		&Proxy{
-			HTTP:    "dd_http_url",
-			HTTPS:   "dd_https_url",
-			NoProxy: []string{"a", "b", "c"}},
-		proxies)
-}
-
-func TestLoadProxyStdEnvAndConf(t *testing.T) {
-	config := setupConf()
-	// Don't include cloud metadata URL's in no_proxy
-	config.Set("use_proxy_for_cloud_metadata", true)
-
-	t.Setenv("HTTP_PROXY", "http_env")
-	resetNoProxy := unsetEnvForTest("NO_PROXY") // CircleCI sets NO_PROXY, so unset it for this test
-	config.Set("proxy.no_proxy", []string{"d", "e", "f"})
-	config.Set("proxy.http", "http_conf")
-	defer resetNoProxy()
-
-	LoadProxyFromEnv(config)
-	proxies := GetProxies()
-	assert.Equal(t,
-		&Proxy{
-			HTTP:    "http_env",
-			HTTPS:   "",
-			NoProxy: []string{"d", "e", "f"}},
-		proxies)
-}
-
-func TestLoadProxyDDSpecificEnvAndConf(t *testing.T) {
-	config := setupConf()
-	// Don't include cloud metadata URL's in no_proxy
-	config.Set("use_proxy_for_cloud_metadata", true)
-
-	t.Setenv("DD_PROXY_HTTP", "http_env")
-	resetNoProxy := unsetEnvForTest("NO_PROXY") // CircleCI sets NO_PROXY, so unset it for this test
-	config.Set("proxy.no_proxy", []string{"d", "e", "f"})
-	config.Set("proxy.http", "http_conf")
-	defer resetNoProxy()
-
-	LoadProxyFromEnv(config)
-	proxies := GetProxies()
-	assert.Equal(t,
-		&Proxy{
-			HTTP:    "http_env",
-			HTTPS:   "",
-			NoProxy: []string{"d", "e", "f"}},
-		proxies)
-}
-
-func TestLoadProxyEmptyValuePrecedence(t *testing.T) {
-	config := setupConf()
-	// Don't include cloud metadata URL's in no_proxy
-	config.Set("use_proxy_for_cloud_metadata", true)
-
-	t.Setenv("DD_PROXY_HTTP", "")
-	t.Setenv("DD_PROXY_NO_PROXY", "a b c")
-	t.Setenv("HTTP_PROXY", "env_http_url")
-	t.Setenv("HTTPS_PROXY", "")
-	t.Setenv("NO_PROXY", "")
-	config.Set("proxy.https", "https_conf")
-
-	LoadProxyFromEnv(config)
-
-	proxies := GetProxies()
-	assert.Equal(t,
-		&Proxy{
-			HTTP:    "",
-			HTTPS:   "",
-			NoProxy: []string{"a", "b", "c"}},
-		proxies)
-}
-
-func TestLoadProxyWithoutNoProxy(t *testing.T) {
-	config := setupConf()
-
-	// Don't include cloud metadata URL's in no_proxy
-	config.Set("use_proxy_for_cloud_metadata", true)
-
-	t.Setenv("DD_PROXY_HTTP", "http_url")
-	t.Setenv("DD_PROXY_HTTPS", "https_url")
-	resetNoProxy := unsetEnvForTest("NO_PROXY") // CircleCI sets NO_PROXY, so unset it for this test
-	defer resetNoProxy()
-
-	LoadProxyFromEnv(config)
-
-	proxies := GetProxies()
-	assert.Equal(t,
-		&Proxy{
-			HTTP:  "http_url",
-			HTTPS: "https_url",
+	cases := []testCase{
+		{
+			name: "no values",
+			tests: func(t *testing.T, config Config) {
+				assert.Nil(t, config.Get("proxy"))
+				assert.Nil(t, config.GetProxies())
+			},
+			proxyForCloudMetadata: true,
 		},
-		proxies)
+		{
+			name: "from configuration",
+			setup: func(t *testing.T, config Config) {
+				config.Set("proxy", expectedProxy)
+			},
+			tests: func(t *testing.T, config Config) {
+				assert.Equal(t, expectedProxy, config.GetProxies())
+			},
+			proxyForCloudMetadata: true,
+		},
+		{
+			name: "from UNIX env only upper case",
+			setup: func(t *testing.T, config Config) {
+				t.Setenv("HTTP_PROXY", "http_url")
+				t.Setenv("HTTPS_PROXY", "https_url")
+				t.Setenv("NO_PROXY", "a,b,c") // comma-separated list
+			},
+			tests: func(t *testing.T, config Config) {
+				assert.Equal(t, expectedProxy, config.GetProxies())
+			},
+			proxyForCloudMetadata: true,
+		},
+		{
+			name: "from env only lower case",
+			setup: func(t *testing.T, config Config) {
+				t.Setenv("http_proxy", "http_url")
+				t.Setenv("https_proxy", "https_url")
+				t.Setenv("no_proxy", "a,b,c") // comma-separated list
+			},
+			tests: func(t *testing.T, config Config) {
+				assert.Equal(t, expectedProxy, config.GetProxies())
+			},
+			proxyForCloudMetadata: true,
+		},
+		{
+			name: "from DD env vars only",
+			setup: func(t *testing.T, config Config) {
+				t.Setenv("DD_PROXY_HTTP", "http_url")
+				t.Setenv("DD_PROXY_HTTPS", "https_url")
+				t.Setenv("DD_PROXY_NO_PROXY", "a b c") // space-separated list
+			},
+			tests: func(t *testing.T, config Config) {
+				assert.Equal(t, expectedProxy, config.GetProxies())
+			},
+			proxyForCloudMetadata: true,
+		},
+		{
+			name: "from DD env vars precedence over UNIX env vars",
+			setup: func(t *testing.T, config Config) {
+				t.Setenv("DD_PROXY_HTTP", "dd_http_url")
+				t.Setenv("DD_PROXY_HTTPS", "dd_https_url")
+				t.Setenv("DD_PROXY_NO_PROXY", "a b c")
+				t.Setenv("HTTP_PROXY", "env_http_url")
+				t.Setenv("HTTPS_PROXY", "env_https_url")
+				t.Setenv("NO_PROXY", "d,e,f")
+			},
+			tests: func(t *testing.T, config Config) {
+				assert.Equal(t,
+					&Proxy{
+						HTTP:    "dd_http_url",
+						HTTPS:   "dd_https_url",
+						NoProxy: []string{"a", "b", "c"}},
+					config.GetProxies())
+			},
+			proxyForCloudMetadata: true,
+		},
+		{
+			name: "from UNIX env vars and conf",
+			setup: func(t *testing.T, config Config) {
+				t.Setenv("HTTP_PROXY", "http_env")
+				config.Set("proxy.no_proxy", []string{"d", "e", "f"})
+				config.Set("proxy.http", "http_conf")
+			},
+			tests: func(t *testing.T, config Config) {
+				assert.Equal(t,
+					&Proxy{
+						HTTP:    "http_env",
+						HTTPS:   "",
+						NoProxy: []string{"d", "e", "f"}},
+					config.GetProxies())
+			},
+			proxyForCloudMetadata: true,
+		},
+		{
+			name: "from DD env vars and conf",
+			setup: func(t *testing.T, config Config) {
+				t.Setenv("DD_PROXY_HTTP", "http_env")
+				config.Set("proxy.no_proxy", []string{"d", "e", "f"})
+				config.Set("proxy.http", "http_conf")
+			},
+			tests: func(t *testing.T, config Config) {
+				assert.Equal(t,
+					&Proxy{
+						HTTP:    "http_env",
+						HTTPS:   "",
+						NoProxy: []string{"d", "e", "f"}},
+					config.GetProxies())
+			},
+			proxyForCloudMetadata: true,
+		},
+		{
+			name: "empty values precedence",
+			setup: func(t *testing.T, config Config) {
+				t.Setenv("DD_PROXY_HTTP", "")
+				t.Setenv("DD_PROXY_NO_PROXY", "a b c")
+				t.Setenv("HTTP_PROXY", "env_http_url")
+				t.Setenv("HTTPS_PROXY", "")
+				t.Setenv("NO_PROXY", "")
+				config.Set("proxy.https", "https_conf")
+			},
+			tests: func(t *testing.T, config Config) {
+				assert.Equal(t,
+					&Proxy{
+						HTTP:    "",
+						HTTPS:   "",
+						NoProxy: []string{"a", "b", "c"}},
+					config.GetProxies())
+			},
+			proxyForCloudMetadata: true,
+		},
+		{
+			name: "proxy withou no_proxy",
+			setup: func(t *testing.T, config Config) {
+				t.Setenv("DD_PROXY_HTTP", "http_url")
+				t.Setenv("DD_PROXY_HTTPS", "https_url")
+			},
+			tests: func(t *testing.T, config Config) {
+				assert.Equal(t,
+					&Proxy{
+						HTTP:  "http_url",
+						HTTPS: "https_url",
+					},
+					config.GetProxies())
+				assert.Equal(t, []interface{}{}, config.Get("proxy.no_proxy"))
+			},
+			proxyForCloudMetadata: true,
+		},
+		{
+			name:  "empty config with use_proxy_for_cloud_metadata",
+			setup: func(t *testing.T, config Config) {},
+			tests: func(t *testing.T, config Config) {
+				assert.Equal(t,
+					&Proxy{
+						HTTP:    "",
+						HTTPS:   "",
+						NoProxy: []string{"169.254.169.254", "100.100.100.200"},
+					},
+					config.GetProxies())
+			},
+			proxyForCloudMetadata: false,
+		},
+		{
+			name: "use proxy for cloud metadata",
+			setup: func(t *testing.T, config Config) {
+				t.Setenv("DD_PROXY_HTTP", "http_url")
+				t.Setenv("DD_PROXY_HTTPS", "https_url")
+				t.Setenv("DD_PROXY_NO_PROXY", "a b c")
+			},
+			tests: func(t *testing.T, config Config) {
+				assert.Equal(t,
+					&Proxy{
+						HTTP:    "http_url",
+						HTTPS:   "https_url",
+						NoProxy: []string{"a", "b", "c", "169.254.169.254", "100.100.100.200"},
+					},
+					config.GetProxies())
+			},
+			proxyForCloudMetadata: false,
+		},
+	}
 
-	assert.Equal(t, []interface{}{}, config.Get("proxy.no_proxy"))
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+
+			// CircleCI sets NO_PROXY, so unset it for this test
+			unsetEnvForTest(t, "NO_PROXY")
+
+			config := setupConf()
+			config.Set("use_proxy_for_cloud_metadata", c.proxyForCloudMetadata)
+
+			// Viper.MergeConfigOverride, which is used when secrets is enabled, will silently fail if a
+			// config file is never set.
+			path := t.TempDir()
+			configPath := filepath.Join(path, "empty_conf.yaml")
+			ioutil.WriteFile(configPath, nil, 0600)
+			config.SetConfigFile(configPath)
+
+			if c.setup != nil {
+				c.setup(t, config)
+			}
+
+			_, err := LoadCustom(config, "unit_test", true, nil)
+			require.NoError(t, err)
+
+			c.tests(t, config)
+		})
+	}
 }
 
 func TestSanitizeAPIKeyConfig(t *testing.T) {
@@ -1036,7 +1067,7 @@ dogstatsd_mapper_profiles:
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedProfiles, profiles)
 }
 
@@ -1050,7 +1081,7 @@ dogstatsd_mapper_profiles:
 
 	var expectedProfiles []MappingProfile
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedProfiles, profiles)
 }
 
@@ -1184,9 +1215,7 @@ proxy:
 	assert.Equal(t, false, testConfig.GetBool("logs_config.logs_no_ssl"))
 	assert.Equal(t, false, testConfig.GetBool("runtime_security_config.endpoints.use_http"))
 	assert.Equal(t, false, testConfig.GetBool("runtime_security_config.endpoints.logs_no_ssl"))
-	assert.NotNil(t, GetProxies())
-	// reseting proxies
-	proxies = nil
+	assert.NotNil(t, testConfig.GetProxies())
 
 	datadogYamlFips := datadogYaml + `
 fips:
@@ -1208,7 +1237,7 @@ fips:
 	assert.Equal(t, true, testConfig.GetBool("logs_config.logs_no_ssl"))
 	assert.Equal(t, true, testConfig.GetBool("runtime_security_config.endpoints.use_http"))
 	assert.Equal(t, true, testConfig.GetBool("runtime_security_config.endpoints.logs_no_ssl"))
-	assert.Nil(t, GetProxies())
+	assert.Nil(t, testConfig.GetProxies())
 
 	datadogYamlFips = datadogYaml + `
 fips:
@@ -1232,7 +1261,7 @@ fips:
 	assert.Equal(t, true, testConfig.GetBool("runtime_security_config.endpoints.use_http"))
 	assert.Equal(t, false, testConfig.GetBool("runtime_security_config.endpoints.logs_no_ssl"))
 	assert.Equal(t, true, testConfig.GetBool("skip_ssl_validation"))
-	assert.Nil(t, GetProxies())
+	assert.Nil(t, testConfig.GetProxies())
 
 	testConfig.Set("skip_ssl_validation", true) // should be overridden by fips.tls_verify
 	testConfig.Set("fips.tls_verify", true)
@@ -1241,7 +1270,7 @@ fips:
 	require.NoError(t, err)
 
 	assert.Equal(t, false, testConfig.GetBool("skip_ssl_validation"))
-	assert.Nil(t, GetProxies())
+	assert.Nil(t, testConfig.GetProxies())
 }
 
 func assertFipsProxyExpectedConfig(t *testing.T, expectedBaseHTTPURL, expectedBaseURL string, rng bool, c Config) {
@@ -1286,4 +1315,63 @@ fips:
 	testConfig := setupConfFromYAML(datadogYaml)
 	err := setupFipsEndpoints(testConfig)
 	require.Error(t, err)
+}
+
+func TestEnablePeerServiceStatsAggregationYAML(t *testing.T) {
+	datadogYaml := `
+apm_config:
+  peer_service_stats_aggregation: true
+`
+	testConfig := setupConfFromYAML(datadogYaml)
+	err := setupFipsEndpoints(testConfig)
+	require.NoError(t, err)
+	require.True(t, testConfig.GetBool("apm_config.peer_service_stats_aggregation"))
+
+	datadogYaml = `
+apm_config:
+  peer_service_stats_aggregation: false
+`
+	testConfig = setupConfFromYAML(datadogYaml)
+	err = setupFipsEndpoints(testConfig)
+	require.NoError(t, err)
+	require.False(t, testConfig.GetBool("apm_config.peer_service_stats_aggregation"))
+}
+
+func TestEnablePeerServiceStatsAggregationEnv(t *testing.T) {
+	t.Setenv("DD_APM_PEER_SERVICE_STATS_AGGREGATION", "true")
+	testConfig := setupConfFromYAML("")
+	require.True(t, testConfig.GetBool("apm_config.peer_service_stats_aggregation"))
+	t.Setenv("DD_APM_PEER_SERVICE_STATS_AGGREGATION", "false")
+	testConfig = setupConfFromYAML("")
+	require.False(t, testConfig.GetBool("apm_config.peer_service_stats_aggregation"))
+}
+
+func TestEnableStatsComputationBySpanKindYAML(t *testing.T) {
+	datadogYaml := `
+apm_config:
+  compute_stats_by_span_kind: false
+`
+	testConfig := setupConfFromYAML(datadogYaml)
+	err := setupFipsEndpoints(testConfig)
+	require.NoError(t, err)
+	require.False(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
+
+	datadogYaml = `
+apm_config:
+  compute_stats_by_span_kind: true
+`
+	testConfig = setupConfFromYAML(datadogYaml)
+	err = setupFipsEndpoints(testConfig)
+	require.NoError(t, err)
+	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
+
+}
+
+func TestComputeStatsBySpanKindEnv(t *testing.T) {
+	t.Setenv("DD_APM_COMPUTE_STATS_BY_SPAN_KIND", "false")
+	testConfig := setupConfFromYAML("")
+	require.False(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
+	t.Setenv("DD_APM_COMPUTE_STATS_BY_SPAN_KIND", "true")
+	testConfig = setupConfFromYAML("")
+	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
 }

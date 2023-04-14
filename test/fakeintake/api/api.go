@@ -5,8 +5,16 @@
 
 package api
 
+import "time"
+
+type Payload struct {
+	Timestamp time.Time `json:"timestamp"`
+	Data      []byte    `json:"data"`
+	Encoding  string    `json:"encoding"`
+}
+
 type APIFakeIntakePayloadsGETResponse struct {
-	Payloads [][]byte `json:"payloads"`
+	Payloads []Payload `json:"payloads"`
 }
 
 type RouteStat struct {

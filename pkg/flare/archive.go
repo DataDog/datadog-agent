@@ -81,6 +81,11 @@ func CreatePerformanceProfile(prefix, debugURL string, cpusec int, target *Profi
 			URL:  debugURL + "/heap",
 		},
 		{
+			// A sampling of all past memory allocations
+			Name: prefix + "-allocs.pprof",
+			URL:  debugURL + "/allocs",
+		},
+		{
 			// mutex profile
 			Name: prefix + "-mutex.pprof",
 			URL:  debugURL + "/mutex",
@@ -354,12 +359,7 @@ func getConfigFiles(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths) {
 
 func getSecrets() ([]byte, error) {
 	fct := func(writer io.Writer) error {
-		info, err := secrets.GetDebugInfo()
-		if err != nil {
-			fmt.Fprintf(writer, "%s", err)
-		} else {
-			info.Print(writer)
-		}
+		secrets.GetDebugInfo(writer)
 		return nil
 	}
 

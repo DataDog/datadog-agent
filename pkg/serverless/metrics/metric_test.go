@@ -23,7 +23,6 @@ import (
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
@@ -36,7 +35,6 @@ func TestMain(m *testing.M) {
 }
 
 func TestStartDoesNotBlock(t *testing.T) {
-	config.DetectFeatures()
 	metricAgent := &ServerlessMetricAgent{}
 	defer metricAgent.Stop()
 	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{})
@@ -44,15 +42,13 @@ func TestStartDoesNotBlock(t *testing.T) {
 	assert.True(t, metricAgent.IsReady())
 }
 
-type ValidMetricConfigMocked struct {
-}
+type ValidMetricConfigMocked struct{}
 
 func (m *ValidMetricConfigMocked) GetMultipleEndpoints() (map[string][]string, error) {
 	return map[string][]string{"http://localhost:8888": {"value"}}, nil
 }
 
-type InvalidMetricConfigMocked struct {
-}
+type InvalidMetricConfigMocked struct{}
 
 func (m *InvalidMetricConfigMocked) GetMultipleEndpoints() (map[string][]string, error) {
 	return nil, fmt.Errorf("error")
@@ -65,8 +61,7 @@ func TestStartInvalidConfig(t *testing.T) {
 	assert.False(t, metricAgent.IsReady())
 }
 
-type MetricDogStatsDMocked struct {
-}
+type MetricDogStatsDMocked struct{}
 
 func (m *MetricDogStatsDMocked) NewServer(demux aggregator.Demultiplexer) (dogstatsdServer.Component, error) {
 	return nil, fmt.Errorf("error")
@@ -98,10 +93,8 @@ func TestStartWithProxy(t *testing.T) {
 	setValues := config.Datadog.GetStringSlice(statsDMetricBlocklistKey)
 	assert.Equal(t, expected, setValues)
 }
+
 func TestRaceFlushVersusAddSample(t *testing.T) {
-
-	config.DetectFeatures()
-
 	metricAgent := &ServerlessMetricAgent{}
 	defer metricAgent.Stop()
 	metricAgent.Start(10*time.Second, &ValidMetricConfigMocked{}, &MetricDogStatsD{})
@@ -201,7 +194,7 @@ func TestRaceFlushVersusParsePacket(t *testing.T) {
 	opts.DontStartForwarders = true
 	demux := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000)
 
-	s := dogstatsd.NewServer(true)
+	s := dogstatsdServer.NewServerlessServer()
 	err = s.Start(demux)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()

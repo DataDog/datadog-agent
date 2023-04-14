@@ -11,5 +11,5 @@ import (
 
 func setupConfig(deps dependencies) (*sysconfig.Config, error) {
 	confFilePath := deps.Params.sysProbeConfFilePath
-	return sysconfig.New(confFilePath)
+	return sysconfig.NewCustom(confFilePath, deps.Params.configLoadSecrets)
 }

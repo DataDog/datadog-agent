@@ -11,6 +11,7 @@ package run
 import (
 	"context"
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent-cloudfoundry/command"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
@@ -35,12 +36,13 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 
-	"go.uber.org/fx"
 	"os"
 	"os/signal"
 	"regexp"
 	"syscall"
 	"time"
+
+	"go.uber.org/fx"
 )
 
 // Commands returns a slice of subcommands for the 'cluster-agent-cloudfoundry' command.
@@ -99,7 +101,6 @@ func run(log log.Component, config config.Component, cliParams *command.GlobalPa
 	opts := aggregator.DefaultAgentDemultiplexerOptions(forwarderOpts)
 	opts.UseEventPlatformForwarder = false
 	opts.UseOrchestratorForwarder = false
-	opts.UseContainerLifecycleForwarder = false
 	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hname)
 	demux.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
