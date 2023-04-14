@@ -205,7 +205,7 @@ func startSystemProbe(cliParams *cliParams, log log.Component, sysprobeconfig sy
 
 	// Init workload metastore collectors
 	workloadmetaCollectors := workloadmeta.NodeAgentCatalog
-	if sysprobeconfig.GetBool("runtime_security_config.remote_workloadmeta") {
+	if sysprobeconfig.GetBool("runtime_security_config.remote_workloadmeta.enabled") {
 		workloadmetaCollectors = workloadmeta.RemoteCatalog
 	}
 
