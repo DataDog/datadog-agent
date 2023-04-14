@@ -197,6 +197,19 @@ func (rs *RuleSet) GetRuleSetTag() eval.RuleSetTagValue {
 	return rs.opts.RuleSetTag[RuleSetTagKey]
 }
 
+// SetRuleSetTag sets the value of the "ruleset" tag, which is the tag of the rules that belong in this rule set
+func (rs *RuleSet) SetRuleSetTagValue(value eval.RuleSetTagValue) error {
+	if len(rs.GetRules()) > 0 {
+		return ErrCannotChangeTagAfterLoading
+	}
+	if _, ok := rs.opts.RuleSetTag[RuleSetTagKey]; !ok {
+		rs.opts.RuleSetTag = map[string]eval.RuleSetTagValue{RuleSetTagKey: ""}
+	}
+	rs.opts.RuleSetTag[RuleSetTagKey] = value
+
+	return nil
+}
+
 // ListMacroIDs returns the list of MacroIDs from the ruleset
 func (rs *RuleSet) ListMacroIDs() []MacroID {
 	var ids []string

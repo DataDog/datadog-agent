@@ -21,7 +21,7 @@ func NewEvaluationSet(ruleSetsToInclude []*RuleSet) (*EvaluationSet, error) {
 	ruleSets := make(map[string]*RuleSet)
 
 	if len(ruleSetsToInclude) == 0 {
-		return nil, fmt.Errorf("no rule sets provided to include in an evaluation set")
+		return nil, ErrNoRuleSetsInEvaluationSet
 	}
 
 	for _, ruleSet := range ruleSetsToInclude {
