@@ -98,7 +98,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 				log.Warnf("Unable to close trivy client: %v", err)
 			}
 		}()
-		cleanTicker := time.NewTicker(config.Datadog.GetDuration("container_image_collection.sbom.cache_clean_interval") * time.Second)
+		cleanTicker := time.NewTicker(config.Datadog.GetDuration("container_image_collection.sbom.cache_clean_interval"))
 		for {
 			select {
 			case image := <-imagesToScanCh:
