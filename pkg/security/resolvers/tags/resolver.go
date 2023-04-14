@@ -117,7 +117,6 @@ func NewResolver(config *config.Config) Resolver {
 
 // Resolove image_id
 func (t *Resolver) ResolveImageID(containerID string) string {
-	// tags, _ := t.tagger.Tag("container_id://"+id, collectors.OrchestratorCardinality)
 	imageID := t.GetValue(containerID, "image_id")
 	imageName := t.GetValueForImage(imageID, "image_name")
 	repoDigests := strings.Split(t.GetValueForImage(imageID, "image_repo_digests"), ",")
