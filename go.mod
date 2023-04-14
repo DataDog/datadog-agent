@@ -45,7 +45,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.44.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.44.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.44.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/trace v0.44.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/trace v0.44.0-rc.6
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.44.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/log v0.44.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.44.0-rc.4
@@ -58,9 +58,9 @@ require (
 	github.com/DataDog/gohai v0.0.0-20221116153829-5d479901d2e9
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.1.4
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.1.4
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.1.4
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.1.5
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.1.5
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.1.5
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/DataDog/viper v1.12.0
 	github.com/DataDog/watermarkpodautoscaler v0.5.2
@@ -70,7 +70,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.2.1
 	github.com/Masterminds/sprig/v3 v3.2.3
 	github.com/Microsoft/go-winio v0.6.0
-	github.com/Microsoft/hcsshim v0.9.7
+	github.com/Microsoft/hcsshim v0.9.8
 	github.com/acobaugh/osrelease v0.1.0
 	github.com/alecthomas/participle v0.7.1
 	github.com/alecthomas/repr v0.2.0
@@ -90,7 +90,7 @@ require (
 	github.com/clbanning/mxj v1.8.4
 	github.com/cloudfoundry-community/go-cfclient v0.0.0-20210621174645-7773f7e22665
 	github.com/containerd/cgroups v1.0.4
-	github.com/containerd/containerd v1.6.19
+	github.com/containerd/containerd v1.6.20
 	github.com/containerd/typeurl v1.0.2
 	github.com/containernetworking/cni v1.1.2
 	github.com/coreos/go-semver v0.3.0
@@ -101,7 +101,7 @@ require (
 	github.com/dgraph-io/badger/v3 v3.2103.5
 	github.com/docker/docker v23.0.0-rc.1+incompatible
 	github.com/docker/go-connections v0.4.0
-	github.com/dustin/go-humanize v1.0.0
+	github.com/dustin/go-humanize v1.0.1
 	github.com/elastic/go-libaudit v0.4.0
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/fatih/color v1.13.0
@@ -155,7 +155,7 @@ require (
 	github.com/open-policy-agent/opa v0.51.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.75.0
 	github.com/opencontainers/go-digest v1.0.0
-	github.com/opencontainers/image-spec v1.1.0-rc2
+	github.com/opencontainers/image-spec v1.1.0-rc2.0.20221005185240-3a7f492d3f1b
 	github.com/opencontainers/runtime-spec v1.1.0-rc.1
 	github.com/openshift/api v3.9.0+incompatible
 	github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be
@@ -239,6 +239,7 @@ require (
 	k8s.io/cri-api v0.25.5 // Cannot be upgraded to 0.26 without lossing CRI API v1alpha2
 	k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4 // Min version that includes fix for Windows Nano
 	k8s.io/klog/v2 v2.80.1
+	k8s.io/kube-aggregator v0.23.5
 	k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280
 	k8s.io/kube-state-metrics/v2 v2.7.0
 	k8s.io/kubelet v0.25.5
@@ -267,7 +268,7 @@ require (
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2 // indirect
 	github.com/AlekSi/pointer v1.2.0 // indirect
-	github.com/Azure/azure-sdk-for-go v67.1.0+incompatible // indirect
+	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
 	github.com/Azure/go-autorest/autorest v0.11.28 // indirect
 	github.com/Azure/go-autorest/autorest/adal v0.9.21 // indirect
@@ -328,7 +329,7 @@ require (
 	github.com/containerd/continuity v0.3.0 // indirect
 	github.com/containerd/fifo v1.0.0 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.13.0 // indirect
-	github.com/containerd/ttrpc v1.1.1-0.20220420014843-944ef4a40df3 // indirect
+	github.com/containerd/ttrpc v1.1.1 // indirect
 	github.com/containernetworking/plugins v1.1.1 // indirect
 	github.com/coreos/go-systemd/v22 v22.4.0 // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
@@ -367,6 +368,7 @@ require (
 	github.com/go-openapi/validate v0.22.0 // indirect
 	github.com/go-redis/redis/v8 v8.11.5 // indirect
 	github.com/go-test/deep v1.0.7 // indirect
+	github.com/gocomply/scap v0.1.1
 	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/golang-jwt/jwt/v4 v4.4.2 // indirect
 	github.com/golang/glog v1.0.0 // indirect
@@ -451,7 +453,7 @@ require (
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/nwaples/rardecode v1.1.0 // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
-	github.com/opencontainers/runc v1.1.3 // indirect
+	github.com/opencontainers/runc v1.1.5 // indirect
 	github.com/opencontainers/selinux v1.10.2 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/outcaste-io/ristretto v0.2.1 // indirect

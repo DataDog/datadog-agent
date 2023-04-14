@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-func Test_extractFirstParent(t *testing.T) {
+func Test_ExtractFirstParent(t *testing.T) {
 	type args struct {
 		path string
 	}
@@ -79,9 +79,9 @@ func Test_extractFirstParent(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, got1 := extractFirstParent(tt.args.path)
-			assert.Equalf(t, tt.want, got, "extractFirstParent(%v)", tt.args.path)
-			assert.Equalf(t, tt.want1, got1, "extractFirstParent(%v)", tt.args.path)
+			got, got1 := ExtractFirstParent(tt.args.path)
+			assert.Equalf(t, tt.want, got, "ExtractFirstParent(%v)", tt.args.path)
+			assert.Equalf(t, tt.want1, got1, "ExtractFirstParent(%v)", tt.args.path)
 		})
 	}
 }

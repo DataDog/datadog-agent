@@ -453,7 +453,7 @@ func httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo *etw.DDEtwEventInfo
 	}
 
 	var connOpen ConnOpen
-
+	// we're _always_ the server
 	if localAddrLength == 16 {
 		remoteAddrLength := binary.LittleEndian.Uint32(userData[28:32])
 		if remoteAddrLength != 16 {
@@ -463,10 +463,10 @@ func httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo *etw.DDEtwEventInfo
 
 		// Local and remote ipaddress and port
 		connOpen.conn.tup.Family = binary.LittleEndian.Uint16(userData[12:14])
-		connOpen.conn.tup.SrvPort = binary.BigEndian.Uint16(userData[14:16])
-		copy(connOpen.conn.tup.SrvAddr[:], userData[16:20])
-		connOpen.conn.tup.CliPort = binary.BigEndian.Uint16(userData[34:36])
-		copy(connOpen.conn.tup.CliAddr[:], userData[36:40])
+		connOpen.conn.tup.LocalPort = binary.BigEndian.Uint16(userData[14:16])
+		copy(connOpen.conn.tup.LocalAddr[:], userData[16:20])
+		connOpen.conn.tup.RemotePort = binary.BigEndian.Uint16(userData[34:36])
+		copy(connOpen.conn.tup.RemoteAddr[:], userData[36:40])
 	} else {
 		if eventInfo.Event.UserDataLength < 72 {
 			log.Errorf("*** Error: User data length for EVENT_ID_HttpService_HTTPConnectionTraceTaskConnConn is too small for IP6 %v\n\n", uintptr(eventInfo.Event.UserDataLength))
@@ -483,10 +483,10 @@ func httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo *etw.DDEtwEventInfo
 		//  	46: uint16_t remotePort;
 		//  	52: uint16_t remoteIpAddress[8];
 		connOpen.conn.tup.Family = binary.LittleEndian.Uint16(userData[12:14])
-		connOpen.conn.tup.SrvPort = binary.BigEndian.Uint16(userData[14:16])
-		copy(connOpen.conn.tup.SrvAddr[:], userData[20:36])
-		connOpen.conn.tup.CliPort = binary.BigEndian.Uint16(userData[46:48])
-		copy(connOpen.conn.tup.CliAddr[:], userData[52:68])
+		connOpen.conn.tup.LocalPort = binary.BigEndian.Uint16(userData[14:16])
+		copy(connOpen.conn.tup.LocalAddr[:], userData[20:36])
+		connOpen.conn.tup.RemotePort = binary.BigEndian.Uint16(userData[46:48])
+		copy(connOpen.conn.tup.RemoteAddr[:], userData[52:68])
 	}
 
 	// Time

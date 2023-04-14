@@ -193,9 +193,7 @@ func getServiceStatus(fb flarehelpers.FlareBuilder) error {
 			err := cmd.Run()
 			if err != nil {
 				log.Warnf("Error running powershell command %v", err)
-				// for some reason the lodctr command returns error 259 even when
-				// it succeeds.  Log the error in case it's some other error,
-				// but continue on.
+				// keep trying to get data even if this fails
 			}
 
 			f := &bytes.Buffer{}
@@ -204,6 +202,23 @@ func getServiceStatus(fb flarehelpers.FlareBuilder) error {
 				log.Warnf("Error writing file %v", err)
 				return nil, err
 			}
+			out.Reset()
+			// get the full driver configuration information
+			cmd = exec.CommandContext(cancelctx, "powershell", "-c", "sc.exe", "qc", "ddnpm")
+
+			cmd.Stdout = &out
+			err = cmd.Run()
+			if err != nil {
+				log.Warnf("Error running powershell command %v", err)
+				// don't fail if this command fails; there's still lots of good data here
+			}
+
+			_, err = f.Write(out.Bytes())
+			if err != nil {
+				log.Warnf("Error writing file %v", err)
+				return nil, err
+			}
+
 			// compute the location of the driver
 			ddroot, err := winutil.GetProgramFilesDirForProduct("DataDog Agent")
 			if err == nil {
@@ -213,10 +228,30 @@ func getServiceStatus(fb flarehelpers.FlareBuilder) error {
 					f.Write([]byte(fmt.Sprintf("Failed to stat file %v %v\n", pathtodriver, err))) //nolint:errcheck
 				} else {
 					f.Write([]byte(fmt.Sprintf("Driver last modification time : %v\n", fi.ModTime().Format(time.UnixDate)))) //nolint:errcheck
+					// also show the file version resource
+					out.Reset()
+
+					quotedPath := fmt.Sprintf("\"%s\"", pathtodriver)
+					cmd = exec.CommandContext(cancelctx, "powershell", "-c", "gci", quotedPath, "|", "fl")
+
+					cmd.Stdout = &out
+					err = cmd.Run()
+					if err != nil {
+						log.Warnf("Error running powershell command %v", err)
+						// we've gotten a lot of data to this point.  don't fail just because this fails
+
+					}
+
+					_, err = f.Write(out.Bytes())
+					if err != nil {
+						log.Warnf("Error writing file %v", err)
+						return nil, err
+					}
 				}
 			} else {
 				return nil, fmt.Errorf("Error getting path to datadog agent binaries %v", err)
 			}
+
 			return f.Bytes(), nil
 		})
 }

@@ -1,0 +1,30 @@
+From dd006f742f21e6099127dad12dbc3870b7de1481 Mon Sep 17 00:00:00 2001
+From: David du Colombier <djc@datadoghq.com>
+Date: Mon, 20 Feb 2023 13:53:34 +0100
+Subject: [PATCH 16/22] Fix leak of dpkginfo_reply_t fields
+
+The arch, epoch, releasem version and evr strings are allocated
+in dpkginfo_get_by_name, but were not freed in dpkginfo_free_reply.
+---
+ src/OVAL/probes/unix/linux/dpkginfo-helper.cxx | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx b/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
+index 66d4466ba..e41a743d5 100644
+--- a/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
++++ b/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
+@@ -116,6 +116,11 @@ void dpkginfo_free_reply(struct dpkginfo_reply_t *reply)
+ {
+         if (reply) {
+                 free(reply->name);
++                free(reply->arch);
++                free(reply->epoch);
++                free(reply->release);
++                free(reply->version);
++                free(reply->evr);
+                 delete reply;
+         }
+ }
+-- 
+2.34.1
+

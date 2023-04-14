@@ -9,12 +9,14 @@
 package containerd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/errdefs"
+	"github.com/containerd/containerd/namespaces"
 
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -33,7 +35,23 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 		return workloadmeta.Container{}, err
 	}
 
-	image, err := workloadmeta.NewContainerImage(info.Image)
+	// Prepare context
+	ctx := context.Background()
+	ctx = namespaces.WithNamespace(ctx, namespace)
+
+	// Get image id from container's image config
+	var imageID string
+	if img, err := container.Image(ctx); err != nil {
+		log.Warnf("cannot get container %s's image: %v", container.ID(), err)
+	} else {
+		if imgConfig, err := img.Config(ctx); err != nil {
+			log.Warnf("cannot get container %s's image's config: %v", container.ID(), err)
+		} else {
+			imageID = imgConfig.Digest.String()
+		}
+	}
+
+	image, err := workloadmeta.NewContainerImage(imageID, info.Image)
 	if err != nil {
 		log.Debugf("cannot split image name %q: %s", info.Image, err)
 	}

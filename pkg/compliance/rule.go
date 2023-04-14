@@ -20,6 +20,8 @@ type RuleCommon struct {
 	Description string        `yaml:"description,omitempty"`
 	Scope       RuleScopeList `yaml:"scope,omitempty"`
 	SkipOnK8s   bool          `yaml:"skipOnKubernetes,omitempty"`
+	Filters     []string      `yaml:"filters"`
+	Period      string        `yaml:"period,omitempty"`
 }
 
 // RegoRule defines a rule in a compliance config
@@ -29,6 +31,17 @@ type RegoRule struct {
 	Module     string      `yaml:"module,omitempty"`
 	Imports    []string    `yaml:"imports,omitempty"`
 	Findings   string      `yaml:"findings,omitempty"`
+}
+
+// HasResourceKind returns whether or the rule has a dependence on a least
+// one resource with the given type.
+func (r *RegoRule) HasResourceKind(resourceKind ResourceKind) bool {
+	for _, input := range r.Inputs {
+		if input.Kind() == resourceKind {
+			return true
+		}
+	}
+	return false
 }
 
 // ResourceCount returns the count of resources
