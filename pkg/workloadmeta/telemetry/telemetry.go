@@ -97,8 +97,6 @@ var (
 		"Number of errors on the remote workloadmeta server while streaming events",
 		commonOpts,
 	)
-<<<<<<< HEAD
-
 	// SBOMGenerationDuration measures the time that it takes to generate SBOMs
 	// in seconds.
 	SBOMGenerationDuration = telemetry.NewHistogramWithOpts(
@@ -163,6 +161,4 @@ var (
 		"SBOM total number of cache misses during SBOM collection",
 		commonOpts,
 	)
-=======
->>>>>>> main
 )
