@@ -56,12 +56,15 @@ const (
 type Suite[Env any] struct {
 	suite.Suite
 
-	stackName string
-	stackDef  *StackDefinition[Env]
+	stackName       string
+	defaultStackDef *StackDefinition[Env]
+	currentStackDef *StackDefinition[Env]
 
 	// These fields are initialized in SetupSuite
-	Env  *Env
+	env  *Env
 	auth client.Authentification
+
+	isUpdateEnvCalledInThisTest bool
 
 	// Setting DevMode allows to skip deletion regardless of test results
 	// Unavailable in CI.
@@ -79,8 +82,8 @@ type StackDefinition[Env any] struct {
 // options are optional parameters for example [e2e.KeepEnv].
 func NewSuite[Env any](stackName string, stackDef *StackDefinition[Env], options ...func(*Suite[Env])) *Suite[Env] {
 	testSuite := Suite[Env]{
-		stackName: stackName,
-		stackDef:  stackDef,
+		stackName:       stackName,
+		defaultStackDef: stackDef,
 	}
 
 	for _, o := range options {
@@ -88,6 +91,23 @@ func NewSuite[Env any](stackName string, stackDef *StackDefinition[Env], options
 	}
 
 	return &testSuite
+}
+
+// Env returns the current environment.
+// In order to improve the efficiency, this function behaves as follow:
+//   - It creates the default environment if no environment exists. It happens only during the first call of the test suite.
+//   - It restores the default environment if UpdateEnv was not already be called during this test.
+//     This avoid having to restore the default environment for each test even if UpdateEnv immedialy
+//     overrides this environment.
+func (suite *Suite[Env]) Env() *Env {
+	if suite.env == nil || !suite.isUpdateEnvCalledInThisTest {
+		suite.UpdateEnv(suite.defaultStackDef)
+	}
+	return suite.env
+}
+
+func (suite *Suite[Env]) BeforeTest(suiteName, testName string) {
+	suite.isUpdateEnvCalledInThisTest = false
 }
 
 // SetupSuite method will run before the tests in the suite are run.
@@ -99,15 +119,6 @@ func (suite *Suite[Env]) SetupSuite() {
 	// Check if the Env type is correct otherwise raises an error before creating the env.
 	err := client.CheckEnvStructValid[Env]()
 	suite.Require().NoError(err)
-
-	if suite.stackDef != nil {
-		env, upResult, err := createEnv(suite, suite.stackDef)
-		suite.Require().NoError(err)
-
-		suite.Env = env
-		err = client.CallStackInitializers(&suite.auth, env, upResult)
-		suite.Require().NoError(err)
-	}
 }
 
 // HandleStats method is run after all the tests in the suite have been run.
@@ -152,10 +163,14 @@ func createEnv[Env any](suite *Suite[Env], stackDef *StackDefinition[Env]) (*Env
 	return env, stackOutput, err
 }
 
-func (suite *Suite[Env]) UpdateEnv(stackDef StackDefinition[Env]) {
-	env, upResult, err := createEnv(suite, &stackDef)
-	suite.Require().NoError(err)
-	suite.Env = env
-	err = client.CallStackInitializers(&suite.auth, env, upResult)
-	suite.Require().NoError(err)
+func (suite *Suite[Env]) UpdateEnv(stackDef *StackDefinition[Env]) {
+	if stackDef != suite.currentStackDef {
+		env, upResult, err := createEnv(suite, stackDef)
+		suite.Require().NoError(err)
+		err = client.CallStackInitializers(&suite.auth, env, upResult)
+		suite.Require().NoError(err)
+		suite.env = env
+		suite.currentStackDef = stackDef
+	}
+	suite.isUpdateEnvCalledInThisTest = true
 }
