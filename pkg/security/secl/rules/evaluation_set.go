@@ -46,13 +46,11 @@ func (ps *EvaluationSet) GetPolicies() []*Policy {
 
 func (es *EvaluationSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *multierror.Error {
 	var (
-		errs                     *multierror.Error
-		probeEvaluationRules     []*RuleDefinition
-		ruleSetTaggedRules       = make(map[eval.RuleSetTagValue][]*RuleDefinition)
-		allMacros                []*MacroDefinition
-		macroIndex               = make(map[string]*MacroDefinition)
-		probeEvaluationRuleIndex = make(map[eval.RuleID]*RuleDefinition)
-		ruleSetTaggedIndex       = make(map[eval.RuleSetTagValue]map[eval.RuleID]*RuleDefinition)
+		errs       *multierror.Error
+		rules      = make(map[eval.RuleSetTagValue][]*RuleDefinition)
+		allMacros  []*MacroDefinition
+		macroIndex = make(map[string]*MacroDefinition)
+		rulesIndex = make(map[eval.RuleSetTagValue]map[eval.RuleID]*RuleDefinition)
 	)
 
 	parsingContext := ast.NewParsingContext()
@@ -78,42 +76,29 @@ func (es *EvaluationSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpt
 		}
 
 		for _, rule := range policy.Rules {
-			if existingRule := probeEvaluationRuleIndex[rule.ID]; existingRule != nil {
+			tagValue, _ := rule.GetTag("ruleset")
+			if tagValue == "" {
+				tagValue = DefaultRuleSetTagValue
+			}
+
+			if _, ok := rulesIndex[tagValue]; !ok {
+				rulesIndex[tagValue] = make(map[string]*RuleDefinition)
+			}
+
+			if existingRule := rulesIndex[tagValue][rule.ID]; existingRule != nil {
 				if err := existingRule.MergeWith(rule); err != nil {
 					errs = multierror.Append(errs, err)
 				}
 			} else {
-				probeEvaluationRuleIndex[rule.ID] = rule
-				probeEvaluationRules = append(probeEvaluationRules, rule)
+				rulesIndex[tagValue][rule.ID] = rule
+				rules[tagValue] = append(rules[tagValue], rule)
 			}
 		}
-
-		for tagValue, rules := range policy.RuleSetTaggedRules {
-			if _, ok := ruleSetTaggedIndex[tagValue]; !ok {
-				ruleSetTaggedIndex[tagValue] = make(map[string]*RuleDefinition)
-			}
-			for _, rule := range rules {
-				if existingRule := ruleSetTaggedIndex[tagValue][rule.ID]; existingRule != nil {
-					if err := existingRule.MergeWith(rule); err != nil {
-						errs = multierror.Append(errs, err)
-					}
-				} else {
-					ruleSetTaggedIndex[tagValue][rule.ID] = rule
-					ruleSetTaggedRules[tagValue] = append(ruleSetTaggedRules[tagValue], rule)
-				}
-			}
-		}
-	}
-
-	allRuleLists := make(map[eval.RuleSetTagValue][]*RuleDefinition)
-	allRuleLists[DefaultRuleSetTagValue] = probeEvaluationRules
-	for tags, ruleList := range ruleSetTaggedRules {
-		allRuleLists[tags] = ruleList
 	}
 
 	for ruleSetTagValue, rs := range es.RuleSets {
-		for ruleListName, ruleList := range allRuleLists {
-			if ruleListName == ruleSetTagValue {
+		for rulesIndexTagValue, ruleList := range rules {
+			if rulesIndexTagValue == ruleSetTagValue {
 				// Add the macros to the ruleset and generate macros evaluators
 				if err := rs.AddMacros(parsingContext, allMacros); err.ErrorOrNil() != nil {
 					errs = multierror.Append(errs, err)

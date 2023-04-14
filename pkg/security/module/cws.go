@@ -184,14 +184,9 @@ func (c *CWSConsumer) Start() error {
 
 	ruleFilterModel := NewRuleFilterModel()
 	seclRuleFilter := rules.NewSECLRuleFilter(ruleFilterModel)
-	threatScoreRuleTagFilter, err := rules.NewRuleTagFilter(map[string]string{"ruleset": "threat_score"})
-	if err != nil {
-		seclog.Errorf("failed to create rule tag filter: %v", err)
-	}
 
 	macroFilters = append(macroFilters, seclRuleFilter)
 	ruleFilters = append(ruleFilters, seclRuleFilter)
-	ruleFilters = append(ruleFilters, threatScoreRuleTagFilter)
 
 	c.policyOpts = rules.PolicyLoaderOpts{
 		MacroFilters: macroFilters,

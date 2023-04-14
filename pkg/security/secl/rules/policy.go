@@ -7,7 +7,6 @@ package rules
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"
 	"github.com/hashicorp/go-multierror"
 	"gopkg.in/yaml.v2"
@@ -23,12 +22,11 @@ type PolicyDef struct {
 
 // Policy represents a policy file which is composed of a list of rules and macros
 type Policy struct {
-	Name               string
-	Source             string
-	Version            string
-	Rules              []*RuleDefinition
-	Macros             []*MacroDefinition
-	RuleSetTaggedRules map[eval.RuleSetTagValue][]*RuleDefinition
+	Name    string
+	Source  string
+	Version string
+	Rules   []*RuleDefinition
+	Macros  []*MacroDefinition
 }
 
 // AddMacro add a macro to the policy
@@ -42,15 +40,6 @@ func (p *Policy) AddRule(def *RuleDefinition) {
 	p.Rules = append(p.Rules, def)
 }
 
-// AddTaggedRule adds a threat score rule to the policy
-func (p *Policy) AddTaggedRule(def *RuleDefinition) {
-	def.Policy = p
-
-	ruleSetTagValue := def.Tags[RuleSetTagKey]
-
-	p.RuleSetTaggedRules[ruleSetTagValue] = append(p.RuleSetTaggedRules[ruleSetTagValue], def)
-}
-
 func parsePolicyDef(name string, source string, def *PolicyDef, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, error) {
 	var errs *multierror.Error
 
@@ -59,7 +48,6 @@ func parsePolicyDef(name string, source string, def *PolicyDef, macroFilters []M
 		Source:  source,
 		Version: def.Version,
 	}
-	policy.RuleSetTaggedRules = make(map[eval.RuleSetTagValue][]*RuleDefinition)
 
 MACROS:
 	for _, macroDef := range def.Macros {
@@ -94,20 +82,11 @@ RULES:
 	for _, ruleDef := range def.Rules {
 		// set the policy so that when we parse the errors we can get the policy associated
 		ruleDef.Policy = policy
-		hasRuleSetTag := false
 
 		for _, filter := range ruleFilters {
 			isRuleAccepted, err := filter.IsRuleAccepted(ruleDef)
 			if err != nil {
 				errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: err})
-			}
-
-			var isTagFilter bool
-			if _, isTagFilter = filter.(*RuleTagFilter); isTagFilter && isRuleAccepted {
-				hasRuleSetTag = true
-				continue
-			} else if isTagFilter && !isRuleAccepted {
-				continue
 			}
 
 			if !isRuleAccepted {
@@ -142,11 +121,7 @@ RULES:
 			continue
 		}
 
-		if hasRuleSetTag {
-			policy.AddTaggedRule(ruleDef)
-		} else {
-			policy.AddRule(ruleDef)
-		}
+		policy.AddRule(ruleDef)
 	}
 
 LOOP:
