@@ -66,7 +66,7 @@ func TestAggregator(t *testing.T) {
 	flow := &common.Flow{
 		Namespace:      "my-ns",
 		FlowType:       common.TypeNetFlow9,
-		DeviceAddr:     []byte{127, 0, 0, 1},
+		ExporterAddr:   []byte{127, 0, 0, 1},
 		StartTimestamp: 1234568,
 		EndTimestamp:   1234569,
 		Bytes:          20,
@@ -94,8 +94,10 @@ func TestAggregator(t *testing.T) {
   "ether_type": "IPv4",
   "ip_protocol": "TCP",
   "device": {
-    "ip": "127.0.0.1",
     "namespace": "my-ns"
+  },
+  "exporter": {
+    "ip": "127.0.0.1"
   },
   "source": {
     "ip": "10.10.10.10",
@@ -495,7 +497,7 @@ func TestFlowAggregator_sendExporterMetadata_multiplePayloads(t *testing.T) {
 		flows = append(flows, &common.Flow{
 			Namespace:      "my-ns",
 			FlowType:       common.TypeNetFlow9,
-			DeviceAddr:     []byte{127, 0, 0, byte(i)},
+			ExporterAddr:   []byte{127, 0, 0, byte(i)},
 			StartTimestamp: 1234568,
 			EndTimestamp:   1234569,
 			Bytes:          20,
@@ -609,7 +611,7 @@ func TestFlowAggregator_sendExporterMetadata_invalidIPIgnored(t *testing.T) {
 		{
 			Namespace:      "my-ns",
 			FlowType:       common.TypeNetFlow9,
-			DeviceAddr:     []byte{99}, // INVALID ADDR
+			ExporterAddr:   []byte{99}, // INVALID ADDR
 			StartTimestamp: 1234568,
 			EndTimestamp:   1234569,
 			Bytes:          20,
@@ -625,7 +627,7 @@ func TestFlowAggregator_sendExporterMetadata_invalidIPIgnored(t *testing.T) {
 		{
 			Namespace:      "my-ns",
 			FlowType:       common.TypeNetFlow9,
-			DeviceAddr:     []byte{127, 0, 0, 10},
+			ExporterAddr:   []byte{127, 0, 0, 10},
 			StartTimestamp: 1234568,
 			EndTimestamp:   1234569,
 			Bytes:          20,
@@ -692,7 +694,7 @@ func TestFlowAggregator_sendExporterMetadata_multipleNamespaces(t *testing.T) {
 		{
 			Namespace:      "my-ns1",
 			FlowType:       common.TypeNetFlow9,
-			DeviceAddr:     []byte{127, 0, 0, 11},
+			ExporterAddr:   []byte{127, 0, 0, 11},
 			StartTimestamp: 1234568,
 			EndTimestamp:   1234569,
 			Bytes:          20,
@@ -708,7 +710,7 @@ func TestFlowAggregator_sendExporterMetadata_multipleNamespaces(t *testing.T) {
 		{
 			Namespace:      "my-ns2",
 			FlowType:       common.TypeNetFlow9,
-			DeviceAddr:     []byte{127, 0, 0, 12},
+			ExporterAddr:   []byte{127, 0, 0, 12},
 			StartTimestamp: 1234568,
 			EndTimestamp:   1234569,
 			Bytes:          20,
@@ -794,7 +796,7 @@ func TestFlowAggregator_sendExporterMetadata_singleExporterIpWithMultipleFlowTyp
 		{
 			Namespace:      "my-ns1",
 			FlowType:       common.TypeNetFlow9,
-			DeviceAddr:     []byte{127, 0, 0, 11},
+			ExporterAddr:   []byte{127, 0, 0, 11},
 			StartTimestamp: 1234568,
 			EndTimestamp:   1234569,
 			Bytes:          20,
@@ -810,7 +812,7 @@ func TestFlowAggregator_sendExporterMetadata_singleExporterIpWithMultipleFlowTyp
 		{
 			Namespace:      "my-ns1",
 			FlowType:       common.TypeNetFlow5,
-			DeviceAddr:     []byte{127, 0, 0, 11},
+			ExporterAddr:   []byte{127, 0, 0, 11},
 			StartTimestamp: 1234568,
 			EndTimestamp:   1234569,
 			Bytes:          20,

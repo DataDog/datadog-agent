@@ -7,16 +7,7 @@ package metadata
 
 import "time"
 
-func BatchPayloads(namespace string,
-	subnet string,
-	collectTime time.Time,
-	batchSize int,
-	devices []DeviceMetadata,
-	interfaces []InterfaceMetadata,
-	ipAddresses []IPAddressMetadata,
-	topologyLinks []TopologyLinkMetadata,
-	netflowExporters []NetflowExporter,
-) []NetworkDevicesMetadata {
+func BatchPayloads(namespace string, subnet string, collectTime time.Time, batchSize int, devices []DeviceMetadata, interfaces []InterfaceMetadata, ipAddresses []IPAddressMetadata, topologyLinks []TopologyLinkMetadata, netflowExporters []NetflowExporter) []NetworkDevicesMetadata {
 
 	var payloads []NetworkDevicesMetadata
 	var resourceCount int
