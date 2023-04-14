@@ -32,8 +32,8 @@ type ScanOptions struct {
 // ScanOptionsFromConfig loads the scanning options from the configuration
 func ScanOptionsFromConfig(cfg config.Config, containers bool) (scanOpts ScanOptions) {
 	if containers {
-		scanOpts.CheckDiskUsage = config.Datadog.GetBool("sbom.check_disk_usage")
-		scanOpts.MinAvailableDisk = uint64(config.Datadog.GetSizeInBytes("sbom.min_available_disk"))
+		scanOpts.CheckDiskUsage = config.Datadog.GetBool("container_image_collection.sbom.check_disk_usage")
+		scanOpts.MinAvailableDisk = uint64(config.Datadog.GetSizeInBytes("container_image_collection.sbom.min_available_disk"))
 		scanOpts.Timeout = time.Duration(config.Datadog.GetInt("container_image_collection.sbom.scan_timeout")) * time.Second
 		scanOpts.WaitAfter = time.Duration(config.Datadog.GetInt("container_image_collection.sbom.scan_interval")) * time.Second
 		scanOpts.Analyzers = config.Datadog.GetStringSlice("container_image_collection.sbom.analyzers")
