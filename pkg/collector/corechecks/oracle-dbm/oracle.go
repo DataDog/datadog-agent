@@ -128,7 +128,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		} else {
 			c.dbHostname = dbHostname
 		}
-		c.tags = append(c.tags, fmt.Sprintf("dbhost:%s", c.dbHostname))
+		c.tags = append(c.tags, fmt.Sprintf("dbhost:%s", c.dbHostname), fmt.Sprintf("oracle_version:%s", c.dbVersion))
 	}
 
 	return db, nil
@@ -168,6 +168,7 @@ func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integratio
 
 	c.checkInterval = float64(c.config.InitConfig.MinCollectionInterval)
 	c.tags = c.config.Tags
+	c.tags = append(c.tags, fmt.Sprintf("dbms:%s", common.IntegrationName), fmt.Sprintf("ddagentversion:%s", c.agentVersion))
 
 	return nil
 }
