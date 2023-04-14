@@ -6,12 +6,7 @@
 package trivy
 
 import (
-	"context"
-
 	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-
-	"github.com/containerd/containerd"
 )
 
 // Report interface
@@ -23,13 +18,4 @@ type Report interface {
 type CacheCleaner interface {
 	Clean() error
 	setKeysForEntity(entity string, cachedKeys []string)
-}
-
-// Collector interface
-type Collector interface {
-	GetCacheCleaner() CacheCleaner
-	ScanContainerdImage(ctx context.Context, imageMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (Report, error)
-	ScanContainerdImageFromFilesystem(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (Report, error)
-	ScanFilesystem(ctx context.Context, path string) (Report, error)
-	Close() error
 }

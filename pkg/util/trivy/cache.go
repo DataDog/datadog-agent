@@ -21,15 +21,7 @@ import (
 	"github.com/aquasecurity/trivy/pkg/fanal/cache"
 	"github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/aquasecurity/trivy/pkg/utils"
-<<<<<<< HEAD
 	"github.com/hashicorp/golang-lru/simplelru"
-=======
-	"github.com/dgraph-io/badger/v3"
-	"github.com/hashicorp/go-multierror"
-
-	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
->>>>>>> main
 )
 
 // telemetryTick is the frequency at which the cache usage metrics are collected.
