@@ -45,7 +45,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.44.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.44.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.44.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/trace v0.44.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/trace v0.44.0-rc.6
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.44.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/log v0.44.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.44.0-rc.4
@@ -58,9 +58,9 @@ require (
 	github.com/DataDog/gohai v0.0.0-20221116153829-5d479901d2e9
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.1.4
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.1.4
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.1.4
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.1.5
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.1.5
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.1.5
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/DataDog/viper v1.12.0
 	github.com/DataDog/watermarkpodautoscaler v0.5.2
@@ -101,7 +101,7 @@ require (
 	github.com/dgraph-io/badger/v3 v3.2103.5
 	github.com/docker/docker v23.0.0-rc.1+incompatible
 	github.com/docker/go-connections v0.4.0
-	github.com/dustin/go-humanize v1.0.0
+	github.com/dustin/go-humanize v1.0.1
 	github.com/elastic/go-libaudit v0.4.0
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/fatih/color v1.13.0
@@ -268,7 +268,7 @@ require (
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2 // indirect
 	github.com/AlekSi/pointer v1.2.0 // indirect
-	github.com/Azure/azure-sdk-for-go v67.1.0+incompatible // indirect
+	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
 	github.com/Azure/go-autorest/autorest v0.11.28 // indirect
 	github.com/Azure/go-autorest/autorest/adal v0.9.21 // indirect
