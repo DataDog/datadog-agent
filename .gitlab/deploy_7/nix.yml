@@ -39,7 +39,7 @@ deploy_packages_dogstatsd_deb-x64-7:
   extends: .deploy_packages_deb-7
   needs: [ dogstatsd_deb-x64 ]
   variables:
-    PACKAGE_ARCH: x64
+    PACKAGE_ARCH: amd64
 
 deploy_packages_dogstatsd_deb-arm64-7:
   extends: .deploy_packages_deb-7
