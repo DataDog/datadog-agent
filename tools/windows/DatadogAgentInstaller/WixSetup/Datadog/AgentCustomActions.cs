@@ -138,7 +138,7 @@ namespace WixSetup.Datadog
                 new Id(nameof(EnsureNpmServiceDepdendency)),
                 ServiceCustomAction.EnsureNpmServiceDependency,
                 Return.check,
-                When.Before,
+                When.After,
                 Step.InstallServices,
                 Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
             )
