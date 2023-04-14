@@ -10,7 +10,6 @@ package tests
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
