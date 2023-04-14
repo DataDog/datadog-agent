@@ -78,17 +78,22 @@ func (s *Scanner) start(ctx context.Context) {
 	if s.running {
 		return
 	}
-
 	go func() {
+		cleanTicker := time.NewTicker(config.Datadog.GetDuration("sbom.cache_clean_interval"))
+		defer cleanTicker.Stop()
 		s.running = true
 		defer func() { s.running = false }()
-
 		for {
 			select {
 			// We don't want to keep scanning if image channel is not empty but context is expired
 			case <-ctx.Done():
 				return
-
+			case <-cleanTicker.C:
+				for _, collector := range collectors.Collectors {
+					if err := collector.CleanCache(); err != nil {
+						log.Warnf("could not clean SBOM cache: %v", err)
+					}
+				}
 			case request, ok := <-s.scanQueue:
 				// Channel has been closed we should exit
 				if !ok {

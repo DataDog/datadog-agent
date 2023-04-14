@@ -9,19 +9,25 @@
 package trivy
 
 import (
+	"context"
+	"encoding/json"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/stretchr/testify/require"
 )
 
-// TTL needs to be long enough so that keys don't expire in the middle of a test
-var testCacheTTL = 1 * time.Hour
+var (
+	defaultCacheSize = 100
+	defaultDiskSize  = 1000000
+)
 
-func TestBadgerCache_Artifacts(t *testing.T) {
-	cache, err := NewBadgerCache(t.TempDir(), testCacheTTL)
+func TestCustomBoltCache_Artifacts(t *testing.T) {
+	cache, _, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -41,8 +47,8 @@ func TestBadgerCache_Artifacts(t *testing.T) {
 	require.Equal(t, artifactInfo, storedArtifact)
 }
 
-func TestBadgerCache_Blobs(t *testing.T) {
-	cache, err := NewBadgerCache(t.TempDir(), testCacheTTL)
+func TestCustomBoltCache_Blobs(t *testing.T) {
+	cache, _, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -62,8 +68,8 @@ func TestBadgerCache_Blobs(t *testing.T) {
 	require.Equal(t, blobInfo, storedBlobInfo)
 }
 
-func TestBadgerCache_DeleteBlobs(t *testing.T) {
-	cache, err := NewBadgerCache(t.TempDir(), testCacheTTL)
+func TestCustomBoltCache_DeleteBlobs(t *testing.T) {
+	cache, _, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -96,8 +102,8 @@ func TestBadgerCache_DeleteBlobs(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestBadgerCache_MissingBlobs(t *testing.T) {
-	cache, err := NewBadgerCache(t.TempDir(), testCacheTTL)
+func TestCustomBoltCache_MissingBlobs(t *testing.T) {
+	cache, _, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -128,8 +134,8 @@ func TestBadgerCache_MissingBlobs(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestBadgerCache_Clear(t *testing.T) {
-	cache, err := NewBadgerCache(t.TempDir(), testCacheTTL)
+func TestCustomBoltCache_Clear(t *testing.T) {
+	cache, _, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -145,6 +151,231 @@ func TestBadgerCache_Clear(t *testing.T) {
 
 	_, err = cache.GetArtifact(artifactID)
 	require.Error(t, err)
+}
+
+func TestCustomBoltCache_CurrentObjectSize(t *testing.T) {
+	cache, _, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, cache.Close())
+	}()
+
+	serializedArtifactInfo, err := json.Marshal(newTestArtifactInfo())
+	require.NoError(t, err)
+
+	// Store two artifacts
+	artifactIDs := []string{"some_ID", "some_other_ID"}
+	for _, id := range artifactIDs {
+		err = cache.PutArtifact(id, newTestArtifactInfo())
+		require.NoError(t, err)
+	}
+
+	// Check that the currentCachedObjectTotalSize is equal to the size of the two artifacts
+	persistentCache := cache.(*TrivyCache).Cache.(*PersistentCache)
+	require.Equal(t, len(serializedArtifactInfo)*len(artifactIDs), persistentCache.GetCurrentCachedObjectTotalSize())
+
+	// Remove one artifact and check that currentCachedObjectTotalSize is the size of 1 artifact
+	err = persistentCache.Remove([]string{"some_ID"})
+	require.NoError(t, err)
+	require.Equal(t, len(serializedArtifactInfo)*(len(artifactIDs)-1), persistentCache.GetCurrentCachedObjectTotalSize())
+
+	// Remove the already removed artifact and the last one, check that currentCachedObjectTotalSize is 0
+	err = persistentCache.Remove(artifactIDs)
+	require.NoError(t, err)
+	require.Equal(t, 0, persistentCache.GetCurrentCachedObjectTotalSize())
+}
+
+func TestCustomBoltCache_Eviction(t *testing.T) {
+	// Set the maximum cache entries to 2
+	cache, _, err := NewCustomBoltCache(t.TempDir(), 2, defaultDiskSize)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, cache.Close())
+	}()
+
+	// store 3 artifacts with different sizes
+	artifactIDs := []string{"key1", "key2", "key3"}
+	artifactSize := make(map[string]int)
+	for i, id := range artifactIDs {
+
+		artifact := newTestArtifactInfo()
+		artifact.Architecture = strings.Repeat("A", i*7)
+
+		serializedArtifactInfo, err := json.Marshal(artifact)
+		require.NoError(t, err)
+		artifactSize[id] = len(serializedArtifactInfo)
+
+		err = cache.PutArtifact(id, artifact)
+		require.NoError(t, err)
+	}
+
+	// Make sure only the artifact 2 and 3 are stored and currentCachedObjectTotalSize is correctly updated
+	persistentCache := cache.(*TrivyCache).Cache.(*PersistentCache)
+	require.Equal(t, artifactSize["key2"]+artifactSize["key3"], persistentCache.GetCurrentCachedObjectTotalSize())
+
+	_, err = cache.GetArtifact("key2")
+	require.NoError(t, err)
+
+	_, err = cache.GetArtifact("key3")
+	require.NoError(t, err)
+
+	_, err = cache.GetArtifact("key1")
+	require.Error(t, err)
+}
+
+func TestCustomBoltCache_DiskSizeLimit(t *testing.T) {
+	// Set the max disk size to the size of one item
+	artifact := newTestArtifactInfo()
+	artifact.Architecture = "architecture1"
+	serializedArtifactInfo, err := json.Marshal(artifact)
+	require.NoError(t, err)
+
+	cache, _, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, len(serializedArtifactInfo))
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, cache.Close())
+	}()
+	// Store two items
+	err = cache.PutArtifact("key1", artifact)
+	require.NoError(t, err)
+
+	artifact.Architecture = "architecture2"
+	err = cache.PutArtifact("key2", artifact)
+	require.NoError(t, err)
+
+	// Verify that only the second item is stored and currentCachedObjectTotalSize is correctly updated
+	retrievedArtifact, err := cache.GetArtifact("key2")
+	require.NoError(t, err)
+	require.Equal(t, artifact, retrievedArtifact)
+
+	_, err = cache.GetArtifact("key1")
+	require.Error(t, err)
+
+	persistentCache := cache.(*TrivyCache).Cache.(*PersistentCache)
+	require.Equal(t, len(serializedArtifactInfo), persistentCache.GetCurrentCachedObjectTotalSize())
+}
+
+func TestCustomBoltCache_GarbageCollector(t *testing.T) {
+	// Create a workload meta global store containing two images with a distinct artifactID/blobs and a shared blob
+	globalStore := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
+	globalStore.Start(context.TODO())
+	image1 := &workloadmeta.ContainerImageMetadata{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainerImageMetadata,
+			ID:   "image1",
+		},
+	}
+
+	image2 := &workloadmeta.ContainerImageMetadata{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainerImageMetadata,
+			ID:   "image2",
+		},
+	}
+
+	// Test with no SBOM
+	image3 := &workloadmeta.ContainerImageMetadata{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainerImageMetadata,
+			ID:   "image3",
+		},
+	}
+
+	globalStore.Reset([]workloadmeta.Entity{image1, image2, image3}, workloadmeta.SourceAll)
+
+	cache, cacheCleaner, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, cache.Close())
+	}()
+
+	// link image1 to artifact key1, an owned blob and a shared blob
+	cacheCleaner.setKeysForEntity("image1", []string{"key1", "blob1", "sharedBlob"})
+	// link image2 to artifact key2, an owned blob and a shared blob
+	cacheCleaner.setKeysForEntity("image2", []string{"key2", "blob2", "sharedBlob"})
+
+	// Create a goroutine that calls cacheCleaner.Clean every 500ms
+	go func() {
+		cleanTicker := time.NewTicker(500 * time.Millisecond)
+		for range cleanTicker.C {
+			cacheCleaner.Clean()
+		}
+	}()
+
+	// Store the artifacts of both images, the exclusive blobs and the shared blob
+	err = cache.PutArtifact("key1", newTestArtifactInfo())
+	require.NoError(t, err)
+
+	err = cache.PutArtifact("key2", newTestArtifactInfo())
+	require.NoError(t, err)
+
+	err = cache.PutBlob("sharedBlob", newTestBlobInfo())
+	require.NoError(t, err)
+
+	err = cache.PutBlob("blob1", newTestBlobInfo())
+	require.NoError(t, err)
+
+	err = cache.PutBlob("blob2", newTestBlobInfo())
+	require.NoError(t, err)
+
+	// Wait for the garbage collector to be called
+	time.Sleep(time.Second)
+
+	// Check that no cache object was removed
+	artifact, err := cache.GetArtifact("key1")
+	require.NoError(t, err)
+	require.Equal(t, newTestArtifactInfo(), artifact)
+
+	artifact, err = cache.GetArtifact("key2")
+	require.NoError(t, err)
+	require.Equal(t, newTestArtifactInfo(), artifact)
+
+	blob, err := cache.GetBlob("sharedBlob")
+	require.NoError(t, err)
+	require.Equal(t, newTestBlobInfo(), blob)
+
+	blob, err = cache.GetBlob("blob1")
+	require.NoError(t, err)
+	require.Equal(t, newTestBlobInfo(), blob)
+
+	blob, err = cache.GetBlob("blob2")
+	require.NoError(t, err)
+	require.Equal(t, newTestBlobInfo(), blob)
+
+	// Remove the second image from the workloadmeta
+	globalStore.Reset([]workloadmeta.Entity{image1}, workloadmeta.SourceAll)
+
+	// Wait for the garbage collector to clean up the unused artifact
+	time.Sleep(time.Second)
+
+	// Check that only artifact "key2" and "blob2" were removed
+	_, err = cache.GetArtifact("key2")
+	require.Error(t, err)
+
+	_, err = cache.GetBlob("blob2")
+	require.Error(t, err)
+
+	artifact, err = cache.GetArtifact("key1")
+	require.NoError(t, err)
+	require.Equal(t, newTestArtifactInfo(), artifact)
+
+	blob, err = cache.GetBlob("sharedBlob")
+	require.NoError(t, err)
+	require.Equal(t, newTestBlobInfo(), blob)
+
+	blob, err = cache.GetBlob("blob1")
+	require.NoError(t, err)
+	require.Equal(t, newTestBlobInfo(), blob)
+
+	// Check that the currentCachedObjectTotalSize is correct
+	serializedArtifactInfo, err := json.Marshal(newTestArtifactInfo())
+	require.NoError(t, err)
+
+	serializedBlobInfo, err := json.Marshal(newTestBlobInfo())
+	require.NoError(t, err)
+
+	persistentCache := cache.(*TrivyCache).Cache.(*PersistentCache)
+	require.Equal(t, 2*len(serializedBlobInfo)+len(serializedArtifactInfo), persistentCache.GetCurrentCachedObjectTotalSize())
 }
 
 func newTestArtifactInfo() types.ArtifactInfo {

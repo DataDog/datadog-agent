@@ -43,6 +43,10 @@ type HostCollector struct {
 	trivyCollector *trivy.Collector
 }
 
+func (c *HostCollector) CleanCache() error {
+	return c.trivyCollector.GetCacheCleaner().Clean()
+}
+
 func (c *HostCollector) Init(cfg config.Config) error {
 	trivyCollector, err := trivy.GetGlobalCollector(cfg)
 	if err != nil {
