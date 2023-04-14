@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using System.Linq;
 using System.Security.Principal;
 using Datadog.CustomActions.Extensions;
@@ -55,7 +54,7 @@ namespace Datadog.CustomActions
                 if (systemProbeDef != null)
                 {
                     // Remove the dependency between "datadog-system-probe" and "ddnpm" services since
-                    // the "datadogagent" service now takes care of starting the "ddnpm" service.
+                    // the "datadog-system-probe" service now takes care of starting the "ddnpm" service directly.
                     systemProbeDef.SetValue("DependOnService", new[]
                     {
                         Constants.AgentServiceName
