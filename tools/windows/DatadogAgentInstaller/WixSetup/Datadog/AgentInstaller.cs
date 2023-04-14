@@ -298,7 +298,7 @@ namespace WixSetup.Datadog
                 );
             if (_agentPython.IncludePython2)
             {
-                binFolder.AddFile(new CompressedDir(this, "embedded2", $@"{InstallerSource}\embedded3"));
+                binFolder.AddFile(new CompressedDir(this, "embedded2", $@"{InstallerSource}\embedded2"));
             }
             return binFolder;
         }
