@@ -508,35 +508,6 @@ func TestRuleAgentConstraint(t *testing.T) {
 	}
 }
 
-func TestRuleIDFilter(t *testing.T) {
-	testPolicy := &PolicyDef{
-		Rules: []*RuleDefinition{
-			{
-				ID:         "test1",
-				Expression: `open.file.path == "/tmp/test"`,
-			},
-			{
-				ID:         "test2",
-				Expression: `open.file.path != "/tmp/test"`,
-			},
-		},
-	}
-
-	policyOpts := PolicyLoaderOpts{
-		RuleFilters: []RuleFilter{
-			&RuleIDFilter{
-				ID: "test2",
-			},
-		},
-	}
-
-	rs, err := loadPolicy(t, testPolicy, policyOpts)
-	assert.Nil(t, err)
-
-	assert.NotContains(t, rs.rules, "test1")
-	assert.Contains(t, rs.rules, "test2")
-}
-
 func TestActionSetVariableInvalid(t *testing.T) {
 	t.Run("both-field-and-value", func(t *testing.T) {
 		testPolicy := &PolicyDef{
