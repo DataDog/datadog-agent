@@ -3,21 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package credentials
+package parameters
 
 import "sync"
-
-type store interface {
-	get(key string) (string, error)
-}
 
 type cachingStore struct {
 	l     sync.Mutex
 	cache map[string]string
-	s     store
+	s     valueStore
 }
 
-func newCachingStore(s store) store {
+func newCachingStore(s valueStore) valueStore {
 	return &cachingStore{
 		cache: make(map[string]string),
 		s:     s,
