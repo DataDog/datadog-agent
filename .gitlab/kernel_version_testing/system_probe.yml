@@ -131,6 +131,9 @@ kernel_matrix_testing_setup_env:
     - inv -e system-probe.test-microvms --security-groups=$KITCHEN_EC2_SG_IDS --subnets=$KITCHEN_EC2_SUBNET --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID
     - cat $CI_PROJECT_DIR/stack.outputs
     - pulumi logout
+    - sha256sum $AWS_SSH_KEY
+    - INSTANCE_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep x86_64-instance-ip | cut -d ' ' -f 2)
+    - ssh -vvv -o StrictHostKeyChecking=no -i $AWS_SSH_KEY ubuntu@$INSTANCE_IP 'whoami'
   artifacts:
     when: always
     paths:
@@ -158,10 +161,12 @@ kernel_matrix_testing_upload_deps:
     LibvirtSSHKeyX86: $CI_PROJECT_DIR/libvirt_rsa-x86
     LibvirtSSHKeyARM: $CI_PROJECT_DIR/libvirt_rsa-arm
     STACK_DIR: $CI_PROJECT_DIR/stack.dir
+    AWS_SSH_KEY: $CI_PROJECT_DIR/datadog-agent-kitchen
   script:
     - pulumi login $(cat $STACK_DIR | tr -d '\n')
     - inv -e system-probe.test-microvms --security-groups=$KITCHEN_EC2_SG_IDS --subnets=$KITCHEN_EC2_SUBNET --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --upload-dependencies
     - pulumi logout
+    - sha256sum $AWS_SSH_KEY
   artifacts:
     when: always
     paths:
@@ -182,7 +187,7 @@ kernel_matrix_testing_run_tests:
     - INSTANCE_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-instance-ip | cut -d ' ' -f 2)
     - MICRO_VM_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-$TAG | cut -d ' ' -f 2)
     - chmod 600 $AWS_SSH_KEY
-    - chown 1000:1000 $AWS_SSH_KEY
+    - sha256sum $AWS_SSH_KEY
     - ssh -vvv -o StrictHostKeyChecking=no -i $AWS_SSH_KEY ubuntu@$INSTANCE_IP 'whoami'
     - ssh -vvv -o StrictHostKeyChecking=no -i $AWS_SSH_KEY ubuntu@$INSTANCE_IP "sudo ssh -i /home/kernel-version-testing/rootfs/ddvm_rsa root@${MICRO_VM_IP} ls -la /opt/kernel-version-testing"
   parallel:
