@@ -187,13 +187,7 @@ func (s *StressReport) Save(filename string, name string) error {
 
 // Load previous report
 func (s *StressReports) Load(filename string) error {
-	jsonFile, err := os.Open(filename)
-	if err != nil {
-		return err
-	}
-	defer jsonFile.Close()
-
-	data, err := io.ReadAll(jsonFile)
+	data, err := os.ReadFile(filename)
 	if err != nil {
 		return err
 	}

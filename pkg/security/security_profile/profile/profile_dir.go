@@ -11,7 +11,6 @@ package profile
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -175,13 +174,7 @@ func (dp *DirectoryProvider) SetOnNewProfileCallback(onNewProfileCallback func(s
 }
 
 func (dp *DirectoryProvider) parseProfile(filepath string) (*proto.SecurityProfile, error) {
-	f, err := os.Open(filepath)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't open profile: %w", err)
-	}
-	defer f.Close()
-
-	raw, err := io.ReadAll(f)
+	raw, err := os.ReadFile(filepath)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't open profile: %w", err)
 	}
