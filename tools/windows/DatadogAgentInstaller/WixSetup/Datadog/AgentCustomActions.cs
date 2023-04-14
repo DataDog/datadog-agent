@@ -212,7 +212,7 @@ namespace WixSetup.Datadog
                 Return.check,
                 When.After,
                 new Step(CleanupOnRollback.Id),
-                Conditions.FirstInstall | Conditions.Upgrading
+                Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
             )
             {
                 Execute = Execute.deferred,
@@ -226,7 +226,7 @@ namespace WixSetup.Datadog
                 Return.ignore,
                 When.Before,
                 new Step(DecompressPythonDistributions.Id),
-                Conditions.FirstInstall | Conditions.Upgrading,
+                Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance,
                 Sequence.InstallExecuteSequence
             )
             {
