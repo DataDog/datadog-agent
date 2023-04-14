@@ -142,7 +142,7 @@ func SetHostMountEnv(logger logComponent.Component) {
 
 func GetCoreBundleParamsForOneShot(globalParams *GlobalParams) core.BundleParams {
 	return core.BundleParams{
-		ConfigParams:         configComponent.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
+		ConfigParams:         configComponent.NewAgentParamsWithSecrets(globalParams.ConfFilePath, configComponent.WithConfigMissingOK(true)),
 		SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 		LogParams:            logComponent.LogForOneShot(string(LoggerName), "info", true),
 	}
