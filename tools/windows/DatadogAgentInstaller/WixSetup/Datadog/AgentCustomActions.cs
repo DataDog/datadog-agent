@@ -152,8 +152,8 @@ namespace WixSetup.Datadog
                 new Id(nameof(WriteConfig)),
                 ConfigCustomActions.WriteConfig,
                 Return.check,
-                When.After,
-                new Step(EnsureNpmServiceDepdendency.Id),
+                When.Before,
+                Step.InstallServices,
                 Conditions.FirstInstall
             )
             {
