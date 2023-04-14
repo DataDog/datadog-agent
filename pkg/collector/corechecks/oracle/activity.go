@@ -399,7 +399,7 @@ func (c *Check) SampleSession() error {
 		sessionRow.CdbName = c.cdbName
 		sessionRows = append(sessionRows, sessionRow)
 	}
-	o.Stop()
+	defer o.Stop()
 
 	payload := ActivitySnapshot{
 		Metadata: Metadata{
