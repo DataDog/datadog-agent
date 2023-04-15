@@ -8,6 +8,7 @@ package subcommands
 import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	cmdcheck "github.com/DataDog/datadog-agent/cmd/agent/subcommands/check"
+	cmdclosedsourceconsent "github.com/DataDog/datadog-agent/cmd/agent/subcommands/closedsourceconsent"
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/subcommands/config"
 	cmdconfigcheck "github.com/DataDog/datadog-agent/cmd/agent/subcommands/configcheck"
 	cmdcontrolsvc "github.com/DataDog/datadog-agent/cmd/agent/subcommands/controlsvc"
@@ -65,5 +66,6 @@ func AgentSubcommands() []command.SubcommandFactory {
 		cmdintegrations.Commands,
 		cmdstop.Commands,
 		cmdcontrolsvc.Commands,
+		cmdclosedsourceconsent.Commands,
 	}
 }
