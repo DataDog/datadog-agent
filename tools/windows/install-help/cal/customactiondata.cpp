@@ -146,11 +146,32 @@ void CustomActionData::setClosedSourceConfig()
         }
         // else what do we do here?
     }
-
+    if (!setEnabledFlag)
+    {
+        
+        if (this->_propertyView->value(L"CLOSEDSOURCE", csProperty))
+        {
+            // this property is set to "1" or "0" depending on the checkbox
+            // since the checkbox value of zero is off, assume any other state
+            // means on, so it can also be set on the command line.
+            WcaLog(LOGMSG_STANDARD, "CLOSEDSOURCE key is present and (%S)", csProperty.c_str());
+            setEnabledFlag = true;
+            newEnabledFlag = _wcsicmp(csProperty.c_str(), L"0") != 0;
+        }
+    }
    
     // check the ADDLOCAL flag
     if(!setEnabledFlag)
     {
+        /*
+         * the ADDLOCAL key has memory.
+         * If you set the addlocal key when you install, say, in 7.42, when you run the 7.43
+         * upgrade, MSI will persist it for you. That's probably the right answer, but it's
+         * confusing in this case.
+         * 
+         * use the CLOSEDSOURCE key above so that the command line parameter
+         * ALLOWCLOSEDSOURCE and/or the GUI option will take precedence
+         */
         if(this->_propertyView->value(L"ADDLOCAL", addlocal)) 
         {
             // Convert to upper when normalizing string for comparison
@@ -188,19 +209,7 @@ void CustomActionData::setClosedSourceConfig()
         }
     }
 
-    if (!setEnabledFlag)
-    {
-        
-        if (this->_propertyView->value(L"CLOSEDSOURCE", csProperty))
-        {
-            // this property is set to "1" or "0" depending on the checkbox
-            // since the checkbox value of zero is off, assume any other state
-            // means on, so it can also be set on the command line.
-            WcaLog(LOGMSG_STANDARD, "CLOSEDSOURCE key is present and (%S)", csProperty.c_str());
-            setEnabledFlag = true;
-            newEnabledFlag = _wcsicmp(csProperty.c_str(), L"0") != 0;
-        }
-    }
+    
      // check to see if previously installed.
     if(!setEnabledFlag)
     {
