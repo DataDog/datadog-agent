@@ -524,14 +524,6 @@
           <ComponentRef Id="DATADOGSYSPROBESERVICE" />
           <ComponentRef Id="system_probe.yaml.example" />
           <MergeRef Id="ddnpminstall"/>
-<<<<<<< HEAD
-          <!-- for now, just comment out.  Needs actual variable to determine whether to include or not 
-          <MergeRef Id="ddprocmoninstall"/>
-          -->
-          <Condition Level="1"><![CDATA[NPM OR (DD_FILTER_INSTALLED and (not WixUI_InstallMode = "Change"))]]></Condition>
-        </Feature>
-      <?endif ?>
-=======
       <!-- don't install by default (indicated by level 100)  Only things with level
         <= INSTALLLEVEL (1 by default) will be installed.  Can be changed via gui or command line params to optionally install -->
       <Feature  Id="NPM"
@@ -552,7 +544,6 @@
               -->
         
       </Feature>
->>>>>>> d95ef03014 ([Windows] Steamline closed source install)
     </Feature>
 
     <!-- UI Stuff: 100% Omnibus Generated -->
