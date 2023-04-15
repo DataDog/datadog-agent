@@ -91,7 +91,7 @@ kitchen_test_security_agent_amazonlinux_x64:
   needs: [ "tests_ebpf_x64" ]
   variables:
     KITCHEN_ARCH: x86_64
-    KITCHEN_EC2_INSTANCE_TYPE: "t3.medium"
+    KITCHEN_EC2_INSTANCE_TYPE: "[t3.medium, t2.xlarge, t3.xlarge]"
   before_script:
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
