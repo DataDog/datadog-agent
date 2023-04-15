@@ -18,6 +18,15 @@ func NewEventTypeMetada(fields ...string) *EventTypeMetadata {
 	}
 }
 
+// Platform defines which platform a structure is associated with
+type Platform string
+
+const (
+	Unspecified Platform = "unspecified"
+	Linux       Platform = "linux"
+	Windows     Platform = "windows"
+)
+
 // Module represents everything needed to generate the accessors for a specific module (fields, build tags, ...)
 type Module struct {
 	Name            string
@@ -30,6 +39,7 @@ type Module struct {
 	Iterators       map[string]*StructField
 	EventTypes      map[string]*EventTypeMetadata
 	Mock            bool
+	Platform        Platform
 }
 
 // StructField represents a structure field for which an accessor will be generated
