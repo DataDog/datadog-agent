@@ -9,15 +9,25 @@
 package eventmonitor
 
 import (
-	"net"
+	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-go/v5/statsd"
+	"google.golang.org/grpc"
 )
 
-func (m *EventMonitor) getListener() (net.Listener, error) {
-	return net.Listen("tcp", ":3335")
+// EventMonitor represents the system-probe module for kernel event monitoring
+type EventMonitor struct {
+	Config       *config.Config
+	StatsdClient statsd.ClientInterface
+	GRPCServer   *grpc.Server
 }
 
-func (m *EventMonitor) init() error {
-	return nil
+// EventTypeHandler event type based handler
+type EventTypeHandler interface {
 }
 
-func (m *EventMonitor) cleanup() {}
+// AddEventTypeHandler registers an event handler
+func (m *EventMonitor) AddEventTypeHandler(eventType model.EventType, handler EventTypeHandler) error {
+	return fmt.Errorf("Not implemented on this platform")
+}
