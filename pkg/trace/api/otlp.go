@@ -496,7 +496,7 @@ func setMetricOTLP(s *pb.Span, k string, v float64) {
 	}
 }
 
-// peerServiceDefaults specifies default keys used to find a value for _dd.peer.service.source, applied in the order defined below.
+// peerServiceDefaults specifies default keys used to find a value for peer.service, applied in the order defined below.
 var peerServiceDefaults = []string{
 	// Always use peer.service when it's present
 	semconv.AttributePeerService,
