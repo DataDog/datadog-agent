@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags linux -output accessors_linux.go -field-handlers-tags unix -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl.json
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags windows -output accessors_windows.go
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags windows -output accessors_windows.go -field-handlers-tags windows -field-handlers field_handlers_windows.go
 
 package model
 
