@@ -22,6 +22,8 @@ func TestNewDelimiter(t *testing.T) {
 
 func TestLengthPrefixDelimiter(t *testing.T) {
 
+	lengthPrefix := NewDelimiter(true)
+
 	bytes, err := lengthPrefix.delimit([]byte{})
 	assert.Nil(t, err)
 	assert.Equal(t, 4, len(bytes))
@@ -36,6 +38,8 @@ func TestLengthPrefixDelimiter(t *testing.T) {
 }
 
 func TestLineBreakDelimiter(t *testing.T) {
+
+	lineBreak := NewDelimiter(false)
 
 	bytes, err := lineBreak.delimit([]byte{})
 	assert.Nil(t, err)
