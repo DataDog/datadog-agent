@@ -184,7 +184,6 @@ func (c *CWSConsumer) Start() error {
 
 	ruleFilterModel := NewRuleFilterModel()
 	seclRuleFilter := rules.NewSECLRuleFilter(ruleFilterModel)
-
 	macroFilters = append(macroFilters, seclRuleFilter)
 	ruleFilters = append(ruleFilters, seclRuleFilter)
 

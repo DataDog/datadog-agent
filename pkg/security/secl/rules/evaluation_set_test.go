@@ -78,14 +78,39 @@ func TestEvaluationSet_GetPolicies(t *testing.T) {
 		fields fields
 		want   []*Policy
 	}{
-		// TODO: Add test cases.
+		{
+			name: "duplicated policies",
+			fields: fields{
+				RuleSets: map[eval.RuleSetTagValue]*RuleSet{
+					DefaultRuleSetTagValue: &RuleSet{
+						policies: []*Policy{
+							&Policy{Name: "policy 1"},
+							&Policy{Name: "policy 2"},
+						}},
+					"threat_score": &RuleSet{
+						policies: []*Policy{
+							&Policy{Name: "policy 3"},
+							&Policy{Name: "policy 2"},
+						}},
+					"special": &RuleSet{
+						policies: []*Policy{
+							&Policy{Name: "policy 3"},
+							&Policy{Name: "policy 2"},
+						}},
+				},
+			},
+			want: []*Policy{&Policy{Name: "policy 1"},
+				&Policy{Name: "policy 2"}, &Policy{Name: "policy 3"},
+			},
+		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ps := &EvaluationSet{
+			es := &EvaluationSet{
 				RuleSets: tt.fields.RuleSets,
 			}
-			assert.Equalf(t, tt.want, ps.GetPolicies(), "GetPolicies()")
+			assert.Equalf(t, tt.want, es.GetPolicies(), "GetPolicies()")
 		})
 	}
 }
