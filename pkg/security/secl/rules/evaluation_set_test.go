@@ -116,7 +116,6 @@ func TestEvaluationSet_LoadPolicies(t *testing.T) {
 	type args struct {
 		policy    *PolicyDef
 		tagValues []eval.RuleSetTagValue
-		opts      PolicyLoaderOpts
 	}
 	tests := []struct {
 		name    string
