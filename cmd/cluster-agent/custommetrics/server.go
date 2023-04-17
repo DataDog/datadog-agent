@@ -138,7 +138,7 @@ func (a *DatadogMetricsAdapter) Config() (*apiserver.Config, error) {
 		log.Errorf("Failed to create self signed AuthN/Z configuration %#v", err)
 		return nil, fmt.Errorf("error creating self-signed certificates: %v", err)
 	}
-	return a.CustomMetricsAdapterServerOptions.Config()
+	return a.Config()
 }
 
 // clearServerResources closes the connection and the server
