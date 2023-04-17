@@ -1,0 +1,4 @@
+
+enhancements:
+  - |
+    Use Leases for cluster-agent leader election.
