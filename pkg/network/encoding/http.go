@@ -85,7 +85,6 @@ func newHTTPEncoder(payload *network.Connections) *httpEncoder {
 	// this allows us to skip encoding orphan HTTP objects that can't be matched to a connection
 	for _, conn := range payload.Conns {
 		for _, key := range network.HTTPKeyTuplesFromConn(conn) {
-			log.Tracef("Payload has a connection %v and was converted to http key %v", conn, key)
 			encoder.aggregations[key] = nil
 		}
 	}

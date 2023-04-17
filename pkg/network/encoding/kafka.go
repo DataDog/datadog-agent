@@ -78,7 +78,6 @@ func newKafkaEncoder(payload *network.Connections) *kafkaEncoder {
 	// this allows us to skip encoding orphan Kafka objects that can't be matched to a connection
 	for _, conn := range payload.Conns {
 		for _, key := range network.KafkaKeyTuplesFromConn(conn) {
-			log.Tracef("Payload has a connection %v and was converted to kafka key %v", conn, key)
 			encoder.aggregations[key] = nil
 		}
 	}
