@@ -2,6 +2,7 @@ suites:
 
 - name: win-npm-with-npm-option
   run_list:
+    - "recipe[dd-agent-fix-winrm]"
     - "recipe[dd-agent-install]"
   attributes:
     datadog:

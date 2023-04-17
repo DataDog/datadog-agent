@@ -1,6 +1,7 @@
 suites:
 - name: system-probe-test
   run_list:
+    - recipe[dd-agent-fix-winrm]
     - recipe[dd-system-probe-check]
   attributes:
     apt:

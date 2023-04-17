@@ -7,6 +7,7 @@ suites:
     - "recipe[dd-agent-enable-fips::enable]"
     - "recipe[dd-agent-enable-fips::ensure]"
     <% end %>
+    - "recipe[dd-agent-fix-winrm]"
     - "recipe[dd-agent-disable-system-repos]"
     - "recipe[dd-agent-sles-workaround]"
     - "recipe[dd-agent-step-by-step]"

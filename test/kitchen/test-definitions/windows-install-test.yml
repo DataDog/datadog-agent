@@ -1,6 +1,7 @@
 suites:
   - name: win-repair
     run_list:
+      - "recipe[dd-agent-fix-winrm]"
       - "recipe[dd-agent-install::_install_windows_base]"
       - "recipe[dd-agent-install::_stop_windows_agent]"
       - "recipe[dd-agent-install::_damage_windows_install]"

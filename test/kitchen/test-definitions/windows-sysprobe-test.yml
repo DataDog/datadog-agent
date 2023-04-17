@@ -2,6 +2,7 @@ suites:
 
 - name: win-sysprobe-test
   run_list:
+    - "recipe[dd-agent-fix-winrm]"
     - "recipe[dd-system-probe-check]"
   attributes:
     dd-agent-rspec:

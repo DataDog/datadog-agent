@@ -5,6 +5,7 @@ suites:
 #    - expect driver installed, system probe to enable & start
 - name: win-npm-upgrade-to-npm
   run_list:
+    - "recipe[dd-agent-fix-winrm]"
     - "recipe[dd-agent-install]"
     - "recipe[dd-agent-upgrade]"
   attributes:
