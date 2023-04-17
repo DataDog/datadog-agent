@@ -177,13 +177,14 @@ func CreateGlobalScanner(cfg config.Config) (*Scanner, error) {
 		return nil, errors.New("global SBOM scanner already set, should only happen once")
 	}
 
+	globalScanner = NewScanner(cfg)
+
 	for name, collector := range collectors.Collectors {
 		if err := collector.Init(cfg); err != nil {
 			return nil, fmt.Errorf("failed to initialize SBOM collector '%s': %w", name, err)
 		}
 	}
 
-	globalScanner = NewScanner(cfg)
 	return globalScanner, nil
 }
 
