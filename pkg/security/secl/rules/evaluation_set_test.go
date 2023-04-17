@@ -3,9 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-// +build linux
-
 package rules
 
 import (
@@ -82,25 +79,25 @@ func TestEvaluationSet_GetPolicies(t *testing.T) {
 			name: "duplicated policies",
 			fields: fields{
 				RuleSets: map[eval.RuleSetTagValue]*RuleSet{
-					DefaultRuleSetTagValue: &RuleSet{
+					DefaultRuleSetTagValue: {
 						policies: []*Policy{
-							&Policy{Name: "policy 1"},
-							&Policy{Name: "policy 2"},
+							{Name: "policy 1"},
+							{Name: "policy 2"},
 						}},
-					"threat_score": &RuleSet{
+					"threat_score": {
 						policies: []*Policy{
-							&Policy{Name: "policy 3"},
-							&Policy{Name: "policy 2"},
+							{Name: "policy 3"},
+							{Name: "policy 2"},
 						}},
-					"special": &RuleSet{
+					"special": {
 						policies: []*Policy{
-							&Policy{Name: "policy 3"},
-							&Policy{Name: "policy 2"},
+							{Name: "policy 3"},
+							{Name: "policy 2"},
 						}},
 				},
 			},
-			want: []*Policy{&Policy{Name: "policy 1"},
-				&Policy{Name: "policy 2"}, &Policy{Name: "policy 3"},
+			want: []*Policy{{Name: "policy 1"},
+				{Name: "policy 2"}, {Name: "policy 3"},
 			},
 		},
 	}
@@ -264,7 +261,7 @@ func TestNewEvaluationSet(t *testing.T) {
 		wantErr assert.ErrorAssertionFunc
 	}{
 		{
-			name: "no rulesets",
+			name: "no rule sets",
 			args: args{ruleSetsToInclude: []*RuleSet{}},
 			want: func(t assert.TestingT, got *EvaluationSet, msgs ...interface{}) bool {
 				return assert.Nil(t, got)
@@ -296,7 +293,7 @@ func TestNewEvaluationSet(t *testing.T) {
 			},
 		},
 		{
-			name: "multiple rulesets",
+			name: "multiple rule sets",
 			args: args{ruleSetsToInclude: []*RuleSet{ruleSetWithThreatScoreTag, ruleSet}},
 			want: func(t assert.TestingT, got *EvaluationSet, msgs ...interface{}) bool {
 				expected := &EvaluationSet{RuleSets: map[eval.RuleSetTagValue]*RuleSet{"threat_score": ruleSetWithThreatScoreTag, "probe_evaluation": ruleSet}}
