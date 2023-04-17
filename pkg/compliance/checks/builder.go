@@ -32,6 +32,8 @@ import (
 	fileutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/file"
 	processutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/process"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/security/module"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -91,6 +93,14 @@ func WithStatsd(client statsd.ClientInterface) BuilderOption {
 func WithHostname(hostname string) BuilderOption {
 	return func(b *builder) error {
 		b.hostname = hostname
+		return nil
+	}
+}
+
+// WithConfigDir configures the configuration directory
+func WithConfigDir(configDir string) BuilderOption {
+	return func(b *builder) error {
+		b.configDir = configDir
 		return nil
 	}
 }
@@ -302,6 +312,7 @@ type builder struct {
 	hostname     string
 	pathMapper   *fileutils.PathMapper
 	etcGroupPath string
+	configDir    string
 
 	suiteMatcher SuiteMatcher
 	ruleMatcher  RuleMatcher
@@ -430,6 +441,27 @@ func (b *builder) StatsdClient() statsd.ClientInterface {
 }
 
 func (b *builder) checkFromRegoRule(meta *compliance.SuiteMeta, rule *compliance.RegoRule) (compliance.Check, error) {
+	// skip rules with Xccdf input if compliance_config.xccdf.enabled is no optin
+	if !config.Datadog.GetBool("compliance_config.xccdf.enabled") && rule.HasResourceKind(compliance.KindXccdf) {
+		return nil, ErrRuleDoesNotApply
+	}
+
+	if len(rule.Filters) > 0 {
+		ruleFilterModel := module.NewRuleFilterModel()
+		seclRuleFilter := rules.NewSECLRuleFilter(ruleFilterModel)
+
+		accepted, err := seclRuleFilter.IsRuleAccepted(&rules.RuleDefinition{
+			Filters: rule.Filters,
+		})
+		if err != nil {
+			log.Errorf("failed to apply rule filters: %s", err)
+		}
+		if !accepted {
+			log.Infof("rule %s skipped - not matching constraints", rule.ID)
+			return nil, ErrRuleDoesNotApply
+		}
+	}
+
 	ruleScope, err := getRuleScope(meta, rule.Scope)
 	if err != nil {
 		return nil, err
@@ -471,13 +503,20 @@ func (b *builder) checkFromRegoRule(meta *compliance.SuiteMeta, rule *compliance
 		notify = b.status.updateCheck
 	}
 
+	checkInterval := b.checkInterval
+	if rule.Period != "" {
+		if checkInterval, err = time.ParseDuration(rule.Period); err != nil {
+			return nil, fmt.Errorf("invalid period: %w", err)
+		}
+	}
+
 	// We capture err as configuration error but do not prevent check creation
 	return &complianceCheck{
 		Env: b,
 
 		ruleID:      rule.ID,
 		description: rule.Description,
-		interval:    b.checkInterval,
+		interval:    checkInterval,
 
 		suiteMeta: meta,
 
@@ -538,6 +577,10 @@ func (b *builder) ShouldSkipRegoEval() bool {
 
 func (b *builder) Hostname() string {
 	return b.hostname
+}
+
+func (b *builder) ConfigDir() string {
+	return b.configDir
 }
 
 func (b *builder) EtcGroupPath() string {

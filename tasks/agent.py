@@ -56,6 +56,7 @@ AGENT_CORECHECKS = [
     "memory",
     "ntp",
     "oom_kill",
+    "oracle-dbm",
     "systemd",
     "tcp_queue_length",
     "uptime",

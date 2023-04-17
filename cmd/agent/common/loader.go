@@ -9,9 +9,11 @@ import (
 	"context"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
@@ -35,6 +37,13 @@ func LoadComponents(ctx context.Context, confdPath string) {
 
 	store := workloadmeta.CreateGlobalStore(catalog)
 	store.Start(ctx)
+
+	sbomScanner, err := scanner.CreateGlobalScanner(config.Datadog)
+	if err != nil {
+		log.Errorf("failed to create SBOM scanner: %s", err)
+	} else if sbomScanner != nil {
+		sbomScanner.Start(ctx)
+	}
 
 	var t tagger.Tagger
 
@@ -65,7 +74,7 @@ func LoadComponents(ctx context.Context, confdPath string) {
 	// setup autodiscovery
 	confSearchPaths := []string{
 		confdPath,
-		filepath.Join(GetDistPath(), "conf.d"),
+		filepath.Join(path.GetDistPath(), "conf.d"),
 		"",
 	}
 

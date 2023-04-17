@@ -46,19 +46,19 @@ func ipHigh(isIp4 bool, addr [16]uint8) uint64 {
 }
 
 func srcIPLow(tup *driver.ConnTupleType) uint64 {
-	return ipLow(isIPV4(tup), tup.CliAddr)
+	return ipLow(isIPV4(tup), tup.LocalAddr)
 }
 
 func srcIPHigh(tup *driver.ConnTupleType) uint64 {
-	return ipHigh(isIPV4(tup), tup.CliAddr)
+	return ipHigh(isIPV4(tup), tup.LocalAddr)
 }
 
 func dstIPLow(tup *driver.ConnTupleType) uint64 {
-	return ipLow(isIPV4(tup), tup.SrvAddr)
+	return ipLow(isIPV4(tup), tup.RemoteAddr)
 }
 
 func dstIPHigh(tup *driver.ConnTupleType) uint64 {
-	return ipHigh(isIPV4(tup), tup.SrvAddr)
+	return ipHigh(isIPV4(tup), tup.RemoteAddr)
 }
 
 // --------------------------
@@ -76,8 +76,8 @@ func (tx *WinHttpTransaction) ConnTuple() types.ConnectionKey {
 		SrcIPLow:  srcIPLow(&tx.Txn.Tup),
 		DstIPHigh: dstIPHigh(&tx.Txn.Tup),
 		DstIPLow:  dstIPLow(&tx.Txn.Tup),
-		SrcPort:   tx.Txn.Tup.CliPort,
-		DstPort:   tx.Txn.Tup.SrvPort,
+		SrcPort:   tx.Txn.Tup.LocalPort,
+		DstPort:   tx.Txn.Tup.RemotePort,
 	}
 }
 

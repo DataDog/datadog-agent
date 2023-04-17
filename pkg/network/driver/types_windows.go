@@ -3,7 +3,7 @@
 
 package driver
 
-const Signature = 0xddfd00000015
+const Signature = 0xddfd00000016
 
 const (
 	GetStatsIOCTL             = 0x122004
@@ -177,12 +177,12 @@ type HttpConfigurationSettings struct {
 	EnableAutoETWExclusion uint16
 }
 type ConnTupleType struct {
-	CliAddr [16]uint8
-	SrvAddr [16]uint8
-	CliPort uint16
-	SrvPort uint16
-	Family  uint16
-	Pad     uint16
+	LocalAddr  [16]uint8
+	RemoteAddr [16]uint8
+	LocalPort  uint16
+	RemotePort uint16
+	Family     uint16
+	Pad        uint16
 }
 type HttpMethodType uint32
 type ClassificationSettings struct {

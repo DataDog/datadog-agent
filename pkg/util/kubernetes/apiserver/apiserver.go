@@ -16,6 +16,12 @@ import (
 	"sync"
 	"time"
 
+	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
@@ -31,13 +37,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-
-	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	apiregistrationclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1"
 )
 
 var (
@@ -92,6 +92,12 @@ type APIClient struct {
 
 	// Cl holds the main kubernetes client
 	Cl kubernetes.Interface
+
+	// CRDClient holds the extension kubernetes client
+	CRDClient clientset.Interface
+
+	// APISClient holds the APIService kubernetes client
+	APISClient apiregistrationclient.ApiregistrationV1Interface
 
 	// DynamicCl holds a dynamic kubernetes client
 	DynamicCl dynamic.Interface
@@ -229,6 +235,14 @@ func getCRDClient(timeout time.Duration) (*clientset.Clientset, error) {
 	return clientset.NewForConfig(clientConfig)
 }
 
+func getAPISClient(timeout time.Duration) (*apiregistrationclient.ApiregistrationV1Client, error) {
+	clientConfig, err := getClientConfig(timeout)
+	if err != nil {
+		return nil, err
+	}
+	return apiregistrationclient.NewForConfig(clientConfig)
+}
+
 func getKubeDiscoveryClient(timeout time.Duration) (discovery.DiscoveryInterface, error) {
 	clientConfig, err := getClientConfig(timeout)
 	if err != nil {
@@ -332,6 +346,18 @@ func (c *APIClient) connect() error {
 	c.VPAClient, err = getKubeVPAClient(time.Duration(c.timeoutSeconds) * time.Second)
 	if err != nil {
 		log.Infof("Could not get apiserver vpa client: %v", err)
+		return err
+	}
+
+	c.CRDClient, err = getCRDClient(time.Duration(c.timeoutSeconds) * time.Second)
+	if err != nil {
+		log.Infof("Could not get apiserver CRDClient client: %v", err)
+		return err
+	}
+
+	c.APISClient, err = getAPISClient(time.Duration(c.timeoutSeconds) * time.Second)
+	if err != nil {
+		log.Infof("Could not get apiserver APISClient client: %v", err)
 		return err
 	}
 

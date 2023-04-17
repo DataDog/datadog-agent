@@ -97,6 +97,7 @@ const (
 	AgentUSMHTTP2Enabled                AgentMetadataName = "feature_usm_http2_enabled"
 	AgentUSMEnableHTTPStatsByStatusCode AgentMetadataName = "feature_enable_http_stats_by_status_code"
 	AgentUSMGoTLSEnabled                AgentMetadataName = "feature_usm_go_tls_enabled"
+	AgentDIEnabled                      AgentMetadataName = "feature_dynamic_instrumentation_enabled"
 	AgentLogsEnabled                    AgentMetadataName = "feature_logs_enabled"
 	AgentCSPMEnabled                    AgentMetadataName = "feature_cspm_enabled"
 	AgentAPMEnabled                     AgentMetadataName = "feature_apm_enabled"
@@ -425,6 +426,7 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentUSMHTTP2Enabled, config.SystemProbe.GetBool("service_monitoring_config.enable_http2_monitoring"))
 	SetAgentMetadata(AgentUSMEnableHTTPStatsByStatusCode, config.SystemProbe.GetBool("service_monitoring_config.enable_http_stats_by_status_code"))
 	SetAgentMetadata(AgentUSMGoTLSEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_go_tls_support"))
+	SetAgentMetadata(AgentDIEnabled, config.SystemProbe.GetBool("dynamic_instrumentation.enabled"))
 	SetAgentMetadata(AgentLogsEnabled, config.Datadog.GetBool("logs_enabled"))
 	SetAgentMetadata(AgentCSPMEnabled, config.Datadog.GetBool("compliance_config.enabled"))
 	SetAgentMetadata(AgentAPMEnabled, config.Datadog.GetBool("apm_config.enabled"))

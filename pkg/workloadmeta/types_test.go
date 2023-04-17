@@ -6,6 +6,7 @@
 package workloadmeta
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -26,6 +27,7 @@ func TestNewContainerImage(t *testing.T) {
 				Name:      "datadog/agent",
 				ShortName: "agent",
 				Tag:       "7",
+				ID:        "0",
 			},
 		}, {
 			name:      "image without tag",
@@ -35,13 +37,14 @@ func TestNewContainerImage(t *testing.T) {
 				Name:      "datadog/agent",
 				ShortName: "agent",
 				Tag:       "latest", // Default to latest when there's no tag
+				ID:        "1",
 			},
 		},
 	}
 
-	for _, test := range tests {
+	for i, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			image, err := NewContainerImage(test.imageName)
+			image, err := NewContainerImage(strconv.Itoa(i), test.imageName)
 			assert.NoError(t, err)
 			assert.Equal(t, test.expectedWorkloadmetaImage, image)
 		})

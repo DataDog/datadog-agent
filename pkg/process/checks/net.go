@@ -14,6 +14,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -38,15 +39,19 @@ var (
 )
 
 // NewConnectionsCheck returns an instance of the ConnectionsCheck.
-func NewConnectionsCheck(syscfg *sysconfig.Config) *ConnectionsCheck {
+func NewConnectionsCheck(config, sysprobeYamlConfig config.ConfigReader, syscfg *sysconfig.Config) *ConnectionsCheck {
 	return &ConnectionsCheck{
-		syscfg: syscfg,
+		config:             config,
+		syscfg:             syscfg,
+		sysprobeYamlConfig: sysprobeYamlConfig,
 	}
 }
 
 // ConnectionsCheck collects statistics about live TCP and UDP connections.
 type ConnectionsCheck struct {
-	syscfg *sysconfig.Config
+	syscfg             *sysconfig.Config
+	sysprobeYamlConfig config.ConfigReader
+	config             config.ConfigReader
 
 	hostInfo               *HostInfo
 	maxConnsPerMessage     int
@@ -93,9 +98,9 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo) erro
 		log.Infof("no network ID detected: %s", err)
 	}
 	c.networkID = networkID
-	c.processData = NewProcessData()
+	c.processData = NewProcessData(c.config)
 	c.dockerFilter = parser.NewDockerProxy()
-	c.serviceExtractor = parser.NewServiceExtractor()
+	c.serviceExtractor = parser.NewServiceExtractor(c.sysprobeYamlConfig)
 	c.processData.Register(c.dockerFilter)
 	c.processData.Register(c.serviceExtractor)
 
@@ -149,7 +154,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	// Resolve the Raddr side of connections for local containers
 	LocalResolver.Resolve(conns)
 
-	c.notifyProcessConnRates(conns)
+	c.notifyProcessConnRates(c.config, conns)
 
 	log.Debugf("collected connections in %s", time.Since(start))
 
@@ -172,12 +177,12 @@ func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 	return tu.GetConnections(c.tracerClientID)
 }
 
-func (c *ConnectionsCheck) notifyProcessConnRates(conns *model.Connections) {
+func (c *ConnectionsCheck) notifyProcessConnRates(config config.ConfigReader, conns *model.Connections) {
 	if len(c.processConnRatesTransmitter.Chs) == 0 {
 		return
 	}
 
-	connCheckIntervalS := int(GetInterval(ConnectionsCheckName) / time.Second)
+	connCheckIntervalS := int(GetInterval(config, ConnectionsCheckName) / time.Second)
 
 	connRates := make(ProcessConnRates)
 	for _, c := range conns.Conns {

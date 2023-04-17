@@ -69,7 +69,7 @@ func (o *OTLPReceiver) Start() {
 		if err != nil {
 			log.Criticalf("Error starting OpenTelemetry gRPC server: %v", err)
 		} else {
-			o.grpcsrv = grpc.NewServer()
+			o.grpcsrv = grpc.NewServer(grpc.MaxRecvMsgSize(10 * 1024 * 1024))
 			ptraceotlp.RegisterGRPCServer(o.grpcsrv, o)
 			o.wg.Add(1)
 			go func() {

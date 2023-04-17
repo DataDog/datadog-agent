@@ -104,7 +104,6 @@ const (
 var (
 	Datadog       Config
 	SystemProbe   Config
-	proxies       *Proxy
 	overrideFuncs = make([]func(Config), 0)
 )
 
@@ -173,13 +172,6 @@ func (l *Listeners) IsProviderEnabled(provider string) bool {
 	_, found := l.EnabledProviders[provider]
 
 	return found
-}
-
-// Proxy represents the configuration for proxies in the agent
-type Proxy struct {
-	HTTP    string   `mapstructure:"http"`
-	HTTPS   string   `mapstructure:"https"`
-	NoProxy []string `mapstructure:"no_proxy"`
 }
 
 // MappingProfile represent a group of mappings
@@ -825,9 +817,14 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("jmx_check_period", int(defaults.DefaultCheckInterval/time.Millisecond))
 	config.BindEnvAndSetDefault("jmx_reconnection_timeout", 60)
 	config.BindEnvAndSetDefault("jmx_statsd_telemetry_enabled", false)
-	// this is an internal setting and will not be documented in the config template.
+	// The following jmx_statsd_client-* options are internal and will not be documented
 	// the queue size is the no. of elements (metrics, event, service checks) it can hold.
 	config.BindEnvAndSetDefault("jmx_statsd_client_queue_size", 4096)
+	config.BindEnvAndSetDefault("jmx_statsd_client_use_non_blocking", false)
+	// the "buffer" here is the socket send buffer (SO_SNDBUF) and the size is in bytes
+	config.BindEnvAndSetDefault("jmx_statsd_client_buffer_size", 0)
+	// the socket timeout (SO_SNDTIMEO) is in milliseconds
+	config.BindEnvAndSetDefault("jmx_statsd_client_socket_timeout", 0)
 
 	// Go_expvar server port
 	config.BindEnvAndSetDefault("expvar_port", "5000")
@@ -1093,6 +1090,14 @@ func InitConfig(config Config) {
 
 	// SBOM configuration
 	bindEnvAndSetLogsConfigKeys(config, "sbom.")
+	config.BindEnvAndSetDefault("sbom.enabled", false)
+	config.BindEnvAndSetDefault("sbom.analyzers", []string{"os"})
+	config.BindEnvAndSetDefault("sbom.cache_directory", defaultRunPath)
+	config.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
+	config.BindEnvAndSetDefault("sbom.use_custom_cache", false)
+	config.BindEnvAndSetDefault("sbom.custom_cache_max_disk_size", 1000*1000*10) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
+	config.BindEnvAndSetDefault("sbom.custom_cache_max_cache_entries", 1000)     // used by custom cache keys stored in memory
+	config.BindEnvAndSetDefault("sbom.cache_clean_interval", "30m")              // used by custom cache.
 
 	// Orchestrator Explorer - process agent
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
@@ -1120,9 +1125,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("container_image_collection.sbom.scan_interval", 0)    // Integer seconds
 	config.BindEnvAndSetDefault("container_image_collection.sbom.scan_timeout", 10*60) // Integer seconds
 	config.BindEnvAndSetDefault("container_image_collection.sbom.analyzers", []string{"os"})
-	config.BindEnvAndSetDefault("container_image_collection.sbom.cache_directory", "")
-	config.BindEnvAndSetDefault("container_image_collection.sbom.clear_cache_on_exit", false)
-	config.BindEnvAndSetDefault("container_image_collection.sbom.cache_ttl", 60*60) // Integer seconds. Only used with Badger
 	config.BindEnvAndSetDefault("container_image_collection.sbom.check_disk_usage", true)
 	config.BindEnvAndSetDefault("container_image_collection.sbom.min_available_disk", "1Gb")
 
@@ -1146,6 +1148,7 @@ func InitConfig(config Config) {
 
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
+	config.BindEnvAndSetDefault("compliance_config.xccdf.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
 	config.BindEnvAndSetDefault("compliance_config.check_max_events_per_run", 100)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
@@ -1223,11 +1226,6 @@ func InitConfig(config Config) {
 // version (see AddAgentVersionToDomain).
 var ddURLRegexp = regexp.MustCompile(`^app(\.[a-z]{2}\d)?\.(datad(oghq|0g)\.(com|eu)|ddog-gov\.com)$`)
 
-// GetProxies returns the proxy settings from the configuration
-func GetProxies() *Proxy {
-	return proxies
-}
-
 // LoadProxyFromEnv overrides the proxy settings with environment variables
 func LoadProxyFromEnv(config Config) {
 	// Viper doesn't handle mixing nested variables from files and set
@@ -1295,25 +1293,29 @@ func LoadProxyFromEnv(config Config) {
 		p.NoProxy = strings.Split(noProxy, ",") // comma-separated list, consistent with other tools that use the NO_PROXY env var
 	}
 
+	if !config.GetBool("use_proxy_for_cloud_metadata") {
+		log.Debugf("'use_proxy_for_cloud_metadata' is enabled: adding cloud provider URL to the no_proxy list")
+		isSet = true
+		p.NoProxy = append(p.NoProxy,
+			"169.254.169.254", // Azure, EC2, GCE
+			"100.100.100.200", // Alibaba
+		)
+	}
+
 	// We have to set each value individually so both config.Get("proxy")
 	// and config.Get("proxy.http") work
 	if isSet {
 		config.Set("proxy.http", p.HTTP)
 		config.Set("proxy.https", p.HTTPS)
-		if len(p.NoProxy) > 0 {
-			config.Set("proxy.no_proxy", p.NoProxy)
-		} else {
-			// If this is set to an empty []string, viper will have a type conflict when merging
-			// this config during secrets resolution. It unmarshals empty yaml lists to type
-			// []interface{}, which will then conflict with type []string and fail to merge.
-			config.Set("proxy.no_proxy", []interface{}{})
-		}
-		proxies = p
-	}
 
-	if !config.GetBool("use_proxy_for_cloud_metadata") {
-		p.NoProxy = append(p.NoProxy, "169.254.169.254") // Azure, EC2, GCE
-		p.NoProxy = append(p.NoProxy, "100.100.100.200") // Alibaba
+		// If this is set to an empty []string, viper will have a type conflict when merging
+		// this config during secrets resolution. It unmarshals empty yaml lists to type
+		// []interface{}, which will then conflict with type []string and fail to merge.
+		noProxy := make([]interface{}, len(p.NoProxy))
+		for idx := range p.NoProxy {
+			noProxy[idx] = p.NoProxy[idx]
+		}
+		config.Set("proxy.no_proxy", noProxy)
 	}
 }
 
@@ -1505,7 +1507,6 @@ func LoadDatadogCustomWithKnownEnvVars(config Config, origin string, loadSecret 
 		AddOverride("python_version", DefaultPython)
 	}
 
-	LoadProxyFromEnv(config)
 	SanitizeAPIKeyConfig(config, "api_key")
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)
@@ -1541,6 +1542,9 @@ func LoadCustom(config Config, origin string, loadSecret bool, additionalKnownEn
 	for _, warningMsg := range findUnexpectedUnicode(config) {
 		log.Warnf(warningMsg)
 	}
+
+	// We resolve proxy setting before secrets. This allows setting secrets through DD_PROXY_* env variables
+	LoadProxyFromEnv(config)
 
 	if loadSecret {
 		if err := ResolveSecrets(config, origin); err != nil {
