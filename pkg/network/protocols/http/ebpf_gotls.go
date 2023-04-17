@@ -241,12 +241,12 @@ func (p *GoTLSProgram) Start() {
 		Metadata: monitor.ANY,
 		Callback: p.handleProcessStop,
 	})
-	if err != nil {
-		log.Errorf("failed to subscribe Exit process monitor error: %s", err)
-		goto failed
+	if err == nil {
+		return
 	}
-	return
-failed:
+
+	log.Errorf("failed to subscribe Exit process monitor error: %s", err)
+
 	if p.procMonitor.cleanupExec != nil {
 		p.procMonitor.cleanupExec()
 	}
