@@ -13,17 +13,10 @@ Database
 --------
 Connect as sysdba to the monitored CDB database and execute the following sql script in the monitored database:
 
-https://github.com/DataDog/datadog-agent/blob/nenad.noveljic/dbm-oracle-beta-7.43.x/pkg/collector/corechecks/oracle/sql/setup.sql
+https://github.com/DataDog/datadog-agent/blob/main/pkg/collector/corechecks/oracle-dbm/sql/setup.sql
 
 The script will ask for password and create the monitoring account. If the account already exists, the CREATE USER command will fail, but the other commands will execute successfully.
 
 Agent
 -----
-On the server where the agent is running, install the agent version dbm-oracle-beta-0.19-1.
-
-Create symbolic links in oracle-dbm.d for each configuration file in oracle.d, for example:
-
-cd /etc/datadog-agent/conf.d/oracle-dbm.d
-ln -s ../oracle.d/conf.yaml 
-
-Add the parameter `dbm: true` to the monitored database instance in the conf.yaml file.
+Add the parameter `dbm: true` to the monitored database instance in the `conf.yaml` file in `oracle-dbm.d`.

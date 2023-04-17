@@ -15,7 +15,7 @@ import (
 	"github.com/ory/dockertest/docker"
 	_ "github.com/sijms/go-ora/v2"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/testutil/dockerpool"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/testutil/dockerpool"
 )
 
 // CreateOraclePool creates an Oracle docker pool used for testing.
