@@ -141,11 +141,11 @@ func (le *LeaderEngine) init() error {
 	le.coreClient = apiClient.Cl.CoreV1()
 	le.coordClient = apiClient.Cl.CoordinationV1()
 
-	// for kubernetes <= 1.13
 	if CanUseLease(apiClient.DiscoveryCl) {
 		log.Info("leader election using LeasesResourceLock")
 		le.lockType = rl.LeasesResourceLock
 	} else {
+		// for kubernetes <= 1.13
 		log.Info("leader election using ConfigMapsResourceLock")
 		le.lockType = ConfigMapsResourceLock
 	}
