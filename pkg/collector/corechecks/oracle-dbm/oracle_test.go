@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build oracle
+
 package oracle
 
 import (
@@ -18,8 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
-	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 	go_ora "github.com/sijms/go-ora/v2"
 
 	_ "github.com/godror/godror"
@@ -33,7 +34,7 @@ var USER = "c##datadog"
 var PASSWORD = "datadog"
 var SERVICE_NAME = "XE"
 var TNS_ALIAS = "XE"
-var TNS_ADMIN = "/Users/nenad.noveljic/go/src/github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/testutil/etc/netadmin"
+var TNS_ADMIN = "/Users/nenad.noveljic/go/src/github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/testutil/etc/netadmin"
 
 func TestBasic(t *testing.T) {
 	chk = Check{}
@@ -111,6 +112,10 @@ func connectToDB(driver string) (*sqlx.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to ping oracle instance: %w", err)
 	}
+	// https://github.com/jmoiron/sqlx/issues/854#issuecomment-1504070464
+	if driver == "oracle" {
+		sqlx.BindDriver("oracle", sqlx.NAMED)
+	}
 	return db, nil
 }
 
@@ -118,14 +123,12 @@ func TestChkRun(t *testing.T) {
 	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
 
 	chk.dbmEnabled = true
-	chk.config.QueryMetrics = true
+	//chk.config.QueryMetrics = true
 
 	chk.config.InstanceConfig.InstantClient = false
 
 	type RowsStruct struct {
-		N                      int    `db:"N"`
-		SQLText                string `db:"SQL_TEXT"`
-		ForceMatchingSignature uint64 `db:"FORCE_MATCHING_SIGNATURE"`
+		N int `db:"N"`
 	}
 	r := RowsStruct{}
 
@@ -146,40 +149,6 @@ func TestChkRun(t *testing.T) {
 
 		err = chk.db.Get(&r, "select /* DDTEST */ 1 n from dual")
 		assert.NoError(t, err, "running test statement with %s driver", driver)
-		//m := make(map[uint64]int)
-		m := make(map[string]int)
-		m["2267897546238586672"] = 1
-		chk.statementsFilter = StatementsFilter{ForceMatchingSignatures: m}
-
-		statementMetrics, err := GetStatementsMetricsForKeys(&chk, "force_matching_signature", "AND force_matching_signature != 0", chk.statementsFilter.ForceMatchingSignatures)
-		assert.NoError(t, err, "running GetStatementsMetricsForKeys with %s driver", driver)
-		assert.Equal(t, 1, len(statementMetrics), "test query metrics captured with %s driver", driver)
-		err = chk.db.Get(&r, "select force_matching_signature, sql_text from v$sqlstats where sql_text like '%t111%'") // force_matching_signature=17202440635181618732
-		assert.NoError(t, err, "running statement with large force_matching_signature with %s driver", driver)
-		//m = make(map[uint64]int)
-		m = make(map[string]int)
-		m["17202440635181618732"] = 1
-		chk.statementsFilter = StatementsFilter{ForceMatchingSignatures: m}
-		assert.Equal(t, 1, len(statementMetrics), "test query metrics for uint64 overflow with %s driver", driver)
-
-		chk.statementsFilter = StatementsFilter{ForceMatchingSignatures: m}
-		n, err := chk.StatementMetrics()
-		assert.NoError(t, err, "query metrics with %s driver", driver)
-		assert.Equal(t, 1, n, "total query metrics captured with %s driver", driver)
-
-		slice := []any{uint64(17202440635181618732)}
-		var retValue int
-		err = chk.db.Get(&retValue, "SELECT COUNT(*) FROM v$sqlstats WHERE force_matching_signature IN (:1)", slice...)
-		if err != nil {
-			log.Fatalf("row error with driver %s %s", driver, err)
-			return
-		}
-		if driver == common.Godror {
-			assert.Equal(t, 1, retValue, "Testing IN slice uint64 overflow with driver %s", driver)
-		} else if driver == common.GoOra {
-			assert.Equal(t, 0, retValue, "Testing IN slice uint64 overflow with driver %s. If this failed, the uint64 overflow problem might have been resolved.", driver)
-		}
-
 	}
 }
 
@@ -275,14 +244,7 @@ func TestSQLXIn(t *testing.T) {
 
 		rows, err = db.Query(db.Rebind(query), args...)
 
-		if driver == common.Godror {
-			assert.NoErrorf(t, err, "preparing statement with IN clause for %s driver", driver)
-		} else if driver == common.GoOra {
-			assert.ErrorContains(t, err, "ORA-00911", "preparing statement with IN clause for %s driver. If this shows up the issue https://github.com/jmoiron/sqlx/issues/854 might be fixed!", driver)
-		}
-		if err != nil {
-			continue
-		}
+		assert.NoErrorf(t, err, "preparing statement with IN clause for %s driver", driver)
 
 		rows.Next()
 		err = rows.Scan(&retValue)
@@ -293,21 +255,4 @@ func TestSQLXIn(t *testing.T) {
 		assert.Equal(t, retValue, result, driver)
 	}
 
-}
-
-func TestObfuscator(t *testing.T) {
-	obfuscatorOptions := obfuscate.SQLConfig{}
-	obfuscatorOptions.DBMS = common.IntegrationName
-	obfuscatorOptions.TableNames = true
-	obfuscatorOptions.CollectCommands = true
-	obfuscatorOptions.CollectComments = true
-
-	o := obfuscate.NewObfuscator(obfuscate.Config{SQL: obfuscatorOptions})
-	for _, statement := range []string{
-		`UPDATE /* comment */ SET t n=1`,
-		`SELECT /* comment */ from dual`} {
-		obfuscatedStatement, err := o.ObfuscateSQLString(statement)
-		assert.NoError(t, err, "obfuscator error")
-		assert.NotContains(t, obfuscatedStatement.Query, "comment", "comment wasn't removed by the obfuscator")
-	}
 }

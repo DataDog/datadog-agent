@@ -7,14 +7,13 @@ package oracle
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/config"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -34,7 +33,6 @@ type Check struct {
 	core.CheckBase
 	config                                  *config.CheckConfig
 	db                                      *sqlx.DB
-	hostname                                string
 	dbmEnabled                              bool
 	agentVersion                            string
 	checkInterval                           float64
@@ -58,25 +56,17 @@ func (c *Check) Run() error {
 		c.db = db
 	}
 
-	if c.hostname == "" {
-		hostname, err := os.Hostname()
-		if err != nil {
-			return fmt.Errorf("failed to get hostname: %w", err)
-		}
-		c.hostname = hostname
-	}
-
 	if c.dbmEnabled {
 		err := c.SampleSession()
 		if err != nil {
 			return err
 		}
-		if c.config.QueryMetrics {
-			_, err = c.StatementMetrics()
-			if err != nil {
-				return err
-			}
+
+		_, err = c.StatementMetrics()
+		if err != nil {
+			return err
 		}
+
 	}
 
 	return nil
@@ -98,6 +88,8 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		} else {
 			oracleDriver = "oracle"
 			connStr = go_ora.BuildUrl(c.config.Server, c.config.Port, c.config.ServiceName, c.config.Username, c.config.Password, map[string]string{})
+			// https://github.com/jmoiron/sqlx/issues/854#issuecomment-1504070464
+			sqlx.BindDriver("oracle", sqlx.NAMED)
 		}
 	}
 	c.driver = oracleDriver
@@ -121,8 +113,8 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to query db name: %w", err)
 		}
+		c.tags = append(c.tags, fmt.Sprintf("cdb:%s", c.cdbName))
 	}
-	c.tags = append(c.tags, fmt.Sprintf("cdb:%s", c.cdbName))
 
 	if c.dbHostname == "" || c.dbVersion == "" {
 		row := db.QueryRow("SELECT host_name, version FROM v$instance")
@@ -136,8 +128,8 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		} else {
 			c.dbHostname = dbHostname
 		}
+		c.tags = append(c.tags, fmt.Sprintf("host:%s", c.dbHostname), fmt.Sprintf("oracle_version:%s", c.dbVersion))
 	}
-	c.tags = append(c.tags, fmt.Sprintf("dbhost:%s", c.dbHostname))
 
 	return db, nil
 }
@@ -176,6 +168,7 @@ func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integratio
 
 	c.checkInterval = float64(c.config.InitConfig.MinCollectionInterval)
 	c.tags = c.config.Tags
+	c.tags = append(c.tags, fmt.Sprintf("dbms:%s", common.IntegrationName), fmt.Sprintf("ddagentversion:%s", c.agentVersion))
 
 	return nil
 }
