@@ -6,7 +6,7 @@ ARCH=$1
 DEPENDENCIES=dependencies-$ARCH.tar.gz
 
 mv /opt/kernel-version-testing/$DEPENDENCIES /$DEPENDENCIES
-tar xzvf $DEPENDENCIES
+tar xzvf /$DEPENDENCIES
 
 systemctl start docker
 
