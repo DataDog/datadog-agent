@@ -28,11 +28,11 @@ const kProbeTelemetryName = "ebpf__kprobes"
 var myPid int
 
 var debugfsStats = struct {
-	hits   telemetry.Counter
-	misses telemetry.Counter
+	hits   telemetry.Gauge
+	misses telemetry.Gauge
 }{
-	telemetry.NewCounter(kProbeTelemetryName, "hits", []string{"name"}, "Counter tracking number of kprobe hits"),
-	telemetry.NewCounter(kProbeTelemetryName, "misses", []string{"name"}, "Counter tracking number of kprobe misses"),
+	telemetry.NewGauge(kProbeTelemetryName, "hits", []string{"name"}, "Gauge tracking number of kprobe hits"),
+	telemetry.NewGauge(kProbeTelemetryName, "misses", []string{"name"}, "Gauge tracking number of kprobe misses"),
 }
 
 func init() {

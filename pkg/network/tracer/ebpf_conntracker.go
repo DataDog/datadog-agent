@@ -56,14 +56,16 @@ var conntrackerTelemetry = struct {
 	getsDuration        telemetry.Histogram
 	unregistersDuration telemetry.Histogram
 	getsTotal           telemetry.Counter
-	registersTotal      telemetry.Gauge
 	unregistersTotal    telemetry.Counter
+	registersTotal      telemetry.Counter
+	lastRegisters       uint64
 }{
 	telemetry.NewHistogram(ebpfConntrackerModuleName, "gets_duration_nanoseconds", []string{}, "Histogram measuring the time spent retrieving connection tuples from the EBPF map", defaultBuckets),
 	telemetry.NewHistogram(ebpfConntrackerModuleName, "unregisters_duration_nanoseconds", []string{}, "Histogram measuring the time spent deleting connection tuples from the EBPF map", defaultBuckets),
 	telemetry.NewCounter(ebpfConntrackerModuleName, "gets_total", []string{}, "Counter measuring the total number of attempts to get connection tuples from the EBPF map"),
-	telemetry.NewGauge(ebpfConntrackerModuleName, "registers_total", []string{}, "Gauge measuring the total number of attempts to update/create connection tuples in the EBPF map"),
 	telemetry.NewCounter(ebpfConntrackerModuleName, "unregisters_total", []string{}, "Counter measuring the total number of attempts to delete connection tuples from the EBPF map"),
+	telemetry.NewCounter(ebpfConntrackerModuleName, "registers_total", []string{}, "Counter measuring the total number of attempts to update/create connection tuples in the EBPF map"),
+	0,
 }
 
 type ebpfConntracker struct {
@@ -335,11 +337,12 @@ func (e *ebpfConntracker) refreshTelemetry() {
 			if err := e.telemetryMap.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(telemetry)); err != nil {
 				log.Tracef("error retrieving the telemetry struct: %s", err)
 			} else {
-				conntrackerTelemetry.registersTotal.Set(float64(telemetry.Registers))
+				delta := telemetry.Registers - conntrackerTelemetry.lastRegisters
+				conntrackerTelemetry.lastRegisters = telemetry.Registers
+				conntrackerTelemetry.registersTotal.Add(float64(delta))
 			}
 		case <-e.stop:
 			return
-
 		}
 	}
 }
