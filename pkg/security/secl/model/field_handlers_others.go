@@ -19,10 +19,6 @@ func (ev *Event) ResolveFieldsForAD() {
 }
 
 func (ev *Event) resolveFields(forADs bool) {
-	// resolve context fields that are not related to any event type
-	// resolve event specific fields
-	switch ev.GetEventType().String() {
-	}
 }
 
 type FieldHandlers interface {
