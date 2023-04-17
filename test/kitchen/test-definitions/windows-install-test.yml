@@ -24,6 +24,7 @@ suites:
 
   - name: win-upgrade-rollback
     run_list:
+      - "recipe[dd-agent-fix-winrm]"
       - "recipe[dd-agent-install]"
       - "recipe[dd-agent-upgrade]"
     attributes:
@@ -51,6 +52,7 @@ suites:
 
   - name: win-installopts
     run_list:
+      - "recipe[dd-agent-fix-winrm]"
       - "recipe[dd-agent-install::_install_windows_base]"
     attributes:
       datadog:
@@ -84,6 +86,7 @@ suites:
 
   - name: win-all-subservices
     run_list:
+      - "recipe[dd-agent-fix-winrm]"
       - "recipe[dd-agent-install::_install_windows_base]"
     attributes:
       datadog:
@@ -109,6 +112,7 @@ suites:
 
   - name: win-no-subservices
     run_list:
+      - "recipe[dd-agent-fix-winrm]"
       - "recipe[dd-agent-install::_install_windows_base]"
     attributes:
       datadog:
@@ -135,6 +139,7 @@ suites:
 
   - name: win-user
     run_list:
+      - "recipe[dd-agent-fix-winrm]"
       - "recipe[dd-agent-install::_install_windows_base]"
     attributes:
       datadog:
@@ -159,6 +164,7 @@ suites:
 
   - name: win-install-fail
     run_list:
+        - "recipe[dd-agent-fix-winrm]"
         - "recipe[dd-agent-install::_install_windows_base]"
     attributes:
       datadog:
@@ -185,6 +191,7 @@ suites:
 
   - name: win-alt-dir
     run_list:
+        - "recipe[dd-agent-fix-winrm]"
         - "recipe[dd-agent-install::_install_windows_base]"
     attributes:
       datadog:

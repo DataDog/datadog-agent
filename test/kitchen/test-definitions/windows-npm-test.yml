@@ -52,6 +52,7 @@ suites:
 # scenario 2
 - name: win-npm-upgrade-no-npm
   run_list:
+    - "recipe[dd-agent-fix-winrm]"
     - "recipe[dd-agent-install]"
     - "recipe[dd-agent-upgrade]"
   attributes:
@@ -93,6 +94,7 @@ suites:
 #    - expect driver installed, system probe to enable & start
 - name: win-npm-upgrade-to-npm-no-csflag
   run_list:
+    - "recipe[dd-agent-fix-winrm]"
     - "recipe[dd-agent-install]"
     - "recipe[dd-agent-upgrade]"
   attributes:
@@ -135,6 +137,7 @@ suites:
 # Scenario 4
 - name: win-npm-no-npm-option
   run_list:
+    - "recipe[dd-agent-fix-winrm]"
     - "recipe[dd-agent-install]"
   attributes:
     datadog:
@@ -160,6 +163,7 @@ suites:
 #Scenario 5
 - name: win-npm-with-cs-option
   run_list:
+    - "recipe[dd-agent-fix-winrm]"
     - "recipe[dd-agent-install]"
   attributes:
     datadog:
@@ -187,6 +191,7 @@ suites:
 # scenario 7
 - name: win-npm-reinstall-option
   run_list:
+    - "recipe[dd-agent-fix-winrm]"
     - "recipe[dd-agent-install]"
     - "recipe[dd-agent-reinstall]"
   attributes:
@@ -223,6 +228,7 @@ suites:
 #Scenario 8
 - name: win-npm-with-addlocal-all
   run_list:
+    - "recipe[dd-agent-fix-winrm]"
     - "recipe[dd-agent-install]"
   attributes:
     datadog:
@@ -251,6 +257,7 @@ suites:
 #Scenario 9
 - name: win-npm-with-addlocal-npm
   run_list:
+    - "recipe[dd-agent-fix-winrm]"
     - "recipe[dd-agent-install]"
   attributes:
     datadog:
@@ -277,6 +284,7 @@ suites:
 
 - name: win-npm-beta-upgrade
   run_list:
+    - "recipe[dd-agent-fix-winrm]"
     - "recipe[dd-agent-install]"
     - "recipe[dd-agent-upgrade]"
   attributes:
