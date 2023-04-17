@@ -49,6 +49,18 @@ func (m mockDependencies) getParams() *Params {
 	return &p
 }
 
+// TODO: serverless must be eventually migrated to fx, this workaround
+//
+//	will then become obsolete - ts should not be created
+//	directly in this fashion.
+func NewServerlessConfig(path string) (Component, error) {
+	p := NewParams(path, WithConfigName("serverless"), WithConfigLoadSecrets(true))
+	d := dependencies{
+		Params: p,
+	}
+	return newConfig(d)
+}
+
 func newConfig(deps dependencies) (Component, error) {
 	warnings, err := setupConfig(deps)
 	returnErrFct := func(e error) (Component, error) {

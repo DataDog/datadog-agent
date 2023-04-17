@@ -10,7 +10,8 @@ import (
 	"fmt"
 	"strings"
 
-	tracecmdconfig "github.com/DataDog/datadog-agent/cmd/trace-agent/config"
+	compcorecfg "github.com/DataDog/datadog-agent/comp/core/config"
+	comptracecfg "github.com/DataDog/datadog-agent/comp/trace/config"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -67,7 +68,11 @@ const invocationSpanResource = "dd-tracer-serverless-span"
 
 // Load loads the config from a file path
 func (l *LoadConfig) Load() (*config.AgentConfig, error) {
-	return tracecmdconfig.LoadConfigFile(l.Path)
+	c, err := compcorecfg.NewServerlessConfig(l.Path)
+	if err != nil {
+		return nil, err
+	}
+	return comptracecfg.LoadConfigFile(l.Path, c)
 }
 
 // Start starts the agent
