@@ -609,5 +609,5 @@ replace (
 	github.com/saracen/walker => github.com/DataDog/walker v0.0.0-20221128132416-4ca87a1f1023
 	github.com/spdx/tools-golang => github.com/spdx/tools-golang v0.3.0
 	oras.land/oras-go => oras.land/oras-go v1.1.1
-	sigs.k8s.io/custom-metrics-apiserver => github.com/DataDog/custom-metrics-apiserver v0.26.2 // until a new release with apiserver >= 0.26.2 is released
+	sigs.k8s.io/custom-metrics-apiserver => github.com/DataDog/custom-metrics-apiserver v0.0.0-20230308103314-bd3192a29bc8 // until a new release with apiserver >= 0.26.2 is released
 )
