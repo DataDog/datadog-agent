@@ -125,6 +125,8 @@ kernel_matrix_testing_setup_env:
     # instances in the build-stable account. We reuse this file to ssh into
     # the instances in subsequent jobs.
     AWS_SSH_KEY: $CI_PROJECT_DIR/datadog-agent-kitchen
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
   script:
     - echo s3://dd-ci-datadog-agent-omnibus-cache-build-stable/kernel-matrix-testing/$CI_PIPELINE_ID/$CI_JOB_ID/pulumi > $STACK_DIR
     - pulumi login $(cat $STACK_DIR | tr -d '\n')
@@ -158,6 +160,8 @@ kernel_matrix_testing_upload_deps:
     LibvirtSSHKeyX86: $CI_PROJECT_DIR/libvirt_rsa-x86
     LibvirtSSHKeyARM: $CI_PROJECT_DIR/libvirt_rsa-arm
     STACK_DIR: $CI_PROJECT_DIR/stack.dir
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
   script:
     - pulumi login $(cat $STACK_DIR | tr -d '\n')
     - inv -e system-probe.test-microvms --security-groups=$KITCHEN_EC2_SG_IDS --subnets=$KITCHEN_EC2_SUBNET --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --upload-dependencies
