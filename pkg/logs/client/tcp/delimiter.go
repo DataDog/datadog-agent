@@ -33,9 +33,7 @@ func NewDelimiter(useProto bool) Delimiter {
 // +---------------+               +--------+---------------+
 var lengthPrefix lengthPrefixDelimiter
 
-type lengthPrefixDelimiter struct {
-	Delimiter
-}
+type lengthPrefixDelimiter struct{}
 
 func (l *lengthPrefixDelimiter) delimit(content []byte) ([]byte, error) {
 	buf := make([]byte, 4+len(content))
@@ -54,9 +52,7 @@ func (l *lengthPrefixDelimiter) delimit(content []byte) ([]byte, error) {
 // +---------------+               +---------------+------------+
 var lineBreak lineBreakDelimiter
 
-type lineBreakDelimiter struct {
-	Delimiter
-}
+type lineBreakDelimiter struct{}
 
 func (l *lineBreakDelimiter) delimit(content []byte) ([]byte, error) {
 	return append(content, '\n'), nil
