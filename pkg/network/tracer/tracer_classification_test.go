@@ -1626,7 +1626,7 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 	}
 }
 
-func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, serverAddr string, expectedProtocol network.ProtocolType) {
+func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, serverAddr string, expectedProtocol protocols.ProtocolType) {
 	var outgoing, incoming *network.ConnectionStats
 	assert.Eventually(t, func() bool {
 		conns := getConnections(t, tr)
@@ -1634,7 +1634,7 @@ func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, server
 			for _, c := range searchConnections(conns, func(cs network.ConnectionStats) bool {
 				return cs.Direction == network.OUTGOING && cs.Type == network.TCP && fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == targetAddr
 			}) {
-				if conn.ProtocolStack.Contains(expectedProtocol) {
+				if c.ProtocolStack.Contains(expectedProtocol) {
 					outgoing = &c
 					break
 				}
