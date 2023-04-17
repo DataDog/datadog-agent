@@ -239,19 +239,19 @@ func (h *Hotspot) command(cmd string, tailingNull bool) error {
 	if err := h.commandWriteRead(cmd, tailingNull); err != nil {
 		// if we receive EPIPE (write) or ECONNRESET (read) from the kernel may from old hotspot JVM
 		// let's retry with credentials, see dialunix() for more info
-		if errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET) {
-			log.Debugf("java attach hotspot pid %d/%d old hotspot JVM detected, requires credentials", h.pid, h.nsPid)
-			h.conn.Close()
-			_, err = h.connect(true) // we don't need to propagate the cleanConn() callback as it's doing the same thing.
-			if err != nil {
-				return err
-			}
-			err = h.commandWriteRead(cmd, tailingNull)
-			if err == nil {
-				return nil
-			}
+		if !errors.Is(err, syscall.EPIPE) && !errors.Is(err, syscall.ECONNRESET) {
+			return err
 		}
-		return err
+		log.Debugf("java attach hotspot pid %d/%d old hotspot JVM detected, requires credentials", h.pid, h.nsPid)
+		_ = h.conn.Close()
+		// we don't need to propagate the cleanConn() callback as it's doing the same thing.
+		if _, err := h.connect(true); err != nil {
+			return err
+		}
+
+		if err := h.commandWriteRead(cmd, tailingNull); err != nil {
+			return err
+		}
 	}
 	return nil
 }
