@@ -29,6 +29,7 @@ jira_statuses = [
 ]
 github_team = "agent-shared-components"
 github_labels = ["team/agent-shared-components"]
+exclude_members = ["olivielpeau", "sgnn7"]
 
 [teams."Agent Platform"]
 jira_project = "AP"
