@@ -20,6 +20,7 @@ import (
 // All System Probe modules should register their factories here
 var All = []module.Factory{
 	NetworkTracer,
+	EventMonitor,
 }
 
 const (

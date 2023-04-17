@@ -90,6 +90,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(runCheckCmd,
 				fx.Supply(cliParams, bundleParams),
 
+				fx.Invoke(command.SetHostMountEnv),
+
 				processComponent.Bundle,
 			)
 		},

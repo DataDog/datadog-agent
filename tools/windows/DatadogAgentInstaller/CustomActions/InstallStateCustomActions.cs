@@ -1,15 +1,40 @@
 using System;
+using System.ServiceProcess;
+using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
+using Datadog.CustomActions.Native;
 using Microsoft.Deployment.WindowsInstaller;
-using Microsoft.Win32;
+using ServiceController = Datadog.CustomActions.Native.ServiceController;
 
 namespace Datadog.CustomActions
 {
     // Fetch and process registry value(s) and return a string to be assigned to a WIX property.
     using GetRegistryPropertyHandler = Func<string>;
 
-    public class RegistryCustomActions
+    public class InstallStateCustomActions
     {
+        private readonly ISession _session;
+        private readonly IRegistryServices _registryServices;
+        private readonly IServiceController _serviceController;
+
+        public InstallStateCustomActions(
+            ISession session,
+            IRegistryServices registryServices,
+            IServiceController serviceController)
+        {
+            _session = session;
+            _registryServices = registryServices;
+            _serviceController = serviceController;
+        }
+
+        public InstallStateCustomActions(ISession session)
+        : this(
+            session,
+            new RegistryServices(),
+            new ServiceController())
+        {
+        }
+
         /// <summary>
         /// If the WIX property <c>propertyName</c> does not have a value, assign it the value returned by <c>handler</c>.
         /// This gives precedence to properties provided on the command line over the registry values.
@@ -42,7 +67,7 @@ namespace Datadog.CustomActions
         /// Convenience wrapper of <c>RegistryProperty</c> for properties that have an exact 1:1 mapping to a registry value
         /// and don't require additional processing.
         /// </summary>
-        private static void RegistryValueProperty(ISession session, string propertyName, RegistryKey registryKey, string registryValue)
+        private static void RegistryValueProperty(ISession session, string propertyName, IRegistryKey registryKey, string registryValue)
         {
             RegistryProperty(session, propertyName,
                 () => registryKey.GetValue(registryValue)?.ToString());
@@ -54,11 +79,11 @@ namespace Datadog.CustomActions
         /// <remarks>
         /// Custom Action that runs (only once) in either the InstallUISequence or the InstallExecuteSequence.
         /// </remarks>
-        private static ActionResult ReadRegistryProperties(ISession session)
+        public ActionResult ReadInstallState()
         {
             try
             {
-                using (var subkey = Registry.LocalMachine.OpenSubKey(@"Software\Datadog\Datadog Agent"))
+                using (var subkey = _registryServices.OpenRegistryKey(Registries.LocalMachine, @"Software\Datadog\Datadog Agent"))
                 {
                     if (subkey != null)
                     {
@@ -73,11 +98,11 @@ namespace Datadog.CustomActions
                         // This function will combine the registry properties if they exist.
                         // Preference is given to creds provided on the command line and the agent user dialog.
                         // For UI installs it ensures that the agent user dialog is pre-populated.
-                        RegistryProperty(session, "DDAGENTUSER_NAME",
+                        RegistryProperty(_session, "DDAGENTUSER_NAME",
                             () =>
                             {
-                                var domain = subkey.GetValue("installedDomain").ToString();
-                                var user = subkey.GetValue("installedUser").ToString();
+                                var domain = subkey.GetValue("installedDomain")?.ToString();
+                                var user = subkey.GetValue("installedUser")?.ToString();
                                 if (!string.IsNullOrEmpty(domain) && !string.IsNullOrEmpty(user))
                                 {
                                     return $"{domain}\\{user}";
@@ -85,40 +110,57 @@ namespace Datadog.CustomActions
                                 return string.Empty;
                             });
 
-                        // PROJECTLOCATION
-                        RegistryValueProperty(session, "PROJECTLOCATION", subkey, "InstallPath");
-
-                        // APPLICATIONDATADIRECTORY
-                        RegistryValueProperty(session, "APPLICATIONDATADIRECTORY", subkey, "ConfigRoot");
+                        RegistryValueProperty(_session, "PROJECTLOCATION", subkey, "InstallPath");
+                        RegistryValueProperty(_session, "APPLICATIONDATADIRECTORY", subkey, "ConfigRoot");
+                        RegistryValueProperty(_session, "ALLOWCLOSEDSOURCE", subkey, "AllowClosedSource");
                     }
                 }
 
-                using (var subkey = Registry.LocalMachine.OpenSubKey(@"Software\Microsoft\Windows NT\CurrentVersion"))
+                if (string.IsNullOrEmpty(_session.Property("ALLOWCLOSEDSOURCE")))
                 {
-                    if (subkey != null)
+                    _session.Log("Cannot find the \"AllowClosedSource\" registry key, checking the NPM service state.");
+                    var ddNpmService = _serviceController.Find("ddnpm");
+                    if (ddNpmService != null)
                     {
-                        session["WindowsBuild"] = subkey.GetValue("CurrentBuild").ToString();
-                        session.Log($"WindowsBuild: {session["WindowsBuild"]}");
+                        _session["ALLOWCLOSEDSOURCE"] = ddNpmService.StartType != ServiceStartMode.Disabled ? "1" : "0";
+                        _session.Log($"Found \"AllowClosedSource\" key, with value: {_session["ALLOWCLOSEDSOURCE"]}");
                     }
                     else
                     {
-                        session.Log("WindowsBuild not found");
+                        _session.Log("NPM service not found, assuming closed source consent was not given.");
+                    }
+                }
+
+                using (var subkey = _registryServices.OpenRegistryKey(Registries.LocalMachine, @"Software\Microsoft\Windows NT\CurrentVersion"))
+                {
+                    if (subkey != null)
+                    {
+                        var currentBuild = subkey.GetValue("CurrentBuild");
+                        if (currentBuild != null)
+                        {
+                            _session["WindowsBuild"] = subkey.GetValue("CurrentBuild").ToString();
+                            _session.Log($"WindowsBuild: {_session["WindowsBuild"]}");
+                        }
+                    }
+                    else
+                    {
+                        _session.Log("WindowsBuild not found");
                     }
                 }
 
             }
             catch (Exception e)
             {
-                session.Log($"Error processing registry properties: {e}");
+                _session.Log($"Error processing registry properties: {e}");
                 return ActionResult.Failure;
             }
             return ActionResult.Success;
         }
 
         [CustomAction]
-        public static ActionResult ReadRegistryProperties(Session session)
+        public static ActionResult ReadInstallState(Session session)
         {
-            return ReadRegistryProperties(new SessionWrapper(session));
+            return new InstallStateCustomActions(new SessionWrapper(session)).ReadInstallState();
         }
     }
 }

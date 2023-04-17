@@ -13,6 +13,7 @@ import (
 )
 
 type Collector interface {
+	CleanCache() error
 	Init(config.Config) error
 	Scan(context.Context, sbom.ScanRequest, sbom.ScanOptions) (sbom.Report, error)
 }

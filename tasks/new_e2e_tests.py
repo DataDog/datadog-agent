@@ -52,7 +52,7 @@ def run(ctx, profile="", tags=[], targets=[], configparams=[], verbose=True, cac
     if parsedParams:
         envVars["E2E_STACK_PARAMS"] = json.dumps(parsedParams)
 
-    cmd = 'gotestsum --format pkgname --packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags {tags} {nocache}'
+    cmd = 'gotestsum --format pkgname --packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags {go_build_tags} {nocache}'
     args = {
         "go_mod": "mod",
         "timeout": "4h",
