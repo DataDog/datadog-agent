@@ -71,7 +71,6 @@ func (o *Opts) WithStateScopes(stateScopes map[Scope]VariableProviderFactory) *O
 // NetEvalOpts returns eval options
 func NewEvalOpts(eventTypeEnabled map[eval.EventType]bool) (*Opts, *eval.Opts) {
 	var ruleOpts Opts
-	defaultTagValue := "probe_evaluation"
 
 	ruleOpts.
 		WithEventTypeEnabled(eventTypeEnabled).
@@ -81,7 +80,7 @@ func NewEvalOpts(eventTypeEnabled map[eval.EventType]bool) (*Opts, *eval.Opts) {
 					return ctx.Event.(*model.Event).ProcessContext
 				})
 			},
-		}).WithRuleSetTag(defaultTagValue)
+		}).WithRuleSetTag(DefaultRuleSetTagValue)
 
 	var evalOpts eval.Opts
 	evalOpts.

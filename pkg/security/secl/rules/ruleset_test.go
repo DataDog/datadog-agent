@@ -26,7 +26,7 @@ type testHandler struct {
 	filters map[string]testFieldValues
 }
 
-// SetRuleSetTag sets the value of the "ruleset" tag, which is the tag of the rules that belong in this rule set
+// SetRuleSetTag sets the value of the "ruleset" tag, which is the tag of the rules that belong in this rule set. This method is only used for testing.
 func (rs *RuleSet) setRuleSetTagValue(value eval.RuleSetTagValue) error {
 	if len(rs.GetRules()) > 0 {
 		return ErrCannotChangeTagAfterLoading
