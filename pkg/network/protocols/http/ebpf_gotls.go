@@ -241,18 +241,17 @@ func (p *GoTLSProgram) Start() {
 		Metadata: monitor.ANY,
 		Callback: p.handleProcessStop,
 	})
-	if err == nil {
-		return
+	if err != nil {
+		log.Errorf("failed to subscribe Exit process monitor error: %s", err)
+
+		if p.procMonitor.cleanupExec != nil {
+			p.procMonitor.cleanupExec()
+		}
+		if p.procMonitor.cleanupExit != nil {
+			p.procMonitor.cleanupExit()
+		}
 	}
 
-	log.Errorf("failed to subscribe Exit process monitor error: %s", err)
-
-	if p.procMonitor.cleanupExec != nil {
-		p.procMonitor.cleanupExec()
-	}
-	if p.procMonitor.cleanupExit != nil {
-		p.procMonitor.cleanupExit()
-	}
 }
 
 func (p *GoTLSProgram) Stop() {
