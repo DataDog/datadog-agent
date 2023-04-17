@@ -12,8 +12,12 @@ import (
 )
 
 func TestNewDelimiter(t *testing.T) {
-	assert.Equal(t, &lengthPrefix, NewDelimiter(true))
-	assert.Equal(t, &lineBreak, NewDelimiter(false))
+	lengthD, err := NewDelimiter(true).delimit([]byte("abc"))
+	assert.Nil(t, err)
+	assert.Equal(t, []byte{0, 0, 0, 3, 'a', 'b', 'c'}, lengthD)
+	lineD, err := NewDelimiter(false).delimit([]byte("abc"))
+	assert.Nil(t, err)
+	assert.Equal(t, []byte("abc\n"), lineD)
 }
 
 func TestLengthPrefixDelimiter(t *testing.T) {
