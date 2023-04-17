@@ -185,7 +185,7 @@ kernel_matrix_testing_run_tests:
     # We need to add a newline to the ssh key otherwise the ssh client complains of a format error
     - echo "" >> $AWS_SSH_KEY
     - 'scp -o StrictHostKeyChecking=no -i $AWS_SSH_KEY $CI_PROJECT_DIR/test/new-e2e/system-probe/test/micro-vm-init.sh ubuntu@$INSTANCE_IP:/opt/kernel-version-testing'
-    - ssh -o StrictHostKeyChecking=no -i $AWS_SSH_KEY ubuntu@$INSTANCE_IP "sudo ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/rootfs/ddvm_rsa root@${MICRO_VM_IP} 'mv /opt/kernel-version-testing/micro-vm-init.sh /micro-vm-init.sh && bash /micro-vm-init.sh'"
+    - ssh -o StrictHostKeyChecking=no -i $AWS_SSH_KEY ubuntu@$INSTANCE_IP "sudo ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/rootfs/ddvm_rsa root@${MICRO_VM_IP} 'mv /opt/kernel-version-testing/micro-vm-init.sh /micro-vm-init.sh && bash /micro-vm-init.sh ${ARCH}'"
   parallel:
     matrix:
       - TAG: ["4.18", "5.4", "5.15"]
