@@ -1,11 +1,7 @@
 enhancements:
   - |
     * Remove BadgerDB cache for Trivy.
-    * Add new custom LRU cache for Trivy backed by BoltDB and parametrized by:
-      - ``sbom.use_custom_cache``: Enables the custom cache.
-      - ``sbom.custom_cache_max_cache_entries``: Maximum number of cached objects.
-      - ``sbom.custom_cache_max_disk_size``: Maximum total size of the cached objects.
-      - ``sbom.cache_clean_interval``: Duration interval of garbage collection.
+    * Add new custom LRU cache for Trivy backed by BoltDB.
     * Periodically delete unused entries from the custom cache.
     * Add telemetry metrics to monitor the cache:
       - ``sbom_cached_keys``: Number of cache keys stored in memory
