@@ -55,7 +55,7 @@ pull_test_dockers_arm64:
     - mkdir junit
     - mkdir testjson
     - mkdir pkgjson
-   # copy over docker images
+    # copy over docker images
     - cp -R $KITCHEN_DOCKERS $DEPENDENCIES/kitchen-docker
     # copy system probe tests
     - mkdir -p $SYSTEM_PROBE_TESTS
