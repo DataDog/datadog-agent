@@ -91,30 +91,10 @@ func TestEvaluationSet_GetPolicies(t *testing.T) {
 }
 
 func TestEvaluationSet_LoadPolicies(t *testing.T) {
-	testPolicy := &PolicyDef{
-		Rules: []*RuleDefinition{
-			{
-				ID:         "testA",
-				Expression: `open.file.path == "/tmp/test"`,
-			},
-			{
-				ID:         "testB",
-				Expression: `open.file.path == "/tmp/test"`,
-				Tags:       map[string]string{"ruleset": "threat_score"},
-			},
-			{
-				ID:         "testC",
-				Expression: `open.file.path == "/tmp/toto"`,
-			},
-		},
-	}
-
-	policyLoaderOpts := PolicyLoaderOpts{}
-	loader, es := loadPolicySetup(t, testPolicy, []eval.RuleSetTagValue{"threat_score"})
-
 	type args struct {
-		loader *PolicyLoader
-		opts   PolicyLoaderOpts
+		policy    *PolicyDef
+		tagValues []eval.RuleSetTagValue
+		opts      PolicyLoaderOpts
 	}
 	tests := []struct {
 		name    string
@@ -125,24 +105,119 @@ func TestEvaluationSet_LoadPolicies(t *testing.T) {
 		{
 			name: "just threat score",
 			args: args{
-				loader: loader,
-				opts:   policyLoaderOpts,
+				policy: &PolicyDef{
+					Rules: []*RuleDefinition{
+						{
+							ID:         "testA",
+							Expression: `open.file.path == "/tmp/test"`,
+						},
+						{
+							ID:         "testB",
+							Expression: `open.file.path == "/tmp/test"`,
+							Tags:       map[string]string{"ruleset": "threat_score"},
+						},
+						{
+							ID:         "testC",
+							Expression: `open.file.path == "/tmp/toto"`,
+						},
+					},
+				},
+				tagValues: []eval.RuleSetTagValue{"threat_score"},
 			},
 			want: func(t assert.TestingT, got *EvaluationSet, msgs ...interface{}) bool {
-				gotNumberOfRules := len(es.RuleSets["threat_score"].rules)
+				gotNumOfRules := len(got.RuleSets["threat_score"].rules)
 				expected := 1
-				return assert.Equal(t, expected, gotNumberOfRules)
+				assert.Equal(t, expected, gotNumOfRules)
+
+				return assert.Equal(t, 1, len(got.RuleSets))
 			},
 			wantErr: func(t assert.TestingT, err *multierror.Error, msgs ...interface{}) bool {
 				return assert.Nil(t, err, msgs)
 			},
 		},
-		// TODO: Add more test cases
+		{
+			name: "just probe evaluation",
+			args: args{
+				policy: &PolicyDef{
+					Rules: []*RuleDefinition{
+						{
+							ID:         "testA",
+							Expression: `open.file.path == "/tmp/test"`,
+						},
+						{
+							ID:         "testB",
+							Expression: `open.file.path == "/tmp/test"`,
+							Tags:       map[string]string{"ruleset": DefaultRuleSetTagValue},
+						},
+						{
+							ID:         "testC",
+							Expression: `open.file.path == "/tmp/toto"`,
+						},
+					},
+				},
+				tagValues: []eval.RuleSetTagValue{DefaultRuleSetTagValue},
+			},
+			want: func(t assert.TestingT, got *EvaluationSet, msgs ...interface{}) bool {
+				gotNumberOfRules := len(got.RuleSets[DefaultRuleSetTagValue].rules)
+				expected := 3
+				assert.Equal(t, expected, gotNumberOfRules)
+
+				return assert.Equal(t, 1, len(got.RuleSets))
+			},
+			wantErr: func(t assert.TestingT, err *multierror.Error, msgs ...interface{}) bool {
+				return assert.Nil(t, err, msgs)
+			},
+		},
+		{
+			name: "mix of tags",
+			args: args{
+				policy: &PolicyDef{
+					Rules: []*RuleDefinition{
+						{
+							ID:         "testA",
+							Expression: `open.file.path == "/tmp/test"`,
+						},
+						{
+							ID:         "testB",
+							Expression: `open.file.path == "/tmp/test"`,
+							Tags:       map[string]string{"ruleset": "threat_score"},
+						},
+						{
+							ID:         "testC",
+							Expression: `open.file.path == "/tmp/toto"`,
+							Tags:       map[string]string{"ruleset": "special"},
+						},
+					},
+				},
+				tagValues: []eval.RuleSetTagValue{DefaultRuleSetTagValue, "threat_score", "special"},
+			},
+			want: func(t assert.TestingT, got *EvaluationSet, msgs ...interface{}) bool {
+				gotNumProbeEvalRules := len(got.RuleSets[DefaultRuleSetTagValue].rules)
+				expected := 1
+				assert.Equal(t, expected, gotNumProbeEvalRules)
+
+				gotNumThreatScoreRules := len(got.RuleSets["threat_score"].rules)
+				expectedNumThreatScoreRules := 1
+				assert.Equal(t, expectedNumThreatScoreRules, gotNumThreatScoreRules)
+
+				gotNumSpecialRules := len(got.RuleSets["special"].rules)
+				expectedNumSpecialRules := 1
+				assert.Equal(t, expectedNumSpecialRules, gotNumSpecialRules)
+
+				return assert.Equal(t, 3, len(got.RuleSets))
+			},
+			wantErr: func(t assert.TestingT, err *multierror.Error, msgs ...interface{}) bool {
+				return assert.Nil(t, err, msgs)
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := es.LoadPolicies(tt.args.loader, tt.args.opts)
+			policyLoaderOpts := PolicyLoaderOpts{}
+			loader, es := loadPolicySetup(t, tt.args.policy, tt.args.tagValues)
+
+			err := es.LoadPolicies(loader, policyLoaderOpts)
 			tt.want(t, es)
 			tt.wantErr(t, err)
 		})
