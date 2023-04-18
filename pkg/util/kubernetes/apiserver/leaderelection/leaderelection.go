@@ -17,11 +17,11 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/discovery"
 	coordinationv1 "k8s.io/client-go/kubernetes/typed/coordination/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/leaderelection"
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
-	"k8s.io/client-go/discovery"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -259,12 +259,12 @@ func CanUseLease(client discovery.DiscoveryInterface) bool {
 	if err != nil {
 		log.Errorf("failed to retrieve resource list for coordination.k8s.io/v1, leader election will use configmaps: %v", err)
 		return false
-	} 
+	}
 	if resourceList == nil {
 		return false
 	}
 	for _, resource := range resourceList.APIResources {
-		if resource.Kind == "Lease"{
+		if resource.Kind == "Lease" {
 			return true
 		}
 	}
