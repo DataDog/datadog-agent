@@ -105,7 +105,7 @@ type soRegistry struct {
 	byID  map[pathIdentifier]*soRegistration
 	byPID map[uint32]map[pathIdentifier]struct{}
 
-	// if we can't register an uprobe we don't try more than once
+	// if we can't register a uprobe we don't try more than once
 	blocklistByID map[pathIdentifier]struct{}
 }
 
