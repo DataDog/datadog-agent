@@ -126,7 +126,7 @@ func TestEvaluationSet_LoadPolicies(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    func(t assert.TestingT, got *EvaluationSet, msgs ...interface{}) bool
+		want    func(t assert.TestingT, args args, got *EvaluationSet, msgs ...interface{}) bool
 		wantErr func(t assert.TestingT, err *multierror.Error, msgs ...interface{}) bool
 	}{
 		{
@@ -151,7 +151,7 @@ func TestEvaluationSet_LoadPolicies(t *testing.T) {
 				},
 				tagValues: []eval.RuleSetTagValue{"threat_score"},
 			},
-			want: func(t assert.TestingT, got *EvaluationSet, msgs ...interface{}) bool {
+			want: func(t assert.TestingT, args args, got *EvaluationSet, msgs ...interface{}) bool {
 				gotNumOfRules := len(got.RuleSets["threat_score"].rules)
 				expected := 1
 				assert.Equal(t, expected, gotNumOfRules)
@@ -184,7 +184,7 @@ func TestEvaluationSet_LoadPolicies(t *testing.T) {
 				},
 				tagValues: []eval.RuleSetTagValue{DefaultRuleSetTagValue},
 			},
-			want: func(t assert.TestingT, got *EvaluationSet, msgs ...interface{}) bool {
+			want: func(t assert.TestingT, args args, got *EvaluationSet, msgs ...interface{}) bool {
 				gotNumberOfRules := len(got.RuleSets[DefaultRuleSetTagValue].rules)
 				expected := 3
 				assert.Equal(t, expected, gotNumberOfRules)
@@ -214,11 +214,18 @@ func TestEvaluationSet_LoadPolicies(t *testing.T) {
 							Expression: `open.file.path == "/tmp/toto"`,
 							Tags:       map[string]string{"ruleset": "special"},
 						},
+						{
+							ID:         "testD",
+							Expression: `open.file.path == "/tmp/toto"`,
+							Tags:       map[string]string{"threat_score": "4", "ruleset": "special"},
+						},
 					},
 				},
 				tagValues: []eval.RuleSetTagValue{DefaultRuleSetTagValue, "threat_score", "special"},
 			},
-			want: func(t assert.TestingT, got *EvaluationSet, msgs ...interface{}) bool {
+			want: func(t assert.TestingT, args args, got *EvaluationSet, msgs ...interface{}) bool {
+				assert.Equal(t, len(args.tagValues), len(got.RuleSets))
+
 				gotNumProbeEvalRules := len(got.RuleSets[DefaultRuleSetTagValue].rules)
 				expected := 1
 				assert.Equal(t, expected, gotNumProbeEvalRules)
@@ -228,7 +235,7 @@ func TestEvaluationSet_LoadPolicies(t *testing.T) {
 				assert.Equal(t, expectedNumThreatScoreRules, gotNumThreatScoreRules)
 
 				gotNumSpecialRules := len(got.RuleSets["special"].rules)
-				expectedNumSpecialRules := 1
+				expectedNumSpecialRules := 2
 				assert.Equal(t, expectedNumSpecialRules, gotNumSpecialRules)
 
 				return assert.Equal(t, 3, len(got.RuleSets))
@@ -245,7 +252,7 @@ func TestEvaluationSet_LoadPolicies(t *testing.T) {
 			loader, es := loadPolicySetup(t, tt.args.policy, tt.args.tagValues)
 
 			err := es.LoadPolicies(loader, policyLoaderOpts)
-			tt.want(t, es)
+			tt.want(t, tt.args, es)
 			tt.wantErr(t, err)
 		})
 	}
