@@ -15,7 +15,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
-	"runtime"
 	"strings"
 	"time"
 
@@ -1521,52 +1520,39 @@ func TestLoadEnv(t *testing.T) {
 
 func TestFargateConfig(t *testing.T) {
 	type testData struct {
-		name         string
-		envKey       string
-		envValue     string
-		orchestrator config.FargateOrchestratorName
+		features             []coreconfig.Feature
+		expectedOrchestrator config.FargateOrchestratorName
 	}
 	for _, data := range []testData{
 		{
-			name:         "ecs_fargate",
-			envKey:       "ECS_FARGATE",
-			envValue:     "true",
-			orchestrator: config.OrchestratorECS,
+			features:             []coreconfig.Feature{coreconfig.ECSFargate},
+			expectedOrchestrator: config.OrchestratorECS,
 		},
 		{
-			name:         "eks_fargate",
-			envKey:       "XXXX_EKS_FARGATE",
-			envValue:     "true",
-			orchestrator: config.OrchestratorEKS,
+			features:             []coreconfig.Feature{coreconfig.EKSFargate},
+			expectedOrchestrator: config.OrchestratorEKS,
 		},
 		{
-			name:         "unknown",
-			envKey:       "ECS_FARGATE",
-			envValue:     "",
-			orchestrator: config.OrchestratorUnknown,
+			features:             []coreconfig.Feature{},
+			expectedOrchestrator: config.OrchestratorUnknown,
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			t.Setenv(data.envKey, data.envValue)
 
 			c := fxutil.Test[Component](t, fx.Options(
 				corecomp.MockModule,
 				fx.Replace(corecomp.MockParams{
 					Params:      corecomp.Params{ConfFilePath: "./testdata/no_apm_config.yaml"},
+					Features:    data.features,
 					SetupConfig: true,
 				}),
 				fx.Supply(Params{}),
 				MockModule,
 			))
+
 			cfg := c.Object()
-
 			assert.NotNil(t, cfg)
-
-			if runtime.GOOS == "darwin" {
-				assert.Equal(t, config.OrchestratorUnknown, cfg.FargateOrchestrator)
-			} else {
-				assert.Equal(t, data.orchestrator, cfg.FargateOrchestrator)
-			}
+			assert.Equal(t, data.expectedOrchestrator, cfg.FargateOrchestrator)
 
 		})
 	}

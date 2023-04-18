@@ -148,18 +148,3 @@ func (p Params) ConfigLoadSecrets() bool {
 func (p Params) ConfigMissingOK() bool {
 	return p.configMissingOK
 }
-
-// MockParams defines the parameter for the mock config.
-// It is designed to be used with `fx.Replace` which replaces the default
-// empty value of `MockParams`.
-//
-//	fx.Replace(configComponent.MockParams{Overrides: overrides})
-type MockParams struct {
-	Params
-
-	// Overrides is a parameter used to override values of the config
-	Overrides map[string]interface{}
-
-	// SetupConfig sets up the config as if it weren't a mock; essentially a full init
-	SetupConfig bool
-}

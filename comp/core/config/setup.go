@@ -20,7 +20,6 @@ import (
 // setupConfig is copied from cmd/agent/common/helpers.go.
 func setupConfig(deps configDependencies) (*config.Warnings, error) {
 	p := deps.getParams()
-	fmt.Printf("these are the params: %v", p)
 
 	confFilePath := p.ConfFilePath
 	configName := p.configName
