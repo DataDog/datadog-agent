@@ -662,9 +662,7 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False):
 
         sowatcher_client_dir = os.path.join("testdata", "sowatcher")
         sowatcher_client_extra_path = os.path.join(pkg, sowatcher_client_dir)
-        print("###", sowatcher_client_extra_path)
         if not windows and os.path.isdir(sowatcher_client_extra_path):
-            raise Exception
             sowatcher_client_client_binary = os.path.join(sowatcher_client_dir, "sowatcher")
             sowatcher_client_binary_path = os.path.join(target_path, sowatcher_client_client_binary)
             with chdir(sowatcher_client_extra_path):
