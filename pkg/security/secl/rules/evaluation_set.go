@@ -37,21 +37,20 @@ func NewEvaluationSet(ruleSetsToInclude []*RuleSet) (*EvaluationSet, error) {
 
 // GetPolicies returns the policies
 func (ps *EvaluationSet) GetPolicies() []*Policy {
-	var policiesList []*Policy
-	for _, rs := range ps.RuleSets {
-		policiesList = append(policiesList, rs.policies...)
-	}
-
+	var policies []*Policy
+	
 	seen := make(map[string]bool)
-	var dedupedPoliciesList []*Policy
-	for _, policy := range policiesList {
-		if _, ok := seen[policy.Name]; !ok {
-			seen[policy.Name] = true
-			dedupedPoliciesList = append(dedupedPoliciesList, policy)
+
+	for _, rs := range ps.RuleSets {
+		for _, policy := range rs.policies {
+			if _, ok := seen[policy.Name]; !ok {
+				seen[policy.Name] = true
+				policies = append(policies, policy)
+			}
 		}
 	}
 
-	return dedupedPoliciesList
+	return policies
 }
 
 func (es *EvaluationSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *multierror.Error {

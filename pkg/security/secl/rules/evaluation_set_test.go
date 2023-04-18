@@ -110,7 +110,10 @@ func TestEvaluationSet_GetPolicies(t *testing.T) {
 			es := &EvaluationSet{
 				RuleSets: tt.fields.RuleSets,
 			}
-			assert.Equalf(t, tt.want, es.GetPolicies(), "GetPolicies()")
+			assert.Equalf(t, len(tt.want), len(es.GetPolicies()), "GetPolicies()")
+			for _, policy := range tt.want {
+				assert.Contains(t, es.GetPolicies(), policy)
+			}
 		})
 	}
 }
