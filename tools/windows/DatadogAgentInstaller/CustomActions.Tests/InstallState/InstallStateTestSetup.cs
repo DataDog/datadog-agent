@@ -32,7 +32,7 @@ namespace CustomActions.Tests.InstallState
         {
             var service = new Mock<IWindowsService>();
             service.SetupGet(s => s.DisplayName).Returns("Datadog NPM service");
-            service.SetupGet(s => s.ServiceName).Returns("ddnpm");
+            service.SetupGet(s => s.ServiceName).Returns(Constants.NpmServiceName);
             if (serviceStartMode != null)
             {
                 service.SetupGet(s => s.StartType).Returns(serviceStartMode.Value);

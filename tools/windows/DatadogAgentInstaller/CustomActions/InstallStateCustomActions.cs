@@ -119,17 +119,22 @@ namespace Datadog.CustomActions
                 if (string.IsNullOrEmpty(_session.Property("ALLOWCLOSEDSOURCE")))
                 {
                     _session.Log("Cannot find the \"AllowClosedSource\" registry key, checking the NPM service state.");
-                    var ddNpmService = _serviceController.Find("ddnpm");
+                    var ddNpmService = _serviceController.Find(Constants.NpmServiceName);
                     if (ddNpmService != null)
                     {
                         _session["ALLOWCLOSEDSOURCE"] = ddNpmService.StartType != ServiceStartMode.Disabled ? Constants.AllowClosedSource_Yes : Constants.AllowClosedSource_No;
-                        _session.Log($"Found \"AllowClosedSource\" key, with value: {_session["ALLOWCLOSEDSOURCE"]}");
+                        _session.Log($"{Constants.NpmServiceName} start type is {ddNpmService.StartType}, setting \"AllowClosedSource\" to: {_session["ALLOWCLOSEDSOURCE"]}");
+
                     }
                     else
                     {
                         _session.Log("NPM service not found, assuming closed source consent was not given.");
                         _session["ALLOWCLOSEDSOURCE"] = Constants.AllowClosedSource_No;
                     }
+                }
+                else
+                {
+                    _session.Log($"Found \"AllowClosedSource\" key, with value: {_session["ALLOWCLOSEDSOURCE"]}");
                 }
 
                 if (_session.Property("ALLOWCLOSEDSOURCE") == Constants.AllowClosedSource_Yes)
