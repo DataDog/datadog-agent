@@ -351,7 +351,7 @@ func buildSOWatcherClientBin(t *testing.T) string {
 		return clientBinary
 	}
 
-	clientSrcDir := fmt.Sprintf("%s/testutil/testdata/%s", cur, ClientSrcPath)
+	clientSrcDir := fmt.Sprintf("%s/testutil/%s", cur, ClientSrcPath)
 	clientBuildDir, err := os.MkdirTemp("", "sowatcher_client_build-")
 	require.NoError(t, err)
 
