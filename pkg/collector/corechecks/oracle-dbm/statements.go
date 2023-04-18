@@ -66,7 +66,7 @@ GROUP BY c.name, %s, plan_hash_value`
 type StatementMetricsKeyDB struct {
 	PDBName string `db:"PDB_NAME"`
 	SQLID   string `db:"SQL_ID"`
-	//ForceMatchingSignature uint64 `db:"FORCE_MATCHING_SIGNATURE"`
+
 	ForceMatchingSignature string `db:"FORCE_MATCHING_SIGNATURE"`
 	PlanHashValue          uint64 `db:"PLAN_HASH_VALUE"`
 }
@@ -192,6 +192,34 @@ type MetricsPayload struct {
 
 	OracleRows    []OracleRow `json:"oracle_rows,omitempty"`
 	OracleVersion string      `json:"oracle_version,omitempty"`
+}
+
+type FQTDBMetadata struct {
+	Tables   []string `json:"dd_tables"`
+	Commands []string `json:"dd_commands"`
+}
+
+type FQTDB struct {
+	Instance       string        `json:"instance"`
+	QuerySignature string        `json:"query_signature"`
+	Statement      string        `json:"statement"`
+	FQTDBMetadata  FQTDBMetadata `json:"metadata"`
+}
+
+type FQTDBOracle struct {
+	ForceMatchingSignature string `json:"force_matching_signature,omitempty"`
+	SQLID                  string `json:"sql_id"`
+}
+
+type FQTPayload struct {
+	Timestamp    float64     `json:"timestamp,omitempty"`
+	Host         string      `json:"host,omitempty"` // Host is the database hostname, not the agent hostname
+	AgentVersion string      `json:"ddagentversion,omitempty"`
+	Source       string      `json:"ddsource"`
+	Tags         []string    `json:"tags,omitempty"`
+	DBMType      string      `json:"dbm_type"`
+	FQTDB        FQTDB       `json:"db"`
+	FQTDBOracle  FQTDBOracle `json:"oracle"`
 }
 
 func ConstructStatementMetricsQueryBlock(sqlHandleColumn string, whereClause string, bindPlaceholder string) string {
@@ -399,7 +427,6 @@ func (c *Check) StatementMetrics() (int, error) {
 			}
 
 			var queryHashCol string
-			//if statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature == 0 {
 			if statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature == "" {
 				queryHashCol = "sql_id"
 			} else {
@@ -431,7 +458,6 @@ func (c *Check) StatementMetrics() (int, error) {
 			sender.Histogram("dd.oracle.statements_metrics.sql_text_length", float64(len(SQLStatement)), "", c.tags)
 
 			queryRow := QueryRow{}
-			//obfuscatedStatement, err := c.GetObfuscatedStatement(o, SQLStatement, statementMetricRow.ForceMatchingSignature, statementMetricRow.SQLID)
 			obfuscatedStatement, err := c.GetObfuscatedStatement(o, SQLStatement)
 			SQLStatement = obfuscatedStatement.Statement
 			if err == nil {
@@ -442,7 +468,6 @@ func (c *Check) StatementMetrics() (int, error) {
 
 			var queryHash string
 			if queryHashCol == "force_matching_signature" {
-				//queryHash = strconv.FormatUint(statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature, 10)
 				queryHash = statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature
 			} else {
 				queryHash = statementMetricRow.StatementMetricsKeyDB.SQLID
@@ -458,6 +483,29 @@ func (c *Check) StatementMetrics() (int, error) {
 			}
 
 			oracleRows = append(oracleRows, oracleRow)
+
+			FQTDBMetadata := FQTDBMetadata{Tables: queryRow.Tables, Commands: queryRow.Commands}
+			FQTDB := FQTDB{Instance: c.cdbName, QuerySignature: queryRow.QuerySignature, Statement: SQLStatement, FQTDBMetadata: FQTDBMetadata}
+			FQTDBOracle := FQTDBOracle{
+				ForceMatchingSignature: statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature,
+				SQLID:                  statementMetricRow.StatementMetricsKeyDB.SQLID,
+			}
+			FQTPayload := FQTPayload{
+				Timestamp:    float64(time.Now().UnixMilli()),
+				Host:         c.dbHostname,
+				AgentVersion: c.agentVersion,
+				Source:       common.IntegrationName,
+				Tags:         c.tags,
+				DBMType:      "fqt",
+				FQTDB:        FQTDB,
+				FQTDBOracle:  FQTDBOracle,
+			}
+			FQTPayloadBytes, err := json.Marshal(FQTPayload)
+			if err != nil {
+				log.Errorf("Error marshalling fqt payload: %s", err)
+			}
+			log.Tracef("Query metrics fqt payload %s", string(FQTPayloadBytes))
+			sender.EventPlatformEvent(FQTPayloadBytes, "dbm-samples")
 		}
 		o.Stop()
 		c.copyToPreviousMap(newCache)
