@@ -30,10 +30,10 @@ namespace Datadog.CustomActions
         }
 
         public InstallStateCustomActions(ISession session)
-        : this(
-            session,
-            new RegistryServices(),
-            new ServiceController())
+            : this(
+                session,
+                new RegistryServices(),
+                new ServiceController())
         {
         }
 
@@ -69,7 +69,8 @@ namespace Datadog.CustomActions
         /// Convenience wrapper of <c>RegistryProperty</c> for properties that have an exact 1:1 mapping to a registry value
         /// and don't require additional processing.
         /// </summary>
-        private static void RegistryValueProperty(ISession session, string propertyName, IRegistryKey registryKey, string registryValue)
+        private static void RegistryValueProperty(ISession session, string propertyName, IRegistryKey registryKey,
+            string registryValue)
         {
             RegistryProperty(session, propertyName,
                 () => registryKey.GetValue(registryValue)?.ToString());
@@ -94,6 +95,7 @@ namespace Datadog.CustomActions
                 _session.Log($"Error reading install state: {e}");
                 return ActionResult.Failure;
             }
+
             return ActionResult.Success;
         }
 
@@ -102,7 +104,8 @@ namespace Datadog.CustomActions
         /// </summary>
         private void ReadRegistryProperties()
         {
-            using var subkey = _registryServices.OpenRegistryKey(Registries.LocalMachine, @"Software\Datadog\Datadog Agent");
+            using var subkey =
+                _registryServices.OpenRegistryKey(Registries.LocalMachine, @"Software\Datadog\Datadog Agent");
             if (subkey != null)
             {
                 // DDAGENTUSER_NAME
@@ -125,6 +128,7 @@ namespace Datadog.CustomActions
                         {
                             return $"{domain}\\{user}";
                         }
+
                         return string.Empty;
                     });
 
@@ -152,22 +156,25 @@ namespace Datadog.CustomActions
                 // - ddnpm service exists and is enabled (NPM was previously installed)
 
                 // check ADDLOCAL property
-                if (string.IsNullOrEmpty(_session.Property("ALLOWCLOSEDSOURCE")) && !string.IsNullOrEmpty(_session.Property("ADDLOCAL")))
+                if (string.IsNullOrEmpty(_session.Property("ALLOWCLOSEDSOURCE")) &&
+                    !string.IsNullOrEmpty(_session.Property("ADDLOCAL")))
                 {
                     var addLocalFeatures = _session.Property("ADDLOCAL").ToUpper().Split(',');
                     if (Array.Exists(addLocalFeatures, f => f == "ALL" || f == "NPM"))
                     {
                         _session["ALLOWCLOSEDSOURCE"] = Constants.AllowClosedSource_Yes;
-                        _session.Log($"ADDLOCAL={_session.Property("ADDLOCAL")}, maintaining backwards compatibility, setting \"AllowClosedSource\" to: {_session["ALLOWCLOSEDSOURCE"]}");
+                        _session.Log(
+                            $"ADDLOCAL={_session.Property("ADDLOCAL")}, maintaining backwards compatibility, setting \"AllowClosedSource\" to: {_session["ALLOWCLOSEDSOURCE"]}");
                     }
-
                 }
 
                 // check NPM property
-                if (string.IsNullOrEmpty(_session.Property("ALLOWCLOSEDSOURCE")) && !string.IsNullOrEmpty(_session.Property("NPM")))
+                if (string.IsNullOrEmpty(_session.Property("ALLOWCLOSEDSOURCE")) &&
+                    !string.IsNullOrEmpty(_session.Property("NPM")))
                 {
                     _session["ALLOWCLOSEDSOURCE"] = Constants.AllowClosedSource_Yes;
-                    _session.Log($"NPM property set, maintaining backwards compatibility, setting \"AllowClosedSource\" to: {_session["ALLOWCLOSEDSOURCE"]}");
+                    _session.Log(
+                        $"NPM property set, maintaining backwards compatibility, setting \"AllowClosedSource\" to: {_session["ALLOWCLOSEDSOURCE"]}");
                 }
 
                 // check ddnpm service
@@ -177,9 +184,11 @@ namespace Datadog.CustomActions
                     var ddNpmService = _serviceController.Find(Constants.NpmServiceName);
                     if (ddNpmService != null)
                     {
-                        _session["ALLOWCLOSEDSOURCE"] = ddNpmService.StartType != ServiceStartMode.Disabled ? Constants.AllowClosedSource_Yes : Constants.AllowClosedSource_No;
-                        _session.Log($"{Constants.NpmServiceName} start type is {ddNpmService.StartType}, setting \"AllowClosedSource\" to: {_session["ALLOWCLOSEDSOURCE"]}");
-
+                        _session["ALLOWCLOSEDSOURCE"] = ddNpmService.StartType != ServiceStartMode.Disabled
+                            ? Constants.AllowClosedSource_Yes
+                            : Constants.AllowClosedSource_No;
+                        _session.Log(
+                            $"{Constants.NpmServiceName} start type is {ddNpmService.StartType}, setting \"AllowClosedSource\" to: {_session["ALLOWCLOSEDSOURCE"]}");
                     }
                     else
                     {
@@ -214,7 +223,8 @@ namespace Datadog.CustomActions
         /// </summary>
         private void GetWindowsBuildVersion()
         {
-            using var subkey = _registryServices.OpenRegistryKey(Registries.LocalMachine, @"Software\Microsoft\Windows NT\CurrentVersion");
+            using var subkey = _registryServices.OpenRegistryKey(Registries.LocalMachine,
+                @"Software\Microsoft\Windows NT\CurrentVersion");
             if (subkey != null)
             {
                 var currentBuild = subkey.GetValue("CurrentBuild");
@@ -229,7 +239,7 @@ namespace Datadog.CustomActions
                 _session.Log("WindowsBuild not found");
             }
         }
-        
+
         [CustomAction]
         public static ActionResult ReadInstallState(Session session)
         {
@@ -254,10 +264,13 @@ namespace Datadog.CustomActions
                 {
                     throw new Exception("Unable to create agent registry key");
                 }
+
                 _session.Log($"Storing installedDomain={_session.Property("DDAGENTUSER_PROCESSED_DOMAIN")}");
-                subkey.SetValue("installedDomain", _session.Property("DDAGENTUSER_PROCESSED_DOMAIN"), RegistryValueKind.String);
+                subkey.SetValue("installedDomain", _session.Property("DDAGENTUSER_PROCESSED_DOMAIN"),
+                    RegistryValueKind.String);
                 _session.Log($"Storing installedUser={_session.Property("DDAGENTUSER_PROCESSED_NAME")}");
-                subkey.SetValue("installedUser", _session.Property("DDAGENTUSER_PROCESSED_NAME"), RegistryValueKind.String);
+                subkey.SetValue("installedUser", _session.Property("DDAGENTUSER_PROCESSED_NAME"),
+                    RegistryValueKind.String);
                 _session.Log($"Storing AllowClosedSource={_session.Property("ALLOWCLOSEDSOURCE")}");
                 subkey.SetValue("AllowClosedSource", _session.Property("ALLOWCLOSEDSOURCE"), RegistryValueKind.DWord);
             }

@@ -96,6 +96,7 @@ namespace CustomActions.Tests.InstallState
         }
 
         [Theory]
+        [InlineAutoData(null, Constants.AllowClosedSource_No)]
         [InlineAutoData("", Constants.AllowClosedSource_No)]
         [InlineAutoData("ALL", Constants.AllowClosedSource_Yes)]
         [InlineAutoData("NPM", Constants.AllowClosedSource_Yes)]
