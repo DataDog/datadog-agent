@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    APM: Use the correct config ``peer_service_aggregation`` in the core Agent
