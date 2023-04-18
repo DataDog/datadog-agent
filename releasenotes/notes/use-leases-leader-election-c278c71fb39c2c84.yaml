@@ -1,0 +1,4 @@
+
+enhancements:
+  - |
+    Use ``leases.coordination/v1`` for cluster-agent leader election when they are available.
