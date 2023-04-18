@@ -159,6 +159,7 @@ func (c *reverseDNSCache) Len() int {
 }
 
 func (c *reverseDNSCache) Close() {
+	c.oversizedLogLimit.Close()
 	c.exit <- struct{}{}
 }
 
