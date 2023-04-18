@@ -177,11 +177,18 @@ func (p *processor) processHostRefresh() {
 	}
 
 	if err := p.sbomScanner.Scan(scanRequest, p.hostScanOpts, ch); err != nil {
-		log.Errorf("Failed to generate SBOM for host: %s", err)
+		log.Errorf("Failed to trigger SBOM generation for host: %s", err)
+		return
 	}
 
 	go func() {
 		result := <-ch
+
+		if result.Error != nil {
+			log.Errorf("Failed to generate SBOM for host: %s", result.Error)
+			return
+		}
+
 		log.Debugf("Successfully generated SBOM for host: %v, %v", result.CreatedAt, result.Duration)
 
 		bom, err := result.Report.ToCycloneDX()

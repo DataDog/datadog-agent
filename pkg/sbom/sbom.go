@@ -53,6 +53,7 @@ type ScanRequest interface {
 }
 
 type ScanResult struct {
+	Error     error
 	Report    Report
 	CreatedAt time.Time
 	Duration  time.Duration
