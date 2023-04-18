@@ -45,11 +45,12 @@ type processor struct {
 	imageRepoDigests  map[string]string              // Map where keys are image repo digest and values are image ID
 	imageUsers        map[string]map[string]struct{} // Map where keys are image repo digest and values are set of container IDs
 	sbomScanner       *sbomscanner.Scanner
+	hostSBOM          bool
 	hostScanOpts      sbom.ScanOptions
 	hostname          string
 }
 
-func newProcessor(workloadmetaStore workloadmeta.Store, sender aggregator.Sender, maxNbItem int, maxRetentionTime time.Duration) (*processor, error) {
+func newProcessor(workloadmetaStore workloadmeta.Store, sender aggregator.Sender, maxNbItem int, maxRetentionTime time.Duration, hostSBOM bool) (*processor, error) {
 	hostScanOpts := sbom.ScanOptionsFromConfig(ddConfig.Datadog, false)
 	sbomScanner := sbomscanner.GetGlobalScanner()
 	if sbomScanner == nil {
@@ -76,6 +77,7 @@ func newProcessor(workloadmetaStore workloadmeta.Store, sender aggregator.Sender
 		imageRepoDigests:  make(map[string]string),
 		imageUsers:        make(map[string]map[string]struct{}),
 		sbomScanner:       sbomScanner,
+		hostSBOM:          hostSBOM,
 		hostScanOpts:      hostScanOpts,
 		hostname:          hostname,
 	}, nil
@@ -168,6 +170,10 @@ func (p *processor) processContainerImagesRefresh(allImages []*workloadmeta.Cont
 }
 
 func (p *processor) processHostRefresh() {
+	if !p.hostSBOM {
+		return
+	}
+
 	log.Debugf("Triggering host SBOM refresh")
 
 	ch := make(chan sbom.ScanResult, 1)
