@@ -1421,6 +1421,8 @@ func findUnknownEnvVars(config Config, environ []string, additionalKnownEnvVars 
 		"DD_SERVICE":                   {},
 		"DD_DOTNET_TRACER_HOME":        {},
 		"DD_SERVERLESS_APPSEC_ENABLED": {},
+		"DD_API_KEY_SECRET_ARN":        {},
+		"DD_VERSION":                   {},
 		// this variable is used by CWS functional tests
 		"DD_TESTS_RUNTIME_COMPILED": {},
 	}
