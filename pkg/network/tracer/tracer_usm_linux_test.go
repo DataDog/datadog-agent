@@ -69,11 +69,6 @@ func classificationSupported(config *config.Config) bool {
 	return kprobe.ClassificationSupported(config)
 }
 
-func isTLSTag(staticTags uint64) bool {
-	// we check only if the TLS tag has set, not like network.IsTLSTag()
-	return staticTags&network.ConnTagTLS > 0
-}
-
 func TestEnableHTTPMonitoring(t *testing.T) {
 	if !httpSupported(t) {
 		t.Skip("HTTP monitoring not supported")
@@ -262,7 +257,7 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 				}
 
 				for _, c := range payload.Conns {
-					if c.SPort == key.SrcPort && c.DPort == key.DstPort && isTLSTag(c.StaticTags) {
+					if c.SPort == key.SrcPort && c.DPort == key.DstPort && c.ProtocolStack.Contains(protocols.TLS) {
 						return true
 					}
 				}
@@ -781,7 +776,7 @@ func TestJavaInjection(t *testing.T) {
 							}
 
 							for _, c := range payload.Conns {
-								if c.SPort == key.SrcPort && c.DPort == key.DstPort && isTLSTag(c.StaticTags) {
+								if c.SPort == key.SrcPort && c.DPort == key.DstPort && c.ProtocolStack.Contains(protocols.TLS) {
 									return true
 								}
 							}
@@ -1093,7 +1088,7 @@ func TestTLSClassification(t *testing.T) {
 				require.Eventuallyf(t, func() bool {
 					payload := getConnections(t, tr)
 					for _, c := range payload.Conns {
-						if c.DPort == 44330 && isTLSTag(c.StaticTags) {
+						if c.DPort == 44330 && c.ProtocolStack.Contains(protocols.TLS) {
 							return true
 						}
 					}
