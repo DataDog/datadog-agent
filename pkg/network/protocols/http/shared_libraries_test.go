@@ -264,6 +264,8 @@ func TestSoWatcherLeaks(t *testing.T) {
 		// Checking path1 still exists, and path2 not.
 		return checkPathIDDoesNotExist(watcher, fooPathID1) && checkPathIDDoesNotExist(watcher, fooPathID2)
 	}, time.Second*10, time.Second, "")
+
+	checkWatcherStateIsClean(t, watcher)
 }
 
 func TestSoWatcherProcessAlreadyHoldingReferences(t *testing.T) {
@@ -328,6 +330,8 @@ func TestSoWatcherProcessAlreadyHoldingReferences(t *testing.T) {
 		// Checking path1 still exists, and path2 not.
 		return checkPathIDDoesNotExist(watcher, fooPathID1) && checkPathIDDoesNotExist(watcher, fooPathID2)
 	}, time.Second*10, time.Second, "")
+
+	checkWatcherStateIsClean(t, watcher)
 }
 
 func buildSOWatcherClientBin(t *testing.T) string {
@@ -400,6 +404,10 @@ func createTempTestFile(t *testing.T, name string) (string, pathIdentifier) {
 	require.NoError(t, err)
 
 	return fullPath, pathID
+}
+
+func checkWatcherStateIsClean(t *testing.T, watcher *soWatcher) {
+	require.True(t, len(watcher.registry.byPID) == 0 && len(watcher.registry.byID) == 0, "watcher state is not clean")
 }
 
 func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {
