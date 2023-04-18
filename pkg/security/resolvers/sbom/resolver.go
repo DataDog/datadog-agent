@@ -197,7 +197,7 @@ func (r *Resolver) generateSBOM(root string, sbom *SBOM) error {
 
 	scanRequest := &host.ScanRequest{Path: root}
 	ch := make(chan sbompkg.ScanResult, 1)
-	if err := r.sbomScanner.Scan(scanRequest, sbompkg.ScanOptions{Analyzers: []string{trivy.OSAnalyzers}, Fast: false}, ch); err != nil {
+	if err := r.sbomScanner.Scan(scanRequest, sbompkg.ScanOptions{Analyzers: []string{trivy.OSAnalyzers}, Fast: true}, ch); err != nil {
 		r.failedSBOMGenerations.Inc()
 		return fmt.Errorf("failed to trigger SBOM generation for %s: %w", root, err)
 	}

@@ -27,6 +27,7 @@ type ScanOptions struct {
 	MinAvailableDisk uint64
 	Timeout          time.Duration
 	WaitAfter        time.Duration
+	Fast             bool
 }
 
 // ScanOptionsFromConfig loads the scanning options from the configuration
