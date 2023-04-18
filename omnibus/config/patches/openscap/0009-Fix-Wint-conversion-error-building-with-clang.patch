@@ -1,0 +1,33 @@
+From 46363d7b303b12eb2ae648c066957562f6823e3a Mon Sep 17 00:00:00 2001
+From: Tom Stellard <tstellar@redhat.com>
+Date: Wed, 1 Feb 2023 04:04:51 +0000
+Subject: [PATCH 09/22] Fix -Wint-conversion error building with clang
+
+openscapPYTHON_wrap.c:3734:14: error: incompatible integer to pointer conversion returning 'int' from a function with result type 'char *' [-Wint-conversion]
+      return 1;
+             ^
+
+It seems like return 1 is a copy-and-paste error and the function
+should return NULL here.  It's possible this function
+(sub_callback_wrapper) is unused and can be deleted but I wasn't
+sure.
+---
+ swig/openscap.i | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/swig/openscap.i b/swig/openscap.i
+index 158a22675..219e1aa3c 100644
+--- a/swig/openscap.i
++++ b/swig/openscap.i
+@@ -475,7 +475,7 @@ char * sub_callback_wrapper(xccdf_subst_type_t type, const char *id, void *arg)
+     arglist = Py_BuildValue("isO", type, id, usrdata);
+     if (!PyCallable_Check(func)) {
+       PyGILState_Release(state);
+-      return 1;
++      return NULL;
+     }
+     result = PyEval_CallObject(func, arglist);
+     if (result == NULL) {
+-- 
+2.34.1
+

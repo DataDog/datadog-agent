@@ -3,9 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+//go:build trivy
+// +build trivy
+
 package sbom
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -20,7 +24,9 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
+	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	fakeworkloadmeta "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
@@ -389,6 +395,15 @@ func TestProcessEvents(t *testing.T) {
 		},
 	}
 
+	cfg := config.Mock(nil)
+	cacheDir, err := os.MkdirTemp("", "sbom-cache")
+	assert.Nil(t, err)
+	defer os.RemoveAll(cacheDir)
+	cfg.Set("sbom.cache_directory", cacheDir)
+	cfg.Set("container_image_collection.sbom.enabled", true)
+	_, err = sbomscanner.CreateGlobalScanner(cfg)
+	assert.Nil(t, err)
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var SBOMsSent = atomic.NewInt32(0)
@@ -402,7 +417,10 @@ func TestProcessEvents(t *testing.T) {
 
 			// Define a max size of 1 for the queue. With a size > 1, it's difficult to
 			// control the number of events sent on each call.
-			p := newProcessor(fakeworkloadmeta, sender, 1, 50*time.Millisecond)
+			p, err := newProcessor(fakeworkloadmeta, sender, 1, 50*time.Millisecond)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			for _, ev := range test.inputEvents {
 				switch ev.Type {
@@ -413,7 +431,7 @@ func TestProcessEvents(t *testing.T) {
 				}
 			}
 
-			p.processEvents(workloadmeta.EventBundle{
+			p.processContainerImagesEvents(workloadmeta.EventBundle{
 				Events: test.inputEvents,
 				Ch:     make(chan struct{}),
 			})

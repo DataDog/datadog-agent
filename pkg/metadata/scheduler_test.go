@@ -12,8 +12,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type MockCollector struct {
@@ -54,9 +59,10 @@ func TestNewScheduler(t *testing.T) {
 	enableFirstRunCollection = false
 	defer func() { enableFirstRunCollection = true }()
 
-	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	demux := aggregator.InitAndStartAgentDemultiplexer(opts, "hostname")
+	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
+	demux := aggregator.InitAndStartAgentDemultiplexer(forwarder, opts, "hostname")
 	c := NewScheduler(demux)
 
 	assert.Equal(t, demux, c.demux)
@@ -193,8 +199,9 @@ func TestTriggerAndResetCollectorTimer(t *testing.T) {
 }
 
 func buildDemultiplexer() aggregator.Demultiplexer {
-	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	demux := aggregator.InitAndStartAgentDemultiplexer(opts, "hostname")
+	forwarder := forwarder.NewDefaultForwarder(pkgconfig.Datadog, forwarder.NewOptions(pkgconfig.Datadog, nil))
+	demux := aggregator.InitAndStartAgentDemultiplexer(forwarder, opts, "hostname")
 	return demux
 }

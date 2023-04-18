@@ -98,6 +98,7 @@ The payload is a JSON dict with the following fields
   - `feature_usm_kafka_enabled` - **bool**: True is Kafka monitoring is enabled for Universal Service Monitoring (see: `data_streams_config.enabled` config option in `system-probe.yaml`)
   - `feature_usm_java_tls_enabled` - **bool**: True if HTTPS monitoring through java TLS is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_java_tls_support` config option in `system-probe.yaml`).
   - `feature_usm_go_tls_enabled` - **bool**: True if HTTPS monitoring through GoTLS is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_go_tls_support` config option in `system-probe.yaml`).
+  - `feature_dynamic_instrumentation_enabled` - **bool**: True if dynamic instrumentation module is enabled.
   - `feature_enable_http_stats_by_status_code` - **bool**: True if HTTP stats aggregation should be by status code rather than status code family (see: `service_monitoring_config.enable_http_stats_by_status_code` config option in `system-probe.yaml`).
   - `feature_logs_enabled` - **bool**: True if the logs collection is enabled (see: `logs_enabled` config option).
   - `feature_cspm_enabled` - **bool**: True if the Cloud Security Posture Management is enabled (see:

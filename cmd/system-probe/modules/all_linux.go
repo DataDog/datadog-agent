@@ -21,6 +21,7 @@ var All = []module.Factory{
 	OOMKillProbe,
 	EventMonitor,
 	Process,
+	DynamicInstrumentation,
 }
 
 func inactivityEventLog(duration time.Duration) {

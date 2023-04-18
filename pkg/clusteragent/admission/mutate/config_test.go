@@ -12,9 +12,11 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func Test_shouldInjectConf(t *testing.T) {
@@ -139,4 +141,56 @@ func TestInjectSocket(t *testing.T) {
 	assert.Equal(t, pod.Spec.Volumes[0].Name, "datadog")
 	assert.Equal(t, pod.Spec.Volumes[0].VolumeSource.HostPath.Path, "/var/run/datadog")
 	assert.Equal(t, *pod.Spec.Volumes[0].VolumeSource.HostPath.Type, corev1.HostPathDirectoryOrCreate)
+}
+
+func TestInjectSocketWithConflictingVolumeAndInitContainer(t *testing.T) {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "foo",
+			Labels: map[string]string{
+				"admission.datadoghq.com/enabled":     "true",
+				"admission.datadoghq.com/config.mode": "socket",
+			},
+		},
+		Spec: corev1.PodSpec{
+			InitContainers: []corev1.Container{
+				{
+					Name: "init",
+				},
+			},
+			Containers: []corev1.Container{
+				{
+					Name: "foo",
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:      "foo",
+							MountPath: "/var/run/datadog",
+						},
+					},
+				},
+			},
+			Volumes: []corev1.Volume{
+				{
+					Name: "foo",
+					VolumeSource: corev1.VolumeSource{
+						HostPath: &corev1.HostPathVolumeSource{
+							Path: "/var/run/datadog",
+							Type: pointer.Ptr(corev1.HostPathDirectoryOrCreate),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err := injectConfig(pod, "", nil)
+	assert.Nil(t, err)
+	assert.Equal(t, len(pod.Spec.InitContainers), 1)
+	assert.Equal(t, pod.Spec.InitContainers[0].VolumeMounts[0].Name, "datadog")
+	assert.Equal(t, pod.Spec.InitContainers[0].VolumeMounts[0].MountPath, "/var/run/datadog")
+	assert.Equal(t, pod.Spec.InitContainers[0].VolumeMounts[0].ReadOnly, true)
+	assert.Equal(t, len(pod.Spec.Volumes), 2)
+	assert.Equal(t, pod.Spec.Volumes[1].Name, "datadog")
+	assert.Equal(t, pod.Spec.Volumes[1].VolumeSource.HostPath.Path, "/var/run/datadog")
+	assert.Equal(t, *pod.Spec.Volumes[1].VolumeSource.HostPath.Type, corev1.HostPathDirectoryOrCreate)
 }

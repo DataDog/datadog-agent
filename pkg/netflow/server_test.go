@@ -63,6 +63,8 @@ network_devices:
 
 	testutil.ExpectNetflow5Payloads(t, epForwarder, now, "my-hostname", 6)
 
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), "network-devices-metadata").Return(nil).Times(1)
+
 	netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(server.flowAgg, 15*time.Second, 6)
 	assert.Equal(t, uint64(6), netflowEvents)
 	assert.NoError(t, err)
