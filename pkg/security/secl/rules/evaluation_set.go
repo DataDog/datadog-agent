@@ -38,7 +38,7 @@ func NewEvaluationSet(ruleSetsToInclude []*RuleSet) (*EvaluationSet, error) {
 // GetPolicies returns the policies
 func (ps *EvaluationSet) GetPolicies() []*Policy {
 	var policies []*Policy
-	
+
 	seen := make(map[string]bool)
 
 	for _, rs := range ps.RuleSets {
