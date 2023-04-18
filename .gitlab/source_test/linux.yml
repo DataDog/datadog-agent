@@ -1,4 +1,4 @@
---
+---
 .rtloader_tests:
   stage: source_test
   before_script:
