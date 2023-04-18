@@ -107,6 +107,7 @@ package_dependencies_arm64:
   - set +x
   - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.agent-qa-profile --with-decryption --query "Parameter.Value" --out text >> ~/.aws/config
   - set -x
+  - cat ~/.aws/config
   - export AWS_PROFILE=agent-qa-ci
 
 kernel_matrix_testing_setup_env:
