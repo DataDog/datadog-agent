@@ -122,13 +122,29 @@ namespace Datadog.CustomActions
                     var ddNpmService = _serviceController.Find("ddnpm");
                     if (ddNpmService != null)
                     {
-                        _session["ALLOWCLOSEDSOURCE"] = ddNpmService.StartType != ServiceStartMode.Disabled ? "1" : "0";
+                        _session["ALLOWCLOSEDSOURCE"] = ddNpmService.StartType != ServiceStartMode.Disabled ? Constants.AllowClosedSource_Yes : Constants.AllowClosedSource_No;
                         _session.Log($"Found \"AllowClosedSource\" key, with value: {_session["ALLOWCLOSEDSOURCE"]}");
                     }
                     else
                     {
                         _session.Log("NPM service not found, assuming closed source consent was not given.");
+                        _session["ALLOWCLOSEDSOURCE"] = Constants.AllowClosedSource_No;
                     }
+                }
+
+                if (_session.Property("ALLOWCLOSEDSOURCE") == Constants.AllowClosedSource_Yes)
+                {
+                    // Set another property that will control the state of the Allow Closed Source checkbox in the GUI
+                    // We cannot use the same property because the checkbox interprets any property values as "checked",
+                    // but we need the property to be either "0" or "1" in order for the WiX RegistryValue element to
+                    // write the value to the registry, it will fail if the property is not set. So we must either add
+                    // another custom action or another property.
+                    _session["CHECKBOX_ALLOWCLOSEDSOURCE"] = Constants.AllowClosedSource_Yes;
+                }
+                else
+                {
+                    // Ensure we always set this property, otherwise the RegistryValue action will fail
+                    _session["ALLOWCLOSEDSOURCE"] = Constants.AllowClosedSource_No;
                 }
 
                 using (var subkey = _registryServices.OpenRegistryKey(Registries.LocalMachine, @"Software\Microsoft\Windows NT\CurrentVersion"))

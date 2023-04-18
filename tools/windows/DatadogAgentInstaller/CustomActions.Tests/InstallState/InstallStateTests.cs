@@ -1,5 +1,6 @@
 using System.ServiceProcess;
 using AutoFixture.Xunit2;
+using Datadog.CustomActions;
 using Datadog.CustomActions.Native;
 using FluentAssertions;
 using Microsoft.Deployment.WindowsInstaller;
@@ -21,12 +22,16 @@ namespace CustomActions.Tests.InstallState
                 .Be(ActionResult.Success);
 
             Test.Properties.Should()
-                .NotContain(
+                .NotContainKeys(
                     "DDAGENTUSER_NAME",
                     "PROJECTLOCATION",
                     "APPLICATIONDATADIRECTORY",
-                    "ALLOWCLOSEDSOURCE",
+                    "CHECKBOX_ALLOWCLOSEDSOURCE",
                     "WindowsBuild");
+
+            // Must always be set in order to be written to the registry
+            Test.Properties.Should()
+                .Contain("ALLOWCLOSEDSOURCE", Constants.AllowClosedSource_No);
         }
 
         [Theory]
@@ -39,7 +44,7 @@ namespace CustomActions.Tests.InstallState
                     ["installedUser"] = "testUser",
                     ["InstallPath"] = @"C:\datadog",
                     ["ConfigRoot"] = @"D:\data",
-                    ["AllowClosedSource"] = "xyz",
+                    ["AllowClosedSource"] = Constants.AllowClosedSource_Yes,
                 })
                 .WithRegistryKey(Registries.LocalMachine, @"Software\Microsoft\Windows NT\CurrentVersion", new()
                 {
@@ -54,16 +59,17 @@ namespace CustomActions.Tests.InstallState
                 .Contain("DDAGENTUSER_NAME", @"testDomain\testUser").And
                 .Contain("PROJECTLOCATION", @"C:\datadog").And
                 .Contain("APPLICATIONDATADIRECTORY", @"D:\data").And
-                .Contain("ALLOWCLOSEDSOURCE", "xyz").And
+                .Contain("ALLOWCLOSEDSOURCE", Constants.AllowClosedSource_Yes).And
+                .Contain("CHECKBOX_ALLOWCLOSEDSOURCE", Constants.AllowClosedSource_Yes).And
                 .Contain("WindowsBuild", "z_1234567890");
         }
 
         [Theory]
-        [InlineAutoData(ServiceStartMode.Automatic, "1")]
-        [InlineAutoData(ServiceStartMode.Boot, "1")]
-        [InlineAutoData(ServiceStartMode.Manual, "1")]
-        [InlineAutoData(ServiceStartMode.System, "1")]
-        [InlineAutoData(ServiceStartMode.Disabled, "0")]
+        [InlineAutoData(ServiceStartMode.Automatic, Constants.AllowClosedSource_Yes)]
+        [InlineAutoData(ServiceStartMode.Boot, Constants.AllowClosedSource_Yes)]
+        [InlineAutoData(ServiceStartMode.Manual, Constants.AllowClosedSource_Yes)]
+        [InlineAutoData(ServiceStartMode.System, Constants.AllowClosedSource_Yes)]
+        [InlineAutoData(ServiceStartMode.Disabled, Constants.AllowClosedSource_No)]
         public void ReadInstallState_Should_Read_Ddnpm_InstallState_If_AllowClosedSource_Missing(
             ServiceStartMode serviceStartMode,
             string exepctedAllowClosedSource)
@@ -76,11 +82,22 @@ namespace CustomActions.Tests.InstallState
 
             Test.Properties.Should()
                 .Contain("ALLOWCLOSEDSOURCE", exepctedAllowClosedSource);
+
+            if (exepctedAllowClosedSource == Constants.AllowClosedSource_Yes)
+            {
+                Test.Properties.Should()
+                    .Contain("CHECKBOX_ALLOWCLOSEDSOURCE", Constants.AllowClosedSource_Yes);
+            }
+            else
+            {
+                Test.Properties.Should()
+                    .NotContainKey("CHECKBOX_ALLOWCLOSEDSOURCE");
+            }
         }
 
         [Theory]
-        [InlineData("0", ServiceStartMode.Manual, "0")]
-        [InlineData("1", ServiceStartMode.Disabled, "1")]
+        [InlineData(Constants.AllowClosedSource_No, ServiceStartMode.Manual, Constants.AllowClosedSource_No)]
+        [InlineData(Constants.AllowClosedSource_Yes, ServiceStartMode.Disabled, Constants.AllowClosedSource_Yes)]
         public void ReadInstallState_Should_AllowClosedSource_Ignore_Service_State_If_RegKey_Present(
             string allowClosedSource,
             ServiceStartMode serviceStartMode,
@@ -98,6 +115,17 @@ namespace CustomActions.Tests.InstallState
 
             Test.Properties.Should()
                 .Contain("ALLOWCLOSEDSOURCE", exepctedAllowClosedSource);
+
+            if (exepctedAllowClosedSource == Constants.AllowClosedSource_Yes)
+            {
+                Test.Properties.Should()
+                    .Contain("CHECKBOX_ALLOWCLOSEDSOURCE", Constants.AllowClosedSource_Yes);
+            }
+            else
+            {
+                Test.Properties.Should()
+                    .NotContainKey("CHECKBOX_ALLOWCLOSEDSOURCE");
+            }
         }
     }
 }

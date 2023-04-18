@@ -119,8 +119,12 @@ namespace WixSetup.Datadog
                     new RegValue("ConfigRoot", "[APPLICATIONDATADIRECTORY]") { Win64 = true },
                     new RegValue("installedDomain", "[DDAGENTUSER_PROCESSED_DOMAIN]") { Win64 = true },
                     new RegValue("installedUser", "[DDAGENTUSER_PROCESSED_NAME]") { Win64 = true },
-                    // Needs to be a DWORD
-                    new RegValue("AllowClosedSource", "[ALLOWCLOSEDSOURCE]") { Win64 = true, Type = "integer" }
+                    new RegValue("AllowClosedSource", "[ALLOWCLOSEDSOURCE]")
+                    {
+                        Win64 = true,
+                        // system-probe expects this value to be a DWORD
+                        Type = "integer",
+                    }
                 )
                 {
                     Win64 = true
