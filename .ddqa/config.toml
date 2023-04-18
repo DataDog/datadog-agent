@@ -18,6 +18,7 @@ jira_statuses = [
 ]
 github_team = "agent-metrics-logs"
 github_labels = ["team/agent-metrics-logs"]
+exclude_members = ["olivielpeau"]
 
 [teams."Agent Shared Components"]
 jira_project = "ASC"
