@@ -14,6 +14,7 @@ def trigger_macos_build(
     major_version="7",
     python_runtimes="3",
     destination=".",
+    version_cache=None
 ):
     env = load_release_versions(ctx, release_version)
     github_action_ref = env["MACOS_BUILD_VERSION"]
@@ -29,6 +30,7 @@ def trigger_macos_build(
         # can be constructed properly for nightlies.
         gitlab_pipeline_id=os.environ.get("CI_PIPELINE_ID", None),
         bucket_branch=os.environ.get("BUCKET_BRANCH", None),
+        version_cache_file_content=version_cache
     )
 
     follow_workflow_run(run_id)

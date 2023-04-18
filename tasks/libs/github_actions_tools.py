@@ -33,6 +33,7 @@ def trigger_macos_workflow(
     python_runtimes="3",
     gitlab_pipeline_id=None,
     bucket_branch=None,
+    version_cache_file_content=None
 ):
     """
     Trigger a workflow to build a MacOS Agent.
@@ -56,6 +57,9 @@ def trigger_macos_workflow(
 
     if bucket_branch is not None:
         inputs["bucket_branch"] = bucket_branch
+
+    if version_cache_file_content is not None:
+        inputs["version_cache"] = version_cache_file_content
 
     print(
         "Creating workflow on datadog-agent-macos-build on commit {} with args:\n{}".format(  # noqa: FS002
