@@ -7,6 +7,7 @@ package containerlifecycle
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -123,6 +124,7 @@ func (p *processor) processContainer(container *workloadmeta.Container, sources 
 
 // processPod enqueue pod events
 func (p *processor) processPod(pod *workloadmeta.KubernetesPod) error {
+	fmt.Println("-------------------------- POD: ", pod.String(true))
 	event := newEvent()
 	event.withObjectKind(types.ObjectKindPod)
 	event.withEventType(types.EventNameDelete)
