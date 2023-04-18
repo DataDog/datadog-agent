@@ -88,7 +88,7 @@ func (t *DefaultResolver) GetValue(id string, tag string) string {
 	return utils.GetTagValue(tag, t.Resolve(id))
 }
 
-// GetValue return the tag value for the given id and tag name
+// GetValueForImage return the tag value for the given id and tag name
 func (t *Resolver) GetValueForImage(id string, tag string) string {
 	return utils.GetTagValue(tag, t.ResolveImageMetadata(id))
 }
