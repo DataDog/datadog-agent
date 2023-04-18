@@ -23,6 +23,42 @@
 #include "protocols/postgres/helpers.h"
 #include "protocols/tls/tls.h"
 
+// Some considerations about multiple protocol classification:
+//
+// * There are 3 protocol layers: API, Application and Encryption (I ended up
+// following Stephen's terminology :tm:)
+//
+// * Each protocol belongs to a specific layer (a `protocol_t` value encodes both the
+// protocol ID itself and the protocol layer it belongs to)
+//
+// * Once a layer is "known" (for example, the application-layer protocol is
+// classified), we only attempt to classify the remaining layers;
+//
+// * Protocol classification can be sliced/grouped into multiple BPF tail call
+// programs (this is what we currently have now, but it is worth noting that in the
+// new design all protocols from a given program must belong to the same layer)
+//
+// * If all 3 layers of a connection are known we don't do anything; In addition to
+// that, there is a helper `mark_as_fully_classified` that works as a sort of
+// special-case for this. For example, if we're in a socket filter context and we
+// have classified a connection as a MySQL (application-level), we can call this
+// helper to indicate that no further classification attempts are necessary (there
+// won't be any api-level protocols above MySQL and if we were able to determine
+// the application-level protocol from a socket filter context, it means we're not
+// dealing with encrypted traffic).
+// Calling this helper is optional and it works mostly as an optimization;
+//
+// * The tail-call jumping between different programs is completely abstracted by the
+// `classification_next_program` helper. This helper knows how to either select the
+// next program from a given layer, or to skip a certain layer if the protocol is
+// already known;
+//
+// So, for example, if we have a connection that doesn't have any classified
+// protocols yet calling `classification_next_program multiple` times will result in
+// traversing all programs from all layers in the sequence defined in the routing.h
+// file.  If, for example, application-layer is known, calling this helper multiple
+// times will result in traversing only the api and encryption-layer programs
+
 // Checks if a given buffer is http, http2, gRPC.
 static __always_inline protocol_t classify_applayer_protocols(const char *buf, __u32 size) {
     if (is_http(buf, size)) {
