@@ -1,9 +1,11 @@
 using System;
+using System.ComponentModel;
 using System.ServiceProcess;
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
 using Microsoft.Deployment.WindowsInstaller;
+using Microsoft.Win32;
 using ServiceController = Datadog.CustomActions.Native.ServiceController;
 
 namespace Datadog.CustomActions
@@ -182,6 +184,47 @@ namespace Datadog.CustomActions
         public static ActionResult ReadInstallState(Session session)
         {
             return new InstallStateCustomActions(new SessionWrapper(session)).ReadInstallState();
+        }
+
+
+        /// <summary>
+        /// Deferred custom action that stores properties in the registry
+        /// </summary>
+        /// /// <remarks>
+        /// WiX RegistryValue elements are only written when their parent Feature is installed. This means
+        /// that on change/modify operations the registry keys are not updated. This custom action writes
+        /// the properties to the registry that we need to change during change/modify installer operations.
+        /// </remarks>
+        public ActionResult WriteInstallState()
+        {
+            try
+            {
+                using var subkey =
+                    _registryServices.CreateRegistryKey(Registries.LocalMachine, @"Software\Datadog\Datadog Agent");
+                if (subkey == null)
+                {
+                    throw new Exception("Unable to create agent registry key");
+                }
+                _session.Log($"Storing installedDomain={_session.Property("DDAGENTUSER_PROCESSED_DOMAIN")}");
+                subkey.SetValue("installedDomain", _session.Property("DDAGENTUSER_PROCESSED_DOMAIN"), RegistryValueKind.String);
+                _session.Log($"Storing installedUser={_session.Property("DDAGENTUSER_PROCESSED_NAME")}");
+                subkey.SetValue("installedUser", _session.Property("DDAGENTUSER_PROCESSED_NAME"), RegistryValueKind.String);
+                _session.Log($"Storing AllowClosedSource={_session.Property("ALLOWCLOSEDSOURCE")}");
+                subkey.SetValue("AllowClosedSource", _session.Property("ALLOWCLOSEDSOURCE"), RegistryValueKind.DWord);
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Error storing registry properties: {e}");
+                return ActionResult.Failure;
+            }
+
+            return ActionResult.Success;
+        }
+
+        [CustomAction]
+        public static ActionResult WriteInstallState(Session session)
+        {
+            return new InstallStateCustomActions(new SessionWrapper(session)).WriteInstallState();
         }
     }
 }

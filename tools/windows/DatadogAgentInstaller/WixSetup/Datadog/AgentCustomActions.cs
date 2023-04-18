@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Datadog.CustomActions;
 using Datadog.CustomActions.Interfaces;
+using Microsoft.Deployment.WindowsInstaller;
 using WixSharp;
 
 namespace WixSetup.Datadog
@@ -20,6 +21,8 @@ namespace WixSetup.Datadog
         public ManagedAction WriteConfig { get; }
 
         public ManagedAction ReadInstallState { get; }
+
+        public ManagedAction WriteInstallState { get; }
 
         public ManagedAction ProcessDdAgentUserCredentials { get; }
 
@@ -409,6 +412,24 @@ namespace WixSetup.Datadog
                 Execute = Execute.rollback,
                 Impersonate = false
             };
+
+            WriteInstallState = new CustomAction<InstallStateCustomActions>(
+                    new Id(nameof(WriteInstallState)),
+                    InstallStateCustomActions.WriteInstallState,
+                    Return.check,
+                    When.After,
+                    new Step(StartDDServices.Id),
+                    // Run unless we are being uninstalled.
+                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+            )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+            .SetProperties("DDAGENTUSER_PROCESSED_DOMAIN=[DDAGENTUSER_PROCESSED_DOMAIN], " +
+                           "DDAGENTUSER_PROCESSED_NAME=[DDAGENTUSER_PROCESSED_NAME], " +
+                           "ALLOWCLOSEDSOURCE=[ALLOWCLOSEDSOURCE]");
+
         }
     }
 }

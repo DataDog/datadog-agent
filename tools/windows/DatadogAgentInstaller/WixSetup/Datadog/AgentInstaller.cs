@@ -92,6 +92,10 @@ namespace WixSetup.Datadog
                 {
                     AttributesDefinition = "Secure=yes",
                 },
+                new Property("ALLOWCLOSEDSOURCE")
+                {
+                    AttributesDefinition = "Secure=yes",
+                },
                 // Add a checkbox at the end of the setup to launch the Datadog Agent Manager
                 new LaunchCustomApplicationFromExitDialog(
                     _agentBinaries.TrayId,
@@ -116,15 +120,7 @@ namespace WixSetup.Datadog
                     // Store these properties in the registry for retrieval by future
                     // installer runs via the ReadInstallState CA.
                     new RegValue("InstallPath", "[PROJECTLOCATION]") { Win64 = true },
-                    new RegValue("ConfigRoot", "[APPLICATIONDATADIRECTORY]") { Win64 = true },
-                    new RegValue("installedDomain", "[DDAGENTUSER_PROCESSED_DOMAIN]") { Win64 = true },
-                    new RegValue("installedUser", "[DDAGENTUSER_PROCESSED_NAME]") { Win64 = true },
-                    new RegValue("AllowClosedSource", "[ALLOWCLOSEDSOURCE]")
-                    {
-                        Win64 = true,
-                        // system-probe expects this value to be a DWORD
-                        Type = "integer",
-                    }
+                    new RegValue("ConfigRoot", "[APPLICATIONDATADIRECTORY]") { Win64 = true }
                 )
                 {
                     Win64 = true
