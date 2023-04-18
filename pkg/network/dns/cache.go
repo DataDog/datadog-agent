@@ -160,7 +160,7 @@ func (c *reverseDNSCache) Len() int {
 
 func (c *reverseDNSCache) Close() {
 	c.oversizedLogLimit.Close()
-	c.exit <- struct{}{}
+	close(c.exit)
 }
 
 func (c *reverseDNSCache) Expire(now time.Time) {
