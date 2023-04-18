@@ -7,7 +7,6 @@ package api
 
 import (
 	"errors"
-	"fmt"
 	"net"
 	"time"
 
@@ -15,27 +14,23 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/net"
 )
 
 // measuredListener wraps an existing net.Listener and emits metrics upon accepting connections.
 type measuredListener struct {
 	net.Listener
 
-	name         string         // metric name to emit
-	accepted     *atomic.Uint32 // accepted connection count
-	timedout     *atomic.Uint32 // timedout connection count
-	errored      *atomic.Uint32 // errored connection count
-	exit         chan struct{}  // exit signal channel (on Close call)
-	allowedUsrID int            // user id allowed to access unix socket
-	allowedGrpID int            // group id allowed to access unix socket
+	name     string         // metric name to emit
+	accepted *atomic.Uint32 // accepted connection count
+	timedout *atomic.Uint32 // timedout connection count
+	errored  *atomic.Uint32 // errored connection count
+	exit     chan struct{}  // exit signal channel (on Close call)
 }
 
 // NewMeasuredListener wraps ln and emits metrics every 10 seconds. The metric name is
 // datadog.trace_agent.receiver.<name>. Additionally, a "status" tag will be added with
 // potential values "accepted", "timedout" or "errored".
-// allowedUIDGID could be use to secure unix socket connection by checking peer user/group id
-func NewMeasuredListener(ln net.Listener, name string, allowedUIDGID ...int) net.Listener {
+func NewMeasuredListener(ln net.Listener, name string) net.Listener {
 	ml := &measuredListener{
 		Listener: ln,
 		name:     "datadog.trace_agent.receiver." + name,
@@ -43,10 +38,6 @@ func NewMeasuredListener(ln net.Listener, name string, allowedUIDGID ...int) net
 		timedout: atomic.NewUint32(0),
 		errored:  atomic.NewUint32(0),
 		exit:     make(chan struct{}),
-	}
-	if len(allowedUIDGID) == 2 {
-		ml.allowedUsrID = allowedUIDGID[0]
-		ml.allowedGrpID = allowedUIDGID[1]
 	}
 	go ml.run()
 	return ml
@@ -89,21 +80,6 @@ func (ln *measuredListener) Accept() (net.Conn, error) {
 			ln.errored.Inc()
 		}
 	} else {
-		unixConn, ok := c.(*net.UnixConn)
-		if ok {
-			valid, err := net.IsUnixNetConnValid(unixConn, ln.allowedUsrID, ln.allowedGrpID)
-			if err != nil || !valid {
-				if err != nil {
-					log.Errorf("unix socket %s -> %s closing connection, error %s", unixConn.LocalAddr(), unixConn.RemoteAddr(), err)
-				}
-				if !valid {
-					log.Debugf("unix socket %s -> %s closing connection, rejected", unixConn.LocalAddr(), unixConn.RemoteAddr())
-				}
-				// reject the connection
-				conn.Close()
-				return conn, fmt.Errorf("UDS connection rejected")
-			}
-		}
 		ln.accepted.Inc()
 		log.Tracef("Accepted connection named %q.", ln.name)
 	}
