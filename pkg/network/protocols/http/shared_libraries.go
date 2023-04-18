@@ -100,13 +100,15 @@ type soWatcher struct {
 	registry       *soRegistry
 }
 
+type pathIdentifierSet = map[pathIdentifier]struct{}
+
 type soRegistry struct {
 	m     sync.Mutex
 	byID  map[pathIdentifier]*soRegistration
-	byPID map[uint32]map[pathIdentifier]struct{}
+	byPID map[uint32]pathIdentifierSet
 
 	// if we can't register a uprobe we don't try more than once
-	blocklistByID map[pathIdentifier]struct{}
+	blocklistByID pathIdentifierSet
 }
 
 func newSOWatcher(perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
@@ -117,8 +119,8 @@ func newSOWatcher(perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
 		processMonitor: monitor.GetProcessMonitor(),
 		registry: &soRegistry{
 			byID:          make(map[pathIdentifier]*soRegistration),
-			byPID:         make(map[uint32]map[pathIdentifier]struct{}),
-			blocklistByID: make(map[pathIdentifier]struct{}),
+			byPID:         make(map[uint32]pathIdentifierSet),
+			blocklistByID: make(pathIdentifierSet),
 		},
 	}
 }
@@ -136,6 +138,8 @@ func (r *soRegistration) unregister(pathID pathIdentifier) bool {
 	}
 	if r.unregisterCB != nil {
 		if err := r.unregisterCB(pathID); err != nil {
+			// Even if we fail here, we have to return true, as best effort methodology.
+			// We cannot handle the failure, and thus we should continue.
 			log.Debugf("error while unregistering %s : %s", pathID.String(), err)
 		}
 	}
@@ -301,7 +305,7 @@ func (r *soRegistry) register(root, libPath string, pid uint32, rule soRule) {
 			reg.uniqueProcessesCount++
 			// Can happen if a new process opens the same so.
 			if len(r.byPID[pid]) == 0 {
-				r.byPID[pid] = map[pathIdentifier]struct{}{}
+				r.byPID[pid] = pathIdentifierSet{}
 			}
 			r.byPID[pid][pathID] = struct{}{}
 		}
@@ -325,7 +329,7 @@ func (r *soRegistry) register(root, libPath string, pid uint32, rule soRule) {
 	reg := newRegistration(rule.unregisterCB)
 	r.byID[pathID] = reg
 	if len(r.byPID[pid]) == 0 {
-		r.byPID[pid] = map[pathIdentifier]struct{}{}
+		r.byPID[pid] = pathIdentifierSet{}
 	}
 	r.byPID[pid][pathID] = struct{}{}
 	log.Debugf("registering library %s path %s by pid %d", pathID.String(), hostLibPath, pid)
