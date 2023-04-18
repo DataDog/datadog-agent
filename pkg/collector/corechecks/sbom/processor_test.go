@@ -9,6 +9,7 @@
 package sbom
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -395,11 +396,13 @@ func TestProcessEvents(t *testing.T) {
 	}
 
 	cfg := config.Mock(nil)
-	cfg.Set("sbom.enabled", true)
-	_, err := sbomscanner.CreateGlobalScanner(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
+	cacheDir, err := os.MkdirTemp("", "sbom-cache")
+	assert.Nil(t, err)
+	defer os.RemoveAll(cacheDir)
+	cfg.Set("sbom.cache_directory", cacheDir)
+	cfg.Set("container_image_collection.sbom.enabled", true)
+	_, err = sbomscanner.CreateGlobalScanner(cfg)
+	assert.Nil(t, err)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

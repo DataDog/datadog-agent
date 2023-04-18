@@ -83,9 +83,10 @@ func (c *collector) extractBOMWithTrivy(ctx context.Context, storedImage *worklo
 	}
 
 	scanRequest := &containerd.ScanRequest{
-		Image:          containerdImage,
-		ImageMeta:      storedImage,
-		FromFilesystem: config.Datadog.GetBool("container_image_collection.sbom.use_mount"),
+		Image:            containerdImage,
+		ImageMeta:        storedImage,
+		ContainerdClient: c.containerdClient,
+		FromFilesystem:   config.Datadog.GetBool("container_image_collection.sbom.use_mount"),
 	}
 
 	ch := make(chan sbom.ScanResult, 1)
