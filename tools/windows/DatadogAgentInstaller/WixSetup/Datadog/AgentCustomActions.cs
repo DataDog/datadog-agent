@@ -66,7 +66,7 @@ namespace WixSetup.Datadog
             ReadInstallState = new CustomAction<InstallStateCustomActions>(
                 new Id(nameof(ReadInstallState)),
                 InstallStateCustomActions.ReadInstallState,
-                Return.ignore,
+                Return.check,
                 // AppSearch is when ReadInstallState is run, so that will overwrite
                 // any command line values.
                 // Prefer using our CA over RegistrySearch.

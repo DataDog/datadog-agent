@@ -24,7 +24,7 @@ namespace Datadog.CustomActions.Native
 
         public void Dispose()
         {
-            _key.Dispose();
+            _key?.Dispose();
         }
     }
 }
