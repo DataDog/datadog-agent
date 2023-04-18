@@ -189,12 +189,12 @@ func NewCollector(cfg config.Config) (*Collector, error) {
 	}, nil
 }
 
-func GetGlobalCollector(_ config.Config) (*Collector, error) {
+func GetGlobalCollector(cfg config.Config) (*Collector, error) {
 	if globalCollector != nil {
 		return globalCollector, nil
 	}
 
-	collector, err := NewCollector(config.Datadog)
+	collector, err := NewCollector(cfg)
 	if err != nil {
 		return nil, err
 	}
