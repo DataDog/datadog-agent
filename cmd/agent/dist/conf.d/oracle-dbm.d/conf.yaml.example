@@ -70,15 +70,6 @@ instances:
     #
     # dbm: false
 
-    ## Configure collection of query metrics
-    #
-    # query_metrics:
-
-        ## @param enabled - boolean - optional - default: true
-        ## Enable collection of query metrics. Requires `dbm: true`.
-        #
-        # enabled: true
-
     ## Configure how the SQL obfuscator behaves.
     ## Note: This option only applies when `dbm` is enabled.
     #
