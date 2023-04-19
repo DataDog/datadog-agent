@@ -102,8 +102,8 @@ func TestLambdaSpanChan(t *testing.T) {
 	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector())
 	lambdaSpanChan := make(chan *pb.Span)
 	spanModifier := &spanModifier{
-		tags: cfg.GlobalTags,
-		lambdaSpanChan:lambdaSpanChan,
+		tags:           cfg.GlobalTags,
+		lambdaSpanChan: lambdaSpanChan,
 	}
 	agnt.ModifySpan = spanModifier.ModifySpan
 	defer cancel()
