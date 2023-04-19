@@ -197,6 +197,7 @@ func TestProcessMonitorInNamespace(t *testing.T) {
 	defer monNs.Close()
 
 	require.NoError(t, procutils.WithNS(monNs, pm.Initialize), "could not start process monitor in netNS")
+	t.Cleanup(pm.Stop)
 
 	// Process in root NS
 	cmd := exec.Command("/bin/echo")
