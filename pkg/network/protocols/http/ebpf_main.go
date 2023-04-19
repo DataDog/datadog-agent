@@ -383,6 +383,20 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		},
 	}
 	options.ConstantEditors = e.offsets
+	options.ConstantEditors = append(options.ConstantEditors,
+		manager.ConstantEditor{
+			Name:  "http_monitoring_enabled",
+			Value: e.cfg.EnableHTTPMonitoring,
+		},
+		manager.ConstantEditor{
+			Name:  "http2_monitoring_enabled",
+			Value: e.cfg.EnableHTTP2Monitoring,
+		},
+		manager.ConstantEditor{
+			Name:  "kafka_monitoring_enabled",
+			Value: e.cfg.EnableKafkaMonitoring,
+		},
+	)
 	options.DefaultKprobeAttachMethod = kprobeAttachMethod
 	options.VerifierOptions.Programs.LogSize = 2 * 1024 * 1024
 
