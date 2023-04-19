@@ -33,6 +33,15 @@ import (
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 )
 
+func registerProcessTerminationUponCleanup(t *testing.T, cmd *exec.Cmd) {
+	t.Cleanup(func() {
+		if cmd.Process == nil {
+			return
+		}
+		_ = cmd.Process.Kill()
+	})
+}
+
 func TestSharedLibraryDetection(t *testing.T) {
 	perfHandler := initEBPFProgram(t)
 
@@ -62,6 +71,7 @@ func TestSharedLibraryDetection(t *testing.T) {
 	clientBin := buildSOWatcherClientBin(t)
 	command1 := exec.Command(clientBin, fooPath1)
 	require.NoError(t, command1.Start())
+	registerProcessTerminationUponCleanup(t, command1)
 
 	require.Eventuallyf(t, func() bool {
 		// Checking path1 still exists, and path2 not.
@@ -168,6 +178,7 @@ func TestSameInodeRegression(t *testing.T) {
 	clientBin := buildSOWatcherClientBin(t)
 	command1 := exec.Command(clientBin, fooPath1, fooPath2)
 	require.NoError(t, command1.Start())
+	registerProcessTerminationUponCleanup(t, command1)
 
 	require.Eventuallyf(t, func() bool {
 		// Checking path1 still exists, and path2 not.
@@ -218,6 +229,7 @@ func TestSoWatcherLeaks(t *testing.T) {
 
 	command1 := exec.Command(clientBin, fooPath1, fooPath2)
 	require.NoError(t, command1.Start())
+	registerProcessTerminationUponCleanup(t, command1)
 
 	// Check sowatcher map
 	require.Eventuallyf(t, func() bool {
@@ -233,6 +245,7 @@ func TestSoWatcherLeaks(t *testing.T) {
 
 	command2 := exec.Command(clientBin, fooPath1)
 	require.NoError(t, command2.Start())
+	registerProcessTerminationUponCleanup(t, command2)
 
 	require.Eventuallyf(t, func() bool {
 		// Checking both paths exist.
@@ -295,8 +308,10 @@ func TestSoWatcherProcessAlreadyHoldingReferences(t *testing.T) {
 
 	command1 := exec.Command(clientBin, fooPath1, fooPath2)
 	require.NoError(t, command1.Start())
+	registerProcessTerminationUponCleanup(t, command1)
 	command2 := exec.Command(clientBin, fooPath1)
 	require.NoError(t, command2.Start())
+	registerProcessTerminationUponCleanup(t, command1)
 	time.Sleep(time.Second)
 	watcher.Start()
 

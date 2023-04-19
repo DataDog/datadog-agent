@@ -140,7 +140,7 @@ func (r *soRegistration) unregister(pathID pathIdentifier) bool {
 		if err := r.unregisterCB(pathID); err != nil {
 			// Even if we fail here, we have to return true, as best effort methodology.
 			// We cannot handle the failure, and thus we should continue.
-			log.Debugf("error while unregistering %s : %s", pathID.String(), err)
+			log.Warnf("error while unregistering %s : %s", pathID.String(), err)
 		}
 	}
 	return true
