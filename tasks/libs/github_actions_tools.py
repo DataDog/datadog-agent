@@ -33,7 +33,7 @@ def trigger_macos_workflow(
     python_runtimes="3",
     gitlab_pipeline_id=None,
     bucket_branch=None,
-    version_cache_file_content=None
+    version_cache_file_content=None,
 ):
     """
     Trigger a workflow to build a MacOS Agent.
