@@ -85,6 +85,8 @@ func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
 
 // processContainer enqueue container events
 func (p *processor) processContainer(container *workloadmeta.Container, sources []workloadmeta.Source) error {
+	fmt.Println("-------------------------- CONTAINER: ", container.String(true))
+
 	event := newEvent()
 	event.withObjectKind(types.ObjectKindContainer)
 	event.withEventType(types.EventNameDelete)
