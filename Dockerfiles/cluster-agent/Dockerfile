@@ -12,6 +12,9 @@ LABEL org.opencontainers.image.source "https://github.com/DataDog/datadog-agent"
 
 WORKDIR /output
 
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt update && apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
+
 COPY datadog-cluster-agent.$TARGETARCH opt/datadog-agent/bin/datadog-cluster-agent
 COPY ./conf.d etc/datadog-agent/conf.d
 COPY ./datadog-cluster.yaml etc/datadog-agent/datadog-cluster.yaml
@@ -30,8 +33,6 @@ RUN chmod 755 entrypoint.sh \
 FROM builder AS nosys-seccomp
 COPY nosys-seccomp/nosys.c   /tmp/nosys.c
 COPY nosys-seccomp/nosys.sym /tmp/nosys.sym
-ENV DEBIAN_FRONTEND=noninteractive
-RUN apt update && apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
 RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sym -o /tmp/nosys.so /tmp/nosys.c -lseccomp
 
 ####################################
