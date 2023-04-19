@@ -29,19 +29,23 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 )
 
-func TestSharedLibraryDetection(t *testing.T) {
-	perfHandler, doneFn := initEBPFProgram(t)
-	t.Cleanup(doneFn)
-	fpath := filepath.Join(t.TempDir(), "foo.so")
+func registerProcessTerminationUponCleanup(t *testing.T, cmd *exec.Cmd) {
+	t.Cleanup(func() {
+		if cmd.Process == nil {
+			return
+		}
+		_ = cmd.Process.Kill()
+	})
+}
 
-	// touch the file, as the file must exist when the process Exec
-	// for the file identifier stat()
-	f, err := os.Create(fpath)
-	require.NoError(t, err)
-	f.Close()
+func TestSharedLibraryDetection(t *testing.T) {
+	perfHandler := initEBPFProgram(t)
+
+	fooPath1, fooPathID1 := createTempTestFile(t, "foo.so")
 
 	var (
 		mux          sync.Mutex
@@ -63,15 +67,31 @@ func TestSharedLibraryDetection(t *testing.T) {
 	)
 	watcher.Start()
 
-	time.Sleep(10 * time.Millisecond)
-	simulateOpenAt(fpath)
-	time.Sleep(10 * time.Millisecond)
+	// create files
+	clientBin := buildSOWatcherClientBin(t)
+	command1 := exec.Command(clientBin, fooPath1)
+	require.NoError(t, command1.Start())
+	registerProcessTerminationUponCleanup(t, command1)
 
-	// assert that soWatcher detected foo.so being opened and triggered the callback
-	require.Equal(t, fpath, pathDetected)
+	require.Eventuallyf(t, func() bool {
+		// Checking path1 still exists, and path2 not.
+		if checkPathIDDoesNotExist(watcher, fooPathID1) || checkPIDNotAssociatedWithPathID(watcher, fooPathID1, uint32(command1.Process.Pid)) {
+			return false
+		}
+
+		// Checking PID1 is not associated to the path 2, and PID2 is associated only with the path2
+		return fooPath1 == pathDetected
+	}, time.Second*10, time.Second, "")
+
+	require.NoError(t, command1.Process.Kill())
+
+	require.Eventuallyf(t, func() bool {
+		// Checking path1 still exists, and path2 not.
+		return checkPathIDDoesNotExist(watcher, fooPathID1) && checkPIDNotAssociatedWithPathID(watcher, fooPathID1, uint32(command1.Process.Pid))
+	}, time.Second*10, time.Second, "")
 }
 
-func TestSharedLibraryDetectionWithPIDandRootNameSpace(t *testing.T) {
+func TestSharedLibraryDetectionWithPIDAndRootNameSpace(t *testing.T) {
 	_, err := os.Stat("/usr/bin/busybox")
 	if err != nil {
 		t.Skip("skip for the moment as some distro are not friendly with busybox package")
@@ -84,14 +104,12 @@ func TestSharedLibraryDetectionWithPIDandRootNameSpace(t *testing.T) {
 
 	libpath := "/fooroot.so"
 
-	simulateOpenAt(root + libpath)
 	err = exec.Command("cp", "/usr/bin/busybox", root+"/ash").Run()
 	require.NoError(t, err)
 	err = exec.Command("cp", "/usr/bin/busybox", root+"/sleep").Run()
 	require.NoError(t, err)
 
-	perfHandler, doneFn := initEBPFProgram(t)
-	t.Cleanup(doneFn)
+	perfHandler := initEBPFProgram(t)
 
 	var (
 		mux          sync.Mutex
@@ -115,7 +133,7 @@ func TestSharedLibraryDetectionWithPIDandRootNameSpace(t *testing.T) {
 
 	time.Sleep(10 * time.Millisecond)
 	// simulate a slow (1 second) : open, write, close of the file
-	// in an new pid and mount namespaces
+	// in a new pid and mount namespaces
 	o, err := exec.Command("unshare", "--fork", "--pid", "-R", root, "/ash", "-c", fmt.Sprintf("sleep 1 > %s", libpath)).CombinedOutput()
 	if err != nil {
 		t.Log(err, string(o))
@@ -127,23 +145,20 @@ func TestSharedLibraryDetectionWithPIDandRootNameSpace(t *testing.T) {
 	// assert that soWatcher detected foo.so being opened and triggered the callback
 	require.Equal(t, libpath, pathDetected)
 
-	// must failed on the host
+	// must fail on the host
 	_, err = os.Stat(libpath)
 	require.Error(t, err)
 }
 
 func TestSameInodeRegression(t *testing.T) {
-	perfHandler, doneFn := initEBPFProgram(t)
-	t.Cleanup(doneFn)
-	fpath1 := filepath.Join(t.TempDir(), "a-foo.so")
-	fpath2 := filepath.Join(t.TempDir(), "b-foo.so")
+	perfHandler := initEBPFProgram(t)
 
-	f, err := os.Create(fpath1)
-	require.NoError(t, err)
-	f.Close()
+	fooPath1, fooPathID1 := createTempTestFile(t, "a-foo.so")
+	fooPath2 := filepath.Join(t.TempDir(), "b-foo.so")
 
 	// create a hard-link (a-foo.so and b-foo.so will share the same inode)
-	err = os.Link(fpath1, fpath2)
+	require.NoError(t, os.Link(fooPath1, fooPath2))
+	fooPathID2, err := newPathIdentifier(fooPath2)
 	require.NoError(t, err)
 
 	registers := atomic.NewInt64(0)
@@ -160,25 +175,257 @@ func TestSameInodeRegression(t *testing.T) {
 	)
 	watcher.Start()
 
-	time.Sleep(10 * time.Millisecond)
-	simulateOpenAt(fpath1)
-	simulateOpenAt(fpath2)
-	time.Sleep(10 * time.Millisecond)
+	clientBin := buildSOWatcherClientBin(t)
+	command1 := exec.Command(clientBin, fooPath1, fooPath2)
+	require.NoError(t, command1.Start())
+	registerProcessTerminationUponCleanup(t, command1)
 
-	// assert that callback was called only once
-	require.Equal(t, int64(1), registers.Load())
+	require.Eventuallyf(t, func() bool {
+		// Checking path1 still exists, and path2 not.
+		if checkPathIDDoesNotExist(watcher, fooPathID1) || checkPathIDDoesNotExist(watcher, fooPathID2) ||
+			checkPIDNotAssociatedWithPathID(watcher, fooPathID1, uint32(command1.Process.Pid)) ||
+			checkPIDNotAssociatedWithPathID(watcher, fooPathID2, uint32(command1.Process.Pid)) {
+			return false
+		}
+
+		return int64(1) == registers.Load()
+	}, time.Second*10, time.Second, "")
+	require.Len(t, watcher.registry.byID, 1)
+	require.NoError(t, command1.Process.Kill())
+
+	require.Eventuallyf(t, func() bool {
+		// Checking path1 still exists, and path2 not.
+		return checkPathIDDoesNotExist(watcher, fooPathID1) && checkPathIDDoesNotExist(watcher, fooPathID2) &&
+			checkPIDNotAssociatedWithPathID(watcher, fooPathID1, uint32(command1.Process.Pid)) &&
+			checkPIDNotAssociatedWithPathID(watcher, fooPathID2, uint32(command1.Process.Pid))
+	}, time.Second*10, time.Second, "")
 }
 
-// we use this helper to open files for two reasons:
-// * `touch` calls openat(2) which is what we trace in the shared library eBPF program;
-// * `exec.Command` spawns a separate process; we need to do that because we filter out
-// libraries being openened from system-probe process
-func simulateOpenAt(path string) {
-	cmd := exec.Command("touch", path)
-	cmd.Run()
+func TestSoWatcherLeaks(t *testing.T) {
+	perfHandler := initEBPFProgram(t)
+
+	fooPath1, fooPathID1 := createTempTestFile(t, "foo.so")
+	fooPath2, fooPathID2 := createTempTestFile(t, "foo2.so")
+
+	registerCB := func(id pathIdentifier, root string, path string) error { return nil }
+	unregisterCB := func(id pathIdentifier) error { return nil }
+
+	watcher := newSOWatcher(perfHandler,
+		soRule{
+			re:           regexp.MustCompile(`foo.so`),
+			registerCB:   registerCB,
+			unregisterCB: unregisterCB,
+		},
+		soRule{
+			re:           regexp.MustCompile(`foo2.so`),
+			registerCB:   registerCB,
+			unregisterCB: unregisterCB,
+		},
+	)
+	watcher.Start()
+
+	// create files
+	clientBin := buildSOWatcherClientBin(t)
+
+	command1 := exec.Command(clientBin, fooPath1, fooPath2)
+	require.NoError(t, command1.Start())
+	registerProcessTerminationUponCleanup(t, command1)
+
+	// Check sowatcher map
+	require.Eventuallyf(t, func() bool {
+		// Checking both paths exist.
+		if checkPathIDDoesNotExist(watcher, fooPathID1) || checkPathIDDoesNotExist(watcher, fooPathID2) {
+			return false
+		}
+
+		// Checking the PID associated with the 2 paths.
+		return checkPIDAssociatedWithPathID(watcher, fooPathID1, uint32(command1.Process.Pid)) &&
+			checkPIDAssociatedWithPathID(watcher, fooPathID2, uint32(command1.Process.Pid))
+	}, time.Second*10, time.Second, "")
+
+	command2 := exec.Command(clientBin, fooPath1)
+	require.NoError(t, command2.Start())
+	registerProcessTerminationUponCleanup(t, command2)
+
+	require.Eventuallyf(t, func() bool {
+		// Checking both paths exist.
+		if checkPathIDDoesNotExist(watcher, fooPathID1) || checkPathIDDoesNotExist(watcher, fooPathID2) {
+			return false
+		}
+
+		// Checking PID1 is still associated to the 2 paths, and PID2 is associated only with the first path
+		return checkPIDAssociatedWithPathID(watcher, fooPathID1, uint32(command1.Process.Pid)) &&
+			checkPIDAssociatedWithPathID(watcher, fooPathID2, uint32(command1.Process.Pid)) &&
+			checkPIDAssociatedWithPathID(watcher, fooPathID1, uint32(command2.Process.Pid)) &&
+			checkPIDNotAssociatedWithPathID(watcher, fooPathID2, uint32(command2.Process.Pid))
+	}, time.Second*10, time.Second, "")
+
+	require.NoError(t, command1.Process.Kill())
+	require.Eventuallyf(t, func() bool {
+		// Checking path1 still exists, and path2 not.
+		if checkPathIDDoesNotExist(watcher, fooPathID1) || checkPathIDExists(watcher, fooPathID2) {
+			return false
+		}
+
+		// Checking PID1 is not associated to the path 2, and PID2 is associated only with the path2
+		return checkPIDNotAssociatedWithPathID(watcher, fooPathID1, uint32(command1.Process.Pid)) &&
+			checkPIDAssociatedWithPathID(watcher, fooPathID1, uint32(command2.Process.Pid))
+	}, time.Second*10, time.Second, "")
+
+	require.NoError(t, command2.Process.Kill())
+	require.Eventuallyf(t, func() bool {
+		// Checking path1 still exists, and path2 not.
+		return checkPathIDDoesNotExist(watcher, fooPathID1) && checkPathIDDoesNotExist(watcher, fooPathID2)
+	}, time.Second*10, time.Second, "")
+
+	checkWatcherStateIsClean(t, watcher)
 }
 
-func initEBPFProgram(t *testing.T) (*ddebpf.PerfHandler, func()) {
+func TestSoWatcherProcessAlreadyHoldingReferences(t *testing.T) {
+	perfHandler := initEBPFProgram(t)
+
+	fooPath1, fooPathID1 := createTempTestFile(t, "foo.so")
+	fooPath2, fooPathID2 := createTempTestFile(t, "foo2.so")
+
+	registerCB := func(id pathIdentifier, root string, path string) error { return nil }
+	unregisterCB := func(id pathIdentifier) error { return nil }
+
+	watcher := newSOWatcher(perfHandler,
+		soRule{
+			re:           regexp.MustCompile(`foo.so`),
+			registerCB:   registerCB,
+			unregisterCB: unregisterCB,
+		},
+		soRule{
+			re:           regexp.MustCompile(`foo2.so`),
+			registerCB:   registerCB,
+			unregisterCB: unregisterCB,
+		},
+	)
+
+	// create files
+	clientBin := buildSOWatcherClientBin(t)
+
+	command1 := exec.Command(clientBin, fooPath1, fooPath2)
+	require.NoError(t, command1.Start())
+	registerProcessTerminationUponCleanup(t, command1)
+	command2 := exec.Command(clientBin, fooPath1)
+	require.NoError(t, command2.Start())
+	registerProcessTerminationUponCleanup(t, command1)
+	time.Sleep(time.Second)
+	watcher.Start()
+
+	require.Eventuallyf(t, func() bool {
+		// Checking both paths exist.
+		if checkPathIDDoesNotExist(watcher, fooPathID1) || checkPathIDDoesNotExist(watcher, fooPathID2) {
+			return false
+		}
+
+		// Checking PID1 is still associated to the 2 paths, and PID2 is associated only with the first path
+		return checkPIDAssociatedWithPathID(watcher, fooPathID1, uint32(command1.Process.Pid)) &&
+			checkPIDAssociatedWithPathID(watcher, fooPathID2, uint32(command1.Process.Pid)) &&
+			checkPIDAssociatedWithPathID(watcher, fooPathID1, uint32(command2.Process.Pid)) &&
+			checkPIDNotAssociatedWithPathID(watcher, fooPathID2, uint32(command2.Process.Pid))
+	}, time.Second*10, time.Second, "")
+
+	require.NoError(t, command1.Process.Kill())
+	require.Eventuallyf(t, func() bool {
+		// Checking path1 still exists, and path2 not.
+		if checkPathIDDoesNotExist(watcher, fooPathID1) || checkPathIDExists(watcher, fooPathID2) {
+			return false
+		}
+
+		// Checking PID1 is not associated to the path 2, and PID2 is associated only with the path2
+		return checkPIDNotAssociatedWithPathID(watcher, fooPathID1, uint32(command1.Process.Pid)) &&
+			checkPIDAssociatedWithPathID(watcher, fooPathID1, uint32(command2.Process.Pid))
+	}, time.Second*10, time.Second, "")
+
+	require.NoError(t, command2.Process.Kill())
+	require.Eventuallyf(t, func() bool {
+		// Checking path1 still exists, and path2 not.
+		return checkPathIDDoesNotExist(watcher, fooPathID1) && checkPathIDDoesNotExist(watcher, fooPathID2)
+	}, time.Second*10, time.Second, "")
+
+	checkWatcherStateIsClean(t, watcher)
+}
+
+func buildSOWatcherClientBin(t *testing.T) string {
+	const ClientSrcPath = "sowatcher_client"
+	const ClientBinaryPath = "testutil/sowatcher_client/sowatcher_client"
+
+	t.Helper()
+
+	cur, err := testutil.CurDir()
+	require.NoError(t, err)
+
+	clientBinary := fmt.Sprintf("%s/%s", cur, ClientBinaryPath)
+
+	// If there is a compiled binary already, skip the compilation.
+	// Meant for the CI.
+	if _, err = os.Stat(clientBinary); err == nil {
+		return clientBinary
+	}
+
+	clientSrcDir := fmt.Sprintf("%s/testutil/%s", cur, ClientSrcPath)
+	clientBuildDir, err := os.MkdirTemp("", "sowatcher_client_build-")
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		os.RemoveAll(clientBuildDir)
+	})
+
+	clientBinPath := fmt.Sprintf("%s/sowatcher_client", clientBuildDir)
+
+	c := exec.Command("go", "build", "-buildvcs=false", "-a", "-ldflags=-extldflags '-static'", "-o", clientBinPath, clientSrcDir)
+	out, err := c.CombinedOutput()
+	require.NoError(t, err, "could not build client test binary: %s\noutput: %s", err, string(out))
+
+	return clientBinPath
+}
+
+func checkPathIDExists(watcher *soWatcher, pathID pathIdentifier) bool {
+	_, ok := watcher.registry.byID[pathID]
+	return ok
+}
+
+func checkPathIDDoesNotExist(watcher *soWatcher, pathID pathIdentifier) bool {
+	return !checkPathIDExists(watcher, pathID)
+}
+
+func checkPIDAssociatedWithPathID(watcher *soWatcher, pathID pathIdentifier, pid uint32) bool {
+	value, ok := watcher.registry.byPID[pid]
+	if !ok {
+		return false
+	}
+	_, ok = value[pathID]
+	return ok
+}
+
+func checkPIDNotAssociatedWithPathID(watcher *soWatcher, pathID pathIdentifier, pid uint32) bool {
+	return !checkPIDAssociatedWithPathID(watcher, pathID, pid)
+}
+
+func createTempTestFile(t *testing.T, name string) (string, pathIdentifier) {
+	fullPath := filepath.Join(t.TempDir(), name)
+
+	f, err := os.Create(fullPath)
+	require.NoError(t, err)
+	f.Close()
+	t.Cleanup(func() {
+		os.RemoveAll(fullPath)
+	})
+
+	pathID, err := newPathIdentifier(fullPath)
+	require.NoError(t, err)
+
+	return fullPath, pathID
+}
+
+func checkWatcherStateIsClean(t *testing.T, watcher *soWatcher) {
+	require.True(t, len(watcher.registry.byPID) == 0 && len(watcher.registry.byID) == 0, "watcher state is not clean")
+}
+
+func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {
 	c := config.New()
 	if !HTTPSSupported(c) {
 		t.Skip("https not supported for this setup")
@@ -330,8 +577,10 @@ func initEBPFProgram(t *testing.T) (*ddebpf.PerfHandler, func()) {
 	err = mgr.Start()
 	require.NoError(t, err)
 
-	return perfHandler, func() {
+	t.Cleanup(func() {
 		mgr.Stop(manager.CleanAll)
 		perfHandler.Stop()
-	}
+	})
+
+	return perfHandler
 }
