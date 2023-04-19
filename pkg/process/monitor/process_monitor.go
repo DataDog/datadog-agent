@@ -209,7 +209,11 @@ func (pm *ProcessMonitor) Initialize() error {
 	pm.done = make(chan struct{})
 	pm.errors = make(chan error, 10)
 
-	if err := netlink.ProcEventMonitor(pm.events, pm.done, pm.errors); err != nil {
+	hostProc := util.HostProc()
+	if err := util.WithRootNS(hostProc, func() error {
+		return netlink.ProcEventMonitor(pm.events, pm.done, pm.errors)
+
+	}); err != nil {
 		return fmt.Errorf("couldn't initialize process monitor: %s", err)
 	}
 
