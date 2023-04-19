@@ -308,6 +308,13 @@ func (c *Check) StatementMetrics() (int, error) {
 			for _, key := range DDForceMatchingSignatures {
 				c.statementsFilter.ForceMatchingSignatures[key] = 1
 			}
+			if c.DDstatementsCache.forceMatchingSignatures == nil {
+				c.DDstatementsCache.forceMatchingSignatures = make(map[string]StatementsCacheData)
+			}
+			if c.DDPrevStatementsCache.forceMatchingSignatures == nil {
+				c.DDPrevStatementsCache.forceMatchingSignatures = make(map[string]StatementsCacheData)
+			}
+
 		}
 
 		statementMetrics, err := GetStatementsMetricsForKeys(c, "force_matching_signature", "AND force_matching_signature != 0", c.statementsFilter.ForceMatchingSignatures)
@@ -445,9 +452,38 @@ func (c *Check) StatementMetrics() (int, error) {
 			var queryHashCol string
 			var SQLStatement string
 
+			found := false
 			if statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature != "" {
+				obfuscatedStatement, ok := c.statementsCache.forceMatchingSignatures[statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature]
+				if ok {
+					queryRow.Commands = obfuscatedStatement.commands
+					queryRow.QuerySignature = obfuscatedStatement.querySignature
+					queryRow.Tables = obfuscatedStatement.tables
+					SQLStatement = obfuscatedStatement.statement
+					found = true
+				} else if c.config.InstanceConfig.IncludeDatadogQueries {
+					obfuscatedStatement, ok := c.DDPrevStatementsCache.forceMatchingSignatures[statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature]
+					if ok {
+						queryRow.Commands = obfuscatedStatement.commands
+						queryRow.QuerySignature = obfuscatedStatement.querySignature
+						queryRow.Tables = obfuscatedStatement.tables
+						SQLStatement = obfuscatedStatement.statement
 
-			} else {
+						c.DDstatementsCache.forceMatchingSignatures[statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature] = c.DDPrevStatementsCache.forceMatchingSignatures[statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature]
+						found = true
+					}
+				}
+			} else if statementMetricRow.StatementMetricsKeyDB.SQLID != "" {
+				obfuscatedStatement, ok := c.statementsCache.SQLIDs[statementMetricRow.StatementMetricsKeyDB.SQLID]
+				if ok {
+					queryRow.Commands = obfuscatedStatement.commands
+					queryRow.QuerySignature = obfuscatedStatement.querySignature
+					queryRow.Tables = obfuscatedStatement.tables
+					SQLStatement = obfuscatedStatement.statement
+					found = true
+				}
+			}
+			if !found {
 				if statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature == "" {
 					queryHashCol = "sql_id"
 				} else {
@@ -479,14 +515,24 @@ func (c *Check) StatementMetrics() (int, error) {
 				}
 				SQLStatement = cols[0].(string)
 
-				//sender.Histogram("dd.oracle.statements_metrics.sql_text_length", float64(len(SQLStatement)), "", c.tags)
-
 				obfuscatedStatement, err := c.GetObfuscatedStatement(o, SQLStatement)
 				SQLStatement = obfuscatedStatement.Statement
 				if err == nil {
 					queryRow.QuerySignature = obfuscatedStatement.QuerySignature
 					queryRow.Commands = obfuscatedStatement.Commands
 					queryRow.Tables = obfuscatedStatement.Tables
+
+					if c.config.InstanceConfig.IncludeDatadogQueries {
+						cacheEntry := StatementsCacheData{
+							statement:      SQLStatement,
+							querySignature: obfuscatedStatement.QuerySignature,
+							tables:         obfuscatedStatement.Tables,
+							commands:       obfuscatedStatement.Commands,
+						}
+						if statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature != "" {
+							c.DDstatementsCache.forceMatchingSignatures[statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature] = cacheEntry
+						}
+					}
 				}
 			}
 			var queryHash string
@@ -532,6 +578,14 @@ func (c *Check) StatementMetrics() (int, error) {
 		}
 
 		c.copyToPreviousMap(newCache)
+
+		if c.config.InstanceConfig.IncludeDatadogQueries {
+			c.DDPrevStatementsCache.forceMatchingSignatures = make(map[string]StatementsCacheData)
+			for k, v := range c.DDstatementsCache.forceMatchingSignatures {
+				c.DDPrevStatementsCache.forceMatchingSignatures[k] = v
+			}
+			c.DDstatementsCache.forceMatchingSignatures = nil
+		}
 	} else {
 		heartbeatStatement := "__other__"
 		queryRowHeartbeat := QueryRow{QuerySignature: heartbeatStatement}
