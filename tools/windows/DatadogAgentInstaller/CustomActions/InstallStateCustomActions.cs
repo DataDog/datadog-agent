@@ -144,10 +144,16 @@ namespace Datadog.CustomActions
         /// </summary>
         private void ProcessAllowClosedSource()
         {
+            var npm = _session.Features["NPM"];
+            _session.Log($"NPM Feature: {npm.CurrentState} -> {npm.RequestState}");
+            _session.Log($"ALLOWCLOSEDSOURCE: {_session.Property("ALLOWCLOSEDSOURCE")}");
+            _session.Log($"ADDLOCAL: {_session.Property("ADDLOCAL")}");
+
             var allowClosedSource =
                 _session.Property("ALLOWCLOSEDSOURCE") == Constants.AllowClosedSource_Yes ||
                 _session.Features["NPM"].RequestState == InstallState.Local ||
                 !string.IsNullOrEmpty(_session.Property("NPM"));
+
             if (allowClosedSource)
             {
                 // Set another property that will control the state of the Allow Closed Source checkbox in the GUI
@@ -156,6 +162,9 @@ namespace Datadog.CustomActions
                 // write the value to the registry, it will fail if the property is not set. So we must either add
                 // another custom action or another property.
                 _session["CHECKBOX_ALLOWCLOSEDSOURCE"] = Constants.AllowClosedSource_Yes;
+
+                // Ensure we always set this property, otherwise the RegistryValue action will fail
+                _session["ALLOWCLOSEDSOURCE"] = Constants.AllowClosedSource_Yes;
             }
             else
             {
