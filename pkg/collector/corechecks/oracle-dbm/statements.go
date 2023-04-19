@@ -208,8 +208,7 @@ type FQTDB struct {
 }
 
 type FQTDBOracle struct {
-	ForceMatchingSignature string `json:"force_matching_signature,omitempty"`
-	SQLID                  string `json:"sql_id"`
+	CDBName string `json:"cdb_name,omitempty"`
 }
 
 type FQTPayload struct {
@@ -235,19 +234,20 @@ func GetStatementsMetricsForKeys[K comparable](c *Check, keyName string, whereCl
 		var bindPlaceholder string
 		keysSlice := maps.Keys(keys)
 
-		if driver == common.Godror {
-			bindPlaceholder = "?"
-		} else if driver == common.GoOra {
-			// workaround for https://github.com/jmoiron/sqlx/issues/854
-			for i := range keysSlice {
-				if i > 0 {
-					bindPlaceholder = bindPlaceholder + ","
+		//if driver == common.Godror {
+		bindPlaceholder = "?"
+		/*
+			} else if driver == common.GoOra {
+				// workaround for https://github.com/jmoiron/sqlx/issues/854
+				for i := range keysSlice {
+					if i > 0 {
+						bindPlaceholder = bindPlaceholder + ","
+					}
+					bindPlaceholder = fmt.Sprintf("%s:%d", bindPlaceholder, i+1)
 				}
-				bindPlaceholder = fmt.Sprintf("%s:%d", bindPlaceholder, i+1)
-			}
-		} else {
-			return nil, fmt.Errorf("statements wrong driver %s", driver)
-		}
+			} else {
+				return nil, fmt.Errorf("statements wrong driver %s", driver)
+			} */
 
 		var statementMetrics []StatementMetricsDB
 		statements_metrics_query := ConstructStatementMetricsQueryBlock(keyName, whereClause, bindPlaceholder)
@@ -298,6 +298,7 @@ func (c *Check) StatementMetrics() (int, error) {
 	SQLCount := 0
 	totalSQLTextTimeUs := int64(0)
 	var oracleRows []OracleRow
+	FQTSent := make(map[string]int)
 	if c.config.QueryMetrics {
 		if c.config.InstanceConfig.IncludeDatadogQueries {
 			var DDForceMatchingSignatures []string
@@ -553,28 +554,33 @@ func (c *Check) StatementMetrics() (int, error) {
 
 			oracleRows = append(oracleRows, oracleRow)
 
-			FQTDBMetadata := FQTDBMetadata{Tables: queryRow.Tables, Commands: queryRow.Commands}
-			FQTDB := FQTDB{Instance: c.cdbName, QuerySignature: queryRow.QuerySignature, Statement: SQLStatement, FQTDBMetadata: FQTDBMetadata}
-			FQTDBOracle := FQTDBOracle{
-				ForceMatchingSignature: statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature,
-				SQLID:                  statementMetricRow.StatementMetricsKeyDB.SQLID,
+			_, ok := FQTSent[queryRow.QuerySignature]
+			if !ok {
+				FQTDBMetadata := FQTDBMetadata{Tables: queryRow.Tables, Commands: queryRow.Commands}
+				FQTDB := FQTDB{Instance: c.cdbName, QuerySignature: queryRow.QuerySignature, Statement: SQLStatement, FQTDBMetadata: FQTDBMetadata}
+				FQTDBOracle := FQTDBOracle{
+					//ForceMatchingSignature: statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature,
+					//SQLID:                  statementMetricRow.StatementMetricsKeyDB.SQLID,
+					CDBName: c.cdbName,
+				}
+				FQTPayload := FQTPayload{
+					Timestamp:    float64(time.Now().UnixMilli()),
+					Host:         c.dbHostname,
+					AgentVersion: c.agentVersion,
+					Source:       common.IntegrationName,
+					Tags:         c.tags,
+					DBMType:      "fqt",
+					FQTDB:        FQTDB,
+					FQTDBOracle:  FQTDBOracle,
+				}
+				FQTPayloadBytes, err := json.Marshal(FQTPayload)
+				if err != nil {
+					log.Errorf("Error marshalling fqt payload: %s", err)
+				}
+				log.Tracef("Query metrics fqt payload %s", string(FQTPayloadBytes))
+				sender.EventPlatformEvent(FQTPayloadBytes, "dbm-samples")
+				FQTSent[queryRow.QuerySignature] = 1
 			}
-			FQTPayload := FQTPayload{
-				Timestamp:    float64(time.Now().UnixMilli()),
-				Host:         c.dbHostname,
-				AgentVersion: c.agentVersion,
-				Source:       common.IntegrationName,
-				Tags:         c.tags,
-				DBMType:      "fqt",
-				FQTDB:        FQTDB,
-				FQTDBOracle:  FQTDBOracle,
-			}
-			FQTPayloadBytes, err := json.Marshal(FQTPayload)
-			if err != nil {
-				log.Errorf("Error marshalling fqt payload: %s", err)
-			}
-			log.Tracef("Query metrics fqt payload %s", string(FQTPayloadBytes))
-			sender.EventPlatformEvent(FQTPayloadBytes, "dbm-samples")
 		}
 
 		c.copyToPreviousMap(newCache)
