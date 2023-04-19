@@ -16,7 +16,7 @@ import (
 )
 
 // errNotSupported indicates that the current host doesn't fullfil the
-// requirements for HTTP monitoring
+// requirements for USM monitoring
 type errNotSupported struct {
 	error
 }
