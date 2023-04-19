@@ -351,7 +351,7 @@ func TestSoWatcherProcessAlreadyHoldingReferences(t *testing.T) {
 
 func buildSOWatcherClientBin(t *testing.T) string {
 	const ClientSrcPath = "sowatcher_client"
-	const ClientBinaryPath = "sowatcher_client/sowatcher_client"
+	const ClientBinaryPath = "testutil/sowatcher_client/sowatcher_client"
 
 	t.Helper()
 
