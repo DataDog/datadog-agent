@@ -61,7 +61,7 @@ require (
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.1.5
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.1.5
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.1.5
-	github.com/DataDog/sketches-go v1.4.1
+	github.com/DataDog/sketches-go v1.4.2
 	github.com/DataDog/viper v1.12.0
 	github.com/DataDog/watermarkpodautoscaler v0.5.2
 	github.com/DataDog/zstd v1.5.2
