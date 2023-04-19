@@ -144,65 +144,11 @@ namespace Datadog.CustomActions
         /// </summary>
         private void ProcessAllowClosedSource()
         {
-            if (string.IsNullOrEmpty(_session.Property("ALLOWCLOSEDSOURCE")))
-            {
-                // Backwards compability handling
-                //
-                // ALLOWCLOSEDSOURCE was not set via the command line or retrieved from the registry.
-                // Set ALLOWCLOSEDSOURCE if one of the following are true
-                // - ADDLOCAL property contains ALL (Previous method of installing NPM)
-                // - ADDLOCAL property contains NPM (Previous method of installing NPM)
-                // - NPM property has a value (Previous method of installing NPM)
-                // - ddnpm service exists and is enabled (NPM was previously installed)
-
-                // check ADDLOCAL property
-                if (string.IsNullOrEmpty(_session.Property("ALLOWCLOSEDSOURCE")) &&
-                    !string.IsNullOrEmpty(_session.Property("ADDLOCAL")))
-                {
-                    var addLocalFeatures = _session.Property("ADDLOCAL").ToUpper().Split(',');
-                    if (Array.Exists(addLocalFeatures, f => f == "ALL" || f == "NPM"))
-                    {
-                        _session["ALLOWCLOSEDSOURCE"] = Constants.AllowClosedSource_Yes;
-                        _session.Log(
-                            $"ADDLOCAL={_session.Property("ADDLOCAL")}, maintaining backwards compatibility, setting \"AllowClosedSource\" to: {_session["ALLOWCLOSEDSOURCE"]}");
-                    }
-                }
-
-                // check NPM property
-                if (string.IsNullOrEmpty(_session.Property("ALLOWCLOSEDSOURCE")) &&
-                    !string.IsNullOrEmpty(_session.Property("NPM")))
-                {
-                    _session["ALLOWCLOSEDSOURCE"] = Constants.AllowClosedSource_Yes;
-                    _session.Log(
-                        $"NPM property set, maintaining backwards compatibility, setting \"AllowClosedSource\" to: {_session["ALLOWCLOSEDSOURCE"]}");
-                }
-
-                // check ddnpm service
-                if (string.IsNullOrEmpty(_session.Property("ALLOWCLOSEDSOURCE")))
-                {
-                    _session.Log("Cannot find the \"AllowClosedSource\" registry key, checking the NPM service state.");
-                    var ddNpmService = _serviceController.Find(Constants.NpmServiceName);
-                    if (ddNpmService != null)
-                    {
-                        _session["ALLOWCLOSEDSOURCE"] = ddNpmService.StartType != ServiceStartMode.Disabled
-                            ? Constants.AllowClosedSource_Yes
-                            : Constants.AllowClosedSource_No;
-                        _session.Log(
-                            $"{Constants.NpmServiceName} start type is {ddNpmService.StartType}, setting \"AllowClosedSource\" to: {_session["ALLOWCLOSEDSOURCE"]}");
-                    }
-                    else
-                    {
-                        _session.Log("NPM service not found.");
-                    }
-                }
-            }
-            else
-            {
-                // Found in registry or it was provided on the command line
-                _session.Log($"Found \"AllowClosedSource\" key, with value: {_session["ALLOWCLOSEDSOURCE"]}");
-            }
-
-            if (_session.Property("ALLOWCLOSEDSOURCE") == Constants.AllowClosedSource_Yes)
+            var allowClosedSource =
+                _session.Property("ALLOWCLOSEDSOURCE") == Constants.AllowClosedSource_Yes ||
+                _session.Features["NPM"].RequestState == InstallState.Local ||
+                !string.IsNullOrEmpty(_session.Property("NPM"));
+            if (allowClosedSource)
             {
                 // Set another property that will control the state of the Allow Closed Source checkbox in the GUI
                 // We cannot use the same property because the checkbox interprets any property values as "checked",

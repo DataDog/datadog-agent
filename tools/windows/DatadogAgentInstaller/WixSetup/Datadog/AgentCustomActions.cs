@@ -75,7 +75,7 @@ namespace WixSetup.Datadog
                 // Prefer using our CA over RegistrySearch.
                 // It is executed on the Welcome screen of the installer.
                 When.After,
-                Step.AppSearch,
+                Step.CostFinalize,
                 // Not needed during uninstall, but since it runs before InstallValidate the recommended
                 // REMOVE=ALL condition does not work, so always run it.
                 Condition.Always,

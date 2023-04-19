@@ -240,7 +240,7 @@ namespace WixSetup.Datadog
                         $"Id=ddnpminstall; SourceFile={BinSource}\\agent\\DDNPM.msm; DiskId=1; Language=1033");
                 document
                     .FindAll("Feature")
-                    .First(x => x.HasAttribute("Id", value => value == "NPM"))
+                    .First(x => x.HasAttribute("Id", value => value == "MainApplication"))
                     .AddElement("MergeRef", "Id=ddnpminstall");
             };
             project.WixSourceFormated += (ref string content) => WixSourceFormated?.Invoke(content);
