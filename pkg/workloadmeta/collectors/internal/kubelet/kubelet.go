@@ -10,9 +10,9 @@ package kubelet
 
 import (
 	"context"
-	"fmt"
-	"github.com/DataDog/datadog-agent/internal/third_party/golang/expansion"
 	"time"
+
+	"github.com/DataDog/datadog-agent/internal/third_party/golang/expansion"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
@@ -149,7 +149,6 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			QOSClass:                   pod.Status.QOSClass,
 			SecurityContext:            PodSecurityContext,
 		}
-		fmt.Println("-------------------------- POD: ", entity.String(true))
 
 		events = append(events, containerEvents...)
 		events = append(events, workloadmeta.CollectorEvent{

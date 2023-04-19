@@ -537,6 +537,7 @@ func (ad *ActivityDump) finalize(releaseTracedCgroupSpot bool) {
 	if len(ad.ContainerID) > 0 {
 		ad.Tags = append(ad.Tags, "container_id:"+ad.ContainerID)
 	}
+
 	// scrub processes and retain args envs now
 	ad.scrubAndRetainProcessArgsEnvs()
 }
