@@ -1418,10 +1418,10 @@ func findUnknownEnvVars(config Config, environ []string, additionalKnownEnvVars 
 		"DD_PROXY_HTTP":     {},
 		"DD_PROXY_HTTPS":    {},
 		// these variables are used by serverless, but not via the Config struct
-		"DD_SERVICE":                   {},
+		"DD_API_KEY_SECRET_ARN":        {},
 		"DD_DOTNET_TRACER_HOME":        {},
 		"DD_SERVERLESS_APPSEC_ENABLED": {},
-		"DD_API_KEY_SECRET_ARN":        {},
+		"DD_SERVICE":                   {},
 		"DD_VERSION":                   {},
 		// this variable is used by CWS functional tests
 		"DD_TESTS_RUNTIME_COMPILED": {},
