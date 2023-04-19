@@ -91,3 +91,39 @@ func TestInferredSpanFunctionTagFiltering(t *testing.T) {
 	_, tagOriginSelfSpanHasGlobalTags := tp.Chunks[0].Spans[0].GetMeta()["function_arn"]
 	assert.False(t, tagOriginSelfSpanHasGlobalTags, "A span with meta._inferred_span.tag_origin = self should not get global tags")
 }
+
+func TestLambdaSpanChan(t *testing.T) {
+	cfg := config.New()
+	cfg.GlobalTags = map[string]string{
+		"service": "myTestService",
+	}
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+	lambdaSpanChan := make(chan *pb.Span)
+	spanModifier := &spanModifier{
+		tags: cfg.GlobalTags,
+		lambdaSpanChan:lambdaSpanChan,
+	}
+	agnt.ModifySpan = spanModifier.ModifySpan
+	defer cancel()
+
+	tc := testutil.RandomTraceChunk(1, 1)
+	tc.Priority = 1 // ensure trace is never sampled out
+	tp := testutil.TracerPayloadWithChunk(tc)
+	tp.Chunks[0].Spans[0].Service = "aws.lambda"
+	tp.Chunks[0].Spans[0].Name = "aws.lambda"
+	go agnt.Process(&api.Payload{
+		TracerPayload: tp,
+		Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+	})
+	timeout := time.After(2 * time.Second)
+	var span *pb.Span
+	select {
+	case ss := <-lambdaSpanChan:
+		span = ss
+	case <-timeout:
+		t.Fatal("timed out")
+	}
+	assert.Equal(t, "myTestService", span.Service)
+}
