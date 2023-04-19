@@ -24,9 +24,19 @@ import (
 
 // Check represents one Oracle instance check.
 type StatementsFilter struct {
-	SQLIDs map[string]int
-	//ForceMatchingSignatures map[uint64]int
+	SQLIDs                  map[string]int
 	ForceMatchingSignatures map[string]int
+}
+
+type StatementsCacheData struct {
+	statement      string
+	querySignature string
+	tables         []string
+	commands       []string
+}
+type StatementsCache struct {
+	SQLIDs                  map[string]StatementsCacheData
+	forceMatchingSignatures map[string]StatementsCacheData
 }
 
 type Check struct {
@@ -39,6 +49,9 @@ type Check struct {
 	tags                                    []string
 	cdbName                                 string
 	statementsFilter                        StatementsFilter
+	statementsCache                         StatementsCache
+	DDstatementsCache                       StatementsCache
+	DDPrevStatementsCache                   StatementsCache
 	statementMetricsMonotonicCountsPrevious map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB
 	dbHostname                              string
 	dbVersion                               string

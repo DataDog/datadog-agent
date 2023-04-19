@@ -8,6 +8,7 @@ package oracle
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -19,7 +20,7 @@ import (
 	"golang.org/x/exp/maps"
 )
 
-const STATEMENT_METRICS_QUERY = `SELECT 
+const STATEMENT_METRICS_QUERY = `SELECT /* DD */
 	c.name as pdb_name,
 	%s,
 	plan_hash_value, 
@@ -295,8 +296,20 @@ func (c *Check) StatementMetrics() (int, error) {
 
 	SQLTextErrors := 0
 	SQLCount := 0
+	totalSQLTextTimeUs := int64(0)
 	var oracleRows []OracleRow
 	if c.config.QueryMetrics {
+		if c.config.InstanceConfig.IncludeDatadogQueries {
+			var DDForceMatchingSignatures []string
+			err = c.db.Select(&DDForceMatchingSignatures, "SELECT distinct force_matching_signature FROM v$sqlstats WHERE sql_text like '%/* DD%'")
+			if err != nil {
+				log.Error("error getting sql_ids from DD queries")
+			}
+			for _, key := range DDForceMatchingSignatures {
+				c.statementsFilter.ForceMatchingSignatures[key] = 1
+			}
+		}
+
 		statementMetrics, err := GetStatementsMetricsForKeys(c, "force_matching_signature", "AND force_matching_signature != 0", c.statementsFilter.ForceMatchingSignatures)
 		if err != nil {
 			return 0, fmt.Errorf("error collecting statement metrics for force_matching_signature: %w", err)
@@ -319,6 +332,7 @@ func (c *Check) StatementMetrics() (int, error) {
 		}
 
 		o := obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})
+		defer o.Stop()
 		var diff OracleRowMonotonicCount
 
 		for _, statementMetricRow := range statementMetricsAll {
@@ -426,46 +440,55 @@ func (c *Check) StatementMetrics() (int, error) {
 				continue
 			}
 
-			var queryHashCol string
-			if statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature == "" {
-				queryHashCol = "sql_id"
-			} else {
-				queryHashCol = "force_matching_signature"
-			}
-			p := map[string]interface{}{
-				"force_matching_signature": statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature,
-				"sql_id":                   statementMetricRow.StatementMetricsKeyDB.SQLID,
-			}
-			SQLTextQuery := fmt.Sprintf("SELECT sql_fulltext FROM v$sqlstats WHERE %s=:%s AND rownum = 1", queryHashCol, queryHashCol)
-
-			rows, err := c.db.NamedQuery(SQLTextQuery, p)
-			if err != nil {
-				log.Errorf("query metrics statements error named exec %s ", err)
-				SQLTextErrors++
-				continue
-			}
-
-			var SQLStatement string
-			rows.Next()
-			cols, err := rows.SliceScan()
-			rows.Close()
-			if err != nil {
-				log.Errorf("query metrics statement scan error %s %s %+v", err, SQLTextQuery, p)
-				SQLTextErrors++
-				continue
-			}
-			SQLStatement = cols[0].(string)
-			sender.Histogram("dd.oracle.statements_metrics.sql_text_length", float64(len(SQLStatement)), "", c.tags)
-
+			startSQLText := time.Now()
 			queryRow := QueryRow{}
-			obfuscatedStatement, err := c.GetObfuscatedStatement(o, SQLStatement)
-			SQLStatement = obfuscatedStatement.Statement
-			if err == nil {
-				queryRow.QuerySignature = obfuscatedStatement.QuerySignature
-				queryRow.Commands = obfuscatedStatement.Commands
-				queryRow.Tables = obfuscatedStatement.Tables
-			}
+			var queryHashCol string
+			var SQLStatement string
 
+			if statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature != "" {
+
+			} else {
+				if statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature == "" {
+					queryHashCol = "sql_id"
+				} else {
+					queryHashCol = "force_matching_signature"
+				}
+
+				p := map[string]interface{}{
+					"force_matching_signature": statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature,
+					"sql_id":                   statementMetricRow.StatementMetricsKeyDB.SQLID,
+				}
+				SQLTextQuery := fmt.Sprintf("SELECT /* DD */ sql_fulltext FROM v$sqlstats WHERE %s=:%s AND rownum = 1", queryHashCol, queryHashCol)
+
+				rows, err := c.db.NamedQuery(SQLTextQuery, p)
+				if err != nil {
+					log.Errorf("query metrics statements error named exec %s %s %+v", err, SQLTextQuery, p)
+					SQLTextErrors++
+					continue
+				}
+				defer rows.Close()
+
+				rows.Next()
+				cols, err := rows.SliceScan()
+				totalSQLTextTimeUs += time.Since(startSQLText).Microseconds()
+
+				if err != nil {
+					log.Errorf("query metrics statement scan error %s %s %+v", err, SQLTextQuery, p)
+					SQLTextErrors++
+					continue
+				}
+				SQLStatement = cols[0].(string)
+
+				//sender.Histogram("dd.oracle.statements_metrics.sql_text_length", float64(len(SQLStatement)), "", c.tags)
+
+				obfuscatedStatement, err := c.GetObfuscatedStatement(o, SQLStatement)
+				SQLStatement = obfuscatedStatement.Statement
+				if err == nil {
+					queryRow.QuerySignature = obfuscatedStatement.QuerySignature
+					queryRow.Commands = obfuscatedStatement.Commands
+					queryRow.Tables = obfuscatedStatement.Tables
+				}
+			}
 			var queryHash string
 			if queryHashCol == "force_matching_signature" {
 				queryHash = statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature
@@ -507,7 +530,7 @@ func (c *Check) StatementMetrics() (int, error) {
 			log.Tracef("Query metrics fqt payload %s", string(FQTPayloadBytes))
 			sender.EventPlatformEvent(FQTPayloadBytes, "dbm-samples")
 		}
-		o.Stop()
+
 		c.copyToPreviousMap(newCache)
 	} else {
 		heartbeatStatement := "__other__"
@@ -544,7 +567,13 @@ func (c *Check) StatementMetrics() (int, error) {
 	sender.EventPlatformEvent(payloadBytes, "dbm-metrics")
 	sender.Gauge("dd.oracle.statements_metrics.sql_text_errors", float64(SQLTextErrors), "", c.tags)
 	sender.Gauge("dd.oracle.statements_metrics.time_ms", float64(time.Since(start).Milliseconds()), "", c.tags)
+	sender.Gauge("dd.oracle.statements.sqltext.time_ms", math.Round(float64(totalSQLTextTimeUs/1000)), "", c.tags)
 	sender.Commit()
+
+	c.statementsFilter.SQLIDs = nil
+	c.statementsFilter.ForceMatchingSignatures = nil
+	c.statementsCache.SQLIDs = nil
+	c.statementsCache.forceMatchingSignatures = nil
 
 	return SQLCount, nil
 }

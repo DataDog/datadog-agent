@@ -237,6 +237,12 @@ func (c *Check) SampleSession() error {
 	if c.statementsFilter.ForceMatchingSignatures == nil {
 		c.statementsFilter.ForceMatchingSignatures = make(map[string]int)
 	}
+	if c.statementsCache.SQLIDs == nil {
+		c.statementsCache.SQLIDs = make(map[string]StatementsCacheData)
+	}
+	if c.statementsCache.forceMatchingSignatures == nil {
+		c.statementsCache.forceMatchingSignatures = make(map[string]StatementsCacheData)
+	}
 
 	var sessionRows []OracleActivityRow
 	sessionSamples := []OracleActivityRowDB{}
@@ -349,8 +355,10 @@ func (c *Check) SampleSession() error {
 
 		statement := ""
 		obfuscate := true
+		var hasRealSQLText bool
 		if sample.Statement.Valid && sample.Statement.String != "" && !previousSQL {
 			statement = sample.Statement.String
+			hasRealSQLText = true
 		} else if previousSQL {
 			if sample.PrevSQLFullText.Valid && sample.PrevSQLFullText.String != "" {
 				statement = sample.PrevSQLFullText.String
@@ -362,6 +370,9 @@ func (c *Check) SampleSession() error {
 				err = c.db.Get(&statement, "SELECT sql_fulltext FROM v$sqlstats WHERE sql_id = :1 AND rownum=1", sqlPrevSQL.SQLID)
 				if err != nil {
 					log.Errorf("sql_text for the previous statement: %s", err)
+				}
+				if statement != "" {
+					hasRealSQLText = true
 				}
 			}
 		} else if (sample.OpFlags & 8) == 8 {
@@ -388,6 +399,23 @@ func (c *Check) SampleSession() error {
 				sessionRow.Tables = obfuscatedStatement.Tables
 				sessionRow.Comments = obfuscatedStatement.Comments
 				sessionRow.QuerySignature = obfuscatedStatement.QuerySignature
+			}
+			if hasRealSQLText {
+				if sessionRow.OracleSQLRow.ForceMatchingSignature != 0 {
+					c.statementsCache.forceMatchingSignatures[strconv.FormatUint(sessionRow.OracleSQLRow.ForceMatchingSignature, 10)] = StatementsCacheData{
+						statement:      obfuscatedStatement.Statement,
+						querySignature: obfuscatedStatement.QuerySignature,
+						commands:       obfuscatedStatement.Commands,
+						tables:         obfuscatedStatement.Tables,
+					}
+				} else if sessionRow.OracleSQLRow.SQLID != "" {
+					c.statementsCache.SQLIDs[sessionRow.OracleSQLRow.SQLID] = StatementsCacheData{
+						statement:      obfuscatedStatement.Statement,
+						querySignature: obfuscatedStatement.QuerySignature,
+						commands:       obfuscatedStatement.Commands,
+						tables:         obfuscatedStatement.Tables,
+					}
+				}
 			}
 		} else {
 			sessionRow.Statement = statement
