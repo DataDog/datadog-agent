@@ -9,6 +9,7 @@ import (
 	"expvar"
 	"fmt"
 	"net/http"
+	"runtime"
 
 	gorilla "github.com/gorilla/mux"
 
@@ -49,15 +50,20 @@ func StartServer(cfg *config.Config, telemetry telemetry.Component) error {
 	mux.Handle("/debug/vars", http.DefaultServeMux)
 	mux.Handle("/telemetry", telemetry.Handler())
 
-	found, allowedUsrID, allowedGrpID, err := filesystem.UserDDAgent()
-	if err != nil || !found {
-		// if user dd-agent doesn't exist, map to root
-		allowedUsrID = 0
-		allowedGrpID = 0
+	allowedUsrID := 0
+	allowedGrpID := 0
+	// only linux supports unix socket credential
+	if runtime.GOOS == "linux" && cfg.AuthSocket {
+		allowedUsrID, allowedGrpID, err = filesystem.UserDDAgent()
+		if err != nil {
+			// if user dd-agent doesn't exist, map to root
+			allowedUsrID = 0
+			allowedGrpID = 0
+		}
 	}
 
 	go func() {
-		err := net.HttpServe(conn.GetListener(), mux, allowedUsrID, allowedGrpID)
+		err := net.HttpServe(conn.GetListener(), mux, cfg.AuthSocket, allowedUsrID, allowedGrpID)
 		if err != nil && err != http.ErrServerClosed {
 			log.Errorf("error creating HTTP server: %s", err)
 		}

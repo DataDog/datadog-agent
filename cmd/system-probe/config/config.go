@@ -46,6 +46,7 @@ type Config struct {
 	ExternalSystemProbe bool
 
 	SocketAddress      string
+	AuthSocket         bool // AuthSocket is true if SocketAddress unix socket need to be authenticate by root or dd-agent (Linux support only)
 	MaxConnsPerMessage int
 
 	LogFile          string
@@ -117,6 +118,7 @@ func load() (*Config, error) {
 		ExternalSystemProbe: cfg.GetBool(spNS("external")),
 
 		SocketAddress:      cfg.GetString(spNS("sysprobe_socket")),
+		AuthSocket:         cfg.GetBool(spNS("sysprobe_auth_socket")),
 		MaxConnsPerMessage: cfg.GetInt(spNS("max_conns_per_message")),
 
 		LogFile:          cfg.GetString("log_file"),

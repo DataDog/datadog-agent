@@ -9,7 +9,9 @@ package net
 
 import (
 	"fmt"
+	"net"
 	"os"
+	"syscall"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 )
@@ -33,4 +35,29 @@ func CheckPath(path string) error {
 		return fmt.Errorf("socket path does not exist: %v", err)
 	}
 	return nil
+}
+
+// IsUnixNetConnValid return true id the connection is an unix socket
+// and client of the connection is root:root or allowedUsrID:allowedGrpID
+func IsUnixNetConnValid(unixConn *net.UnixConn, allowedUsrID int, allowedGrpID int) (bool, error) {
+	sysConn, err := unixConn.SyscallConn()
+	if err != nil {
+		return false, err
+	}
+	var ucred *syscall.Ucred
+	var ucredErr error
+	err = sysConn.Control(func(fd uintptr) {
+		ucred, ucredErr = syscall.GetsockoptUcred(int(fd), syscall.SOL_SOCKET, syscall.SO_PEERCRED)
+	})
+	if err != nil {
+		return false, err
+	}
+	if ucredErr != nil {
+		return false, ucredErr
+	}
+	if (ucred.Uid == 0 && ucred.Gid == 0) ||
+		(ucred.Uid == uint32(allowedUsrID) && ucred.Gid == uint32(allowedGrpID)) {
+		return true, nil
+	}
+	return false, nil
 }

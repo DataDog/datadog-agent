@@ -13,7 +13,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -25,32 +24,13 @@ type UDSListener struct {
 	socketPath string
 }
 
-func IsUnixNetConnValid(unixConn *net.UnixConn, allowedUsrID int, allowedGrpID int) (bool, error) {
-	sysConn, err := unixConn.SyscallConn()
-	if err != nil {
-		return false, err
-	}
-	var ucred *syscall.Ucred
-	var ucredErr error
-	err = sysConn.Control(func(fd uintptr) {
-		ucred, ucredErr = syscall.GetsockoptUcred(int(fd), syscall.SOL_SOCKET, syscall.SO_PEERCRED)
-	})
-	if err != nil || ucredErr != nil {
-		return false, err
-	}
-	if (ucred.Uid == 0 && ucred.Gid == 0) ||
-		(ucred.Uid == uint32(allowedUsrID) && ucred.Gid == uint32(allowedGrpID)) {
-		return true, nil
-	}
-	return false, nil
-}
-
 // HttpServe is equivalent to http.Serve()
-// but will check credential (root:root or allowedUsrID:allowedGrpID) are allowed to access the unix socket
-func HttpServe(l net.Listener, handler http.Handler, allowedUsrID int, allowedGrpID int) error {
-	srv := &http.Server{
-		Handler: handler,
-		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+// but will check credential if authSocket is true
+// (root:root or allowedUsrID:allowedGrpID) are allowed to access the unix socket
+func HttpServe(l net.Listener, handler http.Handler, authSocket bool, allowedUsrID int, allowedGrpID int) error {
+	srv := &http.Server{Handler: handler}
+	if authSocket {
+		srv.ConnContext = func(ctx context.Context, c net.Conn) context.Context {
 			var unixConn *net.UnixConn
 			var ok bool
 			if unixConn, ok = c.(*net.UnixConn); !ok {
@@ -60,15 +40,17 @@ func HttpServe(l net.Listener, handler http.Handler, allowedUsrID int, allowedGr
 			if err != nil || !valid {
 				if err != nil {
 					log.Errorf("unix socket %s -> %s closing connection, error %s", unixConn.LocalAddr(), unixConn.RemoteAddr(), err)
-				}
-				if !valid {
-					log.Debugf("unix socket %s -> %s closing connection, rejected", unixConn.LocalAddr(), unixConn.RemoteAddr())
+				} else if !valid {
+					log.Errorf("unix socket %s -> %s closing connection, rejected. User accessing this socket require to be root or %d/%d (uid/gid)", unixConn.LocalAddr(), unixConn.RemoteAddr(), allowedUsrID, allowedGrpID)
 				}
 				// reject the connection
+				newCtx, cancelCtx := context.WithCancel(ctx)
+				ctx = newCtx
+				cancelCtx()
 				c.Close()
 			}
 			return ctx
-		},
+		}
 	}
 	return srv.Serve(l)
 }

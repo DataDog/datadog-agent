@@ -9,6 +9,7 @@ package net
 
 import (
 	"fmt"
+	"net"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 )
@@ -29,4 +30,9 @@ func CheckPath(path string) error {
 		return fmt.Errorf("socket path is empty")
 	}
 	return nil
+}
+
+// IsUnixNetConnValid is always return true, as there are no support of SO_PEERCRED socket option on this platform
+func IsUnixNetConnValid(unixConn *net.UnixConn, allowedUsrID int, allowedGrpID int) (bool, error) {
+	return true, nil
 }

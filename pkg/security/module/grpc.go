@@ -19,7 +19,6 @@ import (
 
 	processnet "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -57,9 +56,8 @@ func (gustc grpcUnixSocketTransportCredential) ServerHandshake(conn net.Conn) (n
 	if err != nil || !valid {
 		if err != nil {
 			log.Errorf("unix socket %s -> %s closing connection, error %s", unixConn.LocalAddr(), unixConn.RemoteAddr(), err)
-		}
-		if !valid {
-			log.Debugf("unix socket %s -> %s closing connection, rejected", unixConn.LocalAddr(), unixConn.RemoteAddr())
+		} else if !valid {
+			log.Errorf("unix socket %s -> %s closing connection, rejected. User accessing this socket require to be root or %d/%d (uid/gid)", unixConn.LocalAddr(), unixConn.RemoteAddr(), gustc.allowedUsrID, gustc.allowedGrpID)
 		}
 		// reject the connection
 		conn.Close()
@@ -79,22 +77,19 @@ func (gustc grpcUnixSocketTransportCredential) OverrideServerName(string) error 
 	return nil
 }
 
-func NewGRPCServer(socketPath string) *GRPCServer {
+func GRPCWithCredOptions(allowedUsrID, allowedGrpID int) grpc.ServerOption {
+	return grpc.Creds(grpcUnixSocketTransportCredential{
+		allowedUsrID: allowedUsrID,
+		allowedGrpID: allowedGrpID})
+}
+
+func NewGRPCServer(socketPath string, opts ...grpc.ServerOption) *GRPCServer {
 	// force socket cleanup of previous socket not cleanup
 	_ = os.Remove(socketPath)
 
-	found, allowedUsrID, allowedGrpID, err := filesystem.UserDDAgent()
-	if err != nil || !found {
-		// if user dd-agent doesn't exist, map to root
-		allowedUsrID = 0
-		allowedGrpID = 0
-	}
-
 	return &GRPCServer{
 		socketPath: socketPath,
-		server: grpc.NewServer(grpc.Creds(grpcUnixSocketTransportCredential{
-			allowedUsrID: allowedUsrID,
-			allowedGrpID: allowedGrpID})),
+		server:     grpc.NewServer(opts...),
 	}
 }
 

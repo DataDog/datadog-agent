@@ -8,6 +8,8 @@
 package net
 
 import (
+	"net"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -46,4 +48,9 @@ func (r *RemoteSysProbeUtil) GetProcStats(pids []int32) (*model.ProcStatsWithPer
 // Register is not supported
 func (r *RemoteSysProbeUtil) Register(clientID string) error {
 	return ebpf.ErrNotImplemented
+}
+
+// IsUnixNetConnValid is always return true, as there are no support of SO_PEERCRED socket option on this platform
+func IsUnixNetConnValid(unixConn *net.UnixConn, allowedUsrID int, allowedGrpID int) (bool, error) {
+	return true, nil
 }

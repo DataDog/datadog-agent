@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -26,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 // CWSConsumer represents the system-probe module for the runtime security agent
@@ -57,6 +59,17 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, config *config.RuntimeSecuri
 		seclog.Errorf("unable to instantiate self tests: %s", err)
 	}
 
+	var grpcOpts []grpc.ServerOption
+	if config.AuthSocket {
+		allowedUsrID, allowedGrpID, err := filesystem.UserDDAgent()
+		if err != nil {
+			// if user dd-agent doesn't exist, map to root
+			allowedUsrID = 0
+			allowedGrpID = 0
+		}
+		grpcOpts = append(grpcOpts, GRPCWithCredOptions(allowedUsrID, allowedGrpID))
+	}
+
 	c := &CWSConsumer{
 		config:       config,
 		probe:        evm.Probe,
@@ -67,7 +80,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, config *config.RuntimeSecuri
 		apiServer:     NewAPIServer(config, evm.Probe, evm.StatsdClient, selfTester),
 		rateLimiter:   events.NewRateLimiter(config, evm.StatsdClient),
 		sendStatsChan: make(chan chan bool, 1),
-		grpcServer:    NewGRPCServer(config.SocketPath),
+		grpcServer:    NewGRPCServer(config.SocketPath, grpcOpts...),
 		selfTester:    selfTester,
 	}
 

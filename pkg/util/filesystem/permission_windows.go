@@ -21,6 +21,11 @@ type Permission struct {
 	systemSid        *windows.SID
 }
 
+// return the user dd-agent uid and gid on Unix, windows doesn't support unix socket credential
+func UserDDAgent() (usrID int, grpID int, err error) {
+	return 0, 0, fmt.Errorf("dd-agent doesn't exist")
+}
+
 // NewPermission creates a new instance of `Permission`
 func NewPermission() (*Permission, error) {
 	administratorSid, err := windows.StringToSid("S-1-5-32-544")

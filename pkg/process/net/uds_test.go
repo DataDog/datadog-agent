@@ -8,6 +8,7 @@
 package net
 
 import (
+	"context"
 	"errors"
 	"net"
 	"net/http"
@@ -18,16 +19,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func testSocketExistsNewUDSListener(t *testing.T, socketPath string) {
 	// Pre-create a socket
 	addr, err := net.ResolveUnixAddr("unix", socketPath)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	_, err = net.Listen("unix", addr.Name)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Create a new socket using UDSListener
 	l, err := NewListener(socketPath)
@@ -39,7 +39,7 @@ func testSocketExistsNewUDSListener(t *testing.T, socketPath string) {
 func testSocketExistsAsRegularFileNewUDSListener(t *testing.T, socketPath string) {
 	// Pre-create a file
 	f, err := os.OpenFile(socketPath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0600)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer f.Close()
 
 	// Create a new socket using UDSListener
@@ -52,12 +52,12 @@ func testWorkingNewUDSListener(t *testing.T, socketPath string) {
 	require.NoError(t, err)
 	defer s.Stop()
 
-	assert.NoError(t, err)
-	assert.NotNil(t, s)
+	require.NoError(t, err)
+	require.NotNil(t, s)
 	time.Sleep(1 * time.Second)
 	fi, err := os.Stat(socketPath)
 	require.NoError(t, err)
-	assert.Equal(t, "Srwx-w----", fi.Mode().String())
+	require.Equal(t, "Srwx-w----", fi.Mode().String())
 }
 
 func TestNewUDSListener(t *testing.T) {
@@ -84,82 +84,114 @@ type fakeHandler struct {
 
 func (f *fakeHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	f.request = req.URL.String()
+	w.WriteHeader(200)
 }
 
-func testHttpServe(t *testing.T, shouldFailed bool, f *fakeHandler, prefixCmd []string, uid int, gid int) error {
-	dir, err := os.MkdirTemp("", "testHttpServe-*")
-	assert.NoError(t, err)
-	t.Cleanup(func() { os.RemoveAll(dir) })
+func testHttpServe(t *testing.T, shouldFailed bool, f *fakeHandler, prefixCmd []string, auth bool, uid int, gid int) (err error) {
+	dir := t.TempDir()
 	err = os.Chmod(dir, 0777)
-	assert.NoError(t, err)
+	require.NoError(t, err)
+	err = os.Chmod(dir+"/..", 0777)
+	require.NoError(t, err)
 
 	socketPath := dir + "/test.http.sock"
 	conn, err := net.Listen("unix", socketPath)
-	assert.NoError(t, err)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = conn.Close() })
 	err = os.Chmod(socketPath, 0666)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	go func() {
-		time.Sleep(time.Second)
 		cmd := append(prefixCmd, "curl", "-s", "--unix-socket", socketPath, "http://unix/test")
 		o, err := exec.Command(cmd[0], cmd[1:]...).CombinedOutput()
-		if err != nil && !shouldFailed {
-			t.Log(string(o))
-		}
+		conn.Close() // closing the server
 		if !shouldFailed {
-			assert.NoError(t, err)
+			if err != nil {
+				t.Log(cmd, string(o))
+			}
+			require.NoError(t, err)
 		} else {
-			assert.Error(t, err)
+			require.Error(t, err)
 		}
-		conn.Close()
 	}()
 
-	return HttpServe(conn, f, uid, gid)
+	return HttpServe(conn, f, auth, uid, gid)
 }
 
 func lookupUser(t *testing.T, name string) (usrID int, grpID int, usrIDstr string, grpIDstr string) {
 	usr, err := user.Lookup(name)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	usrID, err = strconv.Atoi(usr.Uid)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	grpID, err = strconv.Atoi(usr.Gid)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	grp, err := user.LookupGroupId(usr.Gid)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	return usrID, grpID, usr.Username, grp.Name
 }
 
+func checkIfSudoExistAndNotInteractive(t *testing.T) {
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second))
+	defer cancel()
+	if err := exec.CommandContext(ctx, "sudo", "id").Run(); err != nil {
+		t.Skipf("sudo is not installed or interactive")
+	}
+}
+
 func TestHttpServe(t *testing.T) {
+	checkIfSudoExistAndNotInteractive(t)
+
+	auth := true
 	uid, gid, uidStr, gidStr := lookupUser(t, "nobody")
 
 	t.Run("root always valid", func(t *testing.T) {
 		f := &fakeHandler{t: t}
-		err := testHttpServe(t, false, f, []string{"sudo"}, uid, gid)
+		err := testHttpServe(t, false, f, []string{"sudo"}, auth, uid, gid)
 		if !errors.Is(err, net.ErrClosed) && err != http.ErrServerClosed {
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
-		assert.Equal(t, "/test", f.request)
+		require.Equal(t, "/test", f.request)
 	})
 
 	t.Run("nobody:nogroup is valid", func(t *testing.T) {
 		f := &fakeHandler{t: t}
-		err := testHttpServe(t, false, f, []string{"sudo", "-u", uidStr, "-g", gidStr}, uid, gid)
+		err := testHttpServe(t, false, f, []string{"sudo", "-u", uidStr, "-g", gidStr}, auth, uid, gid)
 		if !errors.Is(err, net.ErrClosed) && err != http.ErrServerClosed {
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
-		assert.Equal(t, "/test", f.request)
+		require.Equal(t, "/test", f.request)
 	})
 
 	t.Run("nobody:nogroup no access", func(t *testing.T) {
 		f := &fakeHandler{t: t}
-		err := testHttpServe(t, true, f, []string{"sudo", "-u", uidStr, "-g", gidStr}, 0, 0)
+		err := testHttpServe(t, true, f, []string{"sudo", "-u", uidStr, "-g", gidStr}, auth, 0, 0)
 		if errors.Is(err, net.ErrClosed) || err == http.ErrServerClosed {
-			assert.Error(t, err)
+			require.Error(t, err)
 		}
-		assert.Equal(t, "", f.request)
+		require.Equal(t, "", f.request)
 	})
+
+	auth = false
+	t.Run("root always valid (auth socket disabled)", func(t *testing.T) {
+		f := &fakeHandler{t: t}
+		err := testHttpServe(t, false, f, []string{"sudo"}, auth, uid, gid)
+		if !errors.Is(err, net.ErrClosed) && err != http.ErrServerClosed {
+			require.NoError(t, err)
+		}
+		require.Equal(t, "/test", f.request)
+	})
+
+	t.Run("nobody:nogroup access (auth socket disabled)", func(t *testing.T) {
+		f := &fakeHandler{t: t}
+		err := testHttpServe(t, false, f, []string{"sudo", "-u", uidStr, "-g", gidStr}, auth, 0, 0)
+		if !errors.Is(err, net.ErrClosed) && err != http.ErrServerClosed {
+			require.NoError(t, err)
+		}
+		require.Equal(t, "/test", f.request)
+	})
+
 }

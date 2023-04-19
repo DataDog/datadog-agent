@@ -30,36 +30,33 @@ func NewPermission() (*Permission, error) {
 }
 
 // return the user dd-agent uid and gid
-func UserDDAgent() (found bool, usrID int, grpID int, err error) {
+func UserDDAgent() (usrID int, grpID int, err error) {
 	usr, err := user.Lookup("dd-agent")
 	if err != nil {
-		return false, 0, 0, err
+		return 0, 0, err
 	}
 
 	usrID, err = strconv.Atoi(usr.Uid)
 	if err != nil {
-		return true, 0, 0, fmt.Errorf("couldn't parse UID (%s): %w", usr.Uid, err)
+		return 0, 0, fmt.Errorf("couldn't parse UID (%s): %w", usr.Uid, err)
 	}
 
 	grpID, err = strconv.Atoi(usr.Gid)
 	if err != nil {
-		return true, 0, 0, fmt.Errorf("couldn't parse GID (%s): %w", usr.Gid, err)
+		return 0, 0, fmt.Errorf("couldn't parse GID (%s): %w", usr.Gid, err)
 	}
-	return true, usrID, grpID, nil
+	return usrID, grpID, nil
 }
 
 // RestrictAccessToUser sets the file user and group to the same as 'dd-agent' user. If the function fails to lookup
 // "dd-agent" user it return nil immediately.
 func (p *Permission) RestrictAccessToUser(path string) error {
-	found, usrID, grpID, err := UserDDAgent()
-	if !found {
+	usrID, grpID, err := UserDDAgent()
+	if err != nil {
 		warnOnce.Do(func() {
 			log.Warnf("dd-agent user not found, skipping restriction")
 		})
 		return nil
-	}
-	if err != nil {
-		return err
 	}
 	if err = os.Chown(path, usrID, grpID); err != nil {
 		if errors.Is(err, fs.ErrPermission) {

@@ -9,6 +9,7 @@ package net
 
 import (
 	"net"
+	"net/http"
 )
 
 // WindowsPipeListener for communicating with Probe
@@ -31,4 +32,10 @@ func (wp *WindowsPipeListener) GetListener() net.Listener {
 // Stop closes the WindowsPipeListener connection and stops listening
 func (wp *WindowsPipeListener) Stop() {
 	wp.conn.Close()
+}
+
+// HttpServe is equivalent to http.Serve()
+// authSocket, allowedUsrID, allowedGrpID are unused, as windows doesn't support credential
+func HttpServe(l net.Listener, handler http.Handler, authSocket bool, allowedUsrID int, allowedGrpID int) error {
+	return http.Serve(l, handler)
 }
