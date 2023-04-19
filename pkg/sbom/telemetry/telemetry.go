@@ -19,7 +19,7 @@ var (
 	// SBOMAttempts tracks sbom collection attempts.
 	SBOMAttempts = telemetry.NewCounterWithOpts(
 		subsystem,
-		"sbom_attempts",
+		"attempts",
 		[]string{"source", "type"},
 		"Number of sbom failures by (source, type)",
 		commonOpts,
@@ -27,7 +27,7 @@ var (
 	// SBOMFailures tracks sbom collection attempts that fail.
 	SBOMFailures = telemetry.NewCounterWithOpts(
 		subsystem,
-		"sbom_errors",
+		"errors",
 		[]string{"source", "type", "reason"},
 		"Number of sbom failures by (source, type, reason)",
 		commonOpts,
@@ -37,7 +37,7 @@ var (
 	// in seconds.
 	SBOMGenerationDuration = telemetry.NewHistogramWithOpts(
 		subsystem,
-		"sbom_generation_duration",
+		"generation_duration",
 		[]string{},
 		"SBOM generation duration (in seconds)",
 		[]float64{10, 30, 60, 120, 180, 240, 300, 360, 420, 480, 540, 600},
@@ -47,7 +47,7 @@ var (
 	// SBOMCacheMemSize size in memory of the cache used for SBOM collection
 	SBOMCacheMemSize = telemetry.NewGaugeWithOpts(
 		subsystem,
-		"sbom_cache_mem_size",
+		"cache_mem_size",
 		[]string{},
 		"SBOM cache size in memory (in bytes)",
 		commonOpts,
@@ -56,7 +56,7 @@ var (
 	// SBOMCacheDiskSize size in disk of the custom cache used for SBOM collection
 	SBOMCacheDiskSize = telemetry.NewGaugeWithOpts(
 		subsystem,
-		"sbom_cache_disk_size",
+		"cache_disk_size",
 		[]string{},
 		"SBOM size in disk of the custom cache (in bytes)",
 		commonOpts,
@@ -65,7 +65,7 @@ var (
 	// SBOM number of cache keys stored in memory
 	SBOMCacheEntries = telemetry.NewGaugeWithOpts(
 		subsystem,
-		"sbom_cached_keys",
+		"cached_keys",
 		[]string{},
 		"Number of cache keys stored in memory",
 		commonOpts,
@@ -74,7 +74,7 @@ var (
 	// SBOMCachedObjectSize total size of cached objects in disk (in bytes) used for SBOM collection
 	SBOMCachedObjectSize = telemetry.NewGaugeWithOpts(
 		subsystem,
-		"sbom_cached_object_size",
+		"cached_objects_size",
 		[]string{},
 		"SBOM total size of cached objects in disk (in bytes)",
 		commonOpts,
@@ -83,7 +83,7 @@ var (
 	// SBOMCacheHits number of cache hits during SBOM collection
 	SBOMCacheHits = telemetry.NewCounterWithOpts(
 		subsystem,
-		"sbom_cache_hits_total",
+		"cache_hits_total",
 		[]string{},
 		"SBOM total number of cache hits during SBOM collection",
 		commonOpts,
@@ -92,7 +92,7 @@ var (
 	// SBOMCacheMisses number of cache misses during SBOM collection
 	SBOMCacheMisses = telemetry.NewCounterWithOpts(
 		subsystem,
-		"sbom_cache_misses_total",
+		"cache_misses_total",
 		[]string{},
 		"SBOM total number of cache misses during SBOM collection",
 		commonOpts,
@@ -101,7 +101,7 @@ var (
 	// SBOMCacheEvicts number of cache evicts during SBOM collection
 	SBOMCacheEvicts = telemetry.NewCounterWithOpts(
 		subsystem,
-		"sbom_cache_evicts_total",
+		"cache_evicts_total",
 		[]string{},
 		"SBOM total number of cache misses during SBOM collection",
 		commonOpts,
