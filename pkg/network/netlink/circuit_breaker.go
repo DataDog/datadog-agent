@@ -64,6 +64,7 @@ func NewCircuitBreaker(maxEventsPerSec int64, tickInterval time.Duration) *Circu
 
 	go func() {
 		ticker := time.NewTicker(tickInterval)
+		defer ticker.Stop()
 		for {
 			select {
 			case t := <-ticker.C:
