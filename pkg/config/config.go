@@ -1665,9 +1665,9 @@ func setupSBOMConfig(config Config, cacheDir string) {
 	config.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, cacheDir))
 	config.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
 	config.BindEnvAndSetDefault("sbom.use_custom_cache", false)
-	config.BindEnvAndSetDefault("sbom.custom_cache_max_disk_size", 1000*1000*10) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
-	config.BindEnvAndSetDefault("sbom.custom_cache_max_cache_entries", 1000)     // used by custom cache keys stored in memory
-	config.BindEnvAndSetDefault("sbom.cache_clean_interval", "30m")              // used by custom cache.
+	config.BindEnvAndSetDefault("sbom.custom_cache_max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
+	config.BindEnvAndSetDefault("sbom.custom_cache_max_cache_entries", 10000)     // used by custom cache keys stored in memory
+	config.BindEnvAndSetDefault("sbom.cache_clean_interval", "30m")               // used by custom cache.
 }
 
 // ResolveSecrets merges all the secret values from origin into config. Secret values
