@@ -30,10 +30,11 @@ func init() {
 
 // Config holds the container_image check configuration
 type Config struct {
-	ChunkSize                       int `yaml:"chunk_size"`
-	NewSBOMMaxLatencySeconds        int `yaml:"new_sbom_max_latency_seconds"`
-	ContainerPeriodicRefreshSeconds int `yaml:"periodic_refresh_seconds"`
-	HostPeriodicRefreshSeconds      int `yaml:"host_periodic_refresh_seconds"`
+	ChunkSize                       int  `yaml:"chunk_size"`
+	NewSBOMMaxLatencySeconds        int  `yaml:"new_sbom_max_latency_seconds"`
+	ContainerPeriodicRefreshSeconds int  `yaml:"periodic_refresh_seconds"`
+	HostSBOM                        bool `yaml:"host_sbom"`
+	HostPeriodicRefreshSeconds      int  `yaml:"host_periodic_refresh_seconds"`
 }
 
 type configValueRange struct {
@@ -125,7 +126,7 @@ func (c *Check) Configure(integrationConfigDigest uint64, config, initConfig int
 		return err
 	}
 
-	c.processor, err = newProcessor(c.workloadmetaStore, sender, c.instance.ChunkSize, time.Duration(c.instance.NewSBOMMaxLatencySeconds)*time.Second)
+	c.processor, err = newProcessor(c.workloadmetaStore, sender, c.instance.ChunkSize, time.Duration(c.instance.NewSBOMMaxLatencySeconds)*time.Second, c.instance.HostSBOM)
 	if err != nil {
 		return err
 	}
