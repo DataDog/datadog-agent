@@ -59,8 +59,9 @@ type Client struct {
 	agentVersion string
 	products     []string
 
-	clusterName string
-	clusterID   string
+	clusterName  string
+	clusterID    string
+	cwsWorkloads []string
 
 	pollInterval      time.Duration
 	lastUpdateError   error
@@ -193,6 +194,7 @@ func newClient(agentName string, updater ConfigUpdater, doTufVerification bool, 
 		agentVersion:        agentVersion,
 		clusterName:         clusterName,
 		clusterID:           clusterID,
+		cwsWorkloads:        make([]string, 0),
 		products:            data.ProductListToString(products),
 		state:               repository,
 		pollInterval:        pollInterval,
@@ -424,10 +426,11 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 			IsAgent:  true,
 			IsTracer: false,
 			ClientAgent: &pbgo.ClientAgent{
-				Name:        c.agentName,
-				Version:     c.agentVersion,
-				ClusterName: c.clusterName,
-				ClusterId:   c.clusterID,
+				Name:         c.agentName,
+				Version:      c.agentVersion,
+				ClusterName:  c.clusterName,
+				ClusterId:    c.clusterID,
+				CwsWorkloads: c.cwsWorkloads,
 			},
 		},
 		CachedTargetFiles: pbCachedFiles,
