@@ -204,3 +204,6 @@ test/fakeintake/build/*
 
 # dev container
 .devcontainer/
+
+# Node modules
+**/*node_modules/*
