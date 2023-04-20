@@ -163,7 +163,6 @@ if node['platform_family'] == 'windows'
   if !source_url.end_with? '/'
     source_url += '/'
   end
-  source_url += dd_agent_installer
 
   if dd_agent_filename
     dd_agent_installer_basename = dd_agent_filename
@@ -174,7 +173,6 @@ if node['platform_family'] == 'windows'
       dd_agent_installer_basename = "datadog-agent-6.0.0-beta.latest.amd64"
     end
   end
-
 
   temp_file_basename = ::File.join(Chef::Config[:file_cache_path], 'ddagent-cli').gsub(File::SEPARATOR, File::ALT_SEPARATOR || File::SEPARATOR)
 
