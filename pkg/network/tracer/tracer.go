@@ -753,11 +753,11 @@ func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
 	if t.usmMonitor == nil {
 		return "tracer:\n" + tracerMaps, nil
 	}
-	httpMaps, err := t.usmMonitor.DumpMaps(maps...)
+	usmMaps, err := t.usmMonitor.DumpMaps(maps...)
 	if err != nil {
 		return "", err
 	}
-	return "tracer:\n" + tracerMaps + "\nhttp_monitor:\n" + httpMaps, nil
+	return "tracer:\n" + tracerMaps + "\nhttp_monitor:\n" + usmMaps, nil
 }
 
 // connectionExpired returns true if the passed in connection has expired
