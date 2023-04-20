@@ -97,6 +97,7 @@ namespace WixSetup.Datadog
                 {
                     AttributesDefinition = "Secure=yes",
                 },
+                // WiX doesn't support getting the real build number on Windows 10+ so we must fetch it ourselves
                 new Property("WINDOWSBUILD",
                     new RegistrySearch(RegistryHive.LocalMachine,
                         @"Software\Microsoft\Windows NT\CurrentVersion",

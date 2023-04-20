@@ -94,8 +94,6 @@ namespace Datadog.CustomActions
 
                 // Must come after ReadRegistryProperties(), see remarks
                 PostProcessProperties();
-
-                GetWindowsBuildVersion();
             }
             catch (Exception e)
             {
@@ -200,28 +198,6 @@ namespace Datadog.CustomActions
             {
                 // Ensure we always set this property, otherwise the RegistryValue action will fail
                 _session["ALLOWCLOSEDSOURCE"] = Constants.AllowClosedSource_No;
-            }
-        }
-
-        /// <summary>
-        /// WiX doesn't support getting the real build number on Windows 10+ so we must fetch it ourselves
-        /// </summary>
-        private void GetWindowsBuildVersion()
-        {
-            using var subkey = _registryServices.OpenRegistryKey(Registries.LocalMachine,
-                @"Software\Microsoft\Windows NT\CurrentVersion");
-            if (subkey != null)
-            {
-                var currentBuild = subkey.GetValue("CurrentBuild");
-                if (currentBuild != null)
-                {
-                    _session["WindowsBuild"] = subkey.GetValue("CurrentBuild").ToString();
-                    _session.Log($"WindowsBuild: {_session["WindowsBuild"]}");
-                }
-            }
-            else
-            {
-                _session.Log("WindowsBuild not found");
             }
         }
 

@@ -26,8 +26,7 @@ namespace CustomActions.Tests.InstallState
                     "DDAGENTUSER_NAME",
                     "PROJECTLOCATION",
                     "APPLICATIONDATADIRECTORY",
-                    "CHECKBOX_ALLOWCLOSEDSOURCE",
-                    "WindowsBuild");
+                    "CHECKBOX_ALLOWCLOSEDSOURCE");
 
             // Must always be set in order to be written to the registry
             Test.Properties.Should()
@@ -60,8 +59,7 @@ namespace CustomActions.Tests.InstallState
                 .Contain("PROJECTLOCATION", @"C:\datadog").And
                 .Contain("APPLICATIONDATADIRECTORY", @"D:\data").And
                 .Contain("ALLOWCLOSEDSOURCE", Constants.AllowClosedSource_Yes).And
-                .Contain("CHECKBOX_ALLOWCLOSEDSOURCE", Constants.AllowClosedSource_Yes).And
-                .Contain("WindowsBuild", "z_1234567890");
+                .Contain("CHECKBOX_ALLOWCLOSEDSOURCE", Constants.AllowClosedSource_Yes);
         }
 
         [Theory]
