@@ -231,7 +231,7 @@ func defaultMetricAggregators() map[string]metricAggregator {
 			[]string{"namespace"},
 		),
 		"kube_secret_info": newCountObjectsAggregator(
-			"secrets.count",
+			"secret.count",
 			"kube_secret_info",
 			[]string{"namespace"},
 		),
