@@ -61,7 +61,7 @@ type Client struct {
 
 	clusterName  string
 	clusterID    string
-	cwsWorkloads []string
+	cwsWorkloads map[string]bool
 
 	pollInterval      time.Duration
 	lastUpdateError   error
@@ -194,7 +194,7 @@ func newClient(agentName string, updater ConfigUpdater, doTufVerification bool, 
 		agentVersion:        agentVersion,
 		clusterName:         clusterName,
 		clusterID:           clusterID,
-		cwsWorkloads:        make([]string, 0),
+		cwsWorkloads:        make(map[string]bool),
 		products:            data.ProductListToString(products),
 		state:               repository,
 		pollInterval:        pollInterval,
@@ -356,6 +356,20 @@ func (c *Client) APMTracingConfigs() map[string]state.APMTracingConfig {
 	return c.state.APMTracingConfigs()
 }
 
+// RegisterCWSWorkload TODO
+func (c *Client) RegisterCWSWorkload(workload string) {
+	c.m.Lock()
+	defer c.m.Unlock()
+	c.cwsWorkloads[workload] = true
+}
+
+// RemoveCWSWorkload TODO
+func (c *Client) RemoveCWSWorkload(workload string) {
+	c.m.Lock()
+	defer c.m.Unlock()
+	delete(c.cwsWorkloads, workload)
+}
+
 func (c *Client) applyUpdate(pbUpdate *pbgo.ClientGetConfigsResponse) ([]string, error) {
 	fileMap := make(map[string][]byte, len(pbUpdate.TargetFiles))
 	for _, f := range pbUpdate.TargetFiles {
@@ -411,6 +425,13 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 		})
 	}
 
+	workloadsList := make([]string, 0)
+	for workloadName, val := range c.cwsWorkloads {
+		if val {
+			workloadsList = append(workloadsList, workloadName)
+		}
+	}
+
 	req := &pbgo.ClientGetConfigsRequest{
 		Client: &pbgo.Client{
 			State: &pbgo.ClientState{
@@ -430,7 +451,7 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 				Version:      c.agentVersion,
 				ClusterName:  c.clusterName,
 				ClusterId:    c.clusterID,
-				CwsWorkloads: c.cwsWorkloads,
+				CwsWorkloads: workloadsList,
 			},
 		},
 		CachedTargetFiles: pbCachedFiles,
