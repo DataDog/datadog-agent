@@ -72,17 +72,17 @@ type Collector struct {
 
 var globalCollector *Collector
 
-func getDefaultArtifactOption(enabledAnalyzers []string, root string) artifact.Option {
+func getDefaultArtifactOption(root string, opts sbom.ScanOptions) artifact.Option {
 	option := artifact.Option{
 		Offline:           true,
 		NoProgress:        true,
-		DisabledAnalyzers: DefaultDisabledCollectors(enabledAnalyzers),
-		Slow:              true,
+		DisabledAnalyzers: DefaultDisabledCollectors(opts.Analyzers),
+		Slow:              !opts.Fast,
 		SBOMSources:       []string{},
 		DisabledHandlers:  DefaultDisabledHandlers(),
 	}
 
-	if len(enabledAnalyzers) == 1 && enabledAnalyzers[0] == OSAnalyzers {
+	if len(opts.Analyzers) == 1 && opts.Analyzers[0] == OSAnalyzers {
 		option.OnlyDirs = []string{"etc", "var/lib/dpkg", "var/lib/rpm", "lib/apk"}
 		if root != "" {
 			// OnlyDirs is handled differently for image than for filesystem.
@@ -178,12 +178,12 @@ func NewCollector(cfg config.Config) (*Collector, error) {
 	}, nil
 }
 
-func GetGlobalCollector(_ config.Config) (*Collector, error) {
+func GetGlobalCollector(cfg config.Config) (*Collector, error) {
 	if globalCollector != nil {
 		return globalCollector, nil
 	}
 
-	collector, err := NewCollector(config.Datadog)
+	collector, err := NewCollector(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -265,7 +265,7 @@ func (c *Collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMe
 }
 
 func (c *Collector) scanFilesystem(ctx context.Context, path string, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	fsArtifact, err := local2.NewArtifact(path, c.cache, getDefaultArtifactOption(scanOptions.Analyzers, path))
+	fsArtifact, err := local2.NewArtifact(path, c.cache, getDefaultArtifactOption(path, scanOptions))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create artifact from fs, err: %w", err)
 	}
@@ -308,7 +308,7 @@ func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, imgMet
 }
 
 func (c *Collector) scanImage(ctx context.Context, fanalImage ftypes.Image, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	imageArtifact, err := image2.NewArtifact(fanalImage, c.cache, getDefaultArtifactOption(scanOptions.Analyzers, ""))
+	imageArtifact, err := image2.NewArtifact(fanalImage, c.cache, getDefaultArtifactOption("", scanOptions))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create artifact from image, err: %w", err)
 	}
