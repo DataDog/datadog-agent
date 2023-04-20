@@ -230,7 +230,7 @@ func ConstructStatementMetricsQueryBlock(sqlHandleColumn string, whereClause str
 func GetStatementsMetricsForKeys[K comparable](c *Check, keyName string, whereClause string, keys map[K]int) ([]StatementMetricsDB, error) {
 	if len(keys) != 0 {
 		db := c.db
-		driver := c.driver
+		//driver := c.driver
 		var bindPlaceholder string
 		keysSlice := maps.Keys(keys)
 
@@ -254,16 +254,16 @@ func GetStatementsMetricsForKeys[K comparable](c *Check, keyName string, whereCl
 
 		log.Tracef("Statements query metrics keys %s: %+v", keyName, keysSlice)
 
-		if driver == common.Godror {
-			query, args, err := sqlx.In(statements_metrics_query, keysSlice)
-			if err != nil {
-				return nil, fmt.Errorf("error preparing statement metrics query: %w %s", err, statements_metrics_query)
-			}
-			err = db.Select(&statementMetrics, db.Rebind(query), args...)
-			if err != nil {
-				return nil, fmt.Errorf("error executing statement metrics query: %w %s", err, statements_metrics_query)
-			}
-		} else if driver == common.GoOra {
+		//if driver == common.Godror {
+		query, args, err := sqlx.In(statements_metrics_query, keysSlice)
+		if err != nil {
+			return nil, fmt.Errorf("error preparing statement metrics query: %w %s", err, statements_metrics_query)
+		}
+		err = db.Select(&statementMetrics, db.Rebind(query), args...)
+		if err != nil {
+			return nil, fmt.Errorf("error executing statement metrics query: %w %s", err, statements_metrics_query)
+		}
+		/* } else if driver == common.GoOra {
 			// workaround for https://github.com/jmoiron/sqlx/issues/854
 			convertedSlice := make([]any, len(keysSlice))
 			for i := range keysSlice {
@@ -273,7 +273,7 @@ func GetStatementsMetricsForKeys[K comparable](c *Check, keyName string, whereCl
 			if err != nil {
 				return nil, fmt.Errorf("error executing statement metrics query: %w %s", err, statements_metrics_query)
 			}
-		}
+		} */
 		return statementMetrics, nil
 	}
 	return nil, nil
@@ -302,7 +302,11 @@ func (c *Check) StatementMetrics() (int, error) {
 	if c.config.QueryMetrics {
 		if c.config.InstanceConfig.IncludeDatadogQueries {
 			var DDForceMatchingSignatures []string
-			err = c.db.Select(&DDForceMatchingSignatures, "SELECT distinct force_matching_signature FROM v$sqlstats WHERE sql_text like '%/* DD%'")
+			err = c.db.Select(
+				&DDForceMatchingSignatures,
+				"SELECT distinct force_matching_signature FROM v$sqlstats WHERE sql_text like '%/* DD%' and (sysdate-last_active_time)*3600*24 < :1",
+				time.Since(c.statementsLastRun).Seconds(),
+			)
 			if err != nil {
 				log.Error("error getting sql_ids from DD queries")
 			}
@@ -559,8 +563,6 @@ func (c *Check) StatementMetrics() (int, error) {
 				FQTDBMetadata := FQTDBMetadata{Tables: queryRow.Tables, Commands: queryRow.Commands}
 				FQTDB := FQTDB{Instance: c.cdbName, QuerySignature: queryRow.QuerySignature, Statement: SQLStatement, FQTDBMetadata: FQTDBMetadata}
 				FQTDBOracle := FQTDBOracle{
-					//ForceMatchingSignature: statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature,
-					//SQLID:                  statementMetricRow.StatementMetricsKeyDB.SQLID,
 					CDBName: c.cdbName,
 				}
 				FQTPayload := FQTPayload{
@@ -634,6 +636,8 @@ func (c *Check) StatementMetrics() (int, error) {
 	c.statementsFilter.ForceMatchingSignatures = nil
 	c.statementsCache.SQLIDs = nil
 	c.statementsCache.forceMatchingSignatures = nil
+
+	c.statementsLastRun = start
 
 	return SQLCount, nil
 }

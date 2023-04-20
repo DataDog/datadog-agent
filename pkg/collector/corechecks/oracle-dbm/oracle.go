@@ -8,6 +8,7 @@ package oracle
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -56,6 +57,7 @@ type Check struct {
 	dbHostname                              string
 	dbVersion                               string
 	driver                                  string
+	statementsLastRun                       time.Time
 }
 
 // Run executes the check.
