@@ -356,8 +356,8 @@ func (c *Client) APMTracingConfigs() map[string]state.APMTracingConfig {
 	return c.state.APMTracingConfigs()
 }
 
-// SetCWSWorkload updates the list of workloads that needs cws profiles
-func (c *Client) SetCWSWorkload(workloads []string) {
+// SetCWSWorkloads updates the list of workloads that needs cws profiles
+func (c *Client) SetCWSWorkloads(workloads []string) {
 	c.m.Lock()
 	defer c.m.Unlock()
 	c.cwsWorkloads = workloads
