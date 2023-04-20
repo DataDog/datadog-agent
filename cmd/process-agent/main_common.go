@@ -158,7 +158,7 @@ func runApp(exit chan struct{}, globalParams *command.GlobalParams) error {
 
 	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
 	if !anyChecksEnabled(appInitDeps.Checks) {
-		appInitDeps.Logger.Infof(agent6DisabledMessage)
+		log.Infof(agent6DisabledMessage)
 		return nil
 	}
 
