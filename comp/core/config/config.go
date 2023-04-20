@@ -40,7 +40,7 @@ func (d dependencies) getParams() *Params {
 //	will then become obsolete - ts should not be created
 //	directly in this fashion.
 func NewServerlessConfig(path string) (Component, error) {
-	p := NewParams(path, WithConfigName("serverless"), WithConfigLoadSecrets(true))
+	p := NewParams(path, WithConfigName("serverless"), WithConfigLoadSecrets(true), WithConfigMissingOK(true))
 	d := dependencies{
 		Params: p,
 	}

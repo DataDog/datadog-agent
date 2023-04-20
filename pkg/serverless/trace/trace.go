@@ -69,7 +69,7 @@ const invocationSpanResource = "dd-tracer-serverless-span"
 // Load loads the config from a file path
 func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 	c, err := compcorecfg.NewServerlessConfig(l.Path)
-	if err != nil {
+	if err != nil || c == nil {
 		return nil, err
 	}
 	return comptracecfg.LoadConfigFile(l.Path, c)
