@@ -108,7 +108,7 @@ func TestLambdaSpanChan(t *testing.T) {
 	agnt.ModifySpan = spanModifier.ModifySpan
 	defer cancel()
 
-	tc := testutil.RandomTraceChunk(1, 3)
+	tc := testutil.RandomTraceChunk(1, 1)
 	tc.Priority = 1 // ensure trace is never sampled out
 	tp := testutil.TracerPayloadWithChunk(tc)
 	tp.Chunks[0].Spans[0].Service = "aws.lambda"
@@ -118,15 +118,48 @@ func TestLambdaSpanChan(t *testing.T) {
 		Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 	})
 	timeout := time.After(2 * time.Second)
-	receivedSpanCount := 0
 	var span *pb.Span
 	select {
 	case ss := <-lambdaSpanChan:
-		receivedSpanCount++
 		span = ss
 	case <-timeout:
 		t.Fatal("timed out")
 	}
 	assert.Equal(t, "myTestService", span.Service)
-	assert.Equal(t, receivedSpanCount, 1)
+}
+
+func TestLambdaSpanChanWithInvalidSpan(t *testing.T) {
+	cfg := config.New()
+	cfg.GlobalTags = map[string]string{
+		"service": "myTestService",
+	}
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+	lambdaSpanChan := make(chan *pb.Span)
+	spanModifier := &spanModifier{
+		tags:           cfg.GlobalTags,
+		lambdaSpanChan: lambdaSpanChan,
+	}
+	agnt.ModifySpan = spanModifier.ModifySpan
+	defer cancel()
+
+	tc := testutil.RandomTraceChunk(1, 1)
+	tc.Priority = 1 // ensure trace is never sampled out
+	tp := testutil.TracerPayloadWithChunk(tc)
+	tp.Chunks[0].Spans[0].Service = "aws.lambda"
+	tp.Chunks[0].Spans[0].Name = "not.aws.lambda"
+	go agnt.Process(&api.Payload{
+		TracerPayload: tp,
+		Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+	})
+	timeout := time.After(time.Millisecond)
+	timedOut := false
+	select {
+	case ss := <-lambdaSpanChan:
+		t.Fatalf("received a non-lambda named span, %v", ss)
+	case <-timeout:
+		timedOut = true
+	}
+	assert.Equal(t, true, timedOut)
 }
