@@ -66,6 +66,26 @@ func TestDebuggerProxyHandler(t *testing.T) {
 		assert.True(t, called, "request not proxied")
 	})
 
+	t.Run("ok_truncate_ddtags", func(t *testing.T) {
+		tooLongString := strings.Repeat("x", 10000)
+		var called bool
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			ddtags := req.URL.Query().Get("ddtags")
+			count := strings.Count(ddtags, "x")
+			expected := 4000 - len("host:myhost,default_env:test,agent_version:v1")
+			assert.Equal(t, expected, count, "expected %d x's, got: %d", expected, count)
+			called = true
+		}))
+		req, err := http.NewRequest("POST", fmt.Sprintf("/some/path?ddtags=%s", tooLongString), nil)
+		assert.NoError(t, err)
+		conf := getConf()
+		conf.Hostname = "myhost"
+		conf.DebuggerProxy.DDURL = srv.URL
+		receiver := newTestReceiverFromConfig(conf)
+		receiver.debuggerProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
+		assert.True(t, called, "request not proxied")
+	})
+
 	t.Run("ok_multiple_requests", func(t *testing.T) {
 		extraTag := "a:b"
 		var numCalls atomic.Int32

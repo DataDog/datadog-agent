@@ -22,6 +22,9 @@ import (
 const (
 	// logsIntakeURLTemplate specifies the template for obtaining the intake URL along with the site.
 	logsIntakeURLTemplate = "https://http-intake.logs.%s/api/v2/logs"
+
+	// logsIntakeMaximumTagsLength is the maximum number of characters we send as ddtags.
+	logsIntakeMaximumTagsLength = 4001
 )
 
 // debuggerProxyHandler returns an http.Handler proxying requests to the logs intake. If the logs intake url cannot be
@@ -86,6 +89,12 @@ func getDirector(hostTags string, cidProvider IDProvider, containerTags func(str
 		if qtags := q.Get("ddtags"); qtags != "" {
 			tags = fmt.Sprintf("%s,%s", tags, qtags)
 		}
+		maxLen := len(tags)
+		if maxLen > logsIntakeMaximumTagsLength {
+			log.Warn("Truncating tags in debugger endpoint. Got %d, max is %d.", maxLen, logsIntakeMaximumTagsLength)
+			maxLen = logsIntakeMaximumTagsLength
+		}
+		tags = tags[0:maxLen]
 		q.Set("ddtags", tags)
 		req.URL.RawQuery = q.Encode()
 	}
