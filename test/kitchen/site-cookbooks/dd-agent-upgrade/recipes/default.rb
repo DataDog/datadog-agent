@@ -159,6 +159,12 @@ if node['platform_family'] == 'windows'
   dd_agent_version = node['dd-agent-upgrade']['windows_version']
   dd_agent_filename = node['dd-agent-upgrade']['windows_agent_filename']
 
+  source_url = node['dd-agent-upgrade']['windows_agent_url']
+  if !source_url.end_with? '/'
+    source_url += '/'
+  end
+  source_url += dd_agent_installer
+
   if dd_agent_filename
     dd_agent_installer_basename = dd_agent_filename
   else
@@ -169,35 +175,50 @@ if node['platform_family'] == 'windows'
     end
   end
 
-  temp_file_basename = ::File.join(Chef::Config[:file_cache_path], 'ddagent-up').gsub(File::SEPARATOR, File::ALT_SEPARATOR || File::SEPARATOR)
+
+  temp_file_basename = ::File.join(Chef::Config[:file_cache_path], 'ddagent-cli').gsub(File::SEPARATOR, File::ALT_SEPARATOR || File::SEPARATOR)
 
   dd_agent_installer = "#{dd_agent_installer_basename}.msi"
+  source_url += dd_agent_installer
   temp_file = "#{temp_file_basename}.msi"
-  installer_type = :msi
+  
+  log_file_name = ::File.join(Chef::Config[:file_cache_path], 'install.log').gsub(File::SEPARATOR, File::ALT_SEPARATOR || File::SEPARATOR)
+  # Delete the log file in case it exists (in case of multiple converge runs for example)
+  file log_file_name do
+    action :delete
+  end
+  
   # Agent >= 5.12.0 installs per-machine by default, but specifying ALLUSERS=1 shouldn't affect the install
   agent_install_options = node['dd-agent-upgrade']['agent_install_options']
-  install_options = "/norestart ALLUSERS=1  #{agent_install_options}"
+  install_options = "/log #{log_file_name} /norestart ALLUSERS=1 #{agent_install_options}"
 
-  use_windows_package_resource = true
+  # When WIXFAILWHENDEFERRED is present, we expect the installer to fail.
+  expected_msi_result_code = [0, 3010]
+  expected_msi_result_code.append(1603) if agent_install_options.include?('WIXFAILWHENDEFERRED')
 
-  source_url = node['dd-agent-upgrade']['windows_agent_url']
-  if !source_url.end_with? '/'
-    source_url += '/'
-  end
-  source_url += dd_agent_installer
-
-    # Download the installer to a temp location
-  remote_file temp_file do
+  windows_package 'Datadog Agent' do
     source source_url
     checksum node['dd-agent-upgrade']['windows_agent_checksum'] if node['dd-agent-upgrade']['windows_agent_checksum']
     retries package_retries unless package_retries.nil?
     retry_delay package_retry_delay unless package_retry_delay.nil?
+    options install_options
+    action :install
+    remote_file_attributes ({
+      :path => temp_file
+    })
+    returns expected_msi_result_code
+    # It's ok to ignore failure, the kitchen test will fail anyway
+    # but we need to print the install logs.
+    ignore_failure true
   end
 
-  execute "install-agent" do
-    command "start /wait msiexec /log upgrade.log /q /i #{temp_file} #{install_options}"
-    action :run
-    # notifies :restart, 'service[datadog-agent]'
+  ruby_block "Print install logs" do
+    only_if { ::File.exists?(log_file_name) }
+    block do
+      # Use warn, because Chef's default "log" is too chatty
+      # and the kitchen tests default to "warn"
+      Chef::Log.warn(File.open(log_file_name, "rb:UTF-16LE", &:read).encode('UTF-8'))
+    end
   end
 
 end
