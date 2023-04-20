@@ -27,6 +27,7 @@ type ScanOptions struct {
 	MinAvailableDisk uint64
 	Timeout          time.Duration
 	WaitAfter        time.Duration
+	Fast             bool
 }
 
 // ScanOptionsFromConfig loads the scanning options from the configuration
@@ -53,6 +54,7 @@ type ScanRequest interface {
 }
 
 type ScanResult struct {
+	Error     error
 	Report    Report
 	CreatedAt time.Time
 	Duration  time.Duration

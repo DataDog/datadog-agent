@@ -59,6 +59,8 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("ignore_host_etc", false)
 	cfg.BindEnvAndSetDefault("go_core_dump", false)
 
+	setupSBOMConfig(cfg, "sbom-sysprobe")
+
 	// Auto exit configuration
 	cfg.BindEnvAndSetDefault("auto_exit.validation_period", 60)
 	cfg.BindEnvAndSetDefault("auto_exit.noprocess.enabled", false)

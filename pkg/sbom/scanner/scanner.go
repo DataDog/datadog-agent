@@ -102,10 +102,19 @@ func (s *Scanner) start(ctx context.Context) {
 
 				telemetry.SBOMAttempts.Inc(request.Collector(), request.Type())
 
+				sendResult := func(scanResult sbom.ScanResult) {
+					select {
+					case request.ch <- scanResult:
+					default:
+						log.Errorf("Failed to push scanner result for '%s' into channel", request.ID())
+					}
+
+				}
+
 				collector := request.collector
 				if err := s.enoughDiskSpace(request.opts); err != nil {
+					sendResult(sbom.ScanResult{Error: fmt.Errorf("failed to check current disk usage: %w", err)})
 					telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "disk_space")
-					log.Errorf("An error occurred while checking current disk usage: %s", err)
 					continue
 				}
 
@@ -121,21 +130,17 @@ func (s *Scanner) start(ctx context.Context) {
 				cancel()
 				if err != nil {
 					telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "scan")
-					log.Errorf("An error occurred while generating SBOM for '%s': %s", request.ID(), err)
-					continue
+					err = fmt.Errorf("an error occurred while generating SBOM for '%s': %w", request.ID(), err)
 				}
 
 				telemetry.SBOMGenerationDuration.Observe(generationDuration.Seconds())
 
-				select {
-				case request.ch <- sbom.ScanResult{
+				sendResult(sbom.ScanResult{
+					Error:     err,
 					Report:    report,
 					CreatedAt: createdAt,
 					Duration:  generationDuration,
-				}:
-				default:
-					log.Errorf("Failed to push scanner result for '%s' into channel", request.ID())
-				}
+				})
 
 				if request.opts.WaitAfter != 0 {
 					t := time.NewTimer(request.opts.WaitAfter)

@@ -417,7 +417,7 @@ func TestProcessEvents(t *testing.T) {
 
 			// Define a max size of 1 for the queue. With a size > 1, it's difficult to
 			// control the number of events sent on each call.
-			p, err := newProcessor(fakeworkloadmeta, sender, 1, 50*time.Millisecond)
+			p, err := newProcessor(fakeworkloadmeta, sender, 1, 50*time.Millisecond, false)
 			if err != nil {
 				t.Fatal(err)
 			}
