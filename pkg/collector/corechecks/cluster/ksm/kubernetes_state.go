@@ -138,6 +138,12 @@ type KSMConfig struct {
 	// Can be useful when running the check as cluster check
 	LeaderSkip bool `yaml:"skip_leader_election"`
 
+	//EnableConfigMapCount allows for enabling or disabling the kubernetes_state.configmap.count metric
+	EnableConfigMapCount bool `yaml:"enable_configmap_count"`
+
+	//EnableSecretCount allows for enabling or disabling the kubernetes_state.secret.count metric
+	EnableSecretCount bool `yaml:"enable_secret_count"`
+
 	// Private field containing the label joins configuration built from `LabelJoins`, `LabelsAsTags` and `AnnotationsAsTags`.
 	labelJoins map[string]*joinsConfig
 }
@@ -503,6 +509,14 @@ func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][
 		for _, metricFamily := range metricsList {
 			// First check for aggregator, because the check use _labels metrics to aggregate values.
 			if aggregator, found := k.metricAggregators[metricFamily.Name]; found {
+				if metricFamily.Name == "kube_configmap_info" && !k.instance.EnableConfigMapCount {
+					log.Tracef("ConfigMap metric found but counting ConfigMaps is disabled.")
+					continue
+				}
+				if metricFamily.Name == "kube_secret_info" && !k.instance.EnableSecretCount {
+					log.Tracef("Secret metric found but counting Secrets is disabled.")
+					continue
+				}
 				for _, m := range metricFamily.ListMetrics {
 					aggregator.accumulate(m)
 				}

@@ -225,6 +225,16 @@ func defaultMetricAggregators() map[string]metricAggregator {
 	cronJobAggregator := newLastCronJobAggregator()
 
 	return map[string]metricAggregator{
+		"kube_configmap_info": newCountObjectsAggregator(
+			"configmap.count",
+			"kube_configmap_info",
+			[]string{"namespace"},
+		),
+		"kube_secret_info": newCountObjectsAggregator(
+			"secret.count",
+			"kube_secret_info",
+			[]string{"namespace"},
+		),
 		"kube_apiservice_labels": newCountObjectsAggregator(
 			"apiservice.count",
 			"kube_apiservice_labels",
