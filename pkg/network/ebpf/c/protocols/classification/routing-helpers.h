@@ -9,26 +9,6 @@
 #define LAYER_CACHE_CB_OFFSET 0
 #define PROGRAM_CACHE_CB_OFFSET 3
 
-#define LAYER_ENTRYPOINT(program)                               \
-    do {                                                        \
-        if (current_program == CLASSIFICATION_PROG_UNKNOWN) {   \
-            return program;                                     \
-        }                                                       \
-    } while(0)
-
-#define LAYER_TRANSITION(a, b)                  \
-    do {                                        \
-        if (current_program == a) {             \
-            return b;                           \
-        }                                       \
-    } while(0)
-
-#define LAYER_END(layer_mask)                           \
-    do {                                                \
-        current_program = CLASSIFICATION_PROG_UNKNOWN;  \
-        *known_layers |= layer_mask;                    \
-    } while(0)
-
 // The purpose of caching all known (classified) layers and the current program in the skb->cb
 // field is to avoid one eBPF map lookup per tail call
 // (Note that skb->cb data is persisted across tail-calls)

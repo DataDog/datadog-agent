@@ -6,6 +6,29 @@
 #include "protocols/classification/stack-helpers.h"
 #include "protocols/classification/routing-helpers.h"
 
+// These macros are meant to improve the readability of the `__get_next_program` function below
+// LAYER_ENTRYPOINT(program) designates the first (socket-filter) program to be executed for a given layer
+#define LAYER_ENTRYPOINT(program)                               \
+    do {                                                        \
+        if (current_program == CLASSIFICATION_PROG_UNKNOWN) {   \
+            return program;                                     \
+        }                                                       \
+    } while(0)
+
+// LAYER_TRANSITION designates a sequence of socket-filter programs within a given layer
+#define LAYER_TRANSITION(from, to)              \
+    do {                                        \
+        if (current_program == from) {          \
+            return to;                          \
+        }                                       \
+    } while(0)
+
+#define LAYER_END(layer_mask)                           \
+    do {                                                \
+        current_program = CLASSIFICATION_PROG_UNKNOWN;  \
+        *known_layers |= layer_mask;                    \
+    } while(0)
+
 // This function essentially encodes all routing aspects of tail-calls. For
 // example, if this function gets called from `CLASSIFICATION_QUEUES_PROG` the
 // return value will be likely `CLASSIFICATION_DBS_PROG` (which is the next
