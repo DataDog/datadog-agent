@@ -174,13 +174,13 @@ if node['platform_family'] == 'windows'
     end
   end
 
-  temp_file_basename = ::File.join(Chef::Config[:file_cache_path], 'ddagent-cli').gsub(File::SEPARATOR, File::ALT_SEPARATOR || File::SEPARATOR)
+  temp_file_basename = ::File.join(Chef::Config[:file_cache_path], 'ddagent-up').gsub(File::SEPARATOR, File::ALT_SEPARATOR || File::SEPARATOR)
 
   dd_agent_installer = "#{dd_agent_installer_basename}.msi"
   source_url += dd_agent_installer
   temp_file = "#{temp_file_basename}.msi"
   
-  log_file_name = ::File.join(Chef::Config[:file_cache_path], 'install.log').gsub(File::SEPARATOR, File::ALT_SEPARATOR || File::SEPARATOR)
+  log_file_name = ::File.join(Chef::Config[:file_cache_path], 'upgrade.log').gsub(File::SEPARATOR, File::ALT_SEPARATOR || File::SEPARATOR)
   # Delete the log file in case it exists (in case of multiple converge runs for example)
   file log_file_name do
     action :delete
@@ -210,7 +210,7 @@ if node['platform_family'] == 'windows'
     ignore_failure true
   end
 
-  ruby_block "Print install logs" do
+  ruby_block "Print upgrade logs" do
     only_if { ::File.exists?(log_file_name) }
     block do
       # Use warn, because Chef's default "log" is too chatty
