@@ -66,7 +66,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams:         config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
 					SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-					LogParams:            log.LogForOneShot("CORE", "off", true)}),
+					LogParams:            log.LogForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle,
 			)
 		},
@@ -90,9 +90,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 			return fxutil.OneShot(componentStatusCmd,
 				fx.Supply(cliParams),
-				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
-					LogParams:    log.LogForOneShot("CORE", "off", true)}),
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle,
 			)
 		},

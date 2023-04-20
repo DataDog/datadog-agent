@@ -76,7 +76,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams:         config,
 					SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-					LogParams:            log.LogForOneShot("CORE", "off", false),
+					LogParams:            log.LogForOneShot(command.LoggerName, "off", false),
 				}),
 				flare.Module,
 				core.Bundle,
