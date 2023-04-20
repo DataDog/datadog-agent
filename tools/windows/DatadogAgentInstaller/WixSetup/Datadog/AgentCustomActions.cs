@@ -93,7 +93,8 @@ namespace WixSetup.Datadog
                     ClosedSourceComponentsCustomActions.ProcessAllowClosedSource,
                     Return.check,
                     When.After,
-                    Step.CostFinalize,
+                    // Session.Feature is available after MigrateFeatureStates
+                    Step.MigrateFeatureStates,
                     Condition.Always,
                     Sequence.InstallExecuteSequence | Sequence.InstallUISequence
                 )
