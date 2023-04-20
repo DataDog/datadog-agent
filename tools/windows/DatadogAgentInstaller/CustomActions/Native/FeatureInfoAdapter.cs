@@ -20,7 +20,7 @@ namespace Datadog.CustomActions.Native
             _featureInfo = featureInfo;
         }
 
-        public InstallState RequestState => _featureInfo.CurrentState;
+        public InstallState RequestState => _featureInfo.RequestState;
         public InstallState CurrentState => _featureInfo.CurrentState;
     }
 }
