@@ -580,9 +580,10 @@ func (c *Check) StatementMetrics() (int, error) {
 					log.Errorf("Error marshalling fqt payload: %s", err)
 				}
 				log.Tracef("Query metrics fqt payload %s", string(FQTPayloadBytes))
-				sender.EventPlatformEvent(FQTPayloadBytes, "dbm-samples")
+				sender.EventPlatformEvent(string(FQTPayloadBytes), "dbm-samples")
 				FQTSent[queryRow.QuerySignature] = 1
 			}
+			//select * from table(dbms_xplan.display_cursor(sql_id, null, format=>'allstats last +cost'));
 		}
 
 		c.copyToPreviousMap(newCache)
@@ -626,7 +627,7 @@ func (c *Check) StatementMetrics() (int, error) {
 
 	log.Tracef("Query metrics payload %s", strings.ReplaceAll(string(payloadBytes), "@", "XX"))
 
-	sender.EventPlatformEvent(payloadBytes, "dbm-metrics")
+	sender.EventPlatformEvent(string(payloadBytes), "dbm-metrics")
 	sender.Gauge("dd.oracle.statements_metrics.sql_text_errors", float64(SQLTextErrors), "", c.tags)
 	sender.Gauge("dd.oracle.statements_metrics.time_ms", float64(time.Since(start).Milliseconds()), "", c.tags)
 	sender.Gauge("dd.oracle.statements.sqltext.time_ms", math.Round(float64(totalSQLTextTimeUs/1000)), "", c.tags)
