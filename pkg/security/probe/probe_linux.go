@@ -1586,6 +1586,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 
 	resolversOpts := resolvers.ResolversOpts{
 		PathResolutionEnabled: opts.PathResolutionEnabled,
+		CustomTagsResolver:    opts.CustomTagsResolver,
 	}
 	p.resolvers, err = resolvers.NewResolvers(config, p.Manager, p.StatsdClient, p.scrubber, p.Erpc, resolversOpts)
 	if err != nil {

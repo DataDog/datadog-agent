@@ -42,6 +42,7 @@ import (
 // ResolversOpts defines common options
 type ResolversOpts struct {
 	PathResolutionEnabled bool
+	CustomTagsResolver    tags.Resolver
 }
 
 // Resolvers holds the list of the event attribute resolvers
@@ -51,7 +52,7 @@ type Resolvers struct {
 	ContainerResolver *container.Resolver
 	TimeResolver      *time.Resolver
 	UserGroupResolver *usergroup.Resolver
-	TagsResolver      *tags.Resolver
+	TagsResolver      tags.Resolver
 	DentryResolver    *dentry.Resolver
 	ProcessResolver   *process.Resolver
 	NamespaceResolver *netns.Resolver
@@ -94,7 +95,12 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 		}
 	}
 
-	tagsResolver := tags.NewResolver(config.Probe)
+	var tagsResolver tags.Resolver
+	if opts.CustomTagsResolver != nil {
+		tagsResolver = opts.CustomTagsResolver
+	} else {
+		tagsResolver = tags.NewResolver(config.Probe)
+	}
 	cgroupsResolver, err := cgroup.NewResolver(tagsResolver)
 	if err != nil {
 		return nil, err
