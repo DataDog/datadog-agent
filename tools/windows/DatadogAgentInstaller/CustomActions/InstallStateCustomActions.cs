@@ -86,8 +86,15 @@ namespace Datadog.CustomActions
         {
             try
             {
-                ReadRegistryProperties();
+                // Must be called before ReadRegistryProperties(), see remarks
                 ProcessAllowClosedSource();
+
+                // If properties are not already set, load their previous values from the registry
+                ReadRegistryProperties();
+
+                // Must come after ReadRegistryProperties(), see remarks
+                PostProcessProperties();
+
                 GetWindowsBuildVersion();
             }
             catch (Exception e)
@@ -105,7 +112,7 @@ namespace Datadog.CustomActions
         private void ReadRegistryProperties()
         {
             using var subkey =
-                _registryServices.OpenRegistryKey(Registries.LocalMachine, @"Software\Datadog\Datadog Agent");
+                _registryServices.OpenRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey);
             if (subkey != null)
             {
                 // DDAGENTUSER_NAME
@@ -139,22 +146,48 @@ namespace Datadog.CustomActions
         }
 
         /// <summary>
-        /// Sets other installer options based on the ALLOWCLOSEDSOURCE property and also contains
-        /// backwards compatibility logic for setting the ALLOWCLOSEDSOURCE property.
+        /// Contains backwards compatibility logic for setting the ALLOWCLOSEDSOURCE property.
         /// </summary>
+        /// <remarks>
+        /// Must be called before ReadRegistryProperties() so that providing ALLOWCLOSEDSOURCE on the command line
+        /// takes precedence over the backwards compatibility logic here, and so the backwards compatability logic
+        /// can take precedence over the registry state.
+        /// </remarks>
         private void ProcessAllowClosedSource()
         {
-            var npm = _session.Features["NPM"];
+            if (!string.IsNullOrEmpty(_session.Property("ALLOWCLOSEDSOURCE")))
+            {
+                // ALLOWCLOSEDSOURCE was provided on the command line, return so its value take precedence
+                return;
+            }
+
+            // ALLOWCLOSEDSOURCE was not provided on the command line.
+            // If the customer is requesting to install NPM, or already has it installed, then set ALLOWCLOSEDSOURCE.
+            var npm = _session.Feature("NPM");
             _session.Log($"NPM Feature: {npm.CurrentState} -> {npm.RequestState}");
             _session.Log($"ALLOWCLOSEDSOURCE: {_session.Property("ALLOWCLOSEDSOURCE")}");
             _session.Log($"ADDLOCAL: {_session.Property("ADDLOCAL")}");
+            _session.Log($"NPM: {_session.Property("NPM")}");
 
             var allowClosedSource =
-                _session.Property("ALLOWCLOSEDSOURCE") == Constants.AllowClosedSource_Yes ||
-                _session.Features["NPM"].RequestState == InstallState.Local ||
+                npm.RequestState == InstallState.Local ||
                 !string.IsNullOrEmpty(_session.Property("NPM"));
 
             if (allowClosedSource)
+            {
+                _session["ALLOWCLOSEDSOURCE"] = Constants.AllowClosedSource_Yes;
+            }
+        }
+
+        /// <summary>
+        /// Set properties that are based on a value provided by the user
+        /// </summary>
+        /// <remarks>
+        /// Must be called after ReadRegistryProperties() to ensure the input properties are finalized
+        /// </remarks>
+        private void PostProcessProperties()
+        {
+            if (_session.Property("ALLOWCLOSEDSOURCE") == Constants.AllowClosedSource_Yes)
             {
                 // Set another property that will control the state of the Allow Closed Source checkbox in the GUI
                 // We cannot use the same property because the checkbox interprets any property values as "checked",
@@ -162,9 +195,6 @@ namespace Datadog.CustomActions
                 // write the value to the registry, it will fail if the property is not set. So we must either add
                 // another custom action or another property.
                 _session["CHECKBOX_ALLOWCLOSEDSOURCE"] = Constants.AllowClosedSource_Yes;
-
-                // Ensure we always set this property, otherwise the RegistryValue action will fail
-                _session["ALLOWCLOSEDSOURCE"] = Constants.AllowClosedSource_Yes;
             }
             else
             {
@@ -214,7 +244,7 @@ namespace Datadog.CustomActions
             try
             {
                 using var subkey =
-                    _registryServices.CreateRegistryKey(Registries.LocalMachine, @"Software\Datadog\Datadog Agent");
+                    _registryServices.CreateRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey);
                 if (subkey == null)
                 {
                     throw new Exception("Unable to create agent registry key");

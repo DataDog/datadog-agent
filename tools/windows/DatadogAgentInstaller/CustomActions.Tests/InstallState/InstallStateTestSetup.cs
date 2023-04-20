@@ -4,6 +4,7 @@ using AutoFixture;
 using Datadog.CustomActions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
+using Microsoft.Deployment.WindowsInstaller;
 using Moq;
 
 namespace CustomActions.Tests.InstallState
@@ -17,7 +18,13 @@ namespace CustomActions.Tests.InstallState
 
         public InstallStateTestSetup()
         {
-            ServiceController.SetupGet(s => s.Services).Returns(new WindowsService[]{});
+            ServiceController.SetupGet(s => s.Services).Returns(new WindowsService[] { });
+            // default feature state
+            WithFeatureState(new()
+            {
+                ["NPM"] = (Microsoft.Deployment.WindowsInstaller.InstallState.Absent,
+                    Microsoft.Deployment.WindowsInstaller.InstallState.Absent),
+            });
         }
 
         public InstallStateCustomActions Create()
@@ -26,6 +33,21 @@ namespace CustomActions.Tests.InstallState
                 Session.Object,
                 RegistryServices.Object,
                 ServiceController.Object);
+        }
+
+        public InstallStateTestSetup WithFeatureState(
+            Dictionary<string, (Microsoft.Deployment.WindowsInstaller.InstallState,
+                Microsoft.Deployment.WindowsInstaller.InstallState)> keys)
+        {
+            foreach (var kvp in keys)
+            {
+                var mockFeature = new Mock<IFeatureInfo>();
+                Session.Setup(r => r.Feature(kvp.Key)).Returns(mockFeature.Object);
+                mockFeature.Setup(r => r.CurrentState).Returns(kvp.Value.Item1);
+                mockFeature.Setup(r => r.RequestState).Returns(kvp.Value.Item2);
+            }
+
+            return this;
         }
 
         public InstallStateTestSetup WithDdnpmService(ServiceStartMode? serviceStartMode = null)

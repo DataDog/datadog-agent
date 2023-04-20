@@ -38,7 +38,7 @@ namespace CustomActions.Tests.InstallState
         [AutoData]
         public void ReadInstallState_Can_Read_Registry_Keys()
         {
-            Test.WithRegistryKey(Registries.LocalMachine, @"Software\Datadog\Datadog Agent", new()
+            Test.WithRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey, new()
                 {
                     ["installedDomain"] = "testDomain",
                     ["installedUser"] = "testUser",
@@ -65,25 +65,34 @@ namespace CustomActions.Tests.InstallState
         }
 
         [Theory]
-        [InlineAutoData(ServiceStartMode.Automatic, Constants.AllowClosedSource_Yes)]
-        [InlineAutoData(ServiceStartMode.Boot, Constants.AllowClosedSource_Yes)]
-        [InlineAutoData(ServiceStartMode.Manual, Constants.AllowClosedSource_Yes)]
-        [InlineAutoData(ServiceStartMode.System, Constants.AllowClosedSource_Yes)]
-        [InlineAutoData(ServiceStartMode.Disabled, Constants.AllowClosedSource_No)]
-        public void ReadInstallState_Should_Read_Ddnpm_InstallState_If_AllowClosedSource_Missing(
-            ServiceStartMode serviceStartMode,
-            string exepctedAllowClosedSource)
+        [InlineAutoData(Constants.AllowClosedSource_No, Constants.AllowClosedSource_No)]
+        [InlineAutoData(Constants.AllowClosedSource_Yes, Constants.AllowClosedSource_Yes)]
+        public void ReadInstallState_CommandLine_Overrides_AllowClosedSource(
+            string commandlineAllowClosedSource,
+            string expectedAllowClosedSource)
         {
-            Test.WithDdnpmService(serviceStartMode)
-                .Create()
+            var opposite = (commandlineAllowClosedSource == Constants.AllowClosedSource_Yes)
+                ? Constants.AllowClosedSource_No
+                : Constants.AllowClosedSource_Yes;
+            Test.Session.Object["ALLOWCLOSEDSOURCE"] = commandlineAllowClosedSource;
+
+            Test.WithRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey, new()
+                {
+                    // Set the registry key to the opposite ensure it is overriden
+                    ["AllowClosedSource"] = opposite,
+                }).WithFeatureState(new()
+                {
+                    ["NPM"] = (Microsoft.Deployment.WindowsInstaller.InstallState.Local,
+                        Microsoft.Deployment.WindowsInstaller.InstallState.Local),
+                }).Create()
                 .ReadInstallState()
                 .Should()
                 .Be(ActionResult.Success);
 
             Test.Properties.Should()
-                .Contain("ALLOWCLOSEDSOURCE", exepctedAllowClosedSource);
+                .Contain("ALLOWCLOSEDSOURCE", expectedAllowClosedSource);
 
-            if (exepctedAllowClosedSource == Constants.AllowClosedSource_Yes)
+            if (expectedAllowClosedSource == Constants.AllowClosedSource_Yes)
             {
                 Test.Properties.Should()
                     .Contain("CHECKBOX_ALLOWCLOSEDSOURCE", Constants.AllowClosedSource_Yes);
@@ -96,28 +105,35 @@ namespace CustomActions.Tests.InstallState
         }
 
         [Theory]
-        [InlineAutoData(null, Constants.AllowClosedSource_No)]
-        [InlineAutoData("", Constants.AllowClosedSource_No)]
-        [InlineAutoData("ALL", Constants.AllowClosedSource_Yes)]
-        [InlineAutoData("NPM", Constants.AllowClosedSource_Yes)]
-        [InlineAutoData("MainApplication", Constants.AllowClosedSource_No)]
-        [InlineAutoData("MainApplication,NPM", Constants.AllowClosedSource_Yes)]
-        public void ReadInstallState_Sets_AllowClosedSource_Using_ADDLOCAL_If_AllowClosedSource_Missing(
-            string AddLocalValue,
-            string exepctedAllowClosedSource)
+        [InlineAutoData(Microsoft.Deployment.WindowsInstaller.InstallState.Absent, Constants.AllowClosedSource_No,
+            Constants.AllowClosedSource_No)]
+        [InlineAutoData(Microsoft.Deployment.WindowsInstaller.InstallState.Absent, Constants.AllowClosedSource_Yes,
+            Constants.AllowClosedSource_Yes)]
+        [InlineAutoData(Microsoft.Deployment.WindowsInstaller.InstallState.Local, Constants.AllowClosedSource_No,
+            Constants.AllowClosedSource_Yes)]
+        [InlineAutoData(Microsoft.Deployment.WindowsInstaller.InstallState.Local, Constants.AllowClosedSource_Yes,
+            Constants.AllowClosedSource_Yes)]
+        public void ReadInstallState_NPM_FeatureState_Overrides_AllowClosedSource_Registry(
+            Microsoft.Deployment.WindowsInstaller.InstallState NPMFeatureState,
+            string registryAllowClosedSource,
+            string expectedAllowClosedSource)
         {
-            Test.Session
-                .Setup(session => session["ADDLOCAL"]).Returns(AddLocalValue);
-
-            Test.Create()
+            Test.WithRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey, new()
+                {
+                    // Set the registry key to the opposite ensure it is overriden
+                    ["AllowClosedSource"] = registryAllowClosedSource,
+                }).WithFeatureState(new()
+                {
+                    ["NPM"] = (Microsoft.Deployment.WindowsInstaller.InstallState.Absent, NPMFeatureState),
+                }).Create()
                 .ReadInstallState()
                 .Should()
                 .Be(ActionResult.Success);
 
             Test.Properties.Should()
-                .Contain("ALLOWCLOSEDSOURCE", exepctedAllowClosedSource);
+                .Contain("ALLOWCLOSEDSOURCE", expectedAllowClosedSource);
 
-            if (exepctedAllowClosedSource == Constants.AllowClosedSource_Yes)
+            if (expectedAllowClosedSource == Constants.AllowClosedSource_Yes)
             {
                 Test.Properties.Should()
                     .Contain("CHECKBOX_ALLOWCLOSEDSOURCE", Constants.AllowClosedSource_Yes);
@@ -130,60 +146,32 @@ namespace CustomActions.Tests.InstallState
         }
 
         [Theory]
-        [InlineAutoData(false, Constants.AllowClosedSource_No)]
-        [InlineAutoData(true, Constants.AllowClosedSource_Yes)]
-        public void ReadInstallState_Sets_AllowClosedSource_Using_NPM_If_AllowClosedSource_Missing(
+        [InlineAutoData(false, Constants.AllowClosedSource_No, Constants.AllowClosedSource_No)]
+        [InlineAutoData(false, Constants.AllowClosedSource_Yes, Constants.AllowClosedSource_Yes)]
+        [InlineAutoData(true, Constants.AllowClosedSource_No, Constants.AllowClosedSource_Yes)]
+        [InlineAutoData(true, Constants.AllowClosedSource_Yes, Constants.AllowClosedSource_Yes)]
+        public void ReadInstallState_NPM_Property_Overrides_AllowClosedSource_Registry(
             bool NPMFlag,
-            string exepctedAllowClosedSource)
+            string registryAllowClosedSource,
+            string expectedAllowClosedSource)
         {
             if (NPMFlag)
             {
-                Test.Session
-                    .Setup(session => session["NPM"]).Returns("somevalue");
+                Test.Session.Object["NPM"] = "somevalue";
             }
 
-            Test.Create()
-                .ReadInstallState()
-                .Should()
-                .Be(ActionResult.Success);
-
-            Test.Properties.Should()
-                .Contain("ALLOWCLOSEDSOURCE", exepctedAllowClosedSource);
-
-            if (exepctedAllowClosedSource == Constants.AllowClosedSource_Yes)
-            {
-                Test.Properties.Should()
-                    .Contain("CHECKBOX_ALLOWCLOSEDSOURCE", Constants.AllowClosedSource_Yes);
-            }
-            else
-            {
-                Test.Properties.Should()
-                    .NotContainKey("CHECKBOX_ALLOWCLOSEDSOURCE");
-            }
-        }
-
-        [Theory]
-        [InlineData(Constants.AllowClosedSource_No, ServiceStartMode.Manual, Constants.AllowClosedSource_No)]
-        [InlineData(Constants.AllowClosedSource_Yes, ServiceStartMode.Disabled, Constants.AllowClosedSource_Yes)]
-        public void ReadInstallState_Should_AllowClosedSource_Ignore_Service_State_If_RegKey_Present(
-            string allowClosedSource,
-            ServiceStartMode serviceStartMode,
-            string exepctedAllowClosedSource)
-        {
-            Test.WithRegistryKey(Registries.LocalMachine, @"Software\Datadog\Datadog Agent", new()
+            Test.WithRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey, new()
                 {
-                    ["AllowClosedSource"] = allowClosedSource,
-                })
-                .WithDdnpmService(serviceStartMode)
-                .Create()
+                    ["AllowClosedSource"] = registryAllowClosedSource,
+                }).Create()
                 .ReadInstallState()
                 .Should()
                 .Be(ActionResult.Success);
 
             Test.Properties.Should()
-                .Contain("ALLOWCLOSEDSOURCE", exepctedAllowClosedSource);
+                .Contain("ALLOWCLOSEDSOURCE", expectedAllowClosedSource);
 
-            if (exepctedAllowClosedSource == Constants.AllowClosedSource_Yes)
+            if (expectedAllowClosedSource == Constants.AllowClosedSource_Yes)
             {
                 Test.Properties.Should()
                     .Contain("CHECKBOX_ALLOWCLOSEDSOURCE", Constants.AllowClosedSource_Yes);
