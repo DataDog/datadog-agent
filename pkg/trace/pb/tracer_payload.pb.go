@@ -323,7 +323,7 @@ func (m *TraceChunk) MarshalTo(dAtA []byte) (int, error) {
 		}
 	}
 	if len(m.Tags) > 0 {
-		for k, _ := range m.Tags {
+		for k := range m.Tags {
 			dAtA[i] = 0x22
 			i++
 			v := m.Tags[k]
@@ -410,7 +410,7 @@ func (m *TracerPayload) MarshalTo(dAtA []byte) (int, error) {
 		}
 	}
 	if len(m.Tags) > 0 {
-		for k, _ := range m.Tags {
+		for k := range m.Tags {
 			dAtA[i] = 0x3a
 			i++
 			v := m.Tags[k]

@@ -202,7 +202,7 @@ func (m *AgentPayload) MarshalTo(dAtA []byte) (int, error) {
 		}
 	}
 	if len(m.Tags) > 0 {
-		for k, _ := range m.Tags {
+		for k := range m.Tags {
 			dAtA[i] = 0x32
 			i++
 			v := m.Tags[k]
