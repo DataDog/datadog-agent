@@ -1662,7 +1662,7 @@ func setupFipsLogsConfig(config Config, configPrefix string, url string) {
 func setupSBOMConfig(config Config, cacheDir string) {
 	config.BindEnvAndSetDefault("sbom.enabled", false)
 	config.BindEnvAndSetDefault("sbom.analyzers", []string{"os"})
-	config.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, cacheDir))	
+	config.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, cacheDir))
 	config.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
 	config.BindEnvAndSetDefault("sbom.use_custom_cache", false)
 	config.BindEnvAndSetDefault("sbom.custom_cache_max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
