@@ -27,9 +27,9 @@ const (
 // debuggerProxyHandler returns an http.Handler proxying requests to the logs intake. If the logs intake url cannot be
 // parsed, the returned handler will always return http.StatusInternalServerError with a clarifying message.
 func (r *HTTPReceiver) debuggerProxyHandler() http.Handler {
-	tags := fmt.Sprintf("host:%s,default_env:%s,agent_version:%s", r.conf.Hostname, r.conf.DefaultEnv, r.conf.AgentVersion)
+	hostTags := fmt.Sprintf("host:%s,default_env:%s,agent_version:%s", r.conf.Hostname, r.conf.DefaultEnv, r.conf.AgentVersion)
 	if orch := r.conf.FargateOrchestrator; orch != config.OrchestratorUnknown {
-		tags = tags + ",orchestrator:fargate_" + strings.ToLower(string(orch))
+		hostTags = hostTags + ",orchestrator:fargate_" + strings.ToLower(string(orch))
 	}
 	intake := fmt.Sprintf(logsIntakeURLTemplate, r.conf.Site)
 	if v := r.conf.DebuggerProxy.DDURL; v != "" {
@@ -48,7 +48,7 @@ func (r *HTTPReceiver) debuggerProxyHandler() http.Handler {
 	}
 	transport := newMeasuringForwardingTransport(
 		r.conf.NewHTTPTransport(), target, apiKey, r.conf.DebuggerProxy.AdditionalEndpoints, "datadog.trace_agent.debugger", []string{})
-	return newDebuggerProxy(r.conf, transport, tags)
+	return newDebuggerProxy(r.conf, transport, hostTags)
 }
 
 // debuggerErrorHandler always returns http.StatusInternalServerError with a clarifying message.
@@ -60,22 +60,23 @@ func debuggerErrorHandler(err error) http.Handler {
 }
 
 // newDebuggerProxy returns a new httputil.ReverseProxy proxying and augmenting requests with headers containing the tags.
-func newDebuggerProxy(conf *config.AgentConfig, transport http.RoundTripper, tags string) *httputil.ReverseProxy {
+func newDebuggerProxy(conf *config.AgentConfig, transport http.RoundTripper, hostTags string) *httputil.ReverseProxy {
 	cidProvider := NewIDProvider(conf.ContainerProcRoot)
 	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	return &httputil.ReverseProxy{
-		Director:  getDirector(tags, cidProvider, conf.ContainerTags),
+		Director:  getDirector(hostTags, cidProvider, conf.ContainerTags),
 		ErrorLog:  stdlog.New(logger, "debugger.Proxy: ", 0),
 		Transport: transport,
 	}
 }
 
-func getDirector(tags string, cidProvider IDProvider, containerTags func(string) ([]string, error)) func(*http.Request) {
+func getDirector(hostTags string, cidProvider IDProvider, containerTags func(string) ([]string, error)) func(*http.Request) {
 	return func(req *http.Request) {
 		req.Header.Set("DD-REQUEST-ID", uuid.New().String())
 		req.Header.Set("DD-EVP-ORIGIN", "agent-debugger")
 		q := req.URL.Query()
 		containerID := cidProvider.GetContainerID(req.Context(), req.Header)
+		tags := hostTags
 		if ctags := getContainerTags(containerTags, containerID); ctags != "" {
 			tags = fmt.Sprintf("%s,%s", tags, ctags)
 		}

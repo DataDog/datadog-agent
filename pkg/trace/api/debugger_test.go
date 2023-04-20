@@ -6,6 +6,7 @@
 package api
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -52,9 +53,7 @@ func TestDebuggerProxyHandler(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			ddtags := req.URL.Query().Get("ddtags")
 			assert.False(t, strings.Contains(ddtags, "orchestrator"), "ddtags should not contain orchestrator: %v", ddtags)
-			for _, tag := range []string{"host", "default_env", "agent_version"} {
-				assert.True(t, strings.Contains(ddtags, tag), "ddtags should contain %s", tag)
-			}
+			assert.Equal(t, "host:myhost,default_env:test,agent_version:v1", ddtags)
 			called = true
 		}))
 		req, err := http.NewRequest("POST", "/some/path", nil)
@@ -66,6 +65,30 @@ func TestDebuggerProxyHandler(t *testing.T) {
 		receiver.debuggerProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
 		assert.True(t, called, "request not proxied")
 	})
+
+	t.Run("ok_multiple_requests", func(t *testing.T) {
+		extraTag := "a:b"
+		var numCalls atomic.Int32
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			ddtags := req.URL.Query().Get("ddtags")
+			assert.False(t, strings.Contains(ddtags, "orchestrator"), "ddtags should not contain orchestrator: %v", ddtags)
+			assert.Equal(t, fmt.Sprintf("host:myhost,default_env:test,agent_version:v1,%s", extraTag), ddtags)
+			numCalls.Add(1)
+		}))
+		req, err := http.NewRequest("POST", fmt.Sprintf("/some/path?ddtags=%s", extraTag), nil)
+		assert.NoError(t, err)
+		conf := getConf()
+		conf.Hostname = "myhost"
+		conf.DebuggerProxy.DDURL = srv.URL
+		receiver := newTestReceiverFromConfig(conf)
+		handler := receiver.debuggerProxyHandler()
+		handler.ServeHTTP(httptest.NewRecorder(), req)
+		handler.ServeHTTP(httptest.NewRecorder(), req)
+		var expected atomic.Int32
+		expected.Store(int32(2))
+		assert.Equal(t, expected, numCalls, "requests not proxied, expected %d calls, got %d", 2, numCalls)
+	})
+
 	t.Run("ok_fargate", func(t *testing.T) {
 		var called bool
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
