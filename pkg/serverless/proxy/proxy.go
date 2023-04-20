@@ -6,6 +6,7 @@
 package proxy
 
 import (
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -22,11 +23,7 @@ type runtimeProxy struct {
 
 // Start starts the proxy
 // This proxy allows us to inspect traffic from/to the AWS Lambda Runtime API
-func Start(proxyHostPort string, originalRuntimeHostPort string, processor invocationlifecycle.InvocationProcessor) {
-	go setup(proxyHostPort, originalRuntimeHostPort, processor)
-}
-
-func setup(proxyHostPort string, originalRuntimeHostPort string, processor invocationlifecycle.InvocationProcessor) {
+func Start(proxyHostPort string, originalRuntimeHostPort string, processor invocationlifecycle.InvocationProcessor) error {
 	log.Debugf("runtime api proxy: starting reverse proxy on %s and forwarding to %s", proxyHostPort, originalRuntimeHostPort)
 	proxy := newProxy(originalRuntimeHostPort, processor)
 
@@ -38,10 +35,21 @@ func setup(proxyHostPort string, originalRuntimeHostPort string, processor invoc
 		Handler: mux,
 	}
 
-	err := s.ListenAndServe()
-	if err != nil && err != http.ErrServerClosed {
-		log.Errorf("extension api proxy: unexpected error while serving the proxy: %v", err)
+	// Start listening the address first
+	ln, err := net.Listen("tcp", s.Addr)
+	if err != nil {
+		return err
 	}
+
+	// Serve the proxy
+	go func() {
+		err := s.Serve(ln)
+		if err != nil && err != http.ErrServerClosed {
+			log.Errorf("extension api proxy: unexpected error while serving the proxy: %v", err)
+		}
+	}()
+
+	return nil
 }
 
 func (rp *runtimeProxy) handle(w http.ResponseWriter, r *http.Request) {
