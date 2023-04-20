@@ -38,7 +38,7 @@ const ACTIVITY_QUERY = `SELECT /* DD_ACTIVITY_SAMPLING */
     osuser,
     process, 
     machine,
---	port,
+	port,
     program,
     type,
     sql_id,
@@ -133,7 +133,7 @@ type OracleActivityRow struct {
 	OsUser        string `json:"os_user,omitempty"`
 	Process       string `json:"process,omitempty"`
 	Client        string `json:"client,omitempty"`
-	Port          uint64 `json:"port,omitempty"`
+	Port          string `json:"port,omitempty"`
 	Program       string `json:"program,omitempty"`
 	Type          string `json:"type,omitempty"`
 	OracleSQLRow
@@ -237,6 +237,12 @@ func (c *Check) SampleSession() error {
 	if c.statementsFilter.ForceMatchingSignatures == nil {
 		c.statementsFilter.ForceMatchingSignatures = make(map[string]int)
 	}
+	if c.statementsCache.SQLIDs == nil {
+		c.statementsCache.SQLIDs = make(map[string]StatementsCacheData)
+	}
+	if c.statementsCache.forceMatchingSignatures == nil {
+		c.statementsCache.forceMatchingSignatures = make(map[string]StatementsCacheData)
+	}
 
 	var sessionRows []OracleActivityRow
 	sessionSamples := []OracleActivityRowDB{}
@@ -268,7 +274,7 @@ func (c *Check) SampleSession() error {
 			sessionRow.Client = sample.Client.String
 		}
 		if sample.Port.Valid {
-			sessionRow.Port = uint64(sample.Port.Int64)
+			sessionRow.Port = strconv.FormatInt(int64(sample.Port.Int64), 10)
 		}
 
 		program := ""
@@ -349,8 +355,10 @@ func (c *Check) SampleSession() error {
 
 		statement := ""
 		obfuscate := true
+		var hasRealSQLText bool
 		if sample.Statement.Valid && sample.Statement.String != "" && !previousSQL {
 			statement = sample.Statement.String
+			hasRealSQLText = true
 		} else if previousSQL {
 			if sample.PrevSQLFullText.Valid && sample.PrevSQLFullText.String != "" {
 				statement = sample.PrevSQLFullText.String
@@ -362,6 +370,9 @@ func (c *Check) SampleSession() error {
 				err = c.db.Get(&statement, "SELECT sql_fulltext FROM v$sqlstats WHERE sql_id = :1 AND rownum=1", sqlPrevSQL.SQLID)
 				if err != nil {
 					log.Errorf("sql_text for the previous statement: %s", err)
+				}
+				if statement != "" {
+					hasRealSQLText = true
 				}
 			}
 		} else if (sample.OpFlags & 8) == 8 {
@@ -388,6 +399,23 @@ func (c *Check) SampleSession() error {
 				sessionRow.Tables = obfuscatedStatement.Tables
 				sessionRow.Comments = obfuscatedStatement.Comments
 				sessionRow.QuerySignature = obfuscatedStatement.QuerySignature
+			}
+			if hasRealSQLText {
+				if sessionRow.OracleSQLRow.ForceMatchingSignature != 0 {
+					c.statementsCache.forceMatchingSignatures[strconv.FormatUint(sessionRow.OracleSQLRow.ForceMatchingSignature, 10)] = StatementsCacheData{
+						statement:      obfuscatedStatement.Statement,
+						querySignature: obfuscatedStatement.QuerySignature,
+						commands:       obfuscatedStatement.Commands,
+						tables:         obfuscatedStatement.Tables,
+					}
+				} else if sessionRow.OracleSQLRow.SQLID != "" {
+					c.statementsCache.SQLIDs[sessionRow.OracleSQLRow.SQLID] = StatementsCacheData{
+						statement:      obfuscatedStatement.Statement,
+						querySignature: obfuscatedStatement.QuerySignature,
+						commands:       obfuscatedStatement.Commands,
+						tables:         obfuscatedStatement.Tables,
+					}
+				}
 			}
 		} else {
 			sessionRow.Statement = statement
@@ -427,7 +455,7 @@ func (c *Check) SampleSession() error {
 		log.Errorf("GetSender SampleSession %s", string(payloadBytes))
 		return err
 	}
-	sender.EventPlatformEvent(string(payloadBytes), "dbm-activity")
+	sender.EventPlatformEvent(payloadBytes, "dbm-activity")
 	sender.Count("dd.oracle.activity.samples_count", float64(len(sessionRows)), "", c.tags)
 	sender.Gauge("dd.oracle.activity.time_ms", float64(time.Since(start).Milliseconds()), "", c.tags)
 	sender.Commit()

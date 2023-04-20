@@ -88,7 +88,8 @@ func TestConnection(t *testing.T) {
 }
 
 func demuxOpts() aggregator.AgentDemultiplexerOptions {
-	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
+	//opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = 1 * time.Hour
 	opts.DontStartForwarders = true
 	return opts
@@ -119,8 +120,14 @@ func connectToDB(driver string) (*sqlx.DB, error) {
 	return db, nil
 }
 
+func initAndStartAgentDemultiplexer() {
+	aggregator.InitAndStartAgentDemultiplexer(nil, demuxOpts(), "")
+}
+
 func TestChkRun(t *testing.T) {
-	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
+	//aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
+	//aggregator.InitAndStartAgentDemultiplexer(nil, demuxOpts(), "")
+	initAndStartAgentDemultiplexer()
 
 	chk.dbmEnabled = true
 	//chk.config.QueryMetrics = true
@@ -255,4 +262,19 @@ func TestSQLXIn(t *testing.T) {
 		assert.Equal(t, retValue, result, driver)
 	}
 
+}
+
+func TestLargeUint64Binding(t *testing.T) {
+	largeUint64 := uint64(18446744073709551615)
+	//largeUint64 = 1
+	var result uint64
+	for _, driver := range DRIVERS {
+		db, _ := connectToDB(driver)
+		err := db.Get(&result, "SELECT n FROM T WHERE n = :1", largeUint64)
+		assert.NoError(t, err, "running test statement with %s driver", driver)
+		if err != nil {
+			continue
+		}
+		assert.Equal(t, result, largeUint64, "simple uint64 binding with %s driver", driver)
+	}
 }

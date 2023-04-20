@@ -12,14 +12,15 @@ import (
 	"log"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	//"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestUInt64Binds(t *testing.T) {
-	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
+func TestUInt64Binding(t *testing.T) {
+	//aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
+	initAndStartAgentDemultiplexer()
 
 	chk.dbmEnabled = true
 	chk.config.QueryMetrics = true
@@ -68,18 +69,15 @@ func TestUInt64Binds(t *testing.T) {
 		assert.NoError(t, err, "query metrics with %s driver", driver)
 		assert.Equal(t, 1, n, "total query metrics captured with %s driver", driver)
 
-		slice := []any{uint64(17202440635181618732)}
+		//slice := []any{uint64(17202440635181618732)}
+		slice := []any{"17202440635181618732"}
 		var retValue int
 		err = chk.db.Get(&retValue, "SELECT COUNT(*) FROM v$sqlstats WHERE force_matching_signature IN (:1)", slice...)
 		if err != nil {
 			log.Fatalf("row error with driver %s %s", driver, err)
 			return
 		}
-		if driver == common.Godror {
-			assert.Equal(t, 1, retValue, "Testing IN slice uint64 overflow with driver %s", driver)
-		} else if driver == common.GoOra {
-			assert.Equal(t, 0, retValue, "Testing IN slice uint64 overflow with driver %s. If this failed, the uint64 overflow problem might have been resolved.", driver)
-		}
+		assert.Equal(t, 1, retValue, "Testing IN slice uint64 overflow with driver %s", driver)
 
 		//In Rebind with a large uint64 value
 		query, args, err := sqlx.In("SELECT COUNT(*) FROM v$sqlstats WHERE force_matching_signature IN (?)", slice)

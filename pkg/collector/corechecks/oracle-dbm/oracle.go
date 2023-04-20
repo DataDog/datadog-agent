@@ -8,6 +8,7 @@ package oracle
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -24,9 +25,19 @@ import (
 
 // Check represents one Oracle instance check.
 type StatementsFilter struct {
-	SQLIDs map[string]int
-	//ForceMatchingSignatures map[uint64]int
+	SQLIDs                  map[string]int
 	ForceMatchingSignatures map[string]int
+}
+
+type StatementsCacheData struct {
+	statement      string
+	querySignature string
+	tables         []string
+	commands       []string
+}
+type StatementsCache struct {
+	SQLIDs                  map[string]StatementsCacheData
+	forceMatchingSignatures map[string]StatementsCacheData
 }
 
 type Check struct {
@@ -39,10 +50,14 @@ type Check struct {
 	tags                                    []string
 	cdbName                                 string
 	statementsFilter                        StatementsFilter
+	statementsCache                         StatementsCache
+	DDstatementsCache                       StatementsCache
+	DDPrevStatementsCache                   StatementsCache
 	statementMetricsMonotonicCountsPrevious map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB
 	dbHostname                              string
 	dbVersion                               string
 	driver                                  string
+	statementsLastRun                       time.Time
 }
 
 // Run executes the check.
@@ -108,7 +123,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	db.SetMaxOpenConns(10)
 
 	if c.cdbName == "" {
-		row := db.QueryRow("SELECT name FROM v$database")
+		row := db.QueryRow("SELECT /* DD */ name FROM v$database")
 		err = row.Scan(&c.cdbName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to query db name: %w", err)
@@ -117,7 +132,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	}
 
 	if c.dbHostname == "" || c.dbVersion == "" {
-		row := db.QueryRow("SELECT host_name, version FROM v$instance")
+		row := db.QueryRow("SELECT /* DD */ host_name, version FROM v$instance")
 		var dbHostname string
 		err = row.Scan(&dbHostname, &c.dbVersion)
 		if err != nil {

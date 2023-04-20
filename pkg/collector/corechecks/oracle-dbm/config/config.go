@@ -38,6 +38,7 @@ type InstanceConfig struct {
 	InstantClient          bool                `yaml:"instant_client"`
 	ReportedHostname       string              `yaml:"reported_hostname"`
 	QueryMetrics           bool                `yaml:"query_metrics"`
+	IncludeDatadogQueries  bool                `yaml:"include_datadog_queries"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
@@ -64,7 +65,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.ObfuscatorOptions.TableNames = true
 	instance.ObfuscatorOptions.CollectCommands = true
 	instance.ObfuscatorOptions.CollectComments = true
-	//instance.QueryMetrics = true
+	instance.QueryMetrics = true
 
 	if err := yaml.Unmarshal(rawInstance, &instance); err != nil {
 		return nil, err
