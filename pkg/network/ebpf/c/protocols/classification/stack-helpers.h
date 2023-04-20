@@ -96,7 +96,7 @@ __maybe_unused static __always_inline protocol_t protocol_get(protocol_stack_t *
     return proto_num | layer_bit;
 }
 
-__maybe_unused static __always_inline bool protocol_layer_known(protocol_stack_t *stack, protocol_layer_t layer) {
+__maybe_unused static __always_inline bool is_protocol_layer_known(protocol_stack_t *stack, protocol_layer_t layer) {
     if (!stack) {
         return false;
     }

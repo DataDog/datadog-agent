@@ -165,7 +165,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     }
 
     // If application-layer is known we don't bother to check for HTTP protocols and skip to the next layers
-    if (protocol_layer_known(protocol_stack, LAYER_APPLICATION)) {
+    if (is_protocol_layer_known(protocol_stack, LAYER_APPLICATION)) {
         goto next_program;
     }
 
