@@ -228,6 +228,8 @@ func getLabelToMatchForKind(kind string) []string {
 		return []string{"node"}
 	case "persistentvolume": // persistent volumes are not namespaced
 		return []string{"persistentvolume"}
+	case "customresourcedefinition": // CRD are not namespaced
+		return []string{"customresourcedefinition"}
 	default:
 		return []string{kind, "namespace"}
 	}
