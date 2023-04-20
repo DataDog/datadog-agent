@@ -4,7 +4,11 @@
 #include "ktypes.h"
 #include "protocols/classification/defs.h"
 
-static __always_inline protocol_layer_t protocol_layer_get(protocol_t proto) {
+// get_protocol_layer retrieves the `protocol_layer_t` associated to the given `protocol_t`.
+// Example:
+// get_protocol_layer(PROTOCOL_HTTP) => LAYER_APPLICATION
+// get_protocol_layer(PROTOCOL_TLS)  => LAYER_ENCRYPTION
+static __always_inline protocol_layer_t get_protocol_layer(protocol_t proto) {
     u16 layer_bit = proto&(LAYER_API_BIT|LAYER_APPLICATION_BIT|LAYER_ENCRYPTION_BIT);
 
     switch(layer_bit) {
@@ -19,12 +23,13 @@ static __always_inline protocol_layer_t protocol_layer_get(protocol_t proto) {
     return LAYER_UNKNOWN;
 }
 
-static __always_inline void protocol_set(protocol_stack_t *stack, protocol_t proto) {
+// set_protocol adds `proto` to the given `stack`
+static __always_inline void set_protocol(protocol_stack_t *stack, protocol_t proto) {
     if (!stack || proto == PROTOCOL_UNKNOWN) {
         return;
     }
 
-    protocol_layer_t layer = protocol_layer_get(proto);
+    protocol_layer_t layer = get_protocol_layer(proto);
     if (!layer) {
         return;
     }
@@ -46,6 +51,8 @@ static __always_inline void protocol_set(protocol_stack_t *stack, protocol_t pro
     }
 }
 
+// is_fully_classified returns true if all layers are set or if
+// `mark_as_fully_classified` was previously called for this `stack`
 static __always_inline bool is_fully_classified(protocol_stack_t *stack) {
     if (!stack) {
         return false;
@@ -57,6 +64,14 @@ static __always_inline bool is_fully_classified(protocol_stack_t *stack) {
          stack->layer_encryption > 0);
 }
 
+// mark_as_fully_classified is intended to be used as an "optimization" helper
+// so a protocol stack can be treated as fully classified even if some layers
+// are missing.
+// For example, if we determine from a socket-filter program that a
+// connection has Kafka traffic, we can call `set_protocol(stack, PROTOCOL_KAFKA)`
+// and then `mark_as_fully_classified(stack)` to indicate that no further
+// classification attempts are necessary, since there can't be an encryption
+// layer protocol nor an API-level protocol above Kafka.
 static __always_inline void mark_as_fully_classified(protocol_stack_t *stack) {
     if (!stack) {
         return;
@@ -65,7 +80,11 @@ static __always_inline void mark_as_fully_classified(protocol_stack_t *stack) {
     stack->flags |= FLAG_FULLY_CLASSIFIED;
 }
 
-__maybe_unused static __always_inline protocol_t protocol_get(protocol_stack_t *stack, protocol_layer_t layer) {
+
+// get_protocol_from_stack returns the `protocol_t` value that belongs to the given `layer`
+// Example: If we had a `protocol_stack_t` with HTTP, calling `get_protocol_from_stack(stack, LAYER_APPLICATION)
+// would return PROTOCOL_HTTP;
+__maybe_unused static __always_inline protocol_t get_protocol_from_stack(protocol_stack_t *stack, protocol_layer_t layer) {
     if (!stack) {
         return PROTOCOL_UNKNOWN;
     }
@@ -96,16 +115,18 @@ __maybe_unused static __always_inline protocol_t protocol_get(protocol_stack_t *
     return proto_num | layer_bit;
 }
 
+// is_protocol_layer_known returns true when `stack` contains a protocol at the given `layer`
 __maybe_unused static __always_inline bool is_protocol_layer_known(protocol_stack_t *stack, protocol_layer_t layer) {
     if (!stack) {
         return false;
     }
 
-    protocol_t proto = protocol_get(stack, layer);
+    protocol_t proto = get_protocol_from_stack(stack, layer);
     return proto != PROTOCOL_UNKNOWN;
 }
 
-static __always_inline bool protocol_has_any(protocol_stack_t *stack) {
+// has_any_protocols returns true when the given `stack` has at least one protocol set
+static __always_inline bool has_any_protocols(protocol_stack_t *stack) {
     if (!stack) {
         return false;
     }
@@ -113,7 +134,8 @@ static __always_inline bool protocol_has_any(protocol_stack_t *stack) {
     return (stack->layer_api || stack->layer_application || stack->layer_encryption);
 }
 
-static __always_inline void protocol_merge_with(protocol_stack_t *this, protocol_stack_t *that) {
+// merge_protocol_stacks modifies `this` by merging it with `that`
+static __always_inline void merge_protocol_stacks(protocol_stack_t *this, protocol_stack_t *that) {
     if (!this || !that) {
         return;
     }

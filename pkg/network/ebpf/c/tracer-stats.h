@@ -60,8 +60,8 @@ static __always_inline void update_protocol_classification_information(conn_tupl
     normalize_tuple(&conn_tuple_copy);
 
     protocol_stack_t *protocol_stack = bpf_map_lookup_elem(&connection_protocol, &conn_tuple_copy);
-    if (protocol_stack && protocol_has_any(protocol_stack)) {
-        protocol_merge_with(&stats->protocol_stack, protocol_stack);
+    if (protocol_stack && has_any_protocols(protocol_stack)) {
+        merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
         return;
     }
 
@@ -76,7 +76,7 @@ static __always_inline void update_protocol_classification_information(conn_tupl
         return;
     }
 
-    protocol_merge_with(&stats->protocol_stack, protocol_stack);
+    merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
 }
 
 // update_conn_stats update the connection metadata : protocol, tags, timestamp, direction, packets, bytes sent and received

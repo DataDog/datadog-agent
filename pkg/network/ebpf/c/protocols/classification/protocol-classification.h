@@ -122,7 +122,7 @@ static __always_inline protocol_stack_t* get_protocol_stack(struct __sk_buff *sk
 // updates the the protocol stack and updates the layer cache, marking the current
 // layer as known for the purposes of tail-call routing decisions.
 static __always_inline void update_protocol_stack(struct __sk_buff *skb, protocol_stack_t *stack, protocol_t proto) {
-    protocol_set(stack, proto);
+    set_protocol(stack, proto);
     u16 *known_layers = __get_layer_cache(skb);
     *known_layers |= proto;
 }
