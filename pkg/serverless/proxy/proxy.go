@@ -21,7 +21,8 @@ type runtimeProxy struct {
 	processor invocationlifecycle.InvocationProcessor
 }
 
-// Start starts the proxy
+// Start starts the proxy and returns an error if the given proxyHostPort could
+// not be listened to.
 // This proxy allows us to inspect traffic from/to the AWS Lambda Runtime API
 func Start(proxyHostPort string, originalRuntimeHostPort string, processor invocationlifecycle.InvocationProcessor) error {
 	log.Debugf("runtime api proxy: starting reverse proxy on %s and forwarding to %s", proxyHostPort, originalRuntimeHostPort)
