@@ -2,8 +2,13 @@
 #define _CONSTANTS_SYSCALL_MACRO_H_
 
 #if defined(__x86_64__)
-  #define SYSCALL64_PREFIX "__x64_"
-  #define SYSCALL32_PREFIX "__ia32_"
+  #if USE_SYSCALL_WRAPPER == 1
+    #define SYSCALL64_PREFIX "__x64_"
+    #define SYSCALL32_PREFIX "__ia32_"
+  #else
+    #define SYSCALL32_PREFIX ""
+    #define SYSCALL64_PREFIX ""
+  #endif
 
   #define SYSCALL64_PT_REGS_PARM1(x) ((x)->di)
   #define SYSCALL64_PT_REGS_PARM2(x) ((x)->si)
@@ -24,8 +29,13 @@
   #define SYSCALL32_PT_REGS_PARM6(x) ((x)->bp)
 
 #elif defined(__aarch64__)
-  #define SYSCALL64_PREFIX "__arm64_"
-  #define SYSCALL32_PREFIX "__arm32_"
+  #if USE_SYSCALL_WRAPPER == 1
+    #define SYSCALL64_PREFIX "__arm64_"
+    #define SYSCALL32_PREFIX "__arm32_"
+  #else
+    #define SYSCALL32_PREFIX ""
+    #define SYSCALL64_PREFIX ""
+  #endif
 
   #define SYSCALL64_PT_REGS_PARM1(x) PT_REGS_PARM1(x)
   #define SYSCALL64_PT_REGS_PARM2(x) PT_REGS_PARM2(x)
@@ -110,10 +120,6 @@
     SYSCALL_ABI_HOOKx(x,64,type,TYPE,,name,_time32,__VA_ARGS__) \
     SYSCALL_HOOK_COMMON(x,type,name,__VA_ARGS__)
 #else
-  #undef SYSCALL32_PREFIX
-  #undef SYSCALL64_PREFIX
-  #define SYSCALL32_PREFIX ""
-  #define SYSCALL64_PREFIX ""
   #define __SC_64_PARAM(n, t, a) t a = (t) SYSCALL64_PT_REGS_PARM##n(ctx);
   #define __SC_32_PARAM(n, t, a) t a = (t) SYSCALL32_PT_REGS_PARM##n(ctx);
   #define SYSCALL_KPROBE_PROLOG(x,m,syscall,...) \
