@@ -47,7 +47,7 @@ static __always_inline void update_conn_state(conn_tuple_t *t, conn_stats_ts_t *
     }
 }
 
-static __always_inline void update_protocol_stack(conn_tuple_t *t, conn_stats_ts_t *stats) {
+static __always_inline void update_protocol_classification_information(conn_tuple_t *t, conn_stats_ts_t *stats) {
     if (is_fully_classified(&stats->protocol_stack)) {
         return;
     }
@@ -88,7 +88,7 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
         return;
     }
 
-    update_protocol_stack(t, val);
+    update_protocol_classification_information(t, val);
 
     // If already in our map, increment size in-place
     update_conn_state(t, val, sent_bytes, recv_bytes);

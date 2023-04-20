@@ -119,7 +119,9 @@ static __always_inline protocol_stack_t* get_protocol_stack(struct __sk_buff *sk
     return bpf_map_lookup_elem(&connection_protocol, &normalized_tup);
 }
 
-static __always_inline void set_protocol_stack(struct __sk_buff *skb, protocol_stack_t *stack, protocol_t proto) {
+// updates the the protocol stack and updates the layer cache, marking the current
+// layer as known for the purposes of tail-call routing decisions.
+static __always_inline void update_protocol_stack(struct __sk_buff *skb, protocol_stack_t *stack, protocol_t proto) {
     protocol_set(stack, proto);
     u16 *known_layers = __get_layer_cache(skb);
     *known_layers |= proto;
@@ -157,7 +159,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     const char *buffer = &(usm_ctx->buffer.data[0]);
     // TLS classification
     if (is_tls(buffer, usm_ctx->buffer.size)) {
-        set_protocol_stack(skb, protocol_stack, PROTOCOL_TLS);
+        update_protocol_stack(skb, protocol_stack, PROTOCOL_TLS);
         mark_as_fully_classified(protocol_stack);
         return;
     }
@@ -168,11 +170,12 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     }
 
     protocol_t cur_fragment_protocol = classify_applayer_protocols(buffer, usm_ctx->buffer.size);
-    set_protocol_stack(skb, protocol_stack, cur_fragment_protocol);
     if (cur_fragment_protocol) {
-        // this is mostly an optmization *for now* since we won't be classifying
-        // any other protocols if we detected HTTP for a socket filter program
+        update_protocol_stack(skb, protocol_stack, cur_fragment_protocol);
+        // this is mostly an optimization *for now* since we won't be classifying
+        // any other protocols if we have detected HTTP traffic
         mark_as_fully_classified(protocol_stack);
+        return;
     }
 
  next_program:
@@ -194,7 +197,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_queues
     if (!protocol_stack) {
         return;
     }
-    set_protocol_stack(skb, protocol_stack, cur_fragment_protocol);
+    update_protocol_stack(skb, protocol_stack, cur_fragment_protocol);
     mark_as_fully_classified(protocol_stack);
 
  next_program:
@@ -218,7 +221,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_dbs(st
         return;
     }
 
-    set_protocol_stack(skb, protocol_stack, cur_fragment_protocol);
+    update_protocol_stack(skb, protocol_stack, cur_fragment_protocol);
     mark_as_fully_classified(protocol_stack);
  next_program:
     classification_next_program(skb);
