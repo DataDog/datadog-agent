@@ -10,23 +10,19 @@ namespace Datadog.CustomActions
     {
         private readonly ISession _session;
         private readonly IRegistryServices _registryServices;
-        private readonly IServiceController _serviceController;
 
         public ClosedSourceComponentsCustomActions(
             ISession session,
-            IRegistryServices registryServices,
-            IServiceController serviceController)
+            IRegistryServices registryServices)
         {
             _session = session;
             _registryServices = registryServices;
-            _serviceController = serviceController;
         }
 
         public ClosedSourceComponentsCustomActions(ISession session)
             : this(
                 session,
-                new RegistryServices(),
-                new ServiceController())
+                new RegistryServices())
         {
         }
 
@@ -38,7 +34,7 @@ namespace Datadog.CustomActions
         /// takes precedence over the backwards compatibility logic here, and so the backwards compatability logic
         /// can take precedence over the registry state.
         /// </remarks>
-        public ActionResult ProcessAllowClosedSource()
+        private ActionResult ProcessAllowClosedSource()
         {
             try
             {
@@ -93,6 +89,12 @@ namespace Datadog.CustomActions
             }
 
             return ActionResult.Success;
+        }
+
+        [CustomAction]
+        public static ActionResult ProcessAllowClosedSource(Session session)
+        {
+            return new ClosedSourceComponentsCustomActions(new SessionWrapper(session)).ProcessAllowClosedSource();
         }
     }
 }

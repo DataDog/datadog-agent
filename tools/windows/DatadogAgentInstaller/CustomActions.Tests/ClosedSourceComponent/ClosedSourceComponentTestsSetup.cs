@@ -30,8 +30,7 @@ namespace CustomActions.Tests.ClosedSourceComponent
         {
             return new ClosedSourceComponentsCustomActions(
                 Session.Object,
-                RegistryServices.Object,
-                ServiceController.Object);
+                RegistryServices.Object);
         }
 
         public ClosedSourceComponentTestsSetup WithRegistryKey(Registries registry, string path, Dictionary<string, object> keys)
