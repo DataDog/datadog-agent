@@ -78,6 +78,15 @@ instances:
       #
       # enabled: true
 
+  ## Configure query metrics collection for Datadog agent statements
+  #
+  # include_datadog_queries:
+
+      ## @param enabled - boolean - optional - default: false
+      ## Enable collection of query metrics. Requires `dbm: true` and `query_metrics: true`
+      #
+      # enabled: false
+
   ## Configure how the SQL obfuscator behaves.
   ## Note: This option only applies when `dbm` is enabled.
   #

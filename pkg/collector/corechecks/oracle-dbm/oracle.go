@@ -123,7 +123,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	db.SetMaxOpenConns(10)
 
 	if c.cdbName == "" {
-		row := db.QueryRow("SELECT name FROM v$database")
+		row := db.QueryRow("SELECT /* DD */ name FROM v$database")
 		err = row.Scan(&c.cdbName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to query db name: %w", err)
@@ -132,7 +132,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	}
 
 	if c.dbHostname == "" || c.dbVersion == "" {
-		row := db.QueryRow("SELECT host_name, version FROM v$instance")
+		row := db.QueryRow("SELECT /* DD */ host_name, version FROM v$instance")
 		var dbHostname string
 		err = row.Scan(&dbHostname, &c.dbVersion)
 		if err != nil {

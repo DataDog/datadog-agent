@@ -38,7 +38,7 @@ const ACTIVITY_QUERY = `SELECT /* DD_ACTIVITY_SAMPLING */
     osuser,
     process, 
     machine,
---	port,
+	port,
     program,
     type,
     sql_id,
@@ -133,7 +133,7 @@ type OracleActivityRow struct {
 	OsUser        string `json:"os_user,omitempty"`
 	Process       string `json:"process,omitempty"`
 	Client        string `json:"client,omitempty"`
-	Port          uint64 `json:"port,omitempty"`
+	Port          string `json:"port,omitempty"`
 	Program       string `json:"program,omitempty"`
 	Type          string `json:"type,omitempty"`
 	OracleSQLRow
@@ -274,7 +274,7 @@ func (c *Check) SampleSession() error {
 			sessionRow.Client = sample.Client.String
 		}
 		if sample.Port.Valid {
-			sessionRow.Port = uint64(sample.Port.Int64)
+			sessionRow.Port = strconv.FormatInt(int64(sample.Port.Int64), 10)
 		}
 
 		program := ""
