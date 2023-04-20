@@ -52,7 +52,7 @@ type Monitor struct {
 	ebpfProgram     *ebpfProgram
 	httpTelemetry   *http.Telemetry
 	http2Telemetry  *http.Telemetry
-	statkeeper      *http.HttpStatKeeper
+	httpStatkeeper  *http.HttpStatKeeper
 	http2Statkeeper *http.HttpStatKeeper
 	processMonitor  *monitor.ProcessMonitor
 
@@ -158,7 +158,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		httpTelemetry:   httpTelemetry,
 		http2Telemetry:  http2Telemetry,
 		closeFilterFn:   closeFilterFn,
-		statkeeper:      statkeeper,
+		httpStatkeeper:  statkeeper,
 		processMonitor:  processMonitor,
 		http2Enabled:    c.EnableHTTP2Monitoring,
 		http2Statkeeper: http2Statkeeper,
@@ -269,7 +269,7 @@ func (m *Monitor) GetHTTPStats() map[http.Key]*http.RequestStats {
 
 	m.httpConsumer.Sync()
 	m.httpTelemetry.Log()
-	return m.statkeeper.GetAndResetAllStats()
+	return m.httpStatkeeper.GetAndResetAllStats()
 }
 
 // GetHTTP2Stats returns a map of HTTP2 stats stored in the following format:
@@ -317,7 +317,7 @@ func (m *Monitor) Stop() {
 func (m *Monitor) processHTTP(data []byte) {
 	tx := (*http.EbpfHttpTx)(unsafe.Pointer(&data[0]))
 	m.httpTelemetry.Count(tx)
-	m.statkeeper.Process(tx)
+	m.httpStatkeeper.Process(tx)
 }
 
 func (m *Monitor) processHTTP2(data []byte) {
