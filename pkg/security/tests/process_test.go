@@ -1796,7 +1796,7 @@ func TestProcessBusybox(t *testing.T) {
 	})
 }
 
-func TestProcessIdentifyInterpreter(t *testing.T) {
+func TestProcessInterpreter(t *testing.T) {
 	python, whichPythonErr := whichNonFatal("python")
 	if whichPythonErr != nil {
 		python = which(t, "python3")
