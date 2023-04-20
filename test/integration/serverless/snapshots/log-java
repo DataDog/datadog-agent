@@ -208,5 +208,35 @@
     "service": "integration-tests-service",
     "ddsource": "lambda",
     "ddtags": "account_id:425362996713,architecture:XXX,aws_account:425362996713,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-java,functionname:integration-tests-extension-XXXXXX-log-java,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-java,runtime:java8.al2,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version"
+  },
+  {
+    "message": {
+      "message": "{\"level\":\"ERROR\",\"message\":\"datadog: Malformed _X_AMZN_TRACE_ID value: Root\\u003d1-64413e1f-4c96049a4e18d3bf5f27a616;Parent\\u003d0e2b39652c7a5008;Sampled\\u003d1;Lineage\\u003dd16652f4:0\"}\n",
+      "lambda": {
+        "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-java",
+        "request_id": "XXX"
+      }
+    },
+    "status": "info",
+    "timestamp": "XXX",
+    "hostname": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-java",
+    "service": "integration-tests-service",
+    "ddsource": "lambda",
+    "ddtags": "account_id:425362996713,architecture:XXX,aws_account:425362996713,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-java,functionname:integration-tests-extension-XXXXXX-log-java,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-java,runtime:java8.al2,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version"
+  },
+  {
+    "message": {
+      "message": "{\"level\":\"ERROR\",\"message\":\"datadog: Malformed _X_AMZN_TRACE_ID value: Root\\u003d1-64413e54-3c5f08cf33f0302813611029;Parent\\u003d66671bd074b2fc09;Sampled\\u003d1;Lineage\\u003dd16652f4:0\"}\n",
+      "lambda": {
+        "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-java",
+        "request_id": "XXX"
+      }
+    },
+    "status": "info",
+    "timestamp": "XXX",
+    "hostname": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-java",
+    "service": "integration-tests-service",
+    "ddsource": "lambda",
+    "ddtags": "account_id:425362996713,architecture:XXX,aws_account:425362996713,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-java,functionname:integration-tests-extension-XXXXXX-log-java,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-java,runtime:java8.al2,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version"
   }
 ]
