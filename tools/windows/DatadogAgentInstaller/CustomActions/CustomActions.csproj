@@ -57,6 +57,7 @@
   <ItemGroup>
     <Compile Include="CiInfo.cs" />
     <Compile Include="CleanUpFilesCustomAction.cs" />
+    <Compile Include="ClosedSourceComponentsCustomActions.cs" />
     <Compile Include="ConfigCustomActions.cs" />
     <Compile Include="Constants.cs" />
     <Compile Include="Flare.cs" />

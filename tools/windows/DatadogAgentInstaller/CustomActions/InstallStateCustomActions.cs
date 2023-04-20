@@ -1,6 +1,4 @@
 using System;
-using System.ComponentModel;
-using System.ServiceProcess;
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
@@ -86,14 +84,39 @@ namespace Datadog.CustomActions
         {
             try
             {
-                // Must be called before ReadRegistryProperties(), see remarks
-                ProcessAllowClosedSource();
+                using var subkey =
+                    _registryServices.OpenRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey);
+                if (subkey != null)
+                {
+                    // DDAGENTUSER_NAME
+                    //
+                    // The user account can be provided to the installer by
+                    // * The registry
+                    // * The command line
+                    // * The agent user dialog
+                    // The user account domain and name are stored separately in the registry
+                    // but are passed together on the command line and the agent user dialog.
+                    // This function will combine the registry properties if they exist.
+                    // Preference is given to creds provided on the command line and the agent user dialog.
+                    // For UI installs it ensures that the agent user dialog is pre-populated.
+                    RegistryProperty(_session, "DDAGENTUSER_NAME",
+                        () =>
+                        {
+                            var domain = subkey.GetValue("installedDomain")?.ToString();
+                            var user = subkey.GetValue("installedUser")?.ToString();
+                            if (!string.IsNullOrEmpty(domain) && !string.IsNullOrEmpty(user))
+                            {
+                                return $"{domain}\\{user}";
+                            }
 
-                // If properties are not already set, load their previous values from the registry
-                ReadRegistryProperties();
+                            return string.Empty;
+                        });
 
-                // Must come after ReadRegistryProperties(), see remarks
-                PostProcessProperties();
+                    RegistryValueProperty(_session, "PROJECTLOCATION", subkey, "InstallPath");
+                    RegistryValueProperty(_session, "APPLICATIONDATADIRECTORY", subkey, "ConfigRoot");
+                }
+
+                GetWindowsBuildVersion();
             }
             catch (Exception e)
             {
@@ -105,99 +128,24 @@ namespace Datadog.CustomActions
         }
 
         /// <summary>
-        /// Load installer options from the command line and/or the registry
+        /// WiX doesn't support getting the real build number on Windows 10+ so we must fetch it ourselves
         /// </summary>
-        private void ReadRegistryProperties()
+        public void GetWindowsBuildVersion()
         {
-            using var subkey =
-                _registryServices.OpenRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey);
+            using var subkey = _registryServices.OpenRegistryKey(Registries.LocalMachine,
+                @"Software\Microsoft\Windows NT\CurrentVersion");
             if (subkey != null)
             {
-                // DDAGENTUSER_NAME
-                //
-                // The user account can be provided to the installer by
-                // * The registry
-                // * The command line
-                // * The agent user dialog
-                // The user account domain and name are stored separately in the registry
-                // but are passed together on the command line and the agent user dialog.
-                // This function will combine the registry properties if they exist.
-                // Preference is given to creds provided on the command line and the agent user dialog.
-                // For UI installs it ensures that the agent user dialog is pre-populated.
-                RegistryProperty(_session, "DDAGENTUSER_NAME",
-                    () =>
-                    {
-                        var domain = subkey.GetValue("installedDomain")?.ToString();
-                        var user = subkey.GetValue("installedUser")?.ToString();
-                        if (!string.IsNullOrEmpty(domain) && !string.IsNullOrEmpty(user))
-                        {
-                            return $"{domain}\\{user}";
-                        }
-
-                        return string.Empty;
-                    });
-
-                RegistryValueProperty(_session, "PROJECTLOCATION", subkey, "InstallPath");
-                RegistryValueProperty(_session, "APPLICATIONDATADIRECTORY", subkey, "ConfigRoot");
-                RegistryValueProperty(_session, "ALLOWCLOSEDSOURCE", subkey, "AllowClosedSource");
-            }
-        }
-
-        /// <summary>
-        /// Contains backwards compatibility logic for setting the ALLOWCLOSEDSOURCE property.
-        /// </summary>
-        /// <remarks>
-        /// Must be called before ReadRegistryProperties() so that providing ALLOWCLOSEDSOURCE on the command line
-        /// takes precedence over the backwards compatibility logic here, and so the backwards compatability logic
-        /// can take precedence over the registry state.
-        /// </remarks>
-        private void ProcessAllowClosedSource()
-        {
-            if (!string.IsNullOrEmpty(_session.Property("ALLOWCLOSEDSOURCE")))
-            {
-                // ALLOWCLOSEDSOURCE was provided on the command line, return so its value take precedence
-                return;
-            }
-
-            // ALLOWCLOSEDSOURCE was not provided on the command line.
-            // If the customer is requesting to install NPM, or already has it installed, then set ALLOWCLOSEDSOURCE.
-            var npm = _session.Feature("NPM");
-            _session.Log($"NPM Feature: {npm.CurrentState} -> {npm.RequestState}");
-            _session.Log($"ALLOWCLOSEDSOURCE: {_session.Property("ALLOWCLOSEDSOURCE")}");
-            _session.Log($"ADDLOCAL: {_session.Property("ADDLOCAL")}");
-            _session.Log($"NPM: {_session.Property("NPM")}");
-
-            var allowClosedSource =
-                npm.RequestState == InstallState.Local ||
-                !string.IsNullOrEmpty(_session.Property("NPM"));
-
-            if (allowClosedSource)
-            {
-                _session["ALLOWCLOSEDSOURCE"] = Constants.AllowClosedSource_Yes;
-            }
-        }
-
-        /// <summary>
-        /// Set properties that are based on a value provided by the user
-        /// </summary>
-        /// <remarks>
-        /// Must be called after ReadRegistryProperties() to ensure the input properties are finalized
-        /// </remarks>
-        private void PostProcessProperties()
-        {
-            if (_session.Property("ALLOWCLOSEDSOURCE") == Constants.AllowClosedSource_Yes)
-            {
-                // Set another property that will control the state of the Allow Closed Source checkbox in the GUI
-                // We cannot use the same property because the checkbox interprets any property values as "checked",
-                // but we need the property to be either "0" or "1" in order for the WiX RegistryValue element to
-                // write the value to the registry, it will fail if the property is not set. So we must either add
-                // another custom action or another property.
-                _session["CHECKBOX_ALLOWCLOSEDSOURCE"] = Constants.AllowClosedSource_Yes;
+                var currentBuild = subkey.GetValue("CurrentBuild");
+                if (currentBuild != null)
+                {
+                    _session["WindowsBuild"] = subkey.GetValue("CurrentBuild").ToString();
+                    _session.Log($"WindowsBuild: {_session["WindowsBuild"]}");
+                }
             }
             else
             {
-                // Ensure we always set this property, otherwise the RegistryValue action will fail
-                _session["ALLOWCLOSEDSOURCE"] = Constants.AllowClosedSource_No;
+                _session.Log("WindowsBuild not found");
             }
         }
 

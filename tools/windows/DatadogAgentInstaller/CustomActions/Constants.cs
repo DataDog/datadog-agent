@@ -1,3 +1,4 @@
+// ReSharper disable InconsistentNaming
 namespace Datadog.CustomActions
 {
     public class Constants
@@ -15,5 +16,6 @@ namespace Datadog.CustomActions
         // Keep these values in sync with closesourceconsentdlg.wxi
         public const string AllowClosedSource_Yes = "1";
         public const string AllowClosedSource_No = "0";
+        public const string AllowClosedSourceRegistryKey = "AllowClosedSource";
     }
 }
