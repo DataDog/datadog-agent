@@ -104,7 +104,7 @@ single-machine-performance-regression_detector:
     - echo ""
     - dd-package --bucket binaries.ddbuild.io --package devtools/pr-commenter
     # Post HTML report to GitHub
-    - cat outputs/report.html | /usr/local/bin/pr-commenter --for-pr="$CI_COMMIT_REF_NAME"
+    - cat outputs/report.md | /usr/local/bin/pr-commenter --for-pr="$CI_COMMIT_REF_NAME"
     # Finally, exit 1 if the job signals a regression else 0.
     - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --aws-named-profile ${AWS_NAMED_PROFILE}
             job result
