@@ -88,7 +88,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		}
 		params := core.BundleParams{
 			ConfigParams: config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
-			LogParams:    log.LogForOneShot("CORE", cliParams.jmxLogLevel, false)}
+			LogParams:    log.LogForOneShot(command.LoggerName, cliParams.jmxLogLevel, false)}
 		if cliParams.logFile != "" {
 			params.LogParams.LogToFile(cliParams.logFile)
 		}
