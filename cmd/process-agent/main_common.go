@@ -98,6 +98,7 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 }
 
 func runApp(exit chan struct{}, globalParams *command.GlobalParams) error {
+	defer log.Flush() // Flush the log in case of an unclean shutdown
 	go util.HandleSignals(exit)
 
 	var appInitDeps struct {
@@ -157,7 +158,7 @@ func runApp(exit chan struct{}, globalParams *command.GlobalParams) error {
 
 	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
 	if !anyChecksEnabled(appInitDeps.Checks) {
-		log.Infof(agent6DisabledMessage)
+		appInitDeps.Logger.Infof(agent6DisabledMessage)
 		return nil
 	}
 
