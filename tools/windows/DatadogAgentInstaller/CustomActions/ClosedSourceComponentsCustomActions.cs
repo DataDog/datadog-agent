@@ -34,7 +34,7 @@ namespace Datadog.CustomActions
         /// takes precedence over the backwards compatibility logic here, and so the backwards compatability logic
         /// can take precedence over the registry state.
         /// </remarks>
-        private ActionResult ProcessAllowClosedSource()
+        public ActionResult ProcessAllowClosedSource()
         {
             try
             {
