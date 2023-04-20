@@ -105,20 +105,6 @@
     struct pt_regs *rctx = (struct pt_regs *) PT_REGS_PARM1(ctx); \
     if (!rctx) return 0; \
     __MAP(x,m,__VA_ARGS__)
-  #define SYSCALL_HOOKx(x,type,TYPE,prefix,name,...) \
-    SYSCALL_ABI_HOOKx(x,32,type,TYPE,prefix,name,,__VA_ARGS__) \
-    SYSCALL_ABI_HOOKx(x,64,type,TYPE,,name,,__VA_ARGS__) \
-    SYSCALL_HOOK_COMMON(x,type,name,__VA_ARGS__)
-  #define SYSCALL_COMPAT_HOOKx(x,type,TYPE,name,...) \
-    SYSCALL_ABI_HOOKx(x,32,type,TYPE,compat_,name,,__VA_ARGS__) \
-    SYSCALL_ABI_HOOKx(x,64,type,TYPE,,name,,__VA_ARGS__) \
-    SYSCALL_HOOK_COMMON(x,type,name,__VA_ARGS__)
-  #define SYSCALL_COMPAT_TIME_HOOKx(x,type,TYPE,name,...) \
-    SYSCALL_ABI_HOOKx(x,32,type,TYPE,compat_,name,,__VA_ARGS__) \
-    SYSCALL_ABI_HOOKx(x,32,type,TYPE,,name,_time32,__VA_ARGS__) \
-    SYSCALL_ABI_HOOKx(x,64,type,TYPE,,name,,__VA_ARGS__) \
-    SYSCALL_ABI_HOOKx(x,64,type,TYPE,,name,_time32,__VA_ARGS__) \
-    SYSCALL_HOOK_COMMON(x,type,name,__VA_ARGS__)
 #else
   #define __SC_64_PARAM(n, t, a) t a = (t) SYSCALL64_PT_REGS_PARM##n(ctx);
   #define __SC_32_PARAM(n, t, a) t a = (t) SYSCALL32_PT_REGS_PARM##n(ctx);
@@ -126,19 +112,25 @@
     struct pt_regs *rctx = ctx; \
     if (!rctx) return 0; \
     __MAP(x,m,__VA_ARGS__)
-  #define SYSCALL_HOOKx(x,type,TYPE,prefix,name,...) \
-    SYSCALL_ABI_HOOKx(x,64,type,TYPE,compat_,name,,__VA_ARGS__) \
-    SYSCALL_ABI_HOOKx(x,64,type,TYPE,,name,,__VA_ARGS__) \
-    SYSCALL_HOOK_COMMON(x,type,name,__VA_ARGS__)
-  #define SYSCALL_COMPAT_HOOKx(x,type,TYPE,name,...) \
-    SYSCALL_ABI_HOOKx(x,64,type,TYPE,compat_,name,,__VA_ARGS__) \
-    SYSCALL_ABI_HOOKx(x,64,type,TYPE,,name,,__VA_ARGS__) \
-    SYSCALL_HOOK_COMMON(x,type,name,__VA_ARGS__)
-  #define SYSCALL_COMPAT_TIME_HOOKx(x,type,TYPE,name,...) \
-    SYSCALL_ABI_HOOKx(x,64,type,TYPE,compat_,name,,__VA_ARGS__) \
-    SYSCALL_ABI_HOOKx(x,64,type,TYPE,,name,,__VA_ARGS__) \
-    SYSCALL_HOOK_COMMON(x,type,name,__VA_ARGS__)
 #endif
+
+#define SYSCALL_HOOKx(x,type,TYPE,prefix,name,...) \
+  SYSCALL_ABI_HOOKx(x,32,type,TYPE,prefix,name,,__VA_ARGS__) \
+  SYSCALL_ABI_HOOKx(x,64,type,TYPE,compat_,name,,__VA_ARGS__) \
+  SYSCALL_ABI_HOOKx(x,64,type,TYPE,,name,,__VA_ARGS__) \
+  SYSCALL_HOOK_COMMON(x,type,name,__VA_ARGS__)
+#define SYSCALL_COMPAT_HOOKx(x,type,TYPE,name,...) \
+  SYSCALL_ABI_HOOKx(x,32,type,TYPE,compat_,name,,__VA_ARGS__) \
+  SYSCALL_ABI_HOOKx(x,64,type,TYPE,compat_,name,,__VA_ARGS__) \
+  SYSCALL_ABI_HOOKx(x,64,type,TYPE,,name,,__VA_ARGS__) \
+  SYSCALL_HOOK_COMMON(x,type,name,__VA_ARGS__)
+#define SYSCALL_COMPAT_TIME_HOOKx(x,type,TYPE,name,...) \
+  SYSCALL_ABI_HOOKx(x,32,type,TYPE,compat_,name,,__VA_ARGS__) \
+  SYSCALL_ABI_HOOKx(x,32,type,TYPE,,name,_time32,__VA_ARGS__) \
+  SYSCALL_ABI_HOOKx(x,64,type,TYPE,compat_,name,,__VA_ARGS__) \
+  SYSCALL_ABI_HOOKx(x,64,type,TYPE,,name,,__VA_ARGS__) \
+  SYSCALL_ABI_HOOKx(x,64,type,TYPE,,name,_time32,__VA_ARGS__) \
+  SYSCALL_HOOK_COMMON(x,type,name,__VA_ARGS__)
 
 #define SYSCALL_KPROBE0(name, ...) SYSCALL_HOOKx(0,kprobe,KPROBE,,_##name,__VA_ARGS__)
 #define SYSCALL_KPROBE1(name, ...) SYSCALL_HOOKx(1,kprobe,KPROBE,,_##name,__VA_ARGS__)
