@@ -109,7 +109,6 @@ func newLastCronJobAggregator() *lastCronJobAggregator {
 }
 
 func (a *sumValuesAggregator) accumulate(metric ksmstore.DDMetric) {
-	log.Tracef("accumulating %s", metric)
 	var labelValues [maxNumberOfAllowedLabels]string
 
 	for i, allowedLabel := range a.allowedLabels {
@@ -119,13 +118,10 @@ func (a *sumValuesAggregator) accumulate(metric ksmstore.DDMetric) {
 
 		labelValues[i] = metric.Labels[allowedLabel]
 	}
-	log.Tracef("Label values are %s", labelValues)
-	log.Tracef("adding %s with %s", a.accumulator[labelValues], metric.Val)
 	a.accumulator[labelValues] += metric.Val
 }
 
 func (a *countObjectsAggregator) accumulate(metric ksmstore.DDMetric) {
-	log.Tracef("accumulating %s", metric)
 
 	var labelValues [maxNumberOfAllowedLabels]string
 
@@ -138,8 +134,6 @@ func (a *countObjectsAggregator) accumulate(metric ksmstore.DDMetric) {
 	}
 
 	a.accumulator[labelValues]++
-	log.Tracef("Label values are %s", labelValues)
-	log.Tracef("adding %s with %s", a.accumulator[labelValues], metric.Val)
 }
 
 func (a *lastCronJobCompleteAggregator) accumulate(metric ksmstore.DDMetric) {
@@ -183,8 +177,6 @@ func (a *lastCronJobAggregator) accumulate(metric ksmstore.DDMetric, state metri
 }
 
 func (a *counterAggregator) flush(sender aggregator.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
-	log.Tracef("flushing %s", a.ddMetricName)
-	log.Tracef("accumulator is %s", a.accumulator)
 	for labelValues, count := range a.accumulator {
 
 		labels := make(map[string]string)
@@ -229,29 +221,20 @@ func (a *lastCronJobAggregator) flush(sender aggregator.Sender, k *KSMCheck, lab
 	a.accumulator = make(map[cronJob]cronJobState)
 }
 
-func defaultMetricAggregatorsWithExtraCounts(secretCountEnabled bool, configmapCountEnabled bool) map[string]metricAggregator {
-	aggregators := defaultMetricAggregators()
-	if secretCountEnabled {
-		aggregators["kube_secret_info"] = newCountObjectsAggregator(
-			"secrets.count",
-			"kube_secret_info",
-			[]string{"namespace"},
-		)
-	}
-	if configmapCountEnabled {
-		aggregators["kube_configmap_info"] = newCountObjectsAggregator(
-			"configmap.count",
-			"kube_configmap_info",
-			[]string{"namespace"},
-		)
-	}
-	return aggregators
-}
-
 func defaultMetricAggregators() map[string]metricAggregator {
 	cronJobAggregator := newLastCronJobAggregator()
 
 	return map[string]metricAggregator{
+		"kube_configmap_info": newCountObjectsAggregator(
+			"configmap.count",
+			"kube_configmap_info",
+			[]string{"namespace"},
+		),
+		"kube_secret_info": newCountObjectsAggregator(
+			"secrets.count",
+			"kube_secret_info",
+			[]string{"namespace"},
+		),
 		"kube_persistentvolume_status_phase": newSumValuesAggregator(
 			"persistentvolumes.by_phase",
 			"kube_persistentvolume_status_phase",
