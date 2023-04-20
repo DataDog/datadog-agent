@@ -1090,7 +1090,6 @@ func InitConfig(config Config) {
 
 	// SBOM configuration
 	bindEnvAndSetLogsConfigKeys(config, "sbom.")
-
 	setupSBOMConfig(config, "sbom-agent")
 
 	// Orchestrator Explorer - process agent
