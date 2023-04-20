@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    The metadata payload containing the status of every integration run by the Agent is now sent one minute after startup
+    and then every ten minutes after that, as before. This means that the integration status will be visible in the app one
+    minute after the Agent starts instead of ten minutes. The payload waits for a minute so the Agent has time to run every configured
+    integration twice and collect an accurate status.
