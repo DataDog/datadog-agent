@@ -48,13 +48,8 @@ const (
 	rcClientPollInterval = time.Second * 1
 )
 
-func setupConfig(deps dependencies, apikey string) (*config.AgentConfig, error) {
+func setupConfigCommon(deps dependencies, apikey string) (*config.AgentConfig, error) {
 	confFilePath := deps.Params.traceConfFilePath
-	if apikey != "" {
-		if mock, ok := deps.Config.(corecompcfg.Mock); ok && !mock.IsSet("api_key") {
-			mock.Set("api_key", apikey)
-		}
-	}
 
 	return LoadConfigFile(confFilePath, deps.Config)
 }
