@@ -432,8 +432,8 @@ namespace WixSetup.Datadog
                     new Id(nameof(WriteInstallState)),
                     InstallStateCustomActions.WriteInstallState,
                     Return.check,
-                    When.After,
-                    new Step(StartDDServices.Id),
+                    When.Before,
+                    Step.StartServices,
                     // Run unless we are being uninstalled.
                     Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
             )
