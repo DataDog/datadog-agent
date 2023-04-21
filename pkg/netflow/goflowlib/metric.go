@@ -84,8 +84,8 @@ var metricNameMapping = map[string]mappedMetric{
 		},
 		extraTags: []string{"flow_protocol:netflow"},
 	},
-	"flow_process_nf_sequence_delta": {
-		name:           "processor.sequence_delta",
+	"flow_process_nf_missing_flows": {
+		name:           "processor.missing_flows",
 		allowedTagKeys: []string{"router", "version"},
 		keyRemapper: map[string]string{
 			"router": "device_ip",
