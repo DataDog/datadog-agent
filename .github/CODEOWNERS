@@ -186,6 +186,7 @@
 /comp/forwarder @DataDog/agent-shared-components
 /comp/process @DataDog/processes
 /comp/systray @DataDog/windows-agent
+/comp/trace @DataDog/trace-agent
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
 # END COMPONENTS
 
