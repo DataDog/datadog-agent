@@ -23,6 +23,9 @@ func protoToSecurityProfile(output *SecurityProfile, input *proto.SecurityProfil
 
 	output.Status = model.Status(input.Status)
 	output.Version = input.Version
+	if input.Version == "local_profile" {
+		output.autolearnEnabled = true
+	}
 	output.Metadata = dump.ProtoMetadataToMetadata(input.Metadata)
 
 	output.Tags = make([]string, len(input.Tags))
