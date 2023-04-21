@@ -110,7 +110,7 @@ __maybe_unused static __always_inline protocol_prog_t protocol_to_program(protoc
         return PROG_KAFKA;
     default:
         if (proto != PROTOCOL_UNKNOWN) {
-                log_debug("protocol doesn't have a matching program: %d\n", proto);
+            log_debug("protocol doesn't have a matching program: %d\n", proto);
         }
         return PROG_UNKNOWN;
     }
