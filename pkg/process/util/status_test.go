@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+//go:build test
+
 package util
 
 import (
@@ -68,7 +70,9 @@ func TestGetStatus(t *testing.T) {
 
 	// Feature detection needs to run before host methods are called. During runtime, feature detection happens
 	// when the datadog.yaml file is loaded
-	ddconfig.Mock(t)
+	cfg := ddconfig.Mock(t)
+	ddconfig.SetFeatures(t)
+	cfg.Set("hostname", "test") // Prevents panic since feature detection has not run
 
 	hostnameData, err := hostname.GetWithProvider(context.Background())
 	var metadata *host.Payload
@@ -85,7 +89,7 @@ func TestGetStatus(t *testing.T) {
 			GoVersion:    runtime.Version(),
 			Arch:         runtime.GOARCH,
 			Config: ConfigStatus{
-				LogLevel: ddconfig.Datadog.GetString("log_level"),
+				LogLevel: cfg.GetString("log_level"),
 			},
 			Metadata: *metadata,
 		},
@@ -95,7 +99,7 @@ func TestGetStatus(t *testing.T) {
 	expVarSrv := fakeExpVarServer(t, expectedExpVars)
 	defer expVarSrv.Close()
 
-	stats, err := GetStatus(expVarSrv.URL)
+	stats, err := GetStatus(cfg, expVarSrv.URL)
 	require.NoError(t, err)
 
 	OverrideTime(testTime)(stats)

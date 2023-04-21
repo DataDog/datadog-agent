@@ -227,6 +227,14 @@ UINT doUninstallAs(UNINSTALL_TYPE t)
         {
             WcaLog(LOGMSG_STANDARD, "failed to delete installed domain key");
         }
+        if (!regkey.deleteValue(keyClosedSourceEnabled.c_str()))
+        {
+            WcaLog(LOGMSG_STANDARD, "deleted closed source enabled key");
+        }
+        else
+        {
+            WcaLog(LOGMSG_STANDARD, "failed to delete closed source enabled key");
+        }
     }
 
     if (hLsa)

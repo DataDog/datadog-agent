@@ -26,8 +26,10 @@ const (
 )
 
 var (
+	ddmTelemetryValues = []string{ddmTelemetryValid, ddmTelemetryInvalid}
+
 	ddmTelemetry = telemetry.NewGaugeWithOpts("external_metrics", "datadog_metrics",
-		[]string{"namespace", "name", "valid", le.JoinLeaderLabel}, "The label valid is true if the DatadogMetric CR is valid, false otherwise",
+		[]string{"namespace", "name", "valid", "active", le.JoinLeaderLabel}, "The label valid is true if the DatadogMetric CR is valid, false otherwise. The label active is true if DatadogMetrics CR is used, false otherwise.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 
 	requestsTelemetry = telemetry.NewGaugeWithOpts("external_metrics", "api_requests",
@@ -43,25 +45,34 @@ var (
 func setDatadogMetricTelemetry(ddm *datadoghq.DatadogMetric) {
 	unsetDatadogMetricTelemetry(ddm.Namespace, ddm.Name)
 
-	var validValue string
-	switch isDatadogMetricValid(ddm) {
-	case true:
-		validValue = ddmTelemetryValid
-	case false:
-		validValue = ddmTelemetryInvalid
-	}
-
-	ddmTelemetry.Set(1.0, ddm.Namespace, ddm.Name, validValue, le.JoinLeaderValue)
+	ddmTelemetry.Set(1.0, ddm.Namespace, ddm.Name, getDatadogMetricValidValue(ddm), getDatadogMetricActiveValue(ddm), le.JoinLeaderValue)
 }
 
 func unsetDatadogMetricTelemetry(ns, name string) {
-	ddmTelemetry.Delete(ns, name, ddmTelemetryValid, le.JoinLeaderValue)
-	ddmTelemetry.Delete(ns, name, ddmTelemetryInvalid, le.JoinLeaderValue)
+	for _, valValid := range ddmTelemetryValues {
+		for _, valActive := range ddmTelemetryValues {
+			ddmTelemetry.Delete(ns, name, valValid, valActive, le.JoinLeaderValue)
+		}
+	}
 }
 
-func isDatadogMetricValid(ddm *datadoghq.DatadogMetric) bool {
+func getDatadogMetricValidValue(ddm *datadoghq.DatadogMetric) string {
+	if isDatadogMetricConditionTrue(ddm, datadoghq.DatadogMetricConditionTypeValid) {
+		return ddmTelemetryValid
+	}
+	return ddmTelemetryInvalid
+}
+
+func getDatadogMetricActiveValue(ddm *datadoghq.DatadogMetric) string {
+	if isDatadogMetricConditionTrue(ddm, datadoghq.DatadogMetricConditionTypeActive) {
+		return ddmTelemetryValid
+	}
+	return ddmTelemetryInvalid
+}
+
+func isDatadogMetricConditionTrue(ddm *datadoghq.DatadogMetric, conditionType datadoghq.DatadogMetricConditionType) bool {
 	for _, condition := range ddm.Status.Conditions {
-		if condition.Type == datadoghq.DatadogMetricConditionTypeValid {
+		if condition.Type == conditionType {
 			return condition.Status == corev1.ConditionTrue
 		}
 	}

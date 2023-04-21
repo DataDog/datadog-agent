@@ -55,7 +55,8 @@ type Monitor struct {
 	http2Statkeeper *httpStatKeeper
 	processMonitor  *monitor.ProcessMonitor
 
-	http2Enabled bool
+	http2Enabled   bool
+	httpTLSEnabled bool
 
 	// Kafka related
 	kafkaEnabled    bool
@@ -160,6 +161,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		processMonitor:  processMonitor,
 		http2Enabled:    c.EnableHTTP2Monitoring,
 		http2Statkeeper: http2Statkeeper,
+		httpTLSEnabled:  c.EnableHTTPSMonitoring,
 	}
 
 	if c.EnableKafkaMonitoring {
@@ -235,7 +237,10 @@ func (m *Monitor) Start() error {
 	}
 
 	// Need to explicitly save the error in `err` so the defer function could save the startup error.
-	return m.processMonitor.Initialize()
+	if m.httpTLSEnabled {
+		err = m.processMonitor.Initialize()
+	}
+	return err
 }
 
 func (m *Monitor) GetUSMStats() map[string]interface{} {

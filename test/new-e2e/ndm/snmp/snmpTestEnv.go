@@ -9,20 +9,18 @@ import (
 	"context"
 	"embed"
 	"errors"
-	"fmt"
 	"path"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
 	ec2vm "github.com/DataDog/test-infra-definitions/aws/scenarios/vm/ec2VM"
 	"github.com/DataDog/test-infra-definitions/datadog/agent/docker"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 type TestEnv struct {
 	context context.Context
-	envName string
 	name    string
 
 	InstanceIP  string
@@ -39,21 +37,15 @@ const (
 	composeDataPath = "compose/data"
 )
 
-func NewTestEnv(name, keyPairName, ddAPIKey, ddAPPKey string) (*TestEnv, error) {
+func NewTestEnv() (*TestEnv, error) {
 	snmpTestEnv := &TestEnv{
 		context: context.Background(),
-		envName: "aws/sandbox",
-		name:    fmt.Sprintf("snmp-agent-%s", name),
+		name:    "snmp-agent",
 	}
 
 	stackManager := infra.GetStackManager()
 
-	config := auto.ConfigMap{
-		"ddagent:apiKey":                 auto.ConfigValue{Value: ddAPIKey, Secret: true},
-		"ddinfra:aws/defaultKeyPairName": auto.ConfigValue{Value: keyPairName},
-	}
-
-	_, upResult, err := stackManager.GetStack(snmpTestEnv.context, snmpTestEnv.envName, snmpTestEnv.name, config, func(ctx *pulumi.Context) error {
+	_, upResult, err := stackManager.GetStack(snmpTestEnv.context, snmpTestEnv.name, nil, func(ctx *pulumi.Context) error {
 		// setup VM
 		vm, err := ec2vm.NewUnixEc2VM(ctx)
 		if err != nil {
@@ -108,7 +100,6 @@ func NewTestEnv(name, keyPairName, ddAPIKey, ddAPPKey string) (*TestEnv, error) 
 		)
 		return err
 	}, false)
-
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +117,7 @@ func NewTestEnv(name, keyPairName, ddAPIKey, ddAPPKey string) (*TestEnv, error) 
 }
 
 func (testEnv *TestEnv) Destroy() error {
-	return infra.GetStackManager().DeleteStack(testEnv.context, testEnv.envName, testEnv.name)
+	return infra.GetStackManager().DeleteStack(testEnv.context, testEnv.name)
 }
 
 //go:embed compose/data

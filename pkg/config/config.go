@@ -817,9 +817,14 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("jmx_check_period", int(defaults.DefaultCheckInterval/time.Millisecond))
 	config.BindEnvAndSetDefault("jmx_reconnection_timeout", 60)
 	config.BindEnvAndSetDefault("jmx_statsd_telemetry_enabled", false)
-	// this is an internal setting and will not be documented in the config template.
+	// The following jmx_statsd_client-* options are internal and will not be documented
 	// the queue size is the no. of elements (metrics, event, service checks) it can hold.
 	config.BindEnvAndSetDefault("jmx_statsd_client_queue_size", 4096)
+	config.BindEnvAndSetDefault("jmx_statsd_client_use_non_blocking", false)
+	// the "buffer" here is the socket send buffer (SO_SNDBUF) and the size is in bytes
+	config.BindEnvAndSetDefault("jmx_statsd_client_buffer_size", 0)
+	// the socket timeout (SO_SNDTIMEO) is in milliseconds
+	config.BindEnvAndSetDefault("jmx_statsd_client_socket_timeout", 0)
 
 	// Go_expvar server port
 	config.BindEnvAndSetDefault("expvar_port", "5000")
@@ -1085,6 +1090,7 @@ func InitConfig(config Config) {
 
 	// SBOM configuration
 	bindEnvAndSetLogsConfigKeys(config, "sbom.")
+	setupSBOMConfig(config, "sbom-agent")
 
 	// Orchestrator Explorer - process agent
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
@@ -1112,9 +1118,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("container_image_collection.sbom.scan_interval", 0)    // Integer seconds
 	config.BindEnvAndSetDefault("container_image_collection.sbom.scan_timeout", 10*60) // Integer seconds
 	config.BindEnvAndSetDefault("container_image_collection.sbom.analyzers", []string{"os"})
-	config.BindEnvAndSetDefault("container_image_collection.sbom.cache_directory", "")
-	config.BindEnvAndSetDefault("container_image_collection.sbom.clear_cache_on_exit", false)
-	config.BindEnvAndSetDefault("container_image_collection.sbom.cache_ttl", 60*60) // Integer seconds. Only used with Badger
 	config.BindEnvAndSetDefault("container_image_collection.sbom.check_disk_usage", true)
 	config.BindEnvAndSetDefault("container_image_collection.sbom.min_available_disk", "1Gb")
 
@@ -1138,6 +1141,7 @@ func InitConfig(config Config) {
 
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
+	config.BindEnvAndSetDefault("compliance_config.xccdf.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
 	config.BindEnvAndSetDefault("compliance_config.check_max_events_per_run", 100)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
@@ -1653,6 +1657,17 @@ func setupFipsLogsConfig(config Config, configPrefix string, url string) {
 	config.Set(configPrefix+"use_http", true)
 	config.Set(configPrefix+"logs_no_ssl", !config.GetBool("fips.https"))
 	config.Set(configPrefix+"logs_dd_url", url)
+}
+
+func setupSBOMConfig(config Config, cacheDir string) {
+	config.BindEnvAndSetDefault("sbom.enabled", false)
+	config.BindEnvAndSetDefault("sbom.analyzers", []string{"os"})
+	config.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, cacheDir))
+	config.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
+	config.BindEnvAndSetDefault("sbom.use_custom_cache", false)
+	config.BindEnvAndSetDefault("sbom.custom_cache_max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
+	config.BindEnvAndSetDefault("sbom.custom_cache_max_cache_entries", 10000)     // used by custom cache keys stored in memory
+	config.BindEnvAndSetDefault("sbom.cache_clean_interval", "30m")               // used by custom cache.
 }
 
 // ResolveSecrets merges all the secret values from origin into config. Secret values

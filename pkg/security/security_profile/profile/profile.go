@@ -17,28 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
-// Status is the status of a security profile
-type Status uint32
-
-const (
-	UnknownStatus Status = iota
-	// Alert anomaly detections will trigger an alert
-	Alert
-	// Kill anomaly detections will kill the process that triggered them
-	Kill
-)
-
-func (s Status) String() string {
-	switch s {
-	case Alert:
-		return "alert"
-	case Kill:
-		return "kill"
-	default:
-		return "unknown"
-	}
-}
-
 // SecurityProfile defines a security profile
 type SecurityProfile struct {
 	sync.Mutex
@@ -50,7 +28,7 @@ type SecurityProfile struct {
 	Instances []*cgroupModel.CacheEntry
 
 	// Status is the status of the profile
-	Status Status
+	Status model.Status
 
 	// Version is the version of a Security Profile
 	Version string
@@ -103,4 +81,89 @@ func (p *SecurityProfile) generateKernelSecurityProfileDefinition() [16]byte {
 	model.ByteOrder.PutUint64(output[0:8], p.profileCookie)
 	model.ByteOrder.PutUint32(output[8:12], uint32(p.Status))
 	return output
+}
+
+type ProcessActivityNodeAndParent struct {
+	node   *dump.ProcessActivityNode
+	parent *ProcessActivityNodeAndParent
+}
+
+func NewProcessActivityNodeAndParent(node *dump.ProcessActivityNode, parent *ProcessActivityNodeAndParent) *ProcessActivityNodeAndParent {
+	return &ProcessActivityNodeAndParent{
+		node:   node,
+		parent: parent,
+	}
+}
+
+func ProcessActivityTreeWalk(processActivityTree []*dump.ProcessActivityNode,
+	walkFunc func(pNode *ProcessActivityNodeAndParent) bool) []*dump.ProcessActivityNode {
+	var result []*dump.ProcessActivityNode
+	if len(processActivityTree) == 0 {
+		return result
+	}
+
+	var nodes []*ProcessActivityNodeAndParent
+	var node *ProcessActivityNodeAndParent
+	for _, n := range processActivityTree {
+		nodes = append(nodes, NewProcessActivityNodeAndParent(n, nil))
+	}
+	node = nodes[0]
+	nodes = nodes[1:]
+
+	for node != nil {
+		if walkFunc(node) {
+			result = append(result, node.node)
+		}
+
+		for _, child := range node.node.Children {
+			nodes = append(nodes, NewProcessActivityNodeAndParent(child, node))
+		}
+		if len(nodes) > 0 {
+			node = nodes[0]
+			nodes = nodes[1:]
+		} else {
+			node = nil
+		}
+	}
+	return result
+}
+
+func (p *SecurityProfile) findProfileProcessNodes(pc *model.ProcessContext) []*dump.ProcessActivityNode {
+	if pc == nil {
+		return []*dump.ProcessActivityNode{}
+	}
+
+	parent := pc.GetNextAncestorBinary()
+	if parent != nil && !dump.IsValidRootNode(&parent.ProcessContext) {
+		parent = nil
+	}
+	return ProcessActivityTreeWalk(p.ProcessActivityTree, func(node *ProcessActivityNodeAndParent) bool {
+		// check process
+		if !node.node.Matches(&pc.Process, false) {
+			return false
+		}
+		// check parent
+		if node.parent == nil && parent == nil {
+			return true
+		}
+		if node.parent == nil || parent == nil {
+			return false
+		}
+		return node.parent.node.Matches(&parent.Process, false)
+	})
+}
+
+func findDNSInNodes(nodes []*dump.ProcessActivityNode, event *model.Event) bool {
+	for _, node := range nodes {
+		dnsNode, ok := node.DNSNames[event.DNS.Name]
+		if !ok {
+			continue
+		}
+		for _, req := range dnsNode.Requests {
+			if req.Type == event.DNS.Type {
+				return true
+			}
+		}
+	}
+	return false
 }

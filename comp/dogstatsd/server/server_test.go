@@ -22,6 +22,7 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -160,13 +161,13 @@ func TestUDPReceive(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
-	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = 10 * time.Millisecond
 	opts.DontStartForwarders = true
 	opts.UseNoopEventPlatformForwarder = true
 	opts.EnableNoAggregationPipeline = true
 
-	demux := aggregator.InitTestAgentDemultiplexerWithOpts(opts)
+	demux := aggregator.InitTestAgentDemultiplexerWithOpts(defaultforwarder.NewOptions(config.Datadog, nil), opts)
 	defer demux.Stop(false)
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()

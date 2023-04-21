@@ -19,3 +19,9 @@ const (
 func ValidateSocketAddress(sockPath string) error {
 	return fmt.Errorf("system-probe unsupported")
 }
+
+// Right now, no, because there isn't a way to consent to closed source on Linux
+// and there aren't any closed source components
+func isClosedSourceAllowed() bool {
+	return false
+}

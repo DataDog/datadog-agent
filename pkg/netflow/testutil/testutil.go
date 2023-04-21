@@ -46,8 +46,10 @@ func ExpectNetflow5Payloads(t *testing.T, mockEpForwrader *epforwarder.MockEvent
     "ether_type": "IPv4",
     "ip_protocol": "TCP",
     "device": {
-        "ip": "127.0.0.1",
         "namespace": "default"
+    },
+    "exporter": {
+        "ip": "127.0.0.1"
     },
     "source": {
         "ip": "10.0.0.1",

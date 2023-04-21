@@ -376,7 +376,7 @@ spec:
                 - name: namespace
                   value: "{{inputs.parameters.namespace}}"
                 - name: envValue
-                  value: datadog.{{inputs.parameters.namespace}}.svc.cluster.local
+                  value: datadog-agent.{{inputs.parameters.namespace}}.svc.cluster.local
                 - name: envKey
                   value: DD_AGENT_HOST
                 - name: target

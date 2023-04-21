@@ -350,6 +350,7 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 	factories := []customresource.RegistryFactory{
 		customresources.NewExtendedJobFactory(c),
 		customresources.NewCustomResourceDefinitionFactory(c),
+		customresources.NewAPIServiceFactory(c),
 		customresources.NewExtendedNodeFactory(c),
 		customresources.NewExtendedPodFactory(c),
 	}

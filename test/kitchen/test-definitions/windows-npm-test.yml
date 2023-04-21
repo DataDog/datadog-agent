@@ -1,7 +1,8 @@
 suites:
 
-# installs the current shipping latest build
-# then upgrades, and ensures that NPM is installed and running
+# Scenario 1
+# Install old version with no NPM flag, install new version with closed source flag
+#    - expect driver installed, system probe to enable & start
 - name: win-npm-upgrade-to-npm
   run_list:
     - "recipe[dd-agent-install]"
@@ -17,6 +18,7 @@ suites:
     dd-agent-install:
       agent_major_version: 7
       enable_testsigning: <%= ENV['WINDOWS_DDNPM_DRIVER'] == "testsigned" %>
+      agent_version: 7.42.0
     dd-agent-upgrade:
       add_new_repo: true
       <% if ENV['AGENT_FLAVOR'] == 'datadog-iot-agent' %>
@@ -32,7 +34,7 @@ suites:
       windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
       <% end %>
       agent_install_options: >
-        ADDLOCAL=ALL
+        ALLOWCLOSEDSOURCE=1
     dd-agent-import-conf:
       api_key: <%= api_key %>
     dd-agent-upgrade-rspec:
@@ -41,8 +43,12 @@ suites:
     dd-agent-rspec:
       skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
 
+
+
+
 # installs the current shipping latest build
 # then upgrades, and ensures that NPM not installed (due to lack of installation option)
+# scenario 2
 - name: win-npm-upgrade-no-npm
   run_list:
     - "recipe[dd-agent-install]"
@@ -80,6 +86,52 @@ suites:
     dd-agent-rspec:
       skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
 
+
+# Scenario 3
+# Install old version with  NPM flag, install new version with no closed source flag
+#    - expect driver installed, system probe to enable & start
+- name: win-npm-upgrade-to-npm-no-csflag
+  run_list:
+    - "recipe[dd-agent-install]"
+    - "recipe[dd-agent-upgrade]"
+  attributes:
+    datadog:
+      agent_major_version: 7
+      agent_version: <%= ENV['LAST_STABLE_VERSION'] %>
+      api_key: <%= api_key %>
+      <% if ENV['AGENT_FLAVOR'] == 'datadog-iot-agent' %>
+      agent_flavor: 'datadog-iot-agent'
+      <% end %>
+    dd-agent-install:
+      agent_major_version: 7
+      enable_testsigning: <%= ENV['WINDOWS_DDNPM_DRIVER'] == "testsigned" %>
+      agent_version: 7.42.0
+      agent_install_options: >
+        ADDLOCAL=NPM
+    dd-agent-upgrade:
+      add_new_repo: true
+      <% if ENV['AGENT_FLAVOR'] == 'datadog-iot-agent' %>
+      package_name: 'datadog-iot-agent'
+      <% end %>
+      <% dd_agent_config.each do |key, value| %>
+      <%= key %>: "<%= value %>"
+      <% end %>
+      <% if ENV['AGENT_VERSION'] %>
+      windows_version: "<%= ENV['AGENT_VERSION'] %>"
+      <% end %>
+      <% if ENV['WINDOWS_AGENT_FILE'] %>
+      windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
+      <% end %>
+    dd-agent-import-conf:
+      api_key: <%= api_key %>
+    dd-agent-upgrade-rspec:
+      # Used by the rspec test to know the version to which the agent should be upgraded
+      agent_expected_version: &agent_expected_version <%= ENV['DD_AGENT_EXPECTED_VERSION'] || "5.99.0" %>
+    dd-agent-rspec:
+      skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
+
+
+# Scenario 4
 - name: win-npm-no-npm-option
   run_list:
     - "recipe[dd-agent-install]"
@@ -104,6 +156,34 @@ suites:
       agent_flavor: <%= ENV['AGENT_FLAVOR'] || "datadog-agent" %>
       skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
 
+#Scenario 5
+- name: win-npm-with-cs-option
+  run_list:
+    - "recipe[dd-agent-install]"
+  attributes:
+    datadog:
+      agent_major_version: 7
+      api_key: <%= api_key %>
+      <% if ENV['AGENT_FLAVOR'] == 'datadog-iot-agent' %>
+      agent_flavor: 'datadog-iot-agent'
+      <% end %>
+    dd-agent-install:
+      agent_major_version: 7
+      windows_agent_url: <%= windows_agent_url %>
+      <% if ENV['AGENT_VERSION'] %>
+      windows_version: "<%= ENV['AGENT_VERSION'] %>"
+      <% end %>
+      <% if ENV['WINDOWS_AGENT_FILE'] %>
+      windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
+      <% end %>
+      agent_install_options: >
+        ALLOWCLOSEDSOURCE=1
+      enable_testsigning: <%= ENV['WINDOWS_DDNPM_DRIVER'] == "testsigned" %>
+    dd-agent-rspec:
+      agent_flavor: <%= ENV['AGENT_FLAVOR'] || "datadog-agent" %>
+      skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
+
+# scenario 7
 - name: win-npm-reinstall-option
   run_list:
     - "recipe[dd-agent-install]"
@@ -139,6 +219,60 @@ suites:
       agent_flavor: <%= ENV['AGENT_FLAVOR'] || "datadog-agent" %>
       skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
 
+#Scenario 8
+- name: win-npm-with-addlocal-all
+  run_list:
+    - "recipe[dd-agent-install]"
+  attributes:
+    datadog:
+      agent_major_version: 7
+      api_key: <%= api_key %>
+      <% if ENV['AGENT_FLAVOR'] == 'datadog-iot-agent' %>
+      agent_flavor: 'datadog-iot-agent'
+      <% end %>
+    dd-agent-install:
+      agent_major_version: 7
+      windows_agent_url: <%= windows_agent_url %>
+      <% if ENV['AGENT_VERSION'] %>
+      windows_version: "<%= ENV['AGENT_VERSION'] %>"
+      <% end %>
+      <% if ENV['WINDOWS_AGENT_FILE'] %>
+      windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
+      <% end %>
+      agent_install_options: >
+        ADDLOCAL=ALL
+      enable_testsigning: <%= ENV['WINDOWS_DDNPM_DRIVER'] == "testsigned" %>
+    dd-agent-rspec:
+      agent_flavor: <%= ENV['AGENT_FLAVOR'] || "datadog-agent" %>
+      skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
+
+
+#Scenario 9
+- name: win-npm-with-addlocal-npm
+  run_list:
+    - "recipe[dd-agent-install]"
+  attributes:
+    datadog:
+      agent_major_version: 7
+      api_key: <%= api_key %>
+      <% if ENV['AGENT_FLAVOR'] == 'datadog-iot-agent' %>
+      agent_flavor: 'datadog-iot-agent'
+      <% end %>
+    dd-agent-install:
+      agent_major_version: 7
+      windows_agent_url: <%= windows_agent_url %>
+      <% if ENV['AGENT_VERSION'] %>
+      windows_version: "<%= ENV['AGENT_VERSION'] %>"
+      <% end %>
+      <% if ENV['WINDOWS_AGENT_FILE'] %>
+      windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
+      <% end %>
+      agent_install_options: >
+        ADDLOCAL=NPM
+      enable_testsigning: <%= ENV['WINDOWS_DDNPM_DRIVER'] == "testsigned" %>
+    dd-agent-rspec:
+      agent_flavor: <%= ENV['AGENT_FLAVOR'] || "datadog-agent" %>
+      skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
 
 - name: win-npm-beta-upgrade
   run_list:
