@@ -173,6 +173,8 @@ func TestLoadModule(t *testing.T) {
 			event.ResolveFields()
 			assert.Equal(t, "", event.LoadModule.File.PathnameStr, "shouldn't get a path")
 
+			assert.Empty(t, event.LoadModule.Argv, "shouldn't get args")
+
 			test.validateLoadModuleNoFileSchema(t, event)
 		})
 	})
