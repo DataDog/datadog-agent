@@ -37,7 +37,8 @@ import (
 )
 
 var (
-	kmsAPIKeyEnvVar            = "DD_KMS_API_KEY"
+	kmsAPIKeyEnvVarLegacy      = "DD_KMS_API_KEY"
+	kmsAPIKeyEnvVar            = "DD_API_KEY_KMS_ENCRYPTED"
 	secretsManagerAPIKeyEnvVar = "DD_API_KEY_SECRET_ARN"
 	apiKeyEnvVar               = "DD_API_KEY"
 	logLevelEnvVar             = "DD_LOG_LEVEL"
@@ -117,6 +118,37 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	outputDatadogEnvVariablesForDebugging()
 
+	// api key reading
+	// ---------------
+
+	// API key reading priority:
+	// KMS > Secrets Manager > Plaintext API key
+	// If one is set but failing, the next will be tried
+
+	// some useful warnings first
+
+	var apikeySetIn = []string{}
+	if os.Getenv(kmsAPIKeyEnvVarLegacy) != "" && os.Getenv(kmsAPIKeyEnvVar) == "" {
+		os.Setenv(os.Getenv(kmsAPIKeyEnvVar), os.Getenv(kmsAPIKeyEnvVarLegacy))
+	}
+	if os.Getenv(kmsAPIKeyEnvVar) != "" {
+		apikeySetIn = append(apikeySetIn, "KMS")
+	}
+	if os.Getenv(secretsManagerAPIKeyEnvVar) != "" {
+		apikeySetIn = append(apikeySetIn, "SSM")
+	}
+	if os.Getenv(apiKeyEnvVar) != "" {
+		apikeySetIn = append(apikeySetIn, "environment variable")
+	}
+
+	if len(apikeySetIn) > 1 {
+		log.Warn("An API Key has been set in multiple places:", strings.Join(apikeySetIn, ", "))
+	}
+
+	// Set secrets from the environment that are suffixed with
+	// KMS_ENCRYPTED or SECRET_ARN
+	setSecretsFromEnv(os.Environ())
+
 	if !hasApiKey() {
 		log.Errorf("Can't start the Datadog extension as no API has been detected")
 		// we still need to register the extension but let's return after (no-op)
@@ -154,35 +186,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		return
 	}
 
-	// api key reading
-	// ---------------
-
-	// API key reading priority:
-	// KMS > Secrets Manager > Plaintext API key
-	// If one is set but failing, the next will be tried
-
-	// some useful warnings first
-
-	var apikeySetIn = []string{}
-	if os.Getenv(kmsAPIKeyEnvVar) != "" {
-		apikeySetIn = append(apikeySetIn, "KMS")
-	}
-	if os.Getenv(secretsManagerAPIKeyEnvVar) != "" {
-		apikeySetIn = append(apikeySetIn, "SSM")
-	}
-	if os.Getenv(apiKeyEnvVar) != "" {
-		apikeySetIn = append(apikeySetIn, "environment variable")
-	}
-
-	if len(apikeySetIn) > 1 {
-		log.Warn("An API Key has been set in multiple places:", strings.Join(apikeySetIn, ", "))
-	}
-
 	config.LoadProxyFromEnv(config.Datadog)
-
-	// Set secrets from the environment that are suffixed with
-	// KMS_ENCRYPTED or SECRET_ARN
-	setSecretsFromEnv(os.Environ())
 
 	// adaptive flush configuration
 	if v, exists := os.LookupEnv(flushStrategyEnvVar); exists {
