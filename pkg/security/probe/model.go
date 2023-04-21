@@ -21,8 +21,6 @@ const (
 	ServiceEnvVar = "DD_SERVICE"
 )
 
-var eventZero model.Event
-
 // NewModel returns a new model with some extra field validation
 func NewModel(probe *Probe) *model.Model {
 	return &model.Model{
