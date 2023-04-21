@@ -106,6 +106,9 @@ func (d *DiscoveryCollector) DiscoverRegularResource(resource string, groupVersi
 	if err != nil {
 		return nil, err
 	}
+	if resource == "clusters" {
+		return d.isSupportClusterCollector(collector, collectorInventory)
+	}
 
 	return d.isSupportCollector(collector)
 }
@@ -118,4 +121,17 @@ func (d *DiscoveryCollector) isSupportCollector(collector collectors.Collector) 
 		return collector, nil
 	}
 	return nil, fmt.Errorf("failed to discover resource %s", collector.Metadata().Name)
+}
+
+func (d *DiscoveryCollector) isSupportClusterCollector(collector collectors.Collector, collectorInventory *inventory.CollectorInventory) (collectors.Collector, error) {
+	nodeCollector, err := collectorInventory.CollectorForDefaultVersion("nodes")
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover cluster resource %w", err)
+	}
+	_, err = d.isSupportCollector(nodeCollector)
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover resource %s", collector.Metadata().Name)
+	}
+	return collector, nil
+
 }
