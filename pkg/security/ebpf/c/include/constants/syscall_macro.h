@@ -14,9 +14,9 @@
   #define SYSCALL64_PT_REGS_PARM2(x) ((x)->si)
   #define SYSCALL64_PT_REGS_PARM3(x) ((x)->dx)
   #if USE_SYSCALL_WRAPPER == 1
-   #define SYSCALL64_PT_REGS_PARM4(x) ((x)->r10)
+    #define SYSCALL64_PT_REGS_PARM4(x) ((x)->r10)
   #else
-  #define SYSCALL64_PT_REGS_PARM4(x) ((x)->cx)
+    #define SYSCALL64_PT_REGS_PARM4(x) ((x)->cx)
   #endif
   #define SYSCALL64_PT_REGS_PARM5(x) ((x)->r8)
   #define SYSCALL64_PT_REGS_PARM6(x) ((x)->r9)
