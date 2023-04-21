@@ -22,6 +22,7 @@ const (
 )
 
 var eventZero model.Event
+var containerContextZero model.ContainerContext
 
 // NewModel returns a new model with some extra field validation
 func NewModel(probe *Probe) *model.Model {
@@ -47,6 +48,11 @@ func NewModel(probe *Probe) *model.Model {
 // NewEvent returns a new event
 func NewEvent(fh *FieldHandlers) *model.Event {
 	return &model.Event{
-		FieldHandlers: fh,
+		FieldHandlers:    fh,
+		ContainerContext: &model.ContainerContext{},
 	}
+}
+
+func init() {
+	eventZero.ContainerContext = &model.ContainerContext{}
 }

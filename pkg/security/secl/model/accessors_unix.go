@@ -625,7 +625,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.ContainerContext))
+				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.ContainerContext))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -634,7 +634,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext)
+				return ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -643,7 +643,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveContainerTags(ev, &ev.ContainerContext)
+				return ev.FieldHandlers.ResolveContainerTags(ev, ev.ContainerContext)
 			},
 			Field:  field,
 			Weight: 9999 * eval.HandlerWeight,
@@ -16486,11 +16486,11 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "chown.retval":
 		return int(ev.Chown.SyscallEvent.Retval), nil
 	case "container.created_at":
-		return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.ContainerContext)), nil
+		return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.ContainerContext)), nil
 	case "container.id":
-		return ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext), nil
+		return ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext), nil
 	case "container.tags":
-		return ev.FieldHandlers.ResolveContainerTags(ev, &ev.ContainerContext), nil
+		return ev.FieldHandlers.ResolveContainerTags(ev, ev.ContainerContext), nil
 	case "dns.id":
 		return int(ev.DNS.ID), nil
 	case "dns.question.class":
@@ -25971,6 +25971,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.Chown.SyscallEvent.Retval = int64(rv)
 		return nil
 	case "container.created_at":
+		if ev.ContainerContext == nil {
+			ev.ContainerContext = &ContainerContext{}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ContainerContext.CreatedAt"}
@@ -25978,6 +25981,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.ContainerContext.CreatedAt = uint64(rv)
 		return nil
 	case "container.id":
+		if ev.ContainerContext == nil {
+			ev.ContainerContext = &ContainerContext{}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ContainerContext.ID"}
@@ -25985,6 +25991,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.ContainerContext.ID = rv
 		return nil
 	case "container.tags":
+		if ev.ContainerContext == nil {
+			ev.ContainerContext = &ContainerContext{}
+		}
 		switch rv := value.(type) {
 		case string:
 			ev.ContainerContext.Tags = append(ev.ContainerContext.Tags, rv)

@@ -92,6 +92,7 @@ func (p *Probe) AddCustomEventHandler(eventType model.EventType, handler CustomE
 func (p *Probe) zeroEvent() *model.Event {
 	*p.event = eventZero
 	p.event.FieldHandlers = p.fieldHandlers
+	p.event.ContainerContext = &containerContextZero
 	return p.event
 }
 

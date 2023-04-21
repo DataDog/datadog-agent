@@ -37,14 +37,17 @@ type Model struct {
 
 // NewEvent returns a new Event
 func (m *Model) NewEvent() eval.Event {
-	return &Event{}
+	return &Event{
+		ContainerContext: &ContainerContext{},
+	}
 }
 
 // NewDefaultEventWithType returns a new Event for the given type
 func (m *Model) NewDefaultEventWithType(kind EventType) eval.Event {
 	return &Event{
-		Type:          uint32(kind),
-		FieldHandlers: &DefaultFieldHandlers{},
+		Type:             uint32(kind),
+		FieldHandlers:    &DefaultFieldHandlers{},
+		ContainerContext: &ContainerContext{},
 	}
 }
 
@@ -220,7 +223,7 @@ type Event struct {
 	PIDContext             PIDContext             `field:"-" json:"-" platform:"linux"`
 	SpanContext            SpanContext            `field:"-" json:"-" platform:"linux"`
 	ProcessContext         *ProcessContext        `field:"process" event:"*" platform:"linux"`
-	ContainerContext       ContainerContext       `field:"container" platform:"linux"`
+	ContainerContext       *ContainerContext      `field:"container" platform:"linux"`
 	NetworkContext         NetworkContext         `field:"network" platform:"linux"`
 	SecurityProfileContext SecurityProfileContext `field:"-"`
 
@@ -314,7 +317,8 @@ func initMember(member reflect.Value, deja map[string]bool) {
 // NewDefaultEvent returns a new event using the default field handlers
 func NewDefaultEvent() eval.Event {
 	return &Event{
-		FieldHandlers: &DefaultFieldHandlers{},
+		FieldHandlers:    &DefaultFieldHandlers{},
+		ContainerContext: &ContainerContext{},
 	}
 }
 

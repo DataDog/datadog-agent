@@ -130,7 +130,7 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 		seclog.Errorf("couldn't create new cgroup_resolver cache entry: %v", err)
 		return
 	}
-	newCGroup.CreationTime = uint64(process.ProcessContext.ExecTime.UnixNano())
+	newCGroup.CreatedAt = uint64(process.ProcessContext.ExecTime.UnixNano())
 
 	// add the new CGroup to the cache
 	cr.workloads.Add(process.ContainerID, newCGroup)

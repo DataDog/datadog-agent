@@ -52,7 +52,7 @@ func TestContainerCreatedAt(t *testing.T) {
 	}
 	defer dockerWrapper.stop()
 
-	dockerWrapper.Run(t, "container-tags", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	dockerWrapper.Run(t, "container-created-at", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("touch", []string{testFile}, nil)
 			return cmd.Run()
@@ -65,7 +65,7 @@ func TestContainerCreatedAt(t *testing.T) {
 		})
 	})
 
-	dockerWrapper.Run(t, "container-tags-delay", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	dockerWrapper.Run(t, "container-created-at-delay", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("touch", []string{testFileDelay}, nil) // shouldn't trigger an event
 			if err := cmd.Run(); err != nil {
