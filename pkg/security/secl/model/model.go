@@ -778,7 +778,16 @@ type ProcessCacheEntry struct {
 	refCount  uint64                     `field:"-" json:"-"`
 	onRelease func(_ *ProcessCacheEntry) `field:"-" json:"-"`
 	releaseCb func()                     `field:"-" json:"-"`
+	ProcessCacheEntrySource
 }
+
+type ProcessCacheEntrySource uint64
+
+const (
+	ProcessCacheEntryFromEvent     ProcessCacheEntrySource = 1
+	ProcessCacheEntryFromKernelMap ProcessCacheEntrySource = 2
+	ProcessCacheEntryFromProcFS    ProcessCacheEntrySource = 3
+)
 
 // IsContainerRoot returns whether this is a top level process in the container ID
 func (pc *ProcessCacheEntry) IsContainerRoot() bool {

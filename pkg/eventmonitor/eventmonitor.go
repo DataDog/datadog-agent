@@ -155,6 +155,21 @@ func (m *EventMonitor) Start() error {
 		}
 	}
 
+	// The rules are loaded after the CWSConsumer started
+
+	// Get the snapshotted data [TODO: only get processEntryCache from ProcFS]
+	entrycache := m.Probe.GetResolvers().ProcessResolver.GetEntryCache()
+	fmt.Println("---------------------------- ENTRY CACHE:", entrycache)
+
+	// Now need to somehow convert these processEntryCaches to events
+	for _, entry := range entrycache {
+		if entry.ProcessCacheEntrySource != model.ProcessCacheEntryFromProcFS {
+			continue
+		}
+		event := model.Event{Exec: model.ExecEvent{Process: &entry.Process}}
+		fmt.Println("--------------------EXEC EVENT: ", event)
+		// m.Probe.DispatchEvent(&event)
+	}
 	m.wg.Add(1)
 	go m.statsSender()
 

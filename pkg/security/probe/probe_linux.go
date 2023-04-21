@@ -323,6 +323,7 @@ func (p *Probe) AddActivityDumpHandler(handler dump.ActivityDumpHandler) {
 
 // DispatchEvent sends an event to the probe event handler
 func (p *Probe) DispatchEvent(event *model.Event) {
+	fmt.Println("-----------------------------LEGIT EVENT:", event)
 	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
 		eventJSON, err := serializers.MarshalEvent(event, p.resolvers)
 		return eventJSON, event.GetEventType(), err

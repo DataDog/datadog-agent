@@ -57,14 +57,6 @@ type ResolverOpts struct {
 	envsWithValue map[string]bool
 }
 
-type processCacheEntrySource uint64
-
-const (
-	processCacheEntryFromEvent     processCacheEntrySource = 1
-	processCacheEntryFromKernelMap processCacheEntrySource = 2
-	processCacheEntryFromProcFS    processCacheEntrySource = 3
-)
-
 // Resolver resolved process context
 type Resolver struct {
 	sync.RWMutex
@@ -319,7 +311,7 @@ func (p *Resolver) AddForkEntry(entry *model.ProcessCacheEntry) {
 	p.Lock()
 	defer p.Unlock()
 
-	p.insertForkEntry(entry, processCacheEntryFromEvent)
+	p.insertForkEntry(entry, model.ProcessCacheEntryFromEvent)
 }
 
 // AddExecEntry adds an entry to the local cache and returns the newly created entry
@@ -327,7 +319,7 @@ func (p *Resolver) AddExecEntry(entry *model.ProcessCacheEntry) {
 	p.Lock()
 	defer p.Unlock()
 
-	p.insertExecEntry(entry, processCacheEntryFromEvent)
+	p.insertExecEntry(entry, model.ProcessCacheEntryFromEvent)
 }
 
 // enrichEventFromProc uses /proc to enrich a ProcessCacheEntry with additional metadata
@@ -482,7 +474,8 @@ func (p *Resolver) retrieveExecFileFields(procExecPath string) (*model.FileField
 	return &fileFields, nil
 }
 
-func (p *Resolver) insertEntry(entry, prev *model.ProcessCacheEntry, origin processCacheEntrySource) {
+func (p *Resolver) insertEntry(entry, prev *model.ProcessCacheEntry, origin model.ProcessCacheEntrySource) {
+	entry.ProcessCacheEntrySource = origin
 	p.entryCache[entry.Pid] = entry
 	entry.Retain()
 
@@ -496,18 +489,18 @@ func (p *Resolver) insertEntry(entry, prev *model.ProcessCacheEntry, origin proc
 	}
 
 	switch origin {
-	case processCacheEntryFromEvent:
+	case model.ProcessCacheEntryFromEvent:
 		p.addedEntriesFromEvent.Inc()
-	case processCacheEntryFromKernelMap:
+	case model.ProcessCacheEntryFromKernelMap:
 		p.addedEntriesFromKernelMap.Inc()
-	case processCacheEntryFromProcFS:
+	case model.ProcessCacheEntryFromProcFS:
 		p.addedEntriesFromProcFS.Inc()
 	}
 
 	p.cacheSize.Inc()
 }
 
-func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry, origin processCacheEntrySource) {
+func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry, origin model.ProcessCacheEntrySource) {
 	prev := p.entryCache[entry.Pid]
 	if prev != nil {
 		// this shouldn't happen but it is better to exit the prev and let the new one replace it
@@ -526,7 +519,7 @@ func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry, origin proces
 	p.insertEntry(entry, prev, origin)
 }
 
-func (p *Resolver) insertExecEntry(entry *model.ProcessCacheEntry, origin processCacheEntrySource) {
+func (p *Resolver) insertExecEntry(entry *model.ProcessCacheEntry, origin model.ProcessCacheEntrySource) {
 	prev := p.entryCache[entry.Pid]
 	if prev != nil {
 		prev.Exec(entry)
@@ -771,11 +764,11 @@ func (p *Resolver) resolveFromKernelMaps(pid, tid uint32) *model.ProcessCacheEnt
 	}
 
 	if entry.ExecTime.IsZero() {
-		p.insertForkEntry(entry, processCacheEntryFromKernelMap)
+		p.insertForkEntry(entry, model.ProcessCacheEntryFromKernelMap)
 		return entry
 	}
 
-	p.insertExecEntry(entry, processCacheEntryFromKernelMap)
+	p.insertExecEntry(entry, model.ProcessCacheEntryFromKernelMap)
 	return entry
 }
 
@@ -1115,7 +1108,7 @@ func (p *Resolver) syncCache(proc *process.Process, filledProc *process.FilledPr
 
 	p.setAncestor(entry)
 
-	p.insertEntry(entry, p.entryCache[pid], processCacheEntryFromProcFS)
+	p.insertEntry(entry, p.entryCache[pid], model.ProcessCacheEntryFromProcFS)
 
 	// insert new entry in kernel maps
 	procCacheEntryB := make([]byte, 224)
@@ -1215,6 +1208,11 @@ func (p *Resolver) GetCacheSize() float64 {
 // GetEntryCacheSize returns the cache size of the process resolver
 func (p *Resolver) GetEntryCacheSize() float64 {
 	return float64(p.cacheSize.Load())
+}
+
+// GetEntryCache return the resolver's entrycache
+func (p *Resolver) GetEntryCache() map[uint32]*model.ProcessCacheEntry {
+	return p.entryCache
 }
 
 // SetState sets the process resolver state
