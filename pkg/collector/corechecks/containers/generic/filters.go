@@ -52,7 +52,7 @@ func (f LegacyContainerFilter) IsExcluded(container *workloadmeta.Container) boo
 	}
 	var annotations map[string]string
 	if container.IsOwnedByPod() {
-		if pod, err := workloadmeta.GetGlobalStore().GetKubernetesPod(container.Owner.ID); err != nil {
+		if pod, err := workloadmeta.GetGlobalStore().GetKubernetesPod(container.Owner.ID); err == nil {
 			annotations = pod.Annotations
 		}
 	}

@@ -363,6 +363,14 @@ func TestIsExcludedByAnnotation(t *testing.T) {
 		"ad.datadoghq.com/logs_exclude":    `true`,
 	}
 
+	globalExcludeContainerLess := map[string]string{
+		"ad.datadoghq.com/exclude": `true`,
+	}
+
+	globalExclude := map[string]string{
+		fmt.Sprintf("ad.datadoghq.com/%s.exclude", containerIncludeName): `true`,
+	}
+
 	globalFilter, err := NewFilter(GlobalFilter, nil, nil)
 	require.NoError(t, err)
 	metricsFilter, err := NewFilter(MetricsFilter, nil, nil)
@@ -395,6 +403,16 @@ func TestIsExcludedByAnnotation(t *testing.T) {
 	assert.True(t, globalFilter.isExcludedByAnnotation(containerlessAnnotations, containerNoMentionName))
 	assert.True(t, metricsFilter.isExcludedByAnnotation(containerlessAnnotations, containerNoMentionName))
 	assert.True(t, logsFilter.isExcludedByAnnotation(containerlessAnnotations, containerNoMentionName))
+
+	// Container-less global exclude
+	assert.True(t, globalFilter.isExcludedByAnnotation(globalExcludeContainerLess, containerIncludeName))
+	assert.True(t, metricsFilter.isExcludedByAnnotation(globalExcludeContainerLess, containerIncludeName))
+	assert.True(t, logsFilter.isExcludedByAnnotation(globalExcludeContainerLess, containerIncludeName))
+
+	// Global exclude
+	assert.True(t, globalFilter.isExcludedByAnnotation(globalExclude, containerIncludeName))
+	assert.True(t, metricsFilter.isExcludedByAnnotation(globalExclude, containerIncludeName))
+	assert.True(t, logsFilter.isExcludedByAnnotation(globalExclude, containerIncludeName))
 
 	assert.False(t, logsFilter.isExcludedByAnnotation(nil, containerExcludeName))
 }
