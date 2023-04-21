@@ -478,7 +478,7 @@ func (fh *FieldHandlers) ResolvePackageSourceVersion(ev *model.Event, f *model.F
 func (fh *FieldHandlers) ResolveModuleArgv(ev *model.Event, module *model.LoadModuleEvent) []string {
 	// strings.Split return [""] if args is empty, so we do a manual check before
 	if len(module.Args) == 0 {
-		module.Argv = []
+		module.Argv = nil
 		return module.Argv
 	}
 
