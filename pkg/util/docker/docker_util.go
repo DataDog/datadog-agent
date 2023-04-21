@@ -159,7 +159,7 @@ func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options typ
 		var annotations map[string]string
 		workloadmeta := workloadmeta.GetGlobalStore()
 		workloadmetaContainer, err := workloadmeta.GetContainer(container.ID)
-		if err != nil && workloadmetaContainer != nil {
+		if err == nil {
 			if workloadmetaContainer.IsOwnedByPod() {
 				if pod, err := workloadmeta.GetKubernetesPod(workloadmetaContainer.Owner.ID); err != nil {
 					annotations = pod.Annotations
