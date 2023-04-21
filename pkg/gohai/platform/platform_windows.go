@@ -94,6 +94,8 @@ func netServerGetInfo() (si SERVER_INFO_101, err error) {
 	if status != uintptr(0) {
 		return
 	}
+	// ignore free errors
+	//nolint:errcheck
 	defer procNetApiBufferFree.Call(uintptr(unsafe.Pointer(outdata)))
 	return platGetServerInfo(outdata), nil
 }
@@ -107,8 +109,12 @@ func fetchOsDescription() (string, error) {
 			// Encode the string "%WINDOWS_LONG%" to UTF-16 and append a null byte for the Windows API
 			magicString := utf16.Encode([]rune("%WINDOWS_LONG%" + "\x00"))
 			os, _, err := procBrandingFormatString.Call(uintptr(unsafe.Pointer(&magicString[0])))
-			defer syscall.LocalFree(syscall.Handle(os))
 			if err == ERROR_SUCESS {
+				// ignore free errors
+				//nolint:errcheck
+				defer syscall.LocalFree(syscall.Handle(os))
+				// govet complains about possible misuse of unsafe.Pointer here
+				//nolint:govet
 				return windows.UTF16PtrToString((*uint16)(unsafe.Pointer(os))), nil
 			}
 		}
@@ -117,8 +123,10 @@ func fetchOsDescription() (string, error) {
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
 		registryHive,
 		registry.QUERY_VALUE)
-	defer k.Close()
 	if err == nil {
+		// ignore registry key close errors
+		//nolint:staticcheck
+		defer k.Close()
 		os, _, err := k.GetStringValue(productNameKey)
 		if err == nil {
 			return os, nil
@@ -140,25 +148,28 @@ func fetchWindowsVersion() (major uint64, minor uint64, build uint64, err error)
 		regkey, err = registry.OpenKey(registry.LOCAL_MACHINE,
 			registryHive,
 			registry.QUERY_VALUE)
-		defer regkey.Close()
 		if err != nil {
-			major, _, err = regkey.GetIntegerValue(majorKey)
-			if err != nil {
-				return
-			}
-
-			minor, _, err = regkey.GetIntegerValue(minorKey)
-			if err != nil {
-				return
-			}
-
-			var regbuild string
-			regbuild, _, err = regkey.GetStringValue(buildNumberKey)
-			if err != nil {
-				return
-			}
-			build, err = strconv.ParseUint(regbuild, 10, 0)
+			return
 		}
+		// ignore registry key close errors
+		//nolint:staticcheck
+		defer regkey.Close()
+		major, _, err = regkey.GetIntegerValue(majorKey)
+		if err != nil {
+			return
+		}
+
+		minor, _, err = regkey.GetIntegerValue(minorKey)
+		if err != nil {
+			return
+		}
+
+		var regbuild string
+		regbuild, _, err = regkey.GetStringValue(buildNumberKey)
+		if err != nil {
+			return
+		}
+		build, err = strconv.ParseUint(regbuild, 10, 0)
 	}
 	return
 }
@@ -167,7 +178,10 @@ func fetchWindowsVersion() (major uint64, minor uint64, build uint64, err error)
 func GetArchInfo() (systemInfo map[string]string, err error) {
 	systemInfo = map[string]string{}
 
-	systemInfo["hostname"], _ = os.Hostname()
+	hostname, err := os.Hostname()
+	if err == nil {
+		systemInfo["hostname"] = hostname
+	}
 
 	if runtime.GOARCH == "amd64" {
 		systemInfo["machine"] = "x86_64"
@@ -175,11 +189,16 @@ func GetArchInfo() (systemInfo map[string]string, err error) {
 		systemInfo["machine"] = runtime.GOARCH
 	}
 
-	systemInfo["os"], err = fetchOsDescription()
+	osDescription, err := fetchOsDescription()
+	if err == nil {
+		systemInfo["os"] = osDescription
+	}
 
 	maj, min, bld, err := fetchWindowsVersion()
-	verstring := fmt.Sprintf("%d.%d.%d", maj, min, bld)
-	systemInfo["kernel_release"] = verstring
+	if err == nil {
+		verstring := fmt.Sprintf("%d.%d.%d", maj, min, bld)
+		systemInfo["kernel_release"] = verstring
+	}
 
 	systemInfo["kernel_name"] = "Windows"
 
@@ -207,6 +226,9 @@ func GetArchInfo() (systemInfo map[string]string, err error) {
 		}
 	}
 	systemInfo["family"] = family
+
+	// systemInfo is never empty so we never return an error
+	err = nil
 
 	return
 }

@@ -138,45 +138,63 @@ func getSystemInfo() (si SYSTEM_INFO) {
 	var mod = syscall.NewLazyDLL("kernel32.dll")
 	var gsi = mod.NewProc("GetSystemInfo")
 
+	// syscall does not fail
+	//nolint:errcheck
 	gsi.Call(uintptr(unsafe.Pointer(&si)))
 	return
 }
 
 // GetCpuInfo returns map of interesting bits of information about the CPU
 func GetCpuInfo() (cpuInfo map[string]string, err error) {
-
 	cpuInfo = make(map[string]string)
-
-	cpus, _ := computeCoresAndProcessors()
-	si := getSystemInfo()
 
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
 		registryHive,
 		registry.QUERY_VALUE)
-	defer k.Close()
-	dw, _, err := k.GetIntegerValue("~MHz")
-	cpuInfo["mhz"] = strconv.Itoa(int(dw))
+	if err == nil {
+		// ignore registry key close errors
+		//nolint:staticcheck
+		defer k.Close()
 
-	s, _, err := k.GetStringValue("ProcessorNameString")
-	cpuInfo["model_name"] = s
+		dw, _, err := k.GetIntegerValue("~MHz")
+		if err == nil {
+			cpuInfo["mhz"] = strconv.Itoa(int(dw))
+		}
 
-	cpuInfo["cpu_pkgs"] = strconv.Itoa(cpus.pkgcount)
-	cpuInfo["cpu_numa_nodes"] = strconv.Itoa(cpus.numaNodeCount)
-	cpuInfo["cpu_cores"] = strconv.Itoa(cpus.corecount)
-	cpuInfo["cpu_logical_processors"] = strconv.Itoa(cpus.logicalcount)
+		s, _, err := k.GetStringValue("ProcessorNameString")
+		if err == nil {
+			cpuInfo["model_name"] = s
+		}
 
-	s, _, err = k.GetStringValue("VendorIdentifier")
-	cpuInfo["vendor_id"] = s
+		s, _, err = k.GetStringValue("VendorIdentifier")
+		if err == nil {
+			cpuInfo["vendor_id"] = s
+		}
 
-	s, _, err = k.GetStringValue("Identifier")
-	cpuInfo["family"] = extract(s, "Family")
+		s, _, err = k.GetStringValue("Identifier")
+		if err == nil {
+			cpuInfo["family"] = extract(s, "Family")
+		}
+	}
 
+	cpus, err := computeCoresAndProcessors()
+	if err == nil {
+		cpuInfo["cpu_pkgs"] = strconv.Itoa(cpus.pkgcount)
+		cpuInfo["cpu_numa_nodes"] = strconv.Itoa(cpus.numaNodeCount)
+		cpuInfo["cpu_cores"] = strconv.Itoa(cpus.corecount)
+		cpuInfo["cpu_logical_processors"] = strconv.Itoa(cpus.logicalcount)
+
+		cpuInfo["cache_size_l1"] = strconv.Itoa(int(cpus.l1CacheSize))
+		cpuInfo["cache_size_l2"] = strconv.Itoa(int(cpus.l2CacheSize))
+		cpuInfo["cache_size_l3"] = strconv.Itoa(int(cpus.l3CacheSize))
+	}
+
+	si := getSystemInfo()
 	cpuInfo["model"] = strconv.Itoa(int((si.wProcessorRevision >> 8) & 0xFF))
 	cpuInfo["stepping"] = strconv.Itoa(int(si.wProcessorRevision & 0xFF))
 
-	cpuInfo["cache_size_l1"] = strconv.Itoa(int(cpus.l1CacheSize))
-	cpuInfo["cache_size_l2"] = strconv.Itoa(int(cpus.l2CacheSize))
-	cpuInfo["cache_size_l3"] = strconv.Itoa(int(cpus.l3CacheSize))
+	// cpuInfo cannot be empty
+	err = nil
 
 	return
 }
