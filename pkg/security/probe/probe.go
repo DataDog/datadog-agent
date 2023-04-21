@@ -59,7 +59,6 @@ type Probe struct {
 	// internals
 	resolvers     *resolvers.Resolvers
 	fieldHandlers *FieldHandlers
-	event         *model.Event
 }
 
 // GetResolvers returns the resolvers of Probe
@@ -90,9 +89,9 @@ func (p *Probe) AddCustomEventHandler(eventType model.EventType, handler CustomE
 }
 
 func (p *Probe) zeroEvent() *model.Event {
-	*p.event = model.Event{}
-	p.event.FieldHandlers = p.fieldHandlers
-	return p.event
+	event := &model.Event{}
+	event.FieldHandlers = p.fieldHandlers
+	return event
 }
 func (p *Probe) StatsPollingInterval() time.Duration {
 	return p.Config.Probe.StatsPollingInterval

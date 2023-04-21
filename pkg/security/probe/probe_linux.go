@@ -1331,7 +1331,6 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		StatsdClient:         opts.StatsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
 
-		event: &model.Event{},
 		PlatformProbe: PlatformProbe{
 			approvers:            make(map[eval.EventType]kfilters.ActiveApprovers),
 			managerOptions:       ebpf.NewDefaultOptions(),
@@ -1540,9 +1539,6 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	p.resolvers = resolvers
 
 	p.fieldHandlers = &FieldHandlers{resolvers: resolvers}
-
-	// be sure to zero the probe event before everything else
-	p.zeroEvent()
 
 	if useRingBuffers {
 		p.eventStream = ringbuffer.New(p.handleEvent)
