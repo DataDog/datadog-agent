@@ -11,6 +11,8 @@ package fentry
 import (
 	"errors"
 	"fmt"
+	"os"
+	"syscall"
 
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -18,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
 
@@ -55,6 +58,26 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 
 		telemetryMapKeys := errtelemetry.BuildTelemetryKeys(m)
 		o.ConstantEditors = append(o.ConstantEditors, telemetryMapKeys...)
+
+		pid, err := util.GetRootNSPID()
+
+		file, err := os.Stat("/proc/" + fmt.Sprint(pid) + "/ns/pid")
+
+		if (err != nil) {
+			return nil
+		}
+
+		device := file.Sys().(*syscall.Stat_t).Dev
+		inode := file.Sys().(*syscall.Stat_t).Ino
+
+		o.ConstantEditors = append(o.ConstantEditors, manager.ConstantEditor{
+			Name:  "systemprobe_device",
+			Value: uint64(device),
+		})
+		o.ConstantEditors = append(o.ConstantEditors, manager.ConstantEditor{
+			Name:  "systemprobe_ino",
+			Value: uint64(inode),
+		})
 
 		// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 		for _, p := range m.Probes {

@@ -24,6 +24,18 @@ static __always_inline __u32 systemprobe_pid() {
     return (__u32)val;
 }
 
+static __always_inline __u32 systemprobe_dev() {
+    __u64 val = 0;
+    LOAD_CONSTANT("systemprobe_device", val);
+    return (__u32)val;
+}
+
+static __always_inline __u32 systemprobe_ino() {
+    __u64 val = 0;
+    LOAD_CONSTANT("systemprobe_ino", val);
+    return (__u32)val;
+}
+
 static __always_inline void print_translation(const conntrack_tuple_t *t) {
     if (t->metadata & CONN_TYPE_TCP) {
         log_debug("TCP\n");
