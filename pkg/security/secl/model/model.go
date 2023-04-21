@@ -257,15 +257,17 @@ type Event struct {
 	Bind BindEvent `field:"bind" event:"bind" platform:"linux"` // [7.37] [Network] [Experimental] A bind was executed
 
 	// internal usage
-	Umount              UmountEvent           `field:"-" json:"-" platform:"linux"`
-	InvalidateDentry    InvalidateDentryEvent `field:"-" json:"-" platform:"linux"`
-	ArgsEnvs            ArgsEnvsEvent         `field:"-" json:"-" platform:"linux"`
-	MountReleased       MountReleasedEvent    `field:"-" json:"-" platform:"linux"`
-	CgroupTracing       CgroupTracingEvent    `field:"-" json:"-" platform:"linux"`
-	NetDevice           NetDeviceEvent        `field:"-" json:"-" platform:"linux"`
-	VethPair            VethPairEvent         `field:"-" json:"-" platform:"linux"`
-	UnshareMountNS      UnshareMountNSEvent   `field:"-" json:"-" platform:"linux"`
-	PathResolutionError error                 `field:"-" json:"-" platform:"linux"` // hold one of the path resolution error
+	Umount           UmountEvent           `field:"-" json:"-" platform:"linux"`
+	InvalidateDentry InvalidateDentryEvent `field:"-" json:"-" platform:"linux"`
+	ArgsEnvs         ArgsEnvsEvent         `field:"-" json:"-" platform:"linux"`
+	MountReleased    MountReleasedEvent    `field:"-" json:"-" platform:"linux"`
+	CgroupTracing    CgroupTracingEvent    `field:"-" json:"-" platform:"linux"`
+	NetDevice        NetDeviceEvent        `field:"-" json:"-" platform:"linux"`
+	VethPair         VethPairEvent         `field:"-" json:"-" platform:"linux"`
+	UnshareMountNS   UnshareMountNSEvent   `field:"-" json:"-" platform:"linux"`
+
+	// mark event with having error
+	Error error `field:"-" json:"-"`
 
 	// field resolution
 	FieldHandlers FieldHandlers `field:"-" json:"-" platform:"linux"`
@@ -382,7 +384,7 @@ func (ev *Event) Release() {
 // SetPathResolutionError sets the Event.pathResolutionError
 func (ev *Event) SetPathResolutionError(fileFields *FileEvent, err error) {
 	fileFields.PathResolutionError = err
-	ev.PathResolutionError = err
+	ev.Error = err
 }
 
 // ResolveProcessCacheEntry uses the field handler

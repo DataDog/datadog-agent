@@ -434,6 +434,10 @@ func (p *Probe) invalidateDentry(mountID uint32, inode uint64) {
 	p.resolvers.DentryResolver.DelCacheEntry(mountID, inode)
 }
 
+func eventWithNoProcessContext(eventType model.EventType) bool {
+	return eventType == model.DNSEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType
+}
+
 // UnmarshalProcessCacheEntry unmarshal a Process
 func (p *Probe) UnmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, error) {
 	entry := p.resolvers.ProcessResolver.NewProcessCacheEntry(ev.PIDContext)
@@ -682,9 +686,9 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			if errors.As(err, &errResolution) {
 				event.SetPathResolutionError(&event.ProcessCacheEntry.FileEvent, err)
 			}
+		} else {
+			p.resolvers.ProcessResolver.AddExecEntry(event.ProcessCacheEntry)
 		}
-
-		p.resolvers.ProcessResolver.AddExecEntry(event.ProcessCacheEntry)
 
 		event.Exec.Process = &event.ProcessCacheEntry.Process
 	case model.ExitEventType:
@@ -840,7 +844,11 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	}
 
 	// resolve the process cache entry
-	event.ProcessCacheEntry, _ = p.fieldHandlers.ResolveProcessCacheEntry(event)
+	entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event)
+	if !isResolved && !eventWithNoProcessContext(eventType) {
+		event.Error = &ErrProcessContext{Err: errors.New("process context not resolved")}
+	}
+	event.ProcessCacheEntry = entry
 
 	// use ProcessCacheEntry process context as process context
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext

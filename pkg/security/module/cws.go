@@ -404,6 +404,11 @@ func (c *CWSConsumer) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, f
 
 // HandleEvent is called by the probe when an event arrives from the kernel
 func (c *CWSConsumer) HandleEvent(event *model.Event) {
+	// event already marked with an error, skip it
+	if event.Error != nil {
+		return
+	}
+
 	// if the event should have been discarded in kernel space, we don't need to evaluate it
 	if event.IsSavedByActivityDumps() {
 		return
@@ -424,6 +429,11 @@ func (c *CWSConsumer) HandleCustomEvent(rule *rules.Rule, event *events.CustomEv
 // RuleMatch is called by the ruleset when a rule matches
 func (c *CWSConsumer) RuleMatch(rule *rules.Rule, event eval.Event) {
 	ev := event.(*model.Event)
+
+	// do not send broken event
+	if ev.Error != nil {
+		return
+	}
 
 	// ensure that all the fields are resolved before sending
 	ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext)
