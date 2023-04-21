@@ -171,13 +171,6 @@ func (cb *CollectorBundle) addCollectorFromConfig(collectorName string, isCRD bo
 
 	cb.activatedCollectors[collector.Metadata().FullName()] = struct{}{}
 	cb.collectors = append(cb.collectors, collector)
-
-	// Enable the cluster collector when the node resource is discovered.
-	if collector.Metadata().NodeType == orchestrator.K8sNode {
-		clusterCollector, _ := cb.inventory.CollectorForDefaultVersion("clusters")
-		cb.collectors = append(cb.collectors, clusterCollector)
-		cb.activatedCollectors[clusterCollector.Metadata().FullName()] = struct{}{}
-	}
 }
 
 // importCollectorsFromCheckConfig tries to fill the bundle with the list of
@@ -188,9 +181,6 @@ func (cb *CollectorBundle) importCollectorsFromCheckConfig() bool {
 		return false
 	}
 	for _, c := range cb.check.instance.Collectors {
-		if c == "clusters" {
-			continue
-		}
 		cb.addCollectorFromConfig(c, false)
 	}
 	return true
