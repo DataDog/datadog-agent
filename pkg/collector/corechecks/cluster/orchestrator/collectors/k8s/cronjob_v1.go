@@ -55,9 +55,6 @@ func (c *CronJobV1Collector) Init(rcfg *collectors.CollectorRunConfig) {
 	c.lister = c.informer.Lister()
 }
 
-// IsAvailable returns whether the collector is available.
-func (c *CronJobV1Collector) IsAvailable() bool { return true }
-
 // Metadata is used to access information about the collector.
 func (c *CronJobV1Collector) Metadata() *collectors.CollectorMetadata {
 	return c.metadata

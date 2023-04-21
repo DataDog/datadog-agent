@@ -64,9 +64,6 @@ func (c *VerticalPodAutoscalerCollector) Init(rcfg *collectors.CollectorRunConfi
 	c.lister = c.informer.Lister()
 }
 
-// IsAvailable returns whether the collector is available.
-func (c *VerticalPodAutoscalerCollector) IsAvailable() bool { return true }
-
 // Metadata is used to access information about the collector.
 func (c *VerticalPodAutoscalerCollector) Metadata() *collectors.CollectorMetadata {
 	return c.metadata
