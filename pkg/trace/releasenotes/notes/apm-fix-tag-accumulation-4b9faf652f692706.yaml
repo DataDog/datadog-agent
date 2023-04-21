@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    APM: Fixes a bug in the debugger endpoint that would accumulate tags between unrelated requests.
