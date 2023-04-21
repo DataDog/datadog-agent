@@ -330,12 +330,12 @@ func TestFilter(t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			f, err := NewFilter(tc.includeList, tc.excludeList)
+			f, err := NewFilter(GlobalFilter, tc.includeList, tc.excludeList)
 			require.Nil(t, err, "case %d", i)
 
 			var allowed []string
 			for _, c := range containers {
-				if !f.IsExcluded(c.c.Name, c.c.Image, c.ns, nil) {
+				if !f.IsExcluded(nil, c.c.Name, c.c.Image, c.ns) {
 					allowed = append(allowed, c.c.ID)
 				}
 			}
@@ -363,9 +363,12 @@ func TestIsExcludedByAnnotation(t *testing.T) {
 		"ad.datadoghq.com/logs_exclude":    `true`,
 	}
 
-	globalFilter := NewFilter(GlobalFilter, nil, nil)
-	metricsFilter := NewFilter(MetricsFilter, nil, nil)
-	logsFilter := newFilter(LogsFilter, nil, nil)
+	globalFilter, err := NewFilter(GlobalFilter, nil, nil)
+	require.NoError(t, err)
+	metricsFilter, err := NewFilter(MetricsFilter, nil, nil)
+	require.NoError(t, err)
+	logsFilter, err := NewFilter(LogsFilter, nil, nil)
+	require.NoError(t, err)
 
 	// Container-specific annotations
 	assert.True(t, globalFilter.isExcludedByAnnotation(annotations, containerExcludeName))
@@ -404,16 +407,16 @@ func TestNewMetricFilterFromConfig(t *testing.T) {
 	f, err := newMetricFilterFromConfig()
 	require.NoError(t, err)
 
-	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", "", nil))
-	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", "", nil))
-	assert.False(t, f.IsExcluded("dummy", "dummy", "", nil))
-	assert.True(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", "", nil))
-	assert.True(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", "", nil))
+	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "dummy", ""))
+	assert.True(t, f.IsExcluded(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
+	assert.True(t, f.IsExcluded(nil, "dummy", "rancher/pause-amd64:3.1", ""))
 
 	config.Datadog.SetDefault("exclude_pause_container", false)
 	f, err = newMetricFilterFromConfig()
 	require.NoError(t, err)
-	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", "", nil))
+	assert.False(t, f.IsExcluded(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
 
 	config.Datadog.SetDefault("exclude_pause_container", true)
 	config.Datadog.SetDefault("ac_include", []string{})
@@ -428,11 +431,11 @@ func TestNewMetricFilterFromConfig(t *testing.T) {
 	f, err = newMetricFilterFromConfig()
 	require.NoError(t, err)
 
-	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", "", nil))
-	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", "", nil))
-	assert.True(t, f.IsExcluded("ddmetric-152462", "dummy:latest", "", nil))
-	assert.False(t, f.IsExcluded("ddmetric-152462", "nginx:latest", "", nil))
-	assert.False(t, f.IsExcluded("dummy", "dummy", "", nil))
+	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
+	assert.True(t, f.IsExcluded(nil, "ddmetric-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "ddmetric-152462", "nginx:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "dummy", ""))
 }
 
 func TestNewAutodiscoveryFilter(t *testing.T) {
@@ -445,11 +448,11 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	f, err := NewAutodiscoveryFilter(GlobalFilter)
 	require.NoError(t, err)
 
-	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", "", nil))
-	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", "", nil))
-	assert.False(t, f.IsExcluded("dummy", "dummy", "", nil))
-	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", "", nil))
-	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", "", nil))
+	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "dummy", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "rancher/pause-amd64:3.1", ""))
 	resetConfig()
 
 	// Global - new config - legacy config ignored
@@ -461,12 +464,12 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	f, err = NewAutodiscoveryFilter(GlobalFilter)
 	require.NoError(t, err)
 
-	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", "", nil))
-	assert.False(t, f.IsExcluded("dd/legacy-152462", "dummy:latest", "", nil))
-	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", "", nil))
-	assert.False(t, f.IsExcluded("dummy", "dummy", "", nil))
-	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", "", nil))
-	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", "", nil))
+	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dd/legacy-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "dummy", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "rancher/pause-amd64:3.1", ""))
 	resetConfig()
 
 	// Metrics
@@ -476,11 +479,11 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	f, err = NewAutodiscoveryFilter(MetricsFilter)
 	require.NoError(t, err)
 
-	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", "", nil))
-	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", "", nil))
-	assert.False(t, f.IsExcluded("dummy", "dummy", "", nil))
-	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", "", nil))
-	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", "", nil))
+	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "dummy", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "rancher/pause-amd64:3.1", ""))
 	resetConfig()
 
 	// Logs
@@ -490,11 +493,11 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	f, err = NewAutodiscoveryFilter(LogsFilter)
 	require.NoError(t, err)
 
-	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", "", nil))
-	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", "", nil))
-	assert.False(t, f.IsExcluded("dummy", "dummy", "", nil))
-	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", "", nil))
-	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", "", nil))
+	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "dummy", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "rancher/pause-amd64:3.1", ""))
 	resetConfig()
 
 	// Filter errors - non-duplicate error messages
@@ -504,11 +507,11 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	f, err = NewAutodiscoveryFilter(GlobalFilter)
 	require.NoError(t, err)
 
-	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", "", nil))
-	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", "", nil))
-	assert.False(t, f.IsExcluded("dummy", "dummy", "", nil))
-	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", "", nil))
-	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", "", nil))
+	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "dummy", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "rancher/pause-amd64:3.1", ""))
 	fe := map[string]struct{}{
 		"Container filter \"invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'": {},
 	}

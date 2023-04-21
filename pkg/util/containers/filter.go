@@ -316,12 +316,15 @@ func NewAutodiscoveryFilter(ft FilterType) (*Filter, error) {
 
 // IsExcluded returns a bool indicating if the container should be excluded
 // based on the filters in the containerFilter instance. Consider also using
-// IsExcludedByAnnotation in parallel with this check.
 // Note: exclude filters are not applied to empty container names, empty
 // images and empty namespaces.
 func (cf Filter) IsExcluded(annotations map[string]string, containerName, containerImage, podNamespace string) bool {
+	if cf.isExcludedByAnnotation(annotations, containerName) {
+		return true
+	}
+
 	if !cf.Enabled {
-		return cf.isExcludedByAnnotation(annotations, containerName)
+		return false
 	}
 
 	// Any includeListed take precedence on excluded
@@ -366,7 +369,7 @@ func (cf Filter) IsExcluded(annotations map[string]string, containerName, contai
 		}
 	}
 
-	return cf.isExcludedByAnnotation(annotations, containerName)
+	return false
 }
 
 // isExcludedByAnnotation identifies whether a container should be excluded
@@ -377,7 +380,6 @@ func (cf Filter) isExcludedByAnnotation(annotations map[string]string, container
 	}
 	switch cf.FilterType {
 	case GlobalFilter:
-		return isExcludedByAnnotationInner(annotations, containerName, "")
 	case MetricsFilter:
 		return isExcludedByAnnotationInner(annotations, containerName, "metrics_")
 	case LogsFilter:
@@ -385,7 +387,7 @@ func (cf Filter) isExcludedByAnnotation(annotations map[string]string, container
 	default:
 		log.Warnf("unrecognized filter type: %s", cf.FilterType)
 	}
-	return false
+	return isExcludedByAnnotationInner(annotations, containerName, "")
 }
 
 func isExcludedByAnnotationInner(annotations map[string]string, containerName string, excludePrefix string) bool {
