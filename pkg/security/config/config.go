@@ -130,6 +130,9 @@ type RuntimeSecurityConfig struct {
 	// AnomalyDetectionSyscallsEnabled enable anomaly detection for syscalls
 	AnomalyDetectionSyscallsEnabled bool
 
+	// AnomalyDetectionRateLimiter limit number of anomaly event, one every N second
+	AnomalyDetectionRateLimiter int
+
 	// SBOMResolverEnabled defines if the SBOM resolver should be enabled
 	SBOMResolverEnabled bool
 	// SBOMResolverWorkloadsCacheSize defines the count of SBOMs to keep in memory in order to prevent re-computing
@@ -229,6 +232,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// anomaly detection
 		AnomalyDetectionSyscallsEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.syscalls.enabled"),
+		AnomalyDetectionRateLimiter:     coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.anomaly_detection.rate_limiter"),
 	}
 
 	if err := rsConfig.sanitize(); err != nil {
