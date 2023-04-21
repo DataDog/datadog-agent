@@ -57,11 +57,17 @@ func NewContainerListener(Config) (ServiceListener, error) {
 
 func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 	container := entity.(*workloadmeta.Container)
+	var annotations map[string]string
+	if container.IsOwnedByPod() {
+		if pod, err := l.Store().GetKubernetesPod(container.Owner.ID); err == nil {
+			annotations = pod.Annotations
+		}
+	}
 
 	containerImg := container.Image
 	if l.IsExcluded(
 		containers.GlobalFilter,
-		nil,
+		annotations,
 		container.Name,
 		containerImg.RawName,
 		"",

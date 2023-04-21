@@ -168,7 +168,7 @@ func (l *KubeletListener) createContainerService(
 			containerName,
 			containerImg.RawName,
 			pod.Namespace,
-		),
+		) || !container.State.Running,
 		logsExcluded: l.IsExcluded(
 			containers.LogsFilter,
 			pod.Annotations,

@@ -381,9 +381,13 @@ func (cf Filter) isExcludedByAnnotation(annotations map[string]string, container
 	switch cf.FilterType {
 	case GlobalFilter:
 	case MetricsFilter:
-		return isExcludedByAnnotationInner(annotations, containerName, "metrics_")
+		if isExcludedByAnnotationInner(annotations, containerName, "metrics_") {
+			return true
+		}
 	case LogsFilter:
-		return isExcludedByAnnotationInner(annotations, containerName, "logs_")
+		if isExcludedByAnnotationInner(annotations, containerName, "logs_") {
+			return true
+		}
 	default:
 		log.Warnf("unrecognized filter type: %s", cf.FilterType)
 	}
