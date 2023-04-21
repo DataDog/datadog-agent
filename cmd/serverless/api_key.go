@@ -158,6 +158,7 @@ func extractRegionFromSecretsManagerArn(secretsManagerArn string) (string, error
 
 func hasApiKey() bool {
 	return config.Datadog.IsSet("api_key") ||
+		len(os.Getenv(kmsAPIKeyEnvVarLegacy)) > 0 ||
 		len(os.Getenv(kmsAPIKeyEnvVar)) > 0 ||
 		len(os.Getenv(secretsManagerAPIKeyEnvVar)) > 0
 }
