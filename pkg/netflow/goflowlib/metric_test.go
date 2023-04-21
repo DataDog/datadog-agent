@@ -374,6 +374,25 @@ func TestConvertMetric(t *testing.T) {
 			expectedErr:        "",
 		},
 		{
+			name: "METRIC flow_process_nf_sequence_delta",
+			metricFamily: &promClient.MetricFamily{
+				Name: proto.String("flow_process_nf_sequence_delta"),
+				Type: promClient.MetricType_GAUGE.Enum(),
+			},
+			metric: &promClient.Metric{
+				Gauge: &promClient.Gauge{Value: proto.Float64(10)},
+				Label: []*promClient.LabelPair{
+					{Name: proto.String("router"), Value: proto.String("1.2.3.4")},
+					{Name: proto.String("version"), Value: proto.String("5")},
+				},
+			},
+			expectedMetricType: metrics.GaugeType,
+			expectedName:       "processor.sequence_delta",
+			expectedValue:      10.0,
+			expectedTags:       []string{"device_ip:1.2.3.4", "version:5", "flow_protocol:netflow"},
+			expectedErr:        "",
+		},
+		{
 			name: "METRIC flow_traffic_bytes",
 			metricFamily: &promClient.MetricFamily{
 				Name: proto.String("flow_traffic_bytes"),
