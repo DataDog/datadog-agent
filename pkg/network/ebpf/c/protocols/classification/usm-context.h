@@ -5,6 +5,7 @@
 #include "protocols/classification/common.h"
 #include "protocols/classification/defs.h"
 #include "protocols/classification/maps.h"
+#include "protocols/classification/stack-helpers.h"
 
 // from uapi/linux/if_packet.h
 #define PACKET_OUTGOING 4
@@ -19,6 +20,9 @@ typedef struct {
     conn_tuple_t tuple;
     skb_info_t  skb_info;
     classification_buffer_t buffer;
+    // bit mask with layers that are known
+    u16 routing_known_layers;
+    classification_prog_t routing_current_program;
 } usm_context_t;
 
 // Kernels before 4.7 do not know about per-cpu array maps.

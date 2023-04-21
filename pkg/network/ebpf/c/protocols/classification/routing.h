@@ -4,7 +4,6 @@
 #include "ktypes.h"
 #include "protocols/classification/defs.h"
 #include "protocols/classification/stack-helpers.h"
-#include "protocols/classification/routing-helpers.h"
 
 // These macros are meant to improve the readability of the `__get_next_program` function below
 // LAYER_ENTRYPOINT(program) designates the first (socket-filter) program to be executed for a given layer
@@ -36,9 +35,9 @@
 // not the application layer protocol is known at the time of the call. When a
 // certain protocol layer is known, the function "skips" to the entry-point of
 // the next layer and so forth.
-static __always_inline classification_prog_t __get_next_program(struct __sk_buff *skb) {
-    u16 *known_layers = __get_layer_cache(skb);
-    classification_prog_t current_program = *__get_program_cache(skb);
+static __always_inline classification_prog_t __get_next_program(usm_context_t *usm_ctx) {
+    u16 *known_layers = &usm_ctx->routing_known_layers;
+    classification_prog_t current_program = usm_ctx->routing_current_program;
 
     if (*known_layers&LAYER_APPLICATION_BIT) {
         goto api;
@@ -63,19 +62,37 @@ static __always_inline classification_prog_t __get_next_program(struct __sk_buff
     return CLASSIFICATION_PROG_UNKNOWN;
 }
 
-static __always_inline void classification_next_program(struct __sk_buff *skb) {
-    classification_prog_t next_program = __get_next_program(skb);
+static __always_inline void classification_next_program(struct __sk_buff *skb, usm_context_t *usm_ctx) {
+    classification_prog_t next_program = __get_next_program(usm_ctx);
     if (next_program == CLASSIFICATION_PROG_UNKNOWN) {
         log_debug("classification tail-call: skb=%llu tail-end\n", skb);
         return;
     }
 
     // update the program "cache"
-    classification_prog_t *current_program = __get_program_cache(skb);
-    log_debug("classification tail-call: skb=%llu from=%d to=%d\n", skb, *current_program, next_program);
-    *current_program = next_program;
+    log_debug("classification tail-call: skb=%llu from=%d to=%d\n", skb, usm_ctx->routing_current_program, next_program);
+    usm_ctx->routing_current_program = next_program;
 
     bpf_tail_call_compat(skb, &classification_progs, next_program);
+}
+
+static __always_inline void init_routing_cache(usm_context_t *usm_ctx, protocol_stack_t *stack) {
+    usm_ctx->routing_current_program = CLASSIFICATION_PROG_UNKNOWN;
+
+    if (is_fully_classified(stack)) {
+        usm_ctx->routing_known_layers = (LAYER_APPLICATION_BIT|LAYER_API_BIT|LAYER_ENCRYPTION_BIT);
+        return;
+    }
+
+    if (stack->layer_application) {
+        usm_ctx->routing_known_layers |= LAYER_APPLICATION_BIT;
+    }
+    if (stack->layer_api) {
+        usm_ctx->routing_known_layers |= LAYER_API_BIT;
+    }
+    if (stack->layer_encryption) {
+        usm_ctx->routing_known_layers |= LAYER_ENCRYPTION_BIT;
+    }
 }
 
 #endif

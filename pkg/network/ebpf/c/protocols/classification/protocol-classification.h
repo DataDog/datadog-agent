@@ -109,7 +109,7 @@ static __always_inline protocol_stack_t* get_protocol_stack(struct __sk_buff *sk
     normalize_tuple(&normalized_tup);
     protocol_stack_t* stack = bpf_map_lookup_elem(&connection_protocol, &normalized_tup);
     if (stack) {
-        __init_layer_cache(skb, stack);
+        init_routing_cache(usm_ctx, stack);
         return stack;
     }
 
@@ -121,10 +121,9 @@ static __always_inline protocol_stack_t* get_protocol_stack(struct __sk_buff *sk
 
 // updates the the protocol stack and updates the layer cache, marking the current
 // layer as known for the purposes of tail-call routing decisions.
-static __always_inline void update_protocol_stack(struct __sk_buff *skb, protocol_stack_t *stack, protocol_t proto) {
+static __always_inline void update_protocol_stack(usm_context_t *usm_ctx, protocol_stack_t *stack, protocol_t proto) {
     set_protocol(stack, proto);
-    u16 *known_layers = __get_layer_cache(skb);
-    *known_layers |= proto;
+    usm_ctx->routing_known_layers |= proto;
 }
 
 // A shared implementation for the runtime & prebuilt socket filter that classifies the protocols of the connections.
@@ -159,7 +158,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     const char *buffer = &(usm_ctx->buffer.data[0]);
     // TLS classification
     if (is_tls(buffer, usm_ctx->buffer.size)) {
-        update_protocol_stack(skb, protocol_stack, PROTOCOL_TLS);
+        update_protocol_stack(usm_ctx, protocol_stack, PROTOCOL_TLS);
         // The connection is TLS encrypted, thus we cannot classify the protocol
         // using the socket filter and therefore we can bail out;
         mark_as_fully_classified(protocol_stack);
@@ -173,7 +172,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
 
     protocol_t cur_fragment_protocol = classify_applayer_protocols(buffer, usm_ctx->buffer.size);
     if (cur_fragment_protocol) {
-        update_protocol_stack(skb, protocol_stack, cur_fragment_protocol);
+        update_protocol_stack(usm_ctx, protocol_stack, cur_fragment_protocol);
         // this is mostly an optimization *for now* since we won't be classifying
         // any other protocols if we have detected HTTP traffic
         mark_as_fully_classified(protocol_stack);
@@ -181,7 +180,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     }
 
  next_program:
-    classification_next_program(skb);
+    classification_next_program(skb, usm_ctx);
 }
 
 __maybe_unused static __always_inline void protocol_classifier_entrypoint_queues(struct __sk_buff *skb) {
@@ -199,11 +198,11 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_queues
     if (!protocol_stack) {
         return;
     }
-    update_protocol_stack(skb, protocol_stack, cur_fragment_protocol);
+    update_protocol_stack(usm_ctx, protocol_stack, cur_fragment_protocol);
     mark_as_fully_classified(protocol_stack);
 
  next_program:
-    classification_next_program(skb);
+    classification_next_program(skb, usm_ctx);
 }
 
 __maybe_unused static __always_inline void protocol_classifier_entrypoint_dbs(struct __sk_buff *skb) {
@@ -223,10 +222,10 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_dbs(st
         return;
     }
 
-    update_protocol_stack(skb, protocol_stack, cur_fragment_protocol);
+    update_protocol_stack(usm_ctx, protocol_stack, cur_fragment_protocol);
     mark_as_fully_classified(protocol_stack);
  next_program:
-    classification_next_program(skb);
+    classification_next_program(skb, usm_ctx);
 }
 
 #endif
