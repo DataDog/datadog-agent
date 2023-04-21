@@ -34,6 +34,7 @@ import (
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -374,8 +375,15 @@ func (adm *ActivityDumpManager) HandleCgroupTracingEvent(event *model.CgroupTrac
 
 	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
 		ad.Metadata.ContainerID = event.ContainerContext.ID
-		ad.Metadata.DifferentiateArgs = adm.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs
 		ad.SetLoadConfig(event.ConfigCookie, event.Config)
+
+		if adm.config.RuntimeSecurity.ActivityDumpPathMergeEnabled {
+			ad.ActivityTree.EnablePathsMerge()
+		}
+		if adm.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs {
+			ad.Metadata.DifferentiateArgs = true
+			ad.ActivityTree.DifferentiateArgs()
+		}
 	})
 
 	// add local storage requests
@@ -409,8 +417,15 @@ func (adm *ActivityDumpManager) DumpActivity(params *api.ActivityDumpParams) (*a
 
 	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
 		ad.Metadata.Comm = params.GetComm()
-		ad.Metadata.DifferentiateArgs = params.GetDifferentiateArgs()
 		ad.SetTimeout(time.Duration(params.Timeout) * time.Minute)
+
+		if adm.config.RuntimeSecurity.ActivityDumpPathMergeEnabled {
+			ad.ActivityTree.EnablePathsMerge()
+		}
+		if params.GetDifferentiateArgs() {
+			ad.Metadata.DifferentiateArgs = true
+			ad.ActivityTree.DifferentiateArgs()
+		}
 	})
 
 	// add local storage requests
@@ -540,9 +555,7 @@ func (adm *ActivityDumpManager) SearchTracedProcessCacheEntryCallback(ad *Activi
 		}
 
 		for _, parent = range ancestors {
-			if n := ad.findOrCreateProcessActivityNode(parent, Snapshot); n != nil {
-				ad.updateTracedPid(n.Process.Pid)
-			}
+			ad.ActivityTree.CreateProcessNode(parent, activity_tree.Snapshot, false)
 		}
 	}
 }
@@ -741,7 +754,7 @@ func (adm *ActivityDumpManager) FakeDumpOverweight(name string) {
 	defer adm.Unlock()
 	for _, ad := range adm.activeDumps {
 		if ad.Name == name {
-			ad.nodeStats.processNodes = int64(99999)
+			ad.ActivityTree.Stats.ProcessNodes = int64(99999)
 		}
 	}
 }

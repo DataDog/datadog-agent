@@ -321,22 +321,18 @@ func (p *Probe) handleAnomalyDetection(event *model.Event) bool {
 		return false
 	}
 
-	if !profile.IsAnomalyDetectionEvent(event.GetEventType()) {
+	if profile.IsAnomalyDetectionEvent(event.GetEventType()) {
+		p.monitor.securityProfileManager.FillProfileContextFromContainerID(event.ProcessContext.ContainerID, &event.SecurityProfileContext)
+	} else if slices.Contains[model.EventType](event.SecurityProfileContext.AnomalyDetectionEventTypes, event.GetEventType()) {
+		if event.IsInProfile() {
+			return false
+		}
+	} else {
 		return false
 	}
 
-	if event.GetEventType() == model.SyscallsEventType {
-		p.monitor.securityProfileManager.FillProfileContextFromContainerID(event.ProcessContext.ContainerID, &event.SecurityProfileContext)
-		p.sendAnomalyDetection(event)
-
-		return true
-	} else if !event.IsInProfile() {
-		p.sendAnomalyDetection(event)
-
-		return true
-	}
-
-	return false
+	p.sendAnomalyDetection(event)
+	return true
 }
 
 // AddActivityDumpHandler set the probe activity dump handler
@@ -353,7 +349,7 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 
 	// filter out event if already present on a profile
 	if p.Config.RuntimeSecurity.SecurityProfileEnabled {
-		p.monitor.securityProfileManager.LookupEventOnProfiles(event)
+		p.monitor.securityProfileManager.LookupEventInProfiles(event)
 	}
 
 	// send wildcard first

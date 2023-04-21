@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/utils/strings/slices"
+
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	logsconfig "github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -129,6 +131,8 @@ type RuntimeSecurityConfig struct {
 
 	// AnomalyDetectionSyscallsEnabled enable anomaly detection for syscalls
 	AnomalyDetectionSyscallsEnabled bool
+	// AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
+	AnomalyDetectionEventTypes []model.EventType
 
 	// AnomalyDetectionRateLimiter limit number of anomaly event, one every N second
 	AnomalyDetectionRateLimiter int
@@ -231,7 +235,8 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SecurityProfileMaxCount:  coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.max_count"),
 
 		// anomaly detection
-		AnomalyDetectionSyscallsEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.syscalls.enabled"),
+		AnomalyDetectionSyscallsEnabled: slices.Contains(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types"), "syscalls"),
+		AnomalyDetectionEventTypes:      model.ParseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
 		AnomalyDetectionRateLimiter:     coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.anomaly_detection.rate_limiter"),
 	}
 

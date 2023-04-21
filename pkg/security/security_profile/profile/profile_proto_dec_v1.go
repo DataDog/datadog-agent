@@ -10,7 +10,9 @@ package profile
 
 import (
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 )
 
@@ -29,8 +31,6 @@ func protoToSecurityProfile(output *SecurityProfile, input *proto.SecurityProfil
 	output.Syscalls = make([]uint32, len(input.Syscalls))
 	copy(output.Syscalls, input.Syscalls)
 
-	output.ProcessActivityTree = make([]*dump.ProcessActivityNode, 0, len(input.Tree))
-	for _, tree := range input.Tree {
-		output.ProcessActivityTree = append(output.ProcessActivityTree, dump.ProtoDecodeProcessActivityNode(tree))
-	}
+	output.ActivityTree = activity_tree.NewActivityTree(output, "security_profile")
+	activity_tree.ProtoDecodeActivityTree(output.ActivityTree, input.Tree)
 }

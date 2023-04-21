@@ -190,10 +190,11 @@ func (s Status) String() string {
 
 // SecurityProfileContext holds the security context of the profile
 type SecurityProfileContext struct {
-	Name    string   `field:"name"`    // SECLDoc[name] Definition:`Name of the security profile`
-	Status  Status   `field:"status"`  // SECLDoc[status] Definition:`Status of the security profile`
-	Version string   `field:"version"` // SECLDoc[version] Definition:`Version of the security profile`
-	Tags    []string `field:"tags"`    // SECLDoc[tags] Definition:`Tags of the security profile`
+	Name                       string      `field:"name"`                          // SECLDoc[name] Definition:`Name of the security profile`
+	Status                     Status      `field:"status"`                        // SECLDoc[status] Definition:`Status of the security profile`
+	Version                    string      `field:"version"`                       // SECLDoc[version] Definition:`Version of the security profile`
+	Tags                       []string    `field:"tags"`                          // SECLDoc[tags] Definition:`Tags of the security profile`
+	AnomalyDetectionEventTypes []EventType `field:"anomaly_detection_event_types"` // SECLDoc[anomaly_detection_event_types] Definition:`Event types enabled for anomaly detection`
 }
 
 // Event represents an event sent from the kernel
