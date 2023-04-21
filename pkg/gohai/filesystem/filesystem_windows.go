@@ -43,12 +43,18 @@ func convert_windows_string(winput []uint16) string {
 	}
 	return retstring
 }
+
 func getDiskSize(vol string) (size uint64, freespace uint64) {
 	var mod = syscall.NewLazyDLL("kernel32.dll")
 	var getDisk = mod.NewProc("GetDiskFreeSpaceExW")
 	var sz uint64
 	var fr uint64
-	status, _, _ := getDisk.Call(uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(vol))),
+
+	volWinStr, err := syscall.UTF16PtrFromString(vol)
+	if err != nil {
+		return 0, 0
+	}
+	status, _, _ := getDisk.Call(uintptr(unsafe.Pointer(volWinStr)),
 		uintptr(0),
 		uintptr(unsafe.Pointer(&sz)),
 		uintptr(unsafe.Pointer(&fr)))
@@ -57,6 +63,7 @@ func getDiskSize(vol string) (size uint64, freespace uint64) {
 	}
 	return sz, fr
 }
+
 func getMountPoints(vol string) []string {
 	var mod = syscall.NewLazyDLL("kernel32.dll")
 	var getPaths = mod.NewProc("GetVolumePathNamesForVolumeNameW")
@@ -64,7 +71,11 @@ func getMountPoints(vol string) []string {
 	var objlistsize uint32 = 0x0
 	var retval []string
 
-	status, _, errno := getPaths.Call(uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(vol))),
+	volWinStr, err := syscall.UTF16PtrFromString(vol)
+	if err != nil {
+		return retval
+	}
+	status, _, errno := getPaths.Call(uintptr(unsafe.Pointer(volWinStr)),
 		uintptr(unsafe.Pointer(&tmp)),
 		2,
 		uintptr(unsafe.Pointer(&objlistsize)))
@@ -73,8 +84,9 @@ func getMountPoints(vol string) []string {
 		// unexpected
 		return retval
 	}
+
 	buf := make([]uint16, objlistsize)
-	status, _, errno = getPaths.Call(uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(vol))),
+	status, _, _ = getPaths.Call(uintptr(unsafe.Pointer(volWinStr)),
 		uintptr(unsafe.Pointer(&buf[0])),
 		uintptr(objlistsize),
 		uintptr(unsafe.Pointer(&objlistsize)))
@@ -84,6 +96,7 @@ func getMountPoints(vol string) []string {
 	return convert_windows_string_list(buf)
 
 }
+
 func getFileSystemInfo() (interface{}, error) {
 	var mod = syscall.NewLazyDLL("kernel32.dll")
 	var findFirst = mod.NewProc("FindFirstVolumeW")
@@ -99,6 +112,8 @@ func getFileSystemInfo() (interface{}, error) {
 	var fileSystemInfo []interface{}
 
 	if findHandle != InvalidHandle {
+		// ignore close error
+		//nolint:errcheck
 		defer findClose.Call(fh)
 		moreData := true
 		for moreData {
