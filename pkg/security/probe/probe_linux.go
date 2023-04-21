@@ -57,6 +57,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -302,18 +303,40 @@ func (p *Probe) Start() error {
 	})
 }
 
-func (p *Probe) SendAnomalyDetection(event *model.Event) {
-	evtType := event.GetEventType()
-	if evtType != model.DNSEventType &&
-		evtType != model.ExecEventType {
-		return // at least, files, bind, fork and exit
+func (p *Probe) sendAnomalyDetection(event *model.Event) {
+	tags := p.GetEventTags(event)
+	if service := p.GetService(event); service != "" {
+		tags = append(tags, "service:"+service)
 	}
 
 	p.DispatchCustomEvent(
 		events.NewCustomRule(events.AnomalyDetectionRuleID),
-		events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtor(event)),
+		events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtor(event), tags...),
 	)
-	p.anomalyDetectionSent[evtType].Inc()
+	p.anomalyDetectionSent[event.GetEventType()].Inc()
+}
+
+func (p *Probe) handleAnomalyDetection(event *model.Event) bool {
+	if !event.SecurityProfileContext.Status.IsEnabled(model.AnomalyDetection) {
+		return false
+	}
+
+	if !profile.IsAnomalyDetectionEvent(event.GetEventType()) {
+		return false
+	}
+
+	if event.GetEventType() == model.SyscallsEventType {
+		p.monitor.securityProfileManager.FillProfileContextFromContainerID(event.ProcessContext.ContainerID, &event.SecurityProfileContext)
+		p.sendAnomalyDetection(event)
+
+		return true
+	} else if !event.IsInProfile() {
+		p.sendAnomalyDetection(event)
+
+		return true
+	}
+
+	return false
 }
 
 // AddActivityDumpHandler set the probe activity dump handler
@@ -342,12 +365,8 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 		handler.HandleEvent(event)
 	}
 
-	if event.SecurityProfileContext.Status.IsEnabled(model.AnomalyDetection) && !event.IsInProfile() && event.GetEventType() != model.SyscallsEventType {
-		p.SendAnomalyDetection(event)
-	}
-
-	// if a profile is already present for this event, dont even try to add it to a dump
-	if !event.HasProfile() {
+	// handle anomaly detection, if not an anomaly let it pass to the process monitor so that it can be added to a dump
+	if !p.handleAnomalyDetection(event) {
 		// Process after evaluation because some monitors need the DentryResolver to have been called first.
 		p.monitor.ProcessEvent(event)
 	}
@@ -854,16 +873,6 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	}
 
 	p.DispatchEvent(event)
-
-	// anomaly detection events
-	if model.IsAnomalyDetectionEvent(event.GetType()) {
-		p.monitor.securityProfileManager.FillProfileContextFromContainerID(event.ProcessContext.ContainerID, &event.SecurityProfileContext)
-		p.DispatchCustomEvent(
-			events.NewCustomRule(events.AnomalyDetectionRuleID),
-			events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtor(event)),
-		)
-		p.anomalyDetectionSent[event.GetEventType()].Inc()
-	}
 
 	// flush exited process
 	p.resolvers.ProcessResolver.DequeueExited()

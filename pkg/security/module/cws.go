@@ -438,23 +438,11 @@ func (c *CWSConsumer) RuleMatch(rule *rules.Rule, event eval.Event) {
 
 	// needs to be resolved here, outside of the callback as using process tree
 	// which can be modified during queuing
-	service := ev.FieldHandlers.GetProcessServiceTag(ev)
-
-	id := ev.ContainerContext.ID
+	service := c.probe.GetService(ev)
 
 	extTagsCb := func() []string {
-		var tags []string
+		return c.probe.GetEventTags(ev)
 
-		// check from tagger
-		if service == "" {
-			service = c.probe.GetResolvers().TagsResolver.GetValue(id, "service")
-		}
-
-		if service == "" {
-			service = c.config.HostServiceName
-		}
-
-		return append(tags, c.probe.GetResolvers().TagsResolver.Resolve(id)...)
 	}
 
 	// send if not selftest related events

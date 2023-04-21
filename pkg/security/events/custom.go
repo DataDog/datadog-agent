@@ -65,17 +65,18 @@ func AllCustomRuleIDs() []string {
 }
 
 // NewCustomEvent returns a new custom event
-func NewCustomEventLazy(eventType model.EventType, marshalerCtor func() easyjson.Marshaler) *CustomEvent {
+func NewCustomEventLazy(eventType model.EventType, marshalerCtor func() easyjson.Marshaler, tags ...string) *CustomEvent {
 	return &CustomEvent{
 		eventType:     eventType,
 		marshalerCtor: marshalerCtor,
+		tags:          tags,
 	}
 }
 
-func NewCustomEvent(eventType model.EventType, marshaler easyjson.Marshaler) *CustomEvent {
+func NewCustomEvent(eventType model.EventType, marshaler easyjson.Marshaler, tags ...string) *CustomEvent {
 	return NewCustomEventLazy(eventType, func() easyjson.Marshaler {
 		return marshaler
-	})
+	}, tags...)
 }
 
 // CustomEvent is used to send custom security events to Datadog
