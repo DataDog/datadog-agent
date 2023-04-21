@@ -9,6 +9,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner"
@@ -59,6 +60,7 @@ type Suite[Env any] struct {
 	stackName       string
 	defaultStackDef *StackDefinition[Env]
 	currentStackDef *StackDefinition[Env]
+	firstFailTest   string
 
 	// These fields are initialized in SetupSuite
 	env  *Env
@@ -66,9 +68,11 @@ type Suite[Env any] struct {
 
 	isUpdateEnvCalledInThisTest bool
 
-	// Setting DevMode allows to skip deletion regardless of test results
+	// Setting devMode allows to skip deletion regardless of test results
 	// Unavailable in CI.
-	DevMode bool
+	devMode bool
+
+	skipDeleteOnFailure bool
 }
 
 type StackDefinition[Env any] struct {
@@ -93,6 +97,18 @@ func NewSuite[Env any](stackName string, stackDef *StackDefinition[Env], options
 	return &testSuite
 }
 
+func DevMode[Env any]() func(*Suite[Env]) {
+	return func(suite *Suite[Env]) {
+		suite.devMode = true
+	}
+}
+
+func SkipDeleteOnFailure[Env any]() func(*Suite[Env]) {
+	return func(suite *Suite[Env]) {
+		suite.skipDeleteOnFailure = true
+	}
+}
+
 // Env returns the current environment.
 // In order to improve the efficiency, this function behaves as follow:
 //   - It creates the default environment if no environment exists. It happens only during the first call of the test suite.
@@ -110,29 +126,40 @@ func (suite *Suite[Env]) BeforeTest(suiteName, testName string) {
 	suite.isUpdateEnvCalledInThisTest = false
 }
 
+func (suite *Suite[Env]) AfterTest(suiteName, testName string) {
+	if suite.T().Failed() && suite.firstFailTest == "" {
+		suite.firstFailTest = fmt.Sprintf("%v.%v", suiteName, testName)
+	}
+}
+
 // SetupSuite method will run before the tests in the suite are run.
 // This function is called by [testify Suite].
 // Note: Having initialization code in this function allows `NewSuite` to not
 // return an error in order to write a single line for
 // `suite.Run(t, &vmSuite{Suite: e2e.NewSuite(...)})`
 func (suite *Suite[Env]) SetupSuite() {
+	skipDelete, _ := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipDeleteOnFailure, false)
+	if skipDelete {
+		suite.skipDeleteOnFailure = true
+	}
+
 	// Check if the Env type is correct otherwise raises an error before creating the env.
 	err := client.CheckEnvStructValid[Env]()
 	suite.Require().NoError(err)
 }
 
-// HandleStats method is run after all the tests in the suite have been run.
-// and after TearDownSuite has been run.
+// TearDownTestSuite run after all the tests in the suite have been run.
 // This function is called by [testify Suite].
 //
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
-func (suite *Suite[Env]) HandleStats(string, stats *suite.SuiteInformation) {
-	if runner.GetProfile().AllowDevMode() && suite.DevMode {
+func (suite *Suite[Env]) TearDownSuite() {
+	if runner.GetProfile().AllowDevMode() && suite.devMode {
 		return
 	}
 
-	skipDelete, _ := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipDeleteOnFailure, false)
-	if !stats.Passed() && skipDelete {
+	if suite.firstFailTest != "" && suite.skipDeleteOnFailure {
+		suite.Require().FailNow(fmt.Sprintf("%v failed. As SkipDeleteOnFailure feature is enabled the tests after %v were skipped. "+
+			"The environment of %v was kept.", suite.firstFailTest, suite.firstFailTest, suite.firstFailTest))
 		return
 	}
 
@@ -165,6 +192,10 @@ func createEnv[Env any](suite *Suite[Env], stackDef *StackDefinition[Env]) (*Env
 
 func (suite *Suite[Env]) UpdateEnv(stackDef *StackDefinition[Env]) {
 	if stackDef != suite.currentStackDef {
+		if (suite.firstFailTest != "" || suite.T().Failed()) && suite.skipDeleteOnFailure {
+			// In case of failure, do not override the environment
+			suite.T().SkipNow()
+		}
 		env, upResult, err := createEnv(suite, stackDef)
 		suite.Require().NoError(err)
 		err = client.CallStackInitializers(&suite.auth, env, upResult)
