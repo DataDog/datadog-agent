@@ -166,7 +166,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	var apikeySetIn = []string{}
 	if os.Getenv(kmsAPIKeyEnvVarLegacy) != "" && os.Getenv(kmsAPIKeyEnvVar) == "" {
-		os.Setenv(os.Getenv(kmsAPIKeyEnvVar), os.Getenv(kmsAPIKeyEnvVarLegacy))
+		os.Setenv(kmsAPIKeyEnvVar, os.Getenv(kmsAPIKeyEnvVarLegacy))
 	}
 	if os.Getenv(kmsAPIKeyEnvVar) != "" {
 		apikeySetIn = append(apikeySetIn, "KMS")
