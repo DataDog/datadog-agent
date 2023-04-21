@@ -8,11 +8,6 @@
       "experimental": false,
       "properties": [
         {
-          "name": "async",
-          "definition": "True if the syscall was asynchronous",
-          "property_doc_link": "async-doc"
-        },
-        {
           "name": "container.created_at",
           "definition": "Timestamp of the creation of the container",
           "property_doc_link": "container-created_at-doc"
@@ -26,6 +21,16 @@
           "name": "container.tags",
           "definition": "Tags of the container",
           "property_doc_link": "container-tags-doc"
+        },
+        {
+          "name": "event.async",
+          "definition": "True if the syscall was asynchronous",
+          "property_doc_link": "event-async-doc"
+        },
+        {
+          "name": "event.timestamp",
+          "definition": "Timestamp of the event",
+          "property_doc_link": "event-timestamp-doc"
         },
         {
           "name": "network.destination.ip",
@@ -7913,18 +7918,6 @@
       "examples": []
     },
     {
-      "name": "async",
-      "link": "async-doc",
-      "type": "bool",
-      "definition": "True if the syscall was asynchronous",
-      "prefixes": [
-        ""
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
       "name": "bind.addr.family",
       "link": "bind-addr-family-doc",
       "type": "int",
@@ -8234,6 +8227,30 @@
       ],
       "constants": "DNS qtypes",
       "constants_link": "dns-qtypes",
+      "examples": []
+    },
+    {
+      "name": "event.async",
+      "link": "event-async-doc",
+      "type": "bool",
+      "definition": "True if the syscall was asynchronous",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "event.timestamp",
+      "link": "event-timestamp-doc",
+      "type": "int",
+      "definition": "Timestamp of the event",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
       "examples": []
     },
     {
