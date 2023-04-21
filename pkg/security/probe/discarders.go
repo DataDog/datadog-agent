@@ -88,10 +88,13 @@ var (
 
 var (
 	dentryInvalidDiscarder = []interface{}{""}
-	eventZeroDiscarder     = &model.Event{
+)
+
+func newEventZeroForDiscarder() model.Event {
+	return model.Event{
 		FieldHandlers: &model.DefaultFieldHandlers{},
 	}
-)
+}
 
 // InvalidDiscarders exposes list of values that are not discarders
 var InvalidDiscarders = map[eval.Field][]interface{}{
@@ -194,7 +197,7 @@ type inodeDiscarders struct {
 }
 
 func newInodeDiscarders(erpc *erpc.ERPC, dentryResolver *dentry.Resolver) *inodeDiscarders {
-	event := *eventZeroDiscarder
+	event := newEventZeroForDiscarder()
 
 	ctx := eval.NewContext(&event)
 
@@ -372,7 +375,7 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 
 		defer func() {
 			if altered {
-				*id.discarderEvent = *eventZeroDiscarder
+				*id.discarderEvent = newEventZeroForDiscarder()
 			}
 		}()
 
