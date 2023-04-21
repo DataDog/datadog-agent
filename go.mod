@@ -626,6 +626,6 @@ replace (
 	sigs.k8s.io/custom-metrics-apiserver => sigs.k8s.io/custom-metrics-apiserver v1.23.0
 )
 
-replace github.com/netsampler/goflow2 => github.com/AlexandreYang/goflow2 v1.0.5-0.20230420164008-42ada9facd76
+replace github.com/netsampler/goflow2 => github.com/AlexandreYang/goflow2 v1.0.5-0.20230421152336-42ada9facd76
 
 //replace github.com/netsampler/goflow2 => /Users/alexandre.yang/go/src/github.com/AlexandreYang/goflow2
