@@ -38,13 +38,14 @@ const (
 )
 
 var (
-	filename            string
-	pkgname             string
-	output              string
-	verbose             bool
-	docOutput           string
-	fieldHandlersOutput string
-	buildTags           string
+	filename               string
+	pkgname                string
+	output                 string
+	verbose                bool
+	docOutput              string
+	fieldHandlersOutput    string
+	buildTags              string
+	fieldHandlersBuildTags string
 )
 
 var (
@@ -538,16 +539,13 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 	}
 	packagesLookupMap[pkgName] = pkg.Types
 
-	splittedBuildTags := strings.Split(buildTags, ",")
-	var formattedBuildTags []string
-	for _, tag := range splittedBuildTags {
-		if tag != "" {
-			formattedBuildTags = append(formattedBuildTags, fmt.Sprintf("+build %s", tag))
-		}
-	}
+	formattedBuildTags := formatBuildTags(buildTags)
+	formattedFieldHandlersBuildTags := formatBuildTags(fieldHandlersBuildTags)
 	for _, comment := range astFile.Comments {
-		if strings.HasPrefix(comment.Text(), "+build ") {
-			formattedBuildTags = append(formattedBuildTags, comment.Text())
+		commentText := comment.Text()
+		if strings.HasPrefix(commentText, "+build ") {
+			formattedBuildTags = append(formattedBuildTags, commentText)
+			formattedFieldHandlersBuildTags = append(formattedFieldHandlersBuildTags, commentText)
 		}
 	}
 
@@ -557,15 +555,16 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 	}
 
 	module := &common.Module{
-		Name:       moduleName,
-		SourcePkg:  pkgName,
-		TargetPkg:  pkgName,
-		BuildTags:  formattedBuildTags,
-		Fields:     make(map[string]*common.StructField),
-		AllFields:  make(map[string]*common.StructField),
-		Iterators:  make(map[string]*common.StructField),
-		EventTypes: make(map[string]*common.EventTypeMetadata),
-		Platform:   common.Unspecified,
+		Name:                   moduleName,
+		SourcePkg:              pkgName,
+		TargetPkg:              pkgName,
+		BuildTags:              formattedBuildTags,
+		FieldHandlersBuildTags: formattedFieldHandlersBuildTags,
+		Fields:                 make(map[string]*common.StructField),
+		AllFields:              make(map[string]*common.StructField),
+		Iterators:              make(map[string]*common.StructField),
+		EventTypes:             make(map[string]*common.EventTypeMetadata),
+		Platform:               common.Unspecified,
 	}
 
 	if strings.Contains(buildTags, "linux") {
@@ -603,6 +602,17 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 	}
 
 	return module, nil
+}
+
+func formatBuildTags(buildTags string) []string {
+	splittedBuildTags := strings.Split(buildTags, ",")
+	var formattedBuildTags []string
+	for _, tag := range splittedBuildTags {
+		if tag != "" {
+			formattedBuildTags = append(formattedBuildTags, fmt.Sprintf("+build %s", tag))
+		}
+	}
+	return formattedBuildTags
 }
 
 func newField(allFields map[string]*common.StructField, field *common.StructField) string {
@@ -822,6 +832,7 @@ func init() {
 	flag.StringVar(&filename, "input", os.Getenv("GOFILE"), "Go file to generate decoders from")
 	flag.StringVar(&pkgname, "package", pkgPrefix+"/"+os.Getenv("GOPACKAGE"), "Go package name")
 	flag.StringVar(&buildTags, "tags", "", "build tags used for parsing")
+	flag.StringVar(&fieldHandlersBuildTags, "field-handlers-tags", "", "build tags used for field handlers")
 	flag.StringVar(&output, "output", "", "Go generated file")
 	flag.Parse()
 }
