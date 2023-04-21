@@ -37,7 +37,7 @@ func setupConfig(deps configDependencies) (*config.Warnings, error) {
 		// add that first so it's first in line
 		config.Datadog.AddConfigPath(confFilePath)
 		// If they set a config file directly, let's try to honor that
-		if strings.HasSuffix(confFilePath, ".yaml") {
+		if strings.HasSuffix(confFilePath, ".yaml") || strings.HasSuffix(confFilePath, ".yml") {
 			config.Datadog.SetConfigFile(confFilePath)
 		}
 	}

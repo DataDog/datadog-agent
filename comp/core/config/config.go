@@ -6,6 +6,9 @@
 package config
 
 import (
+	"os"
+	"strings"
+
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -40,7 +43,17 @@ func (d dependencies) getParams() *Params {
 //	will then become obsolete - ts should not be created
 //	directly in this fashion.
 func NewServerlessConfig(path string) (Component, error) {
-	p := NewParams(path, WithConfigName("serverless"), WithConfigLoadSecrets(true), WithConfigMissingOK(true))
+	options := []func(*Params){WithConfigName("serverless"), WithConfigLoadSecrets(true)}
+
+	_, err := os.Stat(path)
+	if os.IsNotExist(err) &&
+		(strings.HasSuffix(path, ".yaml") || strings.HasSuffix(path, ".yml")) {
+		options = append(options, WithConfigMissingOK(true))
+	} else if !os.IsNotExist(err) {
+		options = append(options, WithConfFilePath(path))
+	}
+
+	p := NewParams(path, options...)
 	d := dependencies{
 		Params: p,
 	}
