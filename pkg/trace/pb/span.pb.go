@@ -288,7 +288,7 @@ func (m *Span) MarshalTo(dAtA []byte) (int, error) {
 		i = encodeVarintSpan(dAtA, i, uint64(m.Error))
 	}
 	if len(m.Meta) > 0 {
-		for k := range m.Meta {
+		for k, _ := range m.Meta {
 			dAtA[i] = 0x52
 			i++
 			v := m.Meta[k]
@@ -305,7 +305,7 @@ func (m *Span) MarshalTo(dAtA []byte) (int, error) {
 		}
 	}
 	if len(m.Metrics) > 0 {
-		for k := range m.Metrics {
+		for k, _ := range m.Metrics {
 			dAtA[i] = 0x5a
 			i++
 			v := m.Metrics[k]
@@ -328,7 +328,7 @@ func (m *Span) MarshalTo(dAtA []byte) (int, error) {
 		i += copy(dAtA[i:], m.Type)
 	}
 	if len(m.MetaStruct) > 0 {
-		for k := range m.MetaStruct {
+		for k, _ := range m.MetaStruct {
 			dAtA[i] = 0x6a
 			i++
 			v := m.MetaStruct[k]
