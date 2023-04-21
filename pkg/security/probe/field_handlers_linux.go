@@ -476,6 +476,12 @@ func (fh *FieldHandlers) ResolvePackageSourceVersion(ev *model.Event, f *model.F
 
 // ResolveModuleArgv resolves the args of the event as an array
 func (fh *FieldHandlers) ResolveModuleArgv(ev *model.Event, module *model.LoadModuleEvent) []string {
+	// strings.Split return [""] if args is empty, so we do a manual check before
+	if len(module.Args) == 0 {
+		module.Argv = nil
+		return module.Argv
+	}
+
 	module.Argv = strings.Split(module.Args, " ")
 	if module.ArgsTruncated {
 		module.Argv = module.Argv[:len(module.Argv)-1]
