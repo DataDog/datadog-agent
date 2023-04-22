@@ -90,6 +90,7 @@ func (c *collector) extractBOMWithTrivy(ctx context.Context, storedImage *worklo
 
 	ch := make(chan sbom.ScanResult, 1)
 	if err := c.sbomScanner.Scan(scanRequest, c.scanOptions, ch); err != nil {
+		log.Errorf("Failed to trigger SBOM generation for docker: %s", err)
 		return err
 	}
 
@@ -97,6 +98,11 @@ func (c *collector) extractBOMWithTrivy(ctx context.Context, storedImage *worklo
 		select {
 		case <-ctx.Done():
 		case result := <-ch:
+			if result.Error != nil {
+				log.Errorf("Failed to generate SBOM for docker: %s", result.Error)
+				return
+			}
+
 			bom, err := result.Report.ToCycloneDX()
 			if err != nil {
 				log.Errorf("Failed to extract SBOM from report")

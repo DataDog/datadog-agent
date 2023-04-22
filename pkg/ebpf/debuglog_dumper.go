@@ -11,13 +11,12 @@ package ebpf
 import (
 	"bufio"
 	"context"
-	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
-	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/ebpf-manager/tracefs"
 )
 
 // DumpDebugLog is a utility to write the debug log of the running application to a given writer.
@@ -33,11 +32,7 @@ func DumpDebugLog(ctx context.Context, writer io.Writer) error {
 		maxFilenameSize = len(filename)
 	}
 
-	tracefsPath := utilkernel.GetTraceFSMountPath()
-	if tracefsPath == "" {
-		return errors.New("tracefs not available")
-	}
-	f, err := os.Open(filepath.Join(tracefsPath, "trace_pipe"))
+	f, err := tracefs.OpenFile("trace_pipe", os.O_RDONLY, 0)
 	if err != nil {
 		return err
 	}

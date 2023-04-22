@@ -32,7 +32,7 @@ var (
 	descCustomResourceDefinitionAnnotationsHelp     = "Kubernetes annotations converted to Prometheus labels."
 	descCustomResourceDefinitionLabelsName          = "kube_customresourcedefinition_labels"
 	descCustomResourceDefinitionLabelsHelp          = "Kubernetes labels converted to Prometheus labels."
-	descCustomResourceDefinitionLabelsDefaultLabels = []string{"namespace", "customresourcedefinition"}
+	descCustomResourceDefinitionLabelsDefaultLabels = []string{"customresourcedefinition"}
 )
 
 // NewCustomResourceDefinitionFactory returns a new CustomResourceDefinition
@@ -146,7 +146,7 @@ func wrapCustomResourceDefinition(f func(*v1.CustomResourceDefinition) *metric.F
 		metricFamily := f(crd)
 
 		for _, m := range metricFamily.Metrics {
-			m.LabelKeys, m.LabelValues = mergeKeyValues(descCustomResourceDefinitionLabelsDefaultLabels, []string{crd.Namespace, crd.Name}, m.LabelKeys, m.LabelValues)
+			m.LabelKeys, m.LabelValues = mergeKeyValues(descCustomResourceDefinitionLabelsDefaultLabels, []string{crd.Name}, m.LabelKeys, m.LabelValues)
 		}
 
 		return metricFamily

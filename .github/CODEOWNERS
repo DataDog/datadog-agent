@@ -117,6 +117,7 @@
 /cmd/agent/subcommands/run/internal/clcrunnerapi/       @DataDog/container-integrations @DataDog/agent-shared-components
 /cmd/agent/windows                      @DataDog/windows-agent
 /cmd/agent/dist/conf.d/jetson.d         @DataDog/agent-platform
+/cmd/agent/dist/conf.d/oracle-dbm.d     @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/network-device-monitoring
 /cmd/agent/dist/conf.d/oracle-dbm.d/conf.yaml.default @DataDog/database-monitoring
 /cmd/agent/*.manifest                   @DataDog/agent-platform
