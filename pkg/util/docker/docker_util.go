@@ -157,14 +157,8 @@ func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options typ
 
 	isExcluded := func(container types.Container) bool {
 		var annotations map[string]string
-		workloadmeta := workloadmeta.GetGlobalStore()
-		workloadmetaContainer, err := workloadmeta.GetContainer(container.ID)
-		if err == nil {
-			if workloadmetaContainer.IsOwnedByPod() {
-				if pod, err := workloadmeta.GetKubernetesPod(workloadmetaContainer.Owner.ID); err != nil {
-					annotations = pod.Annotations
-				}
-			}
+		if pod, err := workloadmeta.GetGlobalStore().GetKubernetesPodForContainer(container.ID); err == nil {
+			annotations = pod.Annotations
 		}
 		for _, name := range container.Names {
 			if filter.IsExcluded(annotations, name, container.Image, "") {

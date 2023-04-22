@@ -103,11 +103,10 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 	pidToCid := make(map[int]string)
 	for _, container := range containersMetadata {
 		var annotations map[string]string
-		if container.IsOwnedByPod() {
-			if pod, err := p.metadataStore.GetKubernetesPod(container.Owner.ID); err == nil {
-				annotations = pod.Annotations
-			}
+		if pod, err := p.metadataStore.GetKubernetesPodForContainer(container.ID); err == nil {
+			annotations = pod.Annotations
 		}
+
 		if p.filter != nil && p.filter.IsExcluded(annotations, container.Name, container.Image.Name, container.Labels[kubernetes.CriContainerNamespaceLabel]) {
 			continue
 		}

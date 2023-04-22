@@ -454,11 +454,6 @@ func (c Container) String(verbose bool) string {
 	return sb.String()
 }
 
-// IsOwnedByPod checks if a container's Owner is a KindKubernetesPod
-func (c *Container) IsOwnedByPod() bool {
-	return c.Owner != nil && c.Owner.Kind == KindKubernetesPod
-}
-
 var _ Entity = &Container{}
 
 // ContainerFilterFunc is a function used to filter containers.
