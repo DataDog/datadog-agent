@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -33,6 +34,7 @@ import (
 #include "rtloader_mem.h"
 
 char *getStringAddr(char **array, unsigned int idx);
+diagnosis_t *getDiagnosisAddr(diagnoses_t *diagnoses, unsigned int idx);
 */
 import "C"
 
@@ -328,6 +330,91 @@ func (c *PythonCheck) Interval() time.Duration {
 // ID returns the ID of the check
 func (c *PythonCheck) ID() check.ID {
 	return c.id
+}
+
+// GetDiagnoses returns the diagnoses cached in last run or diagnose explicitly
+func (c *PythonCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+	// Lock the GIL and release it at the end of the run (will crash otherwise)
+	gstate, err := newStickyLock()
+	if err != nil {
+		return nil, nil
+	}
+	defer gstate.unlock()
+
+	// Get an array of diagnoses. CGO packaging is implemented in
+	// diagnosis_t** Three::getCheckDiagnoses(RtLoaderPyObject* check) method
+	// in datadog-agent\\rtloader\\three\\three.cpp (and two.cpp). Packaging
+	// is the simplest possible (array of diagnosis_t*) but it necessitates
+	// excessive and slow malloc() and free(). Packaging could be changed in
+	// future, e.g., packing everything in a single buffer. More comments at
+	// three.cpp.
+	pyDiagnoses := C.get_check_diagnoses(rtloader, c.instance)
+	if pyDiagnoses == nil {
+		return nil, nil
+	}
+
+	// Convert CGO array of diagnosis_t defined in datadog-agent\\dev\\include\\rtloader_types.h
+	// into Go diagnosis.Diagnosis slice
+	diagnoses := make([]diagnosis.Diagnosis, 0)
+	for i := 0; ; i++ {
+		// Get diagnosis_t* as an entry in array of pointers
+		diagnosisPtr := C.getDiagnosisAddr(pyDiagnoses, C.uint(i))
+		if diagnosisPtr == nil {
+			break
+		}
+
+		d := diagnosis.Diagnosis{}
+
+		// Convert result and error
+		d.Result = diagnosis.DiagnosisResult(diagnosisPtr.result)
+		if diagnosisPtr.raw_error != nil {
+			d.RawError = errors.New(C.GoString(diagnosisPtr.raw_error))
+		}
+
+		// Convert string fields
+		if diagnosisPtr.name != nil {
+			d.Name = C.GoString(diagnosisPtr.name)
+		}
+		if diagnosisPtr.diagnosis != nil {
+			d.Diagnosis = C.GoString(diagnosisPtr.diagnosis)
+		}
+		if diagnosisPtr.category != nil {
+			d.Category = C.GoString(diagnosisPtr.category)
+		}
+		if diagnosisPtr.description != nil {
+			d.Description = C.GoString(diagnosisPtr.description)
+		}
+		if diagnosisPtr.remediation != nil {
+			d.Remediation = C.GoString(diagnosisPtr.remediation)
+		}
+
+		// Extra validation diagnosis for consistency. Checked required fields and status range
+		if d.Result < diagnosis.DiagnosisResultMIN ||
+			d.Result > diagnosis.DiagnosisResultMAX ||
+			len(d.Name) == 0 ||
+			len(d.Diagnosis) == 0 {
+
+			if d.RawError != nil {
+				// If error already reported, append to it
+				d.RawError = fmt.Errorf("Required diagnosis fields are invalid. Result:%d, Name:%s, Diagnosis:%s. Reported Error: %s",
+					d.Result, d.Name, d.Diagnosis, d.RawError.Error())
+			} else {
+				d.RawError = fmt.Errorf("Required diagnosis fields are invalid. Result:%d, Name:%s, Diagnosis:%s", d.Result, d.Name, d.Diagnosis)
+			}
+
+			d.Result = diagnosis.DiagnosisUnexpectedError
+			if len(d.Name) == 0 {
+				d.Name = c.String()
+			}
+		}
+
+		diagnoses = append(diagnoses, d)
+	}
+
+	// Finallty free CGO memory of returned array of diagnosis_t
+	C.rtloader_free(rtloader, unsafe.Pointer(pyDiagnoses))
+
+	return diagnoses, nil
 }
 
 // pythonCheckFinalizer is a finalizer that decreases the reference count on the PyObject refs owned

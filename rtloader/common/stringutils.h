@@ -70,6 +70,13 @@ extern "C" {
 
 int init_stringutils(void);
 char *as_string(PyObject *);
+char *attr_as_string(PyObject *object, const char *attributeName);
+long attr_as_long(PyObject *object, const char *attributeName);
+char *attr_as_embedded_string(PyObject *object, const char *attributeName, PyObject **stringObject);
+size_t attr_as_string_size(PyObject *object, const char *attributeName);
+char *string_buf_from_offset(void *buf, size_t offset);
+size_t copy_attr_as_string_at(PyObject *object, const char *attributeName, void *buf, size_t bufOffset,
+                              size_t bufLength);
 PyObject *from_yaml(const char *);
 char *as_yaml(PyObject *);
 

@@ -13,7 +13,7 @@ import (
 )
 
 func init() {
-	diagnosis.Register("Kubelet availability", diagnose)
+	diagnosis.RegisterMetadataAvail("Kubelet availability", diagnose)
 }
 
 // diagnose the API server availability

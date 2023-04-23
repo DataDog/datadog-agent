@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	diagnosis.Register("Alibaba Metadata availability", diagnose)
+	diagnosis.RegisterMetadataAvail("Alibaba Metadata availability", diagnose)
 }
 
 // diagnose the alibaba metadata API availability

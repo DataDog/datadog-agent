@@ -13,5 +13,5 @@ import (
 
 // GetClusterAgentDiagnose dumps the connectivity checks diagnose to the writer
 func GetClusterAgentDiagnose(w io.Writer) error {
-	return diagnose.RunAll(w)
+	return diagnose.RunMetadataAvail(w)
 }

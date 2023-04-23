@@ -89,7 +89,7 @@ func CompleteFlare(fb flarehelpers.FlareBuilder) error {
 	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", getProcessAgentFullConfig)
 	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.Datadog.AllSettings()) })
 	fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.SystemProbe.AllSettings()) })
-	fb.AddFileFromFunc("diagnose.log", func() ([]byte, error) { return functionOutputToBytes(diagnose.RunAll), nil })
+	fb.AddFileFromFunc("diagnose.log", func() ([]byte, error) { return functionOutputToBytes(diagnose.RunMetadataAvail), nil })
 	fb.AddFileFromFunc("connectivity.log", getDatadogConnectivity)
 	fb.AddFileFromFunc("secrets.log", getSecrets)
 	fb.AddFileFromFunc("envvars.log", getEnvVars)

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 )
 
 // Check is an interface for types capable to run checks
@@ -43,6 +44,8 @@ type Check interface {
 	InitConfig() string
 	// InstanceConfig returns the instance configuration of the check
 	InstanceConfig() string
+	// GetDiagnoses returns the diagnoses cached in last run or diagnose explicitly
+	GetDiagnoses() ([]diagnosis.Diagnosis, error)
 }
 
 // Info is an interface to pull information from types capable to run checks. This is a subsection from the Check

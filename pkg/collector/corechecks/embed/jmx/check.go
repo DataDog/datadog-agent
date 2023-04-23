@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -127,4 +128,9 @@ func (c *JMXCheck) GetWarnings() []error {
 // GetSenderStats returns the stats from the last run of this JMXCheck
 func (c *JMXCheck) GetSenderStats() (check.SenderStats, error) {
 	return check.NewSenderStats(), nil
+}
+
+// GetDiagnoses returns the diagnoses cached in last run or diagnose explicitly
+func (c *JMXCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+	return nil, nil
 }

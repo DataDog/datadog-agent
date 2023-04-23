@@ -9,6 +9,7 @@ package diagnose
 import (
 	"fmt"
 	"os"
+	"regexp"
 
 	"go.uber.org/fx"
 
@@ -18,10 +19,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/diagnose"
+	pkgdiagnose "github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/cihub/seelog"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -34,11 +38,27 @@ const (
 type cliParams struct {
 	*command.GlobalParams
 
+	// verbose will show details not only failed diagnosis but also succesfull diagnosis
+	// it is the, value of the --verbose flag
+	verbose bool
+
+	// run as current user, value of the --run-as-user flag
+	runAsUser bool
+
+	// run diagnose on other processes, value of --remote-diagnose flag
+	listSuites bool
+
 	// noTrace is the value of the --no-trace flag
 	noTrace bool
 
 	// payloadName is the name of the payload to display
 	payloadName string
+
+	// diagnose suites to run as a list of regular expressions
+	include []string
+
+	// diagnose suites not to run as a list of regular expressions
+	exclude []string
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -47,12 +67,45 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		GlobalParams: globalParams,
 	}
 
+	diagnoseAllCommand := &cobra.Command{
+		Use:   "all",
+		Short: "Validate Agent installation, configuration and environment",
+		Long:  ``,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			utillog.SetupLogger(seelog.Disabled, "off")
+			return fxutil.OneShot(cmdAll,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
+					LogParams:    log.LogForOneShot("CORE", "off", true)}),
+				core.Bundle,
+			)
+		},
+	}
+
+	// Normally a successful diagnosis is printed as a single dot character. If verbose option is specified
+	// successful diagnosis is printed fully. With verbose option diagnosis description is also printed.
+	diagnoseAllCommand.PersistentFlags().BoolVarP(&cliParams.verbose, "verbose", "v", false, "verbose output, includes passed diagnoses, and diagnoses description")
+
+	// List names of all registered diagnose suites. Output also will be filtered if include and or exclude
+	// options are specified
+	diagnoseAllCommand.PersistentFlags().BoolVarP(&cliParams.listSuites, "list", "l", false, "list diagnose suites")
+
+	// Normally internal diagnose functions will run in the context of agent and other services. It can be
+	// overridden via –run-as-user options and if specified diagnose functions will be executed in context
+	// of the agent diagnose CLI process if possible.
+	diagnoseAllCommand.PersistentFlags().BoolVarP(&cliParams.runAsUser, "run-as-user", "u", false, "run as current user")
+
+	// List of regular expressions to include and or exclude names of diagnose suites
+	diagnoseAllCommand.PersistentFlags().StringSliceVarP(&cliParams.include, "include", "i", []string{}, "diagnose suites to run as a list of regular expressions")
+	diagnoseAllCommand.PersistentFlags().StringSliceVarP(&cliParams.exclude, "exclude", "e", []string{}, "diagnose suites not to run as a list of regular expressions")
+
 	diagnoseMetadataAvailabilityCommand := &cobra.Command{
 		Use:   "metadata-availability",
 		Short: "Check availability of cloud provider and container metadata endpoints",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(runAll,
+			return fxutil.OneShot(runMetadataAvailability,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
@@ -123,10 +176,12 @@ This command print the last Inventory metadata payload sent by the Agent. This p
 
 	diagnoseCommand := &cobra.Command{
 		Use:   "diagnose",
-		Short: "Check availability of cloud provider and container metadata endpoints",
+		Short: "Validate Agent installation, configuration and environment",
 		Long:  ``,
-		RunE:  diagnoseMetadataAvailabilityCommand.RunE, // default to 'diagnose metadata-availability'
+		RunE:  diagnoseAllCommand.RunE, // default to 'diagnose all'
 	}
+
+	diagnoseCommand.AddCommand(diagnoseAllCommand)
 	diagnoseCommand.AddCommand(diagnoseMetadataAvailabilityCommand)
 	diagnoseCommand.AddCommand(diagnoseDatadogConnectivityCommand)
 	diagnoseCommand.AddCommand(showPayloadCommand)
@@ -134,8 +189,49 @@ This command print the last Inventory metadata payload sent by the Agent. This p
 	return []*cobra.Command{diagnoseCommand}
 }
 
-func runAll(log log.Component, config config.Component, cliParams *cliParams) error {
-	return diagnose.RunAll(color.Output)
+func strToRegexList(patterns []string) ([]*regexp.Regexp, error) {
+	if len(patterns) > 0 {
+		res := make([]*regexp.Regexp, 0)
+		for _, pattern := range patterns {
+			re, err := regexp.Compile(pattern)
+			if err != nil {
+				return nil, fmt.Errorf("failed to compile regex pattern %s: %s", pattern, err.Error())
+			}
+			res = append(res, re)
+		}
+		return res, nil
+	}
+	return nil, nil
+}
+
+func cmdAll(log log.Component, config config.Component, cliParams *cliParams) error {
+	diagCfg := diagnosis.DiagnoseConfig{
+		Verbose:   cliParams.verbose,
+		RunAsUser: cliParams.runAsUser,
+	}
+
+	// prepare include/exclude
+	var err error
+	if diagCfg.Include, err = strToRegexList(cliParams.include); err != nil {
+		return err
+	}
+	if diagCfg.Exclude, err = strToRegexList(cliParams.exclude); err != nil {
+		return err
+	}
+
+	// List
+	if cliParams.listSuites {
+		pkgdiagnose.ListAllStdOut(color.Output, diagCfg)
+		return nil
+	}
+
+	// Run
+	pkgdiagnose.RunAllStdOut(color.Output, diagCfg)
+	return nil
+}
+
+func runMetadataAvailability(log log.Component, config config.Component, cliParams *cliParams) error {
+	return pkgdiagnose.RunMetadataAvail(color.Output)
 }
 
 func runDatadogConnectivityDiagnose(log log.Component, config config.Component, cliParams *cliParams) error {

@@ -208,6 +208,17 @@ DATADOG_AGENT_RTLOADER_API void cancel_check(rtloader_t *, rtloader_pyobject_t *
 */
 DATADOG_AGENT_RTLOADER_API char **get_checks_warnings(rtloader_t *, rtloader_pyobject_t *check);
 
+/*! \fn diagnoses_t *get_check_diagnoses(rtloader_t*, rtloader_pyobject_t* check)
+    \brief Get all diagnoses, if any, for a check instance.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param check A rtloader_pyobject_t * pointer to the check instance we wish to collect the
+    diagnoses for.
+    \return An array diagnoses encapsulated in diagnoses_t for the instance, or NULL if none or
+    an error occurred.
+    \sa rtloader_pyobject_t, rtloader_t
+*/
+DATADOG_AGENT_RTLOADER_API diagnoses_t *get_check_diagnoses(rtloader_t *, rtloader_pyobject_t *check);
+
 /*! \fn void rtloader_free(rtloader_t *, void *ptr)
     \brief Routine to free heap memory in RtLoader.
     \param rtloader_t A rtloader_t * pointer to the RtLoader instance.

@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -244,4 +245,8 @@ func eventResult(passed bool, err error) string {
 		return event.Passed
 	}
 	return event.Failed
+}
+
+func (c *complianceCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+	return nil, nil
 }

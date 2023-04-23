@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	diagnosis.Register("EC2 Metadata availability", diagnose)
+	diagnosis.RegisterMetadataAvail("EC2 Metadata availability", diagnose)
 }
 
 // diagnose the ec2 metadata API availability

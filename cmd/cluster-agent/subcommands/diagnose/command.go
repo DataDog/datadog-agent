@@ -42,5 +42,5 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func run(log log.Component, config config.Component) error {
-	return diagnose.RunAll(color.Output)
+	return diagnose.RunMetadataAvail(color.Output)
 }
