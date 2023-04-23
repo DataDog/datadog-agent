@@ -147,7 +147,6 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		cancelFnc:            cancel,
 		StatsdClient:         opts.StatsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
-		event:                &model.Event{},
 		PlatformProbe: PlatformProbe{
 			onStart: make(chan *procmon.ProcessStartNotification),
 			onStop:  make(chan *procmon.ProcessStopNotification),
