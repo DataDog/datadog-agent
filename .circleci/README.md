@@ -16,7 +16,7 @@ should have it).
 Example:
 ```bash
 cd .circleci/images/runner
-docker build --platform=linux/amd64 -t datadog/datadog-agent-runner-circle:go1197 .
+docker build --platform=linux/amd64 -t datadog/datadog-agent-runner-circle:go1198 .
 docker login
 docker push datadog/datadog-agent-runner-circle:go1197
 ```
