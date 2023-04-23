@@ -47,7 +47,7 @@ func ReadBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
 
 // ReadHTTPModule from the asset file
 func ReadHTTPModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	return readModule(bpfDir, "http", debug)
+	return readModule(bpfDir, "usm", debug)
 }
 
 // ReadDNSModule from the asset file

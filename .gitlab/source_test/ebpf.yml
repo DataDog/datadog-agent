@@ -12,19 +12,19 @@
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/tracer-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-debug.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/offset-guess.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/offset-guess-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess-debug.o
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/http.o $CI_PROJECT_DIR/.tmp/binary-ebpf/http.o
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/http-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/http-debug.o
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/usm.o $CI_PROJECT_DIR/.tmp/binary-ebpf/usm.o
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/usm-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/usm-debug.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/dns.o $CI_PROJECT_DIR/.tmp/binary-ebpf/dns.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/dns-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/dns-debug.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/conntrack.o $CI_PROJECT_DIR/.tmp/binary-ebpf/conntrack.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/conntrack-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/conntrack-debug.o
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/http-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/http-debug.o
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/http.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/http.o
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/usm-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/usm-debug.o
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/usm.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/usm.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/oom-kill.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/oom-kill.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tcp-queue-length.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/tcp-queue-length.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tracer-fentry.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/tracer-fentry.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/tracer.c $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer.c
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/http.c $CI_PROJECT_DIR/.tmp/binary-ebpf/http.c
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/usm.c $CI_PROJECT_DIR/.tmp/binary-ebpf/usm.c
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/runtime-security.c $CI_PROJECT_DIR/.tmp/binary-ebpf/runtime-security.c
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/conntrack.c $CI_PROJECT_DIR/.tmp/binary-ebpf/conntrack.c
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/oom-kill.c $CI_PROJECT_DIR/.tmp/binary-ebpf/oom-kill.c

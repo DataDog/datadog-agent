@@ -13,9 +13,9 @@
     - $S3_CP_CMD $S3_ARTIFACTS_URI/oom-kill-co-re.o.$ARCH oom-kill.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/tcp-queue-length-co-re.o.$ARCH tcp-queue-length.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer-fentry-co-re.o.$ARCH tracer-fentry.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/http-co-re.o.$ARCH http.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/http-debug-co-re.o.$ARCH http-debug.o
-    - inv -e system-probe.generate-minimized-btfs --source-dir "$CI_PROJECT_DIR/btfs-$ARCH" --output-dir "$CI_PROJECT_DIR/minimized-btfs" --input-bpf-programs "$CI_PROJECT_DIR/oom-kill.o $CI_PROJECT_DIR/tcp-queue-length.o $CI_PROJECT_DIR/http.o $CI_PROJECT_DIR/http-debug.o"
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/usm-co-re.o.$ARCH usm.o
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/usm-debug-co-re.o.$ARCH usm-debug.o
+    - inv -e system-probe.generate-minimized-btfs --source-dir "$CI_PROJECT_DIR/btfs-$ARCH" --output-dir "$CI_PROJECT_DIR/minimized-btfs" --input-bpf-programs "$CI_PROJECT_DIR/oom-kill.o $CI_PROJECT_DIR/tcp-queue-length.o $CI_PROJECT_DIR/usm.o $CI_PROJECT_DIR/usm-debug.o"
     - cd minimized-btfs
     - tar -cJf minimized-btfs.tar.xz *
     - $S3_CP_CMD minimized-btfs.tar.xz $S3_ARTIFACTS_URI/minimized-btfs-$ARCH.tar.xz

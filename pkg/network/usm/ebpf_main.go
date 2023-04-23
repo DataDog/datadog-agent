@@ -275,7 +275,7 @@ func (e *ebpfProgram) Close() error {
 }
 
 func (e *ebpfProgram) initCORE() error {
-	assetName := getAssetName("http", e.cfg.BPFDebug)
+	assetName := getAssetName("usm", e.cfg.BPFDebug)
 	return ddebpf.LoadCOREAsset(&e.cfg.Config, assetName, e.init)
 }
 
