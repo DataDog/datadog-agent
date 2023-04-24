@@ -65,8 +65,8 @@ func NewEvalOpts(eventTypeEnabled map[eval.EventType]bool) (*Opts, *eval.Opts) {
 		WithEventTypeEnabled(eventTypeEnabled).
 		WithStateScopes(map[Scope]VariableProviderFactory{
 			"process": func() VariableProvider {
-				return eval.NewScopedVariables(func(ctx *eval.Context) *model.ProcessContext {
-					return ctx.Event.(*model.Event).ProcessContext
+				return eval.NewScopedVariables(func(ctx *eval.Context) eval.ScopedVariable {
+					return ctx.Event.(*model.Event).ProcessCacheEntry
 				})
 			},
 		})
