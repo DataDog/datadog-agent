@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"time"
 )
 
 // Note: Building the logs-agent for serverless separately removes the
@@ -65,6 +66,6 @@ func buildEndpoints() (*config.Endpoints, error) {
 		return nil, err
 	}
 	// in serverless mode, we never want the batch strategy to flush with a tick
-	config.BatchWait = 365 * 24 * duration.Hour
+	config.BatchWait = 365 * 24 * time.Hour
 	return config, nil
 }
