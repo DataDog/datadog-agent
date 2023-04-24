@@ -21,8 +21,7 @@ runtime_compiled_tests = Array.[](
 
 co_re_tests = Array.[](
   "pkg/network/tracer",
-  "pkg/network/protocols/http",
-  "pkg/collector/corechecks/ebpf/probe"
+  "pkg/network/protocols/http"
 )
 
 TIMEOUTS = {

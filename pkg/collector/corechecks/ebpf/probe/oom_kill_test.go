@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -35,6 +36,8 @@ while True:
 const oomKilledBashScript = `
 exec systemd-run --scope -p MemoryLimit=1M python3 %v # replace shell, so that the process launched by Go is the one getting oom-killed
 `
+
+var kv = kernel.MustHostVersion()
 
 func writeTempFile(pattern string, content string) (*os.File, error) {
 	f, err := os.CreateTemp("", pattern)
@@ -51,88 +54,84 @@ func writeTempFile(pattern string, content string) (*os.File, error) {
 }
 
 func TestOOMKillCompile(t *testing.T) {
-	kv, err := kernel.HostVersion()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if kv < kernel.VersionCode(4, 9, 0) {
-		t.Skipf("Kernel version %v is not supported by the OOM probe", kv)
-	}
+	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", func(t *testing.T) {
+		if kv < kernel.VersionCode(4, 9, 0) {
+			t.Skipf("Kernel version %v is not supported by the OOM probe", kv)
+		}
 
-	cfg := testConfig()
-	cfg.BPFDebug = true
-	out, err := runtime.OomKill.Compile(cfg, []string{"-g"}, statsd.Client)
-	require.NoError(t, err)
-	_ = out.Close()
+		cfg := testConfig()
+		cfg.BPFDebug = true
+		out, err := runtime.OomKill.Compile(cfg, []string{"-g"}, statsd.Client)
+		require.NoError(t, err)
+		_ = out.Close()
+	})
 }
 
 func TestOOMKillProbe(t *testing.T) {
-	kv, err := kernel.HostVersion()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if kv < kernel.VersionCode(4, 9, 0) {
-		t.Skipf("Kernel version %v is not supported by the OOM probe", kv)
-	}
+	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+		if kv < kernel.VersionCode(4, 9, 0) {
+			t.Skipf("Kernel version %v is not supported by the OOM probe", kv)
+		}
 
-	cfg := testConfig()
-	oomKillProbe, err := NewOOMKillProbe(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer oomKillProbe.Close()
+		cfg := testConfig()
+		oomKillProbe, err := NewOOMKillProbe(cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(oomKillProbe.Close)
 
-	pf, err := writeTempFile("oom-kill-py", oomKilledPython)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(pf.Name())
+		pf, err := writeTempFile("oom-kill-py", oomKilledPython)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(pf.Name())
 
-	bf, err := writeTempFile("oom-trigger-sh", fmt.Sprintf(oomKilledBashScript, pf.Name()))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(bf.Name())
+		bf, err := writeTempFile("oom-trigger-sh", fmt.Sprintf(oomKilledBashScript, pf.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(bf.Name())
 
-	cmd := exec.Command("bash", bf.Name())
+		cmd := exec.Command("bash", bf.Name())
 
-	oomKilled := false
-	if err := cmd.Run(); err != nil {
-		if exiterr, ok := err.(*exec.ExitError); ok {
-			if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
-				if (status.Signaled() && status.Signal() == unix.SIGKILL) || status.ExitStatus() == 137 {
-					oomKilled = true
+		oomKilled := false
+		if err := cmd.Run(); err != nil {
+			if exiterr, ok := err.(*exec.ExitError); ok {
+				if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
+					if (status.Signaled() && status.Signal() == unix.SIGKILL) || status.ExitStatus() == 137 {
+						oomKilled = true
+					}
 				}
+			}
+
+			if !oomKilled {
+				output, _ := cmd.CombinedOutput()
+				t.Fatalf("expected process to be killed: %s (output: %s)", err, string(output))
 			}
 		}
 
-		if !oomKilled {
-			output, _ := cmd.CombinedOutput()
-			t.Fatalf("expected process to be killed: %s (output: %s)", err, string(output))
+		time.Sleep(3 * time.Second)
+
+		found := false
+		results := oomKillProbe.GetAndFlush()
+		for _, result := range results {
+			if result.TPid == uint32(cmd.Process.Pid) {
+				found = true
+
+				assert.Regexp(t, regexp.MustCompile("run-([0-9|a-z]*).scope"), result.CgroupName, "cgroup name")
+				assert.Equal(t, result.TPid, result.Pid, "tpid == pid")
+				assert.Equal(t, "python3", result.FComm, "fcomm")
+				assert.Equal(t, "python3", result.TComm, "tcomm")
+				assert.NotZero(t, result.Pages, "pages")
+				assert.Equal(t, uint32(1), result.MemCgOOM, "memcg oom")
+				break
+			}
 		}
-	}
 
-	time.Sleep(3 * time.Second)
-
-	found := false
-	results := oomKillProbe.GetAndFlush()
-	for _, result := range results {
-		if result.TPid == uint32(cmd.Process.Pid) {
-			found = true
-
-			assert.Regexp(t, regexp.MustCompile("run-([0-9|a-z]*).scope"), result.CgroupName, "cgroup name")
-			assert.Equal(t, result.TPid, result.Pid, "tpid == pid")
-			assert.Equal(t, "python3", result.FComm, "fcomm")
-			assert.Equal(t, "python3", result.TComm, "tcomm")
-			assert.NotZero(t, result.Pages, "pages")
-			assert.Equal(t, uint32(1), result.MemCgOOM, "memcg oom")
-			break
+		if !found {
+			t.Errorf("failed to find an OOM killed process with pid %d in %+v", cmd.Process.Pid, results)
 		}
-	}
-
-	if !found {
-		t.Errorf("failed to find an OOM killed process with pid %d in %+v", cmd.Process.Pid, results)
-	}
+	})
 }
 
 func testConfig() *ebpf.Config {
