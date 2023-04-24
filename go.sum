@@ -128,8 +128,8 @@ github.com/CycloneDX/cyclonedx-go v0.7.0 h1:jNxp8hL7UpcvPDFXjY+Y1ibFtsW+e5zyF9Qo
 github.com/CycloneDX/cyclonedx-go v0.7.0/go.mod h1:W5Z9w8pTTL+t+yG3PCiFRGlr8PUlE0pGWzKSJbsyXkg=
 github.com/DataDog/agent-payload/v5 v5.0.81 h1:ANnPje8r65ZZ0Ku3CTC4CDwBGRMLUa7dXxo6ik9N7cE=
 github.com/DataDog/agent-payload/v5 v5.0.81/go.mod h1:oQZi1VZp1e3QvlSUX4iphZCpJaFepUxWq0hNXxihKBM=
-github.com/DataDog/appsec-internal-go v0.0.0-20230215162203-5149228be86a h1:7ZiVdU4j19IYuy8rR0uUzC7I7HjWul61ZEyUgvLkZBM=
-github.com/DataDog/appsec-internal-go v0.0.0-20230215162203-5149228be86a/go.mod h1:ILSJBuOg3E0Jg8qgSnm7+g8DXa0KrfahnS7jhS1DoWs=
+github.com/DataDog/appsec-internal-go v1.0.0 h1:2u5IkF4DBj3KVeQn5Vg2vjPUtt513zxEYglcqnd500U=
+github.com/DataDog/appsec-internal-go v1.0.0/go.mod h1:+Y+4klVWKPOnZx6XESG7QHydOaUGEXyH2j/vSg9JiNM=
 github.com/DataDog/aptly v1.5.1 h1:Znm0WZ/cSjjTLe0HY3rKN1uqa7YIu+uIo3UQG/0WlIM=
 github.com/DataDog/aptly v1.5.1/go.mod h1:x6lbb/ut3zs39IHIde3b44d+ahCIKL0AoMBzRNZlN5I=
 github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3 h1:SobA9WYm4K/MUtWlbKaomWTmnuYp1KhIm8Wlx3vmpsg=
@@ -2728,8 +2728,8 @@ honnef.co/go/tools v0.0.0-20190523083050-ea95bdfd59fc/go.mod h1:rf3lG4BRIbNafJWh
 honnef.co/go/tools v0.0.1-2019.2.3/go.mod h1:a3bituU0lyd329TUQxRnasdCoJDkEUEAqEt0JzvZhAg=
 honnef.co/go/tools v0.0.1-2020.1.3/go.mod h1:X/FiERA/W4tHapMX5mGpAtMSVEeEUOyHaw9vFzvIQ3k=
 honnef.co/go/tools v0.0.1-2020.1.4/go.mod h1:X/FiERA/W4tHapMX5mGpAtMSVEeEUOyHaw9vFzvIQ3k=
-inet.af/netaddr v0.0.0-20220617031823-097006376321 h1:B4dC8ySKTQXasnjDTMsoCMf1sQG4WsMej0WXaHxunmU=
-inet.af/netaddr v0.0.0-20220617031823-097006376321/go.mod h1:OIezDfdzOgFhuw4HuWapWq2e9l0H9tK4F1j+ETRtF3k=
+inet.af/netaddr v0.0.0-20220811202034-502d2d690317 h1:U2fwK6P2EqmopP/hFLTOAjWTki0qgd4GMJn5X8wOleU=
+inet.af/netaddr v0.0.0-20220811202034-502d2d690317/go.mod h1:OIezDfdzOgFhuw4HuWapWq2e9l0H9tK4F1j+ETRtF3k=
 k8s.io/api v0.23.15 h1:czl3QbP3Jb3J/gR5seTTKafYA5YQhkZLerQQUBhkpBk=
 k8s.io/api v0.23.15/go.mod h1:hxtVWhlKGalIP4YXHxg8nzDlRd1ciyIkgEKTlvXjSMs=
 k8s.io/apiextensions-apiserver v0.23.15 h1:ABxYYQ0d5WlqBboqlL00ZBT9HAKXs+DpkISTyjpkuzc=
