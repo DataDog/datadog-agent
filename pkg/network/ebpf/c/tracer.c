@@ -19,10 +19,10 @@
 #include "protocols/classification/tracer-maps.h"
 #include "protocols/classification/protocol-classification.h"
 
-struct bpf_pidns_info {
-    __u32 pid;
-    __u32 tgid;
-};
+// struct bpf_pidns_info {
+//     __u32 pid;
+//     __u32 tgid;
+// };
 
 SEC("socket/classifier_entry")
 int socket__classifier_entry(struct __sk_buff *skb) {
@@ -69,17 +69,6 @@ int kprobe__tcp_sendmsg__pre_4_1_0(struct pt_regs *ctx) {
 
 SEC("kretprobe/tcp_sendmsg")
 int kretprobe__tcp_sendmsg(struct pt_regs *ctx) {
-    __u32 dev = systemprobe_dev();
-    __u32 ino = systemprobe_ino();
-    struct bpf_pidns_info ns = {};
-
-    u64 error = bpf_get_ns_current_pid_tgid(dev, ino, &ns, sizeof(struct bpf_pidns_info));
-
-    if (error) {
-        log_debug("adamk pid ns check FAILED, ns: %d", ns.pid);
-    }
-    log_debug("adamk pid ns check SUCCESS, ns: %d", ns.pid);
-
     u64 pid_tgid = bpf_get_current_pid_tgid();
     struct sock **skpp = (struct sock **)bpf_map_lookup_elem(&tcp_sendmsg_args, &pid_tgid);
     if (!skpp) {

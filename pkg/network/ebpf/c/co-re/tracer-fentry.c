@@ -102,8 +102,30 @@ static __always_inline int read_conn_tuple_partial_from_flowi6(conn_tuple_t *t, 
     return 1;
 }
 
+static __always_inline __u32 systemprobe_dev() {
+    __u64 val = 0;
+    LOAD_CONSTANT("systemprobe_device", val);
+    return (__u32)val;
+}
+
+static __always_inline __u32 systemprobe_ino() {
+    __u64 val = 0;
+    LOAD_CONSTANT("systemprobe_ino", val);
+    return (__u32)val;
+}
+
 SEC("fexit/tcp_sendmsg")
 int BPF_PROG(tcp_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t size, int sent) {
+    __u32 dev = systemprobe_dev();
+    __u32 ino = systemprobe_ino();
+    struct bpf_pidns_info ns = {};
+
+    u64 error = bpf_get_ns_current_pid_tgid(dev, ino, &ns, sizeof(struct bpf_pidns_info));
+
+    if (error) {
+        log_debug("adamk pid ns check FAILED, ns: %d", ns.pid);
+    }
+    log_debug("adamk pid ns check SUCCESS, ns: %d", ns.pid);
     if (sent < 0) {
         log_debug("fexit/tcp_sendmsg: tcp_sendmsg err=%d\n", sent);
         return 0;
