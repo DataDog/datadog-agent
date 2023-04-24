@@ -41,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
+	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
@@ -387,7 +388,7 @@ func TestConnectionExpirationRegression(t *testing.T) {
 }
 
 func TestConntrackExpiration(t *testing.T) {
-	setupDNAT(t)
+	netlinktestutil.SetupDNAT(t)
 	wg := sync.WaitGroup{}
 
 	tr := setupTracer(t, testConfig())
@@ -446,7 +447,7 @@ func TestConntrackExpiration(t *testing.T) {
 // This test ensures that conntrack lookups are retried for short-lived
 // connections when the first lookup fails
 func TestConntrackDelays(t *testing.T) {
-	setupDNAT(t)
+	netlinktestutil.SetupDNAT(t)
 	wg := sync.WaitGroup{}
 
 	tr := setupTracer(t, testConfig())
@@ -489,7 +490,7 @@ func TestConntrackDelays(t *testing.T) {
 }
 
 func TestTranslationBindingRegression(t *testing.T) {
-	setupDNAT(t)
+	netlinktestutil.SetupDNAT(t)
 	wg := sync.WaitGroup{}
 
 	tr := setupTracer(t, testConfig())
@@ -943,7 +944,7 @@ func TestUDPConnExpiryTimeout(t *testing.T) {
 }
 
 func TestDNATIntraHostIntegration(t *testing.T) {
-	setupDNAT(t)
+	netlinktestutil.SetupDNAT(t)
 
 	tr := setupTracer(t, testConfig())
 
@@ -1325,38 +1326,6 @@ func iptablesWrapper(t *testing.T, f func()) {
 	}()
 
 	f()
-}
-
-func setupDNAT(t *testing.T) {
-	if _, err := exec.LookPath("conntrack"); err != nil {
-		t.Errorf("conntrack not found in PATH: %s", err)
-		return
-	}
-
-	state := testutil.IptablesSave(t)
-	t.Cleanup(func() { teardownDNAT(t, state) })
-	// Using dummy1 instead of dummy0 (https://serverfault.com/a/841723)
-	cmds := []string{
-		"ip link add dummy1 type dummy",
-		"ip address add 1.1.1.1 broadcast + dev dummy1",
-		"ip link set dummy1 up",
-		"iptables -t nat -A OUTPUT --dest 2.2.2.2 -j DNAT --to-destination 1.1.1.1",
-	}
-	testutil.RunCommands(t, cmds, false)
-}
-
-func teardownDNAT(t *testing.T, state []byte) {
-	if len(state) > 0 {
-		testutil.IptablesRestore(t, state)
-	}
-
-	cmds := []string{
-		// tear down the testing interface, and iptables rule
-		"ip link del dummy1",
-		// clear out the conntrack table
-		"conntrack -F",
-	}
-	testutil.RunCommands(t, cmds, true)
 }
 
 func ipRouteGet(t *testing.T, from, dest string, iif *net.Interface) *net.Interface {
