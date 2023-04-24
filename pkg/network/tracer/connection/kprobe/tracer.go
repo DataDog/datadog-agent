@@ -269,10 +269,10 @@ func isCORETracerSupported() error {
 	}
 
 	hostInfo := host.GetStatusInformation()
-	// centos is the only distribution we support
-	// that can have a kernel version < 4, and
+	// centos/redhat distributions we support
+	// can have a kernel versions < 4, and
 	// CO-RE is supported there
-	if hostInfo.Platform == "centos" {
+	if hostInfo.Platform == "centos" || hostInfo.Platform == "redhat" {
 		return nil
 	}
 
