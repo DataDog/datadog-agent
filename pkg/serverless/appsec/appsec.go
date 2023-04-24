@@ -47,11 +47,13 @@ func New() (*httpsec.InvocationSubProcessor, *httpsec.ProxyLifecycleProcessor, e
 			SubProcessor: httpsec.NewProxyProcessor(appsecInstance),
 		}
 		// start the experimental proxy if enabled
-		proxy.Start(
+		if err := proxy.Start(
 			"127.0.0.1:9000",
 			"127.0.0.1:9001",
 			lp,
-		)
+		); err != nil {
+			return nil, nil, errors.Wrap(err, "could not start the runtime api proxy")
+		}
 		log.Debug("appsec: started successfully using the runtime api proxy monitoring mode")
 		return nil, lp, nil
 

@@ -13,9 +13,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 )
@@ -80,8 +80,8 @@ func TestProxyResponseValid(t *testing.T) {
 
 	t.Setenv("DD_EXPERIMENTAL_ENABLE_PROXY", "true")
 
-	go setup("127.0.0.1:5000", "127.0.0.1:5001", &testProcessorResponseValid{})
-	time.Sleep(100 * time.Millisecond)
+	err = Start("127.0.0.1:5000", "127.0.0.1:5001", &testProcessorResponseValid{})
+	require.NoError(t, err)
 	resp, err := http.Get("http://127.0.0.1:5000/xxx/next")
 	assert.Nil(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -107,8 +107,8 @@ func TestProxyResponseError(t *testing.T) {
 
 	t.Setenv("DD_EXPERIMENTAL_ENABLE_PROXY", "true")
 
-	go setup("127.0.0.1:6000", "127.0.0.1:6001", &testProcessorResponseError{})
-	time.Sleep(100 * time.Millisecond)
+	err = Start("127.0.0.1:6000", "127.0.0.1:6001", &testProcessorResponseError{})
+	require.NoError(t, err)
 	resp, err := http.Get("http://127.0.0.1:6000/xxx/next")
 	assert.Nil(t, err)
 	resp.Body.Close()

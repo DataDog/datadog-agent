@@ -334,11 +334,13 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	} else if enabled, _ := strconv.ParseBool(os.Getenv("DD_EXPERIMENTAL_ENABLE_PROXY")); enabled {
 		// start the experimental proxy if enabled
 		log.Debug("Starting the experimental runtime api proxy")
-		proxy.Start(
+		if err := proxy.Start(
 			"127.0.0.1:9000",
 			"127.0.0.1:9001",
 			serverlessDaemon.InvocationProcessor,
-		)
+		); err != nil {
+			log.Errorf("Could not start the experimental runtime api proxy: %v", err)
+		}
 	}
 
 	// run the invocation loop in a routine
