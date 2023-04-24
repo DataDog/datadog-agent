@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/hashicorp/go-multierror"
 	easyjson "github.com/mailru/easyjson"
 	"github.com/moby/sys/mountinfo"
@@ -138,7 +139,7 @@ func (p *Probe) UseRingBuffers() bool {
 
 func (p *Probe) sanityChecks() error {
 	// make sure debugfs is mounted
-	if mounted, err := utilkernel.IsDebugFSOrTraceFSMounted(); !mounted {
+	if _, err := tracefs.Root(); err != nil {
 		return err
 	}
 

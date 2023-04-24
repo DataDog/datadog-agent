@@ -653,12 +653,22 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False):
             shutil.copy(os.path.join(pkg, "agent-usm.jar"), os.path.join(target_path, "agent-usm.jar"))
 
         gotls_client_dir = os.path.join("testutil", "gotls_client")
-        gotls_client_binary = os.path.join(gotls_client_dir, "gotls_client")
         gotls_extra_path = os.path.join(pkg, gotls_client_dir)
         if not windows and os.path.isdir(gotls_extra_path):
+            gotls_client_binary = os.path.join(gotls_client_dir, "gotls_client")
             gotls_binary_path = os.path.join(target_path, gotls_client_binary)
             with chdir(gotls_extra_path):
                 ctx.run(f"go build -o {gotls_binary_path} -ldflags=\"-extldflags '-static'\" gotls_client.go")
+
+        sowatcher_client_dir = os.path.join("testutil", "sowatcher_client")
+        sowatcher_client_extra_path = os.path.join(pkg, sowatcher_client_dir)
+        if not windows and os.path.isdir(sowatcher_client_extra_path):
+            sowatcher_client_client_binary = os.path.join(sowatcher_client_dir, "sowatcher_client")
+            sowatcher_client_binary_path = os.path.join(target_path, sowatcher_client_client_binary)
+            with chdir(sowatcher_client_extra_path):
+                ctx.run(
+                    f"go build -o {sowatcher_client_binary_path} -ldflags=\"-extldflags '-static'\" sowatcher_client.go"
+                )
 
     gopath = os.getenv("GOPATH")
     copy_files = [

@@ -172,12 +172,12 @@ github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.1.5 h1:Coq8AY8Wr9SiR
 github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.1.5/go.mod h1:nw6wfcZqEiFh/F68YO96zOjrlZjtKOKoXmRNQ3wgjLc=
 github.com/DataDog/sketches-go v1.4.1 h1:j5G6as+9FASM2qC36lvpvQAj9qsv/jUs3FtO8CwZNAY=
 github.com/DataDog/sketches-go v1.4.1/go.mod h1:xJIXldczJyyjnbDop7ZZcLxJdV3+7Kra7H1KMgpgkLk=
-github.com/DataDog/trivy v0.0.0-20230120171913-9b1b011fb2fe h1:37VGGoe+SJ/blsYK0xZDy84m8hp/suVx6MBSeiZJKLc=
-github.com/DataDog/trivy v0.0.0-20230120171913-9b1b011fb2fe/go.mod h1:f1nyvEyWU3w5L8dYIQljloMO/BX0i0OK9NwGeZtvmFw=
+github.com/DataDog/trivy v0.0.0-20230418154509-807f757a8339 h1:ursx1WwFb+b0arV1d4061adoX0qGKGvZbBYKWiwYza4=
+github.com/DataDog/trivy v0.0.0-20230418154509-807f757a8339/go.mod h1:f1nyvEyWU3w5L8dYIQljloMO/BX0i0OK9NwGeZtvmFw=
 github.com/DataDog/viper v1.12.0 h1:FufyZpZPxyszafSV5B8Q8it75IhhuJwH0T7QpT6HnD0=
 github.com/DataDog/viper v1.12.0/go.mod h1:wDdUVJ2SHaMaPrCZrlRCObwkubsX8j5sme3LaR/SGTc=
-github.com/DataDog/walker v0.0.0-20221128132416-4ca87a1f1023 h1:LUHj8naCkkZ2FQGf2OBPiYZbMfzH3T8nCANmjFyLvDg=
-github.com/DataDog/walker v0.0.0-20221128132416-4ca87a1f1023/go.mod h1:G0Z6yVPru183i2MuRJx1DcR4dgIZtLcTdaaE/pC1BJU=
+github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950 h1:2imDajw3V85w1iqHsuXN+hUBZQVF+r9eME8tsPq/HpA=
+github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950/go.mod h1:FU+7qU8DeQQgSZDmmThMJi93kPkLFgy0oVAcLxurjIk=
 github.com/DataDog/watermarkpodautoscaler v0.5.2 h1:hPbhnpWQrM1bRPmwCgFMmSQWohHHCDkzgsMlegGr5t8=
 github.com/DataDog/watermarkpodautoscaler v0.5.2/go.mod h1:wmxU62NOlfdWqlGf9Te/j+BiyZkjock5S5265g/KvK8=
 github.com/DataDog/zstd v1.4.5/go.mod h1:1jcaCB/ufaK+sKp1NBhlGmpz41jOoPQ35bpF36t7BBo=
@@ -2455,7 +2455,6 @@ golang.org/x/tools v0.0.0-20190706070813-72ffa07ba3db/go.mod h1:jcCCGcm9btYwXyDq
 golang.org/x/tools v0.0.0-20190816200558-6889da9d5479/go.mod h1:b+2E5dAYhXwXZwtnZ6UAqBI28+e2cm9otk0dWdXHAEo=
 golang.org/x/tools v0.0.0-20190907020128-2ca718005c18/go.mod h1:b+2E5dAYhXwXZwtnZ6UAqBI28+e2cm9otk0dWdXHAEo=
 golang.org/x/tools v0.0.0-20190911174233-4f2ddba30aff/go.mod h1:b+2E5dAYhXwXZwtnZ6UAqBI28+e2cm9otk0dWdXHAEo=
-golang.org/x/tools v0.0.0-20191011211836-4c025a95b26e/go.mod h1:b+2E5dAYhXwXZwtnZ6UAqBI28+e2cm9otk0dWdXHAEo=
 golang.org/x/tools v0.0.0-20191012152004-8de300cfc20a/go.mod h1:b+2E5dAYhXwXZwtnZ6UAqBI28+e2cm9otk0dWdXHAEo=
 golang.org/x/tools v0.0.0-20191029041327-9cc4af7d6b2c/go.mod h1:b+2E5dAYhXwXZwtnZ6UAqBI28+e2cm9otk0dWdXHAEo=
 golang.org/x/tools v0.0.0-20191029190741-b9c20aec41a5/go.mod h1:b+2E5dAYhXwXZwtnZ6UAqBI28+e2cm9otk0dWdXHAEo=

@@ -42,14 +42,14 @@ require (
 	github.com/CycloneDX/cyclonedx-go v0.7.0
 	github.com/DataDog/agent-payload/v5 v5.0.81
 	github.com/DataDog/appsec-internal-go v0.0.0-20230215162203-5149228be86a
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.45.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.45.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.45.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/trace v0.45.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.45.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.45.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.45.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.45.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.45.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.45.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.45.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/trace v0.45.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.45.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/log v0.45.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.45.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.45.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v0.7.1-0.20230215125730-2ba58ce29d56
 	github.com/DataDog/ebpf-manager v0.2.8-0.20230331131947-0cbd4db2728c
@@ -602,8 +602,8 @@ replace k8s.io/kube-state-metrics/v2 => github.com/datadog/kube-state-metrics/v2
 // Use custom Trivy fork to reduce binary size
 // Pull in replacements needed by upstream Trivy
 replace (
-	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20230120171913-9b1b011fb2fe
-	github.com/saracen/walker => github.com/DataDog/walker v0.0.0-20221128132416-4ca87a1f1023
+	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20230418154509-807f757a8339
+	github.com/saracen/walker => github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950
 	github.com/spdx/tools-golang => github.com/spdx/tools-golang v0.3.0
 	oras.land/oras-go => oras.land/oras-go v1.1.1
 )

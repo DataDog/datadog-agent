@@ -4,8 +4,18 @@
 		         Type="CheckBox"
 		         X="25" Y="144" Width="330" Height="18"
 		         CheckBoxValue="1"
-		         Property="ALLOWCLOSEDSOURCE"
-		         Text="!(loc.ClosedSrcAcceptedCheckText)" />
+		         Property="CHECKBOX_ALLOWCLOSEDSOURCE"
+		         Text="!(loc.ClosedSrcAcceptedCheckText)">
+			<!-- Windows Installer will make the checkbox checked if the property has ANY value.
+			     We explicitly set the expected value (0 or 1) because Windows Installer will delete the property
+			     when the box is unchecked. Keep these values in sync with Constants.cs.
+			     See discussion in ReadInstallState() to answer why we use a different property.
+			     https://wixtoolset.org/docs/v3/xsd/wix/control/
+			     https://learn.microsoft.com/en-us/windows/win32/msi/checkbox-control
+			-->
+			<Publish Property="ALLOWCLOSEDSOURCE" Value="1"> <![CDATA[CHECKBOX_ALLOWCLOSEDSOURCE]]> </Publish>
+			<Publish Property="ALLOWCLOSEDSOURCE" Value="0"> <![CDATA[NOT CHECKBOX_ALLOWCLOSEDSOURCE]]> </Publish>
+			</Control>
 
 		<Control Id="EnterKey" Type="Text" Height="32" Width="320" X="25" Y="116"
 		         Text="!(loc.ClosedSrcKeyLabel)" />

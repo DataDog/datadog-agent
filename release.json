@@ -29,7 +29,7 @@
         "SECURITY_AGENT_POLICIES_VERSION": "master"
     },
     "release-a6": {
-        "INTEGRATIONS_CORE_VERSION": "7.45.0-rc.1",
+        "INTEGRATIONS_CORE_VERSION": "7.45.0-rc.3",
         "OMNIBUS_SOFTWARE_VERSION": "7.45.0-rc.1",
         "OMNIBUS_RUBY_VERSION": "7.45.0-rc.1",
         "JMXFETCH_VERSION": "0.47.8",
@@ -41,7 +41,7 @@
         "WINDOWS_DDNPM_SHASUM": "f12af44306eac3ea15828fd12c24d44ae519692a94a0f1f5d4fa868c3e596b07"
     },
     "release-a7": {
-        "INTEGRATIONS_CORE_VERSION": "7.45.0-rc.1",
+        "INTEGRATIONS_CORE_VERSION": "7.45.0-rc.3",
         "OMNIBUS_SOFTWARE_VERSION": "7.45.0-rc.1",
         "OMNIBUS_RUBY_VERSION": "7.45.0-rc.1",
         "JMXFETCH_VERSION": "0.47.8",
