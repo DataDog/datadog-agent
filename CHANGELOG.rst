@@ -2,6 +2,28 @@
 Release Notes
 =============
 
+.. _Release Notes_7.43.2:
+
+7.43.2 / 6.43.2
+======
+
+.. _Release Notes_7.43.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2023-04-20
+
+
+.. _Release Notes_7.43.2_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Upgraded JMXFetch to ``0.47.8`` which has improvements aimed
+  to help large metric collections drop fewer payloads.
+
+
 .. _Release Notes_7.43.1:
 
 7.43.1 / 6.43.1
