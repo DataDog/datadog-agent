@@ -1329,7 +1329,10 @@ func TestOTLPConvertSpan(t *testing.T) {
 }
 
 func TestFlatten(t *testing.T) {
-	assert.Equal(t, flatten(map[string]string{"a": "b", "c": "d"}).String(), "a:b,c:d")
+	flat := strings.Split(flatten(map[string]string{"a": "b", "c": "d"}).String(), ",")
+	// string must be sorted because maps are not
+	sort.Strings(flat)
+	assert.Equal(t, strings.Join(flat, ","), "a:b,c:d")
 	assert.Equal(t, flatten(map[string]string{"x": "y"}).String(), "x:y")
 	assert.Equal(t, flatten(map[string]string{}).String(), "")
 	assert.Equal(t, flatten(nil).String(), "")
