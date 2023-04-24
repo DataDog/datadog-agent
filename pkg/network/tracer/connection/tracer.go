@@ -526,11 +526,11 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 		Cookie:           s.Cookie,
 	}
 
-	stats.ProtocolStack = protocols.NewStack(
-		s.Protocol_stack.Api,
-		s.Protocol_stack.Application,
-		s.Protocol_stack.Encryption,
-	)
+	stats.ProtocolStack = protocols.Stack{
+		API: protocols.API(.Protocol_stack.Api),
+		Application: protocols.Application(s.Protocol_stack.Application),
+		Encryption: protocols.Encryption(s.Protocol_stack.Encryption),
+	}
 	stats.StaticTags |= uint64(s.Conn_tags)
 
 	if t.Type() == netebpf.TCP {

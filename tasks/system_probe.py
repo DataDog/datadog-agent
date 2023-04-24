@@ -310,9 +310,6 @@ def ninja_cgo_type_files(nw, windows):
             "pkg/network/protocols/http/gotls/go_tls_types.go": [
                 "pkg/network/ebpf/c/protocols/tls/go-tls-types.h",
             ],
-            "pkg/network/protocols/types.go": [
-                "pkg/network/ebpf/c/protocols/classification/defs.h",
-            ],
             "pkg/network/protocols/http/http_types.go": [
                 "pkg/network/ebpf/c/tracer.h",
                 "pkg/network/ebpf/c/protocols/tls/tags-types.h",

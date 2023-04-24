@@ -3,47 +3,71 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build ignore
-// +build ignore
-
 package protocols
 
-/*
-#include "../ebpf/c/protocols/classification/defs.h"
-*/
-import "C"
-
-type ProtocolType = C.protocol_t
+type ProtocolType uint16
 
 const (
-	Unknown  ProtocolType = C.PROTOCOL_UNKNOWN
-	HTTP     ProtocolType = C.PROTOCOL_HTTP
-	HTTP2    ProtocolType = C.PROTOCOL_HTTP2
-	Kafka    ProtocolType = C.PROTOCOL_KAFKA
-	TLS      ProtocolType = C.PROTOCOL_TLS
-	Mongo    ProtocolType = C.PROTOCOL_MONGO
-	Postgres ProtocolType = C.PROTOCOL_POSTGRES
-	AMQP     ProtocolType = C.PROTOCOL_AMQP
-	Redis    ProtocolType = C.PROTOCOL_REDIS
-	MySQL    ProtocolType = C.PROTOCOL_MYSQL
+	Unknown ProtocolType = iota
+	HTTP
+	HTTP2
+	Kafka
+	TLS
+	Mongo
+	Postgres
+	AMQP
+	Redis
+	MySQL
 )
 
-type DispatcherProgramType C.dispatcher_prog_t
+func (p ProtocolType) String() string {
+	switch p {
+	case Unknown:
+		return "Unknown"
+	case HTTP:
+		return "HTTP"
+	case HTTP2:
+		return "HTTP2"
+	case Kafka:
+		return "Kafka"
+	case TLS:
+		return "TLS"
+	case Mongo:
+		return "Mongo"
+	case Postgres:
+		return "Postgres"
+	case AMQP:
+		return "AMPQ"
+	case Redis:
+		return "Redis"
+	case MySQL:
+		return "MySQL"
+	default:
+		// shouldn't happen
+		return "Invalid"
+	}
+}
 
-const (
-	DispatcherKafkaProg DispatcherProgramType = C.DISPATCHER_KAFKA_PROG
-)
+type Stack struct {
+	Api         ProtocolType
+	Application ProtocolType
+	Encryption  ProtocolType
+}
 
-type ProgramType C.protocol_prog_t
+func (s *Stack) MergeWith(other Stack) {
+	if s.Api == Unknown {
+		s.Api = other.Api
+	}
 
-const (
-	ProgramHTTP  ProgramType = C.PROG_HTTP
-	ProgramHTTP2 ProgramType = C.PROG_HTTP2
-	ProgramKafka ProgramType = C.PROG_KAFKA
-)
+	if s.Application == Unknown {
+		s.Application = other.Application
+	}
 
-const (
-	layerAPIBit         = C.LAYER_API_BIT
-	layerApplicationBit = C.LAYER_APPLICATION_BIT
-	layerEncryptionBit  = C.LAYER_ENCRYPTION_BIT
-)
+	if s.Encryption == Unknown {
+		s.Encryption = other.Encryption
+	}
+}
+
+func (s *Stack) Contains(proto ProtocolType) bool {
+	return s.Api == proto || s.Application == proto || s.Encryption == proto
+}

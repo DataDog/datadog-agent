@@ -3,6 +3,7 @@
 
 #include "ktypes.h"
 #include "compiler.h"
+#include "bpf_helpers_custom.h"
 
 #include "protocols/amqp/defs.h"
 #include "protocols/http/classification-defs.h"
