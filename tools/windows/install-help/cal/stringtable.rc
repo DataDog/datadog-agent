@@ -80,6 +80,8 @@ IDS_REGKEY_UNINSTALL_KEY_NAME   "uninstallStatus"
 IDS_REGKEY_INSTALLED_USER       "installedUser"
 IDS_REGKEY_INSTALLED_DOMAIN     "installedDomain"
 
+IDS_REGKEY_CLOSEDSRC_ENABLED    "AllowClosedSource"
+
 END
 
 STRINGTABLE
