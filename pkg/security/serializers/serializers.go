@@ -1071,17 +1071,14 @@ func MarshalCustomEvent(event *events.CustomEvent) ([]byte, error) {
 
 // NewEventSerializer creates a new event serializer based on the event type
 func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *EventSerializer {
-	var pc model.ProcessContext
-	if entry, _ := event.FieldHandlers.ResolveProcessCacheEntry(event); entry != nil {
-		pc = entry.ProcessContext
-	}
+	pc := event.ProcessContext
 
 	s := &EventSerializer{
 		EventContextSerializer: EventContextSerializer{
 			Name:  model.EventType(event.Type).String(),
 			Async: event.FieldHandlers.ResolveAsync(event),
 		},
-		ProcessContextSerializer: newProcessContextSerializer(&pc, event, resolvers),
+		ProcessContextSerializer: newProcessContextSerializer(pc, event, resolvers),
 		DDContextSerializer:      newDDContextSerializer(event),
 		UserContextSerializer:    newUserContextSerializer(event),
 		Date:                     utils.NewEasyjsonTime(event.FieldHandlers.ResolveEventTime(event)),
