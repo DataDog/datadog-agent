@@ -17,6 +17,7 @@ include:
   - /.gitlab/container_scan.yml
   - /.gitlab/check_deploy.yml
   - /.gitlab/dev_container_deploy.yml
+  - /.gitlab/deploy_common.yml
   - /.gitlab/deploy_6.yml
   - /.gitlab/deploy_7.yml
   - /.gitlab/deploy_dca.yml
@@ -57,6 +58,7 @@ stages:
   - source_test_junit_upload
   - binary_build
   - package_deps_build
+  - kernel_matrix_testing
   - integration_test
   - benchmarks
   - package_build
@@ -69,11 +71,11 @@ stages:
   - dev_container_deploy
   - deploy6
   - deploy7
+  - trigger_release
   - deploy_dca
   - choco_build
   - choco_deploy
   - internal_image_deploy
-  - trigger_release
   - e2e
   - kitchen_cleanup
   - functional_test
@@ -142,22 +144,20 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v14002862-b2bcfc9
+  DATADOG_AGENT_BUILDIMAGES: v15101851-1eecc1f
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v14002862-b2bcfc9
+  DATADOG_AGENT_WINBUILDIMAGES: v15101851-1eecc1f
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v14002862-b2bcfc9
+  DATADOG_AGENT_ARMBUILDIMAGES: v15101851-1eecc1f
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v14002862-b2bcfc9
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v15101851-1eecc1f
   DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v14002862-b2bcfc9
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v15101851-1eecc1f
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v14002862-b2bcfc9
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v15101851-1eecc1f
   DATADOG_AGENT_BUILDERS: v9930706-ef9d493
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
-  NIKOS_INSTALL_DIR: /opt/datadog-agent/embedded/nikos
-  NIKOS_EMBEDDED_PATH: /opt/datadog-agent/embedded/nikos/embedded
   DEB_GPG_KEY_ID: ad9589b7
   DEB_GPG_KEY_NAME: "Datadog, Inc. Master key"
   DEB_GPG_KEY_SSM_NAME: ci.datadog-agent.deb_signing_private_key_${DEB_GPG_KEY_ID}
@@ -177,7 +177,6 @@ variables:
   ARTIFACTORY_URL: datadog.jfrog.io
   ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
   ARTIFACTORY_PYPI_PATH: artifactory/api/pypi/agent-pypi/simple
-  USE_CACHING_PROXY_RUBY: "false"
   CLANG_LLVM_VER: 12.0.1
 
 #
@@ -221,6 +220,11 @@ variables:
 
 .if_not_stable_repo_branch: &if_not_stable_repo_branch
   if: $BUCKET_BRANCH != "stable"
+
+# CI_PIPELINE_SOURCE can be set to "trigger" or "pipeline" depending on how the trigger was done.
+# See https://docs.gitlab.com/ee/ci/triggers/index.html#configure-cicd-jobs-to-run-in-triggered-pipelines.
+.if_triggered_pipeline: &if_triggered_pipeline
+  if: $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "pipeline"
 
 # Rule to trigger all builds conditionally.
 # By default:
@@ -274,18 +278,26 @@ variables:
 
 workflow:
   rules:
+    - <<: *if_triggered_pipeline
+      variables:
+        USE_CACHING_PROXY_PYTHON: "false"
+        USE_CACHING_PROXY_RUBY: "false"
     - <<: *if_main_branch
       variables:
-        USE_CACHING_PROXY_PYTHON: "false"
+        USE_CACHING_PROXY_PYTHON: "true"
+        USE_CACHING_PROXY_RUBY: "true"
     - <<: *if_release_branch
       variables:
-        USE_CACHING_PROXY_PYTHON: "false"
+        USE_CACHING_PROXY_PYTHON: "true"
+        USE_CACHING_PROXY_RUBY: "true"
     - <<: *if_deploy
       variables:
         USE_CACHING_PROXY_PYTHON: "false"
+        USE_CACHING_PROXY_RUBY: "false"
     - if: $CI_COMMIT_TAG == null
       variables:
         USE_CACHING_PROXY_PYTHON: "false"
+        USE_CACHING_PROXY_RUBY: "false"
 
 #
 # List of rule blocks used in the pipeline
@@ -526,6 +538,43 @@ workflow:
       AGENT_REPOSITORY: agent
       DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
+
+# This is used for image vulnerability scanning. Because agent 6
+# uses python 2, which has many vulnerabilities that will not get
+# patched, we do not wish to scan this image. For this reason, only
+# agent 7 versions should be published internally using these
+# configurations.
+.on_deploy_a7_internal_rc:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_not_deploy
+    when: never
+  - <<: *if_rc_tag_on_beta_repo_branch
+    when: on_success
+    variables:
+      AGENT_REPOSITORY: ci/datadog-agent/agent-release
+      CLUSTER_AGENT_REPOSITORY: ci/datadog-agent/cluster-agent-release
+      DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
+      IMG_REGISTRIES: internal-aws-ddbuild
+
+# Same as on_deploy_a7_manual_final, except the job is used to publish images
+# to our internal registries.
+.on_deploy_a7_internal_manual_final:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_not_deploy
+    when: never
+  - <<: *if_deploy_on_beta_repo_branch
+    when: never
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: never
+  - when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: ci/datadog-agent/agent-release
+      CLUSTER_AGENT_REPOSITORY: ci/datadog-agent/cluster-agent-release
+      DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
+      IMG_REGISTRIES: internal-aws-ddbuild
 
 .on_deploy_nightly_repo_branch_a6:
   - <<: *if_not_version_6
@@ -784,6 +833,8 @@ workflow:
       - test/kitchen/test/integration/system-probe-test/**/*
       - test/kitchen/test/integration/win-sysprobe-test/**/*
       - .gitlab/functional_test/system_probe.yml
+      - test/new-e2e/system-probe/**/*
+      - test/new-e2e/scenarios/system-probe/**/*
     when: on_success
   - when: manual
     allow_failure: true

@@ -16,11 +16,9 @@ import (
 )
 
 func TestSubmitterLifecycle(t *testing.T) {
-	fxutil.Test(t, fx.Options(
+	_ = fxutil.Test[Component](t, fx.Options(
 		hostinfo.MockModule,
 		core.MockBundle,
 		Module,
-	), func(runner Component) {
-		// Start and stop the component
-	})
+	))
 }

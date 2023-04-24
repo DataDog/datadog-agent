@@ -33,10 +33,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	syscfg "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -49,12 +50,6 @@ var (
 	payloadSizesUDP   = []int{2 << 5, 2 << 8, 2 << 12, 2 << 14}
 )
 
-// Some tests try to detect if they're running on Fargate. We'll get a panic
-// when checking that if the auto-detected features have not been initialized.
-func init() {
-	coreConfig.DetectFeatures()
-}
-
 func TestMain(m *testing.M) {
 	logLevel := os.Getenv("DD_LOG_LEVEL")
 	if logLevel == "" {
@@ -65,15 +60,21 @@ func TestMain(m *testing.M) {
 	if cfg.EnableRuntimeCompiler {
 		fmt.Println("RUNTIME COMPILER ENABLED")
 	}
+
+	driver.Init(&syscfg.Config{ClosedSourceAllowed: true})
 	os.Exit(m.Run())
 }
 
 func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
+	if fentryTests := os.Getenv("NETWORK_TRACER_FENTRY_TESTS"); fentryTests == "true" {
+		ddconfig.SetFeatures(t, ddconfig.ECSFargate)
+		// protocol classification not yet supported on fargate
+		cfg.ProtocolClassificationEnabled = false
+	}
+
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		tr.Stop()
-	})
+	t.Cleanup(tr.Stop)
 
 	initTracerState(t, tr)
 	return tr
@@ -388,7 +389,6 @@ func TestTCPOverIPv6(t *testing.T) {
 	assert.True(t, conn.IntraHost)
 
 	doneChan <- struct{}{}
-
 }
 
 func TestTCPCollectionDisabled(t *testing.T) {
@@ -762,7 +762,6 @@ func TestSkipConnectionDNS(t *testing.T) {
 			Dest:   util.AddressFromString("::1"),
 			SPort:  53, DPort: 1000,
 		}))
-
 	})
 }
 
@@ -1375,7 +1374,6 @@ func TestConnectionClobber(t *testing.T) {
 }
 
 func TestTCPDirection(t *testing.T) {
-
 	cfg := testConfig()
 	tr := setupTracer(t, cfg)
 
@@ -1436,10 +1434,6 @@ func testConfig() *config.Config {
 	cfg := config.New()
 	if os.Getenv("BPF_DEBUG") != "" {
 		cfg.BPFDebug = true
-	}
-	if ddconfig.IsECSFargate() {
-		// protocol classification not yet supported on fargate
-		cfg.ProtocolClassificationEnabled = false
 	}
 	return cfg
 }

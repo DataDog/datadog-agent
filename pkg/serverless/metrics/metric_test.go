@@ -35,7 +35,6 @@ func TestMain(m *testing.M) {
 }
 
 func TestStartDoesNotBlock(t *testing.T) {
-	config.DetectFeatures()
 	metricAgent := &ServerlessMetricAgent{}
 	defer metricAgent.Stop()
 	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{})
@@ -43,15 +42,13 @@ func TestStartDoesNotBlock(t *testing.T) {
 	assert.True(t, metricAgent.IsReady())
 }
 
-type ValidMetricConfigMocked struct {
-}
+type ValidMetricConfigMocked struct{}
 
 func (m *ValidMetricConfigMocked) GetMultipleEndpoints() (map[string][]string, error) {
 	return map[string][]string{"http://localhost:8888": {"value"}}, nil
 }
 
-type InvalidMetricConfigMocked struct {
-}
+type InvalidMetricConfigMocked struct{}
 
 func (m *InvalidMetricConfigMocked) GetMultipleEndpoints() (map[string][]string, error) {
 	return nil, fmt.Errorf("error")
@@ -64,8 +61,7 @@ func TestStartInvalidConfig(t *testing.T) {
 	assert.False(t, metricAgent.IsReady())
 }
 
-type MetricDogStatsDMocked struct {
-}
+type MetricDogStatsDMocked struct{}
 
 func (m *MetricDogStatsDMocked) NewServer(demux aggregator.Demultiplexer) (dogstatsdServer.Component, error) {
 	return nil, fmt.Errorf("error")
@@ -97,10 +93,8 @@ func TestStartWithProxy(t *testing.T) {
 	setValues := config.Datadog.GetStringSlice(statsDMetricBlocklistKey)
 	assert.Equal(t, expected, setValues)
 }
+
 func TestRaceFlushVersusAddSample(t *testing.T) {
-
-	config.DetectFeatures()
-
 	metricAgent := &ServerlessMetricAgent{}
 	defer metricAgent.Stop()
 	metricAgent.Start(10*time.Second, &ValidMetricConfigMocked{}, &MetricDogStatsD{})
@@ -191,14 +185,10 @@ func getAvailableUDPPort() (int, error) {
 }
 
 func TestRaceFlushVersusParsePacket(t *testing.T) {
-
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
-	opts.FlushInterval = 10 * time.Millisecond
-	opts.DontStartForwarders = true
 	demux := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000)
 
 	s := dogstatsdServer.NewServerlessServer()

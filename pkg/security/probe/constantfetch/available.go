@@ -36,7 +36,7 @@ func GetAvailableConstantFetchers(config *config.Config, kv *kernel.Version, sta
 		fetchers = append(fetchers, btfhubFetcher)
 	}
 
-	OffsetGuesserFetcher := NewOffsetGuesserFetcher(config)
+	OffsetGuesserFetcher := NewOffsetGuesserFetcher(config, kv)
 	fetchers = append(fetchers, OffsetGuesserFetcher)
 
 	fallbackConstantFetcher := NewFallbackConstantFetcher(kv)

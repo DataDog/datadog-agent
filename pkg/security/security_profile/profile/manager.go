@@ -14,22 +14,31 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 
+	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	proto "github.com/DataDog/datadog-agent/pkg/security/proto/security_profile/v1"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // SecurityProfileManager is used to manage Security Profiles
 type SecurityProfileManager struct {
+	config         *config.Config
 	statsdClient   statsd.ClientInterface
 	cgroupResolver *cgroup.Resolver
 	providers      []Provider
+
+	manager                    *manager.Manager
+	securityProfileMap         *ebpf.Map
+	securityProfileSyscallsMap *ebpf.Map
 
 	profilesLock sync.Mutex
 	profiles     map[cgroupModel.WorkloadSelector]*SecurityProfile
@@ -38,10 +47,14 @@ type SecurityProfileManager struct {
 	pendingCache     *simplelru.LRU[cgroupModel.WorkloadSelector, *SecurityProfile]
 	cacheHit         *atomic.Uint64
 	cacheMiss        *atomic.Uint64
+
+	eventFilteringNoProfile map[model.EventType]*atomic.Uint64
+	eventFilteringAbsent    map[model.EventType]*atomic.Uint64
+	eventFilteringPresent   map[model.EventType]*atomic.Uint64
 }
 
 // NewSecurityProfileManager returns a new instance of SecurityProfileManager
-func NewSecurityProfileManager(config *config.Config, statsdClient statsd.ClientInterface, cgroupResolver *cgroup.Resolver) (*SecurityProfileManager, error) {
+func NewSecurityProfileManager(config *config.Config, statsdClient statsd.ClientInterface, cgroupResolver *cgroup.Resolver, manager *manager.Manager) (*SecurityProfileManager, error) {
 	var providers []Provider
 
 	// instantiate directory provider
@@ -58,14 +71,36 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 		return nil, fmt.Errorf("couldn't create security profile cache: %w", err)
 	}
 
+	securityProfileMap, ok, _ := manager.GetMap("security_profiles")
+	if !ok {
+		return nil, fmt.Errorf("security_profiles map not found")
+	}
+
+	securityProfileSyscallsMap, ok, _ := manager.GetMap("secprofs_syscalls")
+	if !ok {
+		return nil, fmt.Errorf("secprofs_syscalls map not found")
+	}
+
 	m := &SecurityProfileManager{
-		statsdClient:   statsdClient,
-		providers:      providers,
-		cgroupResolver: cgroupResolver,
-		profiles:       make(map[cgroupModel.WorkloadSelector]*SecurityProfile),
-		pendingCache:   profileCache,
-		cacheHit:       atomic.NewUint64(0),
-		cacheMiss:      atomic.NewUint64(0),
+		config:                     config,
+		statsdClient:               statsdClient,
+		providers:                  providers,
+		manager:                    manager,
+		securityProfileMap:         securityProfileMap,
+		securityProfileSyscallsMap: securityProfileSyscallsMap,
+		cgroupResolver:             cgroupResolver,
+		profiles:                   make(map[cgroupModel.WorkloadSelector]*SecurityProfile),
+		pendingCache:               profileCache,
+		cacheHit:                   atomic.NewUint64(0),
+		cacheMiss:                  atomic.NewUint64(0),
+		eventFilteringNoProfile:    make(map[model.EventType]*atomic.Uint64),
+		eventFilteringAbsent:       make(map[model.EventType]*atomic.Uint64),
+		eventFilteringPresent:      make(map[model.EventType]*atomic.Uint64),
+	}
+	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
+		m.eventFilteringNoProfile[i] = atomic.NewUint64(0)
+		m.eventFilteringAbsent[i] = atomic.NewUint64(0)
+		m.eventFilteringPresent[i] = atomic.NewUint64(0)
 	}
 
 	// register the manager to the provider(s)
@@ -134,8 +169,13 @@ func (m *SecurityProfileManager) OnWorkloadSelectorResolvedEvent(workload *cgrou
 			// since the profile was in cache, it was removed from kernel space, load it now
 			// (locking isn't necessary here, but added as a safeguard)
 			profile.Lock()
-			m.loadProfile(profile)
+			err := m.loadProfile(profile)
 			profile.Unlock()
+
+			if err != nil {
+				seclog.Errorf("couldn't load security profile %s in kernel space: %v", profile.selector, err)
+				return
+			}
 
 			// insert the profile in the list of active profiles
 			m.profiles[workload.WorkloadSelector] = profile
@@ -201,6 +241,41 @@ func (m *SecurityProfileManager) GetProfile(selector cgroupModel.WorkloadSelecto
 	return m.profiles[selector]
 }
 
+// FillProfileContextFromContainerID returns the profile of a container ID
+func (m *SecurityProfileManager) FillProfileContextFromContainerID(id string, ctx *model.SecurityProfileContext) *SecurityProfile {
+	m.profilesLock.Lock()
+	defer m.profilesLock.Unlock()
+
+	var output *SecurityProfile
+	for _, profile := range m.profiles {
+		profile.Lock()
+		for _, instance := range profile.Instances {
+			instance.Lock()
+			if instance.ID == id {
+				ctx.Name = profile.Metadata.Name
+				ctx.Version = profile.Version
+				ctx.Tags = profile.Tags
+				ctx.Status = profile.Status
+			}
+			instance.Unlock()
+		}
+		profile.Unlock()
+	}
+
+	return output
+}
+
+// FillProfileContextFromProfile fills the given ctx with profile infos
+func FillProfileContextFromProfile(ctx *model.SecurityProfileContext, profile *SecurityProfile) {
+	profile.Lock()
+	defer profile.Unlock()
+
+	ctx.Name = profile.Metadata.Name
+	ctx.Version = profile.Version
+	ctx.Tags = profile.Tags
+	ctx.Status = profile.Status
+}
+
 // OnCGroupDeletedEvent is used to handle a CGroupDeleted event
 func (m *SecurityProfileManager) OnCGroupDeletedEvent(workload *cgroupModel.CacheEntry) {
 	// lookup the profile
@@ -236,16 +311,23 @@ func (m *SecurityProfileManager) ShouldDeleteProfile(profile *SecurityProfile) {
 	// propagate the workload selectors
 	m.propagateWorkloadSelectorsToProviders()
 
+	if profile.loadedInKernel {
+		// remove profile from kernel space
+		m.unloadProfile(profile)
+	}
+
 	// cleanup profile before insertion in cache
 	profile.reset()
+
+	if profile.selector.IsEmpty() {
+		// do not insert in cache
+		return
+	}
 
 	// add profile in cache
 	m.pendingCacheLock.Lock()
 	defer m.pendingCacheLock.Unlock()
 	m.pendingCache.Add(profile.selector, profile)
-
-	// remove profile from kernel space
-	m.unloadProfile(profile)
 }
 
 // OnNewProfileEvent handles the arrival of a new profile (or the new version of a profile) from a provider
@@ -284,7 +366,10 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 	}
 
 	// load the profile in kernel space
-	m.loadProfile(profile)
+	if err := m.loadProfile(profile); err != nil {
+		seclog.Errorf("couldn't load security profile %s in kernel space: %v", profile.selector, err)
+		return
+	}
 
 	// link all workloads
 	for _, workload := range profile.Instances {
@@ -331,31 +416,148 @@ func (m *SecurityProfileManager) SendStats() error {
 		}
 	}
 
+	for evtType, count := range m.eventFilteringNoProfile {
+		tags := []string{fmt.Sprintf("event_type:%s", evtType)}
+		if value := count.Swap(0); value > 0 {
+			if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFiltering, int64(value), tags, 1.0); err != nil {
+				return fmt.Errorf("couldn't send MetricSecurityProfileEventFiltering metric: %w", err)
+			}
+		}
+	}
+
+	for evtType, count := range m.eventFilteringAbsent {
+		tags := []string{fmt.Sprintf("event_type:%s", evtType), "in_profile:false"}
+		if value := count.Swap(0); value > 0 {
+			if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFiltering, int64(value), tags, 1.0); err != nil {
+				return fmt.Errorf("couldn't send MetricSecurityProfileEventFiltering metric: %w", err)
+			}
+		}
+	}
+
+	for evtType, count := range m.eventFilteringPresent {
+		tags := []string{fmt.Sprintf("event_type:%s", evtType), "in_profile:true"}
+		if value := count.Swap(0); value > 0 {
+			if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFiltering, int64(value), tags, 1.0); err != nil {
+				return fmt.Errorf("couldn't send MetricSecurityProfileEventFiltering metric: %w", err)
+			}
+		}
+	}
+
 	return nil
 }
 
 // prepareProfile (thread unsafe) generates eBPF programs and cookies to prepare for kernel space insertion
 func (m *SecurityProfileManager) prepareProfile(profile *SecurityProfile) {
-	// TODO: generate eBPF programs and prepare the workload to be inserted in kernel space
+	// generate cookies for the profile
+	profile.generateCookies()
+
+	// TODO: generate eBPF programs and make sure the profile is ready to be inserted in kernel space
 }
 
 // loadProfile (thread unsafe) loads a Security Profile in kernel space
-func (m *SecurityProfileManager) loadProfile(profile *SecurityProfile) {
-	// TODO: load generated programs and push kernel space filters
+func (m *SecurityProfileManager) loadProfile(profile *SecurityProfile) error {
 	profile.loadedInKernel = true
+
+	// push kernel space filters
+	if err := m.securityProfileSyscallsMap.Put(profile.profileCookie, profile.generateSyscallsFilters()); err != nil {
+		return fmt.Errorf("couldn't push syscalls filter: %w", err)
+	}
+
+	// TODO: load generated programs
+	seclog.Debugf("security profile %s (version:%s status:%s) loaded in kernel space", profile.Metadata.Name, profile.Version, profile.Status.String())
+	return nil
 }
 
 // unloadProfile (thread unsafe) unloads a Security Profile from kernel space
 func (m *SecurityProfileManager) unloadProfile(profile *SecurityProfile) {
-	// TODO: delete all kernel space programs and map entries for this profile
+	profile.loadedInKernel = false
+
+	// remove kernel space filters
+	if err := m.securityProfileSyscallsMap.Delete(profile.profileCookie); err != nil {
+		seclog.Errorf("coudln't remove syscalls filter: %v", err)
+	}
+
+	// TODO: delete all kernel space programs
+	seclog.Debugf("security profile %s (version:%s status:%s) unloaded from kernel space", profile.Metadata.Name, profile.Version, profile.Status.String())
 }
 
 // linkProfile (thread unsafe) updates the kernel space mapping between a workload and its profile
 func (m *SecurityProfileManager) linkProfile(profile *SecurityProfile, workload *cgroupModel.CacheEntry) {
-	// TODO: link profile <-> container ID in kernel space
+	if err := m.securityProfileMap.Put([]byte(workload.ID), profile.generateKernelSecurityProfileDefinition()); err != nil {
+		seclog.Errorf("couldn't link workload %s (selector: %s) with profile %s: %v", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name, err)
+		return
+	}
+	seclog.Infof("workload %s (selector: %s) successfully linked to profile %s", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name)
 }
 
 // unlinkProfile (thread unsafe) updates the kernel space mapping between a workload and its profile
 func (m *SecurityProfileManager) unlinkProfile(profile *SecurityProfile, workload *cgroupModel.CacheEntry) {
-	// TODO: unlink profile <-> container ID in kernel space
+	if !profile.loadedInKernel {
+		return
+	}
+
+	if err := m.securityProfileMap.Delete([]byte(workload.ID)); err != nil {
+		seclog.Errorf("couldn't unlink workload %s with profile %s: %v", workload.WorkloadSelector.String(), profile.Metadata.Name, err)
+	}
+	seclog.Infof("workload %s (selector: %s) successfully unlinked from profile %s", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name)
+}
+
+func (m *SecurityProfileManager) LookupEventOnProfiles(event *model.Event) {
+	evtType := event.GetEventType()
+	if evtType == model.SyscallsEventType || // syscall matching for anomaly detection is already done kernel side
+		evtType == model.FileOpenEventType || evtType == model.BindEventType || // disabled for now
+		evtType == model.ForkEventType || evtType == model.ExitEventType { // no interest in fork/exit events
+		return
+	}
+
+	if event.PathResolutionError != nil {
+		m.eventFilteringAbsent[evtType].Inc()
+		return
+	}
+
+	event.FieldHandlers.ResolveContainerID(event, &event.ContainerContext)
+	event.FieldHandlers.ResolveContainerTags(event, &event.ContainerContext)
+	if event.ContainerContext.ID == "" || len(event.ContainerContext.Tags) == 0 {
+		return
+	}
+
+	// if time.Now()-event.ContainerContext.CreatedAt < time.Second*30 {
+	// 	// TODO: put the event in a cache to be pop back after x sec to have a chance to
+	// 	// retrieve a profile for that workload
+	// }
+
+	selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", event.ContainerContext.Tags), utils.GetTagValue("image_tag", event.ContainerContext.Tags))
+	if err != nil {
+		return
+	}
+	profile := m.GetProfile(selector)
+	if profile == nil || profile.Status == 0 {
+		m.eventFilteringNoProfile[evtType].Inc()
+		return
+	}
+
+	FillProfileContextFromProfile(&event.SecurityProfileContext, profile)
+
+	processNodes := profile.findProfileProcessNodes(event.ProcessContext)
+	if len(processNodes) == 0 {
+		m.eventFilteringAbsent[evtType].Inc()
+		return
+	}
+
+	switch evtType {
+	// for fork/exec/exit events, as we already found some nodes, no need to investigate further
+	case model.ExecEventType:
+		event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
+
+	case model.DNSEventType:
+		if findDNSInNodes(processNodes, event) {
+			event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
+		}
+	}
+
+	if event.IsInProfile() {
+		m.eventFilteringPresent[evtType].Inc()
+	} else {
+		m.eventFilteringAbsent[evtType].Inc()
+	}
 }

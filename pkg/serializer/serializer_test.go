@@ -20,9 +20,9 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
-	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -122,6 +122,7 @@ func (p *testPayload) MarshalSplitCompress(bufferContext *marshaler.BufferContex
 	payloads = append(payloads, transaction.NewBytesPayloadWithoutMetaData(payload))
 	return payloads, nil
 }
+
 func (p *testPayload) SplitPayload(int) ([]marshaler.AbstractMarshaler, error) {
 	return []marshaler.AbstractMarshaler{}, nil
 }
@@ -130,10 +131,12 @@ func (p *testPayload) WriteHeader(stream *jsoniter.Stream) error {
 	_, err := stream.Write(jsonHeader)
 	return err
 }
+
 func (p *testPayload) WriteFooter(stream *jsoniter.Stream) error {
 	_, err := stream.Write(jsonFooter)
 	return err
 }
+
 func (p *testPayload) WriteItem(stream *jsoniter.Stream, i int) error {
 	_, err := stream.Write(jsonItem)
 	return err
@@ -153,10 +156,12 @@ func (p *testErrorPayload) WriteHeader(stream *jsoniter.Stream) error {
 	_, err := stream.Write(jsonHeader)
 	return err
 }
+
 func (p *testErrorPayload) WriteFooter(stream *jsoniter.Stream) error {
 	_, err := stream.Write(jsonFooter)
 	return err
 }
+
 func (p *testErrorPayload) WriteItem(stream *jsoniter.Stream, i int) error {
 	return fmt.Errorf("some error")
 }
@@ -215,6 +220,7 @@ func createProtoPayloadMatcher(content []byte) interface{} {
 		return false
 	})
 }
+
 func TestSendV1Events(t *testing.T) {
 	config.Datadog.Set("enable_events_stream_payload_serialization", false)
 	defer config.Datadog.Set("enable_events_stream_payload_serialization", nil)
@@ -229,13 +235,6 @@ func TestSendV1Events(t *testing.T) {
 	require.Nil(t, err)
 	f.AssertExpectations(t)
 }
-
-type testPayloadMutipleValues struct {
-	testPayload
-	count int
-}
-
-func (p *testPayloadMutipleValues) Len() int { return p.count }
 
 func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
 	config.Datadog.Set("enable_events_stream_payload_serialization", true)
@@ -372,7 +371,7 @@ func TestSendWithDisabledKind(t *testing.T) {
 	mockConfig.Set("enable_payloads.sketches", false)
 	mockConfig.Set("enable_payloads.json_to_v1_intake", false)
 
-	//restore default values
+	// restore default values
 	defer func() {
 		mockConfig.Set("enable_payloads.events", true)
 		mockConfig.Set("enable_payloads.series", true)

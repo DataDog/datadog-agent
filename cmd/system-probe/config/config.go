@@ -28,6 +28,7 @@ const (
 	spNS      = Namespace
 	smNS      = "service_monitoring_config"
 	dsmNS     = "data_streams_config"
+	diNS      = "dynamic_instrumentation"
 
 	defaultConnsMessageBatchSize = 600
 	maxConnsMessageBatchSize     = 1000
@@ -35,12 +36,13 @@ const (
 
 // system-probe module names
 const (
-	NetworkTracerModule        ModuleName = "network_tracer"
-	OOMKillProbeModule         ModuleName = "oom_kill_probe"
-	TCPQueueLengthTracerModule ModuleName = "tcp_queue_length_tracer"
-	SecurityRuntimeModule      ModuleName = "security_runtime"
-	ProcessModule              ModuleName = "process"
-	EventMonitorModule         ModuleName = "event_monitor"
+	NetworkTracerModule          ModuleName = "network_tracer"
+	OOMKillProbeModule           ModuleName = "oom_kill_probe"
+	TCPQueueLengthTracerModule   ModuleName = "tcp_queue_length_tracer"
+	SecurityRuntimeModule        ModuleName = "security_runtime"
+	ProcessModule                ModuleName = "process"
+	EventMonitorModule           ModuleName = "event_monitor"
+	DynamicInstrumentationModule ModuleName = "dynamic_instrumentation"
 )
 
 func key(pieces ...string) string {
@@ -49,8 +51,9 @@ func key(pieces ...string) string {
 
 // Config represents the configuration options for the system-probe
 type Config struct {
-	Enabled        bool
-	EnabledModules map[ModuleName]struct{}
+	Enabled             bool
+	EnabledModules      map[ModuleName]struct{}
+	ClosedSourceAllowed bool
 
 	// When the system-probe is enabled in a separate container, we need a way to also disable the system-probe
 	// packaged in the main agent container (without disabling network collection on the process-agent).
@@ -70,6 +73,15 @@ type Config struct {
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
 func New(configPath string) (*Config, error) {
+	return newSysprobeConfig(configPath, true)
+}
+
+// NewCustom creates a config object for system-probe. It assumes no configuration has been loaded as this point.
+func NewCustom(configPath string, loadSecrets bool) (*Config, error) {
+	return newSysprobeConfig(configPath, loadSecrets)
+}
+
+func newSysprobeConfig(configPath string, loadSecrets bool) (*Config, error) {
 	aconfig.SystemProbe.SetConfigName("system-probe")
 	// set the paths where a config file is expected
 	if len(configPath) != 0 {
@@ -85,7 +97,7 @@ func New(configPath string) (*Config, error) {
 		aconfig.SystemProbe.AddConfigPath(defaultConfigDir)
 	}
 	// load the configuration
-	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", true, aconfig.Datadog.GetEnvVars())
+	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", loadSecrets, aconfig.Datadog.GetEnvVars())
 	if err != nil {
 		var e viper.ConfigFileNotFoundError
 		if errors.As(err, &e) || errors.Is(err, os.ErrNotExist) {
@@ -110,6 +122,7 @@ func load() (*Config, error) {
 	c := &Config{
 		Enabled:             cfg.GetBool(key(spNS, "enabled")),
 		EnabledModules:      make(map[ModuleName]struct{}),
+		ClosedSourceAllowed: isClosedSourceAllowed(),
 		ExternalSystemProbe: cfg.GetBool(key(spNS, "external")),
 
 		SocketAddress:      cfg.GetString(key(spNS, "sysprobe_socket")),
@@ -172,6 +185,10 @@ func load() (*Config, error) {
 	}
 	if cfg.GetBool(key(spNS, "process_config.enabled")) {
 		c.EnabledModules[ProcessModule] = struct{}{}
+	}
+
+	if cfg.GetBool(key(diNS, "enabled")) {
+		c.EnabledModules[DynamicInstrumentationModule] = struct{}{}
 	}
 
 	if len(c.EnabledModules) > 0 {

@@ -14,8 +14,8 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/richardartoul/molecule"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -200,6 +200,7 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 	// the serie.NoIndex field.
 	for series.source.MoveNext() {
 		serie = series.source.Current()
+		serie.PopulateDeviceField()
 		serie.PopulateResources()
 
 		buf.Reset()

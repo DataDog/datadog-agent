@@ -138,6 +138,7 @@ message ActivityDumpMessage {
     repeated string Tags = 4;
     repeated StorageRequestMessage Storage = 5;
     ActivityDumpMetadataMessage Metadata = 6;
+    repeated string DNSNames = 8;
     string Error = 7;
 }
 

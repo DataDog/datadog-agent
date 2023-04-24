@@ -35,12 +35,12 @@ import (
 	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/encoding/protojson"
 
+	adproto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
-	adproto "github.com/DataDog/datadog-agent/pkg/security/proto/security_profile/v1"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -127,6 +127,11 @@ type ActivityDump struct {
 	// Dump metadata
 	Metadata
 
+	// Used to store the global list of DNS names contained in this dump
+	// this is a hack used to provide this global list to the backend in the JSON header
+	// instead of in the protobuf payload.
+	DNSNames *utils.StringKeys `json:"dns_names"`
+
 	// Load config
 	LoadConfig       *model.ActivityDumpLoadConfig `json:"-"`
 	LoadConfigCookie uint32                        `json:"-"`
@@ -161,6 +166,8 @@ func NewEmptyActivityDump() *ActivityDump {
 		bindFamilyDrop:     atomic.NewUint64(0),
 		pathMergedCount:    atomic.NewUint64(0),
 		StorageRequests:    make(map[config.StorageFormat][]config.StorageRequest),
+
+		DNSNames: utils.NewStringKeys(nil),
 	}
 
 	// generate counters
@@ -257,6 +264,7 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 		startTime,
 		nil,
 	)
+	ad.DNSNames = utils.NewStringKeys(msg.GetDNSNames())
 
 	// parse requests from message
 	for _, request := range msg.GetStorage() {
@@ -683,13 +691,13 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 
 		// go through the root nodes and check if one of them matches the input ProcessCacheEntry:
 		for _, root := range ad.ProcessActivityTree {
-			if root.Matches(entry, ad.Metadata.DifferentiateArgs, ad.adm.processResolver) {
+			if root.Matches(&entry.Process, ad.Metadata.DifferentiateArgs) {
 				return root
 			}
 		}
 
 		// we're about to add a root process node, make sure this root node passes the root node sanitizer
-		if !ad.IsValidRootNode(entry) {
+		if !IsValidRootNode(&entry.ProcessContext) {
 			ad.validRootNodeDrop.Inc()
 			return node
 		}
@@ -705,7 +713,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 		// to add the current entry no matter if it matches the selector or not. Go through the root children of the
 		// parent node and check if one of them matches the input ProcessCacheEntry.
 		for _, child := range parentNode.Children {
-			if child.Matches(entry, ad.Metadata.DifferentiateArgs, ad.adm.processResolver) {
+			if child.Matches(&entry.Process, ad.Metadata.DifferentiateArgs) {
 				return child
 			}
 		}
@@ -734,13 +742,13 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 }
 
 // FindMatchingNodes return the matching nodes of requested comm
-func (ad *ActivityDump) FindMatchingNodes(comm string) []*ProcessActivityNode {
+func (ad *ActivityDump) FindMatchingNodes(basename string) []*ProcessActivityNode {
 	ad.Lock()
 	defer ad.Unlock()
 
 	var res []*ProcessActivityNode
 	for _, node := range ad.ProcessActivityTree {
-		if node.Process.Comm == comm {
+		if node.Process.FileEvent.BasenameStr == basename {
 			res = append(res, node)
 		}
 	}
@@ -937,6 +945,7 @@ func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage
 			Size:              ad.Metadata.Size,
 			Arch:              ad.Metadata.Arch,
 		},
+		DNSNames: ad.DNSNames.Keys(),
 	}
 }
 
@@ -1046,6 +1055,11 @@ func (ad *ActivityDump) Unzip(inputFile string, ext string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("couldn't unzip %s: %w", inputFile, err)
 	}
+
+	if err = outputFile.Close(); err != nil {
+		return "", fmt.Errorf("could not close file [%s]: %w", outputFile.Name(), err)
+	}
+
 	return strings.TrimSuffix(inputFile, ext), nil
 }
 
@@ -1096,7 +1110,7 @@ func (ad *ActivityDump) DecodeProtobuf(reader io.Reader) error {
 		return fmt.Errorf("couldn't open activity dump file: %w", err)
 	}
 
-	inter := &adproto.ActivityDump{}
+	inter := &adproto.SecDump{}
 	if err := inter.UnmarshalVT(raw); err != nil {
 		return fmt.Errorf("couldn't decode protobuf activity dump file: %w", err)
 	}
@@ -1165,26 +1179,35 @@ func (pan *ProcessActivityNode) debug(w io.Writer, prefix string) {
 
 // scrubAndReleaseArgsEnvs scrubs the process args and envs, and then releases them
 func (pan *ProcessActivityNode) scrubAndReleaseArgsEnvs(resolver *sprocess.Resolver) {
-	_, _ = resolver.GetProcessScrubbedArgv(&pan.Process)
-	envs, envsTruncated := resolver.GetProcessEnvs(&pan.Process)
-	pan.Process.Envs = envs
-	pan.Process.EnvsTruncated = envsTruncated
-	pan.Process.Argv0, _ = resolver.GetProcessArgv0(&pan.Process)
+	if pan.Process.ArgsEntry != nil {
+		_, _ = resolver.GetProcessScrubbedArgv(&pan.Process)
+		pan.Process.Argv0, _ = resolver.GetProcessArgv0(&pan.Process)
+		pan.Process.ArgsEntry = nil
 
-	pan.Process.ArgsEntry = nil
-	pan.Process.EnvsEntry = nil
+	}
+	if pan.Process.EnvsEntry != nil {
+		envs, envsTruncated := resolver.GetProcessEnvs(&pan.Process)
+		pan.Process.Envs = envs
+		pan.Process.EnvsTruncated = envsTruncated
+		pan.Process.EnvsEntry = nil
+	}
 }
 
 // Matches return true if the process fields used to generate the dump are identical with the provided ProcessCacheEntry
-func (pan *ProcessActivityNode) Matches(entry *model.ProcessCacheEntry, matchArgs bool, processResolver *sprocess.Resolver) bool {
-
-	if pan.Process.Comm == entry.Comm && pan.Process.FileEvent.PathnameStr == entry.FileEvent.PathnameStr &&
-		pan.Process.Credentials == entry.Credentials {
-
+func (pan *ProcessActivityNode) Matches(entry *model.Process, matchArgs bool) bool {
+	if pan.Process.FileEvent.PathnameStr == entry.FileEvent.PathnameStr {
 		if matchArgs {
-
-			panArgs, _ := processResolver.GetProcessArgv(&pan.Process)
-			entryArgs, _ := processResolver.GetProcessArgv(&entry.Process)
+			var panArgs, entryArgs []string
+			if pan.Process.ArgsEntry != nil {
+				panArgs, _ = sprocess.GetProcessArgv(&pan.Process)
+			} else {
+				panArgs = pan.Process.Argv
+			}
+			if entry.ArgsEntry != nil {
+				entryArgs, _ = sprocess.GetProcessArgv(entry)
+			} else {
+				entryArgs = entry.Argv
+			}
 			if len(panArgs) != len(entryArgs) {
 				return false
 			}
@@ -1210,7 +1233,7 @@ func (pan *ProcessActivityNode) Matches(entry *model.ProcessCacheEntry, matchArg
 	return false
 }
 
-func extractFirstParent(path string) (string, int) {
+func ExtractFirstParent(path string) (string, int) {
 	if len(path) == 0 {
 		return "", 0
 	}
@@ -1248,7 +1271,7 @@ func (ad *ActivityDump) InsertFileEventInProcess(pan *ProcessActivityNode, fileE
 		return false
 	}
 
-	parent, nextParentIndex := extractFirstParent(filePath)
+	parent, nextParentIndex := ExtractFirstParent(filePath)
 	if nextParentIndex == 0 {
 		return false
 	}
@@ -1479,6 +1502,8 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 
 // InsertDNSEvent inserts
 func (ad *ActivityDump) InsertDNSEvent(pan *ProcessActivityNode, evt *model.DNSEvent, rules []*model.MatchedRule) bool {
+	ad.insertDNSNameToHackyBackendList(evt.Name)
+
 	if dnsNode, ok := pan.DNSNames[evt.Name]; ok {
 		dnsNode.MatchedRules = model.AppendMatchedRule(dnsNode.MatchedRules, rules)
 		// look for the DNS request type
@@ -1494,6 +1519,14 @@ func (ad *ActivityDump) InsertDNSEvent(pan *ProcessActivityNode, evt *model.DNSE
 	}
 	pan.DNSNames[evt.Name] = NewDNSNode(evt, &ad.nodeStats, rules)
 	return true
+}
+
+func (ad *ActivityDump) insertDNSNameToHackyBackendList(name string) {
+	if name == "" {
+		return
+	}
+
+	ad.DNSNames.Insert(name)
 }
 
 // InsertBindEvent inserts a bind event to the activity dump
@@ -1526,9 +1559,9 @@ func (ad *ActivityDump) InsertBindEvent(pan *ProcessActivityNode, evt *model.Bin
 }
 
 // IsValidRootNode evaluates if the provided process entry is allowed to become a root node of an Activity Dump
-func (ad *ActivityDump) IsValidRootNode(entry *model.ProcessCacheEntry) bool {
+func IsValidRootNode(entry *model.ProcessContext) bool {
 	// TODO: evaluate if the same issue affects other container runtimes
-	return !strings.HasPrefix(entry.FileEvent.BasenameStr, "runc")
+	return !(strings.HasPrefix(entry.FileEvent.BasenameStr, "runc") || strings.HasPrefix(entry.FileEvent.BasenameStr, "containerd-shim"))
 }
 
 // InsertSyscalls inserts the syscall of the process in the dump
@@ -1610,10 +1643,15 @@ func (fan *FileActivityNode) enrichFromEvent(event *model.Event) {
 
 	switch event.GetEventType() {
 	case model.FileOpenEventType:
-		fan.Open = &OpenNode{
-			SyscallEvent: event.Open.SyscallEvent,
-			Flags:        event.Open.Flags,
-			Mode:         event.Open.Mode,
+		if fan.Open == nil {
+			fan.Open = &OpenNode{
+				SyscallEvent: event.Open.SyscallEvent,
+				Flags:        event.Open.Flags,
+				Mode:         event.Open.Mode,
+			}
+		} else {
+			fan.Open.Flags |= event.Open.Flags
+			fan.Open.Mode |= event.Open.Mode
 		}
 	}
 }
@@ -1626,7 +1664,7 @@ func (ad *ActivityDump) InsertFileEventInFile(fan *FileActivityNode, fileEvent *
 	somethingChanged := false
 
 	for {
-		parent, nextParentIndex := extractFirstParent(currentPath)
+		parent, nextParentIndex := ExtractFirstParent(currentPath)
 		if nextParentIndex == 0 {
 			currentFan.enrichFromEvent(event)
 			break

@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -27,6 +27,7 @@ type DemultiplexerWithAggregator interface {
 	// AggregateCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
 	AggregateCheckSample(sample metrics.MetricSample)
 	Options() AgentDemultiplexerOptions
+	GetEventPlatformForwarder() (epforwarder.EventPlatformForwarder, error)
 	GetEventsAndServiceChecksChannels() (chan []*metrics.Event, chan []*metrics.ServiceCheck)
 }
 
@@ -54,8 +55,6 @@ type AgentDemultiplexer struct {
 
 // AgentDemultiplexerOptions are the options used to initialize a Demultiplexer.
 type AgentDemultiplexerOptions struct {
-	SharedForwarderOptions        *forwarder.Options
-	UseNoopForwarder              bool
 	UseNoopEventPlatformForwarder bool
 	UseNoopOrchestratorForwarder  bool
 	UseEventPlatformForwarder     bool
@@ -68,17 +67,11 @@ type AgentDemultiplexerOptions struct {
 }
 
 // DefaultAgentDemultiplexerOptions returns the default options to initialize an AgentDemultiplexer.
-func DefaultAgentDemultiplexerOptions(options *forwarder.Options) AgentDemultiplexerOptions {
-	if options == nil {
-		options = forwarder.NewOptions(nil)
-	}
-
+func DefaultAgentDemultiplexerOptions() AgentDemultiplexerOptions {
 	return AgentDemultiplexerOptions{
-		SharedForwarderOptions:        options,
 		FlushInterval:                 DefaultFlushInterval,
 		UseEventPlatformForwarder:     true,
 		UseOrchestratorForwarder:      true,
-		UseNoopForwarder:              false,
 		UseNoopEventPlatformForwarder: false,
 		UseNoopOrchestratorForwarder:  false,
 		// the different agents/binaries enable it on a per-need basis
@@ -117,11 +110,11 @@ type dataOutputs struct {
 // InitAndStartAgentDemultiplexer creates a new Demultiplexer and runs what's necessary
 // in goroutines. As of today, only the embedded BufferedAggregator needs a separate goroutine.
 // In the future, goroutines will be started for the event platform forwarder and/or orchestrator forwarder.
-func InitAndStartAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
+func InitAndStartAgentDemultiplexer(sharedForwarder forwarder.Forwarder, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
 	demultiplexerInstanceMu.Lock()
 	defer demultiplexerInstanceMu.Unlock()
 
-	demux := initAgentDemultiplexer(options, hostname)
+	demux := initAgentDemultiplexer(sharedForwarder, options, hostname)
 
 	if demultiplexerInstance != nil {
 		log.Warn("A DemultiplexerInstance is already existing but InitAndStartAgentDemultiplexer has been called again. Current instance will be overridden")
@@ -132,8 +125,7 @@ func InitAndStartAgentDemultiplexer(options AgentDemultiplexerOptions, hostname 
 	return demux
 }
 
-func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
-
+func initAgentDemultiplexer(sharedForwarder forwarder.Forwarder, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
 	// prepare the multiple forwarders
 	// -------------------------------
 
@@ -152,13 +144,6 @@ func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) 
 		eventPlatformForwarder = epforwarder.NewNoopEventPlatformForwarder()
 	} else if options.UseEventPlatformForwarder {
 		eventPlatformForwarder = epforwarder.NewEventPlatformForwarder()
-	}
-
-	var sharedForwarder forwarder.Forwarder
-	if options.UseNoopForwarder {
-		sharedForwarder = forwarder.NoopForwarder{}
-	} else {
-		sharedForwarder = forwarder.NewDefaultForwarder(options.SharedForwarderOptions)
 	}
 
 	if config.Datadog.GetBool("telemetry.enabled") && config.Datadog.GetBool("telemetry.dogstatsd_origin") && !config.Datadog.GetBool("aggregator_use_tags_store") {
@@ -519,6 +504,11 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 // GetEventsAndServiceChecksChannels returneds underlying events and service checks channels.
 func (d *AgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*metrics.Event, chan []*metrics.ServiceCheck) {
 	return d.aggregator.GetBufferedChannels()
+}
+
+// GetEventPlatformForwarder returns underlying events and service checks channels.
+func (d *AgentDemultiplexer) GetEventPlatformForwarder() (epforwarder.EventPlatformForwarder, error) {
+	return d.aggregator.GetEventPlatformForwarder()
 }
 
 // SendSamplesWithoutAggregation buffers a bunch of metrics with timestamp. This data will be directly

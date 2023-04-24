@@ -105,7 +105,6 @@ func (di *httpDriverInterface) setupHTTPHandle(dh driver.Handle) error {
 			log.Warnf("Failed to create driver event handle %v", err)
 			return err
 		}
-		log.Infof("non-nil err, %v %v", di.driverEventHandle, err)
 	}
 	return nil
 }

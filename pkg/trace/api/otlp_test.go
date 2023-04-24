@@ -297,11 +297,36 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 				{
 					LibName:    "libname",
 					LibVersion: "1.2",
-					Attributes: map[string]interface{}{string(semconv.AttributeK8SPodUID): "1234cid"},
+					Attributes: map[string]interface{}{
+						string(semconv.AttributeK8SPodUID):  "1234cid",
+						string(semconv.AttributeK8SJobName): "kubejob",
+					},
+					Spans: []*testutil.OTLPSpan{
+						{
+							TraceID: [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+							Name:    "first",
+							Attributes: map[string]interface{}{
+								string(semconv.AttributeContainerImageName): "lorem-ipsum",
+							},
+						},
+						{
+							TraceID: [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17},
+							SpanID:  [8]byte{10, 10, 11, 12, 13, 14, 15, 16},
+							Name:    "second",
+							Attributes: map[string]interface{}{
+								string(semconv.AttributeContainerImageTag): "v2.0",
+							},
+						},
+					},
 				},
 			},
 			fn: func(out *pb.TracerPayload) {
 				require.Equal("1234cid", out.ContainerID)
+				require.Equal(map[string]string{
+					"kube_job":   "kubejob",
+					"image_name": "lorem-ipsum",
+					"image_tag":  "v2.0",
+				}, unflatten(out.Tags[tagContainersTags]))
 			},
 		},
 		{
@@ -490,6 +515,58 @@ func TestOTLPSetAttributes(t *testing.T) {
 		setMetricOTLP(s, "_sampling_priority_v1", 3)
 		require.Equal(t, float64(3), s.Metrics["_sampling_priority_v1"])
 	})
+}
+
+func unflatten(str string) map[string]string {
+	parts := strings.Split(str, ",")
+	m := make(map[string]string, len(parts))
+	if len(str) == 0 {
+		return m
+	}
+	for _, p := range parts {
+		parts2 := strings.SplitN(p, ":", 2)
+		k := parts2[0]
+		if k == "" {
+			continue
+		}
+		if len(parts2) > 1 {
+			m[k] = parts2[1]
+		} else {
+			m[k] = ""
+		}
+	}
+	return m
+}
+
+func TestUnflatten(t *testing.T) {
+	for in, out := range map[string]map[string]string{
+		"a:b": {
+			"a": "b",
+		},
+		"a:b,c:d": {
+			"a": "b",
+			"c": "d",
+		},
+		"a:b,c:d:e": {
+			"a": "b",
+			"c": "d:e",
+		},
+		"a:b,c": {
+			"a": "b",
+			"c": "",
+		},
+		"a:b,": {
+			"a": "b",
+		},
+		"bogus": {
+			"bogus": "",
+		},
+		"": {},
+	} {
+		t.Run("", func(t *testing.T) {
+			assert.Equal(t, unflatten(in), out)
+		})
+	}
 }
 
 func TestOTLPHostname(t *testing.T) {
@@ -748,6 +825,14 @@ func TestOTLPHelpers(t *testing.T) {
 				out:  "DO OP",
 			},
 			{
+				meta: map[string]string{"messaging.operation": "DO", "messaging.destination.name": "OP"},
+				out:  "DO OP",
+			},
+			{
+				meta: map[string]string{"messaging.operation": "process", "messaging.destination.name": "Queue1", "messaging.destination": "Queue2"},
+				out:  "process Queue2",
+			},
+			{
 				meta: map[string]string{semconv.AttributeRPCService: "SVC", semconv.AttributeRPCMethod: "M"},
 				out:  "M SVC",
 			},
@@ -831,6 +916,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 		libver  string
 		in      ptrace.Span
 		out     *pb.Span
+		outTags map[string]string
 	}{
 		{
 			rattr: map[string]string{
@@ -1172,6 +1258,10 @@ func TestOTLPConvertSpan(t *testing.T) {
 				},
 				Type: "db",
 			},
+			outTags: map[string]string{
+				"container_id":        "cid",
+				"kube_container_name": "k8s-container",
+			},
 		},
 	} {
 		t.Run("", func(t *testing.T) {
@@ -1180,7 +1270,8 @@ func TestOTLPConvertSpan(t *testing.T) {
 			lib.SetVersion(tt.libver)
 			assert := assert.New(t)
 			want := tt.out
-			got := o.convertSpan(tt.rattr, lib, tt.in)
+			ctags := make(map[string]string)
+			got := o.convertSpan(tt.rattr, lib, tt.in, ctags)
 			if len(want.Meta) != len(got.Meta) {
 				t.Fatalf("(%d) Meta count mismatch:\n%#v", i, got.Meta)
 			}
@@ -1230,8 +1321,28 @@ func TestOTLPConvertSpan(t *testing.T) {
 			got.Meta = nil
 			got.Metrics = nil
 			assert.Equal(want, got, i)
+			if len(tt.outTags) > 0 || len(ctags) > 0 {
+				assert.Equal(ctags, tt.outTags)
+			}
 		})
 	}
+}
+
+func TestFlatten(t *testing.T) {
+	assert.Equal(t, flatten(map[string]string{"a": "b", "c": "d"}).String(), "a:b,c:d")
+	assert.Equal(t, flatten(map[string]string{"x": "y"}).String(), "x:y")
+	assert.Equal(t, flatten(map[string]string{}).String(), "")
+	assert.Equal(t, flatten(nil).String(), "")
+}
+
+func TestAppendTags(t *testing.T) {
+	var str strings.Builder
+	appendTags(&str, "a:b,c:d")
+	assert.Equal(t, str.String(), "a:b,c:d")
+	appendTags(&str, "e:f,g:h")
+	assert.Equal(t, str.String(), "a:b,c:d,e:f,g:h")
+	appendTags(&str, "i:j")
+	assert.Equal(t, str.String(), "a:b,c:d,e:f,g:h,i:j")
 }
 
 // TestResourceAttributesMap is a regression test ensuring that the resource attributes map
@@ -1240,7 +1351,8 @@ func TestResourceAttributesMap(t *testing.T) {
 	rattr := map[string]string{"key": "val"}
 	lib := pcommon.NewInstrumentationScope()
 	span := testutil.NewOTLPSpan(&testutil.OTLPSpan{})
-	NewOTLPReceiver(nil, config.New()).convertSpan(rattr, lib, span)
+	ctags := make(map[string]string)
+	NewOTLPReceiver(nil, config.New()).convertSpan(rattr, lib, span, ctags)
 	assert.Len(t, rattr, 1) // ensure "rattr" has no new entries
 	assert.Equal(t, "val", rattr["key"])
 }

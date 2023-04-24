@@ -104,8 +104,6 @@ type RuntimeSecurityConfig struct {
 	// ActivityDumpLocalStorageMaxDumpsCount defines the maximum count of activity dumps that should be kept locally.
 	// When the limit is reached, the oldest dumps will be deleted first.
 	ActivityDumpLocalStorageMaxDumpsCount int
-	// ActivityDumpRemoteStorageFormats defines the formats that should be used to persist the activity dumps remotely.
-	ActivityDumpRemoteStorageFormats []StorageFormat
 	// ActivityDumpSyscallMonitorPeriod defines the minimum amount of time to wait between 2 syscalls event for the same
 	// process.
 	ActivityDumpSyscallMonitorPeriod time.Duration
@@ -126,6 +124,11 @@ type RuntimeSecurityConfig struct {
 	SecurityProfileWatchDir bool
 	// SecurityProfileCacheSize defines the count of Security Profiles held in cache
 	SecurityProfileCacheSize int
+	// SecurityProfileMaxCount defines the maximum number of Security Profiles that may be evaluated concurrently
+	SecurityProfileMaxCount int
+
+	// AnomalyDetectionSyscallsEnabled enable anomaly detection for syscalls
+	AnomalyDetectionSyscallsEnabled bool
 
 	// SBOMResolverEnabled defines if the SBOM resolver should be enabled
 	SBOMResolverEnabled bool
@@ -150,13 +153,18 @@ func NewConfig() (*Config, error) {
 		return nil, err
 	}
 
+	rsConfig, err := NewRuntimeSecurityConfig()
+	if err != nil {
+		return nil, err
+	}
+
 	return &Config{
 		Probe:           probeConfig,
-		RuntimeSecurity: NewRuntimeSecurityConfig(),
+		RuntimeSecurity: rsConfig,
 	}, nil
 }
 
-func NewRuntimeSecurityConfig() *RuntimeSecurityConfig {
+func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 	rsConfig := &RuntimeSecurityConfig{
 		RuntimeEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.enabled"),
 		FIMEnabled:     coreconfig.SystemProbe.GetBool("runtime_security_config.fim_enabled"),
@@ -217,11 +225,17 @@ func NewRuntimeSecurityConfig() *RuntimeSecurityConfig {
 		SecurityProfileDir:       coreconfig.SystemProbe.GetString("runtime_security_config.security_profile.dir"),
 		SecurityProfileWatchDir:  coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.watch_dir"),
 		SecurityProfileCacheSize: coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.cache_size"),
+		SecurityProfileMaxCount:  coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.max_count"),
+
+		// anomaly detection
+		AnomalyDetectionSyscallsEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.syscalls.enabled"),
 	}
 
-	rsConfig.sanitize()
+	if err := rsConfig.sanitize(); err != nil {
+		return nil, err
+	}
 
-	return rsConfig
+	return rsConfig, nil
 }
 
 // IsRuntimeEnabled returns true if any feature is enabled. Has to be applied in config package too
@@ -230,16 +244,50 @@ func (c *RuntimeSecurityConfig) IsRuntimeEnabled() bool {
 }
 
 // sanitize ensures that the configuration is properly setup
-func (c *RuntimeSecurityConfig) sanitize() {
+func (c *RuntimeSecurityConfig) sanitize() error {
 	// if runtime is enabled then we force fim
 	if c.RuntimeEnabled {
 		c.FIMEnabled = true
+	}
+
+	// if runtime is disabled then we force disable activity dumps
+	if !c.RuntimeEnabled {
+		c.ActivityDumpEnabled = false
 	}
 
 	serviceName := utils.GetTagValue("service", coreconfig.GetGlobalConfiguredTags(true))
 	if len(serviceName) > 0 {
 		c.HostServiceName = fmt.Sprintf("service:%s", serviceName)
 	}
+
+	return c.sanitizeRuntimeSecurityConfigActivityDump()
+}
+
+// sanitizeNetworkConfiguration ensures that runtime_security_config.activity_dump is properly configured
+func (c *RuntimeSecurityConfig) sanitizeRuntimeSecurityConfigActivityDump() error {
+	var execFound bool
+	for _, evtType := range c.ActivityDumpTracedEventTypes {
+		if evtType == model.ExecEventType {
+			execFound = true
+			break
+		}
+	}
+	if !execFound {
+		c.ActivityDumpTracedEventTypes = append(c.ActivityDumpTracedEventTypes, model.ExecEventType)
+	}
+
+	if formats := coreconfig.SystemProbe.GetStringSlice("runtime_security_config.activity_dump.local_storage.formats"); len(formats) > 0 {
+		var err error
+		c.ActivityDumpLocalStorageFormats, err = ParseStorageFormats(formats)
+		if err != nil {
+			return fmt.Errorf("invalid value for runtime_security_config.activity_dump.local_storage.formats: %w", err)
+		}
+	}
+
+	if c.ActivityDumpTracedCgroupsCount > model.MaxTracedCgroupsCount {
+		c.ActivityDumpTracedCgroupsCount = model.MaxTracedCgroupsCount
+	}
+	return nil
 }
 
 // ActivityDumpRemoteStorageEndpoints returns the list of activity dump remote storage endpoints parsed from the agent config

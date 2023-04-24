@@ -10,9 +10,11 @@ import (
 
 	global "github.com/DataDog/datadog-agent/cmd/agent/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -21,75 +23,81 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+type testDeps struct {
+	fx.In
+	Server server.Component
+	Debug  serverDebug.Component
+}
+
 func TestDogstatsdMetricsStats(t *testing.T) {
 	assert := assert.New(t)
 	var err error
 
-	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	demux := aggregator.InitAndStartAgentDemultiplexer(opts, "hostname")
+	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
+	demux := aggregator.InitAndStartAgentDemultiplexer(forwarder, opts, "hostname")
 
-	fxutil.Test(t, fx.Options(
+	deps := fxutil.Test[testDeps](t, fx.Options(
 		core.MockBundle,
 		fx.Supply(core.BundleParams{}),
 		fx.Supply(server.Params{
 			Serverless: false,
 		}),
 		dogstatsd.Bundle,
-	), func(server server.Component, debug serverDebug.Component) {
+	))
 
-		global.DSD = server
-		server.Start(demux)
+	global.DSD = deps.Server
+	deps.Server.Start(demux)
 
-		require.Nil(t, err)
+	require.Nil(t, err)
 
-		s := DsdStatsRuntimeSetting{
-			ServerDebug: debug,
-		}
+	s := DsdStatsRuntimeSetting{
+		ServerDebug: deps.Debug,
+	}
 
-		// runtime settings set/get underlying implementation
+	// runtime settings set/get underlying implementation
 
-		// true string
+	// true string
 
-		err = s.Set("true")
-		assert.Nil(err)
-		assert.Equal(debug.IsDebugEnabled(), true)
-		v, err := s.Get()
-		assert.Nil(err)
-		assert.Equal(v, true)
+	err = s.Set("true")
+	assert.Nil(err)
+	assert.Equal(deps.Debug.IsDebugEnabled(), true)
+	v, err := s.Get()
+	assert.Nil(err)
+	assert.Equal(v, true)
 
-		// false string
+	// false string
 
-		err = s.Set("false")
-		assert.Nil(err)
-		assert.Equal(debug.IsDebugEnabled(), false)
-		v, err = s.Get()
-		assert.Nil(err)
-		assert.Equal(v, false)
+	err = s.Set("false")
+	assert.Nil(err)
+	assert.Equal(deps.Debug.IsDebugEnabled(), false)
+	v, err = s.Get()
+	assert.Nil(err)
+	assert.Equal(v, false)
 
-		// true boolean
+	// true boolean
 
-		err = s.Set(true)
-		assert.Nil(err)
-		assert.Equal(debug.IsDebugEnabled(), true)
-		v, err = s.Get()
-		assert.Nil(err)
-		assert.Equal(v, true)
+	err = s.Set(true)
+	assert.Nil(err)
+	assert.Equal(deps.Debug.IsDebugEnabled(), true)
+	v, err = s.Get()
+	assert.Nil(err)
+	assert.Equal(v, true)
 
-		// false boolean
+	// false boolean
 
-		err = s.Set(false)
-		assert.Nil(err)
-		assert.Equal(debug.IsDebugEnabled(), false)
-		v, err = s.Get()
-		assert.Nil(err)
-		assert.Equal(v, false)
+	err = s.Set(false)
+	assert.Nil(err)
+	assert.Equal(deps.Debug.IsDebugEnabled(), false)
+	v, err = s.Get()
+	assert.Nil(err)
+	assert.Equal(v, false)
 
-		// ensure the getter uses the value from the actual server
+	// ensure the getter uses the value from the actual server
 
-		debug.SetMetricStatsEnabled(true)
-		v, err = s.Get()
-		assert.Nil(err)
-		assert.Equal(v, true)
-	})
+	deps.Debug.SetMetricStatsEnabled(true)
+	v, err = s.Get()
+	assert.Nil(err)
+	assert.Equal(v, true)
 }

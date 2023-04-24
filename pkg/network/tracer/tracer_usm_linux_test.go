@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -36,26 +37,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/gotls"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	prototls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-)
-
-type connTag = uint64
-
-const (
-	tagGnuTLS  connTag = 1 // netebpf.GnuTLS
-	tagOpenSSL connTag = 2 // netebpf.OpenSSL
-)
-
-var (
-	staticTags = map[connTag]string{
-		tagGnuTLS:  "tls.library:gnutls",
-		tagOpenSSL: "tls.library:openssl",
-	}
 )
 
 func httpSupported(t *testing.T) bool {
@@ -78,6 +66,11 @@ func javaTLSSupported(t *testing.T) bool {
 
 func classificationSupported(config *config.Config) bool {
 	return kprobe.ClassificationSupported(config)
+}
+
+func isTLSTag(staticTags uint64) bool {
+	// we check only if the TLS tag has set, not like network.IsTLSTag()
+	return staticTags&network.ConnTagTLS > 0
 }
 
 func TestEnableHTTPMonitoring(t *testing.T) {
@@ -223,7 +216,11 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTPSMonitoring = true
+	/* enable protocol classification : TLS */
+	cfg.ProtocolClassificationEnabled = true
+	cfg.CollectTCPConns = true
 	tr := setupTracer(t, cfg)
+	fentryTracerEnabled := tr.ebpfTracer.Type() == connection.EBPFFentry
 
 	// not ideal but, short process are hard to catch
 	for _, lib := range prefetchLibs {
@@ -254,14 +251,26 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 			statsTags := req.StaticTags
 			// debian 10 have curl binary linked with openssl and gnutls but use only openssl during tls query (there no runtime flag available)
 			// this make harder to map lib and tags, one set of tag should match but not both
-			if key.Path.Content == "/200/foobar" && (statsTags == tagGnuTLS || statsTags == tagOpenSSL) {
-				t.Logf("found tag 0x%x %s", statsTags, staticTags[statsTags])
-				return true
+			if key.Path.Content == "/200/foobar" && (statsTags == network.ConnTagGnuTLS || statsTags == network.ConnTagOpenSSL) {
+				t.Logf("found tag 0x%x %s", statsTags, network.GetStaticTags(statsTags))
+
+				// socket filter is not supported on fentry tracer
+				if fentryTracerEnabled {
+					// so we return early if the test was successful until now
+					return true
+				}
+
+				for _, c := range payload.Conns {
+					if c.SPort == key.SrcPort && c.DPort == key.DstPort && isTLSTag(c.StaticTags) {
+						return true
+					}
+				}
+				t.Logf("HTTP connection %v doesn't contain ConnTagTLS\n", key)
 			}
 			t.Logf("HTTP stat didn't match criteria %v tags 0x%x\n", key, statsTags)
 			for _, c := range payload.Conns {
-				possibleKeyTuples := network.HTTPKeyTuplesFromConn(c)
-				t.Logf("conn sport %d dport %d tags %x connKey [%v] or [%v]\n", c.SPort, c.DPort, c.Tags, possibleKeyTuples[0], possibleKeyTuples[1])
+				possibleKeyTuples := network.ConnectionKeysFromConnectionStats(c)
+				t.Logf("conn sport %d dport %d tags %x staticTags %x connKey [%v] or [%v]\n", c.SPort, c.DPort, c.Tags, c.StaticTags, possibleKeyTuples[0], possibleKeyTuples[1])
 			}
 		}
 
@@ -472,9 +481,7 @@ func TestProtocolClassification(t *testing.T) {
 
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		tr.Stop()
-	})
+	t.Cleanup(tr.Stop)
 
 	t.Run("with dnat", func(t *testing.T) {
 		// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
@@ -570,7 +577,6 @@ func testProtocolClassificationMapCleanup(t *testing.T, tr *Tracer, clientHost, 
 }
 
 // Java Injection and TLS tests
-
 func createJavaTempFile(t *testing.T, dir string) string {
 	tempfile, err := os.CreateTemp(dir, "TestAgentLoaded.agentmain.*")
 	require.NoError(t, err)
@@ -589,6 +595,7 @@ func TestJavaInjection(t *testing.T) {
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTPSMonitoring = true
 	cfg.EnableJavaTLSSupport = true
+	defaultCfg := cfg
 
 	dir, _ := testutil.CurDir()
 	testdataDir := filepath.Join(dir, "../java/testdata")
@@ -643,11 +650,11 @@ func TestJavaInjection(t *testing.T) {
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
 
 				ctx.extras["testfile"] = createJavaTempFile(t, testdataDir)
-				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
+				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
-				javatestutil.RunJavaVersion(t, "openjdk:8u151-jre", "JustWait")
+				require.True(t, javatestutil.RunJavaVersion(t, "openjdk:8u151-jre", "JustWait"), "Failed running Java version")
 			},
 			validation: commonValidation,
 			teardown:   commonTearDown,
@@ -663,7 +670,7 @@ func TestJavaInjection(t *testing.T) {
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
 
 				ctx.extras["testfile"] = createJavaTempFile(t, testdataDir)
-				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
+				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
 
 				// testing allow/block list, as Allow list have higher priority
 				// this test will pass normally
@@ -672,7 +679,7 @@ func TestJavaInjection(t *testing.T) {
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
-				javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait")
+				require.True(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait"), "Failed running Java version")
 				var fake testing.T
 				require.Falsef(t, javatestutil.RunJavaVersion(&fake, "openjdk:21-oraclelinux8", "AnotherWait"), "AnotherWait should not be attached")
 			},
@@ -689,7 +696,7 @@ func TestJavaInjection(t *testing.T) {
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
 
 				ctx.extras["testfile"] = createJavaTempFile(t, testdataDir)
-				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
+				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
 
 				// block the agent attachment
 				cfg.JavaAgentAllowRegex = ""
@@ -697,7 +704,7 @@ func TestJavaInjection(t *testing.T) {
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
-				javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "AnotherWait")
+				require.True(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "AnotherWait"), "Failed running Java version")
 				var fake testing.T
 				require.Falsef(t, javatestutil.RunJavaVersion(&fake, "openjdk:21-oraclelinux8", "JustWait"), "JustWait should not be attached")
 			},
@@ -713,14 +720,14 @@ func TestJavaInjection(t *testing.T) {
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
 
 				ctx.extras["testfile"] = createJavaTempFile(t, testdataDir)
-				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
+				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
 
 				// block the agent attachment
 				cfg.JavaAgentAllowRegex = ".*JustWait.*"
 				cfg.JavaAgentBlockRegex = ".*AnotherWait.*"
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait")
+				require.True(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait"), "Failed running Java version")
 				var fake testing.T
 				require.Falsef(t, javatestutil.RunJavaVersion(&fake, "openjdk:21-oraclelinux8", "AnotherWait"), "AnotherWait should not be attached")
 			},
@@ -728,7 +735,7 @@ func TestJavaInjection(t *testing.T) {
 			teardown:   commonTearDown,
 		},
 		{
-			name: "java_hotspot_injection_21_allowhigherpriority",
+			name: "java_hotspot_injection_21_allow_higher_priority",
 			context: testContext{
 				extras: make(map[string]interface{}),
 			},
@@ -736,26 +743,28 @@ func TestJavaInjection(t *testing.T) {
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
 
 				ctx.extras["testfile"] = createJavaTempFile(t, testdataDir)
-				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
+				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
 
 				// allow has a higher priority
 				cfg.JavaAgentAllowRegex = ".*JustWait.*"
 				cfg.JavaAgentBlockRegex = ".*JustWait.*"
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait")
+				require.True(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait"), "Failed running Java version")
 			},
 			validation: commonValidation,
 			teardown:   commonTearDown,
 		},
 		{
 			// Test the java jdk client https request is working
-			name: "java_jdk_client_httpbin_docker_java15",
+			name: "java_jdk_client_httpbin_docker_withTLSClassification_java15",
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				cfg.JavaDir = legacyJavaDir
+				cfg.ProtocolClassificationEnabled = true
+				cfg.CollectTCPConns = true
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://httpbin.org/anything/java-tls-request", regexp.MustCompile("Response code = .*"))
+				require.True(t, javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://httpbin.org/anything/java-tls-request", regexp.MustCompile("Response code = .*")), "Failed running Java version")
 			},
 			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
 				// Iterate through active connections until we find connection created above
@@ -763,7 +772,18 @@ func TestJavaInjection(t *testing.T) {
 					payload := getConnections(t, tr)
 					for key := range payload.HTTP {
 						if key.Path.Content == "/anything/java-tls-request" {
-							return true
+							t.Log("path content found")
+							// socket filter is not supported on fentry tracer
+							if tr.ebpfTracer.Type() == connection.EBPFFentry {
+								// so we return early if the test was successful until now
+								return true
+							}
+
+							for _, c := range payload.Conns {
+								if c.SPort == key.SrcPort && c.DPort == key.DstPort && isTLSTag(c.StaticTags) {
+									return true
+								}
+							}
 						}
 					}
 
@@ -779,6 +799,7 @@ func TestJavaInjection(t *testing.T) {
 					tt.teardown(t, tt.context)
 				})
 			}
+			cfg = defaultCfg
 			if tt.preTracerSetup != nil {
 				tt.preTracerSetup(t, tt.context)
 			}
@@ -920,10 +941,8 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTPSMonitoring = true
-	tr, err := NewTracer(cfg)
-	require.NoError(t, err)
-	t.Cleanup(tr.Stop)
-	require.NoError(t, tr.RegisterClient("1"))
+
+	tr := setupTracer(t, cfg)
 
 	// This maps will keep track of whether the tracer saw this request already or not
 	reqs := make(requestsMap)
@@ -1007,6 +1026,98 @@ func testHTTPsGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Conf
 
 	client.CloseIdleConnections()
 	checkRequests(t, tr, expectedOccurrences, reqs)
+}
+
+type tlsTestCommand struct {
+	version        string
+	openSSLCommand string
+}
+
+// TLS classification tests
+func TestTLSClassification(t *testing.T) {
+	cfg := testConfig()
+	cfg.ProtocolClassificationEnabled = true
+	cfg.CollectTCPConns = true
+
+	if !classificationSupported(cfg) {
+		t.Skip("TLS classification platform not supported")
+	}
+
+	tr := setupTracer(t, cfg)
+
+	type tlsTest struct {
+		name            string
+		postTracerSetup func(t *testing.T)
+		validation      func(t *testing.T, tr *Tracer)
+	}
+	scenarios := []tlsTestCommand{
+		{
+			version:        "1.0",
+			openSSLCommand: "-tls1",
+		},
+		{
+			version:        "1.1",
+			openSSLCommand: "-tls1_1",
+		},
+		{
+			version:        "1.2",
+			openSSLCommand: "-tls1_2",
+		},
+		{
+			version:        "1.3",
+			openSSLCommand: "-tls1_3",
+		},
+	}
+	tests := make([]tlsTest, 0, len(scenarios))
+	for _, scenario := range scenarios {
+		tests = append(tests, tlsTest{
+			name: "TLS-" + scenario.version + "_docker",
+			postTracerSetup: func(t *testing.T) {
+				clientSuccess := false
+				var wg sync.WaitGroup
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					time.Sleep(5 * time.Second)
+					clientSuccess = prototls.RunClientOpenssl(t, "localhost", "44330", scenario.openSSLCommand)
+				}()
+				prototls.RunServerOpenssl(t, "44330", "-www")
+				wg.Wait()
+				if !clientSuccess {
+					t.Fatalf("openssl client failed")
+				}
+			},
+			validation: func(t *testing.T, tr *Tracer) {
+				// Iterate through active connections until we find connection created above
+				require.Eventuallyf(t, func() bool {
+					payload := getConnections(t, tr)
+					for _, c := range payload.Conns {
+						if c.DPort == 44330 && isTLSTag(c.StaticTags) {
+							return true
+						}
+					}
+					return false
+				}, 4*time.Second, time.Second, "couldn't find TLS connection matching: dst port 44330")
+			},
+		})
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tr.ebpfTracer.Type() == connection.EBPFFentry {
+				t.Skip("protocol classification not supported for fentry tracer")
+			}
+			t.Cleanup(func() { tr.removeClient(clientID) })
+			t.Cleanup(func() { _ = tr.ebpfTracer.Pause() })
+
+			tr.removeClient(clientID)
+			initTracerState(t, tr)
+			require.NoError(t, tr.ebpfTracer.Resume(), "enable probes - before post tracer")
+			tt.postTracerSetup(t)
+			require.NoError(t, tr.ebpfTracer.Pause(), "disable probes - after post tracer")
+			tt.validation(t, tr)
+		})
+	}
 }
 
 func checkRequests(t *testing.T, tr *Tracer, expectedOccurrences int, reqs requestsMap) {

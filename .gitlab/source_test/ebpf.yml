@@ -4,10 +4,6 @@
   - mkdir -p $DATADOG_AGENT_EMBEDDED_PATH/include
   - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/clang-$CLANG_LLVM_VER.$ARCH /tmp/clang-bpf
   - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/llc-$CLANG_LLVM_VER.$ARCH /tmp/llc-bpf
-  # Retrieve nikos from S3
-  - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/nikos-$ARCH.tar.gz /tmp/nikos.tar.gz
-  - mkdir -p $NIKOS_EMBEDDED_PATH
-  - tar -xf /tmp/nikos.tar.gz -C $NIKOS_EMBEDDED_PATH
 
 .build_sysprobe_artifacts:
   # kitchen prepare also builds object files
@@ -44,9 +40,9 @@
   script:
     - inv -e install-tools
     - inv -e system-probe.object-files
-    - invoke -e golangci-lint --build system-probe --concurrency 4 ./pkg
+    - invoke -e golangci-lint --build system-probe-unit-tests --concurrency 4 ./pkg
     - invoke -e security-agent.run-ebpf-unit-tests --verbose
-    - invoke -e golangci-lint --targets=./pkg/security/tests --concurrency 4 --build-tags="stresstests linux_bpf ebpf_bindata" --arch=$TASK_ARCH
+    - invoke -e golangci-lint --targets=./pkg/security/tests --concurrency 4 --build-tags="functionaltests stresstests trivy containerd linux_bpf ebpf_bindata" --arch=$TASK_ARCH
 
 .tests_windows_sysprobe:
   stage: source_test

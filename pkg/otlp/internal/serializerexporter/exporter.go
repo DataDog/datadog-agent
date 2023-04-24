@@ -40,8 +40,8 @@ func newDefaultConfig() component.Config {
 			},
 			TagCardinality: collectors.LowCardinalityString,
 			HistConfig: histogramConfig{
-				Mode:         "distributions",
-				SendCountSum: false,
+				Mode:             "distributions",
+				SendAggregations: false,
 			},
 			SumConfig: sumConfig{
 				CumulativeMonotonicMode: CumulativeMonotonicSumModeToDelta,
@@ -89,13 +89,12 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*metrics.Tra
 
 	options := []metrics.TranslatorOption{
 		metrics.WithFallbackSourceProvider(sourceProviderFunc(hostname.Get)),
-		metrics.WithPreviewHostnameFromAttributes(),
 		metrics.WithHistogramMode(histogramMode),
 		metrics.WithDeltaTTL(cfg.Metrics.DeltaTTL),
 	}
 
-	if cfg.Metrics.HistConfig.SendCountSum {
-		options = append(options, metrics.WithCountSumMetrics())
+	if cfg.Metrics.HistConfig.SendAggregations {
+		options = append(options, metrics.WithHistogramAggregations())
 	}
 
 	switch cfg.Metrics.SummaryConfig.Mode {
@@ -132,6 +131,11 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*metrics.Tra
 }
 
 func newExporter(logger *zap.Logger, s serializer.MetricSerializer, cfg *exporterConfig) (*exporter, error) {
+	// Log any warnings from unmarshaling.
+	for _, warning := range cfg.warnings {
+		logger.Warn(warning)
+	}
+
 	tr, err := translatorFromConfig(logger, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)

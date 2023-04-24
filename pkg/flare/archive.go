@@ -81,6 +81,11 @@ func CreatePerformanceProfile(prefix, debugURL string, cpusec int, target *Profi
 			URL:  debugURL + "/heap",
 		},
 		{
+			// A sampling of all past memory allocations
+			Name: prefix + "-allocs.pprof",
+			URL:  debugURL + "/allocs",
+		},
+		{
 			// mutex profile
 			Name: prefix + "-mutex.pprof",
 			URL:  debugURL + "/mutex",
@@ -348,7 +353,7 @@ func getConfigFiles(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths) {
 		fb.CopyFileTo(filepath.Join(confDir, "system-probe.yaml"), filepath.Join("etc", "system-probe.yaml"))
 
 		// use best effort to include security-agent.yaml to the flare
-		fb.CopyFileTo(filepath.Join(confDir, "security-agent.yaml"), filepath.Join("etc", "system-probe.yaml"))
+		fb.CopyFileTo(filepath.Join(confDir, "security-agent.yaml"), filepath.Join("etc", "security-agent.yaml"))
 	}
 }
 

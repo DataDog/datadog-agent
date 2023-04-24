@@ -20,8 +20,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -73,7 +73,7 @@ func TestPopulateResources(t *testing.T) {
 		{
 			[]string{"some:tag", "dd.internal.resource:aws_rds_instance:some_instance_endpoint"},
 			[]string{"some:tag"},
-			[]metrics.Resource{metrics.Resource{
+			[]metrics.Resource{{
 				Type: "aws_rds_instance",
 				Name: "some_instance_endpoint",
 			}},
@@ -82,11 +82,11 @@ func TestPopulateResources(t *testing.T) {
 			[]string{"some:tag", "dd.internal.resource:database_instance:some_db_host", "dd.internal.resource:aws_rds_instance:some_instance_endpoint", "some_other:tag"},
 			[]string{"some:tag", "some_other:tag"},
 			[]metrics.Resource{
-				metrics.Resource{
+				{
 					Type: "database_instance",
 					Name: "some_db_host",
 				},
-				metrics.Resource{
+				{
 					Type: "aws_rds_instance",
 					Name: "some_instance_endpoint",
 				}},
@@ -95,7 +95,7 @@ func TestPopulateResources(t *testing.T) {
 			[]string{"some:tag", "dd.internal.resource:database_instance:some_db_host", "resource:some_resource_value", "some_other:tag"},
 			[]string{"some:tag", "resource:some_resource_value", "some_other:tag"},
 			[]metrics.Resource{
-				metrics.Resource{
+				{
 					Type: "database_instance",
 					Name: "some_db_host",
 				},
@@ -365,8 +365,7 @@ func makeSeries(numItems, numPoints int) *IterableSeries {
 			Name:     "test.metrics",
 			Interval: 15,
 			Host:     "localHost",
-			Device:   "SomeDevice",
-			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes", "dd.internal.resource:device:some_other_device", "dd.internal.resource:database_instance:some_instance", "dd.internal.resource:aws_rds_instance:some_endpoint"}),
+			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes", "device:SomeDevice", "dd.internal.resource:device:some_other_device", "dd.internal.resource:database_instance:some_instance", "dd.internal.resource:aws_rds_instance:some_endpoint"}),
 		})
 	}
 	return CreateIterableSeries(CreateSerieSource(series))

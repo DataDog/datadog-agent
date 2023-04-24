@@ -7,6 +7,7 @@ package flowaggregator
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -14,12 +15,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/netflow/config"
+	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
 )
 
 const flushFlowsToSendInterval = 10 * time.Second
@@ -32,15 +36,19 @@ type FlowAggregator struct {
 	rollupTrackerRefreshInterval time.Duration
 	flowAcc                      *flowAccumulator
 	sender                       aggregator.Sender
+	epForwarder                  epforwarder.EventPlatformForwarder
 	stopChan                     chan struct{}
+	flushLoopDone                chan struct{}
+	runDone                      chan struct{}
 	receivedFlowCount            *atomic.Uint64
 	flushedFlowCount             *atomic.Uint64
 	hostname                     string
 	goflowPrometheusGatherer     prometheus.Gatherer
+	timeNowFunction              func() time.Time // Allows to mock time in tests
 }
 
 // NewFlowAggregator returns a new FlowAggregator
-func NewFlowAggregator(sender aggregator.Sender, config *config.NetflowConfig, hostname string) *FlowAggregator {
+func NewFlowAggregator(sender aggregator.Sender, epForwarder epforwarder.EventPlatformForwarder, config *config.NetflowConfig, hostname string) *FlowAggregator {
 	flushInterval := time.Duration(config.AggregatorFlushInterval) * time.Second
 	flowContextTTL := time.Duration(config.AggregatorFlowContextTTL) * time.Second
 	rollupTrackerRefreshInterval := time.Duration(config.AggregatorRollupTrackerRefreshInterval) * time.Second
@@ -50,11 +58,15 @@ func NewFlowAggregator(sender aggregator.Sender, config *config.NetflowConfig, h
 		flushFlowsToSendInterval:     flushFlowsToSendInterval,
 		rollupTrackerRefreshInterval: rollupTrackerRefreshInterval,
 		sender:                       sender,
+		epForwarder:                  epForwarder,
 		stopChan:                     make(chan struct{}),
+		runDone:                      make(chan struct{}),
+		flushLoopDone:                make(chan struct{}),
 		receivedFlowCount:            atomic.NewUint64(0),
 		flushedFlowCount:             atomic.NewUint64(0),
 		hostname:                     hostname,
 		goflowPrometheusGatherer:     prometheus.DefaultGatherer,
+		timeNowFunction:              time.Now,
 	}
 }
 
@@ -68,6 +80,8 @@ func (agg *FlowAggregator) Start() {
 // Stop will stop running FlowAggregator
 func (agg *FlowAggregator) Stop() {
 	close(agg.stopChan)
+	<-agg.flushLoopDone
+	<-agg.runDone
 }
 
 // GetFlowInChan returns flow input chan
@@ -80,6 +94,7 @@ func (agg *FlowAggregator) run() {
 		select {
 		case <-agg.stopChan:
 			log.Info("Stopping aggregator")
+			agg.runDone <- struct{}{}
 			return
 		case flow := <-agg.flowIn:
 			agg.receivedFlowCount.Inc()
@@ -98,7 +113,65 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
 		}
 
 		log.Tracef("flushed flow: %s", string(payloadBytes))
-		agg.sender.EventPlatformEvent(payloadBytes, epforwarder.EventTypeNetworkDevicesNetFlow)
+
+		m := &message.Message{Content: payloadBytes}
+		err = agg.epForwarder.SendEventPlatformEventBlocking(m, epforwarder.EventTypeNetworkDevicesNetFlow)
+		if err != nil {
+			// at the moment, SendEventPlatformEventBlocking can only fail if the event type is invalid
+			log.Errorf("Error sending to event platform forwarder: %s", err)
+			continue
+		}
+	}
+}
+
+func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime time.Time) {
+	// exporterMap structure: map[NAMESPACE]map[EXPORTER_ID]metadata.NetflowExporter
+	exporterMap := make(map[string]map[string]metadata.NetflowExporter)
+
+	// orderedExporterIDs is used to build predictable metadata payload (consistent batches and orders)
+	// orderedExporterIDs structure: map[NAMESPACE][]EXPORTER_ID
+	orderedExporterIDs := make(map[string][]string)
+
+	for _, flow := range flows {
+		exporterIpAddress := common.IPBytesToString(flow.ExporterAddr)
+		if exporterIpAddress == "" || strings.HasPrefix(exporterIpAddress, "?") {
+			log.Errorf("Invalid exporter Addr: %s", exporterIpAddress)
+			continue
+		}
+		exporterID := flow.Namespace + ":" + exporterIpAddress + ":" + string(flow.FlowType)
+		if _, ok := exporterMap[flow.Namespace]; !ok {
+			exporterMap[flow.Namespace] = make(map[string]metadata.NetflowExporter)
+		}
+		if _, ok := exporterMap[flow.Namespace][exporterID]; ok {
+			// this exporter is already in the map, no need to reprocess it
+			continue
+		}
+		exporterMap[flow.Namespace][exporterID] = metadata.NetflowExporter{
+			ID:        exporterID,
+			IPAddress: exporterIpAddress,
+			FlowType:  string(flow.FlowType),
+		}
+		orderedExporterIDs[flow.Namespace] = append(orderedExporterIDs[flow.Namespace], exporterID)
+	}
+	for namespace, ids := range orderedExporterIDs {
+		var netflowExporters []metadata.NetflowExporter
+		for _, exporterId := range ids {
+			netflowExporters = append(netflowExporters, exporterMap[namespace][exporterId])
+		}
+		metadataPayloads := metadata.BatchPayloads(namespace, "", flushTime, metadata.PayloadMetadataBatchSize, nil, nil, nil, nil, netflowExporters)
+		for _, payload := range metadataPayloads {
+			payloadBytes, err := json.Marshal(payload)
+			if err != nil {
+				log.Errorf("Error marshalling device metadata: %s", err)
+				continue
+			}
+			log.Debugf("netflow exporter metadata payload: %s", string(payloadBytes))
+			m := &message.Message{Content: payloadBytes}
+			err = agg.epForwarder.SendEventPlatformEventBlocking(m, epforwarder.EventTypeNetworkDevicesMetadata)
+			if err != nil {
+				log.Errorf("Error sending event platform event for netflow exporter metadata: %s", err)
+			}
+		}
 	}
 }
 
@@ -112,15 +185,27 @@ func (agg *FlowAggregator) flushLoop() {
 	}
 
 	rollupTrackersRefresh := time.NewTicker(agg.rollupTrackerRefreshInterval).C
+	// TODO: move rollup tracker refresh to a separate loop (separate PR) to avoid rollup tracker and flush flows impacting each other
 
+	var lastFlushTime time.Time
 	for {
 		select {
 		// stop sequence
 		case <-agg.stopChan:
+			agg.flushLoopDone <- struct{}{}
 			return
 		// automatic flush sequence
 		case <-flushFlowsToSendTicker:
+			now := time.Now()
+			if !lastFlushTime.IsZero() {
+				flushInterval := now.Sub(lastFlushTime)
+				agg.sender.Gauge("datadog.netflow.aggregator.flush_interval", flushInterval.Seconds(), "", nil)
+			}
+			lastFlushTime = now
+
+			flushStartTime := time.Now()
 			agg.flush()
+			agg.sender.Gauge("datadog.netflow.aggregator.flush_duration", time.Since(flushStartTime).Seconds(), "", nil)
 		// refresh rollup trackers
 		case <-rollupTrackersRefresh:
 			agg.rollupTrackersRefresh()
@@ -131,14 +216,15 @@ func (agg *FlowAggregator) flushLoop() {
 // Flush flushes the aggregator
 func (agg *FlowAggregator) flush() int {
 	flowsContexts := agg.flowAcc.getFlowContextCount()
-	now := time.Now()
+	flushTime := agg.timeNowFunction()
 	flowsToFlush := agg.flowAcc.flush()
-	log.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(now).Milliseconds(), flowsContexts)
+	log.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
 	// TODO: Add flush stats to agent telemetry e.g. aggregator newFlushCountStats()
 	if len(flowsToFlush) > 0 {
 		agg.sendFlows(flowsToFlush)
 	}
+	agg.sendExporterMetadata(flowsToFlush, flushTime)
 
 	flushCount := len(flowsToFlush)
 

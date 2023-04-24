@@ -25,13 +25,15 @@ type processor struct {
 	sender          aggregator.Sender
 	podsQueue       *queue
 	containersQueue *queue
+	store           workloadmeta.Store
 }
 
-func newProcessor(sender aggregator.Sender, chunkSize int) *processor {
+func newProcessor(sender aggregator.Sender, chunkSize int, store workloadmeta.Store) *processor {
 	return &processor{
 		sender:          sender,
 		podsQueue:       newQueue(chunkSize),
 		containersQueue: newQueue(chunkSize),
+		store:           store,
 	}
 }
 
@@ -63,7 +65,13 @@ func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
 				log.Debugf("Couldn't process container %q: %v", container.ID, err)
 			}
 		case workloadmeta.KindKubernetesPod:
-			err := p.processPod(event.Entity)
+			pod, ok := event.Entity.(*workloadmeta.KubernetesPod)
+			if !ok {
+				log.Debugf("Expected workloadmeta.KubernetesPod got %T, skipping", event.Entity)
+				continue
+			}
+
+			err := p.processPod(pod)
 			if err != nil {
 				log.Debugf("Couldn't process pod %q: %v", event.Entity.GetID().ID, err)
 			}
@@ -95,16 +103,36 @@ func (p *processor) processContainer(container *workloadmeta.Container, sources 
 		event.withContainerExitCode(&code)
 	}
 
+	// Because the container processor is triggered off of runtime events, and the
+	// container runtime would have no knowledge surrounding what owns the container,
+	// we need to query the workloadmeta store to get this information.
+	if c, err := p.store.GetContainer(container.ID); err == nil {
+		if c.Owner != nil {
+			event.withOwnerID(c.Owner.ID)
+			switch c.Owner.Kind {
+			case workloadmeta.KindKubernetesPod:
+				event.withOwnerType(types.ObjectKindPod)
+			default:
+				log.Tracef("Cannot handle owner for container %q with type %q", container.ID, c.Owner.Kind)
+			}
+		}
+	}
+
 	return p.containersQueue.add(event)
 }
 
 // processPod enqueue pod events
-func (p *processor) processPod(pod workloadmeta.Entity) error {
+func (p *processor) processPod(pod *workloadmeta.KubernetesPod) error {
 	event := newEvent()
 	event.withObjectKind(types.ObjectKindPod)
 	event.withEventType(types.EventNameDelete)
 	event.withObjectID(pod.GetID().ID)
 	event.withSource(string(workloadmeta.SourceNodeOrchestrator))
+
+	if !pod.FinishedAt.IsZero() {
+		ts := pod.FinishedAt.Unix()
+		event.withPodExitTimestamp(&ts)
+	}
 
 	return p.podsQueue.add(event)
 }

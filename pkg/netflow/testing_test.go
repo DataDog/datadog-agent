@@ -6,14 +6,10 @@
 package netflow
 
 import (
-	"encoding/json"
-	"fmt"
 	"github.com/netsampler/goflow2/utils"
 	"github.com/sirupsen/logrus"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
-	"github.com/DataDog/datadog-agent/pkg/netflow/payload"
 )
 
 type dummyFlowProcessor struct {
@@ -43,15 +39,4 @@ func replaceWithDummyFlowProcessor(server *Server, port uint16) *dummyFlowProces
 		Port:     port,
 	}
 	return flowProcessor
-}
-
-func findEventBySourceDest(events []*message.Message, sourceIP string, destIP string) (payload.FlowPayload, error) {
-	for _, event := range events {
-		actualFlow := payload.FlowPayload{}
-		_ = json.Unmarshal(event.Content, &actualFlow)
-		if actualFlow.Source.IP == sourceIP && actualFlow.Destination.IP == destIP {
-			return actualFlow, nil
-		}
-	}
-	return payload.FlowPayload{}, fmt.Errorf("no event found that matches `source=%s`, `destination=%s", sourceIP, destIP)
 }

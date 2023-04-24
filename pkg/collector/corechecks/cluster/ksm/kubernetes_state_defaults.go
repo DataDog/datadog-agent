@@ -16,6 +16,8 @@ const ksmMetricPrefix = "kubernetes_state."
 // defaultMetricNamesMapper returns a map that translates KSM metric names to Datadog metric names
 func defaultMetricNamesMapper() map[string]string {
 	return map[string]string{
+		"kube_apiservice_status_condition":                                                         "apiservice.condition",
+		"kube_customresourcedefinition_status_condition":                                           "crd.condition",
 		"kube_daemonset_status_current_number_scheduled":                                           "daemonset.scheduled",
 		"kube_daemonset_status_desired_number_scheduled":                                           "daemonset.desired",
 		"kube_daemonset_status_number_misscheduled":                                                "daemonset.misscheduled",
@@ -69,10 +71,10 @@ func defaultMetricNamesMapper() map[string]string {
 		"kube_statefulset_status_replicas_updated":                                                 "statefulset.replicas_updated",
 		"kube_horizontalpodautoscaler_spec_min_replicas":                                           "hpa.min_replicas",
 		"kube_horizontalpodautoscaler_spec_max_replicas":                                           "hpa.max_replicas",
+		"kube_horizontalpodautoscaler_spec_target_metric":                                          "hpa.spec_target_metric",
 		"kube_horizontalpodautoscaler_status_condition":                                            "hpa.condition",
 		"kube_horizontalpodautoscaler_status_desired_replicas":                                     "hpa.desired_replicas",
 		"kube_horizontalpodautoscaler_status_current_replicas":                                     "hpa.current_replicas",
-		"kube_horizontalpodautoscaler_spec_target_metric":                                          "hpa.spec_target_metric",
 		"kube_horizontalpodautoscaler_status_target_metric":                                        "hpa.status_target_metric",
 		"kube_verticalpodautoscaler_status_recommendation_containerrecommendations_lowerbound":     "vpa.lower_bound",
 		"kube_verticalpodautoscaler_status_recommendation_containerrecommendations_target":         "vpa.target",
@@ -226,6 +228,8 @@ func getLabelToMatchForKind(kind string) []string {
 		return []string{"node"}
 	case "persistentvolume": // persistent volumes are not namespaced
 		return []string{"persistentvolume"}
+	case "customresourcedefinition": // CRD are not namespaced
+		return []string{"customresourcedefinition"}
 	default:
 		return []string{kind, "namespace"}
 	}

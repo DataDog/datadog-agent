@@ -240,7 +240,7 @@ func (s *Service) Start(ctx context.Context) error {
 
 		err := s.refresh()
 		if err != nil {
-			log.Errorf("could not refresh remote-config: %v", err)
+			log.Errorf("Could not refresh Remote Config: %v", err)
 		}
 
 		for {
@@ -262,7 +262,7 @@ func (s *Service) Start(ctx context.Context) error {
 			}
 
 			if err != nil {
-				log.Errorf("could not refresh remote-config: %v", err)
+				log.Errorf("Could not refresh Remote Config: %v", err)
 			}
 		}
 	}()
@@ -292,6 +292,7 @@ func (s *Service) refresh() error {
 	}
 	orgUUID, err := s.uptane.StoredOrgUUID()
 	if err != nil {
+		s.Unlock()
 		return err
 	}
 

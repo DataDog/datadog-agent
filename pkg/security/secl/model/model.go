@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -output accessors.go -field-handlers field_handlers.go -doc ../../../../docs/cloud-workload-security/secl.json
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags linux -output accessors_linux.go -field-handlers-tags unix -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl.json
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags windows -output accessors_windows.go -field-handlers-tags windows -field-handlers field_handlers_windows.go
 
 package model
 
@@ -150,75 +151,124 @@ type ContainerContext struct {
 	Tags      []string `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
 }
 
+type Status uint32
+
+const (
+	// AnomalyDetection will trigger alerts each time an event is not part of the profile
+	AnomalyDetection Status = 1 << iota
+	// AutoSuppression will suppress any signal to events present on the profile
+	AutoSuppression
+	// WorkloadHardening will kill the process that triggered anomaly detection
+	WorkloadHardening
+)
+
+func (s Status) IsEnabled(option Status) bool {
+	return (s & option) != 0
+}
+
+func (s Status) String() string {
+	var options []string
+	if s.IsEnabled(AnomalyDetection) {
+		options = append(options, "anomaly_detection")
+	}
+	if s.IsEnabled(AutoSuppression) {
+		options = append(options, "auto_suppression")
+	}
+	if s.IsEnabled(WorkloadHardening) {
+		options = append(options, "workload_hardening")
+	}
+
+	var res string
+	for _, option := range options {
+		if len(res) > 0 {
+			res += ","
+		}
+		res += option
+	}
+	return res
+}
+
+// SecurityProfileContext holds the security context of the profile
+type SecurityProfileContext struct {
+	Name    string   `field:"name"`    // SECLDoc[name] Definition:`Name of the security profile`
+	Status  Status   `field:"status"`  // SECLDoc[status] Definition:`Status of the security profile`
+	Version string   `field:"version"` // SECLDoc[version] Definition:`Version of the security profile`
+	Tags    []string `field:"tags"`    // SECLDoc[tags] Definition:`Tags of the security profile`
+}
+
 // Event represents an event sent from the kernel
 // genaccessors
 type Event struct {
 	ID           string         `field:"-" json:"-"`
 	Type         uint32         `field:"-"`
 	Flags        uint32         `field:"-"`
-	Async        bool           `field:"async,handler:ResolveAsync" event:"*"` // SECLDoc[async] Definition:`True if the syscall was asynchronous`
+	Async        bool           `field:"async,handler:ResolveAsync" event:"*" platform:"linux"` // SECLDoc[async] Definition:`True if the syscall was asynchronous`
 	TimestampRaw uint64         `field:"-" json:"-"`
 	Timestamp    time.Time      `field:"-"` // Timestamp of the event
 	Rules        []*MatchedRule `field:"-"`
 
 	// context shared with all events
-	ProcessCacheEntry *ProcessCacheEntry `field:"-" json:"-"`
-	PIDContext        PIDContext         `field:"-" json:"-"`
-	SpanContext       SpanContext        `field:"-" json:"-"`
-	ProcessContext    *ProcessContext    `field:"process" event:"*"`
-	ContainerContext  ContainerContext   `field:"container"`
-	NetworkContext    NetworkContext     `field:"network"`
+	ProcessCacheEntry      *ProcessCacheEntry     `field:"-" json:"-" platform:"linux"`
+	PIDContext             PIDContext             `field:"-" json:"-" platform:"linux"`
+	SpanContext            SpanContext            `field:"-" json:"-" platform:"linux"`
+	ProcessContext         *ProcessContext        `field:"process" event:"*" platform:"linux"`
+	ContainerContext       ContainerContext       `field:"container" platform:"linux"`
+	NetworkContext         NetworkContext         `field:"network" platform:"linux"`
+	SecurityProfileContext SecurityProfileContext `field:"-"`
 
 	// fim events
-	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file’s permissions were changed
-	Chown       ChownEvent    `field:"chown" event:"chown"`             // [7.27] [File] A file’s owner was changed
-	Open        OpenEvent     `field:"open" event:"open"`               // [7.27] [File] A file was opened
-	Mkdir       MkdirEvent    `field:"mkdir" event:"mkdir"`             // [7.27] [File] A directory was created
-	Rmdir       RmdirEvent    `field:"rmdir" event:"rmdir"`             // [7.27] [File] A directory was removed
-	Rename      RenameEvent   `field:"rename" event:"rename"`           // [7.27] [File] A file/directory was renamed
-	Unlink      UnlinkEvent   `field:"unlink" event:"unlink"`           // [7.27] [File] A file was deleted
-	Utimes      UtimesEvent   `field:"utimes" event:"utimes"`           // [7.27] [File] Change file access/modification times
-	Link        LinkEvent     `field:"link" event:"link"`               // [7.27] [File] Create a new name/alias for a file
-	SetXAttr    SetXAttrEvent `field:"setxattr" event:"setxattr"`       // [7.27] [File] Set exteneded attributes
-	RemoveXAttr SetXAttrEvent `field:"removexattr" event:"removexattr"` // [7.27] [File] Remove extended attributes
-	Splice      SpliceEvent   `field:"splice" event:"splice"`           // [7.36] [File] A splice command was executed
-	Mount       MountEvent    `field:"mount" event:"mount"`             // [7.42] [File] [Experimental] A filesystem was mounted
+	Chmod       ChmodEvent    `field:"chmod" event:"chmod" platform:"linux"`             // [7.27] [File] A file’s permissions were changed
+	Chown       ChownEvent    `field:"chown" event:"chown" platform:"linux"`             // [7.27] [File] A file’s owner was changed
+	Open        OpenEvent     `field:"open" event:"open" platform:"linux"`               // [7.27] [File] A file was opened
+	Mkdir       MkdirEvent    `field:"mkdir" event:"mkdir" platform:"linux"`             // [7.27] [File] A directory was created
+	Rmdir       RmdirEvent    `field:"rmdir" event:"rmdir" platform:"linux"`             // [7.27] [File] A directory was removed
+	Rename      RenameEvent   `field:"rename" event:"rename" platform:"linux"`           // [7.27] [File] A file/directory was renamed
+	Unlink      UnlinkEvent   `field:"unlink" event:"unlink" platform:"linux"`           // [7.27] [File] A file was deleted
+	Utimes      UtimesEvent   `field:"utimes" event:"utimes" platform:"linux"`           // [7.27] [File] Change file access/modification times
+	Link        LinkEvent     `field:"link" event:"link" platform:"linux"`               // [7.27] [File] Create a new name/alias for a file
+	SetXAttr    SetXAttrEvent `field:"setxattr" event:"setxattr" platform:"linux"`       // [7.27] [File] Set exteneded attributes
+	RemoveXAttr SetXAttrEvent `field:"removexattr" event:"removexattr" platform:"linux"` // [7.27] [File] Remove extended attributes
+	Splice      SpliceEvent   `field:"splice" event:"splice" platform:"linux"`           // [7.36] [File] A splice command was executed
+	Mount       MountEvent    `field:"mount" event:"mount" platform:"linux"`             // [7.42] [File] [Experimental] A filesystem was mounted
 
 	// process events
-	Exec     ExecEvent     `field:"exec" event:"exec"`     // [7.27] [Process] A process was executed or forked
-	SetUID   SetuidEvent   `field:"setuid" event:"setuid"` // [7.27] [Process] A process changed its effective uid
-	SetGID   SetgidEvent   `field:"setgid" event:"setgid"` // [7.27] [Process] A process changed its effective gid
-	Capset   CapsetEvent   `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
-	Signal   SignalEvent   `field:"signal" event:"signal"` // [7.35] [Process] A signal was sent
-	Exit     ExitEvent     `field:"exit" event:"exit"`     // [7.38] [Process] A process was terminated
-	Syscalls SyscallsEvent `field:"-"`
+	Exec     ExecEvent     `field:"exec" event:"exec" platform:"linux"`     // [7.27] [Process] A process was executed or forked
+	SetUID   SetuidEvent   `field:"setuid" event:"setuid" platform:"linux"` // [7.27] [Process] A process changed its effective uid
+	SetGID   SetgidEvent   `field:"setgid" event:"setgid" platform:"linux"` // [7.27] [Process] A process changed its effective gid
+	Capset   CapsetEvent   `field:"capset" event:"capset" platform:"linux"` // [7.27] [Process] A process changed its capacity set
+	Signal   SignalEvent   `field:"signal" event:"signal" platform:"linux"` // [7.35] [Process] A signal was sent
+	Exit     ExitEvent     `field:"exit" event:"exit" platform:"linux"`     // [7.38] [Process] A process was terminated
+	Syscalls SyscallsEvent `field:"-" platform:"linux"`
+
+	// anomaly detection related events
+	AnomalyDetectionSyscallEvent AnomalyDetectionSyscallEvent `field:"-"`
 
 	// kernel events
-	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
-	BPF          BPFEvent          `field:"bpf" event:"bpf"`                     // [7.33] [Kernel] A BPF command was executed
-	PTrace       PTraceEvent       `field:"ptrace" event:"ptrace"`               // [7.35] [Kernel] A ptrace command was executed
-	MMap         MMapEvent         `field:"mmap" event:"mmap"`                   // [7.35] [Kernel] A mmap command was executed
-	MProtect     MProtectEvent     `field:"mprotect" event:"mprotect"`           // [7.35] [Kernel] A mprotect command was executed
-	LoadModule   LoadModuleEvent   `field:"load_module" event:"load_module"`     // [7.35] [Kernel] A new kernel module was loaded
-	UnloadModule UnloadModuleEvent `field:"unload_module" event:"unload_module"` // [7.35] [Kernel] A kernel module was deleted
+	SELinux      SELinuxEvent      `field:"selinux" event:"selinux" platform:"linux"`             // [7.30] [Kernel] An SELinux operation was run
+	BPF          BPFEvent          `field:"bpf" event:"bpf" platform:"linux"`                     // [7.33] [Kernel] A BPF command was executed
+	PTrace       PTraceEvent       `field:"ptrace" event:"ptrace" platform:"linux"`               // [7.35] [Kernel] A ptrace command was executed
+	MMap         MMapEvent         `field:"mmap" event:"mmap" platform:"linux"`                   // [7.35] [Kernel] A mmap command was executed
+	MProtect     MProtectEvent     `field:"mprotect" event:"mprotect" platform:"linux"`           // [7.35] [Kernel] A mprotect command was executed
+	LoadModule   LoadModuleEvent   `field:"load_module" event:"load_module" platform:"linux"`     // [7.35] [Kernel] A new kernel module was loaded
+	UnloadModule UnloadModuleEvent `field:"unload_module" event:"unload_module" platform:"linux"` // [7.35] [Kernel] A kernel module was deleted
 
 	// network events
-	DNS  DNSEvent  `field:"dns" event:"dns"`   // [7.36] [Network] A DNS request was sent
-	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] [Experimental] A bind was executed
+	DNS  DNSEvent  `field:"dns" event:"dns" platform:"linux"`   // [7.36] [Network] A DNS request was sent
+	Bind BindEvent `field:"bind" event:"bind" platform:"linux"` // [7.37] [Network] [Experimental] A bind was executed
 
 	// internal usage
-	Umount              UmountEvent           `field:"-" json:"-"`
-	InvalidateDentry    InvalidateDentryEvent `field:"-" json:"-"`
-	ArgsEnvs            ArgsEnvsEvent         `field:"-" json:"-"`
-	MountReleased       MountReleasedEvent    `field:"-" json:"-"`
-	CgroupTracing       CgroupTracingEvent    `field:"-" json:"-"`
-	NetDevice           NetDeviceEvent        `field:"-" json:"-"`
-	VethPair            VethPairEvent         `field:"-" json:"-"`
-	UnshareMountNS      UnshareMountNSEvent   `field:"-" json:"-"`
-	PathResolutionError error                 `field:"-" json:"-"` // hold one of the path resolution error
+	Umount              UmountEvent           `field:"-" json:"-" platform:"linux"`
+	InvalidateDentry    InvalidateDentryEvent `field:"-" json:"-" platform:"linux"`
+	ArgsEnvs            ArgsEnvsEvent         `field:"-" json:"-" platform:"linux"`
+	MountReleased       MountReleasedEvent    `field:"-" json:"-" platform:"linux"`
+	CgroupTracing       CgroupTracingEvent    `field:"-" json:"-" platform:"linux"`
+	NetDevice           NetDeviceEvent        `field:"-" json:"-" platform:"linux"`
+	VethPair            VethPairEvent         `field:"-" json:"-" platform:"linux"`
+	UnshareMountNS      UnshareMountNSEvent   `field:"-" json:"-" platform:"linux"`
+	PathResolutionError error                 `field:"-" json:"-" platform:"linux"` // hold one of the path resolution error
 
 	// field resolution
-	FieldHandlers FieldHandlers `field:"-" json:"-"`
+	FieldHandlers FieldHandlers `field:"-" json:"-" platform:"linux"`
 }
 
 func initMember(member reflect.Value, deja map[string]bool) {
@@ -271,6 +321,26 @@ func (e *Event) IsSavedByActivityDumps() bool {
 // IsSavedByActivityDumps return whether AD sample
 func (e *Event) IsActivityDumpSample() bool {
 	return e.Flags&EventFlagsActivityDumpSample > 0
+}
+
+// IsInProfile return true if the event was fount in the profile
+func (e *Event) IsInProfile() bool {
+	return e.Flags&EventFlagsSecurityProfileInProfile > 0
+}
+
+// AddToFlags adds a flag to the event
+func (e *Event) AddToFlags(flag uint32) {
+	e.Flags |= flag
+}
+
+// RemoveFromFlags remove a flag to the event
+func (e *Event) RemoveFromFlags(flag uint32) {
+	e.Flags ^= flag
+}
+
+// HasProfile returns true if we found a profile for that event
+func (e *Event) HasProfile() bool {
+	return e.SecurityProfileContext.Name != ""
 }
 
 // GetType returns the event type
@@ -467,8 +537,8 @@ type Process struct {
 
 	CreatedAt uint64 `field:"created_at,handler:ResolveProcessCreatedAt"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the process`
 
-	Cookie uint32 `field:"cookie"` // SECLDoc[cookie] Definition:`Cookie of the process`
-	PPid   uint32 `field:"ppid"`   // SECLDoc[ppid] Definition:`Parent process ID`
+	Cookie uint32 `field:"-"`
+	PPid   uint32 `field:"ppid"` // SECLDoc[ppid] Definition:`Parent process ID`
 
 	// credentials_t section of pid_cache_t
 	Credentials ``
@@ -911,9 +981,12 @@ type MProtectEvent struct {
 type LoadModuleEvent struct {
 	SyscallEvent
 
-	File             FileEvent `field:"file"`               // Path to the kernel module file
-	LoadedFromMemory bool      `field:"loaded_from_memory"` // SECLDoc[loaded_from_memory] Definition:`Indicates if the kernel module was loaded from memory`
-	Name             string    `field:"name"`               // SECLDoc[name] Definition:`Name of the new kernel module`
+	File             FileEvent `field:"file"`                           // Path to the kernel module file
+	LoadedFromMemory bool      `field:"loaded_from_memory"`             // SECLDoc[loaded_from_memory] Definition:`Indicates if the kernel module was loaded from memory`
+	Name             string    `field:"name"`                           // SECLDoc[name] Definition:`Name of the new kernel module`
+	Args             string    `field:"args,handler:ResolveModuleArgs"` // SECLDoc[args] Definition:`Parameters (as a string) of the new kernel module`
+	Argv             []string  `field:"argv,handler:ResolveModuleArgv"` // SECLDoc[argv] Definition:`Parameters (as an array) of the new kernel module`
+	ArgsTruncated    bool      `field:"args_truncated"`                 // SECLDoc[args_truncated] Definition:`Indicates if the arguments were truncated or not`
 }
 
 // UnloadModuleEvent represents an unload_module event
@@ -1042,6 +1115,11 @@ type SyscallsEvent struct {
 }
 
 const PathKeySize = 16
+
+// AnomalyDetectionSyscallEvent represents an anomaly detection for a syscall event
+type AnomalyDetectionSyscallEvent struct {
+	SyscallID Syscall
+}
 
 // PathKey identifies an entry in the dentry cache
 type PathKey struct {

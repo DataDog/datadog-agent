@@ -881,6 +881,10 @@ func initExitCauseConstants() {
 	}
 }
 
+func initBPFMapNamesConstants() {
+	SECLConstants["CWS_MAP_NAMES"] = &eval.StringArrayEvaluator{Values: bpfMapNames}
+}
+
 func initConstants() {
 	initErrorConstants()
 	initOpenConstants()
@@ -904,6 +908,7 @@ func initConstants() {
 	initL4ProtocolConstants()
 	initAddressFamilyConstants()
 	initExitCauseConstants()
+	initBPFMapNamesConstants()
 }
 
 func bitmaskToStringArray(bitmask int, intToStrMap map[int]string) []string {

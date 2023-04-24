@@ -12,7 +12,9 @@ import (
 	"sync"
 
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // SecurityProfile defines a security profile
@@ -20,12 +22,13 @@ type SecurityProfile struct {
 	sync.Mutex
 	loadedInKernel bool
 	selector       cgroupModel.WorkloadSelector
+	profileCookie  uint64
 
 	// Instances is the list of workload instances to witch the profile should apply
 	Instances []*cgroupModel.CacheEntry
 
 	// Status is the status of the profile
-	Status uint32
+	Status model.Status
 
 	// Version is the version of a Security Profile
 	Version string
@@ -43,15 +46,124 @@ type SecurityProfile struct {
 	ProcessActivityTree []*dump.ProcessActivityNode
 }
 
+// NewSecurityProfile creates a new instance of Security Profile
+func NewSecurityProfile(selector cgroupModel.WorkloadSelector) *SecurityProfile {
+	return &SecurityProfile{
+		selector: selector,
+	}
+}
+
 // reset empties all internal fields so that this profile can be used again in the future
 func (p *SecurityProfile) reset() {
 	p.loadedInKernel = false
 	p.Instances = nil
 }
 
-// NewSecurityProfile creates a new instance of Security Profile
-func NewSecurityProfile(selector cgroupModel.WorkloadSelector) *SecurityProfile {
-	return &SecurityProfile{
-		selector: selector,
+// generateCookies computes random cookies for all the entries in the profile that require one
+func (p *SecurityProfile) generateCookies() {
+	p.profileCookie = utils.RandNonZeroUint64()
+
+	// TODO: generate cookies for all the nodes in the activity tree
+}
+
+func (p *SecurityProfile) generateSyscallsFilters() [64]byte {
+	var output [64]byte
+	for _, syscall := range p.Syscalls {
+		if syscall/8 < 64 && (1<<(syscall%8) < 256) {
+			output[syscall/8] |= 1 << (syscall % 8)
+		}
 	}
+	return output
+}
+
+func (p *SecurityProfile) generateKernelSecurityProfileDefinition() [16]byte {
+	var output [16]byte
+	model.ByteOrder.PutUint64(output[0:8], p.profileCookie)
+	model.ByteOrder.PutUint32(output[8:12], uint32(p.Status))
+	return output
+}
+
+type ProcessActivityNodeAndParent struct {
+	node   *dump.ProcessActivityNode
+	parent *ProcessActivityNodeAndParent
+}
+
+func NewProcessActivityNodeAndParent(node *dump.ProcessActivityNode, parent *ProcessActivityNodeAndParent) *ProcessActivityNodeAndParent {
+	return &ProcessActivityNodeAndParent{
+		node:   node,
+		parent: parent,
+	}
+}
+
+func ProcessActivityTreeWalk(processActivityTree []*dump.ProcessActivityNode,
+	walkFunc func(pNode *ProcessActivityNodeAndParent) bool) []*dump.ProcessActivityNode {
+	var result []*dump.ProcessActivityNode
+	if len(processActivityTree) == 0 {
+		return result
+	}
+
+	var nodes []*ProcessActivityNodeAndParent
+	var node *ProcessActivityNodeAndParent
+	for _, n := range processActivityTree {
+		nodes = append(nodes, NewProcessActivityNodeAndParent(n, nil))
+	}
+	node = nodes[0]
+	nodes = nodes[1:]
+
+	for node != nil {
+		if walkFunc(node) {
+			result = append(result, node.node)
+		}
+
+		for _, child := range node.node.Children {
+			nodes = append(nodes, NewProcessActivityNodeAndParent(child, node))
+		}
+		if len(nodes) > 0 {
+			node = nodes[0]
+			nodes = nodes[1:]
+		} else {
+			node = nil
+		}
+	}
+	return result
+}
+
+func (p *SecurityProfile) findProfileProcessNodes(pc *model.ProcessContext) []*dump.ProcessActivityNode {
+	if pc == nil {
+		return []*dump.ProcessActivityNode{}
+	}
+
+	parent := pc.GetNextAncestorBinary()
+	if parent != nil && !dump.IsValidRootNode(&parent.ProcessContext) {
+		parent = nil
+	}
+	return ProcessActivityTreeWalk(p.ProcessActivityTree, func(node *ProcessActivityNodeAndParent) bool {
+		// check process
+		if !node.node.Matches(&pc.Process, false) {
+			return false
+		}
+		// check parent
+		if node.parent == nil && parent == nil {
+			return true
+		}
+		if node.parent == nil || parent == nil {
+			return false
+		}
+		return node.parent.node.Matches(&parent.Process, false)
+	})
+}
+
+func findDNSInNodes(nodes []*dump.ProcessActivityNode, event *model.Event) bool {
+	for _, node := range nodes {
+		dnsNode, ok := node.DNSNames[event.DNS.Name]
+		if !ok {
+			continue
+		}
+		for _, req := range dnsNode.Requests {
+			if req.Type == event.DNS.Type {
+				return true
+			}
+		}
+	}
+	return false
 }

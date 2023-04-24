@@ -62,12 +62,12 @@ func GetDefaultInterval(checkName string) time.Duration {
 }
 
 // GetInterval returns the configured check interval value
-func GetInterval(checkName string) time.Duration {
+func GetInterval(cfg config.ConfigReader, checkName string) time.Duration {
 	switch checkName {
 	case DiscoveryCheckName:
 		// We don't need to check if the key exists since we already bound it to a default in InitConfig.
 		// We use a minimum of 10 minutes for this value.
-		discoveryInterval := config.Datadog.GetDuration("process_config.process_discovery.interval")
+		discoveryInterval := cfg.GetDuration("process_config.process_discovery.interval")
 		if discoveryInterval < discoveryMinInterval {
 			discoveryInterval = discoveryMinInterval
 			_ = log.Warnf("Invalid interval for process discovery (< %s) using minimum value of %[1]s", discoveryMinInterval.String())
@@ -75,7 +75,7 @@ func GetInterval(checkName string) time.Duration {
 		return discoveryInterval
 
 	case ProcessEventsCheckName:
-		eventsInterval := config.Datadog.GetDuration("process_config.event_collection.interval")
+		eventsInterval := cfg.GetDuration("process_config.event_collection.interval")
 		if eventsInterval < config.DefaultProcessEventsMinCheckInterval {
 			eventsInterval = config.DefaultProcessEventsCheckInterval
 			_ = log.Warnf("Invalid interval for process_events check (< %s) using default value of %s",
@@ -86,11 +86,11 @@ func GetInterval(checkName string) time.Duration {
 	default:
 		defaultInterval := defaultIntervals[checkName]
 		configKey, ok := configKeys[checkName]
-		if !ok || !config.Datadog.IsSet(configKey) {
+		if !ok || !cfg.IsSet(configKey) {
 			return defaultInterval
 		}
 
-		if seconds := config.Datadog.GetInt(configKey); seconds != 0 {
+		if seconds := cfg.GetInt(configKey); seconds != 0 {
 			log.Infof("Overriding %s check interval to %ds", configKey, seconds)
 			return time.Duration(seconds) * time.Second
 		}
