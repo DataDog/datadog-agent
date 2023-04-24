@@ -154,7 +154,7 @@ func runEventListener(deps dependencies) error {
 }
 
 func runEventStore(deps dependencies) error {
-	store, err := events.NewRingStore(&statsd.NoOpClient{})
+	store, err := events.NewRingStore(deps.Config, &statsd.NoOpClient{})
 	if err != nil {
 		return err
 	}

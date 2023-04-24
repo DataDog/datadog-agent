@@ -18,7 +18,7 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/sys/windows"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pkgflare "github.com/DataDog/datadog-agent/pkg/flare"
@@ -189,12 +189,12 @@ func requestFlare(s *systray, caseID, customerEmail string) (response string, e 
 
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {
-		logFile = common.DefaultLogFile
+		logFile = path.DefaultLogFile
 	}
 
 	jmxLogFile := config.Datadog.GetString("jmx_log_file")
 	if jmxLogFile == "" {
-		jmxLogFile = common.DefaultJmxLogFile
+		jmxLogFile = path.DefaultJmxLogFile
 	}
 
 	// Set session token
@@ -216,7 +216,7 @@ func requestFlare(s *systray, caseID, customerEmail string) (response string, e 
 		}
 		s.log.Debug("Initiating flare locally.")
 
-		filePath, e = s.flare.Create(true, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, nil, e)
+		filePath, e = s.flare.Create(true, path.GetDistPath(), path.PyChecksPath, []string{logFile, jmxLogFile}, nil, e)
 		if e != nil {
 			s.log.Errorf("The flare zipfile failed to be created: %s\n", e)
 			return

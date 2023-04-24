@@ -11,8 +11,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func newProcessProbe(options ...procutil.Option) procutil.Probe {
-	if !config.Datadog.GetBool("process_config.windows.use_perf_counters") {
+func newProcessProbe(config config.ConfigReader, options ...procutil.Option) procutil.Probe {
+	if !config.GetBool("process_config.windows.use_perf_counters") {
 		log.Info("Using toolhelp API probe for process data collection")
 		return procutil.NewWindowsToolhelpProbe()
 	}

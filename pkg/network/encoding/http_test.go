@@ -6,6 +6,7 @@
 package encoding
 
 import (
+	"runtime"
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -304,6 +305,25 @@ func testLocalhostScenario(t *testing.T, aggregateByStatusCode bool) {
 		HTTP: map[http.Key]*http.RequestStats{
 			httpKey: httpStats,
 		},
+	}
+	if runtime.GOOS == "windows" {
+		/*
+		 * on Windows, there are separate http transactions for
+		 * each side of the connection.  And they're kept separate,
+		 * and keyed separately.  Address this condition until the
+		 * platforms are resynced
+		 */
+		httpKeyWin := http.NewKey(
+			util.AddressFromString("127.0.0.1"),
+			util.AddressFromString("127.0.0.1"),
+			80,
+			60000,
+			"/",
+			true,
+			http.MethodGet,
+		)
+
+		in.HTTP[httpKeyWin] = httpStats
 	}
 
 	httpEncoder := newHTTPEncoder(in)

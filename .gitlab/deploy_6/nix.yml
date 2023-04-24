@@ -1,42 +1,37 @@
 ---
-deploy_packages_deb-6:
-  rules:
-    !reference [.on_deploy_a6]
-  stage: deploy6
-  resource_group: deb_bucket
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main"]
-  dependencies: ["agent_deb-x64-a6", "agent_deb-arm64-a6", "agent_heroku_deb-x64-a6"]
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
-  script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "*_6.*amd64.deb" $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/deb/amd64/ || true
-    - $S3_CP_CMD --recursive --exclude "*" --include "*_6.*arm64.deb" $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/deb/arm64/ || true
+deploy_packages_deb-x64-6:
+  extends: .deploy_packages_deb-6
+  needs: [ agent_deb-x64-a6 ]
+  variables:
+    PACKAGE_ARCH: amd64
 
-deploy_packages_rpm-6:
-  rules:
-    !reference [.on_deploy_a6]
-  stage: deploy6
-  resource_group: rpm_bucket
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main"]
-  dependencies: ["agent_rpm-x64-a6", "agent_rpm-arm64-a6"]
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
-  script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "*-6.*x86_64.rpm" $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/rpm/x86_64/ || true
-    - $S3_CP_CMD --recursive --exclude "*" --include "*-6.*aarch64.rpm" $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/rpm/aarch64/ || true
+deploy_packages_deb-arm64-6:
+  extends: .deploy_packages_deb-6
+  needs: [ agent_deb-arm64-a6 ]
+  variables:
+    PACKAGE_ARCH: arm64
+
+deploy_packages_heroku_deb-x64-6:
+  extends: .deploy_packages_deb-6
+  needs: [ agent_heroku_deb-x64-a6 ]
+  variables:
+    PACKAGE_ARCH: amd64
+
+deploy_packages_rpm-x64-6:
+  extends: .deploy_packages_rpm-6
+  needs: [ agent_rpm-x64-a6 ]
+  variables:
+    PACKAGE_ARCH: x86_64
+
+deploy_packages_rpm-arm64-6:
+  extends: .deploy_packages_rpm-6
+  needs: [ agent_rpm-arm64-a6 ]
+  variables:
+    PACKAGE_ARCH: aarch64
 
 # NOTE: no SuSE ARM builds currently.
-deploy_packages_suse_rpm-6:
-  rules:
-    !reference [.on_deploy_a6]
-  stage: deploy6
-  resource_group: suse_bucket
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main"]
-  dependencies: ["agent_suse-x64-a6"]
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR_SUSE
-  script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "*-6.*x86_64.rpm" $OMNIBUS_PACKAGE_DIR_SUSE $S3_RELEASE_ARTIFACTS_URI/suse_rpm/x86_64/ || true
+deploy_packages_suse_rpm-x64-6:
+  extends: .deploy_packages_suse_rpm-6
+  needs: [ agent_suse-x64-a6 ]
+  variables:
+    PACKAGE_ARCH: x86_64

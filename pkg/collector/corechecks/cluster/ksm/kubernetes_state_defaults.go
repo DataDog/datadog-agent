@@ -16,6 +16,7 @@ const ksmMetricPrefix = "kubernetes_state."
 // defaultMetricNamesMapper returns a map that translates KSM metric names to Datadog metric names
 func defaultMetricNamesMapper() map[string]string {
 	return map[string]string{
+		"kube_apiservice_status_condition":                                                         "apiservice.condition",
 		"kube_customresourcedefinition_status_condition":                                           "crd.condition",
 		"kube_daemonset_status_current_number_scheduled":                                           "daemonset.scheduled",
 		"kube_daemonset_status_desired_number_scheduled":                                           "daemonset.desired",
@@ -227,6 +228,8 @@ func getLabelToMatchForKind(kind string) []string {
 		return []string{"node"}
 	case "persistentvolume": // persistent volumes are not namespaced
 		return []string{"persistentvolume"}
+	case "customresourcedefinition": // CRD are not namespaced
+		return []string{"customresourcedefinition"}
 	default:
 		return []string{kind, "namespace"}
 	}

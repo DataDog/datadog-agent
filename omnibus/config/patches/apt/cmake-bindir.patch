@@ -1,0 +1,11 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -231,7 +231,7 @@ set(CACHE_DIR "${CMAKE_INSTALL_FULL_LOCALSTATEDIR}/cache/apt" CACHE PATH "Your /
+ set(LOG_DIR "${CMAKE_INSTALL_FULL_LOCALSTATEDIR}/log/apt" CACHE PATH "Your /var/log/apt")
+ set(CONF_DIR "${CMAKE_INSTALL_FULL_SYSCONFDIR}/apt" CACHE PATH "Your /etc/apt")
+ set(LIBEXEC_DIR "${CMAKE_INSTALL_FULL_LIBEXECDIR}/apt" CACHE PATH "Your /usr/libexec/apt")
+-set(BIN_DIR "${CMAKE_INSTALL_FULL_BINDIR}")
++set(BIN_DIR "${CMAKE_INSTALL_FULL_BINDIR}" CACHE PATH "Directory which should contain dpkg")
+ 
+ 
+ # Configure our configuration headers (config.h and apti18n.h)

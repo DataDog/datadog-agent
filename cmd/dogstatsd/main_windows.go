@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/dogstatsd/subcommands/start"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -88,9 +89,9 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 		cliParams,
 		DefaultConfPath,
 		defaultLogFile,
-		func(config config.Component, params *start.Params, server dogstatsdServer.Component) error {
+		func(config config.Component, params *start.Params, server dogstatsdServer.Component, forwarder defaultforwarder.Component) error {
 			components.DogstatsdServer = server
-			return start.RunAgent(ctx, cliParams, config, params, components)
+			return start.RunAgent(ctx, cliParams, config, params, components, forwarder)
 		})
 
 	if err != nil {

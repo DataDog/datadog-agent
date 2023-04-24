@@ -1,3 +1,6 @@
+//go:build kubeapiserver
+// +build kubeapiserver
+
 /*
 Copyright 2018 The Kubernetes Authors All rights reserved.
 
@@ -25,6 +28,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	extension "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 )
@@ -171,12 +175,13 @@ func mergeKeyValues(keyValues ...[]string) (keys, values []string) {
 }
 
 var (
-	conditionStatusesV1          = []v1.ConditionStatus{v1.ConditionTrue, v1.ConditionFalse, v1.ConditionUnknown}
-	conditionStatusesExtensionV1 = []extension.ConditionStatus{extension.ConditionTrue, extension.ConditionFalse, extension.ConditionUnknown}
+	conditionStatusesV1            = []v1.ConditionStatus{v1.ConditionTrue, v1.ConditionFalse, v1.ConditionUnknown}
+	conditionStatusesExtensionV1   = []extension.ConditionStatus{extension.ConditionTrue, extension.ConditionFalse, extension.ConditionUnknown}
+	conditionStatusesAPIServicesV1 = []apiregistrationv1.ConditionStatus{apiregistrationv1.ConditionTrue, apiregistrationv1.ConditionFalse, apiregistrationv1.ConditionUnknown}
 )
 
 type ConditionStatus interface {
-	v1.ConditionStatus | extension.ConditionStatus
+	v1.ConditionStatus | extension.ConditionStatus | apiregistrationv1.ConditionStatus
 }
 
 // addConditionMetrics generates one metric for each possible condition
@@ -201,4 +206,8 @@ func addConditionMetricsV1(cs v1.ConditionStatus) []*metric.Metric {
 
 func addConditionMetricsExtensionV1(cs extension.ConditionStatus) []*metric.Metric {
 	return addConditionMetrics(cs, conditionStatusesExtensionV1)
+}
+
+func addConditionMetricsAPIServicesV1(cs apiregistrationv1.ConditionStatus) []*metric.Metric {
+	return addConditionMetrics(cs, conditionStatusesAPIServicesV1)
 }
