@@ -1,3 +1,8 @@
+// This file is licensed under the MIT License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>
+// Copyright 2014-present Datadog, Inc.
+
 package platform
 
 import (
@@ -5,6 +10,10 @@ import (
 	"unsafe"
 )
 
+// WKSTA_INFO_100 contains platform-specific information
+// see https://learn.microsoft.com/en-us/windows/win32/api/lmwksta/ns-lmwksta-wksta_info_100
+//
+//nolint:revive,unused
 type WKSTA_INFO_100 struct {
 	wki100_platform_id  uint32
 	wki100_computername string
@@ -13,6 +22,10 @@ type WKSTA_INFO_100 struct {
 	wki100_ver_minor    uint32
 }
 
+// SERVER_INFO_101 contains server-specific information
+// see https://learn.microsoft.com/en-us/windows/win32/api/lmserver/ns-lmserver-server_info_101
+//
+//nolint:revive,unused
 type SERVER_INFO_101 struct {
 	sv101_platform_id   uint32
 	sv101_name          string
@@ -22,6 +35,7 @@ type SERVER_INFO_101 struct {
 	sv101_comment       string
 }
 
+//nolint:unused
 func byteArrayToWksaInfo(data []byte) (info WKSTA_INFO_100) {
 	info.wki100_platform_id = binary.LittleEndian.Uint32(data)
 
@@ -37,12 +51,14 @@ func byteArrayToWksaInfo(data []byte) (info WKSTA_INFO_100) {
 
 	// ... and again here for the lan group name.
 	//stringptr = (*[]byte)(unsafe.Pointer(uintptr(binary.LittleEndian.Uint64(data[16:]))))
-	//info.wki100_langroup = convert_windows_string(stringptr)
+	//info.wki100_langroup = convertWindowsString(stringptr)
 
 	info.wki100_ver_major = binary.LittleEndian.Uint32(data[24:])
 	info.wki100_ver_minor = binary.LittleEndian.Uint32(data[28:])
 	return
 }
+
+//nolint:unused
 func platGetVersion(outdata *byte) (maj uint64, min uint64, err error) {
 	var info WKSTA_INFO_100
 	var dataptr []byte
@@ -61,7 +77,7 @@ func platGetServerInfo(data *byte) (si101 SERVER_INFO_101) {
 
 	// due to 64 bit packing, skip 8 bytes to get to the name string
 	//stringptr := *(*[]uint16)(unsafe.Pointer(uintptr(binary.LittleEndian.Uint64(outdata[8:]))))
-	//si101.sv101_name = convert_windows_string(stringptr)
+	//si101.sv101_name = convertWindowsString(stringptr)
 
 	si101.sv101_version_major = binary.LittleEndian.Uint32(outdata[16:])
 	si101.sv101_version_minor = binary.LittleEndian.Uint32(outdata[20:])
@@ -69,6 +85,6 @@ func platGetServerInfo(data *byte) (si101 SERVER_INFO_101) {
 
 	// again skip 4 more for byte packing, so start at 32
 	//stringptr = (*[]uint16)(unsafe.Pointer(uintptr(binary.LittleEndian.Uint32(outdata[32:]))))
-	//si101.sv101_comment = convert_windows_string(*stringptr)
+	//si101.sv101_comment = convertWindowsString(*stringptr)
 	return
 }

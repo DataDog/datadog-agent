@@ -1,3 +1,10 @@
+// This file is licensed under the MIT License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>
+// Copyright 2014-present Datadog, Inc.
+
+// Package main contains the binary related functions,
+// eg. cli parameters
 package main
 
 import (
@@ -21,11 +28,13 @@ import (
 	"github.com/DataDog/gohai/processes"
 )
 
+// Collector represents a group of information which can be collected
 type Collector interface {
 	Name() string
 	Collect() (interface{}, error)
 }
 
+// SelectedCollectors represents a set of collector names
 type SelectedCollectors map[string]struct{}
 
 var collectors = []Collector{
@@ -52,6 +61,7 @@ var (
 	goVersion string
 )
 
+// Collect fills the result map with the collector information under their name key
 func Collect() (result map[string]interface{}, err error) {
 	result = make(map[string]interface{})
 
@@ -112,6 +122,7 @@ func (sc *SelectedCollectors) String() string {
 	return fmt.Sprint(collectorSlice)
 }
 
+// Set adds the given comma-separated list of collector names to the selected set.
 func (sc *SelectedCollectors) Set(value string) error {
 	for _, collectorName := range strings.Split(value, ",") {
 		(*sc)[collectorName] = struct{}{}

@@ -1,3 +1,8 @@
+// This file is licensed under the MIT License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>
+// Copyright 2014-present Datadog, Inc.
+
 package memory
 
 import (
@@ -6,6 +11,9 @@ import (
 	"unsafe"
 )
 
+// MEMORYSTATUSEX is the type of the struct expected by GlobalMemoryStatusEx
+//
+//nolint:revive
 type MEMORYSTATUSEX struct {
 	dwLength               uint32 // size of this structure
 	dwMemoryLoad           uint32 // number 0-100 estimating %age of memory in use
@@ -32,13 +40,13 @@ func getMemoryInfoByte() (mem uint64, swap uint64, warnings []string, err error)
 	var mod = syscall.NewLazyDLL("kernel32.dll")
 	var getMem = mod.NewProc("GlobalMemoryStatusEx")
 
-	var mem_struct MEMORYSTATUSEX
+	var memStruct MEMORYSTATUSEX
 
-	mem_struct.dwLength = uint32(unsafe.Sizeof(mem_struct))
+	memStruct.dwLength = uint32(unsafe.Sizeof(memStruct))
 
-	status, _, err := getMem.Call(uintptr(unsafe.Pointer(&mem_struct)))
+	status, _, err := getMem.Call(uintptr(unsafe.Pointer(&memStruct)))
 	if status != 0 {
-		mem = mem_struct.ulTotalPhys
+		mem = memStruct.ulTotalPhys
 		err = nil
 	}
 	return

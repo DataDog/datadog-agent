@@ -1,3 +1,9 @@
+// This file is licensed under the MIT License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>
+// Copyright 2014-present Datadog, Inc.
+
+// Package memory regroups collecting information about the memory
 package memory
 
 // Memory holds memory metadata about the host
@@ -10,11 +16,15 @@ type Memory struct {
 
 const name = "memory"
 
-func (self *Memory) Name() string {
+// Name returns the name of the package
+func (memory *Memory) Name() string {
 	return name
 }
 
-func (self *Memory) Collect() (result interface{}, err error) {
+// Collect collects the Memory information.
+// Returns an object which can be converted to a JSON or an error if nothing could be collected.
+// Tries to collect as much information as possible.
+func (memory *Memory) Collect() (result interface{}, err error) {
 	result, err = getMemoryInfo()
 	return
 }

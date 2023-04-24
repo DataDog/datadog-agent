@@ -1,5 +1,10 @@
-// +build linux
-// +build !arm64
+// This file is licensed under the MIT License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>
+// Copyright 2014-present Datadog, Inc.
+
+//go:build linux && !arm64
+// +build linux,!arm64
 
 package cpu
 
@@ -28,7 +33,7 @@ var perPhysicalProcValues = []string{
 	"cpu_logical_processors",
 }
 
-func getCpuInfo() (cpuInfo map[string]string, err error) {
+func getCPUInfo() (cpuInfo map[string]string, err error) {
 	lines, err := readProcFile()
 	if err != nil {
 		return

@@ -1,3 +1,8 @@
+// This file is licensed under the MIT License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>
+// Copyright 2014-present Datadog, Inc.
+
 package cpu
 
 import (
@@ -6,11 +11,16 @@ import (
 	"unsafe"
 )
 
+// SYSTEM_LOGICAL_PROCESSOR_INFORMATION_SIZE is the size of
+// SYSTEM_LOGICAL_PROCESSOR_INFORMATION struct
+//
+//nolint:revive
 const SYSTEM_LOGICAL_PROCESSOR_INFORMATION_SIZE = 24
 
 func getSystemLogicalProcessorInformationSize() int {
 	return SYSTEM_LOGICAL_PROCESSOR_INFORMATION_SIZE
 }
+
 func byteArrayToProcessorStruct(data []byte) (info SYSTEM_LOGICAL_PROCESSOR_INFORMATION) {
 	info.ProcessorMask = uintptr(binary.LittleEndian.Uint32(data))
 	info.Relationship = int(binary.LittleEndian.Uint32(data[4:]))

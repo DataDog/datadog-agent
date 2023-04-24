@@ -1,3 +1,8 @@
+// This file is licensed under the MIT License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>
+// Copyright 2014-present Datadog, Inc.
+
 package main
 
 import (
@@ -88,11 +93,11 @@ func TestGohaiSerialization(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	gohaiJson, err := json.Marshal(gohai)
+	gohaiJSON, err := json.Marshal(gohai)
 	assert.NoError(t, err)
 
 	var payload gohaiPayload
-	assert.NoError(t, json.Unmarshal(gohaiJson, &payload))
+	assert.NoError(t, json.Unmarshal(gohaiJSON, &payload))
 
 	assert.NotEmpty(t, payload.CPU.CPUCores)
 	assert.NotEmpty(t, payload.CPU.CPULogicalProcessors)

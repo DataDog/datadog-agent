@@ -1,3 +1,8 @@
+// This file is licensed under the MIT License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>
+// Copyright 2014-present Datadog, Inc.
+
 package filesystem
 
 import (
@@ -6,14 +11,18 @@ import (
 	"unsafe"
 )
 
+// Handle represents a pointer used by FindFirstVolumeW and similar functions
 type Handle uintptr
 
-const InvalidHandle Handle = Handle(^Handle(0))
-const ERROR_moreData syscall.Errno = 234
+// InvalidHandle is the value returned in case of error
+const InvalidHandle Handle = ^Handle(0)
+
+// ERRORMoreData is the error returned when the size is not big enough
+const ERRORMoreData syscall.Errno = 234
 
 // this would probably go in a common utilities rather than here
 
-func convert_windows_string_list(winput []uint16) []string {
+func convertWindowsStringList(winput []uint16) []string {
 	var retstrings []string
 	var rsindex = 0
 
@@ -33,7 +42,7 @@ func convert_windows_string_list(winput []uint16) []string {
 }
 
 // as would this
-func convert_windows_string(winput []uint16) string {
+func convertWindowsString(winput []uint16) string {
 	var retstring string
 	for i := 0; i < len(winput); i++ {
 		if winput[i] == 0 {
@@ -80,7 +89,7 @@ func getMountPoints(vol string) []string {
 		2,
 		uintptr(unsafe.Pointer(&objlistsize)))
 
-	if status != 0 || errno != ERROR_moreData {
+	if status != 0 || errno != ERRORMoreData {
 		// unexpected
 		return retval
 	}
@@ -93,7 +102,7 @@ func getMountPoints(vol string) []string {
 	if status == 0 {
 		return retval
 	}
-	return convert_windows_string_list(buf)
+	return convertWindowsStringList(buf)
 
 }
 
@@ -108,7 +117,7 @@ func getFileSystemInfo() (interface{}, error) {
 	var sz int32 = 512
 	fh, _, _ := findFirst.Call(uintptr(unsafe.Pointer(&buf[0])),
 		uintptr(sz))
-	var findHandle Handle = Handle(fh)
+	var findHandle = Handle(fh)
 	var fileSystemInfo []interface{}
 
 	if findHandle != InvalidHandle {
@@ -117,7 +126,7 @@ func getFileSystemInfo() (interface{}, error) {
 		defer findClose.Call(fh)
 		moreData := true
 		for moreData {
-			outstring := convert_windows_string(buf)
+			outstring := convertWindowsString(buf)
 			sz, _ := getDiskSize(outstring)
 			var capacity string
 			if 0 == sz {
@@ -136,7 +145,7 @@ func getFileSystemInfo() (interface{}, error) {
 				"mounted_on": mountName,
 			}
 			fileSystemInfo = append(fileSystemInfo, iface)
-			status, _, _ := findNext.Call(uintptr(fh),
+			status, _, _ := findNext.Call(fh,
 				uintptr(unsafe.Pointer(&buf[0])),
 				uintptr(sz))
 			if 0 == status {

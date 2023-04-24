@@ -1,7 +1,12 @@
+// This file is licensed under the MIT License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>
+// Copyright 2014-present Datadog, Inc.
+
 //go:build linux || darwin
 // +build linux darwin
 
-// Extract the information on running processes from gopsutil
+// Package gops extracts the information on running processes from gopsutil
 package gops
 
 import (
@@ -16,6 +21,7 @@ import (
 	"github.com/shirou/gopsutil/v3/process"
 )
 
+// ProcessInfo contains information about a single process
 type ProcessInfo struct {
 	PID      int32
 	PPID     int32
@@ -26,20 +32,20 @@ type ProcessInfo struct {
 	Username string
 }
 
-// Return a slice of all the processes that are running
+// GetProcesses returns a slice of all the processes that are running
 func GetProcesses() ([]*ProcessInfo, error) {
 	processInfos := make([]*ProcessInfo, 0, 10)
 
 	virtMemStat, err := mem.VirtualMemory()
 	if err != nil {
-		err = fmt.Errorf("Error fetching system memory stats: %s", err)
+		err = fmt.Errorf("error fetching system memory stats: %w", err)
 		return nil, err
 	}
 	totalMem := float64(virtMemStat.Total)
 
 	pids, err := process.Pids()
 	if err != nil {
-		err = fmt.Errorf("Error fetching PIDs: %s", err)
+		err = fmt.Errorf("error fetching PIDs: %w", err)
 		return nil, err
 	}
 
@@ -47,12 +53,12 @@ func GetProcesses() ([]*ProcessInfo, error) {
 		p, err := process.NewProcess(pid)
 		if err != nil {
 			// an error can occur here only if the process has disappeared,
-			log.Debugf("Process with pid %d disappeared while scanning: %s", pid, err)
+			log.Debugf("Process with pid %d disappeared while scanning: %w", pid, err)
 			continue
 		}
 		processInfo, err := newProcessInfo(p, totalMem)
 		if err != nil {
-			log.Debugf("Error fetching info for pid %d: %s", pid, err)
+			log.Debugf("Error fetching info for pid %d: %w", pid, err)
 			continue
 		}
 
