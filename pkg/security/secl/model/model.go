@@ -149,8 +149,30 @@ type ChownEvent struct {
 	Group string    `field:"file.destination.group,handler:ResolveChownGID"` // SECLDoc[file.destination.group] Definition:`New group of the chown-ed file's owner`
 }
 
+// Releasable represents an object than can be released
+type Releasable struct {
+	OnReleaseCallback func() `field:"-"`
+}
+
+// SetReleaseCallback sets a callback to be called when the cache entry is released
+func (r *Releasable) SetReleaseCallback(callback func()) {
+	previousCallback := r.OnReleaseCallback
+	r.OnReleaseCallback = func() {
+		callback()
+		if previousCallback != nil {
+			previousCallback()
+		}
+	}
+}
+
+// Release triggers the callback
+func (r *Releasable) OnRelease() {
+	r.OnReleaseCallback()
+}
+
 // ContainerContext holds the container context of an event
 type ContainerContext struct {
+	Releasable
 	ID        string   `field:"id,handler:ResolveContainerID"`                              // SECLDoc[id] Definition:`ID of the container`
 	CreatedAt uint64   `field:"created_at,handler:ResolveContainerCreatedAt"`               // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
 	Tags      []string `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
@@ -1228,12 +1250,18 @@ func (pl *PathLeaf) MarshalBinary() ([]byte, error) {
 // ExtraFieldHandlers handlers not hold by any field
 type ExtraFieldHandlers interface {
 	ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool)
+	ResolveContainerContext(ev *Event) (*ContainerContext, bool)
 	ResolveEventTime(ev *Event) time.Time
 	GetProcessService(ev *Event) string
 }
 
 // ResolveProcessCacheEntry stub implementation
 func (dfh *DefaultFieldHandlers) ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool) {
+	return nil, false
+}
+
+// ResolveContainerContext stub implementation
+func (dfh *DefaultFieldHandlers) ResolveContainerContext(ev *Event) (*ContainerContext, bool) {
 	return nil, false
 }
 
