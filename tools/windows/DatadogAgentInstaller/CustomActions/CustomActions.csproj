@@ -57,14 +57,17 @@
   <ItemGroup>
     <Compile Include="CiInfo.cs" />
     <Compile Include="CleanUpFilesCustomAction.cs" />
+    <Compile Include="ClosedSourceComponentsCustomActions.cs" />
     <Compile Include="ConfigCustomActions.cs" />
     <Compile Include="Constants.cs" />
     <Compile Include="Flare.cs" />
+    <Compile Include="Interfaces\IFeatureInfo.cs" />
     <Compile Include="Interfaces\IInstallerHttpClient.cs" />
     <Compile Include="Interfaces\InstallerWebClient.cs" />
     <Compile Include="Interfaces\InstallInfoCustomActions.cs" />
     <Compile Include="MsiLogCustomActions.cs" />
     <Compile Include="Native\DirectoryServices.cs" />
+    <Compile Include="Native\FeatureInfoAdapter.cs" />
     <Compile Include="Native\FileServices.cs" />
     <Compile Include="Interfaces\IDirectoryServices.cs" />
     <Compile Include="Interfaces\IFileServices.cs" />

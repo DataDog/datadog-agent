@@ -52,6 +52,7 @@ namespace WixSetup.Datadog
             {
                 _agentVersion = new AgentVersion(version);
             }
+
             _agentBinaries = new AgentBinaries(BinSource, InstallerSource);
             _agentSignature = new AgentSignature(this, _agentPython, _agentBinaries);
             _agentInstallerUi = new AgentInstallerUI(this, _agentCustomActions);
@@ -92,6 +93,10 @@ namespace WixSetup.Datadog
                 {
                     AttributesDefinition = "Secure=yes",
                 },
+                new Property("ALLOWCLOSEDSOURCE")
+                {
+                    AttributesDefinition = "Secure=yes",
+                },
                 // Add a checkbox at the end of the setup to launch the Datadog Agent Manager
                 new LaunchCustomApplicationFromExitDialog(
                     _agentBinaries.TrayId,
@@ -116,11 +121,7 @@ namespace WixSetup.Datadog
                     // Store these properties in the registry for retrieval by future
                     // installer runs via the ReadInstallState CA.
                     new RegValue("InstallPath", "[PROJECTLOCATION]") { Win64 = true },
-                    new RegValue("ConfigRoot", "[APPLICATIONDATADIRECTORY]") { Win64 = true },
-                    new RegValue("installedDomain", "[DDAGENTUSER_PROCESSED_DOMAIN]") { Win64 = true },
-                    new RegValue("installedUser", "[DDAGENTUSER_PROCESSED_NAME]") { Win64 = true },
-                    // Needs to be a DWORD
-                    new RegValue("AllowClosedSource", "[ALLOWCLOSEDSOURCE]") { Win64 = true, Type = "integer" }
+                    new RegValue("ConfigRoot", "[APPLICATIONDATADIRECTORY]") { Win64 = true }
                 )
                 {
                     Win64 = true
@@ -171,7 +172,8 @@ namespace WixSetup.Datadog
                     new Dir("logs")
                 );
 
-            project.SetNetFxPrerequisite(Condition.Net45_Installed, "This application requires the .Net Framework 4.5, or later to be installed.");
+            project.SetNetFxPrerequisite(Condition.Net45_Installed,
+                "This application requires the .Net Framework 4.5, or later to be installed.");
 
             // NineDigit.WixSharpExtensions SetProductInfo prohibits setting the revision, so we must do it here instead.
             // The revision is ignored by WiX during upgrades, so it is only useful for documentation purposes.
@@ -211,7 +213,8 @@ namespace WixSetup.Datadog
                 WixSourceGenerated?.Invoke(document);
                 document
                     .Select("Wix/Product")
-                    .AddElement("MediaTemplate", "CabinetTemplate=cab{0}.cab; CompressionLevel=high; EmbedCab=yes; MaximumUncompressedMediaSize=2");
+                    .AddElement("MediaTemplate",
+                        "CabinetTemplate=cab{0}.cab; CompressionLevel=high; EmbedCab=yes; MaximumUncompressedMediaSize=2");
                 document
                     .FindAll("RemoveFolder")
                     .Where(x => x.HasAttribute("Id",
@@ -229,7 +232,9 @@ namespace WixSetup.Datadog
                     .AddElement("CustomActionRef", "Id=WixFailWhenDeferred");
                 document
                     .Select("Wix/Product/InstallExecuteSequence")
-                    .AddElement("DeleteServices", value: "(Installed AND (REMOVE=\"ALL\") AND NOT (WIX_UPGRADE_DETECTED OR UPGRADINGPRODUCTCODE))");
+                    .AddElement("DeleteServices",
+                        value:
+                        "(Installed AND (REMOVE=\"ALL\") AND NOT (WIX_UPGRADE_DETECTED OR UPGRADINGPRODUCTCODE))");
 
                 // We don't use the Wix "Merge" MSM feature because it seems to be a no-op...
                 document
@@ -240,7 +245,7 @@ namespace WixSetup.Datadog
                         $"Id=ddnpminstall; SourceFile={BinSource}\\agent\\DDNPM.msm; DiskId=1; Language=1033");
                 document
                     .FindAll("Feature")
-                    .First(x => x.HasAttribute("Id", value => value == "NPM"))
+                    .First(x => x.HasAttribute("Id", value => value == "MainApplication"))
                     .AddElement("MergeRef", "Id=ddnpminstall");
             };
             project.WixSourceFormated += (ref string content) => WixSourceFormated?.Invoke(content);
@@ -262,8 +267,9 @@ namespace WixSetup.Datadog
                 var uninstalling = args.Session.Property("Uninstalling");
 
                 var firstInstall = string.IsNullOrEmpty(installed) && string.IsNullOrEmpty(wixUpgradeDetected);
-                var upgrade =  !string.IsNullOrEmpty(wixUpgradeDetected) && remove != "ALL";
-                var uninstall =  !string.IsNullOrEmpty(installed) && remove == "ALL" && !(!string.IsNullOrEmpty(wixUpgradeDetected) || !string.IsNullOrEmpty(upgradingProductCode));
+                var upgrade = !string.IsNullOrEmpty(wixUpgradeDetected) && remove != "ALL";
+                var uninstall =
+ !string.IsNullOrEmpty(installed) && remove == "ALL" && !(!string.IsNullOrEmpty(wixUpgradeDetected) || !string.IsNullOrEmpty(upgradingProductCode));
                 var maintenance = !string.IsNullOrEmpty(installed) && string.IsNullOrEmpty(uninstalling) &&
                                   !string.IsNullOrEmpty(upgradingProductCode);
                 var removingForUpgrade = remove == "ALL" && !string.IsNullOrEmpty(upgradingProductCode);
@@ -292,7 +298,7 @@ namespace WixSetup.Datadog
                     targetBinFolder,
                     new Dir("LICENSES",
                         new Files($@"{InstallerSource}\LICENSES\*")
-                        ),
+                    ),
                     new DirFiles($@"{InstallerSource}\*.json"),
                     new DirFiles($@"{InstallerSource}\*.txt"),
                     new CompressedDir(this, "embedded3", $@"{InstallerSource}\embedded3")
@@ -301,6 +307,7 @@ namespace WixSetup.Datadog
             {
                 binFolder.AddFile(new CompressedDir(this, "embedded2", $@"{InstallerSource}\embedded2"));
             }
+
             return binFolder;
         }
 
@@ -390,7 +397,8 @@ namespace WixSetup.Datadog
 
         private Dir CreateBinFolder()
         {
-            var agentService = GenerateServiceInstaller(Constants.AgentServiceName, "Datadog Agent", "Send metrics to Datadog");
+            var agentService =
+                GenerateServiceInstaller(Constants.AgentServiceName, "Datadog Agent", "Send metrics to Datadog");
             var processAgentService = GenerateDependentServiceInstaller(
                 new Id("ddagentprocessservice"),
                 Constants.ProcessAgentServiceName,
@@ -458,7 +466,8 @@ namespace WixSetup.Datadog
             if (_agentPython.IncludePython2)
             {
                 targetBinFolder.AddFile(new WixSharp.File(_agentBinaries.LibDatadogAgentTwo));
-            };
+            }
+
             return targetBinFolder;
         }
 
