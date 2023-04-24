@@ -23,10 +23,11 @@ namespace WixSetup.Datadog
                 Attributes = new Dictionary<string, string>
                 {
                     {"AllowAdvertise", "no"},
-                    {"Absent", "disallow"},
+                    {"Absent", "allow"},
                     {"Display", "hidden"},
                     {"InstallDefault", "local"},
                     {"TypicalDefault", "install"},
+                    {"Level", "100"}
                 }
             };
 
