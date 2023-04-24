@@ -36,6 +36,12 @@ func (m *MockSender) AssertMonotonicCount(t *testing.T, method string, metric st
 	return m.Mock.AssertCalled(t, method, metric, value, hostname, MatchTagsContains(tags), flushFirstValue)
 }
 
+// AssertMonotonicCountWithNegativeValue allows to assert a monotonic count was emitted with given parameters.
+// Additional tags over the ones specified don't make it fail
+func (m *MockSender) AssertMonotonicCountWithNegativeValue(t *testing.T, metric string, value float64, hostname string, tags []string, allowNegativeValue bool) bool {
+	return m.Mock.AssertCalled(t, "MonotonicCountWithAllowNegativeValue", metric, value, hostname, MatchTagsContains(tags), allowNegativeValue)
+}
+
 // AssertHistogramBucket allows to assert a histogram bucket was emitted with given parameters.
 // Additional tags over the ones specified don't make it fail
 func (m *MockSender) AssertHistogramBucket(t *testing.T, method string, metric string, value int64, lowerBound float64, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) bool {

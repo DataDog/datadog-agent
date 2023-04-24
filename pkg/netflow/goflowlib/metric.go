@@ -7,7 +7,6 @@ package goflowlib
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	promClient "github.com/prometheus/client_model/go"
 )
 
@@ -19,6 +18,7 @@ type mappedMetric struct {
 	valueRemapper  map[string]remapperType
 	keyRemapper    map[string]string
 	extraTags      []string
+	forcedType     string
 }
 
 func (m mappedMetric) isAllowedTagKey(tagKey string) bool {
@@ -90,7 +90,8 @@ var metricNameMapping = map[string]mappedMetric{
 		keyRemapper: map[string]string{
 			"router": "device_ip",
 		},
-		extraTags: []string{"flow_protocol:netflow"},
+		extraTags:  []string{"flow_protocol:netflow"},
+		forcedType: "monotonic_count_with_allow_negative_value",
 	},
 	"flow_process_nf_missing_packets": {
 		name:           "processor.missing_packets",
@@ -98,7 +99,8 @@ var metricNameMapping = map[string]mappedMetric{
 		keyRemapper: map[string]string{
 			"router": "device_ip",
 		},
-		extraTags: []string{"flow_protocol:netflow"},
+		extraTags:  []string{"flow_protocol:netflow"},
+		forcedType: "monotonic_count_with_allow_negative_value",
 	},
 	"flow_traffic_bytes": {
 		name:           "traffic.bytes",
@@ -152,33 +154,36 @@ func remapFlowset(flowset string) string {
 
 // ConvertMetric converts prometheus metric to datadog compatible metrics
 func ConvertMetric(metric *promClient.Metric, metricFamily *promClient.MetricFamily) (
-	metrics.MetricType, // metric type
+	string, // metric type
 	string, // metric name
 	float64, // metric value
 	[]string, // metric tags
 	error,
 ) {
-	var ddMetricType metrics.MetricType
+	var ddMetricType string
 	var floatValue float64
 	var tags []string
 
 	origMetricName := metricFamily.GetName()
 	aMappedMetric, ok := metricNameMapping[origMetricName]
 	if !ok {
-		return 0, "", 0, nil, fmt.Errorf("metric mapping not found for %s", origMetricName)
+		return "", "", 0, nil, fmt.Errorf("metric mapping not found for %s", origMetricName)
 	}
 
 	promMetricType := metricFamily.GetType()
 	switch promMetricType {
 	case promClient.MetricType_COUNTER:
 		floatValue = metric.GetCounter().GetValue()
-		ddMetricType = metrics.MonotonicCountType
+		ddMetricType = "monotonic_count"
 	case promClient.MetricType_GAUGE:
 		floatValue = metric.GetGauge().GetValue()
-		ddMetricType = metrics.GaugeType
+		ddMetricType = "gauge"
 	default:
 		name := promClient.MetricType_name[int32(promMetricType)]
-		return 0, "", 0, nil, fmt.Errorf("metric type `%s` (%d) not supported", name, promMetricType)
+		return "", "", 0, nil, fmt.Errorf("metric type `%s` (%d) not supported", name, promMetricType)
+	}
+	if aMappedMetric.forcedType != "" {
+		ddMetricType = aMappedMetric.forcedType
 	}
 
 	for _, labelPair := range metric.GetLabel() {

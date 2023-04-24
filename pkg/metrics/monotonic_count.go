@@ -28,7 +28,8 @@ type MonotonicCount struct {
 	//    reset from 0.
 	// This flag is used (for example) by the openmetrics check after its first run, to better
 	// support openmetrics monotonic counters.
-	flushFirstValue bool
+	flushFirstValue    bool
+	allowNegativeValue bool
 }
 
 func (mc *MonotonicCount) addSample(sample *MetricSample, timestamp float64) {
@@ -41,11 +42,12 @@ func (mc *MonotonicCount) addSample(sample *MetricSample, timestamp float64) {
 	}
 
 	mc.flushFirstValue = sample.FlushFirstValue
+	mc.allowNegativeValue = sample.AllowNegativeValue
 
 	// To handle cases where the samples are not monotonically increasing, we always add the difference
 	// between 2 consecutive samples to the value that'll be flushed (if the difference is >0).
 	diff := mc.currentSample - mc.previousSample
-	if (mc.hasPreviousSample || mc.flushFirstValue) && diff >= 0. {
+	if mc.allowNegativeValue || ((mc.hasPreviousSample || mc.flushFirstValue) && (diff >= 0.)) {
 		mc.value += diff
 	} else if mc.flushFirstValue {
 		mc.value = mc.currentSample
@@ -53,7 +55,7 @@ func (mc *MonotonicCount) addSample(sample *MetricSample, timestamp float64) {
 }
 
 func (mc *MonotonicCount) flush(timestamp float64) ([]*Serie, error) {
-	if !mc.sampledSinceLastFlush || !(mc.hasPreviousSample || mc.flushFirstValue) {
+	if !mc.sampledSinceLastFlush || !(mc.hasPreviousSample || mc.flushFirstValue || mc.allowNegativeValue) {
 		return []*Serie{}, NoSerieError{}
 	}
 
@@ -63,6 +65,7 @@ func (mc *MonotonicCount) flush(timestamp float64) ([]*Serie, error) {
 	mc.hasPreviousSample = true
 	mc.sampledSinceLastFlush = false
 	mc.flushFirstValue = false
+	mc.allowNegativeValue = false
 
 	return []*Serie{
 		{

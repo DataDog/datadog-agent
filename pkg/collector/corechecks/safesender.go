@@ -64,6 +64,11 @@ func (ss *safeSender) MonotonicCountWithFlushFirstValue(metric string, value flo
 	ss.Sender.MonotonicCountWithFlushFirstValue(metric, value, hostname, cloneTags(tags), flushFirstValue)
 }
 
+// MonotonicCountWithAllowNegativeValue implememnts aggregator.Sender#MonotonicCountWithAllowNegativeValue.
+func (ss *safeSender) MonotonicCountWithAllowNegativeValue(metric string, value float64, hostname string, tags []string, allowNegativeValue bool) {
+	ss.Sender.MonotonicCountWithAllowNegativeValue(metric, value, hostname, cloneTags(tags), allowNegativeValue)
+}
+
 // Counter implememnts aggregator.Sender#Counter.
 func (ss *safeSender) Counter(metric string, value float64, hostname string, tags []string) {
 	ss.Sender.Counter(metric, value, hostname, cloneTags(tags))
