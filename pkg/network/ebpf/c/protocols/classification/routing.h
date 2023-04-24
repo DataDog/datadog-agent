@@ -77,6 +77,7 @@ static __always_inline void classification_next_program(struct __sk_buff *skb, u
 }
 
 static __always_inline void init_routing_cache(usm_context_t *usm_ctx, protocol_stack_t *stack) {
+    usm_ctx->routing_known_layers = 0;
     usm_ctx->routing_current_program = CLASSIFICATION_PROG_UNKNOWN;
 
     if (is_fully_classified(stack)) {
