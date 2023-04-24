@@ -99,6 +99,20 @@ func newSysprobeConfig(configPath string, loadSecrets bool) (*Config, error) {
 	// load the configuration
 	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", loadSecrets, aconfig.Datadog.GetEnvVars())
 	if err != nil {
+		if errors.Is(err, os.ErrPermission) {
+			if runtime.GOOS == "darwin" {
+				log.Infof("Error loading config: %v (check config file permissions for dd-agent user)", err)
+			} else {
+				log.Warnf("Error loading config: %v", err)
+			}
+		} else {
+			if runtime.GOOS == "darwin" {
+				log.Infof("Error loading config: %v (check config file permissions for dd-agent user)", err)
+			} else {
+				log.Warnf("Error loading config: %v", err)
+			}
+		}
+
 		var e viper.ConfigFileNotFoundError
 		if errors.As(err, &e) || errors.Is(err, os.ErrNotExist) {
 			// do nothing, we can ignore a missing system-probe.yaml config file
