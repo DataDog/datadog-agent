@@ -99,6 +99,7 @@ platforms:
       windows = platform_name.include?("win")
       sles15 = platform_name.include?("sles-15")
       windows2008 = windows && platform_name.include?("2008")
+      debian-9 = platform_name.include?("debian-9")
 
       if windows
         windows_platforms << platform_name
@@ -171,6 +172,13 @@ platforms:
         sudo chmod a+rwx <%= ENV['KITCHEN_CI_MOUNT_PATH'] %>;
         sudo ln -s <%= ENV['KITCHEN_CI_MOUNT_PATH'] %> <%= ENV['KITCHEN_CI_ROOT_PATH'] %>;
   <% end %>
+
+  <% if debian-9 %>
+  driver:
+    custom_data:
+      runcmd:
+        - sudo bash -c 'echo "deb http://archive.debian.org/debian/ stretch main" >> /etc/apt/sources.list'
+  <% end%>
 
   transport:
     <% if windows %>
