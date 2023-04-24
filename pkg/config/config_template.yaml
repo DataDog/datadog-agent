@@ -564,20 +564,6 @@ api_key:
   #
   # local_address: localhost
 
-  ## @param https - boolean - optional - default: true
-  ## @env DD_FIPS_HTTPS - boolean - optional - default: true
-  ## Use HTTPS when communicating with the FIPS proxy.
-  #
-  # https: true
-
-  ## @param port_range_start - integer - optional - default: 9803
-  ## @env DD_FIPS_LOCAL_PORT_RANGE_START - integer - optional - default: 9803
-  ## The FIPS proxy will bind a range of consecutive ports, each dedicated to a specific product (Metrics, Logs, APM.
-  ## Database monitoring, ...). 'port_range_start' is the first port in this range. The Agent will automatically assign
-  ## the right port to the right product based on this information.
-  #
-  # port_range_start: 3833
-
 ## @param observability_pipelines_worker - custom object - optional
 ## Configuration for forwarding telemetry to an Observability Pipelines Worker instead of Datadog.
 ## https://www.datadoghq.com/product/observability-pipelines/
