@@ -149,19 +149,6 @@ func start(log log.Component, config config.Component, forwarder defaultforwarde
 		pkglog.Debugf("Health check listening on port %d", healthPort)
 	}
 
-	// Initialize remote configuration
-	var rcClient *remote.Client
-	if pkgconfig.Datadog.GetBool("remote_configuration.enabled") {
-		var err error
-		rcClient, err = initializeRemoteConfig(mainCtx)
-		if err != nil {
-			log.Errorf("Failed to start remote-configuration: %v", err)
-		} else {
-			rcClient.Start()
-			defer rcClient.Close()
-		}
-	}
-
 	// Starting server early to ease investigations
 	if err := api.StartServer(); err != nil {
 		return fmt.Errorf("Error while starting agent API, exiting: %v", err)
@@ -238,6 +225,20 @@ func start(log log.Component, config config.Component, forwarder defaultforwarde
 		}
 	} else {
 		pkglog.Info("Orchestrator explorer is disabled")
+	}
+
+	// Initialize remote configuration - needs to be done after the cluster ID has been created
+	// (if it's going to be) by the cluster-agent so that info can be reported back to the backend.
+	var rcClient *remote.Client
+	if pkgconfig.Datadog.GetBool("remote_configuration.enabled") {
+		var err error
+		rcClient, err = initializeRemoteConfig(mainCtx)
+		if err != nil {
+			log.Errorf("Failed to start remote-configuration: %v", err)
+		} else {
+			rcClient.Start()
+			defer rcClient.Close()
+		}
 	}
 
 	// FIXME: move LoadComponents and AC.LoadAndRun in their own package so we
