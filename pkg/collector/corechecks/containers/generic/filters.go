@@ -51,8 +51,11 @@ func (f LegacyContainerFilter) IsExcluded(container *workloadmeta.Container) boo
 		return false
 	}
 	var annotations map[string]string
-	if pod, err := workloadmeta.GetGlobalStore().GetKubernetesPodForContainer(container.Owner.ID); err == nil {
-		annotations = pod.Annotations
+	store := workloadmeta.GetGlobalStore()
+	if store != nil {
+		if pod, err := store.GetKubernetesPodForContainer(container.Owner.ID); err == nil {
+			annotations = pod.Annotations
+		}
 	}
 
 	return f.OldFilter.IsExcluded(annotations, container.Name, container.Image.Name, container.Labels[kubernetes.CriContainerNamespaceLabel])

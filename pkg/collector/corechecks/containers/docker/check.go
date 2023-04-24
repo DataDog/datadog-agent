@@ -212,8 +212,11 @@ func (d *DockerCheck) runDockerCustom(sender aggregator.Sender, du docker.Client
 			containerName = rawContainer.Names[0]
 		}
 		var annotations map[string]string
-		if pod, err := workloadmeta.GetGlobalStore().GetKubernetesPodForContainer(rawContainer.ID); err == nil {
-			annotations = pod.Annotations
+		store := workloadmeta.GetGlobalStore()
+		if store != nil {
+			if pod, err := store.GetKubernetesPodForContainer(rawContainer.ID); err == nil {
+				annotations = pod.Annotations
+			}
 		}
 
 		isContainerExcluded := d.containerFilter.IsExcluded(annotations, containerName, resolvedImageName, rawContainer.Labels[kubernetes.CriContainerNamespaceLabel])
