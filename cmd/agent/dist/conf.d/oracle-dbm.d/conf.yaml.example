@@ -78,12 +78,12 @@ instances:
       #
       # enabled: true
 
-  ## Configure query metrics collection for Datadog agent queries
+  ## Configure query metrics collection for Datadog agent statements
   #
   # include_datadog_queries: false
 
       ## @param enabled - boolean - optional - default: false
-      ## Enable collection of query metrics for Datadog agent queries. Requires `dbm: true` and `query_metrics: true`
+      ## Enable collection of query metrics. Requires `dbm: true` and `query_metrics: true`
       #
       # enabled: false
 
