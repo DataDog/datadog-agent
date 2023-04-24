@@ -31,6 +31,11 @@ func (m *MockSender) MonotonicCountWithFlushFirstValue(metric string, value floa
 	m.Called(metric, value, hostname, tags, flushFirstValue)
 }
 
+// MonotonicCountWithFlushFirstValueAndSkipNonMonotonicValue adds a monotonic count type to the mock calls with flushFirstValue and skipNonMonotonicValue parameters
+func (m *MockSender) MonotonicCountWithFlushFirstValueAndSkipNonMonotonicValue(metric string, value float64, hostname string, tags []string, flushFirstValue bool, skipNonMonotonicValue bool) {
+	m.Called(metric, value, hostname, tags, flushFirstValue, skipNonMonotonicValue)
+}
+
 // Counter adds a counter type to the mock calls.
 func (m *MockSender) Counter(metric string, value float64, hostname string, tags []string) {
 	m.Called(metric, value, hostname, tags)

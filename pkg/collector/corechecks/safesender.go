@@ -64,6 +64,11 @@ func (ss *safeSender) MonotonicCountWithFlushFirstValue(metric string, value flo
 	ss.Sender.MonotonicCountWithFlushFirstValue(metric, value, hostname, cloneTags(tags), flushFirstValue)
 }
 
+// MonotonicCountWithFlushFirstValueAndSkipNonMonotonicValue implememnts aggregator.Sender#MonotonicCountWithFlushFirstValueAndSkipNonMonotonicValue.
+func (ss *safeSender) MonotonicCountWithFlushFirstValueAndSkipNonMonotonicValue(metric string, value float64, hostname string, tags []string, flushFirstValue bool, skipNonMonotonicValue bool) {
+	ss.Sender.MonotonicCountWithFlushFirstValueAndSkipNonMonotonicValue(metric, value, hostname, cloneTags(tags), flushFirstValue, skipNonMonotonicValue)
+}
+
 // Counter implememnts aggregator.Sender#Counter.
 func (ss *safeSender) Counter(metric string, value float64, hostname string, tags []string) {
 	ss.Sender.Counter(metric, value, hostname, cloneTags(tags))

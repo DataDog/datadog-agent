@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
@@ -267,12 +266,14 @@ func (agg *FlowAggregator) submitCollectorMetrics() error {
 				continue
 			}
 			switch metricType {
-			case metrics.GaugeType:
+			case "gauge":
 				agg.sender.Gauge(metricPrefix+name, value, "", tags)
-			case metrics.MonotonicCountType:
+			case "monotonic_count":
 				agg.sender.MonotonicCount(metricPrefix+name, value, "", tags)
+			case "monotonic_count_with_flush_first_value_and_skip_non_monotonic_value":
+				agg.sender.MonotonicCountWithFlushFirstValueAndSkipNonMonotonicValue(metricPrefix+name, value, "", tags, true, true)
 			default:
-				log.Debugf("cannot submit unsupported type %s", metricType.String())
+				log.Debugf("cannot submit unsupported type %s", metricType)
 			}
 		}
 	}

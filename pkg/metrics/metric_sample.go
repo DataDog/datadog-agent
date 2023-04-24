@@ -83,19 +83,20 @@ type MetricSampleContext interface {
 
 // MetricSample represents a raw metric sample
 type MetricSample struct {
-	Name             string
-	Value            float64
-	RawValue         string
-	Mtype            MetricType
-	Tags             []string
-	Host             string
-	SampleRate       float64
-	Timestamp        float64
-	FlushFirstValue  bool
-	OriginFromUDS    string
-	OriginFromClient string
-	Cardinality      string
-	NoIndex          bool
+	Name                  string
+	Value                 float64
+	RawValue              string
+	Mtype                 MetricType
+	Tags                  []string
+	Host                  string
+	SampleRate            float64
+	Timestamp             float64
+	FlushFirstValue       bool
+	SkipNonMonotonicValue bool
+	OriginFromUDS         string
+	OriginFromClient      string
+	Cardinality           string
+	NoIndex               bool
 }
 
 // Implement the MetricSampleContext interface

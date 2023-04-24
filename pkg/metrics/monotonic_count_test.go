@@ -213,3 +213,142 @@ func TestMonotonicCount_FlushFirstValue(t *testing.T) {
 	assert.NotNil(t, err)
 	assert.Len(t, series, 0)
 }
+
+func TestMonotonicCount_SkipNonMonotonicValue(t *testing.T) {
+	// Initialize monotonic counts
+	monotonicCount1 := MonotonicCount{}
+	monotonicCount2 := MonotonicCount{}
+
+	// use a constant timestamp for all submissions and flushes. It's not relevant for these tests.
+	timestamp := 1.
+
+	tests := []struct {
+		desc                  string
+		monotonicCount        *MonotonicCount
+		sampleValue           float64
+		skipNonMonotonicValue bool
+		flushFirstValue       bool
+		expectsError          bool
+		expectedFlushedValue  float64
+	}{
+		{
+			"1: Flush after first sample and skipNonMonotonicValue enabled: flush value as-is",
+			&monotonicCount1,
+			10.,
+			true,
+			true,
+			false,
+			10.,
+		},
+		{
+			"1: Flush after another sample with a lower value and skipNonMonotonicValue enabled: no flush",
+			&monotonicCount1,
+			8.,
+			true,
+			true,
+			false,
+			0.,
+		},
+		{
+			"1: Flush after another sample with a higher value and skipNonMonotonicValue enabled: flush 0",
+			&monotonicCount1,
+			10.,
+			true,
+			true,
+			false,
+			0.,
+		},
+		{
+			"1: Flush after another sample with the same value and skipNonMonotonicValue enabled: flush 0",
+			&monotonicCount1,
+			10.,
+			true,
+			true,
+			false,
+			0.,
+		},
+		{
+			"1: Flush after another sample with higher value and skipNonMonotonicValue enabled: flush 0",
+			&monotonicCount1,
+			12.,
+			true,
+			true,
+			false,
+			2.,
+		},
+		{
+			"1: Flush after another sample with a lower value and skipNonMonotonicValue disabled: flush 0",
+			&monotonicCount1,
+			6.,
+			false,
+			true,
+			false,
+			6.,
+		},
+		{
+			"1: Flush after another sample with a higher value and skipNonMonotonicValue disabled: flush diff",
+			&monotonicCount1,
+			9.,
+			true,
+			true,
+			false,
+			3.,
+		},
+		{
+			"2: Flush after first sample and skipNonMonotonicValue disabled: error, flush nothing",
+			&monotonicCount2,
+			10.,
+			false,
+			false,
+			true,
+			0.,
+		},
+		{
+			"2: Flush after another sample with a higher value and skipNonMonotonicValue enabled: flush diff",
+			&monotonicCount2,
+			12.,
+			true,
+			false,
+			false,
+			2.,
+		},
+		{
+			"2: Flush after another sample with a lower value and skipNonMonotonicValue enabled: flush value as-is",
+			&monotonicCount2,
+			10.,
+			true,
+			false,
+			false,
+			0.,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			tt.monotonicCount.addSample(&MetricSample{Value: tt.sampleValue, SkipNonMonotonicValue: tt.skipNonMonotonicValue, FlushFirstValue: tt.flushFirstValue}, timestamp)
+			series, err := tt.monotonicCount.flush(timestamp)
+			if tt.expectsError {
+				assert.NotNil(t, err)
+				assert.Len(t, series, 0)
+			} else {
+				assert.Nil(t, err)
+				if assert.Len(t, series, 1) && assert.Len(t, series[0].Points, 1) {
+					if tt.expectedFlushedValue == 0. {
+						assert.Equal(t, 0., series[0].Points[0].Value, epsilon)
+					} else {
+						assert.InEpsilon(t, tt.expectedFlushedValue, series[0].Points[0].Value, epsilon)
+					}
+					assert.EqualValues(t, timestamp, series[0].Points[0].Ts)
+				}
+			}
+		})
+	}
+
+	// at the end of all the tests, both monotonic counters should flush no value if no further samples are submitted
+	series, err := monotonicCount1.flush(timestamp)
+	assert.NotNil(t, err)
+	assert.Len(t, series, 0)
+	series, err = monotonicCount2.flush(timestamp)
+	assert.NotNil(t, err)
+	assert.Len(t, series, 0)
+}

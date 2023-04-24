@@ -32,7 +32,10 @@ type MonotonicCount struct {
 }
 
 func (mc *MonotonicCount) addSample(sample *MetricSample, timestamp float64) {
-	if !mc.sampledSinceLastFlush {
+	if sample.SkipNonMonotonicValue && mc.hasPreviousSample && (mc.previousSample > sample.Value) {
+		mc.currentSample = mc.previousSample
+		mc.sampledSinceLastFlush = true
+	} else if !mc.sampledSinceLastFlush {
 		mc.currentSample = sample.Value
 		mc.sampledSinceLastFlush = true
 	} else {
