@@ -7,11 +7,14 @@ package flowaggregator
 
 import (
 	"encoding/json"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
+
+	"github.com/netsampler/goflow2/utils"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
@@ -45,6 +48,7 @@ type FlowAggregator struct {
 	hostname                     string
 	goflowPrometheusGatherer     prometheus.Gatherer
 	timeNowFunction              func() time.Time // Allows to mock time in tests
+	lastMetricValue              map[string]float64
 }
 
 // NewFlowAggregator returns a new FlowAggregator
@@ -67,6 +71,7 @@ func NewFlowAggregator(sender aggregator.Sender, epForwarder epforwarder.EventPl
 		hostname:                     hostname,
 		goflowPrometheusGatherer:     prometheus.DefaultGatherer,
 		timeNowFunction:              time.Now,
+		lastMetricValue:              make(map[string]float64),
 	}
 }
 
@@ -269,6 +274,18 @@ func (agg *FlowAggregator) submitCollectorMetrics() error {
 			switch metricType {
 			case metrics.GaugeType:
 				agg.sender.Gauge(metricPrefix+name, value, "", tags)
+				sort.Strings(tags)
+				key := metricPrefix + name + strings.Join(tags, ",")
+				if metricPrefix+name == "datadog.netflow.processor.missing_flows" {
+					diff := int(value - agg.lastMetricValue[key])
+					if diff <= utils.MaxNegativeFlowsSequenceDifference {
+						// since the diff is negative MonotonicCount will reset the value
+					} else if diff < 0 {
+						value = agg.lastMetricValue[key]
+					}
+					agg.lastMetricValue[key] = value
+					agg.sender.MonotonicCountWithFlushFirstValue(metricPrefix+name+"_count", value, "", tags, true)
+				}
 			case metrics.MonotonicCountType:
 				agg.sender.MonotonicCount(metricPrefix+name, value, "", tags)
 			default:
