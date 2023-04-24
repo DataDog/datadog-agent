@@ -721,28 +721,29 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 	t.Cleanup(tr.Stop)
 	require.NotNil(t, tr.gwLookup)
 
+	ns1 := netlinktestutil.AddNS(t)
+	ns2 := netlinktestutil.AddNS(t)
+
 	// setup two network namespaces
 	state := testutil.IptablesSave(t)
 	cmds := []string{
 		"ip link add br0 type bridge",
 		"ip addr add 2.2.2.1/24 broadcast 2.2.2.255 dev br0",
-		"ip netns add test1",
-		"ip netns add test2",
 		"ip link add veth1 type veth peer name veth2",
 		"ip link set veth1 master br0",
-		"ip link set veth2 netns test1",
-		"ip -n test1 addr add 2.2.2.2/24 broadcast 2.2.2.255 dev veth2",
+		fmt.Sprintf("ip link set veth2 netns %s", ns1),
+		fmt.Sprintf("ip -n %s addr add 2.2.2.2/24 broadcast 2.2.2.255 dev veth2", ns1),
 		"ip link add veth3 type veth peer name veth4",
 		"ip link set veth3 master br0",
-		"ip link set veth4 netns test2",
-		"ip -n test2 addr add 2.2.2.3/24 broadcast 2.2.2.255 dev veth4",
+		fmt.Sprintf("ip link set veth4 netns %s", ns2),
+		fmt.Sprintf("ip -n %s addr add 2.2.2.3/24 broadcast 2.2.2.255 dev veth4", ns2),
 		"ip link set br0 up",
 		"ip link set veth1 up",
-		"ip -n test1 link set veth2 up",
+		fmt.Sprintf("ip -n %s link set veth2 up", ns1),
 		"ip link set veth3 up",
-		"ip -n test2 link set veth4 up",
-		"ip -n test1 r add default via 2.2.2.1",
-		"ip -n test2 r add default via 2.2.2.1",
+		fmt.Sprintf("ip -n %s link set veth4 up", ns2),
+		fmt.Sprintf("ip -n %s r add default via 2.2.2.1", ns1),
+		fmt.Sprintf("ip -n %s r add default via 2.2.2.1", ns2),
 		"iptables -I POSTROUTING 1 -t nat -s 2.2.2.0/24 ! -d 2.2.2.0/24 -j MASQUERADE",
 		"iptables -I FORWARD -i br0 -j ACCEPT",
 		"iptables -I FORWARD -o br0 -j ACCEPT",
@@ -754,8 +755,6 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 			"ip link del veth1",
 			"ip link del veth3",
 			"ip link del br0",
-			"ip netns del test1",
-			"ip netns del test2",
 		}, true)
 	})
 
@@ -775,7 +774,7 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 
 	require.NoError(t, tr.start(), "could not start tracer")
 
-	test1Ns, err := vnetns.GetFromName("test1")
+	test1Ns, err := vnetns.GetFromName(ns1)
 	require.NoError(t, err)
 	defer test1Ns.Close()
 
@@ -809,7 +808,7 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 
 	t.Run("client in other namespace", func(t *testing.T) {
 		// try connecting to server in test1 namespace
-		test2Ns, err := vnetns.GetFromName("test2")
+		test2Ns, err := vnetns.GetFromName(ns2)
 		require.NoError(t, err)
 		defer test2Ns.Close()
 
