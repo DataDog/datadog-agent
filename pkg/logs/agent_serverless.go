@@ -60,7 +60,8 @@ func NewAgent(sources *sources.LogSources, services *service.Services, processin
 
 // buildEndpoints builds endpoints for the logs agent
 func buildEndpoints() (*config.Endpoints, error) {
-	config, err := config.BuildServerlessEndpoints(intakeTrackType, config.DefaultIntakeProtocol); err != nil {
+	config, err := config.BuildServerlessEndpoints(intakeTrackType, config.DefaultIntakeProtocol)
+	if err != nil {
 		return nil, err
 	}
 	// in serverless mode, we never want the batch strategy to flush with a tick
