@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/limiter"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -78,12 +79,12 @@ func testTrackContext(t *testing.T, store *tags.Store) {
 		SampleRate: 1,
 	}
 
-	contextResolver := newContextResolver(store)
+	contextResolver := newContextResolver(store, nil)
 
 	// Track the 2 contexts
-	contextKey1 := contextResolver.trackContext(&mSample1)
-	contextKey2 := contextResolver.trackContext(&mSample2)
-	contextKey3 := contextResolver.trackContext(&mSample3)
+	contextKey1, _ := contextResolver.trackContext(&mSample1)
+	contextKey2, _ := contextResolver.trackContext(&mSample2)
+	contextKey3, _ := contextResolver.trackContext(&mSample3)
 
 	// When we look up the 2 keys, they return the correct contexts
 	context1 := contextResolver.contextsByKey[contextKey1]
@@ -123,11 +124,11 @@ func testExpireContexts(t *testing.T, store *tags.Store) {
 		Tags:       []string{"foo", "bar", "baz"},
 		SampleRate: 1,
 	}
-	contextResolver := newTimestampContextResolver(store)
+	contextResolver := newTimestampContextResolver(store, nil)
 
 	// Track the 2 contexts
-	contextKey1 := contextResolver.trackContext(&mSample1, 4)
-	contextKey2 := contextResolver.trackContext(&mSample2, 6)
+	contextKey1, _ := contextResolver.trackContext(&mSample1, 4)
+	contextKey2, _ := contextResolver.trackContext(&mSample2, 6)
 
 	// With an expireTimestap of 3, both contexts are still valid
 	assert.Len(t, contextResolver.expireContexts(3, nil), 0)
@@ -168,11 +169,11 @@ func testExpireContextsWithKeep(t *testing.T, store *tags.Store) {
 		Tags:       []string{"foo", "bar", "baz"},
 		SampleRate: 1,
 	}
-	contextResolver := newTimestampContextResolver(store)
+	contextResolver := newTimestampContextResolver(store, nil)
 
 	// Track the 2 contexts
-	contextKey1 := contextResolver.trackContext(&mSample1, 4)
-	contextKey2 := contextResolver.trackContext(&mSample2, 7)
+	contextKey1, _ := contextResolver.trackContext(&mSample1, 4)
+	contextKey2, _ := contextResolver.trackContext(&mSample2, 7)
 
 	keeperCalled := 0
 	keep := true
@@ -248,9 +249,9 @@ func TestCountBasedExpireContexts(t *testing.T) {
 }
 
 func testTagDeduplication(t *testing.T, store *tags.Store) {
-	resolver := newContextResolver(store)
+	resolver := newContextResolver(store, nil)
 
-	ckey := resolver.trackContext(&metrics.MetricSample{
+	ckey, _ := resolver.trackContext(&metrics.MetricSample{
 		Name: "foo",
 		Tags: []string{"bar", "bar"},
 	})
@@ -285,7 +286,7 @@ func (s *mockSample) GetTags(tb, mb tagset.TagsAccumulator) {
 }
 
 func TestOriginTelemetry(t *testing.T) {
-	r := newContextResolver(tags.NewStore(true, "test"))
+	r := newContextResolver(tags.NewStore(true, "test"), nil)
 	r.trackContext(&mockSample{"foo", []string{"foo"}, []string{"ook"}})
 	r.trackContext(&mockSample{"foo", []string{"foo"}, []string{"eek"}})
 	r.trackContext(&mockSample{"foo", []string{"bar"}, []string{"ook"}})
@@ -313,5 +314,75 @@ func TestOriginTelemetry(t *testing.T) {
 		Tags:   tagset.NewCompositeTags([]string{"test"}, []string{"baz"}),
 		MType:  metrics.APIGaugeType,
 		Points: []metrics.Point{{Ts: ts, Value: 1.0}},
+	}})
+}
+
+func TestLimiterTelemetry(t *testing.T) {
+	l := limiter.New(2, "pod", []string{"pod", "srv"})
+	r := newContextResolver(tags.NewStore(true, "test"), l)
+	r.trackContext(&mockSample{"foo", []string{"pod:foo", "srv:foo"}, []string{"pod:bar"}})
+	r.trackContext(&mockSample{"foo", []string{"pod:foo", "srv:foo"}, []string{"srv:bar"}})
+	r.trackContext(&mockSample{"bar", []string{"pod:foo", "srv:foo"}, []string{"srv:bar"}})
+	r.trackContext(&mockSample{"foo", []string{"pod:bar"}, []string{"srv:foo"}})
+	r.trackContext(&mockSample{"bar", []string{"pod:bar"}, []string{"srv:bar"}})
+	r.trackContext(&mockSample{"bar", []string{"pod:baz"}, []string{}})
+	sink := mockSink{}
+	ts := 1672835152.0
+	r.sendLimiterTelemetry(ts, &sink, "test", []string{"test"})
+
+	assert.Subset(t, sink, []*metrics.Serie{{
+		Name:   "datadog.agent.aggregator.dogstatsd_context_limiter.current",
+		Host:   "test",
+		Tags:   tagset.NewCompositeTags([]string{"test"}, []string{"pod:foo", "srv:foo"}),
+		MType:  metrics.APIGaugeType,
+		Points: []metrics.Point{{Ts: ts, Value: 2.0}},
+	}, {
+		Name:   "datadog.agent.aggregator.dogstatsd_context_limiter.accepted",
+		Host:   "test",
+		Tags:   tagset.NewCompositeTags([]string{"test"}, []string{"pod:foo", "srv:foo"}),
+		MType:  metrics.APICountType,
+		Points: []metrics.Point{{Ts: ts, Value: 2.0}},
+	}, {
+		Name:   "datadog.agent.aggregator.dogstatsd_context_limiter.rejected",
+		Host:   "test",
+		Tags:   tagset.NewCompositeTags([]string{"test"}, []string{"pod:foo", "srv:foo"}),
+		MType:  metrics.APICountType,
+		Points: []metrics.Point{{Ts: ts, Value: 1.0}},
+	}, {
+		Name:   "datadog.agent.aggregator.dogstatsd_context_limiter.current",
+		Host:   "test",
+		Tags:   tagset.NewCompositeTags([]string{"test"}, []string{"pod:bar"}),
+		MType:  metrics.APIGaugeType,
+		Points: []metrics.Point{{Ts: ts, Value: 2.0}},
+	}, {
+		Name:   "datadog.agent.aggregator.dogstatsd_context_limiter.accepted",
+		Host:   "test",
+		Tags:   tagset.NewCompositeTags([]string{"test"}, []string{"pod:bar"}),
+		MType:  metrics.APICountType,
+		Points: []metrics.Point{{Ts: ts, Value: 2.0}},
+	}, {
+		Name:   "datadog.agent.aggregator.dogstatsd_context_limiter.rejected",
+		Host:   "test",
+		Tags:   tagset.NewCompositeTags([]string{"test"}, []string{"pod:bar"}),
+		MType:  metrics.APICountType,
+		Points: []metrics.Point{{Ts: ts, Value: 0.0}},
+	}, {
+		Name:   "datadog.agent.aggregator.dogstatsd_context_limiter.current",
+		Host:   "test",
+		Tags:   tagset.NewCompositeTags([]string{"test"}, []string{"pod:baz"}),
+		MType:  metrics.APIGaugeType,
+		Points: []metrics.Point{{Ts: ts, Value: 1.0}},
+	}, {
+		Name:   "datadog.agent.aggregator.dogstatsd_context_limiter.accepted",
+		Host:   "test",
+		Tags:   tagset.NewCompositeTags([]string{"test"}, []string{"pod:baz"}),
+		MType:  metrics.APICountType,
+		Points: []metrics.Point{{Ts: ts, Value: 1.0}},
+	}, {
+		Name:   "datadog.agent.aggregator.dogstatsd_context_limiter.rejected",
+		Host:   "test",
+		Tags:   tagset.NewCompositeTags([]string{"test"}, []string{"pod:baz"}),
+		MType:  metrics.APICountType,
+		Points: []metrics.Point{{Ts: ts, Value: 0.0}},
 	}})
 }

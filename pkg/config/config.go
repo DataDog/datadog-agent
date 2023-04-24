@@ -558,6 +558,10 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.max", 0.1)
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.factor", 1.5)
 
+	config.BindEnvAndSetDefault("dogstatsd_context_limiter.limit", 0)
+	config.BindEnvAndSetDefault("dogstatsd_context_limiter.key_tag_name", "pod_name")
+	config.BindEnvAndSetDefault("dogstatsd_context_limiter.telemetry_tag_names", []string{})
+
 	config.BindEnv("dogstatsd_mapper_profiles")
 	config.SetEnvKeyTransformer("dogstatsd_mapper_profiles", func(in string) interface{} {
 		var mappings []MappingProfile
@@ -1045,6 +1049,7 @@ func InitConfig(config Config) {
 	// This create a lot of billable custom metrics.
 	config.BindEnvAndSetDefault("telemetry.enabled", false)
 	config.BindEnvAndSetDefault("telemetry.dogstatsd_origin", false)
+	config.BindEnvAndSetDefault("telemetry.dogstatsd_limiter", true)
 	config.BindEnvAndSetDefault("telemetry.python_memory", true)
 	config.BindEnv("telemetry.checks")
 	// We're using []string as a default instead of []float64 because viper can only parse list of string from the environment
