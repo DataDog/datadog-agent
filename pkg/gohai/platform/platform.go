@@ -1,3 +1,8 @@
+// This file is licensed under the MIT License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>
+// Copyright 2014-present Datadog, Inc.
+
 //go:build !android
 // +build !android
 
@@ -10,7 +15,10 @@ import (
 	"github.com/DataDog/gohai/utils"
 )
 
-func (self *Platform) Collect() (result interface{}, err error) {
+// Collect collects the Platform information.
+// Returns an object which can be converted to a JSON or an error if nothing could be collected.
+// Tries to collect as much information as possible.
+func (platform *Platform) Collect() (result interface{}, err error) {
 	result, _, err = getPlatformInfo()
 	return
 }
@@ -55,7 +63,7 @@ func getPlatformInfo() (platformInfo map[string]string, warnings []string, err e
 		platformInfo = map[string]string{}
 	}
 
-	platformInfo["goV"] = strings.Replace(runtime.Version(), "go", "", -1)
+	platformInfo["goV"] = strings.ReplaceAll(runtime.Version(), "go", "")
 	platformInfo["GOOS"] = runtime.GOOS
 	platformInfo["GOOARCH"] = runtime.GOARCH
 

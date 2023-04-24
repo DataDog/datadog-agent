@@ -1,3 +1,8 @@
+// This file is licensed under the MIT License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>
+// Copyright 2014-present Datadog, Inc.
+
 package platform
 
 import (
@@ -5,6 +10,10 @@ import (
 	"unsafe"
 )
 
+// WKSTA_INFO_100 contains platform-specific information
+// see https://learn.microsoft.com/en-us/windows/win32/api/lmwksta/ns-lmwksta-wksta_info_100
+//
+//nolint:revive
 type WKSTA_INFO_100 struct {
 	wki100_platform_id  uint32
 	wki100_computername string
@@ -13,6 +22,10 @@ type WKSTA_INFO_100 struct {
 	wki100_ver_minor    uint32
 }
 
+// SERVER_INFO_101 contains server-specific information
+// see https://learn.microsoft.com/en-us/windows/win32/api/lmserver/ns-lmserver-server_info_101
+//
+//nolint:revive
 type SERVER_INFO_101 struct {
 	sv101_platform_id   uint32
 	sv101_name          string
@@ -34,12 +47,14 @@ func byteArrayToWksaInfo(data []byte) (info WKSTA_INFO_100) {
 
 	// ... and again here for the lan group name.
 	//stringptr = (*[]byte)(unsafe.Pointer(uintptr(binary.LittleEndian.Uint64(data[8:]))))
-	//info.wki100_langroup = convert_windows_string(stringptr)
+	//info.wki100_langroup = convertWindowsString(stringptr)
 
 	info.wki100_ver_major = binary.LittleEndian.Uint32(data[12:])
 	info.wki100_ver_minor = binary.LittleEndian.Uint32(data[16:])
 	return
 }
+
+//nolint:unused
 func platGetVersion(outdata *byte) (maj uint64, min uint64, err error) {
 	var info WKSTA_INFO_100
 	var dataptr []byte
@@ -57,14 +72,14 @@ func platGetServerInfo(data *byte) (si101 SERVER_INFO_101) {
 	si101.sv101_platform_id = binary.LittleEndian.Uint32(outdata)
 
 	//stringptr := (*[]uint16)(unsafe.Pointer(uintptr(binary.LittleEndian.Uint64(outdata[4:]))))
-	//si101.sv101_name = convert_windows_string(*stringptr)
+	//si101.sv101_name = convertWindowsString(*stringptr)
 
 	si101.sv101_version_major = binary.LittleEndian.Uint32(outdata[8:])
 	si101.sv101_version_minor = binary.LittleEndian.Uint32(outdata[12:])
 	si101.sv101_type = binary.LittleEndian.Uint32(outdata[16:])
 
 	//stringptr = (*[]uint16)(unsafe.Pointer(uintptr(binary.LittleEndian.Uint32(outdata[20:]))))
-	//si101.sv101_comment = convert_windows_string(*stringptr)
+	//si101.sv101_comment = convertWindowsString(*stringptr)
 	return
 
 }
