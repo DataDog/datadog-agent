@@ -178,7 +178,7 @@ platforms:
   driver:
     custom_data:
       runcmd:
-        - sudo bash -c 'echo "deb http://archive.debian.org/debian/ stretch main" >> /etc/apt/sources.list'
+        - sudo sed 's/debian-archive.trafficmanager.net/archive.debian.org/g' /etc/apt/sources.list
   <% end%>
 
   transport:
