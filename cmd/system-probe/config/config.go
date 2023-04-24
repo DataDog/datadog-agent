@@ -103,11 +103,11 @@ func newSysprobeConfig(configPath string, loadSecrets bool) (*Config, error) {
 			if runtime.GOOS == "darwin" {
 				log.Infof("Error loading config: %v (check config file permissions for dd-agent user)", err)
 			} else {
-				log.Warnf("Error loading config: %v", err)
+				log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
 			}
 		} else {
 			if runtime.GOOS == "darwin" {
-				log.Infof("Error loading config: %v (check config file permissions for dd-agent user)", err)
+				log.Infof("Error loading config: %v", err)
 			} else {
 				log.Warnf("Error loading config: %v", err)
 			}
