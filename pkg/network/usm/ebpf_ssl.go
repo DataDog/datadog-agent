@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -471,4 +472,18 @@ func (*sslProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
 	}
 
 	return probeList
+}
+
+func sysOpenAt2Supported(c *config.Config) bool {
+	missing, err := ddebpf.VerifyKernelFuncs(doSysOpenAt2.section)
+	if err == nil && len(missing) == 0 {
+		return true
+	}
+	kversion, err := kernel.HostVersion()
+	if err != nil {
+		log.Error("could not determine the current kernel version. fallback to do_sys_open")
+		return false
+	}
+
+	return kversion >= kernel.VersionCode(5, 6, 0)
 }
