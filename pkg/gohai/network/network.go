@@ -1,3 +1,9 @@
+// This file is licensed under the MIT License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>
+// Copyright 2014-present Datadog, Inc.
+
+// Package network regroups collecting information about the network interfaces
 package network
 
 func getNetworkInfo() (networkInfo map[string]interface{}, err error) {
@@ -9,7 +15,7 @@ func getNetworkInfo() (networkInfo map[string]interface{}, err error) {
 	}
 	networkInfo["macaddress"] = macaddress
 
-	ipAddress, err := externalIpAddress()
+	ipAddress, err := externalIPAddress()
 	if err != nil {
 		return networkInfo, err
 	}

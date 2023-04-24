@@ -1,3 +1,8 @@
+// This file is licensed under the MIT License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>
+// Copyright 2014-present Datadog, Inc.
+
 package utils
 
 import (
@@ -41,7 +46,7 @@ func GetUint64(dict map[string]string, key string, warnings *[]string) uint64 {
 // GetFloat64 returns the dict[key] or an empty uint64 if the entry doesn't exists
 func GetFloat64(dict map[string]string, key string, warnings *[]string) float64 {
 	if v, ok := dict[key]; ok {
-		num, err := strconv.ParseFloat(v, 10)
+		num, err := strconv.ParseFloat(v, 64)
 		if err == nil {
 			return num
 		}
