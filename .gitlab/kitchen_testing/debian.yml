@@ -21,7 +21,7 @@
 
 .kitchen_scenario_debian_a6_x64:
   variables:
-    KITCHEN_OSVERS: "debian-9,debian-10,debian-11"
+    KITCHEN_OSVERS: "debian-10,debian-11"
     KITCHEN_CWS_SUPPORTED_OSVERS: "debian-10,debian-11"
     DEFAULT_KITCHEN_OSVERS: "debian-11"
   extends:
@@ -32,7 +32,7 @@
 
 .kitchen_scenario_debian_a7_x64:
   variables:
-    KITCHEN_OSVERS: "debian-9,debian-10,debian-11"
+    KITCHEN_OSVERS: "debian-10,debian-11"
     KITCHEN_CWS_SUPPORTED_OSVERS: "debian-10,debian-11"
     DEFAULT_KITCHEN_OSVERS: "debian-11"
   extends:
