@@ -1,6 +1,12 @@
+// This file is licensed under the MIT License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>
+// Copyright 2014-present Datadog, Inc.
+
 //go:build linux || darwin
 // +build linux darwin
 
+// Package filesystem returns information about available filesystems.
 package filesystem
 
 import (
@@ -17,7 +23,6 @@ var dfOptions = []string{"-l", "-k"}
 var dfTimeout = 2 * time.Second
 
 func getFileSystemInfo() (interface{}, error) {
-
 	ctx, cancel := context.WithTimeout(context.Background(), dfTimeout)
 	defer cancel()
 
