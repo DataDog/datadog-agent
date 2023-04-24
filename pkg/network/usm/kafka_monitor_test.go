@@ -290,6 +290,7 @@ func TestKafkaProtocolParsing(t *testing.T) {
 
 				serverAddr := "localhost:8081"
 				srvDoneFn := testutil.HTTPServer(t, "localhost:8081", testutil.Options{})
+				t.Cleanup(srvDoneFn)
 				httpClient := nethttp.Client{}
 
 				req, err := nethttp.NewRequest(httpMethods[0], fmt.Sprintf("http://%s/%d/request", serverAddr, nethttp.StatusOK), nil)
