@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"fmt"
 	"os/exec"
 	"testing"
 	"time"
@@ -83,6 +84,66 @@ func TestContainerCreatedAt(t *testing.T) {
 			assert.True(t, time.Now().Sub(createdAt) > 3*time.Second)
 
 			test.validateOpenSchema(t, event)
+		})
+	})
+}
+
+func TestContainerScopedVariable(t *testing.T) {
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_container_set_scoped_variable",
+			Expression: `open.file.path == "/tmp/test-open"`,
+			Actions: []rules.ActionDefinition{{
+				Set: &rules.SetDefinition{
+					Name:  "var1",
+					Value: true,
+					Scope: "container",
+				},
+			}},
+		}, {
+			ID:         "test_container_check_scoped_variable",
+			Expression: `open.file.path == "/tmp/test-open-2" && ${container.var1} == true`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "alpine")
+	if err != nil {
+		t.Skip("docker no available")
+		return
+	}
+
+	if _, err := wrapper.start(); err != nil {
+		t.Fatal(err)
+	}
+	defer wrapper.stop()
+
+	wrapper.RunTest(t, "set-var", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("/bin/touch", []string{"/tmp/test-open"}, nil)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w", out, err)
+			}
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assert.Equal(t, "test_container_set_scoped_variable", rule.ID, "wrong rule triggered")
+		})
+	})
+
+	wrapper.RunTest(t, "check-var", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("/bin/touch", []string{"/tmp/test-open-2"}, nil)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w", out, err)
+			}
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assert.Equal(t, "test_container_check_scoped_variable", rule.ID, "wrong rule triggered")
 		})
 	})
 }
