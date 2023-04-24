@@ -67,14 +67,6 @@ type OTLP struct {
 	// from an incoming HTTP request.
 	MaxRequestBytes int64 `mapstructure:"-"`
 
-	// UsePreviewHostnameLogic specifies wether to use the 'preview' OpenTelemetry attributes to hostname rules,
-	// controlled in the Datadog exporter by the `exporter.datadog.hostname.preview` feature gate.
-	// The 'preview' rules change the canonical hostname chosen in cloud providers to be consistent with the
-	// one sent by Datadog cloud integrations.
-	//
-	// Deprecated: Field UsePreviewHostnameLogic is not used.
-	UsePreviewHostnameLogic bool `mapstructure:"-"`
-
 	// ProbabilisticSampling specifies the percentage of traces to ingest. Exceptions are made for errors
 	// and rare traces (outliers) if "RareSamplerEnabled" is true. Invalid values are equivalent to 100.
 	// If spans have the "sampling.priority" attribute set, probabilistic sampling is skipped and the user's
