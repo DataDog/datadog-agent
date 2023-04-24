@@ -23,9 +23,7 @@ type NoDependencies struct {
 //
 // The generic return type T must conform to fx.In such
 // that it's dependencies can be fulfilled.
-//
-// Use `fx.Options(..)` to bundle multiple fx.Option values into one.
-func Test[T any](t testing.TB, opts fx.Option) T {
+func Test[T any](t testing.TB, opts ...fx.Option) T {
 	var deps T
 	delayed := newDelayedFxInvocation(func(d T) {
 		deps = d
@@ -35,7 +33,7 @@ func Test[T any](t testing.TB, opts fx.Option) T {
 		t,
 		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
 		delayed.option(),
-		opts,
+		fx.Options(opts...),
 	)
 	app.RequireStart()
 

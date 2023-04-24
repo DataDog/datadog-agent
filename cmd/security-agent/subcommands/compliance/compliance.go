@@ -59,6 +59,7 @@ func StartCompliance(log log.Component, config config.Component, hostname string
 		checks.WithHostRootMount(os.Getenv("HOST_ROOT")),
 		checks.MayFail(checks.WithDocker()),
 		checks.MayFail(checks.WithAudit()),
+		checks.WithConfigDir(configDir),
 	}
 	if metricsEnabled {
 		options = append(options, checks.WithStatsd(statsdClient))

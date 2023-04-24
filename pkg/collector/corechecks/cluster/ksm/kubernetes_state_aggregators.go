@@ -233,7 +233,7 @@ func defaultMetricAggregators() map[string]metricAggregator {
 		"kube_customresourcedefinition_labels": newCountObjectsAggregator(
 			"crd.count",
 			"kube_customresourcedefinition_labels",
-			[]string{"namespace"},
+			[]string{},
 		),
 		"kube_persistentvolume_status_phase": newSumValuesAggregator(
 			"persistentvolumes.by_phase",

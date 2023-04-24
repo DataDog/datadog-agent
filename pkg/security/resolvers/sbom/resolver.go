@@ -10,6 +10,7 @@ package sbom
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -110,9 +111,12 @@ type Resolver struct {
 
 // NewSBOMResolver returns a new instance of Resolver
 func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface) (*Resolver, error) {
-	sbomScanner, err := sbomscanner.CreateGlobalScanner(coreconfig.Datadog)
+	sbomScanner, err := sbomscanner.CreateGlobalScanner(coreconfig.SystemProbe)
 	if err != nil {
 		return nil, err
+	}
+	if sbomScanner == nil {
+		return nil, errors.New("sbom is disabled")
 	}
 
 	sbomsCache, err := simplelru.NewLRU[string, *SBOM](c.SBOMResolverWorkloadsCacheSize, nil)
@@ -167,6 +171,8 @@ func (r *Resolver) prepareContextTags() {
 
 // Start starts the goroutine of the SBOM resolver
 func (r *Resolver) Start(ctx context.Context) {
+	r.sbomScanner.Start(ctx)
+
 	go func() {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
@@ -190,19 +196,23 @@ func (r *Resolver) generateSBOM(root string, sbom *SBOM) error {
 	r.sbomGenerations.Inc()
 
 	scanRequest := &host.ScanRequest{Path: root}
-	ch := make(chan sbompkg.ScanResult)
-	err := r.sbomScanner.Scan(scanRequest, sbompkg.ScanOptions{Analyzers: []string{trivy.OSAnalyzers}}, ch)
-	if err != nil {
+	ch := make(chan sbompkg.ScanResult, 1)
+	if err := r.sbomScanner.Scan(scanRequest, sbompkg.ScanOptions{Analyzers: []string{trivy.OSAnalyzers}, Fast: true}, ch); err != nil {
 		r.failedSBOMGenerations.Inc()
-		return fmt.Errorf("failed to generate SBOM for %s: %w", root, err)
+		return fmt.Errorf("failed to trigger SBOM generation for %s: %w", root, err)
+	}
+
+	result := <-ch
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to generate SBOM for %s: %w", root, result.Error)
 	}
 
 	seclog.Infof("SBOM successfully generated from %s", root)
-	result := <-ch
 
 	trivyReport, ok := result.Report.(*trivy.TrivyReport)
 	if !ok {
-		return fmt.Errorf("failed to convert report for %s: %w", root, err)
+		return fmt.Errorf("failed to convert report for %s", root)
 	}
 	sbom.report = trivyReport
 

@@ -54,6 +54,10 @@ type ContainerdCollector struct {
 	trivyCollector *trivy.Collector
 }
 
+func (c *ContainerdCollector) CleanCache() error {
+	return c.trivyCollector.GetCacheCleaner().Clean()
+}
+
 func (c *ContainerdCollector) Init(cfg config.Config) error {
 	trivyCollector, err := trivy.GetGlobalCollector(cfg)
 	if err != nil {

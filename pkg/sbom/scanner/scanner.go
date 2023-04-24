@@ -78,29 +78,43 @@ func (s *Scanner) start(ctx context.Context) {
 	if s.running {
 		return
 	}
-
 	go func() {
+		cleanTicker := time.NewTicker(config.Datadog.GetDuration("sbom.cache_clean_interval"))
+		defer cleanTicker.Stop()
 		s.running = true
 		defer func() { s.running = false }()
-
 		for {
 			select {
 			// We don't want to keep scanning if image channel is not empty but context is expired
 			case <-ctx.Done():
 				return
-
+			case <-cleanTicker.C:
+				for _, collector := range collectors.Collectors {
+					if err := collector.CleanCache(); err != nil {
+						log.Warnf("could not clean SBOM cache: %v", err)
+					}
+				}
 			case request, ok := <-s.scanQueue:
 				// Channel has been closed we should exit
 				if !ok {
 					return
 				}
 
-				telemetry.SBOMFailures.Inc(request.Collector(), request.Type())
+				telemetry.SBOMAttempts.Inc(request.Collector(), request.Type())
+
+				sendResult := func(scanResult sbom.ScanResult) {
+					select {
+					case request.ch <- scanResult:
+					default:
+						log.Errorf("Failed to push scanner result for '%s' into channel", request.ID())
+					}
+
+				}
 
 				collector := request.collector
 				if err := s.enoughDiskSpace(request.opts); err != nil {
+					sendResult(sbom.ScanResult{Error: fmt.Errorf("failed to check current disk usage: %w", err)})
 					telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "disk_space")
-					log.Errorf("An error occurred while checking current disk usage: %s", err)
 					continue
 				}
 
@@ -116,21 +130,17 @@ func (s *Scanner) start(ctx context.Context) {
 				cancel()
 				if err != nil {
 					telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "scan")
-					log.Errorf("An error occurred while generating SBOM for '%s': %s", request.ID(), err)
-					continue
+					err = fmt.Errorf("an error occurred while generating SBOM for '%s': %w", request.ID(), err)
 				}
 
 				telemetry.SBOMGenerationDuration.Observe(generationDuration.Seconds())
 
-				select {
-				case request.ch <- sbom.ScanResult{
+				sendResult(sbom.ScanResult{
+					Error:     err,
 					Report:    report,
 					CreatedAt: createdAt,
 					Duration:  generationDuration,
-				}:
-				default:
-					log.Errorf("Failed to push scanner result for '%s' into channel", request.ID())
-				}
+				})
 
 				if request.opts.WaitAfter != 0 {
 					t := time.NewTimer(request.opts.WaitAfter)
@@ -164,7 +174,7 @@ func NewScanner(cfg config.Config) *Scanner {
 // global one, and returns it. Start() needs to be called before any data
 // collection happens.
 func CreateGlobalScanner(cfg config.Config) (*Scanner, error) {
-	if !cfg.GetBool("sbom.enabled") && !cfg.GetBool("container_image_collection.sbom.enabled") {
+	if !cfg.GetBool("sbom.enabled") && !cfg.GetBool("container_image_collection.sbom.enabled") && !cfg.GetBool("runtime_security_config.sbom.enabled") {
 		return nil, nil
 	}
 
