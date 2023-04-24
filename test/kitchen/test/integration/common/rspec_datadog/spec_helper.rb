@@ -177,11 +177,11 @@ def restart(flavor)
     # forces the trace agent (and other dependent services) to stop
     if is_service_running?(service)
       result = system "net stop /y #{service} 2>&1"
-      sleep 5
+      sleep 20
       wait_until_service_stopped(service)
     end
     result = system "net start #{service} 2>&1"
-    sleep 5
+    sleep 20
     wait_until_service_started(service)
   else
     if has_systemctl
@@ -257,7 +257,9 @@ end
 def windows_service_status(service)
   raise "windows_service_status is only for windows" unless os == :windows
   # Language-independent way of getting the service status
-  return (`powershell -command "try { (get-service "#{service}" -ErrorAction Stop).Status } catch { write-host "NOTINSTALLED" }"`).upcase.strip
+  res =  `powershell -command \"try { (get-service #{service} -ErrorAction Stop).Status } catch { write-host NOTINSTALLED }\"`
+  puts res
+  return (res).upcase.strip
 end
 
 def is_service_running?(service)

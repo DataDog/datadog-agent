@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
@@ -65,7 +66,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			cliParams.args = args
 			config := config.NewAgentParamsWithSecrets(globalParams.ConfFilePath,
 				config.WithSecurityAgentConfigFilePaths([]string{
-					path.Join(common.DefaultConfPath, "security-agent.yaml"),
+					path.Join(commonpath.DefaultConfPath, "security-agent.yaml"),
 				}),
 				config.WithConfigLoadSecurityAgent(true),
 				config.WithIgnoreErrors(true))
@@ -199,11 +200,11 @@ func makeFlare(flare flare.Component, log log.Component, config config.Component
 
 	logFile := pkgconfig.Datadog.GetString("log_file")
 	if logFile == "" {
-		logFile = common.DefaultLogFile
+		logFile = commonpath.DefaultLogFile
 	}
 	jmxLogFile := pkgconfig.Datadog.GetString("jmx_log_file")
 	if jmxLogFile == "" {
-		jmxLogFile = common.DefaultJmxLogFile
+		jmxLogFile = commonpath.DefaultJmxLogFile
 	}
 	logFiles := []string{logFile, jmxLogFile}
 
@@ -290,7 +291,7 @@ func requestArchive(flare flare.Component, logFiles []string, pdata pkgflare.Pro
 
 func createArchive(flare flare.Component, logFiles []string, pdata pkgflare.ProfileData, ipcError error) (string, error) {
 	fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally."))
-	filePath, err := flare.Create(true, common.GetDistPath(), common.PyChecksPath, logFiles, pdata, ipcError)
+	filePath, err := flare.Create(true, commonpath.GetDistPath(), commonpath.PyChecksPath, logFiles, pdata, ipcError)
 	if err != nil {
 		fmt.Printf("The flare zipfile failed to be created: %s\n", err)
 		return "", err
