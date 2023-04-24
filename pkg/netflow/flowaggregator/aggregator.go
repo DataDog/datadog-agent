@@ -271,6 +271,7 @@ func (agg *FlowAggregator) submitCollectorMetrics() error {
 			case "monotonic_count":
 				agg.sender.MonotonicCount(metricPrefix+name, value, "", tags)
 			case "monotonic_count_with_flush_first_value_and_skip_non_monotonic_value":
+				agg.sender.Gauge(metricPrefix+name+"_gauge", value, "", tags)
 				agg.sender.MonotonicCountWithFlushFirstValueAndSkipNonMonotonicValue(metricPrefix+name, value, "", tags, true, true)
 			default:
 				log.Debugf("cannot submit unsupported type %s", metricType)
