@@ -99,15 +99,10 @@ func newSysprobeConfig(configPath string, loadSecrets bool) (*Config, error) {
 	// load the configuration
 	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", loadSecrets, aconfig.Datadog.GetEnvVars())
 	if err != nil {
-		if errors.Is(err, os.ErrPermission) {
-			if runtime.GOOS == "darwin" {
-				log.Infof("Error loading config: %v (check config file permissions for dd-agent user)", err)
-			} else {
+		// System probe is not supported on darwin, so we should fail gracefully in this case.
+		if runtime.GOOS != "darwin" {
+			if errors.Is(err, os.ErrPermission) {
 				log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
-			}
-		} else {
-			if runtime.GOOS == "darwin" {
-				log.Infof("Error loading config: %v", err)
 			} else {
 				log.Warnf("Error loading config: %v", err)
 			}
