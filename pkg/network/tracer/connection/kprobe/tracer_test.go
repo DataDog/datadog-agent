@@ -12,13 +12,22 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	manager "github.com/DataDog/ebpf-manager"
 )
 
 func TestTracerFallback(t *testing.T) {
+	if err := isCORETracerSupported(); err == errCORETracerNotSupported {
+		t.Skip("CORE tracer not supported on this platform")
+	} else {
+		require.NoError(t, err)
+	}
+
 	prevRCLoader := rcTracerLoader
 	prevPrebuiltLoader := prebuiltTracerLoader
 	prevCORELoader := coreTracerLoader
@@ -208,4 +217,55 @@ func runFallbackTests(t *testing.T, desc string, coreErr, rcErr bool, tests []st
 		})
 	}
 
+}
+
+func TestCORETracerSupported(t *testing.T) {
+	prevCORELoader := coreTracerLoader
+	prevPrebuiltLoader := prebuiltTracerLoader
+	t.Cleanup(func() {
+		coreTracerLoader = prevCORELoader
+		prebuiltTracerLoader = prevPrebuiltLoader
+	})
+
+	coreCalled := false
+	coreTracerLoader = func(config *config.Config, m *manager.Manager, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler) (func(), error) {
+		coreCalled = true
+		return nil, nil
+	}
+	prebuiltCalled := false
+	prebuiltTracerLoader = func(config *config.Config, m *manager.Manager, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler) (func(), error) {
+		prebuiltCalled = true
+		return nil, nil
+	}
+
+	kv, err := kernel.HostVersion()
+	require.NoError(t, err)
+
+	hostInfo := host.GetStatusInformation()
+
+	cfg := config.New()
+	cfg.EnableCORE = true
+	cfg.AllowRuntimeCompiledFallback = false
+	_, _, err = LoadTracer(cfg, nil, manager.Options{}, nil)
+	assert.False(t, prebuiltCalled)
+	if kv < kernel.VersionCode(4, 4, 128) && hostInfo.Platform != "centos" {
+		assert.False(t, coreCalled)
+		assert.ErrorIs(t, err, errCORETracerNotSupported)
+	} else {
+		assert.True(t, coreCalled)
+		assert.NoError(t, err)
+	}
+
+	coreCalled = false
+	prebuiltCalled = false
+	cfg.AllowRuntimeCompiledFallback = true
+	_, _, err = LoadTracer(cfg, nil, manager.Options{}, nil)
+	assert.NoError(t, err)
+	if kv < kernel.VersionCode(4, 4, 128) && hostInfo.Platform != "centos" {
+		assert.False(t, coreCalled)
+		assert.True(t, prebuiltCalled)
+	} else {
+		assert.True(t, coreCalled)
+		assert.False(t, prebuiltCalled)
+	}
 }

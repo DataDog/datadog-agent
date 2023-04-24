@@ -16,6 +16,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -64,6 +65,8 @@ var (
 	coreTracerLoader     = loadCORETracer
 	rcTracerLoader       = loadRuntimeCompiledTracer
 	prebuiltTracerLoader = loadPrebuiltTracer
+
+	errCORETracerNotSupported = errors.New("CO-RE tracer not supported on this platform")
 )
 
 // ClassificationSupported returns true if the current kernel version supports the classification feature.
@@ -95,12 +98,20 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 	mgrOpts.DefaultKprobeAttachMethod = kprobeAttachMethod
 
 	if config.EnableCORE {
-		closeFn, err := coreTracerLoader(config, m, mgrOpts, perfHandlerTCP)
-		// if it is a verifier error, bail always regardless of
-		// whether a fallback is enabled in config
-		var ve *ebpf.VerifierError
-		if err == nil || errors.As(err, &ve) {
-			return closeFn, TracerTypeCORE, err
+		err := isCORETracerSupported()
+		if err != nil && err != errCORETracerNotSupported {
+			return nil, TracerTypeCORE, fmt.Errorf("error determining if CO-RE tracer is supported: %w", err)
+		}
+
+		var closeFn func()
+		if err == nil {
+			closeFn, err = coreTracerLoader(config, m, mgrOpts, perfHandlerTCP)
+			// if it is a verifier error, bail always regardless of
+			// whether a fallback is enabled in config
+			var ve *ebpf.VerifierError
+			if err == nil || errors.As(err, &ve) {
+				return closeFn, TracerTypeCORE, err
+			}
 		}
 
 		if !config.AllowRuntimeCompiledFallback {
@@ -246,4 +257,24 @@ func loadPrebuiltTracer(config *config.Config, m *manager.Manager, mgrOpts manag
 	defer buf.Close()
 
 	return loadTracerFromAsset(buf, false, false, config, m, mgrOpts, perfHandlerTCP)
+}
+
+func isCORETracerSupported() error {
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return err
+	}
+	if kv >= kernel.VersionCode(4, 4, 128) {
+		return nil
+	}
+
+	hostInfo := host.GetStatusInformation()
+	// centos is the only distribution we support
+	// that can have a kernel version < 4, and
+	// CO-RE is supported there
+	if hostInfo.Platform == "centos" {
+		return nil
+	}
+
+	return errCORETracerNotSupported
 }
