@@ -155,8 +155,6 @@ func (m *EventMonitor) Start() error {
 		}
 	}
 
-	// The rules are loaded after the CWSConsumer started
-
 	// Get the snapshotted data
 	entrycache := m.Probe.GetResolvers().ProcessResolver.GetEntryCache()
 
@@ -170,7 +168,6 @@ func (m *EventMonitor) Start() error {
 		event.Type = uint32(model.ExecEventType)
 		event.ProcessCacheEntry = entry
 		event.ProcessContext = &entry.ProcessContext
-		// event.ProcessContext.Process = entry.Process
 		event.Exec.Process = &entry.Process
 		event.ProcessContext.Process.ContainerID = entry.ContainerID
 
