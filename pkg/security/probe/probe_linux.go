@@ -323,7 +323,6 @@ func (p *Probe) AddActivityDumpHandler(handler dump.ActivityDumpHandler) {
 
 // DispatchEvent sends an event to the probe event handler
 func (p *Probe) DispatchEvent(event *model.Event) {
-	fmt.Println("-----------------------------LEGIT EVENT:", event)
 	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
 		eventJSON, err := serializers.MarshalEvent(event, p.resolvers)
 		return eventJSON, event.GetEventType(), err
@@ -451,7 +450,7 @@ func (p *Probe) UnmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, e
 
 func (p *Probe) handleEvent(CPU int, data []byte) {
 	offset := 0
-	event := p.zeroEvent()
+	event := p.ZeroEvent()
 
 	dataLen := uint64(len(data))
 
@@ -1543,7 +1542,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	p.fieldHandlers = &FieldHandlers{resolvers: resolvers}
 
 	// be sure to zero the probe event before everything else
-	p.zeroEvent()
+	p.ZeroEvent()
 
 	if useRingBuffers {
 		p.eventStream = ringbuffer.New(p.handleEvent)

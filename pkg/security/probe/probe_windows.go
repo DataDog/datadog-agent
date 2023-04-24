@@ -57,7 +57,7 @@ func (p *Probe) Start() error {
 		for {
 			var err error
 			var e *model.ProcessCacheEntry
-			ev := p.zeroEvent()
+			ev := p.ZeroEvent()
 			select {
 			case <-p.ctx.Done():
 				return
