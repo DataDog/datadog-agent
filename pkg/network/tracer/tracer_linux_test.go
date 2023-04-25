@@ -1836,33 +1836,16 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 }
 
 func TestConntrackerFallback(t *testing.T) {
-	var tests = []struct {
-		enableRuntimeCompiler    bool
-		allowPrecompiledFallback bool
-		err                      error
-	}{
-		{false, false, nil},
-		{false, true, nil},
-		{true, false, assert.AnError},
-		{true, true, nil},
-	}
-
 	cfg := testConfig()
 	cfg.EnableEbpfConntracker = false
-	for _, te := range tests {
-		t.Logf("%+v", te)
-		cfg.EnableRuntimeCompiler = te.enableRuntimeCompiler
-		cfg.AllowPrecompiledFallback = te.allowPrecompiledFallback
+	cfg.AllowNetlinkConntrackerFallback = true
+	conntracker, err := newConntracker(cfg, nil, nil)
+	assert.NoError(t, err)
+	require.NotNil(t, conntracker)
+	conntracker.Close()
 
-		conntracker, err := newConntracker(cfg, nil, nil)
-		if te.err != nil {
-			assert.Error(t, err)
-			assert.Nil(t, conntracker)
-			continue
-		}
-
-		assert.NoError(t, err)
-		require.NotNil(t, conntracker)
-		conntracker.Close()
-	}
+	cfg.AllowNetlinkConntrackerFallback = false
+	conntracker, err = newConntracker(cfg, nil, nil)
+	assert.Error(t, err)
+	require.Nil(t, conntracker)
 }

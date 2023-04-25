@@ -199,6 +199,10 @@ type Config struct {
 	// EnableEbpfConntracker enables the ebpf based network conntracker. Used only for testing at the moment
 	EnableEbpfConntracker bool
 
+	// AllowNetlinkConntrackerFallback enables falling back to the netlink conntracker if we
+	// can't load the ebpf-based conntracker
+	AllowNetlinkConntrackerFallback bool
+
 	// ClosedChannelSize specifies the size for closed channel for the tracer
 	ClosedChannelSize int
 
@@ -303,14 +307,15 @@ func New() *Config {
 		HTTPNotificationThreshold: cfg.GetInt64(join(netNS, "http_notification_threshold")),
 		HTTPMaxRequestFragment:    cfg.GetInt64(join(netNS, "http_max_request_fragment")),
 
-		EnableConntrack:              cfg.GetBool(join(spNS, "enable_conntrack")),
-		ConntrackMaxStateSize:        cfg.GetInt(join(spNS, "conntrack_max_state_size")),
-		ConntrackRateLimit:           cfg.GetInt(join(spNS, "conntrack_rate_limit")),
-		ConntrackRateLimitInterval:   3 * time.Second,
-		EnableConntrackAllNamespaces: cfg.GetBool(join(spNS, "enable_conntrack_all_namespaces")),
-		IgnoreConntrackInitFailure:   cfg.GetBool(join(netNS, "ignore_conntrack_init_failure")),
-		ConntrackInitTimeout:         cfg.GetDuration(join(netNS, "conntrack_init_timeout")),
-		EnableEbpfConntracker:        true,
+		EnableConntrack:                 cfg.GetBool(join(spNS, "enable_conntrack")),
+		ConntrackMaxStateSize:           cfg.GetInt(join(spNS, "conntrack_max_state_size")),
+		ConntrackRateLimit:              cfg.GetInt(join(spNS, "conntrack_rate_limit")),
+		ConntrackRateLimitInterval:      3 * time.Second,
+		EnableConntrackAllNamespaces:    cfg.GetBool(join(spNS, "enable_conntrack_all_namespaces")),
+		IgnoreConntrackInitFailure:      cfg.GetBool(join(netNS, "ignore_conntrack_init_failure")),
+		ConntrackInitTimeout:            cfg.GetDuration(join(netNS, "conntrack_init_timeout")),
+		EnableEbpfConntracker:           true,
+		AllowNetlinkConntrackerFallback: cfg.GetBool(join(netNS, "allow_netlink_conntracker_fallback")),
 
 		EnableGatewayLookup: cfg.GetBool(join(netNS, "enable_gateway_lookup")),
 
