@@ -132,13 +132,15 @@ func (h *AutoscalersController) enableWPA(wpaInformerFactory dynamic_informer.Dy
 	h.WPAqueue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "wpa-autoscalers")
 	h.wpaLister = genericInformer.Lister()
 	h.wpaListerSynced = genericInformer.Informer().HasSynced
-	genericInformer.Informer().AddEventHandler(
+	if _, err := genericInformer.Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    h.addWPAutoscaler,
 			UpdateFunc: h.updateWPAutoscaler,
 			DeleteFunc: h.deleteWPAutoscaler,
 		},
-	)
+	); err != nil {
+		log.Errorf("error adding event handler to wpa informer: %v", err)
+	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.wpaEnabled = true
