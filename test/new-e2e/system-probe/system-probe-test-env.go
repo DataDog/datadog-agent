@@ -75,13 +75,13 @@ func outputsToFile(output auto.OutputMap) error {
 	return nil
 }
 
-func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType string, opts *SystemProbeEnvOpts) (*TestEnv, error) {
+func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbeEnvOpts) (*TestEnv, error) {
 	systemProbeTestEnv := &TestEnv{
 		context: context.Background(),
 		name:    fmt.Sprintf("microvm-scenario-%s", name),
 	}
 
-	sshkey, err := runner.GetProfile().SecretStore().Get("aws_ec2_kitchen_ssh_key")
+	sshkey, err := runner.GetProfile().SecretStore().Get("ssh_key")
 	if err != nil {
 		return nil, fmt.Errorf("aws get credential: %w", err)
 	}
@@ -97,12 +97,11 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 	stackManager := infra.GetStackManager()
 
 	config := runner.ConfigMap{
+		"ddinfra:env":                            auto.ConfigValue{Value: "agent-qa"},
 		"ddinfra:aws/defaultARMInstanceType":     auto.ConfigValue{Value: armInstanceType},
 		"ddinfra:aws/defaultInstanceType":        auto.ConfigValue{Value: x86InstanceType},
 		"ddinfra:aws/defaultKeyPairName":         auto.ConfigValue{Value: SSHKeyName},
 		"ddinfra:aws/defaultPrivateKeyPath":      auto.ConfigValue{Value: SSHKeyFile},
-		"ddinfra:aws/defaultSecurityGroups":      auto.ConfigValue{Value: securityGroups},
-		"ddinfra:aws/defaultSubnets":             auto.ConfigValue{Value: subnets},
 		"ddinfra:aws/defaultShutdownBehavior":    auto.ConfigValue{Value: "terminate"},
 		"ddinfra:aws/defaultInstanceStorageSize": auto.ConfigValue{Value: "500"},
 		"microvm:microVMConfigFile":              auto.ConfigValue{Value: vmConfig},

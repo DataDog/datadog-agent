@@ -14,8 +14,8 @@ import (
 	systemProbe "github.com/DataDog/datadog-agent/test/new-e2e/system-probe"
 )
 
-func run(envName, securityGroups, subnets, x86InstanceType, armInstanceType string, destroy bool, opts *systemProbe.SystemProbeEnvOpts) error {
-	systemProbeEnv, err := systemProbe.NewTestEnv(envName, securityGroups, subnets, x86InstanceType, armInstanceType, opts)
+func run(envName, x86InstanceType, armInstanceType string, destroy bool, opts *systemProbe.SystemProbeEnvOpts) error {
+	systemProbeEnv, err := systemProbe.NewTestEnv(envName, x86InstanceType, armInstanceType, opts)
 	if err != nil {
 		return err
 	}
@@ -33,8 +33,6 @@ func run(envName, securityGroups, subnets, x86InstanceType, armInstanceType stri
 func main() {
 	envNamePtr := flag.String("name", "system-probe", "environment name")
 	destroyPtr := flag.Bool("destroy", false, "[optional] should destroy the environment")
-	securityGroupsPtr := flag.String("sgs", "", "security groups")
-	subnetsPtr := flag.String("subnets", "", "aws subnets")
 	x86InstanceTypePtr := flag.String("instance-type-x86", "", "x86_64 instance type")
 	armInstanceTypePtr := flag.String("instance-type-arm", "", "arm64 instance type")
 	x86AmiIDPtr := flag.String("x86-ami-id", "", "x86 ami for metal instance")
@@ -61,7 +59,7 @@ func main() {
 
 	fmt.Printf("shutdown period: %s\n", opts.ShutdownPeriod)
 
-	err := run(*envNamePtr, *securityGroupsPtr, *subnetsPtr, *x86InstanceTypePtr, *armInstanceTypePtr, *destroyPtr, &opts)
+	err := run(*envNamePtr, *x86InstanceTypePtr, *armInstanceTypePtr, *destroyPtr, &opts)
 	if err != nil {
 		log.Fatal(err)
 	}
