@@ -155,9 +155,7 @@ describe "system-probe" do
       "DD_ALLOW_RUNTIME_COMPILED_FALLBACK"=>"false",
       "DD_ALLOW_PRECOMPILED_FALLBACK"=>"false"
     }
-    unless osname == "ubuntu-16.04" and release.start_with?("4.4.")
-      include_examples "passes", "co-re", env, co_re_tests, true
-    end
+    include_examples "passes", "co-re", env, co_re_tests, true
   end
 
   context "fentry" do
