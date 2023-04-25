@@ -11,6 +11,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 )
 
+const AllConnections = -1
+
 // shouldSkipConnection returns whether or not the tracer should ignore a given connection:
 //   - Local DNS (*:53) requests if configured (default: true)
 func (t *Tracer) shouldSkipConnection(conn *network.ConnectionStats) bool {

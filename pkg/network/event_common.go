@@ -127,6 +127,7 @@ type BufferedData struct {
 // Connections wraps a collection of ConnectionStats
 type Connections struct {
 	BufferedData
+	PageToken                   uint
 	DNS                         map[util.Address][]dns.Hostname
 	ConnTelemetry               map[ConnTelemetryType]int64
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry

@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -92,7 +93,14 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/connections", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
 		id := getClientID(req)
-		cs, err := nt.tracer.GetActiveConnections(id)
+		pageSize, pageToken, err := getClientPageInfo(req)
+
+		var cs *network.Connections
+		if err != nil {
+			cs, err = nt.tracer.GetActiveConnections(id)
+		} else {
+			cs, err = nt.tracer.GetActiveConnectionsPaged(id, pageSize, pageToken)
+		}
 		if err != nil {
 			log.Errorf("unable to retrieve connections: %s", err)
 			w.WriteHeader(500)
@@ -286,6 +294,25 @@ func getClientID(req *http.Request) string {
 		clientID = rawCID
 	}
 	return clientID
+}
+
+func getClientPageInfo(req *http.Request) (pageSize uint, pageToken uint, err error) {
+	var v uint64
+	if raw := req.URL.Query().Get("page_size"); raw != "" {
+		v, err = strconv.ParseUint(raw, 10, 32)
+		if err != nil {
+			return 0, 0, err
+		}
+		pageSize = uint(v)
+	}
+	if raw := req.URL.Query().Get("page_token"); raw != "" {
+		v, err = strconv.ParseUint(raw, 10, 32)
+		if err != nil {
+			return 0, 0, err
+		}
+		pageToken = uint(v)
+	}
+	return pageSize, pageToken, nil
 }
 
 func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *network.Connections) {

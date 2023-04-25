@@ -29,7 +29,7 @@ func GetRemoteSystemProbeUtil(path string) (*RemoteSysProbeUtil, error) {
 }
 
 // GetConnections is not supported
-func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections, error) {
+func (r *RemoteSysProbeUtil) GetConnections(clientID string, pageSize int, pageToken int) (*model.Connections, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 

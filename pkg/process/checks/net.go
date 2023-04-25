@@ -134,7 +134,7 @@ func (c *ConnectionsCheck) ShouldSaveLastRun() bool { return false }
 func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
 	start := time.Now()
 
-	conns, err := c.getConnections()
+	conns, err := c.getConnections(c.maxConnsPerMessage)
 	if err != nil {
 		// If the tracer is not initialized, or still not initialized, then we want to exit without error'ing
 		if err == ebpf.ErrNotImplemented || err == ErrTracerStillNotInitialized {
@@ -165,7 +165,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 // Cleanup frees any resource held by the ConnectionsCheck before the agent exits
 func (c *ConnectionsCheck) Cleanup() {}
 
-func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
+func (c *ConnectionsCheck) getConnections(maxConnsPerMessage int) (connections *model.Connections, err error) {
 	tu, err := net.GetRemoteSystemProbeUtil(c.syscfg.SocketAddress)
 	if err != nil {
 		if c.notInitializedLogLimit.ShouldLog() {
@@ -173,7 +173,26 @@ func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 		}
 		return nil, ErrTracerStillNotInitialized
 	}
-	return tu.GetConnections(c.tracerClientID)
+	pageToken := uint(0)
+	for {
+		cnx, err := tu.GetConnections(c.tracerClientID, maxConnsPerMessage, pageToken)
+		if err != nil {
+			return nil, err
+		}
+		if cnx.PageToken == 0 { // no more page
+			if connections == nil {
+				connections = cnx
+			}
+			return connections, err
+		}
+		pageToken = cnx.PageToken
+
+		if connections == nil {
+			connections = cnx
+		} else {
+			connections.Aggregate(cnx)
+		}
+	}
 }
 
 func (c *ConnectionsCheck) notifyProcessConnRates(config config.ConfigReader, conns *model.Connections) {

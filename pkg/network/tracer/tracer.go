@@ -71,6 +71,11 @@ var tracerTelemetry = struct {
 	telemetry.NewGauge(tracerModuleName, "payload_conn_count", []string{"client_id"}, "Gauge measuring the number of connections in the system-probe payload"),
 }
 
+type connections struct {
+	latestTime uint64
+	active     []network.ConnectionStats
+}
+
 // Tracer implements the functionality of the network tracer
 type Tracer struct {
 	config       *config.Config
@@ -81,6 +86,9 @@ type Tracer struct {
 	ebpfTracer   connection.Tracer
 	bpfTelemetry *nettelemetry.EBPFTelemetry
 	lastCheck    *atomic.Int64
+
+	// clientPagedConnections keep the context between multiple paged call to GetConnections()
+	clientPagedConnections map[string]connections
 
 	activeBuffer *network.ConnectionBuffer
 	bufferLock   sync.Mutex
@@ -187,6 +195,7 @@ func newTracer(cfg *config.Config) (*Tracer, error) {
 		state:                      state,
 		reverseDNS:                 newReverseDNS(cfg),
 		usmMonitor:                 newUSMMonitor(cfg, ebpfTracer, bpfTelemetry),
+		clientPagedConnections:     make(map[string]connections),
 		activeBuffer:               network.NewConnectionBuffer(512, 256),
 		conntracker:                conntracker,
 		sourceExcludes:             network.ParseConnectionFilters(cfg.ExcludedSourceConnections),
@@ -368,6 +377,33 @@ func (t *Tracer) Stop() {
 	close(t.exitTelemetry)
 }
 
+func (t *Tracer) getActiveDeltaConnections(clientID string, latestTime uint64, active []network.ConnectionStats) *network.Connections {
+	delta := t.state.GetDelta(clientID, latestTime, active,
+		t.reverseDNS.GetDNSStats(),
+		t.usmMonitor.GetHTTPStats(),
+		t.usmMonitor.GetHTTP2Stats(),
+		t.usmMonitor.GetKafkaStats(),
+	)
+	t.activeBuffer.Reset()
+
+	tracerTelemetry.payloadSizePerClient.Set(float64(len(delta.Conns)), clientID)
+
+	ips := make(map[util.Address]struct{}, len(delta.Conns)/2)
+	for _, conn := range delta.Conns {
+		ips[conn.Source] = struct{}{}
+		ips[conn.Dest] = struct{}{}
+	}
+	names := t.reverseDNS.Resolve(ips)
+	return &network.Connections{
+		BufferedData: delta.BufferedData,
+		DNS:          names,
+		DNSStats:     delta.DNSStats,
+		HTTP:         delta.HTTP,
+		HTTP2:        delta.HTTP2,
+		Kafka:        delta.Kafka,
+	}
+}
+
 // GetActiveConnections returns the delta for connection info from the last time it was called with the same clientID
 func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, error) {
 	t.bufferLock.Lock()
@@ -381,37 +417,73 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
 
-	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.usmMonitor.GetHTTPStats(), t.usmMonitor.GetHTTP2Stats(), t.usmMonitor.GetKafkaStats())
-	t.activeBuffer.Reset()
+	networkCnx := t.getActiveDeltaConnections(clientID, latestTime, active)
+	networkCnx.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
+	networkCnx.KernelHeaderFetchResult = int32(kernel.HeaderProvider.GetResult())
+	networkCnx.CompilationTelemetryByAsset = t.getRuntimeCompilationTelemetry()
+	networkCnx.CORETelemetryByAsset = ddebpf.GetCORETelemetryByAsset()
+	networkCnx.PrebuiltAssets = netebpf.GetModulesInUse()
 
-	tracerTelemetry.payloadSizePerClient.Set(float64(len(delta.Conns)), clientID)
-
-	ips := make(map[util.Address]struct{}, len(delta.Conns)/2)
-	for _, conn := range delta.Conns {
-		ips[conn.Source] = struct{}{}
-		ips[conn.Dest] = struct{}{}
-	}
-	names := t.reverseDNS.Resolve(ips)
-	ctm := t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
-	rctm := t.getRuntimeCompilationTelemetry()
-	khfr := int32(kernel.HeaderProvider.GetResult())
-	coretm := ddebpf.GetCORETelemetryByAsset()
-	pbassets := netebpf.GetModulesInUse()
 	t.lastCheck.Store(time.Now().Unix())
+	return networkCnx, nil
+}
 
-	return &network.Connections{
-		BufferedData:                delta.BufferedData,
-		DNS:                         names,
-		DNSStats:                    delta.DNSStats,
-		HTTP:                        delta.HTTP,
-		HTTP2:                       delta.HTTP2,
-		Kafka:                       delta.Kafka,
-		ConnTelemetry:               ctm,
-		KernelHeaderFetchResult:     khfr,
-		CompilationTelemetryByAsset: rctm,
-		CORETelemetryByAsset:        coretm,
-		PrebuiltAssets:              pbassets,
-	}, nil
+// GetActiveConnectionsPaged returns the delta for connection info from the last time it was called with the same clientID
+// pageSize is the maximum numbers of connections that will be reported
+// pageToken is the connections index
+//
+// the return value networkCnx.PageToken will contain the next pageToken for the next call
+// if networkCnx.PageToken == 0 this mean there are no more connections to be sent
+//
+// The context is saved per clientID
+func (t *Tracer) GetActiveConnectionsPaged(clientID string, pageSize uint, pageToken uint) (*network.Connections, error) {
+	t.bufferLock.Lock()
+	defer t.bufferLock.Unlock()
+	log.Tracef("GetActiveConnectionsPaged clientID=%s pageSize=%d pageToken=%s", clientID, pageSize, pageToken)
+
+	allCnx, found := t.clientPagedConnections[clientID]
+	if !found {
+		t.ebpfTracer.FlushPending()
+		latestTime, active, err := t.getConnections(t.activeBuffer)
+		if err != nil {
+			return nil, fmt.Errorf("error retrieving connections: %s", err)
+		}
+		t.clientPagedConnections[clientID] = connections{
+			latestTime: latestTime,
+		}
+		copy(t.clientPagedConnections[clientID].active, active)
+		allCnx = t.clientPagedConnections[clientID]
+	}
+
+	lenAllCnx := uint(len(allCnx.active))
+	if pageToken >= lenAllCnx {
+		delete(t.clientPagedConnections, clientID)
+		return nil, fmt.Errorf("GetActiveConnectionsPaged invalid pageToken %d cnx %d", pageToken, len(allCnx.active))
+	}
+	if (pageToken + pageSize) > lenAllCnx {
+		pageSize = lenAllCnx - pageToken
+	}
+
+	active := allCnx.active[pageToken:pageSize]
+	networkCnx := t.getActiveDeltaConnections(clientID, allCnx.latestTime, active)
+	networkCnx.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(allCnx.active)))
+
+	if pageToken+pageSize >= lenAllCnx {
+		// last page, we don't more data to send after this call
+		networkCnx.PageToken = 0
+		delete(t.clientPagedConnections, clientID)
+	} else {
+		networkCnx.PageToken = pageToken + pageSize
+	}
+	if !found { // first message
+		networkCnx.KernelHeaderFetchResult = int32(kernel.HeaderProvider.GetResult())
+		networkCnx.CompilationTelemetryByAsset = t.getRuntimeCompilationTelemetry()
+		networkCnx.CORETelemetryByAsset = ddebpf.GetCORETelemetryByAsset()
+		networkCnx.PrebuiltAssets = netebpf.GetModulesInUse()
+	}
+
+	t.lastCheck.Store(time.Now().Unix())
+	return networkCnx, nil
 }
 
 // RegisterClient registers a clientID with the tracer

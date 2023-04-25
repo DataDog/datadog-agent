@@ -127,8 +127,8 @@ func (r *RemoteSysProbeUtil) GetProcStats(pids []int32) (*model.ProcStatsWithPer
 }
 
 // GetConnections returns a set of active network connections, retrieved from the system probe service
-func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s?client_id=%s", connectionsURL, clientID), nil)
+func (r *RemoteSysProbeUtil) GetConnections(clientID string, pageSize int, pageToken int) (*model.Connections, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s?client_id=%s&page_size=%d&page_token=%d", connectionsURL, clientID, pageSize, pageToken), nil)
 	if err != nil {
 		return nil, err
 	}
