@@ -16,6 +16,7 @@ api_key:
 ## Set to 'datadoghq.eu' to send data to the EU site.
 ## Set to 'us3.datadoghq.com' to send data to the US3 site.
 ## Set to 'us5.datadoghq.com' to send data to the US5 site.
+## Set to 'ap1.datadoghq.com' to send data to the AP1 site.
 ## Set to 'ddog-gov.com' to send data to the US1-FED site.
 #
 # site: datadoghq.com
@@ -377,7 +378,9 @@ api_key:
 
 ## @param exclude_ec2_tags - list of strings - optional - default: []
 ## @env DD_EXCLUDE_EC2_TAGS - space separated list of strings - optional - default: []
-## EC2 tags to exclude from being converted into host tags -- only applicable when collect_ec2_tags is true.
+## EC2 tags to exclude from being converted into host tags -- only applicable when collect_ec2_tags is true. This does
+## not impact tags collected by the AWS Integration (see https://docs.datadoghq.com/integrations/amazon_web_services/
+## for more information on the AWS integration).
 #
 # exclude_ec2_tags: []
 
@@ -575,7 +578,7 @@ api_key:
   ## Specific configurations for metrics
   #
   # metrics:
-  
+
     ## @param enabled - boolean - optional - default: false
     ## @env DD_OBSERVABILITY_PIPELINES_WORKER_METRICS_ENABLED - boolean - optional - default: false
     ## Enables forwarding of metrics to an Observability Pipelines Worker
@@ -592,7 +595,7 @@ api_key:
   ## Specific configurations for logs
   #
   # logs:
-  
+
     ## @param enabled - boolean - optional - default: false
     ## @env DD_OBSERVABILITY_PIPELINES_WORKER_LOGS_ENABLED - boolean - optional - default: false
     ## Enables forwarding of logs to an Observability Pipelines Worker
@@ -609,7 +612,7 @@ api_key:
   ## Specific configurations for traces
   #
   # traces:
-  
+
     ## @param enabled - boolean - optional - default: false
     ## @env DD_OBSERVABILITY_PIPELINES_WORKER_TRACES_ENABLED - boolean - optional - default: false
     ## Enables forwarding of traces to an Observability Pipelines Worker

@@ -142,8 +142,8 @@ namespace WixSetup.Datadog
                 new Id(nameof(ReportInstallFailure)),
                 Telemetry.ReportFailure,
                 Return.ignore,
-                When.Before,
-                Step.StartServices
+                When.After,
+                Step.InstallInitialize
             )
             {
                 Execute = Execute.rollback,

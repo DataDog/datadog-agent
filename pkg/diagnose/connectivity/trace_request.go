@@ -23,6 +23,7 @@ import (
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -32,7 +33,7 @@ import (
 func RunDatadogConnectivityDiagnose(writer io.Writer, noTrace bool) error {
 
 	// Create domain resolvers
-	keysPerDomain, err := config.GetMultipleEndpoints()
+	keysPerDomain, err := utils.GetMultipleEndpoints(config.Datadog)
 	if err != nil {
 		return log.Error("Misconfiguration of agent endpoints: ", err)
 	}
@@ -138,7 +139,7 @@ func verifyEndpointResponse(writer io.Writer, statusCode int, responseBody []byt
 // the endpoint send an empty response. As the error 'EOF' is not very informative, it can
 // be interesting to 'wrap' this error to display more context.
 func noResponseHints(writer io.Writer, err error) {
-	endpoint := config.GetMainInfraEndpoint()
+	endpoint := utils.GetInfraEndpoint(config.Datadog)
 	parsedURL, parseErr := url.Parse(endpoint)
 	if parseErr != nil {
 		fmt.Fprintf(writer, "Could not parse url '%v' : %v", scrubber.ScrubLine(endpoint), scrubber.ScrubLine(parseErr.Error()))
