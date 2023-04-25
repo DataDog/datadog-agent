@@ -824,18 +824,17 @@ workflow:
     allow_failure: true
 
 .on_system_probe_changes_or_manual:
-  - script:
-    - DIFF_FILES=$(git diff --name-only $(git merge-base $(inv release.get-release-json-value base_branch) HEAD) HEAD)
-    - cat "$DIFF_FILES" | grep "pkg/collector/corechecks/ebpf/" || \
-       cat "$DIFF_FILES" | grep "pkg/ebf/" || \
-       cat "$DIFF_FILES" | grep "pkg/network/" || \
-       cat "$DIFF_FILES" | grep "pkg/util/kernel" || \
-       cat "$DIFF_FILES" | grep "test/kitchen/site-cookbooks/dd-system-probe-check/" || \
-       cat "$DIFF_FILES" | grep "test/kitchen/test/integration/system-probe-test/" || \
-       cat "$DIFF_FILES" | grep "test/kitchen/test/integration/win-sysprobe-test/" || \
-       cat "$DIFF_FILES" | grep ".gitlab/functional_test/system_probe.yml" || \
-       cat "$DIFF_FILES" | grep "test/new-e2e/system-probe/" || \
-       cat "$DIFF_FILES" | grep "test/new-e2e/scenarios/system-probe/"
+  - changes:
+      - pkg/collector/corechecks/ebpf/**/*
+      - pkg/ebpf/**/*
+      - pkg/network/**/*
+      - pkg/util/kernel/**/*
+      - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
+      - test/kitchen/test/integration/system-probe-test/**/*
+      - test/kitchen/test/integration/win-sysprobe-test/**/*
+      - .gitlab/functional_test/system_probe.yml
+      - test/new-e2e/system-probe/**/*
+      - test/new-e2e/scenarios/system-probe/**/*
     when: on_success
   - when: manual
     allow_failure: true

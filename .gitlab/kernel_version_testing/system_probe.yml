@@ -6,12 +6,25 @@
     !reference [ .on_system_probe_changes_or_manual ]
   stage: kernel_matrix_testing
   script:
+    - DIFF_FILES=$(git diff --name-only $(git merge-base $(inv release.get-release-json-value base_branch) HEAD) HEAD)
+    - [ cat "$DIFF_FILES" | grep "pkg/collector/corechecks/ebpf/" -o \
+       cat "$DIFF_FILES" | grep "pkg/ebf/" -o \
+       cat "$DIFF_FILES" | grep "pkg/network/" -o \
+       cat "$DIFF_FILES" | grep "pkg/util/kernel" -o \
+       cat "$DIFF_FILES" | grep "test/kitchen/site-cookbooks/dd-system-probe-check/" -o \
+       cat "$DIFF_FILES" | grep "test/kitchen/test/integration/system-probe-test/" -o \
+       cat "$DIFF_FILES" | grep "test/kitchen/test/integration/win-sysprobe-test/" -o \
+       cat "$DIFF_FILES" | grep ".gitlab/functional_test/system_probe.yml" -o \
+       cat "$DIFF_FILES" | grep "test/new-e2e/system-probe/" -o \
+       cat "$DIFF_FILES" | grep "test/new-e2e/scenarios/system-probe/" ]; exit_code=$?
+    - if [ $exit_code -eq 0 ]; then
     # DockerHub login for build to limit rate limit when pulling base images
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
     # Pull base images
     - mkdir $KITCHEN_DOCKERS
     - inv -e system-probe.save-test-dockers --output-dir $KITCHEN_DOCKERS --arch $ARCH
+    - fi
   artifacts:
     expire_in: 1 day
     paths:
@@ -36,6 +49,18 @@ pull_test_dockers_arm64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
   tags: ["runner:main"]
   script:
+    - DIFF_FILES=$(git diff --name-only $(git merge-base $(inv release.get-release-json-value base_branch) HEAD) HEAD)
+    - cat "$DIFF_FILES" | grep "pkg/collector/corechecks/ebpf/" || \
+       cat "$DIFF_FILES" | grep "pkg/ebf/" || \
+       cat "$DIFF_FILES" | grep "pkg/network/" || \
+       cat "$DIFF_FILES" | grep "pkg/util/kernel" || \
+       cat "$DIFF_FILES" | grep "test/kitchen/site-cookbooks/dd-system-probe-check/" || \
+       cat "$DIFF_FILES" | grep "test/kitchen/test/integration/system-probe-test/" || \
+       cat "$DIFF_FILES" | grep "test/kitchen/test/integration/win-sysprobe-test/" || \
+       cat "$DIFF_FILES" | grep ".gitlab/functional_test/system_probe.yml" || \
+       cat "$DIFF_FILES" | grep "test/new-e2e/system-probe/" || \
+       cat "$DIFF_FILES" | grep "test/new-e2e/scenarios/system-probe/"; exit_code=$?
+    - if [ $exit_code -eq 0 ]; then
     # Build dependencies directory
     - mkdir -p $DEPENDENCIES
     - pushd $DEPENDENCIES
@@ -65,6 +90,7 @@ pull_test_dockers_arm64:
     - pushd $DD_AGENT_TESTING_DIR/$ARCH
     - tar czvf ../$ARCHIVE_NAME dependencies
     - popd
+    - fi
   artifacts:
     when: always
     paths:
