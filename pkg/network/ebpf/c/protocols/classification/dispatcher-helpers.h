@@ -13,6 +13,24 @@
 #include "protocols/http2/helpers.h"
 #include "protocols/kafka/kafka-classification.h"
 
+static __always_inline bool is_http_monitoring_enabled() {
+    __u64 val = 0;
+    LOAD_CONSTANT("http_monitoring_enabled", val);
+    return val > 0;
+}
+
+static __always_inline bool is_http2_monitoring_enabled() {
+    __u64 val = 0;
+    LOAD_CONSTANT("http2_monitoring_enabled", val);
+    return val > 0;
+}
+
+static __always_inline bool is_kafka_monitoring_enabled() {
+    __u64 val = 0;
+    LOAD_CONSTANT("kafka_monitoring_enabled", val);
+    return val > 0;
+}
+
 // Returns true if the payload represents a TCP termination by checking if the tcp flags contains TCPHDR_FIN or TCPHDR_RST.
 static __always_inline bool is_tcp_termination(skb_info_t *skb_info) {
     return skb_info->tcp_flags & (TCPHDR_FIN | TCPHDR_RST);
@@ -48,9 +66,9 @@ static __always_inline void classify_protocol_for_dispatcher(protocol_t *protoco
         return;
     }
 
-    if (is_http(buf, size)) {
+    if (is_http_monitoring_enabled() && is_http(buf, size)) {
         *protocol = PROTOCOL_HTTP;
-    } else if (is_http2(buf, size)) {
+    } else if (is_http2_monitoring_enabled() && is_http2(buf, size)) {
         *protocol = PROTOCOL_HTTP2;
     } else {
         *protocol = PROTOCOL_UNKNOWN;
@@ -98,7 +116,7 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
         const size_t payload_length = skb->len - skb_info.data_off;
         const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
         classify_protocol_for_dispatcher(&cur_fragment_protocol, &skb_tup, request_fragment, final_fragment_size);
-        if (cur_fragment_protocol == PROTOCOL_UNKNOWN) {
+        if (is_kafka_monitoring_enabled() && cur_fragment_protocol == PROTOCOL_UNKNOWN) {
             bpf_tail_call_compat(skb, &dispatcher_classification_progs, DISPATCHER_KAFKA_PROG);
         }
         log_debug("[protocol_dispatcher_entrypoint]: %p Classifying protocol as: %d\n", skb, cur_fragment_protocol);
