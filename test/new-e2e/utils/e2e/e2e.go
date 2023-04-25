@@ -9,6 +9,7 @@ package e2e
 
 import (
 	"context"
+	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner"
@@ -74,21 +75,33 @@ type StackDefinition[Env any] struct {
 	ConfigMap  runner.ConfigMap
 }
 
+type suiteConstraint[Env any] interface {
+	suite.TestingSuite
+	initSuite(stackName string, stackDef *StackDefinition[Env], options ...func(*Suite[Env]))
+}
+
+func Run[Env any, T suiteConstraint[Env]](t *testing.T, e2eSuite T, stackName string, stackDef *StackDefinition[Env], options ...func(*Suite[Env])) {
+	e2eSuite.initSuite(stackName, stackDef, options...)
+	suite.Run(t, e2eSuite)
+}
+
 // NewSuite creates a new Suite.
 // stackName is the name of the stack and should be unique across suites.
 // stackDef is the stack definition.
 // options are optional parameters for example [e2e.KeepEnv].
 func NewSuite[Env any](stackName string, stackDef *StackDefinition[Env], options ...func(*Suite[Env])) *Suite[Env] {
-	testSuite := Suite[Env]{
-		stackName: stackName,
-		stackDef:  stackDef,
-	}
+	testSuite := Suite[Env]{}
+	testSuite.initSuite(stackName, stackDef, options...)
+	return &testSuite
+}
+
+func (suite *Suite[Env]) initSuite(stackName string, stackDef *StackDefinition[Env], options ...func(*Suite[Env])) {
+	suite.stackName = stackName
+	suite.stackDef = stackDef
 
 	for _, o := range options {
-		o(&testSuite)
+		o(suite)
 	}
-
-	return &testSuite
 }
 
 // SetupSuite method will run before the tests in the suite are run.
