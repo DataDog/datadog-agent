@@ -75,9 +75,6 @@ const (
 	// DefaultRuntimePoliciesDir is the default policies directory used by the runtime security module
 	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
 
-	// DefaultSecurityProfilesDir is the default directory used to store Security Profiles by the runtime security module
-	DefaultSecurityProfilesDir = "/etc/datadog-agent/runtime-security.d/profiles"
-
 	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor
 	DefaultLogsSenderBackoffFactor = 2.0
 
@@ -121,6 +118,9 @@ var (
 var (
 	// StartTime is the agent startup time
 	StartTime = time.Now()
+
+	// DefaultSecurityProfilesDir is the default directory used to store Security Profiles by the runtime security module
+	DefaultSecurityProfilesDir = filepath.Join(defaultRunPath, "runtime-security", "profiles")
 )
 
 // PrometheusScrapeChecksTransformer unmarshals a prometheus check.
@@ -1481,6 +1481,11 @@ func LoadDatadogCustomWithKnownEnvVars(config Config, origin string, loadSecret 
 
 	warnings, err := LoadCustom(config, origin, loadSecret, additionalKnownEnvVars)
 	if err != nil {
+		if errors.Is(err, os.ErrPermission) {
+			log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
+		} else {
+			log.Warnf("Error loading config: %v", err)
+		}
 		return warnings, err
 	}
 
@@ -1515,11 +1520,6 @@ func LoadCustom(config Config, origin string, loadSecret bool, additionalKnownEn
 		if IsServerless() {
 			log.Debug("No config file detected, using environment variable based configuration only")
 			return &warnings, nil
-		}
-		if errors.Is(err, os.ErrPermission) {
-			log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
-		} else {
-			log.Warnf("Error loading config: %v", err)
 		}
 		return &warnings, err
 	}

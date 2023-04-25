@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -256,6 +257,9 @@ func TestActionSetVariable(t *testing.T) {
 
 	event := model.NewDefaultEvent()
 	event.(*model.Event).Type = uint32(model.FileOpenEventType)
+	processCacheEntry := &model.ProcessCacheEntry{}
+	processCacheEntry.Retain()
+	event.(*model.Event).ProcessCacheEntry = processCacheEntry
 	event.SetFieldValue("open.file.path", "/tmp/test2")
 	event.SetFieldValue("open.flags", syscall.O_RDONLY)
 
@@ -273,6 +277,12 @@ func TestActionSetVariable(t *testing.T) {
 	if !rs.Evaluate(event) {
 		t.Errorf("Expected event to match rule")
 	}
+
+	scopedVariables := rs.scopedVariables["process"].(*eval.ScopedVariables)
+
+	assert.Equal(t, scopedVariables.Len(), 1)
+	event.(*model.Event).ProcessCacheEntry.Release()
+	assert.Equal(t, scopedVariables.Len(), 0)
 }
 
 func TestActionSetVariableConflict(t *testing.T) {
