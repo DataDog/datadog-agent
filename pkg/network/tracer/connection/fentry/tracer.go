@@ -63,7 +63,7 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 
 		file, err := os.Stat("/proc/" + fmt.Sprint(pid) + "/ns/pid")
 
-		if (err != nil) {
+		if err != nil {
 			return nil
 		}
 
