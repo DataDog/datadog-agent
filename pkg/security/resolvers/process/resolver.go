@@ -80,7 +80,7 @@ type Resolver struct {
 	cgroupResolver    *cgroup.Resolver
 	userGroupResolver *usergroup.Resolver
 	timeResolver      *stime.Resolver
-	pathResolver      *spath.Resolver
+	pathResolver      spath.ResolverInterface
 
 	execFileCacheMap *lib.Map
 	procCacheMap     *lib.Map
@@ -1236,7 +1236,7 @@ func (p *Resolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 func NewResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
 	scrubber *procutil.DataScrubber, containerResolver *container.Resolver, mountResolver *mount.Resolver,
 	cgroupResolver *cgroup.Resolver, userGroupResolver *usergroup.Resolver, timeResolver *stime.Resolver,
-	pathResolver *spath.Resolver, opts ResolverOpts) (*Resolver, error) {
+	pathResolver spath.ResolverInterface, opts *ResolverOpts) (*Resolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU[uint32, *argsEnvsCacheEntry](maxParallelArgsEnvs, nil)
 	if err != nil {
 		return nil, err
@@ -1248,7 +1248,7 @@ func NewResolver(manager *manager.Manager, config *config.Config, statsdClient s
 		statsdClient:              statsdClient,
 		scrubber:                  scrubber,
 		entryCache:                make(map[uint32]*model.ProcessCacheEntry),
-		opts:                      opts,
+		opts:                      *opts,
 		argsEnvsCache:             argsEnvsCache,
 		state:                     atomic.NewInt64(Snapshotting),
 		hitsStats:                 map[string]*atomic.Int64{},
@@ -1279,15 +1279,17 @@ func NewResolver(manager *manager.Manager, config *config.Config, statsdClient s
 	return p, nil
 }
 
-// NewResolverOpts returns a new set of process resolver options
-func NewResolverOpts(envsWithValue []string) ResolverOpts {
-	opts := ResolverOpts{
-		envsWithValue: make(map[string]bool, len(envsWithValue)),
-	}
-
+// WithEnvsValue specifies envs with value
+func (o *ResolverOpts) WithEnvsValue(envsWithValue []string) *ResolverOpts {
 	for _, envVar := range envsWithValue {
-		opts.envsWithValue[envVar] = true
+		o.envsWithValue[envVar] = true
 	}
+	return o
+}
 
-	return opts
+// NewResolverOpts returns a new set of process resolver options
+func NewResolverOpts() *ResolverOpts {
+	return &ResolverOpts{
+		envsWithValue: make(map[string]bool),
+	}
 }

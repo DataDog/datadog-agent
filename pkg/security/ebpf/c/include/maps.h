@@ -53,7 +53,7 @@ BPF_LRU_MAP(netns_cache, u32, u32, 40960)
 BPF_LRU_MAP(span_tls, u32, struct span_tls_t, 4096)
 BPF_LRU_MAP(inode_discarders, struct inode_discarder_t, struct inode_discarder_params_t, 4096)
 BPF_LRU_MAP(pid_discarders, u32, struct pid_discarder_params_t, 512)
-BPF_LRU_MAP(pathnames, struct path_key_t, struct path_leaf_t, 64000)
+BPF_LRU_MAP(pathnames, struct path_key_t, struct path_leaf_t, 1) // edited
 BPF_LRU_MAP(flow_pid, struct pid_route_t, u32, 10240)
 BPF_LRU_MAP(conntrack, struct namespaced_flow_t, struct namespaced_flow_t, 4096)
 BPF_LRU_MAP(io_uring_ctx_pid, void*, u64, 2048)

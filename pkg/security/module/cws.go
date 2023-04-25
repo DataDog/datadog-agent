@@ -591,3 +591,8 @@ func logLoadingErrors(msg string, m *multierror.Error) {
 		seclog.Warnf(msg, m.Error())
 	}
 }
+
+// UpdateEventMonitorOpts adapt the event monitor options
+func UpdateEventMonitorOpts(opts *eventmonitor.Opts) {
+	opts.ProbeOpts.PathResolutionEnabled = true
+}

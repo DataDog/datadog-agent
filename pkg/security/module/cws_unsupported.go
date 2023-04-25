@@ -30,3 +30,6 @@ func (c *CWSConsumer) Start() error {
 }
 
 func (c *CWSConsumer) Stop() {}
+
+// UpdateEventMonitorOpts adapt the event monitor options
+func UpdateEventMonitorOpts(opts *eventmonitor.Opts) {}

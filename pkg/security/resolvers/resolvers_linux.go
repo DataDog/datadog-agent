@@ -39,6 +39,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// ResolversOpts defines common options
+type ResolversOpts struct {
+	PathResolutionEnabled bool
+}
+
 // Resolvers holds the list of the event attribute resolvers
 type Resolvers struct {
 	manager           *manager.Manager
@@ -52,12 +57,12 @@ type Resolvers struct {
 	NamespaceResolver *netns.Resolver
 	CGroupResolver    *cgroup.Resolver
 	TCResolver        *tc.Resolver
-	PathResolver      *path.Resolver
+	PathResolver      path.ResolverInterface
 	SBOMResolver      *sbom.Resolver
 }
 
 // NewResolvers creates a new instance of Resolvers
-func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC) (*Resolvers, error) {
+func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC, opts ResolversOpts) (*Resolvers, error) {
 	dentryResolver, err := dentry.NewResolver(config.Probe, statsdClient, eRPC)
 	if err != nil {
 		return nil, err
@@ -105,11 +110,19 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 		return nil, err
 	}
 
-	pathResolver := path.NewResolver(dentryResolver, mountResolver)
-
+	var pathResolver path.ResolverInterface
+	if opts.PathResolutionEnabled {
+		pathResolver = path.NewResolver(dentryResolver, mountResolver)
+	} else {
+		pathResolver = &path.NoResolver{}
+	}
 	containerResolver := &container.Resolver{}
+
+	processOpts := process.NewResolverOpts()
+	processOpts.WithEnvsValue(config.Probe.EnvsWithValue)
+
 	processResolver, err := process.NewResolver(manager, config.Probe, statsdClient,
-		scrubber, containerResolver, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, process.NewResolverOpts(config.Probe.EnvsWithValue))
+		scrubber, containerResolver, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, processOpts)
 	if err != nil {
 		return nil, err
 	}
