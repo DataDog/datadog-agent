@@ -230,21 +230,21 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	gotest.tools v2.2.0+incompatible
-	k8s.io/api v0.25.5
-	k8s.io/apiextensions-apiserver v0.25.5
-	k8s.io/apimachinery v0.25.5
-	k8s.io/apiserver v0.25.5
+	k8s.io/api v0.26.2
+	k8s.io/apiextensions-apiserver v0.26.2
+	k8s.io/apimachinery v0.26.2
+	k8s.io/apiserver v0.26.2
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.12.0
-	k8s.io/client-go v0.25.5
+	k8s.io/client-go v0.26.2
 	k8s.io/cri-api v0.25.5 // Cannot be upgraded to 0.26 without lossing CRI API v1alpha2
 	k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4 // Min version that includes fix for Windows Nano
-	k8s.io/klog/v2 v2.80.1
+	k8s.io/klog/v2 v2.90.1
 	k8s.io/kube-aggregator v0.23.5
-	k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280
+	k8s.io/kube-openapi v0.0.0-20230303024457-afdc3dddf62d
 	k8s.io/kube-state-metrics/v2 v2.7.0
-	k8s.io/kubelet v0.25.5
-	k8s.io/metrics v0.25.5
-	k8s.io/utils v0.0.0-20221108210102-8e77b1f39fe2
+	k8s.io/kubelet v0.26.2
+	k8s.io/metrics v0.26.2
+	k8s.io/utils v0.0.0-20230220204549-a5ecb0141aa5
 	sigs.k8s.io/custom-metrics-apiserver v1.25.1
 )
 
@@ -319,7 +319,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.17.5 // indirect
 	github.com/aws/smithy-go v1.13.4 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/blang/semver v3.5.1+incompatible // indirect
 	github.com/bmizerany/pat v0.0.0-20170815010413-6226ea591a40 // indirect
 	github.com/briandowns/spinner v1.12.0 // indirect
 	github.com/caarlos0/env/v6 v6.10.1 // indirect
@@ -341,8 +340,6 @@ require (
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dsnet/compress v0.0.2-0.20210315054119-f66993602bf5 // indirect
-	github.com/emicklei/go-restful v2.16.0+incompatible // indirect
-	github.com/emicklei/go-restful-swagger12 v0.0.0-20201014110547-68ccff494617 // indirect
 	github.com/emirpasic/gods v1.12.0 // indirect
 	github.com/felixge/httpsnoop v1.0.3 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
@@ -356,8 +353,8 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/analysis v0.21.4 // indirect
 	github.com/go-openapi/errors v0.20.3 // indirect
-	github.com/go-openapi/jsonpointer v0.19.5 // indirect
-	github.com/go-openapi/jsonreference v0.20.0 // indirect
+	github.com/go-openapi/jsonpointer v0.19.6 // indirect
+	github.com/go-openapi/jsonreference v0.20.1 // indirect
 	github.com/go-openapi/loads v0.21.2 // indirect
 	github.com/go-openapi/runtime v0.24.2 // indirect
 	github.com/go-openapi/spec v0.20.7 // indirect
@@ -375,7 +372,6 @@ require (
 	github.com/google/wire v0.5.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.2.3 // indirect
 	github.com/googleapis/gax-go/v2 v2.7.1 // indirect
-	github.com/googleapis/gnostic v0.5.5 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.10.1 // indirect
@@ -546,8 +542,8 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
-	k8s.io/component-base v0.25.5 // indirect
-	k8s.io/gengo v0.0.0-20211129171323-c02415ce4185 // indirect
+	k8s.io/component-base v0.26.2 // indirect
+	k8s.io/gengo v0.0.0-20220902162205-c0856e24416d // indirect
 	lukechampine.com/uint128 v1.1.1 // indirect
 	mellium.im/sasl v0.3.1 // indirect
 	modernc.org/cc/v3 v3.36.0 // indirect
@@ -559,9 +555,9 @@ require (
 	modernc.org/sqlite v1.17.3 // indirect
 	modernc.org/strutil v1.1.1 // indirect
 	modernc.org/token v1.0.0 // indirect
-	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.33 // indirect
-	sigs.k8s.io/controller-runtime v0.11.2 // indirect
-	sigs.k8s.io/json v0.0.0-20220713155537-f223a00ba0e2 // indirect
+	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.35 // indirect
+	sigs.k8s.io/controller-runtime v0.14.2 // indirect
+	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0
 )
@@ -573,15 +569,23 @@ require (
 )
 
 require (
+	github.com/antlr/antlr4/runtime/Go/antlr v1.4.10 // indirect
+	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cloudflare/circl v1.1.0 // indirect
+	github.com/emicklei/go-restful/v3 v3.10.1 // indirect
+	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/godror/knownpb v0.1.0 // indirect
+	github.com/google/cel-go v0.12.6 // indirect
+	github.com/google/gnostic v0.6.9 // indirect
 	github.com/rs/zerolog v1.29.0 // indirect
 	github.com/sigstore/rekor v1.0.1 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
+	github.com/stoewer/go-strcase v1.2.0 // indirect
 	go4.org/intern v0.0.0-20211027215823-ae77deb06f29 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20220617031537-928513b29760 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	inet.af/netaddr v0.0.0-20220617031823-097006376321 // indirect
+	k8s.io/kms v0.26.2 // indirect
 )
 
 replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be => github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe
@@ -608,20 +612,5 @@ replace (
 	oras.land/oras-go => oras.land/oras-go v1.1.1
 )
 
-// Kubernetes replaces, currently required as 0.24 drops compatibility for <1.14 due to leader election leases
-replace (
-	k8s.io/api => k8s.io/api v0.23.15
-	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.23.15
-	k8s.io/apimachinery => k8s.io/apimachinery v0.23.15
-	// k8s.io/apiserver depends on a very old version of the opentelemetry modules,
-	// so we created a fork that removed the dependency entirely. This can be
-	// removed once k8s.io uses opentelemetry 1.0 or newer (0.26)
-	k8s.io/apiserver => github.com/DataDog/kubernetes-apiserver v0.0.0-20220531090536-be42650a25e5
-	k8s.io/client-go => k8s.io/client-go v0.23.15
-	k8s.io/component-base => k8s.io/component-base v0.23.15
-	k8s.io/cri-api => k8s.io/cri-api v0.23.15
-	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20211115234752-e816edb12b65
-	k8s.io/kubelet => k8s.io/kubelet v0.23.15
-	k8s.io/metrics => k8s.io/metrics v0.23.15
-	sigs.k8s.io/custom-metrics-apiserver => sigs.k8s.io/custom-metrics-apiserver v1.23.0
-)
+// Need to be replaced until a new release uses kube >= 0.26
+replace sigs.k8s.io/custom-metrics-apiserver => sigs.k8s.io/custom-metrics-apiserver v1.25.1-0.20230308103314-bd3192a29bc8

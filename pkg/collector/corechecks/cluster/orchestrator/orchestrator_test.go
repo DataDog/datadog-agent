@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
@@ -44,11 +45,12 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 	wg.Add(2)
 
 	nodeInformer := informerFactory.Core().V1().Nodes().Informer()
-	nodeInformer.AddEventHandler(&cache.ResourceEventHandlerFuncs{
+	_, err := nodeInformer.AddEventHandler(&cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			wg.Done()
 		},
 	})
+	require.NoError(t, err)
 
 	writeNode(t, client, "1")
 
