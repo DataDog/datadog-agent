@@ -88,7 +88,7 @@ func ClassificationSupported(config *config.Config) bool {
 	return currentKernelVersion >= classificationMinimumKernel
 }
 
-// LoadTracer loads the prebuilt or runtime compiled tracer, depending on config
+// LoadTracer loads the co-re/prebuilt/runtime compiled network tracer, depending on config
 func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler) (func(), TracerType, error) {
 	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
 	if config.AttachKprobesWithKprobeEventsABI {
@@ -270,7 +270,7 @@ func isCORETracerSupported() error {
 
 	hostInfo := host.GetStatusInformation()
 	// centos/redhat distributions we support
-	// can have a kernel versions < 4, and
+	// can have kernel versions < 4, and
 	// CO-RE is supported there
 	if hostInfo.Platform == "centos" || hostInfo.Platform == "redhat" {
 		return nil
