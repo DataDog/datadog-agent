@@ -58,7 +58,7 @@ kitchen_test_system_probe_linux_x64:
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"
-        KITCHEN_OSVERS: "ubuntu-16-04-4.4,ubuntu-18-04,ubuntu-20-04,ubuntu-22-04"
+        KITCHEN_OSVERS: "ubuntu-18-04,ubuntu-20-04,ubuntu-22-04"
       - KITCHEN_PLATFORM: "debian"
         KITCHEN_OSVERS: "debian-10,debian-11"
       - KITCHEN_PLATFORM: "centos"
