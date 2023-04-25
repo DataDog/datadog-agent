@@ -276,24 +276,24 @@ func (agg *FlowAggregator) submitCollectorMetrics() error {
 			switch metricType {
 			case metrics.GaugeType:
 				sort.Strings(tags)
-				key := metricPrefix + name + strings.Join(tags, ",")
+				key := strings.Join(tags, ",")
 
 				// TODO: factor
 				if metricPrefix+name == "datadog.netflow.processor.flows_sequence" {
 					if value-agg.lastSequence[key] < -1000 {
-						log.Debugf("[countMissing][agg] seq=%f reset", agg.lastSequence[key])
+						log.Debugf("[countMissing][agg] key=%s, seq=%f reset", key, agg.lastSequence[key])
 						sequenceReset[key] = true
 					}
 					agg.lastSequence[key] = value
-					log.Debugf("[countMissing][agg] seq=%f", agg.lastSequence[key])
+					log.Debugf("[countMissing][agg] key=%s,  seq=%f", key, agg.lastSequence[key])
 				}
 				if metricPrefix+name == "datadog.netflow.processor.packets_sequence" {
 					if value-agg.lastSequence[key] < -100 {
-						log.Debugf("[countMissing][agg] seq=%f reset", agg.lastSequence[key])
+						log.Debugf("[countMissing][agg] key=%s, seq=%f reset", key, agg.lastSequence[key])
 						sequenceReset[key] = true
 					}
 					agg.lastSequence[key] = value
-					log.Debugf("[countMissing][agg] seq=%f", agg.lastSequence[key])
+					log.Debugf("[countMissing][agg] key=%s, seq=%f", key, agg.lastSequence[key])
 				}
 			}
 		}
@@ -312,12 +312,12 @@ func (agg *FlowAggregator) submitCollectorMetrics() error {
 				if metricPrefix+name == "datadog.netflow.processor.flows_missing" ||
 					metricPrefix+name == "datadog.netflow.processor.packets_missing" {
 					sort.Strings(tags)
-					key := metricPrefix + name + strings.Join(tags, ",")
+					key := strings.Join(tags, ",")
 					if sequenceReset[key] {
 						agg.lastMissingFlowsMetricValue[key] = 0
 					}
 					diff := value - agg.lastMissingFlowsMetricValue[key]
-					log.Debugf("[countMissing][agg] last=%f, value=%f, diff=%f", agg.lastMissingFlowsMetricValue[key], value, diff)
+					log.Debugf("[countMissing][agg] key=%s, last=%f, value=%f, diff=%f, reset=%t", key, agg.lastMissingFlowsMetricValue[key], value, diff, sequenceReset[key])
 					agg.lastMissingFlowsMetricValue[key] = value
 					agg.sender.Gauge(metricPrefix+name+"_count", diff, "", tags)
 				}
