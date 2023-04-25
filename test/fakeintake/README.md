@@ -89,13 +89,13 @@ Example:
 #### curl
 
 ```bash
-curl ${SERVICE_IP}/fake/payloads/{post_endpoint_path}
+curl ${SERVICE_IP}/fakeintake/payloads/?endpoint={post_endpoint_path}
 ```
 
 Example:
 
 ```bash
-curl ${SERVICE_IP}/fake/payloads/api/V2/series
+curl ${SERVICE_IP}/fakeintake/payloads/?endpoint=/api/V2/series
 ```
 
 #### Juniper Notebook
@@ -120,7 +120,7 @@ import base64
 import requests
 import json
 
-response = requests.get("http://localhost:8080/fake/payloads/api/v2/series")
+response = requests.get("http://localhost:8080/fakeintake/payloads/?endpoint=/api/v2/series")
 
 json_content = response.content.decode('utf8')
 
