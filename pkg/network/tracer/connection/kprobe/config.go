@@ -61,11 +61,7 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 		// we want to load the version that makes use of
 		// the tcp_sock field, which is the same as the
 		// runtime compiled implementation
-		if coreTracer {
-			enableProbe(enabled, probes.TCPRetransmit)
-		} else {
-			enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPRetransmit, probes.TCPRetransmitPre470, kv470))
-		}
+		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer || coreTracer, kv, probes.TCPRetransmit, probes.TCPRetransmitPre470, kv470))
 		enableProbe(enabled, probes.TCPRetransmitRet)
 
 		missing, err := ebpf.VerifyKernelFuncs("sockfd_lookup_light")

@@ -204,16 +204,16 @@ func runFallbackTests(t *testing.T, desc string, coreErr, rcErr bool, tests []st
 
 			closeFn, tracerType, err := LoadTracer(cfg, nil, manager.Options{}, nil)
 			if te.err == nil {
-				assert.NoError(t, err)
+				assert.NoError(t, err, "%+v", te)
 			} else {
-				assert.Error(t, err)
+				assert.Error(t, err, "%+v", te)
 			}
 
 			if te.err != nil {
-				assert.Nil(t, closeFn)
+				assert.Nil(t, closeFn, "%+v", te)
 			}
 
-			assert.Equal(t, te.tracerType, tracerType)
+			assert.Equal(t, te.tracerType, tracerType, "%+v", te)
 		})
 	}
 
