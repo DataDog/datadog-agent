@@ -54,6 +54,8 @@ func (genType NodeGenerationType) String() string {
 		return "runtime"
 	case Snapshot:
 		return "snapshot"
+	case SecurityProfile:
+		return "security_profile"
 	default:
 		return "unknown"
 	}
@@ -180,23 +182,28 @@ func (at *ActivityTree) isEventValid(event *model.Event, shadowInsertion bool) (
 }
 
 // Insert inserts the event in the activity tree
-func (at *ActivityTree) Insert(event *model.Event) (bool, error) {
-	return at.insert(event, false)
+func (at *ActivityTree) Insert(event *model.Event, generationType NodeGenerationType) (bool, error) {
+	return at.insert(event, false, generationType)
 }
 
 // Contains looks up the event in the activity tree
-func (at *ActivityTree) Contains(event *model.Event) (bool, error) {
-	newEntry, err := at.insert(event, true)
+func (at *ActivityTree) Contains(event *model.Event, generationType NodeGenerationType) (bool, error) {
+	newEntry, err := at.insert(event, true, generationType)
 	return !newEntry, err
 }
 
 // insert inserts the event in the activity tree, returns true if the event generated a new entry in the tree
-func (at *ActivityTree) insert(event *model.Event, shadowInsertion bool) (newEntry bool, outputErr error) {
+func (at *ActivityTree) insert(event *model.Event, shadowInsertion bool, generationType NodeGenerationType) (newEntry bool, outputErr error) {
+	// sanity check
+	if generationType > SecurityProfile {
+		return false, fmt.Errorf("invalid generation type: %v", generationType)
+	}
+
 	// metrics
 	defer func() {
 		if newEntry && !shadowInsertion {
 			// this doesn't count the exec events which are counted separately
-			at.Stats.addedCount[event.GetEventType()][Runtime].Inc()
+			at.Stats.addedCount[event.GetEventType()][generationType].Inc()
 		}
 	}()
 
@@ -215,7 +222,7 @@ func (at *ActivityTree) insert(event *model.Event, shadowInsertion bool) (newEnt
 		return false, fmt.Errorf("incomplete lineage")
 	}
 
-	node, newProcessNode, err := at.CreateProcessNode(entry, Runtime, shadowInsertion)
+	node, newProcessNode, err := at.CreateProcessNode(entry, generationType, shadowInsertion)
 	if newProcessNode && shadowInsertion {
 		return true, nil
 	}
@@ -241,11 +248,11 @@ func (at *ActivityTree) insert(event *model.Event, shadowInsertion bool) (newEnt
 		node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
 		return newProcessNode, nil
 	case model.FileOpenEventType:
-		return node.InsertFileEvent(&event.Open.File, event, Runtime, at.Stats, at.shouldMergePaths, shadowInsertion)
+		return node.InsertFileEvent(&event.Open.File, event, generationType, at.Stats, at.shouldMergePaths, shadowInsertion)
 	case model.DNSEventType:
-		return node.InsertDNSEvent(event, at.Stats, at.DNSNames, shadowInsertion)
+		return node.InsertDNSEvent(event, generationType, at.Stats, at.DNSNames, shadowInsertion)
 	case model.BindEventType:
-		return node.InsertBindEvent(event, at.Stats, shadowInsertion)
+		return node.InsertBindEvent(event, generationType, at.Stats, shadowInsertion)
 	case model.SyscallsEventType:
 		return node.InsertSyscalls(event, at.SyscallsMask)
 	}

@@ -14,13 +14,15 @@ import "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 type DNSNode struct {
 	MatchedRules []*model.MatchedRule
 
-	Requests []model.DNSEvent
+	GenerationType NodeGenerationType
+	Requests       []model.DNSEvent
 }
 
 // NewDNSNode returns a new DNSNode instance
-func NewDNSNode(event *model.DNSEvent, rules []*model.MatchedRule) *DNSNode {
+func NewDNSNode(event *model.DNSEvent, rules []*model.MatchedRule, generationType NodeGenerationType) *DNSNode {
 	return &DNSNode{
-		MatchedRules: rules,
-		Requests:     []model.DNSEvent{*event},
+		MatchedRules:   rules,
+		GenerationType: generationType,
+		Requests:       []model.DNSEvent{*event},
 	}
 }

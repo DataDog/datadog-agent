@@ -223,5 +223,5 @@ func (pn *ProcessNode) insertSnapshottedSocket(family uint16, ip net.IP, port ui
 	}
 	evt.Bind.Addr.Port = port
 
-	pn.InsertBindEvent(evt, stats, false)
+	_, _ = pn.InsertBindEvent(evt, Snapshot, stats, false)
 }

@@ -16,18 +16,20 @@ import (
 type BindNode struct {
 	MatchedRules []*model.MatchedRule
 
-	Port uint16
-	IP   string
+	GenerationType NodeGenerationType
+	Port           uint16
+	IP             string
 }
 
 // SocketNode is used to store a Socket node and associated events
 type SocketNode struct {
-	Family string
-	Bind   []*BindNode
+	Family         string
+	GenerationType NodeGenerationType
+	Bind           []*BindNode
 }
 
 // InsertBindEvent inserts a bind even inside a socket node
-func (n *SocketNode) InsertBindEvent(evt *model.BindEvent, rules []*model.MatchedRule, shadowInsertion bool) bool {
+func (n *SocketNode) InsertBindEvent(evt *model.BindEvent, generationType NodeGenerationType, rules []*model.MatchedRule, shadowInsertion bool) bool {
 	evtIP := evt.Addr.IPNet.IP.String()
 
 	for _, n := range n.Bind {
@@ -42,17 +44,19 @@ func (n *SocketNode) InsertBindEvent(evt *model.BindEvent, rules []*model.Matche
 	if !shadowInsertion {
 		// insert bind event now
 		n.Bind = append(n.Bind, &BindNode{
-			MatchedRules: rules,
-			Port:         evt.Addr.Port,
-			IP:           evtIP,
+			MatchedRules:   rules,
+			GenerationType: generationType,
+			Port:           evt.Addr.Port,
+			IP:             evtIP,
 		})
 	}
 	return true
 }
 
 // NewSocketNode returns a new SocketNode instance
-func NewSocketNode(family string) *SocketNode {
+func NewSocketNode(family string, generationType NodeGenerationType) *SocketNode {
 	return &SocketNode{
-		Family: family,
+		Family:         family,
+		GenerationType: generationType,
 	}
 }

@@ -29,6 +29,7 @@ import (
 	timeResolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -556,7 +557,7 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 		if time.Duration(event.TimestampRaw-profile.lastAnomalyNano) >= m.config.RuntimeSecurity.AnomalyDetectionMinimumStableDelayBeforeAnomalyDetection {
 			profile.autolearnEnabled = false
 		} else {
-			newEntry, err := profile.ActivityTree.Insert(event)
+			newEntry, err := profile.ActivityTree.Insert(event, activity_tree.SecurityProfile)
 			if err != nil {
 				// ignore, insertion failed
 				m.eventFiltering[event.GetEventType()][NoProfile].Inc()
@@ -578,7 +579,7 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	}
 
 	// check if the event is in its profile
-	ok, err := profile.ActivityTree.Contains(event)
+	ok, err := profile.ActivityTree.Contains(event, activity_tree.SecurityProfile)
 	if err != nil {
 		// ignore, evaluation failed
 		m.eventFiltering[event.GetEventType()][NoProfile].Inc()

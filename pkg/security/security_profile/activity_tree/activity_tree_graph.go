@@ -18,19 +18,22 @@ import (
 )
 
 var (
-	processColor         = "#8fbbff"
-	processRuntimeColor  = "#edf3ff"
-	processSnapshotColor = "white"
-	processShape         = "record"
+	processColor                = "#8fbbff"
+	processSecurityProfileColor = "#c2daff"
+	processRuntimeColor         = "#edf3ff"
+	processSnapshotColor        = "white"
+	processShape                = "record"
 
-	fileColor         = "#77bf77"
-	fileRuntimeColor  = "#e9f3e7"
-	fileSnapshotColor = "white"
-	fileShape         = "record"
+	fileColor                = "#77bf77"
+	fileSecurityProfileColor = "#c6e1c1"
+	fileRuntimeColor         = "#e9f3e7"
+	fileSnapshotColor        = "white"
+	fileShape                = "record"
 
-	networkColor        = "#ff9800"
-	networkRuntimeColor = "#ffebcd"
-	networkShape        = "record"
+	networkColor                = "#ff9800"
+	networkSecurityProfileColor = "#faddb1"
+	networkRuntimeColor         = "#ffebcd"
+	networkShape                = "record"
 )
 
 // PrepareGraphData returns a graph from the activity tree
@@ -66,6 +69,8 @@ func (at *ActivityTree) prepareProcessNode(p *ProcessNode, data *utils.Graph, re
 		Shape: processShape,
 	}
 	switch p.GenerationType {
+	case SecurityProfile:
+		pan.FillColor = processSecurityProfileColor
 	case Runtime, Unknown:
 		pan.FillColor = processRuntimeColor
 	case Snapshot:
@@ -135,12 +140,17 @@ func (at *ActivityTree) prepareDNSNode(n *DNSNode, data *utils.Graph, processID 
 	name += ")"
 
 	dnsNode := utils.Node{
-		ID:        processID.Derive(utils.NewNodeIDFromPtr(n)),
-		Label:     name,
-		Size:      30,
-		Color:     networkColor,
-		FillColor: networkRuntimeColor,
-		Shape:     networkShape,
+		ID:    processID.Derive(utils.NewNodeIDFromPtr(n)),
+		Label: name,
+		Size:  30,
+		Color: networkColor,
+		Shape: networkShape,
+	}
+	switch n.GenerationType {
+	case Runtime, Snapshot, Unknown:
+		dnsNode.FillColor = networkRuntimeColor
+	case SecurityProfile:
+		dnsNode.FillColor = networkSecurityProfileColor
 	}
 	data.Nodes[dnsNode.ID] = dnsNode
 	return dnsNode.ID, true
@@ -150,36 +160,44 @@ func (at *ActivityTree) prepareSocketNode(n *SocketNode, data *utils.Graph, proc
 	targetID := processID.Derive(utils.NewNodeIDFromPtr(n))
 
 	// prepare main socket node
-	data.Nodes[targetID] = utils.Node{
-		ID:        targetID,
-		Label:     n.Family,
-		Size:      30,
-		Color:     networkColor,
-		FillColor: networkRuntimeColor,
-		Shape:     networkShape,
+	socketNode := utils.Node{
+		ID:    targetID,
+		Label: n.Family,
+		Size:  30,
+		Color: networkColor,
+		Shape: networkShape,
 	}
+
+	switch n.GenerationType {
+	case Runtime, Snapshot, Unknown:
+		socketNode.FillColor = networkRuntimeColor
+	case SecurityProfile:
+		socketNode.FillColor = networkSecurityProfileColor
+	}
+	data.Nodes[targetID] = socketNode
 
 	// prepare bind nodes
-	var names []string
-	for _, node := range n.Bind {
-		names = append(names, fmt.Sprintf("[%s]:%d", node.IP, node.Port))
-	}
+	for i, node := range n.Bind {
+		bindNode := utils.Node{
+			ID:    processID.Derive(utils.NewNodeIDFromPtr(n), utils.NewNodeID(uint64(i+1))),
+			Label: fmt.Sprintf("[%s]:%d", node.IP, node.Port),
+			Size:  30,
+			Color: networkColor,
+			Shape: networkShape,
+		}
 
-	for i, name := range names {
-		socketNode := utils.Node{
-			ID:        processID.Derive(utils.NewNodeIDFromPtr(n), utils.NewNodeID(uint64(i+1))),
-			Label:     name,
-			Size:      30,
-			Color:     networkColor,
-			FillColor: networkRuntimeColor,
-			Shape:     networkShape,
+		switch node.GenerationType {
+		case Runtime, Snapshot, Unknown:
+			bindNode.FillColor = networkRuntimeColor
+		case SecurityProfile:
+			bindNode.FillColor = networkSecurityProfileColor
 		}
 		data.Edges = append(data.Edges, utils.Edge{
 			From:  targetID,
-			To:    socketNode.ID,
+			To:    bindNode.ID,
 			Color: networkColor,
 		})
-		data.Nodes[socketNode.ID] = socketNode
+		data.Nodes[bindNode.ID] = bindNode
 	}
 
 	return targetID
@@ -195,6 +213,8 @@ func (at *ActivityTree) prepareFileNode(f *FileNode, data *utils.Graph, prefix s
 		Shape: fileShape,
 	}
 	switch f.GenerationType {
+	case SecurityProfile:
+		fn.FillColor = fileSecurityProfileColor
 	case Runtime, Unknown:
 		fn.FillColor = fileRuntimeColor
 	case Snapshot:

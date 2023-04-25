@@ -189,7 +189,7 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 }
 
 // InsertDNSEvent inserts a DNS event in a process node
-func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, stats *ActivityTreeStats, DNSNames *utils.StringKeys, shadowInsertion bool) (bool, error) {
+func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, generationType NodeGenerationType, stats *ActivityTreeStats, DNSNames *utils.StringKeys, shadowInsertion bool) (bool, error) {
 	DNSNames.Insert(evt.DNS.Name)
 
 	if dnsNode, ok := pn.DNSNames[evt.DNS.Name]; ok {
@@ -213,14 +213,14 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, stats *ActivityTreeStats
 	}
 
 	if !shadowInsertion {
-		pn.DNSNames[evt.DNS.Name] = NewDNSNode(&evt.DNS, evt.Rules)
+		pn.DNSNames[evt.DNS.Name] = NewDNSNode(&evt.DNS, evt.Rules, generationType)
 		stats.dnsNodes++
 	}
 	return true, nil
 }
 
 // InsertBindEvent inserts a bind event in a process node
-func (pn *ProcessNode) InsertBindEvent(evt *model.Event, stats *ActivityTreeStats, shadowInsertion bool) (bool, error) {
+func (pn *ProcessNode) InsertBindEvent(evt *model.Event, generationType NodeGenerationType, stats *ActivityTreeStats, shadowInsertion bool) (bool, error) {
 	if evt.Bind.SyscallEvent.Retval != 0 {
 		return false, nil
 	}
@@ -235,7 +235,7 @@ func (pn *ProcessNode) InsertBindEvent(evt *model.Event, stats *ActivityTreeStat
 		}
 	}
 	if sock == nil {
-		sock = NewSocketNode(evtFamily)
+		sock = NewSocketNode(evtFamily, generationType)
 		if !shadowInsertion {
 			stats.socketNodes++
 			pn.Sockets = append(pn.Sockets, sock)
@@ -244,7 +244,7 @@ func (pn *ProcessNode) InsertBindEvent(evt *model.Event, stats *ActivityTreeStat
 	}
 
 	// Insert bind event
-	if sock.InsertBindEvent(&evt.Bind, evt.Rules, shadowInsertion) {
+	if sock.InsertBindEvent(&evt.Bind, generationType, evt.Rules, shadowInsertion) {
 		newNode = true
 	}
 
