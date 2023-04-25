@@ -321,13 +321,13 @@ func (p *Probe) handleAnomalyDetection(event *model.Event) bool {
 		return false
 	}
 
+	// first, check if the current event is a kernel generated anomaly detection event
 	if profile.IsAnomalyDetectionEvent(event.GetEventType()) {
-		p.monitor.securityProfileManager.FillProfileContextFromContainerID(event.ProcessContext.ContainerID, &event.SecurityProfileContext)
-	} else if slices.Contains[model.EventType](event.SecurityProfileContext.AnomalyDetectionEventTypes, event.GetEventType()) {
-		if event.IsInProfile() {
-			return false
-		}
-	} else {
+		p.monitor.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, &event.ContainerContext), &event.SecurityProfileContext)
+	// check if the profile can generate anomalies for the current event type
+	} else if !event.SecurityProfileContext.CanGenerateAnomaliesFor(event.GetEventType()) {
+		return false
+	} else if event.IsInProfile() {
 		return false
 	}
 
@@ -1499,7 +1499,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		},
 		manager.ConstantEditor{
 			Name:  "anomaly_syscalls",
-			Value: utils.BoolTouint64(p.Config.RuntimeSecurity.AnomalyDetectionSyscallsEnabled),
+			Value: utils.BoolTouint64(slices.Contains(p.Config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType)),
 		},
 	)
 

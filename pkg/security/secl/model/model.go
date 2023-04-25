@@ -20,6 +20,8 @@ import (
 	"time"
 	"unsafe"
 
+	"golang.org/x/exp/slices"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
@@ -195,6 +197,11 @@ type SecurityProfileContext struct {
 	Version                    string      `field:"version"`                       // SECLDoc[version] Definition:`Version of the security profile`
 	Tags                       []string    `field:"tags"`                          // SECLDoc[tags] Definition:`Tags of the security profile`
 	AnomalyDetectionEventTypes []EventType `field:"anomaly_detection_event_types"` // SECLDoc[anomaly_detection_event_types] Definition:`Event types enabled for anomaly detection`
+}
+
+// CanGenerateAnomaliesFor returns true if the current profile can generate anomalies for the provided event type
+func (spc SecurityProfileContext) CanGenerateAnomaliesFor(evtType EventType) bool {
+	return slices.Contains[EventType](spc.AnomalyDetectionEventTypes, evtType)
 }
 
 // Event represents an event sent from the kernel

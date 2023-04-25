@@ -124,7 +124,7 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, shouldMergePaths bool, 
 		evt.Open.File.Mode = evt.Open.File.FileFields.Mode
 		// TODO: add open flags by parsing `/proc/[pid]/fdinfo/fd` + O_RDONLY|O_CLOEXEC for the shared libs
 
-		pn.InsertFileEvent(&evt.Open.File, evt, Snapshot, stats, shouldMergePaths, false)
+		_, _ = pn.InsertFileEvent(&evt.Open.File, evt, Snapshot, stats, shouldMergePaths, false)
 	}
 	return nil
 }

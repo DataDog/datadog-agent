@@ -527,6 +527,11 @@ func (adm *ActivityDumpManager) StopActivityDump(params *api.ActivityDumpStopPar
 
 // ProcessEvent processes a new event and insert it in an activity dump if applicable
 func (adm *ActivityDumpManager) ProcessEvent(event *model.Event) {
+	// ignore events with an error
+	if event.Error != nil {
+		return
+	}
+
 	// is this event sampled for activity dumps ?
 	if !event.IsActivityDumpSample() {
 		return
@@ -555,7 +560,11 @@ func (adm *ActivityDumpManager) SearchTracedProcessCacheEntryCallback(ad *Activi
 		}
 
 		for _, parent = range ancestors {
-			ad.ActivityTree.CreateProcessNode(parent, activity_tree.Snapshot, false)
+			_, _, err := ad.ActivityTree.CreateProcessNode(parent, activity_tree.Snapshot, false)
+			if err != nil {
+				// if one of the parents wasn't inserted, leave now
+				break
+			}
 		}
 	}
 }

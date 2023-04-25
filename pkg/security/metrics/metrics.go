@@ -251,7 +251,7 @@ var (
 	// Tags: - event_type
 	MetricSecurityProfileAnomalyDetectionSent = newRuntimeMetric(".security_profile.anomaly_detection.sent")
 	// MetricSecurityProfileEventFiltering
-	// Tags: - event_type, in_profile ('true', 'false' or 'no_profile')
+	// Tags: - event_type, in_profile ('true', 'false', 'no_profile' or 'unstable_profile')
 	MetricSecurityProfileEventFiltering = newRuntimeMetric(".security_profile.evaluation.hit")
 
 	// Namespace resolver metrics

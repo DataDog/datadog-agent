@@ -24,6 +24,7 @@ import (
 type SecurityProfile struct {
 	sync.Mutex
 	loadedInKernel         bool
+	loadedNano             uint64
 	selector               cgroupModel.WorkloadSelector
 	profileCookie          uint64
 	anomalyDetectionEvents []model.EventType
@@ -54,6 +55,11 @@ type SecurityProfile struct {
 
 // NewSecurityProfile creates a new instance of Security Profile
 func NewSecurityProfile(selector cgroupModel.WorkloadSelector, anomalyDetectionEvents []model.EventType) *SecurityProfile {
+	// TODO: we need to keep track of which event types / fields can be used in profiles (for anomaly detection, hardening
+	// or suppression). This is missing for now, and it will be necessary to smoothly handle the transition between
+	// profiles that allow for evaluating new event types, and profiles that don't. As such, the event types allowed to
+	// generate anomaly detections in the input of this function will need to be merged with the event types defined in
+	// the configuration.
 	return &SecurityProfile{
 		selector:               selector,
 		anomalyDetectionEvents: anomalyDetectionEvents,
@@ -110,7 +116,7 @@ func (p *SecurityProfile) NewProcessNodeCallback(node *activity_tree.ProcessNode
 	// TODO: debounce and regenerate profile filters & programs
 }
 
-// IsAnomalyDetectionEvent returns true for the event types that have a security profile context
+// IsAnomalyDetectionEvent returns true if the provided event type is a kernel generated anomaly detection event type
 func IsAnomalyDetectionEvent(eventyType model.EventType) bool {
 	return slices.Contains([]model.EventType{
 		model.AnomalyDetectionSyscallEventType,

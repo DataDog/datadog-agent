@@ -238,7 +238,9 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 			"one_dump/no_overweight_dump",
 			fields{
 				activeDumps: []*ActivityDump{
-					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "1"}},
+					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "1"}, ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.ActivityTreeStats{},
+					}},
 				},
 			},
 			[]*ActivityDump{},
@@ -250,20 +252,40 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 			"5_dumps/no_overweight_dump",
 			fields{
 				activeDumps: []*ActivityDump{
-					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "1"}},
-					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "2"}},
-					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "3"}},
-					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "4"}},
-					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "5"}},
+					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "1"}, ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.ActivityTreeStats{},
+					}},
+					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "2"}, ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.ActivityTreeStats{},
+					}},
+					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "3"}, ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.ActivityTreeStats{},
+					}},
+					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "4"}, ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.ActivityTreeStats{},
+					}},
+					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "5"}, ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.ActivityTreeStats{},
+					}},
 				},
 			},
 			[]*ActivityDump{},
 			[]*ActivityDump{
-				{Metadata: Metadata{Name: "1"}},
-				{Metadata: Metadata{Name: "2"}},
-				{Metadata: Metadata{Name: "3"}},
-				{Metadata: Metadata{Name: "4"}},
-				{Metadata: Metadata{Name: "5"}},
+				{Metadata: Metadata{Name: "1"}, ActivityTree: &activity_tree.ActivityTree{
+					Stats: &activity_tree.ActivityTreeStats{},
+				}},
+				{Metadata: Metadata{Name: "2"}, ActivityTree: &activity_tree.ActivityTree{
+					Stats: &activity_tree.ActivityTreeStats{},
+				}},
+				{Metadata: Metadata{Name: "3"}, ActivityTree: &activity_tree.ActivityTree{
+					Stats: &activity_tree.ActivityTreeStats{},
+				}},
+				{Metadata: Metadata{Name: "4"}, ActivityTree: &activity_tree.ActivityTree{
+					Stats: &activity_tree.ActivityTreeStats{},
+				}},
+				{Metadata: Metadata{Name: "5"}, ActivityTree: &activity_tree.ActivityTree{
+					Stats: &activity_tree.ActivityTreeStats{},
+				}},
 			},
 		},
 		{
@@ -310,15 +332,21 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 			"5_dumps/2_expired_dumps",
 			fields{
 				activeDumps: []*ActivityDump{
-					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "1"}},
+					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "1"}, ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.ActivityTreeStats{},
+					}},
 					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "2"}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.ActivityTreeStats{ProcessNodes: 3},
 					}},
-					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "3"}},
+					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "3"}, ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.ActivityTreeStats{},
+					}},
 					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "4"}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.ActivityTreeStats{ProcessNodes: 2},
 					}},
-					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "5"}},
+					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "5"}, ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.ActivityTreeStats{},
+					}},
 				},
 			},
 			[]*ActivityDump{
@@ -330,9 +358,15 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 				}},
 			},
 			[]*ActivityDump{
-				{Metadata: Metadata{Name: "1"}},
-				{Metadata: Metadata{Name: "3"}},
-				{Metadata: Metadata{Name: "5"}},
+				{Metadata: Metadata{Name: "1"}, ActivityTree: &activity_tree.ActivityTree{
+					Stats: &activity_tree.ActivityTreeStats{},
+				}},
+				{Metadata: Metadata{Name: "3"}, ActivityTree: &activity_tree.ActivityTree{
+					Stats: &activity_tree.ActivityTreeStats{},
+				}},
+				{Metadata: Metadata{Name: "5"}, ActivityTree: &activity_tree.ActivityTree{
+					Stats: &activity_tree.ActivityTreeStats{},
+				}},
 			},
 		},
 		{
@@ -345,9 +379,15 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "2"}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.ActivityTreeStats{ProcessNodes: 2},
 					}},
-					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "3"}},
-					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "4"}},
-					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "5"}},
+					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "3"}, ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.ActivityTreeStats{},
+					}},
+					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "4"}, ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.ActivityTreeStats{},
+					}},
+					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "5"}, ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.ActivityTreeStats{},
+					}},
 				},
 			},
 			[]*ActivityDump{
@@ -359,18 +399,30 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 				}},
 			},
 			[]*ActivityDump{
-				{Metadata: Metadata{Name: "3", End: time.Now().Add(time.Minute)}},
-				{Metadata: Metadata{Name: "4", End: time.Now().Add(time.Minute)}},
-				{Metadata: Metadata{Name: "5", End: time.Now().Add(time.Minute)}},
+				{Metadata: Metadata{Name: "3", End: time.Now().Add(time.Minute)}, ActivityTree: &activity_tree.ActivityTree{
+					Stats: &activity_tree.ActivityTreeStats{},
+				}},
+				{Metadata: Metadata{Name: "4", End: time.Now().Add(time.Minute)}, ActivityTree: &activity_tree.ActivityTree{
+					Stats: &activity_tree.ActivityTreeStats{},
+				}},
+				{Metadata: Metadata{Name: "5", End: time.Now().Add(time.Minute)}, ActivityTree: &activity_tree.ActivityTree{
+					Stats: &activity_tree.ActivityTreeStats{},
+				}},
 			},
 		},
 		{
 			"5_dumps/2_expired_dumps_at_the_end",
 			fields{
 				activeDumps: []*ActivityDump{
-					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "1"}},
-					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "2"}},
-					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "3"}},
+					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "1"}, ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.ActivityTreeStats{},
+					}},
+					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "2"}, ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.ActivityTreeStats{},
+					}},
+					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "3"}, ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.ActivityTreeStats{},
+					}},
 					{Mutex: &sync.Mutex{}, Metadata: Metadata{Name: "4"}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.ActivityTreeStats{ProcessNodes: 3},
 					}},
@@ -388,9 +440,15 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 				}},
 			},
 			[]*ActivityDump{
-				{Metadata: Metadata{Name: "1"}},
-				{Metadata: Metadata{Name: "2"}},
-				{Metadata: Metadata{Name: "3"}},
+				{Metadata: Metadata{Name: "1"}, ActivityTree: &activity_tree.ActivityTree{
+					Stats: &activity_tree.ActivityTreeStats{},
+				}},
+				{Metadata: Metadata{Name: "2"}, ActivityTree: &activity_tree.ActivityTree{
+					Stats: &activity_tree.ActivityTreeStats{},
+				}},
+				{Metadata: Metadata{Name: "3"}, ActivityTree: &activity_tree.ActivityTree{
+					Stats: &activity_tree.ActivityTreeStats{},
+				}},
 			},
 		},
 	}

@@ -190,7 +190,9 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 
 // InsertDNSEvent inserts a DNS event in a process node
 func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, generationType NodeGenerationType, stats *ActivityTreeStats, DNSNames *utils.StringKeys, shadowInsertion bool) (bool, error) {
-	DNSNames.Insert(evt.DNS.Name)
+	if !shadowInsertion {
+		DNSNames.Insert(evt.DNS.Name)
+	}
 
 	if dnsNode, ok := pn.DNSNames[evt.DNS.Name]; ok {
 		// update matched rules

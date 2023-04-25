@@ -43,6 +43,9 @@ const (
 	InProfile
 	// NotInProfile is used to count the events that didn't match their profile
 	NotInProfile
+	// UnstableProfile is used to count the events that didn't make it into a profile because their matching profile was
+	// unstable
+	UnstableProfile
 )
 
 func (efr EventFilteringResult) toTag() string {
@@ -53,6 +56,8 @@ func (efr EventFilteringResult) toTag() string {
 		return fmt.Sprintf("in_profile:true")
 	case NotInProfile:
 		return fmt.Sprintf("in_profile:false")
+	case UnstableProfile:
+		return fmt.Sprintf("in_profile:unstable_profile")
 	}
 	return ""
 }
@@ -477,6 +482,7 @@ func (m *SecurityProfileManager) prepareProfile(profile *SecurityProfile) {
 // loadProfile (thread unsafe) loads a Security Profile in kernel space
 func (m *SecurityProfileManager) loadProfile(profile *SecurityProfile) error {
 	profile.loadedInKernel = true
+	profile.loadedNano = uint64(m.timeResolver.ComputeMonotonicTimestamp(time.Now()))
 
 	// push kernel space filters
 	if err := m.securityProfileSyscallsMap.Put(profile.profileCookie, profile.generateSyscallsFilters()); err != nil {
@@ -523,6 +529,11 @@ func (m *SecurityProfileManager) unlinkProfile(profile *SecurityProfile, workloa
 }
 
 func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
+	// ignore events with an error
+	if event.Error != nil {
+		return
+	}
+
 	// shortcut for dedicated anomaly detection events
 	if IsAnomalyDetectionEvent(event.GetEventType()) {
 		event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
@@ -551,29 +562,7 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 
 	// check if the event should be injected in the profile automatically
 	if profile.autolearnEnabled {
-		if profile.lastAnomalyNano == 0 {
-			profile.lastAnomalyNano = event.TimestampRaw
-		}
-		if time.Duration(event.TimestampRaw-profile.lastAnomalyNano) >= m.config.RuntimeSecurity.AnomalyDetectionMinimumStableDelayBeforeAnomalyDetection {
-			profile.autolearnEnabled = false
-		} else {
-			newEntry, err := profile.ActivityTree.Insert(event, activity_tree.SecurityProfile)
-			if err != nil {
-				// ignore, insertion failed
-				m.eventFiltering[event.GetEventType()][NoProfile].Inc()
-				return
-			}
-
-			// the event was either already in the profile, or has just been inserted
-			event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
-
-			if newEntry {
-				profile.lastAnomalyNano = event.TimestampRaw
-				m.eventFiltering[event.GetEventType()][NotInProfile].Inc()
-			} else {
-				m.eventFiltering[event.GetEventType()][InProfile].Inc()
-			}
-
+		if autoLearned, autoLearnErr := m.tryAutolearn(profile, event); autoLearnErr != nil || autoLearned {
 			return
 		}
 	}
@@ -591,4 +580,48 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	} else {
 		m.eventFiltering[event.GetEventType()][NotInProfile].Inc()
 	}
+}
+
+// tryAutolearn tries to autolearn the input event. Returns true if the event was autolearned.
+func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *model.Event) (bool, error) {
+	// have we reached the stable state time limit ?
+	if profile.lastAnomalyNano == 0 {
+		profile.lastAnomalyNano = event.TimestampRaw
+	}
+	if time.Duration(event.TimestampRaw-profile.lastAnomalyNano) >= m.config.RuntimeSecurity.AnomalyDetectionMinimumStableDelay {
+		profile.autolearnEnabled = false
+		return false, nil
+	}
+
+	// have we reached the unstable time limit ?
+	if time.Duration(event.TimestampRaw-profile.loadedNano) >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileTimeThreshold {
+		m.eventFiltering[event.GetEventType()][UnstableProfile].Inc()
+		return false, fmt.Errorf("unstable profile: time limit reached")
+	}
+
+	// check if the unstable size limit was reached
+	if profile.ActivityTree.Stats.ApproximateSize() >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileSizeThreshold {
+		m.eventFiltering[event.GetEventType()][UnstableProfile].Inc()
+		return false, fmt.Errorf("unstable profile: size limit reached")
+	}
+
+	// try to insert the event in the profile
+	newEntry, err := profile.ActivityTree.Insert(event, activity_tree.SecurityProfile)
+	if err != nil {
+		// ignore, insertion failed
+		m.eventFiltering[event.GetEventType()][NoProfile].Inc()
+		return false, err
+	}
+
+	// the event was either already in the profile, or has just been inserted
+	event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
+
+	if newEntry {
+		profile.lastAnomalyNano = event.TimestampRaw
+		m.eventFiltering[event.GetEventType()][NotInProfile].Inc()
+	} else {
+		m.eventFiltering[event.GetEventType()][InProfile].Inc()
+	}
+
+	return true, nil
 }
