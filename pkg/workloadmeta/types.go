@@ -507,11 +507,6 @@ type SeccompProfile struct {
 	LocalhostProfile string
 }
 
-// IsOwnedByPod checks if a container's Owner is a KindKubernetesPod
-func (c *Container) IsOwnedByPod() bool {
-	return c.Owner != nil && c.Owner.Kind == KindKubernetesPod
-}
-
 var _ Entity = &Container{}
 
 // ContainerFilterFunc is a function used to filter containers.
