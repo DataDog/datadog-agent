@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Ensure agent detects file rotations correctly under heavy load. 
+    Ensure the Agent detects file rotations correctly when under heavy loads. 
