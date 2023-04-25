@@ -130,17 +130,14 @@ func testExpireContexts(t *testing.T, store *tags.Store) {
 	contextKey2 := contextResolver.trackContext(&mSample2, 6)
 
 	// With an expireTimestap of 3, both contexts are still valid
-	assert.Len(t, contextResolver.expireContexts(3, nil), 0)
+	contextResolver.expireContexts(3, nil)
 	_, ok1 := contextResolver.resolver.contextsByKey[contextKey1]
 	_, ok2 := contextResolver.resolver.contextsByKey[contextKey2]
 	assert.True(t, ok1)
 	assert.True(t, ok2)
 
 	// With an expireTimestap of 5, context 1 is expired
-	expiredContextKeys := contextResolver.expireContexts(5, nil)
-	if assert.Len(t, expiredContextKeys, 1) {
-		assert.Equal(t, contextKey1, expiredContextKeys[0])
-	}
+	contextResolver.expireContexts(5, nil)
 
 	// context 1 is not tracked anymore, but context 2 still is
 	_, ok := contextResolver.resolver.contextsByKey[contextKey1]
@@ -183,7 +180,7 @@ func testExpireContextsWithKeep(t *testing.T, store *tags.Store) {
 	}
 
 	// With an expireTimestap of 3, both contexts are still valid
-	assert.Len(t, contextResolver.expireContexts(3, keeper), 0)
+	contextResolver.expireContexts(3, keeper)
 	_, ok1 := contextResolver.resolver.contextsByKey[contextKey1]
 	_, ok2 := contextResolver.resolver.contextsByKey[contextKey2]
 	assert.True(t, ok1)
@@ -191,7 +188,7 @@ func testExpireContextsWithKeep(t *testing.T, store *tags.Store) {
 	assert.Equal(t, keeperCalled, 0)
 
 	// With an expireTimestap of 5, context 1 is expired, but we explicitly keep it
-	assert.Len(t, contextResolver.expireContexts(5, keeper), 0)
+	contextResolver.expireContexts(5, keeper)
 	assert.Equal(t, keeperCalled, 1)
 
 	// both contexts are still tracked
@@ -202,10 +199,7 @@ func testExpireContextsWithKeep(t *testing.T, store *tags.Store) {
 
 	// With an expireTimestap of 6, context 1 is expired, and we don't keep it this time
 	keep = false
-	expiredContextKeys := contextResolver.expireContexts(6, keeper)
-	if assert.Len(t, expiredContextKeys, 1) {
-		assert.Equal(t, contextKey1, expiredContextKeys[0])
-	}
+	contextResolver.expireContexts(6, keeper)
 	assert.Equal(t, keeperCalled, 2)
 
 	// context 1 is not tracked anymore
