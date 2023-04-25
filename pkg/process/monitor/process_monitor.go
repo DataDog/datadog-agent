@@ -259,6 +259,7 @@ func (pm *ProcessMonitor) Initialize() error {
 						pm.evalEXECCallback(c, ev.ProcessPid)
 					}
 				case *netlink.ExitProcEvent:
+					log.Debugf("Got exit event for pid: %d", ev.ProcessPid)
 					for _, c := range pm.procEventCallbacks[EXIT] {
 						pm.evalEXITCallback(c, ev.ProcessPid)
 					}
