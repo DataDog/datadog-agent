@@ -132,8 +132,10 @@ type soRegistration struct {
 
 // unregister return true if there are no more reference to this registration
 func (r *soRegistration) unregister(pathID pathIdentifier) bool {
+	log.Debugf("Trying to unregister %s", pathID.String())
 	r.uniqueProcessesCount--
 	if r.uniqueProcessesCount > 0 {
+		log.Debugf("Unique process count is greater than 0, thus not unregistering %s", pathID.String())
 		return false
 	}
 	if r.unregisterCB != nil {
