@@ -264,7 +264,7 @@ func (agg *FlowAggregator) submitCollectorMetrics() error {
 		return err
 	}
 
-	sequenceReset := false
+	sequenceReset := make(map[string]bool)
 	for _, metricFamily := range promMetrics {
 		for _, metric := range metricFamily.Metric {
 			log.Tracef("Collector metric `%s`: type=`%v` value=`%v`, label=`%v`", metricFamily.GetName(), metricFamily.GetType().String(), metric.GetCounter().GetValue(), metric.GetLabel())
@@ -277,10 +277,20 @@ func (agg *FlowAggregator) submitCollectorMetrics() error {
 			case metrics.GaugeType:
 				sort.Strings(tags)
 				key := metricPrefix + name + strings.Join(tags, ",")
-				if metricPrefix+name == "datadog.netflow.processor.sequence" {
+
+				// TODO: factor
+				if metricPrefix+name == "datadog.netflow.processor.flows_sequence" {
 					if value-agg.lastSequence[key] < -1000 {
 						log.Debugf("[countMissing][agg] seq=%f reset", agg.lastSequence[key])
-						sequenceReset = true
+						sequenceReset[key] = true
+					}
+					agg.lastSequence[key] = value
+					log.Debugf("[countMissing][agg] seq=%f", agg.lastSequence[key])
+				}
+				if metricPrefix+name == "datadog.netflow.processor.packets_sequence" {
+					if value-agg.lastSequence[key] < -100 {
+						log.Debugf("[countMissing][agg] seq=%f reset", agg.lastSequence[key])
+						sequenceReset[key] = true
 					}
 					agg.lastSequence[key] = value
 					log.Debugf("[countMissing][agg] seq=%f", agg.lastSequence[key])
@@ -299,10 +309,11 @@ func (agg *FlowAggregator) submitCollectorMetrics() error {
 			switch metricType {
 			case metrics.GaugeType:
 				agg.sender.Gauge(metricPrefix+name, value, "", tags)
-				if metricPrefix+name == "datadog.netflow.processor.missing_flows" {
+				if metricPrefix+name == "datadog.netflow.processor.flows_missing" ||
+					metricPrefix+name == "datadog.netflow.processor.packets_missing" {
 					sort.Strings(tags)
 					key := metricPrefix + name + strings.Join(tags, ",")
-					if sequenceReset {
+					if sequenceReset[key] {
 						agg.lastMissingFlowsMetricValue[key] = 0
 					}
 					diff := value - agg.lastMissingFlowsMetricValue[key]

@@ -84,25 +84,33 @@ var metricNameMapping = map[string]mappedMetric{
 		},
 		extraTags: []string{"flow_protocol:netflow"},
 	},
-	"flow_process_nf_missing_flows": {
-		name:           "processor.missing_flows",
-		allowedTagKeys: []string{"router", "version"},
+	"flow_process_nf_flows_missing": {
+		name:           "processor.flows_missing",
+		allowedTagKeys: []string{"router", "version", "engine_id", "engine_type"},
 		keyRemapper: map[string]string{
 			"router": "device_ip",
 		},
 		extraTags: []string{"flow_protocol:netflow"},
 	},
-	"flow_process_nf_sequence": {
-		name:           "processor.sequence",
-		allowedTagKeys: []string{"router", "version"},
+	"flow_process_nf_flows_sequence": {
+		name:           "processor.flows_sequence",
+		allowedTagKeys: []string{"router", "version", "engine_id", "engine_type"},
 		keyRemapper: map[string]string{
 			"router": "device_ip",
 		},
 		extraTags: []string{"flow_protocol:netflow"},
 	},
-	"flow_process_nf_missing_packets": {
-		name:           "processor.missing_packets",
-		allowedTagKeys: []string{"router", "version"},
+	"flow_process_nf_packets_missing": {
+		name:           "processor.packets_missing",
+		allowedTagKeys: []string{"router", "version", "obs_domain_id"},
+		keyRemapper: map[string]string{
+			"router": "device_ip",
+		},
+		extraTags: []string{"flow_protocol:netflow"},
+	},
+	"flow_process_nf_packets_sequence": {
+		name:           "processor.packets_sequence",
+		allowedTagKeys: []string{"router", "version", "obs_domain_id"},
 		keyRemapper: map[string]string{
 			"router": "device_ip",
 		},
