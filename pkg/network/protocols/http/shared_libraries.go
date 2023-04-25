@@ -269,13 +269,16 @@ func (r *soRegistry) unregister(pid uint32) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
+	log.Debugf("Trying to unregister pid %d", pid)
 	paths, found := r.byPID[pid]
 	if !found {
+		log.Debugf("Couldn't find the following pid in the byPID map: %d", pid)
 		return
 	}
 	for pathID := range paths {
 		reg, found := r.byID[pathID]
 		if !found {
+			log.Debugf("Couldn't find the following path id in the byID map: %s", pathID.String())
 			continue
 		}
 		if reg.unregister(pathID) {
