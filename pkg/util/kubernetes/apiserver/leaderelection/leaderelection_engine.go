@@ -13,11 +13,12 @@ import (
 	"encoding/json"
 	"strconv"
 
-	coordinationv1 "k8s.io/api/coordination/v1"
+	coordv1 "k8s.io/api/coordination/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	clientcoord "k8s.io/client-go/kubernetes/typed/coordination/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	ld "k8s.io/client-go/tools/leaderelection"
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
@@ -27,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func NewReleaseLock(lockType string, ns string, name string, coreClient corev1.CoreV1Interface, coordinationClient coordinationv1.CoordinationV1Interface, rlc rl.ResourceLockConfig) (rl.Interface, error) {
+func NewReleaseLock(lockType string, ns string, name string, coreClient corev1.CoreV1Interface, coordinationClient clientcoord.CoordinationV1Interface, rlc rl.ResourceLockConfig) (rl.Interface, error) {
 	if lockType == ConfigMapsResourceLock {
 		return &configMapLock{
 			ConfigMapMeta: metav1.ObjectMeta{
@@ -95,7 +96,7 @@ func (le *LeaderEngine) CreateLeaderTokenIfNotExists() error {
 				return err
 			}
 
-			_, err = le.coordClient.Leases(le.LeaderNamespace).Create(context.TODO(), &coordinationv1.Lease{
+			_, err = le.coordClient.Leases(le.LeaderNamespace).Create(context.TODO(), &coordv1.Lease{
 				TypeMeta: metav1.TypeMeta{
 					Kind: "Lease",
 				},

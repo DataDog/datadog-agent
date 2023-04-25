@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
 	coordinationv1 "k8s.io/client-go/kubernetes/typed/coordination/v1"
@@ -261,7 +262,7 @@ func (le *LeaderEngine) Subscribe() <-chan struct{} {
 
 func CanUseLease(client discovery.DiscoveryInterface) (bool, error) {
 	resourceList, err := client.ServerResourcesForGroupVersion("coordination.k8s.io/v1")
-	if apierrors.IsNotFound(err) {
+	if kerrors.IsNotFound(err) {
 		return false, nil
 	}
 	if err != nil {

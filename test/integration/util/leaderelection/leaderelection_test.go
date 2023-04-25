@@ -48,19 +48,19 @@ type apiserverSuite struct {
 	usingLease     bool
 }
 
-func getApiserverComposePath(version string) {
+func getApiserverComposePath(version string) string {
 	return fmt.Sprintf("/tmp/apiserver-compose-%s.yaml", version)
 }
 
 func generateApiserverCompose(version string) error {
-	apiserverCompose, err := ioutil.ReadFile("testdata/apiserver-compose.yaml")
+	apiserverCompose, err := os.ReadFile("testdata/apiserver-compose.yaml")
 	if err != nil {
 		return err
 	}
 
 	newComposeFile := strings.Replace(string(apiserverCompose), "APIVERSION_PLACEHOLDER", version, -1)
 
-	err = ioutil.WriteFile(getApiserverComposePath(version), []byte(newComposeFile), os.ModePerm)
+	err = os.WriteFile(getApiserverComposePath(version), []byte(newComposeFile), os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -82,7 +82,7 @@ func TestSuiteAPIServer(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		s := &apiserverSuite{version: version}
+		s := &apiserverSuite{}
 		require.True(t, semver.IsValid(tt.version))
 		if semver.Compare(tt.version, leaseMinVersion) < 0 {
 			s.usingLease = false
@@ -93,7 +93,7 @@ func TestSuiteAPIServer(t *testing.T) {
 		err := generateApiserverCompose(tt.version)
 		require.NoError(t, err)
 		defer func() {
-			ioutil.Remove(getApiserverComposePath(tt.version))
+			os.Remove(getApiserverComposePath(tt.version))
 		}()
 
 		mockConfig := config.Mock(t)
@@ -102,7 +102,7 @@ func TestSuiteAPIServer(t *testing.T) {
 		// Start compose stack
 		compose := &utils.ComposeConf{
 			ProjectName: "kube_events",
-			FilePath:    getApiserverComposePath(version),
+			FilePath:    getApiserverComposePath(tt.version),
 			Variables:   map[string]string{},
 		}
 		output, err := compose.Start()
@@ -223,9 +223,9 @@ func (suite *apiserverSuite) TestLeaderElectionMulti() {
 	}
 
 	c, err := apiserver.GetAPIClient()
-	usingLease, err := leaderelection.CanUseLease()
-	require.NoError(t, err)
-	require.Equal(t, usingLease, s.usingLease)
+	usingLease, err := leaderelection.CanUseLease(c.DiscoveryCl)
+	require.NoError(suite.T(), err)
+	require.Equal(suite.T(), usingLease, suite.usingLease)
 
 	if usingLease {
 		client := c.Cl.CoordinationV1()
@@ -234,7 +234,7 @@ func (suite *apiserverSuite) TestLeaderElectionMulti() {
 		require.Nil(suite.T(), err)
 		// 1 Lease
 		require.Len(suite.T(), leasesList.Items, 1)
-		lease := lease[0]
+		lease := leasesList.Items[0]
 		require.Equal(suite.T(), "datadog-leader-election", lease.Name)
 		require.NotNil(suite.T(), lease.Spec.HolderIdentity)
 		require.Equal(suite.T(), testCases[0].leaderEngine.HolderIdentity, lease.Spec.HolderIdentity)
