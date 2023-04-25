@@ -112,7 +112,7 @@ func SkipDeleteOnFailure[Env any]() func(*Suite[Env]) {
 // Env returns the current environment.
 // In order to improve the efficiency, this function behaves as follow:
 //   - It creates the default environment if no environment exists. It happens only during the first call of the test suite.
-//   - It restores the default environment if UpdateEnv was not already be called during this test.
+//   - It restores the default environment if UpdateEnv was not already called during this test.
 //     This avoid having to restore the default environment for each test even if UpdateEnv immedialy
 //     overrides this environment.
 func (suite *Suite[Env]) Env() *Env {
