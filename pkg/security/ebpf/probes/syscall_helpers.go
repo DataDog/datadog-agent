@@ -141,6 +141,9 @@ func getFunctionNameFromSection(section string) string {
 		funcName = strings.ReplaceAll(funcName, "__arm32_", "__32_")
 		// utils
 		funcName = strings.ReplaceAll(funcName, "/_", "_")
+
+		// if syscall wrapper, the function is suffixed with `wrapper`
+		funcName += "wrapper"
 	}
 	funcName = strings.ReplaceAll(funcName, "tracepoint/syscalls/", "tracepoint_syscalls_")
 	return funcName
