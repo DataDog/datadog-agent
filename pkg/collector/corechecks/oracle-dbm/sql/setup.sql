@@ -13,6 +13,7 @@ grant select on v_$database to c##datadog ;
 grant select on v_$containers to c##datadog;
 grant select on v_$sqlstats to c##datadog ;
 grant select on v_$instance to c##datadog ;
+grant select on v_$sql_plan_statistics_all to c##datadog ;
 grant select on dba_feature_usage_statistics to c##datadog ;
 
 CREATE OR REPLACE VIEW dd_session AS
