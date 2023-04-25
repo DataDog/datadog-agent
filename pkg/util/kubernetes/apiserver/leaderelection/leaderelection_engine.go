@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	ld "k8s.io/client-go/tools/leaderelection"
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/record"
@@ -25,6 +26,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+func NewReleaseLock(lockType string, ns string, name string, coreClient corev1.CoreV1Interface, coordinationClient coordinationv1.CoordinationV1Interface, rlc rl.ResourceLockConfig) (rl.Interface, error) {
+	if lockType == ConfigMapsResourceLock {
+		return &configMapLock{
+			ConfigMapMeta: metav1.ObjectMeta{
+				Namespace: ns,
+				Name:      name,
+			},
+			Client:     coreClient,
+			LockConfig: rlc,
+		}, nil
+	} else {
+		return rl.New(lockType, ns, name, coreClient, coordinationClient, rlc)
+	}
+}
 
 func (le *LeaderEngine) getCurrentLeaderLease() (string, error) {
 	lease, err := le.coordClient.Leases(le.LeaderNamespace).Get(context.TODO(), le.LeaseName, metav1.GetOptions{})

@@ -141,7 +141,12 @@ func (le *LeaderEngine) init() error {
 	le.coreClient = apiClient.Cl.CoreV1()
 	le.coordClient = apiClient.Cl.CoordinationV1()
 
-	if CanUseLease(apiClient.DiscoveryCl) {
+	usingLease, err := CanUseLease(apiClient.DiscoveryCl)
+	if err != nil {
+		log.Errorf("Unable to retrieve available resources: %v", err)
+		return err
+	}
+	if usingLease {
 		log.Debugf("leader election will use Leases to store the leader token")
 		le.lockType = rl.LeasesResourceLock
 	} else {
@@ -254,21 +259,21 @@ func (le *LeaderEngine) Subscribe() <-chan struct{} {
 	return c
 }
 
-func CanUseLease(client discovery.DiscoveryInterface) bool {
+func CanUseLease(client discovery.DiscoveryInterface) (bool, error) {
 	resourceList, err := client.ServerResourcesForGroupVersion("coordination.k8s.io/v1")
+	if apierrors.IsNotFound(err) {
+		return false, nil
+	}
 	if err != nil {
-		log.Errorf("failed to retrieve resource list for coordination.k8s.io/v1, leader election will use configmaps: %v", err)
-		return false
+		return false, err
 	}
-	if resourceList == nil {
-		return false
-	}
-	for _, resource := range resourceList.APIResources {
-		if resource.Kind == "Lease" {
-			return true
+	for _, actualResource := range resourceList.APIResources {
+		if actualResource.Name == "leases" {
+			return true, nil
 		}
 	}
-	return false
+
+	return false, nil
 }
 
 func getLeaseLeaderElectionRecord(client coordinationv1.CoordinationV1Interface) (rl.LeaderElectionRecord, error) {
@@ -307,8 +312,11 @@ func GetLeaderElectionRecord() (leaderDetails rl.LeaderElectionRecord, err error
 	if err != nil {
 		return led, err
 	}
-
-	if CanUseLease(client.DiscoveryCl) {
+	usingLease, err := CanUseLease(client.DiscoveryCl)
+	if err != nil {
+		return led, err
+	}
+	if usingLease {
 		return getLeaseLeaderElectionRecord(client.Cl.CoordinationV1())
 	}
 	return getConfigMapLeaderElectionRecord(client.Cl.CoreV1())

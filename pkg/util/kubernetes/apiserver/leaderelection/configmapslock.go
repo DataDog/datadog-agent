@@ -1,10 +1,18 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
-
 //go:build kubeapiserver
 // +build kubeapiserver
+
+/*
+Copyright 2017 The Kubernetes Authors.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 
 // Taken from https://github.com/kubernetes/client-go/blob/v0.27.0/tools/leaderelection/resourcelock/configmaplock.go
 // It was added because k8s.io/client-go/tools/leaderelection does not support ConfigMapLock anymore since v0.24 but
@@ -19,8 +27,6 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	coordinationv1 "k8s.io/client-go/kubernetes/typed/coordination/v1"
-	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 )
@@ -118,19 +124,4 @@ func (cml *configMapLock) Describe() string {
 // Identity returns the Identity of the lock
 func (cml *configMapLock) Identity() string {
 	return cml.LockConfig.Identity
-}
-
-func NewReleaseLock(lockType string, ns string, name string, coreClient corev1.CoreV1Interface, coordinationClient coordinationv1.CoordinationV1Interface, rlc rl.ResourceLockConfig) (rl.Interface, error) {
-	if lockType == ConfigMapsResourceLock {
-		return &configMapLock{
-			ConfigMapMeta: metav1.ObjectMeta{
-				Namespace: ns,
-				Name:      name,
-			},
-			Client:     coreClient,
-			LockConfig: rlc,
-		}, nil
-	} else {
-		return rl.New(lockType, ns, name, coreClient, coordinationClient, rlc)
-	}
 }
