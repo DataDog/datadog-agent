@@ -129,6 +129,8 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			})
 		}
 
+		PodSecurityContext := extractPodSecurityContext(&pod.Spec)
+
 		entity := &workloadmeta.KubernetesPod{
 			EntityID: podId,
 			EntityMeta: workloadmeta.EntityMeta{
@@ -145,6 +147,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			IP:                         pod.Status.PodIP,
 			PriorityClass:              pod.Spec.PriorityClassName,
 			QOSClass:                   pod.Status.QOSClass,
+			SecurityContext:            PodSecurityContext,
 		}
 
 		events = append(events, containerEvents...)
@@ -175,6 +178,7 @@ func (c *collector) parsePodContainers(
 			continue
 		}
 
+		var containerSecurityContext *workloadmeta.ContainerSecurityContext
 		var env map[string]string
 		var ports []workloadmeta.ContainerPort
 
@@ -207,6 +211,8 @@ func (c *collector) parsePodContainers(
 				log.Debugf("cannot split image name %q: %s", containerSpec.Image, err)
 			}
 
+			podContainer.Image.ID = container.ImageID
+			containerSecurityContext = extractContainerSecurityContext(containerSpec)
 			ports = make([]workloadmeta.ContainerPort, 0, len(containerSpec.Ports))
 			for _, port := range containerSpec.Ports {
 				ports = append(ports, workloadmeta.ContainerPort{
@@ -248,17 +254,70 @@ func (c *collector) parsePodContainers(
 						kubernetes.CriContainerNamespaceLabel: pod.Metadata.Namespace,
 					},
 				},
-				Image:   image,
-				EnvVars: env,
-				Ports:   ports,
-				Runtime: workloadmeta.ContainerRuntime(runtime),
-				State:   containerState,
-				Owner:   parent,
+				Image:           image,
+				EnvVars:         env,
+				SecurityContext: containerSecurityContext,
+				Ports:           ports,
+				Runtime:         workloadmeta.ContainerRuntime(runtime),
+				State:           containerState,
+				Owner:           parent,
 			},
 		})
 	}
 
 	return podContainers, events
+}
+
+func extractPodSecurityContext(spec *kubelet.Spec) *workloadmeta.PodSecurityContext {
+	if spec.SecurityContext == nil {
+		return nil
+	}
+
+	return &workloadmeta.PodSecurityContext{
+		RunAsUser:  spec.SecurityContext.RunAsUser,
+		RunAsGroup: spec.SecurityContext.RunAsGroup,
+		FsGroup:    spec.SecurityContext.FsGroup,
+	}
+}
+
+func extractContainerSecurityContext(spec *kubelet.ContainerSpec) *workloadmeta.ContainerSecurityContext {
+	if spec.SecurityContext == nil {
+		return nil
+	}
+
+	var caps *workloadmeta.Capabilities
+	if spec.SecurityContext.Capabilities != nil {
+		caps = &workloadmeta.Capabilities{
+			Add:  spec.SecurityContext.Capabilities.Add,
+			Drop: spec.SecurityContext.Capabilities.Drop,
+		}
+	}
+
+	privileged := false
+	if spec.SecurityContext.Privileged != nil {
+		privileged = *spec.SecurityContext.Privileged
+	}
+
+	var seccompProfile *workloadmeta.SeccompProfile
+	if spec.SecurityContext.SeccompProfile != nil {
+		localhostProfile := ""
+		if spec.SecurityContext.SeccompProfile.LocalhostProfile != nil {
+			localhostProfile = *spec.SecurityContext.SeccompProfile.LocalhostProfile
+		}
+
+		spType := workloadmeta.SeccompProfileType(spec.SecurityContext.SeccompProfile.Type)
+
+		seccompProfile = &workloadmeta.SeccompProfile{
+			Type:             spType,
+			LocalhostProfile: localhostProfile,
+		}
+	}
+
+	return &workloadmeta.ContainerSecurityContext{
+		Capabilities:   caps,
+		Privileged:     privileged,
+		SeccompProfile: seccompProfile,
+	}
 }
 
 func findContainerSpec(name string, specs []kubelet.ContainerSpec) *kubelet.ContainerSpec {
