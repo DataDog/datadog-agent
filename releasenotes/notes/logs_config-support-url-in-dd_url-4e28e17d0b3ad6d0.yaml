@@ -8,6 +8,6 @@
 ---
 enhancements:
   - |
-    Support url with `http|https` scheme in the `dd_url` or `logs_dd_url` parameters
-    when configuring an endpoint or an additional endpoint.
-    Also automatically detect SSL needs, based on the scheme when it is present.
+    Add support for URLs with the `http|https` scheme in the `dd_url` or `logs_dd_url` parameters
+    when configuring endpoints.
+    Also automatically detects SSL needs, based on the scheme when it is present.
