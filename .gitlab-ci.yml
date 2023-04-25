@@ -835,7 +835,7 @@ workflow:
        cat "$DIFF_FILES" | grep "test/kitchen/test/integration/win-sysprobe-test/" || \
        cat "$DIFF_FILES" | grep ".gitlab/functional_test/system_probe.yml" || \
        cat "$DIFF_FILES" | grep "test/new-e2e/system-probe/" || \
-       cat "$DIFF_FILES" | grep "test/new-e2e/scenarios/system-probe/" || \
+       cat "$DIFF_FILES" | grep "test/new-e2e/scenarios/system-probe/"
     when: on_success
   - when: manual
     allow_failure: true
