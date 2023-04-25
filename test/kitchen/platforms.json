@@ -89,7 +89,8 @@
         },
         "ec2": {
             "x86_64": {
-                "ubuntu-22-10": "ami-0e91aa083be0e6546"
+                "ubuntu-22-10": "ami-0e91aa083be0e6546",
+                "ubuntu-23-04": "ami-062b1c3c00754c48b"
             },
             "arm64": {
                 "ubuntu-18-04": "ami-02ed82f3a38303e6f",
@@ -97,7 +98,8 @@
                 "ubuntu-20-04-2": "ami-0a82127206c2824a1",
                 "ubuntu-21-04": "ami-044f0ceee8e885e87",
                 "ubuntu-22-04": "ami-02ddaf75821f25213",
-                "ubuntu-22-10": "ami-08ce05abd8d2790a4"
+                "ubuntu-22-10": "ami-08ce05abd8d2790a4",
+                "ubuntu-23-04": "ami-05fab5da2d7fe0b0b"
             }
         },
         "vagrant": {

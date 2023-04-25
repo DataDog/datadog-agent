@@ -96,7 +96,7 @@ kitchen_test_system_probe_linux_x64_ec2:
         KITCHEN_OSVERS: "fedora-36,fedora-37"
         KITCHEN_EC2_DEVICE_NAME: "/dev/sda1"
       - KITCHEN_PLATFORM: "ubuntu"
-        KITCHEN_OSVERS: "ubuntu-22-10"
+        KITCHEN_OSVERS: "ubuntu-23-04"
         KITCHEN_EC2_DEVICE_NAME: "/dev/sda1"
 
 
@@ -121,7 +121,7 @@ kitchen_test_system_probe_linux_arm64:
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"
-        KITCHEN_OSVERS: "ubuntu-18-04,ubuntu-20-04,ubuntu-22-04,ubuntu-22-10"
+        KITCHEN_OSVERS: "ubuntu-18-04,ubuntu-20-04,ubuntu-22-04,ubuntu-23-04"
       - KITCHEN_PLATFORM: "debian"
         KITCHEN_OSVERS: "debian-10,debian-11,debian-12"
         KITCHEN_EC2_DEVICE_NAME: "/dev/xvda"
