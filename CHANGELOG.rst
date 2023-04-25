@@ -2,6 +2,207 @@
 Release Notes
 =============
 
+.. _Release Notes_7.44.0:
+
+7.44.0 / 6.44.0
+======
+
+.. _Release Notes_7.44.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2023-04-26
+
+- Please refer to the `7.44.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7440>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.44.0_New Features:
+
+New Features
+------------
+
+- Added HTTP/2 parsing logic to Universal Service Monitoring.
+
+- Adding Universal Service Monitoring to the Agent status check.
+  Now Datadog has visibility into the status of Universal Service
+  Monitoring. Startup failures appear in the status check.
+
+- In the agent.log, a DEBUG, WARN, and ERROR log have been added to report
+  how many file handles the core Agent process has open. The DEBUG log
+  reports the info, the WARN log appears when the core Agent is over 90%
+  of the OS file limit, and the ERROR log appears when the core Agent
+  has reached 100% of the OS file limit. In the Agent status command, fields
+  CoreAgentProcessOpenFiles and OSFileLimit have been added to the Logs
+  Agent section. This feature is currently for Linux only.
+
+- APM: Collect trace agent startup errors and successes using
+  instrumentation-telemetry "apm-onboarding-event" messages.
+
+- APM OTLP: Introduce OTLP Ingest probabilistic sampling, configurable via `otlp_config.traces.probabilistic_sampler.sampling_percentage`.
+
+- Experimental: The Datadog Admission Controller can inject the .NET APM library into Kubernetes containers for auto-instrumentation.
+
+- Enable CWS Security Profiles by default.
+
+- Support the config `additional_endpoints` for Data Streams monitoring.
+
+- Added support for collecting container image metadata when using Docker.
+
+- Added Kafka parsing logic to system-probe
+
+- Allow writing SECL rules against container creation time through the new `container.created_at`
+  field, similar to the existing `process.container_at` field.
+  The container creation time is also reported in the sent events.
+
+- *[experimental]* CWS generates an SBOM for any running workload on the machine.
+
+- *[experimental]* CWS events are enriched with SBOM data.
+
+- *[experimental]* CWS activity dumps are enriched with SBOM data.
+
+- Enable OTLP endpoint for receiving traces in the Datadog Lambda Extension.
+
+- On Windows, when service inference is enabled, `process_context` tags can now be populated by the service name
+  in the SCM. This feature can be controlled by either the `service_monitoring_config.process_service_inference.enabled` config setting
+  in the user's `datadog.yaml` config file, or it can be configured via the `DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_USE_WINDOWS_SERVICE_NAME` 
+  environment variable. This setting is enabled by default.
+
+
+.. _Release Notes_7.44.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Added `kubernetes_state.hpa.status_target_metric` and `kubernetes_state.deployment.replicas_ready` metrics part of the `kubernetes_state_core` check.
+
+- The status page now includes a ``Status render errors`` section to highlight errors that occurred while rendering it.
+
+- APM:
+    - Run the /debug/* endpoints in a separate server which uses port 5012 by default and only listens on ``127.0.0.1``. The port is configurable through ``apm_config.debug.port`` and ``DD_APM_DEBUG_PORT``, set it to 0 to disable the server.
+    - Scrub the content served by the expvar endpoint.
+
+- APM: apm_config.features is now configurable from the Agent configuration file. It was previously only configurable via DD_APM_FEATURES.
+
+- Agents are now built with Go ``1.19.7``.
+
+- The OTLP ingest endpoint now supports the same settings and protocol as the OpenTelemetry Collector OTLP receiver v0.71.0.
+
+- Collect Kubernetes Pod conditions.
+
+- Added the "availability-zone" tag to the Fargate integration. This
+  matches the tag emitted by other AWS infrastructure integrations.
+
+- Allow to report all gathered data in case of partial failure of container metrics retrieval.
+
+- Upgraded JMXFetch to ``0.47.8`` which has improvements aimed
+  to help large metric collections drop fewer payloads.
+
+- JMXFetch upgraded to `0.47.5 <https://github.com/DataDog/jmxfetch/releases/0.47.5>`_
+  which now supports pulling metrics from `javax.management.openmbean.TabularDataSupport`.
+  Also contains a fix for pulling metrics from `javax.management.openmbean.TabularDataSupport`
+  when no tags are specified.
+
+- Updated chunking util and use cases to use generics. No behavior change.
+
+- [corechecks/snmp] Add ``interface_configs`` to override interface speed.
+
+- No longer increments TCP retransmit count when the retransmit fails.
+
+- The OTLP ingestion endpoint now supports the same settings and protocols as the OpenTelemetry Collector OTLP receiver v0.70.0.
+
+- Changes the retry mechanism of starting workloadmeta collectors so that
+  instead of retrying every 30 seconds, it retries following an exponential
+  backoff with initial interval of 1s and max of 30s. In general, this should
+  help start sooner the collectors that failed on the first try.
+
+- Added the "pull_duration" metric in the workloadmeta telemetry. It measures
+  the time that it takes to pull from the collectors.
+
+
+.. _Release Notes_7.44.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- Marked the "availability_zone" tag as deprecated for the Fargate
+  integration, in favor of "availability-zone".
+
+- Configuration ``enable_sketch_stream_payload_serialization`` is now deprecated.
+
+
+.. _Release Notes_7.44.0_Security Notes:
+
+Security Notes
+--------------
+
+- The Agent now checks containerd containers `Spec` size before parsing it. Any `Spec` exceeding 2MB will not be parsed and a warning will be emitted. This impacts the `container_env_as_tags` feature and `%%hostname%%` variable resolution for environments based on `containerd` outside of Kubernetes.
+
+
+.. _Release Notes_7.44.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- APM: Fix issue where dogstatsd proxy would not work when bind address was set to localhost on MacOS.
+  APM: Fix issue where setting bind_host to "::1" would break runtime metrics for the trace-agent.
+
+- APM: Trace Agent not printing critical init errors.
+
+- Fixes a bug where ignored container files (that were not tailed) were 
+  incorrectly counted against the total open files. 
+
+- Fixes the configuration parsing of the "container_lifecycle" check. Custom
+  config values were not being applied.
+
+- Corrects dogstatsd metric message validation to support all current (and some future) dogstatsd features
+
+- Avoid panic in kubernetes_state_core check with specific Ingress
+  objects configuration.
+
+- Fixes a divide-by-zero panic when sketch serialization fails on the last metric of a given batch
+
+- Fix issue introduced in 7.43 that prevents the Datadog Agent Manager application
+  from executing from the checkbox at the end of the Datadog Agent installation when
+  the installer is run by a non-elevated administrator user.
+
+- Fixes a problem with USM and IIS on Windows Server 2022 due to a change
+  in the way Microsoft reports IIS connections.
+
+- Fixes the `labelsAsTags` parameter of the kube-state metrics core check.
+  Tags were not properly formatted when they came from a label on one resource type (for example, namespace) and turned into a tag on another resource type (for example, pod).
+
+- The OTLP ingest endpoint does not report the first cumulative monotonic sum value if the start timestamp of the timeseries matches its timestamp.
+
+- Prevent disallowlisting on empty command line for processes in the Process Agent when encountering a failure to
+  parse, use exe value instead.
+
+- Make SNMP Listener support all authProtocol.
+
+- Fix an issue where ``agent status`` would show incorrect system-probe status for 15 seconds as the system-probe started up.
+
+- Fix partial loss of NAT info in system-probe for pre-existing connections.
+
+- Replace ``;`` with ``&`` in the URL to open GUI to follow golang.org/issue/25192.
+
+- Workloadmeta now avoids concurrent pulls from the same collector. This bug could lead to incorrect or missing data when the collectors were too slow pulling data.
+
+- Fixes a bug that prevents the containerd workloadmeta collector from
+  starting sometimes when `container_image_collection.metadata.enabled` is
+  set to true.
+
+- Fixed a bug in the SBOM collection feature. In certain cases, some SBOMs were
+  not collected.
+
+
+.. _Release Notes_7.44.0_Other Notes:
+
+Other Notes
+-----------
+
+- The ``logs_config.cca_in_ad`` has been removed.
+
+
 .. _Release Notes_7.43.1:
 
 7.43.1 / 6.43.1
