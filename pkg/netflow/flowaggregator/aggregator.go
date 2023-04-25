@@ -47,6 +47,7 @@ type FlowAggregator struct {
 	goflowPrometheusGatherer     prometheus.Gatherer
 	timeNowFunction              func() time.Time // Allows to mock time in tests
 	lastMissingFlowsMetricValue  map[string]float64
+	lastSequence                 map[string]float64
 }
 
 // NewFlowAggregator returns a new FlowAggregator
@@ -70,6 +71,7 @@ func NewFlowAggregator(sender aggregator.Sender, epForwarder epforwarder.EventPl
 		goflowPrometheusGatherer:     prometheus.DefaultGatherer,
 		timeNowFunction:              time.Now,
 		lastMissingFlowsMetricValue:  make(map[string]float64),
+		lastSequence:                 make(map[string]float64),
 	}
 }
 
@@ -261,6 +263,31 @@ func (agg *FlowAggregator) submitCollectorMetrics() error {
 	if err != nil {
 		return err
 	}
+
+	sequenceReset := false
+	for _, metricFamily := range promMetrics {
+		for _, metric := range metricFamily.Metric {
+			log.Tracef("Collector metric `%s`: type=`%v` value=`%v`, label=`%v`", metricFamily.GetName(), metricFamily.GetType().String(), metric.GetCounter().GetValue(), metric.GetLabel())
+			metricType, name, value, tags, err := goflowlib.ConvertMetric(metric, metricFamily)
+			if err != nil {
+				log.Tracef("Error converting prometheus metric: %s", err)
+				continue
+			}
+			switch metricType {
+			case metrics.GaugeType:
+				sort.Strings(tags)
+				key := metricPrefix + name + strings.Join(tags, ",")
+				if metricPrefix+name == "datadog.netflow.processor.sequence" {
+					if value-agg.lastSequence[key] < -1000 {
+						log.Debugf("[countMissing][agg] seq=%f reset", agg.lastSequence[key])
+						sequenceReset = true
+					}
+					agg.lastSequence[key] = value
+					log.Debugf("[countMissing][agg] seq=%f", agg.lastSequence[key])
+				}
+			}
+		}
+	}
 	for _, metricFamily := range promMetrics {
 		for _, metric := range metricFamily.Metric {
 			log.Tracef("Collector metric `%s`: type=`%v` value=`%v`, label=`%v`", metricFamily.GetName(), metricFamily.GetType().String(), metric.GetCounter().GetValue(), metric.GetLabel())
@@ -272,9 +299,12 @@ func (agg *FlowAggregator) submitCollectorMetrics() error {
 			switch metricType {
 			case metrics.GaugeType:
 				agg.sender.Gauge(metricPrefix+name, value, "", tags)
-				sort.Strings(tags)
-				key := metricPrefix + name + strings.Join(tags, ",")
 				if metricPrefix+name == "datadog.netflow.processor.missing_flows" {
+					sort.Strings(tags)
+					key := metricPrefix + name + strings.Join(tags, ",")
+					if sequenceReset {
+						agg.lastMissingFlowsMetricValue[key] = 0
+					}
 					diff := value - agg.lastMissingFlowsMetricValue[key]
 					log.Debugf("[countMissing][agg] last=%f, value=%f, diff=%f", agg.lastMissingFlowsMetricValue[key], value, diff)
 					agg.lastMissingFlowsMetricValue[key] = value
