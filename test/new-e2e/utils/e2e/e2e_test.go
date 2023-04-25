@@ -45,7 +45,7 @@ func TestE2ESuite(t *testing.T) {
 		},
 	}
 
-	Run(t, &e2eSuite{}, "test-olivier", WithStackDef(stack))
+	Run(t, &e2eSuite{}, WithStackDef(stack))
 }
 
 func (v *e2eSuite) TestVM() {

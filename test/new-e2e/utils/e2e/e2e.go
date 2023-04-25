@@ -9,6 +9,9 @@ package e2e
 
 import (
 	"context"
+	"fmt"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
+	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/require"
@@ -80,8 +84,19 @@ type suiteConstraint[Env any] interface {
 	initSuite(stackName string, options ...func(*Suite[Env]))
 }
 
-func Run[Env any, T suiteConstraint[Env]](t *testing.T, e2eSuite T, stackName string, options ...func(*Suite[Env])) {
-	e2eSuite.initSuite(stackName, options...)
+func Run[Env any, T suiteConstraint[Env]](t *testing.T, e2eSuite T, options ...func(*Suite[Env])) {
+	suiteType := reflect.TypeOf(e2eSuite).Elem()
+	name := suiteType.Name()
+	pkgPaths := suiteType.PkgPath()
+	pkgs := strings.Split(pkgPaths, "/")
+
+	// Use the hash of PkgPath in order to have a uniq stack name
+	hash := utils.StrHash(pkgs...)
+
+	// Example: "e2e-e2eSuite-cbb731954db42b"
+	defaultStackName := fmt.Sprintf("%v-%v-%v", pkgs[len(pkgs)-1], name, hash)
+
+	e2eSuite.initSuite(defaultStackName, options...)
 	suite.Run(t, e2eSuite)
 }
 
@@ -118,6 +133,15 @@ func WithRunFct[Env any](envFactory func(ctx *pulumi.Context) (*Env, error)) fun
 		}
 	}
 }
+
+// WithStackName overrides the stack name.
+// This function is useful only when using e2e.Run.
+func WithStackName[Env any](stackName string) func(*Suite[Env]) {
+	return func(suite *Suite[Env]) {
+		suite.stackName = stackName
+	}
+}
+
 // SetupSuite method will run before the tests in the suite are run.
 // This function is called by [testify Suite].
 // Note: Having initialization code in this function allows `NewSuite` to not
@@ -126,6 +150,7 @@ func WithRunFct[Env any](envFactory func(ctx *pulumi.Context) (*Env, error)) fun
 func (suite *Suite[Env]) SetupSuite() {
 	require := require.New(suite.T())
 
+	require.NotEmptyf(suite.stackName, "The stack name is empty. You must define it with WithName")
 	// Check if the Env type is correct otherwise raises an error before creating the env.
 	err := client.CheckEnvStructValid[Env]()
 	require.NoError(err)
