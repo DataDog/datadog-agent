@@ -45,7 +45,7 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 	wg.Add(2)
 
 	nodeInformer := informerFactory.Core().V1().Nodes().Informer()
-	_, err := nodeInformer.AddEventHandler(&cache.ResourceEventHandlerFuncs{
+	_, err = nodeInformer.AddEventHandler(&cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			wg.Done()
 		},
