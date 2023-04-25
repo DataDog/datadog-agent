@@ -236,22 +236,22 @@ func (h *Hotspot) parseResponse(buf []byte) (returnCommand int, returnCode int, 
 //	otherwise the JVM is blocked and waiting for more bytes
 //	This applies only for some command like : 'load agent.so true'
 func (h *Hotspot) command(cmd string, tailingNull bool) error {
-	hasRetried := false
-retry:
 	if err := h.commandWriteRead(cmd, tailingNull); err != nil {
 		// if we receive EPIPE (write) or ECONNRESET (read) from the kernel may from old hotspot JVM
 		// let's retry with credentials, see dialunix() for more info
-		if !hasRetried && (errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET)) {
-			log.Debugf("java attach hotspot pid %d/%d old hotspot JVM detected, requires credentials", h.pid, h.nsPid)
-			hasRetried = true
-			h.conn.Close()
-			_, err = h.connect(true) // we don't need to propagate the cleanConn() callback as it's doing the same thing.
-			if err != nil {
-				return err
-			}
-			goto retry
+		if !errors.Is(err, syscall.EPIPE) && !errors.Is(err, syscall.ECONNRESET) {
+			return err
 		}
-		return err
+		log.Debugf("java attach hotspot pid %d/%d old hotspot JVM detected, requires credentials", h.pid, h.nsPid)
+		_ = h.conn.Close()
+		// we don't need to propagate the cleanConn() callback as it's doing the same thing.
+		if _, err := h.connect(true); err != nil {
+			return err
+		}
+
+		if err := h.commandWriteRead(cmd, tailingNull); err != nil {
+			return err
+		}
 	}
 	return nil
 }
