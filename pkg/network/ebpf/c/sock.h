@@ -3,15 +3,16 @@
 
 #include "ktypes.h"
 
+#include "bpf_core_read.h"
+
 #include "tracer.h"
 #include "ipv6.h"
 #include "netns.h"
 
-// source include/linux/socket.h
-#define __AF_INET   2
-#define __AF_INET6 10
-
 #ifdef COMPILE_CORE
+
+#include "ip.h" // for AF_INET and AF_INET6
+
 static __always_inline struct tcp_sock *tcp_sk(const struct sock *sk)
 {
     return (struct tcp_sock *)sk;
@@ -41,12 +42,29 @@ static __always_inline struct inet_sock *inet_sk(const struct sock *sk)
 #define fl6_sport uli.ports.sport
 #define fl6_dport uli.ports.dport
 
-#elif defined(COMPILE_RUNTIME)
+#elif defined(COMPILE_RUNTIME) || defined(COMPILE_PREBUILT)
 
+#include <linux/socket.h>
 #include <linux/tcp.h>
 #include <net/inet_sock.h>
 
 #endif // COMPILE_CORE
+
+#ifdef COMPILE_PREBUILT
+static __always_inline u64 offset_socket_sk();
+#endif
+
+static __always_inline struct sock * socket_sk(struct socket *sock) {
+    struct sock * sk = NULL;
+#ifdef COMPILE_PREBUILT
+    if (bpf_probe_read_kernel_with_telemetry(&sk, sizeof(sk), ((char*)sock) + offset_socket_sk()) < 0) {
+        return NULL;
+    }
+#elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
+    BPF_CORE_READ_INTO(&sk, sock, sk);
+#endif
+    return sk;
+}
 
 static __always_inline void get_tcp_segment_counts(struct sock* skp, __u32* packets_in, __u32* packets_out) {
 #ifdef COMPILE_PREBUILT
@@ -55,36 +73,104 @@ static __always_inline void get_tcp_segment_counts(struct sock* skp, __u32* pack
     // fields in the tcp_sk: packets_in & packets_out (respectively)
     *packets_in = 0;
     *packets_out = 0;
-#else
+#elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
     BPF_CORE_READ_INTO(packets_out, tcp_sk(skp), segs_out);
     BPF_CORE_READ_INTO(packets_in, tcp_sk(skp), segs_in);
 #endif
 }
 
-#if defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
-
-static __always_inline __u16 read_sport(struct sock* sk) {
+static __always_inline u16 read_sport(struct sock* skp) {
     // try skc_num, then inet_sport
-    __u16 sport = 0;
-    BPF_CORE_READ_INTO(&sport, sk, sk_num);
+    u16 sport = 0;
+#ifdef COMPILE_PREBUILT
+    // try skc_num, then inet_sport
+    bpf_probe_read_kernel_with_telemetry(&sport, sizeof(sport), ((char*)skp) + offset_dport() + sizeof(sport));
     if (sport == 0) {
-        BPF_CORE_READ_INTO(&sport, inet_sk(sk), inet_sport);
+        bpf_probe_read_kernel_with_telemetry(&sport, sizeof(sport), ((char*)skp) + offset_sport());
         sport = bpf_ntohs(sport);
     }
+#elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
+    BPF_CORE_READ_INTO(&sport, skp, sk_num);
+    if (sport == 0) {
+        BPF_CORE_READ_INTO(&sport, inet_sk(skp), inet_sport);
+        sport = bpf_ntohs(sport);
+    }
+#endif
 
     return sport;
 }
 
-static __always_inline __u16 read_dport(struct sock *sk) {
-    __u16 dport = 0;
-    BPF_CORE_READ_INTO(&dport, sk, sk_dport);
-    dport = bpf_ntohs(dport);
+static u16 read_dport(struct sock *skp) {
+    u16 dport = 0;
+#ifdef COMPILE_PREBUILT
+    bpf_probe_read_kernel_with_telemetry(&dport, sizeof(dport), ((char*)skp) + offset_dport());
+#elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
+    bpf_probe_read_kernel(&dport, sizeof(dport), &skp->sk_dport);
+    BPF_CORE_READ_INTO(&dport, skp, sk_dport);
     if (dport == 0) {
-        BPF_CORE_READ_INTO(&dport, inet_sk(sk), inet_dport);
-        dport = bpf_ntohs(dport);
+        BPF_CORE_READ_INTO(&dport, inet_sk(skp), inet_dport);
     }
+#endif
 
-    return dport;
+    return bpf_ntohs(dport);
+}
+
+static __always_inline u32 read_saddr_v4(struct sock *skp) {
+    u32 saddr = 0;
+#ifdef COMPILE_PREBUILT
+    bpf_probe_read_kernel_with_telemetry(&saddr, sizeof(u32), ((char*)skp) + offset_saddr());
+#elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
+    BPF_CORE_READ_INTO(&saddr, skp, sk_rcv_saddr);
+    if (saddr == 0) {
+        BPF_CORE_READ_INTO(&saddr, inet_sk(skp), inet_saddr);
+    }
+#endif
+
+    return saddr;
+}
+
+static __always_inline u32 read_daddr_v4(struct sock *skp) {
+    u32 daddr = 0;
+#ifdef COMPILE_PREBUILT
+    bpf_probe_read_kernel_with_telemetry(&daddr, sizeof(u32), ((char*)skp) + offset_daddr());
+#elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
+    BPF_CORE_READ_INTO(&daddr, skp, sk_daddr);
+    if (daddr == 0) {
+        BPF_CORE_READ_INTO(&daddr, inet_sk(skp), inet_daddr);
+    }
+#endif
+
+    return daddr;
+}
+
+static __always_inline void read_saddr_v6(struct sock *skp, u64 *addr_h, u64 *addr_l) {
+    struct in6_addr in6 = {};
+#ifdef COMPILE_PREBUILT
+    bpf_probe_read_kernel_with_telemetry(&in6, sizeof(in6), ((char*)skp) + offset_daddr_ipv6() + 2 * sizeof(u64));
+#elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
+    BPF_CORE_READ_INTO(&in6, skp, sk_v6_rcv_saddr);
+#endif
+    read_in6_addr(addr_h, addr_l, &in6);
+}
+
+static __always_inline void read_daddr_v6(struct sock *skp, u64 *addr_h, u64 *addr_l) {
+    struct in6_addr in6 = {};
+#ifdef COMPILE_PREBUILT
+    bpf_probe_read_kernel_with_telemetry(&in6, sizeof(in6), ((char*)skp) + offset_daddr_ipv6());
+#elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
+    BPF_CORE_READ_INTO(&in6, skp, sk_v6_daddr);
+#endif
+    read_in6_addr(addr_h, addr_l, &in6);
+}
+
+static __always_inline u16 _sk_family(struct sock *skp) {
+    u16 family = 0;
+#ifdef COMPILE_PREBUILT
+    bpf_probe_read_kernel_with_telemetry(&family, sizeof(family), ((char*)skp) + offset_family());
+#elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
+    BPF_CORE_READ_INTO(&family, skp, sk_family);
+#endif
+    return family;
 }
 
 /**
@@ -99,38 +185,31 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
     // Retrieve network namespace id first since addresses and ports may not be available for unconnected UDP
     // sends
     t->netns = get_netns_from_sock(skp);
-    unsigned short family = 0;
-    BPF_PROBE_READ_INTO(&family, skp, sk_family);
+    u16 family = _sk_family(skp);
     // Retrieve addresses
-    if (family == __AF_INET) {
+    if (family == AF_INET) {
         t->metadata |= CONN_V4;
         if (t->saddr_l == 0) {
-            BPF_CORE_READ_INTO((u32*)(&t->saddr_l), skp, sk_rcv_saddr);
-        }
-        if (t->saddr_l == 0) {
-            BPF_CORE_READ_INTO((u32*)(&t->saddr_l), inet_sk(skp), inet_saddr);
+            t->saddr_l = read_saddr_v4(skp);
         }
         if (t->daddr_l == 0) {
-            BPF_CORE_READ_INTO((u32*)(&t->daddr_l), skp, sk_daddr);
-        }
-        if (t->daddr_l == 0) {
-            BPF_CORE_READ_INTO((u32*)(&t->daddr_l), inet_sk(skp), inet_daddr);
+            t->daddr_l = read_daddr_v4(skp);
         }
 
         if (t->saddr_l == 0 || t->daddr_l == 0) {
             log_debug("ERR(read_conn_tuple.v4): src or dst addr not set src=%d, dst=%d\n", t->saddr_l, t->daddr_l);
             err = 1;
         }
-    } else if (family == __AF_INET6) {
+    } else if (family == AF_INET6) {
         if (!is_ipv6_enabled()) {
             return 0;
         }
 
         if (!(t->saddr_h || t->saddr_l)) {
-            read_in6_addr(&t->saddr_h, &t->saddr_l, &skp->sk_v6_rcv_saddr);
+            read_saddr_v6(skp, &t->saddr_h, &t->saddr_l);
         }
         if (!(t->daddr_h || t->daddr_l)) {
-            read_in6_addr(&t->daddr_h, &t->daddr_l, &skp->sk_v6_daddr);
+            read_daddr_v6(skp, &t->daddr_h, &t->daddr_l);
         }
 
         /* We can only pass 4 args to bpf_trace_printk */
@@ -158,6 +237,7 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
             t->metadata |= CONN_V6;
         }
     } else {
+        log_debug("ERR(read_conn_tuple): unknown family %d\n", family);
         err = 1;
     }
 
@@ -185,10 +265,8 @@ static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u6
     return read_conn_tuple_partial(t, skp, pid_tgid, type);
 }
 
-#else
-
-static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type);
-
-#endif // defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
+static __always_inline int get_proto(conn_tuple_t *t) {
+    return (t->metadata & CONN_TYPE_TCP) ? CONN_TYPE_TCP : CONN_TYPE_UDP;
+}
 
 #endif // __SOCK_H

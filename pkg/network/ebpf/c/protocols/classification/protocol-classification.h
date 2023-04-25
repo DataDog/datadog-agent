@@ -4,6 +4,7 @@
 #include "bpf_builtins.h"
 #include "bpf_telemetry.h"
 #include "ip.h"
+#include "tracer-stats.h"
 
 #include "protocols/amqp/helpers.h"
 #include "protocols/classification/common.h"

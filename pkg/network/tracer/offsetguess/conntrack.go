@@ -104,7 +104,7 @@ func (c *conntrackOffsetGuesser) getConstantEditors() []manager.ConstantEditor {
 // checkAndUpdateCurrentOffset checks the value for the current offset stored
 // in the eBPF map against the expected value, incrementing the offset if it
 // doesn't match, or going to the next field to guess if it does
-func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected *fieldValues, maxRetries *int, threshold uint64, protocolClassificationSupported bool) error {
+func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected *fieldValues, maxRetries *int, threshold uint64) error {
 	// get the updated map value so we can check if the current offset is
 	// the right one
 	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(c.status)); err != nil {
@@ -279,7 +279,7 @@ func (c *conntrackOffsetGuesser) runOffsetGuessing(cfg *config.Config, ns netns.
 			return nil, err
 		}
 
-		if err := c.checkAndUpdateCurrentOffset(mp, expected, &maxRetries, threshold, false); err != nil {
+		if err := c.checkAndUpdateCurrentOffset(mp, expected, &maxRetries, threshold); err != nil {
 			return nil, err
 		}
 

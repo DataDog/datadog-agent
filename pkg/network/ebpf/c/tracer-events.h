@@ -7,14 +7,15 @@
 
 #include "tracer.h"
 #include "tracer-maps.h"
+#include "tracer-stats.h"
 #include "tracer-telemetry.h"
 #include "cookie.h"
 #include "protocols/classification/tracer-maps.h"
 #include "ip.h"
 
-static __always_inline int get_proto(conn_tuple_t *t) {
-    return (t->metadata & CONN_TYPE_TCP) ? CONN_TYPE_TCP : CONN_TYPE_UDP;
-}
+#ifdef COMPILE_CORE
+#define MSG_PEEK 2
+#endif
 
 static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
     conn_tuple_t conn_tuple = *tup;

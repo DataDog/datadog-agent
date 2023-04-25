@@ -13,6 +13,21 @@
 
 #include "conntrack-helpers.h"
 
+// depending on the kernel version p_net may be a struct net** or possible_net_t*
+static __always_inline u32 get_netns(void *p_net) {
+    u32 net_ns_inum = 0;
+#ifdef CONFIG_NET_NS
+    struct net *ns = NULL;
+    bpf_probe_read_kernel_with_telemetry(&ns, sizeof(ns), p_net);
+#ifdef _LINUX_NS_COMMON_H
+    bpf_probe_read_kernel_with_telemetry(&net_ns_inum, sizeof(net_ns_inum), &ns->ns.inum);
+#else
+    bpf_probe_read_kernel_with_telemetry(&net_ns_inum, sizeof(net_ns_inum), &ns->proc_inum);
+#endif
+#endif
+    return net_ns_inum;
+}
+
 static __always_inline u32 ct_status(const struct nf_conn *ct) {
     u32 status = 0;
     bpf_probe_read_kernel_with_telemetry(&status, sizeof(status), (void *)&ct->status);
