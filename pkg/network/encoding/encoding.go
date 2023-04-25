@@ -72,7 +72,6 @@ func modelConnections(conns *network.Connections) *model.Connections {
 	agentConns := make([]*model.Connection, len(conns.Conns))
 	routeIndex := make(map[string]RouteIdx)
 	httpEncoder := newHTTPEncoder(conns)
-	defer httpEncoder.Close()
 	kafkaEncoder := newKafkaEncoder(conns)
 	http2Encoder := newHTTP2Encoder(conns)
 	ipc := make(ipCache, len(conns.Conns)/2)
@@ -83,10 +82,12 @@ func modelConnections(conns *network.Connections) *model.Connections {
 		agentConns[i] = FormatConnection(conn, routeIndex, httpEncoder, http2Encoder, kafkaEncoder, dnsFormatter, ipc, tagsSet)
 	}
 
-	if httpEncoder != nil && httpEncoder.orphanEntries > 0 {
+	httpOrphan := httpEncoder.OrphanAggregations()
+
+	if httpOrphan > 0 {
 		log.Debugf(
 			"detected orphan http aggregations. this may be caused by conntrack sampling or missed tcp close events. count=%d",
-			httpEncoder.orphanEntries,
+			httpOrphan,
 		)
 
 		telemetry.NewMetric(
@@ -94,7 +95,7 @@ func modelConnections(conns *network.Connections) *model.Connections {
 			telemetry.OptMonotonic,
 			telemetry.OptExpvar,
 			telemetry.OptStatsd,
-		).Add(int64(httpEncoder.orphanEntries))
+		).Add(int64(httpOrphan))
 	}
 
 	if http2Encoder != nil && http2Encoder.orphanEntries > 0 {

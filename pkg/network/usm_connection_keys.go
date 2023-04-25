@@ -42,3 +42,50 @@ func ConnectionKeysFromConnectionStats(connectionStats ConnectionStats) []types.
 
 	return connectionKeys
 }
+
+
+func WithKey(connectionStats ConnectionStats, f func(key types.ConnectionKey) (stop bool)) {
+	var stopIteration bool
+
+	// USM data is always indexed as (client, server), but we don't know which is the remote
+	// and which is the local address. To account for this, we'll construct 2 possible
+	// connection keys and check for both of them in the aggregations map.
+	stopIteration = f(
+		types.NewConnectionKey(
+			connectionStats.Source,
+			connectionStats.Dest,
+			connectionStats.SPort,
+			connectionStats.DPort,
+		),
+	)
+
+	if stopIteration {
+		return
+	}
+
+	stopIteration = f(
+		types.NewConnectionKey(
+			connectionStats.Dest,
+			connectionStats.Source,
+			connectionStats.DPort,
+			connectionStats.SPort,
+		),
+	)
+	if stopIteration {
+		return
+	}
+
+	if connectionStats.IPTranslation == nil {
+		return
+	}
+
+	// if IPTranslation is not nil, at least one of the sides has a translation, thus we need to add translated addresses.
+	localAddress, localPort := GetNATLocalAddress(connectionStats)
+	remoteAddress, remotePort := GetNATRemoteAddress(connectionStats)
+	stopIteration = f(types.NewConnectionKey(localAddress, remoteAddress, localPort, remotePort))
+	if stopIteration {
+		return
+	}
+
+	_ = f(types.NewConnectionKey(remoteAddress, localAddress, remotePort, localPort))
+}
