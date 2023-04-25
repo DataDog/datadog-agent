@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/test-infra-definitions/datadog/agent"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
 )
 
 type MyEnv struct {
@@ -24,11 +23,11 @@ type MyEnv struct {
 }
 
 type e2eSuite struct {
-	*Suite[MyEnv]
+	Suite[MyEnv]
 }
 
 func TestE2ESuite(t *testing.T) {
-	suite.Run(t, &e2eSuite{Suite: NewSuite("my-test", &StackDefinition[MyEnv]{
+	stack := &StackDefinition[MyEnv]{
 		EnvFactory: func(ctx *pulumi.Context) (*MyEnv, error) {
 			vm, err := ec2vm.NewUnixEc2VM(ctx, ec2vm.WithArch(os.AmazonLinuxOS, commonos.AMD64Arch))
 			if err != nil {
@@ -44,7 +43,9 @@ func TestE2ESuite(t *testing.T) {
 				Agent: client.NewAgent(installer),
 			}, nil
 		},
-	})})
+	}
+
+	Run(t, &e2eSuite{}, "test-olivier", WithStackDef(stack))
 }
 
 func (v *e2eSuite) TestVM() {

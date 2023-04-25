@@ -77,11 +77,11 @@ type StackDefinition[Env any] struct {
 
 type suiteConstraint[Env any] interface {
 	suite.TestingSuite
-	initSuite(stackName string, stackDef *StackDefinition[Env], options ...func(*Suite[Env]))
+	initSuite(stackName string, options ...func(*Suite[Env]))
 }
 
-func Run[Env any, T suiteConstraint[Env]](t *testing.T, e2eSuite T, stackName string, stackDef *StackDefinition[Env], options ...func(*Suite[Env])) {
-	e2eSuite.initSuite(stackName, stackDef, options...)
+func Run[Env any, T suiteConstraint[Env]](t *testing.T, e2eSuite T, stackName string, options ...func(*Suite[Env])) {
+	e2eSuite.initSuite(stackName, options...)
 	suite.Run(t, e2eSuite)
 }
 
@@ -89,21 +89,35 @@ func Run[Env any, T suiteConstraint[Env]](t *testing.T, e2eSuite T, stackName st
 // stackName is the name of the stack and should be unique across suites.
 // stackDef is the stack definition.
 // options are optional parameters for example [e2e.KeepEnv].
-func NewSuite[Env any](stackName string, stackDef *StackDefinition[Env], options ...func(*Suite[Env])) *Suite[Env] {
+func NewSuite[Env any](stackName string, options ...func(*Suite[Env])) *Suite[Env] {
 	testSuite := Suite[Env]{}
-	testSuite.initSuite(stackName, stackDef, options...)
+	testSuite.initSuite(stackName, options...)
 	return &testSuite
 }
 
-func (suite *Suite[Env]) initSuite(stackName string, stackDef *StackDefinition[Env], options ...func(*Suite[Env])) {
+func (suite *Suite[Env]) initSuite(stackName string, options ...func(*Suite[Env])) {
 	suite.stackName = stackName
-	suite.stackDef = stackDef
 
 	for _, o := range options {
 		o(suite)
 	}
 }
 
+// WithStackDef set the stack definition
+func WithStackDef[Env any](stackDef *StackDefinition[Env]) func(*Suite[Env]) {
+	return func(suite *Suite[Env]) {
+		suite.stackDef = stackDef
+	}
+}
+
+// WithRunFct set the run function (EnvFactory in StackDefinition)
+func WithRunFct[Env any](envFactory func(ctx *pulumi.Context) (*Env, error)) func(*Suite[Env]) {
+	return func(suite *Suite[Env]) {
+		suite.stackDef = &StackDefinition[Env]{
+			EnvFactory: envFactory,
+		}
+	}
+}
 // SetupSuite method will run before the tests in the suite are run.
 // This function is called by [testify Suite].
 // Note: Having initialization code in this function allows `NewSuite` to not
