@@ -2,13 +2,8 @@
 #define _CONSTANTS_SYSCALL_MACRO_H_
 
 #if defined(__x86_64__)
-  #if USE_SYSCALL_WRAPPER == 1
-    #define SYSCALL64_PREFIX "__x64_"
-    #define SYSCALL32_PREFIX "__ia32_"
-  #else
-    #define SYSCALL32_PREFIX ""
-    #define SYSCALL64_PREFIX ""
-  #endif
+  #define SYSCALL64_PREFIX "__x64_"
+  #define SYSCALL32_PREFIX "__ia32_"
 
   #define SYSCALL64_PT_REGS_PARM1(x) ((x)->di)
   #define SYSCALL64_PT_REGS_PARM2(x) ((x)->si)
@@ -29,13 +24,8 @@
   #define SYSCALL32_PT_REGS_PARM6(x) ((x)->bp)
 
 #elif defined(__aarch64__)
-  #if USE_SYSCALL_WRAPPER == 1
-    #define SYSCALL64_PREFIX "__arm64_"
-    #define SYSCALL32_PREFIX "__arm32_"
-  #else
-    #define SYSCALL32_PREFIX ""
-    #define SYSCALL64_PREFIX ""
-  #endif
+  #define SYSCALL64_PREFIX "__arm64_"
+  #define SYSCALL32_PREFIX "__arm32_"
 
   #define SYSCALL64_PT_REGS_PARM1(x) PT_REGS_PARM1(x)
   #define SYSCALL64_PT_REGS_PARM2(x) PT_REGS_PARM2(x)
@@ -89,8 +79,13 @@
 
 #define SYSCALL_ABI_HOOKx(x,word_size,type,TYPE,prefix,syscall,suffix,...) \
     int __attribute__((always_inline)) type##__##sys##syscall(struct pt_regs *ctx __JOIN(x,__SC_DECL,__VA_ARGS__)); \
-    SEC(#type "/" SYSCALL##word_size##_PREFIX #prefix SYSCALL_PREFIX #syscall #suffix) \
+    SEC(#type "/" #prefix SYSCALL_PREFIX #syscall #suffix) \
     int type##__ ##word_size##_##prefix ##sys##syscall##suffix(struct pt_regs *ctx) { \
+        SYSCALL_##TYPE##_PROLOG(x,__SC_##word_size##_PARAM,syscall,__VA_ARGS__) \
+        return type##__sys##syscall(ctx __JOIN(x,__SC_PASS,__VA_ARGS__)); \
+    } \
+    SEC(#type "/" SYSCALL##word_size##_PREFIX #prefix SYSCALL_PREFIX #syscall #suffix) \
+    int type##__ ##word_size##_##prefix ##sys##syscall##suffix##wrapper(struct pt_regs *ctx) { \
         SYSCALL_##TYPE##_PROLOG(x,__SC_##word_size##_PARAM,syscall,__VA_ARGS__) \
         return type##__sys##syscall(ctx __JOIN(x,__SC_PASS,__VA_ARGS__)); \
     }
