@@ -10,8 +10,16 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+)
+
+const (
+	ConfigName = "datadog"
+	LoggerName = "CORE"
 )
 
 // GlobalParams contains the values of agent-global Cobra flags.
@@ -30,6 +38,14 @@ type GlobalParams struct {
 
 // SubcommandFactory is a callable that will return a slice of subcommands.
 type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
+
+// GetDefaultCoreBundleParams returns the default params for the Core Bundle (config loaded from the "datadog" file,
+// without secrets and logger disabled).
+func GetDefaultCoreBundleParams(globalParams *GlobalParams) core.BundleParams {
+	return core.BundleParams{
+		ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
+		LogParams:    log.LogForOneShot(LoggerName, "off", true)}
+}
 
 // MakeCommand makes the top-level Cobra command for this app.
 func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {

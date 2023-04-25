@@ -209,15 +209,21 @@ def ninja_network_ebpf_co_re_program(nw, infile, outfile, flags):
 def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
     network_bpf_dir = os.path.join("pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
-    network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
     network_flags = "-Ipkg/network/ebpf/c -g"
-    network_programs = ["dns", "offset-guess", "tracer", "http", "usm_events_test", "conntrack"]
+    network_programs = [
+        "prebuilt/dns",
+        "prebuilt/offset-guess",
+        "tracer",
+        "prebuilt/http",
+        "prebuilt/usm_events_test",
+        "prebuilt/conntrack",
+    ]
     network_co_re_programs = ["co-re/tracer-fentry", "runtime/http"]
 
     for prog in network_programs:
-        infile = os.path.join(network_prebuilt_dir, f"{prog}.c")
-        outfile = os.path.join(build_dir, f"{prog}.o")
+        infile = os.path.join(network_c_dir, f"{prog}.c")
+        outfile = os.path.join(build_dir, f"{os.path.basename(prog)}.o")
         ninja_network_ebpf_program(nw, infile, outfile, network_flags)
 
     for prog_path in network_co_re_programs:
@@ -1464,8 +1470,9 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
             images.add(docker_compose["services"][component]["image"])
 
     # Java tests have dynamic images in docker-compose.yml
-    for image in ["openjdk:21-oraclelinux8", "openjdk:15-oraclelinux8", "openjdk:8u151-jre", "menci/archlinuxarm:base"]:
-        images.add(image)
+    images.update(
+        ["openjdk:21-oraclelinux8", "openjdk:15-oraclelinux8", "openjdk:8u151-jre", "menci/archlinuxarm:base"]
+    )
 
     for image in images:
         output_path = image.translate(str.maketrans('', '', string.punctuation))
