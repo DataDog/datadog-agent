@@ -16,6 +16,7 @@
 
 #include "bpf_builtins.h"
 #include "port_range.h"
+#include "sock.h"
 #include "sockfd.h"
 
 #include "protocols/classification/dispatcher-helpers.h"
