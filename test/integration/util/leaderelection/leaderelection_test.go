@@ -237,7 +237,7 @@ func (suite *apiserverSuite) TestLeaderElectionMulti() {
 		lease := leasesList.Items[0]
 		require.Equal(suite.T(), "datadog-leader-election", lease.Name)
 		require.NotNil(suite.T(), lease.Spec.HolderIdentity)
-		require.Equal(suite.T(), testCases[0].leaderEngine.HolderIdentity, lease.Spec.HolderIdentity)
+		require.Equal(suite.T(), testCases[0].leaderEngine.HolderIdentity, *lease.Spec.HolderIdentity)
 	} else {
 		client := c.Cl.CoreV1()
 		require.Nil(suite.T(), err)
