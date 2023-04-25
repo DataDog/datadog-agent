@@ -92,7 +92,8 @@ single-machine-performance-regression_detector:
 
 single-machine-performance-regression_detector-pr-comment:
   stage: notify
-  needs: ["single-machine-performance-regression_detector"]
+  dependencies:
+    - single-machine-performance-regression_detector
   when: always
   image:
     name: registry.ddbuild.io/pr-commenter:2
