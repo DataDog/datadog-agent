@@ -4,6 +4,7 @@
 #include "bpf_endian.h"
 
 #include "protocols/http2/defs.h"
+#include "protocols/http2/usm-events.h"
 
 // This function checks if the http2 frame header is empty.
 static __always_inline bool is_empty_frame_header(const char *frame) {

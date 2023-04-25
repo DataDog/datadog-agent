@@ -4,6 +4,7 @@
 #include "protocols/helpers/big_endian.h"
 #include "protocols/kafka/defs.h"
 #include "protocols/kafka/maps.h"
+#include "protocols/kafka/usm-events.h"
 #include "protocols/kafka/types.h"
 
 // Wraps the mechanism of reading big-endian number (s16 or s32) from the packet, and increasing the offset.

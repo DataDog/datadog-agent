@@ -2,6 +2,7 @@
 #define __HTTP_HELPERS_H
 
 #include "protocols/classification/common.h"
+#include "protocols/http/usm-events.h"
 
 // Checks if the given buffers start with `HTTP` prefix (represents a response) or starts with `<method> /` which represents
 // a request, where <method> is one of: GET, POST, PUT, DELETE, HEAD, OPTIONS, or PATCH.

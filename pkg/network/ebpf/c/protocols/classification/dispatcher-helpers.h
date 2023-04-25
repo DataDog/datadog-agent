@@ -13,24 +13,6 @@
 #include "protocols/http2/helpers.h"
 #include "protocols/kafka/kafka-classification.h"
 
-static __always_inline bool is_http_monitoring_enabled() {
-    __u64 val = 0;
-    LOAD_CONSTANT("http_monitoring_enabled", val);
-    return val > 0;
-}
-
-static __always_inline bool is_http2_monitoring_enabled() {
-    __u64 val = 0;
-    LOAD_CONSTANT("http2_monitoring_enabled", val);
-    return val > 0;
-}
-
-static __always_inline bool is_kafka_monitoring_enabled() {
-    __u64 val = 0;
-    LOAD_CONSTANT("kafka_monitoring_enabled", val);
-    return val > 0;
-}
-
 // Returns true if the payload represents a TCP termination by checking if the tcp flags contains TCPHDR_FIN or TCPHDR_RST.
 static __always_inline bool is_tcp_termination(skb_info_t *skb_info) {
     return skb_info->tcp_flags & (TCPHDR_FIN | TCPHDR_RST);
