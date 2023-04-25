@@ -99,6 +99,15 @@ func newSysprobeConfig(configPath string, loadSecrets bool) (*Config, error) {
 	// load the configuration
 	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", loadSecrets, aconfig.Datadog.GetEnvVars())
 	if err != nil {
+		// System probe is not supported on darwin, so we should fail gracefully in this case.
+		if runtime.GOOS != "darwin" {
+			if errors.Is(err, os.ErrPermission) {
+				log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
+			} else {
+				log.Warnf("Error loading config: %v", err)
+			}
+		}
+
 		var e viper.ConfigFileNotFoundError
 		if errors.As(err, &e) || errors.Is(err, os.ErrNotExist) {
 			// do nothing, we can ignore a missing system-probe.yaml config file
