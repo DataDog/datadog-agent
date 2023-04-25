@@ -479,7 +479,7 @@ func (ad *ActivityDump) finalize(releaseTracedCgroupSpot bool) {
 	}
 
 	// scrub processes and retain args envs now
-	ad.ActivityTree.ScrubAndRetainProcessArgsEnvs(ad.adm.processResolver)
+	ad.ActivityTree.ScrubProcessArgsEnvs(ad.adm.processResolver)
 }
 
 // IsEmpty return true if the dump did not contain any nodes

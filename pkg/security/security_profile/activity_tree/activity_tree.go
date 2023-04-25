@@ -120,8 +120,8 @@ func (at *ActivityTree) debug(w io.Writer) {
 	}
 }
 
-// ScrubAndRetainProcessArgsEnvs scrubs and retains process args and envs
-func (at *ActivityTree) ScrubAndRetainProcessArgsEnvs(resolver *process.Resolver) {
+// ScrubProcessArgsEnvs scrubs and retains process args and envs
+func (at *ActivityTree) ScrubProcessArgsEnvs(resolver *process.Resolver) {
 	// iterate through all the process nodes
 	openList := make([]*ProcessNode, len(at.ProcessNodes))
 	copy(openList, at.ProcessNodes)
