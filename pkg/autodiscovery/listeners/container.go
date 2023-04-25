@@ -57,10 +57,21 @@ func NewContainerListener(Config) (ServiceListener, error) {
 
 func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 	container := entity.(*workloadmeta.Container)
-
+	var annotations map[string]string
+	var pod *workloadmeta.KubernetesPod
+	if findKubernetesInLabels(container.Labels) {
+		kube_pod, err := l.Store().GetKubernetesPodForContainer(container.ID)
+		if err == nil {
+			pod = kube_pod
+			annotations = pod.Annotations
+		} else {
+			log.Debugf("container %q belongs to a pod but was not found: %s", container.ID, err)
+		}
+	}
 	containerImg := container.Image
 	if l.IsExcluded(
 		containers.GlobalFilter,
+		annotations,
 		container.Name,
 		containerImg.RawName,
 		"",
@@ -110,31 +121,24 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		hostname: container.Hostname,
 	}
 
-	if findKubernetesInLabels(container.Labels) {
-		pod, err := l.Store().GetKubernetesPodForContainer(container.ID)
-		if err == nil {
-			if containers.IsExcludedByAnnotation(containers.GlobalFilter, pod.Annotations, container.Name) {
-				log.Debugf("container %s filtered out: name %q image %q", container.ID, container.Name, containerImg.RawName)
-				return
-			}
-			svc.hosts = map[string]string{"pod": pod.IP}
-			svc.ready = pod.Ready
+	if pod != nil {
+		svc.hosts = map[string]string{"pod": pod.IP}
+		svc.ready = pod.Ready
 
-			svc.metricsExcluded = l.IsExcluded(
-				containers.MetricsFilter,
-				container.Name,
-				containerImg.RawName,
-				"",
-			) || containers.IsExcludedByAnnotation(containers.MetricsFilter, pod.Annotations, container.Name)
-			svc.logsExcluded = l.IsExcluded(
-				containers.LogsFilter,
-				container.Name,
-				containerImg.RawName,
-				"",
-			) || containers.IsExcludedByAnnotation(containers.LogsFilter, pod.Annotations, container.Name)
-		} else {
-			log.Debugf("container %q belongs to a pod but was not found: %s", container.ID, err)
-		}
+		svc.metricsExcluded = l.IsExcluded(
+			containers.MetricsFilter,
+			pod.Annotations,
+			container.Name,
+			containerImg.RawName,
+			"",
+		)
+		svc.logsExcluded = l.IsExcluded(
+			containers.LogsFilter,
+			pod.Annotations,
+			container.Name,
+			containerImg.RawName,
+			"",
+		)
 	} else {
 		checkNames, err := utils.ExtractCheckNamesFromContainerLabels(container.Labels)
 		if err != nil {
@@ -162,12 +166,14 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		svc.checkNames = checkNames
 		svc.metricsExcluded = l.IsExcluded(
 			containers.MetricsFilter,
+			nil,
 			container.Name,
 			containerImg.RawName,
 			"",
 		)
 		svc.logsExcluded = l.IsExcluded(
 			containers.LogsFilter,
+			nil,
 			container.Name,
 			containerImg.RawName,
 			"",

@@ -248,6 +248,12 @@ func TestGetContainers(t *testing.T) {
 			},
 		},
 		IP: "127.0.0.1",
+		Containers: []workloadmeta.OrchestratorContainer{
+			{
+				ID:   "cID7",
+				Name: "container7",
+			},
+		},
 	})
 	metadataProvider.SetEntity(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{

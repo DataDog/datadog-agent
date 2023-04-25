@@ -121,6 +121,10 @@ func TestCreateContainerService(t *testing.T) {
 			Running: true,
 		},
 		Runtime: workloadmeta.ContainerRuntimeDocker,
+		Owner: &workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   podID,
+		},
 	}
 
 	pod := &workloadmeta.KubernetesPod{
