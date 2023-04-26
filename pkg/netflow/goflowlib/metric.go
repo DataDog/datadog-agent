@@ -213,7 +213,7 @@ func convertMetric(metric *promClient.Metric, metricFamily *promClient.MetricFam
 
 		tagVal := labelPair.GetValue()
 
-		// remap metric Value
+		// remap metric value
 		valueRemapperFn, ok := aMappedMetric.valueRemapper[tagKey]
 		if ok {
 			tagVal = valueRemapperFn(tagVal)
