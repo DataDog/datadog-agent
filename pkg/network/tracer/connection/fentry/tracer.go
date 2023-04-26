@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
 
@@ -59,9 +58,7 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 		telemetryMapKeys := errtelemetry.BuildTelemetryKeys(m)
 		o.ConstantEditors = append(o.ConstantEditors, telemetryMapKeys...)
 
-		pid, err := util.GetRootNSPID()
-
-		file, err := os.Stat("/proc/" + fmt.Sprint(pid) + "/ns/pid")
+		file, err := os.Stat("/proc/self/ns/pid")
 
 		if err != nil {
 			return nil
