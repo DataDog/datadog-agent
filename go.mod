@@ -627,5 +627,3 @@ replace (
 )
 
 replace github.com/netsampler/goflow2 => github.com/AlexandreYang/goflow2 v1.0.5-0.20230421152336-42ada9facd76
-
-//replace github.com/netsampler/goflow2 => /Users/alexandre.yang/go/src/github.com/AlexandreYang/goflow2
