@@ -979,21 +979,23 @@ func (s *UDPServer) Run(payloadSize int) error {
 		networkType = s.network
 	}
 	var err error
+	var ln net.PacketConn
 	if s.lc != nil {
-		s.ln, err = s.lc.ListenPacket(context.Background(), networkType, s.address)
+		ln, err = s.lc.ListenPacket(context.Background(), networkType, s.address)
 	} else {
-		s.ln, err = net.ListenPacket(networkType, s.address)
+		ln, err = net.ListenPacket(networkType, s.address)
 	}
 	if err != nil {
 		return err
 	}
 
+	s.ln = ln
 	s.address = s.ln.LocalAddr().String()
 
 	go func() {
 		buf := make([]byte, payloadSize)
 		for {
-			n, addr, err := s.ln.ReadFrom(buf)
+			n, addr, err := ln.ReadFrom(buf)
 			if err != nil {
 				if !errors.Is(err, net.ErrClosed) {
 					fmt.Printf("readfrom: %s\n", err)
