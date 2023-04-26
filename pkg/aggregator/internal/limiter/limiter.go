@@ -42,11 +42,17 @@ func New(limit int, key string, tags []string) *Limiter {
 		key += ":"
 	}
 
+	hasKey := false
 	tags = append([]string{}, tags...)
 	for i := range tags {
 		if !strings.HasSuffix(tags[i], ":") {
 			tags[i] += ":"
 		}
+		hasKey = hasKey || key == tags[i]
+	}
+
+	if !hasKey {
+		tags = append(tags, key)
 	}
 
 	return &Limiter{
