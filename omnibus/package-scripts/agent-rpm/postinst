@@ -19,7 +19,7 @@ find ${CONFIG_DIR} -type d -not -path ${CONFIG_DIR}/conf.d -exec chmod 2750 {} \
 find ${CONFIG_DIR} -type f -not -path ${CONFIG_DIR}/conf.d -exec chmod 640 {} \;
 
 # Allow write access to dd-agent for integration installation
-find ${CONFIG_DIR}/conf.d -type d -exec chmod 3775 {} \;
+find ${CONFIG_DIR}/conf.d -type d -exec chmod 3770 {} \;
 find ${CONFIG_DIR}/conf.d -type f -exec chmod 660 {} \;
 chown -R dd-agent:dd-agent "${SITE_PACKAGES_DIR}" || true
 
@@ -31,8 +31,8 @@ chmod +t ${INSTALL_DIR}/embedded/bin
 chown -R dd-agent:dd-agent ${LOG_DIR}
 chown -R dd-agent:dd-agent ${RUN_DIR}
 
-# Allow dd-agent to create files such as the auth token and users to check for file presence
-chmod g+w,o+rx ${CONFIG_DIR}
+# Allow dd-agent to create files such as the auth token
+chmod g+w ${CONFIG_DIR}
 chmod +t ${CONFIG_DIR}
 
 exit 0
