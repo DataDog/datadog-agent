@@ -58,7 +58,7 @@ var flowsPacketsSequenceMetrics = map[string]bool{
 	"datadog.netflow.processor.packets_sequence": true,
 	"datadog.netflow.processor.flows_sequence":   true,
 }
-var flowsPacketsMaxSequenceDiffToReset = map[string]int{
+var flowsPacketsMaxNegativeSequenceDiffToReset = map[string]int{
 	"datadog.netflow.processor.packets_sequence": 100,
 	"datadog.netflow.processor.flows_sequence":   1000,
 }
@@ -325,6 +325,7 @@ func (c MetricConverter) ConvertMetrics(promMetrics []*promClient.MetricFamily) 
 					c.lastMissingFlowsMetricValue[key] = 0
 				}
 				missingCount := int(value) - c.lastMissingFlowsMetricValue[key]
+				log.Tracef("[Missing Flows] key=%s, last=%f, Value=%f, diff=%f, reset=%t", key, c.lastMissingFlowsMetricValue[key], value, missingCount, sequenceReset[key])
 				samples = append(samples, MetricSample{
 					MetricType: metrics.CountType,
 					Name:       fullMetricName + "_count",
@@ -334,9 +335,10 @@ func (c MetricConverter) ConvertMetrics(promMetrics []*promClient.MetricFamily) 
 				c.lastMissingFlowsMetricValue[key] = int(value)
 			} else if flowsPacketsSequenceMetrics[fullMetricName] {
 				key := c.keyFromTags(tags)
-				if int(value)-c.lastSequence[key] < -flowsPacketsMaxSequenceDiffToReset[fullMetricName] {
+				if int(value)-c.lastSequence[key] < -flowsPacketsMaxNegativeSequenceDiffToReset[fullMetricName] {
 					sequenceReset[key] = true
 				}
+				log.Tracef("[Missing Flows] key=%s, seq=%f reset=%t", key, c.lastSequence[key], sequenceReset[key])
 				c.lastSequence[key] = int(value)
 			}
 		}
