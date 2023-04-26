@@ -49,6 +49,20 @@ var flowsetMapper = map[string]string{
 	"OptionsDataFlowSet":     "options_data_flow_set",
 }
 
+var flowsPacketsMissingMetrics = map[string]bool{
+	"datadog.netflow.processor.packets_missing": true,
+	"datadog.netflow.processor.flows_missing":   true,
+}
+
+var flowsPacketsSequenceMetrics = map[string]bool{
+	"datadog.netflow.processor.packets_sequence": true,
+	"datadog.netflow.processor.flows_sequence":   true,
+}
+var flowsPacketsMaxSequenceDiffToReset = map[string]int{
+	"datadog.netflow.processor.packets_sequence": 100,
+	"datadog.netflow.processor.flows_sequence":   1000,
+}
+
 // metricNameMapping maps goflow prometheus metrics to datadog netflow telemetry metrics
 var metricNameMapping = map[string]mappedMetric{
 	"flow_decoder_count": {
@@ -235,10 +249,6 @@ func convertMetric(metric *promClient.Metric, metricFamily *promClient.MetricFam
 	return ddMetricType, aMappedMetric.name, floatValue, tags, nil
 }
 
-//var sequenceResetThreshold = map[string]uint{
-//
-//}
-
 type MetricSample struct {
 	MetricType metrics.MetricType
 	Name       string
@@ -247,8 +257,15 @@ type MetricSample struct {
 }
 
 type MetricConverter struct {
-	lastMissingFlowsMetricValue map[string]float64
-	lastSequence                map[string]float64
+	lastMissingFlowsMetricValue map[string]int
+	lastSequence                map[string]int
+}
+
+func NewMetricConverter() *MetricConverter {
+	return &MetricConverter{
+		lastMissingFlowsMetricValue: make(map[string]int),
+		lastSequence:                make(map[string]int),
+	}
 }
 
 func (c MetricConverter) ConvertMetrics(promMetrics []*promClient.MetricFamily) []MetricSample {
@@ -279,7 +296,6 @@ func (c MetricConverter) ConvertMetrics(promMetrics []*promClient.MetricFamily) 
 			}
 
 			fullMetricName := metricPrefix + name
-
 			switch metricType {
 			case metrics.GaugeType:
 				samples = append(samples, MetricSample{
@@ -288,38 +304,6 @@ func (c MetricConverter) ConvertMetrics(promMetrics []*promClient.MetricFamily) 
 					Value:      value,
 					Tags:       tags,
 				})
-				if fullMetricName == "datadog.netflow.processor.flows_missing" ||
-					fullMetricName == "datadog.netflow.processor.packets_missing" {
-					key := c.keyFromTags(tags)
-					if sequenceReset[key] {
-						c.lastMissingFlowsMetricValue[key] = 0
-					}
-					diff := value - c.lastMissingFlowsMetricValue[key]
-					log.Debugf("[countMissing][agg] key=%s, last=%f, Value=%f, diff=%f, reset=%t", key, c.lastMissingFlowsMetricValue[key], value, diff, sequenceReset[key])
-					c.lastMissingFlowsMetricValue[key] = value
-					samples = append(samples, MetricSample{
-						MetricType: metrics.GaugeType,
-						Name:       fullMetricName + "_count",
-						Value:      diff,
-						Tags:       tags,
-					})
-				} else if metricPrefix+name == "datadog.netflow.processor.flows_sequence" {
-					key := c.keyFromTags(tags)
-					if value-c.lastSequence[key] < -1000 {
-						log.Debugf("[countMissing][agg] key=%s, seq=%f reset", key, c.lastSequence[key])
-						sequenceReset[key] = true
-					}
-					c.lastSequence[key] = value
-					log.Debugf("[countMissing][agg] key=%s,  seq=%f", key, c.lastSequence[key])
-				} else if metricPrefix+name == "datadog.netflow.processor.packets_sequence" {
-					key := c.keyFromTags(tags)
-					if value-c.lastSequence[key] < -100 {
-						log.Debugf("[countMissing][agg] key=%s, seq=%f reset", key, c.lastSequence[key])
-						sequenceReset[key] = true
-					}
-					c.lastSequence[key] = value
-					log.Debugf("[countMissing][agg] key=%s, seq=%f", key, c.lastSequence[key])
-				}
 			case metrics.MonotonicCountType:
 				samples = append(samples, MetricSample{
 					MetricType: metrics.MonotonicCountType,
@@ -329,6 +313,27 @@ func (c MetricConverter) ConvertMetrics(promMetrics []*promClient.MetricFamily) 
 				})
 			default:
 				log.Debugf("cannot submit unsupported type %s", metricType.String())
+			}
+
+			if flowsPacketsMissingMetrics[fullMetricName] {
+				key := c.keyFromTags(tags)
+				if sequenceReset[key] {
+					c.lastMissingFlowsMetricValue[key] = 0
+				}
+				missingCount := int(value) - c.lastMissingFlowsMetricValue[key]
+				samples = append(samples, MetricSample{
+					MetricType: metrics.GaugeType,
+					Name:       fullMetricName + "_count",
+					Value:      float64(missingCount),
+					Tags:       tags,
+				})
+				c.lastMissingFlowsMetricValue[key] = int(value)
+			} else if flowsPacketsSequenceMetrics[fullMetricName] {
+				key := c.keyFromTags(tags)
+				if int(value)-c.lastSequence[key] < -flowsPacketsMaxSequenceDiffToReset[fullMetricName] {
+					sequenceReset[key] = true
+				}
+				c.lastSequence[key] = int(value)
 			}
 		}
 	}
@@ -340,11 +345,4 @@ func (c MetricConverter) keyFromTags(tags []string) string {
 	sort.Strings(sortedTags)
 	key := strings.Join(sortedTags, ",")
 	return key
-}
-
-func NewMetricConverter() *MetricConverter {
-	return &MetricConverter{
-		lastMissingFlowsMetricValue: make(map[string]float64),
-		lastSequence:                make(map[string]float64),
-	}
 }
