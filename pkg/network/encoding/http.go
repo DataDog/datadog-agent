@@ -37,7 +37,7 @@ var (
 )
 
 type httpEncoder struct {
-	byConnection USMDataByConnection
+	byConnection *USMDataByConnection
 
 	// cached object
 	aggregations *model.HTTPAggregations
@@ -53,7 +53,7 @@ func newHTTPEncoder(payload *network.Connections) *httpEncoder {
 	}
 
 	return &httpEncoder{
-		byConnection: GroupByConnection(payload.HTTP),
+		byConnection: GroupByConnection("http", payload.HTTP),
 		aggregations: new(model.HTTPAggregations),
 	}
 }
@@ -71,7 +71,7 @@ func (e *httpEncoder) GetHTTPAggregationsAndTags(c network.ConnectionStats) ([]b
 	return e.encodeData(connectionData)
 }
 
-func (e *httpEncoder) encodeData(connectionData *USMGroupedData) ([]byte, uint64, map[string]struct{}) {
+func (e *httpEncoder) encodeData(connectionData *USMConnectionData) ([]byte, uint64, map[string]struct{}) {
 	e.reset()
 
 	var staticTags uint64
@@ -112,13 +112,12 @@ func (e *httpEncoder) encodeData(connectionData *USMGroupedData) ([]byte, uint64
 	return serializedData, staticTags, dynamicTags
 }
 
-// TODO: improve this so the caller doesn't need to save the value
-func (e *httpEncoder) OrphanAggregations() int {
+func (e *httpEncoder) Close() {
 	if e == nil {
-		return 0
+		return
 	}
 
-	return e.byConnection.OrphanAggregationCount()
+	e.byConnection.Close()
 }
 
 func (e *httpEncoder) getDataMap(stats map[uint16]*http.RequestStat) map[int32]*model.HTTPStats_Data {

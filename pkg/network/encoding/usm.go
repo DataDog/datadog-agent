@@ -6,9 +6,13 @@
 package encoding
 
 import (
+	"fmt"
+	"sync"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 )
 
 type USMKeyValue struct {
@@ -16,7 +20,8 @@ type USMKeyValue struct {
 	Value *http.RequestStats
 }
 
-type USMGroupedData struct {
+// USMConnectionData aggregates USM data belonging to a specific connection
+type USMConnectionData struct {
 	Data []USMKeyValue
 
 	// This is used for handling PID collisions
@@ -24,22 +29,32 @@ type USMGroupedData struct {
 
 	// Used for the purposes of orphan aggregation count
 	claimed bool
+
+	// Used during the first pass to determine the size of the `Data`
+	dataSize int
 }
 
-type USMDataByConnection map[types.ConnectionKey]*USMGroupedData
+// USMDataByConnection indexes USM data by Connection
+type USMDataByConnection struct {
+	data map[types.ConnectionKey]*USMConnectionData
+	protocol string
+	once sync.Once
+}
 
-func GroupByConnection(data map[http.Key]*http.RequestStats) USMDataByConnection {
-	byConnection := make(USMDataByConnection, len(data)/2)
+func GroupByConnection(protocol string, data map[http.Key]*http.RequestStats) *USMDataByConnection {
+	byConnection := &USMDataByConnection{
+		data: make(map[types.ConnectionKey]*USMConnectionData, len(data)/2),
+	}
 
 	for key, value := range data {
 		keyCopy := key
 		keyVal := USMKeyValue{Key: &keyCopy, Value: value}
 
 		connectionKey := key.ConnectionKey
-		connectionData, ok := byConnection[connectionKey]
+		connectionData, ok := byConnection.data[connectionKey]
 		if !ok {
-			connectionData = new(USMGroupedData)
-			byConnection[connectionKey] = connectionData
+			connectionData = new(USMConnectionData)
+			byConnection.data[connectionKey] = connectionData
 		}
 
 		connectionData.Data = append(connectionData.Data, keyVal)
@@ -48,11 +63,10 @@ func GroupByConnection(data map[http.Key]*http.RequestStats) USMDataByConnection
 	return byConnection
 }
 
-func (bc USMDataByConnection) Find(c network.ConnectionStats) *USMGroupedData {
-	var connectionData *USMGroupedData
-
+func (bc *USMDataByConnection) Find(c network.ConnectionStats) *USMConnectionData {
+	var connectionData *USMConnectionData
 	network.WithKey(c, func (key types.ConnectionKey) (stopIteration bool) {
-		val, ok := bc[key]
+		val, ok := bc.data[key]
 		if !ok {
 			return false
 		}
@@ -65,17 +79,7 @@ func (bc USMDataByConnection) Find(c network.ConnectionStats) *USMGroupedData {
 	return connectionData
 }
 
-func (bc USMDataByConnection) OrphanAggregationCount() int {
-	var total int
-	for _, value := range bc {
-		if !value.claimed {
-			total += len(value.Data)
-		}
-	}
-	return total
-}
-
-func (gd *USMGroupedData) IsPIDCollision(c network.ConnectionStats) bool {
+func (gd *USMConnectionData) IsPIDCollision(c network.ConnectionStats) bool {
 	if gd.sport == 0 && gd.dport == 0 {
 		// This is the first time a ConnectionStats claim this data. In this
 		// case we return the value and save the source and destination ports
@@ -101,4 +105,33 @@ func (gd *USMGroupedData) IsPIDCollision(c network.ConnectionStats) bool {
 	// context of pre-fork web servers, where multiple worker processes share the
 	// same socket
 	return true
+}
+
+func (bc *USMDataByConnection) Close() {
+	bc.once.Do(func() {
+		// Determine count of orphan aggregations
+		var total int
+		for _, value := range bc.data {
+			if !value.claimed {
+				total += len(value.Data)
+			}
+		}
+
+		if total == 0 {
+			return
+		}
+
+		log.Debugf(
+			"detected orphan %s aggregations. this may be caused by conntrack sampling or missed tcp close events. count=%d",
+			bc.protocol,
+			total,
+		)
+
+		telemetry.NewMetric(
+			fmt.Sprintf("usm.%s.orphan_aggregations", bc.protocol),
+			telemetry.OptMonotonic,
+			telemetry.OptExpvar,
+			telemetry.OptStatsd,
+		).Add(int64(total))
+	})
 }
