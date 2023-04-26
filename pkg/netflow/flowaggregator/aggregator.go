@@ -7,7 +7,7 @@ package flowaggregator
 
 import (
 	"encoding/json"
-	"sort"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"strings"
 	"time"
 
@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
@@ -28,7 +27,6 @@ import (
 )
 
 const flushFlowsToSendInterval = 10 * time.Second
-const metricPrefix = "datadog.netflow."
 
 // FlowAggregator is used for space and time aggregation of NetFlow flows
 type FlowAggregator struct {
@@ -48,6 +46,7 @@ type FlowAggregator struct {
 	timeNowFunction              func() time.Time // Allows to mock time in tests
 	lastMissingFlowsMetricValue  map[string]float64
 	lastSequence                 map[string]float64
+	metricConverter              *goflowlib.MetricConverter
 }
 
 // NewFlowAggregator returns a new FlowAggregator
@@ -72,6 +71,7 @@ func NewFlowAggregator(sender aggregator.Sender, epForwarder epforwarder.EventPl
 		timeNowFunction:              time.Now,
 		lastMissingFlowsMetricValue:  make(map[string]float64),
 		lastSequence:                 make(map[string]float64),
+		metricConverter:              goflowlib.NewMetricConverter(),
 	}
 }
 
@@ -263,69 +263,13 @@ func (agg *FlowAggregator) submitCollectorMetrics() error {
 	if err != nil {
 		return err
 	}
-
-	sequenceReset := make(map[string]bool)
-	for _, metricFamily := range promMetrics {
-		for _, metric := range metricFamily.Metric {
-			log.Tracef("Collector metric `%s`: type=`%v` value=`%v`, label=`%v`", metricFamily.GetName(), metricFamily.GetType().String(), metric.GetCounter().GetValue(), metric.GetLabel())
-			metricType, name, value, tags, err := goflowlib.ConvertMetric(metric, metricFamily)
-			if err != nil {
-				log.Tracef("Error converting prometheus metric: %s", err)
-				continue
-			}
-			switch metricType {
-			case metrics.GaugeType:
-				sort.Strings(tags)
-				key := strings.Join(tags, ",")
-
-				// TODO: factor
-				if metricPrefix+name == "datadog.netflow.processor.flows_sequence" {
-					if value-agg.lastSequence[key] < -1000 {
-						log.Debugf("[countMissing][agg] key=%s, seq=%f reset", key, agg.lastSequence[key])
-						sequenceReset[key] = true
-					}
-					agg.lastSequence[key] = value
-					log.Debugf("[countMissing][agg] key=%s,  seq=%f", key, agg.lastSequence[key])
-				}
-				if metricPrefix+name == "datadog.netflow.processor.packets_sequence" {
-					if value-agg.lastSequence[key] < -100 {
-						log.Debugf("[countMissing][agg] key=%s, seq=%f reset", key, agg.lastSequence[key])
-						sequenceReset[key] = true
-					}
-					agg.lastSequence[key] = value
-					log.Debugf("[countMissing][agg] key=%s, seq=%f", key, agg.lastSequence[key])
-				}
-			}
-		}
-	}
-	for _, metricFamily := range promMetrics {
-		for _, metric := range metricFamily.Metric {
-			log.Tracef("Collector metric `%s`: type=`%v` value=`%v`, label=`%v`", metricFamily.GetName(), metricFamily.GetType().String(), metric.GetCounter().GetValue(), metric.GetLabel())
-			metricType, name, value, tags, err := goflowlib.ConvertMetric(metric, metricFamily)
-			if err != nil {
-				log.Tracef("Error converting prometheus metric: %s", err)
-				continue
-			}
-			switch metricType {
-			case metrics.GaugeType:
-				agg.sender.Gauge(metricPrefix+name, value, "", tags)
-				if metricPrefix+name == "datadog.netflow.processor.flows_missing" ||
-					metricPrefix+name == "datadog.netflow.processor.packets_missing" {
-					sort.Strings(tags)
-					key := strings.Join(tags, ",")
-					if sequenceReset[key] {
-						agg.lastMissingFlowsMetricValue[key] = 0
-					}
-					diff := value - agg.lastMissingFlowsMetricValue[key]
-					log.Debugf("[countMissing][agg] key=%s, last=%f, value=%f, diff=%f, reset=%t", key, agg.lastMissingFlowsMetricValue[key], value, diff, sequenceReset[key])
-					agg.lastMissingFlowsMetricValue[key] = value
-					agg.sender.Gauge(metricPrefix+name+"_count", diff, "", tags)
-				}
-			case metrics.MonotonicCountType:
-				agg.sender.MonotonicCount(metricPrefix+name, value, "", tags)
-			default:
-				log.Debugf("cannot submit unsupported type %s", metricType.String())
-			}
+	samples := agg.metricConverter.ConvertMetrics(promMetrics)
+	for _, sample := range samples {
+		switch sample.MetricType {
+		case metrics.GaugeType:
+			agg.sender.Gauge(sample.Name, sample.Value, "", sample.Tags)
+		case metrics.MonotonicCountType:
+			agg.sender.MonotonicCount(sample.Name, sample.Value, "", sample.Tags)
 		}
 	}
 	return nil

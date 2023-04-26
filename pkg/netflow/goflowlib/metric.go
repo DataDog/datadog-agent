@@ -7,9 +7,15 @@ package goflowlib
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	promClient "github.com/prometheus/client_model/go"
+	"sort"
+	"strings"
 )
+
+const metricPrefix = "datadog.netflow."
 
 type remapperType func(string) string
 
@@ -166,12 +172,12 @@ func remapFlowset(flowset string) string {
 	return flowsetMapper[flowset]
 }
 
-// ConvertMetric converts prometheus metric to datadog compatible metrics
-func ConvertMetric(metric *promClient.Metric, metricFamily *promClient.MetricFamily) (
+// convertMetric converts prometheus metric to datadog compatible metrics
+func convertMetric(metric *promClient.Metric, metricFamily *promClient.MetricFamily) (
 	metrics.MetricType, // metric type
-	string, // metric name
-	float64, // metric value
-	[]string, // metric tags
+	string, // metric Name
+	float64, // metric Value
+	[]string, // metric Tags
 	error,
 ) {
 	var ddMetricType metrics.MetricType
@@ -207,7 +213,7 @@ func ConvertMetric(metric *promClient.Metric, metricFamily *promClient.MetricFam
 
 		tagVal := labelPair.GetValue()
 
-		// remap metric value
+		// remap metric Value
 		valueRemapperFn, ok := aMappedMetric.valueRemapper[tagKey]
 		if ok {
 			tagVal = valueRemapperFn(tagVal)
@@ -227,4 +233,117 @@ func ConvertMetric(metric *promClient.Metric, metricFamily *promClient.MetricFam
 		tags = append(tags, aMappedMetric.extraTags...)
 	}
 	return ddMetricType, aMappedMetric.name, floatValue, tags, nil
+}
+
+//var sequenceResetThreshold = map[string]uint{
+//
+//}
+
+type MetricSample struct {
+	MetricType metrics.MetricType
+	Name       string
+	Value      float64
+	Tags       []string
+}
+
+type MetricConverter struct {
+	lastMissingFlowsMetricValue map[string]float64
+	lastSequence                map[string]float64
+}
+
+func (c MetricConverter) ConvertMetrics(promMetrics []*promClient.MetricFamily) []MetricSample {
+	sequenceReset := make(map[string]bool)
+	for _, metricFamily := range promMetrics {
+		for _, metric := range metricFamily.Metric {
+			log.Tracef("Collector metric `%s`: type=`%v` Value=`%v`, label=`%v`", metricFamily.GetName(), metricFamily.GetType().String(), metric.GetCounter().GetValue(), metric.GetLabel())
+			metricType, name, value, tags, err := convertMetric(metric, metricFamily)
+			if err != nil {
+				log.Tracef("Error converting prometheus metric: %s", err)
+				continue
+			}
+			switch metricType {
+			case metrics.GaugeType:
+				sort.Strings(tags)
+				key := strings.Join(tags, ",")
+
+				// TODO: factor
+				if metricPrefix+name == "datadog.netflow.processor.flows_sequence" {
+					if value-c.lastSequence[key] < -1000 {
+						log.Debugf("[countMissing][agg] key=%s, seq=%f reset", key, c.lastSequence[key])
+						sequenceReset[key] = true
+					}
+					c.lastSequence[key] = value
+					log.Debugf("[countMissing][agg] key=%s,  seq=%f", key, c.lastSequence[key])
+				}
+				if metricPrefix+name == "datadog.netflow.processor.packets_sequence" {
+					if value-c.lastSequence[key] < -100 {
+						log.Debugf("[countMissing][agg] key=%s, seq=%f reset", key, c.lastSequence[key])
+						sequenceReset[key] = true
+					}
+					c.lastSequence[key] = value
+					log.Debugf("[countMissing][agg] key=%s, seq=%f", key, c.lastSequence[key])
+				}
+			}
+		}
+	}
+	var samples []MetricSample
+	for _, metricFamily := range promMetrics {
+		for _, metric := range metricFamily.Metric {
+			log.Tracef("Collector metric `%s`: type=`%v` Value=`%v`, label=`%v`", metricFamily.GetName(), metricFamily.GetType().String(), metric.GetCounter().GetValue(), metric.GetLabel())
+			metricType, name, value, tags, err := convertMetric(metric, metricFamily)
+			if err != nil {
+				log.Tracef("Error converting prometheus metric: %s", err)
+				continue
+			}
+			switch metricType {
+			case metrics.GaugeType:
+				samples = append(samples, MetricSample{
+					MetricType: metrics.GaugeType,
+					Name:       metricPrefix + name,
+					Value:      value,
+					Tags:       tags,
+				})
+				if metricPrefix+name == "datadog.netflow.processor.flows_missing" ||
+					metricPrefix+name == "datadog.netflow.processor.packets_missing" {
+					key := c.keyFromTags(tags)
+					if sequenceReset[key] {
+						c.lastMissingFlowsMetricValue[key] = 0
+					}
+					diff := value - c.lastMissingFlowsMetricValue[key]
+					log.Debugf("[countMissing][agg] key=%s, last=%f, Value=%f, diff=%f, reset=%t", key, c.lastMissingFlowsMetricValue[key], value, diff, sequenceReset[key])
+					c.lastMissingFlowsMetricValue[key] = value
+					samples = append(samples, MetricSample{
+						MetricType: metrics.GaugeType,
+						Name:       metricPrefix + name + "_count",
+						Value:      diff,
+						Tags:       tags,
+					})
+				}
+			case metrics.MonotonicCountType:
+				samples = append(samples, MetricSample{
+					MetricType: metrics.MonotonicCountType,
+					Name:       metricPrefix + name,
+					Value:      value,
+					Tags:       tags,
+				})
+			default:
+				log.Debugf("cannot submit unsupported type %s", metricType.String())
+			}
+		}
+	}
+	return samples
+}
+
+func (c MetricConverter) keyFromTags(tags []string) string {
+	sortedTags := common.CopyStrings(tags)
+	sort.Strings(sortedTags)
+	key := strings.Join(sortedTags, ",")
+	return key
+}
+
+func NewMetricConverter() *MetricConverter {
+	return &MetricConverter{
+		lastMissingFlowsMetricValue: make(map[string]float64),
+		lastSequence:                make(map[string]float64),
+	}
 }
