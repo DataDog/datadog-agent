@@ -29,7 +29,7 @@ func TestSnapshotReplay(t *testing.T) {
 	defer cmd.Process.Kill()
 
 	ruleDef := &rules.RuleDefinition{
-		ID:         "test_rule",
+		ID:         "test_rule_nc",
 		Expression: fmt.Sprintf(`exec.comm in ["socat", "dig", "nslookup", "host", ~"netcat*", ~"nc*", "ncat"] `),
 	}
 
@@ -41,8 +41,7 @@ func TestSnapshotReplay(t *testing.T) {
 	defer test.Close()
 
 	t.Run("snapshot-replay", func(t *testing.T) {
-		// Check if the process is present in the process resolver's entrycache
-
+		// Check that the process is present in the process resolver's entrycache
 		found := false
 		for _, entry := range test.probe.GetResolvers().ProcessResolver.GetEntryCache() {
 			if entry.ProcessContext.Process.Comm == "nc.openbsd" {
@@ -51,10 +50,14 @@ func TestSnapshotReplay(t *testing.T) {
 		}
 		assert.Equal(t, found, true, "ProcessEntryCache found")
 
-		// test.RegisterRuleEventHandler(func(event *model.Event, rule *rules.Rule) {
-		// 	fmt.Println("----------YOYOYOYO----------------------------")
-		// 	assertTriggeredRule(t, rule, "test_rule")
-		// })
+		found = false
+		// Check that the rule was matched
+		for _, rule := range test.matchedRules {
+			if rule.ID == "test_rule_nc" {
+				found = true
+			}
+		}
+		assert.Equal(t, found, true, "Rule matched")
 	})
 
 }
