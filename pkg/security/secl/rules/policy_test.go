@@ -276,7 +276,7 @@ func TestActionSetVariable(t *testing.T) {
 		t.Errorf("Expected event to match rule")
 	}
 
-	scopedVariables := rs.scopedVariables["process"].(*eval.ScopedVariables)
+	scopedVariables := evaluationSet.RuleSets[DefaultRuleSetTagValue].scopedVariables["process"].(*eval.ScopedVariables)
 
 	assert.Equal(t, scopedVariables.Len(), 1)
 	event.(*model.Event).ProcessCacheEntry.Release()
