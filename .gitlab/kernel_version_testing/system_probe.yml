@@ -1,17 +1,15 @@
 ---
 .pull_test_dockers:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64:$DATADOG_AGENT_BUILDIMAGES
-  needs: []
+  needs:
+    job: get_file_diff
+    artifacts: true
   tags: ["runner:docker"]
   rules:
     !reference [ .on_system_probe_changes_or_manual ]
   stage: kernel_matrix_testing
   script:
-    - git checkout main
-    - git pull
-    - git checkout pythyu/better-systemprobe-detection
-    - export DIFF_FILES=$(git diff --name-only $(git merge-base $(inv release.get-release-json-value base_branch) HEAD) HEAD)
-    - echo "${DIFF_FILES}" | grep "pkg/collector/corechecks/ebpf/" || echo "${DIFF_FILES}" | grep "pkg/ebf/" || echo "${DIFF_FILES}" | grep "pkg/network/" || echo "${DIFF_FILES}" | grep "pkg/util/kernel" || echo "${DIFF_FILES}" | grep "test/kitchen/site-cookbooks/dd-system-probe-check/" || echo "${DIFF_FILES}" | grep "test/kitchen/test/integration/system-probe-test/" || echo "${DIFF_FILES}" | grep "test/kitchen/test/integration/win-sysprobe-test/" || echo "${DIFF_FILES}" | grep ".gitlab/functional_test/system_probe.yml" || echo "${DIFF_FILES}" | grep "test/new-e2e/system-probe/" || echo "${DIFF_FILES}" | grep "test/new-e2e/scenarios/system-probe/"; exit_code=$?
+    - echo "$DIFF_FILES" | grep "pkg/collector/corechecks/ebpf/" || echo "$DIFF_FILES" | grep "pkg/ebf/" || echo "$DIFF_FILES" | grep "pkg/network/" || echo "$DIFF_FILES" | grep "pkg/util/kernel" || echo "$DIFF_FILES" | grep "test/kitchen/site-cookbooks/dd-system-probe-check/" || echo "$DIFF_FILES" | grep "test/kitchen/test/integration/system-probe-test/" || echo "$DIFF_FILES" | grep "test/kitchen/test/integration/win-sysprobe-test/" || echo "$DIFF_FILES" | grep ".gitlab/functional_test/system_probe.yml" || echo "$DIFF_FILES" | grep "test/new-e2e/system-probe/" || echo "$DIFF_FILES" | grep "test/new-e2e/scenarios/system-probe/"; export exit_code=$?
     - if [ ${exit_code} -eq 0 ]; then
     # Build dependencies directory
     # DockerHub login for build to limit rate limit when pulling base images
@@ -27,6 +25,19 @@
       - $KITCHEN_DOCKERS
   variables:
     KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers-$ARCH
+
+get_file_diff:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64:$DATADOG_AGENT_BUILDIMAGES
+  stage: kernel_matrix_testing
+  script:
+    - git checkout main
+    - git pull
+    - git checkout pythyu/better-systemprobe-detection
+    - echo "DIFF_FILES=$(git diff --name-only $(git merge-base $(inv release.get-release-json-value base_branch) HEAD) HEAD)" > file_diff.env
+    - cat file_diff.env
+  artifacts:
+    reports:
+      dotenv: file_diff.env
 
 pull_test_dockers_x64:
   extends: .pull_test_dockers
@@ -44,9 +55,11 @@ pull_test_dockers_arm64:
     !reference [.on_system_probe_changes_or_manual]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
   tags: ["runner:main"]
+  needs:
+    job: get_file_diff
+    artifacts: true
   script:
-    - export DIFF_FILES=$(git diff --name-only $(git merge-base $(inv release.get-release-json-value base_branch) HEAD) HEAD)
-    - echo "${DIFF_FILES}" | grep "pkg/collector/corechecks/ebpf/" || echo "${DIFF_FILES}" | grep "pkg/ebf/" || echo "${DIFF_FILES}" | grep "pkg/network/" || echo "${DIFF_FILES}" | grep "pkg/util/kernel" || echo "${DIFF_FILES}" | grep "test/kitchen/site-cookbooks/dd-system-probe-check/" || echo "${DIFF_FILES}" | grep "test/kitchen/test/integration/system-probe-test/" || echo "${DIFF_FILES}" | grep "test/kitchen/test/integration/win-sysprobe-test/" || echo "${DIFF_FILES}" | grep ".gitlab/functional_test/system_probe.yml" || echo "${DIFF_FILES}" | grep "test/new-e2e/system-probe/" || echo "${DIFF_FILES}" | grep "test/new-e2e/scenarios/system-probe/"; exit_code=$?
+    - echo "$DIFF_FILES" | grep "pkg/collector/corechecks/ebpf/" || echo "$DIFF_FILES" | grep "pkg/ebf/" || echo "$DIFF_FILES" | grep "pkg/network/" || echo "$DIFF_FILES" | grep "pkg/util/kernel" || echo "$DIFF_FILES" | grep "test/kitchen/site-cookbooks/dd-system-probe-check/" || echo "$DIFF_FILES" | grep "test/kitchen/test/integration/system-probe-test/" || echo "$DIFF_FILES" | grep "test/kitchen/test/integration/win-sysprobe-test/" || echo "$DIFF_FILES" | grep ".gitlab/functional_test/system_probe.yml" || echo "$DIFF_FILES" | grep "test/new-e2e/system-probe/" || echo "$DIFF_FILES" | grep "test/new-e2e/scenarios/system-probe/"; export exit_code=$?
     - if [ ${exit_code} -eq 0 ]; then
     # Build dependencies directory
     - mkdir -p $DEPENDENCIES
