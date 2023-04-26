@@ -295,16 +295,19 @@ func (c MetricConverter) ConvertMetrics(promMetrics []*promClient.MetricFamily) 
 				log.Tracef("Error converting prometheus metric: %s", err)
 				continue
 			}
+
+			fullMetricName := metricPrefix + name
+
 			switch metricType {
 			case metrics.GaugeType:
 				samples = append(samples, MetricSample{
 					MetricType: metrics.GaugeType,
-					Name:       metricPrefix + name,
+					Name:       fullMetricName,
 					Value:      value,
 					Tags:       tags,
 				})
-				if metricPrefix+name == "datadog.netflow.processor.flows_missing" ||
-					metricPrefix+name == "datadog.netflow.processor.packets_missing" {
+				if fullMetricName == "datadog.netflow.processor.flows_missing" ||
+					fullMetricName == "datadog.netflow.processor.packets_missing" {
 					key := c.keyFromTags(tags)
 					if sequenceReset[key] {
 						c.lastMissingFlowsMetricValue[key] = 0
@@ -314,7 +317,7 @@ func (c MetricConverter) ConvertMetrics(promMetrics []*promClient.MetricFamily) 
 					c.lastMissingFlowsMetricValue[key] = value
 					samples = append(samples, MetricSample{
 						MetricType: metrics.GaugeType,
-						Name:       metricPrefix + name + "_count",
+						Name:       fullMetricName + "_count",
 						Value:      diff,
 						Tags:       tags,
 					})
@@ -322,7 +325,7 @@ func (c MetricConverter) ConvertMetrics(promMetrics []*promClient.MetricFamily) 
 			case metrics.MonotonicCountType:
 				samples = append(samples, MetricSample{
 					MetricType: metrics.MonotonicCountType,
-					Name:       metricPrefix + name,
+					Name:       fullMetricName,
 					Value:      value,
 					Tags:       tags,
 				})
