@@ -8,52 +8,53 @@ package encoding
 import (
 	"fmt"
 	"sync"
-	"github.com/DataDog/datadog-agent/pkg/network/types"
+
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/types"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type USMKeyValue struct {
-	Key *http.Key
-	Value *http.RequestStats
+// USMDataByConnection indexes USM data by Connection
+type USMDataByConnection[K comparable, V any] struct {
+	data     map[types.ConnectionKey]*USMConnectionData[K, V]
+	protocol string
+	once     sync.Once
 }
 
 // USMConnectionData aggregates USM data belonging to a specific connection
-type USMConnectionData struct {
-	Data []USMKeyValue
+type USMConnectionData[K comparable, V any] struct {
+	Data []USMKeyValue[K, V]
 
 	// This is used for handling PID collisions
+	// See notes in `IsPIDCollision`
 	sport, dport uint16
 
 	// Used for the purposes of orphan aggregation count
 	claimed bool
 
 	// Used during the first pass to determine the size of the `Data`
-	dataSize int
+	// dataSize int
 }
 
-// USMDataByConnection indexes USM data by Connection
-type USMDataByConnection struct {
-	data map[types.ConnectionKey]*USMConnectionData
-	protocol string
-	once sync.Once
+type USMKeyValue[K comparable, V any] struct {
+	Key   *K
+	Value V
 }
 
-func GroupByConnection(protocol string, data map[http.Key]*http.RequestStats) *USMDataByConnection {
-	byConnection := &USMDataByConnection{
-		data: make(map[types.ConnectionKey]*USMConnectionData, len(data)/2),
+func GroupByConnection[K comparable, V any](protocol string, data map[K]V, keyGen func(K) types.ConnectionKey) *USMDataByConnection[K, V] {
+	byConnection := &USMDataByConnection[K, V]{
+		data: make(map[types.ConnectionKey]*USMConnectionData[K, V], len(data)/2),
 	}
 
 	for key, value := range data {
 		keyCopy := key
-		keyVal := USMKeyValue{Key: &keyCopy, Value: value}
+		keyVal := USMKeyValue[K, V]{Key: &keyCopy, Value: value}
 
-		connectionKey := key.ConnectionKey
+		connectionKey := keyGen(key)
 		connectionData, ok := byConnection.data[connectionKey]
 		if !ok {
-			connectionData = new(USMConnectionData)
+			connectionData = new(USMConnectionData[K, V])
 			byConnection.data[connectionKey] = connectionData
 		}
 
@@ -63,9 +64,9 @@ func GroupByConnection(protocol string, data map[http.Key]*http.RequestStats) *U
 	return byConnection
 }
 
-func (bc *USMDataByConnection) Find(c network.ConnectionStats) *USMConnectionData {
-	var connectionData *USMConnectionData
-	network.WithKey(c, func (key types.ConnectionKey) (stopIteration bool) {
+func (bc *USMDataByConnection[K, V]) Find(c network.ConnectionStats) *USMConnectionData[K, V] {
+	var connectionData *USMConnectionData[K, V]
+	network.WithKey(c, func(key types.ConnectionKey) (stopIteration bool) {
 		val, ok := bc.data[key]
 		if !ok {
 			return false
@@ -79,7 +80,7 @@ func (bc *USMDataByConnection) Find(c network.ConnectionStats) *USMConnectionDat
 	return connectionData
 }
 
-func (gd *USMConnectionData) IsPIDCollision(c network.ConnectionStats) bool {
+func (gd *USMConnectionData[K, V]) IsPIDCollision(c network.ConnectionStats) bool {
 	if gd.sport == 0 && gd.dport == 0 {
 		// This is the first time a ConnectionStats claim this data. In this
 		// case we return the value and save the source and destination ports
@@ -99,7 +100,7 @@ func (gd *USMConnectionData) IsPIDCollision(c network.ConnectionStats) bool {
 
 	// Return true otherwise. This is to prevent multiple `ConnectionStats` with
 	// exactly the same source and destination addresses but different PIDs to
-	// "bind" to the same HTTPAggregations object, which would result in a
+	// "bind" to the same USM aggregation object, which would result in a
 	// overcount problem. (Note that this is due to the fact that
 	// `types.ConnectionKey` doesn't have a PID field.) This happens mostly in the
 	// context of pre-fork web servers, where multiple worker processes share the
@@ -107,7 +108,7 @@ func (gd *USMConnectionData) IsPIDCollision(c network.ConnectionStats) bool {
 	return true
 }
 
-func (bc *USMDataByConnection) Close() {
+func (bc *USMDataByConnection[K, V]) Close() {
 	bc.once.Do(func() {
 		// Determine count of orphan aggregations
 		var total int

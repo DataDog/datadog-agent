@@ -7,12 +7,14 @@ package encoding
 
 import (
 	"sync"
+
 	"github.com/gogo/protobuf/proto"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
 var (
@@ -37,7 +39,7 @@ var (
 )
 
 type httpEncoder struct {
-	byConnection *USMDataByConnection
+	byConnection *USMDataByConnection[http.Key, *http.RequestStats]
 
 	// cached object
 	aggregations *model.HTTPAggregations
@@ -46,14 +48,15 @@ type httpEncoder struct {
 	toRelease []*map[int32]*model.HTTPStats_Data
 }
 
-
 func newHTTPEncoder(payload *network.Connections) *httpEncoder {
 	if len(payload.HTTP) == 0 {
 		return nil
 	}
 
 	return &httpEncoder{
-		byConnection: GroupByConnection("http", payload.HTTP),
+		byConnection: GroupByConnection("http", payload.HTTP, func(key http.Key) types.ConnectionKey {
+			return key.ConnectionKey
+		}),
 		aggregations: new(model.HTTPAggregations),
 	}
 }
@@ -71,11 +74,11 @@ func (e *httpEncoder) GetHTTPAggregationsAndTags(c network.ConnectionStats) ([]b
 	return e.encodeData(connectionData)
 }
 
-func (e *httpEncoder) encodeData(connectionData *USMConnectionData) ([]byte, uint64, map[string]struct{}) {
+func (e *httpEncoder) encodeData(connectionData *USMConnectionData[http.Key, *http.RequestStats]) ([]byte, uint64, map[string]struct{}) {
 	e.reset()
 
 	var staticTags uint64
-	var dynamicTags map[string]struct{}
+	dynamicTags := make(map[string]struct{})
 
 	for _, kvPair := range connectionData.Data {
 		key := kvPair.Key
@@ -86,7 +89,6 @@ func (e *httpEncoder) encodeData(connectionData *USMConnectionData) ([]byte, uin
 		ms.FullPath = key.Path.FullPath
 		ms.Method = model.HTTPMethod(key.Method)
 		ms.StatsByStatusCode = e.getDataMap(stats.Data)
-
 
 		for status, s := range stats.Data {
 			data := ms.StatsByStatusCode[int32(status)]
