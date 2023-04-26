@@ -253,41 +253,23 @@ type MetricConverter struct {
 
 func (c MetricConverter) ConvertMetrics(promMetrics []*promClient.MetricFamily) []MetricSample {
 	sequenceReset := make(map[string]bool)
-	for _, metricFamily := range promMetrics {
-		for _, metric := range metricFamily.Metric {
-			log.Tracef("Collector metric `%s`: type=`%v` Value=`%v`, label=`%v`", metricFamily.GetName(), metricFamily.GetType().String(), metric.GetCounter().GetValue(), metric.GetLabel())
-			metricType, name, value, tags, err := convertMetric(metric, metricFamily)
-			if err != nil {
-				log.Tracef("Error converting prometheus metric: %s", err)
-				continue
-			}
-			switch metricType {
-			case metrics.GaugeType:
-				sort.Strings(tags)
-				key := strings.Join(tags, ",")
+	var prioritisedPromMetrics []*promClient.MetricFamily
+	var otherPromMetrics []*promClient.MetricFamily
 
-				// TODO: factor
-				if metricPrefix+name == "datadog.netflow.processor.flows_sequence" {
-					if value-c.lastSequence[key] < -1000 {
-						log.Debugf("[countMissing][agg] key=%s, seq=%f reset", key, c.lastSequence[key])
-						sequenceReset[key] = true
-					}
-					c.lastSequence[key] = value
-					log.Debugf("[countMissing][agg] key=%s,  seq=%f", key, c.lastSequence[key])
-				}
-				if metricPrefix+name == "datadog.netflow.processor.packets_sequence" {
-					if value-c.lastSequence[key] < -100 {
-						log.Debugf("[countMissing][agg] key=%s, seq=%f reset", key, c.lastSequence[key])
-						sequenceReset[key] = true
-					}
-					c.lastSequence[key] = value
-					log.Debugf("[countMissing][agg] key=%s, seq=%f", key, c.lastSequence[key])
-				}
-			}
+	for _, metricFamily := range promMetrics {
+		name := metricFamily.GetName()
+		// Ensure that flows_sequence/packets_sequence metrics are processed first
+		// Sequence metrics are used to detect sequence reset needed for flows_missing/packet_missing metrics
+		if name == "flow_process_nf_flows_sequence" || name == "flow_process_nf_packets_sequence" {
+			prioritisedPromMetrics = append(prioritisedPromMetrics, metricFamily)
+		} else {
+			otherPromMetrics = append(otherPromMetrics, metricFamily)
 		}
 	}
+	prioritisedPromMetrics = append(prioritisedPromMetrics, otherPromMetrics...)
+
 	var samples []MetricSample
-	for _, metricFamily := range promMetrics {
+	for _, metricFamily := range prioritisedPromMetrics {
 		for _, metric := range metricFamily.Metric {
 			log.Tracef("Collector metric `%s`: type=`%v` Value=`%v`, label=`%v`", metricFamily.GetName(), metricFamily.GetType().String(), metric.GetCounter().GetValue(), metric.GetLabel())
 			metricType, name, value, tags, err := convertMetric(metric, metricFamily)
@@ -321,6 +303,22 @@ func (c MetricConverter) ConvertMetrics(promMetrics []*promClient.MetricFamily) 
 						Value:      diff,
 						Tags:       tags,
 					})
+				} else if metricPrefix+name == "datadog.netflow.processor.flows_sequence" {
+					key := c.keyFromTags(tags)
+					if value-c.lastSequence[key] < -1000 {
+						log.Debugf("[countMissing][agg] key=%s, seq=%f reset", key, c.lastSequence[key])
+						sequenceReset[key] = true
+					}
+					c.lastSequence[key] = value
+					log.Debugf("[countMissing][agg] key=%s,  seq=%f", key, c.lastSequence[key])
+				} else if metricPrefix+name == "datadog.netflow.processor.packets_sequence" {
+					key := c.keyFromTags(tags)
+					if value-c.lastSequence[key] < -100 {
+						log.Debugf("[countMissing][agg] key=%s, seq=%f reset", key, c.lastSequence[key])
+						sequenceReset[key] = true
+					}
+					c.lastSequence[key] = value
+					log.Debugf("[countMissing][agg] key=%s, seq=%f", key, c.lastSequence[key])
 				}
 			case metrics.MonotonicCountType:
 				samples = append(samples, MetricSample{
