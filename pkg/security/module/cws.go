@@ -360,13 +360,8 @@ func (c *CWSConsumer) LoadPolicies(policyProviders []rules.PolicyProvider, sendL
 	var ruleIDs []rules.RuleID
 	ruleIDs = append(ruleIDs, events.AllCustomRuleIDs()...)
 
-	var probeEvaluationRuleSet, threatScoreRuleSet *rules.RuleSet
-	if _, ok := evaluationSet.RuleSets[ProbeEvaluationRuleSetTagValue]; ok {
-		probeEvaluationRuleSet = evaluationSet.RuleSets[ProbeEvaluationRuleSetTagValue]
-	}
-	if _, ok := evaluationSet.RuleSets[ThreatScoreRuleSetTagValue]; ok {
-		threatScoreRuleSet = evaluationSet.RuleSets[ThreatScoreRuleSetTagValue]
-	}
+	probeEvaluationRuleSet := evaluationSet.RuleSets[ProbeEvaluationRuleSetTagValue]
+	threatScoreRuleSet := evaluationSet.RuleSets[ThreatScoreRuleSetTagValue]
 
 	if threatScoreRuleSet != nil {
 		c.currentThreatScoreRuleSet.Store(threatScoreRuleSet)
@@ -374,9 +369,8 @@ func (c *CWSConsumer) LoadPolicies(policyProviders []rules.PolicyProvider, sendL
 	}
 
 	if probeEvaluationRuleSet != nil {
-		ruleIDs = append(ruleIDs, probeEvaluationRuleSet.ListRuleIDs()...)
-
 		c.currentRuleSet.Store(probeEvaluationRuleSet)
+		ruleIDs = append(ruleIDs, probeEvaluationRuleSet.ListRuleIDs()...)
 
 		// analyze the ruleset, push probe evaluation rule sets to the kernel and generate the policy report
 		report, err := c.probe.ApplyRuleSet(probeEvaluationRuleSet)
