@@ -1,6 +1,7 @@
 #ifndef __PROTOCOL_CLASSIFICATION_TRACER_MAPS_H
 #define __PROTOCOL_CLASSIFICATION_TRACER_MAPS_H
 
+#include "tracer.h"
 #include "map-defs.h"
 
 // Maps skb connection tuple to socket connection tuple.

@@ -330,12 +330,12 @@ func TestFilter(t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			f, err := NewFilter(tc.includeList, tc.excludeList)
+			f, err := NewFilter(GlobalFilter, tc.includeList, tc.excludeList)
 			require.Nil(t, err, "case %d", i)
 
 			var allowed []string
 			for _, c := range containers {
-				if !f.IsExcluded(c.c.Name, c.c.Image, c.ns) {
+				if !f.IsExcluded(nil, c.c.Name, c.c.Image, c.ns) {
 					allowed = append(allowed, c.c.ID)
 				}
 			}
@@ -363,33 +363,58 @@ func TestIsExcludedByAnnotation(t *testing.T) {
 		"ad.datadoghq.com/logs_exclude":    `true`,
 	}
 
+	globalExcludeContainerLess := map[string]string{
+		"ad.datadoghq.com/exclude": `true`,
+	}
+
+	globalExclude := map[string]string{
+		fmt.Sprintf("ad.datadoghq.com/%s.exclude", containerIncludeName): `true`,
+	}
+
+	globalFilter, err := NewFilter(GlobalFilter, nil, nil)
+	require.NoError(t, err)
+	metricsFilter, err := NewFilter(MetricsFilter, nil, nil)
+	require.NoError(t, err)
+	logsFilter, err := NewFilter(LogsFilter, nil, nil)
+	require.NoError(t, err)
+
 	// Container-specific annotations
-	assert.True(t, IsExcludedByAnnotation(GlobalFilter, annotations, containerExcludeName))
-	assert.True(t, IsExcludedByAnnotation(MetricsFilter, annotations, containerExcludeName))
-	assert.True(t, IsExcludedByAnnotation(LogsFilter, annotations, containerExcludeName))
+	assert.True(t, globalFilter.isExcludedByAnnotation(annotations, containerExcludeName))
+	assert.True(t, metricsFilter.isExcludedByAnnotation(annotations, containerExcludeName))
+	assert.True(t, logsFilter.isExcludedByAnnotation(annotations, containerExcludeName))
 
-	assert.False(t, IsExcludedByAnnotation(GlobalFilter, annotations, containerIncludeName))
-	assert.False(t, IsExcludedByAnnotation(MetricsFilter, annotations, containerIncludeName))
-	assert.False(t, IsExcludedByAnnotation(LogsFilter, annotations, containerIncludeName))
+	assert.False(t, globalFilter.isExcludedByAnnotation(annotations, containerIncludeName))
+	assert.False(t, metricsFilter.isExcludedByAnnotation(annotations, containerIncludeName))
+	assert.False(t, logsFilter.isExcludedByAnnotation(annotations, containerIncludeName))
 
-	assert.False(t, IsExcludedByAnnotation(GlobalFilter, annotations, containerNoMentionName))
-	assert.False(t, IsExcludedByAnnotation(MetricsFilter, annotations, containerNoMentionName))
-	assert.False(t, IsExcludedByAnnotation(LogsFilter, annotations, containerNoMentionName))
+	assert.False(t, globalFilter.isExcludedByAnnotation(annotations, containerNoMentionName))
+	assert.False(t, metricsFilter.isExcludedByAnnotation(annotations, containerNoMentionName))
+	assert.False(t, logsFilter.isExcludedByAnnotation(annotations, containerNoMentionName))
 
 	// Container-less annotations
-	assert.True(t, IsExcludedByAnnotation(GlobalFilter, containerlessAnnotations, containerExcludeName))
-	assert.True(t, IsExcludedByAnnotation(MetricsFilter, containerlessAnnotations, containerExcludeName))
-	assert.True(t, IsExcludedByAnnotation(LogsFilter, containerlessAnnotations, containerExcludeName))
+	assert.True(t, globalFilter.isExcludedByAnnotation(containerlessAnnotations, containerExcludeName))
+	assert.True(t, metricsFilter.isExcludedByAnnotation(containerlessAnnotations, containerExcludeName))
+	assert.True(t, logsFilter.isExcludedByAnnotation(containerlessAnnotations, containerExcludeName))
 
-	assert.True(t, IsExcludedByAnnotation(GlobalFilter, containerlessAnnotations, containerIncludeName))
-	assert.True(t, IsExcludedByAnnotation(MetricsFilter, containerlessAnnotations, containerIncludeName))
-	assert.True(t, IsExcludedByAnnotation(LogsFilter, containerlessAnnotations, containerIncludeName))
+	assert.True(t, globalFilter.isExcludedByAnnotation(containerlessAnnotations, containerIncludeName))
+	assert.True(t, metricsFilter.isExcludedByAnnotation(containerlessAnnotations, containerIncludeName))
+	assert.True(t, logsFilter.isExcludedByAnnotation(containerlessAnnotations, containerIncludeName))
 
-	assert.True(t, IsExcludedByAnnotation(GlobalFilter, containerlessAnnotations, containerNoMentionName))
-	assert.True(t, IsExcludedByAnnotation(MetricsFilter, containerlessAnnotations, containerNoMentionName))
-	assert.True(t, IsExcludedByAnnotation(LogsFilter, containerlessAnnotations, containerNoMentionName))
+	assert.True(t, globalFilter.isExcludedByAnnotation(containerlessAnnotations, containerNoMentionName))
+	assert.True(t, metricsFilter.isExcludedByAnnotation(containerlessAnnotations, containerNoMentionName))
+	assert.True(t, logsFilter.isExcludedByAnnotation(containerlessAnnotations, containerNoMentionName))
 
-	assert.False(t, IsExcludedByAnnotation(GlobalFilter, nil, containerExcludeName))
+	// Container-less global exclude
+	assert.True(t, globalFilter.isExcludedByAnnotation(globalExcludeContainerLess, containerIncludeName))
+	assert.True(t, metricsFilter.isExcludedByAnnotation(globalExcludeContainerLess, containerIncludeName))
+	assert.True(t, logsFilter.isExcludedByAnnotation(globalExcludeContainerLess, containerIncludeName))
+
+	// Global exclude
+	assert.True(t, globalFilter.isExcludedByAnnotation(globalExclude, containerIncludeName))
+	assert.True(t, metricsFilter.isExcludedByAnnotation(globalExclude, containerIncludeName))
+	assert.True(t, logsFilter.isExcludedByAnnotation(globalExclude, containerIncludeName))
+
+	assert.False(t, logsFilter.isExcludedByAnnotation(nil, containerExcludeName))
 }
 
 func TestNewMetricFilterFromConfig(t *testing.T) {
@@ -400,16 +425,16 @@ func TestNewMetricFilterFromConfig(t *testing.T) {
 	f, err := newMetricFilterFromConfig()
 	require.NoError(t, err)
 
-	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", ""))
-	assert.False(t, f.IsExcluded("dummy", "dummy", ""))
-	assert.True(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
-	assert.True(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", ""))
+	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "dummy", ""))
+	assert.True(t, f.IsExcluded(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
+	assert.True(t, f.IsExcluded(nil, "dummy", "rancher/pause-amd64:3.1", ""))
 
 	config.Datadog.SetDefault("exclude_pause_container", false)
 	f, err = newMetricFilterFromConfig()
 	require.NoError(t, err)
-	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
 
 	config.Datadog.SetDefault("exclude_pause_container", true)
 	config.Datadog.SetDefault("ac_include", []string{})
@@ -424,11 +449,11 @@ func TestNewMetricFilterFromConfig(t *testing.T) {
 	f, err = newMetricFilterFromConfig()
 	require.NoError(t, err)
 
-	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", ""))
-	assert.True(t, f.IsExcluded("ddmetric-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded("ddmetric-152462", "nginx:latest", ""))
-	assert.False(t, f.IsExcluded("dummy", "dummy", ""))
+	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
+	assert.True(t, f.IsExcluded(nil, "ddmetric-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "ddmetric-152462", "nginx:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "dummy", ""))
 }
 
 func TestNewAutodiscoveryFilter(t *testing.T) {
@@ -441,11 +466,11 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	f, err := NewAutodiscoveryFilter(GlobalFilter)
 	require.NoError(t, err)
 
-	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", ""))
-	assert.False(t, f.IsExcluded("dummy", "dummy", ""))
-	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
-	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", ""))
+	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "dummy", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "rancher/pause-amd64:3.1", ""))
 	resetConfig()
 
 	// Global - new config - legacy config ignored
@@ -457,12 +482,12 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	f, err = NewAutodiscoveryFilter(GlobalFilter)
 	require.NoError(t, err)
 
-	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded("dd/legacy-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", ""))
-	assert.False(t, f.IsExcluded("dummy", "dummy", ""))
-	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
-	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", ""))
+	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dd/legacy-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "dummy", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "rancher/pause-amd64:3.1", ""))
 	resetConfig()
 
 	// Metrics
@@ -472,11 +497,11 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	f, err = NewAutodiscoveryFilter(MetricsFilter)
 	require.NoError(t, err)
 
-	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", ""))
-	assert.False(t, f.IsExcluded("dummy", "dummy", ""))
-	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
-	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", ""))
+	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "dummy", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "rancher/pause-amd64:3.1", ""))
 	resetConfig()
 
 	// Logs
@@ -486,11 +511,11 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	f, err = NewAutodiscoveryFilter(LogsFilter)
 	require.NoError(t, err)
 
-	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", ""))
-	assert.False(t, f.IsExcluded("dummy", "dummy", ""))
-	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
-	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", ""))
+	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "dummy", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "rancher/pause-amd64:3.1", ""))
 	resetConfig()
 
 	// Filter errors - non-duplicate error messages
@@ -500,11 +525,11 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	f, err = NewAutodiscoveryFilter(GlobalFilter)
 	require.NoError(t, err)
 
-	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", ""))
-	assert.False(t, f.IsExcluded("dummy", "dummy", ""))
-	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
-	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", ""))
+	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "dummy", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
+	assert.False(t, f.IsExcluded(nil, "dummy", "rancher/pause-amd64:3.1", ""))
 	fe := map[string]struct{}{
 		"Container filter \"invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'": {},
 	}

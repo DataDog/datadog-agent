@@ -1388,14 +1388,15 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse CPU count: %w", err)
 	}
-	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(
-		numCPU,
-		config.RuntimeSecurity.ActivityDumpTracedCgroupsCount,
-		useMmapableMaps,
-		useRingBuffers,
-		uint32(p.Config.Probe.EventStreamBufferSize),
-		p.Config.RuntimeSecurity.SecurityProfileMaxCount,
-	)
+
+	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(numCPU, probes.MapSpecEditorOpts{
+		TracedCgroupSize:        p.Config.RuntimeSecurity.ActivityDumpTracedCgroupsCount,
+		UseRingBuffers:          useRingBuffers,
+		UseMmapableMaps:         useMmapableMaps,
+		RingBufferSize:          uint32(p.Config.Probe.EventStreamBufferSize),
+		PathResolutionEnabled:   p.Opts.PathResolutionEnabled,
+		SecurityProfileMaxCount: p.Config.RuntimeSecurity.SecurityProfileMaxCount,
+	})
 
 	if config.RuntimeSecurity.ActivityDumpEnabled {
 		for _, e := range config.RuntimeSecurity.ActivityDumpTracedEventTypes {
@@ -1546,13 +1547,15 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	p.scrubber = procutil.NewDefaultDataScrubber()
 	p.scrubber.AddCustomSensitiveWords(config.Probe.CustomSensitiveWords)
 
-	resolvers, err := resolvers.NewResolvers(config, p.Manager, p.StatsdClient, p.scrubber, p.Erpc)
+	resolversOpts := resolvers.ResolversOpts{
+		PathResolutionEnabled: opts.PathResolutionEnabled,
+	}
+	p.resolvers, err = resolvers.NewResolvers(config, p.Manager, p.StatsdClient, p.scrubber, p.Erpc, resolversOpts)
 	if err != nil {
 		return nil, err
 	}
-	p.resolvers = resolvers
 
-	p.fieldHandlers = &FieldHandlers{resolvers: resolvers}
+	p.fieldHandlers = &FieldHandlers{resolvers: p.resolvers}
 
 	// be sure to zero the probe event before everything else
 	p.zeroEvent()
