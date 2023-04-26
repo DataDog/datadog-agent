@@ -50,13 +50,13 @@ const (
 
 type ebpfProgram struct {
 	*errtelemetry.Manager
-	cfg               *config.Config
-	offsets           []manager.ConstantEditor
-	subprograms       []subprogram
-	probesResolvers   []probeResolver
-	mapCleaner        *ddebpf.MapCleaner
-	tailCallRouter    []manager.TailCallRoute
-	classificationMap *ebpf.Map
+	cfg                   *config.Config
+	offsets               []manager.ConstantEditor
+	subprograms           []subprogram
+	probesResolvers       []probeResolver
+	mapCleaner            *ddebpf.MapCleaner
+	tailCallRouter        []manager.TailCallRoute
+	connectionProtocolMap *ebpf.Map
 }
 
 type probeResolver interface {
@@ -100,7 +100,7 @@ var http2TailCall = manager.TailCallRoute{
 	},
 }
 
-func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, classificationMap, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
+func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, connectionProtocolMap, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: httpInFlightMap},
@@ -193,13 +193,13 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, classifi
 	}
 
 	program := &ebpfProgram{
-		Manager:           errtelemetry.NewManager(mgr, bpfTelemetry),
-		cfg:               c,
-		offsets:           offsets,
-		subprograms:       subprograms,
-		probesResolvers:   subprogramProbesResolvers,
-		tailCallRouter:    tailCalls,
-		classificationMap: classificationMap,
+		Manager:               errtelemetry.NewManager(mgr, bpfTelemetry),
+		cfg:                   c,
+		offsets:               offsets,
+		subprograms:           subprograms,
+		probesResolvers:       subprogramProbesResolvers,
+		tailCallRouter:        tailCalls,
+		connectionProtocolMap: connectionProtocolMap,
 	}
 
 	return program, nil
@@ -371,11 +371,11 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 			EditorFlag: manager.EditMaxEntries,
 		},
 	}
-	if e.classificationMap != nil {
+	if e.connectionProtocolMap != nil {
 		if options.MapEditors == nil {
 			options.MapEditors = make(map[string]*ebpf.Map)
 		}
-		options.MapEditors[probes.ConnectionProtocolMap] = e.classificationMap
+		options.MapEditors[probes.ConnectionProtocolMap] = e.connectionProtocolMap
 	} else {
 		options.MapSpecEditors[probes.ConnectionProtocolMap] = manager.MapSpecEditor{
 			Type:       ebpf.Hash,

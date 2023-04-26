@@ -77,7 +77,7 @@ type staticTableEntry struct {
 }
 
 // NewMonitor returns a new Monitor instance
-func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, classificationMap, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (m *Monitor, err error) {
+func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, connectionProtocolMap, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (m *Monitor, err error) {
 	defer func() {
 		// capture error and wrap it
 		if err != nil {
@@ -103,7 +103,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, classificati
 		}
 	}
 
-	mgr, err := newEBPFProgram(c, offsets, classificationMap, sockFD, bpfTelemetry)
+	mgr, err := newEBPFProgram(c, offsets, connectionProtocolMap, sockFD, bpfTelemetry)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up http ebpf program: %w", err)
 	}

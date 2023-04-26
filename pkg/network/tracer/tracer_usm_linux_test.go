@@ -487,7 +487,7 @@ func TestProtocolClassification(t *testing.T) {
 		netlink.SetupDNAT(t)
 		testProtocolClassification(t, tr, "localhost", "2.2.2.2", "1.1.1.1")
 		testHTTPSClassification(t, tr, "localhost", "2.2.2.2", "1.1.1.1")
-		testProtocolClassificationMapCleanup(t, tr, "localhost", "2.2.2.2", "1.1.1.1:0")
+		testProtocolConnectionProtocolMapCleanup(t, tr, "localhost", "2.2.2.2", "1.1.1.1:0")
 	})
 
 	t.Run("with snat", func(t *testing.T) {
@@ -495,17 +495,17 @@ func TestProtocolClassification(t *testing.T) {
 		netlink.SetupSNAT(t)
 		testProtocolClassification(t, tr, "6.6.6.6", "127.0.0.1", "127.0.0.1")
 		testHTTPSClassification(t, tr, "6.6.6.6", "127.0.0.1", "127.0.0.1")
-		testProtocolClassificationMapCleanup(t, tr, "6.6.6.6", "127.0.0.1", "127.0.0.1:0")
+		testProtocolConnectionProtocolMapCleanup(t, tr, "6.6.6.6", "127.0.0.1", "127.0.0.1:0")
 	})
 
 	t.Run("without nat", func(t *testing.T) {
 		testProtocolClassification(t, tr, "localhost", "127.0.0.1", "127.0.0.1")
 		testHTTPSClassification(t, tr, "localhost", "127.0.0.1", "127.0.0.1")
-		testProtocolClassificationMapCleanup(t, tr, "localhost", "127.0.0.1", "127.0.0.1:0")
+		testProtocolConnectionProtocolMapCleanup(t, tr, "localhost", "127.0.0.1", "127.0.0.1:0")
 	})
 }
 
-func testProtocolClassificationMapCleanup(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	t.Run("protocol cleanup", func(t *testing.T) {
 		if tr.ebpfTracer.Type() == connection.EBPFFentry {
 			t.Skip("protocol classification not supported for fentry tracer")
