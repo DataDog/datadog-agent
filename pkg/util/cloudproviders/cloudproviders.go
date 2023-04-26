@@ -147,9 +147,9 @@ func GetHostAliases(ctx context.Context) []string {
 // GetPublicIPv4 returns the public IPv4 from different providers
 func GetPublicIPv4(ctx context.Context) (string, error) {
 	publicIPProvider := map[string]func(context.Context) (string, error){
-		"EC2":   ec2.GetPublicIPv4,
-		"GCE":   gce.GetPublicIPv4,
-		"Azure": azure.GetPublicIPv4,
+		ec2.CloudProviderName:   ec2.GetPublicIPv4,
+		gce.CloudProviderName:   gce.GetPublicIPv4,
+		azure.CloudProviderName: azure.GetPublicIPv4,
 	}
 	for name, fetcher := range publicIPProvider {
 		publicIPv4, err := fetcher(ctx)

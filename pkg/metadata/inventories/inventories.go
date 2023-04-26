@@ -111,6 +111,7 @@ const (
 	HostCloudProvider          AgentMetadataName = "cloud_provider"
 	HostCloudProviderSource    AgentMetadataName = "cloud_provider_source"
 	HostCloudProviderAccountID AgentMetadataName = "cloud_provider_account_id"
+	HostCloudProviderID        AgentMetadataName = "cloud_provider_host_id"
 )
 
 // Refresh signals that some data has been updated and a new payload should be sent (ex: when configuration is changed
@@ -129,6 +130,8 @@ func SetAgentMetadata(name AgentMetadataName, value interface{}) {
 		return
 	}
 
+	log.Debugf("setting agent metadata '%s': '%s'", name, value)
+
 	inventoryMutex.Lock()
 	defer inventoryMutex.Unlock()
 
@@ -145,6 +148,7 @@ func SetHostMetadata(name AgentMetadataName, value interface{}) {
 		return
 	}
 
+	log.Debugf("setting host metadata '%s': '%s'", name, value)
 	inventoryMutex.Lock()
 	defer inventoryMutex.Unlock()
 
@@ -160,6 +164,8 @@ func SetCheckMetadata(checkID, key string, value interface{}) {
 	if checkID == "" || !config.Datadog.GetBool("inventories_enabled") {
 		return
 	}
+
+	log.Debugf("setting check metadata for check %s, '%s': '%s'", checkID, key, value)
 
 	inventoryMutex.Lock()
 	defer inventoryMutex.Unlock()
