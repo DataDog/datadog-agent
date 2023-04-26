@@ -1,15 +1,23 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
-
 //go:build kubeapiserver
 // +build kubeapiserver
+
+/*
+Copyright 2017 The Kubernetes Authors.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 
 // Taken from https://github.com/kubernetes/client-go/blob/v0.27.0/tools/leaderelection/resourcelock/configmaplock.go
 // It was added because k8s.io/client-go/tools/leaderelection does not support ConfigMapLock anymore since v0.24 but
 // it is needed to run leaderlection on kube versions <= 1.14, which do not support LeaseLocks
-package leaderelection
+package resourcelock
 
 import (
 	"context"
@@ -25,7 +33,7 @@ import (
 
 const ConfigMapsResourceLock = "configmaps"
 
-type configMapLock struct {
+type ConfigMapLock struct {
 	// ConfigMapMeta should contain a Name and a Namespace of a
 	// ConfigMapMeta object that the LeaderElector will attempt to lead.
 	ConfigMapMeta metav1.ObjectMeta
@@ -35,7 +43,7 @@ type configMapLock struct {
 }
 
 // Get returns the election record from a ConfigMap Annotation
-func (cml *configMapLock) Get(ctx context.Context) (*rl.LeaderElectionRecord, []byte, error) {
+func (cml *ConfigMapLock) Get(ctx context.Context) (*rl.LeaderElectionRecord, []byte, error) {
 	var record rl.LeaderElectionRecord
 	cm, err := cml.Client.ConfigMaps(cml.ConfigMapMeta.Namespace).Get(ctx, cml.ConfigMapMeta.Name, metav1.GetOptions{})
 	if err != nil {
@@ -56,7 +64,7 @@ func (cml *configMapLock) Get(ctx context.Context) (*rl.LeaderElectionRecord, []
 }
 
 // Create attempts to create a rl.LeaderElectionRecord annotation
-func (cml *configMapLock) Create(ctx context.Context, ler rl.LeaderElectionRecord) error {
+func (cml *ConfigMapLock) Create(ctx context.Context, ler rl.LeaderElectionRecord) error {
 	recordBytes, err := json.Marshal(ler)
 	if err != nil {
 		return err
@@ -74,7 +82,7 @@ func (cml *configMapLock) Create(ctx context.Context, ler rl.LeaderElectionRecor
 }
 
 // Update will update an existing annotation on a given resource.
-func (cml *configMapLock) Update(ctx context.Context, ler rl.LeaderElectionRecord) error {
+func (cml *ConfigMapLock) Update(ctx context.Context, ler rl.LeaderElectionRecord) error {
 	if cml.cm == nil {
 		return errors.New("configmap not initialized, call get or create first")
 	}
@@ -95,7 +103,7 @@ func (cml *configMapLock) Update(ctx context.Context, ler rl.LeaderElectionRecor
 }
 
 // RecordEvent in leader election while adding meta-data
-func (cml *configMapLock) RecordEvent(s string) {
+func (cml *ConfigMapLock) RecordEvent(s string) {
 	if cml.LockConfig.EventRecorder == nil {
 		return
 	}
@@ -109,11 +117,11 @@ func (cml *configMapLock) RecordEvent(s string) {
 
 // Describe is used to convert details on current resource lock
 // into a string
-func (cml *configMapLock) Describe() string {
+func (cml *ConfigMapLock) Describe() string {
 	return fmt.Sprintf("%v/%v", cml.ConfigMapMeta.Namespace, cml.ConfigMapMeta.Name)
 }
 
 // Identity returns the Identity of the lock
-func (cml *configMapLock) Identity() string {
+func (cml *ConfigMapLock) Identity() string {
 	return cml.LockConfig.Identity
 }

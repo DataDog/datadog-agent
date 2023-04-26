@@ -24,13 +24,14 @@ import (
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/record"
 
+	configmaplock "github.com/DataDog/datadog-agent/internal/third_party/client-go/tools/leaderelection/resourcelock"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func NewReleaseLock(lockType string, ns string, name string, coreClient corev1.CoreV1Interface, coordinationClient clientcoord.CoordinationV1Interface, rlc rl.ResourceLockConfig) (rl.Interface, error) {
-	if lockType == ConfigMapsResourceLock {
-		return &configMapLock{
+	if lockType == configmaplock.ConfigMapsResourceLock {
+		return &configmaplock.ConfigMapLock{
 			ConfigMapMeta: metav1.ObjectMeta{
 				Namespace: ns,
 				Name:      name,

@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 
+	configmaplock "github.com/DataDog/datadog-agent/internal/third_party/client-go/tools/leaderelection/resourcelock"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -153,7 +154,7 @@ func (le *LeaderEngine) init() error {
 	} else {
 		// for kubernetes <= 1.13
 		log.Debugf("leader election will use ConfigMaps to store the leader token")
-		le.lockType = ConfigMapsResourceLock
+		le.lockType = configmaplock.ConfigMapsResourceLock
 	}
 	le.leaderElector, err = le.newElection()
 	if err != nil {
