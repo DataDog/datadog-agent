@@ -566,7 +566,6 @@ require (
 	github.com/godror/godror v0.37.0
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/sijms/go-ora/v2 v2.6.12
-	k8s.io/kubernetes v1.13.0
 )
 
 require (
