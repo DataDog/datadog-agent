@@ -9,7 +9,6 @@
 package rules
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"os"
 	"path/filepath"
 	"syscall"
