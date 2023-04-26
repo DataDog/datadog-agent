@@ -270,6 +270,8 @@ func (agg *FlowAggregator) submitCollectorMetrics() error {
 			agg.sender.Gauge(sample.Name, sample.Value, "", sample.Tags)
 		case metrics.MonotonicCountType:
 			agg.sender.MonotonicCount(sample.Name, sample.Value, "", sample.Tags)
+		default:
+			log.Debugf("cannot submit unsupported type %s", sample.MetricType.String())
 		}
 	}
 	return nil
