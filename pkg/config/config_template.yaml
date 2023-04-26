@@ -675,8 +675,6 @@ api_key:
 ## Default is:
 ##  * Windows & macOS : `5002`
 ##  * Linux: `-1`
-## On Linux, to be able to edit the configuration from the GUI
-## you need to give write access on this file to the dd-agent user.
 ##
 #
 # GUI_port: <GUI_PORT>

@@ -385,35 +385,13 @@ def get_conf_file(conf_path)
 end
 
 def read_conf_file(conf_path = "")
-  if conf_path == ""
-    conf_path = get_conf_file("datadog.yaml")
-  end
-  if os == :windows
-    f = File.read(conf_path)
-  else
-    f = `sudo cat #{conf_path}`
-  end
-  confYaml = YAML.load(f)
-  confYaml || {}
-end
-
-def write_conf_file(conf_path, data)
-  if os == :windows
-    File.write(conf_path, data)
-  else
-    file = Tempfile.new(File.basename(conf_path))
-    begin
-      file.write(data)
-      file.close
-      system "sudo cp #{file.path} #{conf_path}"
-      system "sudo chown :dd-agent #{conf_path}"
-      system "sudo chmod 640 #{conf_path}"
-      system "sudo chmod +x #{File.dirname(conf_path)}"
-    ensure
-      file.close
-      file.unlink
+    if conf_path == ""
+      conf_path = get_conf_file("datadog.yaml")
     end
-  end
+    puts "cp is #{conf_path}"
+    f = File.read(conf_path)
+    confYaml = YAML.load(f)
+    confYaml
 end
 
 def fetch_python_version(timeout = 15)
@@ -632,12 +610,13 @@ shared_examples_for "a running Agent with APM manually disabled" do
   it 'is not bound to the port that receives traces when apm_enabled is set to false' do
     conf_path = get_conf_file("datadog.yaml")
 
-    confYaml = read_conf_file()
+    f = File.read(conf_path)
+    confYaml = YAML.load(f)
     if !confYaml.key("apm_config")
       confYaml["apm_config"] = {}
     end
     confYaml["apm_config"]["enabled"] = false
-    write_conf_file(conf_path, confYaml.to_yaml)
+    File.write(conf_path, confYaml.to_yaml)
 
     output = restart "datadog-agent"
     if os != :windows
@@ -714,9 +693,10 @@ end
 shared_examples_for 'an Agent with python3 enabled' do
   it 'restarts after python_version is set to 3' do
     conf_path = get_conf_file("datadog.yaml")
-    confYaml = read_conf_file(conf_path)
+    f = File.read(conf_path)
+    confYaml = YAML.load(f)
     confYaml["python_version"] = 3
-    write_conf_file(conf_path, confYaml.to_yaml)
+    File.write(conf_path, confYaml.to_yaml)
 
     output = restart "datadog-agent"
     expect(output).to be_truthy
@@ -734,9 +714,10 @@ shared_examples_for 'an Agent with python3 enabled' do
   it 'restarts after python_version is set back to 2' do
     skip if info.include? "v7."
     conf_path = get_conf_file("datadog.yaml")
-    confYaml = read_conf_file(conf_path)
+    f = File.read(conf_path)
+    confYaml = YAML.load(f)
     confYaml["python_version"] = 2
-    write_conf_file(conf_path, confYaml.to_yaml)
+    File.write(conf_path, confYaml.to_yaml)
 
     output = restart "datadog-agent"
     expect(output).to be_truthy
@@ -765,7 +746,7 @@ shared_examples_for 'an Agent with integrations' do
   before do
     freeze_content = File.read(integrations_freeze_file)
     freeze_content.gsub!(/datadog-cilium==.*/, 'datadog-cilium==2.2.1')
-    write_conf_file(integrations_freeze_file, freeze_content)
+    File.write(integrations_freeze_file, freeze_content)
 
     integration_remove('datadog-cilium')
   end
@@ -992,7 +973,8 @@ end
 
 def enable_cws(conf_path, state)
   begin
-    confYaml = read_conf_file(conf_path)
+    f = File.read(conf_path)
+    confYaml = YAML.load(f)
     if !confYaml.key("runtime_security_config")
       confYaml["runtime_security_config"] = {}
     end
@@ -1000,7 +982,7 @@ def enable_cws(conf_path, state)
   rescue
     confYaml = {'runtime_security_config' => {'enabled' => state}}
   ensure
-    write_conf_file(conf_path, confYaml.to_yaml)
+    File.write(conf_path, confYaml.to_yaml)
   end
 end
 
