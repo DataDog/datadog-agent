@@ -125,8 +125,8 @@ func WithStackDef[Env any](stackDef *StackDefinition[Env]) func(*Suite[Env]) {
 	}
 }
 
-// WithRunFct set the run function (EnvFactory in StackDefinition)
-func WithRunFct[Env any](envFactory func(ctx *pulumi.Context) (*Env, error)) func(*Suite[Env]) {
+// WithEnvFactory set the run function (EnvFactory in StackDefinition)
+func WithEnvFactory[Env any](envFactory func(ctx *pulumi.Context) (*Env, error)) func(*Suite[Env]) {
 	return func(suite *Suite[Env]) {
 		suite.stackDef = &StackDefinition[Env]{
 			EnvFactory: envFactory,
