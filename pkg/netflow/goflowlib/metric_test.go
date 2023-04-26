@@ -374,9 +374,9 @@ func TestConvertMetric(t *testing.T) {
 			expectedErr:        "",
 		},
 		{
-			name: "METRIC flow_process_nf_missing_flows",
+			name: "METRIC flow_process_nf_flows_missing",
 			metricFamily: &promClient.MetricFamily{
-				Name: proto.String("flow_process_nf_missing_flows"),
+				Name: proto.String("flow_process_nf_flows_missing"),
 				Type: promClient.MetricType_GAUGE.Enum(),
 			},
 			metric: &promClient.Metric{
@@ -387,15 +387,34 @@ func TestConvertMetric(t *testing.T) {
 				},
 			},
 			expectedMetricType: metrics.GaugeType,
-			expectedName:       "processor.missing_flows",
+			expectedName:       "processor.flows_missing",
 			expectedValue:      10.0,
 			expectedTags:       []string{"device_ip:1.2.3.4", "version:5", "flow_protocol:netflow"},
 			expectedErr:        "",
 		},
 		{
-			name: "METRIC flow_process_nf_missing_packets",
+			name: "METRIC flow_process_nf_flows_sequence",
 			metricFamily: &promClient.MetricFamily{
-				Name: proto.String("flow_process_nf_missing_packets"),
+				Name: proto.String("flow_process_nf_flows_sequence"),
+				Type: promClient.MetricType_GAUGE.Enum(),
+			},
+			metric: &promClient.Metric{
+				Gauge: &promClient.Gauge{Value: proto.Float64(10)},
+				Label: []*promClient.LabelPair{
+					{Name: proto.String("router"), Value: proto.String("1.2.3.4")},
+					{Name: proto.String("version"), Value: proto.String("5")},
+				},
+			},
+			expectedMetricType: metrics.GaugeType,
+			expectedName:       "processor.flows_sequence",
+			expectedValue:      10.0,
+			expectedTags:       []string{"device_ip:1.2.3.4", "version:5", "flow_protocol:netflow"},
+			expectedErr:        "",
+		},
+		{
+			name: "METRIC flow_process_nf_packets_missing",
+			metricFamily: &promClient.MetricFamily{
+				Name: proto.String("flow_process_nf_packets_missing"),
 				Type: promClient.MetricType_GAUGE.Enum(),
 			},
 			metric: &promClient.Metric{
@@ -406,7 +425,26 @@ func TestConvertMetric(t *testing.T) {
 				},
 			},
 			expectedMetricType: metrics.GaugeType,
-			expectedName:       "processor.missing_packets",
+			expectedName:       "processor.packets_missing",
+			expectedValue:      10.0,
+			expectedTags:       []string{"device_ip:1.2.3.4", "version:10", "flow_protocol:netflow"},
+			expectedErr:        "",
+		},
+		{
+			name: "METRIC flow_process_nf_packets_sequence",
+			metricFamily: &promClient.MetricFamily{
+				Name: proto.String("flow_process_nf_packets_sequence"),
+				Type: promClient.MetricType_GAUGE.Enum(),
+			},
+			metric: &promClient.Metric{
+				Gauge: &promClient.Gauge{Value: proto.Float64(10)},
+				Label: []*promClient.LabelPair{
+					{Name: proto.String("router"), Value: proto.String("1.2.3.4")},
+					{Name: proto.String("version"), Value: proto.String("10")},
+				},
+			},
+			expectedMetricType: metrics.GaugeType,
+			expectedName:       "processor.packets_sequence",
 			expectedValue:      10.0,
 			expectedTags:       []string{"device_ip:1.2.3.4", "version:10", "flow_protocol:netflow"},
 			expectedErr:        "",
