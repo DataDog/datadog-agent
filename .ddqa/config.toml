@@ -178,6 +178,18 @@ jira_statuses = [
 github_team = "agent-security"
 github_labels = ["team/agent-security"]
 
+[teams."CSPM Agent"]
+jira_project = "SEC"
+jira_component = "CSPM Agent"
+jira_issue_type = "Task"
+jira_statuses = [
+  "To Do",
+  "In Progress",
+  "Done",
+]
+github_team = "agent-cspm"
+github_labels = ["team/agent-cspm"]
+
 [teams."Processes"]
 jira_project = "PROC"
 jira_issue_type = "Task"
