@@ -13,16 +13,10 @@
 #include "port.h"
 #include "skb.h"
 #include "sockfd.h"
-#include "conntrack.h"
 #include "tcp-recv.h"
 #include "tracer-events.h"
 #include "protocols/classification/tracer-maps.h"
 #include "protocols/classification/protocol-classification.h"
-
-// struct bpf_pidns_info {
-//     __u32 pid;
-//     __u32 tgid;
-// };
 
 SEC("socket/classifier_entry")
 int socket__classifier_entry(struct __sk_buff *skb) {
