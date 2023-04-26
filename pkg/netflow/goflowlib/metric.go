@@ -315,6 +315,10 @@ func (c MetricConverter) ConvertMetrics(promMetrics []*promClient.MetricFamily) 
 				log.Debugf("cannot submit unsupported type %s", metricType.String())
 			}
 
+			// Based on datadog.netflow.processor.flows_missing/packets_missing metrics we create a new metrics
+			// with `_count` prefix to make it easier to graph/use.
+			// Those count metrics are mostly positive, but can be negative sometimes when packets/flows sequence
+			// are unordered.
 			if flowsPacketsMissingMetrics[fullMetricName] {
 				key := c.keyFromTags(tags)
 				if sequenceReset[key] {
@@ -322,7 +326,7 @@ func (c MetricConverter) ConvertMetrics(promMetrics []*promClient.MetricFamily) 
 				}
 				missingCount := int(value) - c.lastMissingFlowsMetricValue[key]
 				samples = append(samples, MetricSample{
-					MetricType: metrics.GaugeType,
+					MetricType: metrics.CountType,
 					Name:       fullMetricName + "_count",
 					Value:      float64(missingCount),
 					Tags:       tags,

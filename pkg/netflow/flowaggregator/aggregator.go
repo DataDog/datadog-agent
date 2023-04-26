@@ -7,7 +7,6 @@ package flowaggregator
 
 import (
 	"encoding/json"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"strings"
 	"time"
 
@@ -17,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"

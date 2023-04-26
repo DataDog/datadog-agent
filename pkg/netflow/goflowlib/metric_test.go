@@ -647,7 +647,7 @@ func TestMetricConverter_ConvertMetrics(t *testing.T) {
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},
 						},
 						{
-							MetricType: metrics.GaugeType,
+							MetricType: metrics.CountType,
 							Name:       "datadog.netflow.processor.flows_missing_count",
 							Value:      10,
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},
@@ -707,7 +707,7 @@ func TestMetricConverter_ConvertMetrics(t *testing.T) {
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},
 						},
 						{
-							MetricType: metrics.GaugeType,
+							MetricType: metrics.CountType,
 							Name:       "datadog.netflow.processor.flows_missing_count",
 							Value:      10,
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},
@@ -762,7 +762,7 @@ func TestMetricConverter_ConvertMetrics(t *testing.T) {
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},
 						},
 						{
-							MetricType: metrics.GaugeType,
+							MetricType: metrics.CountType,
 							Name:       "datadog.netflow.processor.flows_missing_count",
 							Value:      15,
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},
@@ -822,7 +822,7 @@ func TestMetricConverter_ConvertMetrics(t *testing.T) {
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},
 						},
 						{
-							MetricType: metrics.GaugeType,
+							MetricType: metrics.CountType,
 							Name:       "datadog.netflow.processor.flows_missing_count",
 							Value:      10,
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},
@@ -877,7 +877,7 @@ func TestMetricConverter_ConvertMetrics(t *testing.T) {
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},
 						},
 						{
-							MetricType: metrics.GaugeType,
+							MetricType: metrics.CountType,
 							Name:       "datadog.netflow.processor.flows_missing_count",
 							Value:      5,
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},
@@ -914,7 +914,7 @@ func TestMetricConverter_ConvertMetrics(t *testing.T) {
 							Tags:       []string{"device_ip:1.2.3.4", "version:9", "obs_domain_id:1", "flow_protocol:netflow"},
 						},
 						{
-							MetricType: metrics.GaugeType,
+							MetricType: metrics.CountType,
 							Name:       "datadog.netflow.processor.packets_missing_count",
 							Value:      10,
 							Tags:       []string{"device_ip:1.2.3.4", "version:9", "obs_domain_id:1", "flow_protocol:netflow"},
@@ -972,7 +972,7 @@ func TestMetricConverter_ConvertMetrics(t *testing.T) {
 							Tags:       []string{"device_ip:1.2.3.4", "version:9", "obs_domain_id:1", "flow_protocol:netflow"},
 						},
 						{
-							MetricType: metrics.GaugeType,
+							MetricType: metrics.CountType,
 							Name:       "datadog.netflow.processor.packets_missing_count",
 							Value:      10,
 							Tags:       []string{"device_ip:1.2.3.4", "version:9", "obs_domain_id:1", "flow_protocol:netflow"},
@@ -1025,7 +1025,7 @@ func TestMetricConverter_ConvertMetrics(t *testing.T) {
 							Tags:       []string{"device_ip:1.2.3.4", "version:9", "obs_domain_id:1", "flow_protocol:netflow"},
 						},
 						{
-							MetricType: metrics.GaugeType,
+							MetricType: metrics.CountType,
 							Name:       "datadog.netflow.processor.packets_missing_count",
 							Value:      15,
 							Tags:       []string{"device_ip:1.2.3.4", "version:9", "obs_domain_id:1", "flow_protocol:netflow"},
@@ -1085,7 +1085,7 @@ func TestMetricConverter_ConvertMetrics(t *testing.T) {
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},
 						},
 						{
-							MetricType: metrics.GaugeType,
+							MetricType: metrics.CountType,
 							Name:       "datadog.netflow.processor.flows_missing_count",
 							Value:      10,
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},
@@ -1140,7 +1140,7 @@ func TestMetricConverter_ConvertMetrics(t *testing.T) {
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},
 						},
 						{
-							MetricType: metrics.GaugeType,
+							MetricType: metrics.CountType,
 							Name:       "datadog.netflow.processor.flows_missing_count",
 							Value:      5,
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},
