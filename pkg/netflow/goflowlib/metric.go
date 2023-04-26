@@ -175,9 +175,9 @@ func remapFlowset(flowset string) string {
 // convertMetric converts prometheus metric to datadog compatible metrics
 func convertMetric(metric *promClient.Metric, metricFamily *promClient.MetricFamily) (
 	metrics.MetricType, // metric type
-	string, // metric Name
-	float64, // metric Value
-	[]string, // metric Tags
+	string, // metric mame
+	float64, // metric value
+	[]string, // metric tags
 	error,
 ) {
 	var ddMetricType metrics.MetricType
