@@ -164,7 +164,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	p.fieldHandlers = &FieldHandlers{resolvers: resolvers}
 
 	// be sure to zero the probe event before everything else
-	p.zeroEvent()
+	p.ZeroEvent()
 
 	return p, nil
 }
