@@ -38,6 +38,7 @@ PATH_EXCLUSION_REGEX = [
     '/internal/patch/grpc-go-insecure/',
     '/internal/patch/logr/funcr/funcr(_test){,1}.go',
     '/internal/patch/logr/funcr/internal/logr/',
+    '/internal/third_party/client-go/',
     '/internal/third_party/golang/',
     '/internal/third_party/kubernetes/',
     '/pkg/collector/corechecks/cluster/ksm/customresources/utils.go',
