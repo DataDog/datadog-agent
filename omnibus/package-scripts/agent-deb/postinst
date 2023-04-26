@@ -8,8 +8,6 @@ INSTALL_DIR=/opt/datadog-agent
 LOG_DIR=/var/log/datadog
 CONFIG_DIR=/etc/datadog-agent
 SERVICE_NAME=datadog-agent
-RUN_DIR=/opt/datadog-agent/run
-SITE_PACKAGES_DIR="${INSTALL_DIR}/embedded/lib/python*/site-packages"
 
 # If we are inside the Docker container, do nothing
 if [ -n "$DOCKER_DD_AGENT" ]; then
@@ -67,29 +65,36 @@ install_method:
     echo "$install_info_content" > $CONFIG_DIR/install_info
 fi
 
-# Set proper rights to the dd-agent user and group
-chown -R root:dd-agent ${CONFIG_DIR}
-
-# Only provide read access to dd-agent by default
-find ${CONFIG_DIR} -type d -not -path ${CONFIG_DIR}/conf.d -exec chmod 2750 {} \;
-find ${CONFIG_DIR} -type f -not -path ${CONFIG_DIR}/conf.d -exec chmod 640 {} \;
-
-# Allow write access to dd-agent for integration installation
-find ${CONFIG_DIR}/conf.d -type d -exec chmod 3770 {} \;
-find ${CONFIG_DIR}/conf.d -type f -exec chmod 660 {} \;
-chown -R dd-agent:dd-agent "${SITE_PACKAGES_DIR}" || true
-
-# This is done to allow integrations to install their binaries
-chown -R root:dd-agent ${INSTALL_DIR}/embedded/bin
-chmod g+w ${INSTALL_DIR}/embedded/bin
-chmod +t ${INSTALL_DIR}/embedded/bin
-
+# Set proper rights to the dd-agent user
+chown -R dd-agent:dd-agent ${CONFIG_DIR}
 chown -R dd-agent:dd-agent ${LOG_DIR}
-chown -R dd-agent:dd-agent ${RUN_DIR}
+chown -R dd-agent:dd-agent ${INSTALL_DIR}
 
-# Allow dd-agent to create files such as the auth token
-chmod g+w ${CONFIG_DIR}
-chmod +t ${CONFIG_DIR}
+# Make system-probe configs read-only
+chmod 0440 ${CONFIG_DIR}/system-probe.yaml.example || true
+if [ -f "$CONFIG_DIR/system-probe.yaml" ]; then
+    chmod 0440 ${CONFIG_DIR}/system-probe.yaml || true
+fi
+
+# Make security-agent config read-only
+chmod 0440 ${CONFIG_DIR}/security-agent.yaml.example || true
+if [ -f "$CONFIG_DIR/security-agent.yaml" ]; then
+    chmod 0440 ${CONFIG_DIR}/security-agent.yaml || true
+fi
+
+if [ -d "$CONFIG_DIR/compliance.d" ]; then
+    chown -R root:root ${CONFIG_DIR}/compliance.d || true
+fi
+
+if [ -d "$CONFIG_DIR/runtime-security.d" ]; then
+    chown -R root:root ${CONFIG_DIR}/runtime-security.d || true
+fi
+
+# Make the system-probe and security-agent binaries and eBPF programs owned by root
+chown root:root ${INSTALL_DIR}/embedded/bin/system-probe
+chown root:root ${INSTALL_DIR}/embedded/bin/security-agent
+chown -R root:root ${INSTALL_DIR}/embedded/share/system-probe/ebpf
+chown -R root:root ${INSTALL_DIR}/embedded/share/system-probe/java
 
 # Enable and restart the agent service here on Debian platforms
 # On RHEL, this is done in the posttrans script
