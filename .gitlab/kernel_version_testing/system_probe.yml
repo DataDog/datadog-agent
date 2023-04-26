@@ -7,7 +7,9 @@
     !reference [ .on_system_probe_changes_or_manual ]
   stage: kernel_matrix_testing
   script:
-    - git diff --name-only $(git merge-base $(inv release.get-release-json-value base_branch) HEAD) HEAD
+    - git checkout main
+    - git pull
+    - git checkout pythyu/better-systemprobe-detection
     - export DIFF_FILES=$(git diff --name-only $(git merge-base $(inv release.get-release-json-value base_branch) HEAD) HEAD)
     - echo "${DIFF_FILES}" | grep "pkg/collector/corechecks/ebpf/" || echo "${DIFF_FILES}" | grep "pkg/ebf/" || echo "${DIFF_FILES}" | grep "pkg/network/" || echo "${DIFF_FILES}" | grep "pkg/util/kernel" || echo "${DIFF_FILES}" | grep "test/kitchen/site-cookbooks/dd-system-probe-check/" || echo "${DIFF_FILES}" | grep "test/kitchen/test/integration/system-probe-test/" || echo "${DIFF_FILES}" | grep "test/kitchen/test/integration/win-sysprobe-test/" || echo "${DIFF_FILES}" | grep ".gitlab/functional_test/system_probe.yml" || echo "${DIFF_FILES}" | grep "test/new-e2e/system-probe/" || echo "${DIFF_FILES}" | grep "test/new-e2e/scenarios/system-probe/"; exit_code=$?
     - if [ ${exit_code} -eq 0 ]; then
