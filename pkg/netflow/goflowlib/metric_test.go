@@ -419,7 +419,7 @@ func TestConvertMetric(t *testing.T) {
 		{
 			name: "METRIC flow_process_nf_flows_sequence_reset_count",
 			metricFamily: &promClient.MetricFamily{
-				Name: proto.String("flow_process_nf_flows_sequence_resets"),
+				Name: proto.String("flow_process_nf_flows_sequence_reset_count"),
 				Type: promClient.MetricType_COUNTER.Enum(),
 			},
 			metric: &promClient.Metric{
@@ -432,7 +432,7 @@ func TestConvertMetric(t *testing.T) {
 				},
 			},
 			expectedMetricType: metrics.MonotonicCountType,
-			expectedName:       "processor.flows_sequence",
+			expectedName:       "processor.flows_sequence_resets",
 			expectedValue:      10.0,
 			expectedTags:       []string{"device_ip:1.2.3.4", "version:5", "flow_protocol:netflow", "engine_type:1", "engine_id:2"},
 			expectedErr:        "",
@@ -480,7 +480,7 @@ func TestConvertMetric(t *testing.T) {
 		{
 			name: "METRIC flow_process_nf_packets_sequence_reset_count",
 			metricFamily: &promClient.MetricFamily{
-				Name: proto.String("flow_process_nf_packets_sequence_resets"),
+				Name: proto.String("flow_process_nf_packets_sequence_reset_count"),
 				Type: promClient.MetricType_COUNTER.Enum(),
 			},
 			metric: &promClient.Metric{
@@ -491,8 +491,8 @@ func TestConvertMetric(t *testing.T) {
 					{Name: proto.String("obs_domain_id"), Value: proto.String("1")},
 				},
 			},
-			expectedMetricType: metrics.GaugeType,
-			expectedName:       "processor.packets_sequence",
+			expectedMetricType: metrics.MonotonicCountType,
+			expectedName:       "processor.packets_sequence_resets",
 			expectedValue:      10.0,
 			expectedTags:       []string{"device_ip:1.2.3.4", "version:10", "flow_protocol:netflow", "obs_domain_id:1"},
 			expectedErr:        "",
