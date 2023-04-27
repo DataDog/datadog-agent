@@ -75,7 +75,9 @@ func (s *Store) GetKubernetesPod(id string) (*workloadmeta.KubernetesPod, error)
 }
 
 // GetKubernetesPodForContainer returns a KubernetesPod that contains the
-// specified containerID.
+// specified containerID. The ownership information might lag because the kubelet check sets the owner field
+// but a container might be stored by CRI checks. Thus, the function might return an error when the pod
+// actually exists.
 func (s *Store) GetKubernetesPodForContainer(containerID string) (*workloadmeta.KubernetesPod, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
