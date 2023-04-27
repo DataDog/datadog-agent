@@ -9,7 +9,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/datadog/agent"
 )
 
-var _ stackInitializer = (*Agent)(nil)
+var _ clientService[agent.ClientData] = (*Agent)(nil)
 
 // A client Agent that is connected to an agent.Installer defined in test-infra-definition.
 type Agent struct {
@@ -19,12 +19,13 @@ type Agent struct {
 
 // Create a new instance of Agent
 func NewAgent(installer *agent.Installer) *Agent {
-	agent := &Agent{}
-	agent.UpResultDeserializer = NewUpResultDeserializer(installer.GetClientDataDeserializer(), agent.init)
-	return agent
+	agentInstance := &Agent{}
+	agentInstance.UpResultDeserializer = NewUpResultDeserializer[agent.ClientData](installer, agentInstance)
+	return agentInstance
 }
 
-func (agent *Agent) init(auth *Authentification, data *agent.ClientData) error {
+//lint:ignore U1000 Ignore unused function as this function is call using reflection
+func (agent *Agent) initService(auth *Authentification, data *agent.ClientData) error {
 	var err error
 	agent.sshClient, err = newSSHClient(auth, &data.Connection)
 	return err

@@ -9,7 +9,7 @@ import (
 	commonvm "github.com/DataDog/test-infra-definitions/common/vm"
 )
 
-var _ stackInitializer = (*VM)(nil)
+var _ clientService[commonvm.ClientData] = (*VM)(nil)
 
 // A client VM that is connected to a VM defined in test-infra-definition.
 type VM struct {
@@ -20,11 +20,12 @@ type VM struct {
 // Create a new instance of VM
 func NewVM(infraVM commonvm.VM) *VM {
 	vm := &VM{}
-	vm.UpResultDeserializer = NewUpResultDeserializer(infraVM.GetClientDataDeserializer(), vm.init)
+	vm.UpResultDeserializer = NewUpResultDeserializer[commonvm.ClientData](infraVM, vm)
 	return vm
 }
 
-func (vm *VM) init(auth *Authentification, data *commonvm.ClientData) error {
+//lint:ignore U1000 Ignore unused function as this function is call using reflection
+func (vm *VM) initService(auth *Authentification, data *commonvm.ClientData) error { //lint:ignore U1000 Ignore unused function temporarily for debugging
 	var err error
 	vm.sshClient, err = newSSHClient(auth, &data.Connection)
 	return err
