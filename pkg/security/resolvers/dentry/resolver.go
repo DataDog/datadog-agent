@@ -356,7 +356,7 @@ func (dr *Resolver) ResolveFromCache(mountID uint32, inode uint64) (string, erro
 		depth++
 
 		// Don't append dentry name if this is the root dentry (i.d. name == '/')
-		if path.Name[0] != '\x00' && path.Name[0] != '/' {
+		if len(path.Name) != 0 && path.Name[0] != '\x00' && path.Name[0] != '/' {
 			filenameParts = append(filenameParts, path.Name)
 		}
 
