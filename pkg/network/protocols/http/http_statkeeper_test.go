@@ -24,9 +24,9 @@ import (
 func TestProcessHTTPTransactions(t *testing.T) {
 	cfg := config.New()
 	cfg.MaxHTTPStatsBuffered = 1000
-	tel, err := newTelemetry()
+	tel, err := NewTelemetry()
 	require.NoError(t, err)
-	sk := newHTTPStatkeeper(cfg, tel)
+	sk := NewHTTPStatkeeper(cfg, tel)
 
 	srcString := "1.1.1.1"
 	dstString := "2.2.2.2"
@@ -71,9 +71,9 @@ func TestProcessHTTPTransactions(t *testing.T) {
 
 func BenchmarkProcessSameConn(b *testing.B) {
 	cfg := &config.Config{MaxHTTPStatsBuffered: 1000}
-	tel, err := newTelemetry()
+	tel, err := NewTelemetry()
 	require.NoError(b, err)
-	sk := newHTTPStatkeeper(cfg, tel)
+	sk := NewHTTPStatkeeper(cfg, tel)
 	tx := generateIPv4HTTPTransaction(
 		util.AddressFromString("1.1.1.1"),
 		util.AddressFromString("2.2.2.2"),
@@ -102,13 +102,13 @@ func TestPathProcessing(t *testing.T) {
 	)
 	cfg := config.New()
 	cfg.MaxHTTPStatsBuffered = 1000
-	setupStatKeeper := func(rules []*config.ReplaceRule) *httpStatKeeper {
+	setupStatKeeper := func(rules []*config.ReplaceRule) *HttpStatKeeper {
 		c := cfg
 		c.HTTPReplaceRules = rules
 
-		tel, err := newTelemetry()
+		tel, err := NewTelemetry()
 		require.NoError(t, err)
-		return newHTTPStatkeeper(c, tel)
+		return NewHTTPStatkeeper(c, tel)
 	}
 
 	t.Run("reject rule", func(t *testing.T) {
@@ -119,7 +119,7 @@ func TestPathProcessing(t *testing.T) {
 		}
 
 		sk := setupStatKeeper(rules)
-		transactions := []httpTX{
+		transactions := []HttpTX{
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/foobar", statusCode, latency),
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/payment/123", statusCode, latency),
 		}
@@ -143,7 +143,7 @@ func TestPathProcessing(t *testing.T) {
 		}
 
 		sk := setupStatKeeper(rules)
-		transactions := []httpTX{
+		transactions := []HttpTX{
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/prefix/users/1", statusCode, latency),
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/prefix/users/2", statusCode, latency),
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/prefix/users/3", statusCode, latency),
@@ -175,7 +175,7 @@ func TestPathProcessing(t *testing.T) {
 		}
 
 		sk := setupStatKeeper(rules)
-		transactions := []httpTX{
+		transactions := []HttpTX{
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/users/ana/payment/123", statusCode, latency),
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/users/bob/payment/456", statusCode, latency),
 		}
@@ -199,9 +199,9 @@ func TestHTTPCorrectness(t *testing.T) {
 		cfg := config.New()
 		cfg.MaxHTTPStatsBuffered = 1000
 		libtelemetry.Clear()
-		tel, err := newTelemetry()
+		tel, err := NewTelemetry()
 		require.NoError(t, err)
-		sk := newHTTPStatkeeper(cfg, tel)
+		sk := NewHTTPStatkeeper(cfg, tel)
 		tx := generateIPv4HTTPTransaction(
 			util.AddressFromString("1.1.1.1"),
 			util.AddressFromString("2.2.2.2"),
@@ -213,7 +213,7 @@ func TestHTTPCorrectness(t *testing.T) {
 		)
 
 		sk.Process(tx)
-		tel.log()
+		tel.Log()
 		require.Equal(t, int64(1), tel.malformed.Get())
 
 		stats := sk.GetAndResetAllStats()
@@ -224,9 +224,9 @@ func TestHTTPCorrectness(t *testing.T) {
 		cfg := config.New()
 		cfg.MaxHTTPStatsBuffered = 1000
 		libtelemetry.Clear()
-		tel, err := newTelemetry()
+		tel, err := NewTelemetry()
 		require.NoError(t, err)
-		sk := newHTTPStatkeeper(cfg, tel)
+		sk := NewHTTPStatkeeper(cfg, tel)
 		tx := generateIPv4HTTPTransaction(
 			util.AddressFromString("1.1.1.1"),
 			util.AddressFromString("2.2.2.2"),
@@ -239,7 +239,7 @@ func TestHTTPCorrectness(t *testing.T) {
 		tx.SetRequestMethod(MethodUnknown)
 
 		sk.Process(tx)
-		tel.log()
+		tel.Log()
 		require.Equal(t, int64(1), tel.malformed.Get())
 
 		stats := sk.GetAndResetAllStats()
@@ -250,9 +250,9 @@ func TestHTTPCorrectness(t *testing.T) {
 		cfg := config.New()
 		cfg.MaxHTTPStatsBuffered = 1000
 		libtelemetry.Clear()
-		tel, err := newTelemetry()
+		tel, err := NewTelemetry()
 		require.NoError(t, err)
-		sk := newHTTPStatkeeper(cfg, tel)
+		sk := NewHTTPStatkeeper(cfg, tel)
 		tx := generateIPv4HTTPTransaction(
 			util.AddressFromString("1.1.1.1"),
 			util.AddressFromString("2.2.2.2"),
@@ -264,7 +264,7 @@ func TestHTTPCorrectness(t *testing.T) {
 		)
 
 		sk.Process(tx)
-		tel.log()
+		tel.Log()
 		require.Equal(t, int64(1), tel.malformed.Get())
 
 		stats := sk.GetAndResetAllStats()

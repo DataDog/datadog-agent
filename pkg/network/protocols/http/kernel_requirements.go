@@ -12,7 +12,6 @@ import (
 	"runtime"
 	"strings"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -27,16 +26,6 @@ var HTTP2MinimumKernelVersion kernel.Version
 func init() {
 	MinimumKernelVersion = kernel.VersionCode(4, 14, 0)
 	HTTP2MinimumKernelVersion = kernel.VersionCode(5, 2, 0)
-}
-
-// ErrNotSupported indicates that the current host doesn't fullfil the
-// requirements for HTTP monitoring
-type ErrNotSupported struct {
-	error
-}
-
-func (e *ErrNotSupported) Unwrap() error {
-	return e.error
 }
 
 func runningOnARM() bool {
@@ -67,18 +56,4 @@ func HTTP2Supported() bool {
 	}
 
 	return kversion >= HTTP2MinimumKernelVersion
-}
-
-func sysOpenAt2Supported(c *config.Config) bool {
-	missing, err := ddebpf.VerifyKernelFuncs(doSysOpenAt2.section)
-	if err == nil && len(missing) == 0 {
-		return true
-	}
-	kversion, err := kernel.HostVersion()
-	if err != nil {
-		log.Error("could not determine the current kernel version. fallback to do_sys_open")
-		return false
-	}
-
-	return kversion >= kernel.VersionCode(5, 6, 0)
 }
