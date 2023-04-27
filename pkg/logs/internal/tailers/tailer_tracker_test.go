@@ -1,0 +1,92 @@
+package tailers
+
+import (
+	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
+	assert "github.com/stretchr/testify/require"
+)
+
+type TestTailer1 struct {
+	id   string
+	info *status.InfoRegistry
+}
+
+func NewTestTaler1(id string) *TestTailer1 {
+	return &TestTailer1{
+		id:   id,
+		info: status.NewInfoRegistry(),
+	}
+}
+
+func (t *TestTailer1) GetId() string {
+	return t.id
+}
+func (t *TestTailer1) GetType() string {
+	return "test"
+}
+func (t *TestTailer1) GetInfo() *status.InfoRegistry {
+	return t.info
+}
+
+type TestTailer2 struct {
+	id   string
+	info *status.InfoRegistry
+}
+
+func NewTestTaler2(id string) *TestTailer2 {
+	return &TestTailer2{
+		id:   id,
+		info: status.NewInfoRegistry(),
+	}
+}
+
+func (t *TestTailer2) GetId() string {
+	return t.id
+}
+func (t *TestTailer2) GetType() string {
+	return "test"
+}
+func (t *TestTailer2) GetInfo() *status.InfoRegistry {
+	return t.info
+}
+
+func TestCollectAllTailers(t *testing.T) {
+
+	container1 := NewTailerContainer[*TestTailer1]()
+	container1.Add(NewTestTaler1("1a"))
+	t1b := NewTestTaler1("1b")
+	container1.Add(t1b)
+
+	container2 := NewTailerContainer[*TestTailer2]()
+	container2.Add(NewTestTaler2("2a"))
+	container2.Add(NewTestTaler2("2b"))
+
+	tracker := NewTailerTracker()
+	tracker.Add(container1)
+	tracker.Add(container2)
+
+	tailers := tracker.All()
+	assert.Equal(t, 4, len(tailers))
+
+	results := make(map[string]bool)
+	for _, t := range tailers {
+		results[t.GetId()] = true
+	}
+
+	for _, k := range []string{"1a", "1b", "2a", "2b"} {
+		assert.True(t, results[k])
+	}
+
+	container1.Remove(t1b)
+
+	results = make(map[string]bool)
+	for _, t := range tailers {
+		results[t.GetId()] = true
+	}
+
+	for _, k := range []string{"1a", "2a", "2b"} {
+		assert.True(t, results[k])
+	}
+
+}

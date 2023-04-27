@@ -7,6 +7,7 @@ package launchers
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
@@ -18,7 +19,7 @@ import (
 // the agent, and stopped when it stops.
 type Launcher interface {
 	// Start the launcher.
-	Start(sourceProvider SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry)
+	Start(sourceProvider SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tailers *tailers.TailerTracker)
 
 	// Stop the launcher, and wait until shutdown is complete.  It is not
 	// necessary to unsubscribe from the sourceProvider, but any background

@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/listener"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/windowsevent"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
@@ -33,7 +34,7 @@ import (
 )
 
 // NewAgent returns a new Logs Agent
-func NewAgent(sources *sources.LogSources, services *service.Services, processingRules []*config.ProcessingRule, endpoints *config.Endpoints) *Agent {
+func NewAgent(sources *sources.LogSources, services *service.Services, tailers *tailers.TailerTracker, processingRules []*config.ProcessingRule, endpoints *config.Endpoints) *Agent {
 	health := health.RegisterLiveness("logs-agent")
 
 	// setup the auditor
@@ -48,7 +49,7 @@ func NewAgent(sources *sources.LogSources, services *service.Services, processin
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsCtx)
 
 	// setup the launchers
-	lnchrs := launchers.NewLaunchers(sources, pipelineProvider, auditor)
+	lnchrs := launchers.NewLaunchers(sources, pipelineProvider, auditor, tailers)
 	lnchrs.AddLauncher(filelauncher.NewLauncher(
 		coreConfig.Datadog.GetInt("logs_config.open_files_limit"),
 		filelauncher.DefaultSleepDuration,

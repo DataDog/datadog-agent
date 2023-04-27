@@ -13,6 +13,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 
@@ -57,6 +58,7 @@ func start() (*Agent, error) {
 	// setup the sources and the services
 	sources := sources.NewLogSources()
 	services := service.NewServices()
+	tailers := tailers.NewTailerTracker()
 
 	// setup the server config
 	endpoints, err := buildEndpoints()
@@ -73,7 +75,7 @@ func start() (*Agent, error) {
 	inventories.SetAgentMetadata(inventories.AgentLogsTransport, status.CurrentTransport)
 
 	// setup the status
-	status.Init(isRunning, endpoints, sources, metrics.LogsExpvars)
+	status.Init(isRunning, endpoints, sources, tailers, metrics.LogsExpvars)
 
 	// setup global processing rules
 	processingRules, err := config.GlobalProcessingRules()
@@ -90,7 +92,7 @@ func start() (*Agent, error) {
 
 	// setup and start the logs agent
 	log.Info("Starting logs-agent...")
-	agent = NewAgent(sources, services, processingRules, endpoints)
+	agent = NewAgent(sources, services, tailers, processingRules, endpoints)
 
 	agent.Start()
 	isRunning.Store(true)

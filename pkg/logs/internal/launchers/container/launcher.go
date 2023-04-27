@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/container/tailerfactory"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -66,7 +67,7 @@ func NewLauncher(sources *sourcesPkg.LogSources) *Launcher {
 }
 
 // Start starts the Launcher
-func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
+func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tailers *tailers.TailerTracker) {
 	// only start this launcher once it's determined that we should be logging containers, and not pods.
 	ctx, cancel := context.WithCancel(context.Background())
 	l.cancel = cancel
