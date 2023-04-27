@@ -128,12 +128,12 @@ func Flush(ctx context.Context) {
 
 // IsAgentRunning returns true if the logs-agent is running.
 func IsAgentRunning() bool {
-	return status.Get().IsRunning
+	return status.Get(false).IsRunning
 }
 
 // GetStatus returns logs-agent status
-func GetStatus() status.Status {
-	return status.Get()
+func GetStatus(verbose bool) status.Status {
+	return status.Get(verbose)
 }
 
 // GetMessageReceiver returns the diagnostic message receiver

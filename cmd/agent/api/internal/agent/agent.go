@@ -190,7 +190,8 @@ func componentStatusHandler(w http.ResponseWriter, r *http.Request) {
 
 func getStatus(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got a request for the status. Making status.")
-	s, err := status.GetStatus()
+	verbose := r.URL.Query().Get("verbose") == "true"
+	s, err := status.GetStatus(verbose)
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
 		setJSONError(w, log.Errorf("Error getting status. Error: %v, Status: %v", err, s), 500)

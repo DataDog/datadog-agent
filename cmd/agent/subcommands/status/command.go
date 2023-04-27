@@ -41,6 +41,7 @@ type cliParams struct {
 	jsonStatus      bool
 	prettyPrintJSON bool
 	statusFilePath  string
+	verbose         bool
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -74,6 +75,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd.Flags().BoolVarP(&cliParams.jsonStatus, "json", "j", false, "print out raw json")
 	cmd.Flags().BoolVarP(&cliParams.prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
 	cmd.Flags().StringVarP(&cliParams.statusFilePath, "file", "o", "", "Output the status command to a file")
+	cmd.Flags().BoolVarP(&cliParams.verbose, "verbose", "v", false, "print out verbose status")
 
 	componentCmd := &cobra.Command{
 		Use:   "component",
@@ -141,7 +143,11 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 	if err != nil {
 		return err
 	}
-	urlstr := fmt.Sprintf("https://%v:%v/agent/status", ipcAddress, config.GetInt("cmd_port"))
+	args := ""
+	if cliParams.verbose {
+		args = "?verbose=true"
+	}
+	urlstr := fmt.Sprintf("https://%v:%v/agent/status%v", ipcAddress, config.GetInt("cmd_port"), args)
 	r, err := makeRequest(urlstr)
 	if err != nil {
 		return err

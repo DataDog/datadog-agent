@@ -78,13 +78,13 @@ func Clear() {
 }
 
 // Get returns the status of the logs-agent computed on the fly.
-func Get() Status {
+func Get(verbose bool) Status {
 	if builder == nil {
 		return Status{
 			IsRunning: false,
 		}
 	}
-	return builder.BuildStatus()
+	return builder.BuildStatus(verbose)
 }
 
 // AddGlobalWarning keeps track of a warning message to display on the status.
@@ -111,12 +111,12 @@ func AddGlobalError(key string, errorMessage string) {
 
 func init() {
 	metrics.LogsExpvars.Set("Errors", expvar.Func(func() interface{} {
-		return strings.Join(Get().Errors, ", ")
+		return strings.Join(Get(false).Errors, ", ")
 	}))
 	metrics.LogsExpvars.Set("Warnings", expvar.Func(func() interface{} {
-		return strings.Join(Get().Warnings, ", ")
+		return strings.Join(Get(false).Warnings, ", ")
 	}))
 	metrics.LogsExpvars.Set("IsRunning", expvar.Func(func() interface{} {
-		return Get().IsRunning
+		return Get(false).IsRunning
 	}))
 }
