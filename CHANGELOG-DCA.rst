@@ -2,6 +2,35 @@
 Release Notes
 =============
 
+.. _Release Notes_7.44.0:
+
+7.44.0 / 6.44.0
+======
+
+.. _Release Notes_7.44.0_New Features:
+
+New Features
+------------
+
+- Add conditions to Vertical Pod Autoscalers
+
+- Experimental: Support Ruby library injection through the Admission Controller on Kubernetes.
+
+
+.. _Release Notes_7.44.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add new metrics for the KSM Core check for extended resources:
+  - Pod requests and limits of the network bandwidth extended resource: `kubernetes_state.container.network_bandwidth_limit`, `kubernetes_state.container.network_bandwidth_requested`
+  - The capacity and allocatable network bandwidth extended resource of a node: `kubernetes_state.node.network_bandwidth_allocatable`, `kubernetes_state.node.network_bandwidth_capacity`
+
+- Admission Controller: Add telemetry around auto-instrumentation via remote config.
+
+- The UDS socket volume when using the Admission Controller is now mounted in readOnly mode.
+
+
 .. _Release Notes_7.43.0:
 
 7.43.0 / 6.43.0
