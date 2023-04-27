@@ -10,8 +10,11 @@
 #include "protocols/classification/structs.h"
 #include "protocols/classification/dispatcher-maps.h"
 #include "protocols/http/classification-helpers.h"
+#include "protocols/http/usm-events.h"
 #include "protocols/http2/helpers.h"
+#include "protocols/http2/usm-events.h"
 #include "protocols/kafka/kafka-classification.h"
+#include "protocols/kafka/usm-events.h"
 
 // Returns true if the payload represents a TCP termination by checking if the tcp flags contains TCPHDR_FIN or TCPHDR_RST.
 static __always_inline bool is_tcp_termination(skb_info_t *skb_info) {
