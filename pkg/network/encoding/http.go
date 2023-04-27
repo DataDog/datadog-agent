@@ -119,6 +119,7 @@ func (e *httpEncoder) Close() {
 		return
 	}
 
+	e.reset()
 	e.byConnection.Close()
 }
 
@@ -138,28 +139,25 @@ func (e *httpEncoder) reset() {
 		return
 	}
 
-	for i, endpointAggregation := range e.aggregations.EndpointAggregations {
-		for _, s := range endpointAggregation.StatsByStatusCode {
+	byEndpoint := e.aggregations.EndpointAggregations
+	for i, endpointAggregation := range byEndpoint {
+		byStatus := endpointAggregation.StatsByStatusCode
+		for k, s := range byStatus {
 			s.Reset()
 			httpStatsDataPool.Put(s)
-		}
-
-		// this is an idiom recognized by the go compiler and does not
-		// result in iterating in the map, but clearing it
-		// TODO: add link to source
-		for k := range endpointAggregation.StatsByStatusCode {
-			delete(endpointAggregation.StatsByStatusCode, k)
+			byStatus[k] = nil
 		}
 
 		endpointAggregation.Reset()
 		httpStatsPool.Put(endpointAggregation)
-		e.aggregations.EndpointAggregations[i] = nil
+		byEndpoint[i] = nil
 	}
 
 	for i, mapPtr := range e.toRelease {
 		httpStatusCodeMap.Put(mapPtr)
 		e.toRelease[i] = nil
 	}
+
 	e.toRelease = e.toRelease[:0]
 	e.aggregations.EndpointAggregations = e.aggregations.EndpointAggregations[:0]
 }

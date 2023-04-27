@@ -15,7 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// USMDataByConnection indexes USM data by Connection
+// USMDataIndexes provides a generic container where data is indexed by
+// Connection, so it can be later on used during the encoding process
 type USMDataByConnection[K comparable, V any] struct {
 	data     map[types.ConnectionKey]*USMConnectionData[K, V]
 	protocol string

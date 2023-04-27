@@ -274,9 +274,9 @@ func testIDCollisionRegression(t *testing.T, aggregateByStatusCode bool) {
 }
 
 func TestLocalhostScenario(t *testing.T) {
-	// t.Run("status code", func(t *testing.T) {
-	// 	testLocalhostScenario(t, true)
-	// })
+	t.Run("status code", func(t *testing.T) {
+		testLocalhostScenario(t, true)
+	})
 	t.Run("status class", func(t *testing.T) {
 		testLocalhostScenario(t, false)
 	})
