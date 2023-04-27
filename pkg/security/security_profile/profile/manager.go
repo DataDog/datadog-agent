@@ -510,7 +510,7 @@ func (m *SecurityProfileManager) LookupEventOnProfiles(event *model.Event) {
 		return
 	}
 
-	if event.PathResolutionError != nil {
+	if event.Error != nil {
 		m.eventFilteringAbsent[evtType].Inc()
 		return
 	}

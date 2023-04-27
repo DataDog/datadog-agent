@@ -6,7 +6,7 @@
 //go:build linux_bpf
 // +build linux_bpf
 
-package http
+package usm
 
 import (
 	"fmt"
@@ -29,6 +29,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 )
@@ -427,7 +428,7 @@ func checkWatcherStateIsClean(t *testing.T, watcher *soWatcher) {
 
 func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {
 	c := config.New()
-	if !HTTPSSupported(c) {
+	if !http.HTTPSSupported(c) {
 		t.Skip("https not supported for this setup")
 	}
 

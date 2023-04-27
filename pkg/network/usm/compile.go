@@ -6,7 +6,7 @@
 //go:build linux_bpf
 // +build linux_bpf
 
-package http
+package usm
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
@@ -14,8 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 )
 
-//go:generate go run ../../../../pkg/ebpf/include_headers.go ../../../../pkg/network/ebpf/c/runtime/http.c ../../../../pkg/ebpf/bytecode/build/runtime/http.c ../../../../pkg/ebpf/c ../../../../pkg/ebpf/c/protocols ../../../../pkg/network/ebpf/c/runtime ../../../../pkg/network/ebpf/c
-//go:generate go run ../../../../pkg/ebpf/bytecode/runtime/integrity.go ../../../../pkg/ebpf/bytecode/build/runtime/http.c ../../../../pkg/ebpf/bytecode/runtime/http.go runtime
+//go:generate go run ../../../pkg/ebpf/include_headers.go ../../../pkg/network/ebpf/c/runtime/http.c ../../../pkg/ebpf/bytecode/build/runtime/http.c ../../../pkg/ebpf/c ../../../pkg/ebpf/c/protocols ../../../pkg/network/ebpf/c/runtime ../../../pkg/network/ebpf/c
+//go:generate go run ../../../pkg/ebpf/bytecode/runtime/integrity.go ../../../pkg/ebpf/bytecode/build/runtime/http.c ../../../pkg/ebpf/bytecode/runtime/http.go runtime
 
 func getRuntimeCompiledHTTP(config *config.Config) (runtime.CompiledOutput, error) {
 	return runtime.Http.Compile(&config.Config, getCFlags(config), statsd.Client)
