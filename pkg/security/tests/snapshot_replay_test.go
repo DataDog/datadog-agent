@@ -12,24 +12,13 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"log"
-	"os/exec"
 	"testing"
 )
 
 func TestSnapshotReplay(t *testing.T) {
-	ncExec := which(t, "nc")
-	cmd := exec.Command(ncExec, "-l", "4242")
-
-	if err := cmd.Start(); err != nil {
-		log.Fatal(err)
-	}
-
-	defer cmd.Process.Kill()
-
 	ruleDef := &rules.RuleDefinition{
-		ID:         "test_rule_nc",
-		Expression: fmt.Sprintf(`exec.comm in ["socat", "dig", "nslookup", "host", ~"netcat*", ~"nc*", "ncat"] `),
+		ID:         "test_rule_snapshot_replay",
+		Expression: fmt.Sprintf(`exec.comm in ["testsuite"] `),
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
@@ -45,7 +34,7 @@ func TestSnapshotReplay(t *testing.T) {
 			go test.probe.PlaySnapshot()
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_rule_nc")
+			assertTriggeredRule(t, rule, "test_rule_snapshot_replay")
 			test.validateExecSchema(t, event)
 		})
 	})
