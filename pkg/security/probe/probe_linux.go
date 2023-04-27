@@ -331,11 +331,10 @@ func (p *Probe) PlaySnapshot() {
 	}
 }
 
-func (p *Probe) SendAnomalyDetection(event *model.Event) {
-	evtType := event.GetEventType()
-	if evtType != model.DNSEventType &&
-		evtType != model.ExecEventType {
-		return // at least, files, bind, fork and exit
+func (p *Probe) sendAnomalyDetection(event *model.Event) {
+	tags := p.GetEventTags(event)
+	if service := p.GetService(event); service != "" {
+		tags = append(tags, "service:"+service)
 	}
 
 	p.DispatchCustomEvent(
