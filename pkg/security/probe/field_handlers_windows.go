@@ -25,8 +25,8 @@ func (fh *FieldHandlers) ResolveEventTimestamp(ev *model.Event) time.Time {
 	return ev.Timestamp
 }
 
-// GetProcessServiceTag returns the service tag based on the process context
-func (fh *FieldHandlers) GetProcessServiceTag(ev *model.Event) string {
+// GetProcessService returns the service tag based on the process context
+func (fh *FieldHandlers) GetProcessService(ev *model.Event) string {
 	return ""
 }
 
