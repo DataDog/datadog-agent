@@ -6,6 +6,7 @@
 package decoder
 
 import (
+	"fmt"
 	"regexp"
 	"sort"
 	"sync"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/benbjohnson/clock"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -48,22 +50,24 @@ func (d *DetectedPattern) Get() *regexp.Regexp {
 // AutoMultilineHandler can attempts to detect a known/commob pattern (a timestamp) in the logs
 // and will switch to a MultiLine handler if one is detected and the thresholds are met.
 type AutoMultilineHandler struct {
-	multiLineHandler  *MultiLineHandler
-	singleLineHandler *SingleLineHandler
-	outputFn          func(*Message)
-	isRunning         bool
-	linesToAssess     int
-	linesTested       int
-	lineLimit         int
-	matchThreshold    float64
-	scoredMatches     []*scoredPattern
-	processFunc       func(message *Message)
-	flushTimeout      time.Duration
-	source            *sources.ReplaceableSource
-	matchTimeout      time.Duration
-	timeoutTimer      *clock.Timer
-	detectedPattern   *DetectedPattern
-	clk               clock.Clock
+	multiLineHandler    *MultiLineHandler
+	singleLineHandler   *SingleLineHandler
+	outputFn            func(*Message)
+	isRunning           bool
+	linesToAssess       int
+	linesTested         int
+	lineLimit           int
+	matchThreshold      float64
+	scoredMatches       []*scoredPattern
+	processFunc         func(message *Message)
+	flushTimeout        time.Duration
+	source              *sources.ReplaceableSource
+	matchTimeout        time.Duration
+	timeoutTimer        *clock.Timer
+	detectedPattern     *DetectedPattern
+	clk                 clock.Clock
+	tailerInfo          *status.InfoRegistry
+	autoMultiLineStatus *status.MappedInfo
 }
 
 // NewAutoMultilineHandler returns a new AutoMultilineHandler.
@@ -76,6 +80,7 @@ func NewAutoMultilineHandler(
 	source *sources.ReplaceableSource,
 	additionalPatterns []*regexp.Regexp,
 	detectedPattern *DetectedPattern,
+	tailerInfo *status.InfoRegistry,
 ) *AutoMultilineHandler {
 
 	// Put the user patterns at the beginning of the list so we prioritize them if there is a conflicting match.
@@ -89,22 +94,26 @@ func NewAutoMultilineHandler(
 		}
 	}
 	h := &AutoMultilineHandler{
-		outputFn:        outputFn,
-		isRunning:       true,
-		lineLimit:       lineLimit,
-		matchThreshold:  matchThreshold,
-		scoredMatches:   scoredMatches,
-		linesToAssess:   linesToAssess,
-		flushTimeout:    flushTimeout,
-		source:          source,
-		matchTimeout:    matchTimeout,
-		timeoutTimer:    nil,
-		detectedPattern: detectedPattern,
-		clk:             clock.New(),
+		outputFn:            outputFn,
+		isRunning:           true,
+		lineLimit:           lineLimit,
+		matchThreshold:      matchThreshold,
+		scoredMatches:       scoredMatches,
+		linesToAssess:       linesToAssess,
+		flushTimeout:        flushTimeout,
+		source:              source,
+		matchTimeout:        matchTimeout,
+		timeoutTimer:        nil,
+		detectedPattern:     detectedPattern,
+		clk:                 clock.New(),
+		tailerInfo:          tailerInfo,
+		autoMultiLineStatus: status.NewMappedInfo("Auto Multi-line"),
 	}
 
 	h.singleLineHandler = NewSingleLineHandler(outputFn, lineLimit)
 	h.processFunc = h.processAndTry
+	h.tailerInfo.Register(h.autoMultiLineStatus)
+	h.autoMultiLineStatus.SetMessage("state", "Waiting for logs")
 
 	return h
 }
@@ -152,32 +161,40 @@ func (h *AutoMultilineHandler) processAndTry(message *Message) {
 		h.timeoutTimer = h.clk.Timer(h.matchTimeout)
 	}
 
+	h.linesTested++
+
 	timeout := false
 	select {
 	case <-h.timeoutTimer.C:
 		log.Debug("Multiline auto detect timed out before reaching line test threshold")
+		h.autoMultiLineStatus.SetMessage("message", fmt.Sprintf("Timeout reached. Processed (%d of %d) logs during detection", h.linesTested, h.linesToAssess))
 		timeout = true
 		break
 	default:
 		break
 	}
 
-	h.linesTested++
+	h.autoMultiLineStatus.SetMessage("state", fmt.Sprintf("Detecting (%d of %d)", h.linesTested, h.linesToAssess))
+
 	if h.linesTested >= h.linesToAssess || timeout {
 		topMatch := h.scoredMatches[0]
 		matchRatio := float64(topMatch.score) / float64(h.linesTested)
+		var message string
 
 		if matchRatio >= h.matchThreshold {
-			log.Debugf("Pattern %v matched %d lines with a ratio of %f", topMatch.regexp.String(), topMatch.score, matchRatio)
+			message = fmt.Sprintf("Pattern %v matched %d lines with a ratio of %f", topMatch.regexp.String(), topMatch.score, matchRatio)
 			telemetry.GetStatsTelemetryProvider().Count(autoMultiLineTelemetryMetricName, 1, []string{"success:true"})
 			h.detectedPattern.Set(topMatch.regexp)
 			h.switchToMultilineHandler(topMatch.regexp)
 		} else {
-			log.Debugf("No pattern met the line match threshold: %f during multiline auto detection. Top match was %v with a match ratio of: %f - using single line handler", h.matchThreshold, topMatch.regexp.String(), matchRatio)
+			message = fmt.Sprintf("No pattern met the line match threshold: %f during multiline auto detection. Top match was %v with a match ratio of: %f - using single line handler", h.matchThreshold, topMatch.regexp.String(), matchRatio)
+
 			telemetry.GetStatsTelemetryProvider().Count(autoMultiLineTelemetryMetricName, 1, []string{"success:false"})
 			// Stay with the single line handler and no longer attempt to detect multiline matches.
 			h.processFunc = h.singleLineHandler.process
 		}
+		h.autoMultiLineStatus.SetMessage("state", message)
+		log.Debugf(message)
 	}
 }
 
