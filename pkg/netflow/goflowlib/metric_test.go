@@ -417,6 +417,27 @@ func TestConvertMetric(t *testing.T) {
 			expectedErr:        "",
 		},
 		{
+			name: "METRIC flow_process_nf_flows_sequence_reset_count",
+			metricFamily: &promClient.MetricFamily{
+				Name: proto.String("flow_process_nf_flows_sequence_resets"),
+				Type: promClient.MetricType_COUNTER.Enum(),
+			},
+			metric: &promClient.Metric{
+				Counter: &promClient.Counter{Value: proto.Float64(10)},
+				Label: []*promClient.LabelPair{
+					{Name: proto.String("router"), Value: proto.String("1.2.3.4")},
+					{Name: proto.String("version"), Value: proto.String("5")},
+					{Name: proto.String("engine_type"), Value: proto.String("1")},
+					{Name: proto.String("engine_id"), Value: proto.String("2")},
+				},
+			},
+			expectedMetricType: metrics.MonotonicCountType,
+			expectedName:       "processor.flows_sequence",
+			expectedValue:      10.0,
+			expectedTags:       []string{"device_ip:1.2.3.4", "version:5", "flow_protocol:netflow", "engine_type:1", "engine_id:2"},
+			expectedErr:        "",
+		},
+		{
 			name: "METRIC flow_process_nf_packets_missing",
 			metricFamily: &promClient.MetricFamily{
 				Name: proto.String("flow_process_nf_packets_missing"),
@@ -444,6 +465,26 @@ func TestConvertMetric(t *testing.T) {
 			},
 			metric: &promClient.Metric{
 				Gauge: &promClient.Gauge{Value: proto.Float64(10)},
+				Label: []*promClient.LabelPair{
+					{Name: proto.String("router"), Value: proto.String("1.2.3.4")},
+					{Name: proto.String("version"), Value: proto.String("10")},
+					{Name: proto.String("obs_domain_id"), Value: proto.String("1")},
+				},
+			},
+			expectedMetricType: metrics.GaugeType,
+			expectedName:       "processor.packets_sequence",
+			expectedValue:      10.0,
+			expectedTags:       []string{"device_ip:1.2.3.4", "version:10", "flow_protocol:netflow", "obs_domain_id:1"},
+			expectedErr:        "",
+		},
+		{
+			name: "METRIC flow_process_nf_packets_sequence_reset_count",
+			metricFamily: &promClient.MetricFamily{
+				Name: proto.String("flow_process_nf_packets_sequence_resets"),
+				Type: promClient.MetricType_COUNTER.Enum(),
+			},
+			metric: &promClient.Metric{
+				Counter: &promClient.Counter{Value: proto.Float64(10)},
 				Label: []*promClient.LabelPair{
 					{Name: proto.String("router"), Value: proto.String("1.2.3.4")},
 					{Name: proto.String("version"), Value: proto.String("10")},
@@ -647,7 +688,7 @@ func TestMetricConverter_ConvertMetrics(t *testing.T) {
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},
 						},
 						{
-							MetricType: metrics.CountType,
+							MetricType: metrics.GaugeType,
 							Name:       "datadog.netflow.processor.flows_missing_count",
 							Value:      10,
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},
@@ -663,21 +704,6 @@ func TestMetricConverter_ConvertMetrics(t *testing.T) {
 				{
 					promMetrics: []*promClient.MetricFamily{
 						{
-							Name: proto.String("flow_process_nf_flows_sequence"),
-							Type: promClient.MetricType_GAUGE.Enum(),
-							Metric: []*promClient.Metric{
-								{
-									Gauge: &promClient.Gauge{Value: proto.Float64(2000)},
-									Label: []*promClient.LabelPair{
-										{Name: proto.String("router"), Value: proto.String("1.2.3.4")},
-										{Name: proto.String("version"), Value: proto.String("5")},
-										{Name: proto.String("engine_type"), Value: proto.String("1")},
-										{Name: proto.String("engine_id"), Value: proto.String("2")},
-									},
-								},
-							},
-						},
-						{
 							Name: proto.String("flow_process_nf_flows_missing"),
 							Type: promClient.MetricType_GAUGE.Enum(),
 							Metric: []*promClient.Metric{
@@ -692,12 +718,27 @@ func TestMetricConverter_ConvertMetrics(t *testing.T) {
 								},
 							},
 						},
+						{
+							Name: proto.String("flow_process_nf_flows_sequence_reset_count"),
+							Type: promClient.MetricType_COUNTER.Enum(),
+							Metric: []*promClient.Metric{
+								{
+									Counter: &promClient.Counter{Value: proto.Float64(0)},
+									Label: []*promClient.LabelPair{
+										{Name: proto.String("router"), Value: proto.String("1.2.3.4")},
+										{Name: proto.String("version"), Value: proto.String("5")},
+										{Name: proto.String("engine_type"), Value: proto.String("1")},
+										{Name: proto.String("engine_id"), Value: proto.String("2")},
+									},
+								},
+							},
+						},
 					},
 					metricSamples: []MetricSample{
 						{
-							MetricType: metrics.GaugeType,
-							Name:       "datadog.netflow.processor.flows_sequence",
-							Value:      2000,
+							MetricType: metrics.MonotonicCountType,
+							Name:       "datadog.netflow.processor.flows_sequence_resets",
+							Value:      0,
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},
 						},
 						{
@@ -707,7 +748,7 @@ func TestMetricConverter_ConvertMetrics(t *testing.T) {
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},
 						},
 						{
-							MetricType: metrics.CountType,
+							MetricType: metrics.GaugeType,
 							Name:       "datadog.netflow.processor.flows_missing_count",
 							Value:      10,
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},
@@ -718,11 +759,11 @@ func TestMetricConverter_ConvertMetrics(t *testing.T) {
 				{
 					promMetrics: []*promClient.MetricFamily{
 						{
-							Name: proto.String("flow_process_nf_flows_sequence"),
-							Type: promClient.MetricType_GAUGE.Enum(),
+							Name: proto.String("flow_process_nf_flows_sequence_reset_count"),
+							Type: promClient.MetricType_COUNTER.Enum(),
 							Metric: []*promClient.Metric{
 								{
-									Gauge: &promClient.Gauge{Value: proto.Float64(100)},
+									Counter: &promClient.Counter{Value: proto.Float64(1)},
 									Label: []*promClient.LabelPair{
 										{Name: proto.String("router"), Value: proto.String("1.2.3.4")},
 										{Name: proto.String("version"), Value: proto.String("5")},
@@ -750,9 +791,9 @@ func TestMetricConverter_ConvertMetrics(t *testing.T) {
 					},
 					metricSamples: []MetricSample{
 						{
-							MetricType: metrics.GaugeType,
-							Name:       "datadog.netflow.processor.flows_sequence",
-							Value:      100,
+							MetricType: metrics.MonotonicCountType,
+							Name:       "datadog.netflow.processor.flows_sequence_resets",
+							Value:      1,
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},
 						},
 						{
@@ -762,7 +803,7 @@ func TestMetricConverter_ConvertMetrics(t *testing.T) {
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},
 						},
 						{
-							MetricType: metrics.CountType,
+							MetricType: metrics.GaugeType,
 							Name:       "datadog.netflow.processor.flows_missing_count",
 							Value:      15,
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},
@@ -822,7 +863,7 @@ func TestMetricConverter_ConvertMetrics(t *testing.T) {
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},
 						},
 						{
-							MetricType: metrics.CountType,
+							MetricType: metrics.GaugeType,
 							Name:       "datadog.netflow.processor.flows_missing_count",
 							Value:      10,
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},
@@ -877,7 +918,7 @@ func TestMetricConverter_ConvertMetrics(t *testing.T) {
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},
 						},
 						{
-							MetricType: metrics.CountType,
+							MetricType: metrics.GaugeType,
 							Name:       "datadog.netflow.processor.flows_missing_count",
 							Value:      5,
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},
@@ -914,7 +955,7 @@ func TestMetricConverter_ConvertMetrics(t *testing.T) {
 							Tags:       []string{"device_ip:1.2.3.4", "version:9", "obs_domain_id:1", "flow_protocol:netflow"},
 						},
 						{
-							MetricType: metrics.CountType,
+							MetricType: metrics.GaugeType,
 							Name:       "datadog.netflow.processor.packets_missing_count",
 							Value:      10,
 							Tags:       []string{"device_ip:1.2.3.4", "version:9", "obs_domain_id:1", "flow_protocol:netflow"},
@@ -930,20 +971,6 @@ func TestMetricConverter_ConvertMetrics(t *testing.T) {
 				{
 					promMetrics: []*promClient.MetricFamily{
 						{
-							Name: proto.String("flow_process_nf_packets_sequence"),
-							Type: promClient.MetricType_GAUGE.Enum(),
-							Metric: []*promClient.Metric{
-								{
-									Gauge: &promClient.Gauge{Value: proto.Float64(2000)},
-									Label: []*promClient.LabelPair{
-										{Name: proto.String("router"), Value: proto.String("1.2.3.4")},
-										{Name: proto.String("version"), Value: proto.String("9")},
-										{Name: proto.String("obs_domain_id"), Value: proto.String("1")},
-									},
-								},
-							},
-						},
-						{
 							Name: proto.String("flow_process_nf_packets_missing"),
 							Type: promClient.MetricType_GAUGE.Enum(),
 							Metric: []*promClient.Metric{
@@ -957,12 +984,26 @@ func TestMetricConverter_ConvertMetrics(t *testing.T) {
 								},
 							},
 						},
+						{
+							Name: proto.String("flow_process_nf_packets_sequence_reset_count"),
+							Type: promClient.MetricType_COUNTER.Enum(),
+							Metric: []*promClient.Metric{
+								{
+									Counter: &promClient.Counter{Value: proto.Float64(0)},
+									Label: []*promClient.LabelPair{
+										{Name: proto.String("router"), Value: proto.String("1.2.3.4")},
+										{Name: proto.String("version"), Value: proto.String("9")},
+										{Name: proto.String("obs_domain_id"), Value: proto.String("1")},
+									},
+								},
+							},
+						},
 					},
 					metricSamples: []MetricSample{
 						{
-							MetricType: metrics.GaugeType,
-							Name:       "datadog.netflow.processor.packets_sequence",
-							Value:      2000,
+							MetricType: metrics.MonotonicCountType,
+							Name:       "datadog.netflow.processor.packets_sequence_resets",
+							Value:      0,
 							Tags:       []string{"device_ip:1.2.3.4", "version:9", "obs_domain_id:1", "flow_protocol:netflow"},
 						},
 						{
@@ -972,7 +1013,7 @@ func TestMetricConverter_ConvertMetrics(t *testing.T) {
 							Tags:       []string{"device_ip:1.2.3.4", "version:9", "obs_domain_id:1", "flow_protocol:netflow"},
 						},
 						{
-							MetricType: metrics.CountType,
+							MetricType: metrics.GaugeType,
 							Name:       "datadog.netflow.processor.packets_missing_count",
 							Value:      10,
 							Tags:       []string{"device_ip:1.2.3.4", "version:9", "obs_domain_id:1", "flow_protocol:netflow"},
@@ -983,11 +1024,11 @@ func TestMetricConverter_ConvertMetrics(t *testing.T) {
 				{
 					promMetrics: []*promClient.MetricFamily{
 						{
-							Name: proto.String("flow_process_nf_packets_sequence"),
-							Type: promClient.MetricType_GAUGE.Enum(),
+							Name: proto.String("flow_process_nf_packets_sequence_reset_count"),
+							Type: promClient.MetricType_COUNTER.Enum(),
 							Metric: []*promClient.Metric{
 								{
-									Gauge: &promClient.Gauge{Value: proto.Float64(100)},
+									Counter: &promClient.Counter{Value: proto.Float64(1)},
 									Label: []*promClient.LabelPair{
 										{Name: proto.String("router"), Value: proto.String("1.2.3.4")},
 										{Name: proto.String("version"), Value: proto.String("9")},
@@ -1013,9 +1054,9 @@ func TestMetricConverter_ConvertMetrics(t *testing.T) {
 					},
 					metricSamples: []MetricSample{
 						{
-							MetricType: metrics.GaugeType,
-							Name:       "datadog.netflow.processor.packets_sequence",
-							Value:      100,
+							MetricType: metrics.MonotonicCountType,
+							Name:       "datadog.netflow.processor.packets_sequence_resets",
+							Value:      1,
 							Tags:       []string{"device_ip:1.2.3.4", "version:9", "obs_domain_id:1", "flow_protocol:netflow"},
 						},
 						{
@@ -1025,7 +1066,7 @@ func TestMetricConverter_ConvertMetrics(t *testing.T) {
 							Tags:       []string{"device_ip:1.2.3.4", "version:9", "obs_domain_id:1", "flow_protocol:netflow"},
 						},
 						{
-							MetricType: metrics.CountType,
+							MetricType: metrics.GaugeType,
 							Name:       "datadog.netflow.processor.packets_missing_count",
 							Value:      15,
 							Tags:       []string{"device_ip:1.2.3.4", "version:9", "obs_domain_id:1", "flow_protocol:netflow"},
@@ -1085,7 +1126,7 @@ func TestMetricConverter_ConvertMetrics(t *testing.T) {
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},
 						},
 						{
-							MetricType: metrics.CountType,
+							MetricType: metrics.GaugeType,
 							Name:       "datadog.netflow.processor.flows_missing_count",
 							Value:      10,
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},
@@ -1140,7 +1181,7 @@ func TestMetricConverter_ConvertMetrics(t *testing.T) {
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},
 						},
 						{
-							MetricType: metrics.CountType,
+							MetricType: metrics.GaugeType,
 							Name:       "datadog.netflow.processor.flows_missing_count",
 							Value:      5,
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},

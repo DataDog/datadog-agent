@@ -54,13 +54,14 @@ var flowsPacketsMissingMetrics = map[string]bool{
 	"datadog.netflow.processor.flows_missing":   true,
 }
 
-var flowsPacketsSequenceMetrics = map[string]bool{
-	"datadog.netflow.processor.packets_sequence": true,
-	"datadog.netflow.processor.flows_sequence":   true,
+var flowsPacketsSequenceResetCountMetrics = map[string]bool{
+	"datadog.netflow.processor.packets_sequence_resets": true,
+	"datadog.netflow.processor.flows_sequence_resets":   true,
 }
-var flowsPacketsMaxNegativeSequenceDiffToReset = map[string]int{
-	"datadog.netflow.processor.packets_sequence": 100,
-	"datadog.netflow.processor.flows_sequence":   1000,
+
+var promSequenceResetMetrics = map[string]bool{
+	"flow_process_nf_flows_sequence_reset_count":   true,
+	"flow_process_nf_packets_sequence_reset_count": true,
 }
 
 // metricNameMapping maps goflow prometheus metrics to datadog netflow telemetry metrics
@@ -120,6 +121,14 @@ var metricNameMapping = map[string]mappedMetric{
 		},
 		extraTags: []string{"flow_protocol:netflow"},
 	},
+	"flow_process_nf_flows_sequence_reset_count": {
+		name:           "processor.flows_sequence_resets",
+		allowedTagKeys: []string{"router", "version", "engine_id", "engine_type"},
+		keyRemapper: map[string]string{
+			"router": "device_ip",
+		},
+		extraTags: []string{"flow_protocol:netflow"},
+	},
 	"flow_process_nf_packets_missing": {
 		name:           "processor.packets_missing",
 		allowedTagKeys: []string{"router", "version", "obs_domain_id"},
@@ -130,6 +139,14 @@ var metricNameMapping = map[string]mappedMetric{
 	},
 	"flow_process_nf_packets_sequence": {
 		name:           "processor.packets_sequence",
+		allowedTagKeys: []string{"router", "version", "obs_domain_id"},
+		keyRemapper: map[string]string{
+			"router": "device_ip",
+		},
+		extraTags: []string{"flow_protocol:netflow"},
+	},
+	"flow_process_nf_packets_sequence_reset_count": {
+		name:           "processor.packets_sequence_resets",
 		allowedTagKeys: []string{"router", "version", "obs_domain_id"},
 		keyRemapper: map[string]string{
 			"router": "device_ip",
@@ -176,6 +193,7 @@ var metricNameMapping = map[string]mappedMetric{
 		},
 		extraTags: []string{"flow_protocol:sflow"},
 	},
+	// TODO: add missing samples/sequence metrics for sflow
 }
 
 func remapCollectorType(goflowType string) string {
@@ -258,13 +276,13 @@ type MetricSample struct {
 
 type MetricConverter struct {
 	lastMissingFlowsMetricValue map[string]int
-	lastSequence                map[string]int
+	lastSequenceResetCount      map[string]int
 }
 
 func NewMetricConverter() *MetricConverter {
 	return &MetricConverter{
 		lastMissingFlowsMetricValue: make(map[string]int),
-		lastSequence:                make(map[string]int),
+		lastSequenceResetCount:      make(map[string]int),
 	}
 }
 
@@ -277,7 +295,7 @@ func (c MetricConverter) ConvertMetrics(promMetrics []*promClient.MetricFamily) 
 		name := metricFamily.GetName()
 		// Ensure that flows_sequence/packets_sequence metrics are processed first
 		// Sequence metrics are used to detect sequence reset needed for flows_missing/packet_missing metrics
-		if name == "flow_process_nf_flows_sequence" || name == "flow_process_nf_packets_sequence" {
+		if promSequenceResetMetrics[name] {
 			prioritisedPromMetrics = append(prioritisedPromMetrics, metricFamily)
 		} else {
 			otherPromMetrics = append(otherPromMetrics, metricFamily)
@@ -325,21 +343,21 @@ func (c MetricConverter) ConvertMetrics(promMetrics []*promClient.MetricFamily) 
 					c.lastMissingFlowsMetricValue[key] = 0
 				}
 				missingCount := int(value) - c.lastMissingFlowsMetricValue[key]
-				log.Tracef("[Missing Flows] key=%s, last=%f, Value=%f, diff=%f, reset=%t", key, c.lastMissingFlowsMetricValue[key], value, missingCount, sequenceReset[key])
+				log.Tracef("[Missing Flows] key=%s, lastMissingFlows=%d, value=%f, diff=%d, reset=%t", key, c.lastMissingFlowsMetricValue[key], value, missingCount, sequenceReset[key])
 				samples = append(samples, MetricSample{
-					MetricType: metrics.CountType,
+					MetricType: metrics.GaugeType,
 					Name:       fullMetricName + "_count",
 					Value:      float64(missingCount),
 					Tags:       tags,
 				})
 				c.lastMissingFlowsMetricValue[key] = int(value)
-			} else if flowsPacketsSequenceMetrics[fullMetricName] {
+			} else if flowsPacketsSequenceResetCountMetrics[fullMetricName] {
 				key := c.keyFromTags(tags)
-				if int(value)-c.lastSequence[key] < -flowsPacketsMaxNegativeSequenceDiffToReset[fullMetricName] {
+				if int(value) > c.lastSequenceResetCount[key] {
 					sequenceReset[key] = true
 				}
-				log.Tracef("[Missing Flows] key=%s, seq=%f reset=%t", key, c.lastSequence[key], sequenceReset[key])
-				c.lastSequence[key] = int(value)
+				log.Tracef("[Missing Flows] key=%s, seq=%d reset=%t", key, c.lastSequenceResetCount[key], sequenceReset[key])
+				c.lastSequenceResetCount[key] = int(value)
 			}
 		}
 	}
