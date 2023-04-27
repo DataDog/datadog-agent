@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
@@ -45,6 +46,12 @@ type Source struct {
 	Info          map[string][]string    `json:"info"`
 }
 
+type Tailer struct {
+	Id   string              `json:"id"`
+	Type string              `json:"type"`
+	Info map[string][]string `json:"info"`
+}
+
 // Integration provides some information about a logs integration.
 type Integration struct {
 	Name    string   `json:"name"`
@@ -58,16 +65,17 @@ type Status struct {
 	StatusMetrics    map[string]int64  `json:"metrics"`
 	ProcessFileStats map[string]uint64 `json:"process_file_stats"`
 	Integrations     []Integration     `json:"integrations"`
+	Tailers          []Tailer          `json:"tailers"`
 	Errors           []string          `json:"errors"`
 	Warnings         []string          `json:"warnings"`
 	UseHTTP          bool              `json:"use_http"`
 }
 
 // Init instantiates the builder that builds the status on the fly.
-func Init(isRunning *atomic.Bool, endpoints *config.Endpoints, sources *sources.LogSources, logExpVars *expvar.Map) {
+func Init(isRunning *atomic.Bool, endpoints *config.Endpoints, sources *sources.LogSources, tailers *tailers.TailerTracker, logExpVars *expvar.Map) {
 	warnings = config.NewMessages()
 	errors = config.NewMessages()
-	builder = NewBuilder(isRunning, endpoints, sources, warnings, errors, logExpVars)
+	builder = NewBuilder(isRunning, endpoints, sources, tailers, warnings, errors, logExpVars)
 }
 
 // Clear clears the status which means it needs to be initialized again to be used.

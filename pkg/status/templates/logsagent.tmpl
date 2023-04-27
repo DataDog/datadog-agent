@@ -54,7 +54,10 @@ Logs Agent
   {{- end }}
 {{- end }}
 
-{{- range .integrations }}
+  ============
+  Integrations
+  ============
+  {{- range .integrations }}
 
   {{ .name }}
   {{ printDashes .name "-" }}
@@ -84,5 +87,24 @@ Logs Agent
       {{- end }}
       {{- end }}
   {{- end }}
-{{- end }}
+  {{- end }}
+{{ if .tailers }}
+  =======
+  Tailers
+  =======
+  {{- range .tailers }}
 
+    - ID: {{ .id }}
+      Type: {{ .type }}
+      {{- if .info }}
+      {{- range $key, $value := .info }} {{ $len := len $value }} {{ if eq $len 1 }}
+      {{$key}}: {{index $value 0}} {{ else }}
+      {{$key}}:
+      {{- range $inf := $value }}
+        {{ $inf }}
+      {{- end }}
+      {{- end }}
+      {{- end }}
+      {{- end }}
+  {{- end }}
+{{- end }}
