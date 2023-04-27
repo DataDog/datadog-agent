@@ -10,9 +10,8 @@ package tests
 
 import (
 	"fmt"
-	// "github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/stretchr/testify/assert"
 	"log"
 	"os/exec"
 	"testing"
@@ -42,22 +41,13 @@ func TestSnapshotReplay(t *testing.T) {
 
 	t.Run("snapshot-replay", func(t *testing.T) {
 		// Check that the process is present in the process resolver's entrycache
-		found := false
-		for _, entry := range test.probe.GetResolvers().ProcessResolver.GetEntryCache() {
-			if entry.ProcessContext.Process.Comm == "nc.openbsd" {
-				found = true
-			}
-		}
-		assert.Equal(t, found, true, "ProcessEntryCache found")
-
-		found = false
-		// Check that the rule was matched
-		for _, rule := range test.matchedRules {
-			if rule.ID == "test_rule_nc" {
-				found = true
-			}
-		}
-		assert.Equal(t, found, true, "Rule matched")
+		test.WaitSignal(t, func() error {
+			go test.probe.PlaySnapshot()
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_nc")
+			test.validateExecSchema(t, event)
+		})
 	})
 
 }

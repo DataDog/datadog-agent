@@ -57,7 +57,7 @@ func (p *Probe) Start() error {
 		for {
 			var err error
 			var e *model.ProcessCacheEntry
-			ev := p.ZeroEvent()
+			ev := p.zeroEvent()
 			select {
 			case <-p.ctx.Done():
 				return
@@ -164,7 +164,11 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	p.fieldHandlers = &FieldHandlers{resolvers: resolvers}
 
 	// be sure to zero the probe event before everything else
-	p.ZeroEvent()
+	p.zeroEvent()
 
 	return p, nil
+}
+
+// Does nothing if on windows
+func (p *Probe) PlaySnapshot() {
 }

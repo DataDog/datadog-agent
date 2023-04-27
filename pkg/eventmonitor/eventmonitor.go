@@ -154,25 +154,9 @@ func (m *EventMonitor) Start() error {
 			log.Errorf("unable to start %s event consumer: %v", em.ID(), err)
 		}
 	}
+	// Apply rules to the snapshotted data
+	m.Probe.PlaySnapshot()
 
-	// Get the snapshotted data
-	entrycache := m.Probe.GetResolvers().ProcessResolver.GetEntryCache()
-
-	// Create events from the processCacheEntries
-	for _, entry := range entrycache {
-		// Only consider ProcessCacheEntry from ProcFS
-		if entry.ProcessCacheEntrySource != model.ProcessCacheEntryFromProcFS {
-			continue
-		}
-		event := m.Probe.ZeroEvent()
-		event.Type = uint32(model.ExecEventType)
-		event.ProcessCacheEntry = entry
-		event.ProcessContext = &entry.ProcessContext
-		event.Exec.Process = &entry.Process
-		event.ProcessContext.Process.ContainerID = entry.ContainerID
-
-		m.Probe.DispatchEvent(event)
-	}
 	m.wg.Add(1)
 	go m.statsSender()
 

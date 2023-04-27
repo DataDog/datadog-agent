@@ -89,7 +89,7 @@ func (p *Probe) AddCustomEventHandler(eventType model.EventType, handler CustomE
 	return nil
 }
 
-func (p *Probe) ZeroEvent() *model.Event {
+func (p *Probe) zeroEvent() *model.Event {
 	*p.event = eventZero
 	p.event.FieldHandlers = p.fieldHandlers
 	return p.event

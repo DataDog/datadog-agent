@@ -270,7 +270,6 @@ type testModule struct {
 	cmdWrapper    cmdWrapper
 	statsdClient  *StatsdClient
 	proFile       *os.File
-	matchedRules  []*rules.Rule
 }
 
 var testMod *testModule
@@ -871,7 +870,6 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			DontDiscardRuntime: true,
 		},
 	}
-
 	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts)
 	if err != nil {
 		return nil, err
@@ -980,7 +978,6 @@ func (tm *testModule) Root() string {
 }
 
 func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) {
-	tm.matchedRules = append(tm.matchedRules, rule)
 	tm.eventHandlers.RLock()
 	callback := tm.eventHandlers.onRuleMatch
 	tm.eventHandlers.RUnlock()

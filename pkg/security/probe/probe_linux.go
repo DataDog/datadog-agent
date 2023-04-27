@@ -113,6 +113,9 @@ type PlatformProbe struct {
 	isRuntimeDiscarded bool
 	constantOffsets    map[string]uint64
 	runtimeCompiled    bool
+
+	// Snapshot replay lock
+	snapshotReplayLock sync.Mutex
 }
 
 func (p *Probe) detectKernelVersion() error {
@@ -302,6 +305,31 @@ func (p *Probe) Start() error {
 	})
 }
 
+func (p *Probe) PlaySnapshot() {
+	p.snapshotReplayLock.Lock()
+	defer p.snapshotReplayLock.Unlock()
+
+	// Get the snapshotted data
+	entrycache := p.GetResolvers().ProcessResolver.GetEntryCache()
+
+	// Create events from the processCacheEntries
+	for _, entry := range entrycache {
+		// Only consider ProcessCacheEntry from ProcFS
+		if entry.Source != model.ProcessCacheEntryFromProcFS {
+			continue
+		}
+		event := p.zeroEvent()
+		event.Type = uint32(model.ExecEventType)
+		event.TimestampRaw = uint64(time.Now().UnixNano())
+		event.ProcessCacheEntry = entry
+		event.ProcessContext = &entry.ProcessContext
+		event.Exec.Process = &entry.Process
+		event.ProcessContext.Process.ContainerID = entry.ContainerID
+
+		p.DispatchEvent(event)
+	}
+}
+
 func (p *Probe) SendAnomalyDetection(event *model.Event) {
 	evtType := event.GetEventType()
 	if evtType != model.DNSEventType &&
@@ -450,7 +478,7 @@ func (p *Probe) UnmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, e
 
 func (p *Probe) handleEvent(CPU int, data []byte) {
 	offset := 0
-	event := p.ZeroEvent()
+	event := p.zeroEvent()
 
 	dataLen := uint64(len(data))
 
@@ -1542,7 +1570,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	p.fieldHandlers = &FieldHandlers{resolvers: resolvers}
 
 	// be sure to zero the probe event before everything else
-	p.ZeroEvent()
+	p.zeroEvent()
 
 	if useRingBuffers {
 		p.eventStream = ringbuffer.New(p.handleEvent)

@@ -474,8 +474,8 @@ func (p *Resolver) retrieveExecFileFields(procExecPath string) (*model.FileField
 	return &fileFields, nil
 }
 
-func (p *Resolver) insertEntry(entry, prev *model.ProcessCacheEntry, origin model.ProcessCacheEntrySource) {
-	entry.ProcessCacheEntrySource = origin
+func (p *Resolver) insertEntry(entry, prev *model.ProcessCacheEntry, origin uint64) {
+	entry.Source = origin
 	p.entryCache[entry.Pid] = entry
 	entry.Retain()
 
@@ -500,7 +500,7 @@ func (p *Resolver) insertEntry(entry, prev *model.ProcessCacheEntry, origin mode
 	p.cacheSize.Inc()
 }
 
-func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry, origin model.ProcessCacheEntrySource) {
+func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry, origin uint64) {
 	prev := p.entryCache[entry.Pid]
 	if prev != nil {
 		// this shouldn't happen but it is better to exit the prev and let the new one replace it
@@ -519,7 +519,7 @@ func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry, origin model.
 	p.insertEntry(entry, prev, origin)
 }
 
-func (p *Resolver) insertExecEntry(entry *model.ProcessCacheEntry, origin model.ProcessCacheEntrySource) {
+func (p *Resolver) insertExecEntry(entry *model.ProcessCacheEntry, origin uint64) {
 	prev := p.entryCache[entry.Pid]
 	if prev != nil {
 		prev.Exec(entry)
