@@ -137,6 +137,16 @@ platforms:
   provisioner:
     command_prefix: TMPDIR=<%= ENV['KITCHEN_CI_ROOT_PATH'] %>
   <% end %>
+  <% if debian8 || debian9 %>
+  driver:
+    custom_data: |
+      runcmd:
+        # Stretch has been moved to archive.debian.org
+        # See https://lists.debian.org/debian-devel-announce/2023/03/msg00006.html
+        - sudo sed -i 's/debian-archive.trafficmanager.net/archive.debian.org/g' /etc/apt/sources.list
+        # The stretch-updates dist doesn't exist in archive.debian.org/debian
+        - sudo sed -i '/stretch-updates/d' /etc/apt/sources.list
+  <% end%>
   driver_config:
     machine_size: <%= size %>
     <% if platform[1] == "urn" %>
@@ -174,12 +184,6 @@ platforms:
         sudo ln -s <%= ENV['KITCHEN_CI_MOUNT_PATH'] %> <%= ENV['KITCHEN_CI_ROOT_PATH'] %>;
   <% end %>
 
-  <% if debian8 || debian9 %>
-  driver:
-    custom_data:
-      runcmd:
-        - sudo sed 's/debian-archive.trafficmanager.net/archive.debian.org/g' /etc/apt/sources.list
-  <% end%>
 
   transport:
     <% if windows %>
