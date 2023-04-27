@@ -1266,8 +1266,8 @@ func (ad *ActivityDump) InsertFileEventInProcess(pan *ProcessActivityNode, fileE
 		filePath = fileEvent.PathnameStr
 	}
 
-	// drop file events with abnormal paths
-	if event != nil && event.PathResolutionError != nil {
+	// drop event for event with an error
+	if event.Error != nil {
 		return false
 	}
 
