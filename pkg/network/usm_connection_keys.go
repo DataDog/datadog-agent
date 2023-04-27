@@ -43,7 +43,6 @@ func ConnectionKeysFromConnectionStats(connectionStats ConnectionStats) []types.
 	return connectionKeys
 }
 
-
 func WithKey(connectionStats ConnectionStats, f func(key types.ConnectionKey) (stop bool)) {
 	var stopIteration bool
 
