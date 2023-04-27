@@ -11,10 +11,11 @@ package grpc
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/metadata"
@@ -22,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
+	"github.com/DataDog/datadog-agent/pkg/network/usm"
 )
 
 const (
@@ -585,7 +587,7 @@ func TestGRPCScenarios(t *testing.T) {
 					t.Skip("Skipping test due to known issue")
 				}
 
-				monitor, err := http.NewMonitor(cfg, nil, nil, nil)
+				monitor, err := usm.NewMonitor(cfg, nil, nil, nil)
 				require.NoError(t, err)
 				require.NoError(t, monitor.Start())
 				defer monitor.Stop()

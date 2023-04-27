@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -1106,7 +1107,7 @@ func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *Eve
 		s.NetworkContextSerializer = newNetworkContextSerializer(event)
 	}
 
-	if model.IsAnomalyDetectionEvent(eventType.String()) {
+	if profile.IsAnomalyDetectionEvent(eventType) {
 		s.SecurityProfileContextSerializer = newSecurityProfileContextSerializer(&event.SecurityProfileContext)
 	}
 
