@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -223,7 +224,7 @@ func mkHTTPClient() *http.Client {
 }
 
 func mkURL(caseID string) string {
-	baseURL, _ := config.AddAgentVersionToDomain(config.GetMainInfraEndpoint(), "flare")
+	baseURL, _ := config.AddAgentVersionToDomain(utils.GetInfraEndpoint(config.Datadog), "flare")
 	var url = baseURL + datadogSupportURL
 	if caseID != "" {
 		url += "/" + caseID
