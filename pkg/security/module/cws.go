@@ -404,6 +404,11 @@ func (c *CWSConsumer) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, f
 
 // HandleEvent is called by the probe when an event arrives from the kernel
 func (c *CWSConsumer) HandleEvent(event *model.Event) {
+	// event already marked with an error, skip it
+	if event.Error != nil {
+		return
+	}
+
 	// if the event should have been discarded in kernel space, we don't need to evaluate it
 	if event.IsSavedByActivityDumps() {
 		return
@@ -425,6 +430,11 @@ func (c *CWSConsumer) HandleCustomEvent(rule *rules.Rule, event *events.CustomEv
 func (c *CWSConsumer) RuleMatch(rule *rules.Rule, event eval.Event) {
 	ev := event.(*model.Event)
 
+	// do not send broken event
+	if ev.Error != nil {
+		return
+	}
+
 	// ensure that all the fields are resolved before sending
 	ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext)
 	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ContainerContext)
@@ -438,23 +448,11 @@ func (c *CWSConsumer) RuleMatch(rule *rules.Rule, event eval.Event) {
 
 	// needs to be resolved here, outside of the callback as using process tree
 	// which can be modified during queuing
-	service := ev.FieldHandlers.GetProcessServiceTag(ev)
-
-	id := ev.ContainerContext.ID
+	service := c.probe.GetService(ev)
 
 	extTagsCb := func() []string {
-		var tags []string
+		return c.probe.GetEventTags(ev)
 
-		// check from tagger
-		if service == "" {
-			service = c.probe.GetResolvers().TagsResolver.GetValue(id, "service")
-		}
-
-		if service == "" {
-			service = c.config.HostServiceName
-		}
-
-		return append(tags, c.probe.GetResolvers().TagsResolver.Resolve(id)...)
 	}
 
 	// send if not selftest related events

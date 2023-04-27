@@ -323,6 +323,7 @@
 /pkg/network/tracer/testutil/postgres           @DataDog/universal-service-monitoring
 /pkg/network/tracer/tracer_usm_linux_test.go    @DataDog/universal-service-monitoring
 /pkg/network/tracer/*_windows*.go               @DataDog/windows-kernel-integrations
+/pkg/network/usm/                       @DataDog/universal-service-monitoring
 /pkg/ebpf/                              @DataDog/ebpf-platform
 /pkg/ebpf/bytecode/runtime/conntrack.go @DataDog/Networks @DataDog/universal-service-monitoring
 /pkg/ebpf/bytecode/runtime/http.go      @DataDog/Networks @DataDog/universal-service-monitoring
