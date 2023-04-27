@@ -13,49 +13,15 @@ concurrency:
 
 jobs:
   windows-unit-tests:
-    runs-on: windows-2022 # https://github.com/actions/virtual-environments/blob/main/images/win/Windows2019-Readme.md
+    # https://github.com/actions/virtual-environments/blob/main/images/win/Windows2019-Readme.md
+    runs-on: windows-2019
     steps:
       - name: Checkout datadog-agent repository
         uses: actions/checkout@v3
         with:
           fetch-depth: 0 #needed for 'git describe' to work
 
-      - name: Install python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.8.10'
-
-      - name: Install go
-        uses: actions/setup-go@v3
-        with:
-          go-version-file: '.go-version'
-
-      - name: Set up runner
-        run: |
-          $ErrorActionPreference = 'Stop';
-          # install dependencies
-          # The Codecov Python uploader was deprecated on Feb 1, 2022 and disappeared from PyPi on Apr 12, 2023.
-          # python -m pip install codecov
-          python -m pip install -r requirements.txt
-          If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
-          inv -e install-tools
-          If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
-          inv -e deps
-          If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
-          # create 'ddagentuser' user to test the secrets feature on windows
-          $Password = ConvertTo-SecureString "dummyPW_:-gch6Rejae9" -AsPlainText -Force
-          New-LocalUser -Name "ddagentuser" -Description "Test user for the secrets feature on windows." -Password $Password
-
       - name: Run tests
-        shell: bash # using bash so we don't have to check $lastExitCode all the time
         run: |
-          export PATH="/c/msys64/mingw64/bin:/c/msys64/usr/bin/:$PATH" # prepend msys, otherwise make from mingw gets used
-          echo $PATH
-          inv -e rtloader.make
-          inv -e rtloader.format --raise-if-changed
-          inv -e rtloader.install
-          # FIXME: skipping rtloader tests because they fail with a DLL-not-found error
-          # inv -e rtloader.test
-          inv -e test --skip-linters --rerun-fails=2 --python-runtimes 3 --coverage --profile --python-home-3=$pythonLocation
-          # The Codecov Python uploader was deprecated on Feb 1, 2022 and disappeared from PyPi on Apr 12, 2023.
-          # inv -e codecov
+          docker run --rm -v "$(Get-Location):c:\mnt" datadog/agent-buildimages-windows_x64:1809 c:\mnt\tasks\winbuildscripts\unittests.bat
+          If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
