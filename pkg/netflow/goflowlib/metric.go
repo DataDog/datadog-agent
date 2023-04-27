@@ -50,18 +50,21 @@ var flowsetMapper = map[string]string{
 }
 
 var flowsPacketsMissingMetrics = map[string]bool{
-	"datadog.netflow.processor.packets_missing": true,
 	"datadog.netflow.processor.flows_missing":   true,
+	"datadog.netflow.processor.packets_missing": true,
+	"datadog.netflow.processor.samples_missing": true,
 }
 
 var flowsPacketsSequenceResetCountMetrics = map[string]bool{
-	"datadog.netflow.processor.packets_sequence_resets": true,
 	"datadog.netflow.processor.flows_sequence_resets":   true,
+	"datadog.netflow.processor.packets_sequence_resets": true,
+	"datadog.netflow.processor.samples_sequence_resets": true,
 }
 
 var promSequenceResetMetrics = map[string]bool{
 	"flow_process_nf_flows_sequence_reset_count":   true,
 	"flow_process_nf_packets_sequence_reset_count": true,
+	"flow_process_sf_samples_sequence_reset_count": true,
 }
 
 // metricNameMapping maps goflow prometheus metrics to datadog netflow telemetry metrics
@@ -193,7 +196,30 @@ var metricNameMapping = map[string]mappedMetric{
 		},
 		extraTags: []string{"flow_protocol:sflow"},
 	},
-	// TODO: add missing samples/sequence metrics for sflow
+	"flow_process_sf_samples_missing": {
+		name:           "processor.samples_missing",
+		allowedTagKeys: []string{"router", "version", "agent", "sub_agent_id"},
+		keyRemapper: map[string]string{
+			"router": "device_ip",
+		},
+		extraTags: []string{"flow_protocol:sflow"},
+	},
+	"flow_process_sf_samples_sequence": {
+		name:           "processor.samples_sequence",
+		allowedTagKeys: []string{"router", "version", "agent", "sub_agent_id"},
+		keyRemapper: map[string]string{
+			"router": "device_ip",
+		},
+		extraTags: []string{"flow_protocol:sflow"},
+	},
+	"flow_process_sf_samples_sequence_reset_count": {
+		name:           "processor.samples_sequence_resets",
+		allowedTagKeys: []string{"router", "version", "agent", "sub_agent_id"},
+		keyRemapper: map[string]string{
+			"router": "device_ip",
+		},
+		extraTags: []string{"flow_protocol:sflow"},
+	},
 }
 
 func remapCollectorType(goflowType string) string {

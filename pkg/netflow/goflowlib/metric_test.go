@@ -575,6 +575,69 @@ func TestConvertMetric(t *testing.T) {
 			expectedTags:       []string{"device_ip:1.2.3.4", "error:some-error", "flow_protocol:sflow"},
 			expectedErr:        "",
 		},
+		{
+			name: "METRIC flow_process_sf_samples_missing",
+			metricFamily: &promClient.MetricFamily{
+				Name: proto.String("flow_process_sf_samples_missing"),
+				Type: promClient.MetricType_GAUGE.Enum(),
+			},
+			metric: &promClient.Metric{
+				Gauge: &promClient.Gauge{Value: proto.Float64(10)},
+				Label: []*promClient.LabelPair{
+					{Name: proto.String("router"), Value: proto.String("1.2.3.4")},
+					{Name: proto.String("version"), Value: proto.String("5")},
+					{Name: proto.String("agent"), Value: proto.String("1")},
+					{Name: proto.String("sub_agent_id"), Value: proto.String("2")},
+				},
+			},
+			expectedMetricType: metrics.GaugeType,
+			expectedName:       "processor.samples_missing",
+			expectedValue:      10.0,
+			expectedTags:       []string{"device_ip:1.2.3.4", "version:5", "agent:1", "sub_agent_id:2", "flow_protocol:sflow"},
+			expectedErr:        "",
+		},
+		{
+			name: "METRIC flow_process_sf_samples_sequence",
+			metricFamily: &promClient.MetricFamily{
+				Name: proto.String("flow_process_sf_samples_sequence"),
+				Type: promClient.MetricType_GAUGE.Enum(),
+			},
+			metric: &promClient.Metric{
+				Gauge: &promClient.Gauge{Value: proto.Float64(10)},
+				Label: []*promClient.LabelPair{
+					{Name: proto.String("router"), Value: proto.String("1.2.3.4")},
+					{Name: proto.String("version"), Value: proto.String("5")},
+					{Name: proto.String("agent"), Value: proto.String("1")},
+					{Name: proto.String("sub_agent_id"), Value: proto.String("2")},
+				},
+			},
+			expectedMetricType: metrics.GaugeType,
+			expectedName:       "processor.samples_sequence",
+			expectedValue:      10.0,
+			expectedTags:       []string{"device_ip:1.2.3.4", "version:5", "agent:1", "sub_agent_id:2", "flow_protocol:sflow"},
+			expectedErr:        "",
+		},
+		{
+			name: "METRIC flow_process_sf_samples_sequence_reset_count",
+			metricFamily: &promClient.MetricFamily{
+				Name: proto.String("flow_process_sf_samples_sequence_reset_count"),
+				Type: promClient.MetricType_COUNTER.Enum(),
+			},
+			metric: &promClient.Metric{
+				Counter: &promClient.Counter{Value: proto.Float64(10)},
+				Label: []*promClient.LabelPair{
+					{Name: proto.String("router"), Value: proto.String("1.2.3.4")},
+					{Name: proto.String("version"), Value: proto.String("5")},
+					{Name: proto.String("agent"), Value: proto.String("1")},
+					{Name: proto.String("sub_agent_id"), Value: proto.String("2")},
+				},
+			},
+			expectedMetricType: metrics.MonotonicCountType,
+			expectedName:       "processor.samples_sequence_resets",
+			expectedValue:      10.0,
+			expectedTags:       []string{"device_ip:1.2.3.4", "version:5", "agent:1", "sub_agent_id:2", "flow_protocol:sflow"},
+			expectedErr:        "",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1185,6 +1248,274 @@ func TestMetricConverter_ConvertMetrics(t *testing.T) {
 							Name:       "datadog.netflow.processor.flows_missing_count",
 							Value:      5,
 							Tags:       []string{"device_ip:1.2.3.4", "version:5", "engine_type:1", "engine_id:2", "flow_protocol:netflow"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "samples_missing",
+			collectRounds: []collectRound{
+				{
+					promMetrics: []*promClient.MetricFamily{
+						{
+							Name: proto.String("flow_process_sf_samples_missing"),
+							Type: promClient.MetricType_GAUGE.Enum(),
+							Metric: []*promClient.Metric{
+								{
+									Gauge: &promClient.Gauge{Value: proto.Float64(10)},
+									Label: []*promClient.LabelPair{
+										{Name: proto.String("router"), Value: proto.String("1.2.3.4")},
+										{Name: proto.String("version"), Value: proto.String("5")},
+										{Name: proto.String("agent"), Value: proto.String("1")},
+										{Name: proto.String("sub_agent_id"), Value: proto.String("2")},
+									},
+								},
+							},
+						},
+					},
+					metricSamples: []MetricSample{
+						{
+							MetricType: metrics.GaugeType,
+							Name:       "datadog.netflow.processor.samples_missing",
+							Value:      10,
+							Tags:       []string{"device_ip:1.2.3.4", "version:5", "agent:1", "sub_agent_id:2", "flow_protocol:sflow"},
+						},
+						{
+							MetricType: metrics.GaugeType,
+							Name:       "datadog.netflow.processor.samples_missing_count",
+							Value:      10,
+							Tags:       []string{"device_ip:1.2.3.4", "version:5", "agent:1", "sub_agent_id:2", "flow_protocol:sflow"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "samples_missing with sequence reset",
+			collectRounds: []collectRound{
+				// round 1
+				{
+					promMetrics: []*promClient.MetricFamily{
+						{
+							Name: proto.String("flow_process_sf_samples_missing"),
+							Type: promClient.MetricType_GAUGE.Enum(),
+							Metric: []*promClient.Metric{
+								{
+									Gauge: &promClient.Gauge{Value: proto.Float64(10)},
+									Label: []*promClient.LabelPair{
+										{Name: proto.String("router"), Value: proto.String("1.2.3.4")},
+										{Name: proto.String("version"), Value: proto.String("5")},
+										{Name: proto.String("agent"), Value: proto.String("1")},
+										{Name: proto.String("sub_agent_id"), Value: proto.String("2")},
+									},
+								},
+							},
+						},
+						{
+							Name: proto.String("flow_process_sf_samples_sequence_reset_count"),
+							Type: promClient.MetricType_COUNTER.Enum(),
+							Metric: []*promClient.Metric{
+								{
+									Counter: &promClient.Counter{Value: proto.Float64(0)},
+									Label: []*promClient.LabelPair{
+										{Name: proto.String("router"), Value: proto.String("1.2.3.4")},
+										{Name: proto.String("version"), Value: proto.String("5")},
+										{Name: proto.String("agent"), Value: proto.String("1")},
+										{Name: proto.String("sub_agent_id"), Value: proto.String("2")},
+									},
+								},
+							},
+						},
+					},
+					metricSamples: []MetricSample{
+						{
+							MetricType: metrics.MonotonicCountType,
+							Name:       "datadog.netflow.processor.samples_sequence_resets",
+							Value:      0,
+							Tags:       []string{"device_ip:1.2.3.4", "version:5", "agent:1", "sub_agent_id:2", "flow_protocol:sflow"},
+						},
+						{
+							MetricType: metrics.GaugeType,
+							Name:       "datadog.netflow.processor.samples_missing",
+							Value:      10,
+							Tags:       []string{"device_ip:1.2.3.4", "version:5", "agent:1", "sub_agent_id:2", "flow_protocol:sflow"},
+						},
+						{
+							MetricType: metrics.GaugeType,
+							Name:       "datadog.netflow.processor.samples_missing_count",
+							Value:      10,
+							Tags:       []string{"device_ip:1.2.3.4", "version:5", "agent:1", "sub_agent_id:2", "flow_protocol:sflow"},
+						},
+					},
+				},
+				// round 2
+				{
+					promMetrics: []*promClient.MetricFamily{
+						{
+							Name: proto.String("flow_process_sf_samples_sequence_reset_count"),
+							Type: promClient.MetricType_COUNTER.Enum(),
+							Metric: []*promClient.Metric{
+								{
+									Counter: &promClient.Counter{Value: proto.Float64(1)},
+									Label: []*promClient.LabelPair{
+										{Name: proto.String("router"), Value: proto.String("1.2.3.4")},
+										{Name: proto.String("version"), Value: proto.String("5")},
+										{Name: proto.String("agent"), Value: proto.String("1")},
+										{Name: proto.String("sub_agent_id"), Value: proto.String("2")},
+									},
+								},
+							},
+						},
+						{
+							Name: proto.String("flow_process_sf_samples_missing"),
+							Type: promClient.MetricType_GAUGE.Enum(),
+							Metric: []*promClient.Metric{
+								{
+									Gauge: &promClient.Gauge{Value: proto.Float64(15)},
+									Label: []*promClient.LabelPair{
+										{Name: proto.String("router"), Value: proto.String("1.2.3.4")},
+										{Name: proto.String("version"), Value: proto.String("5")},
+										{Name: proto.String("agent"), Value: proto.String("1")},
+										{Name: proto.String("sub_agent_id"), Value: proto.String("2")},
+									},
+								},
+							},
+						},
+					},
+					metricSamples: []MetricSample{
+						{
+							MetricType: metrics.MonotonicCountType,
+							Name:       "datadog.netflow.processor.samples_sequence_resets",
+							Value:      1,
+							Tags:       []string{"device_ip:1.2.3.4", "version:5", "agent:1", "sub_agent_id:2", "flow_protocol:sflow"},
+						},
+						{
+							MetricType: metrics.GaugeType,
+							Name:       "datadog.netflow.processor.samples_missing",
+							Value:      15,
+							Tags:       []string{"device_ip:1.2.3.4", "version:5", "agent:1", "sub_agent_id:2", "flow_protocol:sflow"},
+						},
+						{
+							MetricType: metrics.GaugeType,
+							Name:       "datadog.netflow.processor.samples_missing_count",
+							Value:      15,
+							Tags:       []string{"device_ip:1.2.3.4", "version:5", "agent:1", "sub_agent_id:2", "flow_protocol:sflow"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "samples_missing with 2 rounds without reset",
+			collectRounds: []collectRound{
+				// round 1
+				{
+					promMetrics: []*promClient.MetricFamily{
+						{
+							Name: proto.String("flow_process_sf_samples_sequence"),
+							Type: promClient.MetricType_GAUGE.Enum(),
+							Metric: []*promClient.Metric{
+								{
+									Gauge: &promClient.Gauge{Value: proto.Float64(2000)},
+									Label: []*promClient.LabelPair{
+										{Name: proto.String("router"), Value: proto.String("1.2.3.4")},
+										{Name: proto.String("version"), Value: proto.String("5")},
+										{Name: proto.String("agent"), Value: proto.String("1")},
+										{Name: proto.String("sub_agent_id"), Value: proto.String("2")},
+									},
+								},
+							},
+						},
+						{
+							Name: proto.String("flow_process_sf_samples_missing"),
+							Type: promClient.MetricType_GAUGE.Enum(),
+							Metric: []*promClient.Metric{
+								{
+									Gauge: &promClient.Gauge{Value: proto.Float64(10)},
+									Label: []*promClient.LabelPair{
+										{Name: proto.String("router"), Value: proto.String("1.2.3.4")},
+										{Name: proto.String("version"), Value: proto.String("5")},
+										{Name: proto.String("agent"), Value: proto.String("1")},
+										{Name: proto.String("sub_agent_id"), Value: proto.String("2")},
+									},
+								},
+							},
+						},
+					},
+					metricSamples: []MetricSample{
+						{
+							MetricType: metrics.GaugeType,
+							Name:       "datadog.netflow.processor.samples_sequence",
+							Value:      2000,
+							Tags:       []string{"device_ip:1.2.3.4", "version:5", "agent:1", "sub_agent_id:2", "flow_protocol:sflow"},
+						},
+						{
+							MetricType: metrics.GaugeType,
+							Name:       "datadog.netflow.processor.samples_missing",
+							Value:      10,
+							Tags:       []string{"device_ip:1.2.3.4", "version:5", "agent:1", "sub_agent_id:2", "flow_protocol:sflow"},
+						},
+						{
+							MetricType: metrics.GaugeType,
+							Name:       "datadog.netflow.processor.samples_missing_count",
+							Value:      10,
+							Tags:       []string{"device_ip:1.2.3.4", "version:5", "agent:1", "sub_agent_id:2", "flow_protocol:sflow"},
+						},
+					},
+				},
+				// round 2
+				{
+					promMetrics: []*promClient.MetricFamily{
+						{
+							Name: proto.String("flow_process_sf_samples_sequence"),
+							Type: promClient.MetricType_GAUGE.Enum(),
+							Metric: []*promClient.Metric{
+								{
+									Gauge: &promClient.Gauge{Value: proto.Float64(2100)},
+									Label: []*promClient.LabelPair{
+										{Name: proto.String("router"), Value: proto.String("1.2.3.4")},
+										{Name: proto.String("version"), Value: proto.String("5")},
+										{Name: proto.String("agent"), Value: proto.String("1")},
+										{Name: proto.String("sub_agent_id"), Value: proto.String("2")},
+									},
+								},
+							},
+						},
+						{
+							Name: proto.String("flow_process_sf_samples_missing"),
+							Type: promClient.MetricType_GAUGE.Enum(),
+							Metric: []*promClient.Metric{
+								{
+									Gauge: &promClient.Gauge{Value: proto.Float64(15)},
+									Label: []*promClient.LabelPair{
+										{Name: proto.String("router"), Value: proto.String("1.2.3.4")},
+										{Name: proto.String("version"), Value: proto.String("5")},
+										{Name: proto.String("agent"), Value: proto.String("1")},
+										{Name: proto.String("sub_agent_id"), Value: proto.String("2")},
+									},
+								},
+							},
+						},
+					},
+					metricSamples: []MetricSample{
+						{
+							MetricType: metrics.GaugeType,
+							Name:       "datadog.netflow.processor.samples_sequence",
+							Value:      2100,
+							Tags:       []string{"device_ip:1.2.3.4", "version:5", "agent:1", "sub_agent_id:2", "flow_protocol:sflow"},
+						},
+						{
+							MetricType: metrics.GaugeType,
+							Name:       "datadog.netflow.processor.samples_missing",
+							Value:      15,
+							Tags:       []string{"device_ip:1.2.3.4", "version:5", "agent:1", "sub_agent_id:2", "flow_protocol:sflow"},
+						},
+						{
+							MetricType: metrics.GaugeType,
+							Name:       "datadog.netflow.processor.samples_missing_count",
+							Value:      5,
+							Tags:       []string{"device_ip:1.2.3.4", "version:5", "agent:1", "sub_agent_id:2", "flow_protocol:sflow"},
 						},
 					},
 				},
