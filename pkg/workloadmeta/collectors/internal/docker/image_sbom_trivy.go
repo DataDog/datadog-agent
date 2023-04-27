@@ -11,6 +11,7 @@ package docker
 import (
 	"context"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -86,6 +87,11 @@ func (c *collector) extractBOMWithTrivy(ctx context.Context, storedImage *worklo
 	scanRequest := &docker.ScanRequest{
 		ImageMeta:    storedImage,
 		DockerClient: c.dockerUtil.RawClient(),
+	}
+
+	scanOptions := c.scanOptions
+	if scanOptions.CheckDiskUsage {
+		scanOptions.MinAvailableDisk = uint64(math.Max(float64(scanOptions.MinAvailableDisk), float64(storedImage.SizeBytes)))
 	}
 
 	ch := make(chan sbom.ScanResult, 1)

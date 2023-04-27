@@ -11,6 +11,7 @@ package containerd
 import (
 	"context"
 	"fmt"
+	"math"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
@@ -87,6 +88,11 @@ func (c *collector) extractBOMWithTrivy(ctx context.Context, storedImage *worklo
 		ImageMeta:        storedImage,
 		ContainerdClient: c.containerdClient,
 		FromFilesystem:   config.Datadog.GetBool("container_image_collection.sbom.use_mount"),
+	}
+
+	scanOptions := c.scanOptions
+	if scanOptions.CheckDiskUsage {
+		scanOptions.MinAvailableDisk = uint64(math.Max(float64(scanOptions.MinAvailableDisk), float64(storedImage.SizeBytes)))
 	}
 
 	ch := make(chan sbom.ScanResult, 1)
