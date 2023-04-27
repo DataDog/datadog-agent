@@ -128,6 +128,12 @@ func (suite *Suite[Env]) BeforeTest(suiteName, testName string) {
 
 func (suite *Suite[Env]) AfterTest(suiteName, testName string) {
 	if suite.T().Failed() && suite.firstFailTest == "" {
+		// As far as I know, there is no way to prevent other tests from being
+		// run when a test fail. Even calling panic doesn't work.
+		// Instead, this code stores the name of the first fail test and prevents
+		// the environment to be updated.
+		// Note: using os.Exit(1) prevents other tests from being run but at the
+		// price of having no test output at all.
 		suite.firstFailTest = fmt.Sprintf("%v.%v", suiteName, testName)
 	}
 }
