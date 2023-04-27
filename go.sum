@@ -87,8 +87,8 @@ dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7
 github.com/AlekSi/pointer v1.0.0/go.mod h1:1kjywbfcPFCmncIxtk6fIEub6LKrfMz3gc5QKVOSOA8=
 github.com/AlekSi/pointer v1.2.0 h1:glcy/gc4h8HnG2Z3ZECSzZ1IX1x2JxRVuDzaJwQE0+w=
 github.com/AlekSi/pointer v1.2.0/go.mod h1:gZGfd3dpW4vEc/UlyfKKi1roIqcCgwOIvb0tSNSBle0=
-github.com/AlexandreYang/goflow2 v1.0.5-0.20230421152336-42ada9facd76 h1:9Lk3kHAvXN28SAV+yr8qjeTDFe3EROLQ3v1WKVNnRqU=
-github.com/AlexandreYang/goflow2 v1.0.5-0.20230421152336-42ada9facd76/go.mod h1:yqw2cLe+lbnDN1+JKBqxoj2FKOA83iB8wV0aCKnlesg=
+github.com/AlexandreYang/goflow2 v1.0.5-0.20230427120250-45b6b95ea0aa h1:BcFZmNk3YJLnuAduWlWA34EcEfwhs2dV59AF1+Z2obc=
+github.com/AlexandreYang/goflow2 v1.0.5-0.20230427120250-45b6b95ea0aa/go.mod h1:mUjr4ERDTtNUAVtf2EomWHmr6Xvz2N9DahhFkhNnFkQ=
 github.com/Azure/azure-pipeline-go v0.2.3/go.mod h1:x841ezTBIMG6O3lAcl8ATHnsOPVl2bqk7S3ta6S6u4k=
 github.com/Azure/azure-sdk-for-go v16.2.1+incompatible/go.mod h1:9XXNKU+eRnpl9moKnB4QOLf1HestfXbmab5FXxiDBjc=
 github.com/Azure/azure-sdk-for-go v68.0.0+incompatible h1:fcYLmCpyNYRnvJbPerq7U0hS+6+I79yEDJBqVNcqUzU=
