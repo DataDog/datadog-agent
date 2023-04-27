@@ -6,7 +6,7 @@
 //go:build linux_bpf
 // +build linux_bpf
 
-package http
+package usm
 
 import (
 	"fmt"
@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/java"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -67,7 +68,7 @@ var _ subprogram = &JavaTLSProgram{}
 func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
 	var err error
 
-	if !c.EnableJavaTLSSupport || !c.EnableHTTPSMonitoring || !HTTPSSupported(c) {
+	if !c.EnableJavaTLSSupport || !c.EnableHTTPSMonitoring || !http.HTTPSSupported(c) {
 		log.Info("java tls is not enabled")
 		return nil
 	}
