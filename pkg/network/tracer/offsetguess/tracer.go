@@ -29,7 +29,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -188,7 +187,11 @@ func (*tracerOffsetGuesser) Probes(c *config.Config) (map[probes.ProbeFuncName]s
 	enableProbe(p, probes.TCPGetSockOpt)
 	enableProbe(p, probes.SockGetSockOpt)
 	enableProbe(p, probes.IPMakeSkb)
-	if kprobe.ClassificationSupported(c) {
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return nil, fmt.Errorf("could not kernel version: %w", err)
+	}
+	if kv >= kernel.VersionCode(4, 7, 0) {
 		enableProbe(p, probes.NetDevQueue)
 	}
 
@@ -287,7 +290,7 @@ func GetIPv6LinkLocalAddress() (*net.UDPAddr, error) {
 // checkAndUpdateCurrentOffset checks the value for the current offset stored
 // in the eBPF map against the expected value, incrementing the offset if it
 // doesn't match, or going to the next field to guess if it does
-func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected *fieldValues, maxRetries *int, threshold uint64, protocolClassificationSupported bool) error {
+func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected *fieldValues, maxRetries *int, threshold uint64) error {
 	// get the updated map value so we can check if the current offset is
 	// the right one
 	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(t.status)); err != nil {
@@ -462,11 +465,15 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 
 	case GuessSocketSK:
 		if t.status.Sport_via_sk == htons(expected.sport) && t.status.Dport_via_sk == htons(expected.dport) {
-			// if protocol classification is disabled, its hooks will not be activated, and thus we should skip
-			// the guessing of their relevant offsets. The problem is with compatibility with older kernel versions
-			// where `struct sk_buff` have changed, and it does not match our current guessing.
+			// if we are on kernel version < 4.7, net_dev_queue tracepoint will not be activated, and thus we should skip
+			// the guessing for `struct sk_buff`
 			next := GuessSKBuffSock
-			if !protocolClassificationSupported {
+			kv, err := kernel.HostVersion()
+			if err != nil {
+				return fmt.Errorf("error getting kernel version: %w", err)
+			}
+			// no tracepoint support in kernels < 4.7
+			if kv < kernel.VersionCode(4, 7, 0) {
 				next = GuessDAddrIPv6
 			}
 			t.logAndAdvance(t.status.Offset_socket_sk, next)
@@ -619,14 +626,13 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 		return nil, fmt.Errorf("error retrieving expected value: %w", err)
 	}
 
-	protocolClassificationSupported := kprobe.ClassificationSupported(cfg)
 	log.Debugf("Checking for offsets with threshold of %d", threshold)
 	for State(t.status.State) != StateReady {
 		if err := eventGenerator.Generate(GuessWhat(t.status.What), expected); err != nil {
 			return nil, err
 		}
 
-		if err := t.checkAndUpdateCurrentOffset(mp, expected, &maxRetries, threshold, protocolClassificationSupported); err != nil {
+		if err := t.checkAndUpdateCurrentOffset(mp, expected, &maxRetries, threshold); err != nil {
 			return nil, err
 		}
 

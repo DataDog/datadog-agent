@@ -21,8 +21,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd := consentcmd.MakeCommand(func() consentcmd.GlobalParams {
 		return consentcmd.GlobalParams{
 			ConfFilePath: globalParams.ConfFilePath,
-			ConfigName:   "datadog",
-			LoggerName:   "CORE",
+			ConfigName:   command.ConfigName,
+			LoggerName:   command.LoggerName,
 		}
 	})
 

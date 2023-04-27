@@ -102,14 +102,13 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 	rateStats := make(map[string]*ContainerRateMetrics)
 	pidToCid := make(map[int]string)
 	for _, container := range containersMetadata {
-		if p.filter != nil && p.filter.IsExcluded(container.Name, container.Image.Name, container.Labels[kubernetes.CriContainerNamespaceLabel]) {
-			continue
+		var annotations map[string]string
+		if pod, err := p.metadataStore.GetKubernetesPodForContainer(container.ID); err == nil {
+			annotations = pod.Annotations
 		}
 
-		if container.IsOwnedByPod() {
-			if pod, err := p.metadataStore.GetKubernetesPod(container.Owner.ID); err == nil && containers.IsExcludedByAnnotation(containers.GlobalFilter, pod.Annotations, container.Name) {
-				continue
-			}
+		if p.filter != nil && p.filter.IsExcluded(annotations, container.Name, container.Image.Name, container.Labels[kubernetes.CriContainerNamespaceLabel]) {
+			continue
 		}
 
 		if container.Runtime == workloadmeta.ContainerRuntimeGarden && len(container.CollectorTags) == 0 {

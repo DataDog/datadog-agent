@@ -22,7 +22,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -128,6 +127,9 @@ func (o offsetT) String() string {
 
 func TestOffsetGuess(t *testing.T) {
 	cfg := testConfig()
+	// offset guessing used to rely on this previously,
+	// but doesn't anymore
+	cfg.ProtocolClassificationEnabled = false
 	if !cfg.EnableRuntimeCompiler {
 		t.Skip("runtime compilation is not enabled")
 	}
@@ -272,7 +274,7 @@ func TestOffsetGuess(t *testing.T) {
 	for o := offsetSaddr; o < offsetMax; o++ {
 		switch o {
 		case offsetSkBuffHead, offsetSkBuffSock, offsetSkBuffTransportHeader:
-			if !kprobe.ClassificationSupported(cfg) {
+			if kv < kernel.VersionCode(4, 7, 0) {
 				continue
 			}
 		case offsetSaddrFl6, offsetDaddrFl6, offsetSportFl6, offsetDportFl6:

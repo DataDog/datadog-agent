@@ -895,8 +895,7 @@ func TestConnectionNotAssured(t *testing.T) {
 		conns := getConnections(t, tr)
 		var ok bool
 		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		m := conn.Monotonic
-		return ok && m.SentBytes > 0 && m.RecvBytes == 0
+		return ok && conn.Monotonic.SentBytes > 0 && conn.Monotonic.RecvBytes == 0
 	}, 3*time.Second, 500*time.Millisecond, "could not find udp connection")
 
 	// verify the connection is marked as not assured
@@ -1837,33 +1836,16 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 }
 
 func TestConntrackerFallback(t *testing.T) {
-	var tests = []struct {
-		enableRuntimeCompiler    bool
-		allowPrecompiledFallback bool
-		err                      error
-	}{
-		{false, false, nil},
-		{false, true, nil},
-		{true, false, assert.AnError},
-		{true, true, nil},
-	}
-
 	cfg := testConfig()
 	cfg.EnableEbpfConntracker = false
-	for _, te := range tests {
-		t.Logf("%+v", te)
-		cfg.EnableRuntimeCompiler = te.enableRuntimeCompiler
-		cfg.AllowPrecompiledFallback = te.allowPrecompiledFallback
+	cfg.AllowNetlinkConntrackerFallback = true
+	conntracker, err := newConntracker(cfg, nil, nil)
+	assert.NoError(t, err)
+	require.NotNil(t, conntracker)
+	conntracker.Close()
 
-		conntracker, err := newConntracker(cfg, nil, nil)
-		if te.err != nil {
-			assert.Error(t, err)
-			assert.Nil(t, conntracker)
-			continue
-		}
-
-		assert.NoError(t, err)
-		require.NotNil(t, conntracker)
-		conntracker.Close()
-	}
+	cfg.AllowNetlinkConntrackerFallback = false
+	conntracker, err = newConntracker(cfg, nil, nil)
+	assert.Error(t, err)
+	require.Nil(t, conntracker)
 }
