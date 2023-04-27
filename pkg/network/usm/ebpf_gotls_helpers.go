@@ -6,7 +6,7 @@
 //go:build linux_bpf
 // +build linux_bpf
 
-package http
+package usm
 
 import (
 	"errors"

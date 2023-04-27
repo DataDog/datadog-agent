@@ -401,6 +401,78 @@ func TestExtractLibInfo(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:              "all",
+			pod:               fakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "latest"),
+			containerRegistry: "registry",
+			expectedLibsToInject: []libInfo{ // TODO: Add new entry when a new language is supported
+				{
+					lang:  "java",
+					image: "registry/dd-lib-java-init:latest",
+				},
+				{
+					lang:  "js",
+					image: "registry/dd-lib-js-init:latest",
+				},
+				{
+					lang:  "python",
+					image: "registry/dd-lib-python-init:latest",
+				},
+				{
+					lang:  "dotnet",
+					image: "registry/dd-lib-dotnet-init:latest",
+				},
+				{
+					lang:  "ruby",
+					image: "registry/dd-lib-ruby-init:latest",
+				},
+			},
+		},
+		{
+			name: "java + all",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"admission.datadoghq.com/all-lib.version":  "latest",
+						"admission.datadoghq.com/java-lib.version": "v1",
+					},
+				},
+			},
+			containerRegistry: "registry",
+			expectedLibsToInject: []libInfo{
+				{
+					lang:  "java",
+					image: "registry/dd-lib-java-init:v1",
+				},
+			},
+		},
+		{
+			name:              "all with unsupported version",
+			pod:               fakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "unsupported"),
+			containerRegistry: "registry",
+			expectedLibsToInject: []libInfo{
+				{
+					lang:  "java",
+					image: "registry/dd-lib-java-init:latest",
+				},
+				{
+					lang:  "js",
+					image: "registry/dd-lib-js-init:latest",
+				},
+				{
+					lang:  "python",
+					image: "registry/dd-lib-python-init:latest",
+				},
+				{
+					lang:  "dotnet",
+					image: "registry/dd-lib-dotnet-init:latest",
+				},
+				{
+					lang:  "ruby",
+					image: "registry/dd-lib-ruby-init:latest",
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

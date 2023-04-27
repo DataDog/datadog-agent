@@ -17,8 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type telemetry struct {
-	then *atomic.Int64
+type Telemetry struct {
+	Then *atomic.Int64
 
 	hits1XX, hits2XX, hits3XX, hits4XX, hits5XX *libtelemetry.Metric
 
@@ -29,15 +29,15 @@ type telemetry struct {
 	aggregations *libtelemetry.Metric
 }
 
-func newTelemetry() (*telemetry, error) {
+func NewTelemetry() (*Telemetry, error) {
 	metricGroup := libtelemetry.NewMetricGroup(
 		"usm.http",
 		libtelemetry.OptExpvar,
 		libtelemetry.OptMonotonic,
 	)
 
-	t := &telemetry{
-		then:         atomic.NewInt64(time.Now().Unix()),
+	t := &Telemetry{
+		Then:         atomic.NewInt64(time.Now().Unix()),
 		hits1XX:      metricGroup.NewMetric("hits1xx"),
 		hits2XX:      metricGroup.NewMetric("hits2xx"),
 		hits3XX:      metricGroup.NewMetric("hits3xx"),
@@ -55,7 +55,7 @@ func newTelemetry() (*telemetry, error) {
 	return t, nil
 }
 
-func (t *telemetry) count(tx httpTX) {
+func (t *Telemetry) Count(tx HttpTX) {
 	statusClass := (tx.StatusCode() / 100) * 100
 	switch statusClass {
 	case 100:
@@ -72,9 +72,9 @@ func (t *telemetry) count(tx httpTX) {
 	t.totalHits.Add(1)
 }
 
-func (t *telemetry) log() {
+func (t *Telemetry) Log() {
 	now := time.Now().Unix()
-	then := t.then.Swap(now)
+	then := t.Then.Swap(now)
 
 	totalRequests := t.totalHits.Delta()
 	dropped := t.dropped.Delta()

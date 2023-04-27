@@ -6,7 +6,7 @@
 //go:build linux_bpf
 // +build linux_bpf
 
-package http
+package usm
 
 import (
 	"debug/elf"
@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/go/binversion"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls/lookup"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
@@ -163,7 +164,7 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 		return nil
 	}
 
-	if !HTTPSSupported(c) {
+	if !http.HTTPSSupported(c) {
 		log.Errorf("goTLS not supported by this platform")
 		return nil
 	}
@@ -243,16 +244,15 @@ func (p *GoTLSProgram) Start() {
 	})
 	if err != nil {
 		log.Errorf("failed to subscribe Exit process monitor error: %s", err)
-		goto failed
+
+		if p.procMonitor.cleanupExec != nil {
+			p.procMonitor.cleanupExec()
+		}
+		if p.procMonitor.cleanupExit != nil {
+			p.procMonitor.cleanupExit()
+		}
 	}
-	return
-failed:
-	if p.procMonitor.cleanupExec != nil {
-		p.procMonitor.cleanupExec()
-	}
-	if p.procMonitor.cleanupExit != nil {
-		p.procMonitor.cleanupExit()
-	}
+
 }
 
 func (p *GoTLSProgram) Stop() {

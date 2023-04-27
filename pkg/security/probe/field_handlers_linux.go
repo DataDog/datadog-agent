@@ -311,8 +311,8 @@ func (fh *FieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.Proce
 	return ev.ProcessCacheEntry, true
 }
 
-// GetProcessServiceTag returns the service tag based on the process context
-func (fh *FieldHandlers) GetProcessServiceTag(ev *model.Event) string {
+// GetProcessService returns the service tag based on the process context
+func (fh *FieldHandlers) GetProcessService(ev *model.Event) string {
 	entry, _ := fh.ResolveProcessCacheEntry(ev)
 	if entry == nil {
 		return ""

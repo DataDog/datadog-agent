@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -186,18 +187,32 @@ func (m *Monitor) SendStats() error {
 func (m *Monitor) ProcessEvent(event *model.Event) {
 	m.loadController.Count(event)
 
-	// Look for an unresolved path
-	if err := event.PathResolutionError; err != nil {
+	// handle event errors
+	if event.Error != nil {
 		var notCritical *path.ErrPathResolutionNotCritical
-		if !errors.As(err, &notCritical) {
+		if errors.As(event.Error, &notCritical) {
+			return
+		}
+
+		var pathErr *path.ErrPathResolution
+		if errors.As(event.Error, &pathErr) {
 			m.probe.DispatchCustomEvent(
-				NewAbnormalPathEvent(event, m.probe, err),
+				NewAbnormalEvent(events.AbnormalPathRuleID, event, m.probe, pathErr.Err),
 			)
 		}
-	} else {
-		if m.activityDumpManager != nil {
-			m.activityDumpManager.ProcessEvent(event)
+
+		var processErr *ErrProcessContext
+		if errors.As(event.Error, &processErr) {
+			m.probe.DispatchCustomEvent(
+				NewAbnormalEvent(events.ProcessContextErrorRuleID, event, m.probe, event.Error),
+			)
 		}
+
+		return
+	}
+
+	if m.activityDumpManager != nil {
+		m.activityDumpManager.ProcessEvent(event)
 	}
 }
 
