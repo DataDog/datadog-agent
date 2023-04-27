@@ -35,11 +35,11 @@ type USMConnectionData[K comparable, V any] struct {
 	claimed bool
 
 	// Used during the first pass to determine the size of the `Data`
-	// dataSize int
+	size int
 }
 
 type USMKeyValue[K comparable, V any] struct {
-	Key   *K
+	Key   K
 	Value V
 }
 
@@ -48,18 +48,35 @@ func GroupByConnection[K comparable, V any](protocol string, data map[K]V, keyGe
 		data: make(map[types.ConnectionKey]*USMConnectionData[K, V], len(data)/2),
 	}
 
-	for key, value := range data {
-		keyCopy := key
-		keyVal := USMKeyValue[K, V]{Key: &keyCopy, Value: value}
-
+	// In the first pass we setup the map and calculate the number of aggregations per connection
+	for key := range data {
 		connectionKey := keyGen(key)
 		connectionData, ok := byConnection.data[connectionKey]
 		if !ok {
 			connectionData = new(USMConnectionData[K, V])
 			byConnection.data[connectionKey] = connectionData
 		}
+		connectionData.size++
+	}
 
-		connectionData.Data = append(connectionData.Data, keyVal)
+	// In the second pass we create a slice with a pre-determined size and add the aggregations
+	for key, value := range data {
+		connectionKey := keyGen(key)
+		connectionData, ok := byConnection.data[connectionKey]
+		if !ok {
+			// should never happen (in theory we could panic here)
+			continue
+		}
+
+		// create slice with pre-determined size
+		if connectionData.Data == nil {
+			connectionData.Data = make([]USMKeyValue[K, V], 0, connectionData.size)
+		}
+
+		connectionData.Data = append(connectionData.Data, USMKeyValue[K, V]{
+			Key:   key,
+			Value: value,
+		})
 	}
 
 	return byConnection

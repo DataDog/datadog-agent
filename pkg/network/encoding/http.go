@@ -145,7 +145,7 @@ func (e *httpEncoder) reset() {
 		for k, s := range byStatus {
 			s.Reset()
 			httpStatsDataPool.Put(s)
-			byStatus[k] = nil
+			delete(byStatus, k)
 		}
 
 		endpointAggregation.Reset()
