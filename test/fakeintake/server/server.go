@@ -44,9 +44,10 @@ func NewServer(options ...func(*Server)) *Server {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", fi.handleDatadogRequest)
-	mux.HandleFunc("/fakeintake/payloads/", fi.getPayloads)
-	mux.HandleFunc("/fakeintake/health/", fi.getFakeHealth)
-	mux.HandleFunc("/fakeintake/routestats/", fi.getRouteStats)
+	mux.HandleFunc("/fakeintake/payloads/", fi.handleGetPayloads)
+	mux.HandleFunc("/fakeintake/health/", fi.handleFakeHealth)
+	mux.HandleFunc("/fakeintake/routestats/", fi.handleGetRouteStats)
+	mux.HandleFunc("/fakeintake/flushPayloads/", fi.handleFlushPayloads)
 
 	fi.server = http.Server{
 		Handler: mux,
@@ -192,6 +193,15 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 	writeHttpResponse(w, response)
 }
 
+func (fi *Server) handleFlushPayloads(w http.ResponseWriter, req *http.Request) {
+	fi.safeFlushPayloads()
+
+	// send response
+	writeHttpResponse(w, httpResponse{
+		statusCode: http.StatusOK,
+	})
+}
+
 func buildPostResponse(responseError error) httpResponse {
 	ret := httpResponse{}
 
@@ -218,7 +228,7 @@ func buildPostResponse(responseError error) httpResponse {
 	return ret
 }
 
-func (fi *Server) getPayloads(w http.ResponseWriter, req *http.Request) {
+func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 	routes := req.URL.Query()["endpoint"]
 	if len(routes) == 0 {
 		writeHttpResponse(w, httpResponse{
@@ -255,7 +265,7 @@ func (fi *Server) getPayloads(w http.ResponseWriter, req *http.Request) {
 	})
 }
 
-func (fi *Server) getFakeHealth(w http.ResponseWriter, req *http.Request) {
+func (fi *Server) handleFakeHealth(w http.ResponseWriter, req *http.Request) {
 	writeHttpResponse(w, httpResponse{
 		statusCode: http.StatusOK,
 	})
@@ -282,7 +292,13 @@ func (fi *Server) safeGetPayloads(route string) []api.Payload {
 	return payloads
 }
 
-func (fi *Server) getRouteStats(w http.ResponseWriter, req *http.Request) {
+func (fi *Server) safeFlushPayloads() {
+	fi.mu.Lock()
+	defer fi.mu.Unlock()
+	fi.payloadStore = map[string][]api.Payload{}
+}
+
+func (fi *Server) handleGetRouteStats(w http.ResponseWriter, req *http.Request) {
 	log.Print("Handling getRouteStats request")
 	routes := fi.safeGetRouteStats()
 	// build response

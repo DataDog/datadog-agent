@@ -202,4 +202,19 @@ func TestClient(t *testing.T) {
 		err := client.GetServerHealth()
 		assert.NoError(t, err)
 	})
+
+	t.Run("FlushPayloads", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/fakeintake/flushPayloads" {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		err := client.FlushPayloads()
+		assert.NoError(t, err)
+	})
 }

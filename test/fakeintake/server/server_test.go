@@ -57,7 +57,7 @@ func TestServer(t *testing.T) {
 		assert.NoError(t, err, "Error creating GET request")
 		response := httptest.NewRecorder()
 
-		fi.getPayloads(response, request)
+		fi.handleGetPayloads(response, request)
 		assert.Equal(t, http.StatusOK, response.Code, "unexpected code")
 
 		expectedResponse := api.APIFakeIntakePayloadsGETResponse{
@@ -79,7 +79,7 @@ func TestServer(t *testing.T) {
 		assert.NoError(t, err, "Error creating GET request")
 		response := httptest.NewRecorder()
 
-		fi.getPayloads(response, request)
+		fi.handleGetPayloads(response, request)
 		assert.Equal(t, http.StatusBadRequest, response.Code, "unexpected code")
 	})
 
@@ -93,7 +93,7 @@ func TestServer(t *testing.T) {
 		assert.NoError(t, err, "Error creating GET request")
 		getResponse := httptest.NewRecorder()
 
-		fi.getPayloads(getResponse, request)
+		fi.handleGetPayloads(getResponse, request)
 
 		assert.Equal(t, http.StatusOK, getResponse.Code)
 
@@ -127,7 +127,7 @@ func TestServer(t *testing.T) {
 		assert.NoError(t, err, "Error creating GET request")
 		response := httptest.NewRecorder()
 
-		fi.getFakeHealth(response, request)
+		fi.handleFakeHealth(response, request)
 		assert.Equal(t, http.StatusOK, response.Code, "unexpected code")
 	})
 
@@ -207,7 +207,7 @@ func TestServer(t *testing.T) {
 		assert.NoError(t, err, "Error creating GET request")
 		getResponse := httptest.NewRecorder()
 
-		fi.getRouteStats(getResponse, request)
+		fi.handleGetRouteStats(getResponse, request)
 
 		assert.Equal(t, http.StatusOK, getResponse.Code)
 
@@ -229,6 +229,20 @@ func TestServer(t *testing.T) {
 		json.Unmarshal(body, &actualGETResponse)
 
 		assert.Equal(t, expectedGETResponse, actualGETResponse, "unexpected GET response")
+	})
+
+	t.Run("should handle flush requests", func(t *testing.T) {
+		clock := clock.NewMock()
+		fi := NewServer(WithClock(clock))
+
+		postSomePayloads(t, fi)
+
+		request, err := http.NewRequest(http.MethodDelete, "/fakeintake/flushPayloads", nil)
+		assert.NoError(t, err, "Error creating flush request")
+		response := httptest.NewRecorder()
+
+		fi.handleFlushPayloads(response, request)
+		assert.Equal(t, http.StatusAccepted, response.Code, "unexpected code")
 	})
 }
 

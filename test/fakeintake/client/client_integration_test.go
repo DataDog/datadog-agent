@@ -55,7 +55,6 @@ func TestIntegrationClient(t *testing.T) {
 		require.True(t, isReady)
 
 		// post a test payloads to fakeintake
-		// serverUrl := "http://localhost:8080"
 		testEndpoint := "/foo/bar"
 		resp, err := http.Post(fmt.Sprintf("%s%s", fi.URL(), testEndpoint), "text/plain", strings.NewReader("totoro|5|tag:valid,owner:pducolin"))
 		assert.NoError(t, err)
@@ -71,6 +70,45 @@ func TestIntegrationClient(t *testing.T) {
 		assert.NoError(t, err, "Error getting payloads")
 		assert.Equal(t, 1, len(payloads))
 		assert.Equal(t, "totoro|5|tag:valid,owner:pducolin", string(payloads[0].Data))
+		assert.Equal(t, "", payloads[0].Encoding)
+		assert.Equal(t, mockClock.Now(), payloads[0].Timestamp)
+	})
+
+	t.Run("should flush payloads from a server on flush request", func(t *testing.T) {
+		ready := make(chan bool, 1)
+		fi := server.NewServer(server.WithReadyChannel(ready), server.WithClock(mockClock))
+		fi.Start()
+		defer fi.Stop()
+		isReady := <-ready
+		require.True(t, isReady)
+
+		// post a test payloads to fakeintake
+		testEndpoint := "/foo/bar"
+		resp, err := http.Post(fmt.Sprintf("%s%s", fi.URL(), testEndpoint), "text/plain", strings.NewReader("totoro|5|tag:before,owner:pducolin"))
+		assert.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusAccepted, resp.StatusCode)
+
+		client := NewClient(fi.URL())
+		// max wait for 250 ms
+		err = backoff.Retry(client.GetServerHealth, backoff.WithMaxRetries(backoff.NewConstantBackOff(10*time.Millisecond), 25))
+		require.NoError(t, err, "Failed waiting for fakeintake")
+
+		// flush
+		err = client.FlushPayloads()
+		assert.NoError(t, err, "Error getting payloads")
+
+		// post another payload
+		resp, err = http.Post(fmt.Sprintf("%s%s", fi.URL(), testEndpoint), "text/plain", strings.NewReader("ponyo|7|tag:after,owner:pducolin"))
+		assert.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusAccepted, resp.StatusCode)
+
+		// should return only the second payload
+		payloads, err := client.getFakePayloads(testEndpoint)
+		assert.NoError(t, err, "Error getting payloads")
+		assert.Equal(t, 1, len(payloads))
+		assert.Equal(t, "ponyo|7|tag:after,owner:pducolin", string(payloads[0].Data))
 		assert.Equal(t, "", payloads[0].Encoding)
 		assert.Equal(t, mockClock.Now(), payloads[0].Timestamp)
 	})
