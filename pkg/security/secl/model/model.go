@@ -715,6 +715,78 @@ func (f *FileFields) GetInUpperLayer() bool {
 	return f.Flags&UpperLayer != 0
 }
 
+// HashState is used to prevent the hash resolver from retrying to hash a file
+type HashSate int
+
+const (
+	// NoHash means that computing a hash hasn't been attempted
+	NoHash HashSate = iota
+	// Done means that the hashes were already computed
+	Done
+	// FileNotFound means that the underlying file is not longer available to compute the hash
+	FileNotFound
+	// PathnameResolutionError means that the underlying file wasn't properly resolved
+	PathnameResolutionError
+	// FileTooBig means that the underlying file is larger than the hash resolver file size limit
+	FileTooBig
+	// EventTypeNotConfigured means that the event type prevents a hash from being computed
+	EventTypeNotConfigured
+	// HashWasRateLimited means that the hash will be tried again later, it was rate limited
+	HashWasRateLimited
+	// UnknownHashError means that we couldn't hash the file and we don't know why
+	UnknownHashError
+	// MaxHashState is used for initializations
+	MaxHashState
+)
+
+func (hs HashSate) String() string {
+	switch hs {
+	case NoHash:
+		return "no_hash"
+	case Done:
+		return "done"
+	case FileNotFound:
+		return "file_not_found"
+	case PathnameResolutionError:
+		return "pathname_resolution_error"
+	case FileTooBig:
+		return "file_too_big"
+	case EventTypeNotConfigured:
+		return "event_type_not_configured"
+	case HashWasRateLimited:
+		return "hash_was_rate_limited"
+	default:
+		return "unknown_hash_error"
+	}
+}
+
+// HashAlgorithm is used to configure the hash algorithms of the hash resolver
+type HashAlgorithm int
+
+const (
+	// SHA1 is used to identify a SHA1 hash
+	SHA1 HashAlgorithm = iota
+	// SHA256 is used to identify a SHA256 hash
+	SHA256
+	// MD5 is used to identify a MD5 hash
+	MD5
+	// MaxHashAlgorithm is used for initializations
+	MaxHashAlgorithm
+)
+
+func (ha HashAlgorithm) String() string {
+	switch ha {
+	case SHA1:
+		return "sha1"
+	case SHA256:
+		return "sha256"
+	case MD5:
+		return "md5"
+	default:
+		return ""
+	}
+}
+
 // FileEvent is the common file event type
 type FileEvent struct {
 	FileFields ``
@@ -728,6 +800,9 @@ type FileEvent struct {
 	PkgName       string `field:"package.name,handler:ResolvePackageName"`                    // SECLDoc[package.name] Definition:`[Experimental] Name of the package that provided this file`
 	PkgVersion    string `field:"package.version,handler:ResolvePackageVersion"`              // SECLDoc[package.version] Definition:`[Experimental] Full version of the package that provided this file`
 	PkgSrcVersion string `field:"package.source_version,handler:ResolvePackageSourceVersion"` // SECLDoc[package.source_version] Definition:`[Experimental] Full version of the source package of the package that provided this file`
+
+	HashState HashSate `field:"-" json:"hash_state"`
+	Hashes    []string `field:"hashes,handler:ResolveHashesFromEvent,opts:skip_ad" json:"hashes"` // SECLDoc[hashes] Definition:`[Experimental] List of cryptographic hashes computed for this file`
 
 	// used to mark as already resolved, can be used in case of empty path
 	IsPathnameStrResolved bool `field:"-" json:"-"`
@@ -1319,6 +1394,7 @@ type ExtraFieldHandlers interface {
 	ResolveContainerContext(ev *Event) (*ContainerContext, bool)
 	ResolveEventTime(ev *Event) time.Time
 	GetProcessService(ev *Event) string
+	ResolveHashes(eventType EventType, process *Process, file *FileEvent) []string
 }
 
 // ResolveProcessCacheEntry stub implementation
@@ -1331,7 +1407,7 @@ func (dfh *DefaultFieldHandlers) ResolveContainerContext(ev *Event) (*ContainerC
 	return nil, false
 }
 
-// ResolveEventTimestamp stub implementation
+// ResolveEventTime stub implementation
 func (dfh *DefaultFieldHandlers) ResolveEventTime(ev *Event) time.Time {
 	return ev.Timestamp
 }
@@ -1339,4 +1415,9 @@ func (dfh *DefaultFieldHandlers) ResolveEventTime(ev *Event) time.Time {
 // GetProcessService stub implementation
 func (dfh *DefaultFieldHandlers) GetProcessService(ev *Event) string {
 	return ""
+}
+
+// ResolveHashes resolves the hash of the provided file
+func (dfh *DefaultFieldHandlers) ResolveHashes(eventType EventType, process *Process, file *FileEvent) []string {
+	return nil
 }

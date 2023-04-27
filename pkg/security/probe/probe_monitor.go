@@ -106,6 +106,11 @@ func (m *Monitor) SendStats() error {
 				return fmt.Errorf("failed to send sbom_resolver stats: %w", err)
 			}
 		}
+		if resolvers.HashResolver != nil {
+			if err := resolvers.HashResolver.SendStats(); err != nil {
+				return fmt.Errorf("failed to send hash_resolver stats: %w", err)
+			}
+		}
 	}
 
 	if err := m.eventStreamMonitor.SendStats(); err != nil {

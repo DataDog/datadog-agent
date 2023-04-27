@@ -138,7 +138,7 @@ func protoDecodeFileEvent(fi *adproto.FileInfo) *model.FileEvent {
 		return nil
 	}
 
-	return &model.FileEvent{
+	fe := &model.FileEvent{
 		FileFields: model.FileFields{
 			UID:   fi.Uid,
 			User:  fi.User,
@@ -159,7 +159,12 @@ func protoDecodeFileEvent(fi *adproto.FileInfo) *model.FileEvent {
 		PkgName:       fi.PackageName,
 		PkgVersion:    fi.PackageVersion,
 		PkgSrcVersion: fi.PackageSrcversion,
+		Hashes:        make([]string, len(fi.Hashes)),
+		HashState:     model.HashSate(fi.HashState),
 	}
+	copy(fe.Hashes, fi.Hashes)
+
+	return fe
 }
 
 func protoDecodeFileActivityNode(fan *adproto.FileActivityNode) *FileNode {
