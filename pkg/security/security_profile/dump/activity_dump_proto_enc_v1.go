@@ -129,8 +129,8 @@ func processNodeToProto(p *model.Process) *adproto.ProcessInfo {
 		ContainerId: p.ContainerID,
 		SpanId:      p.SpanID,
 		TraceId:     p.TraceID,
-		Tty:         p.TTYName,
-		Comm:        p.Comm,
+		Tty:         escape(p.TTYName),
+		Comm:        escape(p.Comm),
 
 		ForkTime: timestampToProto(&p.ForkTime),
 		ExitTime: timestampToProto(&p.ExitTime),
@@ -139,7 +139,7 @@ func processNodeToProto(p *model.Process) *adproto.ProcessInfo {
 		Credentials: credentialsToProto(&p.Credentials),
 
 		Args:          copyAndEscape(p.ScrubbedArgv),
-		Argv0:         p.Argv0,
+		Argv0:         escape(p.Argv0),
 		ArgsTruncated: p.ArgsTruncated,
 
 		Envs:          copyAndEscape(p.Envs),
@@ -191,9 +191,9 @@ func fileEventToProto(fe *model.FileEvent) *adproto.FileInfo {
 		MountId:           fe.MountID,
 		Inode:             fe.Inode,
 		InUpperLayer:      fe.InUpperLayer,
-		Path:              fe.PathnameStr,
-		Basename:          fe.BasenameStr,
-		Filesystem:        fe.Filesystem,
+		Path:              escape(fe.PathnameStr),
+		Basename:          escape(fe.BasenameStr),
+		Filesystem:        escape(fe.Filesystem),
 		PackageName:       fe.PkgName,
 		PackageVersion:    fe.PkgVersion,
 		PackageSrcversion: fe.PkgSrcVersion,
@@ -210,7 +210,7 @@ func fileActivityNodeToProto(fan *FileActivityNode) *adproto.FileActivityNode {
 	pfan := adproto.FileActivityNodeFromVTPool()
 	*pfan = adproto.FileActivityNode{
 		MatchedRules:   make([]*adproto.MatchedRule, 0, len(fan.MatchedRules)),
-		Name:           fan.Name,
+		Name:           escape(fan.Name),
 		File:           fileEventToProto(fan.File),
 		GenerationType: adproto.GenerationType(fan.GenerationType),
 		FirstSeen:      timestampToProto(&fan.FirstSeen),
@@ -270,7 +270,7 @@ func dnsEventToProto(ev *model.DNSEvent) *adproto.DNSInfo {
 	}
 
 	return &adproto.DNSInfo{
-		Name:  ev.Name,
+		Name:  escape(ev.Name),
 		Type:  uint32(ev.Type),
 		Class: uint32(ev.Class),
 		Size:  uint32(ev.Size),
@@ -335,4 +335,9 @@ func copyAndEscape(in []string) []string {
 		out = append(out, transformer.String(value))
 	}
 	return out
+}
+
+func escape(in string) string {
+	transformer := runes.ReplaceIllFormed()
+	return transformer.String(in)
 }

@@ -34,8 +34,7 @@ import (
 const (
 
 	// DefaultSite is the default site the Agent sends data to.
-	DefaultSite    = "datadoghq.com"
-	infraURLPrefix = "https://app."
+	DefaultSite = "datadoghq.com"
 
 	// DefaultNumWorkers default number of workers for our check runner
 	DefaultNumWorkers = 4
@@ -74,9 +73,6 @@ const (
 
 	// DefaultRuntimePoliciesDir is the default policies directory used by the runtime security module
 	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
-
-	// DefaultSecurityProfilesDir is the default directory used to store Security Profiles by the runtime security module
-	DefaultSecurityProfilesDir = "/etc/datadog-agent/runtime-security.d/profiles"
 
 	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor
 	DefaultLogsSenderBackoffFactor = 2.0
@@ -121,6 +117,9 @@ var (
 var (
 	// StartTime is the agent startup time
 	StartTime = time.Now()
+
+	// DefaultSecurityProfilesDir is the default directory used to store Security Profiles by the runtime security module
+	DefaultSecurityProfilesDir = filepath.Join(defaultRunPath, "runtime-security", "profiles")
 )
 
 // PrometheusScrapeChecksTransformer unmarshals a prometheus check.
@@ -1090,14 +1089,7 @@ func InitConfig(config Config) {
 
 	// SBOM configuration
 	bindEnvAndSetLogsConfigKeys(config, "sbom.")
-	config.BindEnvAndSetDefault("sbom.enabled", false)
-	config.BindEnvAndSetDefault("sbom.analyzers", []string{"os"})
-	config.BindEnvAndSetDefault("sbom.cache_directory", defaultRunPath)
-	config.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
-	config.BindEnvAndSetDefault("sbom.use_custom_cache", false)
-	config.BindEnvAndSetDefault("sbom.custom_cache_max_disk_size", 1000*1000*10) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
-	config.BindEnvAndSetDefault("sbom.custom_cache_max_cache_entries", 1000)     // used by custom cache keys stored in memory
-	config.BindEnvAndSetDefault("sbom.cache_clean_interval", "30m")              // used by custom cache.
+	setupSBOMConfig(config, "sbom-agent")
 
 	// Orchestrator Explorer - process agent
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
@@ -1488,6 +1480,11 @@ func LoadDatadogCustomWithKnownEnvVars(config Config, origin string, loadSecret 
 
 	warnings, err := LoadCustom(config, origin, loadSecret, additionalKnownEnvVars)
 	if err != nil {
+		if errors.Is(err, os.ErrPermission) {
+			log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
+		} else {
+			log.Warnf("Error loading config: %v", err)
+		}
 		return warnings, err
 	}
 
@@ -1522,11 +1519,6 @@ func LoadCustom(config Config, origin string, loadSecret bool, additionalKnownEn
 		if IsServerless() {
 			log.Debug("No config file detected, using environment variable based configuration only")
 			return &warnings, nil
-		}
-		if errors.Is(err, os.ErrPermission) {
-			log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
-		} else {
-			log.Warnf("Error loading config: %v", err)
 		}
 		return &warnings, err
 	}
@@ -1666,6 +1658,17 @@ func setupFipsLogsConfig(config Config, configPrefix string, url string) {
 	config.Set(configPrefix+"logs_dd_url", url)
 }
 
+func setupSBOMConfig(config Config, cacheDir string) {
+	config.BindEnvAndSetDefault("sbom.enabled", false)
+	config.BindEnvAndSetDefault("sbom.analyzers", []string{"os"})
+	config.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, cacheDir))
+	config.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
+	config.BindEnvAndSetDefault("sbom.use_custom_cache", false)
+	config.BindEnvAndSetDefault("sbom.custom_cache_max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
+	config.BindEnvAndSetDefault("sbom.custom_cache_max_cache_entries", 10000)     // used by custom cache keys stored in memory
+	config.BindEnvAndSetDefault("sbom.cache_clean_interval", "30m")               // used by custom cache.
+}
+
 // ResolveSecrets merges all the secret values from origin into config. Secret values
 // are identified by a value of the form "ENC[key]" where key is the secret key.
 // See: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
@@ -1741,21 +1744,6 @@ func SanitizeAPIKey(key string) string {
 	return strings.TrimSpace(key)
 }
 
-// GetMainInfraEndpoint returns the main DD Infra URL defined in the config, based on the value of `site` and `dd_url`
-func GetMainInfraEndpoint() string {
-	return getMainInfraEndpointWithConfig(Datadog)
-}
-
-// GetMainEndpoint returns the main DD URL defined in the config, based on `site` and the prefix, or ddURLKey
-func GetMainEndpoint(prefix string, ddURLKey string) string {
-	return GetMainEndpointWithConfig(Datadog, prefix, ddURLKey)
-}
-
-// GetMultipleEndpoints returns the api keys per domain specified in the main agent config
-func GetMultipleEndpoints() (map[string][]string, error) {
-	return getMultipleEndpointsWithConfig(Datadog)
-}
-
 func bindEnvAndSetLogsConfigKeys(config Config, prefix string) {
 	config.BindEnv(prefix + "logs_dd_url") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
 	config.BindEnv(prefix + "dd_url")
@@ -1800,109 +1788,6 @@ func AddAgentVersionToDomain(DDURL string, app string) (string, error) {
 
 	u.Host = strings.Replace(u.Host, subdomain, newSubdomain, 1)
 	return u.String(), nil
-}
-
-func getMainInfraEndpointWithConfig(config Config) string {
-	return GetMainEndpointWithConfig(config, infraURLPrefix, "dd_url")
-}
-
-// GetMainEndpointWithConfig implements the logic to extract the DD URL from a config, based on `site` and ddURLKey
-func GetMainEndpointWithConfig(config Config, prefix string, ddURLKey string) (resolvedDDURL string) {
-	if config.IsSet(ddURLKey) && config.GetString(ddURLKey) != "" {
-		// value under ddURLKey takes precedence over 'site'
-		resolvedDDURL = getResolvedDDUrl(config, ddURLKey)
-	} else if config.GetString("site") != "" {
-		resolvedDDURL = prefix + strings.TrimSpace(config.GetString("site"))
-	} else {
-		resolvedDDURL = prefix + DefaultSite
-	}
-	return
-}
-
-// GetMainEndpointWithConfigBackwardCompatible implements the logic to extract the DD URL from a config, based on `site`,ddURLKey and a backward compatible key
-func GetMainEndpointWithConfigBackwardCompatible(config Config, prefix string, ddURLKey string, backwardKey string) (resolvedDDURL string) {
-	if config.IsSet(ddURLKey) && config.GetString(ddURLKey) != "" {
-		// value under ddURLKey takes precedence over backwardKey and 'site'
-		resolvedDDURL = getResolvedDDUrl(config, ddURLKey)
-	} else if config.IsSet(backwardKey) && config.GetString(backwardKey) != "" {
-		// value under backwardKey takes precedence over 'site'
-		resolvedDDURL = getResolvedDDUrl(config, backwardKey)
-	} else if config.GetString("site") != "" {
-		resolvedDDURL = prefix + strings.TrimSpace(config.GetString("site"))
-	} else {
-		resolvedDDURL = prefix + DefaultSite
-	}
-	return
-}
-
-func getResolvedDDUrl(config Config, urlKey string) string {
-	resolvedDDURL := config.GetString(urlKey)
-	if config.IsSet("site") {
-		log.Infof("'site' and '%s' are both set in config: setting main endpoint to '%s': \"%s\"", urlKey, urlKey, config.GetString(urlKey))
-	}
-	return resolvedDDURL
-}
-
-// getMultipleEndpointsWithConfig implements the logic to extract the api keys per domain from an agent config
-func getMultipleEndpointsWithConfig(config Config) (map[string][]string, error) {
-	// Validating domain
-	ddURL := getMainInfraEndpointWithConfig(config)
-	_, err := url.Parse(ddURL)
-	if err != nil {
-		return nil, fmt.Errorf("could not parse main endpoint: %s", err)
-	}
-
-	keysPerDomain := map[string][]string{
-		ddURL: {
-			config.GetString("api_key"),
-		},
-	}
-
-	additionalEndpoints := config.GetStringMapStringSlice("additional_endpoints")
-
-	return MergeAdditionalEndpoints(keysPerDomain, additionalEndpoints)
-}
-
-// MergeAdditionalEndpoints merges additional endpoints into keysPerDomain
-func MergeAdditionalEndpoints(keysPerDomain, additionalEndpoints map[string][]string) (map[string][]string, error) {
-	for domain, apiKeys := range additionalEndpoints {
-
-		// Validating domain
-		_, err := url.Parse(domain)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse url from 'additional_endpoints' %s: %s", domain, err)
-		}
-
-		if _, ok := keysPerDomain[domain]; ok {
-			for _, apiKey := range apiKeys {
-				keysPerDomain[domain] = append(keysPerDomain[domain], apiKey)
-			}
-		} else {
-			keysPerDomain[domain] = apiKeys
-		}
-	}
-
-	// dedupe api keys and remove domains with no api keys (or empty ones)
-	for domain, apiKeys := range keysPerDomain {
-		dedupedAPIKeys := make([]string, 0, len(apiKeys))
-		seen := make(map[string]bool)
-		for _, apiKey := range apiKeys {
-			trimmedAPIKey := strings.TrimSpace(apiKey)
-			if _, ok := seen[trimmedAPIKey]; !ok && trimmedAPIKey != "" {
-				seen[trimmedAPIKey] = true
-				dedupedAPIKeys = append(dedupedAPIKeys, trimmedAPIKey)
-			}
-		}
-
-		if len(dedupedAPIKeys) > 0 {
-			keysPerDomain[domain] = dedupedAPIKeys
-		} else {
-			log.Infof("No API key provided for domain \"%s\", removing domain from endpoints", domain)
-			delete(keysPerDomain, domain)
-		}
-	}
-
-	return keysPerDomain, nil
 }
 
 // IsCloudProviderEnabled checks the cloud provider family provided in

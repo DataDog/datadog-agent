@@ -72,6 +72,7 @@ func modelConnections(conns *network.Connections) *model.Connections {
 	agentConns := make([]*model.Connection, len(conns.Conns))
 	routeIndex := make(map[string]RouteIdx)
 	httpEncoder := newHTTPEncoder(conns)
+	defer httpEncoder.Close()
 	kafkaEncoder := newKafkaEncoder(conns)
 	http2Encoder := newHTTP2Encoder(conns)
 	ipc := make(ipCache, len(conns.Conns)/2)

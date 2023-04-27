@@ -7,6 +7,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	_ "net/http/pprof"
 	"os"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
@@ -96,10 +98,13 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 }
 
 func runApp(exit chan struct{}, globalParams *command.GlobalParams) error {
+	defer log.Flush() // Flush the log in case of an unclean shutdown
 	go util.HandleSignals(exit)
 
 	var appInitDeps struct {
 		fx.In
+
+		Logger logComponent.Component
 
 		Checks []types.CheckComponent `group:"check"`
 		Syscfg sysprobeconfig.Component
@@ -139,6 +144,17 @@ func runApp(exit chan struct{}, globalParams *command.GlobalParams) error {
 		) {
 		}),
 	)
+
+	if err := app.Err(); err != nil {
+		// At this point it is not guaranteed that the logger has been successfully initialized. We should fall back to
+		// stdout just in case.
+		if appInitDeps.Logger == nil {
+			fmt.Println("Failed to initialize the process agent: ", fxutil.UnwrapIfErrArgumentsFailed(err))
+		} else {
+			_ = appInitDeps.Logger.Critical("Failed to initialize the process agent: ", fxutil.UnwrapIfErrArgumentsFailed(err))
+		}
+		return err
+	}
 
 	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
 	if !anyChecksEnabled(appInitDeps.Checks) {

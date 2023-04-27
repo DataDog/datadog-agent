@@ -10,16 +10,16 @@ package flare
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
 	"regexp"
 	"syscall"
 
+	"github.com/DataDog/ebpf-manager/tracefs"
+
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func addSystemProbePlatformSpecificEntries(fb flarehelpers.FlareBuilder) {
@@ -34,9 +34,9 @@ func getLinuxKernelSymbols(fb flarehelpers.FlareBuilder) error {
 }
 
 func getLinuxKprobeEvents(fb flarehelpers.FlareBuilder) error {
-	traceFSPath := utilkernel.GetTraceFSMountPath()
-	if traceFSPath == "" {
-		return errors.New("tracefs not available")
+	traceFSPath, err := tracefs.Root()
+	if err != nil {
+		return err
 	}
 	return fb.CopyFile(filepath.Join(traceFSPath, "kprobe_events"))
 }
@@ -104,17 +104,17 @@ func getLinuxDmesg(fb flarehelpers.FlareBuilder) error {
 }
 
 func getLinuxTracingAvailableEvents(fb flarehelpers.FlareBuilder) error {
-	traceFSPath := utilkernel.GetTraceFSMountPath()
-	if traceFSPath == "" {
-		return errors.New("tracefs not available")
+	traceFSPath, err := tracefs.Root()
+	if err != nil {
+		return err
 	}
 	return fb.CopyFile(filepath.Join(traceFSPath, "available_events"))
 }
 
 func getLinuxTracingAvailableFilterFunctions(fb flarehelpers.FlareBuilder) error {
-	traceFSPath := utilkernel.GetTraceFSMountPath()
-	if traceFSPath == "" {
-		return errors.New("tracefs not available")
+	traceFSPath, err := tracefs.Root()
+	if err != nil {
+		return err
 	}
 	return fb.CopyFile(filepath.Join(traceFSPath, "available_filter_functions"))
 }

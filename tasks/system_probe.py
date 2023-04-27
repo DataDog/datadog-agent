@@ -209,15 +209,21 @@ def ninja_network_ebpf_co_re_program(nw, infile, outfile, flags):
 def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
     network_bpf_dir = os.path.join("pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
-    network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
     network_flags = "-Ipkg/network/ebpf/c -g"
-    network_programs = ["dns", "offset-guess", "tracer", "http", "usm_events_test", "conntrack"]
+    network_programs = [
+        "prebuilt/dns",
+        "prebuilt/offset-guess",
+        "tracer",
+        "prebuilt/http",
+        "prebuilt/usm_events_test",
+        "prebuilt/conntrack",
+    ]
     network_co_re_programs = ["co-re/tracer-fentry", "runtime/http"]
 
     for prog in network_programs:
-        infile = os.path.join(network_prebuilt_dir, f"{prog}.c")
-        outfile = os.path.join(build_dir, f"{prog}.o")
+        infile = os.path.join(network_c_dir, f"{prog}.c")
+        outfile = os.path.join(build_dir, f"{os.path.basename(prog)}.o")
         ninja_network_ebpf_program(nw, infile, outfile, network_flags)
 
     for prog_path in network_co_re_programs:
@@ -653,12 +659,22 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False):
             shutil.copy(os.path.join(pkg, "agent-usm.jar"), os.path.join(target_path, "agent-usm.jar"))
 
         gotls_client_dir = os.path.join("testutil", "gotls_client")
-        gotls_client_binary = os.path.join(gotls_client_dir, "gotls_client")
         gotls_extra_path = os.path.join(pkg, gotls_client_dir)
         if not windows and os.path.isdir(gotls_extra_path):
+            gotls_client_binary = os.path.join(gotls_client_dir, "gotls_client")
             gotls_binary_path = os.path.join(target_path, gotls_client_binary)
             with chdir(gotls_extra_path):
                 ctx.run(f"go build -o {gotls_binary_path} -ldflags=\"-extldflags '-static'\" gotls_client.go")
+
+        sowatcher_client_dir = os.path.join("testutil", "sowatcher_client")
+        sowatcher_client_extra_path = os.path.join(pkg, sowatcher_client_dir)
+        if not windows and os.path.isdir(sowatcher_client_extra_path):
+            sowatcher_client_client_binary = os.path.join(sowatcher_client_dir, "sowatcher_client")
+            sowatcher_client_binary_path = os.path.join(target_path, sowatcher_client_client_binary)
+            with chdir(sowatcher_client_extra_path):
+                ctx.run(
+                    f"go build -o {sowatcher_client_binary_path} -ldflags=\"-extldflags '-static'\" sowatcher_client.go"
+                )
 
     gopath = os.getenv("GOPATH")
     copy_files = [
@@ -1454,8 +1470,9 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
             images.add(docker_compose["services"][component]["image"])
 
     # Java tests have dynamic images in docker-compose.yml
-    for image in ["openjdk:21-oraclelinux8", "openjdk:15-oraclelinux8", "openjdk:8u151-jre", "menci/archlinuxarm:base"]:
-        images.add(image)
+    images.update(
+        ["openjdk:21-oraclelinux8", "openjdk:15-oraclelinux8", "openjdk:8u151-jre", "menci/archlinuxarm:base"]
+    )
 
     for image in images:
         output_path = image.translate(str.maketrans('', '', string.punctuation))

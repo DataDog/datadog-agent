@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
 
@@ -108,8 +109,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 // newTracer is an internal function used by tests primarily
 // (and NewTracer above)
 func newTracer(config *config.Config) (*Tracer, error) {
-	// make sure debugfs is mounted
-	if mounted, err := kernel.IsDebugFSOrTraceFSMounted(); !mounted {
+	if _, err := tracefs.Root(); err != nil {
 		return nil, fmt.Errorf("system-probe unsupported: %s", err)
 	}
 
@@ -257,7 +257,7 @@ func newConntracker(cfg *config.Config, bpfTelemetry *telemetry.EBPFTelemetry, c
 		return c, nil
 	}
 
-	if !cfg.EnableRuntimeCompiler || cfg.AllowPrecompiledFallback {
+	if cfg.AllowNetlinkConntrackerFallback {
 		log.Warnf("error initializing ebpf conntracker, falling back to netlink version: %s", err)
 		if c, err = netlink.NewConntracker(cfg); err == nil {
 			return c, nil

@@ -1335,8 +1335,12 @@ func TestOTLPConvertSpan(t *testing.T) {
 }
 
 func TestFlatten(t *testing.T) {
-	assert.Equal(t, flatten(map[string]string{"a": "b", "c": "d"}).String(), "a:b,c:d")
-	assert.Equal(t, flatten(map[string]string{"x": "y"}).String(), "x:y")
+	for _, tt := range []map[string]string{
+		{"a": "b", "c": "d"},
+		{"x": "y"},
+	} {
+		assert.Equal(t, unflatten(flatten(tt).String()), tt)
+	}
 	assert.Equal(t, flatten(map[string]string{}).String(), "")
 	assert.Equal(t, flatten(nil).String(), "")
 }
