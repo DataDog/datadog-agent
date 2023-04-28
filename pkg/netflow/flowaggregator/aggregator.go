@@ -259,6 +259,9 @@ func (agg *FlowAggregator) flush() int {
 	return len(flowsToFlush)
 }
 
+// getSequenceDelta return the delta of current sequence number compared to previously saved sequence number
+// Since we track per exporterIP, the returned delta is only accurate when for the specific exporterIP there is
+// only one NetFlow9/IPFIX observation domain, NetFlow5 engineType/engineId, sFlow agent/subagent.
 func (agg *FlowAggregator) getSequenceDelta(flowsToFlush []*common.Flow) map[string]float64 {
 	// TODO: TESTME
 	maxSequencePerExporter := make(map[string]uint32)
