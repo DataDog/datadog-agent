@@ -54,6 +54,7 @@ Logs Agent
   {{- end }}
 {{- end }}
 
+{{ if .integrations }}
   ============
   Integrations
   ============
@@ -88,6 +89,7 @@ Logs Agent
       {{- end }}
   {{- end }}
   {{- end }}
+{{- end }}
 {{ if .tailers }}
   =======
   Tailers

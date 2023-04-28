@@ -66,7 +66,6 @@ type AutoMultilineHandler struct {
 	timeoutTimer        *clock.Timer
 	detectedPattern     *DetectedPattern
 	clk                 clock.Clock
-	tailerInfo          *status.InfoRegistry
 	autoMultiLineStatus *status.MappedInfo
 }
 
@@ -106,13 +105,12 @@ func NewAutoMultilineHandler(
 		timeoutTimer:        nil,
 		detectedPattern:     detectedPattern,
 		clk:                 clock.New(),
-		tailerInfo:          tailerInfo,
 		autoMultiLineStatus: status.NewMappedInfo("Auto Multi-line"),
 	}
 
 	h.singleLineHandler = NewSingleLineHandler(outputFn, lineLimit)
 	h.processFunc = h.processAndTry
-	h.tailerInfo.Register(h.autoMultiLineStatus)
+	tailerInfo.Register(h.autoMultiLineStatus)
 	h.autoMultiLineStatus.SetMessage("state", "Waiting for logs")
 
 	return h
