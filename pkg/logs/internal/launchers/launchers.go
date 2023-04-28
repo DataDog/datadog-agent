@@ -26,7 +26,7 @@ type Launchers struct {
 	registry auditor.Registry
 
 	// tailers will be given to launchers' Start method.
-	tailers *tailers.TailerTracker
+	tracker *tailers.TailerTracker
 
 	// launchers is the set of running launchers
 	launchers []Launcher
@@ -40,13 +40,13 @@ func NewLaunchers(
 	sources *sources.LogSources,
 	pipelineProvider pipeline.Provider,
 	registry auditor.Registry,
-	tailers *tailers.TailerTracker,
+	tracker *tailers.TailerTracker,
 ) *Launchers {
 	return &Launchers{
 		sourceProvider:   sources,
 		pipelineProvider: pipelineProvider,
 		registry:         registry,
-		tailers:          tailers,
+		tracker:          tracker,
 	}
 }
 
@@ -55,14 +55,14 @@ func NewLaunchers(
 func (ls *Launchers) AddLauncher(launcher Launcher) {
 	ls.launchers = append(ls.launchers, launcher)
 	if ls.started {
-		launcher.Start(ls.sourceProvider, ls.pipelineProvider, ls.registry, ls.tailers)
+		launcher.Start(ls.sourceProvider, ls.pipelineProvider, ls.registry, ls.tracker)
 	}
 }
 
 // Start starts all launchers in the collection.
 func (ls *Launchers) Start() {
 	for _, s := range ls.launchers {
-		s.Start(ls.sourceProvider, ls.pipelineProvider, ls.registry, ls.tailers)
+		s.Start(ls.sourceProvider, ls.pipelineProvider, ls.registry, ls.tracker)
 	}
 	ls.started = true
 }

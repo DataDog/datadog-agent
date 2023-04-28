@@ -34,7 +34,7 @@ func NewLauncher(frameSize int) *Launcher {
 }
 
 // Start starts the listener.
-func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tailers *tailers.TailerTracker) {
+func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
 	l.pipelineProvider = pipelineProvider
 	l.tcpSources = sourceProvider.GetAddedForType(config.TCPType)
 	l.udpSources = sourceProvider.GetAddedForType(config.UDPType)

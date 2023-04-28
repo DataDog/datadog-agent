@@ -17,7 +17,7 @@ import (
 // InitStatus initialize a status builder
 func InitStatus(sources *sources.LogSources) {
 	var isRunning = atomic.NewBool(true)
-	tailers := tailers.NewTailerTracker()
+	tracker := tailers.NewTailerTracker()
 	endpoints, _ := config.BuildEndpoints(config.HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	Init(isRunning, endpoints, sources, tailers, metrics.LogsExpvars)
+	Init(isRunning, endpoints, sources, tracker, metrics.LogsExpvars)
 }

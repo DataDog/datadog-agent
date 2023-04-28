@@ -75,11 +75,11 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 }
 
 // Start starts the Launcher
-func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tailers *tailers.TailerTracker) {
+func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
 	s.pipelineProvider = pipelineProvider
 	s.addedSources, s.removedSources = sourceProvider.SubscribeForType(config.FileType)
 	s.registry = registry
-	tailers.Add(s.tailers)
+	tracker.Add(s.tailers)
 	go s.run()
 }
 
@@ -228,7 +228,7 @@ func (s *Launcher) removeSource(source *sources.LogSource) {
 // launch launches new tailers for a new source.
 func (s *Launcher) launchTailers(source *sources.LogSource) {
 	// If we're at the limit already, no need to do a 'CollectFiles', just wait for the next 'scan'
-	if len(s.tailers.All()) >= s.tailingLimit {
+	if s.tailers.Count() >= s.tailingLimit {
 		return
 	}
 	files, err := s.fileProvider.CollectFiles(source)

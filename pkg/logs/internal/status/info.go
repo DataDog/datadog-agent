@@ -67,7 +67,7 @@ func (c *CountInfo) Info() []string {
 
 // MappedInfo collects multiple info messages with a unique key
 type MappedInfo struct {
-	sync.Mutex
+	mu       sync.Mutex
 	key      string
 	messages map[string]string
 }
@@ -82,15 +82,15 @@ func NewMappedInfo(key string) *MappedInfo {
 
 // SetMessage sets a message with a unique key
 func (m *MappedInfo) SetMessage(key string, message string) {
-	defer m.Unlock()
-	m.Lock()
+	defer m.mu.Unlock()
+	m.mu.Lock()
 	m.messages[key] = message
 }
 
 // RemoveMessage removes a message with a unique key
 func (m *MappedInfo) RemoveMessage(key string) {
-	defer m.Unlock()
-	m.Lock()
+	defer m.mu.Unlock()
+	m.mu.Lock()
 	delete(m.messages, key)
 }
 
@@ -101,8 +101,8 @@ func (m *MappedInfo) InfoKey() string {
 
 // Info returns the info
 func (m *MappedInfo) Info() []string {
-	defer m.Unlock()
-	m.Lock()
+	defer m.mu.Unlock()
+	m.mu.Lock()
 	info := []string{}
 	for _, v := range m.messages {
 		info = append(info, v)
@@ -112,23 +112,21 @@ func (m *MappedInfo) Info() []string {
 
 // InfoRegistry keeps track of info providers
 type InfoRegistry struct {
-	sync.Mutex
-	keyOrder []string
-	info     map[string]InfoProvider
+	mu   sync.Mutex
+	info map[string]InfoProvider
 }
 
 // NewInfoRegistry creates a new InfoRegistry instance
 func NewInfoRegistry() *InfoRegistry {
 	return &InfoRegistry{
-		keyOrder: []string{},
-		info:     make(map[string]InfoProvider),
+		info: make(map[string]InfoProvider),
 	}
 }
 
 // Register adds an info provider
 func (i *InfoRegistry) Register(info InfoProvider) {
-	i.Lock()
-	defer i.Unlock()
+	i.mu.Lock()
+	defer i.mu.Unlock()
 	key := info.InfoKey()
 
 	if _, ok := i.info[key]; ok {
@@ -136,38 +134,35 @@ func (i *InfoRegistry) Register(info InfoProvider) {
 		return
 	}
 
-	i.keyOrder = append(i.keyOrder, key)
 	i.info[key] = info
 }
 
 // Get returns the provider for a given key, or nil
 func (i *InfoRegistry) Get(key string) InfoProvider {
-	i.Lock()
-	defer i.Unlock()
-	if val, ok := i.info[key]; ok {
-		return val
-	}
-	return nil
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return i.info[key]
 }
 
-// All returns all registered info providers in the order they were registered
+// All returns all registered info providers.
 func (i *InfoRegistry) All() []InfoProvider {
-	i.Lock()
-	defer i.Unlock()
+	i.mu.Lock()
+	defer i.mu.Unlock()
 	info := []InfoProvider{}
-	for _, key := range i.keyOrder {
-		info = append(info, i.info[key])
+	for _, v := range i.info {
+		info = append(info, v)
 	}
 
 	return info
 }
 
-// Rendered renders the info for display on the status page in the order they were registered
+// Rendered renders the info for display on the status page.
 func (i *InfoRegistry) Rendered() map[string][]string {
+	i.mu.Lock()
+	defer i.mu.Unlock()
 	info := make(map[string][]string)
-	all := i.All()
 
-	for _, v := range all {
+	for _, v := range i.info {
 		if len(v.Info()) == 0 {
 			continue
 		}

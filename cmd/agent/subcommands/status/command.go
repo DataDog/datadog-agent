@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"time"
 
@@ -143,12 +144,20 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 	if err != nil {
 		return err
 	}
-	args := ""
+
+	v := url.Values{}
 	if cliParams.verbose {
-		args = "?verbose=true"
+		v.Set("verbose", "true")
 	}
-	urlstr := fmt.Sprintf("https://%v:%v/agent/status%v", ipcAddress, config.GetInt("cmd_port"), args)
-	r, err := makeRequest(urlstr)
+
+	url := url.URL{
+		Scheme:   "https",
+		Host:     fmt.Sprintf("%v:%v", ipcAddress, config.GetInt("cmd_port")),
+		Path:     "/agent/status",
+		RawQuery: v.Encode(),
+	}
+
+	r, err := makeRequest(url.String())
 	if err != nil {
 		return err
 	}

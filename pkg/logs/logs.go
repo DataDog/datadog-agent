@@ -58,7 +58,7 @@ func start() (*Agent, error) {
 	// setup the sources and the services
 	sources := sources.NewLogSources()
 	services := service.NewServices()
-	tailers := tailers.NewTailerTracker()
+	tracker := tailers.NewTailerTracker()
 
 	// setup the server config
 	endpoints, err := buildEndpoints()
@@ -75,7 +75,7 @@ func start() (*Agent, error) {
 	inventories.SetAgentMetadata(inventories.AgentLogsTransport, status.CurrentTransport)
 
 	// setup the status
-	status.Init(isRunning, endpoints, sources, tailers, metrics.LogsExpvars)
+	status.Init(isRunning, endpoints, sources, tracker, metrics.LogsExpvars)
 
 	// setup global processing rules
 	processingRules, err := config.GlobalProcessingRules()
@@ -92,7 +92,7 @@ func start() (*Agent, error) {
 
 	// setup and start the logs agent
 	log.Info("Starting logs-agent...")
-	agent = NewAgent(sources, services, tailers, processingRules, endpoints)
+	agent = NewAgent(sources, services, tracker, processingRules, endpoints)
 
 	agent.Start()
 	isRunning.Store(true)

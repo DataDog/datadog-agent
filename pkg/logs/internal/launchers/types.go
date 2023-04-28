@@ -19,7 +19,7 @@ import (
 // the agent, and stopped when it stops.
 type Launcher interface {
 	// Start the launcher.
-	Start(sourceProvider SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tailers *tailers.TailerTracker)
+	Start(sourceProvider SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker)
 
 	// Stop the launcher, and wait until shutdown is complete.  It is not
 	// necessary to unsubscribe from the sourceProvider, but any background

@@ -24,7 +24,7 @@ func NewLauncher() *Launcher {
 }
 
 // Start does nothing
-func (l *Launcher) Start(sources launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tailers *tailers.TailerTracker) {
+func (l *Launcher) Start(sources launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
 }
 
 // Stop does nothing

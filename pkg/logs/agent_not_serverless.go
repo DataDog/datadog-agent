@@ -34,7 +34,7 @@ import (
 )
 
 // NewAgent returns a new Logs Agent
-func NewAgent(sources *sources.LogSources, services *service.Services, tailers *tailers.TailerTracker, processingRules []*config.ProcessingRule, endpoints *config.Endpoints) *Agent {
+func NewAgent(sources *sources.LogSources, services *service.Services, tracker *tailers.TailerTracker, processingRules []*config.ProcessingRule, endpoints *config.Endpoints) *Agent {
 	health := health.RegisterLiveness("logs-agent")
 
 	// setup the auditor
@@ -49,7 +49,7 @@ func NewAgent(sources *sources.LogSources, services *service.Services, tailers *
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsCtx)
 
 	// setup the launchers
-	lnchrs := launchers.NewLaunchers(sources, pipelineProvider, auditor, tailers)
+	lnchrs := launchers.NewLaunchers(sources, pipelineProvider, auditor, tracker)
 	lnchrs.AddLauncher(filelauncher.NewLauncher(
 		coreConfig.Datadog.GetInt("logs_config.open_files_limit"),
 		filelauncher.DefaultSleepDuration,

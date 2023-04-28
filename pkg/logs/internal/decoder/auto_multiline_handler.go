@@ -167,14 +167,14 @@ func (h *AutoMultilineHandler) processAndTry(message *Message) {
 	select {
 	case <-h.timeoutTimer.C:
 		log.Debug("Multiline auto detect timed out before reaching line test threshold")
-		h.autoMultiLineStatus.SetMessage("message", fmt.Sprintf("Timeout reached. Processed (%d of %d) logs during detection", h.linesTested, h.linesToAssess))
+		h.autoMultiLineStatus.SetMessage("message2", fmt.Sprintf("Timeout reached. Processed (%d of %d) logs during detection", h.linesTested, h.linesToAssess))
 		timeout = true
 		break
 	default:
-		break
 	}
 
-	h.autoMultiLineStatus.SetMessage("state", fmt.Sprintf("Detecting (%d of %d)", h.linesTested, h.linesToAssess))
+	h.autoMultiLineStatus.SetMessage("state", "State: Using auto multi-line handler")
+	h.autoMultiLineStatus.SetMessage("message", fmt.Sprintf("Detecting (%d of %d)", h.linesTested, h.linesToAssess))
 
 	if h.linesTested >= h.linesToAssess || timeout {
 		topMatch := h.scoredMatches[0]
@@ -182,19 +182,22 @@ func (h *AutoMultilineHandler) processAndTry(message *Message) {
 		var message string
 
 		if matchRatio >= h.matchThreshold {
+			h.autoMultiLineStatus.SetMessage("state", "State: Using multi-line handler")
 			message = fmt.Sprintf("Pattern %v matched %d lines with a ratio of %f", topMatch.regexp.String(), topMatch.score, matchRatio)
+			log.Debug(fmt.Sprintf("Pattern %v matched %d lines with a ratio of %f - using multi-line handler", topMatch.regexp.String(), topMatch.score, matchRatio))
 			telemetry.GetStatsTelemetryProvider().Count(autoMultiLineTelemetryMetricName, 1, []string{"success:true"})
 			h.detectedPattern.Set(topMatch.regexp)
 			h.switchToMultilineHandler(topMatch.regexp)
 		} else {
-			message = fmt.Sprintf("No pattern met the line match threshold: %f during multiline auto detection. Top match was %v with a match ratio of: %f - using single line handler", h.matchThreshold, topMatch.regexp.String(), matchRatio)
+			h.autoMultiLineStatus.SetMessage("state", "State: Using single-line handler")
+			message = fmt.Sprintf("No pattern met the line match threshold: %f during multiline auto detection. Top match was %v with a match ratio of: %f", h.matchThreshold, topMatch.regexp.String(), matchRatio)
+			log.Debugf(fmt.Sprintf("No pattern met the line match threshold: %f during multiline auto detection. Top match was %v with a match ratio of: %f - using single-line handler", h.matchThreshold, topMatch.regexp.String(), matchRatio))
 
 			telemetry.GetStatsTelemetryProvider().Count(autoMultiLineTelemetryMetricName, 1, []string{"success:false"})
 			// Stay with the single line handler and no longer attempt to detect multiline matches.
 			h.processFunc = h.singleLineHandler.process
 		}
-		h.autoMultiLineStatus.SetMessage("state", message)
-		log.Debugf(message)
+		h.autoMultiLineStatus.SetMessage("message", message)
 	}
 }
 
