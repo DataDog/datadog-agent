@@ -656,7 +656,7 @@ func TestJavaInjection(t *testing.T) {
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
-				require.True(t, javatestutil.RunJavaVersion(t, "openjdk:8u151-jre", "JustWait"), "Failed running Java version")
+				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:8u151-jre", "JustWait"), "Failed running Java version")
 			},
 			validation: commonValidation,
 			teardown:   commonTearDown,
@@ -681,9 +681,8 @@ func TestJavaInjection(t *testing.T) {
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
-				require.True(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait"), "Failed running Java version")
-				var fake testing.T
-				require.Falsef(t, javatestutil.RunJavaVersion(&fake, "openjdk:21-oraclelinux8", "AnotherWait"), "AnotherWait should not be attached")
+				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait"), "Failed running Java version")
+				require.Error(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "AnotherWait"), "AnotherWait should not be attached")
 			},
 			validation: commonValidation,
 			teardown:   commonTearDown,
@@ -706,9 +705,8 @@ func TestJavaInjection(t *testing.T) {
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
-				require.True(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "AnotherWait"), "Failed running Java version")
-				var fake testing.T
-				require.Falsef(t, javatestutil.RunJavaVersion(&fake, "openjdk:21-oraclelinux8", "JustWait"), "JustWait should not be attached")
+				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "AnotherWait"), "Failed running Java version")
+				require.Error(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait"), "JustWait should not be attached")
 			},
 			validation: commonValidation,
 			teardown:   commonTearDown,
@@ -729,9 +727,8 @@ func TestJavaInjection(t *testing.T) {
 				cfg.JavaAgentBlockRegex = ".*AnotherWait.*"
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				require.True(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait"), "Failed running Java version")
-				var fake testing.T
-				require.Falsef(t, javatestutil.RunJavaVersion(&fake, "openjdk:21-oraclelinux8", "AnotherWait"), "AnotherWait should not be attached")
+				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait"), "Failed running Java version")
+				require.Error(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "AnotherWait"), "AnotherWait should not be attached")
 			},
 			validation: commonValidation,
 			teardown:   commonTearDown,
@@ -752,7 +749,7 @@ func TestJavaInjection(t *testing.T) {
 				cfg.JavaAgentBlockRegex = ".*JustWait.*"
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				require.True(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait"), "Failed running Java version")
+				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait"), "Failed running Java version")
 			},
 			validation: commonValidation,
 			teardown:   commonTearDown,
@@ -766,7 +763,7 @@ func TestJavaInjection(t *testing.T) {
 				cfg.CollectTCPConns = true
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				require.True(t, javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://httpbin.org/anything/java-tls-request", regexp.MustCompile("Response code = .*")), "Failed running Java version")
+				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://httpbin.org/anything/java-tls-request", regexp.MustCompile("Response code = .*")), "Failed running Java version")
 			},
 			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
 				// Iterate through active connections until we find connection created above
@@ -982,7 +979,7 @@ func testHTTPsGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) 
 
 	tr := setupTracer(t, cfg)
 
-	gotls.RunServer(t, serverPort)
+	require.NoError(t, gotls.RunServer(t, serverPort))
 	reqs := make(requestsMap)
 	for i := 0; i < expectedOccurrences; i++ {
 		resp, err := client.Get(fmt.Sprintf("https://localhost:%s/status/%d", serverPort, 200+i))
@@ -1001,7 +998,7 @@ func testHTTPsGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Conf
 		expectedOccurrences = 10
 	)
 
-	gotls.RunServer(t, serverPort)
+	require.NoError(t, gotls.RunServer(t, serverPort))
 
 	client := &nethttp.Client{
 		Transport: &nethttp.Transport{
@@ -1083,7 +1080,7 @@ func TestTLSClassification(t *testing.T) {
 					time.Sleep(5 * time.Second)
 					clientSuccess = prototls.RunClientOpenssl(t, "localhost", "44330", scenario.openSSLCommand)
 				}()
-				prototls.RunServerOpenssl(t, "44330", "-www")
+				require.NoError(t, prototls.RunServerOpenssl(t, "44330", "-www"))
 				wg.Wait()
 				if !clientSuccess {
 					t.Fatalf("openssl client failed")
