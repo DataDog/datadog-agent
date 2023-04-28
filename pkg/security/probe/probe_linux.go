@@ -324,7 +324,7 @@ func (p *Probe) handleAnomalyDetection(event *model.Event) bool {
 	// first, check if the current event is a kernel generated anomaly detection event
 	if profile.IsAnomalyDetectionEvent(event.GetEventType()) {
 		p.monitor.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, &event.ContainerContext), &event.SecurityProfileContext)
-	// check if the profile can generate anomalies for the current event type
+		// check if the profile can generate anomalies for the current event type
 	} else if !event.SecurityProfileContext.CanGenerateAnomaliesFor(event.GetEventType()) {
 		return false
 	} else if event.IsInProfile() {
