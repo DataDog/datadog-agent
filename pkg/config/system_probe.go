@@ -308,7 +308,8 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.max_count", 400)
 
 	// CWS - Anomaly detection
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.syscalls", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.syscalls.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.rate_limiter", 5)
 }
 
 func join(pieces ...string) string {
