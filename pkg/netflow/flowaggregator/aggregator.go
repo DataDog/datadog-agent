@@ -48,8 +48,21 @@ type FlowAggregator struct {
 	goflowPrometheusGatherer     prometheus.Gatherer
 	timeNowFunction              func() time.Time // Allows to mock time in tests
 
-	lastSequencePerExporter   map[string]uint32
+	lastSequencePerExporter   map[SequenceDeltaKey]uint32
 	lastSequencePerExporterMu sync.Mutex
+}
+
+type SequenceDeltaKey struct {
+	Namespace  string
+	ExporterIP string
+	FlowType   common.FlowType
+}
+
+var maxSequenceDiff = map[common.FlowType]int{
+	common.TypeSFlow5:   1000,
+	common.TypeNetFlow5: 1000,
+	common.TypeNetFlow9: 100,
+	common.TypeIPFIX:    100,
 }
 
 // NewFlowAggregator returns a new FlowAggregator
@@ -72,7 +85,7 @@ func NewFlowAggregator(sender aggregator.Sender, epForwarder epforwarder.EventPl
 		hostname:                     hostname,
 		goflowPrometheusGatherer:     prometheus.DefaultGatherer,
 		timeNowFunction:              time.Now,
-		lastSequencePerExporter:      make(map[string]uint32),
+		lastSequencePerExporter:      make(map[SequenceDeltaKey]uint32),
 	}
 }
 
@@ -227,8 +240,8 @@ func (agg *FlowAggregator) flush() int {
 	log.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
 	sequenceDeltaPerExporter := agg.getSequenceDelta(flowsToFlush)
-	for exporterIP, seqDelta := range sequenceDeltaPerExporter {
-		agg.sender.Count("datadog.netflow.aggregator.sequence_delta", seqDelta, "", []string{"exporter_ip:" + exporterIP})
+	for key, seqDelta := range sequenceDeltaPerExporter {
+		agg.sender.Count("datadog.netflow.aggregator.sequence_delta", seqDelta, "", []string{"device_namespace:" + key.Namespace, "exporter_ip:" + key.ExporterIP})
 	}
 
 	// TODO: Add flush stats to agent telemetry e.g. aggregator newFlushCountStats()
@@ -262,30 +275,34 @@ func (agg *FlowAggregator) flush() int {
 // getSequenceDelta return the delta of current sequence number compared to previously saved sequence number
 // Since we track per exporterIP, the returned delta is only accurate when for the specific exporterIP there is
 // only one NetFlow9/IPFIX observation domain, NetFlow5 engineType/engineId, sFlow agent/subagent.
-func (agg *FlowAggregator) getSequenceDelta(flowsToFlush []*common.Flow) map[string]float64 {
-	// TODO: TESTME
-	maxSequencePerExporter := make(map[string]uint32)
+func (agg *FlowAggregator) getSequenceDelta(flowsToFlush []*common.Flow) map[SequenceDeltaKey]float64 {
+	maxSequencePerExporter := make(map[SequenceDeltaKey]uint32)
 	for _, flow := range flowsToFlush {
-		exporterIP := net.IP(flow.ExporterAddr).String()
-		if flow.SequenceNum > maxSequencePerExporter[exporterIP] {
-			maxSequencePerExporter[exporterIP] = flow.SequenceNum
+		key := SequenceDeltaKey{
+			Namespace:  flow.Namespace,
+			ExporterIP: net.IP(flow.ExporterAddr).String(),
+			FlowType:   flow.FlowType,
+		}
+		if flow.SequenceNum > maxSequencePerExporter[key] {
+			maxSequencePerExporter[key] = flow.SequenceNum
 		}
 	}
+	sequenceDeltaPerExporter := make(map[SequenceDeltaKey]float64)
 
-	sequenceDeltaPerExporter := make(map[string]float64)
 	agg.lastSequencePerExporterMu.Lock()
 	defer agg.lastSequencePerExporterMu.Unlock()
-	for exporterIP, seqnum := range maxSequencePerExporter {
-		delta := int64(seqnum) - int64(agg.lastSequencePerExporter[exporterIP])
-		log.Warnf("[getSequenceDelta] exporterIP=%s, seqnum=%d, delta=%d, last=%d", exporterIP, seqnum, delta, agg.lastSequencePerExporter[exporterIP])
-		if delta < -1000 { // sequence reset
-			sequenceDeltaPerExporter[exporterIP] = float64(seqnum)
-			agg.lastSequencePerExporter[exporterIP] = seqnum
+	for key, seqnum := range maxSequencePerExporter {
+		delta := int64(seqnum) - int64(agg.lastSequencePerExporter[key])
+		log.Debugf("[getSequenceDelta] key=%s, seqnum=%d, delta=%d, last=%d", key, seqnum, delta, agg.lastSequencePerExporter[key])
+		maxSeqDiff := maxSequenceDiff[key.FlowType]
+		if delta < -int64(maxSeqDiff) { // sequence reset
+			sequenceDeltaPerExporter[key] = float64(seqnum)
+			agg.lastSequencePerExporter[key] = seqnum
 		} else if delta < 0 {
-			sequenceDeltaPerExporter[exporterIP] = 0
+			sequenceDeltaPerExporter[key] = 0
 		} else {
-			sequenceDeltaPerExporter[exporterIP] = float64(delta)
-			agg.lastSequencePerExporter[exporterIP] = seqnum
+			sequenceDeltaPerExporter[key] = float64(delta)
+			agg.lastSequencePerExporter[key] = seqnum
 		}
 	}
 	return sequenceDeltaPerExporter

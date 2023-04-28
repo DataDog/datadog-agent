@@ -855,3 +855,269 @@ func TestFlowAggregator_sendExporterMetadata_singleExporterIpWithMultipleFlowTyp
 	// call sendExporterMetadata does not trigger any call to epForwarder.SendEventPlatformEventBlocking(...)
 	aggregator.sendExporterMetadata(flows, now)
 }
+
+func TestFlowAggregator_getSequenceDelta(t *testing.T) {
+	type round struct {
+		flowsToFlush          []*common.Flow
+		expectedSequenceDelta map[SequenceDeltaKey]float64
+	}
+	tests := []struct {
+		name   string
+		rounds []round
+	}{
+		{
+			name: "multiple namespaces",
+			rounds: []round{
+				{
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  10,
+							FlowType:     common.TypeNetFlow5,
+						},
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  20,
+							FlowType:     common.TypeNetFlow5,
+						},
+						{
+							Namespace:    "ns2",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  30,
+							FlowType:     common.TypeNetFlow5,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]float64{
+						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: 20,
+						{FlowType: common.TypeNetFlow5, Namespace: "ns2", ExporterIP: "127.0.0.11"}: 30,
+					},
+				},
+			},
+		},
+		{
+			name: "sequence reset",
+			rounds: []round{
+				{
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  10000,
+							FlowType:     common.TypeNetFlow5,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]float64{
+						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: 10000,
+					},
+				},
+				{
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  100,
+							FlowType:     common.TypeNetFlow5,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]float64{
+						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: 100,
+					},
+				},
+			},
+		},
+		{
+			name: "negative delta and sequence reset for netflow5",
+			rounds: []round{
+				{
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  10000,
+							FlowType:     common.TypeNetFlow5,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]float64{
+						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: 10000,
+					},
+				},
+				{ // trigger sequence reset since delta -1100 is less than -1000
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  8900,
+							FlowType:     common.TypeNetFlow5,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]float64{
+						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: 8900,
+					},
+				},
+				{ // negative delta without sequence reset
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  8500,
+							FlowType:     common.TypeNetFlow5,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]float64{
+						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: 0,
+					},
+				},
+			},
+		},
+		{
+			name: "negative delta and sequence reset for sflow5",
+			rounds: []round{
+				{
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  10000,
+							FlowType:     common.TypeSFlow5,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]float64{
+						{FlowType: common.TypeSFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: 10000,
+					},
+				},
+				{ // trigger sequence reset since delta -1100 is less than -1000
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  8900,
+							FlowType:     common.TypeSFlow5,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]float64{
+						{FlowType: common.TypeSFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: 8900,
+					},
+				},
+				{ // negative delta without sequence reset
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  8500,
+							FlowType:     common.TypeSFlow5,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]float64{
+						{FlowType: common.TypeSFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: 0,
+					},
+				},
+			},
+		},
+		{
+			name: "negative delta and sequence reset for netflow9",
+			rounds: []round{
+				{
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  10000,
+							FlowType:     common.TypeNetFlow9,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]float64{
+						{FlowType: common.TypeNetFlow9, Namespace: "ns1", ExporterIP: "127.0.0.11"}: 10000,
+					},
+				},
+				{ // trigger sequence reset since delta -200 is less than -100
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  9800,
+							FlowType:     common.TypeNetFlow9,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]float64{
+						{FlowType: common.TypeNetFlow9, Namespace: "ns1", ExporterIP: "127.0.0.11"}: 9800,
+					},
+				},
+				{ // negative delta without sequence reset
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  9750,
+							FlowType:     common.TypeNetFlow9,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]float64{
+						{FlowType: common.TypeNetFlow9, Namespace: "ns1", ExporterIP: "127.0.0.11"}: 0,
+					},
+				},
+			},
+		},
+		{
+			name: "negative delta and sequence reset for IPFIX",
+			rounds: []round{
+				{
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  10000,
+							FlowType:     common.TypeIPFIX,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]float64{
+						{FlowType: common.TypeIPFIX, Namespace: "ns1", ExporterIP: "127.0.0.11"}: 10000,
+					},
+				},
+				{ // trigger sequence reset since delta -200 is less than -100
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  9800,
+							FlowType:     common.TypeIPFIX,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]float64{
+						{FlowType: common.TypeIPFIX, Namespace: "ns1", ExporterIP: "127.0.0.11"}: 9800,
+					},
+				},
+				{ // negative delta without sequence reset
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  9750,
+							FlowType:     common.TypeIPFIX,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]float64{
+						{FlowType: common.TypeIPFIX, Namespace: "ns1", ExporterIP: "127.0.0.11"}: 0,
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sender := mocksender.NewMockSender("")
+			conf := config.NetflowConfig{
+				StopTimeout:                            10,
+				AggregatorBufferSize:                   20,
+				AggregatorFlushInterval:                1,
+				AggregatorPortRollupThreshold:          10,
+				AggregatorRollupTrackerRefreshInterval: 3600,
+			}
+			agg := NewFlowAggregator(sender, nil, &conf, "my-hostname")
+			for _, testRound := range tt.rounds {
+				assert.Equal(t, testRound.expectedSequenceDelta, agg.getSequenceDelta(testRound.flowsToFlush))
+			}
+		})
+	}
+}
