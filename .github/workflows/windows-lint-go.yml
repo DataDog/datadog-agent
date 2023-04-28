@@ -20,35 +20,8 @@ jobs:
         with:
           fetch-depth: 0 #needed for 'git describe' to work
 
-      - name: Install python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.8.10'
-
-      - name: Install go
-        uses: actions/setup-go@v3
-        with:
-          go-version-file: '.go-version'
-
-      - name: Set up runner
-        run: |
-          $ErrorActionPreference = 'Stop';
-          # install dependencies
-          # The Codecov Python uploader was deprecated on Feb 1, 2022 and disappeared from PyPi on Apr 12, 2023.
-          # python -m pip install codecov
-          python -m pip install -r requirements.txt
-          If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
-          inv -e install-tools
-          If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
-          inv -e deps
-          If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
-
       - name: Run go linters
-        shell: bash # using bash so we don't have to check $lastExitCode all the time
         run: |
-          export PATH="/c/msys64/mingw64/bin:/c/msys64/usr/bin/:$PATH" # prepend msys, otherwise make from mingw gets used
-          echo $PATH
-          inv -e rtloader.make
-          inv -e rtloader.format --raise-if-changed
-          inv -e rtloader.install
-          inv -e lint-go
+          $buildimage = "v15101851-1eecc1f"
+          docker run --rm -v "$(Get-Location):c:\mnt" datadog/agent-buildimages-windows_x64:1809-$buildimage c:\mnt\tasks\winbuildscripts\lint.bat
+          If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
