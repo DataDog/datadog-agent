@@ -34,11 +34,7 @@ get_file_diff:
   needs: []
   stage: kernel_matrix_testing
   script:
-    - export CURR_BRANCH="$(git symbolic-ref --short HEAD)"
-    - echo $CURR_BRANCH
-    - git checkout main
-    - git pull
-    - git checkout $CURR_BRANCH
+    - git fetch origin main:main
     - echo "DIFF_FILES=\$(cat <<-END\n$(git diff --name-only $(git merge-base $(inv release.get-release-json-value base_branch) HEAD) HEAD)\nEND\n)" > file_diff.env
     - cat file_diff.env
   artifacts:
