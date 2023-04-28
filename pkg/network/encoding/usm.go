@@ -184,29 +184,3 @@ func (bc *USMConnectionIndex[K, V]) Close() {
 		).Add(int64(total))
 	})
 }
-
-// USMLookup determines the strategy for associating a given connection to USM
-// data. The purpose of this function is to let Windows and Linux easily diverge,
-// so in case we ever want to do this simply place this function implementation
-// in different files (eg `_linux.go` and `_windows.go`)
-func USMLookup[K comparable, V any](c network.ConnectionStats, data map[types.ConnectionKey]*USMConnectionData[K, V]) *USMConnectionData[K, V] {
-	var connectionData *USMConnectionData[K, V]
-
-	// WithKey will attempt 4 lookups in total
-	// 1) (A, B)
-	// 2) (B, A)
-	// 3) (translated(A), translated(B))
-	// 3) (translated(B), translated(A))
-	// The callback API is used to avoid allocating a slice of all pre-computed keys
-	network.WithKey(c, func(key types.ConnectionKey) (stopIteration bool) {
-		val, ok := data[key]
-		if !ok {
-			return false
-		}
-
-		connectionData = val
-		return true
-	})
-
-	return connectionData
-}
