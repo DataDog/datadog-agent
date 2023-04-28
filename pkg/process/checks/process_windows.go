@@ -23,7 +23,7 @@ var (
 	numCPU = runtime.NumCPU
 )
 
-func formatUser(fp *procutil.Process) *model.ProcessUser {
+func formatUser(fp *procutil.Process, _ *LookupIdProbe) *model.ProcessUser {
 	return &model.ProcessUser{
 		Name: fp.Username,
 	}

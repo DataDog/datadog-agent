@@ -38,7 +38,8 @@ const (
 // NewProcessCehck returns an instance of the ProcessCheck.
 func NewProcessCheck() *ProcessCheck {
 	return &ProcessCheck{
-		scrubber: procutil.NewDefaultDataScrubber(),
+		scrubber:      procutil.NewDefaultDataScrubber(),
+		lookupIdProbe: NewLookupIdProbe(ddconfig.Datadog),
 	}
 }
 
@@ -89,6 +90,8 @@ type ProcessCheck struct {
 
 	lastConnRates     *atomic.Pointer[ProcessConnRates]
 	connRatesReceiver subscriptions.Receiver[ProcessConnRates]
+
+	lookupIdProbe *LookupIdProbe
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -235,7 +238,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	p.checkCount++
 
 	connsRates := p.getLastConnRates()
-	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsRates)
+	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsRates, p.lookupIdProbe)
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
 	// Store the last state for comparison on the next run.
@@ -380,14 +383,14 @@ func chunkProcessesAndContainers(
 
 // fmtProcesses goes through each process, converts them to process object and group them by containers
 // non-container processes would be in a single group with key as empty string ""
-func fmtProcesses(
-	scrubber *procutil.DataScrubber,
+func fmtProcesses(scrubber *procutil.DataScrubber,
 	disallowList []*regexp.Regexp,
 	procs, lastProcs map[int32]*procutil.Process,
 	ctrByProc map[int]string,
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
 	connRates ProcessConnRates,
+	lookupIdProbe *LookupIdProbe,
 ) map[string][]*model.Process {
 	procsByCtr := make(map[string][]*model.Process)
 
@@ -403,7 +406,7 @@ func fmtProcesses(
 			Pid:                    fp.Pid,
 			NsPid:                  fp.NsPid,
 			Command:                formatCommand(fp),
-			User:                   formatUser(fp),
+			User:                   formatUser(fp, lookupIdProbe),
 			Memory:                 formatMemory(fp.Stats),
 			Cpu:                    formatCPU(fp.Stats, lastProcs[fp.Pid].Stats, syst2, syst1),
 			CreateTime:             fp.Stats.CreateTime,
