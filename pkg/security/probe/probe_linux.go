@@ -993,9 +993,14 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 			return err
 		}
 
-		tags := []string{fmt.Sprintf("event_type:%s", eventType)}
+		tags := []string{
+			// TODO: Figure out approver_type, basename or flags
+			//"approver_type:flags",
+			fmt.Sprintf("event_type:%s", eventType),
+		}
+
 		if err := p.StatsdClient.Incr(metrics.MetricApproverAdded, tags, 1.0); err != nil {
-			return fmt.Errorf("couldn't increment MetricApproverAdded metric: %w", err)
+			seclog.Tracef("couldn't increment MetricApproverAdded metric: %w", err)
 		}
 	}
 
@@ -1006,9 +1011,14 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 			if err := previousApprover.Remove(p.Manager); err != nil {
 				return err
 			}
-			tags := []string{fmt.Sprintf("event_type:%s", eventType)}
+
+			tags := []string{
+				// TODO: Figure out approver_type, basename or flags
+				//"approver_type:flags",
+				fmt.Sprintf("event_type:%s", eventType),
+			}
 			if err := p.StatsdClient.Decr(metrics.MetricApproverAdded, tags, 1.0); err != nil {
-				return fmt.Errorf("couldn't decrement MetricApproverAdded metric: %w", err)
+				seclog.Tracef("couldn't decrement MetricApproverAdded metric: %w", err)
 			}
 		}
 	}

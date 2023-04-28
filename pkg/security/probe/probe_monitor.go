@@ -34,6 +34,7 @@ type Monitor struct {
 	runtimeMonitor         *RuntimeMonitor
 	discarderMonitor       *DiscarderMonitor
 	cgroupsMonitor         *CgroupsMonitor
+	approverMonitor        *ApproverMonitor
 }
 
 // NewMonitor returns a new instance of a ProbeMonitor
@@ -84,6 +85,7 @@ func (m *Monitor) Init() error {
 	}
 
 	m.cgroupsMonitor = NewCgroupsMonitor(p.StatsdClient, p.resolvers.CGroupResolver)
+	m.approverMonitor = NewApproverMonitor(p.StatsdClient)
 
 	return nil
 }
@@ -178,6 +180,10 @@ func (m *Monitor) SendStats() error {
 
 	if err := m.cgroupsMonitor.SendStats(); err != nil {
 		return fmt.Errorf("failed to send cgroups stats: %w", err)
+	}
+
+	if err := m.approverMonitor.SendStats(); err != nil {
+		return fmt.Errorf("failed to send evaluation set stats: %w", err)
 	}
 
 	return nil
