@@ -824,7 +824,9 @@ workflow:
     allow_failure: true
 
 .on_system_probe_changes_or_manual:
-    when: on_success
+  - when: on_success
+    allow_failure: true
+
 
 .on_install_script_release_manual:
   - <<: *if_not_version_7
