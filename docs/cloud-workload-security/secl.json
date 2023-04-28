@@ -11111,10 +11111,6 @@
           "architecture": "all"
         },
         {
-          "name": "CAP_LAST_CAP",
-          "architecture": "all"
-        },
-        {
           "name": "CAP_LEASE",
           "architecture": "all"
         },
