@@ -31,7 +31,7 @@ get_file_diff:
   tags: ["runner:main"]
   rules:
     !reference [ .on_system_probe_changes_or_manual ]
-  stage: kernel_matrix_testing
+  stage: deps_fetch
   script:
     - export CURR_BRANCH=$(git rev-parse --abbrev-ref HEAD )
     - git checkout main
