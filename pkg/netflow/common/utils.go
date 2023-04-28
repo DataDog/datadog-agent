@@ -25,6 +25,15 @@ func MaxUint64(a uint64, b uint64) uint64 {
 	return b
 }
 
+// MaxUint32 returns the max of the two passed number
+// TODO: TESTME
+func MaxUint32(a uint32, b uint32) uint32 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
 // MaxUint16 returns the max of the two passed number
 func MaxUint16(a uint16, b uint16) uint16 {
 	if a > b {

@@ -7,7 +7,9 @@ package flowaggregator
 
 import (
 	"encoding/json"
+	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -45,6 +47,9 @@ type FlowAggregator struct {
 	hostname                     string
 	goflowPrometheusGatherer     prometheus.Gatherer
 	timeNowFunction              func() time.Time // Allows to mock time in tests
+
+	lastSequencePerExporter   map[string]uint32
+	lastSequencePerExporterMu sync.Mutex
 }
 
 // NewFlowAggregator returns a new FlowAggregator
@@ -67,6 +72,7 @@ func NewFlowAggregator(sender aggregator.Sender, epForwarder epforwarder.EventPl
 		hostname:                     hostname,
 		goflowPrometheusGatherer:     prometheus.DefaultGatherer,
 		timeNowFunction:              time.Now,
+		lastSequencePerExporter:      make(map[string]uint32),
 	}
 }
 
@@ -220,6 +226,11 @@ func (agg *FlowAggregator) flush() int {
 	flowsToFlush := agg.flowAcc.flush()
 	log.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
+	sequenceDeltaPerExporter := agg.getSequenceDelta(flowsToFlush)
+	for exporterIP, seqDelta := range sequenceDeltaPerExporter {
+		agg.sender.Count("datadog.netflow.aggregator.sequence_delta", seqDelta, "", []string{"exporter_ip:" + exporterIP})
+	}
+
 	// TODO: Add flush stats to agent telemetry e.g. aggregator newFlushCountStats()
 	if len(flowsToFlush) > 0 {
 		agg.sendFlows(flowsToFlush)
@@ -246,6 +257,35 @@ func (agg *FlowAggregator) flush() int {
 	// Tests will wait for `flushedFlowCount` to be increased before asserting the metrics.
 	agg.flushedFlowCount.Add(uint64(flushCount))
 	return len(flowsToFlush)
+}
+
+func (agg *FlowAggregator) getSequenceDelta(flowsToFlush []*common.Flow) map[string]float64 {
+	// TODO: TESTME
+	maxSequencePerExporter := make(map[string]uint32)
+	for _, flow := range flowsToFlush {
+		exporterIP := net.IP(flow.ExporterAddr).String()
+		if flow.SequenceNum > maxSequencePerExporter[exporterIP] {
+			maxSequencePerExporter[exporterIP] = flow.SequenceNum
+		}
+	}
+
+	sequenceDeltaPerExporter := make(map[string]float64)
+	agg.lastSequencePerExporterMu.Lock()
+	defer agg.lastSequencePerExporterMu.Unlock()
+	for exporterIP, seqnum := range maxSequencePerExporter {
+		delta := int64(seqnum) - int64(agg.lastSequencePerExporter[exporterIP])
+		log.Warnf("[getSequenceDelta] exporterIP=%s, seqnum=%d, delta=%d, last=%d", exporterIP, seqnum, delta, agg.lastSequencePerExporter[exporterIP])
+		if delta < -1000 { // sequence reset
+			sequenceDeltaPerExporter[exporterIP] = float64(seqnum)
+			agg.lastSequencePerExporter[exporterIP] = seqnum
+		} else if delta < 0 {
+			sequenceDeltaPerExporter[exporterIP] = 0
+		} else {
+			sequenceDeltaPerExporter[exporterIP] = float64(delta)
+			agg.lastSequencePerExporter[exporterIP] = seqnum
+		}
+	}
+	return sequenceDeltaPerExporter
 }
 
 func (agg *FlowAggregator) rollupTrackersRefresh() {

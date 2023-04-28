@@ -16,6 +16,7 @@ func ConvertFlow(srcFlow *flowpb.FlowMessage, namespace string) *common.Flow {
 	return &common.Flow{
 		Namespace:       namespace,
 		FlowType:        convertFlowType(srcFlow.Type),
+		SequenceNum:     srcFlow.SequenceNum,
 		SamplingRate:    srcFlow.SamplingRate,
 		Direction:       srcFlow.FlowDirection,
 		ExporterAddr:    srcFlow.SamplerAddress, // Sampler is renamed to Exporter since it's a more commonly used
