@@ -70,6 +70,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="APM\ApmConfigTests.cs" />
+    <Compile Include="ClosedSourceComponent\ClosedSourceComponentTests.cs" />
+    <Compile Include="ClosedSourceComponent\ClosedSourceComponentTestsSetup.cs" />
     <Compile Include="InstallState\InstallStateTests.cs" />
     <Compile Include="InstallState\InstallStateTestSetup.cs" />
     <Compile Include="UserCustomActions\BaseUserCustomActionsDomainTests.cs" />

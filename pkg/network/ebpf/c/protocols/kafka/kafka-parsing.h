@@ -6,13 +6,11 @@
 #include "tracer.h"
 #include "protocols/kafka/types.h"
 #include "protocols/kafka/parsing-maps.h"
-#include "protocols/events.h"
+#include "protocols/kafka/usm-events.h"
 
 // forward declaration
 static __always_inline bool kafka_allow_packet(kafka_transaction_t *kafka, struct __sk_buff* skb, skb_info_t *skb_info);
 static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction, struct __sk_buff* skb, __u32 offset);
-
-USM_EVENTS_INIT(kafka, kafka_transaction_batch_entry_t, KAFKA_BATCH_SIZE);
 
 // A template for verifying a given buffer is composed of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
 // The iterations reads up to MIN(max_buffer_size, real_size).

@@ -6,6 +6,7 @@
 package encoding
 
 import (
+	"fmt"
 	"runtime"
 	"testing"
 
@@ -359,4 +360,71 @@ func verifyQuantile(t *testing.T, sketch *ddsketch.DDSketch, q float64, expected
 	acceptableError := expectedValue * sketch.IndexMapping.RelativeAccuracy()
 	assert.True(t, val >= expectedValue-acceptableError)
 	assert.True(t, val <= expectedValue+acceptableError)
+}
+
+func generateBenchMarkPayload(sourcePortsMax, destPortsMax uint16) network.Connections {
+	localhost := util.AddressFromString("127.0.0.1")
+
+	payload := network.Connections{
+		BufferedData: network.BufferedData{
+			Conns: make([]network.ConnectionStats, sourcePortsMax*destPortsMax),
+		},
+		HTTP: make(map[http.Key]*http.RequestStats),
+	}
+
+	httpStats := http.NewRequestStats(false)
+	httpStats.AddRequest(100, 10, 0, nil)
+	httpStats.AddRequest(200, 10, 0, nil)
+	httpStats.AddRequest(300, 10, 0, nil)
+	httpStats.AddRequest(400, 10, 0, nil)
+	httpStats.AddRequest(500, 10, 0, nil)
+
+	for sport := uint16(0); sport < sourcePortsMax; sport++ {
+		for dport := uint16(0); dport < destPortsMax; dport++ {
+			index := sport*sourcePortsMax + dport
+
+			payload.Conns[index].Dest = localhost
+			payload.Conns[index].Source = localhost
+			payload.Conns[index].DPort = dport + 1
+			payload.Conns[index].SPort = sport + 1
+			if index%2 == 0 {
+				payload.Conns[index].IPTranslation = &network.IPTranslation{
+					ReplSrcIP:   localhost,
+					ReplDstIP:   localhost,
+					ReplSrcPort: dport + 1,
+					ReplDstPort: sport + 1,
+				}
+			}
+
+			payload.HTTP[http.NewKey(
+				localhost,
+				localhost,
+				sport+1,
+				dport+1,
+				fmt.Sprintf("/api/%d-%d", sport+1, dport+1),
+				true,
+				http.MethodGet,
+			)] = httpStats
+		}
+	}
+
+	return payload
+}
+
+func commonBenchmarkHTTPEncoder(b *testing.B, numberOfPorts uint16) {
+	payload := generateBenchMarkPayload(numberOfPorts, numberOfPorts)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		h := newHTTPEncoder(&payload)
+		h.Close()
+	}
+}
+
+func BenchmarkHTTPEncoder100Requests(b *testing.B) {
+	commonBenchmarkHTTPEncoder(b, 10)
+}
+
+func BenchmarkHTTPEncoder10000Requests(b *testing.B) {
+	commonBenchmarkHTTPEncoder(b, 100)
 }
