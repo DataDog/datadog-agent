@@ -204,3 +204,8 @@ test/fakeintake/build/*
 
 # dev container
 .devcontainer/
+
+# Node modules
+**/*node_modules/*
+# Serverless test lockfile
+test/integration/serverless/package-lock.json
