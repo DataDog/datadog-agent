@@ -10,26 +10,11 @@
 #include "protocols/classification/structs.h"
 #include "protocols/classification/dispatcher-maps.h"
 #include "protocols/http/classification-helpers.h"
+#include "protocols/http/usm-events.h"
 #include "protocols/http2/helpers.h"
+#include "protocols/http2/usm-events.h"
 #include "protocols/kafka/kafka-classification.h"
-
-static __always_inline bool is_http_monitoring_enabled() {
-    __u64 val = 0;
-    LOAD_CONSTANT("http_monitoring_enabled", val);
-    return val > 0;
-}
-
-static __always_inline bool is_http2_monitoring_enabled() {
-    __u64 val = 0;
-    LOAD_CONSTANT("http2_monitoring_enabled", val);
-    return val > 0;
-}
-
-static __always_inline bool is_kafka_monitoring_enabled() {
-    __u64 val = 0;
-    LOAD_CONSTANT("kafka_monitoring_enabled", val);
-    return val > 0;
-}
+#include "protocols/kafka/usm-events.h"
 
 // Returns true if the payload represents a TCP termination by checking if the tcp flags contains TCPHDR_FIN or TCPHDR_RST.
 static __always_inline bool is_tcp_termination(skb_info_t *skb_info) {
