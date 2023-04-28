@@ -305,22 +305,24 @@ func (p *Probe) Start() error {
 
 func (p *Probe) PlaySnapshot() {
 	// Get the snapshotted data
-	entrycache := p.GetResolvers().ProcessResolver.GetEntryCache()
+	var events []*model.Event
 
-	// Create events from the processCacheEntries
-	for _, entry := range entrycache {
-		// Only consider ProcessCacheEntry from ProcFS
+	entryToEvent := func(entry *model.ProcessCacheEntry) {
 		if entry.Source != model.ProcessCacheEntryFromProcFS {
-			continue
+			return
 		}
-		event := p.zeroEvent()
+		event := &model.Event{}
+		event.FieldHandlers = p.fieldHandlers
 		event.Type = uint32(model.ExecEventType)
 		event.TimestampRaw = uint64(time.Now().UnixNano())
 		event.ProcessCacheEntry = entry
 		event.ProcessContext = &entry.ProcessContext
 		event.Exec.Process = &entry.Process
 		event.ProcessContext.Process.ContainerID = entry.ContainerID
-
+		events = append(events, event)
+	}
+	p.GetResolvers().ProcessResolver.GetEntryCache(entryToEvent)
+	for _, event := range events {
 		p.DispatchEvent(event)
 	}
 }
