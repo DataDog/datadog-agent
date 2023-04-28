@@ -275,7 +275,7 @@ func GetIPv6LinkLocalAddress() (*net.UDPAddr, error) {
 			continue
 		}
 		for _, a := range addrs {
-			if strings.HasPrefix(a.String(), "fe80::") {
+			if strings.HasPrefix(a.String(), "fe80::") && !strings.HasPrefix(i.Name, "dummy") {
 				// this address *may* have CIDR notation
 				if ar, _, err := net.ParseCIDR(a.String()); err == nil {
 					return &net.UDPAddr{IP: ar, Zone: i.Name}, nil
