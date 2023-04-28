@@ -1982,8 +1982,8 @@ go.opentelemetry.io/collector/exporter/otlpexporter v0.75.0/go.mod h1:Vl7krXCRPY
 go.opentelemetry.io/collector/extension/zpagesextension v0.75.0 h1:QHqkG2oEOSP3npFH8sTw4XQh9A138q+fVzAUw6YFNFw=
 go.opentelemetry.io/collector/featuregate v0.75.0 h1:543kdhXh7/dHTwpHsjv+lgIz73RJD2lCkLrFi4UjZjk=
 go.opentelemetry.io/collector/featuregate v0.75.0/go.mod h1:pmVMr98Ps6QKyEHiVPN7o3Qd8K//M2NapfOv5BMWvA0=
-go.opentelemetry.io/collector/pdata v1.0.0-rc9 h1:K1GND9w4hOMVE4lLpGt+0KvjIBcbsR54ZsijEyUQFFI=
-go.opentelemetry.io/collector/pdata v1.0.0-rc9/go.mod h1:olBmmDzT077Jyag/kVDAaG9OFkzLF6zSm8mfufL4HW4=
+go.opentelemetry.io/collector/pdata v1.0.0-rcv0011 h1:7lT0vseP89mHtUpvgmWYRvQZ0eY+SHbVsnXY20xkoMg=
+go.opentelemetry.io/collector/pdata v1.0.0-rcv0011/go.mod h1:9vrXSQBeMRrdfGt9oMgYweqERJ8adaiQjN6LSbqRMMA=
 go.opentelemetry.io/collector/processor/batchprocessor v0.75.0 h1:eMRde/kjWdgpBKFWRS7Z1sfv20IvapdDMyOAV/I1ZZ8=
 go.opentelemetry.io/collector/processor/batchprocessor v0.75.0/go.mod h1:QK6WYbCI1rkX08AliBnWKiWkUhy8d08pG3n02GKw2lY=
 go.opentelemetry.io/collector/receiver v0.75.0 h1:ZgoShBSTprt7vExTLtXTmEH05qIHU3tORhBWyk0PuB4=
