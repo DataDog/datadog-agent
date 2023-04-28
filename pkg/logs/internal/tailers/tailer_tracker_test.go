@@ -17,7 +17,7 @@ type TestTailer1 struct {
 	info *status.InfoRegistry
 }
 
-func NewTestTaler1(id string) *TestTailer1 {
+func NewTestTailer1(id string) *TestTailer1 {
 	return &TestTailer1{
 		id:   id,
 		info: status.NewInfoRegistry(),
@@ -39,7 +39,7 @@ type TestTailer2 struct {
 	info *status.InfoRegistry
 }
 
-func NewTestTaler2(id string) *TestTailer2 {
+func NewTestTailer2(id string) *TestTailer2 {
 	return &TestTailer2{
 		id:   id,
 		info: status.NewInfoRegistry(),
@@ -59,13 +59,13 @@ func (t *TestTailer2) GetInfo() *status.InfoRegistry {
 func TestCollectAllTailers(t *testing.T) {
 
 	container1 := NewTailerContainer[*TestTailer1]()
-	container1.Add(NewTestTaler1("1a"))
-	t1b := NewTestTaler1("1b")
+	container1.Add(NewTestTailer1("1a"))
+	t1b := NewTestTailer1("1b")
 	container1.Add(t1b)
 
 	container2 := NewTailerContainer[*TestTailer2]()
-	container2.Add(NewTestTaler2("2a"))
-	container2.Add(NewTestTaler2("2b"))
+	container2.Add(NewTestTailer2("2a"))
+	container2.Add(NewTestTailer2("2b"))
 
 	tracker := NewTailerTracker()
 	tracker.Add(container1)
