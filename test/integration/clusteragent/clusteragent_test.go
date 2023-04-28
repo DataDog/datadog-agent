@@ -33,7 +33,6 @@ import (
 	admissioncmd "github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics"
-	"github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands/start"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
@@ -219,12 +218,6 @@ func (suite *apiserverSuite) TestCanStart() {
 		err := healthprobe.Serve(mainCtx, healthPort)
 		require.NoError(suite.T(), err)
 	}
-
-	// Initialize remote configuration
-	rcClient, err := start.HelperInitializeRemoteConfig(mainCtx)
-	require.NoError(suite.T(), err)
-	rcClient.Start()
-	defer rcClient.Close()
 
 	// Starting server early to ease investigations
 	err = api.StartServer()

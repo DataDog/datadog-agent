@@ -429,8 +429,3 @@ func initializeRemoteConfig(ctx context.Context) (*remote.Client, error) {
 
 	return rcClient, nil
 }
-
-// HelperInitializeRemoteConfig is used only for testing purposes
-func HelperInitializeRemoteConfig(ctx context.Context) (*remote.Client, error) {
-	return initializeRemoteConfig(ctx)
-}
