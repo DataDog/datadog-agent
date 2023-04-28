@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    [netflow] Rename metrics tags from ``device_ip`` to ``exporter_ip``.
+    [netflow] Rename telemetry metrics tags from ``device_ip`` to ``exporter_ip``.
