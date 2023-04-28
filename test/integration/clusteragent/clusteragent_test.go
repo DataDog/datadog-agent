@@ -44,7 +44,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
@@ -233,7 +232,7 @@ func (suite *apiserverSuite) TestCanStart() {
 	// Serving stale data is better than serving no data at all.
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.UseEventPlatformForwarder = false
-	forwarder := fxutil.Test[defaultforwarder.Component](suite.T(), defaultforwarder.MockModule, defaultforwarder.MockModule)
+	forwarder := defaultforwarder.NewDefaultForwarder(suite.mockConfig, defaultforwarder.NewOptions(suite.mockConfig, nil))
 	demux := aggregator.InitAndStartAgentDemultiplexer(forwarder, opts, "testhostname")
 	demux.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
