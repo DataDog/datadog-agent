@@ -23,5 +23,6 @@ jobs:
 
       - name: Run tests
         run: |
-          docker run --rm -v "$(Get-Location):c:\mnt" datadog/agent-buildimages-windows_x64:1809 c:\mnt\tasks\winbuildscripts\unittests.bat
+          $buildimage = "v15101851-1eecc1f"
+          docker run --rm -v "$(Get-Location):c:\mnt" datadog/agent-buildimages-windows_x64:1809-$buildimage c:\mnt\tasks\winbuildscripts\unittests.bat
           If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
