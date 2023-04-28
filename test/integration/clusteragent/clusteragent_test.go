@@ -45,7 +45,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
@@ -226,10 +225,6 @@ func (suite *apiserverSuite) TestCanStart() {
 	// Getting connection to APIServer, it's done before Hostname resolution
 	// as hostname resolution may call APIServer
 	apiCl, err := apiserver.WaitForAPIClient(context.Background()) // make sure we can connect to the apiserver
-	require.NoError(suite.T(), err)
-
-	// Get hostname as aggregator requires hostname
-	hname, err := hostname.Get(mainCtx)
 	require.NoError(suite.T(), err)
 
 	// If a cluster-agent looses the connectivity to DataDog, we still want it to remain ready so that its endpoint remains in the service because:
