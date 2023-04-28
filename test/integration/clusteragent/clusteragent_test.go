@@ -309,7 +309,6 @@ func (suite *apiserverSuite) TestCanStart() {
 		IsLeaderFunc:        le.IsLeader,
 		LeaderSubscribeFunc: le.Subscribe,
 		K8sClient:           apiCl.Cl,
-		RcClient:            rcClient,
 		ClusterName:         clusterName,
 		StopCh:              stopCh,
 	}
