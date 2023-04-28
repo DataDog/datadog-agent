@@ -939,7 +939,7 @@ func bitmaskToString(bitmask int, intToStrMap map[int]string) string {
 }
 
 func bitmaskU64ToStringArray(bitmask uint64, intToStrMap map[uint64]string) []string {
-	strs := []string{}
+	var strs []string
 	var result uint64
 
 	for v, s := range intToStrMap {
