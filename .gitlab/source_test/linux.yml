@@ -22,7 +22,10 @@
     - echo "Env - $DD_ENV"
     - echo "Site - $DD_SITE"
     # Debug: gohai
-    - df -l -k
+    - cat /etc/mtab || true
+    - cat /etc/fstab || true
+    - strace df -l -k || true
+    - df -l -k || true
     - inv -e test $FLAVORS --skip-linters --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --cpus 4 $EXTRA_OPTS --save-result-json test_output.json --junit-tar "junit-${CI_JOB_NAME}.tgz"
     - echo "Env - $DD_ENV"
     - echo "Site - $DD_SITE"
