@@ -7,6 +7,7 @@ package runner
 
 import (
 	"encoding/json"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner/parameters"
 
@@ -63,7 +64,16 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 	// Inject profile variables
 	cm := ConfigMap{}
 	cm.Set("ddinfra:env", profile.EnvironmentNames(), false)
-	err := SetConfigMapFromSecret(profile.SecretStore(), cm, parameters.APIKey, "ddagent:apiKey")
+	keyPair, err := profile.ParamStore().Get(parameters.GetDefaultKeyPairParamName())
+	if err == nil {
+		cm.Set(parameters.GetDefaultKeyPairParamName(), keyPair, false)
+	} else {
+		if !errors.As(err, &parameters.ParameterNotFoundError{}) {
+			return nil, err
+		}
+	}
+
+	err = SetConfigMapFromSecret(profile.SecretStore(), cm, parameters.APIKey, "ddagent:apiKey")
 	if err != nil {
 		return nil, err
 	}

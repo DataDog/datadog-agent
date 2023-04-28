@@ -9,15 +9,50 @@ import (
 	"fmt"
 	"os"
 	"os/user"
+	"path"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/runner/parameters"
 )
 
 func NewLocalProfile() (Profile, error) {
 	if err := os.MkdirAll(workspaceFolder, 0o700); err != nil {
 		return nil, fmt.Errorf("unable to create temporary folder at: %s, err: %w", workspaceFolder, err)
 	}
+	envValueStore := parameters.NewEnvValueStore(EnvPrefix)
 
-	return localProfile{baseProfile: newProfile("e2elocal", []string{"aws/sandbox"}, nil)}, nil
+	configPath, err := getConfigFilePath()
+	if err != nil {
+		return nil, err
+	}
+
+	var store parameters.Store
+	if configPath != "" {
+		configFileValueScore, err := parameters.NewConfigFileValueStore(configPath)
+		if err != nil {
+			return nil, fmt.Errorf("error when reading the config file %v: %v", configPath, err)
+		}
+		store = parameters.NewCascadingStore(envValueStore, configFileValueScore)
+	} else {
+		store = parameters.NewCascadingStore(envValueStore)
+	}
+	return localProfile{baseProfile: newProfile("e2elocal", []string{"aws/sandbox"}, store, nil)}, nil
+}
+
+func getConfigFilePath() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("unable to get the home dir")
+	}
+	configPath := path.Join(homeDir, ".test_infra_config.yaml")
+
+	if _, err := os.Stat(configPath); err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	return configPath, nil
 }
 
 type localProfile struct {
