@@ -58,6 +58,11 @@ type SequenceDeltaKey struct {
 	FlowType   common.FlowType
 }
 
+type SequenceDeltaValue struct {
+	Delta        int64
+	LastSequence uint32
+}
+
 var maxSequenceDiff = map[common.FlowType]int{
 	common.TypeSFlow5:   1000,
 	common.TypeNetFlow5: 1000,
@@ -241,7 +246,8 @@ func (agg *FlowAggregator) flush() int {
 
 	sequenceDeltaPerExporter := agg.getSequenceDelta(flowsToFlush)
 	for key, seqDelta := range sequenceDeltaPerExporter {
-		agg.sender.Count("datadog.netflow.aggregator.sequence_delta", seqDelta, "", []string{"device_namespace:" + key.Namespace, "exporter_ip:" + key.ExporterIP})
+		agg.sender.Count("datadog.netflow.aggregator.sequence_delta", float64(seqDelta.Delta), "", []string{"device_namespace:" + key.Namespace, "exporter_ip:" + key.ExporterIP})
+		agg.sender.Gauge("datadog.netflow.aggregator.sequence_last", float64(seqDelta.LastSequence), "", []string{"device_namespace:" + key.Namespace, "exporter_ip:" + key.ExporterIP})
 	}
 
 	// TODO: Add flush stats to agent telemetry e.g. aggregator newFlushCountStats()
@@ -275,7 +281,7 @@ func (agg *FlowAggregator) flush() int {
 // getSequenceDelta return the delta of current sequence number compared to previously saved sequence number
 // Since we track per exporterIP, the returned delta is only accurate when for the specific exporterIP there is
 // only one NetFlow9/IPFIX observation domain, NetFlow5 engineType/engineId, sFlow agent/subagent.
-func (agg *FlowAggregator) getSequenceDelta(flowsToFlush []*common.Flow) map[SequenceDeltaKey]float64 {
+func (agg *FlowAggregator) getSequenceDelta(flowsToFlush []*common.Flow) map[SequenceDeltaKey]SequenceDeltaValue {
 	maxSequencePerExporter := make(map[SequenceDeltaKey]uint32)
 	for _, flow := range flowsToFlush {
 		key := SequenceDeltaKey{
@@ -287,23 +293,26 @@ func (agg *FlowAggregator) getSequenceDelta(flowsToFlush []*common.Flow) map[Seq
 			maxSequencePerExporter[key] = flow.SequenceNum
 		}
 	}
-	sequenceDeltaPerExporter := make(map[SequenceDeltaKey]float64)
+	sequenceDeltaPerExporter := make(map[SequenceDeltaKey]SequenceDeltaValue)
 
 	agg.lastSequencePerExporterMu.Lock()
 	defer agg.lastSequencePerExporterMu.Unlock()
 	for key, seqnum := range maxSequencePerExporter {
-		delta := int64(seqnum) - int64(agg.lastSequencePerExporter[key])
+		lastSeq := agg.lastSequencePerExporter[key]
+		delta := int64(seqnum) - int64(lastSeq)
 		log.Debugf("[getSequenceDelta] key=%s, seqnum=%d, delta=%d, last=%d", key, seqnum, delta, agg.lastSequencePerExporter[key])
 		maxSeqDiff := maxSequenceDiff[key.FlowType]
+		seqDeltaValue := SequenceDeltaValue{LastSequence: seqnum}
 		if delta < -int64(maxSeqDiff) { // sequence reset
-			sequenceDeltaPerExporter[key] = float64(seqnum)
+			seqDeltaValue.Delta = int64(seqnum)
 			agg.lastSequencePerExporter[key] = seqnum
 		} else if delta < 0 {
-			sequenceDeltaPerExporter[key] = 0
+			seqDeltaValue.Delta = 0
 		} else {
-			sequenceDeltaPerExporter[key] = float64(delta)
+			seqDeltaValue.Delta = delta
 			agg.lastSequencePerExporter[key] = seqnum
 		}
+		sequenceDeltaPerExporter[key] = seqDeltaValue
 	}
 	return sequenceDeltaPerExporter
 }
