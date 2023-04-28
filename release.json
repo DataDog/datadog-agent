@@ -1,5 +1,5 @@
 {
-    "base_branch": "pythyu/better-systemprobe-detection",
+    "base_branch": "main",
     "last_stable": {
         "6": "6.43.0",
         "7": "7.43.0"
