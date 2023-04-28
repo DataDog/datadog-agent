@@ -25,9 +25,9 @@ func NewAgent(installer *agent.Installer) *Agent {
 }
 
 //lint:ignore U1000 Ignore unused function as this function is call using reflection
-func (agent *Agent) initService(auth *Authentification, data *agent.ClientData) error {
+func (agent *Agent) initService(data *agent.ClientData) error {
 	var err error
-	agent.sshClient, err = newSSHClient(auth, &data.Connection)
+	agent.sshClient, err = newSSHClient("", &data.Connection)
 	return err
 }
 

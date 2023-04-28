@@ -16,7 +16,7 @@ type clientService[T any] interface {
 }
 
 type clientServiceInitializer[T any] interface {
-	initService(*Authentification, *T) error
+	initService(*T) error
 }
 
 // UpResultDeserializer is an helper to build a new type that can be used in an environment.
@@ -39,10 +39,10 @@ func NewUpResultDeserializer[T any](
 	}
 }
 
-func (d *UpResultDeserializer[T]) setStack(auth *Authentification, stackResult auto.UpResult) error {
+func (d *UpResultDeserializer[T]) setStack(stackResult auto.UpResult) error {
 	value, err := d.deserializer.Deserialize(stackResult)
 	if err != nil {
 		return err
 	}
-	return d.initializer.initService(auth, value)
+	return d.initializer.initService(value)
 }

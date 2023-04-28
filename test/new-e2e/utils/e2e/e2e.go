@@ -61,8 +61,7 @@ type Suite[Env any] struct {
 	stackDef  *StackDefinition[Env]
 
 	// These fields are initialized in SetupSuite
-	Env  *Env
-	auth client.Authentification
+	Env *Env
 
 	// Setting DevMode allows to skip deletion regardless of test results
 	// Unavailable in CI.
@@ -107,7 +106,7 @@ func (suite *Suite[Env]) SetupSuite() {
 	require.NoError(err)
 
 	suite.Env = env
-	err = client.CallStackInitializers(&suite.auth, env, upResult)
+	err = client.CallStackInitializers(env, upResult)
 	require.NoError(err)
 }
 

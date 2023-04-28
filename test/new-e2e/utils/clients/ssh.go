@@ -6,10 +6,14 @@
 package clients
 
 import (
+	"fmt"
+	"net"
+	"os"
 	"time"
 
 	"github.com/cenkalti/backoff"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 // GetSSHClient returns an ssh Client for the specified host
@@ -23,14 +27,28 @@ func GetSSHClient(user, host, privateKey string, retryInterval time.Duration, ma
 }
 
 func getSSHClient(user, host, privateKey string) (*ssh.Client, *ssh.Session, error) {
-	privateKeyAuth, err := ssh.ParsePrivateKey([]byte(privateKey))
-	if err != nil {
-		return nil, nil, err
+	var auth ssh.AuthMethod
+
+	if privateKey != "" {
+		privateKeyAuth, err := ssh.ParsePrivateKey([]byte(privateKey))
+		if err != nil {
+			return nil, nil, err
+		}
+		auth = ssh.PublicKeys(privateKeyAuth)
+	} else {
+		// Use the ssh agent
+		conn, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK"))
+		if err != nil {
+			return nil, nil, fmt.Errorf("no ssh key provide and cannot connect to the ssh agent: %v", err)
+		}
+		defer conn.Close()
+		sshAgent := agent.NewClient(conn)
+		auth = ssh.PublicKeysCallback(sshAgent.Signers)
 	}
 
 	sshConfig := &ssh.ClientConfig{
 		User:            user,
-		Auth:            []ssh.AuthMethod{ssh.PublicKeys(privateKeyAuth)},
+		Auth:            []ssh.AuthMethod{auth},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
 

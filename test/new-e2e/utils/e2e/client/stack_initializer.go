@@ -13,11 +13,7 @@ import (
 )
 
 type stackInitializer interface {
-	setStack(auth *Authentification, stackResult auto.UpResult) error
-}
-
-type Authentification struct {
-	SSHKey string
+	setStack(stackResult auto.UpResult) error
 }
 
 func CheckEnvStructValid[Env any]() error {
@@ -26,7 +22,7 @@ func CheckEnvStructValid[Env any]() error {
 	return err
 }
 
-func CallStackInitializers[Env any](auth *Authentification, env *Env, upResult auto.UpResult) error {
+func CallStackInitializers[Env any](env *Env, upResult auto.UpResult) error {
 	fields, err := getFields(env)
 
 	for _, field := range fields {
@@ -35,7 +31,7 @@ func CallStackInitializers[Env any](auth *Authentification, env *Env, upResult a
 			return fmt.Errorf("the field %v of %v is nil", field.name, reflect.TypeOf(env))
 		}
 
-		if err = initializer.setStack(auth, upResult); err != nil {
+		if err = initializer.setStack(upResult); err != nil {
 			return err
 		}
 	}

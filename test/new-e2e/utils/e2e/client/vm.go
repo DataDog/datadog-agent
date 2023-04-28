@@ -25,8 +25,8 @@ func NewVM(infraVM commonvm.VM) *VM {
 }
 
 //lint:ignore U1000 Ignore unused function as this function is call using reflection
-func (vm *VM) initService(auth *Authentification, data *commonvm.ClientData) error { //lint:ignore U1000 Ignore unused function temporarily for debugging
+func (vm *VM) initService(data *commonvm.ClientData) error {
 	var err error
-	vm.sshClient, err = newSSHClient(auth, &data.Connection)
+	vm.sshClient, err = newSSHClient("", &data.Connection)
 	return err
 }
