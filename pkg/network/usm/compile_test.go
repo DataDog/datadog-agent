@@ -6,7 +6,7 @@
 //go:build linux_bpf
 // +build linux_bpf
 
-package http
+package usm
 
 import (
 	"testing"
@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -30,5 +31,5 @@ func TestHttpCompile(t *testing.T) {
 func rtcHTTPSupported(t *testing.T) bool {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
-	return currKernelVersion >= MinimumKernelVersion
+	return currKernelVersion >= http.MinimumKernelVersion
 }

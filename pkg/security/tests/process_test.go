@@ -807,7 +807,7 @@ func TestProcessContext(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "test_rule_inode", rule.ID, "wrong rule triggered")
 
-			service := event.GetProcessServiceTag()
+			service := event.GetProcessService()
 			assert.Equal(t, service, "myservice")
 		})
 	})

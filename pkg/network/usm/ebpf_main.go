@@ -6,7 +6,7 @@
 //go:build linux_bpf
 // +build linux_bpf
 
-package http
+package usm
 
 import (
 	"fmt"
@@ -23,6 +23,7 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -94,7 +95,7 @@ type subprogram interface {
 
 var http2TailCall = manager.TailCallRoute{
 	ProgArrayName: protocolDispatcherProgramsMap,
-	Key:           uint32(ProtocolHTTP2),
+	Key:           uint32(http.ProtocolHTTP2),
 	ProbeIdentificationPair: manager.ProbeIdentificationPair{
 		EBPFFuncName: "socket__http2_filter",
 	},
@@ -162,7 +163,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, connecti
 	tailCalls := []manager.TailCallRoute{
 		{
 			ProgArrayName: protocolDispatcherProgramsMap,
-			Key:           uint32(ProtocolHTTP),
+			Key:           uint32(http.ProtocolHTTP),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "socket__http_filter",
 			},
@@ -178,14 +179,14 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, connecti
 		tailCalls = append(tailCalls,
 			manager.TailCallRoute{
 				ProgArrayName: protocolDispatcherProgramsMap,
-				Key:           uint32(ProtocolKafka),
+				Key:           uint32(http.ProtocolKafka),
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: "socket__kafka_filter",
 				},
 			},
 			manager.TailCallRoute{
 				ProgArrayName: protocolDispatcherClassificationPrograms,
-				Key:           uint32(DispatcherKafkaProg),
+				Key:           uint32(http.DispatcherKafkaProg),
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: "socket__protocol_dispatcher_kafka",
 				},
@@ -300,7 +301,7 @@ func (e *ebpfProgram) initPrebuilt() error {
 
 func (e *ebpfProgram) setupMapCleaner() {
 	httpMap, _, _ := e.GetMap(httpInFlightMap)
-	httpMapCleaner, err := ddebpf.NewMapCleaner(httpMap, new(netebpf.ConnTuple), new(ebpfHttpTx))
+	httpMapCleaner, err := ddebpf.NewMapCleaner(httpMap, new(netebpf.ConnTuple), new(http.EbpfHttpTx))
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
@@ -308,7 +309,7 @@ func (e *ebpfProgram) setupMapCleaner() {
 
 	ttl := e.cfg.HTTPIdleConnectionTTL.Nanoseconds()
 	httpMapCleaner.Clean(e.cfg.HTTPMapCleanerInterval, func(now int64, key, val interface{}) bool {
-		httpTxn, ok := val.(*ebpfHttpTx)
+		httpTxn, ok := val.(*http.EbpfHttpTx)
 		if !ok {
 			return false
 		}

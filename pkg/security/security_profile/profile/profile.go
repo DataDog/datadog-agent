@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"golang.org/x/exp/slices"
 )
 
 // SecurityProfile defines a security profile
@@ -166,4 +167,13 @@ func findDNSInNodes(nodes []*dump.ProcessActivityNode, event *model.Event) bool 
 		}
 	}
 	return false
+}
+
+// IsAnomalyDetectionEvent returns true for the event types that have a security profile context
+func IsAnomalyDetectionEvent(eventyType model.EventType) bool {
+	return slices.Contains([]model.EventType{
+		model.AnomalyDetectionSyscallEventType,
+		model.DNSEventType,
+		model.ExecEventType,
+	}, eventyType)
 }

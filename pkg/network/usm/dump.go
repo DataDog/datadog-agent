@@ -6,7 +6,7 @@
 //go:build linux_bpf
 // +build linux_bpf
 
-package http
+package usm
 
 import (
 	"strings"
@@ -17,6 +17,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 )
 
 func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.Map) string {
@@ -27,7 +28,7 @@ func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.
 		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'httpTX'\n")
 		iter := currentMap.Iterate()
 		var key ddebpf.ConnTuple
-		var value httpTX
+		var value http.HttpTX
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
 		}
@@ -36,7 +37,7 @@ func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.
 		output.WriteString("Map: '" + mapName + "', key: 'uintptr // C.void *', value: 'C.ssl_sock_t'\n")
 		iter := currentMap.Iterate()
 		var key uintptr // C.void *
-		var value sslSock
+		var value http.SslSock
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
 		}
@@ -45,7 +46,7 @@ func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.
 		output.WriteString("Map: '" + mapName + "', key: 'C.__u64', value: 'C.ssl_read_args_t'\n")
 		iter := currentMap.Iterate()
 		var key uint64
-		var value sslReadArgs
+		var value http.SslReadArgs
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
 		}

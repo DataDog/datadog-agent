@@ -6,7 +6,7 @@
 //go:build linux_bpf
 // +build linux_bpf
 
-package http
+package usm
 
 import (
 	"errors"
@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
@@ -49,10 +50,10 @@ type Monitor struct {
 	httpConsumer    *events.Consumer
 	http2Consumer   *events.Consumer
 	ebpfProgram     *ebpfProgram
-	httpTelemetry   *telemetry
-	http2Telemetry  *telemetry
-	statkeeper      *httpStatKeeper
-	http2Statkeeper *httpStatKeeper
+	httpTelemetry   *http.Telemetry
+	http2Telemetry  *http.Telemetry
+	httpStatkeeper  *http.HttpStatKeeper
+	http2Statkeeper *http.HttpStatKeeper
 	processMonitor  *monitor.ProcessMonitor
 
 	http2Enabled   bool
@@ -73,7 +74,7 @@ type Monitor struct {
 // It is not possible to save the index by the key because we need to distinguish between the values attached to the key.
 type staticTableEntry struct {
 	Index uint64
-	Value StaticTableValue
+	Value http.StaticTableValue
 }
 
 // NewMonitor returns a new Monitor instance
@@ -94,12 +95,12 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, connectionPr
 
 	kversion, err := kernel.HostVersion()
 	if err != nil {
-		return nil, &ErrNotSupported{fmt.Errorf("couldn't determine current kernel version: %w", err)}
+		return nil, &errNotSupported{fmt.Errorf("couldn't determine current kernel version: %w", err)}
 	}
 
-	if kversion < MinimumKernelVersion {
-		return nil, &ErrNotSupported{
-			fmt.Errorf("http feature not available on pre %s kernels", MinimumKernelVersion.String()),
+	if kversion < http.MinimumKernelVersion {
+		return nil, &errNotSupported{
+			fmt.Errorf("http feature not available on pre %s kernels", http.MinimumKernelVersion.String()),
 		}
 	}
 
@@ -129,25 +130,25 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, connectionPr
 		return nil, fmt.Errorf("error enabling HTTP traffic inspection: %s", err)
 	}
 
-	httpTelemetry, err := newTelemetry()
+	httpTelemetry, err := http.NewTelemetry()
 	if err != nil {
 		closeFilterFn()
 		return nil, err
 	}
 
-	statkeeper := newHTTPStatkeeper(c, httpTelemetry)
+	statkeeper := http.NewHTTPStatkeeper(c, httpTelemetry)
 	processMonitor := monitor.GetProcessMonitor()
 
-	var http2Statkeeper *httpStatKeeper
-	var http2Telemetry *telemetry
+	var http2Statkeeper *http.HttpStatKeeper
+	var http2Telemetry *http.Telemetry
 	if c.EnableHTTP2Monitoring {
-		http2Telemetry, err = newTelemetry()
+		http2Telemetry, err = http.NewTelemetry()
 		if err != nil {
 			closeFilterFn()
 			return nil, err
 		}
 		// for now the max HTTP2 entries would be taken from the maxHTTPEntries.
-		http2Statkeeper = newHTTPStatkeeper(c, http2Telemetry)
+		http2Statkeeper = http.NewHTTPStatkeeper(c, http2Telemetry)
 	}
 
 	state = Running
@@ -157,7 +158,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, connectionPr
 		httpTelemetry:   httpTelemetry,
 		http2Telemetry:  http2Telemetry,
 		closeFilterFn:   closeFilterFn,
-		statkeeper:      statkeeper,
+		httpStatkeeper:  statkeeper,
 		processMonitor:  processMonitor,
 		http2Enabled:    c.EnableHTTP2Monitoring,
 		http2Statkeeper: http2Statkeeper,
@@ -253,7 +254,7 @@ func (m *Monitor) GetUSMStats() map[string]interface{} {
 	}
 
 	if m != nil {
-		response["last_check"] = m.httpTelemetry.then
+		response["last_check"] = m.httpTelemetry.Then
 	}
 
 	return response
@@ -261,25 +262,25 @@ func (m *Monitor) GetUSMStats() map[string]interface{} {
 
 // GetHTTPStats returns a map of HTTP stats stored in the following format:
 // [source, dest tuple, request path] -> RequestStats object
-func (m *Monitor) GetHTTPStats() map[Key]*RequestStats {
+func (m *Monitor) GetHTTPStats() map[http.Key]*http.RequestStats {
 	if m == nil {
 		return nil
 	}
 
 	m.httpConsumer.Sync()
-	m.httpTelemetry.log()
-	return m.statkeeper.GetAndResetAllStats()
+	m.httpTelemetry.Log()
+	return m.httpStatkeeper.GetAndResetAllStats()
 }
 
 // GetHTTP2Stats returns a map of HTTP2 stats stored in the following format:
 // [source, dest tuple, request path] -> RequestStats object
-func (m *Monitor) GetHTTP2Stats() map[Key]*RequestStats {
+func (m *Monitor) GetHTTP2Stats() map[http.Key]*http.RequestStats {
 	if m == nil || m.http2Enabled == false {
 		return nil
 	}
 
 	m.http2Consumer.Sync()
-	m.http2Telemetry.log()
+	m.http2Telemetry.Log()
 	return m.http2Statkeeper.GetAndResetAllStats()
 }
 
@@ -314,15 +315,15 @@ func (m *Monitor) Stop() {
 }
 
 func (m *Monitor) processHTTP(data []byte) {
-	tx := (*ebpfHttpTx)(unsafe.Pointer(&data[0]))
-	m.httpTelemetry.count(tx)
-	m.statkeeper.Process(tx)
+	tx := (*http.EbpfHttpTx)(unsafe.Pointer(&data[0]))
+	m.httpTelemetry.Count(tx)
+	m.httpStatkeeper.Process(tx)
 }
 
 func (m *Monitor) processHTTP2(data []byte) {
-	tx := (*ebpfHttp2Tx)(unsafe.Pointer(&data[0]))
+	tx := (*http.EbpfHttp2Tx)(unsafe.Pointer(&data[0]))
 
-	m.http2Telemetry.count(tx)
+	m.http2Telemetry.Count(tx)
 	m.http2Statkeeper.Process(tx)
 }
 
@@ -346,79 +347,79 @@ func (m *Monitor) createStaticTable(mgr *ebpfProgram) error {
 	staticTableEntries := []staticTableEntry{
 		{
 			Index: 2,
-			Value: StaticTableValue{
-				Key:   MethodKey,
-				Value: GetValue,
+			Value: http.StaticTableValue{
+				Key:   http.MethodKey,
+				Value: http.GetValue,
 			},
 		},
 		{
 			Index: 3,
-			Value: StaticTableValue{
-				Key:   MethodKey,
-				Value: PostValue,
+			Value: http.StaticTableValue{
+				Key:   http.MethodKey,
+				Value: http.PostValue,
 			},
 		},
 		{
 			Index: 4,
-			Value: StaticTableValue{
-				Key:   PathKey,
-				Value: EmptyPathValue,
+			Value: http.StaticTableValue{
+				Key:   http.PathKey,
+				Value: http.EmptyPathValue,
 			},
 		},
 		{
 			Index: 5,
-			Value: StaticTableValue{
-				Key:   PathKey,
-				Value: IndexPathValue,
+			Value: http.StaticTableValue{
+				Key:   http.PathKey,
+				Value: http.IndexPathValue,
 			},
 		},
 		{
 			Index: 8,
-			Value: StaticTableValue{
-				Key:   StatusKey,
-				Value: K200Value,
+			Value: http.StaticTableValue{
+				Key:   http.StatusKey,
+				Value: http.K200Value,
 			},
 		},
 		{
 			Index: 9,
-			Value: StaticTableValue{
-				Key:   StatusKey,
-				Value: K204Value,
+			Value: http.StaticTableValue{
+				Key:   http.StatusKey,
+				Value: http.K204Value,
 			},
 		},
 		{
 			Index: 10,
-			Value: StaticTableValue{
-				Key:   StatusKey,
-				Value: K206Value,
+			Value: http.StaticTableValue{
+				Key:   http.StatusKey,
+				Value: http.K206Value,
 			},
 		},
 		{
 			Index: 11,
-			Value: StaticTableValue{
-				Key:   StatusKey,
-				Value: K304Value,
+			Value: http.StaticTableValue{
+				Key:   http.StatusKey,
+				Value: http.K304Value,
 			},
 		},
 		{
 			Index: 12,
-			Value: StaticTableValue{
-				Key:   StatusKey,
-				Value: K400Value,
+			Value: http.StaticTableValue{
+				Key:   http.StatusKey,
+				Value: http.K400Value,
 			},
 		},
 		{
 			Index: 13,
-			Value: StaticTableValue{
-				Key:   StatusKey,
-				Value: K404Value,
+			Value: http.StaticTableValue{
+				Key:   http.StatusKey,
+				Value: http.K404Value,
 			},
 		},
 		{
 			Index: 14,
-			Value: StaticTableValue{
-				Key:   StatusKey,
-				Value: K500Value,
+			Value: http.StaticTableValue{
+				Key:   http.StatusKey,
+				Value: http.K500Value,
 			},
 		},
 	}

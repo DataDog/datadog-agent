@@ -11,12 +11,14 @@ package resolvers
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // Resolvers holds the list of the event attribute resolvers
 type Resolvers struct {
 	ProcessResolver *process.ProcessResolver
+	TagsResolver    *tags.Resolver
 }
 
 // NewResolvers creates a new instance of Resolvers
@@ -26,8 +28,12 @@ func NewResolvers(config *config.Config, statsdClient statsd.ClientInterface) (*
 	if err != nil {
 		return nil, err
 	}
+
+	tagsResolver := tags.NewResolver(config.Probe)
+
 	resolvers := &Resolvers{
 		ProcessResolver: processResolver,
+		TagsResolver:    tagsResolver,
 	}
 	return resolvers, nil
 }
