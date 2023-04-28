@@ -8,14 +8,8 @@
 package admission
 
 import (
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"k8s.io/client-go/discovery"
-)
-
-const (
-	defaultAPIServerTimeout = 20 * time.Second
 )
 
 // UseAdmissionV1 discovers which admissionregistration version should be used between v1beta1 and v1.
