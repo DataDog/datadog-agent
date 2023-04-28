@@ -35,7 +35,7 @@ get_file_diff:
   stage: kernel_matrix_testing
   script:
     - git fetch origin main:main
-    - echo "DIFF_FILES=\$(cat <<-END\n$(git diff --name-only $(git merge-base $(inv release.get-release-json-value base_branch) HEAD) HEAD)\nEND\n)" > file_diff.env
+    - echo -e "DIFF_FILES=\$(cat <<-END\n$(git diff --name-only $(git merge-base $(inv release.get-release-json-value base_branch) HEAD) HEAD)\nEND\n)" > file_diff.env
     - cat file_diff.env
   artifacts:
     reports:
