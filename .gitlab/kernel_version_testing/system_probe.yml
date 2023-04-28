@@ -33,10 +33,11 @@ get_file_diff:
     !reference [ .on_system_probe_changes_or_manual ]
   stage: kernel_matrix_testing
   script:
+    - export CURR_BRANCH=$(git rev-parse --abbrev-ref HEAD )
     - git checkout main
     - git pull
-    - git checkout pythyu/better-systemprobe-detection
-    - echo "DIFF_FILES=$(git diff --name-only $(git merge-base $(inv release.get-release-json-value base_branch) HEAD) HEAD)" > file_diff.env
+    - git checkout $CURR_BRANCH
+    - echo "DIFF_FILES=\$(cat <<-END\n$(git diff --name-only $(git merge-base $(inv release.get-release-json-value base_branch) HEAD) HEAD)\nEND\n)" > file_diff.env
     - cat file_diff.env
   artifacts:
     reports:
