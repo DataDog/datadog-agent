@@ -9,5 +9,5 @@
 enhancements:
   - |
     ``agent status -v`` now shows verbose diagnostic information. 
-    Added tailer specific stats to the verbose status page with 
-    improved auto mutli-line detection information.
+    Added tailer-specific stats to the verbose status page with 
+    improved auto multi-line detection information.
