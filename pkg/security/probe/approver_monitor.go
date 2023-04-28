@@ -54,9 +54,15 @@ func (d *ApproverMonitor) SendStats() error {
 		}
 
 		var tags []string
+		approverType := "undefined"
+		if stats.IsBasenameApprover > 0 {
+			approverType = "basename"
+		} else if stats.IsFlagApprover > 0 {
+			approverType = "flag"
+		}
+
 		tags = []string{
-			// TODO: Figure out if it's a basename or flag approver
-			"approver_type:basename",
+			fmt.Sprintf("approver_type:%s", approverType),
 			fmt.Sprintf("event_type:%s", model.EventType(eventType).String()),
 		}
 

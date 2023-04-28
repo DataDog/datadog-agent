@@ -7,5 +7,7 @@ package probe
 
 // ApproverStats is used to collect kernel space metrics about approvers. Stats about added approvers are sent from userspace.
 type ApproverStats struct {
-	EventApproved uint64 `yaml:"event_approved"`
+	EventApproved      uint64 `yaml:"event_approved"`
+	IsBasenameApprover uint32 `yaml:"is_basename_approver"`
+	IsFlagApprover     uint32 `yaml:"is_flag_approver"`
 }

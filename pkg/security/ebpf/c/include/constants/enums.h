@@ -37,7 +37,6 @@ enum event_type {
     EVENT_DELETE_MODULE,
     EVENT_SIGNAL,
     EVENT_SPLICE,
-    EVENT_LAST_APPROVER = EVENT_SPLICE,
     EVENT_CGROUP_TRACING,
     EVENT_DNS,
     EVENT_NET_DEVICE,
@@ -50,6 +49,8 @@ enum event_type {
 
     EVENT_ALL = 0xffffffff // used as a mask for all the events
 };
+
+#define EVENT_LAST_APPROVER EVENT_SPLICE
 
 enum {
     EVENT_FLAGS_ASYNC = 1<<0, // async, mostly io_uring
