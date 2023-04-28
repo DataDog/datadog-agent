@@ -6,6 +6,10 @@
 
 #include "defs.h"
 
+#ifndef COMPILE_CORE
+#include <uapi/linux/in6.h>
+#endif
+
 /* check if IPs are IPv4 mapped to IPv6 ::ffff:xxxx:xxxx
  * https://tools.ietf.org/html/rfc4291#section-2.5.5
  * the addresses are stored in network byte order so IPv4 adddress is stored

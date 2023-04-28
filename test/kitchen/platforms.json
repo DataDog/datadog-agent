@@ -115,8 +115,8 @@
         "azure": {
             "x86_64": {
                 "win2008r2": "id,/subscriptions/a53d2c33-d372-4e36-9e33-eaf32ce95b28/resourceGroups/agentcustomimages/providers/Microsoft.Compute/galleries/agentcustomimages/images/Windows2008-R2-SP1/versions/1.0.0",
-                "win2012": "urn,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:9200.23920.221007",
-                "win2012r2": "urn,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:9600.20625.221005",
+                "win2012": "id,/subscriptions/a53d2c33-d372-4e36-9e33-eaf32ce95b28/resourceGroups/agentcustomimages/providers/Microsoft.Compute/galleries/agentcustomimages/images/Windows-2012/versions/1.0.0",
+                "win2012r2": "id,/subscriptions/a53d2c33-d372-4e36-9e33-eaf32ce95b28/resourceGroups/agentcustomimages/providers/Microsoft.Compute/galleries/agentcustomimages/images/Windows-2012-R2/versions/1.0.1",
                 "win2016": "urn,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:14393.5429.221014",
                 "win2019": "urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:17763.3534.221015",
                 "win2019cn": "urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-zhcn:17763.3534.221015",

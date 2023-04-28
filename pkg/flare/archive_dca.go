@@ -25,24 +25,24 @@ import (
 
 // CreateDCAArchive packages up the files
 func CreateDCAArchive(local bool, distPath, logFilePath string) (string, error) {
-	fb, err := flarehelpers.NewFlareBuilder()
+	fb, err := flarehelpers.NewFlareBuilder(local)
 	if err != nil {
 		return "", err
 	}
 
-	confSearchPaths := SearchPaths{
+	confSearchPaths := map[string]string{
 		"":     config.Datadog.GetString("confd_path"),
 		"dist": filepath.Join(distPath, "conf.d"),
 	}
 
-	createDCAArchive(fb, local, confSearchPaths, logFilePath)
+	createDCAArchive(fb, confSearchPaths, logFilePath)
 	return fb.Save()
 }
 
-func createDCAArchive(fb flarehelpers.FlareBuilder, local bool, confSearchPaths SearchPaths, logFilePath string) {
+func createDCAArchive(fb flarehelpers.FlareBuilder, confSearchPaths map[string]string, logFilePath string) {
 	// If the request against the API does not go through we don't collect the status log.
-	if local {
-		fb.AddFile("local", []byte(""))
+	if fb.IsLocal() {
+		fb.AddFile("local", nil)
 	} else {
 		// The Status will be unavailable unless the agent is running.
 		// Only zip it up if the agent is running

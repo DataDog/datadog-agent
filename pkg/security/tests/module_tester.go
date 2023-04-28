@@ -866,8 +866,9 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	emopts := eventmonitor.Opts{
 		StatsdClient: statsdClient,
 		ProbeOpts: probe.Opts{
-			StatsdClient:       statsdClient,
-			DontDiscardRuntime: true,
+			StatsdClient:          statsdClient,
+			DontDiscardRuntime:    true,
+			PathResolutionEnabled: true,
 		},
 	}
 
@@ -887,10 +888,12 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 		testMod.eventMonitor.RegisterEventConsumer(cws)
 
-		testMod.cws.SetRulesetLoadedCallback(func(rs *rules.RuleSet, err *multierror.Error) {
+		testMod.cws.SetRulesetLoadedCallback(func(es *rules.EvaluationSet, err *multierror.Error) {
 			ruleSetloadedErr = err
 			log.Infof("Adding test module as listener")
-			rs.AddListener(testMod)
+			for _, ruleSet := range es.RuleSets {
+				ruleSet.AddListener(testMod)
+			}
 		})
 	}
 

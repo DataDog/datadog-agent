@@ -17,6 +17,7 @@ import (
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -60,7 +61,7 @@ func newDatadogSingleClient() (*datadog.Client, error) {
 	//   - DD_SITE
 	endpoint := os.Getenv("DATADOG_HOST")
 	if config.Datadog.GetString(metricsEndpointConfig) != "" || endpoint == "" {
-		endpoint = config.GetMainEndpoint(metricsEndpointPrefix, metricsEndpointConfig)
+		endpoint = utils.GetMainEndpoint(config.Datadog, metricsEndpointPrefix, metricsEndpointConfig)
 	}
 
 	if appKey == "" || apiKey == "" {

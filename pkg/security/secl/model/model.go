@@ -257,15 +257,17 @@ type Event struct {
 	Bind BindEvent `field:"bind" event:"bind" platform:"linux"` // [7.37] [Network] [Experimental] A bind was executed
 
 	// internal usage
-	Umount              UmountEvent           `field:"-" json:"-" platform:"linux"`
-	InvalidateDentry    InvalidateDentryEvent `field:"-" json:"-" platform:"linux"`
-	ArgsEnvs            ArgsEnvsEvent         `field:"-" json:"-" platform:"linux"`
-	MountReleased       MountReleasedEvent    `field:"-" json:"-" platform:"linux"`
-	CgroupTracing       CgroupTracingEvent    `field:"-" json:"-" platform:"linux"`
-	NetDevice           NetDeviceEvent        `field:"-" json:"-" platform:"linux"`
-	VethPair            VethPairEvent         `field:"-" json:"-" platform:"linux"`
-	UnshareMountNS      UnshareMountNSEvent   `field:"-" json:"-" platform:"linux"`
-	PathResolutionError error                 `field:"-" json:"-" platform:"linux"` // hold one of the path resolution error
+	Umount           UmountEvent           `field:"-" json:"-" platform:"linux"`
+	InvalidateDentry InvalidateDentryEvent `field:"-" json:"-" platform:"linux"`
+	ArgsEnvs         ArgsEnvsEvent         `field:"-" json:"-" platform:"linux"`
+	MountReleased    MountReleasedEvent    `field:"-" json:"-" platform:"linux"`
+	CgroupTracing    CgroupTracingEvent    `field:"-" json:"-" platform:"linux"`
+	NetDevice        NetDeviceEvent        `field:"-" json:"-" platform:"linux"`
+	VethPair         VethPairEvent         `field:"-" json:"-" platform:"linux"`
+	UnshareMountNS   UnshareMountNSEvent   `field:"-" json:"-" platform:"linux"`
+
+	// mark event with having error
+	Error error `field:"-" json:"-"`
 
 	// field resolution
 	FieldHandlers FieldHandlers `field:"-" json:"-" platform:"linux"`
@@ -382,7 +384,7 @@ func (ev *Event) Release() {
 // SetPathResolutionError sets the Event.pathResolutionError
 func (ev *Event) SetPathResolutionError(fileFields *FileEvent, err error) {
 	fileFields.PathResolutionError = err
-	ev.PathResolutionError = err
+	ev.Error = err
 }
 
 // ResolveProcessCacheEntry uses the field handler
@@ -395,9 +397,9 @@ func (ev *Event) ResolveEventTimestamp() time.Time {
 	return ev.FieldHandlers.ResolveEventTimestamp(ev)
 }
 
-// GetProcessServiceTag uses the field handler
-func (ev *Event) GetProcessServiceTag() string {
-	return ev.FieldHandlers.GetProcessServiceTag(ev)
+// GetProcessService uses the field handler
+func (ev *Event) GetProcessService() string {
+	return ev.FieldHandlers.GetProcessService(ev)
 }
 
 // MatchedRules contains the identification of one rule that has match
@@ -799,7 +801,13 @@ func (pc *ProcessCacheEntry) Retain() {
 
 // SetReleaseCallback set the callback called when the entry is released
 func (pc *ProcessCacheEntry) SetReleaseCallback(callback func()) {
-	pc.releaseCb = callback
+	previousCallback := pc.releaseCb
+	pc.releaseCb = func() {
+		callback()
+		if previousCallback != nil {
+			previousCallback()
+		}
+	}
 }
 
 // Release decrement and eventually release the entry
@@ -1191,7 +1199,7 @@ func (pl *PathLeaf) MarshalBinary() ([]byte, error) {
 type ExtraFieldHandlers interface {
 	ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool)
 	ResolveEventTimestamp(ev *Event) time.Time
-	GetProcessServiceTag(ev *Event) string
+	GetProcessService(ev *Event) string
 }
 
 // ResolveProcessCacheEntry stub implementation
@@ -1204,7 +1212,7 @@ func (dfh *DefaultFieldHandlers) ResolveEventTimestamp(ev *Event) time.Time {
 	return ev.Timestamp
 }
 
-// GetProcessServiceTag stub implementation
-func (dfh *DefaultFieldHandlers) GetProcessServiceTag(ev *Event) string {
+// GetProcessService stub implementation
+func (dfh *DefaultFieldHandlers) GetProcessService(ev *Event) string {
 	return ""
 }

@@ -103,7 +103,7 @@ func TestProxyWithSecret(t *testing.T) {
 			// CircleCI sets NO_PROXY, so unset it for this test
 			unsetEnvForTest(t, "NO_PROXY")
 
-			config := setupConf()
+			config := SetupConf()
 			config.Set("use_proxy_for_cloud_metadata", true)
 
 			// Viper.MergeConfigOverride, which is used when secrets is enabled, will silently fail if a
