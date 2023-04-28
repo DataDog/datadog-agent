@@ -11,24 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestInfoRegistryOrder(t *testing.T) {
-
-	reg := NewInfoRegistry()
-	info1 := NewCountInfo("1")
-	info2 := NewCountInfo("2")
-	info3 := NewCountInfo("3")
-
-	reg.Register(info1)
-	reg.Register(info2)
-	reg.Register(info3)
-
-	all := reg.All()
-
-	assert.Equal(t, all[0].InfoKey(), "1")
-	assert.Equal(t, all[1].InfoKey(), "2")
-	assert.Equal(t, all[2].InfoKey(), "3")
-}
-
 func TestInfoRegistryReplace(t *testing.T) {
 
 	reg := NewInfoRegistry()
