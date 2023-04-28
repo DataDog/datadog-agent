@@ -234,7 +234,7 @@ func (suite *apiserverSuite) TestCanStart() {
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.UseEventPlatformForwarder = false
 	forwarder := fxutil.Test[defaultforwarder.Component](suite.T(), defaultforwarder.MockModule, defaultforwarder.MockModule)
-	demux := aggregator.InitAndStartAgentDemultiplexer(forwarder, opts, hname)
+	demux := aggregator.InitAndStartAgentDemultiplexer(forwarder, opts, "testhostname")
 	demux.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
 	le, err := leaderelection.GetLeaderEngine()
@@ -263,7 +263,7 @@ func (suite *apiserverSuite) TestCanStart() {
 
 	}
 
-	clusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), hname)
+	clusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), "testhostname")
 	// Generate and persist a cluster ID
 	// this must be a UUID, and ideally be stable for the lifetime of a cluster,
 	// so we store it in a configmap that we try and read before generating a new one.
