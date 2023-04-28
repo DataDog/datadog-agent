@@ -114,9 +114,6 @@ type PlatformProbe struct {
 	isRuntimeDiscarded bool
 	constantOffsets    map[string]uint64
 	runtimeCompiled    bool
-
-	// Snapshot replay lock
-	snapshotReplayLock sync.Mutex
 }
 
 func (p *Probe) detectKernelVersion() error {
@@ -307,9 +304,6 @@ func (p *Probe) Start() error {
 }
 
 func (p *Probe) PlaySnapshot() {
-	p.snapshotReplayLock.Lock()
-	defer p.snapshotReplayLock.Unlock()
-
 	// Get the snapshotted data
 	entrycache := p.GetResolvers().ProcessResolver.GetEntryCache()
 

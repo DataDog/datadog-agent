@@ -100,6 +100,9 @@ type Resolver struct {
 	processCacheEntryPool *ProcessCacheEntryPool
 
 	exitedQueue []uint32
+
+	// entrycache lock
+	getEntryCacheLock sync.Mutex
 }
 
 // ProcessCacheEntryPool defines a pool for process entry allocations
@@ -1212,6 +1215,9 @@ func (p *Resolver) GetEntryCacheSize() float64 {
 
 // GetEntryCache return the resolver's entrycache
 func (p *Resolver) GetEntryCache() map[uint32]*model.ProcessCacheEntry {
+	p.getEntryCacheLock.Lock()
+	defer p.getEntryCacheLock.Unlock()
+
 	return p.entryCache
 }
 

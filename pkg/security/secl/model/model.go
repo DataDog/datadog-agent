@@ -783,9 +783,9 @@ type ProcessCacheEntry struct {
 }
 
 const (
-	ProcessCacheEntryFromEvent     uint64 = 1
-	ProcessCacheEntryFromKernelMap uint64 = 2
-	ProcessCacheEntryFromProcFS    uint64 = 3
+	ProcessCacheEntryFromEvent = iota
+	ProcessCacheEntryFromKernelMap
+	ProcessCacheEntryFromProcFS
 )
 
 // IsContainerRoot returns whether this is a top level process in the container ID
