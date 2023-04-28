@@ -15,15 +15,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// USMDataIndexes provides a generic container where data is indexed by
-// Connection, so it can be later on used during the encoding process
-type USMDataByConnection[K comparable, V any] struct {
+// USMConnectionIndex provides a generic container for USM data pre-aggregated by connection
+type USMConnectionIndex[K comparable, V any] struct {
+	lookupFn func(network.ConnectionStats, map[types.ConnectionKey]*USMConnectionData[K, V]) *USMConnectionData[K, V]
 	data     map[types.ConnectionKey]*USMConnectionData[K, V]
 	protocol string
 	once     sync.Once
 }
 
-// USMConnectionData aggregates USM data belonging to a specific connection
+// USMConnectionData aggregates all USM data associated to a specific connection
 type USMConnectionData[K comparable, V any] struct {
 	Data []USMKeyValue[K, V]
 
@@ -43,23 +43,33 @@ type USMKeyValue[K comparable, V any] struct {
 	Value V
 }
 
-func GroupByConnection[K comparable, V any](protocol string, data map[K]V, keyGen func(K) types.ConnectionKey) *USMDataByConnection[K, V] {
-	byConnection := &USMDataByConnection[K, V]{
-		data: make(map[types.ConnectionKey]*USMConnectionData[K, V], len(data)/2),
+// GroupByConnection generates a `USMConnectionIndex` from a generic `map[K]V` data structure.
+// In addition to the `data` argument the caller must provide a `keyGen` function that
+// essentially translates `K` to a `types.ConnectionKey` and a `protocol` name.
+func GroupByConnection[K comparable, V any](protocol string, data map[K]V, keyGen func(K) types.ConnectionKey) *USMConnectionIndex[K, V] {
+	byConnection := &USMConnectionIndex[K, V]{
+		lookupFn: USMLookup[K, V],
+		data:     make(map[types.ConnectionKey]*USMConnectionData[K, V], len(data)/2),
 	}
 
-	// In the first pass we setup the map and calculate the number of aggregations per connection
+	// In the first pass we instantiate the map and calculate the number of
+	// USM aggregation objects per connection
 	for key := range data {
 		connectionKey := keyGen(key)
 		connectionData, ok := byConnection.data[connectionKey]
 		if !ok {
+			// Implementation note for whoever tries to optimize this further:
+			// Pooling these `USMConnectionData` objects doesn't seem to yield
+			// any gains in terms of memory usage, so I'd probably keep as it is
 			connectionData = new(USMConnectionData[K, V])
 			byConnection.data[connectionKey] = connectionData
 		}
 		connectionData.size++
 	}
 
-	// In the second pass we create a slice with a pre-determined size and add the aggregations
+	// In the second pass we create a slice for each `USMConnectionData` entry
+	// in the map using the pre-determined sizes from the previous iteration and
+	// append the USM aggregation objects to it
 	for key, value := range data {
 		connectionKey := keyGen(key)
 		connectionData, ok := byConnection.data[connectionKey]
@@ -68,7 +78,7 @@ func GroupByConnection[K comparable, V any](protocol string, data map[K]V, keyGe
 			continue
 		}
 
-		// create slice with pre-determined size
+		// Create slice with pre-determined size
 		if connectionData.Data == nil {
 			connectionData.Data = make([]USMKeyValue[K, V], 0, connectionData.size)
 		}
@@ -82,22 +92,41 @@ func GroupByConnection[K comparable, V any](protocol string, data map[K]V, keyGe
 	return byConnection
 }
 
-func (bc *USMDataByConnection[K, V]) Find(c network.ConnectionStats) *USMConnectionData[K, V] {
-	var connectionData *USMConnectionData[K, V]
-	network.WithKey(c, func(key types.ConnectionKey) (stopIteration bool) {
-		val, ok := bc.data[key]
-		if !ok {
-			return false
-		}
+// Find returns a `USMConnectionData` object associated to given `network.ConnectionStats`
+// The returned object will include all USM aggregation associated to this connection
+func (bc *USMConnectionIndex[K, V]) Find(c network.ConnectionStats) *USMConnectionData[K, V] {
+	result := bc.lookupFn(c, bc.data)
 
-		connectionData = val
-		connectionData.claimed = true
-		return true
-	})
+	if result != nil {
+		// Mark `USMConnectionData` as claimed for the purposes of orphan
+		// aggregation reporting
+		result.claimed = true
+	}
 
-	return connectionData
+	return result
 }
 
+// IsPIDCollision can be called on each lookup result returned by
+// `USMConnectionIndex.Find`. This is intended to avoid over-reporting USM stats
+// in the context of PID "collisions" For example let's say you have the
+// following two connections:
+//
+// Connection 1: srcA, dstB, pid X
+// Connection 2: srcA, dstB, pid Y
+//
+// And some USM data that is associated to: srcA, dstB (note that data from socket
+// filter programs doesn't include PIDs
+//
+// The purpose of this check is to avoid letting `Connection 1` and `Connection 2`
+// be associated to the same USM aggregation object.
+//
+// So whichever connection "claims" the aggregation first will return `false`
+// for `IsPIDCollision`, and any other connection calling this method will get a
+// `true` return value back.
+//
+// Notice that this PID collision scenario is typical in the context pre-forked
+// webservers such as NGINX, where multiple worker processes will share the same
+// listen socket.
 func (gd *USMConnectionData[K, V]) IsPIDCollision(c network.ConnectionStats) bool {
 	if gd.sport == 0 && gd.dport == 0 {
 		// This is the first time a ConnectionStats claim this data. In this
@@ -126,7 +155,8 @@ func (gd *USMConnectionData[K, V]) IsPIDCollision(c network.ConnectionStats) boo
 	return true
 }
 
-func (bc *USMDataByConnection[K, V]) Close() {
+// Close `USMConnectionIndex` and report orphan aggregations
+func (bc *USMConnectionIndex[K, V]) Close() {
 	bc.once.Do(func() {
 		// Determine count of orphan aggregations
 		var total int
@@ -153,4 +183,30 @@ func (bc *USMDataByConnection[K, V]) Close() {
 			telemetry.OptStatsd,
 		).Add(int64(total))
 	})
+}
+
+// USMLookup determines the strategy for associating a given connection to USM
+// data The purpose of this function is to let Windows and Linux easily diverge,
+// so in case we ever want to do this simply place this function implementation
+// in different files (eg `_linux.go` and `_windows.go`)
+func USMLookup[K comparable, V any](c network.ConnectionStats, data map[types.ConnectionKey]*USMConnectionData[K, V]) *USMConnectionData[K, V] {
+	var connectionData *USMConnectionData[K, V]
+
+	// WithKey will attempt 4 lookups in total
+	// 1) (A, B)
+	// 2) (B, A)
+	// 3) (translated(A), translated(B))
+	// 3) (translated(B), translated(A))
+	// The callback API is used to avoid allocating a slice of all pre-computed keys
+	network.WithKey(c, func(key types.ConnectionKey) (stopIteration bool) {
+		val, ok := data[key]
+		if !ok {
+			return false
+		}
+
+		connectionData = val
+		return true
+	})
+
+	return connectionData
 }

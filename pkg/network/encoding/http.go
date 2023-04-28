@@ -39,7 +39,7 @@ var (
 )
 
 type httpEncoder struct {
-	byConnection *USMDataByConnection[http.Key, *http.RequestStats]
+	byConnection *USMConnectionIndex[http.Key, *http.RequestStats]
 
 	// cached object
 	aggregations *model.HTTPAggregations
