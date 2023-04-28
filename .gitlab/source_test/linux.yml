@@ -70,7 +70,7 @@ lint_deb-x64:
   extends:
     - .linux_lint
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["go_deps", "go_tools_deps"]
 
 tests_flavor_iot_deb-x64:
@@ -89,7 +89,7 @@ lint_flavor_iot_deb-x64:
   extends:
     - .linux_lint
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["go_deps", "go_tools_deps"]
   variables:
     FLAVORS: '--flavors iot'
@@ -110,7 +110,7 @@ lint_flavor_dogstatsd_deb-x64:
   extends:
     - .linux_lint
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["go_deps", "go_tools_deps"]
   variables:
     FLAVORS: '--flavors dogstatsd'
@@ -146,7 +146,7 @@ lint_rpm-x64:
   extends:
     - .linux_lint
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["go_deps", "go_tools_deps"]
   variables:
     EXTRA_OPTS: '--build-exclude=systemd'
@@ -178,7 +178,7 @@ lint_deb-arm64:
     - .linux_lint
   needs: ["go_deps", "go_tools_deps"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:docker-arm", "platform:arm64"]
+  tags: ["arch:arm64"]
 
 tests_rpm-arm64-py2:
   extends: .rtloader_tests
@@ -206,7 +206,7 @@ lint_rpm-arm64:
   extends:
     - .linux_lint
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:docker-arm", "platform:arm64"]
+  tags: ["arch:arm64"]
   needs: ["go_deps", "go_tools_deps"]
 
 # Check consistency of go.mod file with project imports
