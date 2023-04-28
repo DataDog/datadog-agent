@@ -60,7 +60,7 @@ func GroupByConnection[K comparable, V any](protocol string, data map[K]V, keyGe
 		if !ok {
 			// Implementation note for whoever tries to optimize this further:
 			// Pooling these `USMConnectionData` objects doesn't seem to yield
-			// any gains in terms of memory usage, so I'd probably keep as it is
+			// any gains in terms of memory usage, so I'd probably keep it as it is
 			connectionData = new(USMConnectionData[K, V])
 			byConnection.data[connectionKey] = connectionData
 		}
@@ -108,21 +108,21 @@ func (bc *USMConnectionIndex[K, V]) Find(c network.ConnectionStats) *USMConnecti
 
 // IsPIDCollision can be called on each lookup result returned by
 // `USMConnectionIndex.Find`. This is intended to avoid over-reporting USM stats
-// in the context of PID "collisions" For example let's say you have the
+// in the context of PID "collisions". For example, let's say you have the
 // following two connections:
 //
 // Connection 1: srcA, dstB, pid X
 // Connection 2: srcA, dstB, pid Y
 //
 // And some USM data that is associated to: srcA, dstB (note that data from socket
-// filter programs doesn't include PIDs
+// filter programs doesn't include PIDs)
 //
 // The purpose of this check is to avoid letting `Connection 1` and `Connection 2`
 // be associated to the same USM aggregation object.
 //
 // So whichever connection "claims" the aggregation first will return `false`
-// for `IsPIDCollision`, and any other connection calling this method will get a
-// `true` return value back.
+// for `IsPIDCollision`, and any other following connection calling this method
+// will get a `true` return value back.
 //
 // Notice that this PID collision scenario is typical in the context pre-forked
 // webservers such as NGINX, where multiple worker processes will share the same
@@ -186,7 +186,7 @@ func (bc *USMConnectionIndex[K, V]) Close() {
 }
 
 // USMLookup determines the strategy for associating a given connection to USM
-// data The purpose of this function is to let Windows and Linux easily diverge,
+// data. The purpose of this function is to let Windows and Linux easily diverge,
 // so in case we ever want to do this simply place this function implementation
 // in different files (eg `_linux.go` and `_windows.go`)
 func USMLookup[K comparable, V any](c network.ConnectionStats, data map[types.ConnectionKey]*USMConnectionData[K, V]) *USMConnectionData[K, V] {
