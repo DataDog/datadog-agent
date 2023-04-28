@@ -442,7 +442,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 			},
 		},
 		{
-			name: "mapping used without tag",
+			name: "mapping used without tag should raise a warning",
 			metrics: []MetricsConfig{
 				{
 					Symbols: []SymbolConfig{
