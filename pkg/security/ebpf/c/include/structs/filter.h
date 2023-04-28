@@ -12,6 +12,10 @@ struct policy_t {
 
 // Approvers
 
+struct approver_stats_t {
+    u64 event_approved;
+};
+
 struct basename_t {
     char value[BASENAME_FILTER_SIZE];
 };
