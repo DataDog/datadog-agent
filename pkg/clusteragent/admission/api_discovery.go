@@ -19,7 +19,7 @@ func UseAdmissionV1(client discovery.DiscoveryInterface) (bool, error) {
 		return false, err
 	}
 
-	admission := "admission.k8s.io"
+	admission := "admissionregistration.k8s.io"
 	for _, group := range groups.Groups {
 		if group.Name == admission {
 			for _, version := range group.Versions {
