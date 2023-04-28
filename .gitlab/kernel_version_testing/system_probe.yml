@@ -34,7 +34,7 @@ get_file_diff:
   needs: []
   stage: kernel_matrix_testing
   script:
-    - export CURR_BRANCH="$(git branch --show-current)"
+    - export CURR_BRANCH="$(git symbolic-ref --short HEAD)"
     - echo $CURR_BRANCH
     - git checkout main
     - git pull
