@@ -8,11 +8,9 @@
 
 #include "protocols/http2/decoding-defs.h"
 #include "protocols/http2/maps-defs.h"
+#include "protocols/http2/usm-events.h"
 #include "protocols/http/types.h"
 #include "protocols/classification/defs.h"
-#include "protocols/events.h"
-
-USM_EVENTS_INIT(http2, http2_stream_t, HTTP2_BATCH_SIZE);
 
 // returns true if the given index is one of the relevant headers we care for in the static table.
 // The full table can be found in the user mode code `createStaticTable`.

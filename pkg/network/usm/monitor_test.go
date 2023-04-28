@@ -6,7 +6,7 @@
 //go:build linux_bpf
 // +build linux_bpf
 
-package http
+package usm
 
 import (
 	"bytes"
@@ -28,6 +28,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 )
 
@@ -297,7 +298,7 @@ func TestUnknownMethodRegression(t *testing.T) {
 	stats := monitor.GetHTTPStats()
 
 	for key := range stats {
-		if key.Method == MethodUnknown {
+		if key.Method == http.MethodUnknown {
 			t.Error("detected HTTP request with method unknown")
 		}
 	}
@@ -503,7 +504,7 @@ func requestGenerator(t *testing.T, targetAddr string, reqBody []byte) func() *n
 	}
 }
 
-func includesRequest(t *testing.T, allStats map[Key]*RequestStats, req *nethttp.Request) {
+func includesRequest(t *testing.T, allStats map[http.Key]*http.RequestStats, req *nethttp.Request) {
 	expectedStatus := testutil.StatusFromPath(req.URL.Path)
 	included, err := isRequestIncludedOnce(allStats, req)
 	require.NoError(t, err)
@@ -517,7 +518,7 @@ func includesRequest(t *testing.T, allStats map[Key]*RequestStats, req *nethttp.
 	}
 }
 
-func requestNotIncluded(t *testing.T, allStats map[Key]*RequestStats, req *nethttp.Request) {
+func requestNotIncluded(t *testing.T, allStats map[http.Key]*http.RequestStats, req *nethttp.Request) {
 	included, err := isRequestIncludedOnce(allStats, req)
 	require.NoError(t, err)
 	if included {
@@ -531,7 +532,7 @@ func requestNotIncluded(t *testing.T, allStats map[Key]*RequestStats, req *netht
 	}
 }
 
-func isRequestIncludedOnce(allStats map[Key]*RequestStats, req *nethttp.Request) (bool, error) {
+func isRequestIncludedOnce(allStats map[http.Key]*http.RequestStats, req *nethttp.Request) (bool, error) {
 	occurrences := countRequestOccurrences(allStats, req)
 
 	if occurrences == 1 {
@@ -542,7 +543,7 @@ func isRequestIncludedOnce(allStats map[Key]*RequestStats, req *nethttp.Request)
 	return false, fmt.Errorf("expected to find 1 occurrence of %v, but found %d instead", req, occurrences)
 }
 
-func countRequestOccurrences(allStats map[Key]*RequestStats, req *nethttp.Request) int {
+func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *nethttp.Request) int {
 	expectedStatus := testutil.StatusFromPath(req.URL.Path)
 	occurrences := 0
 	for key, stats := range allStats {
@@ -560,7 +561,7 @@ func countRequestOccurrences(allStats map[Key]*RequestStats, req *nethttp.Reques
 func newHTTPMonitor(t *testing.T) *Monitor {
 	cfg := config.New()
 	cfg.EnableHTTPMonitoring = true
-	monitor, err := NewMonitor(cfg, nil, nil, nil)
+	monitor, err := NewMonitor(cfg, nil, nil, nil, nil)
 	skipIfNotSupported(t, err)
 	require.NoError(t, err)
 	t.Cleanup(monitor.Stop)
@@ -574,7 +575,7 @@ func newHTTPMonitor(t *testing.T) *Monitor {
 }
 
 func skipIfNotSupported(t *testing.T, err error) {
-	notSupported := new(ErrNotSupported)
+	notSupported := new(errNotSupported)
 	if errors.As(err, &notSupported) {
 		t.Skipf("skipping test because this kernel is not supported: %s", notSupported)
 	}

@@ -6,7 +6,7 @@
 //go:build linux_bpf
 // +build linux_bpf
 
-package http
+package usm
 
 import (
 	"fmt"
@@ -21,7 +21,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -35,7 +37,6 @@ const (
 	protocolDispatcherSocketFilterFunction   = "socket__protocol_dispatcher"
 	protocolDispatcherProgramsMap            = "protocols_progs"
 	protocolDispatcherClassificationPrograms = "dispatcher_classification_progs"
-	dispatcherConnectionProtocolMap          = "dispatcher_connection_protocol"
 	connectionStatesMap                      = "connection_states"
 
 	// maxActive configures the maximum number of instances of the
@@ -50,12 +51,13 @@ const (
 
 type ebpfProgram struct {
 	*errtelemetry.Manager
-	cfg             *config.Config
-	offsets         []manager.ConstantEditor
-	subprograms     []subprogram
-	probesResolvers []probeResolver
-	mapCleaner      *ddebpf.MapCleaner
-	tailCallRouter  []manager.TailCallRoute
+	cfg                   *config.Config
+	offsets               []manager.ConstantEditor
+	subprograms           []subprogram
+	probesResolvers       []probeResolver
+	mapCleaner            *ddebpf.MapCleaner
+	tailCallRouter        []manager.TailCallRoute
+	connectionProtocolMap *ebpf.Map
 }
 
 type probeResolver interface {
@@ -93,13 +95,13 @@ type subprogram interface {
 
 var http2TailCall = manager.TailCallRoute{
 	ProgArrayName: protocolDispatcherProgramsMap,
-	Key:           uint32(ProtocolHTTP2),
+	Key:           uint32(http.ProtocolHTTP2),
 	ProbeIdentificationPair: manager.ProbeIdentificationPair{
 		EBPFFuncName: "socket__http2_filter",
 	},
 }
 
-func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
+func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, connectionProtocolMap, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: httpInFlightMap},
@@ -161,7 +163,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 	tailCalls := []manager.TailCallRoute{
 		{
 			ProgArrayName: protocolDispatcherProgramsMap,
-			Key:           uint32(ProtocolHTTP),
+			Key:           uint32(http.ProtocolHTTP),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "socket__http_filter",
 			},
@@ -177,14 +179,14 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		tailCalls = append(tailCalls,
 			manager.TailCallRoute{
 				ProgArrayName: protocolDispatcherProgramsMap,
-				Key:           uint32(ProtocolKafka),
+				Key:           uint32(http.ProtocolKafka),
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: "socket__kafka_filter",
 				},
 			},
 			manager.TailCallRoute{
 				ProgArrayName: protocolDispatcherClassificationPrograms,
-				Key:           uint32(DispatcherKafkaProg),
+				Key:           uint32(http.DispatcherKafkaProg),
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: "socket__protocol_dispatcher_kafka",
 				},
@@ -192,12 +194,13 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 	}
 
 	program := &ebpfProgram{
-		Manager:         errtelemetry.NewManager(mgr, bpfTelemetry),
-		cfg:             c,
-		offsets:         offsets,
-		subprograms:     subprograms,
-		probesResolvers: subprogramProbesResolvers,
-		tailCallRouter:  tailCalls,
+		Manager:               errtelemetry.NewManager(mgr, bpfTelemetry),
+		cfg:                   c,
+		offsets:               offsets,
+		subprograms:           subprograms,
+		probesResolvers:       subprogramProbesResolvers,
+		tailCallRouter:        tailCalls,
+		connectionProtocolMap: connectionProtocolMap,
 	}
 
 	return program, nil
@@ -298,7 +301,7 @@ func (e *ebpfProgram) initPrebuilt() error {
 
 func (e *ebpfProgram) setupMapCleaner() {
 	httpMap, _, _ := e.GetMap(httpInFlightMap)
-	httpMapCleaner, err := ddebpf.NewMapCleaner(httpMap, new(netebpf.ConnTuple), new(ebpfHttpTx))
+	httpMapCleaner, err := ddebpf.NewMapCleaner(httpMap, new(netebpf.ConnTuple), new(http.EbpfHttpTx))
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
@@ -306,7 +309,7 @@ func (e *ebpfProgram) setupMapCleaner() {
 
 	ttl := e.cfg.HTTPIdleConnectionTTL.Nanoseconds()
 	httpMapCleaner.Clean(e.cfg.HTTPMapCleanerInterval, func(now int64, key, val interface{}) bool {
-		httpTxn, ok := val.(*ebpfHttpTx)
+		httpTxn, ok := val.(*http.EbpfHttpTx)
 		if !ok {
 			return false
 		}
@@ -363,16 +366,23 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 			MaxEntries: uint32(e.cfg.MaxTrackedConnections),
 			EditorFlag: manager.EditMaxEntries,
 		},
-		dispatcherConnectionProtocolMap: {
-			Type:       ebpf.Hash,
-			MaxEntries: uint32(e.cfg.MaxTrackedConnections),
-			EditorFlag: manager.EditMaxEntries,
-		},
 		kafkaLastTCPSeqPerConnectionMap: {
 			Type:       ebpf.Hash,
 			MaxEntries: uint32(e.cfg.MaxTrackedConnections),
 			EditorFlag: manager.EditMaxEntries,
 		},
+	}
+	if e.connectionProtocolMap != nil {
+		if options.MapEditors == nil {
+			options.MapEditors = make(map[string]*ebpf.Map)
+		}
+		options.MapEditors[probes.ConnectionProtocolMap] = e.connectionProtocolMap
+	} else {
+		options.MapSpecEditors[probes.ConnectionProtocolMap] = manager.MapSpecEditor{
+			Type:       ebpf.Hash,
+			MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+			EditorFlag: manager.EditMaxEntries,
+		}
 	}
 
 	options.TailCallRouter = e.tailCallRouter

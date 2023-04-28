@@ -48,109 +48,23 @@ var (
 	cnfFileExtRx = regexp.MustCompile(`(?i)\.ya?ml`)
 )
 
-// SearchPaths is just an alias for a map of strings
-type SearchPaths map[string]string
-
-// ProfileData maps (pprof) profile names to the profile data.
-type ProfileData map[string][]byte
-
-// CreatePerformanceProfile adds a set of heap and CPU profiles into target, using cpusec as the CPU
-// profile duration, debugURL as the target URL for fetching the profiles and prefix as a prefix for
-// naming them inside target.
-//
-// It is accepted to pass a nil target.
-func CreatePerformanceProfile(prefix, debugURL string, cpusec int, target *ProfileData) error {
-	c := apiutil.GetClient(false)
-	if *target == nil {
-		*target = make(ProfileData)
-	}
-	for _, prof := range []struct{ Name, URL string }{
-		{
-			// 1st heap profile
-			Name: prefix + "-1st-heap.pprof",
-			URL:  debugURL + "/heap",
-		},
-		{
-			// CPU profile
-			Name: prefix + "-cpu.pprof",
-			URL:  fmt.Sprintf("%s/profile?seconds=%d", debugURL, cpusec),
-		},
-		{
-			// 2nd heap profile
-			Name: prefix + "-2nd-heap.pprof",
-			URL:  debugURL + "/heap",
-		},
-		{
-			// A sampling of all past memory allocations
-			Name: prefix + "-allocs.pprof",
-			URL:  debugURL + "/allocs",
-		},
-		{
-			// mutex profile
-			Name: prefix + "-mutex.pprof",
-			URL:  debugURL + "/mutex",
-		},
-		{
-			// goroutine blocking profile
-			Name: prefix + "-block.pprof",
-			URL:  debugURL + "/block",
-		},
-	} {
-		b, err := apiutil.DoGet(c, prof.URL, apiutil.LeaveConnectionOpen)
-		if err != nil {
-			return err
-		}
-		(*target)[prof.Name] = b
-	}
-	return nil
-}
-
-// CreateArchive packages up the files
-func CreateArchive(local bool, distPath, pyChecksPath string, logFilePaths []string, pdata ProfileData, ipcError error) (string, error) {
-	fb, err := flarehelpers.NewFlareBuilder()
-	if err != nil {
-		return "", err
-	}
-
-	CompleteFlare(fb, local, distPath, pyChecksPath, logFilePaths, pdata, ipcError)
-	return fb.Save()
-}
+// searchPaths is a list of path where to look for checks configurations
+type searchPaths map[string]string
 
 // CompleteFlare packages up the files with an already created builder. This is aimed to be used by the flare
 // component while we migrate to a component architecture.
-func CompleteFlare(fb flarehelpers.FlareBuilder, local bool, distPath, pyChecksPath string, logFilePaths []string, pdata ProfileData, ipcError error) {
-	confSearchPaths := SearchPaths{
-		"":        config.Datadog.GetString("confd_path"),
-		"dist":    filepath.Join(distPath, "conf.d"),
-		"checksd": pyChecksPath,
-	}
-	createArchive(fb, confSearchPaths, local, logFilePaths, pdata, ipcError)
-}
-
-func createArchive(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths, local bool, logFilePaths []string, pdata ProfileData, ipcError error) {
+func CompleteFlare(fb flarehelpers.FlareBuilder) error {
 	/** WARNING
 	 *
 	 * When adding data to flares, carefully analyze what is being added and ensure that it contains no credentials
 	 * or unnecessary user-specific data. The FlareBuilder scrubs secrets that match pre-programmed patterns, but it
 	 * is always better to not capture data containing secrets, than to scrub that data.
 	 */
-
-	if local {
-		fb.AddFile("local", []byte(""))
-
-		if ipcError != nil {
-			// Can't reach the agent, mention it in those two files
-			msg := []byte(fmt.Sprintf("unable to contact the agent to retrieve flare: %s", ipcError))
-			fb.AddFile("status.log", msg)
-			fb.AddFile("config-check.log", msg)
-		} else {
-			// Can't reach the agent, mention it in those two files
-			fb.AddFile("status.log", []byte("unable to get the status of the agent, is it running?"))
-			fb.AddFile("config-check.log", []byte("unable to get loaded checks config, is the agent running?"))
-		}
+	if fb.IsLocal() {
+		// Can't reach the agent, mention it in those two files
+		fb.AddFile("status.log", []byte("unable to get the status of the agent, is it running?"))
+		fb.AddFile("config-check.log", []byte("unable to get loaded checks config, is the agent running?"))
 	} else {
-		// Status information are available, add them as the agent is running.
-
 		fb.AddFileFromFunc("status.log", status.GetAndFormatStatus)
 		fb.AddFileFromFunc("config-check.log", getConfigCheck)
 		fb.AddFileFromFunc("tagger-list.json", getAgentTaggerList)
@@ -191,7 +105,6 @@ func createArchive(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths, lo
 	getVersionHistory(fb)
 	fb.CopyFile(filepath.Join(config.FileUsedDir(), "install_info"))
 
-	getConfigFiles(fb, confSearchPaths)
 	getExpVar(fb) //nolint:errcheck
 	getWindowsData(fb)
 
@@ -204,22 +117,11 @@ func createArchive(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths, lo
 			log.Errorf("Could not export remote-config state: %s", err)
 		}
 	}
-
-	for _, logFilePath := range logFilePaths {
-		getLogFiles(fb, logFilePath)
-	}
-
-	getPerformanceProfile(fb, pdata)
+	return nil
 }
 
 func getVersionHistory(fb flarehelpers.FlareBuilder) {
 	fb.CopyFile(filepath.Join(config.Datadog.GetString("run_path"), "version-history.json"))
-}
-
-func getPerformanceProfile(fb flarehelpers.FlareBuilder, pdata ProfileData) {
-	for name, data := range pdata {
-		fb.AddFileWithoutScrubbing(filepath.Join("profiles", name), data)
-	}
 }
 
 func getRegistryJSON(fb flarehelpers.FlareBuilder) {
@@ -324,7 +226,7 @@ func getProcessAgentFullConfig() ([]byte, error) {
 	return cfgB, nil
 }
 
-func getConfigFiles(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths) {
+func getConfigFiles(fb flarehelpers.FlareBuilder, confSearchPaths map[string]string) {
 	for prefix, filePath := range confSearchPaths {
 		fb.CopyDirTo(filePath, filepath.Join("etc", "confd", prefix), func(path string) bool {
 			// ignore .example file
