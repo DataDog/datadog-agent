@@ -13,12 +13,12 @@ type TailerTracker struct {
 	containers []AnyTailerContainer
 }
 
-// NewTailerTracker creates a new TailerTracker instance
+// NewTailerTracker creates a new TailerTracker instance.
 func NewTailerTracker() *TailerTracker {
 	return &TailerTracker{}
 }
 
-// Add a tailer container to the tracker
+// Add a tailer container to the tracker.
 func (t *TailerTracker) Add(container AnyTailerContainer) {
 	t.Lock()
 	defer t.Unlock()
@@ -36,7 +36,8 @@ func (t *TailerTracker) All() []Tailer {
 	return tailers
 }
 
-// AnyTailerContainer is a type erased tailer container. This is used a proxy for typed tailer containers to mix and match collections of tailers of any underlying type.
+// AnyTailerContainer is a type erased tailer container. This is used as a proxy for
+// typed tailer containers to mix and match collections of tailers of any underlying type.
 type AnyTailerContainer interface {
 	Tailers() []Tailer
 }
@@ -47,7 +48,7 @@ type TailerContainer[T Tailer] struct {
 	tailers map[string]T
 }
 
-// NewTailerContainer creates a new TailerContainer instance
+// NewTailerContainer creates a new TailerContainer instance.
 func NewTailerContainer[T Tailer]() *TailerContainer[T] {
 	return &TailerContainer[T]{
 		tailers: make(map[string]T),
@@ -62,7 +63,7 @@ func (t *TailerContainer[T]) Get(id string) (T, bool) {
 	return tailer, ok
 }
 
-// Contains returns true if the key exists
+// Contains returns true if the key exists.
 func (t *TailerContainer[T]) Contains(id string) bool {
 	t.RLock()
 	defer t.RUnlock()
@@ -70,7 +71,7 @@ func (t *TailerContainer[T]) Contains(id string) bool {
 	return ok
 }
 
-// Add adds a new tailer to the container
+// Add adds a new tailer to the container.
 func (t *TailerContainer[T]) Add(tailer T) {
 	t.Lock()
 	defer t.Unlock()
@@ -84,7 +85,7 @@ func (t *TailerContainer[T]) Remove(tailer T) {
 	delete(t.tailers, tailer.GetId())
 }
 
-// All returns a slice of all tailers in the container
+// All returns a slice of all tailers in the container.
 func (t *TailerContainer[T]) All() []T {
 	t.RLock()
 	defer t.RUnlock()
@@ -95,7 +96,7 @@ func (t *TailerContainer[T]) All() []T {
 	return tailers
 }
 
-// Count returns the number of tailers in the container
+// Count returns the number of tailers in the container.
 func (t *TailerContainer[T]) Count() int {
 	t.RLock()
 	defer t.RUnlock()
