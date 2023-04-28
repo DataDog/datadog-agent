@@ -21,7 +21,7 @@ import (
 )
 
 func sbomCollectionIsEnabled() bool {
-	return imageMetadataCollectionIsEnabled() && config.Datadog.GetBool("container_image_collection.sbom.enabled")
+	return imageMetadataCollectionIsEnabled() && config.Datadog.GetBool("sbom.container_image.enabled")
 }
 
 func (c *collector) startSBOMCollection(ctx context.Context) error {
@@ -86,7 +86,7 @@ func (c *collector) extractBOMWithTrivy(ctx context.Context, storedImage *worklo
 		Image:            containerdImage,
 		ImageMeta:        storedImage,
 		ContainerdClient: c.containerdClient,
-		FromFilesystem:   config.Datadog.GetBool("container_image_collection.sbom.use_mount"),
+		FromFilesystem:   config.Datadog.GetBool("sbom.container_image.use_mount"),
 	}
 
 	ch := make(chan sbom.ScanResult, 1)

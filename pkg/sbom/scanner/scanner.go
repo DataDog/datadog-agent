@@ -79,7 +79,7 @@ func (s *Scanner) start(ctx context.Context) {
 		return
 	}
 	go func() {
-		cleanTicker := time.NewTicker(config.Datadog.GetDuration("sbom.cache_clean_interval"))
+		cleanTicker := time.NewTicker(config.Datadog.GetDuration("sbom.cache.clean_interval"))
 		defer cleanTicker.Stop()
 		s.running = true
 		defer func() { s.running = false }()
@@ -174,7 +174,7 @@ func NewScanner(cfg config.Config) *Scanner {
 // global one, and returns it. Start() needs to be called before any data
 // collection happens.
 func CreateGlobalScanner(cfg config.Config) (*Scanner, error) {
-	if !cfg.GetBool("sbom.enabled") && !cfg.GetBool("container_image_collection.sbom.enabled") && !cfg.GetBool("runtime_security_config.sbom.enabled") {
+	if !cfg.GetBool("sbom.host.enabled") && !cfg.GetBool("sbom.container_image.enabled") && !cfg.GetBool("runtime_security_config.sbom.enabled") {
 		return nil, nil
 	}
 

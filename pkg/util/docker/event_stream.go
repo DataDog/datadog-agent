@@ -158,7 +158,7 @@ func eventFilters() filters.Args {
 		res.Add("event", containerEventAction)
 	}
 
-	if config.Datadog.GetBool("container_image_collection.metadata.enabled") {
+	if config.Datadog.GetBool("container_image.enabled") {
 		res.Add("type", events.ImageEventType)
 		for _, imageEventAction := range imageEventActions {
 			res.Add("event", imageEventAction)

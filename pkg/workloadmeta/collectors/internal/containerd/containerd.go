@@ -396,5 +396,5 @@ func (c *collector) cacheExitInfo(id string, exitCode *uint32, exitTS time.Time)
 }
 
 func imageMetadataCollectionIsEnabled() bool {
-	return config.Datadog.GetBool("container_image_collection.metadata.enabled")
+	return config.Datadog.GetBool("container_image.enabled")
 }

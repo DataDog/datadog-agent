@@ -104,7 +104,7 @@ func DefaultCollectorConfig(cacheLocation string) CollectorConfig {
 		ClearCacheOnClose: true,
 	}
 
-	collectorConfig.CacheProvider = cacheProvider(cacheLocation, config.Datadog.GetBool("sbom.use_custom_cache"))
+	collectorConfig.CacheProvider = cacheProvider(cacheLocation, config.Datadog.GetBool("sbom.cache.enabled"))
 
 	return collectorConfig
 }
@@ -114,8 +114,8 @@ func cacheProvider(cacheLocation string, useCustomCache bool) func() (cache.Cach
 		return func() (cache.Cache, CacheCleaner, error) {
 			return NewCustomBoltCache(
 				cacheLocation,
-				config.Datadog.GetInt("sbom.custom_cache_max_cache_entries"),
-				config.Datadog.GetInt("sbom.custom_cache_max_disk_size"),
+				config.Datadog.GetInt("sbom.cache.max_cache_entries"),
+				config.Datadog.GetInt("sbom.cache.max_disk_size"),
 			)
 		}
 	}
