@@ -5,14 +5,14 @@
 
 package util
 
-// Optional reprensents an optional type.
-// By default, no value is set and a call to GetValue() returns (T{}, false)
+// Optional represents an optional type.
+// By default, no value is set and a call to Get() returns (T{}, false)
 type Optional[T any] struct {
 	value T
 	set   bool
 }
 
-// NewOptional creates a new Optional[T] type with a value. A call to GetValue() returns (value, true)
+// NewOptional creates a new instance of Optional[T] with a value set. A call to Get() will returns (value, true)
 func NewOptional[T any](value T) Optional[T] {
 	return Optional[T]{
 		value: value,
@@ -20,7 +20,32 @@ func NewOptional[T any](value T) Optional[T] {
 	}
 }
 
-// GetValue() returns the value and true if NewOptional was called, otherwise it returns (T{}, false).
-func (o Optional[T]) GetValue() (T, bool) {
+// NewNoneOptional creates a new instance of Optional[T] without any value set.
+func NewNoneOptional[T any]() Optional[T] {
+	return Optional[T]{}
+}
+
+// Get returns the value and true if a value is set, otherwise it returns (T{}, false).
+func (o *Optional[T]) Get() (T, bool) {
 	return o.value, o.set
+}
+
+// Set sets a new value.
+func (o *Optional[T]) Set(value T) {
+	o.value = value
+	o.set = true
+}
+
+// Reset removes the value set.
+func (o *Optional[T]) Reset() {
+	o.set = false
+}
+
+// MapOptional returns fct(value) is a value is set, otherwise it returns NewNoneOptional[T2]().
+func MapOptional[T1 any, T2 any](optional Optional[T1], fct func(T1) T2) Optional[T2] {
+	value, ok := optional.Get()
+	if !ok {
+		return NewNoneOptional[T2]()
+	}
+	return NewOptional(fct(value))
 }
