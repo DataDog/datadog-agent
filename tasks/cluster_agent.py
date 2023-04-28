@@ -110,7 +110,6 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     go_cmd = f'go test -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'
 
     prefixes = [
-        "./test/integration/clusteragent",
         "./test/integration/util/kube_apiserver",
         "./test/integration/util/leaderelection",
     ]
