@@ -1,0 +1,8 @@
+optimization_goal: ingress_throughput
+erratic: false
+
+checks:
+  - percent_error:
+      threshold: 10.0
+      expected: "bytes_written"
+      actual: "target/dogstatsd-udp/Bytes"

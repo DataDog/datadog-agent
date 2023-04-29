@@ -10,7 +10,7 @@ single-machine-performance-regression_detector:
     paths:
       - submission_metadata
   variables:
-    SMP_VERSION: 0.7.3
+    SMP_VERSION: 0.7.4
     LADING_VERSION: 0.14.0
     TOTAL_SAMPLES: 600
     WARMUP_SECONDS: 45

@@ -1,8 +1,8 @@
 generator:
-  - unix_datagram:
+  - udp:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
              59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131]
-      path: "/tmp/dsd.socket"
+      addr: "127.0.0.1:8125"
       variant:
         dogstatsd:
           metric_names_minimum: 32
@@ -23,6 +23,6 @@ target_metrics:
   - expvar:
       uri: "http://127.0.0.1:5000/debug/vars"
       vars:
-        - "/dogstatsd-uds/Bytes"
-        - "/dogstatsd-uds/Packets"
-        - "/dogstatsd-uds/PacketReadingErrors"
+        - "/dogstatsd-udp/Bytes"
+        - "/dogstatsd-udp/Packets"
+        - "/dogstatsd-udp/PacketReadingErrors"

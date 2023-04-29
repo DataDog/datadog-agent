@@ -11,8 +11,10 @@ confd_path: /etc/datadog-agent/conf.d
 # has network access.
 cloud_provider_metadata: []
 
-dogstatsd_socket: '/tmp/dsd.socket'
-
 dogstatsd_stats_enable: true
 
 process_collection.enabled: false
+
+use_dogstatsd: true
+dogstatsd_port: 8125
+bind_host: localhost
