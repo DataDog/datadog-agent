@@ -280,7 +280,7 @@ func (e *ebpfProgram) initCORE() error {
 }
 
 func (e *ebpfProgram) initRuntimeCompiler() error {
-	bc, err := getRuntimeCompiledHTTP(e.cfg)
+	bc, err := getRuntimeCompiledUSM(e.cfg)
 	if err != nil {
 		return err
 	}

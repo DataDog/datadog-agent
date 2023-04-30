@@ -17,7 +17,7 @@ import (
 //go:generate go run ../../../pkg/ebpf/include_headers.go ../../../pkg/network/ebpf/c/runtime/usm.c ../../../pkg/ebpf/bytecode/build/runtime/usm.c ../../../pkg/ebpf/c ../../../pkg/ebpf/c/protocols ../../../pkg/network/ebpf/c/runtime ../../../pkg/network/ebpf/c
 //go:generate go run ../../../pkg/ebpf/bytecode/runtime/integrity.go ../../../pkg/ebpf/bytecode/build/runtime/usm.c ../../../pkg/ebpf/bytecode/runtime/usm.go runtime
 
-func getRuntimeCompiledHTTP(config *config.Config) (runtime.CompiledOutput, error) {
+func getRuntimeCompiledUSM(config *config.Config) (runtime.CompiledOutput, error) {
 	return runtime.Usm.Compile(&config.Config, getCFlags(config), statsd.Client)
 }
 
