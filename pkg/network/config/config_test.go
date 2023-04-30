@@ -114,6 +114,26 @@ func TestEnableHTTPStatsByStatusCode(t *testing.T) {
 }
 
 func TestEnableHTTPMonitoring(t *testing.T) {
+	t.Run("via deprecated YAML", func(t *testing.T) {
+		newConfig(t)
+		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DeprecatedEnableHTTP.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTPMonitoring)
+	})
+
+	t.Run("via deprecated ENV variable", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "true")
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTPMonitoring)
+	})
+
 	t.Run("via YAML", func(t *testing.T) {
 		newConfig(t)
 		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableHTTP.yaml")
@@ -123,15 +143,46 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 		assert.True(t, cfg.EnableHTTPMonitoring)
 	})
 
-	t.Run("via ENV variable", func(t *testing.T) {
+	t.Run("via deprecated ENV variable", func(t *testing.T) {
 		newConfig(t)
-		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP_MONITORING", "true")
 
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
 		cfg := New()
 
 		assert.True(t, cfg.EnableHTTPMonitoring)
+	})
+
+	t.Run("Deprecated enabled new is disabled", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP_MONITORING", "false")
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTPMonitoring)
+	})
+
+	t.Run("Deprecated disabled new is enabled", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "false")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP_MONITORING", "true")
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.False(t, cfg.EnableHTTPMonitoring)
+	})
+
+	t.Run("Not enabled", func(t *testing.T) {
+		newConfig(t)
+		cfg := New()
+
+		assert.False(t, cfg.EnableHTTPMonitoring)
 	})
 }
 
