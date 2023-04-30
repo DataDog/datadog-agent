@@ -143,7 +143,7 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 		assert.True(t, cfg.EnableHTTPMonitoring)
 	})
 
-	t.Run("via deprecated ENV variable", func(t *testing.T) {
+	t.Run("via ENV variable", func(t *testing.T) {
 		newConfig(t)
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP_MONITORING", "true")
 
@@ -154,7 +154,7 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 		assert.True(t, cfg.EnableHTTPMonitoring)
 	})
 
-	t.Run("Deprecated enabled new is disabled", func(t *testing.T) {
+	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
 		newConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "true")
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP_MONITORING", "false")
@@ -166,7 +166,7 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 		assert.True(t, cfg.EnableHTTPMonitoring)
 	})
 
-	t.Run("Deprecated disabled new is enabled", func(t *testing.T) {
+	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
 		newConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "false")
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP_MONITORING", "true")
@@ -176,6 +176,18 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 		cfg := New()
 
 		assert.False(t, cfg.EnableHTTPMonitoring)
+	})
+
+	t.Run("Both enabled", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP_MONITORING", "true")
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTPMonitoring)
 	})
 
 	t.Run("Not enabled", func(t *testing.T) {
