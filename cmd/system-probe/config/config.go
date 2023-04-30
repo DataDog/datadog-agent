@@ -26,6 +26,7 @@ const (
 	// Namespace is the top-level configuration key that all system-probe settings are nested underneath
 	Namespace = "system_probe_config"
 	spNS      = Namespace
+	netNS     = "network_config"
 	smNS      = "service_monitoring_config"
 	dsmNS     = "data_streams_config"
 	diNS      = "dynamic_instrumentation"
@@ -174,6 +175,15 @@ func load() (*Config, error) {
 		// ensure others can key off of this single config value for NPM status
 		cfg.Set("network_config.enabled", true)
 		npmEnabled = true
+	}
+
+	deprecatedEnableHttpMonitoringKey := key(netNS, "enable_http_monitoring")
+	enableHttpMonitoringKey := key(smNS, "enable_http_monitoring")
+
+	if cfg.IsSet(deprecatedEnableHttpMonitoringKey) {
+		log.Infof("%q is deprecated, use %q instead",
+			deprecatedEnableHttpMonitoringKey, enableHttpMonitoringKey)
+		cfg.Set(enableHttpMonitoringKey, cfg.GetBool(deprecatedEnableHttpMonitoringKey))
 	}
 
 	if npmEnabled || usmEnabled || dsmEnabled {

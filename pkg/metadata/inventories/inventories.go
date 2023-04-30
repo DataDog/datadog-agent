@@ -89,7 +89,7 @@ const (
 	AgentProcessEnabled                 AgentMetadataName = "feature_process_enabled"
 	AgentProcessesContainerEnabled      AgentMetadataName = "feature_processes_container_enabled"
 	AgentNetworksEnabled                AgentMetadataName = "feature_networks_enabled"
-	AgentNetworksHTTPEnabled            AgentMetadataName = "feature_networks_http_enabled"
+	AgentUSMHTTPEnabled                 AgentMetadataName = "feature_usm_http_enabled"
 	AgentNetworksHTTPSEnabled           AgentMetadataName = "feature_networks_https_enabled"
 	AgentRemoteConfigEnabled            AgentMetadataName = "feature_remote_configuration_enabled"
 	AgentUSMKafkaEnabled                AgentMetadataName = "feature_usm_kafka_enabled"
@@ -418,7 +418,7 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentProcessEnabled, config.Datadog.GetBool("process_config.process_collection.enabled"))
 	SetAgentMetadata(AgentProcessesContainerEnabled, config.Datadog.GetBool("process_config.container_collection.enabled"))
 	SetAgentMetadata(AgentNetworksEnabled, config.SystemProbe.GetBool("network_config.enabled"))
-	SetAgentMetadata(AgentNetworksHTTPEnabled, config.SystemProbe.GetBool("network_config.enable_http_monitoring"))
+	SetAgentMetadata(AgentUSMHTTPEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_http_monitoring"))
 	SetAgentMetadata(AgentNetworksHTTPSEnabled, config.SystemProbe.GetBool("network_config.enable_https_monitoring"))
 	SetAgentMetadata(AgentUSMKafkaEnabled, config.Datadog.GetBool("data_streams_config.enabled"))
 	SetAgentMetadata(AgentRemoteConfigEnabled, config.Datadog.GetBool("remote_configuration.enabled"))
