@@ -112,7 +112,6 @@ func TestHTTP2Path(t *testing.T) {
 	})
 
 	t.Run("empty path", func(t *testing.T) {
-		// create a buffer to store the encoded data
 		request := &EbpfHttp2Tx{
 			Request_path: [30]uint8{},
 			Path_size:    21,
