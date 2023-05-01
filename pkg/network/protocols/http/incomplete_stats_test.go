@@ -113,14 +113,8 @@ func TestHTTP2Path(t *testing.T) {
 
 	t.Run("empty path", func(t *testing.T) {
 		// create a buffer to store the encoded data
-		var buf []byte
-		var arr [30]uint8
-		str := ""
-
-		buf = hpack.AppendHuffmanString(buf, str)
-
 		request := &EbpfHttp2Tx{
-			Request_path: arr,
+			Request_path: [30]uint8{},
 			Path_size:    21,
 		}
 		outBuf := make([]byte, 28)
