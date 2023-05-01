@@ -149,9 +149,7 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 	buildPrefetchFileBin(t)
 
 	ldd, err := exec.LookPath("ldd")
-	if err != nil {
-		t.Skip("ldd not found; skipping test.")
-	}
+	lddFound := err == nil
 
 	tlsLibs := []*regexp.Regexp{
 		regexp.MustCompile(`/[^\ ]+libssl.so[^\ ]*`),
@@ -161,6 +159,7 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 		name         string
 		fetchCmd     []string
 		prefetchLibs []string
+		commandFound bool
 	}{
 		{
 			name:     "wget",
@@ -174,8 +173,10 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 
 	for _, test := range tests {
 		fetch, err := exec.LookPath(test.fetchCmd[0])
-		if err != nil {
-			t.Skipf("%s not found; skipping test.", test.fetchCmd)
+		test.commandFound = err == nil
+		if !test.commandFound {
+			//t.Skipf("%s not found; skipping test.", test.fetchCmd)
+			continue
 		}
 
 		linked, _ := exec.Command(ldd, fetch).Output()
@@ -208,10 +209,17 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 				EnableKeepAlives: keepAlives.value,
 			})
 			t.Cleanup(serverDoneFn)
-			buildPrefetchFileBin(t)
 
 			for _, test := range tests {
 				t.Run(test.name, func(t *testing.T) {
+					// The 2 checks below, could be done outside the loops, but it wouldn't mark the specific tests
+					// as skipped. So we're checking it here.
+					if !lddFound {
+						t.Skip("ldd not found; skipping test.")
+					}
+					if !test.commandFound {
+						t.Skipf("%s not found; skipping test.", test.fetchCmd)
+					}
 					if len(test.prefetchLibs) == 0 {
 						t.Fatalf("%s not linked with any of these libs %v", test.name, tlsLibs)
 					}
