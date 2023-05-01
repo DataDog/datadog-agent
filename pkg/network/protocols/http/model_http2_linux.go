@@ -29,7 +29,7 @@ func (tx *EbpfHttp2Tx) Path(buffer []byte) ([]byte, bool) {
 	}
 
 	// ensure we found a '/' in the beginning of the path
-	if str[0] != '/' {
+	if len(str) == 0 || str[0] != '/' {
 		return nil, false
 	}
 

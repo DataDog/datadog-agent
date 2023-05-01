@@ -9,6 +9,7 @@
 package http
 
 import (
+	"golang.org/x/net/http2/hpack"
 	"testing"
 	"time"
 
@@ -72,63 +73,42 @@ func TestOrphanEntries(t *testing.T) {
 
 func TestHTTP2Path(t *testing.T) {
 	t.Run("path that contains /", func(t *testing.T) {
-		now := time.Now()
-		tel, err := NewTelemetry()
-		require.NoError(t, err)
-		buffer := newIncompleteBuffer(config.New(), tel)
-		request := &EbpfHttpTx{
-			Request_fragment: requestFragment([]byte("GET /foo/bar")),
-			Request_started:  uint64(now.UnixNano()),
+		// create a buffer to store the encoded data
+		var buf []byte
+		var arr [30]uint8
+		str := "/hello.HelloService/SayHello"
+
+		buf = hpack.AppendHuffmanString(buf, str)
+		copy(arr[:], buf[:30])
+
+		request := &EbpfHttp2Tx{
+			Request_path: arr,
+			Path_size:    21,
 		}
-		request.Tup.Sport = 60000
 
-		buffer.Add(request)
-		now = now.Add(5 * time.Second)
-		complete := buffer.Flush(now)
-		assert.Len(t, complete, 0)
+		outBuf := make([]byte, 28)
 
-		response := &EbpfHttpTx{
-			Response_status_code: 200,
-			Response_last_seen:   uint64(now.UnixNano()),
-		}
-		response.Tup.Sport = 60000
-		buffer.Add(response)
-		complete = buffer.Flush(now)
-		require.Len(t, complete, 1)
-
-		completeTX := complete[0]
-		path, _ := completeTX.Path(make([]byte, 256))
-		assert.Equal(t, "/foo/bar", string(path))
+		path, _ := request.Path(outBuf)
+		assert.Equal(t, str, string(path))
 	})
 
 	t.Run("path that do not contains /", func(t *testing.T) {
-		now := time.Now()
-		tel, err := NewTelemetry()
-		require.NoError(t, err)
-		buffer := newIncompleteBuffer(config.New(), tel)
-		request := &EbpfHttpTx{
-			Request_fragment: requestFragment([]byte("GET /foo/bar")),
-			Request_started:  uint64(now.UnixNano()),
+		// create a buffer to store the encoded data
+		var buf []byte
+		var arr [30]uint8
+		str := "hello.HelloService/SayHello"
+
+		buf = hpack.AppendHuffmanString(buf, str)
+		copy(arr[:], buf[:30])
+
+		request := &EbpfHttp2Tx{
+			Request_path: arr,
+			Path_size:    21,
 		}
-		request.Tup.Sport = 60000
+		outBuf := make([]byte, 28)
 
-		buffer.Add(request)
-		now = now.Add(5 * time.Second)
-		complete := buffer.Flush(now)
-		assert.Len(t, complete, 0)
-
-		response := &EbpfHttpTx{
-			Response_status_code: 200,
-			Response_last_seen:   uint64(now.UnixNano()),
-		}
-		response.Tup.Sport = 60000
-		buffer.Add(response)
-		complete = buffer.Flush(now)
-		require.Len(t, complete, 1)
-
-		completeTX := complete[0]
-		path, _ := completeTX.Path(make([]byte, 256))
-		assert.Equal(t, nil, string(path))
+		path, _ := request.Path(outBuf)
+		assert.Nil(t, path)
 	})
 
 }
