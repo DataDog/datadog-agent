@@ -39,7 +39,8 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.TCPReadSock,
 	probes.TCPReadSockReturn,
 	probes.TCPClose,
-	probes.TCPCloseReturn,
+	probes.TCPCloseCleanProtocolsReturn,
+	probes.TCPCloseFlushReturn,
 	probes.TCPConnect,
 	probes.TCPFinishConnect,
 	probes.TCPSetState,
@@ -80,6 +81,7 @@ func initManager(mgr *manager.Manager, config *config.Config, closedHandler *ebp
 		{Name: "pending_bind"},
 		{Name: probes.TelemetryMap},
 		{Name: probes.SockByPidFDMap},
+		{Name: probes.ConnectionProtocolMap},
 		{Name: probes.PidFDBySockMap},
 		{Name: probes.SockFDLookupArgsMap},
 		{Name: probes.TcpSendMsgArgsMap},
@@ -90,6 +92,7 @@ func initManager(mgr *manager.Manager, config *config.Config, closedHandler *ebp
 		{Name: probes.HelperErrTelemetryMap},
 		{Name: probes.TcpRecvMsgArgsMap},
 		{Name: probes.ClassificationProgsMap},
+		{Name: probes.TCPCloseProgsMap},
 	}
 	mgr.PerfMaps = []*manager.PerfMap{
 		{
@@ -128,7 +131,7 @@ func initManager(mgr *manager.Manager, config *config.Config, closedHandler *ebp
 		// tracer.
 		mgr.Probes = append(mgr.Probes,
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.TCPRetransmitPre470, UID: probeUID}},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.IP6MakeSkbPre470, UID: probeUID}, MatchFuncName: "^ip6_make_skb$"},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.IP6MakeSkbPre470, UID: probeUID}},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UDPRecvMsgPre5190, UID: probeUID}},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UDPv6RecvMsgPre5190, UID: probeUID}},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UDPRecvMsgPre470, UID: probeUID}},

@@ -29,6 +29,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
@@ -513,7 +514,7 @@ func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {
 				MaxEntries: 1,
 				EditorFlag: manager.EditMaxEntries,
 			},
-			dispatcherConnectionProtocolMap: {
+			probes.ConnectionProtocolMap: {
 				Type:       ebpf.Hash,
 				MaxEntries: 1,
 				EditorFlag: manager.EditMaxEntries,

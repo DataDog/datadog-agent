@@ -42,7 +42,7 @@ var (
 	// socket filter, and a tracepoint (4.7.0+).
 	classificationMinimumKernel = kernel.VersionCode(4, 7, 0)
 
-	tailCalls = []manager.TailCallRoute{
+	protocolClassificationTailCalls = []manager.TailCallRoute{
 		{
 			ProgArrayName: probes.ClassificationProgsMap,
 			Key:           netebpf.ClassificationQueues,
@@ -56,6 +56,14 @@ var (
 			Key:           netebpf.ClassificationDBs,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: probes.ProtocolClassifierDBsSocketFilter,
+				UID:          probeUID,
+			},
+		},
+		{
+			ProgArrayName: probes.TCPCloseProgsMap,
+			Key:           0,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.TCPCloseFlushReturn,
 				UID:          probeUID,
 			},
 		},
@@ -86,6 +94,20 @@ func ClassificationSupported(config *config.Config) bool {
 	}
 
 	return currentKernelVersion >= classificationMinimumKernel
+}
+
+func addBoolConst(options *manager.Options, flag bool, name string) {
+	val := uint64(1)
+	if !flag {
+		val = uint64(0)
+	}
+
+	options.ConstantEditors = append(options.ConstantEditors,
+		manager.ConstantEditor{
+			Name:  name,
+			Value: val,
+		},
+	)
 }
 
 // LoadTracer loads the co-re/prebuilt/runtime compiled network tracer, depending on config
@@ -149,7 +171,10 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	var undefinedProbes []manager.ProbeIdentificationPair
 
 	var closeProtocolClassifierSocketFilterFn func()
-	if ClassificationSupported(config) {
+	classificationSupported := ClassificationSupported(config)
+	addBoolConst(&mgrOpts, classificationSupported, "protocol_classification_enabled")
+
+	if classificationSupported {
 		socketFilterProbe, _ := m.GetProbe(manager.ProbeIdentificationPair{
 			EBPFFuncName: probes.ProtocolClassifierEntrySocketFilter,
 			UID:          probeUID,
@@ -164,8 +189,8 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 			return nil, fmt.Errorf("error enabling protocol classifier: %w", err)
 		}
 
-		undefinedProbes = append(undefinedProbes, tailCalls[0].ProbeIdentificationPair)
-		mgrOpts.TailCallRouter = append(mgrOpts.TailCallRouter, tailCalls...)
+		undefinedProbes = append(undefinedProbes, protocolClassificationTailCalls[0].ProbeIdentificationPair)
+		mgrOpts.TailCallRouter = append(mgrOpts.TailCallRouter, protocolClassificationTailCalls...)
 	} else {
 		// Kernels < 4.7.0 do not know about the per-cpu array map used
 		// in classification, preventing the program to load even though
@@ -196,9 +221,12 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 		}
 	}
 
-	tailCallsIdentifiersSet := make(map[manager.ProbeIdentificationPair]struct{}, len(tailCalls))
-	for _, tailCall := range tailCalls {
-		tailCallsIdentifiersSet[tailCall.ProbeIdentificationPair] = struct{}{}
+	var tailCallsIdentifiersSet map[manager.ProbeIdentificationPair]struct{}
+	if classificationSupported {
+		tailCallsIdentifiersSet = make(map[manager.ProbeIdentificationPair]struct{}, len(protocolClassificationTailCalls))
+		for _, tailCall := range protocolClassificationTailCalls {
+			tailCallsIdentifiersSet[tailCall.ProbeIdentificationPair] = struct{}{}
+		}
 	}
 
 	for funcName := range enabledProbes {

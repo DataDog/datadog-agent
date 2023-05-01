@@ -7,6 +7,7 @@ package testutil
 
 import (
 	"context"
+	"fmt"
 	"os/exec"
 	"regexp"
 	"testing"
@@ -24,8 +25,7 @@ const (
 // - dockerPath is the path for the docker-compose.
 // - env is any environment variable required for running the server.
 // - serverStartRegex is a regex to be matched on the server logs to ensure it started correctly.
-// return true on success
-func RunDockerServer(t *testing.T, serverName, dockerPath string, env []string, serverStartRegex *regexp.Regexp, timeout time.Duration) bool {
+func RunDockerServer(t testing.TB, serverName, dockerPath string, env []string, serverStartRegex *regexp.Regexp, timeout time.Duration) error {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -49,17 +49,15 @@ func RunDockerServer(t *testing.T, serverName, dockerPath string, env []string, 
 		case <-ctx.Done():
 			if err := ctx.Err(); err != nil {
 				patternScanner.PrintLogs(t)
-				t.Errorf("failed to start %s server: %s", serverName, err)
+				return fmt.Errorf("failed to start %s server: %s", serverName, err)
 			}
-			return false
 		case <-patternScanner.DoneChan:
 			t.Logf("%s server pid (docker) %d is ready", serverName, cmd.Process.Pid)
-			return true
+			return nil
 		case <-time.After(timeout):
 			patternScanner.PrintLogs(t)
 			// please don't use t.Fatalf() here as we could test if it failed later
-			t.Errorf("failed to start %s server: timed out after %s", serverName, timeout.String())
-			return false
+			return fmt.Errorf("failed to start %s server: timed out after %s", serverName, timeout.String())
 		}
 	}
 }
