@@ -18,10 +18,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
@@ -34,8 +37,12 @@ const (
 // we can't just `netcat` to the socket, that's why we run a custom python
 // script that will stay up after sending packets.
 func testUDSOriginDetection(t *testing.T) {
+	confComponent := fxutil.Test[config.Component](t, fx.Options(
+		config.MockModule,
+	))
+
 	mockConfig := config.Mock(nil)
-	config.SetFeatures(t, config.Docker)
+	coreConfig.SetFeatures(t, coreConfig.Docker)
 
 	// Detect whether we are containerised and set the socket path accordingly
 	var socketVolume string
@@ -58,7 +65,7 @@ func testUDSOriginDetection(t *testing.T) {
 	packetsChannel := make(chan packets.Packets)
 	sharedPacketPool := packets.NewPool(32)
 	sharedPacketPoolManager := packets.NewPoolManager(sharedPacketPool)
-	s, err := listeners.NewUDSListener(packetsChannel, sharedPacketPoolManager, nil)
+	s, err := listeners.NewUDSListener(packetsChannel, sharedPacketPoolManager, confComponent, nil)
 	require.Nil(t, err)
 
 	go s.Listen()
