@@ -19,6 +19,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
+const (
+	http2MaxPathLen     = 30
+	compressedPathLen   = 21
+	decompressedPathLen = 28
+)
+
 func TestOrphanEntries(t *testing.T) {
 	t.Run("orphan entries can be joined even after flushing", func(t *testing.T) {
 		now := time.Now()
@@ -72,53 +78,41 @@ func TestOrphanEntries(t *testing.T) {
 }
 
 func TestHTTP2Path(t *testing.T) {
-	t.Run("path that contains /", func(t *testing.T) {
+	t.Run("validate http2 path backslash", func(t *testing.T) {
 		// create a buffer to store the encoded data
-		var buf []byte
-		var arr [30]uint8
-		str := "/hello.HelloService/SayHello"
+		paths := []string{"/hello.HelloService/SayHello", "hello.HelloService/SayHello"}
+		results := []bool{true, false}
+		pathsResults := []string{"/hello.HelloService/SayHello", ""}
 
-		buf = hpack.AppendHuffmanString(buf, str)
-		copy(arr[:], buf[:30])
+		for index, currentString := range paths {
+			var buf []byte
+			var arr [http2MaxPathLen]uint8
+			buf = hpack.AppendHuffmanString(buf, currentString)
+			copy(arr[:], buf[:30])
 
-		request := &EbpfHttp2Tx{
-			Request_path: arr,
-			Path_size:    21,
+			request := &EbpfHttp2Tx{
+				Request_path: arr,
+				Path_size:    compressedPathLen,
+			}
+
+			outBuf := make([]byte, decompressedPathLen)
+
+			path, ok := request.Path(outBuf)
+			assert.Equal(t, results[index], ok)
+			assert.Equal(t, pathsResults[index], string(path))
 		}
 
-		outBuf := make([]byte, 28)
-
-		path, _ := request.Path(outBuf)
-		assert.Equal(t, str, string(path))
-	})
-
-	t.Run("path that do not contains /", func(t *testing.T) {
-		// create a buffer to store the encoded data
-		var buf []byte
-		var arr [30]uint8
-		str := "hello.HelloService/SayHello"
-
-		buf = hpack.AppendHuffmanString(buf, str)
-		copy(arr[:], buf[:30])
-
-		request := &EbpfHttp2Tx{
-			Request_path: arr,
-			Path_size:    21,
-		}
-		outBuf := make([]byte, 28)
-
-		path, _ := request.Path(outBuf)
-		assert.Nil(t, path)
 	})
 
 	t.Run("empty path", func(t *testing.T) {
 		request := &EbpfHttp2Tx{
-			Request_path: [30]uint8{},
-			Path_size:    21,
+			Request_path: [http2MaxPathLen]uint8{},
+			Path_size:    compressedPathLen,
 		}
-		outBuf := make([]byte, 28)
+		outBuf := make([]byte, decompressedPathLen)
 
-		path, _ := request.Path(outBuf)
+		path, ok := request.Path(outBuf)
+		assert.Equal(t, ok, false)
 		assert.Nil(t, path)
 	})
 }
