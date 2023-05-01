@@ -225,6 +225,9 @@ func (c *Check) renderEventMessage(providerName string, winevent *evtapi.EventRe
 }
 
 func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+	// This check supports multiple instances, must be called before CommonConfigure
+	c.BuildID(integrationConfigDigest, data, initConfig)
+
 	err := c.CommonConfigure(integrationConfigDigest, initConfig, data, source)
 	if err != nil {
 		return err
@@ -252,6 +255,9 @@ func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data,
 	}
 
 	// Validate config
+	if c.config.instance.Legacy_mode {
+		return fmt.Errorf("unsupported configuration: legacy_mode: true")
+	}
 	if len(c.config.instance.ChannelPath) == 0 {
 		return fmt.Errorf("instance config `path` must not be empty")
 	}
