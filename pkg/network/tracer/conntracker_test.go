@@ -59,6 +59,10 @@ func TestConntrackers(t *testing.T) {
 			})
 			t.Run("IPv6", func(t *testing.T) {
 				cfg := config.New()
+				if !isTestIPv6Enabled(cfg) {
+					t.Skip("IPv6 disabled")
+				}
+
 				ct, err := conntracker.create(t, cfg)
 				require.NoError(t, err)
 				defer ct.Close()

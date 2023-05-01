@@ -10,26 +10,11 @@
 #include "protocols/classification/structs.h"
 #include "protocols/classification/dispatcher-maps.h"
 #include "protocols/http/classification-helpers.h"
+#include "protocols/http/usm-events.h"
 #include "protocols/http2/helpers.h"
+#include "protocols/http2/usm-events.h"
 #include "protocols/kafka/kafka-classification.h"
-
-static __always_inline bool is_http_monitoring_enabled() {
-    __u64 val = 0;
-    LOAD_CONSTANT("http_monitoring_enabled", val);
-    return val > 0;
-}
-
-static __always_inline bool is_http2_monitoring_enabled() {
-    __u64 val = 0;
-    LOAD_CONSTANT("http2_monitoring_enabled", val);
-    return val > 0;
-}
-
-static __always_inline bool is_kafka_monitoring_enabled() {
-    __u64 val = 0;
-    LOAD_CONSTANT("kafka_monitoring_enabled", val);
-    return val > 0;
-}
+#include "protocols/kafka/usm-events.h"
 
 // Returns true if the payload represents a TCP termination by checking if the tcp flags contains TCPHDR_FIN or TCPHDR_RST.
 static __always_inline bool is_tcp_termination(skb_info_t *skb_info) {
@@ -78,10 +63,10 @@ static __always_inline void classify_protocol_for_dispatcher(protocol_t *protoco
 }
 
 static __always_inline void update_dispatcher_connection_protocol(conn_tuple_t* skb_tup, protocol_t cur_fragment_protocol) {
-    bpf_map_update_with_telemetry(dispatcher_connection_protocol, skb_tup, &cur_fragment_protocol, BPF_NOEXIST);
+    bpf_map_update_with_telemetry(connection_protocol, skb_tup, &cur_fragment_protocol, BPF_NOEXIST);
     conn_tuple_t inverse_skb_conn_tup = *skb_tup;
     flip_tuple(&inverse_skb_conn_tup);
-    bpf_map_update_with_telemetry(dispatcher_connection_protocol, &inverse_skb_conn_tup, &cur_fragment_protocol, BPF_NOEXIST);
+    bpf_map_update_with_telemetry(connection_protocol, &inverse_skb_conn_tup, &cur_fragment_protocol, BPF_NOEXIST);
 }
 
 // A shared implementation for the runtime & prebuilt socket filter that classifies & dispatches the protocols of the connections.
@@ -107,7 +92,7 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
 
     protocol_t cur_fragment_protocol = PROTOCOL_UNKNOWN;
     // TODO: Share with protocol classification
-    protocol_t *cur_fragment_protocol_ptr = bpf_map_lookup_elem(&dispatcher_connection_protocol, &skb_tup);
+    protocol_t *cur_fragment_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, &skb_tup);
     if (cur_fragment_protocol_ptr == NULL) {
         log_debug("[protocol_dispatcher_entrypoint]: %p was not classified\n", skb);
         char request_fragment[CLASSIFICATION_MAX_BUFFER];
