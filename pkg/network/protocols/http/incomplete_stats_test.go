@@ -69,3 +69,66 @@ func TestOrphanEntries(t *testing.T) {
 		assert.True(t, len(buffer.data) == 0)
 	})
 }
+
+func TestHTTP2Path(t *testing.T) {
+	t.Run("path that contains /", func(t *testing.T) {
+		now := time.Now()
+		tel, err := NewTelemetry()
+		require.NoError(t, err)
+		buffer := newIncompleteBuffer(config.New(), tel)
+		request := &EbpfHttpTx{
+			Request_fragment: requestFragment([]byte("GET /foo/bar")),
+			Request_started:  uint64(now.UnixNano()),
+		}
+		request.Tup.Sport = 60000
+
+		buffer.Add(request)
+		now = now.Add(5 * time.Second)
+		complete := buffer.Flush(now)
+		assert.Len(t, complete, 0)
+
+		response := &EbpfHttpTx{
+			Response_status_code: 200,
+			Response_last_seen:   uint64(now.UnixNano()),
+		}
+		response.Tup.Sport = 60000
+		buffer.Add(response)
+		complete = buffer.Flush(now)
+		require.Len(t, complete, 1)
+
+		completeTX := complete[0]
+		path, _ := completeTX.Path(make([]byte, 256))
+		assert.Equal(t, "/foo/bar", string(path))
+	})
+
+	t.Run("path that do not contains /", func(t *testing.T) {
+		now := time.Now()
+		tel, err := NewTelemetry()
+		require.NoError(t, err)
+		buffer := newIncompleteBuffer(config.New(), tel)
+		request := &EbpfHttpTx{
+			Request_fragment: requestFragment([]byte("GET /foo/bar")),
+			Request_started:  uint64(now.UnixNano()),
+		}
+		request.Tup.Sport = 60000
+
+		buffer.Add(request)
+		now = now.Add(5 * time.Second)
+		complete := buffer.Flush(now)
+		assert.Len(t, complete, 0)
+
+		response := &EbpfHttpTx{
+			Response_status_code: 200,
+			Response_last_seen:   uint64(now.UnixNano()),
+		}
+		response.Tup.Sport = 60000
+		buffer.Add(response)
+		complete = buffer.Flush(now)
+		require.Len(t, complete, 1)
+
+		completeTX := complete[0]
+		path, _ := completeTX.Path(make([]byte, 256))
+		assert.Equal(t, nil, string(path))
+	})
+
+}
