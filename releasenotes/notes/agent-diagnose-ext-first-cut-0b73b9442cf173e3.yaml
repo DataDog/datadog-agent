@@ -8,5 +8,5 @@
 ---
 features:
   - |
-    Extended "agent diagnose" CLI command to allow easy addition of new
-    diagnostics from dispersed agent code.
+    Extended the "agent diagnose" CLI command to allow the easy addition of new
+    diagnostics for diverse and dispersed Agent code.

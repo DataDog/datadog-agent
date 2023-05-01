@@ -67,6 +67,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		GlobalParams: globalParams,
 	}
 
+	// From the CLI standpoint most of the changes are covered by the “agent diagnose all” sub-command.
+	// Other, previous sub-commands left AS IS for now for compatibility reasons. But further changes
+	// are possible, e.g. removal of all sub-commands and using command-line options to fine-tune
+	// diagnose depth, breadth and output format. Suggestions are welcome.
 	diagnoseAllCommand := &cobra.Command{
 		Use:   "all",
 		Short: "Validate Agent installation, configuration and environment",
