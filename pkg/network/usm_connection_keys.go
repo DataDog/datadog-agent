@@ -10,6 +10,7 @@ package network
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/network/types"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 // this file is here because Windows has its own ConnectionKeysFromConnectionStats.
@@ -43,48 +44,53 @@ func ConnectionKeysFromConnectionStats(connectionStats ConnectionStats) []types.
 	return connectionKeys
 }
 
+// WithKey calls `f` *up to* 4 times (or until the callback returns a `true`)
+// with all possible connection keys. The generated keys are:
+// 1) (src, dst)
+// 2) (dst, src)
+// 3) (src, dst) NAT
+// 4) (dst, src) NAT
+// In addition to that, we do a best-effort to call `f` in the order that  most
+// likely to succeed early (see comment below)
 func WithKey(connectionStats ConnectionStats, f func(key types.ConnectionKey) (stop bool)) {
-	var stopIteration bool
-
-	// USM data is always indexed as (client, server), but we don't know which is the remote
-	// and which is the local address. To account for this, we'll construct 2 possible
-	// connection keys and check for both of them in the aggregations map.
-	stopIteration = f(
-		types.NewConnectionKey(
-			connectionStats.Source,
-			connectionStats.Dest,
-			connectionStats.SPort,
-			connectionStats.DPort,
-		),
+	var (
+		clientIP, serverIP, clientIPNAT, serverIPNAT         util.Address
+		clientPort, serverPort, clientPortNAT, serverPortNAT uint16
 	)
 
-	if stopIteration {
+	clientIP, clientPort = connectionStats.Source, connectionStats.SPort
+	serverIP, serverPort = connectionStats.Dest, connectionStats.DPort
+
+	hasNAT := connectionStats.IPTranslation != nil
+	if hasNAT {
+		clientIPNAT, clientPortNAT = GetNATLocalAddress(connectionStats)
+		serverIPNAT, serverPortNAT = GetNATRemoteAddress(connectionStats)
+	}
+
+	// USM data is generally indexed as (client, server), so we do a
+	// *best-effort* to determine the key tuple most likely to be the one
+	// correct and minimize the numer of `f` calls
+	if !IsEphemeralPort(int(clientPort)) {
+		// Flip IPs and ports
+		clientIP, clientPort, serverIP, serverPort = serverIP, serverPort, clientIP, clientPort
+		clientIPNAT, clientPortNAT, serverIPNAT, serverPortNAT = serverIPNAT, serverPortNAT, clientIPNAT, clientPortNAT
+	}
+
+	// Callback 1: NATed (client, server)
+	if hasNAT && f(types.NewConnectionKey(clientIPNAT, serverIPNAT, clientPortNAT, serverPortNAT)) {
 		return
 	}
 
-	stopIteration = f(
-		types.NewConnectionKey(
-			connectionStats.Dest,
-			connectionStats.Source,
-			connectionStats.DPort,
-			connectionStats.SPort,
-		),
-	)
-	if stopIteration {
+	// Callback 2: (client, server)
+	if f(types.NewConnectionKey(clientIP, serverIP, clientPort, serverPort)) {
 		return
 	}
 
-	if connectionStats.IPTranslation == nil {
+	// Callback 3: NATed (server, client)
+	if hasNAT && f(types.NewConnectionKey(serverIPNAT, clientIPNAT, serverPortNAT, clientPortNAT)) {
 		return
 	}
 
-	// if IPTranslation is not nil, at least one of the sides has a translation, thus we need to add translated addresses.
-	localAddress, localPort := GetNATLocalAddress(connectionStats)
-	remoteAddress, remotePort := GetNATRemoteAddress(connectionStats)
-	stopIteration = f(types.NewConnectionKey(localAddress, remoteAddress, localPort, remotePort))
-	if stopIteration {
-		return
-	}
-
-	_ = f(types.NewConnectionKey(remoteAddress, localAddress, remotePort, localPort))
+	// Callback 4: (server, client)
+	f(types.NewConnectionKey(clientIP, serverIP, clientPort, serverPort))
 }
