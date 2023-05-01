@@ -14,7 +14,6 @@ import (
 
 type entry struct {
 	current  int // number of contexts currently in aggregator
-	accepted int // number of accepted samples
 	rejected int // number of rejected samples
 	tags     []string
 }
@@ -109,7 +108,6 @@ func (l *Limiter) Track(tags []string) bool {
 	}
 
 	e.current++
-	e.accepted++
 	return true
 }
 
@@ -135,6 +133,9 @@ func (l *Limiter) SendTelemetry(timestamp float64, series metrics.SerieSink, hos
 		return
 	}
 
+	droppedTags := append([]string{}, constTags...)
+	droppedTags = append(droppedTags, "reason:too_many_contexts")
+
 	for _, e := range l.usage {
 		series.Append(&metrics.Serie{
 			Name:   "datadog.agent.aggregator.dogstatsd_context_limiter.limit",
@@ -153,18 +154,9 @@ func (l *Limiter) SendTelemetry(timestamp float64, series metrics.SerieSink, hos
 		})
 
 		series.Append(&metrics.Serie{
-			Name:   "datadog.agent.aggregator.dogstatsd_context_limiter.accepted",
+			Name:   "datadog.agent.aggregator.dogstatsd_samples_dropped",
 			Host:   hostname,
-			Tags:   tagset.NewCompositeTags(constTags, e.tags),
-			MType:  metrics.APICountType,
-			Points: []metrics.Point{{Ts: timestamp, Value: float64(e.accepted)}},
-		})
-		e.accepted = 0
-
-		series.Append(&metrics.Serie{
-			Name:   "datadog.agent.aggregator.dogstatsd_context_limiter.rejected",
-			Host:   hostname,
-			Tags:   tagset.NewCompositeTags(constTags, e.tags),
+			Tags:   tagset.NewCompositeTags(droppedTags, e.tags),
 			MType:  metrics.APICountType,
 			Points: []metrics.Point{{Ts: timestamp, Value: float64(e.rejected)}},
 		})
