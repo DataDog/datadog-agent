@@ -1163,6 +1163,7 @@ core,github.com/open-policy-agent/opa/ir,Apache-2.0,Copyright 2016 The OPA Autho
 core,github.com/open-policy-agent/opa/keys,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/loader,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/loader/filter,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/logging,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/metrics,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/rego,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/resolver,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
