@@ -148,6 +148,11 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 
 	buildPrefetchFileBin(t)
 
+	ldd, err := exec.LookPath("ldd")
+	if err != nil {
+		t.Skip("ldd not found; skipping test.")
+	}
+
 	tlsLibs := []*regexp.Regexp{
 		regexp.MustCompile(`/[^\ ]+libssl.so[^\ ]*`),
 		regexp.MustCompile(`/[^\ ]+libgnutls.so[^\ ]*`),
@@ -172,10 +177,7 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 		if err != nil {
 			t.Skipf("%s not found; skipping test.", test.fetchCmd)
 		}
-		ldd, err := exec.LookPath("ldd")
-		if err != nil {
-			t.Skip("ldd not found; skipping test.")
-		}
+
 		linked, _ := exec.Command(ldd, fetch).Output()
 
 		for _, lib := range tlsLibs {
@@ -183,9 +185,6 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 			if _, err := os.Stat(libSSLPath); err == nil {
 				test.prefetchLibs = append(test.prefetchLibs, libSSLPath)
 			}
-		}
-		if len(test.prefetchLibs) == 0 {
-			t.Fatalf("%s not linked with any of these libs %v", test.name, tlsLibs)
 		}
 	}
 
@@ -213,6 +212,9 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 
 			for _, test := range tests {
 				t.Run(test.name, func(t *testing.T) {
+					if len(test.prefetchLibs) == 0 {
+						t.Fatalf("%s not linked with any of these libs %v", test.name, tlsLibs)
+					}
 					testHTTPSLibrary(t, test.fetchCmd, test.prefetchLibs)
 				})
 			}
