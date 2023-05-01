@@ -83,9 +83,12 @@ func (m *Monitor) Init() error {
 	if err != nil {
 		return fmt.Errorf("couldn't create the discarder monitor: %w", err)
 	}
+	m.approverMonitor, err = NewApproverMonitor(p.Manager, p.StatsdClient)
+	if err != nil {
+		return fmt.Errorf("couldn't create the approver monitor: %w", err)
+	}
 
 	m.cgroupsMonitor = NewCgroupsMonitor(p.StatsdClient, p.resolvers.CGroupResolver)
-	m.approverMonitor = NewApproverMonitor(p.StatsdClient)
 
 	return nil
 }

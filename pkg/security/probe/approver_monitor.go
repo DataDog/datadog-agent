@@ -10,6 +10,9 @@ package probe
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	manager "github.com/DataDog/ebpf-manager"
 	lib "github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
@@ -78,10 +81,35 @@ func (d *ApproverMonitor) SendStats() error {
 }
 
 // NewApproverMonitor returns a new ApproverMonitor
-func NewApproverMonitor(statsdClient statsd.ClientInterface) *ApproverMonitor {
-	monitor := &ApproverMonitor{
-		statsdClient: statsdClient,
+func NewApproverMonitor(manager *manager.Manager, statsdClient statsd.ClientInterface) (*ApproverMonitor, error) {
+	numCPU, err := utils.NumCPU()
+	if err != nil {
+		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
 	}
 
-	return monitor
+	monitor := &ApproverMonitor{
+		statsdClient: statsdClient,
+		statsZero:    make([]ApproverStats, numCPU),
+		numCPU:       numCPU,
+	}
+
+	statsFrontBuffer, err := managerhelper.Map(manager, "fb_approver_stats")
+	if err != nil {
+		return nil, err
+	}
+	monitor.stats[0] = statsFrontBuffer
+
+	statsBackBuffer, err := managerhelper.Map(manager, "bb_approver_stats")
+	if err != nil {
+		return nil, err
+	}
+	monitor.stats[1] = statsBackBuffer
+
+	bufferSelector, err := managerhelper.Map(manager, "buffer_selector")
+	if err != nil {
+		return nil, err
+	}
+	monitor.bufferSelector = bufferSelector
+
+	return monitor, nil
 }
