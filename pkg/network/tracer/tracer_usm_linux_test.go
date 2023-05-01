@@ -193,18 +193,18 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 					}
 					linked, _ := exec.Command(ldd, fetch).Output()
 
-					var prefechLibs []string
+					var prefetchLibs []string
 					for _, lib := range tlsLibs {
 						libSSLPath := lib.FindString(string(linked))
 						if _, err := os.Stat(libSSLPath); err == nil {
-							prefechLibs = append(prefechLibs, libSSLPath)
+							prefetchLibs = append(prefetchLibs, libSSLPath)
 						}
 					}
-					if len(prefechLibs) == 0 {
+					if len(prefetchLibs) == 0 {
 						t.Fatalf("%s not linked with any of these libs %v", test.name, tlsLibs)
 					}
 
-					testHTTPSLibrary(t, test.fetchCmd, prefechLibs)
+					testHTTPSLibrary(t, test.fetchCmd, prefetchLibs)
 
 				})
 			}
@@ -233,16 +233,15 @@ func buildPrefetchFileBin(t *testing.T) string {
 	c := exec.Command("go", "build", "-buildvcs=false", "-a", "-ldflags=-extldflags '-static'", "-o", binary, srcDir)
 	out, err := c.CombinedOutput()
 	t.Log(c, string(out))
-	require.NoError(t, err, "could not build  test binary: %s\noutput: %s", err, string(out))
+	require.NoError(t, err, "could not build test binary: %s\noutput: %s", err, string(out))
 
 	return binary
 }
 
-func prefetchLib(t *testing.T, filename string) *exec.Cmd {
+func prefetchLib(t *testing.T, filename string) {
 	prefetchBin := buildPrefetchFileBin(t)
-	cmd := exec.Command(prefetchBin, filename, "5")
+	cmd := exec.Command(prefetchBin, filename, "3s")
 	require.NoError(t, cmd.Start())
-	return cmd
 }
 
 func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {

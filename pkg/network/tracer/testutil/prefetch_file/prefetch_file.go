@@ -8,25 +8,24 @@ package main
 import (
 	"fmt"
 	"os"
-	"strconv"
 	"time"
 )
 
 func main() {
 	if len(os.Args) != 3 {
-		fmt.Println("usage: prefetch_file <filename> <wait_time_in_seconds>")
-		return
+		fmt.Println("usage: prefetch_file <filename> <wait_time>")
+		os.Exit(1)
 	}
-	t, err := strconv.Atoi(os.Args[2])
+	waitTime, err := time.ParseDuration(os.Args[2])
 	if err != nil {
-		fmt.Println(err)
-		return
+		fmt.Printf("%s is not a valid format of duration\n", os.Args[2])
+		os.Exit(1)
 	}
 	f, err := os.Open(os.Args[1])
 	if err != nil {
 		fmt.Println(err)
-		return
+		os.Exit(1)
 	}
 	defer f.Close()
-	time.Sleep(time.Duration(t) * time.Second)
+	time.Sleep(waitTime)
 }
