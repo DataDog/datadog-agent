@@ -81,7 +81,7 @@ func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
 }
 
 func TestGetStats(t *testing.T) {
-	httpSupported := httpSupported(t)
+	httpSupported := httpSupported()
 	linuxExpected := map[string]interface{}{}
 	err := json.Unmarshal([]byte(`{
       "conntrack": {

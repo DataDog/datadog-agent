@@ -16,10 +16,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func TestHttpCompile(t *testing.T) {
-	if !rtcHTTPSupported(t) {
+	if !rtcHTTPSupported() {
 		t.Skip("HTTP Runtime compilation not supported on this kernel version")
 	}
 	cfg := config.New()
@@ -28,8 +29,11 @@ func TestHttpCompile(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func rtcHTTPSupported(t *testing.T) bool {
+func rtcHTTPSupported() bool {
 	currKernelVersion, err := kernel.HostVersion()
-	require.NoError(t, err)
+	if err != nil {
+		log.Warn("could not determine the current kernel version. http monitoring disabled.")
+		return false
+	}
 	return currKernelVersion >= http.MinimumKernelVersion
 }

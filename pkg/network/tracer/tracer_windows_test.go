@@ -10,11 +10,9 @@ package tracer
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-
-	"testing"
 )
 
-func httpSupported(t *testing.T) bool {
+func httpSupported() bool {
 	return false
 }
 

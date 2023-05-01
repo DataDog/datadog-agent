@@ -44,24 +44,28 @@ import (
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func httpSupported(t *testing.T) bool {
+func httpSupported() bool {
 	currKernelVersion, err := kernel.HostVersion()
-	require.NoError(t, err)
+	if err != nil {
+		log.Warn("could not determine the current kernel version. http monitoring disabled.")
+		return false
+	}
 	return currKernelVersion >= http.MinimumKernelVersion
 }
 
-func httpsSupported(t *testing.T) bool {
+func httpsSupported() bool {
 	return http.HTTPSSupported(testConfig())
 }
 
-func goTLSSupported(t *testing.T) bool {
-	return config.New().EnableRuntimeCompiler && httpSupported(t) && httpsSupported(t)
+func goTLSSupported() bool {
+	return config.New().EnableRuntimeCompiler && httpSupported() && httpsSupported()
 }
 
-func javaTLSSupported(t *testing.T) bool {
-	return httpSupported(t) && httpsSupported(t)
+func javaTLSSupported() bool {
+	return httpSupported() && httpsSupported()
 }
 
 func classificationSupported(config *config.Config) bool {
@@ -74,7 +78,7 @@ func isTLSTag(staticTags uint64) bool {
 }
 
 func TestEnableHTTPMonitoring(t *testing.T) {
-	if !httpSupported(t) {
+	if !httpSupported() {
 		t.Skip("HTTP monitoring not supported")
 	}
 
@@ -93,7 +97,7 @@ func TestHTTPStats(t *testing.T) {
 }
 
 func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
-	if !httpSupported(t) {
+	if !httpSupported() {
 		t.Skip("HTTP monitoring feature not available")
 		return
 	}
@@ -142,10 +146,7 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 }
 
 func TestHTTPSViaLibraryIntegration(t *testing.T) {
-	if !httpSupported(t) {
-		t.Skip("HTTPS feature not available on pre 4.14.0 kernels")
-	}
-	if !httpsSupported(t) {
+	if !httpsSupported() {
 		t.Skip("HTTPS feature not available/supported for this setup")
 	}
 
@@ -310,11 +311,7 @@ const (
 
 // TestOpenSSLVersions setups a HTTPs python server, and makes sure we are able to capture all traffic.
 func TestOpenSSLVersions(t *testing.T) {
-	if !httpSupported(t) {
-		t.Skip("HTTPS feature not available on pre 4.14.0 kernels")
-	}
-
-	if !httpsSupported(t) {
+	if !httpsSupported() {
 		t.Skip("HTTPS feature not available/supported for this setup")
 	}
 
@@ -374,7 +371,7 @@ func TestOpenSSLVersions(t *testing.T) {
 // such as having SSL_read/SSL_write calls in the same call-stack/execution-context as the kernel function tcp_sendmsg. Force
 // this is reason the fallback behavior may require a few warmup requests before we start capturing traffic.
 func TestOpenSSLVersionsSlowStart(t *testing.T) {
-	if !httpsSupported(t) {
+	if !httpsSupported() {
 		t.Skip("HTTPS feature not available/supported for this setup")
 	}
 
@@ -619,7 +616,7 @@ func createJavaTempFile(t *testing.T, dir string) string {
 }
 
 func TestJavaInjection(t *testing.T) {
-	if !javaTLSSupported(t) {
+	if !javaTLSSupported() {
 		t.Skip("java TLS not supported on the current platform")
 	}
 
@@ -841,7 +838,7 @@ func TestJavaInjection(t *testing.T) {
 
 // GoTLS test
 func TestHTTPGoTLSAttachProbes(t *testing.T) {
-	if !goTLSSupported(t) {
+	if !goTLSSupported() {
 		t.Skip("GoTLS not supported for this setup")
 	}
 
@@ -881,7 +878,7 @@ func TestHTTPGoTLSAttachProbes(t *testing.T) {
 
 func TestHTTPSGoTLSAttachProbesOnContainer(t *testing.T) {
 	t.Skip("Skipping a flaky test")
-	if !goTLSSupported(t) {
+	if !goTLSSupported() {
 		t.Skip("GoTLS not supported for this setup")
 	}
 
@@ -1210,7 +1207,7 @@ func (m requestsMap) String() string {
 }
 
 func skipIfHTTPSNotSupported(t *testing.T, _ testContext) {
-	if !httpsSupported(t) {
+	if !httpsSupported() {
 		t.Skip("https is not supported")
 	}
 }
