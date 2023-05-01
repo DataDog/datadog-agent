@@ -175,6 +175,7 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 				EnableKeepAlives: keepAlives.value,
 			})
 			t.Cleanup(serverDoneFn)
+			buildPrefetchFileBin(t)
 
 			for _, test := range tests {
 				t.Run(test.name, func(t *testing.T) {
@@ -188,23 +189,55 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 					}
 					linked, _ := exec.Command(ldd, fetch).Output()
 
-					var prefechLibs []string
+					var prefetchLibs []string
 					for _, lib := range tlsLibs {
 						libSSLPath := lib.FindString(string(linked))
 						if _, err := os.Stat(libSSLPath); err == nil {
-							prefechLibs = append(prefechLibs, libSSLPath)
+							prefetchLibs = append(prefetchLibs, libSSLPath)
 						}
 					}
-					if len(prefechLibs) == 0 {
+					if len(prefetchLibs) == 0 {
 						t.Fatalf("%s not linked with any of these libs %v", test.name, tlsLibs)
 					}
 
-					testHTTPSLibrary(t, test.fetchCmd, prefechLibs)
+					testHTTPSLibrary(t, test.fetchCmd, prefetchLibs)
 
 				})
 			}
 		})
 	}
+}
+
+func buildPrefetchFileBin(t *testing.T) string {
+	const srcPath = "prefetch_file"
+	const binaryPath = "testutil/prefetch_file/prefetch_file"
+
+	t.Helper()
+
+	cur, err := testutil.CurDir()
+	require.NoError(t, err)
+
+	binary := fmt.Sprintf("%s/%s", cur, binaryPath)
+	// If there is a compiled binary already, skip the compilation.
+	// Meant for the CI.
+	if _, err = os.Stat(binary); err == nil {
+		return binary
+	}
+
+	srcDir := fmt.Sprintf("%s/testutil/%s", cur, srcPath)
+
+	c := exec.Command("go", "build", "-buildvcs=false", "-a", "-ldflags=-extldflags '-static'", "-o", binary, srcDir)
+	out, err := c.CombinedOutput()
+	t.Log(c, string(out))
+	require.NoError(t, err, "could not build test binary: %s\noutput: %s", err, string(out))
+
+	return binary
+}
+
+func prefetchLib(t *testing.T, filename string) {
+	prefetchBin := buildPrefetchFileBin(t)
+	cmd := exec.Command(prefetchBin, filename, "3s")
+	require.NoError(t, cmd.Start())
 }
 
 func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
@@ -220,10 +253,7 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 
 	// not ideal but, short process are hard to catch
 	for _, lib := range prefetchLibs {
-		f, err := os.Open(lib)
-		if err == nil {
-			t.Cleanup(func() { f.Close() })
-		}
+		prefetchLib(t, lib)
 	}
 	time.Sleep(time.Second)
 
