@@ -159,11 +159,13 @@ func (s *GetEventsTestSuite) TestBookmark() {
 	err := s.ti.GenerateEvents(s.eventSource, s.numEvents)
 	require.NoError(s.T(), err)
 
+	// Set bookmark_frequency to be less than s.numEvents so we can test the "end of check" bookmark.
 	instanceConfig := []byte(fmt.Sprintf(`
 path: %s
 start: old
+bookmark_frequency: %d
 `,
-		s.channelPath))
+		s.channelPath, s.numEvents-1))
 
 	check, err := s.newCheck(instanceConfig, nil)
 	require.NoError(s.T(), err)
@@ -365,7 +367,6 @@ func (s *GetEventsTestSuite) TestGetEventsWithTagEventID() {
 	for _, tc := range tests {
 		s.Run(tc.name, func() {
 			defer resetSender(s.sender)
-
 
 			instanceConfig := []byte(fmt.Sprintf(`
 path: %s

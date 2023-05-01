@@ -14,6 +14,7 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -77,6 +78,9 @@ func (c *Check) Run() error {
 		return err
 	}
 
+	var lastEvent *evtapi.EventRecord
+	eventsSinceLastBookmark := 0
+
 	// Fetch new events
 	for {
 		events, err := c.sub.GetEvents()
@@ -87,29 +91,63 @@ func (c *Check) Run() error {
 			// no more events
 			break
 		}
-		for _, winevent := range events {
-			// Base event
-			ddevent := metrics.Event{
-				Priority:       c.event_priority,
-				SourceTypeName: sourceTypeName,
-				Tags:           []string{},
+		for i, event := range events {
+			// Submit Datadog Event
+			_ = c.submitEvent(sender, event)
+
+			// Update bookmark according to bookmark_frequency config
+			eventsSinceLastBookmark += 1
+			if eventsSinceLastBookmark >= c.config.instance.Bookmark_frequency {
+				err = c.updateBookmark(event)
+				if err != nil {
+					c.Warnf("failed to save bookmark: %v", err)
+				}
+				eventsSinceLastBookmark = 0
 			}
 
-			// Render Windows event values into the DD event
-			_ = c.renderEventValues(winevent, &ddevent)
-
-			// submit
-			sender.Event(ddevent)
-
-			// bookmark
-			c.storeBookmark(winevent)
-
-			// cleanup
-			evtapi.EvtCloseRecord(c.evtapi, winevent.EventRecordHandle)
+			// Close the event handle when we are done with it.
+			// If this is the last event in the batch, we may need to use it to update
+			// the bookmark so save it until the check finishes.
+			if i == len(events)-1 {
+				if lastEvent != nil {
+					evtapi.EvtCloseRecord(c.evtapi, lastEvent.EventRecordHandle)
+				}
+				lastEvent = event
+			} else {
+				evtapi.EvtCloseRecord(c.evtapi, event.EventRecordHandle)
+			}
 		}
 	}
 
+	if lastEvent != nil {
+		// Also update the bookmark at the end of the check, regardless of the bookmark_frequency
+		if eventsSinceLastBookmark > 0 {
+			err = c.updateBookmark(lastEvent)
+			if err != nil {
+				c.Warnf("failed to save bookmark: %v", err)
+			}
+		}
+		evtapi.EvtCloseRecord(c.evtapi, lastEvent.EventRecordHandle)
+	}
+
 	sender.Commit()
+	return nil
+}
+
+func (c *Check) submitEvent(sender aggregator.Sender, event *evtapi.EventRecord) error {
+	// Base event
+	ddevent := metrics.Event{
+		Priority:       c.event_priority,
+		SourceTypeName: sourceTypeName,
+		Tags:           []string{},
+	}
+
+	// Render Windows event values into the DD event
+	_ = c.renderEventValues(event, &ddevent)
+
+	// submit
+	sender.Event(ddevent)
+
 	return nil
 }
 
@@ -118,7 +156,7 @@ func (c *Check) bookmarkPersistentCacheKey() string {
 }
 
 // update the bookmark handle to point to event and then update the persistent cache
-func (c *Check) storeBookmark(event *evtapi.EventRecord) error {
+func (c *Check) updateBookmark(event *evtapi.EventRecord) error {
 	c.bookmark.Update(event.EventRecordHandle)
 
 	bookmarkXML, err := c.bookmark.Render()
