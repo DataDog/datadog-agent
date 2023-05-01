@@ -1576,6 +1576,7 @@ core,go.opentelemetry.io/otel/metric/global,Apache-2.0,Copyright The OpenTelemet
 core,go.opentelemetry.io/otel/metric/instrument,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/metric/internal/global,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/propagation,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/sdk,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/instrumentation,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/internal/env,Apache-2.0,Copyright The OpenTelemetry Authors
