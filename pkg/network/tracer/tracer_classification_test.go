@@ -1654,6 +1654,10 @@ func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, server
 			}
 		}
 
-		return incoming != nil && outgoing != nil
+		failed := !(incoming != nil && outgoing != nil)
+		if failed {
+			t.Log(conns)
+		}
+		return !failed
 	}, 5*time.Second, 500*time.Millisecond, "could not find incoming or outgoing connections, incoming=%+v outgoing=%+v", incoming, outgoing)
 }
