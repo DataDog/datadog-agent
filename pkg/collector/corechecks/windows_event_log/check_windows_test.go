@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/reporter"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/test"
@@ -84,7 +85,7 @@ func (s *GetEventsTestSuite) newCheck(instanceConfig []byte, initConfig []byte) 
 	return check, nil
 }
 
-func TestLaunchGetEventsTestSuite(t *testing.T) {
+func TestGetEventsTestSuite(t *testing.T) {
 	testerNames := eventlog_test.GetEnabledAPITesters()
 
 	for _, tiName := range testerNames {
@@ -105,9 +106,13 @@ func TestLaunchGetEventsTestSuite(t *testing.T) {
 func countEvents(check *Check, senderEventCall *mock.Call, numEvents uint) uint {
 	eventsCollected := uint(0)
 	prevEventsCollected := uint(0)
-	senderEventCall.Run(func(args mock.Arguments) {
-		eventsCollected += 1
-	})
+	if numEvents > 0 {
+		senderEventCall.Run(func(args mock.Arguments) {
+			eventsCollected += 1
+		})
+	} else {
+		senderEventCall.Unset()
+	}
 	for {
 		check.Run()
 		if eventsCollected == numEvents || prevEventsCollected == eventsCollected {
@@ -139,6 +144,62 @@ start: old
 
 	eventsCollected := countEvents(check, senderEventCall, s.numEvents)
 
+	require.Equal(s.T(), s.numEvents, eventsCollected)
+	s.sender.AssertExpectations(s.T())
+}
+
+// Test that the check can resume from a bookmark
+func (s *GetEventsTestSuite) TestBookmark() {
+	// create tmpdir to store bookmark
+	testDir := s.T().TempDir()
+	mockConfig := config.Mock(s.T())
+	mockConfig.Set("run_path", testDir)
+
+	// Put events in the log
+	err := s.ti.GenerateEvents(s.eventSource, s.numEvents)
+	require.NoError(s.T(), err)
+
+	instanceConfig := []byte(fmt.Sprintf(`
+path: %s
+start: old
+`,
+		s.channelPath))
+
+	check, err := s.newCheck(instanceConfig, nil)
+	require.NoError(s.T(), err)
+	defer check.Cancel()
+
+	s.sender.On("Commit").Return()
+	senderEventCall := s.sender.On("Event", mock.Anything)
+
+	eventsCollected := countEvents(check, senderEventCall, s.numEvents)
+	require.Equal(s.T(), s.numEvents, eventsCollected)
+	s.sender.AssertExpectations(s.T())
+
+	// bookmark should have been updated
+	// TODO: test?
+
+	// create a new check
+	check.Cancel()
+	check, err = s.newCheck(instanceConfig, nil)
+	require.NoError(s.T(), err)
+	defer check.Cancel()
+
+	// new check should resume from bookmark and read 0 events
+	resetSender(s.sender)
+	s.sender.On("Commit").Return()
+	senderEventCall = s.sender.On("Event", mock.Anything)
+	eventsCollected = countEvents(check, senderEventCall, 0)
+	require.Equal(s.T(), uint(0), eventsCollected)
+	s.sender.AssertExpectations(s.T())
+
+	// put some new events in the log and ensure the check sees them
+	err = s.ti.GenerateEvents(s.eventSource, s.numEvents)
+	require.NoError(s.T(), err)
+	resetSender(s.sender)
+	s.sender.On("Commit").Return()
+	senderEventCall = s.sender.On("Event", mock.Anything)
+	eventsCollected = countEvents(check, senderEventCall, s.numEvents)
 	require.Equal(s.T(), s.numEvents, eventsCollected)
 	s.sender.AssertExpectations(s.T())
 }

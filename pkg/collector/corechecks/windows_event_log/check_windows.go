@@ -18,9 +18,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
 
 	"golang.org/x/sys/windows"
@@ -44,6 +46,7 @@ type Check struct {
 	sub                 evtsubscribe.PullSubscription
 	evtapi              evtapi.API
 	systemRenderContext evtapi.EventRenderContextHandle
+	bookmark            evtbookmark.Bookmark
 }
 
 type Config struct {
@@ -98,12 +101,36 @@ func (c *Check) Run() error {
 			// submit
 			sender.Event(ddevent)
 
+			// bookmark
+			c.storeBookmark(winevent)
+
 			// cleanup
 			evtapi.EvtCloseRecord(c.evtapi, winevent.EventRecordHandle)
 		}
 	}
 
 	sender.Commit()
+	return nil
+}
+
+func (c *Check) bookmarkPersistentCacheKey() string {
+	return fmt.Sprintf("%s_%s", c.ID(), "bookmark")
+}
+
+// update the bookmark handle to point to event and then update the persistent cache
+func (c *Check) storeBookmark(event *evtapi.EventRecord) error {
+	c.bookmark.Update(event.EventRecordHandle)
+
+	bookmarkXML, err := c.bookmark.Render()
+	if err != nil {
+		return fmt.Errorf("failed to render bookmark XML: %v", err)
+	}
+
+	err = persistentcache.Write(c.bookmarkPersistentCacheKey(), bookmarkXML)
+	if err != nil {
+		return fmt.Errorf("failed to persist bookmark: %v", err)
+	}
+
 	return nil
 }
 
@@ -224,6 +251,64 @@ func (c *Check) renderEventMessage(providerName string, winevent *evtapi.EventRe
 	return nil
 }
 
+func (c *Check) initSubscription() error {
+	opts := []evtsubscribe.PullSubscriptionOption{}
+	if c.evtapi != nil {
+		opts = append(opts, evtsubscribe.WithWindowsEventLogAPI(c.evtapi))
+	}
+
+	// Check persistent cache for bookmark
+	var bookmark evtbookmark.Bookmark
+	bookmarkXML, err := persistentcache.Read(c.bookmarkPersistentCacheKey())
+	if err != nil {
+		// persistentcache.Read() does not return error if key does not exist
+		return fmt.Errorf("error reading bookmark from persistent cache %s: %v", c.bookmarkPersistentCacheKey(), err)
+	}
+	if bookmarkXML != "" {
+		// load bookmark
+		bookmark, err = evtbookmark.New(
+			evtbookmark.WithWindowsEventLogAPI(c.evtapi),
+			evtbookmark.FromXML(bookmarkXML))
+		if err != nil {
+			return err
+		}
+		opts = append(opts, evtsubscribe.WithStartAfterBookmark(bookmark))
+	} else {
+		// new bookmark
+		bookmark, err = evtbookmark.New(evtbookmark.WithWindowsEventLogAPI(c.evtapi))
+		if err != nil {
+			return err
+		}
+		if c.config.instance.Start == "old" {
+			opts = append(opts, evtsubscribe.WithStartAtOldestRecord())
+		}
+	}
+	c.bookmark = bookmark
+
+	// Batch count
+	opts = append(opts, evtsubscribe.WithEventBatchCount(c.config.instance.Payload_size))
+
+	// Create the subscription
+	c.sub = evtsubscribe.NewPullSubscription(
+		c.config.instance.ChannelPath,
+		c.config.instance.Query,
+		opts...)
+
+	// Start the subscription
+	err = c.sub.Start()
+	if err != nil {
+		return fmt.Errorf("Failed to subscribe to events: %v", err)
+	}
+
+	// Create a render context for System event values
+	c.systemRenderContext, err = c.evtapi.EvtCreateRenderContext(nil, evtapi.EvtRenderContextSystem)
+	if err != nil {
+		return fmt.Errorf("failed to create system render context: %v", err)
+	}
+
+	return nil
+}
+
 func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	// This check supports multiple instances, must be called before CommonConfigure
 	c.BuildID(integrationConfigDigest, data, initConfig)
@@ -276,32 +361,9 @@ func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data,
 		return fmt.Errorf("invalid instance config `event_priority`: %v", err)
 	}
 
-	// Create the subscription
-	opts := []evtsubscribe.PullSubscriptionOption{}
-	if c.evtapi != nil {
-		opts = append(opts, evtsubscribe.WithWindowsEventLogAPI(c.evtapi))
-	}
-	if c.config.instance.Start == "old" {
-		opts = append(opts, evtsubscribe.WithStartAtOldestRecord())
-	}
-
-	opts = append(opts, evtsubscribe.WithEventBatchCount(c.config.instance.Payload_size))
-
-	c.sub = evtsubscribe.NewPullSubscription(
-		c.config.instance.ChannelPath,
-		c.config.instance.Query,
-		opts...)
-
-	// Start the subscription
-	err = c.sub.Start()
+	err = c.initSubscription()
 	if err != nil {
-		return fmt.Errorf("Failed to subscribe to events: %v", err)
-	}
-
-	// Create a render context for System event values
-	c.systemRenderContext, err = c.evtapi.EvtCreateRenderContext(nil, evtapi.EvtRenderContextSystem)
-	if err != nil {
-		return err
+		return fmt.Errorf("failed to initialize event subscription: %v", err)
 	}
 
 	return nil
