@@ -32,8 +32,8 @@
             "x86_64": {
                 "debian-8": "urn,credativ:Debian:8:8.0.201901221",
                 "debian-9": "urn,credativ:Debian:9:9.20200722.0",
-                "debian-10": "urn,Debian:debian-10:10:0.20220911.1135",
-                "debian-11": "urn,Debian:debian-11:11:0.20220911.1135"
+                "debian-10": "urn,Debian:debian-10:10:0.20230222.1299",
+                "debian-11": "urn,Debian:debian-11:11:0.20230501.1367"
             }
         },
         "ec2": {
