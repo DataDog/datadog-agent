@@ -1821,8 +1821,8 @@ github.com/tmthrgd/go-hex v0.0.0-20190904060850-447a3041c3bc/go.mod h1:bciPuU6GH
 github.com/tv42/httpunix v0.0.0-20150427012821-b75d8614f926/go.mod h1:9ESjWnEqriFuLhtthL60Sar/7RFoluCcXsuvEwTV5KM=
 github.com/twitchtv/twirp v8.1.2+incompatible h1:0O6TfzZW09ZP5r+ORA90XQEE3PTgA6C7MBbl2KxvVgE=
 github.com/twitchtv/twirp v8.1.2+incompatible/go.mod h1:RRJoFSAmTEh2weEqWtpPE3vFK5YBhA6bqp2l1kfCC5A=
-github.com/twmb/franz-go v1.13.2 h1:jIdDoFiq8uP3Zrx6TZZTXpaXrv3bh1w3tV5mn/B+Gw8=
-github.com/twmb/franz-go v1.13.2/go.mod h1:jm/FtYxmhxDTN0gNSb26XaJY0irdSVcsckLiR5tQNMk=
+github.com/twmb/franz-go v1.13.3 h1:AO0HcPu7hNMi+ue+jz3CnV+VpuAizaazQuqTo1SvLr4=
+github.com/twmb/franz-go v1.13.3/go.mod h1:jm/FtYxmhxDTN0gNSb26XaJY0irdSVcsckLiR5tQNMk=
 github.com/twmb/franz-go/pkg/kadm v1.8.0 h1:vvKwZpxYn+VmM32v4mKkecHLKavZW+HcYLRKKxly5ZY=
 github.com/twmb/franz-go/pkg/kadm v1.8.0/go.mod h1:qUSM7pxoMCU1UNu5H4USE64ODcVmeG9LS96mysv1nu8=
 github.com/twmb/franz-go/pkg/kmsg v1.4.0 h1:tbp9hxU6m8qZhQTlpGiaIJOm4BXix5lsuEZ7K00dF0s=
