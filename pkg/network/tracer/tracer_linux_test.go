@@ -34,6 +34,8 @@ import (
 	vnetns "github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -47,7 +49,6 @@ import (
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 var kv470 kernel.Version = kernel.VersionCode(4, 7, 0)
@@ -502,12 +503,12 @@ func TestTranslationBindingRegression(t *testing.T) {
 }
 
 func TestUnconnectedUDPSendIPv6(t *testing.T) {
-	if !kernel.IsIPv6Enabled() {
+	cfg := testConfig()
+	cfg.CollectIPv6Conns = true
+	if !isTestIPv6Enabled(cfg) {
 		t.Skip("IPv6 not enabled on host")
 	}
 
-	cfg := testConfig()
-	cfg.CollectIPv6Conns = true
 	tr := setupTracer(t, cfg)
 	linkLocal, err := offsetguess.GetIPv6LinkLocalAddress()
 	require.NoError(t, err)
@@ -895,8 +896,7 @@ func TestConnectionNotAssured(t *testing.T) {
 		conns := getConnections(t, tr)
 		var ok bool
 		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		m := conn.Monotonic
-		return ok && m.SentBytes > 0 && m.RecvBytes == 0
+		return ok && conn.Monotonic.SentBytes > 0 && conn.Monotonic.RecvBytes == 0
 	}, 3*time.Second, 500*time.Millisecond, "could not find udp connection")
 
 	// verify the connection is marked as not assured
@@ -1177,6 +1177,9 @@ func TestUDPReusePort(t *testing.T) {
 		testUDPReusePort(t, "udp4", "127.0.0.1")
 	})
 	t.Run("v6", func(t *testing.T) {
+		if !isTestIPv6Enabled(testConfig()) {
+			t.Skip("IPv6 disabled")
+		}
 		testUDPReusePort(t, "udp6", "[::1]")
 	})
 }
@@ -1415,6 +1418,10 @@ func TestSendfileRegression(t *testing.T) {
 
 	for _, family := range []network.ConnectionFamily{network.AFINET, network.AFINET6} {
 		t.Run(family.String(), func(t *testing.T) {
+			if family == network.AFINET6 && !isTestIPv6Enabled(cfg) {
+				t.Skip("IPv6 disabled")
+			}
+
 			t.Run("TCP", func(t *testing.T) {
 				// Start TCP server
 				var rcvd int64
@@ -1837,33 +1844,26 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 }
 
 func TestConntrackerFallback(t *testing.T) {
-	var tests = []struct {
-		enableRuntimeCompiler    bool
-		allowPrecompiledFallback bool
-		err                      error
-	}{
-		{false, false, nil},
-		{false, true, nil},
-		{true, false, assert.AnError},
-		{true, true, nil},
-	}
-
 	cfg := testConfig()
 	cfg.EnableEbpfConntracker = false
-	for _, te := range tests {
-		t.Logf("%+v", te)
-		cfg.EnableRuntimeCompiler = te.enableRuntimeCompiler
-		cfg.AllowPrecompiledFallback = te.allowPrecompiledFallback
+	cfg.AllowNetlinkConntrackerFallback = true
+	conntracker, err := newConntracker(cfg, nil, nil)
+	assert.NoError(t, err)
+	require.NotNil(t, conntracker)
+	conntracker.Close()
 
-		conntracker, err := newConntracker(cfg, nil, nil)
-		if te.err != nil {
-			assert.Error(t, err)
-			assert.Nil(t, conntracker)
-			continue
+	cfg.AllowNetlinkConntrackerFallback = false
+	conntracker, err = newConntracker(cfg, nil, nil)
+	assert.Error(t, err)
+	require.Nil(t, conntracker)
+}
+
+func isTestIPv6Enabled(cfg *config.Config) bool {
+	if kernel.IsIPv6Enabled() {
+		if !cfg.EnableRuntimeCompiler && !cfg.EnableCORE && kv >= kernel.VersionCode(5, 18, 0) {
+			return false
 		}
-
-		assert.NoError(t, err)
-		require.NotNil(t, conntracker)
-		conntracker.Close()
+		return true
 	}
+	return false
 }

@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 // DockerUtil wraps interactions with a local docker API.
@@ -130,6 +131,11 @@ func (d *DockerUtil) CountVolumes(ctx context.Context) (int, int, error) {
 	return len(attachedVolumes.Volumes), len(danglingVolumes.Volumes), nil
 }
 
+// RawClient returns the underlying docker client being used by this object.
+func (d *DockerUtil) RawClient() *client.Client {
+	return d.cli
+}
+
 // RawContainerList wraps around the docker client's ContainerList method.
 // Value validation and error handling are the caller's responsibility.
 func (d *DockerUtil) RawContainerList(ctx context.Context, options types.ContainerListOptions) ([]types.Container, error) {
@@ -150,8 +156,12 @@ func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options typ
 	}
 
 	isExcluded := func(container types.Container) bool {
+		var annotations map[string]string
+		if pod, err := workloadmeta.GetGlobalStore().GetKubernetesPodForContainer(container.ID); err == nil {
+			annotations = pod.Annotations
+		}
 		for _, name := range container.Names {
-			if filter.IsExcluded(name, container.Image, "") {
+			if filter.IsExcluded(annotations, name, container.Image, "") {
 				log.Tracef("Container with name %q and image %q is filtered-out", name, container.Image)
 				return true
 			}

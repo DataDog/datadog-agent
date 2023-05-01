@@ -30,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
-	pkgflare "github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
@@ -48,10 +47,10 @@ import (
 )
 
 // SetupHandlers adds the specific handlers for /agent endpoints
-func SetupHandlers(r *mux.Router, flare flare.Component, server dogstatsdServer.Component, serverDebug dogstatsdDebug.Component) *mux.Router {
+func SetupHandlers(r *mux.Router, flareComp flare.Component, server dogstatsdServer.Component, serverDebug dogstatsdDebug.Component) *mux.Router {
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
-	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, flare) }).Methods("POST")
+	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, flareComp) }).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
 	r.HandleFunc("/stream-logs", streamLogs).Methods("POST")
@@ -103,8 +102,8 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-func makeFlare(w http.ResponseWriter, r *http.Request, flare flare.Component) {
-	var profile pkgflare.ProfileData
+func makeFlare(w http.ResponseWriter, r *http.Request, flareComp flare.Component) {
+	var profile flare.ProfileData
 
 	if r.Body != http.NoBody {
 		body, err := io.ReadAll(r.Body)
@@ -123,25 +122,10 @@ func makeFlare(w http.ResponseWriter, r *http.Request, flare flare.Component) {
 	conn := GetConnection(r)
 	_ = conn.SetDeadline(time.Time{})
 
-	logFile := config.Datadog.GetString("log_file")
-	if logFile == "" {
-		logFile = common.DefaultLogFile
-	}
-	jmxLogFile := config.Datadog.GetString("jmx_log_file")
-	if jmxLogFile == "" {
-		jmxLogFile = common.DefaultJmxLogFile
-	}
-
-	// If we're not in an FX app we fallback to pkgflare implementation. Once all app have been migrated to flare we
-	// could remove this.
 	var filePath string
 	var err error
 	log.Infof("Making a flare")
-	if flare != nil {
-		filePath, err = flare.Create(false, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, profile, nil)
-	} else {
-		filePath, err = pkgflare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, profile, nil)
-	}
+	filePath, err = flareComp.Create(profile, nil)
 
 	if err != nil || filePath == "" {
 		if err != nil {

@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -51,7 +52,7 @@ func setupConfig(cfg config.Config, origin string, confFilePath string, configNa
 			cfg.SetConfigFile(confFilePath)
 		}
 	}
-	cfg.AddConfigPath(DefaultConfPath)
+	cfg.AddConfigPath(path.DefaultConfPath)
 	// load the configuration
 	warnings, err := config.LoadDatadogCustom(cfg, origin, !withoutSecrets)
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.

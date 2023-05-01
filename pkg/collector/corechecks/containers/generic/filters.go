@@ -50,8 +50,15 @@ func (f LegacyContainerFilter) IsExcluded(container *workloadmeta.Container) boo
 	if f.OldFilter == nil {
 		return false
 	}
+	var annotations map[string]string
+	store := workloadmeta.GetGlobalStore()
+	if store != nil {
+		if pod, err := store.GetKubernetesPodForContainer(container.ID); err == nil {
+			annotations = pod.Annotations
+		}
+	}
 
-	return f.OldFilter.IsExcluded(container.Name, container.Image.Name, container.Labels[kubernetes.CriContainerNamespaceLabel])
+	return f.OldFilter.IsExcluded(annotations, container.Name, container.Image.Name, container.Labels[kubernetes.CriContainerNamespaceLabel])
 }
 
 // RuntimeContainerFilter filters containers by runtime

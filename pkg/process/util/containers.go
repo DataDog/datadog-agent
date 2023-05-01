@@ -102,7 +102,12 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 	rateStats := make(map[string]*ContainerRateMetrics)
 	pidToCid := make(map[int]string)
 	for _, container := range containersMetadata {
-		if p.filter != nil && p.filter.IsExcluded(container.Name, container.Image.Name, container.Labels[kubernetes.CriContainerNamespaceLabel]) {
+		var annotations map[string]string
+		if pod, err := p.metadataStore.GetKubernetesPodForContainer(container.ID); err == nil {
+			annotations = pod.Annotations
+		}
+
+		if p.filter != nil && p.filter.IsExcluded(annotations, container.Name, container.Image.Name, container.Labels[kubernetes.CriContainerNamespaceLabel]) {
 			continue
 		}
 
@@ -191,15 +196,17 @@ func computeContainerStats(hostCPUCount float64, inStats *metrics.ContainerStats
 		outPreviousStats.SystemCPU = statValue(inStats.CPU.System, -1)
 
 		outStats.CpuLimit = float32(statValue(inStats.CPU.Limit, 0))
-		outStats.TotalPct = float32(cpuRateValue(outPreviousStats.TotalCPU, previousStats.TotalCPU, hostCPUCount, inStats.Timestamp, previousStats.ContainerStatsTimestamp))
-		outStats.UserPct = float32(cpuRateValue(outPreviousStats.UserCPU, previousStats.UserCPU, hostCPUCount, inStats.Timestamp, previousStats.ContainerStatsTimestamp))
-		outStats.SystemPct = float32(cpuRateValue(outPreviousStats.SystemCPU, previousStats.SystemCPU, hostCPUCount, inStats.Timestamp, previousStats.ContainerStatsTimestamp))
+		outStats.TotalPct = float32(cpuRatePctValue(outPreviousStats.TotalCPU, previousStats.TotalCPU, hostCPUCount, inStats.Timestamp, previousStats.ContainerStatsTimestamp))
+		outStats.UserPct = float32(cpuRatePctValue(outPreviousStats.UserCPU, previousStats.UserCPU, hostCPUCount, inStats.Timestamp, previousStats.ContainerStatsTimestamp))
+		outStats.SystemPct = float32(cpuRatePctValue(outPreviousStats.SystemCPU, previousStats.SystemCPU, hostCPUCount, inStats.Timestamp, previousStats.ContainerStatsTimestamp))
+		outStats.CpuUsageNs = float32(cpuRateValue(outPreviousStats.TotalCPU, previousStats.TotalCPU, inStats.Timestamp, previousStats.ContainerStatsTimestamp))
 	}
 
 	if inStats.Memory != nil {
 		outStats.MemoryLimit = uint64(statValue(inStats.Memory.Limit, 0))
 		outStats.MemCache = uint64(statValue(inStats.Memory.Cache, 0))
-		outStats.MemRss = uint64(statValue(inStats.Memory.UsageTotal, 0))
+		outStats.MemRss = uint64(statValue(inStats.Memory.RSS, 0))
+		outStats.MemUsage = uint64(statValue(inStats.Memory.UsageTotal, 0))
 	}
 
 	if inStats.PID != nil {
@@ -287,7 +294,15 @@ func statValue(val *float64, def float64) float64 {
 	return def
 }
 
-func cpuRateValue(current, previous, hostCPUCount float64, currentTs, previousTs time.Time) float64 {
+func cpuRateValue(current, previous float64, currentTs, previousTs time.Time) float64 {
+	if current == -1 || previous == -1 {
+		return -1
+	}
+
+	return rateValue(current, previous, currentTs, previousTs)
+}
+
+func cpuRatePctValue(current, previous, hostCPUCount float64, currentTs, previousTs time.Time) float64 {
 	if current == -1 || previous == -1 {
 		return -1
 	}

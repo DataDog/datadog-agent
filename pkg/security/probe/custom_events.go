@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+	easyjson "github.com/mailru/easyjson"
 )
 
 // EventLostRead is the event used to report lost events detected from user space
@@ -94,7 +95,7 @@ func NewNoisyProcessEvent(count uint64,
 	return events.NewCustomRule(events.NoisyProcessRuleID), events.NewCustomEvent(model.CustomNoisyProcessEventType, evt)
 }
 
-func resolutionErrorToEventType(err error) model.EventType {
+func errorToEventType(err error) model.EventType {
 	switch err.(type) {
 	case dentry.ErrTruncatedParents, dentry.ErrTruncatedParentsERPC:
 		return model.CustomTruncatedParentsEventType
@@ -103,23 +104,27 @@ func resolutionErrorToEventType(err error) model.EventType {
 	}
 }
 
-// AbnormalPathEvent is used to report that a path resolution failed for a suspicious reason
+// AbnormalEvent is used to report that a path resolution failed for a suspicious reason
 // easyjson:json
-type AbnormalPathEvent struct {
+type AbnormalEvent struct {
 	events.CustomEventCommonFields
-	Event               *serializers.EventSerializer `json:"triggering_event"`
-	PathResolutionError string                       `json:"path_resolution_error"`
+	Event *serializers.EventSerializer `json:"triggering_event"`
+	Error string                       `json:"error"`
 }
 
 // NewAbnormalPathEvent returns the rule and a populated custom event for a abnormal_path event
-func NewAbnormalPathEvent(event *model.Event, probe *Probe, pathResolutionError error) (*rules.Rule, *events.CustomEvent) {
-	evt := AbnormalPathEvent{
-		Event:               serializers.NewEventSerializer(event, probe.resolvers),
-		PathResolutionError: pathResolutionError.Error(),
-	}
-	evt.FillCustomEventCommonFields()
-	// Overwrite common timestamp with event timestamp
-	evt.Timestamp = event.FieldHandlers.ResolveEventTimestamp(event)
+func NewAbnormalEvent(id string, event *model.Event, probe *Probe, err error) (*rules.Rule, *events.CustomEvent) {
+	marshalerCtor := func() easyjson.Marshaler {
+		evt := AbnormalEvent{
+			Event: serializers.NewEventSerializer(event, probe.resolvers),
+			Error: err.Error(),
+		}
+		evt.FillCustomEventCommonFields()
+		// Overwrite common timestamp with event timestamp
+		evt.Timestamp = event.FieldHandlers.ResolveEventTimestamp(event)
 
-	return events.NewCustomRule(events.AbnormalPathRuleID), events.NewCustomEvent(resolutionErrorToEventType(event.PathResolutionError), evt)
+		return evt
+	}
+
+	return events.NewCustomRule(id), events.NewCustomEventLazy(errorToEventType(err), marshalerCtor)
 }

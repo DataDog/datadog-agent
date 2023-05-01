@@ -9,6 +9,7 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 
@@ -25,11 +26,16 @@ type WorkloadSelector struct {
 }
 
 // NewWorkloadSelector returns an initialized instance of a WorkloadSelector
-func NewWorkloadSelector(image string, tag string) WorkloadSelector {
+func NewWorkloadSelector(image string, tag string) (WorkloadSelector, error) {
+	if image == "" {
+		return WorkloadSelector{}, errors.New("no image name provided")
+	} else if tag == "" {
+		tag = "latest"
+	}
 	return WorkloadSelector{
 		Image: image,
 		Tag:   tag,
-	}
+	}, nil
 }
 
 // IsEmpty returns true if the selector is set

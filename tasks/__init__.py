@@ -17,6 +17,7 @@ from . import (
     epforwarder,
     github,
     msi,
+    new_e2e_tests,
     package,
     pipeline,
     process_agent,
@@ -127,6 +128,7 @@ ns.add_collection(system_probe)
 ns.add_collection(process_agent)
 ns.add_collection(security_agent)
 ns.add_collection(vscode)
+ns.add_collection(new_e2e_tests)
 ns.configure(
     {
         'run': {

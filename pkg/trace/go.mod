@@ -10,14 +10,14 @@ go 1.18
 replace github.com/docker/distribution => github.com/docker/distribution v2.8.1+incompatible
 
 require (
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.44.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.44.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.44.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/util/log v0.44.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.44.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.44.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.45.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.45.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.45.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/log v0.45.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.45.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.45.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.1
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.1.4
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.1.5
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/Microsoft/go-winio v0.5.2
 	github.com/davecgh/go-spew v1.1.1
@@ -30,12 +30,12 @@ require (
 	github.com/stretchr/testify v1.8.2
 	github.com/tinylib/msgp v1.1.6
 	github.com/vmihailenco/msgpack/v4 v4.3.12
-	go.opentelemetry.io/collector/pdata v1.0.0-rc7
-	go.opentelemetry.io/collector/semconv v0.73.0
+	go.opentelemetry.io/collector/pdata v1.0.0-rc9
+	go.opentelemetry.io/collector/semconv v0.75.0
 	go.uber.org/atomic v1.10.0
 	golang.org/x/sys v0.6.0
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
-	google.golang.org/grpc v1.53.0
+	google.golang.org/grpc v1.54.0
 	k8s.io/apimachinery v0.23.8
 )
 

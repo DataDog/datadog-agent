@@ -6,9 +6,10 @@
 package events
 
 import (
+	"time"
+
 	"github.com/mailru/easyjson"
 	"github.com/mailru/easyjson/jwriter"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -31,6 +32,8 @@ const (
 	SelfTestRuleID = "self_test"
 	// AnomalyDetectionRuleID is the rule ID for anomaly_detection events
 	AnomalyDetectionRuleID = "anomaly_detection"
+	// ProcessContextErrorRuleID is the rule ID for events without process context
+	ProcessContextErrorRuleID = "no_process_context"
 )
 
 type CustomEventCommonFields struct {
@@ -60,30 +63,38 @@ func AllCustomRuleIDs() []string {
 		AbnormalPathRuleID,
 		SelfTestRuleID,
 		AnomalyDetectionRuleID,
+		ProcessContextErrorRuleID,
 	}
 }
 
 // NewCustomEvent returns a new custom event
-func NewCustomEvent(eventType model.EventType, marshaler easyjson.Marshaler) *CustomEvent {
+func NewCustomEventLazy(eventType model.EventType, marshalerCtor func() easyjson.Marshaler, tags ...string) *CustomEvent {
 	return &CustomEvent{
-		eventType: eventType,
-		marshaler: marshaler,
+		eventType:     eventType,
+		marshalerCtor: marshalerCtor,
+		tags:          tags,
 	}
+}
+
+func NewCustomEvent(eventType model.EventType, marshaler easyjson.Marshaler, tags ...string) *CustomEvent {
+	return NewCustomEventLazy(eventType, func() easyjson.Marshaler {
+		return marshaler
+	}, tags...)
 }
 
 // CustomEvent is used to send custom security events to Datadog
 type CustomEvent struct {
-	eventType model.EventType
-	tags      []string
-	marshaler easyjson.Marshaler
+	eventType     model.EventType
+	tags          []string
+	marshalerCtor func() easyjson.Marshaler
 }
 
 // Clone returns a copy of the current CustomEvent
 func (ce *CustomEvent) Clone() CustomEvent {
 	return CustomEvent{
-		eventType: ce.eventType,
-		tags:      ce.tags,
-		marshaler: ce.marshaler,
+		eventType:     ce.eventType,
+		tags:          ce.tags,
+		marshalerCtor: ce.marshalerCtor,
 	}
 }
 
@@ -103,5 +114,5 @@ func (ce *CustomEvent) GetEventType() model.EventType {
 }
 
 func (ce *CustomEvent) MarshalEasyJSON(w *jwriter.Writer) {
-	ce.marshaler.MarshalEasyJSON(w)
+	ce.marshalerCtor().MarshalEasyJSON(w)
 }

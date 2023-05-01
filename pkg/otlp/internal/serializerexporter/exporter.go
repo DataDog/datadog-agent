@@ -89,7 +89,6 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*metrics.Tra
 
 	options := []metrics.TranslatorOption{
 		metrics.WithFallbackSourceProvider(sourceProviderFunc(hostname.Get)),
-		metrics.WithPreviewHostnameFromAttributes(),
 		metrics.WithHistogramMode(histogramMode),
 		metrics.WithDeltaTTL(cfg.Metrics.DeltaTTL),
 	}

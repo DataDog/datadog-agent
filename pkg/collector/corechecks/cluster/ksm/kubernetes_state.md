@@ -4,6 +4,12 @@
 
 ### Metrics
 
+`kubernetes_state.apiservice.count`
+: Number of Kubernetes API services.
+
+`kubernetes_state.apiservice.condition`
+: The condition of this API service. Tags:`apiservice` `condition` `status`.
+
 `kubernetes_state.daemonset.count`
 : Number of DaemonSets. Tags:`kube_namespace`.
 
@@ -160,6 +166,12 @@
 `kubernetes_state.container.status_report.count.terminated`
 : Describes the reason the container is currently in terminated state. Tags:`kube_namespace` `pod_name` `kube_container_name` `reason` (`env` `service` `version` from standard labels).
 
+`kubernetes_state.crd.count`
+: Number of custom resource definition.
+
+`kubernetes_state.crd.condition`
+: The condition of this custom resource definition. Tags:`customresourcedefinition` `condition` `status`.
+
 `kubernetes_state.pod.ready`
 : Describes whether the pod is ready to serve requests. Tags:`node` `kube_namespace` `pod_name` `condition` (`env` `service` `version` from standard labels).
 
@@ -284,7 +296,7 @@
 : The metric specifications used by this autoscaler when calculating the desired replica count. Tags:`kube_namespace` `horizontalpodautoscaler` `metric_name` `metric_target_type`.
 
 `kubernetes_state.hpa.status_target_metric`
-: The current metric status used by this autoscaler when calculating the desired replica count. Tags:`kube_namespace` `horizontalpodautoscaler` `metric_name` `metric_target_type`.	
+: The current metric status used by this autoscaler when calculating the desired replica count. Tags:`kube_namespace` `horizontalpodautoscaler` `metric_name` `metric_target_type`.
 
 `kubernetes_state.vpa.count`
 : Number of vertical pod autoscaler. Tags: `kube_namespace`.

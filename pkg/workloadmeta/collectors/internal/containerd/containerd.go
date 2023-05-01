@@ -15,12 +15,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 	"github.com/containerd/containerd"
 	containerdevents "github.com/containerd/containerd/events"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	agentErrors "github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/sbom"
+	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -99,7 +100,8 @@ type collector struct {
 	handleImagesMut sync.Mutex
 
 	// SBOM Scanning
-	trivyClient trivy.Collector // nolint: unused
+	sbomScanner *scanner.Scanner // nolint: unused
+	scanOptions sbom.ScanOptions // nolint: unused
 }
 
 func init() {
@@ -361,7 +363,7 @@ func (c *collector) ignoreContainer(namespace string, container containerd.Conta
 	}
 
 	// Only the image name is relevant to exclude paused containers
-	return c.filterPausedContainers.IsExcluded("", info.Image, ""), nil
+	return c.filterPausedContainers.IsExcluded(nil, "", info.Image, ""), nil
 }
 
 func subscribeFilters() []string {

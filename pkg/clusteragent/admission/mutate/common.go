@@ -116,8 +116,14 @@ func injectVolume(pod *corev1.Pod, volume corev1.Volume, volumeMount corev1.Volu
 		pod.Spec.Containers[i].VolumeMounts = append(pod.Spec.Containers[i].VolumeMounts, volumeMount)
 		shouldInject = true
 	}
-	for i := range pod.Spec.InitContainers {
+	for i, container := range pod.Spec.InitContainers {
+		if containsVolumeMount(container.VolumeMounts, volumeMount) {
+			// Ensure volume mount name and path uniqueness
+			log.Debugf("Ignoring init container %q in pod %q: a volume mount with name %q or path %q already exists", container.Name, podStr, volumeMount.Name, volumeMount.MountPath)
+			continue
+		}
 		pod.Spec.InitContainers[i].VolumeMounts = append(pod.Spec.InitContainers[i].VolumeMounts, volumeMount)
+		shouldInject = true
 	}
 
 	if shouldInject {

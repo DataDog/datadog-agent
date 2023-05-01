@@ -189,9 +189,6 @@ func TestRaceFlushVersusParsePacket(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
-	opts.FlushInterval = 10 * time.Millisecond
-	opts.DontStartForwarders = true
 	demux := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000)
 
 	s := dogstatsdServer.NewServerlessServer()

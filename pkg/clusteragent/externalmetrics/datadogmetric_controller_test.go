@@ -81,6 +81,7 @@ func (f *fixture) newController(leader bool) (*DatadogMetricController, dynamici
 }
 
 func (f *fixture) runControllerSync(leader bool, datadogMetricID string, expectedError error) {
+	f.t.Helper()
 	controller, informer := f.newController(leader)
 	stopCh := make(chan struct{})
 	defer close(stopCh)
@@ -182,10 +183,8 @@ func TestLeaderHandlingNewMetric(t *testing.T) {
 				LastUpdateTime:     updateTimeKube,
 			},
 			{
-				Type:               datadoghq.DatadogMetricConditionTypeUpdated,
-				Status:             corev1.ConditionTrue,
-				LastTransitionTime: updateTimeKube,
-				LastUpdateTime:     updateTimeKube,
+				Type:   datadoghq.DatadogMetricConditionTypeUpdated,
+				Status: corev1.ConditionTrue,
 			},
 			{
 				Type:               datadoghq.DatadogMetricConditionTypeError,
@@ -214,6 +213,7 @@ func TestLeaderUpdateFromStoreInitialUpdate(t *testing.T) {
 		Valid:      true,
 		Value:      2332548489456.557505560,
 		UpdateTime: updateTime,
+		DataTime:   updateTime,
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query0")
@@ -297,6 +297,7 @@ func TestLeaderUpdateFromStoreAfterInitial(t *testing.T) {
 		Valid:      true,
 		Value:      10.0,
 		UpdateTime: updateTime,
+		DataTime:   updateTime,
 		Error:      fmt.Errorf("Error from backend while fetching metric"),
 	}
 	ddm.SetQueries("metric query0")
@@ -381,6 +382,7 @@ func TestLeaderNoUpdate(t *testing.T) {
 		Valid:      true,
 		Value:      10.0,
 		UpdateTime: updateTime,
+		DataTime:   updateTime,
 		Error:      fmt.Errorf("Error from backend while fetching metric"),
 	}
 	ddm.SetQueries("metric query0")
@@ -402,6 +404,7 @@ func TestCreateDatadogMetric(t *testing.T) {
 		ExternalMetricName: "name1",
 		Value:              20.0,
 		UpdateTime:         updateTime,
+		DataTime:           updateTime,
 		Error:              nil,
 	}
 	ddm.SetQueries("metric query0")
@@ -414,6 +417,7 @@ func TestCreateDatadogMetric(t *testing.T) {
 		Autogen:    false,
 		Value:      20.0,
 		UpdateTime: updateTime,
+		DataTime:   updateTime,
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query1")
@@ -426,6 +430,7 @@ func TestCreateDatadogMetric(t *testing.T) {
 		Autogen:    true,
 		Value:      20.0,
 		UpdateTime: updateTime,
+		DataTime:   updateTime,
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query1")
@@ -438,6 +443,7 @@ func TestCreateDatadogMetric(t *testing.T) {
 		Autogen:    true,
 		Value:      20.0,
 		UpdateTime: updateTime,
+		DataTime:   updateTime,
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query2")
@@ -499,7 +505,7 @@ func TestLeaderDeleteExisting(t *testing.T) {
 		Value: "20",
 		Conditions: []datadoghq.DatadogMetricCondition{
 			{
-				Type:               datadoghq.DatadogMetricConditionTypeValid,
+				Type:               datadoghq.DatadogMetricConditionTypeActive,
 				Status:             corev1.ConditionTrue,
 				LastTransitionTime: prevUpdateTimeKube,
 				LastUpdateTime:     prevUpdateTimeKube,
@@ -528,7 +534,7 @@ func TestLeaderDeleteExisting(t *testing.T) {
 		Value: "20",
 		Conditions: []datadoghq.DatadogMetricCondition{
 			{
-				Type:               datadoghq.DatadogMetricConditionTypeValid,
+				Type:               datadoghq.DatadogMetricConditionTypeActive,
 				Status:             corev1.ConditionTrue,
 				LastTransitionTime: prevUpdateTimeKube,
 				LastUpdateTime:     prevUpdateTimeKube,
@@ -564,6 +570,7 @@ func TestLeaderDeleteExisting(t *testing.T) {
 		Autogen:    true,
 		Value:      20.0,
 		UpdateTime: prevUpdateTime.UTC(),
+		DataTime:   prevUpdateTime.UTC(),
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query0")
@@ -576,6 +583,7 @@ func TestLeaderDeleteExisting(t *testing.T) {
 		Autogen:    false,
 		Value:      20.0,
 		UpdateTime: prevUpdateTime.UTC(),
+		DataTime:   prevUpdateTime.UTC(),
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query1")
@@ -592,6 +600,7 @@ func TestLeaderDeleteExisting(t *testing.T) {
 		Autogen:    true,
 		Value:      20.0,
 		UpdateTime: prevUpdateTime.UTC(),
+		DataTime:   prevUpdateTime.UTC(),
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query0")
@@ -614,6 +623,7 @@ func TestLeaderDeleteCleanup(t *testing.T) {
 		Deleted:    true,
 		Value:      20.0,
 		UpdateTime: updateTime,
+		DataTime:   updateTime,
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query0")
@@ -645,7 +655,7 @@ func TestFollower(t *testing.T) {
 		Value: "10",
 		Conditions: []datadoghq.DatadogMetricCondition{
 			{
-				Type:               datadoghq.DatadogMetricConditionTypeValid,
+				Type:               datadoghq.DatadogMetricConditionTypeActive,
 				Status:             corev1.ConditionTrue,
 				LastTransitionTime: prevUpdateTimeKube,
 				LastUpdateTime:     prevUpdateTimeKube,
@@ -674,7 +684,7 @@ func TestFollower(t *testing.T) {
 		Value: "10",
 		Conditions: []datadoghq.DatadogMetricCondition{
 			{
-				Type:               datadoghq.DatadogMetricConditionTypeValid,
+				Type:               datadoghq.DatadogMetricConditionTypeActive,
 				Status:             corev1.ConditionTrue,
 				LastTransitionTime: prevUpdateTimeKube,
 				LastUpdateTime:     prevUpdateTimeKube,
@@ -709,8 +719,10 @@ func TestFollower(t *testing.T) {
 	ddm := model.DatadogMetricInternal{
 		ID:         "default/dd-metric-0",
 		Valid:      true,
+		Active:     true,
 		Value:      20.0,
 		UpdateTime: kubernetes.TimeWithoutWall(updateTime),
+		DataTime:   kubernetes.TimeWithoutWall(updateTime),
 		Error:      fmt.Errorf("Error from backend while fetching metric"),
 	}
 	ddm.SetQueries("metric query0")
@@ -723,8 +735,10 @@ func TestFollower(t *testing.T) {
 	ddm = model.DatadogMetricInternal{
 		ID:         "default/dd-metric-0",
 		Valid:      true,
+		Active:     true,
 		Value:      10.0,
 		UpdateTime: kubernetes.TimeWithoutWall(prevUpdateTime.UTC()),
+		DataTime:   kubernetes.TimeWithoutWall(prevUpdateTime.UTC()),
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query0")
@@ -736,10 +750,12 @@ func TestFollower(t *testing.T) {
 	ddm = model.DatadogMetricInternal{
 		ID:                 "default/autogen-1",
 		Valid:              true,
+		Active:             true,
 		Autogen:            true,
 		ExternalMetricName: "dd-metric-1",
 		Value:              10.0,
 		UpdateTime:         kubernetes.TimeWithoutWall(prevUpdateTime.UTC()),
+		DataTime:           kubernetes.TimeWithoutWall(prevUpdateTime.UTC()),
 		Error:              nil,
 	}
 	ddm.SetQueries("metric query1")

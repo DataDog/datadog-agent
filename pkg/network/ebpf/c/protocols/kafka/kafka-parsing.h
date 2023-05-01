@@ -6,13 +6,11 @@
 #include "tracer.h"
 #include "protocols/kafka/types.h"
 #include "protocols/kafka/parsing-maps.h"
-#include "protocols/events.h"
+#include "protocols/kafka/usm-events.h"
 
 // forward declaration
 static __always_inline bool kafka_allow_packet(kafka_transaction_t *kafka, struct __sk_buff* skb, skb_info_t *skb_info);
 static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction, struct __sk_buff* skb, __u32 offset);
-
-USM_EVENTS_INIT(kafka, kafka_transaction_batch_entry_t, KAFKA_BATCH_SIZE);
 
 // A template for verifying a given buffer is composed of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
 // The iterations reads up to MIN(max_buffer_size, real_size).
@@ -57,64 +55,7 @@ int socket__kafka_filter(struct __sk_buff* skb) {
     return 0;
 }
 
-static __always_inline void parser_read_into_buffer_topic_name(char *buffer, struct __sk_buff *skb, u32 initial_offset) {
-    u64 offset = (u64)initial_offset;
-
-#define BLK_SIZE (16)
-    const u32 len = TOPIC_NAME_MAX_STRING_SIZE < (skb->len - (u32)offset) ? (u32)offset + TOPIC_NAME_MAX_STRING_SIZE : skb->len;
-
-    unsigned i = 0;
-
-#pragma unroll(TOPIC_NAME_MAX_STRING_SIZE / BLK_SIZE)
-    for (; i < (TOPIC_NAME_MAX_STRING_SIZE / BLK_SIZE); i++) {
-        if (offset + BLK_SIZE - 1 >= len) { break; }
-
-        bpf_skb_load_bytes_with_telemetry(skb, offset, &buffer[i * BLK_SIZE], BLK_SIZE);
-        offset += BLK_SIZE;
-    }
-
-    // This part is very hard to write in a loop and unroll it.
-    // Indeed, mostly because of older kernel verifiers, we want to make sure the offset into the buffer is not
-    // stored on the stack, so that the verifier is able to verify that we're not doing out-of-bound on
-    // the stack.
-    // Basically, we should get a register from the code block above containing an fp relative address. As
-    // we are doing `buffer[0]` here, there is not dynamic computation on that said register after this,
-    // and thus the verifier is able to ensure that we are in-bound.
-    void *buf = &buffer[i * BLK_SIZE];
-    if (i * BLK_SIZE >= TOPIC_NAME_MAX_STRING_SIZE) {
-        return;
-    } else if (offset + 14 < len) {
-        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 15);
-    } else if (offset + 13 < len) {
-        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 14);
-    } else if (offset + 12 < len) {
-        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 13);
-    } else if (offset + 11 < len) {
-        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 12);
-    } else if (offset + 10 < len) {
-        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 11);
-    } else if (offset + 9 < len) {
-        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 10);
-    } else if (offset + 8 < len) {
-        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 9);
-    } else if (offset + 7 < len) {
-        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 8);
-    } else if (offset + 6 < len) {
-        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 7);
-    } else if (offset + 5 < len) {
-        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 6);
-    } else if (offset + 4 < len) {
-        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 5);
-    } else if (offset + 3 < len) {
-        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 4);
-    } else if (offset + 2 < len) {
-        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 3);
-    } else if (offset + 1 < len) {
-        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 2);
-    } else if (offset < len) {
-        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 1);
-    }
-}
+READ_INTO_BUFFER(topic_name_parser, TOPIC_NAME_MAX_STRING_SIZE, BLK_SIZE)
 
 static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction, struct __sk_buff* skb, __u32 offset) {
     /*
@@ -173,8 +114,9 @@ static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction
         return false;
     }
     bpf_memset(kafka_transaction->base.topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE);
-    parser_read_into_buffer_topic_name((char *)kafka_transaction->base.topic_name, skb, offset);
+    read_into_buffer_topic_name_parser((char *)kafka_transaction->base.topic_name, skb, offset);
     offset += topic_name_size;
+    kafka_transaction->base.topic_name_size = topic_name_size;
 
     CHECK_STRING_COMPOSED_OF_ASCII_FOR_PARSING(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_size, kafka_transaction->base.topic_name);
 

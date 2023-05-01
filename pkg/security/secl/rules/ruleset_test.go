@@ -26,6 +26,19 @@ type testHandler struct {
 	filters map[string]testFieldValues
 }
 
+// SetRuleSetTag sets the value of the "ruleset" tag, which is the tag of the rules that belong in this rule set. This method is only used for testing.
+func (rs *RuleSet) setRuleSetTagValue(value eval.RuleSetTagValue) error {
+	if len(rs.GetRules()) > 0 {
+		return ErrCannotChangeTagAfterLoading
+	}
+	if _, ok := rs.opts.RuleSetTag[RuleSetTagKey]; !ok {
+		rs.opts.RuleSetTag = map[string]eval.RuleSetTagValue{RuleSetTagKey: ""}
+	}
+	rs.opts.RuleSetTag[RuleSetTagKey] = value
+
+	return nil
+}
+
 func (f *testHandler) RuleMatch(rule *Rule, event eval.Event) {
 }
 
@@ -138,8 +151,12 @@ func TestRuleSetDiscarders(t *testing.T) {
 	ev2.SetFieldValue("mkdir.mode", 0777)
 	ev2.SetFieldValue("process.uid", 0)
 
-	rs.Evaluate(ev1)
-	rs.Evaluate(ev2)
+	if !rs.Evaluate(ev1) {
+		rs.EvaluateDiscarders(ev1)
+	}
+	if !rs.Evaluate(ev2) {
+		rs.EvaluateDiscarders(ev2)
+	}
 
 	expected := map[string]testFieldValues{
 		"open": {

@@ -115,20 +115,16 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 		WriteTimeout: time.Second,
 	}
 	srv.SetKeepAlivesEnabled(false)
-	go func() {
-		_ = srv.ListenAndServe()
-	}()
-	defer srv.Shutdown(context.Background())
+	go func() { _ = srv.ListenAndServe() }()
+	t.Cleanup(func() { _ = srv.Shutdown(context.Background()) })
 
 	// Allow the HTTP server time to get set up
 	time.Sleep(time.Millisecond * 500)
 
 	// Send a series of HTTP requests to the test server
-	client := new(nethttp.Client)
-	resp, err := client.Get("http://" + serverAddr + "/test")
+	resp, err := nethttp.Get("http://" + serverAddr + "/test")
 	require.NoError(t, err)
-	resp.Body.Close()
-
+	_ = resp.Body.Close()
 	// Iterate through active connections until we find connection created above
 	require.Eventuallyf(t, func() bool {
 		payload := getConnections(t, tr)
@@ -179,6 +175,7 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 				EnableKeepAlives: keepAlives.value,
 			})
 			t.Cleanup(serverDoneFn)
+			buildPrefetchFileBin(t)
 
 			for _, test := range tests {
 				t.Run(test.name, func(t *testing.T) {
@@ -192,23 +189,55 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 					}
 					linked, _ := exec.Command(ldd, fetch).Output()
 
-					var prefechLibs []string
+					var prefetchLibs []string
 					for _, lib := range tlsLibs {
 						libSSLPath := lib.FindString(string(linked))
 						if _, err := os.Stat(libSSLPath); err == nil {
-							prefechLibs = append(prefechLibs, libSSLPath)
+							prefetchLibs = append(prefetchLibs, libSSLPath)
 						}
 					}
-					if len(prefechLibs) == 0 {
+					if len(prefetchLibs) == 0 {
 						t.Fatalf("%s not linked with any of these libs %v", test.name, tlsLibs)
 					}
 
-					testHTTPSLibrary(t, test.fetchCmd, prefechLibs)
+					testHTTPSLibrary(t, test.fetchCmd, prefetchLibs)
 
 				})
 			}
 		})
 	}
+}
+
+func buildPrefetchFileBin(t *testing.T) string {
+	const srcPath = "prefetch_file"
+	const binaryPath = "testutil/prefetch_file/prefetch_file"
+
+	t.Helper()
+
+	cur, err := testutil.CurDir()
+	require.NoError(t, err)
+
+	binary := fmt.Sprintf("%s/%s", cur, binaryPath)
+	// If there is a compiled binary already, skip the compilation.
+	// Meant for the CI.
+	if _, err = os.Stat(binary); err == nil {
+		return binary
+	}
+
+	srcDir := fmt.Sprintf("%s/testutil/%s", cur, srcPath)
+
+	c := exec.Command("go", "build", "-buildvcs=false", "-a", "-ldflags=-extldflags '-static'", "-o", binary, srcDir)
+	out, err := c.CombinedOutput()
+	t.Log(c, string(out))
+	require.NoError(t, err, "could not build test binary: %s\noutput: %s", err, string(out))
+
+	return binary
+}
+
+func prefetchLib(t *testing.T, filename string) {
+	prefetchBin := buildPrefetchFileBin(t)
+	cmd := exec.Command(prefetchBin, filename, "3s")
+	require.NoError(t, cmd.Start())
 }
 
 func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
@@ -224,10 +253,7 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 
 	// not ideal but, short process are hard to catch
 	for _, lib := range prefetchLibs {
-		f, err := os.Open(lib)
-		if err == nil {
-			t.Cleanup(func() { f.Close() })
-		}
+		prefetchLib(t, lib)
 	}
 	time.Sleep(time.Second)
 
@@ -479,6 +505,9 @@ func TestProtocolClassification(t *testing.T) {
 		t.Skip("Classification is not supported")
 	}
 
+	cfg.EnableGoTLSSupport = true
+	cfg.EnableHTTPSMonitoring = true
+	cfg.EnableHTTPMonitoring = true
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
@@ -487,23 +516,26 @@ func TestProtocolClassification(t *testing.T) {
 		// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
 		netlink.SetupDNAT(t)
 		testProtocolClassification(t, tr, "localhost", "2.2.2.2", "1.1.1.1")
-		testProtocolClassificationMapCleanup(t, tr, "localhost", "2.2.2.2", "1.1.1.1:0")
+		testHTTPSClassification(t, tr, "localhost", "2.2.2.2", "1.1.1.1")
+		testProtocolConnectionProtocolMapCleanup(t, tr, "localhost", "2.2.2.2", "1.1.1.1:0")
 	})
 
 	t.Run("with snat", func(t *testing.T) {
 		// SetupDNAT sets up a NAT translation from 6.6.6.6 to 7.7.7.7
 		netlink.SetupSNAT(t)
 		testProtocolClassification(t, tr, "6.6.6.6", "127.0.0.1", "127.0.0.1")
-		testProtocolClassificationMapCleanup(t, tr, "6.6.6.6", "127.0.0.1", "127.0.0.1:0")
+		testHTTPSClassification(t, tr, "6.6.6.6", "127.0.0.1", "127.0.0.1")
+		testProtocolConnectionProtocolMapCleanup(t, tr, "6.6.6.6", "127.0.0.1", "127.0.0.1:0")
 	})
 
 	t.Run("without nat", func(t *testing.T) {
 		testProtocolClassification(t, tr, "localhost", "127.0.0.1", "127.0.0.1")
-		testProtocolClassificationMapCleanup(t, tr, "localhost", "127.0.0.1", "127.0.0.1:0")
+		testHTTPSClassification(t, tr, "localhost", "127.0.0.1", "127.0.0.1")
+		testProtocolConnectionProtocolMapCleanup(t, tr, "localhost", "127.0.0.1", "127.0.0.1:0")
 	})
 }
 
-func testProtocolClassificationMapCleanup(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	t.Run("protocol cleanup", func(t *testing.T) {
 		if tr.ebpfTracer.Type() == connection.EBPFFentry {
 			t.Skip("protocol classification not supported for fentry tracer")
@@ -558,7 +590,7 @@ func testProtocolClassificationMapCleanup(t *testing.T, tr *Tracer, clientHost, 
 		}
 
 		client.CloseIdleConnections()
-		waitForConnectionsWithProtocol(t, tr, targetAddr, HTTPServer.address, network.ProtocolHTTP)
+		waitForConnectionsWithProtocol(t, tr, targetAddr, HTTPServer.address, network.ProtocolHTTP, tlsNotExpected)
 		HTTPServer.Shutdown()
 
 		gRPCServer, err := grpc.NewServer(HTTPServer.address)
@@ -572,7 +604,7 @@ func testProtocolClassificationMapCleanup(t *testing.T, tr *Tracer, clientHost, 
 		defer grpcClient.Close()
 		_ = grpcClient.HandleUnary(context.Background(), "test")
 		gRPCServer.Stop()
-		waitForConnectionsWithProtocol(t, tr, targetAddr, gRPCServer.Address, network.ProtocolHTTP2)
+		waitForConnectionsWithProtocol(t, tr, targetAddr, gRPCServer.Address, network.ProtocolHTTP2, tlsNotExpected)
 	})
 }
 
@@ -650,11 +682,11 @@ func TestJavaInjection(t *testing.T) {
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
 
 				ctx.extras["testfile"] = createJavaTempFile(t, testdataDir)
-				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
+				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
-				require.True(t, javatestutil.RunJavaVersion(t, "openjdk:8u151-jre", "JustWait"), "Failed running Java version")
+				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:8u151-jre", "JustWait"), "Failed running Java version")
 			},
 			validation: commonValidation,
 			teardown:   commonTearDown,
@@ -670,7 +702,7 @@ func TestJavaInjection(t *testing.T) {
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
 
 				ctx.extras["testfile"] = createJavaTempFile(t, testdataDir)
-				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
+				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
 
 				// testing allow/block list, as Allow list have higher priority
 				// this test will pass normally
@@ -679,9 +711,8 @@ func TestJavaInjection(t *testing.T) {
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
-				require.True(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait"), "Failed running Java version")
-				var fake testing.T
-				require.Falsef(t, javatestutil.RunJavaVersion(&fake, "openjdk:21-oraclelinux8", "AnotherWait"), "AnotherWait should not be attached")
+				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait"), "Failed running Java version")
+				require.Error(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "AnotherWait"), "AnotherWait should not be attached")
 			},
 			validation: commonValidation,
 			teardown:   commonTearDown,
@@ -696,7 +727,7 @@ func TestJavaInjection(t *testing.T) {
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
 
 				ctx.extras["testfile"] = createJavaTempFile(t, testdataDir)
-				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
+				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
 
 				// block the agent attachment
 				cfg.JavaAgentAllowRegex = ""
@@ -704,9 +735,8 @@ func TestJavaInjection(t *testing.T) {
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
-				require.True(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "AnotherWait"), "Failed running Java version")
-				var fake testing.T
-				require.Falsef(t, javatestutil.RunJavaVersion(&fake, "openjdk:21-oraclelinux8", "JustWait"), "JustWait should not be attached")
+				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "AnotherWait"), "Failed running Java version")
+				require.Error(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait"), "JustWait should not be attached")
 			},
 			validation: commonValidation,
 			teardown:   commonTearDown,
@@ -720,16 +750,15 @@ func TestJavaInjection(t *testing.T) {
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
 
 				ctx.extras["testfile"] = createJavaTempFile(t, testdataDir)
-				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
+				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
 
 				// block the agent attachment
 				cfg.JavaAgentAllowRegex = ".*JustWait.*"
 				cfg.JavaAgentBlockRegex = ".*AnotherWait.*"
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				require.True(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait"), "Failed running Java version")
-				var fake testing.T
-				require.Falsef(t, javatestutil.RunJavaVersion(&fake, "openjdk:21-oraclelinux8", "AnotherWait"), "AnotherWait should not be attached")
+				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait"), "Failed running Java version")
+				require.Error(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "AnotherWait"), "AnotherWait should not be attached")
 			},
 			validation: commonValidation,
 			teardown:   commonTearDown,
@@ -743,14 +772,14 @@ func TestJavaInjection(t *testing.T) {
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
 
 				ctx.extras["testfile"] = createJavaTempFile(t, testdataDir)
-				cfg.JavaAgentArgs += " testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
+				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx.extras["testfile"].(string))
 
 				// allow has a higher priority
 				cfg.JavaAgentAllowRegex = ".*JustWait.*"
 				cfg.JavaAgentBlockRegex = ".*JustWait.*"
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				require.True(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait"), "Failed running Java version")
+				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "JustWait"), "Failed running Java version")
 			},
 			validation: commonValidation,
 			teardown:   commonTearDown,
@@ -764,7 +793,7 @@ func TestJavaInjection(t *testing.T) {
 				cfg.CollectTCPConns = true
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				require.True(t, javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://httpbin.org/anything/java-tls-request", regexp.MustCompile("Response code = .*")), "Failed running Java version")
+				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://httpbin.org/anything/java-tls-request", regexp.MustCompile("Response code = .*")), "Failed running Java version")
 			},
 			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
 				// Iterate through active connections until we find connection created above
@@ -980,7 +1009,7 @@ func testHTTPsGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) 
 
 	tr := setupTracer(t, cfg)
 
-	gotls.RunServer(t, serverPort)
+	require.NoError(t, gotls.RunServer(t, serverPort))
 	reqs := make(requestsMap)
 	for i := 0; i < expectedOccurrences; i++ {
 		resp, err := client.Get(fmt.Sprintf("https://localhost:%s/status/%d", serverPort, 200+i))
@@ -999,7 +1028,7 @@ func testHTTPsGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Conf
 		expectedOccurrences = 10
 	)
 
-	gotls.RunServer(t, serverPort)
+	require.NoError(t, gotls.RunServer(t, serverPort))
 
 	client := &nethttp.Client{
 		Transport: &nethttp.Transport{
@@ -1081,7 +1110,7 @@ func TestTLSClassification(t *testing.T) {
 					time.Sleep(5 * time.Second)
 					clientSuccess = prototls.RunClientOpenssl(t, "localhost", "44330", scenario.openSSLCommand)
 				}()
-				prototls.RunServerOpenssl(t, "44330", "-www")
+				require.NoError(t, prototls.RunServerOpenssl(t, "44330", "-www"))
 				wg.Wait()
 				if !clientSuccess {
 					t.Fatalf("openssl client failed")
@@ -1178,4 +1207,66 @@ func (m requestsMap) String() string {
 	}
 
 	return result.String()
+}
+
+func skipIfHTTPSNotSupported(t *testing.T, _ testContext) {
+	if !httpsSupported(t) {
+		t.Skip("https is not supported")
+	}
+}
+
+func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+	skipFunc := composeSkips(skipIfHTTPSNotSupported)
+	skipFunc(t, testContext{
+		serverAddress: serverHost,
+		serverPort:    httpsPort,
+		targetAddress: targetHost,
+	})
+
+	defaultDialer := &net.Dialer{
+		LocalAddr: &net.TCPAddr{
+			IP: net.ParseIP(clientHost),
+		},
+	}
+
+	serverAddress := net.JoinHostPort(serverHost, httpsPort)
+	targetAddress := net.JoinHostPort(targetHost, httpsPort)
+	tests := []protocolClassificationAttributes{
+		{
+			name: "HTTPs request",
+			context: testContext{
+				serverPort:    httpsPort,
+				serverAddress: serverAddress,
+				targetAddress: targetAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				closer, err := testutil.HTTPPythonServer(t, ctx.serverAddress, testutil.Options{
+					EnableKeepAlives: false,
+					EnableTLS:        true,
+				})
+				require.NoError(t, err)
+				t.Cleanup(closer)
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := nethttp.Client{
+					Transport: &nethttp.Transport{
+						TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+						DialContext:     defaultDialer.DialContext,
+					},
+				}
+				resp, err := client.Get(fmt.Sprintf("https://%s/200/request-1", ctx.targetAddress))
+				require.NoError(t, err)
+				_, _ = io.Copy(io.Discard, resp.Body)
+				_ = resp.Body.Close()
+				client.CloseIdleConnections()
+			},
+			validation: validateProtocolConnection(network.ProtocolHTTP, tlsExpected),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testProtocolClassificationInner(t, tt, tr)
+		})
+	}
 }
