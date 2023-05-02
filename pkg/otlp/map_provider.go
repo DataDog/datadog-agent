@@ -44,7 +44,7 @@ exporters:
 service:
   telemetry:
     metrics:
-      level: none
+      level: basic
   pipelines:
     traces:
       receivers: [otlp]
@@ -81,7 +81,7 @@ exporters:
 service:
   telemetry:
     metrics:
-      level: none
+      level: basic
   pipelines:
     metrics:
       receivers: [otlp]
