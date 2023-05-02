@@ -125,7 +125,9 @@ spec:
               systemProbe:
                 logLevel: TRACE
                 env:
-                  - name:  DD_RUNTIME_SECURITY_CONFIG_LOG_PATTERNS
+                  - name: HOST_PROC
+                    value: "/host/root/proc"
+                  - name: DD_RUNTIME_SECURITY_CONFIG_LOG_PATTERNS
                     value: "module.APIServer.*"
                   - name: DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR
                     value: "/tmp/runtime-security.d"
@@ -139,7 +141,12 @@ spec:
               - configMap:
                   name: cws-test-policy
                 name: cws-test-policy
+              - name: host-root-proc
+                hostPath:
+                  path: /host/proc
             volumeMounts:
+              - name: host-root-proc
+                mountPath: /host/root/proc
               - name: cws-test-policy
                 mountPath: /tmp/runtime-security.d/test.policy
                 subPath: test.policy
