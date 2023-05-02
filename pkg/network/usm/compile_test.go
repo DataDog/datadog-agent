@@ -18,13 +18,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-func TestHttpCompile(t *testing.T) {
+func TestUSMCompile(t *testing.T) {
 	if !rtcHTTPSupported(t) {
-		t.Skip("HTTP Runtime compilation not supported on this kernel version")
+		t.Skip("USM Runtime compilation not supported on this kernel version")
 	}
 	cfg := config.New()
 	cfg.BPFDebug = true
-	_, err := getRuntimeCompiledHTTP(cfg)
+	_, err := getRuntimeCompiledUSM(cfg)
 	require.NoError(t, err)
 }
 
