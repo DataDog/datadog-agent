@@ -169,20 +169,20 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 		},
 	}
 
-	for _, test := range tests {
-		fetch, err := exec.LookPath(test.fetchCmd[0])
-		test.commandFound = err == nil
-		if !test.commandFound {
-			//t.Skipf("%s not found; skipping test.", test.fetchCmd)
-			continue
-		}
+	if lddFound {
+		for index := range tests {
+			fetch, err := exec.LookPath(tests[index].fetchCmd[0])
+			tests[index].commandFound = err == nil
+			if !tests[index].commandFound {
+				continue
+			}
+			linked, _ := exec.Command(ldd, fetch).Output()
 
-		linked, _ := exec.Command(ldd, fetch).Output()
-
-		for _, lib := range tlsLibs {
-			libSSLPath := lib.FindString(string(linked))
-			if _, err := os.Stat(libSSLPath); err == nil {
-				test.prefetchLibs = append(test.prefetchLibs, libSSLPath)
+			for _, lib := range tlsLibs {
+				libSSLPath := lib.FindString(string(linked))
+				if _, err := os.Stat(libSSLPath); err == nil {
+					tests[index].prefetchLibs = append(tests[index].prefetchLibs, libSSLPath)
+				}
 			}
 		}
 	}
