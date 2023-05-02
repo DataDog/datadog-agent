@@ -43,17 +43,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func httpSupported() bool {
-	currKernelVersion, err := kernel.HostVersion()
-	if err != nil {
-		log.Warn("could not determine the current kernel version. http monitoring disabled.")
-		return false
-	}
-	return currKernelVersion >= http.MinimumKernelVersion
+	// kv is declared in `tracer_linux_test.go`.
+	return kv >= http.MinimumKernelVersion
 }
 
 func httpsSupported() bool {
@@ -61,11 +55,11 @@ func httpsSupported() bool {
 }
 
 func goTLSSupported() bool {
-	return config.New().EnableRuntimeCompiler && httpSupported() && httpsSupported()
-}
-
-func javaTLSSupported() bool {
-	return httpSupported() && httpsSupported()
+	if !httpsSupported() {
+		return false
+	}
+	cfg := config.New()
+	return cfg.EnableRuntimeCompiler || cfg.EnableCORE
 }
 
 func classificationSupported(config *config.Config) bool {
@@ -641,7 +635,7 @@ func createJavaTempFile(t *testing.T, dir string) string {
 }
 
 func TestJavaInjection(t *testing.T) {
-	if !javaTLSSupported() {
+	if !httpsSupported() {
 		t.Skip("java TLS not supported on the current platform")
 	}
 

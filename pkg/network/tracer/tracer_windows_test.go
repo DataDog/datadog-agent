@@ -12,6 +12,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
+func setKernelVersion() err {
+	return nil
+}
+
 func httpSupported() bool {
 	return false
 }

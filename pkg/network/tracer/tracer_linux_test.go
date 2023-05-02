@@ -54,8 +54,9 @@ import (
 var kv470 kernel.Version = kernel.VersionCode(4, 7, 0)
 var kv kernel.Version
 
-func init() {
-	kv, _ = kernel.HostVersion()
+func setKernelVersion() (err error) {
+	kv, err = kernel.HostVersion()
+	return
 }
 
 func doDNSQuery(t *testing.T, domain string, serverIP string) (*net.UDPAddr, *net.UDPAddr) {

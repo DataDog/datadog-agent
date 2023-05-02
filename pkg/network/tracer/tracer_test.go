@@ -61,6 +61,10 @@ func TestMain(m *testing.M) {
 		fmt.Println("RUNTIME COMPILER ENABLED")
 	}
 
+	if err := setKernelVersion(); err != nil {
+		fmt.Println("Failed to get kernel version, halting the tests", err)
+		os.Exit(1)
+	}
 	driver.Init(&syscfg.Config{ClosedSourceAllowed: true})
 	os.Exit(m.Run())
 }
