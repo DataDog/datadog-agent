@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/status"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
@@ -119,7 +120,7 @@ func NewSubmitter(config config.Component, hostname string) (*CheckSubmitter, er
 	status.UpdateDropCheckPayloads(dropCheckPayloads)
 
 	// Forwarder initialization
-	processAPIEndpoints, err := GetAPIEndpoints(config)
+	processAPIEndpoints, err := endpoint.GetAPIEndpoints(config)
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +140,7 @@ func NewSubmitter(config config.Component, hostname string) (*CheckSubmitter, er
 	podForwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
 	podForwarder := forwarder.NewDefaultForwarder(config, podForwarderOpts)
 
-	processEventsAPIEndpoints, err := getEventsAPIEndpoints(config)
+	processEventsAPIEndpoints, err := endpoint.GetEventsAPIEndpoints(config)
 	if err != nil {
 		return nil, err
 	}
