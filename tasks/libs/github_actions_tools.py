@@ -58,7 +58,7 @@ def trigger_macos_workflow(
     if bucket_branch is not None:
         inputs["bucket_branch"] = bucket_branch
 
-    if version_cache_file_content is not None:
+    if version_cache_file_content:
         inputs["version_cache"] = version_cache_file_content
 
     print(
