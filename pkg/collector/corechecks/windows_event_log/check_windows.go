@@ -73,11 +73,30 @@ type initConfig struct {
 
 // Run executes the check
 func (c *Check) Run() error {
+	if !c.sub.Running() {
+		err := c.sub.Start()
+		if err != nil {
+			return fmt.Errorf("failed to start event subscription: %v", err)
+		}
+	}
+
 	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}
 
+	err = c.fetchEvents(sender)
+	if err != nil {
+		// An error occurred fetching events, stop the subscription
+		c.sub.Stop()
+		return fmt.Errorf("failed to fetch events: %v", err)
+	}
+
+	sender.Commit()
+	return nil
+}
+
+func (c *Check) fetchEvents(sender aggregator.Sender) error {
 	var lastEvent *evtapi.EventRecord
 	eventsSinceLastBookmark := 0
 
@@ -122,7 +141,7 @@ func (c *Check) Run() error {
 	if lastEvent != nil {
 		// Also update the bookmark at the end of the check, regardless of the bookmark_frequency
 		if eventsSinceLastBookmark > 0 {
-			err = c.updateBookmark(lastEvent)
+			err := c.updateBookmark(lastEvent)
 			if err != nil {
 				c.Warnf("failed to save bookmark: %v", err)
 			}
@@ -130,7 +149,6 @@ func (c *Check) Run() error {
 		evtapi.EvtCloseRecord(c.evtapi, lastEvent.EventRecordHandle)
 	}
 
-	sender.Commit()
 	return nil
 }
 
@@ -155,9 +173,14 @@ func (c *Check) bookmarkPersistentCacheKey() string {
 	return fmt.Sprintf("%s_%s", c.ID(), "bookmark")
 }
 
-// update the bookmark handle to point to event and then update the persistent cache
+// update the bookmark handle to point to event, add the bookmark to the subscription, and then update the persistent cache
 func (c *Check) updateBookmark(event *evtapi.EventRecord) error {
-	c.bookmark.Update(event.EventRecordHandle)
+	err := c.bookmark.Update(event.EventRecordHandle)
+	if err != nil {
+		return fmt.Errorf("failed to update bookmark: %v", err)
+	}
+
+	c.sub.SetBookmark(c.bookmark)
 
 	bookmarkXML, err := c.bookmark.Render()
 	if err != nil {
@@ -410,6 +433,10 @@ func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data,
 func (c *Check) Cancel() {
 	if c.sub != nil {
 		c.sub.Stop()
+	}
+
+	if c.bookmark != nil {
+		c.bookmark.Close()
 	}
 
 	if c.systemRenderContext != evtapi.EventRenderContextHandle(0) {

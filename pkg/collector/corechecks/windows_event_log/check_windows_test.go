@@ -9,6 +9,7 @@ package evtlog
 
 import (
 	"fmt"
+	"os/exec"
 	"testing"
 	"time"
 
@@ -144,6 +145,75 @@ start: old
 
 	eventsCollected := countEvents(check, senderEventCall, s.numEvents)
 
+	require.Equal(s.T(), s.numEvents, eventsCollected)
+	s.sender.AssertExpectations(s.T())
+}
+
+// Test that the check can detect and recover from a broken subscription
+func (s *GetEventsTestSuite) TestRecoverFromBrokenSubscription() {
+	// create tmpdir to store bookmark
+	testDir := s.T().TempDir()
+	mockConfig := config.Mock(s.T())
+	mockConfig.Set("run_path", testDir)
+
+	// Put events in the log
+	err := s.ti.GenerateEvents(s.eventSource, s.numEvents)
+	require.NoError(s.T(), err)
+
+	instanceConfig := []byte(fmt.Sprintf(`
+path: %s
+start: old
+`,
+		s.channelPath))
+
+	check, err := s.newCheck(instanceConfig, nil)
+	require.NoError(s.T(), err)
+	defer check.Cancel()
+
+	s.sender.On("Commit").Return()
+	senderEventCall := s.sender.On("Event", mock.Anything)
+
+	eventsCollected := countEvents(check, senderEventCall, s.numEvents)
+	require.Equal(s.T(), s.numEvents, eventsCollected)
+	s.sender.AssertExpectations(s.T())
+
+	// bookmark should have been updated
+	// remove the source/channel to break the subscription
+	s.ti.RemoveSource(s.channelPath, s.eventSource)
+	s.ti.RemoveChannel(s.channelPath)
+	cmd := exec.Command("powershell.exe", "-Command", "Restart-Service", "EventLog", "-Force")
+	out, err := cmd.CombinedOutput()
+	require.NoError(s.T(), err, "Failed to restart EventLog service %s", out)
+
+	// check run should return an error
+	err = check.Run()
+	require.Error(s.T(), err)
+
+	// check run should fail again, this time to create the subscription
+	err = check.Run()
+	require.Error(s.T(), err)
+
+	// reinstall source/channel
+	err = s.ti.InstallChannel(s.channelPath)
+	require.NoError(s.T(), err)
+	err = s.ti.InstallSource(s.channelPath, s.eventSource)
+	require.NoError(s.T(), err)
+
+	// next check run should recreate subscription and resume from bookmark and read 0 events
+	resetSender(s.sender)
+	s.sender.On("Commit").Return()
+	senderEventCall = s.sender.On("Event", mock.Anything)
+	eventsCollected = countEvents(check, senderEventCall, 0)
+	require.Equal(s.T(), uint(0), eventsCollected)
+	s.sender.AssertExpectations(s.T())
+
+	// put some new events in the log and ensure the check sees them
+	err = s.ti.GenerateEvents(s.eventSource, s.numEvents)
+	require.NoError(s.T(), err)
+	resetSender(s.sender)
+	s.sender.On("Commit").Return()
+	senderEventCall = s.sender.On("Event", mock.Anything)
+	eventsCollected = countEvents(check, senderEventCall, s.numEvents)
 	require.Equal(s.T(), s.numEvents, eventsCollected)
 	s.sender.AssertExpectations(s.T())
 }
