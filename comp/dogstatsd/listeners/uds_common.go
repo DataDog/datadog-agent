@@ -14,10 +14,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners/ratelimit"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners/ratelimit"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -47,14 +47,15 @@ type UDSListener struct {
 	oobPoolManager          *packets.PoolManager
 	trafficCapture          replay.Component
 	OriginDetection         bool
+	config                  config.ConfigReader
 
 	dogstatsdMemBasedRateLimiter bool
 }
 
 // NewUDSListener returns an idle UDS Statsd listener
-func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, capture replay.Component) (*UDSListener, error) {
-	socketPath := config.Datadog.GetString("dogstatsd_socket")
-	originDetection := config.Datadog.GetBool("dogstatsd_origin_detection")
+func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, cfg config.ConfigReader, capture replay.Component) (*UDSListener, error) {
+	socketPath := cfg.GetString("dogstatsd_socket")
+	originDetection := cfg.GetBool("dogstatsd_origin_detection")
 
 	address, addrErr := net.ResolveUnixAddr("unixgram", socketPath)
 	if addrErr != nil {
@@ -93,7 +94,7 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 		}
 	}
 
-	if rcvbuf := config.Datadog.GetInt("dogstatsd_so_rcvbuf"); rcvbuf != 0 {
+	if rcvbuf := cfg.GetInt("dogstatsd_so_rcvbuf"); rcvbuf != 0 {
 		if err := conn.SetReadBuffer(rcvbuf); err != nil {
 			return nil, fmt.Errorf("could not set socket rcvbuf: %s", err)
 		}
@@ -102,11 +103,12 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 	listener := &UDSListener{
 		OriginDetection: originDetection,
 		conn:            conn,
-		packetsBuffer: packets.NewBuffer(uint(config.Datadog.GetInt("dogstatsd_packet_buffer_size")),
-			config.Datadog.GetDuration("dogstatsd_packet_buffer_flush_timeout"), packetOut),
+		packetsBuffer: packets.NewBuffer(uint(cfg.GetInt("dogstatsd_packet_buffer_size")),
+			cfg.GetDuration("dogstatsd_packet_buffer_flush_timeout"), packetOut),
 		sharedPacketPoolManager:      sharedPacketPoolManager,
 		trafficCapture:               capture,
-		dogstatsdMemBasedRateLimiter: config.Datadog.GetBool("dogstatsd_mem_based_rate_limiter.enabled"),
+		dogstatsdMemBasedRateLimiter: cfg.GetBool("dogstatsd_mem_based_rate_limiter.enabled"),
+		config:                       cfg,
 	}
 
 	if listener.trafficCapture != nil {
@@ -148,7 +150,7 @@ func (l *UDSListener) Listen() {
 	var rateLimiter *ratelimit.MemBasedRateLimiter
 	if l.dogstatsdMemBasedRateLimiter {
 		var err error
-		rateLimiter, err = ratelimit.BuildMemBasedRateLimiter()
+		rateLimiter, err = ratelimit.BuildMemBasedRateLimiter(l.config)
 		if err != nil {
 			log.Errorf("Cannot use DogStatsD rate limiter: %v", err)
 			rateLimiter = nil
@@ -277,7 +279,7 @@ func (l *UDSListener) Stop() {
 	l.conn.Close()
 
 	// Socket cleanup on exit
-	socketPath := config.Datadog.GetString("dogstatsd_socket")
+	socketPath := l.config.GetString("dogstatsd_socket")
 	if len(socketPath) > 0 {
 		err := os.Remove(socketPath)
 		if err != nil {

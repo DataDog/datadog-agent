@@ -7,13 +7,15 @@ package mapper
 
 import (
 	"sort"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestMappings(t *testing.T) {
@@ -330,7 +332,7 @@ dogstatsd_mapper_profiles:
 
 	for _, scenario := range scenarios {
 		t.Run(scenario.name, func(t *testing.T) {
-			mapper, err := getMapper(scenario.config)
+			mapper, err := getMapper(t, scenario.config)
 			require.NoError(t, err)
 
 			var actualResults []MapResult
@@ -505,21 +507,22 @@ dogstatsd_mapper_profiles:
 
 	for _, scenario := range scenarios {
 		t.Run(scenario.name, func(t *testing.T) {
-			_, err := getMapper(scenario.config)
+			_, err := getMapper(t, scenario.config)
 			require.Error(t, err)
 			require.Contains(t, err.Error(), scenario.expectedError)
 		})
 	}
 }
 
-func getMapper(configString string) (*MetricMapper, error) {
+func getMapper(t *testing.T, configString string) (*MetricMapper, error) {
 	var profiles []config.MappingProfile
-	config.Datadog.SetConfigType("yaml")
-	err := config.Datadog.ReadConfig(strings.NewReader(configString))
-	if err != nil {
-		return nil, err
-	}
-	err = config.Datadog.UnmarshalKey("dogstatsd_mapper_profiles", &profiles)
+
+	cfg := fxutil.Test[configComponent.Component](t, fx.Options(
+		configComponent.MockModule,
+		fx.Replace(configComponent.MockParams{ConfigYaml: configString}),
+	))
+
+	err := cfg.(config.ConfigLoader).UnmarshalKey("dogstatsd_mapper_profiles", &profiles)
 	if err != nil {
 		return nil, err
 	}

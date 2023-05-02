@@ -16,18 +16,28 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-var (
-	packetPoolUDP        = packets.NewPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
-	packetPoolManagerUDP = packets.NewPoolManager(packetPoolUDP)
-)
+func fulfillDepsWithConfig(t testing.TB, overrides map[string]interface{}) config.Component {
+	return fxutil.Test[config.Component](t, fx.Options(
+		config.MockModule,
+		fx.Replace(config.MockParams{Overrides: overrides}),
+	))
+}
+
+func newPacketPoolManagerUDP(cfg config.Component) *packets.PoolManager {
+	packetPoolUDP := packets.NewPool(cfg.GetInt("dogstatsd_buffer_size"))
+	return packets.NewPoolManager(packetPoolUDP)
+}
 
 func TestNewUDPListener(t *testing.T) {
-	s, err := NewUDPListener(nil, packetPoolManagerUDP, nil)
+	config := fulfillDepsWithConfig(t, map[string]interface{}{})
+	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(config), config, nil)
 	assert.NotNil(t, s)
 	assert.Nil(t, err)
 
@@ -37,9 +47,12 @@ func TestNewUDPListener(t *testing.T) {
 func TestStartStopUDPListener(t *testing.T) {
 	port, err := getAvailableUDPPort()
 	require.Nil(t, err)
-	config.Datadog.SetDefault("dogstatsd_port", port)
-	config.Datadog.SetDefault("dogstatsd_non_local_traffic", false)
-	s, err := NewUDPListener(nil, packetPoolManagerUDP, nil)
+	cfg := map[string]interface{}{}
+	cfg["dogstatsd_port"] = port
+	cfg["dogstatsd_non_local_traffic"] = false
+
+	config := fulfillDepsWithConfig(t, cfg)
+	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(config), config, nil)
 	require.NotNil(t, s)
 
 	assert.Nil(t, err)
@@ -68,9 +81,12 @@ func TestStartStopUDPListener(t *testing.T) {
 func TestUDPNonLocal(t *testing.T) {
 	port, err := getAvailableUDPPort()
 	require.Nil(t, err)
-	config.Datadog.SetDefault("dogstatsd_port", port)
-	config.Datadog.SetDefault("dogstatsd_non_local_traffic", true)
-	s, err := NewUDPListener(nil, packetPoolManagerUDP, nil)
+
+	cfg := map[string]interface{}{}
+	cfg["dogstatsd_port"] = port
+	cfg["dogstatsd_non_local_traffic"] = true
+	config := fulfillDepsWithConfig(t, cfg)
+	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(config), config, nil)
 	assert.Nil(t, err)
 	require.NotNil(t, s)
 
@@ -92,9 +108,12 @@ func TestUDPNonLocal(t *testing.T) {
 func TestUDPLocalOnly(t *testing.T) {
 	port, err := getAvailableUDPPort()
 	require.Nil(t, err)
-	config.Datadog.SetDefault("dogstatsd_port", port)
-	config.Datadog.SetDefault("dogstatsd_non_local_traffic", false)
-	s, err := NewUDPListener(nil, packetPoolManagerUDP, nil)
+
+	cfg := map[string]interface{}{}
+	cfg["dogstatsd_port"] = port
+	cfg["dogstatsd_non_local_traffic"] = false
+	config := fulfillDepsWithConfig(t, cfg)
+	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(config), config, nil)
 	assert.Nil(t, err)
 	require.NotNil(t, s)
 
@@ -119,10 +138,13 @@ func TestUDPReceive(t *testing.T) {
 	var contents = []byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2")
 	port, err := getAvailableUDPPort()
 	require.Nil(t, err)
-	config.Datadog.SetDefault("dogstatsd_port", port)
+
+	cfg := map[string]interface{}{}
+	cfg["dogstatsd_port"] = port
 
 	packetChannel := make(chan packets.Packets)
-	s, err := NewUDPListener(packetChannel, packetPoolManagerUDP, nil)
+	config := fulfillDepsWithConfig(t, cfg)
+	s, err := NewUDPListener(packetChannel, newPacketPoolManagerUDP(config), config, nil)
 	require.NotNil(t, s)
 	assert.Nil(t, err)
 
@@ -156,10 +178,14 @@ func TestNewUDPListenerWhenBusyWithSoRcvBufSet(t *testing.T) {
 	assert.NotNil(t, conn)
 	assert.Nil(t, err)
 	defer conn.Close()
-	config.Datadog.SetDefault("dogstatsd_so_rcvbuf", 1)
-	config.Datadog.SetDefault("dogstatsd_port", port)
-	config.Datadog.SetDefault("dogstatsd_non_local_traffic", false)
-	s, err := NewUDPListener(nil, packetPoolManagerUDP, nil)
+
+	cfg := map[string]interface{}{}
+	cfg["dogstatsd_so_rcvbuf"] = 1
+	cfg["dogstatsd_port"] = port
+	cfg["dogstatsd_non_local_traffic"] = false
+
+	config := fulfillDepsWithConfig(t, cfg)
+	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(config), config, nil)
 	assert.Nil(t, s)
 	assert.NotNil(t, err)
 }

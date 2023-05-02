@@ -12,7 +12,7 @@ import (
 	"errors"
 	"net"
 
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 )
 
 // ErrLinuxOnly is emitted on non-linux platforms

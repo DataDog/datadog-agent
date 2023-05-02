@@ -22,21 +22,21 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 )
 
 func TestUDSPassCred(t *testing.T) {
 	dir := t.TempDir()
 	socketPath := filepath.Join(dir, "dsd.socket")
 
-	mockConfig := config.Mock(t)
-	mockConfig.Set("dogstatsd_socket", socketPath)
-	mockConfig.Set("dogstatsd_origin_detection", true)
+	cfg := map[string]interface{}{}
+	cfg["dogstatsd_socket"] = socketPath
+	cfg["dogstatsd_origin_detection"] = true
 
 	pool := packets.NewPool(512)
 	poolManager := packets.NewPoolManager(pool)
-	s, err := NewUDSListener(nil, poolManager, nil)
+	config := fulfillDepsWithConfig(t, cfg)
+	s, err := NewUDSListener(nil, poolManager, config, nil)
 	defer s.Stop()
 
 	assert.Nil(t, err)

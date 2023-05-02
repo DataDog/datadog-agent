@@ -17,7 +17,7 @@ import (
 	"github.com/Microsoft/go-winio"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 )
 
 const pipeName = "TestPipeName"

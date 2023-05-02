@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -44,15 +44,15 @@ type UDPListener struct {
 }
 
 // NewUDPListener returns an idle UDP Statsd listener
-func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, capture replay.Component) (*UDPListener, error) {
+func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, cfg config.ConfigReader, capture replay.Component) (*UDPListener, error) {
 	var err error
 	var url string
 
-	if config.Datadog.GetBool("dogstatsd_non_local_traffic") == true {
+	if cfg.GetBool("dogstatsd_non_local_traffic") {
 		// Listen to all network interfaces
-		url = fmt.Sprintf(":%d", config.Datadog.GetInt("dogstatsd_port"))
+		url = fmt.Sprintf(":%d", cfg.GetInt("dogstatsd_port"))
 	} else {
-		url = net.JoinHostPort(config.GetBindHost(), config.Datadog.GetString("dogstatsd_port"))
+		url = net.JoinHostPort(config.GetBindHostFromConfig(cfg), cfg.GetString("dogstatsd_port"))
 	}
 
 	addr, err := net.ResolveUDPAddr("udp", url)
@@ -64,15 +64,15 @@ func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 		return nil, fmt.Errorf("can't listen: %s", err)
 	}
 
-	if rcvbuf := config.Datadog.GetInt("dogstatsd_so_rcvbuf"); rcvbuf != 0 {
+	if rcvbuf := cfg.GetInt("dogstatsd_so_rcvbuf"); rcvbuf != 0 {
 		if err := conn.SetReadBuffer(rcvbuf); err != nil {
 			return nil, fmt.Errorf("could not set socket rcvbuf: %s", err)
 		}
 	}
 
-	bufferSize := config.Datadog.GetInt("dogstatsd_buffer_size")
-	packetsBufferSize := config.Datadog.GetInt("dogstatsd_packet_buffer_size")
-	flushTimeout := config.Datadog.GetDuration("dogstatsd_packet_buffer_flush_timeout")
+	bufferSize := cfg.GetInt("dogstatsd_buffer_size")
+	packetsBufferSize := cfg.GetInt("dogstatsd_packet_buffer_size")
+	flushTimeout := cfg.GetDuration("dogstatsd_packet_buffer_flush_timeout")
 
 	buffer := make([]byte, bufferSize)
 	packetsBuffer := packets.NewBuffer(uint(packetsBufferSize), flushTimeout, packetOut)
