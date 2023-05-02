@@ -45,8 +45,8 @@
     "suse": {
         "azure": {
             "x86_64": {
-                "sles-12": "urn,SUSE:sles-12-sp5-byos:gen1:2022.03.08",
-                "sles-15": "urn,SUSE:sles-15-sp2-byos:gen1:2022.03.09",
+                "sles-12": "urn,SUSE:sles-12-sp5-byos:gen1:2023.03.21",
+                "sles-15": "urn,SUSE:sles-15-sp2-byos:gen1:2022.11.09",
                 "opensuse-15-3": "urn,SUSE:opensuse-leap-15-3:gen1:2022.01.28"
             }
         },
