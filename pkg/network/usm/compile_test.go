@@ -21,7 +21,7 @@ import (
 
 func TestHttpCompile(t *testing.T) {
 	if !rtcHTTPSupported() {
-		t.Skip("HTTP Runtime compilation not supported on this kernel version")
+		t.Skip("USM Runtime compilation not supported on this kernel version")
 	}
 	cfg := config.New()
 	cfg.BPFDebug = true
