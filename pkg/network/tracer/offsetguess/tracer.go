@@ -51,8 +51,10 @@ var tcpKprobeCalledString = map[uint64]string{
 }
 
 type tracerOffsetGuesser struct {
-	m      *manager.Manager
-	status *TracerStatus
+	m          *manager.Manager
+	status     *TracerStatus
+	guessTCPv6 bool
+	guessUDPv6 bool
 }
 
 func NewTracerOffsetGuesser() (OffsetGuesser, error) {
@@ -353,7 +355,7 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 		t.status.Offset_saddr_fl4++
 		if t.status.Offset_saddr_fl4 >= threshold {
 			// Let's skip all other flowi4 fields
-			t.logAndAdvance(notApplicable, flowi6EntryState(t.status))
+			t.logAndAdvance(notApplicable, t.flowi6EntryState())
 			t.status.Fl4_offsets = disabled
 			break
 		}
@@ -364,7 +366,7 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 		}
 		t.status.Offset_daddr_fl4++
 		if t.status.Offset_daddr_fl4 >= threshold {
-			t.logAndAdvance(notApplicable, flowi6EntryState(t.status))
+			t.logAndAdvance(notApplicable, t.flowi6EntryState())
 			t.status.Fl4_offsets = disabled
 			break
 		}
@@ -375,19 +377,19 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 		}
 		t.status.Offset_sport_fl4++
 		if t.status.Offset_sport_fl4 >= threshold {
-			t.logAndAdvance(notApplicable, flowi6EntryState(t.status))
+			t.logAndAdvance(notApplicable, t.flowi6EntryState())
 			t.status.Fl4_offsets = disabled
 			break
 		}
 	case GuessDPortFl4:
 		if t.status.Dport_fl4 == htons(expected.dportFl4) {
-			t.logAndAdvance(t.status.Offset_dport_fl4, flowi6EntryState(t.status))
+			t.logAndAdvance(t.status.Offset_dport_fl4, t.flowi6EntryState())
 			t.status.Fl4_offsets = enabled
 			break
 		}
 		t.status.Offset_dport_fl4++
 		if t.status.Offset_dport_fl4 >= threshold {
-			t.logAndAdvance(notApplicable, flowi6EntryState(t.status))
+			t.logAndAdvance(notApplicable, t.flowi6EntryState())
 			t.status.Fl4_offsets = disabled
 			break
 		}
@@ -513,7 +515,7 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 	}
 
 	// This assumes `GuessDAddrIPv6` is the last stage of the process.
-	if t.status.What == uint64(GuessDAddrIPv6) && (t.status.Tcpv6_enabled == disabled && t.status.Udpv6_enabled == disabled) {
+	if t.status.What == uint64(GuessDAddrIPv6) && !t.guessUDPv6 {
 		return t.setReadyState(mp)
 	}
 
@@ -534,8 +536,8 @@ func (t *tracerOffsetGuesser) setReadyState(mp *ebpf.Map) error {
 	return nil
 }
 
-func flowi6EntryState(status *TracerStatus) GuessWhat {
-	if status.Udpv6_enabled == disabled {
+func (t *tracerOffsetGuesser) flowi6EntryState() GuessWhat {
+	if !t.guessUDPv6 {
 		return GuessNetNS
 	}
 	return GuessSAddrFl6
@@ -582,18 +584,12 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 		cProcName[i] = int8(ch)
 	}
 
+	t.guessUDPv6 = cfg.CollectUDPv6Conns
+	t.guessTCPv6 = cfg.CollectTCPv6Conns
 	t.status = &TracerStatus{
-		State:         uint64(StateChecking),
-		Proc:          Proc{Comm: cProcName},
-		Tcpv6_enabled: enabled,
-		Udpv6_enabled: enabled,
-		What:          uint64(GuessSAddr),
-	}
-	if !cfg.CollectTCPv6Conns {
-		t.status.Tcpv6_enabled = disabled
-	}
-	if !cfg.CollectUDPv6Conns {
-		t.status.Udpv6_enabled = disabled
+		State: uint64(StateChecking),
+		Proc:  Proc{Comm: cProcName},
+		What:  uint64(GuessSAddr),
 	}
 
 	// if we already have the offsets, just return
@@ -602,7 +598,7 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 		return t.getConstantEditors(), nil
 	}
 
-	eventGenerator, err := newTracerEventGenerator(cfg.CollectUDPv6Conns)
+	eventGenerator, err := newTracerEventGenerator(t.guessUDPv6)
 	if err != nil {
 		return nil, err
 	}
@@ -667,8 +663,8 @@ func (t *tracerOffsetGuesser) getConstantEditors() []manager.ConstantEditor {
 		{Name: "offset_rtt", Value: t.status.Offset_rtt},
 		{Name: "offset_rtt_var", Value: t.status.Offset_rtt_var},
 		{Name: "offset_daddr_ipv6", Value: t.status.Offset_daddr_ipv6},
-		{Name: "tcpv6_enabled", Value: uint64(t.status.Tcpv6_enabled)},
-		{Name: "udpv6_enabled", Value: uint64(t.status.Udpv6_enabled)},
+		{Name: "tcpv6_enabled", Value: boolToUint64(t.guessTCPv6)},
+		{Name: "udpv6_enabled", Value: boolToUint64(t.guessUDPv6)},
 		{Name: "offset_saddr_fl4", Value: t.status.Offset_saddr_fl4},
 		{Name: "offset_daddr_fl4", Value: t.status.Offset_daddr_fl4},
 		{Name: "offset_sport_fl4", Value: t.status.Offset_sport_fl4},
@@ -684,6 +680,13 @@ func (t *tracerOffsetGuesser) getConstantEditors() []manager.ConstantEditor {
 		{Name: "offset_sk_buff_transport_header", Value: t.status.Offset_sk_buff_transport_header},
 		{Name: "offset_sk_buff_head", Value: t.status.Offset_sk_buff_head},
 	}
+}
+
+func boolToUint64(b bool) uint64 {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 type tracerEventGenerator struct {
