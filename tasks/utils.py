@@ -26,6 +26,7 @@ elif sys.platform == "win32":
 else:
     RTLOADER_LIB_NAME = "libdatadog-agent-rtloader.so"
 RTLOADER_HEADER_NAME = "datadog_agent_rtloader.h"
+AGENT_VERSION_CACHE_NAME = "agent-version.cache"
 
 
 def get_all_allowed_repo_branches():
@@ -331,19 +332,56 @@ def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
     return version, pre, commit_number, git_sha, pipeline_id
 
 
+def cache_version(ctx, git_sha_length=7, prefix=None):
+    """
+    Generate a json cache file containing all needed variables used by get_version.
+    """
+    packed_data = {}
+    for maj_version in ['6', '7']:
+        version, pre, commits_since_version, git_sha, pipeline_id = query_version(
+            ctx, git_sha_length, prefix, major_version_hint=maj_version
+        )
+        packed_data[maj_version] = [version, pre, commits_since_version, git_sha, pipeline_id]
+    packed_data["nightly"] = is_allowed_repo_nightly_branch(os.getenv("BUCKET_BRANCH"))
+    with open(AGENT_VERSION_CACHE_NAME, "w") as file:
+        json.dump(packed_data, file, indent=4)
+
+
 def get_version(
     ctx, include_git=False, url_safe=False, git_sha_length=7, prefix=None, major_version='7', include_pipeline_id=False
 ):
-    # we only need the git info for the non omnibus builds, omnibus includes all this information by default
-
     version = ""
-    version, pre, commits_since_version, git_sha, pipeline_id = query_version(
-        ctx, git_sha_length, prefix, major_version_hint=major_version
-    )
+    pipeline_id = os.getenv("CI_PIPELINE_ID")
+    if pipeline_id and pipeline_id.isdigit():
+        try:
+            if not os.path.exists(AGENT_VERSION_CACHE_NAME):
+                ctx.run(
+                    f"aws s3 cp s3://dd-ci-artefacts-build-stable/datadog-agent/{pipeline_id}/{AGENT_VERSION_CACHE_NAME} .",
+                    hide="stdout",
+                )
 
-    is_nightly = is_allowed_repo_nightly_branch(os.getenv("BUCKET_BRANCH"))
-    if pre:
-        version = f"{version}-{pre}"
+            with open(AGENT_VERSION_CACHE_NAME, "r") as file:
+                cache_data = json.load(file)
+
+            version, pre, commits_since_version, git_sha, pipeline_id = cache_data[major_version]
+            is_nightly = cache_data["nightly"]
+
+            if pre:
+                version = f"{version}-{pre}"
+        except (IOError, json.JSONDecodeError, IndexError) as e:
+            # If a cache file is found but corrupted we ignore it.
+            print(f"Error while recovering the version from {AGENT_VERSION_CACHE_NAME}: {e}")
+            version = ""
+    # If we didn't load the cache
+    if not version:
+        # we only need the git info for the non omnibus builds, omnibus includes all this information by default
+        version, pre, commits_since_version, git_sha, pipeline_id = query_version(
+            ctx, git_sha_length, prefix, major_version_hint=major_version
+        )
+
+        is_nightly = is_allowed_repo_nightly_branch(os.getenv("BUCKET_BRANCH"))
+        if pre:
+            version = f"{version}-{pre}"
 
     if not commits_since_version and is_nightly and include_git:
         if url_safe:
