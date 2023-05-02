@@ -37,12 +37,9 @@ const (
 // we can't just `netcat` to the socket, that's why we run a custom python
 // script that will stay up after sending packets.
 func testUDSOriginDetection(t *testing.T) {
-	confComponent := fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule,
-	))
-
-	mockConfig := config.Mock(nil)
 	coreConfig.SetFeatures(t, coreConfig.Docker)
+
+	cfg := map[string]any{}
 
 	// Detect whether we are containerised and set the socket path accordingly
 	var socketVolume string
@@ -58,8 +55,13 @@ func testUDSOriginDetection(t *testing.T) {
 		composeFile = "mount_volume.compose"
 	}
 	socketPath := filepath.Join(dir, "dsd.socket")
-	mockConfig.Set("dogstatsd_socket", socketPath)
-	mockConfig.Set("dogstatsd_origin_detection", true)
+	cfg["dogstatsd_socket"] = socketPath
+	cfg["dogstatsd_origin_detection"] = true
+
+	confComponent := fxutil.Test[config.Component](t, fx.Options(
+		config.MockModule,
+		fx.Replace(config.MockParams{Overrides: cfg}),
+	))
 
 	// Start DSD
 	packetsChannel := make(chan packets.Packets)
