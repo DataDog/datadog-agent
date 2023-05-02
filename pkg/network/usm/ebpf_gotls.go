@@ -397,7 +397,7 @@ func (p *GoTLSProgram) registerProcess(binID binaryID, pid pid, mTime syscall.Ti
 
 func (p *GoTLSProgram) unregisterProcess(pid pid) {
 	p.lock.RLock()
-	binID, found := p.processes[pid]
+	_, found := p.processes[pid]
 	p.lock.RUnlock()
 	if !found {
 		return
@@ -405,6 +405,10 @@ func (p *GoTLSProgram) unregisterProcess(pid pid) {
 
 	p.lock.Lock()
 	defer p.lock.Unlock()
+	binID, found := p.processes[pid]
+	if !found {
+		return
+	}
 	delete(p.processes, pid)
 
 	bin, found := p.binaries[binID]

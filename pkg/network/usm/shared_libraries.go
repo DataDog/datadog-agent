@@ -265,7 +265,7 @@ func (r *soRegistry) cleanup() {
 // unregister a pid if exists, unregisterCB will be called if his uniqueProcessesCount == 0
 func (r *soRegistry) unregister(pid uint32) {
 	r.m.RLock()
-	paths, found := r.byPID[pid]
+	_, found := r.byPID[pid]
 	r.m.RUnlock()
 	if !found {
 		return
@@ -273,6 +273,10 @@ func (r *soRegistry) unregister(pid uint32) {
 
 	r.m.Lock()
 	defer r.m.Unlock()
+	paths, found := r.byPID[pid]
+	if !found {
+		return
+	}
 	for pathID := range paths {
 		reg, found := r.byID[pathID]
 		if !found {
