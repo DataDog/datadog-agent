@@ -35,42 +35,40 @@ type ApproverMonitor struct {
 func (d *ApproverMonitor) SendStats() error {
 	buffer := d.stats[1-d.activeStatsBuffer]
 	iterator := buffer.Iterate()
-	stats := make([]ApproverStats, d.numCPU)
-	globalStats := make([]ApproverStats, model.LastApproverEventType)
+	statsAcrossAllCPUs := make([]ApproverStats, d.numCPU)
+	statsByEventType := make([]ApproverStats, model.LastApproverEventType)
 
 	var eventType uint32
-	for iterator.Next(&eventType, &stats) {
-		if int(eventType) >= cap(globalStats) {
+	for iterator.Next(&eventType, &statsAcrossAllCPUs) {
+		if int(eventType) >= cap(statsByEventType) {
 			// this should never happen
 			continue
 		}
 
 		// aggregate all cpu stats
-		for _, stat := range stats {
-			globalStats[eventType].EventApproved += stat.EventApproved
+		for _, stat := range statsAcrossAllCPUs {
+			statsByEventType[eventType].EventApprovedByBasename += stat.EventApprovedByBasename
+			statsByEventType[eventType].EventApprovedByFlag += stat.EventApprovedByFlag
 		}
 	}
 
-	for eventType, stats := range globalStats {
-		if stats.EventApproved == 0 {
+	for eventType, stats := range statsByEventType {
+		if stats.EventApprovedByBasename == 0 && stats.EventApprovedByFlag == 0 {
 			continue
 		}
 
-		var tags []string
-		approverType := "undefined"
-		if stats.IsBasenameApprover > 0 {
-			approverType = "basename"
-		} else if stats.IsFlagApprover > 0 {
-			approverType = "flag"
+		eventTypeTag := fmt.Sprintf("event_type:%s", model.EventType(eventType).String())
+		tagsForBasenameApprovedEvents := []string{
+			"approver_type:basename",
+			eventTypeTag,
+		}
+		tagsForFlagApprovedEvents := []string{
+			"approver_type:flag",
+			eventTypeTag,
 		}
 
-		tags = []string{
-			fmt.Sprintf("approver_type:%s", approverType),
-			fmt.Sprintf("event_type:%s", model.EventType(eventType).String()),
-		}
-
-		_ = d.statsdClient.Count(metrics.MetricEventApproved, int64(stats.EventApproved), tags, 1.0)
-
+		_ = d.statsdClient.Count(metrics.MetricEventApproved, int64(stats.EventApprovedByBasename), tagsForBasenameApprovedEvents, 1.0)
+		_ = d.statsdClient.Count(metrics.MetricEventApproved, int64(stats.EventApprovedByFlag), tagsForFlagApprovedEvents, 1.0)
 	}
 	for i := uint32(0); i != uint32(model.LastApproverEventType); i++ {
 		_ = buffer.Put(i, d.statsZero)
