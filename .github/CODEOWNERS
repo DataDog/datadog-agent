@@ -326,7 +326,7 @@
 /pkg/network/usm/                       @DataDog/universal-service-monitoring
 /pkg/ebpf/                              @DataDog/ebpf-platform
 /pkg/ebpf/bytecode/runtime/conntrack.go @DataDog/Networks @DataDog/universal-service-monitoring
-/pkg/ebpf/bytecode/runtime/http.go      @DataDog/Networks @DataDog/universal-service-monitoring
+/pkg/ebpf/bytecode/runtime/usm.go       @DataDog/Networks @DataDog/universal-service-monitoring
 /pkg/ebpf/bytecode/runtime/oom-kill.go  @DataDog/container-integrations
 /pkg/ebpf/bytecode/runtime/runtime-security.go  @DataDog/agent-security
 /pkg/ebpf/bytecode/runtime/tcp-queue-length.go  @DataDog/container-integrations

@@ -23,8 +23,8 @@
     - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer-debug.o.${PACKAGE_ARCH} /tmp/system-probe/tracer-debug.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/offset-guess.o.${PACKAGE_ARCH} /tmp/system-probe/offset-guess.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/offset-guess-debug.o.${PACKAGE_ARCH} /tmp/system-probe/offset-guess-debug.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/http.o.${PACKAGE_ARCH} /tmp/system-probe/http.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/http-debug.o.${PACKAGE_ARCH} /tmp/system-probe/http-debug.o
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/usm.o.${PACKAGE_ARCH} /tmp/system-probe/usm.o
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/usm-debug.o.${PACKAGE_ARCH} /tmp/system-probe/usm-debug.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/dns.o.${PACKAGE_ARCH} /tmp/system-probe/dns.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/dns-debug.o.${PACKAGE_ARCH} /tmp/system-probe/dns-debug.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/conntrack.o.${PACKAGE_ARCH} /tmp/system-probe/conntrack.o
@@ -34,10 +34,10 @@
     - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security-offset-guesser.o.${PACKAGE_ARCH} /tmp/system-probe/runtime-security-offset-guesser.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/oom-kill-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/oom-kill-co-re.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/tcp-queue-length-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/tcp-queue-length-co-re.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/http-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/http-co-re.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/http-debug-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/http-debug-co-re.o
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/usm-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/usm-co-re.o
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/usm-debug-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/usm-debug-co-re.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer.c.${PACKAGE_ARCH} /tmp/system-probe/tracer.c
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/http.c.${PACKAGE_ARCH} /tmp/system-probe/http.c
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/usm.c.${PACKAGE_ARCH} /tmp/system-probe/usm.c
     - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security.c.${PACKAGE_ARCH} /tmp/system-probe/runtime-security.c
     - $S3_CP_CMD $S3_ARTIFACTS_URI/conntrack.c.${PACKAGE_ARCH} /tmp/system-probe/conntrack.c
     - $S3_CP_CMD $S3_ARTIFACTS_URI/oom-kill.c.${PACKAGE_ARCH} /tmp/system-probe/oom-kill.c

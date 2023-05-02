@@ -503,7 +503,7 @@ func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeComp
 	telemetryByAsset := map[string]runtime.CompilationTelemetry{
 		"tracer":          runtime.Tracer.GetTelemetry(),
 		"conntrack":       runtime.Conntrack.GetTelemetry(),
-		"http":            runtime.Http.GetTelemetry(),
+		"usm":             runtime.Usm.GetTelemetry(),
 		"oomKill":         runtime.OomKill.GetTelemetry(),
 		"runtimeSecurity": runtime.RuntimeSecurity.GetTelemetry(),
 		"tcpQueueLength":  runtime.TcpQueueLength.GetTelemetry(),
