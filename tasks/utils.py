@@ -368,8 +368,9 @@ def get_version(
 
             if pre:
                 version = f"{version}-{pre}"
-        except (IOError, json.JSONDecodeError, IndexError):
+        except (IOError, json.JSONDecodeError, IndexError) as e:
             # If a cache file is found but corrupted we ignore it.
+            print(f"Error while recovering the version from {AGENT_VERSION_CACHE_NAME}: {e}")
             version = ""
     # If we didn't load the cache
     if not version:
