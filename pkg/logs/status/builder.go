@@ -113,18 +113,19 @@ func (b *Builder) getIntegrations() []Integration {
 
 // getTailers returns all the information about the logs integrations.
 func (b *Builder) getTailers() []Tailer {
-	var tailers []Tailer
-	for _, tailer := range b.tailers.All() {
+	tailers := b.tailers.All()
+	tailerStatus := make([]Tailer, 0, len(tailers))
+	for _, tailer := range tailers {
 
 		info := tailer.GetInfo().Rendered()
 
-		tailers = append(tailers, Tailer{
+		tailerStatus = append(tailerStatus, Tailer{
 			Id:   tailer.GetId(),
 			Type: tailer.GetType(),
 			Info: info,
 		})
 	}
-	return tailers
+	return tailerStatus
 }
 
 // groupSourcesByName groups all logs sources by name so that they get properly displayed

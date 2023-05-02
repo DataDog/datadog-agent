@@ -67,7 +67,7 @@ func (c *CountInfo) Info() []string {
 
 // MappedInfo collects multiple info messages with a unique key
 type MappedInfo struct {
-	mu       sync.Mutex
+	lock     sync.Mutex
 	key      string
 	messages map[string]string
 }
@@ -82,15 +82,15 @@ func NewMappedInfo(key string) *MappedInfo {
 
 // SetMessage sets a message with a unique key
 func (m *MappedInfo) SetMessage(key string, message string) {
-	defer m.mu.Unlock()
-	m.mu.Lock()
+	m.lock.Lock()
+	defer m.lock.Unlock()
 	m.messages[key] = message
 }
 
 // RemoveMessage removes a message with a unique key
 func (m *MappedInfo) RemoveMessage(key string) {
-	defer m.mu.Unlock()
-	m.mu.Lock()
+	m.lock.Lock()
+	defer m.lock.Unlock()
 	delete(m.messages, key)
 }
 
@@ -101,8 +101,8 @@ func (m *MappedInfo) InfoKey() string {
 
 // Info returns the info
 func (m *MappedInfo) Info() []string {
-	defer m.mu.Unlock()
-	m.mu.Lock()
+	m.lock.Lock()
+	defer m.lock.Unlock()
 	info := []string{}
 	for _, v := range m.messages {
 		info = append(info, v)
@@ -112,7 +112,7 @@ func (m *MappedInfo) Info() []string {
 
 // InfoRegistry keeps track of info providers
 type InfoRegistry struct {
-	mu   sync.Mutex
+	lock sync.Mutex
 	info map[string]InfoProvider
 }
 
@@ -125,30 +125,24 @@ func NewInfoRegistry() *InfoRegistry {
 
 // Register adds an info provider
 func (i *InfoRegistry) Register(info InfoProvider) {
-	i.mu.Lock()
-	defer i.mu.Unlock()
+	i.lock.Lock()
+	defer i.lock.Unlock()
 	key := info.InfoKey()
-
-	if _, ok := i.info[key]; ok {
-		i.info[key] = info
-		return
-	}
-
 	i.info[key] = info
 }
 
 // Get returns the provider for a given key, or nil
 func (i *InfoRegistry) Get(key string) InfoProvider {
-	i.mu.Lock()
-	defer i.mu.Unlock()
+	i.lock.Lock()
+	defer i.lock.Unlock()
 	return i.info[key]
 }
 
 // All returns all registered info providers.
 func (i *InfoRegistry) All() []InfoProvider {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	info := []InfoProvider{}
+	i.lock.Lock()
+	defer i.lock.Unlock()
+	info := make([]InfoProvider, 0, len(i.info))
 	for _, v := range i.info {
 		info = append(info, v)
 	}
@@ -158,8 +152,8 @@ func (i *InfoRegistry) All() []InfoProvider {
 
 // Rendered renders the info for display on the status page.
 func (i *InfoRegistry) Rendered() map[string][]string {
-	i.mu.Lock()
-	defer i.mu.Unlock()
+	i.lock.Lock()
+	defer i.lock.Unlock()
 	info := make(map[string][]string)
 
 	for _, v := range i.info {

@@ -89,7 +89,7 @@ func (t *TailerContainer[T]) Remove(tailer T) {
 func (t *TailerContainer[T]) All() []T {
 	t.RLock()
 	defer t.RUnlock()
-	tailers := []T{}
+	tailers := make([]T, 0, len(t.tailers))
 	for _, tailer := range t.tailers {
 		tailers = append(tailers, tailer)
 	}
@@ -107,7 +107,7 @@ func (t *TailerContainer[T]) Count() int {
 func (t *TailerContainer[T]) Tailers() []Tailer {
 	t.RLock()
 	defer t.RUnlock()
-	tailers := []Tailer{}
+	tailers := make([]Tailer, 0, len(t.tailers))
 	for _, tailer := range t.tailers {
 		tailers = append(tailers, tailer)
 	}
