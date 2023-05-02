@@ -99,7 +99,6 @@ platforms:
       windows = platform_name.include?("win")
       sles15 = platform_name.include?("sles-15")
       windows2008 = windows && platform_name.include?("2008")
-      debian9 = platform_name.include?("debian-9")
 
       if windows
         windows_platforms << platform_name
@@ -164,24 +163,13 @@ platforms:
       <% end %>
     username: <%= vm_username %>
     password: <%= vm_password %>
-  <% if (ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH']) || debian9 %>
+  <% if ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH'] %>
   lifecycle:
     post_create:
-    <% if ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH'] %>
     - remote: |
         sudo mkdir -p <%= ENV['KITCHEN_CI_MOUNT_PATH'] %>;
         sudo chmod a+rwx <%= ENV['KITCHEN_CI_MOUNT_PATH'] %>;
         sudo ln -s <%= ENV['KITCHEN_CI_MOUNT_PATH'] %> <%= ENV['KITCHEN_CI_ROOT_PATH'] %>;
-    <% end %>
-    <% if debian9 %>
-    - local: echo 'Updating the sources.list file to use archive.debian.org for the stretch suites'
-    - remote: |
-        # Stretch has been moved to archive.debian.org
-        # See https://lists.debian.org/debian-devel-announce/2023/03/msg00006.html
-        sudo sed -i 's/debian-archive.trafficmanager.net/archive.debian.org/g' /etc/apt/sources.list
-        # The stretch-updates dist doesn't exist in archive.debian.org/debian
-        sudo sed -i '/stretch-updates/d' /etc/apt/sources.list
-    <% end %>
   <% end %>
 
   transport:
