@@ -98,6 +98,7 @@ func (agg *FlowAggregator) run() {
 			return
 		case flow := <-agg.flowIn:
 			agg.receivedFlowCount.Inc()
+			flow.ExporterAddr = []byte{172, 17, 0, 2}
 			agg.flowAcc.add(flow)
 		}
 	}
