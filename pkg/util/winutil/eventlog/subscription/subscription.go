@@ -32,6 +32,9 @@ type PullSubscription interface {
 	// https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtclose
 	Stop()
 
+	// Return true is the subscription is active (started), false otherwise (stopped)
+	Running() bool
+
 	// EventsAvailable returns a readonly channel that will contain a value to signal the user to call GetEvents().
 	// Create the subscription with the WithNotifyEventsAvailable option to enable this channel.
 	//
@@ -42,6 +45,9 @@ type PullSubscription interface {
 	// If no events are available returns nil,nil
 	// You must close every event record handle returned from this function.
 	GetEvents() ([]*evtapi.EventRecord, error)
+
+	// Set the subscription to "StartAfterBookmark"
+	SetBookmark(bookmark evtbookmark.Bookmark)
 }
 
 type pullSubscription struct {
@@ -138,8 +144,7 @@ func WithWindowsEventLogAPI(api evtapi.API) PullSubscriptionOption {
 
 func WithStartAfterBookmark(bookmark evtbookmark.Bookmark) PullSubscriptionOption {
 	return func(q *pullSubscription) {
-		q.bookmark = bookmark
-		q.subscribeOriginFlag = evtapi.EvtSubscribeStartAfterBookmark
+		q.SetBookmark(bookmark)
 	}
 }
 
@@ -163,6 +168,15 @@ func WithNotifyEventsAvailable() PullSubscriptionOption {
 
 func (q *pullSubscription) EventsAvailable() <-chan struct{} {
 	return q.notifyEventsAvailable
+}
+
+func (q *pullSubscription) Running() bool {
+	return q.started
+}
+
+func (q *pullSubscription) SetBookmark(bookmark evtbookmark.Bookmark) {
+	q.bookmark = bookmark
+	q.subscribeOriginFlag = evtapi.EvtSubscribeStartAfterBookmark
 }
 
 func (q *pullSubscription) Start() error {
