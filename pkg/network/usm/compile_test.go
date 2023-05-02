@@ -16,24 +16,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func TestHttpCompile(t *testing.T) {
-	if !rtcHTTPSupported() {
+	currKernelVersion, err := kernel.HostVersion()
+	require.NoError(t, err)
+	if currKernelVersion < http.MinimumKernelVersion {
 		t.Skip("USM Runtime compilation not supported on this kernel version")
 	}
 	cfg := config.New()
 	cfg.BPFDebug = true
-	_, err := getRuntimeCompiledUSM(cfg)
+	_, err = getRuntimeCompiledUSM(cfg)
 	require.NoError(t, err)
-}
-
-func rtcHTTPSupported() bool {
-	currKernelVersion, err := kernel.HostVersion()
-	if err != nil {
-		log.Warn("could not determine the current kernel version. http monitoring disabled.")
-		return false
-	}
-	return currKernelVersion >= http.MinimumKernelVersion
 }
