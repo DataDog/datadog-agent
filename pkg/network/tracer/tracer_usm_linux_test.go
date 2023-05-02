@@ -271,7 +271,7 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 	cfg.ProtocolClassificationEnabled = true
 	cfg.CollectTCPConns = true
 	tr := setupTracer(t, cfg)
-	fentryTracerEnabled := tr.ebpfTracer.Type() == connection.EBPFFentry
+	fentryTracerEnabled := tr.ebpfTracer.Type() == connection.TracerTypeFentry
 
 	// not ideal but, short process are hard to catch
 	for _, lib := range prefetchLibs {
@@ -559,7 +559,7 @@ func TestProtocolClassification(t *testing.T) {
 
 func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	t.Run("protocol cleanup", func(t *testing.T) {
-		if tr.ebpfTracer.Type() == connection.EBPFFentry {
+		if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
 			t.Skip("protocol classification not supported for fentry tracer")
 		}
 		t.Cleanup(func() { tr.ebpfTracer.Pause() })
@@ -825,7 +825,7 @@ func TestJavaInjection(t *testing.T) {
 						if key.Path.Content == "/anything/java-tls-request" {
 							t.Log("path content found")
 							// socket filter is not supported on fentry tracer
-							if tr.ebpfTracer.Type() == connection.EBPFFentry {
+							if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
 								// so we return early if the test was successful until now
 								return true
 							}
@@ -1155,7 +1155,7 @@ func TestTLSClassification(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tr.ebpfTracer.Type() == connection.EBPFFentry {
+			if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
 				t.Skip("protocol classification not supported for fentry tracer")
 			}
 			t.Cleanup(func() { tr.removeClient(clientID) })

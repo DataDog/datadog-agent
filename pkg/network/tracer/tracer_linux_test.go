@@ -1622,11 +1622,11 @@ func TestKprobeAttachWithKprobeEvents(t *testing.T) {
 
 	tr := setupTracer(t, cfg)
 
-	if tr.ebpfTracer.Type() == connection.EBPFFentry {
+	if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
 		t.Skip("skipped on Fargate")
 	}
 
-	cmd := []string{"curl", "-k", "-o/dev/null", "facebook.com"}
+	cmd := []string{"curl", "-k", "-o/dev/null", "example.com"}
 	exec.Command(cmd[0], cmd[1:]...).Run()
 
 	stats := ddebpf.GetProbeStats()

@@ -23,7 +23,7 @@ func enableProbe(enabled map[probes.ProbeFuncName]struct{}, name probes.ProbeFun
 
 // enabledProbes returns a map of probes that are enabled per config settings.
 // This map does not include the probes used exclusively in the offset guessing process.
-func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeFuncName]struct{}, error) {
+func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes.ProbeFuncName]struct{}, error) {
 	enabled := make(map[probes.ProbeFuncName]struct{}, 0)
 
 	kv410 := kernel.VersionCode(4, 1, 0)
@@ -58,7 +58,11 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeFuncNa
 		enableProbe(enabled, probes.InetCskAcceptReturn)
 		enableProbe(enabled, probes.InetCskListenStop)
 		enableProbe(enabled, probes.TCPSetState)
-		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPRetransmit, probes.TCPRetransmitPre470, kv470))
+		// special case for tcp_retransmit_skb probe: on CO-RE,
+		// we want to load the version that makes use of
+		// the tcp_sock field, which is the same as the
+		// runtime compiled implementation
+		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer || coreTracer, kv, probes.TCPRetransmit, probes.TCPRetransmitPre470, kv470))
 		enableProbe(enabled, probes.TCPRetransmitRet)
 
 		missing, err := ebpf.VerifyKernelFuncs("sockfd_lookup_light")
@@ -86,7 +90,7 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeFuncNa
 		} else {
 			enableProbe(enabled, probes.UDPRecvMsgPre410)
 		}
-		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.UDPRecvMsgReturn, probes.UDPRecvMsgReturnPre470, kv470))
+		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer || coreTracer, kv, probes.UDPRecvMsgReturn, probes.UDPRecvMsgReturnPre470, kv470))
 		if c.CollectIPv6Conns {
 			enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.IP6MakeSkb, probes.IP6MakeSkbPre470, kv470))
 			if kv >= kv5190 || runtimeTracer {
@@ -98,13 +102,13 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeFuncNa
 			} else {
 				enableProbe(enabled, probes.UDPv6RecvMsgPre410)
 			}
-			enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.UDPv6RecvMsgReturn, probes.UDPv6RecvMsgReturnPre470, kv470))
+			enableProbe(enabled, selectVersionBasedProbe(runtimeTracer || coreTracer, kv, probes.UDPv6RecvMsgReturn, probes.UDPv6RecvMsgReturnPre470, kv470))
 			enableProbe(enabled, probes.IP6MakeSkbReturn)
 			enableProbe(enabled, probes.Inet6Bind)
 			enableProbe(enabled, probes.Inet6BindRet)
 		}
 
-		if runtimeTracer || kv >= kv470 {
+		if runtimeTracer || coreTracer || kv >= kv470 {
 			missing, err := ebpf.VerifyKernelFuncs("skb_consume_udp", "__skb_free_datagram_locked", "skb_free_datagram_locked")
 			if err != nil {
 				return nil, fmt.Errorf("error verifying kernel function presence: %s", err)

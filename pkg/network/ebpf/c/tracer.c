@@ -674,7 +674,15 @@ int kprobe__udpv6_recvmsg_pre_4_7_0(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     struct msghdr *msg = (struct msghdr *)PT_REGS_PARM2(ctx);
     int flags = (int)PT_REGS_PARM5(ctx);
+#ifdef COMPILE_CORE
+    // on CO-RE we use only use the map to check if the
+    // receive was a peek, since we the use the kprobes
+    // on `skb_consume_udp` (and alternatives). These
+    // kprobes explicitly check the `udp_recv_sock` map
+    handle_udp_recvmsg(sk, msg, flags, udp_recv_sock);
+#else
     handle_udp_recvmsg(sk, msg, flags, udpv6_recv_sock);
+#endif
 }
 
 SEC("kprobe/udp_recvmsg")
@@ -690,7 +698,15 @@ int kprobe__udpv6_recvmsg_pre_4_1_0(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM2(ctx);
     struct msghdr *msg = (struct msghdr *)PT_REGS_PARM3(ctx);
     int flags = (int)PT_REGS_PARM6(ctx);
+#ifdef COMPILE_CORE
+    // on CO-RE we use only use the map to check if the
+    // receive was a peek, since we the use the kprobes
+    // on `skb_consume_udp` (and alternatives). These
+    // kprobes explicitly check the `udp_recv_sock` map
+    handle_udp_recvmsg(sk, msg, flags, udp_recv_sock);
+#else
     handle_udp_recvmsg(sk, msg, flags, udpv6_recv_sock);
+#endif
 }
 
 SEC("kretprobe/udp_recvmsg")

@@ -4,6 +4,7 @@
 #include "bpf_helpers.h"
 #include "bpf_telemetry.h"
 #include "tracer-stats.h"
+#include "tracer-events.h"
 #include "tracer-maps.h"
 #include "sock.h"
 
