@@ -304,6 +304,8 @@ func (c *PythonCheck) Configure(integrationConfigDigest uint64, data integration
 		s.FinalizeCheckServiceTag()
 	}
 
+	s.SetNoIndex(commonOptions.NoIndex)
+
 	c.initConfig = string(initConfig)
 	c.instanceConfig = string(data)
 
