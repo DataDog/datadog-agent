@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -52,7 +53,6 @@ const (
 type ebpfProgram struct {
 	*errtelemetry.Manager
 	cfg                   *config.Config
-	offsets               []manager.ConstantEditor
 	subprograms           []subprogram
 	probesResolvers       []probeResolver
 	mapCleaner            *ddebpf.MapCleaner
@@ -101,7 +101,7 @@ var http2TailCall = manager.TailCallRoute{
 	},
 }
 
-func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, connectionProtocolMap, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
+func newEBPFProgram(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: httpInFlightMap},
@@ -196,7 +196,6 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, connecti
 	program := &ebpfProgram{
 		Manager:               errtelemetry.NewManager(mgr, bpfTelemetry),
 		cfg:                   c,
-		offsets:               offsets,
 		subprograms:           subprograms,
 		probesResolvers:       subprogramProbesResolvers,
 		tailCallRouter:        tailCalls,
@@ -296,7 +295,13 @@ func (e *ebpfProgram) initPrebuilt() error {
 		return err
 	}
 	defer bc.Close()
-	return e.init(bc, manager.Options{})
+
+	var offsets []manager.ConstantEditor
+	if offsets, err = offsetguess.RunTracerOffsetGuessing(e.cfg); err != nil {
+		return err
+	}
+
+	return e.init(bc, manager.Options{ConstantEditors: offsets})
 }
 
 func (e *ebpfProgram) setupMapCleaner() {
@@ -406,7 +411,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 			},
 		},
 	}
-	options.ConstantEditors = e.offsets
 	addBoolConst(&options, e.cfg.EnableHTTPMonitoring, "http_monitoring_enabled")
 	addBoolConst(&options, e.cfg.EnableHTTP2Monitoring, "http2_monitoring_enabled")
 	addBoolConst(&options, e.cfg.EnableKafkaMonitoring, "kafka_monitoring_enabled")

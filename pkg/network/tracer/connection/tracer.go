@@ -114,7 +114,7 @@ func newTelemetry() telemetry {
 }
 
 // NewTracer creates a new tracer
-func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry *errtelemetry.EBPFTelemetry) (Tracer, error) {
+func NewTracer(config *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) (Tracer, error) {
 	mgrOptions := manager.Options{
 		// Extend RLIMIT_MEMLOCK (8) size
 		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
@@ -136,7 +136,6 @@ func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTel
 			probes.ConnectionProtocolMap:             {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			probes.ConnectionTupleToSocketSKBConnMap: {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			probes.TLSConnectionMap:                  {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries}},
-		ConstantEditors: constants,
 	}
 
 	closedChannelSize := defaultClosedChannelSize

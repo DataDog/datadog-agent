@@ -27,14 +27,14 @@ import (
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 
-	manager "github.com/DataDog/ebpf-manager"
-
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/native"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 const InterfaceLocalMulticastIPv6 = "ff01::1"
@@ -48,6 +48,11 @@ const (
 var tcpKprobeCalledString = map[uint64]string{
 	tcpGetSockOptKProbeNotCalled: "tcp_getsockopt kprobe not executed",
 	tcpGetSockOptKProbeCalled:    "tcp_getsockopt kprobe executed",
+}
+
+var TracerOffsets struct {
+	Constants []manager.ConstantEditor
+	Err       error
 }
 
 type tracerOffsetGuesser struct {
@@ -587,6 +592,10 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 		What:         uint64(GuessSAddr),
 	}
 
+	if !cfg.CollectIPv6Conns {
+		t.status.Ipv6_enabled = disabled
+	}
+
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, err
@@ -595,7 +604,8 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 	// if we already have the offsets, just return
 	err = mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(t.status))
 	if err == nil && State(t.status.State) == StateReady {
-		return t.getConstantEditors(), nil
+		TracerOffsets.Constants = t.getConstantEditors()
+		return TracerOffsets.Constants, nil
 	}
 
 	guessFlowI6 := cfg.CollectIPv6Conns && kv < kernel.VersionCode(5, 18, 0)
@@ -933,4 +943,21 @@ func newUDPServer(addr string) (string, func(), error) {
 		<-done
 	}
 	return ln.LocalAddr().String(), doneFn, nil
+}
+
+func RunTracerOffsetGuessing(cfg *config.Config) ([]manager.ConstantEditor, error) {
+	if TracerOffsets.Err != nil || len(TracerOffsets.Constants) > 0 {
+		// already run
+		return TracerOffsets.Constants, TracerOffsets.Err
+	}
+
+	offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir, cfg.BPFDebug)
+	if err != nil {
+		TracerOffsets.Err = fmt.Errorf("could not read offset bpf module: %s", err)
+		return nil, TracerOffsets.Err
+	}
+	defer offsetBuf.Close()
+
+	TracerOffsets.Constants, TracerOffsets.Err = RunOffsetGuessing(cfg, offsetBuf, NewTracerOffsetGuesser)
+	return TracerOffsets.Constants, TracerOffsets.Err
 }

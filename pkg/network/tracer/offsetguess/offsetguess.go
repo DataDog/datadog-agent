@@ -11,12 +11,14 @@ package offsetguess
 import (
 	"fmt"
 	"math"
+	"time"
 
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 )
 
@@ -119,7 +121,7 @@ func enableProbe(enabled map[probes.ProbeFuncName]struct{}, name probes.ProbeFun
 	enabled[name] = struct{}{}
 }
 
-func SetupOffsetGuesser(guesser OffsetGuesser, config *config.Config, buf bytecode.AssetReader) error {
+func setupOffsetGuesser(guesser OffsetGuesser, config *config.Config, buf bytecode.AssetReader) error {
 	// Enable kernel probes used for offset guessing.
 	offsetMgr := guesser.Manager()
 	offsetOptions := manager.Options{
@@ -157,4 +159,34 @@ func SetupOffsetGuesser(guesser OffsetGuesser, config *config.Config, buf byteco
 	}
 
 	return nil
+}
+
+func RunOffsetGuessing(cfg *config.Config, buf bytecode.AssetReader, newGuesser func() (OffsetGuesser, error)) (editors []manager.ConstantEditor, err error) {
+	// Offset guessing has been flaky for some customers, so if it fails we'll retry it up to 5 times
+	start := time.Now()
+	for i := 0; i < 5; i++ {
+		err = func() error {
+			guesser, err := newGuesser()
+			if err != nil {
+				return err
+			}
+
+			if err = setupOffsetGuesser(guesser, cfg, buf); err != nil {
+				return err
+			}
+
+			editors, err = guesser.Guess(cfg)
+			guesser.Close()
+			return err
+		}()
+
+		if err == nil {
+			log.Infof("offset guessing complete (took %v)", time.Since(start))
+			return editors, nil
+		}
+
+		time.Sleep(1 * time.Second)
+	}
+
+	return nil, err
 }

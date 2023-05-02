@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
@@ -70,9 +71,10 @@ var (
 	}
 
 	// these primarily exist for mocking out in tests
-	coreTracerLoader     = loadCORETracer
-	rcTracerLoader       = loadRuntimeCompiledTracer
-	prebuiltTracerLoader = loadPrebuiltTracer
+	coreTracerLoader          = loadCORETracer
+	rcTracerLoader            = loadRuntimeCompiledTracer
+	prebuiltTracerLoader      = loadPrebuiltTracer
+	tracerOffsetGuesserRunner = offsetguess.RunTracerOffsetGuessing
 
 	errCORETracerNotSupported = errors.New("CO-RE tracer not supported on this platform")
 )
@@ -111,15 +113,15 @@ func addBoolConst(options *manager.Options, flag bool, name string) {
 }
 
 // LoadTracer loads the co-re/prebuilt/runtime compiled network tracer, depending on config
-func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler) (func(), TracerType, error) {
+func LoadTracer(cfg *config.Config, m *manager.Manager, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler) (func(), TracerType, error) {
 	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
-	if config.AttachKprobesWithKprobeEventsABI {
+	if cfg.AttachKprobesWithKprobeEventsABI {
 		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
 	}
 
 	mgrOpts.DefaultKprobeAttachMethod = kprobeAttachMethod
 
-	if config.EnableCORE {
+	if cfg.EnableCORE {
 		err := isCORETracerSupported()
 		if err != nil && err != errCORETracerNotSupported {
 			return nil, TracerTypeCORE, fmt.Errorf("error determining if CO-RE tracer is supported: %w", err)
@@ -127,7 +129,7 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 
 		var closeFn func()
 		if err == nil {
-			closeFn, err = coreTracerLoader(config, m, mgrOpts, perfHandlerTCP)
+			closeFn, err = coreTracerLoader(cfg, m, mgrOpts, perfHandlerTCP)
 			// if it is a verifier error, bail always regardless of
 			// whether a fallback is enabled in config
 			var ve *ebpf.VerifierError
@@ -136,27 +138,36 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 			}
 		}
 
-		if !config.AllowRuntimeCompiledFallback {
+		if cfg.EnableRuntimeCompiler && cfg.AllowRuntimeCompiledFallback {
+			log.Warnf("error loading CO-RE network tracer, falling back to runtime compiled: %s", err)
+		} else if cfg.AllowPrecompiledFallback {
+			log.Warnf("error loading CO-RE network tracer, falling back to pre-compiled: %s", err)
+		} else {
 			return nil, TracerTypeCORE, fmt.Errorf("error loading CO-RE network tracer: %w", err)
 		}
-
-		log.Warnf("error loading CO-RE network tracer, falling back to runtime compiled (if enabled): %s", err)
 	}
 
-	if config.EnableRuntimeCompiler {
-		closeFn, err := rcTracerLoader(config, m, mgrOpts, perfHandlerTCP)
+	if cfg.EnableRuntimeCompiler && (!cfg.EnableCORE || cfg.AllowRuntimeCompiledFallback) {
+		closeFn, err := rcTracerLoader(cfg, m, mgrOpts, perfHandlerTCP)
 		if err == nil {
 			return closeFn, TracerTypeRuntimeCompiled, err
 		}
 
-		if !config.AllowPrecompiledFallback {
+		if !cfg.AllowPrecompiledFallback {
 			return nil, TracerTypeRuntimeCompiled, fmt.Errorf("error compiling network tracer: %w", err)
 		}
 
 		log.Warnf("error compiling network tracer, falling back to pre-compiled: %s", err)
 	}
 
-	closeFn, err := prebuiltTracerLoader(config, m, mgrOpts, perfHandlerTCP)
+	offsets, err := tracerOffsetGuesserRunner(cfg)
+	if err != nil {
+		return nil, TracerTypePrebuilt, fmt.Errorf("error loading prebuilt tracer: error guessing offsets: %s", err)
+	}
+
+	mgrOpts.ConstantEditors = append(mgrOpts.ConstantEditors, offsets...)
+
+	closeFn, err := prebuiltTracerLoader(cfg, m, mgrOpts, perfHandlerTCP)
 	return closeFn, TracerTypePrebuilt, err
 }
 

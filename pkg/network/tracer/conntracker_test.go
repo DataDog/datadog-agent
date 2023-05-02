@@ -18,15 +18,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
 
-	manager "github.com/DataDog/ebpf-manager"
-
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -102,23 +98,15 @@ func TestConntrackers(t *testing.T) {
 	}
 }
 
-func getTracerOffsets(t *testing.T, cfg *config.Config) ([]manager.ConstantEditor, error) {
-	offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir, cfg.BPFDebug)
-	require.NoError(t, err, "could not read offset bpf module")
-	defer offsetBuf.Close()
-	return runOffsetGuessing(cfg, offsetBuf, offsetguess.NewTracerOffsetGuesser)
-}
-
 func setupPrebuiltEBPFConntracker(t *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
-	consts, err := getTracerOffsets(t, cfg)
-	require.NoError(t, err)
-	return NewEBPFConntracker(cfg, nil, consts)
+	cfg.EnableRuntimeCompiler = false
+	return NewEBPFConntracker(cfg, nil)
 }
 
 func setupRuntimeEBPFConntracker(t *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
 	cfg.EnableRuntimeCompiler = true
 	cfg.AllowPrecompiledFallback = false
-	return NewEBPFConntracker(cfg, nil, nil)
+	return NewEBPFConntracker(cfg, nil)
 }
 
 func setupNetlinkConntracker(t *testing.T, cfg *config.Config) (netlink.Conntracker, error) {

@@ -80,10 +80,10 @@ type ebpfConntracker struct {
 }
 
 var ebpfConntrackerRCCreator func(cfg *config.Config) (runtime.CompiledOutput, error) = getRuntimeCompiledConntracker
-var ebpfConntrackerPrebuiltCreator func(*config.Config, []manager.ConstantEditor) (bytecode.AssetReader, []manager.ConstantEditor, error) = getPrebuiltConntracker
+var ebpfConntrackerPrebuiltCreator func(*config.Config) (bytecode.AssetReader, []manager.ConstantEditor, error) = getPrebuiltConntracker
 
 // NewEBPFConntracker creates a netlink.Conntracker that monitor conntrack NAT entries via eBPF
-func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry, constants []manager.ConstantEditor) (netlink.Conntracker, error) {
+func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) (netlink.Conntracker, error) {
 	if !cfg.EnableEbpfConntracker {
 		return nil, fmt.Errorf("ebpf conntracker is disabled")
 	}
@@ -108,8 +108,9 @@ func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelem
 	}
 
 	var isPrebuilt bool
+	var constants []manager.ConstantEditor
 	if buf == nil {
-		buf, constants, err = ebpfConntrackerPrebuiltCreator(cfg, constants)
+		buf, constants, err = ebpfConntrackerPrebuiltCreator(cfg)
 		if err != nil {
 			return nil, fmt.Errorf("could not load prebuilt ebpf conntracker: %w", err)
 		}
@@ -500,7 +501,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, mapErrTelemetryMap, helperE
 	return mgr, nil
 }
 
-func getPrebuiltConntracker(cfg *config.Config, constants []manager.ConstantEditor) (bytecode.AssetReader, []manager.ConstantEditor, error) {
+func getPrebuiltConntracker(cfg *config.Config) (bytecode.AssetReader, []manager.ConstantEditor, error) {
 	buf, err := netebpf.ReadConntrackBPFModule(cfg.BPFDir, cfg.BPFDebug)
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not read bpf module: %s", err)
@@ -512,8 +513,8 @@ func getPrebuiltConntracker(cfg *config.Config, constants []manager.ConstantEdit
 	}
 	defer offsetBuf.Close()
 
-	constants, err = runOffsetGuessing(cfg, offsetBuf, func() (offsetguess.OffsetGuesser, error) {
-		return offsetguess.NewConntrackOffsetGuesser(constants)
+	constants, err := offsetguess.RunOffsetGuessing(cfg, offsetBuf, func() (offsetguess.OffsetGuesser, error) {
+		return offsetguess.NewConntrackOffsetGuesser(cfg)
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not guess offsets for ebpf conntracker: %w", err)

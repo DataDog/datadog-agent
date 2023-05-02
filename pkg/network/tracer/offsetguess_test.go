@@ -139,10 +139,10 @@ func TestOffsetGuess(t *testing.T) {
 	require.NoError(t, err, "could not read offset bpf module")
 	t.Cleanup(func() { offsetBuf.Close() })
 
-	_consts, err := runOffsetGuessing(cfg, offsetBuf, offsetguess.NewTracerOffsetGuesser)
+	_consts, err := offsetguess.RunTracerOffsetGuessing(cfg)
 	require.NoError(t, err)
-	cts, err := runOffsetGuessing(cfg, offsetBuf, func() (offsetguess.OffsetGuesser, error) {
-		return offsetguess.NewConntrackOffsetGuesser(_consts)
+	cts, err := offsetguess.RunOffsetGuessing(cfg, offsetBuf, func() (offsetguess.OffsetGuesser, error) {
+		return offsetguess.NewConntrackOffsetGuesser(cfg)
 	})
 	require.NoError(t, err)
 	_consts = append(_consts, cts...)

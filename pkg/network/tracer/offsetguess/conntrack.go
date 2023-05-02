@@ -36,9 +36,14 @@ type conntrackOffsetGuesser struct {
 	ipv6Enabled uint64
 }
 
-func NewConntrackOffsetGuesser(consts []manager.ConstantEditor) (OffsetGuesser, error) {
+func NewConntrackOffsetGuesser(cfg *config.Config) (OffsetGuesser, error) {
 	var offsetIno uint64
 	var ipv6Enabled uint64
+	consts, err := RunTracerOffsetGuessing(cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	for _, c := range consts {
 		switch c.Name {
 		case "offset_ino":

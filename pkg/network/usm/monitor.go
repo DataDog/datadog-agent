@@ -11,15 +11,13 @@ package usm
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"syscall"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
 
-	manager "github.com/DataDog/ebpf-manager"
-
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -27,6 +25,7 @@ import (
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 type monitorState = string
@@ -78,7 +77,7 @@ type staticTableEntry struct {
 }
 
 // NewMonitor returns a new Monitor instance
-func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, connectionProtocolMap, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (m *Monitor, err error) {
+func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (m *Monitor, err error) {
 	defer func() {
 		// capture error and wrap it
 		if err != nil {
@@ -104,7 +103,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, connectionPr
 		}
 	}
 
-	mgr, err := newEBPFProgram(c, offsets, connectionProtocolMap, sockFD, bpfTelemetry)
+	mgr, err := newEBPFProgram(c, connectionProtocolMap, sockFD, bpfTelemetry)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up http ebpf program: %w", err)
 	}

@@ -1803,8 +1803,6 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 	}
 
 	cfg := testConfig()
-	constants, err := getTracerOffsets(t, cfg)
-	require.NoError(t, err)
 	t.Cleanup(func() {
 		ebpfConntrackerPrebuiltCreator = getPrebuiltConntracker
 		ebpfConntrackerRCCreator = getRuntimeCompiledConntracker
@@ -1820,7 +1818,7 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 			ebpfConntrackerPrebuiltCreator = getPrebuiltConntracker
 			ebpfConntrackerRCCreator = getRuntimeCompiledConntracker
 			if te.prebuiltError {
-				ebpfConntrackerPrebuiltCreator = func(c *config.Config, ce []manager.ConstantEditor) (bytecode.AssetReader, []manager.ConstantEditor, error) {
+				ebpfConntrackerPrebuiltCreator = func(c *config.Config) (bytecode.AssetReader, []manager.ConstantEditor, error) {
 					return nil, nil, assert.AnError
 				}
 			}
@@ -1828,7 +1826,7 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 				ebpfConntrackerRCCreator = func(cfg *config.Config) (rc.CompiledOutput, error) { return nil, assert.AnError }
 			}
 
-			conntracker, err := NewEBPFConntracker(cfg, nil, constants)
+			conntracker, err := NewEBPFConntracker(cfg, nil)
 			if te.err != nil {
 				assert.Error(t, err)
 				assert.Nil(t, conntracker)
@@ -1847,13 +1845,13 @@ func TestConntrackerFallback(t *testing.T) {
 	cfg := testConfig()
 	cfg.EnableEbpfConntracker = false
 	cfg.AllowNetlinkConntrackerFallback = true
-	conntracker, err := newConntracker(cfg, nil, nil)
+	conntracker, err := newConntracker(cfg, nil)
 	assert.NoError(t, err)
 	require.NotNil(t, conntracker)
 	conntracker.Close()
 
 	cfg.AllowNetlinkConntrackerFallback = false
-	conntracker, err = newConntracker(cfg, nil, nil)
+	conntracker, err = newConntracker(cfg, nil)
 	assert.Error(t, err)
 	require.Nil(t, conntracker)
 }
