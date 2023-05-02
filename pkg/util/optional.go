@@ -41,7 +41,7 @@ func (o *Optional[T]) Reset() {
 	o.set = false
 }
 
-// MapOptional returns fct(value) is a value is set, otherwise it returns NewNoneOptional[T2]().
+// MapOptional returns fct(value) if a value is set, otherwise it returns NewNoneOptional[T2]().
 func MapOptional[T1 any, T2 any](optional Optional[T1], fct func(T1) T2) Optional[T2] {
 	value, ok := optional.Get()
 	if !ok {
