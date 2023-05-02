@@ -788,6 +788,16 @@ const (
 	ProcessCacheEntryFromProcFS
 )
 
+var ProcessSources = [...]string{
+	"Event",
+	"KernelMap",
+	"ProcFS",
+}
+
+func ProcSourceToString(source uint64) string {
+	return ProcessSources[source]
+}
+
 // IsContainerRoot returns whether this is a top level process in the container ID
 func (pc *ProcessCacheEntry) IsContainerRoot() bool {
 	return pc.ContainerID != "" && pc.Ancestor != nil && pc.Ancestor.ContainerID == ""
