@@ -214,28 +214,13 @@ func (t *Tracer) getConnTelemetry() map[network.ConnTelemetryType]int64 {
 	//   dns   ( the dns handle stats)
 	//   each of the strings in DriverExpvarNames.  We're interested
 	//   in driver.flowHandleStats, which is "driver_flow_handle_stats"
-	if allstats, err := t.driverInterface.GetStats(); err == nil {
-		if flowStats, ok := allstats["driver_flow_handle_stats"].(map[string]int64); ok {
-			if fme, ok := flowStats["num_flows_missed_max_exceeded"]; ok {
-				tm[network.NPMDriverFlowsMissedMaxExceeded] = fme
-			}
-		}
-	}
 	return tm
 }
 
 // GetStats returns a map of statistics about the current tracer's internal state
 func (t *Tracer) GetStats() (map[string]interface{}, error) {
-	driverStats, err := t.driverInterface.GetStats()
-	if err != nil {
-		log.Errorf("not printing driver stats: %v", err)
-	}
-
 	stats := map[string]interface{}{
 		"state": t.state.GetStats(),
-	}
-	for _, name := range network.DriverExpvarNames {
-		stats[string(name)] = driverStats[name]
 	}
 	return stats, nil
 }
