@@ -218,8 +218,25 @@ func getSystemInfo() (si SYSTEM_INFO) {
 }
 
 // GetCpuInfo returns map of interesting bits of information about the CPU
-func GetCpuInfo() (cpuInfo map[string]string, err error) {
-	cpuInfo = make(map[string]string)
+func GetCpuInfo() (map[string]string, error) {
+	// Initialize cpuInfo with all fields to avoid missing a field which
+	// could be expected by the backend or by users
+	// TODO: make sure that the backend actually works with any subset of fields
+	cpuInfo := map[string]string{
+		"mhz":                    "0",
+		"model_name":             "",
+		"vendor_id":              "",
+		"family":                 "",
+		"cpu_pkgs":               "0",
+		"cpu_numa_nodes":         "0",
+		"cpu_cores":              "0",
+		"cpu_logical_processors": "0",
+		"cache_size_l1":          "0",
+		"cache_size_l2":          "0",
+		"cache_size_l3":          "0",
+		"model":                  "0",
+		"stepping":               "0",
+	}
 
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
 		registryHive,
@@ -266,10 +283,7 @@ func GetCpuInfo() (cpuInfo map[string]string, err error) {
 	cpuInfo["model"] = strconv.Itoa(int((si.wProcessorRevision >> 8) & 0xFF))
 	cpuInfo["stepping"] = strconv.Itoa(int(si.wProcessorRevision & 0xFF))
 
-	// cpuInfo cannot be empty
-	err = nil
-
-	return
+	return cpuInfo, nil
 }
 
 func extract(caption, field string) string {

@@ -295,8 +295,18 @@ func getNativeArchInfo() string {
 }
 
 // GetArchInfo returns basic host architecture information
-func GetArchInfo() (systemInfo map[string]string, err error) {
-	systemInfo = map[string]string{}
+func GetArchInfo() (map[string]string, error) {
+	// Initialize systemInfo with all fields to avoid missing a field which
+	// could be expected by the backend or by users
+	// TODO: make sure that the backend actually works with any subset of fields
+	systemInfo := map[string]string{
+		"hostname":       "",
+		"machine":        "",
+		"os":             "",
+		"kernel_release": "0.0.0",
+		"kernel_name":    "",
+		"family":         "",
+	}
 
 	hostname, err := os.Hostname()
 	if err == nil {
@@ -343,8 +353,5 @@ func GetArchInfo() (systemInfo map[string]string, err error) {
 	}
 	systemInfo["family"] = family
 
-	// systemInfo is never empty so we never return an error
-	err = nil
-
-	return
+	return systemInfo, nil
 }
