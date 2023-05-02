@@ -75,7 +75,6 @@ require (
 	github.com/alecthomas/participle v0.7.1
 	github.com/alecthomas/repr v0.2.0
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137
-	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000 // keep this proto version to not confuse dependabot
 	github.com/aquasecurity/trivy-db v0.0.0-20230105123735-5ce110fc82e1
 	github.com/avast/retry-go/v4 v4.3.4
 	github.com/aws/aws-lambda-go v1.37.0
@@ -161,7 +160,7 @@ require (
 	github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.14.0
+	github.com/prometheus/client_golang v1.15.0
 	github.com/prometheus/client_model v0.3.0
 	github.com/prometheus/procfs v0.9.0
 	github.com/richardartoul/molecule v1.0.1-0.20221107223329-32cfee06a052
@@ -169,7 +168,7 @@ require (
 	github.com/samber/lo v1.37.0
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
 	github.com/secure-systems-lab/go-securesystemslib v0.5.0
-	github.com/shirou/gopsutil/v3 v3.23.2
+	github.com/shirou/gopsutil/v3 v3.23.3
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
 	github.com/sirupsen/logrus v1.9.0
 	github.com/skydive-project/go-debouncer v1.0.0
@@ -195,15 +194,15 @@ require (
 	go.etcd.io/bbolt v1.3.6
 	go.etcd.io/etcd/client/v2 v2.306.0-alpha.0
 	go.mongodb.org/mongo-driver v1.11.3
-	go.opentelemetry.io/collector v0.75.0
-	go.opentelemetry.io/collector/component v0.75.0
-	go.opentelemetry.io/collector/confmap v0.75.0
-	go.opentelemetry.io/collector/exporter v0.75.0
+	go.opentelemetry.io/collector v0.76.1
+	go.opentelemetry.io/collector/component v0.76.1
+	go.opentelemetry.io/collector/confmap v0.76.1
+	go.opentelemetry.io/collector/exporter v0.76.1
 	go.opentelemetry.io/collector/exporter/loggingexporter v0.75.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.75.0
-	go.opentelemetry.io/collector/pdata v1.0.0-rc9
-	go.opentelemetry.io/collector/processor/batchprocessor v0.75.0
-	go.opentelemetry.io/collector/receiver v0.75.0
+	go.opentelemetry.io/collector/pdata v1.0.0-rcv0011
+	go.opentelemetry.io/collector/processor/batchprocessor v0.76.1
+	go.opentelemetry.io/collector/receiver v0.76.1
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.75.0
 	go.uber.org/atomic v1.10.0
 	go.uber.org/automaxprocs v1.5.2
@@ -407,7 +406,7 @@ require (
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/kevinburke/ssh_config v0.0.0-20201106050909-4977a11b4351 // indirect
 	github.com/kjk/lzma v0.0.0-20161016003348-3fd93898850d // indirect
-	github.com/klauspost/compress v1.16.3 // indirect
+	github.com/klauspost/compress v1.16.5 // indirect
 	github.com/klauspost/pgzip v1.2.5 // indirect
 	github.com/knadh/koanf v1.5.0 // indirect
 	github.com/knqyf263/go-apk-version v0.0.0-20200609155635-041fdbb8563f // indirect
@@ -466,7 +465,7 @@ require (
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20200410134404-eec4a21b6bb0 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
-	github.com/rs/cors v1.8.3 // indirect
+	github.com/rs/cors v1.9.0 // indirect
 	github.com/safchain/baloum v0.0.0-20221229104256-b1fc8f70a86b
 	github.com/saracen/walker v0.0.0-20191201085201-324a081bae7e // indirect
 	github.com/sassoftware/go-rpmutils v0.2.0 // indirect
@@ -516,9 +515,9 @@ require (
 	go.etcd.io/etcd/client/v3 v3.6.0-alpha.0 // indirect
 	go.etcd.io/etcd/server/v3 v3.6.0-alpha.0.0.20220522111935-c3bc4116dcd1 // indirect
 	go.opencensus.io v0.24.0 // indirect
-	go.opentelemetry.io/collector/consumer v0.75.0 // indirect
-	go.opentelemetry.io/collector/featuregate v0.75.0 // indirect
-	go.opentelemetry.io/collector/semconv v0.75.0 // indirect
+	go.opentelemetry.io/collector/consumer v0.76.1 // indirect
+	go.opentelemetry.io/collector/featuregate v0.76.1 // indirect
+	go.opentelemetry.io/collector/semconv v0.76.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.40.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.40.0 // indirect
 	go.opentelemetry.io/contrib/propagators/b3 v1.15.0 // indirect
@@ -567,6 +566,7 @@ require (
 )
 
 require (
+	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/godror/godror v0.37.0
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/sijms/go-ora/v2 v2.6.12
@@ -576,8 +576,10 @@ require (
 	github.com/cloudflare/circl v1.1.0 // indirect
 	github.com/godror/knownpb v0.1.0 // indirect
 	github.com/rs/zerolog v1.29.0 // indirect
+	github.com/shoenig/go-m1cpu v0.1.4 // indirect
 	github.com/sigstore/rekor v1.0.1 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
+	go.opentelemetry.io/otel/bridge/opencensus v0.37.0 // indirect
 	go4.org/intern v0.0.0-20211027215823-ae77deb06f29 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20220617031537-928513b29760 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
