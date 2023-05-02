@@ -337,15 +337,9 @@ func TestLimiterTelemetry(t *testing.T) {
 		MType:  metrics.APIGaugeType,
 		Points: []metrics.Point{{Ts: ts, Value: 2.0}},
 	}, {
-		Name:   "datadog.agent.aggregator.dogstatsd_context_limiter.accepted",
+		Name:   "datadog.agent.aggregator.dogstatsd_samples_dropped",
 		Host:   "test",
-		Tags:   tagset.NewCompositeTags([]string{"test"}, []string{"pod:foo", "srv:foo"}),
-		MType:  metrics.APICountType,
-		Points: []metrics.Point{{Ts: ts, Value: 2.0}},
-	}, {
-		Name:   "datadog.agent.aggregator.dogstatsd_context_limiter.rejected",
-		Host:   "test",
-		Tags:   tagset.NewCompositeTags([]string{"test"}, []string{"pod:foo", "srv:foo"}),
+		Tags:   tagset.NewCompositeTags([]string{"test", "reason:too_many_contexts"}, []string{"pod:foo", "srv:foo"}),
 		MType:  metrics.APICountType,
 		Points: []metrics.Point{{Ts: ts, Value: 1.0}},
 	}, {
@@ -355,15 +349,9 @@ func TestLimiterTelemetry(t *testing.T) {
 		MType:  metrics.APIGaugeType,
 		Points: []metrics.Point{{Ts: ts, Value: 2.0}},
 	}, {
-		Name:   "datadog.agent.aggregator.dogstatsd_context_limiter.accepted",
+		Name:   "datadog.agent.aggregator.dogstatsd_samples_dropped",
 		Host:   "test",
-		Tags:   tagset.NewCompositeTags([]string{"test"}, []string{"pod:bar"}),
-		MType:  metrics.APICountType,
-		Points: []metrics.Point{{Ts: ts, Value: 2.0}},
-	}, {
-		Name:   "datadog.agent.aggregator.dogstatsd_context_limiter.rejected",
-		Host:   "test",
-		Tags:   tagset.NewCompositeTags([]string{"test"}, []string{"pod:bar"}),
+		Tags:   tagset.NewCompositeTags([]string{"test", "reason:too_many_contexts"}, []string{"pod:bar"}),
 		MType:  metrics.APICountType,
 		Points: []metrics.Point{{Ts: ts, Value: 0.0}},
 	}, {
@@ -373,15 +361,9 @@ func TestLimiterTelemetry(t *testing.T) {
 		MType:  metrics.APIGaugeType,
 		Points: []metrics.Point{{Ts: ts, Value: 1.0}},
 	}, {
-		Name:   "datadog.agent.aggregator.dogstatsd_context_limiter.accepted",
+		Name:   "datadog.agent.aggregator.dogstatsd_samples_dropped",
 		Host:   "test",
-		Tags:   tagset.NewCompositeTags([]string{"test"}, []string{"pod:baz"}),
-		MType:  metrics.APICountType,
-		Points: []metrics.Point{{Ts: ts, Value: 1.0}},
-	}, {
-		Name:   "datadog.agent.aggregator.dogstatsd_context_limiter.rejected",
-		Host:   "test",
-		Tags:   tagset.NewCompositeTags([]string{"test"}, []string{"pod:baz"}),
+		Tags:   tagset.NewCompositeTags([]string{"test", "reason:too_many_contexts"}, []string{"pod:baz"}),
 		MType:  metrics.APICountType,
 		Points: []metrics.Point{{Ts: ts, Value: 0.0}},
 	}})

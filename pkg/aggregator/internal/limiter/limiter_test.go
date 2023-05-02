@@ -41,7 +41,6 @@ func TestLimiter(t *testing.T) {
 
 	a.Equal(&entry{
 		current:  1,
-		accepted: 1,
 		rejected: 0,
 		tags:     []string{"srv:bar", "pod:foo"},
 	}, l.usage["pod:foo"])
