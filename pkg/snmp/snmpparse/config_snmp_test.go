@@ -46,7 +46,7 @@ func TestDefaultSet(t *testing.T) {
 	//define the output
 	Exoutput := []SNMPConfig{
 		{
-			Version:   "2",
+			Version:   "",
 			IPAddress: "98.6.18.158",
 			Port:      161,
 			Timeout:   2,
@@ -260,7 +260,7 @@ func TestGetSNMPConfigDefault(t *testing.T) {
 	input := SNMPConfig{}
 	SetDefault(&input)
 	Exoutput := SNMPConfig{
-		Version: "2",
+		Version: "",
 		Port:    161,
 		Timeout: 2,
 		Retries: 3,

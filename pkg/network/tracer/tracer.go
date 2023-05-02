@@ -37,6 +37,7 @@ import (
 	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
+	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -78,7 +79,7 @@ type Tracer struct {
 	state        network.State
 	conntracker  netlink.Conntracker
 	reverseDNS   dns.ReverseDNS
-	httpMonitor  *http.Monitor
+	usmMonitor   *usm.Monitor
 	ebpfTracer   connection.Tracer
 	bpfTelemetry *nettelemetry.EBPFTelemetry
 	lastCheck    *atomic.Int64
@@ -202,7 +203,7 @@ func newTracer(config *config.Config) (*Tracer, error) {
 		config:                     config,
 		state:                      state,
 		reverseDNS:                 newReverseDNS(config),
-		httpMonitor:                newHTTPMonitor(config, ebpfTracer, bpfTelemetry, constantEditors),
+		usmMonitor:                 newUSMMonitor(config, ebpfTracer, bpfTelemetry, constantEditors),
 		activeBuffer:               network.NewConnectionBuffer(512, 256),
 		conntracker:                conntracker,
 		sourceExcludes:             network.ParseConnectionFilters(config.ExcludedSourceConnections),
@@ -278,7 +279,7 @@ func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry
 		return c, nil
 	}
 
-	if !cfg.EnableRuntimeCompiler || cfg.AllowPrecompiledFallback {
+	if cfg.AllowNetlinkConntrackerFallback {
 		log.Warnf("error initializing ebpf conntracker, falling back to netlink version: %s", err)
 		if c, err = netlink.NewConntracker(cfg); err == nil {
 			return c, nil
@@ -408,7 +409,7 @@ func (t *Tracer) Stop() {
 	}
 	t.reverseDNS.Close()
 	t.ebpfTracer.Stop()
-	t.httpMonitor.Stop()
+	t.usmMonitor.Stop()
 	t.conntracker.Close()
 	t.processCache.Stop()
 	close(t.exitTelemetry)
@@ -427,7 +428,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	}
 	active := t.activeBuffer.Connections()
 
-	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats(), t.httpMonitor.GetHTTP2Stats(), t.httpMonitor.GetKafkaStats())
+	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.usmMonitor.GetHTTPStats(), t.usmMonitor.GetHTTP2Stats(), t.usmMonitor.GetKafkaStats())
 	t.activeBuffer.Reset()
 
 	ips := make([]util.Address, 0, len(delta.Conns)*2)
@@ -496,7 +497,7 @@ func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeComp
 	telemetryByAsset := map[string]runtime.CompilationTelemetry{
 		"tracer":          runtime.Tracer.GetTelemetry(),
 		"conntrack":       runtime.Conntrack.GetTelemetry(),
-		"http":            runtime.Http.GetTelemetry(),
+		"usm":             runtime.Usm.GetTelemetry(),
 		"oomKill":         runtime.OomKill.GetTelemetry(),
 		"runtimeSecurity": runtime.RuntimeSecurity.GetTelemetry(),
 		"tcpQueueLength":  runtime.TcpQueueLength.GetTelemetry(),
@@ -674,7 +675,7 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 			tracerStats["runtime"] = runtime.Tracer.GetTelemetry()
 			ret["tracer"] = tracerStats
 		case httpStats:
-			ret["universal_service_monitoring"] = t.httpMonitor.GetUSMStats()
+			ret["universal_service_monitoring"] = t.usmMonitor.GetUSMStats()
 		}
 	}
 
@@ -720,14 +721,14 @@ func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if t.httpMonitor == nil {
+	if t.usmMonitor == nil {
 		return "tracer:\n" + tracerMaps, nil
 	}
-	httpMaps, err := t.httpMonitor.DumpMaps(maps...)
+	usmMaps, err := t.usmMonitor.DumpMaps(maps...)
 	if err != nil {
 		return "", err
 	}
-	return "tracer:\n" + tracerMaps + "\nhttp_monitor:\n" + httpMaps, nil
+	return "tracer:\n" + tracerMaps + "\nhttp_monitor:\n" + usmMaps, nil
 }
 
 // connectionExpired returns true if the passed in connection has expired
@@ -831,11 +832,12 @@ func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error)
 	return nil, nil
 }
 
-func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *nettelemetry.EBPFTelemetry, offsets []manager.ConstantEditor) *http.Monitor {
-	// Shared with the HTTP program
+func newUSMMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *nettelemetry.EBPFTelemetry, offsets []manager.ConstantEditor) *usm.Monitor {
+	// Shared with the USM program
 	sockFDMap := tracer.GetMap(probes.SockByPidFDMap)
+	connectionProtocolMap := tracer.GetMap(probes.ConnectionProtocolMap)
 
-	monitor, err := http.NewMonitor(c, offsets, sockFDMap, bpfTelemetry)
+	monitor, err := usm.NewMonitor(c, offsets, connectionProtocolMap, sockFDMap, bpfTelemetry)
 	if err != nil {
 		log.Error(err)
 		return nil

@@ -136,7 +136,7 @@ func TestDogStatsDReverseProxyEndToEndUDP(t *testing.T) {
 
 // getAvailableUDPPort requests a random port number and makes sure it is available
 func getAvailableUDPPort() (string, error) {
-	// This is based on pkg/dogstatsd/server_test.go.
+	// This is based on comp/dogstatsd/server_test.go.
 	conn, err := net.ListenPacket("udp", ":0")
 	if err != nil {
 		return "", fmt.Errorf("can't find an available udp port: %s", err)

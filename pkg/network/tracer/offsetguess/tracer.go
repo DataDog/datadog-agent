@@ -27,14 +27,14 @@ import (
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/native"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 const InterfaceLocalMulticastIPv6 = "ff01::1"
@@ -69,7 +69,7 @@ func NewTracerOffsetGuesser() (OffsetGuesser, error) {
 				{ProbeIdentificationPair: idPair(probes.TCPv6Connect)},
 				{ProbeIdentificationPair: idPair(probes.IPMakeSkb)},
 				{ProbeIdentificationPair: idPair(probes.IP6MakeSkb)},
-				{ProbeIdentificationPair: idPair(probes.IP6MakeSkbPre470), MatchFuncName: "^ip6_make_skb$"},
+				{ProbeIdentificationPair: idPair(probes.IP6MakeSkbPre470)},
 				{ProbeIdentificationPair: idPair(probes.TCPv6ConnectReturn), KProbeMaxActive: 128},
 				{ProbeIdentificationPair: idPair(probes.NetDevQueue)},
 			},
@@ -188,7 +188,11 @@ func (*tracerOffsetGuesser) Probes(c *config.Config) (map[probes.ProbeFuncName]s
 	enableProbe(p, probes.TCPGetSockOpt)
 	enableProbe(p, probes.SockGetSockOpt)
 	enableProbe(p, probes.IPMakeSkb)
-	if kprobe.ClassificationSupported(c) {
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return nil, fmt.Errorf("could not kernel version: %w", err)
+	}
+	if kv >= kernel.VersionCode(4, 7, 0) {
 		enableProbe(p, probes.NetDevQueue)
 	}
 
@@ -196,15 +200,12 @@ func (*tracerOffsetGuesser) Probes(c *config.Config) (map[probes.ProbeFuncName]s
 		enableProbe(p, probes.TCPv6Connect)
 		enableProbe(p, probes.TCPv6ConnectReturn)
 
-		kv, err := kernel.HostVersion()
-		if err != nil {
-			return nil, err
-		}
-
-		if kv < kernel.VersionCode(4, 7, 0) {
-			enableProbe(p, probes.IP6MakeSkbPre470)
-		} else {
-			enableProbe(p, probes.IP6MakeSkb)
+		if kv < kernel.VersionCode(5, 18, 0) {
+			if kv < kernel.VersionCode(4, 7, 0) {
+				enableProbe(p, probes.IP6MakeSkbPre470)
+			} else {
+				enableProbe(p, probes.IP6MakeSkb)
+			}
 		}
 	}
 	return p, nil
@@ -287,7 +288,7 @@ func GetIPv6LinkLocalAddress() (*net.UDPAddr, error) {
 // checkAndUpdateCurrentOffset checks the value for the current offset stored
 // in the eBPF map against the expected value, incrementing the offset if it
 // doesn't match, or going to the next field to guess if it does
-func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected *fieldValues, maxRetries *int, threshold uint64, protocolClassificationSupported bool) error {
+func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected *fieldValues, maxRetries *int, threshold uint64) error {
 	// get the updated map value so we can check if the current offset is
 	// the right one
 	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(t.status)); err != nil {
@@ -462,11 +463,15 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 
 	case GuessSocketSK:
 		if t.status.Sport_via_sk == htons(expected.sport) && t.status.Dport_via_sk == htons(expected.dport) {
-			// if protocol classification is disabled, its hooks will not be activated, and thus we should skip
-			// the guessing of their relevant offsets. The problem is with compatibility with older kernel versions
-			// where `struct sk_buff` have changed, and it does not match our current guessing.
+			// if we are on kernel version < 4.7, net_dev_queue tracepoint will not be activated, and thus we should skip
+			// the guessing for `struct sk_buff`
 			next := GuessSKBuffSock
-			if !protocolClassificationSupported {
+			kv, err := kernel.HostVersion()
+			if err != nil {
+				return fmt.Errorf("error getting kernel version: %w", err)
+			}
+			// no tracepoint support in kernels < 4.7
+			if kv < kernel.VersionCode(4, 7, 0) {
 				next = GuessDAddrIPv6
 			}
 			t.logAndAdvance(t.status.Offset_socket_sk, next)
@@ -582,8 +587,9 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 		What:         uint64(GuessSAddr),
 	}
 
-	if !cfg.CollectIPv6Conns {
-		t.status.Ipv6_enabled = disabled
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return nil, err
 	}
 
 	// if we already have the offsets, just return
@@ -592,7 +598,8 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 		return t.getConstantEditors(), nil
 	}
 
-	eventGenerator, err := newTracerEventGenerator(cfg.CollectIPv6Conns)
+	guessFlowI6 := cfg.CollectIPv6Conns && kv < kernel.VersionCode(5, 18, 0)
+	eventGenerator, err := newTracerEventGenerator(guessFlowI6)
 	if err != nil {
 		return nil, err
 	}
@@ -619,14 +626,13 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 		return nil, fmt.Errorf("error retrieving expected value: %w", err)
 	}
 
-	protocolClassificationSupported := kprobe.ClassificationSupported(cfg)
 	log.Debugf("Checking for offsets with threshold of %d", threshold)
 	for State(t.status.State) != StateReady {
 		if err := eventGenerator.Generate(GuessWhat(t.status.What), expected); err != nil {
 			return nil, err
 		}
 
-		if err := t.checkAndUpdateCurrentOffset(mp, expected, &maxRetries, threshold, protocolClassificationSupported); err != nil {
+		if err := t.checkAndUpdateCurrentOffset(mp, expected, &maxRetries, threshold); err != nil {
 			return nil, err
 		}
 
@@ -684,7 +690,7 @@ type tracerEventGenerator struct {
 	udpDone  func()
 }
 
-func newTracerEventGenerator(ipv6 bool) (*tracerEventGenerator, error) {
+func newTracerEventGenerator(flowi6 bool) (*tracerEventGenerator, error) {
 	eg := &tracerEventGenerator{}
 
 	// port 0 means we let the kernel choose a free port
@@ -718,7 +724,7 @@ func newTracerEventGenerator(ipv6 bool) (*tracerEventGenerator, error) {
 		return nil, err
 	}
 
-	eg.udp6Conn, err = getUDP6Conn(ipv6)
+	eg.udp6Conn, err = getUDP6Conn(flowi6)
 	if err != nil {
 		eg.Close()
 		return nil, err
@@ -727,8 +733,8 @@ func newTracerEventGenerator(ipv6 bool) (*tracerEventGenerator, error) {
 	return eg, nil
 }
 
-func getUDP6Conn(ipv6 bool) (*net.UDPConn, error) {
-	if !ipv6 {
+func getUDP6Conn(flowi6 bool) (*net.UDPConn, error) {
+	if !flowi6 {
 		return nil, nil
 	}
 

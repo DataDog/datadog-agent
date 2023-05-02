@@ -43,6 +43,19 @@ func (c MockCollectorWithInit) Init() error {
 	return nil
 }
 
+type mockCollectorWithFirstRun struct {
+	sendCalledC chan bool
+}
+
+func (c mockCollectorWithFirstRun) Send(ctx context.Context, s serializer.MetricSerializer) error {
+	c.sendCalledC <- true
+	return nil
+}
+
+func (c mockCollectorWithFirstRun) FirstRunInterval() time.Duration {
+	return 2 * time.Second
+}
+
 func mockNewTimer(d time.Duration) *time.Timer {
 	c := make(chan time.Time, 1)
 	timer := time.NewTimer(10 * time.Hour)
@@ -153,6 +166,34 @@ func TestAddCollectorWithInit(t *testing.T) {
 	select {
 	case <-mockCollectorWithInit.InitCalledC:
 		assert.Fail(t, "Init was called twice")
+	default:
+	}
+}
+
+func TestAddCollectorWithFirstRun(t *testing.T) {
+	enableFirstRunCollection = false
+	defer func() { enableFirstRunCollection = true }()
+
+	mockCollector := &mockCollectorWithFirstRun{
+		sendCalledC: make(chan bool, 1),
+	}
+
+	demux := buildDemultiplexer()
+	c := NewScheduler(demux)
+
+	RegisterCollector("testCollectorWithFirstRun", mockCollector)
+
+	c.AddCollector("testCollectorWithFirstRun", 10*time.Hour)
+
+	select {
+	case <-mockCollector.sendCalledC:
+	case <-time.After(5 * time.Second):
+		assert.Fail(t, "Timeout waiting for Send to be called")
+	}
+
+	select {
+	case <-mockCollector.sendCalledC:
+		assert.Fail(t, "Send was called twice")
 	default:
 	}
 }

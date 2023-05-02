@@ -48,7 +48,7 @@ type SNMPConfig struct {
 // set default values used by the agent
 func SetDefault(sc *SNMPConfig) {
 	sc.Port = 161
-	sc.Version = "2"
+	sc.Version = ""
 	sc.Timeout = 2
 	sc.Retries = 3
 

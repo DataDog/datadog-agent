@@ -188,6 +188,8 @@ type networkState struct {
 	maxDNSStats    int
 	maxHTTPStats   int
 	maxKafkaStats  int
+
+	mergeStatsBuffers [2][]byte
 }
 
 // NewState creates a new network state
@@ -200,6 +202,10 @@ func NewState(clientExpiry time.Duration, maxClosedConns, maxClientStats int, ma
 		maxDNSStats:    maxDNSStats,
 		maxHTTPStats:   maxHTTPStats,
 		maxKafkaStats:  maxKafkaStats,
+		mergeStatsBuffers: [2][]byte{
+			make([]byte, ConnectionByteKeyMaxLen),
+			make([]byte, ConnectionByteKeyMaxLen),
+		},
 	}
 }
 
@@ -402,7 +408,7 @@ func (ns *networkState) getConnsByCookie(conns []ConnectionStats) map[uint32]*Co
 			return fmt.Sprintf("duplicate connection in collection: cookie: %d, c1: %+v, c2: %+v", c.Cookie, *c, conns[i])
 		})
 
-		if mergeConnectionStats(c, &conns[i]) {
+		if ns.mergeConnectionStats(c, &conns[i]) {
 			// cookie collision
 			stateTelemetry.statsCookieCollisions.Inc()
 		}
@@ -423,7 +429,7 @@ func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
 	for _, client := range ns.clients {
 		for _, c := range conns {
 			if i, ok := client.closedConnectionsKeys[c.Cookie]; ok {
-				if mergeConnectionStats(&client.closedConnections[i], &c) {
+				if ns.mergeConnectionStats(&client.closedConnections[i], &c) {
 					stateTelemetry.statsCookieCollisions.Inc()
 				}
 				continue
@@ -633,7 +639,7 @@ func (ns *networkState) mergeConnections(id string, active map[uint32]*Connectio
 		closedConn := &closed[i]
 		cookie := closedConn.Cookie
 		if activeConn := active[cookie]; activeConn != nil {
-			if mergeConnectionStats(closedConn, activeConn) {
+			if ns.mergeConnectionStats(closedConn, activeConn) {
 				stateTelemetry.statsCookieCollisions.Inc()
 			}
 			// not an active connection
@@ -960,14 +966,12 @@ func (a connectionAggregator) WriteTo(buffer *clientBuffer) {
 	}
 }
 
-var mergeConnectionStatsBuffer = make([]byte, ConnectionByteKeyMaxLen)
-
-func mergeConnectionStats(a, b *ConnectionStats) (collision bool) {
+func (ns *networkState) mergeConnectionStats(a, b *ConnectionStats) (collision bool) {
 	if a.Cookie != b.Cookie {
 		return false
 	}
 
-	if bytes.Compare(a.ByteKey(mergeConnectionStatsBuffer), b.ByteKey(mergeConnectionStatsBuffer)) != 0 {
+	if bytes.Compare(a.ByteKey(ns.mergeStatsBuffers[0]), b.ByteKey(ns.mergeStatsBuffers[1])) != 0 {
 		// cookie collision
 		return true
 	}
