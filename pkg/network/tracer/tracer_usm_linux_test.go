@@ -150,24 +150,61 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 		t.Skip("HTTPS feature not available/supported for this setup")
 	}
 
+	buildPrefetchFileBin(t)
+
+	ldd, err := exec.LookPath("ldd")
+	lddFound := err == nil
+
 	tlsLibs := []*regexp.Regexp{
 		regexp.MustCompile(`/[^\ ]+libssl.so[^\ ]*`),
 		regexp.MustCompile(`/[^\ ]+libgnutls.so[^\ ]*`),
 	}
 	tests := []struct {
-		name     string
-		fetchCmd []string
+		name         string
+		fetchCmd     []string
+		prefetchLibs []string
+		commandFound bool
 	}{
-		{name: "wget", fetchCmd: []string{"wget", "--no-check-certificate", "-O/dev/null"}},
-		{name: "curl", fetchCmd: []string{"curl", "--http1.1", "-k", "-o/dev/null"}},
+		{
+			name:     "wget",
+			fetchCmd: []string{"wget", "--no-check-certificate", "-O/dev/null"},
+		},
+		{
+			name:     "curl",
+			fetchCmd: []string{"curl", "--http1.1", "-k", "-o/dev/null"},
+		},
+	}
+
+	for _, test := range tests {
+		fetch, err := exec.LookPath(test.fetchCmd[0])
+		test.commandFound = err == nil
+		if !test.commandFound {
+			//t.Skipf("%s not found; skipping test.", test.fetchCmd)
+			continue
+		}
+
+		linked, _ := exec.Command(ldd, fetch).Output()
+
+		for _, lib := range tlsLibs {
+			libSSLPath := lib.FindString(string(linked))
+			if _, err := os.Stat(libSSLPath); err == nil {
+				test.prefetchLibs = append(test.prefetchLibs, libSSLPath)
+			}
+		}
 	}
 
 	for _, keepAlives := range []struct {
 		name  string
 		value bool
 	}{
-		{name: "without keep-alives", value: false},
-		{name: "with keep-alives", value: true},
+		{
+			name:  "without keep-alives",
+			value: false,
+		},
+		{
+			name:  "with keep-alives",
+			value: true,
+		},
 	} {
 		t.Run(keepAlives.name, func(t *testing.T) {
 			// Spin-up HTTPS server
@@ -176,33 +213,21 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 				EnableKeepAlives: keepAlives.value,
 			})
 			t.Cleanup(serverDoneFn)
-			buildPrefetchFileBin(t)
 
 			for _, test := range tests {
 				t.Run(test.name, func(t *testing.T) {
-					fetch, err := exec.LookPath(test.fetchCmd[0])
-					if err != nil {
-						t.Skipf("%s not found; skipping test.", test.fetchCmd)
-					}
-					ldd, err := exec.LookPath("ldd")
-					if err != nil {
+					// The 2 checks below, could be done outside the loops, but it wouldn't mark the specific tests
+					// as skipped. So we're checking it here.
+					if !lddFound {
 						t.Skip("ldd not found; skipping test.")
 					}
-					linked, _ := exec.Command(ldd, fetch).Output()
-
-					var prefetchLibs []string
-					for _, lib := range tlsLibs {
-						libSSLPath := lib.FindString(string(linked))
-						if _, err := os.Stat(libSSLPath); err == nil {
-							prefetchLibs = append(prefetchLibs, libSSLPath)
-						}
+					if !test.commandFound {
+						t.Skipf("%s not found; skipping test.", test.fetchCmd)
 					}
-					if len(prefetchLibs) == 0 {
+					if len(test.prefetchLibs) == 0 {
 						t.Fatalf("%s not linked with any of these libs %v", test.name, tlsLibs)
 					}
-
-					testHTTPSLibrary(t, test.fetchCmd, prefetchLibs)
-
+					testHTTPSLibrary(t, test.fetchCmd, test.prefetchLibs)
 				})
 			}
 		})
