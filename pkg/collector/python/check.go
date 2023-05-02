@@ -355,7 +355,7 @@ func (c *PythonCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 
 	// Convert CGO array of diagnosis_t defined in datadog-agent\\dev\\include\\rtloader_types.h
 	// into Go diagnosis.Diagnosis slice
-	diagnoses := make([]diagnosis.Diagnosis, 0)
+	var diagnoses []diagnosis.Diagnosis
 	for i := 0; ; i++ {
 		// Get diagnosis_t* as an entry in array of pointers
 		diagnosisPtr := C.getDiagnosisAddr(pyDiagnoses, C.uint(i))

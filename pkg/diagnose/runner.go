@@ -292,7 +292,7 @@ func diagnoseMetadataAutodiscoveryConnectivity(cfg diagnosis.DiagnoseConfig) []d
 	}
 	sort.Strings(sortedDiagnosis)
 
-	diagnoses := make([]diagnosis.Diagnosis, 0)
+	var diagnoses []diagnosis.Diagnosis
 	for _, name := range sortedDiagnosis {
 		err := diagnosis.MetadataAvailCatalog[name]()
 

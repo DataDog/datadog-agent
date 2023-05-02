@@ -88,7 +88,7 @@ func diagnose(diagCfg diagnosis.DiagnoseConfig) []diagnosis.Diagnosis {
 		return nil
 	}
 
-	diagnoses := make([]diagnosis.Diagnosis, 0)
+	var diagnoses []diagnosis.Diagnosis
 	for _, diagnoseConfig := range diagnoseConfigs {
 		checkName := diagnoseConfig.Name
 		instances := collector.GetChecksByNameForConfigs(checkName, diagnoseConfigs)

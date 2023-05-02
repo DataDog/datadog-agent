@@ -49,46 +49,37 @@ func diagnose(diagCfg diagnosis.DiagnoseConfig) []diagnosis.Diagnosis {
 		}
 	}
 
-	diagnoses := make([]diagnosis.Diagnosis, 0)
-
+	var diagnoses []diagnosis.Diagnosis
 	domainResolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
-
 	client := forwarder.NewHTTPClient(config.Datadog)
 
 	// Send requests to all endpoints for all domains
 	for _, domainResolver := range domainResolvers {
 		// Go through all API Keys of a domain and send an HTTP request on each endpoint
 		for _, apiKey := range domainResolver.GetAPIKeys() {
-
 			for _, endpointInfo := range endpointsInfo {
-
 				domain, _ := domainResolver.Resolve(endpointInfo.Endpoint)
-
 				ctx := context.Background()
 				statusCode, responseBody, logURL, err := sendHTTPRequestToEndpoint(ctx, client, domain, endpointInfo, apiKey)
 
 				// Check if there is a response and if it's valid
 				report, reportErr := verifyEndpointResponse(statusCode, responseBody, err)
-				name := "Connectivity to " + logURL
-				if reportErr == nil {
-					diagnoses = append(diagnoses, diagnosis.Diagnosis{
-						Result:    diagnosis.DiagnosisSuccess,
-						Name:      name,
-						Diagnosis: fmt.Sprintf("Connectivity to `%s` is Ok\n%s", logURL, report),
-					})
-				} else {
-					diagnoses = append(diagnoses, diagnosis.Diagnosis{
-						Result:      diagnosis.DiagnosisFail,
-						Name:        name,
-						Diagnosis:   fmt.Sprintf("Connection to `%s` is falied\n%s", logURL, report),
-						Remediation: "Please validate Agent configuration and firewall to access " + logURL,
-						RawError:    err,
-					})
+				d := diagnosis.Diagnosis{
+					Name: "Connectivity to " + logURL,
 				}
+				if reportErr == nil {
+					d.Result = diagnosis.DiagnosisSuccess
+					d.Diagnosis = fmt.Sprintf("Connectivity to `%s` is Ok\n%s", logURL, report)
+				} else {
+					d.Result = diagnosis.DiagnosisFail
+					d.Diagnosis = fmt.Sprintf("Connection to `%s` is falied\n%s", logURL, report)
+					d.Remediation = "Please validate Agent configuration and firewall to access " + logURL
+					d.RawError = err
+				}
+				diagnoses = append(diagnoses, d)
 			}
 		}
 	}
-
 	return diagnoses
 }
 

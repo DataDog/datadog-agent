@@ -205,7 +205,7 @@ func init() {
 // Enumerate known epforwarder pipelines and endpoints to test each of them connectivity
 func diagnose(diagnoseCfg diagnosis.DiagnoseConfig) []diagnosis.Diagnosis {
 
-	diagnoses := make([]diagnosis.Diagnosis, 0)
+	var diagnoses []diagnosis.Diagnosis
 
 	for _, desc := range passthroughPipelineDescs {
 		configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, coreConfig.Datadog)
