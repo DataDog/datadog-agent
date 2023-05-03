@@ -52,8 +52,8 @@ const (
 // Telemetry
 var driverTelemetry = struct {
 	totalFlows  telemetry.Counter
-	openFlows   telemetry.Counter
-	closedFlows telemetry.Counter
+	openFlows   telemetry.Gauge
+	closedFlows telemetry.Gauge
 
 	closedBufferSize      telemetry.Gauge
 	closedBufferIncreases telemetry.Counter
@@ -63,8 +63,8 @@ var driverTelemetry = struct {
 	openBufferDecreases   telemetry.Counter
 }{
 	telemetry.NewCounter(flowStats, "total_flows", []string{}, "Counter measuring the total number of flows"),
-	telemetry.NewCounter(flowStats, "open_flows", []string{}, "Counter measuring the number of open flows"),
-	telemetry.NewCounter(flowStats, "closed_flows", []string{}, "Counter measuring the number of closed flows"),
+	telemetry.NewGauge(flowStats, "open_flows", []string{}, "Gauge measuring the current number of open flows"),
+	telemetry.NewGauge(flowStats, "closed_flows", []string{}, "Gauge measuring the current number of closed flows"),
 
 	telemetry.NewGauge(driverStats, "closed_buffer_size", []string{}, "Gauge measuring the size of the closed buffer"),
 	telemetry.NewCounter(driverStats, "closed_buffer_increases", []string{}, "Counter measuring the number of closed buffer increases"),
@@ -239,8 +239,6 @@ func (di *DriverInterface) RefreshStats() {
 		case <-ticker.C:
 			di.driverFlowHandle.RefreshStats()
 
-			driverTelemetry.openFlows.Delete()
-			driverTelemetry.closedFlows.Delete()
 			di.closedBufferLock.Lock()
 			driverTelemetry.closedBufferSize.Set(float64(cap(di.closedBuffer)))
 			di.closedBufferLock.Unlock()
@@ -342,7 +340,7 @@ func (di *DriverInterface) GetOpenConnectionStats(openBuf *ConnectionBuffer, fil
 	if err != nil {
 		return 0, err
 	}
-	driverTelemetry.openFlows.Add(float64(count))
+	driverTelemetry.openFlows.Set(float64(count))
 	driverTelemetry.totalFlows.Add(float64(count))
 	driverTelemetry.openBufferIncreases.Add(float64(increases))
 	driverTelemetry.openBufferDecreases.Add(float64(decreases))
@@ -360,7 +358,7 @@ func (di *DriverInterface) GetClosedConnectionStats(closedBuf *ConnectionBuffer,
 	if err != nil {
 		return 0, err
 	}
-	driverTelemetry.closedFlows.Add(float64(count))
+	driverTelemetry.closedFlows.Set(float64(count))
 	driverTelemetry.totalFlows.Add(float64(count))
 	driverTelemetry.closedBufferIncreases.Add(float64(increases))
 	driverTelemetry.closedBufferDecreases.Add(float64(decreases))
