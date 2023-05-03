@@ -29,16 +29,13 @@ type ActivityTreeStats struct {
 	processedCount map[model.EventType]*atomic.Uint64
 	addedCount     map[model.EventType]map[NodeGenerationType]*atomic.Uint64
 	droppedCount   map[model.EventType]map[NodeDroppedReason]*atomic.Uint64
-
-	pathMergedCount *atomic.Uint64
 }
 
 func NewActivityTreeNodeStats() *ActivityTreeStats {
 	ats := &ActivityTreeStats{
-		processedCount:  make(map[model.EventType]*atomic.Uint64),
-		addedCount:      make(map[model.EventType]map[NodeGenerationType]*atomic.Uint64),
-		droppedCount:    make(map[model.EventType]map[NodeDroppedReason]*atomic.Uint64),
-		pathMergedCount: atomic.NewUint64(0),
+		processedCount: make(map[model.EventType]*atomic.Uint64),
+		addedCount:     make(map[model.EventType]map[NodeGenerationType]*atomic.Uint64),
+		droppedCount:   make(map[model.EventType]map[NodeDroppedReason]*atomic.Uint64),
 	}
 
 	// generate counters
