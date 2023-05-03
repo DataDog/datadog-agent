@@ -464,7 +464,7 @@ func (ccc *CCCache) listApplications(wg *sync.WaitGroup, appsMap *map[string]*cf
 				sidecars, err := ccc.ccAPIClient.ListSidecarsByApp(query, app.GUID)
 				if err != nil {
 					log.Errorf("Failed listing sidecars from cloud controller: %v", err)
-					return
+					continue
 				}
 				// skip apps without sidecars
 				if len(sidecars) == 0 {
