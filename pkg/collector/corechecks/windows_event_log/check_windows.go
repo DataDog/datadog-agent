@@ -116,7 +116,7 @@ func (c *Check) fetchEvents(sender aggregator.Sender) error {
 
 			// Update bookmark according to bookmark_frequency config
 			eventsSinceLastBookmark += 1
-			if eventsSinceLastBookmark >= c.config.instance.Bookmark_frequency {
+			if c.config.instance.Bookmark_frequency > 0 && eventsSinceLastBookmark >= c.config.instance.Bookmark_frequency {
 				err = c.updateBookmark(event)
 				if err != nil {
 					c.Warnf("failed to save bookmark: %v", err)
@@ -313,6 +313,8 @@ func (c *Check) renderEventMessage(providerName string, winevent *evtapi.EventRe
 }
 
 func (c *Check) initSubscription() error {
+	var err error
+
 	opts := []evtsubscribe.PullSubscriptionOption{}
 	if c.evtapi != nil {
 		opts = append(opts, evtsubscribe.WithWindowsEventLogAPI(c.evtapi))
@@ -320,10 +322,13 @@ func (c *Check) initSubscription() error {
 
 	// Check persistent cache for bookmark
 	var bookmark evtbookmark.Bookmark
-	bookmarkXML, err := persistentcache.Read(c.bookmarkPersistentCacheKey())
-	if err != nil {
-		// persistentcache.Read() does not return error if key does not exist
-		return fmt.Errorf("error reading bookmark from persistent cache %s: %v", c.bookmarkPersistentCacheKey(), err)
+	bookmarkXML := ""
+	if c.config.instance.Bookmark_frequency > 0 {
+		bookmarkXML, err = persistentcache.Read(c.bookmarkPersistentCacheKey())
+		if err != nil {
+			// persistentcache.Read() does not return error if key does not exist
+			return fmt.Errorf("error reading bookmark from persistent cache %s: %v", c.bookmarkPersistentCacheKey(), err)
+		}
 	}
 	if bookmarkXML != "" {
 		// load bookmark
