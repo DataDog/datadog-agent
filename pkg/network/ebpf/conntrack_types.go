@@ -9,7 +9,7 @@
 package ebpf
 
 /*
-#include "./c/conntrack-types.h"
+#include "./c/conntrack/types.h"
 */
 import "C"
 

@@ -1,11 +1,11 @@
-#ifndef __TCP_RECV_H__
-#define __TCP_RECV_H__
+#ifndef __TCP_RECV_H
+#define __TCP_RECV_H
 
 #include "bpf_helpers.h"
 #include "bpf_telemetry.h"
-#include "tracer-stats.h"
-#include "tracer-events.h"
-#include "tracer-maps.h"
+#include "tracer/stats.h"
+#include "tracer/events.h"
+#include "tracer/maps.h"
 #include "sock.h"
 
 SEC("kprobe/tcp_recvmsg")
