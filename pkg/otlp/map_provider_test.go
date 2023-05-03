@@ -61,7 +61,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"service": map[string]interface{}{
-					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
+					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "basic"}},
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
@@ -130,7 +130,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"service": map[string]interface{}{
-					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
+					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "basic"}},
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
@@ -204,7 +204,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"service": map[string]interface{}{
-					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
+					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "basic"}},
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
@@ -258,7 +258,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"service": map[string]interface{}{
-					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
+					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "basic"}},
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
@@ -319,7 +319,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"service": map[string]interface{}{
-					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
+					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "basic"}},
 					"pipelines": map[string]interface{}{
 						"metrics": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
@@ -368,7 +368,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"service": map[string]interface{}{
-					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
+					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "basic"}},
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
@@ -430,7 +430,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"service": map[string]interface{}{
-					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
+					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "basic"}},
 					"pipelines": map[string]interface{}{
 						"metrics": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
@@ -500,7 +500,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"service": map[string]interface{}{
-					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
+					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "basic"}},
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
