@@ -19,8 +19,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/gopsutil/process"
 	"github.com/prometheus/procfs"
+	"github.com/shirou/gopsutil/v3/process"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
