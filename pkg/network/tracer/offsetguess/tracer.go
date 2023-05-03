@@ -50,11 +50,6 @@ var tcpKprobeCalledString = map[uint64]string{
 	tcpGetSockOptKProbeCalled:    "tcp_getsockopt kprobe executed",
 }
 
-var TracerOffsets struct {
-	Constants []manager.ConstantEditor
-	Err       error
-}
-
 type tracerOffsetGuesser struct {
 	m      *manager.Manager
 	status *TracerStatus
@@ -604,8 +599,7 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 	// if we already have the offsets, just return
 	err = mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(t.status))
 	if err == nil && State(t.status.State) == StateReady {
-		TracerOffsets.Constants = t.getConstantEditors()
-		return TracerOffsets.Constants, nil
+		return t.getConstantEditors(), nil
 	}
 
 	guessFlowI6 := cfg.CollectIPv6Conns && kv < kernel.VersionCode(5, 18, 0)
@@ -674,7 +668,6 @@ func (t *tracerOffsetGuesser) getConstantEditors() []manager.ConstantEditor {
 		{Name: "offset_rtt", Value: t.status.Offset_rtt},
 		{Name: "offset_rtt_var", Value: t.status.Offset_rtt_var},
 		{Name: "offset_daddr_ipv6", Value: t.status.Offset_daddr_ipv6},
-		{Name: "ipv6_enabled", Value: uint64(t.status.Ipv6_enabled)},
 		{Name: "offset_saddr_fl4", Value: t.status.Offset_saddr_fl4},
 		{Name: "offset_daddr_fl4", Value: t.status.Offset_daddr_fl4},
 		{Name: "offset_sport_fl4", Value: t.status.Offset_sport_fl4},
@@ -945,19 +938,49 @@ func newUDPServer(addr string) (string, func(), error) {
 	return ln.LocalAddr().String(), doneFn, nil
 }
 
-func RunTracerOffsetGuessing(cfg *config.Config) ([]manager.ConstantEditor, error) {
-	if TracerOffsets.Err != nil || len(TracerOffsets.Constants) > 0 {
+var TracerOffsets tracerOffsets
+
+type tracerOffsets struct {
+	offsets []manager.ConstantEditor
+	err     error
+}
+
+func (o *tracerOffsets) Offsets(cfg *config.Config) ([]manager.ConstantEditor, error) {
+	fromConfig := func(offsets []manager.ConstantEditor) []manager.ConstantEditor {
+		if cfg.CollectIPv6Conns {
+			return append(offsets, manager.ConstantEditor{
+				Name:  "ipv6_enabled",
+				Value: uint64(1),
+			})
+		}
+
+		return append(offsets, manager.ConstantEditor{
+			Name:  "ipv6_enabled",
+			Value: uint64(0),
+		})
+	}
+
+	if o.err != nil {
+		return nil, o.err
+	}
+
+	if len(o.offsets) > 0 {
 		// already run
-		return TracerOffsets.Constants, TracerOffsets.Err
+		return fromConfig(o.offsets), o.err
 	}
 
 	offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir, cfg.BPFDebug)
 	if err != nil {
-		TracerOffsets.Err = fmt.Errorf("could not read offset bpf module: %s", err)
-		return nil, TracerOffsets.Err
+		o.err = fmt.Errorf("could not read offset bpf module: %s", err)
+		return nil, o.err
 	}
 	defer offsetBuf.Close()
 
-	TracerOffsets.Constants, TracerOffsets.Err = RunOffsetGuessing(cfg, offsetBuf, NewTracerOffsetGuesser)
-	return TracerOffsets.Constants, TracerOffsets.Err
+	o.offsets, o.err = RunOffsetGuessing(cfg, offsetBuf, NewTracerOffsetGuesser)
+	return fromConfig(o.offsets), o.err
+}
+
+func (o *tracerOffsets) Reset() {
+	o.err = nil
+	o.offsets = nil
 }

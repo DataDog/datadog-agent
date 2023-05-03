@@ -74,7 +74,7 @@ var (
 	coreTracerLoader          = loadCORETracer
 	rcTracerLoader            = loadRuntimeCompiledTracer
 	prebuiltTracerLoader      = loadPrebuiltTracer
-	tracerOffsetGuesserRunner = offsetguess.RunTracerOffsetGuessing
+	tracerOffsetGuesserRunner = offsetguess.TracerOffsets.Offsets
 
 	errCORETracerNotSupported = errors.New("CO-RE tracer not supported on this platform")
 )

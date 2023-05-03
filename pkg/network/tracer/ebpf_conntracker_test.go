@@ -18,13 +18,14 @@ import (
 )
 
 func TestEbpfConntrackerLoadTriggersOffsetGuessing(t *testing.T) {
-	require.Empty(t, offsetguess.TracerOffsets.Constants)
-	require.NoError(t, offsetguess.TracerOffsets.Err)
+	offsetguess.TracerOffsets.Reset()
 
 	cfg := testConfig()
 	cfg.EnableRuntimeCompiler = false
 	_, err := NewEBPFConntracker(cfg, nil)
 	assert.NoError(t, err)
-	assert.NotEmpty(t, offsetguess.TracerOffsets)
-	assert.NoError(t, offsetguess.TracerOffsets.Err)
+
+	offsets, err := offsetguess.TracerOffsets.Offsets(cfg)
+	require.NoError(t, err)
+	require.NotEmpty(t, offsets)
 }

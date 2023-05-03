@@ -38,8 +38,7 @@ type conntrackOffsetGuesser struct {
 
 func NewConntrackOffsetGuesser(cfg *config.Config) (OffsetGuesser, error) {
 	var offsetIno uint64
-	var ipv6Enabled uint64
-	consts, err := RunTracerOffsetGuessing(cfg)
+	consts, err := TracerOffsets.Offsets(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -48,11 +47,7 @@ func NewConntrackOffsetGuesser(cfg *config.Config) (OffsetGuesser, error) {
 		switch c.Name {
 		case "offset_ino":
 			offsetIno = c.Value.(uint64)
-		case "ipv6_enabled":
-			ipv6Enabled = c.Value.(uint64)
-			if offsetIno > 0 {
-				break
-			}
+			break
 		}
 	}
 
@@ -60,6 +55,10 @@ func NewConntrackOffsetGuesser(cfg *config.Config) (OffsetGuesser, error) {
 		return nil, fmt.Errorf("ino offset is 0")
 	}
 
+	ipv6Enabled := uint64(1)
+	if !cfg.CollectIPv6Conns {
+		ipv6Enabled = 0
+	}
 	return &conntrackOffsetGuesser{
 		m: &manager.Manager{
 			Maps: []*manager.Map{

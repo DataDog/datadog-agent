@@ -113,6 +113,20 @@ func newTelemetry() telemetry {
 	}
 }
 
+func addBoolConst(options *manager.Options, flag bool, name string) {
+	val := uint64(1)
+	if !flag {
+		val = uint64(0)
+	}
+
+	options.ConstantEditors = append(options.ConstantEditors,
+		manager.ConstantEditor{
+			Name:  name,
+			Value: val,
+		},
+	)
+}
+
 // NewTracer creates a new tracer
 func NewTracer(config *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) (Tracer, error) {
 	mgrOptions := manager.Options{
@@ -137,6 +151,8 @@ func NewTracer(config *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) 
 			probes.ConnectionTupleToSocketSKBConnMap: {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			probes.TLSConnectionMap:                  {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries}},
 	}
+
+	addBoolConst(&mgrOptions, config.CollectIPv6Conns, "ipv6_enabled")
 
 	closedChannelSize := defaultClosedChannelSize
 	if config.ClosedChannelSize > 0 {
