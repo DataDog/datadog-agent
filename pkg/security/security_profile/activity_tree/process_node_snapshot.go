@@ -30,10 +30,10 @@ import (
 )
 
 // snapshot uses procfs to retrieve information about the current process
-func (pn *ProcessNode) snapshot(owner ActivityTreeOwner, shouldMergePaths bool, stats *ActivityTreeStats, newEvent func() *model.Event) error {
+func (pn *ProcessNode) snapshot(owner ActivityTreeOwner, stats *ActivityTreeStats, newEvent func() *model.Event) error {
 	// call snapshot for all the children of the current node
 	for _, child := range pn.Children {
-		if err := child.snapshot(owner, shouldMergePaths, stats, newEvent); err != nil {
+		if err := child.snapshot(owner, stats, newEvent); err != nil {
 			return err
 		}
 		// iterate slowly
@@ -49,7 +49,7 @@ func (pn *ProcessNode) snapshot(owner ActivityTreeOwner, shouldMergePaths bool, 
 
 	// snapshot files
 	if owner.IsEventTypeValid(model.FileOpenEventType) {
-		if err = pn.snapshotFiles(p, shouldMergePaths, stats, newEvent); err != nil {
+		if err = pn.snapshotFiles(p, stats, newEvent); err != nil {
 			return err
 		}
 	}
@@ -63,7 +63,7 @@ func (pn *ProcessNode) snapshot(owner ActivityTreeOwner, shouldMergePaths bool, 
 	return nil
 }
 
-func (pn *ProcessNode) snapshotFiles(p *process.Process, shouldMergePaths bool, stats *ActivityTreeStats, newEvent func() *model.Event) error {
+func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStats, newEvent func() *model.Event) error {
 	// list the files opened by the process
 	fileFDs, err := p.OpenFiles()
 	if err != nil {
@@ -124,7 +124,7 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, shouldMergePaths bool, 
 		evt.Open.File.Mode = evt.Open.File.FileFields.Mode
 		// TODO: add open flags by parsing `/proc/[pid]/fdinfo/fd` + O_RDONLY|O_CLOEXEC for the shared libs
 
-		_, _ = pn.InsertFileEvent(&evt.Open.File, evt, Snapshot, stats, shouldMergePaths, false)
+		_, _ = pn.InsertFileEvent(&evt.Open.File, evt, Snapshot, stats, false)
 	}
 	return nil
 }

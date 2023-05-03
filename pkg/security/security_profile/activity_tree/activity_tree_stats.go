@@ -103,10 +103,5 @@ func (stats *ActivityTreeStats) SendStats(client statsd.ClientInterface, treeTyp
 		}
 	}
 
-	if value := stats.pathMergedCount.Swap(0); value > 0 {
-		if err := client.Count(metrics.MetricActivityDumpPathMergeCount, int64(value), []string{treeTypeTag}, 1.0); err != nil {
-			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpPathMergeCount, err)
-		}
-	}
 	return nil
 }

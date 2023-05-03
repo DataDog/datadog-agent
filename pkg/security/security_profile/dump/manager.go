@@ -377,9 +377,6 @@ func (adm *ActivityDumpManager) HandleCgroupTracingEvent(event *model.CgroupTrac
 		ad.Metadata.ContainerID = event.ContainerContext.ID
 		ad.SetLoadConfig(event.ConfigCookie, event.Config)
 
-		if adm.config.RuntimeSecurity.ActivityDumpPathMergeEnabled {
-			ad.ActivityTree.EnablePathsMerge()
-		}
 		if adm.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs {
 			ad.Metadata.DifferentiateArgs = true
 			ad.ActivityTree.DifferentiateArgs()
@@ -419,9 +416,6 @@ func (adm *ActivityDumpManager) DumpActivity(params *api.ActivityDumpParams) (*a
 		ad.Metadata.Comm = params.GetComm()
 		ad.SetTimeout(time.Duration(params.Timeout) * time.Minute)
 
-		if adm.config.RuntimeSecurity.ActivityDumpPathMergeEnabled {
-			ad.ActivityTree.EnablePathsMerge()
-		}
 		if params.GetDifferentiateArgs() {
 			ad.Metadata.DifferentiateArgs = true
 			ad.ActivityTree.DifferentiateArgs()
