@@ -264,6 +264,8 @@ type EventContextSerializer struct {
 // easyjson:json
 type ProcessContextSerializer struct {
 	*ProcessSerializer
+	// Process source
+	Source string `json:"source,omitempty"`
 	// Parent process
 	Parent *ProcessSerializer `json:"parent,omitempty"`
 	// Ancestor processes
@@ -769,6 +771,8 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, resol
 	ps := ProcessContextSerializer{
 		ProcessSerializer: newProcessSerializer(&pc.Process, e, resolvers),
 	}
+
+	ps.Source = model.ProcessSourceToString(pc.Source)
 
 	ctx := eval.NewContext(e)
 

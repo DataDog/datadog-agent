@@ -871,7 +871,6 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			PathResolutionEnabled: true,
 		},
 	}
-
 	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts)
 	if err != nil {
 		return nil, err

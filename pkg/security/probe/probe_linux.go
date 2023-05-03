@@ -303,6 +303,30 @@ func (p *Probe) Start() error {
 	})
 }
 
+func (p *Probe) PlaySnapshot() {
+	// Get the snapshotted data
+	var events []*model.Event
+
+	entryToEvent := func(entry *model.ProcessCacheEntry) {
+		if entry.Source != model.ProcessCacheEntryFromProcFS {
+			return
+		}
+		event := &model.Event{}
+		event.FieldHandlers = p.fieldHandlers
+		event.Type = uint32(model.ExecEventType)
+		event.TimestampRaw = uint64(time.Now().UnixNano())
+		event.ProcessCacheEntry = entry
+		event.ProcessContext = &entry.ProcessContext
+		event.Exec.Process = &entry.Process
+		event.ProcessContext.Process.ContainerID = entry.ContainerID
+		events = append(events, event)
+	}
+	p.GetResolvers().ProcessResolver.Walk(entryToEvent)
+	for _, event := range events {
+		p.DispatchEvent(event)
+	}
+}
+
 func (p *Probe) sendAnomalyDetection(event *model.Event) {
 	tags := p.GetEventTags(event)
 	if service := p.GetService(event); service != "" {

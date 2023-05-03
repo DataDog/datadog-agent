@@ -782,6 +782,22 @@ type ProcessCacheEntry struct {
 	releaseCb func()                     `field:"-" json:"-"`
 }
 
+const (
+	ProcessCacheEntryFromEvent = iota
+	ProcessCacheEntryFromKernelMap
+	ProcessCacheEntryFromProcFS
+)
+
+var ProcessSources = [...]string{
+	"Event",
+	"KernelMap",
+	"ProcFS",
+}
+
+func ProcessSourceToString(source uint64) string {
+	return ProcessSources[source]
+}
+
 // IsContainerRoot returns whether this is a top level process in the container ID
 func (pc *ProcessCacheEntry) IsContainerRoot() bool {
 	return pc.ContainerID != "" && pc.Ancestor != nil && pc.Ancestor.ContainerID == ""
@@ -864,6 +880,7 @@ func (p *ProcessContext) HasParent() bool {
 // ProcessContext holds the process context of an event
 type ProcessContext struct {
 	Process
+	Source uint64 `field:"-" json:"-"`
 
 	Parent   *Process           `field:"parent,opts:exposed_at_event_root_only,check:HasParent"`
 	Ancestor *ProcessCacheEntry `field:"ancestors,iterator:ProcessAncestorsIterator,check:IsNotKworker"`
