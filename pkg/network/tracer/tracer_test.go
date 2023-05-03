@@ -69,8 +69,13 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+func isFentry() bool {
+	fentryTests := os.Getenv("NETWORK_TRACER_FENTRY_TESTS")
+	return fentryTests == "true"
+}
+
 func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
-	if fentryTests := os.Getenv("NETWORK_TRACER_FENTRY_TESTS"); fentryTests == "true" {
+	if isFentry() {
 		ddconfig.SetFeatures(t, ddconfig.ECSFargate)
 		// protocol classification not yet supported on fargate
 		cfg.ProtocolClassificationEnabled = false
