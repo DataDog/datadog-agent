@@ -352,7 +352,8 @@ def get_version(
 ):
     version = ""
     pipeline_id = os.getenv("CI_PIPELINE_ID")
-    if pipeline_id and pipeline_id.isdigit():
+    project_name = os.getenv("CI_PROJECT_NAME")
+    if pipeline_id and pipeline_id.isdigit() and project_name == "datadog-agent":
         try:
             if not os.path.exists(AGENT_VERSION_CACHE_NAME):
                 ctx.run(
