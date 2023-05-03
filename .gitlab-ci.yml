@@ -139,6 +139,17 @@ variables:
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
+  SYSTEM_PROBE_SRC_PATH: |
+    pkg/collector/corechecks/ebpf/
+    pkg/ebf/
+    pkg/network/
+    pkg/util/kernel
+    test/kitchen/site-cookbooks/dd-system-probe-check/
+    test/kitchen/test/integration/system-probe-test/
+    test/kitchen/test/integration/win-sysprobe-test/
+    .gitlab/functional_test/system_probe.yml
+    test/new-e2e/system-probe/
+    test/new-e2e/scenarios/system-probe/
 
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding

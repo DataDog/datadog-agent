@@ -10,7 +10,16 @@
   stage: kernel_matrix_testing
   script:
     - set +e
-    - echo "$DIFF_FILES" | grep "pkg/collector/corechecks/ebpf/" || echo "$DIFF_FILES" | grep "pkg/ebf/" || echo "$DIFF_FILES" | grep "pkg/network/" || echo "$DIFF_FILES" | grep "pkg/util/kernel" || echo "$DIFF_FILES" | grep "test/kitchen/site-cookbooks/dd-system-probe-check/" || echo "$DIFF_FILES" | grep "test/kitchen/test/integration/system-probe-test/" || echo "$DIFF_FILES" | grep "test/kitchen/test/integration/win-sysprobe-test/" || echo "$DIFF_FILES" | grep ".gitlab/functional_test/system_probe.yml" || echo "$DIFF_FILES" | grep "test/new-e2e/system-probe/" || echo "$DIFF_FILES" | grep "test/new-e2e/scenarios/system-probe/"; export exit_code=$?
+    - export SYSTEM_PROBE_PATHS=$(echo "$SYSTEM_PROBE_SRC_PATH")
+    - |+
+      for path in $SYSTEM_PROBE_PATHS
+      do
+        echo "$DIFF_FILES" | grep "$path"
+        exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+          break
+        fi
+      done
     - set -e
     - if [ ${exit_code} -eq 0 ]; then
     # Build dependencies directory
@@ -64,7 +73,16 @@ pull_test_dockers_arm64:
     artifacts: true
   script:
     - set +e
-    - echo "$DIFF_FILES" | grep "pkg/collector/corechecks/ebpf/" || echo "$DIFF_FILES" | grep "pkg/ebf/" || echo "$DIFF_FILES" | grep "pkg/network/" || echo "$DIFF_FILES" | grep "pkg/util/kernel" || echo "$DIFF_FILES" | grep "test/kitchen/site-cookbooks/dd-system-probe-check/" || echo "$DIFF_FILES" | grep "test/kitchen/test/integration/system-probe-test/" || echo "$DIFF_FILES" | grep "test/kitchen/test/integration/win-sysprobe-test/" || echo "$DIFF_FILES" | grep ".gitlab/functional_test/system_probe.yml" || echo "$DIFF_FILES" | grep "test/new-e2e/system-probe/" || echo "$DIFF_FILES" | grep "test/new-e2e/scenarios/system-probe/"; export exit_code=$?
+    - export SYSTEM_PROBE_PATHS=$(echo "$SYSTEM_PROBE_SRC_PATH")
+    - |+
+      for path in $SYSTEM_PROBE_PATHS
+      do
+        echo "$DIFF_FILES" | grep "$path"
+        exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+          break
+        fi
+      done
     - set -e    
     - if [ ${exit_code} -eq 0 ]; then
     # Build dependencies directory
