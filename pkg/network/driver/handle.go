@@ -11,6 +11,7 @@ package driver
 import (
 	"encoding/binary"
 	"fmt"
+	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"unsafe"
 
@@ -31,7 +32,7 @@ var (
 )
 
 // Telemetry
-var handleTelemetry = struct {
+var HandleTelemetry = struct {
 	numFlowCollisions     telemetry.Gauge
 	newFlowsSkippedMax    telemetry.Gauge
 	closedFlowsSkippedMax telemetry.Gauge
@@ -61,7 +62,7 @@ var handleTelemetry = struct {
 	httpNdisNonContiguous telemetry.Gauge
 	flowsIgnoredAsEtw     telemetry.Gauge
 
-	readPacketsSkipped telemetry.Gauge
+	ReadPacketsSkipped *nettelemetry.StatGaugeWrapper
 	readsRequested     telemetry.Gauge
 	readsCompleted     telemetry.Gauge
 	readsCancelled     telemetry.Gauge
@@ -95,7 +96,7 @@ var handleTelemetry = struct {
 	telemetry.NewGauge(handleModuleName, "http_ndis_non_contiguous", []string{}, "Gauge measuring the number of non contiguous http ndis"),
 	telemetry.NewGauge(handleModuleName, "flows_ignored_as_etw", []string{}, "Gauge measuring the number of flows ignored as etw"),
 
-	telemetry.NewGauge(handleModuleName, "read_packets_skipped", []string{}, "Gauge measuring the number of read packets skipped"),
+	nettelemetry.NewStatGaugeWrapper(handleModuleName, "read_packets_skipped", []string{}, "Gauge measuring the number of read packets skipped"),
 	telemetry.NewGauge(handleModuleName, "reads_requested", []string{}, "Gauge measuring the number of reads requested"),
 	telemetry.NewGauge(handleModuleName, "reads_completed", []string{}, "Gauge measuring the number of reads completed"),
 	telemetry.NewGauge(handleModuleName, "reads_cancelled", []string{}, "Gauge measuring the number of reads_cancelled"),
@@ -222,41 +223,41 @@ func (dh *RealDriverHandle) RefreshStats() {
 		dh.lastNumFlowsMissed = uint64(stats.Flow_stats.Num_flow_alloc_skipped_max_open_exceeded)
 		dh.lastNumClosedFlowsMissed = uint64(stats.Flow_stats.Num_flow_closed_dropped_max_exceeded)
 
-		handleTelemetry.numFlowCollisions.Set(float64(stats.Flow_stats.Num_flow_collisions))
-		handleTelemetry.newFlowsSkippedMax.Set(float64(stats.Flow_stats.Num_flow_alloc_skipped_max_open_exceeded))
-		handleTelemetry.closedFlowsSkippedMax.Set(float64(stats.Flow_stats.Num_flow_closed_dropped_max_exceeded))
+		HandleTelemetry.numFlowCollisions.Set(float64(stats.Flow_stats.Num_flow_collisions))
+		HandleTelemetry.newFlowsSkippedMax.Set(float64(stats.Flow_stats.Num_flow_alloc_skipped_max_open_exceeded))
+		HandleTelemetry.closedFlowsSkippedMax.Set(float64(stats.Flow_stats.Num_flow_closed_dropped_max_exceeded))
 
-		handleTelemetry.numFlowStructs.Set(float64(stats.Flow_stats.Num_flow_structures))
-		handleTelemetry.peakNumFlowStructs.Set(float64(stats.Flow_stats.Peak_num_flow_structures))
-		handleTelemetry.numFlowClosedStructs.Set(float64(stats.Flow_stats.Num_flow_closed_structures))
-		handleTelemetry.peakNumFlowStructs.Set(float64(stats.Flow_stats.Peak_num_flow_closed_structures))
+		HandleTelemetry.numFlowStructs.Set(float64(stats.Flow_stats.Num_flow_structures))
+		HandleTelemetry.peakNumFlowStructs.Set(float64(stats.Flow_stats.Peak_num_flow_structures))
+		HandleTelemetry.numFlowClosedStructs.Set(float64(stats.Flow_stats.Num_flow_closed_structures))
+		HandleTelemetry.peakNumFlowStructs.Set(float64(stats.Flow_stats.Peak_num_flow_closed_structures))
 
-		handleTelemetry.openTableAdds.Set(float64(stats.Flow_stats.Open_table_adds))
-		handleTelemetry.openTableRemoves.Set(float64(stats.Flow_stats.Open_table_removes))
-		handleTelemetry.closedTableAdds.Set(float64(stats.Flow_stats.Closed_table_adds))
-		handleTelemetry.closedTableRemoves.Set(float64(stats.Flow_stats.Closed_table_removes))
+		HandleTelemetry.openTableAdds.Set(float64(stats.Flow_stats.Open_table_adds))
+		HandleTelemetry.openTableRemoves.Set(float64(stats.Flow_stats.Open_table_removes))
+		HandleTelemetry.closedTableAdds.Set(float64(stats.Flow_stats.Closed_table_adds))
+		HandleTelemetry.closedTableRemoves.Set(float64(stats.Flow_stats.Closed_table_removes))
 
-		handleTelemetry.noHandleFlows.Set(float64(stats.Flow_stats.Num_flows_no_handle))
-		handleTelemetry.noHandleFlowsPeak.Set(float64(stats.Flow_stats.Peak_num_flows_no_handle))
-		handleTelemetry.numFlowsMissedMaxNoHandle.Set(float64(stats.Flow_stats.Num_flows_missed_max_no_handle_exceeded))
-		handleTelemetry.numPacketsAfterClosed.Set(float64(stats.Flow_stats.Num_packets_after_flow_closed))
+		HandleTelemetry.noHandleFlows.Set(float64(stats.Flow_stats.Num_flows_no_handle))
+		HandleTelemetry.noHandleFlowsPeak.Set(float64(stats.Flow_stats.Peak_num_flows_no_handle))
+		HandleTelemetry.numFlowsMissedMaxNoHandle.Set(float64(stats.Flow_stats.Num_flows_missed_max_no_handle_exceeded))
+		HandleTelemetry.numPacketsAfterClosed.Set(float64(stats.Flow_stats.Num_packets_after_flow_closed))
 
-		handleTelemetry.classifyNoDirection.Set(float64(stats.Flow_stats.Classify_with_no_direction))
-		handleTelemetry.classifyMultipleRequest.Set(float64(stats.Flow_stats.Classify_multiple_request))
-		handleTelemetry.classifyMultipleResponse.Set(float64(stats.Flow_stats.Classify_multiple_response))
-		handleTelemetry.classifyResponseNoRequest.Set(float64(stats.Flow_stats.Classify_response_no_request))
+		HandleTelemetry.classifyNoDirection.Set(float64(stats.Flow_stats.Classify_with_no_direction))
+		HandleTelemetry.classifyMultipleRequest.Set(float64(stats.Flow_stats.Classify_multiple_request))
+		HandleTelemetry.classifyMultipleResponse.Set(float64(stats.Flow_stats.Classify_multiple_response))
+		HandleTelemetry.classifyResponseNoRequest.Set(float64(stats.Flow_stats.Classify_response_no_request))
 
-		handleTelemetry.httpTxnsCaptured.Set(float64(stats.Http_stats.Txns_captured))
-		handleTelemetry.httpTxnsSkippedMax.Set(float64(stats.Http_stats.Txns_skipped_max_exceeded))
-		handleTelemetry.httpNdisNonContiguous.Set(float64(stats.Http_stats.Ndis_buffer_non_contiguous))
-		handleTelemetry.flowsIgnoredAsEtw.Set(float64(stats.Http_stats.Flows_ignored_as_etw))
+		HandleTelemetry.httpTxnsCaptured.Set(float64(stats.Http_stats.Txns_captured))
+		HandleTelemetry.httpTxnsSkippedMax.Set(float64(stats.Http_stats.Txns_skipped_max_exceeded))
+		HandleTelemetry.httpNdisNonContiguous.Set(float64(stats.Http_stats.Ndis_buffer_non_contiguous))
+		HandleTelemetry.flowsIgnoredAsEtw.Set(float64(stats.Http_stats.Flows_ignored_as_etw))
 
 	// A DataHandle handle returns transfer stats specific to this handle
 	case DataHandle:
-		handleTelemetry.readPacketsSkipped.Set(float64(stats.Transport_stats.Packets_skipped))
-		handleTelemetry.readsRequested.Set(float64(stats.Transport_stats.Calls_requested))
-		handleTelemetry.readsCompleted.Set(float64(stats.Transport_stats.Calls_completed))
-		handleTelemetry.readsCancelled.Set(float64(stats.Transport_stats.Calls_cancelled))
+		HandleTelemetry.ReadPacketsSkipped.Set(stats.Transport_stats.Packets_skipped)
+		HandleTelemetry.readsRequested.Set(float64(stats.Transport_stats.Calls_requested))
+		HandleTelemetry.readsCompleted.Set(float64(stats.Transport_stats.Calls_completed))
+		HandleTelemetry.readsCancelled.Set(float64(stats.Transport_stats.Calls_cancelled))
 	default:
 		log.Errorf("no matching handle type for pulling handle stats")
 	}
