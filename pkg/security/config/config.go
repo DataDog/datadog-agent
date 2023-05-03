@@ -127,8 +127,18 @@ type RuntimeSecurityConfig struct {
 	// SecurityProfileMaxCount defines the maximum number of Security Profiles that may be evaluated concurrently
 	SecurityProfileMaxCount int
 
-	// AnomalyDetectionSyscallsEnabled enable anomaly detection for syscalls
-	AnomalyDetectionSyscallsEnabled bool
+	// AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
+	AnomalyDetectionEventTypes []model.EventType
+	// AnomalyDetectionMinimumStablePeriod defines the minimum amount of time during which the events
+	// that diverge from their profiles are automatically added in their profiles without triggering an anomaly detection
+	// event.
+	AnomalyDetectionMinimumStablePeriod time.Duration
+	// AnomalyDetectionUnstableProfileTimeThreshold defines the maximum amount of time to wait until a profile that
+	// hasn't reached a stable state is considered as unstable.
+	AnomalyDetectionUnstableProfileTimeThreshold time.Duration
+	// AnomalyDetectionUnstableProfileSizeThreshold defines the maximum size a profile can reach past which it is
+	// considered unstable
+	AnomalyDetectionUnstableProfileSizeThreshold int64
 
 	// AnomalyDetectionRateLimiter limit number of anomaly event, one every N second
 	AnomalyDetectionRateLimiter int
@@ -231,8 +241,11 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SecurityProfileMaxCount:  coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.max_count"),
 
 		// anomaly detection
-		AnomalyDetectionSyscallsEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.syscalls.enabled"),
-		AnomalyDetectionRateLimiter:     coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.anomaly_detection.rate_limiter"),
+		AnomalyDetectionEventTypes:                   model.ParseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
+		AnomalyDetectionMinimumStablePeriod:          time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.anomaly_detection.minimum_stable_period")) * time.Second,
+		AnomalyDetectionUnstableProfileTimeThreshold: time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.anomaly_detection.unstable_profile_time_threshold")) * time.Second,
+		AnomalyDetectionUnstableProfileSizeThreshold: coreconfig.SystemProbe.GetInt64("runtime_security_config.security_profile.anomaly_detection.unstable_profile_size_threshold"),
+		AnomalyDetectionRateLimiter:                  coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.anomaly_detection.rate_limiter"),
 	}
 
 	if err := rsConfig.sanitize(); err != nil {

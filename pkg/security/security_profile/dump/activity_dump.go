@@ -16,35 +16,25 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"os"
-	"path"
 	"path/filepath"
-	"reflect"
-	"sort"
-	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
-	"github.com/DataDog/gopsutil/process"
 	"github.com/cilium/ebpf"
-	"github.com/prometheus/procfs"
-	"go.uber.org/atomic"
-	"golang.org/x/sys/unix"
+	"golang.org/x/exp/slices"
 	"google.golang.org/protobuf/encoding/protojson"
 
 	adproto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
-	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -97,21 +87,10 @@ type Metadata struct {
 // easyjson:json
 type ActivityDump struct {
 	*sync.Mutex
-	state              ActivityDumpStatus
-	adm                *ActivityDumpManager
-	processedCount     map[model.EventType]*atomic.Uint64
-	addedRuntimeCount  map[model.EventType]*atomic.Uint64
-	addedSnapshotCount map[model.EventType]*atomic.Uint64
-	eventTypeDrop      map[model.EventType]*atomic.Uint64
-	brokenLineageDrop  *atomic.Uint64
-	validRootNodeDrop  *atomic.Uint64
-	bindFamilyDrop     *atomic.Uint64
+	state ActivityDumpStatus
+	adm   *ActivityDumpManager
 
 	countedByLimiter bool
-
-	shouldMergePaths bool
-	pathMergedCount  *atomic.Uint64
-	nodeStats        ActivityDumpNodeStats
 
 	// standard attributes used by the intake
 	Host    string   `json:"host,omitempty"`
@@ -120,9 +99,8 @@ type ActivityDump struct {
 	Tags    []string `json:"-"`
 	DDTags  string   `json:"ddtags,omitempty"`
 
-	CookiesNode         map[uint32]*ProcessActivityNode                  `json:"-"`
-	ProcessActivityTree []*ProcessActivityNode                           `json:"-"`
-	StorageRequests     map[config.StorageFormat][]config.StorageRequest `json:"-"`
+	ActivityTree    *activity_tree.ActivityTree                      `json:"-"`
+	StorageRequests map[config.StorageFormat][]config.StorageRequest `json:"-"`
 
 	// Dump metadata
 	Metadata
@@ -155,28 +133,11 @@ func NewActivityDumpLoadConfig(evt []model.EventType, timeout time.Duration, wai
 // NewEmptyActivityDump returns a new zero-like instance of an ActivityDump
 func NewEmptyActivityDump() *ActivityDump {
 	ad := &ActivityDump{
-		Mutex:              &sync.Mutex{},
-		CookiesNode:        make(map[uint32]*ProcessActivityNode),
-		processedCount:     make(map[model.EventType]*atomic.Uint64),
-		addedRuntimeCount:  make(map[model.EventType]*atomic.Uint64),
-		addedSnapshotCount: make(map[model.EventType]*atomic.Uint64),
-		eventTypeDrop:      make(map[model.EventType]*atomic.Uint64),
-		brokenLineageDrop:  atomic.NewUint64(0),
-		validRootNodeDrop:  atomic.NewUint64(0),
-		bindFamilyDrop:     atomic.NewUint64(0),
-		pathMergedCount:    atomic.NewUint64(0),
-		StorageRequests:    make(map[config.StorageFormat][]config.StorageRequest),
-
-		DNSNames: utils.NewStringKeys(nil),
+		Mutex:           &sync.Mutex{},
+		StorageRequests: make(map[config.StorageFormat][]config.StorageRequest),
+		DNSNames:        utils.NewStringKeys(nil),
 	}
-
-	// generate counters
-	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
-		ad.processedCount[i] = atomic.NewUint64(0)
-		ad.addedRuntimeCount[i] = atomic.NewUint64(0)
-		ad.addedSnapshotCount[i] = atomic.NewUint64(0)
-		ad.eventTypeDrop[i] = atomic.NewUint64(0)
-	}
+	ad.ActivityTree = activity_tree.NewActivityTree(ad, "activity_dump")
 	return ad
 }
 
@@ -201,7 +162,6 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 	ad.Host = adm.hostname
 	ad.Source = ActivityDumpSource
 	ad.adm = adm
-	ad.shouldMergePaths = adm.config.RuntimeSecurity.ActivityDumpPathMergeEnabled
 
 	// set load configuration to initial defaults
 	ad.LoadConfig = NewActivityDumpLoadConfig(
@@ -288,38 +248,6 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 	return ad, nil
 }
 
-// computeSyscallsList returns the aggregated list of all syscalls
-func (ad *ActivityDump) computeSyscallsList() []uint32 {
-	mask := make(map[int]uint32)
-	var nodes []*ProcessActivityNode
-	var node *ProcessActivityNode
-	if len(ad.ProcessActivityTree) > 0 {
-		node = ad.ProcessActivityTree[0]
-		nodes = ad.ProcessActivityTree[1:]
-	}
-
-	for node != nil {
-		for _, nr := range node.Syscalls {
-			mask[nr] = 1
-		}
-		for _, child := range node.Children {
-			nodes = append(nodes, child)
-		}
-		if len(nodes) > 0 {
-			node = nodes[0]
-			nodes = nodes[1:]
-		} else {
-			node = nil
-		}
-	}
-
-	output := make([]uint32, 0, len(mask))
-	for key := range mask {
-		output = append(output, uint32(key))
-	}
-	return output
-}
-
 // SetState sets the status of the activity dump
 func (ad *ActivityDump) SetState(state ActivityDumpStatus) {
 	ad.Lock()
@@ -359,7 +287,7 @@ func (ad *ActivityDump) ComputeInMemorySize() int64 {
 
 // computeInMemorySize thread unsafe version of ComputeInMemorySize
 func (ad *ActivityDump) computeInMemorySize() int64 {
-	return ad.nodeStats.approximateSize()
+	return ad.ActivityTree.Stats.ApproximateSize()
 }
 
 // SetLoadConfig set the load config of the current activity dump
@@ -405,8 +333,8 @@ func (ad *ActivityDump) containerIDMatches(containerID string) bool {
 	return ad.Metadata.ContainerID == containerID
 }
 
-// Matches returns true if the provided list of tags and / or the provided comm match the current ActivityDump
-func (ad *ActivityDump) Matches(entry *model.ProcessCacheEntry) bool {
+// MatchesSelector returns true if the provided list of tags and / or the provided comm match the current ActivityDump
+func (ad *ActivityDump) MatchesSelector(entry *model.ProcessCacheEntry) bool {
 	if entry == nil {
 		return false
 	}
@@ -424,6 +352,18 @@ func (ad *ActivityDump) Matches(entry *model.ProcessCacheEntry) bool {
 	}
 
 	return true
+}
+
+// IsEventTypeValid returns true if the provided event type is traced by the activity dump
+func (ad *ActivityDump) IsEventTypeValid(event model.EventType) bool {
+	return slices.Contains[model.EventType](ad.LoadConfig.TracedEventTypes, event)
+}
+
+// NewProcessNodeCallback is a callback function used to propagate the fact that a new process node was added to the
+// activity tree
+func (ad *ActivityDump) NewProcessNodeCallback(p *activity_tree.ProcessNode) {
+	// set the pid of the input ProcessCacheEntry as traced
+	ad.updateTracedPid(p.Process.Pid)
 }
 
 // enable (thread unsafe) assuming the current dump is properly initialized, "enable" pushes kernel space filters so that events can start
@@ -539,221 +479,40 @@ func (ad *ActivityDump) finalize(releaseTracedCgroupSpot bool) {
 	}
 
 	// scrub processes and retain args envs now
-	ad.scrubAndRetainProcessArgsEnvs()
-}
-
-func (ad *ActivityDump) scrubAndRetainProcessArgsEnvs() {
-	// iterate through all the process nodes
-	openList := make([]*ProcessActivityNode, len(ad.ProcessActivityTree))
-	copy(openList, ad.ProcessActivityTree)
-
-	for len(openList) != 0 {
-		current := openList[len(openList)-1]
-		current.scrubAndReleaseArgsEnvs(ad.adm.processResolver)
-		openList = append(openList[:len(openList)-1], current.Children...)
-	}
-}
-
-// nolint: unused
-func (ad *ActivityDump) debug(w io.Writer) {
-	for _, root := range ad.ProcessActivityTree {
-		root.debug(w, "")
-	}
-}
-
-func (ad *ActivityDump) isEventTypeTraced(event *model.Event) bool {
-	for _, evtType := range ad.LoadConfig.TracedEventTypes {
-		if evtType == event.GetEventType() {
-			return true
-		}
-	}
-	return false
+	ad.ActivityTree.ScrubProcessArgsEnvs(ad.adm.processResolver)
 }
 
 // IsEmpty return true if the dump did not contain any nodes
 func (ad *ActivityDump) IsEmpty() bool {
 	ad.Lock()
 	defer ad.Unlock()
-	return len(ad.ProcessActivityTree) == 0
+	return ad.ActivityTree.IsEmpty()
 }
 
 // Insert inserts the provided event in the active ActivityDump. This function returns true if a new entry was added,
 // false if the event was dropped.
-func (ad *ActivityDump) Insert(event *model.Event) (newEntry bool) {
+func (ad *ActivityDump) Insert(event *model.Event) {
 	ad.Lock()
 	defer ad.Unlock()
 
 	if ad.state != Running {
 		// this activity dump is not running, ignore event
-		return false
+		return
 	}
 
-	// check if this event type is traced
-	if !ad.isEventTypeTraced(event) {
-		// should not happen
-		ad.eventTypeDrop[event.GetEventType()].Inc()
-		return false
+	if ok, err := ad.ActivityTree.Insert(event, activity_tree.Runtime); ok && err == nil {
+		// check dump size
+		ad.checkInMemorySize()
 	}
 
-	// metrics
-	defer func() {
-		if newEntry {
-			// this doesn't count the exec events which are counted separately
-			ad.addedRuntimeCount[event.GetEventType()].Inc()
-
-			// check dump size
-			ad.checkInMemorySize()
-		}
-	}()
-
-	// find the node where the event should be inserted
-	entry, _ := event.FieldHandlers.ResolveProcessCacheEntry(event)
-	if entry == nil {
-		return false
-	}
-	if !entry.HasCompleteLineage() { // check that the process context lineage is complete, otherwise drop it
-		ad.brokenLineageDrop.Inc()
-		return false
-	}
-	node := ad.findOrCreateProcessActivityNode(entry, Runtime)
-	if node == nil {
-		// a process node couldn't be found for the provided event as it doesn't match the ActivityDump query
-		return false
-	}
-
-	// resolve fields
-	event.ResolveFieldsForAD()
-
-	// the count of processed events is the count of events that matched the activity dump selector = the events for
-	// which we successfully found a process activity node
-	ad.processedCount[event.GetEventType()].Inc()
-
-	// insert the event based on its type
-	switch event.GetEventType() {
-	case model.FileOpenEventType:
-		return ad.InsertFileEventInProcess(node, &event.Open.File, event, Runtime)
-	case model.DNSEventType:
-		return ad.InsertDNSEvent(node, &event.DNS, event.Rules)
-	case model.BindEventType:
-		return ad.InsertBindEvent(node, &event.Bind, event.Rules)
-	case model.SyscallsEventType:
-		// TODO (jrs): reactivate this tagging once we'll be able to write rules on used syscalls
-		// for syscalls we tag the process node with the matched rule if any
-		// node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
-		return node.InsertSyscalls(&event.Syscalls)
-	}
-
-	// for process activity, tag the matched rule if any
-	node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
-	return false
+	return
 }
 
-// findOrCreateProcessActivityNode finds or a create a new process activity node in the activity dump if the entry
-// matches the activity dump selector.
-func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType) (node *ProcessActivityNode) {
-	if entry == nil {
-		return node
-	}
-
-	// drop processes with abnormal paths
-	if entry.GetPathResolutionError() != "" {
-		return node
-	}
-
-	// look for a ProcessActivityNode by process cookie
-	if entry.Cookie > 0 {
-		var found bool
-		node, found = ad.CookiesNode[entry.Cookie]
-		if found {
-			return node
-		}
-	}
-
-	defer func() {
-		// if a node was found, and if the entry has a valid cookie, insert a cookie shortcut
-		if entry.Cookie > 0 && node != nil {
-			ad.CookiesNode[entry.Cookie] = node
-		}
-	}()
-
-	// find or create a ProcessActivityNode for the parent of the input ProcessCacheEntry. If the parent is a fork entry,
-	// jump immediately to the next ancestor.
-	parentNode := ad.findOrCreateProcessActivityNode(entry.GetNextAncestorBinary(), Snapshot)
-
-	// if parentNode is nil, the parent of the current node is out of tree (either because the parent is null, or it
-	// doesn't match the dump tags).
-	if parentNode == nil {
-
-		// since the parent of the current entry wasn't inserted, we need to know if the current entry needs to be inserted.
-		if !ad.Matches(entry) {
-			return node
-		}
-
-		// go through the root nodes and check if one of them matches the input ProcessCacheEntry:
-		for _, root := range ad.ProcessActivityTree {
-			if root.Matches(&entry.Process, ad.Metadata.DifferentiateArgs) {
-				return root
-			}
-		}
-
-		// we're about to add a root process node, make sure this root node passes the root node sanitizer
-		if !IsValidRootNode(&entry.ProcessContext) {
-			ad.validRootNodeDrop.Inc()
-			return node
-		}
-
-		// if it doesn't, create a new ProcessActivityNode for the input ProcessCacheEntry
-		node = NewProcessActivityNode(entry, generationType, &ad.nodeStats)
-		// insert in the list of root entries
-		ad.ProcessActivityTree = append(ad.ProcessActivityTree, node)
-
-	} else {
-
-		// if parentNode wasn't nil, then (at least) the parent is part of the activity dump. This means that we need
-		// to add the current entry no matter if it matches the selector or not. Go through the root children of the
-		// parent node and check if one of them matches the input ProcessCacheEntry.
-		for _, child := range parentNode.Children {
-			if child.Matches(&entry.Process, ad.Metadata.DifferentiateArgs) {
-				return child
-			}
-		}
-
-		// if none of them matched, create a new ProcessActivityNode for the input processCacheEntry
-		node = NewProcessActivityNode(entry, generationType, &ad.nodeStats)
-		// insert in the list of children
-		parentNode.Children = append(parentNode.Children, node)
-	}
-
-	// count new entry
-	switch generationType {
-	case Runtime:
-		ad.addedRuntimeCount[model.ExecEventType].Inc()
-	case Snapshot:
-		ad.addedSnapshotCount[model.ExecEventType].Inc()
-	}
-
-	// set the pid of the input ProcessCacheEntry as traced
-	ad.updateTracedPid(entry.Pid)
-
-	// check dump size
-	ad.checkInMemorySize()
-
-	return node
-}
-
-// FindMatchingNodes return the matching nodes of requested comm
-func (ad *ActivityDump) FindMatchingNodes(basename string) []*ProcessActivityNode {
+// FindMatchingRootNodes return the matching nodes of requested comm
+func (ad *ActivityDump) FindMatchingRootNodes(basename string) []*activity_tree.ProcessNode {
 	ad.Lock()
 	defer ad.Unlock()
-
-	var res []*ProcessActivityNode
-	for _, node := range ad.ProcessActivityTree {
-		if node.Process.FileEvent.BasenameStr == basename {
-			res = append(res, node)
-		}
-	}
-
-	return res
+	return ad.ActivityTree.FindMatchingRootNodes(basename)
 }
 
 // GetImageNameTag returns the image name and tag for the profiled container
@@ -809,68 +568,7 @@ func (ad *ActivityDump) getSelectorStr() string {
 func (ad *ActivityDump) SendStats() error {
 	ad.Lock()
 	defer ad.Unlock()
-
-	for evtType, count := range ad.processedCount {
-		tags := []string{fmt.Sprintf("event_type:%s", evtType)}
-		if value := count.Swap(0); value > 0 {
-			if err := ad.adm.statsdClient.Count(metrics.MetricActivityDumpEventProcessed, int64(value), tags, 1.0); err != nil {
-				return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEventProcessed, err)
-			}
-		}
-	}
-
-	for evtType, count := range ad.addedRuntimeCount {
-		tags := []string{fmt.Sprintf("event_type:%s", evtType), fmt.Sprintf("generation_type:%s", Runtime)}
-		if value := count.Swap(0); value > 0 {
-			if err := ad.adm.statsdClient.Count(metrics.MetricActivityDumpEventAdded, int64(value), tags, 1.0); err != nil {
-				return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEventAdded, err)
-			}
-		}
-	}
-
-	for evtType, count := range ad.addedSnapshotCount {
-		tags := []string{fmt.Sprintf("event_type:%s", evtType), fmt.Sprintf("generation_type:%s", Snapshot)}
-		if value := count.Swap(0); value > 0 {
-			if err := ad.adm.statsdClient.Count(metrics.MetricActivityDumpEventAdded, int64(value), tags, 1.0); err != nil {
-				return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEventAdded, err)
-			}
-		}
-	}
-
-	if value := ad.brokenLineageDrop.Swap(0); value > 0 {
-		if err := ad.adm.statsdClient.Count(metrics.MetricActivityDumpBrokenLineageDrop, int64(value), nil, 1.0); err != nil {
-			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpBrokenLineageDrop, err)
-		}
-	}
-
-	for evtType, count := range ad.eventTypeDrop {
-		tags := []string{fmt.Sprintf("event_type:%s", evtType)}
-		if value := count.Swap(0); value > 0 {
-			if err := ad.adm.statsdClient.Count(metrics.MetricActivityDumpEventTypeDrop, int64(value), tags, 1.0); err != nil {
-				return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEventTypeDrop, err)
-			}
-		}
-	}
-
-	if value := ad.validRootNodeDrop.Swap(0); value > 0 {
-		if err := ad.adm.statsdClient.Count(metrics.MetricActivityDumpValidRootNodeDrop, int64(value), nil, 1.0); err != nil {
-			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpValidRootNodeDrop, err)
-		}
-	}
-
-	if value := ad.bindFamilyDrop.Swap(0); value > 0 {
-		if err := ad.adm.statsdClient.Count(metrics.MetricActivityDumpBindFamilyDrop, int64(value), nil, 1.0); err != nil {
-			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpBindFamilyDrop, err)
-		}
-	}
-
-	if value := ad.pathMergedCount.Swap(0); value > 0 {
-		if err := ad.adm.statsdClient.Count(metrics.MetricActivityDumpPathMergeCount, int64(value), nil, 1.0); err != nil {
-			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpPathMergeCount, err)
-		}
-	}
-
-	return nil
+	return ad.ActivityTree.SendStats(ad.adm.statsdClient)
 }
 
 // Snapshot snapshots the processes in the activity dump to capture all the
@@ -878,12 +576,8 @@ func (ad *ActivityDump) Snapshot() error {
 	ad.Lock()
 	defer ad.Unlock()
 
-	for _, pan := range ad.ProcessActivityTree {
-		if err := ad.snapshotProcess(pan); err != nil {
-			return err
-		}
-		// iterate slowly
-		time.Sleep(50 * time.Millisecond)
+	if err := ad.ActivityTree.Snapshot(ad.adm.newEvent); err != nil {
+		return fmt.Errorf("couldn't snapshot [%s]: %v", ad.getSelectorStr(), err)
 	}
 
 	// try to resolve the tags now
@@ -1095,6 +789,8 @@ func (ad *ActivityDump) DecodeFromReader(reader io.Reader, format config.Storage
 	switch format {
 	case config.Protobuf:
 		return ad.DecodeProtobuf(reader)
+	case config.Profile:
+		return ad.DecodeProfileProtobuf(reader)
 	default:
 		return fmt.Errorf("unsupported input format: %s", format)
 	}
@@ -1120,780 +816,22 @@ func (ad *ActivityDump) DecodeProtobuf(reader io.Reader) error {
 	return nil
 }
 
-// ProcessActivityNode holds the activity of a process
-type ProcessActivityNode struct {
-	Process        model.Process
-	GenerationType NodeGenerationType
-	MatchedRules   []*model.MatchedRule
+// DecodeProfileProtobuf decodes an activity dump from a profile protobuf
+func (ad *ActivityDump) DecodeProfileProtobuf(reader io.Reader) error {
+	ad.Lock()
+	defer ad.Unlock()
 
-	Files    map[string]*FileActivityNode
-	DNSNames map[string]*DNSNode
-	Sockets  []*SocketNode
-	Syscalls []int
-	Children []*ProcessActivityNode
-}
-
-func (pan *ProcessActivityNode) getNodeLabel(args string) string {
-	label := fmt.Sprintf("%s %s", pan.Process.FileEvent.PathnameStr, args)
-	if len(pan.Process.FileEvent.PkgName) != 0 {
-		label += fmt.Sprintf(" \\{%s %s\\}", pan.Process.FileEvent.PkgName, pan.Process.FileEvent.PkgVersion)
-	}
-	return label
-}
-
-// NewProcessActivityNode returns a new ProcessActivityNode instance
-func NewProcessActivityNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType, nodeStats *ActivityDumpNodeStats) *ProcessActivityNode {
-	nodeStats.processNodes++
-	return &ProcessActivityNode{
-		Process:        entry.Process,
-		GenerationType: generationType,
-		Files:          make(map[string]*FileActivityNode),
-		DNSNames:       make(map[string]*DNSNode),
-	}
-}
-
-// nolint: unused
-func (pan *ProcessActivityNode) debug(w io.Writer, prefix string) {
-	fmt.Fprintf(w, "%s- process: %s\n", prefix, pan.Process.FileEvent.PathnameStr)
-	if len(pan.Files) > 0 {
-		fmt.Fprintf(w, "%s  files:\n", prefix)
-		sortedFiles := make([]*FileActivityNode, 0, len(pan.Files))
-		for _, f := range pan.Files {
-			sortedFiles = append(sortedFiles, f)
-		}
-		sort.Slice(sortedFiles, func(i, j int) bool {
-			return sortedFiles[i].Name < sortedFiles[j].Name
-		})
-
-		for _, f := range sortedFiles {
-			f.debug(w, fmt.Sprintf("%s    -", prefix))
-		}
-	}
-	if len(pan.Children) > 0 {
-		fmt.Fprintf(w, "%s  children:\n", prefix)
-		for _, child := range pan.Children {
-			child.debug(w, prefix+"    ")
-		}
-	}
-}
-
-// scrubAndReleaseArgsEnvs scrubs the process args and envs, and then releases them
-func (pan *ProcessActivityNode) scrubAndReleaseArgsEnvs(resolver *sprocess.Resolver) {
-	if pan.Process.ArgsEntry != nil {
-		_, _ = resolver.GetProcessScrubbedArgv(&pan.Process)
-		pan.Process.Argv0, _ = resolver.GetProcessArgv0(&pan.Process)
-		pan.Process.ArgsEntry = nil
-
-	}
-	if pan.Process.EnvsEntry != nil {
-		envs, envsTruncated := resolver.GetProcessEnvs(&pan.Process)
-		pan.Process.Envs = envs
-		pan.Process.EnvsTruncated = envsTruncated
-		pan.Process.EnvsEntry = nil
-	}
-}
-
-// Matches return true if the process fields used to generate the dump are identical with the provided ProcessCacheEntry
-func (pan *ProcessActivityNode) Matches(entry *model.Process, matchArgs bool) bool {
-	if pan.Process.FileEvent.PathnameStr == entry.FileEvent.PathnameStr {
-		if matchArgs {
-			var panArgs, entryArgs []string
-			if pan.Process.ArgsEntry != nil {
-				panArgs, _ = sprocess.GetProcessArgv(&pan.Process)
-			} else {
-				panArgs = pan.Process.Argv
-			}
-			if entry.ArgsEntry != nil {
-				entryArgs, _ = sprocess.GetProcessArgv(entry)
-			} else {
-				entryArgs = entry.Argv
-			}
-			if len(panArgs) != len(entryArgs) {
-				return false
-			}
-
-			var found bool
-			for _, arg1 := range panArgs {
-				found = false
-				for _, arg2 := range entryArgs {
-					if arg1 == arg2 {
-						found = true
-						break
-					}
-				}
-				if !found {
-					return false
-				}
-			}
-			return true
-		}
-
-		return true
-	}
-	return false
-}
-
-func ExtractFirstParent(path string) (string, int) {
-	if len(path) == 0 {
-		return "", 0
-	}
-	if path == "/" {
-		return "", 0
-	}
-
-	var add int
-	if path[0] == '/' {
-		path = path[1:]
-		add = 1
-	}
-
-	for i := 0; i < len(path); i++ {
-		if path[i] == '/' {
-			return path[0:i], i + add
-		}
-	}
-
-	return path, len(path) + add
-}
-
-// InsertFileEventInProcess inserts the provided file event in the current node. This function returns true if a new entry was
-// added, false if the event was dropped.
-func (ad *ActivityDump) InsertFileEventInProcess(pan *ProcessActivityNode, fileEvent *model.FileEvent, event *model.Event, generationType NodeGenerationType) bool {
-	var filePath string
-	if generationType != Snapshot {
-		filePath = event.FieldHandlers.ResolveFilePath(event, fileEvent)
-	} else {
-		filePath = fileEvent.PathnameStr
-	}
-
-	// drop event for event with an error
-	if event.Error != nil {
-		return false
-	}
-
-	parent, nextParentIndex := ExtractFirstParent(filePath)
-	if nextParentIndex == 0 {
-		return false
-	}
-
-	// TODO: look for patterns / merge algo
-
-	child, ok := pan.Files[parent]
-	if ok {
-		return ad.InsertFileEventInFile(child, fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType)
-	}
-
-	// create new child
-	if len(fileEvent.PathnameStr) <= nextParentIndex+1 {
-		node := NewFileActivityNode(fileEvent, event, parent, generationType, &ad.nodeStats)
-		node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
-		pan.Files[parent] = node
-	} else {
-		child := NewFileActivityNode(nil, nil, parent, generationType, &ad.nodeStats)
-		ad.InsertFileEventInFile(child, fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType)
-		pan.Files[parent] = child
-	}
-	return true
-}
-
-// snapshotProcess uses procfs to retrieve information about the current process
-func (ad *ActivityDump) snapshotProcess(pan *ProcessActivityNode) error {
-	// call snapshot for all the children of the current node
-	for _, child := range pan.Children {
-		if err := ad.snapshotProcess(child); err != nil {
-			return err
-		}
-		// iterate slowly
-		time.Sleep(50 * time.Millisecond)
-	}
-
-	// snapshot the current process
-	p, err := process.NewProcess(int32(pan.Process.Pid))
+	raw, err := io.ReadAll(reader)
 	if err != nil {
-		// the process doesn't exist anymore, ignore
-		return nil
+		return fmt.Errorf("couldn't open security profile file: %w", err)
 	}
 
-	for _, eventType := range ad.LoadConfig.TracedEventTypes {
-		switch eventType {
-		case model.FileOpenEventType:
-			if err = pan.snapshotFiles(p, ad); err != nil {
-				return err
-			}
-		case model.BindEventType:
-			if err = pan.snapshotBoundSockets(p, ad); err != nil {
-				return err
-			}
-		}
+	inter := &adproto.SecurityProfile{}
+	if err := inter.UnmarshalVT(raw); err != nil {
+		return fmt.Errorf("couldn't decode protobuf activity dump file: %w", err)
 	}
+
+	securityProfileProtoToActivityDump(ad, inter)
+
 	return nil
-}
-
-func (ad *ActivityDump) insertSnapshottedSocket(pan *ProcessActivityNode, p *process.Process, family uint16, ip net.IP, port uint16) {
-	evt := ad.adm.newEvent()
-	evt.Type = uint32(model.BindEventType)
-
-	evt.Bind.SyscallEvent.Retval = 0
-	evt.Bind.AddrFamily = family
-	evt.Bind.Addr.IPNet.IP = ip
-	if family == unix.AF_INET {
-		evt.Bind.Addr.IPNet.Mask = net.CIDRMask(32, 32)
-	} else {
-		evt.Bind.Addr.IPNet.Mask = net.CIDRMask(128, 128)
-	}
-	evt.Bind.Addr.Port = port
-
-	if ad.InsertBindEvent(pan, &evt.Bind, []*model.MatchedRule{}) {
-		// count this new entry
-		ad.addedSnapshotCount[model.BindEventType].Inc()
-	}
-}
-
-func (pan *ProcessActivityNode) snapshotBoundSockets(p *process.Process, ad *ActivityDump) error {
-	// list all the file descriptors opened by the process
-	FDs, err := p.OpenFiles()
-	if err != nil {
-		return err
-	}
-
-	// sockets have the following pattern "socket:[inode]"
-	var sockets []uint64
-	for _, fd := range FDs {
-		if strings.HasPrefix(fd.Path, "socket:[") {
-			sock, err := strconv.Atoi(strings.TrimPrefix(fd.Path[:len(fd.Path)-1], "socket:["))
-			if err != nil {
-				return err
-			}
-			if sock < 0 {
-				continue
-			}
-			sockets = append(sockets, uint64(sock))
-		}
-	}
-	if len(sockets) <= 0 {
-		return nil
-	}
-
-	// use /proc/[pid]/net/tcp,tcp6,udp,udp6 to extract the ports opened by the current process
-	proc, _ := procfs.NewFS(filepath.Join(util.HostProc(fmt.Sprintf("%d", p.Pid))))
-	if err != nil {
-		return err
-	}
-	// looking for AF_INET sockets
-	TCP, err := proc.NetTCP()
-	if err != nil {
-		seclog.Debugf("couldn't snapshot TCP sockets for [%s]: %v", ad.getSelectorStr(), err)
-	}
-	UDP, err := proc.NetUDP()
-	if err != nil {
-		seclog.Debugf("couldn't snapshot UDP sockets for [%s]: %v", ad.getSelectorStr(), err)
-	}
-	// looking for AF_INET6 sockets
-	TCP6, err := proc.NetTCP6()
-	if err != nil {
-		seclog.Debugf("couldn't snapshot TCP6 sockets for [%s]: %v", ad.getSelectorStr(), err)
-	}
-	UDP6, err := proc.NetUDP6()
-	if err != nil {
-		seclog.Debugf("couldn't snapshot UDP6 sockets for [%s]: %v", ad.getSelectorStr(), err)
-	}
-
-	// searching for socket inode
-	for _, s := range sockets {
-		for _, sock := range TCP {
-			if sock.Inode == s {
-				ad.insertSnapshottedSocket(pan, p, unix.AF_INET, sock.LocalAddr, uint16(sock.LocalPort))
-				break
-			}
-		}
-		for _, sock := range UDP {
-			if sock.Inode == s {
-				ad.insertSnapshottedSocket(pan, p, unix.AF_INET, sock.LocalAddr, uint16(sock.LocalPort))
-				break
-			}
-		}
-		for _, sock := range TCP6 {
-			if sock.Inode == s {
-				ad.insertSnapshottedSocket(pan, p, unix.AF_INET6, sock.LocalAddr, uint16(sock.LocalPort))
-				break
-			}
-		}
-		for _, sock := range UDP6 {
-			if sock.Inode == s {
-				ad.insertSnapshottedSocket(pan, p, unix.AF_INET6, sock.LocalAddr, uint16(sock.LocalPort))
-				break
-			}
-		}
-		// not necessary found here, can be also another kind of socket (AF_UNIX, AF_NETLINK, etc)
-	}
-	return nil
-}
-
-func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDump) error {
-	// list the files opened by the process
-	fileFDs, err := p.OpenFiles()
-	if err != nil {
-		return err
-	}
-
-	var files []string
-	for _, fd := range fileFDs {
-		files = append(files, fd.Path)
-	}
-
-	// list the mmaped files of the process
-	memoryMaps, err := p.MemoryMaps(false)
-	if err != nil {
-		return err
-	}
-
-	for _, mm := range *memoryMaps {
-		if mm.Path != pan.Process.FileEvent.PathnameStr {
-			files = append(files, mm.Path)
-		}
-	}
-
-	// insert files
-	var fileinfo os.FileInfo
-	var resolvedPath string
-	for _, f := range files {
-		if len(f) == 0 {
-			continue
-		}
-
-		// fetch the file user, group and mode
-		fullPath := filepath.Join(utils.RootPath(int32(pan.Process.Pid)), f)
-		fileinfo, err = os.Stat(fullPath)
-		if err != nil {
-			continue
-		}
-		stat, ok := fileinfo.Sys().(*syscall.Stat_t)
-		if !ok {
-			continue
-		}
-
-		evt := ad.adm.newEvent()
-		evt.Type = uint32(model.FileOpenEventType)
-
-		resolvedPath, err = filepath.EvalSymlinks(f)
-		if err != nil {
-			evt.Open.File.PathnameStr = resolvedPath
-		} else {
-			evt.Open.File.PathnameStr = f
-		}
-		evt.Open.File.BasenameStr = path.Base(evt.Open.File.PathnameStr)
-		evt.Open.File.FileFields.Mode = uint16(stat.Mode)
-		evt.Open.File.FileFields.Inode = stat.Ino
-		evt.Open.File.FileFields.UID = stat.Uid
-		evt.Open.File.FileFields.GID = stat.Gid
-		evt.Open.File.FileFields.MTime = uint64(ad.adm.timeResolver.ComputeMonotonicTimestamp(time.Unix(stat.Mtim.Sec, stat.Mtim.Nsec)))
-		evt.Open.File.FileFields.CTime = uint64(ad.adm.timeResolver.ComputeMonotonicTimestamp(time.Unix(stat.Ctim.Sec, stat.Ctim.Nsec)))
-
-		evt.Open.File.Mode = evt.Open.File.FileFields.Mode
-		// TODO: add open flags by parsing `/proc/[pid]/fdinfo/fd` + O_RDONLY|O_CLOEXEC for the shared libs
-
-		if ad.InsertFileEventInProcess(pan, &evt.Open.File, evt, Snapshot) {
-			// count this new entry
-			ad.addedSnapshotCount[model.FileOpenEventType].Inc()
-		}
-	}
-	return nil
-}
-
-// InsertDNSEvent inserts
-func (ad *ActivityDump) InsertDNSEvent(pan *ProcessActivityNode, evt *model.DNSEvent, rules []*model.MatchedRule) bool {
-	ad.insertDNSNameToHackyBackendList(evt.Name)
-
-	if dnsNode, ok := pan.DNSNames[evt.Name]; ok {
-		dnsNode.MatchedRules = model.AppendMatchedRule(dnsNode.MatchedRules, rules)
-		// look for the DNS request type
-		for _, req := range dnsNode.Requests {
-			if req.Type == evt.Type {
-				return false
-			}
-		}
-
-		// insert the new request
-		dnsNode.Requests = append(dnsNode.Requests, *evt)
-		return true
-	}
-	pan.DNSNames[evt.Name] = NewDNSNode(evt, &ad.nodeStats, rules)
-	return true
-}
-
-func (ad *ActivityDump) insertDNSNameToHackyBackendList(name string) {
-	if name == "" {
-		return
-	}
-
-	ad.DNSNames.Insert(name)
-}
-
-// InsertBindEvent inserts a bind event to the activity dump
-func (ad *ActivityDump) InsertBindEvent(pan *ProcessActivityNode, evt *model.BindEvent, rules []*model.MatchedRule) bool {
-	if evt.SyscallEvent.Retval != 0 {
-		return false
-	}
-	var newNode bool
-	evtFamily := model.AddressFamily(evt.AddrFamily).String()
-
-	// check if a socket of this type already exists
-	var sock *SocketNode
-	for _, s := range pan.Sockets {
-		if s.Family == evtFamily {
-			sock = s
-		}
-	}
-	if sock == nil {
-		sock = NewSocketNode(evtFamily, &ad.nodeStats)
-		pan.Sockets = append(pan.Sockets, sock)
-		newNode = true
-	}
-
-	// Insert bind event
-	if sock.InsertBindEvent(ad, evt, rules) {
-		newNode = true
-	}
-
-	return newNode
-}
-
-// IsValidRootNode evaluates if the provided process entry is allowed to become a root node of an Activity Dump
-func IsValidRootNode(entry *model.ProcessContext) bool {
-	// TODO: evaluate if the same issue affects other container runtimes
-	return !(strings.HasPrefix(entry.FileEvent.BasenameStr, "runc") || strings.HasPrefix(entry.FileEvent.BasenameStr, "containerd-shim"))
-}
-
-// InsertSyscalls inserts the syscall of the process in the dump
-func (pan *ProcessActivityNode) InsertSyscalls(e *model.SyscallsEvent) bool {
-	var hasNewSyscalls bool
-newSyscallLoop:
-	for _, newSyscall := range e.Syscalls {
-		for _, existingSyscall := range pan.Syscalls {
-			if existingSyscall == int(newSyscall) {
-				continue newSyscallLoop
-			}
-		}
-
-		pan.Syscalls = append(pan.Syscalls, int(newSyscall))
-		hasNewSyscalls = true
-	}
-	return hasNewSyscalls
-}
-
-// FileActivityNode holds a tree representation of a list of files
-type FileActivityNode struct {
-	MatchedRules   []*model.MatchedRule
-	Name           string
-	IsPattern      bool
-	File           *model.FileEvent
-	GenerationType NodeGenerationType
-	FirstSeen      time.Time
-
-	Open *OpenNode
-
-	Children map[string]*FileActivityNode
-}
-
-// OpenNode contains the relevant fields of an Open event on which we might want to write a profiling rule
-type OpenNode struct {
-	model.SyscallEvent
-	Flags uint32
-	Mode  uint32
-}
-
-// NewFileActivityNode returns a new FileActivityNode instance
-func NewFileActivityNode(fileEvent *model.FileEvent, event *model.Event, name string, generationType NodeGenerationType, nodeStats *ActivityDumpNodeStats) *FileActivityNode {
-	nodeStats.fileNodes++
-	fan := &FileActivityNode{
-		Name:           name,
-		GenerationType: generationType,
-		Children:       make(map[string]*FileActivityNode),
-	}
-	if fileEvent != nil {
-		fileEventTmp := *fileEvent
-		fan.File = &fileEventTmp
-	}
-	fan.enrichFromEvent(event)
-	return fan
-}
-
-func (fan *FileActivityNode) getNodeLabel() string {
-	label := fan.Name
-	if fan.Open != nil {
-		label += " [open]"
-	}
-	if fan.File != nil {
-		if len(fan.File.PkgName) != 0 {
-			label += fmt.Sprintf(" \\{%s %s\\}", fan.File.PkgName, fan.File.PkgVersion)
-		}
-	}
-	return label
-}
-
-func (fan *FileActivityNode) enrichFromEvent(event *model.Event) {
-	if event == nil {
-		return
-	}
-	if fan.FirstSeen.IsZero() {
-		fan.FirstSeen = event.FieldHandlers.ResolveEventTimestamp(event)
-	}
-
-	fan.MatchedRules = model.AppendMatchedRule(fan.MatchedRules, event.Rules)
-
-	switch event.GetEventType() {
-	case model.FileOpenEventType:
-		if fan.Open == nil {
-			fan.Open = &OpenNode{
-				SyscallEvent: event.Open.SyscallEvent,
-				Flags:        event.Open.Flags,
-				Mode:         event.Open.Mode,
-			}
-		} else {
-			fan.Open.Flags |= event.Open.Flags
-			fan.Open.Mode |= event.Open.Mode
-		}
-	}
-}
-
-// InsertFileEventInFile inserts an event in a FileActivityNode. This function returns true if a new entry was added, false if
-// the event was dropped.
-func (ad *ActivityDump) InsertFileEventInFile(fan *FileActivityNode, fileEvent *model.FileEvent, event *model.Event, remainingPath string, generationType NodeGenerationType) bool {
-	currentFan := fan
-	currentPath := remainingPath
-	somethingChanged := false
-
-	for {
-		parent, nextParentIndex := ExtractFirstParent(currentPath)
-		if nextParentIndex == 0 {
-			currentFan.enrichFromEvent(event)
-			break
-		}
-
-		if ad.shouldMergePaths && len(currentFan.Children) >= 10 {
-			currentFan.Children = ad.combineChildren(currentFan.Children)
-		}
-
-		child, ok := currentFan.Children[parent]
-		if ok {
-			currentFan = child
-			currentPath = currentPath[nextParentIndex:]
-			continue
-		}
-
-		// create new child
-		somethingChanged = true
-		if len(currentPath) <= nextParentIndex+1 {
-			currentFan.Children[parent] = NewFileActivityNode(fileEvent, event, parent, generationType, &ad.nodeStats)
-			break
-		} else {
-			child := NewFileActivityNode(nil, nil, parent, generationType, &ad.nodeStats)
-			currentFan.Children[parent] = child
-
-			currentFan = child
-			currentPath = currentPath[nextParentIndex:]
-			continue
-		}
-	}
-	return somethingChanged
-}
-
-func (ad *ActivityDump) combineChildren(children map[string]*FileActivityNode) map[string]*FileActivityNode {
-	if len(children) == 0 {
-		return children
-	}
-
-	type inner struct {
-		pair utils.StringPair
-		fan  *FileActivityNode
-	}
-
-	inputs := make([]inner, 0, len(children))
-	for k, v := range children {
-		inputs = append(inputs, inner{
-			pair: utils.NewStringPair(k),
-			fan:  v,
-		})
-	}
-
-	current := []inner{inputs[0]}
-
-	for _, a := range inputs[1:] {
-		next := make([]inner, 0, len(current))
-		shouldAppend := true
-		for _, b := range current {
-			if !areCompatibleFans(a.fan, b.fan) {
-				next = append(next, b)
-				continue
-			}
-
-			sp, similar := utils.BuildGlob(a.pair, b.pair, 4)
-			if similar {
-				spGlob, _ := sp.ToGlob()
-				merged, ok := mergeFans(spGlob, a.fan, b.fan)
-				if !ok {
-					next = append(next, b)
-					continue
-				}
-
-				if ad.nodeStats.fileNodes > 0 { // should not happen, but just to be sure
-					ad.nodeStats.fileNodes--
-				}
-				next = append(next, inner{
-					pair: sp,
-					fan:  merged,
-				})
-				shouldAppend = false
-			}
-		}
-
-		if shouldAppend {
-			next = append(next, a)
-		}
-		current = next
-	}
-
-	mergeCount := len(inputs) - len(current)
-	ad.pathMergedCount.Add(uint64(mergeCount))
-
-	res := make(map[string]*FileActivityNode)
-	for _, n := range current {
-		glob, isPattern := n.pair.ToGlob()
-		n.fan.Name = glob
-		n.fan.IsPattern = isPattern
-		res[glob] = n.fan
-	}
-
-	return res
-}
-
-func areCompatibleFans(a *FileActivityNode, b *FileActivityNode) bool {
-	return reflect.DeepEqual(a.Open, b.Open)
-}
-
-func mergeFans(name string, a *FileActivityNode, b *FileActivityNode) (*FileActivityNode, bool) {
-	newChildren := make(map[string]*FileActivityNode)
-	for k, v := range a.Children {
-		newChildren[k] = v
-	}
-	for k, v := range b.Children {
-		if _, present := newChildren[k]; present {
-			return nil, false
-		}
-		newChildren[k] = v
-	}
-
-	return &FileActivityNode{
-		Name:           name,
-		File:           a.File,
-		GenerationType: a.GenerationType,
-		FirstSeen:      a.FirstSeen,
-		Open:           a.Open, // if the 2 fans are compatible, a.Open should be equal to b.Open
-		Children:       newChildren,
-		MatchedRules:   model.AppendMatchedRule(a.MatchedRules, b.MatchedRules),
-	}, true
-}
-
-// nolint: unused
-func (fan *FileActivityNode) debug(w io.Writer, prefix string) {
-	fmt.Fprintf(w, "%s %s\n", prefix, fan.Name)
-
-	sortedChildren := make([]*FileActivityNode, 0, len(fan.Children))
-	for _, f := range fan.Children {
-		sortedChildren = append(sortedChildren, f)
-	}
-	sort.Slice(sortedChildren, func(i, j int) bool {
-		return sortedChildren[i].Name < sortedChildren[j].Name
-	})
-
-	for _, child := range sortedChildren {
-		child.debug(w, "    "+prefix)
-	}
-}
-
-// DNSNode is used to store a DNS node
-type DNSNode struct {
-	MatchedRules []*model.MatchedRule
-
-	Requests []model.DNSEvent
-}
-
-// NewDNSNode returns a new DNSNode instance
-func NewDNSNode(event *model.DNSEvent, nodeStats *ActivityDumpNodeStats, rules []*model.MatchedRule) *DNSNode {
-	nodeStats.dnsNodes++
-	return &DNSNode{
-		MatchedRules: rules,
-		Requests:     []model.DNSEvent{*event},
-	}
-}
-
-// BindNode is used to store a bind node
-type BindNode struct {
-	MatchedRules []*model.MatchedRule
-
-	Port uint16
-	IP   string
-}
-
-// SocketNode is used to store a Socket node and associated events
-type SocketNode struct {
-	Family string
-	Bind   []*BindNode
-}
-
-// InsertBindEvent inserts a bind even inside a socket node
-func (n *SocketNode) InsertBindEvent(ad *ActivityDump, evt *model.BindEvent, rules []*model.MatchedRule) bool {
-	// ignore non IPv4 / IPv6 bind events for now
-	if evt.AddrFamily != unix.AF_INET && evt.AddrFamily != unix.AF_INET6 {
-		ad.bindFamilyDrop.Inc()
-		return false
-	}
-	evtIP := evt.Addr.IPNet.IP.String()
-
-	for _, n := range n.Bind {
-		if evt.Addr.Port == n.Port && evtIP == n.IP {
-			n.MatchedRules = model.AppendMatchedRule(n.MatchedRules, rules)
-			return false
-		}
-	}
-
-	// insert bind event now
-	n.Bind = append(n.Bind, &BindNode{
-		MatchedRules: rules,
-		Port:         evt.Addr.Port,
-		IP:           evtIP,
-	})
-	return true
-}
-
-// NewSocketNode returns a new SocketNode instance
-func NewSocketNode(family string, nodeStats *ActivityDumpNodeStats) *SocketNode {
-	nodeStats.socketNodes++
-	return &SocketNode{
-		Family: family,
-	}
-}
-
-// NodeGenerationType is used to indicate if a node was generated by a runtime or snapshot event
-// IMPORTANT: IT MUST STAY IN SYNC WITH `adproto.GenerationType`
-type NodeGenerationType byte
-
-const (
-	// Unknown is a node that was added at an unknown time
-	Unknown NodeGenerationType = 0
-	// Runtime is a node that was added at runtime
-	Runtime NodeGenerationType = 1
-	// Snapshot is a node that was added during the snapshot
-	Snapshot NodeGenerationType = 2
-)
-
-func (genType NodeGenerationType) String() string {
-	switch genType {
-	case Runtime:
-		return "runtime"
-	case Snapshot:
-		return "snapshot"
-	default:
-		return "unknown"
-	}
 }

@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
@@ -20,13 +21,49 @@ import (
 	"go.uber.org/atomic"
 
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	timeResolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+)
+
+// EventFilteringResult is used to compute metrics for the event filtering feature
+type EventFilteringResult uint8
+
+const (
+	// NoProfile is used to count the events for which we didn't have a profile
+	NoProfile EventFilteringResult = iota
+	// InProfile is used to count the events that matched a profile
+	InProfile
+	// NotInProfile is used to count the events that didn't match their profile
+	NotInProfile
+	// UnstableProfile is used to count the events that didn't make it into a profile because their matching profile was
+	// unstable
+	UnstableProfile
+)
+
+func (efr EventFilteringResult) toTag() string {
+	switch efr {
+	case NoProfile:
+		return fmt.Sprintf("in_profile:no_profile")
+	case InProfile:
+		return fmt.Sprintf("in_profile:true")
+	case NotInProfile:
+		return fmt.Sprintf("in_profile:false")
+	case UnstableProfile:
+		return fmt.Sprintf("in_profile:unstable_profile")
+	}
+	return ""
+}
+
+var (
+	allEventFilteringResults = []EventFilteringResult{NoProfile, InProfile, NotInProfile}
 )
 
 // SecurityProfileManager is used to manage Security Profiles
@@ -34,6 +71,7 @@ type SecurityProfileManager struct {
 	config         *config.Config
 	statsdClient   statsd.ClientInterface
 	cgroupResolver *cgroup.Resolver
+	timeResolver   *timeResolver.Resolver
 	providers      []Provider
 
 	manager                    *manager.Manager
@@ -48,13 +86,11 @@ type SecurityProfileManager struct {
 	cacheHit         *atomic.Uint64
 	cacheMiss        *atomic.Uint64
 
-	eventFilteringNoProfile map[model.EventType]*atomic.Uint64
-	eventFilteringAbsent    map[model.EventType]*atomic.Uint64
-	eventFilteringPresent   map[model.EventType]*atomic.Uint64
+	eventFiltering map[model.EventType]map[EventFilteringResult]*atomic.Uint64
 }
 
 // NewSecurityProfileManager returns a new instance of SecurityProfileManager
-func NewSecurityProfileManager(config *config.Config, statsdClient statsd.ClientInterface, cgroupResolver *cgroup.Resolver, manager *manager.Manager) (*SecurityProfileManager, error) {
+func NewSecurityProfileManager(config *config.Config, statsdClient statsd.ClientInterface, cgroupResolver *cgroup.Resolver, timeResolver *timeResolver.Resolver, manager *manager.Manager) (*SecurityProfileManager, error) {
 	var providers []Provider
 
 	// instantiate directory provider
@@ -89,18 +125,18 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 		securityProfileMap:         securityProfileMap,
 		securityProfileSyscallsMap: securityProfileSyscallsMap,
 		cgroupResolver:             cgroupResolver,
+		timeResolver:               timeResolver,
 		profiles:                   make(map[cgroupModel.WorkloadSelector]*SecurityProfile),
 		pendingCache:               profileCache,
 		cacheHit:                   atomic.NewUint64(0),
 		cacheMiss:                  atomic.NewUint64(0),
-		eventFilteringNoProfile:    make(map[model.EventType]*atomic.Uint64),
-		eventFilteringAbsent:       make(map[model.EventType]*atomic.Uint64),
-		eventFilteringPresent:      make(map[model.EventType]*atomic.Uint64),
+		eventFiltering:             make(map[model.EventType]map[EventFilteringResult]*atomic.Uint64),
 	}
 	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
-		m.eventFilteringNoProfile[i] = atomic.NewUint64(0)
-		m.eventFilteringAbsent[i] = atomic.NewUint64(0)
-		m.eventFilteringPresent[i] = atomic.NewUint64(0)
+		m.eventFiltering[i] = make(map[EventFilteringResult]*atomic.Uint64)
+		for _, result := range allEventFilteringResults {
+			m.eventFiltering[i][result] = atomic.NewUint64(0)
+		}
 	}
 
 	// register the manager to the provider(s)
@@ -181,7 +217,7 @@ func (m *SecurityProfileManager) OnWorkloadSelectorResolvedEvent(workload *cgrou
 			m.profiles[workload.WorkloadSelector] = profile
 		} else {
 			// create a new entry
-			profile = NewSecurityProfile(workload.WorkloadSelector)
+			profile = NewSecurityProfile(workload.WorkloadSelector, m.config.RuntimeSecurity.AnomalyDetectionEventTypes)
 			m.profiles[workload.WorkloadSelector] = profile
 
 			// notify the providers that we're interested in a new workload selector
@@ -274,6 +310,7 @@ func FillProfileContextFromProfile(ctx *model.SecurityProfileContext, profile *S
 	ctx.Version = profile.Version
 	ctx.Tags = profile.Tags
 	ctx.Status = profile.Status
+	ctx.AnomalyDetectionEventTypes = profile.anomalyDetectionEvents
 }
 
 // OnCGroupDeletedEvent is used to handle a CGroupDeleted event
@@ -339,7 +376,7 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 	profile, ok := m.profiles[selector]
 	if !ok {
 		// this was likely a short-lived workload, cache the profile in case this workload comes back
-		profile = NewSecurityProfile(selector)
+		profile = NewSecurityProfile(selector, m.config.RuntimeSecurity.AnomalyDetectionEventTypes)
 	}
 
 	if profile.Version == newProfile.Version {
@@ -353,6 +390,10 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 
 	// decode the content of the profile
 	protoToSecurityProfile(profile, newProfile)
+	if profile.autolearnEnabled {
+		// reset the last anomaly timestamp to now
+		profile.lastAnomalyNano = uint64(m.timeResolver.ComputeMonotonicTimestamp(time.Now()))
+	}
 
 	// prepare the profile for insertion
 	m.prepareProfile(profile)
@@ -416,29 +457,13 @@ func (m *SecurityProfileManager) SendStats() error {
 		}
 	}
 
-	for evtType, count := range m.eventFilteringNoProfile {
-		tags := []string{fmt.Sprintf("event_type:%s", evtType)}
-		if value := count.Swap(0); value > 0 {
-			if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFiltering, int64(value), tags, 1.0); err != nil {
-				return fmt.Errorf("couldn't send MetricSecurityProfileEventFiltering metric: %w", err)
-			}
-		}
-	}
-
-	for evtType, count := range m.eventFilteringAbsent {
-		tags := []string{fmt.Sprintf("event_type:%s", evtType), "in_profile:false"}
-		if value := count.Swap(0); value > 0 {
-			if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFiltering, int64(value), tags, 1.0); err != nil {
-				return fmt.Errorf("couldn't send MetricSecurityProfileEventFiltering metric: %w", err)
-			}
-		}
-	}
-
-	for evtType, count := range m.eventFilteringPresent {
-		tags := []string{fmt.Sprintf("event_type:%s", evtType), "in_profile:true"}
-		if value := count.Swap(0); value > 0 {
-			if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFiltering, int64(value), tags, 1.0); err != nil {
-				return fmt.Errorf("couldn't send MetricSecurityProfileEventFiltering metric: %w", err)
+	for evtType, filteringCounts := range m.eventFiltering {
+		for result, count := range filteringCounts {
+			tags := []string{fmt.Sprintf("event_type:%s", evtType), result.toTag()}
+			if value := count.Swap(0); value > 0 {
+				if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFiltering, int64(value), tags, 1.0); err != nil {
+					return fmt.Errorf("couldn't send MetricSecurityProfileEventFiltering metric: %w", err)
+				}
 			}
 		}
 	}
@@ -457,6 +482,7 @@ func (m *SecurityProfileManager) prepareProfile(profile *SecurityProfile) {
 // loadProfile (thread unsafe) loads a Security Profile in kernel space
 func (m *SecurityProfileManager) loadProfile(profile *SecurityProfile) error {
 	profile.loadedInKernel = true
+	profile.loadedNano = uint64(m.timeResolver.ComputeMonotonicTimestamp(time.Now()))
 
 	// push kernel space filters
 	if err := m.securityProfileSyscallsMap.Put(profile.profileCookie, profile.generateSyscallsFilters()); err != nil {
@@ -502,62 +528,100 @@ func (m *SecurityProfileManager) unlinkProfile(profile *SecurityProfile, workloa
 	seclog.Infof("workload %s (selector: %s) successfully unlinked from profile %s", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name)
 }
 
-func (m *SecurityProfileManager) LookupEventOnProfiles(event *model.Event) {
-	evtType := event.GetEventType()
-	if evtType == model.SyscallsEventType || // syscall matching for anomaly detection is already done kernel side
-		evtType == model.FileOpenEventType || evtType == model.BindEventType || // disabled for now
-		evtType == model.ForkEventType || evtType == model.ExitEventType { // no interest in fork/exit events
-		return
-	}
-
+func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
+	// ignore events with an error
 	if event.Error != nil {
-		m.eventFilteringAbsent[evtType].Inc()
 		return
 	}
 
-	event.FieldHandlers.ResolveContainerID(event, &event.ContainerContext)
+	// shortcut for dedicated anomaly detection events
+	if IsAnomalyDetectionEvent(event.GetEventType()) {
+		event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
+		return
+	}
+
+	// create profile selector
 	event.FieldHandlers.ResolveContainerTags(event, &event.ContainerContext)
-	if event.ContainerContext.ID == "" || len(event.ContainerContext.Tags) == 0 {
+	if len(event.ContainerContext.Tags) == 0 {
 		return
 	}
-
-	// if time.Now()-event.ContainerContext.CreatedAt < time.Second*30 {
-	// 	// TODO: put the event in a cache to be pop back after x sec to have a chance to
-	// 	// retrieve a profile for that workload
-	// }
 
 	selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", event.ContainerContext.Tags), utils.GetTagValue("image_tag", event.ContainerContext.Tags))
 	if err != nil {
 		return
 	}
+
+	// lookup profile
 	profile := m.GetProfile(selector)
 	if profile == nil || profile.Status == 0 {
-		m.eventFilteringNoProfile[evtType].Inc()
+		m.eventFiltering[event.GetEventType()][NoProfile].Inc()
 		return
 	}
 
 	FillProfileContextFromProfile(&event.SecurityProfileContext, profile)
 
-	processNodes := profile.findProfileProcessNodes(event.ProcessContext)
-	if len(processNodes) == 0 {
-		m.eventFilteringAbsent[evtType].Inc()
-		return
-	}
-
-	switch evtType {
-	// for fork/exec/exit events, as we already found some nodes, no need to investigate further
-	case model.ExecEventType:
-		event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
-
-	case model.DNSEventType:
-		if findDNSInNodes(processNodes, event) {
-			event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
+	// check if the event should be injected in the profile automatically
+	if profile.autolearnEnabled {
+		if autoLearned, autoLearnErr := m.tryAutolearn(profile, event); autoLearnErr != nil || autoLearned {
+			return
 		}
 	}
 
-	if event.IsInProfile() {
-		m.eventFilteringPresent[evtType].Inc()
-	} else {
-		m.eventFilteringAbsent[evtType].Inc()
+	// check if the event is in its profile
+	ok, err := profile.ActivityTree.Contains(event, activity_tree.ProfileDrift)
+	if err != nil {
+		// ignore, evaluation failed
+		m.eventFiltering[event.GetEventType()][NoProfile].Inc()
+		return
 	}
+	if ok {
+		event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
+		m.eventFiltering[event.GetEventType()][InProfile].Inc()
+	} else {
+		m.eventFiltering[event.GetEventType()][NotInProfile].Inc()
+	}
+}
+
+// tryAutolearn tries to autolearn the input event. Returns true if the event was autolearned.
+func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *model.Event) (bool, error) {
+	// have we reached the stable state time limit ?
+	if profile.lastAnomalyNano == 0 {
+		profile.lastAnomalyNano = event.TimestampRaw
+	}
+	if time.Duration(event.TimestampRaw-profile.lastAnomalyNano) >= m.config.RuntimeSecurity.AnomalyDetectionMinimumStablePeriod {
+		profile.autolearnEnabled = false
+		return false, nil
+	}
+
+	// have we reached the unstable time limit ?
+	if time.Duration(event.TimestampRaw-profile.loadedNano) >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileTimeThreshold {
+		m.eventFiltering[event.GetEventType()][UnstableProfile].Inc()
+		return false, fmt.Errorf("unstable profile: time limit reached")
+	}
+
+	// check if the unstable size limit was reached
+	if profile.ActivityTree.Stats.ApproximateSize() >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileSizeThreshold {
+		m.eventFiltering[event.GetEventType()][UnstableProfile].Inc()
+		return false, fmt.Errorf("unstable profile: size limit reached")
+	}
+
+	// try to insert the event in the profile
+	newEntry, err := profile.ActivityTree.Insert(event, activity_tree.ProfileDrift)
+	if err != nil {
+		// ignore, insertion failed
+		m.eventFiltering[event.GetEventType()][NoProfile].Inc()
+		return false, err
+	}
+
+	// the event was either already in the profile, or has just been inserted
+	event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
+
+	if newEntry {
+		profile.lastAnomalyNano = event.TimestampRaw
+		m.eventFiltering[event.GetEventType()][NotInProfile].Inc()
+	} else {
+		m.eventFiltering[event.GetEventType()][InProfile].Inc()
+	}
+
+	return true, nil
 }

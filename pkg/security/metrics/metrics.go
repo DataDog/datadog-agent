@@ -172,12 +172,16 @@ var (
 
 	// MetricActivityDumpEventProcessed is the name of the metric used to count the number of events processed while
 	// creating an activity dump.
-	// Tags: event_type
+	// Tags: event_type, tree_type
 	MetricActivityDumpEventProcessed = newRuntimeMetric(".activity_dump.event.processed")
 	// MetricActivityDumpEventAdded is the name of the metric used to count the number of events that were added to an
 	// activity dump.
-	// Tags: event_type
+	// Tags: event_type, tree_type
 	MetricActivityDumpEventAdded = newRuntimeMetric(".activity_dump.event.added")
+	// MetricActivityDumpEventDropped is the name of the metric used to count the number of events that were dropped from an
+	// activity dump.
+	// Tags: event_type, reason, tree_type
+	MetricActivityDumpEventDropped = newRuntimeMetric(".activity_dump.event.dropped")
 	// MetricActivityDumpSizeInBytes is the name of the metric used to report the size of the generated activity dumps in
 	// bytes
 	// Tags: format, storage_type, compression
@@ -186,7 +190,7 @@ var (
 	// Tags: -
 	MetricActivityDumpActiveDumps = newRuntimeMetric(".activity_dump.active_dumps")
 	// MetricActivityDumpPathMergeCount is the name of the metric used to report the number of path merged
-	// Tags: -
+	// Tags: tree_type
 	MetricActivityDumpPathMergeCount = newRuntimeMetric(".activity_dump.path_merged")
 	// MetricActivityDumpLoadControllerTriggered is the name of the metric used to report that the ADM load controller reduced the config envelope
 	// Tags:reduction, event_type
@@ -198,18 +202,6 @@ var (
 	// be sent because they are too big
 	// Tags: format, compression
 	MetricActivityDumpEntityTooLarge = newAgentMetric(".activity_dump.entity_too_large")
-	// MetricActivityDumpBrokenLineageDrop is the name of the metric used to report the number of events dropped due to broken ancestors lineage
-	// Tags: -
-	MetricActivityDumpBrokenLineageDrop = newRuntimeMetric(".activity_dump.broken_lineage_drop")
-	// MetricActivityDumpEventTypeDrop is the name of the metric used to report the number of event dropped because their event types is not traced
-	// Tags: event_type
-	MetricActivityDumpEventTypeDrop = newRuntimeMetric(".activity_dump.event_type_drop")
-	// MetricActivityDumpValidRootNodeDrop is the name of the metric used to report the number of dropped root not valide node
-	// Tags: -
-	MetricActivityDumpValidRootNodeDrop = newRuntimeMetric(".activity_dump.valid_root_node_drop")
-	// MetricActivityDumpBindFamilyDrop is the name of the metric used to report the number of event dropped because the address family is not handled
-	// Tags: -
-	MetricActivityDumpBindFamilyDrop = newRuntimeMetric(".activity_dump.bind_family_drop")
 	// MetricActivityDumpEmptyDropped is the name of the metric used to report the number of activity dumps dropped because they were empty
 	// Tags: -
 	MetricActivityDumpEmptyDropped = newRuntimeMetric(".activity_dump.empty_dump_dropped")
@@ -255,11 +247,11 @@ var (
 	// MetricSecurityProfileCacheMiss is the name of the metric used to report the count of Security Profile cache misses
 	// Tags: -
 	MetricSecurityProfileCacheMiss = newRuntimeMetric(".security_profile.cache.miss")
-	// MetricSecurityProfileAnomalyDetection
+	// MetricSecurityProfileAnomalyDetectionSent
 	// Tags: - event_type
 	MetricSecurityProfileAnomalyDetectionSent = newRuntimeMetric(".security_profile.anomaly_detection.sent")
-	// MetricSecurityProfileEventFilteringNoProfile
-	// Tags: - event_type, in_profile ('true' or 'false')
+	// MetricSecurityProfileEventFiltering
+	// Tags: - event_type, in_profile ('true', 'false', 'no_profile' or 'unstable_profile')
 	MetricSecurityProfileEventFiltering = newRuntimeMetric(".security_profile.evaluation.hit")
 
 	// Namespace resolver metrics

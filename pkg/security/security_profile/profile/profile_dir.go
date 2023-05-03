@@ -53,7 +53,7 @@ type DirectoryProvider struct {
 	cancelFnc         func()
 	watcher           *fsnotify.Watcher
 	newFilesDebouncer *debouncer.Debouncer
-	newFiles          map[string]int
+	newFiles          map[string]bool
 	newFilesLock      sync.Mutex
 
 	// we use a debouncer to forward new profiles to the profile manager in order to prevent a deadlock
@@ -83,7 +83,7 @@ func NewDirectoryProvider(directory string, watch bool) (*DirectoryProvider, err
 		directory:      directory,
 		watcherEnabled: watch,
 		profileMapping: make(map[cgroupModel.WorkloadSelector]profileFSEntry),
-		newFiles:       make(map[string]int),
+		newFiles:       make(map[string]bool),
 	}
 	dp.workloadSelectorDebouncer = debouncer.New(workloadSelectorDebounceDelay, dp.onNewProfileDebouncerCallback)
 	dp.newFilesDebouncer = debouncer.New(newFileDebounceDelay, dp.onHandleFilesFromWatcher)
@@ -302,6 +302,8 @@ func (dp *DirectoryProvider) onHandleFilesFromWatcher() {
 			continue
 		}
 	}
+
+	dp.newFiles = make(map[string]bool)
 }
 
 func (dp *DirectoryProvider) watch(ctx context.Context) {
@@ -331,7 +333,7 @@ func (dp *DirectoryProvider) watch(ctx context.Context) {
 
 							// add file in the list of new files
 							dp.newFilesLock.Lock()
-							dp.newFiles[file] = 1
+							dp.newFiles[file] = true
 							dp.newFilesLock.Unlock()
 							dp.newFilesDebouncer.Call()
 						}
@@ -352,7 +354,7 @@ func (dp *DirectoryProvider) watch(ctx context.Context) {
 				} else if event.Op&fsnotify.Write > 0 && filepath.Ext(event.Name) == profileExtension {
 					// add file in the list of new files
 					dp.newFilesLock.Lock()
-					dp.newFiles[event.Name] = 1
+					dp.newFiles[event.Name] = true
 					dp.newFilesLock.Unlock()
 					dp.newFilesDebouncer.Call()
 				}
