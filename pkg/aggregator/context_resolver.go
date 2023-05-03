@@ -127,6 +127,16 @@ func (cr *contextResolver) release() {
 	}
 }
 
+func (cr *contextResolver) removeOverLimit(keep func(ckey.ContextKey) bool) {
+	cr.contextsLimiter.ExpireEntries()
+
+	for key, cx := range cr.contextsByKey {
+		if cr.contextsLimiter.IsOverLimit(cx.taggerTags.Tags()) && (keep == nil || !keep(key)) {
+			cr.remove(key)
+		}
+	}
+}
+
 func (c *contextResolver) sendOriginTelemetry(timestamp float64, series metrics.SerieSink, hostname string, constTags []string) {
 	// Within the contextResolver, each set of tags is represented by a unique pointer.
 	perOrigin := map[*tags.Entry]uint64{}
@@ -217,6 +227,8 @@ func (cr *timestampContextResolver) expireContexts(expireTimestamp float64, keep
 			cr.resolver.remove(contextKey)
 		}
 	}
+
+	cr.resolver.removeOverLimit(keep)
 }
 
 func (cr *timestampContextResolver) sendOriginTelemetry(timestamp float64, series metrics.SerieSink, hostname string, tags []string) {

@@ -178,8 +178,9 @@ func initAgentDemultiplexer(sharedForwarder forwarder.Forwarder, options AgentDe
 		// the sampler
 		tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
 
-		contextsLimiter := limiter.New(
+		contextsLimiter := limiter.NewGlobal(
 			config.Datadog.GetInt("dogstatsd_context_limiter.limit")/statsdPipelinesCount,
+			config.Datadog.GetInt("dogstatsd_context_limiter.entry_timeout"),
 			config.Datadog.GetString("dogstatsd_context_limiter.key_tag_name"),
 			config.Datadog.GetStringSlice("dogstatsd_context_limiter.telemetry_tag_names"),
 		)
