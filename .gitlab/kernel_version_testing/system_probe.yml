@@ -11,6 +11,7 @@
   script:
     - set +e
     - export SYSTEM_PROBE_PATHS=$(echo "$SYSTEM_PROBE_SRC_PATH")
+    - echo "$SYSTEM_PROBE_PATHS"
     - |+
       for path in $SYSTEM_PROBE_PATHS
       do
