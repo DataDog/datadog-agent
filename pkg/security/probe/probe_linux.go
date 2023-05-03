@@ -988,15 +988,13 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 	}
 
 	for _, newApprover := range newApprovers {
-		seclog.Tracef("Applying approver %+v", newApprover)
+		seclog.Tracef("Applying approver %+v for event type %s", newApprover, eventType)
 		if err := newApprover.Apply(p.Manager); err != nil {
 			return err
 		}
 
-		approverType := newApprover.Key()
 		tags := []string{
-			// TODO: Figure out approver_type, basename or flags
-			fmt.Sprintf("approver_type:%s", approverType),
+			fmt.Sprintf("approver_type:%s", getApproverType(newApprover.GetTableName())),
 			fmt.Sprintf("event_type:%s", eventType),
 		}
 
@@ -1008,15 +1006,13 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 	if previousApprovers, exist := p.approvers[eventType]; exist {
 		previousApprovers.Sub(newApprovers)
 		for _, previousApprover := range previousApprovers {
-			seclog.Tracef("Removing previous approver %+v", previousApprover)
+			seclog.Tracef("Removing previous approver %+v for event type %s", previousApprover, eventType)
 			if err := previousApprover.Remove(p.Manager); err != nil {
 				return err
 			}
 
-			approverType := previousApprover.Key()
 			tags := []string{
-				// TODO: Figure out approver_type, basename or flags
-				fmt.Sprintf("approver_type:%s", approverType),
+				fmt.Sprintf("approver_type:%s", getApproverType(previousApprover.GetTableName())),
 				fmt.Sprintf("event_type:%s", eventType),
 			}
 			if err := p.StatsdClient.Decr(metrics.MetricApproverAdded, tags, 1.0); err != nil {
@@ -1027,6 +1023,16 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 
 	p.approvers[eventType] = newApprovers
 	return nil
+}
+
+func getApproverType(approverTableName string) string {
+	approverType := "flag"
+
+	if approverTableName == kfilters.BasenameApproverKernelMapName {
+		approverType = "basename"
+	}
+
+	return approverType
 }
 
 func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {
