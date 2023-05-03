@@ -54,11 +54,27 @@ func (s *GetEventsTestSuite) TearDownSuite() {
 	s.ti.RemoveChannel(s.channelPath)
 }
 
-func (s *GetEventsTestSuite) SetupTest() {
+func (s *GetEventsTestSuite) testsetup() {
 	// Ensure the log is empty
 	err := s.ti.API().EvtClearLog(s.channelPath)
 	require.NoError(s.T(), err)
+
+	// Reset the expectations/calls on the mock sender
 	resetSender(s.sender)
+
+	// create tmpdir to store bookmark. Necessary to isolate test runs from each other, otherwise
+	// they will load bookmarks from previous runs.
+	testDir := s.T().TempDir()
+	mockConfig := config.Mock(s.T())
+	mockConfig.Set("run_path", testDir)
+}
+
+func (s *GetEventsTestSuite) SetupTest() {
+	s.testsetup()
+}
+
+func (s *GetEventsTestSuite) SetupSubTest() {
+	s.testsetup()
 }
 
 func (s *GetEventsTestSuite) TearDownTest() {
@@ -151,11 +167,6 @@ start: old
 
 // Test that the check can detect and recover from a broken subscription
 func (s *GetEventsTestSuite) TestRecoverFromBrokenSubscription() {
-	// create tmpdir to store bookmark
-	testDir := s.T().TempDir()
-	mockConfig := config.Mock(s.T())
-	mockConfig.Set("run_path", testDir)
-
 	// Put events in the log
 	err := s.ti.GenerateEvents(s.eventSource, s.numEvents)
 	require.NoError(s.T(), err)
@@ -220,11 +231,6 @@ start: old
 
 // Test that the check can resume from a bookmark
 func (s *GetEventsTestSuite) TestBookmark() {
-	// create tmpdir to store bookmark
-	testDir := s.T().TempDir()
-	mockConfig := config.Mock(s.T())
-	mockConfig.Set("run_path", testDir)
-
 	// Put events in the log
 	err := s.ti.GenerateEvents(s.eventSource, s.numEvents)
 	require.NoError(s.T(), err)
@@ -558,6 +564,8 @@ func BenchmarkGetEvents(b *testing.B) {
 					continue
 				}
 				b.Run(fmt.Sprintf("%vAPI/%dEvents/%dBatch", tiName, v, batchCount), func(b *testing.B) {
+					mockConfig := config.Mock(b)
+
 					// setup check
 					instanceConfig := []byte(fmt.Sprintf(`
 path: %s
@@ -571,6 +579,10 @@ payload_size: %d
 					startTime := time.Now()
 					total_events := uint(0)
 					for i := 0; i < b.N; i++ {
+						// create tmpdir to store bookmark
+						testDir := b.TempDir()
+						mockConfig.Set("run_path", testDir)
+						// create check
 						check := new(Check)
 						check.evtapi = ti.API()
 						err = check.Configure(integration.FakeConfigHash, instanceConfig, nil, "test")
@@ -578,9 +590,9 @@ payload_size: %d
 						mocksender.SetSender(sender, check.ID())
 						sender.On("Commit").Return()
 						senderEventCall := sender.On("Event", mock.Anything)
-
+						// read all the events
 						total_events += countEvents(check, senderEventCall, v)
-
+						// clean shutdown the check and reset the mock sender expecations
 						check.Cancel()
 						resetSender(sender)
 					}
