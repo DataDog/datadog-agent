@@ -14,6 +14,7 @@ when 'debian'
 
   execute 'create /usr/share keyring and source list' do
     command <<-EOF
+      sudo apt-get update
       sudo apt-get install -y apt-transport-https curl gnupg
       sudo sh -c "echo \'deb #{node['dd-agent-step-by-step']['aptrepo']} #{node['dd-agent-step-by-step']['aptrepo_dist']} #{node['dd-agent-step-by-step']['agent_major_version']}\' > /etc/apt/sources.list.d/datadog.list"
       sudo touch #{apt_usr_share_keyring} && sudo chmod a+r #{apt_usr_share_keyring}
