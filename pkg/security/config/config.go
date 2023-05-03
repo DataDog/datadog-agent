@@ -129,10 +129,10 @@ type RuntimeSecurityConfig struct {
 
 	// AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
 	AnomalyDetectionEventTypes []model.EventType
-	// AnomalyDetectionMinimumStableDelay defines the minimum amount of time during which the events
+	// AnomalyDetectionMinimumStablePeriod defines the minimum amount of time during which the events
 	// that diverge from their profiles are automatically added in their profiles without triggering an anomaly detection
 	// event.
-	AnomalyDetectionMinimumStableDelay time.Duration
+	AnomalyDetectionMinimumStablePeriod time.Duration
 	// AnomalyDetectionUnstableProfileTimeThreshold defines the maximum amount of time to wait until a profile that
 	// hasn't reached a stable state is considered as unstable.
 	AnomalyDetectionUnstableProfileTimeThreshold time.Duration
@@ -242,7 +242,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// anomaly detection
 		AnomalyDetectionEventTypes:                   model.ParseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
-		AnomalyDetectionMinimumStableDelay:           time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.anomaly_detection.minimum_stable_period")) * time.Second,
+		AnomalyDetectionMinimumStablePeriod:          time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.anomaly_detection.minimum_stable_period")) * time.Second,
 		AnomalyDetectionUnstableProfileTimeThreshold: time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.anomaly_detection.unstable_profile_time_threshold")) * time.Second,
 		AnomalyDetectionUnstableProfileSizeThreshold: coreconfig.SystemProbe.GetInt64("runtime_security_config.security_profile.anomaly_detection.unstable_profile_size_threshold"),
 		AnomalyDetectionRateLimiter:                  coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.anomaly_detection.rate_limiter"),

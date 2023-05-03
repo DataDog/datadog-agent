@@ -568,7 +568,7 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	}
 
 	// check if the event is in its profile
-	ok, err := profile.ActivityTree.Contains(event, activity_tree.SecurityProfile)
+	ok, err := profile.ActivityTree.Contains(event, activity_tree.ProfileDrift)
 	if err != nil {
 		// ignore, evaluation failed
 		m.eventFiltering[event.GetEventType()][NoProfile].Inc()
@@ -588,7 +588,7 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 	if profile.lastAnomalyNano == 0 {
 		profile.lastAnomalyNano = event.TimestampRaw
 	}
-	if time.Duration(event.TimestampRaw-profile.lastAnomalyNano) >= m.config.RuntimeSecurity.AnomalyDetectionMinimumStableDelay {
+	if time.Duration(event.TimestampRaw-profile.lastAnomalyNano) >= m.config.RuntimeSecurity.AnomalyDetectionMinimumStablePeriod {
 		profile.autolearnEnabled = false
 		return false, nil
 	}
@@ -606,7 +606,7 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 	}
 
 	// try to insert the event in the profile
-	newEntry, err := profile.ActivityTree.Insert(event, activity_tree.SecurityProfile)
+	newEntry, err := profile.ActivityTree.Insert(event, activity_tree.ProfileDrift)
 	if err != nil {
 		// ignore, insertion failed
 		m.eventFiltering[event.GetEventType()][NoProfile].Inc()

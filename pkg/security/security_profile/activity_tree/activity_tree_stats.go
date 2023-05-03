@@ -45,9 +45,9 @@ func NewActivityTreeNodeStats() *ActivityTreeStats {
 	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
 		ats.processedCount[i] = atomic.NewUint64(0)
 		ats.addedCount[i] = map[NodeGenerationType]*atomic.Uint64{
-			Runtime:         atomic.NewUint64(0),
-			Snapshot:        atomic.NewUint64(0),
-			SecurityProfile: atomic.NewUint64(0),
+			Runtime:      atomic.NewUint64(0),
+			Snapshot:     atomic.NewUint64(0),
+			ProfileDrift: atomic.NewUint64(0),
 		}
 
 		ats.droppedCount[i] = make(map[NodeDroppedReason]*atomic.Uint64)

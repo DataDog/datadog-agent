@@ -16,15 +16,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
-// SeclEncoding holds the list of rules generated from an activity dump
-type SeclEncoding struct {
+// SECLEncoding holds the list of rules generated from an activity dump
+type SECLEncoding struct {
 	Name     string
 	Selector string
 	Rules    []eval.Rule
 }
 
-// NewSeclRule returns a new ProfileRule
-func NewSeclRule(expression string, ruleIDPrefix string) eval.Rule {
+// NewSECLRule returns a new ProfileRule
+func NewSECLRule(expression string, ruleIDPrefix string) eval.Rule {
 	return eval.Rule{
 		ID:         ruleIDPrefix + "_" + utils.RandString(5),
 		Expression: expression,
@@ -36,7 +36,7 @@ func (at *ActivityTree) generateDNSRule(dns *DNSNode, activityNode *ProcessNode,
 
 	if dns != nil {
 		for _, req := range dns.Requests {
-			rule := NewSeclRule(fmt.Sprintf(
+			rule := NewSECLRule(fmt.Sprintf(
 				"dns.question.name == \"%s\" && dns.question.type == \"%s\"",
 				req.Name,
 				model.QType(req.Type).String()),
@@ -61,14 +61,14 @@ func (at *ActivityTree) generateBindRule(sock *SocketNode, activityNode *Process
 		var socketRules []eval.Rule
 		if len(sock.Bind) > 0 {
 			for _, bindNode := range sock.Bind {
-				socketRules = append(socketRules, NewSeclRule(fmt.Sprintf(
+				socketRules = append(socketRules, NewSECLRule(fmt.Sprintf(
 					"bind.addr.family == %s && bind.addr.ip in %s/32 && bind.addr.port == %d",
 					sock.Family, bindNode.IP, bindNode.Port),
 					ruleIDPrefix,
 				))
 			}
 		} else {
-			socketRules = []eval.Rule{NewSeclRule(fmt.Sprintf("bind.addr.family == %s", sock.Family),
+			socketRules = []eval.Rule{NewSECLRule(fmt.Sprintf("bind.addr.family == %s", sock.Family),
 				ruleIDPrefix,
 			)}
 		}
@@ -95,7 +95,7 @@ func (at *ActivityTree) generateFIMRules(file *FileNode, activityNode *ProcessNo
 	}
 
 	if file.Open != nil {
-		rule := NewSeclRule(fmt.Sprintf(
+		rule := NewSECLRule(fmt.Sprintf(
 			"open.file.path == \"%s\" && open.file.in_upper_layer == %v && open.file.uid == %d && open.file.gid == %d",
 			file.File.PathnameStr,
 			file.File.InUpperLayer,
@@ -122,7 +122,7 @@ func (at *ActivityTree) generateRules(node *ProcessNode, ancestors []*ProcessNod
 	var rules []eval.Rule
 
 	// add exec rule
-	rule := NewSeclRule(fmt.Sprintf(
+	rule := NewSECLRule(fmt.Sprintf(
 		"exec.file.path == \"%s\" && process.uid == %d && process.gid == %d && process.cap_effective == %d && process.cap_permitted == %d",
 		node.Process.FileEvent.PathnameStr,
 		node.Process.UID,
@@ -165,8 +165,8 @@ func (at *ActivityTree) generateRules(node *ProcessNode, ancestors []*ProcessNod
 }
 
 // GenerateProfileData generates a Profile from the activity dump
-func (at *ActivityTree) GenerateProfileData(selector string) SeclEncoding {
-	p := SeclEncoding{
+func (at *ActivityTree) GenerateProfileData(selector string) SECLEncoding {
+	p := SECLEncoding{
 		Name:     "profile_" + utils.RandString(5),
 		Selector: selector,
 	}

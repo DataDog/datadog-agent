@@ -51,8 +51,8 @@ const (
 	Runtime NodeGenerationType = 1
 	// Snapshot is a node that was added during the snapshot
 	Snapshot NodeGenerationType = 2
-	// SecurityProfile is a node that was added because of a drift from a security profile
-	SecurityProfile NodeGenerationType = 3
+	// ProfileDrift is a node that was added because of a drift from a security profile
+	ProfileDrift NodeGenerationType = 3
 )
 
 func (genType NodeGenerationType) String() string {
@@ -61,8 +61,8 @@ func (genType NodeGenerationType) String() string {
 		return "runtime"
 	case Snapshot:
 		return "snapshot"
-	case SecurityProfile:
-		return "security_profile"
+	case ProfileDrift:
+		return "profile_drift"
 	default:
 		return "unknown"
 	}
@@ -157,10 +157,10 @@ func (at *ActivityTree) isValidRootNode(entry *model.ProcessContext) bool {
 }
 
 // isEventValid evaluates if the provided event is valid
-func (at *ActivityTree) isEventValid(event *model.Event, shadowInsertion bool) (bool, error) {
+func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, error) {
 	// check event type
 	if !at.validator.IsEventTypeValid(event.GetEventType()) {
-		if !shadowInsertion {
+		if !dryRun {
 			at.Stats.droppedCount[event.GetEventType()][eventTypeReason].Inc()
 		}
 		return false, fmt.Errorf("event type not valid: %s", event.GetEventType())
@@ -171,7 +171,7 @@ func (at *ActivityTree) isEventValid(event *model.Event, shadowInsertion bool) (
 	case model.BindEventType:
 		// ignore non IPv4 / IPv6 bind events for now
 		if event.Bind.AddrFamily != unix.AF_INET && event.Bind.AddrFamily != unix.AF_INET6 {
-			if !shadowInsertion {
+			if !dryRun {
 				at.Stats.droppedCount[model.BindEventType][bindFamilyReason].Inc()
 			}
 			return false, fmt.Errorf("invalid bind family")
@@ -197,28 +197,28 @@ func (at *ActivityTree) Contains(event *model.Event, generationType NodeGenerati
 }
 
 // insert inserts the event in the activity tree, returns true if the event generated a new entry in the tree
-func (at *ActivityTree) insert(event *model.Event, shadowInsertion bool, generationType NodeGenerationType) (bool, error) {
+func (at *ActivityTree) insert(event *model.Event, dryRun bool, generationType NodeGenerationType) (bool, error) {
 	// sanity check
-	if generationType == Unknown || generationType > SecurityProfile {
+	if generationType == Unknown || generationType > ProfileDrift {
 		return false, fmt.Errorf("invalid generation type: %v", generationType)
 	}
 
 	// check if this event type is traced
-	if valid, err := at.isEventValid(event, shadowInsertion); !valid || err != nil {
+	if valid, err := at.isEventValid(event, dryRun); !valid || err != nil {
 		return false, fmt.Errorf("invalid event: %s", err)
 	}
 
 	// find the node where the event should be inserted
-	if !event.ProcessCacheEntry.HasCompleteLineage() && !shadowInsertion { // check that the process context lineage is complete, otherwise drop it
+	if !event.ProcessCacheEntry.HasCompleteLineage() && !dryRun { // check that the process context lineage is complete, otherwise drop it
 		at.Stats.droppedCount[event.GetEventType()][brokenLineageReason].Inc()
 		return false, fmt.Errorf("incomplete lineage")
 	}
 
-	node, newProcessNode, err := at.CreateProcessNode(event.ProcessCacheEntry, generationType, shadowInsertion)
+	node, newProcessNode, err := at.CreateProcessNode(event.ProcessCacheEntry, generationType, dryRun)
 	if err != nil {
 		return false, err
 	}
-	if newProcessNode && shadowInsertion {
+	if newProcessNode && dryRun {
 		return true, nil
 	}
 	if node == nil {
@@ -246,11 +246,11 @@ func (at *ActivityTree) insert(event *model.Event, shadowInsertion bool, generat
 		node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
 		return newProcessNode, nil
 	case model.FileOpenEventType:
-		return node.InsertFileEvent(&event.Open.File, event, generationType, at.Stats, at.shouldMergePaths, shadowInsertion)
+		return node.InsertFileEvent(&event.Open.File, event, generationType, at.Stats, at.shouldMergePaths, dryRun)
 	case model.DNSEventType:
-		return node.InsertDNSEvent(event, generationType, at.Stats, at.DNSNames, shadowInsertion)
+		return node.InsertDNSEvent(event, generationType, at.Stats, at.DNSNames, dryRun)
 	case model.BindEventType:
-		return node.InsertBindEvent(event, generationType, at.Stats, shadowInsertion)
+		return node.InsertBindEvent(event, generationType, at.Stats, dryRun)
 	case model.SyscallsEventType:
 		return node.InsertSyscalls(event, at.SyscallsMask)
 	}
@@ -260,7 +260,7 @@ func (at *ActivityTree) insert(event *model.Event, shadowInsertion bool, generat
 
 // CreateProcessNode finds or a create a new process activity node in the activity dump if the entry
 // matches the activity dump selector.
-func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType, shadowInsertion bool) (node *ProcessNode, newProcessNode bool, err error) {
+func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType, dryRun bool) (node *ProcessNode, newProcessNode bool, err error) {
 	if entry == nil {
 		return nil, false, nil
 	}
@@ -283,9 +283,9 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, genera
 
 	// find or create a ProcessActivityNode for the parent of the input ProcessCacheEntry. If the parent is a fork entry,
 	// jump immediately to the next ancestor.
-	parentNode, newProcessNode, err := at.CreateProcessNode(entry.GetNextAncestorBinary(), Snapshot, shadowInsertion)
-	if err != nil || (newProcessNode && shadowInsertion) {
-		// Explanation of (newProcessNode && shadowInsertion): when shadowInsertion is on, we can return as soon as we
+	parentNode, newProcessNode, err := at.CreateProcessNode(entry.GetNextAncestorBinary(), Snapshot, dryRun)
+	if err != nil || (newProcessNode && dryRun) {
+		// Explanation of (newProcessNode && dryRun): when dryRun is on, we can return as soon as we
 		// see something new in the tree. Although `newProcessNode` and `err` seem to be tied (i.e. newProcessNode is
 		// always false when err != nil), the important case is when err == nil, where newProcessNode can be either
 		// true or false.
@@ -310,14 +310,14 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, genera
 
 		// we're about to add a root process node, make sure this root node passes the root node sanitizer
 		if !at.isValidRootNode(&entry.ProcessContext) {
-			if !shadowInsertion {
+			if !dryRun {
 				at.Stats.droppedCount[model.ExecEventType][invalidRootNodeReason].Inc()
 			}
 			return nil, false, fmt.Errorf("invalid root node")
 		}
 
 		// if it doesn't, create a new ProcessActivityNode for the input ProcessCacheEntry
-		if !shadowInsertion {
+		if !dryRun {
 			node = NewProcessNode(entry, generationType)
 			// insert in the list of root entries
 			at.ProcessNodes = append(at.ProcessNodes, node)
@@ -336,7 +336,7 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, genera
 		}
 
 		// if none of them matched, create a new ProcessActivityNode for the input processCacheEntry
-		if !shadowInsertion {
+		if !dryRun {
 			node = NewProcessNode(entry, generationType)
 			// insert in the list of children
 			parentNode.Children = append(parentNode.Children, node)
@@ -345,7 +345,7 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, genera
 	}
 
 	// count new entry
-	if !shadowInsertion {
+	if !dryRun {
 		at.Stats.addedCount[model.ExecEventType][generationType].Inc()
 		// propagate the entry matching process cache entry
 		at.validator.NewProcessNodeCallback(node)

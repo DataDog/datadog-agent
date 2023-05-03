@@ -18,22 +18,22 @@ import (
 )
 
 var (
-	processColor                = "#8fbbff"
-	processSecurityProfileColor = "#c2daff"
-	processRuntimeColor         = "#edf3ff"
-	processSnapshotColor        = "white"
-	processShape                = "record"
+	processColor             = "#8fbbff"
+	processProfileDriftColor = "#c2daff"
+	processRuntimeColor      = "#edf3ff"
+	processSnapshotColor     = "white"
+	processShape             = "record"
 
-	fileColor                = "#77bf77"
-	fileSecurityProfileColor = "#c6e1c1"
-	fileRuntimeColor         = "#e9f3e7"
-	fileSnapshotColor        = "white"
-	fileShape                = "record"
+	fileColor             = "#77bf77"
+	fileProfileDriftColor = "#c6e1c1"
+	fileRuntimeColor      = "#e9f3e7"
+	fileSnapshotColor     = "white"
+	fileShape             = "record"
 
-	networkColor                = "#ff9800"
-	networkSecurityProfileColor = "#faddb1"
-	networkRuntimeColor         = "#ffebcd"
-	networkShape                = "record"
+	networkColor             = "#ff9800"
+	networkProfileDriftColor = "#faddb1"
+	networkRuntimeColor      = "#ffebcd"
+	networkShape             = "record"
 )
 
 // PrepareGraphData returns a graph from the activity tree
@@ -69,8 +69,8 @@ func (at *ActivityTree) prepareProcessNode(p *ProcessNode, data *utils.Graph, re
 		Shape: processShape,
 	}
 	switch p.GenerationType {
-	case SecurityProfile:
-		pan.FillColor = processSecurityProfileColor
+	case ProfileDrift:
+		pan.FillColor = processProfileDriftColor
 	case Runtime, Unknown:
 		pan.FillColor = processRuntimeColor
 	case Snapshot:
@@ -149,8 +149,8 @@ func (at *ActivityTree) prepareDNSNode(n *DNSNode, data *utils.Graph, processID 
 	switch n.GenerationType {
 	case Runtime, Snapshot, Unknown:
 		dnsNode.FillColor = networkRuntimeColor
-	case SecurityProfile:
-		dnsNode.FillColor = networkSecurityProfileColor
+	case ProfileDrift:
+		dnsNode.FillColor = networkProfileDriftColor
 	}
 	data.Nodes[dnsNode.ID] = dnsNode
 	return dnsNode.ID, true
@@ -171,8 +171,8 @@ func (at *ActivityTree) prepareSocketNode(n *SocketNode, data *utils.Graph, proc
 	switch n.GenerationType {
 	case Runtime, Snapshot, Unknown:
 		socketNode.FillColor = networkRuntimeColor
-	case SecurityProfile:
-		socketNode.FillColor = networkSecurityProfileColor
+	case ProfileDrift:
+		socketNode.FillColor = networkProfileDriftColor
 	}
 	data.Nodes[targetID] = socketNode
 
@@ -189,8 +189,8 @@ func (at *ActivityTree) prepareSocketNode(n *SocketNode, data *utils.Graph, proc
 		switch node.GenerationType {
 		case Runtime, Snapshot, Unknown:
 			bindNode.FillColor = networkRuntimeColor
-		case SecurityProfile:
-			bindNode.FillColor = networkSecurityProfileColor
+		case ProfileDrift:
+			bindNode.FillColor = networkProfileDriftColor
 		}
 		data.Edges = append(data.Edges, utils.Edge{
 			From:  targetID,
@@ -213,8 +213,8 @@ func (at *ActivityTree) prepareFileNode(f *FileNode, data *utils.Graph, prefix s
 		Shape: fileShape,
 	}
 	switch f.GenerationType {
-	case SecurityProfile:
-		fn.FillColor = fileSecurityProfileColor
+	case ProfileDrift:
+		fn.FillColor = fileProfileDriftColor
 	case Runtime, Unknown:
 		fn.FillColor = fileRuntimeColor
 	case Snapshot:
