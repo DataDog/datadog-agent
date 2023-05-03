@@ -11,6 +11,7 @@ package activity_tree
 import (
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"time"
 
@@ -112,6 +113,9 @@ func (at *ActivityTree) ComputeSyscallsList() []uint32 {
 	for key := range at.SyscallsMask {
 		output = append(output, uint32(key))
 	}
+	sort.Slice(output, func(i, j int) bool {
+		return output[i] < output[j]
+	})
 	return output
 }
 
@@ -365,7 +369,7 @@ func (at *ActivityTree) FindMatchingRootNodes(basename string) []*ProcessNode {
 }
 
 // Snapshot uses procfs to snapshot the nodes of the tree
-func (at *ActivityTree) Snapshot(newEvent func() *model.Event) interface{} {
+func (at *ActivityTree) Snapshot(newEvent func() *model.Event) error {
 	for _, pn := range at.ProcessNodes {
 		if err := pn.snapshot(at.validator, at.shouldMergePaths, at.Stats, newEvent); err != nil {
 			return err
