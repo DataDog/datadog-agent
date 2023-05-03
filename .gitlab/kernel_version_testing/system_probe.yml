@@ -14,9 +14,11 @@
     - |+
       for path in $SYSTEM_PROBE_PATHS
       do
+        echo "Checking $path..."
         echo "$DIFF_FILES" | grep "$path"
         export exit_code=$?
         if [ $exit_code -ne 0 ]; then
+          echo "====BREAK===="
           break
         fi
       done
