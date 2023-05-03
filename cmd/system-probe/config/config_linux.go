@@ -27,9 +27,3 @@ func ValidateSocketAddress(sockPath string) error {
 	}
 	return nil
 }
-
-// Right now, no, because there isn't a way to consent to closed source on Linux
-// and there aren't any closed source components
-func isClosedSourceAllowed() bool {
-	return false
-}
