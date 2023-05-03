@@ -11,12 +11,11 @@
   script:
     - set +e
     - export SYSTEM_PROBE_PATHS=$(echo "$SYSTEM_PROBE_SRC_PATH")
-    - echo "$SYSTEM_PROBE_PATHS"
     - |+
       for path in $SYSTEM_PROBE_PATHS
       do
         echo "$DIFF_FILES" | grep "$path"
-        exit_code=$?
+        export exit_code=$?
         if [ $exit_code -ne 0 ]; then
           break
         fi
@@ -79,12 +78,12 @@ pull_test_dockers_arm64:
       for path in $SYSTEM_PROBE_PATHS
       do
         echo "$DIFF_FILES" | grep "$path"
-        exit_code=$?
+        export exit_code=$?
         if [ $exit_code -ne 0 ]; then
           break
         fi
       done
-    - set -e    
+    - set -e
     - if [ ${exit_code} -eq 0 ]; then
     # Build dependencies directory
     - mkdir -p $DEPENDENCIES
