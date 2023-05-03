@@ -266,6 +266,16 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 			additionals[i].Protocol = intakeProtocol
 			additionals[i].Origin = intakeOrigin
 		}
+
+		if additionals[i].Url != "" {
+			host, port, useSSL, err := parseAddressWithScheme(additionals[i].Url, !additionals[i].UseSSL, parseAddress)
+			if err != nil {
+				return nil, fmt.Errorf("Could not parse %s: %v", additionals[i].Host, err)
+			}
+			additionals[i].Host = host
+			additionals[i].Port = port
+			additionals[i].UseSSL = useSSL
+		}
 	}
 
 	batchWait := logsConfig.batchWait()

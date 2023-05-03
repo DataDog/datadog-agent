@@ -35,6 +35,7 @@ const (
 // Endpoint holds all the organization and network parameters to send logs to Datadog.
 type Endpoint struct {
 	APIKey                  string `mapstructure:"api_key" json:"api_key"`
+	Url                     string
 	Host                    string
 	Port                    int
 	UseSSL                  bool

@@ -453,6 +453,40 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpointsMappedCorrectly() {
 	suite.Equal("2", endpoint.APIKey)
 }
 
+func (suite *EndpointsTestSuite) TestAdditionalEndpointsWithUrl() {
+	var (
+		endpoints *Endpoints
+		endpoint  Endpoint
+		err       error
+	)
+
+	suite.config.Set("logs_config.additional_endpoints", []map[string]interface{}{
+		{
+			"url":               "https://foo.com:1234",
+			"api_key":           "12345678",
+			"use_compression":   false,
+			"compression_level": 4,
+		},
+	})
+
+	suite.config.Set("logs_config.use_http", true)
+	endpoints, err = BuildEndpoints(HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	suite.Nil(err)
+	suite.Len(endpoints.Endpoints, 2)
+
+	endpoint = endpoints.Endpoints[1]
+	suite.Equal("foo.com", endpoint.Host)
+	suite.Equal(1234, endpoint.Port)
+	suite.Equal("12345678", endpoint.APIKey)
+	suite.True(endpoint.UseSSL)
+
+	// Main should override the compression settings
+	suite.True(endpoint.UseCompression)
+	suite.Equal(6, endpoint.CompressionLevel)
+
+	suite.True(endpoint.UseSSL)
+}
+
 func (suite *EndpointsTestSuite) TestIsReliableDefaultTrue() {
 	var (
 		endpoints *Endpoints
