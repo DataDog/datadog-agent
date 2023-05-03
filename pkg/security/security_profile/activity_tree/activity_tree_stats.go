@@ -29,16 +29,13 @@ type ActivityTreeStats struct {
 	processedCount map[model.EventType]*atomic.Uint64
 	addedCount     map[model.EventType]map[NodeGenerationType]*atomic.Uint64
 	droppedCount   map[model.EventType]map[NodeDroppedReason]*atomic.Uint64
-
-	pathMergedCount *atomic.Uint64
 }
 
 func NewActivityTreeNodeStats() *ActivityTreeStats {
 	ats := &ActivityTreeStats{
-		processedCount:  make(map[model.EventType]*atomic.Uint64),
-		addedCount:      make(map[model.EventType]map[NodeGenerationType]*atomic.Uint64),
-		droppedCount:    make(map[model.EventType]map[NodeDroppedReason]*atomic.Uint64),
-		pathMergedCount: atomic.NewUint64(0),
+		processedCount: make(map[model.EventType]*atomic.Uint64),
+		addedCount:     make(map[model.EventType]map[NodeGenerationType]*atomic.Uint64),
+		droppedCount:   make(map[model.EventType]map[NodeDroppedReason]*atomic.Uint64),
 	}
 
 	// generate counters
@@ -103,10 +100,5 @@ func (stats *ActivityTreeStats) SendStats(client statsd.ClientInterface, treeTyp
 		}
 	}
 
-	if value := stats.pathMergedCount.Swap(0); value > 0 {
-		if err := client.Count(metrics.MetricActivityDumpPathMergeCount, int64(value), []string{treeTypeTag}, 1.0); err != nil {
-			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpPathMergeCount, err)
-		}
-	}
 	return nil
 }

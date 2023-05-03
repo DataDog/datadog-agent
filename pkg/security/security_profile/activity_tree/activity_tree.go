@@ -81,7 +81,6 @@ type ActivityTree struct {
 	Stats *ActivityTreeStats
 
 	treeType          string
-	shouldMergePaths  bool
 	differentiateArgs bool
 
 	validator ActivityTreeOwner
@@ -142,11 +141,6 @@ func (at *ActivityTree) ScrubProcessArgsEnvs(resolver *process.Resolver) {
 		current.scrubAndReleaseArgsEnvs(resolver)
 		openList = append(openList[:len(openList)-1], current.Children...)
 	}
-}
-
-// EnablePathsMerge enables the paths merge algorithm
-func (at *ActivityTree) EnablePathsMerge() {
-	at.shouldMergePaths = true
 }
 
 // DifferentiateArgs enables the args differentiation feature
@@ -250,7 +244,7 @@ func (at *ActivityTree) insert(event *model.Event, dryRun bool, generationType N
 		node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
 		return newProcessNode, nil
 	case model.FileOpenEventType:
-		return node.InsertFileEvent(&event.Open.File, event, generationType, at.Stats, at.shouldMergePaths, dryRun)
+		return node.InsertFileEvent(&event.Open.File, event, generationType, at.Stats, dryRun)
 	case model.DNSEventType:
 		return node.InsertDNSEvent(event, generationType, at.Stats, at.DNSNames, dryRun)
 	case model.BindEventType:
@@ -371,7 +365,7 @@ func (at *ActivityTree) FindMatchingRootNodes(basename string) []*ProcessNode {
 // Snapshot uses procfs to snapshot the nodes of the tree
 func (at *ActivityTree) Snapshot(newEvent func() *model.Event) error {
 	for _, pn := range at.ProcessNodes {
-		if err := pn.snapshot(at.validator, at.shouldMergePaths, at.Stats, newEvent); err != nil {
+		if err := pn.snapshot(at.validator, at.Stats, newEvent); err != nil {
 			return err
 		}
 		// iterate slowly
