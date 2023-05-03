@@ -29,14 +29,15 @@ import (
 )
 
 type cloudProviderDetector struct {
-	name     string
-	callback func(context.Context) bool
+	name              string
+	callback          func(context.Context) bool
+	accountIdCallback func(context.Context) (string, error)
 }
 
 // DetectCloudProvider detects the cloud provider where the agent is running in order:
 func DetectCloudProvider(ctx context.Context) {
 	detectors := []cloudProviderDetector{
-		{name: ec2.CloudProviderName, callback: ec2.IsRunningOn},
+		{name: ec2.CloudProviderName, callback: ec2.IsRunningOn, accountIdCallback: ec2.GetAccountID},
 		{name: gce.CloudProviderName, callback: gce.IsRunningOn},
 		{name: azure.CloudProviderName, callback: azure.IsRunningOn},
 		{name: alibaba.CloudProviderName, callback: alibaba.IsRunningOn},
@@ -49,6 +50,15 @@ func DetectCloudProvider(ctx context.Context) {
 		if cloudDetector.callback(ctx) {
 			inventories.SetAgentMetadata(inventories.HostCloudProvider, cloudDetector.name)
 			log.Infof("Cloud provider %s detected", cloudDetector.name)
+
+			// fetch the account ID for this cloud provider
+			if cloudDetector.accountIdCallback != nil {
+				if accountID, err := cloudDetector.accountIdCallback(ctx); err != nil && accountID != "" {
+					log.Infof("Detecting `%s` from %s cloud provider: %+q", inventories.HostCloudProviderAccountID, cloudDetector.name, accountID)
+					inventories.SetHostMetadata(inventories.HostCloudProviderAccountID, accountID)
+				}
+			}
+
 			return
 		}
 	}
