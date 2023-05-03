@@ -794,7 +794,7 @@ var ProcessSources = [...]string{
 	"ProcFS",
 }
 
-func ProcSourceToString(source uint64) string {
+func ProcessSourceToString(source uint64) string {
 	return ProcessSources[source]
 }
 

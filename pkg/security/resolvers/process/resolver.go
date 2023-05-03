@@ -1210,15 +1210,6 @@ func (p *Resolver) GetEntryCacheSize() float64 {
 	return float64(p.cacheSize.Load())
 }
 
-// GetEntryCache return the resolver's entrycache
-func (p *Resolver) GetEntryCache(entryToEvent func(_ *model.ProcessCacheEntry)) {
-	p.RLock()
-	defer p.RUnlock()
-	for _, entry := range p.entryCache {
-		entryToEvent(entry)
-	}
-}
-
 // SetState sets the process resolver state
 func (p *Resolver) SetState(state int64) {
 	p.state.Store(state)

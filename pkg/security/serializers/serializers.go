@@ -772,7 +772,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, resol
 		ProcessSerializer: newProcessSerializer(&pc.Process, e, resolvers),
 	}
 
-	ps.Source = model.ProcSourceToString(pc.Source)
+	ps.Source = model.ProcessSourceToString(pc.Source)
 
 	ctx := eval.NewContext(e)
 

@@ -321,7 +321,7 @@ func (p *Probe) PlaySnapshot() {
 		event.ProcessContext.Process.ContainerID = entry.ContainerID
 		events = append(events, event)
 	}
-	p.GetResolvers().ProcessResolver.GetEntryCache(entryToEvent)
+	p.GetResolvers().ProcessResolver.Walk(entryToEvent)
 	for _, event := range events {
 		p.DispatchEvent(event)
 	}
