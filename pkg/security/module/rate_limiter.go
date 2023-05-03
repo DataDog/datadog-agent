@@ -33,9 +33,10 @@ var (
 	defaultBurst int = 40
 
 	defaultPerRuleLimiters = map[eval.RuleID]Limiter{
-		events.RulesetLoadedRuleID:       NewStdLimiter(rate.Inf, 1), // No limit on ruleset loaded
-		events.AbnormalPathRuleID:        NewStdLimiter(rate.Every(30*time.Second), 1),
-		events.ProcessContextErrorRuleID: NewStdLimiter(rate.Every(30*time.Second), 1),
+		events.RulesetLoadedRuleID:             NewStdLimiter(rate.Inf, 1), // No limit on ruleset loaded
+		events.AbnormalPathRuleID:              NewStdLimiter(rate.Every(30*time.Second), 1),
+		events.NoProcessContextErrorRuleID:     NewStdLimiter(rate.Every(30*time.Second), 1),
+		events.BrokenProcessLineageErrorRuleID: NewStdLimiter(rate.Every(30*time.Second), 1),
 	}
 )
 

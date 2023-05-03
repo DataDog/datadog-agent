@@ -386,10 +386,14 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 	}
 
 	// handle anomaly detection, if not an anomaly let it pass to the process monitor so that it can be added to a dump
-	if !p.handleAnomalyDetection(event) {
+	if !p.handleAnomalyDetection(event) && event.Error == nil {
 		// Process after evaluation because some monitors need the DentryResolver to have been called first.
-		p.monitor.ProcessEvent(event)
+		if p.monitor.activityDumpManager != nil {
+			p.monitor.activityDumpManager.ProcessEvent(event)
+		}
+
 	}
+	p.monitor.ProcessEvent(event)
 }
 
 // DispatchCustomEvent sends a custom event to the probe event handler
@@ -884,8 +888,13 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 	// resolve the process cache entry
 	entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event)
-	if !isResolved && !eventWithNoProcessContext(eventType) {
-		event.Error = &ErrProcessContext{Err: errors.New("process context not resolved")}
+	if !eventWithNoProcessContext(eventType) {
+		if !isResolved {
+			event.Error = &ErrNoProcessContext{Err: errors.New("process context not resolved")}
+		} else if !entry.HasCompleteLineage() {
+			event.Error = &ErrProcessBrokenLineage{PIDContext: entry.PIDContext}
+			p.resolvers.ProcessResolver.CountBrokenLineage()
+		}
 	}
 	event.ProcessCacheEntry = entry
 

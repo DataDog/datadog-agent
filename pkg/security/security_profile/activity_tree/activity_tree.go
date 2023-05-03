@@ -28,13 +28,11 @@ type NodeDroppedReason string
 
 var (
 	eventTypeReason       NodeDroppedReason = "event_type"
-	brokenLineageReason   NodeDroppedReason = "broken_lineage"
 	invalidRootNodeReason NodeDroppedReason = "invalid_root_node"
 	bindFamilyReason      NodeDroppedReason = "bind_family"
 	brokenEventReason     NodeDroppedReason = "broken_event"
 	allDropReasons                          = []NodeDroppedReason{
 		eventTypeReason,
-		brokenLineageReason,
 		invalidRootNodeReason,
 		bindFamilyReason,
 		brokenEventReason,
@@ -204,12 +202,6 @@ func (at *ActivityTree) insert(event *model.Event, dryRun bool, generationType N
 	// check if this event type is traced
 	if valid, err := at.isEventValid(event, dryRun); !valid || err != nil {
 		return false, fmt.Errorf("invalid event: %s", err)
-	}
-
-	// find the node where the event should be inserted
-	if !event.ProcessCacheEntry.HasCompleteLineage() && !dryRun { // check that the process context lineage is complete, otherwise drop it
-		at.Stats.droppedCount[event.GetEventType()][brokenLineageReason].Inc()
-		return false, fmt.Errorf("incomplete lineage")
 	}
 
 	node, newProcessNode, err := at.CreateProcessNode(event.ProcessCacheEntry, generationType, dryRun)

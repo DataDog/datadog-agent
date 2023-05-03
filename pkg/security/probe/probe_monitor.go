@@ -188,31 +188,36 @@ func (m *Monitor) ProcessEvent(event *model.Event) {
 	m.loadController.Count(event)
 
 	// handle event errors
-	if event.Error != nil {
-		var notCritical *path.ErrPathResolutionNotCritical
-		if errors.As(event.Error, &notCritical) {
-			return
-		}
-
-		var pathErr *path.ErrPathResolution
-		if errors.As(event.Error, &pathErr) {
-			m.probe.DispatchCustomEvent(
-				NewAbnormalEvent(events.AbnormalPathRuleID, event, m.probe, pathErr.Err),
-			)
-		}
-
-		var processErr *ErrProcessContext
-		if errors.As(event.Error, &processErr) {
-			m.probe.DispatchCustomEvent(
-				NewAbnormalEvent(events.ProcessContextErrorRuleID, event, m.probe, event.Error),
-			)
-		}
-
+	if event.Error == nil {
+		return
+	}
+	var notCritical *path.ErrPathResolutionNotCritical
+	if errors.As(event.Error, &notCritical) {
 		return
 	}
 
-	if m.activityDumpManager != nil {
-		m.activityDumpManager.ProcessEvent(event)
+	var pathErr *path.ErrPathResolution
+	if errors.As(event.Error, &pathErr) {
+		m.probe.DispatchCustomEvent(
+			NewAbnormalEvent(events.AbnormalPathRuleID, event, m.probe, pathErr.Err),
+		)
+		return
+	}
+
+	var processContextErr *ErrNoProcessContext
+	if errors.As(event.Error, &processContextErr) {
+		m.probe.DispatchCustomEvent(
+			NewAbnormalEvent(events.NoProcessContextErrorRuleID, event, m.probe, event.Error),
+		)
+		return
+	}
+
+	var brokenLineageErr *ErrProcessBrokenLineage
+	if errors.As(event.Error, &brokenLineageErr) {
+		m.probe.DispatchCustomEvent(
+			NewAbnormalEvent(events.BrokenProcessLineageErrorRuleID, event, m.probe, event.Error),
+		)
+		return
 	}
 }
 
