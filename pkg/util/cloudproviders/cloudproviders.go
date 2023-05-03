@@ -39,7 +39,7 @@ func DetectCloudProvider(ctx context.Context) {
 	detectors := []cloudProviderDetector{
 		{name: ec2.CloudProviderName, callback: ec2.IsRunningOn, accountIdCallback: ec2.GetAccountID},
 		{name: gce.CloudProviderName, callback: gce.IsRunningOn, accountIdCallback: gce.GetProjectID},
-		{name: azure.CloudProviderName, callback: azure.IsRunningOn},
+		{name: azure.CloudProviderName, callback: azure.IsRunningOn, accountIdCallback: azure.GetSubscriptionID},
 		{name: alibaba.CloudProviderName, callback: alibaba.IsRunningOn},
 		{name: tencent.CloudProviderName, callback: tencent.IsRunningOn},
 		{name: oracle.CloudProviderName, callback: oracle.IsRunningOn},
