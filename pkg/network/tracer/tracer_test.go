@@ -61,6 +61,10 @@ func TestMain(m *testing.M) {
 		fmt.Println("RUNTIME COMPILER ENABLED")
 	}
 
+	if err := setKernelVersion(); err != nil {
+		fmt.Println("Failed to get kernel version, halting the tests", err)
+		os.Exit(1)
+	}
 	driver.Init(&syscfg.Config{ClosedSourceAllowed: true})
 	os.Exit(m.Run())
 }
@@ -81,7 +85,7 @@ func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
 }
 
 func TestGetStats(t *testing.T) {
-	httpSupported := httpSupported(t)
+	httpSupported := httpSupported()
 	linuxExpected := map[string]interface{}{}
 	err := json.Unmarshal([]byte(`{
       "conntrack": {
