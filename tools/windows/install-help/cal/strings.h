@@ -49,7 +49,6 @@ extern std::wstring installInstalledServices;
 
 extern std::wstring keyInstalledUser;
 extern std::wstring keyInstalledDomain;
-extern std::wstring keyClosedSourceEnabled;
 
 void initializeStringsFromStringTable();
 
