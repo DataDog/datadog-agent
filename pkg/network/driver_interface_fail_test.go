@@ -56,9 +56,6 @@ func (tdh *TestDriverHandleFail) CancelIoEx(ol *windows.Overlapped) error {
 	return nil
 }
 
-func (tdh *TestDriverHandleFail) GetStatsForHandle() (map[string]map[string]int64, error) {
-	return nil, nil
-}
 func (tdh *TestDriverHandleFail) Close() error {
 	return nil
 }
