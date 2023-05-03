@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cloudfoundry-community/go-cfclient"
+	"github.com/cloudfoundry-community/go-cfclient/v2"
 	"github.com/stretchr/testify/assert"
 )
 

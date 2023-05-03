@@ -75,7 +75,6 @@ require (
 	github.com/alecthomas/participle v0.7.1
 	github.com/alecthomas/repr v0.2.0
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137
-	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000 // keep this proto version to not confuse dependabot
 	github.com/aquasecurity/trivy-db v0.0.0-20230105123735-5ce110fc82e1
 	github.com/avast/retry-go/v4 v4.3.4
 	github.com/aws/aws-lambda-go v1.37.0
@@ -535,7 +534,7 @@ require (
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
 	golang.org/x/crypto v0.7.0 // indirect
 	golang.org/x/mod v0.10.0 // indirect
-	golang.org/x/oauth2 v0.6.0 // indirect
+	golang.org/x/oauth2 v0.7.0 // indirect
 	golang.org/x/term v0.7.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	gonum.org/v1/gonum v0.12.0 // indirect
@@ -567,6 +566,8 @@ require (
 )
 
 require (
+	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
+	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
 	github.com/godror/godror v0.37.0
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/sijms/go-ora/v2 v2.6.12

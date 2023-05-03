@@ -19,7 +19,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cloudfoundry-community/go-cfclient"
+	"github.com/cloudfoundry-community/go-cfclient/v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
