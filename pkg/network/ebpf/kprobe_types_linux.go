@@ -105,6 +105,6 @@ const SizeofBatch = 0x1f0
 type ClassificationProgram = uint32
 
 const (
-	ClassificationQueues ClassificationProgram = 0x1
-	ClassificationDBs    ClassificationProgram = 0x2
+	ClassificationQueues ClassificationProgram = 0x2
+	ClassificationDBs    ClassificationProgram = 0x3
 )

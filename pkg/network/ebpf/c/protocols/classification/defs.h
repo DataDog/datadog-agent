@@ -80,9 +80,14 @@ typedef struct {
 
 typedef enum {
     CLASSIFICATION_PROG_UNKNOWN = 0,
+    __PROG_APPLICATION,
+    // Application classification programs go here
     CLASSIFICATION_QUEUES_PROG,
     CLASSIFICATION_DBS_PROG,
-    // Add before this value.
+    __PROG_API,
+    // API classification programs go here
+    __PROG_ENCRYPTION,
+    // Encryption classification programs go here
     CLASSIFICATION_PROG_MAX,
 } classification_prog_t;
 

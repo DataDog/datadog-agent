@@ -123,7 +123,7 @@ static __always_inline protocol_stack_t* get_protocol_stack(struct __sk_buff *sk
 // layer as known for the purposes of tail-call routing decisions.
 static __always_inline void update_protocol_stack(usm_context_t *usm_ctx, protocol_stack_t *stack, protocol_t proto) {
     set_protocol(stack, proto);
-    usm_ctx->routing_known_layers |= proto;
+    usm_ctx->routing_skip_layers |= proto;
 }
 
 // A shared implementation for the runtime & prebuilt socket filter that classifies the protocols of the connections.
