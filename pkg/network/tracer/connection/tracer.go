@@ -527,9 +527,9 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 	}
 
 	stats.ProtocolStack = protocols.Stack{
-		API: protocols.API(.Protocol_stack.Api),
+		Api:         protocols.API(s.Protocol_stack.Api),
 		Application: protocols.Application(s.Protocol_stack.Application),
-		Encryption: protocols.Encryption(s.Protocol_stack.Encryption),
+		Encryption:  protocols.Encryption(s.Protocol_stack.Encryption),
 	}
 	stats.StaticTags |= uint64(s.Conn_tags)
 
