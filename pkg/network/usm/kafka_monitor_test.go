@@ -445,7 +445,7 @@ func getDefaultTestConfiguration() *config.Config {
 }
 
 func newHTTPWithKafkaMonitor(t *testing.T, cfg *config.Config) *Monitor {
-	monitor, err := NewMonitor(cfg, nil, nil, nil, nil)
+	monitor, err := NewMonitor(cfg, nil, nil, nil)
 	skipIfNotSupported(t, err)
 	require.NoError(t, err)
 	t.Cleanup(func() {
