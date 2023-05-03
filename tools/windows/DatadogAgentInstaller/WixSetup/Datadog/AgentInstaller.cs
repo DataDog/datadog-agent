@@ -243,6 +243,20 @@ namespace WixSetup.Datadog
                     .FindAll("Feature")
                     .First(x => x.HasAttribute("Id", value => value == "MainApplication"))
                     .AddElement("MergeRef", "Id=ddnpminstall");
+                // Conditionally include the APM injection MSM while it is in active development to make it easier
+                // to build/ship without it.
+                if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WINDOWS_APMINJECT_MODULE")))
+                {
+                    document
+                        .FindAll("Directory")
+                        .First(x => x.HasAttribute("Id", value => value == "DRIVER"))
+                        .AddElement("Merge",
+                            $"Id=ddapminstall; SourceFile={BinSource}\\agent\\ddapminstall.msm; DiskId=1; Language=1033");
+                    document
+                        .FindAll("Feature")
+                        .First(x => x.HasAttribute("Id", value => value == "MainApplication"))
+                        .AddElement("MergeRef", "Id=ddapminstall");
+                }
             };
             project.WixSourceFormated += (ref string content) => WixSourceFormated?.Invoke(content);
             project.WixSourceSaved += name => WixSourceSaved?.Invoke(name);
