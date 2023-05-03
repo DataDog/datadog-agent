@@ -46,11 +46,17 @@ import (
 )
 
 func httpSupported() bool {
+	if isFentry() {
+		return false
+	}
 	// kv is declared in `tracer_linux_test.go`.
 	return kv >= http.MinimumKernelVersion
 }
 
 func httpsSupported() bool {
+	if isFentry() {
+		return false
+	}
 	return http.HTTPSSupported(testConfig())
 }
 
