@@ -193,24 +193,24 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 		}
 	}
 
-	for _, keepAlives := range []struct {
+	for _, keepAlive := range []struct {
 		name  string
 		value bool
 	}{
 		{
-			name:  "without keep-alives",
+			name:  "without keep-alive",
 			value: false,
 		},
 		{
-			name:  "with keep-alives",
+			name:  "with keep-alive",
 			value: true,
 		},
 	} {
-		t.Run(keepAlives.name, func(t *testing.T) {
+		t.Run(keepAlive.name, func(t *testing.T) {
 			// Spin-up HTTPS server
 			serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:443", testutil.Options{
-				EnableTLS:        true,
-				EnableKeepAlives: keepAlives.value,
+				EnableTLS:       true,
+				EnableKeepAlive: keepAlive.value,
 			})
 			t.Cleanup(serverDoneFn)
 
@@ -1264,8 +1264,8 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				closer, err := testutil.HTTPPythonServer(t, ctx.serverAddress, testutil.Options{
-					EnableKeepAlives: false,
-					EnableTLS:        true,
+					EnableKeepAlive: false,
+					EnableTLS:       true,
 				})
 				require.NoError(t, err)
 				t.Cleanup(closer)
