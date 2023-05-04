@@ -25,7 +25,7 @@
     !reference [ .on_system_probe_changes_or_manual ]
   stage: kernel_matrix_testing
   script:
-    - !reference [ .system_probe_file_diff_check ]
+    - export exit_code=1;
     - if [ ${exit_code} -eq 0 ]; then
     # Build dependencies directory
     # DockerHub login for build to limit rate limit when pulling base images
