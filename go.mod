@@ -566,6 +566,7 @@ require (
 )
 
 require (
+	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/godror/godror v0.37.0
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/sijms/go-ora/v2 v2.6.12
@@ -575,6 +576,7 @@ require (
 	github.com/cloudflare/circl v1.1.0 // indirect
 	github.com/godror/knownpb v0.1.0 // indirect
 	github.com/rs/zerolog v1.29.0 // indirect
+	github.com/sigstore/rekor v1.0.1 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	go4.org/intern v0.0.0-20211027215823-ae77deb06f29 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20220617031537-928513b29760 // indirect
