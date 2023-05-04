@@ -245,10 +245,9 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 	}
 	assert.Equal(t, 1, connsWithRetransmits)
 
-	telemetry := tr.ebpfTracer.GetTelemetry()
 	// Test if telemetry measuring PID collisions is correct
 	// >= because there can be other connections going on during CI that increase pidCollisions
-	assert.GreaterOrEqual(t, telemetry["pid_collisions"], int64(numProcesses-1))
+	assert.GreaterOrEqual(t, connection.ConnTracerTelemetry.PidCollisions.Load(), int64(numProcesses-1))
 }
 
 func TestTCPRTT(t *testing.T) {
@@ -338,8 +337,7 @@ func TestTCPMiscount(t *testing.T) {
 		assert.False(t, uint64(len(x)) == conn.Monotonic.SentBytes)
 	}
 
-	tel := tr.ebpfTracer.GetTelemetry()
-	assert.NotZero(t, tel["tcp_sent_miscounts"])
+	assert.NotZero(t, connection.ConnTracerTelemetry.TcpSentMiscounts.Load())
 }
 
 func TestConnectionExpirationRegression(t *testing.T) {
