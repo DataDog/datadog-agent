@@ -103,12 +103,7 @@ func testFormatHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 	}
 
 	httpEncoder := newHTTPEncoder(in)
-
-	httpBlob, tags, _ := httpEncoder.GetHTTPAggregationsAndTags(in.Conns[0])
-	require.NotNil(t, httpBlob)
-	aggregations := new(model.HTTPAggregations)
-	err := proto.Unmarshal(httpBlob, aggregations)
-	require.NoError(t, err)
+	aggregations, tags, _ := getHTTPAggregations(t, httpEncoder, in.Conns[0])
 
 	require.NotNil(t, aggregations)
 	assert.ElementsMatch(t, out.EndpointAggregations, aggregations.EndpointAggregations)
@@ -172,11 +167,7 @@ func testFormatHTTPStatsByPath(t *testing.T, aggregateByStatusCode bool) {
 		},
 	}
 	httpEncoder := newHTTPEncoder(payload)
-	httpBlob, tags, _ := httpEncoder.GetHTTPAggregationsAndTags(payload.Conns[0])
-	require.NotNil(t, httpBlob)
-	httpAggregations := new(model.HTTPAggregations)
-	err := proto.Unmarshal(httpBlob, httpAggregations)
-	require.NoError(t, err)
+	httpAggregations, tags, _ := getHTTPAggregations(t, httpEncoder, payload.Conns[0])
 
 	require.NotNil(t, httpAggregations)
 	endpointAggregations := httpAggregations.EndpointAggregations
@@ -257,19 +248,14 @@ func testIDCollisionRegression(t *testing.T, aggregateByStatusCode bool) {
 
 	// assert that the first connection matching the HTTP data will get
 	// back a non-nil result
-	httpBlob, _, _ := httpEncoder.GetHTTPAggregationsAndTags(in.Conns[0])
-	require.NotNil(t, httpBlob)
-	aggregations := new(model.HTTPAggregations)
-	err := proto.Unmarshal(httpBlob, aggregations)
-	require.NoError(t, err)
-
+	aggregations, _, _ := getHTTPAggregations(t, httpEncoder, in.Conns[0])
 	assert.Equal("/", aggregations.EndpointAggregations[0].Path)
 	assert.Equal(uint32(1), aggregations.EndpointAggregations[0].StatsByStatusCode[int32(httpStats.NormalizeStatusCode(104))].Count)
 
 	// assert that the other connections sharing the same (source,destination)
 	// addresses but different PIDs *won't* be associated with the HTTP stats
 	// object
-	httpBlob, _, _ = httpEncoder.GetHTTPAggregationsAndTags(connections[1])
+	httpBlob, _, _ := httpEncoder.GetHTTPAggregationsAndTags(connections[1])
 	assert.Nil(httpBlob)
 }
 
@@ -345,21 +331,24 @@ func testLocalhostScenario(t *testing.T, aggregateByStatusCode bool) {
 
 	// assert that both ends (client:server, server:client) of the connection
 	// will have HTTP stats
-	httpBlob, _, _ := httpEncoder.GetHTTPAggregationsAndTags(in.Conns[0])
-	require.NotNil(t, httpBlob)
-	aggregations := new(model.HTTPAggregations)
-	err := proto.Unmarshal(httpBlob, aggregations)
-	require.NoError(t, err)
+	aggregations, _, _ := getHTTPAggregations(t, httpEncoder, in.Conns[0])
 	assert.Equal("/", aggregations.EndpointAggregations[0].Path)
 	assert.Equal(uint32(1), aggregations.EndpointAggregations[0].StatsByStatusCode[int32(httpStats.NormalizeStatusCode(103))].Count)
 
-	httpBlob, _, _ = httpEncoder.GetHTTPAggregationsAndTags(in.Conns[1])
-	require.NotNil(t, httpBlob)
-	aggregations = new(model.HTTPAggregations)
-	err = proto.Unmarshal(httpBlob, aggregations)
-	require.NoError(t, err)
+	aggregations, _, _ = getHTTPAggregations(t, httpEncoder, in.Conns[1])
 	assert.Equal("/", aggregations.EndpointAggregations[0].Path)
 	assert.Equal(uint32(1), aggregations.EndpointAggregations[0].StatsByStatusCode[int32(httpStats.NormalizeStatusCode(103))].Count)
+}
+
+func getHTTPAggregations(t *testing.T, encoder *httpEncoder, c network.ConnectionStats) (*model.HTTPAggregations, uint64, map[string]struct{}) {
+	httpBlob, staticTags, dynamicTags := encoder.GetHTTPAggregationsAndTags(c)
+	require.NotNil(t, httpBlob)
+
+	aggregations := new(model.HTTPAggregations)
+	err := proto.Unmarshal(httpBlob, aggregations)
+	require.NoError(t, err)
+
+	return aggregations, staticTags, dynamicTags
 }
 
 func unmarshalSketch(t *testing.T, bytes []byte) *ddsketch.DDSketch {
