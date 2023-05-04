@@ -12,7 +12,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/DataDog/gohai/utils"
+	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 )
 
 // Collect collects the Platform information.

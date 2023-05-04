@@ -9,7 +9,7 @@ Gohai is a tool which collects an inventory of system information. It aims to im
 Gohai will build and install with `go get`. We require at least Go 1.7.
 
 ```sh
-go get github.com/DataDog/gohai
+go get github.com/DataDog/datadog-agent/pkg/gohai
 ```
 
 Running it will dump json formatted output:

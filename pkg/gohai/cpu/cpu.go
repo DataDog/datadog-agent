@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/gohai/utils"
+	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 )
 
 // Cpu holds metadata about the host CPU

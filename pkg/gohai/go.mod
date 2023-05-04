@@ -1,4 +1,4 @@
-module github.com/DataDog/gohai
+module github.com/DataDog/datadog-agent/pkg/gohai
 
 go 1.16
 
