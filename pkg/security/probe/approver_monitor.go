@@ -75,7 +75,7 @@ func (d *ApproverMonitor) SendStats() error {
 	}
 
 	d.activeStatsBuffer = 1 - d.activeStatsBuffer
-	return d.bufferSelector.Put(ebpf.BufferSelectorERPCMonitorKey, d.activeStatsBuffer)
+	return d.bufferSelector.Put(ebpf.BufferSelectorApproverMonitorKey, d.activeStatsBuffer)
 }
 
 // NewApproverMonitor returns a new ApproverMonitor
