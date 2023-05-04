@@ -1,0 +1,26 @@
+name: "Gohai Test"
+
+# Only run the tests if pkg/gohai was changed
+on:
+  push:
+    paths:
+      - 'pkg/gohai/**'
+  pull_request:
+    paths:
+      - 'pkg/gohai/**'
+jobs:
+  gohai_test:
+    strategy:
+      matrix:
+        # Use oldest and latest available ubuntu, macos and windows
+        os: [ubuntu-20.04, ubuntu-latest, macos-11, macos-latest, windows-2019, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-go@v3
+      # we don't want to just use the agent's version because gohai might be used outside of it
+      # eg. opentelemetry
+      with:
+        go-version: 1.17.x
+    - name: Test
+      run: cd pkg/gohai && go test ./...
