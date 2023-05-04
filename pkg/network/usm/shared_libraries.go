@@ -105,7 +105,7 @@ type soWatcher struct {
 type pathIdentifierSet = map[pathIdentifier]struct{}
 
 type soRegistry struct {
-	m     sync.Mutex
+	m     sync.RWMutex
 	byID  map[pathIdentifier]*soRegistration
 	byPID map[uint32]pathIdentifierSet
 
@@ -264,9 +264,15 @@ func (r *soRegistry) cleanup() {
 
 // unregister a pid if exists, unregisterCB will be called if his uniqueProcessesCount == 0
 func (r *soRegistry) unregister(pid uint32) {
+	r.m.RLock()
+	_, found := r.byPID[pid]
+	r.m.RUnlock()
+	if !found {
+		return
+	}
+
 	r.m.Lock()
 	defer r.m.Unlock()
-
 	paths, found := r.byPID[pid]
 	if !found {
 		return
