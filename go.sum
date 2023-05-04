@@ -1432,8 +1432,6 @@ github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f h1:y5//uYreIhSUg3J
 github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f/go.mod h1:ZdcZmHo+o7JKHSa8/e818NopupXU1YMK5fe1lsApnBw=
 github.com/ncw/swift v1.0.30/go.mod h1:23YIA4yWVnGwv2dQlN4bB7egfYX6YLn0Yo/S6zZO/ZM=
 github.com/ncw/swift v1.0.47/go.mod h1:23YIA4yWVnGwv2dQlN4bB7egfYX6YLn0Yo/S6zZO/ZM=
-github.com/netsampler/goflow2 v1.1.1-0.20220825033856-d6caeaacddbb h1:4Zzp+I9TvRo9OufYGl9lK67mkEjlT+YROxj6oWbD788=
-github.com/netsampler/goflow2 v1.1.1-0.20220825033856-d6caeaacddbb/go.mod h1:C9f54WtFVVbGpPWnpLMz+/hS3c7wc4L0g9ZzdIFAcuM=
 github.com/netsampler/goflow2 v1.1.2-0.20221008224731-332655476b0a h1:f+4v4S3HURlp2lIAIzPrX/L9QO03NmhX15EGIAwSp+o=
 github.com/netsampler/goflow2 v1.1.2-0.20221008224731-332655476b0a/go.mod h1:oNIeGj67SjwrRSTEukErjNT1zZ02W9+8M5mSgQCkZC8=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
