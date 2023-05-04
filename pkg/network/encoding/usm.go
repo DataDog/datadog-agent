@@ -48,6 +48,7 @@ type USMKeyValue[K comparable, V any] struct {
 // essentially translates `K` to a `types.ConnectionKey` and a `protocol` name.
 func GroupByConnection[K comparable, V any](protocol string, data map[K]V, keyGen func(K) types.ConnectionKey) *USMConnectionIndex[K, V] {
 	byConnection := &USMConnectionIndex[K, V]{
+	    protocol: protocol,
 		lookupFn: USMLookup[K, V],
 		data:     make(map[types.ConnectionKey]*USMConnectionData[K, V], len(data)/2),
 	}
