@@ -137,7 +137,7 @@ func (gd *USMConnectionData[K, V]) IsPIDCollision(c network.ConnectionStats) boo
 	}
 
 	if c.SPort == gd.dport && c.DPort == gd.sport {
-		// We have have a collision with another `ConnectionStats`, but this is a
+		// We have a collision with another `ConnectionStats`, but this is a
 		// legit scenario where we're dealing with the opposite ends of the
 		// same connection, which means both server and client are in the same host.
 		// In this particular case it is correct to have both connections
@@ -147,7 +147,7 @@ func (gd *USMConnectionData[K, V]) IsPIDCollision(c network.ConnectionStats) boo
 
 	// Return true otherwise. This is to prevent multiple `ConnectionStats` with
 	// exactly the same source and destination addresses but different PIDs to
-	// "bind" to the same USM aggregation object, which would result in a
+	// "bind" to the same USM aggregation object, which would result in an
 	// overcount problem. (Note that this is due to the fact that
 	// `types.ConnectionKey` doesn't have a PID field.) This happens mostly in the
 	// context of pre-fork web servers, where multiple worker processes share the

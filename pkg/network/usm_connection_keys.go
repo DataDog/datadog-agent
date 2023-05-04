@@ -50,7 +50,7 @@ func ConnectionKeysFromConnectionStats(connectionStats ConnectionStats) []types.
 // 2) (dst, src)
 // 3) (src, dst) NAT
 // 4) (dst, src) NAT
-// In addition to that, we do a best-effort to call `f` in the order that  most
+// In addition to that, we do a best-effort to call `f` in the order that most
 // likely to succeed early (see comment below)
 func WithKey(connectionStats ConnectionStats, f func(key types.ConnectionKey) (stop bool)) {
 	var (
