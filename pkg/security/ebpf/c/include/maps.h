@@ -9,7 +9,7 @@
 
 BPF_ARRAY_MAP(path_id, u32, 1)
 BPF_ARRAY_MAP(enabled_events, u64, 1)
-BPF_ARRAY_MAP(buffer_selector, u32, 3)
+BPF_ARRAY_MAP(buffer_selector, u32, 4)
 BPF_ARRAY_MAP(dr_erpc_state, struct dr_erpc_state_t, 1)
 BPF_ARRAY_MAP(dr_erpc_buffer, char[DR_ERPC_BUFFER_LENGTH*2], 1)
 BPF_ARRAY_MAP(inode_disc_revisions, u32, REVISION_ARRAY_SIZE)
