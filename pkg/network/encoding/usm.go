@@ -75,7 +75,8 @@ func GroupByConnection[K comparable, V any](protocol string, data map[K]V, keyGe
 		connectionKey := keyGen(key)
 		connectionData, ok := byConnection.data[connectionKey]
 		if !ok {
-			// should never happen (in theory we could panic here)
+			// should never happen
+			log.Errorf("missing aggregation for %+v. this is indicative of a bug in the code", connectionKey)
 			continue
 		}
 
