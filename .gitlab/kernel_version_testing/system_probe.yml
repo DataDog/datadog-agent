@@ -1,4 +1,20 @@
 ---
+.system_probe_file_diff_check:
+  script:
+    - set +e
+    - |+
+      for path in $SYSTEM_PROBE_SRC_PATH
+      do
+        echo "Checking $path..."
+        echo "$DIFF_FILES" | grep "$path"
+        export exit_code=$?
+        if [ $exit_code -eq 0 ]; then
+          break
+        fi
+      done
+    - set -e
+
+
 .pull_test_dockers:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64:$DATADOG_AGENT_BUILDIMAGES
   needs:
@@ -9,19 +25,7 @@
     !reference [ .on_system_probe_changes_or_manual ]
   stage: kernel_matrix_testing
   script:
-    - set +e
-    - export SYSTEM_PROBE_PATHS=$(echo "$SYSTEM_PROBE_SRC_PATH")
-    - |+
-      for path in "$SYSTEM_PROBE_SRC_PATH"
-      do
-        echo "Checking $path..."
-        echo "$DIFF_FILES" | grep "$path"
-        export exit_code=$?
-        if [ $exit_code -eq 0 ]; then
-          break
-        fi
-      done
-    - set -e
+    - !reference [ .system_probe_file_diff_check ]
     - if [ ${exit_code} -eq 0 ]; then
     # Build dependencies directory
     # DockerHub login for build to limit rate limit when pulling base images
@@ -73,19 +77,7 @@ pull_test_dockers_arm64:
     job: get_file_diff
     artifacts: true
   script:
-    - set +e
-    - export SYSTEM_PROBE_PATHS=$(echo "$SYSTEM_PROBE_SRC_PATH")
-    - |+
-      for path in "$SYSTEM_PROBE_SRC_PATH"
-      do
-        echo "Checking $path..."
-        echo "$DIFF_FILES" | grep "$path"
-        export exit_code=$?
-        if [ $exit_code -eq 0 ]; then
-          break
-        fi
-      done
-    - set -e
+    - !reference [ .system_probe_file_diff_check ]
     - if [ ${exit_code} -eq 0 ]; then
     # Build dependencies directory
     - mkdir -p $DEPENDENCIES
