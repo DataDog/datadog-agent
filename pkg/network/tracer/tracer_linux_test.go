@@ -505,9 +505,8 @@ func TestTranslationBindingRegression(t *testing.T) {
 
 func TestUnconnectedUDPSendIPv6(t *testing.T) {
 	cfg := testConfig()
-	cfg.CollectIPv6Conns = true
-	if !isTestIPv6Enabled(cfg) {
-		t.Skip("IPv6 not enabled on host")
+	if !cfg.CollectUDPv6Conns {
+		t.Skip("UDPv6 disabled")
 	}
 
 	tr := setupTracer(t, cfg)
@@ -836,6 +835,7 @@ func TestConnectionAssured(t *testing.T) {
 	cfg := testConfig()
 	tr := setupTracer(t, cfg)
 	server := &UDPServer{
+		network: "udp4",
 		onMessage: func(b []byte, n int) []byte {
 			return genPayload(serverMessageSize)
 		},
@@ -876,6 +876,7 @@ func TestConnectionNotAssured(t *testing.T) {
 	tr := setupTracer(t, cfg)
 
 	server := &UDPServer{
+		network: "udp4",
 		onMessage: func(b []byte, n int) []byte {
 			return nil
 		},
@@ -1178,8 +1179,8 @@ func TestUDPReusePort(t *testing.T) {
 		testUDPReusePort(t, "udp4", "127.0.0.1")
 	})
 	t.Run("v6", func(t *testing.T) {
-		if !isTestIPv6Enabled(testConfig()) {
-			t.Skip("IPv6 disabled")
+		if !testConfig().CollectUDPv6Conns {
+			t.Skip("UDPv6 disabled")
 		}
 		testUDPReusePort(t, "udp6", "[::1]")
 	})
@@ -1419,10 +1420,6 @@ func TestSendfileRegression(t *testing.T) {
 
 	for _, family := range []network.ConnectionFamily{network.AFINET, network.AFINET6} {
 		t.Run(family.String(), func(t *testing.T) {
-			if family == network.AFINET6 && !isTestIPv6Enabled(cfg) {
-				t.Skip("IPv6 disabled")
-			}
-
 			t.Run("TCP", func(t *testing.T) {
 				// Start TCP server
 				var rcvd int64
@@ -1443,6 +1440,9 @@ func TestSendfileRegression(t *testing.T) {
 				testSendfileServer(t, c.(*net.TCPConn), network.TCP, family, func() int64 { return rcvd })
 			})
 			t.Run("UDP", func(t *testing.T) {
+				if family == network.AFINET6 && !cfg.CollectUDPv6Conns {
+					t.Skip("UDPv6 disabled")
+				}
 				if isPrebuilt(cfg) && kv < kv470 {
 					t.Skip("UDP will fail with prebuilt tracer")
 				}
@@ -1803,7 +1803,10 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 		{true, true, true, true, assert.AnError, false},
 	}
 
-	cfg := testConfig()
+	cfg := config.New()
+	if kv >= kernel.VersionCode(5, 18, 0) {
+		cfg.CollectUDPv6Conns = false
+	}
 	constants, err := getTracerOffsets(t, cfg)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -1859,12 +1862,18 @@ func TestConntrackerFallback(t *testing.T) {
 	require.Nil(t, conntracker)
 }
 
-func isTestIPv6Enabled(cfg *config.Config) bool {
-	if kernel.IsIPv6Enabled() {
-		if !cfg.EnableRuntimeCompiler && !cfg.EnableCORE && kv >= kernel.VersionCode(5, 18, 0) {
-			return false
-		}
-		return true
+func testConfig() *config.Config {
+	cfg := config.New()
+	if os.Getenv("BPF_DEBUG") != "" {
+		cfg.BPFDebug = true
 	}
-	return false
+	if ddconfig.IsECSFargate() {
+		// protocol classification not yet supported on fargate
+		cfg.ProtocolClassificationEnabled = false
+	}
+	// prebuilt on 5.18+ does not support UDPv6
+	if isPrebuilt(cfg) && kv >= kernel.VersionCode(5, 18, 0) {
+		cfg.CollectUDPv6Conns = false
+	}
+	return cfg
 }
