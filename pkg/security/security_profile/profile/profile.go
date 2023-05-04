@@ -9,10 +9,14 @@
 package profile
 
 import (
+	"fmt"
+	"io"
+	"os"
 	"sync"
 
 	"golang.org/x/exp/slices"
 
+	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
@@ -121,4 +125,27 @@ func IsAnomalyDetectionEvent(eventyType model.EventType) bool {
 	return slices.Contains([]model.EventType{
 		model.AnomalyDetectionSyscallEventType,
 	}, eventyType)
+}
+
+func LoadProfileFromFile(filepath string) (*proto.SecurityProfile, error) {
+	f, err := os.Open(filepath)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't open profile: %w", err)
+	}
+	defer f.Close()
+
+	raw, err := io.ReadAll(f)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't open profile: %w", err)
+	}
+
+	profile := &proto.SecurityProfile{}
+	if err = profile.UnmarshalVT(raw); err != nil {
+		return nil, fmt.Errorf("couldn't decode protobuf profile: %w", err)
+	}
+
+	if len(utils.GetTagValue("image_tag", profile.Tags)) == 0 {
+		profile.Tags = append(profile.Tags, "image_tag:latest")
+	}
+	return profile, nil
 }
