@@ -3353,7 +3353,6 @@ Kernel Capability constants are the supported Linux Kernel Capability.
 | `CAP_IPC_LOCK` | all |
 | `CAP_IPC_OWNER` | all |
 | `CAP_KILL` | all |
-| `CAP_LAST_CAP` | all |
 | `CAP_LEASE` | all |
 | `CAP_LINUX_IMMUTABLE` | all |
 | `CAP_MAC_ADMIN` | all |

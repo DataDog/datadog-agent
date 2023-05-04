@@ -19,7 +19,7 @@ const (
 	Pass = "guest"
 )
 
-func RunServer(t *testing.T, serverAddr, serverPort string) bool {
+func RunServer(t testing.TB, serverAddr, serverPort string) error {
 	env := []string{
 		"AMQP_ADDR=" + serverAddr,
 		"AMQP_PORT=" + serverPort,

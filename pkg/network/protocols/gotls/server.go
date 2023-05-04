@@ -6,13 +6,14 @@
 package gotls
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	"regexp"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 )
 
-func RunServer(t *testing.T, serverPort string) bool {
+func RunServer(t testing.TB, serverPort string) error {
 	env := []string{
 		"HTTPS_PORT=" + serverPort,
 	}

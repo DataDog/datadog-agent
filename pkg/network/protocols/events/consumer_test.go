@@ -156,6 +156,12 @@ func newEBPFProgram(c *config.Config) (*manager.Manager, error) {
 				},
 			},
 		},
+		ConstantEditors: []manager.ConstantEditor{
+			{
+				Name:  "test_monitoring_enabled",
+				Value: uint64(1),
+			},
+		},
 	}
 
 	Configure("test", m, &options)

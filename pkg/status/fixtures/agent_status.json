@@ -630,8 +630,7 @@
 					 "SpanNameAsResourceName":false,
 					 "SpanNameRemappings":{
 							
-					 },
-					 "UsePreviewHostnameLogic":false
+					 }
 				},
 				"Obfuscation":{
 					 "CreditCards":{

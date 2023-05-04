@@ -215,11 +215,11 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
         "prebuilt/dns",
         "prebuilt/offset-guess",
         "tracer",
-        "prebuilt/http",
+        "prebuilt/usm",
         "prebuilt/usm_events_test",
         "prebuilt/conntrack",
     ]
-    network_co_re_programs = ["co-re/tracer-fentry", "runtime/http"]
+    network_co_re_programs = ["tracer", "co-re/tracer-fentry", "runtime/usm"]
 
     for prog in network_programs:
         infile = os.path.join(network_c_dir, f"{prog}.c")
@@ -254,7 +254,7 @@ def ninja_runtime_compilation_files(nw):
     runtime_compiler_files = {
         "pkg/collector/corechecks/ebpf/probe/oom_kill.go": "oom-kill",
         "pkg/collector/corechecks/ebpf/probe/tcp_queue_length.go": "tcp-queue-length",
-        "pkg/network/protocols/http/compile.go": "http",
+        "pkg/network/usm/compile.go": "usm",
         "pkg/network/tracer/compile.go": "conntrack",
         "pkg/network/tracer/connection/kprobe/compile.go": "tracer",
         "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
@@ -658,23 +658,14 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False):
         if pkg.endswith("java"):
             shutil.copy(os.path.join(pkg, "agent-usm.jar"), os.path.join(target_path, "agent-usm.jar"))
 
-        gotls_client_dir = os.path.join("testutil", "gotls_client")
-        gotls_extra_path = os.path.join(pkg, gotls_client_dir)
-        if not windows and os.path.isdir(gotls_extra_path):
-            gotls_client_binary = os.path.join(gotls_client_dir, "gotls_client")
-            gotls_binary_path = os.path.join(target_path, gotls_client_binary)
-            with chdir(gotls_extra_path):
-                ctx.run(f"go build -o {gotls_binary_path} -ldflags=\"-extldflags '-static'\" gotls_client.go")
-
-        sowatcher_client_dir = os.path.join("testutil", "sowatcher_client")
-        sowatcher_client_extra_path = os.path.join(pkg, sowatcher_client_dir)
-        if not windows and os.path.isdir(sowatcher_client_extra_path):
-            sowatcher_client_client_binary = os.path.join(sowatcher_client_dir, "sowatcher_client")
-            sowatcher_client_binary_path = os.path.join(target_path, sowatcher_client_client_binary)
-            with chdir(sowatcher_client_extra_path):
-                ctx.run(
-                    f"go build -o {sowatcher_client_binary_path} -ldflags=\"-extldflags '-static'\" sowatcher_client.go"
-                )
+        for gobin in ["gotls_client", "sowatcher_client", "prefetch_file"]:
+            client_dir = os.path.join("testutil", gobin)
+            extra_path = os.path.join(pkg, client_dir)
+            if not windows and os.path.isdir(extra_path):
+                client_binary = os.path.join(client_dir, gobin)
+                binary_path = os.path.join(target_path, client_binary)
+                with chdir(extra_path):
+                    ctx.run(f"go build -o {binary_path} -ldflags=\"-extldflags '-static'\" {gobin}.go")
 
     gopath = os.getenv("GOPATH")
     copy_files = [

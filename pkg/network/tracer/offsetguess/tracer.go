@@ -27,13 +27,14 @@ import (
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/native"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 const InterfaceLocalMulticastIPv6 = "ff01::1"
@@ -68,7 +69,7 @@ func NewTracerOffsetGuesser() (OffsetGuesser, error) {
 				{ProbeIdentificationPair: idPair(probes.TCPv6Connect)},
 				{ProbeIdentificationPair: idPair(probes.IPMakeSkb)},
 				{ProbeIdentificationPair: idPair(probes.IP6MakeSkb)},
-				{ProbeIdentificationPair: idPair(probes.IP6MakeSkbPre470), MatchFuncName: "^ip6_make_skb$"},
+				{ProbeIdentificationPair: idPair(probes.IP6MakeSkbPre470)},
 				{ProbeIdentificationPair: idPair(probes.TCPv6ConnectReturn), KProbeMaxActive: 128},
 				{ProbeIdentificationPair: idPair(probes.NetDevQueue)},
 			},
@@ -199,15 +200,12 @@ func (*tracerOffsetGuesser) Probes(c *config.Config) (map[probes.ProbeFuncName]s
 		enableProbe(p, probes.TCPv6Connect)
 		enableProbe(p, probes.TCPv6ConnectReturn)
 
-		kv, err := kernel.HostVersion()
-		if err != nil {
-			return nil, err
-		}
-
-		if kv < kernel.VersionCode(4, 7, 0) {
-			enableProbe(p, probes.IP6MakeSkbPre470)
-		} else {
-			enableProbe(p, probes.IP6MakeSkb)
+		if kv < kernel.VersionCode(5, 18, 0) {
+			if kv < kernel.VersionCode(4, 7, 0) {
+				enableProbe(p, probes.IP6MakeSkbPre470)
+			} else {
+				enableProbe(p, probes.IP6MakeSkb)
+			}
 		}
 	}
 	return p, nil
@@ -589,8 +587,9 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 		What:         uint64(GuessSAddr),
 	}
 
-	if !cfg.CollectIPv6Conns {
-		t.status.Ipv6_enabled = disabled
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return nil, err
 	}
 
 	// if we already have the offsets, just return
@@ -599,7 +598,8 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 		return t.getConstantEditors(), nil
 	}
 
-	eventGenerator, err := newTracerEventGenerator(cfg.CollectIPv6Conns)
+	guessFlowI6 := cfg.CollectIPv6Conns && kv < kernel.VersionCode(5, 18, 0)
+	eventGenerator, err := newTracerEventGenerator(guessFlowI6)
 	if err != nil {
 		return nil, err
 	}
@@ -690,7 +690,7 @@ type tracerEventGenerator struct {
 	udpDone  func()
 }
 
-func newTracerEventGenerator(ipv6 bool) (*tracerEventGenerator, error) {
+func newTracerEventGenerator(flowi6 bool) (*tracerEventGenerator, error) {
 	eg := &tracerEventGenerator{}
 
 	// port 0 means we let the kernel choose a free port
@@ -724,7 +724,7 @@ func newTracerEventGenerator(ipv6 bool) (*tracerEventGenerator, error) {
 		return nil, err
 	}
 
-	eg.udp6Conn, err = getUDP6Conn(ipv6)
+	eg.udp6Conn, err = getUDP6Conn(flowi6)
 	if err != nil {
 		eg.Close()
 		return nil, err
@@ -733,8 +733,8 @@ func newTracerEventGenerator(ipv6 bool) (*tracerEventGenerator, error) {
 	return eg, nil
 }
 
-func getUDP6Conn(ipv6 bool) (*net.UDPConn, error) {
-	if !ipv6 {
+func getUDP6Conn(flowi6 bool) (*net.UDPConn, error) {
+	if !flowi6 {
 		return nil, nil
 	}
 
