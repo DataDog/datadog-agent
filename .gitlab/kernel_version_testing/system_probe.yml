@@ -12,7 +12,7 @@
     - set +e
     - export SYSTEM_PROBE_PATHS=$(echo "$SYSTEM_PROBE_SRC_PATH")
     - |+
-      for path in $SYSTEM_PROBE_PATHS
+      for path in "$SYSTEM_PROBE_SRC_PATH"
       do
         echo "Checking $path..."
         echo "$DIFF_FILES" | grep "$path"
@@ -76,7 +76,7 @@ pull_test_dockers_arm64:
     - set +e
     - export SYSTEM_PROBE_PATHS=$(echo "$SYSTEM_PROBE_SRC_PATH")
     - |+
-      for path in $SYSTEM_PROBE_PATHS
+      for path in "$SYSTEM_PROBE_SRC_PATH"
       do
         echo "Checking $path..."
         echo "$DIFF_FILES" | grep "$path"
