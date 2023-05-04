@@ -5,6 +5,7 @@
 #include "constants/offsets/filesystem.h"
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
+#include "constants/fentry_macro.h"
 
 int __attribute__((always_inline)) trace__sys_execveat(struct pt_regs *ctx, const char **argv, const char **env) {
     struct syscall_cache_t syscall = {
@@ -43,7 +44,7 @@ SYSCALL_KPROBE4(execveat, int, fd, const char *, filename, const char **, argv, 
     return trace__sys_execveat(ctx, argv, env);
 }
 
-int __attribute__((always_inline)) handle_interpreted_exec_event(struct pt_regs *ctx, struct syscall_cache_t *syscall, struct file *file) {
+int __attribute__((always_inline)) handle_interpreted_exec_event(ctx_t *ctx, struct syscall_cache_t *syscall, struct file *file) {
     struct inode *interpreter_inode;
     bpf_probe_read(&interpreter_inode, sizeof(interpreter_inode), &file->f_inode);
 
@@ -99,7 +100,7 @@ SYSCALL_KPROBE0(vfork) {
 
 #define DO_FORK_STRUCT_INPUT 1
 
-int __attribute__((always_inline)) handle_do_fork(struct pt_regs *ctx) {
+int __attribute__((always_inline)) handle_do_fork(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_FORK);
     if (!syscall) {
         return 0;
@@ -110,7 +111,7 @@ int __attribute__((always_inline)) handle_do_fork(struct pt_regs *ctx) {
     LOAD_CONSTANT("do_fork_input", input);
 
     if (input == DO_FORK_STRUCT_INPUT) {
-        void *args = (void *)PT_REGS_PARM1(ctx);
+        void *args = (void *)CTX_PARM1(ctx);
         int exit_signal;
         bpf_probe_read(&exit_signal, sizeof(int), (void *)args + 32);
 
@@ -118,7 +119,7 @@ int __attribute__((always_inline)) handle_do_fork(struct pt_regs *ctx) {
             syscall->fork.is_thread = 0;
         }
     } else {
-        u64 flags = (u64)PT_REGS_PARM1(ctx);
+        u64 flags = (u64)CTX_PARM1(ctx);
         if ((flags & SIGCHLD) == SIGCHLD) {
             syscall->fork.is_thread = 0;
         }
@@ -127,20 +128,22 @@ int __attribute__((always_inline)) handle_do_fork(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/kernel_clone")
-int kprobe_kernel_clone(struct pt_regs *ctx) {
+HOOK_ENTRY("kernel_clone")
+int hook_kernel_clone(ctx_t *ctx) {
     return handle_do_fork(ctx);
 }
 
-SEC("kprobe/do_fork")
-int kprobe_do_fork(struct pt_regs *ctx) {
+#ifndef USE_FENTRY
+HOOK_ENTRY("do_fork")
+int hook_do_fork(ctx_t *ctx) {
     return handle_do_fork(ctx);
 }
 
-SEC("kprobe/_do_fork")
-int kprobe__do_fork(struct pt_regs *ctx) {
+HOOK_ENTRY("_do_fork")
+int hook__do_fork(ctx_t *ctx) {
     return handle_do_fork(ctx);
 }
+#endif
 
 SEC("tracepoint/sched/sched_process_fork")
 int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
@@ -225,8 +228,8 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     return 0;
 }
 
-SEC("kprobe/do_coredump")
-int kprobe_do_coredump(struct pt_regs *ctx) {
+HOOK_ENTRY("do_coredump")
+int hook_do_coredump(ctx_t *ctx) {
     u64 key = bpf_get_current_pid_tgid();
     u8 in_coredump = 1;
 
@@ -235,8 +238,8 @@ int kprobe_do_coredump(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/do_exit")
-int kprobe_do_exit(struct pt_regs *ctx) {
+HOOK_ENTRY("do_exit")
+int hook_do_exit(ctx_t *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
     u32 pid = pid_tgid;
@@ -267,7 +270,7 @@ int kprobe_do_exit(struct pt_regs *ctx) {
         struct proc_cache_t *pc = fill_process_context(&event.process);
         fill_container_context(pc, &event.container);
         fill_span_context(&event.span);
-        event.exit_code = (u32)PT_REGS_PARM1(ctx);
+        event.exit_code = (u32)(u64)CTX_PARM1(ctx);
         u8 *in_coredump = (u8 *)bpf_map_lookup_elem(&tasks_in_coredump, &pid_tgid);
         if (in_coredump) {
             event.exit_code |= 0x80;
@@ -284,9 +287,9 @@ int kprobe_do_exit(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/exit_itimers")
-int kprobe_exit_itimers(struct pt_regs *ctx) {
-    void *signal = (void *)PT_REGS_PARM1(ctx);
+HOOK_ENTRY("exit_itimers")
+int hook_exit_itimers(ctx_t *ctx) {
+    void *signal = (void *)CTX_PARM1(ctx);
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
@@ -309,18 +312,20 @@ int kprobe_exit_itimers(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/prepare_binprm")
-int kprobe_prepare_binprm(struct pt_regs *ctx) {
+#ifndef USE_FENTRY
+HOOK_ENTRY("prepare_binprm")
+int hook_prepare_binprm(ctx_t *ctx) {
+    return fill_exec_context();
+}
+#endif
+
+HOOK_ENTRY("bprm_execve")
+int hook_bprm_execve(ctx_t *ctx) {
     return fill_exec_context();
 }
 
-SEC("kprobe/bprm_execve")
-int kprobe_bprm_execve(struct pt_regs *ctx) {
-    return fill_exec_context();
-}
-
-SEC("kprobe/security_bprm_check")
-int kprobe_security_bprm_check(struct pt_regs *ctx) {
+HOOK_ENTRY("security_bprm_check")
+int hook_security_bprm_check(ctx_t *ctx) {
     return fill_exec_context();
 }
 
@@ -496,7 +501,7 @@ int kprobe_parse_args_envs(struct pt_regs *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) fetch_interpreter(struct pt_regs *ctx, struct linux_binprm *bprm) {
+int __attribute__((always_inline)) fetch_interpreter(ctx_t *ctx, struct linux_binprm *bprm) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
@@ -526,8 +531,8 @@ int __attribute__((always_inline)) fetch_interpreter(struct pt_regs *ctx, struct
 }
 
 SEC("kprobe/setup_new_exec")
-int kprobe_setup_new_exec_interp(struct pt_regs *ctx) {
-    struct linux_binprm *bprm = (struct linux_binprm *) PT_REGS_PARM1(ctx);
+int kprobe_setup_new_exec_interp(ctx_t *ctx) {
+    struct linux_binprm *bprm = (struct linux_binprm *) CTX_PARM1(ctx);
     return fetch_interpreter(ctx, bprm);
 }
 
@@ -572,7 +577,7 @@ int kprobe_setup_new_exec_args_envs(struct pt_regs *ctx) {
 }
 
 SEC("kprobe/setup_arg_pages")
-int kprobe_setup_arg_pages(struct pt_regs *ctx) {
+int kprobe_setup_arg_pages(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
@@ -681,8 +686,8 @@ int __attribute__((always_inline)) send_exec_event(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/mprotect_fixup")
-int kprobe_mprotect_fixup(struct pt_regs *ctx) {
+HOOK_ENTRY("mprotect_fixup")
+int hook_mprotect_fixup(struct pt_regs *ctx) {
     return send_exec_event(ctx);
 }
 

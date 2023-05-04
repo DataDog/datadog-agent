@@ -54,13 +54,13 @@ func computeDefaultEventsRingBufferSize() uint32 {
 }
 
 // AllProbes returns the list of all the probes of the runtime security module
-func AllProbes() []*manager.Probe {
+func AllProbes(fentry bool) []*manager.Probe {
 	if len(allProbes) > 0 {
 		return allProbes
 	}
 
 	allProbes = append(allProbes, getAttrProbes()...)
-	allProbes = append(allProbes, getExecProbes()...)
+	allProbes = append(allProbes, getExecProbes(fentry)...)
 	allProbes = append(allProbes, getLinkProbe()...)
 	allProbes = append(allProbes, getMkdirProbes()...)
 	allProbes = append(allProbes, getMountProbes()...)
