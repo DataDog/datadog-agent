@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
-	"github.com/DataDog/datadog-agent/pkg/network/driver"
+	driver "github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -206,45 +206,15 @@ func (t *Tracer) RegisterClient(clientID string) error {
 }
 
 func (t *Tracer) getConnTelemetry() map[network.ConnTelemetryType]int64 {
-	tm := map[network.ConnTelemetryType]int64{}
-
-	// allStats is the expvar map.  it is actually a map of maps
-	// top level keys are:
-	//   state (we don't need for this call)
-	//   dns   ( the dns handle stats)
-	//   each of the strings in DriverExpvarNames.  We're interested
-	//   in driver.flowHandleStats, which is "driver_flow_handle_stats"
-	if allstats, err := t.driverInterface.GetStats(); err == nil {
-		if flowStats, ok := allstats["driver_flow_handle_stats"].(map[string]int64); ok {
-			if fme, ok := flowStats["num_flows_missed_max_exceeded"]; ok {
-				tm[network.NPMDriverFlowsMissedMaxExceeded] = fme
-			}
-		}
+	return map[network.ConnTelemetryType]int64{
+		network.MonotonicDNSPacketsDropped: driver.HandleTelemetry.ReadPacketsSkipped.Load(),
 	}
-	dnsStats := t.reverseDNS.GetStats()
-	if pp, ok := dnsStats["packets_processed_transport"]; ok {
-		tm[network.MonotonicDNSPacketsProcessed] = pp
-	}
-	if pd, ok := dnsStats["read_packets_skipped"]; ok {
-		tm[network.MonotonicDNSPacketsDropped] = pd
-	}
-
-	return tm
 }
 
 // GetStats returns a map of statistics about the current tracer's internal state
 func (t *Tracer) GetStats() (map[string]interface{}, error) {
-	driverStats, err := t.driverInterface.GetStats()
-	if err != nil {
-		log.Errorf("not printing driver stats: %v", err)
-	}
-
 	stats := map[string]interface{}{
 		"state": t.state.GetStats(),
-		"dns":   t.reverseDNS.GetStats(),
-	}
-	for _, name := range network.DriverExpvarNames {
-		stats[string(name)] = driverStats[name]
 	}
 	return stats, nil
 }

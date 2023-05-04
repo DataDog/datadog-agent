@@ -118,8 +118,8 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
         bpf_probe_read_kernel_with_telemetry(&tup->saddr_l, sizeof(__be32), &iph.saddr);
         bpf_probe_read_kernel_with_telemetry(&tup->daddr_l, sizeof(__be32), &iph.daddr);
     }
-#if !defined(COMPILE_RUNTIME) || defined(FEATURE_IPV6_ENABLED)
-    else if (is_ipv6_enabled() && iph.version == 6) {
+#if !defined(COMPILE_RUNTIME) || defined(FEATURE_TCPV6_ENABLED) || defined(FEATURE_UDPV6_ENABLED)
+    else if ((is_tcpv6_enabled() || is_udpv6_enabled()) && iph.version == 6) {
         struct ipv6hdr ip6h;
         bpf_memset(&ip6h, 0, sizeof(struct ipv6hdr));
         ret = bpf_probe_read_kernel_with_telemetry(&ip6h, sizeof(ip6h), (struct ipv6hdr *)(head + net_head));
@@ -144,7 +144,7 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
         read_in6_addr(&tup->saddr_h, &tup->saddr_l, &ip6h.saddr);
         read_in6_addr(&tup->daddr_h, &tup->daddr_l, &ip6h.daddr);
     }
-#endif // !COMPILE_RUNTIME || FEATURE_IPV6_ENABLED
+#endif // !COMPILE_RUNTIME || FEATURE_TCPV6_ENABLED || FEATURE_UDPV6_ENABLED
     else {
         log_debug("unknown IP version: %d\n", iph.version);
         return 0;

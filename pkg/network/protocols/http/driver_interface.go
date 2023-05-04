@@ -181,14 +181,6 @@ func (di *HttpDriverInterface) readPendingTransactions() ([]WinHttpTransaction, 
 	return transactionBatch, nil
 }
 
-func (di *HttpDriverInterface) GetStats() (map[string]int64, error) {
-	stats, err := di.driverHTTPHandle.GetStatsForHandle()
-	if err != nil {
-		return nil, err
-	}
-	return stats["handle"], nil
-}
-
 func (di *HttpDriverInterface) Close() error {
 	di.closed = true
 	windows.SetEvent(di.driverEventHandle)

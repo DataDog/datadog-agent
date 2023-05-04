@@ -201,7 +201,7 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
             err = 1;
         }
     } else if (family == AF_INET6) {
-        if (!is_ipv6_enabled()) {
+        if (!is_tcpv6_enabled() && !is_udpv6_enabled()) {
             return 0;
         }
 

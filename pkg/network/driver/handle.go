@@ -11,6 +11,8 @@ package driver
 import (
 	"encoding/binary"
 	"fmt"
+	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -20,13 +22,85 @@ import (
 
 const (
 	// deviceName identifies the name and location of the windows driver
-	deviceName = `\\.\ddnpm`
+	deviceName       = `\\.\ddnpm`
+	handleModuleName = "network_tracer__handle"
 )
 
 var (
 	// Buffer holding datadog driver filterapi (ddnpmapi) signature to ensure consistency with driver.
 	DdAPIVersionBuf = makeDDAPIVersionBuffer(Signature)
 )
+
+// Telemetry
+var HandleTelemetry = struct {
+	numFlowCollisions     telemetry.Gauge
+	newFlowsSkippedMax    telemetry.Gauge
+	closedFlowsSkippedMax telemetry.Gauge
+
+	numFlowStructs           telemetry.Gauge
+	peakNumFlowStructs       telemetry.Gauge
+	numFlowClosedStructs     telemetry.Gauge
+	peakNumFlowClosedStructs telemetry.Gauge
+
+	openTableAdds      telemetry.Gauge
+	openTableRemoves   telemetry.Gauge
+	closedTableAdds    telemetry.Gauge
+	closedTableRemoves telemetry.Gauge
+
+	noHandleFlows             telemetry.Gauge
+	noHandleFlowsPeak         telemetry.Gauge
+	numFlowsMissedMaxNoHandle telemetry.Gauge
+	numPacketsAfterClosed     telemetry.Gauge
+
+	classifyNoDirection       telemetry.Gauge
+	classifyMultipleRequest   telemetry.Gauge
+	classifyMultipleResponse  telemetry.Gauge
+	classifyResponseNoRequest telemetry.Gauge
+
+	httpTxnsCaptured      telemetry.Gauge
+	httpTxnsSkippedMax    telemetry.Gauge
+	httpNdisNonContiguous telemetry.Gauge
+	flowsIgnoredAsEtw     telemetry.Gauge
+
+	ReadPacketsSkipped *nettelemetry.StatGaugeWrapper
+	readsRequested     telemetry.Gauge
+	readsCompleted     telemetry.Gauge
+	readsCancelled     telemetry.Gauge
+}{
+	telemetry.NewGauge(handleModuleName, "num_flow_collisions", []string{}, "Gauge measuring the number of flow collisions"),
+	telemetry.NewGauge(handleModuleName, "new_flows_skipped_max", []string{}, "Gauge measuring the maximum number of new flows skipped"),
+	telemetry.NewGauge(handleModuleName, "closed_flows_skipped_max", []string{}, "Gauge measuring the maximum number of closed flows skipped"),
+
+	telemetry.NewGauge(handleModuleName, "num_flow_structs", []string{}, "Gauge measuring the number of flow structs"),
+	telemetry.NewGauge(handleModuleName, "peak_num_flow_structs", []string{}, "Gauge measuring the peak number of flow structs"),
+	telemetry.NewGauge(handleModuleName, "num_flow_closed_structs", []string{}, "Gauge measuring the number of closed flow structs"),
+	telemetry.NewGauge(handleModuleName, "peak_num_flow_closed_structs", []string{}, "Gauge measuring the peak number of closed flow structs"),
+
+	telemetry.NewGauge(handleModuleName, "open_table_adds", []string{}, "Gauge measuring the number of additions to the open table"),
+	telemetry.NewGauge(handleModuleName, "open_table_removes", []string{}, "Gauge measuring the number of removals from the open table"),
+	telemetry.NewGauge(handleModuleName, "closed_table_adds", []string{}, "Gauge measuring the number of additions to the closed table"),
+	telemetry.NewGauge(handleModuleName, "closed_table_removes", []string{}, "Gauge measuring the number of removals from the closed table"),
+
+	telemetry.NewGauge(handleModuleName, "no_handle_flows", []string{}, "Gauge measuring the number of no handle flows"),
+	telemetry.NewGauge(handleModuleName, "no_handle_flows_peak", []string{}, "Gauge measuring the peak number of no handle flows"),
+	telemetry.NewGauge(handleModuleName, "num_flows_missed_max_no_handle", []string{}, "Gauge measuring the max number of no handle missed flows"),
+	telemetry.NewGauge(handleModuleName, "num_packets_after_closed", []string{}, "Gauge measuring the number of packets after close"),
+
+	telemetry.NewGauge(handleModuleName, "classify_no_direction", []string{}, "Gauge measuring the number of no direction flows"),
+	telemetry.NewGauge(handleModuleName, "classify_multiple_request", []string{}, "Gauge measuring the number of multiple request flows"),
+	telemetry.NewGauge(handleModuleName, "classify_multiple_response", []string{}, "Gauge measuring the number of multiple response flows"),
+	telemetry.NewGauge(handleModuleName, "classify_response_no_request", []string{}, "Gauge measuring the number of no request flows"),
+
+	telemetry.NewGauge(handleModuleName, "http_txns_captured", []string{}, "Gauge measuring the number of http transactions captured"),
+	telemetry.NewGauge(handleModuleName, "http_txns_skipped_max", []string{}, "Gauge measuring the max number of http transactions skipped"),
+	telemetry.NewGauge(handleModuleName, "http_ndis_non_contiguous", []string{}, "Gauge measuring the number of non contiguous http ndis"),
+	telemetry.NewGauge(handleModuleName, "flows_ignored_as_etw", []string{}, "Gauge measuring the number of flows ignored as etw"),
+
+	nettelemetry.NewStatGaugeWrapper(handleModuleName, "read_packets_skipped", []string{}, "Gauge measuring the number of read packets skipped"),
+	telemetry.NewGauge(handleModuleName, "reads_requested", []string{}, "Gauge measuring the number of reads requested"),
+	telemetry.NewGauge(handleModuleName, "reads_completed", []string{}, "Gauge measuring the number of reads completed"),
+	telemetry.NewGauge(handleModuleName, "reads_cancelled", []string{}, "Gauge measuring the number of reads_cancelled"),
+}
 
 // Creates a buffer that Driver will use to verify proper versions are communicating
 // We create a buffer because the system calls we make need a *byte which is not
@@ -64,7 +138,7 @@ type Handle interface {
 	CancelIoEx(ol *windows.Overlapped) error
 	Close() error
 	GetWindowsHandle() windows.Handle
-	GetStatsForHandle() (map[string]map[string]int64, error)
+	RefreshStats()
 }
 
 // Handle struct stores the windows handle for the driver as well as information about what type of filter is set
@@ -77,19 +151,19 @@ type RealDriverHandle struct {
 	lastNumClosedFlowsMissed uint64
 }
 
-func (rdh *RealDriverHandle) GetWindowsHandle() windows.Handle {
-	return rdh.Handle
+func (dh *RealDriverHandle) GetWindowsHandle() windows.Handle {
+	return dh.Handle
 }
-func (rdh *RealDriverHandle) ReadFile(p []byte, bytesRead *uint32, ol *windows.Overlapped) error {
-	return windows.ReadFile(rdh.Handle, p, bytesRead, ol)
-}
-
-func (rdh *RealDriverHandle) DeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32, bytesReturned *uint32, overlapped *windows.Overlapped) (err error) {
-	return windows.DeviceIoControl(rdh.Handle, ioControlCode, inBuffer, inBufferSize, outBuffer, outBufferSize, bytesReturned, overlapped)
+func (dh *RealDriverHandle) ReadFile(p []byte, bytesRead *uint32, ol *windows.Overlapped) error {
+	return windows.ReadFile(dh.Handle, p, bytesRead, ol)
 }
 
-func (rdh *RealDriverHandle) CancelIoEx(ol *windows.Overlapped) error {
-	return windows.CancelIoEx(rdh.Handle, ol)
+func (dh *RealDriverHandle) DeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32, bytesReturned *uint32, overlapped *windows.Overlapped) (err error) {
+	return windows.DeviceIoControl(dh.Handle, ioControlCode, inBuffer, inBufferSize, outBuffer, outBufferSize, bytesReturned, overlapped)
+}
+
+func (dh *RealDriverHandle) CancelIoEx(ol *windows.Overlapped) error {
+	return windows.CancelIoEx(dh.Handle, ol)
 }
 
 // NewHandle creates a new windows handle attached to the driver
@@ -123,17 +197,16 @@ func (dh *RealDriverHandle) Close() error {
 	return windows.CloseHandle(dh.Handle)
 }
 
-// GetStatsForHandle gets the relevant stats depending on the handle type
-func (dh *RealDriverHandle) GetStatsForHandle() (map[string]map[string]int64, error) {
+// RefreshStats refreshes the relevant stats depending on the handle type
+func (dh *RealDriverHandle) RefreshStats() {
 	var (
 		bytesReturned uint32
 		statbuf       = make([]byte, StatsSize)
-		returnmap     = make(map[string]map[string]int64)
 	)
 
 	err := dh.DeviceIoControl(GetStatsIOCTL, &DdAPIVersionBuf[0], uint32(len(DdAPIVersionBuf)), &statbuf[0], uint32(len(statbuf)), &bytesReturned, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read driver stats for filter type %v - returned error %v", dh.handleType, err)
+		log.Errorf("failed to read driver stats for filter type %v - returned error %v", dh.handleType, err)
 	}
 	stats := *(*Stats)(unsafe.Pointer(&statbuf[0]))
 
@@ -149,46 +222,43 @@ func (dh *RealDriverHandle) GetStatsForHandle() (map[string]map[string]int64, er
 		}
 		dh.lastNumFlowsMissed = uint64(stats.Flow_stats.Num_flow_alloc_skipped_max_open_exceeded)
 		dh.lastNumClosedFlowsMissed = uint64(stats.Flow_stats.Num_flow_closed_dropped_max_exceeded)
-		returnmap["handle"] = map[string]int64{
-			"num_flow_collisions":      stats.Flow_stats.Num_flow_collisions,
-			"new_flows_skipped_max":    stats.Flow_stats.Num_flow_alloc_skipped_max_open_exceeded,
-			"closed_flows_skipped_max": stats.Flow_stats.Num_flow_closed_dropped_max_exceeded,
 
-			"num_flow_structs":             stats.Flow_stats.Num_flow_structures,
-			"peak_num_flow_structs":        stats.Flow_stats.Peak_num_flow_structures,
-			"num_flow_closed_structs":      stats.Flow_stats.Num_flow_closed_structures,
-			"peak_num_flow_closed_structs": stats.Flow_stats.Peak_num_flow_closed_structures,
+		HandleTelemetry.numFlowCollisions.Set(float64(stats.Flow_stats.Num_flow_collisions))
+		HandleTelemetry.newFlowsSkippedMax.Set(float64(stats.Flow_stats.Num_flow_alloc_skipped_max_open_exceeded))
+		HandleTelemetry.closedFlowsSkippedMax.Set(float64(stats.Flow_stats.Num_flow_closed_dropped_max_exceeded))
 
-			"open_table_adds":      stats.Flow_stats.Open_table_adds,
-			"open_table_removes":   stats.Flow_stats.Open_table_removes,
-			"closed_table_adds":    stats.Flow_stats.Closed_table_adds,
-			"closed_table_removes": stats.Flow_stats.Closed_table_removes,
+		HandleTelemetry.numFlowStructs.Set(float64(stats.Flow_stats.Num_flow_structures))
+		HandleTelemetry.peakNumFlowStructs.Set(float64(stats.Flow_stats.Peak_num_flow_structures))
+		HandleTelemetry.numFlowClosedStructs.Set(float64(stats.Flow_stats.Num_flow_closed_structures))
+		HandleTelemetry.peakNumFlowStructs.Set(float64(stats.Flow_stats.Peak_num_flow_closed_structures))
 
-			"no_handle_flows":                stats.Flow_stats.Num_flows_no_handle,
-			"no_handle_flows_peak":           stats.Flow_stats.Peak_num_flows_no_handle,
-			"num_flows_missed_max_no_handle": stats.Flow_stats.Num_flows_missed_max_no_handle_exceeded,
-			"num_packets_after_closed":       stats.Flow_stats.Num_packets_after_flow_closed,
+		HandleTelemetry.openTableAdds.Set(float64(stats.Flow_stats.Open_table_adds))
+		HandleTelemetry.openTableRemoves.Set(float64(stats.Flow_stats.Open_table_removes))
+		HandleTelemetry.closedTableAdds.Set(float64(stats.Flow_stats.Closed_table_adds))
+		HandleTelemetry.closedTableRemoves.Set(float64(stats.Flow_stats.Closed_table_removes))
 
-			"classify_no_direction":        stats.Flow_stats.Classify_with_no_direction,
-			"classify_multiple_request":    stats.Flow_stats.Classify_multiple_request,
-			"classify_multiple_response":   stats.Flow_stats.Classify_multiple_response,
-			"classify_response_no_request": stats.Flow_stats.Classify_response_no_request,
+		HandleTelemetry.noHandleFlows.Set(float64(stats.Flow_stats.Num_flows_no_handle))
+		HandleTelemetry.noHandleFlowsPeak.Set(float64(stats.Flow_stats.Peak_num_flows_no_handle))
+		HandleTelemetry.numFlowsMissedMaxNoHandle.Set(float64(stats.Flow_stats.Num_flows_missed_max_no_handle_exceeded))
+		HandleTelemetry.numPacketsAfterClosed.Set(float64(stats.Flow_stats.Num_packets_after_flow_closed))
 
-			"http_txns_captured":       stats.Http_stats.Txns_captured,
-			"http_txns_skipped_max":    stats.Http_stats.Txns_skipped_max_exceeded,
-			"http_ndis_non_contiguous": stats.Http_stats.Ndis_buffer_non_contiguous,
-			"Flows_ignored_as_etw":     stats.Http_stats.Flows_ignored_as_etw,
-		}
+		HandleTelemetry.classifyNoDirection.Set(float64(stats.Flow_stats.Classify_with_no_direction))
+		HandleTelemetry.classifyMultipleRequest.Set(float64(stats.Flow_stats.Classify_multiple_request))
+		HandleTelemetry.classifyMultipleResponse.Set(float64(stats.Flow_stats.Classify_multiple_response))
+		HandleTelemetry.classifyResponseNoRequest.Set(float64(stats.Flow_stats.Classify_response_no_request))
+
+		HandleTelemetry.httpTxnsCaptured.Set(float64(stats.Http_stats.Txns_captured))
+		HandleTelemetry.httpTxnsSkippedMax.Set(float64(stats.Http_stats.Txns_skipped_max_exceeded))
+		HandleTelemetry.httpNdisNonContiguous.Set(float64(stats.Http_stats.Ndis_buffer_non_contiguous))
+		HandleTelemetry.flowsIgnoredAsEtw.Set(float64(stats.Http_stats.Flows_ignored_as_etw))
+
 	// A DataHandle handle returns transfer stats specific to this handle
 	case DataHandle:
-		returnmap["handle"] = map[string]int64{
-			"read_packets_skipped": stats.Transport_stats.Packets_skipped,
-			"reads_requested":      stats.Transport_stats.Calls_requested,
-			"reads_completed":      stats.Transport_stats.Calls_completed,
-			"reads_cancelled":      stats.Transport_stats.Calls_cancelled,
-		}
+		HandleTelemetry.ReadPacketsSkipped.Set(stats.Transport_stats.Packets_skipped)
+		HandleTelemetry.readsRequested.Set(float64(stats.Transport_stats.Calls_requested))
+		HandleTelemetry.readsCompleted.Set(float64(stats.Transport_stats.Calls_completed))
+		HandleTelemetry.readsCancelled.Set(float64(stats.Transport_stats.Calls_cancelled))
 	default:
-		return nil, fmt.Errorf("no matching handle type for pulling handle stats")
+		log.Errorf("no matching handle type for pulling handle stats")
 	}
-	return returnmap, nil
 }
