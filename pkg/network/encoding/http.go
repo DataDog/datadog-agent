@@ -142,9 +142,15 @@ func (e *httpEncoder) reset() {
 	byEndpoint := e.aggregations.EndpointAggregations
 	for i, endpointAggregation := range byEndpoint {
 		byStatus := endpointAggregation.StatsByStatusCode
-		for k, s := range byStatus {
+		for _, s := range byStatus {
 			s.Reset()
 			httpStatsDataPool.Put(s)
+		}
+
+		// This is an idiom recognized and optimized by the Go compilar and results
+		// in clearing the whole map at once
+		// https://github.com/golang/go/issues/20138
+		for k := range byStatus {
 			delete(byStatus, k)
 		}
 
