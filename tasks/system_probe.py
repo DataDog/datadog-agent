@@ -33,6 +33,11 @@ KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join
 KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-system-probe-check", "files", "default", "tests")
 TEST_PACKAGES_LIST = ["./pkg/ebpf/...", "./pkg/network/...", "./pkg/collector/corechecks/ebpf/..."]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
+TEST_TIMEOUTS = {
+    "pkg/network/tracer$": "0",
+    "pkg/network/protocols/http$": "0",
+    "pkg/network/protocols": "5m",
+}
 CWS_PREBUILT_MINIMUM_KERNEL_VERSION = [5, 8, 0]
 EMBEDDED_SHARE_DIR = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "ebpf")
 EMBEDDED_SHARE_JAVA_DIR = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "java")
@@ -525,6 +530,7 @@ def test(
     windows=is_windows,
     failfast=False,
     kernel_release=None,
+    timeout=None,
 ):
     """
     Run tests on eBPF parts
@@ -560,10 +566,10 @@ def test(
     args = {
         "build_tags": ",".join(build_tags),
         "output_params": f"-c -o {output_path}" if output_path else "",
-        "pkgs": packages,
         "run": f"-run {run}" if run else "",
         "failfast": "-failfast" if failfast else "",
         "go": "go",
+        "sudo": "sudo -E " if not windows and not output_path and not is_root() else "",
     }
 
     _, _, env = get_build_flags(ctx)
@@ -581,11 +587,30 @@ def test(
     if go_root:
         args["go"] = os.path.join(go_root, "bin", "go")
 
-    cmd = '{go} test -mod=mod -v {failfast} -tags "{build_tags}" {output_params} {pkgs} {run}'
-    if not windows and not output_path and not is_root():
-        cmd = 'sudo -E ' + cmd
+    failed_pkgs = list()
+    package_dirs = go_package_dirs(packages.split(" "), build_tags)
+    # we iterate over the packages here to get the nice streaming test output
+    for pdir in package_dirs:
+        args["dir"] = pdir
+        testto = timeout if timeout else get_test_timeout(pdir)
+        args["timeout"] = f"-timeout {testto}" if testto else ""
+        cmd = '{sudo}{go} test -mod=mod -v {failfast} {timeout} -tags "{build_tags}" {output_params} {dir} {run}'
+        res = ctx.run(cmd.format(**args), env=env, warn=True)
+        if res.exited is None or res.exited > 0:
+            failed_pkgs.append(os.path.relpath(pdir, ctx.cwd))
+            if failfast:
+                break
 
-    ctx.run(cmd.format(**args), env=env)
+    if len(failed_pkgs) > 0:
+        print(color_message("failed packages:\n" + "\n".join(failed_pkgs), "red"))
+        raise Exit(code=1, message="system-probe tests failed")
+
+
+def get_test_timeout(pkg):
+    for tt, to in TEST_TIMEOUTS.items():
+        if re.search(tt, pkg) is not None:
+            return to
+    return None
 
 
 @contextlib.contextmanager
@@ -597,6 +622,27 @@ def chdir(dirname=None):
         yield
     finally:
         os.chdir(curdir)
+
+
+def go_package_dirs(packages, build_tags):
+    """
+    Retrieve a list of all packages we want to test
+    This handles the ellipsis notation (eg. ./pkg/ebpf/...)
+    """
+
+    target_packages = []
+    for pkg in packages:
+        target_packages += (
+            check_output(
+                f"go list -find -f \"{{{{ .Dir }}}}\" -mod=mod -tags \"{','.join(build_tags)}\" {pkg}",
+                shell=True,
+            )
+            .decode('utf-8')
+            .strip()
+            .split("\n")
+        )
+
+    return target_packages
 
 
 @task
@@ -613,19 +659,7 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False):
     if not windows:
         build_tags.append(BPF_TAG)
 
-    # Retrieve a list of all packages we want to test
-    # This handles the elipsis notation (eg. ./pkg/ebpf/...)
-    target_packages = []
-    for pkg in TEST_PACKAGES_LIST:
-        target_packages += (
-            check_output(
-                f"go list -f \"{{{{ .Dir }}}}\" -mod=mod -tags \"{','.join(build_tags)}\" {pkg}",
-                shell=True,
-            )
-            .decode('utf-8')
-            .strip()
-            .split("\n")
-        )
+    target_packages = go_package_dirs(TEST_PACKAGES_LIST, build_tags)
 
     # This will compile one 'testsuite' file per package by running `go test -c -o output_path`.
     # These artifacts will be "vendored" inside a chef recipe like the following:
