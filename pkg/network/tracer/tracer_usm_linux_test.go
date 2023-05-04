@@ -43,25 +43,29 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-func httpSupported(t *testing.T) bool {
-	currKernelVersion, err := kernel.HostVersion()
-	require.NoError(t, err)
-	return currKernelVersion >= http.MinimumKernelVersion
+func httpSupported() bool {
+	if isFentry() {
+		return false
+	}
+	// kv is declared in `tracer_linux_test.go`.
+	return kv >= http.MinimumKernelVersion
 }
 
-func httpsSupported(t *testing.T) bool {
+func httpsSupported() bool {
+	if isFentry() {
+		return false
+	}
 	return http.HTTPSSupported(testConfig())
 }
 
-func goTLSSupported(t *testing.T) bool {
-	return config.New().EnableRuntimeCompiler && httpSupported(t) && httpsSupported(t)
-}
-
-func javaTLSSupported(t *testing.T) bool {
-	return httpSupported(t) && httpsSupported(t)
+func goTLSSupported() bool {
+	if !httpsSupported() {
+		return false
+	}
+	cfg := config.New()
+	return cfg.EnableRuntimeCompiler || cfg.EnableCORE
 }
 
 func classificationSupported(config *config.Config) bool {
@@ -74,7 +78,7 @@ func isTLSTag(staticTags uint64) bool {
 }
 
 func TestEnableHTTPMonitoring(t *testing.T) {
-	if !httpSupported(t) {
+	if !httpSupported() {
 		t.Skip("HTTP monitoring not supported")
 	}
 
@@ -93,7 +97,7 @@ func TestHTTPStats(t *testing.T) {
 }
 
 func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
-	if !httpSupported(t) {
+	if !httpSupported() {
 		t.Skip("HTTP monitoring feature not available")
 		return
 	}
@@ -142,7 +146,7 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 }
 
 func TestHTTPSViaLibraryIntegration(t *testing.T) {
-	if !httpsSupported(t) {
+	if !httpsSupported() {
 		t.Skip("HTTPS feature not available/supported for this setup")
 	}
 
@@ -189,24 +193,24 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 		}
 	}
 
-	for _, keepAlives := range []struct {
+	for _, keepAlive := range []struct {
 		name  string
 		value bool
 	}{
 		{
-			name:  "without keep-alives",
+			name:  "without keep-alive",
 			value: false,
 		},
 		{
-			name:  "with keep-alives",
+			name:  "with keep-alive",
 			value: true,
 		},
 	} {
-		t.Run(keepAlives.name, func(t *testing.T) {
+		t.Run(keepAlive.name, func(t *testing.T) {
 			// Spin-up HTTPS server
 			serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:443", testutil.Options{
-				EnableTLS:        true,
-				EnableKeepAlives: keepAlives.value,
+				EnableTLS:       true,
+				EnableKeepAlive: keepAlive.value,
 			})
 			t.Cleanup(serverDoneFn)
 
@@ -269,7 +273,8 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 	cfg.EnableHTTPSMonitoring = true
 	/* enable protocol classification : TLS */
 	cfg.ProtocolClassificationEnabled = true
-	cfg.CollectTCPConns = true
+	cfg.CollectTCPv4Conns = true
+	cfg.CollectTCPv6Conns = true
 	tr := setupTracer(t, cfg)
 	fentryTracerEnabled := tr.ebpfTracer.Type() == connection.TracerTypeFentry
 
@@ -332,11 +337,7 @@ const (
 
 // TestOpenSSLVersions setups a HTTPs python server, and makes sure we are able to capture all traffic.
 func TestOpenSSLVersions(t *testing.T) {
-	if !httpSupported(t) {
-		t.Skip("HTTPS feature not available on pre 4.14.0 kernels")
-	}
-
-	if !httpsSupported(t) {
+	if !httpsSupported() {
 		t.Skip("HTTPS feature not available/supported for this setup")
 	}
 
@@ -396,7 +397,7 @@ func TestOpenSSLVersions(t *testing.T) {
 // such as having SSL_read/SSL_write calls in the same call-stack/execution-context as the kernel function tcp_sendmsg. Force
 // this is reason the fallback behavior may require a few warmup requests before we start capturing traffic.
 func TestOpenSSLVersionsSlowStart(t *testing.T) {
-	if !httpsSupported(t) {
+	if !httpsSupported() {
 		t.Skip("HTTPS feature not available/supported for this setup")
 	}
 
@@ -636,12 +637,13 @@ func createJavaTempFile(t *testing.T, dir string) string {
 	require.NoError(t, err)
 	tempfile.Close()
 	os.Remove(tempfile.Name())
+	t.Cleanup(func() { os.Remove(tempfile.Name()) })
 
 	return tempfile.Name()
 }
 
 func TestJavaInjection(t *testing.T) {
-	if !javaTLSSupported(t) {
+	if !httpsSupported() {
 		t.Skip("java TLS not supported on the current platform")
 	}
 
@@ -812,7 +814,8 @@ func TestJavaInjection(t *testing.T) {
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				cfg.JavaDir = legacyJavaDir
 				cfg.ProtocolClassificationEnabled = true
-				cfg.CollectTCPConns = true
+				cfg.CollectTCPv4Conns = true
+				cfg.CollectTCPv6Conns = true
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://httpbin.org/anything/java-tls-request", regexp.MustCompile("Response code = .*")), "Failed running Java version")
@@ -863,47 +866,45 @@ func TestJavaInjection(t *testing.T) {
 
 // GoTLS test
 func TestHTTPGoTLSAttachProbes(t *testing.T) {
-	if !goTLSSupported(t) {
+	if !goTLSSupported() {
 		t.Skip("GoTLS not supported for this setup")
 	}
 
-	t.Run("new process (runtime compilation)", func(t *testing.T) {
+	t.Run("runtime compilation", func(t *testing.T) {
 		cfg := testConfig()
 		cfg.EnableRuntimeCompiler = true
+		cfg.AllowPrecompiledFallback = false
 		cfg.EnableCORE = false
-		testHTTPGoTLSCaptureNewProcess(t, cfg)
+
+		t.Run("new process", func(t *testing.T) {
+			testHTTPGoTLSCaptureNewProcess(t, cfg)
+		})
+		t.Run("already running process", func(t *testing.T) {
+			testHTTPGoTLSCaptureAlreadyRunning(t, cfg)
+		})
 	})
 
-	t.Run("already running process (runtime compilation)", func(t *testing.T) {
-		cfg := testConfig()
-		cfg.EnableRuntimeCompiler = true
-		cfg.EnableCORE = false
-		testHTTPGoTLSCaptureAlreadyRunning(t, cfg)
-	})
-
-	// note: this is a bit of hack since CI runs an entire package either as
-	// runtime, CO-RE, or pre-built. here we're piggybacking on the runtime pass
-	// and running the CO-RE tests as well
-	t.Run("new process (co-re)", func(t *testing.T) {
+	t.Run("CO-RE", func(t *testing.T) {
+		// note: this is a bit of hack since CI runs an entire package either as
+		// runtime, CO-RE, or pre-built. here we're piggybacking on the runtime pass
+		// and running the CO-RE tests as well
 		cfg := testConfig()
 		cfg.EnableCORE = true
 		cfg.EnableRuntimeCompiler = false
 		cfg.AllowRuntimeCompiledFallback = false
-		testHTTPGoTLSCaptureNewProcess(t, cfg)
-	})
 
-	t.Run("already running process (co-re)", func(t *testing.T) {
-		cfg := testConfig()
-		cfg.EnableCORE = true
-		cfg.EnableRuntimeCompiler = false
-		cfg.AllowRuntimeCompiledFallback = false
-		testHTTPGoTLSCaptureAlreadyRunning(t, cfg)
+		t.Run("new process", func(t *testing.T) {
+			testHTTPGoTLSCaptureNewProcess(t, cfg)
+		})
+		t.Run("already running process", func(t *testing.T) {
+			testHTTPGoTLSCaptureAlreadyRunning(t, cfg)
+		})
 	})
 }
 
 func TestHTTPSGoTLSAttachProbesOnContainer(t *testing.T) {
 	t.Skip("Skipping a flaky test")
-	if !goTLSSupported(t) {
+	if !goTLSSupported() {
 		t.Skip("GoTLS not supported for this setup")
 	}
 
@@ -1088,7 +1089,8 @@ type tlsTestCommand struct {
 func TestTLSClassification(t *testing.T) {
 	cfg := testConfig()
 	cfg.ProtocolClassificationEnabled = true
-	cfg.CollectTCPConns = true
+	cfg.CollectTCPv4Conns = true
+	cfg.CollectTCPv6Conns = true
 
 	if !classificationSupported(cfg) {
 		t.Skip("TLS classification platform not supported")
@@ -1232,7 +1234,7 @@ func (m requestsMap) String() string {
 }
 
 func skipIfHTTPSNotSupported(t *testing.T, _ testContext) {
-	if !httpsSupported(t) {
+	if !httpsSupported() {
 		t.Skip("https is not supported")
 	}
 }
@@ -1264,8 +1266,8 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				closer, err := testutil.HTTPPythonServer(t, ctx.serverAddress, testutil.Options{
-					EnableKeepAlives: false,
-					EnableTLS:        true,
+					EnableKeepAlive: false,
+					EnableTLS:       true,
 				})
 				require.NoError(t, err)
 				t.Cleanup(closer)

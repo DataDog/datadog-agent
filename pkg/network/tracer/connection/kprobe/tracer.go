@@ -14,6 +14,8 @@ import (
 
 	"github.com/cilium/ebpf"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
@@ -25,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 const probeUID = "net"
@@ -86,7 +87,7 @@ func ClassificationSupported(config *config.Config) bool {
 	if !config.ProtocolClassificationEnabled {
 		return false
 	}
-	if !config.CollectTCPConns {
+	if !config.CollectTCPv4Conns && !config.CollectTCPv6Conns {
 		return false
 	}
 	currentKernelVersion, err := kernel.HostVersion()
@@ -136,6 +137,8 @@ func LoadTracer(cfg *config.Config, m *manager.Manager, mgrOpts manager.Options,
 			if err == nil || errors.As(err, &ve) {
 				return closeFn, TracerTypeCORE, err
 			}
+			// do not use offset guessing constants with runtime compilation
+			mgrOpts.ConstantEditors = nil
 		}
 
 		if cfg.EnableRuntimeCompiler && cfg.AllowRuntimeCompiledFallback {
@@ -294,6 +297,15 @@ func loadPrebuiltTracer(config *config.Config, m *manager.Manager, mgrOpts manag
 		return nil, fmt.Errorf("could not read bpf module: %w", err)
 	}
 	defer buf.Close()
+
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return nil, fmt.Errorf("kernel version: %s", err)
+	}
+	// prebuilt on 5.18+ cannot support UDPv6
+	if kv >= kernel.VersionCode(5, 18, 0) {
+		config.CollectUDPv6Conns = false
+	}
 
 	return loadTracerFromAsset(buf, false, false, config, m, mgrOpts, perfHandlerTCP)
 }

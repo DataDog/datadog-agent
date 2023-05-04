@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tailers"
 	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
@@ -22,17 +23,19 @@ type Builder struct {
 	isRunning   *atomic.Bool
 	endpoints   *config.Endpoints
 	sources     *sourcesPkg.LogSources
+	tailers     *tailers.TailerTracker
 	warnings    *config.Messages
 	errors      *config.Messages
 	logsExpVars *expvar.Map
 }
 
 // NewBuilder returns a new builder.
-func NewBuilder(isRunning *atomic.Bool, endpoints *config.Endpoints, sources *sourcesPkg.LogSources, warnings *config.Messages, errors *config.Messages, logExpVars *expvar.Map) *Builder {
+func NewBuilder(isRunning *atomic.Bool, endpoints *config.Endpoints, sources *sourcesPkg.LogSources, tracker *tailers.TailerTracker, warnings *config.Messages, errors *config.Messages, logExpVars *expvar.Map) *Builder {
 	return &Builder{
 		isRunning:   isRunning,
 		endpoints:   endpoints,
 		sources:     sources,
+		tailers:     tracker,
 		warnings:    warnings,
 		errors:      errors,
 		logsExpVars: logExpVars,
@@ -40,11 +43,16 @@ func NewBuilder(isRunning *atomic.Bool, endpoints *config.Endpoints, sources *so
 }
 
 // BuildStatus returns the status of the logs-agent.
-func (b *Builder) BuildStatus() Status {
+func (b *Builder) BuildStatus(verbose bool) Status {
+	tailers := []Tailer{}
+	if verbose {
+		tailers = b.getTailers()
+	}
 	return Status{
 		IsRunning:        b.getIsRunning(),
 		Endpoints:        b.getEndpoints(),
 		Integrations:     b.getIntegrations(),
+		Tailers:          tailers,
 		StatusMetrics:    b.getMetricsStatus(),
 		ProcessFileStats: b.getProcessFileStats(),
 		Warnings:         b.getWarnings(),
@@ -101,6 +109,23 @@ func (b *Builder) getIntegrations() []Integration {
 		})
 	}
 	return integrations
+}
+
+// getTailers returns all the information about the logs integrations.
+func (b *Builder) getTailers() []Tailer {
+	tailers := b.tailers.All()
+	tailerStatus := make([]Tailer, 0, len(tailers))
+	for _, tailer := range tailers {
+
+		info := tailer.GetInfo().Rendered()
+
+		tailerStatus = append(tailerStatus, Tailer{
+			Id:   tailer.GetId(),
+			Type: tailer.GetType(),
+			Info: info,
+		})
+	}
+	return tailerStatus
 }
 
 // groupSourcesByName groups all logs sources by name so that they get properly displayed

@@ -927,6 +927,10 @@
           "type": "boolean",
           "description": "Indicates whether the process is a kworker"
         },
+        "source": {
+          "type": "string",
+          "description": "Process source"
+        },
         "parent": {
           "$ref": "#/$defs/Process",
           "description": "Parent process"

@@ -10,11 +10,13 @@ package tracer
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-
-	"testing"
 )
 
-func httpSupported(t *testing.T) bool {
+func setKernelVersion() error {
+	return nil
+}
+
+func httpSupported() bool {
 	return false
 }
 
@@ -22,6 +24,7 @@ func classificationSupported(config *config.Config) bool {
 	return true
 }
 
-func isTestIPv6Enabled(cfg *config.Config) bool {
-	return true
+func testConfig() *config.Config {
+	cfg := config.New()
+	return cfg
 }

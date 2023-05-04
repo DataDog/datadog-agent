@@ -20,6 +20,8 @@ import (
 	"time"
 	"unsafe"
 
+	"golang.org/x/exp/slices"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
@@ -190,10 +192,16 @@ func (s Status) String() string {
 
 // SecurityProfileContext holds the security context of the profile
 type SecurityProfileContext struct {
-	Name    string   `field:"name"`    // SECLDoc[name] Definition:`Name of the security profile`
-	Status  Status   `field:"status"`  // SECLDoc[status] Definition:`Status of the security profile`
-	Version string   `field:"version"` // SECLDoc[version] Definition:`Version of the security profile`
-	Tags    []string `field:"tags"`    // SECLDoc[tags] Definition:`Tags of the security profile`
+	Name                       string      `field:"name"`                          // SECLDoc[name] Definition:`Name of the security profile`
+	Status                     Status      `field:"status"`                        // SECLDoc[status] Definition:`Status of the security profile`
+	Version                    string      `field:"version"`                       // SECLDoc[version] Definition:`Version of the security profile`
+	Tags                       []string    `field:"tags"`                          // SECLDoc[tags] Definition:`Tags of the security profile`
+	AnomalyDetectionEventTypes []EventType `field:"anomaly_detection_event_types"` // SECLDoc[anomaly_detection_event_types] Definition:`Event types enabled for anomaly detection`
+}
+
+// CanGenerateAnomaliesFor returns true if the current profile can generate anomalies for the provided event type
+func (spc SecurityProfileContext) CanGenerateAnomaliesFor(evtType EventType) bool {
+	return slices.Contains[EventType](spc.AnomalyDetectionEventTypes, evtType)
 }
 
 // Event represents an event sent from the kernel
@@ -782,6 +790,22 @@ type ProcessCacheEntry struct {
 	releaseCb func()                     `field:"-" json:"-"`
 }
 
+const (
+	ProcessCacheEntryFromEvent = iota
+	ProcessCacheEntryFromKernelMap
+	ProcessCacheEntryFromProcFS
+)
+
+var ProcessSources = [...]string{
+	"Event",
+	"KernelMap",
+	"ProcFS",
+}
+
+func ProcessSourceToString(source uint64) string {
+	return ProcessSources[source]
+}
+
 // IsContainerRoot returns whether this is a top level process in the container ID
 func (pc *ProcessCacheEntry) IsContainerRoot() bool {
 	return pc.ContainerID != "" && pc.Ancestor != nil && pc.Ancestor.ContainerID == ""
@@ -864,6 +888,7 @@ func (p *ProcessContext) HasParent() bool {
 // ProcessContext holds the process context of an event
 type ProcessContext struct {
 	Process
+	Source uint64 `field:"-" json:"-"`
 
 	Parent   *Process           `field:"parent,opts:exposed_at_event_root_only,check:HasParent"`
 	Ancestor *ProcessCacheEntry `field:"ancestors,iterator:ProcessAncestorsIterator,check:IsNotKworker"`

@@ -18,18 +18,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-func TestUSMCompile(t *testing.T) {
-	if !rtcHTTPSupported(t) {
+func TestHttpCompile(t *testing.T) {
+	currKernelVersion, err := kernel.HostVersion()
+	require.NoError(t, err)
+	if currKernelVersion < http.MinimumKernelVersion {
 		t.Skip("USM Runtime compilation not supported on this kernel version")
 	}
 	cfg := config.New()
 	cfg.BPFDebug = true
-	_, err := getRuntimeCompiledUSM(cfg)
+	_, err = getRuntimeCompiledUSM(cfg)
 	require.NoError(t, err)
-}
-
-func rtcHTTPSupported(t *testing.T) bool {
-	currKernelVersion, err := kernel.HostVersion()
-	require.NoError(t, err)
-	return currKernelVersion >= http.MinimumKernelVersion
 }

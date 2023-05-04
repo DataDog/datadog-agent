@@ -303,6 +303,30 @@ func (p *Probe) Start() error {
 	})
 }
 
+func (p *Probe) PlaySnapshot() {
+	// Get the snapshotted data
+	var events []*model.Event
+
+	entryToEvent := func(entry *model.ProcessCacheEntry) {
+		if entry.Source != model.ProcessCacheEntryFromProcFS {
+			return
+		}
+		event := &model.Event{}
+		event.FieldHandlers = p.fieldHandlers
+		event.Type = uint32(model.ExecEventType)
+		event.TimestampRaw = uint64(time.Now().UnixNano())
+		event.ProcessCacheEntry = entry
+		event.ProcessContext = &entry.ProcessContext
+		event.Exec.Process = &entry.Process
+		event.ProcessContext.Process.ContainerID = entry.ContainerID
+		events = append(events, event)
+	}
+	p.GetResolvers().ProcessResolver.Walk(entryToEvent)
+	for _, event := range events {
+		p.DispatchEvent(event)
+	}
+}
+
 func (p *Probe) sendAnomalyDetection(event *model.Event) {
 	tags := p.GetEventTags(event)
 	if service := p.GetService(event); service != "" {
@@ -321,22 +345,18 @@ func (p *Probe) handleAnomalyDetection(event *model.Event) bool {
 		return false
 	}
 
-	if !profile.IsAnomalyDetectionEvent(event.GetEventType()) {
+	// first, check if the current event is a kernel generated anomaly detection event
+	if profile.IsAnomalyDetectionEvent(event.GetEventType()) {
+		p.monitor.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, &event.ContainerContext), &event.SecurityProfileContext)
+		// check if the profile can generate anomalies for the current event type
+	} else if !event.SecurityProfileContext.CanGenerateAnomaliesFor(event.GetEventType()) {
+		return false
+	} else if event.IsInProfile() {
 		return false
 	}
 
-	if event.GetEventType() == model.SyscallsEventType {
-		p.monitor.securityProfileManager.FillProfileContextFromContainerID(event.ProcessContext.ContainerID, &event.SecurityProfileContext)
-		p.sendAnomalyDetection(event)
-
-		return true
-	} else if !event.IsInProfile() {
-		p.sendAnomalyDetection(event)
-
-		return true
-	}
-
-	return false
+	p.sendAnomalyDetection(event)
+	return true
 }
 
 // AddActivityDumpHandler set the probe activity dump handler
@@ -353,7 +373,7 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 
 	// filter out event if already present on a profile
 	if p.Config.RuntimeSecurity.SecurityProfileEnabled {
-		p.monitor.securityProfileManager.LookupEventOnProfiles(event)
+		p.monitor.securityProfileManager.LookupEventInProfiles(event)
 	}
 
 	// send wildcard first
@@ -1503,7 +1523,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		},
 		manager.ConstantEditor{
 			Name:  "anomaly_syscalls",
-			Value: utils.BoolTouint64(p.Config.RuntimeSecurity.AnomalyDetectionSyscallsEnabled),
+			Value: utils.BoolTouint64(slices.Contains(p.Config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType)),
 		},
 	)
 

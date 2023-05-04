@@ -17,7 +17,6 @@ import (
 	"unsafe"
 
 	"github.com/cilium/ebpf"
-	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -28,10 +27,11 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -59,8 +59,8 @@ type Tracer interface {
 	// Remove deletes the connection from tracking state.
 	// It does not prevent the connection from re-appearing later, if additional traffic occurs.
 	Remove(conn *network.ConnectionStats) error
-	// GetTelemetry returns relevant telemetry.
-	GetTelemetry() map[string]int64
+	// RefreshProbeTelemetry sets the prometheus objects to the current values of the underlying stats
+	RefreshProbeTelemetry()
 	// GetMap returns the underlying named map. This is useful if any maps are shared with other eBPF components.
 	// An individual tracer implementation may choose which maps to expose via this function.
 	GetMap(string) *ebpf.Map
@@ -76,7 +76,30 @@ type Tracer interface {
 const (
 	defaultClosedChannelSize = 500
 	ProbeUID                 = "net"
+	connTracerModuleName     = "network_tracer__ebpf"
 )
+
+var ConnTracerTelemetry = struct {
+	connections       telemetry.Gauge
+	tcpFailedConnects telemetry.Gauge
+	TcpSentMiscounts  *nettelemetry.StatGaugeWrapper
+	missedTcpClose    telemetry.Gauge
+	missedUdpClose    telemetry.Gauge
+	UdpSendsProcessed *nettelemetry.StatGaugeWrapper
+	UdpSendsMissed    *nettelemetry.StatGaugeWrapper
+	UdpDroppedConns   telemetry.Gauge
+	PidCollisions     *nettelemetry.StatCounterWrapper
+}{
+	telemetry.NewGauge(connTracerModuleName, "connections", []string{"ip_proto", "family"}, "Gauge measuring the number of active connections in the EBPF map"),
+	telemetry.NewGauge(connTracerModuleName, "tcp_failed_connects", []string{}, "Gauge measuring the number of failed TCP connections in the EBPF map"),
+	nettelemetry.NewStatGaugeWrapper(connTracerModuleName, "tcp_sent_miscounts", []string{}, "Gauge measuring the number of miscounted tcp sends in the EBPF map"),
+	telemetry.NewGauge(connTracerModuleName, "missed_tcp_close", []string{}, "Gauge measuring the number of missed TCP close events in the EBPF map"),
+	telemetry.NewGauge(connTracerModuleName, "missed_udp_close", []string{}, "Gauge measuring the number of missed UDP close events in the EBPF map"),
+	nettelemetry.NewStatGaugeWrapper(connTracerModuleName, "udp_sends_processed", []string{}, "Gauge measuring the number of processed UDP sends in EBPF"),
+	nettelemetry.NewStatGaugeWrapper(connTracerModuleName, "udp_sends_missed", []string{}, "Gauge measuring failures to process UDP sends in EBPF"),
+	telemetry.NewGauge(connTracerModuleName, "udp_dropped_conns", []string{}, "Gauge measuring the number of dropped UDP connections in the EBPF map"),
+	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
+}
 
 type tracer struct {
 	m *manager.Manager
@@ -88,29 +111,14 @@ type tracer struct {
 	// tcp_close events
 	closeConsumer *tcpCloseConsumer
 
-	pidCollisions *atomic.Int64
-	removeTuple   *netebpf.ConnTuple
-
-	telemetry telemetry
+	removeTuple *netebpf.ConnTuple
 
 	closeTracer func()
 	stopOnce    sync.Once
 
 	ebpfTracerType TracerType
-}
 
-type telemetry struct {
-	tcpConns4, tcpConns6 *atomic.Int64 `stats:""`
-	udpConns4, udpConns6 *atomic.Int64 `stats:""`
-}
-
-func newTelemetry() telemetry {
-	return telemetry{
-		tcpConns4: atomic.NewInt64(0),
-		udpConns4: atomic.NewInt64(0),
-		tcpConns6: atomic.NewInt64(0),
-		udpConns6: atomic.NewInt64(0),
-	}
+	exitTelemetry chan struct{}
 }
 
 func addBoolConst(options *manager.Options, flag bool, name string) {
@@ -164,14 +172,20 @@ func NewTracer(config *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) 
 	}
 
 	var tracerType TracerType = TracerTypeFentry
+	fentryOptions := mgrOptions
+	fentryOptions.ConstantEditors = []manager.ConstantEditor{
+		{Name: "tcpv6_enabled", Value: boolToUint64(config.CollectTCPv6Conns)},
+		{Name: "udpv6_enabled", Value: boolToUint64(config.CollectUDPv6Conns)},
+	}
 	var closeTracerFn func()
-	closeTracerFn, err := fentry.LoadTracer(config, m, mgrOptions, perfHandlerTCP)
+	closeTracerFn, err := fentry.LoadTracer(config, m, fentryOptions, perfHandlerTCP)
 	if err != nil && !errors.Is(err, fentry.ErrorNotSupported) {
 		// failed to load fentry tracer
 		return nil, err
 	}
 
 	if err != nil {
+		mgrOptions.ConstantEditors = constants
 		// load the kprobe tracer
 		log.Info("fentry tracer not supported, falling back to kprobe tracer")
 		var kprobeTracerType kprobe.TracerType
@@ -196,11 +210,10 @@ func NewTracer(config *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) 
 		m:              m,
 		config:         config,
 		closeConsumer:  closeConsumer,
-		pidCollisions:  atomic.NewInt64(0),
 		removeTuple:    &netebpf.ConnTuple{},
-		telemetry:      newTelemetry(),
 		closeTracer:    closeTracerFn,
 		ebpfTracerType: tracerType,
+		exitTelemetry:  make(chan struct{}),
 	}
 
 	tr.conns, _, err = m.GetMap(probes.ConnMap)
@@ -224,8 +237,16 @@ func NewTracer(config *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) 
 		tr.Stop()
 		return nil, fmt.Errorf("error registering ebpf telemetry: %v", err)
 	}
+	go tr.RefreshProbeTelemetry()
 
 	return tr, nil
+}
+
+func boolToUint64(b bool) uint64 {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 func (t *tracer) Start(callback func([]network.ConnectionStats)) (err error) {
@@ -273,6 +294,7 @@ func (t *tracer) Stop() {
 			t.closeTracer()
 		}
 	})
+	close(t.exitTelemetry)
 }
 
 func (t *tracer) GetMap(name string) *ebpf.Map {
@@ -297,12 +319,26 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 	conn := new(network.ConnectionStats)
 	tcp := new(netebpf.TCPStats)
 
-	tel := newTelemetry()
+	var tcp4, tcp6, udp4, udp6 float64
 	entries := t.conns.Iterate()
 	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
 		populateConnStats(conn, key, stats)
 
-		tel.addConnection(conn)
+		isTCP := conn.Type == network.TCP
+		switch conn.Family {
+		case network.AFINET6:
+			if isTCP {
+				tcp6++
+			} else {
+				udp6++
+			}
+		case network.AFINET:
+			if isTCP {
+				tcp4++
+			} else {
+				udp4++
+			}
+		}
 
 		if filter != nil && !filter(conn) {
 			continue
@@ -317,56 +353,34 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 		return fmt.Errorf("unable to iterate connection map: %s", err)
 	}
 
-	t.telemetry.assign(tel)
+	updateTelemetry(tcp4, tcp6, udp4, udp6)
 
 	return nil
 }
 
-func (t *telemetry) assign(other telemetry) {
-	t.tcpConns4.Store(other.tcpConns4.Load())
-	t.tcpConns6.Store(other.tcpConns6.Load())
-	t.udpConns4.Store(other.udpConns4.Load())
-	t.udpConns6.Store(other.udpConns6.Load())
+func updateTelemetry(tcp4 float64, tcp6 float64, udp4 float64, udp6 float64) {
+	ConnTracerTelemetry.connections.Set(tcp4, "tcp", "v4")
+	ConnTracerTelemetry.connections.Set(tcp6, "tcp", "v6")
+	ConnTracerTelemetry.connections.Set(udp4, "udp", "v4")
+	ConnTracerTelemetry.connections.Set(udp6, "udp", "v6")
 }
 
-func (t *telemetry) addConnection(conn *network.ConnectionStats) {
+func removeConnection(conn *network.ConnectionStats) {
 	isTCP := conn.Type == network.TCP
 	switch conn.Family {
 	case network.AFINET6:
 		if isTCP {
-			t.tcpConns6.Inc()
+			ConnTracerTelemetry.connections.Dec("tcp", "v6")
 		} else {
-			t.udpConns6.Inc()
+			ConnTracerTelemetry.connections.Dec("udp", "v6")
 		}
 	case network.AFINET:
 		if isTCP {
-			t.tcpConns4.Inc()
+			ConnTracerTelemetry.connections.Dec("tcp", "v4")
 		} else {
-			t.udpConns4.Inc()
+			ConnTracerTelemetry.connections.Dec("udp", "v4")
 		}
 	}
-}
-
-func (t *telemetry) removeConnection(conn *network.ConnectionStats) {
-	isTCP := conn.Type == network.TCP
-	switch conn.Family {
-	case network.AFINET6:
-		if isTCP {
-			t.tcpConns6.Dec()
-		} else {
-			t.udpConns6.Dec()
-		}
-	case network.AFINET:
-		if isTCP {
-			t.tcpConns4.Dec()
-		} else {
-			t.udpConns4.Dec()
-		}
-	}
-}
-
-func (t *telemetry) get() map[string]interface{} {
-	return atomicstats.Report(t)
 }
 
 func (t *tracer) Remove(conn *network.ConnectionStats) error {
@@ -398,7 +412,7 @@ func (t *tracer) Remove(conn *network.ConnectionStats) error {
 		return err
 	}
 
-	t.telemetry.removeConnection(conn)
+	removeConnection(conn)
 
 	// We have to remove the PID to remove the element from the TCP Map since we don't use the pid there
 	t.removeTuple.Pid = 0
@@ -408,12 +422,12 @@ func (t *tracer) Remove(conn *network.ConnectionStats) error {
 	return nil
 }
 
-func (t *tracer) GetTelemetry() map[string]int64 {
+func (t *tracer) getEBPFTelemetry() *netebpf.Telemetry {
 	var zero uint64
 	mp, _, err := t.m.GetMap(probes.TelemetryMap)
 	if err != nil {
 		log.Warnf("error retrieving telemetry map: %s", err)
-		return map[string]int64{}
+		return nil
 	}
 
 	telemetry := &netebpf.Telemetry{}
@@ -421,30 +435,39 @@ func (t *tracer) GetTelemetry() map[string]int64 {
 		// This can happen if we haven't initialized the telemetry object yet
 		// so let's just use a trace log
 		log.Tracef("error retrieving the telemetry struct: %s", err)
+		return nil
+	}
+	return telemetry
+}
+
+func (t *tracer) RefreshProbeTelemetry() {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			t.refreshProbeTelemetry()
+		case <-t.exitTelemetry:
+			return
+		}
+	}
+}
+
+// Refreshes connection tracer telemetry on a loop
+// TODO: Replace with prometheus collector interface
+func (t *tracer) refreshProbeTelemetry() {
+	telemetry := t.getEBPFTelemetry()
+	if telemetry == nil {
+		return
 	}
 
-	closeStats := t.closeConsumer.GetStats()
-	pidCollisions := t.pidCollisions.Load()
-
-	stats := map[string]int64{
-		"closed_conn_polling_lost":     closeStats[perfLostStat],
-		"closed_conn_polling_received": closeStats[perfReceivedStat],
-		"pid_collisions":               pidCollisions,
-
-		"tcp_failed_connects": int64(telemetry.Tcp_failed_connect),
-		"tcp_sent_miscounts":  int64(telemetry.Tcp_sent_miscounts),
-		"missed_tcp_close":    int64(telemetry.Missed_tcp_close),
-		"missed_udp_close":    int64(telemetry.Missed_udp_close),
-		"udp_sends_processed": int64(telemetry.Udp_sends_processed),
-		"udp_sends_missed":    int64(telemetry.Udp_sends_missed),
-		"udp_dropped_conns":   int64(telemetry.Udp_dropped_conns),
-	}
-
-	for k, v := range t.telemetry.get() {
-		stats[k] = v.(int64)
-	}
-
-	return stats
+	ConnTracerTelemetry.tcpFailedConnects.Set(float64(telemetry.Tcp_failed_connect))
+	ConnTracerTelemetry.TcpSentMiscounts.Set(int64(telemetry.Tcp_sent_miscounts))
+	ConnTracerTelemetry.missedTcpClose.Set(float64(telemetry.Missed_tcp_close))
+	ConnTracerTelemetry.missedUdpClose.Set(float64(telemetry.Missed_udp_close))
+	ConnTracerTelemetry.UdpSendsProcessed.Set(int64(telemetry.Udp_sends_processed))
+	ConnTracerTelemetry.UdpSendsMissed.Set(int64(telemetry.Udp_sends_missed))
+	ConnTracerTelemetry.UdpDroppedConns.Set(float64(telemetry.Udp_dropped_conns))
 }
 
 // DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
@@ -458,7 +481,7 @@ func (t *tracer) Type() TracerType {
 }
 
 func initializePortBindingMaps(config *config.Config, m *manager.Manager) error {
-	tcpPorts, err := network.ReadInitialState(config.ProcRoot, network.TCP, config.CollectIPv6Conns, true)
+	tcpPorts, err := network.ReadInitialState(config.ProcRoot, network.TCP, config.CollectTCPv6Conns, true)
 	if err != nil {
 		return fmt.Errorf("failed to read initial TCP pid->port mapping: %s", err)
 	}
@@ -476,7 +499,7 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 		}
 	}
 
-	udpPorts, err := network.ReadInitialState(config.ProcRoot, network.UDP, config.CollectIPv6Conns, false)
+	udpPorts, err := network.ReadInitialState(config.ProcRoot, network.UDP, config.CollectUDPv6Conns, false)
 	if err != nil {
 		return fmt.Errorf("failed to read initial UDP pid->port mapping: %s", err)
 	}
@@ -512,7 +535,7 @@ func (t *tracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnTuple, 
 	if err == nil {
 		// This is required to avoid (over)reporting retransmits for connections sharing the same socket.
 		if _, reported := seen[*tuple]; reported {
-			t.pidCollisions.Inc()
+			ConnTracerTelemetry.PidCollisions.Inc()
 			stats.Retransmits = 0
 			stats.State_transitions = 0
 		} else {
