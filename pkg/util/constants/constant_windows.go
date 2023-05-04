@@ -3,14 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+package constants
+
 import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
-
-package constants
 
 var (
 	// DefaultConfPath points to the folder containing datadog.yaml

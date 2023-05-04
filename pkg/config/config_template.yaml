@@ -1738,10 +1738,11 @@ api_key:
 #
 # dogstatsd_stats_enable: false
 
-## @param dogstatsd_stats_logging - boolean - optional - default: true
+## @param dogstatsd_logging_enabled - boolean - optional - default: true
 ## Set to true to write DogstatsD metrics received by the Agent to dogstats_stats log files.
+## Requires `dogstatsd_stats_enable: true` .
 #
-# dogstatsd_stats_logging: true
+# dogstatsd_logging_enabled: true
 
 ## @param dogstatsd_log_file_max_size - custom - optional - default: 10MB
 ## Maximum size of dogstatsd log file. Use either a size (for example, 10MB) or

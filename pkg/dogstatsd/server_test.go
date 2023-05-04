@@ -654,6 +654,7 @@ func TestStaticTags(t *testing.T) {
 
 func TestDebugStatsSpike(t *testing.T) {
 	config.SetDetectedFeatures(config.FeatureMap{})
+	config.Datadog.Set("dogstatsd_logging_enabled", false)
 	defer config.SetDetectedFeatures(nil)
 
 	assert := assert.New(t)
@@ -716,6 +717,7 @@ func TestDebugStatsSpike(t *testing.T) {
 
 func TestDebugStats(t *testing.T) {
 	config.SetDetectedFeatures(config.FeatureMap{})
+	config.Datadog.Set("dogstatsd_logging_enabled", false)
 	defer config.SetDetectedFeatures(nil)
 
 	demux := mockDemultiplexer()
