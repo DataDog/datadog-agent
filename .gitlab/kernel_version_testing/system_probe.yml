@@ -60,6 +60,8 @@ pull_test_dockers_arm64:
     # copy system probe tests
     - mkdir -p $SYSTEM_PROBE_TESTS
     - cp -R $KITCHEN_TESTS $SYSTEM_PROBE_TESTS
+    # add micro-vm-init.sh
+    - cp $CI_PROJECT_DIR/test/new-e2e/system-probe/test/micro-vm-init.sh $DEPENDENCIES
     # Compile system-probe-test_spec.go
     - go GOARCH=$ARCH build $CI_PROJECT_DIR/test/new-e2e/system-probe/test/system-probe-test_spec.go
     - popd
@@ -191,14 +193,15 @@ kernel_matrix_testing_run_tests:
   tags: ["runner:main"]
   variables:
     AWS_SSH_KEY: $CI_PROJECT_DIR/datadog-agent-kitchen
+  - GOVERSION: 1.19
   script:
     - INSTANCE_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-instance-ip | cut -d ' ' -f 2)
     - MICRO_VM_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-$TAG | cut -d ' ' -f 2)
     - chmod 600 $AWS_SSH_KEY
-    # We need to add a newline to the ssh key otherwise the ssh client complains of a format error
+    # Without the newline ssh silently fails and moves on to try other auth methods
     - echo "" >> $AWS_SSH_KEY
-    - 'scp -o StrictHostKeyChecking=no -i $AWS_SSH_KEY $CI_PROJECT_DIR/test/new-e2e/system-probe/test/micro-vm-init.sh ubuntu@$INSTANCE_IP:/opt/kernel-version-testing'
-    - ssh -o StrictHostKeyChecking=no -i $AWS_SSH_KEY ubuntu@$INSTANCE_IP "sudo ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/rootfs/ddvm_rsa root@${MICRO_VM_IP} 'cp /opt/kernel-version-testing/micro-vm-init.sh /micro-vm-init.sh && bash /micro-vm-init.sh ${ARCH}'"
+    # ssh into each micro-vm and run initialization script. This script will also run the tests.
+    - ssh -o StrictHostKeyChecking=no -i $AWS_SSH_KEY ubuntu@$INSTANCE_IP "sudo ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/rootfs/ddvm_rsa root@${MICRO_VM_IP} '/root/fetch-dependencies.sh ${ARCH} && /micro-vm-init.sh ${GOVERSION}'"
   parallel:
     matrix:
       - TAG: ["4.18", "5.4", "5.15"]

@@ -2,23 +2,18 @@
 
 set -eo xtrace
 
-ARCH=$1
-DEPENDENCIES=dependencies-$ARCH.tar.gz
+GOVERSION=$1
+KITCHEN_DOCKERS=/kitchen-docker
 
-cd /
-
-cp /opt/kernel-version-testing/$DEPENDENCIES /$DEPENDENCIES
-tar xzf $DEPENDENCIES --strip-components=1
-
-ls -la /
-
-ls -la system-probe-tests
-
+# Add provisioning steps here !
+## Set go version correctly
+eval $(gimme $GOVERSION)
+## Start docker
 systemctl start docker
+## Load docker images
+find $KITCHEN_DOCKERS -maxdepth 1 -type f -exec docker load -i {} \;
 
-# Add provisioning steps here
-eval $(gimme 1.19)
+# VM provisioning end !
 
-# VM provisioning end
-
+# Start tests
 /system-probe-test_spec
