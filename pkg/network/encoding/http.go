@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type httpEncoder struct {
@@ -116,6 +117,7 @@ func (e *httpEncoder) buildAggregations(payload *network.Connections) {
 		aggregation, ok := e.aggregations[key.KeyTuple]
 		if !ok {
 			// if there is no matching connection don't even bother to serialize HTTP data
+			log.Tracef("Found http orphan connection %v", key.KeyTuple)
 			e.orphanEntries++
 			continue
 		}

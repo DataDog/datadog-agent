@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type kafkaEncoder struct {
@@ -109,6 +110,7 @@ func (e *kafkaEncoder) buildAggregations(payload *network.Connections) {
 		aggregation, ok := e.aggregations[key.KeyTuple]
 		if !ok {
 			// if there is no matching connection don't even bother to serialize Kafka data
+			log.Tracef("Found kafka orphan connection %v", key.KeyTuple)
 			e.orphanEntries++
 			continue
 		}

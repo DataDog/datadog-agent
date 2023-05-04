@@ -84,7 +84,7 @@ func modelConnections(conns *network.Connections) *model.Connections {
 
 	if httpEncoder != nil && httpEncoder.orphanEntries > 0 {
 		log.Debugf(
-			"detected orphan http aggreggations. this can be either caused by conntrack sampling or missed tcp close events. count=%d",
+			"detected orphan http aggregations. this may be caused by conntrack sampling or missed tcp close events. count=%d",
 			httpEncoder.orphanEntries,
 		)
 
