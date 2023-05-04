@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/podman"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -213,7 +214,9 @@ func envVars(container *podman.Container) (map[string]string, error) {
 			return nil, errors.New("unexpected environment variable format")
 		}
 
-		res[envSplit[0]] = envSplit[1]
+		if containers.EnvVarFilterFromConfig().IsIncluded(envSplit[0]) {
+			res[envSplit[0]] = envSplit[1]
+		}
 	}
 
 	return res, nil

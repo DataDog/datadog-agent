@@ -73,7 +73,7 @@ func NewDatadogMetricController(client dynamic.Interface, informer dynamicinform
 
 	datadogMetricsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.enqueue,
-		DeleteFunc: c.enqueueOnDelete,
+		DeleteFunc: c.enqueue,
 		UpdateFunc: func(obj, new interface{}) {
 			c.enqueue(new)
 		},
@@ -122,25 +122,6 @@ func (c *DatadogMetricController) enqueue(obj interface{}) {
 		log.Debugf("Couldn't get key for object %v: %v", obj, err)
 		return
 	}
-	c.workqueue.AddRateLimited(key)
-}
-
-func (c *DatadogMetricController) enqueueOnDelete(obj interface{}) {
-	key, err := cache.MetaNamespaceKeyFunc(obj)
-	if err != nil {
-		log.Debugf("Couldn't get key for object %v: %v", obj, err)
-		return
-	}
-
-	if c.isLeader() {
-		// We need to flag object as deleted to allow sync to distinguish
-		datadogMetricInternal := c.store.LockRead(key, false)
-		if datadogMetricInternal != nil {
-			datadogMetricInternal.Deleted = true
-			c.store.UnlockSet(key, *datadogMetricInternal, ddmControllerStoreID)
-		}
-	}
-
 	c.workqueue.AddRateLimited(key)
 }
 
@@ -235,19 +216,24 @@ func (c *DatadogMetricController) syncDatadogMetric(ns, name, datadogMetricKey s
 		return nil
 	}
 
-	// Item has been flagged for deletion
-	if datadogMetricInternal.Deleted {
-		if datadogMetric == nil {
-			// Already deleted in Kube, cleaning internal store
-			c.store.UnlockDelete(datadogMetricKey, ddmControllerStoreID)
-			return nil
-		}
-
-		if !datadogMetricInternal.Autogen {
+	// If DatadogMetric object is not present in Kubernetes, we need to clear our store (removed by user) or create it (autogen)
+	if datadogMetric == nil {
+		if datadogMetricInternal.Autogen && !datadogMetricInternal.Deleted {
+			err := c.createDatadogMetric(ns, name, datadogMetricInternal)
 			c.store.Unlock(datadogMetricKey)
-			return fmt.Errorf("Attempt to delete DatadogMetric that was not auto-generated - not deleting, DatadogMetric: %v", datadogMetricInternal)
+			return err
 		}
 
+		// Already deleted in Kube, cleaning internal store
+		c.store.UnlockDelete(datadogMetricKey, ddmControllerStoreID)
+		return nil
+	}
+
+	// Objects exists in both places (local store and K8S), we need to sync them
+	// Spec source of truth is Kubernetes object
+	// Status source of truth is our local store
+	// Except for autogen where internal store is only source of truth
+	if datadogMetricInternal.Autogen && datadogMetricInternal.Deleted {
 		// We send the delete and we'll clean-up internal store when we receive deleted event
 		c.store.Unlock(datadogMetricKey)
 		// We add a requeue in case the deleted event is lost
@@ -255,21 +241,6 @@ func (c *DatadogMetricController) syncDatadogMetric(ns, name, datadogMetricKey s
 		return c.deleteDatadogMetric(ns, name)
 	}
 
-	// If DatadogMetric object is not present in Kubernetes, we need to create it
-	if datadogMetric == nil {
-		if !datadogMetricInternal.Autogen {
-			c.store.Unlock(datadogMetricKey)
-			return fmt.Errorf("Attempt to create DatadogMetric that was not auto-generated - not creating, DatadogMetric: %v", datadogMetricInternal)
-		}
-
-		err := c.createDatadogMetric(ns, name, datadogMetricInternal)
-		c.store.Unlock(datadogMetricKey)
-		return err
-	}
-
-	// Objects exists in both places (local store and K8S), we need to sync them
-	// Spec source of truth is Kubernetes object
-	// Status source of truth is our local store
 	datadogMetricInternal.UpdateFrom(*datadogMetric)
 	defer c.store.UnlockSet(datadogMetricInternal.ID, *datadogMetricInternal, ddmControllerStoreID)
 

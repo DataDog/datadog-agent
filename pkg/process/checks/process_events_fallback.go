@@ -13,7 +13,7 @@ import (
 )
 
 // NewProcessEventsCheck returns an instance of the ProcessEventsCheck.
-func NewProcessEventsCheck() Check {
+func NewProcessEventsCheck() *ProcessEventsCheck {
 	return &ProcessEventsCheck{}
 }
 

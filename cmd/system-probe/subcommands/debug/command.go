@@ -46,7 +46,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(debugRuntime,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams:         config.NewAgentParamsWithoutSecrets(""),
+					ConfigParams:         config.NewAgentParamsWithoutSecrets("", config.WithConfigMissingOK(true)),
 					SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.ConfFilePath)),
 					LogParams:            log.LogForOneShot("SYS-PROBE", "off", false),
 				}),

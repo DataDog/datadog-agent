@@ -87,11 +87,12 @@ namespace WixSetup.Datadog
                     Return.ignore,
                     When.Before,
                     Step.StartServices
-                )
+            )
             {
                 Execute = Execute.rollback
             }
-                .SetProperties("APIKEY=[APIKEY], SITE=[SITE]");
+            .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
+            .HideTarget(true); ;
 
             WriteConfig = new CustomAction<ConfigCustomActions>(
                 new Id(nameof(WriteConfig)),
@@ -99,7 +100,7 @@ namespace WixSetup.Datadog
                 Return.check,
                 When.After,
                 new Step(ReportInstallFailure.Id),
-                Condition.NOT_BeingRemoved & NOT_Being_Reinstalled
+                Conditions.FirstInstall
             )
             {
                 Execute = Execute.deferred
@@ -141,7 +142,8 @@ namespace WixSetup.Datadog
                 Return.check,
                 When.After,
                 new Step(WriteConfig.Id),
-                (Condition.NOT_Installed & Condition.NOT_BeingRemoved) | Being_Reinstalled
+                // Only on first install otherwise we risk ruining the existing install
+                Conditions.FirstInstall
             )
             {
                 Execute = Execute.rollback
@@ -154,7 +156,7 @@ namespace WixSetup.Datadog
                 Return.check,
                 When.After,
                 new Step(CleanupOnRollback.Id),
-                (Condition.NOT_Installed & Condition.NOT_BeingRemoved) | Being_Reinstalled
+                Conditions.FirstInstall | Conditions.Upgrading
             )
             {
                 Execute = Execute.deferred
@@ -165,9 +167,9 @@ namespace WixSetup.Datadog
                 new Id(nameof(PrepareDecompressPythonDistributions)),
                 PythonDistributionCustomAction.PrepareDecompressPythonDistributions,
                 Return.ignore,
-                When.After,
-                new Step(ReadConfig.Id),
-                (Condition.NOT_Installed & Condition.NOT_BeingRemoved) | Being_Reinstalled,
+                When.Before,
+                new Step(DecompressPythonDistributions.Id),
+                Conditions.FirstInstall | Conditions.Upgrading,
                 Sequence.InstallExecuteSequence
             )
             {
@@ -181,7 +183,7 @@ namespace WixSetup.Datadog
                 Return.check,
                 When.Before,
                 Step.RemoveFiles,
-                Condition.Installed
+                Conditions.Uninstalling
             )
             {
                 Execute = Execute.deferred
@@ -194,8 +196,8 @@ namespace WixSetup.Datadog
                 Return.check,
                 When.After,
                 new Step(DecompressPythonDistributions.Id),
-                Condition.NOT_Installed & Condition.NOT_BeingRemoved
-                )
+                Condition.NOT(Conditions.Uninstalling)
+            )
             {
                 Execute = Execute.deferred
             }
@@ -213,7 +215,7 @@ namespace WixSetup.Datadog
                 Step.InstallInitialize,
                 // Run unless we are being uninstalled.
                 // This CA produces properties used for services, accounts, and permissions.
-                Condition.NOT_BeingRemoved
+                Condition.NOT(Conditions.Uninstalling)
             )
             .SetProperties("DDAGENTUSER_NAME=[DDAGENTUSER_NAME], DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD]")
             .HideTarget(true);
@@ -221,7 +223,7 @@ namespace WixSetup.Datadog
             OpenMsiLog = new CustomAction<UserCustomActions>(
                 new Id(nameof(OpenMsiLog)),
                 UserCustomActions.OpenMsiLog
-                )
+            )
             {
                 Sequence = Sequence.NotInSequence
             };
@@ -242,13 +244,13 @@ namespace WixSetup.Datadog
                 Step.StartServices,
                 // Include "Being_Reinstalled" so that if customer changes install method
                 // the install_info reflects that.
-                (Condition.NOT_Installed & Condition.NOT_BeingRemoved) | Being_Reinstalled
+                Conditions.FirstInstall | Conditions.Upgrading
             )
             {
                 Execute = Execute.deferred
             }
             .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]," +
-                        "OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]");
+                           "OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]");
 
             // Hitting this CustomAction always means the install succeeded
             // because when an install fails, it rollbacks from the `InstallFinalize`
@@ -259,9 +261,10 @@ namespace WixSetup.Datadog
                 Return.ignore,
                 When.After,
                 Step.InstallFinalize,
-                Condition.NOT_Installed & Condition.NOT_BeingRemoved
+                Conditions.FirstInstall | Conditions.Upgrading
             )
-            .SetProperties("APIKEY=[APIKEY], SITE=[SITE]");
+            .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
+            .HideTarget(true);
         }
     }
 }

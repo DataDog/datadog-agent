@@ -67,7 +67,7 @@ gopkg.in/inf.v0: "Copyright (c) 2012 Péter Surányi. Portions Copyright (c) 200
 google.golang.org/api/*: Copyright (c) 2011 Google Inc. All rights reserved.
 
 # See https://github.com/openshift/api/blob/master/quota/OWNERS
-github.com/openshift/api/quota: Copyright 2020 Red Hat, Inc.
+github.com/openshift/api: Copyright 2020 Red Hat, Inc.
 
 # https://datadoghq.atlassian.net/browse/AC-1296
 github.com/DataDog/mmh3: Copyright (c) 2017 Datadog, Inc.

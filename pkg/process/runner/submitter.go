@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
@@ -302,11 +303,15 @@ func (s *CheckSubmitter) Start() error {
 }
 
 func (s *CheckSubmitter) Stop() {
+	close(s.exit)
+
 	s.processResults.Stop()
 	s.rtProcessResults.Stop()
 	s.connectionsResults.Stop()
 	s.podResults.Stop()
 	s.eventResults.Stop()
+
+	s.wg.Wait()
 
 	s.processForwarder.Stop()
 	s.rtProcessForwarder.Stop()
@@ -314,8 +319,6 @@ func (s *CheckSubmitter) Stop() {
 	s.podForwarder.Stop()
 	s.eventForwarder.Stop()
 
-	close(s.exit)
-	s.wg.Wait()
 	close(s.rtNotifierChan)
 }
 
@@ -361,7 +364,7 @@ func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue, fwd forward
 				responses, err = fwd.SubmitConnectionChecks(forwarderPayload, payload.headers)
 			// Pod check metadata
 			case checks.PodCheckName:
-				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(model.K8SResource_POD))
+				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
 			// Pod check manifest data
 			case checks.PodCheckManifestName:
 				responses, err = fwd.SubmitOrchestratorManifests(forwarderPayload, payload.headers)

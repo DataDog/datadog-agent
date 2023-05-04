@@ -309,7 +309,7 @@ func NewServer(serverless bool) *Server {
 		listeners:               nil,
 		stopChan:                make(chan bool),
 		serverlessFlushChan:     make(chan bool),
-		health:                  health.RegisterLiveness("dogstatsd-main"),
+		health:                  nil,
 		histToDist:              histToDist,
 		histToDistPrefix:        histToDistPrefix,
 		extraTags:               extraTags,
@@ -443,6 +443,7 @@ func (s *Server) Start(demultiplexer aggregator.Demultiplexer) error {
 	// start the workers processing the packets read on the socket
 	// ----------------------
 
+	s.health = health.RegisterLiveness("dogstatsd-main")
 	s.handleMessages()
 	s.Started = true
 

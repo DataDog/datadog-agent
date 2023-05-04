@@ -12,6 +12,13 @@
 package process
 
 import (
+	"github.com/DataDog/datadog-agent/comp/process/connectionscheck"
+	"github.com/DataDog/datadog-agent/comp/process/containercheck"
+	"github.com/DataDog/datadog-agent/comp/process/podcheck"
+	"github.com/DataDog/datadog-agent/comp/process/processcheck"
+	"github.com/DataDog/datadog-agent/comp/process/processdiscoverycheck"
+	"github.com/DataDog/datadog-agent/comp/process/processeventscheck"
+	"github.com/DataDog/datadog-agent/comp/process/rtcontainercheck"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
 	"github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -23,4 +30,13 @@ import (
 var Bundle = fxutil.Bundle(
 	runner.Module,
 	submitter.Module,
+
+	// Checks
+	connectionscheck.Module,
+	containercheck.Module,
+	podcheck.Module,
+	processcheck.Module,
+	processeventscheck.Module,
+	rtcontainercheck.Module,
+	processdiscoverycheck.Module,
 )

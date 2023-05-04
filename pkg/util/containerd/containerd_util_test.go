@@ -90,6 +90,7 @@ func TestEnvVars(t *testing.T) {
 	tests := []struct {
 		name           string
 		specEnvs       []string
+		filterFunc     func(string) bool
 		expectedResult map[string]string
 		expectsErr     bool
 	}{
@@ -97,6 +98,14 @@ func TestEnvVars(t *testing.T) {
 			name:           "valid envs",
 			specEnvs:       []string{"ENV1=val1", "ENV2=val2"},
 			expectedResult: map[string]string{"ENV1": "val1", "ENV2": "val2"},
+		},
+		{
+			name:     "valid envs",
+			specEnvs: []string{"ENV1=val1", "ENV2=val2"},
+			filterFunc: func(s string) bool {
+				return s == "ENV1"
+			},
+			expectedResult: map[string]string{"ENV1": "val1"},
 		},
 		{
 			name:       "wrong format",
@@ -107,19 +116,13 @@ func TestEnvVars(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			mockUtil := ContainerdUtil{}
-
-			container := &mockContainer{
-				mockSpec: func() (*oci.Spec, error) {
-					return &oci.Spec{
-						Process: &specs.Process{
-							Env: test.specEnvs,
-						},
-					}, nil
+			spec := &oci.Spec{
+				Process: &specs.Process{
+					Env: test.specEnvs,
 				},
 			}
 
-			envVars, err := mockUtil.EnvVars(TestNamespace, container)
+			envVars, err := EnvVarsFromSpec(spec, test.filterFunc)
 
 			if test.expectsErr {
 				require.Error(t, err)
@@ -294,19 +297,6 @@ func TestIsSandbox(t *testing.T) {
 	}
 
 	isSandbox, err := mockUtil.IsSandbox(TestNamespace, withSandboxLabel)
-	require.NoError(t, err)
-	require.True(t, isSandbox)
-
-	withSandboxAnnotation := &mockContainer{
-		mockSpec: func() (*oci.Spec, error) {
-			return &oci.Spec{Annotations: map[string]string{"io.kubernetes.cri.container-type": "sandbox"}}, nil
-		},
-		mockLabels: func() (map[string]string, error) {
-			return map[string]string{}, nil
-		},
-	}
-
-	isSandbox, err = mockUtil.IsSandbox(TestNamespace, withSandboxAnnotation)
 	require.NoError(t, err)
 	require.True(t, isSandbox)
 

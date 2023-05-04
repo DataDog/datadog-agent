@@ -6,9 +6,11 @@
 #   - /.gitlab/kitchen_common/testing.yml
 
 .pull_test_dockers:
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   needs: []
   tags: ["runner:docker"]
+  rules:
+    !reference [ .on_system_probe_changes_or_manual ]
   stage: functional_test
   script:
     # DockerHub login for build to limit rate limit when pulling base images

@@ -7,6 +7,7 @@ package checkconfig
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 	"regexp"
 	"testing"
 	"time"
@@ -1497,6 +1498,67 @@ min_collection_interval: -10
 				assert.EqualError(t, err, tt.expectedErr)
 			} else {
 				assert.Equal(t, tt.expectedInterval, config.MinCollectionInterval)
+			}
+		})
+	}
+}
+
+func Test_buildConfig_InterfaceConfigs(t *testing.T) {
+	tests := []struct {
+		name                     string
+		rawInstanceConfig        []byte
+		rawInitConfig            []byte
+		expectedInterfaceConfigs []snmpintegration.InterfaceConfig
+		expectedErr              string
+	}{
+		{
+			name: "interface config as yaml",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+interface_configs:
+  - match_field: "name"
+    match_value: "eth0"
+    in_speed: 25
+    out_speed: 10
+`),
+			// language=yaml
+			rawInitConfig: []byte(``),
+			expectedInterfaceConfigs: []snmpintegration.InterfaceConfig{
+				{
+					MatchField: "name",
+					MatchValue: "eth0",
+					InSpeed:    25,
+					OutSpeed:   10,
+				},
+			},
+		},
+		{
+			name: "interface config as json string",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+interface_configs: '[{"match_field":"name","match_value":"eth0","in_speed":25,"out_speed":10}]'
+`),
+			// language=yaml
+			rawInitConfig: []byte(``),
+			expectedInterfaceConfigs: []snmpintegration.InterfaceConfig{
+				{
+					MatchField: "name",
+					MatchValue: "eth0",
+					InSpeed:    25,
+					OutSpeed:   10,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig)
+			if tt.expectedErr != "" {
+				assert.EqualError(t, err, tt.expectedErr)
+			} else {
+				assert.Equal(t, tt.expectedInterfaceConfigs, config.InterfaceConfigs)
 			}
 		})
 	}
