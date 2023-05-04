@@ -151,17 +151,17 @@ func newTracer(cfg *config.Config) (*Tracer, error) {
 		log.Warnf("http2 requires a Linux kernel version of %s or higher. We detected %s", http.HTTP2MinimumKernelVersion, currKernelVersion)
 	}
 
-	var bpfTelemetry *telemetry.EBPFTelemetry
+	var bpfTelemetry *nettelemetry.EBPFTelemetry
 	if usmSupported {
 		bpfTelemetry = nettelemetry.NewEBPFTelemetry()
 	}
 
-	ebpfTracer, err := connection.NewTracer(config, bpfTelemetry)
+	ebpfTracer, err := connection.NewTracer(cfg, bpfTelemetry)
 	if err != nil {
 		return nil, err
 	}
 
-	conntracker, err := newConntracker(config, bpfTelemetry)
+	conntracker, err := newConntracker(cfg, bpfTelemetry)
 	if err != nil {
 		return nil, err
 	}
@@ -183,8 +183,8 @@ func newTracer(cfg *config.Config) (*Tracer, error) {
 	tr := &Tracer{
 		config:                     cfg,
 		state:                      state,
-		reverseDNS:                 newReverseDNS(config),
-		usmMonitor:                 newUSMMonitor(config, ebpfTracer, bpfTelemetry),
+		reverseDNS:                 newReverseDNS(cfg),
+		usmMonitor:                 newUSMMonitor(cfg, ebpfTracer, bpfTelemetry),
 		activeBuffer:               network.NewConnectionBuffer(512, 256),
 		conntracker:                conntracker,
 		sourceExcludes:             network.ParseConnectionFilters(cfg.ExcludedSourceConnections),
@@ -249,7 +249,7 @@ func (tr *Tracer) start() error {
 	return nil
 }
 
-func newConntracker(cfg *config.Config, bpfTelemetry *telemetry.EBPFTelemetry) (netlink.Conntracker, error) {
+func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry) (netlink.Conntracker, error) {
 	if !cfg.EnableConntrack {
 		return netlink.NewNoOpConntracker(), nil
 	}
@@ -783,7 +783,7 @@ func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error)
 	return nil, nil
 }
 
-func newUSMMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *telemetry.EBPFTelemetry) *usm.Monitor {
+func newUSMMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *nettelemetry.EBPFTelemetry) *usm.Monitor {
 	// Shared with the USM program
 	sockFDMap := tracer.GetMap(probes.SockByPidFDMap)
 	connectionProtocolMap := tracer.GetMap(probes.ConnectionProtocolMap)

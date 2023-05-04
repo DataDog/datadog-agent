@@ -947,28 +947,45 @@ type tracerOffsets struct {
 	err     error
 }
 
-func (o *tracerOffsets) Offsets(cfg *config.Config) ([]manager.ConstantEditor, error) {
-	fromConfig := func(offsets []manager.ConstantEditor) []manager.ConstantEditor {
-		if cfg.CollectIPv6Conns {
-			return append(offsets, manager.ConstantEditor{
-				Name:  "ipv6_enabled",
-				Value: uint64(1),
-			})
-		}
+func boolConst(name string, value bool) manager.ConstantEditor {
+	c := manager.ConstantEditor{
+		Name:  name,
+		Value: uint64(1),
+	}
+	if !value {
+		c.Value = uint64(0)
+	}
 
-		return append(offsets, manager.ConstantEditor{
-			Name:  "ipv6_enabled",
-			Value: uint64(0),
-		})
+	return c
+}
+
+func (o *tracerOffsets) Offsets(cfg *config.Config) ([]manager.ConstantEditor, error) {
+	fromConfig := func(c *config.Config, offsets []manager.ConstantEditor) []manager.ConstantEditor {
+		return append(offsets,
+			boolConst("tcpv6_enabled", c.CollectTCPv6Conns),
+			boolConst("udpv6_enabled", c.CollectUDPv6Conns))
 	}
 
 	if o.err != nil {
 		return nil, o.err
 	}
 
+	if cfg.CollectUDPv6Conns {
+		kv, err := kernel.HostVersion()
+		if err != nil {
+			return nil, err
+		}
+
+		if kv >= kernel.VersionCode(5, 18, 0) {
+			_cfg := *cfg
+			_cfg.CollectUDPv6Conns = false
+			cfg = &_cfg
+		}
+	}
+
 	if len(o.offsets) > 0 {
 		// already run
-		return fromConfig(o.offsets), o.err
+		return fromConfig(cfg, o.offsets), o.err
 	}
 
 	offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir, cfg.BPFDebug)
@@ -979,7 +996,7 @@ func (o *tracerOffsets) Offsets(cfg *config.Config) ([]manager.ConstantEditor, e
 	defer offsetBuf.Close()
 
 	o.offsets, o.err = RunOffsetGuessing(cfg, offsetBuf, NewTracerOffsetGuesser)
-	return fromConfig(o.offsets), o.err
+	return fromConfig(cfg, o.offsets), o.err
 }
 
 func (o *tracerOffsets) Reset() {

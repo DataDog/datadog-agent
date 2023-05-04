@@ -14,8 +14,6 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-
 	"github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"

@@ -121,20 +121,6 @@ type tracer struct {
 	exitTelemetry chan struct{}
 }
 
-func addBoolConst(options *manager.Options, flag bool, name string) {
-	val := uint64(1)
-	if !flag {
-		val = uint64(0)
-	}
-
-	options.ConstantEditors = append(options.ConstantEditors,
-		manager.ConstantEditor{
-			Name:  name,
-			Value: val,
-		},
-	)
-}
-
 // NewTracer creates a new tracer
 func NewTracer(config *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) (Tracer, error) {
 	mgrOptions := manager.Options{
@@ -160,8 +146,6 @@ func NewTracer(config *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) 
 			probes.TLSConnectionMap:                  {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries}},
 	}
 
-	addBoolConst(&mgrOptions, config.CollectIPv6Conns, "ipv6_enabled")
-
 	closedChannelSize := defaultClosedChannelSize
 	if config.ClosedChannelSize > 0 {
 		closedChannelSize = config.ClosedChannelSize
@@ -185,7 +169,6 @@ func NewTracer(config *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) 
 	}
 
 	if err != nil {
-		mgrOptions.ConstantEditors = constants
 		// load the kprobe tracer
 		log.Info("fentry tracer not supported, falling back to kprobe tracer")
 		var kprobeTracerType kprobe.TracerType
