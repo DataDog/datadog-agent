@@ -50,7 +50,7 @@ get_file_diff:
   stage: kernel_matrix_testing
   script:
     - git fetch origin main:main
-    - echo "DIFF_FILES=$(first=0;for element in $(git diff --name-only $(git merge-base $(inv release.get-release-json-value base_branch) HEAD) HEAD); do if [ $first -eq 0 ]; then first=1; else echo -n '\n'; fi; echo $element; done)" | tr -d '\n' > file_diff.env
+    - echo "DIFF_FILES=$(inv system-probe.generate-git-file-diff)" > file_diff.env
     - cat file_diff.env
   artifacts:
     reports:
