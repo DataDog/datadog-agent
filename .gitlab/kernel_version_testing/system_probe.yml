@@ -1,18 +1,17 @@
 ---
 .system_probe_file_diff_check:
-  script:
-    - set +e
-    - |+
-      for path in $SYSTEM_PROBE_SRC_PATH
-      do
-        echo "Checking $path..."
-        echo "$DIFF_FILES" | grep "$path"
-        export exit_code=$?
-        if [ $exit_code -eq 0 ]; then
-          break
-        fi
-      done
-    - set -e
+  - set +e
+  - |+
+    for path in $SYSTEM_PROBE_SRC_PATH
+    do
+      echo "Checking $path..."
+      echo "$DIFF_FILES" | grep "$path"
+      export exit_code=$?
+      if [ $exit_code -eq 0 ]; then
+        break
+      fi
+    done
+  - set -e
 
 
 .pull_test_dockers:
@@ -25,7 +24,7 @@
     !reference [ .on_system_probe_changes_or_manual ]
   stage: kernel_matrix_testing
   script:
-    - export exit_code=1;
+    - !reference [ .system_probe_file_diff_check ]
     - if [ ${exit_code} -eq 0 ]; then
     # Build dependencies directory
     # DockerHub login for build to limit rate limit when pulling base images
