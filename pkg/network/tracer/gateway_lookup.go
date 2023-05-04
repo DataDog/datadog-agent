@@ -25,8 +25,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const maxRouteCacheSize = int(^uint(0) >> 1) // max int
-const maxSubnetCacheSize = 1024
+const (
+	maxRouteCacheSize       = int(^uint(0) >> 1) // max int
+	maxSubnetCacheSize      = 1024
+	gatewayLookupModuleName = "gateway_lookup"
+)
 
 // Telemetry
 var gatewayLookupTelemetry = struct {
@@ -36,11 +39,11 @@ var gatewayLookupTelemetry = struct {
 	subnetLookups      *nettelemetry.StatCounterWrapper
 	subnetLookupErrors *nettelemetry.StatCounterWrapper
 }{
-	nettelemetry.NewStatGaugeWrapper("gateway_lookup", "subnet_cache_size", []string{}, "Counter measuring the size of the subnet cache"),
-	nettelemetry.NewStatCounterWrapper("gateway_lookup", "subnet_cache_misses", []string{}, "Counter measuring the number of subnet cache misses"),
-	nettelemetry.NewStatCounterWrapper("gateway_lookup", "subnet_cache_lookups", []string{}, "Counter measuring the number of subnet cache lookups"),
-	nettelemetry.NewStatCounterWrapper("gateway_lookup", "subnet_lookups", []string{}, "Counter measuring the number of subnet lookups"),
-	nettelemetry.NewStatCounterWrapper("gateway_lookup", "subnet_lookup_errors", []string{}, "Counter measuring the number of subnet lookup errors"),
+	nettelemetry.NewStatGaugeWrapper(gatewayLookupModuleName, "subnet_cache_size", []string{}, "Counter measuring the size of the subnet cache"),
+	nettelemetry.NewStatCounterWrapper(gatewayLookupModuleName, "subnet_cache_misses", []string{}, "Counter measuring the number of subnet cache misses"),
+	nettelemetry.NewStatCounterWrapper(gatewayLookupModuleName, "subnet_cache_lookups", []string{}, "Counter measuring the number of subnet cache lookups"),
+	nettelemetry.NewStatCounterWrapper(gatewayLookupModuleName, "subnet_lookups", []string{}, "Counter measuring the number of subnet lookups"),
+	nettelemetry.NewStatCounterWrapper(gatewayLookupModuleName, "subnet_lookup_errors", []string{}, "Counter measuring the number of subnet lookup errors"),
 }
 
 type gatewayLookup struct {
