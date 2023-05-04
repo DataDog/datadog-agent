@@ -826,7 +826,7 @@ workflow:
   - variables:
       SYSTEM_PROBE_SRC_PATH: |
         pkg/collector/corechecks/ebpf/
-        pkg/ebf/
+        pkg/ebpf/
         pkg/network/
         pkg/util/kernel
         test/kitchen/site-cookbooks/dd-system-probe-check/
