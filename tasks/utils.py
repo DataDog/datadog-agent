@@ -15,7 +15,8 @@ from invoke.exceptions import Exit
 # constants
 ORG_PATH = "github.com/DataDog"
 DEFAULT_BRANCH = "main"
-REPO_PATH = f"{ORG_PATH}/datadog-agent"
+REPO_NAME = "datadog-agent"
+REPO_PATH = f"{ORG_PATH}/{REPO_NAME}"
 ALLOWED_REPO_NON_NIGHTLY_BRANCHES = {"stable", "beta", "none"}
 ALLOWED_REPO_NIGHTLY_BRANCHES = {"nightly", "oldnightly"}
 ALLOWED_REPO_ALL_BRANCHES = ALLOWED_REPO_NON_NIGHTLY_BRANCHES.union(ALLOWED_REPO_NIGHTLY_BRANCHES)
@@ -353,7 +354,7 @@ def get_version(
     version = ""
     pipeline_id = os.getenv("CI_PIPELINE_ID")
     project_name = os.getenv("CI_PROJECT_NAME")
-    if pipeline_id and pipeline_id.isdigit() and project_name == "datadog-agent":
+    if pipeline_id and pipeline_id.isdigit() and project_name == REPO_NAME:
         try:
             if not os.path.exists(AGENT_VERSION_CACHE_NAME):
                 ctx.run(
