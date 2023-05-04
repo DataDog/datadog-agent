@@ -45,12 +45,12 @@ type Resolver interface {
 	GetValue(id string, tag string) string
 }
 
-type TagResolver struct {
+type DefaultResolver struct {
 	tagger Tagger
 }
 
 // Start the resolver
-func (t *TagResolver) Start(ctx context.Context) error {
+func (t *DefaultResolver) Start(ctx context.Context) error {
 	go func() {
 		if err := t.tagger.Init(ctx); err != nil {
 			log.Errorf("failed to init tagger: %s", err)
@@ -66,23 +66,23 @@ func (t *TagResolver) Start(ctx context.Context) error {
 }
 
 // Resolve returns the tags for the given id
-func (t *TagResolver) Resolve(id string) []string {
+func (t *DefaultResolver) Resolve(id string) []string {
 	tags, _ := t.tagger.Tag("container_id://"+id, collectors.OrchestratorCardinality)
 	return tags
 }
 
 // ResolveWithErr returns the tags for the given id
-func (t *TagResolver) ResolveWithErr(id string) ([]string, error) {
+func (t *DefaultResolver) ResolveWithErr(id string) ([]string, error) {
 	return t.tagger.Tag("container_id://"+id, collectors.OrchestratorCardinality)
 }
 
 // GetValue return the tag value for the given id and tag name
-func (t *TagResolver) GetValue(id string, tag string) string {
+func (t *DefaultResolver) GetValue(id string, tag string) string {
 	return utils.GetTagValue(tag, t.Resolve(id))
 }
 
 // Stop the resolver
-func (t *TagResolver) Stop() error {
+func (t *DefaultResolver) Stop() error {
 	return t.tagger.Stop()
 }
 
@@ -93,12 +93,12 @@ func NewResolver(config *config.Config) Resolver {
 		if err != nil {
 			log.Errorf("unable to configure the remote tagger: %s", err)
 		} else {
-			return &TagResolver{
+			return &DefaultResolver{
 				tagger: remote.NewTagger(options),
 			}
 		}
 	}
-	return &TagResolver{
+	return &DefaultResolver{
 		tagger: &nullTagger{},
 	}
 }

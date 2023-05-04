@@ -55,6 +55,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
@@ -895,7 +896,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			StatsdClient:          statsdClient,
 			DontDiscardRuntime:    true,
 			PathResolutionEnabled: true,
-			CustomTagsResolver:    NewFakeResolver(),
+			TagsResolver:          NewFakeResolver(),
 		},
 	}
 	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts)
@@ -2095,4 +2096,50 @@ func (tm *testModule) StopAllActivityDumps() error {
 func IsDedicatedNode(env string) bool {
 	_, present := os.LookupEnv(env)
 	return present
+}
+
+// for test purpose only
+type ProcessNodeAndParent struct {
+	Node   *activity_tree.ProcessNode
+	Parent *ProcessNodeAndParent
+}
+
+// for test purpose only
+func NewProcessNodeAndParent(node *activity_tree.ProcessNode, parent *ProcessNodeAndParent) *ProcessNodeAndParent {
+	return &ProcessNodeAndParent{
+		Node:   node,
+		Parent: parent,
+	}
+}
+
+// for test purpose only
+func WalkActivityTree(at *activity_tree.ActivityTree, walkFunc func(node *ProcessNodeAndParent) bool) []*activity_tree.ProcessNode {
+	var result []*activity_tree.ProcessNode
+	if len(at.ProcessNodes) == 0 {
+		return result
+	}
+	var nodes []*ProcessNodeAndParent
+	var node *ProcessNodeAndParent
+	for _, n := range at.ProcessNodes {
+		nodes = append(nodes, NewProcessNodeAndParent(n, nil))
+	}
+	node = nodes[0]
+	nodes = nodes[1:]
+
+	for node != nil {
+		if walkFunc(node) {
+			result = append(result, node.Node)
+		}
+
+		for _, child := range node.Node.Children {
+			nodes = append(nodes, NewProcessNodeAndParent(child, node))
+		}
+		if len(nodes) > 0 {
+			node = nodes[0]
+			nodes = nodes[1:]
+		} else {
+			node = nil
+		}
+	}
+	return result
 }

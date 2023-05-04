@@ -42,7 +42,7 @@ import (
 // ResolversOpts defines common options
 type ResolversOpts struct {
 	PathResolutionEnabled bool
-	CustomTagsResolver    tags.Resolver
+	TagsResolver          tags.Resolver
 }
 
 // Resolvers holds the list of the event attribute resolvers
@@ -96,8 +96,8 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 	}
 
 	var tagsResolver tags.Resolver
-	if opts.CustomTagsResolver != nil {
-		tagsResolver = opts.CustomTagsResolver
+	if opts.TagsResolver != nil {
+		tagsResolver = opts.TagsResolver
 	} else {
 		tagsResolver = tags.NewResolver(config.Probe)
 	}

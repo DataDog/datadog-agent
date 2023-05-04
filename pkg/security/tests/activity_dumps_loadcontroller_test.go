@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -63,7 +64,7 @@ func TestActivityDumpsLoadControllerTimeout(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer dockerInstance.stop()
-	assert.Equal(t, "11m0s", dump.Timeout)
+	assert.Equal(t, fmt.Sprintf("%dm0s", testActivityDumpCgroupDumpTimeout), dump.Timeout)
 
 	// trigg reducer (before t > timeout / 4)
 	test.triggerLoadControlerReducer(dockerInstance, dump)
@@ -73,7 +74,7 @@ func TestActivityDumpsLoadControllerTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assert.Equal(t, "10m0s", secondDump.Timeout)
+	assert.Equal(t, fmt.Sprintf("%dm0s", activitydump.MinDumpTimeout/time.Minute), secondDump.Timeout)
 }
 
 func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {

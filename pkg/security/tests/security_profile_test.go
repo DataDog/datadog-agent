@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/exp/slices"
@@ -141,7 +140,7 @@ func TestSecurityProfile(t *testing.T) {
 
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, nil,
 			func(sp *profile.SecurityProfile) bool {
-				nodes := sp.ActivityTree.Walk(func(node *activity_tree.ProcessNodeAndParent) bool {
+				nodes := WalkActivityTree(sp.ActivityTree, func(node *ProcessNodeAndParent) bool {
 					if node.Node.Process.FileEvent.PathnameStr == syscallTester {
 						return true
 					}
@@ -184,7 +183,7 @@ func TestSecurityProfile(t *testing.T) {
 
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, nil,
 			func(sp *profile.SecurityProfile) bool {
-				nodes := sp.ActivityTree.Walk(func(node *activity_tree.ProcessNodeAndParent) bool {
+				nodes := WalkActivityTree(sp.ActivityTree, func(node *ProcessNodeAndParent) bool {
 					if node.Node.Process.FileEvent.BasenameStr == "busybox" {
 						return true
 					}
@@ -282,6 +281,38 @@ func TestAnomalyDetection(t *testing.T) {
 		}
 	})
 
+	t.Run("anomaly-detection-process-negative", func(t *testing.T) {
+		dockerInstance, dump, err := test.StartADockerGetDump()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer dockerInstance.stop()
+
+		time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
+		cmd := dockerInstance.Command(syscallTester, []string{"sleep", "1"}, []string{})
+		_, err = cmd.CombinedOutput()
+		if err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
+
+		err = test.StopActivityDump(dump.Name, "", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(6 * time.Second) // a quick sleep to let the profile to be loaded (5sec debounce + 1sec spare)
+
+		test.GetCustomEventSent(t, func() error {
+			// don't do anything
+			return nil
+		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+			if r.Rule.ID == events.AnomalyDetectionRuleID {
+				t.Fatal("Should not had receive any anomaly detection.")
+			}
+			return false
+		}, time.Second*3, model.ExecEventType)
+	})
+
 	t.Run("anomaly-detection-dns", func(t *testing.T) {
 		checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 			// TODO: Oracle because we are missing offsets. See dns_test.go
@@ -318,6 +349,42 @@ func TestAnomalyDetection(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+	})
+
+	t.Run("anomaly-detection-dns-negative", func(t *testing.T) {
+		checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
+			// TODO: Oracle because we are missing offsets. See dns_test.go
+			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
+		})
+		dockerInstance, dump, err := test.StartADockerGetDump()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer dockerInstance.stop()
+
+		time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
+		cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
+		_, err = cmd.CombinedOutput()
+		if err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
+
+		err = test.StopActivityDump(dump.Name, "", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(6 * time.Second) // a quick sleep to let the profile to be loaded (5sec debounce + 1sec spare)
+
+		test.GetCustomEventSent(t, func() error {
+			// don't do anything
+			return nil
+		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+			if r.Rule.ID == events.AnomalyDetectionRuleID {
+				t.Fatal("Should not had receive any anomaly detection.")
+			}
+			return false
+		}, time.Second*3, model.DNSEventType)
 	})
 }
 

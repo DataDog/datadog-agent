@@ -39,11 +39,11 @@ func (t *FakeResolver) Resolve(containerID string) []string {
 	defer t.Unlock()
 	for index, id := range t.containerIDs {
 		if id == containerID {
-			return []string{"container_id:" + containerID, "image_name:fake_ubuntu_" + fmt.Sprint(index+1)}
+			return []string{"container_id:" + containerID, fmt.Sprintf("image_name:fake_ubuntu_%d", index+1)}
 		}
 	}
 	t.containerIDs = append(t.containerIDs, containerID)
-	return []string{"container_id:" + containerID, "image_name:fake_ubuntu_" + fmt.Sprint(len(t.containerIDs))}
+	return []string{"container_id:" + containerID, fmt.Sprintf("image_name:fake_ubuntu_%d", len(t.containerIDs))}
 }
 
 // ResolveWithErr returns the tags for the given id

@@ -21,8 +21,8 @@ type Opts struct {
 	StatsdClient statsd.ClientInterface
 	// PathResolutionEnabled defines if the path resolution is enabled
 	PathResolutionEnabled bool
-	// CustomTagsResolver will override the default one. Mainly here for tests.
-	CustomTagsResolver tags.Resolver
+	// TagsResolver will override the default one. Mainly here for tests.
+	TagsResolver tags.Resolver
 }
 
 func (o *Opts) normalize() {
