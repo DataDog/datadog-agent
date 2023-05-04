@@ -92,5 +92,5 @@ func WithKey(connectionStats ConnectionStats, f func(key types.ConnectionKey) (s
 	}
 
 	// Callback 4: (server, client)
-	f(types.NewConnectionKey(clientIP, serverIP, clientPort, serverPort))
+	f(types.NewConnectionKey(serverIP, clientIP, serverPort, clientPort))
 }
