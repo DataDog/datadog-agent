@@ -46,13 +46,15 @@ func DetectCloudProvider(ctx context.Context) {
 		{name: ibm.CloudProviderName, callback: ibm.IsRunningOn},
 	}
 
+	collectAccountID := config.Datadog.GetBool("inventories_collect_cloud_provider_account_id")
+
 	for _, cloudDetector := range detectors {
 		if cloudDetector.callback(ctx) {
 			inventories.SetAgentMetadata(inventories.HostCloudProvider, cloudDetector.name)
 			log.Infof("Cloud provider %s detected", cloudDetector.name)
 
 			// fetch the account ID for this cloud provider
-			if cloudDetector.accountIdCallback != nil {
+			if collectAccountID && cloudDetector.accountIdCallback != nil {
 				if accountID, err := cloudDetector.accountIdCallback(ctx); err != nil && accountID != "" {
 					log.Infof("Detecting `%s` from %s cloud provider: %+q", inventories.HostCloudProviderAccountID, cloudDetector.name, accountID)
 					inventories.SetHostMetadata(inventories.HostCloudProviderAccountID, accountID)
