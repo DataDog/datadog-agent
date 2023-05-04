@@ -19,24 +19,17 @@ import (
 // Each ConnectionStats object contains both the source and destination addresses, as well as an IPTranslation object that stores the original addresses in the event that the connection is NAT'd.
 // This function generates all relevant combinations of connection keys: [(source, dest), (dest, source), (NAT'd source, NAT'd dest), (NAT'd dest, NAT'd source)].
 // This is necessary to handle all possible scenarios for connections originating from the USM module (i.e., whether they are NAT'd or not, and whether they use TLS).
-func ConnectionKeysFromConnectionStats(connectionStats ConnectionStats) []types.ConnectionKey {
+func ConnectionKeysFromConnectionStats(c ConnectionStats) []types.ConnectionKey {
 
-	// USM data is always indexed as (client, server), but we don't know which is the remote
+	// Retrieve translated addresses
+	laddr, lport := GetNATLocalAddress(c)
+	raddr, rport := GetNATRemoteAddress(c)
+
+	// HTTP data is always indexed as (client, server), but we don't know which is the remote
 	// and which is the local address. To account for this, we'll construct 2 possible
-	// connection keys and check for both of them in the aggregations map.
-	connectionKeys := []types.ConnectionKey{
-		types.NewConnectionKey(connectionStats.Source, connectionStats.Dest, connectionStats.SPort, connectionStats.DPort),
-		types.NewConnectionKey(connectionStats.Dest, connectionStats.Source, connectionStats.DPort, connectionStats.SPort),
+	// http keys and check for both of them in our http aggregations map.
+	return []types.ConnectionKey{
+		types.NewConnectionKey(laddr, raddr, lport, rport),
+		types.NewConnectionKey(raddr, laddr, rport, lport),
 	}
-
-	// if IPTranslation is not nil, at least one of the sides has a translation, thus we need to add translated addresses.
-	if connectionStats.IPTranslation != nil {
-		localAddress, localPort := GetNATLocalAddress(connectionStats)
-		remoteAddress, remotePort := GetNATRemoteAddress(connectionStats)
-		connectionKeys = append(connectionKeys,
-			types.NewConnectionKey(localAddress, remoteAddress, localPort, remotePort),
-			types.NewConnectionKey(remoteAddress, localAddress, remotePort, localPort))
-	}
-
-	return connectionKeys
 }
