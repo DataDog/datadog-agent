@@ -11,6 +11,7 @@ package tests
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -18,6 +19,7 @@ import (
 
 // Resolver represents a cache resolver
 type FakeResolver struct {
+	sync.Mutex
 	containerIDs []string
 }
 
@@ -33,6 +35,8 @@ func (t *FakeResolver) Stop() error {
 
 // Resolve returns the tags for the given id
 func (t *FakeResolver) Resolve(containerID string) []string {
+	t.Lock()
+	defer t.Unlock()
 	for index, id := range t.containerIDs {
 		if id == containerID {
 			return []string{"container_id:" + containerID, "image_name:fake_ubuntu_" + fmt.Sprint(index+1)}

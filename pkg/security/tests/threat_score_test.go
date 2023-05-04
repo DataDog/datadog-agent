@@ -106,7 +106,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 
 		tempPathParts := strings.Split(filePath, "/")
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.ActivityTree.FindMatchingRootNodes("touch")
+			nodes := ad.ActivityTree.FindMatchingRootNodes("busybox")
 			if nodes == nil || len(nodes) != 1 {
 				t.Fatal("Uniq node not found in activity dump")
 			}
@@ -155,7 +155,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 		}
 
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.ActivityTree.FindMatchingRootNodes("nslookup")
+			nodes := ad.ActivityTree.FindMatchingRootNodes("busybox")
 			if nodes == nil || len(nodes) != 1 {
 				t.Fatal("Uniq node not found in activity dump")
 			}
