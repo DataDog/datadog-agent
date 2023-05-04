@@ -560,7 +560,10 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 
 	// check if the event should be injected in the profile automatically
 	if profile.autolearnEnabled {
-		if autoLearned, autoLearnErr := m.tryAutolearn(profile, event); autoLearnErr != nil || autoLearned {
+		autoLearned, autoLearnErr := m.tryAutolearn(profile, event)
+		if autoLearnErr != nil {
+			return
+		} else if autoLearned {
 			// link the profile to the event only if it's a valid event for profile without any error
 			FillProfileContextFromProfile(&event.SecurityProfileContext, profile)
 			return
