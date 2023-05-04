@@ -6,6 +6,7 @@
 package api
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -32,6 +33,7 @@ func TestSymDBProxy(t *testing.T) {
 		_, err = w.Write([]byte("OK"))
 		assert.NoError(t, err)
 	}))
+	defer srv.Close()
 	req, err := http.NewRequest("POST", "dummy.com/path", strings.NewReader("body"))
 	assert.NoError(t, err)
 	rec := httptest.NewRecorder()
@@ -50,18 +52,37 @@ func TestSymDBProxyHandler(t *testing.T) {
 		var called bool
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			ddtags := req.Header.Get("X-Datadog-Additional-Tags")
-			assert.False(t, strings.Contains(ddtags, "orchestrator"), "ddtags should not contain orchestrator: %v", ddtags)
-			for _, tag := range []string{"host", "default_env", "agent_version"} {
-				assert.True(t, strings.Contains(ddtags, tag), "ddtags should contain %s", tag)
-			}
+			assert.Equal(t, "host:myhost,default_env:test,agent_version:v1", ddtags)
 			called = true
 		}))
+		defer srv.Close()
 		req, err := http.NewRequest("POST", "/some/path", nil)
 		assert.NoError(t, err)
 		conf := getSymDBConf(srv.URL)
 		receiver := newTestReceiverFromConfig(conf)
 		receiver.symDBProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
 		assert.True(t, called, "request not proxied")
+	})
+
+	t.Run("ok_multiple_requests", func(t *testing.T) {
+		extraTag := "a:b"
+		var numCalls atomic.Int32
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			ddtags := req.Header.Get("X-Datadog-Additional-Tags")
+			assert.Equal(t, fmt.Sprintf("host:myhost,default_env:test,agent_version:v1,%s", extraTag), ddtags)
+			numCalls.Add(1)
+		}))
+		defer srv.Close()
+		req, err := http.NewRequest("POST", fmt.Sprintf("/some/path?ddtags=%s", extraTag), nil)
+		assert.NoError(t, err)
+		conf := getSymDBConf(srv.URL)
+		receiver := newTestReceiverFromConfig(conf)
+		handler := receiver.symDBProxyHandler()
+		handler.ServeHTTP(httptest.NewRecorder(), req)
+		handler.ServeHTTP(httptest.NewRecorder(), req)
+		var expected atomic.Int32
+		expected.Store(int32(2))
+		assert.Equal(t, expected, numCalls, "requests not proxied, expected %d calls, got %d", 2, numCalls)
 	})
 
 	t.Run("ok_fargate", func(t *testing.T) {
@@ -71,6 +92,7 @@ func TestSymDBProxyHandler(t *testing.T) {
 			assert.True(t, strings.Contains(ddtags, "orchestrator"), "ddtags must contain orchestrator: %v", ddtags)
 			called = true
 		}))
+		defer srv.Close()
 		req, err := http.NewRequest("POST", "/some/path", nil)
 		assert.NoError(t, err)
 		conf := getSymDBConf(srv.URL)
@@ -100,18 +122,25 @@ func TestSymDBProxyHandler(t *testing.T) {
 		numEndpoints := 10
 		var numCalls atomic.Int32
 		conf := getSymDBConf("")
+		srvs := make([]*httptest.Server, 0, numEndpoints)
 		for i := 0; i < numEndpoints; i++ {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 				ddtags := req.Header.Get("X-Datadog-Additional-Tags")
 				assert.Equal(t, "host:myhost,default_env:test,agent_version:v1", ddtags, "got invalid tags: %q", ddtags)
 				numCalls.Add(1)
 			}))
+			srvs = append(srvs, srv)
 			if i == 0 {
 				conf.SymDBProxy.DDURL = srv.URL
 				continue
 			}
 			conf.SymDBProxy.AdditionalEndpoints[srv.URL] = []string{"foo"}
 		}
+		defer func() {
+			for _, srv := range srvs {
+				srv.Close()
+			}
+		}()
 		req, err := http.NewRequest("POST", "/some/path", strings.NewReader("body"))
 		assert.NoError(t, err)
 		receiver := newTestReceiverFromConfig(conf)
@@ -124,6 +153,7 @@ func TestSymDBProxyHandler(t *testing.T) {
 	t.Run("error_additional_endpoints_main_endpoint_error", func(t *testing.T) {
 		numEndpoints := 2
 		conf := getSymDBConf("")
+		srvs := make([]*httptest.Server, 0, numEndpoints)
 		for i := 0; i < numEndpoints; i++ {
 			var srv *httptest.Server
 
@@ -131,6 +161,7 @@ func TestSymDBProxyHandler(t *testing.T) {
 				srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 					w.WriteHeader(500)
 				}))
+				srvs = append(srvs, srv)
 				conf.SymDBProxy.DDURL = srv.URL
 				continue
 			}
@@ -138,8 +169,14 @@ func TestSymDBProxyHandler(t *testing.T) {
 			srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 				w.WriteHeader(200)
 			}))
+			srvs = append(srvs, srv)
 			conf.SymDBProxy.AdditionalEndpoints[srv.URL] = []string{"foo"}
 		}
+		defer func() {
+			for _, srv := range srvs {
+				srv.Close()
+			}
+		}()
 		req, err := http.NewRequest("POST", "/some/path", strings.NewReader("body"))
 		assert.NoError(t, err)
 		receiver := newTestReceiverFromConfig(conf)
@@ -153,6 +190,7 @@ func TestSymDBProxyHandler(t *testing.T) {
 	t.Run("ok_additional_endpoints_main_endpoint_ok_additional_error", func(t *testing.T) {
 		numEndpoints := 10
 		conf := getSymDBConf("")
+		srvs := make([]*httptest.Server, 0, numEndpoints)
 		for i := 0; i < numEndpoints; i++ {
 			var srv *httptest.Server
 
@@ -160,6 +198,7 @@ func TestSymDBProxyHandler(t *testing.T) {
 				srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 					w.WriteHeader(200)
 				}))
+				srvs = append(srvs, srv)
 				conf.SymDBProxy.DDURL = srv.URL
 				continue
 			}
@@ -167,8 +206,14 @@ func TestSymDBProxyHandler(t *testing.T) {
 			srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 				w.WriteHeader(500)
 			}))
+			srvs = append(srvs, srv)
 			conf.SymDBProxy.AdditionalEndpoints[srv.URL] = []string{"foo"}
 		}
+		defer func() {
+			for _, srv := range srvs {
+				srv.Close()
+			}
+		}()
 		req, err := http.NewRequest("POST", "/some/path", strings.NewReader("body"))
 		assert.NoError(t, err)
 		receiver := newTestReceiverFromConfig(conf)

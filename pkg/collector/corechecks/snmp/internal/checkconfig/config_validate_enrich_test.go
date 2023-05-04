@@ -6,19 +6,30 @@
 package checkconfig
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cihub/seelog"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func Test_ValidateEnrichMetrics(t *testing.T) {
+	type logCount struct {
+		log   string
+		count int
+	}
+
 	tests := []struct {
 		name            string
 		metrics         []MetricsConfig
 		expectedErrors  []string
 		expectedMetrics []MetricsConfig
+		expectedLogs    []logCount
 	}{
 		{
 			name: "either table symbol or scalar symbol must be provided",
@@ -112,7 +123,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 			},
 			expectedErrors: []string{
 				"symbol name missing: name=`` oid=`1.2`",
-				"symbol oid missing: name=`abc` oid=``",
+				"symbol oid or send_as_one missing: name=`abc` oid=``",
 			},
 		},
 		{
@@ -158,7 +169,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				"column symbols [{1.2 abc  <nil>   <nil> 0 }] doesn't have a 'metric_tags' section",
+				"column symbols [{1.2 abc  <nil>   <nil> 0  false}] doesn't have a 'metric_tags' section",
 			},
 		},
 		{
@@ -352,9 +363,125 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 				"cannot compile `extract_value`",
 			},
 		},
+		{
+			name: "constant_value_one usage in column symbol",
+			metrics: []MetricsConfig{
+				{
+					Symbols: []SymbolConfig{
+						{
+							Name:             "abc",
+							ConstantValueOne: true,
+						},
+					},
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Column: SymbolConfig{
+								Name: "abc",
+								OID:  "1.2.3",
+							},
+							Tag: "hello",
+						},
+					},
+				},
+			},
+			expectedErrors: []string{},
+		},
+		{
+			name: "constant_value_one usage in scalar symbol",
+			metrics: []MetricsConfig{
+				{
+					Symbol: SymbolConfig{
+						Name:             "myMetric",
+						ConstantValueOne: true,
+					},
+				},
+			},
+			expectedErrors: []string{
+				"either a table symbol or a scalar symbol must be provided",
+			},
+		},
+		{
+			name: "constant_value_one usage in scalar symbol with OID",
+			metrics: []MetricsConfig{
+				{
+					Symbol: SymbolConfig{
+						OID:              "1.2.3",
+						Name:             "myMetric",
+						ConstantValueOne: true,
+					},
+				},
+			},
+			expectedErrors: []string{
+				"`constant_value_one` cannot be used outside of tables",
+			},
+		},
+		{
+			name: "constant_value_one usage in metric tags",
+			metrics: []MetricsConfig{
+				{
+					Symbols: []SymbolConfig{
+						{
+							OID:  "1.2",
+							Name: "abc",
+						},
+					},
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Column: SymbolConfig{
+								Name:             "abc",
+								ConstantValueOne: true,
+							},
+							Tag: "hello",
+						},
+					},
+				},
+			},
+			expectedErrors: []string{
+				"symbol oid missing",
+				"`constant_value_one` cannot be used outside of tables",
+			},
+		},
+		{
+			name: "mapping used without tag should raise a warning",
+			metrics: []MetricsConfig{
+				{
+					Symbols: []SymbolConfig{
+						{
+							OID:  "1.2",
+							Name: "abc",
+						},
+					},
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Column: SymbolConfig{
+								OID:  "1.2",
+								Name: "abc",
+							},
+							Mapping: map[string]string{
+								"1": "abc",
+								"2": "def",
+							},
+						},
+					},
+				},
+			},
+			expectedErrors: []string{},
+			expectedLogs: []logCount{
+				{
+					"[WARN] validateEnrichMetricTag: ``tag` must be provided if `mapping` (`map[1:abc 2:def]`) is defined",
+					1,
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var b bytes.Buffer
+			w := bufio.NewWriter(&b)
+			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+			assert.Nil(t, err)
+			log.SetupLogger(l, "debug")
+
 			errors := ValidateEnrichMetrics(tt.metrics)
 			assert.Equal(t, len(tt.expectedErrors), len(errors), fmt.Sprintf("ERRORS: %v", errors))
 			for i := range errors {
@@ -362,6 +489,13 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 			}
 			if tt.expectedMetrics != nil {
 				assert.Equal(t, tt.expectedMetrics, tt.metrics)
+			}
+
+			w.Flush()
+			logs := b.String()
+
+			for _, aLogCount := range tt.expectedLogs {
+				assert.Equal(t, aLogCount.count, strings.Count(logs, aLogCount.log), logs)
 			}
 		})
 	}

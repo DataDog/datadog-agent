@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Datadog.CustomActions;
 using Datadog.CustomActions.Interfaces;
+using Microsoft.Deployment.WindowsInstaller;
 using WixSharp;
 
 namespace WixSetup.Datadog
@@ -19,9 +20,13 @@ namespace WixSetup.Datadog
 
         public ManagedAction WriteConfig { get; }
 
-        public ManagedAction ReadRegistryProperties { get; }
+        public ManagedAction ReadInstallState { get; }
+        public ManagedAction ProcessClosedSourceComponents { get; }
+
+        public ManagedAction WriteInstallState { get; }
 
         public ManagedAction ProcessDdAgentUserCredentials { get; }
+
         public ManagedAction ProcessDdAgentUserCredentialsUI { get; }
 
         public ManagedAction PrepareDecompressPythonDistributions { get; }
@@ -62,11 +67,11 @@ namespace WixSetup.Datadog
         /// </remarks>
         public AgentCustomActions()
         {
-            ReadRegistryProperties = new CustomAction<RegistryCustomActions>(
-                new Id(nameof(ReadRegistryProperties)),
-                RegistryCustomActions.ReadRegistryProperties,
-                Return.ignore,
-                // AppSearch is when RegistrySearch is run, so that will overwrite
+            ReadInstallState = new CustomAction<InstallStateCustomActions>(
+                new Id(nameof(ReadInstallState)),
+                InstallStateCustomActions.ReadInstallState,
+                Return.check,
+                // AppSearch is when ReadInstallState is run, so that will overwrite
                 // any command line values.
                 // Prefer using our CA over RegistrySearch.
                 // It is executed on the Welcome screen of the installer.
@@ -82,6 +87,21 @@ namespace WixSetup.Datadog
                 // Ensure we only run in one sequence
                 Execute = Execute.firstSequence
             };
+
+            ProcessClosedSourceComponents = new CustomAction<ClosedSourceComponentsCustomActions>(
+                    new Id(nameof(ProcessClosedSourceComponents)),
+                    ClosedSourceComponentsCustomActions.ProcessAllowClosedSource,
+                    Return.check,
+                    When.After,
+                    // Session.Feature is available after MigrateFeatureStates
+                    Step.MigrateFeatureStates,
+                    Condition.Always,
+                    Sequence.InstallExecuteSequence | Sequence.InstallUISequence
+                )
+                {
+                    Execute = Execute.firstSequence
+                }
+                .SetProperties("ALLOWCLOSEDSOURCE=[ALLOWCLOSEDSOURCE]");
 
             // We need to explicitly set the ID since that we are going to reference before the Build* call.
             // See <see cref="WixSharp.WixEntity.Id" /> for more information.
@@ -122,36 +142,35 @@ namespace WixSetup.Datadog
                 new Id(nameof(ReportInstallFailure)),
                 Telemetry.ReportFailure,
                 Return.ignore,
-                When.Before,
-                Step.StartServices
+                When.After,
+                Step.InstallInitialize
             )
             {
                 Execute = Execute.rollback,
                 Impersonate = false
             }
             .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
-            .HideTarget(true); ;
+            .HideTarget(true);
 
             EnsureNpmServiceDepdendency = new CustomAction<ServiceCustomAction>(
                 new Id(nameof(EnsureNpmServiceDepdendency)),
                 ServiceCustomAction.EnsureNpmServiceDependency,
                 Return.check,
-                When.Before,
+                When.After,
                 Step.InstallServices,
                 Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
             )
             {
                 Execute = Execute.deferred,
                 Impersonate = false
-            }
-            .SetProperties("ADDLOCAL=[ADDLOCAL]");
+            };
 
             WriteConfig = new CustomAction<ConfigCustomActions>(
                 new Id(nameof(WriteConfig)),
                 ConfigCustomActions.WriteConfig,
                 Return.check,
-                When.After,
-                new Step(EnsureNpmServiceDepdendency.Id),
+                When.Before,
+                Step.InstallServices,
                 Conditions.FirstInstall
             )
             {
@@ -162,7 +181,6 @@ namespace WixSetup.Datadog
                 "APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
                 "PROJECTLOCATION=[PROJECTLOCATION], " +
                 "SYSPROBE_PRESENT=[SYSPROBE_PRESENT], " +
-                "ADDLOCAL=[ADDLOCAL], " +
                 "APIKEY=[APIKEY], " +
                 "TAGS=[TAGS], " +
                 "HOSTNAME=[HOSTNAME], " +
@@ -210,7 +228,7 @@ namespace WixSetup.Datadog
                 Return.check,
                 When.After,
                 new Step(CleanupOnRollback.Id),
-                Conditions.FirstInstall | Conditions.Upgrading
+                Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
             )
             {
                 Execute = Execute.deferred,
@@ -224,7 +242,7 @@ namespace WixSetup.Datadog
                 Return.ignore,
                 When.Before,
                 new Step(DecompressPythonDistributions.Id),
-                Conditions.FirstInstall | Conditions.Upgrading,
+                Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance,
                 Sequence.InstallExecuteSequence
             )
             {
@@ -409,6 +427,24 @@ namespace WixSetup.Datadog
                 Execute = Execute.rollback,
                 Impersonate = false
             };
+
+            WriteInstallState = new CustomAction<InstallStateCustomActions>(
+                    new Id(nameof(WriteInstallState)),
+                    InstallStateCustomActions.WriteInstallState,
+                    Return.check,
+                    When.Before,
+                    Step.StartServices,
+                    // Run unless we are being uninstalled.
+                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+            )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+            .SetProperties("DDAGENTUSER_PROCESSED_DOMAIN=[DDAGENTUSER_PROCESSED_DOMAIN], " +
+                           "DDAGENTUSER_PROCESSED_NAME=[DDAGENTUSER_PROCESSED_NAME], " +
+                           "ALLOWCLOSEDSOURCE=[ALLOWCLOSEDSOURCE]");
+
         }
     }
 }

@@ -28,6 +28,7 @@ const (
 	spNS      = Namespace
 	smNS      = "service_monitoring_config"
 	dsmNS     = "data_streams_config"
+	diNS      = "dynamic_instrumentation"
 
 	defaultConnsMessageBatchSize = 600
 	maxConnsMessageBatchSize     = 1000
@@ -35,12 +36,13 @@ const (
 
 // system-probe module names
 const (
-	NetworkTracerModule        ModuleName = "network_tracer"
-	OOMKillProbeModule         ModuleName = "oom_kill_probe"
-	TCPQueueLengthTracerModule ModuleName = "tcp_queue_length_tracer"
-	SecurityRuntimeModule      ModuleName = "security_runtime"
-	ProcessModule              ModuleName = "process"
-	EventMonitorModule         ModuleName = "event_monitor"
+	NetworkTracerModule          ModuleName = "network_tracer"
+	OOMKillProbeModule           ModuleName = "oom_kill_probe"
+	TCPQueueLengthTracerModule   ModuleName = "tcp_queue_length_tracer"
+	SecurityRuntimeModule        ModuleName = "security_runtime"
+	ProcessModule                ModuleName = "process"
+	EventMonitorModule           ModuleName = "event_monitor"
+	DynamicInstrumentationModule ModuleName = "dynamic_instrumentation"
 )
 
 func key(pieces ...string) string {
@@ -49,8 +51,9 @@ func key(pieces ...string) string {
 
 // Config represents the configuration options for the system-probe
 type Config struct {
-	Enabled        bool
-	EnabledModules map[ModuleName]struct{}
+	Enabled             bool
+	EnabledModules      map[ModuleName]struct{}
+	ClosedSourceAllowed bool
 
 	// When the system-probe is enabled in a separate container, we need a way to also disable the system-probe
 	// packaged in the main agent container (without disabling network collection on the process-agent).
@@ -96,6 +99,15 @@ func newSysprobeConfig(configPath string, loadSecrets bool) (*Config, error) {
 	// load the configuration
 	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", loadSecrets, aconfig.Datadog.GetEnvVars())
 	if err != nil {
+		// System probe is not supported on darwin, so we should fail gracefully in this case.
+		if runtime.GOOS != "darwin" {
+			if errors.Is(err, os.ErrPermission) {
+				log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
+			} else {
+				log.Warnf("Error loading config: %v", err)
+			}
+		}
+
 		var e viper.ConfigFileNotFoundError
 		if errors.As(err, &e) || errors.Is(err, os.ErrNotExist) {
 			// do nothing, we can ignore a missing system-probe.yaml config file
@@ -119,6 +131,7 @@ func load() (*Config, error) {
 	c := &Config{
 		Enabled:             cfg.GetBool(key(spNS, "enabled")),
 		EnabledModules:      make(map[ModuleName]struct{}),
+		ClosedSourceAllowed: isClosedSourceAllowed(),
 		ExternalSystemProbe: cfg.GetBool(key(spNS, "external")),
 
 		SocketAddress:      cfg.GetString(key(spNS, "sysprobe_socket")),
@@ -181,6 +194,10 @@ func load() (*Config, error) {
 	}
 	if cfg.GetBool(key(spNS, "process_config.enabled")) {
 		c.EnabledModules[ProcessModule] = struct{}{}
+	}
+
+	if cfg.GetBool(key(diNS, "enabled")) {
+		c.EnabledModules[DynamicInstrumentationModule] = struct{}{}
 	}
 
 	if len(c.EnabledModules) > 0 {

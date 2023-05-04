@@ -222,6 +222,10 @@ func defaultLabelJoins() map[string]*JoinsConfigWithoutLabelsMapping {
 // label or and because some other resource doesn't need the `namespace` label.
 func getLabelToMatchForKind(kind string) []string {
 	switch kind {
+	case "apiservice": // API Services are not namespaced
+		return []string{"apiservice"}
+	case "customresourcedefinition": // CRD are not namespaced
+		return []string{"customresourcedefinition"}
 	case "job": // job metrics use specific label
 		return []string{"job_name", "namespace"}
 	case "node": // persistent nodes are not namespaced

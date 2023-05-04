@@ -12,9 +12,10 @@ import (
 	"strings"
 	"time"
 
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -150,7 +151,7 @@ func extractEndpoints(URL *url.URL, k string, endpoints *[]apicfg.Endpoint) erro
 func extractOrchestratorDDUrl() (*url.URL, error) {
 	orchestratorURL := key(orchestratorNS, "orchestrator_dd_url")
 	processURL := key(processNS, "orchestrator_dd_url")
-	URL, err := url.Parse(config.GetMainEndpointWithConfigBackwardCompatible(config.Datadog, "https://orchestrator.", orchestratorURL, processURL))
+	URL, err := url.Parse(utils.GetMainEndpointBackwardCompatible(config.Datadog, "https://orchestrator.", orchestratorURL, processURL))
 	if err != nil {
 		return nil, fmt.Errorf("error parsing orchestrator_dd_url: %s", err)
 	}
@@ -171,10 +172,10 @@ func NewOrchestratorForwarder() forwarder.Forwarder {
 		log.Errorf("Error loading the orchestrator config: %s", err)
 	}
 	keysPerDomain := apicfg.KeysPerDomains(orchestratorCfg.OrchestratorEndpoints)
-	orchestratorForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomain))
+	orchestratorForwarderOpts := forwarder.NewOptionsWithResolvers(config.Datadog, resolver.NewSingleDomainResolvers(keysPerDomain))
 	orchestratorForwarderOpts.DisableAPIKeyChecking = true
 
-	return forwarder.NewDefaultForwarder(orchestratorForwarderOpts)
+	return forwarder.NewDefaultForwarder(config.Datadog, orchestratorForwarderOpts)
 }
 
 func setBoundedConfigIntValue(configKey string, upperBound int, setter func(v int)) {

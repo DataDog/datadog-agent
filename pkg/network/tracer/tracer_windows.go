@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -42,7 +42,7 @@ type Tracer struct {
 	stopChan        chan struct{}
 	state           network.State
 	reverseDNS      dns.ReverseDNS
-	httpMonitor     http.Monitor
+	usmMonitor      usm.Monitor
 
 	activeBuffer *network.ConnectionBuffer
 	closedBuffer *network.ConnectionBuffer
@@ -60,6 +60,9 @@ type Tracer struct {
 
 // NewTracer returns an initialized tracer struct
 func NewTracer(config *config.Config) (*Tracer, error) {
+	if err := driver.Start(); err != nil {
+		return nil, fmt.Errorf("error starting driver: %s", err)
+	}
 	di, err := network.NewDriverInterface(config, driver.NewHandle)
 
 	if err != nil && errors.Is(err, syscall.ERROR_FILE_NOT_FOUND) {
@@ -95,7 +98,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		activeBuffer:    network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
 		closedBuffer:    network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
 		reverseDNS:      reverseDNS,
-		httpMonitor:     newHttpMonitor(config, di.GetHandle()),
+		usmMonitor:      newUSMMonitor(config, di.GetHandle()),
 		sourceExcludes:  network.ParseConnectionFilters(config.ExcludedSourceConnections),
 		destExcludes:    network.ParseConnectionFilters(config.ExcludedDestinationConnections),
 	}
@@ -132,8 +135,8 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 // Stop function stops running tracer
 func (t *Tracer) Stop() {
 	close(t.stopChan)
-	if t.httpMonitor != nil { //nolint
-		_ = t.httpMonitor.Stop()
+	if t.usmMonitor != nil { //nolint
+		_ = t.usmMonitor.Stop()
 	}
 	t.reverseDNS.Close()
 	err := t.driverInterface.Close()
@@ -141,6 +144,9 @@ func (t *Tracer) Stop() {
 		log.Errorf("error closing driver interface: %s", err)
 	}
 	t.closedEventLoop.Wait()
+	if err := driver.Stop(); err != nil {
+		log.Errorf("error stopping driver: %s", err)
+	}
 }
 
 // GetActiveConnections returns all active connections
@@ -169,8 +175,8 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.state.StoreClosedConnections(closedConnStats)
 
 	var delta network.Delta
-	if t.httpMonitor != nil { //nolint
-		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats(), nil, nil)
+	if t.usmMonitor != nil { //nolint
+		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), t.usmMonitor.GetHTTPStats(), nil, nil)
 	} else {
 		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil, nil, nil)
 	}
@@ -273,16 +279,16 @@ func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error)
 	return nil, ebpf.ErrNotImplemented
 }
 
-func newHttpMonitor(c *config.Config, dh driver.Handle) http.Monitor {
+func newUSMMonitor(c *config.Config, dh driver.Handle) usm.Monitor {
 	if !c.EnableHTTPMonitoring && !c.EnableHTTPSMonitoring {
 		return nil
 	}
 	log.Infof("http monitoring has been enabled")
 
-	var monitor http.Monitor
+	var monitor usm.Monitor
 	var err error
 
-	monitor, err = http.NewWindowsMonitor(c, dh)
+	monitor, err = usm.NewWindowsMonitor(c, dh)
 
 	if err != nil {
 		log.Errorf("could not instantiate http monitor: %s", err)

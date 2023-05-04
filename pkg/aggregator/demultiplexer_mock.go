@@ -10,8 +10,9 @@ import (
 	"sync"
 	"time"
 
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -157,7 +158,7 @@ func (a *TestAgentDemultiplexer) Reset() {
 
 // InitTestAgentDemultiplexerWithFlushInterval inits a TestAgentDemultiplexer with the given options.
 func InitTestAgentDemultiplexerWithOpts(sharedForwarderOptions *forwarder.Options, opts AgentDemultiplexerOptions) *TestAgentDemultiplexer {
-	sharedForwarder := forwarder.NewDefaultForwarder(sharedForwarderOptions)
+	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, sharedForwarderOptions)
 	demux := InitAndStartAgentDemultiplexer(sharedForwarder, opts, "hostname")
 	testAgent := TestAgentDemultiplexer{
 		AgentDemultiplexer: demux,
@@ -173,7 +174,7 @@ func InitTestAgentDemultiplexerWithFlushInterval(flushInterval time.Duration) *T
 	opts.FlushInterval = flushInterval
 	opts.DontStartForwarders = true
 	opts.UseNoopEventPlatformForwarder = true
-	return InitTestAgentDemultiplexerWithOpts(forwarder.NewOptions(nil), opts)
+	return InitTestAgentDemultiplexerWithOpts(forwarder.NewOptions(config.Datadog, nil), opts)
 }
 
 // InitTestAgentDemultiplexer inits a TestAgentDemultiplexer with a long flush interval.

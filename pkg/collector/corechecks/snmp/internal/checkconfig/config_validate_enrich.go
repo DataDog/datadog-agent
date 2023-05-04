@@ -36,6 +36,15 @@ var validMetadataResources = map[string]map[string]bool{
 	},
 }
 
+type SymbolContext int64
+
+const (
+	ScalarSymbol SymbolContext = iota
+	ColumnSymbol
+	MetricTagSymbol
+	MetadataSymbol
+)
+
 // ValidateEnrichMetricTags validates and enrich metric tags
 func ValidateEnrichMetricTags(metricTags []MetricTagConfig) []string {
 	var errors []string
@@ -59,11 +68,11 @@ func ValidateEnrichMetrics(metrics []MetricsConfig) []string {
 			errors = append(errors, fmt.Sprintf("table symbol and scalar symbol cannot be both provided: %#v", metricConfig))
 		}
 		if metricConfig.IsScalar() {
-			errors = append(errors, validateEnrichSymbol(&metricConfig.Symbol)...)
+			errors = append(errors, validateEnrichSymbol(&metricConfig.Symbol, ScalarSymbol)...)
 		}
 		if metricConfig.IsColumn() {
 			for j := range metricConfig.Symbols {
-				errors = append(errors, validateEnrichSymbol(&metricConfig.Symbols[j])...)
+				errors = append(errors, validateEnrichSymbol(&metricConfig.Symbols[j], ColumnSymbol)...)
 			}
 			if len(metricConfig.MetricTags) == 0 {
 				errors = append(errors, fmt.Sprintf("column symbols %v doesn't have a 'metric_tags' section, all its metrics will use the same tags; "+
@@ -97,10 +106,10 @@ func validateEnrichMetadata(metadata MetadataConfig) []string {
 				}
 				field := res.Fields[fieldName]
 				for i := range field.Symbols {
-					errors = append(errors, validateEnrichSymbol(&field.Symbols[i])...)
+					errors = append(errors, validateEnrichSymbol(&field.Symbols[i], MetadataSymbol)...)
 				}
 				if field.Symbol.OID != "" {
-					errors = append(errors, validateEnrichSymbol(&field.Symbol)...)
+					errors = append(errors, validateEnrichSymbol(&field.Symbol, MetadataSymbol)...)
 				}
 				res.Fields[fieldName] = field
 			}
@@ -117,13 +126,17 @@ func validateEnrichMetadata(metadata MetadataConfig) []string {
 	return errors
 }
 
-func validateEnrichSymbol(symbol *SymbolConfig) []string {
+func validateEnrichSymbol(symbol *SymbolConfig, symbolContext SymbolContext) []string {
 	var errors []string
 	if symbol.Name == "" {
 		errors = append(errors, fmt.Sprintf("symbol name missing: name=`%s` oid=`%s`", symbol.Name, symbol.OID))
 	}
 	if symbol.OID == "" {
-		errors = append(errors, fmt.Sprintf("symbol oid missing: name=`%s` oid=`%s`", symbol.Name, symbol.OID))
+		if symbolContext == ColumnSymbol && !symbol.ConstantValueOne {
+			errors = append(errors, fmt.Sprintf("symbol oid or send_as_one missing: name=`%s` oid=`%s`", symbol.Name, symbol.OID))
+		} else if symbolContext != ColumnSymbol {
+			errors = append(errors, fmt.Sprintf("symbol oid missing: name=`%s` oid=`%s`", symbol.Name, symbol.OID))
+		}
 	}
 	if symbol.ExtractValue != "" {
 		pattern, err := regexp.Compile(symbol.ExtractValue)
@@ -141,12 +154,15 @@ func validateEnrichSymbol(symbol *SymbolConfig) []string {
 			symbol.MatchPatternCompiled = pattern
 		}
 	}
+	if symbolContext != ColumnSymbol && symbol.ConstantValueOne {
+		errors = append(errors, fmt.Sprintf("`constant_value_one` cannot be used outside of tables"))
+	}
 	return errors
 }
 func validateEnrichMetricTag(metricTag *MetricTagConfig) []string {
 	var errors []string
 	if metricTag.Column.OID != "" || metricTag.Column.Name != "" {
-		errors = append(errors, validateEnrichSymbol(&metricTag.Column)...)
+		errors = append(errors, validateEnrichSymbol(&metricTag.Column, MetricTagSymbol)...)
 	}
 	if metricTag.Match != "" {
 		pattern, err := regexp.Compile(metricTag.Match)
@@ -159,8 +175,8 @@ func validateEnrichMetricTag(metricTag *MetricTagConfig) []string {
 			errors = append(errors, fmt.Sprintf("`tags` mapping must be provided if `match` (`%s`) is defined", metricTag.Match))
 		}
 	}
-	if len(metricTag.Mapping) > 0 && (metricTag.Index == 0 || metricTag.Tag == "") {
-		log.Warnf("`index` or `tag` must be provided if `mapping` (`%s`) is defined", metricTag.Mapping)
+	if len(metricTag.Mapping) > 0 && metricTag.Tag == "" {
+		log.Warnf("``tag` must be provided if `mapping` (`%s`) is defined", metricTag.Mapping)
 	}
 	for _, transform := range metricTag.IndexTransform {
 		if transform.Start > transform.End {

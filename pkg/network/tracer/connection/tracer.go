@@ -39,8 +39,10 @@ import (
 type TracerType int
 
 const (
-	EBPFKProbe TracerType = iota
-	EBPFFentry
+	TracerTypeKProbePrebuilt TracerType = iota
+	TracerTypeKProbeRuntimeCompiled
+	TracerTypeKProbeCORE
+	TracerTypeFentry
 )
 
 // Tracer is the common interface implemented by all connection tracers.
@@ -146,7 +148,7 @@ func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTel
 		DumpHandler: dumpMapsHandler,
 	}
 
-	var tracerType TracerType = EBPFFentry
+	var tracerType TracerType = TracerTypeFentry
 	var closeTracerFn func()
 	closeTracerFn, err := fentry.LoadTracer(config, m, mgrOptions, perfHandlerTCP)
 	if err != nil && !errors.Is(err, fentry.ErrorNotSupported) {
@@ -157,11 +159,12 @@ func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTel
 	if err != nil {
 		// load the kprobe tracer
 		log.Info("fentry tracer not supported, falling back to kprobe tracer")
-		closeTracerFn, err = kprobe.LoadTracer(config, m, mgrOptions, perfHandlerTCP)
+		var kprobeTracerType kprobe.TracerType
+		closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, m, mgrOptions, perfHandlerTCP)
 		if err != nil {
 			return nil, err
 		}
-		tracerType = EBPFKProbe
+		tracerType = TracerType(kprobeTracerType)
 	}
 
 	batchMgr, err := newConnBatchManager(m)
@@ -260,6 +263,7 @@ func (t *tracer) Stop() {
 func (t *tracer) GetMap(name string) *ebpf.Map {
 	switch name {
 	case probes.SockByPidFDMap:
+	case probes.ConnectionProtocolMap:
 	case probes.MapErrTelemetryMap:
 	case probes.HelperErrTelemetryMap:
 	default:

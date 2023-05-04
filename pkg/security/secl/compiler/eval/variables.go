@@ -386,8 +386,13 @@ func NewMutableIntArrayVariable() *MutableIntArrayVariable {
 	return &MutableIntArrayVariable{}
 }
 
+// ScopedVariable is the interface to be implemented by scoped variable in order to be released
+type ScopedVariable interface {
+	SetReleaseCallback(callback func())
+}
+
 // Scoper maps a variable to the entity its scoped to
-type Scoper[T any] func(ctx *Context) T
+type Scoper func(ctx *Context) ScopedVariable
 
 // GlobalVariables holds a set of global variables
 type GlobalVariables struct{}
@@ -469,21 +474,33 @@ func (v *Variables) Set(name string, value interface{}) bool {
 }
 
 // ScopedVariables holds a set of scoped variables
-type ScopedVariables[T comparable] struct {
-	scoper Scoper[T]
-	vars   map[T]*Variables
+type ScopedVariables struct {
+	scoper Scoper
+	vars   map[ScopedVariable]*Variables
+}
+
+// Len returns the length of the variable map
+func (v *ScopedVariables) Len() int {
+	return len(v.vars)
 }
 
 // GetVariable returns new variable of the type of the specified value
-func (v *ScopedVariables[T]) GetVariable(name string, value interface{}) (VariableValue, error) {
+func (v *ScopedVariables) GetVariable(name string, value interface{}) (VariableValue, error) {
 	getVariables := func(ctx *Context) *Variables {
-		return v.vars[v.scoper(ctx)]
+		v := v.vars[v.scoper(ctx)]
+		return v
 	}
 
 	setVariable := func(ctx *Context, value interface{}) error {
 		key := v.scoper(ctx)
+		if key == nil {
+			return fmt.Errorf("failed to scope variable '%s'", name)
+		}
 		vars := v.vars[key]
 		if vars == nil {
+			key.SetReleaseCallback(func() {
+				v.ReleaseVariable(key)
+			})
 			vars = &Variables{}
 			v.vars[key] = vars
 		}
@@ -533,10 +550,15 @@ func (v *ScopedVariables[T]) GetVariable(name string, value interface{}) (Variab
 	}
 }
 
+// ReleaseVariable releases a scoped variable
+func (v *ScopedVariables) ReleaseVariable(key ScopedVariable) {
+	delete(v.vars, key)
+}
+
 // NewScopedVariables returns a new set of scope variables
-func NewScopedVariables[T comparable](scoper Scoper[T]) *ScopedVariables[T] {
-	return &ScopedVariables[T]{
+func NewScopedVariables(scoper Scoper) *ScopedVariables {
+	return &ScopedVariables{
 		scoper: scoper,
-		vars:   make(map[T]*Variables),
+		vars:   make(map[ScopedVariable]*Variables),
 	}
 }

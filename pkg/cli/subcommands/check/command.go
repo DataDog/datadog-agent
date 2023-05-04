@@ -25,6 +25,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -181,7 +182,9 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 
 	// Always disable SBOM collection in `check` command to avoid BoltDB flock issue
 	// and consuming CPU & Memory for asynchronous scans that would not be shown in `agent check` output.
+	pkgconfig.Datadog.Set("sbom.enabled", "false")
 	pkgconfig.Datadog.Set("container_image_collection.sbom.enabled", "false")
+	pkgconfig.Datadog.Set("runtime_security_config.sbom.enabled", "false")
 
 	hostnameDetected, err := hostname.Get(context.TODO())
 	if err != nil {
@@ -534,11 +537,11 @@ func runCheck(cliParams *cliParams, c check.Check, demux aggregator.Demultiplexe
 }
 
 func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
-	_ = os.Mkdir(common.DefaultCheckFlareDirectory, os.ModeDir)
+	_ = os.Mkdir(path.DefaultCheckFlareDirectory, os.ModeDir)
 
 	// Windows cannot accept ":" in file names
 	filenameSafeTimeStamp := strings.ReplaceAll(time.Now().UTC().Format(time.RFC3339), ":", "-")
-	flarePath := filepath.Join(common.DefaultCheckFlareDirectory, "check_"+checkName+"_"+filenameSafeTimeStamp+".log")
+	flarePath := filepath.Join(path.DefaultCheckFlareDirectory, "check_"+checkName+"_"+filenameSafeTimeStamp+".log")
 
 	scrubbed, err := scrubber.ScrubBytes(checkFileOutput.Bytes())
 	if err != nil {

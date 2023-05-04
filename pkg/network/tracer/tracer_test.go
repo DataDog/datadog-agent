@@ -19,6 +19,7 @@ import (
 	"math/rand"
 	"net"
 	nethttp "net/http"
+	"net/netip"
 	"os"
 	"runtime"
 	"strconv"
@@ -33,11 +34,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
+	syscfg "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -59,11 +61,21 @@ func TestMain(m *testing.M) {
 		fmt.Println("RUNTIME COMPILER ENABLED")
 	}
 
+	if err := setKernelVersion(); err != nil {
+		fmt.Println("Failed to get kernel version, halting the tests", err)
+		os.Exit(1)
+	}
+	driver.Init(&syscfg.Config{ClosedSourceAllowed: true})
 	os.Exit(m.Run())
 }
 
+func isFentry() bool {
+	fentryTests := os.Getenv("NETWORK_TRACER_FENTRY_TESTS")
+	return fentryTests == "true"
+}
+
 func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
-	if fentryTests := os.Getenv("NETWORK_TRACER_FENTRY_TESTS"); fentryTests == "true" {
+	if isFentry() {
 		ddconfig.SetFeatures(t, ddconfig.ECSFargate)
 		// protocol classification not yet supported on fargate
 		cfg.ProtocolClassificationEnabled = false
@@ -78,7 +90,7 @@ func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
 }
 
 func TestGetStats(t *testing.T) {
-	httpSupported := httpSupported(t)
+	httpSupported := httpSupported()
 	linuxExpected := map[string]interface{}{}
 	err := json.Unmarshal([]byte(`{
       "conntrack": {
@@ -330,12 +342,11 @@ func TestTCPShortLived(t *testing.T) {
 
 func TestTCPOverIPv6(t *testing.T) {
 	t.SkipNow()
-	if !kernel.IsIPv6Enabled() {
-		t.Skip("IPv6 not enabled on host")
-	}
-
 	cfg := testConfig()
 	cfg.CollectIPv6Conns = true
+	if !isTestIPv6Enabled(cfg) {
+		t.Skip("IPv6 not enabled on host")
+	}
 	tr := setupTracer(t, cfg)
 
 	ln, err := net.Listen("tcp6", ":0")
@@ -479,6 +490,9 @@ func TestUDPSendAndReceive(t *testing.T) {
 
 func testUDPSendAndReceive(t *testing.T, addr string) {
 	cfg := testConfig()
+	if netip.MustParseAddrPort(addr).Addr().Is6() && !isTestIPv6Enabled(cfg) {
+		t.Skip("IPv6 disabled")
+	}
 	tr := setupTracer(t, cfg)
 
 	server := &UDPServer{
@@ -976,21 +990,23 @@ func (s *UDPServer) Run(payloadSize int) error {
 		networkType = s.network
 	}
 	var err error
+	var ln net.PacketConn
 	if s.lc != nil {
-		s.ln, err = s.lc.ListenPacket(context.Background(), networkType, s.address)
+		ln, err = s.lc.ListenPacket(context.Background(), networkType, s.address)
 	} else {
-		s.ln, err = net.ListenPacket(networkType, s.address)
+		ln, err = net.ListenPacket(networkType, s.address)
 	}
 	if err != nil {
 		return err
 	}
 
+	s.ln = ln
 	s.address = s.ln.LocalAddr().String()
 
 	go func() {
 		buf := make([]byte, payloadSize)
 		for {
-			n, addr, err := s.ln.ReadFrom(buf)
+			n, addr, err := ln.ReadFrom(buf)
 			if err != nil {
 				if !errors.Is(err, net.ErrClosed) {
 					fmt.Printf("readfrom: %s\n", err)
@@ -1224,12 +1240,11 @@ func TestUnconnectedUDPSendIPv4(t *testing.T) {
 }
 
 func TestConnectedUDPSendIPv6(t *testing.T) {
-	if !kernel.IsIPv6Enabled() {
-		t.Skip("IPv6 not enabled on host")
-	}
-
 	cfg := testConfig()
 	cfg.CollectIPv6Conns = true
+	if !isTestIPv6Enabled(cfg) {
+		t.Skip("IPv6 not enabled on host")
+	}
 	tr := setupTracer(t, cfg)
 
 	remotePort := rand.Int()%5000 + 15000

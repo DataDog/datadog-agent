@@ -46,12 +46,12 @@ type WinHttpTransaction struct {
 	// HeaderLength  uint32
 	// ContentLength uint32
 }
-type httpDriverInterface struct {
+type HttpDriverInterface struct {
 	driverHTTPHandle  driver.Handle
 	driverEventHandle windows.Handle
 
 	readMux     sync.Mutex
-	dataChannel chan []WinHttpTransaction
+	DataChannel chan []WinHttpTransaction
 	eventLoopWG sync.WaitGroup
 	closed      bool
 	// configuration entries
@@ -60,8 +60,8 @@ type httpDriverInterface struct {
 	maxRequestFragment    uint64
 }
 
-func newDriverInterface(c *config.Config, dh driver.Handle) (*httpDriverInterface, error) {
-	d := &httpDriverInterface{
+func NewDriverInterface(c *config.Config, dh driver.Handle) (*HttpDriverInterface, error) {
+	d := &HttpDriverInterface{
 		maxTransactions:       uint64(c.MaxTrackedHTTPConnections),
 		notificationThreshold: uint64(c.HTTPNotificationThreshold),
 		maxRequestFragment:    uint64(c.HTTPMaxRequestFragment),
@@ -71,11 +71,11 @@ func newDriverInterface(c *config.Config, dh driver.Handle) (*httpDriverInterfac
 		return nil, err
 	}
 
-	d.dataChannel = make(chan []WinHttpTransaction)
+	d.DataChannel = make(chan []WinHttpTransaction)
 	return d, nil
 }
 
-func (di *httpDriverInterface) setupHTTPHandle(dh driver.Handle) error {
+func (di *HttpDriverInterface) setupHTTPHandle(dh driver.Handle) error {
 
 	di.driverHTTPHandle = dh
 	// enable HTTP on this handle
@@ -105,12 +105,11 @@ func (di *httpDriverInterface) setupHTTPHandle(dh driver.Handle) error {
 			log.Warnf("Failed to create driver event handle %v", err)
 			return err
 		}
-		log.Infof("non-nil err, %v %v", di.driverEventHandle, err)
 	}
 	return nil
 }
 
-func (di *httpDriverInterface) readAllPendingTransactions() {
+func (di *HttpDriverInterface) ReadAllPendingTransactions() {
 	di.readMux.Lock()
 	defer di.readMux.Unlock()
 	count := int(0)
@@ -125,11 +124,11 @@ func (di *httpDriverInterface) readAllPendingTransactions() {
 			break
 		}
 		count += len(txns)
-		di.dataChannel <- txns
+		di.DataChannel <- txns
 	}
 }
 
-func (di *httpDriverInterface) startReadingBuffers() {
+func (di *HttpDriverInterface) StartReadingBuffers() {
 	di.eventLoopWG.Add(1)
 	go func() {
 		runtime.LockOSThread()
@@ -141,13 +140,13 @@ func (di *httpDriverInterface) startReadingBuffers() {
 			if di.closed {
 				break
 			}
-			di.readAllPendingTransactions()
+			di.ReadAllPendingTransactions()
 		}
 	}()
 }
 
 // func (di *httpDriverInterface) flushPendingTransactions() ([]driver.HttpTransactionType, error) {
-func (di *httpDriverInterface) readPendingTransactions() ([]WinHttpTransaction, error) {
+func (di *HttpDriverInterface) readPendingTransactions() ([]WinHttpTransaction, error) {
 	var (
 		bytesRead uint32
 		buf       = make([]byte, (driver.HttpTransactionTypeSize+di.maxRequestFragment)*di.maxTransactions)
@@ -182,7 +181,7 @@ func (di *httpDriverInterface) readPendingTransactions() ([]WinHttpTransaction, 
 	return transactionBatch, nil
 }
 
-func (di *httpDriverInterface) getStats() (map[string]int64, error) {
+func (di *HttpDriverInterface) GetStats() (map[string]int64, error) {
 	stats, err := di.driverHTTPHandle.GetStatsForHandle()
 	if err != nil {
 		return nil, err
@@ -190,12 +189,12 @@ func (di *httpDriverInterface) getStats() (map[string]int64, error) {
 	return stats["handle"], nil
 }
 
-func (di *httpDriverInterface) close() error {
+func (di *HttpDriverInterface) Close() error {
 	di.closed = true
 	windows.SetEvent(di.driverEventHandle)
 	di.eventLoopWG.Wait()
 	windows.CloseHandle(di.driverEventHandle)
-	close(di.dataChannel)
+	close(di.DataChannel)
 
 	return nil
 }

@@ -9,11 +9,12 @@ import (
 	"testing"
 	"time"
 
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 )
 
 func mockDemultiplexer() aggregator.Demultiplexer {
@@ -24,7 +25,8 @@ func mockDemultiplexerWithFlushInterval(d time.Duration) aggregator.Demultiplexe
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = d
 	opts.DontStartForwarders = true
-	demux := aggregator.InitAndStartAgentDemultiplexerTest(opts, "hostname")
+	forwarder := forwarder.NewDefaultForwarder(config.Datadog, forwarder.NewOptions(config.Datadog, nil))
+	demux := aggregator.InitAndStartAgentDemultiplexer(forwarder, opts, "hostname")
 	return demux
 }
 

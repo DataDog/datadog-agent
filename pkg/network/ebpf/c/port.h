@@ -1,6 +1,8 @@
 #ifndef __PORT_H
 #define __PORT_H
 
+#include "tracer.h"
+
 #define add_port_bind(pb, pb_map)                                   \
     do {                                                            \
         __u32 *port_count = bpf_map_lookup_elem(&pb_map, pb);       \

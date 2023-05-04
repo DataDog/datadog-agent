@@ -7,8 +7,6 @@
 CustomActionData::CustomActionData(std::shared_ptr<IPropertyView> propertyView,
                                    std::shared_ptr<ITargetMachine> targetMachine)
     : _domainUser(false)
-    , _doInstallSysprobe(true)
-    , _ddnpmPresent(false)
     , _ddUserExists(false)
     , _targetMachine(std::move(targetMachine))
     , _propertyView(std::move(propertyView))
@@ -31,7 +29,7 @@ CustomActionData::CustomActionData(std::shared_ptr<IPropertyView> propertyView,
     }
 
     // Process some data now
-    if (!parseUsernameData() || !parseSysprobeData())
+    if (!parseUsernameData())
     {
         throw std::exception("Error parsing machine information");
     }
@@ -102,74 +100,174 @@ void CustomActionData::Sid(sid_ptr &sid)
     _sid = std::move(sid);
 }
 
-bool CustomActionData::installSysprobe() const
-{
-    return _doInstallSysprobe;
-}
-
-bool CustomActionData::npmPresent() const
-{
-    return this->_ddnpmPresent;
-}
-
 std::shared_ptr<ITargetMachine> CustomActionData::GetTargetMachine() const
 {
     return _targetMachine;
 }
 
 // return value of this function is true if the data was parsed,
-// false otherwise. Return value of this function doesn't indicate whether
-// sysprobe is to be installed; this function sets the boolean that can
-// be checked by installSysprobe();
-bool CustomActionData::parseSysprobeData()
+// false otherwise.
+
+/* checks the state to see if the registry entry enabling closed source
+   should be allowed.
+
+   For backward compatibility, check to see if
+   -  ddnpm service was already installed _and_ enabled.  If so, then in a prior
+      version it was installed with the NPM feature, and should be enabled
+   -  ADDLOCAL=all -or- NPM.  This was the previous way of enabling via the NPM feature
+
+   The way this is intended to work
+   - if the ALLOWCLOSEDSOURCE property is set, and is not zero.  This can happen
+     on command line or via the dialog during the install.
+
+   - if the registry value is already set.
+*/
+void CustomActionData::setClosedSourceConfig()
 {
-    std::wstring sysprobePresent;
+    std::wstring npmAlreadyInstalled;
     std::wstring addlocal;
     std::wstring npm;
-    std::wstring npmFeature;
-    this->_doInstallSysprobe = false;
-    this->_ddnpmPresent = false;
-    if (!this->_propertyView->value(L"SYSPROBE_PRESENT", sysprobePresent))
-    {
-        // key isn't even there.
-        WcaLog(LOGMSG_STANDARD, "SYSPROBE_PRESENT not present");
-        return true;
-    }
-    WcaLog(LOGMSG_STANDARD, "SYSPROBE_PRESENT is %S", sysprobePresent.c_str());
-    if (sysprobePresent.compare(L"true") != 0)
-    {
-        // explicitly disabled
-        WcaLog(LOGMSG_STANDARD, "SYSPROBE_PRESENT explicitly disabled %S", sysprobePresent.c_str());
-        return true;
-    }
-    this->_doInstallSysprobe = true;
+    std::wstring csProperty;
+    DWORD closedSource = (DWORD)-1;
 
-    if (!this->_propertyView->value(L"NPM", npm))
+    ddRegKey cskey;
+    bool newEnabledFlag = false;
+    bool setEnabledFlag = false;
+    bool bKey = cskey.getDWORDValue(keyClosedSourceEnabled.c_str(), closedSource);
+    if (bKey)
     {
-        WcaLog(LOGMSG_STANDARD, "NPM property not present");
-    }
-    else
-    {
-        WcaLog(LOGMSG_STANDARD, "NPM enabled via NPM property");
-        this->_ddnpmPresent = true;
-    }
-
-    if (this->_propertyView->value(L"NPMFEATURE", npmFeature))
-    {
-        // this property is set to "on" or "off" depending on the desired installed state
-        // of the NPM feature.
-        WcaLog(LOGMSG_STANDARD, "NPMFEATURE key is present and (%S)", npmFeature.c_str());
-        if (_wcsicmp(npmFeature.c_str(), L"on") == 0)
+        if ( closedSource == 1 )
         {
-            this->_ddnpmPresent = true;
+            WcaLog(LOGMSG_STANDARD, "Closed source already marked accepted");
+        }
+        if ( closedSource == 0 )
+        {
+            WcaLog(LOGMSG_STANDARD, "Closed source already marked disabled");
+        }
+        // else what do we do here?
+    }
+    if (!setEnabledFlag)
+    {
+        
+        if (this->_propertyView->value(L"CLOSEDSOURCE", csProperty))
+        {
+            // this property is set to "1" or "0" depending on the checkbox
+            // since the checkbox value of zero is off, assume any other state
+            // means on, so it can also be set on the command line.
+            WcaLog(LOGMSG_STANDARD, "CLOSEDSOURCE key is present and (%S)", csProperty.c_str());
+            setEnabledFlag = true;
+            newEnabledFlag = _wcsicmp(csProperty.c_str(), L"0") != 0;
         }
     }
-    else
+   
+    // check the ADDLOCAL flag
+    if(!setEnabledFlag)
     {
-        WcaLog(LOGMSG_STANDARD, "NPMFEATURE not present");
+        /*
+         * the ADDLOCAL key has memory.
+         * If you set the addlocal key when you install, say, in 7.42, when you run the 7.43
+         * upgrade, MSI will persist it for you. That's probably the right answer, but it's
+         * confusing in this case.
+         * 
+         * use the CLOSEDSOURCE key above so that the command line parameter
+         * ALLOWCLOSEDSOURCE and/or the GUI option will take precedence
+         */
+        if(this->_propertyView->value(L"ADDLOCAL", addlocal)) 
+        {
+            // Convert to upper when normalizing string for comparison
+            // https://learn.microsoft.com/en-us/previous-versions/visualstudio/visual-studio-2015/code-quality/ca1308-normalize-strings-to-uppercase
+            std::transform(addlocal.begin(), addlocal.end(), addlocal.begin(), toupper);
+            if (addlocal.find(L"ALL") != std::wstring::npos ||
+                addlocal.find(L"NPM") != std::wstring::npos)
+            {
+                WcaLog(LOGMSG_STANDARD, "Found addlocal key %S.  Allowing closed source", addlocal.c_str());
+                WcaLog(LOGMSG_STANDARD, "Installation is no longer controlled via Windows Features.  Please update install tools");
+                newEnabledFlag = true;
+                setEnabledFlag = true;
+            }
+            else
+            {
+                WcaLog(LOGMSG_STANDARD, "ADDLOCAL key does not contain all/NPM (%S)", addlocal.c_str());
+            }
+        }
+    }
+    if (!setEnabledFlag)
+    {
+        std::wstring npmProperty;
+        if (this->_propertyView->value(L"NPM", npmProperty))
+        {
+            // if this property is set to anything besides the empty string,
+            // the previous installers would install NPM.  That's good enough for us
+
+            WcaLog(LOGMSG_STANDARD, "NPM key is present and (%S)", npmProperty.c_str());
+            if (npmProperty.length() > 0)
+            {
+                WcaLog(LOGMSG_STANDARD, "Allowing closed source because NPM flag is set");
+                newEnabledFlag = true;
+                setEnabledFlag = true;
+            }
+        }
     }
 
-    return true;
+    
+     // check to see if previously installed.
+    if(!setEnabledFlag)
+    {
+        if (this->_propertyView->value(L"DDNPM_INSTALLED", npmAlreadyInstalled))
+        {
+            // because of the way WiX gets it's properties, if it's there, the
+            // string will be either #?3 (? is either + or -) for DEMAND_START
+            // and #?4 for DISABLED.  If it's installed but enabled, but the
+            // reg key wasn't already set, it was previously installed via the
+            // NPM feature so we should retain it.
+            //
+            // docs say "optionally followed by + or -". Empirically it's `#3`.  But
+            // if the char `3` appears at all then we know.
+            if(npmAlreadyInstalled.length() >= 2) 
+            {
+                if (npmAlreadyInstalled.find_first_of(L'3') != std::wstring::npos)
+                {
+                    WcaLog(LOGMSG_STANDARD, "NPM driver previously set to enabled; enabling closed source flag");
+                    newEnabledFlag = true;
+                    setEnabledFlag = true;
+                }
+                else if(npmAlreadyInstalled.find_first_of(L'4') != std::wstring::npos)
+                {
+                    WcaLog(LOGMSG_STANDARD, "NPM driver previously set to disabled; disabling closed source flag");
+                    newEnabledFlag = false;
+                    setEnabledFlag = true;
+                }
+                else 
+                {
+                    WcaLog(LOGMSG_STANDARD, "Unexpected driver install state %S", npmAlreadyInstalled.c_str());
+                    // keep looking
+                }
+            }
+        }
+    }
+
+    if (!setEnabledFlag)
+    {
+        // ok, we haven't figured out anything yet.  See if it was previously set
+        switch(closedSource)
+        {
+            default:
+                WcaLog(LOGMSG_STANDARD, "Unable to determine closed source status; setting to disabled");
+                newEnabledFlag = false;
+                break;
+            case 0:
+                WcaLog(LOGMSG_STANDARD, "Closed source flag set to zero, and not overridden.  Maintaining that setting");
+                newEnabledFlag = false;
+                break;
+            case 1:
+                WcaLog(LOGMSG_STANDARD, "Closed source flag set to one, and not overridden.  Maintaining that setting");
+                newEnabledFlag = true;
+                break;
+        }
+    }
+    closedSource = newEnabledFlag ? 1 : 0;
+    cskey.setDWORDValue(keyClosedSourceEnabled.c_str(), closedSource);
+    return ;
 }
 
 std::optional<CustomActionData::User> CustomActionData::findPreviousUserInfo()

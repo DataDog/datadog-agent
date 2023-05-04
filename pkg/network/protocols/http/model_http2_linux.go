@@ -17,7 +17,7 @@ import (
 )
 
 // Path returns the URL from the request fragment captured in eBPF.
-func (tx *ebpfHttp2Tx) Path(buffer []byte) ([]byte, bool) {
+func (tx *EbpfHttp2Tx) Path(buffer []byte) ([]byte, bool) {
 	if tx.Path_size == 0 || int(tx.Path_size) > len(tx.Request_path[:tx.Path_size]) {
 		return nil, false
 	}
@@ -33,7 +33,7 @@ func (tx *ebpfHttp2Tx) Path(buffer []byte) ([]byte, bool) {
 }
 
 // RequestLatency returns the latency of the request in nanoseconds
-func (tx *ebpfHttp2Tx) RequestLatency() float64 {
+func (tx *EbpfHttp2Tx) RequestLatency() float64 {
 	if uint64(tx.Request_started) == 0 || uint64(tx.Response_last_seen) == 0 {
 		return 0
 	}
@@ -42,11 +42,11 @@ func (tx *ebpfHttp2Tx) RequestLatency() float64 {
 
 // Incomplete returns true if the transaction contains only the request or response information
 // This happens in the context of localhost with NAT, in which case we join the two parts in userspace
-func (tx *ebpfHttp2Tx) Incomplete() bool {
+func (tx *EbpfHttp2Tx) Incomplete() bool {
 	return tx.Request_started == 0 || tx.Response_last_seen == 0 || tx.StatusCode() == 0 || tx.Path_size == 0 || tx.Method() == MethodUnknown
 }
 
-func (tx *ebpfHttp2Tx) ConnTuple() types.ConnectionKey {
+func (tx *EbpfHttp2Tx) ConnTuple() types.ConnectionKey {
 	return types.ConnectionKey{
 		SrcIPHigh: tx.Tup.Saddr_h,
 		SrcIPLow:  tx.Tup.Saddr_l,
@@ -57,7 +57,7 @@ func (tx *ebpfHttp2Tx) ConnTuple() types.ConnectionKey {
 	}
 }
 
-func (tx *ebpfHttp2Tx) Method() Method {
+func (tx *EbpfHttp2Tx) Method() Method {
 	switch tx.Request_method {
 	case GetValue:
 		return MethodGet
@@ -68,7 +68,7 @@ func (tx *ebpfHttp2Tx) Method() Method {
 	}
 }
 
-func (tx *ebpfHttp2Tx) StatusCode() uint16 {
+func (tx *EbpfHttp2Tx) StatusCode() uint16 {
 	switch tx.Response_status_code {
 	case uint16(K200Value):
 		return 200
@@ -85,35 +85,35 @@ func (tx *ebpfHttp2Tx) StatusCode() uint16 {
 	}
 }
 
-func (tx *ebpfHttp2Tx) SetStatusCode(code uint16) {
+func (tx *EbpfHttp2Tx) SetStatusCode(code uint16) {
 	tx.Response_status_code = code
 }
 
-func (tx *ebpfHttp2Tx) ResponseLastSeen() uint64 {
+func (tx *EbpfHttp2Tx) ResponseLastSeen() uint64 {
 	return tx.Response_last_seen
 }
 
-func (tx *ebpfHttp2Tx) SetResponseLastSeen(lastSeen uint64) {
+func (tx *EbpfHttp2Tx) SetResponseLastSeen(lastSeen uint64) {
 	tx.Response_last_seen = lastSeen
 
 }
-func (tx *ebpfHttp2Tx) RequestStarted() uint64 {
+func (tx *EbpfHttp2Tx) RequestStarted() uint64 {
 	return tx.Request_started
 }
 
-func (tx *ebpfHttp2Tx) SetRequestMethod(m Method) {
+func (tx *EbpfHttp2Tx) SetRequestMethod(m Method) {
 	tx.Request_method = uint8(m)
 }
 
-func (tx *ebpfHttp2Tx) StaticTags() uint64 {
+func (tx *EbpfHttp2Tx) StaticTags() uint64 {
 	return 0
 }
 
-func (tx *ebpfHttp2Tx) DynamicTags() []string {
+func (tx *EbpfHttp2Tx) DynamicTags() []string {
 	return nil
 }
 
-func (tx *ebpfHttp2Tx) String() string {
+func (tx *EbpfHttp2Tx) String() string {
 	var output strings.Builder
 	output.WriteString("ebpfHttp2Tx{")
 	output.WriteString("Method: '" + Method(tx.Request_method).String() + "', ")

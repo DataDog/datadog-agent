@@ -69,7 +69,7 @@ func (o *OTLPReceiver) Start() {
 		if err != nil {
 			log.Criticalf("Error starting OpenTelemetry gRPC server: %v", err)
 		} else {
-			o.grpcsrv = grpc.NewServer()
+			o.grpcsrv = grpc.NewServer(grpc.MaxRecvMsgSize(10 * 1024 * 1024))
 			ptraceotlp.RegisterGRPCServer(o.grpcsrv, o)
 			o.wg.Add(1)
 			go func() {
@@ -197,7 +197,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	if lang == "" {
 		lang = fastHeaderGet(httpHeader, header.Lang)
 	}
-	containerID := getFirstFromMap(rattr, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
+	_, containerID := getFirstFromMap(rattr, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
 	if containerID == "" {
 		containerID = o.cidProvider.GetContainerID(ctx, httpHeader)
 	}
@@ -240,7 +240,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 			}
 			if containerID == "" {
 				// no cid at resource level, grab what we can
-				containerID = getFirstFromMap(ddspan.Meta, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
+				_, containerID = getFirstFromMap(ddspan.Meta, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
 			}
 			if p, ok := ddspan.Metrics["_sampling_priority_v1"]; ok {
 				priorityByID[traceID] = sampler.SamplingPriority(p)
@@ -496,6 +496,25 @@ func setMetricOTLP(s *pb.Span, k string, v float64) {
 	}
 }
 
+// peerServiceDefaults specifies default keys used to find a value for peer.service, applied in the order defined below.
+var peerServiceDefaults = []string{
+	// Always use peer.service when it's present
+	semconv.AttributePeerService,
+	// Service-to-service gRPC scenario
+	semconv.AttributeRPCService,
+	// Database
+	semconv.AttributeDBSystem,
+	"db.instance",
+	// Service-to-service HTTP scenario & server-based data streams
+	// Also fallback in case the above attributes are not present
+	semconv.AttributeNetPeerName,
+	// Serverless Database
+	semconv.AttributeAWSDynamoDBTableNames,
+	// Blob storage
+	"bucket.name",
+	semconv.AttributeFaaSDocumentCollection,
+}
+
 // convertSpan converts the span in to a Datadog span, and uses the rattr resource tags and the lib instrumentation
 // library attributes to further augment it.
 //
@@ -515,6 +534,7 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		setMetaOTLP(span, k, v)
 	}
 	setMetaOTLP(span, "otel.trace_id", hex.EncodeToString(traceID[:]))
+	setMetaOTLP(span, "span.kind", spanKindName(in.Kind()))
 	if _, ok := span.Meta["version"]; !ok {
 		if ver := rattr[string(semconv.AttributeServiceVersion)]; ver != "" {
 			setMetaOTLP(span, "version", ver)
@@ -525,11 +545,6 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	}
 	if in.Links().Len() > 0 {
 		setMetaOTLP(span, "_dd.span_links", marshalLinks(in.Links()))
-	}
-	if svc, ok := in.Attributes().Get(semconv.AttributePeerService); ok {
-		// the span attribute "peer.service" takes precedence over any resource attributes,
-		// in the same way that "service.name" does as part of setMetaOTLP
-		span.Service = svc.Str()
 	}
 	in.Attributes().Range(func(k string, v pcommon.Value) bool {
 		switch v.Type() {
@@ -542,6 +557,12 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		}
 		return true
 	})
+	if key, svc := getFirstFromMap(span.Meta, peerServiceDefaults...); svc != "" {
+		if key != semconv.AttributePeerService {
+			setMetaOTLP(span, semconv.AttributePeerService, svc)
+		}
+		setMetaOTLP(span, "_dd.peer.service.source", key)
+	}
 	for k, v := range attributes.ContainerTagFromAttributes(span.Meta) {
 		if _, ok := span.Meta[k]; !ok {
 			// overwrite only if it does not exist
@@ -606,13 +627,13 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 func resourceFromTags(meta map[string]string) string {
 	if m := meta[string(semconv.AttributeHTTPMethod)]; m != "" {
 		// use the HTTP method + route (if available)
-		if route := getFirstFromMap(meta, semconv.AttributeHTTPRoute, "grpc.path"); route != "" {
+		if _, route := getFirstFromMap(meta, semconv.AttributeHTTPRoute, "grpc.path"); route != "" {
 			return m + " " + route
 		}
 		return m
 	} else if m := meta[string(semconv.AttributeMessagingOperation)]; m != "" {
 		// use the messaging operation
-		if dest := getFirstFromMap(meta, semconv.AttributeMessagingDestination, semconv117.AttributeMessagingDestinationName); dest != "" {
+		if _, dest := getFirstFromMap(meta, semconv.AttributeMessagingDestination, semconv117.AttributeMessagingDestinationName); dest != "" {
 			return m + " " + dest
 		}
 		return m
@@ -627,15 +648,15 @@ func resourceFromTags(meta map[string]string) string {
 	return ""
 }
 
-// getFirstFromMap checks each key in the given keys in the map and returns the first value whose
-// key matches, or an empty string if none matches.
-func getFirstFromMap(m map[string]string, keys ...string) string {
+// getFirstFromMap checks each key in the given keys in the map and returns the first key-value pair whose
+// key matches, or empty strings if none matches.
+func getFirstFromMap(m map[string]string, keys ...string) (string, string) {
 	for _, key := range keys {
 		if val := m[key]; val != "" {
-			return val
+			return key, val
 		}
 	}
-	return ""
+	return "", ""
 }
 
 // status2Error checks the given status and events and applies any potential error and messages

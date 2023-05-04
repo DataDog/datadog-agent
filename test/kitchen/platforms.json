@@ -32,8 +32,8 @@
             "x86_64": {
                 "debian-8": "urn,credativ:Debian:8:8.0.201901221",
                 "debian-9": "urn,credativ:Debian:9:9.20200722.0",
-                "debian-10": "urn,Debian:debian-10:10:0.20220911.1135",
-                "debian-11": "urn,Debian:debian-11:11:0.20220911.1135"
+                "debian-10": "urn,Debian:debian-10:10:0.20230222.1299",
+                "debian-11": "urn,Debian:debian-11:11:0.20230501.1367"
             }
         },
         "ec2": {
@@ -46,8 +46,8 @@
     "suse": {
         "azure": {
             "x86_64": {
-                "sles-12": "urn,SUSE:sles-12-sp5-byos:gen1:2022.03.08",
-                "sles-15": "urn,SUSE:sles-15-sp2-byos:gen1:2022.03.09",
+                "sles-12": "urn,SUSE:sles-12-sp5-byos:gen1:2023.03.21",
+                "sles-15": "urn,SUSE:sles-15-sp2-byos:gen1:2022.11.09",
                 "opensuse-15-3": "urn,SUSE:opensuse-leap-15-3:gen1:2022.01.28"
             }
         },
@@ -61,7 +61,6 @@
         "azure": {
             "x86_64": {
                 "ubuntu-14-04": "urn,Canonical:UbuntuServer:14.04.5-LTS:14.04.201905140",
-                "ubuntu-16-04-4.4": "urn,Canonical:UbuntuServer:16.04.0-LTS:16.04.201608150",
                 "ubuntu-16-04": "urn,Canonical:UbuntuServer:16.04.0-LTS:16.04.202106110",
                 "ubuntu-18-04-0": "urn,Canonical:UbuntuServer:18.04-LTS:18.04.201809110",
                 "ubuntu-18-04": "urn,Canonical:UbuntuServer:18.04-LTS:18.04.201906040",
@@ -72,6 +71,9 @@
             }
         },
         "ec2": {
+            "x86_64": {
+                "ubuntu-16-04-4.4": "ami-a4dc46db"
+            },
             "arm64": {
                 "ubuntu-18-04": "ami-02ed82f3a38303e6f",
                 "ubuntu-20-04": "ami-0b75998a97c952252",
@@ -115,8 +117,8 @@
         "azure": {
             "x86_64": {
                 "win2008r2": "id,/subscriptions/a53d2c33-d372-4e36-9e33-eaf32ce95b28/resourceGroups/agentcustomimages/providers/Microsoft.Compute/galleries/agentcustomimages/images/Windows2008-R2-SP1/versions/1.0.0",
-                "win2012": "urn,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:9200.23920.221007",
-                "win2012r2": "urn,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:9600.20625.221005",
+                "win2012": "id,/subscriptions/a53d2c33-d372-4e36-9e33-eaf32ce95b28/resourceGroups/agentcustomimages/providers/Microsoft.Compute/galleries/agentcustomimages/images/Windows-2012/versions/1.0.0",
+                "win2012r2": "id,/subscriptions/a53d2c33-d372-4e36-9e33-eaf32ce95b28/resourceGroups/agentcustomimages/providers/Microsoft.Compute/galleries/agentcustomimages/images/Windows-2012-R2/versions/1.0.1",
                 "win2016": "urn,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:14393.5429.221014",
                 "win2019": "urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:17763.3534.221015",
                 "win2019cn": "urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-zhcn:17763.3534.221015",
@@ -125,20 +127,14 @@
         },
         "ec2": {
             "x86_64": {
-                "win2012r2": "ami-0f2688fe4ee9b2443",
-                "comment-win2012r2": "EC2LaunchV2_Preview-Windows_Server-2012_R2_RTM-English-Core-Base-2021.02.10",
-                "win2016": "ami-0e3ee9d1a707d7f8c",
-                "comment-win2016": "# Windows_Server-2016-English-Core-Containers-2021.02.10",
-                "win2019": "ami-0f45398f32b5f1258",
-                "comment-win2019": "Windows_Server-2019-English-Core-ContainersLatest-2021.02.10",
-                "win1903": "ami-08ff2690dd0f54a52",
-                "comment-win1903": "Windows_Server-1903-English-Core-Base-2021.02.10",
-                "win1909": "ami-077b088208b7b1541",
-                "comment-win1909": "Windows_Server-1909-English-Core-Base-2021.02.10",
-                "win2004": "ami-001b0b8376afad6d4",
-                "comment-win2004": "# Windows_Server-2004-English-Core-Base-2021.02.10",
-                "win20H2": "ami-03661d5caaa2f79c1",
-                "comment-win20h2": "Windows_Server-20H2-English-Core-Base-2021.02.10"
+                "win2012r2": "ami-05bcfc8413c69a2a1",
+                "comment-win2012r2": "EC2LaunchV2-Windows_Server-2012_R2_RTM-English-Full-Base-2022.09.14",
+                "win2016": "ami-03bee25bb430166e4",
+                "comment-win2016": "# Windows_Server-2016-English-Core-Containers-2022.12.14",
+                "win2019": "ami-01cc656499debb56a",
+                "comment-win2019": "Windows_Server-2019-English-Core-ContainersLatest-2023.01.19",
+                "win2022": "ami-0176b2659d40f0696",
+                "comment-win2022": "Windows_Server-2022-English-Core-ContainersLatest-2023.01.19"
             }
         },
         "vagrant": {

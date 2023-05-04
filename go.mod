@@ -40,16 +40,16 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.7.0
-	github.com/DataDog/agent-payload/v5 v5.0.80
+	github.com/DataDog/agent-payload/v5 v5.0.81
 	github.com/DataDog/appsec-internal-go v0.0.0-20230215162203-5149228be86a
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.44.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.44.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.44.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/trace v0.44.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.44.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/util/log v0.44.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.44.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.44.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.45.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.45.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.45.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/trace v0.45.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.45.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/log v0.45.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.45.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.45.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v0.7.1-0.20230215125730-2ba58ce29d56
 	github.com/DataDog/ebpf-manager v0.2.8-0.20230331131947-0cbd4db2728c
@@ -75,8 +75,9 @@ require (
 	github.com/alecthomas/participle v0.7.1
 	github.com/alecthomas/repr v0.2.0
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137
+	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000 // keep this proto version to not confuse dependabot
 	github.com/aquasecurity/trivy-db v0.0.0-20230105123735-5ce110fc82e1
-	github.com/avast/retry-go/v4 v4.3.3
+	github.com/avast/retry-go/v4 v4.3.4
 	github.com/aws/aws-lambda-go v1.37.0
 	github.com/aws/aws-sdk-go v1.44.171
 	github.com/beevik/ntp v0.3.0
@@ -84,7 +85,7 @@ require (
 	github.com/bhmj/jsonslice v0.0.0-20200323023432-92c3edaad8e2
 	github.com/blabber/go-freebsd-sysctl v0.0.0-20201130114544-503969f39d8f
 	github.com/cenkalti/backoff v2.2.1+incompatible
-	github.com/cenkalti/backoff/v4 v4.2.0
+	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/cilium/ebpf v0.10.0
 	github.com/clbanning/mxj v1.8.4
@@ -98,7 +99,6 @@ require (
 	github.com/cri-o/ocicni v0.4.0
 	github.com/cyphar/filepath-securejoin v0.2.3
 	github.com/davecgh/go-spew v1.1.1
-	github.com/dgraph-io/badger/v3 v3.2103.5
 	github.com/docker/docker v23.0.0-rc.1+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/dustin/go-humanize v1.0.1
@@ -194,7 +194,7 @@ require (
 	github.com/xeipuuv/gojsonschema v1.2.0
 	go.etcd.io/bbolt v1.3.6
 	go.etcd.io/etcd/client/v2 v2.306.0-alpha.0
-	go.mongodb.org/mongo-driver v1.11.3
+	go.mongodb.org/mongo-driver v1.11.4
 	go.opentelemetry.io/collector v0.75.0
 	go.opentelemetry.io/collector/component v0.75.0
 	go.opentelemetry.io/collector/confmap v0.75.0
@@ -324,7 +324,6 @@ require (
 	github.com/briandowns/spinner v1.12.0 // indirect
 	github.com/caarlos0/env/v6 v6.10.1 // indirect
 	github.com/cavaliergopher/grab/v3 v3.0.1 // indirect
-	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/containerd/continuity v0.3.0 // indirect
 	github.com/containerd/fifo v1.0.0 // indirect
@@ -333,7 +332,6 @@ require (
 	github.com/containernetworking/plugins v1.1.1 // indirect
 	github.com/coreos/go-systemd/v22 v22.4.0 // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
-	github.com/dgraph-io/ristretto v0.1.1 // indirect
 	github.com/dgryski/go-jump v0.0.0-20211018200510-ba001c3ffce0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/dimchansky/utfbom v1.1.1 // indirect
@@ -368,12 +366,10 @@ require (
 	github.com/go-openapi/validate v0.22.0 // indirect
 	github.com/go-redis/redis/v8 v8.11.5 // indirect
 	github.com/go-test/deep v1.0.7 // indirect
-	github.com/gocomply/scap v0.1.1
 	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/golang-jwt/jwt/v4 v4.4.2 // indirect
 	github.com/golang/glog v1.0.0 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
-	github.com/google/flatbuffers v1.12.1 // indirect
 	github.com/google/licenseclassifier/v2 v2.0.0 // indirect
 	github.com/google/uuid v1.3.0
 	github.com/google/wire v0.5.0 // indirect
@@ -570,10 +566,15 @@ require (
 	sigs.k8s.io/yaml v1.3.0
 )
 
-require github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
+require (
+	github.com/godror/godror v0.37.0
+	github.com/jmoiron/sqlx v1.3.5
+	github.com/sijms/go-ora/v2 v2.6.12
+)
 
 require (
 	github.com/cloudflare/circl v1.1.0 // indirect
+	github.com/godror/knownpb v0.1.0 // indirect
 	github.com/rs/zerolog v1.29.0 // indirect
 	github.com/sigstore/rekor v1.0.1 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
@@ -589,7 +590,7 @@ replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211
 replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
 
 // Remove once the issue https://github.com/microsoft/Windows-Containers/issues/72 is resolved
-replace github.com/golang/glog v1.0.0 => github.com/paulcacheux/glog v1.0.1-0.20211019114809-ec0f43a655b9
+replace github.com/golang/glog v1.0.0 => github.com/DataDog/glog v1.0.1-0.20211019114809-ec0f43a655b9
 
 replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20220504230202-f7323aba1f6c
 
@@ -601,8 +602,8 @@ replace k8s.io/kube-state-metrics/v2 => github.com/datadog/kube-state-metrics/v2
 // Use custom Trivy fork to reduce binary size
 // Pull in replacements needed by upstream Trivy
 replace (
-	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20230120171913-9b1b011fb2fe
-	github.com/saracen/walker => github.com/DataDog/walker v0.0.0-20221128132416-4ca87a1f1023
+	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20230418154509-807f757a8339
+	github.com/saracen/walker => github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950
 	github.com/spdx/tools-golang => github.com/spdx/tools-golang v0.3.0
 	oras.land/oras-go => oras.land/oras-go v1.1.1
 )

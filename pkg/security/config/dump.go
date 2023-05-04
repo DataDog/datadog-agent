@@ -10,6 +10,7 @@ package config
 import (
 	"fmt"
 	"path"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 )
@@ -113,9 +114,9 @@ func ParseStorageFormat(input string) (StorageFormat, error) {
 		input = input[1:]
 	}
 
-	for _, fmt := range AllStorageFormats() {
-		if fmt.String() == input {
-			return fmt, nil
+	for _, s := range AllStorageFormats() {
+		if strings.ToLower(s.String()) == input {
+			return s, nil
 		}
 	}
 

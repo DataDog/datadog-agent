@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -263,6 +264,8 @@ type EventContextSerializer struct {
 // easyjson:json
 type ProcessContextSerializer struct {
 	*ProcessSerializer
+	// Process source
+	Source string `json:"source,omitempty"`
 	// Parent process
 	Parent *ProcessSerializer `json:"parent,omitempty"`
 	// Ancestor processes
@@ -769,6 +772,8 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, resol
 		ProcessSerializer: newProcessSerializer(&pc.Process, e, resolvers),
 	}
 
+	ps.Source = model.ProcessSourceToString(pc.Source)
+
 	ctx := eval.NewContext(e)
 
 	it := &model.ProcessAncestorsIterator{}
@@ -1106,7 +1111,7 @@ func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *Eve
 		s.NetworkContextSerializer = newNetworkContextSerializer(event)
 	}
 
-	if model.IsAnomalyDetectionEvent(eventType.String()) {
+	if profile.IsAnomalyDetectionEvent(eventType) {
 		s.SecurityProfileContextSerializer = newSecurityProfileContextSerializer(&event.SecurityProfileContext)
 	}
 
