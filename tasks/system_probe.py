@@ -1094,6 +1094,9 @@ def setup_runtime_clang(ctx):
 
 
 def verify_system_clang_version(ctx):
+    if os.getenv('DD_SYSPROBE_SKIP_CLANG_CHECK') == "true":
+        return
+
     clang_res = ctx.run("clang --version", warn=True)
     clang_version_str = ""
     if clang_res.ok:
