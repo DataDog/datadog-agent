@@ -74,7 +74,7 @@ func toProtocolType(protoNum uint8, layerBit uint16) ProtocolType {
 	case C.PROTOCOL_MYSQL:
 		return MySQL
 	default:
-		log.Errorf("unknown eBPF protocol type: %u", protocol)
+		log.Errorf("unknown eBPF protocol type: %x", protocol)
 		return Unknown
 	}
 }
