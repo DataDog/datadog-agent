@@ -51,7 +51,8 @@ func ping(w http.ResponseWriter, r *http.Request) {
 func getStatus(w http.ResponseWriter, r *http.Request) {
 	statusType := mux.Vars(r)["type"]
 
-	status, e := status.GetStatus()
+	verbose := r.URL.Query().Get("verbose") == "true"
+	status, e := status.GetStatus(verbose)
 	if e != nil {
 		log.Errorf("Error getting status: " + e.Error())
 		w.Write([]byte("Error getting status: " + e.Error()))
