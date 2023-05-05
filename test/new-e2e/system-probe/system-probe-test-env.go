@@ -97,10 +97,10 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 	stackManager := infra.GetStackManager()
 
 	config := runner.ConfigMap{
-		"ddinfra:env":                        auto.ConfigValue{Value: "aws/agent-qa"},
-		"ddinfra:aws/defaultARMInstanceType": auto.ConfigValue{Value: armInstanceType},
-		"ddinfra:aws/defaultInstanceType":    auto.ConfigValue{Value: x86InstanceType},
-		//		"ddinfra:aws/defaultKeyPairName":         auto.ConfigValue{Value: SSHKeyName},
+		"ddinfra:env":                            auto.ConfigValue{Value: "aws/agent-qa"},
+		"ddinfra:aws/defaultARMInstanceType":     auto.ConfigValue{Value: armInstanceType},
+		"ddinfra:aws/defaultInstanceType":        auto.ConfigValue{Value: x86InstanceType},
+		"ddinfra:aws/defaultKeyPairName":         auto.ConfigValue{Value: SSHKeyName},
 		"ddinfra:aws/defaultPrivateKeyPath":      auto.ConfigValue{Value: SSHKeyFile},
 		"ddinfra:aws/defaultShutdownBehavior":    auto.ConfigValue{Value: "terminate"},
 		"ddinfra:aws/defaultInstanceStorageSize": auto.ConfigValue{Value: "500"},
