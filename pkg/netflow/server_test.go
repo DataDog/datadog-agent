@@ -115,6 +115,51 @@ network_devices:
 	assert.NoError(t, err)
 }
 
+func TestNewNetflowServer_SFlow5(t *testing.T) {
+	// Setup NetFlow feature config
+	port := uint16(52057)
+	config.Datadog.SetConfigType("yaml")
+	err := config.Datadog.MergeConfigOverride(strings.NewReader(fmt.Sprintf(`
+network_devices:
+  netflow:
+    enabled: true
+    aggregator_flush_interval: 1
+    listeners:
+      - flow_type: sflow5 # netflow, sflow, ipfix
+        bind_host: 127.0.0.1
+        port: %d
+`, port)))
+	require.NoError(t, err)
+	config.Datadog.Set("hostname", "my-hostname")
+
+	// Setup NetFlow Server
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(1 * time.Millisecond)
+	defer demux.Stop(false)
+
+	sender, err := demux.GetDefaultSender()
+	require.NoError(t, err, "cannot get default sender")
+
+	ctrl := gomock.NewController(t)
+	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
+	server, err := NewNetflowServer(sender, epForwarder)
+	require.NoError(t, err, "cannot start Netflow Server")
+	assert.NotNil(t, server)
+
+	// Send netflowV5Data twice to test aggregator
+	// Flows will have 2x bytes/packets after aggregation
+	time.Sleep(100 * time.Millisecond) // wait to make sure goflow listener is started before sending
+
+	err = testutil.SendUDPPacket(port, testutil.SFlow5Payload)
+	require.NoError(t, err, "error sending udp packet")
+
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), epforwarder.EventTypeNetworkDevicesNetFlow).Return(nil).Times(7)
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), "network-devices-metadata").Return(nil).Times(1)
+
+	netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(server.flowAgg, 15*time.Second, 6)
+	assert.Equal(t, uint64(7), netflowEvents)
+	assert.NoError(t, err)
+}
+
 func TestStartServerAndStopServer(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
 	defer demux.Stop(false)
