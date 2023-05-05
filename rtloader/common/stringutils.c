@@ -181,19 +181,14 @@ size_t copy_attr_as_string(PyObject *object, const char *attributeName, char *bu
 
 char *string_buf_from_offset(void *buf, size_t offset)
 {
-    return (char *)(((size_t)(void *)buf) + offset);
-}
-
-size_t string_buf_from_offset_len(size_t bufLength, size_t offset)
-{
-    return bufLength > offset ? bufLength - offset : 0;
+    return (char *)buf + offset;
 }
 
 size_t copy_attr_as_string_at(PyObject *object, const char *attributeName, void *buf, size_t bufOffset,
                               size_t bufLength)
 {
-    return copy_attr_as_string(object, attributeName, string_buf_from_offset(buf, bufOffset),
-                               string_buf_from_offset_len(bufLength, bufOffset));
+    size_t length = bufLength > bufOffset ? bufLength - bufOffset : 0;
+    return copy_attr_as_string(object, attributeName, string_buf_from_offset(buf, bufOffset), length);
 }
 
 int init_stringutils(void)
