@@ -100,13 +100,12 @@ network_devices:
 	require.NoError(t, err, "cannot start Netflow Server")
 	assert.NotNil(t, server)
 
-	// Send netflowV5Data twice to test aggregator
-	// Flows will have 2x bytes/packets after aggregation
 	time.Sleep(100 * time.Millisecond) // wait to make sure goflow listener is started before sending
 
 	err = testutil.SendUDPPacket(port, testutil.Netflow9PayloadWithTemplateAndData)
 	require.NoError(t, err, "error sending udp packet")
 
+	// Test later content of payloads if needed for more precise test.
 	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), epforwarder.EventTypeNetworkDevicesNetFlow).Return(nil).Times(29)
 	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), "network-devices-metadata").Return(nil).Times(1)
 
