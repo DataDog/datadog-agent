@@ -50,6 +50,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	rcflare "github.com/DataDog/datadog-agent/pkg/config/flare"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
@@ -388,7 +389,12 @@ func startAgent(
 	// start remote configuration management
 	var configService *remoteconfig.Service
 	if pkgconfig.Datadog.GetBool("remote_configuration.enabled") {
-		configService, err = remoteconfig.NewService()
+		agentTaskProvider, err := rcflare.NewAgentTaskProvider(flare, "core-agent", version.AgentVersion)
+		if err != nil {
+			pkglog.Errorf("Failed to initialize agent task remote config provier: %s", err)
+		}
+
+		configService, err = remoteconfig.NewService(agentTaskProvider)
 		if err != nil {
 			pkglog.Errorf("Failed to initialize config management service: %s", err)
 		} else if err := configService.Start(context.Background()); err != nil {

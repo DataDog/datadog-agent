@@ -22,6 +22,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/flare"
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	"github.com/DataDog/datadog-agent/pkg/proto/msgpgo"
@@ -111,7 +112,8 @@ func newTestService(t *testing.T, api *mockAPI, uptane *mockUptane, clock clock.
 	config.Datadog.Set("run_path", dir)
 	serializedKey, _ := testRCKey.MarshalMsg(nil)
 	config.Datadog.Set("remote_configuration.key", base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(serializedKey))
-	service, err := NewService()
+	// TODO: real test
+	service, err := NewService(&flare.AgentTaskProvider{})
 	assert.NoError(t, err)
 	service.api = api
 	service.clock = clock

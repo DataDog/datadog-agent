@@ -77,6 +77,7 @@ type Client struct {
 	cwsListeners        []func(update map[string]state.ConfigCWSDD)
 	cwsCustomListeners  []func(update map[string]state.ConfigCWSCustom)
 	apmTracingListeners []func(update map[string]state.APMTracingConfig)
+	agentTaskListeners  []func(update map[string]state.AgentTaskConfig)
 }
 
 // agentGRPCConfigFetcher defines how to retrieve config updates over a
@@ -203,6 +204,7 @@ func newClient(agentName string, updater ConfigUpdater, doTufVerification bool, 
 		cwsListeners:        make([]func(update map[string]state.ConfigCWSDD), 0),
 		cwsCustomListeners:  make([]func(update map[string]state.ConfigCWSCustom), 0),
 		apmTracingListeners: make([]func(update map[string]state.APMTracingConfig), 0),
+		agentTaskListeners:  make([]func(update map[string]state.AgentTaskConfig), 0),
 		updater:             updater,
 	}, nil
 }
@@ -299,6 +301,11 @@ func (c *Client) update() error {
 			listener(c.state.APMTracingConfigs())
 		}
 	}
+	if containsProduct(changedProducts, state.ProductAgentTask) {
+		for _, listener := range c.agentTaskListeners {
+			listener(c.state.AgentTaskConfigs())
+		}
+	}
 
 	return nil
 }
@@ -311,6 +318,15 @@ func containsProduct(products []string, product string) bool {
 	}
 
 	return false
+}
+
+// RegisterAgentTaskUpdate registers a callback function to be called after a successful client update that will
+// contain the current state of the AGENT_TASK product.
+func (c *Client) RegisterAgentTaskUpdate(fn func(update map[string]state.AgentTaskConfig)) {
+	c.m.Lock()
+	defer c.m.Unlock()
+	c.agentTaskListeners = append(c.agentTaskListeners, fn)
+	fn(c.state.AgentTaskConfigs())
 }
 
 // RegisterAPMUpdate registers a callback function to be called after a successful client update that will
