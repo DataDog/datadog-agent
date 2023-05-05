@@ -55,7 +55,10 @@ func DetectCloudProvider(ctx context.Context) {
 
 			// fetch the account ID for this cloud provider
 			if collectAccountID && cloudDetector.accountIdCallback != nil {
-				if accountID, err := cloudDetector.accountIdCallback(ctx); err != nil && accountID != "" {
+				accountID, err := cloudDetector.accountIdCallback(ctx)
+				if err != nil {
+					log.Debugf("Could not detect cloud provider account ID: %v", err)
+				} else if accountID != "" {
 					log.Infof("Detecting `%s` from %s cloud provider: %+q", inventories.HostCloudProviderAccountID, cloudDetector.name, accountID)
 					inventories.SetHostMetadata(inventories.HostCloudProviderAccountID, accountID)
 				}
