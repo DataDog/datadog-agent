@@ -1074,36 +1074,36 @@ func TestLoadEnv(t *testing.T) {
 	})
 }
 
-//func TestFargateConfig(t *testing.T) {
-//	assert := assert.New(t)
-//	type testData struct {
-//		features             []coreconfig.Feature
-//		expectedOrchestrator config.FargateOrchestratorName
-//	}
-//	for _, data := range []testData{
-//		{
-//			features:             []coreconfig.Feature{coreconfig.ECSFargate},
-//			expectedOrchestrator: config.OrchestratorECS,
-//		},
-//		{
-//			features:             []coreconfig.Feature{coreconfig.EKSFargate},
-//			expectedOrchestrator: config.OrchestratorEKS,
-//		},
-//		{
-//			features:             []coreconfig.Feature{},
-//			expectedOrchestrator: config.OrchestratorUnknown,
-//		},
-//	} {
-//		t.Run("", func(t *testing.T) {
-//			defer cleanConfig()()
-//			coreconfig.SetFeatures(t, data.features...)
-//			cfg, err := LoadConfigFile("./testdata/no_apm_config.yaml")
-//			assert.NoError(err)
-//
-//			assert.Equal(data.expectedOrchestrator, cfg.FargateOrchestrator)
-//		})
-//	}
-//}
+func TestFargateConfig(t *testing.T) {
+	assert := assert.New(t)
+	type testData struct {
+		features             []coreconfig.Feature
+		expectedOrchestrator config.FargateOrchestratorName
+	}
+	for _, data := range []testData{
+		{
+			features:             []coreconfig.Feature{coreconfig.ECSFargate},
+			expectedOrchestrator: config.OrchestratorECS,
+		},
+		{
+			features:             []coreconfig.Feature{coreconfig.EKSFargate},
+			expectedOrchestrator: config.OrchestratorEKS,
+		},
+		{
+			features:             []coreconfig.Feature{},
+			expectedOrchestrator: config.OrchestratorUnknown,
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			defer cleanConfig()()
+			coreconfig.SetFeatures(t, data.features...)
+			cfg, err := LoadConfigFile("./testdata/no_apm_config.yaml")
+			assert.NoError(err)
+
+			assert.Equal(data.expectedOrchestrator, cfg.FargateOrchestrator)
+		})
+	}
+}
 
 func TestSetMaxMemCPU(t *testing.T) {
 	t.Run("default, non-containerized", func(t *testing.T) {
