@@ -17,10 +17,11 @@ import (
 type CloudProvider string
 
 const (
-	AWS       CloudProvider = "aws"
-	Azure     CloudProvider = "az"
-	GCP       CloudProvider = "gcp"
-	EnvPrefix               = "E2E_"
+	AWS                   CloudProvider = "aws"
+	Azure                 CloudProvider = "az"
+	GCP                   CloudProvider = "gcp"
+	EnvPrefix                           = "E2E_"
+	DefaultCISecretPrefix               = "ci.datadog-agent."
 
 	envSep = ","
 )
@@ -29,6 +30,7 @@ var (
 	workspaceFolder = os.TempDir()
 	runProfile      Profile
 	initProfile     sync.Once
+	defaultCIEnvs   = []string{"aws/agent-qa"}
 )
 
 type Profile interface {
