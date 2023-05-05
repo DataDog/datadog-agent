@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Use literal 'host' resource attribute on OTLP payloads when present as the host value to avoid double tagging.
+    When present, use 'host' resource attribute as the host value on OTLP payloads to avoid double tagging.
