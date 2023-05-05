@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/netsampler/goflow2/decoders/netflow/templates"
+	_ "github.com/netsampler/goflow2/decoders/netflow/templates/memory"
 	"github.com/netsampler/goflow2/utils"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -56,6 +57,7 @@ func StartFlowRoutine(flowType common.FlowType, hostname string, port uint16, wo
 		state := utils.NewStateNetFlow()
 		state.Format = formatDriver
 		state.Logger = logger
+		state.TemplateSystem = templateSystem
 		flowState = state
 	case common.TypeSFlow5:
 		state := utils.NewStateSFlow()
