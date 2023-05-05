@@ -6,14 +6,15 @@
 #include <linux/sched.h>
 
 #include "bpf_builtins.h"
-#include "tracer.h"
-#include "conntrack-types.h"
-#include "conntrack-maps.h"
+
 #include "ip.h"
 #include "ipv6.h"
 #include "sock.h"
 
-#include "conntrack-helpers.h"
+#include "conntrack/types.h"
+#include "conntrack/maps.h"
+#include "conntrack/helpers.h"
+
 
 #define offset_ct(f) \
     static __always_inline u64 offset_ct_##f() { \

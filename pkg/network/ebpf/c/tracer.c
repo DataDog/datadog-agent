@@ -10,11 +10,11 @@
 #ifdef COMPILE_PREBUILT
 #include "prebuilt/offsets.h"
 #endif
-#include "port.h"
 #include "skb.h"
 #include "sockfd.h"
-#include "tcp-recv.h"
-#include "tracer-events.h"
+#include "tracer/events.h"
+#include "tracer/port.h"
+#include "tracer/tcp_recv.h"
 #include "protocols/classification/tracer-maps.h"
 #include "protocols/classification/protocol-classification.h"
 

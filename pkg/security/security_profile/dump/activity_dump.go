@@ -666,8 +666,6 @@ func (ad *ActivityDump) Encode(format config.StorageFormat) (*bytes.Buffer, erro
 		return ad.EncodeProtobuf()
 	case config.Dot:
 		return ad.EncodeDOT()
-	case config.SecL:
-		return ad.EncodeSecL()
 	case config.Profile:
 		return ad.EncodeProfile()
 	default:

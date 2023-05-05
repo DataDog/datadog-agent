@@ -3,7 +3,6 @@
 
 #include "bpf_helpers.h"
 #include "map-defs.h"
-#include "tracer.h"
 
 #include "protocols/http/types.h"
 #include "protocols/tls/go-tls-types.h"

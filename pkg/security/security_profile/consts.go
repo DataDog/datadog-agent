@@ -3,17 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build ignore
-// +build ignore
+//go:build linux
+// +build linux
 
-package kafka
+package security_profile
 
-/*
-#include "../../ebpf/c/conn_tuple.h"
-#include "../../ebpf/c/protocols/kafka/types.h"
-*/
-import "C"
-
-type kafkaConnTuple C.conn_tuple_t
-
-type EbpfKafkaTx C.kafka_transaction_batch_entry_t
+const (
+	LocalProfileVersion = "local_profile"
+)

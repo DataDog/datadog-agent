@@ -110,7 +110,7 @@ func (fn *FileNode) debug(w io.Writer, prefix string) {
 
 // InsertFileEvent inserts an event in a FileNode. This function returns true if a new entry was added, false if
 // the event was dropped.
-func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, remainingPath string, generationType NodeGenerationType, stats *ActivityTreeStats, shadowInsertion bool) bool {
+func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, remainingPath string, generationType NodeGenerationType, stats *ActivityTreeStats, dryRun bool) bool {
 	currentFn := fn
 	currentPath := remainingPath
 	newEntry := false
@@ -118,7 +118,7 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 	for {
 		parent, nextParentIndex := ExtractFirstParent(currentPath)
 		if nextParentIndex == 0 {
-			if !shadowInsertion {
+			if !dryRun {
 				currentFn.enrichFromEvent(event)
 			}
 			break
@@ -134,14 +134,14 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		// create new child
 		newEntry = true
 		if len(currentPath) <= nextParentIndex+1 {
-			if !shadowInsertion {
+			if !dryRun {
 				currentFn.Children[parent] = NewFileNode(fileEvent, event, parent, generationType)
 				stats.fileNodes++
 			}
 			break
 		} else {
 			newChild := NewFileNode(nil, nil, parent, generationType)
-			if !shadowInsertion {
+			if !dryRun {
 				currentFn.Children[parent] = newChild
 			}
 

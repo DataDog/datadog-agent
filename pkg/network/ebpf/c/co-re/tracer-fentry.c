@@ -3,17 +3,18 @@
 #include "bpf_endian.h"
 #include "bpf_tracing.h"
 
-#include "tracer.h"
-#include "tracer-events.h"
-#include "tracer-maps.h"
-#include "tracer-stats.h"
-#include "tracer-telemetry.h"
 #include "sockfd.h"
 #include "ip.h"
 #include "ipv6.h"
-#include "port.h"
 #include "sock.h"
 #include "skb.h"
+
+#include "tracer/tracer.h"
+#include "tracer/events.h"
+#include "tracer/maps.h"
+#include "tracer/stats.h"
+#include "tracer/telemetry.h"
+#include "tracer/port.h"
 
 BPF_PERCPU_HASH_MAP(udp6_send_skb_args, u64, u64, 1024)
 BPF_PERCPU_HASH_MAP(udp_send_skb_args, u64, conn_tuple_t, 1024)
