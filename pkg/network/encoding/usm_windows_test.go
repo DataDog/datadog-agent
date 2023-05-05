@@ -46,5 +46,5 @@ func TestUSMLookup(t *testing.T) {
 	}
 
 	assert.Equal(t, val, USMLookup(c1, data))
-	assert.Equal(t, nil, USMLookup(c2, data))
+	assert.Equal(t, (*USMConnectionData[struct{}, any])(nil), USMLookup(c2, data))
 }
