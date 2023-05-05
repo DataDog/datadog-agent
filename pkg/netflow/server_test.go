@@ -150,6 +150,7 @@ network_devices:
 	err = testutil.SendUDPPacket(port, testutil.SFlow5Payload)
 	require.NoError(t, err, "error sending udp packet")
 
+	// Test later content of payloads if needed for more precise test.
 	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), epforwarder.EventTypeNetworkDevicesNetFlow).Return(nil).Times(7)
 	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), "network-devices-metadata").Return(nil).Times(1)
 
