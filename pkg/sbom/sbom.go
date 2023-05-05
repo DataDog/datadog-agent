@@ -29,6 +29,7 @@ type ScanOptions struct {
 	Timeout          time.Duration
 	WaitAfter        time.Duration
 	Fast             bool
+	NoCache          bool
 }
 
 // ScanOptionsFromConfig loads the scanning options from the configuration
