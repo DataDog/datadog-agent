@@ -128,12 +128,7 @@ func TestGetStats(t *testing.T) {
 	expected := linuxExpected
 	if runtime.GOOS == "windows" {
 		expected = map[string]interface{}{
-			"driver":                   map[string]interface{}{},
-			"flows":                    map[string]interface{}{},
-			"driver_total_flow_stats":  map[string]interface{}{},
-			"driver_flow_handle_stats": map[string]interface{}{},
-			"state":                    map[string]interface{}{},
-			"dns":                      map[string]interface{}{},
+			"state": map[string]interface{}{},
 		}
 	}
 
