@@ -14,7 +14,7 @@ namespace WixSetup.Datadog
 
         public AgentFeatures()
         {
-            // Starting with 7.46, there is no restriction on closed source and NPM has been included in
+            // Starting with 7.45, there is no restriction on closed source and NPM has been included in
             // the MainApplication feature. However, docs and release management tools use ADDLOCAL=NPM;
             // if there is no such feature then the install errors out. So we keep an empty feature around
             // to maintain backwards comparability.
