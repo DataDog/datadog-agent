@@ -64,15 +64,32 @@ func TestDiagnoseAllBasicRegAndRunSomeDiagnosis(t *testing.T) {
 		},
 	}
 
-	diagnosis.Register("TestDiagnoseAllBasicRegAndRunSingleDiagnosis", func(cfg diagnosis.DiagnoseConfig) []diagnosis.Diagnosis {
+	diagnosis.Register("TestDiagnoseAllBasicRegAndRunSomeDiagnosis-a", func(cfg diagnosis.DiagnoseConfig) []diagnosis.Diagnosis {
 		return inDiagnoses
 	})
 
-	re, _ := regexp.Compile("TestDiagnoseAllBasicRegAndRunSingleDiagnosis")
-	diagCfg := diagnosis.DiagnoseConfig{
-		Include: []*regexp.Regexp{re},
+	diagnosis.Register("TestDiagnoseAllBasicRegAndRunSomeDiagnosis-b", func(cfg diagnosis.DiagnoseConfig) []diagnosis.Diagnosis {
+		return inDiagnoses
+	})
+
+	// Include and run
+	reInclude, _ := regexp.Compile("TestDiagnoseAllBasicRegAndRunSomeDiagnosis")
+	diagCfgInclude := diagnosis.DiagnoseConfig{
+		Include: []*regexp.Regexp{reInclude},
 	}
-	outSuitesDiagnoses := RunAll(diagCfg)
-	assert.Len(t, outSuitesDiagnoses, 1)
-	assert.Equal(t, outSuitesDiagnoses[0].SuiteDiagnoses, inDiagnoses)
+	outSuitesDiagnosesInclude := RunAll(diagCfgInclude)
+	assert.Len(t, outSuitesDiagnosesInclude, 2)
+	assert.Equal(t, outSuitesDiagnosesInclude[0].SuiteDiagnoses, inDiagnoses)
+	assert.Equal(t, outSuitesDiagnosesInclude[1].SuiteDiagnoses, inDiagnoses)
+
+	// Include and Exclude and run
+	reExclude, _ := regexp.Compile("TestDiagnoseAllBasicRegAndRunSomeDiagnosis-a")
+	diagCfgIncludeExclude := diagnosis.DiagnoseConfig{
+		Include: []*regexp.Regexp{reInclude},
+		Exclude: []*regexp.Regexp{reExclude},
+	}
+	outSuitesDiagnosesIncludeExclude := RunAll(diagCfgIncludeExclude)
+	assert.Len(t, outSuitesDiagnosesIncludeExclude, 1)
+	assert.Equal(t, outSuitesDiagnosesIncludeExclude[0].SuiteDiagnoses, inDiagnoses)
+	assert.Equal(t, outSuitesDiagnosesIncludeExclude[0].SuiteName, "TestDiagnoseAllBasicRegAndRunSomeDiagnosis-b")
 }

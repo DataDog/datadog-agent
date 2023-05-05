@@ -8,6 +8,7 @@ package diagnose
 import (
 	"fmt"
 	"io"
+	"regexp"
 	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
@@ -22,46 +23,46 @@ func init() {
 }
 
 // Overall running statistics
-type diangosisCounters struct {
-	totalCnt   int
-	successCnt int
-	failCnt    int
-	warningCnt int
-	errorCnt   int
-	skippedCnt int
+type diagnosisCounters struct {
+	total          int
+	success        int
+	fail           int
+	warnings       int
+	unexpected_err int
+	skipped        int
 }
 
 // Output summary
-func outputSummary(w io.Writer, c diangosisCounters) {
-	fmt.Fprintf(w, "-------------------------\n  Total:%d", c.totalCnt)
-	if c.successCnt > 0 {
-		fmt.Fprintf(w, ", Success:%d", c.successCnt)
+func outputSummary(w io.Writer, c diagnosisCounters) {
+	fmt.Fprintf(w, "-------------------------\n  Total:%d", c.total)
+	if c.success > 0 {
+		fmt.Fprintf(w, ", Success:%d", c.success)
 	}
-	if c.failCnt > 0 {
-		fmt.Fprintf(w, ", Fail:%d", c.failCnt)
+	if c.fail > 0 {
+		fmt.Fprintf(w, ", Fail:%d", c.fail)
 	}
-	if c.warningCnt > 0 {
-		fmt.Fprintf(w, ", Warning:%d", c.warningCnt)
+	if c.warnings > 0 {
+		fmt.Fprintf(w, ", Warning:%d", c.warnings)
 	}
-	if c.errorCnt > 0 {
-		fmt.Fprintf(w, ", Error:%d", c.errorCnt)
+	if c.unexpected_err > 0 {
+		fmt.Fprintf(w, ", Error:%d", c.unexpected_err)
 	}
 	fmt.Fprint(w, "\n")
 }
 
-func incrementCounters(r diagnosis.DiagnosisResult, c *diangosisCounters) {
-	c.totalCnt++
+func incrementCounters(r diagnosis.DiagnosisResult, c *diagnosisCounters) {
+	c.total++
 
 	if r == diagnosis.DiagnosisNotEnable {
-		c.skippedCnt++
+		c.skipped++
 	} else if r == diagnosis.DiagnosisSuccess {
-		c.successCnt++
+		c.success++
 	} else if r == diagnosis.DiagnosisFail {
-		c.failCnt++
+		c.fail++
 	} else if r == diagnosis.DiagnosisWarning {
-		c.warningCnt++
-	} else { //if d.Result == diagnosis.DiagnosisUnexpectedError
-		c.errorCnt++
+		c.warnings++
+	} else if r == diagnosis.DiagnosisUnexpectedError {
+		c.unexpected_err++
 	}
 }
 
@@ -117,11 +118,11 @@ func outputDiagnosis(w io.Writer, cfg diagnosis.DiagnoseConfig, result string, d
 	fmt.Fprint(w, "\n")
 }
 
-func outputSkippedDiangosis(w io.Writer, cfg diagnosis.DiagnoseConfig, suitName string, c diangosisCounters, suiteAlreadyReported *bool, lastDot *bool) {
+func outputSkippeddiagnosis(w io.Writer, cfg diagnosis.DiagnoseConfig, suitName string, c diagnosisCounters, suiteAlreadyReported *bool, lastDot *bool) {
 
 	if cfg.Verbose {
 		outputSuiteIfNeeded(w, suitName, suiteAlreadyReported)
-		fmt.Fprintf(w, "  [%d] SKIPPED\n", c.totalCnt)
+		fmt.Fprintf(w, "  [%d] SKIPPED\n", c.total)
 	} else {
 		outputDot(w, lastDot)
 	}
@@ -146,28 +147,35 @@ func outputDot(w io.Writer, lastDot *bool) {
 	*lastDot = true
 }
 
+func matchRegExList(regexList []*regexp.Regexp, s string) bool {
+	for _, re := range regexList {
+		if re.MatchString(s) {
+			return true
+		}
+	}
+	return false
+}
+
 // Currently used only to match Diagnose Suite name. In future will be
 // extended to diagnose name or category
 func matchConfigFilters(cfg diagnosis.DiagnoseConfig, s string) bool {
-	if len(cfg.Include) > 0 {
-		for _, re := range cfg.Include {
-			if re.MatchString(s) {
-				return true
-			}
-		}
-
-		return false
+	if len(cfg.Include) > 0 && len(cfg.Exclude) > 0 {
+		return matchRegExList(cfg.Include, s) && !matchRegExList(cfg.Exclude, s)
+	} else if len(cfg.Include) > 0 {
+		return matchRegExList(cfg.Include, s)
+	} else if len(cfg.Exclude) > 0 {
+		return !matchRegExList(cfg.Exclude, s)
 	}
-
-	if len(cfg.Exclude) > 0 {
-		for _, re := range cfg.Exclude {
-			if re.MatchString(s) {
-				return false
-			}
-		}
-	}
-
 	return true
+}
+
+func getSortedDiagnoseSuites() []diagnosis.DiagnoseSuite {
+	sortedSuites := make([]diagnosis.DiagnoseSuite, len(diagnosis.DiagnoseCatalog))
+	copy(sortedSuites, diagnosis.DiagnoseCatalog)
+	sort.Slice(sortedSuites, func(i, j int) bool {
+		return sortedSuites[i].SuitName < sortedSuites[j].SuitName
+	})
+	return sortedSuites
 }
 
 // Enumerate registered Diagnose suites and get their diagnoses
@@ -177,12 +185,7 @@ func ListAllStdOut(w io.Writer, diagCfg diagnosis.DiagnoseConfig) {
 		color.NoColor = true
 	}
 
-	// Sort Diagnose by their suite names
-	sortedSuites := make([]diagnosis.DiagnoseSuite, len(diagnosis.DiagnoseCatalog))
-	copy(sortedSuites, diagnosis.DiagnoseCatalog)
-	sort.Slice(sortedSuites, func(i, j int) bool {
-		return sortedSuites[i].SuitName < sortedSuites[j].SuitName
-	})
+	sortedSuites := getSortedDiagnoseSuites()
 
 	fmt.Fprintf(w, "Diagnose suites ...\n")
 
@@ -200,15 +203,14 @@ func ListAllStdOut(w io.Writer, diagCfg diagnosis.DiagnoseConfig) {
 // for structural output
 func RunAll(diagCfg diagnosis.DiagnoseConfig) []diagnosis.Diagnoses {
 	// Filter Diagnose suite
-	suites := make([]diagnosis.DiagnoseSuite, 0)
+	var suites []diagnosis.DiagnoseSuite
 	for _, ds := range diagnosis.DiagnoseCatalog {
 		if matchConfigFilters(diagCfg, ds.SuitName) {
 			suites = append(suites, ds)
 		}
 	}
 
-	suiteDiagnoses := make([]diagnosis.Diagnoses, 0)
-
+	var suiteDiagnoses []diagnosis.Diagnoses
 	for _, ds := range suites {
 		// Run particular diagnose
 		diagnoses := ds.Diagnose(diagCfg)
@@ -230,16 +232,11 @@ func RunAllStdOut(w io.Writer, diagCfg diagnosis.DiagnoseConfig) {
 		color.NoColor = true
 	}
 
-	// Sort Diagnose by their suite names
-	sortedSuites := make([]diagnosis.DiagnoseSuite, len(diagnosis.DiagnoseCatalog))
-	copy(sortedSuites, diagnosis.DiagnoseCatalog)
-	sort.Slice(sortedSuites, func(i, j int) bool {
-		return sortedSuites[i].SuitName < sortedSuites[j].SuitName
-	})
+	sortedSuites := getSortedDiagnoseSuites()
 
 	fmt.Fprintf(w, "=== Starting diagnose ===\n")
 
-	var c diangosisCounters
+	var c diagnosisCounters
 
 	lastDot := false
 	for _, ds := range sortedSuites {
@@ -248,7 +245,7 @@ func RunAllStdOut(w io.Writer, diagCfg diagnosis.DiagnoseConfig) {
 			continue
 		}
 
-		// Run partiocular diagnose
+		// Run particular diagnose
 		diagnoses := ds.Diagnose(diagCfg)
 		if diagnoses == nil {
 			// No diagnoses are reported, move on to next Diagnose
@@ -261,7 +258,7 @@ func RunAllStdOut(w io.Writer, diagCfg diagnosis.DiagnoseConfig) {
 
 			// Skipping not enabled diagnosis
 			if d.Result == diagnosis.DiagnosisNotEnable {
-				outputSkippedDiangosis(w, diagCfg, ds.SuitName, c, &suiteAlreadyReported, &lastDot)
+				outputSkippeddiagnosis(w, diagCfg, ds.SuitName, c, &suiteAlreadyReported, &lastDot)
 				continue
 			}
 
@@ -273,7 +270,7 @@ func RunAllStdOut(w io.Writer, diagCfg diagnosis.DiagnoseConfig) {
 			outputSuiteIfNeeded(w, ds.SuitName, &suiteAlreadyReported)
 
 			outputNewLineIfNeeded(w, &lastDot)
-			outputDiagnosis(w, diagCfg, getDiagnosisResultForOutput(d.Result), c.totalCnt, d)
+			outputDiagnosis(w, diagCfg, getDiagnosisResultForOutput(d.Result), c.total, d)
 		}
 	}
 

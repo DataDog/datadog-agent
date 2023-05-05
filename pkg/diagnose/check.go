@@ -24,11 +24,9 @@ func init() {
 	diagnosis.Register("check-datadog", diagnose)
 }
 
-// Diagnose configured checks. Run them twice to facilitate rate-based metrics
-// which otherwise will fail. In the future perhaps it can be avoided for
-// non-rate checks. Currently diagnose is implemented to run in the CLI process,
+// Currently diagnose is implemented to run in the CLI process,
 // in the next version will connect to the running agent service to get diagnoses
-// for scheduled checks.
+// for scheduled checks without running them
 func diagnose(diagCfg diagnosis.DiagnoseConfig) []diagnosis.Diagnosis {
 	// other choices
 	// 	run() github.com\DataDog\datadog-agent\pkg\cli\subcommands\check\command.go

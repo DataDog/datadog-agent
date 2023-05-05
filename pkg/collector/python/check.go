@@ -337,7 +337,8 @@ func (c *PythonCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 	// Lock the GIL and release it at the end of the run (will crash otherwise)
 	gstate, err := newStickyLock()
 	if err != nil {
-		return nil, nil
+		log.Warnf("failed to cancel check %s: %s", c.id, err)
+		return nil, err
 	}
 	defer gstate.unlock()
 
@@ -372,21 +373,11 @@ func (c *PythonCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 		}
 
 		// Convert string fields
-		if diagnosisPtr.name != nil {
-			d.Name = C.GoString(diagnosisPtr.name)
-		}
-		if diagnosisPtr.diagnosis != nil {
-			d.Diagnosis = C.GoString(diagnosisPtr.diagnosis)
-		}
-		if diagnosisPtr.category != nil {
-			d.Category = C.GoString(diagnosisPtr.category)
-		}
-		if diagnosisPtr.description != nil {
-			d.Description = C.GoString(diagnosisPtr.description)
-		}
-		if diagnosisPtr.remediation != nil {
-			d.Remediation = C.GoString(diagnosisPtr.remediation)
-		}
+		d.Name = C.GoString(diagnosisPtr.name)
+		d.Diagnosis = C.GoString(diagnosisPtr.diagnosis)
+		d.Category = C.GoString(diagnosisPtr.category)
+		d.Description = C.GoString(diagnosisPtr.description)
+		d.Remediation = C.GoString(diagnosisPtr.remediation)
 
 		// Extra validation diagnosis for consistency. Checked required fields and status range
 		if d.Result < diagnosis.DiagnosisResultMIN ||

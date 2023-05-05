@@ -1,6 +1,6 @@
 # package `diagnose`
 
-This package is used to register and agent diagnostics which validates various aspects of agent installation, configuration and run-time environment.
+This package is used to register and run agent diagnostics which validates various aspects of agent installation, configuration and run-time environment.
 
 ## Running ```agent diagnose all```
 Details and command line options are specified in [```agent diagnose```](cmd/agent/subcommands/diagnose/README.md) command
@@ -47,7 +47,7 @@ func diagnose(diagCfg diagnosis.DiagnoseConfig) []diagnosis.Diagnosis {
 					diagnoses = append(diagnoses, diagnosis.Diagnosis{
 						Result:      diagnosis.DiagnosisFail,
 						Name:        name,
-						Diagnosis:   fmt.Sprintf("Connection to `%s` is falied\n%s", logURL, report),
+						Diagnosis:   fmt.Sprintf("Connection to `%s` failed\n%s", logURL, report),
 						Remediation: "Please validate Agent configuration and firewall to access " + logURL,
 						RawError:    err,
 					})
@@ -61,4 +61,4 @@ func diagnose(diagCfg diagnosis.DiagnoseConfig) []diagnosis.Diagnosis {
 ```
 
 ## Context of a diagnose function execution
-Normally, registered diagnose suite functions will be executed in context of the running agent service (or other services) but if ```DiagnoseConfig.RunAsUser``` configuration is specified the registered diagnose function will be executed in the context of agent diagnose CLI command (if possible).
+Normally, registered diagnose suite functions will be executed in context of the running agent service (or other services) but if ```DiagnoseConfig.ForceLocal``` configuration is specified the registered diagnose function will be executed in the context of agent diagnose CLI command (if possible).

@@ -212,7 +212,7 @@ func diagnose(diagnoseCfg diagnosis.DiagnoseConfig) []diagnosis.Diagnosis {
 		endpoints, err := config.BuildHTTPEndpointsWithConfig(configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
 		if err != nil {
 			diagnoses = append(diagnoses, diagnosis.Diagnosis{
-				Result:      diagnosis.DiagnosisSuccess,
+				Result:      diagnosis.DiagnosisFail,
 				Name:        "Endpoints configuration",
 				Diagnosis:   "Misconfiguration of agent endpoints",
 				Remediation: "Please validate Agent configuration",
@@ -235,7 +235,7 @@ func diagnose(diagnoseCfg diagnosis.DiagnoseConfig) []diagnosis.Diagnosis {
 				Result:      diagnosis.DiagnosisFail,
 				Category:    desc.category,
 				Name:        name,
-				Diagnosis:   fmt.Sprintf("Connection to `%s` is falied", url),
+				Diagnosis:   fmt.Sprintf("Connection to `%s` failed", url),
 				Remediation: "Please validate Agent configuration and firewall to access " + url,
 				RawError:    err,
 			})

@@ -12,7 +12,7 @@ import (
 )
 
 // --------------------------------
-// Metadata availability Diagnose
+// Diagnose (Metadata availability subcommand)
 type MetadataAvailDiagnose func() error
 type MetadataAvailDiagnoseCatalog map[string]MetadataAvailDiagnose
 
@@ -26,7 +26,7 @@ func RegisterMetadataAvail(name string, d MetadataAvailDiagnose) {
 }
 
 // --------------------------------
-// Register a Metadata diagnosis that will be called on diagnose
+// Diagnose (all subcommand)
 
 // Diagnose interface function
 type Diagnose func(DiagnoseConfig) []Diagnosis
@@ -43,7 +43,7 @@ type DiagnoseSuite struct {
 // Diagnose configuration
 type DiagnoseConfig struct {
 	Verbose        bool
-	RunAsUser      bool
+	ForceLocal     bool
 	RemoteDiagnose bool
 	Include        []*regexp.Regexp
 	Exclude        []*regexp.Regexp

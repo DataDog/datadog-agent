@@ -17,9 +17,11 @@ PyObject *dumper = NULL;
  * returns a C (NULL terminated UTF-8) string from a python string.
  *
  * \param object  A Python string to be converted to C-string.
+ * \param stringObject Output Python object to keep return value valid
+ * until this stringObject is valid.
  *
  * \return A standard C string (NULL terminated character pointer)
- *  The returned pointer is embedded witin PyObject. When string pointer
+ *  The returned pointer is embedded within PyObject. When string pointer
  *  is not needed corresponding PyObject reference needs to be decremented
  */
 char *as_embedded_string(PyObject *object, PyObject **stringObject)
@@ -80,7 +82,7 @@ char *as_embedded_string(PyObject *object, PyObject **stringObject)
  *
  * \return A standard C string (NULL terminated character pointer)
  *  The returned pointer is allocated from the heap and must be
- * deallocated (free()ed) by the caller
+ * deallocated (free-ed) by the caller
  */
 char *as_string(PyObject *object)
 {
@@ -99,29 +101,6 @@ char *as_string(PyObject *object)
     }
 
     return retval;
-}
-
-char *attr_as_embedded_string(PyObject *object, const char *attributeName, PyObject **stringObject)
-{
-    if (object == NULL) {
-        return NULL;
-    }
-
-    char *value = NULL;
-    PyObject *py_attr = NULL;
-
-    py_attr = PyObject_GetAttrString(object, attributeName);
-    if (py_attr != NULL && PyUnicode_Check(py_attr)) {
-        value = as_embedded_string(py_attr, stringObject);
-    } else if (py_attr != NULL && !PyUnicode_Check(py_attr)) {
-        PyErr_Clear();
-    } else {
-        PyErr_Clear();
-    }
-
-    Py_XDECREF(py_attr);
-
-    return value;
 }
 
 long attr_as_long(PyObject *object, const char *attributeName)
@@ -160,8 +139,6 @@ size_t attr_as_string_size(PyObject *object, const char *attributeName)
             size = strlen(tmp) + 1;
             Py_XDECREF(temp_bytes);
         }
-    } else if (py_attr != NULL && !PyUnicode_Check(py_attr)) {
-        PyErr_Clear();
     } else {
         PyErr_Clear();
     }
@@ -186,13 +163,13 @@ size_t copy_attr_as_string(PyObject *object, const char *attributeName, char *bu
         tmp = as_embedded_string(py_attr, &temp_bytes);
         if (tmp != NULL && temp_bytes != NULL) {
             if (size <= bufferLength) {
-                size = strlen(tmp) + 1;
-                strcpy(buffer, tmp);
+                strncpy(buffer, tmp, bufferLength);
+                // in case if dest buffer is too small we need to make sure it is 0 terminated
+                buffer[bufferLength - 1];
+                size = strlen(buffer) + 1;
             }
             Py_XDECREF(temp_bytes);
         }
-    } else if (py_attr != NULL && !PyUnicode_Check(py_attr)) {
-        PyErr_Clear();
     } else {
         PyErr_Clear();
     }

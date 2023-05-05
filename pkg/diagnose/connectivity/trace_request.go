@@ -72,7 +72,7 @@ func diagnose(diagCfg diagnosis.DiagnoseConfig) []diagnosis.Diagnosis {
 					d.Diagnosis = fmt.Sprintf("Connectivity to `%s` is Ok\n%s", logURL, report)
 				} else {
 					d.Result = diagnosis.DiagnosisFail
-					d.Diagnosis = fmt.Sprintf("Connection to `%s` is falied\n%s", logURL, report)
+					d.Diagnosis = fmt.Sprintf("Connection to `%s` failed\n%s", logURL, report)
 					d.Remediation = "Please validate Agent configuration and firewall to access " + logURL
 					d.RawError = err
 				}

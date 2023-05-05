@@ -42,10 +42,10 @@ type cliParams struct {
 	// it is the, value of the --verbose flag
 	verbose bool
 
-	// run as current user, value of the --run-as-user flag
-	runAsUser bool
+	// run diagnose in the context of CLI process instead of running in the context of agent service irunni, value of the --local flag
+	forceLocal bool
 
-	// run diagnose on other processes, value of --remote-diagnose flag
+	// run diagnose on other processes, value of --list flag
 	listSuites bool
 
 	// noTrace is the value of the --no-trace flag
@@ -93,12 +93,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	// List names of all registered diagnose suites. Output also will be filtered if include and or exclude
 	// options are specified
-	diagnoseAllCommand.PersistentFlags().BoolVarP(&cliParams.listSuites, "list", "l", false, "list diagnose suites")
+	diagnoseAllCommand.PersistentFlags().BoolVarP(&cliParams.listSuites, "list", "t", false, "list diagnose suites")
 
 	// Normally internal diagnose functions will run in the context of agent and other services. It can be
-	// overridden via –run-as-user options and if specified diagnose functions will be executed in context
+	// overridden via --local options and if specified diagnose functions will be executed in context
 	// of the agent diagnose CLI process if possible.
-	diagnoseAllCommand.PersistentFlags().BoolVarP(&cliParams.runAsUser, "run-as-user", "u", false, "run as current user")
+	diagnoseAllCommand.PersistentFlags().BoolVarP(&cliParams.forceLocal, "local", "l", false, "force diagnose execution by the command line instead of the agent process (useful when troubleshooting privilege related problems)")
 
 	// List of regular expressions to include and or exclude names of diagnose suites
 	diagnoseAllCommand.PersistentFlags().StringSliceVarP(&cliParams.include, "include", "i", []string{}, "diagnose suites to run as a list of regular expressions")
@@ -210,8 +210,8 @@ func strToRegexList(patterns []string) ([]*regexp.Regexp, error) {
 
 func cmdAll(log log.Component, config config.Component, cliParams *cliParams) error {
 	diagCfg := diagnosis.DiagnoseConfig{
-		Verbose:   cliParams.verbose,
-		RunAsUser: cliParams.runAsUser,
+		Verbose:    cliParams.verbose,
+		ForceLocal: cliParams.forceLocal,
 	}
 
 	// prepare include/exclude
