@@ -987,20 +987,20 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 		seclog.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", kfilters.PolicyModeAccept, eventType, err)
 	}
 
+	type tag struct {
+		eventType    eval.EventType
+		approverType string
+	}
+	approverAddedMetricCounter := make(map[tag]float64)
+
 	for _, newApprover := range newApprovers {
 		seclog.Tracef("Applying approver %+v for event type %s", newApprover, eventType)
 		if err := newApprover.Apply(p.Manager); err != nil {
 			return err
 		}
 
-		tags := []string{
-			fmt.Sprintf("approver_type:%s", getApproverType(newApprover.GetTableName())),
-			fmt.Sprintf("event_type:%s", eventType),
-		}
-
-		if err := p.StatsdClient.Incr(metrics.MetricApproverAdded, tags, 1.0); err != nil {
-			seclog.Tracef("couldn't increment MetricApproverAdded metric: %s", err)
-		}
+		approverType := getApproverType(newApprover.GetTableName())
+		approverAddedMetricCounter[tag{eventType, approverType}]++
 	}
 
 	if previousApprovers, exist := p.approvers[eventType]; exist {
@@ -1011,13 +1011,19 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 				return err
 			}
 
-			tags := []string{
-				fmt.Sprintf("approver_type:%s", getApproverType(previousApprover.GetTableName())),
-				fmt.Sprintf("event_type:%s", eventType),
-			}
-			if err := p.StatsdClient.Decr(metrics.MetricApproverAdded, tags, 1.0); err != nil {
-				seclog.Tracef("couldn't decrement MetricApproverAdded metric: %s", err)
-			}
+			approverType := getApproverType(previousApprover.GetTableName())
+			approverAddedMetricCounter[tag{eventType, approverType}]--
+		}
+	}
+
+	for tags, count := range approverAddedMetricCounter {
+		tags := []string{
+			fmt.Sprintf("approver_type:%s", tags.approverType),
+			fmt.Sprintf("event_type:%s", tags.eventType),
+		}
+
+		if err := p.StatsdClient.Gauge(metrics.MetricApproverAdded, count, tags, 1.0); err != nil {
+			seclog.Tracef("couldn't set MetricApproverAdded metric: %s", err)
 		}
 	}
 
