@@ -15,11 +15,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	manager "github.com/DataDog/ebpf-manager"
 	bpflib "github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/btf"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 // LoadCOREAsset attempts to find kernel BTF, reads the CO-RE object file, and then calls the callback function with the

@@ -70,7 +70,7 @@ static __always_inline int nf_conntrack_tuple_to_conntrack_tuple(conntrack_tuple
             log_debug("ERR(to_conn_tuple.v4): src/dst addr not set src:%u, dst:%u\n", t->saddr_l, t->daddr_l);
             return 0;
         }
-    } else if (ct->src.l3num == AF_INET6 && is_ipv6_enabled()) {
+    } else if (ct->src.l3num == AF_INET6 && (is_tcpv6_enabled() || is_udpv6_enabled())) {
         t->metadata |= CONN_V6;
         read_in6_addr(&t->saddr_h, &t->saddr_l, &ct->src.u3.in6);
         read_in6_addr(&t->daddr_h, &t->daddr_l, &ct->dst.u3.in6);

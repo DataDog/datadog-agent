@@ -17,6 +17,7 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/time/rate"
 
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -31,8 +32,9 @@ var (
 	defaultBurst int = 40
 
 	defaultPerRuleLimiters = map[eval.RuleID]*Limiter{
-		events.RulesetLoadedRuleID: NewLimiter(rate.Inf, 1), // No limit on ruleset loaded
-		events.AbnormalPathRuleID:  NewLimiter(rate.Every(30*time.Second), 1),
+		events.RulesetLoadedRuleID:       NewLimiter(rate.Inf, 1), // No limit on ruleset loaded
+		events.AbnormalPathRuleID:        NewLimiter(rate.Every(30*time.Second), 1),
+		events.ProcessContextErrorRuleID: NewLimiter(rate.Every(30*time.Second), 1),
 	}
 )
 
@@ -60,22 +62,25 @@ type RateLimiter struct {
 	sync.RWMutex
 	limiters     map[rules.RuleID]*Limiter
 	statsdClient statsd.ClientInterface
+	config       *config.RuntimeSecurityConfig
 }
 
 // NewRateLimiter initializes an empty rate limiter
-func NewRateLimiter(client statsd.ClientInterface) *RateLimiter {
+func NewRateLimiter(config *config.RuntimeSecurityConfig, client statsd.ClientInterface) *RateLimiter {
 	rl := &RateLimiter{
 		limiters:     make(map[string]*Limiter),
 		statsdClient: client,
+		config:       config,
 	}
 
 	return rl
 }
 
-func applyBaseLimitersFromDefault(limiters map[string]*Limiter) {
+func (rl *RateLimiter) applyBaseLimitersFromDefault(limiters map[string]*Limiter) {
 	for id, limiter := range defaultPerRuleLimiters {
 		limiters[id] = limiter
 	}
+	limiters[events.AnomalyDetectionRuleID] = NewLimiter(rate.Every(time.Duration(rl.config.AnomalyDetectionRateLimiter)*time.Second), 1)
 }
 
 // Apply a set of rules
@@ -90,7 +95,7 @@ func (rl *RateLimiter) Apply(ruleSet *rules.RuleSet, customRuleIDs []eval.RuleID
 	}
 
 	// override if there is more specific defs
-	applyBaseLimitersFromDefault(newLimiters)
+	rl.applyBaseLimitersFromDefault(newLimiters)
 
 	for id, rule := range ruleSet.GetRules() {
 		if rule.Definition.Every != 0 {

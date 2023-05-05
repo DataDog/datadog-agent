@@ -23,6 +23,7 @@ import (
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
@@ -55,7 +56,8 @@ func (suite *TailerTestSuite) SetupTest() {
 		Path: suite.testPath,
 	}))
 	sleepDuration := 10 * time.Millisecond
-	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, suite.source.UnderlyingSource(), false), sleepDuration, decoder.NewDecoderFromSource(suite.source))
+	info := status.NewInfoRegistry()
+	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, suite.source.UnderlyingSource(), false), sleepDuration, decoder.NewDecoderFromSource(suite.source, info), info)
 	suite.tailer.closeTimeout = closeTimeout
 }
 
@@ -98,7 +100,8 @@ func (suite *TailerTestSuite) TestTialerTimeDurationConfig() {
 	suite.tailer.StartFromBeginning()
 
 	coreConfig.Datadog.Set("logs_config.close_timeout", 42)
-	tailer := NewTailer(suite.outputChan, NewFile(suite.testPath, suite.source.UnderlyingSource(), false), 10*time.Millisecond, decoder.NewDecoderFromSource(suite.source))
+	info := status.NewInfoRegistry()
+	tailer := NewTailer(suite.outputChan, NewFile(suite.testPath, suite.source.UnderlyingSource(), false), 10*time.Millisecond, decoder.NewDecoderFromSource(suite.source, info), info)
 	tailer.StartFromBeginning()
 
 	suite.Equal(tailer.closeTimeout, time.Duration(42)*time.Second)
@@ -252,7 +255,8 @@ func (suite *TailerTestSuite) TestDirTagWhenTailingFiles() {
 		Path: suite.testPath,
 	})
 	sleepDuration := 10 * time.Millisecond
-	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, dirTaggedSource, true), sleepDuration, decoder.NewDecoderFromSource(suite.source))
+	info := status.NewInfoRegistry()
+	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, dirTaggedSource, true), sleepDuration, decoder.NewDecoderFromSource(suite.source, info), info)
 	suite.tailer.StartFromBeginning()
 
 	_, err := suite.testFile.WriteString("foo\n")
@@ -272,7 +276,8 @@ func (suite *TailerTestSuite) TestBuildTagsFileOnly() {
 		Path: suite.testPath,
 	})
 	sleepDuration := 10 * time.Millisecond
-	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, dirTaggedSource, false), sleepDuration, decoder.NewDecoderFromSource(suite.source))
+	info := status.NewInfoRegistry()
+	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, dirTaggedSource, false), sleepDuration, decoder.NewDecoderFromSource(suite.source, info), info)
 
 	suite.tailer.StartFromBeginning()
 
@@ -288,7 +293,8 @@ func (suite *TailerTestSuite) TestBuildTagsFileDir() {
 		Path: suite.testPath,
 	})
 	sleepDuration := 10 * time.Millisecond
-	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, dirTaggedSource, true), sleepDuration, decoder.NewDecoderFromSource(suite.source))
+	info := status.NewInfoRegistry()
+	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, dirTaggedSource, true), sleepDuration, decoder.NewDecoderFromSource(suite.source, info), info)
 	suite.tailer.StartFromBeginning()
 
 	tags := suite.tailer.buildTailerTags()
@@ -308,7 +314,8 @@ func (suite *TailerTestSuite) TestMutliLineAutoDetect() {
 	suite.source.Config().AutoMultiLine = &aml
 	suite.source.Config().AutoMultiLineSampleSize = 3
 
-	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, suite.source.UnderlyingSource(), true), 10*time.Millisecond, decoder.NewDecoderFromSource(suite.source))
+	info := status.NewInfoRegistry()
+	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, suite.source.UnderlyingSource(), true), 10*time.Millisecond, decoder.NewDecoderFromSource(suite.source, info), info)
 
 	_, err = suite.testFile.WriteString(lines)
 	suite.Nil(err)

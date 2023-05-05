@@ -5,12 +5,10 @@
 #include "bpf_telemetry.h"
 #include "tracer.h"
 
-#include "protocols/events.h"
 #include "protocols/http/types.h"
 #include "protocols/http/maps.h"
+#include "protocols/http/usm-events.h"
 #include "protocols/tls/https.h"
-
-USM_EVENTS_INIT(http, http_transaction_t, HTTP_BATCH_SIZE);
 
 static __always_inline int http_responding(http_transaction_t *http) {
     return (http != NULL && http->response_status_code != 0);

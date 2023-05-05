@@ -65,7 +65,7 @@ kitchen_test_system_probe_linux_x64:
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"
-        KITCHEN_OSVERS: "ubuntu-16-04-4.4,ubuntu-18-04,ubuntu-20-04,ubuntu-22-04"
+        KITCHEN_OSVERS: "ubuntu-18-04,ubuntu-20-04,ubuntu-22-04"
       - KITCHEN_PLATFORM: "debian"
         KITCHEN_OSVERS: "debian-10,debian-11"
       - KITCHEN_PLATFORM: "centos"
@@ -97,7 +97,9 @@ kitchen_test_system_probe_linux_x64_ec2:
       - KITCHEN_PLATFORM: "centos"
         KITCHEN_OSVERS: "rhel-86"
         KITCHEN_EC2_DEVICE_NAME: "/dev/sda1"
-
+      - KITCHEN_PLATFORM: "ubuntu"
+        KITCHEN_OSVERS: "ubuntu-16-04-4.4"
+        KITCHEN_EC2_DEVICE_NAME: "/dev/sda1"
 
 kitchen_test_system_probe_linux_arm64:
   extends:

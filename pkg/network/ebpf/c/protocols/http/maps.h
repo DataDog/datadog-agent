@@ -41,7 +41,7 @@ BPF_LRU_MAP(go_tls_read_args, go_tls_function_args_key_t, go_tls_read_args_data_
 BPF_LRU_MAP(go_tls_write_args, go_tls_function_args_key_t, go_tls_write_args_data_t, 2048)
 
 /* This map associates crypto/tls.(*Conn) values to the corresponding conn_tuple_t* value.
-   It is used to implement a simplified version of tup_from_ssl_ctx from http.c
+   It is used to implement a simplified version of tup_from_ssl_ctx from usm.c
    Map size is set to 1 as goTLS is optional, this will be overwritten to MaxTrackedConnections
    if goTLS is enabled. */
 BPF_HASH_MAP(conn_tup_by_go_tls_conn, __u32, conn_tuple_t, 1)
