@@ -5,13 +5,14 @@
 #include "protocols/classification/defs.h"
 
 static __always_inline bool is_last_program_from_layer(classification_prog_t current_program) {
-    switch(current_program+1) {
-    case __PROG_APPLICATION:
-    case __PROG_API:
-    case __PROG_ENCRYPTION:
-    default:
-        return false;
+    classification_prog_t next_program = current_program+1;
+    if (next_program == __PROG_APPLICATION ||
+        next_program == __PROG_API ||
+        next_program == __PROG_ENCRYPTION) {
+        return true;
     }
+
+    return false;
 }
 
 #pragma clang diagnostic push

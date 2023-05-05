@@ -109,7 +109,6 @@ static __always_inline protocol_stack_t* get_protocol_stack(struct __sk_buff *sk
     normalize_tuple(&normalized_tup);
     protocol_stack_t* stack = bpf_map_lookup_elem(&connection_protocol, &normalized_tup);
     if (stack) {
-        init_routing_cache(usm_ctx, stack);
         return stack;
     }
 
@@ -154,6 +153,9 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     if (is_fully_classified(protocol_stack)) {
         return;
     }
+
+    // Load information that will be later on used to route tail-calls
+    init_routing_cache(usm_ctx, protocol_stack);
 
     const char *buffer = &(usm_ctx->buffer.data[0]);
     // TLS classification

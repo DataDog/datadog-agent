@@ -45,11 +45,6 @@ static __always_inline void init_routing_cache(usm_context_t *usm_ctx, protocol_
     usm_ctx->routing_skip_layers = 0;
     usm_ctx->routing_current_program = CLASSIFICATION_PROG_UNKNOWN;
 
-    if (is_fully_classified(stack)) {
-        usm_ctx->routing_skip_layers = (LAYER_APPLICATION_BIT|LAYER_API_BIT|LAYER_ENCRYPTION_BIT);
-        return;
-    }
-
     if (stack->layer_application || is_empty_program_layer(__PROG_APPLICATION)) {
         usm_ctx->routing_skip_layers |= LAYER_APPLICATION_BIT;
     }
