@@ -6,8 +6,10 @@
 package goflowlib
 
 import (
+	"context"
 	"fmt"
 
+	"github.com/netsampler/goflow2/decoders/netflow/templates"
 	"github.com/netsampler/goflow2/utils"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -41,9 +43,16 @@ func StartFlowRoutine(flowType common.FlowType, hostname string, port uint16, wo
 
 	formatDriver := NewAggregatorFormatDriver(flowInChan, namespace)
 	logger := GetLogrusLevel()
+	ctx := context.Background()
 
 	switch flowType {
 	case common.TypeNetFlow9, common.TypeIPFIX:
+		templateSystem, err := templates.FindTemplateSystem(ctx, "memory")
+		if err != nil {
+			return nil, fmt.Errorf("goflow template system error flow type: %w", err)
+		}
+		defer templateSystem.Close(ctx)
+
 		state := utils.NewStateNetFlow()
 		state.Format = formatDriver
 		state.Logger = logger
