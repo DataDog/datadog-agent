@@ -12,6 +12,9 @@ dogstatsd_non_local_traffic: yes
 log_level: info
 otlp_config:
   receiver:
+    protocols:
+      grpc:
+        max_recv_msg_size_mib: 7
   traces:
     internal_port: 50053
     span_name_remappings:
@@ -49,7 +52,7 @@ apm_config:
     - /health
     - /500
 
-  filter_tags:    
+  filter_tags:
     require: ["env:prod", "db:mongodb"]
     reject: ["outcome:success"]
 
@@ -81,5 +84,5 @@ apm_config:
     memcached:
       enabled: true
     credit_cards:
-      enabled: true 
+      enabled: true
       luhn: true

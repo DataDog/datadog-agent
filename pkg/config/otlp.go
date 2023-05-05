@@ -56,7 +56,7 @@ func setupOTLPEnvironmentVariables(config Config) {
 	// gRPC settings
 	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.endpoint")
 	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.transport")
-	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.max_recv_msg_size_mib")
+	config.BindEnvAndSetDefault(OTLPSection+".receiver.protocols.grpc.max_recv_msg_size_mib", 10.)
 	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.max_concurrent_streams")
 	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.read_buffer_size")
 	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.write_buffer_size")
