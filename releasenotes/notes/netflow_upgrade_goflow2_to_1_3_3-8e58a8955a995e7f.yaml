@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    [netflow] Upgrade goflow2 from v1.1.1 to v1.3.3 #16798
+    [netflow] Upgrade goflow2 to v1.3.3.
