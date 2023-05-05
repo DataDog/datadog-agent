@@ -285,7 +285,6 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		BindHost:               c.ReceiverHost,
 		GRPCPort:               grpcPort,
 		MaxRequestBytes:        c.MaxRequestBytes,
-		MaxGrpcRequestMib:      coreconfig.Datadog.GetFloat64("otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib"),
 		SpanNameRemappings:     coreconfig.Datadog.GetStringMapString("otlp_config.traces.span_name_remappings"),
 		SpanNameAsResourceName: coreconfig.Datadog.GetBool("otlp_config.traces.span_name_as_resource_name"),
 		ProbabilisticSampling:  coreconfig.Datadog.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
