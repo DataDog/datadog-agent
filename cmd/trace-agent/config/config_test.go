@@ -1099,7 +1099,7 @@ func TestFargateConfig(t *testing.T) {
 	} {
 		t.Run("", func(t *testing.T) {
 			defer cleanConfig()()
-			//coreconfig.SetFeatures(t, data.features...)
+			coreconfig.SetFeatures(t, data.features...)
 			cfg, err := LoadConfigFile("./testdata/no_apm_config.yaml")
 			assert.NoError(err)
 
