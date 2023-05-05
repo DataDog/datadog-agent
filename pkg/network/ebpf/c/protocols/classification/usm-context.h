@@ -26,7 +26,7 @@ typedef struct {
 } usm_context_t;
 
 // Kernels before 4.7 do not know about per-cpu array maps.
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
+#if defined(COMPILE_PREBUILT) || defined(COMPILE_CORE) || (defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0))
 
 // A per-cpu buffer used to read requests fragments during protocol
 // classification and avoid allocating a buffer on the stack. Some protocols

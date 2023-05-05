@@ -110,6 +110,7 @@ func NewPrometheusServicesConfigProvider(*config.ConfigurationProviders) (Config
 
 	if endpointsInformer != nil {
 		endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+			AddFunc:    p.invalidateIfAddedEndpoints,
 			UpdateFunc: p.invalidateIfChangedEndpoints,
 		})
 	}
@@ -150,7 +151,8 @@ func (p *PrometheusServicesConfigProvider) Collect(ctx context.Context) ([]integ
 			} else {
 				ep, err := p.api.GetEndpoints(svc.GetNamespace(), svc.GetName())
 				if err != nil {
-					// This can happen if we encounter an headless service.
+					// This can happen if a service does not have an endpoint just yet
+					// Or on headless/external services.
 					if k8serrors.IsNotFound(err) {
 						continue
 					}
@@ -245,6 +247,11 @@ func (p *PrometheusServicesConfigProvider) invalidateIfChanged(old, obj interfac
 		p.setUpToDate(false)
 		return
 	}
+}
+
+func (p *PrometheusServicesConfigProvider) invalidateIfAddedEndpoints(obj interface{}) {
+	// An endpoint can be added after a service is created, in which case we need to re-run Collect
+	p.setUpToDate(false)
 }
 
 func (p *PrometheusServicesConfigProvider) invalidateIfChangedEndpoints(old, obj interface{}) {

@@ -81,8 +81,10 @@ const (
 
 	// TCPClose traces the tcp_close() system call
 	TCPClose ProbeFuncName = "kprobe__tcp_close"
-	// TCPCloseReturn traces the return of tcp_close() system call
-	TCPCloseReturn ProbeFuncName = "kretprobe__tcp_close"
+	// TCPCloseCleanProtocolsReturn traces the return of tcp_close() system call
+	TCPCloseCleanProtocolsReturn ProbeFuncName = "kretprobe__tcp_close_clean_protocols"
+	// TCPCloseFlushReturn traces the return of tcp_close() system call
+	TCPCloseFlushReturn ProbeFuncName = "kretprobe__tcp_close_flush"
 
 	// We use the following two probes for UDP sends
 
@@ -134,6 +136,9 @@ const (
 	UDPDestroySock ProbeFuncName = "kprobe__udp_destroy_sock"
 	// UDPDestroySockReturn traces the return of the udp_destroy_sock() system call
 	UDPDestroySockReturn ProbeFuncName = "kretprobe__udp_destroy_sock"
+
+	UDPv6DestroySock       ProbeFuncName = "kprobe__udpv6_destroy_sock"
+	UDPv6DestroySockReturn ProbeFuncName = "kretprobe__udpv6_destroy_sock"
 
 	// TCPRetransmit traces the params for the tcp_retransmit_skb() system call
 	TCPRetransmit ProbeFuncName = "kprobe__tcp_retransmit_skb"
@@ -202,8 +207,8 @@ const (
 	KafkaClientIDBufMap               BPFMapName = "kafka_client_id"
 	KafkaTopicNameBufMap              BPFMapName = "kafka_topic_name"
 	ConnectionProtocolMap             BPFMapName = "connection_protocol"
-	TLSConnectionMap                  BPFMapName = "tls_connection"
 	ConnectionTupleToSocketSKBConnMap BPFMapName = "conn_tuple_to_socket_skb_conn_tuple"
 	ClassificationProgsMap            BPFMapName = "classification_progs"
+	TCPCloseProgsMap                  BPFMapName = "tcp_close_progs"
 	StaticTableMap                    BPFMapName = "http2_static_table"
 )

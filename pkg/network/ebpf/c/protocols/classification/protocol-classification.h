@@ -5,6 +5,7 @@
 #include "bpf_telemetry.h"
 #include "ip.h"
 #include "port_range.h"
+#include "tracer-stats.h"
 
 #include "protocols/amqp/helpers.h"
 #include "protocols/classification/common.h"
@@ -58,6 +59,12 @@
 // traversing all programs from all layers in the sequence defined in the routing.h
 // file.  If, for example, application-layer is known, calling this helper multiple
 // times will result in traversing only the api and encryption-layer programs
+
+static __always_inline bool is_protocol_classification_supported() {
+    __u64 val = 0;
+    LOAD_CONSTANT("protocol_classification_enabled", val);
+    return val > 0;
+}
 
 // Checks if a given buffer is http, http2, gRPC.
 static __always_inline protocol_t classify_applayer_protocols(const char *buf, __u32 size) {

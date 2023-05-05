@@ -100,7 +100,7 @@ namespace WixSetup.Datadog
             OnMaintenance(NativeDialogs.MaintenanceTypeDlg, Buttons.Back, new ShowDialog(NativeDialogs.MaintenanceWelcomeDlg));
 
             OnMaintenance(NativeDialogs.MaintenanceTypeDlg, "ChangeButton",
-                new SetProperty("PREVIOUS_PAGE", Dialogs.ClosedSourceConsentDialog),
+                new SetProperty("PREVIOUS_PAGE", NativeDialogs.MaintenanceTypeDlg),
                 new ShowDialog(Dialogs.ClosedSourceConsentDialog));
 
             OnMaintenance(NativeDialogs.MaintenanceTypeDlg, Buttons.Repair,

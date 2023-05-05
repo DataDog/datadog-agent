@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -49,7 +50,7 @@ const (
 
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config
 func (m *MetricConfig) GetMultipleEndpoints() (map[string][]string, error) {
-	return config.GetMultipleEndpoints()
+	return utils.GetMultipleEndpoints(config.Datadog)
 }
 
 // NewServer returns a running DogStatsD server

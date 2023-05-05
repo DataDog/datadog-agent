@@ -7,15 +7,16 @@
 
 #include "tracer.h"
 #include "tracer-maps.h"
+#include "tracer-stats.h"
 #include "tracer-telemetry.h"
 #include "cookie.h"
 #include "protocols/classification/tracer-maps.h"
 #include "ip.h"
 #include "port_range.h"
 
-static __always_inline int get_proto(conn_tuple_t *t) {
-    return (t->metadata & CONN_TYPE_TCP) ? CONN_TYPE_TCP : CONN_TYPE_UDP;
-}
+#ifdef COMPILE_CORE
+#define MSG_PEEK 2
+#endif
 
 static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
     conn_tuple_t conn_tuple = *tup;
@@ -25,19 +26,16 @@ static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
     bpf_map_delete_elem(&connection_protocol, &conn_tuple);
 
     conn_tuple_t *skb_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple);
-    if (!skb_tup_ptr) {
+    if (skb_tup_ptr == NULL) {
         return;
     }
 
     conn_tuple_t skb_tup = *skb_tup_ptr;
     bpf_map_delete_elem(&connection_protocol, &skb_tup);
     bpf_map_delete_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple);
-
 }
 
 static __always_inline void cleanup_conn(conn_tuple_t *tup, struct sock *sk) {
-    clean_protocol_classification(tup);
-
     u32 cpu = bpf_get_smp_processor_id();
 
     // Will hold the full connection data to send through the perf buffer

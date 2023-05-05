@@ -1277,6 +1277,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecuritySerializers11(
 			continue
 		}
 		switch key {
+		case "source":
+			out.Source = string(in.String())
 		case "parent":
 			if in.IsNull() {
 				in.Skip()
@@ -1492,10 +1494,20 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecuritySerializers11(
 	out.RawByte('{')
 	first := true
 	_ = first
-	if in.Parent != nil {
-		const prefix string = ",\"parent\":"
+	if in.Source != "" {
+		const prefix string = ",\"source\":"
 		first = false
 		out.RawString(prefix[1:])
+		out.String(string(in.Source))
+	}
+	if in.Parent != nil {
+		const prefix string = ",\"parent\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		(*in.Parent).MarshalEasyJSON(out)
 	}
 	if len(in.Ancestors) != 0 {

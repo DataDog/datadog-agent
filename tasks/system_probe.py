@@ -33,6 +33,11 @@ KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join
 KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-system-probe-check", "files", "default", "tests")
 TEST_PACKAGES_LIST = ["./pkg/ebpf/...", "./pkg/network/...", "./pkg/collector/corechecks/ebpf/..."]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
+TEST_TIMEOUTS = {
+    "pkg/network/tracer$": "0",
+    "pkg/network/protocols/http$": "0",
+    "pkg/network/protocols": "5m",
+}
 CWS_PREBUILT_MINIMUM_KERNEL_VERSION = [5, 8, 0]
 EMBEDDED_SHARE_DIR = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "ebpf")
 EMBEDDED_SHARE_JAVA_DIR = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "java")
@@ -209,15 +214,21 @@ def ninja_network_ebpf_co_re_program(nw, infile, outfile, flags):
 def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
     network_bpf_dir = os.path.join("pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
-    network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
     network_flags = "-Ipkg/network/ebpf/c -g"
-    network_programs = ["dns", "offset-guess", "tracer", "http", "usm_events_test", "conntrack"]
-    network_co_re_programs = ["co-re/tracer-fentry", "runtime/http"]
+    network_programs = [
+        "prebuilt/dns",
+        "prebuilt/offset-guess",
+        "tracer",
+        "prebuilt/usm",
+        "prebuilt/usm_events_test",
+        "prebuilt/conntrack",
+    ]
+    network_co_re_programs = ["tracer", "co-re/tracer-fentry", "runtime/usm"]
 
     for prog in network_programs:
-        infile = os.path.join(network_prebuilt_dir, f"{prog}.c")
-        outfile = os.path.join(build_dir, f"{prog}.o")
+        infile = os.path.join(network_c_dir, f"{prog}.c")
+        outfile = os.path.join(build_dir, f"{os.path.basename(prog)}.o")
         ninja_network_ebpf_program(nw, infile, outfile, network_flags)
 
     for prog_path in network_co_re_programs:
@@ -248,7 +259,7 @@ def ninja_runtime_compilation_files(nw):
     runtime_compiler_files = {
         "pkg/collector/corechecks/ebpf/probe/oom_kill.go": "oom-kill",
         "pkg/collector/corechecks/ebpf/probe/tcp_queue_length.go": "tcp-queue-length",
-        "pkg/network/protocols/http/compile.go": "http",
+        "pkg/network/usm/compile.go": "usm",
         "pkg/network/tracer/compile.go": "conntrack",
         "pkg/network/tracer/connection/kprobe/compile.go": "tracer",
         "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
@@ -519,6 +530,7 @@ def test(
     windows=is_windows,
     failfast=False,
     kernel_release=None,
+    timeout=None,
 ):
     """
     Run tests on eBPF parts
@@ -554,10 +566,10 @@ def test(
     args = {
         "build_tags": ",".join(build_tags),
         "output_params": f"-c -o {output_path}" if output_path else "",
-        "pkgs": packages,
         "run": f"-run {run}" if run else "",
         "failfast": "-failfast" if failfast else "",
         "go": "go",
+        "sudo": "sudo -E " if not windows and not output_path and not is_root() else "",
     }
 
     _, _, env = get_build_flags(ctx)
@@ -575,11 +587,30 @@ def test(
     if go_root:
         args["go"] = os.path.join(go_root, "bin", "go")
 
-    cmd = '{go} test -mod=mod -v {failfast} -tags "{build_tags}" {output_params} {pkgs} {run}'
-    if not windows and not output_path and not is_root():
-        cmd = 'sudo -E ' + cmd
+    failed_pkgs = list()
+    package_dirs = go_package_dirs(packages.split(" "), build_tags)
+    # we iterate over the packages here to get the nice streaming test output
+    for pdir in package_dirs:
+        args["dir"] = pdir
+        testto = timeout if timeout else get_test_timeout(pdir)
+        args["timeout"] = f"-timeout {testto}" if testto else ""
+        cmd = '{sudo}{go} test -mod=mod -v {failfast} {timeout} -tags "{build_tags}" {output_params} {dir} {run}'
+        res = ctx.run(cmd.format(**args), env=env, warn=True)
+        if res.exited is None or res.exited > 0:
+            failed_pkgs.append(os.path.relpath(pdir, ctx.cwd))
+            if failfast:
+                break
 
-    ctx.run(cmd.format(**args), env=env)
+    if len(failed_pkgs) > 0:
+        print(color_message("failed packages:\n" + "\n".join(failed_pkgs), "red"))
+        raise Exit(code=1, message="system-probe tests failed")
+
+
+def get_test_timeout(pkg):
+    for tt, to in TEST_TIMEOUTS.items():
+        if re.search(tt, pkg) is not None:
+            return to
+    return None
 
 
 @contextlib.contextmanager
@@ -591,6 +622,27 @@ def chdir(dirname=None):
         yield
     finally:
         os.chdir(curdir)
+
+
+def go_package_dirs(packages, build_tags):
+    """
+    Retrieve a list of all packages we want to test
+    This handles the ellipsis notation (eg. ./pkg/ebpf/...)
+    """
+
+    target_packages = []
+    for pkg in packages:
+        target_packages += (
+            check_output(
+                f"go list -find -f \"{{{{ .Dir }}}}\" -mod=mod -tags \"{','.join(build_tags)}\" {pkg}",
+                shell=True,
+            )
+            .decode('utf-8')
+            .strip()
+            .split("\n")
+        )
+
+    return target_packages
 
 
 @task
@@ -607,19 +659,7 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False):
     if not windows:
         build_tags.append(BPF_TAG)
 
-    # Retrieve a list of all packages we want to test
-    # This handles the elipsis notation (eg. ./pkg/ebpf/...)
-    target_packages = []
-    for pkg in TEST_PACKAGES_LIST:
-        target_packages += (
-            check_output(
-                f"go list -f \"{{{{ .Dir }}}}\" -mod=mod -tags \"{','.join(build_tags)}\" {pkg}",
-                shell=True,
-            )
-            .decode('utf-8')
-            .strip()
-            .split("\n")
-        )
+    target_packages = go_package_dirs(TEST_PACKAGES_LIST, build_tags)
 
     # This will compile one 'testsuite' file per package by running `go test -c -o output_path`.
     # These artifacts will be "vendored" inside a chef recipe like the following:
@@ -652,23 +692,14 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False):
         if pkg.endswith("java"):
             shutil.copy(os.path.join(pkg, "agent-usm.jar"), os.path.join(target_path, "agent-usm.jar"))
 
-        gotls_client_dir = os.path.join("testutil", "gotls_client")
-        gotls_extra_path = os.path.join(pkg, gotls_client_dir)
-        if not windows and os.path.isdir(gotls_extra_path):
-            gotls_client_binary = os.path.join(gotls_client_dir, "gotls_client")
-            gotls_binary_path = os.path.join(target_path, gotls_client_binary)
-            with chdir(gotls_extra_path):
-                ctx.run(f"go build -o {gotls_binary_path} -ldflags=\"-extldflags '-static'\" gotls_client.go")
-
-        sowatcher_client_dir = os.path.join("testutil", "sowatcher_client")
-        sowatcher_client_extra_path = os.path.join(pkg, sowatcher_client_dir)
-        if not windows and os.path.isdir(sowatcher_client_extra_path):
-            sowatcher_client_client_binary = os.path.join(sowatcher_client_dir, "sowatcher_client")
-            sowatcher_client_binary_path = os.path.join(target_path, sowatcher_client_client_binary)
-            with chdir(sowatcher_client_extra_path):
-                ctx.run(
-                    f"go build -o {sowatcher_client_binary_path} -ldflags=\"-extldflags '-static'\" sowatcher_client.go"
-                )
+        for gobin in ["gotls_client", "sowatcher_client", "prefetch_file"]:
+            client_dir = os.path.join("testutil", gobin)
+            extra_path = os.path.join(pkg, client_dir)
+            if not windows and os.path.isdir(extra_path):
+                client_binary = os.path.join(client_dir, gobin)
+                binary_path = os.path.join(target_path, client_binary)
+                with chdir(extra_path):
+                    ctx.run(f"go build -o {binary_path} -ldflags=\"-extldflags '-static'\" {gobin}.go")
 
     gopath = os.getenv("GOPATH")
     copy_files = [
@@ -1097,6 +1128,9 @@ def setup_runtime_clang(ctx):
 
 
 def verify_system_clang_version(ctx):
+    if os.getenv('DD_SYSPROBE_SKIP_CLANG_CHECK') == "true":
+        return
+
     clang_res = ctx.run("clang --version", warn=True)
     clang_version_str = ""
     if clang_res.ok:
@@ -1464,8 +1498,9 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
             images.add(docker_compose["services"][component]["image"])
 
     # Java tests have dynamic images in docker-compose.yml
-    for image in ["openjdk:21-oraclelinux8", "openjdk:15-oraclelinux8", "openjdk:8u151-jre", "menci/archlinuxarm:base"]:
-        images.add(image)
+    images.update(
+        ["openjdk:21-oraclelinux8", "openjdk:15-oraclelinux8", "openjdk:8u151-jre", "menci/archlinuxarm:base"]
+    )
 
     for image in images:
         output_path = image.translate(str.maketrans('', '', string.punctuation))
