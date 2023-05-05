@@ -121,7 +121,7 @@ func (s *Launcher) cleanup() {
 }
 
 // scan checks all the files we're expected to tail, compares them to the currently tailed files,
-// and triggeres the required updates.
+// and triggers the required updates.
 // For instance, when a file is logrotated, its tailer will keep tailing the rotated file.
 // The Scanner needs to stop that previous tailer, and start a new one for the new file.
 func (s *Launcher) scan() {
