@@ -90,6 +90,7 @@ func TestGetInstanceIdentity(t *testing.T) {
 	require.Nil(t, err)
 	assert.Equal(t, "us-east-1", val.Region)
 	assert.Equal(t, "i-aaaaaaaaaaaaaaaaa", val.InstanceID)
+	assert.Equal(t, "REMOVED", val.AccountID)
 }
 
 func TestFetchEc2TagsFromIMDS(t *testing.T) {

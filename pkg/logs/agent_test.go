@@ -25,6 +25,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
@@ -81,7 +82,7 @@ func createAgent(endpoints *config.Endpoints) (*Agent, *sources.LogSources, *ser
 	services := service.NewServices()
 
 	// setup and start the agent
-	agent = NewAgent(sources, services, nil, endpoints)
+	agent = NewAgent(sources, services, tailers.NewTailerTracker(), nil, endpoints)
 	return agent, sources, services
 }
 
