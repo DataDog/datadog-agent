@@ -310,10 +310,10 @@ def ninja_cgo_type_files(nw, windows):
     else:
         go_platform = "linux"
         def_files = {
-            "pkg/network/ebpf/conntrack_types.go": ["pkg/network/ebpf/c/conntrack-types.h"],
-            "pkg/network/ebpf/tuple_types.go": ["pkg/network/ebpf/c/tracer.h"],
+            "pkg/network/ebpf/conntrack_types.go": ["pkg/network/ebpf/c/conntrack/types.h"],
+            "pkg/network/ebpf/tuple_types.go": ["pkg/network/ebpf/c/tracer/tracer.h"],
             "pkg/network/ebpf/kprobe_types.go": [
-                "pkg/network/ebpf/c/tracer.h",
+                "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/tcp_states.h",
                 "pkg/network/ebpf/c/prebuilt/offset-guess.h",
                 "pkg/network/ebpf/c/protocols/classification/defs.h",
@@ -322,17 +322,17 @@ def ninja_cgo_type_files(nw, windows):
                 "pkg/network/ebpf/c/protocols/tls/go-tls-types.h",
             ],
             "pkg/network/protocols/http/http_types.go": [
-                "pkg/network/ebpf/c/tracer.h",
+                "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/tls/tags-types.h",
                 "pkg/network/ebpf/c/protocols/http/types.h",
                 "pkg/network/ebpf/c/protocols/classification/defs.h",
             ],
             "pkg/network/protocols/http/http2_types.go": [
-                "pkg/network/ebpf/c/tracer.h",
+                "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/http2/decoding-defs.h",
             ],
             "pkg/network/protocols/kafka/kafka_types.go": [
-                "pkg/network/ebpf/c/tracer.h",
+                "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/kafka/types.h",
             ],
             "pkg/network/telemetry/telemetry_types.go": [
