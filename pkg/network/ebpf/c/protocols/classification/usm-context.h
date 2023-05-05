@@ -33,6 +33,15 @@ typedef struct {
 // requires us to read at offset that are not aligned. Such reads are forbidden
 // if done on the stack and will make the verifier complain about it, but they
 // are allowed on map elements, hence the need for this map.
+//
+// Why do we have 2 map entries per CPU?
+// This has to do with the way socket-filters are executed.
+//
+// It's possible for a socket-filter program to be preempted by a softirq and
+// replaced by another program from the *opposite* network direction. In other
+// words, there is a chance that ingress and egress packets can be processed
+// concurrently on the same CPU, which is why have a dedicated per CPU map entry
+// for each direction in order to avoid data corruption.
 BPF_PERCPU_ARRAY_MAP(classification_buf, __u32, usm_context_t, 2)
 #else
 BPF_ARRAY_MAP(classification_buf, __u8, 1)
