@@ -1,8 +1,9 @@
-#ifndef __TRACER_BPF_H
-#define __TRACER_BPF_H
+#ifndef __TRACER_TRACER_H
+#define __TRACER_TRACER_H
 
 #include "ktypes.h"
 
+#include "conn_tuple.h"
 #include "protocols/classification/defs.h"
 
 #define bool _Bool
@@ -55,35 +56,6 @@ typedef enum
     CONN_ASSURED = 1 << 2 // "3-way handshake" complete, i.e. response to initial reply sent
 } conn_flags_t;
 
-// Metadata bit masks
-// 0 << x is only for readability
-typedef enum
-{
-    // Connection type
-    CONN_TYPE_UDP = 0,
-    CONN_TYPE_TCP = 1,
-
-    // Connection family
-    CONN_V4 = 0 << 1,
-    CONN_V6 = 1 << 1,
-} metadata_mask_t;
-
-typedef struct {
-    /* Using the type unsigned __int128 generates an error in the ebpf verifier */
-    __u64 saddr_h;
-    __u64 saddr_l;
-    __u64 daddr_h;
-    __u64 daddr_l;
-    __u16 sport;
-    __u16 dport;
-    __u32 netns;
-    __u32 pid;
-    // Metadata description:
-    // First bit indicates if the connection is TCP (1) or UDP (0)
-    // Second bit indicates if the connection is V6 (1) or V4 (0)
-    __u32 metadata; // This is that big because it seems that we atleast need a 32-bit aligned struct
-} conn_tuple_t;
-
 typedef struct {
     __u32 retransmits;
     __u32 rtt;
@@ -99,24 +71,6 @@ typedef struct {
     conn_stats_ts_t conn_stats;
     tcp_stats_t tcp_stats;
 } conn_t;
-
-// From include/net/tcp.h
-// tcp_flag_byte(th) (((u_int8_t *)th)[13])
-#define TCP_FLAGS_OFFSET 13
-#define TCPHDR_FIN 0x01
-#define TCPHDR_RST 0x04
-#define TCPHDR_ACK 0x10
-
-// skb_info_t embeds a conn_tuple_t extracted from the skb object as well as
-// some ancillary data such as the data offset (the byte offset pointing to
-// where the application payload begins) and the TCP flags if applicable.
-// This struct is populated by calling `read_conn_tuple_skb` from a program type
-// that manipulates a `__sk_buff` object.
-typedef struct {
-    __u32 data_off;
-    __u32 tcp_seq;
-    __u8 tcp_flags;
-} skb_info_t;
 
 // Must match the number of conn_t objects embedded in the batch_t struct
 #ifndef CONN_CLOSED_BATCH_SIZE
@@ -166,11 +120,6 @@ typedef struct {
     struct sock *sk;
     struct msghdr *msg;
 } udp_recv_sock_t;
-
-typedef struct {
-    __u32 pid;
-    __u32 fd;
-} pid_fd_t;
 
 typedef struct {
     struct sock *sk;

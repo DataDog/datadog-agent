@@ -1,7 +1,7 @@
 #ifndef __PROTOCOL_CLASSIFICATION_TRACER_MAPS_H
 #define __PROTOCOL_CLASSIFICATION_TRACER_MAPS_H
 
-#include "tracer.h"
+#include "conn_tuple.h"
 #include "map-defs.h"
 
 #include "protocols/classification/shared-tracer-maps.h"

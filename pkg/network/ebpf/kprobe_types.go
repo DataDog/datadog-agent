@@ -9,7 +9,8 @@
 package ebpf
 
 /*
-#include "./c/tracer.h"
+#include "./c/pid_fd.h"
+#include "./c/tracer/tracer.h"
 #include "./c/tcp_states.h"
 #include "./c/prebuilt/offset-guess.h"
 #include "./c/protocols/classification/defs.h"

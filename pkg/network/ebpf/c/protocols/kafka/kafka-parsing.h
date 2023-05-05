@@ -3,7 +3,6 @@
 
 #include "bpf_builtins.h"
 #include "bpf_telemetry.h"
-#include "tracer.h"
 #include "protocols/kafka/types.h"
 #include "protocols/kafka/parsing-maps.h"
 #include "protocols/kafka/usm-events.h"
