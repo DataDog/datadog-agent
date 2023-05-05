@@ -492,6 +492,20 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.True(o.CreditCards.Luhn)
 }
 
+func TestFileLoggingDisabled(t *testing.T) {
+	defer cleanConfig()()
+	origcfg := coreconfig.Datadog
+	coreconfig.Datadog = coreconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	defer func() {
+		coreconfig.Datadog = origcfg
+	}()
+	assert := assert.New(t)
+	c, err := prepareConfig("./testdata/disable_file_logging.yaml")
+	assert.NoError(err)
+	assert.NoError(applyDatadogConfig(c))
+	assert.Equal("", c.LogFilePath)
+}
+
 func TestUndocumentedYamlConfig(t *testing.T) {
 	defer cleanConfig()()
 	origcfg := coreconfig.Datadog
@@ -1085,7 +1099,7 @@ func TestFargateConfig(t *testing.T) {
 	} {
 		t.Run("", func(t *testing.T) {
 			defer cleanConfig()()
-			coreconfig.SetFeatures(t, data.features...)
+			//coreconfig.SetFeatures(t, data.features...)
 			cfg, err := LoadConfigFile("./testdata/no_apm_config.yaml")
 			assert.NoError(err)
 

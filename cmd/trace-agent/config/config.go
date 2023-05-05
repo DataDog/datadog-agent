@@ -71,13 +71,15 @@ func LoadConfigFile(path string) (*config.AgentConfig, error) {
 
 func prepareConfig(path string) (*config.AgentConfig, error) {
 	cfg := config.New()
-	cfg.LogFilePath = DefaultLogFilePath
 	cfg.DDAgentBin = defaultDDAgentBin
 	cfg.AgentVersion = version.AgentVersion
 	cfg.GitCommit = version.Commit
 	coreconfig.Datadog.SetConfigFile(path)
 	if _, err := coreconfig.Load(); err != nil {
 		return cfg, err
+	}
+	if !coreconfig.Datadog.GetBool("disable_file_logging") {
+		cfg.LogFilePath = DefaultLogFilePath
 	}
 	orch := fargate.GetOrchestrator() // Needs to be after loading config, because it relies on feature auto-detection
 	cfg.FargateOrchestrator = config.FargateOrchestratorName(orch)
@@ -173,7 +175,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	if coreconfig.Datadog.IsSet("apm_config.enabled") {
 		c.Enabled = coreconfig.Datadog.GetBool("apm_config.enabled")
 	}
-	if coreconfig.Datadog.IsSet("apm_config.log_file") {
+	if coreconfig.Datadog.IsSet("apm_config.log_file") && !coreconfig.Datadog.GetBool("disable_file_logging") {
 		c.LogFilePath = coreconfig.Datadog.GetString("apm_config.log_file")
 	}
 

@@ -199,7 +199,7 @@ func (w *TraceWriter) addSpans(pkg *SampledChunks) {
 		w.flush()
 	}
 	if len(pkg.TracerPayload.Chunks) > 0 {
-		log.Tracef("Handling new tracer payload with %d spans: %v", pkg.SpanCount, pkg.TracerPayload)
+		log.Tracef("Writer: handling new tracer payload with %d spans: %v", pkg.SpanCount, pkg.TracerPayload)
 		w.tracerPayloads = append(w.tracerPayloads, pkg.TracerPayload)
 	}
 	w.bufferedSize += size
