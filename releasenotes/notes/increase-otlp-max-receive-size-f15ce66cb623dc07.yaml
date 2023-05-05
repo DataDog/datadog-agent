@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Adds new configuration option for maximum receive message size for the OTLP gRPC endpoint. This can be configured with max_recv_msg_size_mib in the Agent config, or through the DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_MAX_RECV_MSG_SIZE_MIB environment variable.
+fixes:
+  - |
+    Fixes issue where trace data drops in OTLP ingest by increasing the default gRPC message limit to 10 MB.
