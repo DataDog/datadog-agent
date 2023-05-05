@@ -199,6 +199,7 @@ func (m *Monitor) ProcessEvent(event *model.Event) {
 			m.probe.DispatchCustomEvent(
 				NewAbnormalEvent(events.AbnormalPathRuleID, event, m.probe, pathErr.Err),
 			)
+			return
 		}
 
 		var processErr *ErrProcessContext
@@ -206,13 +207,8 @@ func (m *Monitor) ProcessEvent(event *model.Event) {
 			m.probe.DispatchCustomEvent(
 				NewAbnormalEvent(events.ProcessContextErrorRuleID, event, m.probe, event.Error),
 			)
+			return
 		}
-
-		return
-	}
-
-	if m.activityDumpManager != nil {
-		m.activityDumpManager.ProcessEvent(event)
 	}
 }
 

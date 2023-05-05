@@ -385,10 +385,13 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 		handler.HandleEvent(event)
 	}
 
+	p.monitor.ProcessEvent(event)
+
 	// handle anomaly detection, if not an anomaly let it pass to the process monitor so that it can be added to a dump
-	if !p.handleAnomalyDetection(event) {
-		// Process after evaluation because some monitors need the DentryResolver to have been called first.
-		p.monitor.ProcessEvent(event)
+	if event.Error == nil && !p.handleAnomalyDetection(event) {
+		if p.monitor.activityDumpManager != nil {
+			p.monitor.activityDumpManager.ProcessEvent(event)
+		}
 	}
 }
 
