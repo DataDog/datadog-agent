@@ -41,17 +41,23 @@ static __always_inline void classification_next_program(struct __sk_buff *skb, u
     bpf_tail_call_compat(skb, &classification_progs, next_program);
 }
 
+// init_routing_cache is executed once per packet, at the socket filter entrypoint.
+// the information loaded here is persisted throughout multiple bpf tail-calls and
+// it's used for the purposes of figuring out which BPF program to execute next.
 static __always_inline void init_routing_cache(usm_context_t *usm_ctx, protocol_stack_t *stack) {
     usm_ctx->routing_skip_layers = 0;
     usm_ctx->routing_current_program = CLASSIFICATION_PROG_UNKNOWN;
 
-    if (stack->layer_application || is_empty_program_layer(__PROG_APPLICATION)) {
+    // We skip a given layer in two cases:
+    // 1) If the protocol for that layer is known
+    // 2) If there are no programs registered for that layer
+    if (stack->layer_application || is_application_layer_empty()) {
         usm_ctx->routing_skip_layers |= LAYER_APPLICATION_BIT;
     }
-    if (stack->layer_api || is_empty_program_layer(__PROG_API)) {
+    if (stack->layer_api || is_api_layer_empty()) {
         usm_ctx->routing_skip_layers |= LAYER_API_BIT;
     }
-    if (stack->layer_encryption || is_empty_program_layer(__PROG_ENCRYPTION)) {
+    if (stack->layer_encryption || is_encryption_layer_empty()) {
         usm_ctx->routing_skip_layers |= LAYER_ENCRYPTION_BIT;
     }
 }

@@ -8,14 +8,42 @@ static __always_inline bool is_last_program_from_layer(classification_prog_t cur
     classification_prog_t next_program = current_program+1;
     if (next_program == __PROG_APPLICATION ||
         next_program == __PROG_API ||
-        next_program == __PROG_ENCRYPTION) {
+        next_program == __PROG_ENCRYPTION ||
+        next_program == CLASSIFICATION_PROG_MAX) {
         return true;
     }
 
     return false;
 }
 
+// The following macros return true in case where no BPF programs are registered for
+// a given layer or false otherwise.
+#define is_application_layer_empty() is_last_program_from_layer(__PROG_APPLICATION)
+#define is_api_layer_empty() is_last_program_from_layer(__PROG_API)
+#define is_encryption_layer_empty() is_last_program_from_layer(__PROG_ENCRYPTION)
+
 #pragma clang diagnostic push
+// The following check is ignored because *currently* there are no API or
+// Encryption classification programs registerd.
+// Therefore the enum containing all BPF programs looks like the following:
+//
+// typedef enum {
+//     CLASSIFICATION_PROG_UNKNOWN = 0,
+//     __PROG_APPLICATION,
+//     APPLICATION_PROG_A
+//     APPLICATION_PROG_B
+//     APPLICATION_PROG_C
+//     ...
+//     __PROG_API,
+//     // No programs here
+//     __PROG_ENCRYPTION,
+//     // No programs here
+//     CLASSIFICATION_PROG_MAX,
+// } classification_prog_t;
+//
+// Which means that the following conditionals will always evaluate to false:
+// a) current_program > __PROG_API && current_program < __PROG_ENCRYPTION
+// b) current_program > __PROG_ENCRYPTION && current_program < CLASSIFICATION_PROG_MAX
 #pragma clang diagnostic ignored "-Wtautological-overlap-compare"
 static __always_inline u16 get_current_program_layer(classification_prog_t current_program) {
     if (current_program > __PROG_APPLICATION && current_program < __PROG_API) {
@@ -48,16 +76,6 @@ static __always_inline classification_prog_t next_layer_entrypoint(usm_context_t
     }
 
     return CLASSIFICATION_PROG_UNKNOWN;
-}
-
-// empty_program_layer returns true in no programs are definied in the
-// classification_prog_t enum for a particular layer
-// The `layer_delimiter` argument to this function should be one of the following 3:
-// 1) __PROG_APPLICATION
-// 2) __PROG_API
-// 3) __PROG_ENCRYPTION
-static __always_inline bool is_empty_program_layer(classification_prog_t layer_delimiter) {
-    return is_last_program_from_layer(layer_delimiter) || (layer_delimiter+1) == CLASSIFICATION_PROG_MAX;
 }
 
 #endif
