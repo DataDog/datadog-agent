@@ -36,6 +36,18 @@ int socket__classifier_dbs(struct __sk_buff *skb) {
     return 0;
 }
 
+static __always_inline __u32 systemprobe_dev() {
+    __u64 val = 0;
+    LOAD_CONSTANT("systemprobe_device", val);
+    return (__u32)val;
+}
+
+static __always_inline __u32 systemprobe_ino() {
+    __u64 val = 0;
+    LOAD_CONSTANT("systemprobe_ino", val);
+    return (__u32)val;
+}
+
 SEC("kprobe/tcp_sendmsg")
 int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -45,6 +57,17 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
 #else
     struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
 #endif
+
+    __u32 dev = systemprobe_dev();
+    __u32 ino = systemprobe_ino();
+    struct bpf_pidns_info ns = {};
+
+    u64 error = bpf_get_ns_current_pid_tgid(dev, ino, &ns, sizeof(struct bpf_pidns_info));
+
+    if (error) {
+        log_debug("adamk pid ns check FAILED, ns: %d", ns.pid);
+    }
+    log_debug("adamk pid ns check SUCCESS, ns: %d", ns.pid);
     log_debug("kprobe/tcp_sendmsg: pid_tgid: %d, sock: %llx\n", pid_tgid, skp);
     bpf_map_update_with_telemetry(tcp_sendmsg_args, &pid_tgid, &skp, BPF_ANY);
     return 0;
