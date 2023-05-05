@@ -43,7 +43,7 @@ type TestEnv struct {
 	StackOutput      auto.UpResult
 }
 
-const SSHKeyName = "datadog-agent-kitchen"
+const SSHKeyName = "ssh_key"
 
 var (
 	CustomAMIWorkingDir = filepath.Join("/", "home", "kernel-version-testing")
