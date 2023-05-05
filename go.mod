@@ -99,7 +99,7 @@ require (
 	github.com/cri-o/ocicni v0.4.0
 	github.com/cyphar/filepath-securejoin v0.2.3
 	github.com/davecgh/go-spew v1.1.1
-	github.com/docker/docker v23.0.0-rc.1+incompatible
+	github.com/docker/docker v23.0.5+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/dustin/go-humanize v1.0.1
 	github.com/elastic/go-libaudit v0.4.0
@@ -194,7 +194,7 @@ require (
 	github.com/xeipuuv/gojsonschema v1.2.0
 	go.etcd.io/bbolt v1.3.6
 	go.etcd.io/etcd/client/v2 v2.306.0-alpha.0
-	go.mongodb.org/mongo-driver v1.11.3
+	go.mongodb.org/mongo-driver v1.11.4
 	go.opentelemetry.io/collector v0.75.0
 	go.opentelemetry.io/collector/component v0.75.0
 	go.opentelemetry.io/collector/confmap v0.75.0
@@ -590,7 +590,7 @@ replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211
 replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
 
 // Remove once the issue https://github.com/microsoft/Windows-Containers/issues/72 is resolved
-replace github.com/golang/glog v1.0.0 => github.com/paulcacheux/glog v1.0.1-0.20211019114809-ec0f43a655b9
+replace github.com/golang/glog v1.0.0 => github.com/DataDog/glog v1.0.1-0.20211019114809-ec0f43a655b9
 
 replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20220504230202-f7323aba1f6c
 

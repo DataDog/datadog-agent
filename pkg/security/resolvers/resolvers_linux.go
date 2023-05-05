@@ -226,12 +226,14 @@ func (r *Resolvers) snapshot() error {
 			continue
 		}
 
-		if process.IsKThread(uint32(ppid), uint32(proc.Pid)) {
+		pid := uint32(proc.Pid)
+
+		if process.IsKThread(uint32(ppid), pid) {
 			continue
 		}
 
 		// Start with the mount resolver because the process resolver might need it to resolve paths
-		if err = r.MountResolver.SyncCache(uint32(proc.Pid)); err != nil {
+		if err = r.MountResolver.SyncCache(pid); err != nil {
 			if !os.IsNotExist(err) {
 				log.Debugf("snapshot failed for %d: couldn't sync mount points: %s", proc.Pid, err)
 			}
@@ -241,7 +243,7 @@ func (r *Resolvers) snapshot() error {
 		r.ProcessResolver.SyncCache(proc)
 
 		// Sync the namespace cache
-		r.NamespaceResolver.SyncCache(proc)
+		r.NamespaceResolver.SyncCache(pid)
 	}
 
 	return nil

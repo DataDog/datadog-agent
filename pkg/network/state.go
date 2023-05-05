@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
+	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -22,6 +23,31 @@ import (
 var (
 	_ State = &networkState{}
 )
+
+// Telemetry
+var stateTelemetry = struct {
+	closedConnDropped     *nettelemetry.StatCounterWrapper
+	connDropped           *nettelemetry.StatCounterWrapper
+	statsUnderflows       *nettelemetry.StatCounterWrapper
+	statsCookieCollisions *nettelemetry.StatCounterWrapper
+	timeSyncCollisions    *nettelemetry.StatCounterWrapper
+	dnsStatsDropped       *nettelemetry.StatCounterWrapper
+	httpStatsDropped      *nettelemetry.StatCounterWrapper
+	http2StatsDropped     *nettelemetry.StatCounterWrapper
+	kafkaStatsDropped     *nettelemetry.StatCounterWrapper
+	dnsPidCollisions      *nettelemetry.StatCounterWrapper
+}{
+	nettelemetry.NewStatCounterWrapper(stateModuleName, "closed_conn_dropped", []string{}, "Counter measuring the number of dropped closed connections"),
+	nettelemetry.NewStatCounterWrapper(stateModuleName, "conn_dropped", []string{}, "Counter measuring the number of closed connections"),
+	nettelemetry.NewStatCounterWrapper(stateModuleName, "stats_underflows", []string{}, "Counter measuring the number of stats underflows"),
+	nettelemetry.NewStatCounterWrapper(stateModuleName, "stats_cookie_collisions", []string{}, "Counter measuring the number of stats cookie collisions"),
+	nettelemetry.NewStatCounterWrapper(stateModuleName, "time_sync_collisions", []string{}, "Counter measuring the number of time sync collisions"),
+	nettelemetry.NewStatCounterWrapper(stateModuleName, "dns_stats_dropped", []string{}, "Counter measuring the number of DNS stats dropped"),
+	nettelemetry.NewStatCounterWrapper(stateModuleName, "http_stats_dropped", []string{}, "Counter measuring the number of http stats dropped"),
+	nettelemetry.NewStatCounterWrapper(stateModuleName, "http2_stats_dropped", []string{}, "Counter measuring the number of http2 stats dropped"),
+	nettelemetry.NewStatCounterWrapper(stateModuleName, "kafka_stats_dropped", []string{}, "Counter measuring the number of kafka stats dropped"),
+	nettelemetry.NewStatCounterWrapper(stateModuleName, "dns_pid_collisions", []string{}, "Counter measuring the number of DNS PID collisions"),
+}
 
 const (
 	// DEBUGCLIENT is the ClientID for debugging
@@ -34,6 +60,8 @@ const (
 
 	// ConnectionByteKeyMaxLen represents the maximum size in bytes of a connection byte key
 	ConnectionByteKeyMaxLen = 41
+
+	stateModuleName = "network_tracer__state"
 )
 
 // State takes care of handling the logic for:
@@ -89,7 +117,7 @@ type Delta struct {
 	DNSStats dns.StatsByKeyByNameByType
 }
 
-type telemetry struct {
+type lastStateTelemetry struct {
 	closedConnDropped     int64
 	connDropped           int64
 	statsUnderflows       int64
@@ -149,8 +177,7 @@ type networkState struct {
 
 	// clients is a map of the connection id string to the client structure
 	clients       map[string]*client
-	telemetry     telemetry // Monotonic state telemetry
-	lastTelemetry telemetry // Old telemetry state; used for logging
+	lastTelemetry lastStateTelemetry // Old telemetry state; used for logging
 
 	latestTimeEpoch uint64
 
@@ -161,19 +188,24 @@ type networkState struct {
 	maxDNSStats    int
 	maxHTTPStats   int
 	maxKafkaStats  int
+
+	mergeStatsBuffers [2][]byte
 }
 
 // NewState creates a new network state
 func NewState(clientExpiry time.Duration, maxClosedConns, maxClientStats int, maxDNSStats int, maxHTTPStats int, maxKafkaStats int) State {
 	return &networkState{
 		clients:        map[string]*client{},
-		telemetry:      telemetry{},
 		clientExpiry:   clientExpiry,
 		maxClosedConns: maxClosedConns,
 		maxClientStats: maxClientStats,
 		maxDNSStats:    maxDNSStats,
 		maxHTTPStats:   maxHTTPStats,
 		maxKafkaStats:  maxKafkaStats,
+		mergeStatsBuffers: [2][]byte{
+			make([]byte, ConnectionByteKeyMaxLen),
+			make([]byte, ConnectionByteKeyMaxLen),
+		},
 	}
 }
 
@@ -299,21 +331,20 @@ func (ns *networkState) getTelemetryDelta(id string, telemetry map[ConnTelemetry
 }
 
 func (ns *networkState) logTelemetry() {
-	delta := telemetry{
-		closedConnDropped:     ns.telemetry.closedConnDropped - ns.lastTelemetry.closedConnDropped,
-		connDropped:           ns.telemetry.connDropped - ns.lastTelemetry.connDropped,
-		statsUnderflows:       ns.telemetry.statsUnderflows - ns.lastTelemetry.statsUnderflows,
-		statsCookieCollisions: ns.telemetry.statsCookieCollisions - ns.lastTelemetry.statsCookieCollisions,
-		timeSyncCollisions:    ns.telemetry.timeSyncCollisions - ns.lastTelemetry.timeSyncCollisions,
-		dnsStatsDropped:       ns.telemetry.dnsStatsDropped - ns.lastTelemetry.dnsStatsDropped,
-		httpStatsDropped:      ns.telemetry.httpStatsDropped - ns.lastTelemetry.httpStatsDropped,
-		http2StatsDropped:     ns.telemetry.http2StatsDropped - ns.lastTelemetry.http2StatsDropped,
-		dnsPidCollisions:      ns.telemetry.dnsPidCollisions - ns.lastTelemetry.dnsPidCollisions,
-	}
+	closedConnDroppedDelta := stateTelemetry.closedConnDropped.Load() - ns.lastTelemetry.closedConnDropped
+	connDroppedDelta := stateTelemetry.connDropped.Load() - ns.lastTelemetry.connDropped
+	statsUnderflowsDelta := stateTelemetry.statsUnderflows.Load() - ns.lastTelemetry.statsUnderflows
+	statsCookieCollisionsDelta := stateTelemetry.statsCookieCollisions.Load() - ns.lastTelemetry.statsCookieCollisions
+	timeSyncCollisionsDelta := stateTelemetry.timeSyncCollisions.Load() - ns.lastTelemetry.timeSyncCollisions
+	dnsStatsDroppedDelta := stateTelemetry.dnsStatsDropped.Load() - ns.lastTelemetry.dnsStatsDropped
+	httpStatsDroppedDelta := stateTelemetry.httpStatsDropped.Load() - ns.lastTelemetry.httpStatsDropped
+	http2StatsDroppedDelta := stateTelemetry.http2StatsDropped.Load() - ns.lastTelemetry.http2StatsDropped
+	kafkaStatsDroppedDelta := stateTelemetry.kafkaStatsDropped.Load() - ns.lastTelemetry.kafkaStatsDropped
+	dnsPidCollisionsDelta := stateTelemetry.dnsPidCollisions.Load() - ns.lastTelemetry.dnsPidCollisions
 
 	// Flush log line if any metric is non-zero
-	if delta.statsUnderflows > 0 || delta.statsCookieCollisions > 0 || delta.closedConnDropped > 0 || delta.connDropped > 0 || delta.timeSyncCollisions > 0 ||
-		delta.dnsStatsDropped > 0 || delta.httpStatsDropped > 0 || delta.dnsPidCollisions > 0 || delta.http2StatsDropped > 0 {
+	if statsUnderflowsDelta > 0 || statsCookieCollisionsDelta > 0 || closedConnDroppedDelta > 0 || connDroppedDelta > 0 || timeSyncCollisionsDelta > 0 ||
+		dnsStatsDroppedDelta > 0 || httpStatsDroppedDelta > 0 || http2StatsDroppedDelta > 0 || kafkaStatsDroppedDelta > 0 || dnsPidCollisionsDelta > 0 {
 		s := "state telemetry: "
 		s += " [%d stats stats_underflows]"
 		s += " [%d stats cookie collisions]"
@@ -322,21 +353,32 @@ func (ns *networkState) logTelemetry() {
 		s += " [%d dns stats dropped]"
 		s += " [%d HTTP stats dropped]"
 		s += " [%d HTTP2 stats dropped]"
+		s += " [%d Kafka stats dropped]"
 		s += " [%d DNS pid collisions]"
 		s += " [%d time sync collisions]"
 		log.Warnf(s,
-			delta.statsUnderflows,
-			delta.statsCookieCollisions,
-			delta.connDropped,
-			delta.closedConnDropped,
-			delta.dnsStatsDropped,
-			delta.httpStatsDropped,
-			delta.http2StatsDropped,
-			delta.dnsPidCollisions,
-			delta.timeSyncCollisions)
+			statsUnderflowsDelta,
+			statsCookieCollisionsDelta,
+			connDroppedDelta,
+			closedConnDroppedDelta,
+			dnsStatsDroppedDelta,
+			httpStatsDroppedDelta,
+			http2StatsDroppedDelta,
+			kafkaStatsDroppedDelta,
+			dnsPidCollisionsDelta,
+			timeSyncCollisionsDelta)
 	}
 
-	ns.lastTelemetry = ns.telemetry
+	ns.lastTelemetry.closedConnDropped = stateTelemetry.closedConnDropped.Load()
+	ns.lastTelemetry.connDropped = stateTelemetry.connDropped.Load()
+	ns.lastTelemetry.statsUnderflows = stateTelemetry.statsUnderflows.Load()
+	ns.lastTelemetry.statsCookieCollisions = stateTelemetry.statsCookieCollisions.Load()
+	ns.lastTelemetry.timeSyncCollisions = stateTelemetry.timeSyncCollisions.Load()
+	ns.lastTelemetry.dnsStatsDropped = stateTelemetry.dnsStatsDropped.Load()
+	ns.lastTelemetry.httpStatsDropped = stateTelemetry.httpStatsDropped.Load()
+	ns.lastTelemetry.http2StatsDropped = stateTelemetry.http2StatsDropped.Load()
+	ns.lastTelemetry.kafkaStatsDropped = stateTelemetry.kafkaStatsDropped.Load()
+	ns.lastTelemetry.dnsPidCollisions = stateTelemetry.dnsPidCollisions.Load()
 }
 
 // RegisterClient registers a client before it first gets stream of data.
@@ -366,9 +408,9 @@ func (ns *networkState) getConnsByCookie(conns []ConnectionStats) map[uint32]*Co
 			return fmt.Sprintf("duplicate connection in collection: cookie: %d, c1: %+v, c2: %+v", c.Cookie, *c, conns[i])
 		})
 
-		if mergeConnectionStats(c, &conns[i]) {
+		if ns.mergeConnectionStats(c, &conns[i]) {
 			// cookie collision
-			ns.telemetry.statsCookieCollisions++
+			stateTelemetry.statsCookieCollisions.Inc()
 		}
 	}
 
@@ -387,14 +429,14 @@ func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
 	for _, client := range ns.clients {
 		for _, c := range conns {
 			if i, ok := client.closedConnectionsKeys[c.Cookie]; ok {
-				if mergeConnectionStats(&client.closedConnections[i], &c) {
-					ns.telemetry.statsCookieCollisions++
+				if ns.mergeConnectionStats(&client.closedConnections[i], &c) {
+					stateTelemetry.statsCookieCollisions.Inc()
 				}
 				continue
 			}
 
 			if len(client.closedConnections) >= ns.maxClosedConns {
-				ns.telemetry.closedConnDropped++
+				stateTelemetry.closedConnDropped.Inc()
 				continue
 			}
 
@@ -434,14 +476,14 @@ func (ns *networkState) storeDNSStats(stats dns.StatsByKeyByNameByType) {
 
 					if _, ok := client.dnsStats[key]; !ok {
 						if dnsStatsThisClient >= ns.maxDNSStats {
-							ns.telemetry.dnsStatsDropped++
+							stateTelemetry.dnsStatsDropped.Inc()
 							continue
 						}
 						client.dnsStats[key] = make(map[dns.Hostname]map[dns.QueryType]dns.Stats)
 					}
 					if _, ok := client.dnsStats[key][domain]; !ok {
 						if dnsStatsThisClient >= ns.maxDNSStats {
-							ns.telemetry.dnsStatsDropped++
+							stateTelemetry.dnsStatsDropped.Inc()
 							continue
 						}
 						client.dnsStats[key][domain] = make(map[dns.QueryType]dns.Stats)
@@ -458,7 +500,7 @@ func (ns *networkState) storeDNSStats(stats dns.StatsByKeyByNameByType) {
 						client.dnsStats[key][domain][qtype] = prev
 					} else {
 						if dnsStatsThisClient >= ns.maxDNSStats {
-							ns.telemetry.dnsStatsDropped++
+							stateTelemetry.dnsStatsDropped.Inc()
 							continue
 						}
 						client.dnsStats[key][domain][qtype] = dnsStats
@@ -487,7 +529,7 @@ func (ns *networkState) storeHTTPStats(allStats map[http.Key]*http.RequestStats)
 		for _, client := range ns.clients {
 			prevStats, ok := client.httpStatsDelta[key]
 			if !ok && len(client.httpStatsDelta) >= ns.maxHTTPStats {
-				ns.telemetry.httpStatsDropped++
+				stateTelemetry.httpStatsDropped.Inc()
 				continue
 			}
 
@@ -518,7 +560,7 @@ func (ns *networkState) storeHTTP2Stats(allStats map[http.Key]*http.RequestStats
 			prevStats, ok := client.http2StatsDelta[key]
 			// Currently, we are using maxHTTPStats for HTTP2.
 			if !ok && len(client.http2StatsDelta) >= ns.maxHTTPStats {
-				ns.telemetry.http2StatsDropped++
+				stateTelemetry.http2StatsDropped.Inc()
 				continue
 			}
 
@@ -549,7 +591,7 @@ func (ns *networkState) storeKafkaStats(allStats map[kafka.Key]*kafka.RequestSta
 		for _, client := range ns.clients {
 			prevStats, ok := client.kafkaStatsDelta[key]
 			if !ok && len(client.kafkaStatsDelta) >= ns.maxKafkaStats {
-				ns.telemetry.kafkaStatsDropped++
+				stateTelemetry.kafkaStatsDropped.Inc()
 				continue
 			}
 
@@ -597,8 +639,8 @@ func (ns *networkState) mergeConnections(id string, active map[uint32]*Connectio
 		closedConn := &closed[i]
 		cookie := closedConn.Cookie
 		if activeConn := active[cookie]; activeConn != nil {
-			if mergeConnectionStats(closedConn, activeConn) {
-				ns.telemetry.statsCookieCollisions++
+			if ns.mergeConnectionStats(closedConn, activeConn) {
+				stateTelemetry.statsCookieCollisions.Inc()
 			}
 			// not an active connection
 			delete(active, cookie)
@@ -641,7 +683,7 @@ func (ns *networkState) updateConnWithStats(client *client, cookie uint32, c *Co
 		var last StatCounters
 		var underflow bool
 		if last, underflow = c.Monotonic.Sub(sts); underflow {
-			ns.telemetry.statsUnderflows++
+			stateTelemetry.statsUnderflows.Inc()
 			log.DebugFunc(func() string {
 				return fmt.Sprintf("Stats underflow for cookie:%d, stats counters:%+v, connection counters:%+v", c.Cookie, sts, c.Monotonic)
 			})
@@ -661,7 +703,7 @@ func (ns *networkState) updateConnWithStats(client *client, cookie uint32, c *Co
 func (ns *networkState) createStatsForCookie(client *client, cookie uint32) {
 	if _, ok := client.stats[cookie]; !ok {
 		if len(client.stats) >= ns.maxClientStats {
-			ns.telemetry.connDropped++
+			stateTelemetry.connDropped.Inc()
 			return
 		}
 
@@ -717,15 +759,9 @@ func (ns *networkState) GetStats() map[string]interface{} {
 	return map[string]interface{}{
 		"clients": clientInfo,
 		"telemetry": map[string]int64{
-			"stats_underflows":        ns.telemetry.statsUnderflows,
-			"stats_cookie_collisions": ns.telemetry.statsCookieCollisions,
-			"closed_conn_dropped":     ns.telemetry.closedConnDropped,
-			"conn_dropped":            ns.telemetry.connDropped,
-			"time_sync_collisions":    ns.telemetry.timeSyncCollisions,
-			"dns_stats_dropped":       ns.telemetry.dnsStatsDropped,
-			"http_stats_dropped":      ns.telemetry.httpStatsDropped,
-			"http2_stats_dropped":     ns.telemetry.http2StatsDropped,
-			"dns_pid_collisions":      ns.telemetry.dnsPidCollisions,
+			"closed_conn_dropped": stateTelemetry.closedConnDropped.Load(),
+			"conn_dropped":        stateTelemetry.connDropped.Load(),
+			"dns_stats_dropped":   stateTelemetry.dnsStatsDropped.Load(),
 		},
 		"current_time":       time.Now().Unix(),
 		"latest_bpf_time_ns": ns.latestTimeEpoch,
@@ -930,14 +966,12 @@ func (a connectionAggregator) WriteTo(buffer *clientBuffer) {
 	}
 }
 
-var mergeConnectionStatsBuffer = make([]byte, ConnectionByteKeyMaxLen)
-
-func mergeConnectionStats(a, b *ConnectionStats) (collision bool) {
+func (ns *networkState) mergeConnectionStats(a, b *ConnectionStats) (collision bool) {
 	if a.Cookie != b.Cookie {
 		return false
 	}
 
-	if bytes.Compare(a.ByteKey(mergeConnectionStatsBuffer), b.ByteKey(mergeConnectionStatsBuffer)) != 0 {
+	if bytes.Compare(a.ByteKey(ns.mergeStatsBuffers[0]), b.ByteKey(ns.mergeStatsBuffers[1])) != 0 {
 		// cookie collision
 		return true
 	}

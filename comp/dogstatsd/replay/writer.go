@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/zstd"
 	"github.com/spf13/afero"
 
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/proto/utils"
 	"github.com/DataDog/datadog-agent/pkg/tagger"

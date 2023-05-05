@@ -17,12 +17,11 @@ import (
 
 	"github.com/golang/groupcache/lru"
 	"github.com/vishvananda/netlink"
-	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -48,26 +47,53 @@ type routeCache struct {
 	cache  *lru.Cache
 	router Router
 	ttl    time.Duration
-
-	size    *atomic.Uint64 `stats:""`
-	misses  *atomic.Uint64 `stats:""`
-	lookups *atomic.Uint64 `stats:""`
-	expires *atomic.Uint64 `stats:""`
 }
 
-const defaultTTL = 2 * time.Minute
+const (
+	defaultTTL                    = 2 * time.Minute
+	routeCacheTelemetryModuleName = "network_tracer__gateway_lookup_route_cache"
+	routerTelemetryModuleName     = "network_tracer__gateway_lookup_route_cache_router"
+)
+
+var routeCacheTelemetry = struct {
+	size    telemetry.Gauge
+	misses  telemetry.Counter
+	lookups telemetry.Counter
+	expires telemetry.Counter
+
+	netlinkLookups telemetry.Counter
+	netlinkErrors  telemetry.Counter
+	netlinkMisses  telemetry.Counter
+
+	ifCacheLookups telemetry.Counter
+	ifCacheMisses  telemetry.Counter
+	ifCacheSize    telemetry.Counter
+	ifCacheErrors  telemetry.Counter
+}{
+	telemetry.NewGauge(routeCacheTelemetryModuleName, "size", []string{}, "Gauge measuring the size of the route cache"),
+	telemetry.NewCounter(routeCacheTelemetryModuleName, "misses", []string{}, "Counter measuring the number of route cache misses"),
+	telemetry.NewCounter(routeCacheTelemetryModuleName, "lookups", []string{}, "Counter measuring the number of route cache lookups"),
+	telemetry.NewCounter(routeCacheTelemetryModuleName, "expires", []string{}, "Counter measuring the number of route cache expirations"),
+
+	telemetry.NewCounter(routerTelemetryModuleName, "netlink_lookups", []string{}, "Counter measuring the number of netlink lookups"),
+	telemetry.NewCounter(routerTelemetryModuleName, "netlink_errors", []string{}, "Counter measuring the number of netlink errors"),
+	telemetry.NewCounter(routerTelemetryModuleName, "netlink_misses", []string{}, "Counter measuring the number of netlink misses"),
+
+	telemetry.NewCounter(routerTelemetryModuleName, "if_cache_lookups", []string{}, "Counter measuring the number of interface cache lookups"),
+	telemetry.NewCounter(routerTelemetryModuleName, "if_cache_misses", []string{}, "Counter measuring the number of interface cache misses"),
+	telemetry.NewCounter(routerTelemetryModuleName, "if_cache_size", []string{}, "Counter measuring the size of the interface cache"),
+	telemetry.NewCounter(routerTelemetryModuleName, "if_cache_errors", []string{}, "Counter measuring the number of interface cache errors"),
+}
 
 // RouteCache is the interface to a cache that stores routes for a given (source, destination, net ns) tuple
 type RouteCache interface {
 	Get(source, dest util.Address, netns uint32) (Route, bool)
-	GetStats() map[string]interface{}
 	Close()
 }
 
 // Router is an interface to get a route for a (source, destination, net ns) tuple
 type Router interface {
 	Route(source, dest util.Address, netns uint32) (Route, bool)
-	GetStats() map[string]interface{}
 	Close()
 }
 
@@ -86,11 +112,6 @@ func newRouteCache(size int, router Router, ttl time.Duration) *routeCache {
 		cache:  lru.New(size),
 		router: router,
 		ttl:    ttl,
-
-		size:    atomic.NewUint64(0),
-		misses:  atomic.NewUint64(0),
-		lookups: atomic.NewUint64(0),
-		expires: atomic.NewUint64(0),
 	}
 
 	return rc
@@ -108,18 +129,18 @@ func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) 
 	c.Lock()
 	defer c.Unlock()
 
-	c.lookups.Inc()
+	routeCacheTelemetry.lookups.Inc()
 	k := newRouteKey(source, dest, netns)
 	if entry, ok := c.cache.Get(k); ok {
 		if time.Now().Unix() < entry.(*routeTTL).eta {
 			return entry.(*routeTTL).entry, ok
 		}
 
-		c.expires.Inc()
+		routeCacheTelemetry.expires.Inc()
 		c.cache.Remove(k)
-		c.size.Dec()
+		routeCacheTelemetry.size.Dec()
 	} else {
-		c.misses.Inc()
+		routeCacheTelemetry.misses.Inc()
 	}
 
 	if r, ok := c.router.Route(source, dest, netns); ok {
@@ -129,17 +150,11 @@ func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) 
 		}
 
 		c.cache.Add(k, entry)
-		c.size.Inc()
+		routeCacheTelemetry.size.Inc()
 		return r, true
 	}
 
 	return Route{}, false
-}
-
-func (c *routeCache) GetStats() map[string]interface{} {
-	stats := atomicstats.Report(c)
-	stats["router"] = c.router.GetStats()
-	return stats
 }
 
 func newRouteKey(source, dest util.Address, netns uint32) routeKey {
@@ -169,15 +184,6 @@ type netlinkRouter struct {
 	ioctlFD  int
 	ifcache  *lru.Cache
 	nlHandle *netlink.Handle
-
-	netlinkLookups *atomic.Uint64 `stats:""`
-	netlinkErrors  *atomic.Uint64 `stats:""`
-	netlinkMisses  *atomic.Uint64 `stats:""`
-
-	ifCacheLookups *atomic.Uint64 `stats:""`
-	ifCacheMisses  *atomic.Uint64 `stats:""`
-	ifCacheSize    *atomic.Uint64 `stats:""`
-	ifCacheErrors  *atomic.Uint64 `stats:""`
 }
 
 // NewNetlinkRouter create a Router that queries routes via netlink
@@ -214,15 +220,6 @@ func NewNetlinkRouter(cfg *config.Config) (Router, error) {
 		// ifcache should ideally fit all interfaces on a given node
 		ifcache:  lru.New(128),
 		nlHandle: nlHandle,
-
-		netlinkLookups: atomic.NewUint64(0),
-		netlinkErrors:  atomic.NewUint64(0),
-		netlinkMisses:  atomic.NewUint64(0),
-
-		ifCacheLookups: atomic.NewUint64(0),
-		ifCacheMisses:  atomic.NewUint64(0),
-		ifCacheSize:    atomic.NewUint64(0),
-		ifCacheErrors:  atomic.NewUint64(0),
 	}
 
 	return nr, nil
@@ -232,10 +229,6 @@ func (n *netlinkRouter) Close() {
 	n.ifcache.Clear()
 	unix.Close(n.ioctlFD)
 	n.nlHandle.Close()
-}
-
-func (n *netlinkRouter) GetStats() map[string]interface{} {
-	return atomicstats.Report(n)
 }
 
 func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, bool) {
@@ -265,7 +258,7 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 		}
 	}
 
-	n.netlinkLookups.Inc()
+	routeCacheTelemetry.netlinkLookups.Inc()
 	dstIP := util.NetIPFromAddress(dest, *dstBuf)
 	routes, err := n.nlHandle.RouteGetWithOptions(
 		dstIP,
@@ -275,7 +268,7 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 		})
 
 	if err != nil {
-		n.netlinkErrors.Inc()
+		routeCacheTelemetry.netlinkErrors.Inc()
 		if iifIndex > 0 {
 			if errno, ok := err.(syscall.Errno); ok && (errno == syscall.EINVAL || errno == syscall.ENODEV) {
 				// invalidate interface cache entry as this may have been the cause of the netlink error
@@ -283,7 +276,7 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 			}
 		}
 	} else if len(routes) != 1 {
-		n.netlinkMisses.Inc()
+		routeCacheTelemetry.netlinkMisses.Inc()
 	}
 	if err != nil || len(routes) != 1 {
 		log.Tracef("could not get route for src=%s dest=%s err=%s routes=%+v", source, dest, err, routes)
@@ -304,27 +297,27 @@ func (n *netlinkRouter) removeInterface(srcAddress util.Address, netns uint32) {
 }
 
 func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netns uint32) *ifEntry {
-	n.ifCacheLookups.Inc()
+	routeCacheTelemetry.ifCacheLookups.Inc()
 
 	key := ifkey{ip: srcAddress, netns: netns}
 	if entry, ok := n.ifcache.Get(key); ok {
 		return entry.(*ifEntry)
 	}
-	n.ifCacheMisses.Inc()
+	routeCacheTelemetry.ifCacheMisses.Inc()
 
-	n.netlinkLookups.Inc()
+	routeCacheTelemetry.netlinkLookups.Inc()
 	routes, err := n.nlHandle.RouteGet(srcIP)
 	if err != nil {
-		n.netlinkErrors.Inc()
+		routeCacheTelemetry.netlinkErrors.Inc()
 		return nil
 	} else if len(routes) != 1 {
-		n.netlinkMisses.Inc()
+		routeCacheTelemetry.netlinkMisses.Inc()
 		return nil
 	}
 
 	ifr, err := unix.NewIfreq("")
 	if err != nil {
-		n.ifCacheErrors.Inc()
+		routeCacheTelemetry.ifCacheErrors.Inc()
 		return nil
 	}
 
@@ -333,12 +326,12 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 	// necessary to make the subsequent request to
 	// get the link flags
 	if err = unix.IoctlIfreq(n.ioctlFD, unix.SIOCGIFNAME, ifr); err != nil {
-		n.ifCacheErrors.Inc()
+		routeCacheTelemetry.ifCacheErrors.Inc()
 		log.Tracef("error getting interface name for link index %d, src ip %s: %s", routes[0].LinkIndex, srcIP, err)
 		return nil
 	}
 	if err = unix.IoctlIfreq(n.ioctlFD, unix.SIOCGIFFLAGS, ifr); err != nil {
-		n.ifCacheErrors.Inc()
+		routeCacheTelemetry.ifCacheErrors.Inc()
 		log.Tracef("error getting interface flags for link index %d, src ip %s: %s", routes[0].LinkIndex, srcIP, err)
 		return nil
 	}
@@ -346,6 +339,6 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 	iff := &ifEntry{index: routes[0].LinkIndex, loopback: (ifr.Uint16() & unix.IFF_LOOPBACK) != 0}
 	log.Tracef("adding interface entry, key=%+v, entry=%v", key, *iff)
 	n.ifcache.Add(key, iff)
-	n.ifCacheSize.Inc()
+	routeCacheTelemetry.ifCacheSize.Inc()
 	return iff
 }

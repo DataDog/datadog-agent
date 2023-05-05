@@ -17,39 +17,39 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
 )
 
-type httpEtwInterface struct {
+type HttpEtwInterface struct {
 	maxEntriesBuffered int
-	dataChannel        chan []WinHttpTransaction
+	DataChannel        chan []WinHttpTransaction
 	eventLoopWG        sync.WaitGroup
 	captureHTTP        bool
 	captureHTTPS       bool
 }
 
-func newHttpEtwInterface(c *config.Config) *httpEtwInterface {
-	return &httpEtwInterface{
+func NewHttpEtwInterface(c *config.Config) *HttpEtwInterface {
+	return &HttpEtwInterface{
 		maxEntriesBuffered: c.MaxHTTPStatsBuffered,
-		dataChannel:        make(chan []WinHttpTransaction),
+		DataChannel:        make(chan []WinHttpTransaction),
 		captureHTTPS:       c.EnableHTTPSMonitoring,
 		captureHTTP:        c.EnableHTTPMonitoring,
 	}
 }
 
-func (hei *httpEtwInterface) setCapturedProtocols(http, https bool) {
+func (hei *HttpEtwInterface) SetCapturedProtocols(http, https bool) {
 	hei.captureHTTP = http
 	hei.captureHTTPS = https
 	SetEnabledProtocols(http, https)
 }
-func (hei *httpEtwInterface) setMaxFlows(maxFlows uint64) {
+func (hei *HttpEtwInterface) SetMaxFlows(maxFlows uint64) {
 	log.Debugf("Setting max flows in ETW http source to %v", maxFlows)
 	SetMaxFlows(maxFlows)
 }
 
-func (hei *httpEtwInterface) setMaxRequestBytes(maxRequestBytes uint64) {
+func (hei *HttpEtwInterface) SetMaxRequestBytes(maxRequestBytes uint64) {
 	log.Debugf("Setting max request bytes in ETW http source to to %v", maxRequestBytes)
 	SetMaxRequestBytes(maxRequestBytes)
 }
 
-func (hei *httpEtwInterface) startReadingHttpFlows() {
+func (hei *HttpEtwInterface) StartReadingHttpFlows() {
 	hei.eventLoopWG.Add(2)
 
 	startingEtwChan := make(chan struct{})
@@ -104,7 +104,7 @@ func (hei *httpEtwInterface) startReadingHttpFlows() {
 			}
 
 			if len(httpTxs) > 0 {
-				hei.dataChannel <- httpTxs
+				hei.DataChannel <- httpTxs
 			}
 
 			// need a better signalling mechanism
@@ -113,9 +113,9 @@ func (hei *httpEtwInterface) startReadingHttpFlows() {
 	}()
 }
 
-func (hei *httpEtwInterface) close() {
+func (hei *HttpEtwInterface) Close() {
 	etw.StopEtw("ddnpm-httpservice")
 
 	hei.eventLoopWG.Wait()
-	close(hei.dataChannel)
+	close(hei.DataChannel)
 }

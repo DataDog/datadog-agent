@@ -49,7 +49,7 @@ func assertFileContent(t *testing.T, fb *builder, expected string, path string) 
 }
 
 func getNewBuilder(t *testing.T) *builder {
-	f, err := NewFlareBuilder()
+	f, err := NewFlareBuilder(false)
 	require.NotNil(t, f)
 	require.NoError(t, err)
 
@@ -119,7 +119,7 @@ func TestAddFileFromFunc(t *testing.T) {
 		return nil, fmt.Errorf("some error")
 	})
 	assert.Error(t, err)
-	assert.Equal(t, FromSlash("error collecting data from callback for 'test/AddFileFromFunc_error': some error"), err.Error())
+	assert.Equal(t, FromSlash("error collecting data for 'test/AddFileFromFunc_error': some error"), err.Error())
 	assert.NoFileExists(t, filepath.Join(fb.flareDir, "test", "AddFileFromFunc_error"))
 }
 

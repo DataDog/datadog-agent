@@ -2,15 +2,17 @@
 #define __TRACER_TELEMETRY_H
 
 #include "ktypes.h"
+
+#if defined(COMPILE_RUNTIME) || defined(COMPILE_PREBUILT)
+#include <linux/socket.h>
+#include <uapi/linux/in.h>
+#endif
+
 #include "bpf_endian.h"
 
+#include "ip.h"
 #include "tracer-maps.h"
 #include "compiler.h"
-
-#ifdef COMPILE_CORE
-#define AF_INET 2 /* Internet IP Protocol */
-#define AF_INET6 10 /* IP version 6 */
-#endif
 
 enum telemetry_counter
 {

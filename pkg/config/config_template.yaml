@@ -677,8 +677,6 @@ api_key:
 ## Default is:
 ##  * Windows & macOS : `5002`
 ##  * Linux: `-1`
-## On Linux, to be able to edit the configuration from the GUI
-## you need to give write access on this file to the dd-agent user.
 ##
 #
 # GUI_port: <GUI_PORT>
@@ -1675,10 +1673,10 @@ api_key:
 #############################################################
 
 # service_monitoring_config:
-## @param enabled - boolean - optional - default: false
-## Set to true to enable the Universal Service Monitoring Module of the System Probe
-#
-# enabled: false
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable the Universal Service Monitoring Module of the System Probe
+  #
+  # enabled: false
 
 {{ end -}}
 
@@ -1689,10 +1687,10 @@ api_key:
 #############################################
 
 # data_streams_config:
-## @param enabled - boolean - optional - default: false
-## Set to true to enable the Data Streams Module of the System Probe
-#
-# enabled: false
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable the Data Streams Module of the System Probe
+  #
+  # enabled: false
 
 {{ end -}}
 
