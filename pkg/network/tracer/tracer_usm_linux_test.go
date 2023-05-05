@@ -1281,7 +1281,7 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 				_ = resp.Body.Close()
 				client.CloseIdleConnections()
 			},
-			validation: validateProtocolConnection(network.ProtocolHTTP, tlsExpected),
+			validation: validateProtocolConnection(protocols.HTTP, tlsExpected),
 		},
 	}
 	for _, tt := range tests {
