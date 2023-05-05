@@ -9,6 +9,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/pcap"
 	"net"
 	"testing"
 	"time"
@@ -96,4 +98,20 @@ func ExpectNetflow5Payloads(t *testing.T, mockEpForwrader *epforwarder.MockEvent
 
 		mockEpForwrader.EXPECT().SendEventPlatformEventBlocking(m, epforwarder.EventTypeNetworkDevicesNetFlow).Return(nil)
 	}
+}
+
+func GetPacketFromPcap(file string, packetIndex int) []byte {
+	if handle, err := pcap.OpenOffline(file); err != nil {
+		panic(err)
+	} else {
+		packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
+		packetCount := 0
+		for packet := range packetSource.Packets() {
+			if packetCount == packetIndex {
+				return packet.ApplicationLayer().Payload()
+			}
+		}
+		return nil
+	}
+	return nil
 }
