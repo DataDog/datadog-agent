@@ -177,15 +177,6 @@ func load() (*Config, error) {
 		npmEnabled = true
 	}
 
-	deprecatedEnableHttpMonitoringKey := key(netNS, "enable_http_monitoring")
-	enableHttpMonitoringKey := key(smNS, "enable_http_monitoring")
-
-	if cfg.IsSet(deprecatedEnableHttpMonitoringKey) {
-		log.Infof("%q is deprecated, use %q instead",
-			deprecatedEnableHttpMonitoringKey, enableHttpMonitoringKey)
-		cfg.Set(enableHttpMonitoringKey, cfg.GetBool(deprecatedEnableHttpMonitoringKey))
-	}
-
 	if npmEnabled || usmEnabled || dsmEnabled {
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
 	}

@@ -163,7 +163,7 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 		require.NoError(t, err)
 		cfg := New()
 
-		assert.True(t, cfg.EnableHTTPMonitoring)
+		assert.False(t, cfg.EnableHTTPMonitoring)
 	})
 
 	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
@@ -175,7 +175,7 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 		require.NoError(t, err)
 		cfg := New()
 
-		assert.False(t, cfg.EnableHTTPMonitoring)
+		assert.True(t, cfg.EnableHTTPMonitoring)
 	})
 
 	t.Run("Both enabled", func(t *testing.T) {

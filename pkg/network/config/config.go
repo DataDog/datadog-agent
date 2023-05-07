@@ -433,5 +433,17 @@ func New() *Config {
 		c.EnableConntrackAllNamespaces = false
 	}
 
+	deprecatedEnableHttpMonitoringKey := join(netNS, "enable_http_monitoring")
+	enableHttpMonitoringKey := join(smNS, "enable_http_monitoring")
+
+	if cfg.IsSet(deprecatedEnableHttpMonitoringKey) {
+		log.Infof("%q is deprecated, use %q instead",
+			deprecatedEnableHttpMonitoringKey, enableHttpMonitoringKey)
+		if !cfg.IsSet(enableHttpMonitoringKey) {
+			cfg.Set(enableHttpMonitoringKey, cfg.GetBool(deprecatedEnableHttpMonitoringKey))
+			c.EnableHTTPMonitoring = cfg.GetBool(deprecatedEnableHttpMonitoringKey)
+		}
+	}
+
 	return c
 }
