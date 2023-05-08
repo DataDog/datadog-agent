@@ -172,7 +172,7 @@ func InitSystemProbeConfig(cfg Config) {
 
 	// For backward compatibility
 	cfg.BindEnv(join(netNS, "enable_http_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
-	cfg.BindEnvAndSetDefault(join(smNS, "enable_http_monitoring"), false)
+	cfg.BindEnv(join(smNS, "enable_http_monitoring"))
 
 	cfg.BindEnv(join(netNS, "enable_https_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING")
 
