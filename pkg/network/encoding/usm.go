@@ -50,7 +50,32 @@ func GroupByConnection[K comparable, V any](protocol string, data map[K]V, keyGe
 	byConnection := &USMConnectionIndex[K, V]{
 		protocol: protocol,
 		lookupFn: USMLookup[K, V],
-		data:     make(map[types.ConnectionKey]*USMConnectionData[K, V], len(data)/2),
+		// Note about the initial map size here:
+		//
+		// The intent is to amortize the allocation cost of re-sizing the map
+		// too many times until the final size is reached, but unfortunately it
+		// is hard to predict the cardinality of this map.
+		//
+		// The generated map is keyed by connection tuple, whereas the input map
+		// is keyed by (connection tuple, endpoint, etc), so the cardinality of
+		// the generated map is *less or equal than* the original map cardinality.
+		//
+		// The difference between the input map and the generated map is
+		// dependent on the workload. For example, if there is a decent amount
+		// of connection pooling in place like one HTTP client with keep-alives
+		// issuing requests to 100 different endpoints from the same server,
+		// then cardinality of the original map would be 100 and of the
+		// generated map would be 1.
+		//
+		// I would expect *some* level of aggregation by connection in most
+		// workloads, so I chose the initial size to be len(data)/2.
+		//
+		// An alternative approach would be iterating over all
+		// network.ConnectionStats and counting how many of them are classified
+		// as `protocol`. But that has its own problems as well (classification
+		// might be disabled, there may be a mismatch between what NPM and USM
+		// sees etc)
+		data: make(map[types.ConnectionKey]*USMConnectionData[K, V], len(data)/2),
 	}
 
 	// In the first pass we instantiate the map and calculate the number of
