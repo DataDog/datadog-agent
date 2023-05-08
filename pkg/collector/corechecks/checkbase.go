@@ -134,12 +134,14 @@ func (c *CheckBase) CommonConfigure(integrationConfigDigest uint64, initConfig, 
 			s.SetCheckService(commonOptions.Service)
 		}
 
-		s, err := c.GetSender()
-		if err != nil {
-			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
-			return err
+		if commonOptions.NoIndex {
+			s, err := c.GetSender()
+			if err != nil {
+				log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
+				return err
+			}
+			s.SetNoIndex(commonOptions.NoIndex)
 		}
-		s.SetNoIndex(commonOptions.NoIndex)
 
 		c.source = source
 		return nil
