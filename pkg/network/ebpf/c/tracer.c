@@ -9,6 +9,7 @@
 
 #ifdef COMPILE_PREBUILT
 #include "prebuilt/offsets.h"
+#include <uapi/linux/bpf.h>
 #endif
 #include "port.h"
 #include "skb.h"
