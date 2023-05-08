@@ -209,6 +209,7 @@ type sslProgram struct {
 	cfg                     *config.Config
 	sockFDMap               *ebpf.Map
 	perfHandler             *ddebpf.PerfHandler
+	perfMap                 *manager.PerfMap
 	watcher                 *soWatcher
 	manager                 *errtelemetry.Manager
 	sysOpenHooksIdentifiers []manager.ProbeIdentificationPair
@@ -232,7 +233,7 @@ func newSSLProgram(c *config.Config, sockFDMap *ebpf.Map) *sslProgram {
 func (o *sslProgram) ConfigureManager(m *errtelemetry.Manager) {
 	o.manager = m
 
-	m.PerfMaps = append(m.PerfMaps, &manager.PerfMap{
+	o.perfMap = &manager.PerfMap{
 		Map: manager.Map{Name: sharedLibrariesPerfMap},
 		PerfMapOptions: manager.PerfMapOptions{
 			PerfRingBufferSize: 8 * os.Getpagesize(),
@@ -241,7 +242,9 @@ func (o *sslProgram) ConfigureManager(m *errtelemetry.Manager) {
 			LostHandler:        o.perfHandler.LostHandler,
 			RecordGetter:       o.perfHandler.RecordGetter,
 		},
-	})
+	}
+
+	m.PerfMaps = append(m.PerfMaps, o.perfMap)
 
 	for _, identifier := range o.sysOpenHooksIdentifiers {
 		m.Probes = append(m.Probes,
@@ -299,7 +302,13 @@ func (o *sslProgram) Start() {
 }
 
 func (o *sslProgram) Stop() {
-	// Detaching the hooks.
+	if o.perfMap != nil {
+		if err := o.perfMap.Stop(manager.CleanAll); err != nil {
+			log.Errorf("Failed to stop perf map. Error: %s", err)
+		}
+	}
+
+	// Detaching the sys-open hooks, as they are feeding the perf map we're going to close next.
 	for _, identifier := range o.sysOpenHooksIdentifiers {
 		probe, found := o.manager.GetProbe(identifier)
 		if !found {
@@ -309,14 +318,33 @@ func (o *sslProgram) Stop() {
 			log.Errorf("Failed to stop hook %q. Error: %s", identifier.EBPFFuncName, err)
 		}
 	}
+
 	// We must stop the watcher first, as we can read from the perfHandler, before terminating the perfHandler, otherwise
 	// we might try to send events over the perfHandler.
 	o.watcher.Stop()
+
 	o.perfHandler.Stop()
 }
 
 func addHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(pathIdentifier, string, string) error {
-	return func(id pathIdentifier, root string, path string) error {
+	symbolsSet := make(common.StringSet, 0)
+	symbolsSetBestEffort := make(common.StringSet, 0)
+	for _, singleProbe := range probes {
+		_, isBestEffort := singleProbe.(*manager.BestEffort)
+		for _, selector := range singleProbe.GetProbesIdentificationPairList() {
+			_, symbol, ok := strings.Cut(selector.EBPFFuncName, "__")
+			if !ok {
+				continue
+			}
+			if isBestEffort {
+				symbolsSetBestEffort[symbol] = struct{}{}
+			} else {
+				symbolsSet[symbol] = struct{}{}
+			}
+		}
+	}
+
+	return func(id pathIdentifier, root, path string) error {
 		uid := getUID(id)
 
 		elfFile, err := elf.Open(root + path)
@@ -325,22 +353,6 @@ func addHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(pat
 		}
 		defer elfFile.Close()
 
-		symbolsSet := make(common.StringSet, 0)
-		symbolsSetBestEffort := make(common.StringSet, 0)
-		for _, singleProbe := range probes {
-			_, isBestEffort := singleProbe.(*manager.BestEffort)
-			for _, selector := range singleProbe.GetProbesIdentificationPairList() {
-				_, symbol, ok := strings.Cut(selector.EBPFFuncName, "__")
-				if !ok {
-					continue
-				}
-				if isBestEffort {
-					symbolsSetBestEffort[symbol] = struct{}{}
-				} else {
-					symbolsSet[symbol] = struct{}{}
-				}
-			}
-		}
 		symbolMap, err := bininspect.GetAllSymbolsByName(elfFile, symbolsSet)
 		if err != nil {
 			return err

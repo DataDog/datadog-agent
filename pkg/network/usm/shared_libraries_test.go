@@ -192,7 +192,8 @@ func TestSameInodeRegression(t *testing.T) {
 
 		return int64(1) == registers.Load()
 	}, time.Second*10, time.Second, "")
-	require.Len(t, watcher.registry.byID, 1)
+
+	require.Equal(t, syncMapLength(&watcher.registry.byID), 1)
 	require.NoError(t, command1.Process.Kill())
 
 	require.Eventuallyf(t, func() bool {
@@ -202,7 +203,14 @@ func TestSameInodeRegression(t *testing.T) {
 			checkPIDNotAssociatedWithPathID(watcher, fooPathID2, uint32(command1.Process.Pid))
 	}, time.Second*10, time.Second, "")
 }
-
+func syncMapLength(m *sync.Map) int {
+	counter := atomic.NewInt64(0)
+	m.Range(func(_, _ any) bool {
+		counter.Inc()
+		return true
+	})
+	return int(counter.Load())
+}
 func TestSoWatcherLeaks(t *testing.T) {
 	perfHandler := initEBPFProgram(t)
 
@@ -386,7 +394,7 @@ func buildSOWatcherClientBin(t *testing.T) string {
 }
 
 func checkPathIDExists(watcher *soWatcher, pathID pathIdentifier) bool {
-	_, ok := watcher.registry.byID[pathID]
+	_, ok := watcher.registry.byID.Load(pathID)
 	return ok
 }
 
@@ -395,11 +403,12 @@ func checkPathIDDoesNotExist(watcher *soWatcher, pathID pathIdentifier) bool {
 }
 
 func checkPIDAssociatedWithPathID(watcher *soWatcher, pathID pathIdentifier, pid uint32) bool {
-	value, ok := watcher.registry.byPID[pid]
+	value, ok := watcher.registry.byPID.Load(pid)
 	if !ok {
 		return false
 	}
-	_, ok = value[pathID]
+	pathSet := value.(*sync.Map)
+	_, ok = pathSet.Load(pathID)
 	return ok
 }
 
@@ -424,7 +433,9 @@ func createTempTestFile(t *testing.T, name string) (string, pathIdentifier) {
 }
 
 func checkWatcherStateIsClean(t *testing.T, watcher *soWatcher) {
-	require.True(t, len(watcher.registry.byPID) == 0 && len(watcher.registry.byID) == 0, "watcher state is not clean")
+	byPidLength := syncMapLength(&watcher.registry.byPID)
+	byIDLength := syncMapLength(&watcher.registry.byID)
+	require.True(t, byPidLength == 0 && byIDLength == 0, "watcher state is not clean")
 }
 
 func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {

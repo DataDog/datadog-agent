@@ -105,7 +105,7 @@ var structFieldsLookupFunctions = map[bininspect.FieldIdentifier]bininspect.Stru
 	bininspect.StructOffsetPollFdSysfd: lookup.GetFD_SysfdOffset,
 }
 
-type pid = uint32
+type pid = int
 
 type binaryID = gotls.TlsBinaryId
 
@@ -134,6 +134,7 @@ type GoTLSProgram struct {
 
 	// Process monitor channels
 	procMonitor struct {
+		monitor     *monitor.ProcessMonitor
 		cleanupExec func()
 		cleanupExit func()
 	}
@@ -221,43 +222,55 @@ func (*GoTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
 
 func (p *GoTLSProgram) Start() {
 	var err error
-	p.offsetsDataMap, _, err = p.manager.GetMap(offsetsDataMap)
-	if err != nil {
-		log.Errorf("could not get offsets_data map: %s", err)
-		return
-	}
-
-	mon := monitor.GetProcessMonitor()
-	p.procMonitor.cleanupExec, err = mon.Subscribe(&monitor.ProcessCallback{
-		Event:    monitor.EXEC,
-		Metadata: monitor.ANY,
-		Callback: p.handleProcessStart,
-	})
-	if err != nil {
-		log.Errorf("failed to subscribe Exec process monitor error: %s", err)
-		return
-	}
-	p.procMonitor.cleanupExit, err = mon.Subscribe(&monitor.ProcessCallback{
-		Event:    monitor.EXIT,
-		Metadata: monitor.ANY,
-		Callback: p.handleProcessStop,
-	})
-	if err != nil {
-		log.Errorf("failed to subscribe Exit process monitor error: %s", err)
-
+	defer func() {
+		if err == nil {
+			return
+		}
+		// In case of an error, we should cleanup the callbacks.
 		if p.procMonitor.cleanupExec != nil {
 			p.procMonitor.cleanupExec()
 		}
 		if p.procMonitor.cleanupExit != nil {
 			p.procMonitor.cleanupExit()
 		}
+	}()
+
+	p.offsetsDataMap, _, err = p.manager.GetMap(offsetsDataMap)
+	if err != nil {
+		log.Errorf("could not get offsets_data map: %s", err)
+		return
 	}
 
+	p.procMonitor.monitor = monitor.GetProcessMonitor()
+	p.procMonitor.cleanupExec, err = p.procMonitor.monitor.SubscribeExec(&monitor.ProcessCallback{
+		FilterType: monitor.ANY,
+		Callback:   p.handleProcessStart,
+	})
+
+	if err != nil {
+		log.Errorf("failed to subscribe Exec process monitor error: %s", err)
+		return
+	}
+	p.procMonitor.cleanupExit, err = p.procMonitor.monitor.SubscribeExit(&monitor.ProcessCallback{
+		FilterType: monitor.ANY,
+		Callback:   p.handleProcessStop,
+	})
+
+	if err != nil {
+		log.Errorf("failed to subscribe Exit process monitor error: %s", err)
+		return
+	}
+
+	if err = p.procMonitor.monitor.Initialize(); err != nil {
+		log.Errorf("failed to initialize process monitor error: %s", err)
+		return
+	}
 }
 
 func (p *GoTLSProgram) Stop() {
 	p.procMonitor.cleanupExec()
 	p.procMonitor.cleanupExit()
+	p.procMonitor.monitor.Stop()
 }
 
 func (p *GoTLSProgram) handleProcessStart(pid pid) {
