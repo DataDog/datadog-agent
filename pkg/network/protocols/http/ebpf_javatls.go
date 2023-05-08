@@ -32,7 +32,7 @@ import (
 const (
 	agentUSMJar                 = "agent-usm.jar"
 	javaTLSConnectionsMap       = "java_tls_connections"
-	javaDomainsToConnectionsMap = "conn_tuple_by_java_peer"
+	javaDomainsToConnectionsMap = "java_conn_tuple_by_peer"
 )
 
 var (
