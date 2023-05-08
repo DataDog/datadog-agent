@@ -24,6 +24,8 @@ static int __always_inline handle_sync_payload(struct pt_regs *ctx, void *data) 
     conn_tuple_t connection = {0};
     const bool val = true;
     u32 bytes_read = 0;
+
+    //interactive pointer to read the data buffer
     void* bufferPtr = data;
 
     //read the connection tuple from the ioctl buffer
@@ -79,6 +81,8 @@ static int __always_inline handle_connection_by_peer(void *data) {
     connection_by_peer_key_t peer_key ={0};
     u64 pid_tgid = bpf_get_current_pid_tgid();
     peer_key.pid = pid_tgid >> 32;
+
+    //interactive pointer to read the data buffer
     void* bufferPtr = data;
 
     //read the connection tuple from the ioctl buffer
@@ -107,6 +111,8 @@ static int __always_inline handle_connection_by_peer(void *data) {
 static int __always_inline handle_async_payload(struct pt_regs *ctx, void *data) {
     const bool val = true;
     u32 bytes_read = 0;
+
+    //interactive pointer to read the data buffer
     void* bufferPtr = data;
 
     // Get the buffer the hostname will be read into from a per-cpu array map.
