@@ -1969,8 +1969,8 @@ go.opentelemetry.io/collector v0.75.0 h1:j6gAYcrKydPyBUnHeUDbzCfMzytwkIN1WwPOXBm
 go.opentelemetry.io/collector v0.75.0/go.mod h1:5I49yghQpThAFWHtD78AURnWB/3MXVepVhAYfBMdDrc=
 go.opentelemetry.io/collector/component v0.75.0 h1:+Sp5HPYhDMjmiBjFiOAuthbvqlKf8cE+ho8/WYEMAWQ=
 go.opentelemetry.io/collector/component v0.75.0/go.mod h1:7PvmC6Vc1NDq63gYJvx6QeLW1ydRnjj7f1jLDITSbeI=
-go.opentelemetry.io/collector/confmap v0.75.0 h1:yvtrXWKbYVXm8LRHi2aQyrSkN+ildMQq2IADpYg9F68=
-go.opentelemetry.io/collector/confmap v0.75.0/go.mod h1:T1I41gDZxvpIqUmyNziFMGBwixEsX6qNiwMY5apG5Gk=
+go.opentelemetry.io/collector/confmap v0.76.1 h1:6Rop2LdXpS32rxV3URXQXmAvFJQ1E366s9s08wYsbsw=
+go.opentelemetry.io/collector/confmap v0.76.1/go.mod h1:KsSre9mI7E8W5VsvzbZQZ3SMQLcmJHIgdrkalQjD52s=
 go.opentelemetry.io/collector/consumer v0.75.0 h1:f+j560Enwrh1JHY+/dfVwidn9G/f+w0ZOx70tc0UTtg=
 go.opentelemetry.io/collector/consumer v0.75.0/go.mod h1:ilbTs6xKJO+eknSor/9Q0CMed7mDSByOIbSh5khVFWY=
 go.opentelemetry.io/collector/exporter v0.75.0 h1:ZOeUHUoRAstIS7xPh+vZ1a/6YO3cITJI0Ed1+XG8foA=
@@ -1980,8 +1980,8 @@ go.opentelemetry.io/collector/exporter/loggingexporter v0.75.0/go.mod h1:Py4dEGq
 go.opentelemetry.io/collector/exporter/otlpexporter v0.75.0 h1:3B3y+qgu5o4Tny8XhNx3QhJBZKTS4Y6q68XU3zth18k=
 go.opentelemetry.io/collector/exporter/otlpexporter v0.75.0/go.mod h1:Vl7krXCRPYqoXIIBSLV9edvXusDG9aqvIMx0K6PsLeE=
 go.opentelemetry.io/collector/extension/zpagesextension v0.75.0 h1:QHqkG2oEOSP3npFH8sTw4XQh9A138q+fVzAUw6YFNFw=
-go.opentelemetry.io/collector/featuregate v0.75.0 h1:543kdhXh7/dHTwpHsjv+lgIz73RJD2lCkLrFi4UjZjk=
-go.opentelemetry.io/collector/featuregate v0.75.0/go.mod h1:pmVMr98Ps6QKyEHiVPN7o3Qd8K//M2NapfOv5BMWvA0=
+go.opentelemetry.io/collector/featuregate v0.76.1 h1:F9jP6cpIu446GsjsvHjzt4rC/ZJ/IPSPbXLzEngxUa8=
+go.opentelemetry.io/collector/featuregate v0.76.1/go.mod h1:stbsuyEexJF0EyVB3AgMs4mEuGvP7MDj3fsNeNdGDMs=
 go.opentelemetry.io/collector/pdata v1.0.0-rcv0011 h1:7lT0vseP89mHtUpvgmWYRvQZ0eY+SHbVsnXY20xkoMg=
 go.opentelemetry.io/collector/pdata v1.0.0-rcv0011/go.mod h1:9vrXSQBeMRrdfGt9oMgYweqERJ8adaiQjN6LSbqRMMA=
 go.opentelemetry.io/collector/processor/batchprocessor v0.75.0 h1:eMRde/kjWdgpBKFWRS7Z1sfv20IvapdDMyOAV/I1ZZ8=
