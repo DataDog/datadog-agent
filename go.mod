@@ -45,7 +45,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.45.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.45.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.45.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/trace v0.45.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/trace v0.45.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.45.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.45.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.45.0-rc.3
@@ -58,10 +58,10 @@ require (
 	github.com/DataDog/gohai v0.0.0-20221116153829-5d479901d2e9
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.1.5
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.1.5
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.1.5
-	github.com/DataDog/sketches-go v1.4.1
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.2.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.2.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.2.0
+	github.com/DataDog/sketches-go v1.4.2
 	github.com/DataDog/viper v1.12.0
 	github.com/DataDog/watermarkpodautoscaler v0.5.2
 	github.com/DataDog/zstd v1.5.2
@@ -201,7 +201,7 @@ require (
 	go.opentelemetry.io/collector/exporter v0.75.0
 	go.opentelemetry.io/collector/exporter/loggingexporter v0.75.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.75.0
-	go.opentelemetry.io/collector/pdata v1.0.0-rc9
+	go.opentelemetry.io/collector/pdata v1.0.0-rcv0011
 	go.opentelemetry.io/collector/processor/batchprocessor v0.75.0
 	go.opentelemetry.io/collector/receiver v0.75.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.75.0
@@ -213,7 +213,7 @@ require (
 	go.uber.org/zap v1.24.0
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
 	golang.org/x/arch v0.3.0
-	golang.org/x/exp v0.0.0-20230202163644-54bba9f4231b
+	golang.org/x/exp v0.0.0-20230321023759-10a507213a29
 	golang.org/x/net v0.9.0
 	golang.org/x/sync v0.1.0
 	golang.org/x/sys v0.7.0

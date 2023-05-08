@@ -17,7 +17,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.45.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.45.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.1
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.1.5
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.2.0
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/Microsoft/go-winio v0.5.2
 	github.com/davecgh/go-spew v1.1.1
@@ -30,10 +30,10 @@ require (
 	github.com/stretchr/testify v1.8.2
 	github.com/tinylib/msgp v1.1.6
 	github.com/vmihailenco/msgpack/v4 v4.3.12
-	go.opentelemetry.io/collector/pdata v1.0.0-rc9
+	go.opentelemetry.io/collector/pdata v1.0.0-rcv0011
 	go.opentelemetry.io/collector/semconv v0.75.0
 	go.uber.org/atomic v1.10.0
-	golang.org/x/sys v0.6.0
+	golang.org/x/sys v0.7.0
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 	google.golang.org/grpc v1.54.0
 	k8s.io/apimachinery v0.23.8
@@ -62,10 +62,10 @@ require (
 	github.com/tklauser/numcpus v0.5.0 // indirect
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
-	go.uber.org/multierr v1.10.0 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e // indirect
-	golang.org/x/net v0.8.0 // indirect
-	golang.org/x/text v0.8.0 // indirect
+	golang.org/x/net v0.9.0 // indirect
+	golang.org/x/text v0.9.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20230306155012-7f2fa6fef1f4 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
