@@ -25,9 +25,9 @@ const (
 )
 
 // CheckPath is used to make sure the globalSocketPath has been set before attempting to connect
-func CheckPath() error {
-	if globalSocketPath == "" {
-		return fmt.Errorf("remote tracer has no path defined")
+func CheckPath(path string) error {
+	if path == "" {
+		return fmt.Errorf("socket path is empty")
 	}
 	return nil
 }

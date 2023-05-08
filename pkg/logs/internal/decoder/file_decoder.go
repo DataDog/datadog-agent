@@ -16,16 +16,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/encodedtext"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // NewDecoderFromSource creates a new decoder from a log source
-func NewDecoderFromSource(source *sources.ReplaceableSource) *Decoder {
-	return NewDecoderFromSourceWithPattern(source, nil)
+func NewDecoderFromSource(source *sources.ReplaceableSource, tailerInfo *status.InfoRegistry) *Decoder {
+	return NewDecoderFromSourceWithPattern(source, nil, tailerInfo)
 }
 
 // NewDecoderFromSourceWithPattern creates a new decoder from a log source with a multiline pattern
-func NewDecoderFromSourceWithPattern(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp) *Decoder {
+func NewDecoderFromSourceWithPattern(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry) *Decoder {
 
 	// TODO: remove those checks and add to source a reference to a tagProvider and a lineParser.
 	var lineParser parsers.Parser
@@ -57,5 +58,5 @@ func NewDecoderFromSourceWithPattern(source *sources.ReplaceableSource, multiLin
 		}
 	}
 
-	return NewDecoderWithFraming(source, lineParser, framing, multiLinePattern)
+	return NewDecoderWithFraming(source, lineParser, framing, multiLinePattern, tailerInfo)
 }

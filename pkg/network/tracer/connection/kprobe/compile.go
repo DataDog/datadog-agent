@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 )
 
-//go:generate go run ../../../../../pkg/ebpf/include_headers.go ../../../../../pkg/network/ebpf/c/runtime/tracer.c ../../../../../pkg/ebpf/bytecode/build/runtime/tracer.c ../../../../../pkg/ebpf/c  ../../../../../pkg/ebpf/c/protocols ../../../../../pkg/network/ebpf/c/runtime ../../../../../pkg/network/ebpf/c
+//go:generate go run ../../../../../pkg/ebpf/include_headers.go ../../../../../pkg/network/ebpf/c/tracer.c ../../../../../pkg/ebpf/bytecode/build/runtime/tracer.c ../../../../../pkg/ebpf/c  ../../../../../pkg/ebpf/c/protocols ../../../../../pkg/network/ebpf/c/runtime ../../../../../pkg/network/ebpf/c
 //go:generate go run ../../../../../pkg/ebpf/bytecode/runtime/integrity.go ../../../../../pkg/ebpf/bytecode/build/runtime/tracer.c ../../../../../pkg/ebpf/bytecode/runtime/tracer.go runtime
 
 func getRuntimeCompiledTracer(config *config.Config) (runtime.CompiledOutput, error) {
@@ -24,8 +24,11 @@ func getRuntimeCompiledTracer(config *config.Config) (runtime.CompiledOutput, er
 func getCFlags(config *config.Config) []string {
 	cflags := []string{"-g"}
 
-	if config.CollectIPv6Conns {
-		cflags = append(cflags, "-DFEATURE_IPV6_ENABLED")
+	if config.CollectTCPv6Conns {
+		cflags = append(cflags, "-DFEATURE_TCPV6_ENABLED")
+	}
+	if config.CollectUDPv6Conns {
+		cflags = append(cflags, "-DFEATURE_UDPV6_ENABLED")
 	}
 	if config.BPFDebug {
 		cflags = append(cflags, "-DDEBUG=1")

@@ -7,6 +7,7 @@ package testutil
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
@@ -23,11 +24,13 @@ import (
 
 // Options wraps all configurable params for the HTTPServer
 type Options struct {
-	EnableTLS        bool
-	EnableKeepAlives bool
-	ReadTimeout      time.Duration
-	WriteTimeout     time.Duration
-	SlowResponse     time.Duration
+	// If TLS is enabled, allows to upgrade the connections to http/2.
+	EnableHTTP2     bool
+	EnableTLS       bool
+	EnableKeepAlive bool
+	ReadTimeout     time.Duration
+	WriteTimeout    time.Duration
+	SlowResponse    time.Duration
 }
 
 // HTTPServer spins up a HTTP test server that returns the status code included in the URL
@@ -54,7 +57,11 @@ func HTTPServer(t *testing.T, addr string, options Options) func() {
 		ReadTimeout:  time.Second,
 		WriteTimeout: time.Second,
 	}
-	srv.SetKeepAlivesEnabled(options.EnableKeepAlives)
+	if !options.EnableHTTP2 {
+		// Disabling http2
+		srv.TLSNextProto = make(map[string]func(*http.Server, *tls.Conn, http.Handler))
+	}
+	srv.SetKeepAlivesEnabled(options.EnableKeepAlive)
 
 	listenFn := func() error {
 		ln, err := net.Listen("tcp", srv.Addr)
