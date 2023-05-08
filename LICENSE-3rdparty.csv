@@ -525,7 +525,7 @@ core,github.com/aws/smithy-go/time,Apache-2.0,"Copyright Amazon.com, Inc. or its
 core,github.com/aws/smithy-go/transport/http,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/aws/smithy-go/transport/http/internal/io,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/aws/smithy-go/waiter,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
-core,github.com/beevik/ntp,BSD-2-Clause,Anton Tolchanov (knyar) | Ask Bjørn Hansen (abh) | Brett Vickers (beevik) | Christopher Batey (chbatey) | Copyright 2015-2017 Brett Vickers. All rights reserved | Leonid Evdokimov (darkk) | Meng Zhuo (mengzhuo) | Mikhail Salosin (AlphaB)
+core,github.com/beevik/ntp,BSD-2-Clause,Anton Tolchanov (knyar) | Ask Bjørn Hansen (abh) | Brett Vickers (beevik) | Christopher Batey (chbatey) | Copyright 2015-2023 Brett Vickers. All rights reserved | Leonid Evdokimov (darkk) | Meng Zhuo (mengzhuo) | Mikhail Salosin (AlphaB)
 core,github.com/benbjohnson/clock,MIT,Copyright (c) 2014 Ben Johnson
 core,github.com/beorn7/perks/quantile,MIT,Copyright (C) 2013 Blake Mizerany
 core,github.com/bhmj/jsonslice,MIT,Copyright (c) 2018 bhmj
