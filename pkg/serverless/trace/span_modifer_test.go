@@ -92,6 +92,56 @@ func TestInferredSpanFunctionTagFiltering(t *testing.T) {
 	assert.False(t, tagOriginSelfSpanHasGlobalTags, "A span with meta._inferred_span.tag_origin = self should not get global tags")
 }
 
+func TestSpanModifierAddsOriginToAllSpans(t *testing.T) {
+	cfg := config.New()
+	cfg.GlobalTags = map[string]string{"some": "tag", "_dd.origin": "lambda"}
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	testOriginTags := func(withModifier bool) {
+		agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+		if withModifier {
+			agnt.ModifySpan = (&spanModifier{tags: cfg.GlobalTags}).ModifySpan
+		}
+		tc := testutil.RandomTraceChunk(2, 1)
+		tc.Priority = 1 // ensure trace is never sampled out
+		tp := testutil.TracerPayloadWithChunk(tc)
+
+		agnt.Process(&api.Payload{
+			TracerPayload: tp,
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		})
+
+		select {
+		case ss := <-agnt.TraceWriter.In:
+			tp = ss.TracerPayload
+		case <-time.After(10 * time.Millisecond):
+			t.Fatal("timed out")
+		}
+
+		for _, chunk := range tp.Chunks {
+			if chunk.Origin != "lambda" {
+				t.Errorf("chunk should have Origin=lambda but has %#v", chunk.Origin)
+			}
+			for _, span := range chunk.Spans {
+				tags := span.GetMeta()
+				originVal, ok := tags["_dd.origin"]
+				if withModifier != ok {
+					t.Errorf("unexpected span tags, should have _dd.origin tag %#v: tags=%#v",
+						withModifier, tags)
+				}
+				if withModifier && originVal != "lambda" {
+					t.Errorf("got the wrong origin tag value: %#v", originVal)
+				}
+			}
+		}
+	}
+
+	testOriginTags(true)
+	testOriginTags(false)
+}
+
 func TestLambdaSpanChan(t *testing.T) {
 	cfg := config.New()
 	cfg.GlobalTags = map[string]string{
