@@ -64,6 +64,13 @@ typedef enum {
     __LAYER_ENCRYPTION_MAX = LAYER_ENCRYPTION_MAX,
 } __attribute__ ((packed)) protocol_t;
 
+// This enum represents all existing protocol layers
+//
+// Each `protocol_t` entry is implicitly associated to a single
+// `protocol_layer_t` value (see notes above).
+//
+//In order to determine which `protocol_layer_t` a `protocol_t` belongs to,
+// users can call `get_protocol_layer`
 typedef enum {
     LAYER_UNKNOWN,
     LAYER_API,
