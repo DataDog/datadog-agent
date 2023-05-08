@@ -10,7 +10,6 @@ package dump
 
 import (
 	"bytes"
-	"compress/gzip"
 	"fmt"
 	"mime/multipart"
 	"net/http"
@@ -27,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	ddhttputil "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/zstd"
 )
 
 type tooLargeEntityStatsEntry struct {
@@ -129,7 +129,7 @@ func (storage *ActivityDumpRemoteStorage) buildBody(request config.StorageReques
 	var multipartWriter *multipart.Writer
 
 	if request.Compression {
-		compressor := gzip.NewWriter(body)
+		compressor := zstd.NewWriter(body)
 		defer compressor.Close()
 		multipartWriter = multipart.NewWriter(compressor)
 	} else {
@@ -159,7 +159,7 @@ func (storage *ActivityDumpRemoteStorage) sendToEndpoint(url string, apiKey stri
 	r.Header.Add("dd-api-key", apiKey)
 
 	if request.Compression {
-		r.Header.Set("Content-Encoding", "gzip")
+		r.Header.Set("Content-Encoding", "zstd")
 	}
 
 	resp, err := storage.client.Do(r)
