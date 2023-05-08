@@ -39,6 +39,7 @@ type InstanceConfig struct {
 	ReportedHostname       string              `yaml:"reported_hostname"`
 	QueryMetrics           bool                `yaml:"query_metrics"`
 	IncludeDatadogQueries  bool                `yaml:"include_datadog_queries"`
+	ExecutionPlans         bool                `yaml:"execution_plans"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.

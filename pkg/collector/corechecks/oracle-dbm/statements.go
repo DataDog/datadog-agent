@@ -296,8 +296,8 @@ type PlanDefinition struct {
 	Cost             float64 `json:"cost,omitempty"`
 	Cardinality      float64 `json:"cardinality,omitempty"`
 	Bytes            float64 `json:"bytes,omitempty"`
-	PartitionStart   int64   `json:"partition_start,omitempty"`
-	PartitionStop    int64   `json:"partition_stop,omitempty"`
+	PartitionStart   string  `json:"partition_start,omitempty"`
+	PartitionStop    string  `json:"partition_stop,omitempty"`
 	CPUCost          float64 `json:"cpu_cost,omitempty"`
 	IOCost           float64 `json:"io_cost,omitempty"`
 	TempSpace        float64 `json:"temp_space,omitempty"`
@@ -363,8 +363,8 @@ type PlanStepRows struct {
 	Cost             sql.NullFloat64 `db:"COST"`
 	Cardinality      sql.NullFloat64 `db:"CARDINALITY"`
 	Bytes            sql.NullFloat64 `db:"BYTES"`
-	PartitionStart   sql.NullInt64   `db:"PARTITION_START"`
-	PartitionStop    sql.NullInt64   `db:"PARTITION_STOP"`
+	PartitionStart   sql.NullString  `db:"PARTITION_START"`
+	PartitionStop    sql.NullString  `db:"PARTITION_STOP"`
 	CPUCost          sql.NullFloat64 `db:"CPU_COST"`
 	IOCost           sql.NullFloat64 `db:"IO_COST"`
 	TempSpace        sql.NullFloat64 `db:"TEMP_SPACE"`
@@ -731,164 +731,179 @@ func (c *Check) StatementMetrics() (int, error) {
 				FQTSent[queryRow.QuerySignature] = 1
 			}
 
-			_, sent = executionPlanSent[statementMetricRow.PlanHashValue]
-			if !sent {
-				var planStepsPayload []PlanDefinition
-				var planStepsDB []PlanRows
-				var oraclePlan OraclePlan
-				err = c.db.Select(&planStepsDB, PLAN_QUERY, statementMetricRow.PlanHashValue)
+			if c.config.ExecutionPlans {
+				_, sent = executionPlanSent[statementMetricRow.PlanHashValue]
+				if !sent {
+					var planStepsPayload []PlanDefinition
+					var planStepsDB []PlanRows
+					var oraclePlan OraclePlan
+					err = c.db.Select(&planStepsDB, PLAN_QUERY, statementMetricRow.PlanHashValue)
 
-				if err == nil {
-					for _, stepRow := range planStepsDB {
-						var stepPayload PlanDefinition
-						if stepRow.Operation.Valid {
-							stepPayload.Operation = stepRow.Operation.String
-						}
-						if stepRow.Options.Valid {
-							stepPayload.Options = stepRow.Options.String
-						}
-						if stepRow.ObjectOwner.Valid {
-							stepPayload.ObjectOwner = stepRow.ObjectOwner.String
-						}
-						if stepRow.ObjectName.Valid {
-							stepPayload.ObjectName = stepRow.ObjectName.String
-						}
-						if stepRow.ObjectAlias.Valid {
-							stepPayload.ObjectAlias = stepRow.ObjectAlias.String
-						}
-						if stepRow.ObjectType.Valid {
-							stepPayload.ObjectType = stepRow.ObjectType.String
-						}
-						if stepRow.PlanStepId.Valid {
-							stepPayload.PlanStepId = stepRow.PlanStepId.Int64
-						}
-						if stepRow.ParentId.Valid {
-							stepPayload.ParentId = stepRow.ParentId.Int64
-						}
-						if stepRow.Depth.Valid {
-							stepPayload.Depth = stepRow.Depth.Int64
-						}
-						if stepRow.Position.Valid {
-							stepPayload.Position = stepRow.Position.Int64
-						}
-						if stepRow.SearchColumns.Valid {
-							stepPayload.SearchColumns = stepRow.SearchColumns.Int64
-						}
-						if stepRow.Cost.Valid {
-							stepPayload.Cost = stepRow.Cost.Float64
-						}
-						if stepRow.Cardinality.Valid {
-							stepPayload.Cardinality = stepRow.Cardinality.Float64
-						}
-						if stepRow.Bytes.Valid {
-							stepPayload.Bytes = stepRow.Bytes.Float64
-						}
-						if stepRow.PartitionStart.Valid {
-							stepPayload.PartitionStart = stepRow.PartitionStart.Int64
-						}
-						if stepRow.PartitionStop.Valid {
-							stepPayload.PartitionStop = stepRow.PartitionStop.Int64
-						}
-						if stepRow.CPUCost.Valid {
-							stepPayload.CPUCost = stepRow.CPUCost.Float64
-						}
-						if stepRow.IOCost.Valid {
-							stepPayload.IOCost = stepRow.IOCost.Float64
-						}
-						if stepRow.TempSpace.Valid {
-							stepPayload.TempSpace = stepRow.TempSpace.Float64
-						}
-						if stepRow.AccessPredicates.Valid {
-							stepPayload.AccessPredicates = stepRow.AccessPredicates.String
-						}
-						if stepRow.FilterPredicates.Valid {
-							stepPayload.FilterPredicates = stepRow.FilterPredicates.String
-						}
-						if stepRow.Projection.Valid {
-							stepPayload.Projection = stepRow.Projection.String
-						}
-						if stepRow.LastStarts != nil {
-							stepPayload.LastStarts = *&stepRow.LastStarts
-						}
-						if stepRow.LastOutputRows != nil {
-							stepPayload.LastOutputRows = *&stepRow.LastOutputRows
-						}
-						if stepRow.LastCRBufferGets != nil {
-							stepPayload.LastCRBufferGets = *&stepRow.LastCRBufferGets
-						}
-						if stepRow.LastDiskReads != nil {
-							stepPayload.LastDiskReads = *&stepRow.LastDiskReads
-						}
-						if stepRow.LastDiskWrites != nil {
-							stepPayload.LastDiskWrites = *&stepRow.LastDiskWrites
-						}
-						if stepRow.LastElapsedTime != nil {
-							stepPayload.LastElapsedTime = *&stepRow.LastElapsedTime
-						}
-						if stepRow.LastMemoryUsed != nil {
-							stepPayload.LastMemoryUsed = *&stepRow.LastMemoryUsed
-						}
-						if stepRow.LastDegree != nil {
-							stepPayload.LastDegree = *&stepRow.LastDegree
-						}
-						if stepRow.LastTempsegSize != nil {
-							stepPayload.LastTempsegSize = *&stepRow.LastTempsegSize
-						}
-						if stepRow.PlanCreated.Valid && stepRow.PlanCreated.String != "" {
-							oraclePlan.Timestamp = stepRow.PlanCreated.String
-						}
-						if stepRow.OptimizerMode.Valid && stepRow.OptimizerMode.String != "" {
-							oraclePlan.OptimizerMode = stepRow.OptimizerMode.String
-						}
-						if stepRow.Other.Valid && stepRow.Other.String != "" {
-							oraclePlan.Other = stepRow.Other.String
-						}
-						if stepRow.PDBName.Valid && stepRow.PDBName.String != "" {
-							oraclePlan.PDBName = stepRow.PDBName.String
-						}
-						oraclePlan.SQLID = stepRow.SQLID
+					if err == nil {
+						for _, stepRow := range planStepsDB {
+							var stepPayload PlanDefinition
+							if stepRow.Operation.Valid {
+								stepPayload.Operation = stepRow.Operation.String
+							}
+							if stepRow.Options.Valid {
+								stepPayload.Options = stepRow.Options.String
+							}
+							if stepRow.ObjectOwner.Valid {
+								stepPayload.ObjectOwner = stepRow.ObjectOwner.String
+							}
+							if stepRow.ObjectName.Valid {
+								stepPayload.ObjectName = stepRow.ObjectName.String
+							}
+							if stepRow.ObjectAlias.Valid {
+								stepPayload.ObjectAlias = stepRow.ObjectAlias.String
+							}
+							if stepRow.ObjectType.Valid {
+								stepPayload.ObjectType = stepRow.ObjectType.String
+							}
+							if stepRow.PlanStepId.Valid {
+								stepPayload.PlanStepId = stepRow.PlanStepId.Int64
+							}
+							if stepRow.ParentId.Valid {
+								stepPayload.ParentId = stepRow.ParentId.Int64
+							}
+							if stepRow.Depth.Valid {
+								stepPayload.Depth = stepRow.Depth.Int64
+							}
+							if stepRow.Position.Valid {
+								stepPayload.Position = stepRow.Position.Int64
+							}
+							if stepRow.SearchColumns.Valid {
+								stepPayload.SearchColumns = stepRow.SearchColumns.Int64
+							}
+							if stepRow.Cost.Valid {
+								stepPayload.Cost = stepRow.Cost.Float64
+							}
+							if stepRow.Cardinality.Valid {
+								stepPayload.Cardinality = stepRow.Cardinality.Float64
+							}
+							if stepRow.Bytes.Valid {
+								stepPayload.Bytes = stepRow.Bytes.Float64
+							}
+							if stepRow.PartitionStart.Valid {
+								stepPayload.PartitionStart = stepRow.PartitionStart.String
+							}
+							if stepRow.PartitionStop.Valid {
+								stepPayload.PartitionStop = stepRow.PartitionStop.String
+							}
+							if stepRow.CPUCost.Valid {
+								stepPayload.CPUCost = stepRow.CPUCost.Float64
+							}
+							if stepRow.IOCost.Valid {
+								stepPayload.IOCost = stepRow.IOCost.Float64
+							}
+							if stepRow.TempSpace.Valid {
+								stepPayload.TempSpace = stepRow.TempSpace.Float64
+							}
+							if stepRow.AccessPredicates.Valid {
+								//stepPayload.AccessPredicates = stepRow.AccessPredicates.String
+								obfuscated, err := o.ObfuscateSQLString(stepRow.AccessPredicates.String)
+								if err == nil {
+									stepPayload.AccessPredicates = obfuscated.Query
+								} else {
+									stepPayload.AccessPredicates = "obfuscation error"
+									log.Errorf("Access obfuscation error")
+								}
+							}
+							if stepRow.FilterPredicates.Valid {
+								//stepPayload.FilterPredicates = stepRow.FilterPredicates.String
+								obfuscated, err := o.ObfuscateSQLString(stepRow.FilterPredicates.String)
+								if err == nil {
+									stepPayload.FilterPredicates = obfuscated.Query
+								} else {
+									stepPayload.FilterPredicates = "obfuscation error"
+									log.Errorf("Filter obfuscation error")
+								}
+							}
+							if stepRow.Projection.Valid {
+								stepPayload.Projection = stepRow.Projection.String
+							}
+							if stepRow.LastStarts != nil {
+								stepPayload.LastStarts = *&stepRow.LastStarts
+							}
+							if stepRow.LastOutputRows != nil {
+								stepPayload.LastOutputRows = *&stepRow.LastOutputRows
+							}
+							if stepRow.LastCRBufferGets != nil {
+								stepPayload.LastCRBufferGets = *&stepRow.LastCRBufferGets
+							}
+							if stepRow.LastDiskReads != nil {
+								stepPayload.LastDiskReads = *&stepRow.LastDiskReads
+							}
+							if stepRow.LastDiskWrites != nil {
+								stepPayload.LastDiskWrites = *&stepRow.LastDiskWrites
+							}
+							if stepRow.LastElapsedTime != nil {
+								stepPayload.LastElapsedTime = *&stepRow.LastElapsedTime
+							}
+							if stepRow.LastMemoryUsed != nil {
+								stepPayload.LastMemoryUsed = *&stepRow.LastMemoryUsed
+							}
+							if stepRow.LastDegree != nil {
+								stepPayload.LastDegree = *&stepRow.LastDegree
+							}
+							if stepRow.LastTempsegSize != nil {
+								stepPayload.LastTempsegSize = *&stepRow.LastTempsegSize
+							}
+							if stepRow.PlanCreated.Valid && stepRow.PlanCreated.String != "" {
+								oraclePlan.Timestamp = stepRow.PlanCreated.String
+							}
+							if stepRow.OptimizerMode.Valid && stepRow.OptimizerMode.String != "" {
+								oraclePlan.OptimizerMode = stepRow.OptimizerMode.String
+							}
+							if stepRow.Other.Valid && stepRow.Other.String != "" {
+								oraclePlan.Other = stepRow.Other.String
+							}
+							if stepRow.PDBName.Valid && stepRow.PDBName.String != "" {
+								oraclePlan.PDBName = stepRow.PDBName.String
+							}
+							oraclePlan.SQLID = stepRow.SQLID
 
-						planStepsPayload = append(planStepsPayload, stepPayload)
-					}
-					oraclePlan.PlanHashValue = statementMetricRow.PlanHashValue
-					planStatementMetadata := PlanStatementMetadata{
-						Tables:   queryRow.Tables,
-						Commands: queryRow.Commands,
-					}
-					planPlanDB := PlanPlanDB{
-						Definition:            planStepsPayload,
-						Signature:             statementMetricRow.PlanHashValue,
-						QuerySignature:        queryRow.QuerySignature,
-						Statement:             SQLStatement,
-						PlanStatementMetadata: planStatementMetadata,
-					}
-					planDB := PlanDB{
-						Instance: c.cdbName,
-						Plan:     planPlanDB,
-					}
-					planPayload := PlanPayload{
-						Timestamp:    float64(time.Now().UnixMilli()),
-						Host:         c.dbHostname,
-						AgentVersion: c.agentVersion,
-						Source:       common.IntegrationName,
-						Tags:         c.tags,
-						DBMType:      "plan",
-						PlanDB:       planDB,
-						OraclePlan:   oraclePlan,
-					}
-					planPayloadBytes, err := json.Marshal(planPayload)
-					if err != nil {
-						log.Errorf("Error marshalling plan payload: %s", err)
-					}
+							planStepsPayload = append(planStepsPayload, stepPayload)
+						}
+						oraclePlan.PlanHashValue = statementMetricRow.PlanHashValue
+						planStatementMetadata := PlanStatementMetadata{
+							Tables:   queryRow.Tables,
+							Commands: queryRow.Commands,
+						}
+						planPlanDB := PlanPlanDB{
+							Definition:            planStepsPayload,
+							Signature:             statementMetricRow.PlanHashValue,
+							QuerySignature:        queryRow.QuerySignature,
+							Statement:             SQLStatement,
+							PlanStatementMetadata: planStatementMetadata,
+						}
+						planDB := PlanDB{
+							Instance: c.cdbName,
+							Plan:     planPlanDB,
+						}
+						planPayload := PlanPayload{
+							Timestamp:    float64(time.Now().UnixMilli()),
+							Host:         c.dbHostname,
+							AgentVersion: c.agentVersion,
+							Source:       common.IntegrationName,
+							Tags:         c.tags,
+							DBMType:      "plan",
+							PlanDB:       planDB,
+							OraclePlan:   oraclePlan,
+						}
+						planPayloadBytes, err := json.Marshal(planPayload)
+						if err != nil {
+							log.Errorf("Error marshalling plan payload: %s", err)
+						}
 
-					sender.EventPlatformEvent(planPayloadBytes, "dbm-samples")
-					log.Tracef("Plan payload %+v", string(planPayloadBytes))
-				} else {
-					planErrors++
-					log.Errorf("failed getting execution plan %s for plan_hash_value: %d", err, statementMetricRow.PlanHashValue)
+						sender.EventPlatformEvent(planPayloadBytes, "dbm-samples")
+						log.Tracef("Plan payload %+v", string(planPayloadBytes))
+					} else {
+						planErrors++
+						log.Errorf("failed getting execution plan %s for plan_hash_value: %d", err, statementMetricRow.PlanHashValue)
+					}
 				}
 			}
-
 		}
 
 		c.copyToPreviousMap(newCache)
@@ -936,7 +951,9 @@ func (c *Check) StatementMetrics() (int, error) {
 	sender.Gauge("dd.oracle.statements_metrics.sql_text_errors", float64(SQLTextErrors), "", c.tags)
 	sender.Gauge("dd.oracle.statements_metrics.time_ms", float64(time.Since(start).Milliseconds()), "", c.tags)
 	sender.Gauge("dd.oracle.statements.sqltext.time_ms", math.Round(float64(totalSQLTextTimeUs/1000)), "", c.tags)
-	sender.Gauge("dd.oracle.plan_errors.count", float64(planErrors), "", c.tags)
+	if c.config.ExecutionPlans {
+		sender.Gauge("dd.oracle.plan_errors.count", float64(planErrors), "", c.tags)
+	}
 	sender.Commit()
 
 	c.statementsFilter.SQLIDs = nil
