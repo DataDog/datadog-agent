@@ -3,9 +3,9 @@
 
 #include "bpf_helpers.h"
 #include "map-defs.h"
-#include "tracer.h"
+#include "conn_tuple.h"
 
-#include "java-tls-types.h"
+#include "types.h"
 
 // LINUX_VERSION_CODE doesn't work with co-re and is relevant to runtime compilation only
 #ifdef COMPILE_RUNTIME

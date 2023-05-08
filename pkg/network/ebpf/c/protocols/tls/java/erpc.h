@@ -2,11 +2,11 @@
 #define _JAVA_TLS_ERPC_H
 
 #include "bpf_helpers.h"
-#include "tracer.h"
+#include "conn_tuple.h"
 #include "../tags-types.h"
 #include "../https.h"
 #include "port_range.h"
-#include "java-tls-types.h"
+#include "types.h"
 #include "maps.h"
 
 #define USM_IOCTL_ID 0xda7ad09
