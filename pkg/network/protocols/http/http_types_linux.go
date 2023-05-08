@@ -14,17 +14,17 @@ type httpConnTuple = struct {
 	Pid      uint32
 	Metadata uint32
 }
-type sslSock struct {
+type SslSock struct {
 	Tup       httpConnTuple
 	Fd        uint32
 	Pad_cgo_0 [4]byte
 }
-type sslReadArgs struct {
+type SslReadArgs struct {
 	Ctx *byte
 	Buf *byte
 }
 
-type ebpfHttpTx struct {
+type EbpfHttpTx struct {
 	Tup                  httpConnTuple
 	Request_started      uint64
 	Request_method       uint8
@@ -35,7 +35,7 @@ type ebpfHttpTx struct {
 	Tags                 uint64
 }
 
-type libPath struct {
+type LibPath struct {
 	Pid uint32
 	Len uint32
 	Buf [120]byte

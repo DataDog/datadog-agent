@@ -6,6 +6,10 @@
 
 #include "defs.h"
 
+#ifndef COMPILE_CORE
+#include <uapi/linux/in6.h>
+#endif
+
 /* check if IPs are IPv4 mapped to IPv6 ::ffff:xxxx:xxxx
  * https://tools.ietf.org/html/rfc4291#section-2.5.5
  * the addresses are stored in network byte order so IPv4 adddress is stored
@@ -34,16 +38,30 @@ static __always_inline void read_in6_addr(u64 *addr_h, u64 *addr_l, const struct
 #endif
 }
 
-static __maybe_unused __always_inline bool is_ipv6_enabled() {
+static __maybe_unused __always_inline bool is_tcpv6_enabled() {
 #ifdef COMPILE_RUNTIME
-#ifdef FEATURE_IPV6_ENABLED
+#ifdef FEATURE_TCPV6_ENABLED
     return true;
 #else
     return false;
 #endif
 #else
     __u64 val = 0;
-    LOAD_CONSTANT("ipv6_enabled", val);
+    LOAD_CONSTANT("tcpv6_enabled", val);
+    return val == ENABLED;
+#endif
+}
+
+static __maybe_unused __always_inline bool is_udpv6_enabled() {
+#ifdef COMPILE_RUNTIME
+#ifdef FEATURE_UDPV6_ENABLED
+    return true;
+#else
+    return false;
+#endif
+#else
+    __u64 val = 0;
+    LOAD_CONSTANT("udpv6_enabled", val);
     return val == ENABLED;
 #endif
 }

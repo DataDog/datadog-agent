@@ -19,7 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/DataDog/gopsutil/process"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/vishvananda/netlink"
 	"go.uber.org/atomic"
@@ -352,12 +351,12 @@ func (nr *Resolver) IsLazyDeletionInterface(name string) bool {
 }
 
 // SyncCache snapshots /proc for the provided pid. This method returns true if it updated the namespace cache.
-func (nr *Resolver) SyncCache(proc *process.Process) bool {
+func (nr *Resolver) SyncCache(pid uint32) bool {
 	if !nr.config.NetworkEnabled {
 		return false
 	}
 
-	nsPath := utils.NetNSPathFromPid(uint32(proc.Pid))
+	nsPath := utils.NetNSPathFromPid(pid)
 	nsID, err := nsPath.GetProcessNetworkNamespace()
 	if err != nil {
 		return false

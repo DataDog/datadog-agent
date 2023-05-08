@@ -36,7 +36,7 @@ type workloadmetaListener interface {
 
 	// IsExcluded returns whether a container should be excluded according
 	// to the chosen ft filter.
-	IsExcluded(ft containers.FilterType, name, image, ns string) bool
+	IsExcluded(ft containers.FilterType, annotations map[string]string, name, image, ns string) bool
 }
 
 // workloadmetaListenerImpl implements workloadmetaListener.
@@ -120,8 +120,8 @@ func (l *workloadmetaListenerImpl) AddService(svcID string, svc Service, parentS
 	telemetry.WatchedResources.Inc(l.name, kind)
 }
 
-func (l *workloadmetaListenerImpl) IsExcluded(ft containers.FilterType, name, image, ns string) bool {
-	return l.containerFilters.IsExcluded(ft, name, image, ns)
+func (l *workloadmetaListenerImpl) IsExcluded(ft containers.FilterType, annotations map[string]string, name, image, ns string) bool {
+	return l.containerFilters.IsExcluded(ft, annotations, name, image, ns)
 }
 
 func (l *workloadmetaListenerImpl) Listen(newSvc chan<- Service, delSvc chan<- Service) {

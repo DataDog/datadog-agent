@@ -20,7 +20,8 @@ const (
 	// run the host metadata collector interval can be set through configuration within acceptable bounds
 	hostMetadataCollectorMinInterval = 300   // 5min minimum
 	hostMetadataCollectorMaxInterval = 14400 // 4h maximum
-	// run the agent checks metadata collector every 600 seconds (10 minutes)
+	// run the Agent checks metadata collector every 600 seconds (10 minutes). AgentChecksCollector implements the
+	// CollectorWithFirstRun and will send its first payload after a minute.
 	agentChecksMetadataCollectorInterval = 600
 	// run the resources metadata collector every 300 seconds (5 minutes) by default, configurable
 	resourcesMetadataCollectorInterval = 300
