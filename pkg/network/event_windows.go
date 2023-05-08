@@ -159,7 +159,7 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 
 			case crsp == driver.ClassificationResponseHTTP:
 				if flow.HttpUpgradeToH2Accepted == 1 {
-					cs.Protocol = ProtocolHTTP2
+					cs.ProtocolStack = protocols.Stack{Application: protocols.HTTP2}
 				} else {
 					// could have missed the request.  Most likely this is just
 					// resetting the existing value
