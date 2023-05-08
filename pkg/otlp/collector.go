@@ -21,13 +21,13 @@ import (
 	"go.opentelemetry.io/collector/processor"
 	"go.opentelemetry.io/collector/processor/batchprocessor"
 	"go.opentelemetry.io/collector/receiver"
-	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.uber.org/atomic"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/otlp/internal/otlpreceiverwrapper"
 	"github.com/DataDog/datadog-agent/pkg/otlp/internal/serializerexporter"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -52,7 +52,7 @@ func getComponents(s serializer.MetricSerializer) (
 	}
 
 	receivers, err := receiver.MakeFactoryMap(
-		otlpreceiver.NewFactory(),
+		otlpreceiverwrapper.NewFactory(),
 	)
 	if err != nil {
 		errs = append(errs, err)
