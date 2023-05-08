@@ -109,8 +109,7 @@ static __always_inline protocol_t classify_queue_protocols(struct __sk_buff *skb
     return PROTOCOL_UNKNOWN;
 }
 
-// updates the the protocol stack and updates the layer cache, marking the current
-// layer as known for the purposes of tail-call routing decisions.
+// updates the the protocol stack and adds the current layer to the routing skip list
 static __always_inline void update_protocol_information(usm_context_t *usm_ctx, protocol_stack_t *stack, protocol_t proto) {
     set_protocol(stack, proto);
     usm_ctx->routing_skip_layers |= proto;
