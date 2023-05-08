@@ -135,10 +135,9 @@ int BPF_PROG(tcp_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t size,
 
     u64 error = bpf_get_ns_current_pid_tgid(dev, ino, &ns, sizeof(struct bpf_pidns_info));
 
-    if (error) {
-        log_debug("fexit/tcp_sendmsg adamk pid ns check FAILED, ns: %d", ns.pid);
+    if (error == ENOENT) {
+        log_debug("fexit/tcp_sendmsg adamk pid ns check ENOENT, ns: %d", ns.pid);
     }
-    log_debug("fexit/tcp_sendmsg adamk pid ns check SUCCESS, ns: %d", ns.pid);
 
     handle_tcp_stats(&t, sk, 0);
 
