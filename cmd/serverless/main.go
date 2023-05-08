@@ -134,6 +134,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	// immediately starts the communication server
 	serverlessDaemon = daemon.StartDaemon(httpServerAddr)
+	serverlessDaemon.ExecutionContext.SetInitializationTime(startTime)
 	err = serverlessDaemon.ExecutionContext.RestoreCurrentStateFromFile()
 	if err != nil {
 		log.Debug("Unable to restore the state from file")

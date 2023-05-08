@@ -173,8 +173,13 @@ func buildTags(tags map[string]string, tagsToSkip []string) map[string]string {
 }
 
 // AddColdStartTag appends the cold_start tag to existing tags
-func AddColdStartTag(tags []string, coldStart bool) []string {
-	tags = append(tags, fmt.Sprintf("cold_start:%v", coldStart))
+func AddColdStartTag(tags []string, coldStart bool, proactiveInit bool) []string {
+	if proactiveInit {
+		tags = append(tags, fmt.Sprintf("cold_start:%v", false))
+		tags = append(tags, fmt.Sprintf("proactive_initialization:%v", proactiveInit))
+	} else {
+		tags = append(tags, fmt.Sprintf("cold_start:%v", coldStart))
+	}
 	return tags
 }
 

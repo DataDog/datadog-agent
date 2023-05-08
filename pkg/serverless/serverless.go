@@ -134,7 +134,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 		isTimeout := strings.ToLower(payload.ShutdownReason.String()) == Timeout.String()
 		if isTimeout {
 			ecs := daemon.ExecutionContext.GetCurrentState()
-			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, ecs.Coldstart)
+			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, ecs.Coldstart, ecs.ProactiveInit)
 			metricTags = tags.AddInitTypeTag(metricTags)
 			metrics.SendTimeoutEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
 			metrics.SendErrorsEnhancedMetric(metricTags, time.Now(), daemon.MetricAgent.Demux)
@@ -176,7 +176,7 @@ func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, 
 	ecs := daemon.ExecutionContext.GetCurrentState()
 
 	if daemon.MetricAgent != nil {
-		metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, ecs.Coldstart)
+		metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, ecs.Coldstart, ecs.ProactiveInit)
 		metricTags = tags.AddInitTypeTag(metricTags)
 		metrics.SendInvocationEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
 	} else {

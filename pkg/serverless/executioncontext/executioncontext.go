@@ -24,6 +24,8 @@ type ExecutionContext struct {
 	lastLogRequestID   string
 	lastOOMRequestID   string
 	coldstart          bool
+	proactiveInit      bool
+	initTime           time.Time
 	startTime          time.Time
 	endTime            time.Time
 
@@ -38,6 +40,8 @@ type State struct {
 	LastLogRequestID   string
 	LastOOMRequestID   string
 	Coldstart          bool
+	ProactiveInit      bool
+	InitTime           time.Time
 	StartTime          time.Time
 	EndTime            time.Time
 }
@@ -53,6 +57,8 @@ func (ec *ExecutionContext) GetCurrentState() State {
 		LastLogRequestID:   ec.lastLogRequestID,
 		LastOOMRequestID:   ec.lastOOMRequestID,
 		Coldstart:          ec.coldstart,
+		ProactiveInit:      ec.proactiveInit,
+		InitTime:           ec.initTime,
 		StartTime:          ec.startTime,
 		EndTime:            ec.endTime,
 	}
@@ -72,11 +78,29 @@ func (ec *ExecutionContext) SetFromInvocation(arn string, requestID string) {
 	ec.arn = strings.ToLower(arn)
 	ec.lastRequestID = requestID
 	if len(ec.coldstartRequestID) == 0 {
-		ec.coldstart = true
+		// Putting this within the guard clause of
+		// coldstartRequestID == 0 ensures this is set once
+		// 10 seconds is the maximimum init time, so if the difference
+		// between the first invocation start time and initTime
+		// is greater than 10, we're in a proactive_initialization
+		// not a cold start
+		if time.Now().Sub(ec.initTime) > 10*time.Second {
+			ec.proactiveInit = true
+			ec.coldstart = false
+		} else {
+			ec.coldstart = true
+		}
 		ec.coldstartRequestID = requestID
 	} else {
 		ec.coldstart = false
 	}
+}
+
+// SetInitTime sets the agent initialization time
+func (ec *ExecutionContext) SetInitializationTime(time time.Time) {
+	ec.m.Lock()
+	defer ec.m.Unlock()
+	ec.initTime = time
 }
 
 // UpdateStartTime updates the execution context based on a platform.Start log message

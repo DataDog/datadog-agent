@@ -37,6 +37,7 @@ type LambdaLogsCollector struct {
 	In                     chan []LambdaLogAPIMessage
 	lastRequestID          string
 	coldstartRequestID     string
+	proactiveInit          bool
 	lastOOMRequestID       string
 	out                    chan<- *logConfig.ChannelMessage
 	demux                  aggregator.Demultiplexer
@@ -87,6 +88,7 @@ func (lc *LambdaLogsCollector) Start() {
 		lc.arn = state.ARN
 		lc.lastRequestID = state.LastRequestID
 		lc.coldstartRequestID = state.ColdstartRequestID
+		lc.proactiveInit = state.ProactiveInit
 		lc.lastOOMRequestID = state.LastOOMRequestID
 		lc.invocationStartTime = state.StartTime
 		lc.invocationEndTime = state.EndTime
@@ -188,7 +190,7 @@ func (lc *LambdaLogsCollector) processMessage(
 	}
 
 	if lc.enhancedMetricsEnabled {
-		tags := tags.AddColdStartTag(lc.extraTags.Tags, lc.lastRequestID == lc.coldstartRequestID)
+		tags := tags.AddColdStartTag(lc.extraTags.Tags, lc.lastRequestID == lc.coldstartRequestID, lc.proactiveInit)
 		outOfMemoryRequestId := ""
 
 		if message.logType == logTypeFunction {
