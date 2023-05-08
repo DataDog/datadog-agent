@@ -28,14 +28,20 @@ func main() {
 		panic("please use 'go run integrity.go <in_file> <out_file> <package>'")
 	}
 
-	args := os.Args[1:]
-	inputFile, err := filepath.Abs(args[0])
+	// cwd is guaranteed to be the directory where the go:generate comment is found
+	cwd, err := os.Getwd()
 	if err != nil {
-		log.Fatalf("unable to get absolute path to %s: %s", args[0], err)
+		log.Fatalf("unable to get current working directory: %s", err)
 	}
-	outputFile, err := filepath.Abs(args[1])
+	root := rootDir(cwd)
+	args := os.Args[1:]
+	inputFile, err := resolvePath(root, args[0])
 	if err != nil {
-		log.Fatalf("unable to get absolute path to %s: %s", args[1], err)
+		log.Fatalf("unable to resolve path to %s: %s", args[0], err)
+	}
+	outputFile, err := resolvePath(root, args[1])
+	if err != nil {
+		log.Fatalf("unable to resolve path to %s: %s", args[1], err)
 	}
 
 	err = genIntegrity(inputFile, outputFile, args[2])
@@ -127,3 +133,27 @@ package {{ .Package }}
 
 var {{ .AssetName }} = {{ .PackagePrefix }}newAsset("{{ .Filename }}", "{{ .Hash }}")
 `))
+
+// rootDir returns the base repository directory, just before `pkg`.
+// If `pkg` is not found, the dir provided is returned.
+func rootDir(dir string) string {
+	pkgIndex := -1
+	parts := strings.Split(dir, string(filepath.Separator))
+	for i, d := range parts {
+		if d == "pkg" {
+			pkgIndex = i
+			break
+		}
+	}
+	if pkgIndex == -1 {
+		return dir
+	}
+	return strings.Join(parts[:pkgIndex], string(filepath.Separator))
+}
+
+func resolvePath(root, path string) (string, error) {
+	if strings.HasPrefix(path, "pkg/") {
+		return filepath.Join(root, path), nil
+	}
+	return filepath.Abs(path)
+}
