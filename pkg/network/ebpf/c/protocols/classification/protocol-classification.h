@@ -109,23 +109,9 @@ static __always_inline protocol_t classify_queue_protocols(struct __sk_buff *skb
     return PROTOCOL_UNKNOWN;
 }
 
-static __always_inline protocol_stack_t* get_protocol_stack(struct __sk_buff *skb, usm_context_t *usm_ctx) {
-    conn_tuple_t normalized_tup = usm_ctx->tuple;
-    normalize_tuple(&normalized_tup);
-    protocol_stack_t* stack = bpf_map_lookup_elem(&connection_protocol, &normalized_tup);
-    if (stack) {
-        return stack;
-    }
-
-    // this code path is executed once during the entire connection lifecycle
-    protocol_stack_t empty_stack = {0};
-    bpf_map_update_with_telemetry(connection_protocol, &normalized_tup, &empty_stack, BPF_NOEXIST);
-    return bpf_map_lookup_elem(&connection_protocol, &normalized_tup);
-}
-
 // updates the the protocol stack and updates the layer cache, marking the current
 // layer as known for the purposes of tail-call routing decisions.
-static __always_inline void update_protocol_stack(usm_context_t *usm_ctx, protocol_stack_t *stack, protocol_t proto) {
+static __always_inline void update_protocol_information(usm_context_t *usm_ctx, protocol_stack_t *stack, protocol_t proto) {
     set_protocol(stack, proto);
     usm_ctx->routing_skip_layers |= proto;
 }
@@ -150,7 +136,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
-    protocol_stack_t *protocol_stack = get_protocol_stack(skb, usm_ctx);
+    protocol_stack_t *protocol_stack = get_protocol_stack(&usm_ctx->tuple);
     if (!protocol_stack) {
         return;
     }
@@ -165,7 +151,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     const char *buffer = &(usm_ctx->buffer.data[0]);
     // TLS classification
     if (is_tls(buffer, usm_ctx->buffer.size)) {
-        update_protocol_stack(usm_ctx, protocol_stack, PROTOCOL_TLS);
+        update_protocol_information(usm_ctx, protocol_stack, PROTOCOL_TLS);
         // The connection is TLS encrypted, thus we cannot classify the protocol
         // using the socket filter and therefore we can bail out;
         mark_as_fully_classified(protocol_stack);
@@ -179,7 +165,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
 
     protocol_t cur_fragment_protocol = classify_applayer_protocols(buffer, usm_ctx->buffer.size);
     if (cur_fragment_protocol) {
-        update_protocol_stack(usm_ctx, protocol_stack, cur_fragment_protocol);
+        update_protocol_information(usm_ctx, protocol_stack, cur_fragment_protocol);
         // this is mostly an optimization *for now* since we won't be classifying
         // any other protocols if we have detected HTTP traffic
         mark_as_fully_classified(protocol_stack);
@@ -201,11 +187,11 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_queues
         goto next_program;
     }
 
-    protocol_stack_t *protocol_stack = get_protocol_stack(skb, usm_ctx);
+    protocol_stack_t *protocol_stack = get_protocol_stack(&usm_ctx->tuple);
     if (!protocol_stack) {
         return;
     }
-    update_protocol_stack(usm_ctx, protocol_stack, cur_fragment_protocol);
+    update_protocol_information(usm_ctx, protocol_stack, cur_fragment_protocol);
     mark_as_fully_classified(protocol_stack);
 
  next_program:
@@ -224,12 +210,12 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_dbs(st
         goto next_program;
     }
 
-    protocol_stack_t *protocol_stack = get_protocol_stack(skb, usm_ctx);
+    protocol_stack_t *protocol_stack = get_protocol_stack(&usm_ctx->tuple);
     if (!protocol_stack) {
         return;
     }
 
-    update_protocol_stack(usm_ctx, protocol_stack, cur_fragment_protocol);
+    update_protocol_information(usm_ctx, protocol_stack, cur_fragment_protocol);
     mark_as_fully_classified(protocol_stack);
  next_program:
     classification_next_program(skb, usm_ctx);

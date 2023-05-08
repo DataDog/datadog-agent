@@ -29,33 +29,19 @@
 
 #define HTTPS_PORT 443
 
-static __always_inline int http_process(http_transaction_t *http_stack, skb_info_t *skb_info, __u64 tags);
+static __always_inline bool http_process(http_transaction_t *http_stack, skb_info_t *skb_info, __u64 tags);
 
 static __always_inline void https_process(conn_tuple_t *t, void *buffer, size_t len, __u64 tags) {
     http_transaction_t http;
     bpf_memset(&http, 0, sizeof(http));
     bpf_memcpy(&http.tup, t, sizeof(conn_tuple_t));
     read_into_buffer(http.request_fragment, buffer, len);
+    bool http_traffic_detected = http_process(&http, NULL, tags);
 
-    protocol_t *cur_fragment_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, &http.tup);
-    if (cur_fragment_protocol_ptr == NULL) {
-        protocol_t cur_fragment_protocol = PROTOCOL_UNKNOWN;
-        conn_tuple_t inverse_conn_tup = http.tup;
-        flip_tuple(&inverse_conn_tup);
-
-        cur_fragment_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, &inverse_conn_tup);
-
-        // try classifying the protocol if no prior identification exists
-        if (cur_fragment_protocol_ptr == NULL) {
-            classify_protocol_for_dispatcher(&cur_fragment_protocol, &http.tup, http.request_fragment, len);
-            // If there has been a change in the classification, save the new protocol.
-            if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
-                bpf_map_update_with_telemetry(connection_protocol, &http.tup, &cur_fragment_protocol, BPF_NOEXIST);
-                bpf_map_update_with_telemetry(connection_protocol, &inverse_conn_tup, &cur_fragment_protocol, BPF_NOEXIST);
-            }
-        }
+    if (http_traffic_detected) {
+        // TODO: Consider marking the connection as TLS?
+        update_protocol_stack(t, PROTOCOL_HTTP);
     }
-    http_process(&http, NULL, tags);
 }
 
 static __always_inline void https_finish(conn_tuple_t *t) {
