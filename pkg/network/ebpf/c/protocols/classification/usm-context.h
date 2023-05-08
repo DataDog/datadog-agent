@@ -1,7 +1,7 @@
 #ifndef __USM_CONTEXT_H
 #define __USM_CONTEXT_H
 
-#include "tracer.h"
+#include "tracer/tracer.h"
 #include "protocols/classification/common.h"
 #include "protocols/classification/defs.h"
 #include "protocols/classification/maps.h"
