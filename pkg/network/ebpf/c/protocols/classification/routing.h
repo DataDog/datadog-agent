@@ -19,14 +19,15 @@ static __always_inline classification_prog_t __get_next_program(usm_context_t *u
     u16 current_layer_bit = get_current_program_layer(current_program);
     bool current_layer_known = usm_ctx->routing_skip_layers & current_layer_bit;
 
-    if (is_last_program_from_layer(current_program) || current_layer_known) {
-        // there are not other programs for this layer to be executed, so we
-        // skip to the first program of the next layer that is not known
-        usm_ctx->routing_skip_layers |= current_layer_bit;
-        return next_layer_entrypoint(usm_ctx);
+    if (has_available_program(current_program) && !current_layer_known) {
+        // advance to the next program belonging to this protocol layer
+        return current_program+1;
     }
 
-    return current_program+1;
+    // there are not other programs belonging to the same layer to be executed,
+    // so we skip to the first program of the next layer that is not known
+    usm_ctx->routing_skip_layers |= current_layer_bit;
+    return next_layer_entrypoint(usm_ctx);
 }
 
 static __always_inline void classification_next_program(struct __sk_buff *skb, usm_context_t *usm_ctx) {
@@ -51,13 +52,13 @@ static __always_inline void init_routing_cache(usm_context_t *usm_ctx, protocol_
     // We skip a given layer in two cases:
     // 1) If the protocol for that layer is known
     // 2) If there are no programs registered for that layer
-    if (stack->layer_application || is_application_layer_empty()) {
+    if (stack->layer_application || !has_available_program(__PROG_APPLICATION)) {
         usm_ctx->routing_skip_layers |= LAYER_APPLICATION_BIT;
     }
-    if (stack->layer_api || is_api_layer_empty()) {
+    if (stack->layer_api || !has_available_program(__PROG_API)) {
         usm_ctx->routing_skip_layers |= LAYER_API_BIT;
     }
-    if (stack->layer_encryption || is_encryption_layer_empty()) {
+    if (stack->layer_encryption || !has_available_program(__PROG_ENCRYPTION)) {
         usm_ctx->routing_skip_layers |= LAYER_ENCRYPTION_BIT;
     }
 }

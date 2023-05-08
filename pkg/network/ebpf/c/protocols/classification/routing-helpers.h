@@ -4,23 +4,19 @@
 #include "ktypes.h"
 #include "protocols/classification/defs.h"
 
-static __always_inline bool is_last_program_from_layer(classification_prog_t current_program) {
+// has_available_program returns true when there is another program from within
+// the same protocol layer or false otherwise
+static __always_inline bool has_available_program(classification_prog_t current_program) {
     classification_prog_t next_program = current_program+1;
     if (next_program == __PROG_APPLICATION ||
         next_program == __PROG_API ||
         next_program == __PROG_ENCRYPTION ||
         next_program == CLASSIFICATION_PROG_MAX) {
-        return true;
+        return false;
     }
 
-    return false;
+    return true;
 }
-
-// The following macros return true in case where no BPF programs are registered for
-// a given layer or false otherwise.
-#define is_application_layer_empty() is_last_program_from_layer(__PROG_APPLICATION)
-#define is_api_layer_empty() is_last_program_from_layer(__PROG_API)
-#define is_encryption_layer_empty() is_last_program_from_layer(__PROG_ENCRYPTION)
 
 #pragma clang diagnostic push
 // The following check is ignored because *currently* there are no API or
