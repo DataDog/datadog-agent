@@ -51,9 +51,8 @@ func key(pieces ...string) string {
 
 // Config represents the configuration options for the system-probe
 type Config struct {
-	Enabled             bool
-	EnabledModules      map[ModuleName]struct{}
-	ClosedSourceAllowed bool
+	Enabled        bool
+	EnabledModules map[ModuleName]struct{}
 
 	// When the system-probe is enabled in a separate container, we need a way to also disable the system-probe
 	// packaged in the main agent container (without disabling network collection on the process-agent).
@@ -131,7 +130,6 @@ func load() (*Config, error) {
 	c := &Config{
 		Enabled:             cfg.GetBool(key(spNS, "enabled")),
 		EnabledModules:      make(map[ModuleName]struct{}),
-		ClosedSourceAllowed: isClosedSourceAllowed(),
 		ExternalSystemProbe: cfg.GetBool(key(spNS, "external")),
 
 		SocketAddress:      cfg.GetString(key(spNS, "sysprobe_socket")),

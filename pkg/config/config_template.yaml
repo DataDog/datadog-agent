@@ -1657,6 +1657,10 @@ api_key:
 ########################################
 
 # network_config:
+{{- if (eq .OS "windows")}}
+  ## Please note that enabling the Network Module of the System
+  ## Probe will result in a kernel driver being loaded.
+{{ end }}
   ## @param enabled - boolean - optional - default: false
   ## Set to true to enable the Network Module of the System Probe
   #
@@ -1671,10 +1675,15 @@ api_key:
 #############################################################
 
 # service_monitoring_config:
-## @param enabled - boolean - optional - default: false
-## Set to true to enable the Universal Service Monitoring Module of the System Probe
-#
-# enabled: false
+{{- if (eq .OS "windows")}}
+  ## Please note that enabling the Universal Service Monitoring
+  ## Module of the System Probe will result in a kernel driver 
+  ## being loaded.
+{{ end }}
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable the Universal Service Monitoring Module of the System Probe
+  #
+  # enabled: false
 
 {{ end -}}
 

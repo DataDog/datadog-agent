@@ -61,7 +61,7 @@ func TestMain(m *testing.M) {
 		fmt.Println("RUNTIME COMPILER ENABLED")
 	}
 
-	driver.Init(&syscfg.Config{ClosedSourceAllowed: true})
+	driver.Init(&syscfg.Config{})
 	os.Exit(m.Run())
 }
 

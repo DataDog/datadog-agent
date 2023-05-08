@@ -93,10 +93,6 @@ namespace WixSetup.Datadog
                 {
                     AttributesDefinition = "Secure=yes",
                 },
-                new Property("ALLOWCLOSEDSOURCE")
-                {
-                    AttributesDefinition = "Secure=yes",
-                },
                 // Add a checkbox at the end of the setup to launch the Datadog Agent Manager
                 new LaunchCustomApplicationFromExitDialog(
                     _agentBinaries.TrayId,
@@ -299,6 +295,7 @@ namespace WixSetup.Datadog
                     new Dir("LICENSES",
                         new Files($@"{InstallerSource}\LICENSES\*")
                     ),
+                    new DirFiles($@"{InstallerSource}\LICENSE"),
                     new DirFiles($@"{InstallerSource}\*.json"),
                     new DirFiles($@"{InstallerSource}\*.txt"),
                     new CompressedDir(this, "embedded3", $@"{InstallerSource}\embedded3")

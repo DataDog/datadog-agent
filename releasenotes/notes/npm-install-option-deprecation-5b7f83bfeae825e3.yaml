@@ -1,0 +1,7 @@
+---
+deprecations:
+  - |
+    The Windows Installer NPM feature option, used in ``ADDLOCAL=NPM`` and ``REMOVE=NPM``, no
+    longer controls the install state of NPM components. The NPM components are now always
+    installed, but will only run when enabled in the agent configuration. The Windows Installer
+    NPM feature option still exists for backwards compatability purposes, but has no effect.
