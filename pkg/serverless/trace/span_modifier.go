@@ -8,11 +8,14 @@ package trace
 import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
+	ddOriginTagName    = "_dd.origin"
+	ddOriginTagValue   = "lambda"
 )
 
 type spanModifier struct {
@@ -31,6 +34,11 @@ func (s *spanModifier) ModifySpan(_ *pb.TraceChunk, span *pb.Span) {
 		if s.lambdaSpanChan != nil && span.Name == "aws.lambda" {
 			s.lambdaSpanChan <- span
 		}
+	}
+
+	// ensure all spans have tag _dd.origin in addition to span.Origin
+	if origin := span.Meta[ddOriginTagName]; origin == "" {
+		traceutil.SetMeta(span, ddOriginTagName, ddOriginTagValue)
 	}
 
 	if span.Name == "aws.lambda.load" {
