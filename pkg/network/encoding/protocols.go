@@ -34,18 +34,31 @@ func formatProtocolStack(originalStack protocols.Stack, staticTags uint64) *mode
 	var stack []model.ProtocolType
 
 	if network.IsTLSTag(staticTags) || originalStack.Encryption == protocols.TLS {
-		stack = append(stack, formatProtocol(protocols.TLS))
+		stack = addProtocol(stack, protocols.TLS)
 	}
 	if originalStack.Application != protocols.Unknown {
-		stack = append(stack, formatProtocol(originalStack.Application))
+		stack = addProtocol(stack, originalStack.Application)
 	}
 	if originalStack.Api != protocols.Unknown {
-		stack = append(stack, formatProtocol(originalStack.Api))
+		stack = addProtocol(stack, originalStack.Application)
 	}
 
 	return &model.ProtocolStack{
 		Stack: stack,
 	}
+}
+
+func addProtocol(stack []model.ProtocolType, proto protocols.ProtocolType) []model.ProtocolType {
+	encodedProtocol := formatProtocol(proto)
+	if encodedProtocol == model.ProtocolType_protocolUnknown {
+		return stack
+	}
+
+	if stack == nil {
+		stack = make([]model.ProtocolType, 0, 3)
+	}
+
+	return append(stack, encodedProtocol)
 }
 
 func formatProtocol(proto protocols.ProtocolType) model.ProtocolType {

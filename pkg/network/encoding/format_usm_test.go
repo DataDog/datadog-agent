@@ -21,6 +21,17 @@ func TestFormatProtocols(t *testing.T) {
 		want     *model.ProtocolStack
 	}{
 		{
+			name: "unknown protocol",
+			protocol: protocols.Stack{
+				Application: protocols.Unknown,
+				Api:         protocols.Unknown,
+				Encryption:  protocols.Unknown,
+			},
+			want: &model.ProtocolStack{
+				Stack: nil,
+			},
+		},
+		{
 			name:     "http protocol",
 			protocol: protocols.Stack{Application: protocols.HTTP},
 			want: &model.ProtocolStack{
