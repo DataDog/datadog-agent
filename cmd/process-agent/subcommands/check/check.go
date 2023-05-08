@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
@@ -153,19 +152,13 @@ func runCheckCmd(deps dependencies) error {
 		}
 	}()
 
-	// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
-	_, processModuleEnabled := deps.Syscfg.Object().EnabledModules[sysconfig.ProcessModule]
-
-	if processModuleEnabled {
-		net.SetSystemProbePath(deps.Syscfg.Object().SocketAddress)
-	}
-
 	names := make([]string, 0, len(deps.Checks))
 	for _, checkComponent := range deps.Checks {
 		ch := checkComponent.Object()
 
 		names = append(names, ch.Name())
 
+		_, processModuleEnabled := deps.Syscfg.Object().EnabledModules[sysconfig.ProcessModule]
 		cfg := &checks.SysProbeConfig{
 			MaxConnsPerMessage:   deps.Syscfg.Object().MaxConnsPerMessage,
 			SystemProbeAddress:   deps.Syscfg.Object().SocketAddress,

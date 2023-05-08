@@ -17,12 +17,24 @@ import (
 	"strconv"
 	"strings"
 
-	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/ebpf-manager/tracefs"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const kProbeTelemetryName = "ebpf__kprobes"
+
 var myPid int
+
+var debugfsStats = struct {
+	hits   telemetry.Gauge
+	misses telemetry.Gauge
+}{
+	telemetry.NewGauge(kProbeTelemetryName, "hits", []string{"name"}, "Gauge tracking number of kprobe hits"),
+	telemetry.NewGauge(kProbeTelemetryName, "misses", []string{"name"}, "Gauge tracking number of kprobe misses"),
+}
 
 func init() {
 	myPid = manager.Getpid()
@@ -39,7 +51,13 @@ var eventRegexp = regexp.MustCompile(`^((?:p|r)_.+?)_([^_]*)_([^_]*)$`)
 
 // GetProbeStats gathers stats about the # of kprobes triggered /missed by reading the kprobe_profile file
 func GetProbeStats() map[string]int64 {
-	return getProbeStats(0, filepath.Join(utilkernel.GetTraceFSMountPath(), "kprobe_profile"))
+	root, err := tracefs.Root()
+	if err != nil {
+		log.Debugf("error getting tracefs root path: %s", err)
+		return map[string]int64{}
+	}
+
+	return getProbeStats(0, filepath.Join(root, "kprobe_profile"))
 }
 
 func getProbeStats(pid int, profile string) map[string]int64 {
@@ -68,8 +86,12 @@ func getProbeStats(pid int, profile string) map[string]int64 {
 			event = parts[1]
 		}
 		event = strings.ToLower(event)
-		res[fmt.Sprintf("%s_hits", event)] = st.Hits
-		res[fmt.Sprintf("%s_misses", event)] = st.Misses
+		hitsKey := fmt.Sprintf("%s_hits", event)
+		missesKey := fmt.Sprintf("%s_misses", event)
+		debugfsStats.hits.Add(float64(st.Hits), event)
+		debugfsStats.misses.Add(float64(st.Misses), event)
+		res[hitsKey] = st.Hits
+		res[missesKey] = st.Misses
 	}
 
 	return res
@@ -78,11 +100,13 @@ func getProbeStats(pid int, profile string) map[string]int64 {
 // GetProbeTotals returns the total number of kprobes triggered or missed by reading the kprobe_profile file
 func GetProbeTotals() KprobeStats {
 	stats := KprobeStats{}
-	tracefsPath := utilkernel.GetTraceFSMountPath()
-	if tracefsPath == "" {
+	root, err := tracefs.Root()
+	if err != nil {
+		log.Debugf("error getting tracefs root path: %s", err)
 		return stats
 	}
-	m, err := readKprobeProfile(filepath.Join(tracefsPath, "kprobe_profile"))
+
+	m, err := readKprobeProfile(filepath.Join(root, "kprobe_profile"))
 	if err != nil {
 		log.Debugf("error retrieving probe stats: %s", err)
 		return stats

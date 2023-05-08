@@ -4,8 +4,10 @@
 #include "bpf_helpers.h"
 #include "bpf_endian.h"
 #include "bpf_telemetry.h"
+
+#include "offsets.h"
 #include "conntrack.h"
-#include "conntrack-maps.h"
+#include "conntrack/maps.h"
 #include "ip.h"
 #include "ipv6.h"
 

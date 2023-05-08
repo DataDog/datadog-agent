@@ -18,12 +18,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type httpStatKeeper struct {
+type HttpStatKeeper struct {
 	mux                             sync.Mutex
 	stats                           map[Key]*RequestStats
 	incomplete                      *incompleteBuffer
 	maxEntries                      int
-	telemetry                       *telemetry
+	telemetry                       *Telemetry
 	enableHTTPStatusCodeAggregation bool
 
 	// replace rules for HTTP path
@@ -39,8 +39,8 @@ type httpStatKeeper struct {
 	oversizedLogLimit *util.LogLimit
 }
 
-func newHTTPStatkeeper(c *config.Config, telemetry *telemetry) *httpStatKeeper {
-	return &httpStatKeeper{
+func NewHTTPStatkeeper(c *config.Config, telemetry *Telemetry) *HttpStatKeeper {
+	return &HttpStatKeeper{
 		stats:                           make(map[Key]*RequestStats),
 		incomplete:                      newIncompleteBuffer(c, telemetry),
 		maxEntries:                      c.MaxHTTPStatsBuffered,
@@ -53,7 +53,7 @@ func newHTTPStatkeeper(c *config.Config, telemetry *telemetry) *httpStatKeeper {
 	}
 }
 
-func (h *httpStatKeeper) Process(tx httpTX) {
+func (h *HttpStatKeeper) Process(tx HttpTX) {
 	h.mux.Lock()
 	defer h.mux.Unlock()
 
@@ -65,7 +65,7 @@ func (h *httpStatKeeper) Process(tx httpTX) {
 	h.add(tx)
 }
 
-func (h *httpStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
+func (h *HttpStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	h.mux.Lock()
 	defer h.mux.Unlock()
 
@@ -79,7 +79,7 @@ func (h *httpStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	return ret
 }
 
-func (h *httpStatKeeper) add(tx httpTX) {
+func (h *HttpStatKeeper) add(tx HttpTX) {
 	rawPath, fullPath := tx.Path(h.buffer)
 	if rawPath == nil {
 		h.telemetry.malformed.Add(1)
@@ -122,7 +122,7 @@ func (h *httpStatKeeper) add(tx httpTX) {
 	stats.AddRequest(tx.StatusCode(), latency, tx.StaticTags(), tx.DynamicTags())
 }
 
-func (h *httpStatKeeper) newKey(tx httpTX, path string, fullPath bool) Key {
+func (h *HttpStatKeeper) newKey(tx HttpTX, path string, fullPath bool) Key {
 	return Key{
 		ConnectionKey: tx.ConnTuple(),
 		Path: Path{
@@ -142,7 +142,7 @@ func pathIsMalformed(fullPath []byte) bool {
 	return false
 }
 
-func (h *httpStatKeeper) processHTTPPath(tx httpTX, path []byte) (pathStr string, rejected bool) {
+func (h *HttpStatKeeper) processHTTPPath(tx HttpTX, path []byte) (pathStr string, rejected bool) {
 	match := false
 	for _, r := range h.replaceRules {
 		if r.Re.Match(path) {
@@ -169,7 +169,7 @@ func (h *httpStatKeeper) processHTTPPath(tx httpTX, path []byte) (pathStr string
 	return h.intern(path), false
 }
 
-func (h *httpStatKeeper) intern(b []byte) string {
+func (h *HttpStatKeeper) intern(b []byte) string {
 	v, ok := h.interned[string(b)]
 	if !ok {
 		v = string(b)

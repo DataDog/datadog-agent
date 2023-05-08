@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags linux -output accessors_linux.go -field-handlers field_handlers_linux.go -doc ../../../../docs/cloud-workload-security/secl.json
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags windows -output accessors_windows.go -field-handlers field_handlers_windows.go
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags linux -output accessors_linux.go -field-handlers-tags unix -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl.json
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags windows -output accessors_windows.go -field-handlers-tags windows -field-handlers field_handlers_windows.go
 
 package model
 
@@ -19,6 +19,8 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
+
+	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
@@ -190,10 +192,16 @@ func (s Status) String() string {
 
 // SecurityProfileContext holds the security context of the profile
 type SecurityProfileContext struct {
-	Name    string   `field:"name"`    // SECLDoc[name] Definition:`Name of the security profile`
-	Status  Status   `field:"status"`  // SECLDoc[status] Definition:`Status of the security profile`
-	Version string   `field:"version"` // SECLDoc[version] Definition:`Version of the security profile`
-	Tags    []string `field:"tags"`    // SECLDoc[tags] Definition:`Tags of the security profile`
+	Name                       string      `field:"name"`                          // SECLDoc[name] Definition:`Name of the security profile`
+	Status                     Status      `field:"status"`                        // SECLDoc[status] Definition:`Status of the security profile`
+	Version                    string      `field:"version"`                       // SECLDoc[version] Definition:`Version of the security profile`
+	Tags                       []string    `field:"tags"`                          // SECLDoc[tags] Definition:`Tags of the security profile`
+	AnomalyDetectionEventTypes []EventType `field:"anomaly_detection_event_types"` // SECLDoc[anomaly_detection_event_types] Definition:`Event types enabled for anomaly detection`
+}
+
+// CanGenerateAnomaliesFor returns true if the current profile can generate anomalies for the provided event type
+func (spc SecurityProfileContext) CanGenerateAnomaliesFor(evtType EventType) bool {
+	return slices.Contains[EventType](spc.AnomalyDetectionEventTypes, evtType)
 }
 
 // Event represents an event sent from the kernel
@@ -257,15 +265,17 @@ type Event struct {
 	Bind BindEvent `field:"bind" event:"bind" platform:"linux"` // [7.37] [Network] [Experimental] A bind was executed
 
 	// internal usage
-	Umount              UmountEvent           `field:"-" json:"-" platform:"linux"`
-	InvalidateDentry    InvalidateDentryEvent `field:"-" json:"-" platform:"linux"`
-	ArgsEnvs            ArgsEnvsEvent         `field:"-" json:"-" platform:"linux"`
-	MountReleased       MountReleasedEvent    `field:"-" json:"-" platform:"linux"`
-	CgroupTracing       CgroupTracingEvent    `field:"-" json:"-" platform:"linux"`
-	NetDevice           NetDeviceEvent        `field:"-" json:"-" platform:"linux"`
-	VethPair            VethPairEvent         `field:"-" json:"-" platform:"linux"`
-	UnshareMountNS      UnshareMountNSEvent   `field:"-" json:"-" platform:"linux"`
-	PathResolutionError error                 `field:"-" json:"-" platform:"linux"` // hold one of the path resolution error
+	Umount           UmountEvent           `field:"-" json:"-" platform:"linux"`
+	InvalidateDentry InvalidateDentryEvent `field:"-" json:"-" platform:"linux"`
+	ArgsEnvs         ArgsEnvsEvent         `field:"-" json:"-" platform:"linux"`
+	MountReleased    MountReleasedEvent    `field:"-" json:"-" platform:"linux"`
+	CgroupTracing    CgroupTracingEvent    `field:"-" json:"-" platform:"linux"`
+	NetDevice        NetDeviceEvent        `field:"-" json:"-" platform:"linux"`
+	VethPair         VethPairEvent         `field:"-" json:"-" platform:"linux"`
+	UnshareMountNS   UnshareMountNSEvent   `field:"-" json:"-" platform:"linux"`
+
+	// mark event with having error
+	Error error `field:"-" json:"-"`
 
 	// field resolution
 	FieldHandlers FieldHandlers `field:"-" json:"-" platform:"linux"`
@@ -382,7 +392,7 @@ func (ev *Event) Release() {
 // SetPathResolutionError sets the Event.pathResolutionError
 func (ev *Event) SetPathResolutionError(fileFields *FileEvent, err error) {
 	fileFields.PathResolutionError = err
-	ev.PathResolutionError = err
+	ev.Error = err
 }
 
 // ResolveProcessCacheEntry uses the field handler
@@ -395,9 +405,9 @@ func (ev *Event) ResolveEventTimestamp() time.Time {
 	return ev.FieldHandlers.ResolveEventTimestamp(ev)
 }
 
-// GetProcessServiceTag uses the field handler
-func (ev *Event) GetProcessServiceTag() string {
-	return ev.FieldHandlers.GetProcessServiceTag(ev)
+// GetProcessService uses the field handler
+func (ev *Event) GetProcessService() string {
+	return ev.FieldHandlers.GetProcessService(ev)
 }
 
 // MatchedRules contains the identification of one rule that has match
@@ -780,6 +790,22 @@ type ProcessCacheEntry struct {
 	releaseCb func()                     `field:"-" json:"-"`
 }
 
+const (
+	ProcessCacheEntryFromEvent = iota
+	ProcessCacheEntryFromKernelMap
+	ProcessCacheEntryFromProcFS
+)
+
+var ProcessSources = [...]string{
+	"Event",
+	"KernelMap",
+	"ProcFS",
+}
+
+func ProcessSourceToString(source uint64) string {
+	return ProcessSources[source]
+}
+
 // IsContainerRoot returns whether this is a top level process in the container ID
 func (pc *ProcessCacheEntry) IsContainerRoot() bool {
 	return pc.ContainerID != "" && pc.Ancestor != nil && pc.Ancestor.ContainerID == ""
@@ -799,7 +825,13 @@ func (pc *ProcessCacheEntry) Retain() {
 
 // SetReleaseCallback set the callback called when the entry is released
 func (pc *ProcessCacheEntry) SetReleaseCallback(callback func()) {
-	pc.releaseCb = callback
+	previousCallback := pc.releaseCb
+	pc.releaseCb = func() {
+		callback()
+		if previousCallback != nil {
+			previousCallback()
+		}
+	}
 }
 
 // Release decrement and eventually release the entry
@@ -856,6 +888,7 @@ func (p *ProcessContext) HasParent() bool {
 // ProcessContext holds the process context of an event
 type ProcessContext struct {
 	Process
+	Source uint64 `field:"-" json:"-"`
 
 	Parent   *Process           `field:"parent,opts:exposed_at_event_root_only,check:HasParent"`
 	Ancestor *ProcessCacheEntry `field:"ancestors,iterator:ProcessAncestorsIterator,check:IsNotKworker"`
@@ -1191,7 +1224,7 @@ func (pl *PathLeaf) MarshalBinary() ([]byte, error) {
 type ExtraFieldHandlers interface {
 	ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool)
 	ResolveEventTimestamp(ev *Event) time.Time
-	GetProcessServiceTag(ev *Event) string
+	GetProcessService(ev *Event) string
 }
 
 // ResolveProcessCacheEntry stub implementation
@@ -1204,7 +1237,7 @@ func (dfh *DefaultFieldHandlers) ResolveEventTimestamp(ev *Event) time.Time {
 	return ev.Timestamp
 }
 
-// GetProcessServiceTag stub implementation
-func (dfh *DefaultFieldHandlers) GetProcessServiceTag(ev *Event) string {
+// GetProcessService stub implementation
+func (dfh *DefaultFieldHandlers) GetProcessService(ev *Event) string {
 	return ""
 }

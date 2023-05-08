@@ -195,6 +195,7 @@ func GetTags(ctx context.Context) ([]string, error) {
 type ec2Identity struct {
 	Region     string
 	InstanceID string
+	AccountID  string
 }
 
 func getInstanceIdentity(ctx context.Context) (*ec2Identity, error) {

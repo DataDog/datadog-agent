@@ -8,11 +8,6 @@ namespace WixSetup
 
         public static readonly Condition DatadogYamlExists = Condition.Create("DATADOGYAMLEXISTS=\"yes\"");
 
-        public static readonly Condition ClosedSourceConsentAsked = Condition.Create("ALLOWCLOSEDSOURCE");
-
-        // ReSharper disable once InconsistentNaming
-        public static readonly Condition NOT_ClosedSourceConsentAsked = Condition.NOT(ClosedSourceConsentAsked);
-
         // ReSharper disable once InconsistentNaming
         public static readonly Condition NOT_DatadogYamlExists = Condition.NOT(DatadogYamlExists);
 
