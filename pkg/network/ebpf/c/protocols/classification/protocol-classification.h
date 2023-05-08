@@ -25,8 +25,7 @@
 
 // Some considerations about multiple protocol classification:
 //
-// * There are 3 protocol layers: API, Application and Encryption (I ended up
-// following Stephen's terminology :tm:)
+// * There are 3 protocol layers: API, Application and Encryption
 //
 // * Each protocol belongs to a specific layer (a `protocol_t` value encodes both the
 // protocol ID itself and the protocol layer it belongs to)
