@@ -12,8 +12,9 @@ import (
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 )
 
 func protoToSecurityProfile(output *SecurityProfile, input *proto.SecurityProfile) {
@@ -23,10 +24,10 @@ func protoToSecurityProfile(output *SecurityProfile, input *proto.SecurityProfil
 
 	output.Status = model.Status(input.Status)
 	output.Version = input.Version
-	if input.Version == "local_profile" {
+	if input.Version == security_profile.LocalProfileVersion {
 		output.autolearnEnabled = true
 	}
-	output.Metadata = dump.ProtoMetadataToMetadata(input.Metadata)
+	output.Metadata = mtdt.ProtoMetadataToMetadata(input.Metadata)
 
 	output.Tags = make([]string, len(input.Tags))
 	copy(output.Tags, input.Tags)

@@ -5,13 +5,13 @@
 #include <linux/types.h>
 #include <linux/sched.h>
 #include "bpf_builtins.h"
-#include "tracer.h"
-#include "conntrack-types.h"
-#include "conntrack-maps.h"
+#include "conn_tuple.h"
 #include "ip.h"
 #include "netns.h"
 
-#include "conntrack-helpers.h"
+#include "conntrack/types.h"
+#include "conntrack/maps.h"
+#include "conntrack/helpers.h"
 
 // depending on the kernel version p_net may be a struct net** or possible_net_t*
 static __always_inline u32 get_netns(void *p_net) {

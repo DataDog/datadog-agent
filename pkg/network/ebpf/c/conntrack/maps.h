@@ -3,8 +3,9 @@
 
 #include "bpf_helpers.h"
 #include "map-defs.h"
-#include "tracer.h"
-#include "conntrack-types.h"
+
+#include "conn_tuple.h"
+#include "conntrack/types.h"
 
 /* This map is used for tracking conntrack entries
  */
