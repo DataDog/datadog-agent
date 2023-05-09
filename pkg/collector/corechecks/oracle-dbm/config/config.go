@@ -38,6 +38,7 @@ type InstanceConfig struct {
 	InstantClient          bool                `yaml:"instant_client"`
 	ReportedHostname       string              `yaml:"reported_hostname"`
 	QueryMetrics           bool                `yaml:"query_metrics"`
+	SysMetrics             bool                `yaml:"sysmetrics"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.

@@ -57,6 +57,12 @@ func (c *Check) Run() error {
 	}
 
 	if c.dbmEnabled {
+		if c.config.SysMetrics {
+			err := c.SysMetrics()
+			if err != nil {
+				return err
+			}
+		}
 		err := c.SampleSession()
 		if err != nil {
 			return err
