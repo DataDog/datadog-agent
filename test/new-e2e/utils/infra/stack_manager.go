@@ -98,6 +98,8 @@ func (sm *StackManager) GetStack(ctx context.Context, name string, config runner
 
 		stack = &newStack
 		sm.stacks[name] = stack
+	} else {
+		stack.Workspace().SetProgram(deployFunc)
 	}
 
 	err = stack.SetAllConfig(ctx, cm.ToPulumi())
