@@ -69,7 +69,7 @@ func NewTestEnv() (*TestEnv, error) {
 				return err
 			}
 			dontUseSudo := false
-			fileCommand, err := filemanager.CopyInlineFile(fileName, pulumi.String(fileContent), path.Join(dataPath, fileName), dontUseSudo,
+			fileCommand, err := filemanager.CopyInlineFile(pulumi.String(fileContent), path.Join(dataPath, fileName), dontUseSudo,
 				pulumi.DependsOn([]pulumi.Resource{createDataDirCommand}))
 			if err != nil {
 				return err
@@ -83,7 +83,7 @@ func NewTestEnv() (*TestEnv, error) {
 		}
 		// edit snmp config file
 		dontUseSudo := false
-		configCommand, err := filemanager.CopyInlineFile("snmp.yaml", pulumi.String(snmpConfig), path.Join(configPath, "snmp.yaml"), dontUseSudo,
+		configCommand, err := filemanager.CopyInlineFile(pulumi.String(snmpConfig), path.Join(configPath, "snmp.yaml"), dontUseSudo,
 			pulumi.DependsOn([]pulumi.Resource{createConfigDirCommand}))
 		if err != nil {
 			return err
