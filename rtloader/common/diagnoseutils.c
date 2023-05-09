@@ -10,9 +10,11 @@
 
 size_t get_diagnoses_mem_size(Py_ssize_t numDiagnoses, PyObject *diagnoses_list)
 {
+    Py_ssize_t idx = 0;
+
     // Calculate and allocate buffer size
     size_t bufferSize = sizeof(diagnosis_set_t) + (numDiagnoses * sizeof(diagnosis_t));
-    for (Py_ssize_t idx = 0; idx < numDiagnoses; idx++) {
+    for (idx = 0; idx < numDiagnoses; idx++) {
         PyObject *diagnosisObj = PyList_GetItem(diagnoses_list, idx); // borrowed ref
         if (diagnosisObj == NULL) {
             return 0;
@@ -31,6 +33,8 @@ size_t get_diagnoses_mem_size(Py_ssize_t numDiagnoses, PyObject *diagnoses_list)
 int serialize_diagnoses(Py_ssize_t numDiagnoses, PyObject *diagnoses_list, diagnosis_set_t *diagnoses,
                         size_t bufferSize)
 {
+    Py_ssize_t idx = 0;
+
     size_t currentOffset = sizeof(diagnosis_set_t) + (numDiagnoses * sizeof(diagnosis_t));
 
     // Initialize header
@@ -38,7 +42,7 @@ int serialize_diagnoses(Py_ssize_t numDiagnoses, PyObject *diagnoses_list, diagn
     diagnoses->diangosesCount = numDiagnoses;
     diagnoses->diagnosesItems = (diagnosis_t *)((size_t)(void *)diagnoses + sizeof(diagnosis_set_t));
 
-    for (Py_ssize_t idx = 0; idx < numDiagnoses; idx++) {
+    for (idx = 0; idx < numDiagnoses; idx++) {
         PyObject *diagnosisObj = PyList_GetItem(diagnoses_list, idx); // borrowed ref
         if (diagnosisObj == NULL) {
             return -1;
