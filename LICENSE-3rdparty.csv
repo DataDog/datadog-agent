@@ -1094,6 +1094,7 @@ core,github.com/munnerz/goautoneg,BSD-3-Clause,"Copyright (c) 2011, Open Knowled
 core,github.com/mxk/go-flowrate/flowrate,BSD-3-Clause,Copyright (c) 2014 The Go-FlowRate Authors. All rights reserved
 core,github.com/netsampler/goflow2/decoders,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
 core,github.com/netsampler/goflow2/decoders/netflow,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
+core,github.com/netsampler/goflow2/decoders/netflow/templates,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
 core,github.com/netsampler/goflow2/decoders/netflowlegacy,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
 core,github.com/netsampler/goflow2/decoders/sflow,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
 core,github.com/netsampler/goflow2/decoders/utils,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
