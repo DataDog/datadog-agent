@@ -6,96 +6,152 @@
 package flare
 
 import (
-	"errors"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"testing"
 
-	"github.com/hashicorp/go-multierror"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	assert "github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-type mockProfileCollector struct {
-	mock.Mock
-}
-
-func (m *mockProfileCollector) CreatePerformanceProfile(prefix, debugURL string, cpusec int, target *flare.ProfileData) error {
-	args := m.Called(prefix, debugURL, cpusec, target)
-	return args.Error(0)
+func getPprofTestServer() *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/debug/pprof/heap":
+			w.Write([]byte("heap_profile"))
+		case "/debug/pprof/profile":
+			time := r.URL.Query()["seconds"][0]
+			w.Write([]byte(time + "_sec_cpu_pprof"))
+		case "/debug/pprof/mutex":
+			w.Write([]byte("mutex"))
+		case "/debug/pprof/block":
+			w.Write([]byte("block"))
+		default:
+			w.WriteHeader(500)
+		}
+	}))
 }
 
 func TestReadProfileData(t *testing.T) {
-	m := &mockProfileCollector{}
-	defer m.AssertExpectations(t)
+	ts := getPprofTestServer()
+	defer ts.Close()
+
+	u, err := url.Parse(ts.URL)
+	require.NoError(t, err)
+	port := u.Port()
 
 	mockConfig := config.Mock(t)
-	mockConfig.Set("expvar_port", "1001")
+	mockConfig.Set("expvar_port", port)
 	mockConfig.Set("apm_config.enabled", true)
-	mockConfig.Set("apm_config.debug.port", "1002")
+	mockConfig.Set("apm_config.debug.port", port)
 	mockConfig.Set("apm_config.receiver_timeout", "10")
-	mockConfig.Set("process_config.expvar_port", "1003")
+	mockConfig.Set("process_config.expvar_port", port)
+	mockConfig.Set("security_agent.expvar_port", port)
+	mockConfig.Set("system_probe_config.debug_port", port)
 
-	pdata := &flare.ProfileData{}
+	data, err := readProfileData(10)
+	require.NoError(t, err)
 
-	m.On("CreatePerformanceProfile", "core", "http://127.0.0.1:1001/debug/pprof", 30, pdata).Return(nil)
-	m.On("CreatePerformanceProfile", "trace", "http://127.0.0.1:1002/debug/pprof", 9, pdata).Return(nil)
-	m.On("CreatePerformanceProfile", "process", "http://127.0.0.1:1003/debug/pprof", 30, pdata).Return(nil)
-	m.On("CreatePerformanceProfile", "security-agent", "http://127.0.0.1:5011/debug/pprof", 30, pdata).Return(nil)
+	expected := flare.ProfileData{
+		"core-1st-heap.pprof":           []byte("heap_profile"),
+		"core-2nd-heap.pprof":           []byte("heap_profile"),
+		"core-block.pprof":              []byte("block"),
+		"core-cpu.pprof":                []byte("10_sec_cpu_pprof"),
+		"core-mutex.pprof":              []byte("mutex"),
+		"process-1st-heap.pprof":        []byte("heap_profile"),
+		"process-2nd-heap.pprof":        []byte("heap_profile"),
+		"process-block.pprof":           []byte("block"),
+		"process-cpu.pprof":             []byte("10_sec_cpu_pprof"),
+		"process-mutex.pprof":           []byte("mutex"),
+		"security-agent-1st-heap.pprof": []byte("heap_profile"),
+		"security-agent-2nd-heap.pprof": []byte("heap_profile"),
+		"security-agent-block.pprof":    []byte("block"),
+		"security-agent-cpu.pprof":      []byte("10_sec_cpu_pprof"),
+		"security-agent-mutex.pprof":    []byte("mutex"),
+		"trace-1st-heap.pprof":          []byte("heap_profile"),
+		"trace-2nd-heap.pprof":          []byte("heap_profile"),
+		"trace-block.pprof":             []byte("block"),
+		"trace-cpu.pprof":               []byte("10_sec_cpu_pprof"),
+		"trace-mutex.pprof":             []byte("mutex"),
+		"system-probe-1st-heap.pprof":   []byte("heap_profile"),
+		"system-probe-2nd-heap.pprof":   []byte("heap_profile"),
+		"system-probe-block.pprof":      []byte("block"),
+		"system-probe-cpu.pprof":        []byte("10_sec_cpu_pprof"),
+		"system-probe-mutex.pprof":      []byte("mutex"),
+	}
 
-	err := readProfileData(&cliParams{}, pdata, 30, m.CreatePerformanceProfile)
-	assert.NoError(t, err)
+	assert.Len(t, data, len(expected), "expected pprof data has more or less profiles than expected")
+	for name := range expected {
+		assert.Equal(t, expected[name], data[name])
+	}
 }
 
 func TestReadProfileDataNoTraceAgent(t *testing.T) {
-	m := &mockProfileCollector{}
-	defer m.AssertExpectations(t)
+	ts := getPprofTestServer()
+	defer ts.Close()
 
+	u, err := url.Parse(ts.URL)
+	require.NoError(t, err)
+	port := u.Port()
+
+	// We're not setting "apm_config.debug.port" on purpose
 	mockConfig := config.Mock(t)
-	mockConfig.Set("expvar_port", "1001")
-	mockConfig.Set("apm_config.enabled", false)
-	mockConfig.Set("process_config.expvar_port", "1003")
+	mockConfig.Set("expvar_port", port)
+	mockConfig.Set("apm_config.enabled", true)
+	mockConfig.Set("apm_config.receiver_timeout", "10")
+	mockConfig.Set("process_config.expvar_port", port)
+	mockConfig.Set("security_agent.expvar_port", port)
+	mockConfig.Set("system_probe_config.debug_port", port)
 
-	pdata := &flare.ProfileData{}
+	data, err := readProfileData(10)
+	require.Error(t, err)
+	assert.Regexp(t, "^* error collecting trace agent profile: ", err.Error())
 
-	m.On("CreatePerformanceProfile", "core", "http://127.0.0.1:1001/debug/pprof", 30, pdata).Return(nil)
-	m.On("CreatePerformanceProfile", "process", "http://127.0.0.1:1003/debug/pprof", 30, pdata).Return(nil)
-	m.On("CreatePerformanceProfile", "security-agent", "http://127.0.0.1:5011/debug/pprof", 30, pdata).Return(nil)
+	expected := flare.ProfileData{
+		"core-1st-heap.pprof":           []byte("heap_profile"),
+		"core-2nd-heap.pprof":           []byte("heap_profile"),
+		"core-block.pprof":              []byte("block"),
+		"core-cpu.pprof":                []byte("10_sec_cpu_pprof"),
+		"core-mutex.pprof":              []byte("mutex"),
+		"process-1st-heap.pprof":        []byte("heap_profile"),
+		"process-2nd-heap.pprof":        []byte("heap_profile"),
+		"process-block.pprof":           []byte("block"),
+		"process-cpu.pprof":             []byte("10_sec_cpu_pprof"),
+		"process-mutex.pprof":           []byte("mutex"),
+		"security-agent-1st-heap.pprof": []byte("heap_profile"),
+		"security-agent-2nd-heap.pprof": []byte("heap_profile"),
+		"security-agent-block.pprof":    []byte("block"),
+		"security-agent-cpu.pprof":      []byte("10_sec_cpu_pprof"),
+		"security-agent-mutex.pprof":    []byte("mutex"),
+		"system-probe-1st-heap.pprof":   []byte("heap_profile"),
+		"system-probe-2nd-heap.pprof":   []byte("heap_profile"),
+		"system-probe-block.pprof":      []byte("block"),
+		"system-probe-cpu.pprof":        []byte("10_sec_cpu_pprof"),
+		"system-probe-mutex.pprof":      []byte("mutex"),
+	}
 
-	err := readProfileData(&cliParams{}, pdata, 30, m.CreatePerformanceProfile)
-	assert.NoError(t, err)
+	assert.Len(t, data, len(expected), "expected pprof data has more or less profiles than expected")
+	for name := range expected {
+		assert.Equal(t, expected[name], data[name])
+	}
 }
 
 func TestReadProfileDataErrors(t *testing.T) {
-	m := &mockProfileCollector{}
-	defer m.AssertExpectations(t)
-
+	// We're not setting "apm_config.debug.port" on purpose
 	mockConfig := config.Mock(t)
-	mockConfig.Set("expvar_port", "1001")
 	mockConfig.Set("apm_config.enabled", true)
-	mockConfig.Set("apm_config.debug.port", "1002")
-	mockConfig.Set("apm_config.receiver_timeout", "10")
-	mockConfig.Set("process_config.expvar_port", "1003")
 
-	pdata := &flare.ProfileData{}
-
-	m.On("CreatePerformanceProfile", "core", "http://127.0.0.1:1001/debug/pprof", 30, pdata).Return(errors.New("can't connect to core agent"))
-	m.On("CreatePerformanceProfile", "trace", "http://127.0.0.1:1002/debug/pprof", 9, pdata).Return(errors.New("can't connect to trace agent"))
-	m.On("CreatePerformanceProfile", "process", "http://127.0.0.1:1003/debug/pprof", 30, pdata).Return(nil)
-	m.On("CreatePerformanceProfile", "security-agent", "http://127.0.0.1:5011/debug/pprof", 30, pdata).Return(nil)
-
-	err := readProfileData(&cliParams{}, pdata, 30, m.CreatePerformanceProfile)
-
-	merr, ok := err.(*multierror.Error)
-	assert.True(t, ok)
-	assert.Len(t, merr.Errors, 2)
-	assert.ErrorContains(t, merr.Errors[0], "can't connect to core agent")
-	assert.ErrorContains(t, merr.Errors[1], "can't connect to trace agent")
+	data, err := readProfileData(10)
+	require.Error(t, err)
+	assert.Regexp(t, "^4 errors occurred:\n", err.Error())
+	assert.Len(t, data, 0)
 }
 
 func TestCommand(t *testing.T) {

@@ -62,6 +62,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	runtimeCmd.AddCommand(commonPolicyCommands(globalParams)...)
 	runtimeCmd.AddCommand(selfTestCommands(globalParams)...)
 	runtimeCmd.AddCommand(activityDumpCommands(globalParams)...)
+	runtimeCmd.AddCommand(securityProfileCommands(globalParams)...)
 	runtimeCmd.AddCommand(processCacheCommands(globalParams)...)
 	runtimeCmd.AddCommand(networkNamespaceCommands(globalParams)...)
 	runtimeCmd.AddCommand(discardersCommands(globalParams)...)
@@ -449,8 +450,6 @@ func checkPoliciesInner(policiesDir string) error {
 
 	ruleOpts.WithLogger(seclog.DefaultLogger)
 
-	ruleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, ruleOpts, evalOpts)
-
 	agentVersionFilter, err := newAgentVersionFilter()
 	if err != nil {
 		return fmt.Errorf("failed to create agent version filter: %w", err)
@@ -472,7 +471,12 @@ func checkPoliciesInner(policiesDir string) error {
 
 	loader := rules.NewPolicyLoader(provider)
 
-	if err := ruleSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
+	ruleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, ruleOpts, evalOpts)
+	evaluationSet, err := rules.NewEvaluationSet([]*rules.RuleSet{ruleSet})
+	if err != nil {
+		return err
+	}
+	if err := evaluationSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
 		return err
 	}
 
@@ -558,8 +562,6 @@ func evalRule(log log.Component, config config.Component, evalArgs *evalCliParam
 	ruleOpts, evalOpts := rules.NewEvalOpts(enabled)
 	ruleOpts.WithLogger(seclog.DefaultLogger)
 
-	ruleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, ruleOpts, evalOpts)
-
 	agentVersionFilter, err := newAgentVersionFilter()
 	if err != nil {
 		return fmt.Errorf("failed to create agent version filter: %w", err)
@@ -583,7 +585,13 @@ func evalRule(log log.Component, config config.Component, evalArgs *evalCliParam
 
 	loader := rules.NewPolicyLoader(provider)
 
-	if err := ruleSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
+	ruleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, ruleOpts, evalOpts)
+	evaluationSet, err := rules.NewEvaluationSet([]*rules.RuleSet{ruleSet})
+	if err != nil {
+		return err
+	}
+
+	if err := evaluationSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
 		return err
 	}
 

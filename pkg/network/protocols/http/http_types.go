@@ -9,7 +9,6 @@
 package http
 
 /*
-#include "../../ebpf/c/tracer.h"
 #include "../../ebpf/c/protocols/tls/tags-types.h"
 #include "../../ebpf/c/protocols/http/types.h"
 #include "../../ebpf/c/protocols/classification/defs.h"
@@ -17,12 +16,12 @@ package http
 import "C"
 
 type httpConnTuple = C.conn_tuple_t
-type sslSock C.ssl_sock_t
-type sslReadArgs C.ssl_read_args_t
+type SslSock C.ssl_sock_t
+type SslReadArgs C.ssl_read_args_t
 
-type ebpfHttpTx C.http_transaction_t
+type EbpfHttpTx C.http_transaction_t
 
-type libPath C.lib_path_t
+type LibPath C.lib_path_t
 
 type ProtocolType C.protocol_t
 

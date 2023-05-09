@@ -27,13 +27,14 @@ import (
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/native"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 const InterfaceLocalMulticastIPv6 = "ff01::1"
@@ -50,8 +51,10 @@ var tcpKprobeCalledString = map[uint64]string{
 }
 
 type tracerOffsetGuesser struct {
-	m      *manager.Manager
-	status *TracerStatus
+	m          *manager.Manager
+	status     *TracerStatus
+	guessTCPv6 bool
+	guessUDPv6 bool
 }
 
 func NewTracerOffsetGuesser() (OffsetGuesser, error) {
@@ -68,7 +71,7 @@ func NewTracerOffsetGuesser() (OffsetGuesser, error) {
 				{ProbeIdentificationPair: idPair(probes.TCPv6Connect)},
 				{ProbeIdentificationPair: idPair(probes.IPMakeSkb)},
 				{ProbeIdentificationPair: idPair(probes.IP6MakeSkb)},
-				{ProbeIdentificationPair: idPair(probes.IP6MakeSkbPre470), MatchFuncName: "^ip6_make_skb$"},
+				{ProbeIdentificationPair: idPair(probes.IP6MakeSkbPre470)},
 				{ProbeIdentificationPair: idPair(probes.TCPv6ConnectReturn), KProbeMaxActive: 128},
 				{ProbeIdentificationPair: idPair(probes.NetDevQueue)},
 			},
@@ -195,19 +198,18 @@ func (*tracerOffsetGuesser) Probes(c *config.Config) (map[probes.ProbeFuncName]s
 		enableProbe(p, probes.NetDevQueue)
 	}
 
-	if c.CollectIPv6Conns {
+	if c.CollectTCPv6Conns || c.CollectUDPv6Conns {
 		enableProbe(p, probes.TCPv6Connect)
 		enableProbe(p, probes.TCPv6ConnectReturn)
+	}
 
-		kv, err := kernel.HostVersion()
-		if err != nil {
-			return nil, err
-		}
-
-		if kv < kernel.VersionCode(4, 7, 0) {
-			enableProbe(p, probes.IP6MakeSkbPre470)
-		} else {
-			enableProbe(p, probes.IP6MakeSkb)
+	if c.CollectUDPv6Conns {
+		if kv < kernel.VersionCode(5, 18, 0) {
+			if kv < kernel.VersionCode(4, 7, 0) {
+				enableProbe(p, probes.IP6MakeSkbPre470)
+			} else {
+				enableProbe(p, probes.IP6MakeSkb)
+			}
 		}
 	}
 	return p, nil
@@ -275,7 +277,7 @@ func GetIPv6LinkLocalAddress() (*net.UDPAddr, error) {
 			continue
 		}
 		for _, a := range addrs {
-			if strings.HasPrefix(a.String(), "fe80::") {
+			if strings.HasPrefix(a.String(), "fe80::") && !strings.HasPrefix(i.Name, "dummy") {
 				// this address *may* have CIDR notation
 				if ar, _, err := net.ParseCIDR(a.String()); err == nil {
 					return &net.UDPAddr{IP: ar, Zone: i.Name}, nil
@@ -353,7 +355,7 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 		t.status.Offset_saddr_fl4++
 		if t.status.Offset_saddr_fl4 >= threshold {
 			// Let's skip all other flowi4 fields
-			t.logAndAdvance(notApplicable, flowi6EntryState(t.status))
+			t.logAndAdvance(notApplicable, t.flowi6EntryState())
 			t.status.Fl4_offsets = disabled
 			break
 		}
@@ -364,7 +366,7 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 		}
 		t.status.Offset_daddr_fl4++
 		if t.status.Offset_daddr_fl4 >= threshold {
-			t.logAndAdvance(notApplicable, flowi6EntryState(t.status))
+			t.logAndAdvance(notApplicable, t.flowi6EntryState())
 			t.status.Fl4_offsets = disabled
 			break
 		}
@@ -375,19 +377,19 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 		}
 		t.status.Offset_sport_fl4++
 		if t.status.Offset_sport_fl4 >= threshold {
-			t.logAndAdvance(notApplicable, flowi6EntryState(t.status))
+			t.logAndAdvance(notApplicable, t.flowi6EntryState())
 			t.status.Fl4_offsets = disabled
 			break
 		}
 	case GuessDPortFl4:
 		if t.status.Dport_fl4 == htons(expected.dportFl4) {
-			t.logAndAdvance(t.status.Offset_dport_fl4, flowi6EntryState(t.status))
+			t.logAndAdvance(t.status.Offset_dport_fl4, t.flowi6EntryState())
 			t.status.Fl4_offsets = enabled
 			break
 		}
 		t.status.Offset_dport_fl4++
 		if t.status.Offset_dport_fl4 >= threshold {
-			t.logAndAdvance(notApplicable, flowi6EntryState(t.status))
+			t.logAndAdvance(notApplicable, t.flowi6EntryState())
 			t.status.Fl4_offsets = disabled
 			break
 		}
@@ -513,7 +515,7 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 	}
 
 	// This assumes `GuessDAddrIPv6` is the last stage of the process.
-	if t.status.What == uint64(GuessDAddrIPv6) && t.status.Ipv6_enabled == disabled {
+	if t.status.What == uint64(GuessDAddrIPv6) && !t.guessUDPv6 {
 		return t.setReadyState(mp)
 	}
 
@@ -534,8 +536,8 @@ func (t *tracerOffsetGuesser) setReadyState(mp *ebpf.Map) error {
 	return nil
 }
 
-func flowi6EntryState(status *TracerStatus) GuessWhat {
-	if status.Ipv6_enabled == disabled {
+func (t *tracerOffsetGuesser) flowi6EntryState() GuessWhat {
+	if !t.guessUDPv6 {
 		return GuessNetNS
 	}
 	return GuessSAddrFl6
@@ -582,15 +584,12 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 		cProcName[i] = int8(ch)
 	}
 
+	t.guessUDPv6 = cfg.CollectUDPv6Conns
+	t.guessTCPv6 = cfg.CollectTCPv6Conns
 	t.status = &TracerStatus{
-		State:        uint64(StateChecking),
-		Proc:         Proc{Comm: cProcName},
-		Ipv6_enabled: enabled,
-		What:         uint64(GuessSAddr),
-	}
-
-	if !cfg.CollectIPv6Conns {
-		t.status.Ipv6_enabled = disabled
+		State: uint64(StateChecking),
+		Proc:  Proc{Comm: cProcName},
+		What:  uint64(GuessSAddr),
 	}
 
 	// if we already have the offsets, just return
@@ -599,7 +598,7 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 		return t.getConstantEditors(), nil
 	}
 
-	eventGenerator, err := newTracerEventGenerator(cfg.CollectIPv6Conns)
+	eventGenerator, err := newTracerEventGenerator(t.guessUDPv6)
 	if err != nil {
 		return nil, err
 	}
@@ -619,12 +618,12 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving expected value: %w", err)
 	}
-	log.Tracef("expected values: %+v", expected)
 
 	err = eventGenerator.populateUDPExpectedValues(expected)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving expected value: %w", err)
 	}
+	log.Tracef("expected values: %+v", expected)
 
 	log.Debugf("Checking for offsets with threshold of %d", threshold)
 	for State(t.status.State) != StateReady {
@@ -664,7 +663,8 @@ func (t *tracerOffsetGuesser) getConstantEditors() []manager.ConstantEditor {
 		{Name: "offset_rtt", Value: t.status.Offset_rtt},
 		{Name: "offset_rtt_var", Value: t.status.Offset_rtt_var},
 		{Name: "offset_daddr_ipv6", Value: t.status.Offset_daddr_ipv6},
-		{Name: "ipv6_enabled", Value: uint64(t.status.Ipv6_enabled)},
+		{Name: "tcpv6_enabled", Value: boolToUint64(t.guessTCPv6)},
+		{Name: "udpv6_enabled", Value: boolToUint64(t.guessUDPv6)},
 		{Name: "offset_saddr_fl4", Value: t.status.Offset_saddr_fl4},
 		{Name: "offset_daddr_fl4", Value: t.status.Offset_daddr_fl4},
 		{Name: "offset_sport_fl4", Value: t.status.Offset_sport_fl4},
@@ -682,6 +682,13 @@ func (t *tracerOffsetGuesser) getConstantEditors() []manager.ConstantEditor {
 	}
 }
 
+func boolToUint64(b bool) uint64 {
+	if b {
+		return 1
+	}
+	return 0
+}
+
 type tracerEventGenerator struct {
 	listener net.Listener
 	conn     net.Conn
@@ -690,7 +697,7 @@ type tracerEventGenerator struct {
 	udpDone  func()
 }
 
-func newTracerEventGenerator(ipv6 bool) (*tracerEventGenerator, error) {
+func newTracerEventGenerator(flowi6 bool) (*tracerEventGenerator, error) {
 	eg := &tracerEventGenerator{}
 
 	// port 0 means we let the kernel choose a free port
@@ -724,7 +731,7 @@ func newTracerEventGenerator(ipv6 bool) (*tracerEventGenerator, error) {
 		return nil, err
 	}
 
-	eg.udp6Conn, err = getUDP6Conn(ipv6)
+	eg.udp6Conn, err = getUDP6Conn(flowi6)
 	if err != nil {
 		eg.Close()
 		return nil, err
@@ -733,8 +740,8 @@ func newTracerEventGenerator(ipv6 bool) (*tracerEventGenerator, error) {
 	return eg, nil
 }
 
-func getUDP6Conn(ipv6 bool) (*net.UDPConn, error) {
-	if !ipv6 {
+func getUDP6Conn(flowi6 bool) (*net.UDPConn, error) {
+	if !flowi6 {
 		return nil, nil
 	}
 

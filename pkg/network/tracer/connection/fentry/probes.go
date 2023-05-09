@@ -64,6 +64,9 @@ const (
 	// udpDestroySockReturn traces the return of the udp_destroy_sock() system call
 	udpDestroySockReturn = "udp_destroy_sock_exit"
 
+	udpv6DestroySock       = "udpv6_destroy_sock"
+	udpv6DestroySockReturn = "udpv6_destroy_sock_exit"
+
 	// tcpRetransmit traces the tcp_retransmit_skb() kernel function
 	tcpRetransmit = "tcp_retransmit_skb"
 	// tcpRetransmitRet traces the return of the tcp_retransmit_skb() system call
@@ -108,6 +111,8 @@ var programs = map[string]struct{}{
 	udpv6RecvMsgReturn:        {},
 	udpv6SendMsgReturn:        {},
 	udpv6SendSkb:              {},
+	udpv6DestroySock:          {},
+	udpv6DestroySockReturn:    {},
 	skbFreeDatagramLocked:     {},
 	__skbFreeDatagramLocked:   {},
 	skbConsumeUdp:             {},
@@ -131,7 +136,7 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		return nil, err
 	}
 
-	if c.CollectTCPConns {
+	if c.CollectTCPv4Conns || c.CollectTCPv6Conns {
 		enableProgram(enabled, tcpSendMsgReturn)
 		enableProgram(enabled, tcpSendPageReturn)
 		enableProgram(enabled, selectVersionBasedProbe(kv, tcpRecvMsgReturn, tcpRecvMsgPre5190Return, kv5190))
@@ -154,40 +159,52 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		// }
 	}
 
-	if c.CollectUDPConns {
-		enableProgram(enabled, inetBindRet)
+	if c.CollectUDPv4Conns {
+		enableProgram(enabled, udpSendPageReturn)
 		enableProgram(enabled, udpDestroySock)
 		enableProgram(enabled, udpDestroySockReturn)
+		enableProgram(enabled, inetBindRet)
 		enableProgram(enabled, udpRecvMsg)
 		enableProgram(enabled, selectVersionBasedProbe(kv, udpRecvMsgReturn, udpRecvMsgPre5190Return, kv5190))
 		enableProgram(enabled, udpSendMsgReturn)
 		enableProgram(enabled, udpSendSkb)
+	}
+
+	if c.CollectUDPv6Conns {
 		enableProgram(enabled, udpSendPageReturn)
+		enableProgram(enabled, udpv6DestroySock)
+		enableProgram(enabled, udpv6DestroySockReturn)
+		enableProgram(enabled, inet6BindRet)
+		enableProgram(enabled, udpv6RecvMsg)
+		enableProgram(enabled, selectVersionBasedProbe(kv, udpv6RecvMsgReturn, udpv6RecvMsgPre5190Return, kv5190))
+		enableProgram(enabled, udpv6SendMsgReturn)
+		enableProgram(enabled, udpv6SendSkb)
+	}
 
-		if c.CollectIPv6Conns {
-			enableProgram(enabled, inet6BindRet)
-			enableProgram(enabled, udpv6RecvMsg)
-			enableProgram(enabled, selectVersionBasedProbe(kv, udpv6RecvMsgReturn, udpv6RecvMsgPre5190Return, kv5190))
-			enableProgram(enabled, udpv6SendMsgReturn)
-			enableProgram(enabled, udpv6SendSkb)
-		}
-
-		missing, err := ebpf.VerifyKernelFuncs("skb_consume_udp", "__skb_free_datagram_locked", "skb_free_datagram_locked")
-		if err != nil {
-			return nil, fmt.Errorf("error verifying kernel function presence: %s", err)
-		}
-		if _, miss := missing["skb_consume_udp"]; !miss {
-			enableProgram(enabled, skbConsumeUdp)
-		} else if _, miss := missing["__skb_free_datagram_locked"]; !miss {
-			enableProgram(enabled, __skbFreeDatagramLocked)
-		} else if _, miss := missing["skb_free_datagram_locked"]; !miss {
-			enableProgram(enabled, skbFreeDatagramLocked)
-		} else {
-			return nil, fmt.Errorf("missing desired UDP receive kernel functions")
+	if c.CollectUDPv4Conns || c.CollectUDPv6Conns {
+		if err := enableAdvancedUDP(enabled); err != nil {
+			return nil, err
 		}
 	}
 
 	return enabled, nil
+}
+
+func enableAdvancedUDP(enabled map[string]struct{}) error {
+	missing, err := ebpf.VerifyKernelFuncs("skb_consume_udp", "__skb_free_datagram_locked", "skb_free_datagram_locked")
+	if err != nil {
+		return fmt.Errorf("error verifying kernel function presence: %s", err)
+	}
+	if _, miss := missing["skb_consume_udp"]; !miss {
+		enableProgram(enabled, skbConsumeUdp)
+	} else if _, miss := missing["__skb_free_datagram_locked"]; !miss {
+		enableProgram(enabled, __skbFreeDatagramLocked)
+	} else if _, miss := missing["skb_free_datagram_locked"]; !miss {
+		enableProgram(enabled, skbFreeDatagramLocked)
+	} else {
+		return fmt.Errorf("missing desired UDP receive kernel functions")
+	}
+	return nil
 }
 
 func selectVersionBasedProbe(kv kernel.Version, dfault string, versioned string, reqVer kernel.Version) string {

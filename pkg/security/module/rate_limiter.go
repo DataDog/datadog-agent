@@ -17,9 +17,11 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/time/rate"
 
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -30,52 +32,122 @@ var (
 	// flooding.
 	defaultBurst int = 40
 
-	defaultPerRuleLimiters = map[eval.RuleID]*Limiter{
-		events.RulesetLoadedRuleID: NewLimiter(rate.Inf, 1), // No limit on ruleset loaded
-		events.AbnormalPathRuleID:  NewLimiter(rate.Every(30*time.Second), 1),
+	defaultPerRuleLimiters = map[eval.RuleID]Limiter{
+		events.RulesetLoadedRuleID:       NewStdLimiter(rate.Inf, 1), // No limit on ruleset loaded
+		events.AbnormalPathRuleID:        NewStdLimiter(rate.Every(30*time.Second), 1),
+		events.ProcessContextErrorRuleID: NewStdLimiter(rate.Every(30*time.Second), 1),
 	}
 )
 
-// Limiter describes an object that applies limits on
+// Limiter defines a limiter interface
+type Limiter interface {
+	Allow(event Event) bool
+	SwapStats() (uint64, uint64)
+}
+
+// StdLimiter describes an object that applies limits on
 // the rate of triggering of a rule to ensure we don't overflow
 // with too permissive rules
-type Limiter struct {
-	limiter *rate.Limiter
+type StdLimiter struct {
+	rateLimiter *rate.Limiter
 
+	// stats
 	dropped *atomic.Uint64
 	allowed *atomic.Uint64
 }
 
-// NewLimiter returns a new rule limiter
-func NewLimiter(limit rate.Limit, burst int) *Limiter {
-	return &Limiter{
-		limiter: rate.NewLimiter(limit, burst),
-		dropped: atomic.NewUint64(0),
-		allowed: atomic.NewUint64(0),
+// NewStdLimiter returns a new rule limiter
+func NewStdLimiter(limit rate.Limit, burst int) *StdLimiter {
+	return &StdLimiter{
+		rateLimiter: rate.NewLimiter(limit, burst),
+		dropped:     atomic.NewUint64(0),
+		allowed:     atomic.NewUint64(0),
+	}
+}
+
+// Allow returns whether the event is allowed
+func (l *StdLimiter) Allow(_ Event) bool {
+	if l.rateLimiter.Allow() {
+		l.allowed.Inc()
+		return true
+	}
+	l.dropped.Inc()
+
+	return false
+}
+
+// SwapStats return dropped and allowed stats
+func (l *StdLimiter) SwapStats() (uint64, uint64) {
+	dropped, allowed := l.dropped.Swap(0), l.allowed.Swap(0)
+	return dropped, allowed
+}
+
+// AbnomalyDetectionLimiter limiter specific to anomaly detection
+type AbnomalyDetectionLimiter struct {
+	processLimiter *StdLimiter
+	networkLimiter *StdLimiter
+
+	dropped *atomic.Uint64
+}
+
+// Allow returns whether the event is allowed
+func (al *AbnomalyDetectionLimiter) Allow(event Event) bool {
+	category := model.GetEventTypeCategory(event.GetType())
+
+	switch category {
+	case model.ProcessCategory:
+		return al.processLimiter.Allow(event)
+	case model.NetworkCategory:
+		return al.networkLimiter.Allow(event)
+	}
+	al.dropped.Inc()
+
+	return false
+}
+
+// SwapStats return dropped and allowed stats
+func (al *AbnomalyDetectionLimiter) SwapStats() (uint64, uint64) {
+	droppedProcess, allowedProcess := al.processLimiter.SwapStats()
+	droppedNetwork, allowedNetwork := al.networkLimiter.SwapStats()
+
+	droppped := al.dropped.Swap(0)
+
+	return droppedProcess + droppedNetwork + droppped, allowedProcess + allowedNetwork
+}
+
+// NewStdLimiter returns a new rule limiter
+func NewAbnomalyDetectionLimiter(limit rate.Limit, burst int) *AbnomalyDetectionLimiter {
+	return &AbnomalyDetectionLimiter{
+		processLimiter: NewStdLimiter(limit, burst),
+		networkLimiter: NewStdLimiter(limit, burst),
+		dropped:        atomic.NewUint64(0),
 	}
 }
 
 // RateLimiter describes a set of rule rate limiters
 type RateLimiter struct {
 	sync.RWMutex
-	limiters     map[rules.RuleID]*Limiter
+	limiters     map[rules.RuleID]Limiter
 	statsdClient statsd.ClientInterface
+	config       *config.RuntimeSecurityConfig
 }
 
 // NewRateLimiter initializes an empty rate limiter
-func NewRateLimiter(client statsd.ClientInterface) *RateLimiter {
+func NewRateLimiter(config *config.RuntimeSecurityConfig, client statsd.ClientInterface) *RateLimiter {
 	rl := &RateLimiter{
-		limiters:     make(map[string]*Limiter),
+		limiters:     make(map[string]Limiter),
 		statsdClient: client,
+		config:       config,
 	}
 
 	return rl
 }
 
-func applyBaseLimitersFromDefault(limiters map[string]*Limiter) {
+func (rl *RateLimiter) applyBaseLimitersFromDefault(limiters map[string]Limiter) {
 	for id, limiter := range defaultPerRuleLimiters {
 		limiters[id] = limiter
 	}
+	limiters[events.AnomalyDetectionRuleID] = NewAbnomalyDetectionLimiter(rate.Every(time.Duration(rl.config.AnomalyDetectionRateLimiter)*time.Second), 1)
 }
 
 // Apply a set of rules
@@ -83,20 +155,20 @@ func (rl *RateLimiter) Apply(ruleSet *rules.RuleSet, customRuleIDs []eval.RuleID
 	rl.Lock()
 	defer rl.Unlock()
 
-	newLimiters := make(map[string]*Limiter)
+	newLimiters := make(map[string]Limiter)
 
 	for _, id := range customRuleIDs {
-		newLimiters[id] = NewLimiter(defaultLimit, defaultBurst)
+		newLimiters[id] = NewStdLimiter(defaultLimit, defaultBurst)
 	}
 
 	// override if there is more specific defs
-	applyBaseLimitersFromDefault(newLimiters)
+	rl.applyBaseLimitersFromDefault(newLimiters)
 
 	for id, rule := range ruleSet.GetRules() {
 		if rule.Definition.Every != 0 {
-			newLimiters[id] = NewLimiter(rate.Every(rule.Definition.Every), 1)
+			newLimiters[id] = NewStdLimiter(rate.Every(rule.Definition.Every), 1)
 		} else {
-			newLimiters[id] = NewLimiter(defaultLimit, defaultBurst)
+			newLimiters[id] = NewStdLimiter(defaultLimit, defaultBurst)
 		}
 	}
 
@@ -104,20 +176,15 @@ func (rl *RateLimiter) Apply(ruleSet *rules.RuleSet, customRuleIDs []eval.RuleID
 }
 
 // Allow returns true if a specific rule shall be allowed to sent a new event
-func (rl *RateLimiter) Allow(ruleID string) bool {
+func (rl *RateLimiter) Allow(ruleID string, event Event) bool {
 	rl.RLock()
 	defer rl.RUnlock()
 
-	ruleLimiter, ok := rl.limiters[ruleID]
+	limiter, ok := rl.limiters[ruleID]
 	if !ok {
 		return false
 	}
-	if ruleLimiter.limiter.Allow() {
-		ruleLimiter.allowed.Inc()
-		return true
-	}
-	ruleLimiter.dropped.Inc()
-	return false
+	return limiter.Allow(event)
 }
 
 // RateLimiterStat represents the rate limiting statistics
@@ -126,17 +193,18 @@ type RateLimiterStat struct {
 	allowed uint64
 }
 
-// GetStats returns a map indexed by ruleIDs that describes the amount of events
+// GetStats returns a map indexed by ids that describes the amount of events
 // that were dropped because of the rate limiter
-func (rl *RateLimiter) GetStats() map[rules.RuleID]RateLimiterStat {
+func (rl *RateLimiter) GetStats() map[string]RateLimiterStat {
 	rl.Lock()
 	defer rl.Unlock()
 
-	stats := make(map[rules.RuleID]RateLimiterStat)
-	for ruleID, ruleLimiter := range rl.limiters {
+	stats := make(map[string]RateLimiterStat)
+	for ruleID, limiter := range rl.limiters {
+		dropped, allowed := limiter.SwapStats()
 		stats[ruleID] = RateLimiterStat{
-			dropped: ruleLimiter.dropped.Swap(0),
-			allowed: ruleLimiter.allowed.Swap(0),
+			dropped: dropped,
+			allowed: allowed,
 		}
 	}
 	return stats
@@ -145,15 +213,15 @@ func (rl *RateLimiter) GetStats() map[rules.RuleID]RateLimiterStat {
 // SendStats sends statistics about the number of sent and drops events
 // for the set of rules
 func (rl *RateLimiter) SendStats() error {
-	for ruleID, counts := range rl.GetStats() {
+	for ruleID, stats := range rl.GetStats() {
 		tags := []string{fmt.Sprintf("rule_id:%s", ruleID)}
-		if counts.dropped > 0 {
-			if err := rl.statsdClient.Count(metrics.MetricRateLimiterDrop, int64(counts.dropped), tags, 1.0); err != nil {
+		if stats.dropped > 0 {
+			if err := rl.statsdClient.Count(metrics.MetricRateLimiterDrop, int64(stats.dropped), tags, 1.0); err != nil {
 				return err
 			}
 		}
-		if counts.allowed > 0 {
-			if err := rl.statsdClient.Count(metrics.MetricRateLimiterAllow, int64(counts.allowed), tags, 1.0); err != nil {
+		if stats.allowed > 0 {
+			if err := rl.statsdClient.Count(metrics.MetricRateLimiterAllow, int64(stats.allowed), tags, 1.0); err != nil {
 				return err
 			}
 		}

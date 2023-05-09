@@ -32,7 +32,7 @@ func NewLocalProfile() (Profile, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error when reading the config file %v: %v", configPath, err)
 		}
-		store = parameters.NewCascadingStore(envValueStore, configFileValueScore)
+		store = parameters.NewCascadingStore(envValueStore, configFileValueStore)
 	} else {
 		store = parameters.NewCascadingStore(envValueStore)
 	}
