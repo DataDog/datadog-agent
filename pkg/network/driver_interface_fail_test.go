@@ -24,6 +24,8 @@ type TestDriverHandleFail struct {
 	lastError       error
 }
 
+func (tdh *TestDriverHandleFail) RefreshStats() {}
+
 func (tdh *TestDriverHandleFail) ReadFile(p []byte, bytesRead *uint32, ol *windows.Overlapped) error {
 	fmt.Printf("Got ReadFile call")
 	// check state in struct to see if we've been called before
@@ -54,9 +56,6 @@ func (tdh *TestDriverHandleFail) CancelIoEx(ol *windows.Overlapped) error {
 	return nil
 }
 
-func (tdh *TestDriverHandleFail) GetStatsForHandle() (map[string]map[string]int64, error) {
-	return nil, nil
-}
 func (tdh *TestDriverHandleFail) Close() error {
 	return nil
 }

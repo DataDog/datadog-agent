@@ -34,6 +34,8 @@ import (
 	vnetns "github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -47,14 +49,14 @@ import (
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 var kv470 kernel.Version = kernel.VersionCode(4, 7, 0)
 var kv kernel.Version
 
-func init() {
-	kv, _ = kernel.HostVersion()
+func setKernelVersion() (err error) {
+	kv, err = kernel.HostVersion()
+	return
 }
 
 func doDNSQuery(t *testing.T, domain string, serverIP string) (*net.UDPAddr, *net.UDPAddr) {
@@ -243,10 +245,9 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 	}
 	assert.Equal(t, 1, connsWithRetransmits)
 
-	telemetry := tr.ebpfTracer.GetTelemetry()
 	// Test if telemetry measuring PID collisions is correct
 	// >= because there can be other connections going on during CI that increase pidCollisions
-	assert.GreaterOrEqual(t, telemetry["pid_collisions"], int64(numProcesses-1))
+	assert.GreaterOrEqual(t, connection.ConnTracerTelemetry.PidCollisions.Load(), int64(numProcesses-1))
 }
 
 func TestTCPRTT(t *testing.T) {
@@ -336,8 +337,7 @@ func TestTCPMiscount(t *testing.T) {
 		assert.False(t, uint64(len(x)) == conn.Monotonic.SentBytes)
 	}
 
-	tel := tr.ebpfTracer.GetTelemetry()
-	assert.NotZero(t, tel["tcp_sent_miscounts"])
+	assert.NotZero(t, connection.ConnTracerTelemetry.TcpSentMiscounts.Load())
 }
 
 func TestConnectionExpirationRegression(t *testing.T) {
@@ -502,12 +502,11 @@ func TestTranslationBindingRegression(t *testing.T) {
 }
 
 func TestUnconnectedUDPSendIPv6(t *testing.T) {
-	if !kernel.IsIPv6Enabled() {
-		t.Skip("IPv6 not enabled on host")
+	cfg := testConfig()
+	if !cfg.CollectUDPv6Conns {
+		t.Skip("UDPv6 disabled")
 	}
 
-	cfg := testConfig()
-	cfg.CollectIPv6Conns = true
 	tr := setupTracer(t, cfg)
 	linkLocal, err := offsetguess.GetIPv6LinkLocalAddress()
 	require.NoError(t, err)
@@ -834,6 +833,7 @@ func TestConnectionAssured(t *testing.T) {
 	cfg := testConfig()
 	tr := setupTracer(t, cfg)
 	server := &UDPServer{
+		network: "udp4",
 		onMessage: func(b []byte, n int) []byte {
 			return genPayload(serverMessageSize)
 		},
@@ -874,6 +874,7 @@ func TestConnectionNotAssured(t *testing.T) {
 	tr := setupTracer(t, cfg)
 
 	server := &UDPServer{
+		network: "udp4",
 		onMessage: func(b []byte, n int) []byte {
 			return nil
 		},
@@ -1176,6 +1177,9 @@ func TestUDPReusePort(t *testing.T) {
 		testUDPReusePort(t, "udp4", "127.0.0.1")
 	})
 	t.Run("v6", func(t *testing.T) {
+		if !testConfig().CollectUDPv6Conns {
+			t.Skip("UDPv6 disabled")
+		}
 		testUDPReusePort(t, "udp6", "[::1]")
 	})
 }
@@ -1434,6 +1438,9 @@ func TestSendfileRegression(t *testing.T) {
 				testSendfileServer(t, c.(*net.TCPConn), network.TCP, family, func() int64 { return rcvd })
 			})
 			t.Run("UDP", func(t *testing.T) {
+				if family == network.AFINET6 && !cfg.CollectUDPv6Conns {
+					t.Skip("UDPv6 disabled")
+				}
 				if isPrebuilt(cfg) && kv < kv470 {
 					t.Skip("UDP will fail with prebuilt tracer")
 				}
@@ -1614,11 +1621,11 @@ func TestKprobeAttachWithKprobeEvents(t *testing.T) {
 
 	tr := setupTracer(t, cfg)
 
-	if tr.ebpfTracer.Type() == connection.EBPFFentry {
+	if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
 		t.Skip("skipped on Fargate")
 	}
 
-	cmd := []string{"curl", "-k", "-o/dev/null", "facebook.com"}
+	cmd := []string{"curl", "-k", "-o/dev/null", "example.com"}
 	exec.Command(cmd[0], cmd[1:]...).Run()
 
 	stats := ddebpf.GetProbeStats()
@@ -1794,7 +1801,10 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 		{true, true, true, true, assert.AnError, false},
 	}
 
-	cfg := testConfig()
+	cfg := config.New()
+	if kv >= kernel.VersionCode(5, 18, 0) {
+		cfg.CollectUDPv6Conns = false
+	}
 	constants, err := getTracerOffsets(t, cfg)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -1848,4 +1858,20 @@ func TestConntrackerFallback(t *testing.T) {
 	conntracker, err = newConntracker(cfg, nil, nil)
 	assert.Error(t, err)
 	require.Nil(t, conntracker)
+}
+
+func testConfig() *config.Config {
+	cfg := config.New()
+	if os.Getenv("BPF_DEBUG") != "" {
+		cfg.BPFDebug = true
+	}
+	if ddconfig.IsECSFargate() {
+		// protocol classification not yet supported on fargate
+		cfg.ProtocolClassificationEnabled = false
+	}
+	// prebuilt on 5.18+ does not support UDPv6
+	if isPrebuilt(cfg) && kv >= kernel.VersionCode(5, 18, 0) {
+		cfg.CollectUDPv6Conns = false
+	}
+	return cfg
 }

@@ -45,7 +45,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.45.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.45.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.45.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/trace v0.45.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/trace v0.45.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.45.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.45.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.45.0-rc.3
@@ -58,10 +58,10 @@ require (
 	github.com/DataDog/gohai v0.0.0-20221116153829-5d479901d2e9
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.1.5
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.1.5
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.1.5
-	github.com/DataDog/sketches-go v1.4.1
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.2.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.2.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.2.0
+	github.com/DataDog/sketches-go v1.4.2
 	github.com/DataDog/viper v1.12.0
 	github.com/DataDog/watermarkpodautoscaler v0.5.2
 	github.com/DataDog/zstd v1.5.2
@@ -99,7 +99,7 @@ require (
 	github.com/cri-o/ocicni v0.4.0
 	github.com/cyphar/filepath-securejoin v0.2.3
 	github.com/davecgh/go-spew v1.1.1
-	github.com/docker/docker v23.0.0-rc.1+incompatible
+	github.com/docker/docker v23.0.5+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/dustin/go-humanize v1.0.1
 	github.com/elastic/go-libaudit v0.4.0
@@ -194,18 +194,18 @@ require (
 	github.com/xeipuuv/gojsonschema v1.2.0
 	go.etcd.io/bbolt v1.3.6
 	go.etcd.io/etcd/client/v2 v2.306.0-alpha.0
-	go.mongodb.org/mongo-driver v1.11.3
+	go.mongodb.org/mongo-driver v1.11.4
 	go.opentelemetry.io/collector v0.75.0
 	go.opentelemetry.io/collector/component v0.75.0
 	go.opentelemetry.io/collector/confmap v0.75.0
 	go.opentelemetry.io/collector/exporter v0.75.0
 	go.opentelemetry.io/collector/exporter/loggingexporter v0.75.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.75.0
-	go.opentelemetry.io/collector/pdata v1.0.0-rc9
+	go.opentelemetry.io/collector/pdata v1.0.0-rcv0011
 	go.opentelemetry.io/collector/processor/batchprocessor v0.75.0
 	go.opentelemetry.io/collector/receiver v0.75.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.75.0
-	go.uber.org/atomic v1.10.0
+	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.5.2
 	go.uber.org/dig v1.15.0
 	go.uber.org/fx v1.18.2
@@ -213,10 +213,10 @@ require (
 	go.uber.org/zap v1.24.0
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
 	golang.org/x/arch v0.3.0
-	golang.org/x/exp v0.0.0-20230202163644-54bba9f4231b
+	golang.org/x/exp v0.0.0-20230321023759-10a507213a29
 	golang.org/x/net v0.9.0
 	golang.org/x/sync v0.1.0
-	golang.org/x/sys v0.7.0
+	golang.org/x/sys v0.8.0
 	golang.org/x/text v0.9.0
 	golang.org/x/time v0.3.0
 	golang.org/x/tools v0.8.0

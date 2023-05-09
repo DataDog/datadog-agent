@@ -9,21 +9,31 @@
 package profile
 
 import (
+	"fmt"
+	"io"
+	"os"
 	"sync"
 
+	"golang.org/x/exp/slices"
+
+	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"golang.org/x/exp/slices"
 )
 
 // SecurityProfile defines a security profile
 type SecurityProfile struct {
 	sync.Mutex
-	loadedInKernel bool
-	selector       cgroupModel.WorkloadSelector
-	profileCookie  uint64
+	loadedInKernel         bool
+	loadedNano             uint64
+	selector               cgroupModel.WorkloadSelector
+	profileCookie          uint64
+	anomalyDetectionEvents []model.EventType
+	lastAnomalyNano        uint64
+	autolearnEnabled       bool
 
 	// Instances is the list of workload instances to witch the profile should apply
 	Instances []*cgroupModel.CacheEntry
@@ -43,14 +53,20 @@ type SecurityProfile struct {
 	// Syscalls is the syscalls profile
 	Syscalls []uint32
 
-	// ProcessActivityTree contains the activity tree of the Security Profile
-	ProcessActivityTree []*dump.ProcessActivityNode
+	// ActivityTree contains the activity tree of the Security Profile
+	ActivityTree *activity_tree.ActivityTree
 }
 
 // NewSecurityProfile creates a new instance of Security Profile
-func NewSecurityProfile(selector cgroupModel.WorkloadSelector) *SecurityProfile {
+func NewSecurityProfile(selector cgroupModel.WorkloadSelector, anomalyDetectionEvents []model.EventType) *SecurityProfile {
+	// TODO: we need to keep track of which event types / fields can be used in profiles (for anomaly detection, hardening
+	// or suppression). This is missing for now, and it will be necessary to smoothly handle the transition between
+	// profiles that allow for evaluating new event types, and profiles that don't. As such, the event types allowed to
+	// generate anomaly detections in the input of this function will need to be merged with the event types defined in
+	// the configuration.
 	return &SecurityProfile{
-		selector: selector,
+		selector:               selector,
+		anomalyDetectionEvents: anomalyDetectionEvents,
 	}
 }
 
@@ -84,96 +100,52 @@ func (p *SecurityProfile) generateKernelSecurityProfileDefinition() [16]byte {
 	return output
 }
 
-type ProcessActivityNodeAndParent struct {
-	node   *dump.ProcessActivityNode
-	parent *ProcessActivityNodeAndParent
-}
-
-func NewProcessActivityNodeAndParent(node *dump.ProcessActivityNode, parent *ProcessActivityNodeAndParent) *ProcessActivityNodeAndParent {
-	return &ProcessActivityNodeAndParent{
-		node:   node,
-		parent: parent,
-	}
-}
-
-func ProcessActivityTreeWalk(processActivityTree []*dump.ProcessActivityNode,
-	walkFunc func(pNode *ProcessActivityNodeAndParent) bool) []*dump.ProcessActivityNode {
-	var result []*dump.ProcessActivityNode
-	if len(processActivityTree) == 0 {
-		return result
-	}
-
-	var nodes []*ProcessActivityNodeAndParent
-	var node *ProcessActivityNodeAndParent
-	for _, n := range processActivityTree {
-		nodes = append(nodes, NewProcessActivityNodeAndParent(n, nil))
-	}
-	node = nodes[0]
-	nodes = nodes[1:]
-
-	for node != nil {
-		if walkFunc(node) {
-			result = append(result, node.node)
-		}
-
-		for _, child := range node.node.Children {
-			nodes = append(nodes, NewProcessActivityNodeAndParent(child, node))
-		}
-		if len(nodes) > 0 {
-			node = nodes[0]
-			nodes = nodes[1:]
-		} else {
-			node = nil
-		}
-	}
-	return result
-}
-
-func (p *SecurityProfile) findProfileProcessNodes(pc *model.ProcessContext) []*dump.ProcessActivityNode {
-	if pc == nil {
-		return []*dump.ProcessActivityNode{}
-	}
-
-	parent := pc.GetNextAncestorBinary()
-	if parent != nil && !dump.IsValidRootNode(&parent.ProcessContext) {
-		parent = nil
-	}
-	return ProcessActivityTreeWalk(p.ProcessActivityTree, func(node *ProcessActivityNodeAndParent) bool {
-		// check process
-		if !node.node.Matches(&pc.Process, false) {
-			return false
-		}
-		// check parent
-		if node.parent == nil && parent == nil {
+// MatchesSelector is used to control how an event should be added to a profile
+func (p *SecurityProfile) MatchesSelector(entry *model.ProcessCacheEntry) bool {
+	for _, workload := range p.Instances {
+		if entry.ContainerID == workload.ID {
 			return true
-		}
-		if node.parent == nil || parent == nil {
-			return false
-		}
-		return node.parent.node.Matches(&parent.Process, false)
-	})
-}
-
-func findDNSInNodes(nodes []*dump.ProcessActivityNode, event *model.Event) bool {
-	for _, node := range nodes {
-		dnsNode, ok := node.DNSNames[event.DNS.Name]
-		if !ok {
-			continue
-		}
-		for _, req := range dnsNode.Requests {
-			if req.Type == event.DNS.Type {
-				return true
-			}
 		}
 	}
 	return false
 }
 
-// IsAnomalyDetectionEvent returns true for the event types that have a security profile context
+// IsEventTypeValid is used to control which event types should trigger anomaly detection alerts
+func (p *SecurityProfile) IsEventTypeValid(evtType model.EventType) bool {
+	return slices.Contains[model.EventType](p.anomalyDetectionEvents, evtType)
+}
+
+// NewProcessNodeCallback is a callback function used to propagate the fact that a new process node was added to the activity tree
+func (p *SecurityProfile) NewProcessNodeCallback(node *activity_tree.ProcessNode) {
+	// TODO: debounce and regenerate profile filters & programs
+}
+
+// IsAnomalyDetectionEvent returns true if the provided event type is a kernel generated anomaly detection event type
 func IsAnomalyDetectionEvent(eventyType model.EventType) bool {
 	return slices.Contains([]model.EventType{
 		model.AnomalyDetectionSyscallEventType,
-		model.DNSEventType,
-		model.ExecEventType,
 	}, eventyType)
+}
+
+func LoadProfileFromFile(filepath string) (*proto.SecurityProfile, error) {
+	f, err := os.Open(filepath)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't open profile: %w", err)
+	}
+	defer f.Close()
+
+	raw, err := io.ReadAll(f)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't open profile: %w", err)
+	}
+
+	profile := &proto.SecurityProfile{}
+	if err = profile.UnmarshalVT(raw); err != nil {
+		return nil, fmt.Errorf("couldn't decode protobuf profile: %w", err)
+	}
+
+	if len(utils.GetTagValue("image_tag", profile.Tags)) == 0 {
+		profile.Tags = append(profile.Tags, "image_tag:latest")
+	}
+	return profile, nil
 }

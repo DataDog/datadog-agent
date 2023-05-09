@@ -136,7 +136,7 @@ func TestMountResolver(t *testing.T) {
 					{
 						22,
 						"",
-						ErrMountNotFound,
+						&ErrMountNotFound{MountID: 22},
 					},
 				},
 			},
@@ -156,7 +156,7 @@ func TestMountResolver(t *testing.T) {
 					{
 						127,
 						"",
-						ErrMountNotFound,
+						&ErrMountNotFound{MountID: 127},
 					},
 				},
 			},
@@ -251,17 +251,17 @@ func TestMountResolver(t *testing.T) {
 					{
 						27,
 						"",
-						ErrMountNotFound,
+						&ErrMountNotFound{MountID: 27},
 					},
 					{
 						22,
 						"",
-						ErrMountNotFound,
+						&ErrMountNotFound{MountID: 22},
 					},
 					{
 						31,
 						"",
-						ErrMountNotFound,
+						&ErrMountNotFound{MountID: 31},
 					},
 				},
 			},
@@ -363,17 +363,17 @@ func TestMountResolver(t *testing.T) {
 					{
 						176,
 						"",
-						ErrMountNotFound,
+						&ErrMountNotFound{MountID: 176},
 					},
 					{
 						638,
 						"",
-						ErrMountNotFound,
+						&ErrMountNotFound{MountID: 638},
 					},
 					{
 						639,
 						"",
-						ErrMountNotFound,
+						&ErrMountNotFound{MountID: 639},
 					},
 				},
 			},

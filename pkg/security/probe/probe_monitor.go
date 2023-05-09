@@ -68,7 +68,7 @@ func (m *Monitor) Init() error {
 	}
 
 	if p.Config.RuntimeSecurity.SecurityProfileEnabled {
-		m.securityProfileManager, err = profile.NewSecurityProfileManager(p.Config, p.StatsdClient, p.resolvers.CGroupResolver, p.Manager)
+		m.securityProfileManager, err = profile.NewSecurityProfileManager(p.Config, p.StatsdClient, p.resolvers.CGroupResolver, p.resolvers.TimeResolver, p.Manager)
 		if err != nil {
 			return fmt.Errorf("couldn't create the security profile manager: %w", err)
 		}
