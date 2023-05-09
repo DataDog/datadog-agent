@@ -44,6 +44,7 @@ type TestEnv struct {
 }
 
 const SSHKeyName = "ssh_key"
+const DefaultKeyPairName = "datadog-agent-ci"
 
 var (
 	CustomAMIWorkingDir = filepath.Join("/", "home", "kernel-version-testing")
@@ -100,7 +101,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		"ddinfra:env":                            auto.ConfigValue{Value: "aws/agent-qa"},
 		"ddinfra:aws/defaultARMInstanceType":     auto.ConfigValue{Value: armInstanceType},
 		"ddinfra:aws/defaultInstanceType":        auto.ConfigValue{Value: x86InstanceType},
-		"ddinfra:aws/defaultKeyPairName":         auto.ConfigValue{Value: "agent-ci-sandbox"},
+		"ddinfra:aws/defaultKeyPairName":         auto.ConfigValue{Value: DefaultKeyPairName},
 		"ddinfra:aws/defaultPrivateKeyPath":      auto.ConfigValue{Value: SSHKeyFile},
 		"ddinfra:aws/defaultShutdownBehavior":    auto.ConfigValue{Value: "terminate"},
 		"ddinfra:aws/defaultInstanceStorageSize": auto.ConfigValue{Value: "500"},
