@@ -17,7 +17,6 @@
 #include "bpf_builtins.h"
 #include "port_range.h"
 #include "sock.h"
-#include "sockfd.h"
 
 #include "protocols/classification/dispatcher-helpers.h"
 #include "protocols/classification/dispatcher-maps.h"
@@ -30,7 +29,6 @@
 
 #define HTTPS_PORT 443
 
-static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type);
 static __always_inline int http_process(http_transaction_t *http_stack, skb_info_t *skb_info, __u64 tags);
 
 static __always_inline void https_process(conn_tuple_t *t, void *buffer, size_t len, __u64 tags) {

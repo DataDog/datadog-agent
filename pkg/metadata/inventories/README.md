@@ -142,6 +142,7 @@ The payload is a JSON dict with the following fields
     - `DMI`: The Agent successfully used DMI information to fetch the instance ID (only work on EC2 Nitro instances).
     - `UUID`: The hypervisor or product UUID has the EC2 prefix. The Agent knows it's running on EC2 but don't know on
       which instance.
+  - `cloud_provider_account_id` - **string**: The account/subscription ID from the cloud provider.
   - `hypervisor_guest_uuid` - **string**: the hypervisor guest UUID (Unix only, empty string on Windows or if we can't
     read the data). On `ec2` instance this might start by "ec2". This was introduce in `7.41.0`/`6.41.0`.
   - `dmi_product_uuid` - **string**: the DMI product UUID (Unix only, empty string on Windows or if we can't read the
