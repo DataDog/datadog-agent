@@ -437,6 +437,12 @@ func (m *SecurityProfileManager) SendStats() error {
 		}
 	}
 
+	for _, profile := range m.profiles {
+		if err := profile.SendStats(m.statsdClient); err != nil {
+			return fmt.Errorf("couldn't send metrics for [%s]: %w", profile.selector.String(), err)
+		}
+	}
+
 	m.pendingCacheLock.Lock()
 	defer m.pendingCacheLock.Unlock()
 	if val := float64(m.pendingCache.Len()); val > 0 {
