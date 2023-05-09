@@ -1,6 +1,8 @@
 #! /usr/bin/env python
 
-import sys, re, textwrap
+import sys
+import re
+import textwrap
 
 # This script reads a copy of lscpu-arm.c and outputs the various tables to be
 # included in cpu_linux_arm.go.  Of course, this may need adjustment as other
@@ -50,12 +52,12 @@ def main():
     for hw_impl, ident, name in hw_implementer:
         print(f"\t{hw_impl}: hwImpl{{")
         print(f"\t\tname: {name},")
-        print(f"\t\tparts: map[uint64]string{{")
+        print("\t\tparts: map[uint64]string{")
         for k, v in part_lists[ident]:
             print(f"\t\t\t{k}: {v},")
-        print(f"\t\t}},")
-        print(f"\t}},")
-    print(f"}}")
+        print("\t\t},")
+        print("\t},")
+    print("}")
 
 
 def parse_part_list(lines):
