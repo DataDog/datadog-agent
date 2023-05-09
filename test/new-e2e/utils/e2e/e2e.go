@@ -52,10 +52,10 @@ type Suite[Env any] struct {
 
 type suiteConstraint[Env any] interface {
 	suite.TestingSuite
-	initSuite(stackName string, stackDef StackDefinition[Env], options ...func(*Suite[Env]))
+	initSuite(stackName string, stackDef *StackDefinition[Env], options ...func(*Suite[Env]))
 }
 
-func Run[Env any, T suiteConstraint[Env]](t *testing.T, e2eSuite T, stackDef StackDefinition[Env], options ...func(*Suite[Env])) {
+func Run[Env any, T suiteConstraint[Env]](t *testing.T, e2eSuite T, stackDef *StackDefinition[Env], options ...func(*Suite[Env])) {
 	suiteType := reflect.TypeOf(e2eSuite).Elem()
 	name := suiteType.Name()
 	pkgPaths := suiteType.PkgPath()
