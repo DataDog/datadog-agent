@@ -50,6 +50,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 			select {
 			// We don't want to keep scanning if image channel is not empty but context is expired
 			case <-ctx.Done():
+				close(ch)
 				return
 
 			case eventBundle := <-imgEventsCh:
@@ -74,32 +75,28 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 	}()
 
 	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-			case result := <-ch:
-				if result.Error != nil {
-					log.Errorf("Failed to generate SBOM for containerd image: %s", result.Error)
-					continue
-				}
+		for result := range ch {
+			if result.Error != nil {
+				log.Errorf("Failed to generate SBOM for containerd image: %s", result.Error)
+				continue
+			}
 
-				bom, err := result.Report.ToCycloneDX()
-				if err != nil {
-					log.Errorf("Failed to extract SBOM from report")
-					continue
-				}
+			bom, err := result.Report.ToCycloneDX()
+			if err != nil {
+				log.Errorf("Failed to extract SBOM from report")
+				continue
+			}
 
-				sbom := workloadmeta.SBOM{
-					CycloneDXBOM:       bom,
-					GenerationTime:     result.CreatedAt,
-					GenerationDuration: result.Duration,
-				}
+			sbom := workloadmeta.SBOM{
+				CycloneDXBOM:       bom,
+				GenerationTime:     result.CreatedAt,
+				GenerationDuration: result.Duration,
+			}
 
-				// Updating workloadmeta entities directly is not thread-safe, that's why we
-				// generate an update event here instead.
-				if err := c.handleImageCreateOrUpdate(ctx, result.ImgMeta.Namespace, result.ImgMeta.Name, &sbom); err != nil {
-					log.Warnf("Error extracting SBOM for image: namespace=%s name=%s, err: %s", result.ImgMeta.Namespace, result.ImgMeta.Name, err)
-				}
+			// Updating workloadmeta entities directly is not thread-safe, that's why we
+			// generate an update event here instead.
+			if err := c.handleImageCreateOrUpdate(ctx, result.ImgMeta.Namespace, result.ImgMeta.Name, &sbom); err != nil {
+				log.Warnf("Error extracting SBOM for image: namespace=%s name=%s, err: %s", result.ImgMeta.Namespace, result.ImgMeta.Name, err)
 			}
 		}
 	}()
