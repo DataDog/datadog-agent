@@ -70,23 +70,27 @@ instances:
   #
   # dbm: false
 
-  ## Configure collection of query metrics
+  ## Configure collection of query samples
   #
-  # query_metrics: true
+  # query_samples:
 
       ## @param enabled - boolean - optional - default: true
       ## Enable collection of query metrics. Requires `dbm: true`.
       #
       # enabled: true
 
-  ## Configure query metrics collection for Datadog agent statements
+  ## Configure collection of query metrics
   #
-  # include_datadog_queries: false
+  # query_metrics:
 
-      ## @param enabled - boolean - optional - default: false
-      ## Enable collection of query metrics. Requires `dbm: true` and `query_metrics: true`
+      ## @param enabled - boolean - optional - default: true
+      ## Enable collection of query metrics. Requires enabled query samples.
       #
-      # enabled: false
+      # enabled: true
+
+      ## Configure query metrics collection for Datadog agent statements
+      #
+      # include_datadog_queries: false
 
   ## Configure how the SQL obfuscator behaves.
   ## Note: This option only applies when `dbm` is enabled.
