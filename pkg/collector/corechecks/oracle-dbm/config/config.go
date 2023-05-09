@@ -70,11 +70,15 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance := InstanceConfig{}
 	initCfg := InitConfig{}
 
+	// Defaults begin
 	instance.ObfuscatorOptions.DBMS = common.IntegrationName
 	instance.ObfuscatorOptions.TableNames = true
 	instance.ObfuscatorOptions.CollectCommands = true
 	instance.ObfuscatorOptions.CollectComments = true
-	//instance.QueryMetrics = true
+
+	instance.QuerySamples.Enabled = true
+	instance.QueryMetrics.Enabled = true
+	// Defaults end
 
 	if err := yaml.Unmarshal(rawInstance, &instance); err != nil {
 		return nil, err

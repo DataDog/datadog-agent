@@ -268,7 +268,7 @@ func (c *Check) StatementMetrics() (int, error) {
 	SQLTextErrors := 0
 	SQLCount := 0
 	var oracleRows []OracleRow
-	if c.config.QueryMetrics {
+	if c.config.QueryMetrics.Enabled {
 		statementMetrics, err := GetStatementsMetricsForKeys(c, "force_matching_signature", "AND force_matching_signature != 0", c.statementsFilter.ForceMatchingSignatures)
 		if err != nil {
 			return 0, fmt.Errorf("error collecting statement metrics for force_matching_signature: %w", err)
