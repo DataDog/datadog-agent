@@ -22,8 +22,17 @@ type InitConfig struct {
 	MinCollectionInterval int `yaml:"min_collection_interval"`
 }
 
+type QuerySamplesConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
 type ExecutionPlansConfig struct {
 	Enabled bool `yaml:"enabled"`
+}
+
+type QueryMetricsConfig struct {
+	Enabled               bool `yaml:"enabled"`
+	IncludeDatadogQueries bool `yaml:"include_datadog_queries"`
 }
 
 // InstanceConfig is used to deserialize integration instance config.
@@ -41,8 +50,8 @@ type InstanceConfig struct {
 	ObfuscatorOptions      obfuscate.SQLConfig  `yaml:"obfuscator_options"`
 	InstantClient          bool                 `yaml:"instant_client"`
 	ReportedHostname       string               `yaml:"reported_hostname"`
-	QueryMetrics           bool                 `yaml:"query_metrics"`
-	IncludeDatadogQueries  bool                 `yaml:"include_datadog_queries"`
+	QuerySamples           QuerySamplesConfig   `yaml:"query_samples"`
+	QueryMetrics           QueryMetricsConfig   `yaml:"query_metrics"`
 	ExecutionPlans         ExecutionPlansConfig `yaml:"execution_plans"`
 }
 
@@ -70,7 +79,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.ObfuscatorOptions.TableNames = true
 	instance.ObfuscatorOptions.CollectCommands = true
 	instance.ObfuscatorOptions.CollectComments = true
-	instance.QueryMetrics = true
+	instance.QueryMetrics.Enabled = true
 
 	if err := yaml.Unmarshal(rawInstance, &instance); err != nil {
 		return nil, err
