@@ -8,54 +8,91 @@ package e2e
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
-	ec2vm "github.com/DataDog/test-infra-definitions/aws/scenarios/vm/ec2VM"
-	"github.com/DataDog/test-infra-definitions/aws/scenarios/vm/os"
-	commonos "github.com/DataDog/test-infra-definitions/common/os"
-	"github.com/DataDog/test-infra-definitions/datadog/agent"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 )
 
-type MyEnv struct {
-	VM    *client.VM
-	Agent *client.Agent
-}
-
 type e2eSuite struct {
-	Suite[MyEnv]
+	*Suite[struct{}]
+	stackName       string
+	runFctCallCount int
+	updateEnvStack  *StackDefinition[struct{}]
 }
 
 func TestE2ESuite(t *testing.T) {
-	stack := StackDefinition[MyEnv]{
-		envFactory: func(ctx *pulumi.Context) (*MyEnv, error) {
-			vm, err := ec2vm.NewUnixEc2VM(ctx, ec2vm.WithArch(os.AmazonLinuxOS, commonos.AMD64Arch))
-			if err != nil {
-				return nil, err
-			}
+	e2eSuite := &e2eSuite{}
+	innerSuite := NewSuite("e2eSuite", e2eSuite.createStack("default"))
+	e2eSuite.Suite = innerSuite
+	e2eSuite.updateEnvStack = e2eSuite.createStack("updateEnvStack")
+	suite.Run(t, e2eSuite)
+}
 
-			installer, err := agent.NewInstaller(vm)
-			if err != nil {
-				return nil, err
-			}
-			return &MyEnv{
-				VM:    client.NewVM(vm),
-				Agent: client.NewAgent(installer),
-			}, nil
-		},
+func (s *e2eSuite) Test1_DefaultEnv() {
+	s.Env() // create the env if it doesn't exist
+	s.Require().Equal("default", s.stackName)
+	s.Require().Equal(1, s.runFctCallCount)
+}
+
+func (s *e2eSuite) Test2_UpdateEnv() {
+	s.UpdateEnv(s.updateEnvStack)
+	s.Env() // create the env if it doesn't exist
+	s.Require().Equal("updateEnvStack", s.stackName)
+	s.Require().Equal(2, s.runFctCallCount)
+}
+
+func (s *e2eSuite) Test3_UpdateEnv() {
+	// As the env is the same as before this function does nothing
+	// and runFctCallCount is not increment
+	s.UpdateEnv(s.updateEnvStack)
+	s.Env() // create the env if it doesn't exist
+	s.Require().Equal("updateEnvStack", s.stackName)
+	s.Require().Equal(2, s.runFctCallCount)
+
+	s.UpdateEnv(s.updateEnvStack)
+	s.Require().Equal(2, s.runFctCallCount)
+}
+
+func (suite *e2eSuite) createStack(stackName string) *StackDefinition[struct{}] {
+	return EnvFactoryStackDef(func(ctx *pulumi.Context) (*struct{}, error) {
+		suite.stackName = stackName
+		suite.runFctCallCount += 1
+		return &struct{}{}, nil
+	})
+}
+
+type skipDeleteOnFailureSuite struct {
+	*Suite[struct{}]
+	testsRun []string
+}
+
+// This function is used to check skipDeleteOnFailure works as expected
+// which means a test must fail. This is the reason why the functino is not
+// prefixed by `Test` and so not run.
+func E2ESuiteSkipDeleteOnFailure(t *testing.T) {
+	e2e2Suite := &skipDeleteOnFailureSuite{
+		Suite: NewSuite("SkipDeleteOnFailure", nil, SkipDeleteOnFailure[struct{}]()),
 	}
-
-	Run(t, &e2eSuite{}, stack)
+	suite.Run(t, e2e2Suite)
+	require.Equal(t, []string{"Test1"}, e2e2Suite.testsRun)
 }
 
-func (v *e2eSuite) TestVM() {
-	output, err := v.Env.VM.Execute("ls")
-	require.NoError(v.T(), err)
-	require.NotEmpty(v.T(), output)
+func (s *skipDeleteOnFailureSuite) Test1() {
+	s.UpdateEnv(s.updateStack("Test1"))
 }
 
-func (v *e2eSuite) TestAgent() {
-	output, err := v.Env.Agent.Status()
-	require.NoError(v.T(), err)
-	require.Contains(v.T(), output, "Agent start")
+func (s *skipDeleteOnFailureSuite) Test2() {
+	s.Assert().Fail("Simulate a failure")
+	s.UpdateEnv(s.updateStack("Test2"))
+}
+
+func (s *skipDeleteOnFailureSuite) Test3() {
+	s.UpdateEnv(s.updateStack("Test3"))
+}
+
+func (suite *skipDeleteOnFailureSuite) updateStack(testName string) *StackDefinition[struct{}] {
+	return EnvFactoryStackDef[struct{}](func(ctx *pulumi.Context) (*struct{}, error) {
+		suite.testsRun = append(suite.testsRun, testName)
+		return &struct{}{}, nil
+	})
 }

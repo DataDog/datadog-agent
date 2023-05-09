@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
-type httpTX interface {
+type HttpTX interface {
 	RequestLatency() float64
 	ConnTuple() types.ConnectionKey
 	Method() Method

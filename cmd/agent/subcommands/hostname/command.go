@@ -40,7 +40,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
-					LogParams:    log.LogForOneShot("CORE", "off", false)}), // never output anything but hostname
+					LogParams:    log.LogForOneShot(command.LoggerName, "off", false)}), // never output anything but hostname
 				core.Bundle,
 			)
 		},

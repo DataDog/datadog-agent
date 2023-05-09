@@ -34,8 +34,7 @@ import (
 const (
 
 	// DefaultSite is the default site the Agent sends data to.
-	DefaultSite    = "datadoghq.com"
-	infraURLPrefix = "https://app."
+	DefaultSite = "datadoghq.com"
 
 	// DefaultNumWorkers default number of workers for our check runner
 	DefaultNumWorkers = 4
@@ -1105,8 +1104,9 @@ func InitConfig(config Config) {
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
-	config.BindEnvAndSetDefault("inventories_configuration_enabled", false)        // controls the agent configurations
-	config.BindEnvAndSetDefault("inventories_checks_configuration_enabled", false) // controls the checks configurations
+	config.BindEnvAndSetDefault("inventories_configuration_enabled", false)            // controls the agent configurations
+	config.BindEnvAndSetDefault("inventories_checks_configuration_enabled", false)     // controls the checks configurations
+	config.BindEnvAndSetDefault("inventories_collect_cloud_provider_account_id", true) // collect collection of `cloud_provider_account_id`
 	// when updating the default here also update pkg/metadata/inventories/README.md
 	config.BindEnvAndSetDefault("inventories_max_interval", DefaultInventoriesMaxInterval) // integer seconds
 	config.BindEnvAndSetDefault("inventories_min_interval", DefaultInventoriesMinInterval) // integer seconds
@@ -1411,9 +1411,11 @@ func findUnknownEnvVars(config Config, environ []string, additionalKnownEnvVars 
 		"DD_PROXY_HTTP":     {},
 		"DD_PROXY_HTTPS":    {},
 		// these variables are used by serverless, but not via the Config struct
-		"DD_SERVICE":                   {},
+		"DD_API_KEY_SECRET_ARN":        {},
 		"DD_DOTNET_TRACER_HOME":        {},
 		"DD_SERVERLESS_APPSEC_ENABLED": {},
+		"DD_SERVICE":                   {},
+		"DD_VERSION":                   {},
 		// this variable is used by CWS functional tests
 		"DD_TESTS_RUNTIME_COMPILED": {},
 	}
@@ -1745,21 +1747,6 @@ func SanitizeAPIKey(key string) string {
 	return strings.TrimSpace(key)
 }
 
-// GetMainInfraEndpoint returns the main DD Infra URL defined in the config, based on the value of `site` and `dd_url`
-func GetMainInfraEndpoint() string {
-	return getMainInfraEndpointWithConfig(Datadog)
-}
-
-// GetMainEndpoint returns the main DD URL defined in the config, based on `site` and the prefix, or ddURLKey
-func GetMainEndpoint(prefix string, ddURLKey string) string {
-	return GetMainEndpointWithConfig(Datadog, prefix, ddURLKey)
-}
-
-// GetMultipleEndpoints returns the api keys per domain specified in the main agent config
-func GetMultipleEndpoints() (map[string][]string, error) {
-	return getMultipleEndpointsWithConfig(Datadog)
-}
-
 func bindEnvAndSetLogsConfigKeys(config Config, prefix string) {
 	config.BindEnv(prefix + "logs_dd_url") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
 	config.BindEnv(prefix + "dd_url")
@@ -1804,109 +1791,6 @@ func AddAgentVersionToDomain(DDURL string, app string) (string, error) {
 
 	u.Host = strings.Replace(u.Host, subdomain, newSubdomain, 1)
 	return u.String(), nil
-}
-
-func getMainInfraEndpointWithConfig(config Config) string {
-	return GetMainEndpointWithConfig(config, infraURLPrefix, "dd_url")
-}
-
-// GetMainEndpointWithConfig implements the logic to extract the DD URL from a config, based on `site` and ddURLKey
-func GetMainEndpointWithConfig(config Config, prefix string, ddURLKey string) (resolvedDDURL string) {
-	if config.IsSet(ddURLKey) && config.GetString(ddURLKey) != "" {
-		// value under ddURLKey takes precedence over 'site'
-		resolvedDDURL = getResolvedDDUrl(config, ddURLKey)
-	} else if config.GetString("site") != "" {
-		resolvedDDURL = prefix + strings.TrimSpace(config.GetString("site"))
-	} else {
-		resolvedDDURL = prefix + DefaultSite
-	}
-	return
-}
-
-// GetMainEndpointWithConfigBackwardCompatible implements the logic to extract the DD URL from a config, based on `site`,ddURLKey and a backward compatible key
-func GetMainEndpointWithConfigBackwardCompatible(config Config, prefix string, ddURLKey string, backwardKey string) (resolvedDDURL string) {
-	if config.IsSet(ddURLKey) && config.GetString(ddURLKey) != "" {
-		// value under ddURLKey takes precedence over backwardKey and 'site'
-		resolvedDDURL = getResolvedDDUrl(config, ddURLKey)
-	} else if config.IsSet(backwardKey) && config.GetString(backwardKey) != "" {
-		// value under backwardKey takes precedence over 'site'
-		resolvedDDURL = getResolvedDDUrl(config, backwardKey)
-	} else if config.GetString("site") != "" {
-		resolvedDDURL = prefix + strings.TrimSpace(config.GetString("site"))
-	} else {
-		resolvedDDURL = prefix + DefaultSite
-	}
-	return
-}
-
-func getResolvedDDUrl(config Config, urlKey string) string {
-	resolvedDDURL := config.GetString(urlKey)
-	if config.IsSet("site") {
-		log.Infof("'site' and '%s' are both set in config: setting main endpoint to '%s': \"%s\"", urlKey, urlKey, config.GetString(urlKey))
-	}
-	return resolvedDDURL
-}
-
-// getMultipleEndpointsWithConfig implements the logic to extract the api keys per domain from an agent config
-func getMultipleEndpointsWithConfig(config Config) (map[string][]string, error) {
-	// Validating domain
-	ddURL := getMainInfraEndpointWithConfig(config)
-	_, err := url.Parse(ddURL)
-	if err != nil {
-		return nil, fmt.Errorf("could not parse main endpoint: %s", err)
-	}
-
-	keysPerDomain := map[string][]string{
-		ddURL: {
-			config.GetString("api_key"),
-		},
-	}
-
-	additionalEndpoints := config.GetStringMapStringSlice("additional_endpoints")
-
-	return MergeAdditionalEndpoints(keysPerDomain, additionalEndpoints)
-}
-
-// MergeAdditionalEndpoints merges additional endpoints into keysPerDomain
-func MergeAdditionalEndpoints(keysPerDomain, additionalEndpoints map[string][]string) (map[string][]string, error) {
-	for domain, apiKeys := range additionalEndpoints {
-
-		// Validating domain
-		_, err := url.Parse(domain)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse url from 'additional_endpoints' %s: %s", domain, err)
-		}
-
-		if _, ok := keysPerDomain[domain]; ok {
-			for _, apiKey := range apiKeys {
-				keysPerDomain[domain] = append(keysPerDomain[domain], apiKey)
-			}
-		} else {
-			keysPerDomain[domain] = apiKeys
-		}
-	}
-
-	// dedupe api keys and remove domains with no api keys (or empty ones)
-	for domain, apiKeys := range keysPerDomain {
-		dedupedAPIKeys := make([]string, 0, len(apiKeys))
-		seen := make(map[string]bool)
-		for _, apiKey := range apiKeys {
-			trimmedAPIKey := strings.TrimSpace(apiKey)
-			if _, ok := seen[trimmedAPIKey]; !ok && trimmedAPIKey != "" {
-				seen[trimmedAPIKey] = true
-				dedupedAPIKeys = append(dedupedAPIKeys, trimmedAPIKey)
-			}
-		}
-
-		if len(dedupedAPIKeys) > 0 {
-			keysPerDomain[domain] = dedupedAPIKeys
-		} else {
-			log.Infof("No API key provided for domain \"%s\", removing domain from endpoints", domain)
-			delete(keysPerDomain, domain)
-		}
-	}
-
-	return keysPerDomain, nil
 }
 
 // IsCloudProviderEnabled checks the cloud provider family provided in
@@ -2063,10 +1947,10 @@ func IsCLCRunner() bool {
 // Not using `config.BindEnvAndSetDefault` as some processes need to know
 // if value was default one or not (e.g. trace-agent)
 func GetBindHost() string {
-	return getBindHost(Datadog)
+	return GetBindHostFromConfig(Datadog)
 }
 
-func getBindHost(cfg Config) string {
+func GetBindHostFromConfig(cfg ConfigReader) string {
 	if cfg.IsSet("bind_host") {
 		return cfg.GetString("bind_host")
 	}

@@ -23,6 +23,7 @@ func (t *Tailer) DidRotate() (bool, error) {
 		return false, err
 	}
 	defer f.Close()
+	offset := t.lastReadOffset.Load()
 
 	st, err := f.Stat()
 	if err != nil {
@@ -36,7 +37,6 @@ func (t *Tailer) DidRotate() (bool, error) {
 	// increased, so the check that size < offset is valid as long as size is
 	// polled before the offset.
 	sz := st.Size()
-	offset := t.lastReadOffset.Load()
 
 	if sz < offset {
 		log.Debugf("File rotation detected due to size change, lastReadOffset=%d, fileSize=%d", offset, sz)

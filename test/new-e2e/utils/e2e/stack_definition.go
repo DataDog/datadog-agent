@@ -18,11 +18,11 @@ type StackDefinition[Env any] struct {
 	configMap  runner.ConfigMap
 }
 
-func NewStackDef[Env any](envFactory func(ctx *pulumi.Context) (*Env, error), configMap runner.ConfigMap) StackDefinition[Env] {
-	return StackDefinition[Env]{envFactory: envFactory, configMap: configMap}
+func NewStackDef[Env any](envFactory func(ctx *pulumi.Context) (*Env, error), configMap runner.ConfigMap) *StackDefinition[Env] {
+	return &StackDefinition[Env]{envFactory: envFactory, configMap: configMap}
 }
 
-func EnvFactoryStackDef[Env any](envFactory func(ctx *pulumi.Context) (*Env, error)) StackDefinition[Env] {
+func EnvFactoryStackDef[Env any](envFactory func(ctx *pulumi.Context) (*Env, error)) *StackDefinition[Env] {
 	return NewStackDef(envFactory, runner.ConfigMap{})
 }
 
@@ -30,7 +30,7 @@ type VMEnv struct {
 	VM *client.VM
 }
 
-func EC2VMStackDef(options ...func(*ec2vm.Params) error) StackDefinition[VMEnv] {
+func EC2VMStackDef(options ...func(*ec2vm.Params) error) *StackDefinition[VMEnv] {
 	return EnvFactoryStackDef(func(ctx *pulumi.Context) (*VMEnv, error) {
 		vm, err := ec2vm.NewEc2VM(ctx, options...)
 		if err != nil {
@@ -49,7 +49,7 @@ type AgentEnv struct {
 
 type Ec2VMOption = func(*ec2vm.Params) error
 
-func AgentStackDef(vmParams []Ec2VMOption, agentParams ...func(*agent.Params) error) StackDefinition[AgentEnv] {
+func AgentStackDef(vmParams []Ec2VMOption, agentParams ...func(*agent.Params) error) *StackDefinition[AgentEnv] {
 	return EnvFactoryStackDef(
 		func(ctx *pulumi.Context) (*AgentEnv, error) {
 			vm, err := ec2vm.NewEc2VM(ctx, vmParams...)

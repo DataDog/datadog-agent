@@ -19,8 +19,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd := configcmd.MakeCommand(func() configcmd.GlobalParams {
 		return configcmd.GlobalParams{
 			ConfFilePath:   globalParams.ConfFilePath,
-			ConfigName:     "datadog",
-			LoggerName:     "CORE",
+			ConfigName:     command.ConfigName,
+			LoggerName:     command.LoggerName,
 			SettingsClient: common.NewSettingsClient,
 		}
 	})

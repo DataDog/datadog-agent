@@ -83,7 +83,7 @@ func NewActivityDumpLocalStorage(cfg *config.Config) (ActivityDumpStorage, error
 		if err != nil {
 			if os.IsNotExist(err) {
 				files = make([]os.DirEntry, 0)
-				if err = os.MkdirAll(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory, 0400); err != nil {
+				if err = os.MkdirAll(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory, 0750); err != nil {
 					return nil, fmt.Errorf("couldn't create output directory for cgroup activity dumps: %w", err)
 				}
 			} else {
