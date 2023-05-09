@@ -153,7 +153,6 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         update_protocol_information(usm_ctx, protocol_stack, PROTOCOL_TLS);
         // The connection is TLS encrypted, thus we cannot classify the protocol
         // using the socket filter and therefore we can bail out;
-        mark_as_fully_classified(protocol_stack);
         return;
     }
 

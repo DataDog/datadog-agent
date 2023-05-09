@@ -39,8 +39,8 @@ static __always_inline void https_process(conn_tuple_t *t, void *buffer, size_t 
     bool http_traffic_detected = http_process(&http, NULL, tags);
 
     if (http_traffic_detected) {
-        // TODO: Consider marking the connection as TLS?
         update_protocol_stack(t, PROTOCOL_HTTP);
+        update_protocol_stack(t, PROTOCOL_TLS);
     }
 }
 
