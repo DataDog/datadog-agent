@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
+	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -62,25 +63,6 @@ const (
 	Running
 )
 
-// Metadata is used to provide context about the activity dump
-type Metadata struct {
-	AgentVersion      string `json:"agent_version"`
-	AgentCommit       string `json:"agent_commit"`
-	KernelVersion     string `json:"kernel_version"`
-	LinuxDistribution string `json:"linux_distribution"`
-	Arch              string `json:"arch"`
-
-	Name              string    `json:"name"`
-	ProtobufVersion   string    `json:"protobuf_version"`
-	DifferentiateArgs bool      `json:"differentiate_args"`
-	Comm              string    `json:"comm,omitempty"`
-	ContainerID       string    `json:"-"`
-	Start             time.Time `json:"start"`
-	End               time.Time `json:"end"`
-	Size              uint64    `json:"activity_dump_size,omitempty"`
-	Serialization     string    `json:"serialization,omitempty"`
-}
-
 // ActivityDump holds the activity tree for the workload defined by the provided list of tags. The encoding described by
 // the `msg` annotation is used to generate the activity dump file while the encoding described by the `json` annotation
 // is used to generate the activity dump metadata sent to the event platform.
@@ -103,7 +85,7 @@ type ActivityDump struct {
 	StorageRequests map[config.StorageFormat][]config.StorageRequest `json:"-"`
 
 	// Dump metadata
-	Metadata
+	mtdt.Metadata
 
 	// Used to store the global list of DNS names contained in this dump
 	// this is a hack used to provide this global list to the backend in the JSON header
@@ -148,7 +130,7 @@ type WithDumpOption func(ad *ActivityDump)
 func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *ActivityDump {
 	ad := NewEmptyActivityDump()
 	now := time.Now()
-	ad.Metadata = Metadata{
+	ad.Metadata = mtdt.Metadata{
 		AgentVersion:      version.AgentVersion,
 		AgentCommit:       version.Commit,
 		KernelVersion:     adm.kernelVersion.Code.String(),
@@ -201,7 +183,7 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 	ad.Service = msg.GetService()
 	ad.Source = msg.GetSource()
 	ad.Tags = msg.GetTags()
-	ad.Metadata = Metadata{
+	ad.Metadata = mtdt.Metadata{
 		AgentVersion:      metadata.GetAgentVersion(),
 		AgentCommit:       metadata.GetAgentCommit(),
 		KernelVersion:     metadata.GetKernelVersion(),

@@ -89,7 +89,7 @@ func Register(cfg *config.Config, httpMux *mux.Router, factories []Factory) erro
 		// if running, shut it down
 		log.Debug("Shutting down the driver.  Upon successful initialization, it was not needed by the current configuration.")
 
-		// shut the driver down and optionally disable it, if closed source isn't allowed anymore
+		// shut the driver down and  disable it
 		if err := driver.ForceStop(); err != nil {
 			log.Warnf("error stopping driver: %s", err)
 		}

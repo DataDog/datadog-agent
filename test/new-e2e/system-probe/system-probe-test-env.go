@@ -103,10 +103,11 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 		}
 
 		var depends []pulumi.Resource
+		osCommand := command.NewUnixOSCommand()
 		for _, instance := range scenarioDone.Instances {
 			remoteRunner, err := command.NewRunner(*awsEnvironment.CommonEnvironment, "remote-runner-"+instance.Arch, instance.Connection, func(r *command.Runner) (*remote.Command, error) {
 				return command.WaitForCloudInit(r)
-			})
+			}, osCommand)
 
 			// if shutdown period specified then register a cron job
 			// to automatically shutdown the ec2 instance after desired

@@ -54,7 +54,7 @@ type APIServer struct {
 	expiredEvents     map[rules.RuleID]*atomic.Int64
 	expiredDumpsLock  sync.RWMutex
 	expiredDumps      *atomic.Int64
-	rate              *Limiter
+	limiter           *StdLimiter
 	statsdClient      statsd.ClientInterface
 	probe             *sprobe.Probe
 	queueLock         sync.Mutex
@@ -108,7 +108,7 @@ func (a *APIServer) GetEvents(params *api.GetEventParams, stream api.SecurityMod
 LOOP:
 	for {
 		// Check that the limit is not reached
-		if !a.rate.limiter.Allow() {
+		if !a.limiter.Allow(nil) {
 			return nil
 		}
 
@@ -543,7 +543,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, client
 		activityDumps: make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
 		expiredEvents: make(map[rules.RuleID]*atomic.Int64),
 		expiredDumps:  atomic.NewInt64(0),
-		rate:          NewLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
+		limiter:       NewStdLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
 		statsdClient:  client,
 		probe:         probe,
 		retention:     time.Duration(cfg.EventServerRetention) * time.Second,
