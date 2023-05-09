@@ -63,7 +63,7 @@ type Suite[Env any] struct {
 	suite.Suite
 
 	stackName string
-	stackDef  *StackDefinition[Env]
+	stackDef  StackDefinition[Env]
 
 	// These fields are initialized in SetupSuite
 	Env  *Env
@@ -74,17 +74,12 @@ type Suite[Env any] struct {
 	DevMode bool
 }
 
-type StackDefinition[Env any] struct {
-	EnvFactory func(ctx *pulumi.Context) (*Env, error)
-	ConfigMap  runner.ConfigMap
-}
-
 type suiteConstraint[Env any] interface {
 	suite.TestingSuite
-	initSuite(stackName string, options ...func(*Suite[Env]))
+	initSuite(stackName string, stackDef StackDefinition[Env], options ...func(*Suite[Env]))
 }
 
-func Run[Env any, T suiteConstraint[Env]](t *testing.T, e2eSuite T, options ...func(*Suite[Env])) {
+func Run[Env any, T suiteConstraint[Env]](t *testing.T, e2eSuite T, stackDef StackDefinition[Env], options ...func(*Suite[Env])) {
 	suiteType := reflect.TypeOf(e2eSuite).Elem()
 	name := suiteType.Name()
 	pkgPaths := suiteType.PkgPath()
@@ -96,7 +91,7 @@ func Run[Env any, T suiteConstraint[Env]](t *testing.T, e2eSuite T, options ...f
 	// Example: "e2e-e2eSuite-cbb731954db42b"
 	defaultStackName := fmt.Sprintf("%v-%v-%v", pkgs[len(pkgs)-1], name, hash)
 
-	e2eSuite.initSuite(defaultStackName, options...)
+	e2eSuite.initSuite(defaultStackName, stackDef, options...)
 	suite.Run(t, e2eSuite)
 }
 
@@ -104,33 +99,17 @@ func Run[Env any, T suiteConstraint[Env]](t *testing.T, e2eSuite T, options ...f
 // stackName is the name of the stack and should be unique across suites.
 // stackDef is the stack definition.
 // options are optional parameters for example [e2e.KeepEnv].
-func NewSuite[Env any](stackName string, options ...func(*Suite[Env])) *Suite[Env] {
+func NewSuite[Env any](stackName string, stackDef StackDefinition[Env], options ...func(*Suite[Env])) *Suite[Env] {
 	testSuite := Suite[Env]{}
-	testSuite.initSuite(stackName, options...)
+	testSuite.initSuite(stackName, stackDef, options...)
 	return &testSuite
 }
 
-func (suite *Suite[Env]) initSuite(stackName string, options ...func(*Suite[Env])) {
+func (suite *Suite[Env]) initSuite(stackName string, stackDef StackDefinition[Env], options ...func(*Suite[Env])) {
 	suite.stackName = stackName
 
 	for _, o := range options {
 		o(suite)
-	}
-}
-
-// WithStackDef set the stack definition
-func WithStackDef[Env any](stackDef *StackDefinition[Env]) func(*Suite[Env]) {
-	return func(suite *Suite[Env]) {
-		suite.stackDef = stackDef
-	}
-}
-
-// WithEnvFactory set the run function (EnvFactory in StackDefinition)
-func WithEnvFactory[Env any](envFactory func(ctx *pulumi.Context) (*Env, error)) func(*Suite[Env]) {
-	return func(suite *Suite[Env]) {
-		suite.stackDef = &StackDefinition[Env]{
-			EnvFactory: envFactory,
-		}
 	}
 }
 
@@ -188,17 +167,17 @@ func (suite *Suite[Env]) HandleStats(string, stats *suite.SuiteInformation) {
 	}
 }
 
-func createEnv[Env any](suite *Suite[Env], stackDef *StackDefinition[Env]) (*Env, *auto.Stack, auto.UpResult, error) {
+func createEnv[Env any](suite *Suite[Env], stackDef StackDefinition[Env]) (*Env, *auto.Stack, auto.UpResult, error) {
 	var env *Env
 	ctx := context.Background()
 
 	stack, stackOutput, err := infra.GetStackManager().GetStack(
 		ctx,
 		suite.stackName,
-		suite.stackDef.ConfigMap,
+		suite.stackDef.configMap,
 		func(ctx *pulumi.Context) error {
 			var err error
-			env, err = stackDef.EnvFactory(ctx)
+			env, err = stackDef.envFactory(ctx)
 			return err
 		}, false)
 

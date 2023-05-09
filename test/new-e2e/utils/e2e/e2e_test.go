@@ -27,8 +27,8 @@ type e2eSuite struct {
 }
 
 func TestE2ESuite(t *testing.T) {
-	stack := &StackDefinition[MyEnv]{
-		EnvFactory: func(ctx *pulumi.Context) (*MyEnv, error) {
+	stack := StackDefinition[MyEnv]{
+		envFactory: func(ctx *pulumi.Context) (*MyEnv, error) {
 			vm, err := ec2vm.NewUnixEc2VM(ctx, ec2vm.WithArch(os.AmazonLinuxOS, commonos.AMD64Arch))
 			if err != nil {
 				return nil, err
@@ -45,7 +45,7 @@ func TestE2ESuite(t *testing.T) {
 		},
 	}
 
-	Run(t, &e2eSuite{}, WithStackDef(stack))
+	Run(t, &e2eSuite{}, stack)
 }
 
 func (v *e2eSuite) TestVM() {
