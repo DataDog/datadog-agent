@@ -316,16 +316,16 @@ type PlanDefinition struct {
 }
 
 type PlanPlanDB struct {
-	Definition     []PlanDefinition `json:"definition"`
-	Signature      uint64           `json:"signature"`
-	QuerySignature string           `json:"query_signature"`
-	Statement      string           `json:"statement"`
-	PlanStatementMetadata
+	Definition []PlanDefinition `json:"definition"`
+	Signature  string           `json:"signature"`
 }
 
 type PlanDB struct {
-	Instance string     `json:"instance"`
-	Plan     PlanPlanDB `json:"plan"`
+	Instance       string                `json:"instance,omitempty"`
+	Plan           PlanPlanDB            `json:"plan,omitempty"`
+	QuerySignature string                `json:"query_signature,omitempty"`
+	Statement      string                `json:"statement,omitempty"`
+	Metadata       PlanStatementMetadata `json:"metadata,omitempty"`
 }
 
 type PlanPayload struct {
@@ -333,7 +333,7 @@ type PlanPayload struct {
 	Host         string     `json:"host,omitempty"` // Host is the database hostname, not the agent hostname
 	AgentVersion string     `json:"ddagentversion,omitempty"`
 	Source       string     `json:"ddsource"`
-	Tags         []string   `json:"tags,omitempty"`
+	Tags         string     `json:"ddtags,omitempty"`
 	DBMType      string     `json:"dbm_type"`
 	PlanDB       PlanDB     `json:"db"`
 	OraclePlan   OraclePlan `json:"oracle"`
@@ -800,7 +800,6 @@ func (c *Check) StatementMetrics() (int, error) {
 								stepPayload.TempSpace = stepRow.TempSpace.Float64
 							}
 							if stepRow.AccessPredicates.Valid {
-								//stepPayload.AccessPredicates = stepRow.AccessPredicates.String
 								obfuscated, err := o.ObfuscateSQLString(stepRow.AccessPredicates.String)
 								if err == nil {
 									stepPayload.AccessPredicates = obfuscated.Query
@@ -810,7 +809,6 @@ func (c *Check) StatementMetrics() (int, error) {
 								}
 							}
 							if stepRow.FilterPredicates.Valid {
-								//stepPayload.FilterPredicates = stepRow.FilterPredicates.String
 								obfuscated, err := o.ObfuscateSQLString(stepRow.FilterPredicates.String)
 								if err == nil {
 									stepPayload.FilterPredicates = obfuscated.Query
@@ -871,22 +869,22 @@ func (c *Check) StatementMetrics() (int, error) {
 							Commands: queryRow.Commands,
 						}
 						planPlanDB := PlanPlanDB{
-							Definition:            planStepsPayload,
-							Signature:             statementMetricRow.PlanHashValue,
-							QuerySignature:        queryRow.QuerySignature,
-							Statement:             SQLStatement,
-							PlanStatementMetadata: planStatementMetadata,
+							Definition: planStepsPayload,
+							Signature:  strconv.FormatUint(statementMetricRow.PlanHashValue, 10),
 						}
 						planDB := PlanDB{
-							Instance: c.cdbName,
-							Plan:     planPlanDB,
+							Instance:       c.cdbName,
+							Plan:           planPlanDB,
+							QuerySignature: queryRow.QuerySignature,
+							Statement:      SQLStatement,
+							Metadata:       planStatementMetadata,
 						}
 						planPayload := PlanPayload{
 							Timestamp:    float64(time.Now().UnixMilli()),
 							Host:         c.dbHostname,
 							AgentVersion: c.agentVersion,
 							Source:       common.IntegrationName,
-							Tags:         c.tags,
+							Tags:         strings.Join(c.tags, ","),
 							DBMType:      "plan",
 							PlanDB:       planDB,
 							OraclePlan:   oraclePlan,
@@ -951,7 +949,7 @@ func (c *Check) StatementMetrics() (int, error) {
 	sender.Gauge("dd.oracle.statements_metrics.sql_text_errors", float64(SQLTextErrors), "", c.tags)
 	sender.Gauge("dd.oracle.statements_metrics.time_ms", float64(time.Since(start).Milliseconds()), "", c.tags)
 	sender.Gauge("dd.oracle.statements.sqltext.time_ms", math.Round(float64(totalSQLTextTimeUs/1000)), "", c.tags)
-	if c.config.ExecutionPlans {
+	if c.config.ExecutionPlans.Enabled {
 		sender.Gauge("dd.oracle.plan_errors.count", float64(planErrors), "", c.tags)
 	}
 	sender.Commit()
