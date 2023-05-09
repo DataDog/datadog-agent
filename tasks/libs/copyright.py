@@ -54,6 +54,7 @@ HEADER_EXCLUSION_REGEX = [
     '^// This file includes software developed at CoreOS',
     '^// Copyright 2017 Kinvolk',
     '^// Copyright 2021 The Vitess Authors.',
+    '^// This file is licensed under the MIT License.'
 ]
 
 
