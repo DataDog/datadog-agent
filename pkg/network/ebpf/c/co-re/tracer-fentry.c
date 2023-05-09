@@ -137,6 +137,8 @@ int BPF_PROG(tcp_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t size,
 
     if (error == 2) {
         log_debug("fexit/tcp_sendmsg adamk pid ns check ENOENT, ns: %d", ns.pid);
+    } else if (error) {
+        log_debug("fexit/tcp_sendmsg adamk pid ns check UNKNOWN, err: %d", error);
     }
 
     handle_tcp_stats(&t, sk, 0);
