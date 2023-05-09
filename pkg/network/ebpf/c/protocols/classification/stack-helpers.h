@@ -125,15 +125,6 @@ __maybe_unused static __always_inline bool is_protocol_layer_known(protocol_stac
     return proto != PROTOCOL_UNKNOWN;
 }
 
-// has_any_protocols returns true when the given `stack` has at least one protocol set
-static __always_inline bool has_any_protocols(protocol_stack_t *stack) {
-    if (!stack) {
-        return false;
-    }
-
-    return (stack->layer_api || stack->layer_application || stack->layer_encryption);
-}
-
 // merge_protocol_stacks modifies `this` by merging it with `that`
 static __always_inline void merge_protocol_stacks(protocol_stack_t *this, protocol_stack_t *that) {
     if (!this || !that) {

@@ -65,10 +65,7 @@ static __always_inline void update_protocol_classification_information(conn_tupl
     normalize_tuple(&conn_tuple_copy);
 
     protocol_stack_t *protocol_stack = bpf_map_lookup_elem(&connection_protocol, &conn_tuple_copy);
-    if (protocol_stack && has_any_protocols(protocol_stack)) {
-        merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
-        return;
-    }
+    merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
 
     conn_tuple_t *cached_skb_conn_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple_copy);
     if (!cached_skb_conn_tup_ptr) {
@@ -77,10 +74,6 @@ static __always_inline void update_protocol_classification_information(conn_tupl
 
     conn_tuple_copy = *cached_skb_conn_tup_ptr;
     protocol_stack = bpf_map_lookup_elem(&connection_protocol, &conn_tuple_copy);
-    if (!protocol_stack) {
-        return;
-    }
-
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
 }
 
