@@ -438,8 +438,10 @@ func (m *SecurityProfileManager) SendStats() error {
 	}
 
 	for _, profile := range m.profiles {
-		if err := profile.SendStats(m.statsdClient); err != nil {
-			return fmt.Errorf("couldn't send metrics for [%s]: %w", profile.selector.String(), err)
+		if profile.loadedInKernel { // make sure the profile is loaded
+			if err := profile.SendStats(m.statsdClient); err != nil {
+				return fmt.Errorf("couldn't send metrics for [%s]: %w", profile.selector.String(), err)
+			}
 		}
 	}
 
