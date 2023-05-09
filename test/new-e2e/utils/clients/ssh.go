@@ -39,7 +39,7 @@ func getSSHClient(user, host, privateKey string) (*ssh.Client, *ssh.Session, err
 		// Use the ssh agent
 		conn, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK"))
 		if err != nil {
-			return nil, nil, fmt.Errorf("no ssh key provide and cannot connect to the ssh agent: %v", err)
+			return nil, nil, fmt.Errorf("no ssh key provided and cannot connect to the ssh agent: %v", err)
 		}
 		defer conn.Close()
 		sshAgent := agent.NewClient(conn)
