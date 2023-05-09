@@ -71,7 +71,7 @@ public:
     char *runCheck(RtLoaderPyObject *check);
     void cancelCheck(RtLoaderPyObject *check);
     char **getCheckWarnings(RtLoaderPyObject *check);
-    diagnoses_t *getCheckDiagnoses(RtLoaderPyObject *check);
+    diagnosis_set_t *getCheckDiagnoses(RtLoaderPyObject *check);
     void decref(RtLoaderPyObject *obj);
     void incref(RtLoaderPyObject *obj);
     void setModuleAttrString(char *module, char *attr, char *value);

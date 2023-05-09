@@ -27,7 +27,7 @@ func init() {
 	diagnosis.Register("connectivity-datadog-core-endpoints", diagnose)
 }
 ...
-func diagnose(diagCfg diagnosis.DiagnoseConfig) []diagnosis.Diagnosis {
+func diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
     ...
     var diagnoses []diagnosis.Diagnosis
     ...
@@ -61,4 +61,4 @@ func diagnose(diagCfg diagnosis.DiagnoseConfig) []diagnosis.Diagnosis {
 ```
 
 ## Context of a diagnose function execution
-Normally, registered diagnose suite functions will be executed in context of the running agent service (or other services) but if ```DiagnoseConfig.ForceLocal``` configuration is specified the registered diagnose function will be executed in the context of agent diagnose CLI command (if possible).
+Normally, registered diagnose suite functions will be executed in context of the running agent service (or other services) but if ```Config.ForceLocal``` configuration is specified the registered diagnose function will be executed in the context of agent diagnose CLI command (if possible).

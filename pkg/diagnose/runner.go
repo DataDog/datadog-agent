@@ -23,17 +23,16 @@ func init() {
 }
 
 // Overall running statistics
-type diagnosisCounters struct {
-	total          int
-	success        int
-	fail           int
-	warnings       int
-	unexpected_err int
-	skipped        int
+type counters struct {
+	total         int
+	success       int
+	fail          int
+	warnings      int
+	unexpectedErr int
 }
 
 // Output summary
-func outputSummary(w io.Writer, c diagnosisCounters) {
+func (c *counters) summary(w io.Writer) {
 	fmt.Fprintf(w, "-------------------------\n  Total:%d", c.total)
 	if c.success > 0 {
 		fmt.Fprintf(w, ", Success:%d", c.success)
@@ -44,29 +43,27 @@ func outputSummary(w io.Writer, c diagnosisCounters) {
 	if c.warnings > 0 {
 		fmt.Fprintf(w, ", Warning:%d", c.warnings)
 	}
-	if c.unexpected_err > 0 {
-		fmt.Fprintf(w, ", Error:%d", c.unexpected_err)
+	if c.unexpectedErr > 0 {
+		fmt.Fprintf(w, ", Error:%d", c.unexpectedErr)
 	}
 	fmt.Fprint(w, "\n")
 }
 
-func incrementCounters(r diagnosis.DiagnosisResult, c *diagnosisCounters) {
+func (c *counters) increment(r diagnosis.Result) {
 	c.total++
 
-	if r == diagnosis.DiagnosisNotEnable {
-		c.skipped++
-	} else if r == diagnosis.DiagnosisSuccess {
+	if r == diagnosis.DiagnosisSuccess {
 		c.success++
 	} else if r == diagnosis.DiagnosisFail {
 		c.fail++
 	} else if r == diagnosis.DiagnosisWarning {
 		c.warnings++
 	} else if r == diagnosis.DiagnosisUnexpectedError {
-		c.unexpected_err++
+		c.unexpectedErr++
 	}
 }
 
-func getDiagnosisResultForOutput(r diagnosis.DiagnosisResult) string {
+func getDiagnosisResultForOutput(r diagnosis.Result) string {
 	var result string
 	if r == diagnosis.DiagnosisSuccess {
 		result = color.GreenString("PASS")
@@ -81,7 +78,7 @@ func getDiagnosisResultForOutput(r diagnosis.DiagnosisResult) string {
 	return result
 }
 
-func outputDiagnosis(w io.Writer, cfg diagnosis.DiagnoseConfig, result string, diagnosisIdx int, d diagnosis.Diagnosis) {
+func outputDiagnosis(w io.Writer, cfg diagnosis.Config, result string, diagnosisIdx int, d diagnosis.Diagnosis) {
 	// Running index (1, 2, 3, etc)
 	fmt.Fprintf(w, "%d. --------------\n", diagnosisIdx)
 
@@ -118,16 +115,6 @@ func outputDiagnosis(w io.Writer, cfg diagnosis.DiagnoseConfig, result string, d
 	fmt.Fprint(w, "\n")
 }
 
-func outputSkippeddiagnosis(w io.Writer, cfg diagnosis.DiagnoseConfig, suitName string, c diagnosisCounters, suiteAlreadyReported *bool, lastDot *bool) {
-
-	if cfg.Verbose {
-		outputSuiteIfNeeded(w, suitName, suiteAlreadyReported)
-		fmt.Fprintf(w, "  [%d] SKIPPED\n", c.total)
-	} else {
-		outputDot(w, lastDot)
-	}
-}
-
 func outputNewLineIfNeeded(w io.Writer, lastDot *bool) {
 	if *lastDot {
 		fmt.Fprintf(w, "\n")
@@ -158,7 +145,7 @@ func matchRegExList(regexList []*regexp.Regexp, s string) bool {
 
 // Currently used only to match Diagnose Suite name. In future will be
 // extended to diagnose name or category
-func matchConfigFilters(cfg diagnosis.DiagnoseConfig, s string) bool {
+func matchConfigFilters(cfg diagnosis.Config, s string) bool {
 	if len(cfg.Include) > 0 && len(cfg.Exclude) > 0 {
 		return matchRegExList(cfg.Include, s) && !matchRegExList(cfg.Exclude, s)
 	} else if len(cfg.Include) > 0 {
@@ -169,9 +156,9 @@ func matchConfigFilters(cfg diagnosis.DiagnoseConfig, s string) bool {
 	return true
 }
 
-func getSortedDiagnoseSuites() []diagnosis.DiagnoseSuite {
-	sortedSuites := make([]diagnosis.DiagnoseSuite, len(diagnosis.DiagnoseCatalog))
-	copy(sortedSuites, diagnosis.DiagnoseCatalog)
+func getSortedDiagnoseSuites() []diagnosis.Suite {
+	sortedSuites := make([]diagnosis.Suite, len(diagnosis.Catalog))
+	copy(sortedSuites, diagnosis.Catalog)
 	sort.Slice(sortedSuites, func(i, j int) bool {
 		return sortedSuites[i].SuitName < sortedSuites[j].SuitName
 	})
@@ -180,7 +167,7 @@ func getSortedDiagnoseSuites() []diagnosis.DiagnoseSuite {
 
 // Enumerate registered Diagnose suites and get their diagnoses
 // for human consumption
-func ListAllStdOut(w io.Writer, diagCfg diagnosis.DiagnoseConfig) {
+func ListAllStdOut(w io.Writer, diagCfg diagnosis.Config) {
 	if w != color.Output {
 		color.NoColor = true
 	}
@@ -201,10 +188,10 @@ func ListAllStdOut(w io.Writer, diagCfg diagnosis.DiagnoseConfig) {
 
 // Enumerate registered Diagnose suites and get their diagnoses
 // for structural output
-func RunAll(diagCfg diagnosis.DiagnoseConfig) []diagnosis.Diagnoses {
+func RunAll(diagCfg diagnosis.Config) []diagnosis.Diagnoses {
 	// Filter Diagnose suite
-	var suites []diagnosis.DiagnoseSuite
-	for _, ds := range diagnosis.DiagnoseCatalog {
+	var suites []diagnosis.Suite
+	for _, ds := range diagnosis.Catalog {
 		if matchConfigFilters(diagCfg, ds.SuitName) {
 			suites = append(suites, ds)
 		}
@@ -227,7 +214,7 @@ func RunAll(diagCfg diagnosis.DiagnoseConfig) []diagnosis.Diagnoses {
 
 // Enumerate registered Diagnose suites and get their diagnoses
 // for human consumption
-func RunAllStdOut(w io.Writer, diagCfg diagnosis.DiagnoseConfig) {
+func RunAllStdOut(w io.Writer, diagCfg diagnosis.Config) {
 	if w != color.Output {
 		color.NoColor = true
 	}
@@ -236,7 +223,7 @@ func RunAllStdOut(w io.Writer, diagCfg diagnosis.DiagnoseConfig) {
 
 	fmt.Fprintf(w, "=== Starting diagnose ===\n")
 
-	var c diagnosisCounters
+	var c counters
 
 	lastDot := false
 	for _, ds := range sortedSuites {
@@ -254,13 +241,7 @@ func RunAllStdOut(w io.Writer, diagCfg diagnosis.DiagnoseConfig) {
 
 		suiteAlreadyReported := false
 		for _, d := range diagnoses {
-			incrementCounters(d.Result, &c)
-
-			// Skipping not enabled diagnosis
-			if d.Result == diagnosis.DiagnosisNotEnable {
-				outputSkippeddiagnosis(w, diagCfg, ds.SuitName, c, &suiteAlreadyReported, &lastDot)
-				continue
-			}
+			c.increment(d.Result)
 
 			if d.Result == diagnosis.DiagnosisSuccess && !diagCfg.Verbose {
 				outputDot(w, &lastDot)
@@ -275,10 +256,10 @@ func RunAllStdOut(w io.Writer, diagCfg diagnosis.DiagnoseConfig) {
 	}
 
 	outputNewLineIfNeeded(w, &lastDot)
-	outputSummary(w, c)
+	c.summary(w)
 }
 
-func diagnoseMetadataAutodiscoveryConnectivity(cfg diagnosis.DiagnoseConfig) []diagnosis.Diagnosis {
+func diagnoseMetadataAutodiscoveryConnectivity(cfg diagnosis.Config) []diagnosis.Diagnosis {
 	if len(diagnosis.MetadataAvailCatalog) == 0 {
 		return nil
 	}

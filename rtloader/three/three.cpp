@@ -12,6 +12,7 @@
 #include "cgo_free.h"
 #include "containers.h"
 #include "datadog_agent.h"
+#include "diagnoseutils.h"
 #include "kubeutil.h"
 #include "rtloader_mem.h"
 #include "stringutils.h"
@@ -537,16 +538,15 @@ done:
     return warnings;
 }
 
-diagnoses_t *Three::getCheckDiagnoses(RtLoaderPyObject *check)
+diagnosis_set_t *Three::getCheckDiagnoses(RtLoaderPyObject *check)
 {
     if (check == NULL) {
         return NULL;
     }
 
     PyObject *py_check = reinterpret_cast<PyObject *>(check);
-    diagnoses_t *diagnoses = NULL;
+    diagnosis_set_t *diagnoses = NULL;
     size_t bufferSize = 0;
-    size_t currentOffset = 0;
 
     char func_name[] = "get_diagnoses";
     Py_ssize_t numDiagnoses;
@@ -569,93 +569,23 @@ diagnoses_t *Three::getCheckDiagnoses(RtLoaderPyObject *check)
     }
 
     // Calculate and allocate buffer size
-    bufferSize = currentOffset = sizeof(diagnoses_t) + (numDiagnoses * sizeof(diagnosis_t));
-    for (Py_ssize_t idx = 0; idx < numDiagnoses; idx++) {
-        PyObject *diagnosisObj = PyList_GetItem(diagnoses_list, idx); // borrowed ref
-        if (diagnosisObj == NULL) {
-            setError("there was an error browsing 'diagnoses' list: " + _fetchPythonError());
-            goto error;
-        }
-
-        bufferSize += attr_as_string_size(diagnosisObj, "name");
-        bufferSize += attr_as_string_size(diagnosisObj, "diagnosis");
-        bufferSize += attr_as_string_size(diagnosisObj, "category");
-        bufferSize += attr_as_string_size(diagnosisObj, "description");
-        bufferSize += attr_as_string_size(diagnosisObj, "remediation");
-        bufferSize += attr_as_string_size(diagnosisObj, "raw_error");
+    bufferSize = get_diagnoses_mem_size(numDiagnoses, diagnoses_list);
+    if (bufferSize == 0) {
+        setError("there was an error browsing 'diagnoses' list: " + _fetchPythonError());
+        goto error;
     }
-    diagnoses = (diagnoses_t *)_malloc(bufferSize);
+    diagnoses = (diagnosis_set_t *)_malloc(bufferSize);
     if (!diagnoses) {
         setError("could not allocate memory to store diagnoses");
         goto done;
     }
     memset(diagnoses, 0, bufferSize);
 
-    // Initialize header
-    diagnoses->byteCout = bufferSize;
-    diagnoses->diangosesCount = numDiagnoses;
-    diagnoses->diagnosesItems = (diagnosis_t *)((size_t)(void *)diagnoses + sizeof(diagnoses_t));
-
-    for (Py_ssize_t idx = 0; idx < numDiagnoses; idx++) {
-        PyObject *diagnosisObj = PyList_GetItem(diagnoses_list, idx); // borrowed ref
-        if (diagnosisObj == NULL) {
-            setError("there was an error browsing 'diagnoses' list: " + _fetchPythonError());
-            goto error;
-        }
-        size_t copiedSize = 0;
-        diagnosis_t *diagnosis = diagnoses->diagnosesItems + idx;
-
-        // result
-        diagnosis->result = (size_t)attr_as_long(diagnosisObj, "result");
-
-        // name
-        copiedSize = copy_attr_as_string_at(diagnosisObj, "name", diagnoses, currentOffset, bufferSize);
-        if (copiedSize > 0) {
-            diagnosis->name = string_buf_from_offset(diagnoses, currentOffset);
-            currentOffset += copiedSize;
-        }
-
-        // diagnosis
-        copiedSize = copy_attr_as_string_at(diagnosisObj, "diagnosis", diagnoses, currentOffset, bufferSize);
-        if (copiedSize > 0) {
-            diagnosis->diagnosis = string_buf_from_offset(diagnoses, currentOffset);
-            currentOffset += copiedSize;
-        }
-
-        // category
-        copiedSize = copy_attr_as_string_at(diagnosisObj, "category", diagnoses, currentOffset, bufferSize);
-        if (copiedSize > 0) {
-            diagnosis->category = string_buf_from_offset(diagnoses, currentOffset);
-            currentOffset += copiedSize;
-        }
-
-        // description
-        copiedSize = copy_attr_as_string_at(diagnosisObj, "description", diagnoses, currentOffset, bufferSize);
-        if (copiedSize > 0) {
-            diagnosis->description = string_buf_from_offset(diagnoses, currentOffset);
-            currentOffset += copiedSize;
-        }
-
-        // remediation
-        copiedSize = copy_attr_as_string_at(diagnosisObj, "remediation", diagnoses, currentOffset, bufferSize);
-        if (copiedSize > 0) {
-            diagnosis->remediation = string_buf_from_offset(diagnoses, currentOffset);
-            currentOffset += copiedSize;
-        }
-
-        // raw_error
-        copiedSize = copy_attr_as_string_at(diagnosisObj, "raw_error", diagnoses, currentOffset, bufferSize);
-        if (copiedSize > 0) {
-            diagnosis->raw_error = string_buf_from_offset(diagnoses, currentOffset);
-            currentOffset += copiedSize;
-        }
-    }
-
-    // Sanity check. Calculated and copied size should match
-    if (currentOffset != bufferSize) {
+    // Serialize diagnoses
+    if (serialize_diagnoses(numDiagnoses, diagnoses_list, diagnoses, bufferSize) != 0) {
+        setError("there was an error browsing 'diagnoses' list: " + _fetchPythonError());
         goto error;
     }
-
     goto done;
 
 error:

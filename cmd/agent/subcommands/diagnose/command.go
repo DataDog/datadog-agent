@@ -209,7 +209,7 @@ func strToRegexList(patterns []string) ([]*regexp.Regexp, error) {
 }
 
 func cmdAll(log log.Component, config config.Component, cliParams *cliParams) error {
-	diagCfg := diagnosis.DiagnoseConfig{
+	diagCfg := diagnosis.Config{
 		Verbose:    cliParams.verbose,
 		ForceLocal: cliParams.forceLocal,
 	}

@@ -7,7 +7,6 @@ package diagnose
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -27,7 +26,7 @@ func init() {
 // Currently diagnose is implemented to run in the CLI process,
 // in the next version will connect to the running agent service to get diagnoses
 // for scheduled checks without running them
-func diagnose(diagCfg diagnosis.DiagnoseConfig) []diagnosis.Diagnosis {
+func diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 	// other choices
 	// 	run() github.com\DataDog\datadog-agent\pkg\cli\subcommands\check\command.go
 	//  runCheck() github.com\DataDog\datadog-agent\cmd\agent\gui\checks.go
@@ -92,7 +91,7 @@ func diagnose(diagCfg diagnosis.DiagnoseConfig) []diagnosis.Diagnosis {
 		instances := collector.GetChecksByNameForConfigs(checkName, diagnoseConfigs)
 		for _, instance := range instances {
 
-			defaultDiagnosisName := fmt.Sprintf("Check: %s [%s]", checkName, string(instance.ID()))
+			instanceName := string(instance.ID())
 
 			// Run check
 			runErr := instance.Run()
@@ -100,13 +99,18 @@ func diagnose(diagCfg diagnosis.DiagnoseConfig) []diagnosis.Diagnosis {
 			// Get diagnoses
 			checkDiagnoses, diagnoseErr := instance.GetDiagnoses()
 			if diagnoseErr == nil && len(checkDiagnoses) > 0 {
-				// Check has explicit Diagnoses and return them
-				diagnoses = append(diagnoses, checkDiagnoses...)
+				for _, d := range checkDiagnoses {
+					if len(d.Category) == 0 {
+						d.Category = instanceName
+					}
+					diagnoses = append(diagnoses, d)
+				}
 			} else if diagnoseErr != nil {
 				// Check Diagnose method return error
 				diagnoses = append(diagnoses, diagnosis.Diagnosis{
 					Result:    diagnosis.DiagnosisUnexpectedError,
-					Name:      defaultDiagnosisName,
+					Name:      instanceName,
+					Category:  instanceName,
 					Diagnosis: "Check Dianose failes with unexpected errors",
 					RawError:  runErr,
 				})

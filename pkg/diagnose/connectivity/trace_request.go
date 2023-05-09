@@ -33,7 +33,7 @@ func init() {
 	diagnosis.Register("connectivity-datadog-core-endpoints", diagnose)
 }
 
-func diagnose(diagCfg diagnosis.DiagnoseConfig) []diagnosis.Diagnosis {
+func diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 
 	// Create domain resolvers
 	keysPerDomain, err := utils.GetMultipleEndpoints(config.Datadog)
@@ -52,6 +52,7 @@ func diagnose(diagCfg diagnosis.DiagnoseConfig) []diagnosis.Diagnosis {
 	var diagnoses []diagnosis.Diagnosis
 	domainResolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
 	client := forwarder.NewHTTPClient(config.Datadog)
+	ctx := context.Background()
 
 	// Send requests to all endpoints for all domains
 	for _, domainResolver := range domainResolvers {
@@ -59,7 +60,6 @@ func diagnose(diagCfg diagnosis.DiagnoseConfig) []diagnosis.Diagnosis {
 		for _, apiKey := range domainResolver.GetAPIKeys() {
 			for _, endpointInfo := range endpointsInfo {
 				domain, _ := domainResolver.Resolve(endpointInfo.Endpoint)
-				ctx := context.Background()
 				statusCode, responseBody, logURL, err := sendHTTPRequestToEndpoint(ctx, client, domain, endpointInfo, apiKey)
 
 				// Check if there is a response and if it's valid
@@ -94,20 +94,16 @@ func RunDatadogConnectivityDiagnose(writer io.Writer, noTrace bool) error {
 	}
 
 	domainResolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
-
 	client := forwarder.NewHTTPClient(config.Datadog)
+	ctx := context.Background()
 
 	// Send requests to all endpoints for all domains
 	fmt.Fprintln(writer, "\n================ Starting connectivity diagnosis ================")
 	for _, domainResolver := range domainResolvers {
 		// Go through all API Keys of a domain and send an HTTP request on each endpoint
 		for _, apiKey := range domainResolver.GetAPIKeys() {
-
 			for _, endpointInfo := range endpointsInfo {
-
 				domain, _ := domainResolver.Resolve(endpointInfo.Endpoint)
-
-				ctx := context.Background()
 				if !noTrace {
 					ctx = httptrace.WithClientTrace(context.Background(), createDiagnoseTrace(writer))
 				}

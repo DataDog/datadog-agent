@@ -21,8 +21,13 @@ PyObject *dumper = NULL;
  * until this stringObject is valid.
  *
  * \return A standard C string (NULL terminated character pointer)
- *  The returned pointer is embedded within PyObject. When string pointer
- *  is not needed corresponding PyObject reference needs to be decremented
+ *  The returned pointer is embedded within a PyObject. When the returned
+ *   string pointer is no longer needed, `stringObject` reference needs to be
+ *   decremented. It avoids intermediate memory allocation while having access
+ *   to the underlying string (to copy into another buffer or get its length).
+ *   The function effectively exposes a direct pointer to the underlying string
+ *  while pinning a python string object for safety and requires its release
+ *  externally.
  */
 char *as_embedded_string(PyObject *object, PyObject **stringObject)
 {

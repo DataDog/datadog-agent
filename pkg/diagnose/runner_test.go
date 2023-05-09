@@ -31,12 +31,12 @@ func TestConnectivityAutodiscovery(t *testing.T) {
 
 func TestDiagnoseAllBasicRegAndRunNoDiagnoses(t *testing.T) {
 
-	diagnosis.Register("TestDiagnoseAllBasicRegAndRunNoDiagnoses", func(cfg diagnosis.DiagnoseConfig) []diagnosis.Diagnosis {
+	diagnosis.Register("TestDiagnoseAllBasicRegAndRunNoDiagnoses", func(cfg diagnosis.Config) []diagnosis.Diagnosis {
 		return nil
 	})
 
 	re, _ := regexp.Compile("TestDiagnoseAllBasicRegAndRunNoDiagnoses")
-	diagCfg := diagnosis.DiagnoseConfig{
+	diagCfg := diagnosis.Config{
 		Include: []*regexp.Regexp{re},
 	}
 	diagnoses := RunAll(diagCfg)
@@ -64,17 +64,17 @@ func TestDiagnoseAllBasicRegAndRunSomeDiagnosis(t *testing.T) {
 		},
 	}
 
-	diagnosis.Register("TestDiagnoseAllBasicRegAndRunSomeDiagnosis-a", func(cfg diagnosis.DiagnoseConfig) []diagnosis.Diagnosis {
+	diagnosis.Register("TestDiagnoseAllBasicRegAndRunSomeDiagnosis-a", func(cfg diagnosis.Config) []diagnosis.Diagnosis {
 		return inDiagnoses
 	})
 
-	diagnosis.Register("TestDiagnoseAllBasicRegAndRunSomeDiagnosis-b", func(cfg diagnosis.DiagnoseConfig) []diagnosis.Diagnosis {
+	diagnosis.Register("TestDiagnoseAllBasicRegAndRunSomeDiagnosis-b", func(cfg diagnosis.Config) []diagnosis.Diagnosis {
 		return inDiagnoses
 	})
 
 	// Include and run
 	reInclude, _ := regexp.Compile("TestDiagnoseAllBasicRegAndRunSomeDiagnosis")
-	diagCfgInclude := diagnosis.DiagnoseConfig{
+	diagCfgInclude := diagnosis.Config{
 		Include: []*regexp.Regexp{reInclude},
 	}
 	outSuitesDiagnosesInclude := RunAll(diagCfgInclude)
@@ -84,7 +84,7 @@ func TestDiagnoseAllBasicRegAndRunSomeDiagnosis(t *testing.T) {
 
 	// Include and Exclude and run
 	reExclude, _ := regexp.Compile("TestDiagnoseAllBasicRegAndRunSomeDiagnosis-a")
-	diagCfgIncludeExclude := diagnosis.DiagnoseConfig{
+	diagCfgIncludeExclude := diagnosis.Config{
 		Include: []*regexp.Regexp{reInclude},
 		Exclude: []*regexp.Regexp{reExclude},
 	}

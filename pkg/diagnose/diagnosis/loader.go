@@ -29,19 +29,19 @@ func RegisterMetadataAvail(name string, d MetadataAvailDiagnose) {
 // Diagnose (all subcommand)
 
 // Diagnose interface function
-type Diagnose func(DiagnoseConfig) []Diagnosis
+type Diagnose func(Config) []Diagnosis
 
 // Global list of registered Diagnose functions
-var DiagnoseCatalog = make([]DiagnoseSuite, 0)
+var Catalog = make([]Suite, 0)
 
 // Diagnose suite information
-type DiagnoseSuite struct {
+type Suite struct {
 	SuitName string
 	Diagnose Diagnose
 }
 
 // Diagnose configuration
-type DiagnoseConfig struct {
+type Config struct {
 	Verbose        bool
 	ForceLocal     bool
 	RemoteDiagnose bool
@@ -49,7 +49,7 @@ type DiagnoseConfig struct {
 	Exclude        []*regexp.Regexp
 }
 
-type DiagnosisResult int
+type Result int
 
 // Use explicit constant instead of iota because the same numbers are used
 // in Python/CGO calls.
@@ -58,13 +58,12 @@ type DiagnosisResult int
 //    integrations-core\datadog_checks_base\datadog_checks\base\utils\diagnose.py
 
 const (
-	DiagnosisSuccess         DiagnosisResult = 0
-	DiagnosisNotEnable       DiagnosisResult = 1
-	DiagnosisFail            DiagnosisResult = 2
-	DiagnosisWarning         DiagnosisResult = 3
-	DiagnosisUnexpectedError DiagnosisResult = 4
-	DiagnosisResultMIN                       = DiagnosisSuccess
-	DiagnosisResultMAX                       = DiagnosisUnexpectedError
+	DiagnosisSuccess         Result = 0
+	DiagnosisFail            Result = 1
+	DiagnosisWarning         Result = 2
+	DiagnosisUnexpectedError        = 3
+	DiagnosisResultMIN              = DiagnosisSuccess
+	DiagnosisResultMAX              = DiagnosisUnexpectedError
 )
 
 // Diagnose result (diagnosis)
@@ -73,7 +72,7 @@ type Diagnosis struct {
 	// required fields
 
 	// run-time (pass, fail etc)
-	Result DiagnosisResult
+	Result Result
 	// static-time (meta typically)
 	Name string
 	// run-time (actual diagnosis consumable by a user)
@@ -99,7 +98,7 @@ type Diagnoses struct {
 
 // Add Diagnose suite
 func Register(suiteName string, diagnose Diagnose) {
-	DiagnoseCatalog = append(DiagnoseCatalog, DiagnoseSuite{
+	Catalog = append(Catalog, Suite{
 		SuitName: suiteName,
 		Diagnose: diagnose,
 	})

@@ -34,7 +34,7 @@ import (
 #include "rtloader_mem.h"
 
 char *getStringAddr(char **array, unsigned int idx);
-diagnosis_t *getDiagnosisAddr(diagnoses_t *diagnoses, unsigned int idx);
+diagnosis_t *getDiagnosisAddr(diagnosis_set_t *diagnoses, unsigned int idx);
 */
 import "C"
 
@@ -343,19 +343,13 @@ func (c *PythonCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 	defer gstate.unlock()
 
 	// Get an array of diagnoses. CGO packaging is implemented in
-	// diagnosis_t** Three::getCheckDiagnoses(RtLoaderPyObject* check) method
-	// in datadog-agent\\rtloader\\three\\three.cpp (and two.cpp). Packaging
-	// is the simplest possible (array of diagnosis_t*) but it necessitates
-	// excessive and slow malloc() and free(). Packaging could be changed in
-	// future, e.g., packing everything in a single buffer. More comments at
-	// three.cpp.
+	// diagnosis_set_t* Three|Two::getCheckDiagnoses(RtLoaderPyObject* check) method
+	// in datadog-agent\\rtloader\\three\\three.cpp (and two.cpp).
 	pyDiagnoses := C.get_check_diagnoses(rtloader, c.instance)
 	if pyDiagnoses == nil {
 		return nil, nil
 	}
 
-	// Convert CGO array of diagnosis_t defined in datadog-agent\\dev\\include\\rtloader_types.h
-	// into Go diagnosis.Diagnosis slice
 	var diagnoses []diagnosis.Diagnosis
 	for i := 0; ; i++ {
 		// Get diagnosis_t* as an entry in array of pointers
@@ -367,7 +361,7 @@ func (c *PythonCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 		d := diagnosis.Diagnosis{}
 
 		// Convert result and error
-		d.Result = diagnosis.DiagnosisResult(diagnosisPtr.result)
+		d.Result = diagnosis.Result(diagnosisPtr.result)
 		if diagnosisPtr.raw_error != nil {
 			d.RawError = errors.New(C.GoString(diagnosisPtr.raw_error))
 		}
@@ -375,7 +369,6 @@ func (c *PythonCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 		// Convert string fields
 		d.Name = C.GoString(diagnosisPtr.name)
 		d.Diagnosis = C.GoString(diagnosisPtr.diagnosis)
-		d.Category = C.GoString(diagnosisPtr.category)
 		d.Description = C.GoString(diagnosisPtr.description)
 		d.Remediation = C.GoString(diagnosisPtr.remediation)
 
