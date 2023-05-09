@@ -119,13 +119,13 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 	return nil
 }
 
-func (c *collector) extractBOMWithTrivy(ctx context.Context, storedImage *workloadmeta.ContainerImageMetadata, ch chan sbom.ScanResult) error {
+func (c *collector) extractBOMWithTrivy(ctx context.Context, storedImage *workloadmeta.ContainerImageMetadata, resultChan chan<- sbom.ScanResult) error {
 	scanRequest := &docker.ScanRequest{
 		ImageMeta:    storedImage,
 		DockerClient: c.dockerUtil.RawClient(),
 	}
 
-	if err := c.sbomScanner.Scan(scanRequest, c.scanOptions, ch); err != nil {
+	if err := c.sbomScanner.Scan(scanRequest, c.scanOptions, resultChan); err != nil {
 		log.Errorf("Failed to trigger SBOM generation for docker: %s", err)
 		return err
 	}

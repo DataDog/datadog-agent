@@ -107,7 +107,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 	return nil
 }
 
-func (c *collector) extractBOMWithTrivy(ctx context.Context, storedImage *workloadmeta.ContainerImageMetadata, ch chan sbom.ScanResult) error {
+func (c *collector) extractBOMWithTrivy(ctx context.Context, storedImage *workloadmeta.ContainerImageMetadata, resultChan chan<- sbom.ScanResult) error {
 	containerdImage, err := c.containerdClient.Image(storedImage.Namespace, storedImage.Name)
 	if err != nil {
 		return err
@@ -119,7 +119,7 @@ func (c *collector) extractBOMWithTrivy(ctx context.Context, storedImage *worklo
 		ContainerdClient: c.containerdClient,
 		FromFilesystem:   config.Datadog.GetBool("container_image_collection.sbom.use_mount"),
 	}
-	if err = c.sbomScanner.Scan(scanRequest, c.scanOptions, ch); err != nil {
+	if err = c.sbomScanner.Scan(scanRequest, c.scanOptions, resultChan); err != nil {
 		log.Errorf("Failed to trigger SBOM generation for containerd: %s", err)
 		return err
 	}
