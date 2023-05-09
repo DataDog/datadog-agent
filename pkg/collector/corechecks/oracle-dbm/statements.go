@@ -440,8 +440,8 @@ func (c *Check) StatementMetrics() (int, error) {
 	FQTSent := make(map[string]int)
 	executionPlanSent := make(map[uint64]int)
 	var planErrors uint16
-	if c.config.QueryMetrics {
-		if c.config.InstanceConfig.IncludeDatadogQueries {
+	if c.config.QueryMetrics.Enabled {
+		if c.config.InstanceConfig.QueryMetrics.IncludeDatadogQueries {
 			var DDForceMatchingSignatures []string
 			err = c.db.Select(
 				&DDForceMatchingSignatures,
@@ -608,7 +608,7 @@ func (c *Check) StatementMetrics() (int, error) {
 					queryRow.Tables = obfuscatedStatement.tables
 					SQLStatement = obfuscatedStatement.statement
 					found = true
-				} else if c.config.InstanceConfig.IncludeDatadogQueries {
+				} else if c.config.InstanceConfig.QueryMetrics.IncludeDatadogQueries {
 					obfuscatedStatement, ok := c.DDPrevStatementsCache.forceMatchingSignatures[statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature]
 					if ok {
 						queryRow.Commands = obfuscatedStatement.commands
@@ -669,7 +669,7 @@ func (c *Check) StatementMetrics() (int, error) {
 					queryRow.Commands = obfuscatedStatement.Commands
 					queryRow.Tables = obfuscatedStatement.Tables
 
-					if c.config.InstanceConfig.IncludeDatadogQueries {
+					if c.config.InstanceConfig.QueryMetrics.IncludeDatadogQueries {
 						cacheEntry := StatementsCacheData{
 							statement:      SQLStatement,
 							querySignature: obfuscatedStatement.QuerySignature,
@@ -906,7 +906,7 @@ func (c *Check) StatementMetrics() (int, error) {
 
 		c.copyToPreviousMap(newCache)
 
-		if c.config.InstanceConfig.IncludeDatadogQueries {
+		if c.config.InstanceConfig.QueryMetrics.IncludeDatadogQueries {
 			c.DDPrevStatementsCache.forceMatchingSignatures = make(map[string]StatementsCacheData)
 			for k, v := range c.DDstatementsCache.forceMatchingSignatures {
 				c.DDPrevStatementsCache.forceMatchingSignatures[k] = v
