@@ -28,7 +28,7 @@ func NewLocalProfile() (Profile, error) {
 
 	var store parameters.Store
 	if configPath != "" {
-		configFileValueScore, err := parameters.NewConfigFileValueStore(configPath)
+		configFileValueStore, err := parameters.NewConfigFileValueStore(configPath)
 		if err != nil {
 			return nil, fmt.Errorf("error when reading the config file %v: %v", configPath, err)
 		}
