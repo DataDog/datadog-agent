@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
+	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 )
 
 func securityProfileProtoToActivityDump(dest *ActivityDump, ad *proto.SecurityProfile) {
@@ -20,7 +21,7 @@ func securityProfileProtoToActivityDump(dest *ActivityDump, ad *proto.SecurityPr
 		return
 	}
 
-	dest.Metadata = ProtoMetadataToMetadata(ad.Metadata)
+	dest.Metadata = mtdt.ProtoMetadataToMetadata(ad.Metadata)
 
 	dest.Tags = make([]string, len(ad.Tags))
 	copy(dest.Tags, ad.Tags)
