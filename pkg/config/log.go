@@ -30,8 +30,9 @@ type LoggerName string
 
 // Constant values for LoggerName.
 const (
-	CoreLoggerName LoggerName = "CORE"
-	JMXLoggerName  LoggerName = "JMXFETCH"
+	CoreLoggerName      LoggerName = "CORE"
+	JMXLoggerName       LoggerName = "JMXFETCH"
+	DogstatsDLoggerName LoggerName = "DOGSTATSD"
 )
 
 type contextFormat uint8
@@ -45,8 +46,9 @@ const (
 var syslogTLSConfig *tls.Config
 
 var (
-	seelogConfig    *seelogCfg.Config
-	jmxSeelogConfig *seelogCfg.Config
+	seelogConfig          *seelogCfg.Config
+	jmxSeelogConfig       *seelogCfg.Config
+	dogstatsdSeelogConfig *seelogCfg.Config
 )
 
 func getLogDateFormat() string {
@@ -130,6 +132,49 @@ func SetupJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonForm
 	}
 	log.SetupJMXLogger(jmxLoggerInterface, seelogLogLevel)
 	return nil
+}
+
+// SetupDogstatsdLogger sets up a logger with dogstatsd logger name and log level
+// if a non empty logFile is provided, it will also log to the file
+func SetupDogstatsdLogger(logFile, syslogURI string, syslogRFC, jsonFormat bool) (seelog.LoggerInterface, error) {
+	seelogLogLevel, err := validateLogLevel("info")
+	if err != nil {
+		return nil, err
+	}
+
+	dogstatsdSeelogConfig, err = buildDogstatsdLoggerConfig(DogstatsDLoggerName, seelogLogLevel, logFile, syslogURI, syslogRFC, jsonFormat)
+	if err != nil {
+		return nil, err
+	}
+
+	dogstatsdLoggerInterface, err := GenerateLoggerInterface(dogstatsdSeelogConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	return dogstatsdLoggerInterface, nil
+
+}
+
+func buildDogstatsdLoggerConfig(loggerName LoggerName, seelogLogLevel, logFile, syslogURI string, syslogRFC, jsonFormat bool) (*seelogCfg.Config, error) {
+	formatID := "common"
+	if jsonFormat {
+		formatID = "json"
+	}
+
+	config := seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel, formatID, buildJSONFormat(loggerName), buildCommonFormat(loggerName), syslogRFC)
+
+	// Configuring max roll for log file, if dogstatsd_log_file_max_rolls env var is not set (or set improperly ) within datadog.yaml then default value is 3
+	dogstatsd_log_file_max_rolls := Datadog.GetInt("dogstatsd_log_file_max_rolls")
+	if dogstatsd_log_file_max_rolls < 0 {
+		dogstatsd_log_file_max_rolls = 3
+		log.Warnf("Invalid value for dogstatsd_log_file_max_rolls, please make sure the value is equal or higher than 0")
+	}
+
+	// Configure log file, log file max size, log file roll up
+	config.EnableFileLogging(logFile, Datadog.GetSizeInBytes("dogstatsd_log_file_max_size"), uint(dogstatsd_log_file_max_rolls))
+
+	return config, nil
 }
 
 func buildLoggerConfig(loggerName LoggerName, seelogLogLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) (*seelogCfg.Config, error) {

@@ -38,6 +38,8 @@ var (
 	DefaultCheckFlareDirectory = "c:\\programdata\\datadog\\logs\\checks\\"
 	// DefaultJMXFlareDirectory a flare friendly location for jmx command logs to be written
 	DefaultJMXFlareDirectory = "c:\\programdata\\datadog\\logs\\jmxinfo\\"
+	//DefaultDogstatsDLogFile points to the dogstatsd stats log file that will be used if not configured
+	DefaultDogstatsDLogFile = "c:\\programdata\\datadog\\logs\\dogstatsd_info\\dogstatsd-stats.log"
 )
 
 func init() {

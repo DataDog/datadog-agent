@@ -14,11 +14,15 @@ import (
 	"sync"
 	"time"
 
+	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/benbjohnson/clock"
+	slog "github.com/cihub/seelog"
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 )
@@ -52,6 +56,8 @@ type serverDebug struct {
 	// we use a real clock in production code or a mock clock for unit testing
 	clock           clock.Clock
 	tagsAccumulator *tagset.HashingTagsAccumulator
+	// dogstatsdDebugLogger is an instance of the logger config that can be used to create new logger for dogstatsd-stats metrics
+	dogstatsdDebugLogger slog.LoggerInterface
 }
 
 // TODO: (components) - remove once serverless is an FX app
@@ -75,8 +81,9 @@ func newServerDebugCompat(log logComponent.Component) Component {
 			metricChan: make(chan struct{}),
 			closeChan:  make(chan struct{}),
 		},
-		keyGen: ckey.NewKeyGenerator(),
-		clock:  clock.New(),
+		keyGen:               ckey.NewKeyGenerator(),
+		clock:                clock.New(),
+		dogstatsdDebugLogger: getDogstatsdDebug(),
 	}
 }
 
@@ -156,6 +163,11 @@ func (d *serverDebug) StoreMetricStats(sample metrics.MetricSample) {
 	ms.Name = sample.Name
 	ms.Tags = strings.Join(d.tagsAccumulator.Get(), " ") // we don't want/need to share the underlying array
 	d.Stats[key] = ms
+
+	if d.dogstatsdDebugLogger != nil {
+		logMessage := "Metric Name: %v | Tags: {%v} | Count: %v | Last Seen: %v "
+		d.dogstatsdDebugLogger.Infof(logMessage, ms.Name, ms.Tags, ms.Count, ms.LastSeen)
+	}
 
 	d.metricsCounts.metricChan <- struct{}{}
 }
@@ -249,4 +261,28 @@ func (d *serverDebug) disableMetricsStats() {
 	}
 
 	d.log.Info("Disabling DogStatsD debug metrics stats.")
+}
+
+// build a local dogstatsd logger and bubbling up any errors
+func getDogstatsdDebug() slog.LoggerInterface {
+
+	var dogstatsdLogger slog.LoggerInterface
+
+	// Configuring the log file path
+	logFile := config.Datadog.GetString("dogstatsd_log_file")
+	if logFile == "" {
+		logFile = commonpath.DefaultDogstatsDLogFile
+	}
+
+	// Set up dogstatsdLogger
+	if config.Datadog.GetBool("dogstatsd_logging_enabled") {
+		logger, e := config.SetupDogstatsdLogger(logFile, config.GetSyslogURI(), config.Datadog.GetBool("syslog_rfc"), config.Datadog.GetBool("log_format_json"))
+		if e != nil {
+			log.Errorf("Unable to set up Dogstatsd logger: %v. || Please reach out to Datadog support at https://docs.datadoghq.com/help/ ", e)
+			return nil
+		}
+		dogstatsdLogger = logger
+	}
+
+	return dogstatsdLogger
 }

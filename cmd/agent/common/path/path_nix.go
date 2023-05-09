@@ -27,6 +27,8 @@ const (
 	DefaultCheckFlareDirectory = "/var/log/datadog/checks/"
 	// DefaultJMXFlareDirectory a flare friendly location for jmx command logs to be written
 	DefaultJMXFlareDirectory = "/var/log/datadog/jmxinfo/"
+	//DefaultDogstatsDLogFile points to the dogstatsd stats log file that will be used if not configured
+	DefaultDogstatsDLogFile = "/var/log/datadog/dogstatsd_info/dogstatsd-stats.log"
 )
 
 var (

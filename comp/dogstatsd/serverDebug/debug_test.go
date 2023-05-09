@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -30,6 +31,7 @@ func fulfillDeps(t testing.TB) Component {
 }
 
 func TestDebugStatsSpike(t *testing.T) {
+	config.Datadog.Set("dogstatsd_logging_enabled", false)
 	debug := fulfillDeps(t)
 	d := debug.(*serverDebug)
 
@@ -83,9 +85,11 @@ func TestDebugStatsSpike(t *testing.T) {
 
 	// it is no more considered a spike because we had another second with 500 metrics
 	assert.False(d.hasSpike())
+	defer config.Datadog.Set("dogstatsd_logging_enabled", true)
 }
 
 func TestDebugStats(t *testing.T) {
+	config.Datadog.Set("dogstatsd_logging_enabled", false)
 	debug := fulfillDeps(t)
 	d := debug.(*serverDebug)
 
@@ -156,4 +160,5 @@ func TestDebugStats(t *testing.T) {
 	require.Equal(t, metric4.Tags, "c b")
 	require.Equal(t, metric5.Tags, "c b")
 	require.Equal(t, hash4, hash5)
+	defer config.Datadog.Set("dogstatsd_logging_enabled", true)
 }

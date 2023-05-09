@@ -253,6 +253,7 @@ func getSharedFxOption() fx.Option {
 			path.PyChecksPath,
 			path.DefaultLogFile,
 			path.DefaultJmxLogFile,
+			path.DefaultDogstatsDLogFile,
 		)),
 		flare.Module,
 		core.Bundle,
