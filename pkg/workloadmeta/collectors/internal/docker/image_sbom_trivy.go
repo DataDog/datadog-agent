@@ -51,6 +51,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 		),
 	)
 
+	ch := make(chan sbom.ScanResult, 10)
 	go func() {
 		for {
 			select {
@@ -71,9 +72,45 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 						continue
 					}
 
-					if err := c.extractBOMWithTrivy(ctx, image); err != nil {
+					if err := c.extractBOMWithTrivy(ctx, image, ch); err != nil {
 						log.Warnf("Error extracting SBOM for image: namespace=%s name=%s, err: %s", image.Namespace, image.Name, err)
 					}
+				}
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+			case result := <-ch:
+				if result.Error != nil {
+					log.Errorf("Failed to generate SBOM for docker: %s", result.Error)
+					continue
+				}
+
+				bom, err := result.Report.ToCycloneDX()
+				if err != nil {
+					log.Errorf("Failed to extract SBOM from report")
+					continue
+				}
+
+				sbom := &workloadmeta.SBOM{
+					CycloneDXBOM:       bom,
+					GenerationTime:     result.CreatedAt,
+					GenerationDuration: result.Duration,
+				}
+
+				// Updating workloadmeta entities directly is not thread-safe, that's why we
+				// generate an update event here instead.
+				event := &dutil.ImageEvent{
+					ImageID:   result.ImgMeta.ID,
+					Action:    dutil.ImageEventActionSbom,
+					Timestamp: time.Now(),
+				}
+				if err := c.handleImageEvent(ctx, event, sbom); err != nil {
+					log.Warnf("Error extracting SBOM for image: namespace=%s name=%s, err: %s", result.ImgMeta.Namespace, result.ImgMeta.Name, err)
 				}
 			}
 		}
@@ -82,51 +119,16 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 	return nil
 }
 
-func (c *collector) extractBOMWithTrivy(ctx context.Context, storedImage *workloadmeta.ContainerImageMetadata) error {
+func (c *collector) extractBOMWithTrivy(ctx context.Context, storedImage *workloadmeta.ContainerImageMetadata, ch chan sbom.ScanResult) error {
 	scanRequest := &docker.ScanRequest{
 		ImageMeta:    storedImage,
 		DockerClient: c.dockerUtil.RawClient(),
 	}
 
-	ch := make(chan sbom.ScanResult, 1)
 	if err := c.sbomScanner.Scan(scanRequest, c.scanOptions, ch); err != nil {
 		log.Errorf("Failed to trigger SBOM generation for docker: %s", err)
 		return err
 	}
-
-	go func() {
-		select {
-		case <-ctx.Done():
-		case result := <-ch:
-			if result.Error != nil {
-				log.Errorf("Failed to generate SBOM for docker: %s", result.Error)
-				return
-			}
-
-			bom, err := result.Report.ToCycloneDX()
-			if err != nil {
-				log.Errorf("Failed to extract SBOM from report")
-				return
-			}
-
-			sbom := &workloadmeta.SBOM{
-				CycloneDXBOM:       bom,
-				GenerationTime:     result.CreatedAt,
-				GenerationDuration: result.Duration,
-			}
-
-			// Updating workloadmeta entities directly is not thread-safe, that's why we
-			// generate an update event here instead.
-			event := &dutil.ImageEvent{
-				ImageID:   storedImage.ID,
-				Action:    dutil.ImageEventActionSbom,
-				Timestamp: time.Now(),
-			}
-			if err := c.handleImageEvent(ctx, event, sbom); err != nil {
-				log.Warnf("Error extracting SBOM for image: namespace=%s name=%s, err: %s", storedImage.Namespace, storedImage.Name, err)
-			}
-		}
-	}()
 
 	return nil
 }

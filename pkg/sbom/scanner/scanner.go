@@ -99,7 +99,6 @@ func (s *Scanner) start(ctx context.Context) {
 				if !ok {
 					return
 				}
-
 				telemetry.SBOMAttempts.Inc(request.Collector(), request.Type())
 
 				sendResult := func(scanResult sbom.ScanResult) {
@@ -125,23 +124,19 @@ func (s *Scanner) start(ctx context.Context) {
 
 				scanContext, cancel := context.WithTimeout(ctx, scanTimeout)
 				createdAt := time.Now()
-				report, err := collector.Scan(scanContext, request.ScanRequest, request.opts)
-				generationDuration := time.Since(createdAt)
-				cancel()
-				if err != nil {
+				log.Info("scanning image %s", request.ID())
+				scanResult := collector.Scan(scanContext, request.ScanRequest, request.opts)
+				if scanResult.Error != nil {
 					telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "scan")
-					err = fmt.Errorf("an error occurred while generating SBOM for '%s': %w", request.ID(), err)
 				}
 
+				generationDuration := time.Since(createdAt)
+				scanResult.CreatedAt = createdAt
+				scanResult.Duration = generationDuration
+
+				cancel()
 				telemetry.SBOMGenerationDuration.Observe(generationDuration.Seconds())
-
-				sendResult(sbom.ScanResult{
-					Error:     err,
-					Report:    report,
-					CreatedAt: createdAt,
-					Duration:  generationDuration,
-				})
-
+				sendResult(scanResult)
 				if request.opts.WaitAfter != 0 {
 					t := time.NewTimer(request.opts.WaitAfter)
 					select {
@@ -165,7 +160,7 @@ func (s *Scanner) Start(ctx context.Context) {
 // collectors.
 func NewScanner(cfg config.Config) *Scanner {
 	return &Scanner{
-		scanQueue: make(chan scanRequest, 500),
+		scanQueue: make(chan scanRequest, 2000),
 		disk:      filesystem.NewDisk(),
 	}
 }

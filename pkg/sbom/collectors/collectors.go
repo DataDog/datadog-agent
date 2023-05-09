@@ -15,7 +15,7 @@ import (
 type Collector interface {
 	CleanCache() error
 	Init(config.Config) error
-	Scan(context.Context, sbom.ScanRequest, sbom.ScanOptions) (sbom.Report, error)
+	Scan(context.Context, sbom.ScanRequest, sbom.ScanOptions) sbom.ScanResult
 }
 
 var Collectors map[string]Collector
