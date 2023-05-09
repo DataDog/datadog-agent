@@ -23,6 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/netflow/payload"
 )
 
+//#include "pcap.h"
+import "C"
+
 func SendUDPPacket(port uint16, data []byte) error {
 	udpConn, err := net.Dial("udp", fmt.Sprintf("127.0.0.1:%d", port))
 	if err != nil {
