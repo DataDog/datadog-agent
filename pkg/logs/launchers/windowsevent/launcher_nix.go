@@ -7,7 +7,22 @@
 
 package windowsevent
 
-// EnumerateChannels does nothing
-func EnumerateChannels() ([]string, error) {
-	return nil, nil
+import (
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
+	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+)
+
+type Launcher struct{}
+
+func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
+	log.Warn("windows event log not supported on this system")
+}
+
+func (t *Launcher) Stop() {}
+
+func NewLauncher() *Launcher {
+	return &Launcher{}
 }
