@@ -152,7 +152,14 @@ func buildMap(cfg PipelineConfig) (*confmap.Conf, error) {
 		errs = append(errs, retMap.Merge(confmap.NewFromStringMap(m)))
 	}
 
-	err := retMap.Merge(buildReceiverMap(cfg.OTLPReceiverConfig))
+	fmt.Println("----------cfg.OTLPReceiverConfig-----------")
+	fmt.Println(cfg.OTLPReceiverConfig)
+	rMap := buildReceiverMap(cfg.OTLPReceiverConfig)
+	fmt.Println("----------rMap-----------")
+	fmt.Println(rMap.ToStringMap())
+	fmt.Println("----------retMap-----------")
+	fmt.Println(retMap.ToStringMap())
+	err := retMap.Merge(rMap)
 	errs = append(errs, err)
 
 	return retMap, multierr.Combine(errs...)
@@ -164,5 +171,7 @@ func newMapProvider(cfg PipelineConfig) (otelcol.ConfigProvider, error) {
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("----------cfgMap.ToStringMap()------------")
+	fmt.Println(cfgMap.ToStringMap())
 	return configutils.NewConfigProviderFromMap(cfgMap), nil
 }

@@ -47,6 +47,10 @@ func readConfigSection(cfg config.Config, section string) *confmap.Conf {
 	// `GetStringMap` it will fail to cast `interface{}` nil to
 	// `map[string]interface{}` nil; we use `Get` and cast manually.
 	rawVal := cfg.Get(section)
+	if section == config.OTLPReceiverSection {
+		fmt.Println("--------------rawval------------------")
+		fmt.Println(rawVal)
+	}
 	stringMap := map[string]interface{}{}
 	if val, ok := rawVal.(map[string]interface{}); ok {
 		// deep copy since `cfg.Get` returns a reference
@@ -58,11 +62,27 @@ func readConfigSection(cfg config.Config, section string) *confmap.Conf {
 	// we set it. We need to do this to account for environment variable values.
 	prefix := section + "."
 	for _, key := range cfg.AllKeys() {
+		if section == config.OTLPReceiverSection && key == "otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib" {
+			fmt.Println("--------------key------------------")
+			fmt.Println(key)
+		}
 		if strings.HasPrefix(key, prefix) && cfg.IsSet(key) {
 			mapKey := strings.ReplaceAll(key[len(prefix):], ".", confmap.KeyDelimiter)
+			if section == config.OTLPReceiverSection {
+				fmt.Println("--------------get------------------")
+				fmt.Println(cfg.Get(key))
+				fmt.Println("--------------mapKey------------------")
+				fmt.Println(mapKey)
+			}
 			// deep copy since `cfg.Get` returns a reference
 			stringMap[mapKey] = deepcopy.Copy(cfg.Get(key))
 		}
+	}
+	if section == config.OTLPReceiverSection {
+		fmt.Println("--------------stringMap------------------")
+		fmt.Println(stringMap)
+		fmt.Println("--------------confmap.NewFromStringMap------------------")
+		fmt.Println(confmap.NewFromStringMap(stringMap).ToStringMap())
 	}
 	return confmap.NewFromStringMap(stringMap)
 }
@@ -71,6 +91,8 @@ func readConfigSection(cfg config.Config, section string) *confmap.Conf {
 func FromAgentConfig(cfg config.Config) (PipelineConfig, error) {
 	var errs []error
 	otlpConfig := readConfigSection(cfg, config.OTLPReceiverSection)
+	fmt.Println("--------------otlpConfig.ToStringMap()------------------")
+	fmt.Println(otlpConfig.ToStringMap())
 
 	tracePort, err := portToUint(cfg.GetInt(config.OTLPTracePort))
 	if err != nil {
