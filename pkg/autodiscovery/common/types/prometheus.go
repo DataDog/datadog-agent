@@ -176,7 +176,7 @@ func (pc *PrometheusCheck) initAD() error {
 	return pc.AD.setContainersRegex()
 }
 
-// IsExcluded returns whether is the annotations match an AD exclusion rule
+// IsExcluded returns whether the annotations match an AD exclusion rule
 func (pc *PrometheusCheck) IsExcluded(annotations map[string]string, namespacedName string) bool {
 	for k, v := range pc.AD.KubeAnnotations.Excl {
 		if annotations[k] == v {
@@ -185,6 +185,26 @@ func (pc *PrometheusCheck) IsExcluded(annotations map[string]string, namespacedN
 		}
 	}
 	return false
+}
+
+// IsIncluded returns whether the annotations match an AD inclusion rule and is not excluded
+func (pc *PrometheusCheck) IsIncluded(annotations map[string]string) bool {
+	included := false
+	if pc.AD == nil || pc.AD.KubeAnnotations == nil {
+		return false
+	}
+
+	for k, v := range annotations {
+		if pc.AD.KubeAnnotations.Excl[k] == v {
+			return false
+		}
+
+		if pc.AD.KubeAnnotations.Incl[k] == v {
+			included = true
+		}
+	}
+
+	return included
 }
 
 // GetIncludeAnnotations returns the AD include annotations
