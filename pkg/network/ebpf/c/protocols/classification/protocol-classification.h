@@ -140,7 +140,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
-    if (is_fully_classified(protocol_stack)) {
+    if (is_fully_classified(protocol_stack) || is_protocol_layer_known(protocol_stack, LAYER_ENCRYPTION)) {
         return;
     }
 
