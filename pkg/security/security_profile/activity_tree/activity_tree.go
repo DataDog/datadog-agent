@@ -238,13 +238,13 @@ func (at *ActivityTree) insert(event *model.Event, dryRun bool, generationType N
 		node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
 		return newProcessNode, nil
 	case model.FileOpenEventType:
-		return node.InsertFileEvent(&event.Open.File, event, generationType, at.Stats, dryRun)
+		return node.InsertFileEvent(&event.Open.File, event, generationType, at.Stats, dryRun), nil
 	case model.DNSEventType:
-		return node.InsertDNSEvent(event, generationType, at.Stats, at.DNSNames, dryRun)
+		return node.InsertDNSEvent(event, generationType, at.Stats, at.DNSNames, dryRun), nil
 	case model.BindEventType:
-		return node.InsertBindEvent(event, generationType, at.Stats, dryRun)
+		return node.InsertBindEvent(event, generationType, at.Stats, dryRun), nil
 	case model.SyscallsEventType:
-		return node.InsertSyscalls(event, at.SyscallsMask)
+		return node.InsertSyscalls(event, at.SyscallsMask), nil
 	}
 
 	return false, nil
