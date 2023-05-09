@@ -235,6 +235,7 @@
             "error": 0,
             "meta": {
               "_dd.compute_stats": "1",
+              "_dd.origin": "lambda",
               "account_id": "425362996713",
               "architecture": "XXX",
               "aws_account": "425362996713",
