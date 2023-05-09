@@ -54,13 +54,11 @@ func (s *e2eSuite) Test3_UpdateEnv() {
 }
 
 func (suite *e2eSuite) createStack(stackName string) *StackDefinition[struct{}] {
-	return &StackDefinition[struct{}]{
-		EnvFactory: func(ctx *pulumi.Context) (*struct{}, error) {
-			suite.stackName = stackName
-			suite.runFctCallCount += 1
-			return &struct{}{}, nil
-		},
-	}
+	return EnvFactoryStackDef(func(ctx *pulumi.Context) (*struct{}, error) {
+		suite.stackName = stackName
+		suite.runFctCallCount += 1
+		return &struct{}{}, nil
+	})
 }
 
 type skipDeleteOnFailureSuite struct {
@@ -93,10 +91,8 @@ func (s *skipDeleteOnFailureSuite) Test3() {
 }
 
 func (suite *skipDeleteOnFailureSuite) updateStack(testName string) *StackDefinition[struct{}] {
-	return &StackDefinition[struct{}]{
-		EnvFactory: func(ctx *pulumi.Context) (*struct{}, error) {
-			suite.testsRun = append(suite.testsRun, testName)
-			return &struct{}{}, nil
-		},
-	}
+	return EnvFactoryStackDef[struct{}](func(ctx *pulumi.Context) (*struct{}, error) {
+		suite.testsRun = append(suite.testsRun, testName)
+		return &struct{}{}, nil
+	})
 }

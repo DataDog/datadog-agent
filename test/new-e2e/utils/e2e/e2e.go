@@ -10,12 +10,16 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"strings"
+	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
+	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/suite"
@@ -26,34 +30,6 @@ const (
 )
 
 // Suite manages the environment creation and runs E2E tests.
-// It is implemented as a [testify Suite].
-// Example of usage:
-//
-//	  type MyEnv struct {
-//		   VM *client.VM
-//	  }
-//	  type vmSuite struct {
-//		   *Suite[MyEnv]
-//	  }
-//
-//	  func TestE2ESuite(t *testing.T) {
-//		   suite.Run(t, &vmSuite{Suite: NewSuite("my-test", &StackDefinition[MyEnv]{
-//			 EnvFactory: func(ctx *pulumi.Context) (*MyEnv, error) {
-//				vm, err := ec2vm.NewUnixLikeEc2VM(ctx, ec2vm.WithOS(os.AmazonLinuxOS, commonos.AMD64Arch))
-//				if err != nil {
-//					return nil, err
-//				}
-//				return &MyEnv{
-//					VM: client.NewVM(vm),
-//				}, nil
-//			  },
-//		   })})
-//	  }
-//
-// Suite leverages pulumi features to compute the differences between the previous
-// environment and the new one to make environment updates faster.
-//
-// [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 type Suite[Env any] struct {
 	suite.Suite
 
@@ -75,9 +51,25 @@ type Suite[Env any] struct {
 	skipDeleteOnFailure bool
 }
 
-type StackDefinition[Env any] struct {
-	EnvFactory func(ctx *pulumi.Context) (*Env, error)
-	ConfigMap  runner.ConfigMap
+type suiteConstraint[Env any] interface {
+	suite.TestingSuite
+	initSuite(stackName string, stackDef StackDefinition[Env], options ...func(*Suite[Env]))
+}
+
+func Run[Env any, T suiteConstraint[Env]](t *testing.T, e2eSuite T, stackDef StackDefinition[Env], options ...func(*Suite[Env])) {
+	suiteType := reflect.TypeOf(e2eSuite).Elem()
+	name := suiteType.Name()
+	pkgPaths := suiteType.PkgPath()
+	pkgs := strings.Split(pkgPaths, "/")
+
+	// Use the hash of PkgPath in order to have a uniq stack name
+	hash := utils.StrHash(pkgs...)
+
+	// Example: "e2e-e2eSuite-cbb731954db42b"
+	defaultStackName := fmt.Sprintf("%v-%v-%v", pkgs[len(pkgs)-1], name, hash)
+
+	e2eSuite.initSuite(defaultStackName, stackDef, options...)
+	suite.Run(t, e2eSuite)
 }
 
 // NewSuite creates a new Suite.
@@ -85,16 +77,25 @@ type StackDefinition[Env any] struct {
 // stackDef is the stack definition.
 // options are optional parameters for example [e2e.KeepEnv].
 func NewSuite[Env any](stackName string, stackDef *StackDefinition[Env], options ...func(*Suite[Env])) *Suite[Env] {
-	testSuite := Suite[Env]{
-		stackName:       stackName,
-		defaultStackDef: stackDef,
-	}
-
-	for _, o := range options {
-		o(&testSuite)
-	}
-
+	testSuite := Suite[Env]{}
+	testSuite.initSuite(stackName, stackDef, options...)
 	return &testSuite
+}
+
+func (suite *Suite[Env]) initSuite(stackName string, stackDef *StackDefinition[Env], options ...func(*Suite[Env])) {
+	suite.stackName = stackName
+	suite.defaultStackDef = stackDef
+	for _, o := range options {
+		o(suite)
+	}
+}
+
+// WithStackName overrides the stack name.
+// This function is useful only when using e2e.Run.
+func WithStackName[Env any](stackName string) func(*Suite[Env]) {
+	return func(suite *Suite[Env]) {
+		suite.stackName = stackName
+	}
 }
 
 func DevMode[Env any]() func(*Suite[Env]) {
@@ -149,6 +150,7 @@ func (suite *Suite[Env]) SetupSuite() {
 		suite.skipDeleteOnFailure = true
 	}
 
+	suite.Require().NotEmptyf(suite.stackName, "The stack name is empty. You must define it with WithName")
 	// Check if the Env type is correct otherwise raises an error before creating the env.
 	err := client.CheckEnvStructValid[Env]()
 	suite.Require().NoError(err)
@@ -186,10 +188,10 @@ func createEnv[Env any](suite *Suite[Env], stackDef *StackDefinition[Env]) (*Env
 	_, stackOutput, err := infra.GetStackManager().GetStack(
 		ctx,
 		suite.stackName,
-		stackDef.ConfigMap,
+		stackDef.configMap,
 		func(ctx *pulumi.Context) error {
 			var err error
-			env, err = stackDef.EnvFactory(ctx)
+			env, err = stackDef.envFactory(ctx)
 			return err
 		}, false)
 
