@@ -23,7 +23,7 @@ static __always_inline protocol_stack_t* get_protocol_stack(conn_tuple_t *skb_tu
     return bpf_map_lookup_elem(&connection_protocol, &normalized_tup);
 }
 
-static __always_inline void update_protocol_stack(conn_tuple_t* skb_tup, protocol_t cur_fragment_protocol) {
+__maybe_unused static __always_inline void update_protocol_stack(conn_tuple_t* skb_tup, protocol_t cur_fragment_protocol) {
     protocol_stack_t *stack = get_protocol_stack(skb_tup);
     if (!stack) {
         return;
