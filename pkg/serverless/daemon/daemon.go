@@ -120,10 +120,10 @@ func StartDaemon(addr string) *Daemon {
 		logsFlushMutex:    sync.Mutex{},
 	}
 
-	mux.Handle("/lambda/hello", &Hello{daemon})
+	mux.Handle("/lambda/hello", wrapOtlpError(&Hello{daemon}))
 	mux.Handle("/lambda/flush", &Flush{daemon})
-	mux.Handle("/lambda/start-invocation", &StartInvocation{daemon})
-	mux.Handle("/lambda/end-invocation", &EndInvocation{daemon})
+	mux.Handle("/lambda/start-invocation", wrapOtlpError(&StartInvocation{daemon}))
+	mux.Handle("/lambda/end-invocation", wrapOtlpError(&EndInvocation{daemon}))
 	mux.Handle("/trace-context", &TraceContext{daemon})
 
 	// start the HTTP server used to communicate with the runtime and the Lambda platform
@@ -132,6 +132,18 @@ func StartDaemon(addr string) *Daemon {
 	}()
 
 	return daemon
+}
+
+func wrapOtlpError(handle http.Handler) http.Handler {
+	if otlp.IsEnabled() {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// The Datadog tracer should not be used when OTLP is enabled.
+			// Doing so can lead to double creation of traces and over billing.
+			log.Error("Datadog tracing layer detected when OTLP is enabled!  These features are mutually exclusive.")
+			handle.ServeHTTP(w, r)
+		})
+	}
+	return handle
 }
 
 // HandleRuntimeDone should be called when the runtime is done handling the current invocation. It will tell the daemon
