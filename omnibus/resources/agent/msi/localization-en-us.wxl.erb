@@ -29,8 +29,11 @@
   <String Id="InstallScopeDlgTitle">{\WixUI_Font_Title_White}Installation Scope</String>
   <String Id="InstallScopeDlgDescription">{\WixUI_Font_Normal_White}Choose the installation scope and folder</String>
 
-  <String Id="LicenseAgreementDlgTitle">{\WixUI_Font_Title_White}End-User License Agreement</String>
+  <String Id="LicenseAgreementDlgLicenseAcceptedCheckBox">I &amp;agree.</String>
+  <String Id="LicenseAgreementDlgTitle">{\WixUI_Font_Title_White}Software Licensing</String>
   <String Id="LicenseAgreementDlgDescription">{\WixUI_Font_Normal_White}Please read the following license agreement carefully</String>
+
+  <String Id="LicenseAgreementSubHeader">The <![CDATA[<a href="https://github.com/DataDog/datadog-agent/">Datadog Agent</a>]]> includes open source software and is packaged with a closed source Datadog device driver, which is required for the NPM and USM products.  The driver is licensed under the following End User License Agreement.</String>
 
   <String Id="MaintenanceTypeDlgTitle">{\WixUI_Font_Title_White}Change, repair, or remove installation</String>
   <String Id="MaintenanceTypeDlgDescription">{\WixUI_Font_Normal_White}Select the operation you wish to perform.</String>
@@ -71,13 +74,6 @@
   <String Id="NoMoveInstallDir">The installation directory cannot be changed on an upgrade.</String>
   <String Id="NoMoveConfDir">The configuration file directory cannot be changed on an upgrade.</String>
 
-  <!-- these strings for the closed source dialog -->
-  <String Id ="ClosedSourceDialog_Title">[ProductName] Setup</String>
-  <String Id ="ClosedSrcDialogTitle" >{\WixUI_Font_Title_White}[ShortCompanyName] Open Source</String>
-  <String Id ="ClosedSrcDescription">{\WixUI_Font_Normal_White}Accept components which are not open source</String>
-
-  <String Id ="ClosedSrcKeyLabel">Enable components which are not open source.  This option must be enabled for the NPM product.</String>
-  <String Id ="ClosedSrcAcceptedCheckText">Enable components which are not open source.</String>
 
   <!-- these strings for the api key dialog -->
   <String Id ="ApiKeyDialog_Title">[ProductName] Setup</String>

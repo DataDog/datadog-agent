@@ -12,8 +12,6 @@
 	<String Id="DiskCostDlgDescription">{\WixUI_Font_Normal_White}The disk space required for the installation of the selected features.</String>
 	<String Id="InstallDirDlgTitle">{\WixUI_Font_Title_White}Destination Folder</String>
 	<String Id="InstallDirDlgDescription">{\WixUI_Font_Normal_White}Click Next to install to the default folder or click Change to choose another.</String>
-	<String Id="LicenseAgreementDlgTitle">{\WixUI_Font_Title_White}End-User License Agreement</String>
-	<String Id="LicenseAgreementDlgDescription">{\WixUI_Font_Normal_White}Please read the following license agreement carefully</String>
 	<String Id="MaintenanceTypeDlgTitle">{\WixUI_Font_Title_White}Change, repair, or remove installation</String>
 	<String Id="MaintenanceTypeDlgDescription">{\WixUI_Font_Normal_White}Select the operation you wish to perform.</String>
 	<String Id="ProgressDlgTitleChanging">{\WixUI_Font_Title_White}Changing [ProductName]</String>
@@ -63,7 +61,14 @@
 	<String Id ="SendFlareHelpText" Overridable="yes" Localizable="yes">Submit your email address in the text box below for a follow-up from Datadog support. (Optional)</String>
 
 	<!-- these strings for the error modal dialog -->
-	<String Id ="ErrorModalDialog_Title" Overridable="yes" Localizable="yes">[ProductName] Setup</String>
+  <String Id ="ErrorModalDialog_Title" Overridable="yes" Localizable="yes">[ProductName] Setup</String>
+
+	<!-- these strings for the license agreement dialog -->
+  <String Id="LicenseAgreementDlgLicenseAcceptedCheckBox">I &amp;agree.</String>
+  <String Id="LicenseAgreementDlgTitle">{\WixUI_Font_Title_White}Software Licensing</String>
+  <String Id="LicenseAgreementDlgDescription">{\WixUI_Font_Normal_White}Please read the following license agreement carefully</String>
+
+  <String Id="LicenseAgreementSubHeader">The <![CDATA[<a href="https://github.com/DataDog/datadog-agent/">Datadog Agent</a>]]> includes open source software and is packaged with a closed source Datadog device driver, which is required for the NPM and USM products.  The driver is licensed under the following End User License Agreement.</String>
 
 	<String Id="MsiRMFilesInUse_Title" Overridable="yes">[ProductName] Setup</String>
 	<String Id="MsiRMFilesInUseExit" Overridable="yes">E&amp;xit</String>
@@ -71,12 +76,4 @@
 	<String Id="MsiRMFilesInUseText" Overridable="yes">The following applications are using files that need to be updated by this setup. Close these applications and then click &amp;Retry to continue setup or Exit to exit it.</String>
 	<String Id="MsiRMFilesInUseDescription" Overridable="yes">{\WixUI_Font_Normal_White}Some files that need to be updated are currently in use.</String>
 	<String Id="MsiRMFilesInUseTitle" Overridable="yes">{\WixUI_Font_Title_White}Files in Use</String>
-
-	<!-- these strings for the closed source dialog -->
-	<String Id ="ClosedSourceDialog_Title">[ProductName] Setup</String>
-	<String Id ="ClosedSrcDialogTitle" >{\WixUI_Font_Title_White}Datadog Open Source</String>
-	<String Id ="ClosedSrcDescription">{\WixUI_Font_Normal_White}Accept components which are not open source.</String>
-
-	<String Id ="ClosedSrcKeyLabel">Enable components which are not open source. This option must be enabled for the NPM product to function.</String>
-	<String Id ="ClosedSrcAcceptedCheckText">Enable components which are not open source.</String>
 </WixLocalization>

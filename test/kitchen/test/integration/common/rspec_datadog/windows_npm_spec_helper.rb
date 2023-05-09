@@ -101,25 +101,3 @@ shared_examples_for 'a Windows Agent with NPM running' do
     expect(is_service_running?("datadog-system-probe")).to be_truthy
   end
 end
-
-shared_examples_for 'a Windows Agent with closed source enabled' do
-  ena = 0
-  Win32::Registry::HKEY_LOCAL_MACHINE.open('SOFTWARE\DataDog\Datadog Agent') do |reg|
-    ena = reg['AllowClosedSource']
-  end
-  it 'registry value is set to one' do
-    expect(ena).to eq(1)
-  end
-
-end
-
-shared_examples_for 'a Windows Agent with closed source disabled' do
-  ena = 0
-  Win32::Registry::HKEY_LOCAL_MACHINE.open('SOFTWARE\DataDog\Datadog Agent') do |reg|
-    ena = reg['AllowClosedSource']
-  end
-  it 'registry value is set to zero' do
-    expect(ena).to eq(0)
-  end
-
-end
