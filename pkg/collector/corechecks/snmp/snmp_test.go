@@ -57,6 +57,7 @@ func Test_Run_simpleCase(t *testing.T) {
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
 community_string: public
+collect_topology: false
 metrics:
 - symbol:
     OID: 1.3.6.1.2.1.2.1
@@ -553,6 +554,7 @@ community_string: public
 profile: f5-big-ip
 collect_device_metadata: true
 oid_batch_size: 10
+collect_topology: false
 tags:
   - "mytag:val1"
   - "mytag:val1" # add duplicate tag for testing deduplication
@@ -1281,6 +1283,7 @@ ip_address: 1.2.3.4
 community_string: public
 collect_device_metadata: true
 oid_batch_size: 10
+collect_topology: false
 tags:
   - "mytag:val1"
   - "autodiscovery_subnet:127.0.0.0/30"
@@ -1662,6 +1665,7 @@ network_address: 10.10.0.0/30
 community_string: public
 collect_device_metadata: true
 oid_batch_size: 10
+collect_topology: false
 metrics:
 - symbol:
     OID: 1.3.6.1.2.1.2.1
@@ -2069,6 +2073,7 @@ func TestDeviceIDAsHostname(t *testing.T) {
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
 community_string: public
+collect_topology: false
 metrics:
 - symbol:
     OID: 1.3.6.1.2.1.2.1
@@ -2261,6 +2266,7 @@ network_address: 10.10.0.0/30
 community_string: public
 use_device_id_as_hostname: true
 oid_batch_size: 10
+collect_topology: false
 metrics:
 - symbol:
     OID: 1.3.6.1.2.1.2.1

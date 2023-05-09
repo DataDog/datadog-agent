@@ -492,7 +492,7 @@ func (c *CWSConsumer) RuleMatch(rule *rules.Rule, event eval.Event) {
 
 // SendEvent sends an event to the backend after checking that the rate limiter allows it for the provided rule
 func (c *CWSConsumer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []string, service string) {
-	if c.rateLimiter.Allow(rule.ID) {
+	if c.rateLimiter.Allow(rule.ID, event) {
 		c.apiServer.SendEvent(rule, event, extTagsCb, service)
 	} else {
 		seclog.Tracef("Event on rule %s was dropped due to rate limiting", rule.ID)

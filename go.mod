@@ -45,7 +45,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.45.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.45.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.45.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/trace v0.45.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/trace v0.45.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.45.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.45.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.45.0-rc.3
@@ -58,10 +58,10 @@ require (
 	github.com/DataDog/gohai v0.0.0-20221116153829-5d479901d2e9
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.1.5
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.1.5
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.1.5
-	github.com/DataDog/sketches-go v1.4.1
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.2.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.2.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.2.0
+	github.com/DataDog/sketches-go v1.4.2
 	github.com/DataDog/viper v1.12.0
 	github.com/DataDog/watermarkpodautoscaler v0.5.2
 	github.com/DataDog/zstd v1.5.2
@@ -149,7 +149,7 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/moby/sys/mountinfo v0.6.2
 	github.com/mohae/deepcopy v0.0.0-20170603005431-491d3605edfb
-	github.com/netsampler/goflow2 v1.1.1-0.20220825033856-d6caeaacddbb
+	github.com/netsampler/goflow2 v1.3.3
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852
 	github.com/open-policy-agent/opa v0.51.0
@@ -161,7 +161,7 @@ require (
 	github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.14.0
+	github.com/prometheus/client_golang v1.15.0
 	github.com/prometheus/client_model v0.3.0
 	github.com/prometheus/procfs v0.9.0
 	github.com/richardartoul/molecule v1.0.1-0.20221107223329-32cfee06a052
@@ -201,11 +201,11 @@ require (
 	go.opentelemetry.io/collector/exporter v0.75.0
 	go.opentelemetry.io/collector/exporter/loggingexporter v0.75.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.75.0
-	go.opentelemetry.io/collector/pdata v1.0.0-rc9
+	go.opentelemetry.io/collector/pdata v1.0.0-rcv0011
 	go.opentelemetry.io/collector/processor/batchprocessor v0.75.0
 	go.opentelemetry.io/collector/receiver v0.75.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.75.0
-	go.uber.org/atomic v1.10.0
+	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.5.2
 	go.uber.org/dig v1.15.0
 	go.uber.org/fx v1.18.2
@@ -213,10 +213,10 @@ require (
 	go.uber.org/zap v1.24.0
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
 	golang.org/x/arch v0.3.0
-	golang.org/x/exp v0.0.0-20230202163644-54bba9f4231b
+	golang.org/x/exp v0.0.0-20230321023759-10a507213a29
 	golang.org/x/net v0.9.0
 	golang.org/x/sync v0.1.0
-	golang.org/x/sys v0.7.0
+	golang.org/x/sys v0.8.0
 	golang.org/x/text v0.9.0
 	golang.org/x/time v0.3.0
 	golang.org/x/tools v0.8.0
@@ -416,7 +416,7 @@ require (
 	github.com/knqyf263/go-rpmdb v0.0.0-20221030142135-919c8a52f04f // indirect
 	github.com/knqyf263/nested v0.0.1 // indirect
 	github.com/liamg/jfather v0.0.7 // indirect
-	github.com/libp2p/go-reuseport v0.1.0 // indirect
+	github.com/libp2p/go-reuseport v0.2.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20220913051719-115f729f3c8c // indirect
 	github.com/lunixbochs/struc v0.0.0-20200707160740-784aaebc1d40 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
@@ -501,8 +501,8 @@ require (
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/xanzy/ssh-agent v0.3.0 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
-	github.com/xdg-go/scram v1.1.1 // indirect
-	github.com/xdg-go/stringprep v1.0.3 // indirect
+	github.com/xdg-go/scram v1.1.2 // indirect
+	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
