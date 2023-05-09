@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
-import sys
 import re
+import sys
 import textwrap
 
 # This script reads a copy of lscpu-arm.c and outputs the various tables to be
