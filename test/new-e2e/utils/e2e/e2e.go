@@ -31,34 +31,6 @@ const (
 )
 
 // Suite manages the environment creation and runs E2E tests.
-// It is implemented as a [testify Suite].
-// Example of usage:
-//
-//	  type MyEnv struct {
-//		   VM *client.VM
-//	  }
-//	  type vmSuite struct {
-//		   *Suite[MyEnv]
-//	  }
-//
-//	  func TestE2ESuite(t *testing.T) {
-//		   suite.Run(t, &vmSuite{Suite: NewSuite("my-test", &StackDefinition[MyEnv]{
-//			 EnvFactory: func(ctx *pulumi.Context) (*MyEnv, error) {
-//				vm, err := ec2vm.NewUnixLikeEc2VM(ctx, ec2vm.WithOS(os.AmazonLinuxOS, commonos.AMD64Arch))
-//				if err != nil {
-//					return nil, err
-//				}
-//				return &MyEnv{
-//					VM: client.NewVM(vm),
-//				}, nil
-//			  },
-//		   })})
-//	  }
-//
-// Suite leverages pulumi features to compute the differences between the previous
-// environment and the new one to make environment updates faster.
-//
-// [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 type Suite[Env any] struct {
 	suite.Suite
 
