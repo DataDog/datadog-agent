@@ -42,6 +42,7 @@ type ColdStartSpanCreator struct {
 	lambdaSpan            *pb.Span
 	initDuration          float64
 	StopChan              chan struct{}
+	AgentStartTimeNanos   int64
 }
 
 func (c *ColdStartSpanCreator) Run() {
@@ -108,6 +109,13 @@ func (c *ColdStartSpanCreator) create() {
 	// APM spans are in nanoseconds
 	// millis = nanos * 1e6
 	durationNs := c.initDuration * 1e6
+	var spanStartTime int64
+	durationInt := int64(durationNs)
+	if (c.AgentStartTimeNanos + durationInt) < c.lambdaSpan.Start {
+		spanStartTime = c.AgentStartTimeNanos
+	} else {
+		spanStartTime = c.lambdaSpan.Start - durationInt
+	}
 
 	coldStartSpan := &pb.Span{
 		Service:  service,
@@ -116,7 +124,7 @@ func (c *ColdStartSpanCreator) create() {
 		SpanID:   c.ColdStartSpanId,
 		TraceID:  c.lambdaSpan.TraceID,
 		ParentID: c.lambdaSpan.ParentID,
-		Start:    c.lambdaSpan.Start - int64(durationNs),
+		Start:    spanStartTime,
 		Duration: int64(durationNs),
 		Type:     "serverless",
 	}

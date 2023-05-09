@@ -297,11 +297,12 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	wg.Wait()
 
 	coldStartSpanCreator := &trace.ColdStartSpanCreator{
-		LambdaSpanChan:   lambdaSpanChan,
-		InitDurationChan: initDurationChan,
-		TraceAgent:       serverlessDaemon.TraceAgent,
-		StopChan:         make(chan struct{}),
-		ColdStartSpanId:  coldStartSpanId,
+		LambdaSpanChan:      lambdaSpanChan,
+		InitDurationChan:    initDurationChan,
+		TraceAgent:          serverlessDaemon.TraceAgent,
+		AgentStartTimeNanos: startTime.UnixNano(),
+		StopChan:            make(chan struct{}),
+		ColdStartSpanId:     coldStartSpanId,
 	}
 
 	log.Debug("Starting ColdStartSpanCreator")
