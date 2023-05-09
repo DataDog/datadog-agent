@@ -579,6 +579,8 @@ type Process struct {
 	Variables             eval.Variables `field:"-" json:"-"`
 
 	IsThread bool `field:"is_thread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
+
+	Source uint64 `field:"-" json:"-"`
 }
 
 // SpanContext describes a span context
@@ -888,7 +890,6 @@ func (p *ProcessContext) HasParent() bool {
 // ProcessContext holds the process context of an event
 type ProcessContext struct {
 	Process
-	Source uint64 `field:"-" json:"-"`
 
 	Parent   *Process           `field:"parent,opts:exposed_at_event_root_only,check:HasParent"`
 	Ancestor *ProcessCacheEntry `field:"ancestors,iterator:ProcessAncestorsIterator,check:IsNotKworker"`

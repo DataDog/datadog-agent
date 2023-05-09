@@ -217,6 +217,8 @@ type ProcessSerializer struct {
 	IsThread bool `json:"is_thread,omitempty"`
 	// Indicates whether the process is a kworker
 	IsKworker bool `json:"is_kworker,omitempty"`
+	// Process source
+	Source string `json:"source,omitempty"`
 }
 
 // ContainerContextSerializer serializes a container context to JSON
@@ -264,8 +266,6 @@ type EventContextSerializer struct {
 // easyjson:json
 type ProcessContextSerializer struct {
 	*ProcessSerializer
-	// Process source
-	Source string `json:"source,omitempty"`
 	// Parent process
 	Parent *ProcessSerializer `json:"parent,omitempty"`
 	// Ancestor processes
@@ -689,6 +689,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolver
 			EnvsTruncated: EnvsTruncated,
 			IsThread:      ps.IsThread,
 			IsKworker:     ps.IsKworker,
+			Source:        model.ProcessSourceToString(ps.Source),
 		}
 
 		if ps.HasInterpreter() {
@@ -719,6 +720,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolver
 			Pid:       ps.Pid,
 			Tid:       ps.Tid,
 			IsKworker: ps.IsKworker,
+			Source:    model.ProcessSourceToString(ps.Source),
 			Credentials: &ProcessCredentialsSerializer{
 				CredentialsSerializer: &CredentialsSerializer{},
 			},
@@ -771,8 +773,6 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, resol
 	ps := ProcessContextSerializer{
 		ProcessSerializer: newProcessSerializer(&pc.Process, e, resolvers),
 	}
-
-	ps.Source = model.ProcessSourceToString(pc.Source)
 
 	ctx := eval.NewContext(e)
 
