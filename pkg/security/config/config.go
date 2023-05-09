@@ -137,6 +137,9 @@ type RuntimeSecurityConfig struct {
 	// AnomalyDetectionUnstableProfileSizeThreshold defines the maximum size a profile can reach past which it is
 	// considered unstable
 	AnomalyDetectionUnstableProfileSizeThreshold int64
+	// AnomalyDetectionWorkloadWarmupPeriod defines the amount the duration we ignore the anomaly detections
+	// because of workload warm up
+	AnomalyDetectionWorkloadWarmupPeriod time.Duration
 
 	// AnomalyDetectionRateLimiter limit number of anomaly event, one every N second
 	AnomalyDetectionRateLimiter int
@@ -239,8 +242,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// anomaly detection
 		AnomalyDetectionEventTypes:                   model.ParseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
-		AnomalyDetectionMinimumStablePeriod:          time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.anomaly_detection.minimum_stable_period")) * time.Second,
-		AnomalyDetectionUnstableProfileTimeThreshold: time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.anomaly_detection.unstable_profile_time_threshold")) * time.Second,
+		AnomalyDetectionMinimumStablePeriod:          coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.minimum_stable_period"),
+		AnomalyDetectionWorkloadWarmupPeriod:         coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.workload_warmup_period"),
+		AnomalyDetectionUnstableProfileTimeThreshold: coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.unstable_profile_time_threshold"),
 		AnomalyDetectionUnstableProfileSizeThreshold: coreconfig.SystemProbe.GetInt64("runtime_security_config.security_profile.anomaly_detection.unstable_profile_size_threshold"),
 		AnomalyDetectionRateLimiter:                  coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.anomaly_detection.rate_limiter"),
 	}

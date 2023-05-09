@@ -52,6 +52,8 @@ const (
 	Snapshot NodeGenerationType = 2
 	// ProfileDrift is a node that was added because of a drift from a security profile
 	ProfileDrift NodeGenerationType = 3
+	// WorkloadWarmup is a node that was added of a drift in a warming up profile
+	WorkloadWarmup NodeGenerationType = 3
 )
 
 func (genType NodeGenerationType) String() string {
