@@ -75,7 +75,7 @@ instances:
   # query_samples:
 
       ## @param enabled - boolean - optional - default: true
-      ## Enable collection of query metrics. Requires `dbm: true`.
+      ## Enable collection of query samples. Requires `dbm: true`.
       #
       # enabled: true
 
