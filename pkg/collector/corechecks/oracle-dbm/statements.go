@@ -731,7 +731,7 @@ func (c *Check) StatementMetrics() (int, error) {
 				FQTSent[queryRow.QuerySignature] = 1
 			}
 
-			if c.config.ExecutionPlans {
+			if c.config.ExecutionPlans.Enabled {
 				_, sent = executionPlanSent[statementMetricRow.PlanHashValue]
 				if !sent {
 					var planStepsPayload []PlanDefinition

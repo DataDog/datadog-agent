@@ -87,6 +87,15 @@ instances:
       #
       # enabled: false
 
+  ## Configure collection of execution plans
+  #
+  # execution_plans:
+
+      ## @param enabled - boolean - optional - default: true
+      ## Enable collection of execution plans. Requires query metrics.
+      #
+      # enabled: true
+
   ## Configure how the SQL obfuscator behaves.
   ## Note: This option only applies when `dbm` is enabled.
   #
