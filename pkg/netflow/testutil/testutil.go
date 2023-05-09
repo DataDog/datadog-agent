@@ -10,8 +10,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/google/gopacket"
-	"github.com/google/gopacket/pcap"
+	"github.com/google/gopacket/layers"
+	"github.com/google/gopacket/pcapgo"
 	"net"
+	"os"
 	"testing"
 	"time"
 
@@ -22,9 +24,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/netflow/payload"
 )
-
-//#include "pcap.h"
-import "C"
 
 func SendUDPPacket(port uint16, data []byte) error {
 	udpConn, err := net.Dial("udp", fmt.Sprintf("127.0.0.1:%d", port))
@@ -103,18 +102,60 @@ func ExpectNetflow5Payloads(t *testing.T, mockEpForwrader *epforwarder.MockEvent
 	}
 }
 
-func GetPacketFromPcap(file string, packetIndex int) []byte {
-	if handle, err := pcap.OpenOffline(file); err != nil {
-		panic(err)
-	} else {
-		packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
-		packetCount := 0
-		for packet := range packetSource.Packets() {
-			if packetCount == packetIndex {
-				return packet.ApplicationLayer().Payload()
-			}
-		}
-		return nil
+func GetPacketFromPcap(file string, packetIndex int) ([]byte, error) {
+	f, err := os.Open(file)
+	if err != nil {
+		return nil, err
 	}
-	return nil
+	defer f.Close()
+
+	r, err := pcapgo.NewNgReader(f, pcapgo.DefaultNgReaderOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	packetCount := 0
+	for {
+		data, captureInfo, err := r.ReadPacketData()
+		fmt.Printf("%v\n", captureInfo)
+		if err != nil {
+			return nil, err
+		}
+		if packetCount == packetIndex {
+			packet := gopacket.NewPacket(data, layers.LayerTypeUDP, gopacket.Default)
+			//linkLayer := packet.LinkLayer()
+			app := packet.ApplicationLayer()
+			//content := app.LayerContents()
+			content := app.LayerPayload()
+			//application := app.LayerPayload()
+			return content, nil
+		}
+		packetCount += 1
+	}
 }
+
+//func GetPacketFromPcap(file string, packetIndex int) []byte {
+//	// create reader
+//	r, err := gopcap.Open(file)
+//	if err != nil {
+//		panic(err)
+//	}
+//	defer r.Close()
+//
+//	// loop over packets
+//	packetCount := 0
+//	for {
+//		_, data, err := r.ReadNextPacket()
+//		if err != nil {
+//			if err == io.EOF {
+//				println("EOF")
+//				break
+//			}
+//			panic(err)
+//		}
+//		if packetCount == packetIndex {
+//			return data
+//		}
+//	}
+//	return nil
+//}
