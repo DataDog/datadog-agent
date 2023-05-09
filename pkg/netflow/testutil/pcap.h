@@ -1,4 +1,5 @@
-// FROM: https://github.com/the-tcpdump-group/libpcap/blob/master/pcap/pcap.h
+// pcap.h is from: https://github.com/the-tcpdump-group/libpcap/blob/master/pcap/pcap.h
+// The pcap.h is needed for tests only to decode pcap recordings.
 
 /* -*- Mode: c; tab-width: 8; indent-tabs-mode: 1; c-basic-offset: 8; -*- */
 /*
