@@ -298,7 +298,6 @@ func TestAggregator_withMockPayload(t *testing.T) {
 	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.input_buffer.length", 0, "", nil)
 	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.sequence.delta", 6, "", []string{"exporter_ip:127.0.0.1", "device_namespace:default"})
 	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.sequence.last", 6, "", []string{"exporter_ip:127.0.0.1", "device_namespace:default"})
-	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.sequence.reset", 0, "", []string{"exporter_ip:127.0.0.1", "device_namespace:default"})
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.decoder.messages", 1, "", []string{"collector_type:netflow5", "worker:0"})
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.processor.flows", 1, "", []string{"exporter_ip:127.0.0.1", "version:5", "flow_protocol:netflow"})
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.processor.flowsets", 6, "", []string{"exporter_ip:127.0.0.1", "type:data_flow_set", "version:5", "flow_protocol:netflow"})

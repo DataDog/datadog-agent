@@ -250,11 +250,9 @@ func (agg *FlowAggregator) flush() int {
 	for key, seqDelta := range sequenceDeltaPerExporter {
 		agg.sender.Count("datadog.netflow.aggregator.sequence.delta", float64(seqDelta.Delta), "", []string{"device_namespace:" + key.Namespace, "exporter_ip:" + key.ExporterIP})
 		agg.sender.Gauge("datadog.netflow.aggregator.sequence.last", float64(seqDelta.LastSequence), "", []string{"device_namespace:" + key.Namespace, "exporter_ip:" + key.ExporterIP})
-		resetFloat := 0.0
 		if seqDelta.Reset {
-			resetFloat = 1.0
+			agg.sender.Count("datadog.netflow.aggregator.sequence.reset", float64(1), "", []string{"device_namespace:" + key.Namespace, "exporter_ip:" + key.ExporterIP})
 		}
-		agg.sender.Count("datadog.netflow.aggregator.sequence.reset", resetFloat, "", []string{"device_namespace:" + key.Namespace, "exporter_ip:" + key.ExporterIP})
 	}
 
 	// TODO: Add flush stats to agent telemetry e.g. aggregator newFlushCountStats()
