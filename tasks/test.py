@@ -36,6 +36,7 @@ PROFILE_COV = "profile.cov"
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
 UNIT_TEST_FILE_FORMAT = re.compile(r'[^a-zA-Z0-9_\-]')
 
+
 class TestProfiler:
     times = []
     parser = re.compile(r"^ok\s+github.com\/DataDog\/datadog-agent\/(\S+)\s+([0-9\.]+)s", re.MULTILINE)
