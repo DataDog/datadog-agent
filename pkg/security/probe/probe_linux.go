@@ -1013,6 +1013,9 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 
 			approverType := getApproverType(previousApprover.GetTableName())
 			approverAddedMetricCounter[tag{eventType, approverType}]--
+			if approverAddedMetricCounter[tag{eventType, approverType}] <= 0 {
+				delete(approverAddedMetricCounter, tag{eventType, approverType})
+			}
 		}
 	}
 

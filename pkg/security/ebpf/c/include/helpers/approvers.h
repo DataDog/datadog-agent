@@ -21,7 +21,7 @@ int __attribute__((always_inline)) monitor_event_approved(u64 event_type, u32 ap
     } else if (approver_type == FLAG_APPROVER_TYPE) {
         __sync_fetch_and_add(&stats->event_approved_by_flag, 1);
     }
-    
+
     return 0;
 }
 
