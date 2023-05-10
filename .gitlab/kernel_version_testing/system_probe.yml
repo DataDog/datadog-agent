@@ -41,21 +41,6 @@
   variables:
     KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers-$ARCH
 
-get_file_diff:
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
-  rules:
-    !reference [ .on_system_probe_changes ]
-  needs: []
-  stage: kernel_matrix_testing
-  script:
-    - git fetch origin main:main
-    - echo "DIFF_FILES=$(inv system-probe.generate-git-file-diff)" > file_diff.env
-    - cat file_diff.env
-  artifacts:
-    reports:
-      dotenv: file_diff.env
-
 pull_test_dockers_x64:
   extends: .pull_test_dockers
   variables:
