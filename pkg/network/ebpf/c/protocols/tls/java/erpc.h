@@ -3,8 +3,8 @@
 
 #include "bpf_helpers.h"
 #include "conn_tuple.h"
-#include "../tags-types.h"
-#include "../https.h"
+#include "protocols/tls/tags-types.h"
+#include "protocols/tls/https.h"
 #include "port_range.h"
 #include "types.h"
 #include "maps.h"
@@ -12,11 +12,12 @@
 #define USM_IOCTL_ID 0xda7ad09
 
 /*
-  handle_request pseudo format of *data that contain the http payload
+  handle_sync_payload's pseudo format of *data that contains the http payload
 
   struct {
-      u32 len;
-      u8 data[len];
+      conn_tuple_t;
+      u32 payload_len;
+      u8 payload_buffer[payload_len];
   }
 */
 static int __always_inline handle_sync_payload(struct pt_regs *ctx, void *data) {
@@ -56,6 +57,9 @@ static int __always_inline handle_sync_payload(struct pt_regs *ctx, void *data) 
     return 0;
 }
 
+/*
+  handle_close_connection gets only the connection information in form of conn_tuple_t struct from the close event of the socket
+*/
 static int __always_inline handle_close_connection(void *data) {
 
     //read the connection tuple from the ioctl buffer
@@ -76,6 +80,10 @@ static int __always_inline handle_close_connection(void *data) {
     return 0;
 }
 
+/*
+  handle_connection_by_peer gets connection information along the peer domain and port information
+  which helps to correlate later the plain payload with the relevant connection via the peer details
+*/
 static int __always_inline handle_connection_by_peer(void *data) {
 
     connection_by_peer_key_t peer_key ={0};
@@ -94,13 +102,13 @@ static int __always_inline handle_connection_by_peer(void *data) {
     normalize_tuple(&connection);
     bufferPtr+=sizeof(conn_tuple_t);
 
-    //read the host tuple (peer domain string and peer port)
+    //read the peer tuple (domain string and port)
     if (0 != bpf_probe_read_user(&peer_key.peer, sizeof(peer_t), bufferPtr)){
-        log_debug("[handle_connection_by_peer] failed reading hostname location for pid %d\n", peer_key.pid);
+        log_debug("[handle_connection_by_peer] failed reading peer tuple information for pid %d\n", peer_key.pid);
         return 1;
     }
 
-    // register the connection in domain_to_conn_tuple map
+    // register the connection in conn_by_peer map
     bpf_map_update_with_telemetry(java_conn_tuple_by_peer, &peer_key, &connection, BPF_ANY);
 
     log_debug("[handle_connection_by_peer] created map entry for pid %d domain %s port: %d\n",
@@ -108,6 +116,12 @@ static int __always_inline handle_connection_by_peer(void *data) {
     return 0;
 }
 
+/*
+  handle_async_payload doesn't contain any transport layer information (connection),
+  buy instead send the actual payload in its plain form together with peer domain string and peer port.
+
+  We try to locate the relevant connection info from the bpf map using peer information together with pid as a key
+*/
 static int __always_inline handle_async_payload(struct pt_regs *ctx, void *data) {
     const bool val = true;
     u32 bytes_read = 0;
@@ -115,12 +129,12 @@ static int __always_inline handle_async_payload(struct pt_regs *ctx, void *data)
     //interactive pointer to read the data buffer
     void* bufferPtr = data;
 
-    // Get the buffer the hostname will be read into from a per-cpu array map.
+    // Allocate the buffer from a per-cpu array map, where the connection_by_peer_key_t struct will be read into.
     // Meant to avoid hitting the stack size limit of 512 bytes
     const u32 key = 0;
     connection_by_peer_key_t* peer_key = bpf_map_lookup_elem(&java_tls_peer, &key);
     if (peer_key == NULL) {
-        log_debug("[handle_async_payload] could not get peer host buffer from map");
+        log_debug("[handle_async_payload] could not get peer buffer from map");
         return 1;
     }
 
@@ -128,9 +142,9 @@ static int __always_inline handle_async_payload(struct pt_regs *ctx, void *data)
     u64 pid_tgid = bpf_get_current_pid_tgid();
     peer_key->pid = pid_tgid >> 32;
 
-    //read the host tuple (peer domain string and peer port)
+    //read the peer tuple (domain string and port)
     if (0 != bpf_probe_read_user(&peer_key->peer, sizeof(peer_t), bufferPtr)){
-        log_debug("[java_tls_handle_plain] failed reading hostname location for pid %d\n", peer_key->pid);
+        log_debug("[handle_async_payload] failed allocating peer tuple struct on heap\n");
         return 1;
     }
     bufferPtr+=sizeof(peer_t);
@@ -150,7 +164,7 @@ static int __always_inline handle_async_payload(struct pt_regs *ctx, void *data)
              actual_connection->sport,
              actual_connection->dport);
 
-    // read the actual length of the message (limited by HTTP_BUFFER_SIZE)
+    // read the actual length of the message (limited to HTTP_BUFFER_SIZE bytes)
     if (0 != bpf_probe_read_user(&bytes_read, sizeof(bytes_read), bufferPtr)){
         log_debug("[handle_async_payload] failed reading message length location for pid %d\n", peer_key->pid);
         return 1;
@@ -177,8 +191,7 @@ static int __always_inline is_usm_erpc_request(struct pt_regs *ctx) {
   handle_erpc_request ioctl request format :
 
   struct {
-      u8           operation;  // REQUEST, CLOSE_CONNECTION, HOST, PLAIN
-      conn_tuple_t connection; // connection tuple
+      u8           operation;  // see erpc_message_type enum for supported operations
       u8           data[];     // payload data
   }
 */

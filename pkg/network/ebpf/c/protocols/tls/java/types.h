@@ -15,7 +15,7 @@ enum erpc_message_type {
 
 typedef struct{
     __u16 port;
-    char domain[MAX_DOMAIN_NAME_LENGTH]; //__attribute__ ((aligned (8)));
+    char domain[MAX_DOMAIN_NAME_LENGTH];
 } peer_t;
 
 typedef struct{
