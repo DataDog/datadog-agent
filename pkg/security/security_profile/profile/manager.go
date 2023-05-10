@@ -280,12 +280,11 @@ func (m *SecurityProfileManager) GetProfile(selector cgroupModel.WorkloadSelecto
 	return m.profiles[selector]
 }
 
-// FillProfileContextFromContainerID returns the profile of a container ID
-func (m *SecurityProfileManager) FillProfileContextFromContainerID(id string, ctx *model.SecurityProfileContext) *SecurityProfile {
+// FillProfileContextFromContainerID populates a SecurityProfileContext for the given container ID
+func (m *SecurityProfileManager) FillProfileContextFromContainerID(id string, ctx *model.SecurityProfileContext) {
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 
-	var output *SecurityProfile
 	for _, profile := range m.profiles {
 		profile.Lock()
 		for _, instance := range profile.Instances {
@@ -300,8 +299,6 @@ func (m *SecurityProfileManager) FillProfileContextFromContainerID(id string, ct
 		}
 		profile.Unlock()
 	}
-
-	return output
 }
 
 // FillProfileContextFromProfile fills the given ctx with profile infos
@@ -441,6 +438,14 @@ func (m *SecurityProfileManager) SendStats() error {
 	if val := float64(len(m.profiles)); val > 0 {
 		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileActiveProfiles, val, []string{}, 1.0); err != nil {
 			return fmt.Errorf("couldn't send MetricSecurityProfileActiveProfiles: %w", err)
+		}
+	}
+
+	for _, profile := range m.profiles {
+		if profile.loadedInKernel { // make sure the profile is loaded
+			if err := profile.SendStats(m.statsdClient); err != nil {
+				return fmt.Errorf("couldn't send metrics for [%s]: %w", profile.selector.String(), err)
+			}
 		}
 	}
 

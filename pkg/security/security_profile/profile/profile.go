@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // SecurityProfile defines a security profile
@@ -148,4 +149,11 @@ func LoadProfileFromFile(filepath string) (*proto.SecurityProfile, error) {
 		profile.Tags = append(profile.Tags, "image_tag:latest")
 	}
 	return profile, nil
+}
+
+// SendStats sends profile stats
+func (profile *SecurityProfile) SendStats(client statsd.ClientInterface) error {
+	profile.Lock()
+	defer profile.Unlock()
+	return profile.ActivityTree.SendStats(client)
 }
