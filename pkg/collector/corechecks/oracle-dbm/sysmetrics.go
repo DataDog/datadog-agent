@@ -9,7 +9,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 )
 
 const SYSMETRICS_QUERY = "SELECT metric_name, value, name pdb_name FROM v$con_sysmetric s, v$containers c WHERE s.con_id = c.con_id(+)"
@@ -53,13 +53,17 @@ func (c *Check) SysMetrics() error {
 	if err != nil {
 		return fmt.Errorf("failed to collect sysmetrics: %w", err)
 	}
-
+	sender, err := c.GetSender()
+	if err != nil {
+		return fmt.Errorf("GetSender sysmetrics %w", err)
+	}
 	for _, metricRow := range sysMetrics {
 		DDMetricName, mustSend := SYSMETRICS_COLS[metricRow.MetricName]
 		if !mustSend {
 			continue
 		}
-		log.Tracef("metric %s %s %f", metricRow.PdbName.String, DDMetricName, metricRow.Value)
+		sender.Gauge(fmt.Sprintf("%s.%s", common.IntegrationName, DDMetricName), metricRow.Value, "", c.getTagsWithPDB(metricRow.PdbName))
 	}
+	sender.Commit()
 	return nil
 }

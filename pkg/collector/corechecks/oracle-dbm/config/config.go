@@ -48,6 +48,8 @@ type InstanceConfig struct {
 	ReportedHostname       string              `yaml:"reported_hostname"`
 	QuerySamples           QuerySamplesConfig  `yaml:"query_samples"`
 	QueryMetrics           QueryMetricsConfig  `yaml:"query_metrics"`
+	CollectSysMetrics      bool                `yaml:"collect_sysmetrics"`
+	CollectTablespaces     bool                `yaml:"collect_tablespaces"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
