@@ -76,15 +76,13 @@ func (pn *ProcessNode) debug(w io.Writer, prefix string) {
 // scrubAndReleaseArgsEnvs scrubs the process args and envs, and then releases them
 func (pn *ProcessNode) scrubAndReleaseArgsEnvs(resolver *sprocess.Resolver) {
 	if pn.Process.ArgsEntry != nil {
-		_, _ = resolver.GetProcessScrubbedArgv(&pn.Process)
-		pn.Process.Argv0, _ = resolver.GetProcessArgv0(&pn.Process)
+		resolver.GetProcessScrubbedArgv(&pn.Process)
+		resolver.GetProcessArgv0(&pn.Process)
 		pn.Process.ArgsEntry = nil
 
 	}
 	if pn.Process.EnvsEntry != nil {
-		envs, envsTruncated := resolver.GetProcessEnvs(&pn.Process)
-		pn.Process.Envs = envs
-		pn.Process.EnvsTruncated = envsTruncated
+		resolver.GetProcessEnvs(&pn.Process)
 		pn.Process.EnvsEntry = nil
 	}
 }
@@ -94,36 +92,18 @@ func (pn *ProcessNode) Matches(entry *model.Process, matchArgs bool) bool {
 	if pn.Process.FileEvent.PathnameStr == entry.FileEvent.PathnameStr {
 		if matchArgs {
 			var panArgs, entryArgs []string
-			if pn.Process.ArgsEntry != nil {
-				panArgs, _ = sprocess.GetProcessArgv(&pn.Process)
-			} else {
-				panArgs = pn.Process.Argv
-			}
-			if entry.ArgsEntry != nil {
-				entryArgs, _ = sprocess.GetProcessArgv(entry)
-			} else {
-				entryArgs = entry.Argv
-			}
+			panArgs, _ = sprocess.GetProcessArgv(&pn.Process)
+			entryArgs, _ = sprocess.GetProcessArgv(entry)
 			if len(panArgs) != len(entryArgs) {
 				return false
 			}
-
-			var found bool
-			for _, arg1 := range panArgs {
-				found = false
-				for _, arg2 := range entryArgs {
-					if arg1 == arg2 {
-						found = true
-						break
-					}
-				}
-				if !found {
+			for i, arg := range panArgs {
+				if arg != entryArgs[i] {
 					return false
 				}
 			}
 			return true
 		}
-
 		return true
 	}
 	return false

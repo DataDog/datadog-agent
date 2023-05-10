@@ -871,29 +871,32 @@ func (p *Resolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 // GetProcessArgv returns the args of the event as an array
 func GetProcessArgv(pr *model.Process) ([]string, bool) {
 	if pr.ArgsEntry == nil {
-		return nil, false
+		return pr.Argv, pr.ArgsTruncated
 	}
 
 	argv := pr.ArgsEntry.Values
 	if len(argv) > 0 {
 		argv = argv[1:]
+	} else {
+		argv = []string{}
 	}
-
-	return argv, pr.ArgsTruncated || pr.ArgsEntry.Truncated
+	pr.Argv = argv
+	pr.ArgsTruncated = pr.ArgsTruncated || pr.ArgsEntry.Truncated
+	return pr.Argv, pr.ArgsTruncated
 }
 
 // GetProcessArgv0 returns the first arg of the event
 func (p *Resolver) GetProcessArgv0(pr *model.Process) (string, bool) {
 	if pr.ArgsEntry == nil {
-		return "", false
+		return pr.Argv0, pr.ArgsTruncated
 	}
 
 	argv := pr.ArgsEntry.Values
 	if len(argv) > 0 {
-		return argv[0], pr.ArgsTruncated || pr.ArgsEntry.Truncated
+		pr.Argv0 = argv[0]
 	}
-
-	return "", pr.ArgsTruncated || pr.ArgsEntry.Truncated
+	pr.ArgsTruncated = pr.ArgsTruncated || pr.ArgsEntry.Truncated
+	return pr.Argv0, pr.ArgsTruncated
 }
 
 // GetProcessScrubbedArgv returns the scrubbed args of the event as an array
@@ -937,21 +940,24 @@ func (p *Resolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 // GetProcessEnvs returns the envs of the event
 func (p *Resolver) GetProcessEnvs(pr *model.Process) ([]string, bool) {
 	if pr.EnvsEntry == nil {
-		return nil, false
+		return pr.Envs, pr.EnvsTruncated
 	}
 
 	keys, truncated := pr.EnvsEntry.FilterEnvs(p.opts.envsWithValue)
-
-	return keys, pr.EnvsTruncated || truncated
+	pr.Envs = keys
+	pr.EnvsTruncated = pr.EnvsTruncated || truncated
+	return pr.Envs, pr.EnvsTruncated
 }
 
 // GetProcessEnvp returns the envs of the event with their values
 func (p *Resolver) GetProcessEnvp(pr *model.Process) ([]string, bool) {
 	if pr.EnvsEntry == nil {
-		return nil, false
+		return pr.Envp, pr.EnvsTruncated
 	}
 
-	return pr.EnvsEntry.Values, pr.EnvsTruncated || pr.EnvsEntry.Truncated
+	pr.Envp = pr.EnvsEntry.Values
+	pr.EnvsTruncated = pr.EnvsTruncated || pr.EnvsEntry.Truncated
+	return pr.Envp, pr.EnvsTruncated
 }
 
 // SetProcessTTY resolves TTY and cache the result
