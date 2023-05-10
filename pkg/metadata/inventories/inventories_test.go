@@ -296,6 +296,7 @@ func TestGetPayload(t *testing.T) {
 			"agent_version": "%v",
 			"cloud_provider": "some_cloud_provider",
 			"cloud_provider_source": "",
+			"cloud_provider_account_id": "",
 			"os_version": "testOS",
 			"hypervisor_guest_uuid": "hypervisorUUID",
 			"dmi_product_uuid": "dmiUUID",

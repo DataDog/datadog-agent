@@ -11,7 +11,10 @@ package dump
 import (
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
+	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 )
 
 // ActivityDumpToSecurityProfileProto serializes an Activity Dump to a Security Profile protobuf representation
@@ -21,9 +24,9 @@ func ActivityDumpToSecurityProfileProto(input *ActivityDump) *proto.SecurityProf
 	}
 
 	output := proto.SecurityProfile{
-		Status:   3, // AnomalyDetection + AutoSuppression
-		Version:  "local_profile",
-		Metadata: adMetadataToProto(&input.Metadata),
+		Status:   uint32(model.AnomalyDetection + model.AutoSuppression),
+		Version:  security_profile.LocalProfileVersion,
+		Metadata: mtdt.MetadataToProto(&input.Metadata),
 		Syscalls: input.ActivityTree.ComputeSyscallsList(),
 		Tags:     make([]string, len(input.Tags)),
 		Tree:     activity_tree.ActivityTreeToProto(input.ActivityTree),

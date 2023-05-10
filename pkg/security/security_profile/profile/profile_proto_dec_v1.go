@@ -13,20 +13,17 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 )
 
-func protoToSecurityProfile(output *SecurityProfile, input *proto.SecurityProfile) {
+func ProtoToSecurityProfile(output *SecurityProfile, input *proto.SecurityProfile) {
 	if input == nil {
 		return
 	}
 
 	output.Status = model.Status(input.Status)
 	output.Version = input.Version
-	if input.Version == "local_profile" {
-		output.autolearnEnabled = true
-	}
-	output.Metadata = dump.ProtoMetadataToMetadata(input.Metadata)
+	output.Metadata = mtdt.ProtoMetadataToMetadata(input.Metadata)
 
 	output.Tags = make([]string, len(input.Tags))
 	copy(output.Tags, input.Tags)

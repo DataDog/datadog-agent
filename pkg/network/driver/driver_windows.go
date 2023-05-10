@@ -13,29 +13,23 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ErrDriverNotInitialized is returned when you attempt to use the driver without calling Init
 var ErrDriverNotInitialized = errors.New("driver has not been initialized")
 
-// ErrClosedSourceNotAllowed is returned if you attempt to use the driver and closed source is not allowed
-var ErrClosedSourceNotAllowed = errors.New("closed source driver is not allowed")
-
 var driverInit sync.Once
 var driverRef *driver
 
 type driver struct {
-	inuse   *atomic.Uint32
-	allowed bool
+	inuse *atomic.Uint32
 }
 
 // Init configures the driver and will disable it if closed source is not allowed
 func Init(cfg *config.Config) error {
 	driverInit.Do(func() {
 		driverRef = &driver{
-			inuse:   atomic.NewUint32(0),
-			allowed: cfg.ClosedSourceAllowed,
+			inuse: atomic.NewUint32(0),
 		}
 	})
 	return nil
@@ -77,18 +71,10 @@ func IsNeeded() bool {
 }
 
 func (d *driver) isNeeded() bool {
-	if !d.allowed {
-		return false
-	}
 	return d.inuse.Load() > 0
 }
 
 func (d *driver) start() error {
-	if !d.allowed {
-		log.Warnf("Unable to load network component because the closed source consent is denied.")
-		log.Warnf("To change this, run the \"agent.exe closedsourceconsent set true\" command from an elevated shell.")
-		return ErrClosedSourceNotAllowed
-	}
 	if refs := d.inuse.Inc(); refs == 1 {
 		return startDriverService(driverServiceName)
 	}
@@ -98,7 +84,7 @@ func (d *driver) start() error {
 func (d *driver) stop(force bool) error {
 	if force {
 		d.inuse.Store(0)
-		return stopDriverService(driverServiceName, !d.allowed)
+		return stopDriverService(driverServiceName, true)
 	}
 	if refs := d.inuse.Dec(); refs == 0 {
 		return stopDriverService(driverServiceName, false)

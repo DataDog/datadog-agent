@@ -29,19 +29,19 @@ type SocketNode struct {
 }
 
 // InsertBindEvent inserts a bind even inside a socket node
-func (n *SocketNode) InsertBindEvent(evt *model.BindEvent, generationType NodeGenerationType, rules []*model.MatchedRule, shadowInsertion bool) bool {
+func (n *SocketNode) InsertBindEvent(evt *model.BindEvent, generationType NodeGenerationType, rules []*model.MatchedRule, dryRun bool) bool {
 	evtIP := evt.Addr.IPNet.IP.String()
 
 	for _, n := range n.Bind {
 		if evt.Addr.Port == n.Port && evtIP == n.IP {
-			if !shadowInsertion {
+			if !dryRun {
 				n.MatchedRules = model.AppendMatchedRule(n.MatchedRules, rules)
 			}
 			return false
 		}
 	}
 
-	if !shadowInsertion {
+	if !dryRun {
 		// insert bind event now
 		n.Bind = append(n.Bind, &BindNode{
 			MatchedRules:   rules,
