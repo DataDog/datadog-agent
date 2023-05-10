@@ -63,11 +63,12 @@ type SequenceDeltaValue struct {
 	LastSequence uint32
 }
 
-var maxSequenceDiff = map[common.FlowType]int{
-	common.TypeSFlow5:   1000,
-	common.TypeNetFlow5: 1000,
-	common.TypeNetFlow9: 100,
-	common.TypeIPFIX:    100,
+// maxNegativeSequenceDiffToReset are thresholds used to detect sequence reset
+var maxNegativeSequenceDiffToReset = map[common.FlowType]int{
+	common.TypeSFlow5:   -1000,
+	common.TypeNetFlow5: -1000,
+	common.TypeNetFlow9: -100,
+	common.TypeIPFIX:    -100,
 }
 
 // NewFlowAggregator returns a new FlowAggregator
@@ -301,9 +302,9 @@ func (agg *FlowAggregator) getSequenceDelta(flowsToFlush []*common.Flow) map[Seq
 		lastSeq := agg.lastSequencePerExporter[key]
 		delta := int64(seqnum) - int64(lastSeq)
 		log.Debugf("[getSequenceDelta] key=%s, seqnum=%d, delta=%d, last=%d", key, seqnum, delta, agg.lastSequencePerExporter[key])
-		maxSeqDiff := maxSequenceDiff[key.FlowType]
+		maxNegSeqDiff := maxNegativeSequenceDiffToReset[key.FlowType]
 		seqDeltaValue := SequenceDeltaValue{LastSequence: seqnum}
-		if delta < -int64(maxSeqDiff) { // sequence reset
+		if delta < int64(maxNegSeqDiff) { // sequence reset
 			seqDeltaValue.Delta = int64(seqnum)
 			agg.lastSequencePerExporter[key] = seqnum
 		} else if delta < 0 {
