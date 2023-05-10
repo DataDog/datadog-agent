@@ -25,7 +25,6 @@ import (
 	"go.etcd.io/bbolt"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/flare"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
@@ -81,9 +80,6 @@ type Service struct {
 	cacheBypassClients cacheBypassClients
 
 	lastUpdateErr error
-
-	// TODO: move to another place
-	agentTaskProvier *flare.AgentTaskProvider
 }
 
 // uptaneClient is used to mock the uptane component for testing
@@ -100,7 +96,7 @@ type uptaneClient interface {
 }
 
 // NewService instantiates a new remote configuration management service
-func NewService(agentTaskProvider *flare.AgentTaskProvider) (*Service, error) {
+func NewService() (*Service, error) {
 	refreshIntervalOverrideAllowed := false // If a user provides a value we don't want to override
 
 	var refreshInterval time.Duration
@@ -214,7 +210,6 @@ func NewService(agentTaskProvider *flare.AgentTaskProvider) (*Service, error) {
 		api:                            http,
 		uptane:                         uptaneClient,
 		clients:                        newClients(clock, clientsTTL),
-		agentTaskProvier:               agentTaskProvider,
 		cacheBypassClients: cacheBypassClients{
 			clock:    clock,
 			requests: make(chan chan struct{}),
@@ -272,9 +267,6 @@ func (s *Service) Start(ctx context.Context) error {
 		}
 	}()
 
-	// TODO: move
-	s.agentTaskProvier.Start()
-
 	return nil
 }
 
@@ -309,7 +301,6 @@ func (s *Service) refresh() error {
 	s.Unlock()
 	ctx := context.Background()
 	response, err := s.api.Fetch(ctx, request)
-	log.Warnf("[RCM] Response: %+v", response.TargetFiles)
 	s.Lock()
 	defer s.Unlock()
 	s.lastUpdateErr = nil

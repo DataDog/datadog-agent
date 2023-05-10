@@ -389,17 +389,19 @@ func startAgent(
 	// start remote configuration management
 	var configService *remoteconfig.Service
 	if pkgconfig.Datadog.GetBool("remote_configuration.enabled") {
-		agentTaskProvider, err := rcflare.NewAgentTaskProvider(flare, "core-agent", version.AgentVersion)
+		agentTaskProvider, err := rcflare.NewAgentTaskProvider("core-agent", version.AgentVersion, cliParams.ConfFilePath, cliParams.SysProbeConfFilePath)
 		if err != nil {
 			pkglog.Errorf("Failed to initialize agent task remote config provier: %s", err)
 		}
 
-		configService, err = remoteconfig.NewService(agentTaskProvider)
+		configService, err = remoteconfig.NewService()
 		if err != nil {
 			pkglog.Errorf("Failed to initialize config management service: %s", err)
 		} else if err := configService.Start(context.Background()); err != nil {
 			pkglog.Errorf("Failed to start config management service: %s", err)
 		}
+
+		agentTaskProvider.Start()
 	}
 
 	// create and setup the Autoconfig instance
