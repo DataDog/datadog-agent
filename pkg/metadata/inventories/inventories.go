@@ -418,7 +418,7 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentProcessEnabled, config.Datadog.GetBool("process_config.process_collection.enabled"))
 	SetAgentMetadata(AgentProcessesContainerEnabled, config.Datadog.GetBool("process_config.container_collection.enabled"))
 	SetAgentMetadata(AgentNetworksEnabled, config.SystemProbe.GetBool("network_config.enabled"))
-	SetAgentMetadata(AgentNetworksHTTPEnabled, config.SystemProbe.GetBool("network_config.enable_http_monitoring"))
+	SetAgentMetadata(AgentNetworksHTTPEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_http_monitoring"))
 	SetAgentMetadata(AgentNetworksHTTPSEnabled, config.SystemProbe.GetBool("network_config.enable_https_monitoring"))
 	SetAgentMetadata(AgentUSMKafkaEnabled, config.Datadog.GetBool("data_streams_config.enabled"))
 	SetAgentMetadata(AgentRemoteConfigEnabled, config.Datadog.GetBool("remote_configuration.enabled"))
