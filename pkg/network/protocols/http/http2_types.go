@@ -9,7 +9,7 @@
 package http
 
 /*
-#include "../../ebpf/c/tracer.h"
+#include "../../ebpf/c/conn_tuple.h"
 #include "../../ebpf/c/protocols/http2/decoding-defs.h"
 */
 import "C"

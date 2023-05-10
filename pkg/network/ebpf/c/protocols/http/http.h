@@ -3,7 +3,8 @@
 
 #include "bpf_builtins.h"
 #include "bpf_telemetry.h"
-#include "tracer.h"
+
+#include "sockfd.h"
 
 #include "protocols/http/types.h"
 #include "protocols/http/maps.h"

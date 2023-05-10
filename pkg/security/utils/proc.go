@@ -19,7 +19,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/DataDog/gopsutil/process"
+	"github.com/shirou/gopsutil/v3/process"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -200,9 +200,19 @@ func GetProcesses() ([]*process.Process, error) {
 	return processes, nil
 }
 
+type FilledProcess struct {
+	Pid        int32
+	Ppid       int32
+	CreateTime int64
+	Name       string
+	Uids       []int32
+	Gids       []int32
+	MemInfo    *process.MemoryInfoStat
+	Cmdline    []string
+}
+
 // GetFilledProcess returns a FilledProcess from a Process input
-// TODO: make a PR to export a similar function in Datadog/gopsutil. We only populate the fields we need for now.
-func GetFilledProcess(p *process.Process) *process.FilledProcess {
+func GetFilledProcess(p *process.Process) *FilledProcess {
 	ppid, err := p.Ppid()
 	if err != nil {
 		return nil
@@ -238,7 +248,7 @@ func GetFilledProcess(p *process.Process) *process.FilledProcess {
 		return nil
 	}
 
-	return &process.FilledProcess{
+	return &FilledProcess{
 		Pid:        p.Pid,
 		Ppid:       ppid,
 		CreateTime: createTime,

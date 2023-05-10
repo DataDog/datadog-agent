@@ -277,12 +277,12 @@ func (e *ebpfProgram) Close() error {
 }
 
 func (e *ebpfProgram) initCORE() error {
-	assetName := getAssetName("http", e.cfg.BPFDebug)
+	assetName := getAssetName("usm", e.cfg.BPFDebug)
 	return ddebpf.LoadCOREAsset(&e.cfg.Config, assetName, e.init)
 }
 
 func (e *ebpfProgram) initRuntimeCompiler() error {
-	bc, err := getRuntimeCompiledHTTP(e.cfg)
+	bc, err := getRuntimeCompiledUSM(e.cfg)
 	if err != nil {
 		return err
 	}

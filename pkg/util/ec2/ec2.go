@@ -88,10 +88,7 @@ func setCloudProviderSource(source int) {
 var instanceIDFetcher = cachedfetch.Fetcher{
 	Name: "EC2 InstanceID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		return getMetadataItemWithMaxLength(ctx,
-			"/instance-id",
-			config.Datadog.GetInt("metadata_endpoints_max_hostname_size"),
-		)
+		return getMetadataItemWithMaxLength(ctx, imdsInstanceID, false)
 	},
 }
 
@@ -114,6 +111,9 @@ func IsRunningOn(ctx context.Context) bool {
 
 // GetHostAliases returns the host aliases from the EC2 metadata API.
 func GetHostAliases(ctx context.Context) ([]string, error) {
+	// We leverage GetHostAliases to register the instance ID in inventories
+	registerCloudProviderHostnameID(ctx)
+
 	instanceID, err := GetInstanceID(ctx)
 	if err == nil {
 		return []string{instanceID}, nil
@@ -133,10 +133,7 @@ func GetHostAliases(ctx context.Context) ([]string, error) {
 var hostnameFetcher = cachedfetch.Fetcher{
 	Name: "EC2 Hostname",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		return getMetadataItemWithMaxLength(ctx,
-			"/hostname",
-			config.Datadog.GetInt("metadata_endpoints_max_hostname_size"),
-		)
+		return getMetadataItemWithMaxLength(ctx, imdsHostname, false)
 	},
 }
 

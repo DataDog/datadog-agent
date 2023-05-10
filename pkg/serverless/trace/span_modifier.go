@@ -28,7 +28,7 @@ func (s *spanModifier) ModifySpan(_ *pb.TraceChunk, span *pb.Span) {
 		if s.tags["service"] != "" {
 			span.Service = s.tags["service"]
 		}
-		if s.lambdaSpanChan != nil && span.Name != "aws.lambda.cold_start" {
+		if s.lambdaSpanChan != nil && span.Name == "aws.lambda" {
 			s.lambdaSpanChan <- span
 		}
 	}

@@ -40,7 +40,7 @@ type CGroupListener func(workload *cgroupModel.CacheEntry)
 type Resolver struct {
 	sync.RWMutex
 	workloads            *simplelru.LRU[string, *cgroupModel.CacheEntry]
-	tagsResolver         *tags.Resolver
+	tagsResolver         tags.Resolver
 	workloadsWithoutTags chan *cgroupModel.CacheEntry
 
 	listenersLock sync.Mutex
@@ -48,7 +48,7 @@ type Resolver struct {
 }
 
 // NewResolver returns a new cgroups monitor
-func NewResolver(tagsResolver *tags.Resolver) (*Resolver, error) {
+func NewResolver(tagsResolver tags.Resolver) (*Resolver, error) {
 	cr := &Resolver{
 		tagsResolver:         tagsResolver,
 		workloadsWithoutTags: make(chan *cgroupModel.CacheEntry, 100),

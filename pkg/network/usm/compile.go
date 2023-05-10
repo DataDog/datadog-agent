@@ -14,18 +14,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 )
 
-//go:generate go run ../../../pkg/ebpf/include_headers.go ../../../pkg/network/ebpf/c/runtime/http.c ../../../pkg/ebpf/bytecode/build/runtime/http.c ../../../pkg/ebpf/c ../../../pkg/ebpf/c/protocols ../../../pkg/network/ebpf/c/runtime ../../../pkg/network/ebpf/c
-//go:generate go run ../../../pkg/ebpf/bytecode/runtime/integrity.go ../../../pkg/ebpf/bytecode/build/runtime/http.c ../../../pkg/ebpf/bytecode/runtime/http.go runtime
+//go:generate go run ../../../pkg/ebpf/include_headers.go ../../../pkg/network/ebpf/c/runtime/usm.c ../../../pkg/ebpf/bytecode/build/runtime/usm.c ../../../pkg/ebpf/c ../../../pkg/ebpf/c/protocols ../../../pkg/network/ebpf/c/runtime ../../../pkg/network/ebpf/c
+//go:generate go run ../../../pkg/ebpf/bytecode/runtime/integrity.go ../../../pkg/ebpf/bytecode/build/runtime/usm.c ../../../pkg/ebpf/bytecode/runtime/usm.go runtime
 
-func getRuntimeCompiledHTTP(config *config.Config) (runtime.CompiledOutput, error) {
-	return runtime.Http.Compile(&config.Config, getCFlags(config), statsd.Client)
+func getRuntimeCompiledUSM(config *config.Config) (runtime.CompiledOutput, error) {
+	return runtime.Usm.Compile(&config.Config, getCFlags(config), statsd.Client)
 }
 
 func getCFlags(config *config.Config) []string {
 	cflags := []string{"-g"}
 
-	if config.CollectIPv6Conns {
-		cflags = append(cflags, "-DFEATURE_IPV6_ENABLED")
+	if config.CollectTCPv6Conns {
+		cflags = append(cflags, "-DFEATURE_TCPV6_ENABLED")
+	}
+	if config.CollectUDPv6Conns {
+		cflags = append(cflags, "-DFEATURE_UDPV6_ENABLED")
 	}
 	if config.BPFDebug {
 		cflags = append(cflags, "-DDEBUG=1")

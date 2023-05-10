@@ -844,6 +844,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecuritySerializers9(i
 			out.IsThread = bool(in.Bool())
 		case "is_kworker":
 			out.IsKworker = bool(in.Bool())
+		case "source":
+			out.Source = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -1011,6 +1013,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecuritySerializers9(o
 		const prefix string = ",\"is_kworker\":"
 		out.RawString(prefix)
 		out.Bool(bool(in.IsKworker))
+	}
+	if in.Source != "" {
+		const prefix string = ",\"source\":"
+		out.RawString(prefix)
+		out.String(string(in.Source))
 	}
 	out.RawByte('}')
 }
@@ -1478,6 +1485,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecuritySerializers11(
 			out.IsThread = bool(in.Bool())
 		case "is_kworker":
 			out.IsKworker = bool(in.Bool())
+		case "source":
+			out.Source = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -1678,6 +1687,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecuritySerializers11(
 		const prefix string = ",\"is_kworker\":"
 		out.RawString(prefix)
 		out.Bool(bool(in.IsKworker))
+	}
+	if in.Source != "" {
+		const prefix string = ",\"source\":"
+		out.RawString(prefix)
+		out.String(string(in.Source))
 	}
 	out.RawByte('}')
 }

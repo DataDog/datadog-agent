@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/encodedtext"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 
@@ -24,7 +25,8 @@ import (
 )
 
 func InitializeDecoderForTest(source *sources.LogSource, parser parsers.Parser) *Decoder {
-	return InitializeDecoder(sources.NewReplaceableSource(source), parser)
+	info := status.NewInfoRegistry()
+	return InitializeDecoder(sources.NewReplaceableSource(source), parser, info)
 }
 
 func TestDecoderWithDockerHeader(t *testing.T) {
@@ -244,7 +246,8 @@ func TestDecoderWithDockerJSONSplittedByDocker(t *testing.T) {
 func TestDecoderWithDecodingParser(t *testing.T) {
 	source := sources.NewLogSource("config", &config.LogsConfig{})
 
-	d := NewDecoderWithFraming(sources.NewReplaceableSource(source), encodedtext.New(encodedtext.UTF16LE), framer.UTF16LENewline, nil)
+	info := status.NewInfoRegistry()
+	d := NewDecoderWithFraming(sources.NewReplaceableSource(source), encodedtext.New(encodedtext.UTF16LE), framer.UTF16LENewline, nil, info)
 	d.Start()
 
 	input := []byte{'h', 0x0, 'e', 0x0, 'l', 0x0, 'l', 0x0, 'o', 0x0, '\n', 0x0}

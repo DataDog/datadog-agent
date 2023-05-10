@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows || linux_bpf
-// +build windows linux_bpf
+//go:build (windows && npm) || linux_bpf
+// +build windows,npm linux_bpf
 
 package dns
 
@@ -127,6 +127,12 @@ func TestDNSCacheExpiration(t *testing.T) {
 }
 
 func TestDNSCacheTelemetry(t *testing.T) {
+	cacheTelemetry.lookups.Delete()
+	cacheTelemetry.resolved.Delete()
+	cacheTelemetry.length.Set(0)
+	cacheTelemetry.added.Delete()
+	cacheTelemetry.expired.Delete()
+	cacheTelemetry.oversized.Delete()
 	ttl := 100 * time.Millisecond
 	cache := newReverseDNSCache(1000, disableAutomaticExpiration)
 	t1 := time.Now()
@@ -143,7 +149,7 @@ func TestDNSCacheTelemetry(t *testing.T) {
 		"expired":   0,
 		"oversized": 0,
 	}
-	assert.Equal(t, expected, cache.Stats())
+	assert.Equal(t, expected["ips"], cacheTelemetry.length.Load())
 
 	conns := []util.Address{
 		util.AddressFromString("127.0.0.1"),
@@ -162,7 +168,7 @@ func TestDNSCacheTelemetry(t *testing.T) {
 		"expired":   0,
 		"oversized": 0,
 	}
-	assert.Equal(t, expected, cache.Stats())
+	validateTelemetry(t, expected)
 
 	// Expire IP
 	t2 := t1.Add(ttl + 1*time.Millisecond)
@@ -176,7 +182,16 @@ func TestDNSCacheTelemetry(t *testing.T) {
 		"expired":   1,
 		"oversized": 0,
 	}
-	assert.Equal(t, expected, cache.Stats())
+	validateTelemetry(t, expected)
+}
+
+func validateTelemetry(t *testing.T, expected map[string]int64) {
+	assert.Equal(t, expected["lookups"], cacheTelemetry.lookups.Load())
+	assert.Equal(t, expected["resolved"], cacheTelemetry.resolved.Load())
+	assert.Equal(t, expected["ips"], cacheTelemetry.length.Load())
+	assert.Equal(t, expected["added"], cacheTelemetry.added.Load())
+	assert.Equal(t, expected["expired"], cacheTelemetry.expired.Load())
+	assert.Equal(t, expected["oversized"], cacheTelemetry.oversized.Load())
 }
 
 func TestDNSCacheMerge(t *testing.T) {

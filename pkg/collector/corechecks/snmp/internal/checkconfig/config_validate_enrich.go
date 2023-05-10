@@ -175,8 +175,8 @@ func validateEnrichMetricTag(metricTag *MetricTagConfig) []string {
 			errors = append(errors, fmt.Sprintf("`tags` mapping must be provided if `match` (`%s`) is defined", metricTag.Match))
 		}
 	}
-	if len(metricTag.Mapping) > 0 && (metricTag.Index == 0 || metricTag.Tag == "") {
-		log.Warnf("`index` or `tag` must be provided if `mapping` (`%s`) is defined", metricTag.Mapping)
+	if len(metricTag.Mapping) > 0 && metricTag.Tag == "" {
+		log.Warnf("``tag` must be provided if `mapping` (`%s`) is defined", metricTag.Mapping)
 	}
 	for _, transform := range metricTag.IndexTransform {
 		if transform.Start > transform.End {

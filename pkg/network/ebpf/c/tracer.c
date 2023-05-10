@@ -10,11 +10,11 @@
 #ifdef COMPILE_PREBUILT
 #include "prebuilt/offsets.h"
 #endif
-#include "port.h"
 #include "skb.h"
 #include "sockfd.h"
-#include "tcp-recv.h"
-#include "tracer-events.h"
+#include "tracer/events.h"
+#include "tracer/port.h"
+#include "tracer/tcp_recv.h"
 #include "protocols/classification/tracer-maps.h"
 #include "protocols/classification/protocol-classification.h"
 
@@ -232,7 +232,7 @@ int kretprobe__tcp_close_flush(struct pt_regs *ctx) {
     return 0;
 }
 
-#if !defined(COMPILE_RUNTIME) || defined(FEATURE_IPV6_ENABLED)
+#if !defined(COMPILE_RUNTIME) || defined(FEATURE_UDPV6_ENABLED)
 
 static __always_inline void fl6_saddr(struct flowi6 *fl6, u64 *addr_h, u64 *addr_l) {
     if (!fl6 || !addr_h || !addr_l) {
@@ -345,7 +345,7 @@ static __always_inline int handle_ip6_skb(struct sock *sk, size_t size, struct f
 #if defined(COMPILE_CORE) || defined(COMPILE_PREBUILT)
 // commit: https://github.com/torvalds/linux/commit/26879da58711aa604a1b866cbeedd7e0f78f90ad
 // changed the arguments to ip6_make_skb and introduced the struct ipcm6_cookie
-SEC("kprobe/ip6_make_skb/pre_4_7_0")
+SEC("kprobe/ip6_make_skb")
 int kprobe__ip6_make_skb__pre_4_7_0(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     size_t len = (size_t)PT_REGS_PARM4(ctx);
@@ -366,9 +366,13 @@ SEC("kprobe/ip6_make_skb")
 int kprobe__ip6_make_skb(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     size_t len = (size_t)PT_REGS_PARM4(ctx);
+#if defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+    // commit: https://github.com/torvalds/linux/commit/f37a4cc6bb0ba08c2d9fd7d18a1da87161cbb7f9
+    struct inet_cork_full *cork_full = (struct inet_cork_full *)PT_REGS_PARM9(ctx);
+    struct flowi6 *fl6 = &cork_full->fl.u.ip6;
+#elif !defined(COMPILE_RUNTIME) || LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
     // commit: https://github.com/torvalds/linux/commit/26879da58711aa604a1b866cbeedd7e0f78f90ad
     // changed the arguments to ip6_make_skb and introduced the struct ipcm6_cookie
-#if !defined(COMPILE_RUNTIME) || LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
     struct flowi6 *fl6 = (struct flowi6 *)PT_REGS_PARM7(ctx);
 #else
     struct flowi6 *fl6 = (struct flowi6 *)PT_REGS_PARM9(ctx);
@@ -405,7 +409,7 @@ int kretprobe__ip6_make_skb(struct pt_regs *ctx) {
     return handle_ip6_skb(sk, size, fl6);
 }
 
-#endif // !COMPILE_RUNTIME || FEATURE_IVP6_ENABLED
+#endif // !COMPILE_RUNTIME || FEATURE_UDPV6_ENABLED
 
 
 static __always_inline u32 fl4_saddr(struct flowi4 *fl4) {
@@ -563,7 +567,7 @@ int kprobe__udp_recvmsg(struct pt_regs *ctx) {
     handle_udp_recvmsg(sk, msg, flags, udp_recv_sock);
 }
 
-#if !defined(COMPILE_RUNTIME) || defined(FEATURE_IPV6_ENABLED)
+#if !defined(COMPILE_RUNTIME) || defined(FEATURE_UDPV6_ENABLED)
 SEC("kprobe/udpv6_recvmsg")
 int kprobe__udpv6_recvmsg(struct pt_regs *ctx) {
 #if defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
@@ -577,7 +581,7 @@ int kprobe__udpv6_recvmsg(struct pt_regs *ctx) {
     struct msghdr *msg = NULL;
     handle_udp_recvmsg(sk, msg, flags, udp_recv_sock);
 }
-#endif // !COMPILE_RUNTIME || FEATURE_IPV6_ENABLED
+#endif // !COMPILE_RUNTIME || defined(FEATURE_UDPV6_ENABLED)
 
 static __always_inline int handle_udp_recvmsg_ret() {
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -590,12 +594,12 @@ int kretprobe__udp_recvmsg(struct pt_regs *ctx) {
     return handle_udp_recvmsg_ret();
 }
 
-#if !defined(COMPILE_RUNTIME) || defined(FEATURE_IPV6_ENABLED)
+#if !defined(COMPILE_RUNTIME) || defined(FEATURE_UDPV6_ENABLED)
 SEC("kretprobe/udpv6_recvmsg")
 int kretprobe__udpv6_recvmsg(struct pt_regs *ctx) {
     return handle_udp_recvmsg_ret();
 }
-#endif // !COMPILE_RUNTIME || FEATURE_IPV6_ENABLED
+#endif // !COMPILE_RUNTIME || defined(FEATURE_UDPV6_ENABLED)
 
 #if defined(COMPILE_CORE) || defined(COMPILE_PREBUILT)
 
@@ -670,7 +674,15 @@ int kprobe__udpv6_recvmsg_pre_4_7_0(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     struct msghdr *msg = (struct msghdr *)PT_REGS_PARM2(ctx);
     int flags = (int)PT_REGS_PARM5(ctx);
+#ifdef COMPILE_CORE
+    // on CO-RE we use only use the map to check if the
+    // receive was a peek, since we the use the kprobes
+    // on `skb_consume_udp` (and alternatives). These
+    // kprobes explicitly check the `udp_recv_sock` map
+    handle_udp_recvmsg(sk, msg, flags, udp_recv_sock);
+#else
     handle_udp_recvmsg(sk, msg, flags, udpv6_recv_sock);
+#endif
 }
 
 SEC("kprobe/udp_recvmsg")
@@ -686,7 +698,15 @@ int kprobe__udpv6_recvmsg_pre_4_1_0(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM2(ctx);
     struct msghdr *msg = (struct msghdr *)PT_REGS_PARM3(ctx);
     int flags = (int)PT_REGS_PARM6(ctx);
+#ifdef COMPILE_CORE
+    // on CO-RE we use only use the map to check if the
+    // receive was a peek, since we the use the kprobes
+    // on `skb_consume_udp` (and alternatives). These
+    // kprobes explicitly check the `udp_recv_sock` map
+    handle_udp_recvmsg(sk, msg, flags, udp_recv_sock);
+#else
     handle_udp_recvmsg(sk, msg, flags, udpv6_recv_sock);
+#endif
 }
 
 SEC("kretprobe/udp_recvmsg")
@@ -913,9 +933,7 @@ int kprobe__inet_csk_listen_stop(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/udp_destroy_sock")
-int kprobe__udp_destroy_sock(struct pt_regs *ctx) {
-    struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
+static __always_inline int handle_udp_destroy_sock(struct sock *skp) {
     conn_tuple_t tup = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
     int valid_tuple = read_conn_tuple(&tup, skp, pid_tgid, CONN_TYPE_UDP);
@@ -943,8 +961,25 @@ int kprobe__udp_destroy_sock(struct pt_regs *ctx) {
     return 0;
 }
 
+SEC("kprobe/udp_destroy_sock")
+int kprobe__udp_destroy_sock(struct pt_regs *ctx) {
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    return handle_udp_destroy_sock(sk);
+}
+
+SEC("kprobe/udpv6_destroy_sock")
+int kprobe__udpv6_destroy_sock(struct pt_regs *ctx) {
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    return handle_udp_destroy_sock(sk);
+}
+
 SEC("kretprobe/udp_destroy_sock")
 int kretprobe__udp_destroy_sock(struct pt_regs *ctx) {
+    flush_conn_close_if_full(ctx);
+    return 0;
+}
+SEC("kretprobe/udpv6_destroy_sock")
+int kretprobe__udpv6_destroy_sock(struct pt_regs *ctx) {
     flush_conn_close_if_full(ctx);
     return 0;
 }

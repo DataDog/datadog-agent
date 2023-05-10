@@ -19,6 +19,9 @@ spec:
     - name: datadog-agent-volume
       hostPath:
         path: /host/datadog-agent
+    - name: host-root-proc
+      hostPath:
+        path: /proc
   templates:
     - name: main
       inputs:

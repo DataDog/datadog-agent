@@ -19,7 +19,7 @@ spec:
           - name: ci_job_id
           - name: remote_configuration_enabled
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         envFrom:
           - secretRef:
               name: dd-keys
@@ -125,7 +125,9 @@ spec:
               systemProbe:
                 logLevel: TRACE
                 env:
-                  - name:  DD_RUNTIME_SECURITY_CONFIG_LOG_PATTERNS
+                  - name: HOST_PROC
+                    value: "/host/root/proc"
+                  - name: DD_RUNTIME_SECURITY_CONFIG_LOG_PATTERNS
                     value: "module.APIServer.*"
                   - name: DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR
                     value: "/tmp/runtime-security.d"
@@ -139,7 +141,12 @@ spec:
               - configMap:
                   name: cws-test-policy
                 name: cws-test-policy
+              - name: host-root-proc
+                hostPath:
+                  path: /host/proc
             volumeMounts:
+              - name: host-root-proc
+                mountPath: /host/root/proc
               - name: cws-test-policy
                 mountPath: /tmp/runtime-security.d/test.policy
                 subPath: test.policy
@@ -185,7 +192,7 @@ spec:
         parameters:
           - name: namespace
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           helm --namespace {{inputs.parameters.namespace}} uninstall datadog-agent
@@ -196,7 +203,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           set -euo pipefail
@@ -222,7 +229,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           set -euo pipefail
@@ -243,7 +250,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           set -euo pipefail
@@ -489,7 +496,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           set -euo pipefail
@@ -505,7 +512,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           set -euo pipefail
@@ -521,7 +528,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           set -euo pipefail
@@ -537,7 +544,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           set -euo pipefail
@@ -553,7 +560,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           set -euo pipefail
@@ -569,7 +576,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           set -euo pipefail
@@ -585,7 +592,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           set -euo pipefail
@@ -601,7 +608,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           set -euo pipefail
@@ -617,7 +624,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           set -euo pipefail
@@ -633,7 +640,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           set -euo pipefail
@@ -649,7 +656,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           set -euo pipefail
@@ -665,7 +672,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           set -euo pipefail

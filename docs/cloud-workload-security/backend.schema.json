@@ -810,6 +810,10 @@
         "is_kworker": {
           "type": "boolean",
           "description": "Indicates whether the process is a kworker"
+        },
+        "source": {
+          "type": "string",
+          "description": "Process source"
         }
       },
       "additionalProperties": false,
@@ -926,6 +930,10 @@
         "is_kworker": {
           "type": "boolean",
           "description": "Indicates whether the process is a kworker"
+        },
+        "source": {
+          "type": "string",
+          "description": "Process source"
         },
         "parent": {
           "$ref": "#/$defs/Process",
