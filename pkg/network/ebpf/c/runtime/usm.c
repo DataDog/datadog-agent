@@ -7,10 +7,8 @@
 #include "kconfig.h"
 #endif
 
-#include "tracer.h"
 #include "ip.h"
 #include "ipv6.h"
-#include "sockfd.h"
 #include "sock.h"
 #include "port_range.h"
 

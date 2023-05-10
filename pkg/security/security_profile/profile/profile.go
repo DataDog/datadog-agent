@@ -20,8 +20,9 @@ import (
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // SecurityProfile defines a security profile
@@ -45,7 +46,7 @@ type SecurityProfile struct {
 	Version string
 
 	// Metadata contains metadata for the current profile
-	Metadata dump.Metadata
+	Metadata mtdt.Metadata
 
 	// Tags defines the tags used to compute this profile
 	Tags []string
@@ -148,4 +149,11 @@ func LoadProfileFromFile(filepath string) (*proto.SecurityProfile, error) {
 		profile.Tags = append(profile.Tags, "image_tag:latest")
 	}
 	return profile, nil
+}
+
+// SendStats sends profile stats
+func (profile *SecurityProfile) SendStats(client statsd.ClientInterface) error {
+	profile.Lock()
+	defer profile.Unlock()
+	return profile.ActivityTree.SendStats(client)
 }

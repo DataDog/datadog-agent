@@ -49,13 +49,14 @@ func NewCIProfile() (Profile, error) {
 		return nil, fmt.Errorf("unable to compute name prefix, missing variables pipeline id: %s, project id: %s", pipelineID, projectID)
 	}
 
-	ciEnvironments := strings.Split(os.Getenv("CI_ENV_NAMES"), " ")
+  store := parameters.NewEnvStore(EnvPrefix)
+  
+  ciEnvironments := strings.Split(os.Getenv("CI_ENV_NAMES"), " ")
 	if len(ciEnvironments) == 0 {
 		ciEnvironments = defaultCIEnvs
-	}
 
 	return ciProfile{
-		baseProfile: newProfile("e2eci", ciEnvironments, &secretStore),
+		baseProfile: newProfile("e2eci", ciEnvironments, store, &secretStore),
 		ciUniqueID:  pipelineID + "-" + projectID,
 	}, nil
 }

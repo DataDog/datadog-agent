@@ -53,7 +53,7 @@ type ActivityDumpManager struct {
 	newEvent           func() *model.Event
 	processResolver    *process.Resolver
 	timeResolver       *stime.Resolver
-	tagsResolvers      *tags.Resolver
+	tagsResolvers      tags.Resolver
 	kernelVersion      *kernel.Version
 	manager            *manager.Manager
 	dumpHandler        ActivityDumpHandler
@@ -223,7 +223,7 @@ func (adm *ActivityDumpManager) HandleActivityDump(dump *api.ActivityDumpStreamM
 
 // NewActivityDumpManager returns a new ActivityDumpManager instance
 func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInterface, newEvent func() *model.Event, processResolver *process.Resolver, timeResolver *stime.Resolver,
-	tagsResolver *tags.Resolver, kernelVersion *kernel.Version, scrubber *procutil.DataScrubber, manager *manager.Manager) (*ActivityDumpManager, error) {
+	tagsResolver tags.Resolver, kernelVersion *kernel.Version, scrubber *procutil.DataScrubber, manager *manager.Manager) (*ActivityDumpManager, error) {
 	tracedPIDs, err := managerhelper.Map(manager, "traced_pids")
 	if err != nil {
 		return nil, err

@@ -9,7 +9,7 @@
 package ebpf
 
 /*
-#include "./c/tracer.h"
+#include "./c/tracer/tracer.h"
 */
 import "C"
 
