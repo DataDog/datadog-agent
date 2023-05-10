@@ -9,7 +9,7 @@
 static __always_inline u32 get_sk_cookie(struct sock *sk) {
 #if defined(COMPILE_RUNTIME) || defined(COMPILE_CORE)
     if (bpf_helper_exists(BPF_FUNC_get_prandom_u32)) {
-        return bpf_get_random_u32();
+        return bpf_get_prandom_u32();
     }
 #endif
 
