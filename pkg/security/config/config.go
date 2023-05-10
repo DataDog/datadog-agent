@@ -137,7 +137,7 @@ type RuntimeSecurityConfig struct {
 	// AnomalyDetectionUnstableProfileSizeThreshold defines the maximum size a profile can reach past which it is
 	// considered unstable
 	AnomalyDetectionUnstableProfileSizeThreshold int64
-	// AnomalyDetectionWorkloadWarmupPeriod defines the amount the duration we ignore the anomaly detections
+	// AnomalyDetectionWorkloadWarmupPeriod defines the duration we ignore the anomaly detections for
 	// because of workload warm up
 	AnomalyDetectionWorkloadWarmupPeriod time.Duration
 

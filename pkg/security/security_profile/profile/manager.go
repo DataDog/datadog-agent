@@ -72,7 +72,6 @@ var (
 	allEventFilteringResults           = []EventFilteringResult{NoProfile, InProfile, NotInProfile, UnstableProfile}
 	errUnstableProfileSizeLimitReached = errors.New("unstable profile: size limit reached")
 	errUnstableProfileTimeLimitReached = errors.New("unstable profile: time limit reached")
-	errWorkloadWarmingUp               = errors.New("ignore profile: workload warming up")
 )
 
 // SecurityProfileManager is used to manage Security Profiles
@@ -601,7 +600,7 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 }
 
 // tryAutolearn tries to autolearn the input event. The first return values is true if the event was autolearned,
-// in which case the seconf return value tells whether the node was already in the profile.
+// in which case the second return value tells whether the node was already in the profile.
 func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *model.Event) (bool, bool, error) {
 	// check if the unstable size limit was reached
 	if profile.ActivityTree.Stats.ApproximateSize() >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileSizeThreshold {
