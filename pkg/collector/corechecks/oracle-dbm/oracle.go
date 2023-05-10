@@ -48,6 +48,7 @@ type Check struct {
 	agentVersion                            string
 	checkInterval                           float64
 	tags                                    []string
+	tagsString                              string
 	cdbName                                 string
 	statementsFilter                        StatementsFilter
 	statementsCache                         StatementsCache
@@ -188,6 +189,7 @@ func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integratio
 	c.tags = c.config.Tags
 	c.tags = append(c.tags, fmt.Sprintf("dbms:%s", common.IntegrationName), fmt.Sprintf("ddagentversion:%s", c.agentVersion))
 
+	c.tagsString = strings.Join(c.tags, ",")
 	return nil
 }
 

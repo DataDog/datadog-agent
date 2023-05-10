@@ -216,7 +216,7 @@ type FQTPayload struct {
 	Host         string      `json:"host,omitempty"` // Host is the database hostname, not the agent hostname
 	AgentVersion string      `json:"ddagentversion,omitempty"`
 	Source       string      `json:"ddsource"`
-	Tags         []string    `json:"tags,omitempty"`
+	Tags         string      `json:"ddtags,omitempty"`
 	DBMType      string      `json:"dbm_type"`
 	FQTDB        FQTDB       `json:"db"`
 	FQTDBOracle  FQTDBOracle `json:"oracle"`
@@ -548,7 +548,7 @@ func (c *Check) StatementMetrics() (int, error) {
 					Host:         c.dbHostname,
 					AgentVersion: c.agentVersion,
 					Source:       common.IntegrationName,
-					Tags:         c.tags,
+					Tags:         c.tagsString,
 					DBMType:      "fqt",
 					FQTDB:        FQTDB,
 					FQTDBOracle:  FQTDBOracle,
