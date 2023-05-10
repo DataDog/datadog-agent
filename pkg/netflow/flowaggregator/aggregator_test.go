@@ -298,6 +298,7 @@ func TestAggregator_withMockPayload(t *testing.T) {
 	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.input_buffer.length", 0, "", nil)
 	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.sequence.delta", 6, "", []string{"exporter_ip:127.0.0.1", "device_namespace:default"})
 	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.sequence.last", 6, "", []string{"exporter_ip:127.0.0.1", "device_namespace:default"})
+	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.sequence.reset", 0, "", []string{"exporter_ip:127.0.0.1", "device_namespace:default"})
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.decoder.messages", 1, "", []string{"collector_type:netflow5", "worker:0"})
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.processor.flows", 1, "", []string{"exporter_ip:127.0.0.1", "version:5", "flow_protocol:netflow"})
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.processor.flowsets", 6, "", []string{"exporter_ip:127.0.0.1", "type:data_flow_set", "version:5", "flow_protocol:netflow"})
@@ -923,7 +924,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 						},
 					},
 					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
-						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 100, Delta: 100},
+						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 100, Delta: 100, Reset: true},
 					},
 				},
 			},
@@ -954,7 +955,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 						},
 					},
 					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
-						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 8900, Delta: 8900},
+						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 8900, Delta: 8900, Reset: true},
 					},
 				},
 				{ // negative delta without sequence reset
@@ -998,7 +999,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 						},
 					},
 					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
-						{FlowType: common.TypeSFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 8900, Delta: 8900},
+						{FlowType: common.TypeSFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 8900, Delta: 8900, Reset: true},
 					},
 				},
 				{ // negative delta without sequence reset
@@ -1042,7 +1043,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 						},
 					},
 					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
-						{FlowType: common.TypeNetFlow9, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 9800, Delta: 9800},
+						{FlowType: common.TypeNetFlow9, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 9800, Delta: 9800, Reset: true},
 					},
 				},
 				{ // negative delta without sequence reset
@@ -1086,7 +1087,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 						},
 					},
 					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
-						{FlowType: common.TypeIPFIX, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 9800, Delta: 9800},
+						{FlowType: common.TypeIPFIX, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 9800, Delta: 9800, Reset: true},
 					},
 				},
 				{ // negative delta without sequence reset
@@ -1116,8 +1117,8 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 				AggregatorRollupTrackerRefreshInterval: 3600,
 			}
 			agg := NewFlowAggregator(sender, nil, &conf, "my-hostname")
-			for _, testRound := range tt.rounds {
-				assert.Equal(t, testRound.expectedSequenceDelta, agg.getSequenceDelta(testRound.flowsToFlush))
+			for roundNum, testRound := range tt.rounds {
+				assert.Equal(t, testRound.expectedSequenceDelta, agg.getSequenceDelta(testRound.flowsToFlush), fmt.Sprintf("Test Round %d", roundNum))
 			}
 		})
 	}
