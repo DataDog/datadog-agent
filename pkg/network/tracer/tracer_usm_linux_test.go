@@ -754,9 +754,6 @@ func (s *USMSuite) TestJavaInjection() {
 		{
 			// Test the java hotspot injection is working
 			name: "java_hotspot_injection_8u151",
-			context: testContext{
-				extras: make(map[string]interface{}),
-			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				cfg.JavaDir = fakeAgentDir
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
@@ -774,9 +771,6 @@ func (s *USMSuite) TestJavaInjection() {
 		{
 			// Test the java hotspot injection is working
 			name: "java_hotspot_injection_21_allow_only",
-			context: testContext{
-				extras: make(map[string]interface{}),
-			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				cfg.JavaDir = fakeAgentDir
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
@@ -800,9 +794,6 @@ func (s *USMSuite) TestJavaInjection() {
 		{
 			// Test the java hotspot injection is working
 			name: "java_hotspot_injection_21_block_only",
-			context: testContext{
-				extras: make(map[string]interface{}),
-			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
 
@@ -823,9 +814,6 @@ func (s *USMSuite) TestJavaInjection() {
 		},
 		{
 			name: "java_hotspot_injection_21_allowblock",
-			context: testContext{
-				extras: make(map[string]interface{}),
-			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
 
@@ -845,9 +833,6 @@ func (s *USMSuite) TestJavaInjection() {
 		},
 		{
 			name: "java_hotspot_injection_21_allow_higher_priority",
-			context: testContext{
-				extras: make(map[string]interface{}),
-			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				ctx.extras["JavaAgentArgs"] = cfg.JavaAgentArgs
 
@@ -920,9 +905,6 @@ func (s *USMSuite) TestJavaInjection() {
 		},
 		{
 			name: "java_jdk_client_netty_openssl_httpbin_host_java15",
-			context: testContext{
-				extras: make(map[string]interface{}),
-			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				log.SetupLogger(seelog.Default, "debug")
 				cfg.JavaDir = legacyJavaDir
@@ -945,9 +927,6 @@ func (s *USMSuite) TestJavaInjection() {
 		},
 		{
 			name: "java_jdk_client_netty_openssl_refcnt_httpbin_host_java15",
-			context: testContext{
-				extras: make(map[string]interface{}),
-			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				log.SetupLogger(seelog.Default, "debug")
 				cfg.JavaDir = legacyJavaDir
@@ -971,6 +950,9 @@ func (s *USMSuite) TestJavaInjection() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			tt.context = testContext{
+				extras: make(map[string]interface{}),
+			}
 			if tt.teardown != nil {
 				t.Cleanup(func() {
 					tt.teardown(t, tt.context)
