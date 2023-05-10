@@ -16,11 +16,9 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcapgo"
+	"github.com/stretchr/testify/assert"
 	"net"
 	"testing"
-	"time"
-
-	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -47,7 +45,7 @@ func SendUDPPacket(port uint16, data []byte) error {
 	return err
 }
 
-func ExpectNetflow5Payloads(t *testing.T, mockEpForwrader *epforwarder.MockEventPlatformForwarder, now time.Time, host string, records int) {
+func ExpectNetflow5Payloads(t *testing.T, mockEpForwrader *epforwarder.MockEventPlatformForwarder) {
 	events := [][]byte{
 		[]byte(`
 {

@@ -56,14 +56,12 @@ network_devices:
 	// Flows will have 2x bytes/packets after aggregation
 	time.Sleep(100 * time.Millisecond) // wait to make sure goflow listener is started before sending
 
-	now := time.Unix(1494505756, 0)
-
 	packetData, err := testutil.GetNetFlow5Packet()
 	require.NoError(t, err, "error getting packet")
 	err = testutil.SendUDPPacket(port, packetData)
 	require.NoError(t, err, "error sending udp packet")
 
-	testutil.ExpectNetflow5Payloads(t, epForwarder, now, "my-hostname", 2)
+	testutil.ExpectNetflow5Payloads(t, epForwarder)
 
 	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), "network-devices-metadata").Return(nil).Times(1)
 
