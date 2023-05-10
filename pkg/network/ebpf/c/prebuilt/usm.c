@@ -66,18 +66,17 @@ int uretprobe__SSL_do_handshake(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     int ret = (int)PT_REGS_RC(ctx);
     log_debug("uretprobe/SSL_do_handshake: pid_tgid=%llx\n", pid_tgid);
-    // async mode probably
-    if (ret < 0) {
-        ssl_handshake_args_t *args = bpf_map_lookup_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
-        if (args == NULL) {
-            return 0;
-        }
-        ssl_handshake_args_t a = *args;
-        a.timestamp = bpf_ktime_get_ns();
-        bpf_map_update_with_telemetry(ssl_ctx_by_pid_tgid, &pid_tgid, &a, BPF_ANY);
+    if (ret >= 0) {
+        bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
         return 0;
     }
-    bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
+
+    // asynchronous mode probably
+    ssl_handshake_args_t *args = bpf_map_lookup_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
+    if (args == NULL) {
+        return 0;
+    }
+    args->timestamp = bpf_ktime_get_ns();
     return 0;
 }
 
