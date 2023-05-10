@@ -36,3 +36,11 @@ func (agent *Agent) initService(t *testing.T, data *agent.ClientData) error {
 func (agent *Agent) Status() string {
 	return agent.sshClient.Execute("sudo datadog-agent status")
 }
+
+func (agent *Agent) Version() string {
+	return agent.sshClient.Execute("datadog-agent version")
+}
+
+func (agent *Agent) Config() string {
+	return agent.sshClient.Execute("sudo datadog-agent config")
+}
