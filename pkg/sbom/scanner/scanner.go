@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
@@ -122,9 +123,9 @@ func (s *Scanner) start(ctx context.Context) {
 					scanTimeout = defaultScanTimeout
 				}
 
+				log.Info("scanning from %v, id: %s", reflect.TypeOf(request), request.ID())
 				scanContext, cancel := context.WithTimeout(ctx, scanTimeout)
 				createdAt := time.Now()
-				log.Info("scanning image %s", request.ID())
 				scanResult := collector.Scan(scanContext, request.ScanRequest, request.opts)
 				if scanResult.Error != nil {
 					telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "scan")

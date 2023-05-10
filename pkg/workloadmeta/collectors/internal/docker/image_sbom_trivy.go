@@ -51,7 +51,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 		),
 	)
 
-	ch := make(chan sbom.ScanResult, 10)
+	resultChan := make(chan sbom.ScanResult, 2000)
 	go func() {
 		for {
 			select {
@@ -72,7 +72,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 						continue
 					}
 
-					if err := c.extractBOMWithTrivy(ctx, image, ch); err != nil {
+					if err := c.extractSBOMWithTrivy(ctx, image, resultChan); err != nil {
 						log.Warnf("Error extracting SBOM for image: namespace=%s name=%s, err: %s", image.Namespace, image.Name, err)
 					}
 				}
@@ -81,7 +81,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 	}()
 
 	go func() {
-		for result := range ch {
+		for result := range resultChan {
 			if result.Error != nil {
 				log.Errorf("Failed to generate SBOM for docker: %s", result.Error)
 				continue
@@ -116,7 +116,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 	return nil
 }
 
-func (c *collector) extractBOMWithTrivy(ctx context.Context, storedImage *workloadmeta.ContainerImageMetadata, resultChan chan<- sbom.ScanResult) error {
+func (c *collector) extractSBOMWithTrivy(ctx context.Context, storedImage *workloadmeta.ContainerImageMetadata, resultChan chan<- sbom.ScanResult) error {
 	scanRequest := &docker.ScanRequest{
 		ImageMeta:    storedImage,
 		DockerClient: c.dockerUtil.RawClient(),
