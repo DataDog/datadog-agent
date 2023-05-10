@@ -6,6 +6,8 @@
 package client
 
 import (
+	"testing"
+
 	commonvm "github.com/DataDog/test-infra-definitions/common/vm"
 )
 
@@ -25,8 +27,8 @@ func NewVM(infraVM commonvm.VM) *VM {
 }
 
 //lint:ignore U1000 Ignore unused function as this function is call using reflection
-func (vm *VM) initService(data *commonvm.ClientData) error {
+func (vm *VM) initService(t *testing.T, data *commonvm.ClientData) error {
 	var err error
-	vm.sshClient, err = newSSHClient("", &data.Connection)
+	vm.sshClient, err = newSSHClient(t, "", &data.Connection)
 	return err
 }

@@ -6,6 +6,8 @@
 package client
 
 import (
+	"testing"
+
 	"github.com/DataDog/test-infra-definitions/datadog/agent"
 )
 
@@ -25,12 +27,12 @@ func NewAgent(installer *agent.Installer) *Agent {
 }
 
 //lint:ignore U1000 Ignore unused function as this function is call using reflection
-func (agent *Agent) initService(data *agent.ClientData) error {
+func (agent *Agent) initService(t *testing.T, data *agent.ClientData) error {
 	var err error
-	agent.sshClient, err = newSSHClient("", &data.Connection)
+	agent.sshClient, err = newSSHClient(t, "", &data.Connection)
 	return err
 }
 
-func (agent *Agent) Status() (string, error) {
+func (agent *Agent) Status() string {
 	return agent.sshClient.Execute("sudo datadog-agent status")
 }

@@ -205,7 +205,7 @@ func (suite *Suite[Env]) UpdateEnv(stackDef *StackDefinition[Env]) {
 		}
 		env, upResult, err := createEnv(suite, stackDef)
 		suite.Require().NoError(err)
-		err = client.CallStackInitializers(env, upResult)
+		err = client.CallStackInitializers(suite.T(), env, upResult)
 		suite.Require().NoError(err)
 		suite.env = env
 		suite.currentStackDef = stackDef

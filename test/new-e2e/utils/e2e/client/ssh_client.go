@@ -7,18 +7,21 @@ package client
 
 import (
 	"fmt"
+	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/clients"
 	"github.com/DataDog/test-infra-definitions/common/utils"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 )
 
 type sshClient struct {
 	client *ssh.Client
+	t      *testing.T
 }
 
-func newSSHClient(sshKey string, connection *utils.Connection) (*sshClient, error) {
+func newSSHClient(t *testing.T, sshKey string, connection *utils.Connection) (*sshClient, error) {
 	client, _, err := clients.GetSSHClient(
 		connection.User,
 		fmt.Sprintf("%s:%d", connection.Host, 22),
@@ -26,10 +29,18 @@ func newSSHClient(sshKey string, connection *utils.Connection) (*sshClient, erro
 		2*time.Second, 5)
 	return &sshClient{
 		client: client,
+		t:      t,
 	}, err
 }
 
-// Execute a command
-func (vm *sshClient) Execute(command string) (string, error) {
-	return clients.ExecuteCommand(vm.client, command)
+// ExecuteWithError executes a command and returns an error if any.
+func (sshClient *sshClient) ExecuteWithError(command string) (string, error) {
+	return clients.ExecuteCommand(sshClient.client, command)
+}
+
+// Execute execute a command and asserts there is no error.
+func (sshClient *sshClient) Execute(command string) string {
+	output, err := sshClient.ExecuteWithError(command)
+	require.NoError(sshClient.t, err)
+	return output
 }
