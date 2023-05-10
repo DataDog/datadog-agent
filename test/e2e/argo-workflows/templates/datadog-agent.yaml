@@ -20,7 +20,7 @@ spec:
           - name: remote_configuration_enabled
           - name: networkmonitoring_enabled
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         envFrom:
           - secretRef:
               name: dd-keys
@@ -193,7 +193,7 @@ spec:
         parameters:
           - name: namespace
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           helm --namespace {{inputs.parameters.namespace}} uninstall datadog-agent
@@ -204,7 +204,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           set -euo pipefail
@@ -230,7 +230,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           set -euo pipefail
@@ -251,7 +251,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           set -euo pipefail
@@ -497,7 +497,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           set -euo pipefail
@@ -513,7 +513,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           set -euo pipefail
@@ -529,7 +529,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           set -euo pipefail
@@ -545,7 +545,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           set -euo pipefail
@@ -561,7 +561,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           set -euo pipefail
@@ -577,7 +577,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           set -euo pipefail
@@ -593,7 +593,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           set -euo pipefail
@@ -609,7 +609,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           set -euo pipefail
@@ -625,7 +625,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           set -euo pipefail
@@ -641,7 +641,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           set -euo pipefail
@@ -657,7 +657,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           set -euo pipefail
@@ -673,7 +673,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: alpine/k8s:1.25.4
+        image: alpine/k8s:1.27.1
         command: [sh]
         source: |
           set -euo pipefail

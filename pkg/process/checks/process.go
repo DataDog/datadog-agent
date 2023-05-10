@@ -82,8 +82,7 @@ type ProcessCheck struct {
 	// will be reused by RT process collection to get stats
 	lastPIDs []int32
 
-	// SysprobeProcessModuleEnabled tells the process check wheither to use the RemoteSystemProbeUtil to gather privileged process stats
-	SysprobeProcessModuleEnabled bool
+	sysProbeConfig *SysProbeConfig
 
 	maxBatchSize  int
 	maxBatchBytes int
@@ -100,7 +99,7 @@ type ProcessCheck struct {
 // Init initializes the singleton ProcessCheck.
 func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
 	p.hostInfo = info
-	p.SysprobeProcessModuleEnabled = syscfg.ProcessModuleEnabled
+	p.sysProbeConfig = syscfg
 	p.probe = newProcessProbe(p.config, procutil.WithPermission(syscfg.ProcessModuleEnabled))
 	p.containerProvider = util.GetSharedContainerProvider()
 
@@ -559,13 +558,11 @@ func skipProcess(
 }
 
 func (p *ProcessCheck) getRemoteSysProbeUtil() *net.RemoteSysProbeUtil {
-	// if the Process module is disabled, we allow Probe to collect
-	// fields that require elevated permission to collect with best effort
-	if !p.SysprobeProcessModuleEnabled {
+	if !p.sysProbeConfig.ProcessModuleEnabled {
 		return nil
 	}
 
-	pu, err := net.GetRemoteSystemProbeUtil()
+	pu, err := net.GetRemoteSystemProbeUtil(p.sysProbeConfig.SystemProbeAddress)
 	if err != nil {
 		if p.notInitializedLogLimit.ShouldLog() {
 			log.Warnf("could not initialize system-probe connection in process check: %v (will only log every 10 minutes)", err)

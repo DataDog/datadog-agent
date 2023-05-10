@@ -18,11 +18,11 @@ type sshClient struct {
 	client *ssh.Client
 }
 
-func newSSHClient(auth *Authentification, connection *utils.Connection) (*sshClient, error) {
+func newSSHClient(sshKey string, connection *utils.Connection) (*sshClient, error) {
 	client, _, err := clients.GetSSHClient(
 		connection.User,
 		fmt.Sprintf("%s:%d", connection.Host, 22),
-		auth.SSHKey,
+		sshKey,
 		2*time.Second, 5)
 	return &sshClient{
 		client: client,

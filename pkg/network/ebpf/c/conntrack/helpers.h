@@ -6,8 +6,8 @@
 #include <linux/sched.h>
 
 #include "bpf_builtins.h"
-#include "tracer.h"
-#include "conntrack-types.h"
+
+#include "conntrack/types.h"
 #include "ip.h"
 #include "netns.h"
 #include "ipv6.h"

@@ -99,13 +99,11 @@ const (
 	Dot // dot
 	// Profile is used to request the generation of a profile
 	Profile // profile
-	// SecL is used to request the Secl policy format
-	SecL // secl
 )
 
 // AllStorageFormats returns the list of supported formats
 func AllStorageFormats() []StorageFormat {
-	return []StorageFormat{Json, Protobuf, Dot, Profile, SecL}
+	return []StorageFormat{Json, Protobuf, Dot, Profile}
 }
 
 // ParseStorageFormat returns a storage format from a string input

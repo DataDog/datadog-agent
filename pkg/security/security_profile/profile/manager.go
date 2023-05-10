@@ -48,6 +48,9 @@ const (
 	UnstableProfile
 )
 
+// DefaultProfileName used as default profile name
+const DefaultProfileName = "default"
+
 func (efr EventFilteringResult) toTag() string {
 	switch efr {
 	case NoProfile:
@@ -307,6 +310,10 @@ func FillProfileContextFromProfile(ctx *model.SecurityProfileContext, profile *S
 	defer profile.Unlock()
 
 	ctx.Name = profile.Metadata.Name
+	if ctx.Name == "" {
+		ctx.Name = DefaultProfileName
+	}
+
 	ctx.Version = profile.Version
 	ctx.Tags = profile.Tags
 	ctx.Status = profile.Status
@@ -389,7 +396,7 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 	profile.loadedInKernel = false
 
 	// decode the content of the profile
-	protoToSecurityProfile(profile, newProfile)
+	ProtoToSecurityProfile(profile, newProfile)
 	if profile.autolearnEnabled {
 		// reset the last anomaly timestamp to now
 		profile.lastAnomalyNano = uint64(m.timeResolver.ComputeMonotonicTimestamp(time.Now()))
