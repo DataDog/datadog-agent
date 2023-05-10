@@ -17,7 +17,7 @@ import (
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 )
 
-func protoToSecurityProfile(output *SecurityProfile, input *proto.SecurityProfile) {
+func ProtoToSecurityProfile(output *SecurityProfile, input *proto.SecurityProfile) {
 	if input == nil {
 		return
 	}

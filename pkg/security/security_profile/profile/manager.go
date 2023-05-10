@@ -389,7 +389,7 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 	profile.loadedInKernel = false
 
 	// decode the content of the profile
-	protoToSecurityProfile(profile, newProfile)
+	ProtoToSecurityProfile(profile, newProfile)
 	if profile.autolearnEnabled {
 		// reset the last anomaly timestamp to now
 		profile.lastAnomalyNano = uint64(m.timeResolver.ComputeMonotonicTimestamp(time.Now()))
