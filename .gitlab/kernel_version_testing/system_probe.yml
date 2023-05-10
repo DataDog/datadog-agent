@@ -158,7 +158,7 @@ kernel_matrix_testing_upload_deps:
     - .kitchen_ec2_location_us_east_1
   stage: kernel_matrix_testing
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:7c39524b
-  needs: ["kernel_matrix_testing_setup_env", "package_dependencies_x64", "package_dependencies_arm64"]
+  needs: ["go_deps", "kernel_matrix_testing_setup_env", "package_dependencies_x64", "package_dependencies_arm64"]
   tags: ["arch:amd64"]
   variables:
     EC2_X86_INSTANCE_TYPE: "i3.metal"
