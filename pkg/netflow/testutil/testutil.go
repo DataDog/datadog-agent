@@ -31,6 +31,9 @@ import (
 //go:embed pcap_recordings/netflow9.pcapng
 var netflow9pcapng []byte
 
+//go:embed pcap_recordings/sflow.pcapng
+var sflowpcapng []byte
+
 func SendUDPPacket(port uint16, data []byte) error {
 	udpConn, err := net.Dial("udp", fmt.Sprintf("127.0.0.1:%d", port))
 	if err != nil {
@@ -134,4 +137,8 @@ func GetPacketFromPcap(pcapdata []byte, layer gopacket.Decoder, packetIndex int)
 
 func GetNetFlow9Packet() ([]byte, error) {
 	return GetPacketFromPcap(netflow9pcapng, layers.LayerTypeLoopback, 0)
+}
+
+func GetSFlow5Packet() ([]byte, error) {
+	return GetPacketFromPcap(sflowpcapng, layers.LayerTypeEthernet, 1)
 }

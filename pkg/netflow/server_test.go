@@ -148,7 +148,10 @@ network_devices:
 
 	time.Sleep(100 * time.Millisecond) // wait to make sure goflow listener is started before sending
 
-	err = testutil.SendUDPPacket(port, testutil.SFlow5Payload)
+	data, err := testutil.GetSFlow5Packet()
+	require.NoError(t, err, "error getting sflow data")
+
+	err = testutil.SendUDPPacket(port, data)
 	require.NoError(t, err, "error sending udp packet")
 
 	// Test later content of payloads if needed for more precise test.
