@@ -12,19 +12,24 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/atomic"
-
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 )
 
-const (
-	perfReceivedStat = "perf_recv"
-	perfLostStat     = "perf_lost"
-)
+const closeConsumerModuleName = "network_tracer__ebpf"
+
+// Telemetry
+var closerConsumerTelemetry = struct {
+	perfReceived telemetry.Counter
+	perfLost     telemetry.Counter
+}{
+	telemetry.NewCounter(closeConsumerModuleName, "closed_conn_polling_received", []string{}, "Counter measuring the number of closed connection batches received"),
+	telemetry.NewCounter(closeConsumerModuleName, "closed_conn_polling_lost", []string{}, "Counter measuring the number of batches lost (were transmitted from ebpf but never received)"),
+}
 
 type tcpCloseConsumer struct {
 	perfHandler  *ddebpf.PerfHandler
@@ -32,10 +37,6 @@ type tcpCloseConsumer struct {
 	requests     chan chan struct{}
 	buffer       *network.ConnectionBuffer
 	once         sync.Once
-
-	// Telemetry
-	perfReceived *atomic.Int64
-	perfLost     *atomic.Int64
 }
 
 func newTCPCloseConsumer(m *manager.Manager, perfHandler *ddebpf.PerfHandler, batchManager *perfBatchManager) (*tcpCloseConsumer, error) {
@@ -44,8 +45,6 @@ func newTCPCloseConsumer(m *manager.Manager, perfHandler *ddebpf.PerfHandler, ba
 		batchManager: batchManager,
 		requests:     make(chan chan struct{}),
 		buffer:       network.NewConnectionBuffer(netebpf.BatchSize, netebpf.BatchSize),
-		perfReceived: atomic.NewInt64(0),
-		perfLost:     atomic.NewInt64(0),
 	}
 	return c, nil
 }
@@ -58,13 +57,6 @@ func (c *tcpCloseConsumer) FlushPending() {
 	wait := make(chan struct{})
 	c.requests <- wait
 	<-wait
-}
-
-func (c *tcpCloseConsumer) GetStats() map[string]int64 {
-	return map[string]int64{
-		perfReceivedStat: c.perfReceived.Load(),
-		perfLostStat:     c.perfLost.Load(),
-	}
 }
 
 func (c *tcpCloseConsumer) Stop() {
@@ -95,7 +87,7 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 					return
 				}
 
-				c.perfReceived.Inc()
+				closerConsumerTelemetry.perfReceived.Inc()
 				batch := netebpf.ToBatch(batchData.Data)
 				c.batchManager.ExtractBatchInto(c.buffer, batch, batchData.CPU)
 				closedCount += c.buffer.Len()
@@ -106,7 +98,7 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 				if !ok {
 					return
 				}
-				c.perfLost.Add(int64(lc))
+				closerConsumerTelemetry.perfLost.Add(float64(lc))
 				lostCount += netebpf.BatchSize
 			case request, ok := <-c.requests:
 				if !ok {

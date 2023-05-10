@@ -102,7 +102,9 @@ network_devices:
 
 	time.Sleep(100 * time.Millisecond) // wait to make sure goflow listener is started before sending
 
-	err = testutil.SendUDPPacket(port, testutil.Netflow9PayloadWithTemplateAndData)
+	packetData, err := testutil.GetNetFlow9Packet()
+	require.NoError(t, err, "error getting packet")
+	err = testutil.SendUDPPacket(port, packetData)
 	require.NoError(t, err, "error sending udp packet")
 
 	// Test later content of payloads if needed for more precise test.

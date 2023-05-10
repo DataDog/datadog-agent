@@ -139,6 +139,10 @@ func TestOffsetGuess(t *testing.T) {
 	require.NoError(t, err, "could not read offset bpf module")
 	t.Cleanup(func() { offsetBuf.Close() })
 
+	// prebuilt on 5.18+ does not support UDPv6
+	if kv >= kernel.VersionCode(5, 18, 0) {
+		cfg.CollectUDPv6Conns = false
+	}
 	_consts, err := runOffsetGuessing(cfg, offsetBuf, offsetguess.NewTracerOffsetGuesser)
 	require.NoError(t, err)
 	cts, err := runOffsetGuessing(cfg, offsetBuf, func() (offsetguess.OffsetGuesser, error) {

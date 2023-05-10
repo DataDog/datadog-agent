@@ -11,7 +11,7 @@
 #include "bpf_endian.h"
 
 #include "ip.h"
-#include "tracer-maps.h"
+#include "tracer/maps.h"
 #include "compiler.h"
 
 enum telemetry_counter

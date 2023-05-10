@@ -25,12 +25,12 @@ const (
 
 // CheckPath is used in conjunction with calling the stats endpoint, since we are calling this
 // From the main agent and want to ensure the socket exists
-func CheckPath() error {
-	if globalSocketPath == "" {
-		return fmt.Errorf("remote tracer has no path defined")
+func CheckPath(path string) error {
+	if path == "" {
+		return fmt.Errorf("socket path is empty")
 	}
 
-	if _, err := os.Stat(globalSocketPath); err != nil {
+	if _, err := os.Stat(path); err != nil {
 		return fmt.Errorf("socket path does not exist: %v", err)
 	}
 	return nil

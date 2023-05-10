@@ -17,6 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	fileprovider "github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/file/provider"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tailers"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -36,7 +38,7 @@ type Launcher struct {
 	activeSources       []*sources.LogSource
 	tailingLimit        int
 	fileProvider        *fileprovider.FileProvider
-	tailers             map[string]*tailer.Tailer
+	tailers             *tailers.TailerContainer[*tailer.Tailer]
 	registry            auditor.Registry
 	tailerSleepDuration time.Duration
 	stop                chan struct{}
@@ -64,7 +66,7 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 	return &Launcher{
 		tailingLimit:           tailingLimit,
 		fileProvider:           fileprovider.NewFileProvider(tailingLimit, wildcardStrategy),
-		tailers:                make(map[string]*tailer.Tailer),
+		tailers:                tailers.NewTailerContainer[*tailer.Tailer](),
 		tailerSleepDuration:    tailerSleepDuration,
 		stop:                   make(chan struct{}),
 		validatePodContainerID: validatePodContainerID,
@@ -73,10 +75,11 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 }
 
 // Start starts the Launcher
-func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
+func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
 	s.pipelineProvider = pipelineProvider
 	s.addedSources, s.removedSources = sourceProvider.SubscribeForType(config.FileType)
 	s.registry = registry
+	tracker.Add(s.tailers)
 	go s.run()
 }
 
@@ -110,9 +113,9 @@ func (s *Launcher) run() {
 // cleanup all tailers
 func (s *Launcher) cleanup() {
 	stopper := startstop.NewParallelStopper()
-	for scanKey, tailer := range s.tailers {
+	for _, tailer := range s.tailers.All() {
 		stopper.Add(tailer)
-		delete(s.tailers, scanKey)
+		s.tailers.Remove(tailer)
 	}
 	stopper.Stop()
 }
@@ -125,7 +128,7 @@ func (s *Launcher) scan() {
 	files := s.fileProvider.FilesToTail(s.validatePodContainerID, s.activeSources)
 	filesTailed := make(map[string]bool)
 
-	log.Debugf("Scan - got %d files from FilesToTail and currently tailing %d files\n", len(files), len(s.tailers))
+	log.Debugf("Scan - got %d files from FilesToTail and currently tailing %d files\n", len(files), s.tailers.Count())
 
 	// Pass 1 - Compare 'files' to our current set of tailed files. If any no longer need to be tailed,
 	// stop the tailers.
@@ -141,7 +144,7 @@ func (s *Launcher) scan() {
 		// when a tailer for a dead container is still tailing the file, and another
 		// tailer is tailing the file for the new container).
 		scanKey := file.GetScanKey()
-		tailer, isTailed := s.tailers[scanKey]
+		tailer, isTailed := s.tailers.Get(scanKey)
 		if isTailed && tailer.IsFinished() {
 			// skip this tailer as it must be stopped
 			continue
@@ -170,20 +173,20 @@ func (s *Launcher) scan() {
 		filesTailed[scanKey] = true
 	}
 
-	for scanKey, tailer := range s.tailers {
+	for _, tailer := range s.tailers.All() {
 		// stop all tailers which have not been selected
-		_, shouldTail := filesTailed[scanKey]
+		_, shouldTail := filesTailed[tailer.GetId()]
 		if !shouldTail {
-			s.stopTailer(scanKey, tailer)
+			s.stopTailer(tailer)
 		}
 	}
 
-	tailersLen := len(s.tailers)
+	tailersLen := s.tailers.Count()
 	log.Debugf("After stopping tailers, there are %d tailers running.\n", tailersLen)
 
 	for _, file := range files {
 		scanKey := file.GetScanKey()
-		_, isTailed := s.tailers[scanKey]
+		isTailed := s.tailers.Contains(scanKey)
 		if !isTailed && tailersLen < s.tailingLimit {
 			// create a new tailer tailing from the beginning of the file if no offset has been recorded
 			succeeded := s.startNewTailer(file, config.Beginning)
@@ -225,7 +228,7 @@ func (s *Launcher) removeSource(source *sources.LogSource) {
 // launch launches new tailers for a new source.
 func (s *Launcher) launchTailers(source *sources.LogSource) {
 	// If we're at the limit already, no need to do a 'CollectFiles', just wait for the next 'scan'
-	if len(s.tailers) >= s.tailingLimit {
+	if s.tailers.Count() >= s.tailingLimit {
 		return
 	}
 	files, err := s.fileProvider.CollectFiles(source)
@@ -235,10 +238,10 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 		return
 	}
 	for _, file := range files {
-		if len(s.tailers) >= s.tailingLimit {
+		if s.tailers.Count() >= s.tailingLimit {
 			return
 		}
-		if tailer, isTailed := s.tailers[file.GetScanKey()]; isTailed {
+		if tailer, isTailed := s.tailers.Get(file.GetScanKey()); isTailed {
 			// the file is already tailed, update the existing tailer's source so that the tailer
 			// uses this new source going forward
 			tailer.ReplaceSource(source)
@@ -284,7 +287,7 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode) bool 
 		return false
 	}
 
-	s.tailers[file.GetScanKey()] = tailer
+	s.tailers.Add(tailer)
 	return true
 }
 
@@ -311,9 +314,9 @@ func (s *Launcher) handleTailingModeChange(tailerID string, currentTailingMode c
 }
 
 // stopTailer stops the tailer
-func (s *Launcher) stopTailer(scanKey string, tailer *tailer.Tailer) {
+func (s *Launcher) stopTailer(tailer *tailer.Tailer) {
 	go tailer.Stop()
-	delete(s.tailers, scanKey)
+	s.tailers.Remove(tailer)
 }
 
 // restartTailer safely stops tailer and starts a new one
@@ -328,17 +331,19 @@ func (s *Launcher) restartTailerAfterFileRotation(tailer *tailer.Tailer, file *t
 		log.Warn(err)
 		return false
 	}
-	s.tailers[file.GetScanKey()] = tailer
+	s.tailers.Add(tailer)
 	return true
 }
 
 // createTailer returns a new initialized tailer
 func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Message) *tailer.Tailer {
-	return tailer.NewTailer(outputChan, file, s.tailerSleepDuration, decoder.NewDecoderFromSource(file.Source))
+	tailerInfo := status.NewInfoRegistry()
+	return tailer.NewTailer(outputChan, file, s.tailerSleepDuration, decoder.NewDecoderFromSource(file.Source, tailerInfo), tailerInfo)
 }
 
 func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, pattern *regexp.Regexp) *tailer.Tailer {
-	return t.NewRotatedTailer(file, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern))
+	tailerInfo := status.NewInfoRegistry()
+	return t.NewRotatedTailer(file, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo)
 }
 
 func CheckProcessTelemetry(stats *util.ProcessFileStats) {

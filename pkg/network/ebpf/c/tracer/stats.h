@@ -5,9 +5,9 @@
 #include "bpf_core_read.h"
 #include "defs.h"
 
-#include "tracer.h"
-#include "tracer-maps.h"
-#include "tracer-telemetry.h"
+#include "tracer/tracer.h"
+#include "tracer/maps.h"
+#include "tracer/telemetry.h"
 #include "cookie.h"
 #include "sock.h"
 #include "protocols/classification/tracer-maps.h"

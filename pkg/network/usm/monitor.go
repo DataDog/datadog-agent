@@ -11,9 +11,10 @@ package usm
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"syscall"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 
 	"github.com/cilium/ebpf"
 
@@ -254,9 +255,8 @@ func (m *Monitor) GetUSMStats() map[string]interface{} {
 	}
 
 	if m != nil {
-		response["last_check"] = m.httpTelemetry.Then
+		response["last_check"] = m.httpTelemetry.LastCheck.Load()
 	}
-
 	return response
 }
 

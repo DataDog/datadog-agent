@@ -20,7 +20,7 @@ import (
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -45,7 +45,7 @@ type SecurityProfile struct {
 	Version string
 
 	// Metadata contains metadata for the current profile
-	Metadata dump.Metadata
+	Metadata mtdt.Metadata
 
 	// Tags defines the tags used to compute this profile
 	Tags []string

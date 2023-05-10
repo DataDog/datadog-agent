@@ -34,18 +34,44 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	usmtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
+const tracerModuleName = "network_tracer"
+
+// Telemetry
+// Will track the count of expired TCP connections
+// We are manually expiring TCP connections because it seems that we are losing some TCP close events
+// For now we are only tracking the `tcp_close` probe, but we should also track the `tcp_set_state` probe when
+// states are set to `TCP_CLOSE_WAIT`, `TCP_CLOSE` and `TCP_FIN_WAIT1` we should probably also track `tcp_time_wait`
+// However there are some caveats by doing that:
+// - `tcp_set_state` does not have access to the PID of the connection => we have to remove the PID from the connection tuple (which can lead to issues)
+// - We will have multiple probes that can trigger for the same connection close event => we would have to add something to dedupe those
+// - - Using the timestamp does not seem to be reliable (we are already seeing unordered connections)
+// - - Having IDs for those events would need to have an internal monotonic counter and this is tricky to manage (race conditions, cleaning)
+//
+// If we want to have a way to track the # of active TCP connections in the future we could use the procfs like here: https://github.com/DataDog/datadog-agent/pull/3728
+// to determine whether a connection is truly closed or not
+var tracerTelemetry = struct {
+	skippedConns     telemetry.Counter
+	expiredTCPConns  telemetry.Counter
+	closedConns      *nettelemetry.StatCounterWrapper
+	connStatsMapSize telemetry.Gauge
+}{
+	telemetry.NewCounter(tracerModuleName, "skipped_conns", []string{}, "Counter measuring skipped TCP connections"),
+	telemetry.NewCounter(tracerModuleName, "expired_tcp_conns", []string{}, "Counter measuring expired TCP connections"),
+	nettelemetry.NewStatCounterWrapper(tracerModuleName, "closed_conns", []string{}, "Counter measuring closed TCP connections"),
+	telemetry.NewGauge(tracerModuleName, "conn_stats_map_size", []string{}, "Gauge measuring the size of the active connections map"),
+}
 
 // Tracer implements the functionality of the network tracer
 type Tracer struct {
@@ -55,26 +81,8 @@ type Tracer struct {
 	reverseDNS   dns.ReverseDNS
 	usmMonitor   *usm.Monitor
 	ebpfTracer   connection.Tracer
-	bpfTelemetry *telemetry.EBPFTelemetry
-
-	// Telemetry
-	skippedConns *atomic.Int64 `stats:""`
-	// Will track the count of expired TCP connections
-	// We are manually expiring TCP connections because it seems that we are losing some TCP close events
-	// For now we are only tracking the `tcp_close` probe, but we should also track the `tcp_set_state` probe when
-	// states are set to `TCP_CLOSE_WAIT`, `TCP_CLOSE` and `TCP_FIN_WAIT1` we should probably also track `tcp_time_wait`
-	// However there are some caveats by doing that:
-	// - `tcp_set_state` does not have access to the PID of the connection => we have to remove the PID from the connection tuple (which can lead to issues)
-	// - We will have multiple probes that can trigger for the same connection close event => we would have to add something to dedupe those
-	// - - Using the timestamp does not seem to be reliable (we are already seeing unordered connections)
-	// - - Having IDs for those events would need to have an internal monotonic counter and this is tricky to manage (race conditions, cleaning)
-	//
-	// If we want to have a way to track the # of active TCP connections in the future we could use the procfs like here: https://github.com/DataDog/datadog-agent/pull/3728
-	// to determine whether a connection is truly closed or not
-	expiredTCPConns  *atomic.Int64 `stats:""`
-	closedConns      *atomic.Int64 `stats:""`
-	connStatsMapSize *atomic.Int64 `stats:""`
-	lastCheck        *atomic.Int64 `stats:""`
+	bpfTelemetry *nettelemetry.EBPFTelemetry
+	lastCheck    *atomic.Int64
 
 	activeBuffer *network.ConnectionBuffer
 	bufferLock   sync.Mutex
@@ -91,6 +99,8 @@ type Tracer struct {
 	processCache *processCache
 
 	timeResolver *TimeResolver
+
+	exitTelemetry chan struct{}
 }
 
 // NewTracer creates a Tracer
@@ -109,7 +119,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 
 // newTracer is an internal function used by tests primarily
 // (and NewTracer above)
-func newTracer(config *config.Config) (*Tracer, error) {
+func newTracer(cfg *config.Config) (*Tracer, error) {
 	if _, err := tracefs.Root(); err != nil {
 		return nil, fmt.Errorf("system-probe unsupported: %s", err)
 	}
@@ -128,95 +138,97 @@ func newTracer(config *config.Config) (*Tracer, error) {
 	}
 
 	usmSupported := currKernelVersion >= http.MinimumKernelVersion
-	if !usmSupported && config.ServiceMonitoringEnabled {
+	if !usmSupported && cfg.ServiceMonitoringEnabled {
 		errStr := fmt.Sprintf("Universal Service Monitoring (USM) requires a Linux kernel version of %s or higher. We detected %s", http.MinimumKernelVersion, currKernelVersion)
-		if !config.NPMEnabled {
+		if !cfg.NPMEnabled {
 			return nil, fmt.Errorf(errStr)
 		}
 		log.Warnf("%s. NPM is explicitly enabled, so system-probe will continue with only NPM features enabled.", errStr)
-		config.EnableHTTPMonitoring = false
-		config.EnableHTTP2Monitoring = false
-		config.EnableHTTPSMonitoring = false
+		cfg.EnableHTTPMonitoring = false
+		cfg.EnableHTTP2Monitoring = false
+		cfg.EnableHTTPSMonitoring = false
 	}
 
 	http2Supported := http.HTTP2Supported()
-	if !http2Supported && config.ServiceMonitoringEnabled {
-		config.EnableHTTP2Monitoring = false
+	if !http2Supported && cfg.ServiceMonitoringEnabled {
+		cfg.EnableHTTP2Monitoring = false
 		log.Warnf("http2 requires a Linux kernel version of %s or higher. We detected %s", http.HTTP2MinimumKernelVersion, currKernelVersion)
 	}
 
-	offsetBuf, err := netebpf.ReadOffsetBPFModule(config.BPFDir, config.BPFDebug)
+	offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir, cfg.BPFDebug)
 	if err != nil {
 		return nil, fmt.Errorf("could not read offset bpf module: %s", err)
 	}
 	defer offsetBuf.Close()
 
 	// Offset guessing has been flaky for some customers, so if it fails we'll retry it up to 5 times
-	needsOffsets := !config.EnableRuntimeCompiler || config.AllowPrecompiledFallback
+	needsOffsets := !cfg.EnableRuntimeCompiler || cfg.AllowPrecompiledFallback
 	var constantEditors []manager.ConstantEditor
 	if needsOffsets {
-		if constantEditors, err = runOffsetGuessing(config, offsetBuf, offsetguess.NewTracerOffsetGuesser); err != nil {
+		// we must create a copy of the config as-if we were loading prebuilt
+		var ogConfig = *cfg
+		// prebuilt on 5.18+ cannot support UDPv6
+		if currKernelVersion >= kernel.VersionCode(5, 18, 0) {
+			ogConfig.CollectUDPv6Conns = false
+		}
+		if constantEditors, err = runOffsetGuessing(&ogConfig, offsetBuf, offsetguess.NewTracerOffsetGuesser); err != nil {
 			return nil, fmt.Errorf("error guessing offsets: %s", err)
 		}
 	}
 
-	var bpfTelemetry *telemetry.EBPFTelemetry
+	var bpfTelemetry *nettelemetry.EBPFTelemetry
 	if usmSupported {
-		bpfTelemetry = telemetry.NewEBPFTelemetry()
+		bpfTelemetry = nettelemetry.NewEBPFTelemetry()
 	}
 
-	ebpfTracer, err := connection.NewTracer(config, constantEditors, bpfTelemetry)
+	ebpfTracer, err := connection.NewTracer(cfg, constantEditors, bpfTelemetry)
 	if err != nil {
 		return nil, err
 	}
 
-	conntracker, err := newConntracker(config, bpfTelemetry, constantEditors)
+	conntracker, err := newConntracker(cfg, bpfTelemetry, constantEditors)
 	if err != nil {
 		return nil, err
 	}
 
 	state := network.NewState(
-		config.ClientStateExpiry,
-		config.MaxClosedConnectionsBuffered,
-		config.MaxConnectionsStateBuffered,
-		config.MaxDNSStatsBuffered,
-		config.MaxHTTPStatsBuffered,
-		config.MaxKafkaStatsBuffered,
+		cfg.ClientStateExpiry,
+		cfg.MaxClosedConnectionsBuffered,
+		cfg.MaxConnectionsStateBuffered,
+		cfg.MaxDNSStatsBuffered,
+		cfg.MaxHTTPStatsBuffered,
+		cfg.MaxKafkaStatsBuffered,
 	)
 
-	gwLookup := newGatewayLookup(config)
+	gwLookup := newGatewayLookup(cfg)
 	if gwLookup != nil {
 		log.Info("gateway lookup enabled")
 	}
 
 	tr := &Tracer{
-		config:                     config,
+		config:                     cfg,
 		state:                      state,
-		reverseDNS:                 newReverseDNS(config),
-		usmMonitor:                 newUSMMonitor(config, ebpfTracer, bpfTelemetry, constantEditors),
+		reverseDNS:                 newReverseDNS(cfg),
+		usmMonitor:                 newUSMMonitor(cfg, ebpfTracer, bpfTelemetry, constantEditors),
 		activeBuffer:               network.NewConnectionBuffer(512, 256),
 		conntracker:                conntracker,
-		sourceExcludes:             network.ParseConnectionFilters(config.ExcludedSourceConnections),
-		destExcludes:               network.ParseConnectionFilters(config.ExcludedDestinationConnections),
-		sysctlUDPConnTimeout:       sysctl.NewInt(config.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout", time.Minute),
-		sysctlUDPConnStreamTimeout: sysctl.NewInt(config.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout_stream", time.Minute),
+		sourceExcludes:             network.ParseConnectionFilters(cfg.ExcludedSourceConnections),
+		destExcludes:               network.ParseConnectionFilters(cfg.ExcludedDestinationConnections),
+		sysctlUDPConnTimeout:       sysctl.NewInt(cfg.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout", time.Minute),
+		sysctlUDPConnStreamTimeout: sysctl.NewInt(cfg.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout_stream", time.Minute),
 		gwLookup:                   gwLookup,
 		ebpfTracer:                 ebpfTracer,
-
-		skippedConns:     atomic.NewInt64(0),
-		expiredTCPConns:  atomic.NewInt64(0),
-		closedConns:      atomic.NewInt64(0),
-		connStatsMapSize: atomic.NewInt64(0),
-		lastCheck:        atomic.NewInt64(0),
-		bpfTelemetry:     bpfTelemetry,
+		bpfTelemetry:               bpfTelemetry,
+		lastCheck:                  atomic.NewInt64(time.Now().Unix()),
+		exitTelemetry:              make(chan struct{}),
 	}
 
-	if config.EnableProcessEventMonitoring {
+	if cfg.EnableProcessEventMonitoring {
 		if err = events.Init(); err != nil {
 			return nil, fmt.Errorf("could not initialize event monitoring: %w", err)
 		}
 
-		if tr.processCache, err = newProcessCache(config.MaxProcessesTracked, defaultFilteredEnvs); err != nil {
+		if tr.processCache, err = newProcessCache(cfg.MaxProcessesTracked, defaultFilteredEnvs); err != nil {
 			return nil, fmt.Errorf("could not create process cache; %w", err)
 		}
 
@@ -226,6 +238,21 @@ func newTracer(config *config.Config) (*Tracer, error) {
 			return nil, fmt.Errorf("could not create time resolver: %w", err)
 		}
 	}
+
+	// Refreshes tracer telemetry on a loop
+	// TODO: Replace with prometheus collector interface
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				ddebpf.GetProbeStats()
+			case <-tr.exitTelemetry:
+				return
+			}
+		}
+	}()
 
 	return tr, nil
 }
@@ -247,7 +274,7 @@ func (tr *Tracer) start() error {
 	return nil
 }
 
-func newConntracker(cfg *config.Config, bpfTelemetry *telemetry.EBPFTelemetry, constants []manager.ConstantEditor) (netlink.Conntracker, error) {
+func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry, constants []manager.ConstantEditor) (netlink.Conntracker, error) {
 	if !cfg.EnableConntrack {
 		return netlink.NewNoOpConntracker(), nil
 	}
@@ -339,8 +366,8 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 	}
 
 	connections = connections[rejected:]
-	t.closedConns.Add(int64(len(connections)))
-	t.skippedConns.Add(int64(rejected))
+	tracerTelemetry.closedConns.Add(int64(len(connections)))
+	tracerTelemetry.skippedConns.Add(float64(rejected))
 	t.state.StoreClosedConnections(connections)
 }
 
@@ -391,6 +418,7 @@ func (t *Tracer) Stop() {
 	t.usmMonitor.Stop()
 	t.conntracker.Close()
 	t.processCache.Stop()
+	close(t.exitTelemetry)
 }
 
 // GetActiveConnections returns the delta for connection info from the last time it was called with the same clientID
@@ -452,40 +480,12 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 		network.MonotonicKprobesTriggered: kprobeStats.Hits,
 		network.MonotonicKprobesMissed:    kprobeStats.Misses,
 		network.ConnsBpfMapSize:           int64(mapSize),
-		network.MonotonicConnsClosed:      t.closedConns.Load(),
+		network.MonotonicConnsClosed:      tracerTelemetry.closedConns.Load(),
 	}
 
 	stats, err := t.getStats(conntrackStats, dnsStats, epbfStats, httpStats, stateStats, kafkaStats)
 	if err != nil {
 		return nil
-	}
-
-	conntrackStats := stats["conntrack"].(map[string]int64)
-	if rt, ok := conntrackStats["registers_total"]; ok {
-		tm[network.MonotonicConntrackRegisters] = rt
-	}
-	if sp, ok := conntrackStats["sampling_pct"]; ok {
-		tm[network.ConntrackSamplingPercent] = sp
-	}
-
-	dnsStats := stats["dns"].(map[string]int64)
-	if pp, ok := dnsStats["packets_processed"]; ok {
-		tm[network.MonotonicDNSPacketsProcessed] = pp
-	}
-
-	if ds, ok := dnsStats["dropped_stats"]; ok {
-		tm[network.DNSStatsDropped] = ds
-	}
-
-	ebpfStats := stats["ebpf"].(map[string]int64)
-	if usp, ok := ebpfStats["udp_sends_processed"]; ok {
-		tm[network.MonotonicUDPSendsProcessed] = usp
-	}
-	if usm, ok := ebpfStats["udp_sends_missed"]; ok {
-		tm[network.MonotonicUDPSendsMissed] = usm
-	}
-	if pl, ok := ebpfStats["closed_conn_polling_lost"]; ok {
-		tm[network.MonotonicPerfLost] = pl
 	}
 
 	stateStats := stats["state"].(map[string]int64)
@@ -538,14 +538,14 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 		if t.connectionExpired(c, uint64(latestTime), cachedConntrack) {
 			expired = append(expired, *c)
 			if c.Type == network.TCP {
-				t.expiredTCPConns.Inc()
+				tracerTelemetry.expiredTCPConns.Inc()
 			}
-			t.closedConns.Inc()
+			tracerTelemetry.closedConns.Inc()
 			return false
 		}
 
 		if t.shouldSkipConnection(c) {
-			t.skippedConns.Inc()
+			tracerTelemetry.skippedConns.Inc()
 			return false
 		}
 		return true
@@ -573,7 +573,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 	} else if (float64(entryCount) / float64(t.config.MaxTrackedConnections)) >= 0.9 {
 		log.Warnf("connection tracking map size of %d is approaching the limit of %d. The config value `system_probe_config.max_tracked_connections` may be increased to avoid any accuracy problems.", entryCount, t.config.MaxTrackedConnections)
 	}
-	t.connStatsMapSize.Store(int64(entryCount))
+	tracerTelemetry.connStatsMapSize.Set(float64(entryCount))
 
 	// Remove expired entries
 	t.removeEntries(expired)
@@ -656,16 +656,8 @@ const (
 )
 
 var allStats = []statsComp{
-	conntrackStats,
-	dnsStats,
-	epbfStats,
-	gatewayLookupStats,
-	kprobesStats,
 	stateStats,
 	tracerStats,
-	processCacheStats,
-	bpfHelperStats,
-	bpfMapStats,
 	httpStats,
 }
 
@@ -681,28 +673,13 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 	ret := map[string]interface{}{}
 	for _, c := range comps {
 		switch c {
-		case conntrackStats:
-			ret["conntrack"] = t.conntracker.GetStats()
-		case dnsStats:
-			ret["dns"] = t.reverseDNS.GetStats()
-		case epbfStats:
-			ret["ebpf"] = t.ebpfTracer.GetTelemetry()
-		case gatewayLookupStats:
-			ret["gateway_lookup"] = t.gwLookup.GetStats()
-		case kprobesStats:
-			ret["kprobes"] = ddebpf.GetProbeStats()
 		case stateStats:
 			ret["state"] = t.state.GetStats()["telemetry"]
 		case tracerStats:
-			tracerStats := atomicstats.Report(t)
+			tracerStats := make(map[string]interface{})
+			tracerStats["last_check"] = t.lastCheck.Load()
 			tracerStats["runtime"] = runtime.Tracer.GetTelemetry()
 			ret["tracer"] = tracerStats
-		case processCacheStats:
-			ret["process_cache"] = t.processCache.GetStats()
-		case bpfMapStats:
-			ret["map_ops"] = t.bpfTelemetry.GetMapsTelemetry()
-		case bpfHelperStats:
-			ret["ebpf_helpers"] = t.bpfTelemetry.GetHelperTelemetry()
 		case httpStats:
 			ret["universal_service_monitoring"] = t.usmMonitor.GetUSMStats()
 		}
@@ -861,7 +838,7 @@ func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error)
 	return nil, nil
 }
 
-func newUSMMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *telemetry.EBPFTelemetry, offsets []manager.ConstantEditor) *usm.Monitor {
+func newUSMMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *nettelemetry.EBPFTelemetry, offsets []manager.ConstantEditor) *usm.Monitor {
 	// Shared with the USM program
 	sockFDMap := tracer.GetMap(probes.SockByPidFDMap)
 	connectionProtocolMap := tracer.GetMap(probes.ConnectionProtocolMap)
