@@ -34,6 +34,7 @@ from .utils import DEFAULT_BRANCH, get_build_flags
 
 PROFILE_COV = "profile.cov"
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
+UNIT_TEST_FILE_FORMAT = re.compile(r'[^a-zA-Z0-9_\-]')
 
 
 class TestProfiler:
@@ -123,9 +124,41 @@ def install_tools(ctx):
                     ctx.run(f"go install {tool}")
 
 
-# TODO(AP-1879): The following four functions all do something similar: they run a given command on a list of modules
-# This could be refactored in a core function that does the loop on modules and returns failures, and
-# wrapper functions that craft the command to run and process the results and errors.
+@task
+def invoke_unit_tests(ctx):
+    """
+    Run the unit tests on the invoke tasks
+    """
+    for _, _, files in os.walk("tasks/unit-tests/"):
+        for file in files:
+            if file[-3:] == ".py" and file != "__init__.py" and not bool(UNIT_TEST_FILE_FORMAT.search(file[:-3])):
+                ctx.run(f"python3 -m tasks.unit-tests.{file[:-3]}", env={"GITLAB_TOKEN": "fake_token"})
+
+
+def test_core(
+    modules: List[GoModule],
+    flavor: AgentFlavor,
+    module_class: GoModule,
+    operation_name: str,
+    command,
+    skip_module_class=False,
+):
+    """
+    Run the command function on each module of the modules list.
+    """
+    modules_results = []
+    print(f"--- Flavor {flavor.name}: {operation_name}")
+    for module in modules:
+        module_result = None
+        if not skip_module_class:
+            module_result = module_class(path=module.full_path())
+        print(f"----- Module '{module.full_path()}'")
+        if not module.condition():
+            print("----- Skipped")
+            continue
+
+        command(modules_results, module, module_result)
+    return modules_results
 
 
 def lint_flavor(
