@@ -825,6 +825,7 @@ func TestIsMonitored(t *testing.T) {
 unit_names:
   - unit1.service
   - unit2.service
+  - unit3@*.service
 `)
 
 	check := SystemdCheck{}
@@ -836,7 +837,11 @@ unit_names:
 	}{
 		{"unit1.service", true},
 		{"unit2.service", true},
-		{"unit3.service", false},
+		{"unit3@1.service", true},
+		{"unit3@2.service", true},
+		{"unit3@abcd.service", true},
+		{"unit3@.service", true},
+		{"unit4@.service", false},
 	}
 	for _, d := range data {
 		t.Run(fmt.Sprintf("check.isMonitored('%s') expected to be %v", d.unitName, d.expectedToBeMonitored), func(t *testing.T) {
