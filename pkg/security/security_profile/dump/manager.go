@@ -47,17 +47,18 @@ type ActivityDumpHandler interface {
 // ActivityDumpManager is used to manage ActivityDumps
 type ActivityDumpManager struct {
 	sync.RWMutex
-	config             *config.Config
-	statsdClient       statsd.ClientInterface
-	emptyDropped       *atomic.Uint64
-	dropMaxDumpReached *atomic.Uint64
-	newEvent           func() *model.Event
-	processResolver    *process.Resolver
-	timeResolver       *stime.Resolver
-	tagsResolvers      tags.Resolver
-	kernelVersion      *kernel.Version
-	manager            *manager.Manager
-	dumpHandler        ActivityDumpHandler
+	config                *config.Config
+	statsdClient          statsd.ClientInterface
+	emptyDropped          *atomic.Uint64
+	dropMaxDumpReached    *atomic.Uint64
+	newEvent              func() *model.Event
+	processResolver       *process.Resolver
+	timeResolver          *stime.Resolver
+	tagsResolvers         tags.Resolver
+	kernelVersion         *kernel.Version
+	manager               *manager.Manager
+	dumpHandler           ActivityDumpHandler
+	onActivityDumpStopped func(*ActivityDump)
 
 	tracedPIDsMap          *ebpf.Map
 	tracedCommsMap         *ebpf.Map
@@ -121,6 +122,9 @@ func (adm *ActivityDumpManager) cleanup() {
 
 		// persist dump if not empty
 		if !ad.IsEmpty() {
+			if adm.onActivityDumpStopped != nil {
+				adm.onActivityDumpStopped(ad)
+			}
 			if err := adm.storage.Persist(ad); err != nil {
 				seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
 			}
@@ -224,7 +228,7 @@ func (adm *ActivityDumpManager) HandleActivityDump(dump *api.ActivityDumpStreamM
 
 // NewActivityDumpManager returns a new ActivityDumpManager instance
 func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInterface, newEvent func() *model.Event, processResolver *process.Resolver, timeResolver *stime.Resolver,
-	tagsResolver tags.Resolver, kernelVersion *kernel.Version, scrubber *procutil.DataScrubber, manager *manager.Manager) (*ActivityDumpManager, error) {
+	tagsResolver tags.Resolver, kernelVersion *kernel.Version, scrubber *procutil.DataScrubber, manager *manager.Manager, onActivityDumpStopped func(*ActivityDump)) (*ActivityDumpManager, error) {
 	tracedPIDs, err := managerhelper.Map(manager, "traced_pids")
 	if err != nil {
 		return nil, err
@@ -275,6 +279,7 @@ func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInt
 		snapshotQueue:          make(chan *ActivityDump, 100),
 		ignoreFromSnapshot:     make(map[string]bool),
 		dumpLimiter:            limiter,
+		onActivityDumpStopped:  onActivityDumpStopped,
 	}
 
 	adm.storage, err = NewActivityDumpStorageManager(config, statsdClient, adm)
@@ -496,6 +501,9 @@ func (adm *ActivityDumpManager) StopActivityDump(params *api.ActivityDumpStopPar
 
 			// persist dump if not empty
 			if !d.IsEmpty() {
+				if adm.onActivityDumpStopped != nil {
+					adm.onActivityDumpStopped(d)
+				}
 				if err := adm.storage.Persist(d); err != nil {
 					seclog.Errorf("couldn't persist dump [%s]: %v", d.GetSelectorStr(), err)
 				}
@@ -702,6 +710,9 @@ func (adm *ActivityDumpManager) triggerLoadController() {
 
 		// persist dump if not empty
 		if !ad.IsEmpty() {
+			if adm.onActivityDumpStopped != nil {
+				adm.onActivityDumpStopped(ad)
+			}
 			if err := adm.storage.Persist(ad); err != nil {
 				seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
 			}

@@ -61,15 +61,35 @@ func (m *Monitor) Init() error {
 		return fmt.Errorf("couldn't create the events statistics monitor: %w", err)
 	}
 
+	var profileProviders []profile.Provider
 	if p.IsActivityDumpEnabled() {
-		m.activityDumpManager, err = dump.NewActivityDumpManager(p.Config, p.StatsdClient, func() *model.Event { return NewEvent(p.fieldHandlers) }, p.resolvers.ProcessResolver, p.resolvers.TimeResolver, p.resolvers.TagsResolver, p.kernelVersion, p.scrubber, p.Manager)
+		var onActivityDumpStopped func(*dump.ActivityDump)
+		if p.Config.RuntimeSecurity.SecurityProfileEnabled && p.Config.RuntimeSecurity.SecurityProfilePipeActivityDumps {
+			pipeProvider := profile.NewPipeProvider(p.Config.RuntimeSecurity.ActivityDumpTracedCgroupsCount)
+			onActivityDumpStopped = func(ad *dump.ActivityDump) {
+				ad.Lock()
+				profile := dump.ActivityDumpToSecurityProfileProto(ad)
+				ad.Unlock()
+				pipeProvider.QueueProfileProto(profile)
+			}
+			profileProviders = append(profileProviders, pipeProvider)
+		}
+		m.activityDumpManager, err = dump.NewActivityDumpManager(p.Config, p.StatsdClient, func() *model.Event { return NewEvent(p.fieldHandlers) }, p.resolvers.ProcessResolver, p.resolvers.TimeResolver, p.resolvers.TagsResolver, p.kernelVersion, p.scrubber, p.Manager, onActivityDumpStopped)
 		if err != nil {
 			return fmt.Errorf("couldn't create the activity dump manager: %w", err)
 		}
 	}
 
 	if p.Config.RuntimeSecurity.SecurityProfileEnabled {
-		m.securityProfileManager, err = profile.NewSecurityProfileManager(p.Config, p.StatsdClient, p.resolvers.CGroupResolver, p.resolvers.TimeResolver, p.Manager)
+		// instantiate directory provider
+		if len(p.Config.RuntimeSecurity.SecurityProfileDir) != 0 {
+			dirProvider, err := profile.NewDirectoryProvider(p.Config.RuntimeSecurity.SecurityProfileDir, p.Config.RuntimeSecurity.SecurityProfileWatchDir)
+			if err != nil {
+				return fmt.Errorf("couldn't instantiate a new security profile directory provider: %w", err)
+			}
+			profileProviders = append(profileProviders, dirProvider)
+		}
+		m.securityProfileManager, err = profile.NewSecurityProfileManager(p.Config, p.StatsdClient, p.resolvers.CGroupResolver, p.resolvers.TimeResolver, p.Manager, profileProviders)
 		if err != nil {
 			return fmt.Errorf("couldn't create the security profile manager: %w", err)
 		}

@@ -93,18 +93,7 @@ type SecurityProfileManager struct {
 }
 
 // NewSecurityProfileManager returns a new instance of SecurityProfileManager
-func NewSecurityProfileManager(config *config.Config, statsdClient statsd.ClientInterface, cgroupResolver *cgroup.Resolver, timeResolver *timeResolver.Resolver, manager *manager.Manager) (*SecurityProfileManager, error) {
-	var providers []Provider
-
-	// instantiate directory provider
-	if len(config.RuntimeSecurity.SecurityProfileDir) != 0 {
-		dirProvider, err := NewDirectoryProvider(config.RuntimeSecurity.SecurityProfileDir, config.RuntimeSecurity.SecurityProfileWatchDir)
-		if err != nil {
-			return nil, fmt.Errorf("couldn't instantiate a new security profile directory provider: %w", err)
-		}
-		providers = append(providers, dirProvider)
-	}
-
+func NewSecurityProfileManager(config *config.Config, statsdClient statsd.ClientInterface, cgroupResolver *cgroup.Resolver, timeResolver *timeResolver.Resolver, manager *manager.Manager, providers []Provider) (*SecurityProfileManager, error) {
 	profileCache, err := simplelru.NewLRU[cgroupModel.WorkloadSelector, *SecurityProfile](config.RuntimeSecurity.SecurityProfileCacheSize, nil)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create security profile cache: %w", err)
