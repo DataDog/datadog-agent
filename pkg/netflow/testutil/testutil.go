@@ -3,17 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+//go:build test
+// +build test
+
 package testutil
 
 import (
 	"bytes"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcapgo"
 	"net"
-	"os"
 	"testing"
 	"time"
 
@@ -24,6 +27,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/netflow/payload"
 )
+
+//go:embed pcap_recordings/netflow9.pcapng
+var netflow9pcapng []byte
 
 func SendUDPPacket(port uint16, data []byte) error {
 	udpConn, err := net.Dial("udp", fmt.Sprintf("127.0.0.1:%d", port))
@@ -102,60 +108,30 @@ func ExpectNetflow5Payloads(t *testing.T, mockEpForwrader *epforwarder.MockEvent
 	}
 }
 
-func GetPacketFromPcap(file string, packetIndex int) ([]byte, error) {
-	f, err := os.Open(file)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
+func GetPacketFromPcap(pcapdata []byte, layer gopacket.Decoder, packetIndex int) ([]byte, error) {
+	reader := bytes.NewReader(pcapdata)
 
-	r, err := pcapgo.NewNgReader(f, pcapgo.DefaultNgReaderOptions)
+	r, err := pcapgo.NewNgReader(reader, pcapgo.DefaultNgReaderOptions)
 	if err != nil {
 		return nil, err
 	}
 
 	packetCount := 0
 	for {
-		data, captureInfo, err := r.ReadPacketData()
-		fmt.Printf("%v\n", captureInfo)
+		data, _, err := r.ReadPacketData()
 		if err != nil {
 			return nil, err
 		}
 		if packetCount == packetIndex {
-			packet := gopacket.NewPacket(data, layers.LayerTypeUDP, gopacket.Default)
-			//linkLayer := packet.LinkLayer()
+			packet := gopacket.NewPacket(data, layer, gopacket.Default)
 			app := packet.ApplicationLayer()
-			//content := app.LayerContents()
-			content := app.LayerPayload()
-			//application := app.LayerPayload()
+			content := app.Payload()
 			return content, nil
 		}
 		packetCount += 1
 	}
 }
 
-//func GetPacketFromPcap(file string, packetIndex int) []byte {
-//	// create reader
-//	r, err := gopcap.Open(file)
-//	if err != nil {
-//		panic(err)
-//	}
-//	defer r.Close()
-//
-//	// loop over packets
-//	packetCount := 0
-//	for {
-//		_, data, err := r.ReadNextPacket()
-//		if err != nil {
-//			if err == io.EOF {
-//				println("EOF")
-//				break
-//			}
-//			panic(err)
-//		}
-//		if packetCount == packetIndex {
-//			return data
-//		}
-//	}
-//	return nil
-//}
+func GetNetFlow9Packet() ([]byte, error) {
+	return GetPacketFromPcap(netflow9pcapng, layers.LayerTypeLoopback, 0)
+}
