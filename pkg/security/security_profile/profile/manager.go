@@ -490,6 +490,7 @@ func (m *SecurityProfileManager) prepareProfile(profile *SecurityProfile) {
 // loadProfile (thread unsafe) loads a Security Profile in kernel space
 func (m *SecurityProfileManager) loadProfile(profile *SecurityProfile) error {
 	profile.loadedInKernel = true
+	profile.loadedNano = uint64(m.timeResolver.ComputeMonotonicTimestamp(time.Now()))
 
 	// push kernel space filters
 	if err := m.securityProfileSyscallsMap.Put(profile.profileCookie, profile.generateSyscallsFilters()); err != nil {
@@ -604,13 +605,9 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 	}
 
 	// have we reached the unstable time limit ?
-	if firstAnomalyNano, ok := profile.firstAnomalyNano[event.GetEventType()]; ok {
-		if time.Duration(event.TimestampRaw-firstAnomalyNano) >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileTimeThreshold {
-			m.eventFiltering[event.GetEventType()][UnstableProfile].Inc()
-			return false, fmt.Errorf("unstable profile: time limit reached")
-		}
-	} else {
-		profile.firstAnomalyNano[event.GetEventType()] = event.TimestampRaw
+	if time.Duration(event.TimestampRaw-profile.loadedNano) >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileTimeThreshold {
+		m.eventFiltering[event.GetEventType()][UnstableProfile].Inc()
+		return false, fmt.Errorf("unstable profile: time limit reached")
 	}
 
 	// check if the unstable size limit was reached
