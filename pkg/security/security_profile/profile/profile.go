@@ -17,6 +17,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
+
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
@@ -29,12 +30,11 @@ import (
 type SecurityProfile struct {
 	sync.Mutex
 	loadedInKernel         bool
-	loadedNano             uint64
 	selector               cgroupModel.WorkloadSelector
 	profileCookie          uint64
 	anomalyDetectionEvents []model.EventType
-	lastAnomalyNano        uint64
-	autolearnEnabled       bool
+	firstAnomalyNano       map[model.EventType]uint64
+	lastAnomalyNano        map[model.EventType]uint64
 
 	// Instances is the list of workload instances to witch the profile should apply
 	Instances []*cgroupModel.CacheEntry
@@ -68,6 +68,8 @@ func NewSecurityProfile(selector cgroupModel.WorkloadSelector, anomalyDetectionE
 	return &SecurityProfile{
 		selector:               selector,
 		anomalyDetectionEvents: anomalyDetectionEvents,
+		lastAnomalyNano:        make(map[model.EventType]uint64),
+		firstAnomalyNano:       make(map[model.EventType]uint64),
 	}
 }
 
