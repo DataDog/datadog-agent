@@ -35,7 +35,7 @@ static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
     bpf_map_delete_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple);
 }
 
-static __always_inline void cleanup_conn(conn_tuple_t *tup, struct sock *sk) {
+static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct sock *sk) {
     u32 cpu = bpf_get_smp_processor_id();
 
     // Will hold the full connection data to send through the perf buffer
@@ -101,6 +101,8 @@ static __always_inline void cleanup_conn(conn_tuple_t *tup, struct sock *sk) {
         // in order to cope with the eBPF stack limitation of 512 bytes.
         return;
     }
+
+    bpf_perf_event_output(ctx, &conn_close_event, cpu, &conn, sizeof(conn));
 
     // If we hit this section it means we had one or more interleaved tcp_close calls.
     // This could result in a missed tcp_close event, so we track it using our telemetry map.

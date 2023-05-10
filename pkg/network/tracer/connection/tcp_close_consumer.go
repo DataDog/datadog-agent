@@ -11,6 +11,7 @@ package connection
 import (
 	"sync"
 	"time"
+	"unsafe"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -69,6 +70,13 @@ func (c *tcpCloseConsumer) Stop() {
 	})
 }
 
+func (c *tcpCloseConsumer) extractConn(data []byte) {
+	ct := (*netebpf.Conn)(unsafe.Pointer(&data[0]))
+	conn := c.buffer.Next()
+	populateConnStats(conn, &ct.Tup, &ct.Conn_stats)
+	updateTCPStats(conn, ct.Conn_stats.Cookie, &ct.Tcp_stats)
+}
+
 func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 	if c == nil {
 		return
@@ -88,8 +96,19 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 				}
 
 				closerConsumerTelemetry.perfReceived.Inc()
-				batch := netebpf.ToBatch(batchData.Data)
-				c.batchManager.ExtractBatchInto(c.buffer, batch, batchData.CPU)
+				l := len(batchData.Data)
+				log.Warnf("batch len=%d", l)
+				switch {
+				case l >= netebpf.SizeofBatch:
+					batch := netebpf.ToBatch(batchData.Data)
+					c.batchManager.ExtractBatchInto(c.buffer, batch, batchData.CPU)
+				case l >= netebpf.SizeofConn:
+					c.extractConn(batchData.Data)
+				default:
+					log.Errorf("unknown type received from perf buffer, skipping. data size=%d, expecting %d or %d", len(batchData.Data), netebpf.SizeofConn, netebpf.SizeofBatch)
+					continue
+				}
+
 				closedCount += c.buffer.Len()
 				callback(c.buffer.Connections())
 				c.buffer.Reset()
