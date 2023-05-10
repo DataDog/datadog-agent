@@ -997,6 +997,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_checks.extra_tags", []string{})
 	config.BindEnvAndSetDefault("cluster_checks.advanced_dispatching_enabled", false)
 	config.BindEnvAndSetDefault("cluster_checks.clc_runners_port", 5005)
+	config.BindEnvAndSetDefault("cluster_checks.exclude_checks", []string{})
+
 	// Cluster check runner
 	config.BindEnvAndSetDefault("clc_runner_enabled", false)
 	config.BindEnvAndSetDefault("clc_runner_id", "")
