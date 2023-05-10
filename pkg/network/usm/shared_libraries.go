@@ -39,6 +39,13 @@ const (
 	scanTerminatedProcessesInterval = 30 * time.Second
 )
 
+func quircksWaitLib(hostlibPath string) bool {
+	// java netty when injecting libnetty_tcnative_linux_.*.so would copy the file (from his jar) to a workdir
+	// then inject it to the process via System.Loadlibrary()
+	// usually we got the event when the file is just created and contain 0 bytes
+	return strings.Contains(hostlibPath, "libnetty_tcnative_linux_")
+}
+
 func toLibPath(data []byte) http.LibPath {
 	return *(*http.LibPath)(unsafe.Pointer(&data[0]))
 }
@@ -282,7 +289,16 @@ func (w *soWatcher) Start() {
 
 				for _, r := range w.rules {
 					if r.re.Match(path) {
-						w.registry.register(root, libPath, lib.Pid, r)
+						if quircksWaitLib(root + libPath) {
+							log.Debugf("delaying registration of library path %s by pid %d", root+libPath, lib.Pid)
+							r := r
+							go func() {
+								time.Sleep(100 * time.Millisecond)
+								w.registry.register(root, libPath, lib.Pid, r)
+							}()
+						} else {
+							w.registry.register(root, libPath, lib.Pid, r)
+						}
 						break
 					}
 				}
@@ -332,35 +348,6 @@ func (r *soRegistry) unregister(pid int) {
 	delete(r.byPID, pidU32)
 }
 
-func quircksWaitLib(hostlibPath string) error {
-	// java netty when injecting libnetty_tcnative_linux_.*.so would copy the file (from his jar) to a workdir
-	// then inject it to the process via System.Loadlibrary()
-	// usually we got the event when the file is just created and contain 0 bytes
-	if strings.Contains(hostlibPath, "libnetty_tcnative_linux_") {
-		s, err := os.Stat(hostlibPath)
-		if err != nil {
-			return err
-		}
-		time.Sleep(time.Millisecond)
-		libSize := s.Size()
-		end := time.Now().Add(100 * time.Millisecond)
-		for !time.Now().After(end) {
-			s, err = os.Stat(hostlibPath)
-			if err != nil {
-				return err
-			}
-			if s.Size() != libSize || s.Size() == 0 {
-				libSize = s.Size()
-				time.Sleep(5 * time.Millisecond)
-				continue
-			}
-			return nil
-		}
-		return fmt.Errorf("timeout current size %d", libSize)
-	}
-	return nil
-}
-
 // Register a ELF library root/libPath as be used by the pid
 // Only one registration will be done per ELF (system wide)
 func (r *soRegistry) register(root, libPath string, pid uint32, rule soRule) {
@@ -390,11 +377,6 @@ func (r *soRegistry) register(root, libPath string, pid uint32, rule soRule) {
 			}
 			r.byPID[pid][pathID] = struct{}{}
 		}
-		return
-	}
-
-	if err := quircksWaitLib(hostLibPath); err != nil {
-		log.Debugf("error registering library during waiting for lib %s path %s by pid %d : %s", pathID.String(), hostLibPath, pid, err)
 		return
 	}
 
