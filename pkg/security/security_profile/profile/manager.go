@@ -394,10 +394,6 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 
 	// decode the content of the profile
 	ProtoToSecurityProfile(profile, newProfile)
-	if profile.autolearnEnabled {
-		// reset the last anomaly timestamp to now
-		profile.lastAnomalyNano = uint64(m.timeResolver.ComputeMonotonicTimestamp(time.Now()))
-	}
 
 	// prepare the profile for insertion
 	m.prepareProfile(profile)
@@ -494,7 +490,6 @@ func (m *SecurityProfileManager) prepareProfile(profile *SecurityProfile) {
 // loadProfile (thread unsafe) loads a Security Profile in kernel space
 func (m *SecurityProfileManager) loadProfile(profile *SecurityProfile) error {
 	profile.loadedInKernel = true
-	profile.loadedNano = uint64(m.timeResolver.ComputeMonotonicTimestamp(time.Now()))
 
 	// push kernel space filters
 	if err := m.securityProfileSyscallsMap.Put(profile.profileCookie, profile.generateSyscallsFilters()); err != nil {
@@ -571,15 +566,13 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	}
 
 	// check if the event should be injected in the profile automatically
-	if profile.autolearnEnabled {
-		autoLearned, autoLearnErr := m.tryAutolearn(profile, event)
-		if autoLearnErr != nil {
-			return
-		} else if autoLearned {
-			// link the profile to the event only if it's a valid event for profile without any error
-			FillProfileContextFromProfile(&event.SecurityProfileContext, profile)
-			return
-		}
+	autoLearned, autoLearnErr := m.tryAutolearn(profile, event)
+	if autoLearnErr != nil {
+		return
+	} else if autoLearned {
+		// link the profile to the event only if it's a valid event for profile without any error
+		FillProfileContextFromProfile(&event.SecurityProfileContext, profile)
+		return
 	}
 
 	// check if the event is in its profile
@@ -602,18 +595,22 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 // tryAutolearn tries to autolearn the input event. Returns true if the event was autolearned.
 func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *model.Event) (bool, error) {
 	// have we reached the stable state time limit ?
-	if profile.lastAnomalyNano == 0 {
-		profile.lastAnomalyNano = event.TimestampRaw
-	}
-	if time.Duration(event.TimestampRaw-profile.lastAnomalyNano) >= m.config.RuntimeSecurity.AnomalyDetectionMinimumStablePeriod {
-		profile.autolearnEnabled = false
-		return false, nil
+	if lastAnomalyNano, ok := profile.lastAnomalyNano[event.GetEventType()]; ok {
+		if time.Duration(event.TimestampRaw-lastAnomalyNano) >= m.config.RuntimeSecurity.AnomalyDetectionMinimumStablePeriod {
+			return false, nil
+		}
+	} else {
+		profile.lastAnomalyNano[event.GetEventType()] = event.TimestampRaw
 	}
 
 	// have we reached the unstable time limit ?
-	if time.Duration(event.TimestampRaw-profile.loadedNano) >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileTimeThreshold {
-		m.eventFiltering[event.GetEventType()][UnstableProfile].Inc()
-		return false, fmt.Errorf("unstable profile: time limit reached")
+	if firstAnomalyNano, ok := profile.firstAnomalyNano[event.GetEventType()]; ok {
+		if time.Duration(event.TimestampRaw-firstAnomalyNano) >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileTimeThreshold {
+			m.eventFiltering[event.GetEventType()][UnstableProfile].Inc()
+			return false, fmt.Errorf("unstable profile: time limit reached")
+		}
+	} else {
+		profile.firstAnomalyNano[event.GetEventType()] = event.TimestampRaw
 	}
 
 	// check if the unstable size limit was reached
@@ -634,7 +631,7 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 	event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
 
 	if newEntry {
-		profile.lastAnomalyNano = event.TimestampRaw
+		profile.lastAnomalyNano[event.GetEventType()] = event.TimestampRaw
 		m.eventFiltering[event.GetEventType()][NotInProfile].Inc()
 	} else {
 		m.eventFiltering[event.GetEventType()][InProfile].Inc()
