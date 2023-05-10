@@ -111,5 +111,5 @@ build do
   cmake(*cmake_options, env: env, cwd: cmake_build_dir, prefix: "#{install_dir}/embedded")
 
   # Remove OpenSCAP XML schemas, since they are not useful when XSD validation is disabled.
-  command "rm -rf #{install_dir}/embedded/share/openscap/schemas"
+  delete "#{install_dir}/embedded/share/openscap/schemas"
 end
