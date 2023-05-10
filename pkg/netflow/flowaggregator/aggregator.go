@@ -307,12 +307,13 @@ func (agg *FlowAggregator) getSequenceDelta(flowsToFlush []*common.Flow) map[Seq
 	for key, seqnum := range maxSequencePerExporter {
 		lastSeq := agg.lastSequencePerExporter[key]
 		delta := int64(seqnum) - int64(lastSeq)
-		log.Debugf("[getSequenceDelta] key=%s, seqnum=%d, delta=%d, last=%d", key, seqnum, delta, agg.lastSequencePerExporter[key])
 		maxNegSeqDiff := maxNegativeSequenceDiffToReset[key.FlowType]
+		reset := delta < int64(maxNegSeqDiff)
+		log.Debugf("[getSequenceDelta] key=%s, seqnum=%d, delta=%d, last=%d, reset=%t", key, seqnum, delta, agg.lastSequencePerExporter[key], reset)
 		seqDeltaValue := SequenceDeltaValue{LastSequence: seqnum}
-		if delta < int64(maxNegSeqDiff) { // sequence reset
+		if reset { // sequence reset
 			seqDeltaValue.Delta = int64(seqnum)
-			seqDeltaValue.Reset = true
+			seqDeltaValue.Reset = reset
 			agg.lastSequencePerExporter[key] = seqnum
 		} else if delta < 0 {
 			seqDeltaValue.Delta = 0
