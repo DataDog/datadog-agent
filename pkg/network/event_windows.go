@@ -166,6 +166,10 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 					cs.ProtocolStack = protocols.Stack{Application: protocols.HTTP}
 				}
 			}
+		} else {
+			// one of
+			// ClassificationUnableInsufficientData, ClassificationUnknown, ClassificationUnclassified
+			cs.ProtocolStack = protocols.Stack{}
 		}
 	}
 }
