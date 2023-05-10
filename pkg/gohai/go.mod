@@ -1,5 +1,7 @@
 module github.com/DataDog/datadog-agent/pkg/gohai
 
+// we don't want to just use the agent's go version because gohai might be used outside of it
+// eg. opentelemetry
 go 1.16
 
 require (

@@ -18,9 +18,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - uses: actions/setup-go@v3
-      # we don't want to just use the agent's version because gohai might be used outside of it
-      # eg. opentelemetry
       with:
-        go-version: 1.17.x
+        go-version-file: '.go-version'
     - name: Test
       run: cd pkg/gohai && go test ./...
