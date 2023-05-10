@@ -204,4 +204,4 @@ kernel_matrix_testing_run_tests:
   parallel:
     matrix:
       - TAG: ["4.18", "5.4", "5.15"]
-        ARCH: ["x86_64", , "arm64"]
+        ARCH: ["x86_64", "arm64"]
