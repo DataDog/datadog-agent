@@ -105,6 +105,7 @@ The payload is a JSON dict with the following fields
     `compliance_config.enabled` config option).
   - `feature_apm_enabled` - **bool**: True if the APM Agent is enabled (see: `apm_config.enabled` config option).
   - `feature_otlp_enabled` - **bool**: True if the OTLP pipeline is enabled.
+  - `feature_imdsv2_enabled` - **bool**: True if the IMDSv2 is enabled (see: `ec2_prefer_imdsv2` config option).
   - `full_configuration` - **string**: the current Agent configuration scrubbed, including all the defaults, as a YAML
     string.
   - `provided_configuration` - **string**: the current Agent configuration (scrubbed), without the defaults, as a YAML
@@ -178,6 +179,7 @@ Here an example of an inventory payload:
         "config_proxy_http": "",
         "config_proxy_https": "http://localhost:9999",
         "config_site": "",
+        "feature_imdsv2_enabled": false,
         "feature_apm_enabled": true,
         "feature_cspm_enabled": false,
         "feature_cws_enabled": false,
