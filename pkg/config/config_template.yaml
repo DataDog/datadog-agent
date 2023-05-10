@@ -1368,6 +1368,17 @@ api_key:
   #
   # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache"]
 
+  ## @param debug - custom object - optional
+  ## Specifies settings for the debug server of the trace agent.
+  #
+  # debug:
+
+    ## @param port - integer - optional - default: 5012
+    ## @env DD_APM_DEBUG_PORT - string - optional - default: 5012
+    ## Port for the debug endpoints for the trace Agent. Set it to 0 to disable the server.
+    #
+    # port: 5012
+
   {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
   ## Enter specific configurations for internal profiling.

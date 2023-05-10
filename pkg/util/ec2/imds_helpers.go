@@ -11,9 +11,28 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var (
+	imdsInstanceID = "/instance-id"
+	imdsHostname   = "/hostname"
+	// This is used in ec2_tags.go which is behind the 'ec2' build flag
+	imdsTags        = "/tags/instance" //nolint:unused
+	imdsIPv4        = "/public-ipv4"
+	imdsNetworkMacs = "/network/interfaces/macs"
+)
+
+func registerCloudProviderHostnameID(ctx context.Context) {
+	instanceID, err := getMetadataItemWithMaxLength(ctx, imdsInstanceID, true)
+	log.Debugf("instanceID from IMDSv2 '%s' (error: %v)", instanceID, err)
+
+	if err == nil {
+		inventories.SetHostMetadata(inventories.HostCloudProviderID, instanceID)
+	}
+}
 
 func getToken(ctx context.Context) (string, time.Time, error) {
 	tokenLifetime := time.Duration(config.Datadog.GetInt("ec2_metadata_token_lifetime")) * time.Second
@@ -36,35 +55,42 @@ func getToken(ctx context.Context) (string, time.Time, error) {
 	return res, expirationDate, nil
 }
 
-func getMetadataItemWithMaxLength(ctx context.Context, endpoint string, maxLength int) (string, error) {
-	result, err := getMetadataItem(ctx, endpoint)
+func getMetadataItemWithMaxLength(ctx context.Context, endpoint string, forceIMDSv2 bool) (string, error) {
+	result, err := getMetadataItem(ctx, endpoint, forceIMDSv2)
 	if err != nil {
 		return result, err
 	}
+
+	maxLength := config.Datadog.GetInt("metadata_endpoints_max_hostname_size")
 	if len(result) > maxLength {
 		return "", fmt.Errorf("%v gave a response with length > to %v", endpoint, maxLength)
 	}
 	return result, err
 }
 
-func getMetadataItem(ctx context.Context, endpoint string) (string, error) {
+func getMetadataItem(ctx context.Context, endpoint string, forceIMDSv2 bool) (string, error) {
 	if !config.IsCloudProviderEnabled(CloudProviderName) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
 
-	return doHTTPRequest(ctx, metadataURL+endpoint)
+	return doHTTPRequest(ctx, metadataURL+endpoint, forceIMDSv2)
 }
 
-func doHTTPRequest(ctx context.Context, url string) (string, error) {
+func doHTTPRequest(ctx context.Context, url string, forceIMDSv2 bool) (string, error) {
 	source := metadataSourceIMDSv1
 	headers := map[string]string{}
-	if config.Datadog.GetBool("ec2_prefer_imdsv2") {
+	if config.Datadog.GetBool("ec2_prefer_imdsv2") || forceIMDSv2 {
 		tokenValue, err := token.Get(ctx)
 		if err != nil {
+			if forceIMDSv2 {
+				return "", fmt.Errorf("Could not fetch token from IMDSv2")
+			}
 			log.Warnf("ec2_prefer_imdsv2 is set to true in the configuration but the agent was unable to proceed: %s", err)
 		} else {
 			headers["X-aws-ec2-metadata-token"] = tokenValue
-			source = metadataSourceIMDSv2
+			if !forceIMDSv2 {
+				source = metadataSourceIMDSv2
+			}
 		}
 	}
 

@@ -17,6 +17,8 @@ import (
 	"golang.org/x/exp/slices"
 
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
@@ -32,8 +34,7 @@ type SecurityProfile struct {
 	selector               cgroupModel.WorkloadSelector
 	profileCookie          uint64
 	anomalyDetectionEvents []model.EventType
-	lastAnomalyNano        uint64
-	autolearnEnabled       bool
+	lastAnomalyNano        map[model.EventType]uint64
 
 	// Instances is the list of workload instances to witch the profile should apply
 	Instances []*cgroupModel.CacheEntry
@@ -67,6 +68,7 @@ func NewSecurityProfile(selector cgroupModel.WorkloadSelector, anomalyDetectionE
 	return &SecurityProfile{
 		selector:               selector,
 		anomalyDetectionEvents: anomalyDetectionEvents,
+		lastAnomalyNano:        make(map[model.EventType]uint64),
 	}
 }
 
@@ -148,4 +150,11 @@ func LoadProfileFromFile(filepath string) (*proto.SecurityProfile, error) {
 		profile.Tags = append(profile.Tags, "image_tag:latest")
 	}
 	return profile, nil
+}
+
+// SendStats sends profile stats
+func (profile *SecurityProfile) SendStats(client statsd.ClientInterface) error {
+	profile.Lock()
+	defer profile.Unlock()
+	return profile.ActivityTree.SendStats(client)
 }
