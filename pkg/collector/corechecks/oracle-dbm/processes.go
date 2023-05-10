@@ -1,0 +1,65 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package oracle
+
+import (
+	"database/sql"
+	"fmt"
+	"strconv"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
+)
+
+const PGA_QUERY = `SELECT 
+	name pdb_name, 
+	pid, 
+	program, 
+	nvl(pga_used_mem,0) pga_used_mem, 
+	nvl(pga_alloc_mem,0) pga_alloc_mem, 
+	nvl(pga_freeable_mem,0) pga_freeable_mem, 
+	nvl(pga_max_mem,0) pga_max_mem
+  FROM v$process p, v$containers c
+  WHERE
+  	c.con_id(+) = p.con_id`
+
+type ProcessesRowDB struct {
+	PdbName        sql.NullString `db:"PDB_NAME"`
+	PID            uint64         `db:"PID"`
+	Program        sql.NullString `db:"PROGRAM"`
+	PGAUsedMem     float64        `db:"PGA_USED_MEM"`
+	PGAAllocMem    float64        `db:"PGA_ALLOC_MEM"`
+	PGAFreeableMem float64        `db:"PGA_FREEABLE_MEM"`
+	PGAMaxMem      float64        `db:"PGA_MAX_MEM"`
+}
+
+func (c *Check) ProcessMemory() error {
+	rows := []ProcessesRowDB{}
+	err := c.db.Select(&rows, PGA_QUERY)
+	if err != nil {
+		return fmt.Errorf("failed to collect processes info: %w", err)
+	}
+	sender, err := c.GetSender()
+	if err != nil {
+		return fmt.Errorf("GetSender processes %w", err)
+	}
+	for _, row := range rows {
+		tags := c.getTagsWithPDB(row.PdbName)
+		tags = append(tags, "pid:"+strconv.FormatUint(row.PID, 10))
+		var program string
+		if row.Program.Valid {
+			program = row.Program.String
+		} else {
+			program = ""
+		}
+		tags = append(tags, "program:"+program)
+		sender.Gauge(fmt.Sprintf("%s.tablespace.used", common.IntegrationName), row.Used, "", tags)
+		sender.Gauge(fmt.Sprintf("%s.tablespace.size", common.IntegrationName), row.Size, "", tags)
+		sender.Gauge(fmt.Sprintf("%s.tablespace.in_use", common.IntegrationName), row.InUse, "", tags)
+		sender.Gauge(fmt.Sprintf("%s.tablespace.offline", common.IntegrationName), row.Offline, "", tags)
+	}
+	sender.Commit()
+	return nil
+}
