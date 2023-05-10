@@ -55,10 +55,10 @@ func (c *Check) ProcessMemory() error {
 			program = ""
 		}
 		tags = append(tags, "program:"+program)
-		sender.Gauge(fmt.Sprintf("%s.tablespace.used", common.IntegrationName), row.Used, "", tags)
-		sender.Gauge(fmt.Sprintf("%s.tablespace.size", common.IntegrationName), row.Size, "", tags)
-		sender.Gauge(fmt.Sprintf("%s.tablespace.in_use", common.IntegrationName), row.InUse, "", tags)
-		sender.Gauge(fmt.Sprintf("%s.tablespace.offline", common.IntegrationName), row.Offline, "", tags)
+		sender.Gauge(fmt.Sprintf("%s.process.pga_used_mem", common.IntegrationName), row.PGAUsedMem, "", tags)
+		sender.Gauge(fmt.Sprintf("%s.process.pga_alloc_mem", common.IntegrationName), row.PGAAllocMem, "", tags)
+		sender.Gauge(fmt.Sprintf("%s.process.pga_freeable_mem", common.IntegrationName), row.PGAFreeableMem, "", tags)
+		sender.Gauge(fmt.Sprintf("%s.process.pga_max_mem", common.IntegrationName), row.PGAMaxMem, "", tags)
 	}
 	sender.Commit()
 	return nil
