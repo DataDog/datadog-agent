@@ -824,7 +824,7 @@ workflow:
   - when: manual
     allow_failure: true
 
-.on_system_probe_changes_or_manual:
+.on_system_probe_changes:
   - variables:
       SYSTEM_PROBE_SRC_PATH: |
         pkg/collector/corechecks/ebpf/

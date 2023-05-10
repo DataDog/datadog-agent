@@ -1535,12 +1535,3 @@ def test_microvms(
     ctx.run(
         f"cd ./test/new-e2e && go run ./scenarios/system-probe/main.go --name usama-saqib-test {go_args} --shutdown-period 720",
     )
-
-
-@task
-def generate_git_file_diff(ctx):
-    file_diff = ctx.run(
-        "git diff --name-only $(git merge-base $(inv release.get-release-json-value base_branch) HEAD) HEAD", hide=True
-    )
-    file_diff_lines = file_diff.stdout.replace("\n", "\\n")
-    print(file_diff_lines)
