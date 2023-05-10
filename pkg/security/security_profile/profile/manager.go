@@ -277,7 +277,7 @@ func (m *SecurityProfileManager) GetProfile(selector cgroupModel.WorkloadSelecto
 	return m.profiles[selector]
 }
 
-// FillProfileContextFromContainerID returns the profile of a container ID
+// FillProfileContextFromContainerID populates a SecurityProfileContext for the given container ID
 func (m *SecurityProfileManager) FillProfileContextFromContainerID(id string, ctx *model.SecurityProfileContext) {
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
