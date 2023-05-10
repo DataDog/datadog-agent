@@ -123,7 +123,7 @@ kernel_matrix_testing_setup_env:
   variables:
     EC2_X86_INSTANCE_TYPE: "i3.metal"
     EC2_ARM_INSTANCE_TYPE: "m6g.metal"
-    X86_AMI_ID: "ami-015accabfb2989826"
+    X86_AMI_ID: "ami-0b8f21d0afb2fa930"
     ARM_AMI_ID: "ami-02fb9a2e356534972"
     AWS_REGION: us-east-1
     LibvirtSSHKeyX86: $CI_PROJECT_DIR/libvirt_rsa-x86
@@ -163,7 +163,7 @@ kernel_matrix_testing_upload_deps:
   variables:
     EC2_X86_INSTANCE_TYPE: "i3.metal"
     EC2_ARM_INSTANCE_TYPE: "m6g.metal"
-    X86_AMI_ID: "ami-015accabfb2989826"
+    X86_AMI_ID: "ami-0b8f21d0afb2fa930"
     ARM_AMI_ID: "ami-02fb9a2e356534972"
     AWS_REGION: us-east-1
     LibvirtSSHKeyX86: $CI_PROJECT_DIR/libvirt_rsa-x86
@@ -204,4 +204,4 @@ kernel_matrix_testing_run_tests:
   parallel:
     matrix:
       - TAG: ["4.18", "5.4", "5.15"]
-        ARCH: ["x86_64", "arm64"]
+        ARCH: ["x86_64"]
