@@ -50,6 +50,7 @@ type InstanceConfig struct {
 	QueryMetrics           QueryMetricsConfig  `yaml:"query_metrics"`
 	CollectSysMetrics      bool                `yaml:"collect_sysmetrics"`
 	CollectTablespaces     bool                `yaml:"collect_tablespaces"`
+	CollectProcessMemory   bool                `yaml:"collect_process_memory"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
@@ -80,6 +81,10 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	instance.QuerySamples.Enabled = true
 	instance.QueryMetrics.Enabled = true
+
+	instance.CollectSysMetrics = true
+	instance.CollectTablespaces = true
+	instance.CollectProcessMemory = true
 	// Defaults end
 
 	if err := yaml.Unmarshal(rawInstance, &instance); err != nil {
