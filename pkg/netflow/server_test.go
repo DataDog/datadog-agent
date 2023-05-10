@@ -57,16 +57,18 @@ network_devices:
 	time.Sleep(100 * time.Millisecond) // wait to make sure goflow listener is started before sending
 
 	now := time.Unix(1494505756, 0)
-	mockNetflowPayload := testutil.GenerateNetflow5Packet(now, 6)
-	err = testutil.SendUDPPacket(port, testutil.BuildNetFlow5Payload(mockNetflowPayload))
+
+	packetData, err := testutil.GetNetFlow5Packet()
+	require.NoError(t, err, "error getting packet")
+	err = testutil.SendUDPPacket(port, packetData)
 	require.NoError(t, err, "error sending udp packet")
 
-	testutil.ExpectNetflow5Payloads(t, epForwarder, now, "my-hostname", 6)
+	testutil.ExpectNetflow5Payloads(t, epForwarder, now, "my-hostname", 2)
 
 	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), "network-devices-metadata").Return(nil).Times(1)
 
-	netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(server.flowAgg, 15*time.Second, 6)
-	assert.Equal(t, uint64(6), netflowEvents)
+	netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(server.flowAgg, 15*time.Second, 2)
+	assert.Equal(t, uint64(2), netflowEvents)
 	assert.NoError(t, err)
 }
 
