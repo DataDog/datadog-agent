@@ -10,7 +10,8 @@ require 'tempfile'
 # this enables RSpec output so that individual tests ("it behaves like...") are
 # logged.
 RSpec.configure do |c|
-  c.default_formatter = "documentation"
+  c.add_formatter "documentation"
+  c.add_formatter "RspecJunitFormatter"
 end
 
 os_cache = nil

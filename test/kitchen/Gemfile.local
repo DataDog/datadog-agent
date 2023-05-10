@@ -1,5 +1,10 @@
 require 'open-uri'
 
+group :test do
+  gem "rspec"
+  gem "rspec_junit_formatter", require: false
+end
+
 # Actual gemfile is stored in the buildimages repo because it comes pre-installed in the dd-agent-testing Docker image, read it from there
 gemfile = ::URI.open('https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/main/dd-agent-testing/Gemfile')
 eval gemfile.read
