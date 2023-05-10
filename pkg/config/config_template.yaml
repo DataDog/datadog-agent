@@ -3522,11 +3522,11 @@ api_key:
           #
           # transport: tcp
 
-          ## @param max_recv_msg_size_mib - number - optional - default: 10
-          ## @env DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_MAX_RECV_MSG_SIZE_MIB - number - optional - default: 10
+          ## @param max_recv_msg_size_mib - number - optional - default: 4
+          ## @env DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_MAX_RECV_MSG_SIZE_MIB - number - optional - default: 4
           ## The maximum size (in MiB) of messages accepted by the OTLP/gRPC endpoint.
           #
-          # max_recv_msg_size_mib: 10
+          # max_recv_msg_size_mib: 4
 
         ## @param http - custom object - optional
         ## Configuration for OTLP/HTTP listener.
