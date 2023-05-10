@@ -214,7 +214,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnv(join(smNS, "max_http_stats_buffered"))
 	cfg.BindEnvAndSetDefault(join(smNS, "max_kafka_stats_buffered"), 100000)
 
-	cfg.BindEnvAndSetDefault(join(smNS, "ssl_async_handshake_window_ns"), 10000000) // 10 ms
+	cfg.BindEnvAndSetDefault(join(smNS, "ssl_async_handshake_window"), 10*time.Millisecond)
 	oldHTTPRules := join(netNS, "http_replace_rules")
 	newHTTPRules := join(smNS, "http_replace_rules")
 	cfg.BindEnv(newHTTPRules)

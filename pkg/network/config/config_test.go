@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -782,27 +783,27 @@ func TestMaxHTTPStatsBuffered(t *testing.T) {
 func TestSSLAsyncHandshakeWindow(t *testing.T) {
 	t.Run("value set through env var", func(t *testing.T) {
 		newConfig(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_SSL_ASYNC_HANDSHAKE_WINDOW", "5000")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_SSL_ASYNC_HANDSHAKE_WINDOW", "50ms")
 
 		cfg := New()
-		assert.Equal(t, uint64(5000), cfg.SSLAsyncHandshakeWindow)
+		assert.Equal(t, 50*time.Millisecond, cfg.SSLAsyncHandshakeWindow)
 	})
 
 	t.Run("value set through yaml", func(t *testing.T) {
 		newConfig(t)
 		cfg := configurationFromYAML(t, `
 service_monitoring_config:
-  ssl_async_handshake_window: 30000
+  ssl_async_handshake_window: 30ms
 `)
 
-		assert.Equal(t, uint64(30000), cfg.SSLAsyncHandshakeWindow)
+		assert.Equal(t, 30*time.Millisecond, cfg.SSLAsyncHandshakeWindow)
 	})
 	t.Run("default value", func(t *testing.T) {
 		newConfig(t)
 		cfg := New()
-		assert.Equal(t, uint64(500000), cfg.SSLAsyncHandshakeWindow)
+		assert.Equal(t, 10*time.Millisecond, cfg.SSLAsyncHandshakeWindow)
 		cfg = configurationFromYAML(t, ``)
-		assert.Equal(t, uint64(500000), cfg.SSLAsyncHandshakeWindow)
+		assert.Equal(t, 10*time.Millisecond, cfg.SSLAsyncHandshakeWindow)
 	})
 }
 
