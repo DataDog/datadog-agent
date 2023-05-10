@@ -88,7 +88,6 @@ func TestConnection(t *testing.T) {
 }
 
 func demuxOpts() aggregator.AgentDemultiplexerOptions {
-	//opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = 1 * time.Hour
 	opts.DontStartForwarders = true
@@ -125,8 +124,6 @@ func initAndStartAgentDemultiplexer() {
 }
 
 func TestChkRun(t *testing.T) {
-	//aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
-	//aggregator.InitAndStartAgentDemultiplexer(nil, demuxOpts(), "")
 	initAndStartAgentDemultiplexer()
 
 	chk.dbmEnabled = true

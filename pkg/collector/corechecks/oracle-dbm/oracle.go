@@ -23,7 +23,7 @@ import (
 	go_ora "github.com/sijms/go-ora/v2"
 )
 
-// Check represents one Oracle instance check.
+// The structure is filled by activity sampling and serves as a filter for query metrics
 type StatementsFilter struct {
 	SQLIDs                  map[string]int
 	ForceMatchingSignatures map[string]int
