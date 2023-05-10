@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-fixes:
+enhancements:
   - |
-    Fixes issue where trace data drops in OTLP ingest by increasing the default gRPC message limit to 10 MB.
+    Adds environment variable DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_MAX_RECV_MSG_SIZE_MIB to configure the maximum size of messages accepted by the OTLP gRPC endpoint.
