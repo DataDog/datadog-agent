@@ -52,7 +52,6 @@ type APIServer struct {
 	activityDumps     chan *api.ActivityDumpStreamMessage
 	expiredEventsLock sync.RWMutex
 	expiredEvents     map[rules.RuleID]*atomic.Int64
-	expiredDumpsLock  sync.RWMutex
 	expiredDumps      *atomic.Int64
 	limiter           *StdLimiter
 	statsdClient      statsd.ClientInterface
@@ -473,11 +472,8 @@ func (a *APIServer) expireEvent(msg *api.SecurityEventMessage) {
 
 // expireDump updates the count of expired dumps
 func (a *APIServer) expireDump(dump *api.ActivityDumpStreamMessage) {
-	a.expiredDumpsLock.Lock()
-	defer a.expiredDumpsLock.Unlock()
-
 	// update metric
-	_ = a.expiredDumps.Inc()
+	a.expiredDumps.Inc()
 	seclog.Tracef("the activity dump server channel is full, a dump of [%s] was dropped\n", dump.GetDump().GetMetadata().GetName())
 }
 
