@@ -97,12 +97,12 @@ func (s *Store) GetKubernetesPodForContainer(containerID string) (*workloadmeta.
 
 	podEntities, ok := s.store[workloadmeta.KindKubernetesPod]
 	if !ok {
-		return nil, errors.NewNotFound(containerID)
+		return nil, errors.NewNotFound(container.Owner.ID)
 	}
 
 	pod, ok := podEntities[container.Owner.ID]
 	if !ok {
-		return nil, errors.NewNotFound(containerID)
+		return nil, errors.NewNotFound(container.Owner.ID)
 	}
 
 	return pod.(*workloadmeta.KubernetesPod), nil

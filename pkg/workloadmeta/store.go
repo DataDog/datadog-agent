@@ -277,10 +277,10 @@ func (s *store) GetKubernetesPod(id string) (*KubernetesPod, error) {
 
 // GetKubernetesPodForContainer implements Store#GetKubernetesPodForContainer.
 func (s *store) GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.storeMut.RLock()
+	defer s.storeMut.RUnlock()
 
-	containerEntities, ok := s.store[workloadmeta.KindContainer]
+	containerEntities, ok := s.store[KindContainer]
 	if !ok {
 		return nil, errors.NewNotFound(containerID)
 	}
@@ -290,23 +290,22 @@ func (s *store) GetKubernetesPodForContainer(containerID string) (*KubernetesPod
 		return nil, errors.NewNotFound(containerID)
 	}
 
-	container := containerEntity.(*workloadmeta.Container)
-	if container.Owner == nil || container.Owner.Kind != workloadmeta.KindKubernetesPod {
+	container := containerEntity.cached.(*Container)
+	if container.Owner == nil || container.Owner.Kind != KindKubernetesPod {
 		return nil, errors.NewNotFound(containerID)
 	}
 
-	podEntities, ok := s.store[workloadmeta.KindKubernetesPod]
+	podEntities, ok := s.store[KindKubernetesPod]
 	if !ok {
-		return nil, errors.NewNotFound(containerID)
+		return nil, errors.NewNotFound(container.Owner.ID)
 	}
 
 	pod, ok := podEntities[container.Owner.ID]
 	if !ok {
-		return nil, errors.NewNotFound(containerID)
+		return nil, errors.NewNotFound(container.Owner.ID)
 	}
 
-	return pod.(*workloadmeta.KubernetesPod), nil
-}
+	return pod.cached.(*KubernetesPod), nil
 }
 
 // GetECSTask implements Store#GetECSTask
