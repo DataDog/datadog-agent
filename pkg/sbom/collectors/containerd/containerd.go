@@ -67,14 +67,16 @@ func (c *ContainerdCollector) Init(cfg config.Config) error {
 	return nil
 }
 
-func (c *ContainerdCollector) Scan(ctx context.Context, request sbom.ScanRequest, opts sbom.ScanOptions) (sbom.Report, error) {
+func (c *ContainerdCollector) Scan(ctx context.Context, request sbom.ScanRequest, opts sbom.ScanOptions) sbom.ScanResult {
 	containerdScanRequest, ok := request.(*ScanRequest)
 	if !ok {
-		return nil, fmt.Errorf("invalid request type '%s' for collector '%s'", reflect.TypeOf(request), collectorName)
+		return sbom.ScanResult{Error: fmt.Errorf("invalid request type '%s' for collector '%s'", reflect.TypeOf(request), collectorName)}
 	}
 
+	var report sbom.Report
+	var err error
 	if containerdScanRequest.FromFilesystem {
-		return c.trivyCollector.ScanContainerdImageFromFilesystem(
+		report, err = c.trivyCollector.ScanContainerdImageFromFilesystem(
 			ctx,
 			containerdScanRequest.ImageMeta,
 			containerdScanRequest.Image,
@@ -82,7 +84,7 @@ func (c *ContainerdCollector) Scan(ctx context.Context, request sbom.ScanRequest
 			opts,
 		)
 	} else {
-		return c.trivyCollector.ScanContainerdImage(
+		report, err = c.trivyCollector.ScanContainerdImage(
 			ctx,
 			containerdScanRequest.ImageMeta,
 			containerdScanRequest.Image,
@@ -90,6 +92,13 @@ func (c *ContainerdCollector) Scan(ctx context.Context, request sbom.ScanRequest
 			opts,
 		)
 	}
+	scanResult := sbom.ScanResult{
+		Error:   err,
+		Report:  report,
+		ImgMeta: containerdScanRequest.ImageMeta,
+	}
+
+	return scanResult
 }
 
 func init() {
