@@ -20,12 +20,12 @@ import (
 	log "github.com/cihub/seelog"
 
 	// project
-	"github.com/DataDog/gohai/cpu"
-	"github.com/DataDog/gohai/filesystem"
-	"github.com/DataDog/gohai/memory"
-	"github.com/DataDog/gohai/network"
-	"github.com/DataDog/gohai/platform"
-	"github.com/DataDog/gohai/processes"
+	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
+	"github.com/DataDog/datadog-agent/pkg/gohai/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/gohai/memory"
+	"github.com/DataDog/datadog-agent/pkg/gohai/network"
+	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
+	"github.com/DataDog/datadog-agent/pkg/gohai/processes"
 )
 
 // Collector represents a group of information which can be collected
