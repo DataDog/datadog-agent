@@ -62,8 +62,9 @@ func TestOOMKillCompile(t *testing.T) {
 
 	cfg := testConfig()
 	cfg.BPFDebug = true
-	_, err = runtime.OomKill.Compile(cfg, []string{"-g"}, statsd.Client)
+	out, err := runtime.OomKill.Compile(cfg, []string{"-g"}, statsd.Client)
 	require.NoError(t, err)
+	_ = out.Close()
 }
 
 func TestOOMKillProbe(t *testing.T) {

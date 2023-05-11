@@ -26,6 +26,7 @@ func TestHttpCompile(t *testing.T) {
 	}
 	cfg := config.New()
 	cfg.BPFDebug = true
-	_, err = getRuntimeCompiledUSM(cfg)
+	out, err := getRuntimeCompiledUSM(cfg)
 	require.NoError(t, err)
+	_ = out.Close()
 }
