@@ -60,7 +60,7 @@ func (s *Status) IsReady() (bool, error) {
 	return regexp.MatchString("={15}\nAgent \\(v7\\.\\d{2}\\..*\n={15}", s.rawString)
 }
 
-// IsReady runs status command and returns true if the status is ready
+// IsReady runs status command and returns true if the agent is ready
 // Use this to wait for agent to be ready before running any command
 func (a *Agent) IsReady() (bool, error) {
 	status, err := a.Status()
