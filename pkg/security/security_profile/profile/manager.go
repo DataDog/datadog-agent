@@ -613,7 +613,7 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 	var nodeType activity_tree.NodeGenerationType
 
 	// check if we are at the beginning of a workload lifetime
-	if time.Duration(event.TimestampRaw-event.ContainerContext.CreatedAt) < m.config.RuntimeSecurity.AnomalyDetectionWorkloadWarmupPeriod {
+	if event.ResolveEventTime().Sub(time.Unix(0, int64(event.ContainerContext.CreatedAt))) < m.config.RuntimeSecurity.AnomalyDetectionWorkloadWarmupPeriod {
 		nodeType = activity_tree.WorkloadWarmup
 	} else {
 		// have we reached the stable state time limit ?
