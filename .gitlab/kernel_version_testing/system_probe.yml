@@ -54,6 +54,8 @@ pull_test_dockers_arm64:
 
 pull_test_dockers_x64_manual:
   extends: .pull_test_dockers
+  rules:
+    - when: manual
   before_script:
     - export file_diff_check_exit_code=0
   variables:
@@ -61,6 +63,8 @@ pull_test_dockers_x64_manual:
 
 pull_test_dockers_arm64_manual:
   extends: .pull_test_dockers
+  rules:
+    - when: manual
   before_script:
     - export file_diff_check_exit_code=0
   variables:
@@ -149,6 +153,8 @@ package_dependencies_x64_manual:
   extends:
     - .package_dependencies
   needs: ["prepare_ebpf_functional_tests_x64", "tests_ebpf_x64", "pull_test_dockers_x64", "generate_minimized_btfs_x64"]
+  rules:
+    - when: manual
   variables:
     ARCHIVE_NAME: dependencies-x86_64.tar.gz
     ARCH: amd64
@@ -159,6 +165,8 @@ package_dependencies_arm64_manual:
   extends:
     - .package_dependencies
   needs: ["prepare_ebpf_functional_tests_arm64", "tests_ebpf_arm64", "pull_test_dockers_arm64", "generate_minimized_btfs_arm64"]
+  rules:
+    - when: manual
   variables:
     ARCHIVE_NAME: dependencies-arm64.tar.gz
     ARCH: arm64
