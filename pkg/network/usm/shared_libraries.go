@@ -220,6 +220,7 @@ func (w *soWatcher) Start() {
 	go func() {
 		defer w.wg.Done()
 		defer cleanupExit()
+		defer w.processMonitor.Stop()
 		// cleanup all uprobes
 		defer w.registry.cleanup()
 
