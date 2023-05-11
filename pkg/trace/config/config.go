@@ -67,10 +67,6 @@ type OTLP struct {
 	// from an incoming HTTP request.
 	MaxRequestBytes int64 `mapstructure:"-"`
 
-	// MaxGrpcRequestMib specifies the maximum number of megabytes that will be read
-	// from an incoming gRPC request.
-	MaxGrpcRequestMib float64
-
 	// ProbabilisticSampling specifies the percentage of traces to ingest. Exceptions are made for errors
 	// and rare traces (outliers) if "RareSamplerEnabled" is true. Invalid values are equivalent to 100.
 	// If spans have the "sampling.priority" attribute set, probabilistic sampling is skipped and the user's
