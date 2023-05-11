@@ -53,7 +53,9 @@ const (
 	// ProfileDrift is a node that was added because of a drift from a security profile
 	ProfileDrift NodeGenerationType = 3
 	// WorkloadWarmup is a node that was added of a drift in a warming up profile
-	WorkloadWarmup NodeGenerationType = 3
+	WorkloadWarmup NodeGenerationType = 4
+	// MaxNodeGenerationType is the maximum node type
+	MaxNodeGenerationType NodeGenerationType = 4
 )
 
 func (genType NodeGenerationType) String() string {
@@ -64,6 +66,8 @@ func (genType NodeGenerationType) String() string {
 		return "snapshot"
 	case ProfileDrift:
 		return "profile_drift"
+	case WorkloadWarmup:
+		return "workload_warmup"
 	default:
 		return "unknown"
 	}
@@ -197,7 +201,7 @@ func (at *ActivityTree) Contains(event *model.Event, generationType NodeGenerati
 // insert inserts the event in the activity tree, returns true if the event generated a new entry in the tree
 func (at *ActivityTree) insert(event *model.Event, dryRun bool, generationType NodeGenerationType) (bool, error) {
 	// sanity check
-	if generationType == Unknown || generationType > ProfileDrift {
+	if generationType == Unknown || generationType > MaxNodeGenerationType {
 		return false, fmt.Errorf("invalid generation type: %v", generationType)
 	}
 
