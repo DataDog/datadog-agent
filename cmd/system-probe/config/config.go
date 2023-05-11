@@ -26,7 +26,6 @@ const (
 	// Namespace is the top-level configuration key that all system-probe settings are nested underneath
 	Namespace = "system_probe_config"
 	spNS      = Namespace
-	netNS     = "network_config"
 	smNS      = "service_monitoring_config"
 	dsmNS     = "data_streams_config"
 	diNS      = "dynamic_instrumentation"
