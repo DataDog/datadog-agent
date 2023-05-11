@@ -168,10 +168,11 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 
 | Property | Definition |
 | -------- | ------------- |
-| [`async`](#async-doc) | True if the syscall was asynchronous |
 | [`container.created_at`](#container-created_at-doc) | Timestamp of the creation of the container |
 | [`container.id`](#container-id-doc) | ID of the container |
 | [`container.tags`](#container-tags-doc) | Tags of the container |
+| [`event.async`](#event-async-doc) | True if the syscall was asynchronous |
+| [`event.timestamp`](#event-timestamp-doc) | Timestamp of the event |
 | [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
 | [`network.device.ifindex`](#network-device-ifindex-doc) | interface ifindex |
@@ -2138,13 +2139,6 @@ Definition: User of the file's owner
 `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
-### `async` {#async-doc}
-Type: bool
-
-Definition: True if the syscall was asynchronous
-
-
-
 ### `bind.addr.family` {#bind-addr-family-doc}
 Type: int
 
@@ -2357,6 +2351,20 @@ Definition: a two octet code which specifies the DNS question type
 
 
 Constants: [DNS qtypes](#dns-qtypes)
+
+
+
+### `event.async` {#event-async-doc}
+Type: bool
+
+Definition: True if the syscall was asynchronous
+
+
+
+### `event.timestamp` {#event-timestamp-doc}
+Type: int
+
+Definition: Timestamp of the event
 
 
 

@@ -1084,7 +1084,7 @@ func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *Eve
 		ProcessContextSerializer: newProcessContextSerializer(&pc, event, resolvers),
 		DDContextSerializer:      newDDContextSerializer(event),
 		UserContextSerializer:    newUserContextSerializer(event),
-		Date:                     utils.NewEasyjsonTime(event.FieldHandlers.ResolveEventTimestamp(event)),
+		Date:                     utils.NewEasyjsonTime(event.FieldHandlers.ResolveEventTime(event)),
 	}
 
 	if id := event.FieldHandlers.ResolveContainerID(event, &event.ContainerContext); id != "" {

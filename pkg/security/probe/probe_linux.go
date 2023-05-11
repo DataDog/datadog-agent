@@ -750,7 +750,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		// Use the event timestamp as exit time
 		// The local process cache hasn't been updated yet with the exit time when the exit event is first seen
 		// The pid_cache kernel map has the exit_time but it's only accessed if there's a local miss
-		event.ProcessCacheEntry.Process.ExitTime = p.fieldHandlers.ResolveEventTimestamp(event)
+		event.ProcessCacheEntry.Process.ExitTime = p.fieldHandlers.ResolveEventTime(event)
 		event.Exit.Process = &event.ProcessCacheEntry.Process
 	case model.SetuidEventType:
 		if _, err = event.SetUID.UnmarshalBinary(data[offset:]); err != nil {
@@ -906,7 +906,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	}
 
 	if eventType == model.ExitEventType {
-		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessCacheEntry.Pid, p.fieldHandlers.ResolveEventTimestamp(event))
+		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessCacheEntry.Pid, p.fieldHandlers.ResolveEventTime(event))
 	}
 
 	p.DispatchEvent(event)
