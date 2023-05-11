@@ -33,7 +33,7 @@ func (cm ConfigMap) ToPulumi() auto.ConfigMap {
 	return (auto.ConfigMap)(cm)
 }
 
-func SetConfigMapFromParameter(store parameters.Store, cm ConfigMap, paramName, configMapKey string) error {
+func SetConfigMapFromParameter(store parameters.Store, cm ConfigMap, paramName parameters.StoreKey, configMapKey string) error {
 	val, err := store.Get(paramName)
 	if err != nil {
 		return err
@@ -45,7 +45,7 @@ func SetConfigMapFromParameter(store parameters.Store, cm ConfigMap, paramName, 
 	return nil
 }
 
-func SetConfigMapFromSecret(secretStore parameters.Store, cm ConfigMap, paramName, configMapKey string) error {
+func SetConfigMapFromSecret(secretStore parameters.Store, cm ConfigMap, paramName parameters.StoreKey, configMapKey string) error {
 	val, err := secretStore.Get(paramName)
 	if err != nil {
 		return err
@@ -64,7 +64,7 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 	// Inject profile variables
 	cm := ConfigMap{}
 	cm.Set("ddinfra:env", profile.EnvironmentNames(), false)
-	keyPair, err := profile.ParamStore().Get(parameters.GetDefaultKeyPairParamName())
+	keyPair, err := profile.ParamStore().Get(parameters.KeyPairName)
 	if err == nil {
 		cm.Set(parameters.GetDefaultKeyPairParamName(), keyPair, false)
 	} else {

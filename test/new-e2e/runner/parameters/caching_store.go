@@ -7,6 +7,8 @@ package parameters
 
 import "sync"
 
+var _ valueStore = &cachingStore{}
+
 type cachingStore struct {
 	l     sync.Mutex
 	cache map[string]string
@@ -20,11 +22,13 @@ func newCachingStore(s valueStore) valueStore {
 	}
 }
 
-func (s *cachingStore) get(key string) (string, error) {
+func (s *cachingStore) get(key StoreKey) (string, error) {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-	value, found := s.cache[key]
+	cachingStoreKey := string(key)
+
+	value, found := s.cache[cachingStoreKey]
 	if found {
 		return value, nil
 	}
@@ -35,6 +39,6 @@ func (s *cachingStore) get(key string) (string, error) {
 		return "", err
 	}
 
-	s.cache[key] = value
+	s.cache[cachingStoreKey] = value
 	return value, nil
 }

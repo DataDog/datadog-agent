@@ -27,6 +27,8 @@ type AWS struct {
 	DefaultKeyPairName string `yaml:"defaultKeyPairName"`
 }
 
+var _ valueStore = &configFileValueStore{}
+
 type configFileValueStore struct {
 	values map[string]string
 }
@@ -53,8 +55,8 @@ func NewConfigFileValueStore(path string) (configFileValueStore, error) {
 }
 
 // Get returns parameter value.
-func (s configFileValueStore) get(key string) (string, error) {
-	value, ok := s.values[key]
+func (s configFileValueStore) get(key StoreKey) (string, error) {
+	value, ok := s.values[string(key)]
 	if ok {
 		return value, nil
 	}
