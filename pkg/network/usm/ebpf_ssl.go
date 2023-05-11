@@ -316,8 +316,8 @@ func (o *sslProgram) Start() {
 }
 
 func (o *sslProgram) Stop() {
-	// We must stop the watcher we can read from the perfHandler, before terminating the perfHandler, otherwise we might
-	// try to send events over the perfHandler.
+	// We must stop the watcher first, as we can read from the perfHandler, before terminating the perfHandler, otherwise 
+	// we might try to send events over the perfHandler.
 	o.watcher.Stop()
 	o.perfHandler.Stop()
 }
