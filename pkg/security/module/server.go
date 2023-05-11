@@ -307,11 +307,8 @@ func (a *APIServer) start(ctx context.Context) {
 				}
 
 				// recopy tags
-				var tags []string
 				hasService := len(msg.service) != 0
 				for _, tag := range msg.tags {
-					tags = append(tags, tag)
-
 					// look for the service tag if we don't have one yet
 					if !hasService {
 						if strings.HasPrefix(tag, "service:") {
@@ -325,7 +322,7 @@ func (a *APIServer) start(ctx context.Context) {
 					RuleID:  msg.ruleID,
 					Data:    msg.data,
 					Service: msg.service,
-					Tags:    tags,
+					Tags:    msg.tags,
 				}
 
 				select {
