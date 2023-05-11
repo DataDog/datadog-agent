@@ -23,8 +23,9 @@
   rules:
     !reference [ .on_system_probe_changes ]
   stage: kernel_matrix_testing
-  script:
+  before_script:
     - !reference [ .system_probe_file_diff_check ]
+  script:
     - if [ ${file_diff_check_exit_code} -eq 0 ]; then
     # Build dependencies directory
     # DockerHub login for build to limit rate limit when pulling base images
@@ -51,6 +52,22 @@ pull_test_dockers_arm64:
   variables:
     ARCH: arm64
 
+pull_test_dockers_x64_manual:
+  extends: .pull_test_dockers
+  before_script:
+    - export file_diff_check_exit_code=0
+  variables:
+    ARCH: amd64
+
+pull_test_dockers_arm64_manual:
+  extends: .pull_test_dockers
+  before_script:
+    - export file_diff_check_exit_code=0
+  variables:
+    ARCH: arm64
+
+
+
 .package_dependencies:
   stage: kernel_matrix_testing
   rules:
@@ -60,8 +77,9 @@ pull_test_dockers_arm64:
   needs:
     job: get_file_diff
     artifacts: true
-  script:
+  before_script:
     - !reference [ .system_probe_file_diff_check ]
+  script:
     - if [ ${file_diff_check_exit_code} -eq 0 ]; then
     # Build dependencies directory
     - mkdir -p $DEPENDENCIES
@@ -126,6 +144,27 @@ package_dependencies_arm64:
   variables:
     ARCHIVE_NAME: dependencies-arm64.tar.gz
     ARCH: arm64
+
+package_dependencies_x64_manual:
+  extends:
+    - .package_dependencies
+  needs: ["prepare_ebpf_functional_tests_x64", "tests_ebpf_x64", "pull_test_dockers_x64", "generate_minimized_btfs_x64"]
+  variables:
+    ARCHIVE_NAME: dependencies-x86_64.tar.gz
+    ARCH: amd64
+  before_script:
+    - export file_diff_check_exit_code=0
+
+package_dependencies_arm64_manual:
+  extends:
+    - .package_dependencies
+  needs: ["prepare_ebpf_functional_tests_arm64", "tests_ebpf_arm64", "pull_test_dockers_arm64", "generate_minimized_btfs_arm64"]
+  variables:
+    ARCHIVE_NAME: dependencies-arm64.tar.gz
+    ARCH: arm64
+  before_script:
+    - export file_diff_check_exit_code=0
+
 
 
 kernel_matrix_testing_setup_env:
