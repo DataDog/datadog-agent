@@ -90,8 +90,8 @@ func (c *Check) Run() error {
 			err := c.ProcessMemory()
 			if err != nil {
 				return err
-      }
-    }
+			}
+		}
 		if c.config.QuerySamples.Enabled {
 			err := c.SampleSession()
 			if err != nil {
