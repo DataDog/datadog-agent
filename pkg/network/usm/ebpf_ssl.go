@@ -233,7 +233,6 @@ func newSSLProgram(c *config.Config, sockFDMap *ebpf.Map) *sslProgram {
 }
 
 func (o *sslProgram) ConfigureManager(m *errtelemetry.Manager) {
-
 	o.manager = m
 
 	m.PerfMaps = append(m.PerfMaps, &manager.PerfMap{
@@ -318,6 +317,7 @@ func (o *sslProgram) Start() {
 
 func (o *sslProgram) Stop() {
 	o.perfHandler.Stop()
+	o.watcher.Stop()
 }
 
 func addHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(pathIdentifier, string, string) error {
