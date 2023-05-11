@@ -18,12 +18,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	manager "github.com/DataDog/ebpf-manager"
 )
 
@@ -45,12 +45,12 @@ var (
 // * Consuming HTTP transaction "events" that are sent from Kernel space;
 // * Aggregating and emitting metrics based on the received HTTP transactions;
 type Monitor struct {
+	protocols []protocols.Protocol
+
 	httpConsumer    *events.Consumer
 	http2Consumer   *events.Consumer
 	ebpfProgram     *ebpfProgram
-	httpTelemetry   *http.Telemetry
 	http2Telemetry  *http.Telemetry
-	httpStatkeeper  *http.HttpStatKeeper
 	http2Statkeeper *http.HttpStatKeeper
 	processMonitor  *monitor.ProcessMonitor
 
@@ -81,30 +81,24 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 		// capture error and wrap it
 		if err != nil {
 			state = NotRunning
-			err = fmt.Errorf("could not instantiate http monitor: %w", err)
+			err = fmt.Errorf("could not instantiate USM monitor: %w", err)
 			startupError = err
 		}
 	}()
 
-	if !c.EnableHTTPMonitoring {
-		state = Disabled
-		return nil, nil
-	}
-
-	kversion, err := kernel.HostVersion()
-	if err != nil {
-		return nil, &errNotSupported{fmt.Errorf("couldn't determine current kernel version: %w", err)}
-	}
-
-	if kversion < http.MinimumKernelVersion {
-		return nil, &errNotSupported{
-			fmt.Errorf("http feature not available on pre %s kernels", http.MinimumKernelVersion.String()),
-		}
-	}
-
 	mgr, err := newEBPFProgram(c, connectionProtocolMap, sockFD, bpfTelemetry)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up http ebpf program: %w", err)
+	}
+
+	enabledProtocols, err := initProtocols(c)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(enabledProtocols) == 0 {
+		state = Disabled
+		return nil, nil
 	}
 
 	if err := mgr.Init(); err != nil {
@@ -128,35 +122,24 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 		return nil, fmt.Errorf("error enabling HTTP traffic inspection: %s", err)
 	}
 
-	httpTelemetry, err := http.NewTelemetry()
-	if err != nil {
-		closeFilterFn()
-		return nil, err
-	}
-
-	statkeeper := http.NewHTTPStatkeeper(c, httpTelemetry)
 	processMonitor := monitor.GetProcessMonitor()
 
 	var http2Statkeeper *http.HttpStatKeeper
 	var http2Telemetry *http.Telemetry
 	if c.EnableHTTP2Monitoring {
-		http2Telemetry, err = http.NewTelemetry()
-		if err != nil {
-			closeFilterFn()
-			return nil, err
-		}
+		http2Telemetry = http.NewTelemetry()
+
 		// for now the max HTTP2 entries would be taken from the maxHTTPEntries.
 		http2Statkeeper = http.NewHTTPStatkeeper(c, http2Telemetry)
 	}
 
 	state = Running
 
-	httpMonitor := &Monitor{
+	usmMonitor := &Monitor{
+		protocols:       enabledProtocols,
 		ebpfProgram:     mgr,
-		httpTelemetry:   httpTelemetry,
 		http2Telemetry:  http2Telemetry,
 		closeFilterFn:   closeFilterFn,
-		httpStatkeeper:  statkeeper,
 		processMonitor:  processMonitor,
 		http2Enabled:    c.EnableHTTP2Monitoring,
 		http2Statkeeper: http2Statkeeper,
@@ -167,12 +150,12 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 		// Kafka related
 		kafkaTelemetry := kafka.NewTelemetry()
 		kafkaStatkeeper := kafka.NewKafkaStatkeeper(c, kafkaTelemetry)
-		httpMonitor.kafkaEnabled = true
-		httpMonitor.kafkaTelemetry = kafkaTelemetry
-		httpMonitor.kafkaStatkeeper = kafkaStatkeeper
+		usmMonitor.kafkaEnabled = true
+		usmMonitor.kafkaTelemetry = kafkaTelemetry
+		usmMonitor.kafkaStatkeeper = kafkaStatkeeper
 	}
 
-	return httpMonitor, nil
+	return usmMonitor, nil
 }
 
 // Start consuming HTTP events
@@ -436,4 +419,21 @@ func (m *Monitor) createStaticTable(mgr *ebpfProgram) error {
 		}
 	}
 	return nil
+}
+
+func initProtocols(c *config.Config) ([]protocols.Protocol, error) {
+	enabledProtocols := make([]protocols.Protocol, 5)
+
+	for _, factory := range protocols.KnownProtocols {
+		protocol, err := factory(c)
+		if err != nil {
+			return nil, &errNotSupported{err}
+		}
+
+		if protocol != nil {
+			enabledProtocols = append(enabledProtocols, protocol)
+		}
+	}
+
+	return enabledProtocols, nil
 }
