@@ -440,18 +440,18 @@ func (t *tracer) RefreshProbeTelemetry() {
 // Refreshes connection tracer telemetry on a loop
 // TODO: Replace with prometheus collector interface
 func (t *tracer) refreshProbeTelemetry() {
-	EbpfTelemetry := t.getEBPFTelemetry()
-	if EbpfTelemetry == nil {
+	ebpfTelemetry := t.getEBPFTelemetry()
+	if ebpfTelemetry == nil {
 		return
 	}
 
-	ConnTracerTelemetry.tcpFailedConnects.Add(int64(EbpfTelemetry.Tcp_failed_connect) - ConnTracerTelemetry.tcpFailedConnects.Load())
-	ConnTracerTelemetry.TcpSentMiscounts.Set(int64(EbpfTelemetry.Tcp_sent_miscounts))
-	ConnTracerTelemetry.missedTcpClose.Set(float64(EbpfTelemetry.Missed_tcp_close))
-	ConnTracerTelemetry.missedUdpClose.Set(float64(EbpfTelemetry.Missed_udp_close))
-	ConnTracerTelemetry.UdpSendsProcessed.Set(int64(EbpfTelemetry.Udp_sends_processed))
-	ConnTracerTelemetry.UdpSendsMissed.Set(int64(EbpfTelemetry.Udp_sends_missed))
-	ConnTracerTelemetry.UdpDroppedConns.Set(float64(EbpfTelemetry.Udp_dropped_conns))
+	ConnTracerTelemetry.tcpFailedConnects.Add(int64(ebpfTelemetry.Tcp_failed_connect) - ConnTracerTelemetry.tcpFailedConnects.Load())
+	ConnTracerTelemetry.TcpSentMiscounts.Set(int64(ebpfTelemetry.Tcp_sent_miscounts))
+	ConnTracerTelemetry.missedTcpClose.Set(float64(ebpfTelemetry.Missed_tcp_close))
+	ConnTracerTelemetry.missedUdpClose.Set(float64(ebpfTelemetry.Missed_udp_close))
+	ConnTracerTelemetry.UdpSendsProcessed.Set(int64(ebpfTelemetry.Udp_sends_processed))
+	ConnTracerTelemetry.UdpSendsMissed.Set(int64(ebpfTelemetry.Udp_sends_missed))
+	ConnTracerTelemetry.UdpDroppedConns.Set(float64(ebpfTelemetry.Udp_dropped_conns))
 }
 
 // DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
