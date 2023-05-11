@@ -295,12 +295,15 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	}()
 
 	wg.Wait()
-
+	agentStartTime, agentStartTimeError := trace.GetSandboxBootTime()
+	if agentStartTimeError != nil {
+	    agentStartTime = &startTime
+	}
 	coldStartSpanCreator := &trace.ColdStartSpanCreator{
 		LambdaSpanChan:      lambdaSpanChan,
 		InitDurationChan:    initDurationChan,
 		TraceAgent:          serverlessDaemon.TraceAgent,
-		AgentStartTimeNanos: startTime.UnixNano(),
+		AgentStartTimeNanos: agentStartTime.UnixNano(),
 		StopChan:            make(chan struct{}),
 		ColdStartSpanId:     coldStartSpanId,
 	}
