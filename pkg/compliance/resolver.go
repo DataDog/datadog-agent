@@ -183,9 +183,9 @@ func (r *defaultResolver) ResolveInputs(ctx_ context.Context, rule *Rule) (Resol
 		case spec.Docker != nil:
 			resultType = "docker"
 			result, err = r.resolveDocker(ctx, *spec.Docker)
-		case spec.KubeApiServer != nil:
+		case spec.KubeApiserver != nil:
 			resultType = "kubernetes"
-			result, err = r.resolveKubeApiserver(ctx, *spec.KubeApiServer)
+			result, err = r.resolveKubeApiserver(ctx, *spec.KubeApiserver)
 			kubernetesCluster = r.resolveKubeClusterID(ctx)
 		case spec.Constants != nil:
 			resultType = "constants"
@@ -636,7 +636,7 @@ func (r *defaultResolver) resolveKubeClusterID(ctx context.Context) string {
 	return r.kubeClusterIDCache
 }
 
-func (r *defaultResolver) resolveKubeApiserver(ctx context.Context, spec InputSpecKubernetes) (interface{}, error) {
+func (r *defaultResolver) resolveKubeApiserver(ctx context.Context, spec InputSpecKubeapiserver) (interface{}, error) {
 	cl, err := r.getKubernetesCl(ctx)
 	if err != nil {
 		return nil, err

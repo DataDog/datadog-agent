@@ -181,14 +181,14 @@ type (
 	// InputSpec is a union type that holds the description of a set of inputs
 	// to be gathered typically by a Resolver.
 	InputSpec struct {
-		File          *InputSpecFile       `yaml:"file,omitempty" json:"file,omitempty"`
-		Process       *InputSpecProcess    `yaml:"process,omitempty" json:"process,omitempty"`
-		Group         *InputSpecGroup      `yaml:"group,omitempty" json:"group,omitempty"`
-		Audit         *InputSpecAudit      `yaml:"audit,omitempty" json:"audit,omitempty"`
-		Docker        *InputSpecDocker     `yaml:"docker,omitempty" json:"docker,omitempty"`
-		KubeApiServer *InputSpecKubernetes `yaml:"kubeApiserver,omitempty" json:"kubeApiserver,omitempty"`
-		XCCDF         *InputSpecXCCDF      `yaml:"xccdf,omitempty" json:"xccdf,omitempty"`
-		Constants     *InputSpecConstants  `yaml:"constants,omitempty" json:"constants,omitempty"`
+		File          *InputSpecFile          `yaml:"file,omitempty" json:"file,omitempty"`
+		Process       *InputSpecProcess       `yaml:"process,omitempty" json:"process,omitempty"`
+		Group         *InputSpecGroup         `yaml:"group,omitempty" json:"group,omitempty"`
+		Audit         *InputSpecAudit         `yaml:"audit,omitempty" json:"audit,omitempty"`
+		Docker        *InputSpecDocker        `yaml:"docker,omitempty" json:"docker,omitempty"`
+		KubeApiserver *InputSpecKubeapiserver `yaml:"kubeApiserver,omitempty" json:"kubeApiserver,omitempty"`
+		XCCDF         *InputSpecXCCDF         `yaml:"xccdf,omitempty" json:"xccdf,omitempty"`
+		Constants     *InputSpecConstants     `yaml:"constants,omitempty" json:"constants,omitempty"`
 
 		TagName string `yaml:"tag,omitempty" json:"tag,omitempty"`
 		Type    string `yaml:"type,omitempty" json:"type,omitempty"`
@@ -217,7 +217,7 @@ type (
 		Kind string `yaml:"kind" json:"kind"`
 	}
 
-	InputSpecKubernetes struct {
+	InputSpecKubeapiserver struct {
 		Kind          string `yaml:"kind" json:"kind"`
 		Version       string `yaml:"version,omitempty" json:"version,omitempty"`
 		Group         string `yaml:"group,omitempty" json:"group,omitempty"`
@@ -281,7 +281,7 @@ func (i *InputSpec) Valid() error {
 	// NOTE(jinroh): the current semantics allow to specify the result type as
 	// an "array". Here we enforce that the specified result type is
 	// constrained to a specific input type.
-	if i.KubeApiServer != nil || i.Docker != nil || i.Audit != nil {
+	if i.KubeApiserver != nil || i.Docker != nil || i.Audit != nil {
 		if i.Type != "array" {
 			return fmt.Errorf("input of types kubeApiserver docker and audit have to be arrays")
 		}
@@ -313,11 +313,11 @@ func (b *Benchmark) Valid() error {
 	return nil
 }
 
-// LoadBenchmarks will download the benchmark files that are contained in the
-// given root directory and with a name matching the specified glob. If a
+// LoadBenchmarks will read the benchmark files that are contained in the
+// given root directory, with a name matching the specified glob. If a
 // ruleFilter is specified, the loaded benchmarks' rules are filtered. If a
-// benchmarks has no rules after the filter is applied, it is filtered out
-// entirely.
+// benchmarks has no rules after the filter is applied, it is not part of the
+// results.
 func LoadBenchmarks(rootDir, glob string, ruleFilter RuleFilter) ([]*Benchmark, error) {
 	filenames := listBenchmarksFilenames(rootDir, glob)
 	benchmarks := make([]*Benchmark, 0)
