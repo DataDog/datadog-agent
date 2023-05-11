@@ -18,6 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
+	"github.com/DataDog/datadog-agent/pkg/security/module"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -214,6 +216,21 @@ func (a *Agent) runXCCDFBenchmarks(ctx context.Context) {
 		return
 	}
 	benchmarks, err := LoadBenchmarks(a.opts.ConfigDir, "*.yaml", func(r *Rule) bool {
+		if len(r.Filters) > 0 {
+			ruleFilterModel := module.NewRuleFilterModel()
+			seclRuleFilter := rules.NewSECLRuleFilter(ruleFilterModel)
+			accepted, err := seclRuleFilter.IsRuleAccepted(&rules.RuleDefinition{
+				Filters: r.Filters,
+			})
+			if err != nil {
+				log.Errorf("failed to apply rule filters: %s", err)
+				return false
+			}
+			if !accepted {
+				log.Infof("rule %s skipped - not matching constraints", r.ID)
+				 return false
+			}
+		}
 		return r.IsXCCDF() && a.opts.RuleFilter(r)
 	})
 	if err != nil {

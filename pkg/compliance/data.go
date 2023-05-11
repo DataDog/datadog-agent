@@ -173,6 +173,7 @@ type Rule struct {
 	InputSpecs  []*InputSpec `yaml:"input,omitempty"`
 	Imports     []string     `yaml:"imports,omitempty"`
 	Period      string       `yaml:"period,omitempty"`
+	Filters     []string     `yaml:"filters"`
 }
 
 type (
