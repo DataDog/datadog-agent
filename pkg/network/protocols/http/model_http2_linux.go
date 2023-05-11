@@ -27,6 +27,12 @@ func (tx *EbpfHttp2Tx) Path(buffer []byte) ([]byte, bool) {
 	if err != nil {
 		return nil, false
 	}
+
+	// ensure we found a '/' in the beginning of the path
+	if len(str) == 0 || str[0] != '/' {
+		return nil, false
+	}
+
 	n := copy(buffer, str)
 	// indicate if we knowingly captured the entire path
 	return buffer[:n], true

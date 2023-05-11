@@ -142,7 +142,8 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "id"
+        "id",
+        "question"
       ],
       "description": "DNSEventSerializer serializes a DNS event to JSON"
     },
@@ -810,6 +811,10 @@
         "is_kworker": {
           "type": "boolean",
           "description": "Indicates whether the process is a kworker"
+        },
+        "source": {
+          "type": "string",
+          "description": "Process source"
         }
       },
       "additionalProperties": false,

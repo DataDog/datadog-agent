@@ -57,7 +57,7 @@ func fetchEc2Tags(ctx context.Context) ([]string, error) {
 }
 
 func fetchEc2TagsFromIMDS(ctx context.Context) ([]string, error) {
-	keysStr, err := getMetadataItem(ctx, "/tags/instance")
+	keysStr, err := getMetadataItem(ctx, imdsTags, false)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +74,7 @@ func fetchEc2TagsFromIMDS(ctx context.Context) ([]string, error) {
 		// > keys can only use letters (a-z, A-Z), numbers (0-9), and the
 		// > following characters: -_+=,.@:. Instance tag keys can't use spaces,
 		// > /, or the reserved names ., .., or _index.
-		val, err := getMetadataItem(ctx, "/tags/instance/"+key)
+		val, err := getMetadataItem(ctx, imdsTags+"/"+key, false)
 		if err != nil {
 			return nil, err
 		}
@@ -201,7 +201,7 @@ type ec2Identity struct {
 func getInstanceIdentity(ctx context.Context) (*ec2Identity, error) {
 	instanceIdentity := &ec2Identity{}
 
-	res, err := doHTTPRequest(ctx, instanceIdentityURL)
+	res, err := doHTTPRequest(ctx, instanceIdentityURL, false)
 	if err != nil {
 		return instanceIdentity, fmt.Errorf("unable to fetch EC2 API to get identity: %s", err)
 	}
@@ -228,7 +228,7 @@ func getSecurityCreds(ctx context.Context) (*ec2SecurityCred, error) {
 		return iamParams, err
 	}
 
-	res, err := doHTTPRequest(ctx, metadataURL+"/iam/security-credentials/"+iamRole)
+	res, err := doHTTPRequest(ctx, metadataURL+"/iam/security-credentials/"+iamRole, false)
 	if err != nil {
 		return iamParams, fmt.Errorf("unable to fetch EC2 API to get iam role: %s", err)
 	}
@@ -241,7 +241,7 @@ func getSecurityCreds(ctx context.Context) (*ec2SecurityCred, error) {
 }
 
 func getIAMRole(ctx context.Context) (string, error) {
-	res, err := doHTTPRequest(ctx, metadataURL+"/iam/security-credentials/")
+	res, err := doHTTPRequest(ctx, metadataURL+"/iam/security-credentials/", false)
 	if err != nil {
 		return "", fmt.Errorf("unable to fetch EC2 API to get security credentials: %s", err)
 	}

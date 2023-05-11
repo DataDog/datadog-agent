@@ -1225,6 +1225,14 @@ func (p *Resolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 	}
 }
 
+// HasCompleteLineage returns whether the lineage is complete
+func (p *Resolver) HasCompleteLineage(entry *model.ProcessCacheEntry) bool {
+	p.RLock()
+	defer p.RUnlock()
+
+	return entry.HasCompleteLineage()
+}
+
 // NewResolver returns a new process resolver
 func NewResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
 	scrubber *procutil.DataScrubber, containerResolver *container.Resolver, mountResolver *mount.Resolver,
