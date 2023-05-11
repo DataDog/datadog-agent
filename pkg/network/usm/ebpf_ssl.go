@@ -316,8 +316,10 @@ func (o *sslProgram) Start() {
 }
 
 func (o *sslProgram) Stop() {
-	o.perfHandler.Stop()
+	// We must stop the watcher we can read from the perfHandler, before terminating the perfHandler, otherwise we might
+	// try to send events over the perfHandler.
 	o.watcher.Stop()
+	o.perfHandler.Stop()
 }
 
 func addHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(pathIdentifier, string, string) error {
