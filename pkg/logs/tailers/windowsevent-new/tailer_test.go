@@ -16,10 +16,9 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cihub/seelog"
 
-
+	"github.com/cenkalti/backoff"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	"github.com/cenkalti/backoff"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -35,16 +34,16 @@ type ReadEventsSuite struct {
 	eventSource string
 	query       string
 
-	testAPI     string
-	numEvents   uint
-	ti eventlog_test.APITester
+	testAPI   string
+	numEvents uint
+	ti        eventlog_test.APITester
 }
 
 func TestReadEventsSuite(t *testing.T) {
 	testerNames := eventlog_test.GetEnabledAPITesters()
 
 	for _, tiName := range testerNames {
-		t.Run(fmt.Sprintf("%sAPI", tiName), func (t *testing.T) {
+		t.Run(fmt.Sprintf("%sAPI", tiName), func(t *testing.T) {
 			var s ReadEventsSuite
 			s.channelPath = "dd-test-channel-logtailer"
 			s.eventSource = "dd-test-source-logtailer"
@@ -101,9 +100,9 @@ func newtailer(evtapi evtapi.API, tailerconfig *Config) (*Tailer, error) {
 }
 
 func (s *ReadEventsSuite) TestReadEvents() {
-	config := Config {
+	config := Config{
 		ChannelPath: s.channelPath,
-		Query: s.query,
+		Query:       s.query,
 	}
 	tailer, err := newtailer(s.ti.API(), &config)
 	s.Require().NoError(err)
@@ -116,7 +115,7 @@ func (s *ReadEventsSuite) TestReadEvents() {
 
 	totalEvents := uint(0)
 	for i := uint(0); i < s.numEvents; i++ {
-		msg := <- tailer.outputChan
+		msg := <-tailer.outputChan
 		s.Require().NotEmpty(msg.Content, "Message must not be empty")
 		totalEvents += 1
 	}
@@ -153,9 +152,9 @@ func BenchmarkReadEvents(b *testing.B) {
 				err = ti.API().EvtClearLog(channelPath)
 				require.NoError(b, err)
 
-				config := Config {
+				config := Config{
 					ChannelPath: channelPath,
-					Query: query,
+					Query:       query,
 				}
 				tailer, err := newtailer(ti.API(), &config)
 				require.NoError(b, err)
@@ -166,7 +165,7 @@ func BenchmarkReadEvents(b *testing.B) {
 				b.ResetTimer()
 				startTime := time.Now()
 				totalEvents := uint(0)
-				for i:= 0; i < b.N; i++ {
+				for i := 0; i < b.N; i++ {
 					b.StopTimer()
 					err = ti.API().EvtClearLog(channelPath)
 					require.NoError(b, err)
@@ -175,7 +174,7 @@ func BenchmarkReadEvents(b *testing.B) {
 					b.StartTimer()
 
 					for i := uint(0); i < numEvents; i++ {
-						msg := <- tailer.outputChan
+						msg := <-tailer.outputChan
 						require.NotEmpty(b, msg.Content, "Message must not be empty")
 						totalEvents += 1
 					}
@@ -189,4 +188,3 @@ func BenchmarkReadEvents(b *testing.B) {
 		}
 	}
 }
-

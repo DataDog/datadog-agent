@@ -30,8 +30,8 @@ const (
 	eventIDPath = "Event.System.EventID"
 	// Custom path, not a Microsoft path
 	eventIDQualifierPath = "Event.System.EventIDQualifier"
-	maxRunes      = 1<<17 - 1 // 128 kB
-	truncatedFlag = "...TRUNCATED..."
+	maxRunes             = 1<<17 - 1 // 128 kB
+	truncatedFlag        = "...TRUNCATED..."
 )
 
 // Config is a event log tailer configuration

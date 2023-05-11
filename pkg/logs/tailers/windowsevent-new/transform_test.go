@@ -29,7 +29,7 @@ func BenchmarkTransform(b *testing.B) {
 
 	var actual string
 	startTime := time.Now()
-	for i:= 0; i < b.N; i++ {
+	for i := 0; i < b.N; i++ {
 		actual, _ = eventToJSON(richEvt)
 	}
 	assert.JSONEq(b, expected1, string(actual))
@@ -95,4 +95,3 @@ func transformtests(t testing.TB) {
 func richEventFromXML(xml string) *richEvent {
 	return &richEvent{xmlEvent: xml}
 }
-

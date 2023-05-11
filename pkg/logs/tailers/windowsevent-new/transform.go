@@ -172,7 +172,6 @@ func formatEventBinaryData(mv mxj.Map) error {
 		return err
 	}
 
-
 	// TODO: compat: binary data is not guaranteed to be a utf-16 string, but go's
 	// encode function doesn't return an error, it replaces invalid bytes.
 	// But the old log tailer always did this so we're keeping it for compat.
@@ -191,8 +190,8 @@ func formatEventBinaryData(mv mxj.Map) error {
 }
 
 // utf16decode converts ut16le bytes to utf8 bytes
-func convertUTF16ToUTF8(b []byte) ([]byte ,error) {
-	if len(b) % 2 != 0 {
+func convertUTF16ToUTF8(b []byte) ([]byte, error) {
+	if len(b)%2 != 0 {
 		return nil, fmt.Errorf("length must be an even number")
 	}
 	// UTF-16 little-endian (UTF-16LE) is the encoding standard in the Windows operating system.
