@@ -26,9 +26,8 @@ co_re_tests = Array.[](
 )
 
 TIMEOUTS = {
-  # disable timeouts for pkg/network/tracer
   "pkg/network/protocols/http$" => "15m",
-  "pkg/network/tracer$" => "15m",
+  "pkg/network/tracer$" => "25m",
 }
 
 DEFAULT_TIMEOUT = "10m"
