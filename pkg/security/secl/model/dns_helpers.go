@@ -19,7 +19,7 @@ var (
 	ErrDNSNameNonPrintableASCII = errors.New("dns name non-printable ascii")
 )
 
-const DNS_PREALLOC_SIZE = 128
+const DNS_PREALLOC_SIZE = 256
 
 func decodeDNSName(raw []byte) (string, error) {
 	var (
