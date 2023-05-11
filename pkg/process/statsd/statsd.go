@@ -6,7 +6,8 @@
 package statsd
 
 import (
-	"fmt"
+	"net"
+	"strconv"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -17,7 +18,8 @@ var Client *statsd.Client
 
 // Configure creates a statsd client from a dogweb.ini style config file and set it to the global Statsd.
 func Configure(host string, port int) error {
-	client, err := statsd.New(fmt.Sprintf("%s:%d", host, port))
+	url := net.JoinHostPort(host, strconv.Itoa(port))
+	client, err := statsd.New(url)
 	if err != nil {
 		return err
 	}
