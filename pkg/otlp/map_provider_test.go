@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
@@ -24,6 +25,7 @@ func TestNewMap(t *testing.T) {
 		name string
 		pcfg PipelineConfig
 		ocfg map[string]interface{}
+		sven bool
 	}{
 		{
 			name: "only gRPC, only Traces",
@@ -515,10 +517,55 @@ func TestNewMap(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "with both, serverless enabled",
+			sven: true,
+			pcfg: PipelineConfig{
+				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 1234, 5678),
+				TracePort:          5003,
+				TracesEnabled:      true,
+				Debug: map[string]interface{}{
+					"loglevel": "disabled",
+				},
+			},
+			ocfg: map[string]interface{}{
+				"receivers": map[string]interface{}{
+					"otlp": map[string]interface{}{
+						"protocols": map[string]interface{}{
+							"grpc": map[string]interface{}{
+								"endpoint": "bindhost:1234",
+							},
+							"http": map[string]interface{}{
+								"endpoint": "bindhost:5678",
+							},
+						},
+					},
+				},
+				"exporters": map[string]interface{}{
+					"otlp": map[string]interface{}{
+						"tls": map[string]interface{}{
+							"insecure": true,
+						},
+						"compression": "none",
+						"endpoint":    "localhost:5003",
+					},
+				},
+				"service": map[string]interface{}{
+					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
+					"pipelines": map[string]interface{}{
+						"traces": map[string]interface{}{
+							"receivers": []interface{}{"otlp"},
+							"exporters": []interface{}{"otlp"},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, testInstance := range tests {
 		t.Run(testInstance.name, func(t *testing.T) {
+			config.Datadog.Set("serverless.enabled", testInstance.sven)
 			cfg, err := buildMap(testInstance.pcfg)
 			require.NoError(t, err)
 			tcfg := confmap.NewFromStringMap(testInstance.ocfg)

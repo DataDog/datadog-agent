@@ -110,7 +110,8 @@ func testServerlessOTLPAgentReceivesTraces(client otlptrace.Client, traceChan <-
 
 	select {
 	case <-traceChan:
-	case <-time.After(10 * time.Second):
+	// 1 sec is the amount of time we wait when shutting down the daemon
+	case <-time.After(1 * time.Second):
 		return fmt.Errorf("timeout waiting for span to arrive")
 	}
 	return nil

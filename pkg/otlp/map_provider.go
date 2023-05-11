@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/collector/otelcol"
 	"go.uber.org/multierr"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/otlp/internal/configutils"
 )
 
@@ -30,10 +31,6 @@ const defaultTracesConfig string = `
 receivers:
   otlp:
 
-processors:
-  batch:
-    timeout: 10s
-
 exporters:
   otlp:
     tls:
@@ -47,8 +44,18 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
       exporters: [otlp]
+`
+
+const processorTracesConfig string = `
+processors:
+  batch:
+    timeout: 10s
+
+service:
+  pipelines:
+    traces:
+      processors: [batch]
 `
 
 func buildTracesMap(tracePort uint) (*confmap.Conf, error) {
@@ -62,6 +69,13 @@ func buildTracesMap(tracePort uint) (*confmap.Conf, error) {
 		})
 		err = baseMap.Merge(configMap)
 	}
+	if !config.Datadog.GetBool("serverless.enabled") {
+		configMap, err := configutils.NewMapFromYAMLString(processorTracesConfig)
+		if err != nil {
+			return nil, err
+		}
+		err = baseMap.Merge(configMap)
+	}
 	return baseMap, err
 }
 
@@ -69,10 +83,6 @@ func buildTracesMap(tracePort uint) (*confmap.Conf, error) {
 const defaultMetricsConfig string = `
 receivers:
   otlp:
-
-processors:
-  batch:
-    timeout: 10s
 
 exporters:
   serializer:
@@ -84,8 +94,18 @@ service:
   pipelines:
     metrics:
       receivers: [otlp]
-      processors: [batch]
       exporters: [serializer]
+`
+
+const processorMetricsConfig string = `
+processors:
+  batch:
+    timeout: 10s
+
+service:
+  pipelines:
+    metrics:
+      processors: [batch]
 `
 
 func buildMetricsMap(cfg PipelineConfig) (*confmap.Conf, error) {
@@ -98,6 +118,13 @@ func buildMetricsMap(cfg PipelineConfig) (*confmap.Conf, error) {
 		configMap := confmap.NewFromStringMap(map[string]interface{}{
 			buildKey("exporters", "serializer", "metrics"): cfg.Metrics,
 		})
+		err = baseMap.Merge(configMap)
+	}
+	if !config.Datadog.GetBool("serverless.enabled") {
+		configMap, err := configutils.NewMapFromYAMLString(processorMetricsConfig)
+		if err != nil {
+			return nil, err
+		}
 		err = baseMap.Merge(configMap)
 	}
 	return baseMap, err
