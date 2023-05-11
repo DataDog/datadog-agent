@@ -284,11 +284,17 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 	// test a HTTP client linked to OpenSSL or GnuTLS
 	const targetURL = "https://127.0.0.1:443/200/foobar"
 	cmd := append(fetchCmd, targetURL)
-	requestCmd := exec.Command(cmd[0], cmd[1:]...)
-	out, err := requestCmd.CombinedOutput()
-	require.NoErrorf(t, err, "failed to issue request via %s: %s\n%s", fetchCmd, err, string(out))
-	fetchPid := uint32(requestCmd.Process.Pid)
-	t.Logf("%s pid %d", cmd[0], fetchPid)
+
+	t.Log("run 3 clients request as we can have a race between the closing tcp socket and the http response")
+	fetchPids := make(map[uint32]struct{})
+	for i := 0; i < 3; i++ {
+		requestCmd := exec.Command(cmd[0], cmd[1:]...)
+		out, err := requestCmd.CombinedOutput()
+		require.NoErrorf(t, err, "failed to issue request via %s: %s\n%s", fetchCmd, err, string(out))
+		fetchPid := uint32(requestCmd.Process.Pid)
+		fetchPids[fetchPid] = struct{}{}
+		t.Logf("%s pid %d", cmd[0], fetchPid)
+	}
 
 	var allConnections []network.ConnectionStats
 	var httpKey http.Key
@@ -321,7 +327,8 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 	// check NPM static TLS tag
 	found := false
 	for _, c := range allConnections {
-		if c.Pid == fetchPid && c.SPort == httpKey.SrcPort && c.DPort == httpKey.DstPort && isTLSTag(c.StaticTags) {
+		_, foundPid := fetchPids[c.Pid]
+		if foundPid && c.SPort == httpKey.SrcPort && c.DPort == httpKey.DstPort && isTLSTag(c.StaticTags) {
 			found = true
 			break
 		}
@@ -329,8 +336,9 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 	if !found {
 		t.Errorf("NPM TLS tag not found")
 		for _, c := range allConnections {
-			if c.Pid == fetchPid {
-				t.Logf("pid %d connection %# v \nhttp %# v\n", fetchPid, krpretty.Formatter(c), krpretty.Formatter(httpKey))
+			_, foundPid := fetchPids[c.Pid]
+			if foundPid {
+				t.Logf("pid %d connection %# v \nhttp %# v\n", c.Pid, krpretty.Formatter(c), krpretty.Formatter(httpKey))
 			}
 		}
 	}
