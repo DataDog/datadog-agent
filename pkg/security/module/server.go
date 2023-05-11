@@ -38,7 +38,7 @@ import (
 type pendingMsg struct {
 	ruleID    string
 	data      []byte
-	tags      map[string]bool
+	tags      []string
 	service   string
 	extTagsCb func() []string
 	sendAfter time.Time
@@ -303,15 +303,13 @@ func (a *APIServer) start(ctx context.Context) {
 		case now := <-ticker.C:
 			a.dequeue(now, func(msg *pendingMsg) {
 				if msg.extTagsCb != nil {
-					for _, tag := range msg.extTagsCb() {
-						msg.tags[tag] = true
-					}
+					msg.tags = append(msg.tags, msg.extTagsCb()...)
 				}
 
 				// recopy tags
 				var tags []string
 				hasService := len(msg.service) != 0
-				for tag := range msg.tags {
+				for _, tag := range msg.tags {
 					tags = append(tags, tag)
 
 					// look for the service tag if we don't have one yet
@@ -436,20 +434,13 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 		ruleID:    rule.Definition.ID,
 		data:      data,
 		extTagsCb: extTagsCb,
-		tags:      make(map[string]bool),
 		service:   service,
 		sendAfter: time.Now().Add(a.retention),
 	}
 
-	msg.tags["rule_id:"+rule.Definition.ID] = true
-
-	for _, tag := range rule.Tags {
-		msg.tags[tag] = true
-	}
-
-	for _, tag := range event.GetTags() {
-		msg.tags[tag] = true
-	}
+	msg.tags = append(msg.tags, "rule_id:"+rule.Definition.ID)
+	msg.tags = append(msg.tags, rule.Tags...)
+	msg.tags = append(msg.tags, event.GetTags()...)
 
 	a.enqueue(msg)
 }
