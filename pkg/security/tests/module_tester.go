@@ -141,7 +141,8 @@ runtime_security_config:
     dir: {{ .SecurityProfileDir }}
     watch_dir: {{ .SecurityProfileWatchDir }}
     anomaly_detection:
-      minimum_stable_period: {{.AnomalyDetectionMinimumStablePeriod}}
+      minimum_stable_period: {{.AnomalyDetectionMinimumStablePeriod}}s
+      workload_warmup_period: {{.AnomalyDetectionWarmupPeriod}}s
 {{end}}
 
   self_test:
@@ -229,6 +230,7 @@ type testOpts struct {
 	securityProfileDir                  string
 	securityProfileWatchDir             bool
 	anomalyDetectionMinimumStablePeriod int
+	anomalyDetectionWarmupPeriod        int
 	disableDiscarders                   bool
 	eventsCountThreshold                int
 	disableERPCDentryResolution         bool
@@ -265,6 +267,7 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.securityProfileDir == opts.securityProfileDir &&
 		to.securityProfileWatchDir == opts.securityProfileWatchDir &&
 		to.anomalyDetectionMinimumStablePeriod == opts.anomalyDetectionMinimumStablePeriod &&
+		to.anomalyDetectionWarmupPeriod == opts.anomalyDetectionWarmupPeriod &&
 		to.disableDiscarders == opts.disableDiscarders &&
 		to.disableFilters == opts.disableFilters &&
 		to.eventsCountThreshold == opts.eventsCountThreshold &&
@@ -749,6 +752,7 @@ func genTestConfigs(dir string, opts testOpts, testDir string) (*emconfig.Config
 		"SecurityProfileDir":                  opts.securityProfileDir,
 		"SecurityProfileWatchDir":             opts.securityProfileWatchDir,
 		"AnomalyDetectionMinimumStablePeriod": opts.anomalyDetectionMinimumStablePeriod,
+		"AnomalyDetectionWarmupPeriod":        opts.anomalyDetectionWarmupPeriod,
 		"EventsCountThreshold":                opts.eventsCountThreshold,
 		"ErpcDentryResolutionEnabled":         erpcDentryResolutionEnabled,
 		"MapDentryResolutionEnabled":          mapDentryResolutionEnabled,
