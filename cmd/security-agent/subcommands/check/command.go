@@ -154,30 +154,20 @@ func RunCheck(log log.Component, config config.Component, checkArgs *CliParams) 
 		}
 	}
 
-	var benchmarks []*compliance.Benchmark
+	var benchDir, benchGlob string
 	if checkArgs.file != "" {
-		benchmarks, err = compliance.LoadBenchmarks(
-			filepath.Dir(checkArgs.file), filepath.Base(checkArgs.file), ruleFilter)
-		if err != nil {
-			log.Errorf("Could not load benchmark file %q: %s", checkArgs.file, err)
-			return err
-		}
+		benchDir, benchGlob = filepath.Dir(checkArgs.file), filepath.Base(checkArgs.file)
 	} else if checkArgs.framework != "" {
-		benchmarks, err = compliance.LoadBenchmarks(configDir, checkArgs.framework+".yaml", ruleFilter)
-		if err != nil {
-			log.Errorf("Could not load benchmark file %q: %s", checkArgs.file, err)
-			return err
-		}
+		benchDir, benchGlob = configDir, fmt.Sprintf("%s.yaml", checkArgs.framework)
 	} else {
-		benchmarks, err = compliance.LoadBenchmarks(configDir, "*.yaml", ruleFilter)
-		if err != nil {
-			log.Errorf("Could not load benchmark file %q: %s", checkArgs.file, err)
-			return err
-		}
+		benchDir, benchGlob = configDir, "*.yaml"
 	}
-
+	benchmarks, err := compliance.LoadBenchmarks(benchDir, benchGlob, ruleFilter)
+	if err != nil {
+		return fmt.Errorf("could not load benchmark files %q: %w", filepath.Join(benchDir, benchGlob), err)
+	}
 	if len(benchmarks) == 0 {
-		return fmt.Errorf("could not find benchmark")
+		return fmt.Errorf("could not find any benchmark in %q", filepath.Join(benchDir, benchGlob))
 	}
 
 	events := make([]*compliance.CheckEvent, 0)
