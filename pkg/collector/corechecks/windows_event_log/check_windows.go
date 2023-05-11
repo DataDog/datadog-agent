@@ -12,8 +12,6 @@ import (
 	"fmt"
 	"time"
 
-	yaml "gopkg.in/yaml.v2"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -38,7 +36,7 @@ const sourceTypeName = "event viewer"
 type Check struct {
 	// check
 	core.CheckBase
-	config Config
+	config *Config
 
 	// event metrics
 	event_priority metrics.EventPriority
@@ -48,27 +46,6 @@ type Check struct {
 	evtapi              evtapi.API
 	systemRenderContext evtapi.EventRenderContextHandle
 	bookmark            evtbookmark.Bookmark
-}
-
-type Config struct {
-	instance instanceConfig
-	init     initConfig
-}
-
-type instanceConfig struct {
-	ChannelPath        string `yaml:"path"`
-	Query              string `yaml:"query"`
-	Start              string `yaml:"start"`
-	Timeout            uint   `yaml:"timeout"`
-	Payload_size       uint   `yaml:"payload_size"`
-	Bookmark_frequency int    `yaml:"bookmark_frequency"`
-	Legacy_mode        bool   `yaml:"legacy_mode"`
-	Event_priority     string `yaml:"event_priority"`
-	Tag_event_id       bool   `yaml:"tag_event_id"`
-	Tag_sid            bool   `yaml:"tag_sid"`
-}
-
-type initConfig struct {
 }
 
 // Run executes the check
@@ -116,7 +93,7 @@ func (c *Check) fetchEvents(sender aggregator.Sender) error {
 
 			// Update bookmark according to bookmark_frequency config
 			eventsSinceLastBookmark += 1
-			if c.config.instance.Bookmark_frequency > 0 && eventsSinceLastBookmark >= c.config.instance.Bookmark_frequency {
+			if *c.config.instance.Bookmark_frequency > 0 && eventsSinceLastBookmark >= *c.config.instance.Bookmark_frequency {
 				err = c.updateBookmark(event)
 				if err != nil {
 					c.Warnf("failed to save bookmark: %v", err)
@@ -261,7 +238,7 @@ func (c *Check) renderEventValues(winevent *evtapi.EventRecord, ddevent *metrics
 	providerName, err := vals.String(evtapi.EvtSystemProviderName)
 	if err == nil {
 		ddevent.AggregationKey = providerName
-		ddevent.Title = fmt.Sprintf("%s/%s", c.config.instance.ChannelPath, providerName)
+		ddevent.Title = fmt.Sprintf("%s/%s", *c.config.instance.ChannelPath, providerName)
 	}
 
 	// formatted message
@@ -272,7 +249,7 @@ func (c *Check) renderEventValues(winevent *evtapi.EventRecord, ddevent *metrics
 	}
 
 	// Optional: Tag EventID
-	if c.config.instance.Tag_event_id {
+	if *c.config.instance.Tag_event_id {
 		eventid, err := vals.UInt(evtapi.EvtSystemEventID)
 		if err == nil {
 			tag := fmt.Sprintf("event_id:%d", eventid)
@@ -281,7 +258,7 @@ func (c *Check) renderEventValues(winevent *evtapi.EventRecord, ddevent *metrics
 	}
 
 	// Optional: Tag SID
-	if c.config.instance.Tag_sid {
+	if *c.config.instance.Tag_sid {
 		sid, err := vals.SID(evtapi.EvtSystemUserID)
 		if err == nil {
 			account, domain, _, err := sid.LookupAccount("")
@@ -323,7 +300,7 @@ func (c *Check) initSubscription() error {
 	// Check persistent cache for bookmark
 	var bookmark evtbookmark.Bookmark
 	bookmarkXML := ""
-	if c.config.instance.Bookmark_frequency > 0 {
+	if *c.config.instance.Bookmark_frequency > 0 {
 		bookmarkXML, err = persistentcache.Read(c.bookmarkPersistentCacheKey())
 		if err != nil {
 			// persistentcache.Read() does not return error if key does not exist
@@ -345,19 +322,19 @@ func (c *Check) initSubscription() error {
 		if err != nil {
 			return err
 		}
-		if c.config.instance.Start == "old" {
+		if *c.config.instance.Start == "oldest" {
 			opts = append(opts, evtsubscribe.WithStartAtOldestRecord())
 		}
 	}
 	c.bookmark = bookmark
 
 	// Batch count
-	opts = append(opts, evtsubscribe.WithEventBatchCount(c.config.instance.Payload_size))
+	opts = append(opts, evtsubscribe.WithEventBatchCount(uint(*c.config.instance.Payload_size)))
 
 	// Create the subscription
 	c.sub = evtsubscribe.NewPullSubscription(
-		c.config.instance.ChannelPath,
-		c.config.instance.Query,
+		*c.config.instance.ChannelPath,
+		*c.config.instance.Query,
 		opts...)
 
 	// Start the subscription
@@ -376,62 +353,51 @@ func (c *Check) initSubscription() error {
 }
 
 func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
-	// This check supports multiple instances, must be called before CommonConfigure
+	// common CoreCheck requirements
+	// This check supports multiple instances, BuildID must be called before CommonConfigure
 	c.BuildID(integrationConfigDigest, data, initConfig)
-
 	err := c.CommonConfigure(integrationConfigDigest, initConfig, data, source)
 	if err != nil {
-		return err
+		return fmt.Errorf("configuraiton error: %v", err)
 	}
 
-	// Default values
-	c.config.instance.Timeout = 5
-	c.config.instance.Legacy_mode = false
-	c.config.instance.Payload_size = 10
-	c.config.instance.Bookmark_frequency = 10
-	c.config.instance.Query = "*"
-	c.config.instance.Start = "now"
-	c.config.instance.Event_priority = "normal"
-	c.config.instance.Tag_event_id = false
-	c.config.instance.Tag_sid = false
-
-	// Parse config
-	err = yaml.Unmarshal(data, &c.config.instance)
+	// process configuration
+	c.config, err = UnmarshalConfig(data, initConfig)
 	if err != nil {
-		return err
+		return fmt.Errorf("configuraiton error: %v", err)
 	}
-	err = yaml.Unmarshal(initConfig, &c.config.init)
+	err = c.validateConfig()
 	if err != nil {
-		return err
+		return fmt.Errorf("configuraiton error: %v", err)
 	}
 
-	// Validate config
-	if c.config.instance.Legacy_mode {
-		return fmt.Errorf("unsupported configuration: legacy_mode: true")
-	}
-	if len(c.config.instance.ChannelPath) == 0 {
-		return fmt.Errorf("instance config `path` must not be empty")
-	}
-	if c.config.instance.Start != "now" && c.config.instance.Start != "old" {
-		return fmt.Errorf("invalid instance config `start`: '%s'", c.config.instance.Start)
-	}
-
-	// Default values
-	if len(c.config.instance.Query) == 0 {
-		c.config.instance.Query = "*"
-	}
-
-	// map config options to check options
-	c.event_priority, err = metrics.GetEventPriorityFromString(c.config.instance.Event_priority)
-	if err != nil {
-		return fmt.Errorf("invalid instance config `event_priority`: %v", err)
-	}
-
+	// Start the event subscription
 	err = c.initSubscription()
 	if err != nil {
 		return fmt.Errorf("failed to initialize event subscription: %v", err)
 	}
 
+	return nil
+}
+
+func (c *Check) validateConfig() error {
+	var err error
+	c.event_priority, err = metrics.GetEventPriorityFromString(*c.config.instance.Event_priority)
+	if err != nil {
+		return fmt.Errorf("invalid instance config `event_priority`: %v", err)
+	}
+	if *c.config.instance.Legacy_mode {
+		return fmt.Errorf("unsupported configuration: legacy_mode: true")
+	}
+	if len(*c.config.instance.ChannelPath) == 0 {
+		return fmt.Errorf("instance config `path` must be provided and not be empty")
+	}
+	if len(*c.config.instance.Query) == 0 {
+		return fmt.Errorf("instance config `query` if provided must not be empty")
+	}
+	if *c.config.instance.Start != "now" && *c.config.instance.Start != "oldest" {
+		return fmt.Errorf("invalid instance config `start`: '%s'", *c.config.instance.Start)
+	}
 	return nil
 }
 

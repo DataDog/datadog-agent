@@ -148,7 +148,7 @@ func (s *GetEventsTestSuite) TestGetEvents() {
 
 	instanceConfig := []byte(fmt.Sprintf(`
 path: %s
-start: old
+start: oldest
 `,
 		s.channelPath))
 
@@ -173,7 +173,7 @@ func (s *GetEventsTestSuite) TestRecoverFromBrokenSubscription() {
 
 	instanceConfig := []byte(fmt.Sprintf(`
 path: %s
-start: old
+start: oldest
 `,
 		s.channelPath))
 
@@ -238,7 +238,7 @@ func (s *GetEventsTestSuite) TestBookmark() {
 	// Set bookmark_frequency to be less than s.numEvents so we can test the "end of check" bookmark.
 	instanceConfig := []byte(fmt.Sprintf(`
 path: %s
-start: old
+start: oldest
 bookmark_frequency: %d
 `,
 		s.channelPath, s.numEvents-1))
@@ -569,7 +569,7 @@ func BenchmarkGetEvents(b *testing.B) {
 					// setup check
 					instanceConfig := []byte(fmt.Sprintf(`
 path: %s
-start: old
+start: oldest
 payload_size: %d
 `,
 						channelPath, batchCount))
