@@ -20,8 +20,6 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
-
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
@@ -32,6 +30,7 @@ import (
 	kafkadebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/kafka/debugging"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
+	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -306,18 +305,7 @@ func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *n
 }
 
 func startTelemetryReporter(cfg *config.Config, done <-chan struct{}) {
-	statsdAddr := os.Getenv("STATSD_URL")
-	if statsdAddr == "" {
-		statsdAddr = fmt.Sprintf("%s:%d", cfg.StatsdHost, cfg.StatsdPort)
-	}
-
-	statsdClient, err := statsd.New(statsdAddr)
-	if err != nil {
-		log.Errorf("failed to start statsd reporter for network_tracer: %s", err)
-		return
-	}
-
-	telemetry.SetStatsdClient(statsdClient)
+	telemetry.SetStatsdClient(statsd.Client)
 	ticker := time.NewTicker(30 * time.Second)
 	go func() {
 		defer ticker.Stop()
