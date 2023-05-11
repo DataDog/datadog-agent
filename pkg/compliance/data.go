@@ -6,6 +6,7 @@
 package compliance
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -165,15 +166,15 @@ type RuleFilter func(*Rule) bool
 // Rule defines a list of inputs against which we can evaluate properties. It
 // also holds all metadata associated with the rule.
 type Rule struct {
-	ID          string       `yaml:"id"`
-	Description string       `yaml:"description,omitempty"`
-	SkipOnK8s   bool         `yaml:"skipOnKubernetes,omitempty"`
-	Module      string       `yaml:"module,omitempty"`
-	Scopes      []RuleScope  `yaml:"scope,omitempty"`
-	InputSpecs  []*InputSpec `yaml:"input,omitempty"`
-	Imports     []string     `yaml:"imports,omitempty"`
-	Period      string       `yaml:"period,omitempty"`
-	Filters     []string     `yaml:"filters"`
+	ID          string       `yaml:"id" json:"id"`
+	Description string       `yaml:"description,omitempty" json:"description,omitempty"`
+	SkipOnK8s   bool         `yaml:"skipOnKubernetes,omitempty" json:"skipOnKubernetes,omitempty"`
+	Module      string       `yaml:"module,omitempty" json:"module,omitempty"`
+	Scopes      []RuleScope  `yaml:"scope,omitempty" json:"scope,omitempty"`
+	InputSpecs  []*InputSpec `yaml:"input,omitempty" json:"input,omitempty"`
+	Imports     []string     `yaml:"imports,omitempty" json:"imports,omitempty"`
+	Period      string       `yaml:"period,omitempty" json:"period,omitempty"`
+	Filters     []string     `yaml:"filters,omitempty" json:"filters,omitempty"`
 }
 
 type (
@@ -248,15 +249,15 @@ type ResolvedInputs map[string]interface{}
 type Benchmark struct {
 	dirname string
 
-	Name        string   `yaml:"name,omitempty"`
-	FrameworkID string   `yaml:"framework,omitempty"`
-	Version     string   `yaml:"version,omitempty"`
-	Tags        []string `yaml:"tags,omitempty"`
-	Rules       []*Rule  `yaml:"rules,omitempty"`
-	Source      string   `yaml:"-"`
+	Name        string   `yaml:"name,omitempty" json:"name,omitempty"`
+	FrameworkID string   `yaml:"framework,omitempty" json:"framework,omitempty"`
+	Version     string   `yaml:"version,omitempty" json:"version,omitempty"`
+	Tags        []string `yaml:"tags,omitempty" json:"tags,omitempty"`
+	Rules       []*Rule  `yaml:"rules,omitempty" json:"rules,omitempty"`
+	Source      string   `yaml:"-" json:"-"`
 	Schema      struct {
-		Version string `yaml:"version"`
-	} `yaml:"schema,omitempty"`
+		Version string `yaml:"version" json:"version"`
+	} `yaml:"schema,omitempty" json:"schema,omitempty"`
 }
 
 func (r *Rule) IsRego() bool {
@@ -326,7 +327,13 @@ func LoadBenchmarks(rootDir, glob string, ruleFilter RuleFilter) ([]*Benchmark, 
 			return nil, err
 		}
 		var benchmark Benchmark
-		if err := yaml.Unmarshal(b, &benchmark); err != nil {
+		switch filepath.Ext(filename) {
+		case ".json":
+			err = json.Unmarshal(b, &benchmark)
+		default:
+			err = yaml.Unmarshal(b, &benchmark)
+		}
+		if err != nil {
 			return nil, err
 		}
 		benchmark.dirname = rootDir
