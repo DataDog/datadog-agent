@@ -77,6 +77,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 	go func() {
 		for result := range resultChan {
 			if result.Error != nil {
+				// TODO: add a retry mechanism for retryable errors
 				log.Errorf("Failed to generate SBOM for containerd image: %s", result.Error)
 				continue
 			}
