@@ -133,7 +133,7 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 type ChmodEvent struct {
 	SyscallEvent
 	File FileEvent `field:"file"`
-	Mode uint32    `field:"file.destination.mode; file.destination.rights"` // SECLDoc[file.destination.mode] Definition:`New mode of the chmod-ed file` Constants:`Chmod mode constants` SECLDoc[file.destination.rights] Definition:`New rights of the chmod-ed file` Constants:`Chmod mode constants`
+	Mode uint32    `field:"file.destination.mode; file.destination.rights"` // SECLDoc[file.destination.mode] Definition:`New mode of the chmod-ed file` Constants:`File mode constants` SECLDoc[file.destination.rights] Definition:`New rights of the chmod-ed file` Constants:`File mode constants`
 }
 
 // ChownEvent represents a chown event
@@ -607,7 +607,7 @@ type FileFields struct {
 	User  string `field:"user,handler:ResolveFileFieldsUser"`                          // SECLDoc[user] Definition:`User of the file's owner`
 	GID   uint32 `field:"gid"`                                                         // SECLDoc[gid] Definition:`GID of the file's owner`
 	Group string `field:"group,handler:ResolveFileFieldsGroup"`                        // SECLDoc[group] Definition:`Group of the file's owner`
-	Mode  uint16 `field:"mode;rights,handler:ResolveRights,opts:cacheless_resolution"` // SECLDoc[mode] Definition:`Mode of the file` SECLDoc[rights] Definition:`Rights of the file` Constants:`Chmod mode constants`
+	Mode  uint16 `field:"mode;rights,handler:ResolveRights,opts:cacheless_resolution"` // SECLDoc[mode] Definition:`Mode of the file` Constants:`Inode mode constants` SECLDoc[rights] Definition:`Rights of the file` Constants:`File mode constants`
 	CTime uint64 `field:"change_time"`                                                 // SECLDoc[change_time] Definition:`Change time of the file`
 	MTime uint64 `field:"modification_time"`                                           // SECLDoc[modification_time] Definition:`Modification time of the file`
 
@@ -700,7 +700,7 @@ type LinkEvent struct {
 type MkdirEvent struct {
 	SyscallEvent
 	File FileEvent `field:"file"`
-	Mode uint32    `field:"file.destination.mode; file.destination.rights"` // SECLDoc[file.destination.mode] Definition:`Mode of the new directory` Constants:`Chmod mode constants` SECLDoc[file.destination.rights] Definition:`Rights of the new directory` Constants:`Chmod mode constants`
+	Mode uint32    `field:"file.destination.mode; file.destination.rights"` // SECLDoc[file.destination.mode] Definition:`Mode of the new directory` Constants:`File mode constants` SECLDoc[file.destination.rights] Definition:`Rights of the new directory` Constants:`File mode constants`
 }
 
 // ArgsEnvsEvent defines a args/envs event
@@ -756,7 +756,7 @@ type OpenEvent struct {
 	SyscallEvent
 	File  FileEvent `field:"file"`
 	Flags uint32    `field:"flags"`                 // SECLDoc[flags] Definition:`Flags used when opening the file` Constants:`Open flags`
-	Mode  uint32    `field:"file.destination.mode"` // SECLDoc[file.destination.mode] Definition:`Mode of the created file` Constants:`Chmod mode constants`
+	Mode  uint32    `field:"file.destination.mode"` // SECLDoc[file.destination.mode] Definition:`Mode of the created file` Constants:`File mode constants`
 }
 
 // SELinuxEventKind represents the event kind for SELinux events

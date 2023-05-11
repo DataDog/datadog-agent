@@ -670,6 +670,8 @@ var (
 var (
 	openFlagsStrings          = map[int]string{}
 	chmodModeStrings          = map[int]string{}
+	fileModeStrings           = map[int]string{}
+	inodeModeStrings          = map[int]string{}
 	unlinkFlagsStrings        = map[int]string{}
 	kernelCapabilitiesStrings = map[uint64]string{}
 	bpfCmdStrings             = map[uint32]string{}
@@ -707,10 +709,17 @@ func initOpenConstants() {
 	}
 }
 
-func initChmodConstants() {
-	for k, v := range chmodModeConstants {
+func initFileModeConstants() {
+	for k, v := range fileModeConstants {
 		SECLConstants[k] = &eval.IntEvaluator{Value: v}
-		chmodModeStrings[v] = k
+		fileModeStrings[v] = k
+	}
+}
+
+func initInodeModeConstants() {
+	for k, v := range inodeModeConstants {
+		SECLConstants[k] = &eval.IntEvaluator{Value: v}
+		inodeModeStrings[v] = k
 	}
 }
 
@@ -888,7 +897,8 @@ func initBPFMapNamesConstants() {
 func initConstants() {
 	initErrorConstants()
 	initOpenConstants()
-	initChmodConstants()
+	initFileModeConstants()
+	initInodeModeConstants()
 	initUnlinkConstanst()
 	initKernelCapabilityConstants()
 	initBPFCmdConstants()
@@ -983,11 +993,18 @@ func (f OpenFlags) StringArray() []string {
 	return bitmaskToStringArray(int(f), openFlagsStrings)
 }
 
-// ChmodMode represent a chmod mode bitmask value
-type ChmodMode int
+// FileMode represents a file mode bitmask value
+type FileMode int
 
-func (m ChmodMode) String() string {
-	return bitmaskToString(int(m), chmodModeStrings)
+func (m FileMode) String() string {
+	return bitmaskToString(int(m), fileModeStrings)
+}
+
+// FileMode represents a file mode bitmask value
+type InodeMode int
+
+func (m InodeMode) String() string {
+	return bitmaskToString(int(m), inodeModeStrings)
 }
 
 // UnlinkFlags represents an unlink flags bitmask value
