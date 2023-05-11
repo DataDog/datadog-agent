@@ -302,8 +302,10 @@ func (a *APIServer) start(ctx context.Context) {
 		select {
 		case now := <-ticker.C:
 			a.dequeue(now, func(msg *pendingMsg) {
-				for _, tag := range msg.extTagsCb() {
-					msg.tags[tag] = true
+				if msg.extTagsCb != nil {
+					for _, tag := range msg.extTagsCb() {
+						msg.tags[tag] = true
+					}
 				}
 
 				// recopy tags
