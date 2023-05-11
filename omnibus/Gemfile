@@ -1,7 +1,8 @@
 source 'https://rubygems.org'
 
 # Install omnibus
-gem 'chef-sugar', git: 'https://github.com/chef/chef-sugar.git', tag: 'v3.6.0'
+# Pinning chef-sugar to v3.6.0 tag's commit (2078c03) is safer than just pinning the tag
+gem 'chef-sugar', git: 'https://github.com/chef/chef-sugar.git', ref: '2078c030011838d2151268191004cc0a9263f6f4'
 gem 'omnibus', git: 'https://github.com/DataDog/omnibus-ruby.git', branch: (ENV['OMNIBUS_RUBY_VERSION'] || 'datadog-5.5.0')
 
 # Use Chef's software definitions. It is recommended that you write your own
