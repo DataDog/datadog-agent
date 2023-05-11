@@ -21,9 +21,6 @@ const (
 	ServiceEnvVar = "DD_SERVICE"
 )
 
-var eventZero model.Event
-var containerContextZero model.ContainerContext
-
 // NewModel returns a new model with some extra field validation
 func NewModel(probe *Probe) *model.Model {
 	return &model.Model{
@@ -51,8 +48,4 @@ func NewEvent(fh *FieldHandlers) *model.Event {
 		FieldHandlers:    fh,
 		ContainerContext: &model.ContainerContext{},
 	}
-}
-
-func init() {
-	eventZero.ContainerContext = &model.ContainerContext{}
 }
