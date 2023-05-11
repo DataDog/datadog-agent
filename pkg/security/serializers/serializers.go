@@ -432,9 +432,9 @@ type NetworkContextSerializer struct {
 	// l4_protocol is the layer 4 protocol name
 	L4Protocol string `json:"l4_protocol"`
 	// source is the emitter of the network event
-	Source *IPPortSerializer `json:"source"`
+	Source IPPortSerializer `json:"source"`
 	// destination is the receiver of the network event
-	Destination *IPPortSerializer `json:"destination"`
+	Destination IPPortSerializer `json:"destination"`
 	// size is the size in bytes of the network event
 	Size uint32 `json:"size"`
 }
@@ -460,7 +460,7 @@ type DNSEventSerializer struct {
 	// id is the unique identifier of the DNS request
 	ID uint16 `json:"id"`
 	// question is a DNS question for the DNS request
-	Question *DNSQuestionSerializer `json:"question,omitempty"`
+	Question DNSQuestionSerializer `json:"question"`
 }
 
 // DDContextSerializer serializes a span context to JSON
@@ -496,7 +496,7 @@ type SpliceEventSerializer struct {
 // easyjson:json
 type BindEventSerializer struct {
 	// Bound address (if any)
-	Addr *IPPortFamilySerializer `json:"addr"`
+	Addr IPPortFamilySerializer `json:"addr"`
 }
 
 // ExitEventSerializer serializes an exit event to JSON
@@ -932,32 +932,28 @@ func newSpliceEventSerializer(e *model.Event) *SpliceEventSerializer {
 	}
 }
 
-func newDNSQuestionSerializer(d *model.DNSEvent) *DNSQuestionSerializer {
-	return &DNSQuestionSerializer{
-		Class: model.QClass(d.Class).String(),
-		Type:  model.QType(d.Type).String(),
-		Name:  d.Name,
-		Size:  d.Size,
-		Count: d.Count,
-	}
-}
-
 func newDNSEventSerializer(d *model.DNSEvent) *DNSEventSerializer {
 	return &DNSEventSerializer{
-		ID:       d.ID,
-		Question: newDNSQuestionSerializer(d),
+		ID: d.ID,
+		Question: DNSQuestionSerializer{
+			Class: model.QClass(d.Class).String(),
+			Type:  model.QType(d.Type).String(),
+			Name:  d.Name,
+			Size:  d.Size,
+			Count: d.Count,
+		},
 	}
 }
 
-func newIPPortSerializer(c *model.IPPortContext) *IPPortSerializer {
-	return &IPPortSerializer{
+func newIPPortSerializer(c *model.IPPortContext) IPPortSerializer {
+	return IPPortSerializer{
 		IP:   c.IPNet.IP.String(),
 		Port: c.Port,
 	}
 }
 
-func newIPPortFamilySerializer(c *model.IPPortContext, family string) *IPPortFamilySerializer {
-	return &IPPortFamilySerializer{
+func newIPPortFamilySerializer(c *model.IPPortContext, family string) IPPortFamilySerializer {
+	return IPPortFamilySerializer{
 		IP:     c.IPNet.IP.String(),
 		Port:   c.Port,
 		Family: family,
