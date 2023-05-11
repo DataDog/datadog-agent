@@ -248,10 +248,11 @@ func (agg *FlowAggregator) flush() int {
 
 	sequenceDeltaPerExporter := agg.getSequenceDelta(flowsToFlush)
 	for key, seqDelta := range sequenceDeltaPerExporter {
-		agg.sender.Count("datadog.netflow.aggregator.sequence.delta", float64(seqDelta.Delta), "", []string{"device_namespace:" + key.Namespace, "exporter_ip:" + key.ExporterIP})
-		agg.sender.Gauge("datadog.netflow.aggregator.sequence.last", float64(seqDelta.LastSequence), "", []string{"device_namespace:" + key.Namespace, "exporter_ip:" + key.ExporterIP})
+		tags := []string{"device_namespace:" + key.Namespace, "exporter_ip:" + key.ExporterIP, "flow_type:" + string(key.FlowType)}
+		agg.sender.Count("datadog.netflow.aggregator.sequence.delta", float64(seqDelta.Delta), "", tags)
+		agg.sender.Gauge("datadog.netflow.aggregator.sequence.last", float64(seqDelta.LastSequence), "", tags)
 		if seqDelta.Reset {
-			agg.sender.Count("datadog.netflow.aggregator.sequence.reset", float64(1), "", []string{"device_namespace:" + key.Namespace, "exporter_ip:" + key.ExporterIP})
+			agg.sender.Count("datadog.netflow.aggregator.sequence.reset", float64(1), "", tags)
 		}
 	}
 
