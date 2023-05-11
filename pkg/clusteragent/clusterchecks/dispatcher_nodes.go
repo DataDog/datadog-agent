@@ -19,7 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const defaultBusynessValue int = -1
+const (
+	defaultBusynessValue int = -1
+)
 
 // getClusterCheckConfigs returns configurations dispatched to a given node
 func (d *dispatcher) getClusterCheckConfigs(nodeName string) ([]integration.Config, int64, error) {
@@ -50,8 +52,11 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 
 	node.Lock()
 	defer node.Unlock()
-	node.lastStatus = status
 	node.heartbeat = timestampNow()
+	// When we receive ExtraHeartbeatLastChangeValue, we only update heartbeat
+	if status.LastChange == types.ExtraHeartbeatLastChangeValue {
+		return true, nil
+	}
 
 	if node.lastConfigChange == status.LastChange {
 		// Node-agent is up to date
