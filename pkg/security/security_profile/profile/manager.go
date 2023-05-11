@@ -596,12 +596,13 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 // tryAutolearn tries to autolearn the input event. Returns true if the event was autolearned.
 func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *model.Event) (bool, error) {
 	// have we reached the stable state time limit ?
-	if lastAnomalyNano, ok := profile.lastAnomalyNano[event.GetEventType()]; ok {
-		if time.Duration(event.TimestampRaw-lastAnomalyNano) >= m.config.RuntimeSecurity.AnomalyDetectionMinimumStablePeriod {
-			return false, nil
-		}
-	} else {
-		profile.lastAnomalyNano[event.GetEventType()] = event.TimestampRaw
+	lastAnomalyNano, ok := profile.lastAnomalyNano[event.GetEventType()]
+	if !ok {
+		profile.lastAnomalyNano[event.GetEventType()] = profile.loadedNano
+		lastAnomalyNano = profile.loadedNano
+	}
+	if time.Duration(event.TimestampRaw-lastAnomalyNano) >= m.config.RuntimeSecurity.AnomalyDetectionMinimumStablePeriod {
+		return false, nil
 	}
 
 	// have we reached the unstable time limit ?
