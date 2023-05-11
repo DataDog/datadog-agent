@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"sync"
 	"time"
 
@@ -123,7 +122,7 @@ func (s *Scanner) start(ctx context.Context) {
 					scanTimeout = defaultScanTimeout
 				}
 
-				log.Info("scanning from %v, id: %s", reflect.TypeOf(request), request.ID())
+				log.Infof("scanning from %v, id: %s", request.Collector(), request.ID())
 				scanContext, cancel := context.WithTimeout(ctx, scanTimeout)
 				createdAt := time.Now()
 				scanResult := collector.Scan(scanContext, request.ScanRequest, request.opts)
