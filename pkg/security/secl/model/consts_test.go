@@ -20,7 +20,7 @@ func TestFlagsToString(t *testing.T) {
 		t.Errorf("expected flags not found, got: %s", str)
 	}
 
-	str = ChmodMode(syscall.S_IWGRP | syscall.S_IRUSR).String()
+	str = FileMode(syscall.S_IWGRP | syscall.S_IRUSR).String()
 	if str != "S_IRUSR | S_IWGRP" {
 		t.Errorf("expected flags not found, got: %s", str)
 	}

@@ -669,7 +669,6 @@ var (
 
 var (
 	openFlagsStrings          = map[int]string{}
-	chmodModeStrings          = map[int]string{}
 	fileModeStrings           = map[int]string{}
 	inodeModeStrings          = map[int]string{}
 	unlinkFlagsStrings        = map[int]string{}
@@ -1000,7 +999,7 @@ func (m FileMode) String() string {
 	return bitmaskToString(int(m), fileModeStrings)
 }
 
-// FileMode represents a file mode bitmask value
+// InodeMode represents an inode mode bitmask value
 type InodeMode int
 
 func (m InodeMode) String() string {
