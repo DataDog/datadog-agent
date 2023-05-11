@@ -294,6 +294,16 @@ func (s *store) GetKubernetesPodForContainer(containerID string) (*KubernetesPod
 	return nil, errors.NewNotFound(containerID)
 }
 
+// GetKubernetesNode implements Store#GetKubernetesNode
+func (s *store) GetKubernetesNode(id string) (*KubernetesNode, error) {
+	entity, err := s.getEntityByKind(KindKubernetesNode, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*KubernetesNode), nil
+}
+
 // GetECSTask implements Store#GetECSTask
 func (s *store) GetECSTask(id string) (*ECSTask, error) {
 	entity, err := s.getEntityByKind(KindECSTask, id)
