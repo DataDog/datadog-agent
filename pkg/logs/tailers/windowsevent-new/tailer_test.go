@@ -79,9 +79,8 @@ func (s *ReadEventsSuite) SetupTest() {
 	s.Require().NoError(err)
 }
 
-func newtailer(evtapi evtapi.API, tailerconfig *Config) (*Tailer, error) {
+func newtailer(evtapi evtapi.API, tailerconfig *Config, msgChan chan *message.Message) (*Tailer, error) {
 	source := sources.NewLogSource("", &config.LogsConfig{})
-	msgChan := make(chan *message.Message)
 
 	tailer := NewTailer(evtapi, source, tailerconfig, msgChan)
 	tailer.Start()
@@ -104,7 +103,8 @@ func (s *ReadEventsSuite) TestReadEvents() {
 		ChannelPath: s.channelPath,
 		Query:       s.query,
 	}
-	tailer, err := newtailer(s.ti.API(), &config)
+	msgChan := make(chan *message.Message)
+	tailer, err := newtailer(s.ti.API(), &config, msgChan)
 	s.Require().NoError(err)
 	s.T().Cleanup(func() {
 		tailer.Stop()
@@ -115,7 +115,7 @@ func (s *ReadEventsSuite) TestReadEvents() {
 
 	totalEvents := uint(0)
 	for i := uint(0); i < s.numEvents; i++ {
-		msg := <-tailer.outputChan
+		msg := <-msgChan
 		s.Require().NotEmpty(msg.Content, "Message must not be empty")
 		totalEvents += 1
 	}
@@ -156,7 +156,8 @@ func BenchmarkReadEvents(b *testing.B) {
 					ChannelPath: channelPath,
 					Query:       query,
 				}
-				tailer, err := newtailer(ti.API(), &config)
+				msgChan := make(chan *message.Message)
+				tailer, err := newtailer(ti.API(), &config, msgChan)
 				require.NoError(b, err)
 				b.Cleanup(func() {
 					tailer.Stop()
@@ -174,7 +175,7 @@ func BenchmarkReadEvents(b *testing.B) {
 					b.StartTimer()
 
 					for i := uint(0); i < numEvents; i++ {
-						msg := <-tailer.outputChan
+						msg := <-msgChan
 						require.NotEmpty(b, msg.Content, "Message must not be empty")
 						totalEvents += 1
 					}
