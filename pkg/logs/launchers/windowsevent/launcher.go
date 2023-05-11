@@ -18,21 +18,29 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/windowsevent"
+	newtailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/windowsevent-new"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 )
+
+type Tailer interface {
+	startstop.StartStoppable
+	Identifier() string
+}
 
 // Launcher is in charge of starting and stopping windows event logs tailers
 type Launcher struct {
+	evtapi           evtapi.API
 	sources          chan *sources.LogSource
 	pipelineProvider pipeline.Provider
-	tailers          map[string]*tailer.Tailer
+	tailers          map[string]Tailer
 	stop             chan struct{}
 }
 
 // NewLauncher returns a new Launcher.
 func NewLauncher() *Launcher {
 	return &Launcher{
-		tailers: make(map[string]*tailer.Tailer),
+		tailers: make(map[string]Tailer),
 		stop:    make(chan struct{}),
 	}
 }
@@ -96,13 +104,22 @@ func (l *Launcher) sanitizedConfig(sourceConfig *config.LogsConfig) *tailer.Conf
 }
 
 // setupTailer configures and starts a new tailer
-func (l *Launcher) setupTailer(source *sources.LogSource) (*tailer.Tailer, error) {
+func (l *Launcher) setupTailer(source *sources.LogSource) (Tailer, error) {
 	sanitizedConfig := l.sanitizedConfig(source.Config)
-	config := &tailer.Config{
-		ChannelPath: sanitizedConfig.ChannelPath,
-		Query:       sanitizedConfig.Query,
+	var t Tailer
+	if source.Config.Type == "windows_event_new" {
+		config := &newtailer.Config{
+			ChannelPath: sanitizedConfig.ChannelPath,
+			Query:       sanitizedConfig.Query,
+		}
+		t = newtailer.NewTailer(l.evtapi, source, config, l.pipelineProvider.NextPipelineChan())
+	} else {
+		config := &tailer.Config{
+			ChannelPath: sanitizedConfig.ChannelPath,
+			Query:       sanitizedConfig.Query,
+		}
+		t = tailer.NewTailer(source, config, l.pipelineProvider.NextPipelineChan())
 	}
-	tailer := tailer.NewTailer(source, config, l.pipelineProvider.NextPipelineChan())
-	tailer.Start()
-	return tailer, nil
+	t.Start()
+	return t, nil
 }
