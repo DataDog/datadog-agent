@@ -388,6 +388,117 @@ func TestAnomalyDetection(t *testing.T) {
 	})
 }
 
+func TestAnomalyDetectionWarmup(t *testing.T) {
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+	if !IsDedicatedNode(dedicatedADNodeForTestsEnv) {
+		t.Skip("Skip test when not run in dedicated env")
+	}
+
+	var expectedFormats = []string{"profile"}
+	var testActivityDumpTracedEventTypes = []string{"exec"}
+
+	outputDir := t.TempDir()
+	os.MkdirAll(outputDir, 0755)
+	defer os.RemoveAll(outputDir)
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
+		enableActivityDump:                  true,
+		activityDumpRateLimiter:             200,
+		activityDumpTracedCgroupsCount:      3,
+		activityDumpCgroupDumpTimeout:       10,
+		activityDumpLocalStorageDirectory:   outputDir,
+		activityDumpLocalStorageCompression: false,
+		activityDumpLocalStorageFormats:     expectedFormats,
+		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
+		enableSecurityProfile:               true,
+		securityProfileDir:                  outputDir,
+		securityProfileWatchDir:             true,
+		anomalyDetectionMinimumStablePeriod: 0,
+		anomalyDetectionWarmupPeriod:        17,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
+		// TODO: Oracle because we are missing offsets. See dns_test.go
+		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
+	})
+
+	dockerInstance, dump, err := test.StartADockerGetDump()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dockerInstance.stop()
+
+	time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
+	cmd := dockerInstance.Command(syscallTester, []string{"sleep", "1"}, []string{})
+	_, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
+
+	err = test.StopActivityDump(dump.Name, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(6 * time.Second) // a quick sleep to let the profile to be loaded (5sec debounce + 1sec spare)
+
+	t.Run("anomaly-detection-warmup", func(t *testing.T) {
+		test.GetCustomEventSent(t, func() error {
+			cmd := dockerInstance.Command("getconf", []string{"-a"}, []string{})
+			_, err = cmd.CombinedOutput()
+			return err
+		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+			if r.Rule.ID == events.AnomalyDetectionRuleID {
+				t.Fatal("Should not had receive any anomaly detection during warm up.")
+			}
+			return false
+		}, time.Second*3, model.ExecEventType)
+	})
+
+	time.Sleep(time.Second * 10)
+
+	t.Run("anomaly-detection-warmed-up-autolearned", func(t *testing.T) {
+		test.GetCustomEventSent(t, func() error {
+			cmd := dockerInstance.Command("getconf", []string{"-a"}, []string{})
+			_, err = cmd.CombinedOutput()
+			return err
+		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+			if r.Rule.ID == events.AnomalyDetectionRuleID {
+				t.Fatalf("Should not had receive any anomaly detection because of auto learn during warm up")
+			}
+			return false
+		}, time.Second*3, model.ExecEventType)
+	})
+
+	t.Run("anomaly-detection-warmed-up", func(t *testing.T) {
+		err = test.GetCustomEventSent(t, func() error {
+			cmd := dockerInstance.Command("getent", []string{"hosts"}, []string{})
+			_, err = cmd.CombinedOutput()
+			return err
+		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+			assert.Equal(t, events.AnomalyDetectionRuleID, r.Rule.ID, "wrong custom event rule ID")
+			return true
+		}, time.Second*3, model.ExecEventType)
+		if err != nil {
+			t.Error(err)
+		}
+	})
+
+}
+
 func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
