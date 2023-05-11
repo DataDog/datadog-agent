@@ -83,8 +83,8 @@ func (l *StdLimiter) SwapStats() (uint64, uint64) {
 	return dropped, allowed
 }
 
-// AbnomalyDetectionLimiter limiter specific to anomaly detection
-type AbnomalyDetectionLimiter struct {
+// AnomalyDetectionLimiter limiter specific to anomaly detection
+type AnomalyDetectionLimiter struct {
 	processLimiter *StdLimiter
 	networkLimiter *StdLimiter
 
@@ -92,7 +92,7 @@ type AbnomalyDetectionLimiter struct {
 }
 
 // Allow returns whether the event is allowed
-func (al *AbnomalyDetectionLimiter) Allow(event Event) bool {
+func (al *AnomalyDetectionLimiter) Allow(event Event) bool {
 	category := model.GetEventTypeCategory(event.GetType())
 
 	switch category {
@@ -107,7 +107,7 @@ func (al *AbnomalyDetectionLimiter) Allow(event Event) bool {
 }
 
 // SwapStats return dropped and allowed stats
-func (al *AbnomalyDetectionLimiter) SwapStats() (uint64, uint64) {
+func (al *AnomalyDetectionLimiter) SwapStats() (uint64, uint64) {
 	droppedProcess, allowedProcess := al.processLimiter.SwapStats()
 	droppedNetwork, allowedNetwork := al.networkLimiter.SwapStats()
 
@@ -117,8 +117,8 @@ func (al *AbnomalyDetectionLimiter) SwapStats() (uint64, uint64) {
 }
 
 // NewStdLimiter returns a new rule limiter
-func NewAbnomalyDetectionLimiter(limit rate.Limit, burst int) *AbnomalyDetectionLimiter {
-	return &AbnomalyDetectionLimiter{
+func NewAnomalyDetectionLimiter(limit rate.Limit, burst int) *AnomalyDetectionLimiter {
+	return &AnomalyDetectionLimiter{
 		processLimiter: NewStdLimiter(limit, burst),
 		networkLimiter: NewStdLimiter(limit, burst),
 		dropped:        atomic.NewUint64(0),
@@ -148,7 +148,7 @@ func (rl *RateLimiter) applyBaseLimitersFromDefault(limiters map[string]Limiter)
 	for id, limiter := range defaultPerRuleLimiters {
 		limiters[id] = limiter
 	}
-	limiters[events.AnomalyDetectionRuleID] = NewAbnomalyDetectionLimiter(rate.Every(time.Duration(rl.config.AnomalyDetectionRateLimiter)*time.Second), 1)
+	limiters[events.AnomalyDetectionRuleID] = NewAnomalyDetectionLimiter(rate.Every(time.Duration(rl.config.AnomalyDetectionRateLimiter)*time.Second), 1)
 }
 
 // Apply a set of rules
