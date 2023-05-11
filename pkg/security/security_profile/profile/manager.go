@@ -571,6 +571,8 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 		return
 	}
 
+	_ = event.FieldHandlers.ResolveContainerCreatedAt(event, event.ContainerContext)
+
 	var found bool
 	// check if the event should be injected in the profile automatically
 	autoLearned, found, err := m.tryAutolearn(profile, event)
