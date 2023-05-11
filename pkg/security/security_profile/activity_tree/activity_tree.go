@@ -121,6 +121,42 @@ func (at *ActivityTree) ComputeSyscallsList() []uint32 {
 	return output
 }
 
+// ComputeActivityTreeStats computes the initial counts of the activity tree stats
+func (at *ActivityTree) ComputeActivityTreeStats() {
+	pnodes := at.ProcessNodes
+	var fnodes []*FileNode
+
+	for len(pnodes) > 0 {
+		node := pnodes[0]
+
+		at.Stats.ProcessNodes += 1
+		pnodes = append(pnodes, node.Children...)
+
+		at.Stats.dnsNodes += int64(len(node.DNSNames))
+		at.Stats.socketNodes += int64(len(node.Sockets))
+
+		for _, f := range node.Files {
+			fnodes = append(fnodes, f)
+		}
+
+		pnodes = pnodes[1:]
+	}
+
+	for len(fnodes) > 0 {
+		node := fnodes[0]
+
+		if node.File != nil {
+			at.Stats.fileNodes += 1
+		}
+
+		for _, f := range node.Children {
+			fnodes = append(fnodes, f)
+		}
+
+		fnodes = fnodes[1:]
+	}
+}
+
 // IsEmpty returns true if the tree is empty
 func (at *ActivityTree) IsEmpty() bool {
 	return len(at.ProcessNodes) == 0
