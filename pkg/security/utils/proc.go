@@ -260,6 +260,8 @@ func GetFilledProcess(p *process.Process) *FilledProcess {
 	}
 }
 
+const MAX_ENV_VARS_COLLECTED = 128
+
 // EnvVars returns a array with the environment variables of the given pid
 func EnvVars(pid int32) ([]string, error) {
 	filename := filepath.Join(util.HostProc(), fmt.Sprintf("/%d/environ", pid))
@@ -290,6 +292,10 @@ func EnvVars(pid int32) ([]string, error) {
 		text := scanner.Text()
 		if len(text) > 0 {
 			envs = append(envs, text)
+		}
+
+		if len(envs) >= MAX_ENV_VARS_COLLECTED {
+			break
 		}
 	}
 
