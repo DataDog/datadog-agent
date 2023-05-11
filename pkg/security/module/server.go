@@ -483,7 +483,7 @@ func (a *APIServer) GetStats() map[string]int64 {
 	a.expiredEventsLock.RLock()
 	defer a.expiredEventsLock.RUnlock()
 
-	stats := make(map[string]int64)
+	stats := make(map[string]int64, len(a.expiredEvents))
 	for ruleID, val := range a.expiredEvents {
 		stats[ruleID] = val.Swap(0)
 	}
