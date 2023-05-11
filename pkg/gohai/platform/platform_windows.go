@@ -266,7 +266,7 @@ func fetchWindowsVersion() (major uint64, minor uint64, build uint64, err error)
 // case
 
 func getNativeArchInfo() string {
-	nativearch := "x86_64"
+	var nativearch string
 	if runtime.GOARCH == "amd64" {
 		nativearch = "x86_64"
 	} else {
