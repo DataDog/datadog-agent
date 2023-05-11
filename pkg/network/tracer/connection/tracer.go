@@ -81,7 +81,7 @@ const (
 
 var ConnTracerTelemetry = struct {
 	connections       telemetry.Gauge
-	tcpFailedConnects telemetry.Gauge
+	tcpFailedConnects *nettelemetry.StatCounterWrapper
 	TcpSentMiscounts  *nettelemetry.StatGaugeWrapper
 	missedTcpClose    telemetry.Gauge
 	missedUdpClose    telemetry.Gauge
@@ -91,7 +91,7 @@ var ConnTracerTelemetry = struct {
 	PidCollisions     *nettelemetry.StatCounterWrapper
 }{
 	telemetry.NewGauge(connTracerModuleName, "connections", []string{"ip_proto", "family"}, "Gauge measuring the number of active connections in the EBPF map"),
-	telemetry.NewGauge(connTracerModuleName, "tcp_failed_connects", []string{}, "Gauge measuring the number of failed TCP connections in the EBPF map"),
+	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "tcp_failed_connects", []string{}, "Gauge measuring the number of failed TCP connections in the EBPF map"),
 	nettelemetry.NewStatGaugeWrapper(connTracerModuleName, "tcp_sent_miscounts", []string{}, "Gauge measuring the number of miscounted tcp sends in the EBPF map"),
 	telemetry.NewGauge(connTracerModuleName, "missed_tcp_close", []string{}, "Gauge measuring the number of missed TCP close events in the EBPF map"),
 	telemetry.NewGauge(connTracerModuleName, "missed_udp_close", []string{}, "Gauge measuring the number of missed UDP close events in the EBPF map"),
@@ -440,18 +440,18 @@ func (t *tracer) RefreshProbeTelemetry() {
 // Refreshes connection tracer telemetry on a loop
 // TODO: Replace with prometheus collector interface
 func (t *tracer) refreshProbeTelemetry() {
-	telemetry := t.getEBPFTelemetry()
-	if telemetry == nil {
+	EbpfTelemetry := t.getEBPFTelemetry()
+	if EbpfTelemetry == nil {
 		return
 	}
 
-	ConnTracerTelemetry.tcpFailedConnects.Set(float64(telemetry.Tcp_failed_connect))
-	ConnTracerTelemetry.TcpSentMiscounts.Set(int64(telemetry.Tcp_sent_miscounts))
-	ConnTracerTelemetry.missedTcpClose.Set(float64(telemetry.Missed_tcp_close))
-	ConnTracerTelemetry.missedUdpClose.Set(float64(telemetry.Missed_udp_close))
-	ConnTracerTelemetry.UdpSendsProcessed.Set(int64(telemetry.Udp_sends_processed))
-	ConnTracerTelemetry.UdpSendsMissed.Set(int64(telemetry.Udp_sends_missed))
-	ConnTracerTelemetry.UdpDroppedConns.Set(float64(telemetry.Udp_dropped_conns))
+	ConnTracerTelemetry.tcpFailedConnects.Add(int64(EbpfTelemetry.Tcp_failed_connect) - ConnTracerTelemetry.tcpFailedConnects.Load())
+	ConnTracerTelemetry.TcpSentMiscounts.Set(int64(EbpfTelemetry.Tcp_sent_miscounts))
+	ConnTracerTelemetry.missedTcpClose.Set(float64(EbpfTelemetry.Missed_tcp_close))
+	ConnTracerTelemetry.missedUdpClose.Set(float64(EbpfTelemetry.Missed_udp_close))
+	ConnTracerTelemetry.UdpSendsProcessed.Set(int64(EbpfTelemetry.Udp_sends_processed))
+	ConnTracerTelemetry.UdpSendsMissed.Set(int64(EbpfTelemetry.Udp_sends_missed))
+	ConnTracerTelemetry.UdpDroppedConns.Set(float64(EbpfTelemetry.Udp_dropped_conns))
 }
 
 // DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
