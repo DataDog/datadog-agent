@@ -60,18 +60,24 @@ func (c *Collector) Init(cfg config.Config) error {
 	return nil
 }
 
-func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest, opts sbom.ScanOptions) (sbom.Report, error) {
+func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest, opts sbom.ScanOptions) sbom.ScanResult {
 	dockerScanRequest, ok := request.(*ScanRequest)
 	if !ok {
-		return nil, fmt.Errorf("invalid request type '%s' for collector '%s'", reflect.TypeOf(request), collectorName)
+		return sbom.ScanResult{Error: fmt.Errorf("invalid request type '%s' for collector '%s'", reflect.TypeOf(request), collectorName)}
 	}
 
-	return c.trivyCollector.ScanDockerImage(
+	report, err := c.trivyCollector.ScanDockerImage(
 		ctx,
 		dockerScanRequest.ImageMeta,
 		dockerScanRequest.DockerClient,
 		opts,
 	)
+
+	return sbom.ScanResult{
+		Error:   err,
+		Report:  report,
+		ImgMeta: dockerScanRequest.ImageMeta,
+	}
 }
 
 func init() {
