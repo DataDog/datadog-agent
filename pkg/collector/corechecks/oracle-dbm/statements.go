@@ -272,8 +272,6 @@ func (c *Check) StatementMetrics() (int, error) {
 	var oracleRows []OracleRow
 
 	if c.config.QueryMetrics.Enabled {
-	//FQTSent := make(map[string]int)
-	if c.config.QueryMetrics.Enabled {
 		if c.config.InstanceConfig.QueryMetrics.IncludeDatadogQueries {
 			var DDForceMatchingSignatures []string
 
