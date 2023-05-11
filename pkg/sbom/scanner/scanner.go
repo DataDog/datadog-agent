@@ -122,7 +122,7 @@ func (s *Scanner) start(ctx context.Context) {
 					scanTimeout = defaultScanTimeout
 				}
 
-				log.Infof("scanning from %v, id: %s", request.collector, request.ID())
+				log.Infof("scanning from %v, id: %s", request.Collector(), request.ID())
 				scanContext, cancel := context.WithTimeout(ctx, scanTimeout)
 				createdAt := time.Now()
 				scanResult := collector.Scan(scanContext, request.ScanRequest, request.opts)
