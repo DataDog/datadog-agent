@@ -80,7 +80,7 @@ func startCompliance(stopper startstop.Stopper, apiCl *apiserver.APIClient, isLe
 
 	runPath := coreconfig.Datadog.GetString("compliance_config.run_path")
 	configDir := coreconfig.Datadog.GetString("compliance_config.dir")
-	runInterval := coreconfig.Datadog.GetDuration("compliance_config.check_interval")
+	checkInterval := coreconfig.Datadog.GetDuration("compliance_config.check_interval")
 
 	reporter, err := compliance.NewLogReporter(stopper, "compliance-agent", "compliance", runPath, endpoints, ctx)
 	if err != nil {
@@ -96,9 +96,9 @@ func startCompliance(stopper startstop.Stopper, apiCl *apiserver.APIClient, isLe
 	}
 
 	agent := compliance.NewAgent(compliance.AgentOptions{
-		ConfigDir:   configDir,
-		Reporter:    reporter,
-		RunInterval: runInterval,
+		ConfigDir:     configDir,
+		Reporter:      reporter,
+		CheckInterval: checkInterval,
 		RuleFilter: func(rule *compliance.Rule) bool {
 			return rule.HasScope(compliance.KubernetesClusterScope)
 		},
@@ -116,7 +116,7 @@ func startCompliance(stopper startstop.Stopper, apiCl *apiserver.APIClient, isLe
 	}
 	stopper.Add(agent)
 
-	log.Infof("Running compliance checks every %s", runInterval.String())
+	log.Infof("Running compliance checks every %s", checkInterval.String())
 	return nil
 }
 

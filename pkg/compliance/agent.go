@@ -43,13 +43,14 @@ type AgentOptions struct {
 	// applied on all loaded benchmarks.
 	RuleFilter RuleFilter
 
-	// RunInterval is the period at which benchmarks are being run. By
-	// default: 20 minutes
-	RunInterval time.Duration
+	// CheckInterval is the period at which benchmarks are being run. It should
+	// also be roughly (see RunJitterMax) the interval at which rule checks
+	// are being run. By default: 20 minutes.
+	CheckInterval time.Duration
 
 	// RunJitterMax is the maximum duration of the jitter that randomizes the
 	// benchmarks evaluations. If less than 0, the jitter is null. By default
-	// is is one tenth of the specified RunInterval.
+	// is is one tenth of the specified CheckInterval.
 	RunJitterMax time.Duration
 
 	// EvalThrottling is the time that space out rule evaluation to avoid CPU
@@ -84,11 +85,11 @@ func NewAgent(opts AgentOptions) *Agent {
 	if opts.Reporter.Endpoints() == nil {
 		panic("compliance: missing agent endpoints")
 	}
-	if opts.RunInterval == 0 {
-		opts.RunInterval = 20 * time.Minute
+	if opts.CheckInterval == 0 {
+		opts.CheckInterval = 20 * time.Minute
 	}
 	if opts.RunJitterMax == 0 {
-		opts.RunJitterMax = opts.RunInterval / 10
+		opts.RunJitterMax = opts.CheckInterval / 10
 	} else if opts.RunJitterMax < 0 {
 		opts.RunJitterMax = 0
 	}
@@ -179,12 +180,12 @@ func (a *Agent) runRegoBenchmarks(ctx context.Context) {
 	}
 	a.checksMonitor.AddBenchmarks(benchmarks...)
 
-	runTicker := time.NewTicker(a.opts.RunInterval)
+	runTicker := time.NewTicker(a.opts.CheckInterval)
 	throttler := time.NewTicker(a.opts.EvalThrottling)
 	defer runTicker.Stop()
 	defer throttler.Stop()
 
-	log.Debugf("will be executing %d rego benchmarks every %s", len(benchmarks), a.opts.RunInterval)
+	log.Debugf("will be executing %d rego benchmarks every %s", len(benchmarks), a.opts.CheckInterval)
 	for {
 		for i, benchmark := range benchmarks {
 			seed := fmt.Sprintf("%s%s%d", a.opts.Hostname, benchmark.FrameworkID, i)
@@ -225,12 +226,12 @@ func (a *Agent) runXCCDFBenchmarks(ctx context.Context) {
 	}
 	a.checksMonitor.AddBenchmarks(benchmarks...)
 
-	runTicker := time.NewTicker(a.opts.RunInterval)
+	runTicker := time.NewTicker(a.opts.CheckInterval)
 	throttler := time.NewTicker(a.opts.EvalThrottling)
 	defer runTicker.Stop()
 	defer throttler.Stop()
 
-	log.Debugf("will be executing %d XCCDF benchmarks every %s", len(benchmarks), a.opts.RunInterval)
+	log.Debugf("will be executing %d XCCDF benchmarks every %s", len(benchmarks), a.opts.CheckInterval)
 	for {
 		for i, benchmark := range benchmarks {
 			seed := fmt.Sprintf("%s%s%d", a.opts.Hostname, benchmark.FrameworkID, i)

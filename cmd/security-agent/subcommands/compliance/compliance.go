@@ -25,7 +25,7 @@ func StartCompliance(log log.Component, config config.Component, hostname string
 	runPath := config.GetString("compliance_config.run_path")
 	configDir := config.GetString("compliance_config.dir")
 	metricsEnabled := config.GetBool("compliance_config.metrics.enabled")
-	runInterval := config.GetDuration("compliance_config.check_interval")
+	checkInterval := config.GetDuration("compliance_config.check_interval")
 
 	if !enabled {
 		return nil, nil
@@ -55,9 +55,9 @@ func StartCompliance(log log.Component, config config.Component, hostname string
 			LinuxAuditProvider: compliance.DefaultLinuxAuditProvider,
 			StatsdClient:       statsdClient,
 		},
-		ConfigDir:   configDir,
-		Reporter:    reporter,
-		RunInterval: runInterval,
+		ConfigDir:     configDir,
+		Reporter:      reporter,
+		CheckInterval: checkInterval,
 	})
 	err = agent.Start()
 	if err != nil {
