@@ -57,12 +57,10 @@ func (c *Check) SysMetrics() error {
 	if err != nil {
 		return fmt.Errorf("failed to initialize sender: %w", err)
 	}
-	for _, metricRow := range sysMetrics {
-		DDMetricName, mustSend := SYSMETRICS_COLS[metricRow.MetricName]
-		if !mustSend {
-			continue
+	for _, r := range metricRows {
+		if metric, ok := SYSMETRICS_COLS[metricRow.MetricName]; ok {
+		    sender.Gauge(fmt.Sprintf("%s.%s", common.IntegrationName, metric), metricRow.Value, "", c.getTagsWithPDB(r.PdbName))
 		}
-		sender.Gauge(fmt.Sprintf("%s.%s", common.IntegrationName, DDMetricName), metricRow.Value, "", c.getTagsWithPDB(metricRow.PdbName))
 	}
 	sender.Commit()
 	return nil
