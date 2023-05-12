@@ -573,41 +573,44 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 
 	_ = event.FieldHandlers.ResolveContainerCreatedAt(event, event.ContainerContext)
 
-	var found bool
-	// check if the event should be injected in the profile automatically
-	autoLearned, found, err := m.tryAutolearn(profile, event)
-	if err != nil {
-		return
-	}
+	markEventAsInProfile := func(inProfile bool) {
+		// link the profile to the event only if it's a valid event for profile without any error
+		FillProfileContextFromProfile(&event.SecurityProfileContext, profile)
 
-	if !autoLearned {
-		// check if the event is in its profile
-		found, err = profile.ActivityTree.Contains(event, activity_tree.ProfileDrift)
-		if err != nil {
-			// ignore, evaluation failed
-			m.eventFiltering[event.GetEventType()][NoProfile].Inc()
-			return
+		if inProfile {
+			event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
+			m.eventFiltering[event.GetEventType()][InProfile].Inc()
+		} else {
+			m.eventFiltering[event.GetEventType()][NotInProfile].Inc()
 		}
 	}
 
-	// link the profile to the event only if it's a valid event for profile without any error
-	FillProfileContextFromProfile(&event.SecurityProfileContext, profile)
-
-	if found {
-		event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
-		m.eventFiltering[event.GetEventType()][InProfile].Inc()
-	} else {
-		m.eventFiltering[event.GetEventType()][NotInProfile].Inc()
+	// check if the event should be injected in the profile automatically
+	if autoLearned, err := m.tryAutolearn(profile, event); err != nil {
+		return
+	} else if autoLearned {
+		markEventAsInProfile(true)
+		return
 	}
+
+	// check if the event is in its profile
+	found, err := profile.ActivityTree.Contains(event, activity_tree.ProfileDrift)
+	if err != nil {
+		// ignore, evaluation failed
+		m.eventFiltering[event.GetEventType()][NoProfile].Inc()
+		return
+	}
+
+	markEventAsInProfile(found)
 }
 
 // tryAutolearn tries to autolearn the input event. The first return values is true if the event was autolearned,
 // in which case the second return value tells whether the node was already in the profile.
-func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *model.Event) (bool, bool, error) {
+func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *model.Event) (bool, error) {
 	// check if the unstable size limit was reached
 	if profile.ActivityTree.Stats.ApproximateSize() >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileSizeThreshold {
 		m.eventFiltering[event.GetEventType()][UnstableProfile].Inc()
-		return false, false, errUnstableProfileSizeLimitReached
+		return false, errUnstableProfileSizeLimitReached
 	}
 
 	var nodeType activity_tree.NodeGenerationType
@@ -623,13 +626,13 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 			lastAnomalyNano = profile.loadedNano
 		}
 		if time.Duration(event.TimestampRaw-lastAnomalyNano) >= m.config.RuntimeSecurity.AnomalyDetectionMinimumStablePeriod {
-			return false, false, nil
+			return false, nil
 		}
 
 		// have we reached the unstable time limit ?
 		if time.Duration(event.TimestampRaw-profile.loadedNano) >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileTimeThreshold {
 			m.eventFiltering[event.GetEventType()][UnstableProfile].Inc()
-			return false, false, errUnstableProfileTimeLimitReached
+			return false, errUnstableProfileTimeLimitReached
 		}
 
 		nodeType = activity_tree.ProfileDrift
@@ -639,7 +642,7 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 	newEntry, err := profile.ActivityTree.Insert(event, nodeType)
 	if err != nil {
 		m.eventFiltering[event.GetEventType()][NoProfile].Inc()
-		return false, false, err
+		return false, err
 	}
 
 	// the event was either already in the profile, or has just been inserted
@@ -649,5 +652,5 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 		profile.lastAnomalyNano[event.GetEventType()] = event.TimestampRaw
 	}
 
-	return true, !newEntry, nil
+	return true, nil
 }
