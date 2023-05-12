@@ -43,13 +43,13 @@ func (c *Check) Tablespaces() error {
 	if err != nil {
 		return fmt.Errorf("GetSender tablespaces %w", err)
 	}
-	for _, row := range rows {
-		tags := c.getTagsWithPDB(row.PdbName)
-		tags = append(tags, "tablespace:"+row.TablespaceName)
-		sender.Gauge(fmt.Sprintf("%s.tablespace.used", common.IntegrationName), row.Used, "", tags)
-		sender.Gauge(fmt.Sprintf("%s.tablespace.size", common.IntegrationName), row.Size, "", tags)
-		sender.Gauge(fmt.Sprintf("%s.tablespace.in_use", common.IntegrationName), row.InUse, "", tags)
-		sender.Gauge(fmt.Sprintf("%s.tablespace.offline", common.IntegrationName), row.Offline, "", tags)
+	for _, r := range rows {
+		tags := c.appendPDBTag(r.PdbName)
+		tags = append(tags, "tablespace:"+r.TablespaceName)
+		sender.Gauge(fmt.Sprintf("%s.tablespace.used", common.IntegrationName), r.Used, "", tags)
+		sender.Gauge(fmt.Sprintf("%s.tablespace.size", common.IntegrationName), r.Size, "", tags)
+		sender.Gauge(fmt.Sprintf("%s.tablespace.in_use", common.IntegrationName), r.InUse, "", tags)
+		sender.Gauge(fmt.Sprintf("%s.tablespace.offline", common.IntegrationName), r.Offline, "", tags)
 	}
 	sender.Commit()
 	return nil
