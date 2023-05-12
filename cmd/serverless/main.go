@@ -37,7 +37,8 @@ import (
 )
 
 var (
-	kmsAPIKeyEnvVar            = "DD_KMS_API_KEY"
+	kmsAPIKeyEnvVarLegacy      = "DD_KMS_API_KEY"
+	kmsAPIKeyEnvVar            = "DD_API_KEY_KMS_ENCRYPTED"
 	secretsManagerAPIKeyEnvVar = "DD_API_KEY_SECRET_ARN"
 	apiKeyEnvVar               = "DD_API_KEY"
 	logLevelEnvVar             = "DD_LOG_LEVEL"
@@ -164,6 +165,9 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	// some useful warnings first
 
 	var apikeySetIn = []string{}
+	if os.Getenv(kmsAPIKeyEnvVarLegacy) != "" && os.Getenv(kmsAPIKeyEnvVar) == "" {
+		os.Setenv(kmsAPIKeyEnvVar, os.Getenv(kmsAPIKeyEnvVarLegacy))
+	}
 	if os.Getenv(kmsAPIKeyEnvVar) != "" {
 		apikeySetIn = append(apikeySetIn, "KMS")
 	}
@@ -330,11 +334,13 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	} else if enabled, _ := strconv.ParseBool(os.Getenv("DD_EXPERIMENTAL_ENABLE_PROXY")); enabled {
 		// start the experimental proxy if enabled
 		log.Debug("Starting the experimental runtime api proxy")
-		proxy.Start(
+		if err := proxy.Start(
 			"127.0.0.1:9000",
 			"127.0.0.1:9001",
 			serverlessDaemon.InvocationProcessor,
-		)
+		); err != nil {
+			log.Errorf("Could not start the experimental runtime api proxy: %v", err)
+		}
 	}
 
 	// run the invocation loop in a routine
