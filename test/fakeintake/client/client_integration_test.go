@@ -95,7 +95,7 @@ func TestIntegrationClient(t *testing.T) {
 		require.NoError(t, err, "Failed waiting for fakeintake")
 
 		// flush
-		err = client.FlushPayloads()
+		err = client.FlushServerAndResetAggregators()
 		assert.NoError(t, err, "Error getting payloads")
 
 		// post another payload

@@ -214,7 +214,7 @@ func TestClient(t *testing.T) {
 		defer ts.Close()
 
 		client := NewClient(ts.URL)
-		err := client.FlushPayloads()
+		err := client.FlushServerAndResetAggregators()
 		assert.NoError(t, err)
 	})
 }
