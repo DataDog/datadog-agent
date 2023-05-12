@@ -275,13 +275,16 @@ func zeroSplitter(data []byte, atEOF bool) (advance int, token []byte, err error
 	return 0, data, bufio.ErrFinalToken
 }
 
-func newEnvScanner(f *os.File) *bufio.Scanner {
-	f.Seek(0, io.SeekStart)
+func newEnvScanner(f *os.File) (*bufio.Scanner, error) {
+	_, err := f.Seek(0, io.SeekStart)
+	if err != nil {
+		return nil, err
+	}
 
 	scanner := bufio.NewScanner(f)
 	scanner.Split(zeroSplitter)
 
-	return scanner
+	return scanner, nil
 }
 
 var priorityEnvsPrefixes = []string{
@@ -309,7 +312,10 @@ func EnvVars(pid int32) ([]string, bool, error) {
 	defer f.Close()
 
 	// first pass collecting only priority variables
-	scanner := newEnvScanner(f)
+	scanner, err := newEnvScanner(f)
+	if err != nil {
+		return nil, false, err
+	}
 	var priorityEnvs []string
 	envCounter := 0
 
@@ -324,7 +330,10 @@ func EnvVars(pid int32) ([]string, bool, error) {
 	}
 
 	// second pass collecting
-	scanner = newEnvScanner(f)
+	scanner, err = newEnvScanner(f)
+	if err != nil {
+		return nil, false, err
+	}
 	envs := make([]string, 0, envCounter)
 	envs = append(envs, priorityEnvs...)
 
