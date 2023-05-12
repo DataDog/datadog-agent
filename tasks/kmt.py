@@ -1,4 +1,6 @@
 import os
+import itertools
+import filecmp
 import math
 import json
 import libvirt
@@ -9,8 +11,12 @@ from glob import glob
 from thefuzz import process
 from thefuzz import fuzz
 
-KMT_DIR = os.path.join("home", "kernel-version-testing")
+KMT_DIR = os.path.join("/", "home", "kernel-version-testing")
+KMT_ROOTFS_DIR = os.path.join(KMT_DIR, "rootfs")
 KMT_STACKS_DIR = os.path.join(KMT_DIR, "stacks")
+KMT_PACKAGES_DIR = os.path.join(KMT_DIR, "kernel-packages")
+KMT_BACKUP_DIR = os.path.join(KMT_DIR, "backups")
+KMT_LIBVIRT_DIR = os.path.join(KMT_DIR, "libvirt")
 
 karch_mapping = {"x86_64": "x86", "arm64": "arm64"}
 consoles = {"x86_64": "ttyS0", "arm64": "ttyAMA0"}
@@ -19,6 +25,7 @@ archs_mapping = {
     "x86": "x86_64",
     "x86_64": "x86_64",
     "arm64": "arm64",
+    "aarch64": "arm64",
     "arm": "arm64",
     "local": "local",
 }
@@ -79,12 +86,28 @@ images_path = {
     "buster": "file:///home/kernel-version-testing/rootfs/buster.qcow2.amd64-DEV",
 }
 
+def is_root():
+    return os.getuid() == 0
+
+def stack_exists(stack):
+    return os.path.exists(f"{KMT_STACKS_DIR}/{stack}")
+
+def vm_config_exists(stack):
+    return os.path.exists(f"{KMT_STACKS_DIR}/{stack}/vm-config.json")
 
 @task
 def init(ctx):
-    ctx.run(f"mkdir -p {KMT_STACKS_DIR}")
+    sudo = "sudo" if not is_root() else ""
+    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd 1000 | cut -d ':' -f 1) {KMT_DIR}")
+    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd 1000 | cut -d ':' -f 1) {KMT_PACKAGES_DIR}")
+    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd 1000 | cut -d ':' -f 1) {KMT_BACKUP_DIR}")
+    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd 1000 | cut -d ':' -f 1) {KMT_STACKS_DIR}")
+    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd 1000 | cut -d ':' -f 1) {KMT_LIBVIRT_DIR}")
+    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd 1000 | cut -d ':' -f 1) {KMT_ROOTFS_DIR}")
     # download dependencies
 
+    download_kernel_packages(ctx)
+    download_rootfs(ctx)
 
 def resource_in_stack(stack, resource):
     return resource.startswith(stack)
@@ -165,26 +188,16 @@ def destroy_stack(ctx, stack=None):
 
 
 @task
-def create_stack(ctx, stack=None, update=False):
-    if stack is None:
-        raise Exit("Stack name is required")
-
+def create_stack(ctx, stack):
     if not os.path.exists(f"{KMT_STACKS_DIR}"):
         raise Exit("Kernel matrix testing environment not correctly setup. Run 'inv kmt.init'.")
 
-    ctx.run(f"mkdir {KMT_STACKS_DIR}/{stack}")
-
-    if update:
-        update_resources(ctx)
-
+    ctx.run("mkdir {KMT_STACKS_DIR}/{stack}")
 
 def empty_config(file_path):
     j = json.dumps({"vmsets": []}, indent=4)
     with open(file_path, 'w') as f:
         f.write(j)
-
-
-import itertools
 
 
 def list_possible():
@@ -291,8 +304,13 @@ def build_new_vmset(set_id, kernels):
                 "image_path": f"bullseye.qcow2.{distro_arch_mapping[platform_arch]}-DEV",
                 "image_url": images_path["bullseye"],
             }
-    else:
+    elif recipe == "distro":
         vmset = {"name": vmset_name_from_id(set_id), "recipe": f"distro-{arch}", "arch": arch, "kernels": kernels}
+    else:
+        raise Exit(f"Invalid recipe {recipe}")
+
+    if arch == "arm64":
+        vmset["machine"] = "virt"
 
     return vmset
 
@@ -424,9 +442,14 @@ def mem_to_pow_of_2(memory):
         "new": "Generate new configuration file instead of appending to existing one within the provided stack",
     }
 )
-def gen_config(ctx, vms="", stack=None, vcpu="4", memory="8192", new=False):
-    #    if not os.path.exists(f"{KMT_STACKS_DIR}/{stack}"):
-    #        raise Exit(f"Stack {stack} does not exist. Please create stack first 'inv kmt.stack-create --stack={stack}'")
+def gen_config(ctx, stack, vms="", create_stack=False, vcpu="4", memory="8192", new=False):
+    if not stack_exists(stack) and not create_stack:
+        raise Exit(f"Stack {stack} does not exist. Please create stack first 'inv kmt.stack-create --stack={stack}, or specify --create-stack option'")
+
+    if create_stack:
+        create_stack(ctx, stack)
+
+    print(f"[+] Select stack {stack}")
 
     vm_types = vms.split(',')
     print(vm_types)
@@ -439,8 +462,8 @@ def gen_config(ctx, vms="", stack=None, vcpu="4", memory="8192", new=False):
     check_memory_and_vcpus(memory_ls, vcpu_ls)
     mem_to_pow_of_2(memory_ls)
 
-    # vmconfig_file = f"{KMT_STACKS_DIR}/{stack}/vm-config.json"
-    vmconfig_file = "/tmp/vm-config.json"
+    vmconfig_file = f"{KMT_STACKS_DIR}/{stack}/vm-config.json"
+    #vmconfig_file = "/tmp/vm-config.json"
     if new or not os.path.exists(vmconfig_file):
         ctx.run("rm -f {vmconfig_file}")
         empty_config(vmconfig_file)
@@ -465,6 +488,121 @@ def gen_config(ctx, vms="", stack=None, vcpu="4", memory="8192", new=False):
     with open(vmconfig_file, "w") as f:
         f.write(vm_config_str)
 
+def revert_kernel_packages(ctx):
+    arch = archs_mapping[platform.machine()]
+    kernel_packages_sum = f"kernel-packages-{arch}.sum"
+    kernel_packages_tar = f"kernel-packages-{arch}.tar"
+    ctx.run(f"rm -f {KMT_PACKAGES_DIR}/*")
+    ctx.run(f"mv {KMT_BACKUP_DIR}/{kernel_packages_sum} {KMT_PACKAGES_DIR}")
+    ctx.run(f"mv {KMT_BACKUP_DIR}/{kernel_packages_tar} {KMT_PACKAGES_DIR}")
+    ctx.run(f"tar xvf {KMT_PACKAGES_DIR}/{kernel_packages_tar} | xargs -i tar xzf {{}}")
+
+def download_kernel_packages(ctx, revert=False):
+    arch = archs_mapping[platform.machine()]
+    kernel_packages_sum = f"kernel-packages-{arch}.sum"
+    kernel_packages_tar = f"kernel-packages-{arch}.tar"
+
+    # download kernel packages
+    res = ctx.run(f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{kernel_packages_tar} -O {KMT_PACKAGES_DIR}/{kernel_packages_tar}", warn=True)
+    if not res.ok:
+        if revert:
+            revert_kernel_packages(ctx)
+        raise Exit("Failed to download kernel pacakges")
+
+    res = ctx.run(f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{kernel_packages_sum} -O {KMT_PACKAGES_DIR}/{kernel_packages_sum}", warn=True)
+    if not res.ok:
+        if revert:
+            revert_kernel_packages(ctx)
+        raise Exit("Failed to download kernel pacakges checksum")
+
+    # extract pacakges
+    res = ctx.run(f"tar -C {KMT_PACKAGES_DIR} xvf {kernel_packages_tar} | xargs -i tar xzf {{}}")
+    if not res.ok:
+        if revert:
+            revert_kernel_packages(ctx)
+        raise Exit("Failed to extract kernel packages")
+
+def update_kernel_packages(ctx):
+    arch = archs_mapping[platform.machine()]
+    kernel_packages_sum = f"kernel-packages-{arch}.sum"
+    kernel_packages_tar = f"kernel-packages-{arch}.tar"
+
+    ctx.run(f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{kernel_packages_sum} -O /tmp/{kernel_packages_sum}")
+
+    current_sum_file = f"{KMT_PACKAGES_DIR}/{kernel_packages_sum}"
+    if filecmp.cmp(current_sum_file, f"/tmp/{kernel_packages_sum}"):
+        print("[-] No update required for custom kernel packages")
+
+    # backup kernel-packges
+    karch = karch_mapping[archs_mapping[platform.machine()]]
+    ctx.run(f"find {KMT_PACKAGES_DIR} -name \"kernel-*.{karch}.pkg.tar.gz\" -type f | rev | cut -d '/' -f 1  | rev > /tmp/package.ls")
+    ctx.run(f"tar -C {KMT_PACKAGES_DIR} -cf {kernel_packages_tar} -T /tmp/package.ls")
+    ctx.run(f"cp {KMT_PACKAGES_DIR}/{kernel_packages_tar} {KMT_BACKUP_DIR}")
+    ctx.run(f"cp {current_sum_file} {KMT_BACKUP_DIR}")
+    print("[+] Backed up current packages")
+
+    # clean kernel packages directory
+    ctx.run(f"rm -f {KMT_PACKAGES_DIR}/*")
+
+    download_kernel_packages(ctx, revert=True)
+
+    print("[+] Kernel packages successfully updated")
+
+def revert_rootfs(ctx, rootfs):
+    ctx.run(f"rm -f {KMT_ROOTFS_DIR}/*")
+    ctx.run(f"mv {KMT_ROOTFS_DIR}/{rootfs}.sum {KMT_ROOTFS_DIR}")
+    ctx.run(f"mv {KMT_ROOTFS_DIR}/{rootfs}.tar.gz {KMT_ROOTFS_DIR}")
+
+def download_rootfs(ctx, revert=False):
+    arch = archs_mapping[platform.machine()]
+    if arch == "x86_64":
+        rootfs = "rootfs-amd64"
+    elif arch == "arm64":
+        rootfs = "rootfs-arm64"
+    else:
+        Exit(f"Unsupported arch detected {arch}")
+
+    # download rootfs
+    res = ctx.run(f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{rootfs}.sum -O {KMT_ROOTFS_DIR}/{rootfs}.sum")
+    if not res.ok:
+        if revert:
+            revert_rootfs(ctx)
+        raise Exit("Failed to download rootfs check sum file")
+
+    res = ctx.run(f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{rootfs}.tar.gz -O {KMT_ROOTFS_DIR}/{rootfs}.tar.gz")
+    if not res.ok:
+        if revert:
+            revert_rootfs(ctx)
+        raise Exit("Failed to download rootfs")
+
+
+def update_rootfs(ctx):
+    arch = archs_mapping[platform.machine()]
+    if arch == "x86_64":
+        rootfs = "rootfs-amd64"
+    elif arch == "arm64":
+        rootfs = "rootfs-arm64"
+    else:
+        Exit(f"Unsupported arch detected {arch}")
+
+    ctx.run(f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{rootfs}.sum -O /tmp/{rootfs}.sum")
+
+    current_sum_file = f"{KMT_ROOTFS_DIR}/{rootfs}.sum"
+    if filecmp.cmp(current_sum_file, "/tmp/{rootfs}.sum"):
+        print("[-] No update required for root filesystems and bootable images")
+
+    # backup rootfs
+    ctx.run("cp {KMT_ROOTFS_DIR}/{rootfs}.tar.gz {KMT_BACKUP_DIR}")
+    ctx.run("cp {KMT_ROOTFS_DIR}/{rootfs}.sum {KMT_BACKUP_DIR}")
+    print("[+] Backed up rootfs")
+
+    # clean rootfs directory
+    ctx.run(f"rm -f {KMT_ROOTFS_DIR}/*")
+
+    download_rootfs(ctx, revert=True)
+
+    print("[+] Root filesystem and bootables images updated")
+ 
 
 @task
 def update_resources(ctx):
@@ -475,3 +613,19 @@ def update_resources(ctx):
 
     for stack in glob(f"{KMT_STACKS_DIR}/*"):
         destroy_stack(ctx, stack=stack)
+
+    update_kernel_packages(ctx)
+    update_rootfs(ctx)
+
+@task 
+def launch_stack(ctx, stack, test_infra_definitions="../test-infra-definitions"):
+    if not stack_exists(stack):
+        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
+
+    if not vm_config_exists(stack):
+        raise Exit("No vm-config.json for stack {stack}. Refer to 'inv kmt.gen-config --help'")
+
+    if not os.path.exists(test_infra_definitions):
+        raise Exit("'test-infra-definitions' repository required to launc VMs')
+
+
