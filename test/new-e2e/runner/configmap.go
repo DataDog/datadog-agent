@@ -82,6 +82,10 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 			return nil, err
 		}
 	}
+	publicKeyPath, err := profile.ParamStore().Get(parameters.PublicKeyPath)
+	if err == nil {
+		cm.Set(AwsPublicKeyPath, publicKeyPath, false)
+	}
 
 	err = SetConfigMapFromSecret(profile.SecretStore(), cm, parameters.APIKey, AgentAPIKey)
 	if err != nil {
