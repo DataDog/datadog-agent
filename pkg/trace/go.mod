@@ -10,8 +10,8 @@ go 1.18
 replace github.com/docker/distribution => github.com/docker/distribution v2.8.1+incompatible
 
 require (
-	github.com/DataDog/datadog-agent v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.45.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/proto v0.46.0-devel
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.45.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.45.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.45.0-rc.3
@@ -43,6 +43,7 @@ require (
 
 require (
 	github.com/CycloneDX/cyclonedx-go v0.7.0 // indirect
+	github.com/DataDog/datadog-agent v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/go-tuf v0.3.0--fix-localmeta-fork // indirect
 	github.com/DataDog/gohai v0.0.0-20221116153829-5d479901d2e9 // indirect
 	github.com/DataDog/viper v1.12.0 // indirect
