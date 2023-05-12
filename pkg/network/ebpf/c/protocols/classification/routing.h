@@ -4,6 +4,7 @@
 #include "ktypes.h"
 #include "protocols/classification/defs.h"
 #include "protocols/classification/stack-helpers.h"
+#include "protocols/classification/tracer-maps.h"
 #include "protocols/classification/routing-helpers.h"
 
 // This function essentially encodes all routing aspects of tail-calls.
