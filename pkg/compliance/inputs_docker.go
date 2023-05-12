@@ -11,16 +11,11 @@ package compliance
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-
 	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	docker "github.com/docker/docker/client"
 )
 
 func newDockerClient(ctx context.Context) (docker.CommonAPIClient, error) {
-	if !config.IsDockerRuntime() {
-		return nil, ErrIncompatibleEnvironment
-	}
 	cl, err := dockerutil.ConnectToDocker(ctx)
 	if err != nil {
 		return nil, ErrIncompatibleEnvironment
