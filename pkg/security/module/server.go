@@ -69,6 +69,8 @@ type APIServer struct {
 	retention         time.Duration
 	cfg               *config.RuntimeSecurityConfig
 	cwsConsumer       *CWSConsumer
+
+	stopper startstop.Stopper
 }
 
 // GetActivityDumpStream waits for activity dumps and forwards them to the stream
@@ -542,9 +544,14 @@ func (a *APIServer) Apply(ruleIDs []rules.RuleID) {
 	}
 }
 
+func (a *APIServer) Stop() {
+	a.stopper.Stop()
+}
+
 // NewAPIServer returns a new gRPC event server
 func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, client statsd.ClientInterface) *APIServer {
-	directReporter, err := newDirectReporter()
+	stopper := startstop.NewSerialStopper()
+	directReporter, err := newDirectReporter(stopper)
 	if err != nil {
 		log.Errorf("failed to setup direct reporter: %v", err)
 		directReporter = nil
@@ -561,11 +568,12 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, client
 		probe:          probe,
 		retention:      cfg.EventServerRetention,
 		cfg:            cfg,
+		stopper:        stopper,
 	}
 	return es
 }
 
-func newDirectReporter() (common.RawReporter, error) {
+func newDirectReporter(stopper startstop.Stopper) (common.RawReporter, error) {
 	directReportEnabled := pkgconfig.SystemProbe.GetBool("runtime_security_config.direct_send_from_system_probe")
 	if !directReportEnabled {
 		return nil, nil
@@ -573,7 +581,6 @@ func newDirectReporter() (common.RawReporter, error) {
 
 	// TODO(paulcacheux) pipe actual config to this
 	runPath := "/opt/datadog-agent/run"
-	stopper := startstop.NewSerialStopper()
 
 	// begin: extracted from cmd/security-agent/command/logs_context.go
 	endpointPrefix := "runtime-security-http-intake.logs."
