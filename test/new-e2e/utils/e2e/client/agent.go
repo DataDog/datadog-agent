@@ -40,11 +40,16 @@ func (agent *Agent) Version() (string, error) {
 }
 
 type Status struct {
-	rawString string
+	Content string
 }
 
-func NewStatus(s string) *Status {
-	return &Status{rawString: s}
+func newStatus(s string) *Status {
+	return &Status{Content: s}
+}
+
+// isReady true if status contains a valid version
+func (s *Status) isReady() (bool, error) {
+	return regexp.MatchString("={15}\nAgent \\(v7\\.\\d{2}\\..*\n={15}", s.Content)
 }
 
 func (agent *Agent) Status() (*Status, error) {
@@ -52,12 +57,7 @@ func (agent *Agent) Status() (*Status, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewStatus(s), nil
-}
-
-// IsReady true if status contains a valid version
-func (s *Status) IsReady() (bool, error) {
-	return regexp.MatchString("={15}\nAgent \\(v7\\.\\d{2}\\..*\n={15}", s.rawString)
+	return newStatus(s), nil
 }
 
 // IsReady runs status command and returns true if the agent is ready
@@ -67,13 +67,20 @@ func (a *Agent) IsReady() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return status.IsReady()
+	return status.isReady()
+}
+
+// WaitForReady blocks up for one minute waiting for agent to be ready
+// Retries every 100 ms up to one minute
+// Returns error on failure
+func (a *Agent) WaitForReady() error {
+	return a.WaitForReadyTimeout(1 * time.Minute)
 }
 
 // WaitForReady blocks up for timeout waiting for agent to be ready
 // Retries every 100 ms up to timeout
 // Returns error on failure
-func (a *Agent) WaitForReady(timeout time.Duration) error {
+func (a *Agent) WaitForReadyTimeout(timeout time.Duration) error {
 	interval := 100 * time.Millisecond
 	maxRetries := timeout.Milliseconds() / interval.Milliseconds()
 	err := backoff.Retry(func() error {
