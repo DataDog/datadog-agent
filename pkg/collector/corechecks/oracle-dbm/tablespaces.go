@@ -41,7 +41,7 @@ func (c *Check) Tablespaces() error {
 	}
 	sender, err := c.GetSender()
 	if err != nil {
-		return fmt.Errorf("GetSender tablespaces %w", err)
+		return fmt.Errorf("failed to initialize sender: %w", err)
 	}
 	for _, r := range rows {
 		tags := c.appendPDBTag(r.PdbName)
