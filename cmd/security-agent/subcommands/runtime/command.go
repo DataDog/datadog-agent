@@ -672,7 +672,7 @@ func (r *reporter) ReportRaw(content []byte, service string, tags ...string) {
 	r.logChan <- msg
 }
 
-func newRuntimeReporter(log log.Component, config config.Component, stopper startstop.Stopper, sourceName, sourceType string, endpoints *logsconfig.Endpoints, context *client.DestinationsContext) (seccommon.RawReporter, error) {
+func newRuntimeReporter(config config.Component, stopper startstop.Stopper, sourceName, sourceType string, endpoints *logsconfig.Endpoints, context *client.DestinationsContext) (seccommon.RawReporter, error) {
 	health := health.RegisterLiveness("runtime-security")
 
 	// setup the auditor
@@ -722,7 +722,7 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 	}
 	stopper.Add(ctx)
 
-	reporter, err := newRuntimeReporter(log, config, stopper, "runtime-security-agent", "runtime-security", endpoints, ctx)
+	reporter, err := newRuntimeReporter(config, stopper, "runtime-security-agent", "runtime-security", endpoints, ctx)
 	if err != nil {
 		return nil, err
 	}
