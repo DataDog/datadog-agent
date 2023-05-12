@@ -43,12 +43,15 @@ if [ -f "/etc/init.d/datadog-agent" ]; then
 fi
 
 # Set up `dd-agent` user and group
-getent group dd-agent >/dev/null || groupadd -r dd-agent
-getent passwd dd-agent >/dev/null || \
-    useradd -r -M -g dd-agent -d $INSTALL_DIR -s /sbin/nologin \
-        -c "Datadog Agent" dd-agent && \
-        { usermod -L dd-agent || echo "[ WARNING ]\tCannot lock the 'dd-agent' user account"; }
-
+if ! getent group dd-agent >/dev/null; then
+    groupadd -r dd-agent
+fi
+if ! getent passwd dd-agent >/dev/null; then
+    useradd -r -M -g dd-agent -d $INSTALL_DIR -s /sbin/nologin -c "Datadog Agent" dd-agent
+    if ! usermod -L dd-agent; then
+        echo "[ WARNING ]\tCannot lock the 'dd-agent' user account"
+    fi
+fi
 
 # Starting with 6.10, integrations are also uninstalled on package removal
 
