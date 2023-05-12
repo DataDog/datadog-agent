@@ -1,18 +1,25 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package netflow
 
 import (
 	"fmt"
+	"strings"
+	"testing"
+	"time"
+	
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/netflow/flowaggregator"
 	"github.com/DataDog/datadog-agent/pkg/netflow/testutil"
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"strings"
-	"testing"
-	"time"
 )
 
 func TestNetFlow_IntegrationTest_NetFlow5(t *testing.T) {
