@@ -44,7 +44,7 @@ func (c *Check) Tablespaces() error {
 		return fmt.Errorf("failed to initialize sender: %w", err)
 	}
 	for _, r := range rows {
-		tags := c.appendPDBTag(r.PdbName)
+		tags := appendPDBTag(c.tags, r.PdbName)
 		tags = append(tags, "tablespace:"+r.TablespaceName)
 		sender.Gauge(fmt.Sprintf("%s.tablespace.used", common.IntegrationName), r.Used, "", tags)
 		sender.Gauge(fmt.Sprintf("%s.tablespace.size", common.IntegrationName), r.Size, "", tags)

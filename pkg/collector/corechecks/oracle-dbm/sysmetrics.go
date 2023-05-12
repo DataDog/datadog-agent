@@ -48,7 +48,7 @@ func (c *Check) SysMetrics() error {
 	}
 
 	metricRows := []SysmetricsRowDB{}
-	err := c.db.Select(&sysMetrics, SYSMETRICS_QUERY)
+	err := c.db.Select(&metricRows, SYSMETRICS_QUERY)
 
 	if err != nil {
 		return fmt.Errorf("failed to collect sysmetrics: %w", err)
@@ -58,8 +58,8 @@ func (c *Check) SysMetrics() error {
 		return fmt.Errorf("failed to initialize sender: %w", err)
 	}
 	for _, r := range metricRows {
-		if metric, ok := SYSMETRICS_COLS[metricRow.MetricName]; ok {
-		    sender.Gauge(fmt.Sprintf("%s.%s", common.IntegrationName, metric), metricRow.Value, "", c.getTagsWithPDB(r.PdbName))
+		if metric, ok := SYSMETRICS_COLS[r.MetricName]; ok {
+			sender.Gauge(fmt.Sprintf("%s.%s", common.IntegrationName, metric), r.Value, "", appendPDBTag(c.tags, r.PdbName))
 		}
 	}
 	sender.Commit()

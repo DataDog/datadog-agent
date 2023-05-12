@@ -45,17 +45,16 @@ func (c *Check) ProcessMemory() error {
 	if err != nil {
 		return fmt.Errorf("failed to initialize sender: %w", err)
 	}
-	for _, row := range rows {
-		tags := c.getTagsWithPDB(row.PdbName)
-		tags = append(tags, "pid:"+strconv.FormatUint(row.PID, 10))
-		if row.Program.Valid {
-			program = row.Program.String
-			tags = append(tags, "program:"+program)
-		} 
-		sender.Gauge(fmt.Sprintf("%s.process.pga_used_mem", common.IntegrationName), row.PGAUsedMem, "", tags)
-		sender.Gauge(fmt.Sprintf("%s.process.pga_alloc_mem", common.IntegrationName), row.PGAAllocMem, "", tags)
-		sender.Gauge(fmt.Sprintf("%s.process.pga_freeable_mem", common.IntegrationName), row.PGAFreeableMem, "", tags)
-		sender.Gauge(fmt.Sprintf("%s.process.pga_max_mem", common.IntegrationName), row.PGAMaxMem, "", tags)
+	for _, r := range rows {
+		tags := appendPDBTag(c.tags, r.PdbName)
+		tags = append(tags, "pid:"+strconv.FormatUint(r.PID, 10))
+		if r.Program.Valid {
+			tags = append(tags, "program:"+r.Program.String)
+		}
+		sender.Gauge(fmt.Sprintf("%s.process.pga_used_mem", common.IntegrationName), r.PGAUsedMem, "", tags)
+		sender.Gauge(fmt.Sprintf("%s.process.pga_alloc_mem", common.IntegrationName), r.PGAAllocMem, "", tags)
+		sender.Gauge(fmt.Sprintf("%s.process.pga_freeable_mem", common.IntegrationName), r.PGAFreeableMem, "", tags)
+		sender.Gauge(fmt.Sprintf("%s.process.pga_max_mem", common.IntegrationName), r.PGAMaxMem, "", tags)
 	}
 	sender.Commit()
 	return nil
