@@ -245,7 +245,7 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, benchmark *Benchmar
 			case XCCDF_RESULT_PASS:
 				event = NewCheckEvent(XCCDFEvaluator, CheckPassed, nil, hostname, "host", rule, benchmark)
 			case XCCDF_RESULT_FAIL:
-				event = NewCheckEvent(XCCDFEvaluator, CheckPassed, nil, hostname, "host", rule, benchmark)
+				event = NewCheckEvent(XCCDFEvaluator, CheckFailed, nil, hostname, "host", rule, benchmark)
 			case XCCDF_RESULT_ERROR, XCCDF_RESULT_UNKNOWN:
 				errReason := fmt.Errorf("XCCDF_RESULT_ERROR")
 				event = NewCheckError(XCCDFEvaluator, errReason, hostname, "host", rule, benchmark)
