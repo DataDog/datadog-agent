@@ -250,7 +250,7 @@ func GetFilledProcess(p *process.Process) *process.FilledProcess {
 	}
 }
 
-const MAX_ENV_VARS_COLLECTED = 128
+const MAX_ENV_VARS_COLLECTED = 256
 
 // EnvVars returns a array with the environment variables of the given pid
 func EnvVars(pid int32) ([]string, bool, error) {
