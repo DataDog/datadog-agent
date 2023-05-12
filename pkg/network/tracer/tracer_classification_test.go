@@ -441,9 +441,10 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 	}
 
 	mysqlTeardown := func(t *testing.T, ctx testContext) {
-		client := ctx.extras["conn"].(*mysql.Client)
-		defer client.DB.Close()
-		client.DropDB()
+		if client, ok := ctx.extras["conn"].(*mysql.Client); ok {
+			defer client.DB.Close()
+			client.DropDB()
+		}
 	}
 
 	serverAddress := net.JoinHostPort(serverHost, mysqlPort)
