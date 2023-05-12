@@ -726,7 +726,14 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 	ns2 := netlinktestutil.AddNS(t)
 
 	// setup two network namespaces
-	state := testutil.IptablesSave(t)
+	t.Cleanup(func() {
+		testutil.RunCommands(t, []string{
+			"ip link del veth1",
+			"ip link del veth3",
+			"ip link del br0",
+		}, true)
+	})
+	testutil.IptablesSave(t)
 	cmds := []string{
 		"ip link add br0 type bridge",
 		"ip addr add 2.2.2.1/24 broadcast 2.2.2.255 dev br0",
@@ -750,15 +757,6 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 		"iptables -I FORWARD -o br0 -j ACCEPT",
 		"sysctl -w net.ipv4.ip_forward=1",
 	}
-	t.Cleanup(func() {
-		testutil.IptablesRestore(t, state)
-		testutil.RunCommands(t, []string{
-			"ip link del veth1",
-			"ip link del veth3",
-			"ip link del br0",
-		}, true)
-	})
-
 	testutil.RunCommands(t, cmds, false)
 
 	ifs, err := net.Interfaces()
@@ -1294,36 +1292,27 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 }
 
 func TestDNSStatsWithNAT(t *testing.T) {
-	state := testutil.IptablesSave(t)
+	testutil.IptablesSave(t)
 	// Setup a NAT rule to translate 2.2.2.2 to 8.8.8.8 and issue a DNS request to 2.2.2.2
 	cmds := []string{"iptables -t nat -A OUTPUT -d 2.2.2.2 -j DNAT --to-destination 8.8.8.8"}
 	testutil.RunCommands(t, cmds, true)
-
-	t.Cleanup(func() {
-		testutil.IptablesRestore(t, state)
-	})
 
 	testDNSStats(t, "golang.org", 1, 0, 0, "2.2.2.2")
 }
 
 func iptablesWrapper(t *testing.T, f func()) {
 	iptables, err := exec.LookPath("iptables")
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	// Init iptables rule to simulate packet loss
 	rule := "INPUT --source 127.0.0.1 -j DROP"
 	create := strings.Fields(fmt.Sprintf("-I %s", rule))
 
 	state := testutil.IptablesSave(t)
+	defer testutil.IptablesRestore(t, state)
 	createCmd := exec.Command(iptables, create...)
-	err = createCmd.Start()
-	assert.Nil(t, err)
-	err = createCmd.Wait()
-	assert.Nil(t, err)
-
-	defer func() {
-		testutil.IptablesRestore(t, state)
-	}()
+	err = createCmd.Run()
+	require.NoError(t, err)
 
 	f()
 }
