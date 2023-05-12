@@ -28,7 +28,7 @@ import (
 const (
 	maxRouteCacheSize       = int(^uint(0) >> 1) // max int
 	maxSubnetCacheSize      = 1024
-	gatewayLookupModuleName = "gateway_lookup"
+	gatewayLookupModuleName = "network_tracer__gateway_lookup"
 )
 
 // Telemetry

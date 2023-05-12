@@ -272,13 +272,13 @@ func (t *tracer) FlushPending() {
 
 func (t *tracer) Stop() {
 	t.stopOnce.Do(func() {
+		close(t.exitTelemetry)
 		_ = t.m.Stop(manager.CleanAll)
 		t.closeConsumer.Stop()
 		if t.closeTracer != nil {
 			t.closeTracer()
 		}
 	})
-	close(t.exitTelemetry)
 }
 
 func (t *tracer) GetMap(name string) *ebpf.Map {

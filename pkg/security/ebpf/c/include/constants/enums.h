@@ -50,6 +50,8 @@ enum event_type {
     EVENT_ALL = 0xffffffff // used as a mask for all the events
 };
 
+#define EVENT_LAST_APPROVER EVENT_SPLICE
+
 enum {
     EVENT_FLAGS_ASYNC = 1<<0, // async, mostly io_uring
     EVENT_FLAGS_SAVED_BY_AD = 1<<1, // event send because of activity dump
