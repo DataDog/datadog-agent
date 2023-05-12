@@ -95,6 +95,8 @@ type soRule struct {
 
 // soWatcher provides a way to tie callback functions to the lifecycle of shared libraries
 type soWatcher struct {
+	wg             sync.WaitGroup
+	done           chan struct{}
 	procRoot       string
 	rules          []soRule
 	loadEvents     *ddebpf.PerfHandler
@@ -115,6 +117,8 @@ type soRegistry struct {
 
 func newSOWatcher(perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
 	return &soWatcher{
+		wg:             sync.WaitGroup{},
+		done:           make(chan struct{}),
 		procRoot:       util.GetProcRoot(),
 		rules:          rules,
 		loadEvents:     perfHandler,
@@ -153,6 +157,11 @@ func newRegistration(unregister func(pathIdentifier) error) *soRegistration {
 		unregisterCB:         unregister,
 		uniqueProcessesCount: 1,
 	}
+}
+
+func (w *soWatcher) Stop() {
+	close(w.done)
+	w.wg.Wait()
 }
 
 // Start consuming shared-library events
@@ -207,7 +216,9 @@ func (w *soWatcher) Start() {
 		return
 	}
 
+	w.wg.Add(1)
 	go func() {
+		defer w.wg.Done()
 		defer cleanupExit()
 		defer w.processMonitor.Stop()
 		// cleanup all uprobes
@@ -215,6 +226,8 @@ func (w *soWatcher) Start() {
 
 		for {
 			select {
+			case <-w.done:
+				return
 			case event, ok := <-w.loadEvents.DataChannel:
 				if !ok {
 					return

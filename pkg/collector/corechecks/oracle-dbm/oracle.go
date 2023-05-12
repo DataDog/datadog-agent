@@ -8,6 +8,7 @@ package oracle
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -22,11 +23,21 @@ import (
 	go_ora "github.com/sijms/go-ora/v2"
 )
 
-// Check represents one Oracle instance check.
+// The structure is filled by activity sampling and serves as a filter for query metrics
 type StatementsFilter struct {
-	SQLIDs map[string]int
-	//ForceMatchingSignatures map[uint64]int
+	SQLIDs                  map[string]int
 	ForceMatchingSignatures map[string]int
+}
+
+type StatementsCacheData struct {
+	statement      string
+	querySignature string
+	tables         []string
+	commands       []string
+}
+type StatementsCache struct {
+	SQLIDs                  map[string]StatementsCacheData
+	forceMatchingSignatures map[string]StatementsCacheData
 }
 
 type Check struct {
@@ -37,12 +48,17 @@ type Check struct {
 	agentVersion                            string
 	checkInterval                           float64
 	tags                                    []string
+	tagsString                              string
 	cdbName                                 string
 	statementsFilter                        StatementsFilter
+	statementsCache                         StatementsCache
+	DDstatementsCache                       StatementsCache
+	DDPrevStatementsCache                   StatementsCache
 	statementMetricsMonotonicCountsPrevious map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB
 	dbHostname                              string
 	dbVersion                               string
 	driver                                  string
+	statementsLastRun                       time.Time
 }
 
 // Run executes the check.
@@ -57,14 +73,17 @@ func (c *Check) Run() error {
 	}
 
 	if c.dbmEnabled {
-		err := c.SampleSession()
-		if err != nil {
-			return err
-		}
-
-		_, err = c.StatementMetrics()
-		if err != nil {
-			return err
+		if c.config.QuerySamples.Enabled {
+			err := c.SampleSession()
+			if err != nil {
+				return err
+			}
+			if c.config.QueryMetrics.Enabled {
+				_, err = c.StatementMetrics()
+				if err != nil {
+					return err
+				}
+			}
 		}
 
 	}
@@ -108,7 +127,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	db.SetMaxOpenConns(10)
 
 	if c.cdbName == "" {
-		row := db.QueryRow("SELECT name FROM v$database")
+		row := db.QueryRow("SELECT /* DD */ name FROM v$database")
 		err = row.Scan(&c.cdbName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to query db name: %w", err)
@@ -117,7 +136,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	}
 
 	if c.dbHostname == "" || c.dbVersion == "" {
-		row := db.QueryRow("SELECT host_name, version FROM v$instance")
+		row := db.QueryRow("SELECT /* DD */ host_name, version FROM v$instance")
 		var dbHostname string
 		err = row.Scan(&dbHostname, &c.dbVersion)
 		if err != nil {
@@ -170,6 +189,7 @@ func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integratio
 	c.tags = c.config.Tags
 	c.tags = append(c.tags, fmt.Sprintf("dbms:%s", common.IntegrationName), fmt.Sprintf("ddagentversion:%s", c.agentVersion))
 
+	c.tagsString = strings.Join(c.tags, ",")
 	return nil
 }
 

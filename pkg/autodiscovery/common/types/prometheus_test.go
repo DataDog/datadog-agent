@@ -134,3 +134,49 @@ func TestPrometheusAnnotationsDiffer(t *testing.T) {
 		})
 	}
 }
+
+func TestPrometheusCheck_IsIncluded(t *testing.T) {
+	tests := []struct {
+		name        string
+		adConfig    *ADConfig
+		annotations map[string]string
+		want        bool
+	}{
+		{
+			name:     "Basic case",
+			adConfig: DefaultPrometheusCheck.AD,
+			annotations: map[string]string{
+				"foo":                      "bar",
+				PrometheusScrapeAnnotation: "true",
+			},
+			want: true,
+		},
+		{
+			name:     "With excluded annotation",
+			adConfig: DefaultPrometheusCheck.AD,
+			annotations: map[string]string{
+				"foo":                      "bar",
+				PrometheusScrapeAnnotation: "false",
+			},
+			want: false,
+		},
+		{
+			name:     "No relevant annotations",
+			adConfig: DefaultPrometheusCheck.AD,
+			annotations: map[string]string{
+				"foo": "bar",
+			},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pc := &PrometheusCheck{
+				AD: tt.adConfig,
+			}
+			if got := pc.IsIncluded(tt.annotations); got != tt.want {
+				t.Errorf("PrometheusCheck.IsIncluded() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

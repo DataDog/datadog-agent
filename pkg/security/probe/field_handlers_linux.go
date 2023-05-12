@@ -398,8 +398,8 @@ func (fh *FieldHandlers) ResolveFileFieldsUser(ev *model.Event, e *model.FileFie
 	return e.User
 }
 
-// ResolveEventTimestamp resolves the monolitic kernel event timestamp to an absolute time
-func (fh *FieldHandlers) ResolveEventTimestamp(ev *model.Event) time.Time {
+// ResolveEventTime resolves the monolitic kernel event timestamp to an absolute time
+func (fh *FieldHandlers) ResolveEventTime(ev *model.Event) time.Time {
 	if ev.Timestamp.IsZero() {
 		fh := ev.FieldHandlers.(*FieldHandlers)
 
@@ -409,6 +409,11 @@ func (fh *FieldHandlers) ResolveEventTimestamp(ev *model.Event) time.Time {
 		}
 	}
 	return ev.Timestamp
+}
+
+// ResolveEventTimestamp resolves the monolitic kernel event timestamp to an absolute time
+func (fh *FieldHandlers) ResolveEventTimestamp(ev *model.Event) int {
+	return int(fh.ResolveEventTime(ev).UnixNano())
 }
 
 // ResolveAsync resolves the async flag

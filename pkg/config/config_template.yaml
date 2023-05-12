@@ -1368,6 +1368,17 @@ api_key:
   #
   # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache"]
 
+  ## @param debug - custom object - optional
+  ## Specifies settings for the debug server of the trace agent.
+  #
+  # debug:
+
+    ## @param port - integer - optional - default: 5012
+    ## @env DD_APM_DEBUG_PORT - string - optional - default: 5012
+    ## Port for the debug endpoints for the trace Agent. Set it to 0 to disable the server.
+    #
+    # port: 5012
+
   {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
   ## Enter specific configurations for internal profiling.
@@ -1659,6 +1670,10 @@ api_key:
 ########################################
 
 # network_config:
+{{- if (eq .OS "windows")}}
+  ## Please note that enabling the Network Module of the System
+  ## Probe will result in a kernel driver being loaded.
+{{ end }}
   ## @param enabled - boolean - optional - default: false
   ## Set to true to enable the Network Module of the System Probe
   #
@@ -1673,6 +1688,11 @@ api_key:
 #############################################################
 
 # service_monitoring_config:
+{{- if (eq .OS "windows")}}
+  ## Please note that enabling the Universal Service Monitoring
+  ## Module of the System Probe will result in a kernel driver 
+  ## being loaded.
+{{ end }}
   ## @param enabled - boolean - optional - default: false
   ## Set to true to enable the Universal Service Monitoring Module of the System Probe
   #

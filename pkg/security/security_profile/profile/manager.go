@@ -48,6 +48,9 @@ const (
 	UnstableProfile
 )
 
+// DefaultProfileName used as default profile name
+const DefaultProfileName = "default"
+
 func (efr EventFilteringResult) toTag() string {
 	switch efr {
 	case NoProfile:
@@ -277,12 +280,11 @@ func (m *SecurityProfileManager) GetProfile(selector cgroupModel.WorkloadSelecto
 	return m.profiles[selector]
 }
 
-// FillProfileContextFromContainerID returns the profile of a container ID
-func (m *SecurityProfileManager) FillProfileContextFromContainerID(id string, ctx *model.SecurityProfileContext) *SecurityProfile {
+// FillProfileContextFromContainerID populates a SecurityProfileContext for the given container ID
+func (m *SecurityProfileManager) FillProfileContextFromContainerID(id string, ctx *model.SecurityProfileContext) {
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 
-	var output *SecurityProfile
 	for _, profile := range m.profiles {
 		profile.Lock()
 		for _, instance := range profile.Instances {
@@ -297,8 +299,6 @@ func (m *SecurityProfileManager) FillProfileContextFromContainerID(id string, ct
 		}
 		profile.Unlock()
 	}
-
-	return output
 }
 
 // FillProfileContextFromProfile fills the given ctx with profile infos
@@ -307,6 +307,10 @@ func FillProfileContextFromProfile(ctx *model.SecurityProfileContext, profile *S
 	defer profile.Unlock()
 
 	ctx.Name = profile.Metadata.Name
+	if ctx.Name == "" {
+		ctx.Name = DefaultProfileName
+	}
+
 	ctx.Version = profile.Version
 	ctx.Tags = profile.Tags
 	ctx.Status = profile.Status
@@ -389,11 +393,7 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 	profile.loadedInKernel = false
 
 	// decode the content of the profile
-	protoToSecurityProfile(profile, newProfile)
-	if profile.autolearnEnabled {
-		// reset the last anomaly timestamp to now
-		profile.lastAnomalyNano = uint64(m.timeResolver.ComputeMonotonicTimestamp(time.Now()))
-	}
+	ProtoToSecurityProfile(profile, newProfile)
 
 	// prepare the profile for insertion
 	m.prepareProfile(profile)
@@ -434,6 +434,14 @@ func (m *SecurityProfileManager) SendStats() error {
 	if val := float64(len(m.profiles)); val > 0 {
 		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileActiveProfiles, val, []string{}, 1.0); err != nil {
 			return fmt.Errorf("couldn't send MetricSecurityProfileActiveProfiles: %w", err)
+		}
+	}
+
+	for _, profile := range m.profiles {
+		if profile.loadedInKernel { // make sure the profile is loaded
+			if err := profile.SendStats(m.statsdClient); err != nil {
+				return fmt.Errorf("couldn't send metrics for [%s]: %w", profile.selector.String(), err)
+			}
 		}
 	}
 
@@ -559,15 +567,13 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	}
 
 	// check if the event should be injected in the profile automatically
-	if profile.autolearnEnabled {
-		autoLearned, autoLearnErr := m.tryAutolearn(profile, event)
-		if autoLearnErr != nil {
-			return
-		} else if autoLearned {
-			// link the profile to the event only if it's a valid event for profile without any error
-			FillProfileContextFromProfile(&event.SecurityProfileContext, profile)
-			return
-		}
+	autoLearned, autoLearnErr := m.tryAutolearn(profile, event)
+	if autoLearnErr != nil {
+		return
+	} else if autoLearned {
+		// link the profile to the event only if it's a valid event for profile without any error
+		FillProfileContextFromProfile(&event.SecurityProfileContext, profile)
+		return
 	}
 
 	// check if the event is in its profile
@@ -590,11 +596,12 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 // tryAutolearn tries to autolearn the input event. Returns true if the event was autolearned.
 func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *model.Event) (bool, error) {
 	// have we reached the stable state time limit ?
-	if profile.lastAnomalyNano == 0 {
-		profile.lastAnomalyNano = event.TimestampRaw
+	lastAnomalyNano, ok := profile.lastAnomalyNano[event.GetEventType()]
+	if !ok {
+		profile.lastAnomalyNano[event.GetEventType()] = profile.loadedNano
+		lastAnomalyNano = profile.loadedNano
 	}
-	if time.Duration(event.TimestampRaw-profile.lastAnomalyNano) >= m.config.RuntimeSecurity.AnomalyDetectionMinimumStablePeriod {
-		profile.autolearnEnabled = false
+	if time.Duration(event.TimestampRaw-lastAnomalyNano) >= m.config.RuntimeSecurity.AnomalyDetectionMinimumStablePeriod {
 		return false, nil
 	}
 
@@ -622,7 +629,7 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 	event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
 
 	if newEntry {
-		profile.lastAnomalyNano = event.TimestampRaw
+		profile.lastAnomalyNano[event.GetEventType()] = event.TimestampRaw
 		m.eventFiltering[event.GetEventType()][NotInProfile].Inc()
 	} else {
 		m.eventFiltering[event.GetEventType()][InProfile].Inc()
