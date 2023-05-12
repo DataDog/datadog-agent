@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const containersCountMetricName = "datadog.security_agent.compliance.containers_running"
@@ -63,8 +62,9 @@ type AgentOptions struct {
 type Agent struct {
 	opts AgentOptions
 
-	telemetry     *common.ContainersTelemetry
-	checksMonitor *ChecksMonitor
+	telemetry  *common.ContainersTelemetry
+	statuses   map[string]*CheckStatus
+	statusesMu sync.RWMutex
 
 	finish chan struct{}
 	cancel context.CancelFunc
@@ -116,7 +116,7 @@ func NewAgent(opts AgentOptions) *Agent {
 		opts.RunJitterMax = 0
 	}
 	if opts.EvalThrottling == 0 {
-		opts.EvalThrottling = 500 * time.Millisecond
+		opts.EvalThrottling = 2 * time.Second
 	}
 	if ruleFilter := opts.RuleFilter; ruleFilter != nil {
 		opts.RuleFilter = func(r *Rule) bool { return defaultRuleFilter(r) && ruleFilter(r) }
@@ -124,7 +124,8 @@ func NewAgent(opts AgentOptions) *Agent {
 		opts.RuleFilter = func(r *Rule) bool { return defaultRuleFilter(r) }
 	}
 	return &Agent{
-		opts: opts,
+		opts:     opts,
+		statuses: make(map[string]*CheckStatus),
 	}
 }
 
@@ -136,7 +137,6 @@ func (a *Agent) Start() error {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	a.checksMonitor = NewChecksMonitor(a.opts.StatsdClient)
 	a.telemetry = telemetry
 	a.cancel = cancel
 	a.finish = make(chan struct{})
@@ -144,7 +144,7 @@ func (a *Agent) Start() error {
 	status.Set(
 		"Checks",
 		expvar.Func(func() interface{} {
-			return a.checksMonitor.GetChecksStatus()
+			return a.getChecksStatus()
 		}),
 	)
 
@@ -200,7 +200,7 @@ func (a *Agent) runRegoBenchmarks(ctx context.Context) {
 		log.Infof("no rego benchmark to run")
 		return
 	}
-	a.checksMonitor.AddBenchmarks(benchmarks...)
+	a.addBenchmarks(benchmarks...)
 
 	runTicker := time.NewTicker(a.opts.CheckInterval)
 	throttler := time.NewTicker(a.opts.EvalThrottling)
@@ -246,7 +246,7 @@ func (a *Agent) runXCCDFBenchmarks(ctx context.Context) {
 		log.Infof("no xccdf benchmark to run")
 		return
 	}
-	a.checksMonitor.AddBenchmarks(benchmarks...)
+	a.addBenchmarks(benchmarks...)
 
 	runTicker := time.NewTicker(a.opts.CheckInterval)
 	throttler := time.NewTicker(a.opts.EvalThrottling)
@@ -276,7 +276,7 @@ func (a *Agent) runXCCDFBenchmarks(ctx context.Context) {
 
 func (a *Agent) reportEvents(ctx context.Context, benchmark *Benchmark, events []*CheckEvent) {
 	for _, event := range events {
-		a.checksMonitor.Update(event)
+		a.updateEvent(event)
 		if event.Result == CheckSkipped {
 			continue
 		}
@@ -313,38 +313,25 @@ func (a *Agent) GetStatus() map[string]interface{} {
 	}
 }
 
-type ChecksMonitor struct {
-	statsdClient statsd.ClientInterface
-	statuses     map[string]*CheckStatus
-	statusesMu   sync.RWMutex
-}
-
-func NewChecksMonitor(statsdClient statsd.ClientInterface) *ChecksMonitor {
-	return &ChecksMonitor{
-		statuses:     make(map[string]*CheckStatus),
-		statsdClient: statsdClient,
-	}
-}
-
-func (m *ChecksMonitor) GetChecksStatus() interface{} {
-	m.statusesMu.RLock()
-	defer m.statusesMu.RUnlock()
-	statuses := make([]*CheckStatus, 0, len(m.statuses))
-	for _, status := range m.statuses {
+func (a *Agent) getChecksStatus() interface{} {
+	a.statusesMu.RLock()
+	defer a.statusesMu.RUnlock()
+	statuses := make([]*CheckStatus, 0, len(a.statuses))
+	for _, status := range a.statuses {
 		statuses = append(statuses, status)
 	}
 	return statuses
 }
 
-func (m *ChecksMonitor) AddBenchmarks(benchmarks ...*Benchmark) {
-	m.statusesMu.Lock()
-	defer m.statusesMu.Unlock()
+func (a *Agent) addBenchmarks(benchmarks ...*Benchmark) {
+	a.statusesMu.Lock()
+	defer a.statusesMu.Unlock()
 	for _, benchmark := range benchmarks {
 		for _, rule := range benchmark.Rules {
-			if _, ok := m.statuses[rule.ID]; ok {
+			if _, ok := a.statuses[rule.ID]; ok {
 				continue
 			}
-			m.statuses[rule.ID] = &CheckStatus{
+			a.statuses[rule.ID] = &CheckStatus{
 				RuleID:      rule.ID,
 				Description: rule.Description,
 				Name:        fmt.Sprintf("%s: %s", rule.ID, rule.Description),
@@ -357,8 +344,8 @@ func (m *ChecksMonitor) AddBenchmarks(benchmarks ...*Benchmark) {
 	}
 }
 
-func (m *ChecksMonitor) Update(event *CheckEvent) {
-	if client := m.statsdClient; client != nil {
+func (a *Agent) updateEvent(event *CheckEvent) {
+	if client := a.opts.StatsdClient; client != nil {
 		tags := []string{
 			"rule_id:" + event.RuleID,
 			"rule_result:" + string(event.Result),
@@ -369,9 +356,9 @@ func (m *ChecksMonitor) Update(event *CheckEvent) {
 		}
 	}
 
-	m.statusesMu.Lock()
-	defer m.statusesMu.Unlock()
-	status, ok := m.statuses[event.RuleID]
+	a.statusesMu.Lock()
+	defer a.statusesMu.Unlock()
+	status, ok := a.statuses[event.RuleID]
 	if !ok || status == nil {
 		log.Errorf("check for rule=%s was not registered in checks monitor statuses", event.RuleID)
 	} else {
