@@ -1,6 +1,10 @@
 #ifndef __PROTOCOL_CLASSIFICATION_TRACER_MAPS_H
 #define __PROTOCOL_CLASSIFICATION_TRACER_MAPS_H
 
+#ifdef USM_C
+#error "tracer-maps.h should not be included from usm.c"
+#endif
+
 #include "conn_tuple.h"
 #include "map-defs.h"
 
@@ -15,12 +19,6 @@
 // To overcome those problems, we save two maps that translates from conn tuple of sk_buff to conn tuple of sock* and vice
 // versa (the vice versa is used for cleanup purposes).
 BPF_HASH_MAP(conn_tuple_to_socket_skb_conn_tuple, conn_tuple_t, conn_tuple_t, 0)
-
-// This entry point is needed to bypass a memory limit on socket filters.
-// There is a limitation on number of instructions can be attached to a socket filter,
-// as we classify more protocols, we reached that limit, thus we workaround it
-// by using tail call.
-BPF_PROG_ARRAY(classification_progs, CLASSIFICATION_PROG_MAX)
 
 // Map to hold conn_tuple_t parameter for tcp_close calls
 // to be used in kretprobe/tcp_close.
