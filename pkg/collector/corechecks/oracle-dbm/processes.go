@@ -48,13 +48,10 @@ func (c *Check) ProcessMemory() error {
 	for _, row := range rows {
 		tags := c.getTagsWithPDB(row.PdbName)
 		tags = append(tags, "pid:"+strconv.FormatUint(row.PID, 10))
-		var program string
 		if row.Program.Valid {
 			program = row.Program.String
-		} else {
-			program = ""
-		}
-		tags = append(tags, "program:"+program)
+			tags = append(tags, "program:"+program)
+		} 
 		sender.Gauge(fmt.Sprintf("%s.process.pga_used_mem", common.IntegrationName), row.PGAUsedMem, "", tags)
 		sender.Gauge(fmt.Sprintf("%s.process.pga_alloc_mem", common.IntegrationName), row.PGAAllocMem, "", tags)
 		sender.Gauge(fmt.Sprintf("%s.process.pga_freeable_mem", common.IntegrationName), row.PGAFreeableMem, "", tags)
