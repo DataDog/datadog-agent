@@ -145,12 +145,6 @@ func (r *defaultResolver) ResolveInputs(ctx_ context.Context, rule *Rule) (Resol
 		}
 	}
 
-	if rule.HasScope(KubernetesClusterScope) || rule.HasScope(KubernetesNodeScope) {
-		if r.opts.KubernetesProvider == nil {
-			return nil, ErrIncompatibleEnvironment
-		}
-	}
-
 	if len(rule.InputSpecs) == 0 {
 		return nil, fmt.Errorf("no inputs for rule %s", rule.ID)
 	}

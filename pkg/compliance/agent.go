@@ -71,8 +71,14 @@ type Agent struct {
 }
 
 func defaultRuleFilter(r *Rule) bool {
-	if r.SkipOnK8s && config.IsKubernetes() {
-		return false
+	if config.IsKubernetes() {
+		if r.SkipOnK8s {
+			return false
+		}
+	} else {
+		if r.HasScope(KubernetesNodeScope) || r.HasScope(KubernetesClusterScope) {
+			return false
+		}
 	}
 	if len(r.Filters) > 0 {
 		ruleFilterModel := module.NewRuleFilterModel()
@@ -270,10 +276,10 @@ func (a *Agent) runXCCDFBenchmarks(ctx context.Context) {
 
 func (a *Agent) reportEvents(ctx context.Context, benchmark *Benchmark, events []*CheckEvent) {
 	for _, event := range events {
+		a.checksMonitor.Update(event)
 		if event.Result == CheckSkipped {
 			continue
 		}
-		a.checksMonitor.Update(event)
 		buf, err := json.Marshal(event)
 		if err != nil {
 			log.Errorf("failed to serialize event from benchmark=%s rule=%s: %v", benchmark.FrameworkID, event.RuleID, err)
