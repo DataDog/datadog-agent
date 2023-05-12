@@ -55,7 +55,7 @@ func (c *Check) SysMetrics() error {
 	}
 	sender, err := c.GetSender()
 	if err != nil {
-		return fmt.Errorf("GetSender sysmetrics %w", err)
+		return fmt.Errorf("failed to initialize sender: %w", err)
 	}
 	for _, metricRow := range sysMetrics {
 		DDMetricName, mustSend := SYSMETRICS_COLS[metricRow.MetricName]
