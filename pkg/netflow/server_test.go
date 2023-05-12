@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/netflow/testutil"
 )
 
-func TestNewNetflowServer_NetFlow5(t *testing.T) {
+func TestNetFlowIntegration_NetFlow5(t *testing.T) {
 	// Setup NetFlow feature config
 	port := uint16(52055)
 	config.Datadog.SetConfigType("yaml")
@@ -70,7 +70,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNewNetflowServer_NetFlow9(t *testing.T) {
+func TestNetFlowIntegration_NetFlow9(t *testing.T) {
 	// Setup NetFlow feature config
 	port := uint16(52056)
 	config.Datadog.SetConfigType("yaml")
@@ -116,7 +116,7 @@ network_devices:
 	assert.NoError(t, err)
 }
 
-func TestNewNetflowServer_SFlow5(t *testing.T) {
+func TestNetFlowIntegration_SFlow5(t *testing.T) {
 	// Setup NetFlow feature config
 	port := uint16(52057)
 	config.Datadog.SetConfigType("yaml")
