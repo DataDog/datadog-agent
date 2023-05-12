@@ -566,6 +566,11 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, client
 }
 
 func newDirectReporter() (common.RawReporter, error) {
+	directReportEnabled := pkgconfig.SystemProbe.GetBool("runtime_security_config.direct_send_from_system_probe")
+	if !directReportEnabled {
+		return nil, nil
+	}
+
 	// TODO(paulcacheux) pipe actual config to this
 	runPath := "/opt/datadog-agent/run"
 	stopper := startstop.NewSerialStopper()
