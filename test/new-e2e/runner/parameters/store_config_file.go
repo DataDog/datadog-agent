@@ -57,26 +57,29 @@ func NewConfigFileValueStore(path string) (configFileValueStore, error) {
 		return store, err
 	}
 
-	err = yaml.Unmarshal(content, &store.config)
+	err = store.parseConfigFileContent(content)
 
+	return store, err
+}
+
+func (s *configFileValueStore) parseConfigFileContent(content []byte) error {
+	err := yaml.Unmarshal(content, &s.config)
 	if err != nil {
-		return store, err
+		return err
 	}
-
 	// parse StackParams to json string
 	stackParams := map[string]string{}
-	for namespace, submap := range store.config.StackParams {
+	for namespace, submap := range s.config.StackParams {
 		for key, value := range submap {
 			stackParams[namespace+":"+key] = value
 		}
 	}
 	b, err := json.Marshal(stackParams)
 	if err != nil {
-		return store, err
+		return err
 	}
-	store.stackParamsJson = string(b)
-
-	return store, err
+	s.stackParamsJson = string(b)
+	return err
 }
 
 // Get returns parameter value.
