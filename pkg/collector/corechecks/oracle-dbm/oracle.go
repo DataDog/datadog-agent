@@ -256,8 +256,8 @@ func (c *Check) getFullPDBName(pdb string) string {
 
 func appendPDBTag(tags []string, pdb sql.NullString) []string {
 	if pdb.Valid {
-		return append(c.tags, "pdb:"+pdb.String)
+		return append(tags, "pdb:"+pdb.String)
 	} else {
-		return c.tags
+		return tags
 	}
 }

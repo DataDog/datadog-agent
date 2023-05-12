@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Oracle sysmetrics, pga process memory usage, tablespace usage with pluggable database (PDB) tags
+    Add Oracle sysmetrics, pga process memory usage, tablespace usage with pluggable database (PDB) tags
