@@ -205,6 +205,7 @@ func (r *Resolver) generateSBOM(root string, sbom *SBOM) error {
 	result := <-ch
 
 	if result.Error != nil {
+		// TODO: add a retry mechanism for retryable errors
 		return fmt.Errorf("failed to generate SBOM for %s: %w", root, result.Error)
 	}
 

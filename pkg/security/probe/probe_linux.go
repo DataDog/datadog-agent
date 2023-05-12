@@ -750,7 +750,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		// Use the event timestamp as exit time
 		// The local process cache hasn't been updated yet with the exit time when the exit event is first seen
 		// The pid_cache kernel map has the exit_time but it's only accessed if there's a local miss
-		event.ProcessCacheEntry.Process.ExitTime = p.fieldHandlers.ResolveEventTimestamp(event)
+		event.ProcessCacheEntry.Process.ExitTime = p.fieldHandlers.ResolveEventTime(event)
 		event.Exit.Process = &event.ProcessCacheEntry.Process
 	case model.SetuidEventType:
 		if _, err = event.SetUID.UnmarshalBinary(data[offset:]); err != nil {
@@ -906,7 +906,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	}
 
 	if eventType == model.ExitEventType {
-		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessCacheEntry.Pid, p.fieldHandlers.ResolveEventTimestamp(event))
+		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessCacheEntry.Pid, p.fieldHandlers.ResolveEventTime(event))
 	}
 
 	p.DispatchEvent(event)
@@ -987,25 +987,61 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 		seclog.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", kfilters.PolicyModeAccept, eventType, err)
 	}
 
+	type tag struct {
+		eventType    eval.EventType
+		approverType string
+	}
+	approverAddedMetricCounter := make(map[tag]float64)
+
 	for _, newApprover := range newApprovers {
-		seclog.Tracef("Applying approver %+v", newApprover)
+		seclog.Tracef("Applying approver %+v for event type %s", newApprover, eventType)
 		if err := newApprover.Apply(p.Manager); err != nil {
 			return err
 		}
+
+		approverType := getApproverType(newApprover.GetTableName())
+		approverAddedMetricCounter[tag{eventType, approverType}]++
 	}
 
 	if previousApprovers, exist := p.approvers[eventType]; exist {
 		previousApprovers.Sub(newApprovers)
 		for _, previousApprover := range previousApprovers {
-			seclog.Tracef("Removing previous approver %+v", previousApprover)
+			seclog.Tracef("Removing previous approver %+v for event type %s", previousApprover, eventType)
 			if err := previousApprover.Remove(p.Manager); err != nil {
 				return err
 			}
+
+			approverType := getApproverType(previousApprover.GetTableName())
+			approverAddedMetricCounter[tag{eventType, approverType}]--
+			if approverAddedMetricCounter[tag{eventType, approverType}] <= 0 {
+				delete(approverAddedMetricCounter, tag{eventType, approverType})
+			}
+		}
+	}
+
+	for tags, count := range approverAddedMetricCounter {
+		tags := []string{
+			fmt.Sprintf("approver_type:%s", tags.approverType),
+			fmt.Sprintf("event_type:%s", tags.eventType),
+		}
+
+		if err := p.StatsdClient.Gauge(metrics.MetricApproverAdded, count, tags, 1.0); err != nil {
+			seclog.Tracef("couldn't set MetricApproverAdded metric: %s", err)
 		}
 	}
 
 	p.approvers[eventType] = newApprovers
 	return nil
+}
+
+func getApproverType(approverTableName string) string {
+	approverType := "flag"
+
+	if approverTableName == kfilters.BasenameApproverKernelMapName {
+		approverType = "basename"
+	}
+
+	return approverType
 }
 
 func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {

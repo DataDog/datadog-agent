@@ -415,6 +415,7 @@ func (adm *ActivityDumpManager) DumpActivity(params *api.ActivityDumpParams) (*a
 
 	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
 		ad.Metadata.Comm = params.GetComm()
+		ad.Metadata.ContainerID = params.GetContainerID()
 		ad.SetTimeout(time.Duration(params.Timeout) * time.Minute)
 
 		if params.GetDifferentiateArgs() {
