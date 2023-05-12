@@ -134,7 +134,7 @@ DEFAULT_MODULES = {
     "test/fakeintake": GoModule("test/fakeintake", independent=True, should_tag=False),
     "pkg/obfuscate": GoModule("pkg/obfuscate", independent=True),
     "pkg/gohai": GoModule("pkg/gohai", independent=True, importable=False),
-    "pkg/trace": GoModule("pkg/trace", independent=True),
+    "pkg/trace": GoModule("pkg/trace", independent=False),
     "pkg/security/secl": GoModule("pkg/security/secl", independent=True),
     "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True),
     "pkg/util/cgroups": GoModule("pkg/util/cgroups", independent=True, condition=lambda: sys.platform == "linux"),
