@@ -16,7 +16,7 @@ var _ clientService[agent.ClientData] = (*Agent)(nil)
 // A client Agent that is connected to an agent.Installer defined in test-infra-definition.
 type Agent struct {
 	*UpResultDeserializer[agent.ClientData]
-	*sshClient
+	*vmClient
 }
 
 // Create a new instance of Agent
@@ -29,18 +29,18 @@ func NewAgent(installer *agent.Installer) *Agent {
 //lint:ignore U1000 Ignore unused function as this function is call using reflection
 func (agent *Agent) initService(t *testing.T, data *agent.ClientData) error {
 	var err error
-	agent.sshClient, err = newSSHClient(t, "", &data.Connection)
+	agent.vmClient, err = newVMClient(t, "", &data.Connection)
 	return err
 }
 
 func (agent *Agent) Status() string {
-	return agent.sshClient.Execute("sudo datadog-agent status")
+	return agent.vmClient.Execute("sudo datadog-agent status")
 }
 
 func (agent *Agent) Version() string {
-	return agent.sshClient.Execute("datadog-agent version")
+	return agent.vmClient.Execute("datadog-agent version")
 }
 
 func (agent *Agent) Config() string {
-	return agent.sshClient.Execute("sudo datadog-agent config")
+	return agent.vmClient.Execute("sudo datadog-agent config")
 }

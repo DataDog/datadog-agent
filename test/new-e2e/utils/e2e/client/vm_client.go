@@ -16,31 +16,31 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-type sshClient struct {
+type vmClient struct {
 	client *ssh.Client
 	t      *testing.T
 }
 
-func newSSHClient(t *testing.T, sshKey string, connection *utils.Connection) (*sshClient, error) {
+func newVMClient(t *testing.T, sshKey string, connection *utils.Connection) (*vmClient, error) {
 	client, _, err := clients.GetSSHClient(
 		connection.User,
 		fmt.Sprintf("%s:%d", connection.Host, 22),
 		sshKey,
 		2*time.Second, 5)
-	return &sshClient{
+	return &vmClient{
 		client: client,
 		t:      t,
 	}, err
 }
 
 // ExecuteWithError executes a command and returns an error if any.
-func (sshClient *sshClient) ExecuteWithError(command string) (string, error) {
-	return clients.ExecuteCommand(sshClient.client, command)
+func (vmClient *vmClient) ExecuteWithError(command string) (string, error) {
+	return clients.ExecuteCommand(vmClient.client, command)
 }
 
 // Execute execute a command and asserts there is no error.
-func (sshClient *sshClient) Execute(command string) string {
-	output, err := sshClient.ExecuteWithError(command)
-	require.NoError(sshClient.t, err)
+func (vmClient *vmClient) Execute(command string) string {
+	output, err := vmClient.ExecuteWithError(command)
+	require.NoError(vmClient.t, err)
 	return output
 }
