@@ -123,7 +123,7 @@ runtime_security_config:
     rate_limiter: {{ .ActivityDumpRateLimiter }}
     tag_rules:
       enabled: {{ .ActivityDumpTagRules }}
-    cgroup_dump_timeout: {{ .ActivityDumpCgroupDumpTimeout }}
+    dump_duration: {{ .ActivityDumpCgroupDumpTimeout }}s
     traced_cgroups_count: {{ .ActivityDumpTracedCgroupsCount }}
     traced_event_types:   {{range .ActivityDumpTracedEventTypes}}
     - {{.}}
