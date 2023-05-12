@@ -66,7 +66,7 @@ func (efr EventFilteringResult) toTag() string {
 }
 
 var (
-	allEventFilteringResults = []EventFilteringResult{NoProfile, InProfile, NotInProfile}
+	allEventFilteringResults = []EventFilteringResult{NoProfile, InProfile, NotInProfile, UnstableProfile}
 )
 
 // SecurityProfileManager is used to manage Security Profiles

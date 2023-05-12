@@ -59,6 +59,17 @@ def get_gopath(ctx):
     return gopath
 
 
+def get_gobin(ctx):
+    gobin = os.environ.get("GOBIN")
+    if not gobin:
+        gobin = ctx.run("go env GOBIN", hide=True).stdout.strip()
+        if not gobin:
+            gopath = get_gopath(ctx)
+            gobin = os.path.join(gopath, "bin")
+
+    return gobin
+
+
 def get_rtloader_paths(embedded_path=None, rtloader_root=None):
     rtloader_lib = []
     rtloader_headers = ""

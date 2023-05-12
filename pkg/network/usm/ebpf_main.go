@@ -269,10 +269,11 @@ func (e *ebpfProgram) Start() error {
 
 func (e *ebpfProgram) Close() error {
 	e.mapCleaner.Stop()
+	err := e.Stop(manager.CleanAll)
 	for _, s := range e.subprograms {
 		s.Stop()
 	}
-	return e.Stop(manager.CleanAll)
+	return err
 }
 
 func (e *ebpfProgram) initCORE() error {

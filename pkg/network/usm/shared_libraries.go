@@ -218,11 +218,16 @@ func (w *soWatcher) Start() {
 
 	w.wg.Add(1)
 	go func() {
-		defer w.wg.Done()
-		defer cleanupExit()
-		defer w.processMonitor.Stop()
-		// cleanup all uprobes
-		defer w.registry.cleanup()
+		defer func() {
+			// Removing the registration of our hook.
+			cleanupExit()
+			// Stopping the process monitor (if we're the last instance)
+			w.processMonitor.Stop()
+			// cleaning up all active hooks.
+			w.registry.cleanup()
+			// marking we're finished.
+			w.wg.Done()
+		}()
 
 		for {
 			select {
