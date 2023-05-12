@@ -103,11 +103,12 @@ func TestKafkaProtocolParsing(t *testing.T) {
 		if _, ok := ctx.extras["client"]; !ok {
 			return
 		}
-		client := ctx.extras["client"].(*kafka.Client)
-		defer client.Client.Close()
-		for k, value := range ctx.extras {
-			if strings.HasPrefix(k, "topic_name") {
-				_ = client.DeleteTopic(value.(string))
+		if client, ok := ctx.extras["client"].(*kafka.Client); ok {
+			defer client.Client.Close()
+			for k, value := range ctx.extras {
+				if strings.HasPrefix(k, "topic_name") {
+					_ = client.DeleteTopic(value.(string))
+				}
 			}
 		}
 	}
