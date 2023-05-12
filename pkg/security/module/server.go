@@ -294,8 +294,6 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg)) {
 	}
 }
 
-const SEND_DIRECTLY = true
-
 func (a *APIServer) start(ctx context.Context) {
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
