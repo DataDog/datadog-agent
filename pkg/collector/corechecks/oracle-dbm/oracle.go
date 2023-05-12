@@ -254,7 +254,7 @@ func (c *Check) getFullPDBName(pdb string) string {
 	return fmt.Sprintf("%s.%s", c.cdbName, pdb)
 }
 
-func (c *Check) getTagsWithPDB(pdb sql.NullString) []string {
+func appendPDBTag(tags []string, pdb sql.NullString) []string {
 	if pdb.Valid {
 		return append(c.tags, "pdb:"+pdb.String)
 	} else {
