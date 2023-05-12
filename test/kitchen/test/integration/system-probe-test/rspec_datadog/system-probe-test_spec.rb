@@ -13,13 +13,23 @@ skip_prebuilt_tests = Array.[](
   "pkg/collector/corechecks/ebpf/probe"
 )
 
+# most prebuild tests are not running on arm64
+# as tests run only on >=5.5.0 kernels and (runtime or CORE)
+arm64_tests = Array.[](
+  "pkg/network/protocols/events",
+  "pkg/network/protocols/grpc",
+  "pkg/network/tracer/connection/kprobe",
+)
+
 runtime_compiled_tests = Array.[](
+  "pkg/network/usm",
   "pkg/network/tracer",
   "pkg/network/protocols/http",
   "pkg/collector/corechecks/ebpf/probe"
 )
 
 co_re_tests = Array.[](
+  "pkg/network/usm",
   "pkg/network/tracer",
   "pkg/network/protocols/http",
   "pkg/collector/corechecks/ebpf/probe"
@@ -143,6 +153,9 @@ describe "system-probe" do
       "DD_ALLOW_PRECOMPILED_FALLBACK"=>"false",
       "DD_ENABLE_CO_RE"=>"false"
     }
+    if arch == "aarch64"
+      runtime_compiled_tests += arm64_tests
+    end
     include_examples "passes", "runtime", env, runtime_compiled_tests, true
   end
 
@@ -153,6 +166,9 @@ describe "system-probe" do
       "DD_ALLOW_RUNTIME_COMPILED_FALLBACK"=>"false",
       "DD_ALLOW_PRECOMPILED_FALLBACK"=>"false"
     }
+    if arch == "aarch64"
+      co_re_tests += arm64_tests
+    end
     include_examples "passes", "co-re", env, co_re_tests, true
   end
 
