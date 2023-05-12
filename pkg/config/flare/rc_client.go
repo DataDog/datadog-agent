@@ -58,14 +58,12 @@ func NewAgentTaskProvider(name string, agentVersion string, configFilePath strin
 	}, nil
 }
 
+// Start the agent task provider and listen to AGENT_TASK updates
 func (a *AgentTaskProvider) Start() {
-	// TODO fix testing to put a non-nil client
 	go func() {
-		if a.client != nil {
-			a.client.RegisterAgentTaskUpdate(a.agentTaskUpdateCallback)
+		a.client.RegisterAgentTaskUpdate(a.agentTaskUpdateCallback)
 
-			a.client.Start()
-		}
+		a.client.Start()
 	}()
 }
 
