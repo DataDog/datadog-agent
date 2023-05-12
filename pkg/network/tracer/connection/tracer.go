@@ -84,8 +84,8 @@ var ConnTracerTelemetry = struct {
 	connections       telemetry.Gauge
 	tcpFailedConnects telemetry.Gauge
 	TcpSentMiscounts  *nettelemetry.StatGaugeWrapper
-	missedTcpClose    telemetry.Gauge
-	missedUdpClose    telemetry.Gauge
+	unbatchedTcpClose telemetry.Gauge
+	unbatchedUdpClose telemetry.Gauge
 	UdpSendsProcessed *nettelemetry.StatGaugeWrapper
 	UdpSendsMissed    *nettelemetry.StatGaugeWrapper
 	UdpDroppedConns   telemetry.Gauge
@@ -94,8 +94,8 @@ var ConnTracerTelemetry = struct {
 	telemetry.NewGauge(connTracerModuleName, "connections", []string{"ip_proto", "family"}, "Gauge measuring the number of active connections in the EBPF map"),
 	telemetry.NewGauge(connTracerModuleName, "tcp_failed_connects", []string{}, "Gauge measuring the number of failed TCP connections in the EBPF map"),
 	nettelemetry.NewStatGaugeWrapper(connTracerModuleName, "tcp_sent_miscounts", []string{}, "Gauge measuring the number of miscounted tcp sends in the EBPF map"),
-	telemetry.NewGauge(connTracerModuleName, "missed_tcp_close", []string{}, "Gauge measuring the number of missed TCP close events in the EBPF map"),
-	telemetry.NewGauge(connTracerModuleName, "missed_udp_close", []string{}, "Gauge measuring the number of missed UDP close events in the EBPF map"),
+	telemetry.NewGauge(connTracerModuleName, "unbatched_tcp_close", []string{}, "Gauge measuring the number of TCP close events that we not part of a batch"),
+	telemetry.NewGauge(connTracerModuleName, "unbatched_udp_close", []string{}, "Gauge measuring the number of UDP closed events that were not part of a batch"),
 	nettelemetry.NewStatGaugeWrapper(connTracerModuleName, "udp_sends_processed", []string{}, "Gauge measuring the number of processed UDP sends in EBPF"),
 	nettelemetry.NewStatGaugeWrapper(connTracerModuleName, "udp_sends_missed", []string{}, "Gauge measuring failures to process UDP sends in EBPF"),
 	telemetry.NewGauge(connTracerModuleName, "udp_dropped_conns", []string{}, "Gauge measuring the number of dropped UDP connections in the EBPF map"),
@@ -448,8 +448,8 @@ func (t *tracer) refreshProbeTelemetry() {
 
 	ConnTracerTelemetry.tcpFailedConnects.Set(float64(telemetry.Tcp_failed_connect))
 	ConnTracerTelemetry.TcpSentMiscounts.Set(int64(telemetry.Tcp_sent_miscounts))
-	ConnTracerTelemetry.missedTcpClose.Set(float64(telemetry.Missed_tcp_close))
-	ConnTracerTelemetry.missedUdpClose.Set(float64(telemetry.Missed_udp_close))
+	ConnTracerTelemetry.unbatchedTcpClose.Set(float64(telemetry.Unbatched_tcp_close))
+	ConnTracerTelemetry.unbatchedUdpClose.Set(float64(telemetry.Unbatched_udp_close))
 	ConnTracerTelemetry.UdpSendsProcessed.Set(int64(telemetry.Udp_sends_processed))
 	ConnTracerTelemetry.UdpSendsMissed.Set(int64(telemetry.Udp_sends_missed))
 	ConnTracerTelemetry.UdpDroppedConns.Set(float64(telemetry.Udp_dropped_conns))

@@ -107,10 +107,10 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     // If we hit this section it means we had one or more interleaved tcp_close calls.
     // This could result in a missed tcp_close event, so we track it using our telemetry map.
     if (is_tcp) {
-        increment_telemetry_count(missed_tcp_close);
+        increment_telemetry_count(unbatched_tcp_close);
     }
     if (is_udp) {
-        increment_telemetry_count(missed_udp_close);
+        increment_telemetry_count(unbatched_udp_close);
     }
 }
 
