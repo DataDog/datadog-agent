@@ -22,6 +22,11 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/time/rate"
 
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
+	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
+	logsconfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -32,6 +37,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -49,7 +56,7 @@ type pendingMsg struct {
 type APIServer struct {
 	api.UnimplementedSecurityModuleServer
 	msgs              chan *api.SecurityEventMessage
-	directReporter    *reporter.RuntimeReporter
+	directReporter    common.RawReporter
 	activityDumps     chan *api.ActivityDumpStreamMessage
 	expiredEventsLock sync.RWMutex
 	expiredEvents     map[rules.RuleID]*atomic.Int64
@@ -537,9 +544,15 @@ func (a *APIServer) Apply(ruleIDs []rules.RuleID) {
 
 // NewAPIServer returns a new gRPC event server
 func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, client statsd.ClientInterface) *APIServer {
+	directReporter, err := newDirectReporter()
+	if err != nil {
+		log.Errorf("failed to setup direct reporter: %v", err)
+		directReporter = nil
+	}
+
 	es := &APIServer{
 		msgs:           make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
-		directReporter: newDirectReporter(),
+		directReporter: directReporter,
 		activityDumps:  make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
 		expiredEvents:  make(map[rules.RuleID]*atomic.Int64),
 		expiredDumps:   atomic.NewInt64(0),
@@ -552,6 +565,42 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, client
 	return es
 }
 
-func newDirectReporter() *reporter.RuntimeReporter {
-	return nil
+func newDirectReporter() (common.RawReporter, error) {
+	// TODO(paulcacheux) pipe actual config to this
+	runPath := "/opt/datadog-agent/run"
+	stopper := startstop.NewSerialStopper()
+
+	// begin: extracted from cmd/security-agent/command/logs_context.go
+	endpointPrefix := "runtime-security-http-intake.logs."
+	intakeTrackType := logsconfig.IntakeTrackType("logs")
+	intakeOrigin := logsconfig.IntakeOrigin("cloud-workload-security")
+	intakeProtocol := logsconfig.DefaultIntakeProtocol
+	logsConfig := logsconfig.NewLogsConfigKeys("runtime_security_config.endpoints.", pkgconfig.Datadog)
+	endpoints, err := logsconfig.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
+	if err != nil {
+		endpoints, err = logsconfig.BuildHTTPEndpoints(intakeTrackType, intakeProtocol, intakeOrigin)
+		if err == nil {
+			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main)
+			endpoints, err = logsconfig.BuildEndpoints(httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin)
+		}
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("invalid endpoints: %w", err)
+	}
+
+	for _, status := range endpoints.GetStatus() {
+		log.Info(status)
+	}
+
+	destinationsCtx := client.NewDestinationsContext()
+	destinationsCtx.Start()
+	// end
+
+	reporter, err := reporter.NewRuntimeReporter(runPath, stopper, "runtime-security-agent", "runtime-security", endpoints, destinationsCtx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create direct reporter: %w", err)
+	}
+
+	return reporter, nil
 }
