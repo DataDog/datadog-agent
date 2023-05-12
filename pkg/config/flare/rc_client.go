@@ -6,15 +6,22 @@
 package flare
 
 import (
+	"fmt"
 	"time"
 
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -62,34 +69,31 @@ func (a *AgentTaskProvider) Start() {
 	}()
 }
 
-func (a *AgentTaskProvider) makeFlare(flareComp flare.Component, config config.Component, sysprobeconfig sysprobeconfig.Component) error {
-	// filePath, err := flareComp.Create(nil, nil)
+func (a *AgentTaskProvider) makeFlare(
+	flareComp flare.Component,
+	config config.Component,
+	sysprobeconfig sysprobeconfig.Component,
+	agentTask state.AgentTaskConfig,
+) error {
+	caseID, found := agentTask.Config.TaskArgs["case_id"]
+	if !found {
+		return fmt.Errorf("Case ID was not provided in the flare agent task")
+	}
+	userHandle, found := agentTask.Config.TaskArgs["user_handle"]
+	if !found {
+		return fmt.Errorf("User handle was not provided in the flare agent task")
+	}
 
-	// pkglog.Warnf("Created a flare with error %s at path %s", err, filePath)
+	filePath, err := flareComp.Create(nil, nil)
+	if err != nil {
+		return err
+	}
 
-	// TOOD: use flareComp.Create instead of the post request
-	pkglog.Warnf("[RCM] Ready to make the flare")
-
-	// c := util.GetClient(false)
-	// ipcAddress, err := pkgconfig.GetIPCAddress()
-	// if err != nil {
-	// 	return err
-	// }
-
-	// urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
-	// pkglog.Warnf("Trying to reach %s", urlstr)
-
-	// // Set session token
-	// if err = util.SetAuthToken(); err != nil {
-	// 	return err
-	// }
-
-	// r, err := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
-	// if err != nil {
-	// 	return err
-	// }
-
-	// pkglog.Warnf("[RCM] flare request done: %s", r)
+	resp, err := flareComp.Send(filePath, caseID, userHandle)
+	pkglog.Debug(resp)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -106,26 +110,26 @@ func (a *AgentTaskProvider) agentTaskUpdateCallback(configs map[string]state.Age
 				})
 
 				var err error
-				// Blocking?
-				// fxutil.Run()
-				// err = fxutil.OneShot(
-				// 	a.makeFlare,
-				// 	fx.Supply(core.BundleParams{
-				// 		ConfigParams: config.NewParams(config.DefaultConfPath),
-				// 		LogParams:    log.LogForOneShot("CORE", "off", false),
-				// 		SysprobeConfigParams: sysprobeconfig.NewParams(
-				// 			sysprobeconfig.WithSysProbeConfFilePath(a.sysProbeConfFilePath),
-				// 		),
-				// 	}),
-				// 	fx.Supply(flare.NewLocalParams(
-				// 		path.GetDistPath(),
-				// 		path.PyChecksPath,
-				// 		path.DefaultLogFile,
-				// 		path.DefaultJmxLogFile,
-				// 	)),
-				// 	flare.Module,
-				// 	core.Bundle,
-				// )
+				err = fxutil.OneShot(
+					a.makeFlare,
+					fx.Supply(c),
+					fx.Supply(core.BundleParams{
+						ConfigParams: config.NewParams(config.DefaultConfPath),
+						// TODO: use the current log_level
+						LogParams: log.LogForOneShot("CORE", "debug", true),
+						SysprobeConfigParams: sysprobeconfig.NewParams(
+							sysprobeconfig.WithSysProbeConfFilePath(a.sysProbeConfFilePath),
+						),
+					}),
+					fx.Supply(flare.NewLocalParams(
+						path.GetDistPath(),
+						path.PyChecksPath,
+						path.DefaultLogFile,
+						path.DefaultJmxLogFile,
+					)),
+					flare.Module,
+					core.Bundle,
+				)
 				if err != nil {
 					pkglog.Errorf("Couln't run the agent flare task: %s", err)
 					a.client.UpdateApplyStatus(configPath, state.ApplyStatus{
