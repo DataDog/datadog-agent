@@ -430,11 +430,6 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
-		// TODO: Oracle because we are missing offsets. See dns_test.go
-		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
-	})
-
 	dockerInstance, dump, err := test.StartADockerGetDump()
 	if err != nil {
 		t.Fatal(err)
