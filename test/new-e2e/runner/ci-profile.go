@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner/parameters"
 )
 
-const DefaultCISecretPrefix = "ci.datadog-agent."
+const defaultCISecretPrefix = "ci.datadog-agent."
 
 var defaultCIEnvs = []string{"aws/agent-qa"}
 
@@ -30,7 +30,7 @@ func NewCIProfile() (Profile, error) {
 	}
 	ciSecretPrefix := os.Getenv("CI_SECRET_PREFIX")
 	if len(ciSecretPrefix) == 0 {
-		ciSecretPrefix = DefaultCISecretPrefix
+		ciSecretPrefix = defaultCISecretPrefix
 	}
 	// Secret store
 	secretStore := parameters.NewAWSStore(ciSecretPrefix)
