@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	fileprovider "github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/file/provider"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tailers"
 	filetailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/file"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
@@ -97,14 +98,14 @@ func (suite *LauncherTestSuite) TestLauncherScanWithoutLogRotation() {
 	var err error
 	var msg *message.Message
 
-	tailer = s.tailers[getScanKey(suite.testPath, suite.source)]
+	tailer, _ = s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	_, err = suite.testFile.WriteString("hello world\n")
 	suite.Nil(err)
 	msg = <-suite.outputChan
 	suite.Equal("hello world", string(msg.Content))
 
 	s.scan()
-	newTailer = s.tailers[getScanKey(suite.testPath, suite.source)]
+	newTailer, _ = s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	// testing that launcher did not have to create a new tailer
 	suite.True(tailer == newTailer)
 
@@ -127,12 +128,12 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotation() {
 	msg = <-suite.outputChan
 	suite.Equal("hello world", string(msg.Content))
 
-	tailer = s.tailers[getScanKey(suite.testPath, suite.source)]
+	tailer, _ = s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	os.Rename(suite.testPath, suite.testRotatedPath)
 	f, err := os.Create(suite.testPath)
 	suite.Nil(err)
 	s.scan()
-	newTailer = s.tailers[getScanKey(suite.testPath, suite.source)]
+	newTailer, _ = s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	suite.True(tailer != newTailer)
 
 	_, err = f.WriteString("hello again\n")
@@ -148,7 +149,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationCopyTruncate() {
 	var err error
 	var msg *message.Message
 
-	tailer = s.tailers[getScanKey(suite.testPath, suite.source)]
+	tailer, _ = s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	_, err = suite.testFile.WriteString("hello world\n")
 	suite.Nil(err)
 	msg = <-suite.outputChan
@@ -163,7 +164,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationCopyTruncate() {
 	suite.Nil(err)
 
 	s.scan()
-	newTailer = s.tailers[getScanKey(suite.testPath, suite.source)]
+	newTailer, _ = s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	suite.True(tailer != newTailer)
 
 	msg = <-suite.outputChan
@@ -172,7 +173,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationCopyTruncate() {
 
 func (suite *LauncherTestSuite) TestLauncherScanWithFileRemovedAndCreated() {
 	s := suite.s
-	tailerLen := len(s.tailers)
+	tailerLen := s.tailers.Count()
 
 	var err error
 
@@ -180,23 +181,23 @@ func (suite *LauncherTestSuite) TestLauncherScanWithFileRemovedAndCreated() {
 	err = os.Remove(suite.testPath)
 	suite.Nil(err)
 	s.scan()
-	suite.Equal(tailerLen-1, len(s.tailers))
+	suite.Equal(tailerLen-1, s.tailers.Count())
 
 	// create file
 	_, err = os.Create(suite.testPath)
 	suite.Nil(err)
 	s.scan()
-	suite.Equal(tailerLen, len(s.tailers))
+	suite.Equal(tailerLen, s.tailers.Count())
 }
 
 func (suite *LauncherTestSuite) TestLifeCycle() {
 	s := suite.s
-	suite.Equal(1, len(s.tailers))
-	s.Start(launchers.NewMockSourceProvider(), suite.pipelineProvider, auditor.NewRegistry())
+	suite.Equal(1, s.tailers.Count())
+	s.Start(launchers.NewMockSourceProvider(), suite.pipelineProvider, auditor.NewRegistry(), tailers.NewTailerTracker())
 
 	// all tailers should be stopped
 	s.Stop()
-	suite.Equal(0, len(s.tailers))
+	suite.Equal(0, s.tailers.Count())
 }
 
 func TestLauncherTestSuite(t *testing.T) {
@@ -245,7 +246,7 @@ func TestLauncherScanStartNewTailer(t *testing.T) {
 
 		// test scan from beginning
 		launcher.scan()
-		assert.Equal(t, 1, len(launcher.tailers))
+		assert.Equal(t, 1, launcher.tailers.Count())
 		msg = <-outputChan
 		assert.Equal(t, "hello", string(msg.Content))
 		msg = <-outputChan
@@ -279,7 +280,7 @@ func TestLauncherWithConcurrentContainerTailer(t *testing.T) {
 
 	// test scan from the beginning, it shall read previously written strings
 	launcher.addSource(firstSource)
-	assert.Equal(t, 1, len(launcher.tailers))
+	assert.Equal(t, 1, launcher.tailers.Count())
 
 	// add content after starting the tailer
 	_, err = file.WriteString("A\n")
@@ -298,7 +299,7 @@ func TestLauncherWithConcurrentContainerTailer(t *testing.T) {
 
 	// Add a second source, same file, different container ID, tailing twice the same file is supported in that case
 	launcher.addSource(secondSource)
-	assert.Equal(t, 2, len(launcher.tailers))
+	assert.Equal(t, 2, launcher.tailers.Count())
 }
 
 func TestLauncherTailFromTheBeginning(t *testing.T) {
@@ -331,7 +332,7 @@ func TestLauncherTailFromTheBeginning(t *testing.T) {
 
 		// test scan from the beginning, it shall read previously written strings
 		launcher.addSource(source)
-		assert.Equal(t, i+1, len(launcher.tailers))
+		assert.Equal(t, i+1, launcher.tailers.Count())
 
 		// add content after starting the tailer
 		_, err = file.WriteString("A\n")
@@ -384,14 +385,14 @@ func TestLauncherScanWithTooManyFiles(t *testing.T) {
 
 	// test at scan
 	launcher.scan()
-	assert.Equal(t, 2, len(launcher.tailers))
+	assert.Equal(t, 2, launcher.tailers.Count())
 
 	path = fmt.Sprintf("%s/2.log", testDir)
 	err = os.Remove(path)
 	assert.Nil(t, err)
 
 	launcher.scan()
-	assert.Equal(t, 2, len(launcher.tailers))
+	assert.Equal(t, 2, launcher.tailers.Count())
 }
 
 func TestLauncherUpdatesSourceForExistingTailer(t *testing.T) {
@@ -409,10 +410,10 @@ func TestLauncherUpdatesSourceForExistingTailer(t *testing.T) {
 	source := sources.NewLogSource("Source 1", &config.LogsConfig{Type: config.FileType, Identifier: "TEST_ID", Path: path})
 
 	launcher.addSource(source)
-	tailer := launcher.tailers[getScanKey(path, source)]
+	tailer, _ := launcher.tailers.Get(getScanKey(path, source))
 
 	// test scan from beginning
-	assert.Equal(t, 1, len(launcher.tailers))
+	assert.Equal(t, 1, launcher.tailers.Count())
 	assert.Equal(t, tailer.Source(), source)
 
 	// Add a new source with the same file
@@ -451,7 +452,7 @@ func TestLauncherScanRecentFilesWithRemoval(t *testing.T) {
 		launcher := &Launcher{
 			tailingLimit:           openFilesLimit,
 			fileProvider:           fileprovider.NewFileProvider(openFilesLimit, fileprovider.WildcardUseFileModTime),
-			tailers:                make(map[string]*tailer.Tailer),
+			tailers:                tailers.NewTailerContainer[*tailer.Tailer](),
 			tailerSleepDuration:    sleepDuration,
 			stop:                   make(chan struct{}),
 			validatePodContainerID: false,
@@ -477,18 +478,18 @@ func TestLauncherScanRecentFilesWithRemoval(t *testing.T) {
 	defer status.Clear()
 
 	launcher.scan()
-	assert.Equal(t, 2, len(launcher.tailers))
-	assert.Contains(t, launcher.tailers, path("1.log"))
-	assert.Contains(t, launcher.tailers, path("2.log"))
+	assert.Equal(t, 2, launcher.tailers.Count())
+	assert.True(t, launcher.tailers.Contains(path("1.log")))
+	assert.True(t, launcher.tailers.Contains(path("2.log")))
 
 	// When ... the newest file gets rm'd
 	rmFile("2.log")
 	launcher.scan()
 
 	// Then the next 2 most recently modified should be tailed
-	assert.Equal(t, 2, len(launcher.tailers))
-	assert.Contains(t, launcher.tailers, path("1.log"))
-	assert.Contains(t, launcher.tailers, path("3.log"))
+	assert.Equal(t, 2, launcher.tailers.Count())
+	assert.True(t, launcher.tailers.Contains(path("1.log")))
+	assert.True(t, launcher.tailers.Contains(path("3.log")))
 }
 
 func TestLauncherScanRecentFilesWithNewFiles(t *testing.T) {
@@ -532,27 +533,27 @@ func TestLauncherScanRecentFilesWithNewFiles(t *testing.T) {
 	defer status.Clear()
 
 	launcher.scan()
-	assert.Equal(t, 2, len(launcher.tailers))
-	assert.Contains(t, launcher.tailers, path("1.log"))
-	assert.Contains(t, launcher.tailers, path("2.log"))
+	assert.Equal(t, 2, launcher.tailers.Count())
+	assert.True(t, launcher.tailers.Contains(path("1.log")))
+	assert.True(t, launcher.tailers.Contains(path("2.log")))
 
 	// When ... a newer file appears
 	createFile("7.log", baseTime.Add(time.Second*8))
 	launcher.scan()
 
 	// Then it should be tailed
-	assert.Equal(t, 2, len(launcher.tailers))
-	assert.Contains(t, launcher.tailers, path("7.log"))
-	assert.Contains(t, launcher.tailers, path("1.log"))
+	assert.Equal(t, 2, launcher.tailers.Count())
+	assert.True(t, launcher.tailers.Contains(path("7.log")))
+	assert.True(t, launcher.tailers.Contains(path("1.log")))
 
 	// When ... an even newer file appears
 	createFile("a.log", baseTime.Add(time.Second*10))
 	launcher.scan()
 
 	// Then it should be tailed
-	assert.Equal(t, 2, len(launcher.tailers))
-	assert.Contains(t, launcher.tailers, path("7.log"))
-	assert.Contains(t, launcher.tailers, path("a.log"))
+	assert.Equal(t, 2, launcher.tailers.Count())
+	assert.True(t, launcher.tailers.Contains(path("7.log")))
+	assert.True(t, launcher.tailers.Contains(path("a.log")))
 }
 
 func TestLauncherFileRotation(t *testing.T) {
@@ -591,11 +592,11 @@ func TestLauncherFileRotation(t *testing.T) {
 	defer status.Clear()
 
 	launcher.scan()
-	assert.Equal(t, 2, len(launcher.tailers))
-	assert.Contains(t, launcher.tailers, path("c.log"))
-	assert.Contains(t, launcher.tailers, path("d.log"))
+	assert.Equal(t, 2, launcher.tailers.Count())
+	assert.True(t, launcher.tailers.Contains(path("c.log")))
+	assert.True(t, launcher.tailers.Contains(path("d.log")))
 
-	cTailer, isPresent := launcher.tailers[path("c.log")]
+	cTailer, isPresent := launcher.tailers.Get(path("c.log"))
 	assert.True(t, isPresent)
 
 	// Do Rotation
@@ -608,9 +609,9 @@ func TestLauncherFileRotation(t *testing.T) {
 	assert.True(t, didRotate)
 
 	launcher.scan()
-	assert.Len(t, launcher.tailers, 2)
-	assert.Contains(t, launcher.tailers, path("c.log"))
-	assert.Contains(t, launcher.tailers, path("d.log"))
+	assert.Equal(t, launcher.tailers.Count(), 2)
+	assert.True(t, launcher.tailers.Contains(path("c.log")))
+	assert.True(t, launcher.tailers.Contains(path("d.log")))
 }
 
 func TestLauncherFileDetectionSingleScan(t *testing.T) {
@@ -647,16 +648,16 @@ func TestLauncherFileDetectionSingleScan(t *testing.T) {
 	defer status.Clear()
 
 	launcher.scan()
-	assert.Equal(t, 2, len(launcher.tailers))
-	assert.Contains(t, launcher.tailers, path("a.log"))
-	assert.Contains(t, launcher.tailers, path("b.log"))
+	assert.Equal(t, 2, launcher.tailers.Count())
+	assert.True(t, launcher.tailers.Contains(path("a.log")))
+	assert.True(t, launcher.tailers.Contains(path("b.log")))
 
 	createFile("z.log")
 
 	launcher.scan()
-	assert.Len(t, launcher.tailers, 2)
-	assert.Contains(t, launcher.tailers, path("z.log"))
-	assert.Contains(t, launcher.tailers, path("b.log"))
+	assert.Equal(t, launcher.tailers.Count(), 2)
+	assert.True(t, launcher.tailers.Contains(path("z.log")))
+	assert.True(t, launcher.tailers.Contains(path("b.log")))
 }
 
 func getScanKey(path string, source *sources.LogSource) string {

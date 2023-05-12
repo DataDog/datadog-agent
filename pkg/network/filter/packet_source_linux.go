@@ -14,15 +14,30 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/afpacket"
 	"github.com/google/gopacket/layers"
-	"go.uber.org/atomic"
 	"golang.org/x/net/bpf"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+const telemetryModuleName = "network_tracer__dns"
+
+// Telemetry
+var packetSourceTelemetry = struct {
+	polls     *telemetry.StatCounterWrapper
+	processed *telemetry.StatCounterWrapper
+	captured  *telemetry.StatCounterWrapper
+	dropped   *telemetry.StatCounterWrapper
+}{
+	telemetry.NewStatCounterWrapper(telemetryModuleName, "polled_packets", []string{}, "Counter measuring the number of polled packets"),
+	telemetry.NewStatCounterWrapper(telemetryModuleName, "processed_packets", []string{}, "Counter measuring the number of processed packets"),
+	telemetry.NewStatCounterWrapper(telemetryModuleName, "captured_packets", []string{}, "Counter measuring the number of captured packets"),
+	telemetry.NewStatCounterWrapper(telemetryModuleName, "dropped_packets", []string{}, "Counter measuring the number of dropped packets"),
+}
 
 // AFPacketSource provides a RAW_SOCKET attached to an eBPF SOCKET_FILTER
 type AFPacketSource struct {
@@ -30,12 +45,6 @@ type AFPacketSource struct {
 	socketFilter *manager.Probe
 
 	exit chan struct{}
-
-	// telemetry
-	polls     *atomic.Int64
-	processed *atomic.Int64
-	captured  *atomic.Int64
-	dropped   *atomic.Int64
 }
 
 // NewPacketSource creates an AFPacketSource using the provided BPF filter
@@ -68,24 +77,10 @@ func NewPacketSource(filter *manager.Probe, bpfFilter []bpf.RawInstruction) (*AF
 		TPacket:      rawSocket,
 		socketFilter: filter,
 		exit:         make(chan struct{}),
-		polls:        atomic.NewInt64(0),
-		processed:    atomic.NewInt64(0),
-		captured:     atomic.NewInt64(0),
-		dropped:      atomic.NewInt64(0),
 	}
 	go ps.pollStats()
 
 	return ps, nil
-}
-
-// Stats returns statistics about the AFPacketSource
-func (p *AFPacketSource) Stats() map[string]int64 {
-	return map[string]int64{
-		"socket_polls":      p.polls.Load(),
-		"packets_processed": p.processed.Load(),
-		"packets_captured":  p.captured.Load(),
-		"packets_dropped":   p.dropped.Load(),
-	}
 }
 
 // VisitPackets starts reading packets from the source
@@ -151,10 +146,10 @@ func (p *AFPacketSource) pollStats() {
 				continue
 			}
 
-			p.polls.Add(sourceStats.Polls - prevPolls)
-			p.processed.Add(sourceStats.Packets - prevProcessed)
-			p.captured.Add(int64(socketStats.Packets()) - prevCaptured)
-			p.dropped.Add(int64(socketStats.Drops()) - prevDropped)
+			packetSourceTelemetry.polls.Add(sourceStats.Polls - prevPolls)
+			packetSourceTelemetry.processed.Add(sourceStats.Packets - prevProcessed)
+			packetSourceTelemetry.captured.Add(int64(socketStats.Packets()) - prevCaptured)
+			packetSourceTelemetry.dropped.Add(int64(socketStats.Drops()) - prevDropped)
 
 			prevPolls = sourceStats.Polls
 			prevProcessed = sourceStats.Packets

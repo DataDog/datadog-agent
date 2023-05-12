@@ -3,20 +3,18 @@
 #include "bpf_endian.h"
 #include "bpf_tracing.h"
 
-#include "tracer.h"
-#include "tracer-events.h"
-#include "tracer-maps.h"
-#include "tracer-stats.h"
-#include "tracer-telemetry.h"
 #include "sockfd.h"
 #include "ip.h"
 #include "ipv6.h"
-#include "port.h"
 #include "sock.h"
-#include "tcp-recv.h"
-#include "sk_buff.h"
+#include "skb.h"
 
-#define MSG_PEEK 2
+#include "tracer/tracer.h"
+#include "tracer/events.h"
+#include "tracer/maps.h"
+#include "tracer/stats.h"
+#include "tracer/telemetry.h"
+#include "tracer/port.h"
 
 BPF_PERCPU_HASH_MAP(udp6_send_skb_args, u64, u64, 1024)
 BPF_PERCPU_HASH_MAP(udp_send_skb_args, u64, conn_tuple_t, 1024)
@@ -284,31 +282,6 @@ int BPF_PROG(udp_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, 
     return handle_udp_send(sk, sent);
 }
 
-static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buff *skb, int len) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    udp_recv_sock_t *st = bpf_map_lookup_elem(&udp_recv_sock, &pid_tgid);
-    if (!st) { // no entry means a peek
-        return 0;
-    }
-    if (len < 0) { // peeking or an error happened
-        return 0;
-    }
-    conn_tuple_t t;
-    bpf_memset(&t, 0, sizeof(conn_tuple_t));
-    int data_len = sk_buff_to_tuple(skb, &t);
-    if (data_len <= 0) {
-        log_debug("ERR(skb_consume_udp): error reading tuple ret=%d\n", data_len);
-        return 0;
-    }
-    // we are receiving, so we want the daddr to become the laddr
-    flip_tuple(&t);
-
-    log_debug("skb_consume_udp: bytes=%d\n", data_len);
-    t.pid = pid_tgid >> 32;
-    t.netns = get_netns(&sk->sk_net);
-    return handle_message(&t, 0, data_len, CONN_DIRECTION_UNKNOWN, 0, 1, PACKET_COUNT_INCREMENT, sk);
-}
-
 static __always_inline int handle_udp_recvmsg(struct sock *sk, int flags) {
     if (flags & MSG_PEEK) {
         return 0;
@@ -512,8 +485,7 @@ int BPF_PROG(inet_csk_listen_stop_enter, struct sock *sk) {
     return 0;
 }
 
-SEC("fentry/udp_destroy_sock")
-int BPF_PROG(udp_destroy_sock, struct sock *sk) {
+static __always_inline int handle_udp_destroy_sock(struct sock *sk) {
     conn_tuple_t tup = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
     int valid_tuple = read_conn_tuple(&tup, sk, pid_tgid, CONN_TYPE_UDP);
@@ -545,13 +517,27 @@ int BPF_PROG(udp_destroy_sock, struct sock *sk) {
     return 0;
 }
 
+SEC("fentry/udp_destroy_sock")
+int BPF_PROG(udp_destroy_sock, struct sock *sk) {
+    return handle_udp_destroy_sock(sk);
+}
+
+SEC("fentry/udpv6_destroy_sock")
+int BPF_PROG(udpv6_destroy_sock, struct sock *sk) {
+    return handle_udp_destroy_sock(sk);
+}
+
 SEC("fexit/udp_destroy_sock")
 int BPF_PROG(udp_destroy_sock_exit, struct sock *sk) {
     flush_conn_close_if_full(ctx);
     return 0;
 }
 
-//region sys_exit_bind
+SEC("fexit/udpv6_destroy_sock")
+int BPF_PROG(udpv6_destroy_sock_exit, struct sock *sk) {
+    flush_conn_close_if_full(ctx);
+    return 0;
+}
 
 static __always_inline int sys_exit_bind(struct socket *sock, struct sockaddr *addr, int rc) {
     if (rc != 0) {
@@ -652,8 +638,6 @@ int BPF_PROG(sockfd_lookup_light_exit, int fd, int *err, int *fput_needed, struc
 
     return 0;
 }
-
-//endregion
 
 // This number will be interpreted by elf-loader to set the current running kernel version
 __u32 _version SEC("version") = 0xFFFFFFFE; // NOLINT(bugprone-reserved-identifier)

@@ -20,31 +20,35 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/vishvananda/netns"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 // sizeof(struct nf_conntrack_tuple), see https://github.com/torvalds/linux/blob/master/include/net/netfilter/nf_conntrack_tuple.h
 const sizeofNfConntrackTuple = 40
 
 type conntrackOffsetGuesser struct {
-	m           *manager.Manager
-	status      *ConntrackStatus
-	ipv6Enabled uint64
+	m            *manager.Manager
+	status       *ConntrackStatus
+	tcpv6Enabled uint64
+	udpv6Enabled uint64
 }
 
 func NewConntrackOffsetGuesser(consts []manager.ConstantEditor) (OffsetGuesser, error) {
 	var offsetIno uint64
-	var ipv6Enabled uint64
+	var tcpv6Enabled, udpv6Enabled uint64
 	for _, c := range consts {
 		switch c.Name {
 		case "offset_ino":
 			offsetIno = c.Value.(uint64)
-		case "ipv6_enabled":
-			ipv6Enabled = c.Value.(uint64)
+		case "tcpv6_enabled":
+			tcpv6Enabled = c.Value.(uint64)
+		case "udpv6_enabled":
+			udpv6Enabled = c.Value.(uint64)
 			if offsetIno > 0 {
 				break
 			}
@@ -69,8 +73,9 @@ func NewConntrackOffsetGuesser(consts []manager.ConstantEditor) (OffsetGuesser, 
 				// so explicitly disabled, and the manager won't load it
 				{ProbeIdentificationPair: idPair(probes.NetDevQueue)}},
 		},
-		status:      &ConntrackStatus{Offset_ino: offsetIno},
-		ipv6Enabled: ipv6Enabled,
+		status:       &ConntrackStatus{Offset_ino: offsetIno},
+		tcpv6Enabled: tcpv6Enabled,
+		udpv6Enabled: udpv6Enabled,
 	}, nil
 }
 
@@ -97,14 +102,15 @@ func (c *conntrackOffsetGuesser) getConstantEditors() []manager.ConstantEditor {
 		{Name: "offset_ct_status", Value: c.status.Offset_status},
 		{Name: "offset_ct_netns", Value: c.status.Offset_netns},
 		{Name: "offset_ct_ino", Value: c.status.Offset_ino},
-		{Name: "ipv6_enabled", Value: c.ipv6Enabled},
+		{Name: "tcpv6_enabled", Value: c.tcpv6Enabled},
+		{Name: "udpv6_enabled", Value: c.udpv6Enabled},
 	}
 }
 
 // checkAndUpdateCurrentOffset checks the value for the current offset stored
 // in the eBPF map against the expected value, incrementing the offset if it
 // doesn't match, or going to the next field to guess if it does
-func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected *fieldValues, maxRetries *int, threshold uint64, protocolClassificationSupported bool) error {
+func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected *fieldValues, maxRetries *int, threshold uint64) error {
 	// get the updated map value so we can check if the current offset is
 	// the right one
 	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(c.status)); err != nil {
@@ -279,7 +285,7 @@ func (c *conntrackOffsetGuesser) runOffsetGuessing(cfg *config.Config, ns netns.
 			return nil, err
 		}
 
-		if err := c.checkAndUpdateCurrentOffset(mp, expected, &maxRetries, threshold, false); err != nil {
+		if err := c.checkAndUpdateCurrentOffset(mp, expected, &maxRetries, threshold); err != nil {
 			return nil, err
 		}
 

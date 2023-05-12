@@ -45,23 +45,23 @@ const defaultMinAge = 30 * time.Second
 type incompleteBuffer struct {
 	data       map[types.ConnectionKey]*txParts
 	maxEntries int
-	telemetry  *telemetry
+	telemetry  *Telemetry
 	minAgeNano int64
 }
 
 type txParts struct {
-	requests  []httpTX
-	responses []httpTX
+	requests  []HttpTX
+	responses []HttpTX
 }
 
 func newTXParts() *txParts {
 	return &txParts{
-		requests:  make([]httpTX, 0, 5),
-		responses: make([]httpTX, 0, 5),
+		requests:  make([]HttpTX, 0, 5),
+		responses: make([]HttpTX, 0, 5),
 	}
 }
 
-func newIncompleteBuffer(c *config.Config, telemetry *telemetry) *incompleteBuffer {
+func newIncompleteBuffer(c *config.Config, telemetry *Telemetry) *incompleteBuffer {
 	return &incompleteBuffer{
 		data:       make(map[types.ConnectionKey]*txParts),
 		maxEntries: c.MaxHTTPStatsBuffered,
@@ -70,7 +70,7 @@ func newIncompleteBuffer(c *config.Config, telemetry *telemetry) *incompleteBuff
 	}
 }
 
-func (b *incompleteBuffer) Add(tx httpTX) {
+func (b *incompleteBuffer) Add(tx HttpTX) {
 	connTuple := tx.ConnTuple()
 	key := types.ConnectionKey{
 		SrcIPHigh: connTuple.SrcIPHigh,
@@ -91,13 +91,13 @@ func (b *incompleteBuffer) Add(tx httpTX) {
 
 	// copy underlying httpTX value. this is now needed because these objects are
 	// now coming directly from pooled perf records
-	ebpfTX, ok := tx.(*ebpfHttpTx)
+	ebpfTX, ok := tx.(*EbpfHttpTx)
 	if !ok {
 		// should never happen
 		return
 	}
 
-	ebpfTxCopy := new(ebpfHttpTx)
+	ebpfTxCopy := new(EbpfHttpTx)
 	*ebpfTxCopy = *ebpfTX
 	tx = ebpfTxCopy
 
@@ -108,9 +108,9 @@ func (b *incompleteBuffer) Add(tx httpTX) {
 	}
 }
 
-func (b *incompleteBuffer) Flush(now time.Time) []httpTX {
+func (b *incompleteBuffer) Flush(now time.Time) []HttpTX {
 	var (
-		joined   []httpTX
+		joined   []HttpTX
 		previous = b.data
 		nowUnix  = now.UnixNano()
 	)
@@ -157,12 +157,12 @@ func (b *incompleteBuffer) Flush(now time.Time) []httpTX {
 	return joined
 }
 
-func (b *incompleteBuffer) shouldKeep(tx httpTX, now int64) bool {
+func (b *incompleteBuffer) shouldKeep(tx HttpTX, now int64) bool {
 	then := int64(tx.RequestStarted())
 	return (now - then) < b.minAgeNano
 }
 
-type byRequestTime []httpTX
+type byRequestTime []HttpTX
 
 func (rt byRequestTime) Len() int      { return len(rt) }
 func (rt byRequestTime) Swap(i, j int) { rt[i], rt[j] = rt[j], rt[i] }
@@ -170,7 +170,7 @@ func (rt byRequestTime) Less(i, j int) bool {
 	return rt[i].RequestStarted() < rt[j].RequestStarted()
 }
 
-type byResponseTime []httpTX
+type byResponseTime []HttpTX
 
 func (rt byResponseTime) Len() int      { return len(rt) }
 func (rt byResponseTime) Swap(i, j int) { rt[i], rt[j] = rt[j], rt[i] }

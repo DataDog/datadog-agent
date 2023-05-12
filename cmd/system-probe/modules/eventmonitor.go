@@ -33,7 +33,14 @@ var EventMonitor = module.Factory{
 			return nil, module.ErrNotEnabled
 		}
 
-		evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, eventmonitor.Opts{})
+		opts := eventmonitor.Opts{}
+
+		// adapt options
+		if secconfig.RuntimeSecurity.IsRuntimeEnabled() {
+			secmodule.UpdateEventMonitorOpts(&opts)
+		}
+
+		evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts)
 		if err != nil {
 			log.Infof("error initializing event monitoring module: %v", err)
 			return nil, module.ErrNotEnabled

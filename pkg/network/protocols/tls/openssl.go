@@ -13,7 +13,7 @@ import (
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 )
 
-func RunServerOpenssl(t *testing.T, serverPort string, args ...string) bool {
+func RunServerOpenssl(t *testing.T, serverPort string, args ...string) error {
 	env := []string{
 		"OPENSSL_PORT=" + serverPort,
 	}

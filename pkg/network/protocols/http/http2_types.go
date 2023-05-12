@@ -9,13 +9,13 @@
 package http
 
 /*
-#include "../../ebpf/c/tracer.h"
+#include "../../ebpf/c/conn_tuple.h"
 #include "../../ebpf/c/protocols/http2/decoding-defs.h"
 */
 import "C"
 
 type http2ConnTuple = C.conn_tuple_t
-type ebpfHttp2Tx C.http2_stream_t
+type EbpfHttp2Tx C.http2_stream_t
 
 type StaticTableEnumKey = C.static_table_key_t
 

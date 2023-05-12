@@ -98,6 +98,7 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 }
 
 func runApp(exit chan struct{}, globalParams *command.GlobalParams) error {
+	defer log.Flush() // Flush the log in case of an unclean shutdown
 	go util.HandleSignals(exit)
 
 	var appInitDeps struct {

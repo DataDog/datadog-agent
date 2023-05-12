@@ -16,6 +16,9 @@ import (
 	"google.golang.org/grpc"
 )
 
+// Opts defines options that can be used for the eventmonitor
+type Opts struct{}
+
 // EventMonitor represents the system-probe module for kernel event monitoring
 type EventMonitor struct {
 	Config       *config.Config

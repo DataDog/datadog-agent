@@ -59,8 +59,9 @@ type Client struct {
 	agentVersion string
 	products     []string
 
-	clusterName string
-	clusterID   string
+	clusterName  string
+	clusterID    string
+	cwsWorkloads []string
 
 	pollInterval      time.Duration
 	lastUpdateError   error
@@ -193,6 +194,7 @@ func newClient(agentName string, updater ConfigUpdater, doTufVerification bool, 
 		agentVersion:        agentVersion,
 		clusterName:         clusterName,
 		clusterID:           clusterID,
+		cwsWorkloads:        make([]string, 0),
 		products:            data.ProductListToString(products),
 		state:               repository,
 		pollInterval:        pollInterval,
@@ -354,6 +356,13 @@ func (c *Client) APMTracingConfigs() map[string]state.APMTracingConfig {
 	return c.state.APMTracingConfigs()
 }
 
+// SetCWSWorkloads updates the list of workloads that needs cws profiles
+func (c *Client) SetCWSWorkloads(workloads []string) {
+	c.m.Lock()
+	defer c.m.Unlock()
+	c.cwsWorkloads = workloads
+}
+
 func (c *Client) applyUpdate(pbUpdate *pbgo.ClientGetConfigsResponse) ([]string, error) {
 	fileMap := make(map[string][]byte, len(pbUpdate.TargetFiles))
 	for _, f := range pbUpdate.TargetFiles {
@@ -424,10 +433,11 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 			IsAgent:  true,
 			IsTracer: false,
 			ClientAgent: &pbgo.ClientAgent{
-				Name:        c.agentName,
-				Version:     c.agentVersion,
-				ClusterName: c.clusterName,
-				ClusterId:   c.clusterID,
+				Name:         c.agentName,
+				Version:      c.agentVersion,
+				ClusterName:  c.clusterName,
+				ClusterId:    c.clusterID,
+				CwsWorkloads: c.cwsWorkloads,
 			},
 		},
 		CachedTargetFiles: pbCachedFiles,

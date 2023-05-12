@@ -44,21 +44,30 @@ type PodOwner struct {
 
 // Spec contains fields for unmarshalling a Pod.Spec
 type Spec struct {
-	HostNetwork       bool            `json:"hostNetwork,omitempty"`
-	NodeName          string          `json:"nodeName,omitempty"`
-	InitContainers    []ContainerSpec `json:"initContainers,omitempty"`
-	Containers        []ContainerSpec `json:"containers,omitempty"`
-	Volumes           []VolumeSpec    `json:"volumes,omitempty"`
-	PriorityClassName string          `json:"priorityClassName,omitempty"`
+	HostNetwork       bool                    `json:"hostNetwork,omitempty"`
+	NodeName          string                  `json:"nodeName,omitempty"`
+	InitContainers    []ContainerSpec         `json:"initContainers,omitempty"`
+	Containers        []ContainerSpec         `json:"containers,omitempty"`
+	Volumes           []VolumeSpec            `json:"volumes,omitempty"`
+	PriorityClassName string                  `json:"priorityClassName,omitempty"`
+	SecurityContext   *PodSecurityContextSpec `json:"securityContext,omitempty"`
+}
+
+// PodSecurityContextSpec contains fields for unmarshalling a Pod.Spec.SecurityContext
+type PodSecurityContextSpec struct {
+	RunAsUser  int32 `json:"runAsUser,omitempty"`
+	RunAsGroup int32 `json:"runAsGroup,omitempty"`
+	FsGroup    int32 `json:"fsGroup,omitempty"`
 }
 
 // ContainerSpec contains fields for unmarshalling a Pod.Spec.Containers
 type ContainerSpec struct {
-	Name           string              `json:"name"`
-	Image          string              `json:"image,omitempty"`
-	Ports          []ContainerPortSpec `json:"ports,omitempty"`
-	ReadinessProbe *ContainerProbe     `json:"readinessProbe,omitempty"`
-	Env            []EnvVar            `json:"env,omitempty"`
+	Name            string                        `json:"name"`
+	Image           string                        `json:"image,omitempty"`
+	Ports           []ContainerPortSpec           `json:"ports,omitempty"`
+	ReadinessProbe  *ContainerProbe               `json:"readinessProbe,omitempty"`
+	Env             []EnvVar                      `json:"env,omitempty"`
+	SecurityContext *ContainerSecurityContextSpec `json:"securityContext,omitempty"`
 }
 
 // ContainerPortSpec contains fields for unmarshalling a Pod.Spec.Containers.Ports
@@ -72,6 +81,34 @@ type ContainerPortSpec struct {
 // ContainerProbe contains fields for unmarshalling a Pod.Spec.Containers.ReadinessProbe
 type ContainerProbe struct {
 	InitialDelaySeconds int `json:"initialDelaySeconds"`
+}
+
+// ContainerSecurityContextSpec contains fields for unmarshalling a Pod.Spec.Containers.SecurityContext
+type ContainerSecurityContextSpec struct {
+	Capabilities   *CapabilitiesSpec   `json:"capabilities,omitempty"`
+	Privileged     *bool               `json:"privileged,omitempty"`
+	SeccompProfile *SeccompProfileSpec `json:"seccompProfile,omitempty"`
+}
+
+// CapabilitiesSpec contains fields for unmarshalling a Pod.Spec.Containers.SecurityContext.Capabilities
+type CapabilitiesSpec struct {
+	Add  []string `json:"add,omitempty"`
+	Drop []string `json:"drop,omitempty"`
+}
+
+// SeccompProfileType is used for unmarshalling Pod.Spec.Containers.SecurityContext.SeccompProfile.Type
+type SeccompProfileType string
+
+const (
+	SeccompProfileTypeUnconfined     SeccompProfileType = "Unconfined"
+	SeccompProfileTypeRuntimeDefault SeccompProfileType = "RuntimeDefault"
+	SeccompProfileTypeLocalhost      SeccompProfileType = "Localhost"
+)
+
+// SeccompProfileSpec contains fields for unmarshalling a Pod.Spec.Containers.SecurityContext.SeccompProfile
+type SeccompProfileSpec struct {
+	Type             SeccompProfileType `json:"type"`
+	LocalhostProfile *string            `json:"localhostProfile,omitempty"`
 }
 
 // EnvVar represents an environment variable present in a Container.

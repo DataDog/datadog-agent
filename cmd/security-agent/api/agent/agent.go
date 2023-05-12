@@ -85,7 +85,7 @@ func (a *Agent) getHostname(w http.ResponseWriter, r *http.Request) {
 
 func (a *Agent) getStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	s, err := status.GetStatus()
+	s, err := status.GetStatus(false)
 	if err != nil {
 		log.Errorf("Error getting status. Error: %v, Status: %v", err, s)
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})

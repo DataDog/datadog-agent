@@ -29,11 +29,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -52,7 +54,7 @@ type ActivityDumpManager struct {
 	newEvent           func() *model.Event
 	processResolver    *process.Resolver
 	timeResolver       *stime.Resolver
-	tagsResolvers      *tags.Resolver
+	tagsResolvers      tags.Resolver
 	kernelVersion      *kernel.Version
 	manager            *manager.Manager
 	dumpHandler        ActivityDumpHandler
@@ -64,7 +66,7 @@ type ActivityDumpManager struct {
 	activityDumpsConfigMap *ebpf.Map
 	ignoreFromSnapshot     map[string]bool
 
-	dumpLimiter *simplelru.LRU[string, *atomic.Uint64]
+	dumpLimiter *simplelru.LRU[cgroupModel.WorkloadSelector, *atomic.Uint64]
 
 	activeDumps    []*ActivityDump
 	snapshotQueue  chan *ActivityDump
@@ -184,16 +186,16 @@ func (adm *ActivityDumpManager) resolveTags() {
 
 		if !ad.countedByLimiter {
 			// check if we should discard this dump based on the manager dump limiter
-			limiterKey := utils.GetTagValue("image_name", ad.Tags) + ":" + utils.GetTagValue("image_tag", ad.Tags)
-			if limiterKey == ":" {
+			selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", ad.Tags), utils.GetTagValue("image_tag", ad.Tags))
+			if err != nil {
 				// wait for the tags
 				continue
 			}
 
-			counter, ok := adm.dumpLimiter.Get(limiterKey)
+			counter, ok := adm.dumpLimiter.Get(selector)
 			if !ok {
 				counter = atomic.NewUint64(0)
-				adm.dumpLimiter.Add(limiterKey, counter)
+				adm.dumpLimiter.Add(selector, counter)
 			}
 
 			if counter.Load() >= uint64(ad.adm.config.RuntimeSecurity.ActivityDumpMaxDumpCountPerWorkload) {
@@ -222,7 +224,7 @@ func (adm *ActivityDumpManager) HandleActivityDump(dump *api.ActivityDumpStreamM
 
 // NewActivityDumpManager returns a new ActivityDumpManager instance
 func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInterface, newEvent func() *model.Event, processResolver *process.Resolver, timeResolver *stime.Resolver,
-	tagsResolver *tags.Resolver, kernelVersion *kernel.Version, scrubber *procutil.DataScrubber, manager *manager.Manager) (*ActivityDumpManager, error) {
+	tagsResolver tags.Resolver, kernelVersion *kernel.Version, scrubber *procutil.DataScrubber, manager *manager.Manager) (*ActivityDumpManager, error) {
 	tracedPIDs, err := managerhelper.Map(manager, "traced_pids")
 	if err != nil {
 		return nil, err
@@ -248,7 +250,7 @@ func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInt
 		return nil, err
 	}
 
-	limiter, err := simplelru.NewLRU(1024, func(workloadSelector string, count *atomic.Uint64) {
+	limiter, err := simplelru.NewLRU(1024, func(workloadSelector cgroupModel.WorkloadSelector, count *atomic.Uint64) {
 	})
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create dump limiter: %w", err)
@@ -374,8 +376,12 @@ func (adm *ActivityDumpManager) HandleCgroupTracingEvent(event *model.CgroupTrac
 
 	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
 		ad.Metadata.ContainerID = event.ContainerContext.ID
-		ad.Metadata.DifferentiateArgs = adm.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs
 		ad.SetLoadConfig(event.ConfigCookie, event.Config)
+
+		if adm.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs {
+			ad.Metadata.DifferentiateArgs = true
+			ad.ActivityTree.DifferentiateArgs()
+		}
 	})
 
 	// add local storage requests
@@ -409,8 +415,12 @@ func (adm *ActivityDumpManager) DumpActivity(params *api.ActivityDumpParams) (*a
 
 	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
 		ad.Metadata.Comm = params.GetComm()
-		ad.Metadata.DifferentiateArgs = params.GetDifferentiateArgs()
 		ad.SetTimeout(time.Duration(params.Timeout) * time.Minute)
+
+		if params.GetDifferentiateArgs() {
+			ad.Metadata.DifferentiateArgs = true
+			ad.ActivityTree.DifferentiateArgs()
+		}
 	})
 
 	// add local storage requests
@@ -512,6 +522,11 @@ func (adm *ActivityDumpManager) StopActivityDump(params *api.ActivityDumpStopPar
 
 // ProcessEvent processes a new event and insert it in an activity dump if applicable
 func (adm *ActivityDumpManager) ProcessEvent(event *model.Event) {
+	// ignore events with an error
+	if event.Error != nil {
+		return
+	}
+
 	// is this event sampled for activity dumps ?
 	if !event.IsActivityDumpSample() {
 		return
@@ -540,8 +555,10 @@ func (adm *ActivityDumpManager) SearchTracedProcessCacheEntryCallback(ad *Activi
 		}
 
 		for _, parent = range ancestors {
-			if n := ad.findOrCreateProcessActivityNode(parent, Snapshot); n != nil {
-				ad.updateTracedPid(n.Process.Pid)
+			_, _, err := ad.ActivityTree.CreateProcessNode(parent, activity_tree.Snapshot, false)
+			if err != nil {
+				// if one of the parents wasn't inserted, leave now
+				break
 			}
 		}
 	}
@@ -741,7 +758,7 @@ func (adm *ActivityDumpManager) FakeDumpOverweight(name string) {
 	defer adm.Unlock()
 	for _, ad := range adm.activeDumps {
 		if ad.Name == name {
-			ad.nodeStats.processNodes = int64(99999)
+			ad.ActivityTree.Stats.ProcessNodes = int64(99999)
 		}
 	}
 }

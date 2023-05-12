@@ -11,6 +11,7 @@ package container
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
@@ -26,7 +27,7 @@ func NewLauncher(sources *sourcesPkg.LogSources) *Launcher {
 }
 
 // Start implements Launcher#Start.
-func (l *Launcher) Start(launchers.SourceProvider, pipeline.Provider, auditor.Registry) {
+func (l *Launcher) Start(launchers.SourceProvider, pipeline.Provider, auditor.Registry, *tailers.TailerTracker) {
 }
 
 // Stop implements Launcher#Stop.

@@ -19,6 +19,12 @@
 #include "protocols/postgres/helpers.h"
 #include "protocols/tls/tls.h"
 
+static __always_inline bool is_protocol_classification_supported() {
+    __u64 val = 0;
+    LOAD_CONSTANT("protocol_classification_enabled", val);
+    return val > 0;
+}
+
 // Checks if a given buffer is http, http2, gRPC.
 static __always_inline protocol_t classify_applayer_protocols(const char *buf, __u32 size) {
     if (is_http(buf, size)) {

@@ -21,7 +21,6 @@ namespace WixSetup.Datadog
         public ManagedAction WriteConfig { get; }
 
         public ManagedAction ReadInstallState { get; }
-        public ManagedAction ProcessClosedSourceComponents { get; }
 
         public ManagedAction WriteInstallState { get; }
 
@@ -88,21 +87,6 @@ namespace WixSetup.Datadog
                 Execute = Execute.firstSequence
             };
 
-            ProcessClosedSourceComponents = new CustomAction<ClosedSourceComponentsCustomActions>(
-                    new Id(nameof(ProcessClosedSourceComponents)),
-                    ClosedSourceComponentsCustomActions.ProcessAllowClosedSource,
-                    Return.check,
-                    When.After,
-                    // Session.Feature is available after MigrateFeatureStates
-                    Step.MigrateFeatureStates,
-                    Condition.Always,
-                    Sequence.InstallExecuteSequence | Sequence.InstallUISequence
-                )
-                {
-                    Execute = Execute.firstSequence
-                }
-                .SetProperties("ALLOWCLOSEDSOURCE=[ALLOWCLOSEDSOURCE]");
-
             // We need to explicitly set the ID since that we are going to reference before the Build* call.
             // See <see cref="WixSharp.WixEntity.Id" /> for more information.
             ReadConfig = new CustomAction<ConfigCustomActions>(
@@ -142,8 +126,8 @@ namespace WixSetup.Datadog
                 new Id(nameof(ReportInstallFailure)),
                 Telemetry.ReportFailure,
                 Return.ignore,
-                When.Before,
-                Step.StartServices
+                When.After,
+                Step.InstallInitialize
             )
             {
                 Execute = Execute.rollback,
@@ -442,8 +426,7 @@ namespace WixSetup.Datadog
                 Impersonate = false
             }
             .SetProperties("DDAGENTUSER_PROCESSED_DOMAIN=[DDAGENTUSER_PROCESSED_DOMAIN], " +
-                           "DDAGENTUSER_PROCESSED_NAME=[DDAGENTUSER_PROCESSED_NAME], " +
-                           "ALLOWCLOSEDSOURCE=[ALLOWCLOSEDSOURCE]");
+                           "DDAGENTUSER_PROCESSED_NAME=[DDAGENTUSER_PROCESSED_NAME]");
 
         }
     }

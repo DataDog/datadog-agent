@@ -21,7 +21,7 @@ import (
 // GET variables excluded.
 // Example:
 // For a request fragment "GET /foo?var=bar HTTP/1.1", this method will return "/foo"
-func (tx *ebpfHttpTx) Path(buffer []byte) ([]byte, bool) {
+func (tx *EbpfHttpTx) Path(buffer []byte) ([]byte, bool) {
 	bLen := bytes.IndexByte(tx.Request_fragment[:], 0)
 	if bLen == -1 {
 		bLen = len(tx.Request_fragment)
@@ -48,7 +48,7 @@ func (tx *ebpfHttpTx) Path(buffer []byte) ([]byte, bool) {
 }
 
 // RequestLatency returns the latency of the request in nanoseconds
-func (tx *ebpfHttpTx) RequestLatency() float64 {
+func (tx *EbpfHttpTx) RequestLatency() float64 {
 	if uint64(tx.Request_started) == 0 || uint64(tx.Response_last_seen) == 0 {
 		return 0
 	}
@@ -57,11 +57,11 @@ func (tx *ebpfHttpTx) RequestLatency() float64 {
 
 // Incomplete returns true if the transaction contains only the request or response information
 // This happens in the context of localhost with NAT, in which case we join the two parts in userspace
-func (tx *ebpfHttpTx) Incomplete() bool {
+func (tx *EbpfHttpTx) Incomplete() bool {
 	return tx.Request_started == 0 || tx.Response_status_code == 0
 }
 
-func (tx *ebpfHttpTx) ConnTuple() types.ConnectionKey {
+func (tx *EbpfHttpTx) ConnTuple() types.ConnectionKey {
 	return types.ConnectionKey{
 		SrcIPHigh: tx.Tup.Saddr_h,
 		SrcIPLow:  tx.Tup.Saddr_l,
@@ -72,45 +72,45 @@ func (tx *ebpfHttpTx) ConnTuple() types.ConnectionKey {
 	}
 }
 
-func (tx *ebpfHttpTx) Method() Method {
+func (tx *EbpfHttpTx) Method() Method {
 	return Method(tx.Request_method)
 }
 
-func (tx *ebpfHttpTx) StatusCode() uint16 {
+func (tx *EbpfHttpTx) StatusCode() uint16 {
 	return tx.Response_status_code
 }
 
-func (tx *ebpfHttpTx) SetStatusCode(code uint16) {
+func (tx *EbpfHttpTx) SetStatusCode(code uint16) {
 	tx.Response_status_code = code
 }
 
-func (tx *ebpfHttpTx) ResponseLastSeen() uint64 {
+func (tx *EbpfHttpTx) ResponseLastSeen() uint64 {
 	return tx.Response_last_seen
 }
 
-func (tx *ebpfHttpTx) SetResponseLastSeen(lastSeen uint64) {
+func (tx *EbpfHttpTx) SetResponseLastSeen(lastSeen uint64) {
 	tx.Response_last_seen = lastSeen
 
 }
-func (tx *ebpfHttpTx) RequestStarted() uint64 {
+func (tx *EbpfHttpTx) RequestStarted() uint64 {
 	return tx.Request_started
 }
 
-func (tx *ebpfHttpTx) SetRequestMethod(m Method) {
+func (tx *EbpfHttpTx) SetRequestMethod(m Method) {
 	tx.Request_method = uint8(m)
 }
 
 // StaticTags returns an uint64 representing the tags bitfields
 // Tags are defined here : pkg/network/ebpf/kprobe_types.go
-func (tx *ebpfHttpTx) StaticTags() uint64 {
+func (tx *EbpfHttpTx) StaticTags() uint64 {
 	return tx.Tags
 }
 
-func (tx *ebpfHttpTx) DynamicTags() []string {
+func (tx *EbpfHttpTx) DynamicTags() []string {
 	return nil
 }
 
-func (tx *ebpfHttpTx) String() string {
+func (tx *EbpfHttpTx) String() string {
 	var output strings.Builder
 	output.WriteString("ebpfHttpTx{")
 	output.WriteString("Method: '" + Method(tx.Request_method).String() + "', ")

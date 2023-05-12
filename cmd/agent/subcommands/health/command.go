@@ -18,8 +18,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd := health.MakeCommand(func() health.GlobalParams {
 		return health.GlobalParams{
 			ConfFilePath: globalParams.ConfFilePath,
-			ConfigName:   "datadog",
-			LoggerName:   "CORE",
+			ConfigName:   command.ConfigName,
+			LoggerName:   command.LoggerName,
 		}
 	})
 

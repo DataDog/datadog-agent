@@ -79,8 +79,7 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo) erro
 	c.tracerClientID = ProcessAgentClientID
 
 	// Calling the remote tracer will cause it to initialize and check connectivity
-	net.SetSystemProbePath(syscfg.SystemProbeAddress)
-	tu, err := net.GetRemoteSystemProbeUtil()
+	tu, err := net.GetRemoteSystemProbeUtil(syscfg.SystemProbeAddress)
 
 	if err != nil {
 		log.Warnf("could not initiate connection with system probe: %s", err)
@@ -167,7 +166,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 func (c *ConnectionsCheck) Cleanup() {}
 
 func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
-	tu, err := net.GetRemoteSystemProbeUtil()
+	tu, err := net.GetRemoteSystemProbeUtil(c.syscfg.SocketAddress)
 	if err != nil {
 		if c.notInitializedLogLimit.ShouldLog() {
 			log.Warnf("could not initialize system-probe connection: %v (will only log every 10 minutes)", err)

@@ -198,7 +198,28 @@ func extractLibInfo(pod *corev1.Pod, containerRegistry string) []libInfo {
 				})
 			}
 		}
+	}
 
+	if len(libInfoList) == 0 {
+		// Inject all if admission.datadoghq.com/all-lib.version exists
+		// without any other language-specific annotations.
+		// This annotation is typically expected to be set via remote-config
+		// for batch instrumentation without language detection.
+		injectAllAnnotation := strings.ToLower(fmt.Sprintf(libVersionAnnotationKeyFormat, "all"))
+		if version, found := podAnnotations[injectAllAnnotation]; found {
+			// This logic will be updated once we bundle all libs in
+			// one single init container. Versions will be supported by then.
+			if version != "latest" {
+				log.Warnf("Ignoring version %q. To inject all libs, the only supported version is latest for now", version)
+				version = "latest"
+			}
+			for _, lang := range supportedLanguages {
+				libInfoList = append(libInfoList, libInfo{
+					lang:  lang,
+					image: fmt.Sprintf(imageFormat, containerRegistry, lang, version),
+				})
+			}
+		}
 	}
 
 	return libInfoList

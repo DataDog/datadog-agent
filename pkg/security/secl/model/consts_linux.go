@@ -225,7 +225,6 @@ var (
 		"CAP_IPC_LOCK":           1 << unix.CAP_IPC_LOCK,
 		"CAP_IPC_OWNER":          1 << unix.CAP_IPC_OWNER,
 		"CAP_KILL":               1 << unix.CAP_KILL,
-		"CAP_LAST_CAP":           1 << unix.CAP_LAST_CAP,
 		"CAP_LEASE":              1 << unix.CAP_LEASE,
 		"CAP_LINUX_IMMUTABLE":    1 << unix.CAP_LINUX_IMMUTABLE,
 		"CAP_MAC_ADMIN":          1 << unix.CAP_MAC_ADMIN,

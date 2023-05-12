@@ -6,7 +6,6 @@
 package settings
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -37,12 +36,6 @@ func (t *runtimeTestSetting) Set(v interface{}) error {
 
 func (t *runtimeTestSetting) Hidden() bool {
 	return false
-}
-
-func setupConf() config.Config {
-	conf := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	config.InitConfig(conf)
-	return conf
 }
 
 func cleanRuntimeSetting() {
@@ -105,7 +98,7 @@ func TestLogLevel(t *testing.T) {
 
 func TestProfiling(t *testing.T) {
 	cleanRuntimeSetting()
-	setupConf()
+	config.SetupConf()
 
 	ll := ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "datadog-agent"}
 	assert.Equal(t, "internal_profiling", ll.Name())
