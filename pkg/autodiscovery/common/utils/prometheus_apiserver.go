@@ -30,9 +30,6 @@ const (
 func ConfigsForService(pc *types.PrometheusCheck, svc *v1.Service) []integration.Config {
 	var configs []integration.Config
 	namespacedName := fmt.Sprintf("%s/%s", svc.GetNamespace(), svc.GetName())
-	if pc.IsExcluded(svc.GetAnnotations(), namespacedName) {
-		return configs
-	}
 
 	// Ignore headless services because we can't resolve the IP.
 	// Ref: https://kubernetes.io/docs/concepts/services-networking/service/#headless-services
@@ -63,10 +60,6 @@ func ConfigsForService(pc *types.PrometheusCheck, svc *v1.Service) []integration
 func ConfigsForServiceEndpoints(pc *types.PrometheusCheck, svc *v1.Service, ep *v1.Endpoints) []integration.Config {
 	var configs []integration.Config
 	namespacedName := fmt.Sprintf("%s/%s", svc.GetNamespace(), svc.GetName())
-	if pc.IsExcluded(svc.GetAnnotations(), namespacedName) {
-		return configs
-	}
-
 	instances, found := buildInstances(pc, svc.GetAnnotations(), namespacedName)
 	if found {
 		for _, subset := range ep.Subsets {

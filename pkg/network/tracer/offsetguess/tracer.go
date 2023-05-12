@@ -498,13 +498,18 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 		t.status.Offset_sk_buff_transport_header++
 	case GuessSKBuffHead:
 		if t.status.Sport_via_sk_via_sk_buf == htons(expected.sportFl4) && t.status.Dport_via_sk_via_sk_buf == htons(expected.dportFl4) {
-			t.logAndAdvance(t.status.Offset_sk_buff_head, GuessDAddrIPv6)
-			break
+			if !t.guessTCPv6 && !t.guessUDPv6 {
+				t.logAndAdvance(t.status.Offset_sk_buff_head, GuessNotApplicable)
+				return t.setReadyState(mp)
+			} else {
+				t.logAndAdvance(t.status.Offset_sk_buff_head, GuessDAddrIPv6)
+				break
+			}
 		}
 		t.status.Offset_sk_buff_head++
 	case GuessDAddrIPv6:
 		if compareIPv6(t.status.Daddr_ipv6, expected.daddrIPv6) {
-			t.logAndAdvance(t.status.Offset_rtt, GuessNotApplicable)
+			t.logAndAdvance(t.status.Offset_daddr_ipv6, GuessNotApplicable)
 			// at this point, we've guessed all the offsets we need,
 			// set the t.status to "stateReady"
 			return t.setReadyState(mp)
@@ -512,11 +517,6 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 		t.status.Offset_daddr_ipv6++
 	default:
 		return fmt.Errorf("unexpected field to guess: %v", whatString[GuessWhat(t.status.What)])
-	}
-
-	// This assumes `GuessDAddrIPv6` is the last stage of the process.
-	if t.status.What == uint64(GuessDAddrIPv6) && !t.guessUDPv6 {
-		return t.setReadyState(mp)
 	}
 
 	t.status.State = uint64(StateChecking)

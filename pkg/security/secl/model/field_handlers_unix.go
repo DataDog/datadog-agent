@@ -20,12 +20,13 @@ func (ev *Event) ResolveFieldsForAD() {
 }
 func (ev *Event) resolveFields(forADs bool) {
 	// resolve context fields that are not related to any event type
-	_ = ev.FieldHandlers.ResolveAsync(ev)
 	_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.ContainerContext)
 	_ = ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext)
 	if !forADs {
 		_ = ev.FieldHandlers.ResolveContainerTags(ev, &ev.ContainerContext)
 	}
+	_ = ev.FieldHandlers.ResolveAsync(ev)
+	_ = ev.FieldHandlers.ResolveEventTimestamp(ev)
 	_ = ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.NetworkContext.Device)
 	_ = ev.FieldHandlers.ResolveProcessArgs(ev, &ev.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessArgsTruncated(ev, &ev.ProcessContext.Process)
@@ -772,6 +773,7 @@ type FieldHandlers interface {
 	ResolveContainerCreatedAt(ev *Event, e *ContainerContext) int
 	ResolveContainerID(ev *Event, e *ContainerContext) string
 	ResolveContainerTags(ev *Event, e *ContainerContext) []string
+	ResolveEventTimestamp(ev *Event) int
 	ResolveFileBasename(ev *Event, e *FileEvent) string
 	ResolveFileFieldsGroup(ev *Event, e *FileFields) string
 	ResolveFileFieldsInUpperLayer(ev *Event, e *FileFields) bool
@@ -823,6 +825,7 @@ func (dfh *DefaultFieldHandlers) ResolveContainerID(ev *Event, e *ContainerConte
 func (dfh *DefaultFieldHandlers) ResolveContainerTags(ev *Event, e *ContainerContext) []string {
 	return e.Tags
 }
+func (dfh *DefaultFieldHandlers) ResolveEventTimestamp(ev *Event) int { return int(ev.TimestampRaw) }
 func (dfh *DefaultFieldHandlers) ResolveFileBasename(ev *Event, e *FileEvent) string {
 	return e.BasenameStr
 }

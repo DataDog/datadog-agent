@@ -210,9 +210,9 @@ type Event struct {
 	ID           string         `field:"-" json:"-"`
 	Type         uint32         `field:"-"`
 	Flags        uint32         `field:"-"`
-	Async        bool           `field:"async,handler:ResolveAsync" event:"*" platform:"linux"` // SECLDoc[async] Definition:`True if the syscall was asynchronous`
-	TimestampRaw uint64         `field:"-" json:"-"`
-	Timestamp    time.Time      `field:"-"` // Timestamp of the event
+	Async        bool           `field:"event.async,handler:ResolveAsync" event:"*" platform:"linux"` // SECLDoc[event.async] Definition:`True if the syscall was asynchronous`
+	TimestampRaw uint64         `field:"event.timestamp,handler:ResolveEventTimestamp" json:"-"`      // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
+	Timestamp    time.Time      `field:"-"`
 	Rules        []*MatchedRule `field:"-"`
 
 	// context shared with all events
@@ -400,9 +400,9 @@ func (ev *Event) ResolveProcessCacheEntry() (*ProcessCacheEntry, bool) {
 	return ev.FieldHandlers.ResolveProcessCacheEntry(ev)
 }
 
-// ResolveEventTimestamp uses the field handler
-func (ev *Event) ResolveEventTimestamp() time.Time {
-	return ev.FieldHandlers.ResolveEventTimestamp(ev)
+// ResolveEventTime uses the field handler
+func (ev *Event) ResolveEventTime() time.Time {
+	return ev.FieldHandlers.ResolveEventTime(ev)
 }
 
 // GetProcessService uses the field handler
@@ -579,6 +579,8 @@ type Process struct {
 	Variables             eval.Variables `field:"-" json:"-"`
 
 	IsThread bool `field:"is_thread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
+
+	Source uint64 `field:"-" json:"-"`
 }
 
 // SpanContext describes a span context
@@ -888,7 +890,6 @@ func (p *ProcessContext) HasParent() bool {
 // ProcessContext holds the process context of an event
 type ProcessContext struct {
 	Process
-	Source uint64 `field:"-" json:"-"`
 
 	Parent   *Process           `field:"parent,opts:exposed_at_event_root_only,check:HasParent"`
 	Ancestor *ProcessCacheEntry `field:"ancestors,iterator:ProcessAncestorsIterator,check:IsNotKworker"`
@@ -1223,7 +1224,7 @@ func (pl *PathLeaf) MarshalBinary() ([]byte, error) {
 // ExtraFieldHandlers handlers not hold by any field
 type ExtraFieldHandlers interface {
 	ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool)
-	ResolveEventTimestamp(ev *Event) time.Time
+	ResolveEventTime(ev *Event) time.Time
 	GetProcessService(ev *Event) string
 }
 
@@ -1233,7 +1234,7 @@ func (dfh *DefaultFieldHandlers) ResolveProcessCacheEntry(ev *Event) (*ProcessCa
 }
 
 // ResolveEventTimestamp stub implementation
-func (dfh *DefaultFieldHandlers) ResolveEventTimestamp(ev *Event) time.Time {
+func (dfh *DefaultFieldHandlers) ResolveEventTime(ev *Event) time.Time {
 	return ev.Timestamp
 }
 

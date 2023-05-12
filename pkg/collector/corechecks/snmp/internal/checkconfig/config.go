@@ -302,7 +302,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	// Set defaults before unmarshalling
 	instance.UseGlobalMetrics = true
 	initConfig.CollectDeviceMetadata = true
-	initConfig.CollectTopology = false // TODO: Make CollectTopology default to true when GA
+	initConfig.CollectTopology = true
 
 	err := yaml.Unmarshal(rawInitConfig, &initConfig)
 	if err != nil {

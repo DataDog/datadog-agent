@@ -386,10 +386,14 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 	}
 
 	// handle anomaly detection, if not an anomaly let it pass to the process monitor so that it can be added to a dump
-	if !p.handleAnomalyDetection(event) {
+	if !p.handleAnomalyDetection(event) && event.Error == nil {
 		// Process after evaluation because some monitors need the DentryResolver to have been called first.
-		p.monitor.ProcessEvent(event)
+		if p.monitor.activityDumpManager != nil {
+			p.monitor.activityDumpManager.ProcessEvent(event)
+		}
+
 	}
+	p.monitor.ProcessEvent(event)
 }
 
 // DispatchCustomEvent sends a custom event to the probe event handler
@@ -746,7 +750,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		// Use the event timestamp as exit time
 		// The local process cache hasn't been updated yet with the exit time when the exit event is first seen
 		// The pid_cache kernel map has the exit_time but it's only accessed if there's a local miss
-		event.ProcessCacheEntry.Process.ExitTime = p.fieldHandlers.ResolveEventTimestamp(event)
+		event.ProcessCacheEntry.Process.ExitTime = p.fieldHandlers.ResolveEventTime(event)
 		event.Exit.Process = &event.ProcessCacheEntry.Process
 	case model.SetuidEventType:
 		if _, err = event.SetUID.UnmarshalBinary(data[offset:]); err != nil {
@@ -884,8 +888,13 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 	// resolve the process cache entry
 	entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event)
-	if !isResolved && !eventWithNoProcessContext(eventType) {
-		event.Error = &ErrProcessContext{Err: errors.New("process context not resolved")}
+	if !eventWithNoProcessContext(eventType) {
+		if !isResolved {
+			event.Error = &ErrNoProcessContext{Err: errors.New("process context not resolved")}
+		} else if !entry.HasCompleteLineage() {
+			event.Error = &ErrProcessBrokenLineage{PIDContext: entry.PIDContext}
+			p.resolvers.ProcessResolver.CountBrokenLineage()
+		}
 	}
 	event.ProcessCacheEntry = entry
 
@@ -897,7 +906,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	}
 
 	if eventType == model.ExitEventType {
-		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessCacheEntry.Pid, p.fieldHandlers.ResolveEventTimestamp(event))
+		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessCacheEntry.Pid, p.fieldHandlers.ResolveEventTime(event))
 	}
 
 	p.DispatchEvent(event)
@@ -1586,6 +1595,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 
 	resolversOpts := resolvers.ResolversOpts{
 		PathResolutionEnabled: opts.PathResolutionEnabled,
+		TagsResolver:          opts.TagsResolver,
 	}
 	p.resolvers, err = resolvers.NewResolvers(config, p.Manager, p.StatsdClient, p.scrubber, p.Erpc, resolversOpts)
 	if err != nil {

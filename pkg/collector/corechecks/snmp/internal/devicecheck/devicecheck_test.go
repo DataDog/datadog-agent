@@ -39,6 +39,7 @@ func TestProfileWithSysObjectIdDetection(t *testing.T) {
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
 community_string: public
+collect_topology: false
 `)
 	// language=yaml
 	rawInitConfig := []byte(`
@@ -339,6 +340,7 @@ func TestDetectMetricsToCollect(t *testing.T) {
 ip_address: 1.2.3.4
 community_string: public
 experimental_detect_metrics_enabled: true
+collect_topology: false
 `)
 	// language=yaml
 	rawInitConfig := []byte(``)
@@ -868,6 +870,7 @@ func TestDynamicTagsAreSaved(t *testing.T) {
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
 community_string: public
+collect_topology: false
 `)
 	// language=yaml
 	rawInitConfig := []byte(`
