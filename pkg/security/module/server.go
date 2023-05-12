@@ -323,28 +323,32 @@ func (a *APIServer) start(ctx context.Context) {
 					Tags:    msg.tags,
 				}
 
-				select {
-				case a.msgs <- m:
-					break
-				default:
-					// The channel is full, consume the oldest event
-					oldestMsg := <-a.msgs
-					// Try to send the event again
-					select {
-					case a.msgs <- m:
-						break
-					default:
-						// Looks like the channel is full again, expire the current message too
-						a.expireEvent(m)
-						break
-					}
-					a.expireEvent(oldestMsg)
-					break
-				}
+				a.sendToSecurityAgent(m)
 			})
 		case <-ctx.Done():
 			return
 		}
+	}
+}
+
+func (a *APIServer) sendToSecurityAgent(m *api.SecurityEventMessage) {
+	select {
+	case a.msgs <- m:
+		break
+	default:
+		// The channel is full, consume the oldest event
+		oldestMsg := <-a.msgs
+		// Try to send the event again
+		select {
+		case a.msgs <- m:
+			break
+		default:
+			// Looks like the channel is full again, expire the current message too
+			a.expireEvent(m)
+			break
+		}
+		a.expireEvent(oldestMsg)
+		break
 	}
 }
 
