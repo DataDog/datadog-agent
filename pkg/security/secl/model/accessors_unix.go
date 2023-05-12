@@ -4,8 +4,8 @@
 // Copyright 2022-present Datadog, Inc.
 // Code generated - DO NOT EDIT.
 
-//go:build linux
-// +build linux
+//go:build unix
+// +build unix
 
 package model
 

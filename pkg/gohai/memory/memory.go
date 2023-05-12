@@ -1,0 +1,53 @@
+// This file is licensed under the MIT License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>
+// Copyright 2014-present Datadog, Inc.
+
+// Package memory regroups collecting information about the memory
+package memory
+
+// Memory holds memory metadata about the host
+type Memory struct {
+	// TotalBytes is the total memory for the host in byte
+	TotalBytes uint64
+	// SwapTotalBytes is the swap memory size in byte (Unix only)
+	SwapTotalBytes uint64
+}
+
+const name = "memory"
+
+// Name returns the name of the package
+func (memory *Memory) Name() string {
+	return name
+}
+
+// Collect collects the Memory information.
+// Returns an object which can be converted to a JSON or an error if nothing could be collected.
+// Tries to collect as much information as possible.
+func (memory *Memory) Collect() (result interface{}, err error) {
+	result, err = getMemoryInfo()
+	return
+}
+
+// Get returns a Memory struct already initialized, a list of warnings and an error. The method will try to collect as much
+// metadata as possible, an error is returned if nothing could be collected. The list of warnings contains errors if
+// some metadata could not be collected.
+func Get() (*Memory, []string, error) {
+	// Legacy code from gohai returns memory in:
+	// - byte for Windows
+	// - mix of byte and MB for OSX
+	// - KB on linux
+	//
+	// this method being new we can align this behavior to return bytes everywhere without breaking backward
+	// compatibility
+
+	mem, swap, warnings, err := getMemoryInfoByte()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return &Memory{
+		TotalBytes:     mem,
+		SwapTotalBytes: swap,
+	}, warnings, nil
+}
