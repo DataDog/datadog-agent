@@ -178,10 +178,7 @@ func start(log log.Component, config config.Component, forwarder defaultforwarde
 	pkglog.Infof("Got APIClient connection")
 
 	serverVersion, err := apicommon.KubeServerVersion(apiCl.DiscoveryCl, 10*time.Second)
-	if !semver.IsValid(serverVersion.String()) {
-		pkglog.Errorf("invalid server version %s", serverVersion.String())
-	}
-	if err == nil && semver.Compare(serverVersion.String(), "v1.14.0") < 1 {
+	if err == nil && semver.IsValid(serverVersion.String()) && semver.Compare(serverVersion.String(), "v1.14.0") < 1 {
 		pkglog.Warnf("[DEPRECATION WARNING] DataDog will drop support of Kubernetes older than v1.14. Please update to a newer version to ensure proper functionality and security.")
 	}
 
