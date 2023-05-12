@@ -22,7 +22,10 @@ import (
 	4. Add a method on the `Repository` to retrieved typed configs for the product.
 */
 
-var allProducts = []string{ProductAPMSampling, ProductCWSDD, ProductCWSCustom, ProductASM, ProductASMFeatures, ProductASMDD, ProductASMData, ProductAPMTracing}
+var allProducts = []string{
+	ProductAPMSampling, ProductCWSDD, ProductCWSCustom, ProductASM, ProductASMFeatures,
+	ProductASMDD, ProductASMData, ProductAPMTracing, ProductAgentTask,
+}
 
 const (
 	// ProductAPMSampling is the apm sampling product
@@ -41,6 +44,8 @@ const (
 	ProductASMData = "ASM_DATA"
 	// ProductAPMTracing is the apm tracing product
 	ProductAPMTracing = "APM_TRACING"
+	// ProductAgentTask is to receive agent task instruction, like a flare
+	ProductAgentTask = "DEBUG"
 )
 
 // ErrNoConfigVersion occurs when a target file's custom meta is missing the config version
@@ -66,11 +71,61 @@ func parseConfig(product string, raw []byte, metadata Metadata) (interface{}, er
 		c, err = parseConfigASMData(raw, metadata)
 	case ProductAPMTracing:
 		c, err = parseConfigAPMTracing(raw, metadata)
+	case ProductAgentTask:
+		c, err = parseConfigAgentTask(raw, metadata)
 	default:
 		return nil, fmt.Errorf("unknown product - %s", product)
 	}
 
 	return c, err
+}
+
+// AgentTaskConfig is a deserialized agent task configuration file
+// along with the associated metadata
+type AgentTaskConfig struct {
+	Config   AgentTaskData
+	Metadata Metadata
+}
+
+// AgentTaskData is the content of a agent task configuration file
+type AgentTaskData struct {
+	TaskType string            `json:"task_type"`
+	UUID     string            `json:"uuid"`
+	TaskArgs map[string]string `json:"task_args"`
+}
+
+func parseConfigAgentTask(data []byte, metadata Metadata) (AgentTaskConfig, error) {
+	var d AgentTaskData
+
+	err := json.Unmarshal(data, &d)
+	if err != nil {
+		// TODO: Fail gracefully since we use DEBUG for now
+		return AgentTaskConfig{}, nil
+	}
+
+	return AgentTaskConfig{
+		Config:   d,
+		Metadata: metadata,
+	}, nil
+}
+
+// AgentTaskConfigs returns the currently active AGENT_TASK configs
+func (r *Repository) AgentTaskConfigs() map[string]AgentTaskConfig {
+	typedConfigs := make(map[string]AgentTaskConfig)
+
+	configs := r.getConfigs(ProductAgentTask)
+
+	for path, conf := range configs {
+		// We control this, so if this has gone wrong something has gone horribly wrong
+		typed, ok := conf.(AgentTaskConfig)
+		if !ok {
+			panic("unexpected config stored as AgentTaskConfigs")
+		}
+
+		typedConfigs[path] = typed
+	}
+
+	return typedConfigs
 }
 
 // APMSamplingConfig is a deserialized APM Sampling configuration file

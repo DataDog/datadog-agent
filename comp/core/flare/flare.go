@@ -10,14 +10,19 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"time"
 
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/pkg/config/remote"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	pkgFlare "github.com/DataDog/datadog-agent/pkg/flare"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // ProfileData maps (pprof) profile names to the profile data.
@@ -37,15 +42,38 @@ type flare struct {
 	config    config.Component
 	params    Params
 	providers []helpers.FlareProvider
+	rcClient  *remote.Client
 }
 
 func newFlare(deps dependencies) (Component, error) {
-	return &flare{
+	f := &flare{
 		log:       deps.Log,
 		config:    deps.Config,
 		params:    deps.Params,
 		providers: deps.Providers,
-	}, nil
+	}
+
+	c, err := remote.NewUnverifiedGRPCClient(
+		"flare-comp", version.AgentVersion, []data.Product{data.ProductAgentTask}, 2*time.Second,
+	)
+
+	// If there is an error we consider RC is not started
+	if err == nil {
+		f.rcClient = c
+
+		f.rcClient.RegisterAgentTaskUpdate(f.onAgentTaskEvent)
+
+		f.rcClient.Start()
+	}
+
+	return f, nil
+}
+
+func (f *flare) onAgentTaskEvent(configs map[string]state.AgentTaskConfig) {
+	f.log.Warnf("[RCM] Creating flare based on the agent task")
+	path, err := f.Create(nil, nil)
+
+	f.log.Warnf("[RCM] Flare created in %s based on the agent task: %v", path, err)
 }
 
 // Send sends a flare archive to Datadog
