@@ -127,6 +127,11 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 
 		var depends []pulumi.Resource
 		osCommand := command.NewUnixOSCommand()
+
+		commandProvider, err = command.NewProvider(ctx, "command-provider", &command.ProviderArgs{})
+		if err != nil {
+			return fmt.Errorf("failed to get command provider: %w", err)
+		}
 		for _, instance := range scenarioDone.Instances {
 			remoteRunner, err := command.NewRunner(*awsEnvironment.CommonEnvironment, command.RunnerArgs{
 				ConnectionName: "remote-runner-" + instance.Arch,
@@ -166,6 +171,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 					fmt.Sprintf("%s/dependencies-%s.tar.gz", DD_AGENT_TESTING_DIR, instance.Arch),
 					fmt.Sprintf("/opt/kernel-version-testing/dependencies-%s.tar.gz", instance.Arch),
 					pulumi.DependsOn(depends),
+					pulumi.Provider(commandProvider),
 				)
 				if err != nil {
 					return fmt.Errorf("copy file: %w", err)
