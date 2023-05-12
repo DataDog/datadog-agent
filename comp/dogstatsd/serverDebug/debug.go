@@ -15,12 +15,12 @@ import (
 	"time"
 
 	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/benbjohnson/clock"
 	slog "github.com/cihub/seelog"
 	"go.uber.org/atomic"
@@ -30,7 +30,8 @@ import (
 type dependencies struct {
 	fx.In
 
-	Log logComponent.Component
+	Log    logComponent.Component
+	Config configComponent.Component
 }
 
 // metricStat holds how many times a metric has been
@@ -62,17 +63,16 @@ type serverDebug struct {
 
 // TODO: (components) - remove once serverless is an FX app
 func NewServerlessServerDebug() Component {
-	return newServerDebugCompat(logComponent.NewTemporaryLoggerWithoutInit())
+	return newServerDebugCompat(logComponent.NewTemporaryLoggerWithoutInit(), config.Datadog)
 }
 
 // newServerDebug creates a new instance of a ServerDebug
 func newServerDebug(deps dependencies) Component {
-	return newServerDebugCompat(deps.Log)
+	return newServerDebugCompat(deps.Log, deps.Config)
 }
 
-func newServerDebugCompat(log logComponent.Component) Component {
-
-	return &serverDebug{
+func newServerDebugCompat(log logComponent.Component, cfg config.ConfigReader) Component {
+	sd := &serverDebug{
 		log:     log,
 		enabled: atomic.NewBool(false),
 		Stats:   make(map[ckey.ContextKey]metricStat),
@@ -81,10 +81,25 @@ func newServerDebugCompat(log logComponent.Component) Component {
 			metricChan: make(chan struct{}),
 			closeChan:  make(chan struct{}),
 		},
-		keyGen:               ckey.NewKeyGenerator(),
-		clock:                clock.New(),
-		dogstatsdDebugLogger: getDogstatsdDebug(),
+		keyGen: ckey.NewKeyGenerator(),
+		clock:  clock.New(),
 	}
+	sd.dogstatsdDebugLogger = sd.getDogstatsdDebug(cfg)
+
+	return sd
+	// return &serverDebug{
+	// 	log:     log,
+	// 	enabled: atomic.NewBool(false),
+	// 	Stats:   make(map[ckey.ContextKey]metricStat),
+	// 	metricsCounts: metricsCountBuckets{
+	// 		counts:     [5]uint64{0, 0, 0, 0, 0},
+	// 		metricChan: make(chan struct{}),
+	// 		closeChan:  make(chan struct{}),
+	// 	},
+	// 	keyGen:               ckey.NewKeyGenerator(),
+	// 	clock:                clock.New(),
+	// 	dogstatsdDebugLogger: getDogstatsdDebug(cfg),
+	// }
 }
 
 // metricsCountBuckets is counting the amount of metrics received for the last 5 seconds.
@@ -264,25 +279,26 @@ func (d *serverDebug) disableMetricsStats() {
 }
 
 // build a local dogstatsd logger and bubbling up any errors
-func getDogstatsdDebug() slog.LoggerInterface {
+func (d *serverDebug) getDogstatsdDebug(cfg config.ConfigReader) slog.LoggerInterface {
 
 	var dogstatsdLogger slog.LoggerInterface
 
 	// Configuring the log file path
-	logFile := config.Datadog.GetString("dogstatsd_log_file")
+	logFile := cfg.GetString("dogstatsd_log_file")
 	if logFile == "" {
 		logFile = commonpath.DefaultDogstatsDLogFile
 	}
 
 	// Set up dogstatsdLogger
-	if config.Datadog.GetBool("dogstatsd_logging_enabled") {
-		logger, e := config.SetupDogstatsdLogger(logFile, config.GetSyslogURI(), config.Datadog.GetBool("syslog_rfc"), config.Datadog.GetBool("log_format_json"))
+	if cfg.GetBool("dogstatsd_logging_enabled") {
+		logger, e := config.SetupDogstatsdLogger(logFile)
 		if e != nil {
-			log.Errorf("Unable to set up Dogstatsd logger: %v. || Please reach out to Datadog support at https://docs.datadoghq.com/help/ ", e)
+			// use component logger instead of global logger.
+			d.log.Errorf("Unable to set up Dogstatsd logger: %v. || Please reach out to Datadog support at https://docs.datadoghq.com/help/ ", e)
 			return nil
 		}
 		dogstatsdLogger = logger
 	}
-
 	return dogstatsdLogger
+
 }

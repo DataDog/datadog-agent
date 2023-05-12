@@ -93,6 +93,7 @@ func MakeCommand() *cobra.Command {
 					path.PyChecksPath,
 					path.DefaultLogFile,
 					path.DefaultJmxLogFile,
+					path.DefaultDogstatsDLogFile,
 				)),
 				flare.Module,
 				// systray
