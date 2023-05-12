@@ -129,7 +129,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		var depends []pulumi.Resource
 		osCommand := command.NewUnixOSCommand()
 
-		commandProvider, err := pulumiCommand.NewProvider(ctx, "command-provider", &command.ProviderArgs{})
+		commandProvider, err := pulumiCommand.NewProvider(ctx, "command-provider", &pulumiCommand.ProviderArgs{})
 		if err != nil {
 			return fmt.Errorf("failed to get command provider: %w", err)
 		}
