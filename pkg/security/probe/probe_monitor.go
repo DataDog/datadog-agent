@@ -65,7 +65,7 @@ func (m *Monitor) Init() error {
 	if p.IsActivityDumpEnabled() {
 		var onActivityDumpStopped func(*dump.ActivityDump)
 		if p.Config.RuntimeSecurity.SecurityProfileEnabled && p.Config.RuntimeSecurity.SecurityProfilePipeActivityDumps {
-			pipeProvider := profile.NewPipeProvider(p.Config.RuntimeSecurity.ActivityDumpTracedCgroupsCount)
+			pipeProvider := profile.NewPipeProvider(p.Config.RuntimeSecurity.ActivityDumpTracedCgroupsCount * 2)
 			onActivityDumpStopped = func(ad *dump.ActivityDump) {
 				ad.Lock()
 				profile := dump.ActivityDumpToSecurityProfileProto(ad)
