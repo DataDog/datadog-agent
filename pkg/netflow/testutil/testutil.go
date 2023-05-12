@@ -16,18 +16,17 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcapgo"
-	"github.com/stretchr/testify/assert"
 	"net"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 
 	"github.com/DataDog/datadog-agent/pkg/netflow/payload"
 )
-
-//go:embed pcap_recordings/netflow5.pcapng
-var netflow5pcapng []byte
 
 //go:embed pcap_recordings/netflow9.pcapng
 var netflow9pcapng []byte
@@ -45,17 +44,18 @@ func SendUDPPacket(port uint16, data []byte) error {
 	return err
 }
 
-func ExpectNetflow5Payloads(t *testing.T, mockEpForwrader *epforwarder.MockEventPlatformForwarder) {
-	events := [][]byte{
-		[]byte(`
+func ExpectNetflow5Payloads(t *testing.T, mockEpForwrader *epforwarder.MockEventPlatformForwarder, now time.Time, host string, records int) {
+	for i := 0; i < records; i++ {
+		// language=json
+		event := []byte(fmt.Sprintf(`
 {
     "type": "netflow5",
     "sampling_rate": 0,
     "direction": "ingress",
-    "start": 1683712725,
-    "end": 1683712725,
-    "bytes": 10,
-    "packets": 1,
+    "start": %d,
+    "end": %d,
+    "bytes": 194,
+    "packets": 10,
     "ether_type": "IPv4",
     "ip_protocol": "TCP",
     "device": {
@@ -65,80 +65,38 @@ func ExpectNetflow5Payloads(t *testing.T, mockEpForwrader *epforwarder.MockEvent
         "ip": "127.0.0.1"
     },
     "source": {
-        "ip": "10.154.20.12",
-        "port": "22",
+        "ip": "10.0.0.1",
+        "port": "50000",
         "mac": "00:00:00:00:00:00",
         "mask": "0.0.0.0/0"
     },
     "destination": {
-        "ip": "0.0.0.92",
-        "port": "81",
+        "ip": "20.0.0.%d",
+        "port": "8080",
         "mac": "00:00:00:00:00:00",
         "mask": "0.0.0.0/0"
     },
     "ingress": {
         "interface": {
-            "index": 0
+            "index": 1
         }
     },
     "egress": {
         "interface": {
-            "index": 0
+            "index": 7
         }
     },
-    "host": "my-hostname",
+    "host": "%s",
+    "tcp_flags": [
+        "SYN",
+        "RST",
+        "ACK"
+    ],
     "next_hop": {
         "ip": "0.0.0.0"
     }
 }
-`),
-		[]byte(`
-{
-    "type": "netflow5",
-    "sampling_rate": 0,
-    "direction": "ingress",
-    "start": 1683712725,
-    "end": 1683712725,
-    "bytes": 10,
-    "packets": 1,
-    "ether_type": "IPv4",
-    "ip_protocol": "TCP",
-    "device": {
-        "namespace": "default"
-    },
-    "exporter": {
-        "ip": "127.0.0.1"
-    },
-    "source": {
-        "ip": "10.154.20.12",
-        "port": "22",
-        "mac": "00:00:00:00:00:00",
-        "mask": "0.0.0.0/0"
-    },
-    "destination": {
-        "ip": "0.0.0.93",
-        "port": "81",
-        "mac": "00:00:00:00:00:00",
-        "mask": "0.0.0.0/0"
-    },
-    "ingress": {
-        "interface": {
-            "index": 0
-        }
-    },
-    "egress": {
-        "interface": {
-            "index": 0
-        }
-    },
-    "host": "my-hostname",
-    "next_hop": {
-        "ip": "0.0.0.0"
-    }
-}
-`),
-	}
-	for _, event := range events {
+`, now.Unix(), now.Unix(), i, host))
 		compactEvent := new(bytes.Buffer)
 		err := json.Compact(compactEvent, event)
 		assert.NoError(t, err)
@@ -175,10 +133,6 @@ func GetPacketFromPcap(pcapdata []byte, layer gopacket.Decoder, packetIndex int)
 		}
 		packetCount += 1
 	}
-}
-
-func GetNetFlow5Packet() ([]byte, error) {
-	return GetPacketFromPcap(netflow5pcapng, layers.LayerTypeLoopback, 0)
 }
 
 func GetNetFlow9Packet() ([]byte, error) {
