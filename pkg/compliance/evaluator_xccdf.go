@@ -198,7 +198,7 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, benchmark *Benchmar
 	p := oscapIOs[file]
 	if p == nil {
 		p = newOSCAPIO(file)
-		oscapIOs[spec.Name] = p
+		oscapIOs[file] = p
 		go func() {
 			err := p.Run(ctx)
 			if err != nil {
