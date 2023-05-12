@@ -1292,11 +1292,14 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 						DialContext:     defaultDialer.DialContext,
 					},
 				}
-				resp, err := client.Get(fmt.Sprintf("https://%s/200/request-1", ctx.targetAddress))
-				require.NoError(t, err)
-				_, _ = io.Copy(io.Discard, resp.Body)
-				_ = resp.Body.Close()
-				client.CloseIdleConnections()
+				t.Log("run 3 clients request as we can have a race between the closing tcp socket and the http response")
+				for i := 0; i < 3; i++ {
+					resp, err := client.Get(fmt.Sprintf("https://%s/200/request-1", ctx.targetAddress))
+					require.NoError(t, err)
+					_, _ = io.Copy(io.Discard, resp.Body)
+					_ = resp.Body.Close()
+					client.CloseIdleConnections()
+				}
 			},
 			validation: validateProtocolConnection(protocols.HTTP, tlsExpected),
 		},
