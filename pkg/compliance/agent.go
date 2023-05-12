@@ -214,7 +214,7 @@ func (a *Agent) runRegoBenchmarks(ctx context.Context) {
 			if sleepAborted(ctx, time.After(randomJitter(seed, a.opts.RunJitterMax))) {
 				return
 			}
-			resolver := NewResolver(a.opts.ResolverOptions)
+			resolver := NewResolver(ctx, a.opts.ResolverOptions)
 			for _, rule := range benchmark.Rules {
 				events := ResolveAndEvaluateRegoRule(ctx, resolver, benchmark, rule)
 				a.reportEvents(ctx, benchmark, events)

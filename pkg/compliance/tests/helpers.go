@@ -258,7 +258,7 @@ func (c *assertedRule) run(t *testing.T, options compliance.ResolverOptions) {
 		t.Fatalf("missing assertions")
 	}
 
-	resolver := compliance.NewResolver(options)
+	resolver := compliance.NewResolver(ctx, options)
 	defer resolver.Close()
 	benchmark := benchmarks[0]
 	for _, rule := range benchmark.Rules {

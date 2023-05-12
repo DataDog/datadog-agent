@@ -128,7 +128,7 @@ func RunCheck(log log.Component, config config.Component, checkArgs *CliParams) 
 	if checkArgs.overrideRegoInput != "" {
 		resolver = newFakeResolver(checkArgs.overrideRegoInput)
 	} else if flavor.GetFlavor() == flavor.ClusterAgent {
-		resolver = compliance.NewResolver(compliance.ResolverOptions{
+		resolver = compliance.NewResolver(context.Background(), compliance.ResolverOptions{
 			Hostname:           hname,
 			DockerProvider:     compliance.DefaultDockerProvider,
 			LinuxAuditProvider: compliance.DefaultLinuxAuditProvider,
@@ -136,7 +136,7 @@ func RunCheck(log log.Component, config config.Component, checkArgs *CliParams) 
 			StatsdClient:       statsdClient,
 		})
 	} else {
-		resolver = compliance.NewResolver(compliance.ResolverOptions{
+		resolver = compliance.NewResolver(context.Background(), compliance.ResolverOptions{
 			Hostname:           hname,
 			HostRoot:           os.Getenv("HOST_ROOT"),
 			DockerProvider:     compliance.DefaultDockerProvider,

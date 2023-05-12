@@ -41,9 +41,9 @@ import (
 	kubedynamic "k8s.io/client-go/dynamic"
 )
 
-// DefaultTimeout is the timeout that is applied for inputs resolution of one
+// inputsResolveTimeout is the timeout that is applied for inputs resolution of one
 // Rule.
-const DefaultTimeout = 10 * time.Second
+const inputsResolveTimeout = 5 * time.Second
 
 var ErrIncompatibleEnvironment = errors.New("environment not compatible this type of input")
 
@@ -105,10 +105,22 @@ type fileMeta struct {
 // NewResolver returns the default inputs resolver that is able to resolve any
 // kind of supported inputs. It holds a small cache for loaded file metadata
 // and different client connexions that may be used for inputs resolution.
-func NewResolver(opts ResolverOptions) Resolver {
-	return &defaultResolver{
+func NewResolver(ctx context.Context, opts ResolverOptions) Resolver {
+	r := &defaultResolver{
 		opts: opts,
 	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if opts.DockerProvider != nil {
+		r.dockerCl, _ = opts.DockerProvider(ctx)
+	}
+	if opts.KubernetesProvider != nil {
+		r.kubernetesCl, _ = opts.KubernetesProvider(ctx)
+	}
+	if opts.LinuxAuditProvider != nil {
+		r.linuxAuditCl, _ = opts.LinuxAuditProvider(ctx)
+	}
+	return r
 }
 
 func (r *defaultResolver) Close() {
@@ -139,17 +151,20 @@ func (r *defaultResolver) ResolveInputs(ctx_ context.Context, rule *Rule) (Resol
 		InputSpecs: make(map[string]*InputSpec),
 	}
 
-	if rule.HasScope(DockerScope) {
-		if r.opts.DockerProvider == nil {
-			return nil, ErrIncompatibleEnvironment
-		}
+	// We deactivate all docker rules, or kubernetes cluster rules if adequate
+	// clients could not be setup.
+	if rule.HasScope(DockerScope) && r.dockerCl == nil {
+		return nil, ErrIncompatibleEnvironment
+	}
+	if rule.HasScope(KubernetesClusterScope) && r.kubernetesCl == nil {
+		return nil, ErrIncompatibleEnvironment
 	}
 
 	if len(rule.InputSpecs) == 0 {
 		return nil, fmt.Errorf("no inputs for rule %s", rule.ID)
 	}
 
-	ctx, cancel := context.WithTimeout(ctx_, DefaultTimeout)
+	ctx, cancel := context.WithTimeout(ctx_, inputsResolveTimeout)
 	defer cancel()
 
 	resolved := make(map[string]interface{})
@@ -489,9 +504,9 @@ func (r *defaultResolver) resolveGroup(ctx context.Context, spec InputSpecGroup)
 }
 
 func (r *defaultResolver) resolveAudit(ctx context.Context, spec InputSpecAudit) (interface{}, error) {
-	cl, err := r.getLinuxAuditCl(ctx)
+	cl := r.linuxAuditCl
 	if cl == nil {
-		return nil, err
+		return nil, ErrIncompatibleEnvironment
 	}
 	normPath := r.pathNormalizeToHostRoot(spec.Path)
 	if _, err := os.Stat(normPath); os.IsNotExist(err) {
@@ -529,9 +544,9 @@ func (r *defaultResolver) resolveAudit(ctx context.Context, spec InputSpecAudit)
 }
 
 func (r *defaultResolver) resolveDocker(ctx context.Context, spec InputSpecDocker) (interface{}, error) {
-	cl, err := r.getDockerCl(ctx)
-	if err != nil {
-		return nil, err
+	cl := r.dockerCl
+	if cl == nil {
+		return nil, ErrIncompatibleEnvironment
 	}
 
 	var resolved []interface{}
@@ -612,8 +627,8 @@ func (r *defaultResolver) resolveDocker(ctx context.Context, spec InputSpecDocke
 
 func (r *defaultResolver) resolveKubeClusterID(ctx context.Context) string {
 	if r.kubeClusterIDCache == "" {
-		cl, err := r.getKubernetesCl(ctx)
-		if err != nil {
+		cl := r.kubernetesCl
+		if cl == nil {
 			return ""
 		}
 
@@ -631,9 +646,9 @@ func (r *defaultResolver) resolveKubeClusterID(ctx context.Context) string {
 }
 
 func (r *defaultResolver) resolveKubeApiserver(ctx context.Context, spec InputSpecKubeapiserver) (interface{}, error) {
-	cl, err := r.getKubernetesCl(ctx)
-	if err != nil {
-		return nil, err
+	cl := r.kubernetesCl
+	if cl == nil {
+		return nil, ErrIncompatibleEnvironment
 	}
 
 	if len(spec.Kind) == 0 {
@@ -699,54 +714,6 @@ func (r *defaultResolver) resolveKubeApiserver(ctx context.Context, spec InputSp
 		})
 	}
 	return resolved, nil
-}
-
-func (r *defaultResolver) getDockerCl(ctx context.Context) (docker.CommonAPIClient, error) {
-	if r.opts.DockerProvider == nil {
-		return nil, ErrIncompatibleEnvironment
-	}
-	if r.dockerCl == nil {
-		cl, err := r.opts.DockerProvider(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("docker client is not configured: %w", err)
-		}
-		r.dockerCl = cl
-	}
-	if r.dockerCl == nil {
-		return nil, fmt.Errorf("docker client is not configured")
-	}
-	return r.dockerCl, nil
-}
-
-func (r *defaultResolver) getKubernetesCl(ctx context.Context) (kubedynamic.Interface, error) {
-	if r.opts.KubernetesProvider == nil {
-		return nil, ErrIncompatibleEnvironment
-	}
-	if r.kubernetesCl == nil {
-		cl, err := r.opts.KubernetesProvider(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("kubernetes client is not configured: %w", err)
-		}
-		r.kubernetesCl = cl
-	}
-	if r.kubernetesCl == nil {
-		return nil, fmt.Errorf("kubernetes client is not configured")
-	}
-	return r.kubernetesCl, nil
-}
-
-func (r *defaultResolver) getLinuxAuditCl(ctx context.Context) (LinuxAuditClient, error) {
-	if r.opts.LinuxAuditProvider == nil {
-		return nil, ErrIncompatibleEnvironment
-	}
-	if r.linuxAuditCl == nil {
-		cl, err := r.opts.LinuxAuditProvider(ctx)
-		if err != nil {
-			return nil, err
-		}
-		r.linuxAuditCl = cl
-	}
-	return r.linuxAuditCl, nil
 }
 
 func parseCmdlineFlags(cmdline []string) map[string]string {
