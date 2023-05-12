@@ -8,6 +8,7 @@
 package probe
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -92,7 +93,9 @@ func TestOOMKillProbe(t *testing.T) {
 		}
 		defer os.Remove(bf.Name())
 
-		cmd := exec.Command("bash", bf.Name())
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+		t.Cleanup(cancel)
+		cmd := exec.CommandContext(ctx, "bash", bf.Name())
 
 		oomKilled := false
 		if err := cmd.Run(); err != nil {
