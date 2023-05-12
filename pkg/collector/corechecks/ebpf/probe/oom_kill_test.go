@@ -8,7 +8,6 @@
 package probe
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -93,12 +92,29 @@ func TestOOMKillProbe(t *testing.T) {
 		}
 		defer os.Remove(bf.Name())
 
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
-		t.Cleanup(cancel)
-		cmd := exec.CommandContext(ctx, "bash", bf.Name())
+		cmd := exec.Command("bash", bf.Name())
+		err = cmd.Start()
+		require.NoError(t, err)
+
+		to := 1 * time.Minute
+		manuallyKilled := false
+		done := make(chan struct{})
+		go func() {
+			select {
+			case <-time.After(to):
+				manuallyKilled = true
+				cmd.Process.Kill()
+			case <-done:
+				return
+			}
+		}()
 
 		oomKilled := false
-		if err := cmd.Run(); err != nil {
+		err = cmd.Wait()
+		close(done)
+		require.False(t, manuallyKilled, "process timed out after %s", to)
+
+		if err != nil {
 			if exiterr, ok := err.(*exec.ExitError); ok {
 				if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
 					if (status.Signaled() && status.Signal() == unix.SIGKILL) || status.ExitStatus() == 137 {
