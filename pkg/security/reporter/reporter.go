@@ -8,7 +8,6 @@ package reporter
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -35,11 +34,11 @@ func (r *RuntimeReporter) ReportRaw(content []byte, service string, tags ...stri
 	r.logChan <- msg
 }
 
-func NewRuntimeReporter(config config.Component, stopper startstop.Stopper, sourceName, sourceType string, endpoints *logsconfig.Endpoints, context *client.DestinationsContext) (seccommon.RawReporter, error) {
+func NewRuntimeReporter(runPath string, stopper startstop.Stopper, sourceName, sourceType string, endpoints *logsconfig.Endpoints, context *client.DestinationsContext) (seccommon.RawReporter, error) {
 	health := health.RegisterLiveness("runtime-security")
 
 	// setup the auditor
-	auditor := auditor.New(config.GetString("runtime_security_config.run_path"), "runtime-security-registry.json", pkgconfig.DefaultAuditorTTL, health)
+	auditor := auditor.New(runPath, "runtime-security-registry.json", pkgconfig.DefaultAuditorTTL, health)
 	auditor.Start()
 	stopper.Add(auditor)
 

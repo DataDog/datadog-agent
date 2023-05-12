@@ -674,7 +674,8 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 	}
 	stopper.Add(ctx)
 
-	reporter, err := reporter.NewRuntimeReporter(config, stopper, "runtime-security-agent", "runtime-security", endpoints, ctx)
+	runPath := config.GetString("runtime_security_config.run_path")
+	reporter, err := reporter.NewRuntimeReporter(runPath, stopper, "runtime-security-agent", "runtime-security", endpoints, ctx)
 	if err != nil {
 		return nil, err
 	}
