@@ -25,7 +25,7 @@ func newStore(vs valueStore) Store {
 }
 
 func (s Store) Get(key StoreKey) (string, error) {
-	return getAndConvert(s.vs, key, func(s string) (string, error) { return string(s), nil })
+	return getAndConvert(s.vs, key, func(s string) (string, error) { return s, nil })
 }
 
 func (s Store) GetWithDefault(key StoreKey, def string) (string, error) {

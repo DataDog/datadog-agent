@@ -11,13 +11,13 @@ var _ valueStore = &cachingStore{}
 
 type cachingStore struct {
 	l     sync.Mutex
-	cache map[string]string
+	cache map[StoreKey]string
 	s     valueStore
 }
 
 func newCachingStore(s valueStore) valueStore {
 	return &cachingStore{
-		cache: make(map[string]string),
+		cache: make(map[StoreKey]string),
 		s:     s,
 	}
 }
@@ -26,9 +26,7 @@ func (s *cachingStore) get(key StoreKey) (string, error) {
 	s.l.Lock()
 	defer s.l.Unlock()
 
-	cachingStoreKey := string(key)
-
-	value, found := s.cache[cachingStoreKey]
+	value, found := s.cache[key]
 	if found {
 		return value, nil
 	}
@@ -39,6 +37,6 @@ func (s *cachingStore) get(key StoreKey) (string, error) {
 		return "", err
 	}
 
-	s.cache[cachingStoreKey] = value
+	s.cache[key] = value
 	return value, nil
 }

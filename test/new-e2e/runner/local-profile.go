@@ -36,7 +36,7 @@ func NewLocalProfile() (Profile, error) {
 	} else {
 		store = parameters.NewCascadingStore(envValueStore)
 	}
-	return localProfile{baseProfile: newProfile("e2elocal", []string{"aws/sandbox"}, store, &store)}, nil
+	return localProfile{baseProfile: newProfile("e2elocal", []string{"aws/sandbox"}, store, nil)}, nil
 }
 
 func getConfigFilePath() (string, error) {
