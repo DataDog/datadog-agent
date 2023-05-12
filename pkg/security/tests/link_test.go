@@ -64,7 +64,7 @@ func TestLink(t *testing.T) {
 			assertNearTime(t, event.Link.Target.MTime)
 			assertNearTime(t, event.Link.Target.CTime)
 
-			value, _ := event.GetFieldValue("async")
+			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
 
 			test.validateLinkSchema(t, event)
@@ -92,7 +92,7 @@ func TestLink(t *testing.T) {
 			assertNearTime(t, event.Link.Target.MTime)
 			assertNearTime(t, event.Link.Target.CTime)
 
-			value, _ := event.GetFieldValue("async")
+			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
 
 			test.validateLinkSchema(t, event)
@@ -148,7 +148,7 @@ func TestLink(t *testing.T) {
 			assertNearTime(t, event.Link.Target.MTime)
 			assertNearTime(t, event.Link.Target.CTime)
 
-			value, _ := event.GetFieldValue("async")
+			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), true)
 
 			executable, err := os.Executable()

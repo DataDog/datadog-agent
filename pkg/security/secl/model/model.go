@@ -20,6 +20,8 @@ import (
 	"time"
 	"unsafe"
 
+	"golang.org/x/exp/slices"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
@@ -190,10 +192,16 @@ func (s Status) String() string {
 
 // SecurityProfileContext holds the security context of the profile
 type SecurityProfileContext struct {
-	Name    string   `field:"name"`    // SECLDoc[name] Definition:`Name of the security profile`
-	Status  Status   `field:"status"`  // SECLDoc[status] Definition:`Status of the security profile`
-	Version string   `field:"version"` // SECLDoc[version] Definition:`Version of the security profile`
-	Tags    []string `field:"tags"`    // SECLDoc[tags] Definition:`Tags of the security profile`
+	Name                       string      `field:"name"`                          // SECLDoc[name] Definition:`Name of the security profile`
+	Status                     Status      `field:"status"`                        // SECLDoc[status] Definition:`Status of the security profile`
+	Version                    string      `field:"version"`                       // SECLDoc[version] Definition:`Version of the security profile`
+	Tags                       []string    `field:"tags"`                          // SECLDoc[tags] Definition:`Tags of the security profile`
+	AnomalyDetectionEventTypes []EventType `field:"anomaly_detection_event_types"` // SECLDoc[anomaly_detection_event_types] Definition:`Event types enabled for anomaly detection`
+}
+
+// CanGenerateAnomaliesFor returns true if the current profile can generate anomalies for the provided event type
+func (spc SecurityProfileContext) CanGenerateAnomaliesFor(evtType EventType) bool {
+	return slices.Contains[EventType](spc.AnomalyDetectionEventTypes, evtType)
 }
 
 // Event represents an event sent from the kernel
@@ -202,9 +210,9 @@ type Event struct {
 	ID           string         `field:"-" json:"-"`
 	Type         uint32         `field:"-"`
 	Flags        uint32         `field:"-"`
-	Async        bool           `field:"async,handler:ResolveAsync" event:"*" platform:"linux"` // SECLDoc[async] Definition:`True if the syscall was asynchronous`
-	TimestampRaw uint64         `field:"-" json:"-"`
-	Timestamp    time.Time      `field:"-"` // Timestamp of the event
+	Async        bool           `field:"event.async,handler:ResolveAsync" event:"*" platform:"linux"` // SECLDoc[event.async] Definition:`True if the syscall was asynchronous`
+	TimestampRaw uint64         `field:"event.timestamp,handler:ResolveEventTimestamp" json:"-"`      // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
+	Timestamp    time.Time      `field:"-"`
 	Rules        []*MatchedRule `field:"-"`
 
 	// context shared with all events
@@ -392,9 +400,9 @@ func (ev *Event) ResolveProcessCacheEntry() (*ProcessCacheEntry, bool) {
 	return ev.FieldHandlers.ResolveProcessCacheEntry(ev)
 }
 
-// ResolveEventTimestamp uses the field handler
-func (ev *Event) ResolveEventTimestamp() time.Time {
-	return ev.FieldHandlers.ResolveEventTimestamp(ev)
+// ResolveEventTime uses the field handler
+func (ev *Event) ResolveEventTime() time.Time {
+	return ev.FieldHandlers.ResolveEventTime(ev)
 }
 
 // GetProcessService uses the field handler
@@ -571,6 +579,8 @@ type Process struct {
 	Variables             eval.Variables `field:"-" json:"-"`
 
 	IsThread bool `field:"is_thread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
+
+	Source uint64 `field:"-" json:"-"`
 }
 
 // SpanContext describes a span context
@@ -780,6 +790,22 @@ type ProcessCacheEntry struct {
 	refCount  uint64                     `field:"-" json:"-"`
 	onRelease func(_ *ProcessCacheEntry) `field:"-" json:"-"`
 	releaseCb func()                     `field:"-" json:"-"`
+}
+
+const (
+	ProcessCacheEntryFromEvent = iota
+	ProcessCacheEntryFromKernelMap
+	ProcessCacheEntryFromProcFS
+)
+
+var ProcessSources = [...]string{
+	"Event",
+	"KernelMap",
+	"ProcFS",
+}
+
+func ProcessSourceToString(source uint64) string {
+	return ProcessSources[source]
 }
 
 // IsContainerRoot returns whether this is a top level process in the container ID
@@ -1198,7 +1224,7 @@ func (pl *PathLeaf) MarshalBinary() ([]byte, error) {
 // ExtraFieldHandlers handlers not hold by any field
 type ExtraFieldHandlers interface {
 	ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool)
-	ResolveEventTimestamp(ev *Event) time.Time
+	ResolveEventTime(ev *Event) time.Time
 	GetProcessService(ev *Event) string
 }
 
@@ -1208,7 +1234,7 @@ func (dfh *DefaultFieldHandlers) ResolveProcessCacheEntry(ev *Event) (*ProcessCa
 }
 
 // ResolveEventTimestamp stub implementation
-func (dfh *DefaultFieldHandlers) ResolveEventTimestamp(ev *Event) time.Time {
+func (dfh *DefaultFieldHandlers) ResolveEventTime(ev *Event) time.Time {
 	return ev.Timestamp
 }
 

@@ -11,7 +11,7 @@ import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 type EventType uint32
 
 const (
-	// UnknownEventType unknow event
+	// UnknownEventType unknown event
 	UnknownEventType EventType = iota
 	// FileOpenEventType File open event
 	FileOpenEventType
@@ -105,6 +105,9 @@ const (
 
 	// LastDiscarderEventType last event that accepts discarders
 	LastDiscarderEventType = FileRemoveXAttrEventType
+
+	// LastApproverEventType is the last event that accepts approvers
+	LastApproverEventType = SpliceEventType
 
 	// CustomLostReadEventType is the custom event used to report lost events detected in user space
 	CustomLostReadEventType = iota

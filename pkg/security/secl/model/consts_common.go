@@ -1029,6 +1029,9 @@ func (kc KernelCapability) String() string {
 
 // StringArray returns the kernel capabilities as an array of strings
 func (kc KernelCapability) StringArray() []string {
+	if kc == 0 {
+		return nil
+	}
 	if value, ok := capsStringArrayCache.Get(kc); ok {
 		return value
 	}

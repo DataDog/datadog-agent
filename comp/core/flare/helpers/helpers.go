@@ -29,6 +29,11 @@ import (
 // Note as well that the flare does nothing to prevent files to be overwritten by different calls. It's up to the caller
 // to make sure the path used in the flare doesn't clash with other modules.
 type FlareBuilder interface {
+	// IsLocal returns true when the flare is created by the CLI instead of the running Agent process. This happens
+	// when the CLI could not reach the Agent process to request a new flare. In that case a flare is still created
+	// directly from the CLI process and will not contains any runtime informations.
+	IsLocal() bool
+
 	// AddFile creates a new file in the flare with the content.
 	//
 	// 'destFile' is a path relative to the flare root (ex: "some/path/to/a/file"). Any necessary directory will
@@ -128,11 +133,13 @@ type FlareBuilder interface {
 	Save() (string, error)
 }
 
-type flareCallback func(fb FlareBuilder) error
+// FlareCallback is a function that can be registered as a data provider for flares. This function, if registered, will
+// be called everytime a flare is created.
+type FlareCallback func(fb FlareBuilder) error
 
 // FlareProvider represents a callback to be used when creating a flare
 type FlareProvider struct {
-	Callback flareCallback
+	Callback FlareCallback
 }
 
 // Provider is provided by other components to register themselves to provide flare data.
@@ -143,7 +150,7 @@ type Provider struct {
 }
 
 // NewProvider returns a new Provider to be called when a flare is created
-func NewProvider(callback flareCallback) Provider {
+func NewProvider(callback FlareCallback) Provider {
 	return Provider{
 		Provider: FlareProvider{
 			Callback: callback,

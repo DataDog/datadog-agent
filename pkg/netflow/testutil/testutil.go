@@ -3,12 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+//go:build test
+// +build test
+
 package testutil
 
 import (
 	"bytes"
+	_ "embed"
 	"encoding/json"
 	"fmt"
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
+	"github.com/google/gopacket/pcapgo"
 	"net"
 	"testing"
 	"time"
@@ -20,6 +27,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/netflow/payload"
 )
+
+//go:embed pcap_recordings/netflow9.pcapng
+var netflow9pcapng []byte
+
+//go:embed pcap_recordings/sflow.pcapng
+var sflowpcapng []byte
 
 func SendUDPPacket(port uint16, data []byte) error {
 	udpConn, err := net.Dial("udp", fmt.Sprintf("127.0.0.1:%d", port))
@@ -96,4 +109,36 @@ func ExpectNetflow5Payloads(t *testing.T, mockEpForwrader *epforwarder.MockEvent
 
 		mockEpForwrader.EXPECT().SendEventPlatformEventBlocking(m, epforwarder.EventTypeNetworkDevicesNetFlow).Return(nil)
 	}
+}
+
+func GetPacketFromPcap(pcapdata []byte, layer gopacket.Decoder, packetIndex int) ([]byte, error) {
+	reader := bytes.NewReader(pcapdata)
+
+	r, err := pcapgo.NewNgReader(reader, pcapgo.DefaultNgReaderOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	packetCount := 0
+	for {
+		data, _, err := r.ReadPacketData()
+		if err != nil {
+			return nil, err
+		}
+		if packetCount == packetIndex {
+			packet := gopacket.NewPacket(data, layer, gopacket.Default)
+			app := packet.ApplicationLayer()
+			content := app.Payload()
+			return content, nil
+		}
+		packetCount += 1
+	}
+}
+
+func GetNetFlow9Packet() ([]byte, error) {
+	return GetPacketFromPcap(netflow9pcapng, layers.LayerTypeLoopback, 0)
+}
+
+func GetSFlow5Packet() ([]byte, error) {
+	return GetPacketFromPcap(sflowpcapng, layers.LayerTypeEthernet, 1)
 }

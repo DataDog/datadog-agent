@@ -8,7 +8,45 @@
 
 package tests
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources/audit"
+)
 
 func TestAuditInput(t *testing.T) {
+	cl, err := audit.NewAuditClient()
+	if err != nil {
+		t.Skipf("could not create audit client: %v", err)
+	}
+
+	b := NewTestBench(t).
+		WithAuditClient(cl)
+	defer b.Run()
+
+	b.AddRule("NonExistingPath").
+		WithInput(`
+- audit:
+    path: /foo/bar/baz
+  type: array
+  tag: baz
+`).
+		WithRego(`
+package datadog
+import data.datadog as dd
+
+has_key(o, k) {
+	_ := o[k]
+}
+
+findings[f] {
+	not has_key(input, "baz")
+	f := dd.passed_finding(
+		"my_resource_type",
+		"my_resource_id",
+		{ "foo": input.context.hostname }
+	)
+}
+`).
+		AssertPassedEvent(nil)
 }

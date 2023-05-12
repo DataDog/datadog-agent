@@ -9,7 +9,6 @@
 package http
 
 /*
-#include "../../ebpf/c/tracer.h"
 #include "../../ebpf/c/protocols/tls/tags-types.h"
 #include "../../ebpf/c/protocols/http/types.h"
 #include "../../ebpf/c/protocols/classification/defs.h"

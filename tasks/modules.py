@@ -14,11 +14,16 @@ class GoModule:
     If True, a check will run to ensure this is true.
     """
 
-    def __init__(self, path, targets=None, condition=lambda: True, should_tag=True, independent=False):
+    def __init__(self, path, targets=None, condition=lambda: True, should_tag=True, importable=True, independent=False):
         self.path = path
         self.targets = targets if targets else ["."]
         self.condition = condition
         self.should_tag = should_tag
+        # HACK: Workaround for modules that can be tested, but not imported (eg. gohai), because
+        # they define a main package
+        # A better solution would be to automatically detect if a module contains a main package,
+        # at the cost of spending some time parsing the module.
+        self.importable = importable
         self.independent = independent
 
         self._dependencies = None
@@ -158,7 +163,7 @@ def generate_dummy_package(ctx, folder):
     try:
         import_paths = []
         for mod in DEFAULT_MODULES.values():
-            if mod.path != "." and mod.condition():
+            if mod.path != "." and mod.condition() and mod.importable:
                 import_paths.append(mod.import_path)
 
         os.mkdir(folder)

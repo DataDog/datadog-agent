@@ -51,8 +51,8 @@ func TestCreateSecurityAgentArchive(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			mock := flarehelpers.NewFlareBuilderMock(t)
-			createSecurityAgentArchive(mock.Fb, test.local, logFilePath, nil, nil)
+			mock := flarehelpers.NewFlareBuilderMock(t, test.local)
+			createSecurityAgentArchive(mock.Fb, logFilePath, nil, nil)
 
 			for _, f := range test.expectedFiles {
 				mock.AssertFileExists(f)

@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
@@ -36,9 +37,10 @@ func NewTailer(source *sources.LogSource, conn net.Conn, outputChan chan *messag
 		Conn:       conn,
 		outputChan: outputChan,
 		read:       read,
-		decoder:    decoder.InitializeDecoder(sources.NewReplaceableSource(source), noop.New()),
-		stop:       make(chan struct{}, 1),
-		done:       make(chan struct{}, 1),
+		// tailer info is currently unused for this tailer type.
+		decoder: decoder.InitializeDecoder(sources.NewReplaceableSource(source), noop.New(), status.NewInfoRegistry()),
+		stop:    make(chan struct{}, 1),
+		done:    make(chan struct{}, 1),
 	}
 }
 

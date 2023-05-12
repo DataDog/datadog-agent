@@ -11,11 +11,11 @@
 
 #include "defs.h"
 #include "conntrack.h"
-#include "conntrack-maps.h"
+#include "conntrack/maps.h"
 #include "netns.h"
 #include "ip.h"
 
-#ifdef FEATURE_IPV6_ENABLED
+#if defined(FEATURE_TCPV6_ENABLED) || defined(FEATURE_UDPV6_ENABLED)
 #include "ipv6.h"
 #endif
 

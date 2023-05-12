@@ -19,7 +19,7 @@ const (
 	Pass = "password"
 )
 
-func RunServer(t *testing.T, serverAddress, serverPort string) bool {
+func RunServer(t testing.TB, serverAddress, serverPort string) error {
 	env := []string{
 		"MONGO_ADDR=" + serverAddress,
 		"MONGO_PORT=" + serverPort,

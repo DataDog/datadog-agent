@@ -283,13 +283,14 @@ func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions
 }
 
 func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, imgMeta *workloadmeta.ContainerImageMetadata) (sbom.Report, error) {
-	artifactReference, err := artifact.Inspect(ctx) // called by the scanner as well
-	if err != nil {
-		return nil, err
-	}
 	if imgMeta != nil {
+		artifactReference, err := artifact.Inspect(ctx) // called by the scanner as well
+		if err != nil {
+			return nil, err
+		}
 		c.cacheCleaner.setKeysForEntity(imgMeta.EntityID.ID, append(artifactReference.BlobIDs, artifactReference.ID))
 	}
+
 	s := scanner.NewScanner(local.NewScanner(c.applier, c.detector, c.vulnClient), artifact)
 	trivyReport, err := s.ScanArtifact(ctx, types.ScanOptions{
 		VulnType:            []string{},

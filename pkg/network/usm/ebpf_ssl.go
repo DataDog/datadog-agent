@@ -233,7 +233,6 @@ func newSSLProgram(c *config.Config, sockFDMap *ebpf.Map) *sslProgram {
 }
 
 func (o *sslProgram) ConfigureManager(m *errtelemetry.Manager) {
-
 	o.manager = m
 
 	m.PerfMaps = append(m.PerfMaps, &manager.PerfMap{
@@ -317,6 +316,9 @@ func (o *sslProgram) Start() {
 }
 
 func (o *sslProgram) Stop() {
+	// We must stop the watcher first, as we can read from the perfHandler, before terminating the perfHandler, otherwise
+	// we might try to send events over the perfHandler.
+	o.watcher.Stop()
 	o.perfHandler.Stop()
 }
 

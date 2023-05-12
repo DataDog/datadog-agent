@@ -18,14 +18,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+	"github.com/twmb/franz-go/pkg/kgo"
+	"github.com/twmb/franz-go/pkg/kversion"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/stretchr/testify/require"
-	"github.com/twmb/franz-go/pkg/kgo"
-	"github.com/twmb/franz-go/pkg/kversion"
 )
 
 type BinaryType int
@@ -113,7 +114,7 @@ func TestKafkaProtocolParsing(t *testing.T) {
 
 	serverAddress := net.JoinHostPort(serverHost, kafkaPort)
 	targetAddress := net.JoinHostPort(targetHost, kafkaPort)
-	require.True(t, kafka.RunServer(t, serverHost, kafkaPort))
+	require.NoError(t, kafka.RunServer(t, serverHost, kafkaPort))
 
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
@@ -444,7 +445,7 @@ func getDefaultTestConfiguration() *config.Config {
 }
 
 func newHTTPWithKafkaMonitor(t *testing.T, cfg *config.Config) *Monitor {
-	monitor, err := NewMonitor(cfg, nil, nil, nil)
+	monitor, err := NewMonitor(cfg, nil, nil, nil, nil)
 	skipIfNotSupported(t, err)
 	require.NoError(t, err)
 	t.Cleanup(func() {

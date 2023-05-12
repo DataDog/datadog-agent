@@ -18,10 +18,8 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/sys/windows"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	pkgflare "github.com/DataDog/datadog-agent/pkg/flare"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -187,16 +185,6 @@ func requestFlare(s *systray, caseID, customerEmail string) (response string, e 
 	}
 	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, config.Datadog.GetInt("cmd_port"))
 
-	logFile := config.Datadog.GetString("log_file")
-	if logFile == "" {
-		logFile = path.DefaultLogFile
-	}
-
-	jmxLogFile := config.Datadog.GetString("jmx_log_file")
-	if jmxLogFile == "" {
-		jmxLogFile = path.DefaultJmxLogFile
-	}
-
 	// Set session token
 	e = util.SetAuthToken()
 	if e != nil {
@@ -216,7 +204,7 @@ func requestFlare(s *systray, caseID, customerEmail string) (response string, e 
 		}
 		s.log.Debug("Initiating flare locally.")
 
-		filePath, e = s.flare.Create(true, path.GetDistPath(), path.PyChecksPath, []string{logFile, jmxLogFile}, nil, e)
+		filePath, e = s.flare.Create(nil, e)
 		if e != nil {
 			s.log.Errorf("The flare zipfile failed to be created: %s\n", e)
 			return
@@ -227,7 +215,7 @@ func requestFlare(s *systray, caseID, customerEmail string) (response string, e 
 
 	s.log.Warnf("%s is going to be uploaded to Datadog\n", filePath)
 
-	response, e = pkgflare.SendFlare(filePath, caseID, customerEmail)
+	response, e = s.flare.Send(filePath, caseID, customerEmail)
 	s.log.Debug(response)
 	if e != nil {
 		return

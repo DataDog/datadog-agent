@@ -53,7 +53,8 @@ func SetupHandlers(r *mux.Router) {
 
 func getStatus(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got a request for the status. Making status.")
-	s, err := status.GetDCAStatus()
+	verbose := r.URL.Query().Get("verbose") == "true"
+	s, err := status.GetDCAStatus(verbose)
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
 		log.Errorf("Error getting status. Error: %v, Status: %v", err, s)
