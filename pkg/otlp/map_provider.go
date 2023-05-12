@@ -15,7 +15,6 @@ import (
 	"go.opentelemetry.io/collector/otelcol"
 	"go.uber.org/multierr"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/otlp/internal/configutils"
 )
 
@@ -23,40 +22,6 @@ import (
 func buildKey(keys ...string) string {
 	return strings.Join(keys, confmap.KeyDelimiter)
 }
-
-// defaultTracesConfig is the base traces OTLP pipeline configuration.
-// This pipeline is extended through the datadog.yaml configuration values.
-// It is written in YAML because it is easier to read and write than a map.
-const defaultTracesConfig string = `
-receivers:
-  otlp:
-
-exporters:
-  otlp:
-    tls:
-      insecure: true
-    compression: none
-
-service:
-  telemetry:
-    metrics:
-      level: none
-  pipelines:
-    traces:
-      receivers: [otlp]
-      exporters: [otlp]
-`
-
-const processorTracesConfig string = `
-processors:
-  batch:
-    timeout: 10s
-
-service:
-  pipelines:
-    traces:
-      processors: [batch]
-`
 
 func buildTracesMap(tracePort uint) (*confmap.Conf, error) {
 	baseMap, err := configutils.NewMapFromYAMLString(defaultTracesConfig)
@@ -69,44 +34,8 @@ func buildTracesMap(tracePort uint) (*confmap.Conf, error) {
 		})
 		err = baseMap.Merge(configMap)
 	}
-	if !config.Datadog.GetBool("serverless.enabled") {
-		configMap, err := configutils.NewMapFromYAMLString(processorTracesConfig)
-		if err != nil {
-			return nil, err
-		}
-		err = baseMap.Merge(configMap)
-	}
 	return baseMap, err
 }
-
-// defaultMetricsConfig is the metrics OTLP pipeline configuration.
-const defaultMetricsConfig string = `
-receivers:
-  otlp:
-
-exporters:
-  serializer:
-
-service:
-  telemetry:
-    metrics:
-      level: none
-  pipelines:
-    metrics:
-      receivers: [otlp]
-      exporters: [serializer]
-`
-
-const processorMetricsConfig string = `
-processors:
-  batch:
-    timeout: 10s
-
-service:
-  pipelines:
-    metrics:
-      processors: [batch]
-`
 
 func buildMetricsMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	baseMap, err := configutils.NewMapFromYAMLString(defaultMetricsConfig)
@@ -118,13 +47,6 @@ func buildMetricsMap(cfg PipelineConfig) (*confmap.Conf, error) {
 		configMap := confmap.NewFromStringMap(map[string]interface{}{
 			buildKey("exporters", "serializer", "metrics"): cfg.Metrics,
 		})
-		err = baseMap.Merge(configMap)
-	}
-	if !config.Datadog.GetBool("serverless.enabled") {
-		configMap, err := configutils.NewMapFromYAMLString(processorMetricsConfig)
-		if err != nil {
-			return nil, err
-		}
 		err = baseMap.Merge(configMap)
 	}
 	return baseMap, err
