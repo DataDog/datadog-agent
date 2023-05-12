@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/reporter"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -48,6 +49,7 @@ type pendingMsg struct {
 type APIServer struct {
 	api.UnimplementedSecurityModuleServer
 	msgs              chan *api.SecurityEventMessage
+	directReporter    *reporter.DirectReporter
 	activityDumps     chan *api.ActivityDumpStreamMessage
 	expiredEventsLock sync.RWMutex
 	expiredEvents     map[rules.RuleID]*atomic.Int64
@@ -325,7 +327,7 @@ func (a *APIServer) start(ctx context.Context) {
 					Tags:    msg.tags,
 				}
 
-				if SEND_DIRECTLY {
+				if a.directReporter != nil {
 					a.sendDirectly(m)
 				} else {
 					a.sendToSecurityAgent(m)
@@ -538,15 +540,20 @@ func (a *APIServer) Apply(ruleIDs []rules.RuleID) {
 // NewAPIServer returns a new gRPC event server
 func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, client statsd.ClientInterface) *APIServer {
 	es := &APIServer{
-		msgs:          make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
-		activityDumps: make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
-		expiredEvents: make(map[rules.RuleID]*atomic.Int64),
-		expiredDumps:  atomic.NewInt64(0),
-		limiter:       NewStdLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
-		statsdClient:  client,
-		probe:         probe,
-		retention:     cfg.EventServerRetention,
-		cfg:           cfg,
+		msgs:           make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
+		directReporter: newDirectReporter(),
+		activityDumps:  make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
+		expiredEvents:  make(map[rules.RuleID]*atomic.Int64),
+		expiredDumps:   atomic.NewInt64(0),
+		limiter:        NewStdLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
+		statsdClient:   client,
+		probe:          probe,
+		retention:      cfg.EventServerRetention,
+		cfg:            cfg,
 	}
 	return es
+}
+
+func newDirectReporter() *reporter.DirectReporter {
+	return nil
 }
