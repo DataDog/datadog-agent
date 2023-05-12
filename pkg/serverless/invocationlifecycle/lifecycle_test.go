@@ -253,6 +253,8 @@ func TestCompleteInferredSpanWithStartTime(t *testing.T) {
 	testProcessor.OnInvokeEnd(&endDetails)
 
 	completedInferredSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	httpStatusCode := testProcessor.GetInferredSpan().Span.GetMeta()["http.status_code"]
+	assert.NotNil(t, httpStatusCode)
 	assert.Equal(t, testProcessor.GetInferredSpan().Span.Start, completedInferredSpan.Start)
 }
 

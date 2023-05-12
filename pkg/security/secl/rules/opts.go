@@ -21,11 +21,21 @@ type VariableProviderFactory func() VariableProvider
 
 // Opts defines rules set options
 type Opts struct {
+	RuleSetTag          map[string]eval.RuleSetTagValue
 	SupportedDiscarders map[eval.Field]bool
 	ReservedRuleIDs     []RuleID
 	EventTypeEnabled    map[eval.EventType]bool
 	StateScopes         map[Scope]VariableProviderFactory
 	Logger              log.Logger
+}
+
+// WithRuleSetTag sets the rule set tag with the value of the tag of the rules that belong in this rule set
+func (o *Opts) WithRuleSetTag(tagValue eval.RuleSetTagValue) *Opts {
+	if o.RuleSetTag == nil {
+		o.RuleSetTag = make(map[string]eval.RuleSetTagValue)
+	}
+	o.RuleSetTag[RuleSetTagKey] = tagValue
+	return o
 }
 
 // WithSupportedDiscarders set supported discarders
@@ -61,6 +71,7 @@ func (o *Opts) WithStateScopes(stateScopes map[Scope]VariableProviderFactory) *O
 // NetEvalOpts returns eval options
 func NewEvalOpts(eventTypeEnabled map[eval.EventType]bool) (*Opts, *eval.Opts) {
 	var ruleOpts Opts
+
 	ruleOpts.
 		WithEventTypeEnabled(eventTypeEnabled).
 		WithStateScopes(map[Scope]VariableProviderFactory{
@@ -69,7 +80,7 @@ func NewEvalOpts(eventTypeEnabled map[eval.EventType]bool) (*Opts, *eval.Opts) {
 					return ctx.Event.(*model.Event).ProcessCacheEntry
 				})
 			},
-		})
+		}).WithRuleSetTag(DefaultRuleSetTagValue)
 
 	var evalOpts eval.Opts
 	evalOpts.

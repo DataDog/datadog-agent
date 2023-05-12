@@ -11,15 +11,13 @@ package http
 import (
 	"time"
 
-	"go.uber.org/atomic"
-
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/atomic"
 )
 
-type telemetry struct {
-	then *atomic.Int64
-
+type Telemetry struct {
+	LastCheck                                   *atomic.Int64
 	hits1XX, hits2XX, hits3XX, hits4XX, hits5XX *libtelemetry.Metric
 
 	totalHits    *libtelemetry.Metric
@@ -29,15 +27,15 @@ type telemetry struct {
 	aggregations *libtelemetry.Metric
 }
 
-func newTelemetry() (*telemetry, error) {
+func NewTelemetry() (*Telemetry, error) {
 	metricGroup := libtelemetry.NewMetricGroup(
 		"usm.http",
 		libtelemetry.OptExpvar,
 		libtelemetry.OptMonotonic,
 	)
 
-	t := &telemetry{
-		then:         atomic.NewInt64(time.Now().Unix()),
+	t := &Telemetry{
+		LastCheck:    atomic.NewInt64(time.Now().Unix()),
 		hits1XX:      metricGroup.NewMetric("hits1xx"),
 		hits2XX:      metricGroup.NewMetric("hits2xx"),
 		hits3XX:      metricGroup.NewMetric("hits3xx"),
@@ -52,10 +50,12 @@ func newTelemetry() (*telemetry, error) {
 		malformed: metricGroup.NewMetric("malformed", libtelemetry.OptStatsd),
 	}
 
+	t.LastCheck.Store(time.Now().Unix())
+
 	return t, nil
 }
 
-func (t *telemetry) count(tx httpTX) {
+func (t *Telemetry) Count(tx HttpTX) {
 	statusClass := (tx.StatusCode() / 100) * 100
 	switch statusClass {
 	case 100:
@@ -72,16 +72,20 @@ func (t *telemetry) count(tx httpTX) {
 	t.totalHits.Add(1)
 }
 
-func (t *telemetry) log() {
+func (t *Telemetry) Log() {
 	now := time.Now().Unix()
-	then := t.then.Swap(now)
 
+	if t.LastCheck.Load() == 0 {
+		t.LastCheck.Store(now)
+		return
+	}
 	totalRequests := t.totalHits.Delta()
 	dropped := t.dropped.Delta()
 	rejected := t.rejected.Delta()
 	malformed := t.malformed.Delta()
 	aggregations := t.aggregations.Delta()
-	elapsed := now - then
+	elapsed := now - t.LastCheck.Load()
+	t.LastCheck.Store(now)
 
 	log.Debugf(
 		"http stats summary: requests_processed=%d(%.2f/s) requests_dropped=%d(%.2f/s) requests_rejected=%d(%.2f/s) requests_malformed=%d(%.2f/s) aggregations=%d",

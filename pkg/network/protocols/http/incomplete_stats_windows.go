@@ -18,9 +18,9 @@ import (
 // see both directions of traffic
 type incompleteBuffer struct{}
 
-func newIncompleteBuffer(c *config.Config, telemetry *telemetry) *incompleteBuffer {
+func newIncompleteBuffer(c *config.Config, telemetry *Telemetry) *incompleteBuffer {
 	return &incompleteBuffer{}
 }
 
-func (b *incompleteBuffer) Add(tx httpTX)                {}
-func (b *incompleteBuffer) Flush(now time.Time) []httpTX { return nil }
+func (b *incompleteBuffer) Add(tx HttpTX)                {}
+func (b *incompleteBuffer) Flush(now time.Time) []HttpTX { return nil }

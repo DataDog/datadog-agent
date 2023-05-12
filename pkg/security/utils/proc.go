@@ -19,7 +19,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/DataDog/gopsutil/process"
+	"github.com/shirou/gopsutil/v3/process"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -200,9 +200,19 @@ func GetProcesses() ([]*process.Process, error) {
 	return processes, nil
 }
 
+type FilledProcess struct {
+	Pid        int32
+	Ppid       int32
+	CreateTime int64
+	Name       string
+	Uids       []int32
+	Gids       []int32
+	MemInfo    *process.MemoryInfoStat
+	Cmdline    []string
+}
+
 // GetFilledProcess returns a FilledProcess from a Process input
-// TODO: make a PR to export a similar function in Datadog/gopsutil. We only populate the fields we need for now.
-func GetFilledProcess(p *process.Process) *process.FilledProcess {
+func GetFilledProcess(p *process.Process) *FilledProcess {
 	ppid, err := p.Ppid()
 	if err != nil {
 		return nil
@@ -238,7 +248,7 @@ func GetFilledProcess(p *process.Process) *process.FilledProcess {
 		return nil
 	}
 
-	return &process.FilledProcess{
+	return &FilledProcess{
 		Pid:        p.Pid,
 		Ppid:       ppid,
 		CreateTime: createTime,
@@ -250,13 +260,15 @@ func GetFilledProcess(p *process.Process) *process.FilledProcess {
 	}
 }
 
+const MAX_ENV_VARS_COLLECTED = 128
+
 // EnvVars returns a array with the environment variables of the given pid
-func EnvVars(pid int32) ([]string, error) {
+func EnvVars(pid int32) ([]string, bool, error) {
 	filename := filepath.Join(util.HostProc(), fmt.Sprintf("/%d/environ", pid))
 
 	f, err := os.Open(filename)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	defer f.Close()
 
@@ -277,13 +289,17 @@ func EnvVars(pid int32) ([]string, error) {
 
 	var envs []string
 	for scanner.Scan() {
+		if len(envs) >= MAX_ENV_VARS_COLLECTED {
+			return envs, true, nil
+		}
+
 		text := scanner.Text()
 		if len(text) > 0 {
 			envs = append(envs, text)
 		}
 	}
 
-	return envs, nil
+	return envs, false, nil
 }
 
 // ProcFSModule is a representation of a line in /proc/modules

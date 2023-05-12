@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/gopsutil/process"
+	"github.com/shirou/gopsutil/v3/process"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 

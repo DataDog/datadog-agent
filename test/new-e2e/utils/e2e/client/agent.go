@@ -8,35 +8,41 @@ package client
 import (
 	"errors"
 	"regexp"
+	"testing"
 	"time"
 
 	"github.com/DataDog/test-infra-definitions/datadog/agent"
 	"github.com/cenkalti/backoff"
 )
 
-var _ stackInitializer = (*Agent)(nil)
+var _ clientService[agent.ClientData] = (*Agent)(nil)
 
 // A client Agent that is connected to an agent.Installer defined in test-infra-definition.
 type Agent struct {
 	*UpResultDeserializer[agent.ClientData]
-	*sshClient
+	*vmClient
 }
 
 // Create a new instance of Agent
 func NewAgent(installer *agent.Installer) *Agent {
-	agent := &Agent{}
-	agent.UpResultDeserializer = NewUpResultDeserializer(installer.GetClientDataDeserializer(), agent.init)
-	return agent
+	agentInstance := &Agent{}
+	agentInstance.UpResultDeserializer = NewUpResultDeserializer[agent.ClientData](installer, agentInstance)
+	return agentInstance
 }
 
-func (agent *Agent) init(auth *Authentification, data *agent.ClientData) error {
+//lint:ignore U1000 Ignore unused function as this function is call using reflection
+func (agent *Agent) initService(t *testing.T, data *agent.ClientData) error {
 	var err error
-	agent.sshClient, err = newSSHClient(auth, &data.Connection)
+	agent.vmClient, err = newVMClient(t, "", &data.Connection)
 	return err
 }
 
-func (agent *Agent) Version() (string, error) {
-	return agent.sshClient.Execute("datadog-agent version")
+func (agent *Agent) Version() string {
+	return agent.vmClient.Execute("datadog-agent version")
+}
+
+func (agent *Agent) Config() string {
+	return agent.vmClient.Execute("sudo datadog-agent config")
 }
 
 type Status struct {
@@ -52,22 +58,14 @@ func (s *Status) isReady() (bool, error) {
 	return regexp.MatchString("={15}\nAgent \\(v7\\.\\d{2}\\..*\n={15}", s.Content)
 }
 
-func (agent *Agent) Status() (*Status, error) {
-	s, err := agent.sshClient.Execute("sudo datadog-agent status")
-	if err != nil {
-		return nil, err
-	}
-	return newStatus(s), nil
+func (agent *Agent) Status() *Status {
+	return newStatus(agent.vmClient.Execute("sudo datadog-agent status"))
 }
 
 // IsReady runs status command and returns true if the agent is ready
 // Use this to wait for agent to be ready before running any command
 func (a *Agent) IsReady() (bool, error) {
-	status, err := a.Status()
-	if err != nil {
-		return false, err
-	}
-	return status.isReady()
+	return a.Status().isReady()
 }
 
 // WaitForReady blocks up for one minute waiting for agent to be ready

@@ -94,6 +94,20 @@ func (p *Probe) zeroEvent() *model.Event {
 	p.event.FieldHandlers = p.fieldHandlers
 	return p.event
 }
+
 func (p *Probe) StatsPollingInterval() time.Duration {
 	return p.Config.Probe.StatsPollingInterval
+}
+
+// GetEventTags returns the event tags
+func (p *Probe) GetEventTags(ev *model.Event) []string {
+	return p.GetResolvers().TagsResolver.Resolve(ev.ContainerContext.ID)
+}
+
+// GetService returns the service name from the process tree
+func (p *Probe) GetService(ev *model.Event) string {
+	if service := ev.FieldHandlers.GetProcessService(ev); service != "" {
+		return service
+	}
+	return p.Config.RuntimeSecurity.HostServiceName
 }

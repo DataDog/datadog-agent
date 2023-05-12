@@ -23,8 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
-	"github.com/DataDog/datadog-agent/pkg/network/driver"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	driver "github.com/DataDog/datadog-agent/pkg/network/driver"
+	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -42,7 +42,7 @@ type Tracer struct {
 	stopChan        chan struct{}
 	state           network.State
 	reverseDNS      dns.ReverseDNS
-	httpMonitor     http.Monitor
+	usmMonitor      usm.Monitor
 
 	activeBuffer *network.ConnectionBuffer
 	closedBuffer *network.ConnectionBuffer
@@ -98,7 +98,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		activeBuffer:    network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
 		closedBuffer:    network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
 		reverseDNS:      reverseDNS,
-		httpMonitor:     newHttpMonitor(config, di.GetHandle()),
+		usmMonitor:      newUSMMonitor(config, di.GetHandle()),
 		sourceExcludes:  network.ParseConnectionFilters(config.ExcludedSourceConnections),
 		destExcludes:    network.ParseConnectionFilters(config.ExcludedDestinationConnections),
 	}
@@ -135,8 +135,8 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 // Stop function stops running tracer
 func (t *Tracer) Stop() {
 	close(t.stopChan)
-	if t.httpMonitor != nil { //nolint
-		_ = t.httpMonitor.Stop()
+	if t.usmMonitor != nil { //nolint
+		_ = t.usmMonitor.Stop()
 	}
 	t.reverseDNS.Close()
 	err := t.driverInterface.Close()
@@ -175,8 +175,8 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.state.StoreClosedConnections(closedConnStats)
 
 	var delta network.Delta
-	if t.httpMonitor != nil { //nolint
-		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats(), nil, nil)
+	if t.usmMonitor != nil { //nolint
+		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), t.usmMonitor.GetHTTPStats(), nil, nil)
 	} else {
 		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil, nil, nil)
 	}
@@ -206,45 +206,15 @@ func (t *Tracer) RegisterClient(clientID string) error {
 }
 
 func (t *Tracer) getConnTelemetry() map[network.ConnTelemetryType]int64 {
-	tm := map[network.ConnTelemetryType]int64{}
-
-	// allStats is the expvar map.  it is actually a map of maps
-	// top level keys are:
-	//   state (we don't need for this call)
-	//   dns   ( the dns handle stats)
-	//   each of the strings in DriverExpvarNames.  We're interested
-	//   in driver.flowHandleStats, which is "driver_flow_handle_stats"
-	if allstats, err := t.driverInterface.GetStats(); err == nil {
-		if flowStats, ok := allstats["driver_flow_handle_stats"].(map[string]int64); ok {
-			if fme, ok := flowStats["num_flows_missed_max_exceeded"]; ok {
-				tm[network.NPMDriverFlowsMissedMaxExceeded] = fme
-			}
-		}
+	return map[network.ConnTelemetryType]int64{
+		network.MonotonicDNSPacketsDropped: driver.HandleTelemetry.ReadPacketsSkipped.Load(),
 	}
-	dnsStats := t.reverseDNS.GetStats()
-	if pp, ok := dnsStats["packets_processed_transport"]; ok {
-		tm[network.MonotonicDNSPacketsProcessed] = pp
-	}
-	if pd, ok := dnsStats["read_packets_skipped"]; ok {
-		tm[network.MonotonicDNSPacketsDropped] = pd
-	}
-
-	return tm
 }
 
 // GetStats returns a map of statistics about the current tracer's internal state
 func (t *Tracer) GetStats() (map[string]interface{}, error) {
-	driverStats, err := t.driverInterface.GetStats()
-	if err != nil {
-		log.Errorf("not printing driver stats: %v", err)
-	}
-
 	stats := map[string]interface{}{
 		"state": t.state.GetStats(),
-		"dns":   t.reverseDNS.GetStats(),
-	}
-	for _, name := range network.DriverExpvarNames {
-		stats[string(name)] = driverStats[name]
 	}
 	return stats, nil
 }
@@ -279,16 +249,16 @@ func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error)
 	return nil, ebpf.ErrNotImplemented
 }
 
-func newHttpMonitor(c *config.Config, dh driver.Handle) http.Monitor {
+func newUSMMonitor(c *config.Config, dh driver.Handle) usm.Monitor {
 	if !c.EnableHTTPMonitoring && !c.EnableHTTPSMonitoring {
 		return nil
 	}
 	log.Infof("http monitoring has been enabled")
 
-	var monitor http.Monitor
+	var monitor usm.Monitor
 	var err error
 
-	monitor, err = http.NewWindowsMonitor(c, dh)
+	monitor, err = usm.NewWindowsMonitor(c, dh)
 
 	if err != nil {
 		log.Errorf("could not instantiate http monitor: %s", err)

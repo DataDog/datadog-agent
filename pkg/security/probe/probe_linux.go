@@ -57,6 +57,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -302,18 +303,60 @@ func (p *Probe) Start() error {
 	})
 }
 
-func (p *Probe) SendAnomalyDetection(event *model.Event) {
-	evtType := event.GetEventType()
-	if evtType != model.DNSEventType &&
-		evtType != model.ExecEventType {
-		return // at least, files, bind, fork and exit
+func (p *Probe) PlaySnapshot() {
+	// Get the snapshotted data
+	var events []*model.Event
+
+	entryToEvent := func(entry *model.ProcessCacheEntry) {
+		if entry.Source != model.ProcessCacheEntryFromProcFS {
+			return
+		}
+		event := &model.Event{}
+		event.FieldHandlers = p.fieldHandlers
+		event.Type = uint32(model.ExecEventType)
+		event.TimestampRaw = uint64(time.Now().UnixNano())
+		event.ProcessCacheEntry = entry
+		event.ProcessContext = &entry.ProcessContext
+		event.Exec.Process = &entry.Process
+		event.ProcessContext.Process.ContainerID = entry.ContainerID
+		events = append(events, event)
+	}
+	p.GetResolvers().ProcessResolver.Walk(entryToEvent)
+	for _, event := range events {
+		p.DispatchEvent(event)
+	}
+}
+
+func (p *Probe) sendAnomalyDetection(event *model.Event) {
+	tags := p.GetEventTags(event)
+	if service := p.GetService(event); service != "" {
+		tags = append(tags, "service:"+service)
 	}
 
 	p.DispatchCustomEvent(
 		events.NewCustomRule(events.AnomalyDetectionRuleID),
-		events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtor(event)),
+		events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtor(event), tags...),
 	)
-	p.anomalyDetectionSent[evtType].Inc()
+	p.anomalyDetectionSent[event.GetEventType()].Inc()
+}
+
+func (p *Probe) handleAnomalyDetection(event *model.Event) bool {
+	if !event.SecurityProfileContext.Status.IsEnabled(model.AnomalyDetection) {
+		return false
+	}
+
+	// first, check if the current event is a kernel generated anomaly detection event
+	if profile.IsAnomalyDetectionEvent(event.GetEventType()) {
+		p.monitor.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, &event.ContainerContext), &event.SecurityProfileContext)
+		// check if the profile can generate anomalies for the current event type
+	} else if !event.SecurityProfileContext.CanGenerateAnomaliesFor(event.GetEventType()) {
+		return false
+	} else if event.IsInProfile() {
+		return false
+	}
+
+	p.sendAnomalyDetection(event)
+	return true
 }
 
 // AddActivityDumpHandler set the probe activity dump handler
@@ -330,7 +373,7 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 
 	// filter out event if already present on a profile
 	if p.Config.RuntimeSecurity.SecurityProfileEnabled {
-		p.monitor.securityProfileManager.LookupEventOnProfiles(event)
+		p.monitor.securityProfileManager.LookupEventInProfiles(event)
 	}
 
 	// send wildcard first
@@ -342,15 +385,15 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 		handler.HandleEvent(event)
 	}
 
-	if event.SecurityProfileContext.Status.IsEnabled(model.AnomalyDetection) && !event.IsInProfile() && event.GetEventType() != model.SyscallsEventType {
-		p.SendAnomalyDetection(event)
-	}
-
-	// if a profile is already present for this event, dont even try to add it to a dump
-	if !event.HasProfile() {
+	// handle anomaly detection, if not an anomaly let it pass to the process monitor so that it can be added to a dump
+	if !p.handleAnomalyDetection(event) && event.Error == nil {
 		// Process after evaluation because some monitors need the DentryResolver to have been called first.
-		p.monitor.ProcessEvent(event)
+		if p.monitor.activityDumpManager != nil {
+			p.monitor.activityDumpManager.ProcessEvent(event)
+		}
+
 	}
+	p.monitor.ProcessEvent(event)
 }
 
 // DispatchCustomEvent sends a custom event to the probe event handler
@@ -432,6 +475,10 @@ func (p *Probe) invalidateDentry(mountID uint32, inode uint64) {
 
 	seclog.Tracef("remove dentry cache entry for inode %d", inode)
 	p.resolvers.DentryResolver.DelCacheEntry(mountID, inode)
+}
+
+func eventWithNoProcessContext(eventType model.EventType) bool {
+	return eventType == model.DNSEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType
 }
 
 // UnmarshalProcessCacheEntry unmarshal a Process
@@ -682,9 +729,9 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			if errors.As(err, &errResolution) {
 				event.SetPathResolutionError(&event.ProcessCacheEntry.FileEvent, err)
 			}
+		} else {
+			p.resolvers.ProcessResolver.AddExecEntry(event.ProcessCacheEntry)
 		}
-
-		p.resolvers.ProcessResolver.AddExecEntry(event.ProcessCacheEntry)
 
 		event.Exec.Process = &event.ProcessCacheEntry.Process
 	case model.ExitEventType:
@@ -703,7 +750,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		// Use the event timestamp as exit time
 		// The local process cache hasn't been updated yet with the exit time when the exit event is first seen
 		// The pid_cache kernel map has the exit_time but it's only accessed if there's a local miss
-		event.ProcessCacheEntry.Process.ExitTime = p.fieldHandlers.ResolveEventTimestamp(event)
+		event.ProcessCacheEntry.Process.ExitTime = p.fieldHandlers.ResolveEventTime(event)
 		event.Exit.Process = &event.ProcessCacheEntry.Process
 	case model.SetuidEventType:
 		if _, err = event.SetUID.UnmarshalBinary(data[offset:]); err != nil {
@@ -840,7 +887,16 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	}
 
 	// resolve the process cache entry
-	event.ProcessCacheEntry, _ = p.fieldHandlers.ResolveProcessCacheEntry(event)
+	entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event)
+	if !eventWithNoProcessContext(eventType) {
+		if !isResolved {
+			event.Error = &ErrNoProcessContext{Err: errors.New("process context not resolved")}
+		} else if !entry.HasCompleteLineage() {
+			event.Error = &ErrProcessBrokenLineage{PIDContext: entry.PIDContext}
+			p.resolvers.ProcessResolver.CountBrokenLineage()
+		}
+	}
+	event.ProcessCacheEntry = entry
 
 	// use ProcessCacheEntry process context as process context
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
@@ -850,20 +906,10 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	}
 
 	if eventType == model.ExitEventType {
-		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessCacheEntry.Pid, p.fieldHandlers.ResolveEventTimestamp(event))
+		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessCacheEntry.Pid, p.fieldHandlers.ResolveEventTime(event))
 	}
 
 	p.DispatchEvent(event)
-
-	// anomaly detection events
-	if model.IsAnomalyDetectionEvent(event.GetType()) {
-		p.monitor.securityProfileManager.FillProfileContextFromContainerID(event.ProcessContext.ContainerID, &event.SecurityProfileContext)
-		p.DispatchCustomEvent(
-			events.NewCustomRule(events.AnomalyDetectionRuleID),
-			events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtor(event)),
-		)
-		p.anomalyDetectionSent[event.GetEventType()].Inc()
-	}
 
 	// flush exited process
 	p.resolvers.ProcessResolver.DequeueExited()
@@ -941,25 +987,61 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 		seclog.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", kfilters.PolicyModeAccept, eventType, err)
 	}
 
+	type tag struct {
+		eventType    eval.EventType
+		approverType string
+	}
+	approverAddedMetricCounter := make(map[tag]float64)
+
 	for _, newApprover := range newApprovers {
-		seclog.Tracef("Applying approver %+v", newApprover)
+		seclog.Tracef("Applying approver %+v for event type %s", newApprover, eventType)
 		if err := newApprover.Apply(p.Manager); err != nil {
 			return err
 		}
+
+		approverType := getApproverType(newApprover.GetTableName())
+		approverAddedMetricCounter[tag{eventType, approverType}]++
 	}
 
 	if previousApprovers, exist := p.approvers[eventType]; exist {
 		previousApprovers.Sub(newApprovers)
 		for _, previousApprover := range previousApprovers {
-			seclog.Tracef("Removing previous approver %+v", previousApprover)
+			seclog.Tracef("Removing previous approver %+v for event type %s", previousApprover, eventType)
 			if err := previousApprover.Remove(p.Manager); err != nil {
 				return err
 			}
+
+			approverType := getApproverType(previousApprover.GetTableName())
+			approverAddedMetricCounter[tag{eventType, approverType}]--
+			if approverAddedMetricCounter[tag{eventType, approverType}] <= 0 {
+				delete(approverAddedMetricCounter, tag{eventType, approverType})
+			}
+		}
+	}
+
+	for tags, count := range approverAddedMetricCounter {
+		tags := []string{
+			fmt.Sprintf("approver_type:%s", tags.approverType),
+			fmt.Sprintf("event_type:%s", tags.eventType),
+		}
+
+		if err := p.StatsdClient.Gauge(metrics.MetricApproverAdded, count, tags, 1.0); err != nil {
+			seclog.Tracef("couldn't set MetricApproverAdded metric: %s", err)
 		}
 	}
 
 	p.approvers[eventType] = newApprovers
 	return nil
+}
+
+func getApproverType(approverTableName string) string {
+	approverType := "flag"
+
+	if approverTableName == kfilters.BasenameApproverKernelMapName {
+		approverType = "basename"
+	}
+
+	return approverType
 }
 
 func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {
@@ -1170,21 +1252,34 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 	return debug
 }
 
-// NewRuleSet returns a new rule set
-func (p *Probe) NewRuleSet(eventTypeEnabled map[eval.EventType]bool) *rules.RuleSet {
-	ruleOpts, evalOpts := rules.NewEvalOpts(eventTypeEnabled)
+// NewEvaluationSet returns a new evaluation set with rule sets tagged by the passed-in tag values for the "ruleset" tag key
+func (p *Probe) NewEvaluationSet(eventTypeEnabled map[eval.EventType]bool, ruleSetTagValues []string) (*rules.EvaluationSet, error) {
+	var ruleSetsToInclude []*rules.RuleSet
+	for _, ruleSetTagValue := range ruleSetTagValues {
+		ruleOpts, evalOpts := rules.NewEvalOpts(eventTypeEnabled)
 
-	ruleOpts.WithLogger(seclog.DefaultLogger)
-	ruleOpts.WithSupportedDiscarders(SupportedDiscarders)
-	ruleOpts.WithReservedRuleIDs(events.AllCustomRuleIDs())
-
-	eventCtor := func() eval.Event {
-		return &model.Event{
-			FieldHandlers: p.fieldHandlers,
+		ruleOpts.WithLogger(seclog.DefaultLogger)
+		ruleOpts.WithReservedRuleIDs(events.AllCustomRuleIDs())
+		if ruleSetTagValue == rules.DefaultRuleSetTagValue {
+			ruleOpts.WithSupportedDiscarders(SupportedDiscarders)
 		}
+
+		eventCtor := func() eval.Event {
+			return &model.Event{
+				FieldHandlers: p.fieldHandlers,
+			}
+		}
+
+		rs := rules.NewRuleSet(NewModel(p), eventCtor, ruleOpts.WithRuleSetTag(ruleSetTagValue), evalOpts)
+		ruleSetsToInclude = append(ruleSetsToInclude, rs)
 	}
 
-	return rules.NewRuleSet(NewModel(p), eventCtor, ruleOpts, evalOpts)
+	evaluationSet, err := rules.NewEvaluationSet(ruleSetsToInclude)
+	if err != nil {
+		return nil, err
+	}
+
+	return evaluationSet, nil
 }
 
 // QueuedNetworkDeviceError is used to indicate that the new network device was queued until its namespace handle is
@@ -1473,7 +1568,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		},
 		manager.ConstantEditor{
 			Name:  "anomaly_syscalls",
-			Value: utils.BoolTouint64(p.Config.RuntimeSecurity.AnomalyDetectionSyscallsEnabled),
+			Value: utils.BoolTouint64(slices.Contains(p.Config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType)),
 		},
 	)
 
@@ -1536,6 +1631,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 
 	resolversOpts := resolvers.ResolversOpts{
 		PathResolutionEnabled: opts.PathResolutionEnabled,
+		TagsResolver:          opts.TagsResolver,
 	}
 	p.resolvers, err = resolvers.NewResolvers(config, p.Manager, p.StatsdClient, p.scrubber, p.Erpc, resolversOpts)
 	if err != nil {

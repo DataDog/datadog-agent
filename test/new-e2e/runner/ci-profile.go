@@ -41,8 +41,9 @@ func NewCIProfile() (Profile, error) {
 		return nil, fmt.Errorf("unable to compute name prefix, missing variables pipeline id: %s, project id: %s", pipelineID, projectID)
 	}
 
+	store := parameters.NewEnvStore(EnvPrefix)
 	return ciProfile{
-		baseProfile: newProfile("e2eci", []string{"aws/agent-qa"}, &secretStore),
+		baseProfile: newProfile("e2eci", []string{"aws/agent-qa"}, store, &secretStore),
 		ciUniqueID:  pipelineID + "-" + projectID,
 	}, nil
 }

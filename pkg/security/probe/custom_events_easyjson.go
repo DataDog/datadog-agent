@@ -307,7 +307,7 @@ func (v EventLostRead) MarshalEasyJSON(w *jwriter.Writer) {
 func (v *EventLostRead) UnmarshalEasyJSON(l *jlexer.Lexer) {
 	easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(l, v)
 }
-func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe3(in *jlexer.Lexer, out *AbnormalPathEvent) {
+func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe3(in *jlexer.Lexer, out *AbnormalEvent) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -336,8 +336,8 @@ func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe3(in *jle
 				}
 				(*out.Event).UnmarshalEasyJSON(in)
 			}
-		case "path_resolution_error":
-			out.PathResolutionError = string(in.String())
+		case "error":
+			out.Error = string(in.String())
 		case "date":
 			if data := in.Raw(); in.Ok() {
 				in.AddError((out.Timestamp).UnmarshalJSON(data))
@@ -354,7 +354,7 @@ func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe3(in *jle
 		in.Consumed()
 	}
 }
-func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe3(out *jwriter.Writer, in AbnormalPathEvent) {
+func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe3(out *jwriter.Writer, in AbnormalEvent) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -368,9 +368,9 @@ func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe3(out *jw
 		}
 	}
 	{
-		const prefix string = ",\"path_resolution_error\":"
+		const prefix string = ",\"error\":"
 		out.RawString(prefix)
-		out.String(string(in.PathResolutionError))
+		out.String(string(in.Error))
 	}
 	{
 		const prefix string = ",\"date\":"
@@ -386,11 +386,11 @@ func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe3(out *jw
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
-func (v AbnormalPathEvent) MarshalEasyJSON(w *jwriter.Writer) {
+func (v AbnormalEvent) MarshalEasyJSON(w *jwriter.Writer) {
 	easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe3(w, v)
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
-func (v *AbnormalPathEvent) UnmarshalEasyJSON(l *jlexer.Lexer) {
+func (v *AbnormalEvent) UnmarshalEasyJSON(l *jlexer.Lexer) {
 	easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe3(l, v)
 }

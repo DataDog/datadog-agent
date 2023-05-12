@@ -19,6 +19,8 @@ var (
 	ErrDNSNameNonPrintableASCII = errors.New("dns name non-printable ascii")
 )
 
+const DNS_PREALLOC_SIZE = 256
+
 func decodeDNSName(raw []byte) (string, error) {
 	var (
 		i       = 0
@@ -27,6 +29,8 @@ func decodeDNSName(raw []byte) (string, error) {
 		rep     bytes.Buffer
 		err     error
 	)
+
+	rep.Grow(DNS_PREALLOC_SIZE)
 
 LOOP:
 	for i < rawLen {
