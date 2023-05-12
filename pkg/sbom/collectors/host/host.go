@@ -61,6 +61,8 @@ func (c *HostCollector) Scan(ctx context.Context, request sbom.ScanRequest, opts
 	if !ok {
 		return sbom.ScanResult{Error: fmt.Errorf("invalid request type '%s' for collector '%s'", reflect.TypeOf(request), collectorName)}
 	}
+	log.Infof("host scan request [%v]", hostScanRequest.ID())
+	
 
 	report, err := c.trivyCollector.ScanFilesystem(ctx, hostScanRequest.Path, opts)
 	return sbom.ScanResult{
