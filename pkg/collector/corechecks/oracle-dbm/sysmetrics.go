@@ -47,7 +47,7 @@ func (c *Check) SysMetrics() error {
 		"Temp Space Used":                 "temp_space_used",
 	}
 
-	sysMetrics := []SysmetricsRowDB{}
+	metricRows := []SysmetricsRowDB{}
 	err := c.db.Select(&sysMetrics, SYSMETRICS_QUERY)
 
 	if err != nil {
