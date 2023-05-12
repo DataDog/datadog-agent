@@ -40,14 +40,44 @@ func (pt *ProcessedTrace) Clone() *ProcessedTrace {
 	ptClone := new(ProcessedTrace)
 	*ptClone = *pt
 	if pt.TraceChunk != nil {
-		c := new(pb.TraceChunk)
-		*c = *pt.TraceChunk
+		c := pt.TraceChunk.ShallowCopy()
 		ptClone.TraceChunk = c
 	}
 	if pt.Root != nil {
-		r := new(pb.Span)
-		*r = *pt.Root
+		r := pt.Root.ShallowCopy()
 		ptClone.Root = r
 	}
 	return ptClone
 }
+
+// func CopyTraceChunk(chunk *pb.TraceChunk) *pb.TraceChunk {
+// 	c := new(pb.TraceChunk)
+//
+// 	c.Origin = chunk.GetOrigin()
+// 	c.Tags = chunk.GetTags()
+// 	c.Spans = chunk.GetSpans()
+// 	c.Priority = chunk.GetPriority()
+// 	c.DroppedTrace = chunk.GetDroppedTrace()
+//
+// 	return c
+// }
+//
+// func CopyTraceSpan(span *pb.Span) *pb.Span {
+// 	s := new(pb.Span)
+//
+// 	s.Service = span.GetService()
+// 	s.Name = span.GetName()
+// 	s.Resource = span.GetResource()
+// 	s.TraceID = span.GetTraceID()
+// 	s.SpanID = span.GetSpanID()
+// 	s.ParentID = span.GetParentID()
+// 	s.Start = span.GetStart()
+// 	s.Duration = span.GetDuration()
+// 	s.Error = span.GetError()
+// 	s.Meta = span.GetMeta()
+// 	s.Metrics = span.GetMetrics()
+// 	s.Type = span.GetType()
+// 	s.MetaStruct = span.GetMetaStruct()
+//
+// 	return s
+// }
