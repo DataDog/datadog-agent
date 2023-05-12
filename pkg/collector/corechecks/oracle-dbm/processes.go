@@ -43,7 +43,7 @@ func (c *Check) ProcessMemory() error {
 	}
 	sender, err := c.GetSender()
 	if err != nil {
-		return fmt.Errorf("GetSender processes %w", err)
+		return fmt.Errorf("failed to initialize sender: %w", err)
 	}
 	for _, row := range rows {
 		tags := c.getTagsWithPDB(row.PdbName)
