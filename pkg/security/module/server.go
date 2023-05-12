@@ -366,7 +366,7 @@ func (a *APIServer) sendToSecurityAgent(m *api.SecurityEventMessage) {
 }
 
 func (a *APIServer) sendDirectly(m *api.SecurityEventMessage) {
-	fmt.Println(m)
+	a.directReporter.ReportRaw(m.Data, m.Service, m.Tags...)
 }
 
 // Start the api server, starts to consume the msg queue
