@@ -2,6 +2,8 @@ module github.com/DataDog/datadog-agent/pkg/proto
 
 go 1.19
 
+retract v0.46.0-devel
+
 require (
 	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.3
