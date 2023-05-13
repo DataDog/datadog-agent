@@ -435,7 +435,7 @@ func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {
 
 	probe := "do_sys_open"
 	excludeSysOpen := "do_sys_openat2"
-	if sysOpenAt2Supported(c) {
+	if sysOpenAt2Supported() {
 		probe = "do_sys_openat2"
 		excludeSysOpen = "do_sys_open"
 	}
