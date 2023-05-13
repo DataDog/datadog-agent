@@ -198,16 +198,11 @@ const (
 	sharedLibrariesPerfMap = "shared_libraries"
 )
 
-type ebpfSectionFunction struct {
-	section  string
-	function string
-}
-
 // probe used for streaming shared library events
 var (
 	kprobeKretprobePrefix = []string{"kprobe", "kretprobe"}
-	doSysOpen             = ebpfSectionFunction{section: "do_sys_open", function: "do_sys_open"}
-	doSysOpenAt2          = ebpfSectionFunction{section: "do_sys_openat2", function: "do_sys_openat2"}
+	doSysOpen             = "do_sys_open"
+	doSysOpenAt2          = "do_sys_openat2"
 )
 
 type sslProgram struct {
@@ -247,16 +242,17 @@ func (o *sslProgram) ConfigureManager(m *errtelemetry.Manager) {
 	})
 
 	probeSysOpen := doSysOpen
-	if sysOpenAt2Supported(o.cfg) {
+	if sysOpenAt2Supported() {
 		probeSysOpen = doSysOpenAt2
 	}
 
 	for _, kprobe := range kprobeKretprobePrefix {
 		m.Probes = append(m.Probes,
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: kprobe + "__" + probeSysOpen.function,
-				UID:          probeUID,
-			},
+			&manager.Probe{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: kprobe + "__" + probeSysOpen,
+					UID:          probeUID,
+				},
 				KProbeMaxActive: maxActive,
 			},
 		)
@@ -271,14 +267,14 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 	}
 
 	probeSysOpen := doSysOpen
-	if sysOpenAt2Supported(o.cfg) {
+	if sysOpenAt2Supported() {
 		probeSysOpen = doSysOpenAt2
 	}
 	for _, kprobe := range kprobeKretprobePrefix {
 		options.ActivatedProbes = append(options.ActivatedProbes,
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: kprobe + "__" + probeSysOpen.function,
+					EBPFFuncName: kprobe + "__" + probeSysOpen,
 					UID:          probeUID,
 				},
 			},
@@ -465,10 +461,10 @@ func (*sslProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
 		}
 	}
 
-	for _, hook := range []ebpfSectionFunction{doSysOpen, doSysOpenAt2} {
+	for _, hook := range []string{doSysOpen, doSysOpenAt2} {
 		for _, kprobe := range kprobeKretprobePrefix {
 			probeList = append(probeList, manager.ProbeIdentificationPair{
-				EBPFFuncName: kprobe + "__" + hook.function,
+				EBPFFuncName: kprobe + "__" + hook,
 			})
 		}
 	}
@@ -476,8 +472,8 @@ func (*sslProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
 	return probeList
 }
 
-func sysOpenAt2Supported(c *config.Config) bool {
-	missing, err := ddebpf.VerifyKernelFuncs(doSysOpenAt2.section)
+func sysOpenAt2Supported() bool {
+	missing, err := ddebpf.VerifyKernelFuncs(doSysOpenAt2)
 	if err == nil && len(missing) == 0 {
 		return true
 	}
