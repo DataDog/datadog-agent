@@ -1,5 +1,5 @@
-github.com/DataDog/datadog-agent/pkg/proto v0.46.0-20230513-devel h1:weW3aC0x9/Parv7yDPDnViDEGCYCdKcL4GEZ3IEkP+0=
-github.com/DataDog/datadog-agent/pkg/proto v0.46.0-20230513-devel/go.mod h1:nsxRbqTYxbTKIyMPlqYSF+qyI1uMwklthyhd2LwJITA=
+github.com/DataDog/datadog-agent/pkg/proto v0.46.0-20230514-devel h1:vIogN8HJJGGih8BfZoTb94QNOqn40geYgK6uQ+eRzAE=
+github.com/DataDog/datadog-agent/pkg/proto v0.46.0-20230514-devel/go.mod h1:8mBwY/fPdRcvRJa84NwVJyeO5UbXaBDM9kW3sqH0l0s=
 github.com/DataDog/datadog-go/v5 v5.1.1 h1:JLZ6s2K1pG2h9GkvEvMdEGqMDyVLEAccdX5TltWcLMU=
 github.com/DataDog/datadog-go/v5 v5.1.1/go.mod h1:KhiYb2Badlv9/rofz+OznKoEF5XKTonWyhx5K83AP8E=
 github.com/DataDog/go-tuf v0.3.0--fix-localmeta-fork h1:yBq5PrAtrM4yVeSzQ+bn050+Ysp++RKF1QmtkL4VqvU=

@@ -565,7 +565,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/proto v0.46.0-20230513-devel
+	github.com/DataDog/datadog-agent/pkg/proto v0.46.0-20230514-devel
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/godror/godror v0.37.0
 	github.com/jmoiron/sqlx v1.3.5
