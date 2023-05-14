@@ -12,6 +12,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
+	"go.uber.org/atomic"
 	"os"
 	"regexp"
 	"sync"
@@ -132,16 +133,21 @@ func newSOWatcher(perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
 }
 
 type soRegistration struct {
-	uniqueProcessesCount int
+	uniqueProcessesCount atomic.Int32
 	unregisterCB         func(pathIdentifier) error
 }
 
 // unregister return true if there are no more reference to this registration
 func (r *soRegistration) unregister(pathID pathIdentifier) bool {
-	r.uniqueProcessesCount--
-	if r.uniqueProcessesCount > 0 {
+	v := r.uniqueProcessesCount.Dec()
+	if v > 0 {
 		return false
 	}
+	if v < 0 {
+		log.Errorf("unregistered %+v too much (current counter %v)", pathID, v)
+		return true
+	}
+	// v is 0, thus we should unregister.
 	if r.unregisterCB != nil {
 		if err := r.unregisterCB(pathID); err != nil {
 			// Even if we fail here, we have to return true, as best effort methodology.
@@ -153,9 +159,11 @@ func (r *soRegistration) unregister(pathID pathIdentifier) bool {
 }
 
 func newRegistration(unregister func(pathIdentifier) error) *soRegistration {
+	uniqueCounter := atomic.Int32{}
+	uniqueCounter.Store(int32(1))
 	return &soRegistration{
 		unregisterCB:         unregister,
-		uniqueProcessesCount: 1,
+		uniqueProcessesCount: uniqueCounter,
 	}
 }
 
@@ -328,7 +336,7 @@ func (r *soRegistry) register(root, libPath string, pid uint32, rule soRule) {
 
 	if reg, found := r.byID[pathID]; found {
 		if _, found := r.byPID[pid][pathID]; !found {
-			reg.uniqueProcessesCount++
+			reg.uniqueProcessesCount.Inc()
 			// Can happen if a new process opens the same so.
 			if len(r.byPID[pid]) == 0 {
 				r.byPID[pid] = pathIdentifierSet{}
