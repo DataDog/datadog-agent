@@ -206,11 +206,12 @@ var (
 )
 
 type sslProgram struct {
-	cfg         *config.Config
-	sockFDMap   *ebpf.Map
-	perfHandler *ddebpf.PerfHandler
-	watcher     *soWatcher
-	manager     *errtelemetry.Manager
+	cfg                     *config.Config
+	sockFDMap               *ebpf.Map
+	perfHandler             *ddebpf.PerfHandler
+	watcher                 *soWatcher
+	manager                 *errtelemetry.Manager
+	sysOpenHooksIdentifiers []manager.ProbeIdentificationPair
 }
 
 var _ subprogram = &sslProgram{}
@@ -221,9 +222,10 @@ func newSSLProgram(c *config.Config, sockFDMap *ebpf.Map) *sslProgram {
 	}
 
 	return &sslProgram{
-		cfg:         c,
-		sockFDMap:   sockFDMap,
-		perfHandler: ddebpf.NewPerfHandler(100),
+		cfg:                     c,
+		sockFDMap:               sockFDMap,
+		perfHandler:             ddebpf.NewPerfHandler(100),
+		sysOpenHooksIdentifiers: getSysOpenHooksIdentifiers(),
 	}
 }
 
@@ -241,19 +243,11 @@ func (o *sslProgram) ConfigureManager(m *errtelemetry.Manager) {
 		},
 	})
 
-	probeSysOpen := doSysOpen
-	if sysOpenAt2Supported() {
-		probeSysOpen = doSysOpenAt2
-	}
-
-	for _, kprobe := range kprobeKretprobePrefix {
+	for _, identifier := range o.sysOpenHooksIdentifiers {
 		m.Probes = append(m.Probes,
 			&manager.Probe{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: kprobe + "__" + probeSysOpen,
-					UID:          probeUID,
-				},
-				KProbeMaxActive: maxActive,
+				ProbeIdentificationPair: identifier,
+				KProbeMaxActive:         maxActive,
 			},
 		)
 	}
@@ -266,17 +260,10 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 		EditorFlag: manager.EditMaxEntries,
 	}
 
-	probeSysOpen := doSysOpen
-	if sysOpenAt2Supported() {
-		probeSysOpen = doSysOpenAt2
-	}
-	for _, kprobe := range kprobeKretprobePrefix {
+	for _, identifier := range o.sysOpenHooksIdentifiers {
 		options.ActivatedProbes = append(options.ActivatedProbes,
 			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: kprobe + "__" + probeSysOpen,
-					UID:          probeUID,
-				},
+				ProbeIdentificationPair: identifier,
 			},
 		)
 	}
@@ -312,6 +299,16 @@ func (o *sslProgram) Start() {
 }
 
 func (o *sslProgram) Stop() {
+	// Detaching the hooks.
+	for _, identifier := range o.sysOpenHooksIdentifiers {
+		probe, found := o.manager.GetProbe(identifier)
+		if !found {
+			continue
+		}
+		if err := probe.Stop(); err != nil {
+			log.Errorf("Failed to stop hook %q. Error: %s", identifier.EBPFFuncName, err)
+		}
+	}
 	// We must stop the watcher first, as we can read from the perfHandler, before terminating the perfHandler, otherwise
 	// we might try to send events over the perfHandler.
 	o.watcher.Stop()
@@ -484,4 +481,23 @@ func sysOpenAt2Supported() bool {
 	}
 
 	return kversion >= kernel.VersionCode(5, 6, 0)
+}
+
+// getSysOpenHooksIdentifiers returns the kprobe and kretprobe for the chosen kernel function to hook, to get notification
+// about file opening. Before kernel 5.6 we use do_sys_open, otherwise we use do_sys_openat2.
+func getSysOpenHooksIdentifiers() []manager.ProbeIdentificationPair {
+	probeSysOpen := doSysOpen
+	if sysOpenAt2Supported() {
+		probeSysOpen = doSysOpenAt2
+	}
+
+	res := make([]manager.ProbeIdentificationPair, len(kprobeKretprobePrefix))
+	for i, kprobe := range kprobeKretprobePrefix {
+		res[i] = manager.ProbeIdentificationPair{
+			EBPFFuncName: kprobe + "__" + probeSysOpen,
+			UID:          probeUID,
+		}
+	}
+
+	return res
 }
