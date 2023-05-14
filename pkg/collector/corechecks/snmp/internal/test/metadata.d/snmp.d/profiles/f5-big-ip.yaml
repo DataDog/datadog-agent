@@ -1,0 +1,57 @@
+# Profile for F5 BIG-IP devices
+#
+extends:
+  - _base.yaml
+  - _generic-if.yaml
+
+device:
+  vendor: "f5"
+
+sysobjectid: 1.3.6.1.4.1.3375.2.1.3.4.*
+
+metadata:
+  device:
+    fields:
+      vendor:
+        value: "f5" # static value
+      serial_number: # value from OID.
+        symbol:
+          MIB: F5-BIGIP-SYSTEM-MIB # optional
+          OID: 1.3.6.1.4.1.3375.2.1.3.3.3.0
+          name: sysGeneralChassisSerialNum # The system serial number. 26ff4a4d-190e-12ac-d4257ed36ba6
+      version:
+        symbol:
+          OID: 1.3.6.1.4.1.3375.2.1.4.2.0
+          name: sysProductVersion # Displays BIG-IP software version information. e.g. 15.0.1
+      product_name:
+        # multiple symbols
+        symbols:
+          - OID: 1.3.6.1.4.1.3375.2.1.4.999999.0
+            name: thisOidDoesNotExist
+          - OID: 1.3.6.1.4.1.3375.2.1.4.1.0
+            name: sysProductName # The product name. e.g. BIG-IP
+      model:
+        symbol:
+          OID: 1.3.6.1.4.1.3375.2.1.4.4.0
+          name: sysProductEdition # The product edition. e.g. Final
+      os_name:
+        symbols:
+          - OID: 1.3.6.1.2.1.1.1.0
+            name: sysDescr
+            match_pattern: 'DoesNotMatch'
+            match_value: 'LINUX ($1)'
+          - OID: 1.3.6.1.2.1.1.1.0
+            name: sysDescr
+            match_pattern: ':\s+Linux\s+(\S+)\s+:'
+            match_value: 'LINUX ($1)'
+            # Example sysDescr: BIG-IP Virtual Edition : Linux 3.10.0-862.14.4.el7.ve.x86_64 : BIG-IP software release 15.0.1, build 0.0.11
+          - OID: 1.3.6.1.4.1.3375.2.1.6.1.0
+            name: sysSystemName # The operating system name.
+      os_version:
+        symbol:
+          OID: 1.3.6.1.4.1.3375.2.1.6.4.0
+          name: sysSystemVersion # Displays Linux base operating system version information
+      os_hostname:
+        symbol:
+          OID: 1.3.6.1.4.1.3375.2.1.6.2.0
+          name: sysSystemNodeName # The host name of the system on the network.

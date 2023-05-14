@@ -1,0 +1,3 @@
+features:
+  - |
+    Adding logic to get standard ``service`` tag from Pod Metadata Labels.

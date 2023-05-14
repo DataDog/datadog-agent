@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Support for the upcoming cluster-agent cluster-level checks feature,
+    via the ``clusterchecks` config provider

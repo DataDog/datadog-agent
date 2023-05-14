@@ -1,0 +1,3 @@
+---
+fixes:
+  - Fix a bug where a misconfig error does not show when `hidepid=invisible`

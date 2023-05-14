@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    The Cluster Agent exposes a new metric `external_metrics.datadog_metrics`
+    to track the validity of DatadogMetric objects.

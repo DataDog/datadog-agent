@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix an issue for docker image name filtering when images contain a tag.

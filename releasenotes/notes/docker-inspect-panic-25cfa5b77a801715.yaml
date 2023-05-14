@@ -1,0 +1,3 @@
+---
+fixes:
+  - Fix a possible panic when docker cannot inspect a container

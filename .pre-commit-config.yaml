@@ -1,0 +1,72 @@
+default_language_version:
+  python: python3
+
+repos:
+- repo: https://github.com/pycqa/flake8
+  rev: 3.9.2 # should match major Python version
+  hooks:
+    - id: flake8
+      additional_dependencies:
+        - flake8-bugbear==21.11.28
+        - flake8-comprehensions==3.7.0
+        - flake8-unused-arguments==0.0.6
+        - flake8-use-fstring==1.3.0
+- repo: https://github.com/psf/black
+  rev: 22.3.0
+  hooks:
+    - id: black
+- repo: https://github.com/timothycrosley/isort/
+  rev: 5.12.0
+  hooks:
+    - id: isort
+- repo: https://github.com/jendrikseipp/vulture
+  rev: v2.3
+  hooks:
+    - id: vulture
+      args: ["--ignore-decorators", "@task", "--ignore-names", "test_*,Test*", "tasks"]
+- repo: https://github.com/jumanjihouse/pre-commit-hooks
+  rev: 2.1.5
+  hooks:
+    - id: shellcheck
+      args: ["--severity=info", "-e", "SC2059", "-e", "SC2028"]
+- repo: https://github.com/tekwizely/pre-commit-golang
+  rev: v1.0.0-beta.5
+  hooks:
+    - id: go-fmt
+      args: [ "-w", "-s" ]
+- repo: local
+  hooks:
+    - id: revive
+      name: revive
+      description: revive
+      entry: 'python3 tasks/git-hooks/revive.py'
+      language: system
+      files: \.go$
+    - id: govet
+      name: govet
+      description: go vet
+      entry: 'python3 tasks/git-hooks/govet.py'
+      language: system
+      require_serial: true
+      files: \.go$
+    - id: copyright
+      name: copyright
+      description: copyright headers
+      entry: 'python3 tasks/git-hooks/copyright.py'
+      language: system
+      require_serial: true
+      files: \.go$
+    - id: win-clang-format
+      name: win-clang-format
+      description: clang-format
+      entry: './tasks/git-hooks/wincpplang.py'
+      language: system
+      types_or: [c, c++, c#]
+    - id: clang-format
+      name: clang-format
+      description: clang-format
+      entry: 'python3 tasks/git-hooks/clang-format.py'
+      language: system
+      require_serial: true
+      files: '^pkg/(ebpf|network|security)/.*\.(c|h)$'
+      exclude: '^pkg/ebpf/(c/bpf_endian|c/bpf_helpers|compiler/clang-stdarg).h$'

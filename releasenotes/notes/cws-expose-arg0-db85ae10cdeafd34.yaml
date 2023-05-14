@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    CWS now exposes the first argument of exec event. Usually the
+    name of the executed program.

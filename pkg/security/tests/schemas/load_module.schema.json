@@ -1,0 +1,34 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "load_module.json",
+    "type": "object",
+    "anyOf": [
+        {
+            "$ref": "/schemas/container_event.json"
+        },
+        {
+            "$ref": "/schemas/host_event.json"
+        }
+    ],
+    "allOf": [
+        {
+            "properties": {
+                "module": {
+                    "type": "object",
+                    "required": [
+                        "name",
+                        "loaded_from_memory"
+                    ],
+                    "properties": {
+                        "name": {
+                            "type": "string"
+                        },
+                        "loaded_from_memory": {
+                            "type": "boolean"
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}

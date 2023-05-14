@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Kubernetes events are now tagged with kube_service, kube_daemon_set, kube_job and kube_cronjob.
+    Note: Other object kinds are already supported (pod_name, kube_deployment, kube_replica_set).

@@ -1,0 +1,50 @@
+## This file is overwritten upon Agent upgrade.
+## To make modifications to the check configuration, copy this file
+## to `ntp.yaml` and make your changes on that file.
+
+init_config:
+
+instances:
+
+  -
+    ## @param offset_threshold - integer - optional - default: 60
+    ## Offset threshold in seconds above which a CRITICAL service check is sent.
+    #
+    # offset_threshold: 60
+
+    ## @param hosts - list of strings - optional - default: ntp host of cloud provider if detected, else <X>.datadog.pool.ntp.org
+    ## List of NTP hosts to connect to, default is the private NTP server of the Cloud Provider if one is detected, otherwise
+    ## `<X>.datadog.pool.ntp.org`, where <X> is a number between 0 and 3.
+    #
+    # hosts:
+    #   - 0.datadog.pool.ntp.org
+    #   - 1.datadog.pool.ntp.org
+    #   - 2.datadog.pool.ntp.org
+    #   - 3.datadog.pool.ntp.org
+
+    ## @param host - string - optional
+    ## Single NTP server hostname or IP address to connect to.
+    #
+    # host: <NTP_SERVER>
+
+    ## @param port - integer - optional - default: 123
+    ## Port to use when reaching the NTP server.
+    #
+    # port: 123
+
+    ## @param version - integer - optional - default: 3
+    ## Version of NTP to use.
+    #
+    # version: 3
+
+    ## @param timeout - integer - optional - default: 5
+    ## The timeout for connecting to the NTP server in second.
+    #
+    # timeout: 5
+
+    ## @param use_local_defined_servers - boolean - optional - default: false
+    ## Use the ntp servers defined in the host.    
+    ## For Unix system, the servers defined in "/etc/{ntp,xntp,ntpd,chrony}.conf" and "/etc/openntpd/ntpd.conf" are used.
+    ## For Windows system, the servers defined in registry key HKLM\SYSTEM\CurrentControlSet\Services\W32Time\Parameters\NtpServer are used.
+    #
+    # use_local_defined_servers: false

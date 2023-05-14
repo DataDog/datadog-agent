@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Set configurable timeout for IPC api server

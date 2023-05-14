@@ -1,0 +1,4 @@
+fixes:
+  - |
+    The Windows installer compares the DNS domain name and the joined domain name using a case-insensitive compare.
+    This avoids an incorrect warning when the domain names match but otherwise have different cases.

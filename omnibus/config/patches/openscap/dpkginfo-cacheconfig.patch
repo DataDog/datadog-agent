@@ -1,0 +1,20 @@
+--- a/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
++++ b/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
+@@ -33,6 +33,17 @@ static int opencache (void) {
+         if (root != NULL) {
+             string pkgCacheRoot(root);
+             _config->Set("RootDir", pkgCacheRoot);
++
++            string const CacheFileName = _config->FindFile("Dir::Cache::pkgcache");
++            string const SrcCacheFileName = _config->FindFile("Dir::Cache::srcpkgcache");
++
++            if (CacheFileName.empty() == false) {
++                _config->Set("Dir::Cache::pkgcache","pkgcache.bin");
++            }
++
++            if (SrcCacheFileName.empty() == false) {
++                _config->Set("Dir::Cache::srcpkgcache","srcpkgcache.bin");
++            }
+         }
+ 
+         if (pkgInitSystem (*_config, _system) == false) return 0;

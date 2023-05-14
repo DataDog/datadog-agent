@@ -1,0 +1,54 @@
+---
+driver:
+  name: vagrant
+  provider: <%= ENV['KITCHEN_VAGRANT_PROVIDER'] %>
+
+  <% if ENV['KITCHEN_VAGRANT_PROVIDER'] != "hyperv" && ENV['KITCHEN_VAGRANT_SYNCED_FOLDER'] %>
+  # Hyper-V doesn't support synced folders
+  synced_folders:
+  - ["<%= ENV['KITCHEN_VAGRANT_SYNCED_FOLDER'].tr('\\', '/') %>", "/datadog-agent"]
+  <% end %>
+
+provisioner:
+  name: chef_solo
+  product_name: chef
+  install_strategy: always
+  # Use the same product_version as the CI kitchen test in Azure.
+  product_version: 14.12.9
+  # the following settings make it possible to do a reboot during setup
+  # (necessary for FIPS tests which reboot to enable FIPS mode)
+  max_retries: 3
+  wait_for_retry: 90
+  client_rb:
+    client_fork: false
+
+platforms:
+<%
+    ENV['TEST_PLATFORMS'] ||= "centos7,roboxes/centos7|centos8,roboxes/centos8"
+    cws_supported_platforms = (ENV['KITCHEN_CWS_SUPPORTED_OSVERS'] || "").split(',')
+    test_platforms = ENV['TEST_PLATFORMS'].split('|').map { |p| p.split(',') }
+    test_platforms.each do |platform|
+%>
+  - name: <%= platform[0] %>
+    attributes:
+      dd-agent-rspec:
+        enable_cws: <%= ENV['KITCHEN_CWS'] && cws_supported_platforms.include?(platform[0]) %>
+    driver:
+      box: <%= platform[1] %>
+      # Always use linked_clone when possible, it's so much faster
+      linked_clone: true
+      <% if ENV['KITCHEN_VAGRANT_PROVIDER'] == "virtualbox" %>
+      gui: true
+      <% end %>
+      <% if platform[1].include?('opensuse') %>
+      customize:
+        disk_bus: sata
+      <% end %>
+# uncomment below to locally inspect junit tarballs used for CI visibility
+#    verifier:
+#      downloads:
+#        "/tmp/junit.tar.gz": kitchen-junit-<%= platform[0] %>.tar.gz
+#        "/tmp/testjson.tar.gz": testjson/<%= platform[0] %>/testjson.tar.gz
+<%
+    end
+%>

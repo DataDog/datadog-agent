@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix incorrectly reported IO metrics when OS counters wrap in Linux.

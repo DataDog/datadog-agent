@@ -1,0 +1,165 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: dsd-hostname
+spec:
+  templates:
+    - name: create
+      inputs:
+        parameters:
+          - name: namespace
+      resource:
+        action: apply
+        manifest: |
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: dsd-hostname
+            namespace: {{inputs.parameters.namespace}}
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: dsd-hostname
+            template:
+              metadata:
+                labels:
+                  app: dsd-hostname
+              spec:
+                containers:
+                - name: sender
+                  image: datadog/docker-library:e2e-dsd-sender_latest
+                  resources:
+                    requests:
+                      memory: "32Mi"
+                      cpu: "100m"
+                    limits:
+                      memory: "32Mi"
+                      cpu: "100m"
+                  volumeMounts:
+                  - name: dogstatsd
+                    mountPath: /var/run/dogstatsd
+                    readOnly: true
+                volumes:
+                - hostPath:
+                    path: /var/run/dogstatsd
+                  name: dogstatsd
+
+    - name: delete
+      inputs:
+        parameters:
+          - name: namespace
+      resource:
+        action: delete
+        manifest: |
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: dsd-hostname
+            namespace: {{inputs.parameters.namespace}}
+
+    - name: test
+      inputs:
+        parameters:
+          - name: namespace
+      activeDeadlineSeconds: 300
+      script:
+        image: mongo:4.4.1
+        command: [mongo, "fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local/datadog"]
+        source: |
+          while (1) {
+            sleep(2000);
+
+            // Gauges
+            var nb = db.series.find({
+              metric: "dsd.hostname.e2e",
+              host: "k8s-e2e-tests-control-plane",
+              tags: {$all: ["case:nominal"]}
+            }).count();
+            if (nb == 0) {
+              print("no dsd.hostname.e2e metric with nominal hostname");
+              continue;
+            }
+            var nb = db.series.find({
+              metric: "dsd.hostname.e2e",
+              host: "forced",
+              tags: {$all: ["case:forced"]}
+            }).count();
+            if (nb == 0) {
+              print("no dsd.hostname.e2e metric with forced hostname");
+              continue;
+            }
+            var nb = db.series.find({
+              metric: "dsd.hostname.e2e",
+              host: "",
+              tags: {$all: ["case:empty"]}
+            }).count();
+            if (nb == 0) {
+              print("no dsd.hostname.e2e metric with empty hostname");
+              continue;
+            }
+
+            // Service checks
+            var nb = db.check_run.find({
+              check: "dsd.hostname.e2e",
+              host_name: "k8s-e2e-tests-control-plane",
+              tags: {$all: ["case:nominal"]}
+            }).count();
+            if (nb == 0) {
+              print("no dsd.hostname.e2e servicecheck with nominal hostname");
+              continue;
+            }
+            var nb = db.check_run.find({
+              check: "dsd.hostname.e2e",
+              host_name: "forced",
+              tags: {$all: ["case:forced"]}
+            }).count();
+            if (nb == 0) {
+              print("no dsd.hostname.e2e servicecheck with forced hostname");
+              continue;
+            }
+            var nb = db.check_run.find({
+              check: "dsd.hostname.e2e",
+              host_name: "",
+              tags: {$all: ["case:empty"]}
+            }).count();
+            if (nb == 0) {
+              print("no dsd.hostname.e2e servicecheck with empty hostname");
+              continue;
+            }
+
+            // Events
+            var nb = db.intake.find({
+              "events.api": { $elemMatch: {
+                msg_title: "dsd.hostname.e2e",
+                host: "k8s-e2e-tests-control-plane",
+                tags: {$all: ["case:nominal"]}
+            }}}).count();
+            if (nb == 0) {
+              print("no dsd.hostname.e2e event with nominal hostname");
+              continue;
+            }
+            var nb = db.intake.find({
+              "events.api": { $elemMatch: {
+                msg_title: "dsd.hostname.e2e",
+                host: "forced",
+                tags: {$all: ["case:forced"]}
+            }}}).count();
+            if (nb == 0) {
+              print("no dsd.hostname.e2e event with forced hostname");
+              continue;
+            }
+            var nb = db.intake.find({
+              "events.api": { $elemMatch: {
+                msg_title: "dsd.hostname.e2e",
+                host: "",
+                tags: {$all: ["case:empty"]}
+            }}}).count();
+            if (nb == 0) {
+              print("no dsd.hostname.e2e event with empty hostname");
+              continue;
+            }
+
+            print("All good");
+            break;
+          }

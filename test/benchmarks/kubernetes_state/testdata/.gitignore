@@ -1,0 +1,6 @@
+# pod list can be huge.
+# My pods.json is currently 900 MB.
+# So, let’s not commit such a huge file in git.
+# Additionnaly, even if sensitive data are supposed to be in Secrets or vault, we don’t want to review the whole file to ensure we’re not leaking any sensitive data.
+# So, let’s not commit any k8s resource list.
+/*.json

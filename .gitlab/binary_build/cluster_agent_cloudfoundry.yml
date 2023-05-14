@@ -1,0 +1,24 @@
+---
+cluster_agent_cloudfoundry-build_amd64:
+  rules:
+    !reference [.on_a7]
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main"]
+  needs: ["go_mod_tidy_check", "go_deps"]
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
+  variables:
+    ARCH: amd64
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+    - source /root/.bashrc && conda activate ddpy3
+  script:
+    - inv check-go-version
+    - inv -e cluster-agent-cloudfoundry.build
+    - cd $CI_PROJECT_DIR/$CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR
+    - mkdir -p $OMNIBUS_PACKAGE_DIR
+    - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
+    - tar cf $OMNIBUS_PACKAGE_DIR/datadog-cluster-agent-cloudfoundry-$PACKAGE_VERSION-$ARCH.tar.xz datadog-cluster-agent-cloudfoundry

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixed build pipeline commenting flaky tests from logs tailer

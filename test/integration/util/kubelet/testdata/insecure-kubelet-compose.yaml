@@ -1,0 +1,35 @@
+version: '2.3'
+services:
+  kubelet:
+    image: "datadog/docker-library:kubelet_1.25"
+    command: "--cloud-provider=''
+        --fail-swap-on=false
+        --make-iptables-util-chains=false
+        --hairpin-mode=none
+        --container-runtime-endpoint=unix:///run/cri-dockerd.sock
+        --pod-manifest-path=/opt"
+    network_mode: ${network_mode}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /sys:/sys
+      - vardata:/var
+    tty: true
+    privileged: true
+    healthcheck:
+      test: ["CMD", "/bin/ls", "/var/lib/kubelet/pki/kubelet.crt"]
+      interval: 1s
+      timeout: 1s
+      retries: 10
+
+  pause:
+    #
+    # This pause container is here to wait until the apiserver
+    # is healthy before returning.
+    #
+    image: "datadog/docker-library:pause_3_1"
+    depends_on:
+      kubelet:
+        condition: service_healthy
+    network_mode: none
+volumes:
+  vardata:

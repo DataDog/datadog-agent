@@ -1,0 +1,5 @@
+
+---
+enhancements:
+  - |
+    Improves compliance check status view in the security-agent status command.

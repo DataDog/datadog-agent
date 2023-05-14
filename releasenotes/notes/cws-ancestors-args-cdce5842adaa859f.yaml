@@ -1,0 +1,3 @@
+features:
+  - |
+    CWS now allows to write SECL rule based on process ancestor args.

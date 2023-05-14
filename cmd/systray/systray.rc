@@ -1,0 +1,70 @@
+#include "version.h"
+#define RT_MANIFEST 24
+#define APP_MANIFEST 1
+
+
+APP_MANIFEST RT_MANIFEST ddtray.exe.manifest
+
+#define MAIN_ICON 1
+
+MAIN_ICON ICON "..\\..\\omnibus\\resources\\agent\\msi\\assets\\project.ico"
+
+#define VS_VERSION_INFO 1
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION RC_FILE_VERSION
+ PRODUCTVERSION RC_FILE_VERSION
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x40004L
+ FILETYPE 0x0L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName", "Datadog, Inc."
+            VALUE "FileDescription", "Datadog Metrics System Tray Application"
+            VALUE "FileVersion", FILE_VERSION_STRING
+            VALUE "InternalName", "Agent6 Systray"
+            VALUE "LegalCopyright", "Copyright (C) 2016-present"
+            VALUE "OriginalFilename", "ddtray.exe"
+            VALUE "ProductName", "Datadog Agent"
+            VALUE "ProductVersion", FILE_VERSION_STRING
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
+
+#define DS_SETFONT    0x40L
+#define DS_MODALFRAME 0x80L
+#define DS_FIXEDSYS   0x8L
+#define WS_POPUP      0x80000000L
+#define WS_CAPTION    0x00C00000L
+#define WS_SYSMENU    0x00080000L
+#define ES_AUTOHSCROLL 0x0080L
+
+#define IDOK        1
+#define IDCANCEL    2
+#define IDC_STATIC  (-1)
+IDD_DIALOG1 DIALOGEX 0, 0, 267, 119
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Datadog Flare"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    DEFPUSHBUTTON   "OK",IDOK,155,98,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,210,98,50,14
+    LTEXT           "Please enter your ticket number if you have one.  Enter 0 (zero) if you do not, and a new one will be generated for you.",IDC_STATIC,8,29,252,18
+    LTEXT           "Your logs and configuration files will be collected and sent to Datadog Support. ",IDC_STATIC,8,9,252,18
+    EDITTEXT        IDC_TICKET_EDIT,90,57,169,13,ES_AUTOHSCROLL
+    LTEXT           "Ticket number",IDC_STATIC,8,58,66,13
+    LTEXT           "Email address",IDC_STATIC,8,78,66,13
+    EDITTEXT        IDC_EMAIL_EDIT,90,77,169,13,ES_AUTOHSCROLL
+END

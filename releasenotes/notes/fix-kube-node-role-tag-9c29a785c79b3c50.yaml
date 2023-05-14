@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix the node roles to host tags feature by handling the other official Kube way to setting node roles (when multiple roles are required)

@@ -1,0 +1,6 @@
+instances:
+- {} # default instance, if you need to customize its configuration, please comment out this instance
+     # and customize the configuration options on the instance below
+
+#   # path to process agent binary, defaults to `embedded/bin/process-agent` in agent installation dir
+# - bin_path: /opt/datadog-agent/embedded/bin/process-agent

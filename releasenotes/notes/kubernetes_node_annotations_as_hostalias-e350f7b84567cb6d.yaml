@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Add the ``kubernetes_node_annotations_as_host_aliases`` parameter to specify a list
+    of Kubernetes node annotations that should be used as host aliases.
+    If not set, it defaults to ``cluster.k8s.io/machine``.

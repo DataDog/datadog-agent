@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Fix issue preventing newly annotated services to be considered by autodiscovery in the cluster-agent

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    When tailing logs from docker with `DD_LOGS_CONFIG_DOCKER_CONTAINER_USE_FILE=true` and a 
+    source container label is set the agent will now respect that label and use it as the source. 
+    This aligns the behavior with tailing from the docker socket. 

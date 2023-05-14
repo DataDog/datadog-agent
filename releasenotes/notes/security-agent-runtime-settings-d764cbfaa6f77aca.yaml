@@ -1,0 +1,4 @@
+features:
+  - |
+    Add runtime settings support to the security-agent. Currenlty only the log-level
+    is supported.

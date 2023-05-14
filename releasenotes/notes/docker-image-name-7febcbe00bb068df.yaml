@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Make sure we don't recognize `sha256:...` as a valid image name and add fallback to .Config.Image in case it's impossible to map `sha256:...` to a proper image name

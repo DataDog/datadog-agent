@@ -1,0 +1,360 @@
+{
+    "$schema": "http://json-schema.org/schema#",
+    "type": "object",
+    "properties": {
+        "host": {
+            "type": "string"
+        },
+        "source": {
+            "type": "string"
+        },
+        "tags": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "tree": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "process": {
+                        "type": "object",
+                        "properties": {
+                            "pid": {
+                                "type": "integer"
+                            },
+                            "tid": {
+                                "type": "integer"
+                            },
+                            "file": {
+                                "type": "object",
+                                "properties": {
+                                    "uid": {
+                                        "type": "integer"
+                                    },
+                                    "user": {
+                                        "type": "string"
+                                    },
+                                    "gid": {
+                                        "type": "integer"
+                                    },
+                                    "group": {
+                                        "type": "string"
+                                    },
+                                    "mode": {
+                                        "type": "integer"
+                                    },
+                                    "ctime": {
+                                        "type": "string"
+                                    },
+                                    "mtime": {
+                                        "type": "string"
+                                    },
+                                    "mount_id": {
+                                        "type": "integer"
+                                    },
+                                    "inode": {
+                                        "type": "string"
+                                    },
+                                    "in_upper_layer": {
+                                        "type": "boolean"
+                                    },
+                                    "path": {
+                                        "type": "string"
+                                    },
+                                    "basename": {
+                                        "type": "string"
+                                    },
+                                    "filesystem": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "ctime",
+                                    "gid",
+                                    "in_upper_layer",
+                                    "inode",
+                                    "mode",
+                                    "mount_id",
+                                    "mtime",
+                                    "uid",
+                                    "filesystem",
+                                    "basename",
+                                    "path"
+                                ]
+                            },
+                            "container_id": {
+                                "type": "string"
+                            },
+                            "comm": {
+                                "type": "string"
+                            },
+                            "fork_time": {
+                                "type": "string"
+                            },
+                            "exit_time": {
+                                "type": "string"
+                            },
+                            "exec_time": {
+                                "type": "string"
+                            },
+                            "cookie": {
+                                "type": "integer"
+                            },
+                            "ppid": {
+                                "type": "integer"
+                            },
+                            "credentials": {
+                                "type": "object",
+                                "properties": {
+                                    "uid": {
+                                        "type": "integer"
+                                    },
+                                    "gid": {
+                                        "type": "integer"
+                                    },
+                                    "user": {
+                                        "type": "string"
+                                    },
+                                    "group": {
+                                        "type": "string"
+                                    },
+                                    "euid": {
+                                        "type": "integer"
+                                    },
+                                    "egid": {
+                                        "type": "integer"
+                                    },
+                                    "euser": {
+                                        "type": "string"
+                                    },
+                                    "egroup": {
+                                        "type": "string"
+                                    },
+                                    "fsuid": {
+                                        "type": "integer"
+                                    },
+                                    "fsgid": {
+                                        "type": "integer"
+                                    },
+                                    "fsuser": {
+                                        "type": "string"
+                                    },
+                                    "fsgroup": {
+                                        "type": "string"
+                                    },
+                                    "cap_effective": {
+                                        "type": "string"
+                                    },
+                                    "cap_permitted": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "cap_effective",
+                                    "cap_permitted",
+                                    "effective_gid",
+                                    "effective_group",
+                                    "effective_uid",
+                                    "effective_user",
+                                    "fs_gid",
+                                    "fs_group",
+                                    "fs_uid",
+                                    "fs_user",
+                                    "gid",
+                                    "group",
+                                    "uid",
+                                    "user"
+                                ]
+                            },
+                            "argv0": {
+                                "type": "string"
+                            },
+                            "envs": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "envs_truncated": {
+                                "type": "boolean"
+                            },
+                            "argv": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "argv_truncated": {
+                                "type": "boolean"
+                            },
+                            "tty": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "pid",
+                            "tid",
+                            "argv0",
+                            "comm",
+                            "cookie",
+                            "credentials",
+                            "exec_time",
+                            "exit_time",
+                            "file",
+                            "fork_time",
+                            "ppid"
+                        ]
+                    },
+                    "generation_type": {
+                        "type": "string"
+                    },
+                    "files": {
+                        "type": "array"
+                    },
+                    "dns": {
+                        "type": "object",
+                        "patternProperties": {
+                            ".*": {
+                                "type": "object",
+                                "properties": {
+                                    "requests": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "type": {
+                                                    "type": "integer"
+                                                },
+                                                "class": {
+                                                    "type": "integer"
+                                                },
+                                                "length": {
+                                                    "type": "integer"
+                                                },
+                                                "count": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "name",
+                                                "type",
+                                                "class",
+                                                "length",
+                                                "count"
+                                            ]
+                                        }
+                                    }
+                                },
+                                "required": [
+                                    "requests"
+                                ]
+                            }
+                        }
+                    },
+                    "sockets": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "family": {
+                                    "type": "string"
+                                },
+                                "bind": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "port": {
+                                                "type": "integer"
+                                            },
+                                            "ip": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "port",
+                                            "ip"
+                                        ]
+                                    }
+                                }
+                            },
+                            "required": [
+                                "family"
+                            ]
+                        }
+                    }
+                },
+                "required": [
+                    "files",
+                    "generation_type",
+                    "process"
+                ]
+            }
+        },
+        "metadata": {
+            "type": "object",
+            "properties": {
+                "agent_version": {
+                    "type": "string"
+                },
+                "agent_commit": {
+                    "type": "string"
+                },
+                "kernel_version": {
+                    "type": "string"
+                },
+                "linux_distribution": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "protobuf_version": {
+                    "type": "string"
+                },
+                "differentiate_args": {
+                    "type": "boolean"
+                },
+                "comm": {
+                    "type": "string"
+                },
+                "start": {
+                    "type": "string"
+                },
+                "end": {
+                    "type": "string"
+                },
+                "container_id": {
+                    "type": "string"
+                },
+                "activity_dump_size": {
+                    "type": "integer"
+                }
+            },
+            "required": [
+                "protobuf_version",
+                "agent_commit",
+                "agent_version",
+                "differentiate_args",
+                "end",
+                "kernel_version",
+                "linux_distribution",
+                "name",
+                "start"
+            ]
+        }
+    },
+    "required": [
+        "metadata",
+        "host",
+        "source",
+        "tags",
+        "tree"
+    ]
+}

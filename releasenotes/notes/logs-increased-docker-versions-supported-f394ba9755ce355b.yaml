@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    Increased the number of versions of Docker API that logs-agent support from 1.25 to 1.18

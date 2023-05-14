@@ -1,0 +1,52 @@
+createAgent: false
+datadog-operator:
+  image:
+    repository: placeholder
+    tag: placeholder
+  rbac:
+    create: false
+  serviceAccount:
+    create: false
+    name: placeholder
+datadog:
+  credentials:
+    apiKey: placeholder
+    appKey: placeholder
+  agent:
+    apm:
+      enabled: false
+    config:
+      collectEvents: false
+      dogstatsd:
+        dogstatsdOriginDetection: false
+        useDogStatsDSocketVolume: false
+      env: []
+      leaderElection: false
+    image:
+      name: datadog/agent:latest
+      pullPolicy: IfNotPresent
+      pullSecrets: []
+    log:
+      enabled: false
+    process:
+      enabled: false
+    rbac:
+      create: true
+  clusterAgent:
+    config:
+      clusterChecksEnabled: true
+    image:
+      name: datadog/cluster-agent:latest
+      pullPolicy: IfNotPresent
+      pullSecrets: []
+    rbac:
+      create: true
+    replicas: 1
+  clusterChecksRunner:
+    image:
+      name: datadog/agent:latest
+      pullPolicy: IfNotPresent
+      pullSecrets: []
+    rbac:
+      create: true
+    replicas: 1

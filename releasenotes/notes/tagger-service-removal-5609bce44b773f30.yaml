@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix an issue where some kubernetes tags would not be properly removed.

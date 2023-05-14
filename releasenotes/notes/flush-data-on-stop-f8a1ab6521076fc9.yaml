@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    The agent will now try to flush data to the backend when before exiting
+    (from DogStatsD and checks). This avoid having metrics gap when restarting
+    the agent. This behavior can be disable through configuration, see
+    `aggregator_stop_timeout` and `forwarder_stop_timeout`.

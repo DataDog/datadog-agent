@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add support for ARM64 to the runtime security agent

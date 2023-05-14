@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    It's possible to ignore ``auto_conf.yaml`` configuration files using ``ignore_autoconf`` or ``DD_IGNORE_AUTOCONF``.
+    Example: DD_IGNORE_AUTOCONF="redisdb kubernetes_state"

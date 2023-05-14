@@ -1,0 +1,4 @@
+enhancements:
+  - |
+    Improve CCCache performance on cache miss, significantly reducing
+    the number of API calls to the CAPI.

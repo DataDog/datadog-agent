@@ -1,0 +1,4 @@
+features:
+  - |
+    Autodiscovery: the ``docker`` and ``kubelet`` listeners will retry on error,
+    to support starting the agent before your container runtime (host install)

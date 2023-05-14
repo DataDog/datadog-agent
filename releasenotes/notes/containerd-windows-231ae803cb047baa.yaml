@@ -1,0 +1,3 @@
+features:
+  - |
+    The "containerd" check is now supported on Windows.

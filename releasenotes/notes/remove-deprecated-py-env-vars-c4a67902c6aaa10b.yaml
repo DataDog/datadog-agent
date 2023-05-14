@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Remove unused environment variables `DD_AGENT_PY` and `DD_AGENT_PY_ENV` from known environment variables in flare command.

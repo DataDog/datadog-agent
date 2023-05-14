@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Add an option to the `agent check` command to run the check n times

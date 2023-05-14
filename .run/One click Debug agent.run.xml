@@ -1,0 +1,7 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="One click Debug agent" type="CompoundRunConfigurationType">
+    <toRun name="Debug agent" type="GoRemoteDebugConfigurationType" />
+    <toRun name="Run agent" type="ShConfigurationType" />
+    <method v="2" />
+  </configuration>
+</component>

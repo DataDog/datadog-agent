@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    prometheus_scrape.checks may now be defined as an environmnet variable DD_PROMETHEUS_SCRAPE_CHECKS formatted as JSON

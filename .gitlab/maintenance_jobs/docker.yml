@@ -1,0 +1,78 @@
+---
+# FIXME: our current Gitlab version doesn't support importing a file more than once
+# For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
+# See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
+# include:
+#   - /.gitlab/docker_common/publish_job_templates.yml
+
+#
+# Use these steps to revert the latest tags to a previous release
+# while maintaining content trust signatures
+# - Create a pipeline on main with the RELEASE_6 and/or RELEASE_7 env vars
+# - in the gitlab pipeline view, trigger the step (in the first column)
+#
+revert_latest_6:
+  extends: .docker_publish_job_definition
+  rules:
+    !reference [.on_main_manual]
+  stage: maintenance_jobs
+  variables:
+    NEW_LATEST_RELEASE_6: ""  # tag name of the non-jmx version, for example "6.21.0"
+    IMG_REGISTRIES: public
+  parallel:
+    matrix:
+      - IMG_SOURCES: datadog/agent:${NEW_LATEST_RELEASE_6}
+        IMG_DESTINATIONS: agent:6,agent:latest-py2
+      - IMG_SOURCES: datadog/agent:${NEW_LATEST_RELEASE_6}-jmx
+        IMG_DESTINATIONS: agent:6-jmx,agent:latest-py2-jmx
+
+revert_latest_7:
+  extends: .docker_publish_job_definition
+  rules:
+    !reference [.on_main_manual]
+  stage: maintenance_jobs
+  variables:
+    NEW_LATEST_RELEASE_7: ""  # tag name of the non-jmx version, for example "7.21.0"
+    IMG_REGISTRIES: public
+  parallel:
+    matrix:
+      - IMG_SOURCES: datadog/agent:${NEW_LATEST_RELEASE_7}
+        IMG_DESTINATIONS: agent:7,agent:latest
+      - IMG_SOURCES: datadog/agent:${NEW_LATEST_RELEASE_7}-jmx
+        IMG_DESTINATIONS: agent:7-jmx,agent:latest-jmx
+      - IMG_SOURCES: datadog/agent:${NEW_LATEST_RELEASE_7}-servercore
+        IMG_DESTINATIONS: agent:7-servercore,agent:latest-servercore
+      - IMG_SOURCES: datadog/agent:${NEW_LATEST_RELEASE_7}-servercore-jmx
+        IMG_DESTINATIONS: agent:7-servercore-jmx,agent:latest-servercore-jmx
+      - IMG_SOURCES: datadog/dogstatsd:${NEW_LATEST_RELEASE_7}
+        IMG_DESTINATIONS: dogstatsd:7,dogstatsd:latest
+      - IMG_SOURCES: datadog/cluster-agent:${NEW_LATEST_RELEASE_7}
+        IMG_DESTINATIONS: cluster-agent:latest
+
+#
+# Use this step to delete a tag of a given image
+# We call the Docker Hub API because docker cli doesn't support deleting tags
+# - Run a pipeline on main with the IMAGE and TAG env vars
+# - in the gitlab pipeline view, trigger the step (in the first column)
+delete_docker_tag:
+  rules:
+    !reference [.on_main_manual]
+  stage: maintenance_jobs
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:v2718650-9ce6565-0.6.1-py3
+  tags: ["runner:docker"]
+  dependencies: []
+  variables:
+    IMAGE: ""  # image name, for example "agent"
+    TAG: ""  # tag name, for example "6.9.0"
+    ORGANIZATION: "datadog"
+  before_script:
+    - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+    - PASS=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+    - !reference [.setup_python_mirror_linux]
+    - python3 -m pip install -r requirements.txt
+    - |
+      export DOCKER_TOKEN=`curl -s -H "Content-Type: application/json" -X POST -d '{"username": "'$DOCKER_REGISTRY_LOGIN'", "password": "'$PASS'"}' https://hub.docker.com/v2/users/login/ | python -c 'import sys, json; print(json.load(sys.stdin)["token"].strip())'`
+  script:
+    - if [[ -z "$IMAGE" ]]; then echo "Need an image"; exit 1; fi
+    - if [[ -z "$TAG" ]]; then echo "Need a tag to delete"; exit 1; fi
+    - inv -e docker.delete ${ORGANIZATION} ${IMAGE} ${TAG} ${DOCKER_TOKEN} &>/dev/null

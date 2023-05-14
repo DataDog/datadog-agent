@@ -1,0 +1,18 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Adds a gauge for `system.mem.slab_reclaimable`. This is part of slab
+    memory that might be reclaimed (i.e. caches). Datadog 7.x adds
+    `SReclaimable` memory, if available on the system, to the
+    `system.mem.cached` gauge by default. This may lead to inconsistent
+    metrics for clients migrating from Datadog 5.x, where
+    `system.mem.cached` didn't include `SReclaimable` memory. Adding a gauge
+    for `system.mem.slab_reclaimable` allows inverse calculation to remove
+    this value from the `system.mem.cached` gauge.

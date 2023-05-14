@@ -1,0 +1,35 @@
+--- a/src/OVAL/probes/probe-table.c
++++ b/src/OVAL/probes/probe-table.c
+@@ -329,7 +329,7 @@ static const probe_table_entry_t probe_table[] = {
+ 	{OVAL_UNIX_RUNLEVEL, NULL, runlevel_probe_main, NULL, runlevel_probe_offline_mode_supported},
+ #endif
+ #ifdef OPENSCAP_PROBE_UNIX_SHADOW
+-	{OVAL_UNIX_SHADOW, NULL, shadow_probe_main, NULL, NULL},
++	{OVAL_UNIX_SHADOW, NULL, shadow_probe_main, NULL, shadow_probe_offline_mode_supported},
+ #endif
+ #ifdef OPENSCAP_PROBE_UNIX_SYMLINK
+ 	{OVAL_UNIX_SYMLINK, NULL, symlink_probe_main, NULL, symlink_probe_offline_mode_supported},
+--- a/src/OVAL/probes/unix/shadow_probe.c
++++ b/src/OVAL/probes/unix/shadow_probe.c
+@@ -209,6 +209,11 @@ static int read_shadow(SEXP_t *un_ent, probe_ctx *ctx)
+ 	return err;
+ }
+ 
++int shadow_probe_offline_mode_supported()
++{
++	return PROBE_OFFLINE_CHROOT;
++}
++
+ int shadow_probe_main(probe_ctx *ctx, void *arg)
+ {
+ 	SEXP_t *ent, *obj;
+--- a/src/OVAL/probes/unix/shadow_probe.h
++++ b/src/OVAL/probes/unix/shadow_probe.h
+@@ -25,6 +25,7 @@
+ 
+ #include "probe-api.h"
+ 
++int shadow_probe_offline_mode_supported(void);
+ int shadow_probe_main(probe_ctx *ctx, void *arg);
+ 
+ #endif /* OPENSCAP_SHADOW_PROBE_H */

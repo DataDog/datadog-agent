@@ -1,0 +1,8 @@
+# Python requirements to run the github invoke tasks
+# Cannot be put in the main requirements file because:
+# - cryptography doesn't build on arm, it needs additional libraries (at least libffi) that are not in
+#   the arm builder (and that are not needed, given we don't use cryptography in arm jobs).
+# - but adding the '; platform_machine == "x86_64"' to work around that breaks on python3.5, which some
+#   jobs still use
+cryptography==39.0.1
+PyJWT==2.4.0

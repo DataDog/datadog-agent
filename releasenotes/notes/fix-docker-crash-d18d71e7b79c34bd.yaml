@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix a bug where the agent would crash when using the docker autodiscovery config provider.

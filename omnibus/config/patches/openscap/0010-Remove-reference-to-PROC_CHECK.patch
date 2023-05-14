@@ -1,0 +1,26 @@
+From fe7e2651c0d78fc8af73b670c291eea93e4c32d3 Mon Sep 17 00:00:00 2001
+From: David du Colombier <djc@datadoghq.com>
+Date: Tue, 14 Feb 2023 12:02:13 +0100
+Subject: [PATCH 10/22] Remove reference to PROC_CHECK
+
+PROC_CHECK is not defined anymore, since the removal of automake.
+---
+ src/OVAL/probes/unix/linux/partition_probe.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/OVAL/probes/unix/linux/partition_probe.c b/src/OVAL/probes/unix/linux/partition_probe.c
+index ad29b8060..be51f2de8 100644
+--- a/src/OVAL/probes/unix/linux/partition_probe.c
++++ b/src/OVAL/probes/unix/linux/partition_probe.c
+@@ -274,7 +274,7 @@ int partition_probe_main(probe_ctx *ctx, void *probe_arg)
+         const char *prefix = getenv("OSCAP_PROBE_ROOT");
+         snprintf(mnt_path, PATH_MAX, "%s"MTAB_PATH, prefix ? prefix : "");
+ 
+-#if defined(PROC_CHECK) && defined(OS_LINUX)
++#if defined(OS_LINUX)
+         int   mnt_fd;
+         struct statfs stfs;
+ 
+-- 
+2.34.1
+

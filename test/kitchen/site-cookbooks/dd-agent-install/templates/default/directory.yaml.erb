@@ -1,0 +1,15 @@
+<%= JSON.parse(({'logs' => @logs }).to_json).to_yaml %>
+
+instances:
+<% @instances.each do |i| -%>
+  - directory: "<%= i['directory'] %>"
+    <% if i['name'] -%>name: "<%= i['name'] %>"<% end -%>
+    <% if i['dirtagname'] -%>dirtagname: "<%= i['dirtagname'] %>"<% end -%>
+    <% if i['filetagname'] -%>filetagname: "<%= i['filetagname'] %>"<% end -%>
+    <% if i.key?('filegauges') -%>filegauges: <%= i['filegauges'] %><% end -%>
+    <% if i['pattern'] -%>pattern: "<%= i['pattern'] %>"<% end -%>
+    <% if i.key?('recursive') -%>recursive: <%= i['recursive'] %><% end -%>
+<% end -%>
+
+# Nothing to configure here
+init_config:

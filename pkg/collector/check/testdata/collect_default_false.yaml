@@ -1,0 +1,6 @@
+instances:
+  - foo: bar
+
+init_config:
+  is_jmx: true
+  collect_default_metrics: false

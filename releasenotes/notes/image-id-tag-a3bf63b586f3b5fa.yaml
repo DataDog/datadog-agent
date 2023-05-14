@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Tag Kubernetes containers with ``image_id`` tag.

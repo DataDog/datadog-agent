@@ -1,0 +1,15 @@
+instances:
+- collect_container_size: false
+  collect_container_size_frequency: 5
+  collect_exit_codes: false
+  ok_exit_codes: []
+  collect_images_stats: false
+  collect_image_size: false
+  collect_disk_stats: false
+  collect_volume_count: false
+  tags: []
+  collect_events: true
+  filtered_event_types: []
+  capped_metrics: {}
+  unbundle_events: false
+  collected_event_types: []

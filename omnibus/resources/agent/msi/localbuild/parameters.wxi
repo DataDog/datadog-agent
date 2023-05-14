@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Include>
+  <?define VersionNumber="7.99.0.1" ?>
+  <?define DisplayVersionNumber="7.99.0" ?>
+  <?define UpgradeCode="0c50421b-aefb-4f15-a809-7af256d608a5" ?>
+  <?define InstallDir="C:/opt/datadog-agent" ?>
+  <?define InstallFiles="C:/omnibus-ruby/src/datadog-agent/dd-agent/packaging/datadog-agent/win32/install_files" ?>
+  <?define BinFiles="c:\omnibus-ruby\src\datadog-agent\src\github.com\DataDog\datadog-agent\bin\agent" ?>
+  <?define EtcFiles="C:/omnibus-ruby/src\etc\datadog-agent" ?>
+  <?define ResourcesDir="c:\dev\go\src\github.com\datadog\datadog-agent\omnibus\resources\agent\msi"?>
+  <?define IncludePython2= "false" ?>
+  <?define IncludePython3= "true" ?>
+  <?define Platform= "x64" ?>
+  <?define IncludeSysprobe="true" ?>
+</Include>

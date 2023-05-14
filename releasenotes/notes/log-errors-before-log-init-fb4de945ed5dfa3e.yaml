@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Errors logged before the agent initialized the log module are now printed
+    on STDERR instead of being silenced.

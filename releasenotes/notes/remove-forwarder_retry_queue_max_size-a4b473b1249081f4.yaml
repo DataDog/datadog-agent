@@ -1,0 +1,19 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    ``forwarder_retry_queue_payloads_max_size`` takes precedence over the deprecated
+    ``forwarder_retry_queue_max_size``. If ``forwarder_retry_queue_max_size`` 
+    is not set, you are not affected by this change. If 
+    ``forwarder_retry_queue_max_size`` is set, but 
+    ``forwarder_retry_queue_payloads_max_size`` is not set, the Agent uses
+    ``forwarder_retry_queue_max_size * 2MB`` 
+    as the value of ``forwarder_retry_queue_payloads_max_size``. It is 
+    recommended to configure ``forwarder_retry_queue_payloads_max_size`` and 
+    remove ``forwarder_retry_queue_max_size`` from the Agent configuration.

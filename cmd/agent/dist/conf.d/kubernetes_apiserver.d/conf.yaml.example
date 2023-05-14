@@ -1,0 +1,66 @@
+init_config:
+
+instances:
+
+  -
+    ## @param tags - list of strings following the pattern: "key:value" - optional
+    ## List of tags to attach to every metric, event, and service check emitted by this integration.
+    ##
+    ## Learn more about tagging: https://docs.datadoghq.com/tagging/
+    #
+    # tags:
+    #   - <KEY_1>:<VALUE_1>
+    #   - <KEY_2>:<VALUE_2>
+
+    ## @param unbundle_events - boolean - optional - default: false
+    ## Transforms each collected Kubernetes event into its own Datadog
+    ## event, instead of grouping them together by InvolvedObject.
+    #
+    # unbundle_events: true
+
+    ## @param collected_event_types - map of array of strings - optional
+    ## Specify which events to be collected by kind, source, and reasons.
+    ## Either kind or source are required, reasons is optional. Only effective
+    ## when unbundle_events is true, otherwise filtered_event_types is used.
+    #
+    collected_event_types:
+      - kind: Pod
+        reasons:
+          - Failed
+          - BackOff
+          - Unhealthy
+          - FailedScheduling
+          - FailedMount
+          - FailedAttachVolume
+      - kind: Node
+        reasons:
+          - TerminatingEvictedPod
+          - NodeNotReady
+          - Rebooted
+          - HostPortConflict
+
+    ## @param filtered_event_types - array of strings - optional
+    ## Specify a list of exclusion filters over the event type, involvedObject.kind, reason, following the Kubernetes field-selector format.
+    ## Only effective hen unbundle_events is false, otherwise
+    ## collected_event_types  is used.
+    #
+    # filtered_event_types: ["reason!=FailedGetScale","involvedObject.kind==Pod","type==Normal"]
+
+    ## @param max_events_per_run - integer - optional - default: 300
+    ## Maximum number of events you wish to collect per check run.
+    # max_events_per_run: 300
+
+    ## @param kubernetes_event_read_timeout_ms - integer - optional - default: 1000
+    ## If the API Server is slow to respond under load, the event collection might fail. Increase the read timeout (in milliseconds).
+    #
+    # kubernetes_event_read_timeout_ms: 1000
+
+    ## @param skip_leader_election - boolean - optional - default: false
+    ## Parameter specified by the Cluster Agent when the event collection is configured as a cluster check.
+    #
+    # skip_leader_election: false
+
+    ## @param kubernetes_event_resync_period_s - integer - optional - default: 300
+    ## Specify the frequency in seconds at which the Agent should list all events to re-sync following the informer pattern
+    #
+    # kubernetes_event_resync_period_s: 300

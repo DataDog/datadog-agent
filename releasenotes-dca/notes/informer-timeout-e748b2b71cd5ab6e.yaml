@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    The orchestrator check can now be configured with
+    an extra timeout to ensure the Kubernetes informers have enough time
+    to synchronize (60s by default).

@@ -1,0 +1,24 @@
+
+tests_macos:
+  stage: source_test
+  rules:
+    !reference [.on_a6]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main"]
+  needs: []
+  variables:
+    PYTHON_RUNTIMES: '3'
+  script:
+    - export GITHUB_KEY_B64=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.macos_github_key_b64 --with-decryption --query "Parameter.Value" --out text)
+    - export GITHUB_APP_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.macos_github_app_id --with-decryption --query "Parameter.Value" --out text)
+    - export GITHUB_INSTALLATION_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.macos_github_installation_id --with-decryption --query "Parameter.Value" --out text)
+    - !reference [.setup_python_mirror_linux]
+    - python3 -m pip install -r tasks/libs/requirements-github.txt
+    - inv -e github.trigger-macos-test --datadog-agent-ref "$CI_COMMIT_SHA" --python-runtimes "$PYTHON_RUNTIMES"
+    - inv -e junit-macos-repack --infile junit-tests_macos.tgz --outfile junit-tests_macos-repacked.tgz
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - test_output.json
+      - junit-*-repacked.tgz

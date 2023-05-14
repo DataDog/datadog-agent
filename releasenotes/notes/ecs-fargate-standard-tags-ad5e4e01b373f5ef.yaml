@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Extract env, version and service tags from ECS Fargate containers

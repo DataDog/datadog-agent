@@ -1,0 +1,110 @@
+## The agent honors the DOCKER_HOST, DOCKER_CERT_PATH and DOCKER_TLS_VERIFY
+## environment variables to set up the connection to the server.
+## See https://docs.docker.com/engine/reference/commandline/cli/#environment-variables
+
+ad_identifiers:
+  - _docker
+
+init_config:
+
+instances:
+
+  -
+
+    ## @param collect_events - boolean - optional - default: true
+    ## Create events whenever a container status changes.
+    #
+    # collect_events: true
+
+    ## @param unbundle_events - boolean - optional - default: false
+    ## Transforms each collected Docker event into its own Datadog
+    ## event, instead of grouping them together by container image.
+    #
+    # unbundle_events: true
+
+    ## @param collected_event_types - array of strings - optional
+    ## Specify which docker events will be collected. Only effective when
+    ## unbundle_events is true, otherwise filtered_event_types is used.
+    ## A list of available types can be found at:
+    ## https://docs.docker.com/engine/reference/commandline/events/#object-types
+    #
+    collected_event_types:
+      - "oom"
+      - "kill"
+
+    ## @param filtered_event_types - list of strings - optional - default: ['top', 'exec_start', 'exec_create', 'exec_die']
+    ## List of excluded (filtered out) event types. Docker events of this type are not collected.
+    ## Only effective when unbundle_events is true, otherwise filtered_event_types is used.
+    ## A list of available types can be found at:
+    ## https://docs.docker.com/engine/reference/commandline/events/#object-types
+    #
+    # filtered_event_types:
+    #   - 'top'
+    #   - 'exec_start'
+    #   - 'exec_create'
+    #   - 'exec_die'
+
+    ## @param collect_container_size - boolean - optional - default: false
+    ## Collect disk usage per container with docker.container.size_rw and
+    ## docker.container.size_rootfs metrics.
+    ## Warning: This might take time for Docker daemon to generate,
+    ## ensure that `docker ps -a -q` runs fast before enabling it.
+    #
+    # collect_container_size: false
+
+    ## @param collect_container_size_frequency - integer - optional - default: 5
+    ## Set the collection frequency (once every X check runs) of disk user per container metrics.
+    #
+    # collect_container_size_frequency: 5
+
+    ## @param collect_images_stats - boolean - optional - default: false
+    ## Set to true to gather the number of available active images and intermediate images as gauges.
+    #
+    # collect_images_stats: false
+
+    ## @param collect_image_size - boolean - optional - default: false
+    ## Set to true to collect disk usage per image with docker.image.size and docker.image.virtual_size metrics.
+    ## The check gets this size with the `docker images` command. It requires collect_images_stats to be enabled.
+    #
+    # collect_image_size: true
+
+    ## @param collect_disk_stats - boolean - optional - default: false
+    ## Collect disk metrics (total, used, free) through the Docker info command for data and metadata.
+    ## This is useful when these values can't be obtained by the disk check.
+    ## Example: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-optimized_AMI.html
+    ##
+    ## Note: This only works when the storage driver is devicemapper.
+    ## Explanation of these metrics can be found here:
+    ## https://github.com/docker/docker/blob/v1.11.1/daemon/graphdriver/devmapper/README.md
+    #
+    # collect_disk_stats: false
+
+    ## @param collect_exit_codes - boolean - optional - default: false
+    ## Collect containers exit codes and send service checks critical when exit code is not 0 or 143.
+    #
+    # collect_exit_codes: false
+
+    ## @param ok_exit_codes - list of integers - optional - default: [0, 143]
+    ## Define the set of exit codes considered OK. It requires the collect_exit_codes parameter to be enabled.
+    ## Note: 143 is returned when docker sends a SIGTERM to stop a container.
+    #
+    # ok_exit_codes:
+    #   - 0
+    #   - 143
+
+    ## @param tags - list of strings following the pattern: "key:value" - optional
+    ## List of tags to attach to every metric, event, and service check emitted by this integration.
+    ##
+    ## Learn more about tagging: https://docs.datadoghq.com/tagging/
+    #
+    # tags:
+    #   - <KEY_1>:<VALUE_1>
+    #   - <KEY_2>:<VALUE_2>
+
+    ## @param capped_metrics - list of key:value elements - optional
+    ## Allows ad-hoc spike filtering if the system reports incorrect metrics.
+    ## This drops points if the computed rate is higher than the cap value.
+    #
+    # capped_metrics:
+    #   docker.cpu.user: 1000
+    #   docker.cpu.system: 1000

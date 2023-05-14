@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Make sure we don't get stuck if the API server does not return events.

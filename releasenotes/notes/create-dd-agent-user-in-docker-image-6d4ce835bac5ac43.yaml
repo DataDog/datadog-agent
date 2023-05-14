@@ -1,0 +1,3 @@
+---
+features:
+  - Add a dd-agent user in the docker image to prepare for running root-less

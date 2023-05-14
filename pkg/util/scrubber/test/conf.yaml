@@ -1,0 +1,57 @@
+api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb
+api_key2: |
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb
+api_key3: >
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb
+
+app_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb
+app_key2: |
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb
+app_key3: >
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb
+
+list_api_key: [aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb, aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb]
+list_app_key: [aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb, aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb]
+
+dict_api_key: {one: aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb, two: aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb}
+dict_app_key: {two: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb, two: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb}
+
+additional_endpoints:
+  "https://app.datadoghq.com":
+    - aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb
+    - bbbbbbbbbbbbbbbbbbbbbbbbbbbbaaaa
+  "https://dog.datadoghq.com":
+    - aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb
+    - bbbbbbbbbbbbbbbbbbbbbbbbbbbbaaaa
+
+container_id: b32bd6f9b73ba7ccb64953a04b82b48e29dfafab65fd57ca01d3b94a0e024885
+random_url_key1: http://user:p@ssw0r)@host:port
+random_url_key2: protocol://user:p@ssw0r)@host:port
+random_url_key3: "http://user:password@host:port"
+random_domain_key: 'user:password@host:port'
+random_url_key1: |
+  http://user:password@host:port
+random_url_key2: >
+  http://user:password@host:port
+random_url_key3:   'http://user:password@host:port'
+random_url_key4:   'mongodb+s.r-v://user:password@host:port'
+random_url_key5:   'mongodb+srv://user:pass-with-hyphen@abc.example.com/database'
+random_url_key6:   'http://user-with-hyphen:pass-with-hyphen@abc.example.com/database'
+random_url_key7:   'http://user-with-hyphen:pass@abc.example.com/database'
+
+mysql_password1: password
+mysql_password3: "password"
+pwd: 'password'
+pass: p@ssw0r
+password: p@ssw0r
+token: 123465749798
+
+network_devices:
+  snmp_traps:
+    community_strings:
+      - 'password1'
+      - 'password2'
+
+community: password
+authentication_key: password
+privacy_key: password

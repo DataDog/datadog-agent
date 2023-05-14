@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Upgraded JMXFetch to 0.30.0. See https://github.com/DataDog/jmxfetch/releases/tag/0.30.0

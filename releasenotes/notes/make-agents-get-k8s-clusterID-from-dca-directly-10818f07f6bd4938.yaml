@@ -1,0 +1,15 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    We improved the way Agents get the Kubernetes cluster ID from the Cluster Agent.
+    It used to be that the cluster agent would create a configmap which had to be
+    mounted as an env variable in the agent daemonset, blocking the process-agent
+    from starting if not found. Now the process-agent will start, only the Kubernetes
+    Resources collection will be blocked.

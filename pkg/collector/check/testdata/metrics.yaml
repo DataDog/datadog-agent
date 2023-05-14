@@ -1,0 +1,3 @@
+jmx_metrics:
+  - foo: bar
+  - baz: qux

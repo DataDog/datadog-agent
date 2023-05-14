@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add namespace configuration for metric names for dogstatsd

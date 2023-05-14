@@ -1,0 +1,31 @@
+# NOTE: You have to use single-quoted strings in TOML for regular expressions.
+# It's the equivalent of r-strings in Python. Multiline strings are treated as
+# verbose regular expressions by Black. Use [ ] to denote a significant space
+# character.
+
+[tool.black]
+include = '\.pyi?$'
+line-length = 120
+py36 = false
+skip-string-normalization = true
+exclude = '''
+(
+  /(
+    | \.git
+    | docs
+    | releasenotes
+    | releasenotes-installscript
+    | vendor
+    | dev
+  )/
+)
+'''
+
+[tool.isort]
+default_section = 'THIRDPARTY'
+force_grid_wrap = 0
+include_trailing_comma = true
+known_first_party = 'datadog_checks'
+line_length = 120
+multi_line_output = 3
+use_parentheses = true

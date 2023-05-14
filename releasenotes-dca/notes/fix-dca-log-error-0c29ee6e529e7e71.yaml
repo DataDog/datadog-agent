@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix "Error creating expvar server" error log when running the Datadog Cluster Agent CLI commands.

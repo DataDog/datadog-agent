@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    The `kubernetes_state_core` check now collects two new metrics `kubernetes_state.pod.age` and `kubernetes_state.pod.uptime`.

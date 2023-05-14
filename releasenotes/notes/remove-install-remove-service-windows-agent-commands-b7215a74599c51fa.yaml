@@ -1,0 +1,6 @@
+---
+deprecations:
+  - |
+    Removes the `install-service` Windows agent command.
+  - |
+    Removes the `remove-service` Windows agent command.

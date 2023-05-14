@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Allow Prometheus scrape `tls_verify` to be set to `false` and 
+    change `label_to_hostname` type to `string`.

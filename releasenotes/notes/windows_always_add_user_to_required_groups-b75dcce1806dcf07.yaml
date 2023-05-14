@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    On Windows, always add the user to the required groups during installation.

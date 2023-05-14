@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    Expose the number of logs processed and sent to the agent status

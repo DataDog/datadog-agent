@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Flare generation is no longer subject to the `server_timeout` configuration,
+    as gathering all of the information for a flare can take quite some time.

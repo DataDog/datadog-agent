@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    The configcheck command now display checks in alphabetical orders and are
+    no longer grouped by configuration provider

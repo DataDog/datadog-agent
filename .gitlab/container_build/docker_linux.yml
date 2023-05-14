@@ -1,0 +1,240 @@
+---
+.docker_build_job_definition:
+  stage: container_build
+  variables:
+    CI_ENABLE_CONTAINER_IMAGE_BUILDS: "true"
+  script:
+    - aws s3 sync --only-show-errors $S3_ARTIFACTS_URI $BUILD_CONTEXT
+    - TAG_SUFFIX=${TAG_SUFFIX:-}
+    - BUILD_ARG=${BUILD_ARG:-}
+    - ECR_RELEASE_SUFFIX=${CI_COMMIT_TAG+-release}
+    - TARGET_TAG=${IMAGE}${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}$TAG_SUFFIX-$ARCH
+    # DockerHub login for build to limit rate limit when pulling base images
+    - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
+    # Build image
+    - docker buildx build --no-cache --push --pull --platform linux/$ARCH --build-arg CIBUILD=true --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} $BUILD_ARG --file $BUILD_CONTEXT/Dockerfile --tag ${TARGET_TAG} $BUILD_CONTEXT
+    # Squash image
+    - crane flatten -t ${TARGET_TAG} ${TARGET_TAG}
+  # Workaround for temporary network failures
+  retry: 2
+
+.docker_build_job_definition_amd64:
+  extends: .docker_build_job_definition
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  variables:
+    ARCH: amd64
+
+.docker_build_job_definition_arm64:
+  extends: .docker_build_job_definition
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:arm64"]
+  variables:
+    ARCH: arm64
+
+# build agent6 py2 image
+docker_build_agent6:
+  extends: .docker_build_job_definition_amd64
+  rules:
+    !reference [.on_a6]
+  needs:
+    - job: agent_deb-x64-a6
+      artifacts: false
+  variables:
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    TAG_SUFFIX: -6
+    BUILD_ARG: --target test --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
+
+docker_build_agent6_arm64:
+  extends: .docker_build_job_definition_arm64
+  rules:
+    !reference [.on_all_builds_a6]
+  needs:
+    - job: agent_deb-arm64-a6
+      artifacts: false
+  variables:
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    TAG_SUFFIX: -6
+    BUILD_ARG: --target test --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*arm64.deb
+
+# build agent6 py2 jmx image
+docker_build_agent6_jmx:
+  extends: .docker_build_job_definition_amd64
+  rules:
+    !reference [.on_a6]
+  needs:
+    - job: agent_deb-x64-a6
+      artifacts: false
+  variables:
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    BUILD_ARTIFACT_GLOB: datadog-agent_6*_amd64.deb
+    TAG_SUFFIX: -6-jmx
+    BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
+
+# build agent6 py2 jmx image
+docker_build_agent6_jmx_arm64:
+  extends: .docker_build_job_definition_arm64
+  rules:
+    !reference [.on_all_builds_a6]
+  needs:
+    - job: agent_deb-arm64-a6
+      artifacts: false
+  variables:
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    BUILD_ARTIFACT_GLOB: datadog-agent_6*arm64.deb
+    TAG_SUFFIX: -6-jmx
+    BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*arm64.deb
+
+# TESTING ONLY: This image is for internal testing purposes, not customer facing.
+# build agent6 jmx unified image (including python3)
+docker_build_agent6_py2py3_jmx:
+  extends: .docker_build_job_definition_amd64
+  rules:
+    !reference [.on_a6]
+  needs:
+    - job: agent_deb-x64-a6
+      artifacts: false
+  variables:
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    TAG_SUFFIX: -6-py2py3-jmx
+    BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
+
+# build agent7 image
+docker_build_agent7:
+  extends: .docker_build_job_definition_amd64
+  rules:
+    !reference [.on_a7]
+  needs:
+    - job: agent_deb-x64-a7
+      artifacts: false
+  variables:
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    TAG_SUFFIX: -7
+    BUILD_ARG: --target test --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
+
+single_machine_performance-push-main-sha:
+  stage: container_build
+  rules:
+    - !reference [.on_main_a7]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:docker"]
+  needs:
+    - docker_build_agent7
+  script:
+    - echo -n ${CI_COMMIT_SHA} > .main_sha
+    - SMP_ACCOUNT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-account-id --with-decryption --query "Parameter.Value" --out text)
+    - SMP_AGENT_TEAM_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-agent-team-id --with-decryption --query "Parameter.Value" --out text)
+    - aws configure set aws_access_key_id $(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-bot-access-key-id --with-decryption --query "Parameter.Value" --out text) --profile single-machine-performance
+    - aws configure set aws_secret_access_key $(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-bot-access-key --with-decryption --query "Parameter.Value" --out text) --profile single-machine-performance
+    - aws configure set region us-west-2 --profile single-machine-performance
+    - aws s3 cp --profile single-machine-performance --only-show-errors .main_sha s3://${SMP_AGENT_TEAM_ID}-smp-artifacts/information/latest_main_sha
+
+single_machine_performance-amd64-a7:
+  extends: .docker_publish_job_definition
+  stage: container_build
+  rules:
+    !reference [.on_a7]
+  needs:
+    - docker_build_agent7
+  variables:
+    IMG_REGISTRIES: internal-aws-smp
+    IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64
+    IMG_DESTINATIONS: 08450328-agent:${CI_COMMIT_SHA}-7-amd64
+
+docker_build_agent7_arm64:
+  extends: .docker_build_job_definition_arm64
+  rules:
+    !reference [.on_a7]
+  needs:
+    - job: agent_deb-arm64-a7
+      artifacts: false
+  variables:
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    TAG_SUFFIX: -7
+    BUILD_ARG: --target test --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_arm64.deb
+
+# build agent7 jmx image
+docker_build_agent7_jmx:
+  extends: .docker_build_job_definition_amd64
+  rules:
+    !reference [.on_a7]
+  needs:
+    - job: agent_deb-x64-a7
+      artifacts: false
+  variables:
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    TAG_SUFFIX: -7-jmx
+    BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
+
+docker_build_agent7_jmx_arm64:
+  extends: .docker_build_job_definition_arm64
+  rules:
+    !reference [.on_a7]
+  needs:
+    - job: agent_deb-arm64-a7
+      artifacts: false
+  variables:
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    TAG_SUFFIX: -7-jmx
+    BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_arm64.deb
+
+# build the cluster-agent image
+docker_build_cluster_agent_amd64:
+  extends: .docker_build_job_definition_amd64
+  rules:
+    !reference [.on_tag_or_a7]
+  needs:
+    - job: cluster_agent-build_amd64
+      artifacts: false
+  variables:
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
+    BUILD_CONTEXT: Dockerfiles/cluster-agent
+  before_script:
+    - cp -Rvf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
+
+docker_build_cluster_agent_arm64:
+  extends: .docker_build_job_definition_arm64
+  rules:
+    !reference [.on_tag_or_a7_all_builds]
+  needs:
+    - job: cluster_agent-build_arm64
+      artifacts: false
+  variables:
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
+    BUILD_CONTEXT: Dockerfiles/cluster-agent
+  before_script:
+    - cp -Rvf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
+
+# build the dogstatsd image
+docker_build_dogstatsd_amd64:
+  extends: .docker_build_job_definition_amd64
+  rules:
+    !reference [.on_a7]
+  needs:
+    - job: build_dogstatsd_static-binary_x64
+      artifacts: false
+  variables:
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
+    BUILD_CONTEXT: Dockerfiles/dogstatsd/alpine
+
+# build the dogstatsd image
+docker_build_dogstatsd_arm64:
+  extends: .docker_build_job_definition_arm64
+  rules:
+    !reference [.on_a7]
+  needs:
+    - job: build_dogstatsd_static-binary_arm64
+      artifacts: false
+  variables:
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
+    BUILD_CONTEXT: Dockerfiles/dogstatsd/alpine

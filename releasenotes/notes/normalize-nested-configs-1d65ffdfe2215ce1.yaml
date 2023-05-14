@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Normalize support of nested config options defined with env vars.

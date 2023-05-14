@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Send a tag for any ``service`` defined in the ``init_config`` or
+    ``instances`` section of integration configuration, with the latter
+    taking precedence. This applies to metrics, events, and service checks.

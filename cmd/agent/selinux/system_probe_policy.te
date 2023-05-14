@@ -1,0 +1,10 @@
+module system_probe_policy 1.0;
+
+type system_probe_t;
+require {
+  attribute file_type, exec_type, entry_type, base_file_type, base_ro_file_type, non_auth_file_type, non_security_file_type;
+  class bpf { map_create map_read map_write prog_load prog_run };
+}
+
+typeattribute system_probe_t file_type, exec_type, entry_type, base_file_type, base_ro_file_type, non_auth_file_type, non_security_file_type;
+allow system_probe_t self:bpf { map_create map_read map_write prog_load prog_run };

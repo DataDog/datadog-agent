@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    Support fetching host tags using ECS task and EKS IAM roles.

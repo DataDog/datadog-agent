@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix the build for platforms not supporting Gohai.

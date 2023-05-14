@@ -1,0 +1,10 @@
+features:
+  - |
+    Add the ability to change log_level at runtime. The agent command
+    has been extended to support new operation. For example to set
+    the log_level to debug the following command should be used:
+    ``agent config set log_level debug``, all runtime-configurable
+    settings can be listed using ``agent config list-runtime``. The
+    log_level may also be fetched using the ``agent config get log_level``
+    command. Additional runtime-editable setting can easily be added
+    by following this implementation. 

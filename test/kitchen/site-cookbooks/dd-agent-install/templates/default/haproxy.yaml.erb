@@ -1,0 +1,17 @@
+<%= JSON.parse(({'logs' => @logs }).to_json).to_yaml %>
+
+<% excluded_keys = ["url", "username", "password"] -%>
+instances:
+  <% @instances.each do |i| -%>
+  - url:      <%= i['url'] %>
+    <% if i.key?('username') && i.key?('password') -%>
+    username: <%= i['username'] %>
+    password: <%= i['password'] %>
+    <% end -%>
+    <% (i.keys - excluded_keys).each do |key| -%>
+    <%= key %>: <%= i[key] %>
+    <% end -%>
+  <% end -%>
+
+# Nothing to configure below
+init_config:

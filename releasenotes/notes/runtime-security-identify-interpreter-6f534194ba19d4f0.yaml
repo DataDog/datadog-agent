@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Adds ability to identify the interpreter of a script inside a script via the shebang. Example rule would be `exec.interpreter.file.name == ~"python*"`. This feature is currently limited to one layer of nested script. For example, a python script in a shell script will be caught, but a perl script inside a python script inside a shell script will not be caught.

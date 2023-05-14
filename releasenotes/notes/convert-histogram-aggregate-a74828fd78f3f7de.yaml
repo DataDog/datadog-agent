@@ -1,0 +1,5 @@
+---
+
+features:
+  - |
+    Convert the format of histogram_aggregate when importing agent5 configs to agent6

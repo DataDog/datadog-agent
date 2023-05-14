@@ -1,0 +1,24 @@
+version: '2.3'
+services:
+  etcd:
+    image: "datadog/docker-library:etcd_${version}"
+    network_mode: ${network_mode}
+    environment:
+      - ETCDCTL_API=3
+    healthcheck:
+      test: ["CMD", "etcdctl", "--command-timeout=2s", "--dial-timeout=2s", "--endpoints", "http://127.0.0.1:2379", "endpoint", "health"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+    command: "etcd -advertise-client-urls http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379"
+
+  pause:
+    #
+    # This pause container is here to wait until etcd
+    # is healthy before returning.
+    #
+    image: "datadog/docker-library:pause_3_1"
+    depends_on:
+      etcd:
+        condition: service_healthy
+    network_mode: none

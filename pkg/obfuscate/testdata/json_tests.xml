@@ -1,0 +1,1105 @@
+<ObfuscateTests>
+	<TestSuite>
+
+		<!-- ******************************************************************** -->
+
+		<Test>
+			<Tag>elasticsearch.body.1</Tag>
+			<KeepValues></KeepValues>
+			<In> { "query": { "multi_match" : { "query" : "guide", "fields" : ["_all", { "key": "value", "other": ["1", "2", {"k": "v"}] }, "2"] } } } </In>
+			<Out> { "query": { "multi_match": { "query": "?", "fields" : ["?", { "key": "?", "other": ["?", "?", {"k": "?"}] }, "?"] } } } </Out>
+		</Test>
+
+		<!-- ******************************************************************** -->
+
+		<Test>
+			<Tag>elasticsearch.body.2</Tag>
+			<KeepValues></KeepValues>
+			<In><![CDATA[
+{
+  "highlight": {
+    "pre_tags": [ "<em>" ],
+    "post_tags": [ "</em>" ],
+    "index": 1
+  }
+}
+			]]></In>
+		<Out><![CDATA[
+{
+  "highlight": {
+    "pre_tags": [ "?" ],
+    "post_tags": [ "?" ],
+    "index": "?"
+  }
+}
+]]></Out>
+		</Test>
+
+		<!-- ******************************************************************** -->
+
+		<Test>
+			<Tag>elasticsearch.body.3</Tag>
+			<KeepValues>
+				<key>other</key>
+			</KeepValues>
+			<In> { "query": { "multi_match" : { "query" : "guide", "fields" : ["_all", { "key": "value", "other": ["1", "2", {"k": "v"}] }, "2"] } } } </In>
+			<Out>{ "query": { "multi_match": { "query": "?", "fields" : ["?", { "key": "?", "other": ["1", "2", {"k": "v"}] }, "?"] } } }</Out>
+		</Test>
+
+		<!-- ******************************************************************** -->
+
+		<Test>
+			<Tag>elasticsearch.body.4</Tag>
+			<KeepValues><key>fields</key></KeepValues>
+			<In> {"fields" : ["_all", { "key": "value", "other": ["1", "2", {"k": "v"}] }, "2"]}</In>
+			<Out>{"fields" : ["_all", { "key": "value", "other": ["1", "2", {"k": "v"}] }, "2"]}</Out>
+		</Test>
+
+		<!-- ******************************************************************** -->
+
+		<Test>
+			<Tag>elasticsearch.body.5</Tag>
+			<KeepValues><key>k</key></KeepValues>
+			<In> {"fields" : ["_all", { "key": "value", "other": ["1", "2", {"k": "v"}] }, "2"]}</In>
+			<Out>{"fields" : ["?", { "key": "?", "other": ["?", "?", {"k": "v"}] }, "?"]}</Out>
+		</Test>
+
+		<!-- ******************************************************************** -->
+
+		<Test>
+			<Tag>elasticsearch.body.6</Tag>
+			<KeepValues><key>C</key></KeepValues>
+			<In> {"fields" : [{"A": 1, "B": {"C": 3}}, "2"]}</In>
+			<Out> {"fields" : [{"A": "?", "B": {"C": 3}}, "?"]}</Out>
+		</Test>
+
+		<!-- ******************************************************************** -->
+
+		<Test>
+			<Tag>elasticsearch.body.7</Tag>
+			<In>
+{
+    "query": {
+	   "match" : {
+		  "title" : "in action"
+	   }
+    },
+    "size": 2,
+    "from": 0,
+    "_source": [ "title", "summary", "publish_date" ],
+    "highlight": {
+	   "fields" : {
+		  "title" : {}
+	   }
+    }
+}
+			</In>
+			<Out>
+{
+    "query": {
+	   "match" : {
+		  "title" : "?"
+	   }
+    },
+    "size": "?",
+    "from": "?",
+    "_source": [ "?", "?", "?" ],
+    "highlight": {
+	   "fields" : {
+		  "title" : {}
+	   }
+    }
+}
+			</Out>
+		</Test>
+
+		<!-- ******************************************************************** -->
+
+		<Test>
+			<Tag>elasticsearch.body.8</Tag>
+			<KeepValues><key>_source</key></KeepValues>
+			<In>
+{
+    "query": {
+	   "match" : {
+		  "title" : "in action"
+	   }
+    },
+    "size": 2,
+    "from": 0,
+    "_source": [ "title", "summary", "publish_date" ],
+    "highlight": {
+	   "fields" : {
+		  "title" : {}
+	   }
+    }
+}
+			</In>
+			<Out>
+{
+    "query": {
+	   "match" : {
+		  "title" : "?"
+	   }
+    },
+    "size": "?",
+    "from": "?",
+    "_source": [ "title", "summary", "publish_date" ],
+    "highlight": {
+	   "fields" : {
+		  "title" : {}
+	   }
+    }
+}
+			</Out>
+		</Test>
+
+		<!-- ******************************************************************** -->
+
+		<Test>
+			<Tag>elasticsearch.body.9</Tag>
+			<KeepValues><key>query</key></KeepValues>
+			<In>
+{
+    "query": {
+	   "match" : {
+		  "title" : "in action"
+	   }
+    },
+    "size": 2,
+    "from": 0,
+    "_source": [ "title", "summary", "publish_date" ],
+    "highlight": {
+	   "fields" : {
+		  "title" : {}
+	   }
+    }
+}
+			</In>
+			<Out>
+{
+    "query": {
+	   "match" : {
+		  "title" : "in action"
+	   }
+    },
+    "size": "?",
+    "from": "?",
+    "_source": [ "?", "?", "?" ],
+    "highlight": {
+	   "fields" : {
+		  "title" : {}
+	   }
+    }
+}
+			</Out>
+		</Test>
+
+		<!-- ******************************************************************** -->
+
+		<Test>
+			<Tag>elasticsearch.body.10</Tag>
+			<KeepValues><key>match</key></KeepValues>
+			<In>
+{
+    "query": {
+	   "match" : {
+		  "title" : "in action"
+	   }
+    },
+    "size": 2,
+    "from": 0,
+    "_source": [ "title", "summary", "publish_date" ],
+    "highlight": {
+	   "fields" : {
+		  "title" : {}
+	   }
+    }
+}
+			</In>
+			<Out>
+{
+    "query": {
+	   "match" : {
+		  "title" : "in action"
+	   }
+    },
+    "size": "?",
+    "from": "?",
+    "_source": [ "?", "?", "?" ],
+    "highlight": {
+	   "fields" : {
+		  "title" : {}
+	   }
+    }
+}
+			</Out>
+		</Test>
+
+		<!-- ******************************************************************** -->
+
+		<Test>
+			<Tag>elasticsearch.body.11</Tag>
+			<KeepValues>
+				<key>hits</key>
+			</KeepValues>
+			<In><![CDATA[
+{
+	"outer": {
+	    "total": 2,
+	    "max_score": 0.9105287,
+	    "hits": [
+		 {
+		   "_index": "bookdb_index",
+		   "_type": "book",
+		   "_id": "3",
+		   "_score": 0.9105287,
+		   "_source": {
+			"summary": "build scalable search applications using Elasticsearch without having to do complex low-level programming or understand advanced data science algorithms",
+			"title": "Elasticsearch in Action",
+			"publish_date": "2015-12-03"
+		   },
+		   "highlight": {
+			"title": [
+			  "Elasticsearch Action"
+			]
+		   }
+		 },
+		 {
+		   "_index": "bookdb_index",
+		   "_type": "book",
+		   "_id": "4",
+		   "_score": 0.9105287,
+		   "_source": {
+			"summary": "Comprehensive guide to implementing a scalable search engine using Apache Solr",
+			"title": "Solr in Action",
+			"publish_date": "2014-04-05"
+		   },
+		   "highlight": {
+			"title": [
+			  "Solr in Action"
+			]
+		   }
+		 }
+	    ]
+    }
+}
+]]></In>
+			<Out><![CDATA[
+{
+	"outer": {
+	    "total": "?",
+	    "max_score": "?",
+	    "hits": [
+		 {
+		   "_index": "bookdb_index",
+		   "_type": "book",
+		   "_id": "3",
+		   "_score": 0.9105287,
+		   "_source": {
+			"summary": "build scalable search applications using Elasticsearch without having to do complex low-level programming or understand advanced data science algorithms",
+			"title": "Elasticsearch in Action",
+			"publish_date": "2015-12-03"
+		   },
+		   "highlight": {
+			"title": [
+			  "Elasticsearch Action"
+			]
+		   }
+		 },
+		 {
+		   "_index": "bookdb_index",
+		   "_type": "book",
+		   "_id": "4",
+		   "_score": 0.9105287,
+		   "_source": {
+			"summary": "Comprehensive guide to implementing a scalable search engine using Apache Solr",
+			"title": "Solr in Action",
+			"publish_date": "2014-04-05"
+		   },
+		   "highlight": {
+			"title": [
+			  "Solr in Action"
+			]
+		   }
+		 }
+	    ]
+    }
+}
+]]></Out>
+		</Test>
+
+		<!-- ******************************************************************** -->
+
+		<Test>
+			<Tag>elasticsearch.body.12</Tag>
+			<KeepValues>
+				<key>_index</key>
+				<key>title</key>
+			</KeepValues>
+			<In>
+{
+	"hits": {
+	    "total": 2,
+	    "max_score": 0.9105287,
+	    "hits": [
+		 {
+		   "_index": "bookdb_index",
+		   "_type": "book",
+		   "_id": "3",
+		   "_score": 0.9105287,
+		   "_source": {
+			"summary": "build scalable search applications using Elasticsearch without having to do complex low-level programming or understand advanced data science algorithms",
+			"title": "Elasticsearch in Action",
+			"publish_date": "2015-12-03"
+		   },
+		   "highlight": {
+			"title": [
+			  "Elasticsearch Action"
+			]
+		   }
+		 },
+		 {
+		   "_index": "bookdb_index",
+		   "_type": "book",
+		   "_id": "4",
+		   "_score": 0.9105287,
+		   "_source": {
+			"summary": "Comprehensive guide to implementing a scalable search engine using Apache Solr",
+			"title": "Solr in Action",
+			"publish_date": "2014-04-05"
+		   },
+		   "highlight": {
+			"title": [
+			  "Solr Action"
+			]
+		   }
+		 }
+	    ]
+    }
+}
+			</In>
+			<Out>
+{
+	"hits": {
+	    "total": "?",
+	    "max_score": "?",
+	    "hits": [
+		 {
+		   "_index": "bookdb_index",
+		   "_type": "?",
+		   "_id": "?",
+		   "_score": "?",
+		   "_source": {
+			"summary": "?",
+			"title": "Elasticsearch in Action",
+			"publish_date": "?"
+		   },
+		   "highlight": {
+			"title": [
+			  "Elasticsearch Action"
+			]
+		   }
+		 },
+		 {
+		   "_index": "bookdb_index",
+		   "_type": "?",
+		   "_id": "?",
+		   "_score": "?",
+		   "_source": {
+			"summary": "?",
+			"title": "Solr in Action",
+			"publish_date": "?"
+		   },
+		   "highlight": {
+			"title": [
+			  "Solr Action"
+			]
+		   }
+		 }
+	    ]
+    }
+}
+			</Out>
+		</Test>
+		<Test>
+			<Tag>elasticsearch.body.13</Tag>
+			<KeepValues>
+				<key>_source</key>
+			</KeepValues>
+			<In><![CDATA[
+{
+  "query": {
+    "bool": {
+      "must": [ { "match": { "title": "smith" } } ],
+      "must_not": [ { "match_phrase": { "title": "granny smith" } } ],
+      "filter": [ { "exists": { "field": "title" } } ]
+    }
+  },
+  "aggs": {
+    "my_agg": { "terms": { "field": "user", "size": 10 } }
+  },
+  "highlight": {
+    "pre_tags": [ "<em>" ], "post_tags": [ "</em>" ],
+    "fields": {
+      "body": { "number_of_fragments": 1, "fragment_size": 20 },
+      "title": {}
+    }
+  },
+  "size": 20,
+  "from": 100,
+  "_source": [ "title", "id" ],
+  "sort": [ { "_id": { "order": "desc" } } ]
+}
+]]></In>
+			<Out><![CDATA[
+{
+  "query": {
+    "bool": {
+      "must": [ { "match": { "title": "?" } } ],
+      "must_not": [ { "match_phrase": { "title": "?" } } ],
+      "filter": [ { "exists": { "field": "?" } } ]
+    }
+  },
+  "aggs": {
+    "my_agg": { "terms": { "field": "?", "size": "?" } }
+  },
+  "highlight": {
+    "pre_tags": [ "?" ], "post_tags": [ "?" ],
+    "fields": {
+      "body": { "number_of_fragments": "?", "fragment_size": "?" },
+      "title": {}
+    }
+  },
+  "size": "?",
+  "from": "?",
+  "_source": [ "title", "id" ],
+  "sort": [ { "_id": { "order": "?" } }
+  ]
+}
+
+]]></Out>
+		</Test>
+		<Test>
+			<Tag>elasticsearch.body.14</Tag>
+			<DontNormalize>true</DontNormalize>
+			<In>{"index":{"_index":"traces.v2.2018.06.29.11","_routing":"2:-1851516970739438017","_type":"trace"}} {"trace_id":-1851516970739438017,"span":[{"service":"master-db","name":"postgres.query","resource":"INSERT INTO kafka_broker_state ( broker_id, topic, partition, latest_offset, kafka_version ) VALUES ( ? )","duration":532865,"error":0,"meta":{"db.application":"brokerstate","db.name":"dogdatastaging","db.user":"None","out.host":"''","out.port":"6432","sql.query":"INSERT INTO kafka_broker_state ( broker_id, topic, partition, latest_offset, kafka_version ) VALUES ( ? )","system.pid":"23463"},"metrics":{"_sample_rate":0.08579267671651072,"_sampling_priority_v1":1,"_top_level":1,"db.rowcount":1},"type":"sql","resource_hash":"633ad3800be7ec31","start":"2018-06-29T11:30:49.021115904Z","end":"2018-06-29T11:30:49.021648769Z","trace_id":-1851516970739438017,"span_id":3635861121986229119,"parent_id":0,"is_root":true}],"org_id":2,"host_id":2832410,"start":"2018-06-29T11:30:49.021115904Z","end":"2018-06-29T11:30:49.021648769Z","env":"staging","host_groups":["availability-zone:us-east-1a","env:staging"]} {"index":{"_index":"traces.v2.2018.06.29.11","_routing":"2:-7171575148150503216","_type":"trace"}} {"trace_id":-7171575148150503216,"span":[{"service":"master-db","name":"postgres.query","resource":"INSERT INTO kafka_broker_state ( broker_id, topic, partition, latest_offset, kafka_version ) VALUES ( ? )","duration":541925,"error":0,"meta":{"db.application":"brokerstate","db.name":"dogdatastaging","db.user":"None","out.host":"''","out.port":"6432","sql.query":"INSERT INTO kafka_broker_state ( broker_id, topic, partition, latest_offset, kafka_version ) VALUES ( ? )","system.pid":"23463"},"metrics":{"_sample_rate":0.02845090898763012,"_sampling_priority_v1":1,"_top_level":1,"db.rowcount":1},"type":"sql","resource_hash":"633ad3800be7ec31","start":"2018-06-29T11:30:49.870599936Z","end":"2018-06-29T11:30:49.871141861Z","trace_id":-7171575148150503216,"span_id":-4982373041719473893,"parent_id":0,"is_root":true}],"org_id":2,"host_id":2832410,"start":"2018-06-29T11:30:49.870599936Z","end":"2018-06-29T11:30:49.871141861Z","env":"staging","host_groups":["availability-zone:us-east-1a","env:staging"]} {"index":{"_index":"traces.v2.2018.06.29.11","_routing":"2:3438931145341397782","_type":"trace"}} {"trace_id":3438931145341397782,"span":[{"service":"master-db","name":"postgres.query","resource":"begin","duration":1988172,"error":0,"meta":{"db.application":"brokerstate","db.name":"dogdatastaging","db.user":"None","out.host":"''","out.port":"6432","sql.query":"begin","system.pid":"23463"},"metrics":{"_sample_rate":1,"_sampling_priority_v1":1,"_top_level":1,"db.rowcount":-1},"type":"sql","resource_hash":"fc747ae36f14c50d","start":"2018-06-29T11:30:48.886354944Z","end":"2018-06-29T11:30:48.888343116Z","trace_id":3438931145341397782,"span_id":8432748882772113994,"parent_id":0,"is_root":true}],"org_id":2,"host_id":2832410,"start":"2018-06-29T11:30:48.886354944Z","end":"2018-06-29T11:30:48.888343116Z","env":"staging","host_groups":["availability-zone:us-east-1a","env:staging"]} {"index":{"_index":"traces.v2.2018.06.29.11","_routing":"2:-2942210836778233450","_type":"trace"}} {"trace_id":-2942210836778233450,"span":[{"service":"master-db","name":"postgres.query","resource":"INSERT INTO kafka_broker_state ( broker_id, topic, partition, latest_offset, kafka_version ) VALUES ( ? )","duration":538825,"error":0,"meta":{"db.application":"brokerstate","db.name":"dogdatastaging","db.user":"None","out.host":"''","out.port":"6432","sql.query":"INSERT INTO kafka_broker_state ( broker_id, topic, partition, latest_offset, kafka_version ) VALUES ( ? )","system.pid":"23463"},"metrics":{"_sample_rate":0.09493583930982655,"_sampling_priority_v1":1,"_top_level":1,"db.rowcount":1},"type":"sql","resource_hash":"633ad3800be7ec31","start":"2018-06-29T11:30:48.995932928Z","end":"2018-06-29T11:30:48.996471753Z","trace_id":-2942210836778233450,"span_id":1801908560308090622,"parent_id":0,"is_root":true}],"org_id":2,"host_id":2832410,"start":"2018-06-29T11:30:48.995932928Z","end":"2018-06-29T11:30:48.996471753Z","env":"staging","host_groups":["availability-zone:us-east-1a","env:staging"]} {"index":{"_index":"traces.v2.2018.06.29.11","_routing":"2:1154462040005386081","_type":"trace"}} {"trace_id":1154462040005386081,"span":[{"service":"master-db","name":"postgres.query","resource":"INSERT INTO kafka_broker_state ( broker_id, topic, partition, latest_offset, kafka_version ) VALUES ( ? )","duration":16173124,"error":0,"meta":{"db.application":"brokerstate","db.name":"dogdatastaging","db.user":"None","out.host":"''","out.port":"6432","sql.query":"INSERT INTO kafka_broker_state ( broker_id, topic, partition, latest_offset, kafka_version ) VALUES ( ? )","system.pid":"23463"},"metrics":{"_sample_rate":0.03305929657743924,"_sampling_priority_v1":1,"_top_level":1,"db.rowcount":1},"type":"sql","resource_hash":"633ad3800be7ec31","start":"2018-06-29T11:30:49.730038784Z","end":"2018-...</In>
+			<Out>{"index":{"_index":"?","_routing":"?","_type":"?"}} {"trace_id":"?","span":[{"service":"?","name":"?","resource":"?","duration":"?","error":"?","meta":{"db.application":"?","db.name":"?","db.user":"?","out.host":"?","out.port":"?","sql.query":"?","system.pid":"?"},"metrics":{"_sample_rate":"?","_sampling_priority_v1":"?","_top_level":"?","db.rowcount":"?"},"type":"?","resource_hash":"?","start":"?","end":"?","trace_id":"?","span_id":"?","parent_id":"?","is_root":"?"}],"org_id":"?","host_id":"?","start":"?","end":"?","env":"?","host_groups":["?","?"]} {"index":{"_index":"?","_routing":"?","_type":"?"}} {"trace_id":"?","span":[{"service":"?","name":"?","resource":"?","duration":"?","error":"?","meta":{"db.application":"?","db.name":"?","db.user":"?","out.host":"?","out.port":"?","sql.query":"?","system.pid":"?"},"metrics":{"_sample_rate":"?","_sampling_priority_v1":"?","_top_level":"?","db.rowcount":"?"},"type":"?","resource_hash":"?","start":"?","end":"?","trace_id":"?","span_id":"?","parent_id":"?","is_root":"?"}],"org_id":"?","host_id":"?","start":"?","end":"?","env":"?","host_groups":["?","?"]} {"index":{"_index":"?","_routing":"?","_type":"?"}} {"trace_id":"?","span":[{"service":"?","name":"?","resource":"?","duration":"?","error":"?","meta":{"db.application":"?","db.name":"?","db.user":"?","out.host":"?","out.port":"?","sql.query":"?","system.pid":"?"},"metrics":{"_sample_rate":"?","_sampling_priority_v1":"?","_top_level":"?","db.rowcount":"?"},"type":"?","resource_hash":"?","start":"?","end":"?","trace_id":"?","span_id":"?","parent_id":"?","is_root":"?"}],"org_id":"?","host_id":"?","start":"?","end":"?","env":"?","host_groups":["?","?"]} {"index":{"_index":"?","_routing":"?","_type":"?"}} {"trace_id":"?","span":[{"service":"?","name":"?","resource":"?","duration":"?","error":"?","meta":{"db.application":"?","db.name":"?","db.user":"?","out.host":"?","out.port":"?","sql.query":"?","system.pid":"?"},"metrics":{"_sample_rate":"?","_sampling_priority_v1":"?","_top_level":"?","db.rowcount":"?"},"type":"?","resource_hash":"?","start":"?","end":"?","trace_id":"?","span_id":"?","parent_id":"?","is_root":"?"}],"org_id":"?","host_id":"?","start":"?","end":"?","env":"?","host_groups":["?","?"]} {"index":{"_index":"?","_routing":"?","_type":"?"}} {"trace_id":"?","span":[{"service":"?","name":"?","resource":"?","duration":"?","error":"?","meta":{"db.application":"?","db.name":"?","db.user":"?","out.host":"?","out.port":"?","sql.query":"?","system.pid":"?"},"metrics":{"_sample_rate":"?","_sampling_priority_v1":"?","_top_level":"?","db.rowcount":"?"},"type":"?","resource_hash":"?","start":"?","end":"?"...</Out>
+		</Test>
+		<Test>
+			<Tag>obfuscate.sql.json.basic</Tag>
+			<ObfuscateSQLValues>
+				<key>query</key>
+			</ObfuscateSQLValues>
+			<KeepValues>
+				<key>hello</key>
+			</KeepValues>
+			<In>{"query": "select * from table where id = 2", "hello": "world", "hi": "there"}</In>
+			<Out>{"query": "select * from table where id = ?", "hello": "world", "hi": "?"}</Out>
+		</Test>
+		<Test>
+			<Tag>obfuscate.sql.json.tried_sql_obfuscate_an_object</Tag>
+			<ObfuscateSQLValues>
+				<key>object</key>
+			</ObfuscateSQLValues>
+			<In>{"object": {"not a": "query"}}</In>
+			<Out>{"object": {"not a": "?"}}</Out>
+		</Test>
+		<Test>
+			<Tag>obfuscate.sql.json.tried_sql_obfuscate_an_array</Tag>
+			<ObfuscateSQLValues>
+				<key>object</key>
+			</ObfuscateSQLValues>
+			<In>{"object": ["not", "a", "query"]}</In>
+			<Out>{"object": ["?", "?", "?"]}</Out>
+		</Test>
+		<Test>
+			<Tag>normalize.sql.plan.mysql</Tag>
+			<ObfuscateSQLValues>
+				<key>attached_condition</key>
+			</ObfuscateSQLValues>
+			<KeepValues>
+				<key>select_id</key>
+				<key>using_filesort</key>
+				<key>table_name</key>
+				<key>access_type</key>
+				<key>possible_keys</key>
+				<key>key</key>
+				<key>key_length</key>
+				<key>used_key_parts</key>
+				<key>used_columns</key>
+				<key>ref</key>
+				<key>update</key>
+			</KeepValues>
+			<In><![CDATA[
+{
+  "query_block": {
+	"select_id": 1,
+	"cost_info": {
+	  "query_cost": "120.31"
+	},
+	"ordering_operation": {
+	  "using_filesort": true,
+	  "cost_info": {
+		"sort_cost": "100.00"
+	  },
+	  "table": {
+		"table_name": "sbtest1",
+		"access_type": "range",
+		"possible_keys": [
+		  "PRIMARY"
+		],
+		"key": "PRIMARY",
+		"used_key_parts": [
+		  "id"
+		],
+		"key_length": "4",
+		"rows_examined_per_scan": 100,
+		"rows_produced_per_join": 100,
+		"filtered": "100.00",
+		"cost_info": {
+		  "read_cost": "10.31",
+		  "eval_cost": "10.00",
+		  "prefix_cost": "20.31",
+		  "data_read_per_join": "71K"
+		},
+		"used_columns": [
+		  "id",
+		  "c"
+		],
+		"attached_condition": "(`sbtest`.`sbtest1`.`id` between 5016 and 5115)"
+	  }
+	}
+  }
+}]]></In>
+			<Out><![CDATA[
+{
+  "query_block": {
+	"select_id": 1,
+	"cost_info": {
+	  "query_cost": "?"
+	},
+	"ordering_operation": {
+	  "using_filesort": true,
+	  "cost_info": {
+		"sort_cost": "?"
+	  },
+	  "table": {
+		"table_name": "sbtest1",
+		"access_type": "range",
+		"possible_keys": [
+		  "PRIMARY"
+		],
+		"key": "PRIMARY",
+		"used_key_parts": [
+		  "id"
+		],
+		"key_length": "4",
+		"rows_examined_per_scan": "?",
+		"rows_produced_per_join": "?",
+		"filtered": "?",
+		"cost_info": {
+		  "read_cost": "?",
+		  "eval_cost": "?",
+		  "prefix_cost": "?",
+		  "data_read_per_join": "?"
+		},
+		"used_columns": [
+		  "id",
+		  "c"
+		],
+		"attached_condition": "( sbtest . sbtest1 . id between ? and ? )"
+	  }
+	}
+  }
+}]]></Out>
+		</Test>
+		<Test>
+			<Tag>normalize.sql.plan.postgres</Tag>
+			<ObfuscateSQLValues>
+				<key>Cache Key</key>
+				<key>Conflict Filter</key>
+				<key>Filter</key>
+				<key>Hash Cond</key>
+				<key>Index Cond</key>
+				<key>Join Filter</key>
+				<key>Merge Cond</key>
+				<key>Output</key>
+				<key>Recheck Cond</key>
+				<key>Repeatable Seed</key>
+				<key>Sampling Parameters</key>
+				<key>TID Cond</key>
+			</ObfuscateSQLValues>
+			<KeepValues>
+				<key>Actual Loops</key>
+				<key>Actual Rows</key>
+				<key>Actual Startup Time</key>
+				<key>Actual Total Time</key>
+				<key>Alias</key>
+				<key>Async Capable</key>
+				<key>Average Sort Space Used</key>
+				<key>Cache Evictions</key>
+				<key>Cache Hits</key>
+				<key>Cache Misses</key>
+				<key>Cache Overflows</key>
+				<key>Calls</key>
+				<key>Command</key>
+				<key>Conflict Arbiter Indexes</key>
+				<key>Conflict Resolution</key>
+				<key>Conflicting Tuples</key>
+				<key>Constraint Name</key>
+				<key>CTE Name</key>
+				<key>Custom Plan Provider</key>
+				<key>Deforming</key>
+				<key>Emission</key>
+				<key>Exact Heap Blocks</key>
+				<key>Execution Time</key>
+				<key>Expressions</key>
+				<key>Foreign Delete</key>
+				<key>Foreign Insert</key>
+				<key>Foreign Update</key>
+				<key>Full-sort Groups</key>
+				<key>Function Call</key>
+				<key>Function Name</key>
+				<key>Generation</key>
+				<key>Group Count</key>
+				<key>Grouping Sets</key>
+				<key>Group Key</key>
+				<key>HashAgg Batches</key>
+				<key>Hash Batches</key>
+				<key>Hash Buckets</key>
+				<key>Heap Fetches</key>
+				<key>I/O Read Time</key>
+				<key>I/O Write Time</key>
+				<key>Index Name</key>
+				<key>Inlining</key>
+				<key>Join Type</key>
+				<key>Local Dirtied Blocks</key>
+				<key>Local Hit Blocks</key>
+				<key>Local Read Blocks</key>
+				<key>Local Written Blocks</key>
+				<key>Lossy Heap Blocks</key>
+				<key>Node Type</key>
+				<key>Optimization</key>
+				<key>Original Hash Batches</key>
+				<key>Original Hash Buckets</key>
+				<key>Parallel Aware</key>
+				<key>Parent Relationship</key>
+				<key>Partial Mode</key>
+				<key>Peak Memory Usage</key>
+				<key>Peak Sort Space Used</key>
+				<key>Planned Partitions</key>
+				<key>Planning Time</key>
+				<key>Pre-sorted Groups</key>
+				<key>Presorted Key</key>
+				<key>Query Identifier</key>
+				<key>Plan Rows</key>
+				<key>Plan Width</key>
+				<key>Relation Name</key>
+				<key>Rows Removed by Conflict Filter</key>
+				<key>Rows Removed by Filter</key>
+				<key>Rows Removed by Index Recheck</key>
+				<key>Rows Removed by Join Filter</key>
+				<key>Sampling Method</key>
+				<key>Scan Direction</key>
+				<key>Schema</key>
+				<key>Settings</key>
+				<key>Shared Dirtied Blocks</key>
+				<key>Shared Hit Blocks</key>
+				<key>Shared Read Blocks</key>
+				<key>Shared Written Blocks</key>
+				<key>Single Copy</key>
+				<key>Sort Key</key>
+				<key>Sort Method</key>
+				<key>Sort Methods Used</key>
+				<key>Sort Space</key>
+				<key>Sort Space Type</key>
+				<key>Sort Space Used</key>
+				<key>Startup Cost</key>
+				<key>Strategy</key>
+				<key>Subplan Name</key>
+				<key>Subplans Removed</key>
+				<key>Target Tables</key>
+				<key>Temp Read Blocks</key>
+				<key>Temp Written Blocks</key>
+				<key>Time</key>
+				<key>Timing</key>
+				<key>Total</key>
+				<key>Trigger</key>
+				<key>Trigger Name</key>
+				<key>Triggers</key>
+				<key>Tuples Inserted</key>
+				<key>Tuplestore Name</key>
+				<key>Total Cost</key>
+				<key>WAL Bytes</key>
+				<key>WAL FPI</key>
+				<key>WAL Records</key>
+				<key>Worker</key>
+				<key>Worker Number</key>
+				<key>Workers</key>
+				<key>Workers Launched</key>
+				<key>Workers Planned</key>
+			</KeepValues>
+			<In><![CDATA[
+{
+  "Plan": {
+	"Node Type": "Aggregate",
+    "Partial Mode": "Partial",
+    "Startup Cost": 74286.07,
+	"Total Cost": 223.59,
+	"Plan Rows": 100,
+	"Plan Width": 121,
+    "Plans": [
+      {
+		"Cache Key": "datadog.org_id",
+		"Conflict Filter": "(datadog.org_id != 8182)",
+		"Filter": "(query <> 'dogfood'::text)",
+		"Hash Cond": "(pg_stat_statements.dbid = pg_database.)",
+		"Index Cond": "((datadog.org.id >= 10) AND (datadog.org.id < 15))",
+		"Join Filter": "datadog.org.name != 'dummy'",
+		"Merge Cond": "datadog.org_name = 'dummy'",
+		"Output": ["'fakename'::text", "25", "NULL::timestamp without time zone", "NULL::text"],
+		"Recheck Cond": "datadog.org.id >= 10",
+		"Sampling Parameters": ["'15528'::real"],
+		"TID Cond": "((datadog.tid > '15531'::tid) AND (datadog.tid <= '(44247,178)'::tid))",
+		"Alias": "dog",
+		"Async Capable": true,
+		"Cache Evictions": 1,
+		"Cache Hits": 2,
+		"Cache Misses": 3,
+		"Cache Overflows": 4,
+		"Command": "Intersect",
+		"Conflict Arbiter Indexes": "dummy_index",
+		"Conflict Resolution": "NOTHING",
+		"Conflicting Tuples": 1,
+		"Constraint Name": "datadog_org.id_pkey",
+		"CTE Name": "CTE_datadog",
+		"Custom Plan Provider": "Custom Dogfood",
+		"Deforming": false,
+		"Exact Heap Blocks": 1,
+		"Execution Time": 1,
+		"Expressions": false,
+		"Foreign Delete": "datadog.org_id",
+		"Foreign Insert": "datadog.org_id",
+		"Foreign Update": "datadog.has_apm",
+		"Function Call": "count_active_users_for_product('dbm')",
+		"Function Name": "count_active_users_for_product",
+		"Group Key": ["datadog.org_id", "datadog.has_apm"],
+		"Grouping Sets": ["datadog.has_apm", "datadog.enabled_logs"],
+		"Hash Batches": 32,
+		"Hash Buckets": 8319,
+		"HashAgg Batches": 4,
+		"Heap Fetches": 8,
+		"Index Name": "dogfood",
+		"I/O Read Time": 5.31,
+		"I/O Write Time": 8.18,
+		"Join Type": "Left",
+		"Lossy Heap Blocks": 1,
+		"Original Hash Batches": 32,
+		"Original Hash Buckets": 65536,
+		"Parallel Aware": false,
+		"Parent Relationship": "Outer",
+		"Peak Memory Usage": 3941,
+		"Planned Partitions": 1,
+		"Planning Time": 0.431,
+		"Presorted Key": ["dog", "food"],
+		"Query Identifier": "3365166609774651210",
+		"Relation Name": "dog",
+		"Repeatable Seed": "'60'::double precision",
+		"Rows Removed by Conflict Filter": 1,
+		"Rows Removed by Filter": 2,
+		"Rows Removed by Index Recheck": 3,
+		"Rows Removed by Join Filter": 4,
+		"Sampling Method": "System",
+		"Scan Direction": "Forward",
+		"Schema": "dogfood_users",
+		"Settings": {
+			"enable_mergejoin": "off",
+			"enable_nestloop": "off",
+			"jit_above_cost": "0",
+			"jit_inline_above_cost": "0",
+			"jit_optimize_above_cost": "0"
+		},
+		"Single Copy": false,
+		"Sort Key": "datadog.org_id",
+		"Sort Method": "quicksort",
+		"Sort Space Type": "Memory",
+		"Sort Space Used": 2,
+		"Strategy": "Hashed",
+		"Subplan Name": "DogPlan 1",
+		"Subplans Removed": 0,
+		"Target Tables": "dog_food_users",
+		"Timing": {
+			"Generation": 1.22,
+			"Inlining": 0.1,
+			"Optimization": 0.83,
+			"Emission": 5.418,
+			"Total": 7.568
+		},
+		"Triggers": [
+			{
+			   "Trigger Name": "validate_user",
+			   "Relation": "datadog",
+			   "Time": 1.676,
+			   "Calls": 1
+			},
+			{
+			   "Trigger Name": "has_apm",
+			   "Relation": "datadog",
+			   "Time": 1.32,
+			   "Calls": 1
+			}
+		],
+		"Trigger": {
+		   "Trigger Name": "has_apm",
+		   "Relation": "datadog",
+		   "Time": 1.32,
+		   "Calls": 1
+		},
+		"Tuples Inserted": 1,
+		"Tuplestore Name": "dog_tuples",
+		"WAL Bytes": 1,
+		"WAL FPI": 2,
+		"WAL Records": 3,
+		"Worker": {
+		   "Worker Number": 0,
+		   "Actual Startup Time": 303.67,
+		   "Actual Total Time": 303.92,
+		   "Actual Rows": 256,
+		   "Actual Loops": 1
+		},
+		"Workers": [
+			{
+			   "Worker Number": 0,
+			   "Actual Startup Time": 1303.877,
+			   "Actual Total Time": 1303.928,
+			   "Actual Rows": 256,
+			   "Actual Loops": 1,
+			   "Full-sort Groups": {
+				  "Group Count": 1,
+				  "Sort Methods Used": [
+					 "quicksort"
+				  ],
+				  "Sort Space Memory": {
+					 "Average Sort Space Used": 34,
+					 "Peak Sort Space Used": 34
+				  }
+			   },
+			   "Pre-sorted Groups": {
+				  "Group Count": 1,
+				  "Sort Methods Used": [
+					 "external merge"
+				  ],
+				  "Sort Space Disk": {
+					 "Average Sort Space Used": 82256,
+					 "Peak Sort Space Used": 82256
+				  }
+			   }
+			},
+			{
+			   "Worker Number": 1,
+			   "Actual Startup Time": 0.016,
+			   "Actual Total Time": 51.325,
+			   "Actual Rows": 294375,
+			   "Actual Loops": 1,
+			   "Shared Hit Blocks": 3925,
+			   "Shared Read Blocks": 0,
+			   "Shared Dirtied Blocks": 0,
+			   "Shared Written Blocks": 0,
+			   "Local Hit Blocks": 0,
+			   "Local Read Blocks": 0,
+			   "Local Dirtied Blocks": 0,
+			   "Local Written Blocks": 0,
+			   "Temp Read Blocks": 0,
+			   "Temp Written Blocks": 0
+			}
+		],
+		"Workers Launched": 5,
+		"Workers Planned": 5
+      }
+    ]
+  }
+}]]></In>
+			<Out><![CDATA[
+{
+  "Plan": {
+    "Node Type": "Aggregate",
+    "Partial Mode": "Partial",
+    "Startup Cost": 74286.07,
+    "Total Cost": 223.59,
+    "Plan Rows": 100,
+    "Plan Width": 121,
+    "Plans": [
+      {
+		"Cache Key": "datadog.org_id",
+		"Conflict Filter": "( datadog.org_id != ? )",
+		"Filter": "( query <> ? :: text )",
+		"Hash Cond": "( pg_stat_statements.dbid = pg_database. )",
+		"Index Cond": "( ( datadog.org.id >= ? ) AND ( datadog.org.id < ? ) )",
+		"Join Filter": "datadog.org.name != ?",
+		"Merge Cond": "datadog.org_name = ?",
+		"Output": ["?", "?", "?", "?"],
+		"Recheck Cond": "datadog.org.id >= ?",
+		"Sampling Parameters": ["?"],
+		"TID Cond": "( ( datadog.tid > ? :: tid ) AND ( datadog.tid <= ? :: tid ) )",
+		"Alias": "dog",
+		"Async Capable": true,
+		"Cache Evictions": 1,
+		"Cache Hits": 2,
+		"Cache Misses": 3,
+		"Cache Overflows": 4,
+		"Command": "Intersect",
+		"Conflict Arbiter Indexes": "dummy_index",
+		"Conflict Resolution": "NOTHING",
+		"Conflicting Tuples": 1,
+		"Constraint Name": "datadog_org.id_pkey",
+		"CTE Name": "CTE_datadog",
+		"Custom Plan Provider": "Custom Dogfood",
+		"Deforming": false,
+		"Exact Heap Blocks": 1,
+		"Execution Time": 1,
+		"Expressions": false,
+		"Foreign Delete": "datadog.org_id",
+		"Foreign Insert": "datadog.org_id",
+		"Foreign Update": "datadog.has_apm",
+		"Function Call": "count_active_users_for_product('dbm')",
+		"Function Name": "count_active_users_for_product",
+		"Group Key": ["datadog.org_id", "datadog.has_apm"],
+		"Grouping Sets": ["datadog.has_apm", "datadog.enabled_logs"],
+		"Hash Batches": 32,
+		"Hash Buckets": 8319,
+		"HashAgg Batches": 4,
+		"Heap Fetches": 8,
+		"Index Name": "dogfood",
+		"I/O Read Time": 5.31,
+		"I/O Write Time": 8.18,
+		"Join Type": "Left",
+		"Lossy Heap Blocks": 1,
+		"Original Hash Batches": 32,
+		"Original Hash Buckets": 65536,
+		"Parallel Aware": false,
+		"Parent Relationship": "Outer",
+		"Peak Memory Usage": 3941,
+		"Planned Partitions": 1,
+		"Planning Time": 0.431,
+		"Presorted Key": ["dog", "food"],
+		"Query Identifier": "3365166609774651210",
+		"Relation Name": "dog",
+		"Repeatable Seed": "? :: double precision",
+		"Rows Removed by Conflict Filter": 1,
+		"Rows Removed by Filter": 2,
+		"Rows Removed by Index Recheck": 3,
+		"Rows Removed by Join Filter": 4,
+		"Sampling Method": "System",
+		"Scan Direction": "Forward",
+		"Schema": "dogfood_users",
+		"Settings": {
+			"enable_mergejoin": "off",
+			"enable_nestloop": "off",
+			"jit_above_cost": "0",
+			"jit_inline_above_cost": "0",
+			"jit_optimize_above_cost": "0"
+		},
+		"Single Copy": false,
+		"Sort Key": "datadog.org_id",
+		"Sort Method": "quicksort",
+		"Sort Space Type": "Memory",
+		"Sort Space Used": 2,
+		"Strategy": "Hashed",
+		"Subplan Name": "DogPlan 1",
+		"Subplans Removed": 0,
+		"Target Tables": "dog_food_users",
+		"Timing": {
+			"Generation": 1.22,
+			"Inlining": 0.1,
+			"Optimization": 0.83,
+			"Emission": 5.418,
+			"Total": 7.568
+		},
+		"Triggers": [
+			{
+			   "Trigger Name": "validate_user",
+			   "Relation": "datadog",
+			   "Time": 1.676,
+			   "Calls": 1
+			},
+			{
+			   "Trigger Name": "has_apm",
+			   "Relation": "datadog",
+			   "Time": 1.32,
+			   "Calls": 1
+			}
+		],
+		"Trigger": {
+		   "Trigger Name": "has_apm",
+		   "Relation": "datadog",
+		   "Time": 1.32,
+		   "Calls": 1
+		},
+		"Tuples Inserted": 1,
+		"Tuplestore Name": "dog_tuples",
+		"WAL Bytes": 1,
+		"WAL FPI": 2,
+		"WAL Records": 3,
+		"Worker": {
+		   "Worker Number": 0,
+		   "Actual Startup Time": 303.67,
+		   "Actual Total Time": 303.92,
+		   "Actual Rows": 256,
+		   "Actual Loops": 1
+		},
+		"Workers": [
+			{
+			   "Worker Number": 0,
+			   "Actual Startup Time": 1303.877,
+			   "Actual Total Time": 1303.928,
+			   "Actual Rows": 256,
+			   "Actual Loops": 1,
+			   "Full-sort Groups": {
+				  "Group Count": 1,
+				  "Sort Methods Used": [
+					 "quicksort"
+				  ],
+				  "Sort Space Memory": {
+					 "Average Sort Space Used": 34,
+					 "Peak Sort Space Used": 34
+				  }
+			   },
+			   "Pre-sorted Groups": {
+				  "Group Count": 1,
+				  "Sort Methods Used": [
+					 "external merge"
+				  ],
+				  "Sort Space Disk": {
+					 "Average Sort Space Used": 82256,
+					 "Peak Sort Space Used": 82256
+				  }
+			   }
+			},
+			{
+			   "Worker Number": 1,
+			   "Actual Startup Time": 0.016,
+			   "Actual Total Time": 51.325,
+			   "Actual Rows": 294375,
+			   "Actual Loops": 1,
+			   "Shared Hit Blocks": 3925,
+			   "Shared Read Blocks": 0,
+			   "Shared Dirtied Blocks": 0,
+			   "Shared Written Blocks": 0,
+			   "Local Hit Blocks": 0,
+			   "Local Read Blocks": 0,
+			   "Local Dirtied Blocks": 0,
+			   "Local Written Blocks": 0,
+			   "Temp Read Blocks": 0,
+			   "Temp Written Blocks": 0
+			}
+		],
+		"Workers Launched": 5,
+		"Workers Planned": 5
+      }
+    ]
+  }
+}]]></Out>
+		</Test>
+	</TestSuite>
+</ObfuscateTests>

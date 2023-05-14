@@ -1,0 +1,22 @@
+<%
+  api_key = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  application_key = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  url = "https://app.datad0g.com"
+  aptrepo = "[signed-by=/usr/share/keyrings/datadog-archive-keyring.gpg] http://apttesting.datad0g.com/"
+  aptrepo_dist = "pipeline-#{ENV['DD_PIPELINE_ID']}"
+  yumrepo = "http://yumtesting.datad0g.com/testing/pipeline-#{ENV['DD_PIPELINE_ID']}/#{ENV['MAJOR_VERSION']}/x86_64/"
+  yumrepo_suse = "http://yumtesting.datad0g.com/suse/testing/pipeline-#{ENV['DD_PIPELINE_ID']}/#{ENV['MAJOR_VERSION']}/x86_64/"
+  agent_major_version = "#{ENV['MAJOR_VERSION']}"
+  windows_agent_url = ENV['WINDOWS_AGENT_URL'] ? ENV['WINDOWS_AGENT_URL'] : "https://#{ENV['WIN_S3_BUCKET']}.s3.amazonaws.com/#{ENV['WINDOWS_TESTING_S3_BUCKET']}"
+  dd_agent_config = {
+    'agent_major_version': agent_major_version,
+    'api_key': api_key,
+    'application_key': application_key,
+    'url': url,
+    'aptrepo': aptrepo,
+    'aptrepo_dist': aptrepo_dist,
+    'yumrepo': yumrepo,
+    'yumrepo_suse': yumrepo_suse,
+    'windows_agent_url': windows_agent_url
+  }
+%>

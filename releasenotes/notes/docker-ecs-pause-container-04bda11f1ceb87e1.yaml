@@ -1,0 +1,3 @@
+---
+enhancements:
+  - Added ECS pause containers to the default docker exclusion list

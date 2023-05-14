@@ -1,0 +1,34 @@
+# This Makefile is used within the release process of the Datadog Agent 5:
+# https://github.com/DataDog/dd-agent-omnibus/blob/fad8aeb/config/software/datadog-trace-agent.rb#L105
+
+# if the TRACE_AGENT_VERSION environment variable isn't set, default to 0.99.0
+TRACE_AGENT_VERSION := $(if $(TRACE_AGENT_VERSION),$(TRACE_AGENT_VERSION), 0.99.0)
+
+# break up the version
+SPLAT = $(subst ., ,$(TRACE_AGENT_VERSION))
+VERSION_MAJOR = $(shell echo $(word 1, $(SPLAT)) | sed 's/[^0-9]*//g')
+VERSION_MINOR = $(shell echo $(word 2, $(SPLAT)) | sed 's/[^0-9]*//g')
+VERSION_PATCH = $(shell echo $(word 3, $(SPLAT)) | sed 's/[^0-9]*//g')
+
+# account for some defaults
+VERSION_MAJOR := $(if $(VERSION_MAJOR),$(VERSION_MAJOR), 0)
+VERSION_MINOR := $(if $(VERSION_MINOR),$(VERSION_MINOR), 0)
+VERSION_PATCH := $(if $(VERSION_PATCH),$(VERSION_PATCH), 0)
+
+install:
+	# generate versioning information and installing the binary.
+	go generate ./pkg/trace/info
+	go install ./cmd/trace-agent
+
+ci:
+	# task used by CI
+	go get -u github.com/mgechev/revive
+	revive -set_exit_status=1 ./cmd/trace-agent ./internal/filters ./internal/api ./internal/test ./internal/info ./internal/quantile ./internal/obfuscate ./internal/sampler ./internal/metrics ./internal/watchdog ./internal/writer ./internal/flags ./internal/osutil
+	go install ./cmd/trace-agent
+	go test -v -race ./...
+
+windows:
+	# pre-packages resources needed for the windows release
+	windmc --target pe-x86-64 -r cmd/trace-agent/windows_resources cmd/trace-agent/windows_resources/trace-agent-msg.mc
+	windres --define MAJ_VER=$(VERSION_MAJOR) --define MIN_VER=$(VERSION_MINOR) --define PATCH_VER=$(VERSION_PATCH) -i cmd/trace-agent/windows_resources/trace-agent.rc --target=pe-x86-64 -O coff -o cmd/trace-agent/rsrc.syso
+

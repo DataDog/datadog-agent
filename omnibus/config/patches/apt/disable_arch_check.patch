@@ -1,0 +1,17 @@
+diff --git a/apt-pkg/pkgcache.cc b/apt-pkg/pkgcache.cc
+index 0d18c6cf8..c2fd9c0c2 100644
+--- a/apt-pkg/pkgcache.cc
++++ b/apt-pkg/pkgcache.cc
+@@ -188,9 +188,9 @@ bool pkgCache::ReMap(bool const &Errorchecks)
+          list.append(",");
+       list.append(arch);
+    }
+-   if (_config->Find("APT::Architecture") != StrP + HeaderP->Architecture ||
+-	 list != StrP + HeaderP->GetArchitectures())
+-      return _error->Error(_("The package cache was built for different architectures: %s vs %s"), StrP + HeaderP->GetArchitectures(), list.c_str());
++   //if (_config->Find("APT::Architecture") != StrP + HeaderP->Architecture ||
++   //	 list != StrP + HeaderP->GetArchitectures())
++   //   return _error->Error(_("The package cache was built for different architectures: %s vs %s"), StrP + HeaderP->GetArchitectures(), list.c_str());
+ 
+ 
+    auto hash = CacheHash();

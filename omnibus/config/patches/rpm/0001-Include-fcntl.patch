@@ -1,0 +1,24 @@
+From 20f58d5ea470e346d846d678006be5d2d3324f00 Mon Sep 17 00:00:00 2001
+From: Isabelle Sauve <isabelle.sauve@datadoghq.com>
+Date: Wed, 21 Apr 2021 16:25:40 -0400
+Subject: [PATCH] Include fcntl
+
+---
+ lib/rpmrc.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/lib/rpmrc.c b/lib/rpmrc.c
+index 840319923..2b32ff2c1 100644
+--- a/lib/rpmrc.c
++++ b/lib/rpmrc.c
+@@ -2,6 +2,7 @@
+ 
+ #include <stdarg.h>
+ #include <pthread.h>
++#include <fcntl.h>
+ 
+ #if defined(__linux__)
+ #include <elf.h>
+-- 
+2.31.1
+

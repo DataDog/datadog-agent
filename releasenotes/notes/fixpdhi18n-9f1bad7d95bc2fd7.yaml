@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixes flaw where Windows Performance counters were not properly initialized
+    on non EN-US versions of windows

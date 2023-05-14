@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    The Datadog Cluster Agent now supports internal profiling.

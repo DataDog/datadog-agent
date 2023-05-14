@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Define a default logs file (security-agent.log) for the security-agent.
+

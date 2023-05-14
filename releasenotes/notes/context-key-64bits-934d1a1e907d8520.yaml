@@ -1,0 +1,14 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Improved performances in metric aggregation logic.
+    Use 64 bits context keys instead of 128 bits in order to benefit from better
+    performances using them as map keys (fast path methods) + better performances
+    while computing the hash thanks to inlining.

@@ -1,0 +1,3 @@
+security:
+  - |
+    The ddagentuser no longer has write access to the process-agent binary on Windows

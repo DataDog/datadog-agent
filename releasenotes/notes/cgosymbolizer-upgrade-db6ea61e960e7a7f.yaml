@@ -1,0 +1,4 @@
+other:
+  - |
+    Upgrade of the cgosymbolizer dependency to use
+    ``github.com/ianlancetaylor/cgosymbolizer``.

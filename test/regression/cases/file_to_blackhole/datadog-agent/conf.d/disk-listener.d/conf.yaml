@@ -1,0 +1,5 @@
+logs:
+  - type: file
+    path: "/tmp/file-gen*.log"
+    service: "my-service"
+    source: "my-client-app"

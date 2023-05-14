@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes collection of host tags from GCE metadata

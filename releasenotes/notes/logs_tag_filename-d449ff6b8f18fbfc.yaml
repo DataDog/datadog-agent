@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add a `filename` tag to messages with the name of the file being tailed.

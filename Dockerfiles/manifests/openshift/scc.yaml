@@ -1,0 +1,71 @@
+#
+# This SCC is required to enable the full featureset of the
+# Datadog Agent. The kubelet-only variant can run with the
+# default restricted SCC
+#
+kind: SecurityContextConstraints
+apiVersion: security.openshift.io/v1
+metadata:
+  name: datadog-agent
+users:
+- system:serviceaccount:default:datadog-agent
+priority: 10
+# Allow host ports for dsd / trace / logs intake
+allowHostPorts: true
+# Allow host PID for dogstatsd origin detection
+allowHostPID: true
+# Allow host network for the CRIO check to reach Prometheus through localhost
+allowHostNetwork: true
+# Allow hostPath for docker / process metrics
+volumes:
+- configMap
+- downwardAPI
+- emptyDir
+- hostPath
+- secret
+# Use the `spc_t` selinux type to access the
+# docker/cri socket + proc and cgroup stats
+seLinuxContext:
+  type: MustRunAs
+  seLinuxOptions:
+    user: "system_u"
+    role: "system_r"
+    type: "spc_t"
+    level: "s0"
+# system-probe requires some specific seccomp and capabilities
+seccompProfiles:
+- '*'
+allowedCapabilities:
+- SYS_ADMIN
+- SYS_RESOURCE
+- SYS_PTRACE
+- NET_ADMIN
+- NET_BROADCAST
+- IPC_LOCK
+- NET_RAW
+- CHOWN
+- AUDIT_CONTROL
+- AUDIT_READ
+#
+# The rest is copied from restricted SCC
+#
+allowHostDirVolumePlugin: true
+allowHostIPC: false
+allowPrivilegedContainer: false
+allowedFlexVolumes: []
+defaultAddCapabilities: []
+fsGroup:
+  type: MustRunAs
+readOnlyRootFilesystem: false
+runAsUser:
+  type: RunAsAny
+supplementalGroups:
+  type: RunAsAny
+# If your environment restricts user access to the Docker socket or journald (for logging)
+# create or use an existing group that has access and add the GID to
+# the lines below (also remove the previous line, `type: RunAsAny`)
+#   type: MustRunAs
+#   ranges:
+#   - min: <min-group-ID>
+#   - max: <max-group-ID>
+requiredDropCapabilities: []

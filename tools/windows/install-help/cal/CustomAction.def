@@ -1,0 +1,10 @@
+LIBRARY customaction
+
+EXPORTS
+	DllMain
+	FinalizeInstall
+	PreStopServices
+	PostStartServices
+	DoUninstall
+	DoRollback
+	ValidateDDAgentUserDlgInput

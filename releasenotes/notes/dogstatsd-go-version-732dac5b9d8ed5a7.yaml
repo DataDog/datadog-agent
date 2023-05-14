@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Add the Go version used to build Dogstatsd in its `version` command.

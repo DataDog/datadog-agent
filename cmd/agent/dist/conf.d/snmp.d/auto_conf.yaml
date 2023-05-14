@@ -1,0 +1,141 @@
+ad_identifiers:
+  - snmp
+init_config:
+instances:
+  -
+    ## @param ip_address - string - optional
+    ## The IP address of the device to monitor.
+    #
+    ip_address: "%%host%%"
+
+    ## @param port - integer - optional - default: 161
+    ## Default SNMP port.
+    #
+    port: "%%port%%"
+
+    ## @param snmp_version - integer - optional - default: 2
+    ## If you are using SNMP v1 set snmp_version to 1 (required)
+    ## If you are using SNMP v3 set snmp_version to 3 (required)
+    #
+    snmp_version: "%%extra_version%%"
+
+    ## @param timeout - integer - optional - default: 5
+    ## Amount of second before timing out.
+    #
+    timeout: "%%extra_timeout%%"
+
+    ## @param retries - integer - optional - default: 5
+    ## Amount of retries before failure.
+    #
+    retries: "%%extra_retries%%"
+
+    ## @param community_string - string - optional
+    ## Only useful for SNMP v1 & v2.
+    #
+    community_string: "%%extra_community%%"
+
+    ## @param user - string - optional
+    ## USERNAME to connect to your SNMP devices.
+    #
+    user: "%%extra_user%%"
+
+    ## @param authKey - string - optional
+    ## Authentication key to use with your Authentication type.
+    #
+    authKey: "%%extra_auth_key%%"
+
+    ## @param authProtocol - string - optional
+    ## Authentication type to use when connecting to your SNMP devices.
+    ## Available options are: MD5, SHA, SHA224, SHA256, SHA384, SHA512
+    ## Default to MD5 when `authKey` is specified.
+    #
+    authProtocol: "%%extra_auth_protocol%%"
+
+    ## @param privKey - string - optional
+    ## Privacy type key to use with your Privacy type.
+    #
+    privKey: "%%extra_priv_key%%"
+
+    ## @param privProtocol - string - optional
+    ## Privacy type to use when connecting to your SNMP devices.
+    ## Available options are: DES, AES (128 bits), AES192, AES192C, AES256, AES256C
+    ## Default to DES when `privKey` is specified.
+    #
+    privProtocol: "%%extra_priv_protocol%%"
+
+    ## @param context_engine_id - string - optional
+    ## ID of your context engine; typically unneeded.
+    ## (optional SNMP v3-only parameter)
+    #
+    context_engine_id: "%%extra_context_engine_id%%"
+
+    ## @param context_name - string - optional
+    ## Name of your context (optional SNMP v3-only parameter).
+    #
+    context_name: "%%extra_context_name%%"
+
+    ## @param loader - string - optional
+    ## Check loader to use. Available loaders for snmp:
+    ## - core: will use corecheck SNMP integration
+    ## - python: will use python SNMP integration
+    #
+    loader: "%%extra_loader%%"
+
+    ## @param tags - list of key:value element - optional
+    ## List of tags to attach to every metric, event and service check emitted by this integration.
+    ##
+    ## Learn more about tagging: https://docs.datadoghq.com/tagging/
+    #
+    tags:
+      # The autodiscovery subnet the device is part of.
+      # Used by Agent autodiscovery to pass subnet name.
+      - "autodiscovery_subnet:%%extra_autodiscovery_subnet%%"
+
+    ## @param extra_tags - string - optional
+    ## Comma separated tags to attach to every metric, event and service check emitted by this integration.
+    ## Example:
+    ##  extra_tags: "tag1:val1,tag2:val2"
+    #
+    extra_tags: "%%extra_tags%%"
+
+    ## @param extra_min_collection_interval - string - optional
+    ## Used to pass min collection interval from snmp_listener to integration.
+    #
+    extra_min_collection_interval: "%%extra_min_collection_interval%%"
+
+    ## @param oid_batch_size - integer - optional - default: 60
+    ## The number of OIDs handled by each batch. Increasing this number improves performance but
+    ## uses more resources.
+    #
+    oid_batch_size: "%%extra_oid_batch_size%%"
+
+    ## @param collect_device_metadata - bool - optional - default: true
+    ## Enable device metadata collection
+    #
+    collect_device_metadata: "%%extra_collect_device_metadata%%"
+
+    ## @param collect_topology - boolean - optional - default: false
+    ## Enabled collection of topology data.
+    #
+    collect_topology: "%%extra_collect_topology%%"
+
+    ## @param namespace - string - optional - default: default
+    ## Namespace can be used to disambiguate devices with same IPs.
+    ## Changing namespace will cause devices being recreated in NDM app.
+    #
+    namespace: "%%extra_namespace%%"
+
+    ## @param use_device_id_as_hostname - boolean - optional - default: false
+    ## Use `device:<DEVICE_ID>` (device_id is composed of `<NAMESPACE>:<DEVICE_IP_ADDRESS>`) as `hostname`
+    ## for metrics and service checks (meaning that metrics and services checks will have
+    ## `host:device:<DEVICE_ID>` as tag).
+    ## This option is needed for custom tags.
+    #
+    use_device_id_as_hostname: "%%extra_use_device_id_as_hostname%%"
+
+    ## @param interface_configs - string - optional
+    ## Interface configs is used to override interface speed.
+    ## From snmp_listener, the value is string of json content.
+    ## Example: `[{"match_field":"name","match_value":"eth0","in_speed":25,"out_speed":10}]`
+    #
+    interface_configs: "%%extra_interface_configs%%"

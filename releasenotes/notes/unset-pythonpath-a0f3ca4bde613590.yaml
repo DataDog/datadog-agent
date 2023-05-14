@@ -1,0 +1,7 @@
+---
+upgrade:
+  - |
+    On Windows, the embedded Python will no longer use the PYTHONPATH
+    environment variable, restricting its access to the Python packages 
+    installed with the Agent. Set windows_use_pythonpath to true to keep
+    the previous behavior.

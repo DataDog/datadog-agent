@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Add `space_id`, `space_name`, `org_id` and `org_name` as tags to both autodiscovered containers as well as checks found through autodiscovery on Cloud Foundry/Tanzu.

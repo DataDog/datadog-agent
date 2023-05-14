@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    Count of DNS responses with error codes are tracked for each connection.

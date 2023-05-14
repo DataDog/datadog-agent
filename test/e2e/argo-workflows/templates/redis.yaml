@@ -1,0 +1,366 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: redis
+spec:
+  templates:
+    - name: create-service
+      inputs:
+        parameters:
+          - name: namespace
+      resource:
+        action: apply
+        manifest: |
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: redis
+            namespace: {{inputs.parameters.namespace}}
+          spec:
+            ports:
+            - port: 6379
+              protocol: TCP
+              targetPort: 6379
+              name: redis
+            selector:
+              app: redis
+            type: ClusterIP
+
+    - name: create-deployment
+      inputs:
+        parameters:
+          - name: namespace
+      resource:
+        action: apply
+        manifest: |
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: redis
+            namespace: {{inputs.parameters.namespace}}
+          spec:
+            selector:
+              matchLabels:
+                app: redis
+            replicas: 1
+            template:
+              metadata:
+                labels:
+                  app: redis
+                annotations:
+                  ad.datadoghq.com/redis.check_names: '["redisdb"]'
+                  ad.datadoghq.com/redis.init_configs: '[{}]'
+                  ad.datadoghq.com/redis.instances: '[{"host": "%%host%%", "port": "%%port%%"}]'
+              spec:
+                initContainers:
+                - name: useless
+                  image: busybox:latest
+                  command:
+                  - /bin/true
+                  resources:
+                    requests:
+                      memory: "32Mi"
+                      cpu: "25m"
+                    limits:
+                      memory: "64Mi"
+                      cpu: "50m"
+                containers:
+                - name: redis
+                  image: redis
+                  ports:
+                  - name: redis
+                    containerPort: 6379
+                  resources:
+                    requests:
+                      memory: "64Mi"
+                      cpu: "50m"
+                    limits:
+                      memory: "128Mi"
+                      cpu: "100m"
+
+    - name: create-deployment-unready
+      inputs:
+        parameters:
+          - name: namespace
+      resource:
+        action: apply
+        manifest: |
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: redis-unready
+            namespace: {{inputs.parameters.namespace}}
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: redis
+            template:
+              metadata:
+                labels:
+                  app: redis
+                annotations:
+                  ad.datadoghq.com/tolerate-unready: "true"
+              spec:
+                containers:
+                - name: redis-unready
+                  image: redis
+                  ports:
+                  - name: redis
+                    containerPort: 6379
+                  resources:
+                    requests:
+                      memory: "64Mi"
+                      cpu: "50m"
+                    limits:
+                      memory: "128Mi"
+                      cpu: "100m"
+                  readinessProbe:
+                    tcpSocket:
+                      port: 8080
+                    initialDelaySeconds: 1
+                    periodSeconds: 1
+
+    - name: delete-service
+      inputs:
+        parameters:
+          - name: namespace
+      resource:
+        action: delete
+        manifest: |
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: redis
+            namespace: {{inputs.parameters.namespace}}
+
+    - name: delete-deployment
+      inputs:
+        parameters:
+          - name: namespace
+      resource:
+        action: delete
+        manifest: |
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: redis
+            namespace: {{inputs.parameters.namespace}}
+
+    - name: delete-deployment-unready
+      inputs:
+        parameters:
+          - name: namespace
+      resource:
+        action: delete
+        manifest: |
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: redis-unready
+            namespace: {{inputs.parameters.namespace}}
+
+    - name: create
+      inputs:
+        parameters:
+          - name: namespace
+      steps:
+        - - name: service
+            template: create-service
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+          - name: deployment
+            template: create-deployment
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+          - name: deployment-unready
+            template: create-deployment-unready
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+
+    - name: delete
+      inputs:
+        parameters:
+          - name: namespace
+      steps:
+        - - name: service
+            template: delete-service
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+          - name: deployment
+            template: delete-deployment
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+          - name: deployment-unready
+            template: delete-deployment-unready
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+
+    - name: find-kube-state-metrics
+      inputs:
+        parameters:
+          - name: namespace
+      activeDeadlineSeconds: 300
+      script:
+        image: mongo:4.4.1
+        command: [mongo, "fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local/datadog"]
+        source: |
+          // This step is intended to test end-to-end scraping of prometheus metrics
+          // by asserting the value of a few simple metrics collected from the
+          // kubernetes_state integration.
+
+          while (1) {
+            var nb = db.series.find({
+            metric: "kubernetes_state.deployment.replicas_available",
+            tags: { $all: ["kube_namespace:{{inputs.parameters.namespace}}", "kube_deployment:redis"] },
+            "points.0.1": { $eq: 1 } }).count();
+            print("find: " + nb)
+            if (nb != 0) {
+              break;
+            }
+            sleep(2000);
+          }
+
+    - name: find-metrics-redis
+      inputs:
+        parameters:
+          - name: namespace
+      activeDeadlineSeconds: 300
+      script:
+        image: mongo:4.4.1
+        command: [mongo, "fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local/datadog"]
+        source: |
+          while (1) {
+            var nb = db.series.find({
+              metric: {$regex: "redis*"}
+            }).count();
+
+            print("find: " + nb)
+            if (nb != 0) {
+              break;
+            }
+            sleep(2000);
+          }
+
+    - name: find-metrics-redis-unready
+      inputs:
+        parameters:
+          - name: namespace
+      activeDeadlineSeconds: 300
+      script:
+        image: mongo:4.4.1
+        command: [mongo, "fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local/datadog"]
+        source: |
+          while (1) {
+            var nb = db.series.find({
+              metric: {$regex: "redis*"},
+              tags: {$all: ["kube_deployment:redis-unready", "kube_container_name:redis-unready"]}
+            }).count();
+
+            print("find: " + nb)
+            if (nb != 0) {
+              break;
+            }
+            sleep(2000);
+          }
+
+    - name: find-metrics-redis-tagged
+      inputs:
+        parameters:
+          - name: namespace
+      activeDeadlineSeconds: 300
+      script:
+        image: mongo:4.4.1
+        command: [mongo, "fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local/datadog"]
+        source: |
+          while (1) {
+            var nb = db.series.find({
+              metric: {$regex: "redis*"},
+              tags: "kube_service:redis"
+            }).count();
+            print("find: " + nb)
+            if (nb != 0) {
+              break;
+            }
+            sleep(2000);
+          }
+
+    - name: test
+      inputs:
+        parameters:
+          - name: namespace
+      steps:
+        - - name: find-kube-state-metrics
+            template: find-kube-state-metrics
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+          - name: find-metrics-redis
+            template: find-metrics-redis
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+          - name: find-metrics-redis-unready
+            template: find-metrics-redis-unready
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+          - name: find-metrics-redis-tagged
+            template: find-metrics-redis-tagged
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+
+    - name: no-more-metrics
+      inputs:
+        parameters:
+          - name: namespace
+      activeDeadlineSeconds: 300
+      script:
+        image: mongo:4.4.1
+        command: [mongo, "fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local/datadog"]
+        source: |
+          var prevNb = -1;
+          while (1) {
+            var nb = db.series.find({
+              metric: {$regex: "redis*"}
+            }).count();
+
+            print("prev-find: " + prevNb)
+            print("find: " + nb)
+            if (nb == prevNb) {
+              break;
+            }
+            prevNb = nb;
+            sleep(30000);
+          }
+          var prevNb = -1
+          while (1) {
+            var nb = db.check_run.find({check: "datadog.agent.check_status",
+            tags: "check:redisdb",
+            status: {$ne: 0}}).count();
+
+            print("prev-find: " + prevNb)
+            print("find: " + nb)
+            if (nb == prevNb) {
+              break;
+            }
+            prevNb = nb;
+            sleep(30000);
+          }

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix a potential crash when doing a ``configcheck`` while the agent was not properly initialized yet.

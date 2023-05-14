@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix an issue where the orchestrator check would stop sending
+    updates when run on as a cluster-check.

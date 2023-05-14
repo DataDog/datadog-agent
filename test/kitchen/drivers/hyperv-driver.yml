@@ -1,0 +1,90 @@
+provisioner:
+  name: chef_solo
+  product_name: chef
+  product_version: 13.9.4
+  install_strategy: always
+  # the following settings make it possible to do a reboot during setup
+  # (necessary for FIPS tests which reboot to enable FIPS mode)
+  max_retries: 3
+  wait_for_retry: 90
+  client_rb:
+    client_fork: false
+
+driver:
+  name: hyperv
+  vm_switch: <%= ENV['KITCHEN_HYPERV_SWITCH'] %>
+  dynamic_memory: true
+  <% if ENV['KITCHEN_HYPERV_MEM_MIN'] %>
+  dynamic_memory_min_bytes: <%= ENV['KITCHEN_HYPERV_MEM_MIN'] %>
+  memory_startup_bytes: <%= ENV['KITCHEN_HYPERV_MEM_MIN'] %>
+  <% else %>
+  dynamic_memory_min_bytes: 2GB
+  memory_startup_bytes: 2GB
+  <% end %>
+  <% if ENV['KITCHEN_HYPERV_MEM_MAX'] %>
+  dynamic_memory_max_bytes: <%= ENV['KITCHEN_HYPERV_MEM_MAX'] %>
+  <% else %>
+  dynamic_memory_max_bytes: 8GB
+  <% end %>
+  <% if ENV['KITCHEN_HYPERV_PROC_COUNT'] %>
+  processor_count: <%= ENV['KITCHEN_HYPERV_PROC_COUNT'] %>
+  <% end %>
+
+platforms:
+# Loop through two lists and output a total matrix of all possible platform + chef versions,
+# for both drivers
+
+
+<%
+    # TEST_PLATFORMS syntax is `short_name1,parent vhd folder,parent_vhd_name|...`
+    hyperv_test_platforms = ENV['TEST_PLATFORMS'].split('|').map { |p| p.split(',') }
+
+    windows_platforms = []
+    sles15_platforms = []
+
+    idx = 0
+    hyperv_test_platforms.each do |platform|
+      idx += 1
+
+      host = "hyperv"
+      platform_name = platform[0] + "-#{host}"
+
+      windows = platform_name.include?("win")
+      sles15 = platform_name.include?("sles-15")
+      windows2008 = windows && platform_name.include?("2008")
+
+      if windows
+        windows_platforms << platform_name
+      end
+      if sles15
+        sles15_platforms << platform_name
+      end
+
+      vm_username = ENV['VM_USERNAME'] ? ENV['VM_USERNAME'] : "datadog"
+      vm_password = ENV['SERVER_PASSWORD']
+      vm_hyperv_switch = ENV['KITCHEN_HYPERV_SWITCH'] ? ENV['KITCHEN_HYPERV_SWITCH'] : "public_eth"
+
+%>
+
+- name: <%= platform_name %>
+  driver:
+    name: hyperv
+    parent_vhd_folder: <%= platform[1] %>
+    parent_vhd_name: <%= platform[2] %>
+    vm_switch: <%= vm_hyperv_switch %>
+  driver_config:
+    username: <%= vm_username %>
+    password: <%= vm_password %>
+
+  transport:
+    <% if windows %>
+    name: winrm
+    username: <%= vm_username %>
+    password: <%= vm_password %>
+    <% else %>
+    connection_retries: 30
+    connection_retry_sleep: 2
+    ssh_key: <%= ENV['KITCHEN_SSH_KEY_PATH'] %>
+    <% end %>
+
+<% end %>

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix collection of host tags pulled from GCP project (``project:`` and ``numeric_project_id:`` tags)
+    and GCP instance attributes.

@@ -1,0 +1,34 @@
+From d874a64c43cf20607b24657480441f5c0cf2a859 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Jan=20=C4=8Cern=C3=BD?= <jcerny@redhat.com>
+Date: Mon, 30 Jan 2023 11:32:16 +0100
+Subject: [PATCH 07/22] Fix leaked variable
+
+Addressing:
+openscap-1.3.7/utils/oscap-ds.c:403: leaked_storage: Variable "previous_cwd" going out of scope leaks the storage it points to.
+---
+ utils/oscap-ds.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/utils/oscap-ds.c b/utils/oscap-ds.c
+index f87b25c5d..f5d8ca8b7 100644
+--- a/utils/oscap-ds.c
++++ b/utils/oscap-ds.c
+@@ -382,7 +382,6 @@ int app_ds_sds_compose(const struct oscap_action *action) {
+ 	if (chdir(previous_cwd) < 0) {
+ 		goto cleanup;
+ 	}
+-	free(previous_cwd);
+ 
+ 	if (action->validate)
+ 	{
+@@ -399,6 +398,7 @@ int app_ds_sds_compose(const struct oscap_action *action) {
+ cleanup:
+ 	oscap_print_error();
+ 
++	free(previous_cwd);
+ 	free(action->ds_action);
+ 	return ret;
+ }
+-- 
+2.34.1
+

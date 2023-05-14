@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Fixes panic when the agent receives an unsupported pattern in a log processing rule 

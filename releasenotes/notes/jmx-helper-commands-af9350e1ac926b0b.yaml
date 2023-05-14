@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add agent5-like JMXFetch helper commands to help with JMXFetch troubleshooting.

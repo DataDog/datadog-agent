@@ -1,0 +1,45 @@
+#!/bin/sh
+#
+# Perform necessary datadog-agent setup steps before package is installed.
+#
+# .deb: STEP 2 of 5
+
+INSTALL_DIR=/opt/datadog-agent
+SERVICE_NAME=datadog-agent
+
+set -e
+
+if [ -f "/lib/systemd/system/$SERVICE_NAME.service" ] || [ -f "/usr/lib/systemd/system/$SERVICE_NAME.service" ]; then
+    # Stop an already running agent
+    # supports systemd, upstart and sysvinit
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl stop $SERVICE_NAME-process || true
+        systemctl stop $SERVICE_NAME-sysprobe || true
+        systemctl stop $SERVICE_NAME-trace || true
+        systemctl stop $SERVICE_NAME-security || true
+        systemctl stop $SERVICE_NAME || true
+    elif command -v initctl >/dev/null 2>&1; then
+        initctl stop $SERVICE_NAME-process || true
+        initctl stop $SERVICE_NAME-sysprobe || true
+        initctl stop $SERVICE_NAME-trace || true
+        initctl stop $SERVICE_NAME-security || true
+        initctl stop $SERVICE_NAME || true
+    elif command -v service >/dev/null 2>&1; then
+        service $SERVICE_NAME-process stop || true
+        service $SERVICE_NAME-sysprobe stop || true
+        service $SERVICE_NAME-trace stop || true
+        service $SERVICE_NAME-security stop || true
+        service $SERVICE_NAME stop || true
+    else
+        echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd, upstart and sysvinit."
+    fi
+fi
+
+# For versions < 6.10 using the custom datadog-pip, TUF and in-toto files were kept in TUF_REPO_DIR.
+# They were not being cleaned by these versions, so let's do that now on install/upgrade
+TUF_REPO_DIR=$INSTALL_DIR/repositories
+if [ -d $TUF_REPO_DIR ]; then
+    rm -rf $TUF_REPO_DIR
+fi
+
+exit 0

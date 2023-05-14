@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    The process agent can be canfigured to collect containers
+    from multiple sources (e.g kubelet and docker simultaneously).

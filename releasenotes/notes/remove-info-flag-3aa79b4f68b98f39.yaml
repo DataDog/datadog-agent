@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    Removed the `--info` flag in the Process Agent, which has been replaced by the `status` command since 7.35.

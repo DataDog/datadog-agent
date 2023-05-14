@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+    <dict>
+        <key>KeepAlive</key>
+        <dict>
+            <key>SuccessfulExit</key>
+            <false/>
+        </dict>
+        <key>Label</key>
+        <string>com.datadoghq.agent</string>
+        <key>EnvironmentVariables</key>
+        <dict>
+            <key>DD_LOG_TO_CONSOLE</key>
+            <string>false</string>
+        </dict>
+        <key>ProgramArguments</key>
+        <array>
+            <string><%= install_dir %>/bin/agent/agent</string>
+            <string>run</string>
+        </array>
+        <key>StandardOutPath</key>
+        <string>/opt/datadog-agent/logs/launchd.log</string>
+        <key>StandardErrorPath</key>
+        <string>/opt/datadog-agent/logs/launchd.log</string>
+        <key>ExitTimeOut</key>
+        <integer>10</integer>
+    </dict>
+</plist>

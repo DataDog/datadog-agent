@@ -1,0 +1,59 @@
+name: "Serverless Integration Tests"
+
+on:
+  push:
+    paths:
+      - 'cmd/serverless/**'
+      - 'pkg/serverless/**'
+      - 'test/integration/serverless/**'
+      - '.github/workflows/serverless-integration.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        architecture: [amd64, arm64]
+    steps:
+      - name: Checkout datadog-agent repository
+        uses: actions/checkout@v3
+        with:
+          path: go/src/github.com/DataDog/datadog-agent
+
+      - name: Set up Node 14
+        uses: actions/setup-node@v3
+        with:
+          node-version: 14
+
+      - name: Install Serverless Framework
+        run: |
+          sudo yarn global add serverless@^3.7.9 --prefix /usr/local
+          sudo yarn global add serverless-python-requirements@^6.0.0 --prefix /usr/local
+
+      - name: Checkout the datadog-lambda-extension repository
+        uses: actions/checkout@v3
+        with:
+          repository: DataDog/datadog-lambda-extension
+          path: go/src/github.com/DataDog/datadog-lambda-extension
+
+      - name: Set up QEMU
+        id: qemu
+        uses: docker/setup-qemu-action@v2
+        with:
+          image: tonistiigi/binfmt:latest
+          platforms: amd64,arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Run tests if AWS credentials are available
+        uses: nick-fields/retry@v2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.SERVERLESS_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SERVERLESS_AWS_SECRET_ACCESS_KEY }}
+        with:
+          timeout_minutes: 30
+          max_attempts: 2
+          command: |
+            cd go/src/github.com/DataDog/datadog-agent
+            ARCHITECTURE=${{ matrix.architecture }} ./test/integration/serverless/run.sh

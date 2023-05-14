@@ -1,0 +1,9 @@
+logs:
+  - type: tcp
+    port: 10000
+    service: "my-service"
+    source: "my-client-app"
+    log_processing_rules:
+      - type: exclude_at_match
+        name: not_tarkovsky
+        pattern: (T|t)arkovsky
