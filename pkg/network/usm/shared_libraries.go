@@ -139,15 +139,15 @@ type soRegistration struct {
 
 // unregister return true if there are no more reference to this registration
 func (r *soRegistration) unregister(pathID pathIdentifier) bool {
-	v := r.uniqueProcessesCount.Dec()
-	if v > 0 {
+	currentUniqueProcessesCount := r.uniqueProcessesCount.Dec()
+	if currentUniqueProcessesCount > 0 {
 		return false
 	}
-	if v < 0 {
-		log.Errorf("unregistered %+v too much (current counter %v)", pathID, v)
+	if currentUniqueProcessesCount < 0 {
+		log.Errorf("unregistered %+v too much (current counter %v)", pathID, currentUniqueProcessesCount)
 		return true
 	}
-	// v is 0, thus we should unregister.
+	// currentUniqueProcessesCount is 0, thus we should unregister.
 	if r.unregisterCB != nil {
 		if err := r.unregisterCB(pathID); err != nil {
 			// Even if we fail here, we have to return true, as best effort methodology.
