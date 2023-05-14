@@ -10,8 +10,10 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner"
@@ -183,6 +185,25 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		return nil
 	}, opts.FailOnMissing)
 	if err != nil {
+		if strings.Contains(fmt.Sprintf("%s", err), "failed to dial libvirt:") {
+			x86key, err := os.Open(sshKeyX86)
+			if err != nil {
+				fmt.Printf("[Error] Key %s does not exist: %w\n", sshKeyX86, err)
+			} else {
+				defer x86key.Close()
+				b1, _ := ioutil.ReadAll(x86key)
+				fmt.Println(b1)
+
+				armkey, err := os.Open(sshKeyArm)
+				if err != nil {
+					fmt.Printf("[Error] Key %s does not exist: %w\n", sshKeyArm, err)
+				} else {
+					defer armkey.Close()
+					b2, _ := ioutil.ReadAll(armkey)
+					fmt.Println(b2)
+				}
+			}
+		}
 		return nil, fmt.Errorf("failed to create stack: %w", err)
 	}
 
