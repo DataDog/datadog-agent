@@ -69,8 +69,8 @@ func HTTP2Supported() bool {
 	return kversion >= HTTP2MinimumKernelVersion
 }
 
-func sysOpenAt2Supported(c *config.Config) bool {
-	missing, err := ddebpf.VerifyKernelFuncs(doSysOpenAt2.section)
+func sysOpenAt2Supported() bool {
+	missing, err := ddebpf.VerifyKernelFuncs(doSysOpenAt2)
 	if err == nil && len(missing) == 0 {
 		return true
 	}

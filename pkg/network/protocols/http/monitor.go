@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -53,10 +52,8 @@ type Monitor struct {
 	http2Telemetry  *telemetry
 	statkeeper      *httpStatKeeper
 	http2Statkeeper *httpStatKeeper
-	processMonitor  *monitor.ProcessMonitor
 
-	http2Enabled   bool
-	httpTLSEnabled bool
+	http2Enabled bool
 
 	// Kafka related
 	kafkaEnabled    bool
@@ -136,7 +133,6 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 	}
 
 	statkeeper := newHTTPStatkeeper(c, httpTelemetry)
-	processMonitor := monitor.GetProcessMonitor()
 
 	var http2Statkeeper *httpStatKeeper
 	var http2Telemetry *telemetry
@@ -158,10 +154,8 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		http2Telemetry:  http2Telemetry,
 		closeFilterFn:   closeFilterFn,
 		statkeeper:      statkeeper,
-		processMonitor:  processMonitor,
 		http2Enabled:    c.EnableHTTP2Monitoring,
 		http2Statkeeper: http2Statkeeper,
-		httpTLSEnabled:  c.EnableHTTPSMonitoring,
 	}
 
 	if c.EnableKafkaMonitoring {
@@ -236,11 +230,7 @@ func (m *Monitor) Start() error {
 		return err
 	}
 
-	// Need to explicitly save the error in `err` so the defer function could save the startup error.
-	if m.httpTLSEnabled {
-		err = m.processMonitor.Initialize()
-	}
-	return err
+	return nil
 }
 
 func (m *Monitor) GetUSMStats() map[string]interface{} {
@@ -300,7 +290,10 @@ func (m *Monitor) Stop() {
 		return
 	}
 
-	m.processMonitor.Stop()
+	// Stopping the socket filter from processing new packets.
+	m.closeFilterFn()
+
+	// Stopping all hooks.
 	m.ebpfProgram.Close()
 
 	m.httpConsumer.Stop()
@@ -310,7 +303,6 @@ func (m *Monitor) Stop() {
 	if m.kafkaEnabled {
 		m.kafkaConsumer.Stop()
 	}
-	m.closeFilterFn()
 }
 
 func (m *Monitor) processHTTP(data []byte) {
