@@ -187,9 +187,9 @@ kernel_matrix_testing_upload_deps:
 
 kernel_matrix_testing_run_tests:
   stage: kernel_matrix_testing
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/kernel-version-testing_x64_test_only:$DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES
-  needs: ["go_tools_deps", "kernel_matrix_testing_upload_deps", "kernel_matrix_testing_setup_env"]
-  tags: ["runner:main"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:7c39524b
+  needs: ["kernel_matrix_testing_upload_deps", "kernel_matrix_testing_setup_env"]
+  tags: ["arch:amd64"]
   variables:
     AWS_SSH_KEY: $CI_PROJECT_DIR/ssh_key
     GOVERSION: "1.19"
