@@ -8,7 +8,7 @@ go 1.18
 
 require (
 	github.com/DataDog/datadog-agent/test/fakeintake v0.0.0-20230515074709-1e11f6848dd6
-	github.com/DataDog/test-infra-definitions v0.0.0-20230511153426-8b648b5e3bc1
+	github.com/DataDog/test-infra-definitions v0.0.0-20230512085134-bf3a1761a5bc
 	github.com/aws/aws-sdk-go-v2 v1.18.0
 	github.com/aws/aws-sdk-go-v2/config v1.18.24
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.33.2

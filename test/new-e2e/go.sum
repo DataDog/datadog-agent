@@ -2,8 +2,8 @@ github.com/DataDog/agent-payload/v5 v5.0.73 h1:fnCnAR+nWY+q//fBZSab4cDFFng0scPEf
 github.com/DataDog/agent-payload/v5 v5.0.73/go.mod h1:oQZi1VZp1e3QvlSUX4iphZCpJaFepUxWq0hNXxihKBM=
 github.com/DataDog/datadog-agent/test/fakeintake v0.0.0-20230515074709-1e11f6848dd6 h1:zJDW/5396tfM7eidk6Qw7e1X/kF4R1ABAgRY+Dc4YuA=
 github.com/DataDog/datadog-agent/test/fakeintake v0.0.0-20230515074709-1e11f6848dd6/go.mod h1:Mse9axnNjouBfknyWFmWybezBvpjXaqA8oQZi8+f/SA=
-github.com/DataDog/test-infra-definitions v0.0.0-20230511153426-8b648b5e3bc1 h1:t7EBIFez+PI1UG1UFDDtLCzcgpqJadbIT9Oe8faZ5tc=
-github.com/DataDog/test-infra-definitions v0.0.0-20230511153426-8b648b5e3bc1/go.mod h1:WmCQAFypCQB6zjmXl9CGW0qMa5s7krntwld/tt7rjcc=
+github.com/DataDog/test-infra-definitions v0.0.0-20230512085134-bf3a1761a5bc h1:hbR/sF2RV9AShTzwLZqBuyhgH34gm5Vgh12RwUhsYzg=
+github.com/DataDog/test-infra-definitions v0.0.0-20230512085134-bf3a1761a5bc/go.mod h1:WmCQAFypCQB6zjmXl9CGW0qMa5s7krntwld/tt7rjcc=
 github.com/HdrHistogram/hdrhistogram-go v1.1.2 h1:5IcZpTvzydCQeHzK4Ef/D5rrSqwxob0t8PQPMybUNFM=
 github.com/Masterminds/semver v1.5.0 h1:H65muMkzWKEuNDnfl9d70GUjFniHKHRbFPGBuZ3QEww=
 github.com/Masterminds/semver v1.5.0/go.mod h1:MB6lktGJrhw8PrUyiEoblNEGEQ+RzHPF078ddwwvV3Y=
