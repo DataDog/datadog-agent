@@ -297,10 +297,11 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 	}
 
 	var allConnections []network.ConnectionStats
-	var httpKey http.Key
+	httpKeys := make(map[uint16]http.Key)
 	require.Eventuallyf(t, func() bool {
 		payload := getConnections(t, tr)
 		allConnections = append(allConnections, payload.Conns...)
+		found := false
 		for key, stats := range payload.HTTP {
 			if key.Path.Content != "/200/foobar" {
 				continue
@@ -316,19 +317,27 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 			// this make harder to map lib and tags, one set of tag should match but not both
 			if statsTags == network.ConnTagGnuTLS || statsTags == network.ConnTagOpenSSL {
 				t.Logf("found tag 0x%x %s", statsTags, network.GetStaticTags(statsTags))
-				httpKey = key
+				httpKeys[key.SrcPort] = key
+				found = true
+				continue
+			}
+			if len(httpKeys) == 3 {
 				return true
 			}
 			t.Logf("HTTP stat didn't match criteria %v tags 0x%x\n", key, statsTags)
 		}
-		return false
+		return found
 	}, 15*time.Second, 5*time.Second, "couldn't find USM HTTPS stats")
 
 	// check NPM static TLS tag
 	found := false
 	for _, c := range allConnections {
+		httpKey, foundKey := httpKeys[c.SPort]
+		if !foundKey {
+			continue
+		}
 		_, foundPid := fetchPids[c.Pid]
-		if foundPid && c.SPort == httpKey.SrcPort && c.DPort == httpKey.DstPort && c.ProtocolStack.Contains(protocols.TLS) {
+		if foundPid && c.DPort == httpKey.DstPort && c.ProtocolStack.Contains(protocols.TLS) {
 			found = true
 			break
 		}
@@ -336,6 +345,10 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 	if !found {
 		t.Errorf("NPM TLS tag not found")
 		for _, c := range allConnections {
+			httpKey, foundKey := httpKeys[c.SPort]
+			if !foundKey {
+				continue
+			}
 			_, foundPid := fetchPids[c.Pid]
 			if foundPid {
 				t.Logf("pid %d connection %# v \nhttp %# v\n", c.Pid, krpretty.Formatter(c), krpretty.Formatter(httpKey))
