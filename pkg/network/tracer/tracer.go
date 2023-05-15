@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -62,15 +63,17 @@ const tracerModuleName = "network_tracer"
 // If we want to have a way to track the # of active TCP connections in the future we could use the procfs like here: https://github.com/DataDog/datadog-agent/pull/3728
 // to determine whether a connection is truly closed or not
 var tracerTelemetry = struct {
-	skippedConns     telemetry.Counter
-	expiredTCPConns  telemetry.Counter
-	closedConns      *nettelemetry.StatCounterWrapper
-	connStatsMapSize telemetry.Gauge
+	skippedConns         telemetry.Counter
+	expiredTCPConns      telemetry.Counter
+	closedConns          *nettelemetry.StatCounterWrapper
+	connStatsMapSize     telemetry.Gauge
+	payloadSizePerClient telemetry.Gauge
 }{
 	telemetry.NewCounter(tracerModuleName, "skipped_conns", []string{}, "Counter measuring skipped TCP connections"),
 	telemetry.NewCounter(tracerModuleName, "expired_tcp_conns", []string{}, "Counter measuring expired TCP connections"),
 	nettelemetry.NewStatCounterWrapper(tracerModuleName, "closed_conns", []string{}, "Counter measuring closed TCP connections"),
 	telemetry.NewGauge(tracerModuleName, "conn_stats_map_size", []string{}, "Gauge measuring the size of the active connections map"),
+	telemetry.NewGauge(tracerModuleName, "payload_size_per_client", []string{}, "Gauge measuring the size of the delta conns per clientID"),
 }
 
 // Tracer implements the functionality of the network tracer
@@ -436,6 +439,9 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 
 	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.usmMonitor.GetHTTPStats(), t.usmMonitor.GetHTTP2Stats(), t.usmMonitor.GetKafkaStats())
 	t.activeBuffer.Reset()
+
+	clientTag := "client_id:" + strconv.FormatInt(clientID, 10)
+	tracerTelemetry.payloadSizePerClient.Set(float64(len(delta.Conns)), []string{clientTag})
 
 	ips := make([]util.Address, 0, len(delta.Conns)*2)
 	for _, conn := range delta.Conns {
