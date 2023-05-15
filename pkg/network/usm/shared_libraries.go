@@ -36,7 +36,6 @@ func toLibPath(data []byte) http.LibPath {
 
 func toBytes(l *http.LibPath) []byte {
 	return l.Buf[:l.Len]
-
 }
 
 // pathIdentifier is the unique key (system wide) of a file based on dev/inode
@@ -138,7 +137,7 @@ type soRegistration struct {
 }
 
 // unregister return true if there are no more reference to this registration
-func (r *soRegistration) unregister(pathID pathIdentifier) bool {
+func (r *soRegistration) unregisterPath(pathID pathIdentifier) bool {
 	currentUniqueProcessesCount := r.uniqueProcessesCount.Dec()
 	if currentUniqueProcessesCount > 0 {
 		return false
@@ -214,6 +213,7 @@ func (w *soWatcher) Start() {
 		log.Errorf("can't initialize process monitor %s", err)
 		return
 	}
+
 	cleanupExit, err := w.processMonitor.Subscribe(&monitor.ProcessCallback{
 		Event:    monitor.EXIT,
 		Metadata: monitor.ANY,
@@ -231,7 +231,7 @@ func (w *soWatcher) Start() {
 			cleanupExit()
 			// Stopping the process monitor (if we're the last instance)
 			w.processMonitor.Stop()
-			// cleaning up all active hooks.
+			// Cleaning up all active hooks.
 			w.registry.cleanup()
 			// marking we're finished.
 			w.wg.Done()
@@ -278,13 +278,11 @@ func (w *soWatcher) Start() {
 	}()
 }
 
-// cleanup removes all registrations
+// cleanup removes all registrations.
+// This function should be called in the termination, and after we're stopping all other goroutines.
 func (r *soRegistry) cleanup() {
-	r.m.Lock()
-	defer r.m.Unlock()
-
 	for pathID, reg := range r.byID {
-		reg.unregister(pathID)
+		reg.unregisterPath(pathID)
 	}
 }
 
@@ -308,7 +306,7 @@ func (r *soRegistry) unregister(pid uint32) {
 		if !found {
 			continue
 		}
-		if reg.unregister(pathID) {
+		if reg.unregisterPath(pathID) {
 			// we need to clean up our entries as there are no more processes using this ELF
 			delete(r.byID, pathID)
 		}
