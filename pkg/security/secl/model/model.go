@@ -151,13 +151,19 @@ type ChownEvent struct {
 
 // Releasable represents an object than can be released
 type Releasable struct {
-	OnReleaseCallback func() `field:"-"`
+	onReleaseCallback func() `field:"-" json:"-"`
+}
+
+func (r *Releasable) CallReleaseCallback() {
+	if r.onReleaseCallback != nil {
+		r.onReleaseCallback()
+	}
 }
 
 // SetReleaseCallback sets a callback to be called when the cache entry is released
 func (r *Releasable) SetReleaseCallback(callback func()) {
-	previousCallback := r.OnReleaseCallback
-	r.OnReleaseCallback = func() {
+	previousCallback := r.onReleaseCallback
+	r.onReleaseCallback = func() {
 		callback()
 		if previousCallback != nil {
 			previousCallback()
@@ -167,7 +173,7 @@ func (r *Releasable) SetReleaseCallback(callback func()) {
 
 // Release triggers the callback
 func (r *Releasable) OnRelease() {
-	r.OnReleaseCallback()
+	r.onReleaseCallback()
 }
 
 // ContainerContext holds the container context of an event
