@@ -7,7 +7,6 @@ go 1.18
 // TODO: Implement hard check in CI
 
 require (
-	github.com/DataDog/datadog-agent/test/fakeintake v0.0.0-20230515074709-1e11f6848dd6
 	github.com/DataDog/test-infra-definitions v0.0.0-20230512085134-bf3a1761a5bc
 	github.com/aws/aws-sdk-go-v2 v1.18.0
 	github.com/aws/aws-sdk-go-v2/config v1.18.24
@@ -22,7 +21,6 @@ require (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.73 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/ProtonMail/go-crypto v0.0.0-20230426101702-58e86b294756 // indirect

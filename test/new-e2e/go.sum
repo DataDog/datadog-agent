@@ -1,7 +1,3 @@
-github.com/DataDog/agent-payload/v5 v5.0.73 h1:fnCnAR+nWY+q//fBZSab4cDFFng0scPEfmLdl9ngmQY=
-github.com/DataDog/agent-payload/v5 v5.0.73/go.mod h1:oQZi1VZp1e3QvlSUX4iphZCpJaFepUxWq0hNXxihKBM=
-github.com/DataDog/datadog-agent/test/fakeintake v0.0.0-20230515074709-1e11f6848dd6 h1:zJDW/5396tfM7eidk6Qw7e1X/kF4R1ABAgRY+Dc4YuA=
-github.com/DataDog/datadog-agent/test/fakeintake v0.0.0-20230515074709-1e11f6848dd6/go.mod h1:Mse9axnNjouBfknyWFmWybezBvpjXaqA8oQZi8+f/SA=
 github.com/DataDog/test-infra-definitions v0.0.0-20230512085134-bf3a1761a5bc h1:hbR/sF2RV9AShTzwLZqBuyhgH34gm5Vgh12RwUhsYzg=
 github.com/DataDog/test-infra-definitions v0.0.0-20230512085134-bf3a1761a5bc/go.mod h1:WmCQAFypCQB6zjmXl9CGW0qMa5s7krntwld/tt7rjcc=
 github.com/HdrHistogram/hdrhistogram-go v1.1.2 h1:5IcZpTvzydCQeHzK4Ef/D5rrSqwxob0t8PQPMybUNFM=
@@ -54,7 +50,6 @@ github.com/aws/aws-sdk-go-v2/service/sts v1.19.0 h1:2DQLAKDteoEDI8zpCzqBMaZlJuoE
 github.com/aws/aws-sdk-go-v2/service/sts v1.19.0/go.mod h1:BgQOMsg8av8jset59jelyPW7NoZcZXLVpDsXunGDrk8=
 github.com/aws/smithy-go v1.13.5 h1:hgz0X/DX0dGqTYpGALqXJoRKRj5oQ7150i5FdTePzO8=
 github.com/aws/smithy-go v1.13.5/go.mod h1:Tg+OJXh4MB2R/uN61Ko2f6hTZwB/ZYGOtib8J3gBHzA=
-github.com/benbjohnson/clock v1.3.0 h1:ip6w0uFQkncKQ979AypyG0ER7mqUSBdKLOgAle/AT8A=
 github.com/blang/semver v3.5.1+incompatible h1:cQNTCjp13qL8KC3Nbxr/y2Bqb63oX6wdnnjpJbkM4JQ=
 github.com/blang/semver v3.5.1+incompatible/go.mod h1:kRBLl5iJ+tD4TcOOxsy/0fnwebNt5EWlYSAyrTnjyyk=
 github.com/bwesterb/go-ristretto v1.2.0/go.mod h1:fUIoIZaG73pV5biE2Blr2xEzDoMj7NFEuV9ekS419A0=
