@@ -35,7 +35,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestStartDoesNotBlock(t *testing.T) {
-	config.DetectFeatures()
+	config.Load()
 	metricAgent := &ServerlessMetricAgent{}
 	defer metricAgent.Stop()
 	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{})

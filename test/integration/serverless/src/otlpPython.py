@@ -24,3 +24,9 @@ def simple_test(event, context):
     with tracer.start_as_current_span('my-function'):
         time.sleep(0.1)
     return {"statusCode": 200, "body": "ok"}
+
+
+# add lambda instrumentation, done last bc wraps handler func
+from opentelemetry.instrumentation.aws_lambda import AwsLambdaInstrumentor
+
+AwsLambdaInstrumentor().instrument()
