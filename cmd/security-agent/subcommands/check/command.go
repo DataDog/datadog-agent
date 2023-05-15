@@ -185,8 +185,10 @@ func RunCheck(log log.Component, config config.Component, checkArgs *CliParams) 
 			for _, event := range ruleEvents {
 				b, _ := json.MarshalIndent(event, "", "\t")
 				fmt.Println(string(b))
+				if event.Result != compliance.CheckSkipped {
+					events = append(events, event)
+				}
 			}
-			events = append(events, ruleEvents...)
 		}
 	}
 

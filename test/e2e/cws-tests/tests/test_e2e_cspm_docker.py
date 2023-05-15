@@ -56,6 +56,7 @@ class TestE2EDocker(unittest.TestCase):
         with Step(msg="check agent events", emoji=":check_mark_button:"):
             self.container.exec_run("security-agent compliance check --dump-reports /tmp/reports.json --report")
             _, output = self.container.exec_run("cat /tmp/reports.json")
+            print(output)
             findings = json.loads(output)
 
             expected_findings = {

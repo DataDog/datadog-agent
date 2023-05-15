@@ -203,6 +203,7 @@ class TestE2EKubernetes(unittest.TestCase):
                 agent_name, ["security-agent", "compliance", "check", "--dump-reports", "/tmp/reports", "--report"]
             )
             output = self.kubernetes_helper.exec_command(agent_name, ["bash", "-c", "cat /tmp/reports"])
+            print(output)
             # if the output is JSON, it automatically calls json.loads on it. Yeah, I know... I've felt the same too
             findings = eval(output)
             expected_findings = dict(
