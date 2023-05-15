@@ -7,6 +7,7 @@ go 1.18
 // TODO: Implement hard check in CI
 
 require (
+	github.com/DataDog/datadog-agent/test/fakeintake v0.0.0-20230515074709-1e11f6848dd6
 	github.com/DataDog/test-infra-definitions v0.0.0-20230511153426-8b648b5e3bc1
 	github.com/aws/aws-sdk-go-v2 v1.18.0
 	github.com/aws/aws-sdk-go-v2/config v1.18.24
@@ -21,6 +22,7 @@ require (
 )
 
 require (
+	github.com/DataDog/agent-payload/v5 v5.0.73 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/ProtonMail/go-crypto v0.0.0-20230426101702-58e86b294756 // indirect
@@ -73,12 +75,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/pulumi/pulumi-aws/sdk/v5 v5.40.0 // indirect
 	github.com/pulumi/pulumi-awsx/sdk v1.0.2 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk v1.95.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/compute v1.95.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/containerservice v1.95.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/network v1.95.0 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v3 v3.6.1 // indirect
-	github.com/pulumi/pulumi-eks/sdk v1.0.1 // indirect
 	github.com/pulumi/pulumi-kubernetes/sdk/v3 v3.26.0 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.4.0 // indirect
 	github.com/pulumi/pulumi-random/sdk/v4 v4.13.0 // indirect
