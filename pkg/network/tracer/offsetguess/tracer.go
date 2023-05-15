@@ -954,9 +954,28 @@ func boolConst(name string, value bool) manager.ConstantEditor {
 
 func (o *tracerOffsets) Offsets(cfg *config.Config) ([]manager.ConstantEditor, error) {
 	fromConfig := func(c *config.Config, offsets []manager.ConstantEditor) []manager.ConstantEditor {
-		return append(offsets,
-			boolConst("tcpv6_enabled", c.CollectTCPv6Conns),
-			boolConst("udpv6_enabled", c.CollectUDPv6Conns))
+		var foundTcp, foundUdp bool
+		for o := range offsets {
+			switch offsets[o].Name {
+			case "tcpv6_enabled":
+				offsets[o] = boolConst("tcpv6_enabled", c.CollectTCPv6Conns)
+				foundTcp = true
+			case "udpv6_enabled":
+				offsets[o] = boolConst("udpv6_enabled", c.CollectUDPv6Conns)
+				foundUdp = true
+			}
+			if foundTcp && foundUdp {
+				break
+			}
+		}
+		if !foundTcp {
+			offsets = append(offsets, boolConst("tcpv6_enabled", c.CollectTCPv6Conns))
+		}
+		if !foundUdp {
+			offsets = append(offsets, boolConst("udpv6_enabled", c.CollectUDPv6Conns))
+		}
+
+		return offsets
 	}
 
 	if o.err != nil {
