@@ -1,7 +1,7 @@
 #ifndef __PROTOCOL_CLASSIFICATION_TRACER_MAPS_H
 #define __PROTOCOL_CLASSIFICATION_TRACER_MAPS_H
 
-#include "tracer.h"
+#include "conn_tuple.h"
 #include "map-defs.h"
 
 #include "protocols/classification/shared-tracer-maps.h"
@@ -15,9 +15,6 @@
 // To overcome those problems, we save two maps that translates from conn tuple of sk_buff to conn tuple of sock* and vice
 // versa (the vice versa is used for cleanup purposes).
 BPF_HASH_MAP(conn_tuple_to_socket_skb_conn_tuple, conn_tuple_t, conn_tuple_t, 0)
-
-// Maps a connection tuple to its classified TLS protocol on socket layer only.
-BPF_HASH_MAP(tls_connection, conn_tuple_t, bool, 0)
 
 // This entry point is needed to bypass a memory limit on socket filters.
 // There is a limitation on number of instructions can be attached to a socket filter,

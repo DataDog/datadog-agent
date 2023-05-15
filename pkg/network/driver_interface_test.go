@@ -24,6 +24,8 @@ type TestDriverHandleInfiniteLoop struct {
 	lastBufferSize int
 }
 
+func (tdh *TestDriverHandleInfiniteLoop) RefreshStats() {}
+
 func (tdh *TestDriverHandleInfiniteLoop) ReadFile(p []byte, bytesRead *uint32, ol *windows.Overlapped) error {
 	// check state in struct to see if we've been called before
 	if tdh.hasBeenCalled {
@@ -49,10 +51,6 @@ func (tdh *TestDriverHandleInfiniteLoop) DeviceIoControl(ioControlCode uint32, i
 
 func (tdh *TestDriverHandleInfiniteLoop) CancelIoEx(ol *windows.Overlapped) error {
 	return nil
-}
-
-func (tdh *TestDriverHandleInfiniteLoop) GetStatsForHandle() (map[string]map[string]int64, error) {
-	return nil, nil
 }
 
 func (tdh *TestDriverHandleInfiniteLoop) Close() error {

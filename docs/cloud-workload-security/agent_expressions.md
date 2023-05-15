@@ -168,10 +168,11 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 
 | Property | Definition |
 | -------- | ------------- |
-| [`async`](#async-doc) | True if the syscall was asynchronous |
 | [`container.created_at`](#container-created_at-doc) | Timestamp of the creation of the container |
 | [`container.id`](#container-id-doc) | ID of the container |
 | [`container.tags`](#container-tags-doc) | Tags of the container |
+| [`event.async`](#event-async-doc) | True if the syscall was asynchronous |
+| [`event.timestamp`](#event-timestamp-doc) | Timestamp of the event |
 | [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
 | [`network.device.ifindex`](#network-device-ifindex-doc) | interface ifindex |
@@ -1934,6 +1935,9 @@ Definition: Mode of the file
 `*.mode` has 38 possible prefixes:
 `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
+Constants: [Inode mode constants](#inode-mode-constants)
+
+
 
 ### `*.modification_time` {#common-filefields-modification_time-doc}
 Type: int
@@ -2071,7 +2075,7 @@ Definition: Rights of the file
 `*.rights` has 38 possible prefixes:
 `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
-Constants: [Chmod mode constants](#chmod-mode-constants)
+Constants: [File mode constants](#file-mode-constants)
 
 
 
@@ -2136,13 +2140,6 @@ Definition: User of the file's owner
 
 `*.user` has 38 possible prefixes:
 `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
-
-
-### `async` {#async-doc}
-Type: bool
-
-Definition: True if the syscall was asynchronous
-
 
 
 ### `bind.addr.family` {#bind-addr-family-doc}
@@ -2249,7 +2246,7 @@ Type: int
 Definition: New mode of the chmod-ed file
 
 
-Constants: [Chmod mode constants](#chmod-mode-constants)
+Constants: [File mode constants](#file-mode-constants)
 
 
 
@@ -2259,7 +2256,7 @@ Type: int
 Definition: New rights of the chmod-ed file
 
 
-Constants: [Chmod mode constants](#chmod-mode-constants)
+Constants: [File mode constants](#file-mode-constants)
 
 
 
@@ -2360,6 +2357,20 @@ Constants: [DNS qtypes](#dns-qtypes)
 
 
 
+### `event.async` {#event-async-doc}
+Type: bool
+
+Definition: True if the syscall was asynchronous
+
+
+
+### `event.timestamp` {#event-timestamp-doc}
+Type: int
+
+Definition: Timestamp of the event
+
+
+
 ### `exit.cause` {#exit-cause-doc}
 Type: int
 
@@ -2415,7 +2426,7 @@ Type: int
 Definition: Mode of the new directory
 
 
-Constants: [Chmod mode constants](#chmod-mode-constants)
+Constants: [File mode constants](#file-mode-constants)
 
 
 
@@ -2425,7 +2436,7 @@ Type: int
 Definition: Rights of the new directory
 
 
-Constants: [Chmod mode constants](#chmod-mode-constants)
+Constants: [File mode constants](#file-mode-constants)
 
 
 
@@ -2537,7 +2548,7 @@ Type: int
 Definition: Mode of the created file
 
 
-Constants: [Chmod mode constants](#chmod-mode-constants)
+Constants: [File mode constants](#file-mode-constants)
 
 
 
@@ -3064,35 +3075,6 @@ BPF program types are the supported eBPF program types.
 | `BPF_PROG_TYPE_LSM` | all |
 | `BPF_PROG_TYPE_SK_LOOKUP` | all |
 
-### `Chmod mode constants` {#chmod-mode-constants}
-Chmod mode constants are the supported modes for the chmod syscall.
-
-| Name | Architectures |
-| ---- |---------------|
-| `S_IFBLK` | all |
-| `S_IFCHR` | all |
-| `S_IFDIR` | all |
-| `S_IFIFO` | all |
-| `S_IFLNK` | all |
-| `S_IFMT` | all |
-| `S_IFREG` | all |
-| `S_IFSOCK` | all |
-| `S_IRGRP` | all |
-| `S_IROTH` | all |
-| `S_IRUSR` | all |
-| `S_IRWXG` | all |
-| `S_IRWXO` | all |
-| `S_IRWXU` | all |
-| `S_ISGID` | all |
-| `S_ISUID` | all |
-| `S_ISVTX` | all |
-| `S_IWGRP` | all |
-| `S_IWOTH` | all |
-| `S_IWUSR` | all |
-| `S_IXGRP` | all |
-| `S_IXOTH` | all |
-| `S_IXUSR` | all |
-
 ### `DNS qclasses` {#dns-qclasses}
 DNS qclasses are the supported DNS query classes.
 
@@ -3334,6 +3316,56 @@ Error constants are the supported error constants.
 | `EXDEV` | all |
 | `EXFULL` | all |
 
+### `File mode constants` {#file-mode-constants}
+File mode constants are the supported file permissions as well as constants for the set-user-ID, set-group-ID, and sticky bits.
+
+| Name | Architectures |
+| ---- |---------------|
+| `S_ISUID` | all |
+| `S_ISGID` | all |
+| `S_ISVTX` | all |
+| `S_IRWXU` | all |
+| `S_IRUSR` | all |
+| `S_IWUSR` | all |
+| `S_IXUSR` | all |
+| `S_IRWXG` | all |
+| `S_IRGRP` | all |
+| `S_IWGRP` | all |
+| `S_IXGRP` | all |
+| `S_IRWXO` | all |
+| `S_IROTH` | all |
+| `S_IWOTH` | all |
+| `S_IXOTH` | all |
+
+### `Inode mode constants` {#inode-mode-constants}
+Inode mode constants are the supported file type constants as well as the file mode constants.
+
+| Name | Architectures |
+| ---- |---------------|
+| `S_IFMT` | all |
+| `S_IFSOCK` | all |
+| `S_IFLNK` | all |
+| `S_IFREG` | all |
+| `S_IFBLK` | all |
+| `S_IFDIR` | all |
+| `S_IFCHR` | all |
+| `S_IFIFO` | all |
+| `S_ISUID` | all |
+| `S_ISGID` | all |
+| `S_ISVTX` | all |
+| `S_IRWXU` | all |
+| `S_IRUSR` | all |
+| `S_IWUSR` | all |
+| `S_IXUSR` | all |
+| `S_IRWXG` | all |
+| `S_IRGRP` | all |
+| `S_IWGRP` | all |
+| `S_IXGRP` | all |
+| `S_IRWXO` | all |
+| `S_IROTH` | all |
+| `S_IWOTH` | all |
+| `S_IXOTH` | all |
+
 ### `Kernel Capability constants` {#kernel-capability-constants}
 Kernel Capability constants are the supported Linux Kernel Capability.
 
@@ -3353,7 +3385,6 @@ Kernel Capability constants are the supported Linux Kernel Capability.
 | `CAP_IPC_LOCK` | all |
 | `CAP_IPC_OWNER` | all |
 | `CAP_KILL` | all |
-| `CAP_LAST_CAP` | all |
 | `CAP_LEASE` | all |
 | `CAP_LINUX_IMMUTABLE` | all |
 | `CAP_MAC_ADMIN` | all |

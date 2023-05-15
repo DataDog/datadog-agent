@@ -9,7 +9,8 @@
 package ebpf
 
 /*
-#include "./c/tracer.h"
+#include "./c/pid_fd.h"
+#include "./c/tracer/tracer.h"
 #include "./c/tcp_states.h"
 #include "./c/prebuilt/offset-guess.h"
 #include "./c/protocols/classification/defs.h"
@@ -26,6 +27,7 @@ type PortBinding C.port_binding_t
 type PIDFD C.pid_fd_t
 type UDPRecvSock C.udp_recv_sock_t
 type BindSyscallArgs C.bind_syscall_args_t
+type ProtocolStack C.protocol_stack_t
 
 // udp_recv_sock_t have *sock and *msghdr struct members, we make them opaque here
 type _Ctype_struct_sock uint64

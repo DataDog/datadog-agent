@@ -26,6 +26,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/urfave/negroni"
 
+	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -59,7 +60,7 @@ func StopGUIServer() {
 }
 
 // StartGUIServer creates the router, starts the HTTP server & generates the authentication token for access
-func StartGUIServer(port string) error {
+func StartGUIServer(port string, flare flare.Component) error {
 	// Set start time...
 	startTimestamp = time.Now().Unix()
 
@@ -77,7 +78,7 @@ func StartGUIServer(port string) error {
 
 	// Set up handlers for the API
 	agentRouter := mux.NewRouter().PathPrefix("/agent").Subrouter().StrictSlash(true)
-	agentHandler(agentRouter)
+	agentHandler(agentRouter, flare)
 	checkRouter := mux.NewRouter().PathPrefix("/checks").Subrouter().StrictSlash(true)
 	checkHandler(checkRouter)
 

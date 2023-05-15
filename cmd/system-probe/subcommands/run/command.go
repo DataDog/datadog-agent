@@ -195,7 +195,7 @@ func startSystemProbe(cliParams *cliParams, log log.Component, sysprobeconfig sy
 		return log.Criticalf("unable to configure auto-exit: %s", err)
 	}
 
-	if err := statsd.Configure(cfg.StatsdHost, cfg.StatsdPort); err != nil {
+	if err := statsd.Configure(cfg.StatsdHost, cfg.StatsdPort, true); err != nil {
 		return log.Criticalf("error configuring statsd: %s", err)
 	}
 

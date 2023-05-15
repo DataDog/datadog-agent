@@ -567,7 +567,7 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 		Platform:               common.Unspecified,
 	}
 
-	if strings.Contains(buildTags, "linux") {
+	if strings.Contains(buildTags, "linux") || strings.Contains(buildTags, "unix") {
 		module.Platform = common.Linux
 	} else if strings.Contains(buildTags, "windows") {
 		module.Platform = common.Windows

@@ -20,15 +20,14 @@ runtime_compiled_tests = Array.[](
 )
 
 co_re_tests = Array.[](
-  "pkg/collector/corechecks/ebpf/probe",
-  "pkg/network/protocols/http"
+  "pkg/network/tracer",
+  "pkg/network/protocols/http",
+  "pkg/collector/corechecks/ebpf/probe"
 )
 
 TIMEOUTS = {
-  "pkg/network/protocols" => "5m",
-  # disable timeouts for pkg/network/tracer
-  "pkg/network/protocols/http$" => "0",
-  "pkg/network/tracer$" => "0",
+  "pkg/network/protocols/http$" => "15m",
+  "pkg/network/tracer$" => "25m",
 }
 
 DEFAULT_TIMEOUT = "10m"

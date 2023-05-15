@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
@@ -95,7 +96,7 @@ type subprogram interface {
 
 var http2TailCall = manager.TailCallRoute{
 	ProgArrayName: protocolDispatcherProgramsMap,
-	Key:           uint32(http.ProtocolHTTP2),
+	Key:           uint32(protocols.ProgramHTTP2),
 	ProbeIdentificationPair: manager.ProbeIdentificationPair{
 		EBPFFuncName: "socket__http2_filter",
 	},
@@ -163,7 +164,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, connecti
 	tailCalls := []manager.TailCallRoute{
 		{
 			ProgArrayName: protocolDispatcherProgramsMap,
-			Key:           uint32(http.ProtocolHTTP),
+			Key:           uint32(protocols.ProgramHTTP),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "socket__http_filter",
 			},
@@ -179,14 +180,14 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, connecti
 		tailCalls = append(tailCalls,
 			manager.TailCallRoute{
 				ProgArrayName: protocolDispatcherProgramsMap,
-				Key:           uint32(http.ProtocolKafka),
+				Key:           uint32(protocols.ProgramKafka),
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: "socket__kafka_filter",
 				},
 			},
 			manager.TailCallRoute{
 				ProgArrayName: protocolDispatcherClassificationPrograms,
-				Key:           uint32(http.DispatcherKafkaProg),
+				Key:           uint32(protocols.DispatcherKafkaProg),
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: "socket__protocol_dispatcher_kafka",
 				},
@@ -269,20 +270,19 @@ func (e *ebpfProgram) Start() error {
 
 func (e *ebpfProgram) Close() error {
 	e.mapCleaner.Stop()
-	err := e.Stop(manager.CleanAll)
 	for _, s := range e.subprograms {
 		s.Stop()
 	}
-	return err
+	return e.Stop(manager.CleanAll)
 }
 
 func (e *ebpfProgram) initCORE() error {
-	assetName := getAssetName("http", e.cfg.BPFDebug)
+	assetName := getAssetName("usm", e.cfg.BPFDebug)
 	return ddebpf.LoadCOREAsset(&e.cfg.Config, assetName, e.init)
 }
 
 func (e *ebpfProgram) initRuntimeCompiler() error {
-	bc, err := getRuntimeCompiledHTTP(e.cfg)
+	bc, err := getRuntimeCompiledUSM(e.cfg)
 	if err != nil {
 		return err
 	}

@@ -43,9 +43,8 @@ const (
 )
 
 var (
-	globalUtil       *RemoteSysProbeUtil
-	globalUtilOnce   sync.Once
-	globalSocketPath string
+	globalUtil     *RemoteSysProbeUtil
+	globalUtilOnce sync.Once
 )
 
 var _ SysProbeUtil = &RemoteSysProbeUtil{}
@@ -59,21 +58,15 @@ type RemoteSysProbeUtil struct {
 	httpClient http.Client
 }
 
-// SetSystemProbePath sets where the System probe is listening for connections
-// This needs to be called before GetRemoteSystemProbeUtil.
-func SetSystemProbePath(path string) {
-	globalSocketPath = path
-}
-
 // GetRemoteSystemProbeUtil returns a ready to use RemoteSysProbeUtil. It is backed by a shared singleton.
-func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
-	err := CheckPath()
+func GetRemoteSystemProbeUtil(path string) (*RemoteSysProbeUtil, error) {
+	err := CheckPath(path)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up remote system probe util, %v", err)
 	}
 
 	globalUtilOnce.Do(func() {
-		globalUtil = newSystemProbe()
+		globalUtil = newSystemProbe(path)
 		globalUtil.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
 			Name:          "system-probe-util",
 			AttemptMethod: globalUtil.init,
@@ -215,16 +208,16 @@ func (r *RemoteSysProbeUtil) Register(clientID string) error {
 	return nil
 }
 
-func newSystemProbe() *RemoteSysProbeUtil {
+func newSystemProbe(path string) *RemoteSysProbeUtil {
 	return &RemoteSysProbeUtil{
-		path: globalSocketPath,
+		path: path,
 		httpClient: http.Client{
 			Timeout: 10 * time.Second,
 			Transport: &http.Transport{
 				MaxIdleConns:    2,
 				IdleConnTimeout: 30 * time.Second,
 				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return net.Dial(netType, globalSocketPath)
+					return net.Dial(netType, path)
 				},
 				TLSHandshakeTimeout:   1 * time.Second,
 				ResponseHeaderTimeout: 5 * time.Second,

@@ -38,7 +38,7 @@ import (
 type pendingMsg struct {
 	ruleID    string
 	data      []byte
-	tags      map[string]bool
+	tags      []string
 	service   string
 	extTagsCb func() []string
 	sendAfter time.Time
@@ -52,9 +52,8 @@ type APIServer struct {
 	activityDumps     chan *api.ActivityDumpStreamMessage
 	expiredEventsLock sync.RWMutex
 	expiredEvents     map[rules.RuleID]*atomic.Int64
-	expiredDumpsLock  sync.RWMutex
 	expiredDumps      *atomic.Int64
-	rate              *Limiter
+	limiter           *StdLimiter
 	statsdClient      statsd.ClientInterface
 	probe             *sprobe.Probe
 	queueLock         sync.Mutex
@@ -108,7 +107,7 @@ func (a *APIServer) GetEvents(params *api.GetEventParams, stream api.SecurityMod
 LOOP:
 	for {
 		// Check that the limit is not reached
-		if !a.rate.limiter.Allow() {
+		if !a.limiter.Allow(nil) {
 			return nil
 		}
 
@@ -302,16 +301,13 @@ func (a *APIServer) start(ctx context.Context) {
 		select {
 		case now := <-ticker.C:
 			a.dequeue(now, func(msg *pendingMsg) {
-				for _, tag := range msg.extTagsCb() {
-					msg.tags[tag] = true
+				if msg.extTagsCb != nil {
+					msg.tags = append(msg.tags, msg.extTagsCb()...)
 				}
 
 				// recopy tags
-				var tags []string
 				hasService := len(msg.service) != 0
-				for tag := range msg.tags {
-					tags = append(tags, tag)
-
+				for _, tag := range msg.tags {
 					// look for the service tag if we don't have one yet
 					if !hasService {
 						if strings.HasPrefix(tag, "service:") {
@@ -325,7 +321,7 @@ func (a *APIServer) start(ctx context.Context) {
 					RuleID:  msg.ruleID,
 					Data:    msg.data,
 					Service: msg.service,
-					Tags:    tags,
+					Tags:    msg.tags,
 				}
 
 				select {
@@ -434,20 +430,13 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 		ruleID:    rule.Definition.ID,
 		data:      data,
 		extTagsCb: extTagsCb,
-		tags:      make(map[string]bool),
 		service:   service,
 		sendAfter: time.Now().Add(a.retention),
 	}
 
-	msg.tags["rule_id:"+rule.Definition.ID] = true
-
-	for _, tag := range rule.Tags {
-		msg.tags[tag] = true
-	}
-
-	for _, tag := range event.GetTags() {
-		msg.tags[tag] = true
-	}
+	msg.tags = append(msg.tags, "rule_id:"+rule.Definition.ID)
+	msg.tags = append(msg.tags, rule.Tags...)
+	msg.tags = append(msg.tags, event.GetTags()...)
 
 	a.enqueue(msg)
 }
@@ -483,11 +472,8 @@ func (a *APIServer) expireEvent(msg *api.SecurityEventMessage) {
 
 // expireDump updates the count of expired dumps
 func (a *APIServer) expireDump(dump *api.ActivityDumpStreamMessage) {
-	a.expiredDumpsLock.Lock()
-	defer a.expiredDumpsLock.Unlock()
-
 	// update metric
-	_ = a.expiredDumps.Inc()
+	a.expiredDumps.Inc()
 	seclog.Tracef("the activity dump server channel is full, a dump of [%s] was dropped\n", dump.GetDump().GetMetadata().GetName())
 }
 
@@ -497,7 +483,7 @@ func (a *APIServer) GetStats() map[string]int64 {
 	a.expiredEventsLock.RLock()
 	defer a.expiredEventsLock.RUnlock()
 
-	stats := make(map[string]int64)
+	stats := make(map[string]int64, len(a.expiredEvents))
 	for ruleID, val := range a.expiredEvents {
 		stats[ruleID] = val.Swap(0)
 	}
@@ -543,7 +529,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, client
 		activityDumps: make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
 		expiredEvents: make(map[rules.RuleID]*atomic.Int64),
 		expiredDumps:  atomic.NewInt64(0),
-		rate:          NewLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
+		limiter:       NewStdLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
 		statsdClient:  client,
 		probe:         probe,
 		retention:     time.Duration(cfg.EventServerRetention) * time.Second,

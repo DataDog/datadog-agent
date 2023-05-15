@@ -22,8 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
 )
 
-var eventZero model.Event
-
 type PlatformProbe struct {
 	pm      *procmon.WinProcmon
 	onStart chan *procmon.ProcessStartNotification
@@ -167,4 +165,8 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	p.zeroEvent()
 
 	return p, nil
+}
+
+// Does nothing if on windows
+func (p *Probe) PlaySnapshot() {
 }

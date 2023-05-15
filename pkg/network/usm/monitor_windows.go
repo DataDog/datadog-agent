@@ -21,7 +21,6 @@ import (
 type Monitor interface {
 	Start()
 	GetHTTPStats() map[http.Key]*http.RequestStats
-	GetStats() (map[string]int64, error)
 	Stop() error
 }
 
@@ -129,11 +128,6 @@ func (m *WindowsMonitor) GetHTTPStats() map[http.Key]*http.RequestStats {
 	m.telemetry.Log()
 
 	return stats
-}
-
-// GetStats gets driver stats related to the HTTP handle
-func (m *WindowsMonitor) GetStats() (map[string]int64, error) {
-	return m.di.GetStats()
 }
 
 // Stop HTTP monitoring

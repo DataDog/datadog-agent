@@ -62,6 +62,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	runtimeCmd.AddCommand(commonPolicyCommands(globalParams)...)
 	runtimeCmd.AddCommand(selfTestCommands(globalParams)...)
 	runtimeCmd.AddCommand(activityDumpCommands(globalParams)...)
+	runtimeCmd.AddCommand(securityProfileCommands(globalParams)...)
 	runtimeCmd.AddCommand(processCacheCommands(globalParams)...)
 	runtimeCmd.AddCommand(networkNamespaceCommands(globalParams)...)
 	runtimeCmd.AddCommand(discardersCommands(globalParams)...)
