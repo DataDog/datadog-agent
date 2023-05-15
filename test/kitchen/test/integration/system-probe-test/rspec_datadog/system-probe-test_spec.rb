@@ -13,26 +13,41 @@ skip_prebuilt_tests = Array.[](
   "pkg/collector/corechecks/ebpf/probe"
 )
 
-# most prebuild tests are not running on arm64
-# as tests run only on >=5.5.0 kernels and (runtime or CORE)
-arm64_tests = Array.[](
+# list based on `find pkg -name "*_test.go" | xargs grep -l "linux_bpf" | xargs dirname | sort -u`
+runtime_compiled_tests = Array.[](
+  "pkg/collector/corechecks/ebpf/probe",
+  "pkg/ebpf",
+  "pkg/ebpf/bytecode/runtime",
+  "pkg/ebpf/compiler",
+  "pkg/network",
+  "pkg/network/dns",
+  "pkg/network/netlink",
+  "pkg/network/protocols",
   "pkg/network/protocols/events",
   "pkg/network/protocols/grpc",
-  "pkg/network/tracer/connection/kprobe",
-)
-
-runtime_compiled_tests = Array.[](
-  "pkg/network/usm",
-  "pkg/network/tracer",
   "pkg/network/protocols/http",
-  "pkg/collector/corechecks/ebpf/probe"
+  "pkg/network/tracer",
+  "pkg/network/tracer/connection",
+  "pkg/network/tracer/connection/kprobe",
+  "pkg/network/usm",
 )
 
 co_re_tests = Array.[](
-  "pkg/network/usm",
-  "pkg/network/tracer",
+  "pkg/collector/corechecks/ebpf/probe",
+  "pkg/ebpf",
+  "pkg/ebpf/bytecode/runtime",
+  "pkg/ebpf/compiler",
+  "pkg/network",
+  "pkg/network/dns",
+  "pkg/network/netlink",
+  "pkg/network/protocols",
+  "pkg/network/protocols/events",
+  "pkg/network/protocols/grpc",
   "pkg/network/protocols/http",
-  "pkg/collector/corechecks/ebpf/probe"
+  "pkg/network/tracer",
+  "pkg/network/tracer/connection",
+  "pkg/network/tracer/connection/kprobe",
+  "pkg/network/usm",
 )
 
 TIMEOUTS = {
@@ -153,9 +168,6 @@ describe "system-probe" do
       "DD_ALLOW_PRECOMPILED_FALLBACK"=>"false",
       "DD_ENABLE_CO_RE"=>"false"
     }
-    if arch == "aarch64"
-      runtime_compiled_tests += arm64_tests
-    end
     include_examples "passes", "runtime", env, runtime_compiled_tests, true
   end
 
@@ -166,9 +178,6 @@ describe "system-probe" do
       "DD_ALLOW_RUNTIME_COMPILED_FALLBACK"=>"false",
       "DD_ALLOW_PRECOMPILED_FALLBACK"=>"false"
     }
-    if arch == "aarch64"
-      co_re_tests += arm64_tests
-    end
     include_examples "passes", "co-re", env, co_re_tests, true
   end
 
