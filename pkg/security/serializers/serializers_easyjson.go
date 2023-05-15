@@ -844,6 +844,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecuritySerializers9(i
 			out.IsThread = bool(in.Bool())
 		case "is_kworker":
 			out.IsKworker = bool(in.Bool())
+		case "source":
+			out.Source = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -1011,6 +1013,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecuritySerializers9(o
 		const prefix string = ",\"is_kworker\":"
 		out.RawString(prefix)
 		out.Bool(bool(in.IsKworker))
+	}
+	if in.Source != "" {
+		const prefix string = ",\"source\":"
+		out.RawString(prefix)
+		out.String(string(in.Source))
 	}
 	out.RawByte('}')
 }
@@ -1277,8 +1284,6 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecuritySerializers11(
 			continue
 		}
 		switch key {
-		case "source":
-			out.Source = string(in.String())
 		case "parent":
 			if in.IsNull() {
 				in.Skip()
@@ -1480,6 +1485,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecuritySerializers11(
 			out.IsThread = bool(in.Bool())
 		case "is_kworker":
 			out.IsKworker = bool(in.Bool())
+		case "source":
+			out.Source = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -1494,20 +1501,10 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecuritySerializers11(
 	out.RawByte('{')
 	first := true
 	_ = first
-	if in.Source != "" {
-		const prefix string = ",\"source\":"
-		first = false
-		out.RawString(prefix[1:])
-		out.String(string(in.Source))
-	}
 	if in.Parent != nil {
 		const prefix string = ",\"parent\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		first = false
+		out.RawString(prefix[1:])
 		(*in.Parent).MarshalEasyJSON(out)
 	}
 	if len(in.Ancestors) != 0 {
@@ -1690,6 +1687,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecuritySerializers11(
 		const prefix string = ",\"is_kworker\":"
 		out.RawString(prefix)
 		out.Bool(bool(in.IsKworker))
+	}
+	if in.Source != "" {
+		const prefix string = ",\"source\":"
+		out.RawString(prefix)
+		out.String(string(in.Source))
 	}
 	out.RawByte('}')
 }
@@ -1877,25 +1879,9 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecuritySerializers14(
 		case "l4_protocol":
 			out.L4Protocol = string(in.String())
 		case "source":
-			if in.IsNull() {
-				in.Skip()
-				out.Source = nil
-			} else {
-				if out.Source == nil {
-					out.Source = new(IPPortSerializer)
-				}
-				(*out.Source).UnmarshalEasyJSON(in)
-			}
+			(out.Source).UnmarshalEasyJSON(in)
 		case "destination":
-			if in.IsNull() {
-				in.Skip()
-				out.Destination = nil
-			} else {
-				if out.Destination == nil {
-					out.Destination = new(IPPortSerializer)
-				}
-				(*out.Destination).UnmarshalEasyJSON(in)
-			}
+			(out.Destination).UnmarshalEasyJSON(in)
 		case "size":
 			out.Size = uint32(in.Uint32())
 		default:
@@ -1936,20 +1922,12 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecuritySerializers14(
 	{
 		const prefix string = ",\"source\":"
 		out.RawString(prefix)
-		if in.Source == nil {
-			out.RawString("null")
-		} else {
-			(*in.Source).MarshalEasyJSON(out)
-		}
+		(in.Source).MarshalEasyJSON(out)
 	}
 	{
 		const prefix string = ",\"destination\":"
 		out.RawString(prefix)
-		if in.Destination == nil {
-			out.RawString("null")
-		} else {
-			(*in.Destination).MarshalEasyJSON(out)
-		}
+		(in.Destination).MarshalEasyJSON(out)
 	}
 	{
 		const prefix string = ",\"size\":"
@@ -4099,15 +4077,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecuritySerializers29(
 		case "id":
 			out.ID = uint16(in.Uint16())
 		case "question":
-			if in.IsNull() {
-				in.Skip()
-				out.Question = nil
-			} else {
-				if out.Question == nil {
-					out.Question = new(DNSQuestionSerializer)
-				}
-				(*out.Question).UnmarshalEasyJSON(in)
-			}
+			(out.Question).UnmarshalEasyJSON(in)
 		default:
 			in.SkipRecursive()
 		}
@@ -4127,10 +4097,10 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecuritySerializers29(
 		out.RawString(prefix[1:])
 		out.Uint16(uint16(in.ID))
 	}
-	if in.Question != nil {
+	{
 		const prefix string = ",\"question\":"
 		out.RawString(prefix)
-		(*in.Question).MarshalEasyJSON(out)
+		(in.Question).MarshalEasyJSON(out)
 	}
 	out.RawByte('}')
 }
@@ -4634,15 +4604,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecuritySerializers34(
 		}
 		switch key {
 		case "addr":
-			if in.IsNull() {
-				in.Skip()
-				out.Addr = nil
-			} else {
-				if out.Addr == nil {
-					out.Addr = new(IPPortFamilySerializer)
-				}
-				(*out.Addr).UnmarshalEasyJSON(in)
-			}
+			(out.Addr).UnmarshalEasyJSON(in)
 		default:
 			in.SkipRecursive()
 		}
@@ -4660,11 +4622,7 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecuritySerializers34(
 	{
 		const prefix string = ",\"addr\":"
 		out.RawString(prefix[1:])
-		if in.Addr == nil {
-			out.RawString("null")
-		} else {
-			(*in.Addr).MarshalEasyJSON(out)
-		}
+		(in.Addr).MarshalEasyJSON(out)
 	}
 	out.RawByte('}')
 }

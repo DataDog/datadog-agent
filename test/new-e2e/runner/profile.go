@@ -56,11 +56,11 @@ type baseProfile struct {
 	secretStore  parameters.Store
 }
 
-func newProfile(projectName string, environments []string, secretStore *parameters.Store) baseProfile {
+func newProfile(projectName string, environments []string, store parameters.Store, secretStore *parameters.Store) baseProfile {
 	p := baseProfile{
 		projectName:  projectName,
 		environments: environments,
-		store:        parameters.NewEnvStore(EnvPrefix),
+		store:        store,
 	}
 
 	if secretStore == nil {

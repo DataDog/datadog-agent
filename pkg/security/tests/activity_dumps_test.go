@@ -25,16 +25,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// v see test/kitchen/test/integration/security-agent-test/rspec/security-agent-test_spec.rb
-const dedicatedADNodeForTestsEnv = "DEDICATED_ACTIVITY_DUMP_NODE"
-
-var expectedFormats = []string{"json", "protobuf"}
-
-const testActivityDumpRateLimiter = 200
-const testActivityDumpTracedCgroupsCount = 3
-const testActivityDumpCgroupDumpTimeout = 11 // probe.MinDumpTimeout(10) + 5
-var testActivityDumpTracedEventTypes = []string{"exec", "open", "syscalls", "dns", "bind"}
-
 func TestActivityDumps(t *testing.T) {
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
@@ -49,6 +39,8 @@ func TestActivityDumps(t *testing.T) {
 
 	outputDir := t.TempDir()
 	defer os.RemoveAll(outputDir)
+	expectedFormats := []string{"json", "protobuf"}
+	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind"}
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
@@ -145,7 +137,7 @@ func TestActivityDumps(t *testing.T) {
 			}
 			assert.Equal(t, "syscall_tester", node.Process.FileEvent.BasenameStr)
 			return true
-		})
+		}, nil)
 	})
 
 	t.Run("activity-dump-cgroup-bind", func(t *testing.T) {
@@ -185,7 +177,7 @@ func TestActivityDumps(t *testing.T) {
 				}
 			}
 			return false
-		})
+		}, nil)
 	})
 
 	t.Run("activity-dump-cgroup-dns", func(t *testing.T) {
@@ -227,7 +219,7 @@ func TestActivityDumps(t *testing.T) {
 				}
 			}
 			return false
-		})
+		}, nil)
 	})
 
 	t.Run("activity-dump-cgroup-file", func(t *testing.T) {
@@ -274,7 +266,7 @@ func TestActivityDumps(t *testing.T) {
 				}
 			}
 			return true
-		})
+		}, nil)
 	})
 
 	t.Run("activity-dump-cgroup-syscalls", func(t *testing.T) {
@@ -320,7 +312,7 @@ func TestActivityDumps(t *testing.T) {
 				t.Errorf("execve syscall not found in activity dump")
 			}
 			return exitOK && execveOK
-		})
+		}, nil)
 	})
 
 	t.Run("activity-dump-cgroup-rate-limiter", func(t *testing.T) {
@@ -381,7 +373,7 @@ func TestActivityDumps(t *testing.T) {
 				}
 			}
 			return true
-		})
+		}, nil)
 	})
 
 	t.Run("activity-dump-cgroup-timeout", func(t *testing.T) {
@@ -440,523 +432,6 @@ func TestActivityDumps(t *testing.T) {
 		}
 		assert.Equal(t, testActivityDumpTracedCgroupsCount, len(dumps))
 	})
-}
-
-func TestActivityDumpsThreatScore(t *testing.T) {
-	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
-	if testEnvironment == DockerEnvironment {
-		t.Skip("Skip test spawning docker containers on docker")
-	}
-	if _, err := whichNonFatal("docker"); err != nil {
-		t.Skip("Skip test where docker is unavailable")
-	}
-	if !IsDedicatedNode(dedicatedADNodeForTestsEnv) {
-		t.Skip("Skip test when not run in dedicated env")
-	}
-
-	rules := []*rules.RuleDefinition{
-		{
-			ID:         "tag_rule_threat_score_file",
-			Expression: `open.file.name == "tag-open" && process.file.name == "touch"`,
-			Tags:       map[string]string{"ruleset": "threat_score"},
-			Version:    "4.5.6",
-		},
-		{
-			ID:         "tag_rule_threat_score_dns",
-			Expression: `dns.question.name == "foo.bar" && process.file.name == "nslookup"`,
-			Tags:       map[string]string{"ruleset": "threat_score"},
-			Version:    "4.5.6",
-		},
-		{
-			ID:         "tag_rule_threat_score_bind",
-			Expression: `bind.addr.family == AF_INET && process.file.name == "syscall_tester"`,
-			Tags:       map[string]string{"ruleset": "threat_score"},
-			Version:    "4.5.6",
-		},
-		{
-			ID:         "tag_rule_threat_score_process",
-			Expression: `exec.file.name == "syscall_tester"`,
-			Tags:       map[string]string{"ruleset": "threat_score"},
-			Version:    "4.5.6",
-		},
-	}
-
-	outputDir := t.TempDir()
-	defer os.RemoveAll(outputDir)
-	test, err := newTestModule(t, nil, rules, testOpts{
-		enableActivityDump:                  true,
-		activityDumpRateLimiter:             testActivityDumpRateLimiter,
-		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
-		activityDumpCgroupDumpTimeout:       testActivityDumpCgroupDumpTimeout,
-		activityDumpLocalStorageDirectory:   outputDir,
-		activityDumpLocalStorageCompression: false,
-		activityDumpLocalStorageFormats:     expectedFormats,
-		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
-		activityDumpTagRules:                true,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer test.Close()
-	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Run("activity-dump-tag-rule-file", func(t *testing.T) {
-		dockerInstance, dump, err := test.StartADockerGetDump()
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer dockerInstance.stop()
-
-		filePath := filepath.Join(test.st.Root(), "tag-open")
-		time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
-		cmd := dockerInstance.Command("touch", []string{filePath}, []string{})
-		_, err = cmd.CombinedOutput()
-		if err != nil {
-			t.Fatal(err)
-		}
-		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
-
-		err = test.StopActivityDump(dump.Name, "", "")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		tempPathParts := strings.Split(filePath, "/")
-		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			// searching busybox instead of touch because we test on a busybox based alpine
-			nodes := ad.FindMatchingRootNodes("busybox")
-			if nodes == nil || len(nodes) != 1 {
-				t.Fatal("Uniq node not found in activity dump")
-			}
-			node := nodes[0]
-
-			var next *activity_tree.FileNode
-			var found bool
-			current := node.Files
-			for _, part := range tempPathParts {
-				if part == "" {
-					continue
-				}
-				next, found = current[part]
-				if !found {
-					return false
-				}
-				current = next.Children
-			}
-			if next == nil || len(next.MatchedRules) != 1 ||
-				next.MatchedRules[0].RuleID != "tag_rule_threat_score_file" ||
-				next.MatchedRules[0].RuleVersion != "4.5.6" {
-				return false
-			}
-			return true
-		})
-	})
-
-	t.Run("activity-dump-tag-rule-dns", func(t *testing.T) {
-		dockerInstance, dump, err := test.StartADockerGetDump()
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer dockerInstance.stop()
-
-		time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
-		cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
-		_, err = cmd.CombinedOutput()
-		if err != nil {
-			t.Fatal(err)
-		}
-		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
-
-		err = test.StopActivityDump(dump.Name, "", "")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			// searching busybox instead of nslookup because we test on a busybox based alpine
-			nodes := ad.FindMatchingRootNodes("busybox")
-			if nodes == nil || len(nodes) != 1 {
-				t.Fatal("Uniq node not found in activity dump")
-			}
-			node := nodes[0]
-
-			for dnsName, dnsReq := range node.DNSNames {
-				if dnsName == "foo.bar" {
-					if len(dnsReq.MatchedRules) != 1 ||
-						dnsReq.MatchedRules[0].RuleID != "tag_rule_threat_score_dns" ||
-						dnsReq.MatchedRules[0].RuleVersion != "4.5.6" {
-						return false
-					}
-					return true
-				}
-			}
-			return false
-		})
-	})
-
-	t.Run("activity-dump-tag-rule-bind", func(t *testing.T) {
-		dockerInstance, dump, err := test.StartADockerGetDump()
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer dockerInstance.stop()
-
-		time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
-		cmd := dockerInstance.Command(syscallTester, []string{"bind", "AF_INET", "any", "tcp"}, []string{})
-		_, err = cmd.CombinedOutput()
-		if err != nil {
-			t.Fatal(err)
-		}
-		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
-
-		err = test.StopActivityDump(dump.Name, "", "")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.FindMatchingRootNodes("syscall_tester")
-			if nodes == nil || len(nodes) != 1 {
-				t.Fatal("Uniq node not found in activity dump")
-			}
-			node := nodes[0]
-
-			for _, s := range node.Sockets {
-				if s.Family == "AF_INET" {
-					for _, bindNode := range s.Bind {
-						if bindNode.Port == 4242 && bindNode.IP == "0.0.0.0" {
-							if len(bindNode.MatchedRules) != 1 ||
-								bindNode.MatchedRules[0].RuleID != "tag_rule_threat_score_bind" ||
-								bindNode.MatchedRules[0].RuleVersion != "4.5.6" {
-								return false
-							} else {
-								return true
-							}
-						}
-					}
-				}
-			}
-			return false
-		})
-	})
-
-	t.Run("activity-dump-tag-rule-process", func(t *testing.T) {
-		dockerInstance, dump, err := test.StartADockerGetDump()
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer dockerInstance.stop()
-
-		time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
-		cmd := dockerInstance.Command(syscallTester, []string{"sleep", "1"}, []string{})
-		_, err = cmd.CombinedOutput()
-		if err != nil {
-			t.Fatal(err)
-		}
-		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
-
-		err = test.StopActivityDump(dump.Name, "", "")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.FindMatchingRootNodes("syscall_tester")
-			if nodes == nil {
-				t.Fatal("Node not found in activity dump")
-			}
-			for _, node := range nodes {
-				if len(node.MatchedRules) == 1 &&
-					node.MatchedRules[0].RuleID == "tag_rule_threat_score_process" &&
-					node.MatchedRules[0].RuleVersion == "4.5.6" {
-					return true
-				}
-			}
-			return false
-		})
-	})
-
-}
-
-func validateActivityDumpOutputs(t *testing.T, test *testModule, expectedFormats []string, outputFiles []string, validator func(ad *activitydump.ActivityDump) bool) {
-	perExtOK := make(map[string]bool)
-	for _, format := range expectedFormats {
-		ext := fmt.Sprintf(".%s", format)
-		perExtOK[ext] = false
-	}
-
-	for _, f := range outputFiles {
-		ext := filepath.Ext(f)
-		if perExtOK[ext] {
-			t.Fatalf("Got more than one `%s` file: %v", ext, outputFiles)
-		}
-
-		switch ext {
-		case ".json":
-			content, err := os.ReadFile(f)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !validateActivityDumpProtoSchema(t, string(content)) {
-				t.Error(string(content))
-			}
-			perExtOK[ext] = true
-
-		case ".protobuf":
-			ad, err := test.DecodeActivityDump(f)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			found := validator(ad)
-			if !found {
-				t.Error("Invalid activity dump")
-			}
-			perExtOK[ext] = found
-
-		default:
-			t.Fatal("Unexpected output file")
-		}
-	}
-
-	for ext, found := range perExtOK {
-		if !found {
-			t.Fatalf("Missing or wrong `%s`, out of: %v", ext, outputFiles)
-		}
-	}
-}
-
-func TestActivityDumpsLoadControllerTimeout(t *testing.T) {
-	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
-	if testEnvironment == DockerEnvironment {
-		t.Skip("Skip test spawning docker containers on docker")
-	}
-	if _, err := whichNonFatal("docker"); err != nil {
-		t.Skip("Skip test where docker is unavailable")
-	}
-	if !IsDedicatedNode(dedicatedADNodeForTestsEnv) {
-		t.Skip("Skip test when not run in dedicated env")
-	}
-
-	outputDir := t.TempDir()
-	defer os.RemoveAll(outputDir)
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
-		enableActivityDump:                  true,
-		activityDumpRateLimiter:             testActivityDumpRateLimiter,
-		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
-		activityDumpCgroupDumpTimeout:       testActivityDumpCgroupDumpTimeout,
-		activityDumpLocalStorageDirectory:   outputDir,
-		activityDumpLocalStorageCompression: false,
-		activityDumpLocalStorageFormats:     expectedFormats,
-		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer test.Close()
-
-	// first, stop all running activity dumps
-	err = test.StopAllActivityDumps()
-	if err != nil {
-		t.Fatal("Can't stop all running activity dumps")
-	}
-
-	dockerInstance, dump, err := test.StartADockerGetDump()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer dockerInstance.stop()
-	assert.Equal(t, "11m0s", dump.Timeout)
-
-	// trigg reducer (before t > timeout / 4)
-	test.triggerLoadControlerReducer(dockerInstance, dump)
-
-	// find the new dump, with timeout *= 3/4, or min timeout
-	secondDump, err := test.findNextPartialDump(dockerInstance, dump)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.Equal(t, "10m0s", secondDump.Timeout)
-}
-
-func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
-	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
-	if testEnvironment == DockerEnvironment {
-		t.Skip("Skip test spawning docker containers on docker")
-	}
-	if _, err := whichNonFatal("docker"); err != nil {
-		t.Skip("Skip test where docker is unavailable")
-	}
-	if !IsDedicatedNode(dedicatedADNodeForTestsEnv) {
-		t.Skip("Skip test when not run in dedicated env")
-	}
-
-	outputDir := t.TempDir()
-	defer os.RemoveAll(outputDir)
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
-		enableActivityDump:                  true,
-		activityDumpRateLimiter:             testActivityDumpRateLimiter,
-		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
-		activityDumpCgroupDumpTimeout:       testActivityDumpCgroupDumpTimeout,
-		activityDumpLocalStorageDirectory:   outputDir,
-		activityDumpLocalStorageCompression: false,
-		activityDumpLocalStorageFormats:     expectedFormats,
-		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer test.Close()
-	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// first, stop all running activity dumps
-	err = test.StopAllActivityDumps()
-	if err != nil {
-		t.Fatal("Can't stop all running activity dumps")
-	}
-
-	dockerInstance, dump, err := test.StartADockerGetDump()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer dockerInstance.stop()
-
-	for activeEventTypes := activitydump.TracedEventTypesReductionOrder; ; activeEventTypes = activeEventTypes[1:] {
-		// add all event types to the dump
-		test.addAllEventTypesOnDump(dockerInstance, dump, syscallTester)
-		time.Sleep(time.Second * 3)
-		// trigg reducer
-		test.triggerLoadControlerReducer(dockerInstance, dump)
-		// find the new dump
-		nextDump, err := test.findNextPartialDump(dockerInstance, dump)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		// extract all present event types present on the first dump
-		presentEventTypes, err := test.extractAllDumpEventTypes(dump)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !isEventTypesStringSlicesEqual(activeEventTypes, presentEventTypes) {
-			t.Fatalf("Dump's event types are different as expected (%v) vs (%v)", activeEventTypes, presentEventTypes)
-		}
-		if len(activeEventTypes) == 0 {
-			break
-		}
-		dump = nextDump
-	}
-}
-
-func TestActivityDumpsLoadControllerRateLimiter(t *testing.T) {
-	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
-	if testEnvironment == DockerEnvironment {
-		t.Skip("Skip test spawning docker containers on docker")
-	}
-	if _, err := whichNonFatal("docker"); err != nil {
-		t.Skip("Skip test where docker is unavailable")
-	}
-	if !IsDedicatedNode(dedicatedADNodeForTestsEnv) {
-		t.Skip("Skip test when not run in dedicated env")
-	}
-
-	outputDir := t.TempDir()
-	defer os.RemoveAll(outputDir)
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
-		enableActivityDump:                  true,
-		activityDumpRateLimiter:             testActivityDumpRateLimiter,
-		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
-		activityDumpCgroupDumpTimeout:       testActivityDumpCgroupDumpTimeout,
-		activityDumpLocalStorageDirectory:   outputDir,
-		activityDumpLocalStorageCompression: false,
-		activityDumpLocalStorageFormats:     expectedFormats,
-		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer test.Close()
-	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// first, stop all running activity dumps
-	err = test.StopAllActivityDumps()
-	if err != nil {
-		t.Fatal("Can't stop all running activity dumps")
-	}
-
-	dockerInstance, dump, err := test.StartADockerGetDump()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer dockerInstance.stop()
-
-	// burst file creation
-	testDir := filepath.Join(test.Root(), "ratelimiter")
-	os.MkdirAll(testDir, os.ModePerm)
-	test.dockerCreateFiles(dockerInstance, syscallTester, testDir, testActivityDumpRateLimiter*2)
-	time.Sleep(time.Second * 3)
-	// trigg reducer
-	test.triggerLoadControlerReducer(dockerInstance, dump)
-	// find the new dump, with ratelimiter *= 3/4
-	secondDump, err := test.findNextPartialDump(dockerInstance, dump)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// find the number of files creation that were added to the dump
-	numberOfFiles, err := test.findNumberOfExistingDirectoryFiles(dump, testDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if numberOfFiles < testActivityDumpRateLimiter/4 || numberOfFiles > testActivityDumpRateLimiter {
-		t.Fatalf("number of files not expected (%d) with %d ratelimiter\n", numberOfFiles, testActivityDumpRateLimiter)
-	}
-
-	dump = secondDump
-	// burst file creation
-	test.dockerCreateFiles(dockerInstance, syscallTester, testDir, testActivityDumpRateLimiter*2)
-	time.Sleep(time.Second * 3)
-	// trigg reducer
-	test.triggerLoadControlerReducer(dockerInstance, dump)
-	// find the new dump, with ratelimiter *= 3/4
-	_, err = test.findNextPartialDump(dockerInstance, dump)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// find the number of files creation that were added to the dump
-	numberOfFiles, err = test.findNumberOfExistingDirectoryFiles(dump, testDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	newRateLimiter := testActivityDumpRateLimiter / 4 * 3
-	if numberOfFiles < newRateLimiter/4 || numberOfFiles > newRateLimiter {
-		t.Fatalf("number of files not expected (%d) with %d ratelimiter\n", numberOfFiles, newRateLimiter)
-	}
-}
-
-func isEventTypesStringSlicesEqual(slice1 []model.EventType, slice2 []string) bool {
-	if len(slice1) != len(slice2) {
-		return false
-	}
-firstLoop:
-	for _, s1 := range slice1 {
-		for _, s2 := range slice2 {
-			if s1.String() == s2 {
-				continue firstLoop
-			}
-		}
-		return false
-	}
-	return true
 }
 
 func isListOfDumpsEqual(list1, list2 []*activityDumpIdentifier) bool {

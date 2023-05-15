@@ -46,13 +46,16 @@ build do
   patch source: "0010-Remove-reference-to-PROC_CHECK.patch", env: env
   patch source: "0015-Fix-leak-of-session-skip_rules.patch", env: env
   patch source: "0016-Fix-leak-of-dpkginfo_reply_t-fields.patch", env: env
+  patch source: "0018-Fix-leak-of-component_colls-in-_oval_component_evalu.patch", env: env
+  patch source: "0020-Fix-build-on-FreeBSD.patch", env: env
+  patch source: "0036-Fix-leak-of-regex-structure-in-oval_fts-in-error-cas.patch", env: env
+  patch source: "0037-Free-xmlDoc-structure-at-the-end-of-xccdf_session_lo.patch", env: env
+  patch source: "0041-Fix-implicitly-declared-function.patch", env: env
 
   patch source: "get_results_from_session.patch", env: env # add a function to retrieve results from session
   patch source: "session_result_free.patch", env: env # add a function to free results from session
-  patch source: "source_free_xml.patch", env: env # free XML DOM after loading session
   patch source: "010_perlpm_install_fix.patch", env: env # fix build of perl bindings
   patch source: "dpkginfo-cacheconfig.patch", env: env # work around incomplete pkgcache path
-  patch source: "oval_component_evaluate_CONCAT_leak.patch", env: env # fix memory leak
   patch source: "dpkginfo-init.patch", env: env # fix memory leak of pkgcache in dpkginfo probe
   patch source: "shadow-chroot.patch", env: env # handle shadow probe in offline mode
   patch source: "fsdev-ignore-host.patch", env: env # ignore /host directory in fsdev probe
@@ -108,5 +111,5 @@ build do
   cmake(*cmake_options, env: env, cwd: cmake_build_dir, prefix: "#{install_dir}/embedded")
 
   # Remove OpenSCAP XML schemas, since they are not useful when XSD validation is disabled.
-  command "rm -rf #{install_dir}/embedded/share/openscap/schemas"
+  delete "#{install_dir}/embedded/share/openscap/schemas"
 end

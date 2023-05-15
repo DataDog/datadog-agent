@@ -61,8 +61,6 @@ class CustomActionData : ICustomActionData
     void Sid(sid_ptr &sid) override;
     std::shared_ptr<ITargetMachine> GetTargetMachine() const override;
 
-    void setClosedSourceConfig();
-
   private:
     bool _domainUser;
     User _user;

@@ -10,6 +10,7 @@ import (
 
 	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
@@ -58,4 +59,5 @@ type ScanResult struct {
 	Report    Report
 	CreatedAt time.Time
 	Duration  time.Duration
+	ImgMeta   *workloadmeta.ContainerImageMetadata
 }

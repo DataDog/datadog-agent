@@ -394,8 +394,9 @@ func (p *Resolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc *pro
 	}
 
 	entry.EnvsEntry = &model.EnvsEntry{}
-	if envs, err := utils.EnvVars(proc.Pid); err == nil {
+	if envs, truncated, err := utils.EnvVars(proc.Pid); err == nil {
 		entry.EnvsEntry.Values = envs
+		entry.EnvsEntry.Truncated = truncated
 	}
 
 	// Heuristic to detect likely interpreter event
@@ -1223,6 +1224,14 @@ func (p *Resolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 	for _, entry := range p.entryCache {
 		callback(entry)
 	}
+}
+
+// HasCompleteLineage returns whether the lineage is complete
+func (p *Resolver) HasCompleteLineage(entry *model.ProcessCacheEntry) bool {
+	p.RLock()
+	defer p.RUnlock()
+
+	return entry.HasCompleteLineage()
 }
 
 // NewResolver returns a new process resolver

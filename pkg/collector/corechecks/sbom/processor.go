@@ -191,6 +191,7 @@ func (p *processor) processHostRefresh() {
 		result := <-ch
 
 		if result.Error != nil {
+			// TODO: add a retry mechanism for retryable errors
 			log.Errorf("Failed to generate SBOM for host: %s", result.Error)
 			return
 		}

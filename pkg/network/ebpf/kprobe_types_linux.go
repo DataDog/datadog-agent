@@ -22,17 +22,17 @@ type TCPStats struct {
 	Pad_cgo_0         [2]byte
 }
 type ConnStats struct {
-	Sent_bytes   uint64
-	Recv_bytes   uint64
-	Timestamp    uint64
-	Flags        uint32
-	Cookie       uint32
-	Sent_packets uint64
-	Recv_packets uint64
-	Direction    uint8
-	Protocol     uint8
-	Conn_tags    uint8
-	Pad_cgo_0    [5]byte
+	Sent_bytes     uint64
+	Recv_bytes     uint64
+	Timestamp      uint64
+	Flags          uint32
+	Cookie         uint32
+	Sent_packets   uint64
+	Recv_packets   uint64
+	Direction      uint8
+	Conn_tags      uint8
+	Protocol_stack ProtocolStack
+	Pad_cgo_0      [2]byte
 }
 type Conn struct {
 	Tup        ConnTuple
@@ -73,6 +73,12 @@ type BindSyscallArgs struct {
 	Addr *_Ctype_struct_sockaddr
 	Sk   *_Ctype_struct_sock
 }
+type ProtocolStack struct {
+	Api         uint8
+	Application uint8
+	Encryption  uint8
+	Flags       uint8
+}
 
 type _Ctype_struct_sock uint64
 type _Ctype_struct_msghdr uint64
@@ -99,6 +105,6 @@ const SizeofBatch = 0x1f0
 type ClassificationProgram = uint32
 
 const (
-	ClassificationQueues ClassificationProgram = 0x0
-	ClassificationDBs    ClassificationProgram = 0x1
+	ClassificationQueues ClassificationProgram = 0x2
+	ClassificationDBs    ClassificationProgram = 0x3
 )
