@@ -59,6 +59,7 @@ type Check struct {
 	dbVersion                               string
 	driver                                  string
 	statementsLastRun                       time.Time
+	isRDS                                   bool
 }
 
 // Run executes the check.
@@ -68,6 +69,10 @@ func (c *Check) Run() error {
 		if err != nil {
 			c.Teardown()
 			return err
+		}
+		if db == nil {
+			c.Teardown()
+			return fmt.Errorf("empty connection")
 		}
 		c.db = db
 	}
@@ -133,12 +138,17 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 			return nil, fmt.Errorf("failed to query db name: %w", err)
 		}
 		c.tags = append(c.tags, fmt.Sprintf("cdb:%s", c.cdbName))
+		if c.cdbName == "RDSCDB" {
+			c.isRDS = true
+		}
+
 	}
 
 	if c.dbHostname == "" || c.dbVersion == "" {
-		row := db.QueryRow("SELECT /* DD */ host_name, version FROM v$instance")
+		row := db.QueryRow("SELECT /* DD */ host_name, version, instance_name FROM v$instance")
 		var dbHostname string
-		err = row.Scan(&dbHostname, &c.dbVersion)
+		var instanceName string
+		err = row.Scan(&dbHostname, &c.dbVersion, &instanceName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to query hostname and version: %w", err)
 		}
