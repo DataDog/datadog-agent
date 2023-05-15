@@ -576,8 +576,7 @@ func newDirectReporter(stopper startstop.Stopper) (common.RawReporter, error) {
 		return nil, nil
 	}
 
-	// TODO(paulcacheux) pipe actual config to this
-	runPath := "/opt/datadog-agent/run"
+	runPath := pkgconfig.Datadog.GetString("runtime_security_config.run_path")
 
 	endpoints, destinationsCtx, err := common.NewLogContextRuntime()
 	if err != nil {
