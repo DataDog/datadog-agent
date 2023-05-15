@@ -102,10 +102,12 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
         return;
     }
 
+    // If we hit this section it means we had one or more interleaved tcp_close calls.
+    // We send the connection outside of a batch anyway. This is likely not as
+    // frequent of a case to cause performance issues and avoid cases where
+    // we drop whole connections, which impacts things USM connection matching.
     bpf_perf_event_output(ctx, &conn_close_event, cpu, &conn, sizeof(conn));
 
-    // If we hit this section it means we had one or more interleaved tcp_close calls.
-    // This could result in a missed tcp_close event, so we track it using our telemetry map.
     if (is_tcp) {
         increment_telemetry_count(unbatched_tcp_close);
     }
