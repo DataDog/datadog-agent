@@ -10,17 +10,18 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
 	"github.com/DataDog/test-infra-definitions/components/command"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/microVMs/microvms"
+	"github.com/sethvargo/go-retry"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
 
 	pulumiCommand "github.com/pulumi/pulumi-command/sdk/go/command"
 	"github.com/pulumi/pulumi-command/sdk/go/command/remote"
@@ -117,94 +118,89 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		"microvm:workingDir":                     auto.ConfigValue{Value: CustomAMIWorkingDir},
 	}
 
-	_, upResult, err := stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
-		awsEnvironment, err := aws.NewEnvironment(ctx)
-		if err != nil {
-			return fmt.Errorf("aws new environment: %w", err)
-		}
+	ctx := context.Background()
+	b := retry.NewConstant(3 * time.Second)
+	b = retry.WithMaxRetries(3, b)
 
-		scenarioDone, err := microvms.RunAndReturnInstances(awsEnvironment)
-		if err != nil {
-			return fmt.Errorf("setup micro-vms in remote instance: %w", err)
-		}
-
-		var depends []pulumi.Resource
-		osCommand := command.NewUnixOSCommand()
-
-		commandProvider, err := pulumiCommand.NewProvider(ctx, "test-env-command-provider", &pulumiCommand.ProviderArgs{})
-		if err != nil {
-			return fmt.Errorf("failed to get command provider: %w", err)
-		}
-		for _, instance := range scenarioDone.Instances {
-			remoteRunner, err := command.NewRunner(*awsEnvironment.CommonEnvironment, command.RunnerArgs{
-				ConnectionName: "remote-runner-" + instance.Arch,
-				Connection:     instance.Connection,
-				ReadyFunc: func(r *command.Runner) (*remote.Command, error) {
-					return command.WaitForCloudInit(r)
-				},
-				OSCommand: osCommand,
-			})
-
-			// if shutdown period specified then register a cron job
-			// to automatically shutdown the ec2 instance after desired
-			// interval. The microvm scenario sets the terminateOnShutdown
-			// attribute of the ec2 instance to true. Therefore the shutdown would
-			// trigger the automatic termination of the ec2 instance.
-			if int64(opts.ShutdownPeriod) > 0 {
-				shutdownRegisterArgs := command.Args{
-					Create: pulumi.Sprintf(
-						"shutdown -P +%.0f", opts.ShutdownPeriod.Minutes(),
-					),
-					Sudo: true,
-				}
-				shutdownRegisterDone, err := remoteRunner.Command("shutdown-"+instance.Arch, &shutdownRegisterArgs, pulumi.DependsOn(scenarioDone.Dependencies))
-				if err != nil {
-					return fmt.Errorf("failed to schedule shutdown: %w", err)
-				}
-				depends = []pulumi.Resource{shutdownRegisterDone}
-			} else {
-				depends = scenarioDone.Dependencies
-			}
-
-			if opts.UploadDependencies {
-				// Copy dependencies to micro-vms. Directory '/opt/kernel-version-testing'
-				// is mounted to all micro-vms. Each micro-vm extract the context on boot.
-				filemanager := command.NewFileManager(remoteRunner)
-				_, err = filemanager.CopyFile(
-					fmt.Sprintf("%s/dependencies-%s.tar.gz", DD_AGENT_TESTING_DIR, instance.Arch),
-					fmt.Sprintf("/opt/kernel-version-testing/dependencies-%s.tar.gz", instance.Arch),
-					pulumi.DependsOn(depends),
-					pulumi.Provider(commandProvider),
-				)
-				if err != nil {
-					return fmt.Errorf("copy file: %w", err)
-				}
-			}
-		}
-
-		return nil
-	}, opts.FailOnMissing)
-	if err != nil {
-		if strings.Contains(fmt.Sprintf("%s", err), "failed to dial libvirt:") {
-			x86key, err := os.Open(sshKeyX86)
+	var upResult auto.UpResult
+	if retryErr := retry.Do(ctx, b, func(_ context.Context) error {
+		_, upResult, err = stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
+			awsEnvironment, err := aws.NewEnvironment(ctx)
 			if err != nil {
-				fmt.Printf("[Error] Key %s does not exist: %w\n", sshKeyX86, err)
-			} else {
-				defer x86key.Close()
-				b1, _ := ioutil.ReadAll(x86key)
-				fmt.Println(b1)
+				return fmt.Errorf("aws new environment: %w", err)
+			}
 
-				armkey, err := os.Open(sshKeyArm)
-				if err != nil {
-					fmt.Printf("[Error] Key %s does not exist: %w\n", sshKeyArm, err)
+			scenarioDone, err := microvms.RunAndReturnInstances(awsEnvironment)
+			if err != nil {
+				return fmt.Errorf("setup micro-vms in remote instance: %w", err)
+			}
+
+			var depends []pulumi.Resource
+			osCommand := command.NewUnixOSCommand()
+
+			commandProvider, err := pulumiCommand.NewProvider(ctx, "test-env-command-provider", &pulumiCommand.ProviderArgs{})
+			if err != nil {
+				return fmt.Errorf("failed to get command provider: %w", err)
+			}
+			for _, instance := range scenarioDone.Instances {
+				remoteRunner, err := command.NewRunner(*awsEnvironment.CommonEnvironment, command.RunnerArgs{
+					ConnectionName: "remote-runner-" + instance.Arch,
+					Connection:     instance.Connection,
+					ReadyFunc: func(r *command.Runner) (*remote.Command, error) {
+						return command.WaitForCloudInit(r)
+					},
+					OSCommand: osCommand,
+				})
+
+				// if shutdown period specified then register a cron job
+				// to automatically shutdown the ec2 instance after desired
+				// interval. The microvm scenario sets the terminateOnShutdown
+				// attribute of the ec2 instance to true. Therefore the shutdown would
+				// trigger the automatic termination of the ec2 instance.
+				if int64(opts.ShutdownPeriod) > 0 {
+					shutdownRegisterArgs := command.Args{
+						Create: pulumi.Sprintf(
+							"shutdown -P +%.0f", opts.ShutdownPeriod.Minutes(),
+						),
+						Sudo: true,
+					}
+					shutdownRegisterDone, err := remoteRunner.Command("shutdown-"+instance.Arch, &shutdownRegisterArgs, pulumi.DependsOn(scenarioDone.Dependencies))
+					if err != nil {
+						return fmt.Errorf("failed to schedule shutdown: %w", err)
+					}
+					depends = []pulumi.Resource{shutdownRegisterDone}
 				} else {
-					defer armkey.Close()
-					b2, _ := ioutil.ReadAll(armkey)
-					fmt.Println(b2)
+					depends = scenarioDone.Dependencies
+				}
+
+				if opts.UploadDependencies {
+					// Copy dependencies to micro-vms. Directory '/opt/kernel-version-testing'
+					// is mounted to all micro-vms. Each micro-vm extract the context on boot.
+					filemanager := command.NewFileManager(remoteRunner)
+					_, err = filemanager.CopyFile(
+						fmt.Sprintf("%s/dependencies-%s.tar.gz", DD_AGENT_TESTING_DIR, instance.Arch),
+						fmt.Sprintf("/opt/kernel-version-testing/dependencies-%s.tar.gz", instance.Arch),
+						pulumi.DependsOn(depends),
+						pulumi.Provider(commandProvider),
+					)
+					if err != nil {
+						return fmt.Errorf("copy file: %w", err)
+					}
 				}
 			}
+
+			return nil
+		}, opts.FailOnMissing)
+		if err != nil {
+			if strings.Contains(fmt.Sprintf("%s", err), "failed to dial libvirt") {
+				return retry.RetryableError(err)
+			} else {
+				return err
+			}
 		}
-		return nil, fmt.Errorf("failed to create stack: %w", err)
+		return nil
+	}); retryErr != nil {
+		return nil, fmt.Errorf("failed to create stack: %w", retryErr)
 	}
 
 	err = outputsToFile(upResult.Outputs)
