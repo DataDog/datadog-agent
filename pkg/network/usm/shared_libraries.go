@@ -31,6 +31,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	// The interval of the periodic scan for terminated processes. Increasing the interval, might cause larger spikes in cpu
+	// and lowering it might cause constant cpu usage.
+	scanTerminatedProcessesInterval = 30 * time.Second
+)
+
 func toLibPath(data []byte) http.LibPath {
 	return *(*http.LibPath)(unsafe.Pointer(&data[0]))
 }
@@ -216,8 +222,7 @@ func (w *soWatcher) Start() {
 	}
 
 	cleanupExit, err := w.processMonitor.SubscribeExit(&monitor.ProcessCallback{
-		FilterType: monitor.ANY,
-		Callback:   w.registry.unregister,
+		Callback: w.registry.unregister,
 	})
 	if err != nil {
 		log.Errorf("can't subscribe to process monitor exit event %s", err)
@@ -226,7 +231,7 @@ func (w *soWatcher) Start() {
 
 	w.wg.Add(1)
 	go func() {
-		processSync := time.NewTicker(time.Minute)
+		processSync := time.NewTicker(scanTerminatedProcessesInterval)
 
 		defer func() {
 			processSync.Stop()

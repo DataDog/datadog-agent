@@ -9,14 +9,8 @@
 package monitor
 
 import (
-	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
-	"regexp"
-	"runtime"
-	"strconv"
-	"strings"
+	"github.com/DataDog/datadog-agent/pkg/runtime"
 	"sync"
 	"time"
 
@@ -28,15 +22,17 @@ import (
 )
 
 const (
-	processMonitorMaxEvents   = 2048
-	eventLoopBackMaxIdleTasks = 1000
+	// The size of the process events queue of netlink.
+	processMonitorEventQueueSize = 2048
+	// The size of the callbacks queue for pending tasks.
+	pendingCallbacksQueueSize = 1000
 )
 
 var (
-	initOnce       sync.Once
 	processMonitor = &ProcessMonitor{
-		processExecCallbacks: sync.Map{},
-		processExitCallbacks: sync.Map{},
+		// Must initialize the sets, as we can register callbacks prior to calling Initialize.
+		processExecCallbacks: make(map[*ProcessCallback]struct{}, 0),
+		processExitCallbacks: make(map[*ProcessCallback]struct{}, 0),
 	}
 )
 
@@ -44,9 +40,16 @@ var (
 // events.
 // ProcessMonitor require root or CAP_NET_ADMIN capabilities
 type ProcessMonitor struct {
-	wg       sync.WaitGroup
+	initOnce sync.Once
+	// A wait group to give the Stop method an option to wait until the main event loop finished its teardown.
+	processMonitorWG sync.WaitGroup
+	// A wait group to give us the option to wait until all callback runners have finished.
+	callbackRunnersWG sync.WaitGroup
+	// An atomic counter to know how much instances do we have in any given time. Used to ensure when to clean up all
+	// resources.
 	refcount atomic.Int32
-	done     chan struct{}
+	// A channel to mark the main routines to halt.
+	done chan struct{}
 
 	// netlink channels for process event monitor.
 	netlinkEventsChannel chan netlink.ProcEvent
@@ -54,10 +57,11 @@ type ProcessMonitor struct {
 	netlinkErrorsChannel chan error
 
 	// callback registration and parallel execution management
-	processExecCallbacks sync.Map
-	processExitCallbacks sync.Map
-	runningPids          sync.Map
-	callbackRunner       chan func()
+	processExecCallbacksMutex sync.RWMutex
+	processExecCallbacks      map[*ProcessCallback]struct{}
+	processExitCallbacksMutex sync.RWMutex
+	processExitCallbacks      map[*ProcessCallback]struct{}
+	callbackRunner            chan func()
 
 	// monitor stats
 	eventCount atomic.Uint32
@@ -65,17 +69,8 @@ type ProcessMonitor struct {
 	exitCount  atomic.Uint32
 }
 
-type ProcessFilterType int
-
-const (
-	ANY ProcessFilterType = iota
-	NAME
-)
-
 type ProcessCallback struct {
-	FilterType ProcessFilterType
-	Regex      *regexp.Regexp
-	Callback   func(pid int)
+	Callback func(pid int)
 }
 
 // GetProcessMonitor create a monitor (only once) that register to netlink process events.
@@ -104,8 +99,6 @@ type ProcessCallback struct {
 //	                                         the metadata will be saved between Exec and Exit event per pid
 //	                                         then the Exit callback will evaluate the same metadata on Exit.
 //	                                         We need to save the metadata here as /proc/pid doesn't exist anymore.
-//
-// thread safe.
 func GetProcessMonitor() *ProcessMonitor {
 	return processMonitor
 }
@@ -113,74 +106,24 @@ func GetProcessMonitor() *ProcessMonitor {
 // handleProcessExec is a callback function called on a given pid that represents a new process.
 // we're iterating the relevant callbacks and trigger them.
 func (pm *ProcessMonitor) handleProcessExec(pid int) {
-	pm.processExecCallbacks.Range(func(key, _ any) bool {
-		callback := key.(*ProcessCallback)
-		pm.handleProcessExecInner(callback, pid)
-		return true
-	})
-}
+	pm.processExecCallbacksMutex.RLock()
+	defer pm.processExecCallbacksMutex.RUnlock()
 
-// handleProcessExecInner ensures we should run the given callback on the given PID, and operates if needed.
-// A helper function for handleProcessExec for readability.
-func (pm *ProcessMonitor) handleProcessExecInner(c *ProcessCallback, pid int) {
-	switch c.FilterType {
-	case NAME:
-		name, err := readProcessName(pid)
-		if err != nil {
-			// We failed reading the process name, probably the entry in `<HOST_PROC>/<pid>/comm` is not ready yet.
-			for i := 0; i < 5; i++ {
-				name, err = readProcessName(pid)
-				if err == nil {
-					break
-				}
-				time.Sleep(time.Millisecond)
-			}
-		}
-		if err != nil {
-			// short living process can hit here as they already exited when we try to find them in `<HOST_PROC>`.
-			log.Debugf("process %d name parsing failed %s", pid, err)
-			return
-		}
-		if !c.Regex.MatchString(name) {
-			return
-		}
-		pm.runningPids.Store(pid, name)
-		fallthrough
-	case ANY:
-		pm.callbackRunner <- func() { c.Callback(pid) }
+	for callback := range pm.processExecCallbacks {
+		callback := callback
+		pm.callbackRunner <- func() { callback.Callback(pid) }
 	}
 }
 
 // handleProcessExit is a callback function called on a given pid that represents an exit event.
 // we're iterating the relevant callbacks and trigger them.
 func (pm *ProcessMonitor) handleProcessExit(pid int) {
-	pm.processExitCallbacks.Range(func(key, _ any) bool {
-		callback := key.(*ProcessCallback)
-		pm.handleProcessExitInner(callback, pid)
-		return true
-	})
+	pm.processExitCallbacksMutex.RLock()
+	defer pm.processExitCallbacksMutex.RUnlock()
 
-	pm.runningPids.Delete(pid)
-}
-
-// handleProcessExitInner ensures we should run the given callback on the given PID, and operates if needed.
-// A helper function for handleProcessExit for readability.
-func (pm *ProcessMonitor) handleProcessExitInner(c *ProcessCallback, pid int) {
-	switch c.FilterType {
-	case NAME:
-		metadata, found := pm.runningPids.Load(pid)
-		if !found {
-			// we can hit here if a process started before the Exec callback has been registered
-			// and the process Exit, so we don't find his metadata
-			return
-		}
-		pname := metadata.(string)
-		if !c.Regex.MatchString(pname) {
-			return
-		}
-		fallthrough
-	case ANY:
-		pm.callbackRunner <- func() { c.Callback(pid) }
+	for callback := range pm.processExitCallbacks {
+		callback := callback
+		pm.callbackRunner <- func() { callback.Callback(pid) }
 	}
 }
 
@@ -188,7 +131,7 @@ func (pm *ProcessMonitor) handleProcessExitInner(c *ProcessCallback, pid int) {
 func (pm *ProcessMonitor) initNetlinkProcessEventMonitor() error {
 	pm.netlinkDoneChannel = make(chan struct{})
 	pm.netlinkErrorsChannel = make(chan error, 10)
-	pm.netlinkEventsChannel = make(chan netlink.ProcEvent, processMonitorMaxEvents)
+	pm.netlinkEventsChannel = make(chan netlink.ProcEvent, processMonitorEventQueueSize)
 
 	if err := util.WithRootNS(util.GetProcRoot(), func() error {
 		return netlink.ProcEventMonitor(pm.netlinkEventsChannel, pm.netlinkDoneChannel, pm.netlinkErrorsChannel)
@@ -201,12 +144,12 @@ func (pm *ProcessMonitor) initNetlinkProcessEventMonitor() error {
 
 // initCallbackRunner runs multiple workers that run tasks sent over a queue.
 func (pm *ProcessMonitor) initCallbackRunner() {
-	cpuNum := runtime.NumCPU()
-	pm.callbackRunner = make(chan func(), eventLoopBackMaxIdleTasks)
-	pm.wg.Add(cpuNum)
+	cpuNum := runtime.NumVCPU()
+	pm.callbackRunner = make(chan func(), pendingCallbacksQueueSize)
+	pm.callbackRunnersWG.Add(cpuNum)
 	for i := 0; i < cpuNum; i++ {
 		go func() {
-			defer pm.wg.Done()
+			defer pm.callbackRunnersWG.Done()
 			for call := range pm.callbackRunner {
 				if call != nil {
 					call()
@@ -219,27 +162,17 @@ func (pm *ProcessMonitor) initCallbackRunner() {
 // mainEventLoop is an event loop receiving events from netlink, or periodic events, and handles them.
 func (pm *ProcessMonitor) mainEventLoop() {
 	logTicker := time.NewTicker(2 * time.Minute)
-	processSync := time.NewTicker(time.Second * 30)
 
 	defer func() {
-		processSync.Stop()
 		logTicker.Stop()
 		// Marking netlink to stop, so we won't get any new events.
 		close(pm.netlinkDoneChannel)
 		// waiting for the callbacks runners to finish
 		close(pm.callbackRunner)
-		// Cleaning current PIDs.
-		pm.runningPids.Range(func(pid, _ any) bool {
-			pm.processExitCallbacks.Range(func(cb, _ any) bool {
-				callback := cb.(*ProcessCallback)
-				callback.Callback(pid.(int))
-				return true
-			})
-			pm.runningPids.Delete(pid)
-			return true
-		})
+		// Waiting for all runners to halt.
+		pm.callbackRunnersWG.Wait()
 		// Before shutting down, making sure we're cleaning all resources.
-		pm.wg.Done()
+		pm.processMonitorWG.Done()
 	}()
 
 	for {
@@ -268,28 +201,15 @@ func (pm *ProcessMonitor) mainEventLoop() {
 			log.Errorf("process monitor error: %s", err)
 			log.Info("re-initializing process monitor")
 			pm.netlinkDoneChannel <- struct{}{}
+			// Netlink might suffer from temporary errors (insufficient buffer for example). We're trying to recover
+			// by reinitializing netlink socket.
 			if err := pm.initNetlinkProcessEventMonitor(); err != nil {
 				log.Errorf("failed re-initializing process monitor: %s", err)
 				return
 			}
 		case <-logTicker.C:
-			log.Debugf("process monitor stats - total events: %d; exec events: %d; exit events: %d",
-				pm.eventCount.Swap(0), pm.execCount.Swap(0), pm.exitCount.Swap(0))
-		case <-processSync.C:
-			processSet := make(map[int32]struct{}, 10)
-			pm.runningPids.Range(func(key, _ any) bool {
-				processSet[int32(key.(int))] = struct{}{}
-				return true
-			})
-			if len(processSet) == 0 {
-				continue
-			}
-			go func() {
-				deletedPids := FindDeletedProcesses(processSet)
-				for deletedPid := range deletedPids {
-					pm.handleProcessExit(int(deletedPid))
-				}
-			}()
+			log.Debugf("process monitor stats - total events: %d; exec events: %d; exit events: %d; Channel size: %d",
+				pm.eventCount.Swap(0), pm.execCount.Swap(0), pm.exitCount.Swap(0), len(pm.netlinkEventsChannel))
 		}
 	}
 }
@@ -303,24 +223,23 @@ func (pm *ProcessMonitor) mainEventLoop() {
 func (pm *ProcessMonitor) Initialize() error {
 	processMonitor.refcount.Inc()
 	var initErr error
-	initOnce.Do(
+	pm.initOnce.Do(
 		func() {
 			pm.done = make(chan struct{})
-			pm.runningPids = sync.Map{}
 			pm.initCallbackRunner()
 
-			pm.wg.Add(1)
+			pm.processMonitorWG.Add(1)
 			// Setting up the main loop
 			pm.netlinkDoneChannel = make(chan struct{})
 			pm.netlinkErrorsChannel = make(chan error, 10)
-			pm.netlinkEventsChannel = make(chan netlink.ProcEvent, processMonitorMaxEvents)
+			pm.netlinkEventsChannel = make(chan netlink.ProcEvent, processMonitorEventQueueSize)
 
 			go pm.mainEventLoop()
 
 			if err := util.WithRootNS(util.GetProcRoot(), func() error {
 				return netlink.ProcEventMonitor(pm.netlinkEventsChannel, pm.netlinkDoneChannel, pm.netlinkErrorsChannel)
 			}); err != nil {
-				initErr = fmt.Errorf("couldn't initialize process monitor: %s", err)
+				initErr = fmt.Errorf("couldn't initialize process monitor: %w", err)
 			}
 
 			handleProcessExecWrapper := func(pid int) error {
@@ -342,44 +261,29 @@ func (pm *ProcessMonitor) Initialize() error {
 // A callback can be registered only once, callback with a filter type (not ANY) must be registered before the matching
 // Exit callback.
 func (pm *ProcessMonitor) SubscribeExec(callback *ProcessCallback) (func(), error) {
-	if _, exists := pm.processExecCallbacks.LoadOrStore(callback, struct{}{}); exists {
-		return nil, errors.New("same callback can't be registered twice")
-	}
+	pm.processExecCallbacksMutex.Lock()
+	pm.processExecCallbacks[callback] = struct{}{}
+	pm.processExecCallbacksMutex.Unlock()
 
 	// UnSubscribe()
 	return func() {
-		pm.processExecCallbacks.Delete(callback)
+		pm.processExecCallbacksMutex.Lock()
+		delete(pm.processExecCallbacks, callback)
+		pm.processExecCallbacksMutex.Unlock()
 	}, nil
 }
 
 // SubscribeExit register an exit callback and returns unsubscribe function callback that removes the callback.
 func (pm *ProcessMonitor) SubscribeExit(callback *ProcessCallback) (func(), error) {
-	if _, exists := pm.processExitCallbacks.Load(callback); exists {
-		return nil, errors.New("same callback can't be registered twice")
-	}
-
-	// check if the sibling Exec callback exist
-	if callback.FilterType != ANY {
-		foundSibling := false
-		pm.processExecCallbacks.Range(func(key, _ any) bool {
-			execCallback := key.(*ProcessCallback)
-			if callback.FilterType == execCallback.FilterType && callback.Regex.String() == execCallback.Regex.String() {
-				foundSibling = true
-				// stopping iteration.
-				return false
-			}
-			return true
-		})
-		if !foundSibling {
-			return nil, errors.New("no Exec callback has been found with the same Metadata and Regex, please Subscribe(Exec callback, Metadata) first")
-		}
-	}
-
-	pm.processExitCallbacks.Store(callback, struct{}{})
+	pm.processExitCallbacksMutex.Lock()
+	pm.processExitCallbacks[callback] = struct{}{}
+	pm.processExitCallbacksMutex.Unlock()
 
 	// UnSubscribe()
 	return func() {
-		pm.processExitCallbacks.Delete(callback)
+		pm.processExitCallbacksMutex.Lock()
+		delete(pm.processExitCallbacks, callback)
+		pm.processExitCallbacksMutex.Unlock()
 	}, nil
 }
 
@@ -392,14 +296,19 @@ func (pm *ProcessMonitor) Stop() {
 		return
 	}
 
+	// We can get here only once, if the refcount is zero.
 	close(pm.done)
-	pm.wg.Wait()
+	pm.processMonitorWG.Wait()
 	// that's being done for testing purposes.
 	// As tests are running altogether, initOne and processMonitor are being created only once per compilation unit
 	// thus, the first test works without an issue, but the second test has troubles.
-	initOnce = sync.Once{}
-	pm.processExecCallbacks = sync.Map{}
-	pm.processExitCallbacks = sync.Map{}
+	pm.initOnce = sync.Once{}
+	pm.processExecCallbacksMutex.Lock()
+	pm.processExecCallbacks = make(map[*ProcessCallback]struct{})
+	pm.processExecCallbacksMutex.Unlock()
+	pm.processExitCallbacksMutex.Lock()
+	pm.processExitCallbacks = make(map[*ProcessCallback]struct{})
+	pm.processExitCallbacksMutex.Unlock()
 }
 
 // FindDeletedProcesses returns the terminated PIDs from the given map.
@@ -426,15 +335,4 @@ func FindDeletedProcesses[V any](pids map[int32]V) map[int32]struct{} {
 	}
 
 	return res
-}
-
-// readProcessName is a simple method to return the process name for a given PID.
-// The method is much faster and efficient that using process.NewProcess(pid).Name().
-func readProcessName(pid int) (string, error) {
-	content, err := os.ReadFile(filepath.Join(util.GetProcRoot(), strconv.Itoa(pid), "comm"))
-	if err != nil {
-		return "", err
-	}
-
-	return strings.TrimSpace(string(content)), nil
 }

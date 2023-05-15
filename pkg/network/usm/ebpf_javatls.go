@@ -9,6 +9,7 @@
 package usm
 
 import (
+	"bytes"
 	"fmt"
 	"math/rand"
 	"os"
@@ -36,6 +37,8 @@ const (
 )
 
 var (
+	javaProcessName = []byte("java")
+
 	// path to our java USM agent TLS tracer
 	javaUSMAgentJarPath = ""
 
@@ -146,6 +149,17 @@ func (p *JavaTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPa
 	return []manager.ProbeIdentificationPair{{EBPFFuncName: "kprobe__do_vfs_ioctl"}}
 }
 
+// isJavaProcess is a simple method to return the process name for a given PID.
+// The method is much faster and efficient that using process.NewProcess(pid).Name().
+func isJavaProcess(pid int) bool {
+	content, err := os.ReadFile(filepath.Join(util.GetProcRoot(), strconv.Itoa(pid), "comm"))
+	if err != nil {
+		return false
+	}
+
+	return bytes.HasPrefix(content, javaProcessName)
+}
+
 // isAttachmentAllowed will return true if the pid can be attached
 // The filter is based on the process command line matching javaAgentAllowRegex and javaAgentBlockRegex regex
 // javaAgentAllowRegex has a higher priority
@@ -155,6 +169,9 @@ func (p *JavaTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPa
 // allowRegex only    true  | false
 // blockRegex only    false | true
 func isAttachmentAllowed(pid int) bool {
+	if !isJavaProcess(pid) {
+		return false
+	}
 	allowIsSet := javaAgentAllowRegex != nil
 	blockIsSet := javaAgentBlockRegex != nil
 	// filter is disabled (default configuration)
@@ -203,6 +220,7 @@ func newJavaProcess(pid int) {
 	args := strings.Join(allArgs, ",")
 	if err := java.InjectAgent(pid, javaUSMAgentJarPath, args); err != nil {
 		log.Error(err)
+		return
 	}
 }
 
@@ -219,9 +237,7 @@ func (p *JavaTLSProgram) Start() {
 	}()
 
 	p.cleanupExec, err = p.processMonitor.SubscribeExec(&monitor.ProcessCallback{
-		FilterType: monitor.NAME,
-		Regex:      regexp.MustCompile("^java$"),
-		Callback:   newJavaProcess,
+		Callback: newJavaProcess,
 	})
 	if err != nil {
 		log.Errorf("process monitor Subscribe() error: %s", err)

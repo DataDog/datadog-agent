@@ -126,6 +126,8 @@ type runningBinary struct {
 }
 
 type GoTLSProgram struct {
+	wg      sync.WaitGroup
+	done    chan struct{}
 	cfg     *config.Config
 	manager *errtelemetry.Manager
 
@@ -176,6 +178,7 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 	}
 
 	p := &GoTLSProgram{
+		done:      make(chan struct{}),
 		cfg:       c,
 		procRoot:  c.ProcRoot,
 		binaries:  make(map[binaryID]*runningBinary),
@@ -243,8 +246,7 @@ func (p *GoTLSProgram) Start() {
 
 	p.procMonitor.monitor = monitor.GetProcessMonitor()
 	p.procMonitor.cleanupExec, err = p.procMonitor.monitor.SubscribeExec(&monitor.ProcessCallback{
-		FilterType: monitor.ANY,
-		Callback:   p.handleProcessStart,
+		Callback: p.handleProcessStart,
 	})
 
 	if err != nil {
@@ -252,8 +254,7 @@ func (p *GoTLSProgram) Start() {
 		return
 	}
 	p.procMonitor.cleanupExit, err = p.procMonitor.monitor.SubscribeExit(&monitor.ProcessCallback{
-		FilterType: monitor.ANY,
-		Callback:   p.handleProcessStop,
+		Callback: p.handleProcessStop,
 	})
 
 	if err != nil {
@@ -265,6 +266,35 @@ func (p *GoTLSProgram) Start() {
 		log.Errorf("failed to initialize process monitor error: %s", err)
 		return
 	}
+
+	p.wg.Add(1)
+	go func() {
+		processSync := time.NewTicker(scanTerminatedProcessesInterval)
+
+		defer func() {
+			processSync.Stop()
+			p.wg.Done()
+		}()
+
+		for {
+			select {
+			case <-p.done:
+				return
+			case <-processSync.C:
+				processSet := make(map[int32]struct{})
+				p.lock.RLock()
+				for pid := range p.processes {
+					processSet[int32(pid)] = struct{}{}
+				}
+				p.lock.RUnlock()
+
+				deletedPids := monitor.FindDeletedProcesses(processSet)
+				for deletedPid := range deletedPids {
+					p.unregisterProcess(int(deletedPid))
+				}
+			}
+		}
+	}()
 }
 
 func (p *GoTLSProgram) Stop() {
@@ -276,6 +306,10 @@ func (p *GoTLSProgram) Stop() {
 	}
 	if p.procMonitor.monitor != nil {
 		p.procMonitor.monitor.Stop()
+	}
+
+	for pid := range p.processes {
+		p.unregisterProcess(pid)
 	}
 }
 

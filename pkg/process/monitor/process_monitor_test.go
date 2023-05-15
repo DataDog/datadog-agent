@@ -9,11 +9,8 @@
 package monitor
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
-	"path"
-	"regexp"
 	"sync"
 	"testing"
 	"time"
@@ -67,10 +64,7 @@ func TestProcessMonitorSanity(t *testing.T) {
 	numberOfExecs := atomic.Int32{}
 	testBinaryPath := getTestBinaryPath(t)
 	registerCallback(t, pm, true, &ProcessCallback{
-		FilterType: ANY,
-		Callback: func(pid int) {
-			numberOfExecs.Inc()
-		},
+		Callback: func(pid int) { numberOfExecs.Inc() },
 	})
 
 	initializePM(t, pm)
@@ -90,10 +84,7 @@ func TestProcessRegisterMultipleExecCallbacks(t *testing.T) {
 		counters[i] = &atomic.Int32{}
 		c := counters[i]
 		registerCallback(t, pm, true, &ProcessCallback{
-			FilterType: ANY,
-			Callback: func(pid int) {
-				c.Inc()
-			},
+			Callback: func(pid int) { c.Inc() },
 		})
 	}
 
@@ -120,10 +111,7 @@ func TestProcessRegisterMultipleExitCallbacks(t *testing.T) {
 		c := counters[i]
 		// Sanity subscribing a callback.
 		registerCallback(t, pm, false, &ProcessCallback{
-			FilterType: ANY,
-			Callback: func(pid int) {
-				c.Inc()
-			},
+			Callback: func(pid int) { c.Inc() },
 		})
 	}
 
@@ -138,60 +126,6 @@ func TestProcessRegisterMultipleExitCallbacks(t *testing.T) {
 		}
 		return true
 	}, time.Second, time.Millisecond*200, "at least of the callbacks didn't capture events")
-}
-
-func TestProcessRegisterNamedCallbacks(t *testing.T) {
-	pm := GetProcessMonitor()
-
-	numberOfExecs := atomic.Int32{}
-	numberOfExits := atomic.Int32{}
-
-	testBinaryPath := getTestBinaryPath(t)
-
-	unsubscribeExec := registerCallback(t, pm, true, &ProcessCallback{
-		FilterType: NAME,
-		Regex:      regexp.MustCompile(path.Base(testBinaryPath)),
-		Callback: func(pid int) {
-			numberOfExecs.Inc()
-		},
-	})
-
-	unsubscribeExit := registerCallback(t, pm, false, &ProcessCallback{
-		FilterType: NAME,
-		Regex:      regexp.MustCompile(path.Base(testBinaryPath)),
-		Callback: func(pid int) {
-			numberOfExits.Inc()
-		},
-	})
-
-	initializePM(t, pm)
-	require.NoError(t, exec.Command(testBinaryPath, "test").Run())
-	require.Eventuallyf(t, func() bool {
-		return numberOfExecs.Load() == 1 && numberOfExits.Load() == 1
-	}, time.Second, time.Millisecond*200, fmt.Sprintf("didn't capture exec %d and exit %d", numberOfExecs.Load(), numberOfExits.Load()))
-
-	unsubscribeExit()
-	require.NoError(t, exec.Command(testBinaryPath).Run())
-	require.Eventuallyf(t, func() bool {
-		return numberOfExecs.Load() == 2 && numberOfExits.Load() == 1
-	}, time.Second, time.Millisecond*200, fmt.Sprintf("didn't capture exec %d and exit %d", numberOfExecs.Load(), numberOfExits.Load()))
-
-	unsubscribeExec()
-	require.NoError(t, exec.Command(testBinaryPath).Run())
-	require.Eventuallyf(t, func() bool {
-		return numberOfExecs.Load() == 2 && numberOfExits.Load() == 1
-	}, time.Second, time.Millisecond*200, fmt.Sprintf("didn't capture exec %d and exit %d", numberOfExecs.Load(), numberOfExits.Load()))
-}
-
-func TestProcessRegisterNameExitCallbackWithoutExec(t *testing.T) {
-	pm := GetProcessMonitor()
-
-	_, err := pm.SubscribeExit(&ProcessCallback{
-		FilterType: NAME,
-		Regex:      regexp.MustCompile("test"),
-		Callback:   func(pid int) {},
-	})
-	require.Error(t, err)
 }
 
 func TestProcessMonitorRefcount(t *testing.T) {
@@ -215,7 +149,6 @@ func TestProcessMonitorInNamespace(t *testing.T) {
 	pm := GetProcessMonitor()
 
 	registerCallback(t, pm, true, &ProcessCallback{
-		FilterType: ANY,
 		Callback: func(pid int) {
 			execSet.Store(pid, struct{}{})
 		},
@@ -250,16 +183,4 @@ func TestProcessMonitorInNamespace(t *testing.T) {
 		_, captured := execSet.Load(cmd.ProcessState.Pid())
 		return captured
 	}, time.Second, 200*time.Millisecond, "did not capture process EXEC from other namespace")
-}
-
-func TestRegisterMultipleSameCallbacks(t *testing.T) {
-	pm := GetProcessMonitor()
-
-	callback := &ProcessCallback{
-		FilterType: ANY,
-		Callback:   func(pid int) {},
-	}
-	registerCallback(t, pm, true, callback)
-	_, err := pm.SubscribeExec(callback)
-	require.Error(t, err)
 }
