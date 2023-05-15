@@ -22,8 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
 )
 
-var eventZero model.Event
-
 type PlatformProbe struct {
 	pm      *procmon.WinProcmon
 	onStart chan *procmon.ProcessStartNotification

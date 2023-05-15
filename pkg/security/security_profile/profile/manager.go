@@ -549,7 +549,7 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	}
 
 	// create profile selector
-	event.FieldHandlers.ResolveContainerTags(event, &event.ContainerContext)
+	event.FieldHandlers.ResolveContainerTags(event, event.ContainerContext)
 	if len(event.ContainerContext.Tags) == 0 {
 		return
 	}

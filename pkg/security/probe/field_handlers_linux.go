@@ -29,7 +29,7 @@ type FieldHandlers struct {
 // ResolveFilePath resolves the inode to a full path
 func (fh *FieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent) string {
 	if !f.IsPathnameStrResolved && len(f.PathnameStr) == 0 {
-		path, err := fh.resolvers.PathResolver.ResolveFileFieldsPath(&f.FileFields, &ev.PIDContext, &ev.ContainerContext)
+		path, err := fh.resolvers.PathResolver.ResolveFileFieldsPath(&f.FileFields, &ev.PIDContext, ev.ContainerContext)
 		if err != nil {
 			ev.SetPathResolutionError(f, err)
 		}
@@ -116,6 +116,18 @@ func (fh *FieldHandlers) ResolveMountSourcePath(ev *model.Event, e *model.MountE
 	return e.MountSourcePath
 }
 
+// ResolveContainerContext queries the cgroup resolver to retrieve the ContainerContext of the event
+func (fh *FieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
+	if ev.ContainerContext.ID != "" {
+		if ev.ContainerContext == eventZero.ContainerContext {
+			if containerContext, _ := fh.resolvers.CGroupResolver.GetWorkload(ev.ContainerContext.ID); containerContext != nil {
+				ev.ContainerContext = &containerContext.ContainerContext
+			}
+		}
+	}
+	return ev.ContainerContext, ev.ContainerContext != nil
+}
+
 // ResolveContainerID resolves the container ID of the event
 func (fh *FieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerContext) string {
 	if len(e.ID) == 0 {
@@ -128,13 +140,6 @@ func (fh *FieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerC
 
 // ResolveContainerCreatedAt resolves the container creation time of the event
 func (fh *FieldHandlers) ResolveContainerCreatedAt(ev *model.Event, e *model.ContainerContext) int {
-	if e.CreatedAt == 0 {
-		if entry, _ := fh.ResolveProcessCacheEntry(ev); entry != nil && entry.ContainerID != "" {
-			if cgroup, _ := fh.resolvers.CGroupResolver.GetWorkload(entry.ContainerID); cgroup != nil {
-				e.CreatedAt = cgroup.CreationTime
-			}
-		}
-	}
 	return int(e.CreatedAt)
 }
 
