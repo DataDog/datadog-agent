@@ -96,7 +96,6 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 				}
 
 				l := len(batchData.Data)
-				log.Warnf("batch len=%d", l)
 				switch {
 				case l >= netebpf.SizeofBatch:
 					batch := netebpf.ToBatch(batchData.Data)
