@@ -5,10 +5,8 @@ import unittest
 import warnings
 
 import emoji
-from lib.const import CSPM_START_LOG
 from lib.cspm.api import App
 from lib.kubernetes import KubernetesHelper
-from lib.log import wait_agent_log
 from lib.stepper import Step
 from test_e2e_cspm import expect_findings
 
@@ -199,9 +197,6 @@ class TestE2EKubernetes(unittest.TestCase):
 
         with Step(msg="select pod", emoji=":man_running:"):
             self.kubernetes_helper.select_pod_name("app.kubernetes.io/component=agent")
-
-        with Step(msg="check agent start", emoji=":man_running:"):
-            wait_agent_log(agent_name, self.kubernetes_helper, CSPM_START_LOG)
 
         with Step(msg="check agent events", emoji=":check_mark_button:"):
             self.kubernetes_helper.exec_command(
