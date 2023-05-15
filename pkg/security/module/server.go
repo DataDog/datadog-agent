@@ -23,9 +23,6 @@ import (
 	"golang.org/x/time/rate"
 
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
-	logsconfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -582,32 +579,14 @@ func newDirectReporter(stopper startstop.Stopper) (common.RawReporter, error) {
 	// TODO(paulcacheux) pipe actual config to this
 	runPath := "/opt/datadog-agent/run"
 
-	// begin: extracted from cmd/security-agent/command/logs_context.go
-	endpointPrefix := "runtime-security-http-intake.logs."
-	intakeTrackType := logsconfig.IntakeTrackType("logs")
-	intakeOrigin := logsconfig.IntakeOrigin("cloud-workload-security")
-	intakeProtocol := logsconfig.DefaultIntakeProtocol
-	logsConfig := logsconfig.NewLogsConfigKeys("runtime_security_config.endpoints.", pkgconfig.Datadog)
-	endpoints, err := logsconfig.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
+	endpoints, destinationsCtx, err := common.NewLogContextRuntime()
 	if err != nil {
-		endpoints, err = logsconfig.BuildHTTPEndpoints(intakeTrackType, intakeProtocol, intakeOrigin)
-		if err == nil {
-			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main)
-			endpoints, err = logsconfig.BuildEndpoints(httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin)
-		}
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("invalid endpoints: %w", err)
+		return nil, fmt.Errorf("failed to create direct reported endpoints: %w", err)
 	}
 
 	for _, status := range endpoints.GetStatus() {
 		log.Info(status)
 	}
-
-	destinationsCtx := client.NewDestinationsContext()
-	destinationsCtx.Start()
-	// end
 
 	reporter, err := reporter.NewCWSReporter(runPath, stopper, endpoints, destinationsCtx)
 	if err != nil {
