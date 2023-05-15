@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
@@ -81,7 +82,7 @@ func eventRun(log log.Component, config config.Component, eventArgs *cliParams) 
 	stopper := startstop.NewSerialStopper()
 	defer stopper.Stop()
 
-	endpoints, dstContext, err := command.NewLogContextCompliance()
+	endpoints, dstContext, err := common.NewLogContextCompliance()
 	if err != nil {
 		return err
 	}
