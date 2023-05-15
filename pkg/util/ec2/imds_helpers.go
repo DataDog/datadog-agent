@@ -30,7 +30,7 @@ func registerCloudProviderHostnameID(ctx context.Context) {
 	log.Debugf("instanceID from IMDSv2 '%s' (error: %v)", instanceID, err)
 
 	if err == nil {
-		inventories.SetHostMetadata(inventories.HostCloudProviderID, instanceID)
+		inventories.SetHostMetadata(inventories.HostCloudProviderHostID, instanceID)
 	}
 }
 
