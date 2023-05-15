@@ -2,6 +2,40 @@
 Release Notes
 =============
 
+.. _Release Notes_7.44.1:
+
+7.44.1 / 6.44.1
+======
+
+.. _Release Notes_7.44.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2023-05-15
+
+- Please refer to the `7.44.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7441>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.44.1_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Agents are now built with Go ``1.19.8``.
+
+- Added optional config flag `process_config.cache_lookupid` to cache calls to `user.LookupId` in the process Agent.
+  Use to minimize the number of calls to `user.LookupId` and avoid potential leak.
+
+
+.. _Release Notes_7.44.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes the inclusion of the ``security-agent.yaml`` file in the flare.
+
+
 .. _Release Notes_7.44.0:
 
 7.44.0 / 6.44.0
