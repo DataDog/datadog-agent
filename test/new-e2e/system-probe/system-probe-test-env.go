@@ -191,8 +191,13 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 
 			return nil
 		}, opts.FailOnMissing)
+		// Only retry if we failed to dial libvirt.
+		// Libvirt daemon on the server occassionally crashes with the following error
+		// "End of file while reading data: Input/output error"
+		// The root cause of this is unknown. The problem usually fixes itself upon retry.
 		if err != nil {
 			if strings.Contains(fmt.Sprintf("%s", err), "failed to dial libvirt") {
+				fmt.Printf("[Error] Failed to dial libvirt. Retrying stack.")
 				return retry.RetryableError(err)
 			} else {
 				return err
