@@ -162,6 +162,7 @@ func RunCheck(log log.Component, config config.Component, checkArgs *CliParams) 
 	} else {
 		benchDir, benchGlob = configDir, "*.yaml"
 	}
+	log.Infof("Loading compliance rules from %s", benchDir)
 	benchmarks, err := compliance.LoadBenchmarks(benchDir, benchGlob, ruleFilter)
 	if err != nil {
 		return fmt.Errorf("could not load benchmark files %q: %w", filepath.Join(benchDir, benchGlob), err)
@@ -173,6 +174,7 @@ func RunCheck(log log.Component, config config.Component, checkArgs *CliParams) 
 	events := make([]*compliance.CheckEvent, 0)
 	for _, benchmark := range benchmarks {
 		for _, rule := range benchmark.Rules {
+			log.Infof("Running check: %s: %s [version=%s]", rule.ID, rule.Description, benchmark.Version)
 			var ruleEvents []*compliance.CheckEvent
 			switch {
 			case rule.IsXCCDF():
