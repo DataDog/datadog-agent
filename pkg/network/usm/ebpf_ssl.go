@@ -209,6 +209,7 @@ type sslProgram struct {
 	cfg                     *config.Config
 	sockFDMap               *ebpf.Map
 	perfHandler             *ddebpf.PerfHandler
+	perfMap                 *manager.PerfMap
 	watcher                 *soWatcher
 	manager                 *errtelemetry.Manager
 	sysOpenHooksIdentifiers []manager.ProbeIdentificationPair
@@ -232,7 +233,7 @@ func newSSLProgram(c *config.Config, sockFDMap *ebpf.Map) *sslProgram {
 func (o *sslProgram) ConfigureManager(m *errtelemetry.Manager) {
 	o.manager = m
 
-	m.PerfMaps = append(m.PerfMaps, &manager.PerfMap{
+	o.perfMap = &manager.PerfMap{
 		Map: manager.Map{Name: sharedLibrariesPerfMap},
 		PerfMapOptions: manager.PerfMapOptions{
 			PerfRingBufferSize: 8 * os.Getpagesize(),
@@ -241,7 +242,9 @@ func (o *sslProgram) ConfigureManager(m *errtelemetry.Manager) {
 			LostHandler:        o.perfHandler.LostHandler,
 			RecordGetter:       o.perfHandler.RecordGetter,
 		},
-	})
+	}
+
+	m.PerfMaps = append(m.PerfMaps, o.perfMap)
 
 	for _, identifier := range o.sysOpenHooksIdentifiers {
 		m.Probes = append(m.Probes,
@@ -299,7 +302,7 @@ func (o *sslProgram) Start() {
 }
 
 func (o *sslProgram) Stop() {
-	// Detaching the hooks.
+	// Detaching the sys-open hooks, as they are feeding the perf map we're going to close next.
 	for _, identifier := range o.sysOpenHooksIdentifiers {
 		probe, found := o.manager.GetProbe(identifier)
 		if !found {
@@ -309,6 +312,13 @@ func (o *sslProgram) Stop() {
 			log.Errorf("Failed to stop hook %q. Error: %s", identifier.EBPFFuncName, err)
 		}
 	}
+
+	if o.perfMap != nil {
+		if err := o.perfMap.Stop(manager.CleanAll); err != nil {
+			log.Errorf("Failed to stop perf map. Error: %s", err)
+		}
+	}
+
 	// We must stop the watcher first, as we can read from the perfHandler, before terminating the perfHandler, otherwise
 	// we might try to send events over the perfHandler.
 	o.watcher.Stop()
